@@ -1,0 +1,36 @@
+{
+  "stage1": {
+    "contract": {
+      "isConfirmed": false,
+      "confirmedMembers": {},
+      "timeAllocations": {
+        "background": 20,
+        "questions": 25,
+        "literature": 30,
+        "method": 40,
+        "reflection": 15,
+        "references": 10
+      },
+      "taskAssignments": {}
+    },
+    "mergedTitle": "",
+    "proposals": [],
+    "votes": {},
+    "hasVoted": {}
+  },
+  "stage2": {
+    "unifiedContent": "<h2>一、研究背景与意义</h2><p>请在此处撰写正文...</p><h2>二、研究问题与假设</h2><p>请在此处撰写正文...</p><h2>三、文献综述</h2><p>请在此处撰写正文...</p><h2>四、研究设计与方法</h2><p>请在此处撰写正文...</p><h2>五、不足与反思</h2><p>请在此处撰写正文...</p><h2>六、参考文献</h2><p>请在此处撰写正文...</p>",
+    "actionPlan": {
+      "isGenerated": false,
+      "items": []
+    }
+  },
+  "stage3": {
+    "defenseItems": []
+  },
+  "chatLogs": {
+    "stage1": [],
+    "stage2": [],
+    "stage3": []
+  }
+}

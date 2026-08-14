@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>集智 JIZHI - 多智能体协作写作平台</title>
+  <link rel="stylesheet" href="css/styles.css">
+  <style>
+    #app-loading-screen {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background: #f8fafc;
+      z-index: 999999;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", sans-serif;
+      transition: opacity 0.25s ease-out;
+    }
+    .loading-spinner-ring {
+      width: 44px;
+      height: 44px;
+      border: 3.5px solid #e2e8f0;
+      border-top: 3.5px solid #0284c7;
+      border-radius: 50%;
+      animation: spinLoader 0.75s linear infinite;
+    }
+    @keyframes spinLoader {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+  </style>
+</head>
+<body>
+  <!-- Anti-FOUC Startup Mask -->
+  <div id="app-loading-screen">
+    <div class="loading-spinner-ring"></div>
+    <div style="margin-top: 16px; font-weight: 700; color: #0f172a; font-size: 15px;">集智 JIZHI</div>
+    <div style="margin-top: 6px; font-size: 12px; color: #64748b;">正在加载多智能体协作平台...</div>
+  </div>
+
+  <div id="app"></div>
+
+  <!-- Load standalone bundle (Zero CORS dependency, 100% plug & play for file:// and localhost) -->
+  <script src="js/bundle.js"></script>
+
+  <script>
+    // Fail-safe dismiss if bundle initialized
+    window.addEventListener('load', () => {
+      setTimeout(() => {
+        const loader = document.getElementById('app-loading-screen');
+        if (loader && loader.style.display !== 'none') {
+          loader.style.opacity = '0';
+          setTimeout(() => { loader.style.display = 'none'; }, 200);
+        }
+      }, 100);
+    });
+  </script>
+</body>
+</html>
