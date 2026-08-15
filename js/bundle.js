@@ -2990,7 +2990,7 @@
     pillsContainer.innerHTML = membersList.map(m => {
       const p = presence[m.studentCode] || presence[m.id];
       const isSelf = m.studentCode === currentUserCode || m.id === currentUserCode;
-      const isOnline = isSelf || (p && (now - p.updatedAt < 30000));
+      const isOnline = isSelf || (p && (now - p.updatedAt < 120000));
       const sectionText = isSelf ? ' (我)' : (p && p.activeSection ? ` (在写: ${p.activeSection})` : (isOnline ? ' (在线)' : ' (离线)'));
       const color = m.color || '#2563eb';
 
@@ -3024,25 +3024,29 @@
     membersList.forEach(m => {
       if (m.studentCode === currentUserCode || m.id === currentUserCode) return;
       const p = presence[m.studentCode] || presence[m.id];
-      if (!p || (now - p.updatedAt > 30000)) return;
+      if (!p || (now - p.updatedAt > 120000)) return;
 
       const color = m.color || '#8b5cf6';
       const name = m.name || m.studentCode;
       const avatar = m.avatar || '👨‍🎓';
 
-      // Find the element/paragraph
+      // Find target paragraph or element
       const children = Array.from(editor.children);
       let targetEl = null;
       if (typeof p.nodeIndex === 'number' && children[p.nodeIndex]) {
         targetEl = children[p.nodeIndex];
       } else if (children.length > 0) {
         targetEl = children[0];
+      } else {
+        targetEl = editor;
       }
 
       if (targetEl) {
-        targetEl.classList.add('collab-editing-node-highlight');
-        targetEl.style.borderLeft = `3.5px solid ${color}`;
-        targetEl.style.backgroundColor = `${color}0a`;
+        if (targetEl !== editor) {
+          targetEl.classList.add('collab-editing-node-highlight');
+          targetEl.style.borderLeft = `3.5px solid ${color}`;
+          targetEl.style.backgroundColor = `${color}0d`;
+        }
 
         const cursorWidget = document.createElement('span');
         cursorWidget.className = 'remote-cursor-widget';
@@ -3526,33 +3530,57 @@
   function renderChat(state) {
     const stream = document.getElementById('chat-stream');
     if (!stream) return;
-    const logs = state.chatLogs[state.currentStage] || [];
+
+    const stages = [
+      { key: 'stage1', title: '🎪 阶段一：学术拍卖会 (主题与分工研讨)' },
+      { key: 'stage2', title: '📰 阶段二：学术编辑部 (正文撰写与同伴研讨)' },
+      { key: 'stage3', title: '🎓 阶段三：答辩擂台 (专家质询与终稿修改)' }
+    ];
+
+    const currentStageIndex = stages.findIndex(s => s.key === state.currentStage);
+    const visibleStages = stages.slice(0, Math.max(1, currentStageIndex + 1));
     const currentUser = state.currentUser;
 
-    stream.innerHTML = logs.map(msg => {
-      const isMe = msg.sender === currentUser;
-      const isAgent = AgentProfiles[msg.sender] !== undefined;
-      const profile = isAgent ? AgentProfiles[msg.sender] : state.members[msg.sender];
-      const avatar = profile ? profile.avatar : '👤';
-      const name = profile ? (profile.name || profile.roleTitle) : msg.sender;
-      const color = profile ? profile.color : '#94a3b8';
-
-      let formattedText = msg.text || '';
-      formattedText = formattedText.replace(/(@[^\s@]+)/g, '<span class="mention-tag">$1</span>');
-
-      return `
-        <div class="chat-message ${isMe ? 'me' : 'other'}">
-          <div class="msg-avatar" style="background:${color}22; border:1px solid ${color}; color:${color};">${avatar}</div>
-          <div class="msg-body">
-            <div class="msg-meta">
-              <span class="msg-sender" style="color:${color};">${name} ${isMe ? '(我)' : ''}</span>
-              <span style="font-size:10px; color:#64748b; margin-left:6px;">${msg.timestamp || ''}</span>
-            </div>
-            <div class="msg-bubble">${formattedText}</div>
-          </div>
+    let html = '';
+    visibleStages.forEach((stg) => {
+      const msgs = (state.chatLogs && state.chatLogs[stg.key]) ? state.chatLogs[stg.key] : [];
+      html += `
+        <div class="chat-stage-divider">
+          <span class="chat-stage-divider-pill">${stg.title}</span>
         </div>
       `;
-    }).join('');
+
+      if (msgs.length === 0) {
+        html += `<div style="text-align:center; color:#94a3b8; font-size:11px; margin:6px 0 10px 0;">本阶段研讨记录将在此处持续累积...</div>`;
+      } else {
+        html += msgs.map(msg => {
+          const isMe = msg.sender === currentUser;
+          const isAgent = AgentProfiles[msg.sender] !== undefined;
+          const profile = isAgent ? AgentProfiles[msg.sender] : (state.members ? state.members[msg.sender] : null);
+          const avatar = profile ? profile.avatar : '👤';
+          const name = profile ? (profile.name || profile.roleTitle) : msg.sender;
+          const color = profile ? profile.color : '#94a3b8';
+
+          let formattedText = msg.text || '';
+          formattedText = formattedText.replace(/(@[^\s@]+)/g, '<span class="mention-tag">$1</span>');
+
+          return `
+            <div class="chat-message ${isMe ? 'me' : 'other'}">
+              <div class="msg-avatar" style="background:${color}22; border:1px solid ${color}; color:${color};">${avatar}</div>
+              <div class="msg-body">
+                <div class="msg-meta">
+                  <span class="msg-sender" style="color:${color};">${name} ${isMe ? '(我)' : ''}</span>
+                  <span style="font-size:10px; color:#64748b; margin-left:6px;">${msg.timestamp || ''}</span>
+                </div>
+                <div class="msg-bubble">${formattedText}</div>
+              </div>
+            </div>
+          `;
+        }).join('');
+      }
+    });
+
+    stream.innerHTML = html;
     stream.scrollTop = stream.scrollHeight;
   }
 
