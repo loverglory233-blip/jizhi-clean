@@ -715,23 +715,25 @@
     updateScopeKeys() {
       const user = this.app.authManager.getCurrentUser();
       const groupId = (user && user.groupId) ? user.groupId : (this.app.state.activeMonitorGroupId || 'group_1');
+      const taskId = this.app.state.activeTaskId || 'default';
       this.groupId = groupId;
-      this.storageKey = `jizhi_cloud_snapshot_v10_pure_${groupId}`;
+      this.taskId = taskId;
+      this.storageKey = `jizhi_cloud_snapshot_v10_pure_${taskId}_${groupId}`;
       const host = window.location.hostname || '47.99.110.230';
       const protocol = window.location.protocol || 'http:';
 
       this.syncEndpoints = [
-        `sync.php?groupId=${groupId}`,
-        `/sync.php?groupId=${groupId}`,
-        `${protocol}//${host}:8088/sync.php?groupId=${groupId}`,
-        `${protocol}//${host}:8088/api/snapshot?groupId=${groupId}`
+        `sync.php?taskId=${taskId}&groupId=${groupId}`,
+        `/sync.php?taskId=${taskId}&groupId=${groupId}`,
+        `${protocol}//${host}:8088/sync.php?taskId=${taskId}&groupId=${groupId}`,
+        `${protocol}//${host}:8088/api/snapshot?taskId=${taskId}&groupId=${groupId}`
       ];
     }
 
     initWebSocket() {
       this.updateScopeKeys();
-      // PieSocket for instant real-time push (no polling delay)
-      const wsUrl = `wss://free.v2.piesocket.com/v3/jizhi_grp_${this.groupId}?api_key=VCXCEuvhGcBDP7XhiJJLUD6RRE25ixbngSkiUZ3N&notify_self=0`;
+      // PieSocket for instant real-time push (scoped by task and group)
+      const wsUrl = `wss://free.v2.piesocket.com/v3/jizhi_${this.taskId}_${this.groupId}?api_key=VCXCEuvhGcBDP7XhiJJLUD6RRE25ixbngSkiUZ3N&notify_self=0`;
       try {
         if (this.ws) { try { this.ws.close(); } catch (e) {} }
         this.ws = new WebSocket(wsUrl);
@@ -1359,8 +1361,17 @@
                   <div style="display:flex; align-items:center; gap:14px; flex-wrap:wrap;">
                     <span style="font-size:16px; font-weight:800; color:#0f172a;">🖥️ 实际操作实时监控终端:</span>
                     <div style="display:flex; align-items:center; gap:8px;">
-                      <span style="font-size:13px; font-weight:700; color:#475569;">选择监控小组:</span>
-                      <select id="sel-switch-monitor-group" class="teacher-input fancy" style="font-size:13.5px; font-weight:700; color:#1e40af; background:#eff6ff; border:1.5px solid #3b82f6; padding:8px 16px; border-radius:8px; cursor:pointer; min-width:220px;">
+                      <span style="font-size:13px; font-weight:700; color:#475569;">监控任务:</span>
+                      <select id="sel-switch-monitor-task" class="teacher-input fancy" style="font-size:13px; font-weight:700; color:#1e40af; background:#eff6ff; border:1.5px solid #3b82f6; padding:7px 14px; border-radius:8px; cursor:pointer; min-width:180px;">
+                        ${tasks.length === 0 ? '<option value="default">📌 默认测试写作任务</option>' : tasks.map(t => {
+                          const isSel = (state.activeTaskId || 'default') === t.id;
+                          return `<option value="${t.id}" ${isSel ? 'selected' : ''}>📌 ${t.title}</option>`;
+                        }).join('')}
+                      </select>
+                    </div>
+                    <div style="display:flex; align-items:center; gap:8px;">
+                      <span style="font-size:13px; font-weight:700; color:#475569;">监控小组:</span>
+                      <select id="sel-switch-monitor-group" class="teacher-input fancy" style="font-size:13px; font-weight:700; color:#1e40af; background:#eff6ff; border:1.5px solid #3b82f6; padding:7px 14px; border-radius:8px; cursor:pointer; min-width:180px;">
                         ${(activeClass.groups || []).map(g => {
                           const isSel = g.id === activeMonitorGId;
                           return `
@@ -2446,11 +2457,32 @@
       });
     }
 
+    const selSwitchTask = container.querySelector('#sel-switch-monitor-task');
+    if (selSwitchTask) {
+      selSwitchTask.addEventListener('change', (e) => {
+        state.activeTaskId = e.target.value;
+        if (window.app) {
+          window.app.loadGroupState(state.activeMonitorGroupId || 'group_1');
+          if (window.app.cloudSyncEngine) {
+            window.app.cloudSyncEngine.updateScopeKeys();
+            window.app.cloudSyncEngine.pullFromServer();
+          }
+        }
+        renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+      });
+    }
+
     const selSwitchGroup = container.querySelector('#sel-switch-monitor-group');
     if (selSwitchGroup) {
       selSwitchGroup.addEventListener('change', (e) => {
         state.activeMonitorGroupId = e.target.value;
-        if (window.app) window.app.loadGroupState(e.target.value);
+        if (window.app) {
+          window.app.loadGroupState(e.target.value);
+          if (window.app.cloudSyncEngine) {
+            window.app.cloudSyncEngine.updateScopeKeys();
+            window.app.cloudSyncEngine.pullFromServer();
+          }
+        }
         renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
       });
     }
@@ -3828,9 +3860,10 @@
 
     loadGroupState(groupId = 'group_1') {
       const defaultState = JSON.parse(JSON.stringify(InitialState));
+      const taskId = this.state.activeTaskId || 'default';
       this.state.members = this.authManager.getGroupMembersForWorkspace(groupId);
 
-      const savedChat = localStorage.getItem(`jizhi_sync_chat_v10_pure_${groupId}`);
+      const savedChat = localStorage.getItem(`jizhi_sync_chat_v10_pure_${taskId}_${groupId}`);
       if (savedChat) { 
         try { 
           this.state.chatLogs = JSON.parse(savedChat);
@@ -3839,28 +3872,29 @@
         this.initPresetMessagesForGroup(groupId); 
       }
 
-      const savedS1 = localStorage.getItem(`jizhi_sync_s1_v10_pure_${groupId}`);
+      const savedS1 = localStorage.getItem(`jizhi_sync_s1_v10_pure_${taskId}_${groupId}`);
       if (savedS1) { try { this.state.stage1 = { ...defaultState.stage1, ...JSON.parse(savedS1) }; } catch (e) {} }
       else { this.state.stage1 = defaultState.stage1; }
 
-      const savedS2 = localStorage.getItem(`jizhi_sync_s2_v10_pure_${groupId}`);
+      const savedS2 = localStorage.getItem(`jizhi_sync_s2_v10_pure_${taskId}_${groupId}`);
       if (savedS2) { try { this.state.stage2 = { ...defaultState.stage2, ...JSON.parse(savedS2) }; } catch (e) {} }
       else { this.state.stage2 = defaultState.stage2; }
 
-      const savedS3 = localStorage.getItem(`jizhi_sync_s3_v10_pure_${groupId}`);
+      const savedS3 = localStorage.getItem(`jizhi_sync_s3_v10_pure_${taskId}_${groupId}`);
       if (savedS3) { try { this.state.stage3 = { ...defaultState.stage3, ...JSON.parse(savedS3) }; } catch (e) {} }
       else { this.state.stage3 = defaultState.stage3; }
 
-      const savedStage = localStorage.getItem(`jizhi_sync_current_stage_v10_pure_${groupId}`);
+      const savedStage = localStorage.getItem(`jizhi_sync_current_stage_v10_pure_${taskId}_${groupId}`);
       this.state.currentStage = savedStage || 'stage1';
 
-      const savedSubmitted = localStorage.getItem(`jizhi_sync_final_submitted_v10_pure_${groupId}`);
+      const savedSubmitted = localStorage.getItem(`jizhi_sync_final_submitted_v10_pure_${taskId}_${groupId}`);
       this.state.isFinalSubmitted = (savedSubmitted === 'true');
     }
 
     initPresetMessagesForGroup(groupId) {
+      const taskId = this.state.activeTaskId || 'default';
       this.state.chatLogs = { stage1: [], stage2: [], stage3: [] };
-      localStorage.setItem(`jizhi_sync_chat_v10_pure_${groupId}`, JSON.stringify(this.state.chatLogs));
+      localStorage.setItem(`jizhi_sync_chat_v10_pure_${taskId}_${groupId}`, JSON.stringify(this.state.chatLogs));
     }
 
     resetTestGroupState(groupId = 'group_1') {
@@ -3877,12 +3911,13 @@
     }
 
     saveGroupState(groupId) {
-      localStorage.setItem(`jizhi_sync_chat_v10_pure_${groupId}`, JSON.stringify(this.state.chatLogs));
-      localStorage.setItem(`jizhi_sync_s1_v10_pure_${groupId}`, JSON.stringify(this.state.stage1));
-      localStorage.setItem(`jizhi_sync_s2_v10_pure_${groupId}`, JSON.stringify(this.state.stage2));
-      localStorage.setItem(`jizhi_sync_s3_v10_pure_${groupId}`, JSON.stringify(this.state.stage3));
-      localStorage.setItem(`jizhi_sync_current_stage_v10_pure_${groupId}`, this.state.currentStage);
-      localStorage.setItem(`jizhi_sync_final_submitted_v10_pure_${groupId}`, this.state.isFinalSubmitted ? 'true' : 'false');
+      const taskId = this.state.activeTaskId || 'default';
+      localStorage.setItem(`jizhi_sync_chat_v10_pure_${taskId}_${groupId}`, JSON.stringify(this.state.chatLogs));
+      localStorage.setItem(`jizhi_sync_s1_v10_pure_${taskId}_${groupId}`, JSON.stringify(this.state.stage1));
+      localStorage.setItem(`jizhi_sync_s2_v10_pure_${taskId}_${groupId}`, JSON.stringify(this.state.stage2));
+      localStorage.setItem(`jizhi_sync_s3_v10_pure_${taskId}_${groupId}`, JSON.stringify(this.state.stage3));
+      localStorage.setItem(`jizhi_sync_current_stage_v10_pure_${taskId}_${groupId}`, this.state.currentStage);
+      localStorage.setItem(`jizhi_sync_final_submitted_v10_pure_${taskId}_${groupId}`, this.state.isFinalSubmitted ? 'true' : 'false');
     }
 
     syncChatLogs() {
@@ -3997,10 +4032,14 @@
           renderStudentTaskPortal(
             appEl, this.authManager, this.state,
             (taskId) => {
-              this.state.activeTaskId = taskId;
+              this.state.activeTaskId = taskId || 'default';
+              this.loadGroupState(currentGroupId);
               this.state.studentViewMode = 'workspace';
               this.renderMain();
-              if (this.cloudSyncEngine) this.cloudSyncEngine.pullFromServer();
+              if (this.cloudSyncEngine) {
+                this.cloudSyncEngine.updateScopeKeys();
+                this.cloudSyncEngine.pullFromServer();
+              }
             },
             () => this.handleLogout(),
             () => this.switchToTeacherView(),

@@ -16,8 +16,14 @@ if (empty($groupId)) {
     $groupId = 'group_1';
 }
 
-$localFile = __DIR__ . '/db_' . $groupId . '.json';
-$tmpFile = sys_get_temp_dir() . '/jizhi_db_' . $groupId . '.json';
+$taskId = isset($_GET['taskId']) ? preg_replace('/[^a-zA-Z0-9_-]/', '', $_GET['taskId']) : 'default';
+if (empty($taskId)) {
+    $taskId = 'default';
+}
+
+$scopeKey = $taskId . '_' . $groupId;
+$localFile = __DIR__ . '/db_' . $scopeKey . '.json';
+$tmpFile = sys_get_temp_dir() . '/jizhi_db_' . $scopeKey . '.json';
 
 $action = isset($_GET['action']) ? $_GET['action'] : '';
 
