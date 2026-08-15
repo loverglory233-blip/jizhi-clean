@@ -755,9 +755,9 @@
       const protocol = window.location.protocol || 'http:';
 
       this.syncEndpoints = [
-        `${protocol}//${host}:8088/sync.php?taskId=${taskId}&groupId=${groupId}`,
         `sync.php?taskId=${taskId}&groupId=${groupId}`,
         `/sync.php?taskId=${taskId}&groupId=${groupId}`,
+        `${protocol}//${host}:8088/sync.php?taskId=${taskId}&groupId=${groupId}`,
         `${protocol}//${host}:8088/api/snapshot?taskId=${taskId}&groupId=${groupId}`
       ];
     }
@@ -953,8 +953,23 @@
         ['stage1', 'stage2', 'stage3'].forEach(stg => {
           const localLogs = this.app.state.chatLogs[stg] || [];
           const remoteLogs = remoteData.chatLogs[stg] || [];
-          if (remoteLogs.length !== localLogs.length || JSON.stringify(remoteLogs) !== JSON.stringify(localLogs)) {
-            this.app.state.chatLogs[stg] = remoteLogs;
+          
+          // 真正的双向合并与消息去重机制 (保留两端全部发言，按时间戳或顺序保真)
+          const merged = [...localLogs];
+          let added = false;
+          remoteLogs.forEach(rMsg => {
+            const exists = merged.some(lMsg => 
+              lMsg.sender === rMsg.sender && 
+              lMsg.text === rMsg.text && 
+              (lMsg.timestamp === rMsg.timestamp || Math.abs((lMsg._timeMs || 0) - (rMsg._timeMs || 0)) < 3000)
+            );
+            if (!exists) {
+              merged.push(rMsg);
+              added = true;
+            }
+          });
+          if (added || merged.length !== localLogs.length) {
+            this.app.state.chatLogs[stg] = merged;
             chatUpdated = true;
           }
         });
@@ -4419,7 +4434,12 @@
         const currentUser = this.authManager.getCurrentUser();
         const studentCode = currentUser ? (currentUser.studentCode || 'A') : 'A';
         const currentStage = this.state.currentStage;
-        const msgObj = { sender: studentCode, text, timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) };
+        const msgObj = { 
+          sender: studentCode, 
+          text, 
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          _timeMs: Date.now()
+        };
         if (!this.state.chatLogs[currentStage]) this.state.chatLogs[currentStage] = [];
         this.state.chatLogs[currentStage].push(msgObj);
         input.value = '';

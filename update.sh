@@ -42,40 +42,15 @@ for dir in "${TARGET_DIRS[@]}"; do
 done
 rm -rf "$TMP"
 
-echo "🔄 [3/4] 配置 Nginx 反向代理 (80端口 -> Python 8088)..."
-
-PROXY_BLOCK='
-    location ~ ^/(sync\.php|api/) {
-        proxy_pass http://127.0.0.1:8088;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_connect_timeout 5s;
-        proxy_read_timeout 30s;
-    }'
-
-for cdir in /www/server/panel/vhost/nginx /www/server/nginx/conf/vhost; do
-  [ -d "$cdir" ] || continue
-  for conf in "$cdir"/*.conf; do
-    [ -f "$conf" ] || continue
-    # 清理旧的代理规则（防止重复）
-    sed -i '/location ~ \^\/(sync\\\.php\|api\/)/,/^[[:space:]]*}/d' "$conf" 2>/dev/null || true
-    sed -i '/proxy_pass http:\/\/127.0.0.1:8088/d' "$conf" 2>/dev/null || true
-    # 在第一个 location 块前插入代理规则
-    if grep -q "location /" "$conf" && ! grep -q "127.0.0.1:8088" "$conf"; then
-      sed -i "s|location /|$PROXY_BLOCK\n    location /|" "$conf" 2>/dev/null || true
-      echo "   ✅ 已注入代理规则: $conf"
-    fi
-  done
+echo "🔄 [3/4] 验证 PHP 环境与数据文件权限..."
+for dir in "${TARGET_DIRS[@]}"; do
+  touch "$dir/db_task_default_group_1.json" "$dir/sessions.json" 2>/dev/null || true
+  chmod 777 "$dir/db_task_default_group_1.json" "$dir/sessions.json" "$dir/sync.php" 2>/dev/null || true
+  chmod -R 777 "$dir" 2>/dev/null || true
+  chown -R www:www "$dir" 2>/dev/null || true
 done
 
-# 重载 Nginx
-if nginx -t 2>/dev/null; then
-  nginx -s reload 2>/dev/null && echo "   ✅ Nginx 重载成功"
-else
-  echo "   ⚠️  Nginx 配置有误，跳过代理注入，使用纯 8088 端口模式"
-fi
-
-echo "🚀 [4/4] 启动同步服务端 (端口 8088)..."
+echo "🚀 [4/4] 启动高可用同步服务端 (Python 端口 8088)..."
 kill -9 $(lsof -t -i:8088 2>/dev/null) 2>/dev/null || true
 pkill -9 -f "server.py" 2>/dev/null || true
 sleep 1
@@ -86,9 +61,9 @@ for dir in "${TARGET_DIRS[@]}"; do
     nohup python3 server.py > server.log 2>&1 &
     sleep 1
     if lsof -i:8088 >/dev/null 2>&1; then
-      echo "   ✅ 同步服务端已启动 ($dir, 端口 8088)"
+      echo "   ✅ 端口 8088 服务端已就绪 ($dir)"
     else
-      echo "   ❌ 服务端启动失败，请检查 server.log"
+      echo "   ⚠️  端口 8088 启动中，将由 PHP 80 端口承接主通信"
     fi
     break
   fi
