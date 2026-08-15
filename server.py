@@ -88,7 +88,14 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             groupId = 'group_1'
             if 'groupId=' in self.path:
                 groupId = self.path.split('groupId=')[1].split('&')[0]
-            db_file = os.path.join(DIR, f'db_{groupId}.json')
+            taskId = 'task_default'
+            if 'taskId=' in self.path:
+                taskId = self.path.split('taskId=')[1].split('&')[0]
+            db_file = os.path.join(DIR, f'db_{taskId}_{groupId}.json')
+            if not os.path.exists(db_file):
+                db_file_fallback = os.path.join(DIR, f'db_{groupId}.json')
+                if os.path.exists(db_file_fallback):
+                    db_file = db_file_fallback
             if os.path.exists(db_file):
                 with open(db_file, 'rb') as f:
                     content = f.read()
@@ -215,13 +222,19 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             groupId = 'group_1'
             if 'groupId=' in self.path:
                 groupId = self.path.split('groupId=')[1].split('&')[0]
+            taskId = 'task_default'
+            if 'taskId=' in self.path:
+                taskId = self.path.split('taskId=')[1].split('&')[0]
             length = int(self.headers.get('Content-Length', 0))
             body = self.rfile.read(length)
-            db_file = os.path.join(DIR, f'db_{groupId}.json')
+            db_file = os.path.join(DIR, f'db_{taskId}_{groupId}.json')
+            db_file_compat = os.path.join(DIR, f'db_{groupId}.json')
             try:
                 data = json.loads(body.decode('utf-8'))
                 body_str = body.decode('utf-8')
                 with open(db_file, 'w', encoding='utf-8') as f:
+                    f.write(body_str)
+                with open(db_file_compat, 'w', encoding='utf-8') as f:
                     f.write(body_str)
 
                 with SSE_LOCK:

@@ -755,9 +755,9 @@
       const protocol = window.location.protocol || 'http:';
 
       this.syncEndpoints = [
+        `${protocol}//${host}:8088/sync.php?taskId=${taskId}&groupId=${groupId}`,
         `sync.php?taskId=${taskId}&groupId=${groupId}`,
         `/sync.php?taskId=${taskId}&groupId=${groupId}`,
-        `${protocol}//${host}:8088/sync.php?taskId=${taskId}&groupId=${groupId}`,
         `${protocol}//${host}:8088/api/snapshot?taskId=${taskId}&groupId=${groupId}`
       ];
     }
@@ -783,7 +783,7 @@
     initPolling() {
       this.pullFromServer();
       // Poll server every 400ms for instantaneous cross-device sync
-      setInterval(() => this.pullFromServer(), 400);
+      this.pollTimer = setInterval(() => this.pullFromServer(), 400);
 
       if ('BroadcastChannel' in window) {
         try {
@@ -813,6 +813,8 @@
             const chkData = await chkRes.json();
             if (chkData && chkData.kicked) {
               this.isLoggingOut = true;
+              if (this.pollTimer) { clearInterval(this.pollTimer); this.pollTimer = null; }
+              alert('⚠️ 您的账号已在另一台设备/浏览器上登录，当前设备已自动下线！');
               this.app.handleLogout();
               return;
             }
@@ -1394,8 +1396,8 @@
                     <div style="display:flex; align-items:center; gap:8px;">
                       <span style="font-size:13px; font-weight:700; color:#475569;">监控任务:</span>
                       <select id="sel-switch-monitor-task" class="teacher-input fancy" style="font-size:13px; font-weight:700; color:#1e40af; background:#eff6ff; border:1.5px solid #3b82f6; padding:7px 14px; border-radius:8px; cursor:pointer; min-width:180px;">
-                        ${tasks.length === 0 ? '<option value="default">📌 默认测试写作任务</option>' : tasks.map(t => {
-                          const isSel = (state.activeTaskId || 'default') === t.id;
+                        ${tasks.length === 0 ? '<option value="task_default">📌 默认测试写作任务</option>' : tasks.map(t => {
+                          const isSel = (state.activeTaskId || 'task_default') === t.id;
                           return `<option value="${t.id}" ${isSel ? 'selected' : ''}>📌 ${t.title}</option>`;
                         }).join('')}
                       </select>
@@ -3657,19 +3659,16 @@
           ${buildWordEditorHtml('stage2-word-editor', s2.unifiedContent, isEditorReadonly)}
         </div>
 
-        <div style="margin-top:10px; background:#f8fafc; padding:10px 14px; border-radius:10px; border:1px solid #e2e8f0; flex-shrink:0;">
-          <div style="font-size:12px; font-weight:700; margin-bottom:6px; color:#334155; display:flex; justify-content:space-between;">
-            <span>📊 本组 SSRL 成员字数与互动贡献度比率 (${membersList.length} 人动态适配)</span>
-            <span style="color:#64748b;">正文字数: ${plainTextLen} 字</span>
-          </div>
-          <div class="contribution-bar-container">
-            <div class="contrib-bars" style="height:10px; border-radius:6px; display:flex; overflow:hidden; background:#e2e8f0;">
+        <div style="margin-top:6px; background:#f8fafc; padding:4px 10px; border-radius:6px; border:1px solid #e2e8f0; flex-shrink:0; display:flex; align-items:center; justify-content:space-between; gap:10px;">
+          <div style="font-size:11px; font-weight:700; color:#334155; white-space:nowrap;">📊 贡献占比:</div>
+          <div class="contribution-bar-container" style="flex:1; display:flex; align-items:center; gap:8px;">
+            <div class="contrib-bars" style="flex:1; height:6px; border-radius:3px; display:flex; overflow:hidden; background:#e2e8f0;">
               ${(() => {
                 const contribs = s2.memberContributions || {};
                 let totalContrib = 0;
                 membersList.forEach(m => { totalContrib += (contribs[m.id] || 0) + (contribs[m.studentCode] || 0); });
                 if (totalContrib === 0) {
-                  return `<div style="width:100%; height:10px; background:#e2e8f0; border-radius:6px; display:flex; align-items:center; justify-content:center; font-size:10px; color:#94a3b8;">暂无写作与研讨贡献数据 (各成员贡献均为 0%)</div>`;
+                  return `<div style="width:100%; height:6px; background:#e2e8f0; border-radius:3px;"></div>`;
                 }
                 return membersList.map((m) => {
                   const val = (contribs[m.id] || 0) + (contribs[m.studentCode] || 0);
@@ -3679,7 +3678,7 @@
                 }).join('');
               })()}
             </div>
-            <div class="contrib-labels" style="display:flex; justify-content:space-between; font-size:11.5px; font-weight:600; color:#475569; margin-top:4px; flex-wrap:wrap; gap:10px;">
+            <div class="contrib-labels" style="display:flex; font-size:11px; font-weight:600; color:#475569; gap:8px; white-space:nowrap;">
               ${(() => {
                 const contribs = s2.memberContributions || {};
                 let totalContrib = 0;
@@ -3687,7 +3686,7 @@
                 return membersList.map((m) => {
                   const val = (contribs[m.id] || 0) + (contribs[m.studentCode] || 0);
                   const pct = (totalContrib === 0 || val === 0) ? 0 : Math.round((val / totalContrib) * 100);
-                  return `<span style="color:${m.color || '#2563eb'}; font-weight:700;">● ${m.name}: ${pct}% (${val}字)</span>`;
+                  return `<span style="color:${m.color || '#2563eb'}; font-weight:700;">● ${m.name}: ${pct}%</span>`;
                 }).join('');
               })()}
             </div>
