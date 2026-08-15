@@ -89,15 +89,19 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             if 'groupId=' in self.path:
                 groupId = self.path.split('groupId=')[1].split('&')[0]
             db_file = os.path.join(DIR, f'db_{groupId}.json')
-            self.send_response(200)
-            self.send_header('Content-Type', 'application/json')
-            self.send_header('Cache-Control', 'no-cache')
-            self.end_headers()
             if os.path.exists(db_file):
-                with open(db_file, 'r', encoding='utf-8') as f:
-                    self.wfile.write(f.read().encode('utf-8'))
+                with open(db_file, 'rb') as f:
+                    content = f.read()
             else:
-                self.wfile.write(b'{"timestamp":0}')
+                content = b'{"timestamp":0}'
+
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/json; charset=utf-8')
+            self.send_header('Cache-Control', 'no-store, no-cache, must-revalidate')
+            self.send_header('Content-Length', str(len(content)))
+            self.end_headers()
+            self.wfile.write(content)
+            self.wfile.flush()
             return
 
         # Standard robust static file serving
@@ -230,15 +234,22 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                                 dead_queues.add(q)
                         SSE_CLIENTS[groupId].difference_update(dead_queues)
 
+                resp_bytes = json.dumps({'success': True, 'timestamp': data.get('timestamp', int(time.time() * 1000))}).encode('utf-8')
                 self.send_response(200)
-                self.send_header('Content-Type', 'application/json')
+                self.send_header('Content-Type', 'application/json; charset=utf-8')
+                self.send_header('Content-Length', str(len(resp_bytes)))
                 self.end_headers()
-                self.wfile.write(json.dumps({'success': True, 'timestamp': data.get('timestamp', time.time())}).encode())
+                self.wfile.write(resp_bytes)
+                self.wfile.flush()
             except Exception as e:
+                resp_bytes = json.dumps({'error': str(e)}).encode('utf-8')
                 self.send_response(400)
-                self.send_header('Content-Type', 'application/json')
+                self.send_header('Content-Type', 'application/json; charset=utf-8')
+                self.send_header('Content-Length', str(len(resp_bytes)))
                 self.end_headers()
-                self.wfile.write(json.dumps({'error': str(e)}).encode())
+                self.wfile.write(resp_bytes)
+                self.wfile.flush()
+            return
             return
         super().do_POST()
 
