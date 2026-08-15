@@ -3745,13 +3745,6 @@
             (taskId) => {
               this.state.activeTaskId = taskId;
               this.state.studentViewMode = 'workspace';
-
-              // 特殊处理：如果是 3 个初始测试学生账号 (liming, wangfang, chenqiang)，每次进入任务时自动重置清空内容为 0 初始状态
-              const testUsernames = ['liming', 'wangfang', 'chenqiang'];
-              if (currentUser && testUsernames.includes(currentUser.username)) {
-                this.resetTestGroupState(currentGroupId);
-              }
-
               this.renderMain();
             },
             () => this.handleLogout(),
