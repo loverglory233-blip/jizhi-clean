@@ -583,8 +583,8 @@
       if (!paper) return;
 
       const pushMsg = {
-        sender: 'managingEditor',
-        text: `📚【审稿编辑文献推荐·高水平参考范文】\n任课教师为本阶段协作研讨推荐了参考范文《${paper.title}》！\n💡 核心论证亮点与学术价值：\n${paper.keyHighlights || paper.abstract || '请重点参考该论文的问题提出逻辑、文献综述脉络、研究设计规范与论证表达风格。'}\n👉 小组成员可随时点击正文上方【📚 查阅参考范文】查阅详情与下载随附文件！`,
+        sender: 'reviewingEditor',
+        text: `📝【审稿编辑学习提醒】：任课教师已在上方【📚 查阅参考范文】中上传了高水平参考范文《${paper.title}》！\n💡 建议小组成员点击查阅并下载，重点参考其：\n${paper.keyHighlights || paper.abstract || '研究设计、三线表规范与论证逻辑'}\n👉 小组成员可随时点击正文上方【📚 查阅参考范文】下载查阅，并结合修改正文！`,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
       };
 
@@ -613,6 +613,16 @@
 
       if (window.app && window.app.cloudSyncEngine) window.app.cloudSyncEngine.pushSnapshot();
       return pushMsg;
+    }
+
+    setGroupFinalSubmitted(groupId, isSubmitted) {
+      localStorage.setItem(`jizhi_sync_final_submitted_v10_pure_${groupId}`, isSubmitted ? 'true' : 'false');
+      if (window.app && window.app.state) {
+        window.app.state.isFinalSubmitted = isSubmitted;
+      }
+      if (window.app && window.app.cloudSyncEngine) {
+        window.app.cloudSyncEngine.pushSnapshot();
+      }
     }
 
     exportGroupChatLogsToExcel(groupId = 'group_1', chatLogsState = null) {
@@ -1137,12 +1147,12 @@
                 `}
               </div>
 
-              <!-- 1. 课程参考范文与学术样例库 (供审稿编辑精准推送) -->
+              <!-- 1. 课程参考范文与文献样例库 (供阶段二学生下载查阅 · 审稿编辑提醒) -->
               <div class="card" style="border-top:4px solid #7c3aed; width:100%; padding:24px;">
                 <div class="card-title" style="margin-bottom:16px;">
                   <div style="display:flex; align-items:center; gap:8px;">
-                    <span style="font-size:17px; font-weight:800; color:#0f172a;">📚 课程参考范文与学术样例库 (${refPapers.length} 篇 · 供审稿编辑向小组推送)</span>
-                    <span style="font-size:12px; color:#6d28d9; background:#f5f3ff; border:1px solid #ddd6fe; padding:4px 10px; border-radius:8px; font-weight:600;">上传后审稿编辑 Agent 可向学生小组研讨管道精准推送</span>
+                    <span style="font-size:17px; font-weight:800; color:#0f172a;">📚 课程参考范文与文献样例库 (${refPapers.length} 篇 · 供阶段二学生下载查阅)</span>
+                    <span style="font-size:12px; color:#6d28d9; background:#f5f3ff; border:1px solid #ddd6fe; padding:4px 10px; border-radius:8px; font-weight:600;">学生在阶段二随时可下载查阅 · 审稿编辑 Agent 定向提醒</span>
                   </div>
                   <button id="btn-v2-open-paper-modal" class="teacher-action-btn indigo" style="background:linear-gradient(135deg, #7c3aed, #6d28d9); padding:8px 18px; font-size:13px; font-weight:700; border:none; color:white; border-radius:8px; cursor:pointer; box-shadow:0 2px 8px rgba(124,58,237,0.25);">
                     + 上传学术参考范文
@@ -1154,7 +1164,7 @@
                     <div style="text-align:center; padding:32px; background:#f8fafc; border-radius:10px; border:2px dashed #cbd5e1;">
                       <div style="font-size:32px; margin-bottom:8px;">📚</div>
                       <div style="font-size:15px; font-weight:800; color:#0f172a;">当前暂无上传的课程参考范文</div>
-                      <div style="font-size:12.5px; color:#64748b; margin-top:4px;">点击右上角【+ 上传学术参考范文】上传论文样本或审稿范例，审稿编辑 Agent 可一键精准推送到学生研讨区！</div>
+                      <div style="font-size:12.5px; color:#64748b; margin-top:4px;">点击右上角【+ 上传学术参考范文】上传论文样本，学生可在阶段二正文上方随时查阅下载！</div>
                     </div>
                   ` : refPapers.map(p => `
                     <div style="background:#ffffff; border:1px solid #e2e8f0; padding:18px; border-radius:12px; box-shadow:0 1px 3px rgba(15,23,42,0.03);">
@@ -1185,7 +1195,7 @@
                         </div>
                         <div style="display:flex; gap:10px;">
                           <button class="btn-push-paper-to-chat" data-id="${p.id}" data-target="${p.targetGroupId || 'all'}" style="background:linear-gradient(135deg, #2563eb, #1d4ed8); border:none; color:white; padding:6px 14px; border-radius:6px; font-size:12.5px; font-weight:700; cursor:pointer; box-shadow:0 2px 6px rgba(37,99,235,0.25);">
-                            📢 审稿编辑一键推送至此小组研讨
+                            📢 审稿编辑提醒学生查阅此文
                           </button>
                           <button class="btn-delete-paper" data-id="${p.id}" style="background:#fef2f2; border:1px solid #fecaca; color:#dc2626; padding:6px 12px; border-radius:6px; font-size:12px; font-weight:700; cursor:pointer;">
                             🗑️ 删除
@@ -1210,7 +1220,7 @@
                         <span style="font-size:16px; font-weight:800; color:#1e40af;">📌 ${t.title}</span>
                         <span style="background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe; padding:4px 12px; border-radius:12px; font-size:12px; font-weight:700;">受众班级: ${t.className}</span>
                       </div>
-                      <div style="font-size:13px; color:#334155; margin:10px 0; display:flex; gap:20px; background:#f8fafc; padding:10px 16px; border-radius:8px; border-left:4px solid #2563eb;">
+                      <div style="font-size:13px; color:#334155; margin-10px 0; display:flex; gap:20px; background:#f8fafc; padding:10px 16px; border-radius:8px; border-left:4px solid #2563eb;">
                         <span>📅 <b>开始时间:</b> <span style="color:#2563eb; font-weight:700;">${t.startTime || '即时开启'}</span></span>
                         <span>⌛ <b>截止时间:</b> <span style="color:#dc2626; font-weight:700;">${t.deadline || '无硬性限制'}</span></span>
                         <span>⏱️ <b>预估时长:</b> ${t.durationMinutes} 分钟</span>
@@ -1279,8 +1289,8 @@
             return `
               <div style="display:flex; flex-direction:column; gap:16px; width:100%;">
 
-                <div class="card" style="border-top:4px solid #059669; width:100%; padding:18px 22px; display:flex; justify-content:space-between; align-items:center;">
-                  <div style="display:flex; align-items:center; gap:14px;">
+                <div class="card" style="border-top:4px solid #059669; width:100%; padding:18px 22px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
+                  <div style="display:flex; align-items:center; gap:14px; flex-wrap:wrap;">
                     <span style="font-size:16px; font-weight:800; color:#0f172a;">🖥️ 实际操作实时监控终端:</span>
                     <div style="display:flex; gap:8px;">
                       ${(activeClass.groups || []).map(g => {
@@ -1293,9 +1303,19 @@
                       }).join('')}
                     </div>
                   </div>
-                  <button id="btn-export-all-excel" style="background:linear-gradient(135deg, #2563eb, #1d4ed8); border:none; color:white; padding:9px 18px; border-radius:8px; font-size:13px; font-weight:800; cursor:pointer; box-shadow:0 3px 10px rgba(37,99,235,0.3);">
-                    📊 一键导出本组 Excel 研讨记录
-                  </button>
+
+                  <!-- 终稿不可修改状态控制与 Excel 导出 -->
+                  <div style="display:flex; align-items:center; gap:10px;">
+                    <span style="font-size:12px; font-weight:700; padding:6px 12px; border-radius:8px; background:${state.isFinalSubmitted ? '#fef2f2' : '#ecfdf5'}; color:${state.isFinalSubmitted ? '#dc2626' : '#059669'}; border:1px solid ${state.isFinalSubmitted ? '#fecaca' : '#a7f3d0'};">
+                      ${state.isFinalSubmitted ? '🔒 终稿已锁定 (只读不可修改)' : '✍️ 终稿可自由编辑'}
+                    </span>
+                    <button id="btn-toggle-final-submitted" style="background:${state.isFinalSubmitted ? 'linear-gradient(135deg, #059669, #047857)' : 'linear-gradient(135deg, #dc2626, #b91c1c)'}; border:none; color:white; padding:8px 16px; border-radius:8px; font-size:12.5px; font-weight:700; cursor:pointer; box-shadow:0 2px 6px rgba(0,0,0,0.15);">
+                      ${state.isFinalSubmitted ? '🔓 解除锁定 (允许学生重新修改终稿)' : '🔒 手动锁定终稿 (设为不可修改)'}
+                    </button>
+                    <button id="btn-export-all-excel" style="background:linear-gradient(135deg, #2563eb, #1d4ed8); border:none; color:white; padding:8px 16px; border-radius:8px; font-size:12.5px; font-weight:800; cursor:pointer; box-shadow:0 3px 10px rgba(37,99,235,0.3);">
+                      📊 导出本组研讨 Excel
+                    </button>
+                  </div>
                 </div>
 
                 <div style="display:flex; justify-content:space-between; align-items:center; background:#ffffff; border:1px solid #e2e8f0; border-radius:12px; padding:12px 18px; width:100%; box-shadow:0 1px 3px rgba(15,23,42,0.03);">
@@ -2151,13 +2171,13 @@
       });
     }
 
-    // 推送范文按钮
+    // 推送范文提醒按钮
     container.querySelectorAll('.btn-push-paper-to-chat').forEach(btn => {
       btn.addEventListener('click', () => {
         const paperId = btn.dataset.id;
         const targetGId = btn.dataset.target || 'all';
         authManager.pushReferencePaperToGroupChat(paperId, targetGId);
-        alert('📢 审稿编辑 Agent 已成功向小组研讨管道广播推送此篇学术参考范文！');
+        alert('📢 审稿编辑 Agent 已向该小组研讨管道发送范文查阅提醒！');
       });
     });
 
@@ -2190,6 +2210,23 @@
         }
       });
     });
+
+    // 终稿不可修改状态控制 (教师一键解除锁定 / 重新锁定)
+    const btnToggleFinalSubmitted = container.querySelector('#btn-toggle-final-submitted');
+    if (btnToggleFinalSubmitted) {
+      btnToggleFinalSubmitted.addEventListener('click', () => {
+        const currentSub = state.isFinalSubmitted;
+        const newSub = !currentSub;
+        state.isFinalSubmitted = newSub;
+        authManager.setGroupFinalSubmitted(activeMonitorGId, newSub);
+        renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+        if (newSub) {
+          alert(`🔒 已锁定【${activeMonitorGroup.name}】的论文终稿！学生端已设为【只读不可修改状态】。`);
+        } else {
+          alert(`🔓 已成功解除【${activeMonitorGroup.name}】不可修改状态！学生端现已恢复自由修改、裁决与重新提交终稿权限！`);
+        }
+      });
+    }
 
     container.querySelectorAll('.btn-switch-monitor-group').forEach(btn => {
       btn.addEventListener('click', () => {
