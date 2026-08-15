@@ -824,35 +824,35 @@
      ========================================================================== */
   function renderLoginView(container, authManager, onLoginSuccess) {
     container.innerHTML = `
-      <div style="min-height:100vh; display:flex; align-items:center; justify-content:center; padding:20px; background:radial-gradient(circle at 50% 20%, #1e293b 0%, #0f172a 70%, #030712 100%);">
-        <div style="background:#1e293b; border:1px solid rgba(255,255,255,0.12); border-radius:20px; width:440px; max-width:95vw; padding:32px; box-shadow:0 25px 50px -12px rgba(0,0,0,0.6);">
+      <div style="min-height:100vh; display:flex; align-items:center; justify-content:center; padding:20px; background:linear-gradient(135deg, #f0f4f9 0%, #e2e8f0 100%);">
+        <div style="background:#ffffff; border:1px solid #cbd5e1; border-radius:20px; width:440px; max-width:95vw; padding:36px; box-shadow:0 20px 40px -8px rgba(15, 23, 42, 0.08), 0 4px 12px rgba(15, 23, 42, 0.04);">
           <div style="text-align:center; margin-bottom:28px;">
-            <div style="font-size:32px; font-weight:800; background:linear-gradient(135deg, #818cf8, #38bdf8); -webkit-background-clip:text; -webkit-text-fill-color:transparent;">集智 JIZHI</div>
-            <div style="font-size:13px; color:#94a3b8; margin-top:6px;">多智能体协同写作与人机共存学习平台</div>
+            <div style="font-size:32px; font-weight:800; background:linear-gradient(135deg, #1e40af, #2563eb); -webkit-background-clip:text; -webkit-text-fill-color:transparent;">集智 JIZHI</div>
+            <div style="font-size:13px; color:#64748b; margin-top:6px; font-weight:600;">多智能体协同写作与人机共存学习平台</div>
           </div>
-          <form id="login-form" style="display:flex; flex-direction:column; gap:18px;">
+          <form id="login-form" style="display:flex; flex-direction:column; gap:16px;">
             <div style="display:flex; flex-direction:column; gap:6px;">
-              <label style="font-size:13px; font-weight:600; color:#cbd5e1;">账号 (支持拼音用户名: teacher, liming, wangfang, chenqiang)</label>
+              <label style="font-size:13px; font-weight:700; color:#334155;">账号 (支持用户名: teacher, liming, wangfang, chenqiang)</label>
               <input type="text" id="login-account" class="teacher-input" placeholder="输入 teacher 或 liming / wangfang / chenqiang" value="teacher" required style="width:100%;">
             </div>
             <div style="display:flex; flex-direction:column; gap:6px;">
-              <label style="font-size:13px; font-weight:600; color:#cbd5e1;">密码 (默认 123)</label>
+              <label style="font-size:13px; font-weight:700; color:#334155;">密码 (默认 123)</label>
               <input type="password" id="login-password" class="teacher-input" placeholder="输入密码 123" value="123" required style="width:100%;">
             </div>
-            <div id="login-error-msg" style="display:none; font-size:12px; color:#f43f5e; background:rgba(244,63,94,0.1); border:1px solid rgba(244,63,94,0.3); padding:8px 12px; border-radius:8px;"></div>
-            <button type="submit" class="modal-btn submit task-theme" style="width:100%; padding:14px; font-size:15px; border-radius:10px; margin-top:6px;">
+            <div id="login-error-msg" style="display:none; font-size:12px; color:#dc2626; background:#fef2f2; border:1px solid #fecaca; padding:8px 12px; border-radius:8px;"></div>
+            <button type="submit" class="modal-btn submit task-theme" style="width:100%; padding:14px; font-size:15px; border-radius:10px; margin-top:4px;">
               🚀 登录集智平台
             </button>
           </form>
-          <div style="margin-top:24px; border-top:1px solid rgba(255,255,255,0.1); padding-top:20px;">
-            <div style="font-size:12px; font-weight:700; color:#818cf8; margin-bottom:12px; text-align:center;">
-              ⚡ 拼音账号免输入一键快速测试登录
+          <div style="margin-top:24px; border-top:1px solid #e2e8f0; padding-top:20px;">
+            <div style="font-size:12px; font-weight:700; color:#2563eb; margin-bottom:12px; text-align:center;">
+              ⚡ 免输入一键快速测试登录
             </div>
             <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
-              <button class="quick-login-btn" data-account="teacher" style="background:rgba(16,185,129,0.15); border:1px solid rgba(16,185,129,0.3); color:#34d399; padding:10px; border-radius:8px; font-size:12px; font-weight:700; cursor:pointer;">👩‍🏫 教师: teacher</button>
-              <button class="quick-login-btn" data-account="liming" style="background:rgba(99,102,241,0.15); border:1px solid rgba(99,102,241,0.3); color:#a5b4fc; padding:10px; border-radius:8px; font-size:12px; font-weight:700; cursor:pointer;">👨‍🎓 学生A: liming (第1组)</button>
-              <button class="quick-login-btn" data-account="wangfang" style="background:rgba(6,182,212,0.15); border:1px solid rgba(6,182,212,0.3); color:#22d3ee; padding:10px; border-radius:8px; font-size:12px; font-weight:700; cursor:pointer;">👩‍🎓 学生B: wangfang (第1组)</button>
-              <button class="quick-login-btn" data-account="chenqiang" style="background:rgba(245,158,11,0.15); border:1px solid rgba(245,158,11,0.3); color:#fbbf24; padding:10px; border-radius:8px; font-size:12px; font-weight:700; cursor:pointer;">🧑‍🎓 学生C: chenqiang (第1组)</button>
+              <button class="quick-login-btn" data-account="teacher" style="background:#ecfdf5; border:1px solid #a7f3d0; color:#059669; padding:10px; border-radius:8px; font-size:12px; font-weight:700; cursor:pointer;">👩‍🏫 教师: teacher</button>
+              <button class="quick-login-btn" data-account="liming" style="background:#eff6ff; border:1px solid #bfdbfe; color:#2563eb; padding:10px; border-radius:8px; font-size:12px; font-weight:700; cursor:pointer;">👨‍🎓 学生A: liming (第1组)</button>
+              <button class="quick-login-btn" data-account="wangfang" style="background:#eff6ff; border:1px solid #bfdbfe; color:#2563eb; padding:10px; border-radius:8px; font-size:12px; font-weight:700; cursor:pointer;">👩‍🎓 学生B: wangfang (第1组)</button>
+              <button class="quick-login-btn" data-account="chenqiang" style="background:#eff6ff; border:1px solid #bfdbfe; color:#2563eb; padding:10px; border-radius:8px; font-size:12px; font-weight:700; cursor:pointer;">🧑‍🎓 学生C: chenqiang (第1组)</button>
             </div>
           </div>
         </div>
@@ -901,57 +901,58 @@
     const monitorMembersList = Object.values(monitorMembersObj);
 
     container.innerHTML = `
-      <div class="teacher-portal-layout" style="min-height:100vh; height:auto; overflow-y:auto !important; background:#0b0f19; padding:0; display:flex; flex-direction:column;">
+    container.innerHTML = `
+      <div class="teacher-portal-layout" style="min-height:100vh; height:auto; overflow-y:auto !important; background:#f0f4f9; padding:0; display:flex; flex-direction:column;">
         <!-- 全屏头部导航 -->
-        <header class="teacher-header" style="padding:16px 32px; background:rgba(15,23,42,0.9); border-bottom:1px solid rgba(255,255,255,0.1); width:100%; flex-shrink:0;">
+        <header class="teacher-header" style="padding:16px 32px; background:#ffffff; border-bottom:1px solid #e2e8f0; width:100%; flex-shrink:0; box-shadow:0 1px 3px rgba(15,23,42,0.04);">
           <div class="brand-section">
-            <div class="brand-logo" style="font-size:24px; font-weight:800; background:linear-gradient(135deg, #818cf8, #38bdf8); -webkit-background-clip:text; -webkit-text-fill-color:transparent;">集智 JIZHI 教师端</div>
-            <div class="brand-badge teacher-badge" style="background:rgba(16,185,129,0.15); color:#34d399; border:1px solid rgba(16,185,129,0.3); padding:4px 12px; border-radius:12px; font-size:12px; font-weight:700;">👩‍🏫 全局实时教务控制中心 🟢</div>
+            <div class="brand-logo" style="font-size:22px; font-weight:800; background:linear-gradient(135deg, #1e40af, #2563eb); -webkit-background-clip:text; -webkit-text-fill-color:transparent;">集智 JIZHI 教师端</div>
+            <div class="brand-badge teacher-badge" style="background:#ecfdf5; color:#059669; border:1px solid #a7f3d0; padding:4px 12px; border-radius:12px; font-size:12px; font-weight:700;">👩‍🏫 全局实时教务控制中心 🟢</div>
           </div>
-          <div class="teacher-info" style="display:flex; align-items:center; gap:20px;">
-            <span style="font-size:14px; color:#cbd5e1;">当前班级: <b style="color:#38bdf8;">${activeClass.name}</b></span>
-            <span style="font-size:14px; color:#cbd5e1;">教师: <b>${currentUser.name}</b></span>
-            <button id="btn-switch-student-preview" class="header-icon-btn" style="background:rgba(99,102,241,0.2); color:#a5b4fc; padding:8px 16px; border-radius:8px; font-size:13px; font-weight:700;">👀 切换至学生视角</button>
-            <button id="btn-logout" class="header-icon-btn logout" style="background:rgba(239,68,68,0.2); color:#f87171; border:1px solid rgba(239,68,68,0.4); padding:8px 16px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer;">🚪 退出登录</button>
+          <div class="teacher-info" style="display:flex; align-items:center; gap:16px;">
+            <span style="font-size:13.5px; color:#334155;">当前班级: <b style="color:#2563eb;">${activeClass.name}</b></span>
+            <span style="font-size:13.5px; color:#334155;">教师: <b>${currentUser.name}</b></span>
+            <button id="btn-switch-student-preview" class="header-icon-btn" style="background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe; padding:8px 16px; border-radius:8px; font-size:13px; font-weight:700;">👀 切换至学生视角</button>
+            <button id="btn-logout" class="header-icon-btn logout" style="background:#fef2f2; color:#dc2626; border:1px solid #fecaca; padding:8px 16px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer;">🚪 退出登录</button>
           </div>
         </header>
 
         <!-- 三大界面导航卡片 -->
-        <div style="padding:16px 32px 0 32px; background:#0b0f19; width:100%; flex-shrink:0;">
-          <div style="display:flex; gap:16px; width:100%; background:rgba(30,41,59,0.8); padding:8px; border-radius:16px; border:1px solid rgba(255,255,255,0.12); box-shadow:0 8px 30px rgba(0,0,0,0.5);">
-            <button class="teacher-tab-nav ${activeTab === 'view_architecture' ? 'active' : ''}" data-tab="view_architecture" style="flex:1; padding:14px; border-radius:12px; font-size:15px; font-weight:800; cursor:pointer; border:none; color:white; background:${activeTab === 'view_architecture' ? 'linear-gradient(135deg, #6366f1, #4f46e5)' : 'transparent'}; transition:all 0.3s ease;">
+        <div style="padding:16px 32px 0 32px; background:#f0f4f9; width:100%; flex-shrink:0;">
+          <div style="display:flex; gap:12px; width:100%; background:#ffffff; padding:6px; border-radius:14px; border:1px solid #e2e8f0; box-shadow:0 2px 8px rgba(15,23,42,0.04);">
+            <button class="teacher-tab-nav ${activeTab === 'view_architecture' ? 'active' : ''}" data-tab="view_architecture" style="flex:1; padding:12px; border-radius:10px; font-size:14px; font-weight:800; cursor:pointer; border:none; color:${activeTab === 'view_architecture' ? 'white' : '#475569'}; background:${activeTab === 'view_architecture' ? 'linear-gradient(135deg, #1d4ed8, #2563eb)' : '#f8fafc'}; transition:all 0.2s ease;">
               🛠️ 界面一：基础架构管理 (班级 / 学生 / 小组)
             </button>
-            <button class="teacher-tab-nav ${activeTab === 'view_publishing' ? 'active' : ''}" data-tab="view_publishing" style="flex:1; padding:14px; border-radius:12px; font-size:15px; font-weight:800; cursor:pointer; border:none; color:white; background:${activeTab === 'view_publishing' ? 'linear-gradient(135deg, #ec4899, #8b5cf6)' : 'transparent'}; transition:all 0.3s ease;">
+            <button class="teacher-tab-nav ${activeTab === 'view_publishing' ? 'active' : ''}" data-tab="view_publishing" style="flex:1; padding:12px; border-radius:10px; font-size:14px; font-weight:800; cursor:pointer; border:none; color:${activeTab === 'view_publishing' ? 'white' : '#475569'}; background:${activeTab === 'view_publishing' ? 'linear-gradient(135deg, #1d4ed8, #2563eb)' : '#f8fafc'}; transition:all 0.2s ease;">
               📢 界面二：任务与通知发布 (含已读小组矩阵与附件上传)
             </button>
-            <button class="teacher-tab-nav ${activeTab === 'view_monitoring' ? 'active' : ''}" data-tab="view_monitoring" style="flex:1; padding:14px; border-radius:12px; font-size:15px; font-weight:800; cursor:pointer; border:none; color:white; background:${activeTab === 'view_monitoring' ? 'linear-gradient(135deg, #10b981, #059669)' : 'transparent'}; transition:all 0.3s ease;">
+            <button class="teacher-tab-nav ${activeTab === 'view_monitoring' ? 'active' : ''}" data-tab="view_monitoring" style="flex:1; padding:12px; border-radius:10px; font-size:14px; font-weight:800; cursor:pointer; border:none; color:${activeTab === 'view_monitoring' ? 'white' : '#475569'}; background:${activeTab === 'view_monitoring' ? 'linear-gradient(135deg, #1d4ed8, #2563eb)' : '#f8fafc'}; transition:all 0.2s ease;">
               🖥️ 界面三：学生实际操作同屏实时监控终端 (实操同屏)
             </button>
           </div>
         </div>
 
-        <main style="flex:1; padding:24px 32px 40px 32px; width:100%; overflow-y:visible;">
+        <main style="flex:1; padding:20px 32px 40px 32px; width:100%; overflow-y:visible;">
 
           ${activeTab === 'view_architecture' ? `
-            <div style="display:flex; flex-direction:column; gap:24px; width:100%;">
+            <div style="display:flex; flex-direction:column; gap:20px; width:100%;">
 
-              <div class="card" style="border-top:4px solid #6366f1; width:100%; padding:24px;">
+              <div class="card" style="border-top:4px solid #2563eb; width:100%; padding:24px;">
                 <div class="card-title" style="margin-bottom:16px;">
-                  <span style="font-size:18px; font-weight:800;">🎓 教学班级管理 (${classes.length} 个班级)</span>
-                  <button id="btn-v1-create-class" class="teacher-action-btn indigo" style="padding:8px 18px; font-size:13px; font-weight:700;">+ 创建全新教学班</button>
+                  <span style="font-size:17px; font-weight:800; color:#0f172a;">🎓 教学班级管理 (${classes.length} 个班级)</span>
+                  <button id="btn-v1-create-class" class="teacher-action-btn indigo" style="background:#2563eb; padding:8px 18px; font-size:13px; font-weight:700;">+ 创建全新教学班</button>
                 </div>
                 <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(340px, 1fr)); gap:16px;">
                   ${classes.map(c => {
                     const isSelected = c.id === activeClass.id;
                     const cStds = allUsers.filter(u => u.role !== 'teacher' && u.classId === c.id);
                     return `
-                      <div style="background:${isSelected ? 'rgba(99,102,241,0.18)' : 'rgba(15,23,42,0.7)'}; border:1px solid ${isSelected ? '#6366f1' : 'rgba(255,255,255,0.08)'}; border-radius:14px; padding:18px; display:flex; justify-content:space-between; align-items:center;">
+                      <div style="background:${isSelected ? '#eff6ff' : '#ffffff'}; border:1px solid ${isSelected ? '#3b82f6' : '#e2e8f0'}; border-radius:12px; padding:18px; display:flex; justify-content:space-between; align-items:center; box-shadow:0 1px 3px rgba(15,23,42,0.03);">
                         <div>
-                          <div style="font-size:16px; font-weight:800; color:${isSelected ? '#a5b4fc' : '#f8fafc'};">🏫 ${c.name}</div>
-                          <div style="font-size:12px; color:#cbd5e1; margin-top:6px;">代码: ${c.code || 'MET'} | 学生: ${cStds.length}人 | 小组: ${(c.groups || []).length}个</div>
+                          <div style="font-size:15.5px; font-weight:800; color:${isSelected ? '#1d4ed8' : '#0f172a'};">🏫 ${c.name}</div>
+                          <div style="font-size:12px; color:#64748b; margin-top:4px;">代码: ${c.code || 'MET'} | 学生: ${cStds.length}人 | 小组: ${(c.groups || []).length}个</div>
                         </div>
-                        <button class="btn-select-class" data-id="${c.id}" style="background:${isSelected ? 'rgba(16,185,129,0.2)' : 'var(--accent-indigo)'}; border:1px solid ${isSelected ? '#10b981' : 'transparent'}; color:${isSelected ? '#34d399' : 'white'}; padding:8px 16px; border-radius:8px; font-size:12px; font-weight:700; cursor:pointer;">
+                        <button class="btn-select-class" data-id="${c.id}" style="background:${isSelected ? '#ecfdf5' : '#2563eb'}; border:1px solid ${isSelected ? '#a7f3d0' : 'transparent'}; color:${isSelected ? '#059669' : 'white'}; padding:7px 14px; border-radius:8px; font-size:12px; font-weight:700; cursor:pointer;">
                           ${isSelected ? '✅ 当前主班' : '切换'}
                         </button>
                       </div>
@@ -960,35 +961,35 @@
                 </div>
               </div>
 
-              <div class="card" style="border-top:4px solid #ec4899; width:100%; padding:24px;">
+              <div class="card" style="border-top:4px solid #0284c7; width:100%; padding:24px;">
                 <div class="card-title" style="margin-bottom:16px;">
-                  <span style="font-size:18px; font-weight:800;">👨‍🎓 学生账号管理 (当前班级: ${activeClass.name})</span>
+                  <span style="font-size:17px; font-weight:800; color:#0f172a;">👨‍🎓 学生账号管理 (当前班级: ${activeClass.name})</span>
                   <div style="display:flex; gap:10px;">
-                    <button id="btn-v1-add-student" class="teacher-action-btn green" style="padding:8px 16px; font-size:13px; font-weight:700;">+ 单条创建学生账号</button>
-                    <button id="btn-v1-import-file" style="background:linear-gradient(135deg, #ec4899, #8b5cf6); border:none; color:white; padding:8px 18px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer;">
+                    <button id="btn-v1-add-student" class="teacher-action-btn green" style="background:#059669; padding:8px 16px; font-size:13px; font-weight:700;">+ 单条创建学生账号</button>
+                    <button id="btn-v1-import-file" style="background:linear-gradient(135deg, #2563eb, #1d4ed8); border:none; color:white; padding:8px 18px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer; box-shadow:0 2px 8px rgba(37,99,235,0.25);">
                       📥 上传 XLSX / CSV 文件导入
                     </button>
                   </div>
                 </div>
-                <div style="background:rgba(15,23,42,0.6); border:1px solid rgba(255,255,255,0.08); border-radius:10px; padding:12px; margin-bottom:14px; font-size:13px; color:#cbd5e1; display:flex; justify-content:space-between; align-items:center;">
-                  <div>💡 <b>密码说明：</b> 创建学生时可指定自定义密码（留空统一定为 <code style="color:#34d399;">123</code>）。建立后直接放入班级学生池。</div>
-                  <span style="color:#f472b6; font-weight:800; font-size:14px;">池内学生: ${classStudents.length} 人</span>
+                <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:12px 16px; margin-bottom:14px; font-size:13px; color:#334155; display:flex; justify-content:space-between; align-items:center;">
+                  <div>💡 <b>密码说明：</b> 创建学生时可指定自定义密码（留空统一定为 <code style="color:#059669; font-weight:700;">123</code>）。建立后直接放入班级学生池。</div>
+                  <span style="color:#2563eb; font-weight:800; font-size:13.5px;">池内学生: ${classStudents.length} 人</span>
                 </div>
-                <div style="border:1px solid rgba(255,255,255,0.1); border-radius:12px; overflow:hidden;">
+                <div style="border:1px solid #e2e8f0; border-radius:10px; overflow:hidden; background:#ffffff;">
                   <table class="monitor-table" style="font-size:13px;">
-                    <thead><tr><th>姓名</th><th>拼音账号 (用户名)</th><th>学号</th><th>当前归属小组</th><th>密码</th><th>操作</th></tr></thead>
+                    <thead><tr><th>姓名</th><th>用户名 (拼音)</th><th>学号</th><th>当前归属小组</th><th>密码</th><th>操作</th></tr></thead>
                     <tbody>
-                      ${classStudents.length === 0 ? '<tr><td colspan="6" style="text-align:center; color:#94a3b8; padding:24px;">当前班级暂无学生账号，请点击右上角按钮创建！</td></tr>' : ''}
+                      ${classStudents.length === 0 ? '<tr><td colspan="6" style="text-align:center; color:#64748b; padding:24px;">当前班级暂无学生账号，请点击右上角按钮创建！</td></tr>' : ''}
                       ${classStudents.map(s => {
                         const grp = (activeClass.groups || []).find(g => g.members && (g.members.includes(s.id) || g.members.includes(s.studentCode)));
                         return `
                           <tr>
                             <td><b>${s.avatar || '👤'} ${s.name}</b></td>
-                            <td><span style="color:#38bdf8; font-family:monospace; font-weight:600;">${s.username}</span></td>
+                            <td><span style="color:#2563eb; font-family:monospace; font-weight:700;">${s.username}</span></td>
                             <td>${s.studentCode || s.username}</td>
-                            <td>${grp ? `<span class="phase-pill p1" style="font-size:12px;">${grp.name}</span>` : '<span style="color:#94a3b8;">⏳ 待划分小组</span>'}</td>
-                            <td><span style="color:#34d399; font-family:monospace; font-weight:700;">${s.password || '123'}</span></td>
-                            <td><button class="delete-student-btn" data-id="${s.id}" style="background:rgba(239,68,68,0.2); border:1px solid rgba(239,68,68,0.4); color:#f87171; padding:4px 10px; border-radius:6px; font-size:12px; cursor:pointer;">移除</button></td>
+                            <td>${grp ? `<span style="background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe; padding:2px 8px; border-radius:8px; font-size:12px; font-weight:700;">${grp.name}</span>` : '<span style="color:#94a3b8;">⏳ 待划分小组</span>'}</td>
+                            <td><span style="color:#059669; font-family:monospace; font-weight:700;">${s.password || '123'}</span></td>
+                            <td><button class="delete-student-btn" data-id="${s.id}" style="background:#fef2f2; border:1px solid #fecaca; color:#dc2626; padding:4px 10px; border-radius:6px; font-size:12px; cursor:pointer; font-weight:700;">移除</button></td>
                           </tr>
                         `;
                       }).join('')}
@@ -997,32 +998,32 @@
                 </div>
               </div>
 
-              <div class="card" style="border-top:4px solid #10b981; width:100%; padding:24px;">
+              <div class="card" style="border-top:4px solid #059669; width:100%; padding:24px;">
                 <div class="card-title" style="margin-bottom:16px;">
-                  <span style="font-size:18px; font-weight:800;">👥 小组划分 (当前班级: ${activeClass.name})</span>
-                  <button id="btn-v1-create-group" class="teacher-action-btn green" style="padding:8px 18px; font-size:13px; font-weight:700;">+ 新建小组并勾选组员</button>
+                  <span style="font-size:17px; font-weight:800; color:#0f172a;">👥 小组划分 (当前班级: ${activeClass.name})</span>
+                  <button id="btn-v1-create-group" class="teacher-action-btn green" style="background:#059669; padding:8px 18px; font-size:13px; font-weight:700;">+ 新建小组并勾选组员</button>
                 </div>
-                <div style="background:rgba(15,23,42,0.6); border:1px solid rgba(255,255,255,0.08); border-radius:10px; padding:12px; margin-bottom:14px; font-size:13px; color:#cbd5e1;">
+                <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:12px 16px; margin-bottom:14px; font-size:13px; color:#334155;">
                   💡 <b>班级互斥划分规则：</b>已归属于本班级其他小组的学生会自动隐藏，避免重复挂组。跨班级独立计算。
                 </div>
                 <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(360px, 1fr)); gap:16px;">
-                  ${(activeClass.groups || []).length === 0 ? '<div style="color:#94a3b8; padding:20px; font-size:14px;">当前班级暂无小组。</div>' : ''}
+                  ${(activeClass.groups || []).length === 0 ? '<div style="color:#64748b; padding:20px; font-size:14px;">当前班级暂无小组。</div>' : ''}
                   ${(activeClass.groups || []).map(grp => {
                     const groupMembers = classStudents.filter(s => (grp.members || []).includes(s.id));
                     return `
-                      <div style="background:rgba(15,23,42,0.7); border:1px solid rgba(255,255,255,0.1); border-radius:14px; padding:18px;">
+                      <div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:12px; padding:18px; box-shadow:0 1px 3px rgba(15,23,42,0.03);">
                         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
-                          <span style="font-size:16px; font-weight:800; color:#34d399;">👥 ${grp.name} (${groupMembers.length}人)</span>
+                          <span style="font-size:15.5px; font-weight:800; color:#059669;">👥 ${grp.name} (${groupMembers.length}人)</span>
                           <div style="display:flex; gap:8px;">
-                            <button class="btn-edit-group-members" data-gid="${grp.id}" style="background:var(--accent-indigo); border:none; color:white; padding:6px 12px; border-radius:6px; font-size:12px; font-weight:700; cursor:pointer;">⚙️ 勾选组员</button>
-                            <button class="btn-delete-group" data-gid="${grp.id}" style="background:rgba(239,68,68,0.2); border:1px solid rgba(239,68,68,0.4); color:#f87171; padding:6px 10px; border-radius:6px; font-size:12px; cursor:pointer;">✕ 解散</button>
+                            <button class="btn-edit-group-members" data-gid="${grp.id}" style="background:#eff6ff; border:1px solid #bfdbfe; color:#1d4ed8; padding:6px 12px; border-radius:6px; font-size:12px; font-weight:700; cursor:pointer;">⚙️ 勾选组员</button>
+                            <button class="btn-delete-group" data-gid="${grp.id}" style="background:#fef2f2; border:1px solid #fecaca; color:#dc2626; padding:6px 10px; border-radius:6px; font-size:12px; cursor:pointer; font-weight:700;">✕ 解散</button>
                           </div>
                         </div>
                         <div style="display:flex; flex-wrap:wrap; gap:8px; font-size:13px;">
                           ${groupMembers.length === 0 ? '<span style="color:#94a3b8; font-size:12px;">⚠️ 暂未勾选成员</span>' : ''}
                           ${groupMembers.map(m => `
-                            <span style="background:rgba(52,211,153,0.15); border:1px solid rgba(52,211,153,0.3); color:#34d399; padding:4px 10px; border-radius:6px;">
-                              ${m.avatar || '👤'} ${m.name} ${m.studentCode === 'A' ? '<b style="color:#fbbf24;">(组长)</b>' : ''}
+                            <span style="background:#ecfdf5; border:1px solid #a7f3d0; color:#059669; padding:4px 10px; border-radius:6px; font-weight:600;">
+                              ${m.avatar || '👤'} ${m.name} ${m.studentCode === 'A' ? '<b style="color:#d97706;">(组长)</b>' : ''}
                             </span>
                           `).join('')}
                         </div>
@@ -1036,57 +1037,57 @@
           ` : ''}
 
           ${activeTab === 'view_publishing' ? `
-            <div style="display:flex; flex-direction:column; gap:24px; width:100%;">
+            <div style="display:flex; flex-direction:column; gap:20px; width:100%;">
 
               <!-- 0. 问卷链接配置 (置顶) -->
-              <div class="card" style="border-top:4px solid #f59e0b; width:100%; padding:24px;">
+              <div class="card" style="border-top:4px solid #d97706; width:100%; padding:24px;">
                 <div class="card-title" style="margin-bottom:16px;">
-                  <span style="font-size:18px; font-weight:800;">📋 课程评估问卷链接配置</span>
-                  <span style="font-size:12px; color:#94a3b8; background:rgba(245,158,11,0.15); border:1px solid rgba(245,158,11,0.3); padding:4px 10px; border-radius:8px;">学生提交终稿后自动弹出提醒 · 顶部按钮随时可点</span>
+                  <span style="font-size:17px; font-weight:800; color:#0f172a;">📋 课程评估问卷链接配置</span>
+                  <span style="font-size:12px; color:#92400e; background:#fffbeb; border:1px solid #fde68a; padding:4px 10px; border-radius:8px; font-weight:600;">学生提交终稿后自动弹出提醒 · 顶部按钮随时可点</span>
                 </div>
                 <div style="display:flex; gap:12px; align-items:stretch;">
                   <input type="text" id="survey-url-input" class="teacher-input" placeholder="粘贴问卷链接，例如: https://www.wjx.cn/vm/xxxxx.aspx 或 https://forms.gle/xxxxx" value="${localStorage.getItem('jizhi_survey_url') || ''}" style="flex:1; font-family:monospace; font-size:13px;">
-                  <button id="btn-save-survey-url" style="background:linear-gradient(135deg, #f59e0b, #d97706); border:none; color:white; padding:10px 22px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer; white-space:nowrap; box-shadow:0 4px 14px rgba(245,158,11,0.4);">💾 保存链接</button>
+                  <button id="btn-save-survey-url" style="background:linear-gradient(135deg, #d97706, #b45309); border:none; color:white; padding:10px 22px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer; white-space:nowrap; box-shadow:0 3px 10px rgba(217,119,6,0.3);">💾 保存链接</button>
                 </div>
-                <div id="survey-url-status" style="font-size:12px; color:#34d399; display:none; margin-top:8px;">✅ 问卷链接已保存！学生提交终稿时将自动弹窗跳转。</div>
+                <div id="survey-url-status" style="font-size:12px; color:#059669; display:none; margin-top:8px; font-weight:700;">✅ 问卷链接已保存！学生提交终稿时将自动弹窗跳转。</div>
                 ${localStorage.getItem('jizhi_survey_url') ? `
-                  <div style="margin-top:10px; font-size:12px; color:#94a3b8; display:flex; align-items:center; gap:8px;">
-                    <span style="color:#34d399; font-weight:700;">✅ 当前已配置:</span>
-                    <a href="${localStorage.getItem('jizhi_survey_url')}" target="_blank" style="color:#a5b4fc; font-family:monospace; text-decoration:underline;">${localStorage.getItem('jizhi_survey_url')}</a>
+                  <div style="margin-top:10px; font-size:12px; color:#64748b; display:flex; align-items:center; gap:8px;">
+                    <span style="color:#059669; font-weight:700;">✅ 当前已配置:</span>
+                    <a href="${localStorage.getItem('jizhi_survey_url')}" target="_blank" style="color:#2563eb; font-family:monospace; text-decoration:underline;">${localStorage.getItem('jizhi_survey_url')}</a>
                   </div>
                 ` : `
-                  <div style="margin-top:10px; font-size:12px; color:#f59e0b;">⚠️ 尚未配置问卷链接，学生问卷弹窗将无法跳转。</div>
+                  <div style="margin-top:10px; font-size:12px; color:#d97706;">⚠️ 尚未配置问卷链接，学生问卷弹窗将无法跳转。</div>
                 `}
               </div>
 
-              <div class="card" style="border-top:4px solid #38bdf8; width:100%; padding:24px;">
+              <div class="card" style="border-top:4px solid #2563eb; width:100%; padding:24px;">
                 <div class="card-title" style="margin-bottom:16px;">
-                  <span style="font-size:18px; font-weight:800;">📌 课程协作写作任务集中发布中心 (含起止时间控制)</span>
-                  <button id="btn-v2-open-task-modal" class="teacher-action-btn indigo" style="padding:8px 18px; font-size:13px; font-weight:700;">+ 发布全新写作任务</button>
+                  <span style="font-size:17px; font-weight:800; color:#0f172a;">📌 课程协作写作任务集中发布中心 (含起止时间控制)</span>
+                  <button id="btn-v2-open-task-modal" class="teacher-action-btn indigo" style="background:#2563eb; padding:8px 18px; font-size:13px; font-weight:700;">+ 发布全新写作任务</button>
                 </div>
                 <div style="display:flex; flex-direction:column; gap:14px;">
                   ${tasks.map(t => `
-                    <div style="background:rgba(15,23,42,0.7); border:1px solid rgba(255,255,255,0.1); padding:18px; border-radius:14px;">
+                    <div style="background:#ffffff; border:1px solid #e2e8f0; padding:18px; border-radius:12px; box-shadow:0 1px 3px rgba(15,23,42,0.03);">
                       <div style="display:flex; justify-content:space-between; align-items:center;">
-                        <span style="font-size:17px; font-weight:800; color:#38bdf8;">📌 ${t.title}</span>
-                        <span class="status-badge active" style="background:rgba(56,189,248,0.15); color:#38bdf8; border:1px solid rgba(56,189,248,0.3); padding:4px 12px; border-radius:12px; font-size:12px; font-weight:700;">受众班级: ${t.className}</span>
+                        <span style="font-size:16px; font-weight:800; color:#1e40af;">📌 ${t.title}</span>
+                        <span style="background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe; padding:4px 12px; border-radius:12px; font-size:12px; font-weight:700;">受众班级: ${t.className}</span>
                       </div>
-                      <div style="font-size:13px; color:#cbd5e1; margin:10px 0; display:flex; gap:20px; background:rgba(30,41,59,0.6); padding:10px 16px; border-radius:8px; border-left:4px solid #38bdf8;">
-                        <span>📅 <b>开始时间:</b> <span style="color:#a5b4fc; font-weight:700;">${t.startTime || '即时开启'}</span></span>
-                        <span>⌛ <b>截止时间:</b> <span style="color:#fca5a5; font-weight:700;">${t.deadline || '无硬性限制'}</span></span>
+                      <div style="font-size:13px; color:#334155; margin:10px 0; display:flex; gap:20px; background:#f8fafc; padding:10px 16px; border-radius:8px; border-left:4px solid #2563eb;">
+                        <span>📅 <b>开始时间:</b> <span style="color:#2563eb; font-weight:700;">${t.startTime || '即时开启'}</span></span>
+                        <span>⌛ <b>截止时间:</b> <span style="color:#dc2626; font-weight:700;">${t.deadline || '无硬性限制'}</span></span>
                         <span>⏱️ <b>预估时长:</b> ${t.durationMinutes} 分钟</span>
                       </div>
-                      <div style="font-size:13px; color:#cbd5e1; line-height:1.6;">${t.instructions}</div>
+                      <div style="font-size:13px; color:#334155; line-height:1.6;">${t.instructions}</div>
                     </div>
                   `).join('')}
                 </div>
               </div>
 
               <!-- 2. 发布课堂广播通知 (含各小组已读/未读实时追踪矩阵) -->
-              <div class="card" style="border-top:4px solid #a855f7; width:100%; padding:24px;">
+              <div class="card" style="border-top:4px solid #059669; width:100%; padding:24px;">
                 <div class="card-title" style="margin-bottom:16px;">
-                  <span style="font-size:18px; font-weight:800;">📢 课堂即时广播通知发布 (含各小组已读/未读实时追踪矩阵)</span>
-                  <button id="btn-v2-open-ann-modal" class="teacher-action-btn green" style="padding:8px 18px; font-size:13px; font-weight:700;">
+                  <span style="font-size:17px; font-weight:800; color:#0f172a;">📢 课堂即时广播通知发布 (含各小组已读/未读实时追踪矩阵)</span>
+                  <button id="btn-v2-open-ann-modal" class="teacher-action-btn green" style="background:#059669; padding:8px 18px; font-size:13px; font-weight:700;">
                     + 发布新通知 (选择/拖拽上传资源文件)
                   </button>
                 </div>
@@ -1094,29 +1095,29 @@
                   ${announcements.map(a => {
                     const classGroups = activeClass.groups || [{ id: 'group_1', name: '第1小组' }];
                     return `
-                      <div style="background:rgba(15,23,42,0.7); border:1px solid rgba(255,255,255,0.1); padding:18px; border-radius:14px;">
+                      <div style="background:#ffffff; border:1px solid #e2e8f0; padding:18px; border-radius:12px; box-shadow:0 1px 3px rgba(15,23,42,0.03);">
                         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
-                          <span style="font-weight:800; color:#38bdf8; font-size:16px;">${a.title}</span>
-                          <span style="font-size:12px; color:#94a3b8;">${a.time} | 关联任务: ${a.taskTitle}</span>
+                          <span style="font-weight:800; color:#1e40af; font-size:16px;">${a.title}</span>
+                          <span style="font-size:12px; color:#64748b;">${a.time} | 关联任务: ${a.taskTitle}</span>
                         </div>
-                        <div style="font-size:13px; color:#cbd5e1; margin-bottom:10px; line-height:1.6;">${a.content}</div>
+                        <div style="font-size:13px; color:#334155; margin-bottom:10px; line-height:1.6;">${a.content}</div>
                         ${a.attachment ? `
-                          <div style="font-size:12px; color:#c084fc; background:rgba(139,92,246,0.15); border:1px solid rgba(139,92,246,0.3); padding:6px 12px; border-radius:8px; display:inline-flex; align-items:center; gap:8px; margin-bottom:10px;">
+                          <div style="font-size:12px; color:#1d4ed8; background:#eff6ff; border:1px solid #bfdbfe; padding:6px 12px; border-radius:8px; display:inline-flex; align-items:center; gap:8px; margin-bottom:10px; font-weight:600;">
                             <span>📎 随附资源文件: <b>${a.attachment.name}</b> (${a.attachment.size})</span>
                           </div>
                         ` : ''}
 
                         <!-- 📊 各小组已读/未读实时确认追踪矩阵 -->
-                        <div style="margin-top:10px; background:rgba(30,41,59,0.6); padding:12px 16px; border-radius:10px; border:1px solid rgba(255,255,255,0.08);">
-                          <div style="font-size:12px; font-weight:700; color:#cbd5e1; margin-bottom:8px; display:flex; justify-content:space-between; align-items:center;">
+                        <div style="margin-top:10px; background:#f8fafc; padding:12px 16px; border-radius:10px; border:1px solid #e2e8f0;">
+                          <div style="font-size:12px; font-weight:700; color:#334155; margin-bottom:8px; display:flex; justify-content:space-between; align-items:center;">
                             <span>📊 本班各小组阅读确认追踪矩阵 (${classGroups.length} 个小组):</span>
-                            <span style="font-size:11px; color:#38bdf8;">🟢 学生端确认后实时点亮</span>
+                            <span style="font-size:11px; color:#059669; font-weight:700;">🟢 学生端确认后实时点亮</span>
                           </div>
                           <div style="display:flex; flex-wrap:wrap; gap:10px; font-size:12px;">
                             ${classGroups.map(g => {
                               const isRead = a.readStatus && a.readStatus[g.id];
                               return `
-                                <span style="background:${isRead ? 'rgba(52,211,153,0.15)' : 'rgba(234,179,8,0.15)'}; border:1px solid ${isRead ? 'rgba(52,211,153,0.3)' : 'rgba(234,179,8,0.3)'}; color:${isRead ? '#34d399' : '#fbbf24'}; padding:6px 12px; border-radius:8px; font-weight:700;">
+                                <span style="background:${isRead ? '#ecfdf5' : '#fffbeb'}; border:1px solid ${isRead ? '#a7f3d0' : '#fde68a'}; color:${isRead ? '#059669' : '#d97706'}; padding:6px 12px; border-radius:8px; font-weight:700;">
                                   ${isRead ? '✅' : '⏳'} ${g.name}: <b>${isRead ? '已阅读确认' : '尚未确认'}</b>
                                 </span>
                               `;
@@ -1140,64 +1141,64 @@
             return `
               <div style="display:flex; flex-direction:column; gap:16px; width:100%;">
 
-                <div class="card" style="border-top:4px solid #10b981; width:100%; padding:18px 22px; display:flex; justify-content:space-between; align-items:center;">
+                <div class="card" style="border-top:4px solid #059669; width:100%; padding:18px 22px; display:flex; justify-content:space-between; align-items:center;">
                   <div style="display:flex; align-items:center; gap:14px;">
-                    <span style="font-size:17px; font-weight:800; color:#34d399;">🖥️ 实际操作实时监控终端:</span>
+                    <span style="font-size:16px; font-weight:800; color:#0f172a;">🖥️ 实际操作实时监控终端:</span>
                     <div style="display:flex; gap:8px;">
                       ${(activeClass.groups || []).map(g => {
                         const isSel = g.id === activeMonitorGId;
                         return `
-                          <button class="btn-switch-monitor-group ${isSel ? 'active' : ''}" data-gid="${g.id}" style="background:${isSel ? 'linear-gradient(135deg, #10b981, #059669)' : 'rgba(30,41,59,0.8)'}; border:1px solid ${isSel ? '#10b981' : 'rgba(255,255,255,0.1)'}; color:white; padding:8px 16px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer;">
+                          <button class="btn-switch-monitor-group ${isSel ? 'active' : ''}" data-gid="${g.id}" style="background:${isSel ? 'linear-gradient(135deg, #2563eb, #1d4ed8)' : '#f1f5f9'}; border:1px solid ${isSel ? '#2563eb' : '#cbd5e1'}; color:${isSel ? 'white' : '#334155'}; padding:7px 14px; border-radius:8px; font-size:12.5px; font-weight:700; cursor:pointer;">
                             👥 同屏监控: ${g.name} ${isSel ? '🟢' : ''}
                           </button>
                         `;
                       }).join('')}
                     </div>
                   </div>
-                  <button id="btn-export-all-excel" style="background:linear-gradient(135deg, #6366f1, #4f46e5); border:none; color:white; padding:10px 20px; border-radius:10px; font-size:13.5px; font-weight:800; cursor:pointer; box-shadow:0 4px 14px rgba(99,102,241,0.4);">
-                    📊 一键导出本组 Excel 聊天与研讨记录
+                  <button id="btn-export-all-excel" style="background:linear-gradient(135deg, #2563eb, #1d4ed8); border:none; color:white; padding:9px 18px; border-radius:8px; font-size:13px; font-weight:800; cursor:pointer; box-shadow:0 3px 10px rgba(37,99,235,0.3);">
+                    📊 一键导出本组 Excel 研讨记录
                   </button>
                 </div>
 
-                <div style="display:flex; justify-content:space-between; align-items:center; background:rgba(30,41,59,0.7); border:1px solid var(--border-glass); border-radius:12px; padding:12px 18px; width:100%;">
+                <div style="display:flex; justify-content:space-between; align-items:center; background:#ffffff; border:1px solid #e2e8f0; border-radius:12px; padding:12px 18px; width:100%; box-shadow:0 1px 3px rgba(15,23,42,0.03);">
                   <div style="display:flex; align-items:center; gap:12px;">
-                    <span style="font-size:13px; font-weight:700; color:#cbd5e1;">📍 实时跟随指示: 当前【${activeMonitorGroup.name}】实际处于: <b style="color:#34d399;">${actualStage === 'stage1' ? '🎪 阶段一：学术拍卖会' : actualStage === 'stage2' ? '📰 阶段二：学术编辑部' : '🎓 阶段三：答辩擂台'}</b></span>
+                    <span style="font-size:13px; font-weight:700; color:#334155;">📍 实时跟随指示: 当前【${activeMonitorGroup.name}】实际处于: <b style="color:#2563eb;">${actualStage === 'stage1' ? '🎪 阶段一：学术拍卖会' : actualStage === 'stage2' ? '📰 阶段二：学术编辑部' : '🎓 阶段三：答辩擂台'}</b></span>
                   </div>
                   <div style="display:flex; align-items:center; gap:8px;">
-                    <span style="font-size:12px; color:#94a3b8; font-weight:600;">🔀 切换同屏切页 (可选查看):</span>
-                    <button class="btn-monitor-stage-tab ${monitorStageMode === 'auto' ? 'active' : ''}" data-stg="auto" style="background:${monitorStageMode === 'auto' ? 'linear-gradient(135deg, #10b981, #059669)' : 'rgba(15,23,42,0.6)'}; border:1px solid ${monitorStageMode === 'auto' ? '#10b981' : 'rgba(255,255,255,0.1)'}; color:white; padding:6px 14px; border-radius:8px; font-size:12px; font-weight:700; cursor:pointer;">
-                      ⚡ 自动跟随学生 (${actualStage === 'stage1' ? '阶段一' : actualStage === 'stage2' ? '阶段二' : '阶段三'}) 🟢
+                    <span style="font-size:12px; color:#64748b; font-weight:600;">🔀 切换同屏切页:</span>
+                    <button class="btn-monitor-stage-tab ${monitorStageMode === 'auto' ? 'active' : ''}" data-stg="auto" style="background:${monitorStageMode === 'auto' ? '#ecfdf5' : '#f8fafc'}; border:1px solid ${monitorStageMode === 'auto' ? '#a7f3d0' : '#e2e8f0'}; color:${monitorStageMode === 'auto' ? '#059669' : '#475569'}; padding:6px 12px; border-radius:8px; font-size:12px; font-weight:700; cursor:pointer;">
+                      ⚡ 自动跟随 (${actualStage === 'stage1' ? '阶段一' : actualStage === 'stage2' ? '阶段二' : '阶段三'}) 🟢
                     </button>
-                    <button class="btn-monitor-stage-tab ${monitorStageMode === 'stage1' ? 'active' : ''}" data-stg="stage1" style="background:${monitorStageMode === 'stage1' ? 'linear-gradient(135deg, #6366f1, #4f46e5)' : 'rgba(15,23,42,0.6)'}; border:1px solid ${monitorStageMode === 'stage1' ? '#6366f1' : 'rgba(255,255,255,0.1)'}; color:white; padding:6px 14px; border-radius:8px; font-size:12px; font-weight:700; cursor:pointer;">
+                    <button class="btn-monitor-stage-tab ${monitorStageMode === 'stage1' ? 'active' : ''}" data-stg="stage1" style="background:${monitorStageMode === 'stage1' ? '#eff6ff' : '#f8fafc'}; border:1px solid ${monitorStageMode === 'stage1' ? '#bfdbfe' : '#e2e8f0'}; color:${monitorStageMode === 'stage1' ? '#1d4ed8' : '#475569'}; padding:6px 12px; border-radius:8px; font-size:12px; font-weight:700; cursor:pointer;">
                       🎪 查看阶段一
                     </button>
-                    <button class="btn-monitor-stage-tab ${monitorStageMode === 'stage2' ? 'active' : ''}" data-stg="stage2" style="background:${monitorStageMode === 'stage2' ? 'linear-gradient(135deg, #06b6d4, #0891b2)' : 'rgba(15,23,42,0.6)'}; border:1px solid ${monitorStageMode === 'stage2' ? '#06b6d4' : 'rgba(255,255,255,0.1)'}; color:white; padding:6px 14px; border-radius:8px; font-size:12px; font-weight:700; cursor:pointer;">
+                    <button class="btn-monitor-stage-tab ${monitorStageMode === 'stage2' ? 'active' : ''}" data-stg="stage2" style="background:${monitorStageMode === 'stage2' ? '#eff6ff' : '#f8fafc'}; border:1px solid ${monitorStageMode === 'stage2' ? '#bfdbfe' : '#e2e8f0'}; color:${monitorStageMode === 'stage2' ? '#1d4ed8' : '#475569'}; padding:6px 12px; border-radius:8px; font-size:12px; font-weight:700; cursor:pointer;">
                       📰 查看阶段二
                     </button>
-                    <button class="btn-monitor-stage-tab ${monitorStageMode === 'stage3' ? 'active' : ''}" data-stg="stage3" style="background:${monitorStageMode === 'stage3' ? 'linear-gradient(135deg, #a855f7, #9333ea)' : 'rgba(15,23,42,0.6)'}; border:1px solid ${monitorStageMode === 'stage3' ? '#a855f7' : 'rgba(255,255,255,0.1)'}; color:white; padding:6px 14px; border-radius:8px; font-size:12px; font-weight:700; cursor:pointer;">
+                    <button class="btn-monitor-stage-tab ${monitorStageMode === 'stage3' ? 'active' : ''}" data-stg="stage3" style="background:${monitorStageMode === 'stage3' ? '#eff6ff' : '#f8fafc'}; border:1px solid ${monitorStageMode === 'stage3' ? '#bfdbfe' : '#e2e8f0'}; color:${monitorStageMode === 'stage3' ? '#1d4ed8' : '#475569'}; padding:6px 12px; border-radius:8px; font-size:12px; font-weight:700; cursor:pointer;">
                       🎓 查看阶段三
                     </button>
                   </div>
                 </div>
 
                 ${effectiveMonitorStage === 'stage1' ? `
-                  <div style="display:grid; grid-template-columns: 1.6fr 1fr; gap:20px; width:100%;">
-                    <div class="card" style="padding:20px; display:flex; flex-direction:column; background:radial-gradient(circle at 50% 10%, #1e1b4b 0%, #0f172a 90%); border:1px solid rgba(99,102,241,0.3);">
-                      <div style="font-size:16px; font-weight:800; color:#818cf8; margin-bottom:12px; display:flex; justify-content:space-between; align-items:center;">
+                  <div style="display:grid; grid-template-columns: 1.6fr 1fr; gap:16px; width:100%;">
+                    <div class="card" style="padding:20px; display:flex; flex-direction:column; border:1px solid #bfdbfe;">
+                      <div style="font-size:15px; font-weight:800; color:#1e40af; margin-bottom:12px; display:flex; justify-content:space-between; align-items:center;">
                         <span>🎪 阶段一实操同屏: 竞拍提案与学术合作合约 (${activeMonitorGroup.name})</span>
-                        <span class="phase-pill p1">阶段一实况</span>
+                        <span style="background:#eff6ff; color:#1d4ed8; padding:2px 8px; border-radius:8px; font-size:11px; font-weight:700;">阶段一实况</span>
                       </div>
-                      <div style="background:rgba(15,23,42,0.8); border:1px solid rgba(255,255,255,0.08); border-radius:10px; padding:14px; margin-bottom:14px;">
-                        <div style="font-size:13px; font-weight:700; color:#38bdf8; margin-bottom:6px;">📌 确认融合论文研究主题:</div>
-                        <div style="font-size:14px; font-weight:800; color:#f8fafc;">${state.stage1.mergedTitle || '【尚待确定】'}</div>
+                      <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:14px; margin-bottom:14px;">
+                        <div style="font-size:13px; font-weight:700; color:#1e40af; margin-bottom:6px;">📌 确认融合论文研究主题:</div>
+                        <div style="font-size:14px; font-weight:800; color:#0f172a;">${state.stage1.mergedTitle || '【尚待确定】'}</div>
                       </div>
-                      <div style="background:rgba(15,23,42,0.6); border:1px solid rgba(255,255,255,0.08); border-radius:10px; padding:14px; font-size:13px;">
-                        <div style="font-weight:700; color:#a78bfa; margin-bottom:8px;">👥 合作合约签署矩阵:</div>
+                      <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:14px; font-size:13px;">
+                        <div style="font-weight:700; color:#1e40af; margin-bottom:8px;">👥 合作合约签署矩阵:</div>
                         <div style="display:flex; flex-wrap:wrap; gap:8px;">
                           ${monitorMembersList.map(m => {
                             const isConf = state.stage1.contract.confirmedMembers && state.stage1.contract.confirmedMembers[m.id];
                             return `
-                              <span style="color:${isConf ? '#34d399' : '#94a3b8'}; border:1px solid ${isConf ? 'rgba(52,211,153,0.3)' : 'rgba(255,255,255,0.1)'}; background:${isConf ? 'rgba(52,211,153,0.1)' : 'rgba(0,0,0,0.2)'}; padding:4px 10px; border-radius:6px; font-size:12px;">
+                              <span style="color:${isConf ? '#059669' : '#64748b'}; border:1px solid ${isConf ? '#a7f3d0' : '#e2e8f0'}; background:${isConf ? '#ecfdf5' : '#ffffff'}; padding:4px 10px; border-radius:6px; font-size:12px; font-weight:600;">
                                 ${m.avatar || '👤'} ${m.name}: <b>${isConf ? '✅ 已签署' : '⏳ 未签署'}</b>
                               </span>
                             `;
@@ -1205,20 +1206,20 @@
                         </div>
                       </div>
                     </div>
-                    <div class="card" style="padding:20px; display:flex; flex-direction:column; background:rgba(15,23,42,0.7); border:1px solid rgba(255,255,255,0.1);">
-                      <div style="font-size:16px; font-weight:800; color:#fbbf24; margin-bottom:12px;">💬 阶段一学术研讨对话流 (${activeMonitorGroup.name})</div>
-                      <div style="flex:1; max-height:420px; overflow-y:auto; background:rgba(30,41,59,0.8); border:1px solid rgba(255,255,255,0.08); border-radius:10px; padding:12px; font-size:12px; display:flex; flex-direction:column; gap:10px;">
+                    <div class="card" style="padding:20px; display:flex; flex-direction:column;">
+                      <div style="font-size:15px; font-weight:800; color:#0f172a; margin-bottom:12px;">💬 阶段一研讨对话流 (${activeMonitorGroup.name})</div>
+                      <div style="flex:1; max-height:420px; overflow-y:auto; background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:12px; font-size:12px; display:flex; flex-direction:column; gap:10px;">
                         ${(state.chatLogs['stage1'] || []).map(m => {
                           const isAgent = AgentProfiles[m.sender] !== undefined;
                           const senderName = isAgent ? AgentProfiles[m.sender].name : (monitorMembersObj[m.sender] ? monitorMembersObj[m.sender].name : m.sender);
-                          const color = isAgent ? AgentProfiles[m.sender].color : (monitorMembersObj[m.sender] ? monitorMembersObj[m.sender].color : '#38bdf8');
+                          const color = isAgent ? AgentProfiles[m.sender].color : (monitorMembersObj[m.sender] ? monitorMembersObj[m.sender].color : '#2563eb');
                           return `
-                            <div style="background:rgba(15,23,42,0.6); padding:8px 12px; border-radius:8px; border-left:3px solid ${color};">
+                            <div style="background:#ffffff; padding:8px 12px; border-radius:8px; border:1px solid #e2e8f0; border-left:3px solid ${color};">
                               <div style="display:flex; justify-content:space-between; margin-bottom:3px;">
                                 <b style="color:${color}; font-size:12px;">${senderName}</b>
-                                <span style="color:#64748b; font-size:10px;">${m.timestamp || ''}</span>
+                                <span style="color:#94a3b8; font-size:10px;">${m.timestamp || ''}</span>
                               </div>
-                              <div style="color:#f8fafc; line-height:1.5;">${m.text}</div>
+                              <div style="color:#0f172a; line-height:1.5;">${m.text}</div>
                             </div>
                           `;
                         }).join('')}
@@ -1228,50 +1229,50 @@
                 ` : ''}
 
                 ${effectiveMonitorStage === 'stage2' ? `
-                  <div style="display:grid; grid-template-columns: 1.6fr 1fr; gap:20px; width:100%;">
-                    <div class="card" style="padding:20px; display:flex; flex-direction:column; background:radial-gradient(circle at 50% 10%, #1e1b4b 0%, #0f172a 90%); border:1px solid rgba(52,211,153,0.3);">
+                  <div style="display:grid; grid-template-columns: 1.6fr 1fr; gap:16px; width:100%;">
+                    <div class="card" style="padding:20px; display:flex; flex-direction:column; border:1px solid #bfdbfe;">
                       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
                         <div style="display:flex; align-items:center; gap:8px;">
-                          <span style="font-size:16px; font-weight:800; color:#34d399;">📝 实时写作大正文镜像 (Live Document Stream - ${activeMonitorGroup.name})</span>
-                          <span style="font-size:11px; background:rgba(52,211,153,0.15); color:#34d399; padding:2px 8px; border-radius:10px; font-weight:700; border:1px solid rgba(52,211,153,0.3);">🟢 实时同步键入中</span>
+                          <span style="font-size:15px; font-weight:800; color:#1e40af;">📝 实时写作大正文镜像 (${activeMonitorGroup.name})</span>
+                          <span style="font-size:11px; background:#ecfdf5; color:#059669; padding:2px 8px; border-radius:10px; font-weight:700; border:1px solid #a7f3d0;">🟢 实时同步中</span>
                         </div>
-                        <span style="font-size:13px; color:#cbd5e1;">实时总字数: <b style="color:#38bdf8; font-size:15px;">${state.stage2.unifiedContent.length}</b> 字</span>
+                        <span style="font-size:12.5px; color:#475569;">总字数: <b style="color:#2563eb; font-size:14px;">${state.stage2.unifiedContent.length}</b> 字</span>
                       </div>
-                      <div style="background:rgba(15,23,42,0.8); border:1px solid rgba(255,255,255,0.08); border-radius:8px; padding:10px 14px; margin-bottom:12px; font-size:12px; color:#a5b4fc; display:flex; justify-content:space-between;">
+                      <div style="background:#eff6ff; border:1px solid #bfdbfe; border-radius:8px; padding:10px 14px; margin-bottom:12px; font-size:12px; color:#1d4ed8; display:flex; justify-content:space-between;">
                         <span>⚡ <b>当前【${activeMonitorGroup.name}】组内架构 (${monitorMembersList.length}人):</b> ${monitorMembersList.map(m => m.name).join('、')}</span>
-                        <span>${state.isFinalSubmitted ? '<b style="color:#34d399;">🔒 论文终稿已提交归档</b>' : '<b style="color:#fbbf24;">✍️ 组员写作推进中</b>'}</span>
+                        <span>${state.isFinalSubmitted ? '<b style="color:#059669;">🔒 论文终稿已提交归档</b>' : '<b style="color:#d97706;">✍️ 组员写作推进中</b>'}</span>
                       </div>
-                      <textarea id="teacher-live-doc-mirror" class="teacher-textarea" readonly style="flex:1; min-height:360px; font-family:sans-serif; font-size:14px; line-height:1.6; background:rgba(15,23,42,0.85); color:#f8fafc; border:1px solid rgba(255,255,255,0.1); opacity:0.95;">${state.stage2.unifiedContent}</textarea>
-                      <div style="margin-top:14px; background:rgba(15,23,42,0.7); padding:12px; border-radius:8px; border:1px solid rgba(255,255,255,0.08);">
-                        <div style="font-size:12px; font-weight:700; color:#cbd5e1; margin-bottom:6px;">📊 本组 SSRL 成员字数贡献比率 (${monitorMembersList.length} 位成员)</div>
-                        <div style="height:14px; background:rgba(0,0,0,0.4); border-radius:7px; overflow:hidden; display:flex;">
+                      <textarea id="teacher-live-doc-mirror" class="teacher-textarea" readonly style="flex:1; min-height:340px; font-family:sans-serif; font-size:13.5px; line-height:1.6; background:#ffffff; color:#0f172a; border:1px solid #cbd5e1;">${state.stage2.unifiedContent}</textarea>
+                      <div style="margin-top:14px; background:#f8fafc; padding:12px; border-radius:8px; border:1px solid #e2e8f0;">
+                        <div style="font-size:12px; font-weight:700; color:#334155; margin-bottom:6px;">📊 本组 SSRL 成员字数贡献比率 (${monitorMembersList.length} 位成员)</div>
+                        <div style="height:10px; background:#e2e8f0; border-radius:6px; overflow:hidden; display:flex;">
                           ${monitorMembersList.map((m) => {
                             const pct = Math.round(100 / monitorMembersList.length);
-                            return `<div style="width:${pct}%; background:${m.color || '#818cf8'};" title="${m.name}: ${pct}%"></div>`;
+                            return `<div style="width:${pct}%; background:${m.color || '#2563eb'};" title="${m.name}: ${pct}%"></div>`;
                           }).join('')}
                         </div>
-                        <div style="display:flex; justify-content:space-between; font-size:11px; color:#cbd5e1; margin-top:6px; flex-wrap:wrap; gap:8px;">
+                        <div style="display:flex; justify-content:space-between; font-size:11px; color:#475569; margin-top:6px; flex-wrap:wrap; gap:8px;">
                           ${monitorMembersList.map(m => {
                             const pct = Math.round(100 / monitorMembersList.length);
-                            return `<span style="color:${m.color || '#a5b4fc'}; font-weight:600;">● ${m.name}: ${pct}%</span>`;
+                            return `<span style="color:${m.color || '#2563eb'}; font-weight:600;">● ${m.name}: ${pct}%</span>`;
                           }).join('')}
                         </div>
                       </div>
                     </div>
-                    <div class="card" style="padding:20px; display:flex; flex-direction:column; background:rgba(15,23,42,0.7); border:1px solid rgba(255,255,255,0.1);">
-                      <div style="font-size:16px; font-weight:800; color:#fbbf24; margin-bottom:12px;">💬 阶段二编辑部学术对话流 (${activeMonitorGroup.name})</div>
-                      <div style="flex:1; max-height:480px; overflow-y:auto; background:rgba(30,41,59,0.8); border:1px solid rgba(255,255,255,0.08); border-radius:10px; padding:12px; font-size:12px; display:flex; flex-direction:column; gap:10px;">
+                    <div class="card" style="padding:20px; display:flex; flex-direction:column;">
+                      <div style="font-size:15px; font-weight:800; color:#0f172a; margin-bottom:12px;">💬 阶段二编辑部研讨流 (${activeMonitorGroup.name})</div>
+                      <div style="flex:1; max-height:460px; overflow-y:auto; background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:12px; font-size:12px; display:flex; flex-direction:column; gap:10px;">
                         ${(state.chatLogs['stage2'] || []).map(m => {
                           const isAgent = AgentProfiles[m.sender] !== undefined;
                           const senderName = isAgent ? AgentProfiles[m.sender].name : (monitorMembersObj[m.sender] ? monitorMembersObj[m.sender].name : m.sender);
-                          const color = isAgent ? AgentProfiles[m.sender].color : (monitorMembersObj[m.sender] ? monitorMembersObj[m.sender].color : '#38bdf8');
+                          const color = isAgent ? AgentProfiles[m.sender].color : (monitorMembersObj[m.sender] ? monitorMembersObj[m.sender].color : '#2563eb');
                           return `
-                            <div style="background:rgba(15,23,42,0.6); padding:8px 12px; border-radius:8px; border-left:3px solid ${color};">
+                            <div style="background:#ffffff; padding:8px 12px; border-radius:8px; border:1px solid #e2e8f0; border-left:3px solid ${color};">
                               <div style="display:flex; justify-content:space-between; margin-bottom:3px;">
                                 <b style="color:${color}; font-size:12px;">${senderName}</b>
-                                <span style="color:#64748b; font-size:10px;">${m.timestamp || ''}</span>
+                                <span style="color:#94a3b8; font-size:10px;">${m.timestamp || ''}</span>
                               </div>
-                              <div style="color:#f8fafc; line-height:1.5;">${m.text}</div>
+                              <div style="color:#0f172a; line-height:1.5;">${m.text}</div>
                             </div>
                           `;
                         }).join('')}
@@ -1281,29 +1282,29 @@
                 ` : ''}
 
                 ${effectiveMonitorStage === 'stage3' ? `
-                  <div style="display:grid; grid-template-columns: 1.6fr 1fr; gap:20px; width:100%;">
-                    <div class="card" style="padding:20px; display:flex; flex-direction:column; background:radial-gradient(circle at 50% 10%, #1e1b4b 0%, #0f172a 90%); border:1px solid rgba(168,85,247,0.3);">
-                      <div style="font-size:16px; font-weight:800; color:#c084fc; margin-bottom:12px;">🎓 阶段三实操同屏: 答辩擂台与成员裁决 (${activeMonitorGroup.name})</div>
-                      <div style="background:rgba(15,23,42,0.8); border:1px solid rgba(255,255,255,0.08); border-radius:10px; padding:14px; margin-bottom:14px;">
-                        <div style="font-size:13px; font-weight:700; color:#c084fc; margin-bottom:6px;">⚖️ 成员辩护裁决状态:</div>
-                        <div style="font-size:13px; color:#cbd5e1;">${state.isFinalSubmitted ? '🔒 本组论文终稿已全员答辩完成并成功提交归档！' : '🎓 组员答辩质询辩护中...'}</div>
+                  <div style="display:grid; grid-template-columns: 1.6fr 1fr; gap:16px; width:100%;">
+                    <div class="card" style="padding:20px; display:flex; flex-direction:column; border:1px solid #bfdbfe;">
+                      <div style="font-size:15px; font-weight:800; color:#1e40af; margin-bottom:12px;">🎓 阶段三实操同屏: 答辩擂台与成员裁决 (${activeMonitorGroup.name})</div>
+                      <div style="background:#eff6ff; border:1px solid #bfdbfe; border-radius:10px; padding:12px 14px; margin-bottom:12px;">
+                        <div style="font-size:13px; font-weight:700; color:#1e40af; margin-bottom:4px;">⚖️ 成员辩护裁决状态:</div>
+                        <div style="font-size:13px; color:#334155;">${state.isFinalSubmitted ? '🔒 本组论文终稿已全员答辩完成并成功提交归档！' : '🎓 组员答辩质询辩护中...'}</div>
                       </div>
-                      <textarea class="teacher-textarea" readonly style="flex:1; min-height:360px; font-family:sans-serif; font-size:14px; line-height:1.6; background:rgba(15,23,42,0.85); color:#f8fafc; opacity:0.95;">${state.stage2.unifiedContent}</textarea>
+                      <textarea class="teacher-textarea" readonly style="flex:1; min-height:340px; font-family:sans-serif; font-size:13.5px; line-height:1.6; background:#ffffff; color:#0f172a; border:1px solid #cbd5e1;">${state.stage2.unifiedContent}</textarea>
                     </div>
-                    <div class="card" style="padding:20px; display:flex; flex-direction:column; background:rgba(15,23,42,0.7); border:1px solid rgba(255,255,255,0.1);">
-                      <div style="font-size:16px; font-weight:800; color:#c084fc; margin-bottom:12px;">💬 阶段三答辩对话流 (${activeMonitorGroup.name})</div>
-                      <div style="flex:1; max-height:480px; overflow-y:auto; background:rgba(30,41,59,0.8); border:1px solid rgba(255,255,255,0.08); border-radius:10px; padding:12px; font-size:12px; display:flex; flex-direction:column; gap:10px;">
+                    <div class="card" style="padding:20px; display:flex; flex-direction:column;">
+                      <div style="font-size:15px; font-weight:800; color:#0f172a; margin-bottom:12px;">💬 阶段三答辩对话流 (${activeMonitorGroup.name})</div>
+                      <div style="flex:1; max-height:460px; overflow-y:auto; background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:12px; font-size:12px; display:flex; flex-direction:column; gap:10px;">
                         ${(state.chatLogs['stage3'] || []).map(m => {
                           const isAgent = AgentProfiles[m.sender] !== undefined;
                           const senderName = isAgent ? AgentProfiles[m.sender].name : (monitorMembersObj[m.sender] ? monitorMembersObj[m.sender].name : m.sender);
-                          const color = isAgent ? AgentProfiles[m.sender].color : (monitorMembersObj[m.sender] ? monitorMembersObj[m.sender].color : '#38bdf8');
+                          const color = isAgent ? AgentProfiles[m.sender].color : (monitorMembersObj[m.sender] ? monitorMembersObj[m.sender].color : '#2563eb');
                           return `
-                            <div style="background:rgba(15,23,42,0.6); padding:8px 12px; border-radius:8px; border-left:3px solid ${color};">
+                            <div style="background:#ffffff; padding:8px 12px; border-radius:8px; border:1px solid #e2e8f0; border-left:3px solid ${color};">
                               <div style="display:flex; justify-content:space-between; margin-bottom:3px;">
                                 <b style="color:${color}; font-size:12px;">${senderName}</b>
-                                <span style="color:#64748b; font-size:10px;">${m.timestamp || ''}</span>
+                                <span style="color:#94a3b8; font-size:10px;">${m.timestamp || ''}</span>
                               </div>
-                              <div style="color:#f8fafc; line-height:1.5;">${m.text}</div>
+                              <div style="color:#0f172a; line-height:1.5;">${m.text}</div>
                             </div>
                           `;
                         }).join('')}
@@ -2433,30 +2434,30 @@
 
     canvas.innerHTML = `
       ${isContractLocked ? `
-        <div style="background:rgba(16,185,129,0.15); border:1px solid rgba(16,185,129,0.3); border-radius:8px; padding:10px 14px; margin-bottom:12px; font-size:13px; color:#34d399; font-weight:700; display:flex; align-items:center; justify-content:space-between;">
+        <div style="background:#ecfdf5; border:1px solid #a7f3d0; border-radius:8px; padding:10px 14px; margin-bottom:12px; font-size:13px; color:#059669; font-weight:700; display:flex; align-items:center; justify-content:space-between;">
           <span>🔒 阶段一【学术拍卖会】合作合约已全员签署生效并锁定 (可随时返回查阅)</span>
-          <span style="font-size:11px; color:#cbd5e1; background:rgba(0,0,0,0.3); padding:4px 8px; border-radius:4px;">全组 ${confirmedCount}/${totalMembersCount} 人已签署</span>
+          <span style="font-size:11.5px; color:#065f46; background:#ffffff; border:1px solid #a7f3d0; padding:4px 8px; border-radius:4px;">全组 ${confirmedCount}/${totalMembersCount} 人已签署</span>
         </div>
       ` : ''}
 
       <div class="card">
         <div class="card-title" style="display:flex; justify-content:space-between; align-items:center;">
           <div style="display:flex; align-items:center; gap:10px;">
-            <span style="font-weight:800; font-size:16px;">💡 竞拍提案池 (提出观点 · 理由在右侧研讨) ${isContractLocked ? '<span style="font-size:11px; color:#34d399;">(🔒 已锁定)</span>' : ''}</span>
-            <span style="font-size:12px; color:#38bdf8;">📊 投票进度: <b>${totalVotesCast}/${totalMembersCount} 人已投票</b></span>
+            <span style="font-weight:800; font-size:15px; color:#0f172a;">💡 竞拍提案池 (提出观点 · 理由在右侧研讨) ${isContractLocked ? '<span style="font-size:11px; color:#059669;">(🔒 已锁定)</span>' : ''}</span>
+            <span style="font-size:12px; color:#2563eb; background:#eff6ff; padding:2px 8px; border-radius:10px; border:1px solid #bfdbfe;">📊 投票进度: <b>${totalVotesCast}/${totalMembersCount} 人已投票</b></span>
           </div>
           ${!isContractLocked ? `
-            <button id="btn-open-submit-proposal" style="background:linear-gradient(135deg, #8b5cf6, #6366f1); border:none; color:white; padding:7px 16px; border-radius:8px; font-weight:700; font-size:13px; cursor:pointer; box-shadow:0 4px 12px rgba(139,92,246,0.35);">
+            <button id="btn-open-submit-proposal" style="background:linear-gradient(135deg, #2563eb, #1d4ed8); border:none; color:white; padding:7px 16px; border-radius:8px; font-weight:700; font-size:13px; cursor:pointer; box-shadow:0 3px 10px rgba(37,99,235,0.3);">
               + 提交我的选题观点
             </button>
           ` : ''}
         </div>
 
         ${s1.proposals.length === 0 ? `
-          <div style="text-align:center; padding:36px; background:rgba(15,23,42,0.5); border-radius:10px; border:2px dashed rgba(255,255,255,0.1); margin-top:10px;">
+          <div style="text-align:center; padding:36px; background:#f8fafc; border-radius:10px; border:2px dashed #cbd5e1; margin-top:10px;">
             <div style="font-size:32px; margin-bottom:8px;">💡</div>
-            <div style="font-size:15px; font-weight:700; color:#f8fafc;">目前暂无小组成员提交的选题观点</div>
-            <div style="font-size:12px; color:#94a3b8; margin-top:4px;">请点击右上角【+ 提交我的选题观点】仅需录入观点名称，理由直接在右侧研讨管道中与组员交流！</div>
+            <div style="font-size:15px; font-weight:800; color:#0f172a;">目前暂无小组成员提交的选题观点</div>
+            <div style="font-size:12.5px; color:#64748b; margin-top:4px;">请点击右上角【+ 提交我的选题观点】仅需录入观点名称，理由直接在右侧研讨管道中与组员交流！</div>
           </div>
         ` : `
           <div class="proposals-grid" style="margin-top:12px;">
@@ -2474,8 +2475,8 @@
                   <div class="proposal-header">
                     <div class="proposal-title">💡 ${p.title}</div>
                   </div>
-                  <div style="font-size:12px; color:#94a3b8; margin-bottom:8px;">提出人: <b style="color:#f8fafc;">${authorName}</b></div>
-                  <div style="font-size:12px; color:#38bdf8; margin-bottom:12px; background:rgba(15,23,42,0.6); padding:10px 12px; border-radius:8px; line-height:1.5; flex:1; border:1px dashed rgba(56,189,248,0.3);">
+                  <div style="font-size:12px; color:#64748b; margin-bottom:8px;">提出人: <b style="color:#0f172a;">${authorName}</b></div>
+                  <div style="font-size:12px; color:#1e40af; margin-bottom:12px; background:#eff6ff; padding:10px 12px; border-radius:8px; line-height:1.5; flex:1; border:1px dashed #bfdbfe;">
                     💬 选题理由依据与学术价值正在右侧研讨管道中实时交流探讨
                   </div>
                   <button class="${btnClass}" data-id="${p.id}" ${isContractLocked || userHasVoted ? 'disabled' : ''} style="width:100%; margin-top:6px;">${btnText}</button>
@@ -2486,27 +2487,27 @@
         `}
       </div>
 
-      <!-- 一整个统一下致的合作学术合约公约框架卡片 (一整块外框) -->
-      <div class="contract-card" style="margin-top:20px; border:2px solid rgba(168,85,247,0.5); border-radius:16px; background:radial-gradient(circle at 50% 10%, rgba(30,27,75,0.95) 0%, rgba(15,23,42,0.95) 100%); padding:24px; box-shadow:0 15px 45px rgba(0,0,0,0.6); width:100%; box-sizing:border-box;">
+      <!-- 一整个统一的合作学术合约公约框架卡片 (蓝白层次风) -->
+      <div class="contract-card" style="margin-top:16px; border:2px solid #3b82f6; border-radius:16px; background:#ffffff; padding:24px; box-shadow:0 10px 30px rgba(37,99,235,0.08); width:100%; box-sizing:border-box;">
         
-        <div style="text-align:center; margin-bottom:20px; border-bottom:1px solid rgba(255,255,255,0.1); padding-bottom:16px;">
-          <div style="font-size:20px; font-weight:800; background:linear-gradient(135deg, #c084fc, #38bdf8); -webkit-background-clip:text; -webkit-text-fill-color:transparent;">
+        <div style="text-align:center; margin-bottom:20px; border-bottom:1px solid #e2e8f0; padding-bottom:16px;">
+          <div style="font-size:20px; font-weight:800; color:#1e3a8a;">
             📜 团队协同合作学术公约与规范合约
           </div>
-          <div style="font-size:12px; color:#cbd5e1; margin-top:4px;">
-            ${isContractLocked ? `<span style="color:#34d399; font-weight:700;">🔒 全员 ${confirmedCount}/${totalMembersCount} 人完成签署 · 归档生效中</span>` : '💡 由 AI 依据组内研讨自动提取生成，小组成员可自由修改微调各项内容，全员确认后签署生效'}
+          <div style="font-size:12.5px; color:#64748b; margin-top:4px;">
+            ${isContractLocked ? `<span style="color:#059669; font-weight:700;">🔒 全员 ${confirmedCount}/${totalMembersCount} 人完成签署 · 归档生效中</span>` : '💡 由 AI 依据组内研讨自动提取生成，小组成员可自由修改微调各项内容，全员确认后签署生效'}
           </div>
         </div>
 
-        <div style="display:flex; flex-direction:column; gap:8px; width:100%; margin-bottom:20px; background:rgba(15,23,42,0.6); padding:16px; border-radius:12px; border:1px solid rgba(56,189,248,0.3); box-sizing:border-box;">
-          <label style="font-size:14px; font-weight:800; color:#38bdf8;">📌 确认融合论文研究主题 (支持随时修改):</label>
-          <input type="text" id="contract-topic-input" class="large-contract-input" value="${s1.mergedTitle || ''}" placeholder="在聊天中商定或在此处输入研究方案最终主题..." ${isContractLocked ? 'disabled readonly style="opacity:0.8; cursor:not-allowed;"' : ''} style="width:100%; box-sizing:border-box; background:#0f172a; color:#f8fafc; border:1px solid rgba(255,255,255,0.2); border-radius:8px; padding:12px 14px; font-size:14px; font-weight:700; font-family:sans-serif;">
+        <div style="display:flex; flex-direction:column; gap:8px; width:100%; margin-bottom:20px; background:#eff6ff; padding:16px; border-radius:12px; border:1px solid #bfdbfe; box-sizing:border-box;">
+          <label style="font-size:14px; font-weight:800; color:#1e40af;">📌 确认融合论文研究主题 (支持随时修改):</label>
+          <input type="text" id="contract-topic-input" class="large-contract-input" value="${s1.mergedTitle || ''}" placeholder="在聊天中商定或在此处输入研究方案最终主题..." ${isContractLocked ? 'disabled readonly style="opacity:0.8; cursor:not-allowed;"' : ''} style="width:100%; box-sizing:border-box; background:#ffffff; color:#0f172a; border:1px solid #cbd5e1; border-radius:8px; padding:12px 14px; font-size:14px; font-weight:700; font-family:sans-serif;">
         </div>
 
-        <div style="display:flex; flex-direction:column; gap:20px; width:100%;">
-          <div style="background:rgba(15,23,42,0.6); padding:16px; border-radius:12px; border:1px solid rgba(255,255,255,0.08); width:100%; box-sizing:border-box;">
-            <div style="font-weight:700; color:#a78bfa; margin-bottom:10px; font-size:14px;">⏱️ 150分钟时间预算 (由AI提取或在此修改，单位: 分钟):</div>
-            <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(130px, 1fr)); gap:10px; font-size:13px; color:#cbd5e1;">
+        <div style="display:flex; flex-direction:column; gap:16px; width:100%;">
+          <div style="background:#f8fafc; padding:16px; border-radius:12px; border:1px solid #e2e8f0; width:100%; box-sizing:border-box;">
+            <div style="font-weight:700; color:#1e40af; margin-bottom:10px; font-size:14px;">⏱️ 150分钟时间预算 (由AI提取或在此修改，单位: 分钟):</div>
+            <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(130px, 1fr)); gap:10px; font-size:13px; color:#334155;">
               <label style="display:flex; align-items:center; gap:6px;">背景: <input type="number" class="contract-time-input large" data-key="background" value="${s1.contract.timeAllocations.background}" ${isContractLocked ? 'disabled readonly style="opacity:0.8; cursor:not-allowed;"' : ''}></label>
               <label style="display:flex; align-items:center; gap:6px;">问题: <input type="number" class="contract-time-input large" data-key="questions" value="${s1.contract.timeAllocations.questions}" ${isContractLocked ? 'disabled readonly style="opacity:0.8; cursor:not-allowed;"' : ''}></label>
               <label style="display:flex; align-items:center; gap:6px;">文献: <input type="number" class="contract-time-input large" data-key="literature" value="${s1.contract.timeAllocations.literature}" ${isContractLocked ? 'disabled readonly style="opacity:0.8; cursor:not-allowed;"' : ''}></label>
@@ -2516,17 +2517,17 @@
             </div>
           </div>
 
-          <div style="background:rgba(15,23,42,0.6); padding:16px; border-radius:12px; border:1px solid rgba(255,255,255,0.08); width:100%; box-sizing:border-box;">
-            <div style="font-weight:700; color:#a78bfa; margin-bottom:12px; font-size:14px; display:flex; justify-content:space-between; align-items:center;">
+          <div style="background:#f8fafc; padding:16px; border-radius:12px; border:1px solid #e2e8f0; width:100%; box-sizing:border-box;">
+            <div style="font-weight:700; color:#1e40af; margin-bottom:12px; font-size:14px; display:flex; justify-content:space-between; align-items:center;">
               <span>👥 本组小组成员分工 (共 ${totalMembersCount} 人 · 自动适配全宽展现):</span>
             </div>
-            <div style="display:flex; flex-direction:column; gap:12px; width:100%;">
+            <div style="display:flex; flex-direction:column; gap:10px; width:100%;">
               ${membersList.map(m => {
                 const taskVal = (s1.contract.taskAssignments && s1.contract.taskAssignments[m.id] !== undefined) ? s1.contract.taskAssignments[m.id] : '';
                 return `
-                  <div style="display:flex; flex-direction:column; gap:6px; width:100%; background:rgba(30,41,59,0.5); padding:12px 14px; border-radius:8px; border:1px solid rgba(255,255,255,0.08); box-sizing:border-box;">
-                    <span style="font-weight:800; color:${m.color || '#818cf8'}; font-size:13px;">${m.avatar || '👤'} ${m.name} (${m.roleTitle || '组员'}):</span>
-                    <input type="text" class="large-contract-input task-assignment-input" data-mid="${m.id}" value="${taskVal}" ${isContractLocked ? 'disabled readonly style="opacity:0.8; cursor:not-allowed;"' : ''} style="width:100%; box-sizing:border-box; background:#0f172a; color:#f8fafc; border:1px solid rgba(255,255,255,0.2); border-radius:6px; padding:10px 14px; font-size:13px; font-family:sans-serif;" placeholder="在聊天中商定或在此录入具体负责的写作章节与任务...">
+                  <div style="display:flex; flex-direction:column; gap:6px; width:100%; background:#ffffff; padding:12px 14px; border-radius:8px; border:1px solid #e2e8f0; box-sizing:border-box;">
+                    <span style="font-weight:800; color:${m.color || '#2563eb'}; font-size:13px;">${m.avatar || '👤'} ${m.name} (${m.roleTitle || '组员'}):</span>
+                    <input type="text" class="large-contract-input task-assignment-input" data-mid="${m.id}" value="${taskVal}" ${isContractLocked ? 'disabled readonly style="opacity:0.8; cursor:not-allowed;"' : ''} style="width:100%; box-sizing:border-box; background:#ffffff; color:#0f172a; border:1px solid #cbd5e1; border-radius:6px; padding:10px 14px; font-size:13px; font-family:sans-serif;" placeholder="在聊天中商定或在此录入具体负责的写作章节与任务...">
                   </div>
                 `;
               }).join('')}
@@ -2534,16 +2535,16 @@
           </div>
         </div>
 
-        <div style="margin-top:20px; background:rgba(15,23,42,0.7); border:1px solid rgba(255,255,255,0.1); border-radius:12px; padding:14px 18px; width:100%; box-sizing:border-box;">
-          <div style="font-size:13px; font-weight:700; color:#cbd5e1; margin-bottom:10px; display:flex; justify-content:space-between; flex-wrap:wrap; gap:10px;">
+        <div style="margin-top:16px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:12px; padding:14px 18px; width:100%; box-sizing:border-box;">
+          <div style="font-size:13px; font-weight:700; color:#334155; margin-bottom:10px; display:flex; justify-content:space-between; flex-wrap:wrap; gap:10px;">
             <span>📌 本组全员确认签署状态矩阵 (规则：需 ${totalMembersCount}/${totalMembersCount} 人全部点击确认):</span>
-            <span style="color:${confirmedCount === totalMembersCount ? '#34d399' : '#fbbf24'}; font-weight:800;">签署进度: ${confirmedCount}/${totalMembersCount} 人已完成 ${confirmedCount === totalMembersCount ? '🎉 (合约已生效)' : ''}</span>
+            <span style="color:${confirmedCount === totalMembersCount ? '#059669' : '#d97706'}; font-weight:800;">签署进度: ${confirmedCount}/${totalMembersCount} 人已完成 ${confirmedCount === totalMembersCount ? '🎉 (合约已生效)' : ''}</span>
           </div>
           <div style="display:flex; flex-wrap:wrap; gap:10px; font-size:13px;">
             ${membersList.map(m => {
               const isConf = confirmedMembers[m.id];
               return `
-                <span style="color:${isConf ? '#34d399' : '#94a3b8'}; border:1px solid ${isConf ? 'rgba(52,211,153,0.3)' : 'rgba(255,255,255,0.1)'}; background:${isConf ? 'rgba(52,211,153,0.1)' : 'rgba(0,0,0,0.2)'}; padding:6px 12px; border-radius:8px;">
+                <span style="color:${isConf ? '#059669' : '#64748b'}; border:1px solid ${isConf ? '#a7f3d0' : '#e2e8f0'}; background:${isConf ? '#ecfdf5' : '#ffffff'}; padding:6px 12px; border-radius:8px; font-weight:600;">
                   ${m.avatar || '👤'} ${m.name}: <b>${isConf ? '✅ 已确认签署' : '⏳ 未确认'}</b>
                 </span>
               `;
@@ -2552,7 +2553,7 @@
         </div>
 
         <div style="margin-top:20px; text-align:center;">
-          <button id="btn-confirm-contract" ${isContractLocked ? 'disabled' : ''} style="background:${isContractLocked ? 'rgba(16,185,129,0.2)' : userHasConfirmed ? 'rgba(16,185,129,0.3)' : 'linear-gradient(135deg, #10b981, #059669)'}; border:1px solid ${isContractLocked || userHasConfirmed ? '#10b981' : 'transparent'}; color:${isContractLocked ? '#34d399' : 'white'}; padding:14px 32px; border-radius:10px; font-weight:800; cursor:${isContractLocked ? 'not-allowed' : 'pointer'}; font-size:15px; box-shadow:0 4px 16px rgba(16,185,129,0.3);">
+          <button id="btn-confirm-contract" ${isContractLocked ? 'disabled' : ''} style="background:${isContractLocked ? '#ecfdf5' : userHasConfirmed ? '#eff6ff' : 'linear-gradient(135deg, #059669, #047857)'}; border:1px solid ${isContractLocked ? '#a7f3d0' : userHasConfirmed ? '#bfdbfe' : 'transparent'}; color:${isContractLocked ? '#059669' : userHasConfirmed ? '#1d4ed8' : 'white'}; padding:13px 32px; border-radius:10px; font-weight:800; cursor:${isContractLocked ? 'not-allowed' : 'pointer'}; font-size:14.5px; box-shadow:0 3px 12px rgba(5,150,105,0.25);">
             ${isContractLocked ? '🔒 学术合作合约已全员签署生效并锁定 (只读归档查阅)' : userHasConfirmed ? `✅ 我 (${state.members[currentUser] ? state.members[currentUser].name : currentUser}) 已按键确认签署 (${confirmedCount}/${totalMembersCount} 人已完成)` : `✍️ 我以 (${state.members[currentUser] ? state.members[currentUser].name : currentUser}) 身份按键确认签署合约 (已确认 ${confirmedCount}/${totalMembersCount} 人)`}
           </button>
         </div>
@@ -2679,30 +2680,30 @@
 
     canvas.innerHTML = `
       ${isStage2MeetingLocked ? `
-        <div style="background:rgba(99,102,241,0.15); border:1px solid rgba(99,102,241,0.3); border-radius:8px; padding:10px 14px; margin-bottom:10px; font-size:13px; color:#a5b4fc; font-weight:700; display:flex; justify-content:space-between; align-items:center;">
+        <div style="background:#eff6ff; border:1px solid #bfdbfe; border-radius:8px; padding:10px 14px; margin-bottom:10px; font-size:13px; color:#1d4ed8; font-weight:700; display:flex; justify-content:space-between; align-items:center;">
           <span>🔒 阶段二【半程编辑会议】打分与修正清单已完成并锁定 ${isEditorReadonly ? '· 全盘终稿已提交只读查阅' : '· 可随时回看'}</span>
-          <span style="font-size:11px; color:#cbd5e1; background:rgba(0,0,0,0.3); padding:4px 8px; border-radius:4px;">归档只读</span>
+          <span style="font-size:11.5px; color:#1e40af; background:#ffffff; border:1px solid #bfdbfe; padding:4px 8px; border-radius:4px;">归档只读</span>
         </div>
       ` : ''}
 
       <div class="card" style="height:100%; display:flex; flex-direction:column; padding:16px;">
         <div class="card-title" style="margin-bottom:10px; display:flex; justify-content:space-between; align-items:center;">
           <div style="display:flex; align-items:center; gap:8px;">
-            <span style="font-size:16px; font-weight:800;">📝 学术协作富文本编辑器 (对标 Word 学术论文规范)</span>
-            <span style="font-size:12px; color:#38bdf8;">字数: <b>${plainTextLen}</b> 字</span>
+            <span style="font-size:15px; font-weight:800; color:#0f172a;">📝 学术协作富文本编辑器 (对标 Word 学术论文规范)</span>
+            <span style="font-size:12px; color:#2563eb; background:#eff6ff; padding:2px 8px; border-radius:10px; border:1px solid #bfdbfe;">字数: <b>${plainTextLen}</b> 字</span>
           </div>
-          <div style="display:flex; gap:10px;">
-            <button id="btn-show-case" style="background:rgba(99,102,241,0.2); border:1px solid #6366f1; color:#a5b4fc; padding:6px 12px; border-radius:6px; font-size:12px; cursor:pointer; font-weight:600;">📥 审稿范例指南.pdf</button>
-            <button id="btn-trigger-meeting" ${isStage2MeetingLocked ? 'disabled' : ''} style="background:${isStage2MeetingLocked ? 'rgba(255,255,255,0.08)' : 'linear-gradient(135deg, #10b981, #059669)'}; border:${isStage2MeetingLocked ? '1px solid rgba(255,255,255,0.15)' : 'none'}; color:${isStage2MeetingLocked ? '#94a3b8' : 'white'}; padding:6px 14px; border-radius:6px; font-size:12px; cursor:${isStage2MeetingLocked ? 'not-allowed' : 'pointer'}; font-weight:700;">
+          <div style="display:flex; gap:8px;">
+            <button id="btn-show-case" style="background:#eff6ff; border:1px solid #bfdbfe; color:#1d4ed8; padding:6px 12px; border-radius:6px; font-size:12px; cursor:pointer; font-weight:700;">📥 审稿范例指南.pdf</button>
+            <button id="btn-trigger-meeting" ${isStage2MeetingLocked ? 'disabled' : ''} style="background:${isStage2MeetingLocked ? '#f1f5f9' : 'linear-gradient(135deg, #2563eb, #1d4ed8)'}; border:${isStage2MeetingLocked ? '1px solid #cbd5e1' : 'none'}; color:${isStage2MeetingLocked ? '#94a3b8' : 'white'}; padding:6px 14px; border-radius:6px; font-size:12px; cursor:${isStage2MeetingLocked ? 'not-allowed' : 'pointer'}; font-weight:700; box-shadow:${isStage2MeetingLocked ? 'none' : '0 3px 10px rgba(37,99,235,0.25)'};">
               ${isStage2MeetingLocked ? '🔒 编辑会议已结束' : '📢 发起【编辑会议】'}
             </button>
           </div>
         </div>
 
         ${actionPlan && actionPlan.isGenerated ? `
-          <div style="background:linear-gradient(135deg, rgba(16,185,129,0.15), rgba(6,182,212,0.1)); border:1px solid rgba(16,185,129,0.3); border-radius:8px; padding:10px 14px; margin-bottom:10px;">
-            <div style="font-size:13px; font-weight:700; color:#34d399; margin-bottom:4px;">📋 编辑会议产出：【半程编辑修正清单】(已锁定归档)</div>
-            <div style="font-size:12px; color:#cbd5e1; display:flex; flex-direction:column; gap:2px;">
+          <div style="background:#ecfdf5; border:1px solid #a7f3d0; border-radius:8px; padding:10px 14px; margin-bottom:10px;">
+            <div style="font-size:13px; font-weight:700; color:#059669; margin-bottom:4px;">📋 编辑会议产出：【半程编辑修正清单】(已锁定归档)</div>
+            <div style="font-size:12.5px; color:#334155; display:flex; flex-direction:column; gap:2px;">
               ${actionPlan.items.map(item => `<div>• ${item}</div>`).join('')}
             </div>
           </div>
@@ -2713,22 +2714,22 @@
           ${buildWordEditorHtml('stage2-word-editor', s2.unifiedContent, isEditorReadonly)}
         </div>
 
-        <div style="margin-top:10px; background:rgba(15,23,42,0.7); padding:10px 14px; border-radius:10px; border:1px solid var(--border-glass); flex-shrink:0;">
-          <div style="font-size:12px; font-weight:600; margin-bottom:6px; color:#cbd5e1; display:flex; justify-content:space-between;">
+        <div style="margin-top:10px; background:#f8fafc; padding:10px 14px; border-radius:10px; border:1px solid #e2e8f0; flex-shrink:0;">
+          <div style="font-size:12px; font-weight:700; margin-bottom:6px; color:#334155; display:flex; justify-content:space-between;">
             <span>📊 本组 SSRL 成员贡献度比率 (${membersList.length} 人动态适配)</span>
-            <span>总字数: ${plainTextLen} 字</span>
+            <span style="color:#64748b;">总字数: ${plainTextLen} 字</span>
           </div>
           <div class="contribution-bar-container">
-            <div class="contrib-bars" style="height:12px; border-radius:6px; display:flex; overflow:hidden;">
+            <div class="contrib-bars" style="height:10px; border-radius:6px; display:flex; overflow:hidden; background:#e2e8f0;">
               ${membersList.map((m) => {
                 const pct = Math.round(100 / membersList.length);
-                return `<div class="contrib-segment" style="width:${pct}%; background:${m.color || '#818cf8'};" title="${m.name}: ${pct}%"></div>`;
+                return `<div class="contrib-segment" style="width:${pct}%; background:${m.color || '#2563eb'};" title="${m.name}: ${pct}%"></div>`;
               }).join('')}
             </div>
-            <div style="display:flex; justify-content:space-between; font-size:11.5px; font-weight:600; color:#cbd5e1; margin-top:4px; flex-wrap:wrap; gap:10px;">
+            <div style="display:flex; justify-content:space-between; font-size:11.5px; font-weight:600; color:#475569; margin-top:4px; flex-wrap:wrap; gap:10px;">
               ${membersList.map((m) => {
                 const pct = Math.round(100 / membersList.length);
-                return `<span style="color:${m.color || '#818cf8'};">● ${m.name}: ${pct}%</span>`;
+                return `<span style="color:${m.color || '#2563eb'};">● ${m.name}: ${pct}%</span>`;
               }).join('')}
             </div>
           </div>
@@ -2752,29 +2753,29 @@
     canvas.innerHTML = `
       <div style="height:100%; display:flex; flex-direction:column; gap:12px;">
         ${isFinalSubmitted ? `
-          <div style="background:linear-gradient(135deg, rgba(99,102,241,0.2), rgba(168,85,247,0.15)); border:1px solid rgba(168,85,247,0.4); border-radius:12px; padding:14px 18px; display:flex; justify-content:space-between; align-items:center; flex-shrink:0; box-shadow:0 4px 14px rgba(0,0,0,0.3);">
+          <div style="background:#eff6ff; border:1px solid #bfdbfe; border-radius:12px; padding:14px 18px; display:flex; justify-content:space-between; align-items:center; flex-shrink:0; box-shadow:0 2px 8px rgba(37,99,235,0.08);">
             <div>
-              <div style="font-size:14px; font-weight:800; color:#c084fc; display:flex; align-items:center; gap:8px;">
+              <div style="font-size:14px; font-weight:800; color:#1e40af; display:flex; align-items:center; gap:8px;">
                 <span>🔒 本组论文终稿与评估报告已成功归档提交至教师端！</span>
               </div>
-              <div style="font-size:12px; color:#cbd5e1; margin-top:3px;">请组内每位成员点击右侧按钮进入【课程协作体验与 SSRL 效果评估问卷】填写界面。</div>
+              <div style="font-size:12px; color:#475569; margin-top:3px;">请组内每位成员点击右侧按钮进入【课程协作体验与 SSRL 效果评估问卷】填写界面。</div>
             </div>
-            <button id="btn-open-survey-page" style="background:linear-gradient(135deg, #8b5cf6, #6366f1); border:none; color:white; padding:8px 18px; border-radius:8px; font-weight:700; font-size:13px; cursor:pointer; box-shadow:0 4px 12px rgba(139,92,246,0.4); text-shadow:0 1px 2px rgba(0,0,0,0.3);">
+            <button id="btn-open-survey-page" style="background:linear-gradient(135deg, #2563eb, #1d4ed8); border:none; color:white; padding:8px 18px; border-radius:8px; font-weight:700; font-size:13px; cursor:pointer; box-shadow:0 3px 10px rgba(37,99,235,0.3);">
               📋 打开问卷填写界面 ↗
             </button>
           </div>
         ` : ''}
 
-        <div style="display:flex; justify-content:space-between; align-items:center; background:rgba(30,41,59,0.8); border:1px solid rgba(255,255,255,0.1); border-radius:10px; padding:8px 12px; flex-shrink:0;">
-          <div style="display:gap; gap:10px; display:flex;">
-            <button id="tab-btn-defense" style="background:${activeTab === 'defense' ? 'linear-gradient(135deg, #6366f1, #4f46e5)' : 'rgba(255,255,255,0.08)'}; border:none; color:white; padding:8px 16px; border-radius:8px; font-weight:700; font-size:13px; cursor:pointer;">
+        <div style="display:flex; justify-content:space-between; align-items:center; background:#ffffff; border:1px solid #e2e8f0; border-radius:10px; padding:8px 12px; flex-shrink:0; box-shadow:0 1px 3px rgba(15,23,42,0.04);">
+          <div style="gap:10px; display:flex;">
+            <button id="tab-btn-defense" style="background:${activeTab === 'defense' ? 'linear-gradient(135deg, #2563eb, #1d4ed8)' : '#f1f5f9'}; border:none; color:${activeTab === 'defense' ? 'white' : '#475569'}; padding:8px 16px; border-radius:8px; font-weight:700; font-size:13px; cursor:pointer;">
               🎓 答辩委员会质询与中间委员引导面板
             </button>
-            <button id="tab-btn-editor" style="background:${activeTab === 'editor' ? 'linear-gradient(135deg, #10b981, #059669)' : 'rgba(255,255,255,0.08)'}; border:none; color:white; padding:8px 16px; border-radius:8px; font-weight:700; font-size:13px; cursor:pointer;">
+            <button id="tab-btn-editor" style="background:${activeTab === 'editor' ? 'linear-gradient(135deg, #059669, #047857)' : '#f1f5f9'}; border:none; color:${activeTab === 'editor' ? 'white' : '#475569'}; padding:8px 16px; border-radius:8px; font-weight:700; font-size:13px; cursor:pointer;">
               📝 返回富文本协作大正文 (依据意见修改终稿)
             </button>
           </div>
-          <button id="btn-final-submit" ${isFinalSubmitted ? 'disabled' : ''} style="background:${isFinalSubmitted ? 'rgba(16,185,129,0.2)' : 'linear-gradient(135deg, #10b981, #059669)'}; border:${isFinalSubmitted ? '1px solid #10b981' : 'none'}; color:${isFinalSubmitted ? '#34d399' : 'white'}; padding:8px 18px; border-radius:8px; font-weight:700; cursor:${isFinalSubmitted ? 'not-allowed' : 'pointer'}; font-size:13px;">
+          <button id="btn-final-submit" ${isFinalSubmitted ? 'disabled' : ''} style="background:${isFinalSubmitted ? '#ecfdf5' : 'linear-gradient(135deg, #059669, #047857)'}; border:${isFinalSubmitted ? '1px solid #a7f3d0' : 'none'}; color:${isFinalSubmitted ? '#059669' : 'white'}; padding:8px 18px; border-radius:8px; font-weight:700; cursor:${isFinalSubmitted ? 'not-allowed' : 'pointer'}; font-size:13px; box-shadow:${isFinalSubmitted ? 'none' : '0 3px 10px rgba(5,150,105,0.25)'};">
             ${isFinalSubmitted ? '🔒 论文终稿已成功提交 (归档只读)' : '🚀 提交期末论文终稿'}
           </button>
         </div>
@@ -2782,37 +2783,37 @@
         ${activeTab === 'defense' ? `
           <div class="card" style="flex:1; overflow-y:auto; padding:20px;">
             <div class="card-title" style="margin-bottom:14px;">
-              <span>🎓 答辩委员会改进意见与组内裁决矩阵 ${isFinalSubmitted ? '<span style="font-size:11px; color:#34d399; margin-left:6px;">(🔒 已提交归档)</span>' : ''}</span>
-              <span style="font-size:12px; color:#38bdf8;">正反方提意见 ➔ 中间委员逐条引导 ➔ 学生研讨裁决</span>
+              <span style="color:#0f172a;">🎓 答辩委员会改进意见与组内裁决矩阵 ${isFinalSubmitted ? '<span style="font-size:11px; color:#059669; margin-left:6px;">(🔒 已提交归档)</span>' : ''}</span>
+              <span style="font-size:12px; color:#2563eb; background:#eff6ff; padding:2px 8px; border-radius:10px; border:1px solid #bfdbfe;">正反方提意见 ➔ 中间委员逐条引导 ➔ 学生研讨裁决</span>
             </div>
-            <div style="display:flex; flex-direction:column; gap:16px;">
+            <div style="display:flex; flex-direction:column; gap:14px;">
               ${s3.feedbackItems.length === 0 ? `
-                <div style="text-align:center; color:#94a3b8; padding:32px; font-size:14px;">
+                <div style="text-align:center; color:#64748b; padding:32px; font-size:14px;">
                   ⏳ 答辩委员会专家正在审阅初稿，请在右侧研讨区与委员开展交流答辩！
                 </div>
               ` : s3.feedbackItems.map((item, idx) => `
-                <div style="background:rgba(15,23,42,0.7); padding:16px; border-radius:12px; border:1px solid ${item.role === 'opponent' ? 'rgba(239,68,68,0.4)' : 'rgba(34,197,94,0.4)'}; box-shadow:0 4px 12px rgba(0,0,0,0.3);">
+                <div style="background:#ffffff; padding:16px; border-radius:12px; border:1px solid ${item.role === 'opponent' ? '#fca5a5' : '#86efac'}; box-shadow:0 2px 8px rgba(15,23,42,0.04);">
                   <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
                     <div style="display:flex; align-items:center; gap:8px;">
-                      <span style="font-size:18px;">${item.role === 'opponent' ? '🔴' : '🟢'}</span>
-                      <span style="font-weight:800; font-size:15px; color:${item.role === 'opponent' ? '#f87171' : '#4ade80'};">质询点 ${idx + 1}: ${item.speaker || (item.role === 'opponent' ? '反方委员 Agent' : '正方委员 Agent')} - ${item.title}</span>
+                      <span style="font-size:16px;">${item.role === 'opponent' ? '🔴' : '🟢'}</span>
+                      <span style="font-weight:800; font-size:14.5px; color:${item.role === 'opponent' ? '#dc2626' : '#059669'};">质询点 ${idx + 1}: ${item.speaker || (item.role === 'opponent' ? '反方委员 Agent' : '正方委员 Agent')} - ${item.title}</span>
                     </div>
-                    <span style="font-size:11px; padding:3px 10px; border-radius:12px; font-weight:700; background:${item.status === 'adopted' ? 'rgba(34,197,94,0.2)' : 'rgba(234,179,8,0.2)'}; color:${item.status === 'adopted' ? '#4ade80' : '#fbbf24'}; border:1px solid ${item.status === 'adopted' ? 'rgba(34,197,94,0.4)' : 'rgba(234,179,8,0.4)'};">
+                    <span style="font-size:11.5px; padding:3px 10px; border-radius:12px; font-weight:700; background:${item.status === 'adopted' ? '#ecfdf5' : '#fffbeb'}; color:${item.status === 'adopted' ? '#059669' : '#d97706'}; border:1px solid ${item.status === 'adopted' ? '#a7f3d0' : '#fde68a'};">
                       ${item.status === 'adopted' ? '✅ 已研讨并归档' : '⏳ 待组内研讨裁决'}
                     </span>
                   </div>
-                  <div style="font-size:13px; color:#f1f5f9; background:rgba(30,41,59,0.8); padding:10px 14px; border-radius:8px; margin-bottom:10px; line-height:1.6;">
+                  <div style="font-size:13px; color:#1e293b; background:#f8fafc; border:1px solid #e2e8f0; padding:10px 14px; border-radius:8px; margin-bottom:10px; line-height:1.6;">
                     <b>${item.speaker}意见原文:</b> ${item.content}
                   </div>
-                  <div style="font-size:13px; color:#fef08a; background:rgba(234,179,8,0.12); border:1px solid rgba(234,179,8,0.3); padding:10px 14px; border-radius:8px; margin-bottom:12px; line-height:1.6;">
+                  <div style="font-size:13px; color:#92400e; background:#fffbeb; border:1px solid #fde68a; padding:10px 14px; border-radius:8px; margin-bottom:12px; line-height:1.6;">
                     <b>🟡 中间委员 Agent 针对性引导思考:</b><br>${item.neutralGuidance}
                   </div>
                   ${item.response ? `
-                    <div style="font-size:13px; color:#a5b4fc; background:rgba(99,102,241,0.15); border-left:4px solid var(--accent-indigo); padding:10px 14px; border-radius:6px;">
+                    <div style="font-size:13px; color:#1e40af; background:#eff6ff; border-left:4px solid #2563eb; padding:10px 14px; border-radius:6px;">
                       <b>👥 组内研讨统一裁决结论:</b> ${item.response}
                     </div>
                   ` : `
-                    <button class="discuss-item-btn" data-id="${item.id}" ${isFinalSubmitted ? 'disabled' : ''} style="background:${isFinalSubmitted ? 'rgba(255,255,255,0.08)' : 'linear-gradient(135deg, #6366f1, #4f46e5)'}; border:none; color:${isFinalSubmitted ? '#94a3b8' : 'white'}; padding:8px 16px; border-radius:8px; font-size:13px; font-weight:700; cursor:${isFinalSubmitted ? 'not-allowed' : 'pointer'};">
+                    <button class="discuss-item-btn" data-id="${item.id}" ${isFinalSubmitted ? 'disabled' : ''} style="background:${isFinalSubmitted ? '#f1f5f9' : 'linear-gradient(135deg, #2563eb, #1d4ed8)'}; border:none; color:${isFinalSubmitted ? '#94a3b8' : 'white'}; padding:8px 16px; border-radius:8px; font-size:13px; font-weight:700; cursor:${isFinalSubmitted ? 'not-allowed' : 'pointer'}; box-shadow:${isFinalSubmitted ? 'none' : '0 3px 10px rgba(37,99,235,0.25)'};">
                       ${isFinalSubmitted ? '🔒 已提交只读' : '💬 组内针对此条开展研讨与裁决'}
                     </button>
                   `}
@@ -2823,8 +2824,8 @@
         ` : `
           <div class="card" style="flex:1; display:flex; flex-direction:column; padding:16px;">
             <div class="card-title" style="margin-bottom:10px; display:flex; justify-content:space-between; align-items:center;">
-              <span style="font-size:16px; font-weight:800;">📝 论文全篇大正文 ${isFinalSubmitted ? '<span style="font-size:11px; color:#34d399; margin-left:6px;">(🔒 终稿已提交 · 归档只读查阅)</span>' : '(依据答辩意见实时修改终稿)'}</span>
-              <span style="font-size:12px; color:#38bdf8;">字数: <b>${plainTextLen}</b> 字</span>
+              <span style="font-size:15px; font-weight:800; color:#0f172a;">📝 论文全篇大正文 ${isFinalSubmitted ? '<span style="font-size:11px; color:#059669; margin-left:6px;">(🔒 终稿已提交 · 归档只读查阅)</span>' : '(依据答辩意见实时修改终稿)'}</span>
+              <span style="font-size:12px; color:#2563eb; background:#eff6ff; padding:2px 8px; border-radius:10px; border:1px solid #bfdbfe;">字数: <b>${plainTextLen}</b> 字</span>
             </div>
             <div style="flex:1; min-height:0; display:flex; flex-direction:column;">
               ${buildWordEditorHtml('stage3-word-editor', state.stage2.unifiedContent, isFinalSubmitted)}
