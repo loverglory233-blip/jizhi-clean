@@ -198,28 +198,46 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             @chmod($tmpFile, 0666);
         }
 
-        echo json_encode([
+        $resp = json_encode([
             'success' => true,
             'timestamp' => round(microtime(true) * 1000),
             'groupId' => $groupId,
             'written' => ($ok1 !== false || $ok2 !== false)
         ]);
+        header('Content-Length: ' . strlen($resp));
+        header('Connection: close');
+        echo $resp;
         exit;
     }
-    echo json_encode(['success' => false, 'message' => 'Empty payload']);
+    $resp = json_encode(['success' => false, 'message' => 'Empty payload']);
+    header('Content-Length: ' . strlen($resp));
+    header('Connection: close');
+    echo $resp;
     exit;
 }
 
 // GET snapshot
 if (file_exists($localFile) && filesize($localFile) > 0) {
-    echo file_get_contents($localFile);
+    $content = file_get_contents($localFile);
+    header('Content-Length: ' . strlen($content));
+    header('Connection: close');
+    echo $content;
+    exit;
 } elseif (file_exists($tmpFile) && filesize($tmpFile) > 0) {
-    echo file_get_contents($tmpFile);
+    $content = file_get_contents($tmpFile);
+    header('Content-Length: ' . strlen($content));
+    header('Connection: close');
+    echo $content;
+    exit;
 } else {
-    echo json_encode([
+    $resp = json_encode([
         'timestamp' => 0,
         'groupId' => $groupId,
         'chatLogs' => ['stage1' => [], 'stage2' => [], 'stage3' => []],
         'stage2' => ['unifiedContent' => '']
     ]);
+    header('Content-Length: ' . strlen($resp));
+    header('Connection: close');
+    echo $resp;
+    exit;
 }
