@@ -741,7 +741,25 @@
     async pullFromServer() {
       this.updateScopeKeys();
 
-      // Try local cache first (for same-browser speed)
+      // Try each server endpoint in order (Remote server is source of truth)
+      for (const endpoint of this.syncEndpoints) {
+        try {
+          const url = `${endpoint}&nocache=${Date.now()}`;
+          const res = await fetch(url, { cache: 'no-store' });
+          if (res.ok) {
+            const text = await res.text();
+            if (text.trim().startsWith('{') || text.trim().startsWith('[')) {
+              const data = JSON.parse(text);
+              if (data && data.timestamp && data.timestamp > this.lastTimestamp) {
+                this.handleRemoteSync(data);
+                return;
+              }
+            }
+          }
+        } catch (e) {}
+      }
+
+      // Fallback to local storage
       try {
         const localRaw = localStorage.getItem(this.storageKey);
         if (localRaw) {
@@ -749,25 +767,6 @@
           if (localSnap && localSnap.timestamp > this.lastTimestamp) this.handleRemoteSync(localSnap);
         }
       } catch (e) {}
-
-      // Try each server endpoint in order
-      for (const endpoint of this.syncEndpoints) {
-        try {
-          const url = `${endpoint}&nocache=${Date.now()}`;
-          const res = await fetch(url, { cache: 'no-store' });
-          if (res.ok) {
-            const text = await res.text();
-            // Guard: reject if server returned PHP source code (static mode)
-            if (text.trim().startsWith('{') || text.trim().startsWith('[')) {
-              const data = JSON.parse(text);
-              if (data && data.timestamp && data.timestamp > this.lastTimestamp) {
-                this.handleRemoteSync(data);
-                break;
-              }
-            }
-          }
-        } catch (e) {}
-      }
     }
 
     async pushSnapshot() {
@@ -3611,6 +3610,19 @@
       localStorage.setItem(`jizhi_sync_chat_v10_pure_${groupId}`, JSON.stringify(this.state.chatLogs));
     }
 
+    resetTestGroupState(groupId = 'group_1') {
+      const defaultState = JSON.parse(JSON.stringify(InitialState));
+      this.state.stage1 = defaultState.stage1;
+      this.state.stage2 = defaultState.stage2;
+      this.state.stage3 = defaultState.stage3;
+      this.state.currentStage = 'stage1';
+      this.state.isFinalSubmitted = false;
+      this.state.presence = {};
+      this.initPresetMessagesForGroup(groupId);
+      this.saveGroupState(groupId);
+      if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+    }
+
     saveGroupState(groupId) {
       localStorage.setItem(`jizhi_sync_chat_v10_pure_${groupId}`, JSON.stringify(this.state.chatLogs));
       localStorage.setItem(`jizhi_sync_s1_v10_pure_${groupId}`, JSON.stringify(this.state.stage1));
@@ -3734,6 +3746,13 @@
             (taskId) => {
               this.state.activeTaskId = taskId;
               this.state.studentViewMode = 'workspace';
+
+              // 特殊处理：如果是 3 个初始测试学生账号 (liming, wangfang, chenqiang)，每次进入任务时自动重置清空内容为 0 初始状态
+              const testUsernames = ['liming', 'wangfang', 'chenqiang'];
+              if (currentUser && testUsernames.includes(currentUser.username)) {
+                this.resetTestGroupState(currentGroupId);
+              }
+
               this.renderMain();
             },
             () => this.handleLogout(),
