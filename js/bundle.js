@@ -176,11 +176,11 @@
   /* ==========================================================================
      4. AUTH & DATABASE MANAGER
      ========================================================================== */
-  const STORAGE_KEY_USER = 'jizhi_current_user';
-  const STORAGE_KEY_USERS_DB = 'jizhi_users_db_v2';
-  const STORAGE_KEY_CLASSES = 'jizhi_classes_db';
-  const STORAGE_KEY_TASKS = 'jizhi_tasks_db';
-  const STORAGE_KEY_ANNOUNCEMENTS = 'jizhi_announcements_db';
+  const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
+  const STORAGE_KEY_USERS_DB = 'jizhi_pure_v10_users_db';
+  const STORAGE_KEY_CLASSES = 'jizhi_pure_v10_classes_db';
+  const STORAGE_KEY_TASKS = 'jizhi_pure_v10_tasks_db';
+  const STORAGE_KEY_ANNOUNCEMENTS = 'jizhi_pure_v10_ann_db';
 
   const DefaultClasses = [
     {
@@ -189,51 +189,21 @@
       code: 'MET-2026-01',
       studentIds: ['u_studentA', 'u_studentB', 'u_studentC'],
       groups: [
-        { id: 'group_1', name: '第1小组 (AI与协作写作研究组)', members: ['u_studentA', 'u_studentB', 'u_studentC'] },
-        { id: 'group_2', name: '第2小组 (智能导师干预组)', members: [] }
+        { id: 'group_1', name: '第1小组', members: ['u_studentA', 'u_studentB', 'u_studentC'] },
+        { id: 'group_2', name: '第2小组', members: [] }
       ]
     }
   ];
 
   const DefaultUsers = [
-    { id: 'u_teacher1', username: 'teacher', email: 'teacher@jizhi.edu', password: '123', name: '张教授 (主讲教师)', role: 'teacher', avatar: '👩‍🏫' },
+    { id: 'u_teacher1', username: 'teacher', email: 'teacher@jizhi.edu', password: '123', name: '张教授 (教师)', role: 'teacher', avatar: '👩‍🏫' },
     { id: 'u_studentA', username: 'liming', email: 'studentA@jizhi.edu', password: '123', name: '李明 (学生A/组长)', role: 'student', studentCode: 'A', avatar: '👨‍🎓', classId: 'class_101', groupId: 'group_1' },
     { id: 'u_studentB', username: 'wangfang', email: 'studentB@jizhi.edu', password: '123', name: '王芳 (学生B/组员)', role: 'student', studentCode: 'B', avatar: '👩‍🎓', classId: 'class_101', groupId: 'group_1' },
     { id: 'u_studentC', username: 'chenqiang', email: 'studentC@jizhi.edu', password: '123', name: '陈强 (学生C/组员)', role: 'student', studentCode: 'C', avatar: '🧑‍🎓', classId: 'class_101', groupId: 'group_1' }
   ];
 
-  const DefaultTasks = [
-    {
-      id: 'task_001',
-      title: '《现代教育技术》期末协作研究设计方案编写',
-      classId: 'class_101',
-      className: '《现代教育技术》2026春01班',
-      durationMinutes: 150,
-      startTime: '2026-08-03 14:00',
-      deadline: '2026-08-03 16:30',
-      status: 'in_progress',
-      createdAt: new Date().toLocaleDateString(),
-      instructions: '请在150分钟内，以小组为单位完成一份包含研究背景与意义、研究问题与假设、文献综述、研究设计与方法、不足与反思及参考文献的高质量研究方案。',
-      resources: [
-        { name: '研究设计标准规范与格式指南.pdf', size: '1.8 MB', url: '#' },
-        { name: '优秀研究设计案例参考.docx', size: '850 KB', url: '#' }
-      ]
-    }
-  ];
-
-  const DefaultAnnouncements = [
-    {
-      id: 'ann_001',
-      taskId: 'task_001',
-      taskTitle: '《现代教育技术》期末协作研究设计方案编写',
-      title: '📢 课题提案与时间合约确认提醒',
-      content: '请各组在【学术拍卖会】阶段认真讨论课题观点与理由，并共同签署时间分配与分工合约。参考资料已附在下方。',
-      attachment: { name: '学术研究设计导引指南.pdf', size: '2.1 MB' },
-      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      author: '张教授',
-      readStatus: { 'group_1': false, 'group_2': false }
-    }
-  ];
+  const DefaultTasks = [];
+  const DefaultAnnouncements = [];
 
   class AuthManager {
     constructor() { this.initDatabase(); }
@@ -639,7 +609,7 @@
     updateScopeKeys() {
       const user = this.app.authManager.getCurrentUser();
       const groupId = (user && user.groupId) ? user.groupId : (this.app.state.activeMonitorGroupId || 'group_1');
-      this.storageKey = `jizhi_cloud_snapshot_v6_${groupId}`;
+      this.storageKey = `jizhi_cloud_snapshot_v10_pure_${groupId}`;
       this.wsUrl = `wss://free.piesocket.com/v3/jizhi_collaboration_2026_${groupId}?api_key=VCX2aCchvXxCM14N4aOHM6HOqqfZvZWPoBxObmmi&notify_self=1`;
       const baseUrl = window.location.origin.includes('http') ? window.location.origin + '/' : '/';
       this.syncUrl = `${baseUrl}api/snapshot?groupId=${groupId}`;
@@ -674,7 +644,7 @@
         try {
           const user = this.app.authManager.getCurrentUser();
           const groupId = (user && user.groupId) ? user.groupId : (this.app.state.activeMonitorGroupId || 'group_1');
-          this.bc = new BroadcastChannel(`jizhi_channel_v6_${groupId}`);
+          this.bc = new BroadcastChannel(`jizhi_channel_v10_pure_${groupId}`);
           this.bc.onmessage = (e) => {
             if (e.data && e.data.snapshot) {
               this.handleRemoteSync(e.data.snapshot);
@@ -1428,15 +1398,15 @@
               <div class="teacher-modal-body">
                 <div class="teacher-form-group">
                   <label><span class="req">*</span> 学生真实姓名</label>
-                  <input type="text" id="modal-std-name" class="teacher-input fancy" placeholder="输入姓名 (例如: 赵强)" value="赵强">
+                  <input type="text" id="modal-std-name" class="teacher-input fancy" placeholder="输入学生真实姓名" value="">
                 </div>
                 <div class="teacher-form-group">
                   <label><span class="req">*</span> 拼音用户名 (登录账号)</label>
-                  <input type="text" id="modal-std-username" class="teacher-input fancy" placeholder="输入拼音账号 (例如: zhaoqiang)" value="zhaoqiang">
+                  <input type="text" id="modal-std-username" class="teacher-input fancy" placeholder="输入拼音登录账号" value="">
                 </div>
                 <div class="teacher-form-group">
                   <label>学号 / 编号</label>
-                  <input type="text" id="modal-std-code" class="teacher-input fancy" placeholder="输入学号" value="D">
+                  <input type="text" id="modal-std-code" class="teacher-input fancy" placeholder="输入学号" value="">
                 </div>
                 <div class="teacher-form-group">
                   <label>设置初始密码 (留空统一定为 123)</label>
@@ -1586,11 +1556,8 @@
                 </div>
               </div>
               <div class="teacher-form-group" style="margin-top:14px;">
-                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
-                  <label>或 直接复制粘贴文本</label>
-                  <button id="btn-fill-text-demo" style="background:rgba(99,102,241,0.2); border:1px solid #6366f1; color:#a5b4fc; padding:2px 8px; border-radius:4px; font-size:11px; cursor:pointer;">⚡ 填充文本示例</button>
-                </div>
-                <textarea id="modal-paste-textarea" class="teacher-textarea fancy" style="min-height:90px; font-family:monospace; font-size:13px;" placeholder="格式：&#10;赵强, zhaoqiang, D&#10;钱丽, qianli, E, 123456"></textarea>
+                <label>或 直接粘贴名册文本 (每行一人)</label>
+                <textarea id="modal-paste-textarea" class="teacher-textarea fancy" style="min-height:90px; font-family:monospace; font-size:13px;" placeholder="每行一位学生，逗号或空格分隔：&#10;姓名, 登录账号, 学号, 初始密码(可选)"></textarea>
               </div>
             </div>
             <div class="teacher-modal-footer">
@@ -1623,10 +1590,6 @@
               dropText.innerHTML = `<span style="font-size:28px;">🎉</span><div style="font-size:14px; color:#34d399; font-weight:700;">成功解析 ${parsedList.length} 名学生记录！</div>`;
             });
           }
-        });
-
-        modal.querySelector('#btn-fill-text-demo').addEventListener('click', () => {
-          textarea.value = `赵强, zhaoqiang, D\n钱丽, qianli, E\n孙伟, sunwei, F\n周梅, zhoumei, G`;
         });
 
         modal.querySelector('#btn-submit-file-import').addEventListener('click', () => {
@@ -1809,11 +1772,11 @@
 
               <div class="teacher-form-group" style="margin-top:8px;">
                 <label><span class="req">*</span> 写作任务名称</label>
-                <input type="text" id="modal-task-title" class="teacher-input fancy" value="《现代教育技术》期末协作研究设计方案编写">
+                <input type="text" id="modal-task-title" class="teacher-input fancy" value="" placeholder="输入写作任务名称">
               </div>
               <div class="teacher-form-group">
                 <label><span class="req">*</span> 任务详细说明与要求</label>
-                <textarea id="modal-task-desc" class="teacher-textarea fancy" style="min-height:90px;">请在150分钟内，以小组为单位完成包含研究背景、研究问题、文献综述、研究设计与方法、不足反思与参考文献的高质量方案编写，并参加期末答辩。</textarea>
+                <textarea id="modal-task-desc" class="teacher-textarea fancy" style="min-height:90px;" placeholder="请输入任务详细说明与指导要求..."></textarea>
               </div>
             </div>
             <div class="teacher-modal-footer">
@@ -1836,7 +1799,7 @@
           const duration = modal.querySelector('#modal-task-duration').value;
 
           if (!title || !desc) { alert('⚠️ 请填齐任务标题与说明！'); return; }
-          authManager.createTask(title, classId, desc, [{ name: '研究设计指南.pdf', size: '1.5MB' }], startTime, deadline, duration);
+          authManager.createTask(title, classId, desc, [], startTime, deadline, duration);
           closeModal();
           renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
         });
@@ -1868,11 +1831,11 @@
               </div>
               <div class="teacher-form-group">
                 <label><span class="req">*</span> 通知标题</label>
-                <input type="text" id="modal-ann-title" class="teacher-input fancy" value="📢 教学通知：请及时完成文献与方法衔接">
+                <input type="text" id="modal-ann-title" class="teacher-input fancy" value="" placeholder="输入通知标题">
               </div>
               <div class="teacher-form-group">
                 <label><span class="req">*</span> 通知详细内容</label>
-                <textarea id="modal-ann-content" class="teacher-textarea fancy" style="min-height:80px;">请各组在后10分钟内集中检查【研究问题与假设】，并点击弹窗确认已读。</textarea>
+                <textarea id="modal-ann-content" class="teacher-textarea fancy" style="min-height:80px;" placeholder="输入推送给全班学生的通知正文..."></textarea>
               </div>
 
               <div class="teacher-form-group">
@@ -2834,17 +2797,18 @@
           replyText = `📝 【审稿编辑针对性指导】：收到你的求助问询！关于规范：必须确保“三、文献综述”中提出的学术概念与“四、研究设计与方法”中的测量量表实现 1 对 1 精确匹配！`;
         } else if (userMsg.includes('@责任编辑') || userMsg.includes('@责任编辑 Agent')) {
           replyAgent = 'managingEditor';
-          replyText = `🤝 【责任编辑过程学伴回复】：收到 @ 呼叫！目前小组字数分配与协同节奏良好。如果个别组员遇到撰写卡顿，建议组长 A 在大文本框中先列出二级标题子纲。`;
+          replyText = `🤝 【责任编辑过程学伴回复】：收到 @ 呼叫！目前小组字数分配与协同节奏良好。如果个别组员遇到撰写卡顿，建议组长在正文大文本框中先列出二级标题子纲。`;
         } else if (userMsg.includes('@拍卖师') || userMsg.includes('@拍卖师 Agent')) {
           replyAgent = 'auctioneer';
-          replyText = `🎪 【拍卖师选题顾问回复】：收到 @ 呼叫！针对课题《协作学习中的“搭便车”现象》，建议将重点聚焦在“注意力分配可视化”作为干预中介变量！`;
+          const currentTopic = this.state.stage1.mergedTitle || '当前选定课题';
+          replyText = `🎪 【拍卖师选题顾问回复】：收到 @ 呼叫！针对课题《${currentTopic}》，建议从小组成员提出的提案中提取最具有创新性与可行性的核心观点，协商融合为统一主题并在合约中确认！`;
         } else {
           if (stage === 'stage1') {
             replyAgent = 'auctioneer';
-            replyText = `🎪 【拍卖师评估与总结】注意到组内已完成一轮关于选题与任务分工的讨论！建议组员在提案面板中投票并按键确认签署合作学术合约！`;
+            replyText = `🎪 【拍卖师阶段引导】组内讨论正在进行中！请大家在左侧提交各自的选题提案，并尽快完成投票与合作合约签署！`;
           } else if (stage === 'stage2') {
             replyAgent = 'reviewingEditor';
-            replyText = `📝 【审稿编辑高阶引导】关注到组内针对大正文与文献框架的讨论。在研究设计章节，必须明确自变量（AI干预模式）与因变量（SSRL得分）之间的因果链条！`;
+            replyText = `📝 【审稿编辑高阶引导】关注到组内针对大正文与文献框架的讨论。在研究设计章节，必须明确自变量与因变量之间的因果链条！`;
           } else if (stage === 'stage3') {
             replyAgent = 'neutral';
             replyText = `🟡 【中间委员裁决提示】针对辩护意见，请小组在左侧卡片中确认裁决，并切回写作大正文补充限定说明！`;
@@ -2871,7 +2835,7 @@
       if (!s1.hasVoted) s1.hasVoted = {};
       s1.votes[user] = proposalId;
       s1.hasVoted[user] = true;
-      const proposal = s1.proposals.find(p => p.id === proposalId);
+      const proposal = (s1.proposals || []).find(p => p.id === proposalId);
       const totalMembersCount = Object.keys(this.state.members).length;
       const votesCastCount = Object.values(s1.hasVoted).filter(Boolean).length;
       const voteMsg = { sender: user, text: `📢 [投票告知]: 我已确认投票支持提案《${proposal ? proposal.title : proposalId}》！（当前全组已集齐 ${votesCastCount}/${totalMembersCount} 票）`, timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) };
@@ -2883,8 +2847,17 @@
           const tally = {};
           Object.values(s1.votes).forEach(pId => { if (pId) tally[pId] = (tally[pId] || 0) + 1; });
           let summaryText = '🎪 【拍卖师宣布最终计票结果】：全员投票已完毕！\n';
-          s1.proposals.forEach(p => { summaryText += `• 《${p.title}》得票: ${tally[p.id] || 0} 票\n`; });
-          summaryText += `\n🔨 结果表明：《搭便车干预》高票胜出！注意，建议将“注意力分配视角”融入最终主题中，请组员讨论并更新合作卡片！`;
+          let maxVotes = -1;
+          let winningProposal = null;
+          (s1.proposals || []).forEach(p => { 
+            const count = tally[p.id] || 0;
+            summaryText += `• 《${p.title}》得票: ${count} 票\n`; 
+            if (count > maxVotes) {
+              maxVotes = count;
+              winningProposal = p;
+            }
+          });
+          summaryText += `\n🔨 计票显示：《${winningProposal ? winningProposal.title : '当前提案'}》获得最高支持！请组员结合研讨确认最终主题并签署合作卡片！`;
           const summaryMsg = { sender: 'auctioneer', text: summaryText, timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) };
           this.state.chatLogs.stage1.push(summaryMsg);
           this.syncChatLogs();
@@ -3037,7 +3010,8 @@
             alert('🔒 论文终稿已于此前成功提交！目前处于全盘只读归档模式，可随时切页查阅各阶段记录。');
             return;
           }
-          const confirmSub = confirm('🚀 确认提交《协作学习中的“搭便车”现象：基于注意力分配与AI感知视角》期末论文终稿？\n\n提交后本组的论文与研讨矩阵将锁定归档，其他小组不受影响！提交后将自动弹窗引导进入课程评估问卷！');
+          const topicTitle = this.state.stage1.mergedTitle || '本组研究设计方案';
+          const confirmSub = confirm(`🚀 确认提交《${topicTitle}》期末方案终稿？\n\n提交后本组的方案与研讨矩阵将锁定归档呈递至教师端，其他小组不受影响！提交后将自动弹窗引导进入课程评估问卷！`);
           if (confirmSub) {
             this.state.isFinalSubmitted = true;
             const currentStage = this.state.currentStage;
