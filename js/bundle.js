@@ -954,21 +954,23 @@
           const localLogs = this.app.state.chatLogs[stg] || [];
           const remoteLogs = remoteData.chatLogs[stg] || [];
           
-          // 真正的双向合并与消息去重机制 (保留两端全部发言，按时间戳或顺序保真)
-          const merged = [...localLogs];
-          let added = false;
-          remoteLogs.forEach(rMsg => {
-            const exists = merged.some(lMsg => 
-              lMsg.sender === rMsg.sender && 
-              lMsg.text === rMsg.text && 
-              (lMsg.timestamp === rMsg.timestamp || Math.abs((lMsg._timeMs || 0) - (rMsg._timeMs || 0)) < 3000)
-            );
-            if (!exists) {
-              merged.push(rMsg);
-              added = true;
-            }
-          });
-          if (added || merged.length !== localLogs.length) {
+          // 1. 如果远端消息有更新（或长度不同、内容不同），以远端为基准全量采纳
+          // 2. 同时保留本地刚发出但尚未在远端体现的暂态新消息
+          if (JSON.stringify(remoteLogs) !== JSON.stringify(localLogs)) {
+            const merged = [...remoteLogs];
+            localLogs.forEach(lMsg => {
+              const inRemote = remoteLogs.some(rMsg => 
+                rMsg.sender === lMsg.sender && 
+                rMsg.text === lMsg.text && 
+                (rMsg.timestamp === lMsg.timestamp || (rMsg._timeMs && lMsg._timeMs && Math.abs(rMsg._timeMs - lMsg._timeMs) < 2000))
+              );
+              if (!inRemote) {
+                // 仅当该本地消息是在过去 10 秒内新产生的才予以暂存等待推流
+                if (lMsg._timeMs && (Date.now() - lMsg._timeMs < 10000)) {
+                  merged.push(lMsg);
+                }
+              }
+            });
             this.app.state.chatLogs[stg] = merged;
             chatUpdated = true;
           }
