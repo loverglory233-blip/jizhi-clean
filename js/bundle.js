@@ -159,18 +159,9 @@
   };
 
   const PresetMessages = {
-    stage1: [
-      { sender: 'auctioneer', text: `🎪 【学术拍卖会启动】各位研究者，欢迎来到学术选题拍卖会！在接下来的 25 分钟里，我们需要共同确定最具学术价值且可行的研究选题，并签署合作合约。\n\n请注意：提交提案时不仅要写明【观点/主题】，更要清晰阐述选择该主题的【学术理由与背景】。请小组成员在左侧点击【+ 提交我的选题提案】提交各自的真实提案！`, timestamp: '14:00' }
-    ],
-    stage2: [
-      { sender: 'managingEditor', text: `🤝 【学术编辑部接管】学术合作合约已全员签署生效！学术编辑部全面上线。\n\n请大家在中间的大文本框中分工协作撰写方案。我将全程实时监控全组成员的字数贡献比与协同节奏，并在半程节点协助大家召开【编辑会议】！`, timestamp: '14:25' },
-      { sender: 'reviewingEditor', text: `📝 【审稿编辑认知支架】各位作者，在撰写过程中请务必注意研究问题（RQ）与研究假设（H）之间的逻辑演绎，以及自变量与测量量表的匹配。\n\n提示：审稿编辑提供结构引导与思考提问，绝不替代大家撰写正文，遇到问题可随时在聊天区 @审稿编辑！`, timestamp: '14:28' }
-    ],
-    stage3: [
-      { sender: 'proponent', text: `🟢 【正方委员·肯定支持】恭喜研究团队完成研究设计方案！正方审稿专家已就绪，我们将从学术创新性、方案严密性与理论结合度进行评审。`, timestamp: '16:10' },
-      { sender: 'opponent', text: `🔴 【反方委员·学术质询】反方审稿专家已审阅大家的初稿，请针对左侧提出的学术质询与方法局限开展组内答辩与论证防御！`, timestamp: '16:13' },
-      { sender: 'neutral', text: `🟡 【中间委员·裁决引导】请作者团队在左侧【组内裁决面板】逐项讨论：哪些质疑属于必须在正文中吸纳修改的漏洞？哪些属于可以保留并做出书面抗辩的限定条件？请记录裁决意见并修改终稿！`, timestamp: '16:15' }
-    ]
+    stage1: [],
+    stage2: [],
+    stage3: []
   };
 
   /* ==========================================================================
@@ -2372,49 +2363,46 @@
       const defaultState = JSON.parse(JSON.stringify(InitialState));
       this.state.members = this.authManager.getGroupMembersForWorkspace(groupId);
 
-      const savedChat = localStorage.getItem(`jizhi_sync_chat_v6_${groupId}`);
+      const savedChat = localStorage.getItem(`jizhi_sync_chat_v10_pure_${groupId}`);
       if (savedChat) { 
         try { 
           this.state.chatLogs = JSON.parse(savedChat);
-          if (!this.state.chatLogs.stage3 || this.state.chatLogs.stage3.length < 3) {
-            this.state.chatLogs.stage3 = PresetMessages.stage3;
-          }
         } catch (e) { this.initPresetMessagesForGroup(groupId); } 
       } else { 
         this.initPresetMessagesForGroup(groupId); 
       }
 
-      const savedS1 = localStorage.getItem(`jizhi_sync_s1_v6_${groupId}`);
+      const savedS1 = localStorage.getItem(`jizhi_sync_s1_v10_pure_${groupId}`);
       if (savedS1) { try { this.state.stage1 = { ...defaultState.stage1, ...JSON.parse(savedS1) }; } catch (e) {} }
       else { this.state.stage1 = defaultState.stage1; }
 
-      const savedS2 = localStorage.getItem(`jizhi_sync_s2_v6_${groupId}`);
+      const savedS2 = localStorage.getItem(`jizhi_sync_s2_v10_pure_${groupId}`);
       if (savedS2) { try { this.state.stage2 = { ...defaultState.stage2, ...JSON.parse(savedS2) }; } catch (e) {} }
       else { this.state.stage2 = defaultState.stage2; }
 
-      const savedS3 = localStorage.getItem(`jizhi_sync_s3_v6_${groupId}`);
+      const savedS3 = localStorage.getItem(`jizhi_sync_s3_v10_pure_${groupId}`);
       if (savedS3) { try { this.state.stage3 = { ...defaultState.stage3, ...JSON.parse(savedS3) }; } catch (e) {} }
       else { this.state.stage3 = defaultState.stage3; }
 
-      const savedStage = localStorage.getItem(`jizhi_sync_current_stage_v6_${groupId}`);
+      const savedStage = localStorage.getItem(`jizhi_sync_current_stage_v10_pure_${groupId}`);
       this.state.currentStage = savedStage || 'stage1';
 
-      const savedSubmitted = localStorage.getItem(`jizhi_sync_final_submitted_v6_${groupId}`);
+      const savedSubmitted = localStorage.getItem(`jizhi_sync_final_submitted_v10_pure_${groupId}`);
       this.state.isFinalSubmitted = (savedSubmitted === 'true');
     }
 
     initPresetMessagesForGroup(groupId) {
-      this.state.chatLogs = JSON.parse(JSON.stringify(PresetMessages));
-      localStorage.setItem(`jizhi_sync_chat_v6_${groupId}`, JSON.stringify(this.state.chatLogs));
+      this.state.chatLogs = { stage1: [], stage2: [], stage3: [] };
+      localStorage.setItem(`jizhi_sync_chat_v10_pure_${groupId}`, JSON.stringify(this.state.chatLogs));
     }
 
     saveGroupState(groupId) {
-      localStorage.setItem(`jizhi_sync_chat_v6_${groupId}`, JSON.stringify(this.state.chatLogs));
-      localStorage.setItem(`jizhi_sync_s1_v6_${groupId}`, JSON.stringify(this.state.stage1));
-      localStorage.setItem(`jizhi_sync_s2_v6_${groupId}`, JSON.stringify(this.state.stage2));
-      localStorage.setItem(`jizhi_sync_s3_v6_${groupId}`, JSON.stringify(this.state.stage3));
-      localStorage.setItem(`jizhi_sync_current_stage_v6_${groupId}`, this.state.currentStage);
-      localStorage.setItem(`jizhi_sync_final_submitted_v6_${groupId}`, this.state.isFinalSubmitted ? 'true' : 'false');
+      localStorage.setItem(`jizhi_sync_chat_v10_pure_${groupId}`, JSON.stringify(this.state.chatLogs));
+      localStorage.setItem(`jizhi_sync_s1_v10_pure_${groupId}`, JSON.stringify(this.state.stage1));
+      localStorage.setItem(`jizhi_sync_s2_v10_pure_${groupId}`, JSON.stringify(this.state.stage2));
+      localStorage.setItem(`jizhi_sync_s3_v10_pure_${groupId}`, JSON.stringify(this.state.stage3));
+      localStorage.setItem(`jizhi_sync_current_stage_v10_pure_${groupId}`, this.state.currentStage);
+      localStorage.setItem(`jizhi_sync_final_submitted_v10_pure_${groupId}`, this.state.isFinalSubmitted ? 'true' : 'false');
     }
 
     syncChatLogs() {

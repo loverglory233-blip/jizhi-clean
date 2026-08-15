@@ -61,40 +61,7 @@ export const AgentProfiles = {
 };
 
 export const PresetMessages = {
-  stage1: [
-    { 
-      sender: 'auctioneer', 
-      text: `🎪 【学术拍卖会启动】各位研究者，欢迎进入阶段一【学术拍卖会】！\n\n在接下来的 25 分钟里，请小组成员在左侧点击【+ 提交我的选题提案】，写明你们各自的【研究观点/主题】与选择该主题的【学术理由依据】。\n\n提案提交后，拍卖师将实时为你们进行学术价值鉴定并开启组内投票与合作合约签署！`, 
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-    }
-  ],
-  stage2: [
-    { 
-      sender: 'managingEditor', 
-      text: `🤝 【学术编辑部接管】学术合作合约已全员签署生效！学术编辑部全面上线。\n\n请大家在大文本框中分工协作撰写方案。我将全程实时监控全组成员的字数贡献比与协同节奏，并在半程节点协助大家召开【编辑会议】！`, 
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-    },
-    { 
-      sender: 'reviewingEditor', 
-      text: `📝 【审稿编辑认知支架】各位作者，在撰写过程中请务必注意研究问题（RQ）与研究假设（H）之间的逻辑演绎，以及自变量与测量量表的匹配。\n\n提示：审稿编辑提供结构引导与思考提问，绝不替代大家撰写正文，遇到问题可随时在聊天区 @审稿编辑！`, 
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-    }
-  ],
-  stage3: [
-    { 
-      sender: 'proponent', 
-      text: `🟢 【正方委员·肯定支持】恭喜研究团队完成研究设计方案！正方审稿专家已就绪，我们将从学术创新性、方案严密性与理论结合度进行评审。`, 
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-    },
-    { 
-      sender: 'opponent', 
-      text: `🔴 【反方委员·学术质询】反方审稿专家已审阅大家的初稿，请针对左侧提出的学术质询与方法局限开展组内答辩与论证防御！`, 
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-    },
-    { 
-      sender: 'neutral', 
-      text: `🟡 【中间委员·裁决引导】请作者团队在左侧【组内裁决面板】逐项讨论：哪些质疑属于必须在正文中吸纳修改的漏洞？哪些属于可以保留并做出书面抗辩的限定条件？请记录裁决意见并修改终稿！`, 
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-    }
-  ]
+  stage1: [],
+  stage2: [],
+  stage3: []
 };
