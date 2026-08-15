@@ -763,7 +763,7 @@
           const res = await fetch(url, { cache: 'no-store' });
           if (res.ok) {
             const data = await res.json();
-            if (data && data.timestamp && data.timestamp > this.lastTimestamp) {
+            if (data && (data.timestamp || data.chatLogs || data.stage2)) {
               this.handleRemoteSync(data);
               return;
             }
@@ -835,7 +835,6 @@
 
     handleRemoteSync(remoteData) {
       if (!remoteData) return;
-      if (remoteData.timestamp && remoteData.timestamp < this.lastTimestamp && this.lastTimestamp !== 0) return;
 
       const user = this.app.authManager.getCurrentUser();
       const myGroupId = (user && user.groupId) ? user.groupId : (this.app.state.activeMonitorGroupId || 'group_1');
