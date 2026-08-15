@@ -689,11 +689,12 @@
       const groupId = (user && user.groupId) ? user.groupId : (this.app.state.activeMonitorGroupId || 'group_1');
       this.groupId = groupId;
       this.storageKey = `jizhi_cloud_snapshot_v10_pure_${groupId}`;
-      const host = window.location.hostname;
-      const protocol = window.location.protocol;
-      // Server endpoints: PHP 8.2 handles sync.php directly, Python 8088 as backup
+      const host = window.location.hostname || '47.99.110.230';
+      const protocol = window.location.protocol || 'http:';
+
       this.syncEndpoints = [
         `sync.php?groupId=${groupId}`,
+        `/sync.php?groupId=${groupId}`,
         `${protocol}//${host}:8088/sync.php?groupId=${groupId}`,
         `${protocol}//${host}:8088/api/snapshot?groupId=${groupId}`
       ];
@@ -744,16 +745,14 @@
       // Try each server endpoint in order (Remote server is source of truth)
       for (const endpoint of this.syncEndpoints) {
         try {
-          const url = `${endpoint}&nocache=${Date.now()}`;
+          const sep = endpoint.includes('?') ? '&' : '?';
+          const url = `${endpoint}${sep}nocache=${Date.now()}`;
           const res = await fetch(url, { cache: 'no-store' });
           if (res.ok) {
-            const text = await res.text();
-            if (text.trim().startsWith('{') || text.trim().startsWith('[')) {
-              const data = JSON.parse(text);
-              if (data && data.timestamp && data.timestamp > this.lastTimestamp) {
-                this.handleRemoteSync(data);
-                return;
-              }
+            const data = await res.json();
+            if (data && data.timestamp && data.timestamp > this.lastTimestamp) {
+              this.handleRemoteSync(data);
+              return;
             }
           }
         } catch (e) {}
