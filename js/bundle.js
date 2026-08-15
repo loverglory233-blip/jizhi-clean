@@ -180,8 +180,7 @@
       code: 'MET-2026-01',
       studentIds: ['u_studentA', 'u_studentB', 'u_studentC'],
       groups: [
-        { id: 'group_1', name: '第1小组', members: ['u_studentA', 'u_studentB', 'u_studentC'] },
-        { id: 'group_2', name: '第2小组', members: [] }
+        { id: 'group_1', name: '第1小组', members: ['u_studentA', 'u_studentB', 'u_studentC'] }
       ]
     }
   ];
