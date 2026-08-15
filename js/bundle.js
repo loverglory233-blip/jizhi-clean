@@ -2811,17 +2811,17 @@
               <button class="word-btn" id="${editorId}-btn-clear-format" title="清除格式">🧹 清格式</button>
             </div>
 
-            <!-- 6. 学术论文全套插件套件 -->
+            <!-- 6. 学术论文插件套件 (精简图标) -->
             <div class="word-toolbar-group">
-              <button class="word-btn plugin-btn" id="${editorId}-btn-insert-image" title="插入学术图表与图题说明">🖼️ 插入图表</button>
-              <button class="word-btn plugin-btn" id="${editorId}-btn-insert-table" title="插入标准学术三线表">📊 插入三线表</button>
-              <button class="word-btn plugin-btn" id="${editorId}-btn-insert-symbol" title="高阶学术公式与统计符号库">🔣 统计符号库</button>
-              <button class="word-btn plugin-btn" id="${editorId}-btn-insert-citation" title="插入文献引用角标 [n]">📑 引用[n]</button>
-              <button class="word-btn plugin-btn" id="${editorId}-btn-insert-abstract" title="插入【摘要与关键词】学术前置卡片">📌 摘要框架</button>
-              <button class="word-btn plugin-btn" id="${editorId}-btn-insert-ref-template" title="在文末插入标准参考文献模版">📚 文献条目</button>
-              <button class="word-btn plugin-btn" id="${editorId}-btn-find-replace" title="文档内查找与替换">🔍 查找替换</button>
-              <button class="word-btn plugin-btn" id="${editorId}-btn-export-doc" style="background:rgba(16,185,129,0.2); border-color:#10b981; color:#34d399;" title="导出为 Word 论文格式文档 (.doc)">📥 导出 Word</button>
-              <button class="word-btn plugin-btn" id="${editorId}-btn-print-doc" title="打印 / 导出 PDF 论文">📄 打印/PDF</button>
+              <button class="word-btn plugin-btn" id="${editorId}-btn-insert-image" title="插入学术图表与图题说明">🖼️ 图表</button>
+              <button class="word-btn plugin-btn" id="${editorId}-btn-insert-table" title="插入标准学术三线表">📊 三线表</button>
+              <button class="word-btn plugin-btn" id="${editorId}-btn-insert-symbol" title="高阶学术公式与统计符号库">🔣 符号</button>
+              <button class="word-btn plugin-btn" id="${editorId}-btn-insert-citation" title="插入文献引用角标 [n]">📑 [n]</button>
+              <button class="word-btn plugin-btn" id="${editorId}-btn-insert-abstract" title="插入【摘要与关键词】学术前置卡片">📌 摘要</button>
+              <button class="word-btn plugin-btn" id="${editorId}-btn-insert-ref-template" title="在文末插入标准参考文献模版">📚 文献</button>
+              <button class="word-btn plugin-btn" id="${editorId}-btn-find-replace" title="文档内查找与替换">🔍 查找</button>
+              <button class="word-btn plugin-btn" id="${editorId}-btn-export-doc" style="background:#ecfdf5; border-color:#a7f3d0; color:#059669; font-weight:700;" title="导出为 Word 论文格式文档 (.doc)">📥 Word</button>
+              <button class="word-btn plugin-btn" id="${editorId}-btn-print-doc" title="打印 / 导出 PDF 论文">📄 PDF</button>
             </div>
           </div>
 
@@ -3672,26 +3672,10 @@
           ${buildWordEditorHtml('stage2-word-editor', s2.unifiedContent, isEditorReadonly)}
         </div>
 
-        <div style="margin-top:6px; background:#f8fafc; padding:4px 10px; border-radius:6px; border:1px solid #e2e8f0; flex-shrink:0; display:flex; align-items:center; justify-content:space-between; gap:10px;">
-          <div style="font-size:11px; font-weight:700; color:#334155; white-space:nowrap;">📊 贡献占比:</div>
-          <div class="contribution-bar-container" style="flex:1; display:flex; align-items:center; gap:8px;">
-            <div class="contrib-bars" style="flex:1; height:6px; border-radius:3px; display:flex; overflow:hidden; background:#e2e8f0;">
-              ${(() => {
-                const contribs = s2.memberContributions || {};
-                let totalContrib = 0;
-                membersList.forEach(m => { totalContrib += (contribs[m.id] || 0) + (contribs[m.studentCode] || 0); });
-                if (totalContrib === 0) {
-                  return `<div style="width:100%; height:6px; background:#e2e8f0; border-radius:3px;"></div>`;
-                }
-                return membersList.map((m) => {
-                  const val = (contribs[m.id] || 0) + (contribs[m.studentCode] || 0);
-                  if (val === 0) return '';
-                  const pct = Math.round((val / totalContrib) * 100);
-                  return `<div class="contrib-segment" style="width:${pct}%; background:${m.color || '#2563eb'}; transition:width 0.3s ease;" title="${m.name}: ${pct}% (${val}字)"></div>`;
-                }).join('');
-              })()}
-            </div>
-            <div class="contrib-labels" style="display:flex; font-size:11px; font-weight:600; color:#475569; gap:8px; white-space:nowrap;">
+        <div style="margin-top:8px; background:#ffffff; padding:8px 14px; border-radius:8px; border:1px solid #cbd5e1; flex-shrink:0; display:flex; flex-direction:column; gap:6px; box-shadow:0 1px 3px rgba(15,23,42,0.04);">
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <span style="font-size:12px; font-weight:800; color:#1e293b;">📊 团队协作贡献度与字数占比 (SSRL 群体感知):</span>
+            <div class="contrib-labels" style="display:flex; font-size:11.5px; font-weight:700; color:#475569; gap:12px; white-space:nowrap;">
               ${(() => {
                 const contribs = s2.memberContributions || {};
                 let totalContrib = 0;
@@ -3699,10 +3683,26 @@
                 return membersList.map((m) => {
                   const val = (contribs[m.id] || 0) + (contribs[m.studentCode] || 0);
                   const pct = (totalContrib === 0 || val === 0) ? 0 : Math.round((val / totalContrib) * 100);
-                  return `<span style="color:${m.color || '#2563eb'}; font-weight:700;">● ${m.name}: ${pct}%</span>`;
+                  return `<span style="color:${m.color || '#2563eb'}; font-weight:700;">● ${m.name}: ${pct}% (${val}字)</span>`;
                 }).join('');
               })()}
             </div>
+          </div>
+          <div class="contrib-bars" style="width:100%; height:10px; border-radius:5px; display:flex; overflow:hidden; background:#e2e8f0;">
+            ${(() => {
+              const contribs = s2.memberContributions || {};
+              let totalContrib = 0;
+              membersList.forEach(m => { totalContrib += (contribs[m.id] || 0) + (contribs[m.studentCode] || 0); });
+              if (totalContrib === 0) {
+                return `<div style="width:100%; height:10px; background:#f1f5f9; border-radius:5px; display:flex; align-items:center; justify-content:center; font-size:10.5px; color:#94a3b8;">暂无写作贡献 (开始编辑正文或研讨后将自动计算各成员贡献比)</div>`;
+              }
+              return membersList.map((m) => {
+                const val = (contribs[m.id] || 0) + (contribs[m.studentCode] || 0);
+                if (val === 0) return '';
+                const pct = Math.round((val / totalContrib) * 100);
+                return `<div class="contrib-segment" style="width:${pct}%; background:${m.color || '#2563eb'}; transition:width 0.3s ease;" title="${m.name}: ${pct}% (${val}字)"></div>`;
+              }).join('');
+            })()}
           </div>
         </div>
       </div>
