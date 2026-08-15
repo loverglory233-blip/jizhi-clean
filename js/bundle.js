@@ -676,6 +676,7 @@
       this.app = app;
       this.lastTimestamp = 0;
       this.isPushing = false;
+      this.pendingPush = false;
       this.updateScopeKeys();
       this.initPolling();
     }
@@ -689,7 +690,7 @@
 
     initPolling() {
       this.pullFromRest();
-      setInterval(() => { this.pullFromRest(); }, 1000);
+      setInterval(() => { this.pullFromRest(); }, 400);
 
       const user = this.app.authManager.getCurrentUser();
       const groupId = (user && user.groupId) ? user.groupId : (this.app.state.activeMonitorGroupId || 'group_1');
@@ -713,6 +714,7 @@
     }
 
     async pullFromRest() {
+      this.updateScopeKeys();
       try {
         const localRaw = localStorage.getItem(this.storageKey);
         if (localRaw) {
@@ -723,9 +725,8 @@
         }
       } catch (e) {}
 
-      this.updateScopeKeys();
       try {
-        const res = await fetch(this.syncUrl, { cache: 'no-cache' });
+        const res = await fetch(this.syncUrl, { cache: 'no-store' });
         if (res.ok) {
           const data = await res.json();
           if (data && data.timestamp && data.timestamp > this.lastTimestamp) {
@@ -762,17 +763,24 @@
       try { localStorage.setItem(this.storageKey, JSON.stringify(snapshot)); } catch (e) {}
       if (this.bc) { try { this.bc.postMessage({ snapshot }); } catch (e) {} }
 
-      if (!this.isPushing) {
-        this.isPushing = true;
-        try {
-          await fetch(this.syncUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(snapshot)
-          });
-        } catch (e) {
-        } finally {
-          this.isPushing = false;
+      if (this.isPushing) {
+        this.pendingPush = true;
+        return;
+      }
+
+      this.isPushing = true;
+      try {
+        await fetch(this.syncUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(snapshot)
+        });
+      } catch (e) {
+      } finally {
+        this.isPushing = false;
+        if (this.pendingPush) {
+          this.pendingPush = false;
+          this.pushSnapshot();
         }
       }
     }

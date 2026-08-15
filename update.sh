@@ -65,9 +65,12 @@ download_file "server.py"
 for dir in "${TARGET_DIRS[@]}"; do
     mkdir -p "$dir/css" "$dir/js"
     cp -rf "$TMP_DIR/"* "$dir/"
-    chmod -R 755 "$dir"
+    chmod -R 777 "$dir"
+    chown -R www:www "$dir" 2>/dev/null || true
     echo "   ✅ 已成功更新: $dir"
 done
+
+chmod 777 /tmp 2>/dev/null || true
 
 rm -rf "$TMP_DIR"
 
