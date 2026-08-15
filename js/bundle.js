@@ -229,7 +229,7 @@
 
       if (userIndex !== -1) {
         const user = users[userIndex];
-        // 🚀 一个账号同时只能一个人登录：生成唯一的 activeSessionId 并写入用户记录
+        // 🚀 一个账号同时只能一个人登录：生成唯一的 activeSessionId 并推送到服务端会话锁
         const newSessionId = 'sess_' + Date.now() + '_' + Math.random().toString(36).substring(2, 8);
         user.activeSessionId = newSessionId;
         users[userIndex] = user;
@@ -237,6 +237,15 @@
 
         sessionStorage.setItem(STORAGE_KEY_USER, JSON.stringify(user));
         localStorage.setItem(STORAGE_KEY_USER, JSON.stringify(user));
+
+        // 异步向服务端注册会话锁
+        try {
+          fetch('sync.php?action=session_login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userId: user.id || user.username, token: newSessionId })
+          }).catch(() => {});
+        } catch (e) {}
 
         if (window.app && window.app.cloudSyncEngine) {
           window.app.cloudSyncEngine.pushSnapshot();
@@ -247,6 +256,12 @@
       return { success: false, message: '账号或密码错误 (默认密码统一定为 123)' };
     }
     logout() {
+      const user = this.getCurrentUser();
+      if (user) {
+        try {
+          fetch(`sync.php?action=session_logout&userId=${encodeURIComponent(user.id || user.username)}`).catch(() => {});
+        } catch (e) {}
+      }
       sessionStorage.removeItem(STORAGE_KEY_USER);
       localStorage.removeItem(STORAGE_KEY_USER);
     }
@@ -755,7 +770,23 @@
     async pullFromServer() {
       this.updateScopeKeys();
 
-      // Try each server endpoint in order (Remote server is source of truth)
+      // 1. 账号唯一在线检查 (服务端硬校验：如果被另一台设备顶号，立即下线)
+      const currentUser = this.app.authManager.getCurrentUser();
+      if (currentUser && currentUser.activeSessionId) {
+        try {
+          const chkRes = await fetch(`sync.php?action=session_check&userId=${encodeURIComponent(currentUser.id || currentUser.username)}&token=${encodeURIComponent(currentUser.activeSessionId)}`);
+          if (chkRes.ok) {
+            const chkData = await chkRes.json();
+            if (chkData && chkData.kicked) {
+              alert('⚠️ 您的账号已在另一台设备/浏览器上登录，当前设备已自动下线！');
+              this.app.handleLogout();
+              return;
+            }
+          }
+        } catch (e) {}
+      }
+
+      // 2. 拉取最新协作数据 (以服务端数据为唯一真理)
       for (const endpoint of this.syncEndpoints) {
         try {
           const sep = endpoint.includes('?') ? '&' : '?';
