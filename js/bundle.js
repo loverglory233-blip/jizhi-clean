@@ -51,7 +51,7 @@
 
     stage2: {
       unifiedContent: '',
-      memberContributions: {},
+      memberContributions: { 'A': 0, 'B': 0, 'C': 0 },
       actionPlan: {
         isGenerated: false,
         items: []
@@ -62,6 +62,8 @@
       activeTab: 'defense', // 'defense' or 'editor'
       feedbackItems: []
     },
+
+    presence: {},
 
     chatLogs: {
       stage1: [],
@@ -769,6 +771,7 @@
         timestamp: Date.now(),
         groupId: groupId,
         members: this.app.state.members,
+        presence: this.app.state.presence || {},
         chatLogs: this.app.state.chatLogs,
         stage1: this.app.state.stage1,
         stage2: this.app.state.stage2,
@@ -826,6 +829,11 @@
       let structuralUpdated = false;
       let chatUpdated = false;
 
+      if (remoteData.presence) {
+        this.app.state.presence = { ...(this.app.state.presence || {}), ...remoteData.presence };
+        this.app.renderPresenceCursors();
+      }
+
       if (remoteData.members) {
         this.app.state.members = remoteData.members;
         structuralUpdated = true;
@@ -880,6 +888,7 @@
             editor.innerHTML = remoteData.stage2.unifiedContent || '';
           }
           this.app.updateContributionUi();
+          this.app.renderPresenceCursors();
         }
         if (remoteData.stage2.memberContributions) {
           this.app.state.stage2.memberContributions = remoteData.stage2.memberContributions;
@@ -1425,9 +1434,14 @@
                             const contribs = state.stage2.memberContributions || {};
                             let totalContrib = 0;
                             monitorMembersList.forEach(m => { totalContrib += (contribs[m.id] || 0) + (contribs[m.studentCode] || 0); });
+                            if (totalContrib === 0) {
+                              return `<div style="width:100%; height:10px; background:#e2e8f0; border-radius:6px; display:flex; align-items:center; justify-content:center; font-size:10px; color:#94a3b8;">暂无写作与研讨贡献数据 (各成员贡献均为 0%)</div>`;
+                            }
                             return monitorMembersList.map((m) => {
-                              let pct = totalContrib === 0 ? Math.round(100 / monitorMembersList.length) : Math.max(2, Math.round((((contribs[m.id] || 0) + (contribs[m.studentCode] || 0)) / totalContrib) * 100));
-                              return `<div style="width:${pct}%; background:${m.color || '#2563eb'}; transition:width 0.3s ease;" title="${m.name}: ${pct}%"></div>`;
+                              const val = (contribs[m.id] || 0) + (contribs[m.studentCode] || 0);
+                              if (val === 0) return '';
+                              const pct = Math.round((val / totalContrib) * 100);
+                              return `<div style="width:${pct}%; background:${m.color || '#2563eb'}; transition:width 0.3s ease;" title="${m.name}: ${pct}% (${val}字)"></div>`;
                             }).join('');
                           })()}
                         </div>
@@ -1437,8 +1451,9 @@
                             let totalContrib = 0;
                             monitorMembersList.forEach(m => { totalContrib += (contribs[m.id] || 0) + (contribs[m.studentCode] || 0); });
                             return monitorMembersList.map(m => {
-                              let pct = totalContrib === 0 ? Math.round(100 / monitorMembersList.length) : Math.max(2, Math.round((((contribs[m.id] || 0) + (contribs[m.studentCode] || 0)) / totalContrib) * 100));
-                              return `<span style="color:${m.color || '#2563eb'}; font-weight:700;">● ${m.name}: ${pct}%</span>`;
+                              const val = (contribs[m.id] || 0) + (contribs[m.studentCode] || 0);
+                              const pct = (totalContrib === 0 || val === 0) ? 0 : Math.round((val / totalContrib) * 100);
+                              return `<span style="color:${m.color || '#2563eb'}; font-weight:700;">● ${m.name}: ${pct}% (${val}字)</span>`;
                             }).join('');
                           })()}
                         </div>
@@ -2569,6 +2584,13 @@
           </div>
         `}
 
+        <div class="collab-presence-header" id="${editorId}-presence-header">
+          <div class="collab-presence-title">
+            <span>👥 组员协同在线与实时光标:</span>
+          </div>
+          <div class="collab-member-pills" id="${editorId}-presence-pills"></div>
+        </div>
+
         <div class="word-page-scroll">
           <div class="word-page" id="${editorId}" ${!isReadonly ? 'contenteditable="true"' : 'contenteditable="false" style="background:#ffffff; color:#0f172a;"'}>
             ${initialHtml}
@@ -2578,7 +2600,7 @@
     `;
   }
 
-  function attachWordEditorEvents(container, editorId, isReadonly, onChangeCallback) {
+  function attachWordEditorEvents(container, editorId, isReadonly, onChangeCallback, onPresenceCallback) {
     const editor = container.querySelector(`#${editorId}`);
     if (!editor) return;
 
@@ -2923,6 +2945,116 @@
         setTimeout(() => { printWindow.print(); }, 250);
       });
     }
+
+    if (!isReadonly) {
+      let lastPresenceEmit = 0;
+      const emitPresence = () => {
+        const now = Date.now();
+        if (now - lastPresenceEmit < 150) return;
+        lastPresenceEmit = now;
+
+        const sel = window.getSelection();
+        let nodeIndex = 0;
+        let activeSection = '';
+        if (sel && sel.rangeCount > 0) {
+          const node = sel.anchorNode;
+          let blockEl = node ? (node.nodeType === 1 ? node : node.parentElement) : null;
+          while (blockEl && blockEl.parentElement !== editor && blockEl !== editor) {
+            blockEl = blockEl.parentElement;
+          }
+          if (blockEl && blockEl.parentElement === editor) {
+            nodeIndex = Array.from(editor.children).indexOf(blockEl);
+            activeSection = (blockEl.innerText || '').trim().slice(0, 14);
+          }
+        }
+        if (typeof onPresenceCallback === 'function') {
+          onPresenceCallback(nodeIndex, activeSection);
+        }
+      };
+
+      editor.addEventListener('keyup', emitPresence);
+      editor.addEventListener('mouseup', emitPresence);
+      editor.addEventListener('focus', emitPresence);
+      editor.addEventListener('input', emitPresence);
+    }
+  }
+
+  function renderPresencePills(editorId, state) {
+    const pillsContainer = document.getElementById(`${editorId}-presence-pills`);
+    if (!pillsContainer) return;
+    const membersList = Object.values(state.members || {});
+    const currentUserCode = state.currentUser || 'A';
+    const presence = state.presence || {};
+    const now = Date.now();
+
+    pillsContainer.innerHTML = membersList.map(m => {
+      const p = presence[m.studentCode] || presence[m.id];
+      const isSelf = m.studentCode === currentUserCode || m.id === currentUserCode;
+      const isOnline = isSelf || (p && (now - p.updatedAt < 30000));
+      const sectionText = isSelf ? ' (我)' : (p && p.activeSection ? ` (在写: ${p.activeSection})` : (isOnline ? ' (在线)' : ' (离线)'));
+      const color = m.color || '#2563eb';
+
+      return `
+        <span class="collab-presence-pill ${isOnline ? 'active' : ''}" style="${isOnline ? `border-color:${color}; color:${color}; background:#ffffff;` : 'color:#94a3b8; background:#f1f5f9;'}">
+          <span class="collab-presence-dot" style="background:${isOnline ? color : '#cbd5e1'};"></span>
+          ${m.avatar || '👨‍🎓'} ${m.name}<span style="font-weight:normal; font-size:10px; color:${isOnline ? '#475569' : '#94a3b8'};">${sectionText}</span>
+        </span>
+      `;
+    }).join('');
+  }
+
+  function renderRemoteCursors(editorId, state) {
+    const editor = document.getElementById(editorId);
+    if (!editor) return;
+    renderPresencePills(editorId, state);
+
+    // Remove any stale remote cursor elements
+    editor.querySelectorAll('.remote-cursor-widget').forEach(el => el.remove());
+    editor.querySelectorAll('.collab-editing-node-highlight').forEach(el => {
+      el.classList.remove('collab-editing-node-highlight');
+      el.style.borderLeft = 'none';
+      el.style.backgroundColor = 'transparent';
+    });
+
+    const membersList = Object.values(state.members || {});
+    const currentUserCode = state.currentUser || 'A';
+    const presence = state.presence || {};
+    const now = Date.now();
+
+    membersList.forEach(m => {
+      if (m.studentCode === currentUserCode || m.id === currentUserCode) return;
+      const p = presence[m.studentCode] || presence[m.id];
+      if (!p || (now - p.updatedAt > 30000)) return;
+
+      const color = m.color || '#8b5cf6';
+      const name = m.name || m.studentCode;
+      const avatar = m.avatar || '👨‍🎓';
+
+      // Find the element/paragraph
+      const children = Array.from(editor.children);
+      let targetEl = null;
+      if (typeof p.nodeIndex === 'number' && children[p.nodeIndex]) {
+        targetEl = children[p.nodeIndex];
+      } else if (children.length > 0) {
+        targetEl = children[0];
+      }
+
+      if (targetEl) {
+        targetEl.classList.add('collab-editing-node-highlight');
+        targetEl.style.borderLeft = `3.5px solid ${color}`;
+        targetEl.style.backgroundColor = `${color}0a`;
+
+        const cursorWidget = document.createElement('span');
+        cursorWidget.className = 'remote-cursor-widget';
+        cursorWidget.innerHTML = `
+          <span class="remote-caret-bar" style="background:${color};"></span>
+          <span class="remote-caret-flag" style="background:${color};">
+            ${avatar} ${name} 正在输入...
+          </span>
+        `;
+        targetEl.appendChild(cursorWidget);
+      }
+    });
   }
 
   function renderStage1Canvas(canvas, state, handlers) {
@@ -3236,9 +3368,14 @@
                 const contribs = s2.memberContributions || {};
                 let totalContrib = 0;
                 membersList.forEach(m => { totalContrib += (contribs[m.id] || 0) + (contribs[m.studentCode] || 0); });
+                if (totalContrib === 0) {
+                  return `<div style="width:100%; height:10px; background:#e2e8f0; border-radius:6px; display:flex; align-items:center; justify-content:center; font-size:10px; color:#94a3b8;">暂无写作与研讨贡献数据 (各成员贡献均为 0%)</div>`;
+                }
                 return membersList.map((m) => {
-                  let pct = totalContrib === 0 ? Math.round(100 / membersList.length) : Math.max(2, Math.round((((contribs[m.id] || 0) + (contribs[m.studentCode] || 0)) / totalContrib) * 100));
-                  return `<div class="contrib-segment" style="width:${pct}%; background:${m.color || '#2563eb'}; transition:width 0.3s ease;" title="${m.name}: ${pct}%"></div>`;
+                  const val = (contribs[m.id] || 0) + (contribs[m.studentCode] || 0);
+                  if (val === 0) return '';
+                  const pct = Math.round((val / totalContrib) * 100);
+                  return `<div class="contrib-segment" style="width:${pct}%; background:${m.color || '#2563eb'}; transition:width 0.3s ease;" title="${m.name}: ${pct}% (${val}字)"></div>`;
                 }).join('');
               })()}
             </div>
@@ -3248,8 +3385,9 @@
                 let totalContrib = 0;
                 membersList.forEach(m => { totalContrib += (contribs[m.id] || 0) + (contribs[m.studentCode] || 0); });
                 return membersList.map((m) => {
-                  let pct = totalContrib === 0 ? Math.round(100 / membersList.length) : Math.max(2, Math.round((((contribs[m.id] || 0) + (contribs[m.studentCode] || 0)) / totalContrib) * 100));
-                  return `<span style="color:${m.color || '#2563eb'}; font-weight:700;">● ${m.name}: ${pct}%</span>`;
+                  const val = (contribs[m.id] || 0) + (contribs[m.studentCode] || 0);
+                  const pct = (totalContrib === 0 || val === 0) ? 0 : Math.round((val / totalContrib) * 100);
+                  return `<span style="color:${m.color || '#2563eb'}; font-weight:700;">● ${m.name}: ${pct}% (${val}字)</span>`;
                 }).join('');
               })()}
             </div>
@@ -3258,7 +3396,11 @@
       </div>
     `;
 
-    attachWordEditorEvents(canvas, 'stage2-word-editor', isEditorReadonly, (html) => handlers.onUnifiedContentChange(html));
+    attachWordEditorEvents(canvas, 'stage2-word-editor', isEditorReadonly, (html) => handlers.onUnifiedContentChange(html), (nodeIdx, sec) => {
+      if (handlers.onPresenceChange) handlers.onPresenceChange(nodeIdx, sec);
+    });
+    renderRemoteCursors('stage2-word-editor', state);
+
     canvas.querySelector('#btn-show-case').addEventListener('click', () => handlers.onOpenCaseModal());
     if (!isStage2MeetingLocked) {
       canvas.querySelector('#btn-trigger-meeting').addEventListener('click', () => handlers.onOpenMeetingModal());
@@ -3362,7 +3504,10 @@
     if (tabEditor) tabEditor.addEventListener('click', () => handlers.onSwitchStage3Tab('editor'));
 
     if (activeTab === 'editor') {
-      attachWordEditorEvents(canvas, 'stage3-word-editor', isFinalSubmitted, (html) => handlers.onUnifiedContentChange(html));
+      attachWordEditorEvents(canvas, 'stage3-word-editor', isFinalSubmitted, (html) => handlers.onUnifiedContentChange(html), (nodeIdx, sec) => {
+        if (handlers.onPresenceChange) handlers.onPresenceChange(nodeIdx, sec);
+      });
+      renderRemoteCursors('stage3-word-editor', state);
     }
 
     if (!isFinalSubmitted) {
@@ -3959,25 +4104,33 @@
         totalContrib += (contribs[m.id] || 0) + (contribs[m.studentCode] || 0);
       });
 
-      const getMemberPct = (m) => {
-        if (totalContrib === 0) return Math.round(100 / membersList.length);
+      const getMemberData = (m) => {
         const val = (contribs[m.id] || 0) + (contribs[m.studentCode] || 0);
-        return Math.max(2, Math.round((val / totalContrib) * 100));
+        if (totalContrib === 0 || val === 0) {
+          return { pct: 0, val: val, label: `${m.name}: 0% (0字)` };
+        }
+        const pct = Math.round((val / totalContrib) * 100);
+        return { pct: pct, val: val, label: `${m.name}: ${pct}% (${val}字)` };
       };
 
       const barContainer = document.querySelector('.contrib-bars');
       if (barContainer) {
-        barContainer.innerHTML = membersList.map((m) => {
-          const pct = getMemberPct(m);
-          return `<div class="contrib-segment" style="width:${pct}%; background:${m.color || '#2563eb'}; transition:width 0.3s ease;" title="${m.name}: ${pct}%"></div>`;
-        }).join('');
+        if (totalContrib === 0) {
+          barContainer.innerHTML = `<div style="width:100%; height:10px; background:#e2e8f0; border-radius:6px; display:flex; align-items:center; justify-content:center; font-size:10px; color:#94a3b8;">暂无写作与研讨贡献数据 (各成员贡献均为 0%)</div>`;
+        } else {
+          barContainer.innerHTML = membersList.map((m) => {
+            const data = getMemberData(m);
+            if (data.pct === 0) return '';
+            return `<div class="contrib-segment" style="width:${data.pct}%; background:${m.color || '#2563eb'}; transition:width 0.3s ease;" title="${m.name}: ${data.pct}% (${data.val}字)"></div>`;
+          }).join('');
+        }
       }
 
       const labelsContainer = document.querySelector('.contrib-labels');
       if (labelsContainer) {
         labelsContainer.innerHTML = membersList.map((m) => {
-          const pct = getMemberPct(m);
-          return `<span style="color:${m.color || '#2563eb'}; font-weight:700;">● ${m.name}: ${pct}%</span>`;
+          const data = getMemberData(m);
+          return `<span style="color:${m.color || '#2563eb'}; font-weight:700;">● ${data.label}</span>`;
         }).join('');
       }
     }

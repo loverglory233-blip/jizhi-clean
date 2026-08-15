@@ -917,6 +917,108 @@ body {
 }
 
 /* ==========================================================================
+   6.5 REAL-TIME COLLABORATIVE PRESENCE & LIVE CURSORS
+   ========================================================================== */
+.collab-presence-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 14px;
+  background: #f8fafc;
+  border-bottom: 1px solid #e2e8f0;
+  font-size: 12px;
+  flex-shrink: 0;
+}
+
+.collab-presence-title {
+  font-weight: 700;
+  color: #334155;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.collab-member-pills {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.collab-presence-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 12px;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  transition: all 0.2s ease;
+}
+
+.collab-presence-pill.active {
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+}
+
+.collab-presence-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.remote-cursor-widget {
+  position: relative;
+  display: inline;
+  pointer-events: none;
+  user-select: none;
+}
+
+.remote-caret-bar {
+  display: inline-block;
+  width: 2.5px;
+  height: 1.25em;
+  vertical-align: text-bottom;
+  margin-left: -1px;
+  margin-right: -1px;
+  border-radius: 1px;
+  animation: collabCaretBlink 1s ease-in-out infinite;
+}
+
+@keyframes collabCaretBlink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.25; }
+}
+
+.remote-caret-flag {
+  position: absolute;
+  bottom: 100%;
+  left: -2px;
+  transform: translateY(-2px);
+  color: #ffffff;
+  font-size: 10.5px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 4px 4px 4px 0;
+  white-space: nowrap;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  line-height: 1.2;
+  z-index: 50;
+  animation: cursorFlagPop 0.2s ease-out;
+}
+
+.collab-editing-node-highlight {
+  position: relative;
+  border-left: 3.5px solid transparent;
+  padding-left: 6px;
+  margin-left: -9.5px;
+  transition: all 0.3s ease;
+}
+
+/* ==========================================================================
    7. MODALS (WHITE & SAPPHIRE THEME)
    ========================================================================== */
 .modal-overlay {
