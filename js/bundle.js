@@ -38,11 +38,11 @@
         isConfirmed: false,
         confirmedMembers: { 'A': false, 'B': false, 'C': false },
         timeAllocations: {
-          background: 20,
-          questions: 25,
+          background: 25,
           literature: 30,
+          questions: 25,
           method: 40,
-          reflection: 15,
+          reflection: 20,
           references: 10
         },
         taskAssignments: { 'A': '', 'B': '', 'C': '' }
@@ -1358,15 +1358,18 @@
                 <div class="card" style="border-top:4px solid #059669; width:100%; padding:18px 22px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
                   <div style="display:flex; align-items:center; gap:14px; flex-wrap:wrap;">
                     <span style="font-size:16px; font-weight:800; color:#0f172a;">🖥️ 实际操作实时监控终端:</span>
-                    <div style="display:flex; gap:8px;">
-                      ${(activeClass.groups || []).map(g => {
-                        const isSel = g.id === activeMonitorGId;
-                        return `
-                          <button class="btn-switch-monitor-group ${isSel ? 'active' : ''}" data-gid="${g.id}" style="background:${isSel ? 'linear-gradient(135deg, #2563eb, #1d4ed8)' : '#f1f5f9'}; border:1px solid ${isSel ? '#2563eb' : '#cbd5e1'}; color:${isSel ? 'white' : '#334155'}; padding:7px 14px; border-radius:8px; font-size:12.5px; font-weight:700; cursor:pointer;">
-                            👥 同屏监控: ${g.name} ${isSel ? '🟢' : ''}
-                          </button>
-                        `;
-                      }).join('')}
+                    <div style="display:flex; align-items:center; gap:8px;">
+                      <span style="font-size:13px; font-weight:700; color:#475569;">选择监控小组:</span>
+                      <select id="sel-switch-monitor-group" class="teacher-input fancy" style="font-size:13.5px; font-weight:700; color:#1e40af; background:#eff6ff; border:1.5px solid #3b82f6; padding:8px 16px; border-radius:8px; cursor:pointer; min-width:220px;">
+                        ${(activeClass.groups || []).map(g => {
+                          const isSel = g.id === activeMonitorGId;
+                          return `
+                            <option value="${g.id}" ${isSel ? 'selected' : ''}>
+                              👥 ${g.name} ${isSel ? '(当前正在同屏实时监控 🟢)' : ''}
+                            </option>
+                          `;
+                        }).join('')}
+                      </select>
                     </div>
                   </div>
 
@@ -2327,6 +2330,15 @@
       });
     }
 
+    const selSwitchGroup = container.querySelector('#sel-switch-monitor-group');
+    if (selSwitchGroup) {
+      selSwitchGroup.addEventListener('change', (e) => {
+        state.activeMonitorGroupId = e.target.value;
+        if (window.app) window.app.loadGroupState(e.target.value);
+        renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+      });
+    }
+
     container.querySelectorAll('.btn-switch-monitor-group').forEach(btn => {
       btn.addEventListener('click', () => {
         state.activeMonitorGroupId = btn.dataset.gid;
@@ -3204,15 +3216,79 @@
         </div>
 
         <div style="display:flex; flex-direction:column; gap:16px; width:100%;">
-          <div style="background:#f8fafc; padding:16px; border-radius:12px; border:1px solid #e2e8f0; width:100%; box-sizing:border-box;">
-            <div style="font-weight:700; color:#1e40af; margin-bottom:10px; font-size:14px;">⏱️ 150分钟时间预算 (由AI提取或在此修改，单位: 分钟):</div>
-            <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(130px, 1fr)); gap:10px; font-size:13px; color:#334155;">
-              <label style="display:flex; align-items:center; gap:6px;">背景: <input type="number" class="contract-time-input large" data-key="background" value="${s1.contract.timeAllocations.background}" ${isContractLocked ? 'disabled readonly style="opacity:0.8; cursor:not-allowed;"' : ''}></label>
-              <label style="display:flex; align-items:center; gap:6px;">问题: <input type="number" class="contract-time-input large" data-key="questions" value="${s1.contract.timeAllocations.questions}" ${isContractLocked ? 'disabled readonly style="opacity:0.8; cursor:not-allowed;"' : ''}></label>
-              <label style="display:flex; align-items:center; gap:6px;">文献: <input type="number" class="contract-time-input large" data-key="literature" value="${s1.contract.timeAllocations.literature}" ${isContractLocked ? 'disabled readonly style="opacity:0.8; cursor:not-allowed;"' : ''}></label>
-              <label style="display:flex; align-items:center; gap:6px;">方法: <input type="number" class="contract-time-input large" data-key="method" value="${s1.contract.timeAllocations.method}" ${isContractLocked ? 'disabled readonly style="opacity:0.8; cursor:not-allowed;"' : ''}></label>
-              <label style="display:flex; align-items:center; gap:6px;">反思: <input type="number" class="contract-time-input large" data-key="reflection" value="${s1.contract.timeAllocations.reflection}" ${isContractLocked ? 'disabled readonly style="opacity:0.8; cursor:not-allowed;"' : ''}></label>
-              <label style="display:flex; align-items:center; gap:6px;">文献表: <input type="number" class="contract-time-input large" data-key="references" value="${s1.contract.timeAllocations.references}" ${isContractLocked ? 'disabled readonly style="opacity:0.8; cursor:not-allowed;"' : ''}></label>
+          <!-- 6大研究设计方案模块与结构规范说明 -->
+          <div style="background:#f8fafc; padding:18px; border-radius:12px; border:1px solid #bfdbfe; width:100%; box-sizing:border-box;">
+            <div style="font-weight:800; color:#1e40af; margin-bottom:12px; font-size:14px; display:flex; justify-content:space-between; align-items:center;">
+              <span>📚 研究方案 6 大核心模块与时间预算规划 (150分钟):</span>
+              <span style="font-size:12px; color:#64748b; font-weight:normal;">可在下方修改各模块预期用时</span>
+            </div>
+            
+            <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)); gap:12px;">
+              <!-- 模块 1 -->
+              <div style="background:#ffffff; border:1px solid #e2e8f0; border-left:3.5px solid #2563eb; border-radius:8px; padding:12px 14px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+                  <span style="font-weight:800; color:#1e40af; font-size:13.5px;">一、研究背景与意义</span>
+                  <label style="font-size:12px; color:#475569; display:flex; align-items:center; gap:4px;">
+                    用时: <input type="number" class="contract-time-input" data-key="background" value="${s1.contract.timeAllocations.background || 25}" ${isContractLocked ? 'disabled readonly style="opacity:0.8; cursor:not-allowed;"' : ''} style="width:48px; padding:2px 4px; border:1px solid #cbd5e1; border-radius:4px; text-align:center; font-weight:700;"> m
+                  </label>
+                </div>
+                <div style="font-size:12px; color:#64748b; line-height:1.4;">阐述选题研究现实/理论背景、研究价值与核心意义。</div>
+              </div>
+
+              <!-- 模块 2 -->
+              <div style="background:#ffffff; border:1px solid #e2e8f0; border-left:3.5px solid #0284c7; border-radius:8px; padding:12px 14px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+                  <span style="font-weight:800; color:#0369a1; font-size:13.5px;">二、文献综述</span>
+                  <label style="font-size:12px; color:#475569; display:flex; align-items:center; gap:4px;">
+                    用时: <input type="number" class="contract-time-input" data-key="literature" value="${s1.contract.timeAllocations.literature || 30}" ${isContractLocked ? 'disabled readonly style="opacity:0.8; cursor:not-allowed;"' : ''} style="width:48px; padding:2px 4px; border:1px solid #cbd5e1; border-radius:4px; text-align:center; font-weight:700;"> m
+                  </label>
+                </div>
+                <div style="font-size:12px; color:#64748b; line-height:1.4;">详细说明研究现状（需规范引用相关学术文献）。</div>
+              </div>
+
+              <!-- 模块 3 -->
+              <div style="background:#ffffff; border:1px solid #e2e8f0; border-left:3.5px solid #059669; border-radius:8px; padding:12px 14px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+                  <span style="font-weight:800; color:#065f46; font-size:13.5px;">三、研究问题与假设</span>
+                  <label style="font-size:12px; color:#475569; display:flex; align-items:center; gap:4px;">
+                    用时: <input type="number" class="contract-time-input" data-key="questions" value="${s1.contract.timeAllocations.questions || 25}" ${isContractLocked ? 'disabled readonly style="opacity:0.8; cursor:not-allowed;"' : ''} style="width:48px; padding:2px 4px; border:1px solid #cbd5e1; border-radius:4px; text-align:center; font-weight:700;"> m
+                  </label>
+                </div>
+                <div style="font-size:12px; color:#64748b; line-height:1.4;">提出具体明确的研究问题（RQ）与实证研究假设（H）。</div>
+              </div>
+
+              <!-- 模块 4 -->
+              <div style="background:#ffffff; border:1px solid #e2e8f0; border-left:3.5px solid #7c3aed; border-radius:8px; padding:12px 14px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+                  <span style="font-weight:800; color:#6d28d9; font-size:13.5px;">四、研究设计与方法</span>
+                  <label style="font-size:12px; color:#475569; display:flex; align-items:center; gap:4px;">
+                    用时: <input type="number" class="contract-time-input" data-key="method" value="${s1.contract.timeAllocations.method || 40}" ${isContractLocked ? 'disabled readonly style="opacity:0.8; cursor:not-allowed;"' : ''} style="width:48px; padding:2px 4px; border:1px solid #cbd5e1; border-radius:4px; text-align:center; font-weight:700;"> m
+                  </label>
+                </div>
+                <div style="font-size:12px; color:#64748b; line-height:1.4;">包括研究对象、研究过程、测量工具、数据收集与分析方法等。</div>
+              </div>
+
+              <!-- 模块 5 -->
+              <div style="background:#ffffff; border:1px solid #e2e8f0; border-left:3.5px solid #d97706; border-radius:8px; padding:12px 14px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+                  <span style="font-weight:800; color:#b45309; font-size:13.5px;">五、研究设计的不足与反思</span>
+                  <label style="font-size:12px; color:#475569; display:flex; align-items:center; gap:4px;">
+                    用时: <input type="number" class="contract-time-input" data-key="reflection" value="${s1.contract.timeAllocations.reflection || 20}" ${isContractLocked ? 'disabled readonly style="opacity:0.8; cursor:not-allowed;"' : ''} style="width:48px; padding:2px 4px; border:1px solid #cbd5e1; border-radius:4px; text-align:center; font-weight:700;"> m
+                  </label>
+                </div>
+                <div style="font-size:12px; color:#64748b; line-height:1.4;">分析样本代表性、变量控制局限及后续改进方向。</div>
+              </div>
+
+              <!-- 模块 6 -->
+              <div style="background:#ffffff; border:1px solid #e2e8f0; border-left:3.5px solid #475569; border-radius:8px; padding:12px 14px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+                  <span style="font-weight:800; color:#334155; font-size:13.5px;">六、参考文献</span>
+                  <label style="font-size:12px; color:#475569; display:flex; align-items:center; gap:4px;">
+                    用时: <input type="number" class="contract-time-input" data-key="references" value="${s1.contract.timeAllocations.references || 10}" ${isContractLocked ? 'disabled readonly style="opacity:0.8; cursor:not-allowed;"' : ''} style="width:48px; padding:2px 4px; border:1px solid #cbd5e1; border-radius:4px; text-align:center; font-weight:700;"> m
+                  </label>
+                </div>
+                <div style="font-size:12px; color:#64748b; line-height:1.4;">按照 APA / GB/T 7714 标准格式列明全部引用文献。</div>
+              </div>
             </div>
           </div>
 
