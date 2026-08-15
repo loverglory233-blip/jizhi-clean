@@ -821,15 +821,17 @@
     }
 
     handleRemoteSync(remoteData) {
-      if (!remoteData || !remoteData.timestamp) return;
-      if (remoteData.timestamp <= this.lastTimestamp && this.lastTimestamp !== 0) return;
+      if (!remoteData) return;
+      if (remoteData.timestamp && remoteData.timestamp < this.lastTimestamp && this.lastTimestamp !== 0) return;
 
       const user = this.app.authManager.getCurrentUser();
       const myGroupId = (user && user.groupId) ? user.groupId : (this.app.state.activeMonitorGroupId || 'group_1');
 
       if (remoteData.groupId && remoteData.groupId !== myGroupId && user?.role === 'student') return;
 
-      this.lastTimestamp = remoteData.timestamp;
+      if (remoteData.timestamp) {
+        this.lastTimestamp = Math.max(this.lastTimestamp, remoteData.timestamp);
+      }
       let structuralUpdated = false;
       let chatUpdated = false;
 
