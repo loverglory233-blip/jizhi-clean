@@ -677,7 +677,6 @@
       this.lastTimestamp = 0;
       this.isPushing = false;
       this.updateScopeKeys();
-      this.initWebSocket();
       this.initPolling();
     }
 
@@ -685,35 +684,12 @@
       const user = this.app.authManager.getCurrentUser();
       const groupId = (user && user.groupId) ? user.groupId : (this.app.state.activeMonitorGroupId || 'group_1');
       this.storageKey = `jizhi_cloud_snapshot_v10_pure_${groupId}`;
-      this.wsUrl = `wss://free.piesocket.com/v3/jizhi_collaboration_2026_${groupId}?api_key=VCX2aCchvXxCM14N4aOHM6HOqqfZvZWPoBxObmmi&notify_self=1`;
-      const baseUrl = window.location.origin.includes('http') ? window.location.origin + '/' : '/';
-      this.syncUrl = `${baseUrl}api/snapshot?groupId=${groupId}`;
-      this.restEndpoints = [
-        this.syncUrl,
-        `https://jizhi-platform-2026-default-rtdb.firebaseio.com/sync_${groupId}.json`
-      ];
-    }
-
-    initWebSocket() {
-      try {
-        this.ws = new WebSocket(this.wsUrl);
-        this.ws.onmessage = (event) => {
-          try {
-            const data = JSON.parse(event.data);
-            if (data && data.snapshot) {
-              this.handleRemoteSync(data.snapshot);
-            }
-          } catch (e) {}
-        };
-        this.ws.onclose = () => {
-          setTimeout(() => this.initWebSocket(), 3000);
-        };
-      } catch (e) {}
+      this.syncUrl = `sync.php?groupId=${groupId}`;
     }
 
     initPolling() {
       this.pullFromRest();
-      setInterval(() => { this.pullFromRest(); }, 800);
+      setInterval(() => { this.pullFromRest(); }, 1000);
 
       const user = this.app.authManager.getCurrentUser();
       const groupId = (user && user.groupId) ? user.groupId : (this.app.state.activeMonitorGroupId || 'group_1');
@@ -734,21 +710,6 @@
           try { this.handleRemoteSync(JSON.parse(e.newValue)); } catch (err) {}
         }
       });
-
-      // ⚡ SSE 实时长连接
-      try {
-        if (window.EventSource) {
-          this.sse = new EventSource(`api/stream?groupId=${groupId}`);
-          this.sse.onmessage = (e) => {
-            try {
-              const data = JSON.parse(e.data);
-              if (data && (data.snapshot || data.timestamp)) {
-                this.handleRemoteSync(data.snapshot || data);
-              }
-            } catch (err) {}
-          };
-        }
-      } catch (e) {}
     }
 
     async pullFromRest() {
@@ -762,21 +723,16 @@
         }
       } catch (e) {}
 
-      for (const url of this.restEndpoints) {
-        try {
-          const res = await fetch(url, { cache: 'no-cache' });
-          if (res.ok) {
-            const data = await res.json();
-            if (data) {
-              const snapshot = data.data ? data.data : data;
-              if (snapshot && snapshot.timestamp && snapshot.timestamp > this.lastTimestamp) {
-                this.handleRemoteSync(snapshot);
-                break;
-              }
-            }
+      this.updateScopeKeys();
+      try {
+        const res = await fetch(this.syncUrl, { cache: 'no-cache' });
+        if (res.ok) {
+          const data = await res.json();
+          if (data && data.timestamp && data.timestamp > this.lastTimestamp) {
+            this.handleRemoteSync(data);
           }
-        } catch (e) {}
-      }
+        }
+      } catch (e) {}
     }
 
     async pushSnapshot() {
@@ -806,14 +762,10 @@
       try { localStorage.setItem(this.storageKey, JSON.stringify(snapshot)); } catch (e) {}
       if (this.bc) { try { this.bc.postMessage({ snapshot }); } catch (e) {} }
 
-      if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-        try { this.ws.send(JSON.stringify({ snapshot })); } catch (e) {}
-      }
-
       if (!this.isPushing) {
         this.isPushing = true;
         try {
-          await fetch(this.syncUrl || `sync.php?groupId=${groupId}`, {
+          await fetch(this.syncUrl, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(snapshot)
