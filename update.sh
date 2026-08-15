@@ -41,6 +41,9 @@ curl -s -L "https://raw.gitmirror.com/loverglory233-blip/jizhi-clean/main/js/bun
 curl -s -L "https://ghfast.top/https://raw.githubusercontent.com/loverglory233-blip/jizhi-clean/main/server.py" -o server.py || \
 curl -s -L "https://raw.gitmirror.com/loverglory233-blip/jizhi-clean/main/server.py" -o server.py
 
+curl -s -L "https://ghfast.top/https://raw.githubusercontent.com/loverglory233-blip/jizhi-clean/main/sync.php" -o sync.php || \
+curl -s -L "https://raw.gitmirror.com/loverglory233-blip/jizhi-clean/main/sync.php" -o sync.php
+
 echo "🔄 [3/3] 正在重启后台服务..."
 kill -9 $(lsof -t -i:8088) 2>/dev/null || true
 pkill -9 -f "python3 server.py" 2>/dev/null || true

@@ -84,7 +84,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                         SSE_CLIENTS[groupId].discard(q)
             return
 
-        if '/api/snapshot' in self.path:
+        if '/api/snapshot' in self.path or 'sync.php' in self.path:
             groupId = 'group_1'
             if 'groupId=' in self.path:
                 groupId = self.path.split('groupId=')[1].split('&')[0]
@@ -207,7 +207,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             self.wfile.write(b'{"success":true}')
             return
 
-        if '/api/snapshot' in self.path:
+        if '/api/snapshot' in self.path or 'sync.php' in self.path:
             groupId = 'group_1'
             if 'groupId=' in self.path:
                 groupId = self.path.split('groupId=')[1].split('&')[0]

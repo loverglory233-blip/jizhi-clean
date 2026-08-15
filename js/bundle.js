@@ -13,6 +13,8 @@
     currentStage: 'stage1',
     currentUser: 'A',
     isFinalSubmitted: false,
+    studentViewMode: 'task_list', // 'task_list' or 'workspace'
+    activeTaskId: null,
     timer: {
       elapsedSeconds: 0,
       speed: 1,
@@ -22,9 +24,9 @@
     activeClassId: 'class_101',
     activeMonitorGroupId: 'group_1',
     members: {
-      'A': { id: 'A', name: '李明 (学生A)', roleTitle: '组长 · 论文结构', avatar: '👨‍🎓', color: '#818cf8', studentCode: 'A' },
-      'B': { id: 'B', name: '王芳 (学生B)', roleTitle: '组员 · 文献综述', avatar: '👩‍🎓', color: '#22d3ee', studentCode: 'B' },
-      'C': { id: 'C', name: '陈强 (学生C)', roleTitle: '组员 · 研究设计', avatar: '🧑‍🎓', color: '#fbbf24', studentCode: 'C' }
+      'A': { id: 'A', name: '李明 (学生A)', roleTitle: '组长 · 论文结构', avatar: '👨‍🎓', color: '#2563eb', studentCode: 'A' },
+      'B': { id: 'B', name: '王芳 (学生B)', roleTitle: '组员 · 文献综述', avatar: '👩‍🎓', color: '#0284c7', studentCode: 'B' },
+      'C': { id: 'C', name: '陈强 (学生C)', roleTitle: '组员 · 研究设计', avatar: '🧑‍🎓', color: '#d97706', studentCode: 'C' }
     },
 
     stage1: {
@@ -48,7 +50,7 @@
     },
 
     stage2: {
-      unifiedContent: `<h1>《研究设计方案》</h1><p><b>一、研究背景与意义</b></p><p>（请在此处阐述研究背景、现实痛点、理论价值与实践意义...）</p><p><br></p><p><b>二、研究问题与假设</b></p><p>（请在此处明确核心研究问题 RQ 与待检验的研究假设 H...）</p><p><br></p><p><b>三、文献综述</b></p><p>（请在此处梳理相关领域理论基础、国内外研究现状及已有研究局限...）</p><p><br></p><p><b>四、研究设计与方法</b></p><p>（请在此处详细说明实验设计、研究对象与样本、变量定义及测量工具量表...）</p><p><br></p><p><b>五、研究设计的不足与反思</b></p><p>（请在此处反思当前设计的潜在局限、威胁内部/外部效度的因素与改进预案...）</p><p><br></p><p><b>六、参考文献</b></p><p>（请在此处列出引用的学术文献规范条目...）</p>`,
+      unifiedContent: '',
       memberContributions: {},
       actionPlan: {
         isGenerated: false,
@@ -711,12 +713,13 @@
 
     initPolling() {
       this.pullFromRest();
-      setInterval(() => { this.pullFromRest(); }, 1200);
+      setInterval(() => { this.pullFromRest(); }, 800);
+
+      const user = this.app.authManager.getCurrentUser();
+      const groupId = (user && user.groupId) ? user.groupId : (this.app.state.activeMonitorGroupId || 'group_1');
 
       if ('BroadcastChannel' in window) {
         try {
-          const user = this.app.authManager.getCurrentUser();
-          const groupId = (user && user.groupId) ? user.groupId : (this.app.state.activeMonitorGroupId || 'group_1');
           this.bc = new BroadcastChannel(`jizhi_channel_v10_pure_${groupId}`);
           this.bc.onmessage = (e) => {
             if (e.data && e.data.snapshot) {
@@ -731,6 +734,21 @@
           try { this.handleRemoteSync(JSON.parse(e.newValue)); } catch (err) {}
         }
       });
+
+      // ⚡ SSE 实时长连接
+      try {
+        if (window.EventSource) {
+          this.sse = new EventSource(`api/stream?groupId=${groupId}`);
+          this.sse.onmessage = (e) => {
+            try {
+              const data = JSON.parse(e.data);
+              if (data && (data.snapshot || data.timestamp)) {
+                this.handleRemoteSync(data.snapshot || data);
+              }
+            } catch (err) {}
+          };
+        }
+      } catch (e) {}
     }
 
     async pullFromRest() {
@@ -817,25 +835,26 @@
       if (remoteData.groupId && remoteData.groupId !== myGroupId && user?.role === 'student') return;
 
       this.lastTimestamp = remoteData.timestamp;
-      let updated = false;
+      let structuralUpdated = false;
+      let chatUpdated = false;
 
       if (remoteData.members) {
         this.app.state.members = remoteData.members;
-        updated = true;
+        structuralUpdated = true;
       }
 
       if (remoteData.isFinalSubmitted !== undefined && remoteData.isFinalSubmitted !== this.app.state.isFinalSubmitted) {
         this.app.state.isFinalSubmitted = remoteData.isFinalSubmitted;
-        updated = true;
+        structuralUpdated = true;
       }
 
       if (remoteData.chatLogs) {
         ['stage1', 'stage2', 'stage3'].forEach(stg => {
           const localLogs = this.app.state.chatLogs[stg] || [];
           const remoteLogs = remoteData.chatLogs[stg] || [];
-          if (remoteLogs.length > localLogs.length) {
+          if (remoteLogs.length !== localLogs.length || JSON.stringify(remoteLogs) !== JSON.stringify(localLogs)) {
             this.app.state.chatLogs[stg] = remoteLogs;
-            updated = true;
+            chatUpdated = true;
           }
         });
       }
@@ -843,66 +862,77 @@
       if (remoteData.stage1) {
         const s1R = remoteData.stage1;
         const s1L = this.app.state.stage1;
-        if (s1R.contract) { s1L.contract = s1R.contract; updated = true; }
-        if (s1R.votes) { s1L.votes = s1R.votes; s1L.hasVoted = s1R.hasVoted; updated = true; }
+        if (JSON.stringify(s1R) !== JSON.stringify(s1L)) {
+          this.app.state.stage1 = s1R;
+          structuralUpdated = true;
+        }
       }
 
       if (remoteData.users && Array.isArray(remoteData.users) && remoteData.users.length > 0) {
-        localStorage.setItem('jizhi_users_db_v2', JSON.stringify(remoteData.users));
+        localStorage.setItem(STORAGE_KEY_USERS_DB, JSON.stringify(remoteData.users));
       }
       if (remoteData.classes && Array.isArray(remoteData.classes) && remoteData.classes.length > 0) {
-        localStorage.setItem('jizhi_classes_db', JSON.stringify(remoteData.classes));
+        localStorage.setItem(STORAGE_KEY_CLASSES, JSON.stringify(remoteData.classes));
       }
       if (remoteData.tasks && Array.isArray(remoteData.tasks)) {
-        localStorage.setItem('jizhi_tasks_db', JSON.stringify(remoteData.tasks));
+        localStorage.setItem(STORAGE_KEY_TASKS, JSON.stringify(remoteData.tasks));
       }
       if (remoteData.announcements && Array.isArray(remoteData.announcements)) {
-        localStorage.setItem('jizhi_announcements_db', JSON.stringify(remoteData.announcements));
+        localStorage.setItem(STORAGE_KEY_ANNOUNCEMENTS, JSON.stringify(remoteData.announcements));
       }
       if (remoteData.referencePapers && Array.isArray(remoteData.referencePapers)) {
         localStorage.setItem('jizhi_reference_papers_db', JSON.stringify(remoteData.referencePapers));
       }
 
-      if (remoteData.stage2 && remoteData.stage2.unifiedContent !== undefined) {
-        if (remoteData.stage2.unifiedContent !== this.app.state.stage2.unifiedContent) {
+      if (remoteData.stage2) {
+        if (remoteData.stage2.unifiedContent !== undefined && remoteData.stage2.unifiedContent !== this.app.state.stage2.unifiedContent) {
           this.app.state.stage2.unifiedContent = remoteData.stage2.unifiedContent;
-          updated = true;
-          const editor = document.getElementById('main-unified-editor') || document.getElementById('stage3-unified-editor');
+          const editor = document.getElementById('stage2-word-editor') || document.getElementById('stage3-word-editor');
           if (editor && document.activeElement !== editor) {
-            editor.value = remoteData.stage2.unifiedContent;
+            editor.innerHTML = remoteData.stage2.unifiedContent || '';
           }
+          this.app.updateContributionUi();
         }
-        if (remoteData.stage2.actionPlan && !this.app.state.stage2.actionPlan) {
+        if (remoteData.stage2.memberContributions) {
+          this.app.state.stage2.memberContributions = remoteData.stage2.memberContributions;
+          this.app.updateContributionUi();
+        }
+        if (remoteData.stage2.actionPlan && JSON.stringify(remoteData.stage2.actionPlan) !== JSON.stringify(this.app.state.stage2.actionPlan)) {
           this.app.state.stage2.actionPlan = remoteData.stage2.actionPlan;
-          updated = true;
+          structuralUpdated = true;
         }
       }
 
       if (remoteData.stage3 && remoteData.stage3.feedbackItems) {
-        this.app.state.stage3.feedbackItems = remoteData.stage3.feedbackItems;
-        updated = true;
+        if (JSON.stringify(remoteData.stage3.feedbackItems) !== JSON.stringify(this.app.state.stage3.feedbackItems)) {
+          this.app.state.stage3.feedbackItems = remoteData.stage3.feedbackItems;
+          structuralUpdated = true;
+        }
       }
 
       if (remoteData.currentStage && remoteData.currentStage !== this.app.state.currentStage) {
         this.app.state.currentStage = remoteData.currentStage;
-        updated = true;
+        structuralUpdated = true;
       }
 
-      if (updated) {
-        this.app.saveGroupState(myGroupId);
-        if (user?.role === 'student') {
+      this.app.saveGroupState(myGroupId);
+
+      if (chatUpdated) {
+        renderChat(this.app.state);
+      }
+
+      if (structuralUpdated) {
+        if (user?.role === 'student' && this.app.state.studentViewMode === 'workspace') {
           this.app.renderStudentWorkspace();
-          renderChat(this.app.state);
         }
         if (user?.role === 'teacher') {
           const mainEl = document.getElementById('app');
           if (mainEl && this.app.state.teacherActiveTab === 'view_monitoring') {
-            const liveDocEl = document.getElementById('teacher-live-doc-mirror');
-            if (liveDocEl) liveDocEl.value = this.app.state.stage2.unifiedContent;
             renderTeacherPortal(mainEl, this.app.authManager, this.app.state, () => this.app.handleLogout(), () => this.app.renderStudentWorkspace());
           }
         }
       }
+    }
     }
   }
 
@@ -1402,18 +1432,28 @@
                       </div>
                       <textarea id="teacher-live-doc-mirror" class="teacher-textarea" readonly style="flex:1; min-height:340px; font-family:sans-serif; font-size:13.5px; line-height:1.6; background:#ffffff; color:#0f172a; border:1px solid #cbd5e1;">${state.stage2.unifiedContent}</textarea>
                       <div style="margin-top:14px; background:#f8fafc; padding:12px; border-radius:8px; border:1px solid #e2e8f0;">
-                        <div style="font-size:12px; font-weight:700; color:#334155; margin-bottom:6px;">📊 本组 SSRL 成员字数贡献比率 (${monitorMembersList.length} 位成员)</div>
+                        <div style="font-size:12px; font-weight:700; color:#334155; margin-bottom:6px;">📊 本组 SSRL 成员字数与互动贡献比率 (${monitorMembersList.length} 位成员)</div>
                         <div style="height:10px; background:#e2e8f0; border-radius:6px; overflow:hidden; display:flex;">
-                          ${monitorMembersList.map((m) => {
-                            const pct = Math.round(100 / monitorMembersList.length);
-                            return `<div style="width:${pct}%; background:${m.color || '#2563eb'};" title="${m.name}: ${pct}%"></div>`;
-                          }).join('')}
+                          ${(() => {
+                            const contribs = state.stage2.memberContributions || {};
+                            let totalContrib = 0;
+                            monitorMembersList.forEach(m => { totalContrib += (contribs[m.id] || 0) + (contribs[m.studentCode] || 0); });
+                            return monitorMembersList.map((m) => {
+                              let pct = totalContrib === 0 ? Math.round(100 / monitorMembersList.length) : Math.max(2, Math.round((((contribs[m.id] || 0) + (contribs[m.studentCode] || 0)) / totalContrib) * 100));
+                              return `<div style="width:${pct}%; background:${m.color || '#2563eb'}; transition:width 0.3s ease;" title="${m.name}: ${pct}%"></div>`;
+                            }).join('');
+                          })()}
                         </div>
                         <div style="display:flex; justify-content:space-between; font-size:11px; color:#475569; margin-top:6px; flex-wrap:wrap; gap:8px;">
-                          ${monitorMembersList.map(m => {
-                            const pct = Math.round(100 / monitorMembersList.length);
-                            return `<span style="color:${m.color || '#2563eb'}; font-weight:600;">● ${m.name}: ${pct}%</span>`;
-                          }).join('')}
+                          ${(() => {
+                            const contribs = state.stage2.memberContributions || {};
+                            let totalContrib = 0;
+                            monitorMembersList.forEach(m => { totalContrib += (contribs[m.id] || 0) + (contribs[m.studentCode] || 0); });
+                            return monitorMembersList.map(m => {
+                              let pct = totalContrib === 0 ? Math.round(100 / monitorMembersList.length) : Math.max(2, Math.round((((contribs[m.id] || 0) + (contribs[m.studentCode] || 0)) / totalContrib) * 100));
+                              return `<span style="color:${m.color || '#2563eb'}; font-weight:700;">● ${m.name}: ${pct}%</span>`;
+                            }).join('');
+                          })()}
                         </div>
                       </div>
                     </div>
@@ -2252,9 +2292,133 @@
   }
 
   /* ==========================================================================
+     7.5 STUDENT TASK PORTAL / DASHBOARD (我的写作任务大厅)
+     ========================================================================== */
+  function renderStudentTaskPortal(container, authManager, state, onSelectTask, onLogout, onSwitchTeacher, onOpenAnnModal, onOpenSurveyModal) {
+    const currentUser = authManager.getCurrentUser();
+    const classes = authManager.getClasses();
+    const tasks = authManager.getTasks();
+    const announcements = authManager.getAnnouncements();
+    const groupId = (currentUser && currentUser.groupId) ? currentUser.groupId : 'group_1';
+    const userClass = classes.find(c => c.id === currentUser?.classId) || classes[0];
+    const groupObj = (userClass && userClass.groups) ? userClass.groups.find(g => g.id === groupId) : null;
+    const groupName = groupObj ? groupObj.name : '第1小组';
+    const unreadAnnCount = announcements ? announcements.filter(a => !a.readStatus || !a.readStatus[groupId]).length : 0;
+    const isFinalSubmitted = state.isFinalSubmitted;
+
+    const relevantTasks = tasks.filter(t => !t.classId || t.classId === userClass?.id || t.classId === 'all');
+    if (relevantTasks.length === 0 && tasks.length > 0) {
+      tasks.forEach(t => relevantTasks.push(t));
+    }
+
+    container.innerHTML = `
+      <div class="student-task-portal" style="min-height:100vh; background:#f0f4f9; display:flex; flex-direction:column;">
+        <header class="app-header" style="height:60px; background:#ffffff; border-bottom:1px solid #e2e8f0; display:flex; align-items:center; justify-content:space-between; padding:0 24px; box-shadow:0 1px 3px rgba(15,23,42,0.04);">
+          <div class="brand-section" style="display:flex; align-items:center; gap:12px;">
+            <div class="brand-logo" style="font-size:20px; font-weight:800; background:linear-gradient(135deg, #1e40af, #2563eb); -webkit-background-clip:text; -webkit-text-fill-color:transparent;">集智 JIZHI</div>
+            <div class="brand-badge" style="background:#eff6ff; color:#2563eb; padding:4px 12px; border-radius:20px; font-size:12px; font-weight:700; border:1px solid #bfdbfe;">
+              🎓 ${currentUser ? currentUser.name : '学生'} · ${userClass ? userClass.name : '学术写作班级'} · ${groupName}
+            </div>
+          </div>
+          <div class="header-controls" style="display:flex; align-items:center; gap:10px;">
+            <button class="nav-ann-bell-btn ${unreadAnnCount > 0 ? 'has-unread' : ''}" id="btn-portal-ann-bell" title="课堂通知" style="background:#ffffff; border:1px solid #e2e8f0; color:#334155; padding:6px 14px; border-radius:18px; font-size:12px; font-weight:600; cursor:pointer;">
+              🔔 课堂通知 ${unreadAnnCount > 0 ? `<span class="unread-count">${unreadAnnCount}</span>` : ''}
+            </button>
+            <button id="btn-portal-switch-teacher" style="background:#eff6ff; color:#2563eb; border:1px solid #bfdbfe; padding:6px 14px; border-radius:18px; font-size:12px; font-weight:700; cursor:pointer;">👩‍🏫 教师端</button>
+            <button id="btn-portal-logout" style="background:#fef2f2; color:#dc2626; border:1px solid #fecaca; padding:6px 14px; border-radius:18px; font-size:12px; font-weight:700; cursor:pointer;">🚪 退出登录</button>
+          </div>
+        </header>
+
+        <main style="flex:1; padding:32px; max-width:1160px; width:100%; margin:0 auto; display:flex; flex-direction:column; gap:24px; box-sizing:border-box;">
+          <div style="background:linear-gradient(135deg, #1e40af, #2563eb); border-radius:16px; padding:28px 32px; color:white; box-shadow:0 8px 24px rgba(37, 99, 235, 0.18); display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:16px;">
+            <div>
+              <div style="font-size:24px; font-weight:800; letter-spacing:-0.5px; display:flex; align-items:center; gap:10px;">
+                📋 我的协作写作任务大厅
+              </div>
+              <div style="font-size:13.5px; opacity:0.92; margin-top:8px;">
+                欢迎进入集智多智能体协同写作学习系统！请选择下方教师发布的任务，点击【🚀 进入协作工作台】开展人机协同写作。
+              </div>
+            </div>
+            <div style="background:rgba(255,255,255,0.15); border:1px solid rgba(255,255,255,0.25); border-radius:12px; padding:12px 20px; text-align:right;">
+              <div style="font-size:11.5px; opacity:0.85;">当前协作身份</div>
+              <div style="font-size:15px; font-weight:800; margin-top:2px;">${groupName} (${currentUser?.name || '学生'})</div>
+            </div>
+          </div>
+
+          <div>
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+              <div style="font-size:17px; font-weight:800; color:#0f172a;">📚 本班协作任务清单 (${relevantTasks.length} 项)</div>
+            </div>
+
+            ${relevantTasks.length === 0 ? `
+              <div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:16px; padding:50px 24px; text-align:center; box-shadow:0 2px 8px rgba(15,23,42,0.04);">
+                <div style="font-size:42px; margin-bottom:10px;">⏳</div>
+                <div style="font-size:17px; font-weight:700; color:#1e293b;">暂无已发布的写作任务</div>
+                <div style="font-size:13px; color:#64748b; margin-top:6px;">任课教师尚未发布新任务，请等待教师在教师端发布，或点击下方直接进入协作工作台体验。</div>
+                <button id="btn-enter-default-workspace" style="margin-top:18px; background:#2563eb; color:white; border:none; padding:11px 24px; border-radius:10px; font-size:13.5px; font-weight:700; cursor:pointer; box-shadow:0 4px 12px rgba(37,99,235,0.25);">
+                  🚀 直接进入默认协作工作台
+                </button>
+              </div>
+            ` : `
+              <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(460px, 1fr)); gap:20px;">
+                ${relevantTasks.map((t) => {
+                  const duration = t.durationMinutes || 150;
+                  return `
+                    <div class="student-task-card" style="background:#ffffff; border:1px solid #e2e8f0; border-radius:14px; padding:22px; box-shadow:0 2px 8px rgba(15,23,42,0.04); display:flex; flex-direction:column; justify-content:space-between;">
+                      <div>
+                        <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px; margin-bottom:12px;">
+                          <div style="font-size:17px; font-weight:800; color:#0f172a; line-height:1.4;">📌 ${t.title}</div>
+                          <span style="background:#eff6ff; color:#2563eb; border:1px solid #bfdbfe; font-size:11px; font-weight:700; padding:3px 9px; border-radius:16px; flex-shrink:0;">
+                            ${t.targetGroupName || groupName}
+                          </span>
+                        </div>
+
+                        <div style="display:flex; flex-wrap:wrap; gap:8px; font-size:11.5px; color:#64748b; margin-bottom:12px; background:#f8fafc; padding:8px 12px; border-radius:8px; border:1px solid #e2e8f0;">
+                          <div>⏱️ 任务时长: <b style="color:#0f172a;">${duration} 分钟</b></div>
+                          <div>📅 开始时间: <b style="color:#0f172a;">${t.startTime || '随时'}</b></div>
+                          <div>⌛ 截止时间: <b style="color:#0f172a;">${t.deadline || '结课前'}</b></div>
+                        </div>
+
+                        <div style="font-size:12.5px; color:#334155; line-height:1.6; margin-bottom:14px; background:#f8fafc; border-left:3px solid #2563eb; padding:8px 12px; border-radius:0 6px 6px 0;">
+                          ${t.instructions ? t.instructions.substring(0, 130) + (t.instructions.length > 130 ? '...' : '') : '暂无详细要求说明'}
+                        </div>
+
+                        <div style="display:flex; align-items:center; gap:8px; font-size:12px; font-weight:600; color:#475569; margin-bottom:16px;">
+                          <span>协作进度状态:</span>
+                          <span style="background:#eff6ff; color:#2563eb; border:1px solid #bfdbfe; padding:2px 8px; border-radius:6px; font-size:11.5px;">
+                            ${isFinalSubmitted ? '🔒 终稿已全员答辩并提交归档' : (state.currentStage === 'stage1' ? '🎪 阶段一：学术拍卖会' : (state.currentStage === 'stage2' ? '📰 阶段二：学术编辑部 (撰写中)' : '🎓 阶段三：答辩擂台'))}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div style="display:flex; gap:10px; align-items:center; border-top:1px solid #f1f5f9; padding-top:14px;">
+                        <button class="btn-enter-task-workspace" data-task-id="${t.id}" style="flex:1; background:linear-gradient(135deg, #1d4ed8, #2563eb); color:white; border:none; padding:11px 18px; border-radius:10px; font-size:13.5px; font-weight:700; cursor:pointer; box-shadow:0 4px 12px rgba(37,99,235,0.2); display:flex; align-items:center; justify-content:center; gap:6px;">
+                          🚀 进入协作工作台
+                        </button>
+                      </div>
+                    </div>
+                  `;
+                }).join('')}
+              </div>
+            `}
+          </div>
+        </main>
+      </div>
+    `;
+
+    container.querySelector('#btn-portal-logout')?.addEventListener('click', () => onLogout());
+    container.querySelector('#btn-portal-switch-teacher')?.addEventListener('click', () => onSwitchTeacher());
+    container.querySelector('#btn-portal-ann-bell')?.addEventListener('click', () => onOpenAnnModal());
+    container.querySelector('#btn-enter-default-workspace')?.addEventListener('click', () => onSelectTask(null));
+    container.querySelectorAll('.btn-enter-task-workspace').forEach(btn => {
+      btn.addEventListener('click', () => onSelectTask(btn.dataset.taskId));
+    });
+  }
+
+  /* ==========================================================================
      8. UI RENDERER (STUDENT CANVAS & HEADER)
      ========================================================================== */
-  function renderHeader(state, currentUser, announcements, onStageChange, onSpeedChange, onLogout, onSwitchTeacher, onOpenAnnModal, onOpenSurveyModal) {
+  function renderHeader(state, currentUser, announcements, onStageChange, onSpeedChange, onLogout, onSwitchTeacher, onOpenAnnModal, onOpenSurveyModal, onBackToTaskList) {
     const header = document.getElementById('app-header');
     const elapsedMin = Math.floor(state.timer.elapsedSeconds / 60);
     const remainingMin = Math.max(0, 150 - elapsedMin);
@@ -2263,9 +2427,14 @@
     const isFinalSubmitted = state.isFinalSubmitted;
 
     header.innerHTML = `
-      <div class="brand-section" style="flex-shrink:0;">
-        <div class="brand-logo">集智 JIZHI</div>
-        <div class="brand-badge">🎓 ${currentUser ? currentUser.name : '学生A'} ${isFinalSubmitted ? '<span style="color:#34d399; margin-left:4px;">(🔒 终稿已归档)</span>' : ''}</div>
+      <div class="brand-section" style="flex-shrink:0; display:flex; align-items:center; gap:8px;">
+        <div class="brand-logo" style="font-size:18px; font-weight:800; background:linear-gradient(135deg, #1e40af, #2563eb); -webkit-background-clip:text; -webkit-text-fill-color:transparent;">集智 JIZHI</div>
+        <div class="brand-badge" style="background:#eff6ff; color:#2563eb; padding:3px 9px; border-radius:16px; font-size:11.5px; font-weight:700; border:1px solid #bfdbfe;">
+          🎓 ${currentUser ? currentUser.name : '学生'} ${isFinalSubmitted ? '<span style="color:#059669; margin-left:4px;">(🔒 终稿已归档)</span>' : ''}
+        </div>
+        <button id="btn-header-back-tasks" style="background:#f8fafc; border:1px solid #cbd5e1; color:#334155; padding:4px 10px; border-radius:16px; font-size:11.5px; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; gap:4px;" title="返回我的写作任务大厅">
+          📋 任务大厅
+        </button>
       </div>
       <nav class="stage-nav" style="flex-shrink:1; min-width:0; overflow-x:auto;">
         <button class="stage-btn ${state.currentStage === 'stage1' ? 'active' : ''}" data-stage="stage1">🎪 阶段一：学术拍卖会 (25m)</button>
@@ -2273,15 +2442,15 @@
         <button class="stage-btn ${state.currentStage === 'stage3' ? 'active' : ''}" data-stage="stage3">🎓 阶段三：答辩擂台 (20m)</button>
       </nav>
       <div class="header-controls" style="display:flex; align-items:center; gap:8px; flex-shrink:0; margin-left:auto;">
-        <button id="btn-header-survey-link" style="background:${isFinalSubmitted ? 'linear-gradient(135deg, #8b5cf6, #6366f1)' : 'rgba(139,92,246,0.2)'}; border:1px solid rgba(139,92,246,0.4); color:white; padding:7px 14px; border-radius:8px; font-size:12px; font-weight:700; cursor:pointer; box-shadow:${isFinalSubmitted ? '0 0 10px rgba(139,92,246,0.5)' : 'none'}; transition:all 0.2s;" title="课程评估问卷">
-          📋 ${isFinalSubmitted ? '📬 填写评估问卷' : '问卷'}
+        <button id="btn-header-survey-link" style="background:#eff6ff; border:1px solid #bfdbfe; color:#2563eb; padding:5px 12px; border-radius:16px; font-size:12px; font-weight:700; cursor:pointer; transition:all 0.2s;" title="课程评估问卷">
+          📋 问卷
         </button>
-        <button class="nav-ann-bell-btn ${unreadAnnCount > 0 ? 'has-unread' : ''}" id="btn-header-ann-bell" title="课堂通知">
+        <button class="nav-ann-bell-btn ${unreadAnnCount > 0 ? 'has-unread' : ''}" id="btn-header-ann-bell" title="课堂通知" style="padding:4px 10px; border-radius:16px; font-size:11.5px;">
           🔔 消息 ${unreadAnnCount > 0 ? `<span class="unread-count">${unreadAnnCount}</span>` : ''}
         </button>
-        <div class="timer-box">⏱️ ${remainingMin}m</div>
-        <button id="btn-switch-teacher-view" class="header-icon-btn" style="background:rgba(99,102,241,0.2); color:#a5b4fc; border:1px solid rgba(99,102,241,0.4); padding:7px 14px; border-radius:8px; font-size:12px; font-weight:700; cursor:pointer;" title="切换至教师端">👩‍🏫 教师端</button>
-        <button id="btn-user-logout" style="background:linear-gradient(135deg, #ef4444, #dc2626); color:white; border:none; padding:8px 18px; border-radius:8px; font-size:13px; font-weight:800; cursor:pointer; box-shadow:0 4px 14px rgba(239,68,68,0.4); flex-shrink:0; white-space:nowrap; display:inline-flex; align-items:center; justify-content:center; min-width:105px; text-shadow:0 1px 2px rgba(0,0,0,0.3);" title="退出登录">🚪 退出登录</button>
+        <div class="timer-box" style="background:#eff6ff; border:1px solid #bfdbfe; padding:4px 10px; border-radius:16px; font-size:12px; font-weight:700; color:#1d4ed8;">⏱️ ${remainingMin}m</div>
+        <button id="btn-switch-teacher-view" style="background:#eff6ff; color:#2563eb; border:1px solid #bfdbfe; padding:5px 12px; border-radius:16px; font-size:11.5px; font-weight:700; cursor:pointer;" title="切换至教师端">👩‍🏫 教师端</button>
+        <button id="btn-user-logout" style="background:#fef2f2; color:#dc2626; border:1px solid #fecaca; padding:5px 12px; border-radius:16px; font-size:11.5px; font-weight:700; cursor:pointer;" title="退出登录">🚪 退出</button>
       </div>
     `;
 
@@ -2291,6 +2460,10 @@
     header.querySelector('#btn-user-logout').addEventListener('click', () => onLogout());
     header.querySelector('#btn-switch-teacher-view').addEventListener('click', () => onSwitchTeacher());
     header.querySelector('#btn-header-ann-bell').addEventListener('click', () => onOpenAnnModal());
+    const btnBackTasks = header.querySelector('#btn-header-back-tasks');
+    if (btnBackTasks && onBackToTaskList) {
+      btnBackTasks.addEventListener('click', () => onBackToTaskList());
+    }
     const surveyHeaderBtn = header.querySelector('#btn-header-survey-link');
     if (surveyHeaderBtn) surveyHeaderBtn.addEventListener('click', () => onOpenSurveyModal());
   }
@@ -3068,21 +3241,31 @@
 
         <div style="margin-top:10px; background:#f8fafc; padding:10px 14px; border-radius:10px; border:1px solid #e2e8f0; flex-shrink:0;">
           <div style="font-size:12px; font-weight:700; margin-bottom:6px; color:#334155; display:flex; justify-content:space-between;">
-            <span>📊 本组 SSRL 成员贡献度比率 (${membersList.length} 人动态适配)</span>
-            <span style="color:#64748b;">总字数: ${plainTextLen} 字</span>
+            <span>📊 本组 SSRL 成员字数与互动贡献度比率 (${membersList.length} 人动态适配)</span>
+            <span style="color:#64748b;">正文字数: ${plainTextLen} 字</span>
           </div>
           <div class="contribution-bar-container">
             <div class="contrib-bars" style="height:10px; border-radius:6px; display:flex; overflow:hidden; background:#e2e8f0;">
-              ${membersList.map((m) => {
-                const pct = Math.round(100 / membersList.length);
-                return `<div class="contrib-segment" style="width:${pct}%; background:${m.color || '#2563eb'};" title="${m.name}: ${pct}%"></div>`;
-              }).join('')}
+              ${(() => {
+                const contribs = s2.memberContributions || {};
+                let totalContrib = 0;
+                membersList.forEach(m => { totalContrib += (contribs[m.id] || 0) + (contribs[m.studentCode] || 0); });
+                return membersList.map((m) => {
+                  let pct = totalContrib === 0 ? Math.round(100 / membersList.length) : Math.max(2, Math.round((((contribs[m.id] || 0) + (contribs[m.studentCode] || 0)) / totalContrib) * 100));
+                  return `<div class="contrib-segment" style="width:${pct}%; background:${m.color || '#2563eb'}; transition:width 0.3s ease;" title="${m.name}: ${pct}%"></div>`;
+                }).join('');
+              })()}
             </div>
-            <div style="display:flex; justify-content:space-between; font-size:11.5px; font-weight:600; color:#475569; margin-top:4px; flex-wrap:wrap; gap:10px;">
-              ${membersList.map((m) => {
-                const pct = Math.round(100 / membersList.length);
-                return `<span style="color:${m.color || '#2563eb'};">● ${m.name}: ${pct}%</span>`;
-              }).join('')}
+            <div class="contrib-labels" style="display:flex; justify-content:space-between; font-size:11.5px; font-weight:600; color:#475569; margin-top:4px; flex-wrap:wrap; gap:10px;">
+              ${(() => {
+                const contribs = s2.memberContributions || {};
+                let totalContrib = 0;
+                membersList.forEach(m => { totalContrib += (contribs[m.id] || 0) + (contribs[m.studentCode] || 0); });
+                return membersList.map((m) => {
+                  let pct = totalContrib === 0 ? Math.round(100 / membersList.length) : Math.max(2, Math.round((((contribs[m.id] || 0) + (contribs[m.studentCode] || 0)) / totalContrib) * 100));
+                  return `<span style="color:${m.color || '#2563eb'}; font-weight:700;">● ${m.name}: ${pct}%</span>`;
+                }).join('');
+              })()}
             </div>
           </div>
         </div>
@@ -3412,6 +3595,25 @@
       } else {
         const currentGroupId = currentUser && currentUser.groupId ? currentUser.groupId : 'group_1';
         this.loadGroupState(currentGroupId);
+
+        if (this.state.studentViewMode === 'task_list') {
+          appEl.className = 'app-student-portal-mode';
+          renderStudentTaskPortal(
+            appEl, this.authManager, this.state,
+            (taskId) => {
+              this.state.activeTaskId = taskId;
+              this.state.studentViewMode = 'workspace';
+              this.renderMain();
+            },
+            () => this.handleLogout(),
+            () => this.switchToTeacherView(),
+            () => this.showAnnouncementModal(),
+            () => this.showQuestionnaireModal()
+          );
+          this.checkUnreadAnnouncements();
+          return;
+        }
+
         const membersList = Object.values(this.state.members || {});
 
         appEl.className = 'app-student-mode';
@@ -3423,9 +3625,9 @@
               <div class="chat-header">
                 <div class="chat-title"><span>💬 多智能体协同对话管道 (全域云端实时同步 🟢)</span></div>
                 <div class="active-agent-pills">
-                  <span class="agent-pill" style="color:#a78bfa; border-color:#8b5cf6;">🎪 拍卖师</span>
-                  <span class="agent-pill" style="color:#34d399; border-color:#10b981;">🤝 责任编辑</span>
-                  <span class="agent-pill" style="color:#60a5fa; border-color:#3b82f6;">📝 审稿编辑</span>
+                  <span class="agent-pill">🎪 拍卖师</span>
+                  <span class="agent-pill">🤝 责任编辑</span>
+                  <span class="agent-pill">📝 审稿编辑</span>
                 </div>
               </div>
               <div class="chat-stream" id="chat-stream"></div>
@@ -3747,13 +3949,51 @@
         input.value = '';
         atMentionMenu.style.display = 'none';
         this.studentMsgCountSinceLastAgent += 1;
+
+        if (!this.state.stage2.memberContributions) this.state.stage2.memberContributions = {};
+        this.state.stage2.memberContributions[studentCode] = (this.state.stage2.memberContributions[studentCode] || 0) + text.length;
+        this.updateContributionUi();
+
         this.syncChatLogs();
+        this.syncStage2();
         renderChat(this.state);
         this.triggerAgentReplyIfNeeded(text);
       };
 
       sendBtn.addEventListener('click', handleSend);
       input.addEventListener('keypress', (e) => { if (e.key === 'Enter') handleSend(); });
+    }
+
+    updateContributionUi() {
+      const s2 = this.state.stage2;
+      const membersList = Object.values(this.state.members || {});
+      const contribs = s2.memberContributions || {};
+      let totalContrib = 0;
+      membersList.forEach(m => {
+        totalContrib += (contribs[m.id] || 0) + (contribs[m.studentCode] || 0);
+      });
+
+      const getMemberPct = (m) => {
+        if (totalContrib === 0) return Math.round(100 / membersList.length);
+        const val = (contribs[m.id] || 0) + (contribs[m.studentCode] || 0);
+        return Math.max(2, Math.round((val / totalContrib) * 100));
+      };
+
+      const barContainer = document.querySelector('.contrib-bars');
+      if (barContainer) {
+        barContainer.innerHTML = membersList.map((m) => {
+          const pct = getMemberPct(m);
+          return `<div class="contrib-segment" style="width:${pct}%; background:${m.color || '#2563eb'}; transition:width 0.3s ease;" title="${m.name}: ${pct}%"></div>`;
+        }).join('');
+      }
+
+      const labelsContainer = document.querySelector('.contrib-labels');
+      if (labelsContainer) {
+        labelsContainer.innerHTML = membersList.map((m) => {
+          const pct = getMemberPct(m);
+          return `<span style="color:${m.color || '#2563eb'}; font-weight:700;">● ${m.name}: ${pct}%</span>`;
+        }).join('');
+      }
     }
 
     triggerAgentReplyIfNeeded(userMsg) {
@@ -3910,7 +4150,16 @@
       this.state.members = this.authManager.getGroupMembersForWorkspace(currentGroupId);
       this.state.currentUser = currentUser ? (currentUser.studentCode || 'A') : 'A';
 
-      renderHeader(this.state, currentUser, this.authManager.getAnnouncements(), (s) => this.switchStage(s), (sp) => this.setSpeed(sp), () => this.handleLogout(), () => this.switchToTeacherView(), () => this.showAnnouncementModal(), () => this.showQuestionnaireModal());
+      renderHeader(
+        this.state, currentUser, this.authManager.getAnnouncements(),
+        (s) => this.switchStage(s), (sp) => this.setSpeed(sp),
+        () => this.handleLogout(), () => this.switchToTeacherView(),
+        () => this.showAnnouncementModal(), () => this.showQuestionnaireModal(),
+        () => {
+          this.state.studentViewMode = 'task_list';
+          this.renderMain();
+        }
+      );
 
       renderCanvas(this.state, {
         onVote: (propId) => { this.handleVoteCast(propId); },
@@ -3953,6 +4202,14 @@
         onUnifiedContentChange: (newContent) => {
           if (this.state.isFinalSubmitted) return;
           this.state.stage2.unifiedContent = newContent;
+          const user = this.state.currentUser || 'A';
+          const plain = (newContent || '').replace(/<[^>]*>/g, '');
+          const prevLen = this.lastPlainTextLength || 0;
+          const delta = Math.max(1, Math.abs(plain.length - prevLen));
+          this.lastPlainTextLength = plain.length;
+          if (!this.state.stage2.memberContributions) this.state.stage2.memberContributions = {};
+          this.state.stage2.memberContributions[user] = (this.state.stage2.memberContributions[user] || 0) + delta;
+          this.updateContributionUi();
           this.syncStage2();
           this.checkAgentTriggersOnContent(newContent);
         },
