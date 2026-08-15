@@ -671,73 +671,87 @@
   }
 
   /* ==========================================================================
-     5. QUAD-REDUNDANT CROSS-BROWSER CLOUD SYNC ENGINE v6 (GROUP-SCOPED)
+     5. CLOUD SYNC ENGINE - jsonbin.io public API + WebSocket dual channel
      ========================================================================== */
   class CloudSyncEngine {
+    // jsonbin.io free tier: no server needed, works anywhere with internet
+    // Bin ID and Master Key are group-scoped
+    static JSONBIN_MASTER_KEY = '$2a$10$VtWCaFHlkiakDUhFrFRmfOrMbQB0YCVfMrAf3hQJSJcuFNLNYU5xO';
+    static JSONBIN_BINS = {
+      'group_1': '66bd1234abc111000000001a',
+      'group_2': '66bd1234abc111000000002b',
+      'group_3': '66bd1234abc111000000003c',
+    };
+
     constructor(app) {
       this.app = app;
       this.lastTimestamp = 0;
       this.isPushing = false;
       this.pendingPush = false;
+      this.binId = null;
       this.updateScopeKeys();
       this.initWebSocket();
-      this.initPolling();
+      this.ensureBin().then(() => this.initPolling());
     }
 
     updateScopeKeys() {
       const user = this.app.authManager.getCurrentUser();
       const groupId = (user && user.groupId) ? user.groupId : (this.app.state.activeMonitorGroupId || 'group_1');
+      this.groupId = groupId;
       this.storageKey = `jizhi_cloud_snapshot_v10_pure_${groupId}`;
-      const host = window.location.hostname || '47.99.110.230';
-      const protocol = window.location.protocol || 'http:';
+    }
 
-      this.syncEndpoints = [
-        `sync.php?groupId=${groupId}`,
-        `/sync.php?groupId=${groupId}`,
-        `${protocol}//${host}:8088/sync.php?groupId=${groupId}`,
-        `${protocol}//${host}:8088/api/snapshot?groupId=${groupId}`
-      ];
+    async ensureBin() {
+      this.updateScopeKeys();
+      const binKey = `jizhi_jsonbin_id_${this.groupId}`;
+      this.binId = localStorage.getItem(binKey);
+      if (!this.binId) {
+        try {
+          const res = await fetch('https://api.jsonbin.io/v3/b', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-Master-Key': CloudSyncEngine.JSONBIN_MASTER_KEY,
+              'X-Bin-Name': `jizhi_${this.groupId}`,
+              'X-Bin-Private': 'false'
+            },
+            body: JSON.stringify({ timestamp: 0, groupId: this.groupId })
+          });
+          if (res.ok) {
+            const data = await res.json();
+            this.binId = data.metadata.id;
+            localStorage.setItem(binKey, this.binId);
+          }
+        } catch (e) {}
+      }
     }
 
     initWebSocket() {
-      const user = this.app.authManager.getCurrentUser();
-      const groupId = (user && user.groupId) ? user.groupId : (this.app.state.activeMonitorGroupId || 'group_1');
-      const wsUrl = `wss://free.v2.piesocket.com/v3/jizhi_cloud_channel_${groupId}?api_key=VCXCEuvhGcBDP7XhiJJLUD6RRE25ixbngSkiUZ3N&notify_self=0`;
-
+      this.updateScopeKeys();
+      const wsUrl = `wss://free.v2.piesocket.com/v3/jizhi_grp_${this.groupId}?api_key=VCXCEuvhGcBDP7XhiJJLUD6RRE25ixbngSkiUZ3N&notify_self=0`;
       try {
-        if (this.ws) {
-          try { this.ws.close(); } catch (e) {}
-        }
+        if (this.ws) { try { this.ws.close(); } catch (e) {} }
         this.ws = new WebSocket(wsUrl);
         this.ws.onmessage = (event) => {
           try {
             const data = JSON.parse(event.data);
-            if (data && data.snapshot) {
-              this.handleRemoteSync(data.snapshot);
-            }
+            if (data && data.snapshot) this.handleRemoteSync(data.snapshot);
           } catch (err) {}
         };
-        this.ws.onclose = () => {
-          setTimeout(() => { this.initWebSocket(); }, 3000);
-        };
+        this.ws.onclose = () => { setTimeout(() => this.initWebSocket(), 3000); };
         this.ws.onerror = () => {};
       } catch (e) {}
     }
 
     initPolling() {
-      this.pullFromRest();
-      setInterval(() => { this.pullFromRest(); }, 350);
-
-      const user = this.app.authManager.getCurrentUser();
-      const groupId = (user && user.groupId) ? user.groupId : (this.app.state.activeMonitorGroupId || 'group_1');
+      this.pullSnapshot();
+      setInterval(() => this.pullSnapshot(), 1500);
 
       if ('BroadcastChannel' in window) {
         try {
-          this.bc = new BroadcastChannel(`jizhi_channel_v10_pure_${groupId}`);
+          this.bc = new BroadcastChannel(`jizhi_bc_${this.groupId}`);
           this.bc.onmessage = (e) => {
-            if (e.data && e.data.snapshot) {
-              this.handleRemoteSync(e.data.snapshot);
-            }
+            if (e.data && e.data.snapshot) this.handleRemoteSync(e.data.snapshot);
           };
         } catch (e) {}
       }
@@ -749,26 +763,50 @@
       });
     }
 
-    async pullFromRest() {
-      this.updateScopeKeys();
+    async pullSnapshot() {
+      // 1. Try local cache first
       try {
         const localRaw = localStorage.getItem(this.storageKey);
         if (localRaw) {
           const localSnap = JSON.parse(localRaw);
-          if (localSnap && localSnap.timestamp > this.lastTimestamp) {
-            this.handleRemoteSync(localSnap);
-          }
+          if (localSnap && localSnap.timestamp > this.lastTimestamp) this.handleRemoteSync(localSnap);
         }
       } catch (e) {}
 
-      for (const endpoint of this.syncEndpoints) {
+      // 2. Try jsonbin.io
+      if (this.binId) {
         try {
-          const res = await fetch(`${endpoint}${endpoint.includes('?') ? '&' : '?'}nocache=${Date.now()}`, { cache: 'no-store' });
+          const res = await fetch(`https://api.jsonbin.io/v3/b/${this.binId}/latest`, {
+            headers: { 'X-Master-Key': CloudSyncEngine.JSONBIN_MASTER_KEY }
+          });
           if (res.ok) {
             const data = await res.json();
-            if (data && data.timestamp && data.timestamp > this.lastTimestamp) {
-              this.handleRemoteSync(data);
-              break;
+            const snap = data.record;
+            if (snap && snap.timestamp && snap.timestamp > this.lastTimestamp) {
+              this.handleRemoteSync(snap);
+            }
+          }
+        } catch (e) {}
+      }
+
+      // 3. Try server-side endpoints as fallback
+      const host = window.location.hostname;
+      const protocol = window.location.protocol;
+      const serverEndpoints = [
+        `sync.php?groupId=${this.groupId}`,
+        `${protocol}//${host}:8088/sync.php?groupId=${this.groupId}`
+      ];
+      for (const endpoint of serverEndpoints) {
+        try {
+          const res = await fetch(`${endpoint}&nocache=${Date.now()}`, { cache: 'no-store' });
+          if (res.ok) {
+            const text = await res.text();
+            if (!text.includes('<?php')) {
+              const data = JSON.parse(text);
+              if (data && data.timestamp && data.timestamp > this.lastTimestamp) {
+                this.handleRemoteSync(data);
+                break;
+              }
             }
           }
         } catch (e) {}
@@ -778,7 +816,7 @@
     async pushSnapshot() {
       this.updateScopeKeys();
       const user = this.app.authManager.getCurrentUser();
-      const groupId = (user && user.groupId) ? user.groupId : (this.app.state.activeMonitorGroupId || 'group_1');
+      const groupId = this.groupId;
 
       const snapshot = {
         timestamp: Date.now(),
@@ -799,38 +837,45 @@
       };
 
       this.lastTimestamp = snapshot.timestamp;
+      const bodyStr = JSON.stringify(snapshot);
 
-      try { localStorage.setItem(this.storageKey, JSON.stringify(snapshot)); } catch (e) {}
+      // Always save local
+      try { localStorage.setItem(this.storageKey, bodyStr); } catch (e) {}
+      // Broadcast to same-browser tabs
       if (this.bc) { try { this.bc.postMessage({ snapshot }); } catch (e) {} }
-
+      // Broadcast via WebSocket to other devices
       if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-        try {
-          this.ws.send(JSON.stringify({ snapshot }));
-        } catch (e) {}
+        try { this.ws.send(JSON.stringify({ snapshot })); } catch (e) {}
       }
 
-      if (this.isPushing) {
-        this.pendingPush = true;
-        return;
-      }
-
+      if (this.isPushing) { this.pendingPush = true; return; }
       this.isPushing = true;
       try {
-        const bodyStr = JSON.stringify(snapshot);
-        await Promise.allSettled(this.syncEndpoints.map(url =>
-          fetch(url, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+        // Push to jsonbin.io (primary cross-device store)
+        if (this.binId) {
+          fetch(`https://api.jsonbin.io/v3/b/${this.binId}`, {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-Master-Key': CloudSyncEngine.JSONBIN_MASTER_KEY
+            },
             body: bodyStr
-          })
+          }).catch(() => {});
+        }
+        // Also try server endpoints
+        const host = window.location.hostname;
+        const protocol = window.location.protocol;
+        const serverEndpoints = [
+          `sync.php?groupId=${groupId}`,
+          `${protocol}//${host}:8088/sync.php?groupId=${groupId}`
+        ];
+        await Promise.allSettled(serverEndpoints.map(url =>
+          fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: bodyStr })
         ));
       } catch (e) {
       } finally {
         this.isPushing = false;
-        if (this.pendingPush) {
-          this.pendingPush = false;
-          this.pushSnapshot();
-        }
+        if (this.pendingPush) { this.pendingPush = false; this.pushSnapshot(); }
       }
     }
 
@@ -852,10 +897,7 @@
         this.app.renderPresenceCursors();
       }
 
-      if (remoteData.members) {
-        this.app.state.members = remoteData.members;
-        structuralUpdated = true;
-      }
+      if (remoteData.members) { this.app.state.members = remoteData.members; structuralUpdated = true; }
 
       if (remoteData.isFinalSubmitted !== undefined && remoteData.isFinalSubmitted !== this.app.state.isFinalSubmitted) {
         this.app.state.isFinalSubmitted = remoteData.isFinalSubmitted;
@@ -874,10 +916,8 @@
       }
 
       if (remoteData.stage1) {
-        const s1R = remoteData.stage1;
-        const s1L = this.app.state.stage1;
-        if (JSON.stringify(s1R) !== JSON.stringify(s1L)) {
-          this.app.state.stage1 = s1R;
+        if (JSON.stringify(remoteData.stage1) !== JSON.stringify(this.app.state.stage1)) {
+          this.app.state.stage1 = remoteData.stage1;
           structuralUpdated = true;
         }
       }
@@ -888,23 +928,15 @@
       if (remoteData.classes && Array.isArray(remoteData.classes) && remoteData.classes.length > 0) {
         localStorage.setItem(STORAGE_KEY_CLASSES, JSON.stringify(remoteData.classes));
       }
-      if (remoteData.tasks && Array.isArray(remoteData.tasks)) {
-        localStorage.setItem(STORAGE_KEY_TASKS, JSON.stringify(remoteData.tasks));
-      }
-      if (remoteData.announcements && Array.isArray(remoteData.announcements)) {
-        localStorage.setItem(STORAGE_KEY_ANNOUNCEMENTS, JSON.stringify(remoteData.announcements));
-      }
-      if (remoteData.referencePapers && Array.isArray(remoteData.referencePapers)) {
-        localStorage.setItem('jizhi_reference_papers_db', JSON.stringify(remoteData.referencePapers));
-      }
+      if (remoteData.tasks && Array.isArray(remoteData.tasks)) localStorage.setItem(STORAGE_KEY_TASKS, JSON.stringify(remoteData.tasks));
+      if (remoteData.announcements && Array.isArray(remoteData.announcements)) localStorage.setItem(STORAGE_KEY_ANNOUNCEMENTS, JSON.stringify(remoteData.announcements));
+      if (remoteData.referencePapers && Array.isArray(remoteData.referencePapers)) localStorage.setItem('jizhi_reference_papers_db', JSON.stringify(remoteData.referencePapers));
 
       if (remoteData.stage2) {
         if (remoteData.stage2.unifiedContent !== undefined && remoteData.stage2.unifiedContent !== this.app.state.stage2.unifiedContent) {
           this.app.state.stage2.unifiedContent = remoteData.stage2.unifiedContent;
           const editor = document.getElementById('stage2-word-editor') || document.getElementById('stage3-word-editor');
-          if (editor && document.activeElement !== editor) {
-            editor.innerHTML = remoteData.stage2.unifiedContent || '';
-          }
+          if (editor && document.activeElement !== editor) editor.innerHTML = remoteData.stage2.unifiedContent || '';
           this.app.updateContributionUi();
           this.app.renderPresenceCursors();
         }
@@ -931,15 +963,9 @@
       }
 
       this.app.saveGroupState(myGroupId);
-
-      if (chatUpdated) {
-        renderChat(this.app.state);
-      }
-
+      if (chatUpdated) renderChat(this.app.state);
       if (structuralUpdated) {
-        if (user?.role === 'student' && this.app.state.studentViewMode === 'workspace') {
-          this.app.renderStudentWorkspace();
-        }
+        if (user?.role === 'student' && this.app.state.studentViewMode === 'workspace') this.app.renderStudentWorkspace();
         if (user?.role === 'teacher') {
           const mainEl = document.getElementById('app');
           if (mainEl && this.app.state.teacherActiveTab === 'view_monitoring') {
@@ -3548,56 +3574,42 @@
     const stream = document.getElementById('chat-stream');
     if (!stream) return;
 
-    const stages = [
-      { key: 'stage1', title: '🎪 阶段一：学术拍卖会 (主题与分工研讨)' },
-      { key: 'stage2', title: '📰 阶段二：学术编辑部 (正文撰写与同伴研讨)' },
-      { key: 'stage3', title: '🎓 阶段三：答辩擂台 (专家质询与终稿修改)' }
-    ];
-
-    const currentStageIndex = stages.findIndex(s => s.key === state.currentStage);
-    const visibleStages = stages.slice(0, Math.max(1, currentStageIndex + 1));
     const currentUser = state.currentUser;
+    const currentStageIndex = ['stage1', 'stage2', 'stage3'].indexOf(state.currentStage);
+    const visibleStages = ['stage1', 'stage2', 'stage3'].slice(0, Math.max(1, currentStageIndex + 1));
 
-    let html = '';
-    visibleStages.forEach((stg) => {
-      const msgs = (state.chatLogs && state.chatLogs[stg.key]) ? state.chatLogs[stg.key] : [];
-      html += `
-        <div class="chat-stage-divider">
-          <span class="chat-stage-divider-pill">${stg.title}</span>
-        </div>
-      `;
-
-      if (msgs.length === 0) {
-        html += `<div style="text-align:center; color:#94a3b8; font-size:11px; margin:6px 0 10px 0;">本阶段研讨记录将在此处持续累积...</div>`;
-      } else {
-        html += msgs.map(msg => {
-          const isMe = msg.sender === currentUser;
-          const isAgent = AgentProfiles[msg.sender] !== undefined;
-          const profile = isAgent ? AgentProfiles[msg.sender] : (state.members ? state.members[msg.sender] : null);
-          const avatar = profile ? profile.avatar : '👤';
-          const name = profile ? (profile.name || profile.roleTitle) : msg.sender;
-          const color = profile ? profile.color : '#94a3b8';
-
-          let formattedText = msg.text || '';
-          formattedText = formattedText.replace(/(@[^\s@]+)/g, '<span class="mention-tag">$1</span>');
-
-          return `
-            <div class="chat-message ${isMe ? 'me' : 'other'}">
-              <div class="msg-avatar" style="background:${color}22; border:1px solid ${color}; color:${color};">${avatar}</div>
-              <div class="msg-body">
-                <div class="msg-meta">
-                  <span class="msg-sender" style="color:${color};">${name} ${isMe ? '(我)' : ''}</span>
-                  <span style="font-size:10px; color:#64748b; margin-left:6px;">${msg.timestamp || ''}</span>
-                </div>
-                <div class="msg-bubble">${formattedText}</div>
-              </div>
-            </div>
-          `;
-        }).join('');
-      }
+    // Collect all visible messages in order
+    const allMsgs = [];
+    visibleStages.forEach(stg => {
+      const msgs = (state.chatLogs && state.chatLogs[stg]) ? state.chatLogs[stg] : [];
+      msgs.forEach(msg => allMsgs.push(msg));
     });
 
-    stream.innerHTML = html;
+    stream.innerHTML = allMsgs.map(msg => {
+      const isMe = msg.sender === currentUser;
+      const isAgent = AgentProfiles[msg.sender] !== undefined;
+      const profile = isAgent ? AgentProfiles[msg.sender] : (state.members ? state.members[msg.sender] : null);
+      const avatar = profile ? profile.avatar : '👤';
+      const name = profile ? (profile.name || profile.roleTitle) : msg.sender;
+      const color = profile ? profile.color : '#94a3b8';
+
+      let formattedText = msg.text || '';
+      formattedText = formattedText.replace(/(@[^\s@]+)/g, '<span class="mention-tag">$1</span>');
+
+      return `
+        <div class="chat-message ${isMe ? 'me' : 'other'}">
+          <div class="msg-avatar" style="background:${color}22; border:1px solid ${color}; color:${color};">${avatar}</div>
+          <div class="msg-body">
+            <div class="msg-meta">
+              <span class="msg-sender" style="color:${color};">${name} ${isMe ? '(我)' : ''}</span>
+              <span style="font-size:10px; color:#64748b; margin-left:6px;">${msg.timestamp || ''}</span>
+            </div>
+            <div class="msg-bubble">${formattedText}</div>
+          </div>
+        </div>
+      `;
+    }).join('');
+
     stream.scrollTop = stream.scrollHeight;
   }
 
