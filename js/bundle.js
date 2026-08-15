@@ -3298,7 +3298,7 @@
     membersList.forEach(m => {
       if (m.studentCode === currentUserCode || m.id === currentUserCode) return;
       const p = presence[m.studentCode] || presence[m.id];
-      if (!p || (now - p.updatedAt > 120000)) return;
+      if (!p || (now - p.updatedAt > 20000)) return; // 20秒未活动即视为离线/离开编辑
 
       const color = m.color || '#8b5cf6';
       const name = m.name || m.studentCode;
@@ -3309,25 +3309,21 @@
       let targetEl = null;
       if (typeof p.nodeIndex === 'number' && children[p.nodeIndex]) {
         targetEl = children[p.nodeIndex];
-      } else if (children.length > 0) {
-        targetEl = children[0];
-      } else {
-        targetEl = editor;
       }
 
-      if (targetEl) {
-        if (targetEl !== editor) {
-          targetEl.classList.add('collab-editing-node-highlight');
-          targetEl.style.borderLeft = `3.5px solid ${color}`;
-          targetEl.style.backgroundColor = `${color}0d`;
-        }
+      if (targetEl && targetEl !== editor) {
+        targetEl.classList.add('collab-editing-node-highlight');
+        targetEl.style.borderLeft = `3.5px solid ${color}`;
+        targetEl.style.backgroundColor = `${color}0d`;
 
+        // 绝不作为 contenteditable 子节点影响输入，而是作为一个绝对定位/只读浮标
         const cursorWidget = document.createElement('span');
         cursorWidget.className = 'remote-cursor-widget';
+        cursorWidget.contentEditable = 'false';
+        cursorWidget.style.cssText = 'user-select:none; pointer-events:none; display:inline-block; vertical-align:middle; margin-left:4px;';
         cursorWidget.innerHTML = `
-          <span class="remote-caret-bar" style="background:${color};"></span>
-          <span class="remote-caret-flag" style="background:${color};">
-            ${avatar} ${name} 正在输入...
+          <span class="remote-caret-flag" style="background:${color}; font-size:11px; padding:1px 6px; border-radius:4px; color:white; font-weight:700; display:inline-flex; align-items:center; gap:2px;">
+            ${avatar} ${name}
           </span>
         `;
         targetEl.appendChild(cursorWidget);
@@ -4399,7 +4395,17 @@
       });
     }
 
-    handleLogout() { this.authManager.logout(); this.renderMain(); }
+    handleLogout() { 
+      const user = this.authManager.getCurrentUser();
+      if (user && user.studentCode) {
+        if (this.state.presence && this.state.presence[user.studentCode]) {
+          delete this.state.presence[user.studentCode];
+        }
+        if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+      }
+      this.authManager.logout(); 
+      this.renderMain(); 
+    }
 
     switchToTeacherView() {
       const users = this.authManager.getUsers();

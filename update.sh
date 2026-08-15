@@ -52,10 +52,13 @@ for cdir in /www/server/panel/vhost/nginx /www/server/nginx/conf/vhost; do
     sed -i '/proxy_pass http:\/\/127.0.0.1:8088/d' "$conf" 2>/dev/null || true
   done
 done
-nginx -s reload 2>/dev/null || /etc/init.d/nginx reload 2>/dev/null || true
+nginx -s reload 2>/dev/null || /etc/init.d/nginx reload 2>/dev/null || systemctl reload nginx 2>/dev/null || true
+/etc/init.d/php-fpm-82 restart 2>/dev/null || /etc/init.d/php-fpm-81 restart 2>/dev/null || /etc/init.d/php-fpm-80 restart 2>/dev/null || /etc/init.d/php-fpm-74 restart 2>/dev/null || systemctl restart php-fpm 2>/dev/null || true
 
 for dir in "${TARGET_DIRS[@]}"; do
-  touch "$dir/db_task_default_group_1.json" "$dir/sessions.json" 2>/dev/null || true
+  # 清理初始测试数据
+  echo '{"timestamp":0,"groupId":"group_1","presence":{},"chatLogs":{"stage1":[],"stage2":[],"stage3":[]},"stage1":{"mergedTitle":"","votes":{},"hasVoted":{},"proposals":[]},"stage2":{"unifiedContent":"","memberContributions":{"A":0,"B":0,"C":0},"actionPlan":{"isGenerated":false,"items":[]}},"stage3":{"feedbackItems":[]},"currentStage":"stage1","isFinalSubmitted":false}' > "$dir/db_task_default_group_1.json" 2>/dev/null || true
+  echo '{}' > "$dir/sessions.json" 2>/dev/null || true
   chmod 777 "$dir/db_task_default_group_1.json" "$dir/sessions.json" "$dir/sync.php" 2>/dev/null || true
   chmod -R 777 "$dir" 2>/dev/null || true
   chown -R www:www "$dir" 2>/dev/null || true
