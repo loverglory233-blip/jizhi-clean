@@ -1953,358 +1953,326 @@
     else if (state.currentStage === 'stage3') renderStage3Canvas(canvas, state, handlers);
   }
 
-  function renderStage1Canvas(canvas, state, handlers) {
-    const s1 = state.stage1;
-    const currentUser = state.currentUser;
-    const membersList = Object.values(state.members || {});
-    const totalMembersCount = membersList.length;
-    const confirmedMembers = s1.contract.confirmedMembers || {};
-    const confirmedCount = membersList.filter(m => confirmedMembers[m.id]).length;
-    const userHasConfirmed = confirmedMembers[currentUser];
-    const isContractLocked = s1.contract.isConfirmed || state.isFinalSubmitted;
-
-    const userHasVoted = s1.hasVoted && s1.hasVoted[currentUser];
-    const userVotedProposalId = s1.votes ? s1.votes[currentUser] : null;
-    const totalVotesCast = Object.values(s1.hasVoted || {}).filter(Boolean).length;
-
-    canvas.innerHTML = `
-      ${isContractLocked ? `
-        <div style="background:rgba(16,185,129,0.15); border:1px solid rgba(16,185,129,0.3); border-radius:8px; padding:10px 14px; margin-bottom:12px; font-size:13px; color:#34d399; font-weight:700; display:flex; align-items:center; justify-content:space-between;">
-          <span>🔒 阶段一【学术拍卖会】合作合约已全员签署生效并锁定 (可随时返回查阅)</span>
-          <span style="font-size:11px; color:#cbd5e1; background:rgba(0,0,0,0.3); padding:4px 8px; border-radius:4px;">全组 ${confirmedCount}/${totalMembersCount} 人已签署</span>
-        </div>
-      ` : ''}
-
-      <div class="card">
-        <div class="card-title">
-          <span>💡 竞拍提案面板 (观点+理由) ${isContractLocked ? '<span style="font-size:11px; color:#34d399;">(🔒 已锁定)</span>' : ''}</span>
-          <div style="font-size:12px; color:#38bdf8;">
-            📊 投票进度: <b>${totalVotesCast}/${totalMembersCount} 人已投票</b> ${userHasVoted ? '<span style="color:#4ade80; margin-left:6px;">(投票已锁定)</span>' : ''}
-          </div>
-        </div>
-        <div class="proposals-grid">
-          ${s1.proposals.map(p => {
-            const isThisVoted = userVotedProposalId === p.id;
-            let btnText = '🗳️ 投票支持此提案';
-            let btnClass = 'vote-btn';
-            if (isContractLocked || userHasVoted) {
-              if (isThisVoted) { btnText = '🔒 已投此提案 (已锁定)'; btnClass = 'vote-btn active locked'; }
-              else { btnText = '🔒 投票已锁定'; btnClass = 'vote-btn disabled'; }
-            }
-            return `
-              <div class="proposal-card ${isThisVoted ? 'voted' : ''}" style="display:flex; flex-direction:column;">
-                <div class="proposal-header">
-                  <div class="proposal-title">💡 ${p.title}</div>
-                  <span class="proposal-tag">${p.category}</span>
-                </div>
-                <div style="font-size:12px; color:#cbd5e1; margin-bottom:8px; background:rgba(15,23,42,0.6); padding:8px; border-radius:6px; line-height:1.5; flex:1;">
-                  <b>理由依据:</b> ${p.rationale}
-                </div>
-                <div class="metrics-row">
-                  <span>文献: <b>${p.metrics.literature}</b></span>
-                  <span>新意: <b>${p.metrics.innovation}</b></span>
-                  <span>风险: <b>${p.metrics.risk}</b></span>
-                </div>
-                <button class="${btnClass}" data-id="${p.id}" ${isContractLocked || userHasVoted ? 'disabled' : ''} style="width:100%; margin-top:10px;">${btnText}</button>
-              </div>
-            `;
-          }).join('')}
-        </div>
-      </div>
-
-      <!-- 一整个统一下致的合作学术合约公约框架卡片 (一整块外框) -->
-      <div class="contract-card" style="margin-top:20px; border:2px solid rgba(168,85,247,0.5); border-radius:16px; background:radial-gradient(circle at 50% 10%, rgba(30,27,75,0.95) 0%, rgba(15,23,42,0.95) 100%); padding:24px; box-shadow:0 15px 45px rgba(0,0,0,0.6); width:100%; box-sizing:border-box;">
-        
-        <div style="text-align:center; margin-bottom:20px; border-bottom:1px solid rgba(255,255,255,0.1); padding-bottom:16px;">
-          <div style="font-size:20px; font-weight:800; background:linear-gradient(135deg, #c084fc, #38bdf8); -webkit-background-clip:text; -webkit-text-fill-color:transparent;">
-            📜 团队协同合作学术公约与规范合约
-          </div>
-          <div style="font-size:12px; color:#cbd5e1; margin-top:4px;">
-            ${isContractLocked ? `<span style="color:#34d399; font-weight:700;">🔒 全员 ${confirmedCount}/${totalMembersCount} 人完成签署 · 归档生效中</span>` : '依据团队竞拍与讨论实时提取生成 · 全员按键确认签署后生效'}
-          </div>
-        </div>
-
-        <div style="display:flex; flex-direction:column; gap:8px; width:100%; margin-bottom:20px; background:rgba(15,23,42,0.6); padding:16px; border-radius:12px; border:1px solid rgba(56,189,248,0.3); box-sizing:border-box;">
-          <label style="font-size:14px; font-weight:800; color:#38bdf8;">📌 确认融合论文研究主题 (全宽展现显示):</label>
-          <input type="text" id="contract-topic-input" class="large-contract-input" value="${s1.mergedTitle}" ${isContractLocked ? 'disabled readonly style="opacity:0.8; cursor:not-allowed;"' : ''} style="width:100%; box-sizing:border-box; background:#0f172a; color:#f8fafc; border:1px solid rgba(255,255,255,0.2); border-radius:8px; padding:12px 14px; font-size:14px; font-weight:700; font-family:sans-serif;">
-        </div>
-
-        <div style="display:flex; flex-direction:column; gap:20px; width:100%;">
-          <div style="background:rgba(15,23,42,0.6); padding:16px; border-radius:12px; border:1px solid rgba(255,255,255,0.08); width:100%; box-sizing:border-box;">
-            <div style="font-weight:700; color:#a78bfa; margin-bottom:10px; font-size:14px;">⏱️ 从聊天提取的 150分钟时间预算 (单位: 分钟):</div>
-            <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(130px, 1fr)); gap:10px; font-size:13px; color:#cbd5e1;">
-              <label style="display:flex; align-items:center; gap:6px;">背景: <input type="number" class="contract-time-input large" data-key="background" value="${s1.contract.timeAllocations.background}" ${isContractLocked ? 'disabled readonly style="opacity:0.8; cursor:not-allowed;"' : ''}></label>
-              <label style="display:flex; align-items:center; gap:6px;">问题: <input type="number" class="contract-time-input large" data-key="questions" value="${s1.contract.timeAllocations.questions}" ${isContractLocked ? 'disabled readonly style="opacity:0.8; cursor:not-allowed;"' : ''}></label>
-              <label style="display:flex; align-items:center; gap:6px;">文献: <input type="number" class="contract-time-input large" data-key="literature" value="${s1.contract.timeAllocations.literature}" ${isContractLocked ? 'disabled readonly style="opacity:0.8; cursor:not-allowed;"' : ''}></label>
-              <label style="display:flex; align-items:center; gap:6px;">方法: <input type="number" class="contract-time-input large" data-key="method" value="${s1.contract.timeAllocations.method}" ${isContractLocked ? 'disabled readonly style="opacity:0.8; cursor:not-allowed;"' : ''}></label>
-              <label style="display:flex; align-items:center; gap:6px;">反思: <input type="number" class="contract-time-input large" data-key="reflection" value="${s1.contract.timeAllocations.reflection}" ${isContractLocked ? 'disabled readonly style="opacity:0.8; cursor:not-allowed;"' : ''}></label>
-              <label style="display:flex; align-items:center; gap:6px;">文献表: <input type="number" class="contract-time-input large" data-key="references" value="${s1.contract.timeAllocations.references}" ${isContractLocked ? 'disabled readonly style="opacity:0.8; cursor:not-allowed;"' : ''}></label>
+  function buildWordEditorHtml(editorId, initialHtml, isReadonly) {
+    return `
+      <div class="word-editor-container" id="${editorId}-wrapper">
+        ${!isReadonly ? `
+          <div class="word-toolbar">
+            <!-- 1. 历史记录 -->
+            <div class="word-toolbar-group">
+              <button class="word-btn" id="${editorId}-btn-undo" title="撤销 (Ctrl+Z)">↩️ 撤销</button>
+              <button class="word-btn" id="${editorId}-btn-redo" title="重做 (Ctrl+Y)">↪️ 重做</button>
             </div>
-          </div>
 
-          <div style="background:rgba(15,23,42,0.6); padding:16px; border-radius:12px; border:1px solid rgba(255,255,255,0.08); width:100%; box-sizing:border-box;">
-            <div style="font-weight:700; color:#a78bfa; margin-bottom:12px; font-size:14px; display:flex; justify-content:space-between; align-items:center;">
-              <span>👥 本组小组成员分工 (共 ${totalMembersCount} 人 · 自动适配全宽展现):</span>
+            <!-- 2. 段落与标题 -->
+            <div class="word-toolbar-group">
+              <select class="word-select" id="${editorId}-sel-format" title="正文/标题样式">
+                <option value="p">正文 (Paragraph)</option>
+                <option value="h1">标题 1 (论文大标题)</option>
+                <option value="h2">标题 2 (章标题/二级)</option>
+                <option value="h3">标题 3 (节标题/三级)</option>
+              </select>
+              <select class="word-select" id="${editorId}-sel-font" title="学术字体">
+                <option value="SimSun">宋体 / Times New Roman</option>
+                <option value="SimHei">黑体 (大标题)</option>
+                <option value="FangSong">仿宋 (报告标准)</option>
+                <option value="KaiTi">楷体</option>
+                <option value="Arial">Arial</option>
+              </select>
+              <select class="word-select" id="${editorId}-sel-size" title="字号">
+                <option value="3" selected>小四 (12pt / 正文)</option>
+                <option value="4">四号 (14pt / 节标题)</option>
+                <option value="5">小二 (18pt / 章标题)</option>
+                <option value="6">一号 (24pt / 论文总标题)</option>
+                <option value="2">五号 (10.5pt / 图表说明)</option>
+              </select>
             </div>
-            <div style="display:flex; flex-direction:column; gap:12px; width:100%;">
-              ${membersList.map(m => {
-                const defaultTask = m.id === 'A' ? '一、研究背景与意义；二、研究问题与假设' : m.id === 'B' ? '三、文献综述与 SSRL 共享调节框架' : '四、研究设计与方法；五、不足与反思；六、参考文献';
-                const taskVal = (s1.contract.taskAssignments && s1.contract.taskAssignments[m.id] !== undefined) ? s1.contract.taskAssignments[m.id] : defaultTask;
-                return `
-                  <div style="display:flex; flex-direction:column; gap:6px; width:100%; background:rgba(30,41,59,0.5); padding:12px 14px; border-radius:8px; border:1px solid rgba(255,255,255,0.08); box-sizing:border-box;">
-                    <span style="font-weight:800; color:${m.color || '#818cf8'}; font-size:13px;">${m.avatar || '👤'} ${m.name} (${m.roleTitle || '组员'}):</span>
-                    <input type="text" class="large-contract-input task-assignment-input" data-mid="${m.id}" value="${taskVal}" ${isContractLocked ? 'disabled readonly style="opacity:0.8; cursor:not-allowed;"' : ''} style="width:100%; box-sizing:border-box; background:#0f172a; color:#f8fafc; border:1px solid rgba(255,255,255,0.2); border-radius:6px; padding:10px 14px; font-size:13px; font-family:sans-serif;" placeholder="分配具体负责的写作章节与任务">
-                  </div>
-                `;
-              }).join('')}
+
+            <!-- 3. 文字装饰 -->
+            <div class="word-toolbar-group">
+              <button class="word-btn" id="${editorId}-btn-bold" title="粗体 (Ctrl+B)"><b>B</b></button>
+              <button class="word-btn" id="${editorId}-btn-italic" title="斜体 (Ctrl+I)"><i>I</i></button>
+              <button class="word-btn" id="${editorId}-btn-underline" title="下划线 (Ctrl+U)"><u>U</u></button>
+              <button class="word-btn" id="${editorId}-btn-strike" title="删除线"><s>S</s></button>
+              <button class="word-btn" id="${editorId}-btn-sup" title="上标 (文献角标 [1])">X²</button>
+              <button class="word-btn" id="${editorId}-btn-sub" title="下标 (变量角标 H₁)">X₂</button>
             </div>
-          </div>
-        </div>
 
-        <div style="margin-top:20px; background:rgba(15,23,42,0.7); border:1px solid rgba(255,255,255,0.1); border-radius:12px; padding:14px 18px; width:100%; box-sizing:border-box;">
-          <div style="font-size:13px; font-weight:700; color:#cbd5e1; margin-bottom:10px; display:flex; justify-content:space-between; flex-wrap:wrap; gap:10px;">
-            <span>📌 本组全员确认签署状态矩阵 (规则：需 ${totalMembersCount}/${totalMembersCount} 人全部点击确认):</span>
-            <span style="color:${confirmedCount === totalMembersCount ? '#34d399' : '#fbbf24'}; font-weight:800;">签署进度: ${confirmedCount}/${totalMembersCount} 人已完成 ${confirmedCount === totalMembersCount ? '🎉 (合约已生效)' : ''}</span>
-          </div>
-          <div style="display:flex; flex-wrap:wrap; gap:10px; font-size:13px;">
-            ${membersList.map(m => {
-              const isConf = confirmedMembers[m.id];
-              return `
-                <span style="color:${isConf ? '#34d399' : '#94a3b8'}; border:1px solid ${isConf ? 'rgba(52,211,153,0.3)' : 'rgba(255,255,255,0.1)'}; background:${isConf ? 'rgba(52,211,153,0.1)' : 'rgba(0,0,0,0.2)'}; padding:6px 12px; border-radius:8px;">
-                  ${m.avatar || '👤'} ${m.name}: <b>${isConf ? '✅ 已确认签署' : '⏳ 未确认'}</b>
-                </span>
-              `;
-            }).join('')}
-          </div>
-        </div>
-
-        <div style="margin-top:20px; text-align:center;">
-          <button id="btn-confirm-contract" ${isContractLocked ? 'disabled' : ''} style="background:${isContractLocked ? 'rgba(16,185,129,0.2)' : userHasConfirmed ? 'rgba(16,185,129,0.3)' : 'linear-gradient(135deg, #10b981, #059669)'}; border:1px solid ${isContractLocked || userHasConfirmed ? '#10b981' : 'transparent'}; color:${isContractLocked ? '#34d399' : 'white'}; padding:14px 32px; border-radius:10px; font-weight:800; cursor:${isContractLocked ? 'not-allowed' : 'pointer'}; font-size:15px; box-shadow:0 4px 16px rgba(16,185,129,0.3);">
-            ${isContractLocked ? '🔒 学术合作合约已全员签署生效并锁定 (只读归档查阅)' : userHasConfirmed ? `✅ 我 (${state.members[currentUser] ? state.members[currentUser].name : currentUser}) 已按键确认签署 (${confirmedCount}/${totalMembersCount} 人已完成)` : `✍️ 我以 (${state.members[currentUser] ? state.members[currentUser].name : currentUser}) 身份按键确认签署合约 (已确认 ${confirmedCount}/${totalMembersCount} 人)`}
-          </button>
-        </div>
-
-      </div>
-    `;
-
-    const topicInput = canvas.querySelector('#contract-topic-input');
-    if (topicInput && !isContractLocked) {
-      topicInput.addEventListener('input', (e) => {
-        s1.mergedTitle = e.target.value;
-        if (handlers.onContractChange) handlers.onContractChange();
-      });
-    }
-
-    canvas.querySelectorAll('.contract-time-input').forEach(input => {
-      if (!isContractLocked) {
-        input.addEventListener('input', (e) => {
-          const key = e.target.dataset.key;
-          if (key && s1.contract.timeAllocations) {
-            s1.contract.timeAllocations[key] = Number(e.target.value) || 0;
-            if (handlers.onContractChange) handlers.onContractChange();
-          }
-        });
-      }
-    });
-
-    canvas.querySelectorAll('.task-assignment-input').forEach(input => {
-      if (!isContractLocked) {
-        input.addEventListener('input', (e) => {
-          const mId = e.target.dataset.mid;
-          if (mId) {
-            if (!s1.contract.taskAssignments) s1.contract.taskAssignments = {};
-            s1.contract.taskAssignments[mId] = e.target.value;
-            if (handlers.onContractChange) handlers.onContractChange();
-          }
-        });
-      }
-    });
-
-    if (!isContractLocked) {
-      canvas.querySelectorAll('.vote-btn:not([disabled])').forEach(btn => {
-        btn.addEventListener('click', () => handlers.onVote(btn.dataset.id));
-      });
-      canvas.querySelector('#btn-confirm-contract').addEventListener('click', () => handlers.onConfirmContract());
-    }
-  }
-
-  function renderStage2Canvas(canvas, state, handlers) {
-    const s2 = state.stage2;
-    const actionPlan = s2.actionPlan;
-    const isStage2MeetingLocked = state.currentStage === 'stage3' || state.isFinalSubmitted;
-    const isEditorReadonly = state.isFinalSubmitted;
-    const membersList = Object.values(state.members || {});
-
-    canvas.innerHTML = `
-      ${isStage2MeetingLocked ? `
-        <div style="background:rgba(99,102,241,0.15); border:1px solid rgba(99,102,241,0.3); border-radius:8px; padding:10px 14px; margin-bottom:10px; font-size:13px; color:#a5b4fc; font-weight:700; display:flex; justify-content:space-between; align-items:center;">
-          <span>🔒 阶段二【半程编辑会议】打分与修正清单已完成并锁定 ${isEditorReadonly ? '· 全盘终稿已提交只读查阅' : '· 可随时回看'}</span>
-          <span style="font-size:11px; color:#cbd5e1; background:rgba(0,0,0,0.3); padding:4px 8px; border-radius:4px;">归档只读</span>
-        </div>
-      ` : ''}
-
-      <div class="card" style="height:100%; display:flex; flex-direction:column; padding:20px;">
-        <div class="card-title" style="margin-bottom:10px;">
-          <span>📝 统一协作写作大文本框 (论文全篇大正文)</span>
-          <div style="display:flex; gap:10px;">
-            <button id="btn-show-case" style="background:rgba(99,102,241,0.2); border:1px solid #6366f1; color:#a5b4fc; padding:6px 12px; border-radius:6px; font-size:12px; cursor:pointer; font-weight:600;">📥 下载并查阅审稿编辑推送的《范例文件.pdf》</button>
-            <button id="btn-trigger-meeting" ${isStage2MeetingLocked ? 'disabled' : ''} style="background:${isStage2MeetingLocked ? 'rgba(255,255,255,0.08)' : 'linear-gradient(135deg, #10b981, #059669)'}; border:${isStage2MeetingLocked ? '1px solid rgba(255,255,255,0.15)' : 'none'}; color:${isStage2MeetingLocked ? '#94a3b8' : 'white'}; padding:6px 14px; border-radius:6px; font-size:12px; cursor:${isStage2MeetingLocked ? 'not-allowed' : 'pointer'}; font-weight:700;">
-              ${isStage2MeetingLocked ? '🔒 编辑会议已结束' : '📢 发起【编辑会议】'}
-            </button>
-          </div>
-        </div>
-        ${actionPlan && actionPlan.isGenerated ? `
-          <div style="background:linear-gradient(135deg, rgba(16,185,129,0.15), rgba(6,182,212,0.1)); border:1px solid rgba(16,185,129,0.3); border-radius:8px; padding:10px 14px; margin-bottom:10px;">
-            <div style="font-size:13px; font-weight:700; color:#34d399; margin-bottom:4px;">📋 编辑会议产出：【半程编辑修正清单】(已锁定归档)</div>
-            <div style="font-size:12px; color:#cbd5e1; display:flex; flex-direction:column; gap:2px;">
-              ${actionPlan.items.map(item => `<div>• ${item}</div>`).join('')}
+            <!-- 4. 对齐与段落 -->
+            <div class="word-toolbar-group">
+              <button class="word-btn" id="${editorId}-btn-align-left" title="左对齐">⇤</button>
+              <button class="word-btn" id="${editorId}-btn-align-center" title="居中对齐">☰</button>
+              <button class="word-btn" id="${editorId}-btn-align-right" title="右对齐">⇥</button>
+              <button class="word-btn" id="${editorId}-btn-align-justify" title="两端对齐 (学术论文排版)">☲</button>
+              <button class="word-btn" id="${editorId}-btn-indent-2em" title="一键首行缩进 2 字符">⇥ 首行缩进</button>
+              <button class="word-btn" id="${editorId}-btn-list-ul" title="项目符号">• 列表</button>
+              <button class="word-btn" id="${editorId}-btn-list-ol" title="编号列表">1. 编号</button>
             </div>
-          </div>
-        ` : ''}
-        <div style="flex:1; display:flex; flex-direction:column; gap:8px; min-height:0;">
-          <div style="font-size:12px; color:#94a3b8; display:flex; justify-content:space-between; flex-shrink:0;">
-            <span>包含《一、背景》《二、问题假设》《三、文献》《四、方法》《五、反思》《六、参考文献》全篇论文</span>
-            <span>整篇实时字数: <b style="color:#38bdf8; font-size:14px;">${s2.unifiedContent.length}</b> 字 ${isEditorReadonly ? '(🔒 终稿只读)' : ''}</span>
-          </div>
-          <textarea class="editor-textarea unified-large-editor-full" id="main-unified-editor" ${isEditorReadonly ? 'readonly style="opacity:0.85; background:rgba(15,23,42,0.9);"' : ''}>${s2.unifiedContent}</textarea>
-        </div>
-        <div style="margin-top:14px; background:rgba(15,23,42,0.7); padding:14px; border-radius:10px; border:1px solid var(--border-glass); flex-shrink:0;">
-          <div style="font-size:12px; font-weight:600; margin-bottom:8px; color:#cbd5e1; display:flex; justify-content:space-between;">
-            <span>📊 本组 SSRL 成员贡献度比率 (${membersList.length} 人动态适配)</span>
-            <span>总字数: ${s2.unifiedContent.length} 字</span>
-          </div>
-          <div class="contribution-bar-container">
-            <div class="contrib-bars" style="height:14px; border-radius:7px; display:flex; overflow:hidden;">
-              ${membersList.map((m) => {
-                const pct = Math.round(100 / membersList.length);
-                return `<div class="contrib-segment" style="width:${pct}%; background:${m.color || '#818cf8'};" title="${m.name}: ${pct}%"></div>`;
-              }).join('')}
+
+            <!-- 5. 颜色与高亮 -->
+            <div class="word-toolbar-group">
+              <label style="display:flex; align-items:center; gap:3px; font-size:11px; color:#94a3b8; cursor:pointer;" title="字体颜色">
+                <span>🎨</span>
+                <input type="color" id="${editorId}-color-text" value="#1e293b" style="width:20px; height:20px; border:none; background:transparent; cursor:pointer;">
+              </label>
+              <button class="word-btn" id="${editorId}-btn-hilite" title="荧光笔黄色高亮批注">🖍️ 高亮</button>
+              <button class="word-btn" id="${editorId}-btn-clear-format" title="清除格式">🧹 清格式</button>
             </div>
-            <div style="display:flex; justify-content:space-between; font-size:12px; font-weight:600; color:#cbd5e1; margin-top:6px; flex-wrap:wrap; gap:10px;">
-              ${membersList.map((m) => {
-                const pct = Math.round(100 / membersList.length);
-                return `<span style="color:${m.color || '#818cf8'};">● ${m.name}: ${pct}%</span>`;
-              }).join('')}
-            </div>
-          </div>
-        </div>
-      </div>
-    `;
 
-    if (!isEditorReadonly) {
-      canvas.querySelector('#main-unified-editor').addEventListener('input', (e) => handlers.onUnifiedContentChange(e.target.value));
-    }
-    canvas.querySelector('#btn-show-case').addEventListener('click', () => handlers.onOpenCaseModal());
-    if (!isStage2MeetingLocked) {
-      canvas.querySelector('#btn-trigger-meeting').addEventListener('click', () => handlers.onOpenMeetingModal());
-    }
-  }
-
-  function renderStage3Canvas(canvas, state, handlers) {
-    const s3 = state.stage3;
-    const activeTab = s3.activeTab || 'defense';
-    const isFinalSubmitted = state.isFinalSubmitted;
-
-    canvas.innerHTML = `
-      <div style="height:100%; display:flex; flex-direction:column; gap:12px;">
-        ${isFinalSubmitted ? `
-          <div style="background:linear-gradient(135deg, rgba(99,102,241,0.2), rgba(168,85,247,0.15)); border:1px solid rgba(168,85,247,0.4); border-radius:12px; padding:14px 18px; display:flex; justify-content:space-between; align-items:center; flex-shrink:0; box-shadow:0 4px 14px rgba(0,0,0,0.3);">
-            <div>
-              <div style="font-size:14px; font-weight:800; color:#c084fc; display:flex; align-items:center; gap:8px;">
-                <span>🔒 本组论文终稿与评估报告已成功归档提交至教师端！</span>
-              </div>
-              <div style="font-size:12px; color:#cbd5e1; margin-top:3px;">请组内每位成员点击右侧按钮进入【课程协作体验与 SSRL 效果评估问卷】填写界面。</div>
-            </div>
-            <button id="btn-open-survey-page" style="background:linear-gradient(135deg, #8b5cf6, #6366f1); border:none; color:white; padding:8px 18px; border-radius:8px; font-weight:700; font-size:13px; cursor:pointer; box-shadow:0 4px 12px rgba(139,92,246,0.4); text-shadow:0 1px 2px rgba(0,0,0,0.3);">
-              📋 打开问卷填写界面 ↗
-            </button>
-          </div>
-        ` : ''}
-
-        <div style="display:flex; justify-content:space-between; align-items:center; background:rgba(30,41,59,0.8); border:1px solid rgba(255,255,255,0.1); border-radius:10px; padding:8px 12px; flex-shrink:0;">
-          <div style="display:flex; gap:10px;">
-            <button id="tab-btn-defense" style="background:${activeTab === 'defense' ? 'linear-gradient(135deg, #6366f1, #4f46e5)' : 'rgba(255,255,255,0.08)'}; border:none; color:white; padding:8px 16px; border-radius:8px; font-weight:700; font-size:13px; cursor:pointer;">
-              🎓 答辩委员会质询与中间委员引导面板
-            </button>
-            <button id="tab-btn-editor" style="background:${activeTab === 'editor' ? 'linear-gradient(135deg, #10b981, #059669)' : 'rgba(255,255,255,0.08)'}; border:none; color:white; padding:8px 16px; border-radius:8px; font-weight:700; font-size:13px; cursor:pointer;">
-              📝 返回协作写作大正文 (依据意见修改终稿)
-            </button>
-          </div>
-          <button id="btn-final-submit" ${isFinalSubmitted ? 'disabled' : ''} style="background:${isFinalSubmitted ? 'rgba(16,185,129,0.2)' : 'linear-gradient(135deg, #10b981, #059669)'}; border:${isFinalSubmitted ? '1px solid #10b981' : 'none'}; color:${isFinalSubmitted ? '#34d399' : 'white'}; padding:8px 18px; border-radius:8px; font-weight:700; cursor:${isFinalSubmitted ? 'not-allowed' : 'pointer'}; font-size:13px;">
-            ${isFinalSubmitted ? '🔒 论文终稿已成功提交 (归档只读)' : '🚀 提交期末论文终稿'}
-          </button>
-        </div>
-
-        ${activeTab === 'defense' ? `
-          <div class="card" style="flex:1; overflow-y:auto; padding:20px;">
-            <div class="card-title" style="margin-bottom:14px;">
-              <span>🎓 答辩委员会改进意见与组内裁决矩阵 ${isFinalSubmitted ? '<span style="font-size:11px; color:#34d399; margin-left:6px;">(🔒 已提交归档)</span>' : ''}</span>
-              <span style="font-size:12px; color:#38bdf8;">正反方提意见 ➔ 中间委员逐条引导 ➔ 学生研讨裁决</span>
-            </div>
-            <div style="display:flex; flex-direction:column; gap:16px;">
-              ${s3.feedbackItems.map((item, idx) => `
-                <div style="background:rgba(15,23,42,0.7); padding:16px; border-radius:12px; border:1px solid ${item.role === 'opponent' ? 'rgba(239,68,68,0.4)' : 'rgba(34,197,94,0.4)'}; box-shadow:0 4px 12px rgba(0,0,0,0.3);">
-                  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
-                    <div style="display:flex; align-items:center; gap:8px;">
-                      <span style="font-size:18px;">${item.role === 'opponent' ? '🔴' : '🟢'}</span>
-                      <span style="font-weight:800; font-size:15px; color:${item.role === 'opponent' ? '#f87171' : '#4ade80'};">质询点 ${idx + 1}: ${item.speaker || (item.role === 'opponent' ? '反方委员 Agent' : '正方委员 Agent')} - ${item.title}</span>
-                    </div>
-                    <span style="font-size:11px; padding:3px 10px; border-radius:12px; font-weight:700; background:${item.status === 'adopted' ? 'rgba(34,197,94,0.2)' : 'rgba(234,179,8,0.2)'}; color:${item.status === 'adopted' ? '#4ade80' : '#fbbf24'}; border:1px solid ${item.status === 'adopted' ? 'rgba(34,197,94,0.4)' : 'rgba(234,179,8,0.4)'};">
-                      ${item.status === 'adopted' ? '✅ 已研讨并归档' : '⏳ 待组内研讨裁决'}
-                    </span>
-                  </div>
-                  <div style="font-size:13px; color:#f1f5f9; background:rgba(30,41,59,0.8); padding:10px 14px; border-radius:8px; margin-bottom:10px; line-height:1.6;">
-                    <b>${item.speaker}意见原文:</b> ${item.content}
-                  </div>
-                  <div style="font-size:13px; color:#fef08a; background:rgba(234,179,8,0.12); border:1px solid rgba(234,179,8,0.3); padding:10px 14px; border-radius:8px; margin-bottom:12px; line-height:1.6;">
-                    <b>🟡 中间委员 Agent 针对性引导思考:</b><br>${item.neutralGuidance}
-                  </div>
-                  ${item.response ? `
-                    <div style="font-size:13px; color:#a5b4fc; background:rgba(99,102,241,0.15); border-left:4px solid var(--accent-indigo); padding:10px 14px; border-radius:6px;">
-                      <b>👥 组内研讨统一裁决结论:</b> ${item.response}
-                    </div>
-                  ` : `
-                    <button class="discuss-item-btn" data-id="${item.id}" ${isFinalSubmitted ? 'disabled' : ''} style="background:${isFinalSubmitted ? 'rgba(255,255,255,0.08)' : 'linear-gradient(135deg, #6366f1, #4f46e5)'}; border:none; color:${isFinalSubmitted ? '#94a3b8' : 'white'}; padding:8px 16px; border-radius:8px; font-size:13px; font-weight:700; cursor:${isFinalSubmitted ? 'not-allowed' : 'pointer'};">
-                      ${isFinalSubmitted ? '🔒 已提交只读' : '💬 组内针对此条开展研讨与裁决'}
-                    </button>
-                  `}
-                </div>
-              `).join('')}
+            <!-- 6. 学术插件 (插入图表、三线表、公式符号、角标、导出) -->
+            <div class="word-toolbar-group">
+              <button class="word-btn plugin-btn" id="${editorId}-btn-insert-image" title="插入学术图表/图片">🖼️ 插入图片</button>
+              <button class="word-btn plugin-btn" id="${editorId}-btn-insert-table" title="插入标准学术三线表">📊 插入三线表</button>
+              <button class="word-btn plugin-btn" id="${editorId}-btn-insert-symbol" title="插入数学公式/特殊学术符号">🔣 插入公式符号</button>
+              <button class="word-btn plugin-btn" id="${editorId}-btn-insert-citation" title="插入文献引用角标 [1]">📑 插入引用[n]</button>
+              <button class="word-btn plugin-btn" id="${editorId}-btn-export-doc" style="background:rgba(16,185,129,0.2); border-color:#10b981; color:#34d399;" title="导出为 Word 论文格式文档 (.doc)">📥 导出 Word</button>
             </div>
           </div>
         ` : `
-          <div class="card" style="flex:1; display:flex; flex-direction:column; padding:20px;">
-            <div class="card-title" style="margin-bottom:10px;">
-              <span>📝 论文全篇大正文 ${isFinalSubmitted ? '<span style="font-size:11px; color:#34d399; margin-left:6px;">(🔒 终稿已提交 · 归档只读查阅)</span>' : '(依据答辩意见实时修改终稿)'}</span>
-              <span style="font-size:12px; color:#38bdf8;">实时字数: <b>${state.stage2.unifiedContent.length}</b> 字</span>
-            </div>
-            <textarea class="editor-textarea unified-large-editor-full" id="stage3-unified-editor" ${isFinalSubmitted ? 'readonly style="opacity:0.85; background:rgba(15,23,42,0.9);"' : ''} style="flex:1;">${state.stage2.unifiedContent}</textarea>
+          <div class="word-toolbar" style="background:rgba(30,41,59,0.9); justify-content:space-between;">
+            <div style="font-size:13px; font-weight:700; color:#34d399;">🔒 论文终稿已提交归档 · 只读查阅模式</div>
+            <button class="word-btn plugin-btn" id="${editorId}-btn-export-doc" style="background:rgba(16,185,129,0.2); border-color:#10b981; color:#34d399;" title="导出为 Word 论文格式文档 (.doc)">📥 导出 Word 终稿</button>
           </div>
         `}
+
+        <div class="word-page-scroll">
+          <div class="word-page" id="${editorId}" ${!isReadonly ? 'contenteditable="true"' : 'contenteditable="false" style="background:#ffffff; color:#0f172a;"'}>
+            ${initialHtml}
+          </div>
+        </div>
       </div>
     `;
+  }
 
-    const tabDefense = canvas.querySelector('#tab-btn-defense');
-    const tabEditor = canvas.querySelector('#tab-btn-editor');
-    if (tabDefense) tabDefense.addEventListener('click', () => handlers.onSwitchStage3Tab('defense'));
-    if (tabEditor) tabEditor.addEventListener('click', () => handlers.onSwitchStage3Tab('editor'));
+  function attachWordEditorEvents(container, editorId, isReadonly, onChangeCallback) {
+    const editor = container.querySelector(`#${editorId}`);
+    if (!editor) return;
 
-    const editorEl = canvas.querySelector('#stage3-unified-editor');
-    if (editorEl && !isFinalSubmitted) {
-      editorEl.addEventListener('input', (e) => handlers.onUnifiedContentChange(e.target.value));
-    }
+    if (!isReadonly) {
+      const exec = (cmd, val = null) => {
+        document.execCommand(cmd, false, val);
+        editor.focus();
+        if (onChangeCallback) onChangeCallback(editor.innerHTML);
+      };
 
-    if (!isFinalSubmitted) {
-      canvas.querySelectorAll('.discuss-item-btn').forEach(btn => {
-        btn.addEventListener('click', () => handlers.onDiscussItem(btn.dataset.id));
+      const btnUndo = container.querySelector(`#${editorId}-btn-undo`);
+      if (btnUndo) btnUndo.addEventListener('click', () => exec('undo'));
+      const btnRedo = container.querySelector(`#${editorId}-btn-redo`);
+      if (btnRedo) btnRedo.addEventListener('click', () => exec('redo'));
+
+      const selFormat = container.querySelector(`#${editorId}-sel-format`);
+      if (selFormat) selFormat.addEventListener('change', (e) => exec('formatBlock', e.target.value));
+
+      const selFont = container.querySelector(`#${editorId}-sel-font`);
+      if (selFont) selFont.addEventListener('change', (e) => exec('fontName', e.target.value));
+
+      const selSize = container.querySelector(`#${editorId}-sel-size`);
+      if (selSize) selSize.addEventListener('change', (e) => exec('fontSize', e.target.value));
+
+      const btnBold = container.querySelector(`#${editorId}-btn-bold`);
+      if (btnBold) btnBold.addEventListener('click', () => exec('bold'));
+      const btnItalic = container.querySelector(`#${editorId}-btn-italic`);
+      if (btnItalic) btnItalic.addEventListener('click', () => exec('italic'));
+      const btnUnderline = container.querySelector(`#${editorId}-btn-underline`);
+      if (btnUnderline) btnUnderline.addEventListener('click', () => exec('underline'));
+      const btnStrike = container.querySelector(`#${editorId}-btn-strike`);
+      if (btnStrike) btnStrike.addEventListener('click', () => exec('strikeThrough'));
+      const btnSup = container.querySelector(`#${editorId}-btn-sup`);
+      if (btnSup) btnSup.addEventListener('click', () => exec('superscript'));
+      const btnSub = container.querySelector(`#${editorId}-btn-sub`);
+      if (btnSub) btnSub.addEventListener('click', () => exec('subscript'));
+
+      const btnAlignLeft = container.querySelector(`#${editorId}-btn-align-left`);
+      if (btnAlignLeft) btnAlignLeft.addEventListener('click', () => exec('justifyLeft'));
+      const btnAlignCenter = container.querySelector(`#${editorId}-btn-align-center`);
+      if (btnAlignCenter) btnAlignCenter.addEventListener('click', () => exec('justifyCenter'));
+      const btnAlignRight = container.querySelector(`#${editorId}-btn-align-right`);
+      if (btnAlignRight) btnAlignRight.addEventListener('click', () => exec('justifyRight'));
+      const btnAlignJustify = container.querySelector(`#${editorId}-btn-align-justify`);
+      if (btnAlignJustify) btnAlignJustify.addEventListener('click', () => exec('justifyFull'));
+
+      const btnIndent2em = container.querySelector(`#${editorId}-btn-indent-2em`);
+      if (btnIndent2em) btnIndent2em.addEventListener('click', () => {
+        const selection = window.getSelection();
+        if (selection.rangeCount > 0) {
+          const range = selection.getRangeAt(0);
+          let node = range.commonAncestorContainer;
+          while (node && node !== editor && node.nodeName !== 'P') { node = node.parentNode; }
+          if (node && node.nodeName === 'P') {
+            node.style.textIndent = node.style.textIndent === '2em' ? '0' : '2em';
+            if (onChangeCallback) onChangeCallback(editor.innerHTML);
+          } else {
+            exec('formatBlock', 'p');
+          }
+        }
+      });
+
+      const btnListUl = container.querySelector(`#${editorId}-btn-list-ul`);
+      if (btnListUl) btnListUl.addEventListener('click', () => exec('insertUnorderedList'));
+      const btnListOl = container.querySelector(`#${editorId}-btn-list-ol`);
+      if (btnListOl) btnListOl.addEventListener('click', () => exec('insertOrderedList'));
+
+      const colorText = container.querySelector(`#${editorId}-color-text`);
+      if (colorText) colorText.addEventListener('input', (e) => exec('foreColor', e.target.value));
+
+      const btnHilite = container.querySelector(`#${editorId}-btn-hilite`);
+      if (btnHilite) btnHilite.addEventListener('click', () => exec('hiliteColor', '#fef08a'));
+
+      const btnClearFormat = container.querySelector(`#${editorId}-btn-clear-format`);
+      if (btnClearFormat) btnClearFormat.addEventListener('click', () => exec('removeFormat'));
+
+      // 插件 1: 插入图片与学术图题
+      const btnInsertImg = container.querySelector(`#${editorId}-btn-insert-image`);
+      if (btnInsertImg) {
+        btnInsertImg.addEventListener('click', () => {
+          const fileInput = document.createElement('input');
+          fileInput.type = 'file';
+          fileInput.accept = 'image/*';
+          fileInput.onchange = (e) => {
+            if (e.target.files && e.target.files[0]) {
+              const file = e.target.files[0];
+              const reader = new FileReader();
+              reader.onload = (ev) => {
+                const imgData = ev.target.result;
+                const caption = prompt('请输入学术图题说明 (例如: 图 1: 变量关系与模型架构图):', '图 1: 研究模型与变量关系架构图');
+                const figureHtml = `
+                  <div class="academic-figure" contenteditable="false">
+                    <img src="${imgData}" alt="${caption || '学术图表'}" style="max-width:85%; border:1px solid #cbd5e1; border-radius:4px; box-shadow:0 2px 8px rgba(0,0,0,0.1);">
+                    <p class="figure-caption" style="font-weight:700; color:#334155; margin-top:6px; font-size:13px; text-indent:0;">${caption || '图 1: 学术模型与实证架构图'}</p>
+                  </div>
+                  <p><br></p>
+                `;
+                exec('insertHTML', figureHtml);
+              };
+              reader.readAsDataURL(file);
+            }
+          };
+          fileInput.click();
+        });
+      }
+
+      // 插件 2: 插入标准学术三线表
+      const btnInsertTable = container.querySelector(`#${editorId}-btn-insert-table`);
+      if (btnInsertTable) {
+        btnInsertTable.addEventListener('click', () => {
+          const rows = parseInt(prompt('请输入表格行数 (包括表头行):', '4')) || 4;
+          const cols = parseInt(prompt('请输入表格列数:', '4')) || 4;
+          let tableHtml = `
+            <p style="text-align:center; font-weight:700; color:#334155; font-size:13px; margin-bottom:4px; text-indent:0;">表 1: 研究变量与测量量表指标汇总表</p>
+            <table class="academic-table" style="width:100%; border-collapse:collapse; margin:10px 0; font-size:13px;">
+              <thead style="border-top:2.5px solid #0f172a; border-bottom:1.5px solid #0f172a; background:#f8fafc;">
+                <tr>${Array.from({length: cols}, (_, i) => `<th style="padding:8px; text-align:center;">变量 ${i + 1}</th>`).join('')}</tr>
+              </thead>
+              <tbody style="border-bottom:2.5px solid #0f172a;">
+                ${Array.from({length: rows - 1}, () => `<tr>${Array.from({length: cols}, () => `<td style="padding:8px; border-bottom:1px solid #e2e8f0; text-align:center;">—</td>`).join('')}</tr>`).join('')}
+              </tbody>
+            </table>
+            <p><br></p>
+          `;
+          exec('insertHTML', tableHtml);
+        });
+      }
+
+      // 插件 3: 插入公式符号
+      const btnInsertSymbol = container.querySelector(`#${editorId}-btn-insert-symbol`);
+      if (btnInsertSymbol) {
+        btnInsertSymbol.addEventListener('click', () => {
+          document.querySelectorAll('.modal-overlay').forEach(el => el.remove());
+          const modal = document.createElement('div');
+          modal.className = 'modal-overlay';
+          const symbols = [
+            'α', 'β', 'γ', 'Δ', 'μ', 'σ', 'λ', 'θ', 'π', 'Ω',
+            '∑', '∫', '±', '≠', '≤', '≥', '≈', '∝', '∞', '√',
+            'R²', 'χ²', 'p < .05', 'p < .01', 'p < .001', 'F(1, 148)', 't(148)', 'η²',
+            'H₁', 'H₂', 'H₃', 'RQ₁', 'RQ₂', 'N = 150', 'M ± SD'
+          ];
+          modal.innerHTML = `
+            <div class="teacher-modal-card" style="width:480px; background:#1e293b; color:#f8fafc; border:1px solid rgba(255,255,255,0.15);">
+              <div class="teacher-modal-header" style="background:linear-gradient(135deg, #6366f1, #4f46e5); color:white; display:flex; justify-content:space-between; align-items:center; padding:12px 18px;">
+                <div style="font-weight:800; font-size:15px;">🔣 常用学术统计公式与符号面板</div>
+                <button class="modal-close-btn" id="btn-close-symbol-modal" style="background:none; border:none; color:white; font-size:18px; cursor:pointer;">✕</button>
+              </div>
+              <div style="padding:18px; display:grid; grid-template-columns:repeat(auto-fill, minmax(80px, 1fr)); gap:8px;">
+                ${symbols.map(s => `
+                  <button class="sym-pick-btn" data-sym="${s}" style="background:rgba(15,23,42,0.8); border:1px solid rgba(255,255,255,0.15); color:#38bdf8; font-size:14px; font-weight:700; padding:10px 6px; border-radius:6px; cursor:pointer; transition:all 0.15s;">
+                    ${s}
+                  </button>
+                `).join('')}
+              </div>
+            </div>
+          `;
+          document.body.appendChild(modal);
+          const closeModal = () => modal.remove();
+          modal.querySelector('#btn-close-symbol-modal').addEventListener('click', closeModal);
+          modal.querySelectorAll('.sym-pick-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+              exec('insertText', ' ' + btn.dataset.sym + ' ');
+              closeModal();
+            });
+          });
+        });
+      }
+
+      // 插件 4: 插入引用角标
+      const btnInsertCit = container.querySelector(`#${editorId}-btn-insert-citation`);
+      if (btnInsertCit) {
+        btnInsertCit.addEventListener('click', () => {
+          const num = prompt('请输入文献引用编号 (例如: 1 或 2, 3):', '1');
+          if (num) {
+            exec('insertHTML', `<sup class="citation-tag" style="color:#0284c7; font-weight:700; font-size:11px; vertical-align:super;">[${num}]</sup>&nbsp;`);
+          }
+        });
+      }
+
+      // 监听输入
+      let debounceTimer = null;
+      editor.addEventListener('input', () => {
+        clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(() => {
+          if (onChangeCallback) onChangeCallback(editor.innerHTML);
+        }, 250);
       });
     }
 
-    const submitBtn = canvas.querySelector('#btn-final-submit');
-    if (submitBtn && !isFinalSubmitted) submitBtn.addEventListener('click', () => handlers.onFinalSubmit());
-
-    const surveyBtn = canvas.querySelector('#btn-open-survey-page');
-    if (surveyBtn) surveyBtn.addEventListener('click', () => handlers.onOpenSurveyModal());
+    // 插件 5: 导出 Word 文档 (.doc)
+    const btnExportDoc = container.querySelector(`#${editorId}-btn-export-doc`);
+    if (btnExportDoc) {
+      btnExportDoc.addEventListener('click', () => {
+        const contentHtml = editor.innerHTML;
+        const fullWordHtml = `
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <meta charset="utf-8">
+            <title>集智学术方案</title>
+            <style>
+              body { font-family: "SimSun", "Times New Roman", serif; font-size: 12pt; line-height: 1.5; color: #000; margin: 30mm 25mm; }
+              h1 { font-family: "SimHei", sans-serif; font-size: 18pt; text-align: center; margin-bottom: 20pt; }
+              h2 { font-family: "SimHei", sans-serif; font-size: 14pt; margin-top: 15pt; margin-bottom: 8pt; }
+              h3 { font-family: "SimHei", sans-serif; font-size: 12pt; margin-top: 10pt; margin-bottom: 5pt; }
+              p { text-indent: 2em; margin: 6pt 0; text-align: justify; }
+              table { width: 100%; border-collapse: collapse; margin: 12pt 0; }
+              th, td { padding: 6pt; text-align: center; }
+              thead { border-top: 2pt solid #000; border-bottom: 1pt solid #000; }
+              tbody { border-bottom: 2pt solid #000; }
+              .citation-tag { vertical-align: super; font-size: 9pt; color: #000; }
+            </style>
+          </head>
+          <body>
+            ${contentHtml}
+          </body>
+          </html>
+        `;
+        const blob = new Blob(['\ufeff', fullWordHtml], { type: 'application/msword;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = '集智协作研究设计方案终稿.doc';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      });
   }
 
   function renderChat(state) {
@@ -2792,13 +2760,60 @@
         } else {
           if (stage === 'stage1') {
             replyAgent = 'auctioneer';
-            replyText = `🎪 【拍卖师阶段引导】组内讨论正在进行中！请大家在左侧提交各自的选题提案，并尽快完成投票与合作合约签署！`;
+            const s1 = this.state.stage1;
+            let didExtract = false;
+            let extractedDetails = [];
+
+            // 1. 提取时间分配
+            const bgMatch = userMsg.match(/背景\s*[:：=为]?\s*(\d+)/i) || userMsg.match(/(\d+)\s*分[钟]?.*背景/i);
+            const qMatch = userMsg.match(/问题\s*[:：=为]?\s*(\d+)/i) || userMsg.match(/(\d+)\s*分[钟]?.*问题/i);
+            const litMatch = userMsg.match(/文献\s*[:：=为]?\s*(\d+)/i) || userMsg.match(/(\d+)\s*分[钟]?.*文献/i);
+            const methMatch = userMsg.match(/方法\s*[:：=为]?\s*(\d+)/i) || userMsg.match(/(\d+)\s*分[钟]?.*方法/i);
+            const refMatch = userMsg.match(/反思\s*[:：=为]?\s*(\d+)/i) || userMsg.match(/(\d+)\s*分[钟]?.*反思/i);
+            const bibMatch = userMsg.match(/(?:参考文献|文献表)\s*[:：=为]?\s*(\d+)/i) || userMsg.match(/(\d+)\s*分[钟]?.*参考文献/i);
+
+            if (bgMatch && s1.contract.timeAllocations) { s1.contract.timeAllocations.background = parseInt(bgMatch[1]); didExtract = true; extractedDetails.push(`背景: ${bgMatch[1]}m`); }
+            if (qMatch && s1.contract.timeAllocations) { s1.contract.timeAllocations.questions = parseInt(qMatch[1]); didExtract = true; extractedDetails.push(`问题: ${qMatch[1]}m`); }
+            if (litMatch && s1.contract.timeAllocations) { s1.contract.timeAllocations.literature = parseInt(litMatch[1]); didExtract = true; extractedDetails.push(`文献: ${litMatch[1]}m`); }
+            if (methMatch && s1.contract.timeAllocations) { s1.contract.timeAllocations.method = parseInt(methMatch[1]); didExtract = true; extractedDetails.push(`方法: ${methMatch[1]}m`); }
+            if (refMatch && s1.contract.timeAllocations) { s1.contract.timeAllocations.reflection = parseInt(refMatch[1]); didExtract = true; extractedDetails.push(`反思: ${refMatch[1]}m`); }
+            if (bibMatch && s1.contract.timeAllocations) { s1.contract.timeAllocations.references = parseInt(bibMatch[1]); didExtract = true; extractedDetails.push(`文献表: ${bibMatch[1]}m`); }
+
+            // 2. 提取分工
+            Object.keys(this.state.members || {}).forEach(mId => {
+              const m = this.state.members[mId];
+              const mName = m.name;
+              const reg = new RegExp(`(?:${mName}|${mId}|学生${mId}|我)\\s*(?:负责|来写|写|承担)\\s*[:：]?\\s*([^，,。！!\n]+)`, 'i');
+              const assignMatch = userMsg.match(reg);
+              if (assignMatch) {
+                if (!s1.contract.taskAssignments) s1.contract.taskAssignments = {};
+                s1.contract.taskAssignments[mId] = assignMatch[1].trim();
+                didExtract = true;
+                extractedDetails.push(`${mName}负责: ${assignMatch[1].trim()}`);
+              }
+            });
+
+            // 3. 提取融合论文主题
+            const topicMatch = userMsg.match(/(?:题目|主题|选题|融合主题|论文题目)\s*(?:定为|选定|为|是|定在)?\s*[《“"]?([^》”"\n]+)[》”"]?/i);
+            if (topicMatch && topicMatch[1].trim().length >= 4) {
+              s1.mergedTitle = topicMatch[1].trim();
+              didExtract = true;
+              extractedDetails.push(`确定主题: 《${s1.mergedTitle}》`);
+            }
+
+            if (didExtract && !s1.contract.isConfirmed) {
+              replyText = `📜 【AI 智能提取公约】：拍卖师已根据刚才的研讨内容，自动提取并更新了左侧《团队协同合作学术公约》卡片！\n• 提取要点: ${extractedDetails.join(' | ')}\n\n💡 提示：所有小组成员均可在左侧卡片中自由修改微调各项内容，商定无误后全员点击【确认签署】生效！`;
+              this.syncStage1();
+              this.renderStudentWorkspace();
+            } else {
+              replyText = `🎪 【拍卖师阶段引导】组内讨论正在进行中！请大家在左侧提交各自的选题提案，或在研讨区商定分工与时间（AI 将自动提取为合约），确认后全员签署！`;
+            }
           } else if (stage === 'stage2') {
             replyAgent = 'reviewingEditor';
-            replyText = `📝 【审稿编辑高阶引导】关注到组内针对大正文与文献框架的讨论。在研究设计章节，必须明确自变量与因变量之间的因果链条！`;
+            replyText = `📝 【审稿编辑高阶引导】关注到组内针对学术大正文的写作研讨。请大家在左侧富文本编辑器中保持规范排版，注意在“四、研究设计”中清晰说明自变量与因变量，必要时可使用上方插件插入学术三线表与模型架构图！`;
           } else if (stage === 'stage3') {
             replyAgent = 'neutral';
-            replyText = `🟡 【中间委员裁决提示】针对辩护意见，请小组在左侧卡片中确认裁决，并切回写作大正文补充限定说明！`;
+            replyText = `🟡 【中间委员裁决提示】针对答辩委员会提出的学术质询，请小组在左侧卡片中统一裁决，并点击【返回富文本协作大正文】将辩护修正内容补充进终稿！`;
           }
         }
 
