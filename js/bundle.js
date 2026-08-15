@@ -719,8 +719,8 @@
 
     initPolling() {
       this.pullFromServer();
-      // Poll server every 1.5s as reliable fallback
-      setInterval(() => this.pullFromServer(), 1500);
+      // Poll server every 400ms for instantaneous cross-device sync
+      setInterval(() => this.pullFromServer(), 400);
 
       if ('BroadcastChannel' in window) {
         try {
@@ -4338,6 +4338,16 @@
           }
           this.renderStudentWorkspace();
         },
+        onPresenceChange: (nodeIdx, sectionTitle) => {
+          const user = this.state.currentUser || 'A';
+          if (!this.state.presence) this.state.presence = {};
+          this.state.presence[user] = {
+            nodeIndex: nodeIdx,
+            activeSection: sectionTitle || '正文',
+            updatedAt: Date.now()
+          };
+          if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+        },
         onUnifiedContentChange: (newContent) => {
           if (this.state.isFinalSubmitted) return;
           this.state.stage2.unifiedContent = newContent;
@@ -4348,6 +4358,12 @@
           this.lastPlainTextLength = plain.length;
           if (!this.state.stage2.memberContributions) this.state.stage2.memberContributions = {};
           this.state.stage2.memberContributions[user] = (this.state.stage2.memberContributions[user] || 0) + delta;
+          if (!this.state.presence) this.state.presence = {};
+          this.state.presence[user] = {
+            nodeIndex: 0,
+            activeSection: '正在输入...',
+            updatedAt: Date.now()
+          };
           this.updateContributionUi();
           this.syncStage2();
           this.checkAgentTriggersOnContent(newContent);
