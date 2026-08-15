@@ -220,15 +220,28 @@
     login(accountInput, password) {
       const users = this.getUsers();
       const query = accountInput.trim().toLowerCase();
-      const user = users.find(u => {
+      const userIndex = users.findIndex(u => {
         const uName = (u.username || '').toLowerCase();
         const uEmail = (u.email || '').toLowerCase();
         const uCode = (u.studentCode || '').toLowerCase();
         return (uName === query || uEmail === query || uCode === query || ('student' + uCode) === query) && u.password === password;
       });
-      if (user) {
+
+      if (userIndex !== -1) {
+        const user = users[userIndex];
+        // 🚀 一个账号同时只能一个人登录：生成唯一的 activeSessionId 并写入用户记录
+        const newSessionId = 'sess_' + Date.now() + '_' + Math.random().toString(36).substring(2, 8);
+        user.activeSessionId = newSessionId;
+        users[userIndex] = user;
+        localStorage.setItem(STORAGE_KEY_USERS_DB, JSON.stringify(users));
+
         sessionStorage.setItem(STORAGE_KEY_USER, JSON.stringify(user));
         localStorage.setItem(STORAGE_KEY_USER, JSON.stringify(user));
+
+        if (window.app && window.app.cloudSyncEngine) {
+          window.app.cloudSyncEngine.pushSnapshot();
+        }
+
         return { success: true, user };
       }
       return { success: false, message: '账号或密码错误 (默认密码统一定为 123)' };
@@ -867,6 +880,16 @@
 
       if (remoteData.users && Array.isArray(remoteData.users) && remoteData.users.length > 0) {
         localStorage.setItem(STORAGE_KEY_USERS_DB, JSON.stringify(remoteData.users));
+        // 单账号单点登录检测：如果检测到当前账号在其他设备上登录了新的会话，则主动退出当前设备
+        const me = this.app.authManager.getCurrentUser();
+        if (me && me.id) {
+          const remoteMe = remoteData.users.find(u => u.id === me.id || u.username === me.username);
+          if (remoteMe && remoteMe.activeSessionId && me.activeSessionId && remoteMe.activeSessionId !== me.activeSessionId) {
+            alert('⚠️ 您的账号已在另一台设备/浏览器上登录，当前设备已自动下线！');
+            this.app.handleLogout();
+            return;
+          }
+        }
       }
       if (remoteData.classes && Array.isArray(remoteData.classes) && remoteData.classes.length > 0) {
         localStorage.setItem(STORAGE_KEY_CLASSES, JSON.stringify(remoteData.classes));
