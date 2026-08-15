@@ -747,7 +747,7 @@
     updateScopeKeys() {
       const user = this.app.authManager.getCurrentUser();
       const groupId = (user && user.groupId) ? user.groupId : (this.app.state.activeMonitorGroupId || 'group_1');
-      const taskId = this.app.state.activeTaskId || 'default';
+      const taskId = this.app.state.activeTaskId || 'task_default';
       this.groupId = groupId;
       this.taskId = taskId;
       this.storageKey = `jizhi_cloud_snapshot_v10_pure_${taskId}_${groupId}`;
@@ -3888,7 +3888,7 @@
 
     loadGroupState(groupId = 'group_1') {
       const defaultState = JSON.parse(JSON.stringify(InitialState));
-      const taskId = this.state.activeTaskId || 'default';
+      const taskId = this.state.activeTaskId || 'task_default';
       this.state.members = this.authManager.getGroupMembersForWorkspace(groupId);
 
       const savedChat = localStorage.getItem(`jizhi_sync_chat_v10_pure_${taskId}_${groupId}`);
@@ -3920,7 +3920,7 @@
     }
 
     initPresetMessagesForGroup(groupId) {
-      const taskId = this.state.activeTaskId || 'default';
+      const taskId = this.state.activeTaskId || 'task_default';
       this.state.chatLogs = { stage1: [], stage2: [], stage3: [] };
       localStorage.setItem(`jizhi_sync_chat_v10_pure_${taskId}_${groupId}`, JSON.stringify(this.state.chatLogs));
     }
@@ -3939,7 +3939,7 @@
     }
 
     saveGroupState(groupId) {
-      const taskId = this.state.activeTaskId || 'default';
+      const taskId = this.state.activeTaskId || 'task_default';
       localStorage.setItem(`jizhi_sync_chat_v10_pure_${taskId}_${groupId}`, JSON.stringify(this.state.chatLogs));
       localStorage.setItem(`jizhi_sync_s1_v10_pure_${taskId}_${groupId}`, JSON.stringify(this.state.stage1));
       localStorage.setItem(`jizhi_sync_s2_v10_pure_${taskId}_${groupId}`, JSON.stringify(this.state.stage2));

@@ -16,9 +16,9 @@ if (empty($groupId)) {
     $groupId = 'group_1';
 }
 
-$taskId = isset($_GET['taskId']) ? preg_replace('/[^a-zA-Z0-9_-]/', '', $_GET['taskId']) : 'default';
+$taskId = isset($_GET['taskId']) ? preg_replace('/[^a-zA-Z0-9_-]/', '', $_GET['taskId']) : 'task_default';
 if (empty($taskId)) {
-    $taskId = 'default';
+    $taskId = 'task_default';
 }
 
 $scopeKey = $taskId . '_' . $groupId;

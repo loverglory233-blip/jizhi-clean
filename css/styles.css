@@ -250,18 +250,18 @@ body {
 .main-content {
   flex: 1;
   display: grid;
-  grid-template-columns: 1fr 400px;
+  grid-template-columns: 1fr 450px;
   height: calc(100vh - 44px);
   overflow: hidden;
   background: #f0f4f9;
 }
 
 .canvas-panel {
-  padding: 10px 14px;
+  padding: 12px 16px;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
   height: 100%;
 }
 
