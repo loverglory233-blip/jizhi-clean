@@ -993,12 +993,18 @@
       if (remoteData.referencePapers && Array.isArray(remoteData.referencePapers)) localStorage.setItem('jizhi_reference_papers_db', JSON.stringify(remoteData.referencePapers));
 
       if (remoteData.stage2) {
-        if (remoteData.stage2.unifiedContent !== undefined && remoteData.stage2.unifiedContent !== this.app.state.stage2.unifiedContent) {
-          this.app.state.stage2.unifiedContent = remoteData.stage2.unifiedContent;
-          const editor = document.getElementById('stage2-word-editor') || document.getElementById('stage3-word-editor');
-          if (editor && document.activeElement !== editor) editor.innerHTML = remoteData.stage2.unifiedContent || '';
-          this.app.updateContributionUi();
-          this.app.renderPresenceCursors();
+        if (remoteData.stage2.unifiedContent !== undefined) {
+          // 清理任何历史残留的 cursor 标签
+          let cleanRemoteContent = remoteData.stage2.unifiedContent || '';
+          cleanRemoteContent = cleanRemoteContent.replace(/<span class="remote-cursor-widget"[\s\S]*?<\/span>/gi, '');
+          
+          if (cleanRemoteContent !== this.app.state.stage2.unifiedContent) {
+            this.app.state.stage2.unifiedContent = cleanRemoteContent;
+            const editor = document.getElementById('stage2-word-editor') || document.getElementById('stage3-word-editor');
+            if (editor && document.activeElement !== editor) editor.innerHTML = cleanRemoteContent || '';
+            this.app.updateContributionUi();
+            this.app.renderPresenceCursors();
+          }
         }
         if (remoteData.stage2.memberContributions) {
           this.app.state.stage2.memberContributions = remoteData.stage2.memberContributions;
@@ -4755,7 +4761,8 @@
         },
         onUnifiedContentChange: (newContent) => {
           if (this.state.isFinalSubmitted) return;
-          this.state.stage2.unifiedContent = newContent;
+          const cleanHtml = (newContent || '').replace(/<span class="remote-cursor-widget"[\s\S]*?<\/span>/gi, '');
+          this.state.stage2.unifiedContent = cleanHtml;
           const user = this.state.currentUser || 'A';
           const plain = (newContent || '').replace(/<[^>]*>/g, '');
           const prevLen = this.lastPlainTextLength || 0;
