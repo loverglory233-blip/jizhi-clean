@@ -100,47 +100,8 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                 self.wfile.write(b'{"timestamp":0}')
             return
 
-        # ⚡ 静态文件 Gzip 压缩传输支持
-        clean_path = self.path.split('?')[0]
-        if clean_path == '/':
-            clean_path = '/index.html'
-        
-        file_path = os.path.join(DIR, clean_path.lstrip('/'))
-        if os.path.isfile(file_path):
-            try:
-                with open(file_path, 'rb') as f:
-                    content = f.read()
-                
-                accept_encoding = self.headers.get('Accept-Encoding', '')
-                use_gzip = 'gzip' in accept_encoding and len(content) > 1024
-                
-                self.send_response(200)
-                if clean_path.endswith('.html'):
-                    self.send_header('Content-Type', 'text/html; charset=utf-8')
-                elif clean_path.endswith('.js'):
-                    self.send_header('Content-Type', 'application/javascript; charset=utf-8')
-                elif clean_path.endswith('.css'):
-                    self.send_header('Content-Type', 'text/css; charset=utf-8')
-                elif clean_path.endswith('.json'):
-                    self.send_header('Content-Type', 'application/json; charset=utf-8')
-
-                self.send_header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
-                self.send_header('Pragma', 'no-cache')
-                self.send_header('Expires', '0')
-
-                if use_gzip:
-                    compressed_content = gzip.compress(content)
-                    self.send_header('Content-Encoding', 'gzip')
-                    self.send_header('Content-Length', str(len(compressed_content)))
-                    self.end_headers()
-                    self.wfile.write(compressed_content)
-                else:
-                    self.send_header('Content-Length', str(len(content)))
-                    self.end_headers()
-                    self.wfile.write(content)
-                return
-            except Exception:
-                pass
+        # Standard robust static file serving
+        return super().do_GET()
 
     def do_POST(self):
         # ⚡ 多角色编辑光标与位置广播 API
