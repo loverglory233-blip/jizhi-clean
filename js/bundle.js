@@ -1370,13 +1370,16 @@
                     </div>
                   </div>
 
-                  <!-- 终稿不可修改状态控制与 Excel 导出 -->
+                  <!-- 终稿不可修改状态控制与 Excel 导出与教师端重置协同数据 -->
                   <div style="display:flex; align-items:center; gap:10px;">
                     <span style="font-size:12px; font-weight:700; padding:6px 12px; border-radius:8px; background:${state.isFinalSubmitted ? '#fef2f2' : '#ecfdf5'}; color:${state.isFinalSubmitted ? '#dc2626' : '#059669'}; border:1px solid ${state.isFinalSubmitted ? '#fecaca' : '#a7f3d0'};">
                       ${state.isFinalSubmitted ? '🔒 终稿已锁定 (只读不可修改)' : '✍️ 终稿可自由编辑'}
                     </span>
                     <button id="btn-toggle-final-submitted" style="background:${state.isFinalSubmitted ? 'linear-gradient(135deg, #059669, #047857)' : 'linear-gradient(135deg, #dc2626, #b91c1c)'}; border:none; color:white; padding:8px 16px; border-radius:8px; font-size:12.5px; font-weight:700; cursor:pointer; box-shadow:0 2px 6px rgba(0,0,0,0.15);">
                       ${state.isFinalSubmitted ? '🔓 解除锁定 (允许学生重新修改终稿)' : '🔒 手动锁定终稿 (设为不可修改)'}
+                    </button>
+                    <button id="btn-reset-group-collab" style="background:linear-gradient(135deg, #f59e0b, #d97706); border:none; color:white; padding:8px 16px; border-radius:8px; font-size:12.5px; font-weight:800; cursor:pointer; box-shadow:0 3px 10px rgba(217,119,6,0.3);" title="清空该测试小组上一次的全部协同数据并恢复初始状态">
+                      🔄 清空重置本组协同
                     </button>
                     <button id="btn-export-all-excel" style="background:linear-gradient(135deg, #2563eb, #1d4ed8); border:none; color:white; padding:8px 16px; border-radius:8px; font-size:12.5px; font-weight:800; cursor:pointer; box-shadow:0 3px 10px rgba(37,99,235,0.3);">
                       📊 导出本组研讨 Excel
@@ -2306,6 +2309,20 @@
           alert(`🔒 已锁定【${activeMonitorGroup.name}】的论文终稿！学生端已设为【只读不可修改状态】。`);
         } else {
           alert(`🔓 已成功解除【${activeMonitorGroup.name}】不可修改状态！学生端现已恢复自由修改、裁决与重新提交终稿权限！`);
+        }
+      });
+    }
+
+    // 教师端主动清空/重置该小组协同数据
+    const btnResetGroup = container.querySelector('#btn-reset-group-collab');
+    if (btnResetGroup) {
+      btnResetGroup.addEventListener('click', () => {
+        if (confirm(`⚠️ 确认清空并重置【${activeMonitorGroup.name}】上一次的全部协同数据？\n\n重置后该小组的历史聊天、正文草稿与投票进度将被清空并恢复至阶段一初始状态！`)) {
+          if (window.app) {
+            window.app.resetTestGroupState(activeMonitorGId);
+            renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+            alert(`✅ 已成功重置【${activeMonitorGroup.name}】的所有协同数据！`);
+          }
         }
       });
     }
