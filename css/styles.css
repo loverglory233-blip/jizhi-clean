@@ -645,38 +645,61 @@ body {
   box-sizing: border-box;
 }
 
-.word-page h1 {
-  font-family: "SimHei", "Heiti SC", sans-serif;
-  font-size: 22px;
+.word-editor-container.fullscreen {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  z-index: 99999 !important;
+  border-radius: 0 !important;
+}
+
+.academic-abstract-box {
+  background: #f8fafc;
+  border: 1.5px solid #cbd5e1;
+  border-left: 5px solid #475569;
+  padding: 16px 20px;
+  margin: 20px 0;
+  border-radius: 4px;
+}
+
+.academic-abstract-box .abstract-title {
   font-weight: 800;
-  text-align: center;
-  margin: 16px 0 20px;
+  font-family: "SimHei", sans-serif;
   color: #0f172a;
+  margin-bottom: 6px;
+  text-indent: 0 !important;
 }
 
-.word-page h2 {
-  font-family: "SimHei", "Heiti SC", sans-serif;
-  font-size: 17px;
+.academic-abstract-box .keywords-row {
   font-weight: 700;
-  margin: 20px 0 10px;
-  color: #0f172a;
-  border-bottom: 1px solid #e2e8f0;
-  padding-bottom: 4px;
+  color: #334155;
+  margin-top: 10px;
+  font-size: 13.5px;
+  text-indent: 0 !important;
 }
 
-.word-page h3 {
-  font-family: "SimHei", "Heiti SC", sans-serif;
-  font-size: 15px;
-  font-weight: 700;
-  margin: 14px 0 6px;
-  color: #1e293b;
+.search-replace-bar {
+  background: #1e293b;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 6px 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
 }
 
-.word-page p {
-  margin: 8px 0;
-  text-indent: 2em;
-  text-align: justify;
+.search-replace-bar input {
+  background: #0f172a;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: white;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  outline: none;
 }
+
 
 .word-page .academic-table {
   width: 100%;
