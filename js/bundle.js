@@ -542,6 +542,79 @@
       }
     }
 
+    getReferencePapers(groupId = null) {
+      const data = localStorage.getItem('jizhi_reference_papers_db');
+      const papers = data ? JSON.parse(data) : [];
+      if (!groupId || groupId === 'all') return papers;
+      return papers.filter(p => !p.targetGroupId || p.targetGroupId === 'all' || p.targetGroupId === groupId);
+    }
+
+    uploadReferencePaper(paper) {
+      const papers = this.getReferencePapers();
+      const newPaper = {
+        id: 'ref_' + Date.now(),
+        title: paper.title || '未命名学术参考范文',
+        abstract: paper.abstract || '',
+        keyHighlights: paper.keyHighlights || '',
+        fileName: paper.fileName || '',
+        fileData: paper.fileData || '',
+        fileSize: paper.fileSize || '',
+        targetGroupId: paper.targetGroupId || 'all',
+        targetGroupName: paper.targetGroupName || '全班所有小组',
+        uploadTime: new Date().toLocaleDateString() + ' ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        author: '任课教师'
+      };
+      papers.unshift(newPaper);
+      localStorage.setItem('jizhi_reference_papers_db', JSON.stringify(papers));
+      if (window.app && window.app.cloudSyncEngine) window.app.cloudSyncEngine.pushSnapshot();
+      return newPaper;
+    }
+
+    deleteReferencePaper(paperId) {
+      let papers = this.getReferencePapers();
+      papers = papers.filter(p => p.id !== paperId);
+      localStorage.setItem('jizhi_reference_papers_db', JSON.stringify(papers));
+      if (window.app && window.app.cloudSyncEngine) window.app.cloudSyncEngine.pushSnapshot();
+    }
+
+    pushReferencePaperToGroupChat(paperId, targetGroupId = 'all') {
+      const papers = this.getReferencePapers();
+      const paper = papers.find(p => p.id === paperId);
+      if (!paper) return;
+
+      const pushMsg = {
+        sender: 'managingEditor',
+        text: `📚【审稿编辑文献推荐·高水平参考范文】\n任课教师为本阶段协作研讨推荐了参考范文《${paper.title}》！\n💡 核心论证亮点与学术价值：\n${paper.keyHighlights || paper.abstract || '请重点参考该论文的问题提出逻辑、文献综述脉络、研究设计规范与论证表达风格。'}\n👉 小组成员可随时点击正文上方【📚 查阅参考范文】查阅详情与下载随附文件！`,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      };
+
+      // 注入当前活动状态
+      if (window.app && window.app.state) {
+        if (!window.app.state.chatLogs['stage2']) window.app.state.chatLogs['stage2'] = [];
+        window.app.state.chatLogs['stage2'].push(pushMsg);
+      }
+
+      // 如果推送给特定组或所有组，同步存入 storage
+      const classes = this.getClasses();
+      const allGroupIds = [];
+      classes.forEach(c => (c.groups || []).forEach(g => allGroupIds.push(g.id)));
+      if (allGroupIds.length === 0) allGroupIds.push('group_1');
+
+      const targetGroups = (targetGroupId === 'all') ? allGroupIds : [targetGroupId];
+      targetGroups.forEach(gid => {
+        try {
+          const chatKey = `jizhi_sync_chat_v6_${gid}`;
+          const gChats = JSON.parse(localStorage.getItem(chatKey)) || { stage1: [], stage2: [], stage3: [] };
+          if (!gChats.stage2) gChats.stage2 = [];
+          gChats.stage2.push(pushMsg);
+          localStorage.setItem(chatKey, JSON.stringify(gChats));
+        } catch (e) {}
+      });
+
+      if (window.app && window.app.cloudSyncEngine) window.app.cloudSyncEngine.pushSnapshot();
+      return pushMsg;
+    }
+
     exportGroupChatLogsToExcel(groupId = 'group_1', chatLogsState = null) {
       const currentChatLogs = chatLogsState || JSON.parse(localStorage.getItem(`jizhi_sync_chat_v6_${groupId}`)) || {};
       let csvContent = '\uFEFF名字,时间,内容\n';
@@ -696,7 +769,8 @@
         users: this.app.authManager.getUsers(),
         classes: this.app.authManager.getClasses(),
         tasks: this.app.authManager.getTasks(),
-        announcements: this.app.authManager.getAnnouncements()
+        announcements: this.app.authManager.getAnnouncements(),
+        referencePapers: this.app.authManager.getReferencePapers()
       };
 
       this.lastTimestamp = snapshot.timestamp;
@@ -774,6 +848,9 @@
       }
       if (remoteData.announcements && Array.isArray(remoteData.announcements)) {
         localStorage.setItem('jizhi_announcements_db', JSON.stringify(remoteData.announcements));
+      }
+      if (remoteData.referencePapers && Array.isArray(remoteData.referencePapers)) {
+        localStorage.setItem('jizhi_reference_papers_db', JSON.stringify(remoteData.referencePapers));
       }
 
       if (remoteData.stage2 && remoteData.stage2.unifiedContent !== undefined) {
@@ -887,6 +964,7 @@
     const currentUser = authManager.getCurrentUser();
     const tasks = authManager.getTasks();
     const announcements = authManager.getAnnouncements();
+    const refPapers = authManager.getReferencePapers();
     const classes = authManager.getClasses();
     const activeTab = state.teacherActiveTab || 'view_architecture';
     const activeClassId = state.activeClassId || (classes[0] ? classes[0].id : 'class_101');
@@ -900,7 +978,6 @@
     const monitorMembersObj = authManager.getGroupMembersForWorkspace(activeMonitorGId);
     const monitorMembersList = Object.values(monitorMembersObj);
 
-    container.innerHTML = `
     container.innerHTML = `
       <div class="teacher-portal-layout" style="min-height:100vh; height:auto; overflow-y:auto !important; background:#f0f4f9; padding:0; display:flex; flex-direction:column;">
         <!-- 全屏头部导航 -->
@@ -924,7 +1001,7 @@
               🛠️ 界面一：基础架构管理 (班级 / 学生 / 小组)
             </button>
             <button class="teacher-tab-nav ${activeTab === 'view_publishing' ? 'active' : ''}" data-tab="view_publishing" style="flex:1; padding:12px; border-radius:10px; font-size:14px; font-weight:800; cursor:pointer; border:none; color:${activeTab === 'view_publishing' ? 'white' : '#475569'}; background:${activeTab === 'view_publishing' ? 'linear-gradient(135deg, #1d4ed8, #2563eb)' : '#f8fafc'}; transition:all 0.2s ease;">
-              📢 界面二：任务与通知发布 (含已读小组矩阵与附件上传)
+              📢 界面二：任务与通知发布 (含参考范文库与审稿推送)
             </button>
             <button class="teacher-tab-nav ${activeTab === 'view_monitoring' ? 'active' : ''}" data-tab="view_monitoring" style="flex:1; padding:12px; border-radius:10px; font-size:14px; font-weight:800; cursor:pointer; border:none; color:${activeTab === 'view_monitoring' ? 'white' : '#475569'}; background:${activeTab === 'view_monitoring' ? 'linear-gradient(135deg, #1d4ed8, #2563eb)' : '#f8fafc'}; transition:all 0.2s ease;">
               🖥️ 界面三：学生实际操作同屏实时监控终端 (实操同屏)
@@ -1060,6 +1137,67 @@
                 `}
               </div>
 
+              <!-- 1. 课程参考范文与学术样例库 (供审稿编辑精准推送) -->
+              <div class="card" style="border-top:4px solid #7c3aed; width:100%; padding:24px;">
+                <div class="card-title" style="margin-bottom:16px;">
+                  <div style="display:flex; align-items:center; gap:8px;">
+                    <span style="font-size:17px; font-weight:800; color:#0f172a;">📚 课程参考范文与学术样例库 (${refPapers.length} 篇 · 供审稿编辑向小组推送)</span>
+                    <span style="font-size:12px; color:#6d28d9; background:#f5f3ff; border:1px solid #ddd6fe; padding:4px 10px; border-radius:8px; font-weight:600;">上传后审稿编辑 Agent 可向学生小组研讨管道精准推送</span>
+                  </div>
+                  <button id="btn-v2-open-paper-modal" class="teacher-action-btn indigo" style="background:linear-gradient(135deg, #7c3aed, #6d28d9); padding:8px 18px; font-size:13px; font-weight:700; border:none; color:white; border-radius:8px; cursor:pointer; box-shadow:0 2px 8px rgba(124,58,237,0.25);">
+                    + 上传学术参考范文
+                  </button>
+                </div>
+                
+                <div class="reference-papers-list" style="display:flex; flex-direction:column; gap:14px;">
+                  ${refPapers.length === 0 ? `
+                    <div style="text-align:center; padding:32px; background:#f8fafc; border-radius:10px; border:2px dashed #cbd5e1;">
+                      <div style="font-size:32px; margin-bottom:8px;">📚</div>
+                      <div style="font-size:15px; font-weight:800; color:#0f172a;">当前暂无上传的课程参考范文</div>
+                      <div style="font-size:12.5px; color:#64748b; margin-top:4px;">点击右上角【+ 上传学术参考范文】上传论文样本或审稿范例，审稿编辑 Agent 可一键精准推送到学生研讨区！</div>
+                    </div>
+                  ` : refPapers.map(p => `
+                    <div style="background:#ffffff; border:1px solid #e2e8f0; padding:18px; border-radius:12px; box-shadow:0 1px 3px rgba(15,23,42,0.03);">
+                      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                        <div style="display:flex; align-items:center; gap:8px;">
+                          <span style="font-weight:800; color:#1e40af; font-size:16px;">📄 ${p.title}</span>
+                          <span style="background:#f5f3ff; color:#6d28d9; border:1px solid #ddd6fe; padding:2px 8px; border-radius:8px; font-size:11.5px; font-weight:700;">定向受众: ${p.targetGroupName || '全班所有小组'}</span>
+                        </div>
+                        <span style="font-size:12px; color:#64748b;">${p.uploadTime} | 上传人: ${p.author || '教师'}</span>
+                      </div>
+                      ${p.keyHighlights ? `
+                        <div style="font-size:13px; color:#334155; margin-bottom:10px; line-height:1.6; background:#f8fafc; padding:10px 14px; border-radius:8px; border-left:3px solid #7c3aed;">
+                          <b>💡 核心论证亮点与学术价值：</b>${p.keyHighlights}
+                        </div>
+                      ` : ''}
+                      ${p.abstract ? `
+                        <div style="font-size:12.5px; color:#64748b; margin-bottom:10px; line-height:1.5;">
+                          <b>摘要：</b>${p.abstract}
+                        </div>
+                      ` : ''}
+                      <div style="display:flex; justify-content:space-between; align-items:center; border-top:1px solid #f1f5f9; padding-top:10px; margin-top:6px;">
+                        <div>
+                          ${p.fileName ? `
+                            <button class="btn-download-paper-file" data-id="${p.id}" style="background:#eff6ff; border:1px solid #bfdbfe; color:#2563eb; padding:5px 12px; border-radius:6px; font-size:12px; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; gap:6px;">
+                              📥 下载随附文献: <b>${p.fileName}</b> (${p.fileSize || '附件'})
+                            </button>
+                          ` : '<span style="font-size:12px; color:#94a3b8;">无独立附件文件</span>'}
+                        </div>
+                        <div style="display:flex; gap:10px;">
+                          <button class="btn-push-paper-to-chat" data-id="${p.id}" data-target="${p.targetGroupId || 'all'}" style="background:linear-gradient(135deg, #2563eb, #1d4ed8); border:none; color:white; padding:6px 14px; border-radius:6px; font-size:12.5px; font-weight:700; cursor:pointer; box-shadow:0 2px 6px rgba(37,99,235,0.25);">
+                            📢 审稿编辑一键推送至此小组研讨
+                          </button>
+                          <button class="btn-delete-paper" data-id="${p.id}" style="background:#fef2f2; border:1px solid #fecaca; color:#dc2626; padding:6px 12px; border-radius:6px; font-size:12px; font-weight:700; cursor:pointer;">
+                            🗑️ 删除
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  `).join('')}
+                </div>
+              </div>
+
+              <!-- 2. 课程协作写作任务集中发布中心 -->
               <div class="card" style="border-top:4px solid #2563eb; width:100%; padding:24px;">
                 <div class="card-title" style="margin-bottom:16px;">
                   <span style="font-size:17px; font-weight:800; color:#0f172a;">📌 课程协作写作任务集中发布中心 (含起止时间控制)</span>
@@ -1083,7 +1221,7 @@
                 </div>
               </div>
 
-              <!-- 2. 发布课堂广播通知 (含各小组已读/未读实时追踪矩阵) -->
+              <!-- 3. 发布课堂广播通知 (含各小组已读/未读实时追踪矩阵) -->
               <div class="card" style="border-top:4px solid #059669; width:100%; padding:24px;">
                 <div class="card-title" style="margin-bottom:16px;">
                   <span style="font-size:17px; font-weight:800; color:#0f172a;">📢 课堂即时广播通知发布 (含各小组已读/未读实时追踪矩阵)</span>
@@ -1879,6 +2017,179 @@
         });
       });
     }
+
+    // 📚 参考范文上传 Modal
+    const btnOpenPaperModal = container.querySelector('#btn-v2-open-paper-modal');
+    if (btnOpenPaperModal) {
+      btnOpenPaperModal.addEventListener('click', () => {
+        document.querySelectorAll('.modal-overlay').forEach(el => el.remove());
+        const groups = activeClass.groups || [{ id: 'group_1', name: '第1小组' }];
+        const modal = document.createElement('div');
+        modal.className = 'modal-overlay';
+        modal.innerHTML = `
+          <div class="teacher-modal-card fancy-task-modal" style="width:620px;">
+            <div class="teacher-modal-header task-theme-gradient" style="background:linear-gradient(135deg, #7c3aed, #4f46e5);">
+              <div class="modal-header-title">
+                <div class="modal-icon-badge" style="background:rgba(255,255,255,0.2); color:white;">📚</div>
+                <div>
+                  <h3>上传课程学术参考范文</h3>
+                  <p style="font-size:12px; color:#e0e7ff;">上传后审稿编辑 Agent 可在阶段二协同中向各小组精准推送与研讨引导</p>
+                </div>
+              </div>
+              <button class="modal-close-btn" id="btn-close-paper-modal">✕</button>
+            </div>
+            <div class="teacher-modal-body">
+              <div class="teacher-form-group">
+                <label><span class="req">*</span> 范文文献标题</label>
+                <input type="text" id="modal-paper-title" class="teacher-input fancy" placeholder="例如：《基于大语言模型的多智能体协同学习实证研究》" value="">
+              </div>
+
+              <div class="form-grid-2" style="margin-top:8px;">
+                <div class="teacher-form-group">
+                  <label><span class="req">*</span> 推送受众范围</label>
+                  <select id="modal-paper-target-group" class="teacher-input fancy">
+                    <option value="all">🌐 全班所有小组</option>
+                    ${groups.map(g => `<option value="${g.id}">👥 ${g.name}</option>`).join('')}
+                  </select>
+                </div>
+                <div class="teacher-form-group">
+                  <label>上传人署名</label>
+                  <input type="text" id="modal-paper-author" class="teacher-input fancy" value="任课教师 (${currentUser.name})">
+                </div>
+              </div>
+
+              <div class="teacher-form-group" style="margin-top:8px;">
+                <label><span class="req">*</span> 💡 核心论证亮点与学术价值 (审稿编辑重点推送指引)</label>
+                <textarea id="modal-paper-highlights" class="teacher-textarea fancy" style="min-height:70px;" placeholder="指引学生参考本文的哪一部分，例如：重点参考第三章实验设计与统计指标汇报规范、理论框架建构方式..."></textarea>
+              </div>
+
+              <div class="teacher-form-group" style="margin-top:8px;">
+                <label>论文摘要 (可选)</label>
+                <textarea id="modal-paper-abstract" class="teacher-textarea fancy" style="min-height:50px;" placeholder="粘贴论文摘要..."></textarea>
+              </div>
+
+              <div class="teacher-form-group" style="margin-top:8px;">
+                <label>📎 随附文献文档上传 (支持 PDF, Word, DOCX, TXT, Markdown 等)</label>
+                <div id="paper-file-dropzone" style="border:2px dashed #a78bfa; border-radius:10px; padding:16px; text-align:center; background:#f5f3ff; cursor:pointer;">
+                  <input type="file" id="modal-paper-file-input" style="display:none;">
+                  <div id="paper-dropzone-text">
+                    <span style="font-size:24px;">📄</span>
+                    <div style="font-size:13px; font-weight:700; color:#7c3aed; margin-top:4px;">点击选择或拖拽本地文献文件上传</div>
+                  </div>
+                </div>
+              </div>
+
+              <div style="margin-top:10px; background:#eff6ff; border:1px solid #bfdbfe; padding:10px 14px; border-radius:8px; display:flex; align-items:center; gap:8px;">
+                <input type="checkbox" id="modal-paper-auto-push" checked style="width:16px; height:16px; cursor:pointer; accent-color:#2563eb;">
+                <label for="modal-paper-auto-push" style="font-size:12.5px; color:#1e40af; font-weight:700; cursor:pointer;">
+                  📢 上传后立即由【审稿编辑 Agent】向受众小组成员研讨管道推送此范文
+                </label>
+              </div>
+            </div>
+            <div class="teacher-modal-footer">
+              <button class="modal-btn cancel" id="btn-cancel-paper">取消</button>
+              <button class="modal-btn submit task-theme" id="btn-submit-new-paper" style="background:linear-gradient(135deg, #7c3aed, #4f46e5);">
+                📚 确认上传并存入范文库
+              </button>
+            </div>
+          </div>
+        `;
+        document.body.appendChild(modal);
+
+        const closeModal = () => modal.remove();
+        modal.querySelector('#btn-close-paper-modal').addEventListener('click', closeModal);
+        modal.querySelector('#btn-cancel-paper').addEventListener('click', closeModal);
+
+        const fileInput = modal.querySelector('#modal-paper-file-input');
+        const dropzone = modal.querySelector('#paper-file-dropzone');
+        const dropText = modal.querySelector('#paper-dropzone-text');
+        let selectedFile = { name: '', size: '', data: '' };
+
+        dropzone.addEventListener('click', () => fileInput.click());
+        fileInput.addEventListener('change', (e) => {
+          if (e.target.files && e.target.files[0]) {
+            const f = e.target.files[0];
+            const sizeKB = (f.size / 1024).toFixed(1) + ' KB';
+            const reader = new FileReader();
+            reader.onload = (re) => {
+              selectedFile = { name: f.name, size: sizeKB, data: re.target.result };
+              dropText.innerHTML = `<span style="font-size:24px;">✅</span><div style="font-size:13px; color:#059669; font-weight:700;">已选取文献: ${f.name} (${sizeKB})</div>`;
+            };
+            reader.readAsDataURL(f);
+          }
+        });
+
+        modal.querySelector('#btn-submit-new-paper').addEventListener('click', () => {
+          const title = modal.querySelector('#modal-paper-title').value.trim();
+          const targetGId = modal.querySelector('#modal-paper-target-group').value;
+          const highlights = modal.querySelector('#modal-paper-highlights').value.trim();
+          const abstract = modal.querySelector('#modal-paper-abstract').value.trim();
+          const autoPush = modal.querySelector('#modal-paper-auto-push').checked;
+
+          if (!title) { alert('⚠️ 请输入范文文献标题！'); return; }
+          const targetGObj = groups.find(g => g.id === targetGId);
+
+          const newPaper = authManager.uploadReferencePaper({
+            title,
+            abstract,
+            keyHighlights: highlights,
+            fileName: selectedFile.name,
+            fileData: selectedFile.data,
+            fileSize: selectedFile.size,
+            targetGroupId: targetGId,
+            targetGroupName: targetGId === 'all' ? '全班所有小组' : (targetGObj ? targetGObj.name : '指定小组')
+          });
+
+          if (autoPush) {
+            authManager.pushReferencePaperToGroupChat(newPaper.id, targetGId);
+          }
+
+          alert(`🎉 参考范文《${title}》已成功上传！${autoPush ? '审稿编辑 Agent 已同步向学生研讨管道推送！' : ''}`);
+          closeModal();
+          renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+        });
+      });
+    }
+
+    // 推送范文按钮
+    container.querySelectorAll('.btn-push-paper-to-chat').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const paperId = btn.dataset.id;
+        const targetGId = btn.dataset.target || 'all';
+        authManager.pushReferencePaperToGroupChat(paperId, targetGId);
+        alert('📢 审稿编辑 Agent 已成功向小组研讨管道广播推送此篇学术参考范文！');
+      });
+    });
+
+    // 下载范文随附文件
+    container.querySelectorAll('.btn-download-paper-file').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const paperId = btn.dataset.id;
+        const paper = refPapers.find(p => p.id === paperId);
+        if (paper && paper.fileName) {
+          if (paper.fileData) {
+            const a = document.createElement('a');
+            a.href = paper.fileData;
+            a.download = paper.fileName;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+          } else {
+            downloadFileBlob(paper.fileName);
+          }
+        }
+      });
+    });
+
+    // 删除范文按钮
+    container.querySelectorAll('.btn-delete-paper').forEach(btn => {
+      btn.addEventListener('click', () => {
+        if (confirm('确认从参考范文库中删除此篇文献？')) {
+          authManager.deleteReferencePaper(btn.dataset.id);
+          renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+        }
+      });
+    });
 
     container.querySelectorAll('.btn-switch-monitor-group').forEach(btn => {
       btn.addEventListener('click', () => {
@@ -2678,6 +2989,10 @@
     const membersList = Object.values(state.members || {});
     const plainTextLen = (s2.unifiedContent || '').replace(/<[^>]*>/g, '').trim().length;
 
+    const userGroupId = state.currentUser && state.members[state.currentUser] ? state.members[state.currentUser].groupId : 'group_1';
+    const availablePapers = (window.app && window.app.authManager) ? window.app.authManager.getReferencePapers(userGroupId) : [];
+    const paperBtnLabel = availablePapers.length > 0 ? `📚 查阅参考范文 (${availablePapers.length}篇)` : '📚 查阅参考范文库';
+
     canvas.innerHTML = `
       ${isStage2MeetingLocked ? `
         <div style="background:#eff6ff; border:1px solid #bfdbfe; border-radius:8px; padding:10px 14px; margin-bottom:10px; font-size:13px; color:#1d4ed8; font-weight:700; display:flex; justify-content:space-between; align-items:center;">
@@ -2693,7 +3008,7 @@
             <span style="font-size:12px; color:#2563eb; background:#eff6ff; padding:2px 8px; border-radius:10px; border:1px solid #bfdbfe;">字数: <b>${plainTextLen}</b> 字</span>
           </div>
           <div style="display:flex; gap:8px;">
-            <button id="btn-show-case" style="background:#eff6ff; border:1px solid #bfdbfe; color:#1d4ed8; padding:6px 12px; border-radius:6px; font-size:12px; cursor:pointer; font-weight:700;">📥 审稿范例指南.pdf</button>
+            <button id="btn-show-case" style="background:#eff6ff; border:1px solid #bfdbfe; color:#1d4ed8; padding:6px 12px; border-radius:6px; font-size:12px; cursor:pointer; font-weight:700;">${paperBtnLabel}</button>
             <button id="btn-trigger-meeting" ${isStage2MeetingLocked ? 'disabled' : ''} style="background:${isStage2MeetingLocked ? '#f1f5f9' : 'linear-gradient(135deg, #2563eb, #1d4ed8)'}; border:${isStage2MeetingLocked ? '1px solid #cbd5e1' : 'none'}; color:${isStage2MeetingLocked ? '#94a3b8' : 'white'}; padding:6px 14px; border-radius:6px; font-size:12px; cursor:${isStage2MeetingLocked ? 'not-allowed' : 'pointer'}; font-weight:700; box-shadow:${isStage2MeetingLocked ? 'none' : '0 3px 10px rgba(37,99,235,0.25)'};">
               ${isStage2MeetingLocked ? '🔒 编辑会议已结束' : '📢 发起【编辑会议】'}
             </button>
@@ -3253,6 +3568,95 @@
       });
     }
 
+    showReferencePapersModal() {
+      document.querySelectorAll('.modal-overlay').forEach(el => el.remove());
+      const user = this.authManager.getCurrentUser();
+      const groupId = user && user.groupId ? user.groupId : (this.state.activeMonitorGroupId || 'group_1');
+      const papers = this.authManager.getReferencePapers(groupId);
+
+      const modal = document.createElement('div');
+      modal.className = 'modal-overlay';
+      modal.innerHTML = `
+        <div class="teacher-modal-card fancy-task-modal" style="width:680px; max-width:95vw;">
+          <div class="teacher-modal-header" style="background:linear-gradient(135deg, #1e40af, #2563eb);">
+            <div class="modal-header-title">
+              <div class="modal-icon-badge" style="background:rgba(255,255,255,0.2); color:white; font-size:22px;">📚</div>
+              <div>
+                <h3 style="color:#ffffff; font-size:17px;">课程学术参考范文库 (${papers.length} 篇)</h3>
+                <p style="font-size:12px; color:#bfdbfe; margin-top:2px;">任课教师下发的高水平学术论文样例与审稿编辑重点推荐文献</p>
+              </div>
+            </div>
+            <button class="modal-close-btn" id="btn-close-ref-modal" style="color:white;">✕</button>
+          </div>
+          <div class="teacher-modal-body" style="padding:20px; max-height:60vh; overflow-y:auto;">
+            ${papers.length === 0 ? `
+              <div style="text-align:center; padding:36px; background:#f8fafc; border-radius:12px; border:2px dashed #cbd5e1;">
+                <div style="font-size:36px; margin-bottom:8px;">📚</div>
+                <div style="font-size:15px; font-weight:800; color:#0f172a;">暂无任课教师下发的参考范文</div>
+                <div style="font-size:12.5px; color:#64748b; margin-top:4px;">教师在教师端上传范文后将自动在此呈现，审稿编辑 Agent 亦会在研讨管道中实时推荐！</div>
+              </div>
+            ` : `
+              <div style="display:flex; flex-direction:column; gap:14px;">
+                ${papers.map(p => `
+                  <div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:12px; padding:16px; box-shadow:0 1px 3px rgba(15,23,42,0.04);">
+                    <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:8px;">
+                      <div style="font-size:15.5px; font-weight:800; color:#1e40af; line-height:1.4;">📄 ${p.title}</div>
+                      <span style="font-size:11px; color:#64748b; white-space:nowrap; margin-left:10px;">${p.uploadTime || ''}</span>
+                    </div>
+                    ${p.keyHighlights ? `
+                      <div style="background:#eff6ff; border:1px solid #bfdbfe; border-radius:8px; padding:10px 12px; font-size:13px; color:#1e40af; line-height:1.5; margin-bottom:8px;">
+                        <b>💡 核心论证亮点与学术价值（审稿编辑推荐指引）：</b><br>${p.keyHighlights}
+                      </div>
+                    ` : ''}
+                    ${p.abstract ? `
+                      <div style="font-size:12.5px; color:#475569; line-height:1.5; margin-bottom:10px;">
+                        <b>摘要：</b>${p.abstract}
+                      </div>
+                    ` : ''}
+                    <div style="display:flex; justify-content:space-between; align-items:center; border-top:1px solid #f1f5f9; padding-top:8px;">
+                      <span style="font-size:11.5px; color:#64748b;">上传署名: ${p.author || '任课教师'}</span>
+                      ${p.fileName ? `
+                        <button class="btn-download-ref-item" data-id="${p.id}" style="background:linear-gradient(135deg, #2563eb, #1d4ed8); border:none; color:white; padding:6px 14px; border-radius:6px; font-size:12px; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; gap:6px; box-shadow:0 2px 6px rgba(37,99,235,0.25);">
+                          📥 下载并查阅随附文献: ${p.fileName} (${p.fileSize || '附件'})
+                        </button>
+                      ` : '<span style="font-size:12px; color:#94a3b8;">无附件文件 (仅查阅重点指引)</span>'}
+                    </div>
+                  </div>
+                `).join('')}
+              </div>
+            `}
+          </div>
+          <div class="teacher-modal-footer" style="background:#f8fafc; border-top:1px solid #e2e8f0; padding:12px 20px;">
+            <button class="modal-btn submit task-theme" id="btn-finish-ref-modal" style="width:100%;">返回协作写作界面</button>
+          </div>
+        </div>
+      `;
+      document.body.appendChild(modal);
+
+      const closeModal = () => modal.remove();
+      modal.querySelector('#btn-close-ref-modal').addEventListener('click', closeModal);
+      modal.querySelector('#btn-finish-ref-modal').addEventListener('click', closeModal);
+
+      modal.querySelectorAll('.btn-download-ref-item').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const paperId = btn.dataset.id;
+          const paper = papers.find(p => p.id === paperId);
+          if (paper && paper.fileName) {
+            if (paper.fileData) {
+              const a = document.createElement('a');
+              a.href = paper.fileData;
+              a.download = paper.fileName;
+              document.body.appendChild(a);
+              a.click();
+              document.body.removeChild(a);
+            } else {
+              downloadFileBlob(paper.fileName);
+            }
+          }
+        });
+      });
+    }
+
     handleLogout() { this.authManager.logout(); this.renderMain(); }
 
     switchToTeacherView() {
@@ -3516,7 +3920,7 @@
           this.checkAgentTriggersOnContent(newContent);
         },
         onOpenCaseModal: () => {
-          downloadFileBlob('编辑会议规范与范例模板文件.pdf');
+          this.showReferencePapersModal();
         },
         onOpenMeetingModal: () => { 
           if (this.state.currentStage === 'stage3' || this.state.isFinalSubmitted) {
