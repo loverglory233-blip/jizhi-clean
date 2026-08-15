@@ -806,13 +806,13 @@
 
       // 1. 账号唯一在线检查 (服务端硬校验：如果被另一台设备顶号，立即下线)
       const currentUser = this.app.authManager.getCurrentUser();
-      if (currentUser && currentUser.activeSessionId) {
+      if (currentUser && currentUser.activeSessionId && !this.isLoggingOut) {
         try {
           const chkRes = await fetch(`sync.php?action=session_check&userId=${encodeURIComponent(currentUser.id || currentUser.username)}&token=${encodeURIComponent(currentUser.activeSessionId)}`);
           if (chkRes.ok) {
             const chkData = await chkRes.json();
             if (chkData && chkData.kicked) {
-              alert('⚠️ 您的账号已在另一台设备/浏览器上登录，当前设备已自动下线！');
+              this.isLoggingOut = true;
               this.app.handleLogout();
               return;
             }
@@ -944,12 +944,12 @@
 
       if (remoteData.users && Array.isArray(remoteData.users) && remoteData.users.length > 0) {
         localStorage.setItem(STORAGE_KEY_USERS_DB, JSON.stringify(remoteData.users));
-        // 单账号单点登录检测：如果检测到当前账号在其他设备上登录了新的会话，则主动退出当前设备
+        // 单账号单点登录检测：如果检测到当前账号在其他设备上登录了新的会话，则主动静默退出当前设备
         const me = this.app.authManager.getCurrentUser();
-        if (me && me.id) {
+        if (me && me.id && !this.isLoggingOut) {
           const remoteMe = remoteData.users.find(u => u.id === me.id || u.username === me.username);
           if (remoteMe && remoteMe.activeSessionId && me.activeSessionId && remoteMe.activeSessionId !== me.activeSessionId) {
-            alert('⚠️ 您的账号已在另一台设备/浏览器上登录，当前设备已自动下线！');
+            this.isLoggingOut = true;
             this.app.handleLogout();
             return;
           }
@@ -1099,7 +1099,6 @@
           <div class="teacher-info" style="display:flex; align-items:center; gap:16px;">
             <span style="font-size:13.5px; color:#334155;">当前班级: <b style="color:#2563eb;">${activeClass.name}</b></span>
             <span style="font-size:13.5px; color:#334155;">教师: <b>${currentUser.name}</b></span>
-            <button id="btn-switch-student-preview" class="header-icon-btn" style="background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe; padding:8px 16px; border-radius:8px; font-size:13px; font-weight:700;">👀 切换至学生视角</button>
             <button id="btn-logout" class="header-icon-btn logout" style="background:#fef2f2; color:#dc2626; border:1px solid #fecaca; padding:8px 16px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer;">🚪 退出登录</button>
           </div>
         </header>
@@ -2575,7 +2574,6 @@
             <button class="nav-ann-bell-btn ${unreadAnnCount > 0 ? 'has-unread' : ''}" id="btn-portal-ann-bell" title="课堂通知" style="background:#ffffff; border:1px solid #e2e8f0; color:#334155; padding:6px 14px; border-radius:18px; font-size:12px; font-weight:600; cursor:pointer;">
               🔔 课堂通知 ${unreadAnnCount > 0 ? `<span class="unread-count">${unreadAnnCount}</span>` : ''}
             </button>
-            <button id="btn-portal-switch-teacher" style="background:#eff6ff; color:#2563eb; border:1px solid #bfdbfe; padding:6px 14px; border-radius:18px; font-size:12px; font-weight:700; cursor:pointer;">👩‍🏫 教师端</button>
             <button id="btn-portal-logout" style="background:#fef2f2; color:#dc2626; border:1px solid #fecaca; padding:6px 14px; border-radius:18px; font-size:12px; font-weight:700; cursor:pointer;">🚪 退出登录</button>
           </div>
         </header>
@@ -2698,7 +2696,6 @@
           🔔 消息 ${unreadAnnCount > 0 ? `<span class="unread-count">${unreadAnnCount}</span>` : ''}
         </button>
         <div class="timer-box" style="padding:2px 8px; border-radius:14px; font-size:11.5px;">⏱️ ${remainingMin}m</div>
-        <button id="btn-switch-teacher-view" style="background:#eff6ff; color:#2563eb; border:1px solid #bfdbfe; padding:3px 8px; border-radius:14px; font-size:11px; font-weight:700; cursor:pointer;" title="切换至教师端">👩‍🏫 教师端</button>
         <button id="btn-user-logout" style="background:#fef2f2; color:#dc2626; border:1px solid #fecaca; padding:3px 8px; border-radius:14px; font-size:11px; font-weight:700; cursor:pointer;" title="退出登录">🚪 退出</button>
       </div>
     `;
@@ -2707,7 +2704,6 @@
       btn.addEventListener('click', () => onStageChange(btn.dataset.stage));
     });
     header.querySelector('#btn-user-logout').addEventListener('click', () => onLogout());
-    header.querySelector('#btn-switch-teacher-view').addEventListener('click', () => onSwitchTeacher());
     header.querySelector('#btn-header-ann-bell').addEventListener('click', () => onOpenAnnModal());
     const btnBackTasks = header.querySelector('#btn-header-back-tasks');
     if (btnBackTasks && onBackToTaskList) {
@@ -4064,7 +4060,7 @@
           renderStudentTaskPortal(
             appEl, this.authManager, this.state,
             (taskId) => {
-              this.state.activeTaskId = taskId || 'default';
+              this.state.activeTaskId = taskId || 'task_default';
               this.loadGroupState(currentGroupId);
               this.state.studentViewMode = 'workspace';
               this.renderMain();
@@ -4074,7 +4070,7 @@
               }
             },
             () => this.handleLogout(),
-            () => this.switchToTeacherView(),
+            () => {},
             () => this.showAnnouncementModal(),
             () => this.showQuestionnaireModal()
           );
