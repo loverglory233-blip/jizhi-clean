@@ -3594,6 +3594,8 @@
       this.cloudSyncEngine = new CloudSyncEngine(this);
       this.initTimer();
       this.renderMain();
+      // 启动时立刻从远程服务器拉取最新完整数据
+      if (this.cloudSyncEngine) this.cloudSyncEngine.pullFromServer();
     }
 
     loadGroupState(groupId = 'group_1') {
@@ -3770,6 +3772,7 @@
               this.state.activeTaskId = taskId;
               this.state.studentViewMode = 'workspace';
               this.renderMain();
+              if (this.cloudSyncEngine) this.cloudSyncEngine.pullFromServer();
             },
             () => this.handleLogout(),
             () => this.switchToTeacherView(),
@@ -4693,6 +4696,12 @@
         renderChat(this.state);
         this.renderStudentWorkspace();
       });
+    }
+
+    handleLogout() {
+      this.authManager.logout();
+      this.state.studentViewMode = 'task_list';
+      this.renderMain();
     }
   }
 
