@@ -953,25 +953,8 @@
         ['stage1', 'stage2', 'stage3'].forEach(stg => {
           const localLogs = this.app.state.chatLogs[stg] || [];
           const remoteLogs = remoteData.chatLogs[stg] || [];
-          
-          // 1. 如果远端消息有更新（或长度不同、内容不同），以远端为基准全量采纳
-          // 2. 同时保留本地刚发出但尚未在远端体现的暂态新消息
-          if (JSON.stringify(remoteLogs) !== JSON.stringify(localLogs)) {
-            const merged = [...remoteLogs];
-            localLogs.forEach(lMsg => {
-              const inRemote = remoteLogs.some(rMsg => 
-                rMsg.sender === lMsg.sender && 
-                rMsg.text === lMsg.text && 
-                (rMsg.timestamp === lMsg.timestamp || (rMsg._timeMs && lMsg._timeMs && Math.abs(rMsg._timeMs - lMsg._timeMs) < 2000))
-              );
-              if (!inRemote) {
-                // 仅当该本地消息是在过去 10 秒内新产生的才予以暂存等待推流
-                if (lMsg._timeMs && (Date.now() - lMsg._timeMs < 10000)) {
-                  merged.push(lMsg);
-                }
-              }
-            });
-            this.app.state.chatLogs[stg] = merged;
+          if (remoteLogs.length !== localLogs.length || JSON.stringify(remoteLogs) !== JSON.stringify(localLogs)) {
+            this.app.state.chatLogs[stg] = remoteLogs;
             chatUpdated = true;
           }
         });
