@@ -685,12 +685,20 @@
       const user = this.app.authManager.getCurrentUser();
       const groupId = (user && user.groupId) ? user.groupId : (this.app.state.activeMonitorGroupId || 'group_1');
       this.storageKey = `jizhi_cloud_snapshot_v10_pure_${groupId}`;
-      this.syncUrl = `sync.php?groupId=${groupId}`;
+      const host = window.location.hostname || '47.99.110.230';
+      const protocol = window.location.protocol || 'http:';
+
+      this.syncEndpoints = [
+        `sync.php?groupId=${groupId}`,
+        `/sync.php?groupId=${groupId}`,
+        `${protocol}//${host}:8088/sync.php?groupId=${groupId}`,
+        `${protocol}//${host}:8088/api/snapshot?groupId=${groupId}`
+      ];
     }
 
     initPolling() {
       this.pullFromRest();
-      setInterval(() => { this.pullFromRest(); }, 400);
+      setInterval(() => { this.pullFromRest(); }, 350);
 
       const user = this.app.authManager.getCurrentUser();
       const groupId = (user && user.groupId) ? user.groupId : (this.app.state.activeMonitorGroupId || 'group_1');
@@ -725,15 +733,31 @@
         }
       } catch (e) {}
 
-      try {
-        const res = await fetch(this.syncUrl, { cache: 'no-store' });
-        if (res.ok) {
-          const data = await res.json();
-          if (data && data.timestamp && data.timestamp > this.lastTimestamp) {
-            this.handleRemoteSync(data);
+      for (const endpoint of this.syncEndpoints) {
+        try {
+          const res = await fetch(`${endpoint}${endpoint.includes('?') ? '&' : '?'}nocache=${Date.now()}`, { cache: 'no-store' });
+          if (res.ok) {
+            const data = await res.json();
+            if (data && data.timestamp && data.timestamp > this.lastTimestamp) {
+              this.handleRemoteSync(data);
+              this.updateSyncBadge(true);
+              break;
+            }
           }
+        } catch (e) {}
+      }
+    }
+
+    updateSyncBadge(isConnected) {
+      const badge = document.getElementById('sync-status-indicator');
+      if (badge) {
+        if (isConnected) {
+          badge.innerHTML = '🟢 云端同步';
+          badge.style.color = '#059669';
+          badge.style.background = '#ecfdf5';
+          badge.style.borderColor = '#a7f3d0';
         }
-      } catch (e) {}
+      }
     }
 
     async pushSnapshot() {
@@ -770,11 +794,15 @@
 
       this.isPushing = true;
       try {
-        await fetch(this.syncUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(snapshot)
-        });
+        const bodyStr = JSON.stringify(snapshot);
+        await Promise.allSettled(this.syncEndpoints.map(url =>
+          fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: bodyStr
+          })
+        ));
+        this.updateSyncBadge(true);
       } catch (e) {
       } finally {
         this.isPushing = false;
@@ -2386,30 +2414,29 @@
     const isFinalSubmitted = state.isFinalSubmitted;
 
     header.innerHTML = `
-      <div class="brand-section" style="flex-shrink:0; display:flex; align-items:center; gap:8px;">
-        <div class="brand-logo" style="font-size:18px; font-weight:800; background:linear-gradient(135deg, #1e40af, #2563eb); -webkit-background-clip:text; -webkit-text-fill-color:transparent;">集智 JIZHI</div>
-        <div class="brand-badge" style="background:#eff6ff; color:#2563eb; padding:3px 9px; border-radius:16px; font-size:11.5px; font-weight:700; border:1px solid #bfdbfe;">
-          🎓 ${currentUser ? currentUser.name : '学生'} ${isFinalSubmitted ? '<span style="color:#059669; margin-left:4px;">(🔒 终稿已归档)</span>' : ''}
-        </div>
-        <button id="btn-header-back-tasks" style="background:#f8fafc; border:1px solid #cbd5e1; color:#334155; padding:4px 10px; border-radius:16px; font-size:11.5px; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; gap:4px;" title="返回我的写作任务大厅">
+      <div class="brand-section">
+        <div class="brand-logo">集智 JIZHI</div>
+        <div class="brand-badge">🎓 ${currentUser ? currentUser.name : '学生'} ${isFinalSubmitted ? '<span style="color:#059669; margin-left:3px;">(🔒已归档)</span>' : ''}</div>
+        <button id="btn-header-back-tasks" style="background:#f8fafc; border:1px solid #cbd5e1; color:#334155; padding:3px 8px; border-radius:14px; font-size:11px; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; gap:3px;" title="返回我的写作任务大厅">
           📋 任务大厅
         </button>
       </div>
-      <nav class="stage-nav" style="flex-shrink:1; min-width:0; overflow-x:auto;">
-        <button class="stage-btn ${state.currentStage === 'stage1' ? 'active' : ''}" data-stage="stage1">🎪 阶段一：学术拍卖会 (25m)</button>
-        <button class="stage-btn ${state.currentStage === 'stage2' ? 'active' : ''}" data-stage="stage2">📰 阶段二：学术编辑部 (105m)</button>
-        <button class="stage-btn ${state.currentStage === 'stage3' ? 'active' : ''}" data-stage="stage3">🎓 阶段三：答辩擂台 (20m)</button>
+      <nav class="stage-nav">
+        <button class="stage-btn ${state.currentStage === 'stage1' ? 'active' : ''}" data-stage="stage1" title="阶段一：学术拍卖会 (25分钟)">🎪 阶段一: 拍卖会</button>
+        <button class="stage-btn ${state.currentStage === 'stage2' ? 'active' : ''}" data-stage="stage2" title="阶段二：学术编辑部 (105分钟)">📰 阶段二: 编辑部</button>
+        <button class="stage-btn ${state.currentStage === 'stage3' ? 'active' : ''}" data-stage="stage3" title="阶段三：答辩擂台 (20分钟)">🎓 阶段三: 答辩擂台</button>
       </nav>
-      <div class="header-controls" style="display:flex; align-items:center; gap:8px; flex-shrink:0; margin-left:auto;">
-        <button id="btn-header-survey-link" style="background:#eff6ff; border:1px solid #bfdbfe; color:#2563eb; padding:5px 12px; border-radius:16px; font-size:12px; font-weight:700; cursor:pointer; transition:all 0.2s;" title="课程评估问卷">
+      <div class="header-controls">
+        <span id="sync-status-indicator" style="font-size:11px; font-weight:700; color:#059669; background:#ecfdf5; border:1px solid #a7f3d0; padding:2px 8px; border-radius:12px; display:inline-flex; align-items:center; gap:3px;" title="云端多端同步中">🟢 云端同步</span>
+        <button id="btn-header-survey-link" style="background:#eff6ff; border:1px solid #bfdbfe; color:#2563eb; padding:3px 8px; border-radius:14px; font-size:11px; font-weight:700; cursor:pointer;" title="课程评估问卷">
           📋 问卷
         </button>
-        <button class="nav-ann-bell-btn ${unreadAnnCount > 0 ? 'has-unread' : ''}" id="btn-header-ann-bell" title="课堂通知" style="padding:4px 10px; border-radius:16px; font-size:11.5px;">
+        <button class="nav-ann-bell-btn ${unreadAnnCount > 0 ? 'has-unread' : ''}" id="btn-header-ann-bell" title="课堂通知" style="padding:3px 8px; border-radius:14px; font-size:11px;">
           🔔 消息 ${unreadAnnCount > 0 ? `<span class="unread-count">${unreadAnnCount}</span>` : ''}
         </button>
-        <div class="timer-box" style="background:#eff6ff; border:1px solid #bfdbfe; padding:4px 10px; border-radius:16px; font-size:12px; font-weight:700; color:#1d4ed8;">⏱️ ${remainingMin}m</div>
-        <button id="btn-switch-teacher-view" style="background:#eff6ff; color:#2563eb; border:1px solid #bfdbfe; padding:5px 12px; border-radius:16px; font-size:11.5px; font-weight:700; cursor:pointer;" title="切换至教师端">👩‍🏫 教师端</button>
-        <button id="btn-user-logout" style="background:#fef2f2; color:#dc2626; border:1px solid #fecaca; padding:5px 12px; border-radius:16px; font-size:11.5px; font-weight:700; cursor:pointer;" title="退出登录">🚪 退出</button>
+        <div class="timer-box" style="padding:2px 8px; border-radius:14px; font-size:11.5px;">⏱️ ${remainingMin}m</div>
+        <button id="btn-switch-teacher-view" style="background:#eff6ff; color:#2563eb; border:1px solid #bfdbfe; padding:3px 8px; border-radius:14px; font-size:11px; font-weight:700; cursor:pointer;" title="切换至教师端">👩‍🏫 教师端</button>
+        <button id="btn-user-logout" style="background:#fef2f2; color:#dc2626; border:1px solid #fecaca; padding:3px 8px; border-radius:14px; font-size:11px; font-weight:700; cursor:pointer;" title="退出登录">🚪 退出</button>
       </div>
     `;
 
