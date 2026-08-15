@@ -680,6 +680,7 @@
       this.isPushing = false;
       this.pendingPush = false;
       this.updateScopeKeys();
+      this.initWebSocket();
       this.initPolling();
     }
 
@@ -696,6 +697,35 @@
         `${protocol}//${host}:8088/sync.php?groupId=${groupId}`,
         `${protocol}//${host}:8088/api/snapshot?groupId=${groupId}`
       ];
+    }
+
+    initWebSocket() {
+      const user = this.app.authManager.getCurrentUser();
+      const groupId = (user && user.groupId) ? user.groupId : (this.app.state.activeMonitorGroupId || 'group_1');
+      const wsUrl = `wss://free.v2.piesocket.com/v3/jizhi_cloud_channel_${groupId}?api_key=VCXCEuvhGcBDP7XhiJJLUD6RRE25ixbngSkiUZ3N&notify_self=0`;
+
+      try {
+        if (this.ws) {
+          try { this.ws.close(); } catch (e) {}
+        }
+        this.ws = new WebSocket(wsUrl);
+        this.ws.onopen = () => {
+          this.updateSyncBadge(true);
+        };
+        this.ws.onmessage = (event) => {
+          try {
+            const data = JSON.parse(event.data);
+            if (data && data.snapshot) {
+              this.handleRemoteSync(data.snapshot);
+              this.updateSyncBadge(true);
+            }
+          } catch (err) {}
+        };
+        this.ws.onclose = () => {
+          setTimeout(() => { this.initWebSocket(); }, 3000);
+        };
+        this.ws.onerror = () => {};
+      } catch (e) {}
     }
 
     initPolling() {
@@ -754,7 +784,7 @@
       const badge = document.getElementById('sync-status-indicator');
       if (badge) {
         if (isConnected) {
-          badge.innerHTML = '🟢 云端同步';
+          badge.innerHTML = '🟢 云端实时同步';
           badge.style.color = '#059669';
           badge.style.background = '#ecfdf5';
           badge.style.borderColor = '#a7f3d0';
@@ -789,6 +819,12 @@
 
       try { localStorage.setItem(this.storageKey, JSON.stringify(snapshot)); } catch (e) {}
       if (this.bc) { try { this.bc.postMessage({ snapshot }); } catch (e) {} }
+
+      if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+        try {
+          this.ws.send(JSON.stringify({ snapshot }));
+        } catch (e) {}
+      }
 
       if (this.isPushing) {
         this.pendingPush = true;
