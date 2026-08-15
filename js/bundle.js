@@ -154,13 +154,45 @@
      3. AGENT PROFILES & PRESETS
      ========================================================================== */
   const AgentProfiles = {
-    auctioneer: { id: 'auctioneer', name: '拍卖师 Agent', roleTitle: '头脑风暴 · 学术拍卖师', avatar: '🎪', color: '#8b5cf6', stage: 'stage1' },
-    managingEditor: { id: 'managingEditor', name: '责任编辑 Agent', roleTitle: '学术编辑部 · 过程学伴', avatar: '🤝', color: '#10b981', stage: 'stage2' },
-    reviewingEditor: { id: 'reviewingEditor', name: '审稿编辑 Agent', roleTitle: '学术编辑部 · 专家指导', avatar: '📝', color: '#3b82f6', stage: 'stage2' },
-    proponent: { id: 'proponent', name: '正方委员 Agent', roleTitle: '答辩委员会 · 肯定支持者', avatar: '🟢', color: '#22c55e', stage: 'stage3' },
-    opponent: { id: 'opponent', name: '反方委员 Agent', roleTitle: '答辩委员会 · 尖锐质疑者', avatar: '🔴', color: '#ef4444', stage: 'stage3' },
-    neutral: { id: 'neutral', name: '中间委员 Agent', roleTitle: '答辩委员会 · 裁决引导者', avatar: '🟡', color: '#eab308', stage: 'stage3' }
+    auctioneer: { id: 'auctioneer', name: '拍卖师 Agent', roleTitle: '头脑风暴 · 学术拍卖师', avatar: '🎪', color: '#8b5cf6', stage: 'stage1', cozeBotId: '7673571806476828713' },
+    managingEditor: { id: 'managingEditor', name: '责任编辑 Agent', roleTitle: '学术编辑部 · 过程学伴', avatar: '🤝', color: '#10b981', stage: 'stage2', cozeBotId: '7673934462736138294' },
+    reviewingEditor: { id: 'reviewingEditor', name: '审稿编辑 Agent', roleTitle: '学术编辑部 · 专家指导', avatar: '📝', color: '#3b82f6', stage: 'stage2', cozeBotId: '7673943522542141476' },
+    proponent: { id: 'proponent', name: '正方委员 Agent', roleTitle: '答辩委员会 · 肯定支持者', avatar: '🟢', color: '#22c55e', stage: 'stage3', cozeBotId: '7673951703640899627' },
+    opponent: { id: 'opponent', name: '反方委员 Agent', roleTitle: '答辩委员会 · 尖锐质疑者', avatar: '🔴', color: '#ef4444', stage: 'stage3', cozeBotId: '7673956980344160307' },
+    neutral: { id: 'neutral', name: '中间委员 Agent', roleTitle: '答辩委员会 · 裁决引导者', avatar: '🟡', color: '#eab308', stage: 'stage3', cozeBotId: '7673955430510870580' }
   };
+
+  async function callCozeAgentAPI(botKey, userQuery, currentContext = {}) {
+    const profile = AgentProfiles[botKey];
+    const botId = profile && profile.cozeBotId ? profile.cozeBotId : '7673571806476828713';
+    
+    // 构建针对当前写作阶段的提示词上下文
+    let enrichedQuery = userQuery;
+    if (currentContext.stage) {
+      enrichedQuery = `【当前协作写作阶段: ${currentContext.stage === 'stage1' ? '阶段一 (选题与公约)' : currentContext.stage === 'stage2' ? '阶段二 (富文本大正文撰写)' : '阶段三 (答辩与质询裁决)'}】\n【小组研究主题: ${currentContext.topic || '暂定'}】\n学生最新发言: ${userQuery}`;
+    }
+
+    try {
+      const resp = await fetch('sync.php?action=coze_chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          bot_id: botId,
+          user_id: currentContext.userId || 'student_user',
+          query: enrichedQuery
+        })
+      });
+      if (resp.ok) {
+        const data = await resp.json();
+        if (data && data.success && data.reply && data.reply.trim().length > 0) {
+          return data.reply.trim();
+        }
+      }
+    } catch (e) {
+      console.warn('Coze API fallback:', e);
+    }
+    return null;
+  }
 
   const PresetMessages = {
     stage1: [],
@@ -4440,97 +4472,119 @@
       }
     }
 
-    triggerAgentReplyIfNeeded(userMsg) {
+    async triggerAgentReplyIfNeeded(userMsg) {
       const isExplicitMention = userMsg.includes('@');
       const isMilestoneKeyword = userMsg.includes('分工') || userMsg.includes('确定') || userMsg.includes('结论') || userMsg.includes('方案') || userMsg.includes('意见');
       const hasEnoughDiscussion = this.studentMsgCountSinceLastAgent >= 3;
       if (!isExplicitMention && !isMilestoneKeyword && !hasEnoughDiscussion) return;
 
-      setTimeout(() => {
-        const stage = this.state.currentStage;
-        let replyAgent = 'reviewingEditor';
-        let replyText = '';
+      const stage = this.state.currentStage;
+      let replyAgent = 'reviewingEditor';
+      let defaultFallbackText = '';
 
-        if (userMsg.includes('@中间委员') || userMsg.includes('@中间委员 Agent')) {
-          replyAgent = 'neutral';
-          replyText = `🟡 【中间委员裁决引导】：收到关注！请团队针对正反方意见做权衡：对于评价焦虑，可通过强调“过程提示”进行辩护；对于量表维度，建议在第四章补充行为与情感投入维度，提高测量完整性！`;
-        } else if (userMsg.includes('@审稿编辑') || userMsg.includes('@审稿编辑 Agent')) {
-          replyAgent = 'reviewingEditor';
-          replyText = `📝 【审稿编辑针对性指导】：收到你的求助问询！关于规范：必须确保“三、文献综述”中提出的学术概念与“四、研究设计与方法”中的测量量表实现 1 对 1 精确匹配！`;
-        } else if (userMsg.includes('@责任编辑') || userMsg.includes('@责任编辑 Agent')) {
-          replyAgent = 'managingEditor';
-          replyText = `🤝 【责任编辑过程学伴回复】：收到 @ 呼叫！目前小组字数分配与协同节奏良好。如果个别组员遇到撰写卡顿，建议组长在正文大文本框中先列出二级标题子纲。`;
-        } else if (userMsg.includes('@拍卖师') || userMsg.includes('@拍卖师 Agent')) {
+      if (userMsg.includes('@中间委员') || userMsg.includes('@中间委员 Agent')) {
+        replyAgent = 'neutral';
+        defaultFallbackText = `🟡 【中间委员裁决引导】：收到关注！请团队针对正反方意见做权衡：对于评价焦虑，可通过强调“过程提示”进行辩护；对于量表维度，建议在第四章补充行为与情感投入维度，提高测量完整性！`;
+      } else if (userMsg.includes('@正方委员') || userMsg.includes('@正方委员 Agent')) {
+        replyAgent = 'proponent';
+        defaultFallbackText = `🟢 【正方委员支持发言】：本项研究设计立意新颖！建议团队在方案中进一步突出创新点与应用价值！`;
+      } else if (userMsg.includes('@反方委员') || userMsg.includes('@反方委员 Agent')) {
+        replyAgent = 'opponent';
+        defaultFallbackText = `🔴 【反方委员尖锐质询】：请团队审视研究设计的严谨性，在方法中必须交代抽样代表性与测量工具的信效度检验！`;
+      } else if (userMsg.includes('@审稿编辑') || userMsg.includes('@审稿编辑 Agent')) {
+        replyAgent = 'reviewingEditor';
+        defaultFallbackText = `📝 【审稿编辑针对性指导】：收到你的求助问询！关于规范：必须确保“三、文献综述”中提出的学术概念与“四、研究设计与方法”中的测量量表实现 1 对 1 精确匹配！`;
+      } else if (userMsg.includes('@责任编辑') || userMsg.includes('@责任编辑 Agent')) {
+        replyAgent = 'managingEditor';
+        defaultFallbackText = `🤝 【责任编辑过程学伴回复】：收到 @ 呼叫！目前小组字数分配与协同节奏良好。如果个别组员遇到撰写卡顿，建议组长在正文大文本框中先列出二级标题子纲。`;
+      } else if (userMsg.includes('@拍卖师') || userMsg.includes('@拍卖师 Agent')) {
+        replyAgent = 'auctioneer';
+        const currentTopic = this.state.stage1.mergedTitle || '当前选定课题';
+        defaultFallbackText = `🎪 【拍卖师选题顾问回复】：收到 @ 呼叫！针对课题《${currentTopic}》，建议从小组成员提出的提案中提取最具有创新性与可行性的核心观点，协商融合为统一主题并在合约中确认！`;
+      } else {
+        if (stage === 'stage1') {
           replyAgent = 'auctioneer';
-          const currentTopic = this.state.stage1.mergedTitle || '当前选定课题';
-          replyText = `🎪 【拍卖师选题顾问回复】：收到 @ 呼叫！针对课题《${currentTopic}》，建议从小组成员提出的提案中提取最具有创新性与可行性的核心观点，协商融合为统一主题并在合约中确认！`;
-        } else {
-          if (stage === 'stage1') {
-            replyAgent = 'auctioneer';
-            const s1 = this.state.stage1;
-            let didExtract = false;
-            let extractedDetails = [];
+          const s1 = this.state.stage1;
+          let didExtract = false;
+          let extractedDetails = [];
 
-            // 1. 提取时间分配
-            const bgMatch = userMsg.match(/背景\s*[:：=为]?\s*(\d+)/i) || userMsg.match(/(\d+)\s*分[钟]?.*背景/i);
-            const qMatch = userMsg.match(/问题\s*[:：=为]?\s*(\d+)/i) || userMsg.match(/(\d+)\s*分[钟]?.*问题/i);
-            const litMatch = userMsg.match(/文献\s*[:：=为]?\s*(\d+)/i) || userMsg.match(/(\d+)\s*分[钟]?.*文献/i);
-            const methMatch = userMsg.match(/方法\s*[:：=为]?\s*(\d+)/i) || userMsg.match(/(\d+)\s*分[钟]?.*方法/i);
-            const refMatch = userMsg.match(/反思\s*[:：=为]?\s*(\d+)/i) || userMsg.match(/(\d+)\s*分[钟]?.*反思/i);
-            const bibMatch = userMsg.match(/(?:参考文献|文献表)\s*[:：=为]?\s*(\d+)/i) || userMsg.match(/(\d+)\s*分[钟]?.*参考文献/i);
+          // 1. 提取时间分配
+          const bgMatch = userMsg.match(/背景\s*[:：=为]?\s*(\d+)/i) || userMsg.match(/(\d+)\s*分[钟]?.*背景/i);
+          const qMatch = userMsg.match(/问题\s*[:：=为]?\s*(\d+)/i) || userMsg.match(/(\d+)\s*分[钟]?.*问题/i);
+          const litMatch = userMsg.match(/文献\s*[:：=为]?\s*(\d+)/i) || userMsg.match(/(\d+)\s*分[钟]?.*文献/i);
+          const methMatch = userMsg.match(/方法\s*[:：=为]?\s*(\d+)/i) || userMsg.match(/(\d+)\s*分[钟]?.*方法/i);
+          const refMatch = userMsg.match(/反思\s*[:：=为]?\s*(\d+)/i) || userMsg.match(/(\d+)\s*分[钟]?.*反思/i);
+          const bibMatch = userMsg.match(/(?:参考文献|文献表)\s*[:：=为]?\s*(\d+)/i) || userMsg.match(/(\d+)\s*分[钟]?.*参考文献/i);
 
-            if (bgMatch && s1.contract.timeAllocations) { s1.contract.timeAllocations.background = parseInt(bgMatch[1]); didExtract = true; extractedDetails.push(`背景: ${bgMatch[1]}m`); }
-            if (qMatch && s1.contract.timeAllocations) { s1.contract.timeAllocations.questions = parseInt(qMatch[1]); didExtract = true; extractedDetails.push(`问题: ${qMatch[1]}m`); }
-            if (litMatch && s1.contract.timeAllocations) { s1.contract.timeAllocations.literature = parseInt(litMatch[1]); didExtract = true; extractedDetails.push(`文献: ${litMatch[1]}m`); }
-            if (methMatch && s1.contract.timeAllocations) { s1.contract.timeAllocations.method = parseInt(methMatch[1]); didExtract = true; extractedDetails.push(`方法: ${methMatch[1]}m`); }
-            if (refMatch && s1.contract.timeAllocations) { s1.contract.timeAllocations.reflection = parseInt(refMatch[1]); didExtract = true; extractedDetails.push(`反思: ${refMatch[1]}m`); }
-            if (bibMatch && s1.contract.timeAllocations) { s1.contract.timeAllocations.references = parseInt(bibMatch[1]); didExtract = true; extractedDetails.push(`文献表: ${bibMatch[1]}m`); }
+          if (bgMatch && s1.contract.timeAllocations) { s1.contract.timeAllocations.background = parseInt(bgMatch[1]); didExtract = true; extractedDetails.push(`背景: ${bgMatch[1]}m`); }
+          if (qMatch && s1.contract.timeAllocations) { s1.contract.timeAllocations.questions = parseInt(qMatch[1]); didExtract = true; extractedDetails.push(`问题: ${qMatch[1]}m`); }
+          if (litMatch && s1.contract.timeAllocations) { s1.contract.timeAllocations.literature = parseInt(litMatch[1]); didExtract = true; extractedDetails.push(`文献: ${litMatch[1]}m`); }
+          if (methMatch && s1.contract.timeAllocations) { s1.contract.timeAllocations.method = parseInt(methMatch[1]); didExtract = true; extractedDetails.push(`方法: ${methMatch[1]}m`); }
+          if (refMatch && s1.contract.timeAllocations) { s1.contract.timeAllocations.reflection = parseInt(refMatch[1]); didExtract = true; extractedDetails.push(`反思: ${refMatch[1]}m`); }
+          if (bibMatch && s1.contract.timeAllocations) { s1.contract.timeAllocations.references = parseInt(bibMatch[1]); didExtract = true; extractedDetails.push(`文献表: ${bibMatch[1]}m`); }
 
-            // 2. 提取分工
-            Object.keys(this.state.members || {}).forEach(mId => {
-              const m = this.state.members[mId];
-              const mName = m.name;
-              const reg = new RegExp(`(?:${mName}|${mId}|学生${mId}|我)\\s*(?:负责|来写|写|承担)\\s*[:：]?\\s*([^，,。！!\n]+)`, 'i');
-              const assignMatch = userMsg.match(reg);
-              if (assignMatch) {
-                if (!s1.contract.taskAssignments) s1.contract.taskAssignments = {};
-                s1.contract.taskAssignments[mId] = assignMatch[1].trim();
-                didExtract = true;
-                extractedDetails.push(`${mName}负责: ${assignMatch[1].trim()}`);
-              }
-            });
-
-            // 3. 提取融合论文主题
-            const topicMatch = userMsg.match(/(?:题目|主题|选题|融合主题|论文题目)\s*(?:定为|选定|为|是|定在)?\s*[《“"]?([^》”"\n]+)[》”"]?/i);
-            if (topicMatch && topicMatch[1].trim().length >= 4) {
-              s1.mergedTitle = topicMatch[1].trim();
+          // 2. 提取分工
+          Object.keys(this.state.members || {}).forEach(mId => {
+            const m = this.state.members[mId];
+            const mName = m.name;
+            const reg = new RegExp(`(?:${mName}|${mId}|学生${mId}|我)\\s*(?:负责|来写|写|承担)\\s*[:：]?\\s*([^，,。！!\n]+)`, 'i');
+            const assignMatch = userMsg.match(reg);
+            if (assignMatch) {
+              if (!s1.contract.taskAssignments) s1.contract.taskAssignments = {};
+              s1.contract.taskAssignments[mId] = assignMatch[1].trim();
               didExtract = true;
-              extractedDetails.push(`确定主题: 《${s1.mergedTitle}》`);
+              extractedDetails.push(`${mName}负责: ${assignMatch[1].trim()}`);
             }
+          });
 
-            if (didExtract && !s1.contract.isConfirmed) {
-              replyText = `📜 【AI 智能提取公约】：拍卖师已根据刚才的研讨内容，自动提取并更新了左侧《团队协同合作学术公约》卡片！\n• 提取要点: ${extractedDetails.join(' | ')}\n\n💡 提示：所有小组成员均可在左侧卡片中自由修改微调各项内容，商定无误后全员点击【确认签署】生效！`;
-              this.syncStage1();
-              this.renderStudentWorkspace();
-            } else {
-              replyText = `🎪 【拍卖师阶段引导】组内讨论正在进行中！请大家在左侧提交各自的选题提案，或在研讨区商定分工与时间（AI 将自动提取为合约），确认后全员签署！`;
-            }
-          } else if (stage === 'stage2') {
-            replyAgent = 'reviewingEditor';
-            replyText = `📝 【审稿编辑高阶引导】关注到组内针对学术大正文的写作研讨。请大家在左侧富文本编辑器中保持规范排版，注意在“四、研究设计”中清晰说明自变量与因变量，必要时可使用上方插件插入学术三线表与模型架构图！`;
-          } else if (stage === 'stage3') {
-            replyAgent = 'neutral';
-            replyText = `🟡 【中间委员裁决提示】针对答辩委员会提出的学术质询，请小组在左侧卡片中统一裁决，并点击【返回富文本协作大正文】将辩护修正内容补充进终稿！`;
+          // 3. 提取融合论文主题
+          const topicMatch = userMsg.match(/(?:题目|主题|选题|融合主题|论文题目)\s*(?:定为|选定|为|是|定在)?\s*[《“"]?([^》”"\n]+)[》”"]?/i);
+          if (topicMatch && topicMatch[1].trim().length >= 4) {
+            s1.mergedTitle = topicMatch[1].trim();
+            didExtract = true;
+            extractedDetails.push(`确定主题: 《${s1.mergedTitle}》`);
           }
-        }
 
-        this.studentMsgCountSinceLastAgent = 0;
-        const agentMsgObj = { sender: replyAgent, text: replyText, timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) };
-        if (!this.state.chatLogs[stage]) this.state.chatLogs[stage] = [];
-        this.state.chatLogs[stage].push(agentMsgObj);
-        this.syncChatLogs();
-        renderChat(this.state);
-      }, 1200);
+          if (didExtract && !s1.contract.isConfirmed) {
+            defaultFallbackText = `📜 【AI 智能提取公约】：拍卖师已根据刚才的研讨内容，自动提取并更新了左侧《团队协同合作学术公约》卡片！\n• 提取要点: ${extractedDetails.join(' | ')}\n\n💡 提示：所有小组成员均可在左侧卡片中自由修改微调各项内容，商定无误后全员点击【确认签署】生效！`;
+            this.syncStage1();
+            this.renderStudentWorkspace();
+          } else {
+            defaultFallbackText = `🎪 【拍卖师阶段引导】组内讨论正在进行中！请大家在左侧提交各自的选题提案，或在研讨区商定分工与时间（AI 将自动提取为合约），确认后全员签署！`;
+          }
+        } else if (stage === 'stage2') {
+          replyAgent = 'reviewingEditor';
+          defaultFallbackText = `📝 【审稿编辑高阶引导】关注到组内针对学术大正文的写作研讨。请大家在左侧富文本编辑器中保持规范排版，注意在“四、研究设计”中清晰说明自变量与因变量，必要时可使用上方插件插入学术三线表与模型架构图！`;
+        } else if (stage === 'stage3') {
+          replyAgent = 'neutral';
+          defaultFallbackText = `🟡 【中间委员裁决提示】针对答辩委员会提出的学术质询，请小组在左侧卡片中统一裁决，并点击【返回富文本协作大正文】将辩护修正内容补充进终稿！`;
+        }
+      }
+
+      this.studentMsgCountSinceLastAgent = 0;
+      const currentUser = this.authManager.getCurrentUser();
+      const currentTopic = this.state.stage1 ? this.state.stage1.mergedTitle : '';
+
+      // 直接静默异步直连 Coze API 获得真实大模型智能体回复（不产生干扰性的思考中废话）
+      let replyText = await callCozeAgentAPI(replyAgent, userMsg, {
+        stage: stage,
+        topic: currentTopic,
+        userId: currentUser ? (currentUser.id || currentUser.username) : 'student_user'
+      });
+
+      if (!replyText || replyText.trim().length === 0) {
+        replyText = defaultFallbackText;
+      }
+
+      const agentMsgObj = {
+        sender: replyAgent,
+        text: replyText,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      };
+      if (!this.state.chatLogs[stage]) this.state.chatLogs[stage] = [];
+      this.state.chatLogs[stage].push(agentMsgObj);
+      this.syncChatLogs();
+      renderChat(this.state);
     }
 
     handleVoteCast(proposalId) {

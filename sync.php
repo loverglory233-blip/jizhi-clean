@@ -85,7 +85,107 @@ if ($action === 'session_logout') {
     exit;
 }
 
-// 2. 数据快照持久化
+// 2. 扣子 (Coze v3) API 代理转发 (纯净无额外输出，直连官方 API)
+if ($action === 'coze_chat' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    $rawInput = file_get_contents('php://input');
+    $req = json_decode($rawInput, true) ?: [];
+    $botId = isset($req['bot_id']) ? $req['bot_id'] : '7673571806476828713';
+    $userId = isset($req['user_id']) ? $req['user_id'] : 'student_user';
+    $query = isset($req['query']) ? $req['query'] : '';
+    $patToken = 'cztei_l9Cd0Wwe0Dacblzw7dIcIqwwvz4EFpANbGEww3yaUMTzVl0zKaOZ2Ad0Zc2u3rLJo';
+
+    if (empty($query)) {
+        echo json_encode(['success' => false, 'message' => 'Query is empty']);
+        exit;
+    }
+
+    $cozeUrl = 'https://api.coze.cn/v3/chat';
+    $headers = [
+        'Authorization: Bearer ' . $patToken,
+        'Content-Type: application/json'
+    ];
+
+    $payload = [
+        'bot_id' => $botId,
+        'user_id' => $userId,
+        'stream' => false,
+        'auto_save_history' => true,
+        'additional_messages' => [
+            [
+                'role' => 'user',
+                'content' => $query,
+                'content_type' => 'text'
+            ]
+        ]
+    ];
+
+    $ch = curl_init($cozeUrl);
+    curl_setopt($ch, CURLOPT_POST, 1);
+    curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
+    curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 20);
+
+    $initResp = curl_exec($ch);
+    curl_close($ch);
+
+    $initData = json_decode($initResp, true) ?: [];
+    $chatId = isset($initData['data']['id']) ? $initData['data']['id'] : null;
+    $convId = isset($initData['data']['conversation_id']) ? $initData['data']['conversation_id'] : null;
+
+    $answerText = '';
+    if ($chatId && $convId) {
+        for ($i = 0; $i < 15; $i++) {
+            usleep(800000); // 800ms
+            $pollUrl = "https://api.coze.cn/v3/chat/retrieve?chat_id={$chatId}&conversation_id={$convId}";
+            $ch2 = curl_init($pollUrl);
+            curl_setopt($ch2, CURLOPT_HTTPHEADER, $headers);
+            curl_setopt($ch2, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($ch2, CURLOPT_SSL_VERIFYPEER, false);
+            curl_setopt($ch2, CURLOPT_SSL_VERIFYHOST, false);
+            curl_setopt($ch2, CURLOPT_TIMEOUT, 10);
+            $pollResp = curl_exec($ch2);
+            curl_close($ch2);
+
+            $pData = json_decode($pollResp, true) ?: [];
+            $status = isset($pData['data']['status']) ? $pData['data']['status'] : '';
+            if ($status === 'completed') {
+                $msgUrl = "https://api.coze.cn/v3/chat/message/list?chat_id={$chatId}&conversation_id={$convId}";
+                $ch3 = curl_init($msgUrl);
+                curl_setopt($ch3, CURLOPT_HTTPHEADER, $headers);
+                curl_setopt($ch3, CURLOPT_RETURNTRANSFER, true);
+                curl_setopt($ch3, CURLOPT_SSL_VERIFYPEER, false);
+                curl_setopt($ch3, CURLOPT_SSL_VERIFYHOST, false);
+                curl_setopt($ch3, CURLOPT_TIMEOUT, 10);
+                $msgResp = curl_exec($ch3);
+                curl_close($ch3);
+
+                $mData = json_decode($msgResp, true) ?: [];
+                $msgs = isset($mData['data']) ? $mData['data'] : [];
+                foreach ($msgs as $m) {
+                    if (isset($m['type']) && $m['type'] === 'answer') {
+                        $answerText = isset($m['content']) ? $m['content'] : '';
+                        break;
+                    }
+                }
+                break;
+            } elseif ($status === 'failed' || $status === 'requires_action' || $status === 'canceled') {
+                break;
+            }
+        }
+    }
+
+    if (!empty($answerText)) {
+        echo json_encode(['success' => true, 'reply' => $answerText]);
+    } else {
+        echo json_encode(['success' => false, 'message' => 'No answer from Coze']);
+    }
+    exit;
+}
+
+// 3. 数据快照持久化
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $rawInput = file_get_contents('php://input');
     if (!empty($rawInput)) {
