@@ -1750,6 +1750,18 @@
         const cancelEnrollBtn = modal.querySelector('#btn-cancel-enroll');
         if (cancelEnrollBtn) cancelEnrollBtn.addEventListener('click', closeModal);
 
+        // 点击背景遮罩或按 ESC 键均可便捷关闭弹窗
+        modal.addEventListener('click', (e) => {
+          if (e.target === modal) closeModal();
+        });
+        const onEscKey = (e) => {
+          if (e.key === 'Escape') {
+            closeModal();
+            document.removeEventListener('keydown', onEscKey);
+          }
+        };
+        document.addEventListener('keydown', onEscKey);
+
         // 标签切换逻辑
         const tabNew = modal.querySelector('#tab-new-student');
         const tabEnroll = modal.querySelector('#tab-enroll-student');
@@ -1796,14 +1808,14 @@
                   student.classIds.push(activeClass.id);
                 }
               }
-              localStorage.setItem('jizhi_users_db_v2', JSON.stringify(users));
+              localStorage.setItem(STORAGE_KEY_USERS_DB, JSON.stringify(users));
               // 同时把 student.id 加入班级 studentIds
               const classes = authManager.getClasses();
               const cls = classes.find(c => c.id === activeClass.id);
               if (cls) {
                 if (!cls.studentIds) cls.studentIds = [];
                 if (!cls.studentIds.includes(chk.dataset.uid)) cls.studentIds.push(chk.dataset.uid);
-                localStorage.setItem('jizhi_classes_db', JSON.stringify(classes));
+                localStorage.setItem(STORAGE_KEY_CLASSES, JSON.stringify(classes));
               }
             });
             closeModal();
@@ -1859,6 +1871,17 @@
         const closeModal = () => modal.remove();
         modal.querySelector('#btn-close-file-modal').addEventListener('click', closeModal);
         modal.querySelector('#btn-cancel-file-modal').addEventListener('click', closeModal);
+
+        modal.addEventListener('click', (e) => {
+          if (e.target === modal) closeModal();
+        });
+        const onEscKey = (e) => {
+          if (e.key === 'Escape') {
+            closeModal();
+            document.removeEventListener('keydown', onEscKey);
+          }
+        };
+        document.addEventListener('keydown', onEscKey);
 
         const fileInput = modal.querySelector('#modal-file-input');
         const dropzone = modal.querySelector('#file-dropzone');
@@ -1957,6 +1980,17 @@
       const closeModal = () => modal.remove();
       modal.querySelector('#btn-close-group-edit').addEventListener('click', closeModal);
       modal.querySelector('#btn-cancel-grp-edit').addEventListener('click', closeModal);
+
+      modal.addEventListener('click', (e) => {
+        if (e.target === modal) closeModal();
+      });
+      const onEscKey = (e) => {
+        if (e.key === 'Escape') {
+          closeModal();
+          document.removeEventListener('keydown', onEscKey);
+        }
+      };
+      document.addEventListener('keydown', onEscKey);
 
       modal.querySelector('#btn-submit-grp-edit').addEventListener('click', () => {
         const name = modal.querySelector('#modal-grp-name').value.trim();
@@ -2076,6 +2110,17 @@
         const closeModal = () => modal.remove();
         modal.querySelector('#btn-close-task-modal').addEventListener('click', closeModal);
         modal.querySelector('#btn-cancel-task').addEventListener('click', closeModal);
+
+        modal.addEventListener('click', (e) => {
+          if (e.target === modal) closeModal();
+        });
+        const onEscKey = (e) => {
+          if (e.key === 'Escape') {
+            closeModal();
+            document.removeEventListener('keydown', onEscKey);
+          }
+        };
+        document.addEventListener('keydown', onEscKey);
         modal.querySelector('#btn-submit-new-task').addEventListener('click', () => {
           const classId = modal.querySelector('#modal-task-class').value;
           const title = modal.querySelector('#modal-task-title').value.trim();
@@ -2147,6 +2192,17 @@
         const closeModal = () => modal.remove();
         modal.querySelector('#btn-close-ann-modal').addEventListener('click', closeModal);
         modal.querySelector('#btn-cancel-ann').addEventListener('click', closeModal);
+
+        modal.addEventListener('click', (e) => {
+          if (e.target === modal) closeModal();
+        });
+        const onEscKey = (e) => {
+          if (e.key === 'Escape') {
+            closeModal();
+            document.removeEventListener('keydown', onEscKey);
+          }
+        };
+        document.addEventListener('keydown', onEscKey);
 
         const fileInput = modal.querySelector('#modal-ann-file-input');
         const dropzone = modal.querySelector('#ann-file-dropzone');
@@ -2256,6 +2312,17 @@
         const closeModal = () => modal.remove();
         modal.querySelector('#btn-close-paper-modal').addEventListener('click', closeModal);
         modal.querySelector('#btn-cancel-paper').addEventListener('click', closeModal);
+
+        modal.addEventListener('click', (e) => {
+          if (e.target === modal) closeModal();
+        });
+        const onEscKey = (e) => {
+          if (e.key === 'Escape') {
+            closeModal();
+            document.removeEventListener('keydown', onEscKey);
+          }
+        };
+        document.addEventListener('keydown', onEscKey);
 
         const fileInput = modal.querySelector('#modal-paper-file-input');
         const dropzone = modal.querySelector('#paper-file-dropzone');
@@ -3363,7 +3430,7 @@
       </div>
     `;
 
-    // 提案提交弹窗绑定 (仅录入研究观点)
+    // 提案提交弹窗绑定
     const btnOpenProp = canvas.querySelector('#btn-open-submit-proposal');
     if (btnOpenProp) {
       btnOpenProp.addEventListener('click', () => {
@@ -3375,22 +3442,19 @@
             <div class="teacher-modal-header task-theme-gradient">
               <div class="modal-header-title">
                 <div class="modal-icon-badge task">💡</div>
-                <div><h3>提交我的选题观点</h3></div>
+                <div><h3>提交我的选题</h3></div>
               </div>
               <button class="modal-close-btn" id="btn-close-prop-modal">✕</button>
             </div>
             <div class="teacher-modal-body">
               <div class="teacher-form-group">
-                <label><span class="req">*</span> 研究观点与选题名称</label>
-                <input type="text" id="prop-title-input" class="teacher-input fancy" placeholder="请输入您的核心研究观点或论文选题题目...">
-              </div>
-              <div style="font-size:12.5px; color:#38bdf8; background:rgba(56,189,248,0.12); border:1px solid rgba(56,189,248,0.25); padding:10px 14px; border-radius:8px; line-height:1.5;">
-                💡 <b>提示</b>：选题观点录入后将直接呈现在拍品池。关于本选题的学术理由、研究痛点与理论依据，请直接在右侧研讨管道中与小组成员实时交流！
+                <label><span class="req">*</span> 选题名称</label>
+                <input type="text" id="prop-title-input" class="teacher-input fancy" placeholder="请输入您的选题名称...">
               </div>
             </div>
             <div class="teacher-modal-footer">
               <button class="modal-btn cancel" id="btn-cancel-prop">取消</button>
-              <button class="modal-btn submit task-theme" id="btn-submit-prop-action">💡 确认提交至拍品池</button>
+              <button class="modal-btn submit task-theme" id="btn-submit-prop-action">💡 确认提交至提案池</button>
             </div>
           </div>
         `;
@@ -3398,9 +3462,21 @@
         const closeModal = () => modal.remove();
         modal.querySelector('#btn-close-prop-modal').addEventListener('click', closeModal);
         modal.querySelector('#btn-cancel-prop').addEventListener('click', closeModal);
+
+        modal.addEventListener('click', (e) => {
+          if (e.target === modal) closeModal();
+        });
+        const onEscKey = (e) => {
+          if (e.key === 'Escape') {
+            closeModal();
+            document.removeEventListener('keydown', onEscKey);
+          }
+        };
+        document.addEventListener('keydown', onEscKey);
+
         modal.querySelector('#btn-submit-prop-action').addEventListener('click', () => {
           const title = modal.querySelector('#prop-title-input').value.trim();
-          if (!title) { alert('⚠️ 请输入研究观点与选题名称！'); return; }
+          if (!title) { alert('⚠️ 请输入选题名称！'); return; }
 
           s1.proposals.push({
             id: 'prop_' + Date.now(),
@@ -3412,7 +3488,7 @@
           const authorName = state.members[currentUser] ? state.members[currentUser].name : currentUser;
           const submitNoticeMsg = {
             sender: currentUser,
-            text: `💡 【新观点提出】我提出了新选题观点《${title}》！理由与依据我们在右侧研讨中展开交流！`,
+            text: `💡 【新选题提出】我提出了新选题《${title}》！`,
             timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
           };
           if (!state.chatLogs[currentStage]) state.chatLogs[currentStage] = [];
@@ -3420,12 +3496,13 @@
 
           const auctioneerEvalMsg = {
             sender: 'auctioneer',
-            text: `🎪 【拍卖师收到新观点】收到 ${authorName} 提出的新选题观点《${title}》！拍品已陈列在左侧拍品池，请大家在研讨区探讨其学术理由与可行性，或继续提交其他观点！`,
+            text: `🎪 【拍卖师收到新提案】收到 ${authorName} 提出的新选题《${title}》！提案已陈列在左侧提案池中。`,
             timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
           };
           state.chatLogs[currentStage].push(auctioneerEvalMsg);
 
           closeModal();
+          handlers.onContractChange();
           handlers.onRefresh();
         });
       });
