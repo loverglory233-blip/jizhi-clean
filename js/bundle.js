@@ -804,23 +804,8 @@
     async pullFromServer() {
       this.updateScopeKeys();
 
-      // 1. 账号唯一在线检查 (服务端硬校验：如果被另一台设备顶号，立即下线)
-      const currentUser = this.app.authManager.getCurrentUser();
-      if (currentUser && currentUser.activeSessionId && !this.isLoggingOut) {
-        try {
-          const chkRes = await fetch(`sync.php?action=session_check&userId=${encodeURIComponent(currentUser.id || currentUser.username)}&token=${encodeURIComponent(currentUser.activeSessionId)}`);
-          if (chkRes.ok) {
-            const chkData = await chkRes.json();
-            if (chkData && chkData.kicked) {
-              this.isLoggingOut = true;
-              if (this.pollTimer) { clearInterval(this.pollTimer); this.pollTimer = null; }
-              alert('⚠️ 您的账号已在另一台设备/浏览器上登录，当前设备已自动下线！');
-              this.app.handleLogout();
-              return;
-            }
-          }
-        } catch (e) {}
-      }
+      // 1. 账号唯一在线检查 (已停用阻塞式顶号弹窗，保持平稳协同)
+      // (移除 session_check 弹窗，避免多端切页或未登出时死循环卡屏)
 
       // 2. 拉取最新协作数据 (以服务端数据为唯一真理)
       for (const endpoint of this.syncEndpoints) {
@@ -946,16 +931,6 @@
 
       if (remoteData.users && Array.isArray(remoteData.users) && remoteData.users.length > 0) {
         localStorage.setItem(STORAGE_KEY_USERS_DB, JSON.stringify(remoteData.users));
-        // 单账号单点登录检测：如果检测到当前账号在其他设备上登录了新的会话，则主动静默退出当前设备
-        const me = this.app.authManager.getCurrentUser();
-        if (me && me.id && !this.isLoggingOut) {
-          const remoteMe = remoteData.users.find(u => u.id === me.id || u.username === me.username);
-          if (remoteMe && remoteMe.activeSessionId && me.activeSessionId && remoteMe.activeSessionId !== me.activeSessionId) {
-            this.isLoggingOut = true;
-            this.app.handleLogout();
-            return;
-          }
-        }
       }
       if (remoteData.classes && Array.isArray(remoteData.classes) && remoteData.classes.length > 0) {
         localStorage.setItem(STORAGE_KEY_CLASSES, JSON.stringify(remoteData.classes));
@@ -3827,8 +3802,8 @@
     if (!stream) return;
 
     const currentUser = state.currentUser;
-    const currentStageIndex = ['stage1', 'stage2', 'stage3'].indexOf(state.currentStage);
-    const visibleStages = ['stage1', 'stage2', 'stage3'].slice(0, Math.max(1, currentStageIndex + 1));
+    // 🌟 全局持久化聊天流：保留阶段一、阶段二、阶段三所有研讨历史，随时回看绝不清空
+    const visibleStages = ['stage1', 'stage2', 'stage3'];
 
     // Collect all visible messages in order
     const allMsgs = [];
