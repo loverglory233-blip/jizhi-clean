@@ -671,27 +671,17 @@
   }
 
   /* ==========================================================================
-     5. CLOUD SYNC ENGINE - jsonbin.io public API + WebSocket dual channel
+     5. CLOUD SYNC ENGINE - Server (sync.php) primary + WebSocket real-time push
      ========================================================================== */
   class CloudSyncEngine {
-    // jsonbin.io free tier: no server needed, works anywhere with internet
-    // Bin ID and Master Key are group-scoped
-    static JSONBIN_MASTER_KEY = '$2a$10$VtWCaFHlkiakDUhFrFRmfOrMbQB0YCVfMrAf3hQJSJcuFNLNYU5xO';
-    static JSONBIN_BINS = {
-      'group_1': '66bd1234abc111000000001a',
-      'group_2': '66bd1234abc111000000002b',
-      'group_3': '66bd1234abc111000000003c',
-    };
-
     constructor(app) {
       this.app = app;
       this.lastTimestamp = 0;
       this.isPushing = false;
       this.pendingPush = false;
-      this.binId = null;
       this.updateScopeKeys();
       this.initWebSocket();
-      this.ensureBin().then(() => this.initPolling());
+      this.initPolling();
     }
 
     updateScopeKeys() {
@@ -699,35 +689,19 @@
       const groupId = (user && user.groupId) ? user.groupId : (this.app.state.activeMonitorGroupId || 'group_1');
       this.groupId = groupId;
       this.storageKey = `jizhi_cloud_snapshot_v10_pure_${groupId}`;
-    }
-
-    async ensureBin() {
-      this.updateScopeKeys();
-      const binKey = `jizhi_jsonbin_id_${this.groupId}`;
-      this.binId = localStorage.getItem(binKey);
-      if (!this.binId) {
-        try {
-          const res = await fetch('https://api.jsonbin.io/v3/b', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'X-Master-Key': CloudSyncEngine.JSONBIN_MASTER_KEY,
-              'X-Bin-Name': `jizhi_${this.groupId}`,
-              'X-Bin-Private': 'false'
-            },
-            body: JSON.stringify({ timestamp: 0, groupId: this.groupId })
-          });
-          if (res.ok) {
-            const data = await res.json();
-            this.binId = data.metadata.id;
-            localStorage.setItem(binKey, this.binId);
-          }
-        } catch (e) {}
-      }
+      const host = window.location.hostname;
+      const protocol = window.location.protocol;
+      // Server endpoints: PHP 8.2 handles sync.php directly, Python 8088 as backup
+      this.syncEndpoints = [
+        `sync.php?groupId=${groupId}`,
+        `${protocol}//${host}:8088/sync.php?groupId=${groupId}`,
+        `${protocol}//${host}:8088/api/snapshot?groupId=${groupId}`
+      ];
     }
 
     initWebSocket() {
       this.updateScopeKeys();
+      // PieSocket for instant real-time push (no polling delay)
       const wsUrl = `wss://free.v2.piesocket.com/v3/jizhi_grp_${this.groupId}?api_key=VCXCEuvhGcBDP7XhiJJLUD6RRE25ixbngSkiUZ3N&notify_self=0`;
       try {
         if (this.ws) { try { this.ws.close(); } catch (e) {} }
@@ -744,8 +718,9 @@
     }
 
     initPolling() {
-      this.pullSnapshot();
-      setInterval(() => this.pullSnapshot(), 1500);
+      this.pullFromServer();
+      // Poll server every 1.5s as reliable fallback
+      setInterval(() => this.pullFromServer(), 1500);
 
       if ('BroadcastChannel' in window) {
         try {
@@ -763,8 +738,10 @@
       });
     }
 
-    async pullSnapshot() {
-      // 1. Try local cache first
+    async pullFromServer() {
+      this.updateScopeKeys();
+
+      // Try local cache first (for same-browser speed)
       try {
         const localRaw = localStorage.getItem(this.storageKey);
         if (localRaw) {
@@ -773,35 +750,15 @@
         }
       } catch (e) {}
 
-      // 2. Try jsonbin.io
-      if (this.binId) {
+      // Try each server endpoint in order
+      for (const endpoint of this.syncEndpoints) {
         try {
-          const res = await fetch(`https://api.jsonbin.io/v3/b/${this.binId}/latest`, {
-            headers: { 'X-Master-Key': CloudSyncEngine.JSONBIN_MASTER_KEY }
-          });
-          if (res.ok) {
-            const data = await res.json();
-            const snap = data.record;
-            if (snap && snap.timestamp && snap.timestamp > this.lastTimestamp) {
-              this.handleRemoteSync(snap);
-            }
-          }
-        } catch (e) {}
-      }
-
-      // 3. Try server-side endpoints as fallback
-      const host = window.location.hostname;
-      const protocol = window.location.protocol;
-      const serverEndpoints = [
-        `sync.php?groupId=${this.groupId}`,
-        `${protocol}//${host}:8088/sync.php?groupId=${this.groupId}`
-      ];
-      for (const endpoint of serverEndpoints) {
-        try {
-          const res = await fetch(`${endpoint}&nocache=${Date.now()}`, { cache: 'no-store' });
+          const url = `${endpoint}&nocache=${Date.now()}`;
+          const res = await fetch(url, { cache: 'no-store' });
           if (res.ok) {
             const text = await res.text();
-            if (!text.includes('<?php')) {
+            // Guard: reject if server returned PHP source code (static mode)
+            if (text.trim().startsWith('{') || text.trim().startsWith('[')) {
               const data = JSON.parse(text);
               if (data && data.timestamp && data.timestamp > this.lastTimestamp) {
                 this.handleRemoteSync(data);
@@ -815,7 +772,6 @@
 
     async pushSnapshot() {
       this.updateScopeKeys();
-      const user = this.app.authManager.getCurrentUser();
       const groupId = this.groupId;
 
       const snapshot = {
@@ -839,11 +795,11 @@
       this.lastTimestamp = snapshot.timestamp;
       const bodyStr = JSON.stringify(snapshot);
 
-      // Always save local
+      // Save local copy
       try { localStorage.setItem(this.storageKey, bodyStr); } catch (e) {}
-      // Broadcast to same-browser tabs
+      // Broadcast to same-browser tabs instantly
       if (this.bc) { try { this.bc.postMessage({ snapshot }); } catch (e) {} }
-      // Broadcast via WebSocket to other devices
+      // Push via WebSocket for instant cross-device delivery
       if (this.ws && this.ws.readyState === WebSocket.OPEN) {
         try { this.ws.send(JSON.stringify({ snapshot })); } catch (e) {}
       }
@@ -851,26 +807,13 @@
       if (this.isPushing) { this.pendingPush = true; return; }
       this.isPushing = true;
       try {
-        // Push to jsonbin.io (primary cross-device store)
-        if (this.binId) {
-          fetch(`https://api.jsonbin.io/v3/b/${this.binId}`, {
-            method: 'PUT',
-            headers: {
-              'Content-Type': 'application/json',
-              'X-Master-Key': CloudSyncEngine.JSONBIN_MASTER_KEY
-            },
+        // Push to all server endpoints (PHP 8.2 sync.php is primary)
+        await Promise.allSettled(this.syncEndpoints.map(url =>
+          fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
             body: bodyStr
-          }).catch(() => {});
-        }
-        // Also try server endpoints
-        const host = window.location.hostname;
-        const protocol = window.location.protocol;
-        const serverEndpoints = [
-          `sync.php?groupId=${groupId}`,
-          `${protocol}//${host}:8088/sync.php?groupId=${groupId}`
-        ];
-        await Promise.allSettled(serverEndpoints.map(url =>
-          fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: bodyStr })
+          })
         ));
       } catch (e) {
       } finally {
