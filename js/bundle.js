@@ -709,15 +709,11 @@
           try { this.ws.close(); } catch (e) {}
         }
         this.ws = new WebSocket(wsUrl);
-        this.ws.onopen = () => {
-          this.updateSyncBadge(true);
-        };
         this.ws.onmessage = (event) => {
           try {
             const data = JSON.parse(event.data);
             if (data && data.snapshot) {
               this.handleRemoteSync(data.snapshot);
-              this.updateSyncBadge(true);
             }
           } catch (err) {}
         };
@@ -772,23 +768,10 @@
             const data = await res.json();
             if (data && data.timestamp && data.timestamp > this.lastTimestamp) {
               this.handleRemoteSync(data);
-              this.updateSyncBadge(true);
               break;
             }
           }
         } catch (e) {}
-      }
-    }
-
-    updateSyncBadge(isConnected) {
-      const badge = document.getElementById('sync-status-indicator');
-      if (badge) {
-        if (isConnected) {
-          badge.innerHTML = '🟢 云端实时同步';
-          badge.style.color = '#059669';
-          badge.style.background = '#ecfdf5';
-          badge.style.borderColor = '#a7f3d0';
-        }
       }
     }
 
@@ -841,7 +824,6 @@
             body: bodyStr
           })
         ));
-        this.updateSyncBadge(true);
       } catch (e) {
       } finally {
         this.isPushing = false;
@@ -2478,7 +2460,6 @@
         <button class="stage-btn ${state.currentStage === 'stage3' ? 'active' : ''}" data-stage="stage3" title="阶段三：答辩擂台 (20分钟)">🎓 阶段三: 答辩擂台</button>
       </nav>
       <div class="header-controls">
-        <span id="sync-status-indicator" style="font-size:11px; font-weight:700; color:#059669; background:#ecfdf5; border:1px solid #a7f3d0; padding:2px 8px; border-radius:12px; display:inline-flex; align-items:center; gap:3px;" title="云端多端同步中">🟢 云端同步</span>
         <button id="btn-header-survey-link" style="background:#eff6ff; border:1px solid #bfdbfe; color:#2563eb; padding:3px 8px; border-radius:14px; font-size:11px; font-weight:700; cursor:pointer;" title="课程评估问卷">
           📋 问卷
         </button>
