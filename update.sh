@@ -42,7 +42,18 @@ for dir in "${TARGET_DIRS[@]}"; do
 done
 rm -rf "$TMP"
 
-echo "🔄 [3/4] 验证 PHP 环境与数据文件权限..."
+echo "🔄 [3/4] 验证 PHP 环境、清理 Nginx 坏规则并重载..."
+# 清理可能残留的死循环反代规则
+for cdir in /www/server/panel/vhost/nginx /www/server/nginx/conf/vhost; do
+  [ -d "$cdir" ] || continue
+  for conf in "$cdir"/*.conf; do
+    [ -f "$conf" ] || continue
+    sed -i '/location ~ \^\/(sync\\\.php\|api\/)/,/^[[:space:]]*}/d' "$conf" 2>/dev/null || true
+    sed -i '/proxy_pass http:\/\/127.0.0.1:8088/d' "$conf" 2>/dev/null || true
+  done
+done
+nginx -s reload 2>/dev/null || /etc/init.d/nginx reload 2>/dev/null || true
+
 for dir in "${TARGET_DIRS[@]}"; do
   touch "$dir/db_task_default_group_1.json" "$dir/sessions.json" 2>/dev/null || true
   chmod 777 "$dir/db_task_default_group_1.json" "$dir/sessions.json" "$dir/sync.php" 2>/dev/null || true
