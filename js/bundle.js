@@ -1296,6 +1296,7 @@
   const STORAGE_KEY_STAGE1 = 'jizhi_clean_s1_v4';
   const STORAGE_KEY_STAGE2 = 'jizhi_clean_s2_v4';
   const STORAGE_KEY_STAGE3 = 'jizhi_clean_s3_v4';
+  const STORAGE_KEY_STAGE_CURRENT = 'jizhi_clean_current_stage_v4';
   // Auto-detect server URL: If running on cloud/HTTP, use current host; otherwise fallback to localhost or custom IP
   const SERVER_URL = window.location.protocol.startsWith('http') 
     ? (window.location.port ? `${window.location.protocol}//${window.location.hostname}:${window.location.port}` : window.location.origin)
