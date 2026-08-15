@@ -4020,6 +4020,18 @@
           if (min >= 25 && this.state.currentStage === 'stage1') this.switchStage('stage2');
           else if (min >= 130 && this.state.currentStage === 'stage2') this.switchStage('stage3');
 
+          // ⚡ 自动心跳广播：保持当前账号在各端显示为 (在线) 状态
+          const myCode = currentUser ? (currentUser.studentCode || 'A') : 'A';
+          if (!this.state.presence) this.state.presence = {};
+          if (!this.state.presence[myCode] || (Date.now() - (this.state.presence[myCode].updatedAt || 0)) > 5000) {
+            this.state.presence[myCode] = {
+              nodeIndex: (this.state.presence[myCode] && this.state.presence[myCode].nodeIndex) || 0,
+              activeSection: (this.state.presence[myCode] && this.state.presence[myCode].activeSection) || '在线研讨',
+              updatedAt: Date.now()
+            };
+            if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+          }
+
           // 🤝 责任编辑 Agent: 检测学生对话不积极 (静默 > 45 秒触发督促)
           const currentStage = this.state.currentStage;
           const logs = this.state.chatLogs[currentStage] || [];
