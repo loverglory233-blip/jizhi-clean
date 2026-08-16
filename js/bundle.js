@@ -255,6 +255,7 @@
             // Merge users without wiping activeSessionId
             const mergedUsers = data.users.map(u => {
               const localMatch = currentUsers.find(cu => cu.id === u.id || cu.username === u.username);
+              if (u.username === 'weng' && u.studentCode !== 'B') u.studentCode = 'B';
               if (localMatch && currUser && (currUser.id === u.id || currUser.username === u.username)) {
                 return { ...u, activeSessionId: currUser.activeSessionId };
               }
@@ -492,14 +493,23 @@
       localStorage.setItem(STORAGE_KEY_CLASSES, JSON.stringify(classes));
 
       const users = this.getUsers();
-      users.forEach(u => {
-        if (selectedUserIds.includes(u.id)) {
+      selectedUserIds.forEach((uid, idx) => {
+        const u = users.find(usr => usr.id === uid);
+        if (u) {
           u.groupId = group.id;
-          if (u.id === leaderUserId) {
+          if (uid === leaderUserId) {
             u.studentCode = 'A';
+          } else {
+            // Assign sequential letters B, C, D...
+            u.studentCode = String.fromCharCode(66 + idx);
           }
         }
       });
+      // If leader was not explicitly specified, first is A
+      if (!leaderUserId && selectedUserIds.length > 0) {
+        const uFirst = users.find(usr => usr.id === selectedUserIds[0]);
+        if (uFirst) uFirst.studentCode = 'A';
+      }
       localStorage.setItem(STORAGE_KEY_USERS_DB, JSON.stringify(users));
 
       this.pushGlobalMeta();
@@ -1116,6 +1126,9 @@
      6. LOGIN VIEW RENDERER
      ========================================================================== */
   function renderLoginView(container, authManager, onLoginSuccess) {
+    if (authManager && authManager.pullGlobalMeta) {
+      authManager.pullGlobalMeta().catch(() => {});
+    }
     container.innerHTML = `
       <div style="min-height:100vh; display:flex; align-items:center; justify-content:center; padding:20px; background:linear-gradient(135deg, #f0f4f9 0%, #e2e8f0 100%);">
         <div style="background:#ffffff; border:1px solid #cbd5e1; border-radius:20px; width:440px; max-width:95vw; padding:36px; box-shadow:0 20px 40px -8px rgba(15, 23, 42, 0.08), 0 4px 12px rgba(15, 23, 42, 0.04);">
