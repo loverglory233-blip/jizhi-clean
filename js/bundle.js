@@ -755,10 +755,7 @@
       const protocol = window.location.protocol || 'http:';
 
       this.syncEndpoints = [
-        `sync.php?taskId=${taskId}&groupId=${groupId}`,
-        `/sync.php?taskId=${taskId}&groupId=${groupId}`,
-        `${protocol}//${host}:8088/sync.php?taskId=${taskId}&groupId=${groupId}`,
-        `${protocol}//${host}:8088/api/snapshot?taskId=${taskId}&groupId=${groupId}`
+        `sync.php?taskId=${taskId}&groupId=${groupId}`
       ];
     }
 
@@ -931,6 +928,10 @@
 
       if (remoteData.groupId && remoteData.groupId !== myGroupId && user?.role === 'student') return;
 
+      // 🛡️ 严格时序防回滚保护：如果远端数据的时间戳明显落后于本地最新时间戳，拒绝覆盖
+      if (remoteData.timestamp && remoteData.timestamp < this.lastTimestamp - 2000) {
+        return;
+      }
       if (remoteData.timestamp) {
         this.lastTimestamp = Math.max(this.lastTimestamp, remoteData.timestamp);
       }
@@ -954,6 +955,7 @@
           const localLogs = this.app.state.chatLogs[stg] || [];
           const remoteLogs = remoteData.chatLogs[stg] || [];
           if (remoteLogs.length !== localLogs.length || JSON.stringify(remoteLogs) !== JSON.stringify(localLogs)) {
+            // 合并或采纳最新聊天
             this.app.state.chatLogs[stg] = remoteLogs;
             chatUpdated = true;
           }
@@ -979,14 +981,18 @@
 
       if (remoteData.stage2) {
         if (remoteData.stage2.unifiedContent !== undefined) {
-          // 清理任何历史残留的 cursor 标签
           let cleanRemoteContent = remoteData.stage2.unifiedContent || '';
           cleanRemoteContent = cleanRemoteContent.replace(/<span class="remote-cursor-widget"[\s\S]*?<\/span>/gi, '');
           
           if (cleanRemoteContent !== this.app.state.stage2.unifiedContent) {
             this.app.state.stage2.unifiedContent = cleanRemoteContent;
             const editor = document.getElementById('stage2-word-editor') || document.getElementById('stage3-word-editor');
-            if (editor && document.activeElement !== editor) editor.innerHTML = cleanRemoteContent || '';
+            // 只要不是当前正在编辑的富文本焦点框，或者内容确实变化，就精准同步
+            if (editor) {
+              if (document.activeElement !== editor) {
+                editor.innerHTML = cleanRemoteContent || '';
+              }
+            }
             this.app.updateContributionUi();
             this.app.renderPresenceCursors();
           }
