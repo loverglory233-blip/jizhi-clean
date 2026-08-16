@@ -1212,13 +1212,13 @@
         <div style="padding:16px 32px 0 32px; background:#f0f4f9; width:100%; flex-shrink:0;">
           <div style="display:flex; gap:12px; width:100%; background:#ffffff; padding:6px; border-radius:14px; border:1px solid #e2e8f0; box-shadow:0 2px 8px rgba(15,23,42,0.04);">
             <button class="teacher-tab-nav ${activeTab === 'view_architecture' ? 'active' : ''}" data-tab="view_architecture" style="flex:1; padding:12px; border-radius:10px; font-size:14px; font-weight:800; cursor:pointer; border:none; color:${activeTab === 'view_architecture' ? 'white' : '#475569'}; background:${activeTab === 'view_architecture' ? 'linear-gradient(135deg, #1d4ed8, #2563eb)' : '#f8fafc'}; transition:all 0.2s ease;">
-              🛠️ 界面一：基础架构管理 (班级 / 学生 / 小组)
+              🛠️ 基础架构管理
             </button>
             <button class="teacher-tab-nav ${activeTab === 'view_publishing' ? 'active' : ''}" data-tab="view_publishing" style="flex:1; padding:12px; border-radius:10px; font-size:14px; font-weight:800; cursor:pointer; border:none; color:${activeTab === 'view_publishing' ? 'white' : '#475569'}; background:${activeTab === 'view_publishing' ? 'linear-gradient(135deg, #1d4ed8, #2563eb)' : '#f8fafc'}; transition:all 0.2s ease;">
-              📢 界面二：任务与通知发布 (含参考范文库与审稿推送)
+              📢 任务与通知发布
             </button>
             <button class="teacher-tab-nav ${activeTab === 'view_monitoring' ? 'active' : ''}" data-tab="view_monitoring" style="flex:1; padding:12px; border-radius:10px; font-size:14px; font-weight:800; cursor:pointer; border:none; color:${activeTab === 'view_monitoring' ? 'white' : '#475569'}; background:${activeTab === 'view_monitoring' ? 'linear-gradient(135deg, #1d4ed8, #2563eb)' : '#f8fafc'}; transition:all 0.2s ease;">
-              🖥️ 界面三：学生实际操作同屏实时监控终端 (实操同屏)
+              🖥️ 学生实操实时监控
             </button>
           </div>
         </div>
@@ -1334,7 +1334,6 @@
               <div class="card" style="border-top:4px solid #2563eb; width:100%; padding:24px;">
                 <div class="card-title" style="margin-bottom:16px;">
                   <span style="font-size:17px; font-weight:800; color:#0f172a;">📋 课程评估问卷链接配置</span>
-                  <span style="font-size:12px; color:#1d4ed8; background:#eff6ff; border:1px solid #bfdbfe; padding:4px 10px; border-radius:8px; font-weight:600;">学生提交终稿后自动弹出提醒 · 顶部按钮随时可点</span>
                 </div>
                 <div style="display:flex; gap:12px; align-items:stretch;">
                   <input type="text" id="survey-url-input" class="teacher-input" placeholder="粘贴问卷链接，例如: https://www.wjx.cn/vm/xxxxx.aspx 或 https://forms.gle/xxxxx" value="${localStorage.getItem('jizhi_survey_url') || ''}" style="flex:1; font-family:monospace; font-size:13px;">
@@ -1351,13 +1350,10 @@
                 `}
               </div>
 
-              <!-- 1. 课程参考范文与文献样例库 (供阶段二学生下载查阅 · 审稿编辑提醒) -->
+              <!-- 1. 课程参考范文与文献样例库 -->
               <div class="card" style="border-top:4px solid #2563eb; width:100%; padding:24px;">
                 <div class="card-title" style="margin-bottom:16px;">
-                  <div style="display:flex; align-items:center; gap:8px;">
-                    <span style="font-size:17px; font-weight:800; color:#0f172a;">📚 课程参考范文与文献样例库 (${refPapers.length} 篇 · 供阶段二学生下载查阅)</span>
-                    <span style="font-size:12px; color:#1d4ed8; background:#eff6ff; border:1px solid #bfdbfe; padding:4px 10px; border-radius:8px; font-weight:600;">学生在阶段二随时可下载查阅 · 审稿编辑 Agent 定向提醒</span>
-                  </div>
+                  <span style="font-size:17px; font-weight:800; color:#0f172a;">📚 课程参考范文库 (${refPapers.length} 篇)</span>
                   <button id="btn-v2-open-paper-modal" class="teacher-action-btn" style="background:linear-gradient(135deg, #1d4ed8, #2563eb); padding:8px 18px; font-size:13px; font-weight:700; border:none; color:white; border-radius:8px; cursor:pointer; box-shadow:0 2px 8px rgba(37,99,235,0.25);">
                     + 上传学术参考范文
                   </button>
@@ -1414,7 +1410,7 @@
               <!-- 2. 课程协作写作任务集中发布中心 -->
               <div class="card" style="border-top:4px solid #2563eb; width:100%; padding:24px;">
                 <div class="card-title" style="margin-bottom:16px;">
-                  <span style="font-size:17px; font-weight:800; color:#0f172a;">📌 课程协作写作任务集中发布中心 (含起止时间控制)</span>
+                  <span style="font-size:17px; font-weight:800; color:#0f172a;">📌 课程写作任务发布</span>
                   <button id="btn-v2-open-task-modal" class="teacher-action-btn indigo" style="background:#2563eb; padding:8px 18px; font-size:13px; font-weight:700;">+ 发布全新写作任务</button>
                 </div>
                 <div style="display:flex; flex-direction:column; gap:14px;">
@@ -1424,7 +1420,7 @@
                         <span style="font-size:16px; font-weight:800; color:#1e40af;">📌 ${t.title}</span>
                         <span style="background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe; padding:4px 12px; border-radius:12px; font-size:12px; font-weight:700;">受众班级: ${t.className}</span>
                       </div>
-                      <div style="font-size:13px; color:#334155; margin-10px 0; display:flex; gap:20px; background:#f8fafc; padding:10px 16px; border-radius:8px; border-left:4px solid #2563eb;">
+                      <div style="font-size:13px; color:#334155; margin:10px 0; display:flex; gap:20px; background:#f8fafc; padding:10px 16px; border-radius:8px; border-left:4px solid #2563eb;">
                         <span>📅 <b>开始时间:</b> <span style="color:#2563eb; font-weight:700;">${t.startTime || '即时开启'}</span></span>
                         <span>⌛ <b>截止时间:</b> <span style="color:#dc2626; font-weight:700;">${t.deadline || '无硬性限制'}</span></span>
                         <span>⏱️ <b>预估时长:</b> ${t.durationMinutes} 分钟</span>
@@ -1435,10 +1431,10 @@
                 </div>
               </div>
 
-              <!-- 3. 发布课堂广播通知 (含各小组已读/未读实时追踪矩阵) -->
+              <!-- 3. 发布课堂广播通知 -->
               <div class="card" style="border-top:4px solid #2563eb; width:100%; padding:24px;">
                 <div class="card-title" style="margin-bottom:16px;">
-                  <span style="font-size:17px; font-weight:800; color:#0f172a;">📢 课堂即时广播通知发布 (含各小组已读/未读实时追踪矩阵)</span>
+                  <span style="font-size:17px; font-weight:800; color:#0f172a;">📢 课堂即时广播通知发布</span>
                   <button id="btn-v2-open-ann-modal" class="teacher-action-btn" style="background:linear-gradient(135deg, #1d4ed8, #2563eb); border:none; color:white; padding:8px 18px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer; box-shadow:0 2px 8px rgba(37,99,235,0.25);">
                     + 发布新通知 (选择/拖拽上传资源文件)
                   </button>
