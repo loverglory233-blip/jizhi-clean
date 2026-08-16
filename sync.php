@@ -60,6 +60,10 @@ if ($action === 'save_global_meta' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($pdo) {
             $stmt = $pdo->prepare("INSERT INTO global_meta (meta_key, meta_value) VALUES ('main_meta', :val) ON DUPLICATE KEY UPDATE meta_value = :val2");
             $stmt->execute([':val' => $rawInput, ':val2' => $rawInput]);
+            // 写入变更信号时间戳，让所有轮询设备的 pullFromServer 在下次 400ms 时立刻感知到全局数据已变
+            $nowMs = round(microtime(true) * 1000);
+            $stmt2 = $pdo->prepare("INSERT INTO global_meta (meta_key, meta_value) VALUES ('meta_updated_at', :v) ON DUPLICATE KEY UPDATE meta_value = :v2");
+            $stmt2->execute([':v' => $nowMs, ':v2' => $nowMs]);
         }
         @file_put_contents(__DIR__ . '/global_db.json', $rawInput);
     }
