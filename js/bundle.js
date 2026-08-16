@@ -3779,21 +3779,31 @@
                       ${item.status === 'adopted' ? '✅ 已研讨并归档' : '⏳ 待组内研讨裁决'}
                     </span>
                   </div>
-                  <div style="font-size:13px; color:#1e293b; background:#f8fafc; border:1px solid #e2e8f0; padding:10px 14px; border-radius:8px; margin-bottom:10px; line-height:1.6;">
-                    <b>${item.speaker}意见原文:</b> ${item.content}
+                  <div style="font-size:13.5px; color:#1e293b; background:#f8fafc; border:1px solid #e2e8f0; padding:12px 14px; border-radius:8px; margin-bottom:12px; line-height:1.6;">
+                    <b>${item.speaker}意见原文:</b><br>${item.content}
                   </div>
-                  <div style="font-size:13px; color:#92400e; background:#fffbeb; border:1px solid #fde68a; padding:10px 14px; border-radius:8px; margin-bottom:12px; line-height:1.6;">
-                    <b>🟡 中间委员 Agent 针对性引导思考:</b><br>${item.neutralGuidance}
-                  </div>
-                  ${item.response ? `
-                    <div style="font-size:13px; color:#1e40af; background:#eff6ff; border-left:4px solid #2563eb; padding:10px 14px; border-radius:6px;">
-                      <b>👥 组内研讨统一裁决结论:</b> ${item.response}
+
+                  <div style="border-top:1px dashed #e2e8f0; padding-top:10px; margin-top:10px;">
+                    <div style="font-size:12.5px; font-weight:700; color:#334155; margin-bottom:6px; display:flex; justify-content:space-between; align-items:center;">
+                      <span>✍️ 本组答辩回复与修改结论：</span>
+                      ${item.response ? '<span style="color:#059669; font-size:11.5px;">(已保存生效)</span>' : '<span style="color:#64748b; font-size:11.5px;">(请直接在下方输入框中录入简要答复)</span>'}
                     </div>
-                  ` : `
-                    <button class="discuss-item-btn" data-id="${item.id}" ${isFinalSubmitted ? 'disabled' : ''} style="background:${isFinalSubmitted ? '#f1f5f9' : 'linear-gradient(135deg, #2563eb, #1d4ed8)'}; border:none; color:${isFinalSubmitted ? '#94a3b8' : 'white'}; padding:8px 16px; border-radius:8px; font-size:13px; font-weight:700; cursor:${isFinalSubmitted ? 'not-allowed' : 'pointer'}; box-shadow:${isFinalSubmitted ? 'none' : '0 3px 10px rgba(37,99,235,0.25)'};">
-                      ${isFinalSubmitted ? '🔒 已提交只读' : '💬 组内针对此条开展研讨与裁决'}
-                    </button>
-                  `}
+                    <textarea 
+                      class="feedback-direct-input" 
+                      data-id="${item.id}" 
+                      ${isFinalSubmitted ? 'disabled' : ''} 
+                      placeholder="商讨后，在此直接输入本组针对该条意见的简要答复与修改结论..." 
+                      style="width:100%; min-height:64px; padding:8px 12px; font-size:13px; line-height:1.5; border:1px solid ${item.response ? '#a7f3d0' : '#cbd5e1'}; background:${isFinalSubmitted ? '#f8fafc' : (item.response ? '#f0fdf4' : '#ffffff')}; border-radius:8px; resize:vertical; box-sizing:border-box; color:#0f172a; font-family:inherit;"
+                    >${item.response || ''}</textarea>
+                    
+                    ${!isFinalSubmitted ? `
+                      <div style="display:flex; justify-content:flex-end; margin-top:8px;">
+                        <button class="btn-save-feedback-direct" data-id="${item.id}" style="background:linear-gradient(135deg, #2563eb, #1d4ed8); border:none; color:white; padding:6px 14px; border-radius:6px; font-size:12px; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; gap:4px; box-shadow:0 2px 6px rgba(37,99,235,0.2);">
+                          💾 确认并保存本条答复
+                        </button>
+                      </div>
+                    ` : ''}
+                  </div>
                 </div>
               `).join('')}
             </div>
@@ -3825,8 +3835,17 @@
     }
 
     if (!isFinalSubmitted) {
-      canvas.querySelectorAll('.discuss-item-btn').forEach(btn => {
-        btn.addEventListener('click', () => handlers.onDiscussItem(btn.dataset.id));
+      canvas.querySelectorAll('.btn-save-feedback-direct').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const itemId = btn.dataset.id;
+          const textarea = canvas.querySelector(`.feedback-direct-input[data-id="${itemId}"]`);
+          const text = textarea ? textarea.value.trim() : '';
+          if (!text) {
+            alert('⚠️ 请输入本组针对该条意见的简要答复结论后再保存！');
+            return;
+          }
+          handlers.onSaveDirectFeedback(itemId, text);
+        });
       });
     }
 
@@ -4978,62 +4997,59 @@
           this.syncStage3();
           this.renderStudentWorkspace();
         },
-        onOpenSurveyModal: () => {
-          this.showQuestionnaireModal();
-        },
-        onDiscussItem: (id) => {
+        onSaveDirectFeedback: async (id, respText) => {
           if (this.state.isFinalSubmitted) {
             alert('🔒 论文终稿已提交，处于全盘只读归档模式！无法再修改研讨结论。');
             return;
           }
-          const items = this.state.stage3.feedbackItems;
+          const items = this.state.stage3.feedbackItems || [];
           const currentIndex = items.findIndex(f => f.id === id);
           const item = items[currentIndex];
 
           if (item) {
-            const resp = prompt(`请代表小组输入针对【${item.title}】的统一裁决方案与修改结论：`, item.response || '已在正文第四章补充限制条件，并扩充情绪与行为投入维度。');
-            if (resp) {
-              item.status = 'adopted';
-              item.response = resp;
-              const currentStage = this.state.currentStage;
-              const currentUser = this.state.currentUser;
-              const discMsg = {
-                sender: currentUser,
-                text: `📢 [答辩质询研讨结论]: 组内已对质询点 ${currentIndex + 1}【${item.title}】完成裁决并达成共识：“${resp}”！`,
-                timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-              };
-              if (!this.state.chatLogs[currentStage]) this.state.chatLogs[currentStage] = [];
-              this.state.chatLogs[currentStage].push(discMsg);
+            item.status = 'adopted';
+            item.response = respText;
+            const currentStage = this.state.currentStage;
+            const currentUser = this.state.currentUser;
+            const memberName = this.state.members[currentUser] ? this.state.members[currentUser].name : currentUser;
 
-              const nextItem = items[currentIndex + 1];
+            const discMsg = {
+              sender: currentUser,
+              text: `📢 [答辩质询研讨结论]: 组内已对质询点 ${currentIndex + 1}【${item.speaker}】完成裁决并达成共识：“${respText}”！`,
+              timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+              _timeMs: Date.now()
+            };
+            if (!this.state.chatLogs[currentStage]) this.state.chatLogs[currentStage] = [];
+            this.state.chatLogs[currentStage].push(discMsg);
+            this.syncStage3();
+            this.syncChatLogs();
+            this.renderStudentWorkspace();
 
-              setTimeout(() => {
-                if (nextItem) {
-                  const stepNum = currentIndex + 2;
-                  const totalSteps = items.length;
-                  const neutralMsg = {
-                    sender: 'neutral',
-                    text: `🟡 【中间委员·第${currentIndex + 1}条已归档 ➔ 开启第${stepNum}条引导 (${stepNum}/${totalSteps})】\n已成功记录第${currentIndex + 1}条裁决结论：“${resp}”！\n\n👉 **接下来请研讨第 ${stepNum} 条质询**【${nextItem.speaker}: ${nextItem.title}】：\n${nextItem.neutralGuidance}`,
-                    timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-                  };
-                  this.state.chatLogs[currentStage].push(neutralMsg);
-                } else {
-                  const finalNeutralMsg = {
-                    sender: 'neutral',
-                    text: `🎉 【中间委员·全员答辩裁决完毕】恭喜！组内已完成答辩委员会所有 3 条质询与建议的研讨与裁决！\n请团队点击上方【返回协作写作大正文】按钮，将裁决结论落实至论文终稿后提交！`,
-                    timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-                  };
-                  this.state.chatLogs[currentStage].push(finalNeutralMsg);
-                }
-                this.syncStage3();
-                this.syncChatLogs();
-                renderChat(this.state);
-              }, 800);
+            // 异步调用扣子中间委员 Bot 进行点评与后续引导
+            const nextItem = items[currentIndex + 1];
+            const topic = (this.state.stage1 && this.state.stage1.mergedTitle) ? this.state.stage1.mergedTitle : '论文方案';
+            const queryPrompt = nextItem ? 
+              `小组成员已对质询点 ${currentIndex + 1}【${item.speaker}】达成答辩共识：“${respText}”。请对该共识做简要肯定点评，并自然引导全组针对下一条质询【${nextItem.speaker}】展开研讨。` :
+              `小组成员已对全部答辩质询达成共识，最后一条共识为：“${respText}”。请对全组答辩表现做总结肯定，并引导全组成员点击上方【返回富文本协作大正文】将答辩修改落实至终稿后提交。`;
 
-              this.syncStage3();
-              this.syncChatLogs();
-              this.renderStudentWorkspace();
+            let neutralReply = await callCozeAgentAPI('neutral', queryPrompt, { stage: 'stage3', topic });
+            if (!neutralReply || neutralReply.trim().length === 0) {
+              if (nextItem) {
+                neutralReply = `🟡 【中间委员·答辩裁决推进】：已成功记录本条裁决结论：“${respText}”！\n\n👉 **接下来请研讨第 ${currentIndex + 2} 条质询**【${nextItem.speaker}】：请全组成员商讨修改方案，直接在左侧对应卡片中录入答复！`;
+              } else {
+                neutralReply = `🎉 【中间委员·全员答辩裁决完毕】：恭喜！组内已完成答辩委员会所有质询与建议的研讨与答复！\n请团队点击上方【返回富文本协作大正文】按钮，将答辩修改落实至论文终稿后提交！`;
+              }
             }
+
+            const neutralMsgObj = {
+              sender: 'neutral',
+              text: neutralReply,
+              timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+              _timeMs: Date.now()
+            };
+            this.state.chatLogs[currentStage].push(neutralMsgObj);
+            this.syncChatLogs();
+            renderChat(this.state);
           }
         },
 
