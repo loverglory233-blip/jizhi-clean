@@ -1031,7 +1031,43 @@
         this.lastTimestamp = Math.max(this.lastTimestamp, remoteData.timestamp);
       }
       let structuralUpdated = false;
-      let chatUpdated = false;
+
+      // ── 全局教务元数据同步 (用户池/班级/任务/通知/范文库) ──
+      // 快照里携带的这些字段在教师端修改后必须实时传播到所有设备
+      if (remoteData.users && Array.isArray(remoteData.users) && remoteData.users.length > 0) {
+        const currentUsers = this.app.authManager.getUsers();
+        const currUser = this.app.authManager.getCurrentUser();
+        const mergedUsers = remoteData.users.map(u => {
+          if (currUser && (currUser.id === u.id || currUser.username === u.username)) {
+            return { ...u, activeSessionId: currUser.activeSessionId };
+          }
+          return u;
+        });
+        // 仅当数据实际发生变化时才写入，避免无意义的 localStorage 抖动
+        const localJson = localStorage.getItem('jizhi_pure_v10_users_db');
+        const remoteJson = JSON.stringify(mergedUsers);
+        if (localJson !== remoteJson) {
+          localStorage.setItem('jizhi_pure_v10_users_db', remoteJson);
+          structuralUpdated = true;
+        }
+      }
+      if (remoteData.classes && Array.isArray(remoteData.classes) && remoteData.classes.length > 0) {
+        const localJson = localStorage.getItem('jizhi_pure_v10_classes_db');
+        const remoteJson = JSON.stringify(remoteData.classes);
+        if (localJson !== remoteJson) {
+          localStorage.setItem('jizhi_pure_v10_classes_db', remoteJson);
+          structuralUpdated = true;
+        }
+      }
+      if (remoteData.tasks && Array.isArray(remoteData.tasks)) {
+        localStorage.setItem('jizhi_pure_v10_tasks_db', JSON.stringify(remoteData.tasks));
+      }
+      if (remoteData.announcements && Array.isArray(remoteData.announcements)) {
+        localStorage.setItem('jizhi_pure_v10_ann_db', JSON.stringify(remoteData.announcements));
+      }
+      if (remoteData.referencePapers && Array.isArray(remoteData.referencePapers)) {
+        localStorage.setItem('jizhi_reference_papers_db', JSON.stringify(remoteData.referencePapers));
+      }
 
       if (remoteData.presence) {
         this.app.state.presence = { ...(this.app.state.presence || {}), ...remoteData.presence };
@@ -1050,9 +1086,10 @@
       if (remoteData.chatLogs) {
         ['stage1', 'stage2', 'stage3'].forEach(stg => {
           const remoteLogs = remoteData.chatLogs[stg] || [];
-          if (remoteLogs.length > 0 || (this.app.state.chatLogs[stg] && this.app.state.chatLogs[stg].length !== remoteLogs.length)) {
+          const localLogs = this.app.state.chatLogs[stg] || [];
+          // 用 JSON 对比而非单纯数量对比，确保消息内容被改变时也能刷新
+          if (JSON.stringify(remoteLogs) !== JSON.stringify(localLogs)) {
             this.app.state.chatLogs[stg] = remoteLogs;
-            chatUpdated = true;
           }
         });
       }
