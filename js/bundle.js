@@ -2753,33 +2753,37 @@
               <button class="word-btn" id="${editorId}-btn-fullscreen" title="全屏沉浸式学术写作模式">🔲 全屏</button>
             </div>
 
-            <!-- 2. 段落与标题样式 -->
-            <div class="word-toolbar-group">
-              <select class="word-select" id="${editorId}-sel-format" title="段落与标题样式">
-                <option value="p">正文 (宋体小四 · 2em缩进)</option>
-                <option value="h1">论文总标题 (H1 · 居中大字)</option>
-                <option value="h2">一级章标题 (H2 · 如 一、背景)</option>
-                <option value="h3">二级节标题 (H3 · 如 (一) 假设)</option>
-                <option value="h4">三级小节标题 (H4 · 如 1. 概念)</option>
-                <option value="blockquote">摘要与引文块 (Blockquote)</option>
+            <!-- 2. 论文大纲与章节层级 (结构化标签) -->
+            <div class="word-toolbar-group" title="设置当前段落的论文大纲层级">
+              <span style="font-size:11px; font-weight:700; color:#64748b; margin-right:2px;">📑 标题层级:</span>
+              <select class="word-select" id="${editorId}-sel-format" title="段落与大纲层级" style="width:140px; font-weight:600; color:#1e40af;">
+                <option value="p">正文段落 (Body)</option>
+                <option value="h1">论文总题目 (H1)</option>
+                <option value="h2">一级章标题 (H2 · 一、背景)</option>
+                <option value="h3">二级节标题 (H3 · (一) 假设)</option>
+                <option value="h4">三级小节 (H4 · 1. 概念)</option>
+                <option value="blockquote">引文与摘要块 (Block)</option>
               </select>
-              <select class="word-select" id="${editorId}-sel-font" title="学术字体">
-                <option value="SimSun">宋体 / Times New Roman (学术标准)</option>
-                <option value="SimHei">黑体 (大标题)</option>
-                <option value="FangSong">仿宋 (报告标准)</option>
-                <option value="KaiTi">楷体 (摘要/引文)</option>
-                <option value="Arial">Arial (无衬线)</option>
+            </div>
+
+            <!-- 3. 字体与字号设置 (纯文字格式) -->
+            <div class="word-toolbar-group" title="设置选中文字的字体与字号">
+              <span style="font-size:11px; font-weight:700; color:#64748b; margin-right:2px;">🔤 字体字号:</span>
+              <select class="word-select" id="${editorId}-sel-font" title="学术字体" style="width:125px;">
+                <option value="SimSun">宋体 (学术标准)</option>
+                <option value="SimHei">黑体 (标题)</option>
+                <option value="FangSong">仿宋 (公文标准)</option>
+                <option value="KaiTi">楷体 (引文)</option>
                 <option value="Times New Roman">Times New Roman</option>
-                <option value="Georgia">Georgia</option>
-                <option value="Courier New">Courier New (数据/代码)</option>
+                <option value="Arial">Arial</option>
               </select>
-              <select class="word-select" id="${editorId}-sel-size" title="字号">
-                <option value="6">一号 (26pt / 论文总标题)</option>
-                <option value="5">小二 (18pt / 一级章标题)</option>
-                <option value="4">四号 (14pt / 二级节标题)</option>
-                <option value="3" selected>小四 (12pt / 正文标准)</option>
-                <option value="2">五号 (10.5pt / 图表说明)</option>
-                <option value="1">小五 (9pt / 脚注注释)</option>
+              <select class="word-select" id="${editorId}-sel-size" title="字号" style="width:105px;">
+                <option value="6">一号 (26pt)</option>
+                <option value="5">小二 (18pt)</option>
+                <option value="4">四号 (14pt)</option>
+                <option value="3" selected>小四 (12pt / 正文)</option>
+                <option value="2">五号 (10.5pt)</option>
+                <option value="1">小五 (9pt)</option>
               </select>
             </div>
 
