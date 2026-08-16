@@ -4019,21 +4019,35 @@
             if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
           }
 
-          // 🤝 责任编辑 Agent: 检测学生对话不积极 (静默 > 45 秒触发督促)
+          // 🤝 各阶段专属 Agent: 仅在所属阶段检测学生对话不积极 (静默 > 50 秒触发温和督促)
           const currentStage = this.state.currentStage;
           const logs = this.state.chatLogs[currentStage] || [];
           const nowMs = Date.now();
-          const lastStudentMsg = logs.slice().reverse().find(m => m.sender !== 'managingEditor' && m.sender !== 'reviewingEditor' && m.sender !== 'auctioneer' && m.sender !== 'neutral');
+          const lastStudentMsg = logs.slice().reverse().find(m => m.sender !== 'managingEditor' && m.sender !== 'reviewingEditor' && m.sender !== 'auctioneer' && m.sender !== 'neutral' && m.sender !== 'proponent' && m.sender !== 'opponent');
           const lastStudentTime = lastStudentMsg ? (lastStudentMsg._timeMs || nowMs) : (this.state.lastStudentChatTimeMs || nowMs);
           const idleSec = Math.floor((nowMs - lastStudentTime) / 1000);
-          const lastManagingMsg = logs.slice().reverse().find(m => m.sender === 'managingEditor');
-          const timeSinceManagingMs = lastManagingMsg ? (nowMs - (lastManagingMsg._timeMs || 0)) : 999999;
 
-          if (idleSec >= 45 && timeSinceManagingMs > 60000 && !this.state.isFinalSubmitted) {
+          let stageAgent = null;
+          let stageAgentText = '';
+          if (currentStage === 'stage1') {
+            stageAgent = 'auctioneer';
+            stageAgentText = `🎪 【拍卖师 互动督促】：检测到本组在【阶段一：学术拍卖会】已连续 ${idleSec} 秒未发言。请组员积极商定选题分工与时间分配！`;
+          } else if (currentStage === 'stage2') {
+            stageAgent = 'managingEditor';
+            stageAgentText = `🤝 【责任编辑 互动督促】：检测到本组在【阶段二：学术编辑部】已连续 ${idleSec} 秒未研讨。请组员保持沟通，按合约分工推进正文写作！`;
+          } else if (currentStage === 'stage3') {
+            stageAgent = 'neutral';
+            stageAgentText = `🟡 【中间委员 互动督促】：检测到本组在【阶段三：答辩擂台】已连续 ${idleSec} 秒未研讨。请全组针对答辩委员会质询达成裁决共识！`;
+          }
+
+          const lastAgentMsg = logs.slice().reverse().find(m => m.sender === stageAgent);
+          const timeSinceAgentMs = lastAgentMsg ? (nowMs - (lastAgentMsg._timeMs || 0)) : 999999;
+
+          if (stageAgent && idleSec >= 50 && timeSinceAgentMs > 75000 && !this.state.isFinalSubmitted) {
             this.state.lastStudentChatTimeMs = nowMs;
             const idleAlertMsg = {
-              sender: 'managingEditor',
-              text: `🤝 【责任编辑 Agent 互动督促】：检测到本组在【${currentStage === 'stage1' ? '阶段一：学术拍卖会' : currentStage === 'stage2' ? '阶段二：学术编辑部' : '阶段三：答辩擂台'}】已连续 ${idleSec} 秒没有互动研讨发言。请组员保持积极沟通，按合约分工推进协作！`,
+              sender: stageAgent,
+              text: stageAgentText,
               timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
               _timeMs: nowMs
             };
@@ -4131,10 +4145,12 @@
                     </div>
                   `).join('')}
                   <div class="at-group-title" style="margin-top:6px;">🤖 AI 学术智能体</div>
-                  <div class="at-item agent" data-mention="@拍卖师 Agent">🎪 @拍卖师 Agent (选题与竞拍指导)</div>
-                  <div class="at-item agent" data-mention="@责任编辑 Agent">🤝 @责任编辑 Agent (分工与过程学伴)</div>
-                  <div class="at-item agent" data-mention="@审稿编辑 Agent">📝 @审稿编辑 Agent (学术结构与规范导师)</div>
-                  <div class="at-item agent" data-mention="@中间委员 Agent">🟡 @中间委员 Agent (答辩裁决引导)</div>
+                  <div class="at-item agent" data-mention="@拍卖师">🎪 @拍卖师 (阶段一 选题指导)</div>
+                  <div class="at-item agent" data-mention="@责任编辑">🤝 @责任编辑 (阶段二 分工协同)</div>
+                  <div class="at-item agent" data-mention="@审稿编辑">📝 @审稿编辑 (阶段二 论文规范)</div>
+                  <div class="at-item agent" data-mention="@中间委员">🟡 @中间委员 (阶段三 答辩裁决)</div>
+                  <div class="at-item agent" data-mention="@正方委员">🟢 @正方委员 (阶段三 答辩肯定)</div>
+                  <div class="at-item agent" data-mention="@反方委员">🔴 @反方委员 (阶段三 答辩质询)</div>
                 </div>
               </div>
               <div class="emoji-bar" id="emoji-bar">
@@ -4510,42 +4526,46 @@
     }
 
     async triggerAgentReplyIfNeeded(userMsg) {
+      const stage = this.state.currentStage;
       const isExplicitMention = userMsg.includes('@');
-      const isMilestoneKeyword = userMsg.includes('分工') || userMsg.includes('确定') || userMsg.includes('结论') || userMsg.includes('方案') || userMsg.includes('意见');
+      const isMilestoneKeyword = userMsg.includes('分工') || userMsg.includes('确定') || userMsg.includes('结论') || userMsg.includes('方案') || userMsg.includes('意见') || userMsg.includes('背景') || userMsg.includes('文献') || userMsg.includes('方法');
       const hasEnoughDiscussion = this.studentMsgCountSinceLastAgent >= 3;
+
       if (!isExplicitMention && !isMilestoneKeyword && !hasEnoughDiscussion) return;
 
-      const stage = this.state.currentStage;
-      let replyAgent = 'reviewingEditor';
+      let replyAgent = null;
       let defaultFallbackText = '';
 
+      // 1. 如果用户显式 @ 某个智能体：任何阶段均可回答该特定智能体
       if (userMsg.includes('@中间委员') || userMsg.includes('@中间委员 Agent')) {
         replyAgent = 'neutral';
-        defaultFallbackText = `🟡 【中间委员裁决引导】：收到关注！请团队针对正反方意见做权衡：对于评价焦虑，可通过强调“过程提示”进行辩护；对于量表维度，建议在第四章补充行为与情感投入维度，提高测量完整性！`;
+        defaultFallbackText = `🟡 【中间委员回复】：收到关注！对于正反两方质询，建议团队权衡取舍，在终稿中强化论证逻辑！`;
       } else if (userMsg.includes('@正方委员') || userMsg.includes('@正方委员 Agent')) {
         replyAgent = 'proponent';
-        defaultFallbackText = `🟢 【正方委员支持发言】：本项研究设计立意新颖！建议团队在方案中进一步突出创新点与应用价值！`;
+        defaultFallbackText = `🟢 【正方委员回复】：建议团队在方案中进一步突出创新点与应用价值！`;
       } else if (userMsg.includes('@反方委员') || userMsg.includes('@反方委员 Agent')) {
         replyAgent = 'opponent';
-        defaultFallbackText = `🔴 【反方委员尖锐质询】：请团队审视研究设计的严谨性，在方法中必须交代抽样代表性与测量工具的信效度检验！`;
+        defaultFallbackText = `🔴 【反方委员回复】：请团队审视研究设计的严谨性，在方法中必须交代抽样代表性与工具信效度！`;
       } else if (userMsg.includes('@审稿编辑') || userMsg.includes('@审稿编辑 Agent')) {
         replyAgent = 'reviewingEditor';
-        defaultFallbackText = `📝 【审稿编辑针对性指导】：收到你的求助问询！关于规范：必须确保“三、文献综述”中提出的学术概念与“四、研究设计与方法”中的测量量表实现 1 对 1 精确匹配！`;
+        defaultFallbackText = `📝 【审稿编辑针对性指导】：收到你的问询！请确保正文各级标题层级分明，理论概念与测量量表精确对应！`;
       } else if (userMsg.includes('@责任编辑') || userMsg.includes('@责任编辑 Agent')) {
         replyAgent = 'managingEditor';
-        defaultFallbackText = `🤝 【责任编辑过程学伴回复】：收到 @ 呼叫！目前小组字数分配与协同节奏良好。如果个别组员遇到撰写卡顿，建议组长在正文大文本框中先列出二级标题子纲。`;
+        defaultFallbackText = `🤝 【责任编辑过程学伴回复】：收到 @ 呼叫！目前小组协同节奏良好，建议组员按合约分工分块推进正文写作。`;
       } else if (userMsg.includes('@拍卖师') || userMsg.includes('@拍卖师 Agent')) {
         replyAgent = 'auctioneer';
-        const currentTopic = this.state.stage1.mergedTitle || '当前选定课题';
-        defaultFallbackText = `🎪 【拍卖师选题顾问回复】：收到 @ 呼叫！针对课题《${currentTopic}》，建议从小组成员提出的提案中提取最具有创新性与可行性的核心观点，协商融合为统一主题并在合约中确认！`;
+        const currentTopic = (this.state.stage1 && this.state.stage1.mergedTitle) ? this.state.stage1.mergedTitle : '当前课题';
+        defaultFallbackText = `🎪 【拍卖师选题顾问回复】：收到 @ 呼叫！建议从小组成员提案中提炼核心创新点，协商融合为统一主题并在合约中确认！`;
       } else {
+        // 2. 如果没有显式 @：严格按阶段触发专属智能体（其他阶段智能体绝对不出来）
         if (stage === 'stage1') {
+          // 🎪 阶段一：只有【拍卖师】出来
           replyAgent = 'auctioneer';
           const s1 = this.state.stage1;
           let didExtract = false;
           let extractedDetails = [];
 
-          // 1. 提取时间分配
+          // 提取时间分配
           const bgMatch = userMsg.match(/背景\s*[:：=为]?\s*(\d+)/i) || userMsg.match(/(\d+)\s*分[钟]?.*背景/i);
           const qMatch = userMsg.match(/问题\s*[:：=为]?\s*(\d+)/i) || userMsg.match(/(\d+)\s*分[钟]?.*问题/i);
           const litMatch = userMsg.match(/文献\s*[:：=为]?\s*(\d+)/i) || userMsg.match(/(\d+)\s*分[钟]?.*文献/i);
@@ -4560,7 +4580,7 @@
           if (refMatch && s1.contract.timeAllocations) { s1.contract.timeAllocations.reflection = parseInt(refMatch[1]); didExtract = true; extractedDetails.push(`反思: ${refMatch[1]}m`); }
           if (bibMatch && s1.contract.timeAllocations) { s1.contract.timeAllocations.references = parseInt(bibMatch[1]); didExtract = true; extractedDetails.push(`文献表: ${bibMatch[1]}m`); }
 
-          // 2. 提取分工
+          // 提取分工
           Object.keys(this.state.members || {}).forEach(mId => {
             const m = this.state.members[mId];
             const mName = m.name;
@@ -4574,7 +4594,7 @@
             }
           });
 
-          // 3. 提取融合论文主题
+          // 提取论文主题
           const topicMatch = userMsg.match(/(?:题目|主题|选题|融合主题|论文题目)\s*(?:定为|选定|为|是|定在)?\s*[《“"]?([^》”"\n]+)[》”"]?/i);
           if (topicMatch && topicMatch[1].trim().length >= 4) {
             s1.mergedTitle = topicMatch[1].trim();
@@ -4590,19 +4610,28 @@
             defaultFallbackText = `🎪 【拍卖师阶段引导】组内讨论正在进行中！请大家在左侧提交各自的选题提案，或在研讨区商定分工与时间（AI 将自动提取为合约），确认后全员签署！`;
           }
         } else if (stage === 'stage2') {
-          replyAgent = 'reviewingEditor';
-          defaultFallbackText = `📝 【审稿编辑高阶引导】关注到组内针对学术大正文的写作研讨。请大家在左侧富文本编辑器中保持规范排版，注意在“四、研究设计”中清晰说明自变量与因变量，必要时可使用上方插件插入学术三线表与模型架构图！`;
+          // 📝 阶段二：只有【责任编辑】或【审稿编辑】出来
+          if (userMsg.includes('分工') || userMsg.includes('进度') || userMsg.includes('字数') || userMsg.includes('卡顿') || userMsg.includes('写不出来')) {
+            replyAgent = 'managingEditor';
+            defaultFallbackText = `🤝 【责任编辑阶段引导】：关注到大家在正文写作中的协同进展。请组员分头撰写对应章节，保持均匀贡献比，遇到瓶颈可发起【编辑会议】！`;
+          } else {
+            replyAgent = 'reviewingEditor';
+            defaultFallbackText = `📝 【审稿编辑阶段引导】：请大家在左侧富文本编辑器中保持学术规范，注意在“四、研究设计”中清晰说明变量与方法，必要时可使用上方插件插入学术三线表！`;
+          }
         } else if (stage === 'stage3') {
+          // 🎓 阶段三：只有【三个答辩委员】出来 (默认中间委员引导)
           replyAgent = 'neutral';
-          defaultFallbackText = `🟡 【中间委员裁决提示】针对答辩委员会提出的学术质询，请小组在左侧卡片中统一裁决，并点击【返回富文本协作大正文】将辩护修正内容补充进终稿！`;
+          defaultFallbackText = `🟡 【中间委员裁决引导】：针对答辩委员会提出的学术质询，请小组在左侧卡片中统一裁决，达成共识后将辩护修正内容补充进终稿！`;
         }
       }
+
+      if (!replyAgent) return;
 
       this.studentMsgCountSinceLastAgent = 0;
       const currentUser = this.authManager.getCurrentUser();
       const currentTopic = this.state.stage1 ? this.state.stage1.mergedTitle : '';
 
-      // 直接静默异步直连 Coze API 获得真实大模型智能体回复（不产生干扰性的思考中废话）
+      // 直接静默异步直连 Coze API 获得真实大模型智能体回复
       let replyText = await callCozeAgentAPI(replyAgent, userMsg, {
         stage: stage,
         topic: currentTopic,
@@ -4616,7 +4645,8 @@
       const agentMsgObj = {
         sender: replyAgent,
         text: replyText,
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        _timeMs: Date.now()
       };
       if (!this.state.chatLogs[stage]) this.state.chatLogs[stage] = [];
       this.state.chatLogs[stage].push(agentMsgObj);
@@ -4877,11 +4907,27 @@
       });
 
       renderChat(this.state);
+
+      // 动态根据当前阶段更新右侧研讨区顶部的【当前阶段常驻智能体药丸】
+      const pillsContainer = document.querySelector('.active-agent-pills');
+      if (pillsContainer) {
+        const curStage = this.state.currentStage;
+        if (curStage === 'stage1') {
+          pillsContainer.innerHTML = `<span class="agent-pill">🎪 拍卖师</span>`;
+        } else if (curStage === 'stage2') {
+          pillsContainer.innerHTML = `<span class="agent-pill">🤝 责任编辑</span><span class="agent-pill">📝 审稿编辑</span>`;
+        } else if (curStage === 'stage3') {
+          pillsContainer.innerHTML = `<span class="agent-pill">🟡 中间委员</span><span class="agent-pill">🟢 正方委员</span><span class="agent-pill">🔴 反方委员</span>`;
+        }
+      }
     }
 
     checkAgentTriggersOnContent(newContent) {
       if (!newContent || this.state.isFinalSubmitted) return;
       const currentStage = this.state.currentStage;
+      // 审稿编辑与责任编辑的正文规范检查仅在【阶段二】生效
+      if (currentStage !== 'stage2') return;
+
       const logs = this.state.chatLogs[currentStage] || [];
       const now = Date.now();
 
