@@ -157,11 +157,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 ':ts2'   => $ts
             ]);
 
-            // 4b. 保存 chatLogs 到 global_meta 快速读取通道
+            // 4b. 保存 chatLogs 到 global_meta 快速读取通道，并入库 chat_messages 表进行学术日志归档
             if (isset($data['chatLogs']) && is_array($data['chatLogs'])) {
                 $stmtSaveChats = $pdo->prepare("INSERT INTO global_meta (meta_key, meta_value) VALUES (:k, :v) ON DUPLICATE KEY UPDATE meta_value = :v2");
                 $chatJson = json_encode($data['chatLogs'], JSON_UNESCAPED_UNICODE);
                 $stmtSaveChats->execute([':k' => 'chats_' . $scopeKey, ':v' => $chatJson, ':v2' => $chatJson]);
+
+                // 行级入库 chat_messages 表（记录时间戳、发送者、阶段与内容）
+                $stmtInsertMsg = $pdo->prepare("INSERT IGNORE INTO chat_messages (scope_key, stage, sender, text, timestamp_str, time_ms) VALUES (:sk, :stg, :snd, :txt, :tstr, :tms)");
+                foreach (['stage1', 'stage2', 'stage3'] as $stg) {
+                    $msgs = isset($data['chatLogs'][$stg]) && is_array($data['chatLogs'][$stg]) ? $data['chatLogs'][$stg] : [];
+                    foreach ($msgs as $msgItem) {
+                        $snd = isset($msgItem['sender']) ? $msgItem['sender'] : 'unknown';
+                        $txt = isset($msgItem['text']) ? $msgItem['text'] : '';
+                        $tstr = isset($msgItem['timestamp']) ? $msgItem['timestamp'] : '';
+                        $tms = isset($msgItem['_timeMs']) ? intval($msgItem['_timeMs']) : (isset($msgItem['timeMs']) ? intval($msgItem['timeMs']) : $ts);
+                        if (!empty($txt)) {
+                            // 检查避免重复插入完全相同的历史记录
+                            $chkStmt = $pdo->prepare("SELECT id FROM chat_messages WHERE scope_key = :sk AND stage = :stg AND sender = :snd AND time_ms = :tms LIMIT 1");
+                            $chkStmt->execute([':sk' => $scopeKey, ':stg' => $stg, ':snd' => $snd, ':tms' => $tms]);
+                            if (!$chkStmt->fetch()) {
+                                $stmtInsertMsg->execute([
+                                    ':sk' => $scopeKey,
+                                    ':stg' => $stg,
+                                    ':snd' => $snd,
+                                    ':txt' => $txt,
+                                    ':tstr' => $tstr,
+                                    ':tms' => $tms
+                                ]);
+                            }
+                        }
+                    }
+                }
             }
 
             // 4c. 同步保存全局教务元数据 (users/classes/tasks/announcements/referencePapers)
