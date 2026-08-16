@@ -232,12 +232,57 @@
   const DefaultAnnouncements = [];
 
   class AuthManager {
-    constructor() { this.initDatabase(); }
+    constructor() {
+      this.initDatabase();
+      this.pullGlobalMeta();
+      // 定期拉取全局元数据，保证任何未登录页面或教师端随时获知最新创建的学生
+      setInterval(() => this.pullGlobalMeta(), 2000);
+    }
     initDatabase() {
       if (!localStorage.getItem(STORAGE_KEY_USERS_DB)) localStorage.setItem(STORAGE_KEY_USERS_DB, JSON.stringify(DefaultUsers));
       if (!localStorage.getItem(STORAGE_KEY_CLASSES)) localStorage.setItem(STORAGE_KEY_CLASSES, JSON.stringify(DefaultClasses));
       if (!localStorage.getItem(STORAGE_KEY_TASKS)) localStorage.setItem(STORAGE_KEY_TASKS, JSON.stringify(DefaultTasks));
       if (!localStorage.getItem(STORAGE_KEY_ANNOUNCEMENTS)) localStorage.setItem(STORAGE_KEY_ANNOUNCEMENTS, JSON.stringify(DefaultAnnouncements));
+    }
+    async pullGlobalMeta() {
+      try {
+        const res = await fetch(`sync.php?action=get_global_meta&nocache=${Date.now()}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data && data.users && Array.isArray(data.users) && data.users.length > 0) {
+            localStorage.setItem(STORAGE_KEY_USERS_DB, JSON.stringify(data.users));
+          }
+          if (data && data.classes && Array.isArray(data.classes) && data.classes.length > 0) {
+            localStorage.setItem(STORAGE_KEY_CLASSES, JSON.stringify(data.classes));
+          }
+          if (data && data.tasks && Array.isArray(data.tasks)) {
+            localStorage.setItem(STORAGE_KEY_TASKS, JSON.stringify(data.tasks));
+          }
+          if (data && data.announcements && Array.isArray(data.announcements)) {
+            localStorage.setItem(STORAGE_KEY_ANNOUNCEMENTS, JSON.stringify(data.announcements));
+          }
+          if (data && data.referencePapers && Array.isArray(data.referencePapers)) {
+            localStorage.setItem('jizhi_reference_papers_db', JSON.stringify(data.referencePapers));
+          }
+        }
+      } catch (e) {}
+    }
+    pushGlobalMeta() {
+      const payload = {
+        users: this.getUsers(),
+        classes: this.getClasses(),
+        tasks: this.getTasks(),
+        announcements: this.getAnnouncements(),
+        referencePapers: this.getReferencePapers()
+      };
+      try {
+        fetch('sync.php?action=save_global_meta', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        }).catch(() => {});
+      } catch (e) {}
+      if (window.app && window.app.cloudSyncEngine) window.app.cloudSyncEngine.pushSnapshot();
     }
     getUsers() { return JSON.parse(localStorage.getItem(STORAGE_KEY_USERS_DB)) || DefaultUsers; }
     getClasses() { return JSON.parse(localStorage.getItem(STORAGE_KEY_CLASSES)) || DefaultClasses; }
@@ -370,7 +415,7 @@
         localStorage.setItem(STORAGE_KEY_CLASSES, JSON.stringify(classes));
       }
 
-      if (window.app && window.app.cloudSyncEngine) window.app.cloudSyncEngine.pushSnapshot();
+      this.pushGlobalMeta();
       return targetUser;
     }
 
@@ -397,7 +442,7 @@
         };
         cls.groups.push(newGroup);
         localStorage.setItem(STORAGE_KEY_CLASSES, JSON.stringify(classes));
-        if (window.app && window.app.cloudSyncEngine) window.app.cloudSyncEngine.pushSnapshot();
+        this.pushGlobalMeta();
         return newGroup;
       }
     }
@@ -447,7 +492,7 @@
       });
       localStorage.setItem(STORAGE_KEY_USERS_DB, JSON.stringify(users));
 
-      if (window.app && window.app.cloudSyncEngine) window.app.cloudSyncEngine.pushSnapshot();
+      this.pushGlobalMeta();
       return group;
     }
 
@@ -496,7 +541,7 @@
 
       localStorage.setItem(STORAGE_KEY_USERS_DB, JSON.stringify(users));
       localStorage.setItem(STORAGE_KEY_CLASSES, JSON.stringify(classes));
-      if (window.app && window.app.cloudSyncEngine) window.app.cloudSyncEngine.pushSnapshot();
+      this.pushGlobalMeta();
     }
 
     deleteGroup(classId, groupId) {
@@ -511,7 +556,7 @@
         if (u.groupId === groupId) u.groupId = null;
       });
       localStorage.setItem(STORAGE_KEY_USERS_DB, JSON.stringify(users));
-      if (window.app && window.app.cloudSyncEngine) window.app.cloudSyncEngine.pushSnapshot();
+      this.pushGlobalMeta();
     }
 
     getGroupMembersForWorkspace(groupId = 'group_1') {
@@ -574,7 +619,7 @@
       };
       tasks.unshift(newTask);
       localStorage.setItem(STORAGE_KEY_TASKS, JSON.stringify(tasks));
-      if (window.app && window.app.cloudSyncEngine) window.app.cloudSyncEngine.pushSnapshot();
+      this.pushGlobalMeta();
       return newTask;
     }
 
@@ -591,7 +636,7 @@
       };
       announcements.unshift(newAnn);
       localStorage.setItem(STORAGE_KEY_ANNOUNCEMENTS, JSON.stringify(announcements));
-      if (window.app && window.app.cloudSyncEngine) window.app.cloudSyncEngine.pushSnapshot();
+      this.pushGlobalMeta();
       return newAnn;
     }
 
@@ -602,7 +647,7 @@
         if (!ann.readStatus) ann.readStatus = {};
         ann.readStatus[groupId] = true;
         localStorage.setItem(STORAGE_KEY_ANNOUNCEMENTS, JSON.stringify(announcements));
-        if (window.app && window.app.cloudSyncEngine) window.app.cloudSyncEngine.pushSnapshot();
+        this.pushGlobalMeta();
       }
     }
 
@@ -630,7 +675,7 @@
       };
       papers.unshift(newPaper);
       localStorage.setItem('jizhi_reference_papers_db', JSON.stringify(papers));
-      if (window.app && window.app.cloudSyncEngine) window.app.cloudSyncEngine.pushSnapshot();
+      this.pushGlobalMeta();
       return newPaper;
     }
 

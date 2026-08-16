@@ -25,7 +25,32 @@ $scopeKey = $taskId . '_' . $groupId;
 $localFile = __DIR__ . '/db_' . $scopeKey . '.json';
 $tmpFile = sys_get_temp_dir() . '/jizhi_db_' . $scopeKey . '.json';
 
-$action = isset($_GET['action']) ? $_GET['action'] : '';
+$globalDbFile = __DIR__ . '/global_db.json';
+$globalDbTmp = sys_get_temp_dir() . '/jizhi_global_db.json';
+
+// 全局教务元数据 (用户池/班级/任务/通知/范文库) 独立接口
+if ($action === 'get_global_meta') {
+    if (file_exists($globalDbFile) && filesize($globalDbFile) > 0) {
+        echo file_get_contents($globalDbFile);
+    } elseif (file_exists($globalDbTmp) && filesize($globalDbTmp) > 0) {
+        echo file_get_contents($globalDbTmp);
+    } else {
+        echo json_encode(['users' => [], 'classes' => [], 'tasks' => [], 'announcements' => [], 'referencePapers' => []]);
+    }
+    exit;
+}
+
+if ($action === 'save_global_meta' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    $rawInput = file_get_contents('php://input');
+    if (!empty($rawInput)) {
+        @file_put_contents($globalDbFile, $rawInput);
+        @chmod($globalDbFile, 0666);
+        @file_put_contents($globalDbTmp, $rawInput);
+        @chmod($globalDbTmp, 0666);
+    }
+    echo json_encode(['success' => true]);
+    exit;
+}
 
 // 1. 账号唯一在线会话锁 (单账号单设备，后登录顶掉前登录)
 $sessionFile = __DIR__ . '/sessions.json';
