@@ -3784,10 +3784,16 @@
         </div>
 
         ${actionPlan && actionPlan.isGenerated ? `
-          <div style="background:#ecfdf5; border:1px solid #a7f3d0; border-radius:8px; padding:10px 14px; margin-bottom:10px;">
-            <div style="font-size:13px; font-weight:700; color:#059669; margin-bottom:4px;">📋 编辑会议产出：【半程编辑修正清单】(已锁定归档)</div>
-            <div style="font-size:12.5px; color:#334155; display:flex; flex-direction:column; gap:2px;">
-              ${actionPlan.items.map(item => `<div>• ${item}</div>`).join('')}
+          <div id="stage2-action-plan-card" style="background:#ecfdf5; border:1px solid #a7f3d0; border-radius:8px; padding:8px 14px; margin-bottom:8px; transition:all 0.2s ease;">
+            <div style="display:flex; justify-content:space-between; align-items:center; cursor:pointer;" id="btn-toggle-action-plan">
+              <div style="font-size:12.5px; font-weight:800; color:#059669; display:flex; align-items:center; gap:6px;">
+                <span>📋 【审稿编辑·半程修正清单】(3项修改要求)</span>
+                <span style="font-size:11px; background:#d1fae5; color:#065f46; padding:1px 6px; border-radius:10px;">已锁定</span>
+              </div>
+              <span id="icon-toggle-action-plan" style="font-size:11.5px; color:#059669; font-weight:700;">▲ 收起</span>
+            </div>
+            <div id="body-action-plan-items" style="font-size:12px; color:#334155; display:flex; flex-direction:column; gap:3px; margin-top:6px;">
+              ${actionPlan.items.map(item => `<div style="line-height:1.5;">• ${item}</div>`).join('')}
             </div>
           </div>
         ` : ''}
@@ -3837,6 +3843,19 @@
       if (handlers.onPresenceChange) handlers.onPresenceChange(nodeIdx, sec);
     });
     renderRemoteCursors('stage2-word-editor', state);
+
+    const btnTogglePlan = canvas.querySelector('#btn-toggle-action-plan');
+    if (btnTogglePlan) {
+      btnTogglePlan.addEventListener('click', () => {
+        const bodyItems = canvas.querySelector('#body-action-plan-items');
+        const iconToggle = canvas.querySelector('#icon-toggle-action-plan');
+        if (bodyItems) {
+          const isHidden = bodyItems.style.display === 'none';
+          bodyItems.style.display = isHidden ? 'flex' : 'none';
+          if (iconToggle) iconToggle.innerText = isHidden ? '▲ 收起' : '▼ 展开';
+        }
+      });
+    }
 
     canvas.querySelector('#btn-show-case').addEventListener('click', () => handlers.onOpenCaseModal());
     if (!isStage2MeetingLocked) {
@@ -5541,49 +5560,66 @@
         const userText = modal.querySelector('#meeting-input-text').value;
         closeModal();
 
-        // 1. 责任编辑先播报会议打分汇总
-        const meetingMsg = {
-          sender: 'managingEditor',
-          text: `📢 【编辑会议① 汇总】：全员完成 3 维自评（学术逻辑 ${logicRating}★，分工平衡 ${balanceRating}★，信心状态 ${confidenceRating}★；构想一致性：${themeConsistency}；时间预算：${timeConsistency}）。\n• 核心难点：① 学术: ${bAcademic} | ② 协作: ${bCollab} | ③ 节奏: ${bRhythm}。\n审稿编辑正在结合自评生成针对性指导建议...`,
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          _timeMs: Date.now()
-        };
-        this.state.chatLogs.stage2.push(meetingMsg);
-        this.syncChatLogs();
-        renderChat(this.state);
-
-        // 2. 异步调用扣子审稿编辑 API 给出深度学术建议
         const topic = (this.state.stage1 && this.state.stage1.mergedTitle) ? this.state.stage1.mergedTitle : '本组课题';
-        const reviewPrompt = `小组完成了半程编辑会议自评（学术难点：“${bAcademic}”，协作难点：“${bCollab}”，节奏难点：“${bRhythm}”，逻辑 ${logicRating}星，分工 ${balanceRating}星，信心 ${confidenceRating}星，组内自评：“${userText}”）。请针对其论文《${topic}》及当前初稿，给出 120~180 字的针对性修改建议与启发指导，引导小组对照即将生成的修正清单开展重构。`;
 
-        let reviewFeedbackText = await callCozeAgentAPI('reviewingEditor', reviewPrompt, { stage: 'stage2', topic, bottleneck: bAcademic });
-        if (!reviewFeedbackText || reviewFeedbackText.trim().length === 0) {
-          reviewFeedbackText = `📝 【审稿编辑·半程会议学术反馈】：认真研读了大家的初稿与会议自评！正文整体逻辑连贯。针对大家提出的 3 大难点，已在左侧正式生成《半程编辑修正清单》，建议全组成员对照清单重点补齐测量量表与文献支撑，稳步推进！`;
-        }
-
-        // 3. 审稿编辑在聊天框发言
-        const feedbackMsg = {
-          sender: 'reviewingEditor',
-          text: reviewFeedbackText,
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          _timeMs: Date.now()
-        };
-        this.state.chatLogs.stage2.push(feedbackMsg);
-
-        // 4. 审稿编辑给出建议后，平台正式点亮并生成左侧【半程编辑修正清单】
+        // 1. 立即点亮并生成左侧【半程编辑修正清单】(全要素 4 维严密映射)
         this.state.stage2.actionPlan = {
           isGenerated: true,
           items: [
-            `修订项① (学术与方法突破): 针对【${bAcademic}】，补齐三、假设与四、设计中的变量操作化与量表支撑。`,
-            `修订项② (协同与衔接重构): 针对【${bCollab}】，统一各章节论述用词风格与逻辑过渡。`,
-            `修订项③ (节奏与心态调节): 针对【${bRhythm}】，保持后半程专注投入，优先完成五、不足与反思。`
+            `【学术构想与论证修正】(立意状态: ${themeConsistency} · 逻辑 ${logicRating}★): 针对瓶颈【${bAcademic}】与组内提问("${userText}")，在三、假设与四、设计中补齐操作化测量量表与理论依据。`,
+            `【团队协同与分工平衡】(分工平衡度: ${balanceRating}★): 针对瓶颈【${bCollab}】，统一各章节论述用词风格与逻辑过渡，落实 Equal Participation 均等参与。`,
+            `【时间节奏与反思深化】(时间预算: ${timeConsistency} · 信心 ${confidenceRating}★): 针对瓶颈【${bRhythm}】，把控后半程节奏，优先完成五、研究设计的不足与反思。`
           ]
         };
-
         this.syncStage2();
+        this.renderStudentWorkspace();
+
+        // 2. 异步调用扣子【责任编辑】Coze API: 总结自查、抛出分歧反思问题并发布清单
+        const managingPrompt = `小组成员已完成半程编辑会议自查：
+• 构想立意一致性: ${themeConsistency}
+• 章节耗时一致性: ${timeConsistency}
+• 3维打星自评: 逻辑严谨度 ${logicRating}★, 分工平衡度 ${balanceRating}★, 团队信心 ${confidenceRating}★
+• 3维核心瓶颈: ① 学术难点: ${bAcademic} | ② 协作难点: ${bCollab} | ③ 进度难点: ${bRhythm}
+• 组内说明与提问: "${userText}"
+平台已在左侧生成对应的【半程编辑修正清单】。请作为责任编辑发表 130~160 字的发言：简要告知清单要点，若存在立意发散或时间偏紧等分歧，主动抛出反思思考题号召组内先在讨论区交流对齐，并预告审稿编辑随后将进行正文内容审查！`;
+
+        let managingText = await callCozeAgentAPI('managingEditor', managingPrompt, { stage: 'stage2', topic, bottleneck: bAcademic });
+        if (!managingText || managingText.trim().length === 0) {
+          managingText = `🤝 【责任编辑·自查研判与分歧引导】：全员自查打卡完毕！平台已根据大家的自查数据在左侧正式生成了【半程编辑修正清单】。自查显示：立意状态为[${themeConsistency}]，协作与进度难点聚焦在[${bCollab}]与[${bRhythm}]。请全组在讨论区先交流一下如何克服上述难点并对齐初衷共识，稍后审稿编辑将对正文初稿进行学术内容审查！`;
+        }
+
+        const managingMsg = {
+          sender: 'managingEditor',
+          text: managingText,
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          _timeMs: Date.now()
+        };
+        this.state.chatLogs.stage2.push(managingMsg);
         this.syncChatLogs();
         renderChat(this.state);
-        this.renderStudentWorkspace();
+
+        // 3. 智能同伴研讨感知窗口 ➔ 优雅触发【审稿编辑】正文深度内容审查 (延迟 6 秒自然过渡)
+        setTimeout(async () => {
+          const contentSnippet = (this.state.stage2 && this.state.stage2.unifiedContent) ? this.state.stage2.unifiedContent.replace(/<[^>]*>/g, '').slice(0, 500) : '论文初稿方案';
+          const reviewingPrompt = `小组已由责任编辑引导完成了自查复盘与清单生成（学术瓶颈：“${bAcademic}”，开放说明：“${userText}”）。请针对其论文《${topic}》及当前真实初稿切片：
+${contentSnippet}
+请作为国家级核心期刊审稿编辑发表 140~170 字的学术内容审查：肯定已有正文亮点，指出变量操作化或量表工具等 1 处薄弱点，给出具体的学术修改建议，引导全组对照左侧【半程编辑修正清单】推进！`;
+
+          let reviewingText = await callCozeAgentAPI('reviewingEditor', reviewingPrompt, { stage: 'stage2', topic, bottleneck: bAcademic });
+          if (!reviewingText || reviewingText.trim().length === 0) {
+            reviewingText = `📝 【审稿编辑·初稿学术内容审查】：研读了大家目前撰写的正文初稿！引言与文献综述框架清晰扎实。针对大家关心的‘假设与量表衔接’以及学术难点【${bAcademic}】，在‘三、假设’与‘四、设计’中变量操作化略显单薄，建议探讨选用经典的 5 点李克特量表来测量核心变量。请全组对照左侧已生成的【半程编辑修正清单】，分工加速完善！`;
+          }
+
+          const reviewingMsg = {
+            sender: 'reviewingEditor',
+            text: reviewingText,
+            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            _timeMs: Date.now()
+          };
+          this.state.chatLogs.stage2.push(reviewingMsg);
+          this.syncChatLogs();
+          renderChat(this.state);
+        }, 6000);
       });
     }
 
