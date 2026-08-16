@@ -833,8 +833,7 @@
 
       const sseHost = window.location.hostname || '47.99.110.230';
       this.syncEndpoints = [
-        `sync.php?taskId=${taskId}&groupId=${groupId}`,
-        `http://${sseHost}:8088/api/snapshot?taskId=${taskId}&groupId=${groupId}`
+        `sync.php?taskId=${taskId}&groupId=${groupId}`
       ];
     }
 

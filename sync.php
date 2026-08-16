@@ -127,6 +127,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $ts = isset($data['timestamp']) ? intval($data['timestamp']) : round(microtime(true) * 1000);
         
         if ($pdo) {
+            // 4a. 保存小组协作快照 (stage1/2/3, presence, members, chatLogs)
             $stmt = $pdo->prepare("INSERT INTO group_states 
                 (scope_key, task_id, group_id, current_stage, stage1_data, stage2_data, stage3_data, presence_data, members_data, is_final_submitted, last_timestamp)
                 VALUES (:sk, :tid, :gid, :cstg, :s1, :s2, :s3, :pr, :mb, :fin, :ts)
@@ -135,52 +136,76 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 presence_data = :pr2, members_data = :mb2, is_final_submitted = :fin2, last_timestamp = :ts2");
             
             $stmt->execute([
-                ':sk' => $scopeKey,
-                ':tid' => $taskId,
-                ':gid' => $groupId,
-                ':cstg' => isset($data['currentStage']) ? $data['currentStage'] : 'stage1',
-                ':s1' => isset($data['stage1']) ? json_encode($data['stage1']) : '',
-                ':s2' => isset($data['stage2']) ? json_encode($data['stage2']) : '',
-                ':s3' => isset($data['stage3']) ? json_encode($data['stage3']) : '',
-                ':pr' => isset($data['presence']) ? json_encode($data['presence']) : '',
-                ':mb' => isset($data['members']) ? json_encode($data['members']) : '',
-                ':fin' => !empty($data['isFinalSubmitted']) ? 1 : 0,
-                ':ts' => $ts,
+                ':sk'    => $scopeKey,
+                ':tid'   => $taskId,
+                ':gid'   => $groupId,
+                ':cstg'  => isset($data['currentStage']) ? $data['currentStage'] : 'stage1',
+                ':s1'    => isset($data['stage1']) ? json_encode($data['stage1'], JSON_UNESCAPED_UNICODE) : '',
+                ':s2'    => isset($data['stage2']) ? json_encode($data['stage2'], JSON_UNESCAPED_UNICODE) : '',
+                ':s3'    => isset($data['stage3']) ? json_encode($data['stage3'], JSON_UNESCAPED_UNICODE) : '',
+                ':pr'    => isset($data['presence']) ? json_encode($data['presence'], JSON_UNESCAPED_UNICODE) : '',
+                ':mb'    => isset($data['members']) ? json_encode($data['members'], JSON_UNESCAPED_UNICODE) : '',
+                ':fin'   => !empty($data['isFinalSubmitted']) ? 1 : 0,
+                ':ts'    => $ts,
                 ':cstg2' => isset($data['currentStage']) ? $data['currentStage'] : 'stage1',
-                ':s12' => isset($data['stage1']) ? json_encode($data['stage1']) : '',
-                ':s22' => isset($data['stage2']) ? json_encode($data['stage2']) : '',
-                ':s32' => isset($data['stage3']) ? json_encode($data['stage3']) : '',
-                ':pr2' => isset($data['presence']) ? json_encode($data['presence']) : '',
-                ':mb2' => isset($data['members']) ? json_encode($data['members']) : '',
-                ':fin2' => !empty($data['isFinalSubmitted']) ? 1 : 0,
-                ':ts2' => $ts
+                ':s12'   => isset($data['stage1']) ? json_encode($data['stage1'], JSON_UNESCAPED_UNICODE) : '',
+                ':s22'   => isset($data['stage2']) ? json_encode($data['stage2'], JSON_UNESCAPED_UNICODE) : '',
+                ':s32'   => isset($data['stage3']) ? json_encode($data['stage3'], JSON_UNESCAPED_UNICODE) : '',
+                ':pr2'   => isset($data['presence']) ? json_encode($data['presence'], JSON_UNESCAPED_UNICODE) : '',
+                ':mb2'   => isset($data['members']) ? json_encode($data['members'], JSON_UNESCAPED_UNICODE) : '',
+                ':fin2'  => !empty($data['isFinalSubmitted']) ? 1 : 0,
+                ':ts2'   => $ts
             ]);
 
-            // 保存 chatLogs (研讨区行级记录)
+            // 4b. 保存 chatLogs 到 global_meta 快速读取通道
             if (isset($data['chatLogs']) && is_array($data['chatLogs'])) {
-                $stmtInsertMsg = $pdo->prepare("INSERT INTO chat_messages (scope_key, stage, sender, text, timestamp_str, time_ms) VALUES (:sk, :stg, :snd, :txt, :tstr, :tms)");
-                foreach (['stage1', 'stage2', 'stage3'] as $stg) {
-                    $msgs = isset($data['chatLogs'][$stg]) ? $data['chatLogs'][$stg] : [];
-                    if (!empty($msgs)) {
-                        // 仅记录最新一条或全部覆盖
-                        // 为保证性能，此处同时更新 global_meta 做快速拉取
-                    }
-                }
                 $stmtSaveChats = $pdo->prepare("INSERT INTO global_meta (meta_key, meta_value) VALUES (:k, :v) ON DUPLICATE KEY UPDATE meta_value = :v2");
-                $stmtSaveChats->execute([':k' => 'chats_' . $scopeKey, ':v' => json_encode($data['chatLogs']), ':v2' => json_encode($data['chatLogs'])]);
+                $chatJson = json_encode($data['chatLogs'], JSON_UNESCAPED_UNICODE);
+                $stmtSaveChats->execute([':k' => 'chats_' . $scopeKey, ':v' => $chatJson, ':v2' => $chatJson]);
+            }
+
+            // 4c. 同步保存全局教务元数据 (users/classes/tasks/announcements/referencePapers)
+            // pushSnapshot 每次都携带这些字段，服务端必须持久化，GET 时才能带给其他设备
+            $hasGlobalMeta = !empty($data['users']) || !empty($data['classes']) || !empty($data['tasks']);
+            if ($hasGlobalMeta) {
+                // 先读取已有的 main_meta，做字段级合并（避免一台设备覆盖另一台的未发送字段）
+                $stmtReadMeta = $pdo->prepare("SELECT meta_value FROM global_meta WHERE meta_key = 'main_meta'");
+                $stmtReadMeta->execute();
+                $existingMetaRow = $stmtReadMeta->fetch();
+                $existingMeta = ($existingMetaRow && !empty($existingMetaRow['meta_value'])) 
+                    ? (json_decode($existingMetaRow['meta_value'], true) ?: []) 
+                    : [];
+
+                // 合并：只在数组非空时覆盖，避免空数组把有效数据清空
+                if (!empty($data['users']))           $existingMeta['users']           = $data['users'];
+                if (!empty($data['classes']))         $existingMeta['classes']         = $data['classes'];
+                if (isset($data['tasks']))            $existingMeta['tasks']           = $data['tasks'];
+                if (isset($data['announcements']))    $existingMeta['announcements']   = $data['announcements'];
+                if (isset($data['referencePapers']))  $existingMeta['referencePapers'] = $data['referencePapers'];
+
+                $mergedJson = json_encode($existingMeta, JSON_UNESCAPED_UNICODE);
+                $stmtSaveMeta = $pdo->prepare("INSERT INTO global_meta (meta_key, meta_value) VALUES ('main_meta', :v) ON DUPLICATE KEY UPDATE meta_value = :v2");
+                $stmtSaveMeta->execute([':v' => $mergedJson, ':v2' => $mergedJson]);
+
+                // 更新变更信号时间戳，让 400ms 轮询立刻感知到全局数据已变
+                $nowMs = round(microtime(true) * 1000);
+                $stmtSignal = $pdo->prepare("INSERT INTO global_meta (meta_key, meta_value) VALUES ('meta_updated_at', :v) ON DUPLICATE KEY UPDATE meta_value = :v2");
+                $stmtSignal->execute([':v' => $nowMs, ':v2' => $nowMs]);
+
+                // 文件双写备份
+                @file_put_contents(__DIR__ . '/global_db.json', $mergedJson);
             }
         }
 
         // 本地文件双写备份，确保极端情况下 100% 容灾
         @file_put_contents(__DIR__ . '/db_' . $scopeKey . '.json', $rawInput);
 
-        $resp = json_encode([
-            'success' => true,
+        echo json_encode([
+            'success'   => true,
             'timestamp' => $ts,
-            'groupId' => $groupId,
-            'storage' => $pdo ? 'mysql' : 'file'
+            'groupId'   => $groupId,
+            'storage'   => $pdo ? 'mysql' : 'file'
         ]);
-        echo $resp;
         exit;
     }
     echo json_encode(['success' => false, 'message' => 'Empty payload']);
@@ -199,18 +224,30 @@ if ($pdo) {
         $chatRow = $stmtChats->fetch();
         $chats = ($chatRow && !empty($chatRow['meta_value'])) ? json_decode($chatRow['meta_value'], true) : ['stage1' => [], 'stage2' => [], 'stage3' => []];
 
+        // 同时拉取全局教务元数据，确保所有设备能拿到最新用户池/班级/任务/通知/范文库
+        $stmtMeta = $pdo->prepare("SELECT meta_value FROM global_meta WHERE meta_key = 'main_meta'");
+        $stmtMeta->execute();
+        $metaRow = $stmtMeta->fetch();
+        $globalMeta = ($metaRow && !empty($metaRow['meta_value'])) ? json_decode($metaRow['meta_value'], true) : [];
+
         $respData = [
-            'timestamp' => intval($row['last_timestamp']),
-            'groupId' => $row['group_id'],
-            'taskId' => $row['task_id'],
-            'currentStage' => $row['current_stage'],
-            'stage1' => json_decode($row['stage1_data'], true) ?: [],
-            'stage2' => json_decode($row['stage2_data'], true) ?: [],
-            'stage3' => json_decode($row['stage3_data'], true) ?: [],
-            'presence' => json_decode($row['presence_data'], true) ?: [],
-            'members' => json_decode($row['members_data'], true) ?: [],
+            'timestamp'        => intval($row['last_timestamp']),
+            'groupId'          => $row['group_id'],
+            'taskId'           => $row['task_id'],
+            'currentStage'     => $row['current_stage'],
+            'stage1'           => json_decode($row['stage1_data'], true) ?: [],
+            'stage2'           => json_decode($row['stage2_data'], true) ?: [],
+            'stage3'           => json_decode($row['stage3_data'], true) ?: [],
+            'presence'         => json_decode($row['presence_data'], true) ?: [],
+            'members'          => json_decode($row['members_data'], true) ?: [],
             'isFinalSubmitted' => (bool)$row['is_final_submitted'],
-            'chatLogs' => $chats
+            'chatLogs'         => $chats,
+            // 全局教务字段 - 每次 GET 都带回，让前端 handleRemoteSync 能同步用户池和班级
+            'users'            => isset($globalMeta['users'])            ? $globalMeta['users']            : [],
+            'classes'          => isset($globalMeta['classes'])          ? $globalMeta['classes']          : [],
+            'tasks'            => isset($globalMeta['tasks'])            ? $globalMeta['tasks']            : [],
+            'announcements'    => isset($globalMeta['announcements'])    ? $globalMeta['announcements']    : [],
+            'referencePapers'  => isset($globalMeta['referencePapers']) ? $globalMeta['referencePapers'] : []
         ];
         echo json_encode($respData);
         exit;
