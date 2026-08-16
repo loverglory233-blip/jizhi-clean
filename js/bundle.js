@@ -1129,12 +1129,12 @@
         const mergedVotes = { ...(localS1.votes || {}), ...(remoteS1.votes || {}) };
         const mergedHasVoted = { ...(localS1.hasVoted || {}), ...(remoteS1.hasVoted || {}) };
 
-        // 合约状态合并（优先保留已签署或已有内容）
+        // 合约状态合并（以服务端最新填入为准，并保留已确认签名）
         const mergedContract = {
           ...(remoteS1.contract || {}),
           confirmedMembers: { ...(localS1.contract?.confirmedMembers || {}), ...(remoteS1.contract?.confirmedMembers || {}) },
-          taskAssignments: { ...(remoteS1.contract?.taskAssignments || {}), ...(localS1.contract?.taskAssignments || {}) },
-          timeAllocations: { ...(remoteS1.contract?.timeAllocations || {}), ...(localS1.contract?.timeAllocations || {}) }
+          taskAssignments: { ...(localS1.contract?.taskAssignments || {}), ...(remoteS1.contract?.taskAssignments || {}) },
+          timeAllocations: { ...(localS1.contract?.timeAllocations || {}), ...(remoteS1.contract?.timeAllocations || {}) }
         };
 
         const newS1 = {
@@ -1160,8 +1160,11 @@
           if (cleanRemoteContent !== this.app.state.stage2.unifiedContent) {
             this.app.state.stage2.unifiedContent = cleanRemoteContent;
             const editor = document.getElementById('stage2-word-editor') || document.getElementById('stage3-word-editor');
-            if (editor && document.activeElement !== editor) {
-              editor.innerHTML = cleanRemoteContent || '';
+            if (editor) {
+              const isCurrentlyEditing = editor === document.activeElement || editor.contains(document.activeElement);
+              if (!isCurrentlyEditing) {
+                editor.innerHTML = cleanRemoteContent || '';
+              }
             }
             this.app.updateContributionUi();
             this.app.renderPresenceCursors();
