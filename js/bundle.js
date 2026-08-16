@@ -3465,10 +3465,10 @@
     pillsContainer.innerHTML = membersList.map(m => {
       const p = presence[m.studentCode] || presence[m.id];
       const isSelf = m.studentCode === currentUserCode || m.id === currentUserCode;
-      // 只有在 25 秒内有心跳活跃的才视为在线
-      const isOnline = isSelf || (p && (now - p.updatedAt < 25000));
-      // 只有在 10 秒内且明确正在输入段落的才显示 (在写: ...)
-      const isTyping = !isSelf && p && p.activeSection && p.activeSection !== '在线研讨' && (now - p.updatedAt < 10000);
+      // 只有在 15 秒内有心跳活跃的才视为在线（超过 15 秒立刻显示离线）
+      const isOnline = isSelf || (p && (now - (p.updatedAt || 0) < 15000));
+      // 只有在 4 秒内明确在打字的才显示 (在写: ...)，超过 4 秒自动切回 (在线)
+      const isTyping = !isSelf && isOnline && p && p.activeSection && p.activeSection !== '在线研讨' && (now - (p.updatedAt || 0) < 4000);
       const sectionText = isSelf ? ' (我)' : (isTyping ? ` (在写: ${p.activeSection})` : (isOnline ? ' (在线)' : ' (离线)'));
       const color = m.color || '#2563eb';
 
@@ -4297,6 +4297,26 @@
       if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
     }
 
+    renderPresenceCursors() {
+      const stage = this.state.currentStage || 'stage1';
+      if (stage === 'stage1') renderPresencePills('stage1-canvas', this.state);
+      else if (stage === 'stage2') renderRemoteCursors('stage2-word-editor', this.state);
+      else if (stage === 'stage3') renderRemoteCursors('stage3-word-editor', this.state);
+    }
+
+    updateContributionUi() {
+      const editor = document.getElementById('stage2-word-editor');
+      if (editor) {
+        // 更新字数与协同状态
+        const countEl = document.getElementById('stage2-word-count-badge');
+        if (countEl) {
+          const plain = editor.innerText.replace(/\s+/g, '');
+          countEl.innerText = `${plain.length} 字`;
+        }
+      }
+      this.renderPresenceCursors();
+    }
+
     syncStageChange(stage) {
       const user = this.authManager.getCurrentUser();
       const groupId = (user && user.groupId) ? user.groupId : (this.state.activeMonitorGroupId || 'group_1');
@@ -4767,13 +4787,17 @@
 
     handleLogout() { 
       const user = this.authManager.getCurrentUser();
-      if (user && user.studentCode) {
-        if (this.state.presence && this.state.presence[user.studentCode]) {
-          delete this.state.presence[user.studentCode];
+      if (user) {
+        const uCode = user.studentCode || user.id || user.username;
+        if (this.state.presence) {
+          delete this.state.presence[uCode];
+          if (user.id) delete this.state.presence[user.id];
+          if (user.studentCode) delete this.state.presence[user.studentCode];
         }
         if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
       }
       this.authManager.logout(); 
+      this.state.studentViewMode = 'task_list';
       this.renderMain(); 
     }
 
