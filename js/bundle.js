@@ -5544,20 +5544,7 @@
       const lastReviewingMsg = logs.slice().reverse().find(m => m.sender === 'reviewingEditor');
       const timeSinceLastReviewing = lastReviewingMsg ? (now - (lastReviewingMsg._timeMs || 0)) : 999999;
 
-      // 📝 审稿编辑 Agent: 专业问题 / 学术规范缺失 (仅在假设提出且篇幅充实时给出建议)
-      const hasHypothesis = newContent.includes('假设') || newContent.includes('H1') || newContent.includes('H2') || newContent.includes('变量');
-      const hasScale = newContent.includes('李克特') || newContent.includes('Likert') || newContent.includes('量表') || newContent.includes('信效度');
-      if (hasHypothesis && !hasScale && newContent.length > 260 && timeSinceLastReviewing > 60000) {
-        const scaleWarningMsg = {
-          sender: 'reviewingEditor',
-          text: `📝 【审稿编辑 Agent 专业规范提醒】：检测到论文提出了研究假设或变量，但尚未补齐具体的【5点李克特量表 (Likert 5-point Scale)】及量化测量工具规范！建议补充具体的测量维度与问卷指标。`,
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          _timeMs: now
-        };
-        logs.push(scaleWarningMsg);
-        this.syncChatLogs();
-        renderChat(this.state);
-      }
+
 
       // 3. 🎯 章节语义里程碑雷达：推进到【总结反思】时号召发起【半程编辑会议】
       const hasReflectionSection = /(?:五、|第5章|第五部分|不足与反思|研究反思|反思与不足|总结与反思|研究局限)/i.test(newContent);
