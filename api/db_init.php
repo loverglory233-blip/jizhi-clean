@@ -34,6 +34,24 @@ function initDatabaseTables() {
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;";
     $pdo->exec($sql2);
 
+    // 写入默认种子用户 (教师与预设学生)，若不存在则自动插入
+    $seedUsers = [
+        ['id' => 'u_teacher1', 'username' => 'teacher',   'name' => '张教授 (教师)',        'password' => '123', 'role' => 'teacher', 'student_code' => '',  'class_id' => '',          'group_id' => '',        'avatar' => '👩‍🏫'],
+        ['id' => 'u_studentA', 'username' => 'liming',    'name' => '李明 (学生A/组长)',    'password' => '123', 'role' => 'student', 'student_code' => 'A', 'class_id' => 'class_101', 'group_id' => 'group_1', 'avatar' => '👨‍🎓'],
+        ['id' => 'u_studentB', 'username' => 'wangfang',  'name' => '王芳 (学生B/组员)',    'password' => '123', 'role' => 'student', 'student_code' => 'B', 'class_id' => 'class_101', 'group_id' => 'group_1', 'avatar' => '👩‍🎓'],
+        ['id' => 'u_studentC', 'username' => 'chenqiang', 'name' => '陈强 (学生C/组员)',    'password' => '123', 'role' => 'student', 'student_code' => 'C', 'class_id' => 'class_101', 'group_id' => 'group_1', 'avatar' => '🧑‍🎓']
+    ];
+    $stmtUser = $pdo->prepare("INSERT INTO `users` (`id`, `username`, `name`, `password`, `role`, `student_code`, `class_id`, `group_id`, `avatar`) 
+        VALUES (:id, :un, :nm, :pw, :rl, :sc, :cid, :gid, :av)
+        ON DUPLICATE KEY UPDATE `name`=:nm2, `password`=:pw2, `role`=:rl2, `student_code`=:sc2, `class_id`=:cid2, `group_id`=:gid2, `avatar`=:av2");
+    foreach ($seedUsers as $su) {
+        $stmtUser->execute([
+            ':id' => $su['id'], ':un' => $su['username'], ':nm' => $su['name'], ':pw' => $su['password'],
+            ':rl' => $su['role'], ':sc' => $su['student_code'], ':cid' => $su['class_id'], ':gid' => $su['group_id'], ':av' => $su['avatar'],
+            ':nm2' => $su['name'], ':pw2' => $su['password'], ':rl2' => $su['role'], ':sc2' => $su['student_code'], ':cid2' => $su['class_id'], ':gid2' => $su['group_id'], ':av2' => $su['avatar']
+        ]);
+    }
+
     // 3. 小组实时协作快照与阶段状态表 (正文、协同光标、各阶段决策)
     $sql3 = "CREATE TABLE IF NOT EXISTS `group_states` (
         `scope_key` VARCHAR(128) PRIMARY KEY,

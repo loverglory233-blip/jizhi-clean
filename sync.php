@@ -204,7 +204,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     : [];
 
                 // 合并：只在数组非空时覆盖，避免空数组把有效数据清空
-                if (!empty($data['users']))           $existingMeta['users']           = $data['users'];
+                if (!empty($data['users']) && is_array($data['users'])) {
+                    $existingMeta['users'] = $data['users'];
+                    // 同步逐行写入 users 独立数据表
+                    $stmtUserUpsert = $pdo->prepare("INSERT INTO `users` (`id`, `username`, `name`, `password`, `role`, `student_code`, `class_id`, `group_id`, `avatar`)
+                        VALUES (:id, :un, :nm, :pw, :rl, :sc, :cid, :gid, :av)
+                        ON DUPLICATE KEY UPDATE `name`=:nm2, `password`=:pw2, `role`=:rl2, `student_code`=:sc2, `class_id`=:cid2, `group_id`=:gid2, `avatar`=:av2");
+                    foreach ($data['users'] as $u) {
+                        $uid = isset($u['id']) ? $u['id'] : 'u_' . (isset($u['username']) ? $u['username'] : uniqid());
+                        $uName = isset($u['name']) ? $u['name'] : '用户';
+                        $uUser = isset($u['username']) ? $u['username'] : $uid;
+                        $uPass = isset($u['password']) ? $u['password'] : '123';
+                        $uRole = isset($u['role']) ? $u['role'] : 'student';
+                        $uCode = isset($u['studentCode']) ? $u['studentCode'] : (isset($u['student_code']) ? $u['student_code'] : '');
+                        $uCid  = isset($u['classId']) ? $u['classId'] : (isset($u['class_id']) ? $u['class_id'] : '');
+                        $uGid  = isset($u['groupId']) ? $u['groupId'] : (isset($u['group_id']) ? $u['group_id'] : '');
+                        $uAv   = isset($u['avatar']) ? $u['avatar'] : '👤';
+                        $stmtUserUpsert->execute([
+                            ':id' => $uid, ':un' => $uUser, ':nm' => $uName, ':pw' => $uPass, ':rl' => $uRole, ':sc' => $uCode, ':cid' => $uCid, ':gid' => $uGid, ':av' => $uAv,
+                            ':nm2' => $uName, ':pw2' => $uPass, ':rl2' => $uRole, ':sc2' => $uCode, ':cid2' => $uCid, ':gid2' => $uGid, ':av2' => $uAv
+                        ]);
+                    }
+                }
                 if (!empty($data['classes']))         $existingMeta['classes']         = $data['classes'];
                 if (isset($data['tasks']))            $existingMeta['tasks']           = $data['tasks'];
                 if (isset($data['announcements']))    $existingMeta['announcements']   = $data['announcements'];
