@@ -3551,7 +3551,7 @@
         };
         document.addEventListener('keydown', onEscKey);
 
-        modal.querySelector('#btn-submit-prop-action').addEventListener('click', () => {
+        modal.querySelector('#btn-submit-prop-action').addEventListener('click', async () => {
           const title = modal.querySelector('#prop-title-input').value.trim();
           if (!title) { alert('⚠️ 请输入选题名称！'); return; }
 
@@ -3563,24 +3563,61 @@
 
           const currentStage = state.currentStage;
           const authorName = state.members[currentUser] ? state.members[currentUser].name : currentUser;
+          const totalMembersCount = Object.keys(state.members || {}).length;
+          const submittedAuthorsCount = new Set((s1.proposals || []).map(p => p.author)).size;
+
           const submitNoticeMsg = {
             sender: currentUser,
-            text: `💡 【新选题提出】我提出了新选题《${title}》！`,
-            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+            text: `💡 【新选题提出】我 (${authorName}) 提出了新选题提案《${title}》！`,
+            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            _timeMs: Date.now()
           };
           if (!state.chatLogs[currentStage]) state.chatLogs[currentStage] = [];
           state.chatLogs[currentStage].push(submitNoticeMsg);
 
-          const auctioneerEvalMsg = {
-            sender: 'auctioneer',
-            text: `🎪 【拍卖师收到新提案】收到 ${authorName} 提出的新选题《${title}》！提案已陈列在左侧提案池中。`,
-            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-          };
-          state.chatLogs[currentStage].push(auctioneerEvalMsg);
-
           closeModal();
           handlers.onContractChange();
           handlers.onRefresh();
+
+          // 1. 异步调用扣子拍卖师 API，对该提案做针对性学术评估 (120~180字)
+          setTimeout(async () => {
+            const evalPrompt = `小组成员【${authorName}】刚在学术拍卖会上提交了一份新选题提案《${title}》。请以拍卖师身份，给出 120~180 字的充实学术价值评估，点评其文献基础、创新视角与可行性建议。`;
+            let evalText = await callCozeAgentAPI('auctioneer', evalPrompt, { stage: 'stage1', proposalTitle: title, author: authorName });
+            if (!evalText || evalText.trim().length === 0) {
+              evalText = `🎪 【拍卖师·提案评估】收到 ${authorName} 提出的新选题《${title}》！该提案紧扣现代教育技术前沿，研究视角新颖，具备较好的探索空间与教学实践价值！`;
+            }
+
+            const auctioneerEvalMsg = {
+              sender: 'auctioneer',
+              text: evalText,
+              timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+              _timeMs: Date.now()
+            };
+            state.chatLogs[currentStage].push(auctioneerEvalMsg);
+
+            // 2. 如果全员都已提交提案，拍卖师主动发话引导全员进入投票环节
+            if (submittedAuthorsCount >= totalMembersCount) {
+              setTimeout(() => {
+                const allSubmittedList = (s1.proposals || []).map((p, idx) => `${idx + 1}. 《${p.title}》(${state.members[p.author] ? state.members[p.author].name : p.author})`).join('\n');
+                const votePromptMsg = {
+                  sender: 'auctioneer',
+                  text: `🗳️ 【拍卖师·全员提案集齐 ➔ 开启竞拍投票】\n全组 ${totalMembersCount} 位成员的选题提案已全部陈列在左侧提案池中：\n${allSubmittedList}\n\n👉 **请全组成员点击左侧提案下方的【🗳️ 投这篇】按钮**，投出你宝贵的一票！全员投完后系统将落槌公布计票结果！`,
+                  timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                  _timeMs: Date.now()
+                };
+                state.chatLogs[currentStage].push(votePromptMsg);
+                if (window.app) {
+                  window.app.syncChatLogs();
+                  renderChat(state);
+                }
+              }, 1200);
+            }
+
+            if (window.app) {
+              window.app.syncChatLogs();
+              renderChat(state);
+            }
+          }, 600);
         });
       });
     }
