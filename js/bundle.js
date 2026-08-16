@@ -1187,8 +1187,12 @@
           if (cleanRemoteContent !== this.app.state.stage2.unifiedContent) {
             this.app.state.stage2.unifiedContent = cleanRemoteContent;
             const editor = document.getElementById('stage2-word-editor') || document.getElementById('stage3-word-editor');
-            if (editor && document.activeElement !== editor) {
-              editor.innerHTML = cleanRemoteContent || '';
+            if (editor) {
+              // 只有当本地没有聚焦在正文输入框时才覆写 innerHTML，避免打字光标跳动
+              const isDirectlyTyping = (document.activeElement === editor || editor.contains(document.activeElement));
+              if (!isDirectlyTyping) {
+                editor.innerHTML = cleanRemoteContent || '';
+              }
             }
             this.app.updateContributionUi();
             this.app.renderPresenceCursors();
@@ -5563,9 +5567,26 @@
           }
 
           if (!this.state.presence) this.state.presence = {};
+          let activeNodeIdx = 0;
+          try {
+            const sel = window.getSelection();
+            if (sel && sel.rangeCount > 0) {
+              const editor = document.getElementById('stage2-word-editor');
+              if (editor) {
+                let blockEl = sel.anchorNode ? (sel.anchorNode.nodeType === 1 ? sel.anchorNode : sel.anchorNode.parentElement) : null;
+                while (blockEl && blockEl.parentElement !== editor && blockEl !== editor) {
+                  blockEl = blockEl.parentElement;
+                }
+                if (blockEl && blockEl.parentElement === editor) {
+                  activeNodeIdx = Array.from(editor.children).indexOf(blockEl);
+                }
+              }
+            }
+          } catch (e) {}
+
           this.state.presence[user] = {
-            nodeIndex: 0,
-            activeSection: '正在输入...',
+            nodeIndex: activeNodeIdx,
+            activeSection: '正文',
             updatedAt: Date.now()
           };
           this.updateContributionUi();
