@@ -1216,36 +1216,10 @@
             <div class="brand-badge teacher-badge" style="background:#ecfdf5; color:#059669; border:1px solid #a7f3d0; padding:4px 12px; border-radius:12px; font-size:12px; font-weight:700;">👩‍🏫 全局实时教务控制中心 🟢</div>
           </div>
           <div class="teacher-info" style="display:flex; align-items:center; gap:16px;">
-            <span style="font-size:13.5px; color:#334155;">当前班级: <b style="color:#2563eb;">${activeClass.name}</b></span>
-            <span style="font-size:13.5px; color:#334155;">教师: <b>${currentUser.name}</b></span>
-            <button id="btn-logout" class="header-icon-btn logout" style="background:#fef2f2; color:#dc2626; border:1px solid #fecaca; padding:8px 16px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer;">🚪 退出登录</button>
-          </div>
-        </header>
-
-        <!-- 三大界面导航卡片 -->
-        <div style="padding:16px 32px 0 32px; background:#f0f4f9; width:100%; flex-shrink:0;">
-          <div style="display:flex; gap:12px; width:100%; background:#ffffff; padding:6px; border-radius:14px; border:1px solid #e2e8f0; box-shadow:0 2px 8px rgba(15,23,42,0.04);">
-            <button class="teacher-tab-nav ${activeTab === 'view_architecture' ? 'active' : ''}" data-tab="view_architecture" style="flex:1; padding:12px; border-radius:10px; font-size:14px; font-weight:800; cursor:pointer; border:none; color:${activeTab === 'view_architecture' ? 'white' : '#475569'}; background:${activeTab === 'view_architecture' ? 'linear-gradient(135deg, #1d4ed8, #2563eb)' : '#f8fafc'}; transition:all 0.2s ease;">
-              🛠️ 界面一：基础架构管理 (班级 / 学生 / 小组)
-            </button>
-            <button class="teacher-tab-nav ${activeTab === 'view_publishing' ? 'active' : ''}" data-tab="view_publishing" style="flex:1; padding:12px; border-radius:10px; font-size:14px; font-weight:800; cursor:pointer; border:none; color:${activeTab === 'view_publishing' ? 'white' : '#475569'}; background:${activeTab === 'view_publishing' ? 'linear-gradient(135deg, #1d4ed8, #2563eb)' : '#f8fafc'}; transition:all 0.2s ease;">
-              📢 界面二：任务与通知发布 (含参考范文库与审稿推送)
-            </button>
-            <button class="teacher-tab-nav ${activeTab === 'view_monitoring' ? 'active' : ''}" data-tab="view_monitoring" style="flex:1; padding:12px; border-radius:10px; font-size:14px; font-weight:800; cursor:pointer; border:none; color:${activeTab === 'view_monitoring' ? 'white' : '#475569'}; background:${activeTab === 'view_monitoring' ? 'linear-gradient(135deg, #1d4ed8, #2563eb)' : '#f8fafc'}; transition:all 0.2s ease;">
-              🖥️ 界面三：学生实际操作同屏实时监控终端 (实操同屏)
-            </button>
-          </div>
-        </div>
-
-        <main style="flex:1; padding:20px 32px 40px 32px; width:100%; overflow-y:visible;">
-
-          ${activeTab === 'view_architecture' ? `
-            <div style="display:flex; flex-direction:column; gap:20px; width:100%;">
-
-              <div class="card" style="border-top:4px solid #2563eb; width:100%; padding:24px;">
+            <span style="font-size:13.5px; color:#334155;">当前班级: <b style="color:#2563eb;">${activeClass.name}</b></span>              <div class="card" style="border-top:4px solid #2563eb; width:100%; padding:24px;">
                 <div class="card-title" style="margin-bottom:16px;">
                   <span style="font-size:17px; font-weight:800; color:#0f172a;">🎓 教学班级管理 (${classes.length} 个班级)</span>
-                  <button id="btn-v1-create-class" class="teacher-action-btn indigo" style="background:#2563eb; padding:8px 18px; font-size:13px; font-weight:700;">+ 创建全新教学班</button>
+                  <button id="btn-v1-create-class" class="teacher-action-btn" style="background:linear-gradient(135deg, #1d4ed8, #2563eb); border:none; color:white; padding:8px 18px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer; box-shadow:0 2px 8px rgba(37,99,235,0.25);">+ 创建全新教学班</button>
                 </div>
                 <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(340px, 1fr)); gap:16px;">
                   ${classes.map(c => {
@@ -1266,12 +1240,12 @@
                 </div>
               </div>
 
-              <div class="card" style="border-top:4px solid #0284c7; width:100%; padding:24px;">
+              <div class="card" style="border-top:4px solid #2563eb; width:100%; padding:24px;">
                 <div class="card-title" style="margin-bottom:16px;">
                   <span style="font-size:17px; font-weight:800; color:#0f172a;">👨‍🎓 学生账号管理 (当前班级: ${activeClass.name})</span>
                   <div style="display:flex; gap:10px;">
-                    <button id="btn-v1-add-student" class="teacher-action-btn green" style="background:#059669; padding:8px 16px; font-size:13px; font-weight:700;">+ 单条创建学生账号</button>
-                    <button id="btn-v1-import-file" style="background:linear-gradient(135deg, #2563eb, #1d4ed8); border:none; color:white; padding:8px 18px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer; box-shadow:0 2px 8px rgba(37,99,235,0.25);">
+                    <button id="btn-v1-add-student" class="teacher-action-btn" style="background:linear-gradient(135deg, #1d4ed8, #2563eb); border:none; color:white; padding:8px 18px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer; box-shadow:0 2px 8px rgba(37,99,235,0.25);">+ 单条创建学生账号</button>
+                    <button id="btn-v1-import-file" class="teacher-action-btn" style="background:linear-gradient(135deg, #1d4ed8, #2563eb); border:none; color:white; padding:8px 18px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer; box-shadow:0 2px 8px rgba(37,99,235,0.25);">
                       📥 上传 XLSX / CSV 文件导入
                     </button>
                   </div>
@@ -1303,10 +1277,10 @@
                 </div>
               </div>
 
-              <div class="card" style="border-top:4px solid #059669; width:100%; padding:24px;">
+              <div class="card" style="border-top:4px solid #2563eb; width:100%; padding:24px;">
                 <div class="card-title" style="margin-bottom:16px;">
                   <span style="font-size:17px; font-weight:800; color:#0f172a;">👥 小组划分 (当前班级: ${activeClass.name})</span>
-                  <button id="btn-v1-create-group" class="teacher-action-btn green" style="background:#059669; padding:8px 18px; font-size:13px; font-weight:700;">+ 新建小组并勾选组员</button>
+                  <button id="btn-v1-create-group" class="teacher-action-btn" style="background:linear-gradient(135deg, #1d4ed8, #2563eb); border:none; color:white; padding:8px 18px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer; box-shadow:0 2px 8px rgba(37,99,235,0.25);">+ 新建小组并勾选组员</button>
                 </div>
                 <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:12px 16px; margin-bottom:14px; font-size:13px; color:#334155;">
                   💡 <b>班级互斥划分规则：</b>已归属于本班级其他小组的学生会自动隐藏，避免重复挂组。跨班级独立计算。
@@ -1318,7 +1292,7 @@
                     return `
                       <div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:12px; padding:18px; box-shadow:0 1px 3px rgba(15,23,42,0.03);">
                         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
-                          <span style="font-size:15.5px; font-weight:800; color:#059669;">👥 ${grp.name} (${groupMembers.length}人)</span>
+                          <span style="font-size:15.5px; font-weight:800; color:#1d4ed8;">👥 ${grp.name} (${groupMembers.length}人)</span>
                           <div style="display:flex; gap:8px;">
                             <button class="btn-edit-group-members" data-gid="${grp.id}" style="background:#eff6ff; border:1px solid #bfdbfe; color:#1d4ed8; padding:6px 12px; border-radius:6px; font-size:12px; font-weight:700; cursor:pointer;">⚙️ 勾选组员</button>
                             <button class="btn-delete-group" data-gid="${grp.id}" style="background:#fef2f2; border:1px solid #fecaca; color:#dc2626; padding:6px 10px; border-radius:6px; font-size:12px; cursor:pointer; font-weight:700;">✕ 解散</button>
@@ -1327,7 +1301,7 @@
                         <div style="display:flex; flex-wrap:wrap; gap:8px; font-size:13px;">
                           ${groupMembers.length === 0 ? '<span style="color:#94a3b8; font-size:12px;">⚠️ 暂未勾选成员</span>' : ''}
                           ${groupMembers.map(m => `
-                            <span style="background:#ecfdf5; border:1px solid #a7f3d0; color:#059669; padding:4px 10px; border-radius:6px; font-weight:600;">
+                            <span style="background:#eff6ff; border:1px solid #bfdbfe; color:#1d4ed8; padding:4px 10px; border-radius:6px; font-weight:600;">
                               ${m.avatar || '👤'} ${m.name} ${m.studentCode === 'A' ? '<b style="color:#d97706;">(组长)</b>' : ''}
                             </span>
                           `).join('')}
@@ -1345,14 +1319,14 @@
             <div style="display:flex; flex-direction:column; gap:20px; width:100%;">
 
               <!-- 0. 问卷链接配置 (置顶) -->
-              <div class="card" style="border-top:4px solid #d97706; width:100%; padding:24px;">
+              <div class="card" style="border-top:4px solid #2563eb; width:100%; padding:24px;">
                 <div class="card-title" style="margin-bottom:16px;">
                   <span style="font-size:17px; font-weight:800; color:#0f172a;">📋 课程评估问卷链接配置</span>
-                  <span style="font-size:12px; color:#92400e; background:#fffbeb; border:1px solid #fde68a; padding:4px 10px; border-radius:8px; font-weight:600;">学生提交终稿后自动弹出提醒 · 顶部按钮随时可点</span>
+                  <span style="font-size:12px; color:#1d4ed8; background:#eff6ff; border:1px solid #bfdbfe; padding:4px 10px; border-radius:8px; font-weight:600;">学生提交终稿后自动弹出提醒 · 顶部按钮随时可点</span>
                 </div>
                 <div style="display:flex; gap:12px; align-items:stretch;">
                   <input type="text" id="survey-url-input" class="teacher-input" placeholder="粘贴问卷链接，例如: https://www.wjx.cn/vm/xxxxx.aspx 或 https://forms.gle/xxxxx" value="${localStorage.getItem('jizhi_survey_url') || ''}" style="flex:1; font-family:monospace; font-size:13px;">
-                  <button id="btn-save-survey-url" style="background:linear-gradient(135deg, #d97706, #b45309); border:none; color:white; padding:10px 22px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer; white-space:nowrap; box-shadow:0 3px 10px rgba(217,119,6,0.3);">💾 保存链接</button>
+                  <button id="btn-save-survey-url" class="teacher-action-btn" style="background:linear-gradient(135deg, #1d4ed8, #2563eb); border:none; color:white; padding:10px 22px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer; white-space:nowrap; box-shadow:0 2px 8px rgba(37,99,235,0.25);">💾 保存链接</button>
                 </div>
                 <div id="survey-url-status" style="font-size:12px; color:#059669; display:none; margin-top:8px; font-weight:700;">✅ 问卷链接已保存！学生提交终稿时将自动弹窗跳转。</div>
                 ${localStorage.getItem('jizhi_survey_url') ? `
@@ -1366,13 +1340,13 @@
               </div>
 
               <!-- 1. 课程参考范文与文献样例库 (供阶段二学生下载查阅 · 审稿编辑提醒) -->
-              <div class="card" style="border-top:4px solid #7c3aed; width:100%; padding:24px;">
+              <div class="card" style="border-top:4px solid #2563eb; width:100%; padding:24px;">
                 <div class="card-title" style="margin-bottom:16px;">
                   <div style="display:flex; align-items:center; gap:8px;">
                     <span style="font-size:17px; font-weight:800; color:#0f172a;">📚 课程参考范文与文献样例库 (${refPapers.length} 篇 · 供阶段二学生下载查阅)</span>
-                    <span style="font-size:12px; color:#6d28d9; background:#f5f3ff; border:1px solid #ddd6fe; padding:4px 10px; border-radius:8px; font-weight:600;">学生在阶段二随时可下载查阅 · 审稿编辑 Agent 定向提醒</span>
+                    <span style="font-size:12px; color:#1d4ed8; background:#eff6ff; border:1px solid #bfdbfe; padding:4px 10px; border-radius:8px; font-weight:600;">学生在阶段二随时可下载查阅 · 审稿编辑 Agent 定向提醒</span>
                   </div>
-                  <button id="btn-v2-open-paper-modal" class="teacher-action-btn indigo" style="background:linear-gradient(135deg, #7c3aed, #6d28d9); padding:8px 18px; font-size:13px; font-weight:700; border:none; color:white; border-radius:8px; cursor:pointer; box-shadow:0 2px 8px rgba(124,58,237,0.25);">
+                  <button id="btn-v2-open-paper-modal" class="teacher-action-btn" style="background:linear-gradient(135deg, #1d4ed8, #2563eb); padding:8px 18px; font-size:13px; font-weight:700; border:none; color:white; border-radius:8px; cursor:pointer; box-shadow:0 2px 8px rgba(37,99,235,0.25);">
                     + 上传学术参考范文
                   </button>
                 </div>
@@ -1389,12 +1363,12 @@
                       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
                         <div style="display:flex; align-items:center; gap:8px;">
                           <span style="font-weight:800; color:#1e40af; font-size:16px;">📄 ${p.title}</span>
-                          <span style="background:#f5f3ff; color:#6d28d9; border:1px solid #ddd6fe; padding:2px 8px; border-radius:8px; font-size:11.5px; font-weight:700;">定向受众: ${p.targetGroupName || '全班所有小组'}</span>
+                          <span style="background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe; padding:2px 8px; border-radius:8px; font-size:11.5px; font-weight:700;">定向受众: ${p.targetGroupName || '全班所有小组'}</span>
                         </div>
                         <span style="font-size:12px; color:#64748b;">${p.uploadTime} | 上传人: ${p.author || '教师'}</span>
                       </div>
                       ${p.keyHighlights ? `
-                        <div style="font-size:13px; color:#334155; margin-bottom:10px; line-height:1.6; background:#f8fafc; padding:10px 14px; border-radius:8px; border-left:3px solid #7c3aed;">
+                        <div style="font-size:13px; color:#334155; margin-bottom:10px; line-height:1.6; background:#f8fafc; padding:10px 14px; border-radius:8px; border-left:3px solid #2563eb;">
                           <b>💡 核心论证亮点与学术价值：</b>${p.keyHighlights}
                         </div>
                       ` : ''}
@@ -1412,7 +1386,7 @@
                           ` : '<span style="font-size:12px; color:#94a3b8;">无独立附件文件</span>'}
                         </div>
                         <div style="display:flex; gap:10px;">
-                          <button class="btn-push-paper-to-chat" data-id="${p.id}" data-target="${p.targetGroupId || 'all'}" style="background:linear-gradient(135deg, #2563eb, #1d4ed8); border:none; color:white; padding:6px 14px; border-radius:6px; font-size:12.5px; font-weight:700; cursor:pointer; box-shadow:0 2px 6px rgba(37,99,235,0.25);">
+                          <button class="btn-push-paper-to-chat" data-id="${p.id}" data-target="${p.targetGroupId || 'all'}" style="background:linear-gradient(135deg, #1d4ed8, #2563eb); border:none; color:white; padding:6px 14px; border-radius:6px; font-size:12.5px; font-weight:700; cursor:pointer; box-shadow:0 2px 6px rgba(37,99,235,0.25);">
                             📢 审稿编辑提醒学生查阅此文
                           </button>
                           <button class="btn-delete-paper" data-id="${p.id}" style="background:#fef2f2; border:1px solid #fecaca; color:#dc2626; padding:6px 12px; border-radius:6px; font-size:12px; font-weight:700; cursor:pointer;">
@@ -1450,10 +1424,10 @@
               </div>
 
               <!-- 3. 发布课堂广播通知 (含各小组已读/未读实时追踪矩阵) -->
-              <div class="card" style="border-top:4px solid #059669; width:100%; padding:24px;">
+              <div class="card" style="border-top:4px solid #2563eb; width:100%; padding:24px;">
                 <div class="card-title" style="margin-bottom:16px;">
                   <span style="font-size:17px; font-weight:800; color:#0f172a;">📢 课堂即时广播通知发布 (含各小组已读/未读实时追踪矩阵)</span>
-                  <button id="btn-v2-open-ann-modal" class="teacher-action-btn green" style="background:#059669; padding:8px 18px; font-size:13px; font-weight:700;">
+                  <button id="btn-v2-open-ann-modal" class="teacher-action-btn" style="background:linear-gradient(135deg, #1d4ed8, #2563eb); border:none; color:white; padding:8px 18px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer; box-shadow:0 2px 8px rgba(37,99,235,0.25);">
                     + 发布新通知 (选择/拖拽上传资源文件)
                   </button>
                 </div>
@@ -4407,8 +4381,28 @@
         );
       } else {
         const currentGroupId = currentUser && currentUser.groupId ? currentUser.groupId : 'group_1';
-        this.state.activeTaskId = 'task_default';
         this.loadGroupState(currentGroupId);
+
+        if (this.state.studentViewMode === 'task_list') {
+          appEl.className = 'app-student-portal-mode';
+          renderStudentTaskPortal(
+            appEl, this.authManager, this.state,
+            (taskId) => {
+              this.state.activeTaskId = taskId || 'task_default';
+              this.state.studentViewMode = 'workspace';
+              this.loadGroupState(currentGroupId);
+              this.renderMain();
+              if (this.cloudSyncEngine) {
+                this.cloudSyncEngine.updateScopeKeys();
+                this.cloudSyncEngine.pullFromServer();
+              }
+            },
+            () => this.handleLogout(),
+            () => this.switchToTeacherView(),
+            () => this.showAnnouncementModal()
+          );
+          return;
+        }
 
         const membersList = Object.values(this.state.members || {});
 
