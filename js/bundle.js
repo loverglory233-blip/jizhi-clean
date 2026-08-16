@@ -4182,6 +4182,7 @@
 
         this.initStudentEvents();
         this.renderStudentWorkspace();
+        this.triggerStageWelcomeSpeech(this.state.currentStage || 'stage1');
         this.checkUnreadAnnouncements();
       }
     }
@@ -4697,8 +4698,175 @@
       this.renderStudentWorkspace();
     }
 
+    async triggerStageWelcomeSpeech(stage) {
+      if (!this.state.chatLogs[stage]) this.state.chatLogs[stage] = [];
+      const logs = this.state.chatLogs[stage];
+      const now = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+      // 🎪 阶段一：拍卖师欢迎开场白
+      if (stage === 'stage1') {
+        const hasAuctioneerIntro = logs.some(m => m.sender === 'auctioneer' && m.text.includes('欢迎来到【阶段一：学术拍卖会】'));
+        if (!hasAuctioneerIntro) {
+          const welcomeMsg = {
+            sender: 'auctioneer',
+            text: `🎪 【拍卖师开场】：欢迎来到【阶段一：学术拍卖会】！我是本阶段的选题顾问拍卖师。\n请全组成员点击左侧【提交我的选题】提出各自的研究构想，并在研讨区充分交流。我们将通过拍卖投票遴选最佳提案，并在下方《学术合作公约》中商定分工与时间分配！`,
+            timestamp: now,
+            _timeMs: Date.now()
+          };
+          logs.unshift(welcomeMsg);
+          this.syncChatLogs();
+          renderChat(this.state);
+        }
+      }
+
+      // 🤝 阶段二：责任编辑欢迎 + 重复上轮分工时间分配 ➔ 审稿编辑提醒推送范文
+      else if (stage === 'stage2') {
+        const hasManagingIntro = logs.some(m => m.sender === 'managingEditor' && m.text.includes('欢迎来到【阶段二：学术编辑部】'));
+        if (!hasManagingIntro) {
+          const s1 = this.state.stage1 || {};
+          const topic = s1.mergedTitle || '未定课题';
+          const tasks = s1.contract && s1.contract.taskAssignments ? s1.contract.taskAssignments : {};
+          const times = s1.contract && s1.contract.timeAllocations ? s1.contract.timeAllocations : {};
+          
+          let assignSummary = [];
+          Object.keys(this.state.members || {}).forEach(mId => {
+            const m = this.state.members[mId];
+            const t = tasks[mId] || '待认领';
+            assignSummary.push(`${m.name}: ${t}`);
+          });
+
+          let timeSummary = [];
+          if (times.background) timeSummary.push(`背景 ${times.background}m`);
+          if (times.questions) timeSummary.push(`问题 ${times.questions}m`);
+          if (times.literature) timeSummary.push(`文献 ${times.literature}m`);
+          if (times.method) timeSummary.push(`方法 ${times.method}m`);
+          if (times.reflection) timeSummary.push(`反思 ${times.reflection}m`);
+          if (times.references) timeSummary.push(`文献表 ${times.references}m`);
+
+          const managingWelcome = {
+            sender: 'managingEditor',
+            text: `🤝 【责任编辑开场】：欢迎来到【阶段二：学术编辑部】！我是过程学伴责任编辑。\n全组已锁定研究主题《${topic}》。\n\n📜 【阶段一公约执行提醒】\n• 组员分工: ${assignSummary.join(' | ') || '全员协作'}\n• 时间分配: ${timeSummary.join(' / ') || '按需推进'}\n\n请大家进入左侧富文本编辑器协同撰写，保持均匀贡献比！`,
+            timestamp: now,
+            _timeMs: Date.now()
+          };
+          logs.unshift(managingWelcome);
+          this.syncChatLogs();
+          renderChat(this.state);
+
+          setTimeout(() => {
+            const reviewingWelcome = {
+              sender: 'reviewingEditor',
+              text: `📝 【审稿编辑提醒】：为辅助各位高效产出高质量学术论文，已为本组匹配并推送了《课程学术参考范文库》！请大家点击上方【📚 查阅参考范文】查阅学习，注意正文三线表规范与研究设计严谨度！`,
+              timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+              _timeMs: Date.now()
+            };
+            logs.push(reviewingWelcome);
+            this.syncChatLogs();
+            renderChat(this.state);
+          }, 1200);
+        }
+      }
+
+      // 🎓 阶段三：预制中间委员欢迎 ➔ API 调用正方 ➔ API 调用反方 ➔ 中间委员提示阅读 1 分钟并引导答复
+      else if (stage === 'stage3') {
+        const hasNeutralIntro = logs.some(m => m.sender === 'neutral' && m.text.includes('欢迎来到【阶段三：答辩擂台】'));
+        if (!hasNeutralIntro) {
+          const neutralWelcome = {
+            sender: 'neutral',
+            text: `🟡 【中间委员开场】：各位研究者，欢迎来到【阶段三：答辩擂台】！初稿撰写完毕，答辩委员会专家将分别发表肯定意见与尖锐质询。请全组先认真审阅！`,
+            timestamp: now,
+            _timeMs: Date.now()
+          };
+          logs.unshift(neutralWelcome);
+          this.syncChatLogs();
+          renderChat(this.state);
+
+          const topic = (this.state.stage1 && this.state.stage1.mergedTitle) ? this.state.stage1.mergedTitle : '本组研究设计';
+          const contentSnippet = (this.state.stage2 && this.state.stage2.unifiedContent) ? this.state.stage2.unifiedContent.replace(/<[^>]*>/g, '').slice(0, 300) : '研究设计方案';
+
+          // 1. 异步调用扣子 API: 正方委员发言
+          setTimeout(async () => {
+            let propText = await callCozeAgentAPI('proponent', `请针对我们小组的论文主题《${topic}》与正文方案发表答辩肯定意见与创新点分析：\n${contentSnippet}`, { stage: 'stage3', topic });
+            if (!propText || propText.trim().length === 0) {
+              propText = `🟢 【正方委员肯定支持】：本研究选题《${topic}》立意明确，紧扣教育数字化转型前沿，方案中技术工具与学习场景结合具有较高的实践与推广价值！`;
+            }
+            const propMsg = {
+              sender: 'proponent',
+              text: propText,
+              timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+              _timeMs: Date.now()
+            };
+            logs.push(propMsg);
+            this.syncChatLogs();
+            renderChat(this.state);
+
+            // 2. 异步调用扣子 API: 反方委员发言
+            setTimeout(async () => {
+              let oppText = await callCozeAgentAPI('opponent', `请针对我们小组的论文主题《${topic}》与正文方案发表答辩尖锐质询意见与严谨性质疑：\n${contentSnippet}`, { stage: 'stage3', topic });
+              if (!oppText || oppText.trim().length === 0) {
+                oppText = `🔴 【反方委员尖锐质询】：请团队审视研究设计的严谨性！样本抽样范围是否存在局限？自变量与因变量的操作化测量是否提供了权威量表支撑？`;
+              }
+              const oppMsg = {
+                sender: 'opponent',
+                text: oppText,
+                timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                _timeMs: Date.now()
+              };
+              logs.push(oppMsg);
+
+              // 自动将专家意见挂入左侧裁决矩阵
+              if (!this.state.stage3.feedbackItems || this.state.stage3.feedbackItems.length === 0) {
+                this.state.stage3.feedbackItems = [
+                  {
+                    id: 'fb_1',
+                    role: 'proponent',
+                    speaker: '正方委员 Agent',
+                    title: '立意与应用价值认可',
+                    content: propText,
+                    neutralGuidance: '建议团队在终稿引言与结语中进一步突出技术赋能教学的创新定位。',
+                    status: 'pending',
+                    response: ''
+                  },
+                  {
+                    id: 'fb_2',
+                    role: 'opponent',
+                    speaker: '反方委员 Agent',
+                    title: '抽样严谨度与测量量表质询',
+                    content: oppText,
+                    neutralGuidance: '请组员研讨：是否需要在正文第四章补充 5 点李克特量表维度并说明信效度检验方法？',
+                    status: 'pending',
+                    response: ''
+                  }
+                ];
+                this.syncStage3();
+                this.renderStudentWorkspace();
+              }
+
+              this.syncChatLogs();
+              renderChat(this.state);
+
+              // 3. 中间委员提醒学生阅读 1 分钟并开始引导答复
+              setTimeout(() => {
+                const readingGuideMsg = {
+                  sender: 'neutral',
+                  text: `🟡 【中间委员阅读与研讨引导】：\n答辩委员会正反两方专家的评审意见已全部送达（已同步展示在左侧【答辩委员会改进意见与组内裁决矩阵】中）。\n\n⏳ **请全组成员先静心阅读 1 分钟**，梳理正方肯定点与反方质询点。\n阅读完毕后，请在研讨区展开辩护协商，并点击左侧对应条目的【👥 组内研讨统一裁决】录入全组共识，修改落实至终稿后提交！`,
+                  timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                  _timeMs: Date.now()
+                };
+                logs.push(readingGuideMsg);
+                this.syncChatLogs();
+                renderChat(this.state);
+              }, 1200);
+
+            }, 1200);
+          }, 1000);
+        }
+      }
+    }
+
     switchStage(newStage) {
       this.syncStageChange(newStage);
+      this.triggerStageWelcomeSpeech(newStage);
       this.renderStudentWorkspace();
     }
 
