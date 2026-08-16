@@ -3585,6 +3585,7 @@
       el.style.borderBottom = 'none';
       el.style.borderLeft = 'none';
       el.style.backgroundColor = 'transparent';
+      el.style.boxShadow = 'none';
     });
 
     const membersList = Object.values(state.members || {});
@@ -3592,42 +3593,51 @@
     const presence = state.presence || {};
     const now = Date.now();
 
+    // 按段落分组：如果多个同学在同一行编辑，聚合展示多个姓名胶囊！
+    const nodeToMembers = {};
+
     membersList.forEach(m => {
       if (m.studentCode === currentUserCode || m.id === currentUserCode) return;
       const p = presence[m.studentCode] || presence[m.id];
       if (!p || (now - p.updatedAt > 15000)) return; // 15秒未活动即视为离线
 
-      const color = m.color || '#8b5cf6';
-      const name = m.name || m.studentCode;
-      const avatar = m.avatar || '👨‍🎓';
+      const targetIndex = (typeof p.nodeIndex === 'number' && p.nodeIndex >= 0) ? p.nodeIndex : 0;
+      if (!nodeToMembers[targetIndex]) nodeToMembers[targetIndex] = [];
+      nodeToMembers[targetIndex].push({ member: m, presence: p });
+    });
 
-      // 定位到当前学生正在编辑的段落或行
-      const children = Array.from(editor.children);
-      let targetEl = null;
-      if (typeof p.nodeIndex === 'number' && children[p.nodeIndex]) {
-        targetEl = children[p.nodeIndex];
-      } else if (children.length > 0) {
-        targetEl = children[children.length - 1]; // 默认堆到最新编辑区域
-      }
+    const children = Array.from(editor.children);
+
+    Object.entries(nodeToMembers).forEach(([idxStr, mems]) => {
+      const idx = parseInt(idxStr);
+      let targetEl = (children && children[idx]) ? children[idx] : (children.length > 0 ? children[children.length - 1] : null);
 
       if (targetEl && targetEl !== editor) {
         targetEl.classList.add('collab-editing-node-highlight');
-        // 去除左侧冗长竖条，改用清爽的彩色下划线标记编辑位置
-        targetEl.style.borderBottom = `2px dashed ${color}`;
-        targetEl.style.borderLeft = 'none';
-        targetEl.style.backgroundColor = `${color}08`;
+        
+        // 视觉：使用最显眼的首个编辑者的颜色，轻量高亮当前行
+        const primaryColor = mems[0].member.color || '#2563eb';
+        targetEl.style.borderBottom = `1.5px dashed ${primaryColor}`;
+        targetEl.style.backgroundColor = `${primaryColor}0a`;
 
-        // 紧凑的只读成员姓名浮标
-        const cursorWidget = document.createElement('span');
-        cursorWidget.className = 'remote-cursor-widget';
-        cursorWidget.contentEditable = 'false';
-        cursorWidget.style.cssText = 'user-select:none; pointer-events:none; display:inline-inline-block; vertical-align:middle; margin-left:6px;';
-        cursorWidget.innerHTML = `
-          <span class="remote-caret-flag" style="background:${color}; font-size:10.5px; padding:1px 6px; border-radius:4px; color:white; font-weight:700; display:inline-flex; align-items:center; gap:2px; box-shadow:0 1px 4px rgba(0,0,0,0.15);">
-            ${avatar} ${name}
-          </span>
-        `;
-        targetEl.appendChild(cursorWidget);
+        // 浮标容器：支持同一行容纳多个成员的光标名牌！
+        const cursorContainer = document.createElement('span');
+        cursorContainer.className = 'remote-cursor-widget';
+        cursorContainer.contentEditable = 'false';
+        cursorContainer.style.cssText = 'user-select:none; pointer-events:none; display:inline-flex; align-items:center; gap:4px; vertical-align:middle; margin-left:6px;';
+        
+        cursorContainer.innerHTML = mems.map(({ member: m }) => {
+          const color = m.color || '#8b5cf6';
+          const name = m.name || m.studentCode;
+          const avatar = m.avatar || '👨‍🎓';
+          return `
+            <span class="remote-caret-flag" style="background:${color}; font-size:10.5px; padding:1px 6px; border-radius:4px; color:white; font-weight:700; display:inline-flex; align-items:center; gap:2px; box-shadow:0 1px 3px rgba(0,0,0,0.18);">
+              ${avatar} ${name}
+            </span>
+          `;
+        }).join('');
+
+        targetEl.appendChild(cursorContainer);
       }
     });
   }
