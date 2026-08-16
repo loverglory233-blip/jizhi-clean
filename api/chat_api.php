@@ -1,7 +1,7 @@
 <?php
 /**
- * 扣子 (Coze V3) 核心通信引擎
- * 职责：接收请求 -> Prompt 组装 -> 发起 Chat -> 轮询 Retrieve -> 获取 Message/List -> 返回真实回答
+ * 扣子 (Coze V3) 核心通信引擎 (支持 OAuth 2.0 静默自动续期)
+ * 职责：检查并自动获取 OAuth Access Token -> Prompt 组装 -> 发起 Chat -> 轮询 Retrieve -> 获取 Message -> 返回纯净回答
  */
 
 header('Content-Type: application/json; charset=utf-8');
@@ -20,6 +20,95 @@ require_once __DIR__ . '/coze_prompt.php';
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     echo json_encode(['success' => false, 'message' => 'Only POST allowed']);
     exit;
+}
+
+/**
+ * 自动获取或刷新 OAuth Access Token (带本地文件缓存)
+ */
+function getCozeAccessToken() {
+    global $COZE_APP_ID, $COZE_KEY_ID, $COZE_PRIVATE_KEY_FILE, $COZE_OAUTH_TOKEN_URL;
+    
+    $cacheFile = __DIR__ . '/token_cache.json';
+    if (file_exists($cacheFile)) {
+        $cached = json_decode(file_get_contents($cacheFile), true);
+        if ($cached && isset($cached['access_token']) && isset($cached['expires_at'])) {
+            // 提前 5 分钟换新，确保绝对不失效
+            if (time() < ($cached['expires_at'] - 300)) {
+                return $cached['access_token'];
+            }
+        }
+    }
+
+    if (!file_exists($COZE_PRIVATE_KEY_FILE)) {
+        return null;
+    }
+
+    $privateKeyContent = file_get_contents($COZE_PRIVATE_KEY_FILE);
+    $now = time();
+
+    // 1. 构造 JWT Header 与 Payload
+    $header = ['alg' => 'RS256', 'typ' => 'JWT', 'kid' => $COZE_KEY_ID];
+    $payload = [
+        'iss' => $COZE_APP_ID,
+        'aud' => 'api.coze.cn',
+        'iat' => $now,
+        'exp' => $now + 3600,
+        'jti' => (string)$now . '_' . mt_rand(1000, 9999)
+    ];
+
+    $b64Url = function($data) {
+        return rtrim(strtr(base64_encode($data), '+/', '-_'), '=');
+    };
+
+    $seg1 = $b64Url(json_encode($header));
+    $seg2 = $b64Url(json_encode($payload));
+    $toSign = $seg1 . '.' . $seg2;
+
+    // 2. 使用 OpenSSL 进行 SHA256WithRSA 签名
+    $privateKey = openssl_pkey_get_private($privateKeyContent);
+    if (!$privateKey) {
+        return null;
+    }
+
+    $signature = '';
+    $ok = openssl_sign($toSign, $signature, $privateKey, OPENSSL_ALGO_SHA256);
+    if (!$ok) {
+        return null;
+    }
+
+    $jwtToken = $seg1 . '.' . $seg2 . '.' . $b64Url($signature);
+
+    // 3. POST 请求获取 Access Token
+    $ch = curl_init($COZE_OAUTH_TOKEN_URL);
+    curl_setopt($ch, CURLOPT_POST, 1);
+    curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode([
+        'grant_type' => 'urn:ietf:params:oauth:grant-type:jwt-bearer',
+        'duration_seconds' => 86399
+    ]));
+    curl_setopt($ch, CURLOPT_HTTPHEADER, [
+        'Authorization: Bearer ' . $jwtToken,
+        'Content-Type: application/json'
+    ]);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 15);
+    $resp = curl_exec($ch);
+    curl_close($ch);
+
+    $resData = json_decode($resp, true);
+    if ($resData && isset($resData['access_token'])) {
+        $expiresIn = isset($resData['expires_in']) ? intval($resData['expires_in']) : 86400;
+        $cachedData = [
+            'access_token' => $resData['access_token'],
+            'expires_at' => $now + $expiresIn
+        ];
+        @file_put_contents($cacheFile, json_encode($cachedData));
+        @chmod($cacheFile, 0666);
+        return $resData['access_token'];
+    }
+
+    return null;
 }
 
 $rawInput = file_get_contents('php://input');
@@ -45,13 +134,23 @@ if (empty($userQuery)) {
     exit;
 }
 
-// 1. 使用 Prompt 工厂进行结构化组装
+// 1. 获取持久自动续期的 Token
+$accessToken = getCozeAccessToken();
+if (!$accessToken) {
+    echo json_encode([
+        'success' => false,
+        'message' => 'OAuth token generation failed'
+    ]);
+    exit;
+}
+
+// 2. 使用 Prompt 工厂进行结构化组装
 $assembledPrompt = CozePromptFactory::buildPrompt($stage, $topic, $userQuery, $actualDoc);
 
-// 2. 发起 Chat 请求
+// 3. 发起 Chat 请求
 $cozeUrl = $COZE_API_BASE_URL . '/chat';
 $headers = [
-    'Authorization: Bearer ' . $COZE_API_KEY,
+    'Authorization: Bearer ' . $accessToken,
     'Content-Type: application/json'
 ];
 
@@ -87,7 +186,7 @@ $convId = isset($initData['data']['conversation_id']) ? $initData['data']['conve
 
 $answerText = '';
 if ($chatId && $convId) {
-    // 3. 轮询 Retrieve 状态
+    // 4. 轮询 Retrieve 状态
     for ($i = 0; $i < 15; $i++) {
         usleep(800000); // 800ms
         $pollUrl = $COZE_API_BASE_URL . "/chat/retrieve?chat_id={$chatId}&conversation_id={$convId}";
@@ -104,7 +203,7 @@ if ($chatId && $convId) {
         $status = isset($pData['data']['status']) ? $pData['data']['status'] : '';
         
         if ($status === 'completed') {
-            // 4. 拉取 Message 列表中的最新回复
+            // 5. 拉取 Message 列表中的最新回复
             $msgUrl = $COZE_API_BASE_URL . "/chat/message/list?chat_id={$chatId}&conversation_id={$convId}";
             $ch3 = curl_init($msgUrl);
             curl_setopt($ch3, CURLOPT_HTTPHEADER, $headers);
