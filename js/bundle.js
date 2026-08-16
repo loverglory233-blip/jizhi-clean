@@ -5310,33 +5310,53 @@
         });
       });
 
-      modal.querySelector('#btn-submit-meeting').addEventListener('click', () => {
+      modal.querySelector('#btn-submit-meeting').addEventListener('click', async () => {
         const bottleneck = modal.querySelector('#meeting-bottleneck-select').value;
         const userText = modal.querySelector('#meeting-input-text').value;
         closeModal();
 
+        // 1. 责任编辑先播报会议打分汇总
+        const meetingMsg = {
+          sender: 'managingEditor',
+          text: `📢 【编辑会议① 汇总】：全员完成 3 维自评打分（内容逻辑 ${logicRating}星，分工平衡 ${balanceRating}星，核心瓶颈：${bottleneck}）。组内说明：“${userText}”。\n审稿编辑正在结合大家的自评与当前正文生成针对性指导建议...`,
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          _timeMs: Date.now()
+        };
+        this.state.chatLogs.stage2.push(meetingMsg);
+        this.syncChatLogs();
+        renderChat(this.state);
+
+        // 2. 异步调用扣子审稿编辑 API 给出深度学术建议
+        const topic = (this.state.stage1 && this.state.stage1.mergedTitle) ? this.state.stage1.mergedTitle : '本组课题';
+        const contentSnippet = (this.state.stage2 && this.state.stage2.unifiedContent) ? this.state.stage2.unifiedContent.replace(/<[^>]*>/g, '').slice(0, 350) : '论文初稿';
+        const reviewPrompt = `小组刚完成了半程编辑会议自评（逻辑 ${logicRating}星，分工 ${balanceRating}星，核心瓶颈：“${bottleneck}”，组内自评：“${userText}”）。请针对其论文《${topic}》及当前初稿，给出 120~180 字的针对性修改建议与启发指导，引导小组对照即将生成的修正清单开展重构。`;
+
+        let reviewFeedbackText = await callCozeAgentAPI('reviewingEditor', reviewPrompt, { stage: 'stage2', topic, bottleneck });
+        if (!reviewFeedbackText || reviewFeedbackText.trim().length === 0) {
+          reviewFeedbackText = `📝 【审稿编辑·半程会议学术反馈】：认真研读了大家的初稿与会议自评！正文整体逻辑连贯。针对大家提出的核心瓶颈【${bottleneck}】，已在左侧正式生成《半程编辑修正清单》，建议全组成员对照清单重点补齐测量量表与文献支撑，稳步推进！`;
+        }
+
+        // 3. 审稿编辑在聊天框发言
+        const feedbackMsg = {
+          sender: 'reviewingEditor',
+          text: reviewFeedbackText,
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          _timeMs: Date.now()
+        };
+        this.state.chatLogs.stage2.push(feedbackMsg);
+
+        // 4. 审稿编辑给出建议后，平台正式点亮并生成左侧【半程编辑修正清单】
         this.state.stage2.actionPlan = {
           isGenerated: true,
           items: [
-            `修订项① (逻辑与方法): 在“二、研究问题与假设”末尾补齐与“四、研究设计”操作化变量的对应说明。`,
-            `修订项② (瓶颈突破): 针对【${bottleneck}】，参照《编辑会议规范与范例模板文件.pdf》补充相关文献引用。`,
-            `修订项③ (团队协调): 维持当前平衡贡献，在后45分钟内重点完成“五、反思”。`
+            `修订项① (逻辑与方法): 在“三、研究问题与假设”末尾补齐与“四、研究设计与方法”操作化变量的对应说明。`,
+            `修订项② (瓶颈突破): 针对【${bottleneck}】，参照《编辑会议规范与范例模板文件.pdf》补充相关量表与文献支撑。`,
+            `修订项③ (团队协调): 维持当前平衡贡献比率，在后半程重点完成“五、研究设计的不足与反思”。`
           ]
         };
 
-        const meetingMsg = { sender: 'managingEditor', text: `📢 【编辑会议① 汇总】：全员完成 3 维打分（逻辑严谨度 ${logicRating}星，分工平衡度 ${balanceRating}星，核心瓶颈：${bottleneck}）。组员自评：“${userText}”。`, timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) };
-        this.state.chatLogs.stage2.push(meetingMsg);
         this.syncStage2();
         this.syncChatLogs();
-
-        setTimeout(() => {
-          const feedbackMsg = { sender: 'reviewingEditor', text: `📝 【审稿编辑深度反馈与范例指引】：结合《编辑会议规范与范例模板文件.pdf》中的标准指标，正文整体连贯。针对你们提出的瓶颈：“${bottleneck}”，系统已在锁定的半程清单中展现，请组员按清单逐项修正！`, timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) };
-          this.state.chatLogs.stage2.push(feedbackMsg);
-          this.syncChatLogs();
-          renderChat(this.state);
-          this.renderStudentWorkspace();
-        }, 1200);
-
         renderChat(this.state);
         this.renderStudentWorkspace();
       });
