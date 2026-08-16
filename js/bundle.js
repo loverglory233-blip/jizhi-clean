@@ -5006,7 +5006,7 @@
       });
 
       if (!replyText || replyText.trim().length === 0) {
-        replyText = defaultFallbackText;
+        replyText = `⚠️ 【系统提示】：大模型智能体未返回有效应答（请检查网络连接或接口状态）。`;
       }
 
       const agentMsgObj = {

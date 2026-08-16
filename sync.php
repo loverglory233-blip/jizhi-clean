@@ -119,7 +119,7 @@ if ($action === 'coze_chat' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $botId = isset($req['bot_id']) ? $req['bot_id'] : '7673571806476828713';
     $userId = isset($req['user_id']) ? $req['user_id'] : 'student_user';
     $query = isset($req['query']) ? $req['query'] : '';
-    $patToken = 'cztei_l9Cd0Wwe0Dacblzw7dIcIqwwvz4EFpANbGEww3yaUMTzVl0zKaOZ2Ad0Zc2u3rLJo';
+    $patToken = 'cztei_lQvEBuui0NBG0PwfwGCI2BOAUupEKDEWylO8LaqHT3zZ7vTwSwPh3XXzPmHWUcPny';
 
     if (empty($query)) {
         echo json_encode(['success' => false, 'message' => 'Query is empty']);
