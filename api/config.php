@@ -1,13 +1,16 @@
 <?php
 /**
- * Coze API 集中配置文件
+ * Coze API 集中配置文件 (OAuth 2.0 自动续期架构)
  */
 
-// 个人访问令牌 (PAT Token)
-$COZE_API_KEY = 'cztei_lQvEBuui0NBG0PwfwGCI2BOAUupEKDEWylO8LaqHT3zZ7vTwSwPh3XXzPmHWUcPny';
+// OAuth 服务应用凭据 (长期免维护自动刷新)
+$COZE_APP_ID = '117674722513984684072';
+$COZE_KEY_ID = 'EdvxCTETZES-C-m32CsULVkKR_psKeP-J7HwpQnANuk';
+$COZE_PRIVATE_KEY_FILE = __DIR__ . '/private_key.pem';
 
 // API 请求基础地址 (中国区)
 $COZE_API_BASE_URL = 'https://api.coze.cn/v3';
+$COZE_OAUTH_TOKEN_URL = 'https://api.coze.cn/api/permission/oauth2/token';
 
 // 6 大智能体 Bot ID 映射表
 $COZE_BOTS = [
