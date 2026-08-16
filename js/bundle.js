@@ -4363,16 +4363,8 @@
         );
       } else {
         const currentGroupId = currentUser && currentUser.groupId ? currentUser.groupId : 'group_1';
+        this.state.activeTaskId = 'task_default';
         this.loadGroupState(currentGroupId);
-
-        if (this.state.studentViewMode === 'task_list') {
-          const tasks = this.authManager.getTasks();
-          if (tasks && tasks.length > 0) {
-            this.state.activeTaskId = tasks[0].id;
-          }
-          this.state.studentViewMode = 'workspace';
-          this.loadGroupState(currentGroupId);
-        }
 
         const membersList = Object.values(this.state.members || {});
 
