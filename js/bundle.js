@@ -4006,11 +4006,16 @@
     // 🌟 全局持久化聊天流：保留阶段一、阶段二、阶段三所有研讨历史，随时回看绝不清空
     const visibleStages = ['stage1', 'stage2', 'stage3'];
 
-    // Collect all visible messages in order
+    // Collect all visible messages in order, auto-purging old legacy idle spam
     const allMsgs = [];
     visibleStages.forEach(stg => {
-      const msgs = (state.chatLogs && state.chatLogs[stg]) ? state.chatLogs[stg] : [];
-      msgs.forEach(msg => allMsgs.push(msg));
+      if (state.chatLogs && state.chatLogs[stg]) {
+        state.chatLogs[stg] = state.chatLogs[stg].filter(msg => {
+          const txt = msg.text || '';
+          return !txt.includes('已连续') && !txt.includes('互动督促') && !txt.includes('秒未研讨') && !txt.includes('秒没有发言');
+        });
+        state.chatLogs[stg].forEach(msg => allMsgs.push(msg));
+      }
     });
 
     stream.innerHTML = allMsgs.map(msg => {
