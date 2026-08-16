@@ -3036,27 +3036,75 @@
         });
       }
 
-      // 插件 2: 插入标准学术三线表
+      // 插件 2: 插入标准学术三线表 (优雅弹窗配置 + 可选 p 值备注 + 完美取消)
       const btnInsertTable = container.querySelector(`#${editorId}-btn-insert-table`);
       if (btnInsertTable) {
         btnInsertTable.addEventListener('click', () => {
-          const tableName = prompt('请输入表格名称 (例如: 表 1: 研究变量与测量量表指标汇总表):', '表 1: 研究变量与测量量表指标汇总表');
-          const rows = parseInt(prompt('请输入表格行数 (包括表头行):', '4')) || 4;
-          const cols = parseInt(prompt('请输入表格列数:', '4')) || 4;
-          let tableHtml = `
-            <p style="text-align:center; font-weight:700; color:#334155; font-size:13px; margin-bottom:4px; text-indent:0;">${tableName || '表 1: 研究变量汇总表'}</p>
-            <table class="academic-table" style="width:100%; border-collapse:collapse; margin:10px 0; font-size:13px;">
-              <thead style="border-top:2.5px solid #0f172a; border-bottom:1.5px solid #0f172a; background:#f8fafc;">
-                <tr>${Array.from({length: cols}, (_, i) => `<th style="padding:8px; text-align:center;">变量 ${i + 1}</th>`).join('')}</tr>
-              </thead>
-              <tbody style="border-bottom:2.5px solid #0f172a;">
-                ${Array.from({length: rows - 1}, () => `<tr>${Array.from({length: cols}, () => `<td style="padding:8px; border-bottom:1px solid #e2e8f0; text-align:center;">—</td>`).join('')}</tr>`).join('')}
-              </tbody>
-            </table>
-            <p style="font-size:11.5px; color:#64748b; margin-top:2px; text-indent:0;"><i>注：*** p < .001, ** p < .01, * p < .05</i></p>
-            <p><br></p>
+          document.querySelectorAll('.table-config-modal-overlay').forEach(el => el.remove());
+          const modal = document.createElement('div');
+          modal.className = 'modal-overlay table-config-modal-overlay';
+          modal.innerHTML = `
+            <div class="teacher-modal-card" style="width:480px; background:#ffffff; color:#0f172a; border-radius:12px; box-shadow:0 20px 25px -5px rgba(0,0,0,0.2);">
+              <div class="teacher-modal-header" style="background:linear-gradient(135deg, #2563eb, #1d4ed8); color:white; padding:12px 18px; border-radius:12px 12px 0 0; display:flex; justify-content:space-between; align-items:center;">
+                <div style="font-weight:800; font-size:15px; display:flex; align-items:center; gap:6px;">📊 插入标准学术三线表</div>
+                <button id="btn-close-table-modal" style="background:none; border:none; color:white; font-size:18px; cursor:pointer;">✕</button>
+              </div>
+              <div style="padding:18px; display:flex; flex-direction:column; gap:12px;">
+                <div>
+                  <label style="font-size:12.5px; font-weight:700; color:#334155;">表格标题 (表题):</label>
+                  <input type="text" id="input-table-title" class="teacher-input" style="width:100%; margin-top:4px; padding:6px 10px; font-size:13px;" value="表 1: 研究变量与测量指标汇总表">
+                </div>
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+                  <div>
+                    <label style="font-size:12.5px; font-weight:700; color:#334155;">表格行数 (含表头):</label>
+                    <input type="number" id="input-table-rows" class="teacher-input" style="width:100%; margin-top:4px; padding:6px 10px; font-size:13px;" value="4" min="2" max="20">
+                  </div>
+                  <div>
+                    <label style="font-size:12.5px; font-weight:700; color:#334155;">表格列数:</label>
+                    <input type="number" id="input-table-cols" class="teacher-input" style="width:100%; margin-top:4px; padding:6px 10px; font-size:13px;" value="4" min="1" max="10">
+                  </div>
+                </div>
+                <div style="display:flex; align-items:center; gap:8px; background:#f8fafc; padding:10px 12px; border-radius:8px; border:1px solid #e2e8f0; margin-top:4px;">
+                  <input type="checkbox" id="chk-table-pvalue" style="width:16px; height:16px; cursor:pointer;">
+                  <label for="chk-table-pvalue" style="font-size:12.5px; color:#475569; cursor:pointer; user-select:none;">
+                    附带显著性检验标注 (<i>注：*** p < .001, ** p < .01, * p < .05</i>)
+                  </label>
+                </div>
+              </div>
+              <div class="teacher-modal-footer" style="background:#f8fafc; padding:12px 18px; border-radius:0 0 12px 12px; display:flex; justify-content:flex-end; gap:10px; border-top:1px solid #e2e8f0;">
+                <button class="modal-btn cancel" id="btn-cancel-table-insert" style="padding:6px 14px; font-size:13px;">取消</button>
+                <button class="modal-btn submit task-theme" id="btn-confirm-table-insert" style="background:#2563eb; color:white; border:none; padding:6px 16px; border-radius:6px; font-size:13px; font-weight:700; cursor:pointer;">✅ 确认插入</button>
+              </div>
+            </div>
           `;
-          exec('insertHTML', tableHtml);
+          document.body.appendChild(modal);
+
+          const closeModal = () => modal.remove();
+          modal.querySelector('#btn-close-table-modal').addEventListener('click', closeModal);
+          modal.querySelector('#btn-cancel-table-insert').addEventListener('click', closeModal);
+
+          modal.querySelector('#btn-confirm-table-insert').addEventListener('click', () => {
+            const title = modal.querySelector('#input-table-title').value.trim() || '表 1: 研究变量汇总表';
+            const rows = parseInt(modal.querySelector('#input-table-rows').value) || 4;
+            const cols = parseInt(modal.querySelector('#input-table-cols').value) || 4;
+            const hasPValue = modal.querySelector('#chk-table-pvalue').checked;
+            closeModal();
+
+            let tableHtml = `
+              <p style="text-align:center; font-weight:700; color:#334155; font-size:13px; margin-bottom:4px; text-indent:0;">${title}</p>
+              <table class="academic-table" style="width:100%; border-collapse:collapse; margin:10px 0; font-size:13px;">
+                <thead style="border-top:2.5px solid #0f172a; border-bottom:1.5px solid #0f172a; background:#f8fafc;">
+                  <tr>${Array.from({length: cols}, (_, i) => `<th style="padding:8px; text-align:center;">变量 ${i + 1}</th>`).join('')}</tr>
+                </thead>
+                <tbody style="border-bottom:2.5px solid #0f172a;">
+                  ${Array.from({length: Math.max(1, rows - 1)}, () => `<tr>${Array.from({length: cols}, () => `<td style="padding:8px; border-bottom:1px solid #e2e8f0; text-align:center;">—</td>`).join('')}</tr>`).join('')}
+                </tbody>
+              </table>
+              ${hasPValue ? `<p style="font-size:11.5px; color:#64748b; margin-top:2px; text-indent:0;"><i>注：*** p < .001, ** p < .01, * p < .05</i></p>` : ''}
+              <p><br></p>
+            `;
+            exec('insertHTML', tableHtml);
+          });
         });
       }
 
