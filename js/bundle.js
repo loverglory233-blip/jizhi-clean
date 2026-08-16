@@ -4230,6 +4230,24 @@
             renderChat(this.state);
           }
 
+          // ⏰ 阶段二【精准时间 65% 节点】：若正文尚未触发反思，时间满 65% (68.25分钟) 时责任编辑号召发起会议
+          if (currentStage === 'stage2') {
+            const s2Min = min - 25; // 阶段二经历分钟数 (总长105分钟)
+            const isStage2MeetingLocked = this.state.stage2 && this.state.stage2.actionPlan && this.state.stage2.actionPlan.isGenerated;
+            if (s2Min >= 68.25 && !isStage2MeetingLocked && !this.state.stage2MeetingTimeTriggered) {
+              this.state.stage2MeetingTimeTriggered = true;
+              const meetingCallMsg = {
+                sender: 'managingEditor',
+                text: `🤝 【责任编辑·半程会议号召】：阶段二协作时间已达到 65%！请全体小组成员点击上方【📢 发起编辑会议】完成 4 维自查打卡，稍后审稿编辑将结合全组情况进行深度学术质检与清单生成！`,
+                timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                _timeMs: nowMs
+              };
+              logs.push(meetingCallMsg);
+              this.syncChatLogs();
+              renderChat(this.state);
+            }
+          }
+
           renderHeader(
             this.state, currentUser, this.authManager.getAnnouncements(),
             (s) => this.switchStage(s), (sp) => this.setSpeed(sp),
@@ -5381,6 +5399,21 @@
           _timeMs: now
         };
         logs.push(meetingCallMsg);
+        this.syncChatLogs();
+        renderChat(this.state);
+      }
+
+      // 4. 🎯 终审里程碑雷达：推进到【六、参考文献】时触发终审排版与格式规范提醒
+      const hasReferenceSection = /(?:六、|第6章|第六部分|参考文献|References|gb\/t\s*7714)/i.test(newContent);
+      if (hasReferenceSection && !this.state.stage2RefFormatReviewed && timeSinceLastReviewing > 60000) {
+        this.state.stage2RefFormatReviewed = true;
+        const refReviewMsg = {
+          sender: 'reviewingEditor',
+          text: `📝 【审稿编辑·终审格式与参考文献规范提醒】：关注到团队已推进至【参考文献】收尾部分，全篇已基本成型！在最终冲刺阶段，请大家重点自查排版细节：① 参考文献是否符合标准 GB/T 7714 格式（含著者、题目、刊名、年份、期卷、页码）；② 各级标题序号是否统一；③ 表格是否采用标准学术三线表。做好细节润色，准备迎接阶段三答辩！`,
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          _timeMs: now
+        };
+        logs.push(refReviewMsg);
         this.syncChatLogs();
         renderChat(this.state);
       }
