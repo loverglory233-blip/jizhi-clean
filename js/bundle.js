@@ -4340,7 +4340,11 @@
             this.state, currentUser, this.authManager.getAnnouncements(),
             (s) => this.switchStage(s), (sp) => this.setSpeed(sp),
             () => this.handleLogout(), () => this.switchToTeacherView(),
-            () => this.showAnnouncementModal(), () => this.showQuestionnaireModal()
+            () => this.showAnnouncementModal(), () => this.showQuestionnaireModal(),
+            () => {
+              this.state.studentViewMode = 'task_list';
+              this.renderMain();
+            }
           );
         }
       }, 1000);
@@ -5202,7 +5206,16 @@
     setSpeed(newSpeed) {
       this.state.timer.speed = newSpeed;
       const currentUser = this.authManager.getCurrentUser();
-      renderHeader(this.state, currentUser, this.authManager.getAnnouncements(), (s) => this.switchStage(s), (sp) => this.setSpeed(sp), () => this.handleLogout(), () => this.switchToTeacherView(), () => this.showAnnouncementModal(), () => this.showQuestionnaireModal());
+      renderHeader(
+        this.state, currentUser, this.authManager.getAnnouncements(),
+        (s) => this.switchStage(s), (sp) => this.setSpeed(sp),
+        () => this.handleLogout(), () => this.switchToTeacherView(),
+        () => this.showAnnouncementModal(), () => this.showQuestionnaireModal(),
+        () => {
+          this.state.studentViewMode = 'task_list';
+          this.renderMain();
+        }
+      );
     }
 
     renderStudentWorkspace() {
