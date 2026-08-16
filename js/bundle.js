@@ -1026,7 +1026,9 @@
         this.app.renderPresenceCursors();
       }
 
-      if (remoteData.members) { this.app.state.members = remoteData.members; structuralUpdated = true; }
+      if (remoteData.members) { 
+        this.app.state.members = remoteData.members; 
+      }
 
       if (remoteData.isFinalSubmitted !== undefined && remoteData.isFinalSubmitted !== this.app.state.isFinalSubmitted) {
         this.app.state.isFinalSubmitted = remoteData.isFinalSubmitted;
@@ -1035,10 +1037,8 @@
 
       if (remoteData.chatLogs) {
         ['stage1', 'stage2', 'stage3'].forEach(stg => {
-          const localLogs = this.app.state.chatLogs[stg] || [];
           const remoteLogs = remoteData.chatLogs[stg] || [];
-          if (remoteLogs.length !== localLogs.length || JSON.stringify(remoteLogs) !== JSON.stringify(localLogs)) {
-            // 合并或采纳最新聊天
+          if (remoteLogs.length > 0 || (this.app.state.chatLogs[stg] && this.app.state.chatLogs[stg].length !== remoteLogs.length)) {
             this.app.state.chatLogs[stg] = remoteLogs;
             chatUpdated = true;
           }
@@ -1046,21 +1046,8 @@
       }
 
       if (remoteData.stage1) {
-        if (JSON.stringify(remoteData.stage1) !== JSON.stringify(this.app.state.stage1)) {
-          this.app.state.stage1 = remoteData.stage1;
-          structuralUpdated = true;
-        }
+        this.app.state.stage1 = remoteData.stage1;
       }
-
-      if (remoteData.users && Array.isArray(remoteData.users) && remoteData.users.length > 0) {
-        localStorage.setItem(STORAGE_KEY_USERS_DB, JSON.stringify(remoteData.users));
-      }
-      if (remoteData.classes && Array.isArray(remoteData.classes) && remoteData.classes.length > 0) {
-        localStorage.setItem(STORAGE_KEY_CLASSES, JSON.stringify(remoteData.classes));
-      }
-      if (remoteData.tasks && Array.isArray(remoteData.tasks)) localStorage.setItem(STORAGE_KEY_TASKS, JSON.stringify(remoteData.tasks));
-      if (remoteData.announcements && Array.isArray(remoteData.announcements)) localStorage.setItem(STORAGE_KEY_ANNOUNCEMENTS, JSON.stringify(remoteData.announcements));
-      if (remoteData.referencePapers && Array.isArray(remoteData.referencePapers)) localStorage.setItem('jizhi_reference_papers_db', JSON.stringify(remoteData.referencePapers));
 
       if (remoteData.stage2) {
         if (remoteData.stage2.unifiedContent !== undefined) {
@@ -1070,11 +1057,8 @@
           if (cleanRemoteContent !== this.app.state.stage2.unifiedContent) {
             this.app.state.stage2.unifiedContent = cleanRemoteContent;
             const editor = document.getElementById('stage2-word-editor') || document.getElementById('stage3-word-editor');
-            // 只要不是当前正在编辑的富文本焦点框，或者内容确实变化，就精准同步
-            if (editor) {
-              if (document.activeElement !== editor) {
-                editor.innerHTML = cleanRemoteContent || '';
-              }
+            if (editor && document.activeElement !== editor) {
+              editor.innerHTML = cleanRemoteContent || '';
             }
             this.app.updateContributionUi();
             this.app.renderPresenceCursors();
@@ -1084,17 +1068,13 @@
           this.app.state.stage2.memberContributions = remoteData.stage2.memberContributions;
           this.app.updateContributionUi();
         }
-        if (remoteData.stage2.actionPlan && JSON.stringify(remoteData.stage2.actionPlan) !== JSON.stringify(this.app.state.stage2.actionPlan)) {
+        if (remoteData.stage2.actionPlan) {
           this.app.state.stage2.actionPlan = remoteData.stage2.actionPlan;
-          structuralUpdated = true;
         }
       }
 
       if (remoteData.stage3 && remoteData.stage3.feedbackItems) {
-        if (JSON.stringify(remoteData.stage3.feedbackItems) !== JSON.stringify(this.app.state.stage3.feedbackItems)) {
-          this.app.state.stage3.feedbackItems = remoteData.stage3.feedbackItems;
-          structuralUpdated = true;
-        }
+        this.app.state.stage3.feedbackItems = remoteData.stage3.feedbackItems;
       }
 
       if (remoteData.currentStage && remoteData.currentStage !== this.app.state.currentStage) {
@@ -1103,20 +1083,15 @@
       }
 
       this.app.saveGroupState(myGroupId);
-      if (chatUpdated) renderChat(this.app.state);
+      
+      // 强制即时重绘聊天流与界面
+      renderChat(this.app.state);
+      this.app.updateContributionUi();
+      this.app.renderPresenceCursors();
+
       if (structuralUpdated) {
-        if (user?.role === 'student') {
-          if (this.app.state.studentViewMode === 'workspace') {
-            this.app.renderStudentWorkspace();
-          } else {
-            this.app.renderMain();
-          }
-        }
-        if (user?.role === 'teacher') {
-          const mainEl = document.getElementById('app');
-          if (mainEl) {
-            renderTeacherPortal(mainEl, this.app.authManager, this.app.state, () => this.app.handleLogout(), () => this.app.renderStudentWorkspace());
-          }
+        if (user?.role === 'student' && this.app.state.studentViewMode === 'workspace') {
+          this.app.renderStudentWorkspace();
         }
       }
     }
