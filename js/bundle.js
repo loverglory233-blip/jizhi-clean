@@ -1148,6 +1148,33 @@
 
         if (JSON.stringify(newS1) !== JSON.stringify(localS1)) {
           this.app.state.stage1 = newS1;
+          
+          // 🚀 直接定向刷新页面上正在展示的合约输入框（不销毁焦点，即时双向同步）
+          if (newS1.contract?.taskAssignments) {
+            document.querySelectorAll('.task-assignment-input').forEach(inp => {
+              const mId = inp.dataset.mid;
+              if (mId && newS1.contract.taskAssignments[mId] !== undefined) {
+                if (document.activeElement !== inp) {
+                  inp.value = newS1.contract.taskAssignments[mId] || '';
+                }
+              }
+            });
+          }
+          if (newS1.contract?.timeAllocations) {
+            document.querySelectorAll('.contract-time-input').forEach(inp => {
+              const k = inp.dataset.key;
+              if (k && newS1.contract.timeAllocations[k] !== undefined) {
+                if (document.activeElement !== inp) {
+                  inp.value = newS1.contract.timeAllocations[k] || 0;
+                }
+              }
+            });
+          }
+          const topicInp = document.getElementById('contract-topic-input');
+          if (topicInp && document.activeElement !== topicInp && newS1.mergedTitle !== undefined) {
+            topicInp.value = newS1.mergedTitle || '';
+          }
+
           structuralUpdated = true;
         }
       }
@@ -1160,11 +1187,8 @@
           if (cleanRemoteContent !== this.app.state.stage2.unifiedContent) {
             this.app.state.stage2.unifiedContent = cleanRemoteContent;
             const editor = document.getElementById('stage2-word-editor') || document.getElementById('stage3-word-editor');
-            if (editor) {
-              const isCurrentlyEditing = editor === document.activeElement || editor.contains(document.activeElement);
-              if (!isCurrentlyEditing) {
-                editor.innerHTML = cleanRemoteContent || '';
-              }
+            if (editor && document.activeElement !== editor) {
+              editor.innerHTML = cleanRemoteContent || '';
             }
             this.app.updateContributionUi();
             this.app.renderPresenceCursors();
