@@ -25,6 +25,8 @@ $scopeKey = $taskId . '_' . $groupId;
 $localFile = __DIR__ . '/db_' . $scopeKey . '.json';
 $tmpFile = sys_get_temp_dir() . '/jizhi_db_' . $scopeKey . '.json';
 
+$action = isset($_GET['action']) ? $_GET['action'] : '';
+
 $globalDbFile = __DIR__ . '/global_db.json';
 $globalDbTmp = sys_get_temp_dir() . '/jizhi_global_db.json';
 

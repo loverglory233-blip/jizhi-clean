@@ -250,7 +250,17 @@
         if (res.ok) {
           const data = await res.json();
           if (data && data.users && Array.isArray(data.users) && data.users.length > 0) {
-            localStorage.setItem(STORAGE_KEY_USERS_DB, JSON.stringify(data.users));
+            const currentUsers = this.getUsers();
+            const currUser = this.getCurrentUser();
+            // Merge users without wiping activeSessionId
+            const mergedUsers = data.users.map(u => {
+              const localMatch = currentUsers.find(cu => cu.id === u.id || cu.username === u.username);
+              if (localMatch && currUser && (currUser.id === u.id || currUser.username === u.username)) {
+                return { ...u, activeSessionId: currUser.activeSessionId };
+              }
+              return u;
+            });
+            localStorage.setItem(STORAGE_KEY_USERS_DB, JSON.stringify(mergedUsers));
           }
           if (data && data.classes && Array.isArray(data.classes) && data.classes.length > 0) {
             localStorage.setItem(STORAGE_KEY_CLASSES, JSON.stringify(data.classes));
