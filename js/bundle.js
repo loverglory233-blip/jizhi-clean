@@ -3555,11 +3555,9 @@
     pillsContainer.innerHTML = membersList.map(m => {
       const p = presence[m.studentCode] || presence[m.id];
       const isSelf = m.studentCode === currentUserCode || m.id === currentUserCode;
-      // 只有在 15 秒内有心跳活跃的才视为在线（超过 15 秒立刻显示离线）
+      // 只有在 15 秒内有心跳活跃的才视为在线
       const isOnline = isSelf || (p && (now - (p.updatedAt || 0) < 15000));
-      // 只有在 4 秒内明确在打字的才显示 (在写: ...)，超过 4 秒自动切回 (在线)
-      const isTyping = !isSelf && isOnline && p && p.activeSection && p.activeSection !== '在线研讨' && (now - (p.updatedAt || 0) < 4000);
-      const sectionText = isSelf ? ' (我)' : (isTyping ? ` (在写: ${p.activeSection})` : (isOnline ? ' (在线)' : ' (离线)'));
+      const sectionText = isSelf ? ' (我)' : (isOnline ? ' (在线)' : ' (离线)');
       const color = m.color || '#2563eb';
 
       return `
@@ -3580,6 +3578,7 @@
     editor.querySelectorAll('.remote-cursor-widget').forEach(el => el.remove());
     editor.querySelectorAll('.collab-editing-node-highlight').forEach(el => {
       el.classList.remove('collab-editing-node-highlight');
+      el.style.borderBottom = 'none';
       el.style.borderLeft = 'none';
       el.style.backgroundColor = 'transparent';
     });
@@ -3592,31 +3591,35 @@
     membersList.forEach(m => {
       if (m.studentCode === currentUserCode || m.id === currentUserCode) return;
       const p = presence[m.studentCode] || presence[m.id];
-      if (!p || (now - p.updatedAt > 20000)) return; // 20秒未活动即视为离线/离开编辑
+      if (!p || (now - p.updatedAt > 15000)) return; // 15秒未活动即视为离线
 
       const color = m.color || '#8b5cf6';
       const name = m.name || m.studentCode;
       const avatar = m.avatar || '👨‍🎓';
 
-      // Find target paragraph or element
+      // 定位到当前学生正在编辑的段落或行
       const children = Array.from(editor.children);
       let targetEl = null;
       if (typeof p.nodeIndex === 'number' && children[p.nodeIndex]) {
         targetEl = children[p.nodeIndex];
+      } else if (children.length > 0) {
+        targetEl = children[children.length - 1]; // 默认堆到最新编辑区域
       }
 
       if (targetEl && targetEl !== editor) {
         targetEl.classList.add('collab-editing-node-highlight');
-        targetEl.style.borderLeft = `3.5px solid ${color}`;
-        targetEl.style.backgroundColor = `${color}0d`;
+        // 去除左侧冗长竖条，改用清爽的彩色下划线标记编辑位置
+        targetEl.style.borderBottom = `2px dashed ${color}`;
+        targetEl.style.borderLeft = 'none';
+        targetEl.style.backgroundColor = `${color}08`;
 
-        // 绝不作为 contenteditable 子节点影响输入，而是作为一个绝对定位/只读浮标
+        // 紧凑的只读成员姓名浮标
         const cursorWidget = document.createElement('span');
         cursorWidget.className = 'remote-cursor-widget';
         cursorWidget.contentEditable = 'false';
-        cursorWidget.style.cssText = 'user-select:none; pointer-events:none; display:inline-block; vertical-align:middle; margin-left:4px;';
+        cursorWidget.style.cssText = 'user-select:none; pointer-events:none; display:inline-inline-block; vertical-align:middle; margin-left:6px;';
         cursorWidget.innerHTML = `
-          <span class="remote-caret-flag" style="background:${color}; font-size:11px; padding:1px 6px; border-radius:4px; color:white; font-weight:700; display:inline-flex; align-items:center; gap:2px;">
+          <span class="remote-caret-flag" style="background:${color}; font-size:10.5px; padding:1px 6px; border-radius:4px; color:white; font-weight:700; display:inline-flex; align-items:center; gap:2px; box-shadow:0 1px 4px rgba(0,0,0,0.15);">
             ${avatar} ${name}
           </span>
         `;
