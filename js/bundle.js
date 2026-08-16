@@ -1082,7 +1082,7 @@
         }
         if (user?.role === 'teacher') {
           const mainEl = document.getElementById('app');
-          if (mainEl && this.app.state.teacherActiveTab === 'view_monitoring') {
+          if (mainEl) {
             renderTeacherPortal(mainEl, this.app.authManager, this.app.state, () => this.app.handleLogout(), () => this.app.renderStudentWorkspace());
           }
         }
@@ -4187,6 +4187,7 @@
 
     resetTestGroupState(groupId = 'group_1') {
       const defaultState = JSON.parse(JSON.stringify(InitialState));
+      this.state.activeMonitorGroupId = groupId;
       this.state.stage1 = defaultState.stage1;
       this.state.stage2 = defaultState.stage2;
       this.state.stage3 = defaultState.stage3;
@@ -4195,7 +4196,10 @@
       this.state.presence = {};
       this.initPresetMessagesForGroup(groupId);
       this.saveGroupState(groupId);
-      if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+      if (this.cloudSyncEngine) {
+        this.cloudSyncEngine.updateScopeKeys();
+        this.cloudSyncEngine.pushSnapshot();
+      }
     }
 
     saveGroupState(groupId) {
