@@ -2793,13 +2793,28 @@
               <button class="word-btn" id="${editorId}-btn-sub" title="下标 (变量角标 H₁)">X₂</button>
             </div>
 
-            <!-- 4. 排版、缩进与行距 -->
+            <!-- 4. 排版、对齐、缩进与行间距 -->
             <div class="word-toolbar-group">
+              <select class="word-select" id="${editorId}-sel-line-height" title="行间距 (行高)" style="width:96px;">
+                <option value="1.5" selected>1.5倍 (标准)</option>
+                <option value="1.0">单倍行距</option>
+                <option value="1.25">1.25倍行距</option>
+                <option value="1.75">1.75倍行距</option>
+                <option value="2.0">双倍 (2.0倍)</option>
+              </select>
+              <select class="word-select" id="${editorId}-sel-para-margin" title="段落后间距 (段后距)" style="width:90px;">
+                <option value="6px" selected>段后 6pt</option>
+                <option value="0px">段后 0pt</option>
+                <option value="12px">段后 12pt</option>
+                <option value="18px">段后 18pt</option>
+              </select>
               <button class="word-btn" id="${editorId}-btn-align-left" title="左对齐">⇤</button>
               <button class="word-btn" id="${editorId}-btn-align-center" title="居中对齐">☰</button>
               <button class="word-btn" id="${editorId}-btn-align-right" title="右对齐">⇥</button>
               <button class="word-btn" id="${editorId}-btn-align-justify" title="两端对齐 (学术正文标准)">☲</button>
-              <button class="word-btn" id="${editorId}-btn-indent-2em" title="一键首行缩进 2 字符">⇥ 首行缩进</button>
+              <button class="word-btn" id="${editorId}-btn-indent-inc" title="增加缩进">➔ 缩进+</button>
+              <button class="word-btn" id="${editorId}-btn-indent-dec" title="减少缩进">⬅ 缩进-</button>
+              <button class="word-btn" id="${editorId}-btn-indent-2em" title="一键首行缩进 2 字符">⇥ 首行2字符</button>
               <button class="word-btn" id="${editorId}-btn-hanging-indent" title="悬挂缩进 (参考文献格式)">⇤ 悬挂缩进</button>
               <button class="word-btn" id="${editorId}-btn-list-ul" title="项目符号">• 列表</button>
               <button class="word-btn" id="${editorId}-btn-list-ol" title="编号列表">1. 编号</button>
@@ -2911,8 +2926,22 @@
       if (btnStrike) btnStrike.addEventListener('click', () => exec('strikeThrough'));
       const btnSup = container.querySelector(`#${editorId}-btn-sup`);
       if (btnSup) btnSup.addEventListener('click', () => exec('superscript'));
-      const btnSub = container.querySelector(`#${editorId}-btn-sub`);
-      if (btnSub) btnSub.addEventListener('click', () => exec('subscript'));
+      const selLineHeight = container.querySelector(`#${editorId}-sel-line-height`);
+      if (selLineHeight) {
+        selLineHeight.addEventListener('change', (e) => {
+          editor.style.lineHeight = e.target.value;
+          if (onChangeCallback) onChangeCallback(editor.innerHTML);
+        });
+      }
+
+      const selParaMargin = container.querySelector(`#${editorId}-sel-para-margin`);
+      if (selParaMargin) {
+        selParaMargin.addEventListener('change', (e) => {
+          const val = e.target.value;
+          editor.querySelectorAll('p').forEach(p => { p.style.marginBottom = val; });
+          if (onChangeCallback) onChangeCallback(editor.innerHTML);
+        });
+      }
 
       const btnAlignLeft = container.querySelector(`#${editorId}-btn-align-left`);
       if (btnAlignLeft) btnAlignLeft.addEventListener('click', () => exec('justifyLeft'));
@@ -2922,6 +2951,11 @@
       if (btnAlignRight) btnAlignRight.addEventListener('click', () => exec('justifyRight'));
       const btnAlignJustify = container.querySelector(`#${editorId}-btn-align-justify`);
       if (btnAlignJustify) btnAlignJustify.addEventListener('click', () => exec('justifyFull'));
+
+      const btnIndentInc = container.querySelector(`#${editorId}-btn-indent-inc`);
+      if (btnIndentInc) btnIndentInc.addEventListener('click', () => exec('indent'));
+      const btnIndentDec = container.querySelector(`#${editorId}-btn-indent-dec`);
+      if (btnIndentDec) btnIndentDec.addEventListener('click', () => exec('outdent'));
 
       const btnIndent2em = container.querySelector(`#${editorId}-btn-indent-2em`);
       if (btnIndent2em) btnIndent2em.addEventListener('click', () => {
@@ -3916,8 +3950,19 @@
       const name = profile ? (profile.name || profile.roleTitle) : msg.sender;
       const color = profile ? profile.color : '#94a3b8';
 
-      let formattedText = msg.text || '';
-      formattedText = formattedText.replace(/(@[^\s@]+)/g, '<span class="mention-tag">$1</span>');
+      let formattedContent = '';
+      if ((msg.text || '').startsWith('[IMG_DATA]:')) {
+        const imgSrc = msg.text.replace('[IMG_DATA]:', '');
+        formattedContent = `
+          <div style="margin-top:2px;">
+            <img src="${imgSrc}" style="max-width:240px; max-height:180px; border-radius:8px; border:1px solid #cbd5e1; cursor:pointer; box-shadow:0 2px 8px rgba(0,0,0,0.1); transition:transform 0.2s;" onclick="window.open('${imgSrc}')" title="点击查看原图">
+          </div>
+        `;
+      } else {
+        let formattedText = msg.text || '';
+        formattedText = formattedText.replace(/(@[^\s@]+)/g, '<span class="mention-tag">$1</span>');
+        formattedContent = `<div class="msg-bubble">${formattedText}</div>`;
+      }
 
       return `
         <div class="chat-message ${isMe ? 'me' : 'other'}">
@@ -3927,7 +3972,7 @@
               <span class="msg-sender" style="color:${color};">${name} ${isMe ? '(我)' : ''}</span>
               <span style="font-size:10px; color:#64748b; margin-left:6px;">${msg.timestamp || ''}</span>
             </div>
-            <div class="msg-bubble">${formattedText}</div>
+            ${formattedContent}
           </div>
         </div>
       `;
@@ -4223,7 +4268,11 @@
                 <span class="emoji-btn" data-emoji="✅">✅</span><span class="emoji-btn" data-emoji="⚠️">⚠️</span>
                 <span class="emoji-btn" data-emoji="🚀">🚀</span><span class="emoji-btn" data-emoji="⚡">⚡</span>
               </div>
-              <div class="chat-input-bar">
+              <div class="chat-input-bar" style="display:flex; align-items:center; gap:8px;">
+                <input type="file" id="chat-img-file-input" accept="image/*" style="display:none;">
+                <button class="chat-tool-btn" id="btn-chat-upload-img" title="发送图片/图表至讨论区" style="background:#f1f5f9; border:1px solid #cbd5e1; border-radius:8px; width:38px; height:38px; display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:18px; color:#475569; flex-shrink:0;">
+                  🖼️
+                </button>
                 <input type="text" class="chat-input modern-spacious-input" id="chat-input" placeholder="输入 @ 提及同学或智能体，或输入学术讨论..." autocomplete="off">
                 <button class="send-btn modern-send-btn" id="send-btn" title="发送消息">
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
@@ -4489,6 +4538,36 @@
       if (emojiBar) {
         emojiBar.querySelectorAll('.emoji-btn').forEach(btn => {
           btn.addEventListener('click', () => { input.value += btn.dataset.emoji; input.focus(); });
+        });
+      }
+
+      const btnUploadImg = document.getElementById('btn-chat-upload-img');
+      const fileInputImg = document.getElementById('chat-img-file-input');
+      if (btnUploadImg && fileInputImg) {
+        btnUploadImg.addEventListener('click', () => fileInputImg.click());
+        fileInputImg.addEventListener('change', (e) => {
+          if (e.target.files && e.target.files[0]) {
+            const file = e.target.files[0];
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+              const imgData = ev.target.result;
+              const currentUser = this.authManager.getCurrentUser();
+              const studentCode = currentUser ? (currentUser.studentCode || 'A') : 'A';
+              const currentStage = this.state.currentStage;
+              const msgObj = {
+                sender: studentCode,
+                text: `[IMG_DATA]:${imgData}`,
+                timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                _timeMs: Date.now()
+              };
+              if (!this.state.chatLogs[currentStage]) this.state.chatLogs[currentStage] = [];
+              this.state.chatLogs[currentStage].push(msgObj);
+              this.syncChatLogs();
+              renderChat(this.state);
+            };
+            reader.readAsDataURL(file);
+            fileInputImg.value = '';
+          }
         });
       }
 
@@ -5237,35 +5316,38 @@
               <div><div style="font-size:13px; font-weight:700; color:#a5b4fc;">📎 审稿编辑推送范例文件:</div><div style="font-size:12px; color:#cbd5e1;">《编辑会议规范与范例模板文件.pdf》 (1.8 MB)</div></div>
               <button id="btn-download-case-file" style="background:var(--accent-indigo); border:none; color:white; padding:6px 12px; border-radius:6px; font-size:12px; cursor:pointer;">📥 下载范例文件</button>
             </div>
-            <!-- 契约一致性双核自查 (主题 + 时间) -->
-            <div style="background:#f8fafc; border:1px solid #cbd5e1; border-radius:10px; padding:14px 16px; margin-top:12px;">
-              <div style="font-size:13px; font-weight:800; color:#1e40af; margin-bottom:10px;">📋 阶段一合作公约一致性自查 (SSRL 计划对照)</div>
+            <!-- 1. 契约与构想一致性双核自查 -->
+            <div style="background:#f8fafc; border:1px solid #cbd5e1; border-radius:10px; padding:12px 16px; margin-top:12px;">
+              <div style="font-size:13px; font-weight:800; color:#1e40af; margin-bottom:10px;">📋 阶段一公约与核心构想对照 (SSRL 计划自查)</div>
               
-              <div style="display:flex; flex-direction:column; gap:10px;">
-                <div style="display:flex; justify-content:space-between; align-items:center; background:#ffffff; padding:10px 12px; border-radius:8px; border:1px solid #e2e8f0;">
-                  <span style="font-size:13px; color:#334155; font-weight:600;">1. 写作主题与公约契约一致性：</span>
-                  <select id="meeting-theme-consistency-select" class="teacher-input" style="width:160px; padding:4px 8px; font-size:12.5px;">
-                    <option value="完全一致，紧扣主题">✅ 完全一致，紧扣主题</option>
+              <div style="display:flex; flex-direction:column; gap:8px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; background:#ffffff; padding:8px 12px; border-radius:8px; border:1px solid #e2e8f0;">
+                  <span style="font-size:12.5px; color:#334155; font-weight:600;">1. 核心研究构想与初衷一致性：</span>
+                  <select id="meeting-theme-consistency-select" class="teacher-input" style="width:170px; padding:4px 8px; font-size:12px;">
+                    <option value="紧扣初衷，观点高度聚焦">✅ 紧扣初衷，观点高度聚焦</option>
                     <option value="基本一致，有局部微调">🔄 基本一致，有局部微调</option>
-                    <option value="存在偏离，需聚焦回正">⚠️ 存在偏离，需聚焦回正</option>
+                    <option value="存在发散，需聚焦核心论点">⚠️ 存在发散，需聚焦核心论点</option>
                   </select>
                 </div>
 
-                <div style="display:flex; justify-content:space-between; align-items:center; background:#ffffff; padding:10px 12px; border-radius:8px; border:1px solid #e2e8f0;">
-                  <span style="font-size:13px; color:#334155; font-weight:600;">2. 章节耗时与公约时间预算一致性：</span>
-                  <select id="meeting-time-consistency-select" class="teacher-input" style="width:160px; padding:4px 8px; font-size:12.5px;">
-                    <option value="节奏匹配，符合预期">✅ 节奏匹配，符合预期</option>
+                <div style="display:flex; justify-content:space-between; align-items:center; background:#ffffff; padding:8px 12px; border-radius:8px; border:1px solid #e2e8f0;">
+                  <span style="font-size:12.5px; color:#334155; font-weight:600;">2. 章节耗时与时间预算一致性：</span>
+                  <select id="meeting-time-consistency-select" class="teacher-input" style="width:170px; padding:4px 8px; font-size:12px;">
+                    <option value="节奏匹配，符合时间规划">✅ 节奏匹配，符合时间规划</option>
                     <option value="局部超时，后半程需加速">⏳ 局部超时，后半程需加速</option>
-                    <option value="进度严重滞后，需精简">🚨 进度严重滞后，需精简</option>
+                    <option value="进度严重滞后，需精简篇幅">🚨 进度严重滞后，需精简篇幅</option>
                   </select>
                 </div>
               </div>
             </div>
 
-            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px; margin-top:14px;">
-              <div class="teacher-form-group" style="margin-bottom:0;">
-                <label style="font-size:12.5px; font-weight:700;">🌟 内容逻辑与严谨度 (点击星级)</label>
-                <div class="rating-stars" id="star-rating-logic" style="margin:4px 0; font-size:22px; cursor:pointer; user-select:none;">
+            <!-- 2. 团队共享调节 3 维打星自评 (舒展立体) -->
+            <div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:10px; padding:12px 16px; margin-top:12px; display:flex; flex-direction:column; gap:10px;">
+              <div style="font-size:13px; font-weight:800; color:#0f172a;">🌟 团队共享调节 (SSRL) 3 维打星自评</div>
+              
+              <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px dashed #f1f5f9; padding-bottom:6px;">
+                <span style="font-size:12.5px; font-weight:600; color:#334155;">① 内容逻辑与学术严谨度：</span>
+                <div class="rating-stars" id="star-rating-logic" style="font-size:22px; cursor:pointer; user-select:none;">
                   <span class="star" data-val="1" style="color:#f59e0b;">★</span>
                   <span class="star" data-val="2" style="color:#f59e0b;">★</span>
                   <span class="star" data-val="3" style="color:#f59e0b;">★</span>
@@ -5273,9 +5355,21 @@
                   <span class="star" data-val="5" style="color:#475569;">★</span>
                 </div>
               </div>
-              <div class="teacher-form-group" style="margin-bottom:0;">
-                <label style="font-size:12.5px; font-weight:700;">👥 团队分工与参与平衡度</label>
-                <div class="rating-stars" id="star-rating-balance" style="margin:4px 0; font-size:22px; cursor:pointer; user-select:none;">
+
+              <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px dashed #f1f5f9; padding-bottom:6px;">
+                <span style="font-size:12.5px; font-weight:600; color:#334155;">② 团队分工与参与平衡度：</span>
+                <div class="rating-stars" id="star-rating-balance" style="font-size:22px; cursor:pointer; user-select:none;">
+                  <span class="star" data-val="1" style="color:#f59e0b;">★</span>
+                  <span class="star" data-val="2" style="color:#f59e0b;">★</span>
+                  <span class="star" data-val="3" style="color:#f59e0b;">★</span>
+                  <span class="star" data-val="4" style="color:#f59e0b;">★</span>
+                  <span class="star" data-val="5" style="color:#f59e0b;">★</span>
+                </div>
+              </div>
+
+              <div style="display:flex; justify-content:space-between; align-items:center;">
+                <span style="font-size:12.5px; font-weight:600; color:#334155;">③ 组内沟通协同与信心状态：</span>
+                <div class="rating-stars" id="star-rating-confidence" style="font-size:22px; cursor:pointer; user-select:none;">
                   <span class="star" data-val="1" style="color:#f59e0b;">★</span>
                   <span class="star" data-val="2" style="color:#f59e0b;">★</span>
                   <span class="star" data-val="3" style="color:#f59e0b;">★</span>
@@ -5285,19 +5379,29 @@
               </div>
             </div>
 
+            <!-- 3. 多维难点瓶颈选择 (学术+协作+节奏) -->
             <div class="teacher-form-group" style="margin-top:12px;">
-              <label style="font-size:13px; font-weight:700;">⚠️ 当前组内面临的核心难点瓶颈</label>
+              <label style="font-size:13px; font-weight:700;">⚠️ 当前组内面临的核心难点瓶颈 (涵盖学术/协作/进度)</label>
               <select id="meeting-bottleneck-select" class="teacher-input">
-                <option value="假设与研究设计工具对应不明确">假设与研究设计工具对应不明确</option>
-                <option value="国内外文献综述支撑力度不足">国内外文献综述支撑力度不足</option>
-                <option value="核心变量的操作化测量量表不够权威">核心变量的操作化测量量表不够权威</option>
-                <option value="章节过渡与逻辑论证衔接不够紧密">章节过渡与逻辑论证衔接不够紧密</option>
+                <optgroup label="📚 学术与内容瓶颈">
+                  <option value="假设与研究设计测量工具对应不明确">假设与研究设计测量工具对应不明确</option>
+                  <option value="国内外文献综述支撑力度与权威性不足">国内外文献综述支撑力度与权威性不足</option>
+                  <option value="核心变量的操作化测量量表不够完善">核心变量的操作化测量量表不够完善</option>
+                </optgroup>
+                <optgroup label="👥 团队协作与衔接瓶颈">
+                  <option value="各成员撰写风格不一致，章节过渡衔接缺乏逻辑">各成员撰写风格不一致，章节过渡衔接缺乏逻辑</option>
+                  <option value="对部分核心观点的论证存在组内争议尚未统一">对部分核心观点的论证存在组内争议尚未统一</option>
+                </optgroup>
+                <optgroup label="⏳ 进度节奏与心理状态">
+                  <option value="时间分配偏紧，担心后半程收尾仓促">时间分配偏紧，担心后半程收尾仓促</option>
+                  <option value="写作遇到思路卡顿，感到有些焦虑">写作遇到思路卡顿，感到有些焦虑</option>
+                </optgroup>
               </select>
             </div>
 
             <div class="teacher-form-group" style="margin-top:10px;">
               <label style="font-size:13px; font-weight:700;">✍️ 组内自评与补充修正说明</label>
-              <textarea id="meeting-input-text" class="teacher-textarea" style="min-height:68px;" placeholder="请输入组内自我检讨或需要审稿编辑解答的问题...">背景与问题部分已完成，请审稿编辑评价假设与方法的衔接。</textarea>
+              <textarea id="meeting-input-text" class="teacher-textarea" style="min-height:60px;" placeholder="请输入组内自我检讨或需要审稿编辑解答的问题...">背景与问题部分已完成，请审稿编辑评价假设与方法的衔接。</textarea>
             </div>
           </div>
           <div class="teacher-modal-footer">
@@ -5318,6 +5422,7 @@
 
       let logicRating = 4;
       let balanceRating = 5;
+      let confidenceRating = 5;
 
       modal.querySelectorAll('#star-rating-logic .star').forEach(s => {
         s.addEventListener('click', (e) => {
@@ -5335,6 +5440,16 @@
           modal.querySelectorAll('#star-rating-balance .star').forEach(st => {
             const v = Number(st.dataset.val);
             st.style.color = v <= balanceRating ? '#f59e0b' : '#475569';
+          });
+        });
+      });
+
+      modal.querySelectorAll('#star-rating-confidence .star').forEach(s => {
+        s.addEventListener('click', (e) => {
+          confidenceRating = Number(e.target.dataset.val);
+          modal.querySelectorAll('#star-rating-confidence .star').forEach(st => {
+            const v = Number(st.dataset.val);
+            st.style.color = v <= confidenceRating ? '#f59e0b' : '#475569';
           });
         });
       });
