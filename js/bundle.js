@@ -13,7 +13,7 @@
     currentStage: 'stage1',
     currentUser: 'A',
     isFinalSubmitted: false,
-    studentViewMode: 'task_list', // 'task_list' or 'workspace'
+    studentViewMode: 'workspace', // 'task_list' or 'workspace'
     activeTaskId: null,
     timer: {
       elapsedSeconds: 0,
