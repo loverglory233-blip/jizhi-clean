@@ -4667,13 +4667,22 @@
             defaultFallbackText = `🎪 【拍卖师阶段引导】组内讨论正在进行中！请大家在左侧提交各自的选题提案，或在研讨区商定分工与时间（AI 将自动提取为合约），确认后全员签署！`;
           }
         } else if (stage === 'stage2') {
-          // 📝 阶段二：只有【责任编辑】或【审稿编辑】出来
-          if (userMsg.includes('分工') || userMsg.includes('进度') || userMsg.includes('字数') || userMsg.includes('卡顿') || userMsg.includes('写不出来')) {
+          // 📝 阶段二：消极情绪与流程学伴由【责任编辑】响应，学术规范由【审稿编辑】响应
+          const isNegativeEmotion = /(?:写不出来|太难了|太难写|好难|救命|焦虑|搞不定|写得好烂|写的好烂|好烦|头疼|卡住|卡顿|不知道怎么写|不想写)/i.test(userMsg);
+          const nowMs = Date.now();
+          const timeSinceLastEmotion = nowMs - (this.lastEmotionSupportTimeMs || 0);
+
+          if (isNegativeEmotion && timeSinceLastEmotion > 60000) {
+            // 触发责任编辑暖心情感与减压支架（冷却时间 60秒，绝不频繁打扰）
+            this.lastEmotionSupportTimeMs = nowMs;
             replyAgent = 'managingEditor';
-            defaultFallbackText = `🤝 【责任编辑阶段引导】：关注到大家在正文写作中的协同进展。请组员分头撰写对应章节，保持均匀贡献比，遇到瓶颈可发起【编辑会议】！`;
+            defaultFallbackText = `🤝 【责任编辑·暖心陪伴】：收到大家的困扰与压力啦！初稿撰写‘先完成再完美’是所有学者都会经历的过程。大家不要有心理负担，哪怕先在讨论区列出 3 个核心词或写下几句零散想法，同伴和编辑都会一起协助完善，深呼吸，我们一起慢慢推进！`;
+          } else if (userMsg.includes('分工') || userMsg.includes('进度') || userMsg.includes('字数') || userMsg.includes('公约') || userMsg.includes('时间')) {
+            replyAgent = 'managingEditor';
+            defaultFallbackText = `🤝 【责任编辑过程学伴回复】：关注到大家在正文写作中的协同进展。请组员分头撰写对应章节，保持均匀贡献比，遇到瓶颈可发起【编辑会议】！`;
           } else {
             replyAgent = 'reviewingEditor';
-            defaultFallbackText = `📝 【审稿编辑阶段引导】：请大家在左侧富文本编辑器中保持学术规范，注意在“四、研究设计”中清晰说明变量与方法，必要时可使用上方插件插入学术三线表！`;
+            defaultFallbackText = `📝 【审稿编辑针对性指导】：请大家在左侧富文本编辑器中保持学术规范，注意在“四、研究设计与方法”中清晰说明变量与量表，必要时可使用上方插件插入学术三线表！`;
           }
         } else if (stage === 'stage3') {
           // 🎓 阶段三：只有【三个答辩委员】出来 (默认中间委员引导)
