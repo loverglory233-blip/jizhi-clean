@@ -792,7 +792,7 @@
     updateScopeKeys() {
       const user = this.app.authManager.getCurrentUser();
       const groupId = (user && user.groupId) ? user.groupId : (this.app.state.activeMonitorGroupId || 'group_1');
-      const taskId = this.app.state.activeTaskId || 'task_default';
+      const taskId = (this.app.state.activeTaskId) ? this.app.state.activeTaskId : 'task_default';
       this.groupId = groupId;
       this.taskId = taskId;
       this.storageKey = `jizhi_cloud_snapshot_v10_pure_${taskId}_${groupId}`;
@@ -973,10 +973,6 @@
 
       if (remoteData.groupId && remoteData.groupId !== myGroupId && user?.role === 'student') return;
 
-      // 🛡️ 严格时序防回滚保护：如果远端数据的时间戳明显落后于本地最新时间戳，拒绝覆盖
-      if (remoteData.timestamp && remoteData.timestamp < this.lastTimestamp - 2000) {
-        return;
-      }
       if (remoteData.timestamp) {
         this.lastTimestamp = Math.max(this.lastTimestamp, remoteData.timestamp);
       }
@@ -1067,7 +1063,13 @@
       this.app.saveGroupState(myGroupId);
       if (chatUpdated) renderChat(this.app.state);
       if (structuralUpdated) {
-        if (user?.role === 'student' && this.app.state.studentViewMode === 'workspace') this.app.renderStudentWorkspace();
+        if (user?.role === 'student') {
+          if (this.app.state.studentViewMode === 'workspace') {
+            this.app.renderStudentWorkspace();
+          } else {
+            this.app.renderMain();
+          }
+        }
         if (user?.role === 'teacher') {
           const mainEl = document.getElementById('app');
           if (mainEl && this.app.state.teacherActiveTab === 'view_monitoring') {
