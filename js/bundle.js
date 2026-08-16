@@ -168,8 +168,9 @@
     
     // 构建针对当前写作阶段的提示词上下文
     let enrichedQuery = userQuery;
+    const docSnippet = currentContext.actualDoc ? `\n【小组当前正文真实草稿（字数：${currentContext.actualDoc.length}）】：\n${currentContext.actualDoc.slice(0, 800)}` : '';
     if (currentContext.stage) {
-      enrichedQuery = `【当前协作写作阶段: ${currentContext.stage === 'stage1' ? '阶段一 (选题与公约)' : currentContext.stage === 'stage2' ? '阶段二 (富文本大正文撰写)' : '阶段三 (答辩与质询裁决)'}】\n【小组研究主题: ${currentContext.topic || '暂定'}】\n学生最新发言: ${userQuery}`;
+      enrichedQuery = `【协作写作阶段: ${currentContext.stage === 'stage1' ? '阶段一 (选题与公约)' : currentContext.stage === 'stage2' ? '阶段二 (正文撰写)' : '阶段三 (答辩与质询)'}】\n【课题: ${currentContext.topic || '未定'}】${docSnippet}\n【用户对话/审阅指令】: ${userQuery}`;
     }
 
     try {
@@ -4994,11 +4995,13 @@
       this.studentMsgCountSinceLastAgent = 0;
       const currentUser = this.authManager.getCurrentUser();
       const currentTopic = this.state.stage1 ? this.state.stage1.mergedTitle : '';
+      const actualDocContent = (this.state.stage2 && this.state.stage2.unifiedContent) ? this.state.stage2.unifiedContent.replace(/<[^>]*>/g, '').trim() : '';
 
-      // 直接静默异步直连 Coze API 获得真实大模型智能体回复
+      // 直接异步直连 Coze API 获得真实大模型智能体深度审阅回复
       let replyText = await callCozeAgentAPI(replyAgent, userMsg, {
         stage: stage,
         topic: currentTopic,
+        actualDoc: actualDocContent,
         userId: currentUser ? (currentUser.id || currentUser.username) : 'student_user'
       });
 
