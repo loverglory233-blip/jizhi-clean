@@ -1111,8 +1111,43 @@
       }
 
       if (remoteData.stage1) {
-        if (JSON.stringify(remoteData.stage1) !== JSON.stringify(this.app.state.stage1)) {
-          this.app.state.stage1 = remoteData.stage1;
+        const localS1 = this.app.state.stage1 || { proposals: [], votes: {}, hasVoted: {}, contract: {} };
+        const remoteS1 = remoteData.stage1 || { proposals: [], votes: {}, hasVoted: {}, contract: {} };
+
+        // 🚀 提案池并集合并：以提案 ID 为唯一键，合并本地与远端的所有提案，绝不丢弃任何刚提交的提案
+        const seenPropIds = new Set();
+        const mergedProposals = [];
+        [...(localS1.proposals || []), ...(remoteS1.proposals || [])].forEach(p => {
+          if (!p || !p.id || !p.title) return;
+          if (!seenPropIds.has(p.id)) {
+            seenPropIds.add(p.id);
+            mergedProposals.push(p);
+          }
+        });
+
+        // 投票状态并集合并
+        const mergedVotes = { ...(localS1.votes || {}), ...(remoteS1.votes || {}) };
+        const mergedHasVoted = { ...(localS1.hasVoted || {}), ...(remoteS1.hasVoted || {}) };
+
+        // 合约状态合并（优先保留已签署或已有内容）
+        const mergedContract = {
+          ...(remoteS1.contract || {}),
+          confirmedMembers: { ...(localS1.contract?.confirmedMembers || {}), ...(remoteS1.contract?.confirmedMembers || {}) },
+          taskAssignments: { ...(remoteS1.contract?.taskAssignments || {}), ...(localS1.contract?.taskAssignments || {}) },
+          timeAllocations: { ...(remoteS1.contract?.timeAllocations || {}), ...(localS1.contract?.timeAllocations || {}) }
+        };
+
+        const newS1 = {
+          ...remoteS1,
+          proposals: mergedProposals,
+          votes: mergedVotes,
+          hasVoted: mergedHasVoted,
+          mergedTitle: remoteS1.mergedTitle || localS1.mergedTitle || '',
+          contract: mergedContract
+        };
+
+        if (JSON.stringify(newS1) !== JSON.stringify(localS1)) {
+          this.app.state.stage1 = newS1;
           structuralUpdated = true;
         }
       }
