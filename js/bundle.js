@@ -809,13 +809,35 @@
       const host = window.location.hostname || '47.99.110.230';
       const protocol = window.location.protocol || 'http:';
 
+      const sseHost = window.location.hostname || '47.99.110.230';
       this.syncEndpoints = [
-        `sync.php?taskId=${taskId}&groupId=${groupId}`
+        `sync.php?taskId=${taskId}&groupId=${groupId}`,
+        `http://${sseHost}:8088/api/snapshot?taskId=${taskId}&groupId=${groupId}`
       ];
+    }
+
+    initSSE() {
+      this.updateScopeKeys();
+      if (this.sse) { try { this.sse.close(); } catch (e) {} }
+      const sseHost = window.location.hostname || '47.99.110.230';
+      const sseUrl = `http://${sseHost}:8088/api/stream?taskId=${this.taskId}&groupId=${this.groupId}`;
+      try {
+        this.sse = new EventSource(sseUrl);
+        this.sse.onmessage = (event) => {
+          try {
+            const data = JSON.parse(event.data);
+            if (data) this.handleRemoteSync(data);
+          } catch (e) {}
+        };
+        this.sse.onerror = () => {
+          // SSE 自动重连
+        };
+      } catch (e) {}
     }
 
     initWebSocket() {
       this.updateScopeKeys();
+      this.initSSE();
       // PieSocket for instant real-time push (scoped by task and group)
       const wsUrl = `wss://free.v2.piesocket.com/v3/jizhi_${this.taskId}_${this.groupId}?api_key=VCXCEuvhGcBDP7XhiJJLUD6RRE25ixbngSkiUZ3N&notify_self=0`;
       try {

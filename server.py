@@ -40,11 +40,16 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         self.end_headers()
 
     def do_GET(self):
-        # ⚡ SSE 毫秒级长连接推送通道
+        # ⚡ SSE 毫秒级长连接推送通道 (支持 taskId + groupId 隔离)
         if '/api/stream' in self.path:
             groupId = 'group_1'
+            taskId = 'task_default'
             if 'groupId=' in self.path:
                 groupId = self.path.split('groupId=')[1].split('&')[0]
+            if 'taskId=' in self.path:
+                taskId = self.path.split('taskId=')[1].split('&')[0]
+            
+            channel_key = f"{taskId}_{groupId}"
 
             self.send_response(200)
             self.send_header('Content-Type', 'text/event-stream')
@@ -54,6 +59,10 @@ class Handler(http.server.SimpleHTTPRequestHandler):
 
             q = Queue()
             with SSE_LOCK:
+                if channel_key not in SSE_CLIENTS:
+                    SSE_CLIENTS[channel_key] = set()
+                SSE_CLIENTS[channel_key].add(q)
+                # 兼容旧版本 group 订阅
                 if groupId not in SSE_CLIENTS:
                     SSE_CLIENTS[groupId] = set()
                 SSE_CLIENTS[groupId].add(q)
@@ -238,13 +247,17 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                     f.write(body_str)
 
                 with SSE_LOCK:
+                    channel_key = f"{taskId}_{groupId}"
+                    target_queues = list(SSE_CLIENTS.get(channel_key, set())) + list(SSE_CLIENTS.get(groupId, set()))
+                    dead_queues = set()
+                    for q in set(target_queues):
+                        try:
+                            q.put_nowait(body_str)
+                        except Exception:
+                            dead_queues.add(q)
+                    if channel_key in SSE_CLIENTS:
+                        SSE_CLIENTS[channel_key].difference_update(dead_queues)
                     if groupId in SSE_CLIENTS:
-                        dead_queues = set()
-                        for q in list(SSE_CLIENTS[groupId]):
-                            try:
-                                q.put_nowait(body_str)
-                            except Exception:
-                                dead_queues.add(q)
                         SSE_CLIENTS[groupId].difference_update(dead_queues)
 
                 resp_bytes = json.dumps({'success': True, 'timestamp': data.get('timestamp', int(time.time() * 1000))}).encode('utf-8')
