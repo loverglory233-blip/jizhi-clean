@@ -4362,26 +4362,12 @@
         this.loadGroupState(currentGroupId);
 
         if (this.state.studentViewMode === 'task_list') {
-          appEl.className = 'app-student-portal-mode';
-          renderStudentTaskPortal(
-            appEl, this.authManager, this.state,
-            (taskId) => {
-              this.state.activeTaskId = taskId || 'task_default';
-              this.loadGroupState(currentGroupId);
-              this.state.studentViewMode = 'workspace';
-              this.renderMain();
-              if (this.cloudSyncEngine) {
-                this.cloudSyncEngine.updateScopeKeys();
-                this.cloudSyncEngine.pullFromServer();
-              }
-            },
-            () => this.handleLogout(),
-            () => {},
-            () => this.showAnnouncementModal(),
-            () => this.showQuestionnaireModal()
-          );
-          this.checkUnreadAnnouncements();
-          return;
+          const tasks = this.authManager.getTasks();
+          if (tasks && tasks.length > 0) {
+            this.state.activeTaskId = tasks[0].id;
+          }
+          this.state.studentViewMode = 'workspace';
+          this.loadGroupState(currentGroupId);
         }
 
         const membersList = Object.values(this.state.members || {});
