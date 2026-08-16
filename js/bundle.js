@@ -1084,11 +1084,28 @@
 
       if (remoteData.chatLogs) {
         ['stage1', 'stage2', 'stage3'].forEach(stg => {
-          const remoteLogs = remoteData.chatLogs[stg] || [];
-          const localLogs = this.app.state.chatLogs[stg] || [];
-          // 用 JSON 对比而非单纯数量对比，确保消息内容被改变时也能刷新
-          if (JSON.stringify(remoteLogs) !== JSON.stringify(localLogs)) {
-            this.app.state.chatLogs[stg] = remoteLogs;
+          const remoteLogs = Array.isArray(remoteData.chatLogs[stg]) ? remoteData.chatLogs[stg] : [];
+          const localLogs = Array.isArray(this.app.state.chatLogs[stg]) ? this.app.state.chatLogs[stg] : [];
+          
+          // 🚀 消息智能去重合并：保留远程和本地的所有独特消息（以发送者+时间戳+文本为唯一指纹）
+          const seenKeys = new Set();
+          const mergedLogs = [];
+          
+          [...localLogs, ...remoteLogs].forEach(msg => {
+            if (!msg || !msg.text) return;
+            const key = `${msg.sender}_${msg.timestamp || ''}_${msg._timeMs || ''}_${msg.text.trim()}`;
+            if (!seenKeys.has(key)) {
+              seenKeys.add(key);
+              mergedLogs.push(msg);
+            }
+          });
+
+          // 保持按生成时间递增排序
+          mergedLogs.sort((a, b) => (a._timeMs || 0) - (b._timeMs || 0));
+
+          if (JSON.stringify(mergedLogs) !== JSON.stringify(localLogs)) {
+            this.app.state.chatLogs[stg] = mergedLogs;
+            structuralUpdated = true;
           }
         });
       }
