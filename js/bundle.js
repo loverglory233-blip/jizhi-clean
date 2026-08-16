@@ -5367,6 +5367,24 @@
         renderChat(this.state);
       }
 
+      // 3. 🎯 章节语义里程碑雷达：推进到【总结反思】时号召发起【半程编辑会议】
+      const hasReflectionSection = /(?:五、|第5章|第五部分|不足与反思|研究反思|反思与不足|总结与反思|研究局限)/i.test(newContent);
+      const isStage2MeetingLocked = this.state.stage2 && this.state.stage2.actionPlan && this.state.stage2.actionPlan.isGenerated;
+      const lastManagingMsg = logs.slice().reverse().find(m => m.sender === 'managingEditor');
+      const timeSinceLastManaging = lastManagingMsg ? (now - (lastManagingMsg._timeMs || 0)) : 999999;
+
+      if (hasReflectionSection && !isStage2MeetingLocked && timeSinceLastManaging > 60000) {
+        const meetingCallMsg = {
+          sender: 'managingEditor',
+          text: `🤝 【责任编辑·半程会议号召】：关注到小组成员已推进撰写至【研究设计的不足与反思】章节，全篇实证方案已基本成型！请组员点击上方【📢 发起编辑会议】完成 4 维自查打卡，稍后审稿编辑将结合全组情况为大家进行深度内容质检与清单生成！`,
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          _timeMs: now
+        };
+        logs.push(meetingCallMsg);
+        this.syncChatLogs();
+        renderChat(this.state);
+      }
+
       // 3. 🤝 责任编辑 Agent: 字数贡献比偏斜提醒 (SSRL Contribution Imbalance Check)
       const membersList = Object.values(this.state.members || {});
       const totalLen = newContent.length;
