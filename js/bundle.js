@@ -4960,11 +4960,11 @@
             logs.push(reviewingWelcome);
             this.syncChatLogs();
             renderChat(this.state);
-          }, 1200);
+          }, 3200);
         }
       }
 
-      // 🎓 阶段三：预制中间委员欢迎 ➔ API 调用正方 ➔ API 调用反方 ➔ 中间委员提示阅读 1 分钟并引导答复
+      // 🎓 阶段三：预制中间委员欢迎 ➔ 优雅间隔调用正方 ➔ 优雅间隔调用反方 ➔ 中间委员提示阅读
       else if (stage === 'stage3') {
         const hasNeutralIntro = logs.some(m => m.sender === 'neutral' && m.text.includes('欢迎来到【阶段三：答辩擂台】'));
         if (!hasNeutralIntro) {
@@ -4981,7 +4981,7 @@
           const topic = (this.state.stage1 && this.state.stage1.mergedTitle) ? this.state.stage1.mergedTitle : '本组研究设计';
           const contentSnippet = (this.state.stage2 && this.state.stage2.unifiedContent) ? this.state.stage2.unifiedContent.replace(/<[^>]*>/g, '').slice(0, 300) : '研究设计方案';
 
-          // 1. 异步调用扣子 API: 正方委员发言
+          // 1. 异步调用扣子 API: 正方委员发言 (间隔 2.8 秒)
           setTimeout(async () => {
             let propText = await callCozeAgentAPI('proponent', `请针对我们小组的论文主题《${topic}》与正文方案发表答辩肯定意见与创新点分析：\n${contentSnippet}`, { stage: 'stage3', topic });
             if (!propText || propText.trim().length === 0) {
@@ -4997,7 +4997,7 @@
             this.syncChatLogs();
             renderChat(this.state);
 
-            // 2. 异步调用扣子 API: 反方委员发言
+            // 2. 异步调用扣子 API: 反方委员发言 (间隔 3.5 秒，给学生阅读正方的时间)
             setTimeout(async () => {
               let oppText = await callCozeAgentAPI('opponent', `请针对我们小组的论文主题《${topic}》与正文方案发表答辩尖锐质询意见与严谨性质疑：\n${contentSnippet}`, { stage: 'stage3', topic });
               if (!oppText || oppText.trim().length === 0) {
@@ -5042,21 +5042,21 @@
               this.syncChatLogs();
               renderChat(this.state);
 
-              // 3. 中间委员提醒学生阅读 1 分钟并开始引导答复
+              // 3. 中间委员提醒学生阅读 1 分钟并开始引导答复 (间隔 3 秒)
               setTimeout(() => {
                 const readingGuideMsg = {
                   sender: 'neutral',
-                  text: `🟡 【中间委员阅读与研讨引导】：\n答辩委员会正反两方专家的评审意见已全部送达（已同步展示在左侧【答辩委员会改进意见与组内裁决矩阵】中）。\n\n⏳ **请全组成员先静心阅读 1 分钟**，梳理正方肯定点与反方质询点。\n阅读完毕后，请在研讨区展开辩护协商，并点击左侧对应条目的【👥 组内研讨统一裁决】录入全组共识，修改落实至终稿后提交！`,
+                  text: `🟡 【中间委员阅读与研讨引导】：\n答辩委员会正反两方专家的评审意见已全部送达（已同步展示在左侧【答辩委员会改进意见与组内裁决矩阵】中）。\n\n⏳ **请全组成员先静心阅读 1 分钟**，梳理正方肯定点与反方质询点。\n阅读完毕后，请在研讨区展开辩护协商，并在左侧输入框录入全组共识并保存，修改落实至终稿后提交！`,
                   timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
                   _timeMs: Date.now()
                 };
                 logs.push(readingGuideMsg);
                 this.syncChatLogs();
                 renderChat(this.state);
-              }, 1200);
+              }, 3000);
 
-            }, 1200);
-          }, 1000);
+            }, 3500);
+          }, 2800);
         }
       }
     }
