@@ -5026,18 +5026,27 @@
             this.renderStudentWorkspace();
 
             // 异步调用扣子中间委员 Bot 进行点评与后续引导
-            const nextItem = items[currentIndex + 1];
+            const unadoptedCount = items.filter(f => f.status !== 'adopted').length;
             const topic = (this.state.stage1 && this.state.stage1.mergedTitle) ? this.state.stage1.mergedTitle : '论文方案';
-            const queryPrompt = nextItem ? 
-              `小组成员已对质询点 ${currentIndex + 1}【${item.speaker}】达成答辩共识：“${respText}”。请对该共识做简要肯定点评，并自然引导全组针对下一条质询【${nextItem.speaker}】展开研讨。` :
-              `小组成员已对全部答辩质询达成共识，最后一条共识为：“${respText}”。请对全组答辩表现做总结肯定，并引导全组成员点击上方【返回富文本协作大正文】将答辩修改落实至终稿后提交。`;
+            
+            // 汇总全组已录入的所有答辩裁决
+            const adoptedSummaries = items.map((f, i) => `• 质询${i + 1}【${f.speaker}】: ${f.response || '待录入'}`).join('\n');
+
+            let queryPrompt = '';
+            if (unadoptedCount > 0) {
+              const nextItem = items.find(f => f.status !== 'adopted');
+              queryPrompt = `小组成员刚对质询点【${item.speaker}】达成答辩共识：“${respText}”。请对该条共识做简要肯定点评，并自然引导全组针对下一条质询【${nextItem.speaker}】展开研讨。`;
+            } else {
+              queryPrompt = `恭喜！小组成员已对全部答辩质询完成研讨与答复！\n全组答辩共识清单如下：\n${adoptedSummaries}\n\n请代表答辩主席对全组的修改想法做一份结构化总结与肯定，并清晰引导全组成员点击上方【📝 返回富文本协作大正文】将这些想法落实到正文中，完成终稿修改并提交！`;
+            }
 
             let neutralReply = await callCozeAgentAPI('neutral', queryPrompt, { stage: 'stage3', topic });
             if (!neutralReply || neutralReply.trim().length === 0) {
-              if (nextItem) {
-                neutralReply = `🟡 【中间委员·答辩裁决推进】：已成功记录本条裁决结论：“${respText}”！\n\n👉 **接下来请研讨第 ${currentIndex + 2} 条质询**【${nextItem.speaker}】：请全组成员商讨修改方案，直接在左侧对应卡片中录入答复！`;
+              if (unadoptedCount > 0) {
+                const nextItem = items.find(f => f.status !== 'adopted');
+                neutralReply = `🟡 【中间委员·答辩裁决推进】：已成功记录本条裁决结论：“${respText}”！\n\n👉 **接下来请研讨**【${nextItem.speaker}】：请全组成员商讨修改方案，直接在左侧对应卡片中录入答复！`;
               } else {
-                neutralReply = `🎉 【中间委员·全员答辩裁决完毕】：恭喜！组内已完成答辩委员会所有质询与建议的研讨与答复！\n请团队点击上方【返回富文本协作大正文】按钮，将答辩修改落实至论文终稿后提交！`;
+                neutralReply = `🎉 【中间委员·答辩共识总评与终稿修改引导】\n各位研究者，答辩委员会已审阅全组针对所有质询给出的答复方案！\n\n📋 **【全组修改思路精要汇总】**：\n${adoptedSummaries}\n\n💡 **终稿修改指引**：大家的辩护逻辑严密且具有高度可行性！现在请全组点击上方【📝 返回富文本协作大正文】，将上述修改想法落实到对应章节，润色完毕后点击【🚀 提交期末论文终稿】完成项目！`;
               }
             }
 
