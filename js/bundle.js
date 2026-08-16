@@ -1120,6 +1120,7 @@
           <div class="teacher-info" style="display:flex; align-items:center; gap:16px;">
             <span style="font-size:13.5px; color:#334155;">当前班级: <b style="color:#2563eb;">${activeClass.name}</b></span>
             <span style="font-size:13.5px; color:#334155;">教师: <b>${currentUser.name}</b></span>
+            <button id="btn-switch-student-preview" style="background:#eff6ff; color:#2563eb; border:1px solid #bfdbfe; padding:8px 16px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer;">👀 切换至学生视图</button>
             <button id="btn-logout" class="header-icon-btn logout" style="background:#fef2f2; color:#dc2626; border:1px solid #fecaca; padding:8px 16px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer;">🚪 退出登录</button>
           </div>
         </header>
@@ -1679,8 +1680,11 @@
       </div>
     `;
 
-    container.querySelector('#btn-logout').addEventListener('click', () => onLogout());
-    container.querySelector('#btn-switch-student-preview').addEventListener('click', () => onSwitchToStudentView());
+    const btnLogout = container.querySelector('#btn-logout');
+    if (btnLogout) btnLogout.addEventListener('click', () => onLogout());
+
+    const btnSwitchStudent = container.querySelector('#btn-switch-student-preview');
+    if (btnSwitchStudent) btnSwitchStudent.addEventListener('click', () => onSwitchToStudentView());
 
     container.querySelectorAll('.teacher-tab-nav').forEach(btn => {
       btn.addEventListener('click', () => {
