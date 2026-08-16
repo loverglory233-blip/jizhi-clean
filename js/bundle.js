@@ -5149,20 +5149,20 @@
 
           const topic = (this.state.stage1 && this.state.stage1.mergedTitle) ? this.state.stage1.mergedTitle : '本组研究设计';
           const rawContent = (this.state.stage2 && this.state.stage2.unifiedContent) ? this.state.stage2.unifiedContent.replace(/<[^>]*>/g, '').trim() : '';
-          const contentSnippet = rawContent.slice(0, 500) || '暂无详细正文方案';
+          const contentSnippet = rawContent.slice(0, 1500) || '暂无详细正文方案';
           const isGibberishOrShort = rawContent.length < 30 || /^(\d|\s|[a-zA-Z]|!|\?|\.|,|。|，|、|1)+$/.test(rawContent);
 
-          // 1. 异步调用扣子 API: 正方委员发言 (间隔 2.8 秒)
+          // 1. 异步调用扣子 API: 正方委员真实审阅发言 (间隔 2.5 秒)
           setTimeout(async () => {
             let propPrompt = isGibberishOrShort
-              ? `小组当前提交的正文初稿内容仅为：“${contentSnippet}”（内容过短或为纯数字/无意义字符），请以答辩委员会正方委员身份发言：严肃指出当前论文正文严重缺失实质性学术论述与方案设计，无法开展正常答辩，要求团队必须先在正文中补充完整的学术研究内容！`
-              : `请针对我们小组的论文主题《${topic}》与正文方案发表答辩肯定意见与创新点分析：\n${contentSnippet}`;
+              ? `请以答辩委员会正方委员身份对我们小组提交的初稿进行审查：目前正文内容仅为“${contentSnippet}”（内容严重缺失或为无意义字符/数字），请明确指出当前草稿缺乏学术论述，要求全组必须先补充完整的学术正文！`
+              : `【答辩委员会正方委员审阅任务】：请通读我们小组撰写的真实论文正文草稿（字数：${rawContent.length}字）：\n《${topic}》\n${contentSnippet}\n\n请针对以上真实正文内容，指出 1~2 个具体的闪光点（如研究视角、数据方法或论述逻辑），并提出进一步深化的建设性肯定意见。严禁发表无根据的通用套话！`;
             
-            let propText = await callCozeAgentAPI('proponent', propPrompt, { stage: 'stage3', topic });
+            let propText = await callCozeAgentAPI('proponent', propPrompt, { stage: 'stage3', topic, actualDoc: rawContent });
             if (!propText || propText.trim().length === 0) {
               propText = isGibberishOrShort
                 ? `🟢 【正方委员评审意见】：审阅了大家提交的正文，发现目前正文内容【${contentSnippet}】严重缺少实质性的研究论述与框架。即便选题意图良好，但没有扎实的研究设计与论证细节支撑，无法进行答辩评分。请大家尽快在工作台中完善正文！`
-                : `🟢 【正方委员肯定支持】：本研究选题《${topic}》立意明确，紧扣教育数字化转型前沿，方案中技术工具与学习场景结合具有较高的实践与推广价值！`;
+                : `🟢 【正方委员肯定意见】：通读了全组撰写的《${topic}》正文草稿，本方案在选题切入点与研究构想上展现了良好探索，建议在终稿中继续强化核心论点的论据支撑！`;
             }
             const propMsg = {
               sender: 'proponent',
@@ -5174,17 +5174,17 @@
             this.syncChatLogs();
             renderChat(this.state);
 
-            // 2. 异步调用扣子 API: 反方委员发言 (间隔 3.5 秒)
+            // 2. 异步调用扣子 API: 反方委员真实审阅发言 (间隔 3 秒)
             setTimeout(async () => {
               let oppPrompt = isGibberishOrShort
-                ? `小组当前提交的正文初稿内容为：“${contentSnippet}”，内容缺乏任何学术规范、变量与逻辑，请以反方委员身份发表严厉质询：直接质疑该草稿未达到学术论文最基本撰写标准，指出其完全缺乏研究方法与数据支撑，要求全组必须重新推倒重构正文！`
-                : `请针对我们小组的论文主题《${topic}》与正文方案发表答辩尖锐质询意见与严谨性质疑：\n${contentSnippet}`;
+                ? `请以答辩委员会反方委员身份对我们小组的初稿进行严厉质询：目前正文内容仅为“${contentSnippet}”，完全不符合学术规范，请直接拒绝通过并勒令重写！`
+                : `【答辩委员会反方委员尖锐质询任务】：请通读我们小组撰写的真实论文正文草稿（字数：${rawContent.length}字）：\n《${topic}》\n${contentSnippet}\n\n请针对以上真实正文中存在的薄弱环节（如研究变量界定模糊、样本代表性不足、量表缺乏信效度或论证逻辑跳跃），提出 1~2 条尖锐、具体、具有深度的学术质询！严禁发表无根据的通用套话！`;
               
-              let oppText = await callCozeAgentAPI('opponent', oppPrompt, { stage: 'stage3', topic });
+              let oppText = await callCozeAgentAPI('opponent', oppPrompt, { stage: 'stage3', topic, actualDoc: rawContent });
               if (!oppText || oppText.trim().length === 0) {
                 oppText = isGibberishOrShort
                   ? `🔴 【反方委员严厉质询】：这份初稿完全不符合学术规范！正文充斥无意义符号或字数严重不足（当前内容：${contentSnippet}），完全没有研究背景、研究问题、研究方法与测量量表。我方坚决不予通过，请全组立即重写！`
-                  : `🔴 【反方委员尖锐质询】：请团队审视研究设计的严谨性！样本抽样范围是否存在局限？自变量与因变量的操作化测量是否提供了权威量表支撑？`;
+                  : `🔴 【反方委员尖锐质询】：针对《${topic}》正文草稿，请团队进一步明确研究变量的操作化定义，并说明抽样代表性与测量量表的信效度检验依据！`;
               }
               const oppMsg = {
                 sender: 'opponent',
@@ -5194,33 +5194,31 @@
               };
               logs.push(oppMsg);
 
-              // 自动将专家意见挂入左侧裁决矩阵
-              if (!this.state.stage3.feedbackItems || this.state.stage3.feedbackItems.length === 0) {
-                this.state.stage3.feedbackItems = [
-                  {
-                    id: 'fb_1',
-                    role: 'proponent',
-                    speaker: '正方委员 Agent',
-                    title: isGibberishOrShort ? '正文完整度与学术论证审查' : '立意与应用价值认可',
-                    content: propText,
-                    neutralGuidance: isGibberishOrShort ? '建议团队全员返回阶段二，补齐文献综述与核心设计章节。' : '建议团队在终稿引言与结语中进一步突出技术赋能教学的创新定位。',
-                    status: 'pending',
-                    response: ''
-                  },
-                  {
-                    id: 'fb_2',
-                    role: 'opponent',
-                    speaker: '反方委员 Agent',
-                    title: isGibberishOrShort ? '文本规范性与研究方法缺失质询' : '抽样严谨度与测量量表质询',
-                    content: oppText,
-                    neutralGuidance: isGibberishOrShort ? '请全组研讨：必须补充清晰的研究假设和 5 点李克特量表设计。' : '请组员研讨：是否需要在正文第四章补充 5 点李克特量表维度并说明信效度检验方法？',
-                    status: 'pending',
-                    response: ''
-                  }
-                ];
-                this.syncStage3();
-                this.renderStudentWorkspace();
-              }
+              // 自动将专家真实审阅意见更新入左侧裁决矩阵
+              this.state.stage3.feedbackItems = [
+                {
+                  id: 'fb_1',
+                  role: 'proponent',
+                  speaker: '正方委员 Agent',
+                  title: isGibberishOrShort ? '正文完整度审查' : '正文论述与创新点审查',
+                  content: propText,
+                  neutralGuidance: isGibberishOrShort ? '建议团队全员返回阶段二，补齐文献综述与核心设计章节。' : '建议团队在终稿中进一步巩固正方肯定提及的研究亮点。',
+                  status: 'pending',
+                  response: ''
+                },
+                {
+                  id: 'fb_2',
+                  role: 'opponent',
+                  speaker: '反方委员 Agent',
+                  title: isGibberishOrShort ? '学术规范与严谨性审查' : '研究方法与论证严谨性质询',
+                  content: oppText,
+                  neutralGuidance: isGibberishOrShort ? '请全组研讨：必须补充清晰的研究假设和量表设计。' : '请组员深入研讨反方质询点，并在正文中补充实证依据与辩护说明。',
+                  status: 'pending',
+                  response: ''
+                }
+              ];
+              this.syncStage3();
+              this.renderStudentWorkspace();
 
               this.syncChatLogs();
               renderChat(this.state);
