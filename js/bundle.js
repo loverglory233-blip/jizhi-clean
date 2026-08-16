@@ -4168,8 +4168,44 @@
             if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
           }
 
-          // 保持心跳静默，严禁机械计算秒数刷屏督促
-          // 智能体只在阶段里程碑、学生主动提交提案/会议/答辩或显式 @ 时发声
+          // 🌿 智能静默破冰引导 (学术导师温和唤醒机制)
+          // 仅在当前阶段安静超过 3 分钟 (180s) 且未在打字时，由当前阶段专属导师发出一句温和自然的思路点拨 (5分钟冷却，绝不报秒数，绝不刷屏)
+          const currentStage = this.state.currentStage;
+          const logs = this.state.chatLogs[currentStage] || [];
+          const nowMs = Date.now();
+          const lastStudentMsg = logs.slice().reverse().find(m => m.sender !== 'managingEditor' && m.sender !== 'reviewingEditor' && m.sender !== 'auctioneer' && m.sender !== 'neutral' && m.sender !== 'proponent' && m.sender !== 'opponent');
+          const lastStudentTime = lastStudentMsg ? (lastStudentMsg._timeMs || nowMs) : (this.state.lastStudentChatTimeMs || nowMs);
+          const idleSec = Math.floor((nowMs - lastStudentTime) / 1000);
+
+          let stageAgent = null;
+          let stageGentlePrompt = '';
+          if (currentStage === 'stage1') {
+            stageAgent = 'auctioneer';
+            stageGentlePrompt = `🎪 【拍卖师·思路点拨】：研讨区有些安静啦~ 大家对左侧陈列的选题提案有什么新灵感吗？可以在讨论区交流各自擅长的模块，准备投出心仪的一票哦！`;
+          } else if (currentStage === 'stage2') {
+            stageAgent = 'managingEditor';
+            stageGentlePrompt = `🤝 【责任编辑·协同关怀】：小组成员都在专注构思呢！遇到卡顿或难点随时在讨论区交流，也可以点击上方【发起编辑会议】自查进度与分工哦~`;
+          } else if (currentStage === 'stage3') {
+            stageAgent = 'neutral';
+            stageGentlePrompt = `🟡 【中间委员·答辩提示】：全组同学可以针对左侧反方提出的质询展开简要讨论，在输入框录入本组的答复并保存，稳步推进终稿完善！`;
+          }
+
+          const lastStageAgentMsg = logs.slice().reverse().find(m => m.sender === stageAgent);
+          const timeSinceLastAgentMs = lastStageAgentMsg ? (nowMs - (lastStageAgentMsg._timeMs || 0)) : 999999;
+
+          // 严格触发条件：静默满 180 秒 (3分钟)，且该智能体在 300 秒 (5分钟) 内未说过话，且未终稿提交
+          if (stageAgent && idleSec >= 180 && timeSinceLastAgentMs > 300000 && !this.state.isFinalSubmitted) {
+            this.state.lastStudentChatTimeMs = nowMs;
+            const gentleMsg = {
+              sender: stageAgent,
+              text: stageGentlePrompt,
+              timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+              _timeMs: nowMs
+            };
+            logs.push(gentleMsg);
+            this.syncChatLogs();
+            renderChat(this.state);
+          }
 
           renderHeader(
             this.state, currentUser, this.authManager.getAnnouncements(),
@@ -5393,29 +5429,41 @@
               </div>
             </div>
 
-            <!-- 3. 多维难点瓶颈选择 (学术+协作+节奏) -->
-            <div class="teacher-form-group" style="margin-top:12px;">
-              <label style="font-size:13px; font-weight:700;">⚠️ 当前组内面临的核心难点瓶颈 (涵盖学术/协作/进度)</label>
-              <select id="meeting-bottleneck-select" class="teacher-input">
-                <optgroup label="📚 学术与内容瓶颈">
+            <!-- 3. 三维难点瓶颈全面自评 (3 个维度各选一个真实困惑) -->
+            <div style="background:#f8fafc; border:1px solid #cbd5e1; border-radius:10px; padding:12px 16px; margin-top:12px; display:flex; flex-direction:column; gap:10px;">
+              <div style="font-size:13px; font-weight:800; color:#0f172a;">⚠️ 团队 3 维瓶颈自查 (每个维度各确定 1 项核心难点)</div>
+              
+              <div>
+                <label style="font-size:12px; font-weight:700; color:#1e40af;">📚 维度 ① 学术内容难点：</label>
+                <select id="meeting-bottleneck-academic" class="teacher-input" style="width:100%; margin-top:3px; padding:4px 8px; font-size:12px;">
                   <option value="假设与研究设计测量工具对应不明确">假设与研究设计测量工具对应不明确</option>
                   <option value="国内外文献综述支撑力度与权威性不足">国内外文献综述支撑力度与权威性不足</option>
                   <option value="核心变量的操作化测量量表不够完善">核心变量的操作化测量量表不够完善</option>
-                </optgroup>
-                <optgroup label="👥 团队协作与衔接瓶颈">
+                </select>
+              </div>
+
+              <div>
+                <label style="font-size:12px; font-weight:700; color:#047857;">👥 维度 ② 团队协作难点：</label>
+                <select id="meeting-bottleneck-collab" class="teacher-input" style="width:100%; margin-top:3px; padding:4px 8px; font-size:12px;">
                   <option value="各成员撰写风格不一致，章节过渡衔接缺乏逻辑">各成员撰写风格不一致，章节过渡衔接缺乏逻辑</option>
                   <option value="对部分核心观点的论证存在组内争议尚未统一">对部分核心观点的论证存在组内争议尚未统一</option>
-                </optgroup>
-                <optgroup label="⏳ 进度节奏与心理状态">
+                  <option value="分工执行存在部分脱节，需加强同步沟通">分工执行存在部分脱节，需加强同步沟通</option>
+                </select>
+              </div>
+
+              <div>
+                <label style="font-size:12px; font-weight:700; color:#b45309;">⏳ 维度 ③ 进度与心理难点：</label>
+                <select id="meeting-bottleneck-rhythm" class="teacher-input" style="width:100%; margin-top:3px; padding:4px 8px; font-size:12px;">
                   <option value="时间分配偏紧，担心后半程收尾仓促">时间分配偏紧，担心后半程收尾仓促</option>
                   <option value="写作遇到思路卡顿，感到有些焦虑">写作遇到思路卡顿，感到有些焦虑</option>
-                </optgroup>
-              </select>
+                  <option value="篇幅与精简把控困难，精力消耗较大">篇幅与精简把控困难，精力消耗较大</option>
+                </select>
+              </div>
             </div>
 
             <div class="teacher-form-group" style="margin-top:10px;">
               <label style="font-size:13px; font-weight:700;">✍️ 组内自评与补充修正说明</label>
-              <textarea id="meeting-input-text" class="teacher-textarea" style="min-height:60px;" placeholder="请输入组内自我检讨或需要审稿编辑解答的问题...">背景与问题部分已完成，请审稿编辑评价假设与方法的衔接。</textarea>
+              <textarea id="meeting-input-text" class="teacher-textarea" style="min-height:55px;" placeholder="请输入组内自我检讨或需要审稿编辑解答的问题...">背景与问题部分已完成，请审稿编辑评价假设与方法的衔接。</textarea>
             </div>
           </div>
           <div class="teacher-modal-footer">
@@ -5471,14 +5519,16 @@
       modal.querySelector('#btn-submit-meeting').addEventListener('click', async () => {
         const themeConsistency = modal.querySelector('#meeting-theme-consistency-select').value;
         const timeConsistency = modal.querySelector('#meeting-time-consistency-select').value;
-        const bottleneck = modal.querySelector('#meeting-bottleneck-select').value;
+        const bAcademic = modal.querySelector('#meeting-bottleneck-academic').value;
+        const bCollab = modal.querySelector('#meeting-bottleneck-collab').value;
+        const bRhythm = modal.querySelector('#meeting-bottleneck-rhythm').value;
         const userText = modal.querySelector('#meeting-input-text').value;
         closeModal();
 
         // 1. 责任编辑先播报会议打分汇总
         const meetingMsg = {
           sender: 'managingEditor',
-          text: `📢 【编辑会议① 汇总】：全员完成 3 维自评与公约计划对照（主题一致性：${themeConsistency}；时间预算：${timeConsistency}；内容逻辑 ${logicRating}星；分工平衡 ${balanceRating}星；核心瓶颈：${bottleneck}）。组内说明：“${userText}”。\n审稿编辑正在结合自评与当前正文生成针对性指导建议...`,
+          text: `📢 【编辑会议① 汇总】：全员完成 3 维自评（学术逻辑 ${logicRating}★，分工平衡 ${balanceRating}★，信心状态 ${confidenceRating}★；构想一致性：${themeConsistency}；时间预算：${timeConsistency}）。\n• 核心难点：① 学术: ${bAcademic} | ② 协作: ${bCollab} | ③ 节奏: ${bRhythm}。\n审稿编辑正在结合自评生成针对性指导建议...`,
           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
           _timeMs: Date.now()
         };
@@ -5488,12 +5538,11 @@
 
         // 2. 异步调用扣子审稿编辑 API 给出深度学术建议
         const topic = (this.state.stage1 && this.state.stage1.mergedTitle) ? this.state.stage1.mergedTitle : '本组课题';
-        const contentSnippet = (this.state.stage2 && this.state.stage2.unifiedContent) ? this.state.stage2.unifiedContent.replace(/<[^>]*>/g, '').slice(0, 350) : '论文初稿';
-        const reviewPrompt = `小组完成了半程编辑会议自评（主题契约一致性：“${themeConsistency}”，时间预算一致性：“${timeConsistency}”，逻辑 ${logicRating}星，分工 ${balanceRating}星，核心瓶颈：“${bottleneck}”，组内自评：“${userText}”）。请针对其论文《${topic}》及当前初稿，给出 120~180 字的针对性修改建议与启发指导，引导小组对照即将生成的修正清单开展重构。`;
+        const reviewPrompt = `小组完成了半程编辑会议自评（学术难点：“${bAcademic}”，协作难点：“${bCollab}”，节奏难点：“${bRhythm}”，逻辑 ${logicRating}星，分工 ${balanceRating}星，信心 ${confidenceRating}星，组内自评：“${userText}”）。请针对其论文《${topic}》及当前初稿，给出 120~180 字的针对性修改建议与启发指导，引导小组对照即将生成的修正清单开展重构。`;
 
-        let reviewFeedbackText = await callCozeAgentAPI('reviewingEditor', reviewPrompt, { stage: 'stage2', topic, bottleneck });
+        let reviewFeedbackText = await callCozeAgentAPI('reviewingEditor', reviewPrompt, { stage: 'stage2', topic, bottleneck: bAcademic });
         if (!reviewFeedbackText || reviewFeedbackText.trim().length === 0) {
-          reviewFeedbackText = `📝 【审稿编辑·半程会议学术反馈】：认真研读了大家的初稿与会议自评！正文整体逻辑连贯。针对大家提出的核心瓶颈【${bottleneck}】，已在左侧正式生成《半程编辑修正清单》，建议全组成员对照清单重点补齐测量量表与文献支撑，稳步推进！`;
+          reviewFeedbackText = `📝 【审稿编辑·半程会议学术反馈】：认真研读了大家的初稿与会议自评！正文整体逻辑连贯。针对大家提出的 3 大难点，已在左侧正式生成《半程编辑修正清单》，建议全组成员对照清单重点补齐测量量表与文献支撑，稳步推进！`;
         }
 
         // 3. 审稿编辑在聊天框发言
@@ -5509,9 +5558,9 @@
         this.state.stage2.actionPlan = {
           isGenerated: true,
           items: [
-            `修订项① (逻辑与方法): 在“三、研究问题与假设”末尾补齐与“四、研究设计与方法”操作化变量的对应说明。`,
-            `修订项② (瓶颈突破): 针对【${bottleneck}】，参照《编辑会议规范与范例模板文件.pdf》补充相关量表与文献支撑。`,
-            `修订项③ (团队协调): 维持当前平衡贡献比率，在后半程重点完成“五、研究设计的不足与反思”。`
+            `修订项① (学术与方法突破): 针对【${bAcademic}】，补齐三、假设与四、设计中的变量操作化与量表支撑。`,
+            `修订项② (协同与衔接重构): 针对【${bCollab}】，统一各章节论述用词风格与逻辑过渡。`,
+            `修订项③ (节奏与心态调节): 针对【${bRhythm}】，保持后半程专注投入，优先完成五、不足与反思。`
           ]
         };
 
