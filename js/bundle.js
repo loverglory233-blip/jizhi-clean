@@ -4342,7 +4342,16 @@
 
       if (!currentUser) {
         appEl.className = 'app-login-mode';
-        renderLoginView(appEl, this.authManager, () => this.renderMain());
+        renderLoginView(appEl, this.authManager, () => {
+          const u = this.authManager.getCurrentUser();
+          const gId = u && u.groupId ? u.groupId : 'group_1';
+          this.loadGroupState(gId);
+          this.renderMain();
+          if (this.cloudSyncEngine) {
+            this.cloudSyncEngine.updateScopeKeys();
+            this.cloudSyncEngine.pullFromServer();
+          }
+        });
         return;
       }
 
