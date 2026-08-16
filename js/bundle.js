@@ -1111,7 +1111,10 @@
       }
 
       if (remoteData.stage1) {
-        this.app.state.stage1 = remoteData.stage1;
+        if (JSON.stringify(remoteData.stage1) !== JSON.stringify(this.app.state.stage1)) {
+          this.app.state.stage1 = remoteData.stage1;
+          structuralUpdated = true;
+        }
       }
 
       if (remoteData.stage2) {
@@ -1130,16 +1133,24 @@
           }
         }
         if (remoteData.stage2.memberContributions) {
-          this.app.state.stage2.memberContributions = remoteData.stage2.memberContributions;
-          this.app.updateContributionUi();
+          if (JSON.stringify(remoteData.stage2.memberContributions) !== JSON.stringify(this.app.state.stage2.memberContributions)) {
+            this.app.state.stage2.memberContributions = remoteData.stage2.memberContributions;
+            this.app.updateContributionUi();
+          }
         }
         if (remoteData.stage2.actionPlan) {
-          this.app.state.stage2.actionPlan = remoteData.stage2.actionPlan;
+          if (JSON.stringify(remoteData.stage2.actionPlan) !== JSON.stringify(this.app.state.stage2.actionPlan)) {
+            this.app.state.stage2.actionPlan = remoteData.stage2.actionPlan;
+            structuralUpdated = true;
+          }
         }
       }
 
       if (remoteData.stage3 && remoteData.stage3.feedbackItems) {
-        this.app.state.stage3.feedbackItems = remoteData.stage3.feedbackItems;
+        if (JSON.stringify(remoteData.stage3.feedbackItems) !== JSON.stringify(this.app.state.stage3.feedbackItems)) {
+          this.app.state.stage3.feedbackItems = remoteData.stage3.feedbackItems;
+          structuralUpdated = true;
+        }
       }
 
       if (remoteData.currentStage && remoteData.currentStage !== this.app.state.currentStage) {
