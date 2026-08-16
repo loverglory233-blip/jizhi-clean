@@ -52,8 +52,69 @@ function initDatabaseTables() {
         ]);
     }
 
-    // 3. 小组实时协作快照与阶段状态表 (正文、协同光标、各阶段决策)
-    $sql3 = "CREATE TABLE IF NOT EXISTS `group_states` (
+    // 3. 教学班级表 (classes)
+    $sql3 = "CREATE TABLE IF NOT EXISTS `classes` (
+        `id` VARCHAR(64) PRIMARY KEY,
+        `name` VARCHAR(128) NOT NULL,
+        `code` VARCHAR(64) UNIQUE NOT NULL,
+        `student_ids` LONGTEXT,
+        `groups_data` LONGTEXT,
+        `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;";
+    $pdo->exec($sql3);
+
+    // 写入默认班级 (MET-2026-01)
+    $seedClassGroups = json_encode([['id' => 'group_1', 'name' => '第1小组', 'members' => ['u_studentA', 'u_studentB', 'u_studentC']]], JSON_UNESCAPED_UNICODE);
+    $seedClassStudents = json_encode(['u_studentA', 'u_studentB', 'u_studentC'], JSON_UNESCAPED_UNICODE);
+    $stmtClass = $pdo->prepare("INSERT INTO `classes` (`id`, `name`, `code`, `student_ids`, `groups_data`) 
+        VALUES ('class_101', '《现代教育技术》2026春01班', 'MET-2026-01', :sids, :gdata)
+        ON DUPLICATE KEY UPDATE `name`=VALUES(`name`), `code`=VALUES(`code`), `student_ids`=VALUES(`student_ids`), `groups_data`=VALUES(`groups_data`)");
+    $stmtClass->execute([':sids' => $seedClassStudents, ':gdata' => $seedClassGroups]);
+
+    // 4. 发布的教学任务表 (tasks)
+    $sql4 = "CREATE TABLE IF NOT EXISTS `tasks` (
+        `id` VARCHAR(64) PRIMARY KEY,
+        `title` VARCHAR(255) NOT NULL,
+        `desc` LONGTEXT,
+        `created_at_str` VARCHAR(64) DEFAULT '',
+        `deadline` VARCHAR(64) DEFAULT '',
+        `duration_minutes` INT DEFAULT 60,
+        `target_class_ids` LONGTEXT,
+        `attachments` LONGTEXT,
+        `status` VARCHAR(32) DEFAULT 'active',
+        `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;";
+    $pdo->exec($sql4);
+
+    // 5. 广播通知表 (announcements)
+    $sql5 = "CREATE TABLE IF NOT EXISTS `announcements` (
+        `id` VARCHAR(64) PRIMARY KEY,
+        `title` VARCHAR(255) NOT NULL,
+        `content` LONGTEXT NOT NULL,
+        `created_at_str` VARCHAR(64) DEFAULT '',
+        `target_class_ids` LONGTEXT,
+        `is_pinned` TINYINT(1) DEFAULT 0,
+        `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;";
+    $pdo->exec($sql5);
+
+    // 6. 学术参考范文库表 (reference_papers)
+    $sql6 = "CREATE TABLE IF NOT EXISTS `reference_papers` (
+        `id` VARCHAR(64) PRIMARY KEY,
+        `title` VARCHAR(255) NOT NULL,
+        `abstract` LONGTEXT,
+        `highlights` LONGTEXT,
+        `target_group` VARCHAR(64) DEFAULT 'all',
+        `file_name` VARCHAR(255) DEFAULT '',
+        `file_size` VARCHAR(64) DEFAULT '',
+        `file_data` LONGTEXT,
+        `upload_time` VARCHAR(64) DEFAULT '',
+        `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;";
+    $pdo->exec($sql6);
+
+    // 7. 小组实时协作快照与阶段状态表 (group_states)
+    $sql7 = "CREATE TABLE IF NOT EXISTS `group_states` (
         `scope_key` VARCHAR(128) PRIMARY KEY,
         `task_id` VARCHAR(64) NOT NULL,
         `group_id` VARCHAR(64) NOT NULL,
@@ -68,10 +129,10 @@ function initDatabaseTables() {
         `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
         INDEX idx_task_group (`task_id`, `group_id`)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;";
-    $pdo->exec($sql3);
+    $pdo->exec($sql7);
 
-    // 4. 研讨区实时消息流表 (行级存储，并发安全，便于学术统计)
-    $sql4 = "CREATE TABLE IF NOT EXISTS `chat_messages` (
+    // 8. 研讨区实时消息流表 (chat_messages)
+    $sql8 = "CREATE TABLE IF NOT EXISTS `chat_messages` (
         `id` BIGINT AUTO_INCREMENT PRIMARY KEY,
         `scope_key` VARCHAR(128) NOT NULL,
         `stage` VARCHAR(32) NOT NULL,
@@ -82,7 +143,7 @@ function initDatabaseTables() {
         `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         INDEX idx_scope_stage (`scope_key`, `stage`, `time_ms`)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;";
-    $pdo->exec($sql4);
+    $pdo->exec($sql8);
 
     return true;
 }

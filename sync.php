@@ -226,10 +226,84 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         ]);
                     }
                 }
-                if (!empty($data['classes']))         $existingMeta['classes']         = $data['classes'];
-                if (isset($data['tasks']))            $existingMeta['tasks']           = $data['tasks'];
-                if (isset($data['announcements']))    $existingMeta['announcements']   = $data['announcements'];
-                if (isset($data['referencePapers']))  $existingMeta['referencePapers'] = $data['referencePapers'];
+                // 4c-2. 同步写入教学班级表 (classes)
+                if (!empty($data['classes']) && is_array($data['classes'])) {
+                    $existingMeta['classes'] = $data['classes'];
+                    $stmtClassUpsert = $pdo->prepare("INSERT INTO `classes` (`id`, `name`, `code`, `student_ids`, `groups_data`)
+                        VALUES (:id, :name, :code, :sids, :gdata)
+                        ON DUPLICATE KEY UPDATE `name`=VALUES(`name`), `code`=VALUES(`code`), `student_ids`=VALUES(`student_ids`), `groups_data`=VALUES(`groups_data`)");
+                    foreach ($data['classes'] as $cls) {
+                        $cid = isset($cls['id']) ? $cls['id'] : 'class_' . uniqid();
+                        $cname = isset($cls['name']) ? $cls['name'] : '班级';
+                        $ccode = isset($cls['code']) ? $cls['code'] : 'CODE_' . uniqid();
+                        $sids = isset($cls['studentIds']) ? json_encode($cls['studentIds'], JSON_UNESCAPED_UNICODE) : '[]';
+                        $gdata = isset($cls['groups']) ? json_encode($cls['groups'], JSON_UNESCAPED_UNICODE) : '[]';
+                        $stmtClassUpsert->execute([':id' => $cid, ':name' => $cname, ':code' => $ccode, ':sids' => $sids, ':gdata' => $gdata]);
+                    }
+                }
+
+                // 4c-3. 同步写入任务表 (tasks)
+                if (isset($data['tasks']) && is_array($data['tasks'])) {
+                    $existingMeta['tasks'] = $data['tasks'];
+                    $stmtTaskUpsert = $pdo->prepare("INSERT INTO `tasks` (`id`, `title`, `desc`, `created_at_str`, `deadline`, `duration_minutes`, `target_class_ids`, `attachments`, `status`)
+                        VALUES (:id, :title, :desc, :created_at, :deadline, :duration, :cids, :att, :status)
+                        ON DUPLICATE KEY UPDATE `title`=VALUES(`title`), `desc`=VALUES(`desc`), `created_at_str`=VALUES(`created_at_str`), `deadline`=VALUES(`deadline`), `duration_minutes`=VALUES(`duration_minutes`), `target_class_ids`=VALUES(`target_class_ids`), `attachments`=VALUES(`attachments`), `status`=VALUES(`status`)");
+                    foreach ($data['tasks'] as $tsk) {
+                        $tid = isset($tsk['id']) ? $tsk['id'] : 'task_' . uniqid();
+                        $ttitle = isset($tsk['title']) ? $tsk['title'] : '写作任务';
+                        $tdesc = isset($tsk['desc']) ? $tsk['desc'] : '';
+                        $tcreated = isset($tsk['createdAt']) ? $tsk['createdAt'] : '';
+                        $tdeadline = isset($tsk['deadline']) ? $tsk['deadline'] : '';
+                        $tduration = isset($tsk['durationMinutes']) ? intval($tsk['durationMinutes']) : 60;
+                        $tcids = isset($tsk['classIds']) ? json_encode($tsk['classIds'], JSON_UNESCAPED_UNICODE) : '[]';
+                        $tatt = isset($tsk['attachments']) ? json_encode($tsk['attachments'], JSON_UNESCAPED_UNICODE) : '[]';
+                        $tstatus = isset($tsk['status']) ? $tsk['status'] : 'active';
+                        $stmtTaskUpsert->execute([
+                            ':id' => $tid, ':title' => $ttitle, ':desc' => $tdesc, ':created_at' => $tcreated,
+                            ':deadline' => $tdeadline, ':duration' => $tduration, ':cids' => $tcids, ':att' => $tatt, ':status' => $tstatus
+                        ]);
+                    }
+                }
+
+                // 4c-4. 同步写入广播通知表 (announcements)
+                if (isset($data['announcements']) && is_array($data['announcements'])) {
+                    $existingMeta['announcements'] = $data['announcements'];
+                    $stmtAnnUpsert = $pdo->prepare("INSERT INTO `announcements` (`id`, `title`, `content`, `created_at_str`, `target_class_ids`, `is_pinned`)
+                        VALUES (:id, :title, :content, :created_at, :cids, :pinned)
+                        ON DUPLICATE KEY UPDATE `title`=VALUES(`title`), `content`=VALUES(`content`), `created_at_str`=VALUES(`created_at_str`), `target_class_ids`=VALUES(`target_class_ids`), `is_pinned`=VALUES(`is_pinned`)");
+                    foreach ($data['announcements'] as $ann) {
+                        $aid = isset($ann['id']) ? $ann['id'] : 'ann_' . uniqid();
+                        $atitle = isset($ann['title']) ? $ann['title'] : '系统通知';
+                        $acontent = isset($ann['content']) ? $ann['content'] : '';
+                        $acreated = isset($ann['createdAt']) ? $ann['createdAt'] : '';
+                        $acids = isset($ann['classIds']) ? json_encode($ann['classIds'], JSON_UNESCAPED_UNICODE) : '[]';
+                        $apinned = !empty($ann['isPinned']) ? 1 : 0;
+                        $stmtAnnUpsert->execute([':id' => $aid, ':title' => $atitle, ':content' => $acontent, ':created_at' => $acreated, ':cids' => $acids, ':pinned' => $apinned]);
+                    }
+                }
+
+                // 4c-5. 同步写入学术范文库表 (reference_papers)
+                if (isset($data['referencePapers']) && is_array($data['referencePapers'])) {
+                    $existingMeta['referencePapers'] = $data['referencePapers'];
+                    $stmtPaperUpsert = $pdo->prepare("INSERT INTO `reference_papers` (`id`, `title`, `abstract`, `highlights`, `target_group`, `file_name`, `file_size`, `file_data`, `upload_time`)
+                        VALUES (:id, :title, :abstract, :highlights, :tgroup, :fname, :fsize, :fdata, :utime)
+                        ON DUPLICATE KEY UPDATE `title`=VALUES(`title`), `abstract`=VALUES(`abstract`), `highlights`=VALUES(`highlights`), `target_group`=VALUES(`target_group`), `file_name`=VALUES(`file_name`), `file_size`=VALUES(`file_size`), `file_data`=VALUES(`file_data`), `upload_time`=VALUES(`upload_time`)");
+                    foreach ($data['referencePapers'] as $pap) {
+                        $pid = isset($pap['id']) ? $pap['id'] : 'paper_' . uniqid();
+                        $ptitle = isset($pap['title']) ? $pap['title'] : '参考论文';
+                        $pabstract = isset($pap['abstract']) ? $pap['abstract'] : '';
+                        $phighlights = isset($pap['highlights']) ? $pap['highlights'] : '';
+                        $ptgroup = isset($pap['targetGroup']) ? $pap['targetGroup'] : 'all';
+                        $pfname = isset($pap['fileName']) ? $pap['fileName'] : '';
+                        $pfsize = isset($pap['fileSize']) ? $pap['fileSize'] : '';
+                        $pfdata = isset($pap['fileData']) ? $pap['fileData'] : '';
+                        $putime = isset($pap['uploadTime']) ? $pap['uploadTime'] : '';
+                        $stmtPaperUpsert->execute([
+                            ':id' => $pid, ':title' => $ptitle, ':abstract' => $pabstract, ':highlights' => $phighlights,
+                            ':tgroup' => $ptgroup, ':fname' => $pfname, ':fsize' => $pfsize, ':fdata' => $pfdata, ':utime' => $putime
+                        ]);
+                    }
+                }
 
                 $mergedJson = json_encode($existingMeta, JSON_UNESCAPED_UNICODE);
                 $stmtSaveMeta = $pdo->prepare("INSERT INTO global_meta (meta_key, meta_value) VALUES ('main_meta', :v) ON DUPLICATE KEY UPDATE meta_value = :v2");
