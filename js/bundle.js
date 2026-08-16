@@ -4168,42 +4168,8 @@
             if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
           }
 
-          // 🤝 各阶段专属 Agent: 仅在所属阶段检测学生对话不积极 (静默 > 50 秒触发温和督促)
-          const currentStage = this.state.currentStage;
-          const logs = this.state.chatLogs[currentStage] || [];
-          const nowMs = Date.now();
-          const lastStudentMsg = logs.slice().reverse().find(m => m.sender !== 'managingEditor' && m.sender !== 'reviewingEditor' && m.sender !== 'auctioneer' && m.sender !== 'neutral' && m.sender !== 'proponent' && m.sender !== 'opponent');
-          const lastStudentTime = lastStudentMsg ? (lastStudentMsg._timeMs || nowMs) : (this.state.lastStudentChatTimeMs || nowMs);
-          const idleSec = Math.floor((nowMs - lastStudentTime) / 1000);
-
-          let stageAgent = null;
-          let stageAgentText = '';
-          if (currentStage === 'stage1') {
-            stageAgent = 'auctioneer';
-            stageAgentText = `🎪 【拍卖师 互动督促】：检测到本组在【阶段一：学术拍卖会】已连续 ${idleSec} 秒未发言。请组员积极商定选题分工与时间分配！`;
-          } else if (currentStage === 'stage2') {
-            stageAgent = 'managingEditor';
-            stageAgentText = `🤝 【责任编辑 互动督促】：检测到本组在【阶段二：学术编辑部】已连续 ${idleSec} 秒未研讨。请组员保持沟通，按合约分工推进正文写作！`;
-          } else if (currentStage === 'stage3') {
-            stageAgent = 'neutral';
-            stageAgentText = `🟡 【中间委员 互动督促】：检测到本组在【阶段三：答辩擂台】已连续 ${idleSec} 秒未研讨。请全组针对答辩委员会质询达成裁决共识！`;
-          }
-
-          const lastAgentMsg = logs.slice().reverse().find(m => m.sender === stageAgent);
-          const timeSinceAgentMs = lastAgentMsg ? (nowMs - (lastAgentMsg._timeMs || 0)) : 999999;
-
-          if (stageAgent && idleSec >= 50 && timeSinceAgentMs > 75000 && !this.state.isFinalSubmitted) {
-            this.state.lastStudentChatTimeMs = nowMs;
-            const idleAlertMsg = {
-              sender: stageAgent,
-              text: stageAgentText,
-              timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-              _timeMs: nowMs
-            };
-            logs.push(idleAlertMsg);
-            this.syncChatLogs();
-            renderChat(this.state);
-          }
+          // 保持心跳静默，严禁机械计算秒数刷屏督促
+          // 智能体只在阶段里程碑、学生主动提交提案/会议/答辩或显式 @ 时发声
 
           renderHeader(
             this.state, currentUser, this.authManager.getAnnouncements(),
