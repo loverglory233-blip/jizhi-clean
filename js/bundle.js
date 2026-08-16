@@ -4661,12 +4661,11 @@
         atMentionMenu.style.display = 'none';
         this.studentMsgCountSinceLastAgent += 1;
 
-        if (!this.state.stage2.memberContributions) this.state.stage2.memberContributions = {};
-        this.state.stage2.memberContributions[studentCode] = (this.state.stage2.memberContributions[studentCode] || 0) + text.length;
-        this.updateContributionUi();
+        // 仅在后台记录发言条数供智能体认知使用，绝对不混入页面写作字数贡献比中
+        if (!this.state.studentChatCounts) this.state.studentChatCounts = {};
+        this.state.studentChatCounts[studentCode] = (this.state.studentChatCounts[studentCode] || 0) + 1;
 
         this.syncChatLogs();
-        this.syncStage2();
         renderChat(this.state);
         this.triggerAgentReplyIfNeeded(text);
       };
@@ -5145,12 +5144,25 @@
           const cleanHtml = (newContent || '').replace(/<span class="remote-cursor-widget"[\s\S]*?<\/span>/gi, '');
           this.state.stage2.unifiedContent = cleanHtml;
           const user = this.state.currentUser || 'A';
-          const plain = (newContent || '').replace(/<[^>]*>/g, '');
-          const prevLen = this.lastPlainTextLength || 0;
-          const delta = Math.max(1, Math.abs(plain.length - prevLen));
-          this.lastPlainTextLength = plain.length;
+          const plain = cleanHtml.replace(/<[^>]*>/g, '').trim();
+          
           if (!this.state.stage2.memberContributions) this.state.stage2.memberContributions = {};
-          this.state.stage2.memberContributions[user] = (this.state.stage2.memberContributions[user] || 0) + delta;
+          
+          if (plain.length === 0) {
+            // 正文为空时，各成员打字字数重置为 0
+            this.lastPlainTextLength = 0;
+            Object.keys(this.state.members || {}).forEach(mId => {
+              this.state.stage2.memberContributions[mId] = 0;
+            });
+          } else {
+            const prevLen = this.lastPlainTextLength || 0;
+            const delta = plain.length - prevLen;
+            this.lastPlainTextLength = plain.length;
+            if (delta > 0) {
+              this.state.stage2.memberContributions[user] = (this.state.stage2.memberContributions[user] || 0) + delta;
+            }
+          }
+
           if (!this.state.presence) this.state.presence = {};
           this.state.presence[user] = {
             nodeIndex: 0,
