@@ -382,16 +382,27 @@
       const classes = this.getClasses();
       const cleanUsername = username.trim().toLowerCase();
       const cleanCode = (studentCode || cleanUsername).trim();
-      const existingIndex = users.findIndex(u => (u.username || '').toLowerCase() === cleanUsername || (u.studentCode && u.studentCode === cleanCode));
+      
+      const existingUserByUsername = users.find(u => (u.username || '').toLowerCase() === cleanUsername);
+      const existingUserByCode = users.find(u => (u.studentCode || '').trim() === cleanCode);
+
+      if (existingUserByCode && existingUserByCode.username.toLowerCase() !== cleanUsername) {
+        throw new Error(`学号【${cleanCode}】已被学生【${existingUserByCode.name} (${existingUserByCode.username})】占用，学号不能重复！`);
+      }
+
+      if (existingUserByUsername && existingUserByUsername.studentCode && existingUserByUsername.studentCode !== cleanCode) {
+        throw new Error(`用户名【${cleanUsername}】已存在，请使用其他登录账号！`);
+      }
+
       const avatars = ['👨‍🎓', '👩‍🎓', '🧑‍🎓', '🎓', '📚', '🌟'];
       const avatar = avatars[users.length % avatars.length];
 
       let targetUser;
-      if (existingIndex !== -1) {
-        targetUser = users[existingIndex];
+      if (existingUserByUsername) {
+        targetUser = existingUserByUsername;
         if (name && name.trim()) targetUser.name = name.trim();
         if (customPassword && customPassword.trim()) targetUser.password = customPassword.trim();
-        if (studentCode && studentCode.trim()) targetUser.studentCode = studentCode.trim();
+        targetUser.studentCode = cleanCode;
 
         if (!targetUser.classIds || !Array.isArray(targetUser.classIds)) {
           targetUser.classIds = targetUser.classId ? [targetUser.classId] : [];
@@ -1924,9 +1935,13 @@
           const code = modal.querySelector('#modal-std-code').value.trim();
           const pwd = modal.querySelector('#modal-std-password').value.trim();
           if (!name || !username) { alert('⚠️ 请填齐学生姓名和拼音账号！'); return; }
-          authManager.addStudentToClass(name, username, code || username, activeClass.id, pwd || '123');
-          closeModal();
-          renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+          try {
+            authManager.addStudentToClass(name, username, code || username, activeClass.id, pwd || '123');
+            closeModal();
+            renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+          } catch (err) {
+            alert('❌ ' + err.message);
+          }
         });
 
         // 加入已有学生提交
