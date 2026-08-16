@@ -5506,29 +5506,13 @@
 
       const logs = this.state.chatLogs[currentStage] || [];
       const now = Date.now();
-
-      // 1. 📝 审稿编辑 Agent: 偏离主题警示 (Off-Topic Check)
-      const offTopicKeywords = ['外卖', '游戏', '电影', '打球', '买鞋', '追剧', '放假', '游玩', '聊天'];
-      const hasOffTopicWord = offTopicKeywords.some(w => newContent.includes(w));
       const lastReviewingMsg = logs.slice().reverse().find(m => m.sender === 'reviewingEditor');
       const timeSinceLastReviewing = lastReviewingMsg ? (now - (lastReviewingMsg._timeMs || 0)) : 999999;
 
-      if (hasOffTopicWord && timeSinceLastReviewing > 30000) {
-        const warningMsg = {
-          sender: 'reviewingEditor',
-          text: `📝 【审稿编辑 Agent 偏离主题提醒】：检测到当前正文或研讨内容中出现了偏离已锁定研究主题《${this.state.stage1.mergedTitle || '论文主题'}》的内容。请团队紧扣研究问题、理论框架与学术规范展开，避免无关讨论！`,
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          _timeMs: now
-        };
-        logs.push(warningMsg);
-        this.syncChatLogs();
-        renderChat(this.state);
-      }
-
-      // 2. 📝 审稿编辑 Agent: 专业问题 / 学术规范缺失 (Academic Deficit Check)
+      // 📝 审稿编辑 Agent: 专业问题 / 学术规范缺失 (仅在假设提出且篇幅充实时给出建议)
       const hasHypothesis = newContent.includes('假设') || newContent.includes('H1') || newContent.includes('H2') || newContent.includes('变量');
       const hasScale = newContent.includes('李克特') || newContent.includes('Likert') || newContent.includes('量表') || newContent.includes('信效度');
-      if (hasHypothesis && !hasScale && newContent.length > 180 && timeSinceLastReviewing > 45000) {
+      if (hasHypothesis && !hasScale && newContent.length > 260 && timeSinceLastReviewing > 60000) {
         const scaleWarningMsg = {
           sender: 'reviewingEditor',
           text: `📝 【审稿编辑 Agent 专业规范提醒】：检测到论文提出了研究假设或变量，但尚未补齐具体的【5点李克特量表 (Likert 5-point Scale)】及量化测量工具规范！建议补充具体的测量维度与问卷指标。`,
