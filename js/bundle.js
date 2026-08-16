@@ -1120,7 +1120,6 @@
           <div class="teacher-info" style="display:flex; align-items:center; gap:16px;">
             <span style="font-size:13.5px; color:#334155;">当前班级: <b style="color:#2563eb;">${activeClass.name}</b></span>
             <span style="font-size:13.5px; color:#334155;">教师: <b>${currentUser.name}</b></span>
-            <button id="btn-switch-student-preview" style="background:#eff6ff; color:#2563eb; border:1px solid #bfdbfe; padding:8px 16px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer;">👀 切换至学生视图</button>
             <button id="btn-logout" class="header-icon-btn logout" style="background:#fef2f2; color:#dc2626; border:1px solid #fecaca; padding:8px 16px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer;">🚪 退出登录</button>
           </div>
         </header>
@@ -3345,8 +3344,11 @@
     pillsContainer.innerHTML = membersList.map(m => {
       const p = presence[m.studentCode] || presence[m.id];
       const isSelf = m.studentCode === currentUserCode || m.id === currentUserCode;
-      const isOnline = isSelf || (p && (now - p.updatedAt < 120000));
-      const sectionText = isSelf ? ' (我)' : (p && p.activeSection ? ` (在写: ${p.activeSection})` : (isOnline ? ' (在线)' : ' (离线)'));
+      // 只有在 25 秒内有心跳活跃的才视为在线
+      const isOnline = isSelf || (p && (now - p.updatedAt < 25000));
+      // 只有在 10 秒内且明确正在输入段落的才显示 (在写: ...)
+      const isTyping = !isSelf && p && p.activeSection && p.activeSection !== '在线研讨' && (now - p.updatedAt < 10000);
+      const sectionText = isSelf ? ' (我)' : (isTyping ? ` (在写: ${p.activeSection})` : (isOnline ? ' (在线)' : ' (离线)'));
       const color = m.color || '#2563eb';
 
       return `
@@ -5457,12 +5459,8 @@
             <button class="modal-close-btn" id="btn-close-meeting">✕</button>
           </div>
           <div class="teacher-modal-body">
-            <div style="background:rgba(99,102,241,0.15); border:1px solid rgba(99,102,241,0.3); border-radius:10px; padding:12px 16px; display:flex; justify-content:space-between; align-items:center;">
-              <div><div style="font-size:13px; font-weight:700; color:#a5b4fc;">📎 审稿编辑推送范例文件:</div><div style="font-size:12px; color:#cbd5e1;">《编辑会议规范与范例模板文件.pdf》 (1.8 MB)</div></div>
-              <button id="btn-download-case-file" style="background:var(--accent-indigo); border:none; color:white; padding:6px 12px; border-radius:6px; font-size:12px; cursor:pointer;">📥 下载范例文件</button>
-            </div>
             <!-- 1. 契约与构想一致性双核自查 -->
-            <div style="background:#f8fafc; border:1px solid #cbd5e1; border-radius:10px; padding:12px 16px; margin-top:12px;">
+            <div style="background:#f8fafc; border:1px solid #cbd5e1; border-radius:10px; padding:12px 16px;">
               <div style="font-size:13px; font-weight:800; color:#1e40af; margin-bottom:10px;">📋 阶段一公约与核心构想对照 (SSRL 计划自查)</div>
               
               <div style="display:flex; flex-direction:column; gap:8px;">
@@ -5572,10 +5570,6 @@
       const closeModal = () => document.body.removeChild(modal);
       modal.querySelector('#btn-close-meeting').addEventListener('click', closeModal);
       modal.querySelector('#btn-cancel-meeting').addEventListener('click', closeModal);
-
-      modal.querySelector('#btn-download-case-file').addEventListener('click', () => {
-        downloadFileBlob('编辑会议规范与范例模板文件.pdf');
-      });
 
       let logicRating = 4;
       let balanceRating = 5;
