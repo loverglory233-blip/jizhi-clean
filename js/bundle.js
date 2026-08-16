@@ -5237,38 +5237,67 @@
               <div><div style="font-size:13px; font-weight:700; color:#a5b4fc;">📎 审稿编辑推送范例文件:</div><div style="font-size:12px; color:#cbd5e1;">《编辑会议规范与范例模板文件.pdf》 (1.8 MB)</div></div>
               <button id="btn-download-case-file" style="background:var(--accent-indigo); border:none; color:white; padding:6px 12px; border-radius:6px; font-size:12px; cursor:pointer;">📥 下载范例文件</button>
             </div>
+            <!-- 契约一致性双核自查 (主题 + 时间) -->
+            <div style="background:#f8fafc; border:1px solid #cbd5e1; border-radius:10px; padding:14px 16px; margin-top:12px;">
+              <div style="font-size:13px; font-weight:800; color:#1e40af; margin-bottom:10px;">📋 阶段一合作公约一致性自查 (SSRL 计划对照)</div>
+              
+              <div style="display:flex; flex-direction:column; gap:10px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; background:#ffffff; padding:10px 12px; border-radius:8px; border:1px solid #e2e8f0;">
+                  <span style="font-size:13px; color:#334155; font-weight:600;">1. 写作主题与公约契约一致性：</span>
+                  <select id="meeting-theme-consistency-select" class="teacher-input" style="width:160px; padding:4px 8px; font-size:12.5px;">
+                    <option value="完全一致，紧扣主题">✅ 完全一致，紧扣主题</option>
+                    <option value="基本一致，有局部微调">🔄 基本一致，有局部微调</option>
+                    <option value="存在偏离，需聚焦回正">⚠️ 存在偏离，需聚焦回正</option>
+                  </select>
+                </div>
+
+                <div style="display:flex; justify-content:space-between; align-items:center; background:#ffffff; padding:10px 12px; border-radius:8px; border:1px solid #e2e8f0;">
+                  <span style="font-size:13px; color:#334155; font-weight:600;">2. 章节耗时与公约时间预算一致性：</span>
+                  <select id="meeting-time-consistency-select" class="teacher-input" style="width:160px; padding:4px 8px; font-size:12.5px;">
+                    <option value="节奏匹配，符合预期">✅ 节奏匹配，符合预期</option>
+                    <option value="局部超时，后半程需加速">⏳ 局部超时，后半程需加速</option>
+                    <option value="进度严重滞后，需精简">🚨 进度严重滞后，需精简</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px; margin-top:14px;">
+              <div class="teacher-form-group" style="margin-bottom:0;">
+                <label style="font-size:12.5px; font-weight:700;">🌟 内容逻辑与严谨度 (点击星级)</label>
+                <div class="rating-stars" id="star-rating-logic" style="margin:4px 0; font-size:22px; cursor:pointer; user-select:none;">
+                  <span class="star" data-val="1" style="color:#f59e0b;">★</span>
+                  <span class="star" data-val="2" style="color:#f59e0b;">★</span>
+                  <span class="star" data-val="3" style="color:#f59e0b;">★</span>
+                  <span class="star" data-val="4" style="color:#f59e0b;">★</span>
+                  <span class="star" data-val="5" style="color:#475569;">★</span>
+                </div>
+              </div>
+              <div class="teacher-form-group" style="margin-bottom:0;">
+                <label style="font-size:12.5px; font-weight:700;">👥 团队分工与参与平衡度</label>
+                <div class="rating-stars" id="star-rating-balance" style="margin:4px 0; font-size:22px; cursor:pointer; user-select:none;">
+                  <span class="star" data-val="1" style="color:#f59e0b;">★</span>
+                  <span class="star" data-val="2" style="color:#f59e0b;">★</span>
+                  <span class="star" data-val="3" style="color:#f59e0b;">★</span>
+                  <span class="star" data-val="4" style="color:#f59e0b;">★</span>
+                  <span class="star" data-val="5" style="color:#f59e0b;">★</span>
+                </div>
+              </div>
+            </div>
+
             <div class="teacher-form-group" style="margin-top:12px;">
-              <label style="font-size:13px; font-weight:700;">🌟 维度 ①：内容逻辑与学术严谨度打分 (点击星级打分)</label>
-              <div class="rating-stars" id="star-rating-logic" style="margin:6px 0; font-size:24px; cursor:pointer; user-select:none;">
-                <span class="star" data-val="1" style="color:#f59e0b;">★</span>
-                <span class="star" data-val="2" style="color:#f59e0b;">★</span>
-                <span class="star" data-val="3" style="color:#f59e0b;">★</span>
-                <span class="star" data-val="4" style="color:#f59e0b;">★</span>
-                <span class="star" data-val="5" style="color:#475569;">★</span>
-              </div>
-            </div>
-            <div class="teacher-form-group">
-              <label style="font-size:13px; font-weight:700;">👥 维度 ②：团队分工与参与平衡度打分 (点击星级打分)</label>
-              <div class="rating-stars" id="star-rating-balance" style="margin:6px 0; font-size:24px; cursor:pointer; user-select:none;">
-                <span class="star" data-val="1" style="color:#f59e0b;">★</span>
-                <span class="star" data-val="2" style="color:#f59e0b;">★</span>
-                <span class="star" data-val="3" style="color:#f59e0b;">★</span>
-                <span class="star" data-val="4" style="color:#f59e0b;">★</span>
-                <span class="star" data-val="5" style="color:#f59e0b;">★</span>
-              </div>
-            </div>
-            <div class="teacher-form-group">
-              <label style="font-size:13px; font-weight:700;">⚠️ 维度 ③：当前组内面临的最大难点瓶颈</label>
+              <label style="font-size:13px; font-weight:700;">⚠️ 当前组内面临的核心难点瓶颈</label>
               <select id="meeting-bottleneck-select" class="teacher-input">
                 <option value="假设与研究设计工具对应不明确">假设与研究设计工具对应不明确</option>
-                <option value="相关文献支撑力度不足">相关文献支撑力度不足</option>
-                <option value="时间分配紧张，进度滞后">时间分配紧张，进度滞后</option>
-                <option value="章节之间过渡衔接缺乏逻辑">章节之间过渡衔接缺乏逻辑</option>
+                <option value="国内外文献综述支撑力度不足">国内外文献综述支撑力度不足</option>
+                <option value="核心变量的操作化测量量表不够权威">核心变量的操作化测量量表不够权威</option>
+                <option value="章节过渡与逻辑论证衔接不够紧密">章节过渡与逻辑论证衔接不够紧密</option>
               </select>
             </div>
-            <div class="teacher-form-group">
+
+            <div class="teacher-form-group" style="margin-top:10px;">
               <label style="font-size:13px; font-weight:700;">✍️ 组内自评与补充修正说明</label>
-              <textarea id="meeting-input-text" class="teacher-textarea" style="min-height:80px;" placeholder="请输入组内自我检讨或需要审稿编辑解答的问题...">背景与问题部分已完成，请审稿编辑评价假设与方法的衔接。</textarea>
+              <textarea id="meeting-input-text" class="teacher-textarea" style="min-height:68px;" placeholder="请输入组内自我检讨或需要审稿编辑解答的问题...">背景与问题部分已完成，请审稿编辑评价假设与方法的衔接。</textarea>
             </div>
           </div>
           <div class="teacher-modal-footer">
@@ -5311,6 +5340,8 @@
       });
 
       modal.querySelector('#btn-submit-meeting').addEventListener('click', async () => {
+        const themeConsistency = modal.querySelector('#meeting-theme-consistency-select').value;
+        const timeConsistency = modal.querySelector('#meeting-time-consistency-select').value;
         const bottleneck = modal.querySelector('#meeting-bottleneck-select').value;
         const userText = modal.querySelector('#meeting-input-text').value;
         closeModal();
@@ -5318,7 +5349,7 @@
         // 1. 责任编辑先播报会议打分汇总
         const meetingMsg = {
           sender: 'managingEditor',
-          text: `📢 【编辑会议① 汇总】：全员完成 3 维自评打分（内容逻辑 ${logicRating}星，分工平衡 ${balanceRating}星，核心瓶颈：${bottleneck}）。组内说明：“${userText}”。\n审稿编辑正在结合大家的自评与当前正文生成针对性指导建议...`,
+          text: `📢 【编辑会议① 汇总】：全员完成 3 维自评与公约计划对照（主题一致性：${themeConsistency}；时间预算：${timeConsistency}；内容逻辑 ${logicRating}星；分工平衡 ${balanceRating}星；核心瓶颈：${bottleneck}）。组内说明：“${userText}”。\n审稿编辑正在结合自评与当前正文生成针对性指导建议...`,
           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
           _timeMs: Date.now()
         };
@@ -5329,7 +5360,7 @@
         // 2. 异步调用扣子审稿编辑 API 给出深度学术建议
         const topic = (this.state.stage1 && this.state.stage1.mergedTitle) ? this.state.stage1.mergedTitle : '本组课题';
         const contentSnippet = (this.state.stage2 && this.state.stage2.unifiedContent) ? this.state.stage2.unifiedContent.replace(/<[^>]*>/g, '').slice(0, 350) : '论文初稿';
-        const reviewPrompt = `小组刚完成了半程编辑会议自评（逻辑 ${logicRating}星，分工 ${balanceRating}星，核心瓶颈：“${bottleneck}”，组内自评：“${userText}”）。请针对其论文《${topic}》及当前初稿，给出 120~180 字的针对性修改建议与启发指导，引导小组对照即将生成的修正清单开展重构。`;
+        const reviewPrompt = `小组完成了半程编辑会议自评（主题契约一致性：“${themeConsistency}”，时间预算一致性：“${timeConsistency}”，逻辑 ${logicRating}星，分工 ${balanceRating}星，核心瓶颈：“${bottleneck}”，组内自评：“${userText}”）。请针对其论文《${topic}》及当前初稿，给出 120~180 字的针对性修改建议与启发指导，引导小组对照即将生成的修正清单开展重构。`;
 
         let reviewFeedbackText = await callCozeAgentAPI('reviewingEditor', reviewPrompt, { stage: 'stage2', topic, bottleneck });
         if (!reviewFeedbackText || reviewFeedbackText.trim().length === 0) {
