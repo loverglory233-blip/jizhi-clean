@@ -1,0 +1,7 @@
+# Sensitive API Keys and OAuth credentials
+api/config.php
+api/private_key.pem
+api/token_cache.json
+db_*.json
+global_db.json
+sessions.json
