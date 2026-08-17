@@ -4061,12 +4061,13 @@
             <div class="contrib-labels" style="display:flex; font-size:11.5px; font-weight:700; color:#475569; gap:12px; white-space:nowrap;">
               ${(() => {
                 const contribs = s2.memberContributions || {};
-                let totalContrib = 0;
-                membersList.forEach(m => { totalContrib += (contribs[m.id] || 0) + (contribs[m.studentCode] || 0); });
+                let rawTotal = 0;
+                membersList.forEach(m => { rawTotal += (contribs[m.id] || 0) + (contribs[m.studentCode] || 0); });
                 return membersList.map((m) => {
-                  const val = (contribs[m.id] || 0) + (contribs[m.studentCode] || 0);
-                  const pct = (totalContrib === 0 || val === 0) ? 0 : Math.round((val / totalContrib) * 100);
-                  return `<span style="color:${m.color || '#2563eb'}; font-weight:700;">● ${m.name}: ${pct}% (${val}字)</span>`;
+                  const rawVal = (contribs[m.id] || 0) + (contribs[m.studentCode] || 0);
+                  const pct = (rawTotal === 0 || rawVal === 0) ? 0 : Math.round((rawVal / rawTotal) * 100);
+                  const liveWords = (rawTotal === 0 || plainTextLen === 0) ? 0 : Math.round((rawVal / rawTotal) * plainTextLen);
+                  return `<span style="color:${m.color || '#2563eb'}; font-weight:700;">● ${m.name}: ${pct}% (${liveWords}字)</span>`;
                 }).join('');
               })()}
             </div>
@@ -4074,16 +4075,17 @@
           <div class="contrib-bars" style="width:100%; height:10px; border-radius:5px; display:flex; overflow:hidden; background:#e2e8f0;">
             ${(() => {
               const contribs = s2.memberContributions || {};
-              let totalContrib = 0;
-              membersList.forEach(m => { totalContrib += (contribs[m.id] || 0) + (contribs[m.studentCode] || 0); });
-              if (totalContrib === 0) {
+              let rawTotal = 0;
+              membersList.forEach(m => { rawTotal += (contribs[m.id] || 0) + (contribs[m.studentCode] || 0); });
+              if (rawTotal === 0 || plainTextLen === 0) {
                 return `<div style="width:100%; height:10px; background:#f1f5f9; border-radius:5px; display:flex; align-items:center; justify-content:center; font-size:10.5px; color:#94a3b8;">暂无写作贡献 (开始编辑正文或研讨后将自动计算各成员贡献比)</div>`;
               }
               return membersList.map((m) => {
-                const val = (contribs[m.id] || 0) + (contribs[m.studentCode] || 0);
-                if (val === 0) return '';
-                const pct = Math.round((val / totalContrib) * 100);
-                return `<div class="contrib-segment" style="width:${pct}%; background:${m.color || '#2563eb'}; transition:width 0.3s ease;" title="${m.name}: ${pct}% (${val}字)"></div>`;
+                const rawVal = (contribs[m.id] || 0) + (contribs[m.studentCode] || 0);
+                if (rawVal === 0) return '';
+                const pct = Math.round((rawVal / rawTotal) * 100);
+                const liveWords = Math.round((rawVal / rawTotal) * plainTextLen);
+                return `<div class="contrib-segment" style="width:${pct}%; background:${m.color || '#2563eb'}; transition:width 0.3s ease;" title="${m.name}: ${pct}% (${liveWords}字)"></div>`;
               }).join('');
             })()}
           </div>
