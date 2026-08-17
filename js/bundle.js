@@ -5542,15 +5542,30 @@
           const isUnanimous = (maxVotes === totalMembersCount);
 
           if (isUnanimous) {
-            summaryText += `\n🎉 **【全员一致认同】**：全组 ${totalMembersCount} 票全部投给《${winningProposal.title}》！拍卖师正式敲定该提案为本组基准主题！`;
+            summaryText += `\n🎉 **【全员一致认同】**：全组 ${totalMembersCount} 票全部投给《${winningProposal.title}》！正式确立该提案为本组研究主题！`;
             if (!s1.mergedTitle && winningProposal) {
               s1.mergedTitle = winningProposal.title;
             }
           } else {
-            summaryText += `\n⚖️ **【存在意见分歧·协商引导】**：目前投票尚未达到全员一致（票数分布存在分歧）。\n👉 请全组成员在右侧研讨区展开协商，各抒己见，将各提案的核心创新点进行【融合与细化】，并在下方合约卡片中敲定全组统一的论文研究主题！`;
+            summaryText += `\n⚖️ **【存在意见分歧·协商引导】**：投票存在分歧，拍卖师已暂定获得最高票的《${winningProposal ? winningProposal.title : '当前提案'}》为基准主题。全组亦可在研讨区协商融合！`;
+            if (!s1.mergedTitle && winningProposal) {
+              s1.mergedTitle = winningProposal.title;
+            }
           }
 
-          summaryText += `\n\n👉 **下一步引导（细化主题、分工与时间分配）**：\n请全组在下方《团队协同合作学术合约》中：\n1. 确认或细化论文最终研究主题；\n2. 为每位组员分配具体写作章节（如背景、综述、方法等）；\n3. 规划各模块用时；\n4. 确认无误后，全员点击【确认签署】正式生效！`;
+          // ── 平台自动生成学术合作合约草案（预设结构与合理分工） ──
+          if (!s1.contract.taskAssignments) s1.contract.taskAssignments = {};
+          const defaultTasks = ['负责：一、研究背景与二、文献综述', '负责：三、研究问题与四、研究设计', '负责：五、反思与六、参考文献规范'];
+          Object.values(this.state.members || {}).forEach((m, idx) => {
+            if (!s1.contract.taskAssignments[m.id]) {
+              s1.contract.taskAssignments[m.id] = defaultTasks[idx % defaultTasks.length] || '协作撰写与统稿';
+            }
+          });
+          if (!s1.contract.timeAllocations) {
+            s1.contract.timeAllocations = { background: 25, literature: 30, questions: 25, method: 40, reflection: 20, references: 10 };
+          }
+
+          summaryText += `\n\n📜 **【平台已自动生成学术合作公约草案】**\n拍卖师与平台系统已根据选题和成员结构，在左侧自动生成了完整的《团队协同合作学术合约》！\n\n👉 **【核对与签署指引】**：\n1. 请全组成员仔细查看左侧合约卡片（主题、各成员分工、时间规划）；\n2. **如有不同想法，可直接在卡片输入框中微调修改**；\n3. 确认无误后，**全员点击卡片下方的【确认签署】**正式锁定并解锁阶段二！`;
 
           const summaryMsg = { sender: 'auctioneer', text: summaryText, timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), _timeMs: Date.now() };
           this.state.chatLogs.stage1.push(summaryMsg);
