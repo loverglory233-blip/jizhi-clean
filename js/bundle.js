@@ -5398,13 +5398,13 @@
           const feedbacks = Array.isArray(s3.feedbackItems) ? s3.feedbackItems : [];
           const pendingFeedbacks = feedbacks.filter(f => !f.response || f.response.trim().length === 0);
 
-          // 1. 阶段三开场超过 3 分钟完全未研讨：提示研讨正反两方专家意见
-          if (silenceDurationMs > 180000 && feedbacks.length > 0) {
+          // 1. 阶段三开场或讨论中静默超过 3 分钟：提示展开答辩研讨
+          if (silenceDurationMs > 180000 && pendingFeedbacks.length > 0) {
             if (!this.lastS3SilenceNudgeTime || now - this.lastS3SilenceNudgeTime > 240000) {
               this.lastS3SilenceNudgeTime = now;
               const msg = {
                 sender: 'neutral',
-                text: `🟡 【中间委员·答辩协商提示】：正反两方委员的评审意见已送达左侧矩阵！\n• 建议全组在研讨区就反方提出的质询点展开辩护讨论，梳理需要修正确认的关键点！`,
+                text: `🟡 【中间委员·答辩协商提示】：正反两方委员的评审意见已送达左侧矩阵！\n• 建议全组在研讨区就反方提出的质询点展开辩护讨论，交流观点，梳理需要修正确认的关键点！`,
                 timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
                 _timeMs: now
               };
@@ -5417,13 +5417,13 @@
             }
           }
 
-          // 2. 阶段三进行超过 6 分钟，左侧裁决矩阵答辩共识仍未填写：提示录入裁决意见并修改正文
-          if (stage3DurationMs > 360000 && pendingFeedbacks.length > 0) {
-            if (!this.lastS3MatrixNudgeTime || now - this.lastS3MatrixNudgeTime > 300000) {
+          // 2. 学生讨论活跃但左侧裁决矩阵答辩仍有未填写项：适时提示将答辩共识录入矩阵并修改终稿
+          if (stage3DurationMs > 240000 && pendingFeedbacks.length > 0) {
+            if (!this.lastS3MatrixNudgeTime || now - this.lastS3MatrixNudgeTime > 240000) {
               this.lastS3MatrixNudgeTime = now;
               const msg = {
                 sender: 'neutral',
-                text: `⏳ 【中间委员·裁决录入提示】：针对专家意见，请全组商定共识后在左侧【裁决矩阵】输入框录入团队答辩说明并保存，同时将修正内容落实到右侧终稿中！`,
+                text: `💡 【中间委员·矩阵录入与终稿落实提醒】：看到大家在讨论区已展开充分辩护交流！\n👉 请组员将商定好的辩护共识，逐条录入到左侧【答辩裁决矩阵】对应质询下方并保存，同时点击【返回富文本协作大正文】将修改落实到论文终稿中！`,
                 timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
                 _timeMs: now
               };
@@ -6062,13 +6062,13 @@
         }
       }
 
-      // 🎓 阶段三：预制中间委员欢迎 ➔ 优雅间隔调用正方 ➔ 优雅间隔调用反方 ➔ 中间委员提示阅读
+      // 🎓 阶段三：严格按时序：① 中间委员开场 ➔ ② 正方肯定 ➔ ③ 反方质询 ➔ ④ 平台写入矩阵 ➔ ⑤ 中间委员抛题引导
       else if (stage === 'stage3') {
         const hasNeutralIntro = logs.some(m => m.sender === 'neutral' && m.text.includes('欢迎来到【阶段三：答辩擂台】'));
         if (!hasNeutralIntro) {
           const neutralWelcome = {
             sender: 'neutral',
-            text: `🟡 【中间委员开场】：各位研究者，欢迎来到【阶段三：答辩擂台】！初稿撰写完毕，答辩委员会专家将分别发表肯定意见与尖锐质询。请全组先认真审阅！`,
+            text: `🟡 【中间委员开场】：各位研究者，欢迎来到【阶段三：答辩擂台】！初稿撰写完毕，答辩委员会已就位，接下来将由正方委员与反方委员分别发表评审意见！`,
             timestamp: now,
             _timeMs: Date.now()
           };
@@ -6078,6 +6078,67 @@
 
           const topic = (this.state.stage1 && this.state.stage1.mergedTitle) ? this.state.stage1.mergedTitle : '本组研究设计';
           const rawContent = (this.state.stage2 && this.state.stage2.unifiedContent) ? this.state.stage2.unifiedContent.replace(/<[^>]*>/g, '').trim() : '';
+
+          // 2. 依次异步调用【正方】与【反方】
+          setTimeout(async () => {
+            const propPrompt = `针对小组论文《${topic}》，请发表 120~150 字的肯定支持意见，阐述其创新价值与实践意义。`;
+            let propText = await callCozeAgentAPI('proponent', propPrompt, { stage: 'stage3', topic, actualDoc: rawContent });
+            if (!propText || propText.trim().length === 0) {
+              propText = `🟢 【正方委员评审意见】：通读全篇，该研究选题《${topic}》立意新颖，理论基础扎实，方案具备较好的应用推广前景，值得肯定！`;
+            }
+            logs.push({
+              sender: 'proponent',
+              text: propText,
+              timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+              _timeMs: Date.now()
+            });
+            this.syncChatLogs();
+            renderChat(this.state);
+
+            setTimeout(async () => {
+              const oppPrompt = `针对小组论文《${topic}》，请发表 130~160 字的尖锐质询意见，指出其样本局限性与研究工具测量信度不足等 2 个尖锐问题。`;
+              let oppText = await callCozeAgentAPI('opponent', oppPrompt, { stage: 'stage3', topic, actualDoc: rawContent });
+              if (!oppText || oppText.trim().length === 0) {
+                oppText = `🔴 【反方委员尖锐质询】：针对当前设计提出两点质疑：① 样本抽样代表性不足，存在样本选择偏差；② 测量工具未交代信效度检验过程，结论推导效度存疑！`;
+              }
+              logs.push({
+                sender: 'opponent',
+                text: oppText,
+                timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                _timeMs: Date.now()
+              });
+
+              // 平台自动将正反评审意见写入左侧【答辩裁决矩阵】
+              if (!this.state.stage3.feedbackItems || this.state.stage3.feedbackItems.length === 0) {
+                this.state.stage3.feedbackItems = [
+                  { id: 'fb_prop', reviewer: '正方委员 Agent (肯定支持)', comment: propText.replace(/^[^\n]*【[^】]+】\s*/, ''), response: '', isApproved: true },
+                  { id: 'fb_opp_1', reviewer: '反方委员 Agent (尖锐质询)', comment: '质询 1：研究样本抽样代表性与外推效度说明不足，需补充控制混淆变量方案。', response: '', isApproved: false },
+                  { id: 'fb_opp_2', reviewer: '反方委员 Agent (尖锐质询)', comment: '质询 2：测量量表或质性编码框架未清晰交代信效度与编码一致性检验依据。', response: '', isApproved: false }
+                ];
+                this.syncStage3();
+                this.renderStudentWorkspace();
+              }
+
+              this.syncChatLogs();
+              renderChat(this.state);
+
+              // 5. 中间委员引导静心阅读 1 分钟并抛出第 1 题辩护
+              setTimeout(() => {
+                const chairGuideMsg = {
+                  sender: 'neutral',
+                  text: `🟡 【中间委员·答辩引导】：正反两方意见已同步入驻左侧【答辩裁决矩阵】！\n👉 请全组先静心阅读 1 分钟，重点针对反方第 1 条质询在讨论区商讨辩护策略，并将答辩要点填入左侧矩阵中！`,
+                  timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                  _timeMs: Date.now()
+                };
+                logs.push(chairGuideMsg);
+                this.syncChatLogs();
+                renderChat(this.state);
+              }, 2500);
+
+            }, 2500);
+          }, 2000);
+        }
+      }
           const contentSnippet = rawContent.slice(0, 1500) || '暂无详细正文方案';
           const isGibberishOrShort = rawContent.length < 30 || /^(\d|\s|[a-zA-Z]|!|\?|\.|,|。|，|、|1)+$/.test(rawContent);
 
