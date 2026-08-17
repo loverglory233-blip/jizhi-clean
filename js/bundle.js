@@ -1363,12 +1363,19 @@
           const editor = document.getElementById('stage2-word-editor') || document.getElementById('stage3-word-editor');
           if (editor) {
             const isLocalComposing = (editor.dataset.isComposing === 'true');
-            const isLocalFocused = (document.activeElement === editor);
-            // 本地用户未在打字时平滑同步
-            if (!isLocalComposing && !isLocalFocused) {
-              const currentLocalHtml = editor.innerHTML.replace(/<span class="remote-cursor-widget"[\s\S]*?<\/span>/gi, '');
-              if (currentLocalHtml.trim() !== cleanRemoteContent.trim()) {
+            const currentLocalHtml = editor.innerHTML.replace(/<span class="remote-cursor-widget"[\s\S]*?<\/span>/gi, '');
+            
+            // 当内容确实不同且本地用户不在输入法拼音选词中时，平滑更新 DOM
+            if (!isLocalComposing && currentLocalHtml.trim() !== cleanRemoteContent.trim()) {
+              if (document.activeElement !== editor) {
+                // 如果当前未聚焦在编辑器内，直接实时回填最新大正文！
                 editor.innerHTML = cleanRemoteContent || '';
+              } else {
+                // 如果当前正在编辑器内，只有在远端字数明显不同（如别人粘贴了大段/打字）且本地静止时才安全更新
+                const lastLocalChange = editor.dataset.lastLocalEditTime ? parseInt(editor.dataset.lastLocalEditTime) : 0;
+                if (Date.now() - lastLocalChange > 300) {
+                  editor.innerHTML = cleanRemoteContent || '';
+                }
               }
             }
           }
@@ -3756,6 +3763,7 @@
       });
 
       editor.addEventListener('input', () => {
+        editor.dataset.lastLocalEditTime = String(Date.now());
         if (isComposing) return; // 正在输入拼音时不打断输入法选词
         clearTimeout(debounceTimer);
         debounceTimer = setTimeout(() => {
@@ -3859,6 +3867,9 @@
           if (blockEl && blockEl.parentElement === editor) {
             nodeIndex = Array.from(editor.children).indexOf(blockEl);
             activeSection = (blockEl.innerText || '').trim().slice(0, 14);
+          } else if (blockEl === editor) {
+            nodeIndex = 0;
+            activeSection = (editor.innerText || '').trim().slice(0, 14);
           }
         }
         if (typeof onPresenceCallback === 'function') {
