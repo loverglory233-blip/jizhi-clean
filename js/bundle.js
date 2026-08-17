@@ -913,34 +913,35 @@
                 this.isLoggingOut = true;
                 if (this.pollTimer) { clearInterval(this.pollTimer); this.pollTimer = null; }
                 this.app.authManager.logout();
-              
-              // 弹出优雅自定义提示弹窗 (点击确定或关闭立即平滑返回登录页，绝不卡死)
-              document.querySelectorAll('.modal-overlay').forEach(el => el.remove());
-              const kickModal = document.createElement('div');
-              kickModal.className = 'modal-overlay';
-              kickModal.innerHTML = `
-                <div class="teacher-modal-card" style="width:420px; text-align:center; padding:28px 24px;">
-                  <div style="font-size:48px; margin-bottom:12px;">⚠️</div>
-                  <div style="font-size:18px; font-weight:800; color:#0f172a; margin-bottom:8px;">账号已在其他设备登录</div>
-                  <div style="font-size:13.5px; color:#64748b; line-height:1.6; margin-bottom:24px;">
-                    您的账号【<b>${currentUser.name || currentUser.username}</b>】已在另一台设备/浏览器上登录，当前设备已自动下线。
+                
+                // 弹出优雅自定义提示弹窗 (点击确定或关闭立即平滑返回登录页，绝不卡死)
+                document.querySelectorAll('.modal-overlay').forEach(el => el.remove());
+                const kickModal = document.createElement('div');
+                kickModal.className = 'modal-overlay';
+                kickModal.innerHTML = `
+                  <div class="teacher-modal-card" style="width:420px; text-align:center; padding:28px 24px;">
+                    <div style="font-size:48px; margin-bottom:12px;">⚠️</div>
+                    <div style="font-size:18px; font-weight:800; color:#0f172a; margin-bottom:8px;">账号已在其他设备登录</div>
+                    <div style="font-size:13.5px; color:#64748b; line-height:1.6; margin-bottom:24px;">
+                      您的账号【<b>${currentUser.name || currentUser.username}</b>】已在另一台设备/浏览器上登录，当前设备已自动下线。
+                    </div>
+                    <button id="btn-confirm-kicked-ok" style="background:linear-gradient(135deg, #1d4ed8, #2563eb); color:white; border:none; padding:12px 28px; border-radius:10px; font-size:14px; font-weight:700; cursor:pointer; width:100%; box-shadow:0 4px 12px rgba(37,99,235,0.25);">
+                      我知道了 (返回登录)
+                    </button>
                   </div>
-                  <button id="btn-confirm-kicked-ok" style="background:linear-gradient(135deg, #1d4ed8, #2563eb); color:white; border:none; padding:12px 28px; border-radius:10px; font-size:14px; font-weight:700; cursor:pointer; width:100%; box-shadow:0 4px 12px rgba(37,99,235,0.25);">
-                    我知道了 (返回登录)
-                  </button>
-                </div>
-              `;
-              document.body.appendChild(kickModal);
-              const handleDismiss = () => {
-                kickModal.remove();
-                this.app.renderMain();
-              };
-              kickModal.querySelector('#btn-confirm-kicked-ok').addEventListener('click', handleDismiss);
-              kickModal.addEventListener('click', (e) => { if (e.target === kickModal) handleDismiss(); });
-              return;
+                `;
+                document.body.appendChild(kickModal);
+                const handleDismiss = () => {
+                  kickModal.remove();
+                  this.app.renderMain();
+                };
+                kickModal.querySelector('#btn-confirm-kicked-ok').addEventListener('click', handleDismiss);
+                kickModal.addEventListener('click', (e) => { if (e.target === kickModal) handleDismiss(); });
+                return;
+              }
             }
-          }
-        } catch (e) {}
+          } catch (e) {}
+        }
       }
 
       // 2. 拉取最新协作数据 (以服务端数据为唯一真理)
