@@ -1085,22 +1085,49 @@
       const user = this.app.authManager.getCurrentUser();
       const myGroupId = (user && user.groupId) ? user.groupId : (this.app.state.activeMonitorGroupId || 'group_1');
 
+      // 仅当数据属于本组时才处理
       if (remoteData.groupId && remoteData.groupId !== myGroupId && user?.role === 'student') return;
 
-      // 丢弃过时包：如果远程包时间戳早于本地已处理的最新时间戳且非强制重置，忽略此包，防止旧数据打架
-      if (remoteData.timestamp && remoteData.timestamp < this.lastTimestamp && !remoteData.isReset) {
+      // 注意：强制重置包 (isReset) 绝对不受时间戳丢弃机制影响
+      const isReset = !!remoteData.isReset;
+
+      // 非重置包：如果服务端时间戳早于本地已处理的最新时间戳，丢弃（防止旧数据覆盖新状态）
+      if (!isReset && remoteData.timestamp && remoteData.timestamp < this.lastTimestamp) {
         return;
       }
 
       if (remoteData.timestamp) {
         this.lastTimestamp = Math.max(this.lastTimestamp, remoteData.timestamp);
       }
-      let structuralUpdated = false;
+
+      // ── 强制重置：教师端点"清空"时到达的包 ──
+      if (isReset) {
+        const taskId = this.app.state.activeTaskId || 'task_default';
+        this.app.state.stage1 = JSON.parse(JSON.stringify(InitialState.stage1));
+        this.app.state.stage2 = JSON.parse(JSON.stringify(InitialState.stage2));
+        this.app.state.stage3 = JSON.parse(JSON.stringify(InitialState.stage3));
+        this.app.state.chatLogs = { stage1: [], stage2: [], stage3: [] };
+        this.app.state.currentStage = 'stage1';
+        this.app.state.isFinalSubmitted = false;
+        localStorage.setItem(`jizhi_sync_chat_v10_pure_${taskId}_${myGroupId}`, JSON.stringify(this.app.state.chatLogs));
+        localStorage.setItem(`jizhi_sync_s1_v10_pure_${taskId}_${myGroupId}`, JSON.stringify(this.app.state.stage1));
+        localStorage.setItem(`jizhi_sync_s2_v10_pure_${taskId}_${myGroupId}`, JSON.stringify(this.app.state.stage2));
+        localStorage.setItem(`jizhi_sync_s3_v10_pure_${taskId}_${myGroupId}`, JSON.stringify(this.app.state.stage3));
+        localStorage.setItem(`jizhi_sync_current_stage_v10_pure_${taskId}_${myGroupId}`, 'stage1');
+        localStorage.setItem(`jizhi_sync_final_submitted_v10_pure_${taskId}_${myGroupId}`, 'false');
+        // 重置时间戳，让后续来包不被丢弃
+        this.lastTimestamp = remoteData.timestamp || 0;
+        this.app.saveGroupState(myGroupId);
+        renderChat(this.app.state);
+        if (user?.role === 'student' && this.app.state.studentViewMode === 'workspace') {
+          this.app.renderStudentWorkspace();
+        }
+        return;
+      }
 
       // ── 全局教务元数据同步 (用户池/班级/任务/通知/范文库) ──
-      // 快照里携带的这些字段在教师端修改后必须实时传播到所有设备
+      // 仅写 localStorage，绝不触发页面重绘
       if (remoteData.users && Array.isArray(remoteData.users) && remoteData.users.length > 0) {
-        const currentUsers = this.app.authManager.getUsers();
         const currUser = this.app.authManager.getCurrentUser();
         const mergedUsers = remoteData.users.map(u => {
           if (currUser && (currUser.id === u.id || currUser.username === u.username)) {
@@ -1136,102 +1163,95 @@
         this.app.renderPresenceCursors();
       }
 
-      if (remoteData.members) { 
-        this.app.state.members = remoteData.members; 
+      if (remoteData.members) {
+        this.app.state.members = remoteData.members;
       }
 
+      // ── 最终提交状态 ──
       if (remoteData.isFinalSubmitted !== undefined && remoteData.isFinalSubmitted !== this.app.state.isFinalSubmitted) {
         this.app.state.isFinalSubmitted = remoteData.isFinalSubmitted;
-        structuralUpdated = true;
-      }
-
-      if (remoteData.chatLogs) {
-        if (remoteData.isReset) {
-          this.app.state.chatLogs = remoteData.chatLogs;
-          structuralUpdated = true;
-        } else {
-          ['stage1', 'stage2', 'stage3'].forEach(stg => {
-            const remoteLogs = Array.isArray(remoteData.chatLogs[stg]) ? remoteData.chatLogs[stg] : [];
-            const localLogs = Array.isArray(this.app.state.chatLogs[stg]) ? this.app.state.chatLogs[stg] : [];
-            
-            // 以服务端真实日志为准，仅当有更新时写入内存，renderChat 会自动在原位置重绘聊天流，绝不触发布局销毁重绘
-            if (JSON.stringify(remoteLogs) !== JSON.stringify(localLogs)) {
-              this.app.state.chatLogs[stg] = remoteLogs;
-            }
-          });
+        // 最终提交状态变化才需要重绘
+        if (user?.role === 'student' && this.app.state.studentViewMode === 'workspace') {
+          this.app.renderStudentWorkspace();
         }
+        return;
       }
 
+      // ── 聊天记录：只更新内存，让 renderChat 原位重绘，绝不触发 renderStudentWorkspace ──
+      if (remoteData.chatLogs) {
+        let chatChanged = false;
+        ['stage1', 'stage2', 'stage3'].forEach(stg => {
+          const remoteLogs = Array.isArray(remoteData.chatLogs[stg]) ? remoteData.chatLogs[stg] : [];
+          const localLogs = Array.isArray(this.app.state.chatLogs[stg]) ? this.app.state.chatLogs[stg] : [];
+          if (JSON.stringify(remoteLogs) !== JSON.stringify(localLogs)) {
+            this.app.state.chatLogs[stg] = remoteLogs;
+            chatChanged = true;
+          }
+        });
+        if (chatChanged) renderChat(this.app.state);
+      }
+
+      // ── stage1 投票/提案：只有投票/提案/签署状态变化才触发重绘 ──
       if (remoteData.stage1) {
-        if (remoteData.isReset) {
-          this.app.state.stage1 = remoteData.stage1;
-          structuralUpdated = true;
-        } else {
-          const localS1 = this.app.state.stage1 || { proposals: [], votes: {}, hasVoted: {}, contract: {} };
-          const remoteS1 = remoteData.stage1 || { proposals: [], votes: {}, hasVoted: {}, contract: {} };
-          const newS1 = remoteS1;
-
-          if (JSON.stringify(newS1) !== JSON.stringify(localS1)) {
-            this.app.state.stage1 = newS1;
-            
-            // 🚀 直接定向刷新页面上正在展示的合约输入框（不销毁焦点，即时双向同步）
-            if (newS1.contract?.taskAssignments) {
-              document.querySelectorAll('.task-assignment-input').forEach(inp => {
-                const mId = inp.dataset.mid;
-                if (mId && newS1.contract.taskAssignments[mId] !== undefined) {
-                  if (document.activeElement !== inp) {
-                    inp.value = newS1.contract.taskAssignments[mId] || '';
-                  }
+        const localS1 = this.app.state.stage1 || { proposals: [], votes: {}, hasVoted: {}, contract: {} };
+        const remoteS1 = remoteData.stage1;
+        if (JSON.stringify(remoteS1) !== JSON.stringify(localS1)) {
+          // 先局部更新合约输入框 value（不销毁DOM）
+          if (remoteS1.contract?.taskAssignments) {
+            document.querySelectorAll('.task-assignment-input').forEach(inp => {
+              const mId = inp.dataset.mid;
+              if (mId && remoteS1.contract.taskAssignments[mId] !== undefined) {
+                if (document.activeElement !== inp) {
+                  inp.value = remoteS1.contract.taskAssignments[mId] || '';
                 }
-              });
-            }
-            if (newS1.contract?.timeAllocations) {
-              document.querySelectorAll('.contract-time-input').forEach(inp => {
-                const k = inp.dataset.key;
-                if (k && newS1.contract.timeAllocations[k] !== undefined) {
-                  if (document.activeElement !== inp) {
-                    inp.value = newS1.contract.timeAllocations[k] || 0;
-                  }
+              }
+            });
+          }
+          if (remoteS1.contract?.timeAllocations) {
+            document.querySelectorAll('.contract-time-input').forEach(inp => {
+              const k = inp.dataset.key;
+              if (k && remoteS1.contract.timeAllocations[k] !== undefined) {
+                if (document.activeElement !== inp) {
+                  inp.value = remoteS1.contract.timeAllocations[k] || 0;
                 }
-              });
-            }
-            const topicInp = document.getElementById('contract-topic-input');
-            if (topicInp && document.activeElement !== topicInp && newS1.mergedTitle !== undefined) {
-              topicInp.value = newS1.mergedTitle || '';
-            }
+              }
+            });
+          }
+          const topicInp = document.getElementById('contract-topic-input');
+          if (topicInp && document.activeElement !== topicInp && remoteS1.mergedTitle !== undefined) {
+            topicInp.value = remoteS1.mergedTitle || '';
+          }
 
-            // 如果只是合约文字/时间分配发生变化，上面已经通过 DOM 精确同步了 input.value，绝不触发整个工作区 renderStudentWorkspace 重绘，防止打断输入与光标跳动
-            const isProposalChanged = JSON.stringify(newS1.proposals) !== JSON.stringify(localS1.proposals);
-            const isVoteChanged = JSON.stringify(newS1.votes) !== JSON.stringify(localS1.votes);
-            const isConfirmChanged = newS1.contract?.isConfirmed !== localS1.contract?.isConfirmed || JSON.stringify(newS1.contract?.confirmedMembers) !== JSON.stringify(localS1.contract?.confirmedMembers);
+          // 只有提案/投票/签署状态变化才需要全面重绘（合约文字变化不重绘）
+          const isProposalChanged = JSON.stringify(remoteS1.proposals) !== JSON.stringify(localS1.proposals);
+          const isVoteChanged = JSON.stringify(remoteS1.votes) !== JSON.stringify(localS1.votes);
+          const isConfirmChanged = remoteS1.contract?.isConfirmed !== localS1.contract?.isConfirmed
+            || JSON.stringify(remoteS1.contract?.confirmedMembers) !== JSON.stringify(localS1.contract?.confirmedMembers);
 
-            if (isProposalChanged || isVoteChanged || isConfirmChanged) {
-              structuralUpdated = true;
-            }
+          this.app.state.stage1 = remoteS1;
+
+          if ((isProposalChanged || isVoteChanged || isConfirmChanged)
+              && user?.role === 'student' && this.app.state.studentViewMode === 'workspace') {
+            this.app.renderStudentWorkspace();
+            return;
           }
         }
       }
 
+      // ── stage2 正文编辑器：局部更新，绝不销毁编辑器DOM ──
       if (remoteData.stage2) {
         if (remoteData.stage2.unifiedContent !== undefined) {
-          let cleanRemoteContent = remoteData.stage2.unifiedContent || '';
-          cleanRemoteContent = cleanRemoteContent.replace(/<span class="remote-cursor-widget"[\s\S]*?<\/span>/gi, '');
-          
+          let cleanRemoteContent = (remoteData.stage2.unifiedContent || '').replace(/<span class="remote-cursor-widget"[\s\S]*?<\/span>/gi, '');
           this.app.state.stage2.unifiedContent = cleanRemoteContent;
           const editor = document.getElementById('stage2-word-editor') || document.getElementById('stage3-word-editor');
           if (editor) {
-            // 获取当前编辑器的纯内容进行对比
-            let currentLocalHtml = editor.innerHTML.replace(/<span class="remote-cursor-widget"[\s\S]*?<\/span>/gi, '');
-            const isLocalActive = (document.activeElement === editor);
             const isLocalComposing = (editor.dataset.isComposing === 'true');
-            
-            // 如果本地正在输入法打字选词中，坚决不打断本地输入法
-            if (!isLocalComposing) {
+            const isLocalActive = (document.activeElement === editor);
+            // 不在拼音输入中，且编辑框当前不被本地用户聚焦时，才同步远端内容
+            if (!isLocalComposing && !isLocalActive) {
+              const currentLocalHtml = editor.innerHTML.replace(/<span class="remote-cursor-widget"[\s\S]*?<\/span>/gi, '');
               if (currentLocalHtml.trim() !== cleanRemoteContent.trim()) {
-                // 如果当前正在获得焦点但内容有更新，仅在内容确实不同且未处于拼音选词时同步
-                if (!isLocalActive) {
-                  editor.innerHTML = cleanRemoteContent || '';
-                }
+                editor.innerHTML = cleanRemoteContent || '';
               }
             }
           }
@@ -1244,60 +1264,51 @@
             this.app.updateContributionUi();
           }
         }
+        // action plan 变化（审稿编辑半程清单生成）才需要全面重绘
         if (remoteData.stage2.actionPlan) {
           if (JSON.stringify(remoteData.stage2.actionPlan) !== JSON.stringify(this.app.state.stage2.actionPlan)) {
             this.app.state.stage2.actionPlan = remoteData.stage2.actionPlan;
-            structuralUpdated = true;
+            if (user?.role === 'student' && this.app.state.studentViewMode === 'workspace') {
+              this.app.renderStudentWorkspace();
+              return;
+            }
           }
         }
       }
 
+      // ── stage3 答辩委员意见 ──
       if (remoteData.stage3 && remoteData.stage3.feedbackItems) {
         if (JSON.stringify(remoteData.stage3.feedbackItems) !== JSON.stringify(this.app.state.stage3.feedbackItems)) {
           this.app.state.stage3.feedbackItems = remoteData.stage3.feedbackItems;
-          structuralUpdated = true;
+          if (user?.role === 'student' && this.app.state.studentViewMode === 'workspace') {
+            this.app.renderStudentWorkspace();
+            return;
+          }
         }
       }
 
+      // ── 阶段切换：只有远端 currentStage 比本地更"新"（阶段推进）才接受 ──
+      // 阶段只能向前走（stage1→stage2→stage3），不能倒退，防止多设备乱跳
       if (remoteData.currentStage && remoteData.currentStage !== this.app.state.currentStage) {
-        this.app.state.currentStage = remoteData.currentStage;
-        structuralUpdated = true;
+        const stageOrder = { stage1: 1, stage2: 2, stage3: 3 };
+        const remoteOrder = stageOrder[remoteData.currentStage] || 0;
+        const localOrder = stageOrder[this.app.state.currentStage] || 0;
+        // 只接受阶段推进，不接受阶段倒退
+        if (remoteOrder > localOrder) {
+          this.app.state.currentStage = remoteData.currentStage;
+          this.app.saveGroupState(myGroupId);
+          if (user?.role === 'student' && this.app.state.studentViewMode === 'workspace') {
+            this.app.renderStudentWorkspace();
+          }
+          return;
+        }
       }
 
-      if (remoteData.isReset) {
-        this.app.state.stage1 = remoteData.stage1 || JSON.parse(JSON.stringify(InitialState.stage1));
-        this.app.state.stage2 = remoteData.stage2 || JSON.parse(JSON.stringify(InitialState.stage2));
-        this.app.state.stage3 = remoteData.stage3 || JSON.parse(JSON.stringify(InitialState.stage3));
-        this.app.state.chatLogs = remoteData.chatLogs || { stage1: [], stage2: [], stage3: [] };
-        this.app.state.currentStage = 'stage1';
-        this.app.state.isFinalSubmitted = false;
-        
-        const taskId = this.app.state.activeTaskId || 'task_default';
-        localStorage.setItem(`jizhi_sync_chat_v10_pure_${taskId}_${myGroupId}`, JSON.stringify(this.app.state.chatLogs));
-        localStorage.setItem(`jizhi_sync_s1_v10_pure_${taskId}_${myGroupId}`, JSON.stringify(this.app.state.stage1));
-        localStorage.setItem(`jizhi_sync_s2_v10_pure_${taskId}_${myGroupId}`, JSON.stringify(this.app.state.stage2));
-        localStorage.setItem(`jizhi_sync_s3_v10_pure_${taskId}_${myGroupId}`, JSON.stringify(this.app.state.stage3));
-        localStorage.setItem(`jizhi_sync_current_stage_v10_pure_${taskId}_${myGroupId}`, 'stage1');
-        localStorage.setItem(`jizhi_sync_final_submitted_v10_pure_${taskId}_${myGroupId}`, 'false');
-        
-        const editor = document.getElementById('stage2-word-editor') || document.getElementById('stage3-word-editor');
-        if (editor) editor.innerHTML = '';
-        
-        structuralUpdated = true;
-      }
-
+      // ── 无需重绘的同步：仅保存状态 ──
       this.app.saveGroupState(myGroupId);
-      
-      // 强制即时重绘聊天流与界面
       renderChat(this.app.state);
       this.app.updateContributionUi();
       this.app.renderPresenceCursors();
-
-      if (structuralUpdated) {
-        if (user?.role === 'student' && this.app.state.studentViewMode === 'workspace') {
-          this.app.renderStudentWorkspace();
-        }
-      }
     }
   }
 
