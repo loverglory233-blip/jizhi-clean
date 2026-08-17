@@ -1393,17 +1393,13 @@
             const isLocalComposing = (editor.dataset.isComposing === 'true');
             const currentLocalHtml = editor.innerHTML.replace(/<span class="remote-cursor-widget"[\s\S]*?<\/span>/gi, '');
             
-            // 当内容确实不同且本地用户不在输入法拼音选词中时，平滑更新 DOM
+            const isEditorFocused = (document.activeElement === editor) || (editor.contains(document.activeElement));
+            
+            // 核心保护：当且仅当本地用户没有聚焦在编辑器打字时，才由远端全量重刷 innerHTML！
+            // 如果本地正在编辑，绝对不重刷 innerHTML，避免光标被重置到左上角和打什么删什么！
             if (!isLocalComposing && currentLocalHtml.trim() !== cleanRemoteContent.trim()) {
-              if (document.activeElement !== editor) {
-                // 如果当前未聚焦在编辑器内，直接实时回填最新大正文！
+              if (!isEditorFocused) {
                 editor.innerHTML = cleanRemoteContent || '';
-              } else {
-                // 如果当前正在编辑器内，只有在远端字数明显不同（如别人粘贴了大段/打字）且本地静止时才安全更新
-                const lastLocalChange = editor.dataset.lastLocalEditTime ? parseInt(editor.dataset.lastLocalEditTime) : 0;
-                if (Date.now() - lastLocalChange > 300) {
-                  editor.innerHTML = cleanRemoteContent || '';
-                }
               }
             }
           }
@@ -6285,15 +6281,22 @@
         }
       );
 
-      // ── 核心保护：如果当前处于 stage2/3且用户正在聚焦编辑器，不重建 canvas DOM，只更新 header ──
+      // ── 核心保护：如果用户当前正在聚焦输入框（合约输入、正文富文本等），绝对不重建 canvas DOM，避免焦点丢失/重绘覆盖/打什么删什么 ──
       const stage2Editor = document.getElementById('stage2-word-editor');
       const stage3Editor = document.getElementById('stage3-word-editor');
-      const isEditingStage2 = (this.state.currentStage === 'stage2' || this.state.currentStage === 'stage3')
-        && (document.activeElement === stage2Editor || document.activeElement === stage3Editor
-            || (stage2Editor && stage2Editor.dataset.isComposing === 'true')
-            || (stage3Editor && stage3Editor.dataset.isComposing === 'true'));
+      const activeEl = document.activeElement;
+      const isInputActive = activeEl && (
+        activeEl.tagName === 'INPUT' ||
+        activeEl.tagName === 'TEXTAREA' ||
+        activeEl === stage2Editor ||
+        activeEl === stage3Editor ||
+        (stage2Editor && stage2Editor.contains(activeEl)) ||
+        (stage3Editor && stage3Editor.contains(activeEl)) ||
+        (stage2Editor && stage2Editor.dataset.isComposing === 'true') ||
+        (stage3Editor && stage3Editor.dataset.isComposing === 'true')
+      );
 
-      if (!isEditingStage2) {
+      if (!isInputActive) {
         renderCanvas(this.state, {
         onVote: (propId) => { this.handleVoteCast(propId); },
         onRefresh: () => { this.renderStudentWorkspace(); },
