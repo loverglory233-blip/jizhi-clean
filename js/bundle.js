@@ -1388,9 +1388,21 @@
             this.app.updateContributionUi();
           }
         }
-        // action plan 变化（审稿编辑半程清单生成）
+        // action plan 变化与打卡记录同步（审稿编辑半程清单生成）
+        if (remoteData.stage2.meetingSubmissions) {
+          const localSubs = this.app.state.stage2.meetingSubmissions || {};
+          const remoteSubs = remoteData.stage2.meetingSubmissions || {};
+          const mergedSubs = { ...localSubs, ...remoteSubs };
+          if (JSON.stringify(mergedSubs) !== JSON.stringify(localSubs)) {
+            this.app.state.stage2.meetingSubmissions = mergedSubs;
+            needWorkspaceRender = true;
+          }
+        }
         if (remoteData.stage2.actionPlan) {
-          if (JSON.stringify(remoteData.stage2.actionPlan) !== JSON.stringify(this.app.state.stage2.actionPlan)) {
+          if (remoteData.stage2.actionPlan.isGenerated && !this.app.state.stage2.actionPlan?.isGenerated) {
+            this.app.state.stage2.actionPlan = remoteData.stage2.actionPlan;
+            needWorkspaceRender = true;
+          } else if (JSON.stringify(remoteData.stage2.actionPlan) !== JSON.stringify(this.app.state.stage2.actionPlan)) {
             this.app.state.stage2.actionPlan = remoteData.stage2.actionPlan;
             needWorkspaceRender = true;
           }
@@ -4451,17 +4463,24 @@
               ${actionPlan.items.map(item => `<div style="line-height:1.5;">• ${item}</div>`).join('')}
             </div>
           </div>
-        ` : `
-          <div id="stage2-action-plan-card" style="background:#f8fafc; border:1px dashed #cbd5e1; border-radius:8px; padding:8px 14px; margin-bottom:8px;">
-            <div style="display:flex; justify-content:space-between; align-items:center;">
-              <div style="font-size:12px; font-weight:700; color:#64748b; display:flex; align-items:center; gap:6px;">
-                <span>📋 【审稿编辑·半程修正清单】</span>
-                <span style="font-size:10.5px; background:#e2e8f0; color:#475569; padding:1px 6px; border-radius:10px;">待解锁</span>
+        ` : (() => {
+          const subs = s2.meetingSubmissions || {};
+          const subCount = Object.keys(subs).length;
+          const totalCount = membersList.length || 3;
+          return `
+            <div id="stage2-action-plan-card" style="background:#f8fafc; border:1px dashed #cbd5e1; border-radius:8px; padding:8px 14px; margin-bottom:8px;">
+              <div style="display:flex; justify-content:space-between; align-items:center;">
+                <div style="font-size:12px; font-weight:700; color:#64748b; display:flex; align-items:center; gap:6px;">
+                  <span>📋 【审稿编辑·半程修正清单】</span>
+                  <span style="font-size:10.5px; background:${subCount > 0 ? '#dbeafe' : '#e2e8f0'}; color:${subCount > 0 ? '#1d4ed8' : '#475569'}; padding:1px 6px; border-radius:10px; font-weight:700;">
+                    ${subCount > 0 ? `打卡进度: ${subCount}/${totalCount}人` : '待解锁'}
+                  </span>
+                </div>
+                <span style="font-size:11px; color:#94a3b8;">（组内全员 ${totalCount} 人完成半程会议打卡后自动解锁生成）</span>
               </div>
-              <span style="font-size:11px; color:#94a3b8;">（半程自查会议打卡后自动生成）</span>
             </div>
-          </div>
-        `}
+          `;
+        })()}
 
         <!-- Word-grade Academic Rich Text Editor Body -->
         <div style="flex:1; min-height:0; display:flex; flex-direction:column;">
@@ -6775,31 +6794,84 @@
         const bAcademic = modal.querySelector('#meeting-bottleneck-academic').value;
         const bCollab = modal.querySelector('#meeting-bottleneck-collab').value;
         const bRhythm = modal.querySelector('#meeting-bottleneck-rhythm').value;
-        const userText = modal.querySelector('#meeting-input-text').value;
+        const userText = modal.querySelector('#meeting-input-text').value.trim();
         closeModal();
 
-        const topic = (this.state.stage1 && this.state.stage1.mergedTitle) ? this.state.stage1.mergedTitle : '本组课题';
+        const user = this.state.currentUser || 'A';
+        const memberName = this.state.members[user] ? this.state.members[user].name : user;
+        const totalMembersCount = Object.keys(this.state.members || {}).length;
 
-        // 1. 立即点亮并生成左侧【半程编辑修正清单】
+        if (!this.state.stage2.meetingSubmissions) this.state.stage2.meetingSubmissions = {};
+        this.state.stage2.meetingSubmissions[user] = {
+          user,
+          name: memberName,
+          themeConsistency,
+          peerReviewState,
+          bAcademic,
+          bCollab,
+          bRhythm,
+          userText,
+          logicRating,
+          balanceRating,
+          confidenceRating,
+          submittedAt: Date.now()
+        };
+
+        const submissions = this.state.stage2.meetingSubmissions;
+        const submittedCount = Object.keys(submissions).length;
+
+        // 播报个人打卡完成消息
+        const checkInMsg = {
+          sender: user,
+          text: `📢 [半程自查打卡]: 我 (${memberName}) 已完成半程自查与互阅研判！（全组打卡进度: ${submittedCount}/${totalMembersCount} 人）`,
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        };
+        if (!this.state.chatLogs.stage2) this.state.chatLogs.stage2 = [];
+        this.state.chatLogs.stage2.push(checkInMsg);
+        this.syncChatLogs();
+
+        // 仅当全组所有成员全部打卡完毕时，才解锁并生成【半程编辑修正清单】
+        if (submittedCount < totalMembersCount) {
+          this.syncStage2();
+          if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+          this.renderStudentWorkspace();
+          alert(`✅ 你 (${memberName}) 已成功提交半程自查与互阅打卡！\n\n目前组内打卡进度：${submittedCount}/${totalMembersCount} 人。\n需组内所有 ${totalMembersCount} 名成员全部完成打卡后，审稿编辑将自动为全组汇总生成【半程编辑修正清单】！`);
+          return;
+        }
+
+        // ── 全员打卡完毕：汇聚全组数据生成【半程编辑修正清单】 ──
+        const topic = (this.state.stage1 && this.state.stage1.mergedTitle) ? this.state.stage1.mergedTitle : '本组课题';
+        const allSubs = Object.values(submissions);
+        const hasDivergence = allSubs.some(s => s.themeConsistency.includes('偏离') || s.themeConsistency.includes('不够充分') || s.peerReviewState.includes('不同看法') || s.peerReviewState.includes('商榷'));
+        
+        // 汇总全组自查状态
+        const consistencySummary = allSubs.map(s => `${s.name}: ${s.themeConsistency.slice(0, 10)}`).join('；');
+        const peerSummary = allSubs.map(s => `${s.name}: ${s.peerReviewState.slice(0, 10)}`).join('；');
+        const primaryAcademicB = allSubs[0].bAcademic;
+        const primaryCollabB = allSubs[0].bCollab;
+        const primaryRhythmB = allSubs[0].bRhythm;
+        const questionsList = allSubs.filter(s => s.userText).map(s => `${s.name}提问：“${s.userText}”`).join('；') || '暂无补充提问';
+
         this.state.stage2.actionPlan = {
           isGenerated: true,
           items: [
-            `【学术构想与论证修正】(自查: ${themeConsistency} · 互阅: ${peerReviewState}): 针对瓶颈【${bAcademic}】与组内提问("${userText}")，在三、假设与四、设计中补齐操作化测量量表与理论依据。`,
-            `【团队协同与分工平衡】(分工平衡度: ${balanceRating}★): 针对瓶颈【${bCollab}】，统一各章节论述用词风格与逻辑过渡，落实 Equal Participation 均等参与。`,
-            `【时间节奏与反思深化】(信心状态: ${confidenceRating}★): 针对瓶颈【${bRhythm}】，把控后半程节奏，优先完成五、研究设计的不足与反思。`
+            `【学术构想与论证修正】(自查: ${consistencySummary} · 互阅: ${peerSummary}): 针对核心学术瓶颈【${primaryAcademicB}】与组内提问(${questionsList})，在三、假设与四、设计中补齐操作化测量量表与理论依据。`,
+            `【团队协同与分工平衡】: 针对协作难点【${primaryCollabB}】，统一各章节论述用词风格与逻辑过渡，落实 Equal Participation 均等参与。`,
+            `【时间节奏与反思深化】: 针对进度难点【${primaryRhythmB}】，把控后半程节奏，优先完成五、研究设计的不足与反思。`
           ]
         };
         this.syncStage2();
+        if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
         this.renderStudentWorkspace();
 
+        alert(`🎉 恭喜！组内 ${totalMembersCount} 位成员已全部完成半程自查与互阅打卡！【审稿编辑·半程修正清单】已正式解锁并生成！`);
+
         // 2. 异步调用扣子【责任编辑】Coze API: 主次分明 (分歧为70%主线，协作时间为辅；一致则夸默契顺畅推进)
-        const hasDivergence = themeConsistency.includes('偏离') || themeConsistency.includes('卡壳') || peerReviewState.includes('不同看法') || peerReviewState.includes('商榷');
-        const managingPrompt = `小组成员已完成半程编辑会议自查打卡：
-• 负责章节自查状态: ${themeConsistency}
-• 通读同伴思想研判: ${peerReviewState}
-• 3维打星自评: 逻辑严谨度 ${logicRating}★, 分工平衡度 ${balanceRating}★, 团队信心 ${confidenceRating}★
-• 3维核心瓶颈: ① 学术难点: ${bAcademic} | ② 协作难点: ${bCollab} | ③ 进度难点: ${bRhythm}
-• 组内说明与提问: "${userText}"
+        const managingPrompt = `全组成员已全部完成半程编辑会议自查打卡（共 ${totalMembersCount} 人）：
+• 全组负责章节自查汇总: ${consistencySummary}
+• 全组通读同伴思想研判: ${peerSummary}
+• 组内核心学术瓶颈: ${primaryAcademicB} | 协作瓶颈: ${primaryCollabB} | 进度瓶颈: ${primaryRhythmB}
+• 组内说明与提问汇总: ${questionsList}
 • 判定状态: ${hasDivergence ? '【存在显著分歧/不同看法】' : '【全员高度一致认同】'}
 
 请作为责任编辑发表 130~160 字的发言：
