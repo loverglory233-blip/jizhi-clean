@@ -5692,6 +5692,20 @@
 
         this.syncChatLogs();
         renderChat(this.state);
+
+        // ── 智能感知：如果处于【半程会议后等待组内商讨】状态，当学生在研讨区完成交流后触发审稿编辑 ──
+        if (currentStage === 'stage2' && this.state.stage2PendingReviewing) {
+          this.state.stage2PendingReviewing.studentMsgCount = (this.state.stage2PendingReviewing.studentMsgCount || 0) + 1;
+          const isConsensusSignal = /(?:对齐|同意|商量好了|商定好了|修改|明白了|收到|按这个改|@审稿编辑|统一了|没问题)/i.test(text);
+          const hasSufficientChat = this.state.stage2PendingReviewing.studentMsgCount >= 2; // 至少进行了 2 轮发言
+          if (isConsensusSignal || hasSufficientChat) {
+            setTimeout(() => {
+              this.triggerReviewingEditorAfterDiscussion();
+            }, 1200);
+            return;
+          }
+        }
+
         this.triggerAgentReplyIfNeeded(text);
       };
 
@@ -6652,29 +6666,45 @@
         this.syncChatLogs();
         renderChat(this.state);
 
-        // 3. 智能同伴研讨感知窗口 ➔ 优雅触发【审稿编辑】正文深度内容审查 (延迟 6 秒自然过渡)
-        setTimeout(async () => {
-          const contentSnippet = (this.state.stage2 && this.state.stage2.unifiedContent) ? this.state.stage2.unifiedContent.replace(/<[^>]*>/g, '').slice(0, 500) : '论文初稿方案';
-          const reviewingPrompt = `小组已由责任编辑引导完成了自查复盘与清单生成（学术瓶颈：“${bAcademic}”，开放说明：“${userText}”）。请针对其论文《${topic}》及当前真实初稿切片：
-${contentSnippet}
-请作为国家级核心期刊审稿编辑发表 140~170 字的学术内容审查：肯定已有正文亮点，指出变量操作化或量表工具等 1 处薄弱点，给出具体的学术修改建议，引导全组对照左侧【半程编辑修正清单】推进！`;
-
-          let reviewingText = await callCozeAgentAPI('reviewingEditor', reviewingPrompt, { stage: 'stage2', topic, bottleneck: bAcademic });
-          if (!reviewingText || reviewingText.trim().length === 0) {
-            reviewingText = `📝 【审稿编辑·初稿学术内容审查】：研读了大家目前撰写的正文初稿！引言与文献综述框架清晰扎实。针对大家关心的‘假设与量表衔接’以及学术难点【${bAcademic}】，在‘三、假设’与‘四、设计’中变量操作化略显单薄，建议探讨选用经典的 5 点李克特量表来测量核心变量。请全组对照左侧已生成的【半程编辑修正清单】，分工加速完善！`;
-          }
-
-          const reviewingMsg = {
-            sender: 'reviewingEditor',
-            text: reviewingText,
-            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-            _timeMs: Date.now()
-          };
-          this.state.chatLogs.stage2.push(reviewingMsg);
-          this.syncChatLogs();
-          renderChat(this.state);
-        }, 6000);
+        // 3. 平台接管调控：设置【等待组内商讨对齐】状态，绝不盲目即时弹出审稿编辑！
+        this.state.stage2PendingReviewing = {
+          topic,
+          bAcademic,
+          userText,
+          timeSubmitted: Date.now(),
+          studentMsgCount: 0
+        };
+        this.syncStage2();
       });
+    }
+
+    async triggerReviewingEditorAfterDiscussion() {
+      if (!this.state.stage2PendingReviewing) return;
+      const ctx = this.state.stage2PendingReviewing;
+      this.state.stage2PendingReviewing = null;
+      this.syncStage2();
+
+      const contentSnippet = (this.state.stage2 && this.state.stage2.unifiedContent) ? this.state.stage2.unifiedContent.replace(/<[^>]*>/g, '').slice(0, 600) : '论文初稿方案';
+      const reviewingPrompt = `小组已针对责任编辑提出的自查立意与分歧展开了讨论，并达成了对齐共识（学术瓶颈：“${ctx.bAcademic}”，开放说明：“${ctx.userText}”）。请针对其论文《${ctx.topic}》及当前真实初稿切片：
+${contentSnippet}
+请作为国家级核心期刊审稿编辑发表 130~160 字的学术内容审查：肯定已有正文亮点与刚才团队的立意对齐，指出方法或论证中的 1 处薄弱点，给出具体的学术修改建议，引导全组对照左侧【半程编辑修正清单】分工推进！`;
+
+      let reviewingText = await callCozeAgentAPI('reviewingEditor', reviewingPrompt, { stage: 'stage2', topic: ctx.topic, bottleneck: ctx.bAcademic });
+      if (!reviewingText || reviewingText.trim().length === 0) {
+        reviewingText = `📝 【审稿编辑·正文学术内容审查】：看到大家已在讨论区对齐了立意共识！我重点审阅了目前撰写的正文初稿，引言与综述逻辑扎实。针对方法部分，建议进一步明确所采用测量工具或编码框架的可靠性依据，增强论证严密性。请全组对照左侧【半程编辑修正清单】，分工加速完善！`;
+      }
+
+      const reviewingMsg = {
+        sender: 'reviewingEditor',
+        text: reviewingText,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        _timeMs: Date.now()
+      };
+      if (!this.state.chatLogs.stage2) this.state.chatLogs.stage2 = [];
+      this.state.chatLogs.stage2.push(reviewingMsg);
+      this.syncChatLogs();
+      if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+      renderChat(this.state);
     }
 
     handleLogout() {
