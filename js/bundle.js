@@ -5260,13 +5260,23 @@
             }
           }
 
-          // 3. 阶段二写作超过 15 分钟且字数较充实，但尚未发起编辑会议：提示发起半程评审
-          if (stage2DurationMs > 900000 && plainTextLen > 400 && !s2.actionPlan) {
-            if (!this.lastS2MeetingNudgeTime || now - this.lastS2MeetingNudgeTime > 400000) {
+          // 3. 🎯 半程编辑会议发起号召（严格按你的核心规则：推进到【五、不足与反思】或阶段二任务时间已过 60%）
+          const times = (this.state.stage1 && this.state.stage1.contract && this.state.stage1.contract.timeAllocations) ? this.state.stage1.contract.timeAllocations : {};
+          const totalPlannedMin = (times.background || 25) + (times.literature || 30) + (times.questions || 25) + (times.method || 40) + (times.reflection || 20) + (times.references || 10);
+          const totalPlannedMs = totalPlannedMin * 60 * 1000;
+          const isTimeOver60Pct = stage2DurationMs >= (totalPlannedMs * 0.6); // 任务时间已过 60%
+          const hasReachedReflection = /(?:五、|第5章|第五部分|不足与反思|研究反思|反思与不足|总结与反思|研究局限)/i.test(s2.unifiedContent || '');
+
+          if ((hasReachedReflection || isTimeOver60Pct) && !s2.actionPlan && !this.state.stage2MeetingPrompted) {
+            if (!this.lastS2MeetingNudgeTime || now - this.lastS2MeetingNudgeTime > 300000) {
               this.lastS2MeetingNudgeTime = now;
+              this.state.stage2MeetingPrompted = true;
+              const reasonText = hasReachedReflection 
+                ? '关注到团队已推进撰写至【研究设计的不足与反思】章节，全篇实证框架已基本成型' 
+                : '关注到阶段二撰写时间已推进过半（已达总规划用时的 60%）';
               const msg = {
                 sender: 'managingEditor',
-                text: `📢 【责任编辑·半程会议提醒】：全组正文初稿已初具规模（当前字数：${plainTextLen}字）！\n👉 建议组长或组员点击左上角【📢 发起编辑会议】，邀请审稿专家进行半程打分与诊断，获取针对性修正清单！`,
+                text: `📢 【责任编辑·半程会议号召】：${reasonText}！\n👉 请组长或组员点击左上角【📢 发起编辑会议】，组织全组完成 4 维自查打卡，邀请审稿专家进行半程诊断并生成修正清单！`,
                 timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
                 _timeMs: now
               };
