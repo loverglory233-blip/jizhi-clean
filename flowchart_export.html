@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>JIZHI平台 · 三大阶段多智能体协同全景流程图 (高清导出工具)</title>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      background: #0f172a;
+      color: #f8fafc;
+      margin: 0;
+      padding: 30px 20px;
+    }
+    .header {
+      text-align: center;
+      margin-bottom: 30px;
+    }
+    .header h1 {
+      font-size: 26px;
+      color: #60a5fa;
+      margin-bottom: 8px;
+    }
+    .header p {
+      font-size: 14px;
+      color: #94a3b8;
+    }
+    .card {
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 16px;
+      padding: 24px;
+      margin: 0 auto 36px auto;
+      max-width: 1050px;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.3);
+    }
+    .card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+      border-bottom: 1px solid #334155;
+      padding-bottom: 12px;
+    }
+    .card-header h2 {
+      font-size: 18px;
+      margin: 0;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .btn-download {
+      background: linear-gradient(135deg, #2563eb, #1d4ed8);
+      border: none;
+      color: white;
+      padding: 8px 16px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      box-shadow: 0 4px 12px rgba(37,99,235,0.3);
+      transition: all 0.2s ease;
+    }
+    .btn-download:hover {
+      background: #3b82f6;
+      transform: translateY(-1px);
+    }
+    .mermaid-container {
+      background: #ffffff;
+      border-radius: 12px;
+      padding: 24px;
+      overflow-x: auto;
+      display: flex;
+      justify-content: center;
+    }
+    .tip-box {
+      max-width: 1050px;
+      margin: 0 auto 20px auto;
+      background: #1e3a8a;
+      border: 1px solid #3b82f6;
+      border-radius: 10px;
+      padding: 12px 18px;
+      font-size: 13.5px;
+      color: #dbeafe;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="header">
+    <h1>🎓 JIZHI 平台 · 三大阶段多智能体全生命周期调用流程图</h1>
+    <p>支持高清查看、直接右键另存为图片，或点击右上角【📥 下载超清 SVG 图片】</p>
+  </div>
+
+  <div class="tip-box">
+    💡 <b>保存方法</b>：可以直接在下方任意一张白色图表上 <b>右键 ➔ 另存为图片 / 复制图片</b>，也可以点击每个模块右上角的 <b>【📥 下载此流程图】</b> 按钮保存超清原图！
+  </div>
+
+  <!-- 阶段一 -->
+  <div class="card">
+    <div class="card-header">
+      <h2 style="color: #a855f7;">🟣 阶段一：学术拍卖会 (拍卖师 Agent) 流程图</h2>
+      <button class="btn-download" onclick="downloadSVG('stage1-svg', '阶段一_学术拍卖会流程图.svg')">📥 下载高清 SVG 图片</button>
+    </div>
+    <div class="mermaid-container" id="stage1-container">
+      <pre class="mermaid" id="stage1-svg">
+flowchart TD
+    Start1([🚀 进入阶段一：学术拍卖会]) --> GuardPresence1{"🛡️ 前提检测：全组成员是否【全部登录在线】？"}
+    GuardPresence1 -->|"有人未登录"| WaitOnline1["⏸️ 平台静默守候，绝不打扰"]
+    GuardPresence1 -->|"全员 100% 登录在线"| Node1_1["⏱️ 时间 0min<br>🎪 拍卖师：发布欢迎开场白，引导头脑风暴并在左侧提交选题构想"]
+    
+    Node1_1 --> Guard1{"🛡️ 阶段一差异化心流与静默守护 (全员在线)"}
+    Guard1 -->|"真冷场：左侧无动作 且 聊天无发言 > 3min"| Nudge1_1["🎪 拍卖师：发布头脑风暴破冰启发"]
+    Guard1 -->|"纯打字零交流：左侧写提案 > 5-6min 且 聊天无发言"| Nudge1_2["💡 拍卖师：提示交流选题切入点，避免撞车或走偏"]
+    Guard1 -->|"严重滞后：开场 > 6min 仍 0 提案"| Nudge1_3["⏳ 拍卖师：引导尽快动笔提交"]
+    Guard1 -->|"正常推进"| Node1_2
+    
+    Node1_2["📝 学生在左侧撰写并提交/修改个人提案"] --> Node1_3["⚡ 即时响应 (耗时约 1-2s)<br>🎪 拍卖师：对每份提案给出 100~150 字学术可行性点评"]
+    
+    Node1_3 --> CheckProposals{"📊 平台检测：全组 3 人提案是否集齐？"}
+    CheckProposals -->|"未集齐且某人落后 > 4min"| Nudge1_4["📢 拍卖师：点名跟进提醒未交同学"]
+    CheckProposals -->|"已集齐 3/3 份提案"| Node1_4["🎪 拍卖师：出面展示提案列表，号召点击【投这篇】开启竞拍投票"]
+    
+    Node1_4 --> GuardVote{"🛡️ 投票超时守护"}
+    GuardVote -->|"投票开启 > 3min 未投完"| Nudge1_5["⏳ 拍卖师：点名催促未投票组员"]
+    GuardVote -->|"全员 3 票集齐"| Node1_5
+    
+    Node1_5["🔔 平台落槌计票 ➔ 立即在左侧自动生成《学术合作合约》草案<br>(写入最高票主题、3人默认分工建议与时间规划)"] --> Node1_6["🎪 拍卖师：公布票数分布 (对事不对人，绝不点名)，引导在讨论区协商融合，微调并签署左侧合约"]
+    
+    Node1_6 --> GuardContract{"🛡️ 合约微调与签署守护"}
+    GuardContract -->|"分歧协商静默：投票有分歧且 > 3min 无人说话"| Nudge1_6["⚖️ 拍卖师：分歧协商破冰，引导融合各家亮点"]
+    GuardContract -->|"分工讨论静默：> 3.5min 无人说话"| Nudge1_7["💡 拍卖师：提示交流章节分工与时间规划"]
+    GuardContract -->|"合约签署超时：合约生成 > 4min 仍有人未签署"| Nudge1_8["📜 拍卖师：点名提醒未签署同学点击【确认签署】"]
+    GuardContract -->|"全员 3 人完成签署"| UnlockStage2([🔓 合约锁定 ➔ 自动解锁进入【阶段二：学术编辑部】])
+      </pre>
+    </div>
+  </div>
+
+  <!-- 阶段二 -->
+  <div class="card">
+    <div class="card-header">
+      <h2 style="color: #10b981;">🟢 阶段二：学术编辑部 (责任编辑 + 审稿编辑) 流程图</h2>
+      <button class="btn-download" onclick="downloadSVG('stage2-svg', '阶段二_学术编辑部流程图.svg')">📥 下载高清 SVG 图片</button>
+    </div>
+    <div class="mermaid-container" id="stage2-container">
+      <pre class="mermaid" id="stage2-svg">
+flowchart TD
+    Start2([🚀 进入阶段二：学术编辑部]) --> GuardPresence2{"🛡️ 前提检测：全组成员是否【全部登录在线】？"}
+    GuardPresence2 -->|"有人未登录"| WaitOnline2["⏸️ 平台静默守候，绝不打扰"]
+    GuardPresence2 -->|"全员 100% 登录在线"| Node2_1["⏱️ 时间 0min<br>🤝 责任编辑：开场重申阶段一公约确立的论文主题、分工与时间规划<br>📝 审稿编辑：界面顶部推送《课程学术参考范文库》，提醒学习三线表规范"]
+    
+    Node2_1 --> Loop2_1["✍️ 全组成员在左侧富文本编辑器中分工协同撰写正文<br>(💡 前期 12-15min 重度打字期，平台完全放手保护心流，绝不强求打字期闲聊)"]
+    
+    Loop2_1 --> Patrol2{"🛡️ 平台周期巡检 (每 6 分钟评估一次)<br>📊 综合读取底部真实贡献百分比 (含写字+修改) 与研讨发言条数"}
+    Patrol2 -->|"差一点 (如25% vs 35%) 或 研讨活跃"| Pass2["✅ 宽容度保护：绝不打扰正常写作"]
+    Patrol2 -->|"总投入≥150字 且 某人贡献<10% 且 发言<2条"| Nudge2_1["🤝 责任编辑：发送温和进度关怀<br>👉 请（李明）同学逐步加入负责章节起草..."]
+    
+    Loop2_1 --> Trigger2_1{"🔍 进度雷达 1：正文写到【二、文献综述】或【三、研究问题与假设】？"}
+    Trigger2_1 -->|"触发一次"| Node2_2["📝 审稿编辑：第一次动态初稿微调质检<br>(通读已有段落，肯定框架，提出 1 句操作化微调建议)"]
+    
+    Loop2_1 --> HalfwayCondition{"🎯 进度雷达 2：半程编辑会议触发判定 (双轨制)<br>① 正文推进至【五、不足与反思】？<br>OR ② 阶段二已用时达到规划总时间的 60%？"}
+    
+    HalfwayCondition -->|"满足任一条件"| Node2_3["📢 责任编辑·半程自查与互阅倡议：<br>💡 号召全组暂停各自打字，花 1-2 分钟通读全篇，感知同伴写的内容是否与最初主题一致、衔接是否顺畅，然后点击左上角发起会议"]
+    
+    Node2_3 --> Node2_4["📋 学生点击【📢 发起编辑会议】，全员完成 4 维自查打卡<br>(立意一致性、时间匹配度、3维打星、瓶颈难点、开放说明)"]
+    
+    Node2_4 --> Node2_5["🔔 平台立即在左侧生成【半程编辑修正清单】卡片<br>➔ 🤝 责任编辑第 1 棒出场：面向全组 (对事不对人，绝不点名) 梳理自查感知分歧，抛出反思思考题，号召全组在讨论区先交流对齐"]
+    
+    Node2_5 --> Gate2["🔒 平台调控守候闸门：坚守闸门，审稿编辑绝不盲目即时弹出！<br>👂 静默监听学生在研讨区的讨论进程"]
+    
+    Gate2 --> Consensus{"📊 平台检测：研讨区讨论是否对齐？<br>① 学生研讨达 2 轮以上？<br>OR ② 出现对齐信号 (如'同意/修改/明白了')？"}
+    
+    Consensus -->|"讨论对齐达成"| Node2_6["📝 审稿编辑第 2 棒接力登场：<br>肯定全组商讨达成的立意共识，深度审查正文初稿切片，指出方法论薄弱点并给出学术修改建议，引导全组对照左侧清单修改"]
+    
+    Node2_6 --> Loop2_2["🛠️ 全组对照【半程编辑修正清单】协同修改润色正文"]
+    
+    Loop2_2 --> FinalCondition{"🎯 终审收尾雷达：<br>① 正文写到【六、参考文献】？<br>OR ② 写作时间进入最后 15% 冲刺期？"}
+    
+    FinalCondition -->|"到达收尾期"| Node2_7["🤝 责任编辑：发布冲刺倒计时，鼓励全篇交叉通读、优化前后衔接<br>📝 审稿编辑：发布终审格式排版提醒 (统一标题序号、标准学术三线表、参考文献 GB/T 7714 规范)"]
+    
+    Node2_7 --> UnlockStage3([🔓 正文完成 ➔ 点击进入【阶段三：答辩擂台】])
+      </pre>
+    </div>
+  </div>
+
+  <!-- 阶段三 -->
+  <div class="card">
+    <div class="card-header">
+      <h2 style="color: #eab308;">🟡 阶段三：答辩擂台 (正方 + 反方 + 中间委员) 流程图</h2>
+      <button class="btn-download" onclick="downloadSVG('stage3-svg', '阶段三_答辩擂台流程图.svg')">📥 下载高清 SVG 图片</button>
+    </div>
+    <div class="mermaid-container" id="stage3-container">
+      <pre class="mermaid" id="stage3-svg">
+flowchart TD
+    Start3([🚀 进入阶段三：答辩擂台]) --> GuardPresence3{"🛡️ 前提检测：全组成员是否【全部登录在线】？"}
+    GuardPresence3 -->|"有人未登录"| WaitOnline3["⏸️ 平台静默守候，绝不打扰"]
+    GuardPresence3 -->|"全员 100% 登录在线"| Node3_1["⏱️ 步骤 1 (0m)：🟡 中间委员发布开场白，宣布答辩开始"]
+    
+    Node3_1 --> Node3_2["⏱️ 步骤 2 (间隔2s)：🟢 正方委员发表肯定支持意见"]
+    Node3_2 --> Node3_3["⏱️ 步骤 3 (间隔2.5s)：🔴 反方委员发表尖锐质询意见"]
+    Node3_3 --> Node3_4["🔔 步骤 4 (平台自动处理)：平台将正方与反方意见自动写入左侧【答辩裁决矩阵】"]
+    Node3_4 --> Node3_5["⏱️ 步骤 5 (间隔2.5s)：🟡 中间委员引导全组静心阅读 1min，并抛出第 1 题辩护思考"]
+    
+    Node3_5 --> Guard3{"🛡️ 阶段三高频协商与录入守护 (全员在线)"}
+    Guard3 -->|"答辩研讨静默：开场或辩护中静默 > 3min 无人说话"| Nudge3_1["🟡 中间委员：提示针对正反方意见展开辩护讨论"]
+    Guard3 -->|"长期单人填表零交流：有人在填矩阵但聊天区 > 4-5min 无人交流"| Nudge3_2["💡 中间委员：提示先在研讨区充分交换辩护观点，形成集体共识后再录入矩阵"]
+    Guard3 -->|"学生讨论活跃但矩阵未填"| Nudge3_3["💡 中间委员：适时提醒将辩护共识填入左侧矩阵并修改终稿正文"]
+    Guard3 -->|"正常推进"| Node3_6
+    
+    Node3_6["💬 学生在讨论区商讨辩护共识 ➔ 录入左侧【答辩裁决矩阵】并保存"] --> Node3_7["📝 点击【返回富文本协作大正文】，将辩护修改同步落实到终稿中"]
+    
+    Node3_7 --> CheckAllDefense{"📊 平台检测：所有反方质询是否全部答辩完毕？"}
+    CheckAllDefense -->|"还有待答复项"| Node3_6
+    CheckAllDefense -->|"全部质询答辩完成"| Node3_8["🟡 中间委员：发表答辩总结总评，祝贺团队完成任务，指引全员点击【提交终稿】"]
+    
+    Node3_8 --> Node3_9["🎯 全员点击【提交终稿】"]
+    Node3_9 --> EndArchive([🏆 终稿全盘锁定入库 ➔ 弹出课程评估问卷 ➔ 任务圆满完成！])
+      </pre>
+    </div>
+  </div>
+
+  <script>
+    mermaid.initialize({ startOnLoad: true, theme: 'default', flowchart: { curve: 'basis', useMaxWidth: true } });
+
+    function downloadSVG(svgId, filename) {
+      const el = document.getElementById(svgId);
+      const svg = el.querySelector('svg');
+      if (!svg) { alert('SVG 正在渲染中，请稍候点击'); return; }
+      
+      const svgData = new XMLSerializer().serializeToString(svg);
+      const blob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+  </script>
+</body>
+</html>
