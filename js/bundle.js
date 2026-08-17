@@ -1188,19 +1188,20 @@
           let cleanRemoteContent = remoteData.stage2.unifiedContent || '';
           cleanRemoteContent = cleanRemoteContent.replace(/<span class="remote-cursor-widget"[\s\S]*?<\/span>/gi, '');
           
-          if (cleanRemoteContent !== this.app.state.stage2.unifiedContent) {
-            this.app.state.stage2.unifiedContent = cleanRemoteContent;
-            const editor = document.getElementById('stage2-word-editor') || document.getElementById('stage3-word-editor');
-            if (editor) {
-              // 只有当本地没有聚焦在正文输入框时才覆写 innerHTML，避免打字光标跳动
+          this.app.state.stage2.unifiedContent = cleanRemoteContent;
+          const editor = document.getElementById('stage2-word-editor') || document.getElementById('stage3-word-editor');
+          if (editor) {
+            // 获取当前编辑器的纯文本内容（去掉协同浮标后）进行对比
+            let currentLocalHtml = editor.innerHTML.replace(/<span class="remote-cursor-widget"[\s\S]*?<\/span>/gi, '');
+            if (currentLocalHtml !== cleanRemoteContent) {
               const isDirectlyTyping = (document.activeElement === editor || editor.contains(document.activeElement));
               if (!isDirectlyTyping) {
                 editor.innerHTML = cleanRemoteContent || '';
               }
             }
-            this.app.updateContributionUi();
-            this.app.renderPresenceCursors();
           }
+          this.app.updateContributionUi();
+          this.app.renderPresenceCursors();
         }
         if (remoteData.stage2.memberContributions) {
           if (JSON.stringify(remoteData.stage2.memberContributions) !== JSON.stringify(this.app.state.stage2.memberContributions)) {
@@ -3435,13 +3436,13 @@
         });
       }
 
-      // 监听输入
+      // 监听输入：80ms 极低延迟防抖，实现连续输入的流畅准实时广播
       let debounceTimer = null;
       editor.addEventListener('input', () => {
         clearTimeout(debounceTimer);
         debounceTimer = setTimeout(() => {
           if (onChangeCallback) onChangeCallback(editor.innerHTML);
-        }, 250);
+        }, 80);
       });
     }
 
