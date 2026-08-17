@@ -3967,8 +3967,9 @@
     const membersList = Object.values(state.members || {});
     const totalMembersCount = membersList.length;
     const confirmedMembers = s1.contract.confirmedMembers || {};
-    const confirmedCount = membersList.filter(m => confirmedMembers[m.id]).length;
-    const userHasConfirmed = confirmedMembers[currentUser];
+    // 兼容 member.id 和 member.studentCode 两种标识
+    const confirmedCount = membersList.filter(m => confirmedMembers[m.id] || confirmedMembers[m.studentCode]).length;
+    const userHasConfirmed = confirmedMembers[currentUser] || (state.members[currentUser] && confirmedMembers[state.members[currentUser].id]);
     const isContractLocked = s1.contract.isConfirmed || state.isFinalSubmitted;
 
     const userHasVoted = s1.hasVoted && s1.hasVoted[currentUser];
@@ -4056,7 +4057,7 @@
               <div style="background:#ffffff; border:1px solid #e2e8f0; border-left:3.5px solid #2563eb; border-radius:8px; padding:12px 14px; display:flex; justify-content:space-between; align-items:center;">
                 <span style="font-weight:800; color:#1e40af; font-size:13.5px;">一、研究背景与意义</span>
                 <label style="font-size:12px; color:#475569; display:flex; align-items:center; gap:4px;">
-                  用时: <input type="number" class="contract-time-input" data-key="background" value="${s1.contract.timeAllocations.background || 25}" ${isContractLocked ? 'disabled readonly style="opacity:0.8; cursor:not-allowed;"' : ''} style="width:48px; padding:3px 4px; border:1px solid #cbd5e1; border-radius:4px; text-align:center; font-weight:700;"> 分钟
+                  用时: <input type="number" class="contract-time-input" data-key="background" value="${s1.contract.timeAllocations.background !== undefined ? s1.contract.timeAllocations.background : 25}" ${isContractLocked ? 'disabled readonly style="opacity:0.8; cursor:not-allowed;"' : ''} style="width:48px; padding:3px 4px; border:1px solid #cbd5e1; border-radius:4px; text-align:center; font-weight:700;"> 分钟
                 </label>
               </div>
 
@@ -4064,7 +4065,7 @@
               <div style="background:#ffffff; border:1px solid #e2e8f0; border-left:3.5px solid #0284c7; border-radius:8px; padding:12px 14px; display:flex; justify-content:space-between; align-items:center;">
                 <span style="font-weight:800; color:#0369a1; font-size:13.5px;">二、文献综述</span>
                 <label style="font-size:12px; color:#475569; display:flex; align-items:center; gap:4px;">
-                  用时: <input type="number" class="contract-time-input" data-key="literature" value="${s1.contract.timeAllocations.literature || 30}" ${isContractLocked ? 'disabled readonly style="opacity:0.8; cursor:not-allowed;"' : ''} style="width:48px; padding:3px 4px; border:1px solid #cbd5e1; border-radius:4px; text-align:center; font-weight:700;"> 分钟
+                  用时: <input type="number" class="contract-time-input" data-key="literature" value="${s1.contract.timeAllocations.literature !== undefined ? s1.contract.timeAllocations.literature : 30}" ${isContractLocked ? 'disabled readonly style="opacity:0.8; cursor:not-allowed;"' : ''} style="width:48px; padding:3px 4px; border:1px solid #cbd5e1; border-radius:4px; text-align:center; font-weight:700;"> 分钟
                 </label>
               </div>
 
@@ -4072,7 +4073,7 @@
               <div style="background:#ffffff; border:1px solid #e2e8f0; border-left:3.5px solid #059669; border-radius:8px; padding:12px 14px; display:flex; justify-content:space-between; align-items:center;">
                 <span style="font-weight:800; color:#065f46; font-size:13.5px;">三、研究问题与假设</span>
                 <label style="font-size:12px; color:#475569; display:flex; align-items:center; gap:4px;">
-                  用时: <input type="number" class="contract-time-input" data-key="questions" value="${s1.contract.timeAllocations.questions || 25}" ${isContractLocked ? 'disabled readonly style="opacity:0.8; cursor:not-allowed;"' : ''} style="width:48px; padding:3px 4px; border:1px solid #cbd5e1; border-radius:4px; text-align:center; font-weight:700;"> 分钟
+                  用时: <input type="number" class="contract-time-input" data-key="questions" value="${s1.contract.timeAllocations.questions !== undefined ? s1.contract.timeAllocations.questions : 25}" ${isContractLocked ? 'disabled readonly style="opacity:0.8; cursor:not-allowed;"' : ''} style="width:48px; padding:3px 4px; border:1px solid #cbd5e1; border-radius:4px; text-align:center; font-weight:700;"> 分钟
                 </label>
               </div>
 
@@ -4080,7 +4081,7 @@
               <div style="background:#ffffff; border:1px solid #e2e8f0; border-left:3.5px solid #7c3aed; border-radius:8px; padding:12px 14px; display:flex; justify-content:space-between; align-items:center;">
                 <span style="font-weight:800; color:#6d28d9; font-size:13.5px;">四、研究设计与方法</span>
                 <label style="font-size:12px; color:#475569; display:flex; align-items:center; gap:4px;">
-                  用时: <input type="number" class="contract-time-input" data-key="method" value="${s1.contract.timeAllocations.method || 40}" ${isContractLocked ? 'disabled readonly style="opacity:0.8; cursor:not-allowed;"' : ''} style="width:48px; padding:3px 4px; border:1px solid #cbd5e1; border-radius:4px; text-align:center; font-weight:700;"> 分钟
+                  用时: <input type="number" class="contract-time-input" data-key="method" value="${s1.contract.timeAllocations.method !== undefined ? s1.contract.timeAllocations.method : 40}" ${isContractLocked ? 'disabled readonly style="opacity:0.8; cursor:not-allowed;"' : ''} style="width:48px; padding:3px 4px; border:1px solid #cbd5e1; border-radius:4px; text-align:center; font-weight:700;"> 分钟
                 </label>
               </div>
 
@@ -4088,7 +4089,7 @@
               <div style="background:#ffffff; border:1px solid #e2e8f0; border-left:3.5px solid #d97706; border-radius:8px; padding:12px 14px; display:flex; justify-content:space-between; align-items:center;">
                 <span style="font-weight:800; color:#b45309; font-size:13.5px;">五、研究设计的不足与反思</span>
                 <label style="font-size:12px; color:#475569; display:flex; align-items:center; gap:4px;">
-                  用时: <input type="number" class="contract-time-input" data-key="reflection" value="${s1.contract.timeAllocations.reflection || 20}" ${isContractLocked ? 'disabled readonly style="opacity:0.8; cursor:not-allowed;"' : ''} style="width:48px; padding:3px 4px; border:1px solid #cbd5e1; border-radius:4px; text-align:center; font-weight:700;"> 分钟
+                  用时: <input type="number" class="contract-time-input" data-key="reflection" value="${s1.contract.timeAllocations.reflection !== undefined ? s1.contract.timeAllocations.reflection : 20}" ${isContractLocked ? 'disabled readonly style="opacity:0.8; cursor:not-allowed;"' : ''} style="width:48px; padding:3px 4px; border:1px solid #cbd5e1; border-radius:4px; text-align:center; font-weight:700;"> 分钟
                 </label>
               </div>
 
@@ -4096,7 +4097,7 @@
               <div style="background:#ffffff; border:1px solid #e2e8f0; border-left:3.5px solid #475569; border-radius:8px; padding:12px 14px; display:flex; justify-content:space-between; align-items:center;">
                 <span style="font-weight:800; color:#334155; font-size:13.5px;">六、参考文献</span>
                 <label style="font-size:12px; color:#475569; display:flex; align-items:center; gap:4px;">
-                  用时: <input type="number" class="contract-time-input" data-key="references" value="${s1.contract.timeAllocations.references || 10}" ${isContractLocked ? 'disabled readonly style="opacity:0.8; cursor:not-allowed;"' : ''} style="width:48px; padding:3px 4px; border:1px solid #cbd5e1; border-radius:4px; text-align:center; font-weight:700;"> 分钟
+                  用时: <input type="number" class="contract-time-input" data-key="references" value="${s1.contract.timeAllocations.references !== undefined ? s1.contract.timeAllocations.references : 10}" ${isContractLocked ? 'disabled readonly style="opacity:0.8; cursor:not-allowed;"' : ''} style="width:48px; padding:3px 4px; border:1px solid #cbd5e1; border-radius:4px; text-align:center; font-weight:700;"> 分钟
                 </label>
               </div>
             </div>
@@ -4127,7 +4128,7 @@
           </div>
           <div style="display:flex; flex-wrap:wrap; gap:10px; font-size:13px;">
             ${membersList.map(m => {
-              const isConf = confirmedMembers[m.id];
+              const isConf = confirmedMembers[m.id] || confirmedMembers[m.studentCode];
               return `
                 <span style="color:${isConf ? '#059669' : '#64748b'}; border:1px solid ${isConf ? '#a7f3d0' : '#e2e8f0'}; background:${isConf ? '#ecfdf5' : '#ffffff'}; padding:6px 12px; border-radius:8px; font-weight:600;">
                   ${m.avatar || '👤'} ${m.name}: <b>${isConf ? '✅ 已确认签署' : '⏳ 未确认'}</b>
@@ -5472,54 +5473,7 @@
         if (stage === 'stage1') {
           // 🎪 阶段一：只有【拍卖师】出来
           replyAgent = 'auctioneer';
-          const s1 = this.state.stage1;
-          let didExtract = false;
-          let extractedDetails = [];
-
-          // 提取时间分配
-          const bgMatch = userMsg.match(/背景\s*[:：=为]?\s*(\d+)/i) || userMsg.match(/(\d+)\s*分[钟]?.*背景/i);
-          const qMatch = userMsg.match(/问题\s*[:：=为]?\s*(\d+)/i) || userMsg.match(/(\d+)\s*分[钟]?.*问题/i);
-          const litMatch = userMsg.match(/文献\s*[:：=为]?\s*(\d+)/i) || userMsg.match(/(\d+)\s*分[钟]?.*文献/i);
-          const methMatch = userMsg.match(/方法\s*[:：=为]?\s*(\d+)/i) || userMsg.match(/(\d+)\s*分[钟]?.*方法/i);
-          const refMatch = userMsg.match(/反思\s*[:：=为]?\s*(\d+)/i) || userMsg.match(/(\d+)\s*分[钟]?.*反思/i);
-          const bibMatch = userMsg.match(/(?:参考文献|文献表)\s*[:：=为]?\s*(\d+)/i) || userMsg.match(/(\d+)\s*分[钟]?.*参考文献/i);
-
-          if (bgMatch && s1.contract.timeAllocations) { s1.contract.timeAllocations.background = parseInt(bgMatch[1]); didExtract = true; extractedDetails.push(`背景: ${bgMatch[1]}m`); }
-          if (qMatch && s1.contract.timeAllocations) { s1.contract.timeAllocations.questions = parseInt(qMatch[1]); didExtract = true; extractedDetails.push(`问题: ${qMatch[1]}m`); }
-          if (litMatch && s1.contract.timeAllocations) { s1.contract.timeAllocations.literature = parseInt(litMatch[1]); didExtract = true; extractedDetails.push(`文献: ${litMatch[1]}m`); }
-          if (methMatch && s1.contract.timeAllocations) { s1.contract.timeAllocations.method = parseInt(methMatch[1]); didExtract = true; extractedDetails.push(`方法: ${methMatch[1]}m`); }
-          if (refMatch && s1.contract.timeAllocations) { s1.contract.timeAllocations.reflection = parseInt(refMatch[1]); didExtract = true; extractedDetails.push(`反思: ${refMatch[1]}m`); }
-          if (bibMatch && s1.contract.timeAllocations) { s1.contract.timeAllocations.references = parseInt(bibMatch[1]); didExtract = true; extractedDetails.push(`文献表: ${bibMatch[1]}m`); }
-
-          // 提取分工
-          Object.keys(this.state.members || {}).forEach(mId => {
-            const m = this.state.members[mId];
-            const mName = m.name;
-            const reg = new RegExp(`(?:${mName}|${mId}|学生${mId}|我)\\s*(?:负责|来写|写|承担)\\s*[:：]?\\s*([^，,。！!\n]+)`, 'i');
-            const assignMatch = userMsg.match(reg);
-            if (assignMatch) {
-              if (!s1.contract.taskAssignments) s1.contract.taskAssignments = {};
-              s1.contract.taskAssignments[mId] = assignMatch[1].trim();
-              didExtract = true;
-              extractedDetails.push(`${mName}负责: ${assignMatch[1].trim()}`);
-            }
-          });
-
-          // 提取论文主题
-          const topicMatch = userMsg.match(/(?:题目|主题|选题|融合主题|论文题目)\s*(?:定为|选定|为|是|定在)?\s*[《“"]?([^》”"\n]+)[》”"]?/i);
-          if (topicMatch && topicMatch[1].trim().length >= 4) {
-            s1.mergedTitle = topicMatch[1].trim();
-            didExtract = true;
-            extractedDetails.push(`确定主题: 《${s1.mergedTitle}》`);
-          }
-
-          if (didExtract && !s1.contract.isConfirmed) {
-            defaultFallbackText = `📜 【AI 智能提取公约】：拍卖师已根据刚才的研讨内容，自动提取并更新了左侧《团队协同合作学术公约》卡片！\n• 提取要点: ${extractedDetails.join(' | ')}\n\n💡 提示：所有小组成员均可在左侧卡片中自由修改微调各项内容，商定无误后全员点击【确认签署】生效！`;
-            this.syncStage1();
-            this.renderStudentWorkspace();
-          } else {
-            defaultFallbackText = `🎪 【拍卖师阶段引导】组内讨论正在进行中！请大家在左侧提交各自的选题提案，或在研讨区商定分工与时间（AI 将自动提取为合约），确认后全员签署！`;
-          }
+          defaultFallbackText = `🎪 【拍卖师阶段引导】组内讨论正在进行中！请大家在左侧提交各自的选题提案，或在合约卡片中商定分工与时间，确认后全员签署！`;
         } else if (stage === 'stage2') {
           // 📝 阶段二：消极情绪与流程学伴由【责任编辑】响应，学术规范由【审稿编辑】响应
           const isNegativeEmotion = /(?:写不出来|太难了|太难写|好难|救命|焦虑|搞不定|写得好烂|写的好烂|好烦|头疼|卡住|卡顿|不知道怎么写|不想写)/i.test(userMsg);
@@ -5916,23 +5870,30 @@
           const s1 = this.state.stage1;
           const totalMembersCount = Object.keys(this.state.members).length;
           if (!s1.contract.confirmedMembers) s1.contract.confirmedMembers = {};
+          // 同时写入 studentCode 与 member.id，彻底杜绝 ID 不一致
           s1.contract.confirmedMembers[user] = true;
-          const confirmedCount = Object.values(this.state.members).filter(m => s1.contract.confirmedMembers[m.id]).length;
+          if (this.state.members[user]) {
+            s1.contract.confirmedMembers[this.state.members[user].id] = true;
+          }
+          const confirmedCount = Object.values(this.state.members).filter(m => s1.contract.confirmedMembers[m.id] || s1.contract.confirmedMembers[m.studentCode]).length;
           const memberName = this.state.members[user] ? this.state.members[user].name : user;
           const confirmMsg = { sender: user, text: `📢 [合约签署告知]: 我 (${memberName}) 已按键确认签署合作学术合约！（全组确认进度: ${confirmedCount}/${totalMembersCount} 人）`, timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) };
           this.state.chatLogs.stage1.push(confirmMsg);
           this.syncStage1();
           this.syncChatLogs();
+          if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
           if (confirmedCount < totalMembersCount) {
             alert(`✅ 你 (${memberName}) 已成功按键确认签署合约！\n\n目前组内签署进度：${confirmedCount}/${totalMembersCount} 人。\n需全组 ${totalMembersCount} 名成员全部按键确认后方可解锁阶段二！`);
           } else {
             s1.contract.isConfirmed = true;
             this.syncStage1();
             this.syncStageChange('stage2');
+            if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
             setTimeout(() => {
               const finalMsg = { sender: 'auctioneer', text: `🎪 【拍卖师宣布】：恭喜！组内全员 ${totalMembersCount}/${totalMembersCount} 名成员已全部完成按键确认签署！学术合作合约正式生效并锁定，阶段一圆满结束，系统自动解锁【阶段二：学术编辑部】！`, timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) };
               this.state.chatLogs.stage1.push(finalMsg);
               this.syncChatLogs();
+              if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
               alert(`🎉 恭喜！组内 ${totalMembersCount} 位成员全部完成按键确认签署！学术合作合约生效并锁定，系统解锁【阶段二：学术编辑部】！`);
               this.switchStage('stage2');
             }, 600);
