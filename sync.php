@@ -127,6 +127,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $ts = isset($data['timestamp']) ? intval($data['timestamp']) : round(microtime(true) * 1000);
         
         if ($pdo) {
+            $isResetVal = !empty($data['isReset']) ? 1 : 0;
+            if ($isResetVal) {
+                // 如果是重置指令，清空历史 chat_messages
+                $stmtDelChats = $pdo->prepare("DELETE FROM chat_messages WHERE scope_key = :sk");
+                $stmtDelChats->execute([':sk' => $scopeKey]);
+            }
             // 4a. 保存小组协作快照 (stage1/2/3, presence, members, chatLogs)
             $stmt = $pdo->prepare("INSERT INTO group_states 
                 (scope_key, task_id, group_id, current_stage, stage1_data, stage2_data, stage3_data, presence_data, members_data, is_final_submitted, last_timestamp)
