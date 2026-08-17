@@ -4236,12 +4236,18 @@
             }
           }
 
-          // 1. 异步调用扣子拍卖师 API，对该提案做针对性学术评估 (120~180字)
+          // 1. 异步调用扣子拍卖师 API，对该提案做针对性学术评估与全组播报 (120~180字)
           setTimeout(async () => {
-            const evalPrompt = `小组成员【${authorName}】刚在学术拍卖会上提交了一份新选题提案《${title}》。请以拍卖师身份，给出 120~180 字的充实学术价值评估，点评其文献基础、创新视角与可行性建议。`;
+            const isModify = existingIdx >= 0;
+            const evalPrompt = isModify
+              ? `小组成员【${authorName}】刚在学术拍卖会上修改了选题提案，最新标题为《${title}》。请以拍卖师身份，给出 100~150 字的针对性学术价值点评，肯定其迭代视角并指出可行性建议。`
+              : `小组成员【${authorName}】刚在学术拍卖会上提交了一份新选题提案《${title}》。请以拍卖师身份，给出 100~150 字的充实学术价值评估，点评其文献基础、创新视角与可行性建议。`;
+            
             let evalText = await callCozeAgentAPI('auctioneer', evalPrompt, { stage: 'stage1', proposalTitle: title, author: authorName });
             if (!evalText || evalText.trim().length === 0) {
-              evalText = `🎪 【拍卖师·提案评估】收到 ${authorName} 提出的新选题《${title}》！该提案紧扣现代教育技术前沿，研究视角新颖，具备较好的探索空间与教学实践价值！`;
+              evalText = isModify
+                ? `🎪 【拍卖师·选题修改播报与点评】：收到 ${authorName} 提交的修改版选题《${title}》！新选题在研究切入点上更加聚焦，具备良好的探索价值！`
+                : `🎪 【拍卖师·提案提交通知与评估】：收到 ${authorName} 提出的新选题《${title}》！该提案紧扣现代教育技术前沿，研究视角新颖，具备较好的探索空间与教学实践价值！`;
             }
 
             const auctioneerEvalMsg = {
@@ -4252,7 +4258,7 @@
             };
             state.chatLogs[currentStage].push(auctioneerEvalMsg);
 
-            // 2. 如果全员都已提交提案，拍卖师主动发话引导全员进入投票环节
+            // 2. 如果全员都已提交提案（3/3），拍卖师主动发话引导全员进入投票环节
             if (submittedAuthorsCount >= totalMembersCount) {
               setTimeout(() => {
                 const allSubmittedList = (s1.proposals || []).map((p, idx) => `${idx + 1}. 《${p.title}》(${state.members[p.author] ? state.members[p.author].name : p.author})`).join('\n');
@@ -4265,16 +4271,27 @@
                 state.chatLogs[currentStage].push(votePromptMsg);
                 if (window.app) {
                   window.app.syncChatLogs();
+                  if (window.app.cloudSyncEngine) window.app.cloudSyncEngine.pushSnapshot();
                   renderChat(state);
                 }
-              }, 1200);
+              }, 1000);
+            } else {
+              // 播报当前提案进度
+              const progressMsg = {
+                sender: 'auctioneer',
+                text: `📢 【提案征集进度】：目前已有 ${submittedAuthorsCount}/${totalMembersCount} 位组员提交选题。请尚未提交的组员尽快点击左侧【提交我的选题】！`,
+                timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                _timeMs: Date.now()
+              };
+              state.chatLogs[currentStage].push(progressMsg);
             }
 
             if (window.app) {
               window.app.syncChatLogs();
+              if (window.app.cloudSyncEngine) window.app.cloudSyncEngine.pushSnapshot();
               renderChat(state);
             }
-          }, 600);
+          }, 500);
         });
       });
     }
@@ -5519,23 +5536,38 @@
       this.state.chatLogs.stage1.push(voteMsg);
       this.syncStage1();
       this.syncChatLogs();
-      if (votesCastCount >= totalMembersCount) {
+      if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+
+      if (votesCastCount < totalMembersCount) {
+        // ── 投票催促提醒：找出还未投票的成员姓名并提醒 ──
+        const unvotedMembers = Object.values(this.state.members || {}).filter(m => !s1.hasVoted || !s1.hasVoted[m.studentCode || m.id]);
+        const unvotedNames = unvotedMembers.map(m => m.name).join('、');
+        setTimeout(() => {
+          const nudgeMsg = {
+            sender: 'auctioneer',
+            text: `🗳️ 【拍卖师·投票进度提醒】：目前全组已投票 ${votesCastCount}/${totalMembersCount} 人。\n👉 请尚未投票的成员（**${unvotedNames || '未投票组员'}**）尽快在左侧提案卡片下方点击【🗳️ 投这篇】！`,
+            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            _timeMs: Date.now()
+          };
+          this.state.chatLogs.stage1.push(nudgeMsg);
+          this.syncChatLogs();
+          if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+          renderChat(this.state);
+        }, 1200);
+      } else {
+        // ── 全员投票完成：落槌公布结果并自动生成合约 ──
         setTimeout(() => {
           const tally = {};
           Object.values(s1.votes).forEach(pId => { if (pId) tally[pId] = (tally[pId] || 0) + 1; });
           let summaryText = '🎪 【拍卖师·投票结果播报与主题推进】\n全员投票已全部完成！计票结果如下：\n';
           let maxVotes = -1;
           let winningProposal = null;
-          let hasTie = false;
           (s1.proposals || []).forEach(p => { 
             const count = tally[p.id] || 0;
             summaryText += `• 《${p.title}》: ${count} 票\n`; 
             if (count > maxVotes) {
               maxVotes = count;
               winningProposal = p;
-              hasTie = false;
-            } else if (count === maxVotes && maxVotes > 0) {
-              hasTie = true;
             }
           });
 
