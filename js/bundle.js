@@ -757,7 +757,8 @@
     }
 
     setGroupFinalSubmitted(groupId, isSubmitted) {
-      localStorage.setItem(`jizhi_sync_final_submitted_v10_pure_${groupId}`, isSubmitted ? 'true' : 'false');
+      const taskId = (window.app && window.app.state && window.app.state.activeTaskId) ? window.app.state.activeTaskId : 'task_default';
+      localStorage.setItem(`jizhi_sync_final_submitted_v10_pure_${taskId}_${groupId}`, isSubmitted ? 'true' : 'false');
       if (window.app && window.app.state) {
         window.app.state.isFinalSubmitted = isSubmitted;
       }
@@ -974,9 +975,13 @@
       this.updateScopeKeys();
       const groupId = this.groupId;
 
+      const isReset = !!this.isResetBroadcast;
+      this.isResetBroadcast = false;
+
       const snapshot = {
         timestamp: Date.now(),
         groupId: groupId,
+        isReset: isReset,
         members: this.app.state.members,
         presence: this.app.state.presence || {},
         chatLogs: this.app.state.chatLogs,
@@ -1087,99 +1092,109 @@
       }
 
       if (remoteData.chatLogs) {
-        ['stage1', 'stage2', 'stage3'].forEach(stg => {
-          const remoteLogs = Array.isArray(remoteData.chatLogs[stg]) ? remoteData.chatLogs[stg] : [];
-          const localLogs = Array.isArray(this.app.state.chatLogs[stg]) ? this.app.state.chatLogs[stg] : [];
-          
-          // 🚀 消息智能去重合并：保留远程和本地的所有独特消息（以发送者+时间戳+文本为唯一指纹）
-          const seenKeys = new Set();
-          const mergedLogs = [];
-          
-          [...localLogs, ...remoteLogs].forEach(msg => {
-            if (!msg || !msg.text) return;
-            const key = `${msg.sender}_${msg.timestamp || ''}_${msg._timeMs || ''}_${msg.text.trim()}`;
-            if (!seenKeys.has(key)) {
-              seenKeys.add(key);
-              mergedLogs.push(msg);
+        if (remoteData.isReset) {
+          this.app.state.chatLogs = remoteData.chatLogs;
+          structuralUpdated = true;
+        } else {
+          ['stage1', 'stage2', 'stage3'].forEach(stg => {
+            const remoteLogs = Array.isArray(remoteData.chatLogs[stg]) ? remoteData.chatLogs[stg] : [];
+            const localLogs = Array.isArray(this.app.state.chatLogs[stg]) ? this.app.state.chatLogs[stg] : [];
+            
+            // 🚀 消息智能去重合并：保留远程和本地的所有独特消息（以发送者+时间戳+文本为唯一指纹）
+            const seenKeys = new Set();
+            const mergedLogs = [];
+            
+            [...localLogs, ...remoteLogs].forEach(msg => {
+              if (!msg || !msg.text) return;
+              const key = `${msg.sender}_${msg.timestamp || ''}_${msg._timeMs || ''}_${msg.text.trim()}`;
+              if (!seenKeys.has(key)) {
+                seenKeys.add(key);
+                mergedLogs.push(msg);
+              }
+            });
+
+            // 保持按生成时间递增排序
+            mergedLogs.sort((a, b) => (a._timeMs || 0) - (b._timeMs || 0));
+
+            if (JSON.stringify(mergedLogs) !== JSON.stringify(localLogs)) {
+              this.app.state.chatLogs[stg] = mergedLogs;
+              structuralUpdated = true;
             }
           });
-
-          // 保持按生成时间递增排序
-          mergedLogs.sort((a, b) => (a._timeMs || 0) - (b._timeMs || 0));
-
-          if (JSON.stringify(mergedLogs) !== JSON.stringify(localLogs)) {
-            this.app.state.chatLogs[stg] = mergedLogs;
-            structuralUpdated = true;
-          }
-        });
+        }
       }
 
       if (remoteData.stage1) {
-        const localS1 = this.app.state.stage1 || { proposals: [], votes: {}, hasVoted: {}, contract: {} };
-        const remoteS1 = remoteData.stage1 || { proposals: [], votes: {}, hasVoted: {}, contract: {} };
-
-        // 🚀 提案池并集合并：以提案 ID 为唯一键，合并本地与远端的所有提案，绝不丢弃任何刚提交的提案
-        const seenPropIds = new Set();
-        const mergedProposals = [];
-        [...(localS1.proposals || []), ...(remoteS1.proposals || [])].forEach(p => {
-          if (!p || !p.id || !p.title) return;
-          if (!seenPropIds.has(p.id)) {
-            seenPropIds.add(p.id);
-            mergedProposals.push(p);
-          }
-        });
-
-        // 投票状态并集合并
-        const mergedVotes = { ...(localS1.votes || {}), ...(remoteS1.votes || {}) };
-        const mergedHasVoted = { ...(localS1.hasVoted || {}), ...(remoteS1.hasVoted || {}) };
-
-        // 合约状态合并（以服务端最新填入为准，并保留已确认签名）
-        const mergedContract = {
-          ...(remoteS1.contract || {}),
-          confirmedMembers: { ...(localS1.contract?.confirmedMembers || {}), ...(remoteS1.contract?.confirmedMembers || {}) },
-          taskAssignments: { ...(localS1.contract?.taskAssignments || {}), ...(remoteS1.contract?.taskAssignments || {}) },
-          timeAllocations: { ...(localS1.contract?.timeAllocations || {}), ...(remoteS1.contract?.timeAllocations || {}) }
-        };
-
-        const newS1 = {
-          ...remoteS1,
-          proposals: mergedProposals,
-          votes: mergedVotes,
-          hasVoted: mergedHasVoted,
-          mergedTitle: remoteS1.mergedTitle || localS1.mergedTitle || '',
-          contract: mergedContract
-        };
-
-        if (JSON.stringify(newS1) !== JSON.stringify(localS1)) {
-          this.app.state.stage1 = newS1;
-          
-          // 🚀 直接定向刷新页面上正在展示的合约输入框（不销毁焦点，即时双向同步）
-          if (newS1.contract?.taskAssignments) {
-            document.querySelectorAll('.task-assignment-input').forEach(inp => {
-              const mId = inp.dataset.mid;
-              if (mId && newS1.contract.taskAssignments[mId] !== undefined) {
-                if (document.activeElement !== inp) {
-                  inp.value = newS1.contract.taskAssignments[mId] || '';
-                }
-              }
-            });
-          }
-          if (newS1.contract?.timeAllocations) {
-            document.querySelectorAll('.contract-time-input').forEach(inp => {
-              const k = inp.dataset.key;
-              if (k && newS1.contract.timeAllocations[k] !== undefined) {
-                if (document.activeElement !== inp) {
-                  inp.value = newS1.contract.timeAllocations[k] || 0;
-                }
-              }
-            });
-          }
-          const topicInp = document.getElementById('contract-topic-input');
-          if (topicInp && document.activeElement !== topicInp && newS1.mergedTitle !== undefined) {
-            topicInp.value = newS1.mergedTitle || '';
-          }
-
+        if (remoteData.isReset) {
+          this.app.state.stage1 = remoteData.stage1;
           structuralUpdated = true;
+        } else {
+          const localS1 = this.app.state.stage1 || { proposals: [], votes: {}, hasVoted: {}, contract: {} };
+          const remoteS1 = remoteData.stage1 || { proposals: [], votes: {}, hasVoted: {}, contract: {} };
+
+          // 🚀 提案池并集合并：以提案 ID 为唯一键，合并本地与远端的所有提案，绝不丢弃任何刚提交的提案
+          const seenPropIds = new Set();
+          const mergedProposals = [];
+          [...(localS1.proposals || []), ...(remoteS1.proposals || [])].forEach(p => {
+            if (!p || !p.id || !p.title) return;
+            if (!seenPropIds.has(p.id)) {
+              seenPropIds.add(p.id);
+              mergedProposals.push(p);
+            }
+          });
+
+          // 投票状态并集合并
+          const mergedVotes = { ...(localS1.votes || {}), ...(remoteS1.votes || {}) };
+          const mergedHasVoted = { ...(localS1.hasVoted || {}), ...(remoteS1.hasVoted || {}) };
+
+          // 合约状态合并（以服务端最新填入为准，并保留已确认签名）
+          const mergedContract = {
+            ...(remoteS1.contract || {}),
+            confirmedMembers: { ...(localS1.contract?.confirmedMembers || {}), ...(remoteS1.contract?.confirmedMembers || {}) },
+            taskAssignments: { ...(localS1.contract?.taskAssignments || {}), ...(remoteS1.contract?.taskAssignments || {}) },
+            timeAllocations: { ...(localS1.contract?.timeAllocations || {}), ...(remoteS1.contract?.timeAllocations || {}) }
+          };
+
+          const newS1 = {
+            ...remoteS1,
+            proposals: mergedProposals,
+            votes: mergedVotes,
+            hasVoted: mergedHasVoted,
+            mergedTitle: remoteS1.mergedTitle || localS1.mergedTitle || '',
+            contract: mergedContract
+          };
+
+          if (JSON.stringify(newS1) !== JSON.stringify(localS1)) {
+            this.app.state.stage1 = newS1;
+            
+            // 🚀 直接定向刷新页面上正在展示的合约输入框（不销毁焦点，即时双向同步）
+            if (newS1.contract?.taskAssignments) {
+              document.querySelectorAll('.task-assignment-input').forEach(inp => {
+                const mId = inp.dataset.mid;
+                if (mId && newS1.contract.taskAssignments[mId] !== undefined) {
+                  if (document.activeElement !== inp) {
+                    inp.value = newS1.contract.taskAssignments[mId] || '';
+                  }
+                }
+              });
+            }
+            if (newS1.contract?.timeAllocations) {
+              document.querySelectorAll('.contract-time-input').forEach(inp => {
+                const k = inp.dataset.key;
+                if (k && newS1.contract.timeAllocations[k] !== undefined) {
+                  if (document.activeElement !== inp) {
+                    inp.value = newS1.contract.timeAllocations[k] || 0;
+                  }
+                }
+              });
+            }
+            const topicInp = document.getElementById('contract-topic-input');
+            if (topicInp && document.activeElement !== topicInp && newS1.mergedTitle !== undefined) {
+              topicInp.value = newS1.mergedTitle || '';
+            }
+
+            structuralUpdated = true;
+          }
         }
       }
 
@@ -4439,6 +4454,8 @@
       this.saveGroupState(groupId);
       if (this.cloudSyncEngine) {
         this.cloudSyncEngine.updateScopeKeys();
+        // 标记为强制重置快照，通知远端各学生端彻底重置本地草稿、合约与聊天
+        this.cloudSyncEngine.isResetBroadcast = true;
         this.cloudSyncEngine.pushSnapshot();
       }
     }
