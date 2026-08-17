@@ -1309,13 +1309,13 @@
             topicInp.value = remoteS1.mergedTitle || '';
           }
 
-          // 提案池合并保护：按提案 ID 做并集去重，防止 A 设备提交的提案被 B 设备推送的空/旧提案池覆盖删除
+          // 提案池合并保护：按作者 author 做唯一映射（每人严格限 1 个提案），支持修改更新，绝不重复或丢失
           const localProps = Array.isArray(localS1.proposals) ? localS1.proposals : [];
           const remoteProps = Array.isArray(remoteS1.proposals) ? remoteS1.proposals : [];
-          const propMap = new Map();
-          localProps.forEach(p => { if (p && p.id) propMap.set(p.id, p); });
-          remoteProps.forEach(p => { if (p && p.id) propMap.set(p.id, p); });
-          const mergedProposals = Array.from(propMap.values());
+          const propByAuthor = new Map();
+          localProps.forEach(p => { if (p && p.author) propByAuthor.set(p.author, p); });
+          remoteProps.forEach(p => { if (p && p.author) propByAuthor.set(p.author, p); });
+          const mergedProposals = Array.from(propByAuthor.values());
 
           const isProposalChanged = JSON.stringify(mergedProposals) !== JSON.stringify(localProps);
           const isVoteChanged = JSON.stringify(remoteS1.votes || {}) !== JSON.stringify(localS1.votes || {});
@@ -3975,7 +3975,7 @@
           </div>
           ${!isContractLocked ? `
             <button id="btn-open-submit-proposal" style="background:linear-gradient(135deg, #2563eb, #1d4ed8); border:none; color:white; padding:7px 16px; border-radius:8px; font-weight:700; font-size:13px; cursor:pointer; box-shadow:0 3px 10px rgba(37,99,235,0.3);">
-              + 提交我的选题
+              ${s1.proposals.some(p => p.author === currentUser) ? '✏️ 修改我的选题' : '+ 提交我的选题'}
             </button>
           ` : ''}
         </div>
@@ -4130,11 +4130,12 @@
       </div>
     `;
 
-    // 提案提交弹窗绑定
+    // 提案提交弹窗绑定 (支持新提交与修改已有选题，每人严格限制 1 个提案)
     const btnOpenProp = canvas.querySelector('#btn-open-submit-proposal');
     if (btnOpenProp) {
       btnOpenProp.addEventListener('click', () => {
         document.querySelectorAll('.modal-overlay').forEach(el => el.remove());
+        const existingProp = s1.proposals.find(p => p.author === currentUser);
         const modal = document.createElement('div');
         modal.className = 'modal-overlay';
         modal.innerHTML = `
@@ -4142,19 +4143,20 @@
             <div class="teacher-modal-header task-theme-gradient">
               <div class="modal-header-title">
                 <div class="modal-icon-badge task">💡</div>
-                <div><h3>提交我的选题</h3></div>
+                <div><h3>${existingProp ? '修改我的选题提案' : '提交我的选题提案 (每人限1个)'}</h3></div>
               </div>
               <button class="modal-close-btn" id="btn-close-prop-modal">✕</button>
             </div>
             <div class="teacher-modal-body">
               <div class="teacher-form-group">
                 <label><span class="req">*</span> 选题名称</label>
-                <input type="text" id="prop-title-input" class="teacher-input fancy" placeholder="请输入您的选题名称...">
+                <input type="text" id="prop-title-input" class="teacher-input fancy" placeholder="请输入您的选题名称..." value="${existingProp ? existingProp.title : ''}">
+                <div style="font-size:12px; color:#64748b; margin-top:4px;">💡 提示：每位小组成员提交 1 份选题提案，提交后可随时修改完善。</div>
               </div>
             </div>
             <div class="teacher-modal-footer">
               <button class="modal-btn cancel" id="btn-cancel-prop">取消</button>
-              <button class="modal-btn submit task-theme" id="btn-submit-prop-action">💡 确认提交至提案池</button>
+              <button class="modal-btn submit task-theme" id="btn-submit-prop-action">${existingProp ? '💾 保存修改' : '💡 确认提交至提案池'}</button>
             </div>
           </div>
         `;
@@ -4178,11 +4180,18 @@
           const title = modal.querySelector('#prop-title-input').value.trim();
           if (!title) { alert('⚠️ 请输入选题名称！'); return; }
 
-          s1.proposals.push({
-            id: 'prop_' + Date.now(),
-            author: currentUser,
-            title: title
-          });
+          const existingIdx = s1.proposals.findIndex(p => p.author === currentUser);
+          if (existingIdx >= 0) {
+            // 已有提案：更新标题（保持每人 1 份）
+            s1.proposals[existingIdx].title = title;
+          } else {
+            // 新提案：加入提案池
+            s1.proposals.push({
+              id: 'prop_' + currentUser + '_' + Date.now(),
+              author: currentUser,
+              title: title
+            });
+          }
 
           const currentStage = state.currentStage;
           const authorName = state.members[currentUser] ? state.members[currentUser].name : currentUser;
