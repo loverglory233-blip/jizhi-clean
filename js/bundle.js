@@ -3786,15 +3786,21 @@
         editor.dataset.isComposing = 'true';
       });
 
+      const getCleanEditorHtml = () => {
+        const clone = editor.cloneNode(true);
+        clone.querySelectorAll('.remote-cursor-widget').forEach(el => el.remove());
+        return clone.innerHTML;
+      };
+
       editor.addEventListener('compositionend', () => {
         isComposing = false;
         editor.dataset.isComposing = 'false';
-        if (onChangeCallback) onChangeCallback(editor.innerHTML);
+        if (onChangeCallback) onChangeCallback(getCleanEditorHtml());
       });
 
       editor.addEventListener('paste', () => {
         setTimeout(() => {
-          if (onChangeCallback) onChangeCallback(editor.innerHTML);
+          if (onChangeCallback) onChangeCallback(getCleanEditorHtml());
         }, 30);
       });
 
@@ -3804,7 +3810,7 @@
         clearTimeout(debounceTimer);
         debounceTimer = setTimeout(() => {
           if (!isComposing && onChangeCallback) {
-            onChangeCallback(editor.innerHTML);
+            onChangeCallback(getCleanEditorHtml());
           }
         }, 120);
       });
@@ -3958,14 +3964,19 @@
     const presence = state.presence || {};
     const now = Date.now();
 
-    // 按段落分组展示远程协作者光标
+    // 按段落分组展示远程协作者光标（严格按 studentCode 去重，确保每位在线同学最多只有 1 个光标！）
     const nodeToMembers = {};
+    const seenMemberCodes = new Set();
 
     membersList.forEach(m => {
+      const code = m.studentCode || m.id;
       if (m.studentCode === currentUserCode || m.id === currentUserCode) return;
-      const p = presence[m.studentCode] || presence[m.id];
-      if (!p || (now - p.updatedAt > 20000)) return; // 20秒未活动视为离线
+      if (seenMemberCodes.has(code)) return; // 严格去重
 
+      const p = presence[m.studentCode] || presence[m.id];
+      if (!p || (now - (p.updatedAt || 0) > 20000)) return; // 20秒未活动视为离线
+
+      seenMemberCodes.add(code);
       const targetIndex = (typeof p.nodeIndex === 'number' && p.nodeIndex >= 0) ? p.nodeIndex : 0;
       if (!nodeToMembers[targetIndex]) nodeToMembers[targetIndex] = [];
       nodeToMembers[targetIndex].push({ member: m, presence: p });
@@ -3978,6 +3989,9 @@
       let targetEl = (children && children[idx]) ? children[idx] : (children.length > 0 ? children[children.length - 1] : null);
 
       if (targetEl && targetEl !== editor) {
+        // 先确保 targetEl 内部没有任何遗留旧光标
+        targetEl.querySelectorAll('.remote-cursor-widget').forEach(el => el.remove());
+
         const cursorContainer = document.createElement('span');
         cursorContainer.className = 'remote-cursor-widget';
         cursorContainer.contentEditable = 'false';
