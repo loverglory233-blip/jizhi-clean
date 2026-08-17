@@ -5184,6 +5184,54 @@
               this.syncChatLogs();
               if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
               renderChat(this.state);
+              return;
+            }
+          }
+
+          // 5. 投票已完成且合约草案已生成 ➔ 分工与时间微调讨论静默守护（静默 > 3.5 分钟）
+          const signedMap = (s1.contract && s1.contract.confirmedMembers) ? s1.contract.confirmedMembers : {};
+          const signedCount = Object.values(signedMap).filter(Boolean).length;
+          const isContractDrafted = votesCastCount >= totalMembersCount;
+
+          if (isContractDrafted && signedCount < totalMembersCount && silenceDurationMs > 210000) {
+            if (!this.lastContractSilenceNudgeTime || now - this.lastContractSilenceNudgeTime > 240000) {
+              this.lastContractSilenceNudgeTime = now;
+              const msg = {
+                sender: 'auctioneer',
+                text: `💡 【拍卖师·分工协商提示】：投票已确立基准主题！大家可以在讨论区针对左侧各成员的章节分工与各部分时间规划展开交流，达成共识后在卡片中直接修改确认！`,
+                timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                _timeMs: now
+              };
+              if (!this.state.chatLogs.stage1) this.state.chatLogs.stage1 = [];
+              this.state.chatLogs.stage1.push(msg);
+              this.syncChatLogs();
+              if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+              renderChat(this.state);
+              return;
+            }
+          }
+
+          // 6. 合约生成后超过 4 分钟仍有人未签署卡片 ➔ 拍卖师催签提醒
+          if (isContractDrafted && signedCount < totalMembersCount) {
+            const contractDraftTime = s1.contract._draftedTime || this.stage1StartTime;
+            if (now - contractDraftTime > 240000) {
+              if (!this.lastSignContractNudgeTime || now - this.lastSignContractNudgeTime > 240000) {
+                this.lastSignContractNudgeTime = now;
+                const unsignedMembers = membersList.filter(m => !signedMap[m.studentCode] && !signedMap[m.id]);
+                const unsignedNames = unsignedMembers.map(m => m.name).join('、');
+                const msg = {
+                  sender: 'auctioneer',
+                  text: `📜 【拍卖师·公约签署跟进】：目前全组合约已签署 ${signedCount}/${totalMembersCount} 人。\n👉 请尚未签署的同学（**${unsignedNames || '未签署组员'}**）仔细核对左侧《学术合作合约》，确认无误后点击下方的【确认签署】，全员完成即可正式解锁阶段二！`,
+                  timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                  _timeMs: now
+                };
+                if (!this.state.chatLogs.stage1) this.state.chatLogs.stage1 = [];
+                this.state.chatLogs.stage1.push(msg);
+                this.syncChatLogs();
+                if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+                renderChat(this.state);
+                return;
+              }
             }
           }
         }
