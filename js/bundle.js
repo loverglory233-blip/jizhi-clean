@@ -5114,6 +5114,11 @@
     }
 
     updateContributionUi() {
+      const editor = document.getElementById('stage2-word-editor');
+      const cleanText = editor ? editor.innerText.replace(/[\s\r\n]+/g, '') : '';
+      const countBadge = document.getElementById('stage2-word-count-num');
+      if (countBadge) countBadge.innerText = `${cleanText.length}`;
+
       const s2 = this.state.stage2;
       const membersList = Object.values(this.state.members || {});
       const contribs = s2.memberContributions || {};
@@ -5125,21 +5130,22 @@
       const getMemberData = (m) => {
         const val = (contribs[m.id] || 0) + (contribs[m.studentCode] || 0);
         if (totalContrib === 0 || val === 0) {
-          return { pct: 0, val: val, label: `${m.name}: 0% (0字)` };
+          const defaultPct = membersList.length > 0 ? Math.round(100 / membersList.length) : 0;
+          return { pct: (totalContrib === 0 ? defaultPct : 0), label: `${m.name}: ${totalContrib === 0 ? defaultPct : 0}%` };
         }
         const pct = Math.round((val / totalContrib) * 100);
-        return { pct: pct, val: val, label: `${m.name}: ${pct}% (${val}字)` };
+        return { pct: pct, label: `${m.name}: ${pct}%` };
       };
 
       const barContainer = document.querySelector('.contrib-bars');
       if (barContainer) {
-        if (totalContrib === 0) {
-          barContainer.innerHTML = `<div style="width:100%; height:10px; background:#e2e8f0; border-radius:6px; display:flex; align-items:center; justify-content:center; font-size:10px; color:#94a3b8;">暂无写作与研讨贡献数据 (各成员贡献均为 0%)</div>`;
+        if (totalContrib === 0 && cleanText.length === 0) {
+          barContainer.innerHTML = `<div style="width:100%; height:10px; background:#f1f5f9; border-radius:5px; display:flex; align-items:center; justify-content:center; font-size:10.5px; color:#94a3b8;">暂无协作投入 (开始编辑正文或研讨后将自动呈现贡献占比)</div>`;
         } else {
           barContainer.innerHTML = membersList.map((m) => {
             const data = getMemberData(m);
             if (data.pct === 0) return '';
-            return `<div class="contrib-segment" style="width:${data.pct}%; background:${m.color || '#2563eb'}; transition:width 0.3s ease;" title="${m.name}: ${data.pct}% (${data.val}字)"></div>`;
+            return `<div class="contrib-segment" style="width:${data.pct}%; background:${m.color || '#2563eb'}; transition:width 0.3s ease;" title="${m.name}: ${data.pct}% (基于写作与修改累计工作量)"></div>`;
           }).join('');
         }
       }
@@ -5151,6 +5157,7 @@
           return `<span style="color:${m.color || '#2563eb'}; font-weight:700;">● ${data.label}</span>`;
         }).join('');
       }
+      this.renderPresenceCursors();
     }
 
     async triggerAgentReplyIfNeeded(userMsg) {
