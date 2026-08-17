@@ -5080,13 +5080,13 @@
           const submittedAuthors = new Set(proposals.map(p => p.author));
           const votesCastCount = Object.values(s1.hasVoted || {}).filter(Boolean).length;
 
-          // 1. 开场静默 > 3 分钟，提示开启研讨
-          if (silenceDurationMs > 180000 && submittedCount === 0) {
+          // 1. 【提案阶段研讨静默守护】：开场或构思过程中，若全组持续 > 3 分钟完全无人发言，拍卖师破冰引导一次
+          if (submittedCount < totalMembersCount && silenceDurationMs > 180000) {
             if (!this.lastDiscussionNudgeTime || now - this.lastDiscussionNudgeTime > 240000) {
               this.lastDiscussionNudgeTime = now;
               const msg = {
                 sender: 'auctioneer',
-                text: `💡 【拍卖师·研讨启动提示】：小组成员都已进入工作区！\n• 建议大家在右侧研讨区开启头脑风暴，分享彼此对本单元研究方向的初步构想，为接下来的提案提供灵感！`,
+                text: `💡 【拍卖师·研讨互动提示】：大家在构思选题的过程中，可以在讨论区互相交流灵感、探讨研究问题的价值与可行性，共同激发更好的提案！`,
                 timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
                 _timeMs: now
               };
@@ -5099,7 +5099,7 @@
             }
           }
 
-          // 2. 开场 > 6 分钟仍 0 提案，引导提交提案
+          // 2. 【零提案超时引导】：开场 > 6 分钟仍 0 人提交提案，引导尽快动笔
           if (submittedCount === 0 && stage1DurationMs > 360000) {
             if (!this.lastZeroProposalNudgeTime || now - this.lastZeroProposalNudgeTime > 300000) {
               this.lastZeroProposalNudgeTime = now;
@@ -5118,7 +5118,7 @@
             }
           }
 
-          // 3. 有人已提交，但超过 4 分钟仍有个别人未交，跟进未交同学
+          // 3. 【个别落后跟进】：有人已提交，但超过 4 分钟仍有个别人未交，跟进提醒未交同学
           if (submittedCount > 0 && submittedCount < totalMembersCount) {
             const lastProposal = proposals[proposals.length - 1];
             const lastProposalTime = lastProposal ? (lastProposal.updatedAt || this.stage1StartTime) : this.stage1StartTime;
@@ -5142,25 +5142,6 @@
                   return;
                 }
               }
-            }
-          }
-
-          // 3b. 过程中研讨静默提醒：若全组已开场且在提案构思/讨论过程中，静默超过 3.5 分钟无人发话
-          if (submittedCount < totalMembersCount && silenceDurationMs > 210000) {
-            if (!this.lastMidSilenceNudgeTime || now - this.lastMidSilenceNudgeTime > 240000) {
-              this.lastMidSilenceNudgeTime = now;
-              const msg = {
-                sender: 'auctioneer',
-                text: `💡 【拍卖师·研讨互动提示】：大家在构思选题的过程中，可以在讨论区互相交流灵感、探讨研究问题的价值与可行性，共同激发更好的提案！`,
-                timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                _timeMs: now
-              };
-              if (!this.state.chatLogs.stage1) this.state.chatLogs.stage1 = [];
-              this.state.chatLogs.stage1.push(msg);
-              this.syncChatLogs();
-              if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
-              renderChat(this.state);
-              return;
             }
           }
 
