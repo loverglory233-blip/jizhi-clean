@@ -1494,9 +1494,21 @@
               <div class="card" style="border-top:4px solid #2563eb; width:100%; padding:24px;">
                 <div class="card-title" style="margin-bottom:16px;">
                   <span style="font-size:17px; font-weight:800; color:#0f172a;">👥 小组划分 (当前班级: ${activeClass.name})</span>
-                  <div style="display:flex; gap:10px; flex-wrap:wrap;">
+                  <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
                     <button id="btn-v1-create-group" class="teacher-action-btn" style="background:linear-gradient(135deg, #1d4ed8, #2563eb); border:none; color:white; padding:8px 16px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer; box-shadow:0 2px 8px rgba(37,99,235,0.25);">+ 新建小组</button>
-                    <button id="btn-v1-random-groups" class="teacher-action-btn" style="background:linear-gradient(135deg, #059669, #10b981); border:none; color:white; padding:8px 16px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer; box-shadow:0 2px 8px rgba(16,185,129,0.25);" title="按每组3人自动随机划分班级内全部学生">🎲 随机分组 (3人/组)</button>
+                    
+                    <div style="display:flex; align-items:center; gap:6px; background:#f0fdf4; border:1px solid #bbf7d0; padding:4px 10px; border-radius:8px;">
+                      <span style="font-size:12.5px; font-weight:700; color:#166534;">每组</span>
+                      <select id="sel-random-group-size" style="padding:4px 8px; border:1px solid #86efac; border-radius:6px; font-size:13px; font-weight:800; color:#15803d; background:#ffffff; cursor:pointer;">
+                        <option value="2">2 人</option>
+                        <option value="3" selected>3 人</option>
+                        <option value="4">4 人</option>
+                        <option value="5">5 人</option>
+                        <option value="6">6 人</option>
+                      </select>
+                      <button id="btn-v1-random-groups" class="teacher-action-btn" style="background:linear-gradient(135deg, #059669, #10b981); border:none; color:white; padding:6px 14px; border-radius:6px; font-size:12.5px; font-weight:700; cursor:pointer; box-shadow:0 2px 6px rgba(16,185,129,0.25);" title="按所选人数自动随机划分班级内全部学生">🎲 一键随机分组</button>
+                    </div>
+
                     <button id="btn-v1-dissolve-all-groups" class="teacher-action-btn" style="background:linear-gradient(135deg, #dc2626, #b91c1c); border:none; color:white; padding:8px 16px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer; box-shadow:0 2px 8px rgba(220,38,38,0.25);">💥 一键解散所有小组</button>
                   </div>
                 </div>
@@ -2393,18 +2405,20 @@
       });
     });
 
-    // 🎲 随机分组 (每组3人并自动指定组长)
+    // 🎲 随机分组 (按教师所选人数自动洗牌划分并指定组长)
     const btnRandomGroups = container.querySelector('#btn-v1-random-groups');
+    const selRandomGroupSize = container.querySelector('#sel-random-group-size');
     if (btnRandomGroups) {
       btnRandomGroups.addEventListener('click', () => {
         if (classStudents.length === 0) {
           alert('⚠️ 当前班级学生池中暂无学生，请先添加学生账号！');
           return;
         }
-        if (confirm(`🎲 确认对【${activeClass.name}】的 ${classStudents.length} 名学生进行随机分组？\n\n系统将按每组 3 人自动洗牌划分并分配组长。原先的分组将被覆盖重置！`)) {
-          authManager.autoRandomGrouping(activeClass.id, 3);
+        const groupSize = selRandomGroupSize ? parseInt(selRandomGroupSize.value, 10) || 3 : 3;
+        if (confirm(`🎲 确认对【${activeClass.name}】的 ${classStudents.length} 名学生进行随机分组？\n\n系统将按【每组 ${groupSize} 人】自动洗牌划分并分配组长。原先的分组将被覆盖重置！`)) {
+          authManager.autoRandomGrouping(activeClass.id, groupSize);
           renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
-          alert(`✅ 已完成随机分组！共自动划分 ${(activeClass.groups || []).length} 个协作小组。`);
+          alert(`✅ 已完成随机分组！按每组 ${groupSize} 人，共自动划分 ${(activeClass.groups || []).length} 个协作小组。`);
         }
       });
     }
