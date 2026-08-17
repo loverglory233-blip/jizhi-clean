@@ -3899,26 +3899,19 @@
 
     // Remove any stale remote cursor elements
     editor.querySelectorAll('.remote-cursor-widget').forEach(el => el.remove());
-    editor.querySelectorAll('.collab-editing-node-highlight').forEach(el => {
-      el.classList.remove('collab-editing-node-highlight');
-      el.style.borderBottom = 'none';
-      el.style.borderLeft = 'none';
-      el.style.backgroundColor = 'transparent';
-      el.style.boxShadow = 'none';
-    });
 
     const membersList = Object.values(state.members || {});
     const currentUserCode = state.currentUser || 'A';
     const presence = state.presence || {};
     const now = Date.now();
 
-    // 按段落分组：如果多个同学在同一行编辑，聚合展示多个姓名胶囊！
+    // 按段落分组展示远程协作者光标
     const nodeToMembers = {};
 
     membersList.forEach(m => {
       if (m.studentCode === currentUserCode || m.id === currentUserCode) return;
       const p = presence[m.studentCode] || presence[m.id];
-      if (!p || (now - p.updatedAt > 15000)) return; // 15秒未活动即视为离线
+      if (!p || (now - p.updatedAt > 20000)) return; // 20秒未活动视为离线
 
       const targetIndex = (typeof p.nodeIndex === 'number' && p.nodeIndex >= 0) ? p.nodeIndex : 0;
       if (!nodeToMembers[targetIndex]) nodeToMembers[targetIndex] = [];
@@ -3932,15 +3925,10 @@
       let targetEl = (children && children[idx]) ? children[idx] : (children.length > 0 ? children[children.length - 1] : null);
 
       if (targetEl && targetEl !== editor) {
-        // 去除整行背景色和整行通栏虚线，保持干净纯洁的 Word 纸张观感
-        targetEl.style.borderBottom = 'none';
-        targetEl.style.backgroundColor = 'transparent';
-
-        // 浮标容器：像腾讯文档/Google Docs一样，在文字正后方呈现小巧的彩色光标小竖线+胶囊名牌
         const cursorContainer = document.createElement('span');
         cursorContainer.className = 'remote-cursor-widget';
         cursorContainer.contentEditable = 'false';
-        cursorContainer.style.cssText = 'user-select:none; pointer-events:none; display:inline-flex; align-items:center; gap:3px; vertical-align:middle; margin-left:4px;';
+        cursorContainer.style.cssText = 'user-select:none; pointer-events:none; display:inline-flex; align-items:center; gap:2px; vertical-align:middle; margin-left:3px;';
         
         cursorContainer.innerHTML = mems.map(({ member: m }) => {
           const color = m.color || '#8b5cf6';
@@ -3948,8 +3936,8 @@
           const avatar = m.avatar || '👨‍🎓';
           return `
             <span style="display:inline-flex; align-items:center; position:relative;">
-              <span style="display:inline-block; width:2px; height:16px; background:${color}; border-radius:1px; margin-right:2px; animation:blinkCursor 1s infinite;"></span>
-              <span class="remote-caret-flag" style="background:${color}; font-size:10px; padding:1px 5px; border-radius:3px; color:white; font-weight:700; display:inline-flex; align-items:center; gap:2px; box-shadow:0 1px 3px rgba(0,0,0,0.12); opacity:0.92;">
+              <span style="display:inline-block; width:2px; height:15px; background:${color}; border-radius:1px; margin-right:2px; animation:blinkCursor 1s infinite;"></span>
+              <span class="remote-caret-flag" style="background:${color}; font-size:10px; padding:1px 4px; border-radius:3px; color:white; font-weight:700; display:inline-flex; align-items:center; gap:2px; box-shadow:0 1px 3px rgba(0,0,0,0.12); opacity:0.95;">
                 ${avatar} ${name}
               </span>
             </span>
@@ -4299,10 +4287,19 @@
 
     const topicInput = canvas.querySelector('#contract-topic-input');
     if (topicInput && !isContractLocked) {
+      let topicTimer = null;
       topicInput.addEventListener('input', (e) => {
         s1.mergedTitle = e.target.value;
+        clearTimeout(topicTimer);
+        topicTimer = setTimeout(() => {
+          if (window.app) {
+            window.app.syncStage1();
+            if (window.app.cloudSyncEngine) window.app.cloudSyncEngine.pushSnapshot();
+          }
+        }, 150);
       });
       const flushTopic = () => {
+        clearTimeout(topicTimer);
         s1.mergedTitle = topicInput.value;
         if (window.app) {
           window.app.syncStage1();
@@ -4316,13 +4313,22 @@
 
     canvas.querySelectorAll('.contract-time-input').forEach(input => {
       if (!isContractLocked) {
+        let timeTimer = null;
         input.addEventListener('input', (e) => {
           const key = e.target.dataset.key;
           if (key && s1.contract.timeAllocations) {
             s1.contract.timeAllocations[key] = Number(e.target.value) || 0;
+            clearTimeout(timeTimer);
+            timeTimer = setTimeout(() => {
+              if (window.app) {
+                window.app.syncStage1();
+                if (window.app.cloudSyncEngine) window.app.cloudSyncEngine.pushSnapshot();
+              }
+            }, 150);
           }
         });
         const flushTime = () => {
+          clearTimeout(timeTimer);
           const key = input.dataset.key;
           if (key && s1.contract.timeAllocations) {
             s1.contract.timeAllocations[key] = Number(input.value) || 0;
@@ -4340,14 +4346,23 @@
 
     canvas.querySelectorAll('.task-assignment-input').forEach(input => {
       if (!isContractLocked) {
+        let taskTimer = null;
         input.addEventListener('input', (e) => {
           const mId = e.target.dataset.mid;
           if (mId) {
             if (!s1.contract.taskAssignments) s1.contract.taskAssignments = {};
             s1.contract.taskAssignments[mId] = e.target.value;
+            clearTimeout(taskTimer);
+            taskTimer = setTimeout(() => {
+              if (window.app) {
+                window.app.syncStage1();
+                if (window.app.cloudSyncEngine) window.app.cloudSyncEngine.pushSnapshot();
+              }
+            }, 150);
           }
         });
         const flushTask = () => {
+          clearTimeout(taskTimer);
           const mId = input.dataset.mid;
           if (mId) {
             if (!s1.contract.taskAssignments) s1.contract.taskAssignments = {};
@@ -6589,9 +6604,9 @@
             <button class="modal-close-btn" id="btn-close-meeting">✕</button>
           </div>
           <div class="teacher-modal-body">
-            <!-- 1. 全篇通读与思想碰撞 (SSRL 计划与认知互阅) -->
+            <!-- 1. 全篇通读与思想碰撞 -->
             <div style="background:#f8fafc; border:1px solid #cbd5e1; border-radius:10px; padding:12px 16px;">
-              <div style="font-size:13px; font-weight:800; color:#1e40af; margin-bottom:10px;">📋 一、全篇通读与思想碰撞 (SSRL 计划与认知互阅)</div>
+              <div style="font-size:13px; font-weight:800; color:#1e40af; margin-bottom:10px;">📋 一、全篇通读与思想碰撞</div>
               
               <div style="display:flex; flex-direction:column; gap:8px;">
                 <div style="display:flex; justify-content:space-between; align-items:center; background:#ffffff; padding:8px 12px; border-radius:8px; border:1px solid #e2e8f0;">
@@ -6615,9 +6630,9 @@
               </div>
             </div>
 
-            <!-- 2. 团队共享调节 3 维打星自评 (舒展立体) -->
+            <!-- 2. 团队共享调节 3 维打星自评 -->
             <div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:10px; padding:12px 16px; margin-top:12px; display:flex; flex-direction:column; gap:10px;">
-              <div style="font-size:13px; font-weight:800; color:#0f172a;">🌟 二、团队共享调节 (SSRL) 3 维打星自评</div>
+              <div style="font-size:13px; font-weight:800; color:#0f172a;">🌟 二、团队共享调节 3 维打星自评</div>
               
               <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px dashed #f1f5f9; padding-bottom:6px;">
                 <span style="font-size:12.5px; font-weight:600; color:#334155;">① 内容逻辑与学术严谨度：</span>
@@ -6655,7 +6670,7 @@
 
             <!-- 3. 三维难点瓶颈全面自评 -->
             <div style="background:#f8fafc; border:1px solid #cbd5e1; border-radius:10px; padding:12px 16px; margin-top:12px; display:flex; flex-direction:column; gap:10px;">
-              <div style="font-size:13px; font-weight:800; color:#0f172a;">⚠️ 三、团队 3 维瓶颈自查 (每个维度各确定 1 项核心难点)</div>
+              <div style="font-size:13px; font-weight:800; color:#0f172a;">⚠️ 三、团队 3 维瓶颈自查</div>
               
               <div>
                 <label style="font-size:12px; font-weight:700; color:#1e40af;">📚 维度 ① 学术内容难点：</label>
@@ -6687,7 +6702,7 @@
 
             <div class="teacher-form-group" style="margin-top:10px;">
               <label style="font-size:13px; font-weight:700;">✍️ 向审稿专家提问 / 组内核心困惑说明 (选填)</label>
-              <textarea id="meeting-input-text" class="teacher-textarea" style="min-height:55px;" placeholder="请输入组内最想向审稿编辑请教的学术问题或论证困惑...">背景与问题部分已完成，请审稿编辑重点评价假设与方法量表的衔接。</textarea>
+              <textarea id="meeting-input-text" class="teacher-textarea" style="min-height:55px;" placeholder="请输入组内最想向审稿编辑请教的学术问题或论证困惑..."></textarea>
             </div>
           </div>
           <div class="teacher-modal-footer">
