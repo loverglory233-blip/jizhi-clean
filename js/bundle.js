@@ -4667,6 +4667,12 @@
       setInterval(() => {
         const currentUser = this.authManager.getCurrentUser();
         if (currentUser && currentUser.role === 'student' && this.state.timer.isRunning) {
+          this.state.timer.elapsedSeconds += 1 * this.state.timer.speed;
+          const min = this.state.timer.elapsedSeconds / 60;
+          const currentStage = this.state.currentStage || 'stage1';
+          const nowMs = Date.now();
+          const logs = (this.state.chatLogs && this.state.chatLogs[currentStage]) || [];
+
           // ⚡ 阶段切换由学生全员签署完成合约或组内自主点击把控，禁止定时器无预警强行切阶段
           // if (min >= 25 && this.state.currentStage === 'stage1') this.switchStage('stage2');
           // else if (min >= 130 && this.state.currentStage === 'stage2') this.switchStage('stage3');
