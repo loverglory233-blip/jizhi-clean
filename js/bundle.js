@@ -912,7 +912,7 @@
     initWebSocket() {
       this.updateScopeKeys();
       this.initSSE();
-      // PieSocket for instant real-time push (scoped by task and group)
+      // PieSocket 可选加速通道 (连接失败时平滑降级到 400ms 高速轮询通道，不刷红屏报错)
       const wsUrl = `wss://free.v2.piesocket.com/v3/jizhi_${this.taskId}_${this.groupId}?api_key=VCXCEuvhGcBDP7XhiJJLUD6RRE25ixbngSkiUZ3N&notify_self=0`;
       try {
         if (this.ws) { try { this.ws.close(); } catch (e) {} }
@@ -923,7 +923,9 @@
             if (data && data.snapshot) this.handleRemoteSync(data.snapshot);
           } catch (err) {}
         };
-        this.ws.onclose = () => { setTimeout(() => this.initWebSocket(), 3000); };
+        this.ws.onclose = () => {
+          // 失败后不进行死循环重连，系统默认由 400ms 高速 HTTP 轮询和 BroadcastChannel 稳定保底
+        };
         this.ws.onerror = () => {};
       } catch (e) {}
     }
