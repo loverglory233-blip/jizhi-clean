@@ -3132,6 +3132,7 @@
      ========================================================================== */
   function renderHeader(state, currentUser, announcements, onStageChange, onSpeedChange, onLogout, onSwitchTeacher, onOpenAnnModal, onOpenSurveyModal, onBackToTaskList) {
     const header = document.getElementById('app-header');
+    if (!header) return;
     const elapsedMin = Math.floor(state.timer.elapsedSeconds / 60);
     const remainingMin = Math.max(0, 150 - elapsedMin);
     const groupId = currentUser && currentUser.groupId ? currentUser.groupId : 'group_1';
@@ -4820,16 +4821,18 @@
             }
           }
 
-          renderHeader(
-            this.state, currentUser, this.authManager.getAnnouncements(),
-            (s) => this.switchStage(s), (sp) => this.setSpeed(sp),
-            () => this.handleLogout(), () => this.switchToTeacherView(),
-            () => this.showAnnouncementModal(), () => this.showQuestionnaireModal(),
-            () => {
-              this.state.studentViewMode = 'task_list';
-              this.renderMain();
-            }
-          );
+          if (this.state.studentViewMode === 'workspace') {
+            renderHeader(
+              this.state, currentUser, this.authManager.getAnnouncements(),
+              (s) => this.switchStage(s), (sp) => this.setSpeed(sp),
+              () => this.handleLogout(), () => this.switchToTeacherView(),
+              () => this.showAnnouncementModal(), () => this.showQuestionnaireModal(),
+              () => {
+                this.state.studentViewMode = 'task_list';
+                this.renderMain();
+              }
+            );
+          }
         }
       }, 1000);
     }
