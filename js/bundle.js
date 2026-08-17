@@ -1170,7 +1170,7 @@
       // ── 最终提交状态 ──
       if (remoteData.isFinalSubmitted !== undefined && remoteData.isFinalSubmitted !== this.app.state.isFinalSubmitted) {
         this.app.state.isFinalSubmitted = remoteData.isFinalSubmitted;
-        // 最终提交状态变化才需要重绘
+        this.app.saveGroupState(myGroupId);
         if (user?.role === 'student' && this.app.state.studentViewMode === 'workspace') {
           this.app.renderStudentWorkspace();
         }
@@ -1232,6 +1232,7 @@
 
           if ((isProposalChanged || isVoteChanged || isConfirmChanged)
               && user?.role === 'student' && this.app.state.studentViewMode === 'workspace') {
+            this.app.saveGroupState(myGroupId);
             this.app.renderStudentWorkspace();
             return;
           }
@@ -1269,6 +1270,7 @@
           if (JSON.stringify(remoteData.stage2.actionPlan) !== JSON.stringify(this.app.state.stage2.actionPlan)) {
             this.app.state.stage2.actionPlan = remoteData.stage2.actionPlan;
             if (user?.role === 'student' && this.app.state.studentViewMode === 'workspace') {
+              this.app.saveGroupState(myGroupId);
               this.app.renderStudentWorkspace();
               return;
             }
@@ -1281,6 +1283,7 @@
         if (JSON.stringify(remoteData.stage3.feedbackItems) !== JSON.stringify(this.app.state.stage3.feedbackItems)) {
           this.app.state.stage3.feedbackItems = remoteData.stage3.feedbackItems;
           if (user?.role === 'student' && this.app.state.studentViewMode === 'workspace') {
+            this.app.saveGroupState(myGroupId);
             this.app.renderStudentWorkspace();
             return;
           }
