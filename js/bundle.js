@@ -1827,8 +1827,8 @@
                             monitorMembersList.forEach(m => { totalContrib += (contribs[m.id] || 0) + (contribs[m.studentCode] || 0); });
                             return monitorMembersList.map(m => {
                               const val = (contribs[m.id] || 0) + (contribs[m.studentCode] || 0);
-                              const pct = (totalContrib === 0 || val === 0) ? 0 : Math.round((val / totalContrib) * 100);
-                              return `<span style="color:${m.color || '#2563eb'}; font-weight:700;">● ${m.name}: ${pct}% (${val}字)</span>`;
+                              const pct = (totalContrib === 0 || val === 0) ? (monitorMembersList.length > 0 ? Math.round(100 / monitorMembersList.length) : 0) : Math.round((val / totalContrib) * 100);
+                              return `<span style="color:${m.color || '#2563eb'}; font-weight:700;">● ${m.name}: ${pct}%</span>`;
                             }).join('');
                           })()}
                         </div>
@@ -4494,10 +4494,36 @@
       const editor = document.getElementById('stage2-word-editor');
       if (editor) {
         // 更新字数与协同状态
-        const countEl = document.getElementById('stage2-word-count-badge');
-        if (countEl) {
-          const plain = editor.innerText.replace(/\s+/g, '');
-          countEl.innerText = `${plain.length} 字`;
+        const countBadge = document.getElementById('stage2-word-count-num');
+        const cleanText = editor.innerText.replace(/[\s\r\n]+/g, '');
+        if (countBadge) {
+          countBadge.innerText = `${cleanText.length}`;
+        }
+
+        // 动态刷新下方 SSRL 贡献度条 (纯百分比模式)
+        const contribLabelsContainer = document.getElementById('stage2-contrib-labels');
+        const contribBarsContainer = document.getElementById('stage2-contrib-bars');
+        if (contribLabelsContainer && contribBarsContainer) {
+          const membersList = Object.values(this.state.members || {});
+          const contribs = this.state.stage2.memberContributions || {};
+          let rawTotal = 0;
+          membersList.forEach(m => { rawTotal += (contribs[m.id] || 0) + (contribs[m.studentCode] || 0); });
+
+          contribLabelsContainer.innerHTML = membersList.map((m) => {
+            const rawVal = (contribs[m.id] || 0) + (contribs[m.studentCode] || 0);
+            const pct = (rawTotal === 0 || rawVal === 0) ? (membersList.length > 0 ? Math.round(100 / membersList.length) : 0) : Math.round((rawVal / rawTotal) * 100);
+            return `<span style="color:${m.color || '#2563eb'}; font-weight:700;">● ${m.name}: ${pct}%</span>`;
+          }).join('');
+
+          if (rawTotal === 0 && cleanText.length === 0) {
+            contribBarsContainer.innerHTML = `<div style="width:100%; height:10px; background:#f1f5f9; border-radius:5px; display:flex; align-items:center; justify-content:center; font-size:10.5px; color:#94a3b8;">暂无协作投入 (开始编辑正文或研讨后将自动呈现贡献占比)</div>`;
+          } else {
+            contribBarsContainer.innerHTML = membersList.map((m) => {
+              const rawVal = (contribs[m.id] || 0) + (contribs[m.studentCode] || 0);
+              const pct = (rawTotal === 0) ? Math.round(100 / (membersList.length || 1)) : Math.round((rawVal / rawTotal) * 100);
+              return `<div class="contrib-segment" style="width:${pct}%; background:${m.color || '#2563eb'}; transition:width 0.3s ease;" title="${m.name}: ${pct}% (基于写作与修改累计工作量)"></div>`;
+            }).join('');
+          }
         }
       }
       this.renderPresenceCursors();
