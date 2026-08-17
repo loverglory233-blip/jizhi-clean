@@ -128,10 +128,39 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         
         if ($pdo) {
             $isResetVal = !empty($data['isReset']) ? 1 : 0;
+            
+            // 读取当前服务端 reset_seq
+            $stmtGetResetSeq = $pdo->prepare("SELECT meta_value FROM global_meta WHERE meta_key = :k");
+            $stmtGetResetSeq->execute([':k' => 'reset_seq_' . $scopeKey]);
+            $resetSeqRow = $stmtGetResetSeq->fetch();
+            $serverResetSeq = $resetSeqRow ? intval($resetSeqRow['meta_value']) : 0;
+            
             if ($isResetVal) {
-                // 如果是重置指令，清空历史 chat_messages
+                // ── 重置指令：递增 reset_seq 并清空所有数据 ──
+                $newResetSeq = $serverResetSeq + 1;
+                $stmtSetResetSeq = $pdo->prepare("INSERT INTO global_meta (meta_key, meta_value) VALUES (:k, :v) ON DUPLICATE KEY UPDATE meta_value = :v2");
+                $stmtSetResetSeq->execute([':k' => 'reset_seq_' . $scopeKey, ':v' => $newResetSeq, ':v2' => $newResetSeq]);
+                $serverResetSeq = $newResetSeq;
+
+                // 清空 chat_messages 和 chats 快速通道
                 $stmtDelChats = $pdo->prepare("DELETE FROM chat_messages WHERE scope_key = :sk");
                 $stmtDelChats->execute([':sk' => $scopeKey]);
+                $emptyChats = json_encode(['stage1' => [], 'stage2' => [], 'stage3' => []], JSON_UNESCAPED_UNICODE);
+                $stmtClearChatMeta = $pdo->prepare("INSERT INTO global_meta (meta_key, meta_value) VALUES (:k, :v) ON DUPLICATE KEY UPDATE meta_value = :v2");
+                $stmtClearChatMeta->execute([':k' => 'chats_' . $scopeKey, ':v' => $emptyChats, ':v2' => $emptyChats]);
+            } else {
+                // ── 普通推送：如果客户端 reset_seq 落后于服务端，说明该客户端还没处理重置，拒绝本次推送 ──
+                $clientResetSeq = isset($data['resetSeq']) ? intval($data['resetSeq']) : 0;
+                if ($clientResetSeq < $serverResetSeq) {
+                    // 客户端数据是重置前的旧数据，拒绝写入，返回当前服务端 reset_seq 提醒客户端同步
+                    echo json_encode([
+                        'success'    => false,
+                        'stale'      => true,
+                        'resetSeq'   => $serverResetSeq,
+                        'message'    => 'Client is behind reset sequence, please sync first'
+                    ]);
+                    exit;
+                }
             }
             // 4a. 保存小组协作快照 (stage1/2/3, presence, members, chatLogs)
             $stmt = $pdo->prepare("INSERT INTO group_states 
@@ -352,6 +381,12 @@ if ($pdo) {
         $chatRow = $stmtChats->fetch();
         $chats = ($chatRow && !empty($chatRow['meta_value'])) ? json_decode($chatRow['meta_value'], true) : ['stage1' => [], 'stage2' => [], 'stage3' => []];
 
+        // 读取 reset_seq 让客户端感知是否需要重置
+        $stmtRsq = $pdo->prepare("SELECT meta_value FROM global_meta WHERE meta_key = :k");
+        $stmtRsq->execute([':k' => 'reset_seq_' . $scopeKey]);
+        $rsqRow = $stmtRsq->fetch();
+        $resetSeq = $rsqRow ? intval($rsqRow['meta_value']) : 0;
+
         // 同时拉取全局教务元数据，确保所有设备能拿到最新用户池/班级/任务/通知/范文库
         $stmtMeta = $pdo->prepare("SELECT meta_value FROM global_meta WHERE meta_key = 'main_meta'");
         $stmtMeta->execute();
@@ -370,6 +405,7 @@ if ($pdo) {
             'members'          => json_decode($row['members_data'], true) ?: [],
             'isFinalSubmitted' => (bool)$row['is_final_submitted'],
             'chatLogs'         => $chats,
+            'resetSeq'         => $resetSeq,
             // 全局教务字段 - 每次 GET 都带回，让前端 handleRemoteSync 能同步用户池和班级
             'users'            => isset($globalMeta['users'])            ? $globalMeta['users']            : [],
             'classes'          => isset($globalMeta['classes'])          ? $globalMeta['classes']          : [],
