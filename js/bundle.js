@@ -1309,12 +1309,20 @@
             topicInp.value = remoteS1.mergedTitle || '';
           }
 
-          // 只有提案/投票/签署状态变化才需要全面重绘（合约文字变化不重绘）
-          const isProposalChanged = JSON.stringify(remoteS1.proposals) !== JSON.stringify(localS1.proposals);
-          const isVoteChanged = JSON.stringify(remoteS1.votes) !== JSON.stringify(localS1.votes);
+          // 提案池合并保护：按提案 ID 做并集去重，防止 A 设备提交的提案被 B 设备推送的空/旧提案池覆盖删除
+          const localProps = Array.isArray(localS1.proposals) ? localS1.proposals : [];
+          const remoteProps = Array.isArray(remoteS1.proposals) ? remoteS1.proposals : [];
+          const propMap = new Map();
+          localProps.forEach(p => { if (p && p.id) propMap.set(p.id, p); });
+          remoteProps.forEach(p => { if (p && p.id) propMap.set(p.id, p); });
+          const mergedProposals = Array.from(propMap.values());
+
+          const isProposalChanged = JSON.stringify(mergedProposals) !== JSON.stringify(localProps);
+          const isVoteChanged = JSON.stringify(remoteS1.votes || {}) !== JSON.stringify(localS1.votes || {});
           const isConfirmChanged = remoteS1.contract?.isConfirmed !== localS1.contract?.isConfirmed
             || JSON.stringify(remoteS1.contract?.confirmedMembers) !== JSON.stringify(localS1.contract?.confirmedMembers);
 
+          remoteS1.proposals = mergedProposals;
           this.app.state.stage1 = remoteS1;
 
           if ((isProposalChanged || isVoteChanged || isConfirmChanged)
@@ -1334,8 +1342,9 @@
           const editor = document.getElementById('stage2-word-editor') || document.getElementById('stage3-word-editor');
           if (editor) {
             const isLocalComposing = (editor.dataset.isComposing === 'true');
-            // 只要本地没有正在进行中文拼音组字输入(composition)，就平滑同步远端最新正文
-            if (!isLocalComposing) {
+            const isLocalFocused = (document.activeElement === editor);
+            // 核心保护：本地用户正在聚焦打字或拼音输入时，绝不覆盖本地输入框（防止正在打的字被删掉）
+            if (!isLocalComposing && !isLocalFocused) {
               const currentLocalHtml = editor.innerHTML.replace(/<span class="remote-cursor-widget"[\s\S]*?<\/span>/gi, '');
               if (currentLocalHtml.trim() !== cleanRemoteContent.trim()) {
                 editor.innerHTML = cleanRemoteContent || '';
