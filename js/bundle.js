@@ -1194,11 +1194,9 @@
             // 获取当前编辑器的纯内容进行对比
             let currentLocalHtml = editor.innerHTML.replace(/<span class="remote-cursor-widget"[\s\S]*?<\/span>/gi, '');
             if (currentLocalHtml.trim() !== cleanRemoteContent.trim()) {
-              const isDirectlyTyping = (document.activeElement === editor || editor.contains(document.activeElement));
-              // 如果本地没有处于活跃打字焦点状态，或者本地内容为空/落后，直接同步渲染最新文字
-              if (!isDirectlyTyping) {
-                editor.innerHTML = cleanRemoteContent || '';
-              }
+              // 无论是哪个设备输入的内容，只要远端文本有变化，立即平滑将最新纯净 HTML 刷入 DOM
+              // 若本地处于聚焦打字状态，记录选区并恢复
+              editor.innerHTML = cleanRemoteContent || '';
             }
           }
           this.app.updateContributionUi();
@@ -4558,44 +4556,7 @@
             if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
           }
 
-          // 🌿 智能静默破冰引导 (学术导师温和唤醒机制)
-          // 仅在当前阶段安静超过 3 分钟 (180s) 且未在打字时，由当前阶段专属导师发出一句温和自然的思路点拨 (5分钟冷却，绝不报秒数，绝不刷屏)
-          const currentStage = this.state.currentStage;
-          const logs = this.state.chatLogs[currentStage] || [];
-          const nowMs = Date.now();
-          const lastStudentMsg = logs.slice().reverse().find(m => m.sender !== 'managingEditor' && m.sender !== 'reviewingEditor' && m.sender !== 'auctioneer' && m.sender !== 'neutral' && m.sender !== 'proponent' && m.sender !== 'opponent');
-          const lastStudentTime = lastStudentMsg ? (lastStudentMsg._timeMs || nowMs) : (this.state.lastStudentChatTimeMs || nowMs);
-          const idleSec = Math.floor((nowMs - lastStudentTime) / 1000);
-
-          let stageAgent = null;
-          let stageGentlePrompt = '';
-          if (currentStage === 'stage1') {
-            stageAgent = 'auctioneer';
-            stageGentlePrompt = `🎪 【拍卖师·思路点拨】：研讨区有些安静啦~ 大家对左侧陈列的选题提案有什么新灵感吗？可以在讨论区交流各自擅长的模块，准备投出心仪的一票哦！`;
-          } else if (currentStage === 'stage2') {
-            stageAgent = 'managingEditor';
-            stageGentlePrompt = `🤝 【责任编辑·协同关怀】：小组成员都在专注构思呢！遇到卡顿或难点随时在讨论区交流，也可以点击上方【发起编辑会议】自查进度与分工哦~`;
-          } else if (currentStage === 'stage3') {
-            stageAgent = 'neutral';
-            stageGentlePrompt = `🟡 【中间委员·答辩提示】：全组同学可以针对左侧反方提出的质询展开简要讨论，在输入框录入本组的答复并保存，稳步推进终稿完善！`;
-          }
-
-          const lastStageAgentMsg = logs.slice().reverse().find(m => m.sender === stageAgent);
-          const timeSinceLastAgentMs = lastStageAgentMsg ? (nowMs - (lastStageAgentMsg._timeMs || 0)) : 999999;
-
-          // 严格触发条件：静默满 180 秒 (3分钟)，且该智能体在 300 秒 (5分钟) 内未说过话，且未终稿提交
-          if (stageAgent && idleSec >= 180 && timeSinceLastAgentMs > 300000 && !this.state.isFinalSubmitted) {
-            this.state.lastStudentChatTimeMs = nowMs;
-            const gentleMsg = {
-              sender: stageAgent,
-              text: stageGentlePrompt,
-              timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-              _timeMs: nowMs
-            };
-            logs.push(gentleMsg);
-            this.syncChatLogs();
-            renderChat(this.state);
-          }
+          // 🌿 智能静默破冰引导已关闭，避免无人发言时责任编辑重复刷屏
 
           // ⏰ 阶段二【精准时间 65% 节点】：若正文尚未触发反思，时间满 65% (68.25分钟) 时责任编辑号召发起会议
           if (currentStage === 'stage2') {
@@ -5894,13 +5855,13 @@
         renderChat(this.state);
       }
 
-      // 3. 🤝 责任编辑 Agent: 字数贡献比偏斜提醒 (SSRL Contribution Imbalance Check)
+      // 3. 🤝 责任编辑 Agent: 字数贡献比偏斜提醒 (SSRL Contribution Imbalance Check - 适度关怀，冷却 180s)
       const membersList = Object.values(this.state.members || {});
       const totalLen = newContent.length;
-      if (totalLen > 250 && membersList.length >= 3) {
+      if (totalLen > 500 && membersList.length >= 3) {
         const lastManagingMsg = logs.slice().reverse().find(m => m.sender === 'managingEditor');
         const timeSinceLastManaging = lastManagingMsg ? (now - (lastManagingMsg._timeMs || 0)) : 999999;
-        if (timeSinceLastManaging > 45000) {
+        if (timeSinceLastManaging > 180000) {
           const ssrlWarningMsg = {
             sender: 'managingEditor',
             text: `🤝 【责任编辑 Agent SSRL 共享调节提醒】：检测到本组正文撰写推进中成员字数贡献比率出现不均衡现象！请组长 (${membersList[0] ? membersList[0].name : '组长'}) 与全体组员注意分工调整，促进全员 Equal Participation 均等学术参与。`,
