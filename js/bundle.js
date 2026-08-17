@@ -4411,7 +4411,7 @@
             <div style="display:flex; justify-content:space-between; align-items:center; cursor:pointer;" id="btn-toggle-action-plan">
               <div style="font-size:12.5px; font-weight:800; color:#059669; display:flex; align-items:center; gap:6px;">
                 <span>📋 【审稿编辑·半程修正清单】(3项修改要求)</span>
-                <span style="font-size:11px; background:#d1fae5; color:#065f46; padding:1px 6px; border-radius:10px;">已锁定</span>
+                <span style="font-size:11px; background:#d1fae5; color:#065f46; padding:1px 6px; border-radius:10px;">已生成</span>
               </div>
               <span id="icon-toggle-action-plan" style="font-size:11.5px; color:#059669; font-weight:700;">▲ 收起</span>
             </div>
@@ -4419,7 +4419,17 @@
               ${actionPlan.items.map(item => `<div style="line-height:1.5;">• ${item}</div>`).join('')}
             </div>
           </div>
-        ` : ''}
+        ` : `
+          <div id="stage2-action-plan-card" style="background:#f8fafc; border:1px dashed #cbd5e1; border-radius:8px; padding:8px 14px; margin-bottom:8px;">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <div style="font-size:12px; font-weight:700; color:#64748b; display:flex; align-items:center; gap:6px;">
+                <span>📋 【审稿编辑·半程修正清单】</span>
+                <span style="font-size:10.5px; background:#e2e8f0; color:#475569; padding:1px 6px; border-radius:10px;">待解锁</span>
+              </div>
+              <span style="font-size:11px; color:#94a3b8;">（半程自查会议打卡后自动生成）</span>
+            </div>
+          </div>
+        `}
 
         <!-- Word-grade Academic Rich Text Editor Body -->
         <div style="flex:1; min-height:0; display:flex; flex-direction:column;">
