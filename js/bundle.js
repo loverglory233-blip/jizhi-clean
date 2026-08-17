@@ -4454,7 +4454,7 @@
           <div id="stage2-action-plan-card" style="background:#ecfdf5; border:1px solid #a7f3d0; border-radius:8px; padding:8px 14px; margin-bottom:8px; transition:all 0.2s ease;">
             <div style="display:flex; justify-content:space-between; align-items:center; cursor:pointer;" id="btn-toggle-action-plan">
               <div style="font-size:12.5px; font-weight:800; color:#059669; display:flex; align-items:center; gap:6px;">
-                <span>📋 【审稿编辑·半程修正清单】(3项修改要求)</span>
+                <span>📋 【半程修正清单】(3项修改要求)</span>
                 <span style="font-size:11px; background:#d1fae5; color:#065f46; padding:1px 6px; border-radius:10px;">已生成</span>
               </div>
               <span id="icon-toggle-action-plan" style="font-size:11.5px; color:#059669; font-weight:700;">▲ 收起</span>
@@ -4463,24 +4463,17 @@
               ${actionPlan.items.map(item => `<div style="line-height:1.5;">• ${item}</div>`).join('')}
             </div>
           </div>
-        ` : (() => {
-          const subs = s2.meetingSubmissions || {};
-          const subCount = Object.keys(subs).length;
-          const totalCount = membersList.length || 3;
-          return `
-            <div id="stage2-action-plan-card" style="background:#f8fafc; border:1px dashed #cbd5e1; border-radius:8px; padding:8px 14px; margin-bottom:8px;">
-              <div style="display:flex; justify-content:space-between; align-items:center;">
-                <div style="font-size:12px; font-weight:700; color:#64748b; display:flex; align-items:center; gap:6px;">
-                  <span>📋 【审稿编辑·半程修正清单】</span>
-                  <span style="font-size:10.5px; background:${subCount > 0 ? '#dbeafe' : '#e2e8f0'}; color:${subCount > 0 ? '#1d4ed8' : '#475569'}; padding:1px 6px; border-radius:10px; font-weight:700;">
-                    ${subCount > 0 ? `打卡进度: ${subCount}/${totalCount}人` : '待解锁'}
-                  </span>
-                </div>
-                <span style="font-size:11px; color:#94a3b8;">（组内全员 ${totalCount} 人完成半程会议打卡后自动解锁生成）</span>
+        ` : `
+          <div id="stage2-action-plan-card" style="background:#f8fafc; border:1px dashed #cbd5e1; border-radius:8px; padding:8px 14px; margin-bottom:8px;">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <div style="font-size:12px; font-weight:700; color:#64748b; display:flex; align-items:center; gap:6px;">
+                <span>📋 【半程修正清单】</span>
+                <span style="font-size:10.5px; background:#e2e8f0; color:#475569; padding:1px 6px; border-radius:10px;">待解锁</span>
               </div>
+              <span style="font-size:11px; color:#94a3b8;">（全组成员完成半程会议自查后自动生成）</span>
             </div>
-          `;
-        })()}
+          </div>
+        `}
 
         <!-- Word-grade Academic Rich Text Editor Body -->
         <div style="flex:1; min-height:0; display:flex; flex-direction:column;">
