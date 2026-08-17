@@ -6678,32 +6678,33 @@
       const modal = document.createElement('div');
       modal.className = 'modal-overlay';
       modal.innerHTML = `
-        <div class="teacher-modal-card" style="width:620px;">
+        <div class="teacher-modal-card" style="width:640px;">
           <div class="teacher-modal-header ann-theme">
-            <div class="modal-header-title"><span class="modal-icon">📢</span><div><h3>学术编辑部【半程编辑会议】</h3><p>共享调节 3 维评价与半程修正清单生成</p></div></div>
+            <div class="modal-header-title"><span class="modal-icon">📢</span><div><h3>学术编辑部【半程编辑会议】</h3><p>全篇互阅、思想碰撞与半程修正清单生成</p></div></div>
             <button class="modal-close-btn" id="btn-close-meeting">✕</button>
           </div>
           <div class="teacher-modal-body">
-            <!-- 1. 契约与构想一致性双核自查 -->
+            <!-- 1. 全篇通读与思想碰撞 (SSRL 计划与认知互阅) -->
             <div style="background:#f8fafc; border:1px solid #cbd5e1; border-radius:10px; padding:12px 16px;">
-              <div style="font-size:13px; font-weight:800; color:#1e40af; margin-bottom:10px;">📋 阶段一公约与核心构想对照 (SSRL 计划自查)</div>
+              <div style="font-size:13px; font-weight:800; color:#1e40af; margin-bottom:10px;">📋 一、全篇通读与思想碰撞 (SSRL 计划与认知互阅)</div>
               
               <div style="display:flex; flex-direction:column; gap:8px;">
                 <div style="display:flex; justify-content:space-between; align-items:center; background:#ffffff; padding:8px 12px; border-radius:8px; border:1px solid #e2e8f0;">
-                  <span style="font-size:12.5px; color:#334155; font-weight:600;">1. 核心研究构想与初衷一致性：</span>
-                  <select id="meeting-theme-consistency-select" class="teacher-input" style="width:170px; padding:4px 8px; font-size:12px;">
-                    <option value="紧扣初衷，观点高度聚焦">✅ 紧扣初衷，观点高度聚焦</option>
+                  <span style="font-size:12.5px; color:#334155; font-weight:600;">1. 自己负责章节的自查状态：</span>
+                  <select id="meeting-theme-consistency-select" class="teacher-input" style="width:200px; padding:4px 8px; font-size:12px;">
+                    <option value="紧扣初衷，论点清晰聚焦">✅ 紧扣初衷，论点清晰聚焦</option>
                     <option value="基本一致，有局部微调">🔄 基本一致，有局部微调</option>
-                    <option value="存在发散，需聚焦核心论点">⚠️ 存在发散，需聚焦核心论点</option>
+                    <option value="感觉有些偏离初衷或写卡壳了">⚠️ 感觉有些偏离初衷或卡壳</option>
                   </select>
                 </div>
 
                 <div style="display:flex; justify-content:space-between; align-items:center; background:#ffffff; padding:8px 12px; border-radius:8px; border:1px solid #e2e8f0;">
-                  <span style="font-size:12.5px; color:#334155; font-weight:600;">2. 章节耗时与时间预算一致性：</span>
-                  <select id="meeting-time-consistency-select" class="teacher-input" style="width:170px; padding:4px 8px; font-size:12px;">
-                    <option value="节奏匹配，符合时间规划">✅ 节奏匹配，符合时间规划</option>
-                    <option value="局部超时，后半程需加速">⏳ 局部超时，后半程需加速</option>
-                    <option value="进度严重滞后，需精简篇幅">🚨 进度严重滞后，需精简篇幅</option>
+                  <span style="font-size:12.5px; color:#334155; font-weight:600;">2. 通读同伴段落的思想研判：</span>
+                  <select id="meeting-peer-review-select" class="teacher-input" style="width:200px; padding:4px 8px; font-size:12px;">
+                    <option value="逻辑严密，高度认同同伴构想">✅ 逻辑严密，高度认同构想</option>
+                    <option value="产生补充新灵感，想为同伴补充论据">💡 产生新灵感，想补充论据</option>
+                    <option value="存在不同看法，对部分论证需商榷">⚖️ 存在不同看法，需商榷</option>
+                    <option value="深受启发，很好地呼应了后续章节">🔗 深受启发，呼应后续章节</option>
                   </select>
                 </div>
               </div>
@@ -6711,7 +6712,7 @@
 
             <!-- 2. 团队共享调节 3 维打星自评 (舒展立体) -->
             <div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:10px; padding:12px 16px; margin-top:12px; display:flex; flex-direction:column; gap:10px;">
-              <div style="font-size:13px; font-weight:800; color:#0f172a;">🌟 团队共享调节 (SSRL) 3 维打星自评</div>
+              <div style="font-size:13px; font-weight:800; color:#0f172a;">🌟 二、团队共享调节 (SSRL) 3 维打星自评</div>
               
               <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px dashed #f1f5f9; padding-bottom:6px;">
                 <span style="font-size:12.5px; font-weight:600; color:#334155;">① 内容逻辑与学术严谨度：</span>
@@ -6747,9 +6748,9 @@
               </div>
             </div>
 
-            <!-- 3. 三维难点瓶颈全面自评 (3 个维度各选一个真实困惑) -->
+            <!-- 3. 三维难点瓶颈全面自评 -->
             <div style="background:#f8fafc; border:1px solid #cbd5e1; border-radius:10px; padding:12px 16px; margin-top:12px; display:flex; flex-direction:column; gap:10px;">
-              <div style="font-size:13px; font-weight:800; color:#0f172a;">⚠️ 团队 3 维瓶颈自查 (每个维度各确定 1 项核心难点)</div>
+              <div style="font-size:13px; font-weight:800; color:#0f172a;">⚠️ 三、团队 3 维瓶颈自查 (每个维度各确定 1 项核心难点)</div>
               
               <div>
                 <label style="font-size:12px; font-weight:700; color:#1e40af;">📚 维度 ① 学术内容难点：</label>
@@ -6780,8 +6781,8 @@
             </div>
 
             <div class="teacher-form-group" style="margin-top:10px;">
-              <label style="font-size:13px; font-weight:700;">✍️ 组内自评与补充修正说明</label>
-              <textarea id="meeting-input-text" class="teacher-textarea" style="min-height:55px;" placeholder="请输入组内自我检讨或需要审稿编辑解答的问题...">背景与问题部分已完成，请审稿编辑评价假设与方法的衔接。</textarea>
+              <label style="font-size:13px; font-weight:700;">✍️ 向审稿专家提问 / 组内核心困惑说明 (选填)</label>
+              <textarea id="meeting-input-text" class="teacher-textarea" style="min-height:55px;" placeholder="请输入组内最想向审稿编辑请教的学术问题或论证困惑...">背景与问题部分已完成，请审稿编辑重点评价假设与方法量表的衔接。</textarea>
             </div>
           </div>
           <div class="teacher-modal-footer">
@@ -6832,7 +6833,7 @@
 
       modal.querySelector('#btn-submit-meeting').addEventListener('click', async () => {
         const themeConsistency = modal.querySelector('#meeting-theme-consistency-select').value;
-        const timeConsistency = modal.querySelector('#meeting-time-consistency-select').value;
+        const peerReviewState = modal.querySelector('#meeting-peer-review-select').value;
         const bAcademic = modal.querySelector('#meeting-bottleneck-academic').value;
         const bCollab = modal.querySelector('#meeting-bottleneck-collab').value;
         const bRhythm = modal.querySelector('#meeting-bottleneck-rhythm').value;
@@ -6841,30 +6842,39 @@
 
         const topic = (this.state.stage1 && this.state.stage1.mergedTitle) ? this.state.stage1.mergedTitle : '本组课题';
 
-        // 1. 立即点亮并生成左侧【半程编辑修正清单】(全要素 4 维严密映射)
+        // 1. 立即点亮并生成左侧【半程编辑修正清单】
         this.state.stage2.actionPlan = {
           isGenerated: true,
           items: [
-            `【学术构想与论证修正】(立意状态: ${themeConsistency} · 逻辑 ${logicRating}★): 针对瓶颈【${bAcademic}】与组内提问("${userText}")，在三、假设与四、设计中补齐操作化测量量表与理论依据。`,
+            `【学术构想与论证修正】(自查: ${themeConsistency} · 互阅: ${peerReviewState}): 针对瓶颈【${bAcademic}】与组内提问("${userText}")，在三、假设与四、设计中补齐操作化测量量表与理论依据。`,
             `【团队协同与分工平衡】(分工平衡度: ${balanceRating}★): 针对瓶颈【${bCollab}】，统一各章节论述用词风格与逻辑过渡，落实 Equal Participation 均等参与。`,
-            `【时间节奏与反思深化】(时间预算: ${timeConsistency} · 信心 ${confidenceRating}★): 针对瓶颈【${bRhythm}】，把控后半程节奏，优先完成五、研究设计的不足与反思。`
+            `【时间节奏与反思深化】(信心状态: ${confidenceRating}★): 针对瓶颈【${bRhythm}】，把控后半程节奏，优先完成五、研究设计的不足与反思。`
           ]
         };
         this.syncStage2();
         this.renderStudentWorkspace();
 
-        // 2. 异步调用扣子【责任编辑】Coze API: 总结自查、抛出分歧反思问题并发布清单
-        const managingPrompt = `小组成员已完成半程编辑会议自查：
-• 构想立意一致性: ${themeConsistency}
-• 章节耗时一致性: ${timeConsistency}
+        // 2. 异步调用扣子【责任编辑】Coze API: 主次分明 (分歧为70%主线，协作时间为辅；一致则夸默契顺畅推进)
+        const hasDivergence = themeConsistency.includes('偏离') || themeConsistency.includes('卡壳') || peerReviewState.includes('不同看法') || peerReviewState.includes('商榷');
+        const managingPrompt = `小组成员已完成半程编辑会议自查打卡：
+• 负责章节自查状态: ${themeConsistency}
+• 通读同伴思想研判: ${peerReviewState}
 • 3维打星自评: 逻辑严谨度 ${logicRating}★, 分工平衡度 ${balanceRating}★, 团队信心 ${confidenceRating}★
 • 3维核心瓶颈: ① 学术难点: ${bAcademic} | ② 协作难点: ${bCollab} | ③ 进度难点: ${bRhythm}
 • 组内说明与提问: "${userText}"
-平台已在左侧生成对应的【半程编辑修正清单】。请作为责任编辑发表 130~160 字的发言：简要告知清单要点，若存在立意发散或时间偏紧等分歧，主动抛出反思思考题号召组内先在讨论区交流对齐，并预告审稿编辑随后将进行正文内容审查！`;
+• 判定状态: ${hasDivergence ? '【存在显著分歧/不同看法】' : '【全员高度一致认同】'}
 
-        let managingText = await callCozeAgentAPI('managingEditor', managingPrompt, { stage: 'stage2', topic, bottleneck: bAcademic });
+请作为责任编辑发表 130~160 字的发言：
+${hasDivergence 
+  ? '【分歧引导主线】：将 70% 篇幅聚焦于组员在立意与同伴构想上的认知分歧，抛出具体的反思思考题号召全组在讨论区先辩论对齐；顺带提一句协作难点与时间把控，并预告审稿专家随后将进行学术质检！'
+  : '【高度一致分支】：顺势大力肯定团队的高度默契与聚焦状态，引导大家针对手填的开放提问与学术难点交流，并预告审稿专家马上为大家做正文深度学术质检！'
+}`;
+
+        let managingText = await callCozeAgentAPI('managingEditor', managingPrompt, { stage: 'stage2', topic, bottleneck: bAcademic, peerReview: peerReviewState });
         if (!managingText || managingText.trim().length === 0) {
-          managingText = `🤝 【责任编辑·自查研判与分歧引导】：全员自查打卡完毕！平台已根据大家的自查数据在左侧正式生成了【半程编辑修正清单】。自查显示：立意状态为[${themeConsistency}]，协作与进度难点聚焦在[${bCollab}]与[${bRhythm}]。请全组在讨论区先交流一下如何克服上述难点并对齐初衷共识，稍后审稿编辑将对正文初稿进行学术内容审查！`;
+          managingText = hasDivergence
+            ? `🤝 【责任编辑·分歧研判与对齐引导】：全员自查完毕，清单已生成！重点关注到组内对目前正文的立意与同伴构想存在认知分歧（自查状态：${themeConsistency}；互阅研判：${peerReviewState}）。👉 请全组立刻在讨论区深入对齐：目前的方法设计有没有偏离核心命题？大家打算如何统一论证逻辑？稍后审稿专家将接着为大家做正文审查！`
+            : `🤝 【责任编辑·高度默契肯定与推进】：全员自查完毕，清单已生成！太棒了，全组对论文核心构想与同伴论述保持着高度一致的认同与默契（${peerReviewState}）！请大家保持这个良好的协同状态，针对刚才提出的学术难点（『${userText || bAcademic}』）简要交流，审稿专家马上接着为大家做正文深度学术质检！`;
         }
 
         const managingMsg = {
