@@ -5060,6 +5060,31 @@
         const submittedCount = (s1.proposals || []).length;
         const votesCastCount = Object.values(s1.hasVoted || {}).filter(Boolean).length;
 
+        // 0. 全组静默与无操作检测（如果组内超过 2 分钟没有任何发言且尚未开始提交提案，拍卖师主动破冰）
+        const s1Chats = (this.state.chatLogs && this.state.chatLogs.stage1) ? this.state.chatLogs.stage1 : [];
+        const lastStudentMsg = [...s1Chats].reverse().find(m => m.sender && m.sender !== 'auctioneer' && m.sender !== 'system');
+        const lastStudentMsgTime = lastStudentMsg ? (lastStudentMsg._timeMs || 0) : (this.stage1StartTime || now);
+        if (!this.stage1StartTime) this.stage1StartTime = now;
+
+        const isGroupCompletelySilent = (now - lastStudentMsgTime > 120000); // 2 分钟完全无发言
+        if (submittedCount === 0 && isGroupCompletelySilent) {
+          if (!this.lastIceBreakNudgeTime || now - this.lastIceBreakNudgeTime > 150000) {
+            this.lastIceBreakNudgeTime = now;
+            const iceBreakMsg = {
+              sender: 'auctioneer',
+              text: `💡 【拍卖师·破冰与研讨启发】：小组成员目前似乎还在思考构思中？\n• 建议先从课程相关的痛点或热点入手（如：大模型辅助教学、游戏化学习、智慧课堂互动等）；\n• 大家可以在右侧研讨区畅所欲言抛出初步想法，或者直接点击左侧【提交我的选题】提出你的第一份提案！`,
+              timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+              _timeMs: now
+            };
+            if (!this.state.chatLogs.stage1) this.state.chatLogs.stage1 = [];
+            this.state.chatLogs.stage1.push(iceBreakMsg);
+            this.syncChatLogs();
+            if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+            renderChat(this.state);
+            return;
+          }
+        }
+
         // 1. 提案超时提醒（若开场超过 3 分钟，且还有成员未提交提案）
         if (submittedCount < totalMembersCount) {
           if (!this.lastProposalNudgeTime || now - this.lastProposalNudgeTime > 180000) {
