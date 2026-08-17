@@ -5372,10 +5372,10 @@
             }
           }
 
-          // 4. 🎯 半程会议后协同修改守护：半程会议已完成（清单已生成），若讨论区超过 10 分钟无人说话，提示交流修改进展与对齐
+          // 4. 🎯 半程会议后协同修改守护：半程会议已完成（清单已生成），若讨论区超过 8 分钟无人说话，提示交流修改进展与对齐
           const hasMeetingDone = !!(s2.actionPlan && s2.actionPlan.isGenerated);
-          if (hasMeetingDone && silenceDurationMs > 600000) {
-            if (!this.lastS2PostMeetingSilenceNudgeTime || now - this.lastS2PostMeetingSilenceNudgeTime > 400000) {
+          if (hasMeetingDone && silenceDurationMs > 480000) {
+            if (!this.lastS2PostMeetingSilenceNudgeTime || now - this.lastS2PostMeetingSilenceNudgeTime > 300000) {
               this.lastS2PostMeetingSilenceNudgeTime = now;
               const msg = {
                 sender: 'managingEditor',
