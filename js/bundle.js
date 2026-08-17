@@ -5440,15 +5440,14 @@
     async triggerAgentReplyIfNeeded(userMsg) {
       const stage = this.state.currentStage;
       const isExplicitMention = userMsg.includes('@');
-      const isMilestoneKeyword = userMsg.includes('分工') || userMsg.includes('确定') || userMsg.includes('结论') || userMsg.includes('方案') || userMsg.includes('意见') || userMsg.includes('背景') || userMsg.includes('文献') || userMsg.includes('方法');
-      const hasEnoughDiscussion = this.studentMsgCountSinceLastAgent >= 3;
 
-      if (!isExplicitMention && !isMilestoneKeyword && !hasEnoughDiscussion) return;
+      // ── 严格里程碑驱动原则：平时学生互相讨论时智能体保持静默，绝不“说一句回一句”，仅在显式 @ 时针对性答疑 ──
+      if (!isExplicitMention) return;
 
       let replyAgent = null;
       let defaultFallbackText = '';
 
-      // 1. 如果用户显式 @ 某个智能体：任何阶段均可回答该特定智能体
+      // 1. 用户显式 @ 某个智能体时进行针对性答疑
       if (userMsg.includes('@中间委员') || userMsg.includes('@中间委员 Agent')) {
         replyAgent = 'neutral';
         defaultFallbackText = `🟡 【中间委员回复】：收到关注！对于正反两方质询，建议团队权衡取舍，在终稿中强化论证逻辑！`;
@@ -5466,37 +5465,7 @@
         defaultFallbackText = `🤝 【责任编辑过程学伴回复】：收到 @ 呼叫！目前小组协同节奏良好，建议组员按合约分工分块推进正文写作。`;
       } else if (userMsg.includes('@拍卖师') || userMsg.includes('@拍卖师 Agent')) {
         replyAgent = 'auctioneer';
-        const currentTopic = (this.state.stage1 && this.state.stage1.mergedTitle) ? this.state.stage1.mergedTitle : '当前课题';
-        defaultFallbackText = `🎪 【拍卖师选题顾问回复】：收到 @ 呼叫！建议从小组成员提案中提炼核心创新点，协商融合为统一主题并在合约中确认！`;
-      } else {
-        // 2. 如果没有显式 @：严格按阶段触发专属智能体（其他阶段智能体绝对不出来）
-        if (stage === 'stage1') {
-          // 🎪 阶段一：只有【拍卖师】出来
-          replyAgent = 'auctioneer';
-          defaultFallbackText = `🎪 【拍卖师阶段引导】组内讨论正在进行中！请大家在左侧提交各自的选题提案，或在合约卡片中商定分工与时间，确认后全员签署！`;
-        } else if (stage === 'stage2') {
-          // 📝 阶段二：消极情绪与流程学伴由【责任编辑】响应，学术规范由【审稿编辑】响应
-          const isNegativeEmotion = /(?:写不出来|太难了|太难写|好难|救命|焦虑|搞不定|写得好烂|写的好烂|好烦|头疼|卡住|卡顿|不知道怎么写|不想写)/i.test(userMsg);
-          const nowMs = Date.now();
-          const timeSinceLastEmotion = nowMs - (this.lastEmotionSupportTimeMs || 0);
-
-          if (isNegativeEmotion && timeSinceLastEmotion > 60000) {
-            // 触发责任编辑暖心情感与减压支架（冷却时间 60秒，绝不频繁打扰）
-            this.lastEmotionSupportTimeMs = nowMs;
-            replyAgent = 'managingEditor';
-            defaultFallbackText = `🤝 【责任编辑·暖心陪伴】：收到大家的困扰与压力啦！初稿撰写‘先完成再完美’是所有学者都会经历的过程。大家不要有心理负担，哪怕先在讨论区列出 3 个核心词或写下几句零散想法，同伴和编辑都会一起协助完善，深呼吸，我们一起慢慢推进！`;
-          } else if (userMsg.includes('分工') || userMsg.includes('进度') || userMsg.includes('字数') || userMsg.includes('公约') || userMsg.includes('时间')) {
-            replyAgent = 'managingEditor';
-            defaultFallbackText = `🤝 【责任编辑过程学伴回复】：关注到大家在正文写作中的协同进展。请组员分头撰写对应章节，保持均匀贡献比，遇到瓶颈可发起【编辑会议】！`;
-          } else {
-            replyAgent = 'reviewingEditor';
-            defaultFallbackText = `📝 【审稿编辑针对性指导】：请大家在左侧富文本编辑器中保持学术规范，注意在“四、研究设计与方法”中清晰说明变量与量表，必要时可使用上方插件插入学术三线表！`;
-          }
-        } else if (stage === 'stage3') {
-          // 🎓 阶段三：只有【三个答辩委员】出来 (默认中间委员引导)
-          replyAgent = 'neutral';
-          defaultFallbackText = `🟡 【中间委员裁决引导】：针对答辩委员会提出的学术质询，请小组在左侧卡片中统一裁决，达成共识后将辩护修正内容补充进终稿！`;
-        }
+        defaultFallbackText = `🎪 【拍卖师选题顾问回复】：收到 @ 呼叫！请大家在左侧提交提案、完成竞拍投票并在《学术合作合约》中敲定最终主题与分工！`;
       }
 
       if (!replyAgent) return;
@@ -5608,22 +5577,40 @@
         setTimeout(() => {
           const tally = {};
           Object.values(s1.votes).forEach(pId => { if (pId) tally[pId] = (tally[pId] || 0) + 1; });
-          let summaryText = '🎪 【拍卖师宣布最终计票结果】：全员投票已完毕！\n';
+          let summaryText = '🎪 【拍卖师·投票结果播报与主题推进】\n全员投票已全部完成！计票结果如下：\n';
           let maxVotes = -1;
           let winningProposal = null;
+          let hasTie = false;
           (s1.proposals || []).forEach(p => { 
             const count = tally[p.id] || 0;
-            summaryText += `• 《${p.title}》得票: ${count} 票\n`; 
+            summaryText += `• 《${p.title}》: ${count} 票\n`; 
             if (count > maxVotes) {
               maxVotes = count;
               winningProposal = p;
+              hasTie = false;
+            } else if (count === maxVotes && maxVotes > 0) {
+              hasTie = true;
             }
           });
-          summaryText += `\n🔨 计票显示：《${winningProposal ? winningProposal.title : '当前提案'}》获得最高支持！请组员结合研讨确认最终主题并签署合作卡片！`;
-          const summaryMsg = { sender: 'auctioneer', text: summaryText, timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) };
+
+          if (hasTie) {
+            summaryText += `\n⚖️ **票数持平/存在分歧引导**：目前出现并列最高票，建议全组组员在研讨区充分协商，融合各提案核心创新点，并在下方合约卡片中确立统一的主题！`;
+          } else {
+            summaryText += `\n🔨 **落槌敲定**：《${winningProposal ? winningProposal.title : '当前提案'}》获得最高支持！`;
+            if (!s1.mergedTitle && winningProposal) {
+              s1.mergedTitle = winningProposal.title;
+            }
+          }
+
+          summaryText += `\n\n👉 **下一步引导（细化主题、分工与时间分配）**：\n请全组在下方《团队协同合作学术合约》中：\n1. 确认或细化论文最终研究主题；\n2. 为每位组员分配具体写作章节（如背景、综述、方法等）；\n3. 规划各模块用时；\n4. 确认无误后，全员点击【确认签署】正式生效！`;
+
+          const summaryMsg = { sender: 'auctioneer', text: summaryText, timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), _timeMs: Date.now() };
           this.state.chatLogs.stage1.push(summaryMsg);
+          this.syncStage1();
           this.syncChatLogs();
+          if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
           renderChat(this.state);
+          this.renderStudentWorkspace();
         }, 1000);
       }
       this.renderStudentWorkspace();
