@@ -1087,6 +1087,11 @@
 
       if (remoteData.groupId && remoteData.groupId !== myGroupId && user?.role === 'student') return;
 
+      // 丢弃过时包：如果远程包时间戳早于本地已处理的最新时间戳且非强制重置，忽略此包，防止旧数据打架
+      if (remoteData.timestamp && remoteData.timestamp < this.lastTimestamp && !remoteData.isReset) {
+        return;
+      }
+
       if (remoteData.timestamp) {
         this.lastTimestamp = Math.max(this.lastTimestamp, remoteData.timestamp);
       }
@@ -1103,12 +1108,10 @@
           }
           return u;
         });
-        // 仅当数据实际发生变化时才写入，避免无意义的 localStorage 抖动
         const localJson = localStorage.getItem('jizhi_pure_v10_users_db');
         const remoteJson = JSON.stringify(mergedUsers);
         if (localJson !== remoteJson) {
           localStorage.setItem('jizhi_pure_v10_users_db', remoteJson);
-          structuralUpdated = true;
         }
       }
       if (remoteData.classes && Array.isArray(remoteData.classes) && remoteData.classes.length > 0) {
@@ -1116,7 +1119,6 @@
         const remoteJson = JSON.stringify(remoteData.classes);
         if (localJson !== remoteJson) {
           localStorage.setItem('jizhi_pure_v10_classes_db', remoteJson);
-          structuralUpdated = true;
         }
       }
       if (remoteData.tasks && Array.isArray(remoteData.tasks)) {
@@ -1152,10 +1154,9 @@
             const remoteLogs = Array.isArray(remoteData.chatLogs[stg]) ? remoteData.chatLogs[stg] : [];
             const localLogs = Array.isArray(this.app.state.chatLogs[stg]) ? this.app.state.chatLogs[stg] : [];
             
-            // 以服务端真实日志为准，仅当有更新时写入
+            // 以服务端真实日志为准，仅当有更新时写入内存，renderChat 会自动在原位置重绘聊天流，绝不触发布局销毁重绘
             if (JSON.stringify(remoteLogs) !== JSON.stringify(localLogs)) {
               this.app.state.chatLogs[stg] = remoteLogs;
-              structuralUpdated = true;
             }
           });
         }
@@ -4570,6 +4571,7 @@
       this.initPresetMessagesForGroup(groupId);
       this.saveGroupState(groupId);
       if (this.cloudSyncEngine) {
+        this.cloudSyncEngine.groupId = groupId;
         this.cloudSyncEngine.updateScopeKeys();
         // 标记为强制重置快照，通知远端各学生端彻底重置本地草稿、合约与聊天
         this.cloudSyncEngine.isResetBroadcast = true;
