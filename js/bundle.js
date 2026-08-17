@@ -917,8 +917,8 @@
 
     initPolling() {
       this.pullFromServer();
-      // Poll server every 400ms for instantaneous cross-device sync
-      this.pollTimer = setInterval(() => this.pullFromServer(), 400);
+      // Poll server every 200ms for instantaneous near-realtime cross-device sync
+      this.pollTimer = setInterval(() => this.pullFromServer(), 200);
 
       if ('BroadcastChannel' in window) {
         try {
@@ -1258,8 +1258,36 @@
       if (remoteData.stage1) {
         const localS1 = this.app.state.stage1 || { proposals: [], votes: {}, hasVoted: {}, contract: {} };
         const remoteS1 = remoteData.stage1;
-        if (JSON.stringify(remoteS1) !== JSON.stringify(localS1)) {
-          // 局部更新合约输入框 value（不销毁DOM）
+        // ── 合约字段全量双向同步：无论何种变动，均同步写入 state ──
+        if (remoteS1.contract) {
+            if (!this.app.state.stage1.contract) this.app.state.stage1.contract = {};
+            if (remoteS1.contract.taskAssignments) {
+              this.app.state.stage1.contract.taskAssignments = {
+                ...(this.app.state.stage1.contract.taskAssignments || {}),
+                ...remoteS1.contract.taskAssignments
+              };
+            }
+            if (remoteS1.contract.timeAllocations) {
+              this.app.state.stage1.contract.timeAllocations = {
+                ...(this.app.state.stage1.contract.timeAllocations || {}),
+                ...remoteS1.contract.timeAllocations
+              };
+            }
+            if (remoteS1.contract.confirmedMembers) {
+              this.app.state.stage1.contract.confirmedMembers = {
+                ...(this.app.state.stage1.contract.confirmedMembers || {}),
+                ...remoteS1.contract.confirmedMembers
+              };
+            }
+            if (remoteS1.contract.isConfirmed !== undefined) {
+              this.app.state.stage1.contract.isConfirmed = remoteS1.contract.isConfirmed;
+            }
+          }
+          if (remoteS1.mergedTitle !== undefined) {
+            this.app.state.stage1.mergedTitle = remoteS1.mergedTitle;
+          }
+
+          // 局部更新合约输入框 value（如果当前未在聚焦打字，立即呈现远端最新输入）
           if (remoteS1.contract?.taskAssignments) {
             document.querySelectorAll('.task-assignment-input').forEach(inp => {
               const mId = inp.dataset.mid;
@@ -1296,7 +1324,6 @@
               if (!localP) {
                 propByAuthor.set(remoteP.author, remoteP);
               } else {
-                // 如果远端提案修改时间更新，或者没有时间戳，以远端为准
                 const remoteTime = remoteP.updatedAt || 0;
                 const localTime = localP.updatedAt || 0;
                 if (remoteTime >= localTime) {
@@ -1312,14 +1339,13 @@
           const isConfirmChanged = remoteS1.contract?.isConfirmed !== localS1.contract?.isConfirmed
             || JSON.stringify(remoteS1.contract?.confirmedMembers) !== JSON.stringify(localS1.contract?.confirmedMembers);
 
-          remoteS1.proposals = mergedProposals;
-          this.app.state.stage1 = remoteS1;
+          this.app.state.stage1.proposals = mergedProposals;
+          if (remoteS1.votes) this.app.state.stage1.votes = remoteS1.votes;
 
           if (isProposalChanged || isVoteChanged || isConfirmChanged) {
             needWorkspaceRender = true;
           }
         }
-      }
 
       // ── stage2 正文编辑器：局部更新，绝不销毁编辑器DOM ──
       if (remoteData.stage2) {
@@ -4193,10 +4219,12 @@
           state.chatLogs[currentStage].push(submitNoticeMsg);
 
           closeModal();
-          handlers.onContractChange();
           handlers.onRefresh();
           if (window.app) {
             window.app.syncStage1();
+            if (window.app.cloudSyncEngine) {
+              window.app.cloudSyncEngine.pushSnapshot();
+            }
           }
 
           // 1. 异步调用扣子拍卖师 API，对该提案做针对性学术评估 (120~180字)
