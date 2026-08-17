@@ -5188,26 +5188,53 @@
             }
           }
 
-          // 5. 投票已完成且合约草案已生成 ➔ 分工与时间微调讨论静默守护（静默 > 3.5 分钟）
+          // 5. 投票已完成且合约草案已生成 ➔ 分歧协商或分工讨论静默守护
           const signedMap = (s1.contract && s1.contract.confirmedMembers) ? s1.contract.confirmedMembers : {};
           const signedCount = Object.values(signedMap).filter(Boolean).length;
           const isContractDrafted = votesCastCount >= totalMembersCount;
 
-          if (isContractDrafted && signedCount < totalMembersCount && silenceDurationMs > 210000) {
-            if (!this.lastContractSilenceNudgeTime || now - this.lastContractSilenceNudgeTime > 240000) {
-              this.lastContractSilenceNudgeTime = now;
-              const msg = {
-                sender: 'auctioneer',
-                text: `💡 【拍卖师·分工协商提示】：投票已确立基准主题！大家可以在讨论区针对左侧各成员的章节分工与各部分时间规划展开交流，达成共识后在卡片中直接修改确认！`,
-                timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                _timeMs: now
-              };
-              if (!this.state.chatLogs.stage1) this.state.chatLogs.stage1 = [];
-              this.state.chatLogs.stage1.push(msg);
-              this.syncChatLogs();
-              if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
-              renderChat(this.state);
-              return;
+          if (isContractDrafted && signedCount < totalMembersCount) {
+            const tally = {};
+            Object.values(s1.votes || {}).forEach(pId => { if (pId) tally[pId] = (tally[pId] || 0) + 1; });
+            const maxVotes = Math.max(...Object.values(tally), 0);
+            const hasDivergence = (maxVotes < totalMembersCount); // 存在票数分歧
+
+            // 5a. 【存在分歧时的研讨静默守护】：投票有分歧且静默 > 3 分钟无人发言
+            if (hasDivergence && silenceDurationMs > 180000) {
+              if (!this.lastDivergenceSilenceNudgeTime || now - this.lastDivergenceSilenceNudgeTime > 240000) {
+                this.lastDivergenceSilenceNudgeTime = now;
+                const msg = {
+                  sender: 'auctioneer',
+                  text: `⚖️ 【拍卖师·分歧协商破冰】：注意到大家在刚才的投票中持有不同观点！\n👉 建议各提案作者在讨论区简要说明自己的构想亮点，大家共同商讨如何取长补短，将核心创新点融合成一个更完美的主题！`,
+                  timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                  _timeMs: now
+                };
+                if (!this.state.chatLogs.stage1) this.state.chatLogs.stage1 = [];
+                this.state.chatLogs.stage1.push(msg);
+                this.syncChatLogs();
+                if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+                renderChat(this.state);
+                return;
+              }
+            }
+
+            // 5b. 【常规分工/时间协商静默守护】：静默 > 3.5 分钟
+            if (silenceDurationMs > 210000) {
+              if (!this.lastContractSilenceNudgeTime || now - this.lastContractSilenceNudgeTime > 240000) {
+                this.lastContractSilenceNudgeTime = now;
+                const msg = {
+                  sender: 'auctioneer',
+                  text: `💡 【拍卖师·分工协商提示】：大家可以在讨论区针对左侧各成员的章节分工与时间预算展开交流，达成共识后在卡片中直接修改确认！`,
+                  timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                  _timeMs: now
+                };
+                if (!this.state.chatLogs.stage1) this.state.chatLogs.stage1 = [];
+                this.state.chatLogs.stage1.push(msg);
+                this.syncChatLogs();
+                if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+                renderChat(this.state);
+                return;
+              }
             }
           }
 
