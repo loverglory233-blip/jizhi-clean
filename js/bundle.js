@@ -6380,7 +6380,35 @@
 
 
 
-      // 3. 🎯 章节语义里程碑雷达：推进到【总结反思】时号召发起【半程编辑会议】
+      // 1. 🎯 审稿编辑第一次动态质检（检测到正文推进到【二、文献综述】或【三、研究问题与假设】时触发一次）
+      const hasLitOrQuestionSection = /(?:二、|第2章|第二部分|文献综述|三、|第3章|第三部分|研究问题|研究假设)/i.test(newContent);
+      if (hasLitOrQuestionSection && !this.state.stage2FirstReviewDone && timeSinceLastReviewing > 60000) {
+        this.state.stage2FirstReviewDone = true;
+        const topic = (this.state.stage1 && this.state.stage1.mergedTitle) ? this.state.stage1.mergedTitle : '本组课题';
+        const contentSnippet = newContent.replace(/<[^>]*>/g, '').slice(0, 500);
+
+        setTimeout(async () => {
+          const firstReviewPrompt = `团队正在撰写课题《${topic}》，目前正文已推进到文献综述与研究问题部分，内容切片如下：\n${contentSnippet}\n请作为审稿编辑发表 120~150 字的初稿进展建议：肯定当前已完成部分的亮点，并给出 1~2 句微调启发建议（确保方法与问题呼应），鼓励团队继续稳步推进！`;
+          let firstReviewText = await callCozeAgentAPI('reviewingEditor', firstReviewPrompt, { stage: 'stage2', topic });
+          if (!firstReviewText || firstReviewText.trim().length === 0) {
+            firstReviewText = `📝 【审稿编辑·初稿进展建议】：审阅了大家目前撰写的正文，论证框架非常清晰！针对当前写到的文献与问题部分，建议对核心概念的操作化描述再做细微补充，确保研究方法与研究问题之间的对应关系清晰可见，大家在讨论区交流一下，继续稳步推进！`;
+          }
+
+          const firstReviewMsg = {
+            sender: 'reviewingEditor',
+            text: firstReviewText,
+            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            _timeMs: Date.now()
+          };
+          if (!this.state.chatLogs.stage2) this.state.chatLogs.stage2 = [];
+          this.state.chatLogs.stage2.push(firstReviewMsg);
+          this.syncChatLogs();
+          if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+          renderChat(this.state);
+        }, 800);
+      }
+
+      // 2. 🎯 章节语义里程碑雷达：推进到【总结反思】时号召发起【半程编辑会议】
       const hasReflectionSection = /(?:五、|第5章|第五部分|不足与反思|研究反思|反思与不足|总结与反思|研究局限)/i.test(newContent);
       const isStage2MeetingLocked = this.state.stage2 && this.state.stage2.actionPlan && this.state.stage2.actionPlan.isGenerated;
       const lastManagingMsg = logs.slice().reverse().find(m => m.sender === 'managingEditor');
