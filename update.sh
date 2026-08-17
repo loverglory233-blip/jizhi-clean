@@ -23,8 +23,25 @@ rm -rf "$TMP" && mkdir -p "$TMP/css" "$TMP/js" "$TMP/api"
 
 dl() {
   local f=$1
-  curl -s -L "https://ghfast.top/https://raw.githubusercontent.com/loverglory233-blip/jizhi-clean/main/$f" -o "$TMP/$f" \
-  || curl -s -L "https://raw.gitmirror.com/loverglory233-blip/jizhi-clean/main/$f" -o "$TMP/$f"
+  local success=0
+  local urls=(
+    "https://testingcf.jsdelivr.net/gh/loverglory233-blip/jizhi-clean@main/$f"
+    "https://cdn.jsdelivr.net/gh/loverglory233-blip/jizhi-clean@main/$f"
+    "https://ghfast.top/https://raw.githubusercontent.com/loverglory233-blip/jizhi-clean/main/$f"
+    "https://ghproxy.net/https://raw.githubusercontent.com/loverglory233-blip/jizhi-clean/main/$f"
+    "https://raw.gitmirror.com/loverglory233-blip/jizhi-clean/main/$f"
+    "https://raw.githubusercontent.com/loverglory233-blip/jizhi-clean/main/$f"
+  )
+  for u in "${urls[@]}"; do
+    curl -s -f -L --connect-timeout 5 --max-time 15 "$u" -o "$TMP/$f" 2>/dev/null
+    if [ -s "$TMP/$f" ] && ! grep -q "429: Too Many Requests" "$TMP/$f"; then
+      success=1
+      break
+    fi
+  done
+  if [ $success -eq 0 ]; then
+    echo "⚠️ 镜像下载 $f 失败，尝试备用线路..."
+  fi
 }
 
 dl index.html
