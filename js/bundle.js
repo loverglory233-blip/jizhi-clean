@@ -4463,17 +4463,24 @@
               ${actionPlan.items.map(item => `<div style="line-height:1.5;">• ${item}</div>`).join('')}
             </div>
           </div>
-        ` : `
-          <div id="stage2-action-plan-card" style="background:#f8fafc; border:1px dashed #cbd5e1; border-radius:8px; padding:8px 14px; margin-bottom:8px;">
-            <div style="display:flex; justify-content:space-between; align-items:center;">
-              <div style="font-size:12px; font-weight:700; color:#64748b; display:flex; align-items:center; gap:6px;">
-                <span>📋 【半程修正清单】</span>
-                <span style="font-size:10.5px; background:#e2e8f0; color:#475569; padding:1px 6px; border-radius:10px;">待解锁</span>
+        ` : (() => {
+          const subs = s2.meetingSubmissions || {};
+          const subCount = Object.keys(subs).length;
+          const totalCount = membersList.length || 3;
+          return `
+            <div id="stage2-action-plan-card" style="background:#f8fafc; border:1px dashed #cbd5e1; border-radius:8px; padding:8px 14px; margin-bottom:8px;">
+              <div style="display:flex; justify-content:space-between; align-items:center;">
+                <div style="font-size:12px; font-weight:700; color:#64748b; display:flex; align-items:center; gap:6px;">
+                  <span>📋 【半程修正清单】</span>
+                  <span style="font-size:10.5px; background:${subCount > 0 ? '#dbeafe' : '#e2e8f0'}; color:${subCount > 0 ? '#1d4ed8' : '#475569'}; padding:1px 8px; border-radius:10px; font-weight:700;">
+                    ${subCount > 0 ? `待解锁 (已打卡 ${subCount}/${totalCount}人)` : `待解锁 (0/${totalCount}人)`}
+                  </span>
+                </div>
+                <span style="font-size:11px; color:#94a3b8;">（组内全员 ${totalCount} 人完成半程自查后自动生成）</span>
               </div>
-              <span style="font-size:11px; color:#94a3b8;">（全组成员完成半程会议自查后自动生成）</span>
             </div>
-          </div>
-        `}
+          `;
+        })()}
 
         <!-- Word-grade Academic Rich Text Editor Body -->
         <div style="flex:1; min-height:0; display:flex; flex-direction:column;">
@@ -6813,22 +6820,12 @@
         const submissions = this.state.stage2.meetingSubmissions;
         const submittedCount = Object.keys(submissions).length;
 
-        // 播报个人打卡完成消息
-        const checkInMsg = {
-          sender: user,
-          text: `📢 [半程自查打卡]: 我 (${memberName}) 已完成半程自查与互阅研判！（全组打卡进度: ${submittedCount}/${totalMembersCount} 人）`,
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-        };
-        if (!this.state.chatLogs.stage2) this.state.chatLogs.stage2 = [];
-        this.state.chatLogs.stage2.push(checkInMsg);
-        this.syncChatLogs();
-
         // 仅当全组所有成员全部打卡完毕时，才解锁并生成【半程编辑修正清单】
         if (submittedCount < totalMembersCount) {
           this.syncStage2();
           if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
           this.renderStudentWorkspace();
-          alert(`✅ 你 (${memberName}) 已成功提交半程自查与互阅打卡！\n\n目前组内打卡进度：${submittedCount}/${totalMembersCount} 人。\n需组内所有 ${totalMembersCount} 名成员全部完成打卡后，审稿编辑将自动为全组汇总生成【半程编辑修正清单】！`);
+          alert(`✅ 你 (${memberName}) 已成功提交半程自查与互阅打卡！\n\n目前组内已打卡：${submittedCount}/${totalMembersCount} 人。\n需组内所有 ${totalMembersCount} 名成员全部完成打卡后，将自动为全组汇总生成【半程修正清单】！`);
           return;
         }
 
