@@ -1285,12 +1285,26 @@
             topicInp.value = remoteS1.mergedTitle || '';
           }
 
-          // 提案池合并保护：按作者 author 做唯一映射（每人严格限 1 个提案），支持修改更新，绝不重复或丢失
+          // ── 条件 1 实施：提案池合并条件 —— 按 author 映射，严格按 updatedAt 最新时间戳优先 ──
           const localProps = Array.isArray(localS1.proposals) ? localS1.proposals : [];
           const remoteProps = Array.isArray(remoteS1.proposals) ? remoteS1.proposals : [];
           const propByAuthor = new Map();
           localProps.forEach(p => { if (p && p.author) propByAuthor.set(p.author, p); });
-          remoteProps.forEach(p => { if (p && p.author) propByAuthor.set(p.author, p); });
+          remoteProps.forEach(remoteP => {
+            if (remoteP && remoteP.author) {
+              const localP = propByAuthor.get(remoteP.author);
+              if (!localP) {
+                propByAuthor.set(remoteP.author, remoteP);
+              } else {
+                // 如果远端提案修改时间更新，或者没有时间戳，以远端为准
+                const remoteTime = remoteP.updatedAt || 0;
+                const localTime = localP.updatedAt || 0;
+                if (remoteTime >= localTime) {
+                  propByAuthor.set(remoteP.author, remoteP);
+                }
+              }
+            }
+          });
           const mergedProposals = Array.from(propByAuthor.values());
 
           const isProposalChanged = JSON.stringify(mergedProposals) !== JSON.stringify(localProps);
@@ -4149,15 +4163,18 @@
           if (!title) { alert('⚠️ 请输入选题名称！'); return; }
 
           const existingIdx = s1.proposals.findIndex(p => p.author === currentUser);
+          const nowMs = Date.now();
           if (existingIdx >= 0) {
-            // 已有提案：更新标题（保持每人 1 份）
+            // 已有提案：更新标题与修改时间戳（保持每人 1 份，时间戳最新）
             s1.proposals[existingIdx].title = title;
+            s1.proposals[existingIdx].updatedAt = nowMs;
           } else {
-            // 新提案：加入提案池
+            // 新提案：加入提案池（带时间戳）
             s1.proposals.push({
-              id: 'prop_' + currentUser + '_' + Date.now(),
+              id: 'prop_' + currentUser + '_' + nowMs,
               author: currentUser,
-              title: title
+              title: title,
+              updatedAt: nowMs
             });
           }
 
@@ -4225,11 +4242,21 @@
       });
     }
 
+    // ── 条件 2 实施：合约输入框防抖即时推送到云端 ──
+    let contractSyncTimer = null;
+    const debouncedSyncContract = () => {
+      clearTimeout(contractSyncTimer);
+      contractSyncTimer = setTimeout(() => {
+        if (handlers.onContractChange) handlers.onContractChange();
+        if (window.app) window.app.syncStage1();
+      }, 150);
+    };
+
     const topicInput = canvas.querySelector('#contract-topic-input');
     if (topicInput && !isContractLocked) {
       topicInput.addEventListener('input', (e) => {
         s1.mergedTitle = e.target.value;
-        if (handlers.onContractChange) handlers.onContractChange();
+        debouncedSyncContract();
       });
     }
 
@@ -4239,7 +4266,7 @@
           const key = e.target.dataset.key;
           if (key && s1.contract.timeAllocations) {
             s1.contract.timeAllocations[key] = Number(e.target.value) || 0;
-            if (handlers.onContractChange) handlers.onContractChange();
+            debouncedSyncContract();
           }
         });
       }
@@ -4252,7 +4279,7 @@
           if (mId) {
             if (!s1.contract.taskAssignments) s1.contract.taskAssignments = {};
             s1.contract.taskAssignments[mId] = e.target.value;
-            if (handlers.onContractChange) handlers.onContractChange();
+            debouncedSyncContract();
           }
         });
       }
