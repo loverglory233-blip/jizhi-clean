@@ -1119,6 +1119,24 @@
       renderChat(this.app.state);
       if (user?.role === 'student' && this.app.state.studentViewMode === 'workspace') {
         this.app.renderStudentWorkspace();
+        // 弹出友好提示告知学生：教师端已重置本次活动数据
+        document.querySelectorAll('.reset-notify-modal').forEach(m => m.remove());
+        const resetModal = document.createElement('div');
+        resetModal.className = 'modal-overlay reset-notify-modal';
+        resetModal.innerHTML = `
+          <div class="teacher-modal-card" style="width:420px; text-align:center; padding:28px 24px; background:#ffffff; border-radius:12px; box-shadow:0 20px 25px -5px rgba(0,0,0,0.25);">
+            <div style="font-size:44px; margin-bottom:12px;">🔄</div>
+            <div style="font-size:17px; font-weight:800; color:#0f172a; margin-bottom:8px;">教学数据已由教师重置</div>
+            <div style="font-size:13.5px; color:#64748b; line-height:1.6; margin-bottom:22px;">
+              指导教师已清空本组的历史研讨与正文草稿，工作区已恢复至初始阶段一，全组可以重新开始本次写作任务。
+            </div>
+            <button id="btn-confirm-reset-ok" style="background:linear-gradient(135deg, #2563eb, #1d4ed8); color:white; border:none; padding:11px 28px; border-radius:8px; font-size:14px; font-weight:700; cursor:pointer; width:100%;">
+              我知道了，开始协作
+            </button>
+          </div>
+        `;
+        document.body.appendChild(resetModal);
+        resetModal.querySelector('#btn-confirm-reset-ok').addEventListener('click', () => resetModal.remove());
       }
     }
 
@@ -1150,14 +1168,12 @@
       }
 
       // ── 快照指纹检查：如果服务端返回的关键内容与上次完全相同，直接跳过一切处理 ──
-      // 这是防止每 400ms 无意义重绘造成闪烁跳富的核心防线
       const remoteFingerprint = JSON.stringify({
-        stage: remoteData.currentStage,
         s1props: remoteData.stage1 ? remoteData.stage1.proposals : undefined,
         s1votes: remoteData.stage1 ? remoteData.stage1.votes : undefined,
         s1confirmed: remoteData.stage1 ? remoteData.stage1.contract?.isConfirmed : undefined,
         s1confirmMembers: remoteData.stage1 ? remoteData.stage1.contract?.confirmedMembers : undefined,
-        s2content: remoteData.stage2 ? (remoteData.stage2.unifiedContent || '').slice(0, 120) : undefined,
+        s2content: remoteData.stage2 ? remoteData.stage2.unifiedContent : undefined,
         s2contribs: remoteData.stage2 ? remoteData.stage2.memberContributions : undefined,
         s2actionPlan: remoteData.stage2 ? remoteData.stage2.actionPlan : undefined,
         s3items: remoteData.stage3 ? remoteData.stage3.feedbackItems : undefined,
@@ -1366,21 +1382,11 @@
         }
       }
 
-      // ── 阶段切换：只有远端 currentStage 比本地更"新"（阶段推进）才接受 ──
-      // 阶段只能向前走（stage1→stage2→stage3），不能倒退，防止多设备乱跳
+      // ── 阶段切换：阶段由学生组员自主切页查阅/写作，不在后台强行将对方切走 ──
+      // 仅当远端阶段因为合约签署触发自动解锁推进时记录状态，绝不强行打断其他设备当前正在编写的界面
       if (remoteData.currentStage && remoteData.currentStage !== this.app.state.currentStage) {
-        const stageOrder = { stage1: 1, stage2: 2, stage3: 3 };
-        const remoteOrder = stageOrder[remoteData.currentStage] || 0;
-        const localOrder = stageOrder[this.app.state.currentStage] || 0;
-        // 只接受阶段推进，不接受阶段倒退
-        if (remoteOrder > localOrder) {
-          this.app.state.currentStage = remoteData.currentStage;
-          this.app.saveGroupState(myGroupId);
-          if (user?.role === 'student' && this.app.state.studentViewMode === 'workspace') {
-            this.app.renderStudentWorkspace();
-          }
-          return;
-        }
+        // 同步保存远端最新阶段，但不强行重绘当前学生的屏幕，避免打断当前输入
+        this.app.saveGroupState(myGroupId);
       }
 
       // ── 无需重绘的同步：仅保存状态 ──
