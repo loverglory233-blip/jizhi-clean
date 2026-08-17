@@ -5246,7 +5246,7 @@
                 const names = severeInactiveMembers.join('、');
                 const msg = {
                   sender: 'managingEditor',
-                  text: `🤝 【责任编辑·协同关怀】：看到部分组员正在积极撰写正文！\n👉 请（**${names}**）同学也逐步加入进来：可以撰写负责的内容，也可以阅读同伴写出的段落并在讨论区交流互评、协同修改，让团队保持深度的协作互动！`,
+                  text: `🤝 【责任编辑·进度关怀】：全组正文撰写正在稳步推进中！\n👉 请（**${names}**）同学也逐步加入进来，在负责的章节栏目开始起草撰写，共同保持团队协同节奏！`,
                   timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
                   _timeMs: now
                 };
@@ -5272,11 +5272,11 @@
               this.lastS2MeetingNudgeTime = now;
               this.state.stage2MeetingPrompted = true;
               const reasonText = hasReachedReflection 
-                ? '关注到团队已推进撰写至【研究设计的不足与反思】章节，全篇实证框架已基本成型' 
-                : '关注到阶段二撰写时间已推进过半（已达总规划用时的 60%）';
+                ? '关注到团队已推进撰写至【研究设计的不足与反思】章节，全篇初稿框架已基本成型' 
+                : '关注到阶段二撰写时间已达规划总用时的 60%';
               const msg = {
                 sender: 'managingEditor',
-                text: `📢 【责任编辑·半程会议号召】：${reasonText}！\n👉 请组长或组员点击左上角【📢 发起编辑会议】，组织全组完成 4 维自查打卡，邀请审稿专家进行半程诊断并生成修正清单！`,
+                text: `📢 【责任编辑·半程会议号召】：${reasonText}！\n💡 **现在是全组交叉研读、分析同伴内容的最佳契机**：请大家暂停单独起草，点击左上角【📢 发起编辑会议】，全员自查并阅读同伴撰写的段落，在讨论区交流立意一致性，共同获取审稿专家诊断清单！`,
                 timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
                 _timeMs: now
               };
