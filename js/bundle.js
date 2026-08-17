@@ -2540,59 +2540,44 @@
         const modal = document.createElement('div');
         modal.className = 'modal-overlay';
         modal.innerHTML = `
-          <div class="teacher-modal-card fancy-task-modal" style="width:620px;">
+          <div class="teacher-modal-card fancy-task-modal" style="width:500px;">
             <div class="teacher-modal-header task-theme-gradient" style="background:linear-gradient(135deg, #7c3aed, #4f46e5);">
               <div class="modal-header-title">
                 <div class="modal-icon-badge" style="background:rgba(255,255,255,0.2); color:white;">📚</div>
                 <div>
                   <h3>上传课程学术参考范文</h3>
-                  <p style="font-size:12px; color:#e0e7ff;">上传后审稿编辑 Agent 可在阶段二协同中向各小组精准推送与研讨引导</p>
+                  <p style="font-size:12px; color:#e0e7ff;">选取文献文件并指定推送小组即可一键存入范文库</p>
                 </div>
               </div>
               <button class="modal-close-btn" id="btn-close-paper-modal">✕</button>
             </div>
             <div class="teacher-modal-body">
               <div class="teacher-form-group">
-                <label><span class="req">*</span> 范文文献标题</label>
-                <input type="text" id="modal-paper-title" class="teacher-input fancy" placeholder="例如：《基于大语言模型的多智能体协同学习实证研究》" value="">
-              </div>
-
-              <div class="form-grid-2" style="margin-top:8px;">
-                <div class="teacher-form-group">
-                  <label><span class="req">*</span> 推送受众范围</label>
-                  <select id="modal-paper-target-group" class="teacher-input fancy">
-                    <option value="all">🌐 全班所有小组</option>
-                    ${groups.map(g => `<option value="${g.id}">👥 ${g.name}</option>`).join('')}
-                  </select>
-                </div>
-                <div class="teacher-form-group">
-                  <label>上传人署名</label>
-                  <input type="text" id="modal-paper-author" class="teacher-input fancy" value="任课教师 (${currentUser.name})">
-                </div>
-              </div>
-
-              <div class="teacher-form-group" style="margin-top:8px;">
-                <label><span class="req">*</span> 💡 核心论证亮点与学术价值 (审稿编辑重点推送指引)</label>
-                <textarea id="modal-paper-highlights" class="teacher-textarea fancy" style="min-height:70px;" placeholder="指引学生参考本文的哪一部分，例如：重点参考第三章实验设计与统计指标汇报规范、理论框架建构方式..."></textarea>
-              </div>
-
-              <div class="teacher-form-group" style="margin-top:8px;">
-                <label>论文摘要 (可选)</label>
-                <textarea id="modal-paper-abstract" class="teacher-textarea fancy" style="min-height:50px;" placeholder="粘贴论文摘要..."></textarea>
-              </div>
-
-              <div class="teacher-form-group" style="margin-top:8px;">
-                <label>📎 随附文献文档上传 (支持 PDF, Word, DOCX, TXT, Markdown 等)</label>
-                <div id="paper-file-dropzone" style="border:2px dashed #a78bfa; border-radius:10px; padding:16px; text-align:center; background:#f5f3ff; cursor:pointer;">
-                  <input type="file" id="modal-paper-file-input" style="display:none;">
+                <label><span class="req">*</span> 📎 选取本地文献文件 (PDF / Word / DOCX / Markdown / TXT)</label>
+                <div id="paper-file-dropzone" style="border:2px dashed #a78bfa; border-radius:10px; padding:20px; text-align:center; background:#f5f3ff; cursor:pointer; transition:all 0.2s;">
+                  <input type="file" id="modal-paper-file-input" style="display:none;" accept=".pdf,.doc,.docx,.txt,.md">
                   <div id="paper-dropzone-text">
-                    <span style="font-size:24px;">📄</span>
-                    <div style="font-size:13px; font-weight:700; color:#7c3aed; margin-top:4px;">点击选择或拖拽本地文献文件上传</div>
+                    <span style="font-size:32px;">📄</span>
+                    <div style="font-size:13.5px; font-weight:700; color:#7c3aed; margin-top:6px;">点击选择或拖拽本地文献文件上传</div>
+                    <div style="font-size:11.5px; color:#8b5cf6; margin-top:2px;">(选取后将自动识别文件名称作为文献标题)</div>
                   </div>
                 </div>
               </div>
 
-              <div style="margin-top:10px; background:#eff6ff; border:1px solid #bfdbfe; padding:10px 14px; border-radius:8px; display:flex; align-items:center; gap:8px;">
+              <div class="teacher-form-group" style="margin-top:12px;">
+                <label><span class="req">*</span> 范文文献标题 (选文件后自动填充，可手动微调)</label>
+                <input type="text" id="modal-paper-title" class="teacher-input fancy" placeholder="例如：《基于大语言模型的多智能体协同学习实证研究》" value="">
+              </div>
+
+              <div class="teacher-form-group" style="margin-top:12px;">
+                <label><span class="req">*</span> 🎯 推送受众范围</label>
+                <select id="modal-paper-target-group" class="teacher-input fancy">
+                  <option value="all">🌐 全班所有小组</option>
+                  ${groups.map(g => `<option value="${g.id}">👥 ${g.name}</option>`).join('')}
+                </select>
+              </div>
+
+              <div style="margin-top:12px; background:#eff6ff; border:1px solid #bfdbfe; padding:10px 14px; border-radius:8px; display:flex; align-items:center; gap:8px;">
                 <input type="checkbox" id="modal-paper-auto-push" checked style="width:16px; height:16px; cursor:pointer; accent-color:#2563eb;">
                 <label for="modal-paper-auto-push" style="font-size:12.5px; color:#1e40af; font-weight:700; cursor:pointer;">
                   📢 上传后立即由【审稿编辑 Agent】向受众小组成员研讨管道推送此范文
@@ -2627,6 +2612,7 @@
         const fileInput = modal.querySelector('#modal-paper-file-input');
         const dropzone = modal.querySelector('#paper-file-dropzone');
         const dropText = modal.querySelector('#paper-dropzone-text');
+        const titleInput = modal.querySelector('#modal-paper-title');
         let selectedFile = { name: '', size: '', data: '' };
 
         dropzone.addEventListener('click', () => fileInput.click());
@@ -2634,29 +2620,38 @@
           if (e.target.files && e.target.files[0]) {
             const f = e.target.files[0];
             const sizeKB = (f.size / 1024).toFixed(1) + ' KB';
+            // 自动将文件名（去掉扩展名）填入标题输入框
+            const cleanTitle = f.name.replace(/\.[^/.]+$/, '');
+            if (!titleInput.value || titleInput.value.trim() === '') {
+              titleInput.value = cleanTitle;
+            }
             const reader = new FileReader();
             reader.onload = (re) => {
               selectedFile = { name: f.name, size: sizeKB, data: re.target.result };
-              dropText.innerHTML = `<span style="font-size:24px;">✅</span><div style="font-size:13px; color:#059669; font-weight:700;">已选取文献: ${f.name} (${sizeKB})</div>`;
+              dropText.innerHTML = `<span style="font-size:28px;">✅</span><div style="font-size:13.5px; color:#059669; font-weight:700; margin-top:4px;">已选取文献: ${f.name} (${sizeKB})</div><div style="font-size:11px; color:#10b981; margin-top:2px;">点击可重新更换文件</div>`;
             };
             reader.readAsDataURL(f);
           }
         });
 
         modal.querySelector('#btn-submit-new-paper').addEventListener('click', () => {
-          const title = modal.querySelector('#modal-paper-title').value.trim();
+          let title = titleInput.value.trim();
           const targetGId = modal.querySelector('#modal-paper-target-group').value;
-          const highlights = modal.querySelector('#modal-paper-highlights').value.trim();
-          const abstract = modal.querySelector('#modal-paper-abstract').value.trim();
           const autoPush = modal.querySelector('#modal-paper-auto-push').checked;
 
-          if (!title) { alert('⚠️ 请输入范文文献标题！'); return; }
+          if (!selectedFile.name && !title) {
+            alert('⚠️ 请先选取文献文件或输入范文标题！');
+            return;
+          }
+          if (!title) {
+            title = selectedFile.name.replace(/\.[^/.]+$/, '') || '未命名学术范文';
+          }
           const targetGObj = groups.find(g => g.id === targetGId);
 
           const newPaper = authManager.uploadReferencePaper({
             title,
-            abstract,
-            keyHighlights: highlights,
+            abstract: '',
+            keyHighlights: '研究设计与学术论证规范',
             fileName: selectedFile.name,
             fileData: selectedFile.data,
             fileSize: selectedFile.size,
@@ -2668,7 +2663,7 @@
             authManager.pushReferencePaperToGroupChat(newPaper.id, targetGId);
           }
 
-          alert(`🎉 参考范文《${title}》已成功上传！${autoPush ? '审稿编辑 Agent 已同步向学生研讨管道推送！' : ''}`);
+          alert(`🎉 参考范文《${title}》已成功上传！${autoPush ? '审稿编辑 Agent 已同步向受众小组推送！' : ''}`);
           closeModal();
           renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
         });
