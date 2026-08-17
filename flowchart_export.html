@@ -175,6 +175,10 @@ flowchart TD
     
     Node2_6 --> Loop2_2["🛠️ 全组对照【半程编辑修正清单】协同修改润色正文"]
     
+    Loop2_2 --> PostMeetingGuard{"🛡️ 半程会议后修改静默守护 (清单生成后)"}
+    PostMeetingGuard -->|"⚠️ 讨论区持续 > 10min 完全无人说话"| Nudge2_Post["💡 责任编辑：协同修改交流提示<br>(建议交流修改进展与衔接情况，互相出谋划策)"]
+    PostMeetingGuard -->|"正常推进"| FinalCondition
+
     Loop2_2 --> FinalCondition{"🎯 终审收尾雷达：<br>① 正文写到【六、参考文献】？<br>OR ② 写作时间进入最后 15% 冲刺期？"}
     
     FinalCondition -->|"到达收尾期"| Node2_7["🤝 责任编辑：发布冲刺倒计时，鼓励全篇交叉通读、优化前后衔接<br>📝 审稿编辑：发布终审格式排版提醒 (统一标题序号、标准学术三线表、参考文献 GB/T 7714 规范)"]
