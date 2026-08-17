@@ -3043,12 +3043,19 @@
               </select>
               <select class="word-select" id="${editorId}-sel-indent" title="段落首行缩进量" style="width:105px;">
                 <option value="2em" selected>首行缩进 2字符</option>
-                <option value="0em">无缩进 (0字符)</option>
+                <option value="0em">无首行缩进 (0)</option>
                 <option value="1em">首行缩进 1字符</option>
                 <option value="3em">首行缩进 3字符</option>
                 <option value="4em">首行缩进 4字符</option>
               </select>
-              <button class="word-btn" id="${editorId}-btn-hanging-indent" title="悬挂缩进 (参考文献标准格式)">⇤ 悬挂缩进</button>
+              <select class="word-select" id="${editorId}-sel-hanging-indent" title="悬挂缩进字符数 (参考文献标准格式)" style="width:115px;">
+                <option value="none" selected>⇤ 悬挂缩进...</option>
+                <option value="2em">悬挂缩进 2字符 (国标)</option>
+                <option value="1em">悬挂缩进 1字符</option>
+                <option value="3em">悬挂缩进 3字符</option>
+                <option value="4em">悬挂缩进 4字符</option>
+                <option value="0em">取消悬挂缩进</option>
+              </select>
               <button class="word-btn" id="${editorId}-btn-align-left" title="左对齐">⇤</button>
               <button class="word-btn" id="${editorId}-btn-align-center" title="居中对齐">☰</button>
               <button class="word-btn" id="${editorId}-btn-align-right" title="右对齐">⇥</button>
@@ -3197,36 +3204,51 @@
       const btnIndentDec = container.querySelector(`#${editorId}-btn-indent-dec`);
       if (btnIndentDec) btnIndentDec.addEventListener('click', () => exec('outdent'));
 
-      const btnIndent2em = container.querySelector(`#${editorId}-btn-indent-2em`);
-      if (btnIndent2em) btnIndent2em.addEventListener('click', () => {
-        const selection = window.getSelection();
-        if (selection.rangeCount > 0) {
-          const range = selection.getRangeAt(0);
-          let node = range.commonAncestorContainer;
-          while (node && node !== editor && node.nodeName !== 'P') { node = node.parentNode; }
-          if (node && node.nodeName === 'P') {
-            node.style.textIndent = node.style.textIndent === '2em' ? '0' : '2em';
-            if (onChangeCallback) onChangeCallback(editor.innerHTML);
-          } else {
-            exec('formatBlock', 'p');
+      // 悬挂缩进字符数选择器 (支持自定义 1字符 / 2字符 / 3字符 / 4字符 / 取消)
+      const selHangingIndent = container.querySelector(`#${editorId}-sel-hanging-indent`);
+      if (selHangingIndent) {
+        selHangingIndent.addEventListener('change', (e) => {
+          const val = e.target.value;
+          if (val === 'none') return;
+          const selection = window.getSelection();
+          let targetEl = null;
+          if (selection && selection.rangeCount > 0) {
+            let node = selection.anchorNode ? (selection.anchorNode.nodeType === 1 ? selection.anchorNode : selection.anchorNode.parentElement) : null;
+            while (node && node !== editor && !['P', 'DIV', 'LI', 'BLOCKQUOTE'].includes(node.nodeName)) {
+              node = node.parentElement;
+            }
+            if (node && node !== editor) targetEl = node;
           }
-        }
-      });
 
-      const btnHangingIndent = container.querySelector(`#${editorId}-btn-hanging-indent`);
-      if (btnHangingIndent) btnHangingIndent.addEventListener('click', () => {
-        const selection = window.getSelection();
-        if (selection.rangeCount > 0) {
-          const range = selection.getRangeAt(0);
-          let node = range.commonAncestorContainer;
-          while (node && node !== editor && node.nodeName !== 'P') { node = node.parentNode; }
-          if (node && node.nodeName === 'P') {
-            node.style.textIndent = '-2em';
-            node.style.marginLeft = '2em';
-            if (onChangeCallback) onChangeCallback(editor.innerHTML);
+          if (val === '0em') {
+            if (targetEl) {
+              targetEl.style.textIndent = '0';
+              targetEl.style.marginLeft = '0';
+            } else {
+              editor.querySelectorAll('p, div').forEach(el => {
+                el.style.textIndent = '0';
+                el.style.marginLeft = '0';
+              });
+            }
+          } else {
+            if (targetEl) {
+              targetEl.style.textIndent = `-${val}`;
+              targetEl.style.marginLeft = val;
+              targetEl.style.paddingLeft = '0';
+            } else {
+              document.execCommand('formatBlock', false, 'p');
+              const newSel = window.getSelection();
+              let pNode = newSel.anchorNode ? (newSel.anchorNode.nodeType === 1 ? newSel.anchorNode : newSel.anchorNode.parentElement) : null;
+              while (pNode && pNode !== editor && pNode.nodeName !== 'P') { pNode = pNode.parentElement; }
+              if (pNode && pNode !== editor) {
+                pNode.style.textIndent = `-${val}`;
+                pNode.style.marginLeft = val;
+              }
+            }
           }
-        }
-      });
+          if (onChangeCallback) onChangeCallback(editor.innerHTML);
+        });
+      }
 
       const btnListUl = container.querySelector(`#${editorId}-btn-list-ul`);
       if (btnListUl) btnListUl.addEventListener('click', () => exec('insertUnorderedList'));
