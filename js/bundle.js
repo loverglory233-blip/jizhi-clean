@@ -1258,9 +1258,16 @@
       if (remoteData.stage1) {
         const localS1 = this.app.state.stage1 || { proposals: [], votes: {}, hasVoted: {}, contract: {} };
         const remoteS1 = remoteData.stage1;
-        // ── 合约字段全量双向同步：无论何种变动，均同步写入 state ──
+        const isContractInputActive = document.activeElement && (
+          document.activeElement.classList.contains('task-assignment-input') ||
+          document.activeElement.classList.contains('contract-time-input') ||
+          document.activeElement.id === 'contract-topic-input'
+        );
+
+        // ── 合约字段全量双向同步：如果本地用户未在打字编辑合约，才允许覆盖本地内存 ──
         if (remoteS1.contract) {
-            if (!this.app.state.stage1.contract) this.app.state.stage1.contract = {};
+          if (!this.app.state.stage1.contract) this.app.state.stage1.contract = {};
+          if (!isContractInputActive) {
             if (remoteS1.contract.taskAssignments) {
               this.app.state.stage1.contract.taskAssignments = {
                 ...(this.app.state.stage1.contract.taskAssignments || {}),
@@ -1273,45 +1280,46 @@
                 ...remoteS1.contract.timeAllocations
               };
             }
-            if (remoteS1.contract.confirmedMembers) {
-              this.app.state.stage1.contract.confirmedMembers = {
-                ...(this.app.state.stage1.contract.confirmedMembers || {}),
-                ...remoteS1.contract.confirmedMembers
-              };
-            }
-            if (remoteS1.contract.isConfirmed !== undefined) {
-              this.app.state.stage1.contract.isConfirmed = remoteS1.contract.isConfirmed;
-            }
           }
-          if (remoteS1.mergedTitle !== undefined) {
-            this.app.state.stage1.mergedTitle = remoteS1.mergedTitle;
+          if (remoteS1.contract.confirmedMembers) {
+            this.app.state.stage1.contract.confirmedMembers = {
+              ...(this.app.state.stage1.contract.confirmedMembers || {}),
+              ...remoteS1.contract.confirmedMembers
+            };
           }
+          if (remoteS1.contract.isConfirmed !== undefined) {
+            this.app.state.stage1.contract.isConfirmed = remoteS1.contract.isConfirmed;
+          }
+        }
+        if (!isContractInputActive && remoteS1.mergedTitle !== undefined) {
+          this.app.state.stage1.mergedTitle = remoteS1.mergedTitle;
+        }
 
-          // 局部更新合约输入框 value（如果当前未在聚焦打字，立即呈现远端最新输入）
-          if (remoteS1.contract?.taskAssignments) {
-            document.querySelectorAll('.task-assignment-input').forEach(inp => {
-              const mId = inp.dataset.mid;
-              if (mId && remoteS1.contract.taskAssignments[mId] !== undefined) {
-                if (document.activeElement !== inp) {
-                  inp.value = remoteS1.contract.taskAssignments[mId] || '';
-                }
+        // 局部更新合约输入框 value（仅当输入框未被当前用户聚焦打字时才回填，绝不冲掉用户正在打的字）
+        if (remoteS1.contract?.taskAssignments) {
+          document.querySelectorAll('.task-assignment-input').forEach(inp => {
+            const mId = inp.dataset.mid;
+            if (mId && remoteS1.contract.taskAssignments[mId] !== undefined) {
+              if (document.activeElement !== inp) {
+                inp.value = remoteS1.contract.taskAssignments[mId] || '';
               }
-            });
-          }
-          if (remoteS1.contract?.timeAllocations) {
-            document.querySelectorAll('.contract-time-input').forEach(inp => {
-              const k = inp.dataset.key;
-              if (k && remoteS1.contract.timeAllocations[k] !== undefined) {
-                if (document.activeElement !== inp) {
-                  inp.value = remoteS1.contract.timeAllocations[k] || 0;
-                }
+            }
+          });
+        }
+        if (remoteS1.contract?.timeAllocations) {
+          document.querySelectorAll('.contract-time-input').forEach(inp => {
+            const k = inp.dataset.key;
+            if (k && remoteS1.contract.timeAllocations[k] !== undefined) {
+              if (document.activeElement !== inp) {
+                inp.value = remoteS1.contract.timeAllocations[k] || 0;
               }
-            });
-          }
-          const topicInp = document.getElementById('contract-topic-input');
-          if (topicInp && document.activeElement !== topicInp && remoteS1.mergedTitle !== undefined) {
-            topicInp.value = remoteS1.mergedTitle || '';
-          }
+            }
+          });
+        }
+        const topicInp = document.getElementById('contract-topic-input');
+        if (topicInp && document.activeElement !== topicInp && remoteS1.mergedTitle !== undefined) {
+          topicInp.value = remoteS1.mergedTitle || '';
+        }
 
           // ── 条件 1 实施：提案池合并条件 —— 按 author 映射，严格按 updatedAt 最新时间戳优先 ──
           const localProps = Array.isArray(localS1.proposals) ? localS1.proposals : [];
@@ -4286,6 +4294,14 @@
         s1.mergedTitle = e.target.value;
         debouncedSyncContract();
       });
+      topicInput.addEventListener('change', (e) => {
+        s1.mergedTitle = e.target.value;
+        if (window.app) window.app.syncStage1();
+      });
+      topicInput.addEventListener('blur', (e) => {
+        s1.mergedTitle = e.target.value;
+        if (window.app) window.app.syncStage1();
+      });
     }
 
     canvas.querySelectorAll('.contract-time-input').forEach(input => {
@@ -4295,6 +4311,20 @@
           if (key && s1.contract.timeAllocations) {
             s1.contract.timeAllocations[key] = Number(e.target.value) || 0;
             debouncedSyncContract();
+          }
+        });
+        input.addEventListener('change', (e) => {
+          const key = e.target.dataset.key;
+          if (key && s1.contract.timeAllocations) {
+            s1.contract.timeAllocations[key] = Number(e.target.value) || 0;
+            if (window.app) window.app.syncStage1();
+          }
+        });
+        input.addEventListener('blur', (e) => {
+          const key = e.target.dataset.key;
+          if (key && s1.contract.timeAllocations) {
+            s1.contract.timeAllocations[key] = Number(e.target.value) || 0;
+            if (window.app) window.app.syncStage1();
           }
         });
       }
@@ -4308,6 +4338,22 @@
             if (!s1.contract.taskAssignments) s1.contract.taskAssignments = {};
             s1.contract.taskAssignments[mId] = e.target.value;
             debouncedSyncContract();
+          }
+        });
+        input.addEventListener('change', (e) => {
+          const mId = e.target.dataset.mid;
+          if (mId) {
+            if (!s1.contract.taskAssignments) s1.contract.taskAssignments = {};
+            s1.contract.taskAssignments[mId] = e.target.value;
+            if (window.app) window.app.syncStage1();
+          }
+        });
+        input.addEventListener('blur', (e) => {
+          const mId = e.target.dataset.mid;
+          if (mId) {
+            if (!s1.contract.taskAssignments) s1.contract.taskAssignments = {};
+            s1.contract.taskAssignments[mId] = e.target.value;
+            if (window.app) window.app.syncStage1();
           }
         });
       }
