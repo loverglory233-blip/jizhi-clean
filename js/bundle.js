@@ -6626,12 +6626,12 @@
                 </div>
 
                 <div style="display:flex; justify-content:space-between; align-items:center; background:#ffffff; padding:8px 12px; border-radius:8px; border:1px solid #e2e8f0;">
-                  <span style="font-size:12.5px; color:#334155; font-weight:600;">2. 对同伴撰写内容的同行评审与学术研判：</span>
+                  <span style="font-size:12.5px; color:#334155; font-weight:600;">2. 通读同伴内容后的审阅研判：</span>
                   <select id="meeting-peer-review-select" class="teacher-input" style="width:240px; padding:4px 8px; font-size:12px;">
-                    <option value="立论扎实连贯，高度认同其学术构想与论证">✅ 立论扎实连贯，高度认同其论证</option>
-                    <option value="启发拓展视角，建议补充交叉证据与文献支撑">💡 启发拓展视角，建议补充交叉证据</option>
-                    <option value="核心推导存疑，建议对局部论据及因果关系商榷">⚖️ 核心推导存疑，需商榷因果关系</option>
-                    <option value="章节衔接严密，有效呼应并支撑了后续研究设计">🔗 章节衔接严密，有效支撑后续设计</option>
+                    <option value="逻辑严密连贯，高度认同同伴观点">✅ 逻辑严密连贯，高度认同观点</option>
+                    <option value="启发新思路，建议为同伴补充论据">💡 启发新思路，建议补充论据</option>
+                    <option value="存在不同看法，部分论证需要商榷">⚖️ 存在不同看法，部分需要商榷</option>
+                    <option value="衔接非常自然，很好支撑了后续章节">🔗 衔接非常自然，支撑后续章节</option>
                   </select>
                 </div>
               </div>
