@@ -5440,15 +5440,17 @@
     async triggerAgentReplyIfNeeded(userMsg) {
       const stage = this.state.currentStage;
       const isExplicitMention = userMsg.includes('@');
+      // 阶段一专属里程碑：学生在研讨中商定好分工/时间并确认时触发拍卖师生成合约
+      const isContractFinalizeSignal = stage === 'stage1' && /(?:分工确定|确定分工|商定好了|分工好了|确定主题|生成合约|确认分工|时间分配好了|分配完毕|达成共识)/i.test(userMsg);
 
-      // ── 严格里程碑驱动原则：平时学生互相讨论时智能体保持静默，绝不“说一句回一句”，仅在显式 @ 时针对性答疑 ──
-      if (!isExplicitMention) return;
+      if (!isExplicitMention && !isContractFinalizeSignal) return;
 
       let replyAgent = null;
       let defaultFallbackText = '';
 
-      // 1. 用户显式 @ 某个智能体时进行针对性答疑
-      if (userMsg.includes('@中间委员') || userMsg.includes('@中间委员 Agent')) {
+      if (isContractFinalizeSignal) {
+        replyAgent = 'auctioneer';
+      } else if (userMsg.includes('@中间委员') || userMsg.includes('@中间委员 Agent')) {
         replyAgent = 'neutral';
         defaultFallbackText = `🟡 【中间委员回复】：收到关注！对于正反两方质询，建议团队权衡取舍，在终稿中强化论证逻辑！`;
       } else if (userMsg.includes('@正方委员') || userMsg.includes('@正方委员 Agent')) {
@@ -5465,7 +5467,7 @@
         defaultFallbackText = `🤝 【责任编辑过程学伴回复】：收到 @ 呼叫！目前小组协同节奏良好，建议组员按合约分工分块推进正文写作。`;
       } else if (userMsg.includes('@拍卖师') || userMsg.includes('@拍卖师 Agent')) {
         replyAgent = 'auctioneer';
-        defaultFallbackText = `🎪 【拍卖师选题顾问回复】：收到 @ 呼叫！请大家在左侧提交提案、完成竞拍投票并在《学术合作合约》中敲定最终主题与分工！`;
+        defaultFallbackText = `🎪 【拍卖师选题顾问回复】：收到！已为您关注组内研讨进展。请大家在左侧查看《学术合作合约》，确认主题、分工与时间无误后全员签署！`;
       }
 
       if (!replyAgent) return;
@@ -5524,19 +5526,21 @@
           }
 
           // 解析时间预算
-          const timeKeys = { '背景': 'bg', '综述': 'lit', '问题': 'rq', '设计': 'design', '反思': 'reflect', '文献': 'ref' };
+          const timeKeys = { '背景': 'background', '综述': 'literature', '问题': 'questions', '方法': 'method', '设计': 'method', '反思': 'reflection', '文献': 'references' };
           Object.entries(timeKeys).forEach(([cn, key]) => {
             const tMatch = extractBlock.match(new RegExp(`时间_${cn}\\s*[:：]\\s*(\\d+)`));
             if (tMatch) {
-              if (!s1.contract.timeBudget) s1.contract.timeBudget = {};
-              s1.contract.timeBudget[key] = parseInt(tMatch[1]);
+              if (!s1.contract.timeAllocations) s1.contract.timeAllocations = {};
+              s1.contract.timeAllocations[key] = parseInt(tMatch[1]);
             }
           });
 
           // 去掉回复中展示给用户的标记文字，只保留提取标记前的内容
           replyText = replyText.split('[PLATFORM_CONTRACT_EXTRACT]')[0].trim();
+          replyText += `\n\n📜 **【平台已生成学术合作合约】**：拍卖师已将全组商定的研究主题、章节分工与时间规划自动录入下方《团队协同合作学术合约》！\n💡 **请组员在卡片中仔细核对，可自由微调修改，确认无误后全员点击【确认签署】！**`;
 
           this.syncStage1();
+          if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
           this.renderStudentWorkspace();
         } catch (e) {
           console.warn('合约标记解析失败:', e);
