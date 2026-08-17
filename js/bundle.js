@@ -3501,13 +3501,13 @@
         });
       }
 
-      // 监听输入：80ms 极低延迟防抖，实现连续输入的流畅准实时广播
+      // 监听输入：20ms 超极速响应，键盘一敲即刻广播到远端，实现毫秒级打字同步
       let debounceTimer = null;
       editor.addEventListener('input', () => {
         clearTimeout(debounceTimer);
         debounceTimer = setTimeout(() => {
           if (onChangeCallback) onChangeCallback(editor.innerHTML);
-        }, 80);
+        }, 20);
       });
     }
 
@@ -4539,10 +4539,9 @@
       setInterval(() => {
         const currentUser = this.authManager.getCurrentUser();
         if (currentUser && currentUser.role === 'student' && this.state.timer.isRunning) {
-          this.state.timer.elapsedSeconds += 1 * this.state.timer.speed;
-          const min = this.state.timer.elapsedSeconds / 60;
-          if (min >= 25 && this.state.currentStage === 'stage1') this.switchStage('stage2');
-          else if (min >= 130 && this.state.currentStage === 'stage2') this.switchStage('stage3');
+          // ⚡ 阶段切换由学生全员签署完成合约或组内自主点击把控，禁止定时器无预警强行切阶段
+          // if (min >= 25 && this.state.currentStage === 'stage1') this.switchStage('stage2');
+          // else if (min >= 130 && this.state.currentStage === 'stage2') this.switchStage('stage3');
 
           // ⚡ 自动心跳广播：保持当前账号在各端显示为 (在线) 状态
           const myCode = currentUser ? (currentUser.studentCode || 'A') : 'A';
@@ -5855,24 +5854,7 @@
         renderChat(this.state);
       }
 
-      // 3. 🤝 责任编辑 Agent: 字数贡献比偏斜提醒 (SSRL Contribution Imbalance Check - 适度关怀，冷却 180s)
-      const membersList = Object.values(this.state.members || {});
-      const totalLen = newContent.length;
-      if (totalLen > 500 && membersList.length >= 3) {
-        const lastManagingMsg = logs.slice().reverse().find(m => m.sender === 'managingEditor');
-        const timeSinceLastManaging = lastManagingMsg ? (now - (lastManagingMsg._timeMs || 0)) : 999999;
-        if (timeSinceLastManaging > 180000) {
-          const ssrlWarningMsg = {
-            sender: 'managingEditor',
-            text: `🤝 【责任编辑 Agent SSRL 共享调节提醒】：检测到本组正文撰写推进中成员字数贡献比率出现不均衡现象！请组长 (${membersList[0] ? membersList[0].name : '组长'}) 与全体组员注意分工调整，促进全员 Equal Participation 均等学术参与。`,
-            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-            _timeMs: now
-          };
-          logs.push(ssrlWarningMsg);
-          this.syncChatLogs();
-          renderChat(this.state);
-        }
-      }
+      // 责任编辑不再自动强行弹贡献不均提醒，避免打扰正常讨论与写作
     }
 
     showMeetingModal() {
