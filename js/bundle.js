@@ -5383,10 +5383,6 @@
           }
 
           // ── 阶段二动态比例自适应算法（基于公约规划总时长） ──
-          const times = (this.state.stage1 && this.state.stage1.contract && this.state.stage1.contract.timeAllocations) ? this.state.stage1.contract.timeAllocations : {};
-          const totalPlannedMin = (times.background || 25) + (times.literature || 30) + (times.questions || 25) + (times.method || 40) + (times.reflection || 20) + (times.references || 10);
-          const totalPlannedMs = totalPlannedMin * 60 * 1000;
-
           // 动态阈值：后半程修改静默提醒阈值 = 阶段二总规划时长的 12%（设置安全上下限: 5min ~ 12min）
           const dynamicPostMeetingSilenceMs = Math.min(Math.max(totalPlannedMs * 0.12, 300000), 720000);
 
