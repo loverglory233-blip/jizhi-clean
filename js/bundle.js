@@ -1030,10 +1030,15 @@
       const isReset = !!this.isResetBroadcast;
       this.isResetBroadcast = false;
 
+      // 读取本地已知的 resetSeq
+      const localResetSeqKey = `jizhi_reset_seq_${this.storageKey}`;
+      const localResetSeq = parseInt(localStorage.getItem(localResetSeqKey) || '0', 10);
+
       const snapshot = {
         timestamp: Date.now(),
         groupId: groupId,
         isReset: isReset,
+        resetSeq: localResetSeq,  // 告诉服务端本客户端当前的 resetSeq
         members: this.app.state.members,
         presence: this.app.state.presence || {},
         chatLogs: this.app.state.chatLogs,
@@ -1064,18 +1069,69 @@
       if (this.isPushing) { this.pendingPush = true; return; }
       this.isPushing = true;
       try {
-        // Push to all server endpoints (PHP 8.2 sync.php is primary)
-        await Promise.allSettled(this.syncEndpoints.map(url =>
+        const results = await Promise.allSettled(this.syncEndpoints.map(url =>
           fetch(url, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: bodyStr
-          })
+          }).then(r => r.json()).catch(() => null)
         ));
+        // 如果服务端返回 stale=true，说明本客户端落后于 reset_seq，需要立即同步
+        for (const result of results) {
+          if (result.status === 'fulfilled' && result.value && result.value.stale) {
+            // 服务端已有更新的 resetSeq，立即触发本地重置
+            const serverResetSeq = result.value.resetSeq || 0;
+            if (serverResetSeq > localResetSeq) {
+              this._applyReset(serverResetSeq);
+            }
+            break;
+          }
+        }
       } catch (e) {
       } finally {
         this.isPushing = false;
         if (this.pendingPush) { this.pendingPush = false; this.pushSnapshot(); }
+      }
+    }
+
+    // 统一执行重置逻辑（由 handleRemoteSync 或 pushSnapshot 的 stale 响应触发）
+    _applyReset(newResetSeq) {
+      const user = this.app.authManager.getCurrentUser();
+      const myGroupId = (user && user.groupId) ? user.groupId : (this.app.state.activeMonitorGroupId || 'group_1');
+      const taskId = this.app.state.activeTaskId || 'task_default';
+      const localResetSeqKey = `jizhi_reset_seq_${this.storageKey}`;
+
+      // 更新本地 resetSeq
+      localStorage.setItem(localResetSeqKey, String(newResetSeq));
+
+      // 重置所有状态
+      this.app.state.stage1 = JSON.parse(JSON.stringify(InitialState.stage1));
+      this.app.state.stage2 = JSON.parse(JSON.stringify(InitialState.stage2));
+      this.app.state.stage3 = JSON.parse(JSON.stringify(InitialState.stage3));
+      this.app.state.chatLogs = { stage1: [], stage2: [], stage3: [] };
+      this.app.state.currentStage = 'stage1';
+      this.app.state.isFinalSubmitted = false;
+
+      // 同步写入 localStorage
+      localStorage.setItem(`jizhi_sync_chat_v10_pure_${taskId}_${myGroupId}`, JSON.stringify(this.app.state.chatLogs));
+      localStorage.setItem(`jizhi_sync_s1_v10_pure_${taskId}_${myGroupId}`, JSON.stringify(this.app.state.stage1));
+      localStorage.setItem(`jizhi_sync_s2_v10_pure_${taskId}_${myGroupId}`, JSON.stringify(this.app.state.stage2));
+      localStorage.setItem(`jizhi_sync_s3_v10_pure_${taskId}_${myGroupId}`, JSON.stringify(this.app.state.stage3));
+      localStorage.setItem(`jizhi_sync_current_stage_v10_pure_${taskId}_${myGroupId}`, 'stage1');
+      localStorage.setItem(`jizhi_sync_final_submitted_v10_pure_${taskId}_${myGroupId}`, 'false');
+
+      // 重置时间戳，让后续正常来包不被丢弃
+      this.lastTimestamp = 0;
+
+      // 清空编辑器 DOM
+      const editor = document.getElementById('stage2-word-editor') || document.getElementById('stage3-word-editor');
+      if (editor) editor.innerHTML = '';
+
+      // 保存并重绘
+      this.app.saveGroupState(myGroupId);
+      renderChat(this.app.state);
+      if (user?.role === 'student' && this.app.state.studentViewMode === 'workspace') {
+        this.app.renderStudentWorkspace();
       }
     }
 
@@ -1087,6 +1143,18 @@
 
       // 仅当数据属于本组时才处理
       if (remoteData.groupId && remoteData.groupId !== myGroupId && user?.role === 'student') return;
+
+      // ── 优先检查 resetSeq：如果服务端 resetSeq 比本地大，立即执行重置 ──
+      // 这是最可靠的跨设备重置机制，不依赖 WebSocket，只依赖 HTTP 轮询
+      if (remoteData.resetSeq !== undefined) {
+        const localResetSeqKey = `jizhi_reset_seq_${this.storageKey}`;
+        const localResetSeq = parseInt(localStorage.getItem(localResetSeqKey) || '0', 10);
+        if (remoteData.resetSeq > localResetSeq) {
+          // 服务端已发生重置，本地尚未处理 → 立即重置
+          this._applyReset(remoteData.resetSeq);
+          return;
+        }
+      }
 
       // 注意：强制重置包 (isReset) 绝对不受时间戳丢弃机制影响
       const isReset = !!remoteData.isReset;
