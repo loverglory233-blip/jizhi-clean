@@ -3041,21 +3041,21 @@
                 <option value="1.75">1.75倍行距</option>
                 <option value="2.0">双倍 (2.0倍)</option>
               </select>
-              <select class="word-select" id="${editorId}-sel-indent" title="段落首行缩进量" style="width:105px;">
-                <option value="2em" selected>首行缩进 2字符</option>
-                <option value="0em">无首行缩进 (0)</option>
-                <option value="1em">首行缩进 1字符</option>
-                <option value="3em">首行缩进 3字符</option>
-                <option value="4em">首行缩进 4字符</option>
-              </select>
-              <select class="word-select" id="${editorId}-sel-hanging-indent" title="悬挂缩进字符数 (参考文献标准格式)" style="width:115px;">
-                <option value="none" selected>⇤ 悬挂缩进...</option>
-                <option value="2em">悬挂缩进 2字符 (国标)</option>
-                <option value="1em">悬挂缩进 1字符</option>
-                <option value="3em">悬挂缩进 3字符</option>
-                <option value="4em">悬挂缩进 4字符</option>
-                <option value="0em">取消悬挂缩进</option>
-              </select>
+              <!-- 首行缩进 (支持小数自定义填入) -->
+              <div style="display:inline-flex; align-items:center; background:#f8fafc; border:1px solid #cbd5e1; border-radius:4px; padding:1px 6px; gap:2px;" title="首行缩进字符数 (可直接输入任意小数，如 2 或 1.5)">
+                <span style="font-size:11px; font-weight:700; color:#475569;">首行:</span>
+                <input type="number" id="${editorId}-num-indent" value="2" min="0" max="20" step="0.5" style="width:36px; padding:2px 2px; border:1px solid #cbd5e1; border-radius:3px; font-size:11.5px; font-weight:700; text-align:center; background:#ffffff;">
+                <span style="font-size:11px; color:#64748b;">字符</span>
+              </div>
+
+              <!-- 悬挂缩进 (支持小数自定义填入) -->
+              <div style="display:inline-flex; align-items:center; background:#f8fafc; border:1px solid #cbd5e1; border-radius:4px; padding:1px 6px; gap:2px;" title="悬挂缩进字符数 (参考文献格式，可输入任意小数，如 2 或 1.5，填 0 取消)">
+                <span style="font-size:11px; font-weight:700; color:#475569;">⇤ 悬挂:</span>
+                <input type="number" id="${editorId}-num-hanging-indent" value="2" min="0" max="20" step="0.5" style="width:36px; padding:2px 2px; border:1px solid #cbd5e1; border-radius:3px; font-size:11.5px; font-weight:700; text-align:center; background:#ffffff;">
+                <span style="font-size:11px; color:#64748b;">字符</span>
+                <button class="word-btn" id="${editorId}-btn-apply-hanging" style="padding:1px 5px; font-size:11px; margin-left:2px; background:#2563eb; color:white;" title="应用悬挂缩进">应用</button>
+              </div>
+
               <button class="word-btn" id="${editorId}-btn-align-left" title="左对齐">⇤</button>
               <button class="word-btn" id="${editorId}-btn-align-center" title="居中对齐">☰</button>
               <button class="word-btn" id="${editorId}-btn-align-right" title="右对齐">⇥</button>
@@ -3204,50 +3204,82 @@
       const btnIndentDec = container.querySelector(`#${editorId}-btn-indent-dec`);
       if (btnIndentDec) btnIndentDec.addEventListener('click', () => exec('outdent'));
 
-      // 悬挂缩进字符数选择器 (支持自定义 1字符 / 2字符 / 3字符 / 4字符 / 取消)
-      const selHangingIndent = container.querySelector(`#${editorId}-sel-hanging-indent`);
-      if (selHangingIndent) {
-        selHangingIndent.addEventListener('change', (e) => {
-          const val = e.target.value;
-          if (val === 'none') return;
+      // 首行缩进自定义数值（支持小数，如 1.5, 2, 2.5 字符）
+      const numIndent = container.querySelector(`#${editorId}-num-indent`);
+      if (numIndent) {
+        const applyIndent = () => {
+          const rawVal = parseFloat(numIndent.value);
+          const indentVal = isNaN(rawVal) ? '2em' : `${rawVal}em`;
           const selection = window.getSelection();
-          let targetEl = null;
+          let targetP = null;
           if (selection && selection.rangeCount > 0) {
             let node = selection.anchorNode ? (selection.anchorNode.nodeType === 1 ? selection.anchorNode : selection.anchorNode.parentElement) : null;
-            while (node && node !== editor && !['P', 'DIV', 'LI', 'BLOCKQUOTE'].includes(node.nodeName)) {
+            while (node && node !== editor && !['P', 'DIV', 'H1', 'H2', 'H3', 'H4', 'BLOCKQUOTE'].includes(node.nodeName)) {
               node = node.parentElement;
             }
-            if (node && node !== editor) targetEl = node;
+            if (node && node !== editor) targetP = node;
           }
-
-          if (val === '0em') {
-            if (targetEl) {
-              targetEl.style.textIndent = '0';
-              targetEl.style.marginLeft = '0';
-            } else {
-              editor.querySelectorAll('p, div').forEach(el => {
-                el.style.textIndent = '0';
-                el.style.marginLeft = '0';
-              });
-            }
+          if (targetP) {
+            targetP.style.textIndent = indentVal;
+            targetP.style.marginLeft = '0';
           } else {
-            if (targetEl) {
-              targetEl.style.textIndent = `-${val}`;
-              targetEl.style.marginLeft = val;
-              targetEl.style.paddingLeft = '0';
-            } else {
-              document.execCommand('formatBlock', false, 'p');
-              const newSel = window.getSelection();
-              let pNode = newSel.anchorNode ? (newSel.anchorNode.nodeType === 1 ? newSel.anchorNode : newSel.anchorNode.parentElement) : null;
-              while (pNode && pNode !== editor && pNode.nodeName !== 'P') { pNode = pNode.parentElement; }
-              if (pNode && pNode !== editor) {
-                pNode.style.textIndent = `-${val}`;
-                pNode.style.marginLeft = val;
-              }
-            }
+            editor.querySelectorAll('p, div').forEach(el => { el.style.textIndent = indentVal; });
           }
           if (onChangeCallback) onChangeCallback(editor.innerHTML);
-        });
+        };
+        numIndent.addEventListener('input', applyIndent);
+        numIndent.addEventListener('change', applyIndent);
+      }
+
+      // 悬挂缩进自定义数值（支持小数，如 1.5, 2, 2.5 字符，填 0 即取消）
+      const numHangingIndent = container.querySelector(`#${editorId}-num-hanging-indent`);
+      const btnApplyHanging = container.querySelector(`#${editorId}-btn-apply-hanging`);
+      const applyHanging = () => {
+        const rawVal = parseFloat(numHangingIndent ? numHangingIndent.value : '2');
+        const selection = window.getSelection();
+        let targetEl = null;
+        if (selection && selection.rangeCount > 0) {
+          let node = selection.anchorNode ? (selection.anchorNode.nodeType === 1 ? selection.anchorNode : selection.anchorNode.parentElement) : null;
+          while (node && node !== editor && !['P', 'DIV', 'LI', 'BLOCKQUOTE'].includes(node.nodeName)) {
+            node = node.parentElement;
+          }
+          if (node && node !== editor) targetEl = node;
+        }
+
+        if (isNaN(rawVal) || rawVal <= 0) {
+          if (targetEl) {
+            targetEl.style.textIndent = '0';
+            targetEl.style.marginLeft = '0';
+          } else {
+            editor.querySelectorAll('p, div').forEach(el => {
+              el.style.textIndent = '0';
+              el.style.marginLeft = '0';
+            });
+          }
+        } else {
+          const val = `${rawVal}em`;
+          if (targetEl) {
+            targetEl.style.textIndent = `-${val}`;
+            targetEl.style.marginLeft = val;
+            targetEl.style.paddingLeft = '0';
+          } else {
+            document.execCommand('formatBlock', false, 'p');
+            const newSel = window.getSelection();
+            let pNode = newSel.anchorNode ? (newSel.anchorNode.nodeType === 1 ? newSel.anchorNode : newSel.anchorNode.parentElement) : null;
+            while (pNode && pNode !== editor && pNode.nodeName !== 'P') { pNode = pNode.parentElement; }
+            if (pNode && pNode !== editor) {
+              pNode.style.textIndent = `-${val}`;
+              pNode.style.marginLeft = val;
+            }
+          }
+        }
+        if (onChangeCallback) onChangeCallback(editor.innerHTML);
+      };
+
+      if (btnApplyHanging) btnApplyHanging.addEventListener('click', applyHanging);
+      if (numHangingIndent) {
+        numHangingIndent.addEventListener('keydown', (e) => { if (e.key === 'Enter') applyHanging(); });
+        numHangingIndent.addEventListener('change', applyHanging);
       }
 
       const btnListUl = container.querySelector(`#${editorId}-btn-list-ul`);
@@ -4079,7 +4111,7 @@
 
         <div style="margin-top:8px; background:#ffffff; padding:8px 14px; border-radius:8px; border:1px solid #cbd5e1; flex-shrink:0; display:flex; flex-direction:column; gap:6px; box-shadow:0 1px 3px rgba(15,23,42,0.04);">
           <div style="display:flex; justify-content:space-between; align-items:center;">
-            <span style="font-size:12px; font-weight:800; color:#1e293b;">📊 团队协作贡献度与字数占比 (SSRL 群体感知):</span>
+            <span style="font-size:12px; font-weight:800; color:#1e293b;">📊 团队协作贡献度占比 (SSRL 群体过程感知):</span>
             <div class="contrib-labels" style="display:flex; font-size:11.5px; font-weight:700; color:#475569; gap:12px; white-space:nowrap;">
               ${(() => {
                 const contribs = s2.memberContributions || {};
@@ -4087,9 +4119,8 @@
                 membersList.forEach(m => { rawTotal += (contribs[m.id] || 0) + (contribs[m.studentCode] || 0); });
                 return membersList.map((m) => {
                   const rawVal = (contribs[m.id] || 0) + (contribs[m.studentCode] || 0);
-                  const pct = (rawTotal === 0 || rawVal === 0) ? 0 : Math.round((rawVal / rawTotal) * 100);
-                  const liveWords = (rawTotal === 0 || plainTextLen === 0) ? 0 : Math.round((rawVal / rawTotal) * plainTextLen);
-                  return `<span style="color:${m.color || '#2563eb'}; font-weight:700;">● ${m.name}: ${pct}% (${liveWords}字)</span>`;
+                  const pct = (rawTotal === 0 || rawVal === 0) ? (membersList.length > 0 ? Math.round(100 / membersList.length) : 0) : Math.round((rawVal / rawTotal) * 100);
+                  return `<span style="color:${m.color || '#2563eb'}; font-weight:700;">● ${m.name}: ${pct}%</span>`;
                 }).join('');
               })()}
             </div>
@@ -4099,15 +4130,13 @@
               const contribs = s2.memberContributions || {};
               let rawTotal = 0;
               membersList.forEach(m => { rawTotal += (contribs[m.id] || 0) + (contribs[m.studentCode] || 0); });
-              if (rawTotal === 0 || plainTextLen === 0) {
-                return `<div style="width:100%; height:10px; background:#f1f5f9; border-radius:5px; display:flex; align-items:center; justify-content:center; font-size:10.5px; color:#94a3b8;">暂无写作贡献 (开始编辑正文或研讨后将自动计算各成员贡献比)</div>`;
+              if (rawTotal === 0 && plainTextLen === 0) {
+                return `<div style="width:100%; height:10px; background:#f1f5f9; border-radius:5px; display:flex; align-items:center; justify-content:center; font-size:10.5px; color:#94a3b8;">暂无协作投入 (开始编辑正文或研讨后将自动呈现贡献占比)</div>`;
               }
               return membersList.map((m) => {
                 const rawVal = (contribs[m.id] || 0) + (contribs[m.studentCode] || 0);
-                if (rawVal === 0) return '';
-                const pct = Math.round((rawVal / rawTotal) * 100);
-                const liveWords = Math.round((rawVal / rawTotal) * plainTextLen);
-                return `<div class="contrib-segment" style="width:${pct}%; background:${m.color || '#2563eb'}; transition:width 0.3s ease;" title="${m.name}: ${pct}% (${liveWords}字)"></div>`;
+                const pct = (rawTotal === 0) ? Math.round(100 / (membersList.length || 1)) : Math.round((rawVal / rawTotal) * 100);
+                return `<div class="contrib-segment" style="width:${pct}%; background:${m.color || '#2563eb'}; transition:width 0.3s ease;" title="${m.name}: ${pct}% (基于写作与修改累计工作量)"></div>`;
               }).join('');
             })()}
           </div>
