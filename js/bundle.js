@@ -5208,19 +5208,45 @@
             }
           }
 
-          // 2. 写作进行中（开场 > 8 分钟），检测是否有成员投入为 0（偏离协同），温和鼓励参与
-          if (stage2DurationMs > 480000 && plainTextLen > 200) {
-            if (!this.lastS2ContribNudgeTime || now - this.lastS2ContribNudgeTime > 400000) {
-              const inactiveMems = membersList.filter(m => {
-                const c = (contribs[m.id] || 0) + (contribs[m.studentCode] || 0);
-                return c === 0;
+          // ── 责任编辑过程守护：周期性读取【实际贡献百分比】与【研讨发言投入】 ──
+          // 规则：开场给充分起草时间；写作推进中（> 6分钟）每隔约 6 分钟做一次全面评估
+          if (stage2DurationMs > 360000) {
+            if (!this.lastS2ContribNudgeTime || now - this.lastS2ContribNudgeTime > 360000) {
+              // 1. 计算总投入与每位成员的实际贡献百分比
+              let totalContrib = 0;
+              membersList.forEach(m => {
+                totalContrib += (contribs[m.id] || 0) + (contribs[m.studentCode] || 0);
               });
-              if (inactiveMems.length > 0) {
+
+              // 2. 统计每位成员在阶段二的发言条数
+              const memberChatCounts = {};
+              s2Chats.forEach(c => {
+                if (c.sender && c.sender !== 'managingEditor' && c.sender !== 'reviewingEditor' && c.sender !== 'system') {
+                  memberChatCounts[c.sender] = (memberChatCounts[c.sender] || 0) + 1;
+                }
+              });
+
+              // 3. 找出“写作贡献百分比特别低（< 10%）且发言也极少”的严重脱节同学
+              // （注：如果只是差一点如 25% vs 35% 则绝不打扰）
+              const severeInactiveMembers = [];
+              membersList.forEach(m => {
+                const userKey = m.studentCode || m.id;
+                const memContrib = (contribs[m.id] || 0) + (contribs[m.studentCode] || 0);
+                const pct = totalContrib > 0 ? Math.round((memContrib / totalContrib) * 100) : 33;
+                const chats = (memberChatCounts[userKey] || 0) + (memberChatCounts[m.id] || 0);
+
+                // 判定门槛：总字数已有一定规模且其占比特别低（< 10% 且发言 < 2 条）
+                if (totalContrib >= 150 && pct < 10 && chats < 2) {
+                  severeInactiveMembers.push(m.name);
+                }
+              });
+
+              if (severeInactiveMembers.length > 0) {
                 this.lastS2ContribNudgeTime = now;
-                const names = inactiveMems.map(m => m.name).join('、');
+                const names = severeInactiveMembers.join('、');
                 const msg = {
                   sender: 'managingEditor',
-                  text: `🤝 【责任编辑·协同关怀】：看到部分组员正在积极撰写正文！\n👉 请（**${names}**）同学也逐步加入进来，在负责的章节栏目撰写内容，保持团队均匀贡献比！`,
+                  text: `🤝 【责任编辑·协同投入关怀】：全组正文撰写正在稳步推进中！\n👉 请（**${names}**）同学也逐步加入进来，在负责的章节起草内容或在右侧研讨区分享思路，共同保持团队协同平衡！`,
                   timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
                   _timeMs: now
                 };
