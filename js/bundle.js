@@ -1191,10 +1191,11 @@
           this.app.state.stage2.unifiedContent = cleanRemoteContent;
           const editor = document.getElementById('stage2-word-editor') || document.getElementById('stage3-word-editor');
           if (editor) {
-            // 获取当前编辑器的纯文本内容（去掉协同浮标后）进行对比
+            // 获取当前编辑器的纯内容进行对比
             let currentLocalHtml = editor.innerHTML.replace(/<span class="remote-cursor-widget"[\s\S]*?<\/span>/gi, '');
-            if (currentLocalHtml !== cleanRemoteContent) {
+            if (currentLocalHtml.trim() !== cleanRemoteContent.trim()) {
               const isDirectlyTyping = (document.activeElement === editor || editor.contains(document.activeElement));
+              // 如果本地没有处于活跃打字焦点状态，或者本地内容为空/落后，直接同步渲染最新文字
               if (!isDirectlyTyping) {
                 editor.innerHTML = cleanRemoteContent || '';
               }
