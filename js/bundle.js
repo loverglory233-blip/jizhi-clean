@@ -899,17 +899,20 @@
     async pullFromServer() {
       this.updateScopeKeys();
 
-      // 1. 账号唯一在线检查 (优雅的自定义 UI 弹窗提示，一键关闭，绝不阻塞 JS 线程造成死循环)
-      const currentUser = this.app.authManager.getCurrentUser();
-      if (currentUser && currentUser.activeSessionId && !this.isLoggingOut) {
-        try {
-          const chkRes = await fetch(`sync.php?action=session_check&userId=${encodeURIComponent(currentUser.id || currentUser.username)}&token=${encodeURIComponent(currentUser.activeSessionId)}`);
-          if (chkRes.ok) {
-            const chkData = await chkRes.json();
-            if (chkData && chkData.kicked) {
-              this.isLoggingOut = true;
-              if (this.pollTimer) { clearInterval(this.pollTimer); this.pollTimer = null; }
-              this.app.authManager.logout();
+      // 1. 账号唯一在线检查 (节流至每 4 秒检查一次，避免 400ms 高频请求串行排队拖慢数据同步)
+      const nowMs = Date.now();
+      if (!this.lastSessionCheckTime || nowMs - this.lastSessionCheckTime > 4000) {
+        this.lastSessionCheckTime = nowMs;
+        const currentUser = this.app.authManager.getCurrentUser();
+        if (currentUser && currentUser.activeSessionId && !this.isLoggingOut) {
+          try {
+            const chkRes = await fetch(`sync.php?action=session_check&userId=${encodeURIComponent(currentUser.id || currentUser.username)}&token=${encodeURIComponent(currentUser.activeSessionId)}`);
+            if (chkRes.ok) {
+              const chkData = await chkRes.json();
+              if (chkData && chkData.kicked) {
+                this.isLoggingOut = true;
+                if (this.pollTimer) { clearInterval(this.pollTimer); this.pollTimer = null; }
+                this.app.authManager.logout();
               
               // 弹出优雅自定义提示弹窗 (点击确定或关闭立即平滑返回登录页，绝不卡死)
               document.querySelectorAll('.modal-overlay').forEach(el => el.remove());
@@ -3613,26 +3616,26 @@
       let targetEl = (children && children[idx]) ? children[idx] : (children.length > 0 ? children[children.length - 1] : null);
 
       if (targetEl && targetEl !== editor) {
-        targetEl.classList.add('collab-editing-node-highlight');
-        
-        // 视觉：使用最显眼的首个编辑者的颜色，轻量高亮当前行
-        const primaryColor = mems[0].member.color || '#2563eb';
-        targetEl.style.borderBottom = `1.5px dashed ${primaryColor}`;
-        targetEl.style.backgroundColor = `${primaryColor}0a`;
+        // 去除整行背景色和整行通栏虚线，保持干净纯洁的 Word 纸张观感
+        targetEl.style.borderBottom = 'none';
+        targetEl.style.backgroundColor = 'transparent';
 
-        // 浮标容器：支持同一行容纳多个成员的光标名牌！
+        // 浮标容器：像腾讯文档/Google Docs一样，在文字正后方呈现小巧的彩色光标小竖线+胶囊名牌
         const cursorContainer = document.createElement('span');
         cursorContainer.className = 'remote-cursor-widget';
         cursorContainer.contentEditable = 'false';
-        cursorContainer.style.cssText = 'user-select:none; pointer-events:none; display:inline-flex; align-items:center; gap:4px; vertical-align:middle; margin-left:6px;';
+        cursorContainer.style.cssText = 'user-select:none; pointer-events:none; display:inline-flex; align-items:center; gap:3px; vertical-align:middle; margin-left:4px;';
         
         cursorContainer.innerHTML = mems.map(({ member: m }) => {
           const color = m.color || '#8b5cf6';
           const name = m.name || m.studentCode;
           const avatar = m.avatar || '👨‍🎓';
           return `
-            <span class="remote-caret-flag" style="background:${color}; font-size:10.5px; padding:1px 6px; border-radius:4px; color:white; font-weight:700; display:inline-flex; align-items:center; gap:2px; box-shadow:0 1px 3px rgba(0,0,0,0.18);">
-              ${avatar} ${name}
+            <span style="display:inline-flex; align-items:center; position:relative;">
+              <span style="display:inline-block; width:2px; height:16px; background:${color}; border-radius:1px; margin-right:2px; animation:blinkCursor 1s infinite;"></span>
+              <span class="remote-caret-flag" style="background:${color}; font-size:10px; padding:1px 5px; border-radius:3px; color:white; font-weight:700; display:inline-flex; align-items:center; gap:2px; box-shadow:0 1px 3px rgba(0,0,0,0.12); opacity:0.92;">
+                ${avatar} ${name}
+              </span>
             </span>
           `;
         }).join('');
