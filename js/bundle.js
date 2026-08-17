@@ -1145,12 +1145,10 @@
       if (remoteData.groupId && remoteData.groupId !== myGroupId && user?.role === 'student') return;
 
       // ── 优先检查 resetSeq：如果服务端 resetSeq 比本地大，立即执行重置 ──
-      // 这是最可靠的跨设备重置机制，不依赖 WebSocket，只依赖 HTTP 轮询
       if (remoteData.resetSeq !== undefined) {
         const localResetSeqKey = `jizhi_reset_seq_${this.storageKey}`;
         const localResetSeq = parseInt(localStorage.getItem(localResetSeqKey) || '0', 10);
         if (remoteData.resetSeq > localResetSeq) {
-          // 服务端已发生重置，本地尚未处理 → 立即重置
           this._applyReset(remoteData.resetSeq);
           return;
         }
@@ -1163,6 +1161,29 @@
       if (!isReset && remoteData.timestamp && remoteData.timestamp < this.lastTimestamp) {
         return;
       }
+
+      // ── 快照指纹检查：如果服务端返回的关键内容与上次完全相同，直接跳过一切处理 ──
+      // 这是防止每 400ms 无意义重绘造成闪烁跳富的核心防线
+      const remoteFingerprint = JSON.stringify({
+        stage: remoteData.currentStage,
+        s1props: remoteData.stage1 ? remoteData.stage1.proposals : undefined,
+        s1votes: remoteData.stage1 ? remoteData.stage1.votes : undefined,
+        s1confirmed: remoteData.stage1 ? remoteData.stage1.contract?.isConfirmed : undefined,
+        s1confirmMembers: remoteData.stage1 ? remoteData.stage1.contract?.confirmedMembers : undefined,
+        s2content: remoteData.stage2 ? (remoteData.stage2.unifiedContent || '').slice(0, 120) : undefined,
+        s2contribs: remoteData.stage2 ? remoteData.stage2.memberContributions : undefined,
+        s2actionPlan: remoteData.stage2 ? remoteData.stage2.actionPlan : undefined,
+        s3items: remoteData.stage3 ? remoteData.stage3.feedbackItems : undefined,
+        chatLen: remoteData.chatLogs ? (
+          (remoteData.chatLogs.stage1||[]).length +
+          (remoteData.chatLogs.stage2||[]).length +
+          (remoteData.chatLogs.stage3||[]).length
+        ) : 0,
+        isFinal: remoteData.isFinalSubmitted,
+        ts: remoteData.timestamp
+      });
+      if (remoteFingerprint === this._lastRemoteFingerprint) return;
+      this._lastRemoteFingerprint = remoteFingerprint;
 
       if (remoteData.timestamp) {
         this.lastTimestamp = Math.max(this.lastTimestamp, remoteData.timestamp);
@@ -5801,7 +5822,16 @@
         }
       );
 
-      renderCanvas(this.state, {
+      // ── 核心保护：如果当前处于 stage2/3且用户正在聚焦编辑器，不重建 canvas DOM，只更新 header ──
+      const stage2Editor = document.getElementById('stage2-word-editor');
+      const stage3Editor = document.getElementById('stage3-word-editor');
+      const isEditingStage2 = (this.state.currentStage === 'stage2' || this.state.currentStage === 'stage3')
+        && (document.activeElement === stage2Editor || document.activeElement === stage3Editor
+            || (stage2Editor && stage2Editor.dataset.isComposing === 'true')
+            || (stage3Editor && stage3Editor.dataset.isComposing === 'true'));
+
+      if (!isEditingStage2) {
+        renderCanvas(this.state, {
         onVote: (propId) => { this.handleVoteCast(propId); },
         onRefresh: () => { this.renderStudentWorkspace(); },
         onContractChange: () => {
@@ -6015,7 +6045,8 @@
             }, 500);
           }
         }
-      });
+      }); // end renderCanvas
+      } // end if (!isEditingStage2)
 
       renderChat(this.state);
 
