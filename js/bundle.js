@@ -5855,15 +5855,24 @@
       }
 
       // 3. 🤝 责任编辑 Agent: 字数贡献比严重偏斜提醒 (SSRL 共享调节)
-      // 智能冷却机制：每次提醒后至少间隔 15 分钟 (900秒)，且正文相比上次至少新增推进了 150 字仍失衡时，才进行第 2 次适度关怀
+      // 智能全维度过滤：
+      // ① 必须至少有 2 名及以上组员【当前真实在线活跃】（30秒内有心跳/操作），如果人都不在线则绝不自言自语汇报！
+      // ② 每次提醒后至少间隔 15 分钟 (900秒) 冷却期；
+      // ③ 正文相比上次提醒至少新增推进了 150 字；
       const membersList = Object.values(this.state.members || {});
+      const presence = this.state.presence || {};
+      const activeOnlineCount = membersList.filter(m => {
+        const p = presence[m.studentCode] || presence[m.id];
+        return p && (now - (p.updatedAt || 0) < 30000); // 30秒内有活跃操作判定为在线
+      }).length;
+
       const plainLen = newContent.replace(/<[^>]*>/g, '').trim().length;
       const lastWarnTime = this.state.lastSSRLWarnTimeMs || 0;
       const lastWarnLen = this.state.lastSSRLWarnLen || 0;
       const cooldownPassed = (now - lastWarnTime) >= 900000; // 15 分钟冷却
       const hasMeaningfulProgress = (plainLen - lastWarnLen) >= 150; // 且写了新内容
 
-      if (plainLen >= 300 && membersList.length >= 2 && cooldownPassed && (lastWarnTime === 0 || hasMeaningfulProgress)) {
+      if (activeOnlineCount >= 2 && plainLen >= 300 && membersList.length >= 2 && cooldownPassed && (lastWarnTime === 0 || hasMeaningfulProgress)) {
         const contribs = this.state.stage2.memberContributions || {};
         let totalContrib = 0;
         membersList.forEach(m => { totalContrib += (contribs[m.id] || 0) + (contribs[m.studentCode] || 0); });
