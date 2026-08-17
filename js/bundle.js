@@ -5189,13 +5189,13 @@
           const plainTextLen = plainText.length;
           const contribs = s2.memberContributions || {};
 
-          // 1. 阶段二开场超过 4 分钟完全静默且正文字数 < 50 字：提示开始起草或分工推进
+          // 1. 阶段二开场超过 4 分钟完全静默且正文字数 < 50 字：提示开始起草与交叉研讨
           if (silenceDurationMs > 240000 && plainTextLen < 50) {
             if (!this.lastS2SilenceNudgeTime || now - this.lastS2SilenceNudgeTime > 300000) {
               this.lastS2SilenceNudgeTime = now;
               const msg = {
                 sender: 'managingEditor',
-                text: `🤝 【责任编辑·起草提示】：大家已进入写作工作区！\n• 建议组员按照阶段一确定的公约分工，在左侧富文本编辑器中分段落开始起草；\n• 如遇瓶颈可随时在讨论区交流思路，或点击上方【📚 查阅参考范文】汲取结构灵感！`,
+                text: `🤝 【责任编辑·起草提示】：大家已进入协作工作区！\n• 建议组员按照阶段一公约分工开始撰写各自负责的内容；\n• 撰写同时，多阅读同伴已写好的段落，在研讨区互相提出优化建议或协助润色，共同打磨全篇！`,
                 timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
                 _timeMs: now
               };
@@ -5246,7 +5246,7 @@
                 const names = severeInactiveMembers.join('、');
                 const msg = {
                   sender: 'managingEditor',
-                  text: `🤝 【责任编辑·协同投入关怀】：全组正文撰写正在稳步推进中！\n👉 请（**${names}**）同学也逐步加入进来，在负责的章节起草内容或在右侧研讨区分享思路，共同保持团队协同平衡！`,
+                  text: `🤝 【责任编辑·协同关怀】：看到部分组员正在积极撰写正文！\n👉 请（**${names}**）同学也逐步加入进来：可以撰写负责的内容，也可以阅读同伴写出的段落并在讨论区交流互评、协同修改，让团队保持深度的协作互动！`,
                   timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
                   _timeMs: now
                 };
@@ -5934,7 +5934,7 @@
 
           const managingWelcome = {
             sender: 'managingEditor',
-            text: `🤝 【责任编辑开场】：欢迎来到【阶段二：学术编辑部】！我是过程学伴责任编辑。\n全组已锁定研究主题《${topic}》。\n\n📜 【阶段一公约执行提醒】\n• 组员分工: ${assignSummary.join(' | ') || '全员协作'}\n• 时间分配: ${timeSummary.join(' / ') || '按需推进'}\n\n请大家进入左侧富文本编辑器协同撰写，保持均匀贡献比！`,
+            text: `🤝 【责任编辑开场】：欢迎来到【阶段二：学术编辑部】！我是过程学伴责任编辑。\n全组已锁定研究主题《${topic}》。\n\n📜 【阶段一公约执行与协同提醒】\n• 基础分工: ${assignSummary.join(' | ') || '全员协作'}\n• 规划时间: ${timeSummary.join(' / ') || '按需推进'}\n\n💡 **真正的协同不仅是分工起草，更要主动研读同伴写下的段落，在研讨区互评互修、打通前后逻辑！**请大家进入左侧编辑器开启深度协作！`,
             timestamp: now,
             _timeMs: Date.now()
           };
