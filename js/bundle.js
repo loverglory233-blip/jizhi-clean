@@ -5489,64 +5489,6 @@
         replyText = `⚠️ 【系统提示】：大模型智能体未返回有效应答（请检查网络连接或接口状态）。`;
       }
 
-      // ── 自动解析拍卖师输出的合约提取标记 [PLATFORM_CONTRACT_EXTRACT] ──
-      // 格式: 标题: 《...》 | 成员分工: ... | 时间_背景: N | 时间_综述: N | ...
-      if (replyAgent === 'auctioneer' && replyText.includes('[PLATFORM_CONTRACT_EXTRACT]')) {
-        try {
-          const s1 = this.state.stage1;
-          const extractBlock = replyText.split('[PLATFORM_CONTRACT_EXTRACT]')[1] || '';
-
-          // 解析标题
-          const titleMatch = extractBlock.match(/标题\s*[:：]\s*[《"]?([^》"|\\n]+)[》"]?/);
-          if (titleMatch && titleMatch[1].trim().length >= 2) {
-            s1.mergedTitle = titleMatch[1].trim();
-          }
-
-          // 解析成员分工
-          const assignMatch = extractBlock.match(/成员分工\s*[:：]\s*([^|\\n]+)/);
-          if (assignMatch) {
-            const assignText = assignMatch[1].trim();
-            if (!s1.contract) s1.contract = {};
-            if (!s1.contract.taskAssignments) s1.contract.taskAssignments = {};
-            // 逐成员解析: "李明负责XXX, 王芳负责YYY"
-            const memberEntries = assignText.split(/[,，;；]/);
-            memberEntries.forEach(entry => {
-              const m = entry.match(/(\S{2,4})\s*(?:负责|主要负责|承担|撰写)\s*([^,，;；]+)/);
-              if (m) {
-                const memberName = m[1].trim();
-                const task = m[2].trim();
-                // 根据姓名匹配成员 id
-                Object.keys(this.state.members || {}).forEach(mId => {
-                  if ((this.state.members[mId].name || '').includes(memberName) || memberName.includes(this.state.members[mId].name || '')) {
-                    s1.contract.taskAssignments[mId] = task;
-                  }
-                });
-              }
-            });
-          }
-
-          // 解析时间预算
-          const timeKeys = { '背景': 'background', '综述': 'literature', '问题': 'questions', '方法': 'method', '设计': 'method', '反思': 'reflection', '文献': 'references' };
-          Object.entries(timeKeys).forEach(([cn, key]) => {
-            const tMatch = extractBlock.match(new RegExp(`时间_${cn}\\s*[:：]\\s*(\\d+)`));
-            if (tMatch) {
-              if (!s1.contract.timeAllocations) s1.contract.timeAllocations = {};
-              s1.contract.timeAllocations[key] = parseInt(tMatch[1]);
-            }
-          });
-
-          // 去掉回复中展示给用户的标记文字，只保留提取标记前的内容
-          replyText = replyText.split('[PLATFORM_CONTRACT_EXTRACT]')[0].trim();
-          replyText += `\n\n📜 **【平台已生成学术合作合约】**：拍卖师已将全组商定的研究主题、章节分工与时间规划自动录入下方《团队协同合作学术合约》！\n💡 **请组员在卡片中仔细核对，可自由微调修改，确认无误后全员点击【确认签署】！**`;
-
-          this.syncStage1();
-          if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
-          this.renderStudentWorkspace();
-        } catch (e) {
-          console.warn('合约标记解析失败:', e);
-        }
-      }
-
       const agentMsgObj = {
         sender: replyAgent,
         text: replyText,
