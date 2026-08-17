@@ -5855,16 +5855,21 @@
       }
 
       // 3. 🤝 责任编辑 Agent: 字数贡献比严重偏斜提醒 (SSRL 共享调节)
-      // 严格保障：全阶段【至多触发 1 次】，严禁任何形式的重复刷屏！
+      // 智能冷却机制：每次提醒后至少间隔 15 分钟 (900秒)，且正文相比上次至少新增推进了 150 字仍失衡时，才进行第 2 次适度关怀
       const membersList = Object.values(this.state.members || {});
       const plainLen = newContent.replace(/<[^>]*>/g, '').trim().length;
-      if (plainLen >= 300 && membersList.length >= 2 && !this.state.stage2SSRLImbalanceWarned) {
+      const lastWarnTime = this.state.lastSSRLWarnTimeMs || 0;
+      const lastWarnLen = this.state.lastSSRLWarnLen || 0;
+      const cooldownPassed = (now - lastWarnTime) >= 900000; // 15 分钟冷却
+      const hasMeaningfulProgress = (plainLen - lastWarnLen) >= 150; // 且写了新内容
+
+      if (plainLen >= 300 && membersList.length >= 2 && cooldownPassed && (lastWarnTime === 0 || hasMeaningfulProgress)) {
         const contribs = this.state.stage2.memberContributions || {};
         let totalContrib = 0;
         membersList.forEach(m => { totalContrib += (contribs[m.id] || 0) + (contribs[m.studentCode] || 0); });
 
         if (totalContrib >= 200) {
-          // 检查是否存在显著失衡：某位成员占比超过 70%，或有成员贡献率低于 10%
+          // 检查是否存在显著失衡：某位成员占比超过 70%，且有成员贡献率低于 10%
           const pcts = membersList.map(m => {
             const val = (contribs[m.id] || 0) + (contribs[m.studentCode] || 0);
             return Math.round((val / totalContrib) * 100);
@@ -5873,7 +5878,8 @@
           const hasZeroMember = Math.min(...pcts) <= 10;
 
           if (hasMaxSkew && hasZeroMember) {
-            this.state.stage2SSRLImbalanceWarned = true; // 锁定标志位，本阶段绝不再发第2次
+            this.state.lastSSRLWarnTimeMs = now; // 记录本次提醒时间，开启 15 分钟静默期
+            this.state.lastSSRLWarnLen = plainLen;
             const leaderName = membersList[0] ? membersList[0].name : '组长';
             const ssrlWarningMsg = {
               sender: 'managingEditor',
