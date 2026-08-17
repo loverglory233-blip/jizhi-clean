@@ -3749,6 +3749,12 @@
         if (onChangeCallback) onChangeCallback(editor.innerHTML);
       });
 
+      editor.addEventListener('paste', () => {
+        setTimeout(() => {
+          if (onChangeCallback) onChangeCallback(editor.innerHTML);
+        }, 30);
+      });
+
       editor.addEventListener('input', () => {
         if (isComposing) return; // 正在输入拼音时不打断输入法选词
         clearTimeout(debounceTimer);
@@ -6334,6 +6340,7 @@
           };
           this.updateContributionUi();
           this.syncStage2();
+          if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
           this.checkAgentTriggersOnContent(newContent);
         },
         onOpenCaseModal: () => {
@@ -6610,21 +6617,21 @@
               
               <div style="display:flex; flex-direction:column; gap:8px;">
                 <div style="display:flex; justify-content:space-between; align-items:center; background:#ffffff; padding:8px 12px; border-radius:8px; border:1px solid #e2e8f0;">
-                  <span style="font-size:12.5px; color:#334155; font-weight:600;">1. 自己负责章节的自查状态：</span>
-                  <select id="meeting-theme-consistency-select" class="teacher-input" style="width:200px; padding:4px 8px; font-size:12px;">
-                    <option value="紧扣初衷，论点清晰聚焦">✅ 紧扣初衷，论点清晰聚焦</option>
-                    <option value="基本一致，有局部微调">🔄 基本一致，有局部微调</option>
-                    <option value="感觉有些偏离初衷或写卡壳了">⚠️ 感觉有些偏离初衷或卡壳</option>
+                  <span style="font-size:12.5px; color:#334155; font-weight:600;">1. 个人所负责章节的学术论证聚焦度：</span>
+                  <select id="meeting-theme-consistency-select" class="teacher-input" style="width:240px; padding:4px 8px; font-size:12px;">
+                    <option value="紧扣研究主旨，论点明确且论据充实">✅ 紧扣研究主旨，论据充实</option>
+                    <option value="基本契合主旨，局部论述需深化拓展">🔄 基本契合主旨，需局部深化</option>
+                    <option value="存在论证发散或核心概念界定不清">⚠️ 论证有所发散，亟待聚焦</option>
                   </select>
                 </div>
 
                 <div style="display:flex; justify-content:space-between; align-items:center; background:#ffffff; padding:8px 12px; border-radius:8px; border:1px solid #e2e8f0;">
-                  <span style="font-size:12.5px; color:#334155; font-weight:600;">2. 通读同伴段落的思想研判：</span>
-                  <select id="meeting-peer-review-select" class="teacher-input" style="width:200px; padding:4px 8px; font-size:12px;">
-                    <option value="逻辑严密，高度认同同伴构想">✅ 逻辑严密，高度认同构想</option>
-                    <option value="产生补充新灵感，想为同伴补充论据">💡 产生新灵感，想补充论据</option>
-                    <option value="存在不同看法，对部分论证需商榷">⚖️ 存在不同看法，需商榷</option>
-                    <option value="深受启发，很好地呼应了后续章节">🔗 深受启发，呼应后续章节</option>
+                  <span style="font-size:12.5px; color:#334155; font-weight:600;">2. 跨章节通读同伴撰写段落的认知研判：</span>
+                  <select id="meeting-peer-review-select" class="teacher-input" style="width:240px; padding:4px 8px; font-size:12px;">
+                    <option value="逻辑严密连贯，高度认同其研究框架">✅ 逻辑严密连贯，高度认同</option>
+                    <option value="产生新视角，建议补充交叉验证论据">💡 产生新视角，建议补充论据</option>
+                    <option value="核心推导存疑，需商榷其因果关系">⚖️ 核心推导存疑，需组内商榷</option>
+                    <option value="承上启下自然，有效支撑后续章节">🔗 承上启下自然，支撑后续</option>
                   </select>
                 </div>
               </div>
