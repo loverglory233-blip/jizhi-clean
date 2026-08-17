@@ -6612,26 +6612,26 @@
           </div>
           <div class="teacher-modal-body">
             <!-- 1. 全篇通读与思想碰撞 -->
-            <div style="background:#f8fafc; border:1px solid #cbd5e1; border-radius:10px; padding:12px 16px;">
-              <div style="font-size:13px; font-weight:800; color:#1e40af; margin-bottom:10px;">📋 一、全篇通读与思想碰撞</div>
+            <div style="background:#f8fafc; border:1px solid #cbd5e1; border-radius:10px; padding:14px 16px;">
+              <div style="font-size:13px; font-weight:800; color:#1e40af; margin-bottom:12px;">📋 一、全篇通读与思想碰撞</div>
               
-              <div style="display:flex; flex-direction:column; gap:8px;">
-                <div style="display:flex; justify-content:space-between; align-items:center; background:#ffffff; padding:8px 12px; border-radius:8px; border:1px solid #e2e8f0;">
-                  <span style="font-size:12.5px; color:#334155; font-weight:600;">1. 个人所负责章节的学术论证聚焦度：</span>
-                  <select id="meeting-theme-consistency-select" class="teacher-input" style="width:240px; padding:4px 8px; font-size:12px;">
-                    <option value="紧扣研究主旨，论点明确且论据充实">✅ 紧扣研究主旨，论据充实</option>
-                    <option value="基本契合主旨，局部论述需深化拓展">🔄 基本契合主旨，需局部深化</option>
-                    <option value="存在论证发散或核心概念界定不清">⚠️ 论证有所发散，亟待聚焦</option>
+              <div style="display:flex; flex-direction:column; gap:10px;">
+                <div style="background:#ffffff; padding:10px 14px; border-radius:8px; border:1px solid #e2e8f0; display:flex; flex-direction:column; gap:6px;">
+                  <label style="font-size:12.5px; color:#1e293b; font-weight:700;">1. 负责章节自查：目前自己所写部分的论述情况？</label>
+                  <select id="meeting-theme-consistency-select" class="teacher-input" style="width:100%; padding:6px 10px; font-size:12.5px; border-radius:6px; border:1px solid #cbd5e1; background:#ffffff;">
+                    <option value="紧扣研究主旨，论点明确且论据充实">✅ 紧扣研究主旨，论点明确且论据充实</option>
+                    <option value="基本契合主旨，局部论述需深化拓展">🔄 基本契合主旨，局部论述需深化拓展</option>
+                    <option value="存在论证发散或核心概念界定不清">⚠️ 论据不够充分，或感觉有些偏离初衷</option>
                   </select>
                 </div>
 
-                <div style="display:flex; justify-content:space-between; align-items:center; background:#ffffff; padding:8px 12px; border-radius:8px; border:1px solid #e2e8f0;">
-                  <span style="font-size:12.5px; color:#334155; font-weight:600;">2. 通读同伴内容后的审阅研判：</span>
-                  <select id="meeting-peer-review-select" class="teacher-input" style="width:240px; padding:4px 8px; font-size:12px;">
-                    <option value="逻辑严密连贯，高度认同同伴观点">✅ 逻辑严密连贯，高度认同观点</option>
-                    <option value="启发新思路，建议为同伴补充论据">💡 启发新思路，建议补充论据</option>
-                    <option value="存在不同看法，部分论证需要商榷">⚖️ 存在不同看法，部分需要商榷</option>
-                    <option value="衔接非常自然，很好支撑了后续章节">🔗 衔接非常自然，支撑后续章节</option>
+                <div style="background:#ffffff; padding:10px 14px; border-radius:8px; border:1px solid #e2e8f0; display:flex; flex-direction:column; gap:6px;">
+                  <label style="font-size:12.5px; color:#1e293b; font-weight:700;">2. 同伴内容互阅：通读其他成员撰写内容后的想法？</label>
+                  <select id="meeting-peer-review-select" class="teacher-input" style="width:100%; padding:6px 10px; font-size:12.5px; border-radius:6px; border:1px solid #cbd5e1; background:#ffffff;">
+                    <option value="逻辑严密连贯，高度认同同伴观点">✅ 逻辑严密连贯，高度认同同伴思路与论述</option>
+                    <option value="启发新思路，建议为同伴补充论据">💡 启发了新思路，想在讨论区为同伴补充论据视角</option>
+                    <option value="存在不同看法，部分论证需要商榷">⚖️ 存在不同看法，对部分论据推导想和同伴商榷</option>
+                    <option value="衔接非常自然，很好支撑了后续章节">🔗 章节衔接自然，很好地支撑呼应了后续研究设计</option>
                   </select>
                 </div>
               </div>
