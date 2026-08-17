@@ -5042,22 +5042,20 @@
         this.renderStudentWorkspace();
         this.triggerStageWelcomeSpeech(this.state.currentStage || 'stage1');
         this.checkUnreadAnnouncements();
-        this.initStage1InactivityChecker();
+        this.initCrossStageInactivityChecker();
       }
     }
 
-    initStage1InactivityChecker() {
-      if (this.stage1InactivityTimer) clearInterval(this.stage1InactivityTimer);
-      this.stage1InactivityTimer = setInterval(() => {
-        if (this.state.currentStage !== 'stage1') return;
-        const s1 = this.state.stage1;
-        if (!s1 || s1.contract?.isConfirmed) return;
+    initCrossStageInactivityChecker() {
+      if (this.stageInactivityTimer) clearInterval(this.stageInactivityTimer);
+      this.stageInactivityTimer = setInterval(() => {
+        const stage = this.state.currentStage;
         const now = Date.now();
         const membersList = Object.values(this.state.members || {});
         const totalMembersCount = membersList.length;
         if (totalMembersCount === 0) return;
 
-        // 基础前提：必须有至少 2 位以上组员或全组处于工作区会话中
+        // 基础前提：必须有至少 2 位以上组员或全组处于在线会话中
         const presenceMap = this.state.presence || {};
         const activeMembersCount = membersList.filter(m => {
           const p = presenceMap[m.studentCode] || presenceMap[m.id];
@@ -5065,75 +5063,169 @@
         }).length;
         if (activeMembersCount < Math.min(2, totalMembersCount)) return;
 
-        if (!this.stage1StartTime) this.stage1StartTime = now;
-        const stage1DurationMs = now - this.stage1StartTime;
+        // ======================================================================
+        // 🎪 阶段一：学术拍卖师 (Auctioneer) 守护机制
+        // ======================================================================
+        if (stage === 'stage1') {
+          const s1 = this.state.stage1;
+          if (!s1 || s1.contract?.isConfirmed) return;
+          if (!this.stage1StartTime) this.stage1StartTime = now;
+          const stage1DurationMs = now - this.stage1StartTime;
 
-        const s1Chats = (this.state.chatLogs && this.state.chatLogs.stage1) ? this.state.chatLogs.stage1 : [];
-        const lastStudentMsg = [...s1Chats].reverse().find(m => m.sender && m.sender !== 'auctioneer' && m.sender !== 'system');
-        const lastStudentMsgTime = lastStudentMsg ? (lastStudentMsg._timeMs || 0) : this.stage1StartTime;
-        const silenceDurationMs = now - lastStudentMsgTime;
+          const s1Chats = (this.state.chatLogs && this.state.chatLogs.stage1) ? this.state.chatLogs.stage1 : [];
+          const lastStudentMsg = [...s1Chats].reverse().find(m => m.sender && m.sender !== 'auctioneer' && m.sender !== 'system');
+          const lastStudentMsgTime = lastStudentMsg ? (lastStudentMsg._timeMs || 0) : this.stage1StartTime;
+          const silenceDurationMs = now - lastStudentMsgTime;
 
-        const proposals = Array.isArray(s1.proposals) ? s1.proposals : [];
-        const submittedCount = proposals.length;
-        const submittedAuthors = new Set(proposals.map(p => p.author));
-        const votesCastCount = Object.values(s1.hasVoted || {}).filter(Boolean).length;
+          const proposals = Array.isArray(s1.proposals) ? s1.proposals : [];
+          const submittedCount = proposals.length;
+          const submittedAuthors = new Set(proposals.map(p => p.author));
+          const votesCastCount = Object.values(s1.hasVoted || {}).filter(Boolean).length;
 
-        // ── 规则 1：开场一段时间全组完全无人发言（无发言持续 > 3 分钟），提醒开启研讨 ──
-        if (silenceDurationMs > 180000 && submittedCount === 0) {
-          if (!this.lastDiscussionNudgeTime || now - this.lastDiscussionNudgeTime > 240000) {
-            this.lastDiscussionNudgeTime = now;
-            const msg = {
-              sender: 'auctioneer',
-              text: `💡 【拍卖师·研讨启动提示】：小组成员都已进入工作区！\n• 建议大家在右侧研讨区开启头脑风暴，分享彼此对本单元研究方向的初步构想；\n• 也可以在研讨中互通有无，为接下来的选题提案提供灵感！`,
-              timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-              _timeMs: now
-            };
-            if (!this.state.chatLogs.stage1) this.state.chatLogs.stage1 = [];
-            this.state.chatLogs.stage1.push(msg);
-            this.syncChatLogs();
-            if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
-            renderChat(this.state);
-            return;
+          // 1. 开场静默 > 3 分钟，提示开启研讨
+          if (silenceDurationMs > 180000 && submittedCount === 0) {
+            if (!this.lastDiscussionNudgeTime || now - this.lastDiscussionNudgeTime > 240000) {
+              this.lastDiscussionNudgeTime = now;
+              const msg = {
+                sender: 'auctioneer',
+                text: `💡 【拍卖师·研讨启动提示】：小组成员都已进入工作区！\n• 建议大家在右侧研讨区开启头脑风暴，分享彼此对本单元研究方向的初步构想，为接下来的提案提供灵感！`,
+                timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                _timeMs: now
+              };
+              if (!this.state.chatLogs.stage1) this.state.chatLogs.stage1 = [];
+              this.state.chatLogs.stage1.push(msg);
+              this.syncChatLogs();
+              if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+              renderChat(this.state);
+              return;
+            }
+          }
+
+          // 2. 开场 > 6 分钟仍 0 提案，引导提交提案
+          if (submittedCount === 0 && stage1DurationMs > 360000) {
+            if (!this.lastZeroProposalNudgeTime || now - this.lastZeroProposalNudgeTime > 300000) {
+              this.lastZeroProposalNudgeTime = now;
+              const msg = {
+                sender: 'auctioneer',
+                text: `⏳ 【拍卖师·选题提交引导】：研讨已经展开一段时间啦！\n👉 请各位组员将脑海中构思成熟的研究题目，点击左侧【提交我的选题】卡片正式提交到提案池，开启学术竞拍！`,
+                timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                _timeMs: now
+              };
+              if (!this.state.chatLogs.stage1) this.state.chatLogs.stage1 = [];
+              this.state.chatLogs.stage1.push(msg);
+              this.syncChatLogs();
+              if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+              renderChat(this.state);
+              return;
+            }
+          }
+
+          // 3. 有人已提交，但超过 4 分钟仍有个别人未交，跟进未交同学
+          if (submittedCount > 0 && submittedCount < totalMembersCount) {
+            const lastProposal = proposals[proposals.length - 1];
+            const lastProposalTime = lastProposal ? (lastProposal.updatedAt || this.stage1StartTime) : this.stage1StartTime;
+            if (now - lastProposalTime > 240000) {
+              if (!this.lastPartialProposalNudgeTime || now - this.lastPartialProposalNudgeTime > 240000) {
+                this.lastPartialProposalNudgeTime = now;
+                const unsubmitted = membersList.filter(m => !submittedAuthors.has(m.studentCode) && !submittedAuthors.has(m.id));
+                if (unsubmitted.length > 0) {
+                  const names = unsubmitted.map(m => m.name).join('、');
+                  const msg = {
+                    sender: 'auctioneer',
+                    text: `📢 【拍卖师·提案跟进通知】：组内已有 ${submittedCount}/${totalMembersCount} 位组员完成选题提交！\n👉 请尚未提交的同学（**${names}**）抓紧点击左侧【提交我的选题】，全员集齐后即可正式进入竞拍投票！`,
+                    timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                    _timeMs: now
+                  };
+                  if (!this.state.chatLogs.stage1) this.state.chatLogs.stage1 = [];
+                  this.state.chatLogs.stage1.push(msg);
+                  this.syncChatLogs();
+                  if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+                  renderChat(this.state);
+                  return;
+                }
+              }
+            }
+          }
+
+          // 4. 提案集齐但投票超过 3 分钟未完成，提醒未投票同学
+          if (submittedCount >= totalMembersCount && votesCastCount < totalMembersCount) {
+            if (!this.lastVoteNudgeTime || now - this.lastVoteNudgeTime > 180000) {
+              this.lastVoteNudgeTime = now;
+              const unvoted = membersList.filter(m => !s1.hasVoted || (!s1.hasVoted[m.studentCode] && !s1.hasVoted[m.id]));
+              const names = unvoted.map(m => m.name).join('、');
+              const text = (votesCastCount === 0)
+                ? `⏳ 【拍卖师·竞拍投票提醒】：全员选题已陈列在左侧提案池中！\n👉 请全组成员浏览提案，点击【🗳️ 投这篇】投出支持的一票！`
+                : `⏳ 【拍卖师·投票进度提醒】：目前全组已投票 ${votesCastCount}/${totalMembersCount} 人。\n👉 请尚未投票的成员（**${names || '未投票组员'}**）尽快在左侧提案卡片下方点击【🗳️ 投这篇】！`;
+              const msg = {
+                sender: 'auctioneer',
+                text: text,
+                timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                _timeMs: now
+              };
+              if (!this.state.chatLogs.stage1) this.state.chatLogs.stage1 = [];
+              this.state.chatLogs.stage1.push(msg);
+              this.syncChatLogs();
+              if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+              renderChat(this.state);
+            }
           }
         }
 
-        // ── 规则 2：全组过了较长时间（开场 > 6 分钟）仍没有任何人提交提案，引导全员提交提案 ──
-        if (submittedCount === 0 && stage1DurationMs > 360000) {
-          if (!this.lastZeroProposalNudgeTime || now - this.lastZeroProposalNudgeTime > 300000) {
-            this.lastZeroProposalNudgeTime = now;
-            const msg = {
-              sender: 'auctioneer',
-              text: `⏳ 【拍卖师·选题提交引导】：研讨已经展开一段时间啦！\n👉 请各位组员将脑海中构思成熟的研究题目，点击左侧【提交我的选题】卡片正式提交到提案池，开启学术竞拍！`,
-              timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-              _timeMs: now
-            };
-            if (!this.state.chatLogs.stage1) this.state.chatLogs.stage1 = [];
-            this.state.chatLogs.stage1.push(msg);
-            this.syncChatLogs();
-            if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
-            renderChat(this.state);
-            return;
-          }
-        }
+        // ======================================================================
+        // 🤝 阶段二：责任编辑 (Managing Editor) 过程学伴守护机制
+        // ======================================================================
+        else if (stage === 'stage2') {
+          const s2 = this.state.stage2;
+          if (!s2 || this.state.isFinalSubmitted) return;
+          if (!this.stage2StartTime) this.stage2StartTime = now;
+          const stage2DurationMs = now - this.stage2StartTime;
 
-        // ── 规则 3：有人已经提交了，但过了合理时间（距离上次提交 > 4 分钟）仍有个别人未提交，针对性通知未提交同学 ──
-        if (submittedCount > 0 && submittedCount < totalMembersCount) {
-          const lastProposal = proposals[proposals.length - 1];
-          const lastProposalTime = lastProposal ? (lastProposal.updatedAt || this.stage1StartTime) : this.stage1StartTime;
-          if (now - lastProposalTime > 240000) { // 距离上一次提交超过 4 分钟
-            if (!this.lastPartialProposalNudgeTime || now - this.lastPartialProposalNudgeTime > 240000) {
-              this.lastPartialProposalNudgeTime = now;
-              const unsubmitted = membersList.filter(m => !submittedAuthors.has(m.studentCode) && !submittedAuthors.has(m.id));
-              if (unsubmitted.length > 0) {
-                const names = unsubmitted.map(m => m.name).join('、');
+          const s2Chats = (this.state.chatLogs && this.state.chatLogs.stage2) ? this.state.chatLogs.stage2 : [];
+          const lastStudentMsg = [...s2Chats].reverse().find(m => m.sender && m.sender !== 'managingEditor' && m.sender !== 'reviewingEditor' && m.sender !== 'system');
+          const lastStudentMsgTime = lastStudentMsg ? (lastStudentMsg._timeMs || 0) : this.stage2StartTime;
+          const silenceDurationMs = now - lastStudentMsgTime;
+
+          const plainText = (s2.unifiedContent || '').replace(/<[^>]*>/g, '').trim();
+          const plainTextLen = plainText.length;
+          const contribs = s2.memberContributions || {};
+
+          // 1. 阶段二开场超过 4 分钟完全静默且正文字数 < 50 字：提示开始起草或分工推进
+          if (silenceDurationMs > 240000 && plainTextLen < 50) {
+            if (!this.lastS2SilenceNudgeTime || now - this.lastS2SilenceNudgeTime > 300000) {
+              this.lastS2SilenceNudgeTime = now;
+              const msg = {
+                sender: 'managingEditor',
+                text: `🤝 【责任编辑·起草提示】：大家已进入写作工作区！\n• 建议组员按照阶段一确定的公约分工，在左侧富文本编辑器中分段落开始起草；\n• 如遇瓶颈可随时在讨论区交流思路，或点击上方【📚 查阅参考范文】汲取结构灵感！`,
+                timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                _timeMs: now
+              };
+              if (!this.state.chatLogs.stage2) this.state.chatLogs.stage2 = [];
+              this.state.chatLogs.stage2.push(msg);
+              this.syncChatLogs();
+              if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+              renderChat(this.state);
+              return;
+            }
+          }
+
+          // 2. 写作进行中（开场 > 8 分钟），检测是否有成员投入为 0（偏离协同），温和鼓励参与
+          if (stage2DurationMs > 480000 && plainTextLen > 200) {
+            if (!this.lastS2ContribNudgeTime || now - this.lastS2ContribNudgeTime > 400000) {
+              const inactiveMems = membersList.filter(m => {
+                const c = (contribs[m.id] || 0) + (contribs[m.studentCode] || 0);
+                return c === 0;
+              });
+              if (inactiveMems.length > 0) {
+                this.lastS2ContribNudgeTime = now;
+                const names = inactiveMems.map(m => m.name).join('、');
                 const msg = {
-                  sender: 'auctioneer',
-                  text: `📢 【拍卖师·提案跟进通知】：组内已有 ${submittedCount}/${totalMembersCount} 位组员完成选题提交！\n👉 请尚未提交的同学（**${names}**）抓紧点击左侧【提交我的选题】，全员集齐后即可正式进入竞拍投票！`,
+                  sender: 'managingEditor',
+                  text: `🤝 【责任编辑·协同关怀】：看到部分组员正在积极撰写正文！\n👉 请（**${names}**）同学也逐步加入进来，在负责的章节栏目撰写内容，保持团队均匀贡献比！`,
                   timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
                   _timeMs: now
                 };
-                if (!this.state.chatLogs.stage1) this.state.chatLogs.stage1 = [];
-                this.state.chatLogs.stage1.push(msg);
+                if (!this.state.chatLogs.stage2) this.state.chatLogs.stage2 = [];
+                this.state.chatLogs.stage2.push(msg);
                 this.syncChatLogs();
                 if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
                 renderChat(this.state);
@@ -5141,28 +5233,78 @@
               }
             }
           }
+
+          // 3. 阶段二写作超过 15 分钟且字数较充实，但尚未发起编辑会议：提示发起半程评审
+          if (stage2DurationMs > 900000 && plainTextLen > 400 && !s2.actionPlan) {
+            if (!this.lastS2MeetingNudgeTime || now - this.lastS2MeetingNudgeTime > 400000) {
+              this.lastS2MeetingNudgeTime = now;
+              const msg = {
+                sender: 'managingEditor',
+                text: `📢 【责任编辑·半程会议提醒】：全组正文初稿已初具规模（当前字数：${plainTextLen}字）！\n👉 建议组长或组员点击左上角【📢 发起编辑会议】，邀请审稿专家进行半程打分与诊断，获取针对性修正清单！`,
+                timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                _timeMs: now
+              };
+              if (!this.state.chatLogs.stage2) this.state.chatLogs.stage2 = [];
+              this.state.chatLogs.stage2.push(msg);
+              this.syncChatLogs();
+              if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+              renderChat(this.state);
+            }
+          }
         }
 
-        // ── 规则 4：全员提案已集齐，但投票开启超过 3 分钟仍未全部投票，提醒未投票同学 ──
-        if (submittedCount >= totalMembersCount && votesCastCount < totalMembersCount) {
-          if (!this.lastVoteNudgeTime || now - this.lastVoteNudgeTime > 180000) {
-            this.lastVoteNudgeTime = now;
-            const unvoted = membersList.filter(m => !s1.hasVoted || (!s1.hasVoted[m.studentCode] && !s1.hasVoted[m.id]));
-            const names = unvoted.map(m => m.name).join('、');
-            const text = (votesCastCount === 0)
-              ? `⏳ 【拍卖师·竞拍投票提醒】：全员选题已陈列在左侧提案池中！\n👉 请全组成员浏览提案，点击【🗳️ 投这篇】投出支持的一票！`
-              : `⏳ 【拍卖师·投票进度提醒】：目前全组已投票 ${votesCastCount}/${totalMembersCount} 人。\n👉 请尚未投票的成员（**${names || '未投票组员'}**）尽快在左侧提案卡片下方点击【🗳️ 投这篇】！`;
-            const msg = {
-              sender: 'auctioneer',
-              text: text,
-              timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-              _timeMs: now
-            };
-            if (!this.state.chatLogs.stage1) this.state.chatLogs.stage1 = [];
-            this.state.chatLogs.stage1.push(msg);
-            this.syncChatLogs();
-            if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
-            renderChat(this.state);
+        // ======================================================================
+        // 🎓 阶段三：中间委员 (Neutral Committee Member) 裁决引导机制
+        // ======================================================================
+        else if (stage === 'stage3') {
+          const s3 = this.state.stage3;
+          if (!s3 || this.state.isFinalSubmitted) return;
+          if (!this.stage3StartTime) this.stage3StartTime = now;
+          const stage3DurationMs = now - this.stage3StartTime;
+
+          const s3Chats = (this.state.chatLogs && this.state.chatLogs.stage3) ? this.state.chatLogs.stage3 : [];
+          const lastStudentMsg = [...s3Chats].reverse().find(m => m.sender && m.sender !== 'neutral' && m.sender !== 'proponent' && m.sender !== 'opponent' && m.sender !== 'system');
+          const lastStudentMsgTime = lastStudentMsg ? (lastStudentMsg._timeMs || 0) : this.stage3StartTime;
+          const silenceDurationMs = now - lastStudentMsgTime;
+
+          const feedbacks = Array.isArray(s3.feedbackItems) ? s3.feedbackItems : [];
+          const pendingFeedbacks = feedbacks.filter(f => !f.response || f.response.trim().length === 0);
+
+          // 1. 阶段三开场超过 3 分钟完全未研讨：提示研讨正反两方专家意见
+          if (silenceDurationMs > 180000 && feedbacks.length > 0) {
+            if (!this.lastS3SilenceNudgeTime || now - this.lastS3SilenceNudgeTime > 240000) {
+              this.lastS3SilenceNudgeTime = now;
+              const msg = {
+                sender: 'neutral',
+                text: `🟡 【中间委员·答辩协商提示】：正反两方委员的评审意见已送达左侧矩阵！\n• 建议全组在研讨区就反方提出的质询点展开辩护讨论，梳理需要修正确认的关键点！`,
+                timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                _timeMs: now
+              };
+              if (!this.state.chatLogs.stage3) this.state.chatLogs.stage3 = [];
+              this.state.chatLogs.stage3.push(msg);
+              this.syncChatLogs();
+              if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+              renderChat(this.state);
+              return;
+            }
+          }
+
+          // 2. 阶段三进行超过 6 分钟，左侧裁决矩阵答辩共识仍未填写：提示录入裁决意见并修改正文
+          if (stage3DurationMs > 360000 && pendingFeedbacks.length > 0) {
+            if (!this.lastS3MatrixNudgeTime || now - this.lastS3MatrixNudgeTime > 300000) {
+              this.lastS3MatrixNudgeTime = now;
+              const msg = {
+                sender: 'neutral',
+                text: `⏳ 【中间委员·裁决录入提示】：针对专家意见，请全组商定共识后在左侧【裁决矩阵】输入框录入团队答辩说明并保存，同时将修正内容落实到右侧终稿中！`,
+                timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                _timeMs: now
+              };
+              if (!this.state.chatLogs.stage3) this.state.chatLogs.stage3 = [];
+              this.state.chatLogs.stage3.push(msg);
+              this.syncChatLogs();
+              if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+              renderChat(this.state);
+            }
           }
         }
       }, 10000);
