@@ -1162,27 +1162,6 @@
       // 注意：强制重置包 (isReset) 绝对不受时间戳丢弃机制影响
       const isReset = !!remoteData.isReset;
 
-      // ── 快照指纹检查：如果服务端返回的关键内容与上次完全相同，直接跳过一切处理 ──
-      const remoteFingerprint = JSON.stringify({
-        s1props: remoteData.stage1 ? remoteData.stage1.proposals : undefined,
-        s1votes: remoteData.stage1 ? remoteData.stage1.votes : undefined,
-        s1contract: remoteData.stage1 ? remoteData.stage1.contract : undefined,
-        s1title: remoteData.stage1 ? remoteData.stage1.mergedTitle : undefined,
-        s2content: remoteData.stage2 ? remoteData.stage2.unifiedContent : undefined,
-        s2contribs: remoteData.stage2 ? remoteData.stage2.memberContributions : undefined,
-        s2actionPlan: remoteData.stage2 ? remoteData.stage2.actionPlan : undefined,
-        s3items: remoteData.stage3 ? remoteData.stage3.feedbackItems : undefined,
-        chatLen: remoteData.chatLogs ? (
-          (remoteData.chatLogs.stage1||[]).length +
-          (remoteData.chatLogs.stage2||[]).length +
-          (remoteData.chatLogs.stage3||[]).length
-        ) : 0,
-        isFinal: remoteData.isFinalSubmitted,
-        ts: remoteData.timestamp
-      });
-      if (remoteFingerprint === this._lastRemoteFingerprint) return;
-      this._lastRemoteFingerprint = remoteFingerprint;
-
       if (remoteData.timestamp) {
         this.lastTimestamp = remoteData.timestamp;
       }
@@ -1325,9 +1304,9 @@
           remoteS1.proposals = mergedProposals;
           this.app.state.stage1 = remoteS1;
 
+          this.app.saveGroupState(myGroupId);
           if ((isProposalChanged || isVoteChanged || isConfirmChanged)
               && user?.role === 'student' && this.app.state.studentViewMode === 'workspace') {
-            this.app.saveGroupState(myGroupId);
             this.app.renderStudentWorkspace();
             return;
           }
@@ -4210,6 +4189,9 @@
           closeModal();
           handlers.onContractChange();
           handlers.onRefresh();
+          if (window.app) {
+            window.app.syncStage1();
+          }
 
           // 1. 异步调用扣子拍卖师 API，对该提案做针对性学术评估 (120~180字)
           setTimeout(async () => {
