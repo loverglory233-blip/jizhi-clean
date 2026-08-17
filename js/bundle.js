@@ -1162,17 +1162,12 @@
       // 注意：强制重置包 (isReset) 绝对不受时间戳丢弃机制影响
       const isReset = !!remoteData.isReset;
 
-      // 非重置包：如果服务端时间戳早于本地已处理的最新时间戳，丢弃（防止旧数据覆盖新状态）
-      if (!isReset && remoteData.timestamp && remoteData.timestamp < this.lastTimestamp) {
-        return;
-      }
-
       // ── 快照指纹检查：如果服务端返回的关键内容与上次完全相同，直接跳过一切处理 ──
       const remoteFingerprint = JSON.stringify({
         s1props: remoteData.stage1 ? remoteData.stage1.proposals : undefined,
         s1votes: remoteData.stage1 ? remoteData.stage1.votes : undefined,
-        s1confirmed: remoteData.stage1 ? remoteData.stage1.contract?.isConfirmed : undefined,
-        s1confirmMembers: remoteData.stage1 ? remoteData.stage1.contract?.confirmedMembers : undefined,
+        s1contract: remoteData.stage1 ? remoteData.stage1.contract : undefined,
+        s1title: remoteData.stage1 ? remoteData.stage1.mergedTitle : undefined,
         s2content: remoteData.stage2 ? remoteData.stage2.unifiedContent : undefined,
         s2contribs: remoteData.stage2 ? remoteData.stage2.memberContributions : undefined,
         s2actionPlan: remoteData.stage2 ? remoteData.stage2.actionPlan : undefined,
@@ -1189,7 +1184,7 @@
       this._lastRemoteFingerprint = remoteFingerprint;
 
       if (remoteData.timestamp) {
-        this.lastTimestamp = Math.max(this.lastTimestamp, remoteData.timestamp);
+        this.lastTimestamp = remoteData.timestamp;
       }
 
       // ── 强制重置：教师端点"清空"时到达的包 ──
@@ -1339,9 +1334,8 @@
           const editor = document.getElementById('stage2-word-editor') || document.getElementById('stage3-word-editor');
           if (editor) {
             const isLocalComposing = (editor.dataset.isComposing === 'true');
-            const isLocalActive = (document.activeElement === editor);
-            // 不在拼音输入中，且编辑框当前不被本地用户聚焦时，才同步远端内容
-            if (!isLocalComposing && !isLocalActive) {
+            // 只要本地没有正在进行中文拼音组字输入(composition)，就平滑同步远端最新正文
+            if (!isLocalComposing) {
               const currentLocalHtml = editor.innerHTML.replace(/<span class="remote-cursor-widget"[\s\S]*?<\/span>/gi, '');
               if (currentLocalHtml.trim() !== cleanRemoteContent.trim()) {
                 editor.innerHTML = cleanRemoteContent || '';
