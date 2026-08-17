@@ -5053,15 +5053,13 @@
         const now = Date.now();
         const membersList = Object.values(this.state.members || {});
         const totalMembersCount = membersList.length;
-        if (totalMembersCount === 0) return;
-
-        // 基础前提：必须有至少 2 位以上组员或全组处于在线会话中
+        // 基础绝对前提：小组成员必须【全部登录在线】(activeMembersCount >= totalMembersCount 且 1分钟内有活跃心跳)
         const presenceMap = this.state.presence || {};
         const activeMembersCount = membersList.filter(m => {
           const p = presenceMap[m.studentCode] || presenceMap[m.id];
           return p && (now - (p.updatedAt || 0) < 60000); // 1分钟内有活跃心跳
         }).length;
-        if (activeMembersCount < Math.min(2, totalMembersCount)) return;
+        if (activeMembersCount < totalMembersCount) return; // 必须全员全部登录在线才触发提醒！
 
         // ======================================================================
         // 🎪 阶段一：学术拍卖师 (Auctioneer) 守护机制
@@ -5144,6 +5142,25 @@
                   return;
                 }
               }
+            }
+          }
+
+          // 3b. 过程中研讨静默提醒：若全组已开场且在提案构思/讨论过程中，静默超过 3.5 分钟无人发话
+          if (submittedCount < totalMembersCount && silenceDurationMs > 210000) {
+            if (!this.lastMidSilenceNudgeTime || now - this.lastMidSilenceNudgeTime > 240000) {
+              this.lastMidSilenceNudgeTime = now;
+              const msg = {
+                sender: 'auctioneer',
+                text: `💡 【拍卖师·研讨互动提示】：大家在构思选题的过程中，可以在讨论区互相交流灵感、探讨研究问题的价值与可行性，共同激发更好的提案！`,
+                timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                _timeMs: now
+              };
+              if (!this.state.chatLogs.stage1) this.state.chatLogs.stage1 = [];
+              this.state.chatLogs.stage1.push(msg);
+              this.syncChatLogs();
+              if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+              renderChat(this.state);
+              return;
             }
           }
 
