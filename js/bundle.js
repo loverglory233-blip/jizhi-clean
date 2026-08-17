@@ -1260,10 +1260,17 @@
           if (editor) {
             // 获取当前编辑器的纯内容进行对比
             let currentLocalHtml = editor.innerHTML.replace(/<span class="remote-cursor-widget"[\s\S]*?<\/span>/gi, '');
-            if (currentLocalHtml.trim() !== cleanRemoteContent.trim()) {
-              // 无论是哪个设备输入的内容，只要远端文本有变化，立即平滑将最新纯净 HTML 刷入 DOM
-              // 若本地处于聚焦打字状态，记录选区并恢复
-              editor.innerHTML = cleanRemoteContent || '';
+            const isLocalActive = (document.activeElement === editor);
+            const isLocalComposing = (editor.dataset.isComposing === 'true');
+            
+            // 如果本地正在输入法打字选词中，坚决不打断本地输入法
+            if (!isLocalComposing) {
+              if (currentLocalHtml.trim() !== cleanRemoteContent.trim()) {
+                // 如果当前正在获得焦点但内容有更新，仅在内容确实不同且未处于拼音选词时同步
+                if (!isLocalActive) {
+                  editor.innerHTML = cleanRemoteContent || '';
+                }
+              }
             }
           }
           this.app.updateContributionUi();
@@ -1283,15 +1290,25 @@
         }
       }
 
-      if (remoteData.stage3 && remoteData.stage3.feedbackItems) {
-        if (JSON.stringify(remoteData.stage3.feedbackItems) !== JSON.stringify(this.app.state.stage3.feedbackItems)) {
-          this.app.state.stage3.feedbackItems = remoteData.stage3.feedbackItems;
-          structuralUpdated = true;
-        }
-      }
-
-      if (remoteData.currentStage && remoteData.currentStage !== this.app.state.currentStage) {
-        this.app.state.currentStage = remoteData.currentStage;
+      if (remoteData.isReset) {
+        this.app.state.stage1 = remoteData.stage1 || JSON.parse(JSON.stringify(InitialState.stage1));
+        this.app.state.stage2 = remoteData.stage2 || JSON.parse(JSON.stringify(InitialState.stage2));
+        this.app.state.stage3 = remoteData.stage3 || JSON.parse(JSON.stringify(InitialState.stage3));
+        this.app.state.chatLogs = remoteData.chatLogs || { stage1: [], stage2: [], stage3: [] };
+        this.app.state.currentStage = 'stage1';
+        this.app.state.isFinalSubmitted = false;
+        
+        const taskId = this.app.state.activeTaskId || 'task_default';
+        localStorage.setItem(`jizhi_sync_chat_v10_pure_${taskId}_${myGroupId}`, JSON.stringify(this.app.state.chatLogs));
+        localStorage.setItem(`jizhi_sync_s1_v10_pure_${taskId}_${myGroupId}`, JSON.stringify(this.app.state.stage1));
+        localStorage.setItem(`jizhi_sync_s2_v10_pure_${taskId}_${myGroupId}`, JSON.stringify(this.app.state.stage2));
+        localStorage.setItem(`jizhi_sync_s3_v10_pure_${taskId}_${myGroupId}`, JSON.stringify(this.app.state.stage3));
+        localStorage.setItem(`jizhi_sync_current_stage_v10_pure_${taskId}_${myGroupId}`, 'stage1');
+        localStorage.setItem(`jizhi_sync_final_submitted_v10_pure_${taskId}_${myGroupId}`, 'false');
+        
+        const editor = document.getElementById('stage2-word-editor') || document.getElementById('stage3-word-editor');
+        if (editor) editor.innerHTML = '';
+        
         structuralUpdated = true;
       }
 
@@ -3627,13 +3644,29 @@
         });
       }
 
-      // 监听输入：20ms 超极速响应，键盘一敲即刻广播到远端，实现毫秒级打字同步
+      // 监听输入法（解决中文拼音输入被切断卡顿问题）与极速广播
       let debounceTimer = null;
+      let isComposing = false;
+
+      editor.addEventListener('compositionstart', () => {
+        isComposing = true;
+        editor.dataset.isComposing = 'true';
+      });
+
+      editor.addEventListener('compositionend', () => {
+        isComposing = false;
+        editor.dataset.isComposing = 'false';
+        if (onChangeCallback) onChangeCallback(editor.innerHTML);
+      });
+
       editor.addEventListener('input', () => {
+        if (isComposing) return; // 正在输入拼音时不打断输入法选词
         clearTimeout(debounceTimer);
         debounceTimer = setTimeout(() => {
-          if (onChangeCallback) onChangeCallback(editor.innerHTML);
-        }, 20);
+          if (!isComposing && onChangeCallback) {
+            onChangeCallback(editor.innerHTML);
+          }
+        }, 120);
       });
     }
 
