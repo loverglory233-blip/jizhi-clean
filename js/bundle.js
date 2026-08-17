@@ -4275,15 +4275,6 @@
                   renderChat(state);
                 }
               }, 1000);
-            } else {
-              // 播报当前提案进度
-              const progressMsg = {
-                sender: 'auctioneer',
-                text: `📢 【提案征集进度】：目前已有 ${submittedAuthorsCount}/${totalMembersCount} 位组员提交选题。请尚未提交的组员尽快点击左侧【提交我的选题】！`,
-                timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                _timeMs: Date.now()
-              };
-              state.chatLogs[currentStage].push(progressMsg);
             }
 
             if (window.app) {
@@ -5051,7 +5042,69 @@
         this.renderStudentWorkspace();
         this.triggerStageWelcomeSpeech(this.state.currentStage || 'stage1');
         this.checkUnreadAnnouncements();
+        this.initStage1InactivityChecker();
       }
+    }
+
+    initStage1InactivityChecker() {
+      if (this.stage1InactivityTimer) clearInterval(this.stage1InactivityTimer);
+      this.stage1InactivityTimer = setInterval(() => {
+        if (this.state.currentStage !== 'stage1') return;
+        const s1 = this.state.stage1;
+        if (!s1 || s1.contract?.isConfirmed) return;
+        const now = Date.now();
+        const membersList = Object.values(this.state.members || {});
+        const totalMembersCount = membersList.length;
+        if (totalMembersCount === 0) return;
+
+        const submittedCount = (s1.proposals || []).length;
+        const votesCastCount = Object.values(s1.hasVoted || {}).filter(Boolean).length;
+
+        // 1. 提案超时提醒（若开场超过 3 分钟，且还有成员未提交提案）
+        if (submittedCount < totalMembersCount) {
+          if (!this.lastProposalNudgeTime || now - this.lastProposalNudgeTime > 180000) {
+            this.lastProposalNudgeTime = now;
+            const submittedAuthors = new Set((s1.proposals || []).map(p => p.author));
+            const unsubmitted = membersList.filter(m => !submittedAuthors.has(m.studentCode) && !submittedAuthors.has(m.id));
+            if (unsubmitted.length > 0) {
+              const names = unsubmitted.map(m => m.name).join('、');
+              const nudgeMsg = {
+                sender: 'auctioneer',
+                text: `⏳ 【拍卖师·提案征集提醒】：研讨已持续一段时间，目前尚有组员（**${names}**）未提交选题。\n👉 请未提交的同学抓紧点击左侧【提交我的选题】，全员提交后即可开启竞拍投票！`,
+                timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                _timeMs: now
+              };
+              if (!this.state.chatLogs.stage1) this.state.chatLogs.stage1 = [];
+              this.state.chatLogs.stage1.push(nudgeMsg);
+              this.syncChatLogs();
+              if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+              renderChat(this.state);
+            }
+          }
+        }
+        // 2. 投票超时提醒（全员已提交提案，但超过 2.5 分钟仍有成员未投票）
+        else if (submittedCount >= totalMembersCount && votesCastCount < totalMembersCount) {
+          if (!this.lastVoteNudgeTime || now - this.lastVoteNudgeTime > 150000) {
+            this.lastVoteNudgeTime = now;
+            const unvoted = membersList.filter(m => !s1.hasVoted || (!s1.hasVoted[m.studentCode] && !s1.hasVoted[m.id]));
+            const names = unvoted.map(m => m.name).join('、');
+            const text = (votesCastCount === 0)
+              ? `⏳ 【拍卖师·竞拍投票提醒】：全员选题已集齐，目前全组尚未开始投票！\n👉 请全组成员浏览左侧提案，点击【🗳️ 投这篇】投出宝贵一票！`
+              : `⏳ 【拍卖师·投票进度提醒】：目前全组已投票 ${votesCastCount}/${totalMembersCount} 人。\n👉 请尚未投票的成员（**${names || '未投票组员'}**）尽快在左侧提案卡片下方点击【🗳️ 投这篇】！`;
+            const nudgeMsg = {
+              sender: 'auctioneer',
+              text: text,
+              timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+              _timeMs: now
+            };
+            if (!this.state.chatLogs.stage1) this.state.chatLogs.stage1 = [];
+            this.state.chatLogs.stage1.push(nudgeMsg);
+            this.syncChatLogs();
+            if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+            renderChat(this.state);
+          }
+        }
+      }, 10000);
     }
 
     checkUnreadAnnouncements() {
@@ -5538,23 +5591,7 @@
       this.syncChatLogs();
       if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
 
-      if (votesCastCount < totalMembersCount) {
-        // ── 投票催促提醒：找出还未投票的成员姓名并提醒 ──
-        const unvotedMembers = Object.values(this.state.members || {}).filter(m => !s1.hasVoted || !s1.hasVoted[m.studentCode || m.id]);
-        const unvotedNames = unvotedMembers.map(m => m.name).join('、');
-        setTimeout(() => {
-          const nudgeMsg = {
-            sender: 'auctioneer',
-            text: `🗳️ 【拍卖师·投票进度提醒】：目前全组已投票 ${votesCastCount}/${totalMembersCount} 人。\n👉 请尚未投票的成员（**${unvotedNames || '未投票组员'}**）尽快在左侧提案卡片下方点击【🗳️ 投这篇】！`,
-            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-            _timeMs: Date.now()
-          };
-          this.state.chatLogs.stage1.push(nudgeMsg);
-          this.syncChatLogs();
-          if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
-          renderChat(this.state);
-        }, 1200);
-      } else {
+      if (votesCastCount >= totalMembersCount) {
         // ── 全员投票完成：落槌公布结果并自动生成合约 ──
         setTimeout(() => {
           const tally = {};
