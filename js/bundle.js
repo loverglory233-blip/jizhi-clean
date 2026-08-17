@@ -4278,30 +4278,25 @@
       });
     }
 
-    // ── 条件 2 实施：合约输入框防抖即时推送到云端 ──
-    let contractSyncTimer = null;
-    const debouncedSyncContract = () => {
-      clearTimeout(contractSyncTimer);
-      contractSyncTimer = setTimeout(() => {
-        if (handlers.onContractChange) handlers.onContractChange();
-        if (window.app) window.app.syncStage1();
-      }, 150);
-    };
+    // ── 方案一实施：解耦实时打字与网络同步，彻底根除时间回弹与打字被吃问题 ──
+    // 1. input 事件：纯本地更新内存，绝对不向网络发包，打字改时间 100% 顺畅
+    // 2. blur / change / Enter 事件：用户输入完成离开或敲回车时，立即一次性完整同步上云！
 
     const topicInput = canvas.querySelector('#contract-topic-input');
     if (topicInput && !isContractLocked) {
       topicInput.addEventListener('input', (e) => {
         s1.mergedTitle = e.target.value;
-        debouncedSyncContract();
       });
-      topicInput.addEventListener('change', (e) => {
-        s1.mergedTitle = e.target.value;
-        if (window.app) window.app.syncStage1();
-      });
-      topicInput.addEventListener('blur', (e) => {
-        s1.mergedTitle = e.target.value;
-        if (window.app) window.app.syncStage1();
-      });
+      const flushTopic = () => {
+        s1.mergedTitle = topicInput.value;
+        if (window.app) {
+          window.app.syncStage1();
+          if (window.app.cloudSyncEngine) window.app.cloudSyncEngine.pushSnapshot();
+        }
+      };
+      topicInput.addEventListener('change', flushTopic);
+      topicInput.addEventListener('blur', flushTopic);
+      topicInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') { topicInput.blur(); } });
     }
 
     canvas.querySelectorAll('.contract-time-input').forEach(input => {
@@ -4310,23 +4305,21 @@
           const key = e.target.dataset.key;
           if (key && s1.contract.timeAllocations) {
             s1.contract.timeAllocations[key] = Number(e.target.value) || 0;
-            debouncedSyncContract();
           }
         });
-        input.addEventListener('change', (e) => {
-          const key = e.target.dataset.key;
+        const flushTime = () => {
+          const key = input.dataset.key;
           if (key && s1.contract.timeAllocations) {
-            s1.contract.timeAllocations[key] = Number(e.target.value) || 0;
-            if (window.app) window.app.syncStage1();
+            s1.contract.timeAllocations[key] = Number(input.value) || 0;
+            if (window.app) {
+              window.app.syncStage1();
+              if (window.app.cloudSyncEngine) window.app.cloudSyncEngine.pushSnapshot();
+            }
           }
-        });
-        input.addEventListener('blur', (e) => {
-          const key = e.target.dataset.key;
-          if (key && s1.contract.timeAllocations) {
-            s1.contract.timeAllocations[key] = Number(e.target.value) || 0;
-            if (window.app) window.app.syncStage1();
-          }
-        });
+        };
+        input.addEventListener('change', flushTime);
+        input.addEventListener('blur', flushTime);
+        input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { input.blur(); } });
       }
     });
 
@@ -4337,25 +4330,22 @@
           if (mId) {
             if (!s1.contract.taskAssignments) s1.contract.taskAssignments = {};
             s1.contract.taskAssignments[mId] = e.target.value;
-            debouncedSyncContract();
           }
         });
-        input.addEventListener('change', (e) => {
-          const mId = e.target.dataset.mid;
+        const flushTask = () => {
+          const mId = input.dataset.mid;
           if (mId) {
             if (!s1.contract.taskAssignments) s1.contract.taskAssignments = {};
-            s1.contract.taskAssignments[mId] = e.target.value;
-            if (window.app) window.app.syncStage1();
+            s1.contract.taskAssignments[mId] = input.value;
+            if (window.app) {
+              window.app.syncStage1();
+              if (window.app.cloudSyncEngine) window.app.cloudSyncEngine.pushSnapshot();
+            }
           }
-        });
-        input.addEventListener('blur', (e) => {
-          const mId = e.target.dataset.mid;
-          if (mId) {
-            if (!s1.contract.taskAssignments) s1.contract.taskAssignments = {};
-            s1.contract.taskAssignments[mId] = e.target.value;
-            if (window.app) window.app.syncStage1();
-          }
-        });
+        };
+        input.addEventListener('change', flushTask);
+        input.addEventListener('blur', flushTask);
+        input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { input.blur(); } });
       }
     });
 
