@@ -1238,14 +1238,42 @@
         this.app.state.isFinalSubmitted = remoteData.isFinalSubmitted;
       }
 
-      // ── 聊天记录：只更新内存，让 renderChat 原位重绘，绝不触发 renderStudentWorkspace ──
+      // ── 聊天记录：采用单调递增并集去重合并（Union & Dedup），彻底杜绝旧快照冲掉新发言导致一闪一闪 ──
       if (remoteData.chatLogs) {
         let chatChanged = false;
         ['stage1', 'stage2', 'stage3'].forEach(stg => {
           const remoteLogs = Array.isArray(remoteData.chatLogs[stg]) ? remoteData.chatLogs[stg] : [];
           const localLogs = Array.isArray(this.app.state.chatLogs[stg]) ? this.app.state.chatLogs[stg] : [];
-          if (JSON.stringify(remoteLogs) !== JSON.stringify(localLogs)) {
-            this.app.state.chatLogs[stg] = remoteLogs;
+          
+          // 建立消息去重 Map（优先根据 _timeMs+sender+text 去重）
+          const msgMap = new Map();
+          const getMsgKey = (m) => {
+            if (!m) return '';
+            const tMs = m._timeMs || m.timestamp || '';
+            const sender = m.sender || '';
+            const textHead = (m.text || '').slice(0, 30);
+            return `${sender}_${tMs}_${textHead}`;
+          };
+
+          // 先载入本地消息
+          localLogs.forEach(m => {
+            if (m) msgMap.set(getMsgKey(m), m);
+          });
+          // 并入远端消息
+          remoteLogs.forEach(m => {
+            if (m) {
+              const k = getMsgKey(m);
+              if (!msgMap.has(k)) {
+                msgMap.set(k, m);
+                chatChanged = true;
+              }
+            }
+          });
+
+          // 如果合并后的总数发生变化或顺序更新
+          const mergedLogs = Array.from(msgMap.values());
+          if (mergedLogs.length !== localLogs.length || JSON.stringify(mergedLogs) !== JSON.stringify(localLogs)) {
+            this.app.state.chatLogs[stg] = mergedLogs;
             chatChanged = true;
           }
         });
@@ -6599,16 +6627,16 @@
       const cooldownPassed = (now - lastWarnTime) >= 900000; // 15 分钟冷却
       const hasMeaningfulProgress = (plainLen - lastWarnLen) >= 150; // 且写了新内容
 
-      if (activeOnlineCount >= 2 && plainLen >= 300 && membersList.length >= 2 && cooldownPassed && (lastWarnTime === 0 || hasMeaningfulProgress)) {
+      if (plainLen >= 300 && membersList.length >= 2 && cooldownPassed && (lastWarnTime === 0 || hasMeaningfulProgress)) {
         const contribs = this.state.stage2.memberContributions || {};
         let totalContrib = 0;
         membersList.forEach(m => { totalContrib += (contribs[m.id] || 0) + (contribs[m.studentCode] || 0); });
 
-        if (totalContrib >= 200) {
+        if (totalContrib >= 200 || plainLen >= 300) {
           // 检查是否存在显著失衡：某位成员占比超过 70%，且有成员贡献率低于 10%
           const pcts = membersList.map(m => {
             const val = (contribs[m.id] || 0) + (contribs[m.studentCode] || 0);
-            return Math.round((val / totalContrib) * 100);
+            return (totalContrib > 0) ? Math.round((val / totalContrib) * 100) : 0;
           });
           const hasMaxSkew = Math.max(...pcts) >= 70;
           const hasZeroMember = Math.min(...pcts) <= 10;
