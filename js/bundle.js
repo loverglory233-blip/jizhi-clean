@@ -1152,24 +1152,9 @@
             const remoteLogs = Array.isArray(remoteData.chatLogs[stg]) ? remoteData.chatLogs[stg] : [];
             const localLogs = Array.isArray(this.app.state.chatLogs[stg]) ? this.app.state.chatLogs[stg] : [];
             
-            // 🚀 消息智能去重合并：保留远程和本地的所有独特消息（以发送者+时间戳+文本为唯一指纹）
-            const seenKeys = new Set();
-            const mergedLogs = [];
-            
-            [...localLogs, ...remoteLogs].forEach(msg => {
-              if (!msg || !msg.text) return;
-              const key = `${msg.sender}_${msg.timestamp || ''}_${msg._timeMs || ''}_${msg.text.trim()}`;
-              if (!seenKeys.has(key)) {
-                seenKeys.add(key);
-                mergedLogs.push(msg);
-              }
-            });
-
-            // 保持按生成时间递增排序
-            mergedLogs.sort((a, b) => (a._timeMs || 0) - (b._timeMs || 0));
-
-            if (JSON.stringify(mergedLogs) !== JSON.stringify(localLogs)) {
-              this.app.state.chatLogs[stg] = mergedLogs;
+            // 以服务端真实日志为准，仅当有更新时写入
+            if (JSON.stringify(remoteLogs) !== JSON.stringify(localLogs)) {
+              this.app.state.chatLogs[stg] = remoteLogs;
               structuralUpdated = true;
             }
           });
@@ -1183,38 +1168,7 @@
         } else {
           const localS1 = this.app.state.stage1 || { proposals: [], votes: {}, hasVoted: {}, contract: {} };
           const remoteS1 = remoteData.stage1 || { proposals: [], votes: {}, hasVoted: {}, contract: {} };
-
-          // 🚀 提案池并集合并：以提案 ID 为唯一键，合并本地与远端的所有提案，绝不丢弃任何刚提交的提案
-          const seenPropIds = new Set();
-          const mergedProposals = [];
-          [...(localS1.proposals || []), ...(remoteS1.proposals || [])].forEach(p => {
-            if (!p || !p.id || !p.title) return;
-            if (!seenPropIds.has(p.id)) {
-              seenPropIds.add(p.id);
-              mergedProposals.push(p);
-            }
-          });
-
-          // 投票状态并集合并
-          const mergedVotes = { ...(localS1.votes || {}), ...(remoteS1.votes || {}) };
-          const mergedHasVoted = { ...(localS1.hasVoted || {}), ...(remoteS1.hasVoted || {}) };
-
-          // 合约状态合并（以服务端最新填入为准，并保留已确认签名）
-          const mergedContract = {
-            ...(remoteS1.contract || {}),
-            confirmedMembers: { ...(localS1.contract?.confirmedMembers || {}), ...(remoteS1.contract?.confirmedMembers || {}) },
-            taskAssignments: { ...(localS1.contract?.taskAssignments || {}), ...(remoteS1.contract?.taskAssignments || {}) },
-            timeAllocations: { ...(localS1.contract?.timeAllocations || {}), ...(remoteS1.contract?.timeAllocations || {}) }
-          };
-
-          const newS1 = {
-            ...remoteS1,
-            proposals: mergedProposals,
-            votes: mergedVotes,
-            hasVoted: mergedHasVoted,
-            mergedTitle: remoteS1.mergedTitle || localS1.mergedTitle || '',
-            contract: mergedContract
-          };
+          const newS1 = remoteS1;
 
           if (JSON.stringify(newS1) !== JSON.stringify(localS1)) {
             this.app.state.stage1 = newS1;
