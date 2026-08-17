@@ -1199,7 +1199,14 @@
               topicInp.value = newS1.mergedTitle || '';
             }
 
-            structuralUpdated = true;
+            // 如果只是合约文字/时间分配发生变化，上面已经通过 DOM 精确同步了 input.value，绝不触发整个工作区 renderStudentWorkspace 重绘，防止打断输入与光标跳动
+            const isProposalChanged = JSON.stringify(newS1.proposals) !== JSON.stringify(localS1.proposals);
+            const isVoteChanged = JSON.stringify(newS1.votes) !== JSON.stringify(localS1.votes);
+            const isConfirmChanged = newS1.contract?.isConfirmed !== localS1.contract?.isConfirmed || JSON.stringify(newS1.contract?.confirmedMembers) !== JSON.stringify(localS1.contract?.confirmedMembers);
+
+            if (isProposalChanged || isVoteChanged || isConfirmChanged) {
+              structuralUpdated = true;
+            }
           }
         }
       }
@@ -1242,6 +1249,18 @@
             structuralUpdated = true;
           }
         }
+      }
+
+      if (remoteData.stage3 && remoteData.stage3.feedbackItems) {
+        if (JSON.stringify(remoteData.stage3.feedbackItems) !== JSON.stringify(this.app.state.stage3.feedbackItems)) {
+          this.app.state.stage3.feedbackItems = remoteData.stage3.feedbackItems;
+          structuralUpdated = true;
+        }
+      }
+
+      if (remoteData.currentStage && remoteData.currentStage !== this.app.state.currentStage) {
+        this.app.state.currentStage = remoteData.currentStage;
+        structuralUpdated = true;
       }
 
       if (remoteData.isReset) {
