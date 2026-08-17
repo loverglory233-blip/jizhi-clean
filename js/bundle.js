@@ -1236,11 +1236,6 @@
       // ── 最终提交状态 ──
       if (remoteData.isFinalSubmitted !== undefined && remoteData.isFinalSubmitted !== this.app.state.isFinalSubmitted) {
         this.app.state.isFinalSubmitted = remoteData.isFinalSubmitted;
-        this.app.saveGroupState(myGroupId);
-        if (user?.role === 'student' && this.app.state.studentViewMode === 'workspace') {
-          this.app.renderStudentWorkspace();
-        }
-        return;
       }
 
       // ── 聊天记录：只更新内存，让 renderChat 原位重绘，绝不触发 renderStudentWorkspace ──
@@ -1257,12 +1252,14 @@
         if (chatChanged) renderChat(this.app.state);
       }
 
-      // ── stage1 投票/提案：只有投票/提案/签署状态变化才触发重绘 ──
+      let needWorkspaceRender = false;
+
+      // ── stage1 投票/提案/合约：全量实时同步 ──
       if (remoteData.stage1) {
         const localS1 = this.app.state.stage1 || { proposals: [], votes: {}, hasVoted: {}, contract: {} };
         const remoteS1 = remoteData.stage1;
         if (JSON.stringify(remoteS1) !== JSON.stringify(localS1)) {
-          // 先局部更新合约输入框 value（不销毁DOM）
+          // 局部更新合约输入框 value（不销毁DOM）
           if (remoteS1.contract?.taskAssignments) {
             document.querySelectorAll('.task-assignment-input').forEach(inp => {
               const mId = inp.dataset.mid;
@@ -1304,11 +1301,8 @@
           remoteS1.proposals = mergedProposals;
           this.app.state.stage1 = remoteS1;
 
-          this.app.saveGroupState(myGroupId);
-          if ((isProposalChanged || isVoteChanged || isConfirmChanged)
-              && user?.role === 'student' && this.app.state.studentViewMode === 'workspace') {
-            this.app.renderStudentWorkspace();
-            return;
+          if (isProposalChanged || isVoteChanged || isConfirmChanged) {
+            needWorkspaceRender = true;
           }
         }
       }
@@ -1322,7 +1316,7 @@
           if (editor) {
             const isLocalComposing = (editor.dataset.isComposing === 'true');
             const isLocalFocused = (document.activeElement === editor);
-            // 核心保护：本地用户正在聚焦打字或拼音输入时，绝不覆盖本地输入框（防止正在打的字被删掉）
+            // 本地用户未在打字时平滑同步
             if (!isLocalComposing && !isLocalFocused) {
               const currentLocalHtml = editor.innerHTML.replace(/<span class="remote-cursor-widget"[\s\S]*?<\/span>/gi, '');
               if (currentLocalHtml.trim() !== cleanRemoteContent.trim()) {
@@ -1339,15 +1333,11 @@
             this.app.updateContributionUi();
           }
         }
-        // action plan 变化（审稿编辑半程清单生成）才需要全面重绘
+        // action plan 变化（审稿编辑半程清单生成）
         if (remoteData.stage2.actionPlan) {
           if (JSON.stringify(remoteData.stage2.actionPlan) !== JSON.stringify(this.app.state.stage2.actionPlan)) {
             this.app.state.stage2.actionPlan = remoteData.stage2.actionPlan;
-            if (user?.role === 'student' && this.app.state.studentViewMode === 'workspace') {
-              this.app.saveGroupState(myGroupId);
-              this.app.renderStudentWorkspace();
-              return;
-            }
+            needWorkspaceRender = true;
           }
         }
       }
@@ -1356,26 +1346,25 @@
       if (remoteData.stage3 && remoteData.stage3.feedbackItems) {
         if (JSON.stringify(remoteData.stage3.feedbackItems) !== JSON.stringify(this.app.state.stage3.feedbackItems)) {
           this.app.state.stage3.feedbackItems = remoteData.stage3.feedbackItems;
-          if (user?.role === 'student' && this.app.state.studentViewMode === 'workspace') {
-            this.app.saveGroupState(myGroupId);
-            this.app.renderStudentWorkspace();
-            return;
-          }
+          needWorkspaceRender = true;
         }
       }
 
-      // ── 阶段切换：阶段由学生组员自主切页查阅/写作，不在后台强行将对方切走 ──
-      // 仅当远端阶段因为合约签署触发自动解锁推进时记录状态，绝不强行打断其他设备当前正在编写的界面
+      // ── 阶段切换：仅保存远端最新阶段，不强踢用户当前工作区 ──
       if (remoteData.currentStage && remoteData.currentStage !== this.app.state.currentStage) {
-        // 同步保存远端最新阶段，但不强行重绘当前学生的屏幕，避免打断当前输入
         this.app.saveGroupState(myGroupId);
       }
 
-      // ── 无需重绘的同步：仅保存状态 ──
+      // ── 统一保存状态 ──
       this.app.saveGroupState(myGroupId);
       renderChat(this.app.state);
       this.app.updateContributionUi();
       this.app.renderPresenceCursors();
+
+      // 统一按需重绘工作区，绝不中途 return 导致同步截断
+      if (needWorkspaceRender && user?.role === 'student' && this.app.state.studentViewMode === 'workspace') {
+        this.app.renderStudentWorkspace();
+      }
     }
   }
 
