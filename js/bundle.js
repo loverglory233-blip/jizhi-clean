@@ -5372,9 +5372,17 @@
             }
           }
 
-          // 4. 🎯 半程会议后协同修改守护：半程会议已完成（清单已生成），若讨论区超过 8 分钟无人说话，提示交流修改进展与对齐
+          // ── 阶段二动态比例自适应算法（基于公约规划总时长） ──
+          const times = (this.state.stage1 && this.state.stage1.contract && this.state.stage1.contract.timeAllocations) ? this.state.stage1.contract.timeAllocations : {};
+          const totalPlannedMin = (times.background || 25) + (times.literature || 30) + (times.questions || 25) + (times.method || 40) + (times.reflection || 20) + (times.references || 10);
+          const totalPlannedMs = totalPlannedMin * 60 * 1000;
+
+          // 动态阈值：后半程修改静默提醒阈值 = 阶段二总规划时长的 12%（设置安全上下限: 5min ~ 12min）
+          const dynamicPostMeetingSilenceMs = Math.min(Math.max(totalPlannedMs * 0.12, 300000), 720000);
+
+          // 4. 🎯 半程会议后协同修改守护：半程会议已完成（清单已生成），若讨论区超过动态阈值（约规划总时长的12%，大课约8分钟）无人说话，提示交流修改进展与对齐
           const hasMeetingDone = !!(s2.actionPlan && s2.actionPlan.isGenerated);
-          if (hasMeetingDone && silenceDurationMs > 480000) {
+          if (hasMeetingDone && silenceDurationMs > dynamicPostMeetingSilenceMs) {
             if (!this.lastS2PostMeetingSilenceNudgeTime || now - this.lastS2PostMeetingSilenceNudgeTime > 300000) {
               this.lastS2PostMeetingSilenceNudgeTime = now;
               const msg = {
