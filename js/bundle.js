@@ -4193,9 +4193,15 @@
         };
         document.addEventListener('keydown', onEscKey);
 
+        modal.querySelector('#prop-title-input').addEventListener('input', () => {
+          if (window.app) window.app.stage1LastActionTime = Date.now();
+        });
+
         modal.querySelector('#btn-submit-prop-action').addEventListener('click', async () => {
           const title = modal.querySelector('#prop-title-input').value.trim();
           if (!title) { alert('⚠️ 请输入选题名称！'); return; }
+
+          if (window.app) window.app.stage1LastActionTime = Date.now();
 
           const existingIdx = s1.proposals.findIndex(p => p.author === currentUser);
           const nowMs = Date.now();
@@ -5080,8 +5086,13 @@
           const submittedAuthors = new Set(proposals.map(p => p.author));
           const votesCastCount = Object.values(s1.hasVoted || {}).filter(Boolean).length;
 
-          // 1. 【提案阶段研讨静默守护】：开场或构思过程中，若全组持续 > 3 分钟完全无人发言，拍卖师破冰引导一次
-          if (submittedCount < totalMembersCount && silenceDurationMs > 180000) {
+          // 核心守护保护：同时检测【讨论区发言】与【左侧提案操作活跃态】
+          const lastProposalTime = proposals.length > 0 ? Math.max(...proposals.map(p => p.updatedAt || 0)) : 0;
+          const lastLeftActionTime = Math.max(lastProposalTime, this.stage1LastActionTime || 0);
+          const timeSinceLastLeftAction = now - lastLeftActionTime;
+
+          // 1. 【提案阶段研讨静默守护】：只有当【讨论区无人发言 > 3min】且【左侧也无人在操作/撰写提案 > 3min】时，才判定为真正冷场并破冰！
+          if (submittedCount < totalMembersCount && silenceDurationMs > 180000 && timeSinceLastLeftAction > 180000) {
             if (!this.lastDiscussionNudgeTime || now - this.lastDiscussionNudgeTime > 240000) {
               this.lastDiscussionNudgeTime = now;
               const msg = {
