@@ -5086,18 +5086,37 @@
           const submittedAuthors = new Set(proposals.map(p => p.author));
           const votesCastCount = Object.values(s1.hasVoted || {}).filter(Boolean).length;
 
-          // 核心守护保护：同时检测【讨论区发言】与【左侧提案操作活跃态】
+          // 核心双轨感知：检测【左侧提案操作活跃态】
           const lastProposalTime = proposals.length > 0 ? Math.max(...proposals.map(p => p.updatedAt || 0)) : 0;
           const lastLeftActionTime = Math.max(lastProposalTime, this.stage1LastActionTime || 0);
           const timeSinceLastLeftAction = now - lastLeftActionTime;
 
-          // 1. 【提案阶段研讨静默守护】：只有当【讨论区无人发言 > 3min】且【左侧也无人在操作/撰写提案 > 3min】时，才判定为真正冷场并破冰！
-          if (submittedCount < totalMembersCount && silenceDurationMs > 180000 && timeSinceLastLeftAction > 180000) {
+          // 1a. 【常规静默守护】：研讨区静默 > 3.5min 且 左侧无操作 > 3.5min 时破冰
+          if (submittedCount < totalMembersCount && silenceDurationMs > 210000 && timeSinceLastLeftAction > 210000) {
             if (!this.lastDiscussionNudgeTime || now - this.lastDiscussionNudgeTime > 240000) {
               this.lastDiscussionNudgeTime = now;
               const msg = {
                 sender: 'auctioneer',
                 text: `💡 【拍卖师·研讨互动提示】：大家在构思选题的过程中，可以在讨论区互相交流灵感、探讨研究问题的价值与可行性，共同激发更好的提案！`,
+                timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                _timeMs: now
+              };
+              if (!this.state.chatLogs.stage1) this.state.chatLogs.stage1 = [];
+              this.state.chatLogs.stage1.push(msg);
+              this.syncChatLogs();
+              if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+              renderChat(this.state);
+              return;
+            }
+          }
+
+          // 1b. 【★ 通用超长静默提醒 (全阶段通用)】：即使左侧在操作，但讨论区持续 > 7 分钟完全不交流，提醒同伴研讨
+          if (submittedCount < totalMembersCount && silenceDurationMs > 420000) {
+            if (!this.lastLongSilenceNudgeTime_S1 || now - this.lastLongSilenceNudgeTime_S1 > 360000) {
+              this.lastLongSilenceNudgeTime_S1 = now;
+              const msg = {
+                sender: 'auctioneer',
+                text: `📢 【拍卖师·同伴研讨提醒】：关注到大家都在专注推进个人选题！但真正的学术合作离不开思维碰撞，建议大家在右侧讨论区多交流彼此的想法，听听同伴的建议哦！`,
                 timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
                 _timeMs: now
               };
@@ -5273,13 +5292,36 @@
           const plainTextLen = plainText.length;
           const contribs = s2.memberContributions || {};
 
-          // 1. 阶段二开场超过 4 分钟完全静默且正文字数 < 50 字：提示开始起草与交叉研讨
-          if (silenceDurationMs > 240000 && plainTextLen < 50) {
+          // 核心双轨感知：检测【左侧正文写作活跃态】
+          const lastWordEditTime = this.stage2LastWordEditTime || this.stage2StartTime;
+          const timeSinceLastWordEdit = now - lastWordEditTime;
+
+          // 1a. 【常规起草静默守护】：开场 > 4min 且 讨论区无人说话 且 正文也没在动时破冰
+          if (silenceDurationMs > 240000 && timeSinceLastWordEdit > 240000 && plainTextLen < 50) {
             if (!this.lastS2SilenceNudgeTime || now - this.lastS2SilenceNudgeTime > 300000) {
               this.lastS2SilenceNudgeTime = now;
               const msg = {
                 sender: 'managingEditor',
                 text: `🤝 【责任编辑·起草提示】：大家已进入协作工作区！\n• 建议组员按照阶段一公约分工开始撰写各自负责的内容；\n• 撰写同时，多阅读同伴已写好的段落，在研讨区互相提出优化建议或协助润色，共同打磨全篇！`,
+                timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                _timeMs: now
+              };
+              if (!this.state.chatLogs.stage2) this.state.chatLogs.stage2 = [];
+              this.state.chatLogs.stage2.push(msg);
+              this.syncChatLogs();
+              if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+              renderChat(this.state);
+              return;
+            }
+          }
+
+          // 1b. 【★ 阶段二超长零研讨提醒 (全阶段通用)】：即使左侧一直在写字，但讨论区持续 > 7 分钟完全零交流
+          if (silenceDurationMs > 420000 && stage2DurationMs > 420000) {
+            if (!this.lastLongSilenceNudgeTime_S2 || now - this.lastLongSilenceNudgeTime_S2 > 360000) {
+              this.lastLongSilenceNudgeTime_S2 = now;
+              const msg = {
+                sender: 'managingEditor',
+                text: `🤝 【责任编辑·同伴交流提醒】：看到大家都在积极起草正文！\n💡 真正的协同写作需要持续的沟通：建议大家在讨论区交流一下各章节的前后逻辑衔接，避免各写各的造成脱节哦！`,
                 timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
                 _timeMs: now
               };
@@ -5390,13 +5432,36 @@
           const feedbacks = Array.isArray(s3.feedbackItems) ? s3.feedbackItems : [];
           const pendingFeedbacks = feedbacks.filter(f => !f.response || f.response.trim().length === 0);
 
-          // 1. 阶段三开场或讨论中静默超过 3 分钟：提示展开答辩研讨
-          if (silenceDurationMs > 180000 && pendingFeedbacks.length > 0) {
+          // 核心双轨感知：检测【左侧答辩矩阵录入活跃态】
+          const lastMatrixEditTime = this.stage3LastMatrixEditTime || this.stage3StartTime;
+          const timeSinceLastMatrixEdit = now - lastMatrixEditTime;
+
+          // 1a. 【常规静默守护】：开场或讨论中 讨论区静默 > 3min 且 左侧矩阵无操作 > 3min 时提示
+          if (silenceDurationMs > 180000 && timeSinceLastMatrixEdit > 180000 && pendingFeedbacks.length > 0) {
             if (!this.lastS3SilenceNudgeTime || now - this.lastS3SilenceNudgeTime > 240000) {
               this.lastS3SilenceNudgeTime = now;
               const msg = {
                 sender: 'neutral',
                 text: `🟡 【中间委员·答辩协商提示】：正反两方委员的评审意见已送达左侧矩阵！\n• 建议全组在研讨区就反方提出的质询点展开辩护讨论，交流观点，梳理需要修正确认的关键点！`,
+                timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                _timeMs: now
+              };
+              if (!this.state.chatLogs.stage3) this.state.chatLogs.stage3 = [];
+              this.state.chatLogs.stage3.push(msg);
+              this.syncChatLogs();
+              if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+              renderChat(this.state);
+              return;
+            }
+          }
+
+          // 1b. 【★ 阶段三超长零交流提醒 (全阶段通用)】：即使左侧在填矩阵，但讨论区持续 > 7 分钟无人交流
+          if (silenceDurationMs > 420000 && pendingFeedbacks.length > 0) {
+            if (!this.lastLongSilenceNudgeTime_S3 || now - this.lastLongSilenceNudgeTime_S3 > 360000) {
+              this.lastLongSilenceNudgeTime_S3 = now;
+              const msg = {
+                sender: 'neutral',
+                text: `🟡 【中间委员·辩护交流提示】：辩护方案需要全组共同商定！建议大家在右侧研讨区积极交流反驳理由，形成共识后再填入左侧矩阵！`,
                 timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
                 _timeMs: now
               };
