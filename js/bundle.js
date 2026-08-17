@@ -2970,48 +2970,59 @@
       <div class="word-editor-container" id="${editorId}-wrapper">
         ${!isReadonly ? `
           <div class="word-toolbar">
-            <!-- 1. 历史与模式 -->
+            <!-- 1. 历史操作与格式刷 -->
             <div class="word-toolbar-group">
               <button class="word-btn" id="${editorId}-btn-undo" title="撤销 (Ctrl+Z)">↩️ 撤销</button>
               <button class="word-btn" id="${editorId}-btn-redo" title="重做 (Ctrl+Y)">↪️ 重做</button>
-              <button class="word-btn" id="${editorId}-btn-fullscreen" title="全屏沉浸式学术写作模式">🔲 全屏</button>
+              <button class="word-btn" id="${editorId}-btn-format-painter" title="格式刷 (复制选中文字格式并应用到下一段文字)">🖌️ 格式刷</button>
             </div>
 
             <!-- 2. 论文大纲与章节层级 (结构化标签) -->
             <div class="word-toolbar-group" title="设置当前段落的论文大纲层级">
-              <span style="font-size:11px; font-weight:700; color:#64748b; margin-right:2px;">📑 标题层级:</span>
-              <select class="word-select" id="${editorId}-sel-format" title="段落与大纲层级" style="width:140px; font-weight:600; color:#1e40af;">
+              <span style="font-size:11px; font-weight:700; color:#64748b; margin-right:2px;">📑 层级:</span>
+              <select class="word-select" id="${editorId}-sel-format" title="段落与大纲层级" style="width:130px; font-weight:600; color:#1e40af;">
                 <option value="p">正文段落 (Body)</option>
                 <option value="h1">论文总题目 (H1)</option>
-                <option value="h2">一级章标题 (H2 · 一、背景)</option>
-                <option value="h3">二级节标题 (H3 · (一) 假设)</option>
-                <option value="h4">三级小节 (H4 · 1. 概念)</option>
-                <option value="blockquote">引文与摘要块 (Block)</option>
+                <option value="h2">一级章标题 (H2)</option>
+                <option value="h3">二级节标题 (H3)</option>
+                <option value="h4">三级小节 (H4)</option>
+                <option value="blockquote">引文与摘要块</option>
               </select>
             </div>
 
-            <!-- 3. 字体与字号设置 (纯文字格式) -->
+            <!-- 3. 字体与字号设置 (丰富学术与通用字体库) -->
             <div class="word-toolbar-group" title="设置选中文字的字体与字号">
               <span style="font-size:11px; font-weight:700; color:#64748b; margin-right:2px;">🔤 字体字号:</span>
-              <select class="word-select" id="${editorId}-sel-font" title="学术字体" style="width:125px;">
-                <option value="SimSun">宋体 (学术标准)</option>
-                <option value="SimHei">黑体 (标题)</option>
-                <option value="FangSong">仿宋 (公文标准)</option>
-                <option value="KaiTi">楷体 (引文)</option>
-                <option value="Times New Roman">Times New Roman</option>
-                <option value="Arial">Arial</option>
+              <select class="word-select" id="${editorId}-sel-font" title="学术中英文字体" style="width:130px;">
+                <option value="SimSun, 'Songti SC', serif">宋体 (学术标准)</option>
+                <option value="SimHei, 'Heiti SC', sans-serif">黑体 (大标题)</option>
+                <option value="FangSong, 'FangSong SC', serif">仿宋 (公文标准)</option>
+                <option value="KaiTi, 'Kaiti SC', serif">楷体 (引文/致谢)</option>
+                <option value="'Microsoft YaHei', 'PingFang SC', sans-serif">微软雅黑 / 苹方</option>
+                <option value="'Times New Roman', serif">Times New Roman</option>
+                <option value="Arial, sans-serif">Arial</option>
+                <option value="Calibri, sans-serif">Calibri</option>
+                <option value="'Courier New', monospace">Courier New (代码)</option>
+                <option value="Georgia, serif">Georgia (英文期刊)</option>
               </select>
-              <select class="word-select" id="${editorId}-sel-size" title="字号" style="width:105px;">
-                <option value="6">一号 (26pt)</option>
-                <option value="5">小二 (18pt)</option>
-                <option value="4">四号 (14pt)</option>
-                <option value="3" selected>小四 (12pt / 正文)</option>
-                <option value="2">五号 (10.5pt)</option>
-                <option value="1">小五 (9pt)</option>
+              <select class="word-select" id="${editorId}-sel-size" title="标准论文中英文字号" style="width:115px;">
+                <option value="42px">初号 (42pt)</option>
+                <option value="36px">小初 (36pt)</option>
+                <option value="26px">一号 (26pt)</option>
+                <option value="24px">小一 (24pt)</option>
+                <option value="22px">二号 (22pt)</option>
+                <option value="18px">小二 (18pt)</option>
+                <option value="16px">三号 (16pt)</option>
+                <option value="15px">小三 (15pt)</option>
+                <option value="14px">四号 (14pt)</option>
+                <option value="12px" selected>小四 (12pt / 正文)</option>
+                <option value="10.5px">五号 (10.5pt)</option>
+                <option value="9px">小五 (9pt)</option>
+                <option value="7.5px">六号 (7.5pt)</option>
               </select>
             </div>
 
-            <!-- 3. 文字装饰与字形 -->
+            <!-- 4. 文字修饰 -->
             <div class="word-toolbar-group">
               <button class="word-btn" id="${editorId}-btn-bold" title="粗体 (Ctrl+B)"><b>B</b></button>
               <button class="word-btn" id="${editorId}-btn-italic" title="斜体 (Ctrl+I)"><i>I</i></button>
@@ -3021,7 +3032,7 @@
               <button class="word-btn" id="${editorId}-btn-sub" title="下标 (变量角标 H₁)">X₂</button>
             </div>
 
-            <!-- 4. 排版、对齐、缩进与行间距 -->
+            <!-- 5. 排版、对齐、缩进设置与行间距 -->
             <div class="word-toolbar-group">
               <select class="word-select" id="${editorId}-sel-line-height" title="行间距 (行高)" style="width:96px;">
                 <option value="1.5" selected>1.5倍 (标准)</option>
@@ -3030,26 +3041,24 @@
                 <option value="1.75">1.75倍行距</option>
                 <option value="2.0">双倍 (2.0倍)</option>
               </select>
-              <select class="word-select" id="${editorId}-sel-para-margin" title="段落后间距 (段后距)" style="width:90px;">
-                <option value="6px" selected>段后 6pt</option>
-                <option value="0px">段后 0pt</option>
-                <option value="12px">段后 12pt</option>
-                <option value="18px">段后 18pt</option>
+              <select class="word-select" id="${editorId}-sel-indent" title="段落首行缩进量" style="width:105px;">
+                <option value="2em" selected>首行缩进 2字符</option>
+                <option value="0em">无缩进 (0字符)</option>
+                <option value="1em">首行缩进 1字符</option>
+                <option value="3em">首行缩进 3字符</option>
+                <option value="4em">首行缩进 4字符</option>
               </select>
+              <button class="word-btn" id="${editorId}-btn-hanging-indent" title="悬挂缩进 (参考文献标准格式)">⇤ 悬挂缩进</button>
               <button class="word-btn" id="${editorId}-btn-align-left" title="左对齐">⇤</button>
               <button class="word-btn" id="${editorId}-btn-align-center" title="居中对齐">☰</button>
               <button class="word-btn" id="${editorId}-btn-align-right" title="右对齐">⇥</button>
               <button class="word-btn" id="${editorId}-btn-align-justify" title="两端对齐 (学术正文标准)">☲</button>
-              <button class="word-btn" id="${editorId}-btn-indent-inc" title="增加缩进">➔ 缩进+</button>
-              <button class="word-btn" id="${editorId}-btn-indent-dec" title="减少缩进">⬅ 缩进-</button>
-              <button class="word-btn" id="${editorId}-btn-indent-2em" title="一键首行缩进 2 字符">⇥ 首行2字符</button>
-              <button class="word-btn" id="${editorId}-btn-hanging-indent" title="悬挂缩进 (参考文献格式)">⇤ 悬挂缩进</button>
               <button class="word-btn" id="${editorId}-btn-list-ul" title="项目符号">• 列表</button>
               <button class="word-btn" id="${editorId}-btn-list-ol" title="编号列表">1. 编号</button>
               <button class="word-btn" id="${editorId}-btn-hr" title="插入水平分隔线">― 分隔线</button>
             </div>
 
-            <!-- 5. 颜色、荧光笔与清格式 -->
+            <!-- 6. 颜色、荧光笔与清格式 -->
             <div class="word-toolbar-group">
               <label style="display:flex; align-items:center; gap:3px; font-size:11px; color:#94a3b8; cursor:pointer;" title="文字颜色">
                 <span>🎨</span>
@@ -3060,7 +3069,7 @@
               <button class="word-btn" id="${editorId}-btn-clear-format" title="清除格式">🧹 清格式</button>
             </div>
 
-            <!-- 6. 学术论文插件套件 (精简图标) -->
+            <!-- 7. 学术论文插件套件 -->
             <div class="word-toolbar-group">
               <button class="word-btn plugin-btn" id="${editorId}-btn-insert-image" title="插入学术图表与图题说明">🖼️ 图表</button>
               <button class="word-btn plugin-btn" id="${editorId}-btn-insert-table" title="插入标准学术三线表">📊 三线表</button>
@@ -3068,19 +3077,22 @@
               <button class="word-btn plugin-btn" id="${editorId}-btn-insert-citation" title="插入文献引用角标 [n]">📑 [n]</button>
               <button class="word-btn plugin-btn" id="${editorId}-btn-insert-abstract" title="插入【摘要与关键词】学术前置卡片">📌 摘要</button>
               <button class="word-btn plugin-btn" id="${editorId}-btn-insert-ref-template" title="在文末插入标准参考文献模版">📚 文献</button>
-              <button class="word-btn plugin-btn" id="${editorId}-btn-find-replace" title="文档内查找与替换">🔍 查找</button>
+              <button class="word-btn plugin-btn" id="${editorId}-btn-find-replace" title="文档内查找与替换">🔍 查找替换</button>
               <button class="word-btn plugin-btn" id="${editorId}-btn-export-doc" style="background:#ecfdf5; border-color:#a7f3d0; color:#059669; font-weight:700;" title="导出为 Word 论文格式文档 (.doc)">📥 Word</button>
               <button class="word-btn plugin-btn" id="${editorId}-btn-print-doc" title="打印 / 导出 PDF 论文">📄 PDF</button>
             </div>
           </div>
 
-          <div class="search-replace-bar" id="${editorId}-search-bar" style="display:none;">
-            <span>🔍 查找:</span>
-            <input type="text" id="${editorId}-search-input" placeholder="输入要查找的关键词...">
-            <span>替换为:</span>
-            <input type="text" id="${editorId}-replace-input" placeholder="输入替换内容...">
-            <button class="word-btn" id="${editorId}-btn-do-replace" style="background:#0284c7; color:white;">全部替换</button>
-            <button class="word-btn" id="${editorId}-btn-close-search" style="background:none; border:none; color:#94a3b8;">✕ 关闭</button>
+          <div class="search-replace-bar" id="${editorId}-search-bar" style="display:none; align-items:center; gap:8px; padding:8px 14px; background:#f8fafc; border-bottom:1px solid #e2e8f0; font-size:12px;">
+            <span style="font-weight:700; color:#334155;">🔍 查找:</span>
+            <input type="text" id="${editorId}-search-input" placeholder="输入要查找的关键词..." style="padding:4px 8px; border:1px solid #cbd5e1; border-radius:4px; font-size:12px; width:150px;">
+            <button class="word-btn" id="${editorId}-btn-find-next" style="background:#2563eb; color:white; font-size:11.5px; padding:3px 10px;">下一个</button>
+            <span id="${editorId}-find-count-tip" style="color:#64748b; font-size:11px;"></span>
+            <span style="font-weight:700; color:#334155; margin-left:8px;">替换为:</span>
+            <input type="text" id="${editorId}-replace-input" placeholder="替换内容..." style="padding:4px 8px; border:1px solid #cbd5e1; border-radius:4px; font-size:12px; width:130px;">
+            <button class="word-btn" id="${editorId}-btn-do-replace" style="background:#0284c7; color:white; font-size:11.5px; padding:3px 10px;">替换当前</button>
+            <button class="word-btn" id="${editorId}-btn-do-replace-all" style="background:#059669; color:white; font-size:11.5px; padding:3px 10px;">全部替换</button>
+            <button class="word-btn" id="${editorId}-btn-close-search" style="background:none; border:none; color:#94a3b8; cursor:pointer; font-weight:700; margin-left:auto;">✕ 关闭</button>
           </div>
         ` : `
           <div class="word-toolbar" style="background:rgba(30,41,59,0.9); justify-content:space-between;">
@@ -4135,7 +4147,7 @@
             </button>
           </div>
           <button id="btn-final-submit" ${isFinalSubmitted ? 'disabled' : ''} style="background:${isFinalSubmitted ? '#ecfdf5' : 'linear-gradient(135deg, #059669, #047857)'}; border:${isFinalSubmitted ? '1px solid #a7f3d0' : 'none'}; color:${isFinalSubmitted ? '#059669' : 'white'}; padding:8px 18px; border-radius:8px; font-weight:700; cursor:${isFinalSubmitted ? 'not-allowed' : 'pointer'}; font-size:13px; box-shadow:${isFinalSubmitted ? 'none' : '0 3px 10px rgba(5,150,105,0.25)'};">
-            ${isFinalSubmitted ? '🔒 论文终稿已成功提交 (归档只读)' : '🚀 提交期末论文终稿'}
+            ${isFinalSubmitted ? '🔒 论文终稿已成功提交 (归档只读)' : '🚀 提交论文终稿'}
           </button>
         </div>
 
@@ -4257,6 +4269,10 @@
       }
     });
 
+    // 智能滚动：如果用户正在往上拉浏览历史记录，保持当前视角不被强行打断拉回底部
+    const isAtBottom = (stream.scrollHeight - stream.scrollTop - stream.clientHeight) < 90;
+    const prevScrollTop = stream.scrollTop;
+
     stream.innerHTML = allMsgs.map(msg => {
       const isMe = msg.sender === currentUser;
       const isAgent = AgentProfiles[msg.sender] !== undefined;
@@ -4293,7 +4309,11 @@
       `;
     }).join('');
 
-    stream.scrollTop = stream.scrollHeight;
+    if (isAtBottom) {
+      stream.scrollTop = stream.scrollHeight;
+    } else {
+      stream.scrollTop = prevScrollTop;
+    }
   }
 
   /* ==========================================================================
