@@ -5854,7 +5854,39 @@
         renderChat(this.state);
       }
 
-      // 责任编辑不再自动强行弹贡献不均提醒，避免打扰正常讨论与写作
+      // 3. 🤝 责任编辑 Agent: 字数贡献比严重偏斜提醒 (SSRL 共享调节)
+      // 严格保障：全阶段【至多触发 1 次】，严禁任何形式的重复刷屏！
+      const membersList = Object.values(this.state.members || {});
+      const plainLen = newContent.replace(/<[^>]*>/g, '').trim().length;
+      if (plainLen >= 300 && membersList.length >= 2 && !this.state.stage2SSRLImbalanceWarned) {
+        const contribs = this.state.stage2.memberContributions || {};
+        let totalContrib = 0;
+        membersList.forEach(m => { totalContrib += (contribs[m.id] || 0) + (contribs[m.studentCode] || 0); });
+
+        if (totalContrib >= 200) {
+          // 检查是否存在显著失衡：某位成员占比超过 70%，或有成员贡献率低于 10%
+          const pcts = membersList.map(m => {
+            const val = (contribs[m.id] || 0) + (contribs[m.studentCode] || 0);
+            return Math.round((val / totalContrib) * 100);
+          });
+          const hasMaxSkew = Math.max(...pcts) >= 70;
+          const hasZeroMember = Math.min(...pcts) <= 10;
+
+          if (hasMaxSkew && hasZeroMember) {
+            this.state.stage2SSRLImbalanceWarned = true; // 锁定标志位，本阶段绝不再发第2次
+            const leaderName = membersList[0] ? membersList[0].name : '组长';
+            const ssrlWarningMsg = {
+              sender: 'managingEditor',
+              text: `🤝 【责任编辑·协同关怀】：关注到当前正文撰写推进中，各成员的投入占比出现了一定程度的分化。建议组长（${leaderName}）与组员在讨论区适度协调分工，鼓励尚未充分动笔的同学认领后续章节，共同推进高质量学术成稿哦~`,
+              timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+              _timeMs: now
+            };
+            logs.push(ssrlWarningMsg);
+            this.syncChatLogs();
+            renderChat(this.state);
+          }
+        }
+      }
     }
 
     showMeetingModal() {
