@@ -576,6 +576,58 @@
       this.pushGlobalMeta();
     }
 
+        deleteAllGroups(classId) {
+      const classes = this.getClasses();
+      const cls = classes.find(c => c.id === classId) || classes[0];
+      if (cls) {
+        cls.groups = [];
+        localStorage.setItem(STORAGE_KEY_CLASSES, JSON.stringify(classes));
+      }
+      const users = this.getUsers();
+      users.forEach(u => {
+        if (cls && cls.studentIds && cls.studentIds.includes(u.id)) {
+          u.groupId = null;
+        }
+      });
+      localStorage.setItem(STORAGE_KEY_USERS_DB, JSON.stringify(users));
+      this.pushGlobalMeta();
+    }
+
+    autoRandomGrouping(classId, groupSize = 3) {
+      const classes = this.getClasses();
+      const cls = classes.find(c => c.id === classId) || classes[0];
+      if (!cls) return;
+      const allUsers = this.getUsers();
+      const classStudents = allUsers.filter(u => u.role !== "teacher" && (cls.studentIds || []).includes(u.id));
+      if (classStudents.length === 0) return;
+
+      // 随机乱序洗牌
+      const shuffled = [...classStudents].sort(() => Math.random() - 0.5);
+      const newGroups = [];
+      let groupCount = Math.ceil(shuffled.length / groupSize);
+      if (groupCount === 0) groupCount = 1;
+
+      for (let i = 0; i < groupCount; i++) {
+        const gid = `group_${Date.now()}_${i + 1}`;
+        newGroups.push({
+          id: gid,
+          name: `第 ${i + 1} 协作小组`,
+          members: []
+        });
+      }
+
+      shuffled.forEach((student, idx) => {
+        const targetGroupIdx = idx % groupCount;
+        newGroups[targetGroupIdx].members.push(student.id);
+        student.groupId = newGroups[targetGroupIdx].id;
+      });
+
+      cls.groups = newGroups;
+      localStorage.setItem(STORAGE_KEY_CLASSES, JSON.stringify(classes));
+      localStorage.setItem(STORAGE_KEY_USERS_DB, JSON.stringify(allUsers));
+      this.pushGlobalMeta();
+    }
+
     deleteGroup(classId, groupId) {
       const classes = this.getClasses();
       const cls = classes.find(c => c.id === classId) || classes[0];
@@ -1442,7 +1494,11 @@
               <div class="card" style="border-top:4px solid #2563eb; width:100%; padding:24px;">
                 <div class="card-title" style="margin-bottom:16px;">
                   <span style="font-size:17px; font-weight:800; color:#0f172a;">👥 小组划分 (当前班级: ${activeClass.name})</span>
-                  <button id="btn-v1-create-group" class="teacher-action-btn" style="background:linear-gradient(135deg, #1d4ed8, #2563eb); border:none; color:white; padding:8px 18px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer; box-shadow:0 2px 8px rgba(37,99,235,0.25);">+ 新建小组并勾选组员</button>
+                  <div style="display:flex; gap:10px; flex-wrap:wrap;">
+                    <button id="btn-v1-create-group" class="teacher-action-btn" style="background:linear-gradient(135deg, #1d4ed8, #2563eb); border:none; color:white; padding:8px 16px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer; box-shadow:0 2px 8px rgba(37,99,235,0.25);">+ 新建小组</button>
+                    <button id="btn-v1-random-groups" class="teacher-action-btn" style="background:linear-gradient(135deg, #059669, #10b981); border:none; color:white; padding:8px 16px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer; box-shadow:0 2px 8px rgba(16,185,129,0.25);" title="按每组3人自动随机划分班级内全部学生">🎲 随机分组 (3人/组)</button>
+                    <button id="btn-v1-dissolve-all-groups" class="teacher-action-btn" style="background:linear-gradient(135deg, #dc2626, #b91c1c); border:none; color:white; padding:8px 16px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer; box-shadow:0 2px 8px rgba(220,38,38,0.25);">💥 一键解散所有小组</button>
+                  </div>
                 </div>
                 <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:12px 16px; margin-bottom:14px; font-size:13px; color:#334155;">
                   💡 <b>班级互斥划分规则：</b>已归属于本班级其他小组的学生会自动隐藏，避免重复挂组。跨班级独立计算。
@@ -1480,24 +1536,25 @@
           ${activeTab === 'view_publishing' ? `
             <div style="display:flex; flex-direction:column; gap:20px; width:100%;">
 
-              <!-- 0. 问卷链接配置 (置顶) -->
+              <!-- 0. 问卷链接配置 (关联具体任务) -->
               <div class="card" style="border-top:4px solid #2563eb; width:100%; padding:24px;">
                 <div class="card-title" style="margin-bottom:16px;">
-                  <span style="font-size:17px; font-weight:800; color:#0f172a;">📋 课程评估问卷链接配置</span>
+                  <span style="font-size:17px; font-weight:800; color:#0f172a;">📋 课程评估问卷链接配置 (按任务独立绑定)</span>
                 </div>
-                <div style="display:flex; gap:12px; align-items:stretch;">
-                  <input type="text" id="survey-url-input" class="teacher-input" placeholder="粘贴问卷链接，例如: https://www.wjx.cn/vm/xxxxx.aspx 或 https://forms.gle/xxxxx" value="${localStorage.getItem('jizhi_survey_url') || ''}" style="flex:1; font-family:monospace; font-size:13px;">
-                  <button id="btn-save-survey-url" class="teacher-action-btn" style="background:linear-gradient(135deg, #1d4ed8, #2563eb); border:none; color:white; padding:10px 22px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer; white-space:nowrap; box-shadow:0 2px 8px rgba(37,99,235,0.25);">💾 保存链接</button>
-                </div>
-                <div id="survey-url-status" style="font-size:12px; color:#059669; display:none; margin-top:8px; font-weight:700;">✅ 问卷链接已保存！学生提交终稿时将自动弹窗跳转。</div>
-                ${localStorage.getItem('jizhi_survey_url') ? `
-                  <div style="margin-top:10px; font-size:12px; color:#64748b; display:flex; align-items:center; gap:8px;">
-                    <span style="color:#059669; font-weight:700;">✅ 当前已配置:</span>
-                    <a href="${localStorage.getItem('jizhi_survey_url')}" target="_blank" style="color:#2563eb; font-family:monospace; text-decoration:underline;">${localStorage.getItem('jizhi_survey_url')}</a>
+                <div style="display:flex; flex-direction:column; gap:12px;">
+                  <div style="display:flex; gap:12px; align-items:center;">
+                    <span style="font-size:13px; font-weight:700; color:#334155; white-space:nowrap;">🎯 关联写作任务:</span>
+                    <select id="sel-survey-task" class="teacher-input fancy" style="max-width:320px; font-weight:700;">
+                      ${tasks.map(t => `<option value="${t.id}" ${t.id === (state.activeTaskId || "task_default") ? "selected" : ""}>📌 ${t.title}</option>`).join("")}
+                    </select>
                   </div>
-                ` : `
-                  <div style="margin-top:10px; font-size:12px; color:#d97706;">⚠️ 尚未配置问卷链接，学生问卷弹窗将无法跳转。</div>
-                `}
+                  <div style="display:flex; gap:12px; align-items:stretch;">
+                    <input type="text" id="survey-url-input" class="teacher-input" placeholder="粘贴问卷链接，例如: https://www.wjx.cn/vm/xxxxx.aspx 或 https://forms.gle/xxxxx" value="${localStorage.getItem(`jizhi_survey_url_${state.activeTaskId || (tasks[0] ? tasks[0].id : "task_default")}`) || localStorage.getItem("jizhi_survey_url") || ""}" style="flex:1; font-family:monospace; font-size:13px;">
+                    <button id="btn-save-survey-url" class="teacher-action-btn" style="background:linear-gradient(135deg, #1d4ed8, #2563eb); border:none; color:white; padding:10px 22px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer; white-space:nowrap; box-shadow:0 2px 8px rgba(37,99,235,0.25);">💾 保存绑定</button>
+                  </div>
+                </div>
+                <div id="survey-url-status" style="font-size:12px; color:#059669; display:none; margin-top:8px; font-weight:700;">✅ 该任务的评估问卷链接已保存绑定！该任务学生提交终稿时将自动唤起跳转。</div>
+                <div id="survey-url-display-box" style="margin-top:10px; font-size:12px;"></div>
               </div>
 
               <!-- 1. 课程参考范文与文献样例库 -->
@@ -2336,17 +2393,68 @@
       });
     });
 
+    // 🎲 随机分组 (每组3人并自动指定组长)
+    const btnRandomGroups = container.querySelector('#btn-v1-random-groups');
+    if (btnRandomGroups) {
+      btnRandomGroups.addEventListener('click', () => {
+        if (classStudents.length === 0) {
+          alert('⚠️ 当前班级学生池中暂无学生，请先添加学生账号！');
+          return;
+        }
+        if (confirm(`🎲 确认对【${activeClass.name}】的 ${classStudents.length} 名学生进行随机分组？\n\n系统将按每组 3 人自动洗牌划分并分配组长。原先的分组将被覆盖重置！`)) {
+          authManager.autoRandomGrouping(activeClass.id, 3);
+          renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+          alert(`✅ 已完成随机分组！共自动划分 ${(activeClass.groups || []).length} 个协作小组。`);
+        }
+      });
+    }
+
+    // 💥 一键解散所有小组
+    const btnDissolveAll = container.querySelector('#btn-v1-dissolve-all-groups');
+    if (btnDissolveAll) {
+      btnDissolveAll.addEventListener('click', () => {
+        if ((activeClass.groups || []).length === 0) {
+          alert('当前班级暂无小组可解散！');
+          return;
+        }
+        if (confirm(`💥 危险操作：确认一键解散【${activeClass.name}】下的所有小组？\n\n解散后全部学生将恢复为【待划分】状态。`)) {
+          authManager.deleteAllGroups(activeClass.id);
+          renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+          alert('✅ 已成功解散当前班级的所有小组！');
+        }
+      });
+    }
+
+    // 📋 问卷按任务切换和保存
+    const selSurveyTask = container.querySelector('#sel-survey-task');
+    const surveyUrlInput = container.querySelector('#survey-url-input');
+    if (selSurveyTask && surveyUrlInput) {
+      selSurveyTask.addEventListener('change', (e) => {
+        const selectedTaskId = e.target.value;
+        const currentUrl = localStorage.getItem(`jizhi_survey_url_${selectedTaskId}`) || localStorage.getItem('jizhi_survey_url') || '';
+        surveyUrlInput.value = currentUrl;
+      });
+    }
+
     const btnSaveSurveyUrl = container.querySelector('#btn-save-survey-url');
     if (btnSaveSurveyUrl) {
       btnSaveSurveyUrl.addEventListener('click', () => {
         const urlInput = container.querySelector('#survey-url-input');
         const statusEl = container.querySelector('#survey-url-status');
+        const targetTaskId = selSurveyTask ? selSurveyTask.value : (state.activeTaskId || 'task_default');
         const url = urlInput ? urlInput.value.trim() : '';
         if (!url) { alert('⚠️ 请先填入有效的问卷链接！'); return; }
+        
+        // 既存入该具体任务专属配置，也存入全局默认 fallback
+        localStorage.setItem(`jizhi_survey_url_${targetTaskId}`, url);
         localStorage.setItem('jizhi_survey_url', url);
+        
+        if (window.app && window.app.cloudSyncEngine) {
+          window.app.cloudSyncEngine.pushSnapshot();
+        }
+
         if (statusEl) { statusEl.style.display = 'block'; setTimeout(() => { statusEl.style.display = 'none'; }, 2500); }
-        // 刷新教师端以显示当前链接预览
-        setTimeout(() => renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView), 800);
+        setTimeout(() => renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView), 600);
       });
     }
 
@@ -2443,7 +2551,7 @@
               <div class="modal-header-title">
                 <div class="modal-icon-badge ann">📢</div>
                 <div>
-                  <h3>发布课堂即时通知 (含随附文件选择与上传)</h3>
+                  <h3>发布课堂即时通知</h3>
                   <p style="font-size:12px; color:#cbd5e1;">选择或拖拽本地文件随附发布，学生端可点击下载</p>
                 </div>
               </div>
@@ -4796,7 +4904,8 @@
 
     showQuestionnaireModal() {
       document.querySelectorAll('.modal-overlay').forEach(el => el.remove());
-      const surveyUrl = localStorage.getItem('jizhi_survey_url') || 'https://www.wjx.cn/vm/jizhi_eval_2026.aspx';
+      const currentTaskId = this.state.activeTaskId || 'task_default';
+      const surveyUrl = localStorage.getItem(`jizhi_survey_url_${currentTaskId}`) || localStorage.getItem('jizhi_survey_url') || 'https://www.wjx.cn/vm/jizhi_eval_2026.aspx';
       const isConfigured = surveyUrl.startsWith('http');
       
       const modal = document.createElement('div');
