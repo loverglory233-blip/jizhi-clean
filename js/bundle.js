@@ -2362,21 +2362,15 @@
         const modal = document.createElement('div');
         modal.className = 'modal-overlay';
         modal.innerHTML = `
-          <div class="teacher-modal-card fancy-task-modal" style="width:620px;">
+          <div class="teacher-modal-card fancy-task-modal" style="width:520px;">
             <div class="teacher-modal-header task-theme-gradient">
-              <div class="modal-header-title"><div class="modal-icon-badge task">📌</div><div><h3>发布全新写作任务 (含起止时间控制)</h3></div></div>
+              <div class="modal-header-title"><div class="modal-icon-badge task">📌</div><div><h3>发布全新写作任务</h3></div></div>
               <button class="modal-close-btn" id="btn-close-task-modal">✕</button>
             </div>
             <div class="teacher-modal-body">
-              <div class="form-grid-2">
-                <div class="teacher-form-group">
-                  <label><span class="req">*</span> 关联受众教学班级</label>
-                  <select id="modal-task-class" class="teacher-input fancy">${classes.map(c => `<option value="${c.id}">🏫 ${c.name}</option>`).join('')}</select>
-                </div>
-                <div class="teacher-form-group">
-                  <label><span class="req">*</span> 任务预估时长 (分钟)</label>
-                  <input type="number" id="modal-task-duration" class="teacher-input fancy" value="150">
-                </div>
+              <div class="teacher-form-group">
+                <label><span class="req">*</span> 关联受众教学班级</label>
+                <select id="modal-task-class" class="teacher-input fancy">${classes.map(c => `<option value="${c.id}">🏫 ${c.name}</option>`).join('')}</select>
               </div>
 
               <div class="form-grid-2" style="margin-top:8px;">
@@ -2395,8 +2389,8 @@
                 <input type="text" id="modal-task-title" class="teacher-input fancy" value="" placeholder="输入写作任务名称">
               </div>
               <div class="teacher-form-group">
-                <label><span class="req">*</span> 任务详细说明与要求</label>
-                <textarea id="modal-task-desc" class="teacher-textarea fancy" style="min-height:90px;" placeholder="请输入任务详细说明与指导要求..."></textarea>
+                <label>任务详细说明与要求 (选填)</label>
+                <textarea id="modal-task-desc" class="teacher-textarea fancy" style="min-height:90px;" placeholder="请输入任务详细说明与指导要求 (可选)..."></textarea>
               </div>
             </div>
             <div class="teacher-modal-footer">
@@ -2429,7 +2423,7 @@
           const deadline = modal.querySelector('#modal-task-deadline').value;
           const duration = modal.querySelector('#modal-task-duration').value;
 
-          if (!title || !desc) { alert('⚠️ 请填齐任务标题与说明！'); return; }
+          if (!title) { alert('⚠️ 请输入写作任务名称！'); return; }
           authManager.createTask(title, classId, desc, [], startTime, deadline, duration);
           closeModal();
           renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
