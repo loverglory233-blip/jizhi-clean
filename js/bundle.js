@@ -5057,27 +5057,39 @@
         const totalMembersCount = membersList.length;
         if (totalMembersCount === 0) return;
 
-        const submittedCount = (s1.proposals || []).length;
-        const votesCastCount = Object.values(s1.hasVoted || {}).filter(Boolean).length;
+        // 基础前提：必须有至少 2 位以上组员或全组处于工作区会话中
+        const presenceMap = this.state.presence || {};
+        const activeMembersCount = membersList.filter(m => {
+          const p = presenceMap[m.studentCode] || presenceMap[m.id];
+          return p && (now - (p.updatedAt || 0) < 60000); // 1分钟内有活跃心跳
+        }).length;
+        if (activeMembersCount < Math.min(2, totalMembersCount)) return;
 
-        // 0. 全组静默与无操作检测（如果组内超过 2 分钟没有任何发言且尚未开始提交提案，拍卖师主动破冰）
+        if (!this.stage1StartTime) this.stage1StartTime = now;
+        const stage1DurationMs = now - this.stage1StartTime;
+
         const s1Chats = (this.state.chatLogs && this.state.chatLogs.stage1) ? this.state.chatLogs.stage1 : [];
         const lastStudentMsg = [...s1Chats].reverse().find(m => m.sender && m.sender !== 'auctioneer' && m.sender !== 'system');
-        const lastStudentMsgTime = lastStudentMsg ? (lastStudentMsg._timeMs || 0) : (this.stage1StartTime || now);
-        if (!this.stage1StartTime) this.stage1StartTime = now;
+        const lastStudentMsgTime = lastStudentMsg ? (lastStudentMsg._timeMs || 0) : this.stage1StartTime;
+        const silenceDurationMs = now - lastStudentMsgTime;
 
-        const isGroupCompletelySilent = (now - lastStudentMsgTime > 120000); // 2 分钟完全无发言
-        if (submittedCount === 0 && isGroupCompletelySilent) {
-          if (!this.lastIceBreakNudgeTime || now - this.lastIceBreakNudgeTime > 150000) {
-            this.lastIceBreakNudgeTime = now;
-            const iceBreakMsg = {
+        const proposals = Array.isArray(s1.proposals) ? s1.proposals : [];
+        const submittedCount = proposals.length;
+        const submittedAuthors = new Set(proposals.map(p => p.author));
+        const votesCastCount = Object.values(s1.hasVoted || {}).filter(Boolean).length;
+
+        // ── 规则 1：开场一段时间全组完全无人发言（无发言持续 > 3 分钟），提醒开启研讨 ──
+        if (silenceDurationMs > 180000 && submittedCount === 0) {
+          if (!this.lastDiscussionNudgeTime || now - this.lastDiscussionNudgeTime > 240000) {
+            this.lastDiscussionNudgeTime = now;
+            const msg = {
               sender: 'auctioneer',
-              text: `💡 【拍卖师·破冰与研讨启发】：小组成员目前似乎还在思考构思中？\n• 建议先从课程相关的痛点或热点入手（如：大模型辅助教学、游戏化学习、智慧课堂互动等）；\n• 大家可以在右侧研讨区畅所欲言抛出初步想法，或者直接点击左侧【提交我的选题】提出你的第一份提案！`,
+              text: `💡 【拍卖师·研讨启动提示】：小组成员都已进入工作区！\n• 建议大家在右侧研讨区开启头脑风暴，分享彼此对本单元研究方向的初步构想；\n• 也可以在研讨中互通有无，为接下来的选题提案提供灵感！`,
               timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
               _timeMs: now
             };
             if (!this.state.chatLogs.stage1) this.state.chatLogs.stage1 = [];
-            this.state.chatLogs.stage1.push(iceBreakMsg);
+            this.state.chatLogs.stage1.push(msg);
             this.syncChatLogs();
             if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
             renderChat(this.state);
@@ -5085,45 +5097,69 @@
           }
         }
 
-        // 1. 提案超时提醒（若开场超过 3 分钟，且还有成员未提交提案）
-        if (submittedCount < totalMembersCount) {
-          if (!this.lastProposalNudgeTime || now - this.lastProposalNudgeTime > 180000) {
-            this.lastProposalNudgeTime = now;
-            const submittedAuthors = new Set((s1.proposals || []).map(p => p.author));
-            const unsubmitted = membersList.filter(m => !submittedAuthors.has(m.studentCode) && !submittedAuthors.has(m.id));
-            if (unsubmitted.length > 0) {
-              const names = unsubmitted.map(m => m.name).join('、');
-              const nudgeMsg = {
-                sender: 'auctioneer',
-                text: `⏳ 【拍卖师·提案征集提醒】：研讨已持续一段时间，目前尚有组员（**${names}**）未提交选题。\n👉 请未提交的同学抓紧点击左侧【提交我的选题】，全员提交后即可开启竞拍投票！`,
-                timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                _timeMs: now
-              };
-              if (!this.state.chatLogs.stage1) this.state.chatLogs.stage1 = [];
-              this.state.chatLogs.stage1.push(nudgeMsg);
-              this.syncChatLogs();
-              if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
-              renderChat(this.state);
+        // ── 规则 2：全组过了较长时间（开场 > 6 分钟）仍没有任何人提交提案，引导全员提交提案 ──
+        if (submittedCount === 0 && stage1DurationMs > 360000) {
+          if (!this.lastZeroProposalNudgeTime || now - this.lastZeroProposalNudgeTime > 300000) {
+            this.lastZeroProposalNudgeTime = now;
+            const msg = {
+              sender: 'auctioneer',
+              text: `⏳ 【拍卖师·选题提交引导】：研讨已经展开一段时间啦！\n👉 请各位组员将脑海中构思成熟的研究题目，点击左侧【提交我的选题】卡片正式提交到提案池，开启学术竞拍！`,
+              timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+              _timeMs: now
+            };
+            if (!this.state.chatLogs.stage1) this.state.chatLogs.stage1 = [];
+            this.state.chatLogs.stage1.push(msg);
+            this.syncChatLogs();
+            if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+            renderChat(this.state);
+            return;
+          }
+        }
+
+        // ── 规则 3：有人已经提交了，但过了合理时间（距离上次提交 > 4 分钟）仍有个别人未提交，针对性通知未提交同学 ──
+        if (submittedCount > 0 && submittedCount < totalMembersCount) {
+          const lastProposal = proposals[proposals.length - 1];
+          const lastProposalTime = lastProposal ? (lastProposal.updatedAt || this.stage1StartTime) : this.stage1StartTime;
+          if (now - lastProposalTime > 240000) { // 距离上一次提交超过 4 分钟
+            if (!this.lastPartialProposalNudgeTime || now - this.lastPartialProposalNudgeTime > 240000) {
+              this.lastPartialProposalNudgeTime = now;
+              const unsubmitted = membersList.filter(m => !submittedAuthors.has(m.studentCode) && !submittedAuthors.has(m.id));
+              if (unsubmitted.length > 0) {
+                const names = unsubmitted.map(m => m.name).join('、');
+                const msg = {
+                  sender: 'auctioneer',
+                  text: `📢 【拍卖师·提案跟进通知】：组内已有 ${submittedCount}/${totalMembersCount} 位组员完成选题提交！\n👉 请尚未提交的同学（**${names}**）抓紧点击左侧【提交我的选题】，全员集齐后即可正式进入竞拍投票！`,
+                  timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                  _timeMs: now
+                };
+                if (!this.state.chatLogs.stage1) this.state.chatLogs.stage1 = [];
+                this.state.chatLogs.stage1.push(msg);
+                this.syncChatLogs();
+                if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+                renderChat(this.state);
+                return;
+              }
             }
           }
         }
-        // 2. 投票超时提醒（全员已提交提案，但超过 2.5 分钟仍有成员未投票）
-        else if (submittedCount >= totalMembersCount && votesCastCount < totalMembersCount) {
-          if (!this.lastVoteNudgeTime || now - this.lastVoteNudgeTime > 150000) {
+
+        // ── 规则 4：全员提案已集齐，但投票开启超过 3 分钟仍未全部投票，提醒未投票同学 ──
+        if (submittedCount >= totalMembersCount && votesCastCount < totalMembersCount) {
+          if (!this.lastVoteNudgeTime || now - this.lastVoteNudgeTime > 180000) {
             this.lastVoteNudgeTime = now;
             const unvoted = membersList.filter(m => !s1.hasVoted || (!s1.hasVoted[m.studentCode] && !s1.hasVoted[m.id]));
             const names = unvoted.map(m => m.name).join('、');
             const text = (votesCastCount === 0)
-              ? `⏳ 【拍卖师·竞拍投票提醒】：全员选题已集齐，目前全组尚未开始投票！\n👉 请全组成员浏览左侧提案，点击【🗳️ 投这篇】投出宝贵一票！`
+              ? `⏳ 【拍卖师·竞拍投票提醒】：全员选题已陈列在左侧提案池中！\n👉 请全组成员浏览提案，点击【🗳️ 投这篇】投出支持的一票！`
               : `⏳ 【拍卖师·投票进度提醒】：目前全组已投票 ${votesCastCount}/${totalMembersCount} 人。\n👉 请尚未投票的成员（**${names || '未投票组员'}**）尽快在左侧提案卡片下方点击【🗳️ 投这篇】！`;
-            const nudgeMsg = {
+            const msg = {
               sender: 'auctioneer',
               text: text,
               timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
               _timeMs: now
             };
             if (!this.state.chatLogs.stage1) this.state.chatLogs.stage1 = [];
-            this.state.chatLogs.stage1.push(nudgeMsg);
+            this.state.chatLogs.stage1.push(msg);
             this.syncChatLogs();
             if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
             renderChat(this.state);
