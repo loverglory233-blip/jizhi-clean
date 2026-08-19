@@ -89,29 +89,82 @@
     URL.revokeObjectURL(url);
   }
 
+  function smartParseStudentRow(rowItems, colIndexMap = null) {
+    if (!Array.isArray(rowItems) || rowItems.length === 0) return null;
+    const cleanItems = rowItems.map(c => String(c !== undefined && c !== null ? c : '').trim()).filter(Boolean);
+    if (cleanItems.length === 0) return null;
+
+    // 1. 如果有明确的表头映射表，按映射取值
+    if (colIndexMap && (colIndexMap.nameIdx !== undefined || colIndexMap.codeIdx !== undefined)) {
+      const name = colIndexMap.nameIdx !== undefined && rowItems[colIndexMap.nameIdx] ? String(rowItems[colIndexMap.nameIdx]).trim() : '';
+      const code = colIndexMap.codeIdx !== undefined && rowItems[colIndexMap.codeIdx] ? String(rowItems[colIndexMap.codeIdx]).trim() : '';
+      const pwd = colIndexMap.pwdIdx !== undefined && rowItems[colIndexMap.pwdIdx] ? String(rowItems[colIndexMap.pwdIdx]).trim() : '123';
+      if (name && code) {
+        return { name, studentCode: code, username: code, customPassword: pwd || '123' };
+      }
+    }
+
+    // 2. 启发式内容特征识别（无表头或格式不规则）
+    let name = '';
+    let studentCode = '';
+    let password = '123';
+
+    // 优先寻找纯数字或典型学号 (长度 >= 3 的数字或字母数字组合)
+    const codeCandidates = cleanItems.filter(item => /^[a-zA-Z0-9_-]{2,20}$/.test(item));
+    // 寻找姓名 (中文汉字或带空格的常规姓名)
+    const nameCandidates = cleanItems.filter(item => /^[\u4e00-\u9fa5a-zA-Z\s·•]{2,20}$/.test(item) && !/^\d+$/.test(item));
+
+    if (nameCandidates.length > 0 && codeCandidates.length > 0) {
+      name = nameCandidates[0];
+      // 学号取第一个不等于姓名的 candidate
+      studentCode = codeCandidates.find(c => c !== name) || codeCandidates[0];
+      // 找第三个元素作为密码
+      const remaining = cleanItems.filter(c => c !== name && c !== studentCode);
+      if (remaining.length > 0) password = remaining[0];
+    } else if (cleanItems.length >= 2) {
+      // 默认前两个：第1项名字，第2项学号
+      name = cleanItems[0];
+      studentCode = cleanItems[1];
+      if (cleanItems.length >= 3) password = cleanItems[2];
+    }
+
+    if (name && studentCode) {
+      return { name, studentCode, username: studentCode, customPassword: password || '123' };
+    }
+    return null;
+  }
+
   function parseCSVText(text) {
     const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+    if (lines.length === 0) return [];
+    
+    let colIndexMap = null;
     const result = [];
-    lines.forEach((line, idx) => {
-      if (idx === 0 && (line.includes('姓名') || line.includes('学号') || line.includes('name') || line.includes('code'))) return;
-      // 优先按制表符 \t 分割，其次逗号，最后空格
-      let parts = [];
-      if (line.includes('\t')) parts = line.split('\t').map(p => p.trim()).filter(Boolean);
-      else if (line.includes(',')) parts = line.split(',').map(p => p.trim()).filter(Boolean);
-      else if (line.includes('，')) parts = line.split('，').map(p => p.trim()).filter(Boolean);
-      else parts = line.split(/\s+/).map(p => p.trim()).filter(Boolean);
 
-      if (parts.length >= 2) {
-        const name = parts[0];
-        const studentCode = parts[1];
-        const pwd = (parts.length >= 3 && parts[2]) ? parts[2] : '123';
-        result.push({
-          name: name,
-          studentCode: studentCode,
-          username: studentCode,
-          customPassword: pwd
-        });
+    lines.forEach((line, idx) => {
+      let parts = [];
+      if (line.includes('\t')) parts = line.split('\t').map(p => p.trim());
+      else if (line.includes(',')) parts = line.split(',').map(p => p.trim());
+      else if (line.includes('，')) parts = line.split('，').map(p => p.trim());
+      else parts = line.split(/\s+/).map(p => p.trim());
+
+      // 检查第一行是否为表头
+      if (idx === 0) {
+        const lowerParts = parts.map(p => p.toLowerCase());
+        const hasHeader = lowerParts.some(p => p.includes('姓名') || p.includes('学号') || p.includes('工号') || p.includes('name') || p.includes('code'));
+        if (hasHeader) {
+          colIndexMap = {};
+          lowerParts.forEach((p, i) => {
+            if (p.includes('姓名') || p.includes('名字') || p.includes('name')) colIndexMap.nameIdx = i;
+            else if (p.includes('学号') || p.includes('工号') || p.includes('code') || p.includes('账号')) colIndexMap.codeIdx = i;
+            else if (p.includes('密码') || p.includes('pwd') || p.includes('pass')) colIndexMap.pwdIdx = i;
+          });
+          return;
+        }
       }
+
+      const std = smartParseStudentRow(parts, colIndexMap);
+      if (std) result.push(std);
     });
     return result;
   }
@@ -131,20 +184,28 @@
             const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
             const json = window.XLSX.utils.sheet_to_json(firstSheet, { header: 1 });
             const students = [];
+            let colIndexMap = null;
+
             json.forEach((row, idx) => {
-              if (row && row.length >= 2) {
-                const strRow = row.map(cell => String(cell).trim()).filter(Boolean);
-                if (idx === 0 && (strRow[0].includes('姓名') || strRow[1].includes('学号') || strRow[1].includes('账号'))) return;
-                const name = strRow[0];
-                const studentCode = strRow[1];
-                const pwd = (strRow.length >= 3 && strRow[2]) ? strRow[2] : '123';
-                students.push({
-                  name: name,
-                  studentCode: studentCode,
-                  username: studentCode,
-                  customPassword: pwd
-                });
+              if (!row || row.length === 0) return;
+              const strRow = row.map(cell => String(cell !== undefined && cell !== null ? cell : '').trim());
+              
+              if (idx === 0) {
+                const lowerRow = strRow.map(s => s.toLowerCase());
+                const hasHeader = lowerRow.some(p => p.includes('姓名') || p.includes('学号') || p.includes('工号') || p.includes('name') || p.includes('code'));
+                if (hasHeader) {
+                  colIndexMap = {};
+                  lowerRow.forEach((p, i) => {
+                    if (p.includes('姓名') || p.includes('名字') || p.includes('name')) colIndexMap.nameIdx = i;
+                    else if (p.includes('学号') || p.includes('工号') || p.includes('code') || p.includes('账号')) colIndexMap.codeIdx = i;
+                    else if (p.includes('密码') || p.includes('pwd') || p.includes('pass')) colIndexMap.pwdIdx = i;
+                  });
+                  return;
+                }
               }
+
+              const std = smartParseStudentRow(strRow, colIndexMap);
+              if (std) students.push(std);
             });
             callback(students);
           } else {
