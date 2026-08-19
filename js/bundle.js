@@ -1161,6 +1161,10 @@
     initSSE() {
       this.updateScopeKeys();
       if (this.sse) { try { this.sse.close(); } catch (e) {} }
+      // 如果当前页面是通过 HTTPS 访问，绝不发起不安全的 HTTP:8088 跨端口请求，避免浏览器 Mixed Content 拦截
+      if (window.location.protocol === 'https:') {
+        return;
+      }
       const sseHost = window.location.hostname || '47.99.110.230';
       const sseUrl = `http://${sseHost}:8088/api/stream?taskId=${this.taskId}&groupId=${this.groupId}`;
       try {
@@ -1172,7 +1176,7 @@
           } catch (e) {}
         };
         this.sse.onerror = () => {
-          // SSE 自动重连
+          if (this.sse) { try { this.sse.close(); } catch (e) {} }
         };
       } catch (e) {}
     }
