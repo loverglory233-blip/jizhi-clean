@@ -361,7 +361,20 @@
             localStorage.setItem(STORAGE_KEY_ANNOUNCEMENTS, JSON.stringify(data.announcements));
           }
           if (data && data.referencePapers && Array.isArray(data.referencePapers)) {
-            localStorage.setItem('jizhi_reference_papers_db', JSON.stringify(data.referencePapers));
+            const localPapers = this.getReferencePapers();
+            if (data.referencePapers.length === 0 && localPapers.length > 0) {
+              // 服务端暂时为空但本地已有，自动推送到服务端同步
+              this.pushGlobalMeta();
+            } else if (data.referencePapers.length > 0) {
+              // 按 id 智能合并双方范文
+              const mergedPapers = [...data.referencePapers];
+              localPapers.forEach(lp => {
+                if (!mergedPapers.some(mp => mp.id === lp.id)) {
+                  mergedPapers.unshift(lp);
+                }
+              });
+              localStorage.setItem('jizhi_reference_papers_db', JSON.stringify(mergedPapers));
+            }
           }
         }
       } catch (e) {}
