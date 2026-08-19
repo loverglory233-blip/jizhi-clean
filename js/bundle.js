@@ -861,6 +861,61 @@
   }
 
   /* ==========================================================================
+     4.5 CARET POSITION ANCHOR HELPERS (光标字符偏移记忆与还原引擎)
+     ========================================================================== */
+  function getCaretCharacterOffsetWithin(element) {
+    let caretOffset = 0;
+    const doc = element.ownerDocument || element.document;
+    const win = doc.defaultView || window;
+    const sel = win.getSelection();
+    if (sel && sel.rangeCount > 0) {
+      const range = sel.getRangeAt(0);
+      const preCaretRange = range.cloneRange();
+      preCaretRange.selectNodeContents(element);
+      preCaretRange.setEnd(range.endContainer, range.endOffset);
+      caretOffset = preCaretRange.toString().length;
+    }
+    return caretOffset;
+  }
+
+  function setCaretPositionWithin(element, offset) {
+    const doc = element.ownerDocument || element.document;
+    const win = doc.defaultView || window;
+    const sel = win.getSelection();
+    if (!sel) return;
+    let charIndex = 0;
+    const range = doc.createRange();
+    range.setStart(element, 0);
+    range.collapse(true);
+
+    const nodeStack = [element];
+    let node, found = false;
+
+    while (!found && (node = nodeStack.pop())) {
+      if (node.nodeType === 3) {
+        const nextCharIndex = charIndex + node.length;
+        if (offset >= charIndex && offset <= nextCharIndex) {
+          range.setStart(node, offset - charIndex);
+          range.collapse(true);
+          found = true;
+          break;
+        }
+        charIndex = nextCharIndex;
+      } else {
+        let i = node.childNodes.length;
+        while (i--) {
+          nodeStack.push(node.childNodes[i]);
+        }
+      }
+    }
+
+    if (found) {
+      sel.removeAllRanges();
+      sel.addRange(range);
+    }
+  }
+
+  /* ==========================================================================
      5. CLOUD SYNC ENGINE - Server (sync.php) primary + WebSocket real-time push
      ========================================================================== */
   class CloudSyncEngine {
@@ -1365,7 +1420,7 @@
           }
         }
 
-      // ── stage2 正文编辑器：局部更新，绝不销毁编辑器DOM ──
+      // ── stage2 正文编辑器：带光标锚定与拼音保护的无感差量合并 ──
       if (remoteData.stage2) {
         if (remoteData.stage2.unifiedContent !== undefined) {
           let cleanRemoteContent = (remoteData.stage2.unifiedContent || '').replace(/<span class="remote-cursor-widget"[\s\S]*?<\/span>/gi, '');
@@ -1375,12 +1430,19 @@
             const isLocalComposing = (editor.dataset.isComposing === 'true');
             const currentLocalHtml = editor.innerHTML.replace(/<span class="remote-cursor-widget"[\s\S]*?<\/span>/gi, '');
             
-            const isEditorFocused = (document.activeElement === editor) || (editor.contains(document.activeElement));
-            
-            // 核心保护：当且仅当本地用户没有聚焦在编辑器打字时，才由远端全量重刷 innerHTML！
-            // 如果本地正在编辑，绝对不重刷 innerHTML，避免光标被重置到左上角和打什么删什么！
+            // 拼音输入法合成期间绝对挂起，避免拼音候选框被打断
             if (!isLocalComposing && currentLocalHtml.trim() !== cleanRemoteContent.trim()) {
-              if (!isEditorFocused) {
+              const isEditorFocused = (document.activeElement === editor) || (editor.contains(document.activeElement));
+              
+              if (isEditorFocused) {
+                // 1. 精确记录当前光标在全文中的字符偏移量
+                const savedOffset = getCaretCharacterOffsetWithin(editor);
+                // 2. 平滑更新 HTML
+                editor.innerHTML = cleanRemoteContent || '';
+                // 3. 瞬间恢复光标到原本的字符位置，打字手感 100% 丝滑连贯，绝不乱跳到左上角
+                try { setCaretPositionWithin(editor, savedOffset); } catch (e) {}
+              } else {
+                // 未聚焦状态下静默全量更新
                 editor.innerHTML = cleanRemoteContent || '';
               }
             }
