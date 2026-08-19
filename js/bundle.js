@@ -1017,9 +1017,13 @@
       const isReset = !!this.isResetBroadcast;
       this.isResetBroadcast = false;
 
-      // 读取本地已知的 resetSeq
+      // 读取本地已知的 resetSeq，如果是重置操作则递增 resetSeq 以广播通知所有端强制重置
       const localResetSeqKey = `jizhi_reset_seq_${this.storageKey}`;
-      const localResetSeq = parseInt(localStorage.getItem(localResetSeqKey) || '0', 10);
+      let localResetSeq = parseInt(localStorage.getItem(localResetSeqKey) || '0', 10);
+      if (isReset) {
+        localResetSeq += 1;
+        try { localStorage.setItem(localResetSeqKey, String(localResetSeq)); } catch (e) {}
+      }
 
       const snapshot = {
         timestamp: Date.now(),
@@ -1159,15 +1163,12 @@
         }
       }
 
-      // 注意：强制重置包 (isReset) 绝对不受时间戳丢弃机制影响
+      // 注意：强制重置包 (isReset) 无论时间戳如何，立即调用 _applyReset 清理并弹窗通知学生
       const isReset = !!remoteData.isReset;
-
-      if (remoteData.timestamp) {
-        this.lastTimestamp = remoteData.timestamp;
-      }
-
-      // ── 强制重置：教师端点"清空"时到达的包 ──
       if (isReset) {
+        this._applyReset(remoteData.resetSeq || 1);
+        return;
+      }
         const taskId = this.app.state.activeTaskId || 'task_default';
         this.app.state.stage1 = JSON.parse(JSON.stringify(InitialState.stage1));
         this.app.state.stage2 = JSON.parse(JSON.stringify(InitialState.stage2));
@@ -2032,7 +2033,9 @@
                         <span>⚡ <b>当前【${activeMonitorGroup.name}】组内架构 (${monitorMembersList.length}人):</b> ${monitorMembersList.map(m => m.name).join('、')}</span>
                         <span>${state.isFinalSubmitted ? '<b style="color:#059669;">🔒 论文终稿已提交归档</b>' : '<b style="color:#d97706;">✍️ 组员写作推进中</b>'}</span>
                       </div>
-                      <textarea id="teacher-live-doc-mirror" class="teacher-textarea" readonly style="flex:1; min-height:340px; font-family:sans-serif; font-size:13.5px; line-height:1.6; background:#ffffff; color:#0f172a; border:1px solid #cbd5e1;">${state.stage2.unifiedContent}</textarea>
+                      <div id="teacher-live-doc-mirror" style="flex:1; min-height:340px; max-height:480px; overflow-y:auto; font-family:'SimSun', 'Times New Roman', serif; font-size:13.5px; line-height:1.75; background:#ffffff; color:#0f172a; border:1px solid #cbd5e1; border-radius:6px; padding:16px 20px; box-shadow:inset 0 1px 3px rgba(0,0,0,0.02);">
+                        ${(state.stage2.unifiedContent || '').replace(/<span class="remote-cursor-widget"[\s\S]*?<\/span>/gi, '').trim() || '<span style="color:#94a3b8; font-family:sans-serif; font-style:italic;">（小组成员尚未开始撰写正文）</span>'}
+                      </div>
                       <div style="margin-top:14px; background:#f8fafc; padding:12px; border-radius:8px; border:1px solid #e2e8f0;">
                         <div style="font-size:12px; font-weight:700; color:#334155; margin-bottom:6px;">📊 本组 SSRL 成员字数与互动贡献比率 (${monitorMembersList.length} 位成员)</div>
                         <div style="height:10px; background:#e2e8f0; border-radius:6px; overflow:hidden; display:flex;">
@@ -2088,18 +2091,19 @@
                 ` : ''}
 
                 ${effectiveMonitorStage === 'stage3' ? `
-                  <div style="display:grid; grid-template-columns: 1.6fr 1fr; gap:16px; width:100%;">
-                    <div class="card" style="padding:20px; display:flex; flex-direction:column; border:1px solid #bfdbfe;">
-                      <div style="font-size:15px; font-weight:800; color:#1e40af; margin-bottom:12px;">🎓 阶段三实操同屏: 答辩擂台与成员裁决 (${activeMonitorGroup.name})</div>
-                      <div style="background:#eff6ff; border:1px solid #bfdbfe; border-radius:10px; padding:12px 14px; margin-bottom:12px;">
-                        <div style="font-size:13px; font-weight:700; color:#1e40af; margin-bottom:4px;">⚖️ 成员辩护裁决状态:</div>
-                        <div style="font-size:13px; color:#334155;">${state.isFinalSubmitted ? '🔒 本组论文终稿已全员答辩完成并成功提交归档！' : '🎓 组员答辩质询辩护中...'}</div>
+                  <div style="display:grid; grid-template-columns: 1.6fr 1fr; gap:16px; width:100%; min-height:500px;">
+                    <div class="card" style="padding:20px; display:flex; flex-direction:column; border:1px solid #bfdbfe; min-width:0; overflow:hidden;">
+                      <div style="font-size:15px; font-weight:800; color:#1e40af; margin-bottom:12px;">🎓 答辩擂台与成员裁决 (${activeMonitorGroup.name})</div>
+                      <div style="background:#eff6ff; border:1px solid #bfdbfe; border-radius:10px; padding:12px 14px; flex:1; display:flex; flex-direction:column; overflow:hidden;">
+                        <div style="font-size:13px; font-weight:700; color:#1e40af; margin-bottom:8px;">⚖️ 成员辩护裁决与正文状态:</div>
+                        <div style="flex:1; overflow-y:auto; font-family:'SimSun', 'Times New Roman', serif; font-size:13.5px; line-height:1.75; background:#ffffff; color:#0f172a; border:1px solid #cbd5e1; border-radius:6px; padding:16px 20px; box-shadow:inset 0 1px 3px rgba(0,0,0,0.02);">
+                          ${(state.stage2.unifiedContent || '').replace(/<span class="remote-cursor-widget"[\s\S]*?<\/span>/gi, '').trim() || '<span style="color:#94a3b8; font-family:sans-serif; font-style:italic;">（小组成员尚未开始撰写正文）</span>'}
+                        </div>
                       </div>
-                      <textarea class="teacher-textarea" readonly style="flex:1; min-height:340px; font-family:sans-serif; font-size:13.5px; line-height:1.6; background:#ffffff; color:#0f172a; border:1px solid #cbd5e1;">${state.stage2.unifiedContent}</textarea>
                     </div>
-                    <div class="card" style="padding:20px; display:flex; flex-direction:column;">
+                    <div class="card" style="padding:20px; display:flex; flex-direction:column; min-width:0; overflow:hidden;">
                       <div style="font-size:15px; font-weight:800; color:#0f172a; margin-bottom:12px;">💬 阶段三答辩对话流 (${activeMonitorGroup.name})</div>
-                      <div style="flex:1; max-height:460px; overflow-y:auto; background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:12px; font-size:12px; display:flex; flex-direction:column; gap:10px;">
+                      <div style="flex:1; overflow-y:auto; background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:12px; font-size:12px; display:flex; flex-direction:column; gap:10px;">
                         ${(state.chatLogs['stage3'] || []).map(m => {
                           const isAgent = AgentProfiles[m.sender] !== undefined;
                           const senderName = isAgent ? AgentProfiles[m.sender].name : (monitorMembersObj[m.sender] ? monitorMembersObj[m.sender].name : m.sender);

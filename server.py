@@ -40,6 +40,54 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         self.end_headers()
 
     def do_GET(self):
+        # ⚡ 顶号检测 API (客户端轮询检查自己是否被踢下线)
+        if 'action=session_check' in self.path or '/api/session/check' in self.path:
+            import urllib.parse
+            parsed = urllib.parse.urlparse(self.path)
+            params = urllib.parse.parse_qs(parsed.query)
+            user_id = params.get('userId', [''])[0]
+            token = params.get('token', [''])[0]
+            
+            kicked = False
+            if user_id:
+                with LOCK_MUTEX:
+                    active = SESSION_LOCKS.get(user_id)
+                    if active:
+                        if token and active.get('token') != token:
+                            # Token 不一致，说明已被新设备顶号！
+                            kicked = True
+                        else:
+                            active['lastActive'] = time.time()
+            
+            resp = json.dumps({'kicked': kicked, 'success': True}).encode('utf-8')
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/json; charset=utf-8')
+            self.send_header('Cache-Control', 'no-store, no-cache, must-revalidate')
+            self.send_header('Content-Length', str(len(resp)))
+            self.end_headers()
+            self.wfile.write(resp)
+            self.wfile.flush()
+            return
+
+        # ⚡ 登出释放锁 API (GET)
+        if 'action=session_logout' in self.path or '/api/session/logout' in self.path:
+            import urllib.parse
+            parsed = urllib.parse.urlparse(self.path)
+            params = urllib.parse.parse_qs(parsed.query)
+            user_id = params.get('userId', [''])[0]
+            if user_id:
+                with LOCK_MUTEX:
+                    if user_id in SESSION_LOCKS:
+                        del SESSION_LOCKS[user_id]
+            resp = b'{"success":true}'
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/json; charset=utf-8')
+            self.send_header('Content-Length', str(len(resp)))
+            self.end_headers()
+            self.wfile.write(resp)
+            self.wfile.flush()
+            return
+
         # ⚡ SSE 毫秒级长连接推送通道 (支持 taskId + groupId 隔离)
         if '/api/stream' in self.path:
             groupId = 'group_1'
@@ -124,6 +172,54 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         return super().do_GET()
 
     def do_POST(self):
+        # ⚡ 顶号登录/会话注册 API (POST)
+        if 'action=session_login' in self.path or '/api/session/login' in self.path:
+            length = int(self.headers.get('Content-Length', 0))
+            body = self.rfile.read(length)
+            try:
+                req = json.loads(body.decode('utf-8'))
+                user_id = req.get('userId')
+                token = req.get('token')
+                user_name = req.get('userName', user_id)
+                now = time.time()
+
+                with LOCK_MUTEX:
+                    # 🚀 顶号逻辑：后登录者的 token 直接覆盖，成为唯一有效 token
+                    SESSION_LOCKS[user_id] = {'token': token, 'lastActive': now, 'userName': user_name}
+
+                resp = b'{"success":true}'
+                self.send_response(200)
+                self.send_header('Content-Type', 'application/json; charset=utf-8')
+                self.send_header('Content-Length', str(len(resp)))
+                self.end_headers()
+                self.wfile.write(resp)
+                self.wfile.flush()
+            except Exception as e:
+                self.send_response(500)
+                self.end_headers()
+                self.wfile.write(json.dumps({'success': False, 'error': str(e)}).encode('utf-8'))
+            return
+
+        # ⚡ 登出释放锁 API (POST)
+        if 'action=session_logout' in self.path or '/api/session/logout' in self.path:
+            length = int(self.headers.get('Content-Length', 0))
+            body = self.rfile.read(length)
+            try:
+                req = json.loads(body.decode('utf-8'))
+                user_id = req.get('userId')
+                with LOCK_MUTEX:
+                    if user_id in SESSION_LOCKS:
+                        del SESSION_LOCKS[user_id]
+            except Exception:
+                pass
+            resp = b'{"success":true}'
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/json')
+            self.send_header('Content-Length', str(len(resp)))
+            self.end_headers()
+            self.wfile.write(resp)
+            return
+
         # ⚡ 多角色编辑光标与位置广播 API
         if '/api/presence' in self.path:
             length = int(self.headers.get('Content-Length', 0))
