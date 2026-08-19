@@ -1970,13 +1970,13 @@
                     </div>
                   </div>
 
-                  <!-- 终稿不可修改状态控制与 Excel 导出与教师端重置协同数据 -->
+                  <!-- 全局只读不可修改状态控制与 Excel 导出与教师端重置协同数据 -->
                   <div style="display:flex; align-items:center; gap:10px;">
                     <span style="font-size:12px; font-weight:700; padding:6px 12px; border-radius:8px; background:${state.isFinalSubmitted ? '#fef2f2' : '#ecfdf5'}; color:${state.isFinalSubmitted ? '#dc2626' : '#059669'}; border:1px solid ${state.isFinalSubmitted ? '#fecaca' : '#a7f3d0'};">
-                      ${state.isFinalSubmitted ? '🔒 终稿已锁定 (只读不可修改)' : '✍️ 终稿可自由编辑'}
+                      ${state.isFinalSubmitted ? '🔒 全局锁定中 (学生端全盘只读·仅保留聊天)' : '✍️ 学生端可自由协作编辑'}
                     </span>
                     <button id="btn-toggle-final-submitted" style="background:${state.isFinalSubmitted ? 'linear-gradient(135deg, #059669, #047857)' : 'linear-gradient(135deg, #dc2626, #b91c1c)'}; border:none; color:white; padding:8px 16px; border-radius:8px; font-size:12.5px; font-weight:700; cursor:pointer; box-shadow:0 2px 6px rgba(0,0,0,0.15);">
-                      ${state.isFinalSubmitted ? '🔓 解除锁定 (允许学生重新修改终稿)' : '🔒 手动锁定终稿 (设为不可修改)'}
+                      ${state.isFinalSubmitted ? '🔓 解除全局锁定 (恢复学生编辑权限)' : '🔒 手动全局锁定 (设为全盘只读)'}
                     </button>
                     <button id="btn-reset-group-collab" style="background:linear-gradient(135deg, #f59e0b, #d97706); border:none; color:white; padding:8px 16px; border-radius:8px; font-size:12.5px; font-weight:800; cursor:pointer; box-shadow:0 3px 10px rgba(217,119,6,0.3);" title="清空该测试小组上一次的全部协同数据并恢复初始状态">
                       🔄 清空重置本组协同
@@ -3085,9 +3085,9 @@
 
         renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
         if (newSub) {
-          alert(`🔒 已锁定【${activeMonitorGroup.name}】的论文终稿！学生端已设为【只读不可修改状态】。`);
+          alert(`🔒 已全局锁定【${activeMonitorGroup.name}】！\n\n该小组学生端已设为【全盘只读模式】（阶段一公约、阶段二富文本与阶段三矩阵全部禁止编辑，仅保留右侧研讨区实时沟通）。`);
         } else {
-          alert(`🔓 已成功解除【${activeMonitorGroup.name}】不可修改状态！学生端现已恢复自由修改、裁决与重新提交终稿权限！`);
+          alert(`🔓 已解除【${activeMonitorGroup.name}】全局只读锁定！\n\n学生端已全面恢复自由协作与编辑修改权限！`);
         }
       });
     }
@@ -4178,35 +4178,37 @@
           ` : ''}
         </div>
 
-        ${s1.proposals.length === 0 ? `
-          <div style="text-align:center; padding:36px; background:#f8fafc; border-radius:10px; border:2px dashed #cbd5e1; margin-top:10px;">
-            <div style="font-size:32px; margin-bottom:8px;">💡</div>
-            <div style="font-size:15px; font-weight:800; color:#0f172a;">目前暂无小组成员提交的选题</div>
-            <div style="font-size:12.5px; color:#64748b; margin-top:4px;">请点击右上角【+ 提交我的选题】录入选题名称。</div>
-          </div>
-        ` : `
-          <div class="proposals-grid" style="margin-top:12px;">
-            ${s1.proposals.map(p => {
-              const isThisVoted = userVotedProposalId === p.id;
-              let btnText = '🗳️ 投票支持';
-              let btnClass = 'vote-btn';
-              if (isContractLocked || userHasVoted) {
-                if (isThisVoted) { btnText = '🔒 已投此提案'; btnClass = 'vote-btn active locked'; }
-                else { btnText = '🔒 投票已锁定'; btnClass = 'vote-btn disabled'; }
-              }
-              const authorName = state.members[p.author] ? state.members[p.author].name : p.author;
-              return `
-                <div class="proposal-card ${isThisVoted ? 'voted' : ''}" style="display:flex; flex-direction:column;">
-                  <div class="proposal-header">
-                    <div class="proposal-title">💡 ${p.title}</div>
+        <div id="proposals-wrapper-container">
+          ${s1.proposals.length === 0 ? `
+            <div style="text-align:center; padding:36px; background:#f8fafc; border-radius:10px; border:2px dashed #cbd5e1; margin-top:10px;">
+              <div style="font-size:32px; margin-bottom:8px;">💡</div>
+              <div style="font-size:15px; font-weight:800; color:#0f172a;">目前暂无小组成员提交的选题</div>
+              <div style="font-size:12.5px; color:#64748b; margin-top:4px;">请点击右上角【+ 提交我的选题】录入选题名称。</div>
+            </div>
+          ` : `
+            <div class="proposals-grid" style="margin-top:12px;">
+              ${s1.proposals.map(p => {
+                const isThisVoted = userVotedProposalId === p.id;
+                let btnText = '🗳️ 投票支持';
+                let btnClass = 'vote-btn';
+                if (isContractLocked || userHasVoted) {
+                  if (isThisVoted) { btnText = '🔒 已投此提案'; btnClass = 'vote-btn active locked'; }
+                  else { btnText = '🔒 投票已锁定'; btnClass = 'vote-btn disabled'; }
+                }
+                const authorName = state.members[p.author] ? state.members[p.author].name : p.author;
+                return `
+                  <div class="proposal-card ${isThisVoted ? 'voted' : ''}" style="display:flex; flex-direction:column;">
+                    <div class="proposal-header">
+                      <div class="proposal-title">💡 ${p.title}</div>
+                    </div>
+                    <div style="font-size:12px; color:#64748b; margin-bottom:8px;">提出人: <b style="color:#0f172a;">${authorName}</b></div>
+                    <button class="${btnClass}" data-id="${p.id}" ${isContractLocked || userHasVoted ? 'disabled' : ''} style="width:100%; margin-top:auto;">${btnText}</button>
                   </div>
-                  <div style="font-size:12px; color:#64748b; margin-bottom:8px;">提出人: <b style="color:#0f172a;">${authorName}</b></div>
-                  <button class="${btnClass}" data-id="${p.id}" ${isContractLocked || userHasVoted ? 'disabled' : ''} style="width:100%; margin-top:auto;">${btnText}</button>
-                </div>
-              `;
-            }).join('')}
-          </div>
-        `}
+                `;
+              }).join('')}
+            </div>
+          `}
+        </div>
       </div>
 
       <!-- 一整个统一的合作学术合约公约框架卡片 (蓝白层次风) -->
@@ -6545,37 +6547,50 @@
       const existingContractCard = document.querySelector('.contract-card');
       if (!isForced && this.state.currentStage === 'stage1' && existingContractCard) {
         // 局部更新提案池卡片与投票按钮
-        const proposalsContainer = document.querySelector('.proposals-grid');
+        const proposalsWrapper = document.getElementById('proposals-wrapper-container');
         const s1 = this.state.stage1;
         const currentUser = this.state.currentUser;
         const userVotedProposalId = s1.votes ? s1.votes[currentUser] : null;
         const userHasVoted = s1.hasVoted && s1.hasVoted[currentUser];
         const isContractLocked = s1.contract.isConfirmed || this.state.isFinalSubmitted;
 
-        if (proposalsContainer && Array.isArray(s1.proposals) && s1.proposals.length > 0) {
-          proposalsContainer.innerHTML = s1.proposals.map(p => {
-            const isThisVoted = userVotedProposalId === p.id;
-            let btnText = '🗳️ 投票支持';
-            let btnClass = 'vote-btn';
-            if (isContractLocked || userHasVoted) {
-              if (isThisVoted) { btnText = '🔒 已投此提案'; btnClass = 'vote-btn active locked'; }
-              else { btnText = '🔒 投票已锁定'; btnClass = 'vote-btn disabled'; }
-            }
-            const authorName = this.state.members[p.author] ? this.state.members[p.author].name : p.author;
-            return `
-              <div class="proposal-card ${isThisVoted ? 'voted' : ''}" style="display:flex; flex-direction:column;">
-                <div class="proposal-header">
-                  <div class="proposal-title">💡 ${p.title}</div>
-                </div>
-                <div style="font-size:12px; color:#64748b; margin-bottom:8px;">提出人: <b style="color:#0f172a;">${authorName}</b></div>
-                <button class="${btnClass}" data-id="${p.id}" ${isContractLocked || userHasVoted ? 'disabled' : ''} style="width:100%; margin-top:auto;">${btnText}</button>
+        if (proposalsWrapper) {
+          if (Array.isArray(s1.proposals) && s1.proposals.length > 0) {
+            proposalsWrapper.innerHTML = `
+              <div class="proposals-grid" style="margin-top:12px;">
+                ${s1.proposals.map(p => {
+                  const isThisVoted = userVotedProposalId === p.id;
+                  let btnText = '🗳️ 投票支持';
+                  let btnClass = 'vote-btn';
+                  if (isContractLocked || userHasVoted) {
+                    if (isThisVoted) { btnText = '🔒 已投此提案'; btnClass = 'vote-btn active locked'; }
+                    else { btnText = '🔒 投票已锁定'; btnClass = 'vote-btn disabled'; }
+                  }
+                  const authorName = this.state.members[p.author] ? this.state.members[p.author].name : p.author;
+                  return `
+                    <div class="proposal-card ${isThisVoted ? 'voted' : ''}" style="display:flex; flex-direction:column;">
+                      <div class="proposal-header">
+                        <div class="proposal-title">💡 ${p.title}</div>
+                      </div>
+                      <div style="font-size:12px; color:#64748b; margin-bottom:8px;">提出人: <b style="color:#0f172a;">${authorName}</b></div>
+                      <button class="${btnClass}" data-id="${p.id}" ${isContractLocked || userHasVoted ? 'disabled' : ''} style="width:100%; margin-top:auto;">${btnText}</button>
+                    </div>
+                  `;
+                }).join('')}
               </div>
             `;
-          }).join('');
-          
-          proposalsContainer.querySelectorAll('.vote-btn:not([disabled])').forEach(btn => {
-            btn.addEventListener('click', () => this.handleVoteCast(btn.dataset.id));
-          });
+            proposalsWrapper.querySelectorAll('.vote-btn:not([disabled])').forEach(btn => {
+              btn.addEventListener('click', () => this.handleVoteCast(btn.dataset.id));
+            });
+          } else {
+            proposalsWrapper.innerHTML = `
+              <div style="text-align:center; padding:36px; background:#f8fafc; border-radius:10px; border:2px dashed #cbd5e1; margin-top:10px;">
+                <div style="font-size:32px; margin-bottom:8px;">💡</div>
+                <div style="font-size:15px; font-weight:800; color:#0f172a;">目前暂无小组成员提交的选题</div>
+                <div style="font-size:12.5px; color:#64748b; margin-top:4px;">请点击右上角【+ 提交我的选题】录入选题名称。</div>
+              </div>
+            `;
+          }
         }
       } else if (!isEditorTyping) {
         renderCanvas(this.state, {
