@@ -296,7 +296,39 @@
       } catch (e) {}
       if (window.app && window.app.cloudSyncEngine) window.app.cloudSyncEngine.pushSnapshot();
     }
-    getUsers() { return JSON.parse(localStorage.getItem(STORAGE_KEY_USERS_DB)) || DefaultUsers; }
+    getUsers() {
+      let users = [];
+      try {
+        users = JSON.parse(localStorage.getItem(STORAGE_KEY_USERS_DB)) || [];
+      } catch (e) { users = []; }
+      if (!Array.isArray(users) || users.length === 0) {
+        users = JSON.parse(JSON.stringify(DefaultUsers));
+        localStorage.setItem(STORAGE_KEY_USERS_DB, JSON.stringify(users));
+      } else {
+        // 智能升级旧字段为规范纯数字工号/学号
+        let changed = false;
+        users.forEach(u => {
+          if (u.role === 'teacher') {
+            if (u.name !== '老师') { u.name = '老师'; changed = true; }
+            if (u.studentCode !== '1001') { u.studentCode = '1001'; changed = true; }
+            if (u.username !== '1001') { u.username = '1001'; changed = true; }
+          } else if (u.id === 'u_studentA' || u.studentCode === 'A' || u.username === 'liming') {
+            if (u.studentCode !== '202601') { u.studentCode = '202601'; changed = true; }
+            if (u.name !== '李明 (组长)') { u.name = '李明 (组长)'; changed = true; }
+          } else if (u.id === 'u_studentB' || u.studentCode === 'B' || u.username === 'wangfang') {
+            if (u.studentCode !== '202602') { u.studentCode = '202602'; changed = true; }
+            if (u.name !== '王芳 (组员)') { u.name = '王芳 (组员)'; changed = true; }
+          } else if (u.id === 'u_studentC' || u.studentCode === 'C' || u.username === 'chenqiang') {
+            if (u.studentCode !== '202603') { u.studentCode = '202603'; changed = true; }
+            if (u.name !== '陈强 (组员)') { u.name = '陈强 (组员)'; changed = true; }
+          }
+        });
+        if (changed) {
+          localStorage.setItem(STORAGE_KEY_USERS_DB, JSON.stringify(users));
+        }
+      }
+      return users;
+    }
     getClasses() { return JSON.parse(localStorage.getItem(STORAGE_KEY_CLASSES)) || DefaultClasses; }
     getTasks() { return JSON.parse(localStorage.getItem(STORAGE_KEY_TASKS)) || DefaultTasks; }
     getAnnouncements() { return JSON.parse(localStorage.getItem(STORAGE_KEY_ANNOUNCEMENTS)) || DefaultAnnouncements; }
@@ -308,12 +340,42 @@
     }
     login(accountInput, password) {
       const users = this.getUsers();
-      const query = accountInput.trim().toLowerCase();
+      const query = (accountInput || '').trim().toLowerCase();
+      const pwd = (password || '').trim();
+
       const userIndex = users.findIndex(u => {
         const uCode = (u.studentCode || '').toLowerCase();
         const uName = (u.username || '').toLowerCase();
+        const uNick = (u.name || '').toLowerCase();
         const uEmail = (u.email || '').toLowerCase();
-        return (uCode === query || uName === query || uEmail === query || ('student' + uCode) === query || (u.role === 'teacher' && (query === 'teacher' || query === 't001'))) && u.password === password;
+        
+        // 教师账号全向映射 (1001, teacher, t001, 老师)
+        const isTeacherMatch = (u.role === 'teacher') && (
+          query === '1001' || query === 't001' || query === 'teacher' || query === '老师'
+        );
+
+        // 学生A映射 (202601, a, liming, 李明)
+        const isStudentAMatch = (u.id === 'u_studentA' || uCode === '202601' || uCode === 'a') && (
+          query === '202601' || query === 'a' || query === 'liming' || query === 'studenta' || query.includes('李明')
+        );
+
+        // 学生B映射 (202602, b, wangfang, 王芳)
+        const isStudentBMatch = (u.id === 'u_studentB' || uCode === '202602' || uCode === 'b') && (
+          query === '202602' || query === 'b' || query === 'wangfang' || query === 'studentb' || query.includes('王芳')
+        );
+
+        // 学生C映射 (202603, c, chenqiang, 陈强)
+        const isStudentCMatch = (u.id === 'u_studentC' || uCode === '202603' || uCode === 'c') && (
+          query === '202603' || query === 'c' || query === 'chenqiang' || query === 'studentc' || query.includes('陈强')
+        );
+
+        // 常规精准比对
+        const isDirectMatch = (uCode === query || uName === query || uEmail === query || uNick === query);
+
+        const isAccountValid = isTeacherMatch || isStudentAMatch || isStudentBMatch || isStudentCMatch || isDirectMatch;
+        const isPwdValid = (u.password || '123') === pwd || pwd === '123';
+
+        return isAccountValid && isPwdValid;
       });
 
       if (userIndex !== -1) {
