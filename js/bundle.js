@@ -6577,7 +6577,7 @@
           try {
             const sel = window.getSelection();
             if (sel && sel.rangeCount > 0) {
-              const editor = document.getElementById('stage2-word-editor');
+              const editor = document.getElementById('stage2-word-editor') || document.getElementById('stage3-word-editor');
               if (editor) {
                 let blockEl = sel.anchorNode ? (sel.anchorNode.nodeType === 1 ? sel.anchorNode : sel.anchorNode.parentElement) : null;
                 while (blockEl && blockEl.parentElement !== editor && blockEl !== editor) {
