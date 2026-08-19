@@ -223,10 +223,10 @@
   ];
 
   const DefaultUsers = [
-    { id: 'u_teacher1', username: 'T001', studentCode: 'T001', password: '123', name: '张教授 (教师)', role: 'teacher', avatar: '👩‍🏫' },
-    { id: 'u_studentA', username: 'A', studentCode: 'A', password: '123', name: '李明 (学生A/组长)', role: 'student', avatar: '👨‍🎓', classId: 'class_101', groupId: 'group_1' },
-    { id: 'u_studentB', username: 'B', studentCode: 'B', password: '123', name: '王芳 (学生B/组员)', role: 'student', avatar: '👩‍🎓', classId: 'class_101', groupId: 'group_1' },
-    { id: 'u_studentC', username: 'C', studentCode: 'C', password: '123', name: '陈强 (学生C/组员)', role: 'student', avatar: '🧑‍🎓', classId: 'class_101', groupId: 'group_1' }
+    { id: 'u_teacher1', username: '1001', studentCode: '1001', password: '123', name: '老师', role: 'teacher', avatar: '👩‍🏫' },
+    { id: 'u_studentA', username: '202601', studentCode: '202601', password: '123', name: '李明 (组长)', role: 'student', avatar: '👨‍🎓', classId: 'class_101', groupId: 'group_1' },
+    { id: 'u_studentB', username: '202602', studentCode: '202602', password: '123', name: '王芳 (组员)', role: 'student', avatar: '👩‍🎓', classId: 'class_101', groupId: 'group_1' },
+    { id: 'u_studentC', username: '202603', studentCode: '202603', password: '123', name: '陈强 (组员)', role: 'student', avatar: '🧑‍🎓', classId: 'class_101', groupId: 'group_1' }
   ];
 
   const DefaultTasks = [];
@@ -1555,7 +1555,7 @@
           <form id="login-form" style="display:flex; flex-direction:column; gap:16px;">
             <div style="display:flex; flex-direction:column; gap:6px;">
               <label style="font-size:13px; font-weight:700; color:#334155;">工号 / 学号</label>
-              <input type="text" id="login-account" class="teacher-input" placeholder="输入教师工号 T001 或学生学号 A / B / C" value="T001" required style="width:100%;">
+              <input type="text" id="login-account" class="teacher-input" placeholder="输入教师工号 1001 或学生学号 202601 / 202602 / 202603" value="1001" required style="width:100%;">
             </div>
             <div style="display:flex; flex-direction:column; gap:6px;">
               <label style="font-size:13px; font-weight:700; color:#334155;">密码 (默认统一为 123)</label>
@@ -1571,10 +1571,10 @@
               ⚡ 免输入一键快速测试登录
             </div>
             <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
-              <button class="quick-login-btn" data-account="T001" style="background:#ecfdf5; border:1px solid #a7f3d0; color:#059669; padding:10px; border-radius:8px; font-size:12px; font-weight:700; cursor:pointer;">👩‍🏫 教师工号: T001</button>
-              <button class="quick-login-btn" data-account="A" style="background:#eff6ff; border:1px solid #bfdbfe; color:#2563eb; padding:10px; border-radius:8px; font-size:12px; font-weight:700; cursor:pointer;">👨‍🎓 学生A学号: A (李明/组长)</button>
-              <button class="quick-login-btn" data-account="B" style="background:#eff6ff; border:1px solid #bfdbfe; color:#2563eb; padding:10px; border-radius:8px; font-size:12px; font-weight:700; cursor:pointer;">👩‍🎓 学生B学号: B (王芳/组员)</button>
-              <button class="quick-login-btn" data-account="C" style="background:#eff6ff; border:1px solid #bfdbfe; color:#2563eb; padding:10px; border-radius:8px; font-size:12px; font-weight:700; cursor:pointer;">🧑‍🎓 学生C学号: C (陈强/组员)</button>
+              <button class="quick-login-btn" data-account="1001" style="background:#ecfdf5; border:1px solid #a7f3d0; color:#059669; padding:10px; border-radius:8px; font-size:12px; font-weight:700; cursor:pointer;">👩‍🏫 教师工号: 1001 (老师)</button>
+              <button class="quick-login-btn" data-account="202601" style="background:#eff6ff; border:1px solid #bfdbfe; color:#2563eb; padding:10px; border-radius:8px; font-size:12px; font-weight:700; cursor:pointer;">👨‍🎓 学生学号: 202601 (李明/组长)</button>
+              <button class="quick-login-btn" data-account="202602" style="background:#eff6ff; border:1px solid #bfdbfe; color:#2563eb; padding:10px; border-radius:8px; font-size:12px; font-weight:700; cursor:pointer;">👩‍🎓 学生学号: 202602 (王芳/组员)</button>
+              <button class="quick-login-btn" data-account="202603" style="background:#eff6ff; border:1px solid #bfdbfe; color:#2563eb; padding:10px; border-radius:8px; font-size:12px; font-weight:700; cursor:pointer;">🧑‍🎓 学生学号: 202603 (陈强/组员)</button>
             </div>
           </div>
         </div>
