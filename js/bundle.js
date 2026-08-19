@@ -3942,13 +3942,16 @@
       let lastPresenceEmit = 0;
       const emitPresence = () => {
         const now = Date.now();
-        if (now - lastPresenceEmit < 150) return;
+        if (now - lastPresenceEmit < 120) return;
         lastPresenceEmit = now;
 
         const sel = window.getSelection();
         let nodeIndex = 0;
         let activeSection = '';
+        let charOffset = 0;
+
         if (sel && sel.rangeCount > 0) {
+          charOffset = getCaretCharacterOffsetWithin(editor);
           const node = sel.anchorNode;
           let blockEl = node ? (node.nodeType === 1 ? node : node.parentElement) : null;
           while (blockEl && blockEl.parentElement !== editor && blockEl !== editor) {
@@ -3963,7 +3966,7 @@
           }
         }
         if (typeof onPresenceCallback === 'function') {
-          onPresenceCallback(nodeIndex, activeSection);
+          onPresenceCallback(nodeIndex, activeSection, charOffset);
         }
       };
 
@@ -4004,16 +4007,13 @@
     if (!editor) return;
     renderPresencePills(editorId, state);
 
-    // Remove any stale remote cursor elements
+    // 1. 清除旧光标组件
     editor.querySelectorAll('.remote-cursor-widget').forEach(el => el.remove());
 
     const membersList = Object.values(state.members || {});
     const currentUserCode = state.currentUser || 'A';
     const presence = state.presence || {};
     const now = Date.now();
-
-    // 按段落分组展示远程协作者光标（严格按 studentCode 去重，确保每位在线同学最多只有 1 个光标！）
-    const nodeToMembers = {};
     const seenMemberCodes = new Set();
 
     membersList.forEach(m => {
@@ -4023,43 +4023,71 @@
 
       const p = presence[m.studentCode] || presence[m.id];
       if (!p || (now - (p.updatedAt || 0) > 20000)) return; // 20秒未活动视为离线
-
       seenMemberCodes.add(code);
-      const targetIndex = (typeof p.nodeIndex === 'number' && p.nodeIndex >= 0) ? p.nodeIndex : 0;
-      if (!nodeToMembers[targetIndex]) nodeToMembers[targetIndex] = [];
-      nodeToMembers[targetIndex].push({ member: m, presence: p });
-    });
 
-    const children = Array.from(editor.children);
+      const color = m.color || '#8b5cf6';
+      const name = m.name || m.studentCode;
+      const avatar = m.avatar || '👨‍🎓';
+      const targetOffset = (typeof p.charOffset === 'number' && p.charOffset >= 0) ? p.charOffset : null;
 
-    Object.entries(nodeToMembers).forEach(([idxStr, mems]) => {
-      const idx = parseInt(idxStr);
-      let targetEl = (children && children[idx]) ? children[idx] : (children.length > 0 ? children[children.length - 1] : null);
+      // 创建精致字符级悬浮光标 DOM
+      const cursorWidget = document.createElement('span');
+      cursorWidget.className = 'remote-cursor-widget';
+      cursorWidget.contentEditable = 'false';
+      cursorWidget.style.cssText = 'user-select:none; pointer-events:none; position:relative; display:inline-block; width:0; height:1.15em; vertical-align:text-bottom; z-index:10; line-height:1; margin:0; padding:0;';
 
-      if (targetEl && targetEl !== editor) {
-        // 先确保 targetEl 内部没有任何遗留旧光标
-        targetEl.querySelectorAll('.remote-cursor-widget').forEach(el => el.remove());
+      cursorWidget.innerHTML = `
+        <span style="position:absolute; top:-2px; left:-1px; width:2.5px; height:1.25em; background:${color}; border-radius:1.5px; animation:blinkCursor 1.2s infinite; box-shadow:0 0 4px ${color}88;"></span>
+        <span class="remote-caret-flag" style="position:absolute; top:-22px; left:-4px; background:${color}; font-size:10.5px; padding:2px 6px; border-radius:4px 4px 4px 0; color:white; font-weight:700; display:inline-flex; align-items:center; gap:3px; white-space:nowrap; box-shadow:0 2px 6px rgba(0,0,0,0.18); transform:scale(0.92); transform-origin:left bottom; z-index:20;">
+          ${avatar} ${name}
+        </span>
+      `;
 
-        const cursorContainer = document.createElement('span');
-        cursorContainer.className = 'remote-cursor-widget';
-        cursorContainer.contentEditable = 'false';
-        cursorContainer.style.cssText = 'user-select:none; pointer-events:none; display:inline-flex; align-items:center; gap:2px; vertical-align:middle; margin-left:3px;';
-        
-        cursorContainer.innerHTML = mems.map(({ member: m }) => {
-          const color = m.color || '#8b5cf6';
-          const name = m.name || m.studentCode;
-          const avatar = m.avatar || '👨‍🎓';
-          return `
-            <span style="display:inline-flex; align-items:center; position:relative;">
-              <span style="display:inline-block; width:2px; height:15px; background:${color}; border-radius:1px; margin-right:2px; animation:blinkCursor 1s infinite;"></span>
-              <span class="remote-caret-flag" style="background:${color}; font-size:10px; padding:1px 4px; border-radius:3px; color:white; font-weight:700; display:inline-flex; align-items:center; gap:2px; box-shadow:0 1px 3px rgba(0,0,0,0.12); opacity:0.95;">
-                ${avatar} ${name}
-              </span>
-            </span>
-          `;
-        }).join('');
+      let inserted = false;
 
-        targetEl.appendChild(cursorContainer);
+      // ── 字符级精准 Range 插入 ──
+      if (targetOffset !== null && targetOffset >= 0) {
+        let charIndex = 0;
+        const nodeStack = [editor];
+        let node;
+
+        while (!inserted && (node = nodeStack.pop())) {
+          if (node.nodeType === 3) { // 文本节点
+            const nextCharIndex = charIndex + node.length;
+            if (targetOffset >= charIndex && targetOffset <= nextCharIndex) {
+              const relOffset = targetOffset - charIndex;
+              if (relOffset === 0) {
+                node.parentNode.insertBefore(cursorWidget, node);
+              } else if (relOffset >= node.length) {
+                if (node.nextSibling) {
+                  node.parentNode.insertBefore(cursorWidget, node.nextSibling);
+                } else {
+                  node.parentNode.appendChild(cursorWidget);
+                }
+              } else {
+                // 拆分文本节点精确插入在两个字符之间
+                const secondPart = node.splitText(relOffset);
+                node.parentNode.insertBefore(cursorWidget, secondPart);
+              }
+              inserted = true;
+              break;
+            }
+            charIndex = nextCharIndex;
+          } else if (node.nodeType === 1 && !node.classList.contains('remote-cursor-widget')) {
+            let i = node.childNodes.length;
+            while (i--) {
+              nodeStack.push(node.childNodes[i]);
+            }
+          }
+        }
+      }
+
+      // 兜底段落级插入
+      if (!inserted) {
+        const children = Array.from(editor.children);
+        const targetIndex = (typeof p.nodeIndex === 'number' && p.nodeIndex >= 0) ? p.nodeIndex : 0;
+        let targetEl = (children && children[targetIndex]) ? children[targetIndex] : (children.length > 0 ? children[children.length - 1] : editor);
+        if (targetEl) targetEl.appendChild(cursorWidget);
       }
     });
   }
@@ -4611,8 +4639,8 @@
       </div>
     `;
 
-    attachWordEditorEvents(canvas, 'stage2-word-editor', isEditorReadonly, (html) => handlers.onUnifiedContentChange(html), (nodeIdx, sec) => {
-      if (handlers.onPresenceChange) handlers.onPresenceChange(nodeIdx, sec);
+    attachWordEditorEvents(canvas, 'stage2-word-editor', isEditorReadonly, (html) => handlers.onUnifiedContentChange(html), (nodeIdx, sec, charOffset) => {
+      if (handlers.onPresenceChange) handlers.onPresenceChange(nodeIdx, sec, charOffset);
     });
     renderRemoteCursors('stage2-word-editor', state);
 
@@ -4741,8 +4769,8 @@
     if (tabEditor) tabEditor.addEventListener('click', () => handlers.onSwitchStage3Tab('editor'));
 
     if (activeTab === 'editor') {
-      attachWordEditorEvents(canvas, 'stage3-word-editor', isFinalSubmitted, (html) => handlers.onUnifiedContentChange(html), (nodeIdx, sec) => {
-        if (handlers.onPresenceChange) handlers.onPresenceChange(nodeIdx, sec);
+      attachWordEditorEvents(canvas, 'stage3-word-editor', isFinalSubmitted, (html) => handlers.onUnifiedContentChange(html), (nodeIdx, sec, charOffset) => {
+        if (handlers.onPresenceChange) handlers.onPresenceChange(nodeIdx, sec, charOffset);
       });
       renderRemoteCursors('stage3-word-editor', state);
     }
@@ -6538,12 +6566,13 @@
           }
           this.renderStudentWorkspace();
         },
-        onPresenceChange: (nodeIdx, sectionTitle) => {
+        onPresenceChange: (nodeIdx, sectionTitle, charOffset) => {
           const user = this.state.currentUser || 'A';
           if (!this.state.presence) this.state.presence = {};
           this.state.presence[user] = {
             nodeIndex: nodeIdx,
             activeSection: sectionTitle || '正文',
+            charOffset: typeof charOffset === 'number' ? charOffset : null,
             updatedAt: Date.now()
           };
           if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
@@ -6574,18 +6603,18 @@
 
           if (!this.state.presence) this.state.presence = {};
           let activeNodeIdx = 0;
+          let activeCharOffset = null;
           try {
             const sel = window.getSelection();
-            if (sel && sel.rangeCount > 0) {
-              const editor = document.getElementById('stage2-word-editor') || document.getElementById('stage3-word-editor');
-              if (editor) {
-                let blockEl = sel.anchorNode ? (sel.anchorNode.nodeType === 1 ? sel.anchorNode : sel.anchorNode.parentElement) : null;
-                while (blockEl && blockEl.parentElement !== editor && blockEl !== editor) {
-                  blockEl = blockEl.parentElement;
-                }
-                if (blockEl && blockEl.parentElement === editor) {
-                  activeNodeIdx = Array.from(editor.children).indexOf(blockEl);
-                }
+            const editor = document.getElementById('stage2-word-editor') || document.getElementById('stage3-word-editor');
+            if (sel && sel.rangeCount > 0 && editor) {
+              activeCharOffset = getCaretCharacterOffsetWithin(editor);
+              let blockEl = sel.anchorNode ? (sel.anchorNode.nodeType === 1 ? sel.anchorNode : sel.anchorNode.parentElement) : null;
+              while (blockEl && blockEl.parentElement !== editor && blockEl !== editor) {
+                blockEl = blockEl.parentElement;
+              }
+              if (blockEl && blockEl.parentElement === editor) {
+                activeNodeIdx = Array.from(editor.children).indexOf(blockEl);
               }
             }
           } catch (e) {}
@@ -6593,6 +6622,7 @@
           this.state.presence[user] = {
             nodeIndex: activeNodeIdx,
             activeSection: '正文',
+            charOffset: activeCharOffset,
             updatedAt: Date.now()
           };
           this.updateContributionUi();
