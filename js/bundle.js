@@ -6127,58 +6127,145 @@
 
     showAnnouncementModal(targetAnn = null) {
       document.querySelectorAll('.modal-overlay').forEach(el => el.remove());
-      const anns = this.authManager.getAnnouncements();
-      const ann = targetAnn || (anns.length > 0 ? anns[0] : null);
-      if (!ann) { alert('📢 暂无新的课堂通知！'); return; }
-
       const currentUser = this.authManager.getCurrentUser();
       const groupId = currentUser && currentUser.groupId ? currentUser.groupId : 'group_1';
+      const allAnns = this.authManager.getAnnouncements();
+
+      // 过滤当前小组可见的通知 (全班广播 或 定向本组)
+      const myAnns = allAnns.filter(a => !a.targetGroupId || a.targetGroupId === 'all' || a.targetGroupId === groupId);
+      if (myAnns.length === 0) {
+        alert('📢 暂无新的课堂通知！');
+        return;
+      }
+
+      // 如果传入了具体通知则展示单条，否则展示全量通知中心（支持回看所有已读历史）
+      const selectedAnn = targetAnn || myAnns[0];
 
       const modal = document.createElement('div');
       modal.className = 'modal-overlay';
       modal.innerHTML = `
-        <div class="student-ann-modal-card">
-          <div class="ann-modal-header">
-            <div class="ann-header-left">
-              <div class="ann-bell-icon">🔔</div>
-              <div><div class="ann-badge-tag">📢 课堂即时教学广播通知</div><h3 class="ann-modal-title">${ann.title}</h3></div>
+        <div style="width:620px; max-width:94vw; background:#ffffff; border-radius:16px; box-shadow:0 25px 50px -12px rgba(15,23,42,0.25); overflow:hidden; border:1px solid #e2e8f0; animation:modalFadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);">
+          
+          <!-- 渐变高颜值头部 -->
+          <div style="background:linear-gradient(135deg, #4338ca, #6366f1); padding:20px 24px; display:flex; justify-content:space-between; align-items:center; color:#ffffff;">
+            <div style="display:flex; align-items:center; gap:12px;">
+              <div style="width:42px; height:42px; border-radius:12px; background:rgba(255,255,255,0.2); display:flex; align-items:center; justify-content:center; font-size:22px; flex-shrink:0;">
+                🔔
+              </div>
+              <div>
+                <h3 style="margin:0; font-size:17.5px; font-weight:800; color:#ffffff; letter-spacing:0.3px;">课堂教学通知中心 (${myAnns.length} 条)</h3>
+                <div style="font-size:12px; color:#e0e7ff; margin-top:2px;">任课教师即时推送的教学指示与随附教学资源</div>
+              </div>
             </div>
-            <button class="modal-close-btn" id="btn-close-ann-popup">✕</button>
+            <button id="btn-close-ann-popup" style="background:rgba(255,255,255,0.15); border:1px solid rgba(255,255,255,0.3); width:32px; height:32px; border-radius:8px; display:flex; align-items:center; justify-content:center; cursor:pointer; color:#ffffff; font-size:14px; transition:all 0.15s ease;">✕</button>
           </div>
-          <div class="ann-modal-body">
-            <div class="ann-meta-bar">
-              <span>发布教师: <b>${ann.author || '张教授'}</b></span>
-              <span>关联任务: <b>${ann.taskTitle || '协作写作'}</b></span>
-              <span>发布时间: <b>${ann.time}</b></span>
-            </div>
-            <div class="ann-content-box">${ann.content}</div>
-            ${ann.attachment ? `
-              <div class="ann-attachment-card">
-                <div class="att-info">
-                  <span class="att-icon">📎</span>
-                  <div><div class="att-name">${ann.attachment.name}</div><div class="att-size">教学随附资源文件 (${ann.attachment.size})</div></div>
-                </div>
-                <button class="att-download-btn" id="btn-download-ann-file">📥 下载资源文件</button>
+
+          <!-- 通知内容主体 (带历史通知切换 TAB) -->
+          <div style="padding:20px 24px; max-height:65vh; overflow-y:auto; display:flex; flex-direction:column; gap:16px;">
+            
+            ${myAnns.length > 1 ? `
+              <!-- 多条历史通知快捷切换栏 -->
+              <div style="display:flex; gap:8px; overflow-x:auto; padding-bottom:6px;">
+                ${myAnns.map((a, idx) => {
+                  const isRead = a.readStatus && a.readStatus[groupId];
+                  const isCurrent = a.id === selectedAnn.id;
+                  return `
+                    <button class="btn-switch-ann-tab" data-id="${a.id}" style="padding:6px 12px; border-radius:8px; font-size:12px; font-weight:700; cursor:pointer; border:1px solid ${isCurrent ? '#6366f1' : '#e2e8f0'}; background:${isCurrent ? '#eef2ff' : '#ffffff'}; color:${isCurrent ? '#4338ca' : '#64748b'}; white-space:nowrap; display:inline-flex; align-items:center; gap:6px;">
+                      ${isRead ? '✅' : '🔴'} 通知 ${idx + 1}
+                    </button>
+                  `;
+                }).join('')}
               </div>
             ` : ''}
+
+            <!-- 选中的通知卡片详情 -->
+            <div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:14px; padding:18px; box-shadow:0 2px 8px rgba(15,23,42,0.03);">
+              
+              <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px; margin-bottom:12px;">
+                <h4 style="margin:0; font-size:16.5px; font-weight:800; color:#0f172a; line-height:1.4;">
+                  📢 ${selectedAnn.title}
+                </h4>
+                <span style="font-size:11.5px; color:#64748b; white-space:nowrap;">${selectedAnn.time || ''}</span>
+              </div>
+
+              <!-- 标签栏 -->
+              <div style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom:14px;">
+                <span style="background:#f8fafc; color:#475569; border:1px solid #e2e8f0; padding:3px 10px; border-radius:6px; font-size:11.5px; font-weight:700;">
+                  👨‍🏫 发布教师: <b>${selectedAnn.author || '任课教师'}</b>
+                </span>
+                <span style="background:#f5f3ff; color:#7c3aed; border:1px solid #ddd6fe; padding:3px 10px; border-radius:6px; font-size:11.5px; font-weight:700;">
+                  📌 关联任务: <b>${selectedAnn.taskTitle || '全流程写作'}</b>
+                </span>
+                <span style="background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe; padding:3px 10px; border-radius:6px; font-size:11.5px; font-weight:700;">
+                  🎯 受众: <b>${selectedAnn.targetGroupName || '全班所有小组'}</b>
+                </span>
+              </div>
+
+              <!-- 正文卡片 -->
+              <div style="background:#f8fafc; border:1px solid #f1f5f9; border-radius:10px; padding:14px 16px; font-size:13.5px; color:#334155; line-height:1.7; white-space:pre-wrap; word-break:break-word;">
+                ${selectedAnn.content}
+              </div>
+
+              <!-- 附件卡片 (如有) -->
+              ${selectedAnn.attachment ? `
+                <div style="margin-top:14px; background:#faf5ff; border:1px solid #e9d5ff; border-radius:10px; padding:12px 16px; display:flex; justify-content:space-between; align-items:center; gap:12px;">
+                  <div style="display:flex; align-items:center; gap:10px;">
+                    <span style="font-size:24px;">📎</span>
+                    <div>
+                      <div style="font-size:13px; font-weight:700; color:#6b21a8;">${selectedAnn.attachment.name}</div>
+                      <div style="font-size:11px; color:#9333ea; margin-top:2px;">教学随附资源文献 (${selectedAnn.attachment.size || '附件'})</div>
+                    </div>
+                  </div>
+                  <button id="btn-download-ann-file" style="background:linear-gradient(135deg, #7c3aed, #6366f1); border:none; color:white; padding:7px 16px; border-radius:8px; font-size:12px; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; gap:6px; box-shadow:0 2px 6px rgba(124,58,237,0.25); white-space:nowrap;">
+                    📥 下载资源文件
+                  </button>
+                </div>
+              ` : ''}
+
+            </div>
+
           </div>
-          <div class="ann-modal-footer">
-            <button class="ann-confirm-btn" id="btn-read-confirm">✅ 我已阅读并确认 (自动同步至教师端追踪矩阵)</button>
+
+          <!-- 底部操作栏 -->
+          <div style="padding:14px 24px; background:#f8fafc; border-top:1px solid #f1f5f9; display:flex; justify-content:space-between; align-items:center; gap:12px;">
+            <button id="btn-close-ann-bottom" style="background:#ffffff; border:1px solid #cbd5e1; color:#475569; padding:10px 20px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer;">
+              关闭
+            </button>
+            <button id="btn-read-confirm" style="flex:1; background:linear-gradient(135deg, #059669, #047857); color:#ffffff; border:none; padding:11px 24px; border-radius:8px; font-size:13.5px; font-weight:700; cursor:pointer; box-shadow:0 3px 10px rgba(5,150,105,0.2); display:inline-flex; align-items:center; justify-content:center; gap:6px;">
+              ✅ 我已阅读并确认 (已同步至教师端追踪矩阵)
+            </button>
           </div>
+
         </div>
       `;
       document.body.appendChild(modal);
 
-      const closeModal = () => document.body.removeChild(modal);
+      const closeModal = () => modal.remove();
       modal.querySelector('#btn-close-ann-popup').addEventListener('click', closeModal);
+      modal.querySelector('#btn-close-ann-bottom').addEventListener('click', closeModal);
+      modal.addEventListener('click', (e) => { if (e.target === modal) closeModal(); });
+
+      // TAB 切换
+      modal.querySelectorAll('.btn-switch-ann-tab').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const annId = btn.dataset.id;
+          const target = myAnns.find(a => a.id === annId);
+          if (target) {
+            closeModal();
+            this.showAnnouncementModal(target);
+          }
+        });
+      });
+
       const downloadBtn = modal.querySelector('#btn-download-ann-file');
-      if (downloadBtn) {
+      if (downloadBtn && selectedAnn.attachment) {
         downloadBtn.addEventListener('click', () => {
-          downloadFileBlob(ann.attachment.name);
+          downloadFileBlob(selectedAnn.attachment.name);
         });
       }
+
       modal.querySelector('#btn-read-confirm').addEventListener('click', () => {
-        this.authManager.markAnnouncementRead(ann.id, groupId);
+        this.authManager.markAnnouncementRead(selectedAnn.id, groupId);
         closeModal();
         this.renderStudentWorkspace();
       });
@@ -6274,18 +6361,23 @@
       const modal = document.createElement('div');
       modal.className = 'modal-overlay';
       modal.innerHTML = `
-        <div class="teacher-modal-card fancy-task-modal" style="width:680px; max-width:95vw;">
-          <div class="teacher-modal-header" style="background:linear-gradient(135deg, #1e40af, #2563eb);">
-            <div class="modal-header-title">
-              <div class="modal-icon-badge" style="background:rgba(255,255,255,0.2); color:white; font-size:22px;">📚</div>
+        <div style="width:720px; max-width:95vw; background:#ffffff; border-radius:16px; box-shadow:0 25px 50px -12px rgba(15,23,42,0.25); overflow:hidden; border:1px solid #e2e8f0; animation:modalFadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);">
+          
+          <!-- 渐变典雅头部 -->
+          <div style="background:linear-gradient(135deg, #1e40af, #2563eb); padding:20px 24px; display:flex; justify-content:space-between; align-items:center; color:#ffffff;">
+            <div style="display:flex; align-items:center; gap:12px;">
+              <div style="width:42px; height:42px; border-radius:12px; background:rgba(255,255,255,0.2); display:flex; align-items:center; justify-content:center; font-size:22px; flex-shrink:0;">
+                📚
+              </div>
               <div>
-                <h3 style="color:#ffffff; font-size:17px;">课程学术参考范文库 (${papers.length} 篇)</h3>
-                <p style="font-size:12px; color:#bfdbfe; margin-top:2px;">任课教师下发的高水平学术论文样例与审稿编辑重点推荐文献</p>
+                <h3 style="margin:0; font-size:17.5px; font-weight:800; color:#ffffff;">课程学术参考范文库 (${papers.length} 篇)</h3>
+                <div style="font-size:12px; color:#bfdbfe; margin-top:2px;">任课教师下发的高水平学术论文样例与审稿编辑重点推荐文献</div>
               </div>
             </div>
-            <button class="modal-close-btn" id="btn-close-ref-modal" style="color:white;">✕</button>
+            <button id="btn-close-ref-modal" style="background:rgba(255,255,255,0.15); border:1px solid rgba(255,255,255,0.3); width:32px; height:32px; border-radius:8px; display:flex; align-items:center; justify-content:center; cursor:pointer; color:#ffffff; font-size:14px; transition:all 0.15s ease;">✕</button>
           </div>
-          <div class="teacher-modal-body" style="padding:20px; max-height:60vh; overflow-y:auto;">
+
+          <div style="padding:20px 24px; max-height:62vh; overflow-y:auto;">
             ${papers.length === 0 ? `
               <div style="text-align:center; padding:36px; background:#f8fafc; border-radius:12px; border:2px dashed #cbd5e1;">
                 <div style="font-size:36px; margin-bottom:8px;">📚</div>
@@ -6293,39 +6385,56 @@
                 <div style="font-size:12.5px; color:#64748b; margin-top:4px;">教师在教师端上传范文后将自动在此呈现，审稿编辑 Agent 亦会在研讨管道中实时推荐！</div>
               </div>
             ` : `
-              <div style="display:flex; flex-direction:column; gap:14px;">
+              <div style="display:flex; flex-direction:column; gap:16px;">
                 ${papers.map(p => `
-                  <div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:12px; padding:16px; box-shadow:0 1px 3px rgba(15,23,42,0.04);">
-                    <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:8px;">
-                      <div style="font-size:15.5px; font-weight:800; color:#1e40af; line-height:1.4;">📄 ${p.title}</div>
-                      <span style="font-size:11px; color:#64748b; white-space:nowrap; margin-left:10px;">${p.uploadTime || ''}</span>
+                  <div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:12px; padding:18px; box-shadow:0 2px 6px rgba(15,23,42,0.03); transition:all 0.2s ease;">
+                    
+                    <!-- 标题与标签行 -->
+                    <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:12px; margin-bottom:10px;">
+                      <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                        <span style="font-size:16px; font-weight:800; color:#0f172a; line-height:1.4;">📄 ${p.title}</span>
+                        <span style="background:#f5f3ff; color:#7c3aed; border:1px solid #ddd6fe; padding:2px 8px; border-radius:6px; font-size:11px; font-weight:700;">
+                          ${p.targetGroupName || '全员可见'}
+                        </span>
+                      </div>
+                      <span style="font-size:11.5px; color:#94a3b8; white-space:nowrap;">${p.uploadTime || ''}</span>
                     </div>
-                    ${p.keyHighlights ? `
-                      <div style="background:#eff6ff; border:1px solid #bfdbfe; border-radius:8px; padding:10px 12px; font-size:13px; color:#1e40af; line-height:1.5; margin-bottom:8px;">
-                        <b>💡 核心论证亮点与学术价值（审稿编辑推荐指引）：</b><br>${p.keyHighlights}
-                      </div>
-                    ` : ''}
+
+                    <!-- 论证亮点引言框 -->
+                    <div style="background:#f0f9ff; border:1px solid #bae6fd; border-radius:8px; padding:10px 14px; font-size:12.5px; color:#0369a1; line-height:1.6; margin-bottom:12px;">
+                      <b>💡 核心论证亮点与学术价值（审稿编辑重点推荐）：</b><br>
+                      ${p.keyHighlights || '论文整体架构严谨，包含完整三线表规范与严密的学术论证逻辑。'}
+                    </div>
+
                     ${p.abstract ? `
-                      <div style="font-size:12.5px; color:#475569; line-height:1.5; margin-bottom:10px;">
-                        <b>摘要：</b>${p.abstract}
+                      <div style="font-size:12px; color:#64748b; line-height:1.6; margin-bottom:12px;">
+                        <b>摘要要点：</b>${p.abstract}
                       </div>
                     ` : ''}
-                    <div style="display:flex; justify-content:space-between; align-items:center; border-top:1px solid #f1f5f9; padding-top:8px;">
-                      <span style="font-size:11.5px; color:#64748b;">上传署名: ${p.author || '任课教师'}</span>
+
+                    <!-- 底部通栏：上传人与下载按钮 -->
+                    <div style="display:flex; justify-content:space-between; align-items:center; border-top:1px solid #f1f5f9; padding-top:12px; margin-top:4px;">
+                      <div style="font-size:12px; color:#64748b; display:flex; align-items:center; gap:12px;">
+                        <span>上传人: <b style="color:#334155;">${p.author || '任课教师'}</b></span>
+                        ${p.fileSize ? `<span style="color:#cbd5e1;">|</span><span>文件大小: <b>${p.fileSize}</b></span>` : ''}
+                      </div>
                       ${p.fileName ? `
-                        <button class="btn-download-ref-item" data-id="${p.id}" style="background:linear-gradient(135deg, #2563eb, #1d4ed8); border:none; color:white; padding:6px 14px; border-radius:6px; font-size:12px; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; gap:6px; box-shadow:0 2px 6px rgba(37,99,235,0.25);">
-                          📥 下载并查阅随附文献: ${p.fileName} (${p.fileSize || '附件'})
+                        <button class="btn-download-ref-item" data-id="${p.id}" style="background:linear-gradient(135deg, #1d4ed8, #2563eb); border:none; color:white; padding:7px 18px; border-radius:8px; font-size:12.5px; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; gap:6px; box-shadow:0 2px 6px rgba(37,99,235,0.2);">
+                          📥 下载并查阅随附文献
                         </button>
                       ` : '<span style="font-size:12px; color:#94a3b8;">无附件文件 (仅查阅重点指引)</span>'}
                     </div>
+
                   </div>
                 `).join('')}
               </div>
             `}
           </div>
-          <div class="teacher-modal-footer" style="background:#f8fafc; border-top:1px solid #e2e8f0; padding:12px 20px;">
-            <button class="modal-btn submit task-theme" id="btn-finish-ref-modal" style="width:100%;">返回协作写作界面</button>
+
+          <div style="background:#f8fafc; border-top:1px solid #e2e8f0; padding:14px 24px; display:flex; justify-content:flex-end;">
+            <button class="modal-btn submit task-theme" id="btn-finish-ref-modal" style="width:100%; padding:11px 24px; font-size:14px; font-weight:700; border-radius:8px;">返回协作写作界面</button>
           </div>
+
         </div>
       `;
       document.body.appendChild(modal);
@@ -6333,15 +6442,17 @@
       const closeModal = () => modal.remove();
       modal.querySelector('#btn-close-ref-modal').addEventListener('click', closeModal);
       modal.querySelector('#btn-finish-ref-modal').addEventListener('click', closeModal);
+      modal.addEventListener('click', (e) => { if (e.target === modal) closeModal(); });
 
       modal.querySelectorAll('.btn-download-ref-item').forEach(btn => {
         btn.addEventListener('click', () => {
           const paperId = btn.dataset.id;
           const paper = papers.find(p => p.id === paperId);
           if (paper && paper.fileName) {
-            if (paper.fileData) {
+            const fileData = localStorage.getItem(`jizhi_paper_data_${paperId}`) || paper.fileData;
+            if (fileData) {
               const a = document.createElement('a');
-              a.href = paper.fileData;
+              a.href = fileData;
               a.download = paper.fileName;
               document.body.appendChild(a);
               a.click();
