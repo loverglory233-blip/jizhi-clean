@@ -3282,10 +3282,7 @@
             alert('⚠️ 请先选取文献文件或输入范文标题！');
             return;
           }
-          if (!title) {
-            title = selectedFile.name.replace(/\.[^/.]+$/, '') || '未命名学术范文';
-          }
-          const targetGObj = groups.find(g => g.id === targetGId);
+          const targetGObj = classGroups.find(g => g.id === targetGId);
 
           const newPaper = authManager.uploadReferencePaper({
             title,
@@ -3299,8 +3296,10 @@
             targetGroupName: targetGId === 'all' ? '全班所有小组' : (targetGObj ? targetGObj.name : '指定小组')
           });
 
-          if (autoPush) {
-            authManager.pushReferencePaperToGroupChat(newPaper.id, targetGId);
+          if (autoPush && newPaper && newPaper.id) {
+            try {
+              authManager.pushReferencePaperToGroupChat(newPaper.id, targetGId);
+            } catch (err) {}
           }
 
           alert(`🎉 参考范文《${title}》已成功上传！${autoPush ? '审稿编辑 Agent 已同步向受众小组推送！' : ''}`);
