@@ -5427,7 +5427,26 @@
             }
           }
 
-          // 3. 🎯 半程编辑会议发起号召（严格按你的核心规则：推进到【五、不足与反思】或阶段二任务时间已过 60%）
+          // 2. 🎯 进度雷达 1：正文写到【二、文献综述】或【三、研究问题与假设】➔ 审稿编辑第一次初稿微调质检
+          const hasReachedLitOrHypo = /(?:二、|第二章|第二部分|文献综述|三、|第三章|第三部分|研究问题|研究假设)/i.test(s2.unifiedContent || '');
+          if (hasReachedLitOrHypo && !this.state.stage2FirstQualityChecked && plainTextLen >= 120) {
+            this.state.stage2FirstQualityChecked = true;
+            setTimeout(() => {
+              const msg = {
+                sender: 'reviewingEditor',
+                text: `📝 【审稿编辑·初稿立意微调建议】：关注到团队已初步搭起前置文献与研究假设框架！\n💡 **初稿质检小提示**：文献综述要紧扣研究核心变量的关联性展开述评，研究假设表述建议更加聚焦、具有可验证性，为后续实验/问卷工具设计打好坚实基础！`,
+                timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                _timeMs: Date.now()
+              };
+              if (!this.state.chatLogs.stage2) this.state.chatLogs.stage2 = [];
+              this.state.chatLogs.stage2.push(msg);
+              this.syncChatLogs();
+              if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+              renderChat(this.state);
+            }, 1500);
+          }
+
+          // 3. 🎯 半程编辑会议发起号召（严格按流程图双轨制：推进到【五、不足与反思】或阶段二任务时间已过 60%）
           const times = (this.state.stage1 && this.state.stage1.contract && this.state.stage1.contract.timeAllocations) ? this.state.stage1.contract.timeAllocations : {};
           const totalPlannedMin = (times.background || 25) + (times.literature || 30) + (times.questions || 25) + (times.method || 40) + (times.reflection || 20) + (times.references || 10);
           const totalPlannedMs = totalPlannedMin * 60 * 1000;
@@ -5477,6 +5496,30 @@
               renderChat(this.state);
               return;
             }
+          }
+
+          // 5. 🎯 终审收尾雷达：正文写到【六、参考文献】或进入最后 15% 冲刺期
+          const hasReachedReferences = /(?:六、|第6章|第六部分|参考文献|References)/i.test(s2.unifiedContent || '');
+          const isTimeOver85Pct = stage2DurationMs >= (totalPlannedMs * 0.85);
+          if ((hasReachedReferences || isTimeOver85Pct) && !this.state.stage2FinalNudgeSent && hasMeetingDone) {
+            this.state.stage2FinalNudgeSent = true;
+            const msg1 = {
+              sender: 'managingEditor',
+              text: `🏁 【责任编辑·冲刺倒计时提醒】：方案撰写已进入最终收尾冲刺阶段！\n• 建议全组成员交叉通读全篇，理顺段落衔接；确认无误后可准备点击进入【阶段三：答辩擂台】！`,
+              timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+              _timeMs: now
+            };
+            const msg2 = {
+              sender: 'reviewingEditor',
+              text: `📚 【审稿编辑·终审格式排版规范】：请注意检查：\n1. 章节标题序号是否规范统一；\n2. 表格是否采用标准学术三线表；\n3. 参考文献是否符合 GB/T 7714 格式规范。`,
+              timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+              _timeMs: now + 500
+            };
+            if (!this.state.chatLogs.stage2) this.state.chatLogs.stage2 = [];
+            this.state.chatLogs.stage2.push(msg1, msg2);
+            this.syncChatLogs();
+            if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+            renderChat(this.state);
           }
         }
 
