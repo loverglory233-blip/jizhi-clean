@@ -1169,28 +1169,6 @@
         this._applyReset(remoteData.resetSeq || 1);
         return;
       }
-        const taskId = this.app.state.activeTaskId || 'task_default';
-        this.app.state.stage1 = JSON.parse(JSON.stringify(InitialState.stage1));
-        this.app.state.stage2 = JSON.parse(JSON.stringify(InitialState.stage2));
-        this.app.state.stage3 = JSON.parse(JSON.stringify(InitialState.stage3));
-        this.app.state.chatLogs = { stage1: [], stage2: [], stage3: [] };
-        this.app.state.currentStage = 'stage1';
-        this.app.state.isFinalSubmitted = false;
-        localStorage.setItem(`jizhi_sync_chat_v10_pure_${taskId}_${myGroupId}`, JSON.stringify(this.app.state.chatLogs));
-        localStorage.setItem(`jizhi_sync_s1_v10_pure_${taskId}_${myGroupId}`, JSON.stringify(this.app.state.stage1));
-        localStorage.setItem(`jizhi_sync_s2_v10_pure_${taskId}_${myGroupId}`, JSON.stringify(this.app.state.stage2));
-        localStorage.setItem(`jizhi_sync_s3_v10_pure_${taskId}_${myGroupId}`, JSON.stringify(this.app.state.stage3));
-        localStorage.setItem(`jizhi_sync_current_stage_v10_pure_${taskId}_${myGroupId}`, 'stage1');
-        localStorage.setItem(`jizhi_sync_final_submitted_v10_pure_${taskId}_${myGroupId}`, 'false');
-        // 重置时间戳，让后续来包不被丢弃
-        this.lastTimestamp = remoteData.timestamp || 0;
-        this.app.saveGroupState(myGroupId);
-        renderChat(this.app.state);
-        if (user?.role === 'student' && this.app.state.studentViewMode === 'workspace') {
-          this.app.renderStudentWorkspace();
-        }
-        return;
-      }
 
       // ── 全局教务元数据同步 (用户池/班级/任务/通知/范文库) ──
       // 仅写 localStorage，绝不触发页面重绘
