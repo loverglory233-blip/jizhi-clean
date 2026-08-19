@@ -5694,7 +5694,7 @@
               this.lastS3SilenceNudgeTime = now;
               const msg = {
                 sender: 'neutral',
-                text: `🟡 【中间委员·答辩协商提示】：正反两方委员的评审意见已送达左侧矩阵！\n• 建议全组在研讨区就反方提出的质询点展开辩护讨论，交流观点，梳理需要修正确认的关键点！`,
+                text: `🟡 【中间委员·答辩协商提示】：正反两方委员的评审意见已送达左侧矩阵！\n• 建议全组在研讨区就反方提出的质询点展开辩护讨论，商定好共识后，**推选一位组员代表全组**录入裁决矩阵，其余成员同步在正文中落实修改！`,
                 timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
                 _timeMs: now
               };
@@ -5713,7 +5713,7 @@
               this.lastS3MatrixNudgeTime = now;
               const msg = {
                 sender: 'neutral',
-                text: `💡 【中间委员·矩阵录入与终稿落实提醒】：看到大家在讨论区已展开充分辩护交流！\n👉 请组员将商定好的辩护共识，逐条录入到左侧【答辩裁决矩阵】对应质询下方并保存，同时点击【返回富文本协作大正文】将修改落实到论文终稿中！`,
+                text: `💡 【中间委员·矩阵录入与终稿落实提醒】：看到大家在讨论区已展开充分辩护交流！\n👉 请组员将商定好的辩护共识，**推选一位同学录入**到左侧【答辩裁决矩阵】对应质询下方并保存，同时点击【返回富文本协作大正文】将修改落实到论文终稿中！`,
                 timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
                 _timeMs: now
               };
@@ -6416,7 +6416,7 @@
               setTimeout(() => {
                 const chairGuideMsg = {
                   sender: 'neutral',
-                  text: `🟡 【中间委员·答辩引导】：正反两方意见已同步入驻左侧【答辩裁决矩阵】！\n👉 请全组先静心阅读 1 分钟，重点针对反方第 1 条质询在讨论区商讨辩护策略，并将答辩要点填入左侧矩阵中！`,
+                  text: `🟡 【中间委员·答辩引导】：正反两方意见已同步入驻左侧【答辩裁决矩阵】！\n👉 请全组先在研讨区就反方第 1 条质询充分商讨辩护共识；达成一致后，**建议推选一位组员代表全组**将答辩结论录入左侧矩阵对应框中，并同步在终稿正文中落实修改！`,
                   timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
                   _timeMs: Date.now()
                 };
@@ -6692,7 +6692,7 @@
             if (!neutralReply || neutralReply.trim().length === 0) {
               if (unadoptedCount > 0) {
                 const nextItem = items.find(f => f.status !== 'adopted');
-                neutralReply = `🟡 【中间委员·答辩裁决推进】：已成功记录本条裁决结论：“${respText}”！\n\n👉 **接下来请研讨**【${nextItem.speaker}】：请全组成员商讨修改方案，直接在左侧对应卡片中录入答复！`;
+                neutralReply = `🟡 【中间委员·答辩裁决推进】：已成功记录本条裁决结论：“${respText}”！\n\n👉 **接下来请全组研讨攻克**【${nextItem.speaker}】：请全组成员商讨修改方案，达成共识后**由一位组员代表录入**并同步修改终稿！`;
               } else {
                 neutralReply = `🎉 【中间委员·答辩共识总评与终稿修改引导】\n各位研究者，答辩委员会已审阅全组针对所有质询给出的答复方案！\n\n📋 **【全组修改思路精要汇总】**：\n${adoptedSummaries}\n\n💡 **终稿修改指引**：大家的辩护逻辑严密且具有高度可行性！现在请全组点击上方【📝 返回富文本协作大正文】，将上述修改想法落实到对应章节，润色完毕后点击【🚀 提交期末论文终稿】完成项目！`;
               }
