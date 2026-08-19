@@ -2028,11 +2028,15 @@
                       <div style="font-size:15px; font-weight:800; color:#0f172a;">当前暂无上传的课程参考范文</div>
                       <div style="font-size:12.5px; color:#64748b; margin-top:4px;">点击右上角【+ 上传学术参考范文】上传论文样本，学生可在阶段二正文上方随时查阅下载！</div>
                     </div>
-                  ` : refPapers.map(p => `
+                  ` : refPapers.map(p => {
+                    const linkedTask = tasks.find(t => t.id === p.taskId);
+                    const taskLabel = p.taskId === 'task_all' || !p.taskId ? '🌐 通用范文 (全部任务)' : (linkedTask ? `📌 ${linkedTask.title}` : '📌 专属任务范文');
+                    return `
                     <div style="background:#ffffff; border:1px solid #e2e8f0; padding:18px; border-radius:12px; box-shadow:0 1px 3px rgba(15,23,42,0.03);">
                       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
-                        <div style="display:flex; align-items:center; gap:8px;">
+                        <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
                           <span style="font-weight:800; color:#1e40af; font-size:16px;">📄 ${p.title}</span>
+                          <span style="background:#f5f3ff; color:#7c3aed; border:1px solid #ddd6fe; padding:2px 8px; border-radius:8px; font-size:11.5px; font-weight:700;">${taskLabel}</span>
                           <span style="background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe; padding:2px 8px; border-radius:8px; font-size:11.5px; font-weight:700;">定向受众: ${p.targetGroupName || '全班所有小组'}</span>
                         </div>
                         <span style="font-size:12px; color:#64748b;">${p.uploadTime} | 上传人: ${p.author || '教师'}</span>
@@ -2989,10 +2993,9 @@
           const desc = modal.querySelector('#modal-task-desc').value.trim();
           const startTime = modal.querySelector('#modal-task-start').value;
           const deadline = modal.querySelector('#modal-task-deadline').value;
-          const duration = modal.querySelector('#modal-task-duration').value;
 
           if (!title) { alert('⚠️ 请输入写作任务名称！'); return; }
-          authManager.createTask(title, classId, desc, [], startTime, deadline, duration);
+          authManager.createTask(title, classId, desc, [], startTime, deadline, 150);
           closeModal();
           renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
         });
@@ -3019,8 +3022,11 @@
             </div>
             <div class="teacher-modal-body">
               <div class="teacher-form-group">
-                <label><span class="req">*</span> 关联写作任务</label>
-                <select id="modal-ann-task" class="teacher-input fancy">${tasks.map(t => `<option value="${t.id}">📌 ${t.title}</option>`).join('')}</select>
+                <label><span class="req">*</span> 关联写作任务 / 受众范围</label>
+                <select id="modal-ann-task" class="teacher-input fancy">
+                  <option value="task_all">🌐 全班通识广播 (全流程可见)</option>
+                  ${tasks.map(t => `<option value="${t.id}">📌 ${t.title}</option>`).join('')}
+                </select>
               </div>
               <div class="teacher-form-group">
                 <label><span class="req">*</span> 通知标题</label>
@@ -3069,7 +3075,7 @@
         const fileInput = modal.querySelector('#modal-ann-file-input');
         const dropzone = modal.querySelector('#ann-file-dropzone');
         const dropText = modal.querySelector('#ann-dropzone-text');
-        let selectedAttachment = { name: '协作写作问卷测量规范范例.pdf', size: '2.4 MB' };
+        let selectedAttachment = null;
 
         dropzone.addEventListener('click', () => fileInput.click());
         fileInput.addEventListener('change', (e) => {
@@ -3102,13 +3108,13 @@
         const modal = document.createElement('div');
         modal.className = 'modal-overlay';
         modal.innerHTML = `
-          <div class="teacher-modal-card fancy-task-modal" style="width:500px;">
+          <div class="teacher-modal-card fancy-task-modal" style="width:520px;">
             <div class="teacher-modal-header task-theme-gradient" style="background:linear-gradient(135deg, #7c3aed, #4f46e5);">
               <div class="modal-header-title">
                 <div class="modal-icon-badge" style="background:rgba(255,255,255,0.2); color:white;">📚</div>
                 <div>
                   <h3>上传课程学术参考范文</h3>
-                  <p style="font-size:12px; color:#e0e7ff;">选取文献文件并指定推送小组即可一键存入范文库</p>
+                  <p style="font-size:12px; color:#e0e7ff;">选取文献文件并指定推送任务与受众小组</p>
                 </div>
               </div>
               <button class="modal-close-btn" id="btn-close-paper-modal">✕</button>
@@ -3127,16 +3133,25 @@
               </div>
 
               <div class="teacher-form-group" style="margin-top:12px;">
-                <label><span class="req">*</span> 范文文献标题 (选文件后自动填充，可手动微调)</label>
+                <label><span class="req">*</span> 范文文献标题</label>
                 <input type="text" id="modal-paper-title" class="teacher-input fancy" placeholder="例如：《基于大语言模型的多智能体协同学习实证研究》" value="">
               </div>
 
-              <div class="teacher-form-group" style="margin-top:12px;">
-                <label><span class="req">*</span> 🎯 推送受众范围</label>
-                <select id="modal-paper-target-group" class="teacher-input fancy">
-                  <option value="all">🌐 全班所有小组</option>
-                  ${groups.map(g => `<option value="${g.id}">👥 ${g.name}</option>`).join('')}
-                </select>
+              <div class="form-grid-2" style="margin-top:12px;">
+                <div class="teacher-form-group">
+                  <label><span class="req">*</span> 📌 关联写作任务</label>
+                  <select id="modal-paper-task" class="teacher-input fancy">
+                    <option value="task_all">🌐 通用参考范文 (全部任务)</option>
+                    ${tasks.map(t => `<option value="${t.id}">📌 ${t.title}</option>`).join('')}
+                  </select>
+                </div>
+                <div class="teacher-form-group">
+                  <label><span class="req">*</span> 🎯 推送受众小组</label>
+                  <select id="modal-paper-target-group" class="teacher-input fancy">
+                    <option value="all">🌐 全班所有小组</option>
+                    ${groups.map(g => `<option value="${g.id}">👥 ${g.name}</option>`).join('')}
+                  </select>
+                </div>
               </div>
 
               <div style="margin-top:12px; background:#eff6ff; border:1px solid #bfdbfe; padding:10px 14px; border-radius:8px; display:flex; align-items:center; gap:8px;">
@@ -3198,6 +3213,7 @@
 
         modal.querySelector('#btn-submit-new-paper').addEventListener('click', () => {
           let title = titleInput.value.trim();
+          const targetTaskId = modal.querySelector('#modal-paper-task') ? modal.querySelector('#modal-paper-task').value : 'task_all';
           const targetGId = modal.querySelector('#modal-paper-target-group').value;
           const autoPush = modal.querySelector('#modal-paper-auto-push').checked;
 
@@ -3212,6 +3228,7 @@
 
           const newPaper = authManager.uploadReferencePaper({
             title,
+            taskId: targetTaskId,
             abstract: '',
             keyHighlights: '研究设计与学术论证规范',
             fileName: selectedFile.name,
