@@ -223,10 +223,10 @@
   ];
 
   const DefaultUsers = [
-    { id: 'u_teacher1', username: 'teacher', email: 'teacher@jizhi.edu', password: '123', name: '张教授 (教师)', role: 'teacher', avatar: '👩‍🏫' },
-    { id: 'u_studentA', username: 'liming', email: 'studentA@jizhi.edu', password: '123', name: '李明 (学生A/组长)', role: 'student', studentCode: 'A', avatar: '👨‍🎓', classId: 'class_101', groupId: 'group_1' },
-    { id: 'u_studentB', username: 'wangfang', email: 'studentB@jizhi.edu', password: '123', name: '王芳 (学生B/组员)', role: 'student', studentCode: 'B', avatar: '👩‍🎓', classId: 'class_101', groupId: 'group_1' },
-    { id: 'u_studentC', username: 'chenqiang', email: 'studentC@jizhi.edu', password: '123', name: '陈强 (学生C/组员)', role: 'student', studentCode: 'C', avatar: '🧑‍🎓', classId: 'class_101', groupId: 'group_1' }
+    { id: 'u_teacher1', username: 'T001', studentCode: 'T001', password: '123', name: '张教授 (教师)', role: 'teacher', avatar: '👩‍🏫' },
+    { id: 'u_studentA', username: 'A', studentCode: 'A', password: '123', name: '李明 (学生A/组长)', role: 'student', avatar: '👨‍🎓', classId: 'class_101', groupId: 'group_1' },
+    { id: 'u_studentB', username: 'B', studentCode: 'B', password: '123', name: '王芳 (学生B/组员)', role: 'student', avatar: '👩‍🎓', classId: 'class_101', groupId: 'group_1' },
+    { id: 'u_studentC', username: 'C', studentCode: 'C', password: '123', name: '陈强 (学生C/组员)', role: 'student', avatar: '🧑‍🎓', classId: 'class_101', groupId: 'group_1' }
   ];
 
   const DefaultTasks = [];
@@ -310,10 +310,10 @@
       const users = this.getUsers();
       const query = accountInput.trim().toLowerCase();
       const userIndex = users.findIndex(u => {
+        const uCode = (u.studentCode || '').toLowerCase();
         const uName = (u.username || '').toLowerCase();
         const uEmail = (u.email || '').toLowerCase();
-        const uCode = (u.studentCode || '').toLowerCase();
-        return (uName === query || uEmail === query || uCode === query || ('student' + uCode) === query) && u.password === password;
+        return (uCode === query || uName === query || uEmail === query || ('student' + uCode) === query || (u.role === 'teacher' && (query === 'teacher' || query === 't001'))) && u.password === password;
       });
 
       if (userIndex !== -1) {
@@ -379,32 +379,24 @@
       ));
     }
 
-    addStudentToClass(name, username, studentCode, classId, customPassword = null) {
+    addStudentToClass(name, studentCode, classId, customPassword = null) {
       const users = this.getUsers();
       const classes = this.getClasses();
-      const cleanUsername = username.trim().toLowerCase();
-      const cleanCode = (studentCode || cleanUsername).trim();
+      const cleanCode = (studentCode || '').trim();
+      const cleanUsername = cleanCode.toLowerCase();
       
-      const existingUserByUsername = users.find(u => (u.username || '').toLowerCase() === cleanUsername);
-      const existingUserByCode = users.find(u => (u.studentCode || '').trim() === cleanCode);
-
-      if (existingUserByCode && existingUserByCode.username.toLowerCase() !== cleanUsername) {
-        throw new Error(`学号【${cleanCode}】已被学生【${existingUserByCode.name} (${existingUserByCode.username})】占用，学号不能重复！`);
-      }
-
-      if (existingUserByUsername && existingUserByUsername.studentCode && existingUserByUsername.studentCode !== cleanCode) {
-        throw new Error(`用户名【${cleanUsername}】已存在，请使用其他登录账号！`);
-      }
+      const existingUser = users.find(u => (u.studentCode || '').trim().toLowerCase() === cleanCode.toLowerCase() || (u.username || '').toLowerCase() === cleanUsername);
 
       const avatars = ['👨‍🎓', '👩‍🎓', '🧑‍🎓', '🎓', '📚', '🌟'];
       const avatar = avatars[users.length % avatars.length];
 
       let targetUser;
-      if (existingUserByUsername) {
-        targetUser = existingUserByUsername;
+      if (existingUser) {
+        targetUser = existingUser;
         if (name && name.trim()) targetUser.name = name.trim();
         if (customPassword && customPassword.trim()) targetUser.password = customPassword.trim();
         targetUser.studentCode = cleanCode;
+        targetUser.username = cleanCode;
 
         if (!targetUser.classIds || !Array.isArray(targetUser.classIds)) {
           targetUser.classIds = targetUser.classId ? [targetUser.classId] : [];
@@ -416,12 +408,12 @@
       } else {
         targetUser = {
           id: 'u_student_' + Date.now() + Math.floor(Math.random() * 1000),
-          username: cleanUsername,
+          username: cleanCode,
+          studentCode: cleanCode,
           email: `${cleanUsername}@jizhi.edu`,
           password: (customPassword && customPassword.trim()) ? customPassword.trim() : '123',
           name: name.trim(),
           role: 'student',
-          studentCode: cleanCode,
           avatar: avatar,
           classId: classId || 'class_101',
           classIds: classId ? [classId] : ['class_101'],
@@ -446,8 +438,8 @@
     batchAddStudentsToClass(studentList, classId) {
       let count = 0;
       studentList.forEach(st => {
-        if (st.name && st.username) {
-          this.addStudentToClass(st.name, st.username, st.studentCode || st.username, classId, st.customPassword);
+        if (st.name && (st.studentCode || st.username)) {
+          this.addStudentToClass(st.name, st.studentCode || st.username, classId, st.customPassword);
           count++;
         }
       });
@@ -1562,11 +1554,11 @@
           </div>
           <form id="login-form" style="display:flex; flex-direction:column; gap:16px;">
             <div style="display:flex; flex-direction:column; gap:6px;">
-              <label style="font-size:13px; font-weight:700; color:#334155;">账号 (支持用户名: teacher, liming, wangfang, chenqiang)</label>
-              <input type="text" id="login-account" class="teacher-input" placeholder="输入 teacher 或 liming / wangfang / chenqiang" value="teacher" required style="width:100%;">
+              <label style="font-size:13px; font-weight:700; color:#334155;">工号 / 学号</label>
+              <input type="text" id="login-account" class="teacher-input" placeholder="输入教师工号 T001 或学生学号 A / B / C" value="T001" required style="width:100%;">
             </div>
             <div style="display:flex; flex-direction:column; gap:6px;">
-              <label style="font-size:13px; font-weight:700; color:#334155;">密码 (默认 123)</label>
+              <label style="font-size:13px; font-weight:700; color:#334155;">密码 (默认统一为 123)</label>
               <input type="password" id="login-password" class="teacher-input" placeholder="输入密码 123" value="123" required style="width:100%;">
             </div>
             <div id="login-error-msg" style="display:none; font-size:12px; color:#dc2626; background:#fef2f2; border:1px solid #fecaca; padding:8px 12px; border-radius:8px;"></div>
@@ -1579,10 +1571,10 @@
               ⚡ 免输入一键快速测试登录
             </div>
             <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
-              <button class="quick-login-btn" data-account="teacher" style="background:#ecfdf5; border:1px solid #a7f3d0; color:#059669; padding:10px; border-radius:8px; font-size:12px; font-weight:700; cursor:pointer;">👩‍🏫 教师: teacher</button>
-              <button class="quick-login-btn" data-account="liming" style="background:#eff6ff; border:1px solid #bfdbfe; color:#2563eb; padding:10px; border-radius:8px; font-size:12px; font-weight:700; cursor:pointer;">👨‍🎓 学生A: liming (第1组)</button>
-              <button class="quick-login-btn" data-account="wangfang" style="background:#eff6ff; border:1px solid #bfdbfe; color:#2563eb; padding:10px; border-radius:8px; font-size:12px; font-weight:700; cursor:pointer;">👩‍🎓 学生B: wangfang (第1组)</button>
-              <button class="quick-login-btn" data-account="chenqiang" style="background:#eff6ff; border:1px solid #bfdbfe; color:#2563eb; padding:10px; border-radius:8px; font-size:12px; font-weight:700; cursor:pointer;">🧑‍🎓 学生C: chenqiang (第1组)</button>
+              <button class="quick-login-btn" data-account="T001" style="background:#ecfdf5; border:1px solid #a7f3d0; color:#059669; padding:10px; border-radius:8px; font-size:12px; font-weight:700; cursor:pointer;">👩‍🏫 教师工号: T001</button>
+              <button class="quick-login-btn" data-account="A" style="background:#eff6ff; border:1px solid #bfdbfe; color:#2563eb; padding:10px; border-radius:8px; font-size:12px; font-weight:700; cursor:pointer;">👨‍🎓 学生A学号: A (李明/组长)</button>
+              <button class="quick-login-btn" data-account="B" style="background:#eff6ff; border:1px solid #bfdbfe; color:#2563eb; padding:10px; border-radius:8px; font-size:12px; font-weight:700; cursor:pointer;">👩‍🎓 学生B学号: B (王芳/组员)</button>
+              <button class="quick-login-btn" data-account="C" style="background:#eff6ff; border:1px solid #bfdbfe; color:#2563eb; padding:10px; border-radius:8px; font-size:12px; font-weight:700; cursor:pointer;">🧑‍🎓 学生C学号: C (陈强/组员)</button>
             </div>
           </div>
         </div>
@@ -1706,16 +1698,15 @@
                 </div>
                 <div style="border:1px solid #e2e8f0; border-radius:10px; overflow:hidden; background:#ffffff;">
                   <table class="monitor-table" style="font-size:13px;">
-                    <thead><tr><th>姓名</th><th>用户名 (拼音)</th><th>学号</th><th>当前归属小组</th><th>密码</th><th>操作</th></tr></thead>
+                    <thead><tr><th>姓名</th><th>学号</th><th>当前归属小组</th><th>密码</th><th>操作</th></tr></thead>
                     <tbody>
-                      ${classStudents.length === 0 ? '<tr><td colspan="6" style="text-align:center; color:#64748b; padding:24px;">当前班级暂无学生账号，请点击右上角按钮创建！</td></tr>' : ''}
+                      ${classStudents.length === 0 ? '<tr><td colspan="5" style="text-align:center; color:#64748b; padding:24px;">当前班级暂无学生账号，请点击右上角按钮创建！</td></tr>' : ''}
                       ${classStudents.map(s => {
                         const grp = (activeClass.groups || []).find(g => g.members && (g.members.includes(s.id) || g.members.includes(s.studentCode)));
                         return `
                           <tr>
                             <td><b>${s.avatar || '👤'} ${s.name}</b></td>
-                            <td><span style="color:#2563eb; font-family:monospace; font-weight:700;">${s.username}</span></td>
-                            <td>${s.studentCode || s.username}</td>
+                            <td><span style="color:#2563eb; font-family:monospace; font-weight:700;">${s.studentCode || s.username}</span></td>
                             <td>${grp ? `<span style="background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe; padding:2px 8px; border-radius:8px; font-size:12px; font-weight:700;">${grp.name}</span>` : '<span style="color:#94a3b8;">⏳ 待划分小组</span>'}</td>
                             <td><span style="color:#059669; font-family:monospace; font-weight:700;">${s.password || '123'}</span></td>
                             <td><button class="delete-student-btn" data-id="${s.id}" style="background:#fef2f2; border:1px solid #fecaca; color:#dc2626; padding:4px 10px; border-radius:6px; font-size:12px; cursor:pointer; font-weight:700;">移除</button></td>
@@ -2287,16 +2278,12 @@
             <div id="panel-new-student">
               <div class="teacher-modal-body">
                 <div class="teacher-form-group">
-                  <label><span class="req">*</span> 学生真实姓名</label>
-                  <input type="text" id="modal-std-name" class="teacher-input fancy" placeholder="输入学生真实姓名" value="">
+                  <label><span class="req">*</span> 学生姓名</label>
+                  <input type="text" id="modal-std-name" class="teacher-input fancy" placeholder="输入学生姓名 (如: 张三)" value="">
                 </div>
                 <div class="teacher-form-group">
-                  <label><span class="req">*</span> 拼音用户名 (登录账号)</label>
-                  <input type="text" id="modal-std-username" class="teacher-input fancy" placeholder="输入拼音登录账号" value="">
-                </div>
-                <div class="teacher-form-group">
-                  <label>学号 / 编号</label>
-                  <input type="text" id="modal-std-code" class="teacher-input fancy" placeholder="输入学号" value="">
+                  <label><span class="req">*</span> 学生学号 (登录账号)</label>
+                  <input type="text" id="modal-std-code" class="teacher-input fancy" placeholder="输入学号 (如: 20260101 或 A)" value="">
                 </div>
                 <div class="teacher-form-group">
                   <label>设置初始密码 (留空统一定为 123)</label>
@@ -2385,12 +2372,11 @@
         // 新建账号提交
         modal.querySelector('#btn-submit-single-std').addEventListener('click', () => {
           const name = modal.querySelector('#modal-std-name').value.trim();
-          const username = modal.querySelector('#modal-std-username').value.trim();
           const code = modal.querySelector('#modal-std-code').value.trim();
           const pwd = modal.querySelector('#modal-std-password').value.trim();
-          if (!name || !username) { alert('⚠️ 请填齐学生姓名和拼音账号！'); return; }
+          if (!name || !code) { alert('⚠️ 请填齐学生姓名和学号！'); return; }
           try {
-            authManager.addStudentToClass(name, username, code || username, activeClass.id, pwd || '123');
+            authManager.addStudentToClass(name, code, activeClass.id, pwd || '123');
             closeModal();
             renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
           } catch (err) {
