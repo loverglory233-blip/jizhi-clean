@@ -4093,7 +4093,7 @@
               📚 研究方案核心模块与时间规划:
             </div>
             
-            <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(260px, 1fr)); gap:12px;">
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
               <!-- 模块 1 -->
               <div style="background:#ffffff; border:1px solid #e2e8f0; border-left:3.5px solid #2563eb; border-radius:8px; padding:12px 14px; display:flex; justify-content:space-between; align-items:center;">
                 <span style="font-weight:800; color:#1e40af; font-size:13.5px;">一、研究背景与意义</span>
@@ -6380,13 +6380,11 @@
         }
       );
 
-      // ── 核心保护：如果用户当前正在聚焦输入框（合约输入、正文富文本等），绝对不重建 canvas DOM，避免焦点丢失/重绘覆盖/打什么删什么 ──
+      // ── 核心保护：智能局部 Patch 与非冲突渲染 ──
       const stage2Editor = document.getElementById('stage2-word-editor');
       const stage3Editor = document.getElementById('stage3-word-editor');
       const activeEl = document.activeElement;
-      const isInputActive = activeEl && (
-        activeEl.tagName === 'INPUT' ||
-        activeEl.tagName === 'TEXTAREA' ||
+      const isEditorTyping = activeEl && (
         activeEl === stage2Editor ||
         activeEl === stage3Editor ||
         (stage2Editor && stage2Editor.contains(activeEl)) ||
@@ -6395,7 +6393,44 @@
         (stage3Editor && stage3Editor.dataset.isComposing === 'true')
       );
 
-      if (!isInputActive) {
+      const isContractInputFocused = activeEl && (
+        activeEl.classList.contains('task-assignment-input') ||
+        activeEl.classList.contains('contract-time-input') ||
+        activeEl.id === 'contract-topic-input'
+      );
+
+      // 如果用户正在富文本打字或在公约打字，做局部精准 Patch，绝不丢失提案与投票数据
+      if (this.state.currentStage === 'stage1' && isContractInputFocused) {
+        // 局部更新提案池卡片与投票按钮
+        const proposalsContainer = document.querySelector('.proposals-grid');
+        const s1 = this.state.stage1;
+        const currentUser = this.state.currentUser;
+        const userVotedProposalId = s1.votes ? s1.votes[currentUser] : null;
+        const userHasVoted = s1.hasVoted && s1.hasVoted[currentUser];
+        const isContractLocked = s1.contract.isConfirmed || this.state.isFinalSubmitted;
+
+        if (proposalsContainer && Array.isArray(s1.proposals) && s1.proposals.length > 0) {
+          proposalsContainer.innerHTML = s1.proposals.map(p => {
+            const isThisVoted = userVotedProposalId === p.id;
+            let btnText = '🗳️ 投票支持';
+            let btnClass = 'vote-btn';
+            if (isContractLocked || userHasVoted) {
+              if (isThisVoted) { btnText = '🔒 已投此提案'; btnClass = 'vote-btn active locked'; }
+              else { btnText = '🔒 投票已锁定'; btnClass = 'vote-btn disabled'; }
+            }
+            const authorName = this.state.members[p.author] ? this.state.members[p.author].name : p.author;
+            return `
+              <div class="proposal-card ${isThisVoted ? 'voted' : ''}" style="display:flex; flex-direction:column;">
+                <div class="proposal-header">
+                  <div class="proposal-title">💡 ${p.title}</div>
+                </div>
+                <div style="font-size:12px; color:#64748b; margin-bottom:8px;">提出人: <b style="color:#0f172a;">${authorName}</b></div>
+                <button class="${btnClass}" data-id="${p.id}" ${isContractLocked || userHasVoted ? 'disabled' : ''} style="width:100%; margin-top:auto;">${btnText}</button>
+              </div>
+            `;
+          }).join('');
+        }
+      } else if (!isEditorTyping) {
         renderCanvas(this.state, {
         onVote: (propId) => { this.handleVoteCast(propId); },
         onRefresh: () => { this.renderStudentWorkspace(); },
