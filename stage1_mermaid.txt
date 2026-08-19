@@ -1,0 +1,36 @@
+flowchart TD
+    Start1([🚀 进入阶段一：学术拍卖会]) --> GuardPresence1{"🛡️ 前提检测：全组成员是否【全部登录在线】？"}
+    GuardPresence1 -->|"有人未登录"| WaitOnline1["⏸️ 平台静默守候，绝不打扰"]
+    GuardPresence1 -->|"全员 100% 登录在线"| Node1_1["⏱️ 时间 0min<br>🎪 拍卖师：发布欢迎开场白，引导头脑风暴并在左侧提交个人选题"]
+    
+    Node1_1 --> Guard1{"🛡️ 阶段一守护与静默监测"}
+    Guard1 -->|"真冷场：左侧无动作 且 聊天无发言 > 3min"| Nudge1_1["💡 拍卖师：发布头脑风暴破冰启发"]
+    Guard1 -->|"严重滞后：开场 > 6min 仍 0 提案"| Nudge1_2["⏳ 拍卖师：引导尽快动笔提交"]
+    Guard1 -->|"消极情绪困扰：检测到焦虑/卡顿 且 45-60s 无同伴安慰"| Nudge1_Emotion["🎪 拍卖师：温和共情并提供选题切入点启发"]
+    Guard1 -->|"正常推进"| Node1_2
+    
+    Node1_2["📝 学生在左侧撰写并提交/修改个人提案"] --> Node1_3["⚡ 即时响应 (1-2s)<br>🎪 拍卖师：对每份提案给出 120~160 字学术可行性评估点评"]
+    
+    Node1_3 --> CheckProposals{"📊 平台检测：全组提案是否集齐？"}
+    CheckProposals -->|"未集齐且某人落后 > 3min"| Nudge1_4["📢 拍卖师：点名跟进提醒未交同学"]
+    CheckProposals -->|"全员提案已集齐"| Node1_4["🎪 拍卖师：出面展示提案列表，号召点击【🗳️ 投这篇】开启竞拍投票"]
+    
+    Node1_4 --> GuardVote{"🛡️ 投票超时双层守护"}
+    GuardVote -->|"0 人投票 > 3min"| Nudge1_Vote0["⏳ 拍卖师：发出竞拍投票提醒"]
+    GuardVote -->|"部分人投票且落后 > 2min"| Nudge1_VotePart["⏳ 拍卖师：点名提醒未投票组员"]
+    GuardVote -->|"全员完成投票"| Node1_5
+    
+    Node1_5["🔔 平台计票 ➔ 🎪 拍卖师：客观播报票数分布 (对事不对人)"] --> CheckDivergence{"📊 投票结果判定"}
+    CheckDivergence -->|"存在分歧 (非全票一致)"| Nudge1_Divergence["⚖️ 拍卖师优先引导：化解分歧，商讨取长补短，优先定下全组认可的统一主题"]
+    CheckDivergence -->|"全票一致"| Nudge1_Unanimous["🎉 拍卖师肯定共识：确立该选题，引导细化核心研究问题"]
+    
+    Nudge1_Divergence --> Node1_6
+    Nudge1_Unanimous --> Node1_6
+    
+    Node1_6["💡 拍卖师引导：全组细化选题立意，自主商定章节分工与时间规划<br>(学生可自主决定先分工还是先定时间，在左侧卡片直接修改)"] --> Node1_7["📜 平台在左侧生成《学术合作公约》草案"]
+    
+    Node1_7 --> GuardContract{"🛡️ 公约核对与签署三层守护"}
+    GuardContract -->|"公约无修改 且 讨论区静默 > 3min"| Nudge1_ContractSilence["💡 拍卖师：提示交流分工与时间预算"]
+    GuardContract -->|"公约生成 > 3min 且 0 人签署"| Nudge1_Sign0["📜 拍卖师：提示核对并点击【确认签署】"]
+    GuardContract -->|"部分人已签且落后 > 2min"| Nudge1_SignPart["📜 拍卖师：点名提醒未签署同学"]
+    GuardContract -->|"全员完成签署"| UnlockStage2([🔓 公约锁定 ➔ 自动解锁进入【阶段二：学术编辑部】])
