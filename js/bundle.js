@@ -5152,8 +5152,57 @@
         if (activeMembersCount < totalMembersCount) return; // 必须全员全部登录在线才触发提醒！
 
         // ======================================================================
-        // 🎪 阶段一：学术拍卖师 (Auctioneer) 守护机制
+        // 🌟 全阶段 SSRL 情绪与挫败感智能守护（同伴优先调节 45~60 秒观察窗）
         // ======================================================================
+        const currentStageChats = (this.state.chatLogs && this.state.chatLogs[stage]) ? this.state.chatLogs[stage] : [];
+        const recentStudentChats = currentStageChats.filter(m => m.sender && !AgentProfiles[m.sender] && m.sender !== 'system');
+        const lastNegativeChat = [...recentStudentChats].reverse().find(m => {
+          const t = m.text || '';
+          return /(?:太难了|写不出来|改不动了|不知道怎么写|全废了|搞不定|来不及了|头大|想放弃|否定我们|怎么改啊)/i.test(t);
+        });
+
+        if (lastNegativeChat && (!this.lastEmotionHandledId || this.lastEmotionHandledId !== lastNegativeChat._timeMs)) {
+          const negTime = lastNegativeChat._timeMs || (now - 60000);
+          const timeSinceNeg = now - negTime;
+          // 观察窗口：45 秒内给同伴留出互助安慰空间
+          if (timeSinceNeg >= 45000 && timeSinceNeg < 180000) {
+            // 检测 45 秒内是否有其他同伴发出了安慰/支持/解法回复
+            const peerResponsesAfterNeg = recentStudentChats.filter(m => (m._timeMs || 0) > negTime && m.sender !== lastNegativeChat.sender);
+            const hasPeerComforted = peerResponsesAfterNeg.some(m => /(?:没事|别慌|我们可以|一起|你看|先写|参考|我来|赞同|我觉得可以)/i.test(m.text || ''));
+
+            if (!hasPeerComforted) {
+              this.lastEmotionHandledId = lastNegativeChat._timeMs;
+              let agentSender = 'managingEditor';
+              let comfortText = '';
+              if (stage === 'stage1') {
+                agentSender = 'auctioneer';
+                comfortText = `🎪 【拍卖师·选题启发】：遇到构思瓶颈是非常正常的学术探索过程！\n💡 建议可以从大家熟悉的真实教学场景切入，先列出 1~2 个最想解决的具体痛点，再逐步完善理论框架，全组一起出谋划策！`;
+              } else if (stage === 'stage2') {
+                agentSender = 'managingEditor';
+                comfortText = `🤝 【责任编辑·暖心护航】：感到写作卡顿或疲惫时，不妨先暂停打字深呼吸！\n💡 可以先在研讨区把卡点或困惑抛给组员，大家头脑风暴互相提供思路支架，一步一步拆解难点！`;
+              } else if (stage === 'stage3') {
+                agentSender = 'neutral';
+                comfortText = `🟡 【中间委员·答辩启发】：学术答辩中的尖锐质询正是让方案更加严谨的宝贵契机！\n💡 反方的质询指出了可以进一步补强的空间，建议结合正方刚才提到的实践应用优势，从操作化补救的角度从容辩护！`;
+              }
+
+              const comfortMsg = {
+                sender: agentSender,
+                text: comfortText,
+                timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                _timeMs: now
+              };
+              if (!this.state.chatLogs[stage]) this.state.chatLogs[stage] = [];
+              this.state.chatLogs[stage].push(comfortMsg);
+              this.syncChatLogs();
+              if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+              renderChat(this.state);
+              return;
+            } else {
+              // 同伴已成功出面调节，AI 默默记录并全程保持静默
+              this.lastEmotionHandledId = lastNegativeChat._timeMs;
+            }
+          }
+        }
         if (stage === 'stage1') {
           const s1 = this.state.stage1;
           if (!s1 || s1.contract?.isConfirmed) return;
@@ -5213,12 +5262,12 @@
             }
           }
 
-          // 3. 【个别落后跟进】：有人已提交，但超过 4 分钟仍有个别人未交，跟进提醒未交同学
+          // 3. 【个别落后跟进】：有人已提交，但超过 3 分钟仍有个别人未交，跟进提醒未交同学
           if (submittedCount > 0 && submittedCount < totalMembersCount) {
             const lastProposal = proposals[proposals.length - 1];
             const lastProposalTime = lastProposal ? (lastProposal.updatedAt || this.stage1StartTime) : this.stage1StartTime;
-            if (now - lastProposalTime > 240000) {
-              if (!this.lastPartialProposalNudgeTime || now - this.lastPartialProposalNudgeTime > 240000) {
+            if (now - lastProposalTime > 180000) {
+              if (!this.lastPartialProposalNudgeTime || now - this.lastPartialProposalNudgeTime > 180000) {
                 this.lastPartialProposalNudgeTime = now;
                 const unsubmitted = membersList.filter(m => !submittedAuthors.has(m.studentCode) && !submittedAuthors.has(m.id));
                 if (unsubmitted.length > 0) {
@@ -5240,27 +5289,32 @@
             }
           }
 
-          // 4. 提案集齐但投票超过 3 分钟未完成，提醒未投票同学
+          // 4. 提案集齐但投票守护（0人投 3min，部分人投 2min）
           if (submittedCount >= totalMembersCount && votesCastCount < totalMembersCount) {
-            if (!this.lastVoteNudgeTime || now - this.lastVoteNudgeTime > 180000) {
-              this.lastVoteNudgeTime = now;
-              const unvoted = membersList.filter(m => !s1.hasVoted || (!s1.hasVoted[m.studentCode] && !s1.hasVoted[m.id]));
-              const names = unvoted.map(m => m.name).join('、');
-              const text = (votesCastCount === 0)
-                ? `⏳ 【拍卖师·竞拍投票提醒】：全员选题已陈列在左侧提案池中！\n👉 请全组成员浏览提案，点击【🗳️ 投这篇】投出支持的一票！`
-                : `⏳ 【拍卖师·投票进度提醒】：目前全组已投票 ${votesCastCount}/${totalMembersCount} 人。\n👉 请尚未投票的成员（**${names || '未投票组员'}**）尽快在左侧提案卡片下方点击【🗳️ 投这篇】！`;
-              const msg = {
-                sender: 'auctioneer',
-                text: text,
-                timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                _timeMs: now
-              };
-              if (!this.state.chatLogs.stage1) this.state.chatLogs.stage1 = [];
-              this.state.chatLogs.stage1.push(msg);
-              this.syncChatLogs();
-              if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
-              renderChat(this.state);
-              return;
+            const lastVoteTime = s1._lastVoteTime || this.stage1StartTime;
+            const voteSilenceMs = now - lastVoteTime;
+            const shouldVoteNudge = (votesCastCount === 0 && voteSilenceMs > 180000) || (votesCastCount > 0 && voteSilenceMs > 120000);
+            if (shouldVoteNudge) {
+              if (!this.lastVoteNudgeTime || now - this.lastVoteNudgeTime > 180000) {
+                this.lastVoteNudgeTime = now;
+                const unvoted = membersList.filter(m => !s1.hasVoted || (!s1.hasVoted[m.studentCode] && !s1.hasVoted[m.id]));
+                const names = unvoted.map(m => m.name).join('、');
+                const text = (votesCastCount === 0)
+                  ? `⏳ 【拍卖师·竞拍投票提醒】：全员选题已陈列在左侧提案池中！\n👉 请全组成员浏览提案，点击【🗳️ 投这篇】投出支持的一票！`
+                  : `⏳ 【拍卖师·投票进度提醒】：目前全组已投票 ${votesCastCount}/${totalMembersCount} 人。\n👉 请尚未投票的成员（**${names || '未投票组员'}**）尽快在左侧提案卡片下方点击【🗳️ 投这篇】！`;
+                const msg = {
+                  sender: 'auctioneer',
+                  text: text,
+                  timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                  _timeMs: now
+                };
+                if (!this.state.chatLogs.stage1) this.state.chatLogs.stage1 = [];
+                this.state.chatLogs.stage1.push(msg);
+                this.syncChatLogs();
+                if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+                renderChat(this.state);
+                return;
+              }
             }
           }
 
@@ -6098,12 +6152,12 @@
           const isUnanimous = (maxVotes === totalMembersCount);
 
           if (isUnanimous) {
-            summaryText += `\n🎉 **【全员一致认同】**：全组 ${totalMembersCount} 票全部投给《${winningProposal.title}》！正式确立该提案为本组研究主题！`;
+            summaryText += `\n🎉 **【全员一致认同】**：全组 ${totalMembersCount} 票全部支持《${winningProposal.title}》！正式确立该提案为本组研究主题！\n👉 请全组在讨论区进一步细化该选题的核心研究问题，并协商确认各章节分工与时间规划！`;
             if (!s1.mergedTitle && winningProposal) {
               s1.mergedTitle = winningProposal.title;
             }
           } else {
-            summaryText += `\n⚖️ **【存在意见分歧·协商引导】**：投票存在分歧，拍卖师已暂定获得最高票的《${winningProposal ? winningProposal.title : '当前提案'}》为基准主题。全组亦可在研讨区协商融合！`;
+            summaryText += `\n⚖️ **【存在意见分歧·协商引导】**：注意到组内对选题持有不同视角！这正是团队协同碰撞创新的最佳契机。\n👉 建议各提案作者在讨论区简要说明自己的设计亮点，大家共同商讨如何取长补短，确定一个兼具理论深度与可行性的主题（既可选用最高票主题，亦可融合各方亮点），并在左侧卡片中自主确定分工与时间预算！`;
             if (!s1.mergedTitle && winningProposal) {
               s1.mergedTitle = winningProposal.title;
             }
@@ -6121,7 +6175,7 @@
             s1.contract.timeAllocations = { background: 25, literature: 30, questions: 25, method: 40, reflection: 20, references: 10 };
           }
 
-          summaryText += `\n\n📜 **【平台已自动生成学术合作公约草案】**\n拍卖师与平台系统已根据选题和成员结构，在左侧自动生成了完整的《团队协同合作学术合约》！\n\n👉 **【核对与签署指引】**：\n1. 请全组成员仔细查看左侧合约卡片（主题、各成员分工、时间规划）；\n2. **如有不同想法，可直接在卡片输入框中微调修改**；\n3. 确认无误后，**全员点击卡片下方的【确认签署】**正式锁定并解锁阶段二！`;
+          summaryText += `\n\n📜 **【《学术合作公约》草案已就绪】**\n拍卖师与平台系统已在左侧生成了公约草案！\n\n👉 **【协商与签署指引】**：\n1. 细化主题后，全组成员可自主商定章节分工与时间规划，在卡片中直接修改；\n2. 确认无误后，**全员点击卡片下方的【确认签署】**，正式解锁阶段二！`;
 
           const summaryMsg = { sender: 'auctioneer', text: summaryText, timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), _timeMs: Date.now() };
           this.state.chatLogs.stage1.push(summaryMsg);
