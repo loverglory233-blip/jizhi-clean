@@ -40,7 +40,7 @@
     .btn-download {
       border: none;
       color: white;
-      padding: 6px 12px;
+      padding: 7px 14px;
       border-radius: 6px;
       font-size: 12px;
       font-weight: 700;
@@ -236,7 +236,7 @@ flowchart TD
   <script>
     mermaid.initialize({ startOnLoad: true, theme: 'default', flowchart: { curve: 'basis', useMaxWidth: true } });
 
-    // 全格式导出主调度函数
+    // 健壮的跨浏览器 SVG -> Canvas -> PNG/JPG 导出器
     function exportFormat(containerId, filename, format) {
       const container = document.getElementById(containerId);
       const svg = container ? container.querySelector('svg') : null;
@@ -245,47 +245,75 @@ flowchart TD
         return;
       }
 
-      // 获取 SVG 的纯净 XML 文本
-      const svgData = new XMLSerializer().serializeToString(svg);
-      const bbox = svg.getBoundingClientRect();
-      const width = Math.max(svg.viewBox?.baseVal?.width || bbox.width || 1200, 800);
-      const height = Math.max(svg.viewBox?.baseVal?.height || bbox.height || 1600, 1000);
+      // 1. 克隆 SVG 节点以防污染原 DOM
+      const clonedSvg = svg.cloneNode(true);
+      
+      // 2. 获取真实的尺寸
+      const bbox = svg.getBBox ? svg.getBBox() : svg.getBoundingClientRect();
+      const width = Math.ceil(bbox.width || 1200) + 40;
+      const height = Math.ceil(bbox.height || 1600) + 40;
+      
+      clonedSvg.setAttribute('width', width);
+      clonedSvg.setAttribute('height', height);
+      clonedSvg.setAttribute('viewBox', `0 0 ${width} ${height}`);
+      clonedSvg.style.backgroundColor = '#ffffff';
+
+      // 3. 序列化为标准的 XML 文本
+      const svgString = new XMLSerializer().serializeToString(clonedSvg);
 
       if (format === 'svg') {
-        const blob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
+        const blob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
         triggerDownload(URL.createObjectURL(blob), filename + '.svg');
-      } 
-      else if (format === 'eps') {
-        // EPS 格式包装器 (Encapsulated PostScript 矢量标准)
-        const epsHeader = `%!PS-Adobe-3.0 EPSF-3.0\n%%BoundingBox: 0 0 ${Math.round(width)} ${Math.round(height)}\n%%Title: ${filename}\n%%Creator: JIZHI Flowchart Exporter\n%%Pages: 1\n%%EndComments\n\n`;
-        const epsBlob = new Blob([epsHeader + svgData], { type: 'application/postscript;charset=utf-8' });
-        triggerDownload(URL.createObjectURL(epsBlob), filename + '.eps');
+        return;
       }
-      else if (format === 'png' || format === 'jpg') {
-        // 3x 视网膜级超清 Canvas 栅格化渲染
-        const scale = 3; 
-        const canvas = document.createElement('canvas');
-        canvas.width = width * scale;
-        canvas.height = height * scale;
-        const ctx = canvas.getContext('2d');
-        ctx.fillStyle = '#ffffff'; // 高保真纯白底色
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-        const img = new Image();
-        const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
-        const url = URL.createObjectURL(svgBlob);
+      if (format === 'eps') {
+        const epsHeader = `%!PS-Adobe-3.0 EPSF-3.0\n%%BoundingBox: 0 0 ${width} ${height}\n%%Title: ${filename}\n%%Creator: JIZHI Exporter\n%%Pages: 1\n%%EndComments\n\n`;
+        const blob = new Blob([epsHeader + svgString], { type: 'application/postscript;charset=utf-8' });
+        triggerDownload(URL.createObjectURL(blob), filename + '.eps');
+        return;
+      }
 
-        img.onload = () => {
+      // 4. PNG / JPG 栅格化 (采用 Base64 DataURI 避免 Blob 加载跨域阻断)
+      const scale = 2.5; // 2.5倍超高清渲染
+      const canvas = document.createElement('canvas');
+      canvas.width = width * scale;
+      canvas.height = height * scale;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      const img = new Image();
+      // 使用 unescape encodeURIComponent 完美支持中文字符集
+      const base64Data = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgString)));
+
+      img.onload = function() {
+        try {
           ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-          URL.revokeObjectURL(url);
           if (format === 'png') {
-            triggerDownload(canvas.toDataURL('image/png'), filename + '_3x超清.png');
+            canvas.toBlob(function(blob) {
+              if (blob) triggerDownload(URL.createObjectURL(blob), filename + '_超清.png');
+            }, 'image/png');
           } else {
-            triggerDownload(canvas.toDataURL('image/jpeg', 0.95), filename + '.jpg');
+            canvas.toBlob(function(blob) {
+              if (blob) triggerDownload(URL.createObjectURL(blob), filename + '.jpg');
+            }, 'image/jpeg', 0.95);
           }
-        };
-        img.src = url;
-      }
+        } catch (e) {
+          console.error(e);
+          // 降级兜底方案：如果 Canvas 导出失败则自动下载 SVG
+          const blob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
+          triggerDownload(URL.createObjectURL(blob), filename + '.svg');
+        }
+      };
+
+      img.onerror = function(err) {
+        console.error('Image load error:', err);
+        const blob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
+        triggerDownload(URL.createObjectURL(blob), filename + '.svg');
+      };
+
+      img.src = base64Data;
     }
 
     function triggerDownload(url, filename) {
@@ -294,7 +322,10 @@ flowchart TD
       a.download = filename;
       document.body.appendChild(a);
       a.click();
-      document.body.removeChild(a);
+      setTimeout(() => {
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      }, 200);
     }
   </script>
 </body>
