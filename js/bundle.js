@@ -3285,39 +3285,53 @@
           }
         });
 
-        modal.querySelector('#btn-submit-new-paper').addEventListener('click', () => {
-          let title = titleInput.value.trim();
-          const targetTaskId = modal.querySelector('#modal-paper-task') ? modal.querySelector('#modal-paper-task').value : 'task_all';
-          const targetGId = modal.querySelector('#modal-paper-target-group').value;
-          const autoPush = modal.querySelector('#modal-paper-auto-push').checked;
+        const submitBtn = modal.querySelector('#btn-submit-new-paper');
+        submitBtn.addEventListener('click', () => {
+          try {
+            let title = titleInput.value.trim();
+            const targetTaskId = modal.querySelector('#modal-paper-task') ? modal.querySelector('#modal-paper-task').value : 'task_all';
+            const targetGId = modal.querySelector('#modal-paper-target-group') ? modal.querySelector('#modal-paper-target-group').value : 'all';
+            const autoPush = modal.querySelector('#modal-paper-auto-push') ? modal.querySelector('#modal-paper-auto-push').checked : true;
 
-          if (!selectedFile.name && !title) {
-            alert('⚠️ 请先选取文献文件或输入范文标题！');
-            return;
+            if (!selectedFile.name && !title) {
+              alert('⚠️ 请先选取本地文献文件或输入范文标题！');
+              return;
+            }
+            if (!title) {
+              title = selectedFile.name ? selectedFile.name.replace(/\.[^/.]+$/, '') : '学术参考范文';
+            }
+
+            const targetGObj = classGroups.find(g => g.id === targetGId);
+
+            submitBtn.disabled = true;
+            submitBtn.innerText = '⏳ 正在存入范文库...';
+
+            const newPaper = authManager.uploadReferencePaper({
+              title,
+              taskId: targetTaskId,
+              abstract: '',
+              keyHighlights: '研究设计与学术论证规范',
+              fileName: selectedFile.name || `${title}.pdf`,
+              fileData: selectedFile.data || '',
+              fileSize: selectedFile.size || '3.5 MB',
+              targetGroupId: targetGId,
+              targetGroupName: targetGId === 'all' ? '全班所有小组' : (targetGObj ? targetGObj.name : '指定小组')
+            });
+
+            if (autoPush && newPaper && newPaper.id) {
+              try {
+                authManager.pushReferencePaperToGroupChat(newPaper.id, targetGId);
+              } catch (err) {}
+            }
+
+            alert(`🎉 参考范文《${title}》已成功存入范文库！${autoPush ? '\n审稿编辑 Agent 已同步向受众小组推送！' : ''}`);
+            closeModal();
+            renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+          } catch (err) {
+            alert('❌ 上传失败: ' + err.message);
+            submitBtn.disabled = false;
+            submitBtn.innerText = '📚 确认上传并存入范文库';
           }
-          const targetGObj = classGroups.find(g => g.id === targetGId);
-
-          const newPaper = authManager.uploadReferencePaper({
-            title,
-            taskId: targetTaskId,
-            abstract: '',
-            keyHighlights: '研究设计与学术论证规范',
-            fileName: selectedFile.name,
-            fileData: selectedFile.data,
-            fileSize: selectedFile.size,
-            targetGroupId: targetGId,
-            targetGroupName: targetGId === 'all' ? '全班所有小组' : (targetGObj ? targetGObj.name : '指定小组')
-          });
-
-          if (autoPush && newPaper && newPaper.id) {
-            try {
-              authManager.pushReferencePaperToGroupChat(newPaper.id, targetGId);
-            } catch (err) {}
-          }
-
-          alert(`🎉 参考范文《${title}》已成功上传！${autoPush ? '审稿编辑 Agent 已同步向受众小组推送！' : ''}`);
-          closeModal();
-          renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
         });
       });
     }
