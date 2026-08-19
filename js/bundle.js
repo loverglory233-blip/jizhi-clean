@@ -4202,8 +4202,15 @@
             📜 团队协同合作学术合约
           </div>
           <div style="font-size:12.5px; color:#64748b; margin-top:4px;">
-            ${isContractLocked ? `<span style="color:#059669; font-weight:700;">🔒 全员 ${confirmedCount}/${totalMembersCount} 人完成签署 · 归档生效中</span>` : '小组成员可自由修改微调各项内容，全员确认后签署生效'}
+            ${isContractLocked ? `<span style="color:#059669; font-weight:700;">🔒 全员 ${confirmedCount}/${totalMembersCount} 人完成签署 · 归档生效中</span>` : '小组成员在研讨区商讨后，可提炼生成或自由微调各项内容，全员确认后签署生效'}
           </div>
+          ${!isContractLocked ? `
+            <div style="margin-top:12px; display:flex; justify-content:center;">
+              <button id="btn-generate-contract-draft" style="background:linear-gradient(135deg, #7c3aed, #6d28d9); border:none; color:white; padding:8px 20px; border-radius:20px; font-weight:700; font-size:13px; cursor:pointer; display:inline-flex; align-items:center; gap:6px; box-shadow:0 3px 12px rgba(124,58,237,0.25);">
+                🤖 研讨差不多了？一键提炼研讨共识生成公约草案
+              </button>
+            </div>
+          ` : ''}
         </div>
 
         <div style="display:flex; flex-direction:column; gap:8px; width:100%; margin-bottom:20px; background:#eff6ff; padding:16px; border-radius:12px; border:1px solid #bfdbfe; box-sizing:border-box;">
@@ -4565,6 +4572,13 @@
       canvas.querySelectorAll('.vote-btn:not([disabled])').forEach(btn => {
         btn.addEventListener('click', () => handlers.onVote(btn.dataset.id));
       });
+      const btnGenDraft = canvas.querySelector('#btn-generate-contract-draft');
+      if (btnGenDraft) {
+        btnGenDraft.addEventListener('click', () => {
+          if (handlers.onAiGenerateContract) handlers.onAiGenerateContract();
+        });
+      }
+
       canvas.querySelector('#btn-confirm-contract').addEventListener('click', () => {
         s1.contract._lastSignTime = Date.now();
         handlers.onConfirmContract();
@@ -6285,30 +6299,20 @@
           const isUnanimous = (maxVotes === totalMembersCount);
 
           if (isUnanimous) {
-            summaryText += `\n🎉 **【全员一致认同】**：全组 ${totalMembersCount} 票全部支持《${winningProposal.title}》！正式确立该提案为本组研究主题！\n👉 请全组在讨论区进一步细化该选题的核心研究问题，并协商确认各章节分工与时间规划！`;
+            summaryText += `\n🎉 **【全员一致认同】**：全组 ${totalMembersCount} 票全部支持《${winningProposal.title}》！正式确立该提案为本组研究主题！\n\n👉 **【第一步·全组自主商讨分工与时间】**：\n请全组成员先在右侧研讨区充分商讨交流：\n1. 各成员分别想负责哪几个章节？\n2. 6 大研究模块的时间大概如何预算？\n\n👉 **【第二步·提炼公约并核对微调】**：\n商量差不多后，可点击下方【🤖 提炼研讨共识生成公约草案】（或直接在卡片输入框中录入），确认无误后全员点击【确认签署】！`;
             if (!s1.mergedTitle && winningProposal) {
               s1.mergedTitle = winningProposal.title;
             }
           } else {
-            summaryText += `\n⚖️ **【存在意见分歧·优先协商引导】**：注意到组内对选题持有不同视角！这正是团队协同碰撞创新的最佳契机。\n👉 **【第一步·优先协商主题】**：建议各提案作者在讨论区简要说明自己的设计亮点，大家共同商讨如何取长补短，**优先定下一个全组共同认可的主题**（既可选用最高票主题，亦可融合各方亮点）！\n👉 **【第二步·细化与分工】**：主题确定后，全组进一步细化核心问题，并在左侧卡片中自主商定章节分工与时间预算！`;
+            summaryText += `\n⚖️ **【存在意见分歧·优先协商引导】**：注意到组内对选题持有不同视角！这正是团队协同碰撞创新的最佳契机。\n\n👉 **【第一步·协商主题与分工】**：\n建议各提案作者在讨论区简要说明自己的设计亮点，大家共同商讨如何取长补短，**确定一个全组共同认可的主题**，并协商章节分工与时间分配！\n\n👉 **【第二步·提炼公约并核对微调】**：\n商量差不多后，点击下方【🤖 提炼研讨共识生成公约草案】（或直接录入），确认无误后全员点击【确认签署】！`;
             if (!s1.mergedTitle && winningProposal) {
               s1.mergedTitle = winningProposal.title;
             }
           }
 
-          // ── 平台自动生成学术合作合约草案（预设结构与合理分工） ──
-          if (!s1.contract.taskAssignments) s1.contract.taskAssignments = {};
-          const defaultTasks = ['负责：一、研究背景与二、文献综述', '负责：三、研究问题与四、研究设计', '负责：五、反思与六、参考文献规范'];
-          Object.values(this.state.members || {}).forEach((m, idx) => {
-            if (!s1.contract.taskAssignments[m.id]) {
-              s1.contract.taskAssignments[m.id] = defaultTasks[idx % defaultTasks.length] || '协作撰写与统稿';
-            }
-          });
           if (!s1.contract.timeAllocations) {
             s1.contract.timeAllocations = { background: 25, literature: 30, questions: 25, method: 40, reflection: 20, references: 10 };
           }
-
-          summaryText += `\n\n📜 **【《学术合作公约》草案已就绪】**\n拍卖师与平台系统已在左侧生成了公约草案！\n\n👉 **【核对与签署指引】**：\n1. 协商定下主题后，全组成员可自主商定章节分工与时间规划，在卡片中直接修改；\n2. 确认无误后，**全员点击卡片下方的【确认签署】**，正式解锁阶段二！`;
 
           const summaryMsg = { sender: 'auctioneer', text: summaryText, timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), _timeMs: Date.now() };
           this.state.chatLogs.stage1.push(summaryMsg);
@@ -6570,6 +6574,46 @@
         onRefresh: () => { this.renderStudentWorkspace(); },
         onContractChange: () => {
           this.syncStage1();
+        },
+        onAiGenerateContract: () => {
+          const s1 = this.state.stage1;
+          if (!s1.contract.taskAssignments) s1.contract.taskAssignments = {};
+          const defaultTasks = ['负责：一、研究背景与二、文献综述', '负责：三、研究问题与四、研究设计', '负责：五、反思与六、参考文献规范'];
+          Object.values(this.state.members || {}).forEach((m, idx) => {
+            const taskStr = defaultTasks[idx % defaultTasks.length] || '协作撰写与统稿';
+            s1.contract.taskAssignments[m.id] = taskStr;
+            if (m.studentCode) s1.contract.taskAssignments[m.studentCode] = taskStr;
+          });
+          if (!s1.contract.timeAllocations) {
+            s1.contract.timeAllocations = { background: 25, literature: 30, questions: 25, method: 40, reflection: 20, references: 10 };
+          }
+          
+          // 局部填入输入框，绝不暴力销毁 DOM
+          document.querySelectorAll('.task-assignment-input').forEach(inp => {
+            const mId = inp.dataset.mid;
+            const code = inp.dataset.code;
+            const val = s1.contract.taskAssignments[mId] || s1.contract.taskAssignments[code] || '';
+            inp.value = val;
+          });
+          document.querySelectorAll('.contract-time-input').forEach(inp => {
+            const k = inp.dataset.key;
+            if (k && s1.contract.timeAllocations[k] !== undefined) {
+              inp.value = s1.contract.timeAllocations[k];
+            }
+          });
+
+          const draftNoticeMsg = {
+            sender: 'auctioneer',
+            text: `📜 【拍卖师·公约提炼生成】：已根据全组研讨共识，智能提炼并生成了《学术合作公约》草案！\n👉 请全组成员仔细核对分工与时间规划，支持随时在输入框中自主微调；确认无误后，全员点击【确认签署】！`,
+            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            _timeMs: Date.now()
+          };
+          if (!this.state.chatLogs.stage1) this.state.chatLogs.stage1 = [];
+          this.state.chatLogs.stage1.push(draftNoticeMsg);
+          this.syncStage1();
+          this.syncChatLogs();
+          if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+          renderChat(this.state);
         },
         onConfirmContract: () => {
           if (this.state.stage1.contract.isConfirmed) {
