@@ -4432,7 +4432,10 @@
       canvas.querySelectorAll('.vote-btn:not([disabled])').forEach(btn => {
         btn.addEventListener('click', () => handlers.onVote(btn.dataset.id));
       });
-      canvas.querySelector('#btn-confirm-contract').addEventListener('click', () => handlers.onConfirmContract());
+      canvas.querySelector('#btn-confirm-contract').addEventListener('click', () => {
+        s1.contract._lastSignTime = Date.now();
+        handlers.onConfirmContract();
+      });
     }
   }
 
@@ -5261,43 +5264,23 @@
             }
           }
 
-          // 5. 投票已完成且合约草案已生成 ➔ 分歧协商或分工讨论静默守护
+          // 5. 投票已完成且合约草案已生成 ➔ 公约协商与催签精密三层守护
           const signedMap = (s1.contract && s1.contract.confirmedMembers) ? s1.contract.confirmedMembers : {};
           const signedCount = Object.values(signedMap).filter(Boolean).length;
           const isContractDrafted = votesCastCount >= totalMembersCount;
 
           if (isContractDrafted && signedCount < totalMembersCount) {
-            const tally = {};
-            Object.values(s1.votes || {}).forEach(pId => { if (pId) tally[pId] = (tally[pId] || 0) + 1; });
-            const maxVotes = Math.max(...Object.values(tally), 0);
-            const hasDivergence = (maxVotes < totalMembersCount); // 存在票数分歧
+            const lastContractActionTime = Math.max(s1.contract._lastEditTime || 0, this.stage1LastActionTime || 0);
+            const timeSinceContractEdit = now - lastContractActionTime;
+            const contractDraftTime = s1.contract._draftedTime || this.stage1StartTime;
 
-            // 5a. 【存在分歧时的研讨静默守护】：投票有分歧且静默 > 3 分钟无人发言
-            if (hasDivergence && silenceDurationMs > 180000) {
-              if (!this.lastDivergenceSilenceNudgeTime || now - this.lastDivergenceSilenceNudgeTime > 240000) {
-                this.lastDivergenceSilenceNudgeTime = now;
-                const msg = {
-                  sender: 'auctioneer',
-                  text: `⚖️ 【拍卖师·分歧协商破冰】：注意到大家在刚才的投票中持有不同观点！\n👉 建议各提案作者在讨论区简要说明自己的构想亮点，大家共同商讨如何取长补短，将核心创新点融合成一个更完美的主题！`,
-                  timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                  _timeMs: now
-                };
-                if (!this.state.chatLogs.stage1) this.state.chatLogs.stage1 = [];
-                this.state.chatLogs.stage1.push(msg);
-                this.syncChatLogs();
-                if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
-                renderChat(this.state);
-                return;
-              }
-            }
-
-            // 5b. 【常规分工/时间协商静默守护】：静默 > 3.5 分钟
-            if (silenceDurationMs > 210000) {
+            // 规则 A（双静默）：左侧分工/时间无修改 > 3min，且右侧讨论区静默 > 3min ➔ 提示协商分工与时间
+            if (timeSinceContractEdit > 180000 && silenceDurationMs > 180000) {
               if (!this.lastContractSilenceNudgeTime || now - this.lastContractSilenceNudgeTime > 240000) {
                 this.lastContractSilenceNudgeTime = now;
                 const msg = {
                   sender: 'auctioneer',
-                  text: `💡 【拍卖师·分工协商提示】：大家可以在讨论区针对左侧各成员的章节分工与时间预算展开交流，达成共识后在卡片中直接修改确认！`,
+                  text: `💡 【拍卖师·分工与时间协商提示】：全组已完成选题竞拍！\n👉 如果对左侧各成员的章节分工或时间预算有想法，大家可以在讨论区充分交流，达成共识后在卡片中直接修改确认！`,
                   timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
                   _timeMs: now
                 };
@@ -5309,19 +5292,14 @@
                 return;
               }
             }
-          }
 
-          // 6. 合约生成后超过 4 分钟仍有人未签署卡片 ➔ 拍卖师催签提醒
-          if (isContractDrafted && signedCount < totalMembersCount) {
-            const contractDraftTime = s1.contract._draftedTime || this.stage1StartTime;
-            if (now - contractDraftTime > 240000) {
-              if (!this.lastSignContractNudgeTime || now - this.lastSignContractNudgeTime > 240000) {
-                this.lastSignContractNudgeTime = now;
-                const unsignedMembers = membersList.filter(m => !signedMap[m.studentCode] && !signedMap[m.id]);
-                const unsignedNames = unsignedMembers.map(m => m.name).join('、');
+            // 规则 B（全员未签）：在没有修改的情况下，没有任何人签署超过 3 分钟 ➔ 拍卖师提示开始签署
+            if (signedCount === 0 && (now - contractDraftTime > 180000) && timeSinceContractEdit > 180000) {
+              if (!this.lastZeroSignNudgeTime || now - this.lastZeroSignNudgeTime > 240000) {
+                this.lastZeroSignNudgeTime = now;
                 const msg = {
                   sender: 'auctioneer',
-                  text: `📜 【拍卖师·公约签署跟进】：目前全组合约已签署 ${signedCount}/${totalMembersCount} 人。\n👉 请尚未签署的同学（**${unsignedNames || '未签署组员'}**）仔细核对左侧《学术合作合约》，确认无误后点击下方的【确认签署】，全员完成即可正式解锁阶段二！`,
+                  text: `📜 【拍卖师·公约签署提示】：公约草案已生成一段时间啦！\n👉 请组员核对左侧《学术合作公约》上的章节分工与时间规划，确认无误后点击【确认签署】，开启团队学术合作！`,
                   timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
                   _timeMs: now
                 };
@@ -5331,6 +5309,30 @@
                 if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
                 renderChat(this.state);
                 return;
+              }
+            }
+
+            // 规则 C（部分已签）：有人已签署，但仍有成员未签超过 2 分钟 ➔ 拍卖师催签未签组员
+            if (signedCount > 0 && signedCount < totalMembersCount) {
+              const lastSignTime = s1.contract._lastSignTime || contractDraftTime;
+              if (now - lastSignTime > 120000) {
+                if (!this.lastSignContractNudgeTime || now - this.lastSignContractNudgeTime > 180000) {
+                  this.lastSignContractNudgeTime = now;
+                  const unsignedMembers = membersList.filter(m => !signedMap[m.studentCode] && !signedMap[m.id]);
+                  const unsignedNames = unsignedMembers.map(m => m.name).join('、');
+                  const msg = {
+                    sender: 'auctioneer',
+                    text: `📜 【拍卖师·公约签署跟进】：目前全组合约已签署 ${signedCount}/${totalMembersCount} 人。\n👉 请尚未签署的同学（**${unsignedNames || '未签署组员'}**）抓紧核对并点击左侧【确认签署】，全员完成即可正式解锁阶段二！`,
+                    timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                    _timeMs: now
+                  };
+                  if (!this.state.chatLogs.stage1) this.state.chatLogs.stage1 = [];
+                  this.state.chatLogs.stage1.push(msg);
+                  this.syncChatLogs();
+                  if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+                  renderChat(this.state);
+                  return;
+                }
               }
             }
           }
