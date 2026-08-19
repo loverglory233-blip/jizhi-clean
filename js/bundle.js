@@ -999,13 +999,20 @@
 
     uploadReferencePaper(paper) {
       const papers = this.getReferencePapers();
+      const paperId = 'ref_' + Date.now();
+      
+      // 单独持久化大附件数据，保持 global_meta 轻量秒级存入 MySQL
+      if (paper.fileData) {
+        try { localStorage.setItem(`jizhi_paper_data_${paperId}`, paper.fileData); } catch (e) {}
+      }
+
       const newPaper = {
-        id: 'ref_' + Date.now(),
+        id: paperId,
+        taskId: paper.taskId || 'task_all',
         title: paper.title || '未命名学术参考范文',
         abstract: paper.abstract || '',
-        keyHighlights: paper.keyHighlights || '',
+        keyHighlights: paper.keyHighlights || '研究设计与学术论证规范',
         fileName: paper.fileName || '',
-        fileData: paper.fileData || '',
         fileSize: paper.fileSize || '',
         targetGroupId: paper.targetGroupId || 'all',
         targetGroupName: paper.targetGroupName || '全班所有小组',
