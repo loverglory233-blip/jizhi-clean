@@ -1151,13 +1151,14 @@
       // 更新本地 resetSeq
       localStorage.setItem(localResetSeqKey, String(newResetSeq));
 
-      // 重置所有状态
+      // 彻底重置内存中所有状态至初始状态
       this.app.state.stage1 = JSON.parse(JSON.stringify(InitialState.stage1));
       this.app.state.stage2 = JSON.parse(JSON.stringify(InitialState.stage2));
       this.app.state.stage3 = JSON.parse(JSON.stringify(InitialState.stage3));
       this.app.state.chatLogs = { stage1: [], stage2: [], stage3: [] };
       this.app.state.currentStage = 'stage1';
       this.app.state.isFinalSubmitted = false;
+      this.app.state.presence = {};
 
       // 同步写入 localStorage
       localStorage.setItem(`jizhi_sync_chat_v10_pure_${taskId}_${myGroupId}`, JSON.stringify(this.app.state.chatLogs));
@@ -1170,15 +1171,20 @@
       // 重置时间戳，让后续正常来包不被丢弃
       this.lastTimestamp = 0;
 
-      // 清空编辑器 DOM
+      // 强制销毁旧的画板 DOM，确保重建出全新的干净阶段一
+      const oldContractCard = document.querySelector('.contract-card');
+      if (oldContractCard) oldContractCard.remove();
       const editor = document.getElementById('stage2-word-editor') || document.getElementById('stage3-word-editor');
       if (editor) editor.innerHTML = '';
 
       // 保存并重绘
       this.app.saveGroupState(myGroupId);
       renderChat(this.app.state);
+      this.app.updateContributionUi();
+      this.app.renderPresenceCursors();
+
       if (user?.role === 'student' && this.app.state.studentViewMode === 'workspace') {
-        this.app.renderStudentWorkspace();
+        this.app.renderStudentWorkspace(true);
         // 弹出友好提示告知学生：教师端已重置本次活动数据
         document.querySelectorAll('.reset-notify-modal').forEach(m => m.remove());
         const resetModal = document.createElement('div');
@@ -6495,7 +6501,7 @@
       );
     }
 
-    renderStudentWorkspace() {
+    renderStudentWorkspace(isForced = false) {
       const currentUser = this.authManager.getCurrentUser();
       const currentGroupId = currentUser && currentUser.groupId ? currentUser.groupId : 'group_1';
 
@@ -6517,7 +6523,7 @@
       const stage2Editor = document.getElementById('stage2-word-editor');
       const stage3Editor = document.getElementById('stage3-word-editor');
       const activeEl = document.activeElement;
-      const isEditorTyping = activeEl && (
+      const isEditorTyping = !isForced && activeEl && (
         activeEl === stage2Editor ||
         activeEl === stage3Editor ||
         (stage2Editor && stage2Editor.contains(activeEl)) ||
@@ -6526,15 +6532,9 @@
         (stage3Editor && stage3Editor.dataset.isComposing === 'true')
       );
 
-      const isContractInputFocused = activeEl && (
-        activeEl.classList.contains('task-assignment-input') ||
-        activeEl.classList.contains('contract-time-input') ||
-        activeEl.id === 'contract-topic-input'
-      );
-
-      // 如果用户在阶段一且画布已存在，一律做局部精准 Patch，绝不销毁公约 DOM 导致输入框闪烁或时间回弹
+      // 如果用户在阶段一且画布已存在，且非强制重置，做局部精准 Patch
       const existingContractCard = document.querySelector('.contract-card');
-      if (this.state.currentStage === 'stage1' && existingContractCard) {
+      if (!isForced && this.state.currentStage === 'stage1' && existingContractCard) {
         // 局部更新提案池卡片与投票按钮
         const proposalsContainer = document.querySelector('.proposals-grid');
         const s1 = this.state.stage1;
