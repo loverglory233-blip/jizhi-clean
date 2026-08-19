@@ -885,6 +885,7 @@
       const protocol = window.location.protocol || 'http:';
 
       const sseHost = window.location.hostname || '47.99.110.230';
+      const port = window.location.port ? `:${window.location.port}` : '';
       this.syncEndpoints = [
         `sync.php?taskId=${taskId}&groupId=${groupId}`
       ];
@@ -1350,12 +1351,14 @@
           const mergedProposals = Array.from(propByAuthor.values());
 
           const isProposalChanged = JSON.stringify(mergedProposals) !== JSON.stringify(localProps);
-          const isVoteChanged = JSON.stringify(remoteS1.votes || {}) !== JSON.stringify(localS1.votes || {});
+          const isVoteChanged = JSON.stringify(remoteS1.votes || {}) !== JSON.stringify(localS1.votes || {})
+            || JSON.stringify(remoteS1.hasVoted || {}) !== JSON.stringify(localS1.hasVoted || {});
           const isConfirmChanged = remoteS1.contract?.isConfirmed !== localS1.contract?.isConfirmed
             || JSON.stringify(remoteS1.contract?.confirmedMembers) !== JSON.stringify(localS1.contract?.confirmedMembers);
 
           this.app.state.stage1.proposals = mergedProposals;
           if (remoteS1.votes) this.app.state.stage1.votes = remoteS1.votes;
+          if (remoteS1.hasVoted) this.app.state.stage1.hasVoted = remoteS1.hasVoted;
 
           if (isProposalChanged || isVoteChanged || isConfirmChanged) {
             needWorkspaceRender = true;
@@ -1420,9 +1423,10 @@
         }
       }
 
-      // ── 阶段切换：仅保存远端最新阶段，不强踢用户当前工作区 ──
+      // ── 阶段切换：同步最新阶段并平滑重绘工作区 ──
       if (remoteData.currentStage && remoteData.currentStage !== this.app.state.currentStage) {
-        this.app.saveGroupState(myGroupId);
+        this.app.state.currentStage = remoteData.currentStage;
+        needWorkspaceRender = true;
       }
 
       // ── 统一保存状态 ──
