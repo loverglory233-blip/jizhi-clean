@@ -3072,6 +3072,17 @@
         const newSub = !currentSub;
         state.isFinalSubmitted = newSub;
         authManager.setGroupFinalSubmitted(activeMonitorGId, newSub);
+        
+        // 立即同步写入小组状态并向全组学生端推送最新权限快照
+        if (window.app) {
+          window.app.saveGroupState(activeMonitorGId);
+          if (window.app.cloudSyncEngine) {
+            window.app.cloudSyncEngine.groupId = activeMonitorGId;
+            window.app.cloudSyncEngine.updateScopeKeys();
+            window.app.cloudSyncEngine.pushSnapshot();
+          }
+        }
+
         renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
         if (newSub) {
           alert(`🔒 已锁定【${activeMonitorGroup.name}】的论文终稿！学生端已设为【只读不可修改状态】。`);
@@ -3448,8 +3459,6 @@
               <button class="word-btn plugin-btn" id="${editorId}-btn-insert-abstract" title="插入【摘要与关键词】学术前置卡片">📌 摘要</button>
               <button class="word-btn plugin-btn" id="${editorId}-btn-insert-ref-template" title="在文末插入标准参考文献模版">📚 文献</button>
               <button class="word-btn plugin-btn" id="${editorId}-btn-find-replace" title="文档内查找与替换">🔍 查找替换</button>
-              <button class="word-btn plugin-btn" id="${editorId}-btn-export-doc" style="background:#ecfdf5; border-color:#a7f3d0; color:#059669; font-weight:700;" title="导出为 Word 论文格式文档 (.doc)">📥 Word</button>
-              <button class="word-btn plugin-btn" id="${editorId}-btn-print-doc" title="打印 / 导出 PDF 论文">📄 PDF</button>
             </div>
           </div>
 
