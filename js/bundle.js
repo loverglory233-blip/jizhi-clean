@@ -6120,26 +6120,51 @@
     checkUnreadAnnouncements() {
       const currentUser = this.authManager.getCurrentUser();
       const groupId = currentUser && currentUser.groupId ? currentUser.groupId : 'group_1';
-      const anns = this.authManager.getAnnouncements();
-      const unread = anns.find(a => !a.readStatus || !a.readStatus[groupId]);
-      if (unread) { setTimeout(() => this.showAnnouncementModal(unread), 800); }
+      const allAnns = this.authManager.getAnnouncements();
+      
+      // 过滤出当前小组可见且【未读】的通知，严格按创建时间从新到旧排序
+      const unreadList = allAnns
+        .filter(a => (!a.targetGroupId || a.targetGroupId === 'all' || a.targetGroupId === groupId) && (!a.readStatus || !a.readStatus[groupId]))
+        .sort((a, b) => (b.id > a.id ? 1 : -1));
+
+      if (unreadList.length > 0) {
+        setTimeout(() => this.showAnnouncementModal(unreadList[0], true), 600);
+      }
     }
 
-    showAnnouncementModal(targetAnn = null) {
+    showAnnouncementModal(targetAnn = null, isSequentialFlow = false) {
       document.querySelectorAll('.modal-overlay').forEach(el => el.remove());
       const currentUser = this.authManager.getCurrentUser();
       const groupId = currentUser && currentUser.groupId ? currentUser.groupId : 'group_1';
       const allAnns = this.authManager.getAnnouncements();
 
-      // 过滤当前小组可见的通知 (全班广播 或 定向本组)
-      const myAnns = allAnns.filter(a => !a.targetGroupId || a.targetGroupId === 'all' || a.targetGroupId === groupId);
+      // 过滤当前小组可见的通知 (全班广播 或 定向本组)，并按最新发布倒序排
+      const myAnns = allAnns
+        .filter(a => !a.targetGroupId || a.targetGroupId === 'all' || a.targetGroupId === groupId)
+        .sort((a, b) => (b.id > a.id ? 1 : -1));
+
       if (myAnns.length === 0) {
-        alert('📢 暂无新的课堂通知！');
+        if (!isSequentialFlow) alert('📢 暂无课堂教学通知！');
         return;
       }
 
-      // 如果传入了具体通知则展示单条，否则展示全量通知中心（支持回看所有已读历史）
-      const selectedAnn = targetAnn || myAnns[0];
+      // 计算当前未读列表（从新到旧）
+      const unreadList = myAnns.filter(a => !a.readStatus || !a.readStatus[groupId]);
+
+      // 如果当前是自动弹出流且已无任何未读通知，直接静默退出
+      if (isSequentialFlow && unreadList.length === 0) {
+        return;
+      }
+
+      // 选中的通知：优先 targetAnn，若无则取最新未读，再无则取最新一条通知
+      const selectedAnn = targetAnn || (unreadList.length > 0 ? unreadList[0] : myAnns[0]);
+      const isSelectedRead = selectedAnn.readStatus && selectedAnn.readStatus[groupId];
+
+      // 计算当前在未读流中的序号
+      const unreadIndex = unreadList.findIndex(a => a.id === selectedAnn.id);
+      const queueBadge = unreadList.length > 0 && !isSelectedRead
+        ? `<span style="background:rgba(239,68,68,0.25); border:1px solid #f87171; color:#ffffff; padding:2px 8px; border-radius:10px; font-size:11px; margin-left:6px;">待确认 ${unreadIndex >= 0 ? unreadIndex + 1 : 1}/${unreadList.length}</span>`
+        : '';
 
       const modal = document.createElement('div');
       modal.className = 'modal-overlay';
@@ -6153,7 +6178,10 @@
                 🔔
               </div>
               <div>
-                <h3 style="margin:0; font-size:17.5px; font-weight:800; color:#ffffff; letter-spacing:0.3px;">课堂教学通知中心 (${myAnns.length} 条)</h3>
+                <div style="display:flex; align-items:center;">
+                  <h3 style="margin:0; font-size:17.5px; font-weight:800; color:#ffffff; letter-spacing:0.3px;">课堂教学通知</h3>
+                  ${queueBadge}
+                </div>
                 <div style="font-size:12px; color:#e0e7ff; margin-top:2px;">任课教师即时推送的教学指示与随附教学资源</div>
               </div>
             </div>
@@ -6164,14 +6192,14 @@
           <div style="padding:20px 24px; max-height:65vh; overflow-y:auto; display:flex; flex-direction:column; gap:16px;">
             
             ${myAnns.length > 1 ? `
-              <!-- 多条历史通知快捷切换栏 -->
+              <!-- 多条通知从新到旧快捷切换栏 -->
               <div style="display:flex; gap:8px; overflow-x:auto; padding-bottom:6px;">
                 ${myAnns.map((a, idx) => {
                   const isRead = a.readStatus && a.readStatus[groupId];
                   const isCurrent = a.id === selectedAnn.id;
                   return `
                     <button class="btn-switch-ann-tab" data-id="${a.id}" style="padding:6px 12px; border-radius:8px; font-size:12px; font-weight:700; cursor:pointer; border:1px solid ${isCurrent ? '#6366f1' : '#e2e8f0'}; background:${isCurrent ? '#eef2ff' : '#ffffff'}; color:${isCurrent ? '#4338ca' : '#64748b'}; white-space:nowrap; display:inline-flex; align-items:center; gap:6px;">
-                      ${isRead ? '✅' : '🔴'} 通知 ${idx + 1}
+                      ${isRead ? '✅' : '🔴'} 通知 ${idx + 1}${idx === 0 ? ' (最新)' : ''}
                     </button>
                   `;
                 }).join('')}
@@ -6199,6 +6227,15 @@
                 <span style="background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe; padding:3px 10px; border-radius:6px; font-size:11.5px; font-weight:700;">
                   🎯 受众: <b>${selectedAnn.targetGroupName || '全班所有小组'}</b>
                 </span>
+                ${isSelectedRead ? `
+                  <span style="background:#ecfdf5; color:#059669; border:1px solid #a7f3d0; padding:3px 10px; border-radius:6px; font-size:11.5px; font-weight:700;">
+                    ✅ 本组已确认阅读
+                  </span>
+                ` : `
+                  <span style="background:#fef2f2; color:#dc2626; border:1px solid #fecaca; padding:3px 10px; border-radius:6px; font-size:11.5px; font-weight:700;">
+                    🔴 待确认阅读
+                  </span>
+                `}
               </div>
 
               <!-- 正文卡片 -->
@@ -6229,10 +6266,10 @@
           <!-- 底部操作栏 -->
           <div style="padding:14px 24px; background:#f8fafc; border-top:1px solid #f1f5f9; display:flex; justify-content:space-between; align-items:center; gap:12px;">
             <button id="btn-close-ann-bottom" style="background:#ffffff; border:1px solid #cbd5e1; color:#475569; padding:10px 20px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer;">
-              关闭
+              ${isSelectedRead ? '关闭' : '暂不确认并关闭'}
             </button>
-            <button id="btn-read-confirm" style="flex:1; background:linear-gradient(135deg, #059669, #047857); color:#ffffff; border:none; padding:11px 24px; border-radius:8px; font-size:13.5px; font-weight:700; cursor:pointer; box-shadow:0 3px 10px rgba(5,150,105,0.2); display:inline-flex; align-items:center; justify-content:center; gap:6px;">
-              ✅ 我已阅读并确认 (已同步至教师端追踪矩阵)
+            <button id="btn-read-confirm" style="flex:1; background:${isSelectedRead ? '#e2e8f0' : 'linear-gradient(135deg, #059669, #047857)'}; color:${isSelectedRead ? '#64748b' : '#ffffff'}; border:none; padding:11px 24px; border-radius:8px; font-size:13.5px; font-weight:700; cursor:pointer; box-shadow:${isSelectedRead ? 'none' : '0 3px 10px rgba(5,150,105,0.2)'}; display:inline-flex; align-items:center; justify-content:center; gap:6px;">
+              ${isSelectedRead ? '✅ 本条已确认已读 (点击查阅下一条)' : (unreadList.length > 1 ? `✅ 确认本条已读并看下一条 (${unreadIndex + 1}/${unreadList.length}) ➔` : '✅ 我已阅读并确认 (已同步至教师端)')}
             </button>
           </div>
 
@@ -6252,7 +6289,7 @@
           const target = myAnns.find(a => a.id === annId);
           if (target) {
             closeModal();
-            this.showAnnouncementModal(target);
+            this.showAnnouncementModal(target, false);
           }
         });
       });
@@ -6265,9 +6302,22 @@
       }
 
       modal.querySelector('#btn-read-confirm').addEventListener('click', () => {
+        // 1. 标记本条为已读
         this.authManager.markAnnouncementRead(selectedAnn.id, groupId);
         closeModal();
-        this.renderStudentWorkspace();
+
+        // 2. 重新获取最新的未读通知列表（从新到旧）
+        const updatedAllAnns = this.authManager.getAnnouncements();
+        const nextUnreads = updatedAllAnns
+          .filter(a => (!a.targetGroupId || a.targetGroupId === 'all' || a.targetGroupId === groupId) && (!a.readStatus || !a.readStatus[groupId]))
+          .sort((a, b) => (b.id > a.id ? 1 : -1));
+
+        // 3. 如果还有未读通知，自动连续弹出下一条让学生一一确认；如果全确认完则刷新工作区状态
+        if (nextUnreads.length > 0) {
+          setTimeout(() => this.showAnnouncementModal(nextUnreads[0], true), 200);
+        } else {
+          this.renderStudentWorkspace();
+        }
       });
     }
 
