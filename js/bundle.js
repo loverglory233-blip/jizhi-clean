@@ -378,8 +378,11 @@
         users = JSON.parse(JSON.stringify(DefaultUsers));
         localStorage.setItem(STORAGE_KEY_USERS_DB, JSON.stringify(users));
       } else {
-        // 智能升级旧字段为规范纯数字工号/学号
+        // 智能升级旧字段为规范纯数字工号/学号，并按学号严格去重
+        const seenCodes = new Set();
+        const uniqueUsers = [];
         let changed = false;
+
         users.forEach(u => {
           if (u.role === 'teacher') {
             if (u.name !== '老师') { u.name = '老师'; changed = true; }
@@ -395,7 +398,17 @@
             if (u.studentCode !== '202603') { u.studentCode = '202603'; changed = true; }
             if (u.name !== '陈强 (组员)') { u.name = '陈强 (组员)'; changed = true; }
           }
+
+          const codeKey = (u.studentCode || u.username || u.id).trim().toLowerCase();
+          if (!seenCodes.has(codeKey)) {
+            seenCodes.add(codeKey);
+            uniqueUsers.push(u);
+          } else {
+            changed = true; // 剔除重复的冗余行
+          }
         });
+
+        users = uniqueUsers;
         if (changed) {
           localStorage.setItem(STORAGE_KEY_USERS_DB, JSON.stringify(users));
         }
@@ -514,13 +527,17 @@
       ));
     }
 
-    addStudentToClass(name, studentCode, classId, customPassword = null) {
+    addStudentToClass(name, studentCode, classId, customPassword = null, isStrictUnique = true) {
       const users = this.getUsers();
       const classes = this.getClasses();
       const cleanCode = (studentCode || '').trim();
       const cleanUsername = cleanCode.toLowerCase();
       
       const existingUser = users.find(u => (u.studentCode || '').trim().toLowerCase() === cleanCode.toLowerCase() || (u.username || '').toLowerCase() === cleanUsername);
+
+      if (existingUser && isStrictUnique) {
+        throw new Error(`学号【${cleanCode}】已被学生【${existingUser.name}】占用，不能重复创建！`);
+      }
 
       const avatars = ['👨‍🎓', '👩‍🎓', '🧑‍🎓', '🎓', '📚', '🌟'];
       const avatar = avatars[users.length % avatars.length];
@@ -571,14 +588,34 @@
     }
 
     batchAddStudentsToClass(studentList, classId) {
-      let count = 0;
+      let addedCount = 0;
+      const skippedList = [];
+      const users = this.getUsers();
+
       studentList.forEach(st => {
-        if (st.name && (st.studentCode || st.username)) {
-          this.addStudentToClass(st.name, st.studentCode || st.username, classId, st.customPassword);
-          count++;
+        const code = (st.studentCode || st.username || '').trim();
+        const name = (st.name || '').trim();
+        if (!code || !name) return;
+
+        // 查重：检查是否已有该学号
+        const existing = users.find(u => (u.studentCode || '').trim().toLowerCase() === code.toLowerCase());
+        if (existing) {
+          skippedList.push({ name: existing.name || name, code });
+          // 如果该学生不在本班级，顺便关联进当前班级
+          const classes = this.getClasses();
+          const targetClass = classes.find(c => c.id === (classId || 'class_101'));
+          if (targetClass && !targetClass.studentIds.includes(existing.id)) {
+            targetClass.studentIds.push(existing.id);
+            localStorage.setItem(STORAGE_KEY_CLASSES, JSON.stringify(classes));
+          }
+        } else {
+          this.addStudentToClass(name, code, classId, st.customPassword, false);
+          addedCount++;
         }
       });
-      return count;
+
+      this.pushGlobalMeta();
+      return { addedCount, skippedList };
     }
 
     createGroup(classId, groupName) {
@@ -707,16 +744,42 @@
         deleteAllGroups(classId) {
       const classes = this.getClasses();
       const cls = classes.find(c => c.id === classId) || classes[0];
-      if (cls) {
-        cls.groups = [];
-        localStorage.setItem(STORAGE_KEY_CLASSES, JSON.stringify(classes));
-      }
+      if (!cls) return;
+
       const users = this.getUsers();
-      users.forEach(u => {
-        if (cls && cls.studentIds && cls.studentIds.includes(u.id)) {
-          u.groupId = null;
-        }
-      });
+      // 寻找测试 3 人组
+      const testUsers = users.filter(u => u.id === 'u_studentA' || u.id === 'u_studentB' || u.id === 'u_studentC' || ['202601', '202602', '202603'].includes(u.studentCode));
+      const hasTestUsers = testUsers.length > 0 && testUsers.some(tu => (cls.studentIds || []).includes(tu.id));
+
+      if (hasTestUsers) {
+        // 保留第 1 小组 (测试组)
+        const g1 = (cls.groups || []).find(g => g.id === 'group_1') || {
+          id: 'group_1',
+          name: '第 1 协作小组 (测试组)',
+          members: testUsers.map(u => u.id)
+        };
+        g1.members = testUsers.map(u => u.id);
+        cls.groups = [g1];
+
+        users.forEach(u => {
+          if (cls && cls.studentIds && cls.studentIds.includes(u.id)) {
+            if (testUsers.some(tu => tu.id === u.id)) {
+              u.groupId = 'group_1';
+            } else {
+              u.groupId = null;
+            }
+          }
+        });
+      } else {
+        cls.groups = [];
+        users.forEach(u => {
+          if (cls && cls.studentIds && cls.studentIds.includes(u.id)) {
+            u.groupId = null;
+          }
+        });
+      }
+
+      localStorage.setItem(STORAGE_KEY_CLASSES, JSON.stringify(classes));
       localStorage.setItem(STORAGE_KEY_USERS_DB, JSON.stringify(users));
       this.pushGlobalMeta();
     }
@@ -729,26 +792,44 @@
       const classStudents = allUsers.filter(u => u.role !== "teacher" && (cls.studentIds || []).includes(u.id));
       if (classStudents.length === 0) return;
 
-      // 随机乱序洗牌
-      const shuffled = [...classStudents].sort(() => Math.random() - 0.5);
-      const newGroups = [];
-      let groupCount = Math.ceil(shuffled.length / groupSize);
-      if (groupCount === 0) groupCount = 1;
+      // 提取测试 3 人组（李明、王芳、陈强）固定留在第 1 组
+      const testStudents = classStudents.filter(u => u.id === 'u_studentA' || u.id === 'u_studentB' || u.id === 'u_studentC' || ['202601', '202602', '202603'].includes(u.studentCode));
+      const otherStudents = classStudents.filter(u => !testStudents.some(tu => tu.id === u.id));
 
-      for (let i = 0; i < groupCount; i++) {
-        const gid = `group_${Date.now()}_${i + 1}`;
-        newGroups.push({
-          id: gid,
-          name: `第 ${i + 1} 协作小组`,
-          members: []
-        });
+      const newGroups = [];
+
+      // 1. 如果班级包含测试账号，固定锁定为【第 1 协作小组】
+      if (testStudents.length > 0) {
+        const g1 = {
+          id: 'group_1',
+          name: '第 1 协作小组 (测试组)',
+          members: testStudents.map(s => s.id)
+        };
+        newGroups.push(g1);
+        testStudents.forEach(s => { s.groupId = 'group_1'; });
       }
 
-      shuffled.forEach((student, idx) => {
-        const targetGroupIdx = idx % groupCount;
-        newGroups[targetGroupIdx].members.push(student.id);
-        student.groupId = newGroups[targetGroupIdx].id;
-      });
+      // 2. 剩余的真实学生，从第 2 组开始随机乱序洗牌分配
+      if (otherStudents.length > 0) {
+        const shuffled = [...otherStudents].sort(() => Math.random() - 0.5);
+        const dynamicGroupCount = Math.max(1, Math.ceil(shuffled.length / groupSize));
+        const startIndex = newGroups.length + 1; // 从第 2 组或第 1 组开始
+
+        for (let i = 0; i < dynamicGroupCount; i++) {
+          const gid = `group_${Date.now()}_${i + 1}`;
+          newGroups.push({
+            id: gid,
+            name: `第 ${startIndex + i} 协作小组`,
+            members: []
+          });
+        }
+
+        shuffled.forEach((student, idx) => {
+          const targetDynamicGroup = newGroups[newGroups.length - dynamicGroupCount + (idx % dynamicGroupCount)];
+          targetDynamicGroup.members.push(student.id);
+          student.groupId = targetDynamicGroup.id;
+        });
+      }
 
       cls.groups = newGroups;
       localStorage.setItem(STORAGE_KEY_CLASSES, JSON.stringify(classes));
@@ -2640,8 +2721,12 @@
             alert('⚠️ 请上传 XLSX/CSV 文件或粘贴名册文本！');
             return;
           }
-          const count = authManager.batchAddStudentsToClass(listToImport, activeClass.id);
-          alert(`🎉 成功导入 ${count} 名学生账号存入【${activeClass.name}】！`);
+          const { addedCount, skippedList } = authManager.batchAddStudentsToClass(listToImport, activeClass.id);
+          let tipMsg = `🎉 成功导入 ${addedCount} 名新学生账号入库【${activeClass.name}】！`;
+          if (skippedList && skippedList.length > 0) {
+            tipMsg += `\n\n💡 以下 ${skippedList.length} 位学生因学号已存在于学生池中，已自动为您跳过（无需重复创建）：\n` + skippedList.slice(0, 8).map(s => `• ${s.name} (学号: ${s.code})`).join('\n') + (skippedList.length > 8 ? `\n... 等共 ${skippedList.length} 人` : '');
+          }
+          alert(tipMsg);
           closeModal();
           renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
         });
