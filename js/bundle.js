@@ -3015,6 +3015,9 @@
     if (btnOpenAnnV2) {
       btnOpenAnnV2.addEventListener('click', () => {
         document.querySelectorAll('.modal-overlay').forEach(el => el.remove());
+        const freshCls = authManager.getClasses().find(c => c.id === activeClass.id) || activeClass;
+        const classGroups = (freshCls.groups && freshCls.groups.length > 0) ? freshCls.groups : [{ id: 'group_1', name: '第 1 协作小组' }];
+
         const modal = document.createElement('div');
         modal.className = 'modal-overlay';
         modal.innerHTML = `
@@ -3042,7 +3045,7 @@
                   <label><span class="req">*</span> 🎯 推送受众小组</label>
                   <select id="modal-ann-target-group" class="teacher-input fancy">
                     <option value="all">🌐 全班所有小组</option>
-                    ${(activeClass.groups || [{ id: 'group_1', name: '第1小组' }]).map(g => `<option value="${g.id}">👥 ${g.name}</option>`).join('')}
+                    ${classGroups.map(g => `<option value="${g.id}">👥 ${g.name}</option>`).join('')}
                   </select>
                 </div>
               </div>
@@ -3108,15 +3111,12 @@
         modal.querySelector('#btn-submit-new-ann').addEventListener('click', () => {
           const taskId = modal.querySelector('#modal-ann-task').value;
           const targetGId = modal.querySelector('#modal-ann-target-group').value;
-          const targetGObj = (activeClass.groups || []).find(g => g.id === targetGId);
+          const targetGObj = classGroups.find(g => g.id === targetGId);
           const targetGName = targetGId === 'all' ? '全班所有小组' : (targetGObj ? targetGObj.name : '指定小组');
           const title = modal.querySelector('#modal-ann-title').value.trim();
           const content = modal.querySelector('#modal-ann-content').value.trim();
           if (!title || !content) { alert('⚠️ 请填齐通知标题与内容！'); return; }
           authManager.publishAnnouncement(taskId, title, content, selectedAttachment, targetGId, targetGName);
-          closeModal();
-          renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
-        });
           closeModal();
           renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
         });
@@ -3128,7 +3128,9 @@
     if (btnOpenPaperModal) {
       btnOpenPaperModal.addEventListener('click', () => {
         document.querySelectorAll('.modal-overlay').forEach(el => el.remove());
-        const groups = activeClass.groups || [{ id: 'group_1', name: '第1小组' }];
+        const freshCls = authManager.getClasses().find(c => c.id === activeClass.id) || activeClass;
+        const classGroups = (freshCls.groups && freshCls.groups.length > 0) ? freshCls.groups : [{ id: 'group_1', name: '第 1 协作小组' }];
+
         const modal = document.createElement('div');
         modal.className = 'modal-overlay';
         modal.innerHTML = `
@@ -3173,7 +3175,7 @@
                   <label><span class="req">*</span> 🎯 推送受众小组</label>
                   <select id="modal-paper-target-group" class="teacher-input fancy">
                     <option value="all">🌐 全班所有小组</option>
-                    ${groups.map(g => `<option value="${g.id}">👥 ${g.name}</option>`).join('')}
+                    ${classGroups.map(g => `<option value="${g.id}">👥 ${g.name}</option>`).join('')}
                   </select>
                 </div>
               </div>
