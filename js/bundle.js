@@ -1360,28 +1360,47 @@
 
         // 局部更新合约输入框 value（仅当输入框未被当前用户聚焦打字时才回填，绝不冲掉用户正在打的字）
         if (remoteS1.contract?.taskAssignments) {
+          if (!this.app.state.stage1.contract.taskAssignments) this.app.state.stage1.contract.taskAssignments = {};
+          Object.assign(this.app.state.stage1.contract.taskAssignments, remoteS1.contract.taskAssignments);
+          
           document.querySelectorAll('.task-assignment-input').forEach(inp => {
             const mId = inp.dataset.mid;
-            if (mId && remoteS1.contract.taskAssignments[mId] !== undefined) {
-              if (document.activeElement !== inp) {
-                inp.value = remoteS1.contract.taskAssignments[mId] || '';
+            const code = inp.dataset.code;
+            const remoteVal = (remoteS1.contract.taskAssignments[mId] !== undefined)
+              ? remoteS1.contract.taskAssignments[mId]
+              : (code && remoteS1.contract.taskAssignments[code] !== undefined ? remoteS1.contract.taskAssignments[code] : undefined);
+            
+            if (remoteVal !== undefined && document.activeElement !== inp) {
+              if (inp.value !== remoteVal) {
+                inp.value = remoteVal;
               }
             }
           });
         }
         if (remoteS1.contract?.timeAllocations) {
+          if (!this.app.state.stage1.contract.timeAllocations) this.app.state.stage1.contract.timeAllocations = {};
+          Object.assign(this.app.state.stage1.contract.timeAllocations, remoteS1.contract.timeAllocations);
+
           document.querySelectorAll('.contract-time-input').forEach(inp => {
             const k = inp.dataset.key;
             if (k && remoteS1.contract.timeAllocations[k] !== undefined) {
               if (document.activeElement !== inp) {
-                inp.value = remoteS1.contract.timeAllocations[k] || 0;
+                const targetVal = String(remoteS1.contract.timeAllocations[k]);
+                if (inp.value !== targetVal) {
+                  inp.value = targetVal;
+                }
               }
             }
           });
         }
-        const topicInp = document.getElementById('contract-topic-input');
-        if (topicInp && document.activeElement !== topicInp && remoteS1.mergedTitle !== undefined) {
-          topicInp.value = remoteS1.mergedTitle || '';
+        if (remoteS1.mergedTitle !== undefined) {
+          this.app.state.stage1.mergedTitle = remoteS1.mergedTitle;
+          const topicInp = document.getElementById('contract-topic-input');
+          if (topicInp && document.activeElement !== topicInp) {
+            if (topicInp.value !== (remoteS1.mergedTitle || '')) {
+              topicInp.value = remoteS1.mergedTitle || '';
+            }
+          }
         }
 
           // ── 条件 1 实施：提案池合并条件 —— 按 author 映射，严格按 updatedAt 最新时间戳优先 ──
@@ -4240,11 +4259,11 @@
             </div>
             <div style="display:flex; flex-direction:column; gap:10px; width:100%;">
               ${membersList.map(m => {
-                const taskVal = (s1.contract.taskAssignments && s1.contract.taskAssignments[m.id] !== undefined) ? s1.contract.taskAssignments[m.id] : '';
+                const taskVal = (s1.contract.taskAssignments && (s1.contract.taskAssignments[m.id] !== undefined ? s1.contract.taskAssignments[m.id] : s1.contract.taskAssignments[m.studentCode])) || '';
                 return `
                   <div style="display:flex; flex-direction:column; gap:6px; width:100%; background:#ffffff; padding:12px 14px; border-radius:8px; border:1px solid #e2e8f0; box-sizing:border-box;">
                     <span style="font-weight:800; color:${m.color || '#2563eb'}; font-size:13px;">${m.avatar || '👤'} ${m.name} (${m.roleTitle || '组员'}):</span>
-                    <input type="text" class="large-contract-input task-assignment-input" data-mid="${m.id}" value="${taskVal}" ${isContractLocked ? 'disabled readonly style="opacity:0.8; cursor:not-allowed;"' : ''} style="width:100%; box-sizing:border-box; background:#ffffff; color:#0f172a; border:1px solid #cbd5e1; border-radius:6px; padding:10px 14px; font-size:13px; font-family:sans-serif;" placeholder="在聊天中商定或在此录入具体负责的写作章节与任务...">
+                    <input type="text" class="large-contract-input task-assignment-input" data-mid="${m.id}" data-code="${m.studentCode || ''}" value="${taskVal}" ${isContractLocked ? 'disabled readonly style="opacity:0.8; cursor:not-allowed;"' : ''} style="width:100%; box-sizing:border-box; background:#ffffff; color:#0f172a; border:1px solid #cbd5e1; border-radius:6px; padding:10px 14px; font-size:13px; font-family:sans-serif;" placeholder="在聊天中商定或在此录入具体负责的写作章节与任务...">
                   </div>
                 `;
               }).join('')}
@@ -4459,22 +4478,24 @@
         let timeTimer = null;
         input.addEventListener('input', (e) => {
           const key = e.target.dataset.key;
+          const numVal = Number(e.target.value) || 0;
           if (key && s1.contract.timeAllocations) {
-            s1.contract.timeAllocations[key] = Number(e.target.value) || 0;
+            s1.contract.timeAllocations[key] = numVal;
             clearTimeout(timeTimer);
             timeTimer = setTimeout(() => {
               if (window.app) {
                 window.app.syncStage1();
                 if (window.app.cloudSyncEngine) window.app.cloudSyncEngine.pushSnapshot();
               }
-            }, 150);
+            }, 80);
           }
         });
         const flushTime = () => {
           clearTimeout(timeTimer);
           const key = input.dataset.key;
+          const numVal = Number(input.value) || 0;
           if (key && s1.contract.timeAllocations) {
-            s1.contract.timeAllocations[key] = Number(input.value) || 0;
+            s1.contract.timeAllocations[key] = numVal;
             if (window.app) {
               window.app.syncStage1();
               if (window.app.cloudSyncEngine) window.app.cloudSyncEngine.pushSnapshot();
@@ -4492,28 +4513,30 @@
         let taskTimer = null;
         input.addEventListener('input', (e) => {
           const mId = e.target.dataset.mid;
-          if (mId) {
-            if (!s1.contract.taskAssignments) s1.contract.taskAssignments = {};
-            s1.contract.taskAssignments[mId] = e.target.value;
-            clearTimeout(taskTimer);
-            taskTimer = setTimeout(() => {
-              if (window.app) {
-                window.app.syncStage1();
-                if (window.app.cloudSyncEngine) window.app.cloudSyncEngine.pushSnapshot();
-              }
-            }, 150);
-          }
-        });
-        const flushTask = () => {
+          const code = e.target.dataset.code;
+          const val = e.target.value;
+          if (!s1.contract.taskAssignments) s1.contract.taskAssignments = {};
+          if (mId) s1.contract.taskAssignments[mId] = val;
+          if (code) s1.contract.taskAssignments[code] = val;
           clearTimeout(taskTimer);
-          const mId = input.dataset.mid;
-          if (mId) {
-            if (!s1.contract.taskAssignments) s1.contract.taskAssignments = {};
-            s1.contract.taskAssignments[mId] = input.value;
+          taskTimer = setTimeout(() => {
             if (window.app) {
               window.app.syncStage1();
               if (window.app.cloudSyncEngine) window.app.cloudSyncEngine.pushSnapshot();
             }
+          }, 80);
+        });
+        const flushTask = () => {
+          clearTimeout(taskTimer);
+          const mId = input.dataset.mid;
+          const code = input.dataset.code;
+          const val = input.value;
+          if (!s1.contract.taskAssignments) s1.contract.taskAssignments = {};
+          if (mId) s1.contract.taskAssignments[mId] = val;
+          if (code) s1.contract.taskAssignments[code] = val;
+          if (window.app) {
+            window.app.syncStage1();
+            if (window.app.cloudSyncEngine) window.app.cloudSyncEngine.pushSnapshot();
           }
         };
         input.addEventListener('change', flushTask);
@@ -6489,8 +6512,9 @@
         activeEl.id === 'contract-topic-input'
       );
 
-      // 如果用户正在富文本打字或在公约打字，做局部精准 Patch，绝不丢失提案与投票数据
-      if (this.state.currentStage === 'stage1' && isContractInputFocused) {
+      // 如果用户在阶段一且画布已存在，一律做局部精准 Patch，绝不销毁公约 DOM 导致输入框闪烁或时间回弹
+      const existingContractCard = document.querySelector('.contract-card');
+      if (this.state.currentStage === 'stage1' && existingContractCard) {
         // 局部更新提案池卡片与投票按钮
         const proposalsContainer = document.querySelector('.proposals-grid');
         const s1 = this.state.stage1;
@@ -6519,6 +6543,10 @@
               </div>
             `;
           }).join('');
+          
+          proposalsContainer.querySelectorAll('.vote-btn:not([disabled])').forEach(btn => {
+            btn.addEventListener('click', () => this.handleVoteCast(btn.dataset.id));
+          });
         }
       } else if (!isEditorTyping) {
         renderCanvas(this.state, {
