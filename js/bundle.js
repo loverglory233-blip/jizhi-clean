@@ -302,7 +302,21 @@
     { id: 'u_studentC', username: '202603', studentCode: '202603', password: '123', name: '陈强 (组员)', role: 'student', avatar: '🧑‍🎓', classId: 'class_101', groupId: 'group_1' }
   ];
 
-  const DefaultTasks = [];
+  const DefaultTasks = [
+    {
+      id: 'task_default',
+      title: '期末协作写作 (默认测试任务)',
+      classId: 'class_101',
+      className: '《现代教育技术》2026春01班',
+      durationMinutes: 150,
+      startTime: '2026/08/01 08:00',
+      deadline: '2026/08/30 23:59',
+      status: 'in_progress',
+      createdAt: '2026/08/01',
+      instructions: '请各小组成员协同完成多智能体学术论文研讨与写作。',
+      resources: []
+    }
+  ];
   const DefaultAnnouncements = [];
 
   class AuthManager {
@@ -416,7 +430,23 @@
       return users;
     }
     getClasses() { return JSON.parse(localStorage.getItem(STORAGE_KEY_CLASSES)) || DefaultClasses; }
-    getTasks() { return JSON.parse(localStorage.getItem(STORAGE_KEY_TASKS)) || DefaultTasks; }
+    getTasks() {
+      let tasks = [];
+      try {
+        tasks = JSON.parse(localStorage.getItem(STORAGE_KEY_TASKS)) || [];
+      } catch (e) { tasks = []; }
+      if (!Array.isArray(tasks) || tasks.length === 0) {
+        tasks = JSON.parse(JSON.stringify(DefaultTasks));
+        localStorage.setItem(STORAGE_KEY_TASKS, JSON.stringify(tasks));
+      } else {
+        // 确保默认测试任务常驻在首位
+        if (!tasks.some(t => t.id === 'task_default')) {
+          tasks.unshift(DefaultTasks[0]);
+          localStorage.setItem(STORAGE_KEY_TASKS, JSON.stringify(tasks));
+        }
+      }
+      return tasks;
+    }
     getAnnouncements() { return JSON.parse(localStorage.getItem(STORAGE_KEY_ANNOUNCEMENTS)) || DefaultAnnouncements; }
     getCurrentUser() {
       const sessionData = sessionStorage.getItem(STORAGE_KEY_USER);
