@@ -93,14 +93,23 @@
     const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
     const result = [];
     lines.forEach((line, idx) => {
-      if (idx === 0 && (line.includes('姓名') || line.includes('账号') || line.includes('username'))) return;
-      const parts = line.split(/[,，\t\s]+/).map(p => p.trim()).filter(Boolean);
+      if (idx === 0 && (line.includes('姓名') || line.includes('学号') || line.includes('name') || line.includes('code'))) return;
+      // 优先按制表符 \t 分割，其次逗号，最后空格
+      let parts = [];
+      if (line.includes('\t')) parts = line.split('\t').map(p => p.trim()).filter(Boolean);
+      else if (line.includes(',')) parts = line.split(',').map(p => p.trim()).filter(Boolean);
+      else if (line.includes('，')) parts = line.split('，').map(p => p.trim()).filter(Boolean);
+      else parts = line.split(/\s+/).map(p => p.trim()).filter(Boolean);
+
       if (parts.length >= 2) {
+        const name = parts[0];
+        const studentCode = parts[1];
+        const pwd = (parts.length >= 3 && parts[2]) ? parts[2] : '123';
         result.push({
-          name: parts[0],
-          username: parts[1],
-          studentCode: parts[2] || parts[1],
-          customPassword: parts[3] || '123'
+          name: name,
+          studentCode: studentCode,
+          username: studentCode,
+          customPassword: pwd
         });
       }
     });
@@ -124,13 +133,16 @@
             const students = [];
             json.forEach((row, idx) => {
               if (row && row.length >= 2) {
-                const strRow = row.map(cell => String(cell).trim());
-                if (idx === 0 && (strRow[0].includes('姓名') || strRow[1].includes('账号'))) return;
+                const strRow = row.map(cell => String(cell).trim()).filter(Boolean);
+                if (idx === 0 && (strRow[0].includes('姓名') || strRow[1].includes('学号') || strRow[1].includes('账号'))) return;
+                const name = strRow[0];
+                const studentCode = strRow[1];
+                const pwd = (strRow.length >= 3 && strRow[2]) ? strRow[2] : '123';
                 students.push({
-                  name: strRow[0],
-                  username: strRow[1] || strRow[0],
-                  studentCode: strRow[2] || strRow[1] || strRow[0],
-                  customPassword: strRow[3] || '123'
+                  name: name,
+                  studentCode: studentCode,
+                  username: studentCode,
+                  customPassword: pwd
                 });
               }
             });
