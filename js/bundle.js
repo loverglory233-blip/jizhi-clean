@@ -1496,11 +1496,27 @@
         }
       }
 
-      // ── stage3 答辩委员意见 ──
+      // ── stage3 答辩委员意见：靶向增量更新，绝不全屏暴力重新渲染 ──
       if (remoteData.stage3 && remoteData.stage3.feedbackItems) {
         if (JSON.stringify(remoteData.stage3.feedbackItems) !== JSON.stringify(this.app.state.stage3.feedbackItems)) {
           this.app.state.stage3.feedbackItems = remoteData.stage3.feedbackItems;
-          needWorkspaceRender = true;
+          
+          // 靶向更新已渲染的卡片输入框与按钮状态，绝对不销毁整个矩阵 DOM
+          remoteData.stage3.feedbackItems.forEach(item => {
+            const textarea = document.querySelector(`.feedback-direct-input[data-id="${item.id}"]`);
+            if (textarea && document.activeElement !== textarea) {
+              if (textarea.value !== (item.response || '')) {
+                textarea.value = item.response || '';
+              }
+              textarea.style.borderColor = item.response ? '#a7f3d0' : '#cbd5e1';
+              textarea.style.background = this.app.state.isFinalSubmitted ? '#f8fafc' : (item.response ? '#f0fdf4' : '#ffffff');
+            }
+            const saveBtn = document.querySelector(`.btn-save-feedback-direct[data-id="${item.id}"]`);
+            if (saveBtn) {
+              saveBtn.innerHTML = item.response ? '🔄 更新并保存本条修改' : '💾 确认并保存本条答复';
+              saveBtn.style.background = item.response ? 'linear-gradient(135deg, #059669, #047857)' : 'linear-gradient(135deg, #2563eb, #1d4ed8)';
+            }
+          });
         }
       }
 
@@ -4750,20 +4766,20 @@
                   <div style="border-top:1px dashed #e2e8f0; padding-top:10px; margin-top:10px;">
                     <div style="font-size:12.5px; font-weight:700; color:#334155; margin-bottom:6px; display:flex; justify-content:space-between; align-items:center;">
                       <span>✍️ 本组答辩回复与修改结论：</span>
-                      ${item.response ? '<span style="color:#059669; font-size:11.5px;">(已保存生效)</span>' : '<span style="color:#64748b; font-size:11.5px;">(请直接在下方输入框中录入简要答复)</span>'}
+                      ${item.response ? '<span style="color:#059669; font-size:11.5px; font-weight:700;">✅ 已保存生效 (可随时二次修改)</span>' : '<span style="color:#64748b; font-size:11.5px;">(请直接在下方输入框中录入简要答复)</span>'}
                     </div>
                     <textarea 
                       class="feedback-direct-input" 
                       data-id="${item.id}" 
-                      ${isFinalSubmitted ? 'disabled' : ''} 
+                      ${isFinalSubmitted ? 'disabled readonly' : ''} 
                       placeholder="商讨后，在此直接输入本组针对该条意见的简要答复与修改结论..." 
                       style="width:100%; min-height:64px; padding:8px 12px; font-size:13px; line-height:1.5; border:1px solid ${item.response ? '#a7f3d0' : '#cbd5e1'}; background:${isFinalSubmitted ? '#f8fafc' : (item.response ? '#f0fdf4' : '#ffffff')}; border-radius:8px; resize:vertical; box-sizing:border-box; color:#0f172a; font-family:inherit;"
                     >${item.response || ''}</textarea>
                     
                     ${!isFinalSubmitted ? `
                       <div style="display:flex; justify-content:flex-end; margin-top:8px;">
-                        <button class="btn-save-feedback-direct" data-id="${item.id}" style="background:linear-gradient(135deg, #2563eb, #1d4ed8); border:none; color:white; padding:6px 14px; border-radius:6px; font-size:12px; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; gap:4px; box-shadow:0 2px 6px rgba(37,99,235,0.2);">
-                          💾 确认并保存本条答复
+                        <button class="btn-save-feedback-direct" data-id="${item.id}" style="background:${item.response ? 'linear-gradient(135deg, #059669, #047857)' : 'linear-gradient(135deg, #2563eb, #1d4ed8)'}; border:none; color:white; padding:6px 14px; border-radius:6px; font-size:12px; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; gap:4px; box-shadow:0 2px 6px rgba(0,0,0,0.12);">
+                          ${item.response ? '🔄 更新并保存本条修改' : '💾 确认并保存本条答复'}
                         </button>
                       </div>
                     ` : ''}
