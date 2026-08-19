@@ -916,16 +916,19 @@
       return newTask;
     }
 
-    publishAnnouncement(taskId, title, content, attachment = null) {
+    publishAnnouncement(taskId, title, content, attachment = null, targetGroupId = 'all', targetGroupName = '全班所有小组') {
       const announcements = this.getAnnouncements();
       const tasks = this.getTasks();
       const task = tasks.find(t => t.id === taskId);
       const newAnn = {
-        id: 'ann_' + Date.now(), taskId,
-        taskTitle: task ? task.title : '期末协作写作',
+        id: 'ann_' + Date.now(),
+        taskId: taskId || 'task_all',
+        taskTitle: taskId === 'task_all' ? '全班通识广播' : (task ? task.title : '指定写作任务'),
+        targetGroupId: targetGroupId || 'all',
+        targetGroupName: targetGroupName || '全班所有小组',
         title, content, attachment,
         time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        author: '张教授', readStatus: { 'group_1': false }
+        author: '老师', readStatus: { 'group_1': false }
       };
       announcements.unshift(newAnn);
       localStorage.setItem(STORAGE_KEY_ANNOUNCEMENTS, JSON.stringify(announcements));
@@ -2108,11 +2111,17 @@
                 <div class="announcement-history-list" style="display:flex; flex-direction:column; gap:16px;">
                   ${announcements.map(a => {
                     const classGroups = activeClass.groups || [{ id: 'group_1', name: '第1小组' }];
+                    const targetGName = a.targetGroupName || (a.targetGroupId === 'all' || !a.targetGroupId ? '全班所有小组' : '指定小组');
+                    const taskLabel = a.taskId === 'task_all' || !a.taskId ? '🌐 全班通识广播' : `📌 ${a.taskTitle || '专属任务'}`;
                     return `
                       <div style="background:#ffffff; border:1px solid #e2e8f0; padding:18px; border-radius:12px; box-shadow:0 1px 3px rgba(15,23,42,0.03);">
-                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
-                          <span style="font-weight:800; color:#1e40af; font-size:16px;">${a.title}</span>
-                          <span style="font-size:12px; color:#64748b;">${a.time} | 关联任务: ${a.taskTitle}</span>
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                          <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                            <span style="font-weight:800; color:#1e40af; font-size:16px;">📢 ${a.title}</span>
+                            <span style="background:#f5f3ff; color:#7c3aed; border:1px solid #ddd6fe; padding:2px 8px; border-radius:8px; font-size:11.5px; font-weight:700;">${taskLabel}</span>
+                            <span style="background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe; padding:2px 8px; border-radius:8px; font-size:11.5px; font-weight:700;">定向受众: ${targetGName}</span>
+                          </div>
+                          <span style="font-size:12px; color:#64748b;">${a.time} | 发布人: ${a.author || '老师'}</span>
                         </div>
                         <div style="font-size:13px; color:#334155; margin-bottom:10px; line-height:1.6;">${a.content}</div>
                         ${a.attachment ? `
@@ -3021,20 +3030,29 @@
               <button class="modal-close-btn" id="btn-close-ann-modal">✕</button>
             </div>
             <div class="teacher-modal-body">
-              <div class="teacher-form-group">
-                <label><span class="req">*</span> 关联写作任务 / 受众范围</label>
-                <select id="modal-ann-task" class="teacher-input fancy">
-                  <option value="task_all">🌐 全班通识广播 (全流程可见)</option>
-                  ${tasks.map(t => `<option value="${t.id}">📌 ${t.title}</option>`).join('')}
-                </select>
+              <div class="form-grid-2">
+                <div class="teacher-form-group">
+                  <label><span class="req">*</span> 📌 关联写作任务</label>
+                  <select id="modal-ann-task" class="teacher-input fancy">
+                    <option value="task_all">🌐 全班通识广播 (全流程可见)</option>
+                    ${tasks.map(t => `<option value="${t.id}">📌 ${t.title}</option>`).join('')}
+                  </select>
+                </div>
+                <div class="teacher-form-group">
+                  <label><span class="req">*</span> 🎯 推送受众小组</label>
+                  <select id="modal-ann-target-group" class="teacher-input fancy">
+                    <option value="all">🌐 全班所有小组</option>
+                    ${(activeClass.groups || [{ id: 'group_1', name: '第1小组' }]).map(g => `<option value="${g.id}">👥 ${g.name}</option>`).join('')}
+                  </select>
+                </div>
               </div>
-              <div class="teacher-form-group">
+              <div class="teacher-form-group" style="margin-top:10px;">
                 <label><span class="req">*</span> 通知标题</label>
                 <input type="text" id="modal-ann-title" class="teacher-input fancy" value="" placeholder="输入通知标题">
               </div>
               <div class="teacher-form-group">
                 <label><span class="req">*</span> 通知详细内容</label>
-                <textarea id="modal-ann-content" class="teacher-textarea fancy" style="min-height:80px;" placeholder="输入推送给全班学生的通知正文..."></textarea>
+                <textarea id="modal-ann-content" class="teacher-textarea fancy" style="min-height:80px;" placeholder="输入推送给学生的通知正文..."></textarea>
               </div>
 
               <div class="teacher-form-group">
@@ -3089,10 +3107,16 @@
 
         modal.querySelector('#btn-submit-new-ann').addEventListener('click', () => {
           const taskId = modal.querySelector('#modal-ann-task').value;
+          const targetGId = modal.querySelector('#modal-ann-target-group').value;
+          const targetGObj = (activeClass.groups || []).find(g => g.id === targetGId);
+          const targetGName = targetGId === 'all' ? '全班所有小组' : (targetGObj ? targetGObj.name : '指定小组');
           const title = modal.querySelector('#modal-ann-title').value.trim();
           const content = modal.querySelector('#modal-ann-content').value.trim();
           if (!title || !content) { alert('⚠️ 请填齐通知标题与内容！'); return; }
-          authManager.publishAnnouncement(taskId, title, content, selectedAttachment);
+          authManager.publishAnnouncement(taskId, title, content, selectedAttachment, targetGId, targetGName);
+          closeModal();
+          renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+        });
           closeModal();
           renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
         });
