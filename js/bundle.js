@@ -366,6 +366,7 @@
       };
       classes.unshift(newClass);
       localStorage.setItem(STORAGE_KEY_CLASSES, JSON.stringify(classes));
+      this.pushGlobalMeta();
       if (window.app && window.app.cloudSyncEngine) window.app.cloudSyncEngine.pushSnapshot();
       return newClass;
     }
@@ -2425,6 +2426,7 @@
                 localStorage.setItem(STORAGE_KEY_CLASSES, JSON.stringify(classes));
               }
             });
+            authManager.pushGlobalMeta();
             closeModal();
             renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
           });
