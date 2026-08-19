@@ -6157,7 +6157,7 @@
               s1.mergedTitle = winningProposal.title;
             }
           } else {
-            summaryText += `\n⚖️ **【存在意见分歧·协商引导】**：注意到组内对选题持有不同视角！这正是团队协同碰撞创新的最佳契机。\n👉 建议各提案作者在讨论区简要说明自己的设计亮点，大家共同商讨如何取长补短，确定一个兼具理论深度与可行性的主题（既可选用最高票主题，亦可融合各方亮点），并在左侧卡片中自主确定分工与时间预算！`;
+            summaryText += `\n⚖️ **【存在意见分歧·优先协商引导】**：注意到组内对选题持有不同视角！这正是团队协同碰撞创新的最佳契机。\n👉 **【第一步·优先协商主题】**：建议各提案作者在讨论区简要说明自己的设计亮点，大家共同商讨如何取长补短，**优先定下一个全组共同认可的主题**（既可选用最高票主题，亦可融合各方亮点）！\n👉 **【第二步·细化与分工】**：主题确定后，全组进一步细化核心问题，并在左侧卡片中自主商定章节分工与时间预算！`;
             if (!s1.mergedTitle && winningProposal) {
               s1.mergedTitle = winningProposal.title;
             }
@@ -6175,7 +6175,7 @@
             s1.contract.timeAllocations = { background: 25, literature: 30, questions: 25, method: 40, reflection: 20, references: 10 };
           }
 
-          summaryText += `\n\n📜 **【《学术合作公约》草案已就绪】**\n拍卖师与平台系统已在左侧生成了公约草案！\n\n👉 **【协商与签署指引】**：\n1. 细化主题后，全组成员可自主商定章节分工与时间规划，在卡片中直接修改；\n2. 确认无误后，**全员点击卡片下方的【确认签署】**，正式解锁阶段二！`;
+          summaryText += `\n\n📜 **【《学术合作公约》草案已就绪】**\n拍卖师与平台系统已在左侧生成了公约草案！\n\n👉 **【核对与签署指引】**：\n1. 协商定下主题后，全组成员可自主商定章节分工与时间规划，在卡片中直接修改；\n2. 确认无误后，**全员点击卡片下方的【确认签署】**，正式解锁阶段二！`;
 
           const summaryMsg = { sender: 'auctioneer', text: summaryText, timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), _timeMs: Date.now() };
           this.state.chatLogs.stage1.push(summaryMsg);
