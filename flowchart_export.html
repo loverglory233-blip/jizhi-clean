@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>JIZHI平台 · 三大阶段多智能体协同全景流程图 (最新核准版)</title>
+  <title>JIZHI平台 · 三大阶段多智能体全景流程图 (全格式高清导出工具)</title>
   <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
   <style>
     body {
@@ -22,7 +22,7 @@
       border-radius: 16px;
       padding: 24px;
       margin: 0 auto 36px auto;
-      max-width: 1100px;
+      max-width: 1150px;
       box-shadow: 0 10px 25px rgba(0,0,0,0.3);
     }
     .card-header {
@@ -32,21 +32,30 @@
       margin-bottom: 16px;
       border-bottom: 1px solid #334155;
       padding-bottom: 12px;
+      flex-wrap: wrap;
+      gap: 12px;
     }
     .card-header h2 { font-size: 18px; margin: 0; display: flex; align-items: center; gap: 8px; }
+    .btn-group { display: flex; gap: 8px; flex-wrap: wrap; }
     .btn-download {
-      background: linear-gradient(135deg, #2563eb, #1d4ed8);
       border: none;
       color: white;
-      padding: 8px 16px;
-      border-radius: 8px;
-      font-size: 13px;
+      padding: 6px 12px;
+      border-radius: 6px;
+      font-size: 12px;
       font-weight: 700;
       cursor: pointer;
-      box-shadow: 0 4px 12px rgba(37,99,235,0.3);
+      box-shadow: 0 2px 8px rgba(0,0,0,0.2);
       transition: all 0.2s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
     }
-    .btn-download:hover { background: #3b82f6; transform: translateY(-1px); }
+    .btn-png { background: linear-gradient(135deg, #10b981, #059669); }
+    .btn-jpg { background: linear-gradient(135deg, #f59e0b, #d97706); }
+    .btn-svg { background: linear-gradient(135deg, #2563eb, #1d4ed8); }
+    .btn-eps { background: linear-gradient(135deg, #8b5cf6, #6d28d9); }
+    .btn-download:hover { transform: translateY(-1px); filter: brightness(1.1); }
     .mermaid-container {
       background: #ffffff;
       border-radius: 12px;
@@ -60,15 +69,20 @@
 <body>
 
   <div class="header">
-    <h1>🎓 JIZHI 平台 · 三大阶段多智能体全生命周期调用流程图</h1>
-    <p>最新核准版 · 支持高清查看、直接右键另存为图片，或点击右上角【📥 下载高清 SVG 图片】</p>
+    <h1>🎓 JIZHI 平台 · 三大阶段多智能体协同全景流程图</h1>
+    <p>支持 <b>PNG (超清3x)</b> / <b>JPG</b> / <b>SVG (矢量)</b> / <b>EPS (学术排版)</b> 一键多格式导出</p>
   </div>
 
   <!-- 阶段一 -->
   <div class="card">
     <div class="card-header">
       <h2 style="color: #a855f7;">🟣 阶段一：学术拍卖会 (拍卖师 Agent) 流程图</h2>
-      <button class="btn-download" onclick="downloadSVG('stage1-svg', '阶段一_学术拍卖会流程图.svg')">📥 下载高清 SVG 图片</button>
+      <div class="btn-group">
+        <button class="btn-download btn-png" onclick="exportFormat('stage1-svg', '阶段一_学术拍卖会流程图', 'png')">📸 导出超清 PNG (推荐)</button>
+        <button class="btn-download btn-jpg" onclick="exportFormat('stage1-svg', '阶段一_学术拍卖会流程图', 'jpg')">🖼️ 导出 JPG</button>
+        <button class="btn-download btn-svg" onclick="exportFormat('stage1-svg', '阶段一_学术拍卖会流程图', 'svg')">📐 导出 SVG</button>
+        <button class="btn-download btn-eps" onclick="exportFormat('stage1-svg', '阶段一_学术拍卖会流程图', 'eps')">📄 导出 EPS</button>
+      </div>
     </div>
     <div class="mermaid-container">
       <pre class="mermaid" id="stage1-svg">
@@ -116,7 +130,12 @@ flowchart TD
   <div class="card">
     <div class="card-header">
       <h2 style="color: #10b981;">🟢 阶段二：学术编辑部 (责任编辑 + 审稿编辑) 流程图</h2>
-      <button class="btn-download" onclick="downloadSVG('stage2-svg', '阶段二_学术编辑部流程图.svg')">📥 下载高清 SVG 图片</button>
+      <div class="btn-group">
+        <button class="btn-download btn-png" onclick="exportFormat('stage2-svg', '阶段二_学术编辑部流程图', 'png')">📸 导出超清 PNG (推荐)</button>
+        <button class="btn-download btn-jpg" onclick="exportFormat('stage2-svg', '阶段二_学术编辑部流程图', 'jpg')">🖼️ 导出 JPG</button>
+        <button class="btn-download btn-svg" onclick="exportFormat('stage2-svg', '阶段二_学术编辑部流程图', 'svg')">📐 导出 SVG</button>
+        <button class="btn-download btn-eps" onclick="exportFormat('stage2-svg', '阶段二_学术编辑部流程图', 'eps')">📄 导出 EPS</button>
+      </div>
     </div>
     <div class="mermaid-container">
       <pre class="mermaid" id="stage2-svg">
@@ -172,7 +191,12 @@ flowchart TD
   <div class="card">
     <div class="card-header">
       <h2 style="color: #eab308;">🟡 阶段三：答辩擂台 (正方 + 反方 + 中间委员) 流程图</h2>
-      <button class="btn-download" onclick="downloadSVG('stage3-svg', '阶段三_答辩擂台流程图.svg')">📥 下载高清 SVG 图片</button>
+      <div class="btn-group">
+        <button class="btn-download btn-png" onclick="exportFormat('stage3-svg', '阶段三_答辩擂台流程图', 'png')">📸 导出超清 PNG (推荐)</button>
+        <button class="btn-download btn-jpg" onclick="exportFormat('stage3-svg', '阶段三_答辩擂台流程图', 'jpg')">🖼️ 导出 JPG</button>
+        <button class="btn-download btn-svg" onclick="exportFormat('stage3-svg', '阶段三_答辩擂台流程图', 'svg')">📐 导出 SVG</button>
+        <button class="btn-download btn-eps" onclick="exportFormat('stage3-svg', '阶段三_答辩擂台流程图', 'eps')">📄 导出 EPS</button>
+      </div>
     </div>
     <div class="mermaid-container">
       <pre class="mermaid" id="stage3-svg">
@@ -212,22 +236,65 @@ flowchart TD
   <script>
     mermaid.initialize({ startOnLoad: true, theme: 'default', flowchart: { curve: 'basis', useMaxWidth: true } });
 
-    function downloadSVG(svgId, filename) {
-      const el = document.getElementById(svgId);
-      const svg = el.querySelector('svg');
-      if (!svg) { alert('SVG 正在渲染中，请稍候点击'); return; }
-      
+    // 全格式导出主调度函数
+    function exportFormat(containerId, filename, format) {
+      const container = document.getElementById(containerId);
+      const svg = container ? container.querySelector('svg') : null;
+      if (!svg) {
+        alert('⏳ 流程图正在渲染中，请稍候 1 秒再点击下载！');
+        return;
+      }
+
+      // 获取 SVG 的纯净 XML 文本
       const svgData = new XMLSerializer().serializeToString(svg);
-      const blob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
-      const url = URL.createObjectURL(blob);
-      
+      const bbox = svg.getBoundingClientRect();
+      const width = Math.max(svg.viewBox?.baseVal?.width || bbox.width || 1200, 800);
+      const height = Math.max(svg.viewBox?.baseVal?.height || bbox.height || 1600, 1000);
+
+      if (format === 'svg') {
+        const blob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
+        triggerDownload(URL.createObjectURL(blob), filename + '.svg');
+      } 
+      else if (format === 'eps') {
+        // EPS 格式包装器 (Encapsulated PostScript 矢量标准)
+        const epsHeader = `%!PS-Adobe-3.0 EPSF-3.0\n%%BoundingBox: 0 0 ${Math.round(width)} ${Math.round(height)}\n%%Title: ${filename}\n%%Creator: JIZHI Flowchart Exporter\n%%Pages: 1\n%%EndComments\n\n`;
+        const epsBlob = new Blob([epsHeader + svgData], { type: 'application/postscript;charset=utf-8' });
+        triggerDownload(URL.createObjectURL(epsBlob), filename + '.eps');
+      }
+      else if (format === 'png' || format === 'jpg') {
+        // 3x 视网膜级超清 Canvas 栅格化渲染
+        const scale = 3; 
+        const canvas = document.createElement('canvas');
+        canvas.width = width * scale;
+        canvas.height = height * scale;
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#ffffff'; // 高保真纯白底色
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        const img = new Image();
+        const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
+        const url = URL.createObjectURL(svgBlob);
+
+        img.onload = () => {
+          ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+          URL.revokeObjectURL(url);
+          if (format === 'png') {
+            triggerDownload(canvas.toDataURL('image/png'), filename + '_3x超清.png');
+          } else {
+            triggerDownload(canvas.toDataURL('image/jpeg', 0.95), filename + '.jpg');
+          }
+        };
+        img.src = url;
+      }
+    }
+
+    function triggerDownload(url, filename) {
       const a = document.createElement('a');
       a.href = url;
       a.download = filename;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
-      URL.revokeObjectURL(url);
     }
   </script>
 </body>
