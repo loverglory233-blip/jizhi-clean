@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>JIZHI平台 · 三大阶段多智能体协同全景流程图 (高清导出工具)</title>
+  <title>JIZHI平台 · 三大阶段多智能体协同全景流程图 (最新核准版)</title>
   <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
   <style>
     body {
@@ -13,26 +13,16 @@
       margin: 0;
       padding: 30px 20px;
     }
-    .header {
-      text-align: center;
-      margin-bottom: 30px;
-    }
-    .header h1 {
-      font-size: 26px;
-      color: #60a5fa;
-      margin-bottom: 8px;
-    }
-    .header p {
-      font-size: 14px;
-      color: #94a3b8;
-    }
+    .header { text-align: center; margin-bottom: 30px; }
+    .header h1 { font-size: 26px; color: #60a5fa; margin-bottom: 8px; }
+    .header p { font-size: 14px; color: #94a3b8; }
     .card {
       background: #1e293b;
       border: 1px solid #334155;
       border-radius: 16px;
       padding: 24px;
       margin: 0 auto 36px auto;
-      max-width: 1050px;
+      max-width: 1100px;
       box-shadow: 0 10px 25px rgba(0,0,0,0.3);
     }
     .card-header {
@@ -43,13 +33,7 @@
       border-bottom: 1px solid #334155;
       padding-bottom: 12px;
     }
-    .card-header h2 {
-      font-size: 18px;
-      margin: 0;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
+    .card-header h2 { font-size: 18px; margin: 0; display: flex; align-items: center; gap: 8px; }
     .btn-download {
       background: linear-gradient(135deg, #2563eb, #1d4ed8);
       border: none;
@@ -62,10 +46,7 @@
       box-shadow: 0 4px 12px rgba(37,99,235,0.3);
       transition: all 0.2s ease;
     }
-    .btn-download:hover {
-      background: #3b82f6;
-      transform: translateY(-1px);
-    }
+    .btn-download:hover { background: #3b82f6; transform: translateY(-1px); }
     .mermaid-container {
       background: #ffffff;
       border-radius: 12px;
@@ -74,27 +55,13 @@
       display: flex;
       justify-content: center;
     }
-    .tip-box {
-      max-width: 1050px;
-      margin: 0 auto 20px auto;
-      background: #1e3a8a;
-      border: 1px solid #3b82f6;
-      border-radius: 10px;
-      padding: 12px 18px;
-      font-size: 13.5px;
-      color: #dbeafe;
-    }
   </style>
 </head>
 <body>
 
   <div class="header">
     <h1>🎓 JIZHI 平台 · 三大阶段多智能体全生命周期调用流程图</h1>
-    <p>支持高清查看、直接右键另存为图片，或点击右上角【📥 下载超清 SVG 图片】</p>
-  </div>
-
-  <div class="tip-box">
-    💡 <b>保存方法</b>：可以直接在下方任意一张白色图表上 <b>右键 ➔ 另存为图片 / 复制图片</b>，也可以点击每个模块右上角的 <b>【📥 下载此流程图】</b> 按钮保存超清原图！
+    <p>最新核准版 · 支持高清查看、直接右键另存为图片，或点击右上角【📥 下载高清 SVG 图片】</p>
   </div>
 
   <!-- 阶段一 -->
@@ -103,36 +70,44 @@
       <h2 style="color: #a855f7;">🟣 阶段一：学术拍卖会 (拍卖师 Agent) 流程图</h2>
       <button class="btn-download" onclick="downloadSVG('stage1-svg', '阶段一_学术拍卖会流程图.svg')">📥 下载高清 SVG 图片</button>
     </div>
-    <div class="mermaid-container" id="stage1-container">
+    <div class="mermaid-container">
       <pre class="mermaid" id="stage1-svg">
 flowchart TD
     Start1([🚀 进入阶段一：学术拍卖会]) --> GuardPresence1{"🛡️ 前提检测：全组成员是否【全部登录在线】？"}
     GuardPresence1 -->|"有人未登录"| WaitOnline1["⏸️ 平台静默守候，绝不打扰"]
-    GuardPresence1 -->|"全员 100% 登录在线"| Node1_1["⏱️ 时间 0min<br>🎪 拍卖师：发布欢迎开场白，引导头脑风暴并在左侧提交选题构想"]
+    GuardPresence1 -->|"全员 100% 登录在线"| Node1_1["⏱️ 时间 0min<br>🎪 拍卖师：发布欢迎开场白，引导头脑风暴并在左侧提交个人选题"]
     
-    Node1_1 --> Guard1{"🛡️ 阶段一差异化心流与静默守护 (全员在线)"}
-    Guard1 -->|"真冷场：左侧无动作 且 聊天无发言 > 3min"| Nudge1_1["🎪 拍卖师：发布头脑风暴破冰启发"]
-    Guard1 -->|"纯打字零交流：左侧写提案 > 5-6min 且 聊天无发言"| Nudge1_2["💡 拍卖师：提示交流选题切入点，避免撞车或走偏"]
-    Guard1 -->|"严重滞后：开场 > 6min 仍 0 提案"| Nudge1_3["⏳ 拍卖师：引导尽快动笔提交"]
+    Node1_1 --> Guard1{"🛡️ 阶段一守护与静默监测"}
+    Guard1 -->|"真冷场：左侧无动作 且 聊天无发言 > 3min"| Nudge1_1["💡 拍卖师：发布头脑风暴破冰启发"]
+    Guard1 -->|"严重滞后：开场 > 6min 仍 0 提案"| Nudge1_2["⏳ 拍卖师：引导尽快动笔提交"]
+    Guard1 -->|"消极情绪困扰：检测到焦虑/卡顿 且 45-60s 无同伴安慰"| Nudge1_Emotion["🎪 拍卖师：温和共情并提供选题切入点启发"]
     Guard1 -->|"正常推进"| Node1_2
     
-    Node1_2["📝 学生在左侧撰写并提交/修改个人提案"] --> Node1_3["⚡ 即时响应 (耗时约 1-2s)<br>🎪 拍卖师：对每份提案给出 100~150 字学术可行性点评"]
+    Node1_2["📝 学生在左侧撰写并提交/修改个人提案"] --> Node1_3["⚡ 即时响应 (1-2s)<br>🎪 拍卖师：对每份提案给出 120~160 字学术可行性评估点评"]
     
-    Node1_3 --> CheckProposals{"📊 平台检测：全组 3 人提案是否集齐？"}
-    CheckProposals -->|"未集齐且某人落后 > 4min"| Nudge1_4["📢 拍卖师：点名跟进提醒未交同学"]
-    CheckProposals -->|"已集齐 3/3 份提案"| Node1_4["🎪 拍卖师：出面展示提案列表，号召点击【投这篇】开启竞拍投票"]
+    Node1_3 --> CheckProposals{"📊 平台检测：全组提案是否集齐？"}
+    CheckProposals -->|"未集齐且某人落后 > 3min"| Nudge1_4["📢 拍卖师：点名跟进提醒未交同学"]
+    CheckProposals -->|"全员提案已集齐"| Node1_4["🎪 拍卖师：出面展示提案列表，号召点击【🗳️ 投这篇】开启竞拍投票"]
     
-    Node1_4 --> GuardVote{"🛡️ 投票超时守护"}
-    GuardVote -->|"投票开启 > 3min 未投完"| Nudge1_5["⏳ 拍卖师：点名催促未投票组员"]
-    GuardVote -->|"全员 3 票集齐"| Node1_5
+    Node1_4 --> GuardVote{"🛡️ 投票超时双层守护"}
+    GuardVote -->|"0 人投票 > 3min"| Nudge1_Vote0["⏳ 拍卖师：发出竞拍投票提醒"]
+    GuardVote -->|"部分人投票且落后 > 2min"| Nudge1_VotePart["⏳ 拍卖师：点名提醒未投票组员"]
+    GuardVote -->|"全员完成投票"| Node1_5
     
-    Node1_5["🔔 平台落槌计票 ➔ 立即在左侧自动生成《学术合作合约》草案<br>(写入最高票主题、3人默认分工建议与时间规划)"] --> Node1_6["🎪 拍卖师：公布票数分布 (对事不对人，绝不点名)，引导在讨论区协商融合，微调并签署左侧合约"]
+    Node1_5["🔔 平台计票 ➔ 🎪 拍卖师：客观播报票数分布 (对事不对人)"] --> CheckDivergence{"📊 投票结果判定"}
+    CheckDivergence -->|"存在分歧 (非全票一致)"| Nudge1_Divergence["⚖️ 拍卖师优先引导：化解分歧，商讨取长补短，优先定下全组认可的统一主题"]
+    CheckDivergence -->|"全票一致"| Nudge1_Unanimous["🎉 拍卖师肯定共识：确立该选题，引导细化核心研究问题"]
     
-    Node1_6 --> GuardContract{"🛡️ 合约微调与签署守护"}
-    GuardContract -->|"分歧协商静默：投票有分歧且 > 3min 无人说话"| Nudge1_6["⚖️ 拍卖师：分歧协商破冰，引导融合各家亮点"]
-    GuardContract -->|"分工讨论静默：> 3.5min 无人说话"| Nudge1_7["💡 拍卖师：提示交流章节分工与时间规划"]
-    GuardContract -->|"合约签署超时：合约生成 > 4min 仍有人未签署"| Nudge1_8["📜 拍卖师：点名提醒未签署同学点击【确认签署】"]
-    GuardContract -->|"全员 3 人完成签署"| UnlockStage2([🔓 合约锁定 ➔ 自动解锁进入【阶段二：学术编辑部】])
+    Nudge1_Divergence --> Node1_6
+    Nudge1_Unanimous --> Node1_6
+    
+    Node1_6["💡 拍卖师引导：全组细化选题立意，自主商定章节分工与时间规划<br>(学生可自主决定先分工还是先定时间，在左侧卡片直接修改)"] --> Node1_7["📜 平台在左侧生成《学术合作公约》草案"]
+    
+    Node1_7 --> GuardContract{"🛡️ 公约核对与签署三层守护"}
+    GuardContract -->|"公约无修改 且 讨论区静默 > 3min"| Nudge1_ContractSilence["💡 拍卖师：提示交流分工与时间预算"]
+    GuardContract -->|"公约生成 > 3min 且 0 人签署"| Nudge1_Sign0["📜 拍卖师：提示核对并点击【确认签署】"]
+    GuardContract -->|"部分人已签且落后 > 2min"| Nudge1_SignPart["📜 拍卖师：点名提醒未签署同学"]
+    GuardContract -->|"全员完成签署"| UnlockStage2([🔓 公约锁定 ➔ 自动解锁进入【阶段二：学术编辑部】])
       </pre>
     </div>
   </div>
@@ -143,45 +118,50 @@ flowchart TD
       <h2 style="color: #10b981;">🟢 阶段二：学术编辑部 (责任编辑 + 审稿编辑) 流程图</h2>
       <button class="btn-download" onclick="downloadSVG('stage2-svg', '阶段二_学术编辑部流程图.svg')">📥 下载高清 SVG 图片</button>
     </div>
-    <div class="mermaid-container" id="stage2-container">
+    <div class="mermaid-container">
       <pre class="mermaid" id="stage2-svg">
 flowchart TD
     Start2([🚀 进入阶段二：学术编辑部]) --> GuardPresence2{"🛡️ 前提检测：全组成员是否【全部登录在线】？"}
     GuardPresence2 -->|"有人未登录"| WaitOnline2["⏸️ 平台静默守候，绝不打扰"]
-    GuardPresence2 -->|"全员 100% 登录在线"| Node2_1["⏱️ 时间 0min<br>🤝 责任编辑：开场重申阶段一公约确立的论文主题、分工与时间规划<br>📝 审稿编辑：界面顶部推送《课程学术参考范文库》，提醒学习三线表规范"]
+    GuardPresence2 -->|"全员 100% 登录在线"| Node2_1["⏱️ 时间 0min<br>🤝 责任编辑：开场重申公约分工，强调主动研读同伴段落、全篇逻辑一体化<br>📝 审稿编辑：推送《课程学术参考范文库》，提醒学习三线表规范"]
     
-    Node2_1 --> Loop2_1["✍️ 全组成员在左侧富文本编辑器中分工协同撰写正文<br>(💡 前期 12-15min 重度打字期，平台完全放手保护心流，绝不强求打字期闲聊)"]
+    Node2_1 --> Loop2_1["✍️ 全组在富文本编辑器中协同起草正文<br>(💡 前期 15-20min 重度打字期放手保护心流，减少闲聊打扰)"]
     
-    Loop2_1 --> Patrol2{"🛡️ 平台周期巡检 (每 6 分钟评估一次)<br>📊 综合读取底部真实贡献百分比 (含写字+修改) 与研讨发言条数"}
-    Patrol2 -->|"差一点 (如25% vs 35%) 或 研讨活跃"| Pass2["✅ 宽容度保护：绝不打扰正常写作"]
-    Patrol2 -->|"总投入≥150字 且 某人贡献<10% 且 发言<2条"| Nudge2_1["🤝 责任编辑：发送温和进度关怀<br>👉 请（李明）同学逐步加入负责章节起草..."]
+    Loop2_1 --> Patrol2{"🛡️ 平台全时段周期巡检 (每 6 分钟评估一次)"}
+    Patrol2 -->|"正常推进或微小差异"| Pass2["✅ 宽容度保护：绝不打扰正常写作"]
+    Patrol2 -->|"总投入≥150字 且 某人贡献<10% 且 发言<2条"| Nudge2_1["🤝 责任编辑：发送温和进度关怀，鼓励加入起草"]
+    Patrol2 -->|"消极情绪出现 且 45-60s 无同伴回应"| Nudge2_Emotion["🤝 责任编辑：温和共情并提供写作降载支架"]
     
-    Loop2_1 --> Trigger2_1{"🔍 进度雷达 1：正文写到【二、文献综述】或【三、研究问题与假设】？"}
-    Trigger2_1 -->|"触发一次"| Node2_2["📝 审稿编辑：第一次动态初稿微调质检<br>(通读已有段落，肯定框架，提出 1 句操作化微调建议)"]
+    Loop2_1 --> Radar1{"🔍 进度雷达 1：正文写到【文献综述】或【研究问题/假设】(字数≥120字)？"}
+    Radar1 -->|"触发一次"| Node2_2["📝 审稿编辑：第一次初稿微调质检<br>(通读已有段落，肯定框架，提出 1~2 句操作化微调建议)"]
     
-    Loop2_1 --> HalfwayCondition{"🎯 进度雷达 2：半程编辑会议触发判定 (双轨制)<br>① 正文推进至【五、不足与反思】？<br>OR ② 阶段二已用时达到规划总时间的 60%？"}
+    Loop2_1 --> Radar2{"🎯 进度雷达 2：半程编辑会议双轨制判定<br>① 正文推进至【不足/反思/结论/总结】？<br>OR ② 阶段二已用时达到规划总时间的 60%？"}
     
-    HalfwayCondition -->|"满足任一条件"| Node2_3["📢 责任编辑·半程自查与互阅倡议：<br>💡 号召全组暂停各自打字，花 1-2 分钟通读全篇，感知同伴写的内容是否与最初主题一致、衔接是否顺畅，然后点击左上角发起会议"]
+    Radar2 -->|"满足任一条件"| Node2_3["📢 责任编辑·半程自查与互阅倡议：<br>💡 号召全组暂停单独打字，通读全篇感知同伴内容与立意一致性，点击左上角发起会议"]
     
-    Node2_3 --> Node2_4["📋 学生点击【📢 发起编辑会议】，全员完成 4 维自查打卡<br>(立意一致性、时间匹配度、3维打星、瓶颈难点、开放说明)"]
+    Node2_3 --> Node2_4["📋 学生点击【📢 发起编辑会议】，全员完成 4 维自查打卡"]
     
-    Node2_4 --> Node2_5["🔔 平台立即在左侧生成【半程编辑修正清单】卡片<br>➔ 🤝 责任编辑第 1 棒出场：面向全组 (对事不对人，绝不点名) 梳理自查感知分歧，抛出反思思考题，号召全组在讨论区先交流对齐"]
+    Node2_4 --> Node2_5["🔔 平台在左侧生成【半程编辑修正清单】卡片<br>➔ 🤝 责任编辑第 1 棒出场：研判自查结果 (对事不对人)"]
     
-    Node2_5 --> Gate2["🔒 平台调控守候闸门：坚守闸门，审稿编辑绝不盲目即时弹出！<br>👂 静默监听学生在研讨区的讨论进程"]
+    Node2_5 --> BranchMeeting{"📊 自查结果研判"}
+    BranchMeeting -->|"分支 A：存在立意感知分歧"| Nudge2_BranchA["🤝 责任编辑：抛出逻辑反思题，号召全组在讨论区先交流对齐"]
+    BranchMeeting -->|"分支 B：全员高度一致认同"| Nudge2_BranchB["🤝 责任编辑：肯定高度默契，引导交流难点并顺利交棒"]
     
-    Gate2 --> Consensus{"📊 平台检测：研讨区讨论是否对齐？<br>① 学生研讨达 2 轮以上？<br>OR ② 出现对齐信号 (如'同意/修改/明白了')？"}
+    Nudge2_BranchA --> Gate2["🔒 平台调控守候闸门：静默监听研讨区，审稿编辑不盲目即时弹出"]
+    Nudge2_BranchB --> Gate2
     
-    Consensus -->|"讨论对齐达成"| Node2_6["📝 审稿编辑第 2 棒接力登场：<br>肯定全组商讨达成的立意共识，深度审查正文初稿切片，指出方法论薄弱点并给出学术修改建议，引导全组对照左侧清单修改"]
+    Gate2 --> Consensus{"📊 研讨对齐达成 (讨论≥2轮 或 出现对齐信号)？"}
+    Consensus -->|"讨论对齐"| Node2_6["📝 审稿编辑第 2 棒接力登场：<br>深度审查正文初稿切片，指出方法论薄弱点，给出 3 项具体修改要求，引导对照清单修改"]
     
     Node2_6 --> Loop2_2["🛠️ 全组对照【半程编辑修正清单】协同修改润色正文"]
     
-    Loop2_2 --> PostMeetingGuard{"🛡️ 半程会议后修改静默守护 (清单生成后)"}
-    PostMeetingGuard -->|"⚠️ 讨论区持续 > 8min 完全无人说话"| Nudge2_Post["💡 责任编辑：协同修改交流提示<br>(建议交流修改进展与衔接情况，互相出谋划策)"]
-    PostMeetingGuard -->|"正常推进"| FinalCondition
-
-    Loop2_2 --> FinalCondition{"🎯 终审收尾雷达：<br>① 正文写到【六、参考文献】？<br>OR ② 写作时间进入最后 15% 冲刺期？"}
+    Loop2_2 --> PostGuard{"🛡️ 修改期动态静默守护 (清单生成后)"}
+    PostGuard -->|"讨论区动态静默 > 3~5min (有人发言即重置)"| Nudge2_Post["💡 责任编辑：协同修改交流提示，建议交流衔接与分工互助"]
+    PostGuard -->|"正常推进"| FinalRadar
     
-    FinalCondition -->|"到达收尾期"| Node2_7["🤝 责任编辑：发布冲刺倒计时，鼓励全篇交叉通读、优化前后衔接<br>📝 审稿编辑：发布终审格式排版提醒 (统一标题序号、标准学术三线表、参考文献 GB/T 7714 规范)"]
+    Loop2_2 --> FinalRadar{"🎯 终审收尾雷达：<br>① 正文写到【参考文献】？ OR ② 用时进入最后 15% 冲刺期？"}
+    
+    FinalRadar -->|"到达收尾期"| Node2_7["🤝 责任编辑：发布冲刺倒计时，鼓励全篇交叉通读<br>📝 审稿编辑：发布终审格式排版提醒 (三线表规范、参考文献 GB/T 7714 格式)"]
     
     Node2_7 --> UnlockStage3([🔓 正文完成 ➔ 点击进入【阶段三：答辩擂台】])
       </pre>
@@ -194,32 +174,37 @@ flowchart TD
       <h2 style="color: #eab308;">🟡 阶段三：答辩擂台 (正方 + 反方 + 中间委员) 流程图</h2>
       <button class="btn-download" onclick="downloadSVG('stage3-svg', '阶段三_答辩擂台流程图.svg')">📥 下载高清 SVG 图片</button>
     </div>
-    <div class="mermaid-container" id="stage3-container">
+    <div class="mermaid-container">
       <pre class="mermaid" id="stage3-svg">
 flowchart TD
     Start3([🚀 进入阶段三：答辩擂台]) --> GuardPresence3{"🛡️ 前提检测：全组成员是否【全部登录在线】？"}
     GuardPresence3 -->|"有人未登录"| WaitOnline3["⏸️ 平台静默守候，绝不打扰"]
     GuardPresence3 -->|"全员 100% 登录在线"| Node3_1["⏱️ 步骤 1 (0m)：🟡 中间委员发布开场白，宣布答辩开始"]
     
-    Node3_1 --> Node3_2["⏱️ 步骤 2 (间隔2s)：🟢 正方委员发表肯定支持意见"]
-    Node3_2 --> Node3_3["⏱️ 步骤 3 (间隔2.5s)：🔴 反方委员发表尖锐质询意见"]
-    Node3_3 --> Node3_4["🔔 步骤 4 (平台自动处理)：平台将正方与反方意见自动写入左侧【答辩裁决矩阵】"]
-    Node3_4 --> Node3_5["⏱️ 步骤 5 (间隔2.5s)：🟡 中间委员引导全组静心阅读 1min，并抛出第 1 题辩护思考"]
+    Node3_1 --> Node3_2["⏱️ 步骤 2 (+2.0s)：🟢 正方委员发表肯定支持意见 (提炼 1~3 条核心亮点)"]
+    Node3_2 --> Node3_3["⏱️ 步骤 3 (+2.5s)：🔴 反方委员发表尖锐质询 (避开正方夸赞局部，质询落地可行性与薄弱点)"]
+    Node3_3 --> Node3_4["🔔 步骤 4 (平台自动处理)：平台将反方质询自动写入左侧【答辩裁决矩阵】"]
+    Node3_4 --> Node3_5["⏱️ 步骤 5 (+2.5s)：🟡 中间委员引导：借力正方立论优势，集中力量辩护反方第 1 条质询"]
     
-    Node3_5 --> Guard3{"🛡️ 阶段三高频协商与录入守护 (全员在线)"}
-    Guard3 -->|"答辩研讨静默：开场或辩护中静默 > 3min 无人说话"| Nudge3_1["🟡 中间委员：提示针对正反方意见展开辩护讨论"]
-    Guard3 -->|"长期单人填表零交流：有人在填矩阵但聊天区 > 4-5min 无人交流"| Nudge3_2["💡 中间委员：提示先在研讨区充分交换辩护观点，形成集体共识后再录入矩阵"]
-    Guard3 -->|"学生讨论活跃但矩阵未填"| Nudge3_3["💡 中间委员：适时提醒将辩护共识填入左侧矩阵并修改终稿正文"]
-    Guard3 -->|"正常推进"| Node3_6
+    Node3_5 --> Guard3{"🛡️ 阶段三智能守护与情绪监测"}
+    Guard3 -->|"答辩挫败感出现 且 45-60s 无同伴回应"| Nudge3_Emotion["🟡 中间委员：学术抗挫托底，提供认知重构与辩护思路支架"]
+    Guard3 -->|"长期单人填表零交流 (> 4~5min)"| Nudge3_Single["💡 中间委员：提示先在讨论区形成集体共识后再录入矩阵"]
+    Guard3 -->|"答辩研讨静默 (> 3min)"| Nudge3_Silence["🟡 中间委员：提示针对当前质询展开辩护讨论"]
+    Guard3 -->|"正常推进"| Stepwise1
     
-    Node3_6["💬 学生在讨论区商讨辩护共识 ➔ 录入左侧【答辩裁决矩阵】并保存"] --> Node3_7["📝 点击【返回富文本协作大正文】，将辩护修改同步落实到终稿中"]
+    Stepwise1["💬 全组针对【第 1 条质询】在讨论区商讨辩护共识"] --> CheckDisc1{"📊 讨论成熟度判定 (讨论≥2轮 或 出现共识信号)？"}
+    CheckDisc1 -->|"讨论成熟且未填"| Nudge3_Fill1["💡 中间委员：提示将第 1 条辩护共识录入左侧矩阵并修改终稿正文"]
     
-    Node3_7 --> CheckAllDefense{"📊 平台检测：所有反方质询是否全部答辩完毕？"}
-    CheckAllDefense -->|"还有待答复项"| Node3_6
+    Nudge3_Fill1 --> SaveItem1["💾 学生在左侧保存【第 1 条答辩回复】"]
+    SaveItem1 --> Stepwise2["🟡 中间委员自动顺推：第 1 条已落实，引导全组聚焦攻克【第 2 条质询】"]
+    
+    Stepwise2 --> SaveAll["💬 逐条研讨并保存剩余质询回复 ➔ 同步在正文中落实修改"]
+    
+    SaveAll --> CheckAllDefense{"📊 平台检测：反方质询是否全部答辩完毕？"}
     CheckAllDefense -->|"全部质询答辩完成"| Node3_8["🟡 中间委员：发表答辩总结总评，祝贺团队完成任务，指引全员点击【提交终稿】"]
     
-    Node3_8 --> Node3_9["🎯 全员点击【提交终稿】"]
-    Node3_9 --> EndArchive([🏆 终稿全盘锁定入库 ➔ 弹出课程评估问卷 ➔ 任务圆满完成！])
+    Node3_8 --> Node3_9["🎯 全员点击【提交论文终稿】"]
+    Node3_9 --> EndArchive([🏆 终稿全盘锁定入库 ➔ 弹出课程后置评估问卷 ➔ 任务圆满完成！])
       </pre>
     </div>
   </div>
