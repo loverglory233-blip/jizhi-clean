@@ -726,37 +726,27 @@
       const avatars = ['👨‍🎓', '👩‍🎓', '🧑‍🎓', '🎓', '📚', '🌟'];
       const avatar = avatars[users.length % avatars.length];
 
-      let targetUser;
       if (existingUser) {
-        targetUser = existingUser;
-        if (name && name.trim()) targetUser.name = name.trim();
-        if (customPassword && customPassword.trim()) targetUser.password = customPassword.trim();
-        targetUser.studentCode = cleanCode;
-        targetUser.username = cleanCode;
-
-        if (!targetUser.classIds || !Array.isArray(targetUser.classIds)) {
-          targetUser.classIds = targetUser.classId ? [targetUser.classId] : ['class_101'];
+        if (isStrictUnique) {
+          throw new Error(`学号【${cleanCode}】已被学生【${existingUser.name}】占用！学号必须唯一，请更换学号或前往【加入已有学生】选项卡中关联！`);
         }
-        if (classId && !targetUser.classIds.includes(classId)) {
-          targetUser.classIds.push(classId);
-        }
-        if (!targetUser.classId) targetUser.classId = classId;
-      } else {
-        targetUser = {
-          id: 'u_student_' + Date.now() + Math.floor(Math.random() * 1000),
-          username: cleanCode,
-          studentCode: cleanCode,
-          email: `${cleanUsername}@jizhi.edu`,
-          password: (customPassword && customPassword.trim()) ? customPassword.trim() : '123',
-          name: name.trim(),
-          role: 'student',
-          avatar: avatar,
-          classId: classId || 'class_101',
-          classIds: classId ? [classId] : ['class_101'],
-          groupId: null
-        };
-        users.push(targetUser);
+        return existingUser;
       }
+
+      const targetUser = {
+        id: 'u_student_' + Date.now() + Math.floor(Math.random() * 1000),
+        username: cleanCode,
+        studentCode: cleanCode,
+        email: `${cleanUsername}@jizhi.edu`,
+        password: (customPassword && customPassword.trim()) ? customPassword.trim() : '123',
+        name: name.trim(),
+        role: 'student',
+        avatar: avatar,
+        classId: classId || 'class_101',
+        classIds: classId ? [classId] : ['class_101'],
+        groupId: null
+      };
+      users.push(targetUser);
 
       localStorage.setItem(STORAGE_KEY_USERS_DB, JSON.stringify(users));
 
