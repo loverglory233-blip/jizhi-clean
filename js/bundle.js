@@ -551,10 +551,13 @@
     }
     getSurveyUrl(classId, taskId) {
       const list = this.getSurveysList();
-      const exactMatch = list.find(s => (s.classId === classId || s.classId === 'all') && s.taskId === taskId);
+      if (!classId) return '';
+      // 严格班级匹配：1. 精准匹配班级+任务
+      const exactMatch = list.find(s => s.classId === classId && s.taskId === taskId);
       if (exactMatch) return exactMatch.url;
-      const fallbackMatch = list.find(s => (s.classId === classId || s.classId === 'all') && (s.taskId === 'task_default' || s.taskId === 'task_all'));
-      return fallbackMatch ? fallbackMatch.url : '';
+      // 2. 本班默认任务问卷
+      const classDefaultMatch = list.find(s => s.classId === classId && (s.taskId === 'task_default' || s.taskId === 'task_all'));
+      return classDefaultMatch ? classDefaultMatch.url : '';
     }
     pushGlobalMeta() {
       const payload = {
@@ -2578,41 +2581,46 @@
                   </div>
                 </div>
 
-                <!-- 📊 当前已生效的全部问卷绑定总览 -->
+                <!-- 📊 当前班级已生效的问卷绑定总览 -->
                 <div style="margin-top:16px;">
-                  <div style="font-size:13px; font-weight:800; color:#334155; margin-bottom:10px;">
-                    📊 当前全校已绑定问卷清单 (${surveysList.length} 项已配置):
-                  </div>
-                  ${surveysList.length === 0 ? `
-                    <div style="background:#ffffff; border:1px dashed #cbd5e1; border-radius:8px; padding:16px; font-size:13px; color:#94a3b8; text-align:center;">
-                      当前暂无配置的自定义问卷链接（学生提交终稿时将使用默认问卷）
-                    </div>
-                  ` : `
-                    <div style="display:flex; flex-direction:column; gap:8px;">
-                      ${surveysList.map((s, sIdx) => {
-                        const surveySeqNum = surveysList.length - sIdx;
-                        const isLatestSurvey = sIdx === 0;
-                        return `
-                          <div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:8px; padding:10px 14px; display:flex; justify-content:space-between; align-items:center; gap:12px; box-shadow:0 1px 3px rgba(15,23,42,0.02);">
-                            <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
-                              <span style="background:linear-gradient(135deg, #1d4ed8, #2563eb); color:#ffffff; padding:2px 8px; border-radius:6px; font-size:11.5px; font-weight:800;">问卷 ${surveySeqNum}${isLatestSurvey ? ' (最新)' : ''}</span>
-                              <span style="background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe; padding:2px 8px; border-radius:6px; font-size:12px; font-weight:700;">🏫 ${s.className || '指定班级'}</span>
-                              <span style="background:#f5f3ff; color:#7c3aed; border:1px solid #ddd6fe; padding:2px 8px; border-radius:6px; font-size:12px; font-weight:700;">📌 ${s.taskTitle || '指定写作任务'}</span>
-                              <a href="${s.url}" target="_blank" style="font-size:12px; color:#2563eb; text-decoration:none; font-family:monospace; max-width:320px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">🔗 ${s.url}</a>
-                            </div>
-                            <div style="display:flex; gap:8px;">
-                              <button class="btn-quick-fill-survey" data-id="${s.id}" data-cid="${s.classId}" data-tid="${s.taskId}" data-url="${encodeURIComponent(s.url)}" style="background:#f8fafc; border:1px solid #cbd5e1; color:#334155; padding:4px 10px; border-radius:6px; font-size:11.5px; font-weight:700; cursor:pointer;">
-                                📝 载入修改
-                              </button>
-                              <button class="btn-delete-survey-item" data-id="${s.id}" style="background:#fef2f2; border:1px solid #fecaca; color:#dc2626; padding:4px 8px; border-radius:6px; font-size:11.5px; font-weight:700; cursor:pointer;">
-                                🗑️ 清除
-                              </button>
-                            </div>
-                          </div>
-                        `;
-                      }).join('')}
-                    </div>
-                  `}
+                  ${(() => {
+                    const currentClassSurveys = surveysList.filter(s => s.classId === 'all' || s.classId === activeClass.id);
+                    return `
+                      <div style="font-size:13px; font-weight:800; color:#334155; margin-bottom:10px;">
+                        📊 【${activeClass.name}】已绑定问卷清单 (${currentClassSurveys.length} 项已配置):
+                      </div>
+                      ${currentClassSurveys.length === 0 ? `
+                        <div style="background:#ffffff; border:1px dashed #cbd5e1; border-radius:8px; padding:16px; font-size:13px; color:#94a3b8; text-align:center;">
+                          当前班级暂无配置的自定义问卷链接（学生提交终稿时将使用默认问卷）
+                        </div>
+                      ` : `
+                        <div style="display:flex; flex-direction:column; gap:8px;">
+                          ${currentClassSurveys.map((s, sIdx) => {
+                            const surveySeqNum = currentClassSurveys.length - sIdx;
+                            const isLatestSurvey = sIdx === 0;
+                            return `
+                              <div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:8px; padding:10px 14px; display:flex; justify-content:space-between; align-items:center; gap:12px; box-shadow:0 1px 3px rgba(15,23,42,0.02);">
+                                <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+                                  <span style="background:linear-gradient(135deg, #1d4ed8, #2563eb); color:#ffffff; padding:2px 8px; border-radius:6px; font-size:11.5px; font-weight:800;">问卷 ${surveySeqNum}${isLatestSurvey ? ' (最新)' : ''}</span>
+                                  <span style="background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe; padding:2px 8px; border-radius:6px; font-size:12px; font-weight:700;">🏫 ${s.className || '指定班级'}</span>
+                                  <span style="background:#f5f3ff; color:#7c3aed; border:1px solid #ddd6fe; padding:2px 8px; border-radius:6px; font-size:12px; font-weight:700;">📌 ${s.taskTitle || '指定写作任务'}</span>
+                                  <a href="${s.url}" target="_blank" style="font-size:12px; color:#2563eb; text-decoration:none; font-family:monospace; max-width:320px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">🔗 ${s.url}</a>
+                                </div>
+                                <div style="display:flex; gap:8px;">
+                                  <button class="btn-quick-fill-survey" data-id="${s.id}" data-cid="${s.classId}" data-tid="${s.taskId}" data-url="${encodeURIComponent(s.url)}" style="background:#f8fafc; border:1px solid #cbd5e1; color:#334155; padding:4px 10px; border-radius:6px; font-size:11.5px; font-weight:700; cursor:pointer;">
+                                    📝 载入修改
+                                  </button>
+                                  <button class="btn-delete-survey-item" data-id="${s.id}" style="background:#fef2f2; border:1px solid #fecaca; color:#dc2626; padding:4px 8px; border-radius:6px; font-size:11.5px; font-weight:700; cursor:pointer;">
+                                    🗑️ 清除
+                                  </button>
+                                </div>
+                              </div>
+                            `;
+                          }).join('')}
+                        </div>
+                      `}
+                    `;
+                  })()}
                 </div>
 
               </div>
