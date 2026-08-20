@@ -98,10 +98,10 @@ if ($action === 'get_global_meta') {
     }
         $defaultMeta = [
             'users' => [
-                ['id' => 'u_teacher1', 'username' => 'teacher',   'name' => '张教授 (教师)',        'password' => '123', 'role' => 'teacher', 'studentCode' => '1001',   'classIds' => ['class_101'], 'avatar' => '👩‍🏫'],
-                ['id' => 'u_studentA', 'username' => 'liming',    'name' => '李明 (学生A/组长)',    'password' => '123', 'role' => 'student', 'studentCode' => '202601', 'classId' => 'class_101', 'classIds' => ['class_101'], 'groupId' => 'group_1', 'avatar' => '👨‍🎓'],
-                ['id' => 'u_studentB', 'username' => 'wangfang',  'name' => '王芳 (学生B/组员)',    'password' => '123', 'role' => 'student', 'studentCode' => '202602', 'classId' => 'class_101', 'classIds' => ['class_101'], 'groupId' => 'group_1', 'avatar' => '👩‍🎓'],
-                ['id' => 'u_studentC', 'username' => 'chenqiang', 'name' => '陈强 (学生C/组员)',    'password' => '123', 'role' => 'student', 'studentCode' => '202603', 'classId' => 'class_101', 'classIds' => ['class_101'], 'groupId' => 'group_1', 'avatar' => '🧑‍🎓']
+                ['id' => 'u_teacher1', 'username' => '1001', 'studentCode' => '1001', 'password' => '123', 'name' => '老师', 'role' => 'teacher', 'avatar' => '👩‍🏫'],
+                ['id' => 'u_studentA', 'username' => '202601', 'studentCode' => '202601', 'password' => '123', 'name' => '李明 (组长)', 'role' => 'student', 'avatar' => '👨‍🎓', 'classId' => 'class_101', 'groupId' => 'group_1'],
+                ['id' => 'u_studentB', 'username' => '202602', 'studentCode' => '202602', 'password' => '123', 'name' => '王芳 (组员)', 'role' => 'student', 'avatar' => '👩‍🎓', 'classId' => 'class_101', 'groupId' => 'group_1'],
+                ['id' => 'u_studentC', 'username' => '202603', 'studentCode' => '202603', 'password' => '123', 'name' => '陈强 (组员)', 'role' => 'student', 'avatar' => '🧑‍🎓', 'classId' => 'class_101', 'groupId' => 'group_1']
             ],
             'classes' => [
                 [
@@ -112,7 +112,7 @@ if ($action === 'get_global_meta') {
                     'groups' => [
                         [
                             'id' => 'group_1',
-                            'name' => '第 1 协作小组',
+                            'name' => '第 1 协作小组 (测试组)',
                             'members' => [
                                 ['id' => 'u_studentA', 'name' => '李明', 'studentCode' => '202601', 'role' => '组长', 'roleTitle' => '组长', 'avatar' => '👨‍🎓', 'color' => '#2563eb'],
                                 ['id' => 'u_studentB', 'name' => '王芳', 'studentCode' => '202602', 'role' => '组员', 'roleTitle' => '组员', 'avatar' => '👩‍🎓', 'color' => '#10b981'],
@@ -126,24 +126,87 @@ if ($action === 'get_global_meta') {
                 [
                     'id' => 'task_default',
                     'title' => '期末协作写作 (默认测试任务)',
-                    'classId' => 'all',
-                    'className' => '全校班级',
+                    'classId' => 'class_101',
+                    'className' => '《现代教育技术》2026春01班',
                     'durationMinutes' => 150,
-                    'startTime' => '随时',
-                    'deadline' => '结课前',
+                    'startTime' => '2026/08/01 08:00',
+                    'deadline' => '2026/08/30 23:59',
                     'status' => 'in_progress',
-                    'createdAt' => date('Y-m-d'),
-                    'instructions' => '请全组成员围绕选定的人工智能与教育技术命题开展三阶段人机协同研讨与终稿撰写。',
+                    'createdAt' => '2026/08/01',
+                    'instructions' => '请各小组成员协同完成多智能体学术论文研讨与写作。',
                     'resources' => []
                 ]
             ],
             'announcements' => [],
-            'referencePapers' => [],
+            'referencePapers' => [
+                [
+                    'id' => 'paper_1',
+                    'title' => '从观察到洞察：基于多智能体的人机协同课堂循证教研系统构建_李玲',
+                    'classId' => 'class_101',
+                    'className' => '《现代教育技术》2026春01班',
+                    'taskId' => 'task_default',
+                    'abstract' => '研究设计与学术论证规范',
+                    'keyHighlights' => '研究设计与学术论证规范',
+                    'fileName' => '从观察到洞察：基于多智能体的人机协同课堂循证教研系统构建_李玲.pdf',
+                    'fileUrl' => '',
+                    'fileSize' => '3.8 MB',
+                    'targetGroupId' => 'all',
+                    'targetGroupName' => '全班所有小组'
+                ],
+                [
+                    'id' => 'paper_2',
+                    'title' => '从多智能体到人智学习型组织——多角色智能体支持的人智学习共同体学习活动研究_李海峰',
+                    'classId' => 'class_101',
+                    'className' => '《现代教育技术》2026春01班',
+                    'taskId' => 'task_default',
+                    'abstract' => '研究设计与学术论证规范',
+                    'keyHighlights' => '研究设计与学术论证规范',
+                    'fileName' => '从多智能体到人智学习型组织——多角色智能体支持的人智学习共同体学习活动研究_李海峰.pdf',
+                    'fileUrl' => '',
+                    'fileSize' => '4.2 MB',
+                    'targetGroupId' => 'all',
+                    'targetGroupName' => '全班所有小组'
+                ],
+                [
+                    'id' => 'paper_3',
+                    'title' => '多智能体协同支持的师范生智能教育素养培育研究——“IELES”设计与实践_张洁-2',
+                    'classId' => 'class_101',
+                    'className' => '《现代教育技术》2026春01班',
+                    'taskId' => 'task_default',
+                    'abstract' => '研究设计与学术论证规范',
+                    'keyHighlights' => '研究设计与学术论证规范',
+                    'fileName' => '多智能体协同支持的师范生智能教育素养培育研究——“IELES”设计与实践_张洁-2.pdf',
+                    'fileUrl' => '',
+                    'fileSize' => '3.5 MB',
+                    'targetGroupId' => 'all',
+                    'targetGroupName' => '全班所有小组'
+                ],
+                [
+                    'id' => 'paper_4',
+                    'title' => '多智能体支持论证式协作知识建构：ABCKC-AI系统设计与准实验评估_欧阳璠',
+                    'classId' => 'class_101',
+                    'className' => '《现代教育技术》2026春01班',
+                    'taskId' => 'task_default',
+                    'abstract' => '研究设计与学术论证规范',
+                    'keyHighlights' => '研究设计与学术论证规范',
+                    'fileName' => '多智能体支持论证式协作知识建构：ABCKC-AI系统设计与准实验评估_欧阳璠.pdf',
+                    'fileUrl' => '',
+                    'fileSize' => '5.1 MB',
+                    'targetGroupId' => 'all',
+                    'targetGroupName' => '全班所有小组'
+                ]
+            ],
             'surveys' => []
         ];
-        echo json_encode($defaultMeta, JSON_UNESCAPED_UNICODE);
-    }
-    exit;
+        
+        $jsonStr = json_encode($defaultMeta, JSON_UNESCAPED_UNICODE);
+        if ($pdo) {
+            $healStmt = $pdo->prepare("INSERT INTO global_meta (meta_key, meta_value) VALUES ('main_meta', :v) ON DUPLICATE KEY UPDATE meta_value = :v2");
+            $healStmt->execute([':v' => $jsonStr, ':v2' => $jsonStr]);
+        }
+        @file_put_contents(__DIR__ . '/global_db.json', $jsonStr);
+        echo $jsonStr;
+        exit;
 }
 
 if ($action === 'save_global_meta' && $_SERVER['REQUEST_METHOD'] === 'POST') {
