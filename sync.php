@@ -138,64 +138,7 @@ if ($action === 'get_global_meta') {
                 ]
             ],
             'announcements' => [],
-            'referencePapers' => [
-                [
-                    'id' => 'paper_1',
-                    'title' => '从观察到洞察：基于多智能体的人机协同课堂循证教研系统构建_李玲',
-                    'classId' => 'class_101',
-                    'className' => '《现代教育技术》2026春01班',
-                    'taskId' => 'task_default',
-                    'abstract' => '研究设计与学术论证规范',
-                    'keyHighlights' => '研究设计与学术论证规范',
-                    'fileName' => '从观察到洞察：基于多智能体的人机协同课堂循证教研系统构建_李玲.pdf',
-                    'fileUrl' => '',
-                    'fileSize' => '3.8 MB',
-                    'targetGroupId' => 'all',
-                    'targetGroupName' => '全班所有小组'
-                ],
-                [
-                    'id' => 'paper_2',
-                    'title' => '从多智能体到人智学习型组织——多角色智能体支持的人智学习共同体学习活动研究_李海峰',
-                    'classId' => 'class_101',
-                    'className' => '《现代教育技术》2026春01班',
-                    'taskId' => 'task_default',
-                    'abstract' => '研究设计与学术论证规范',
-                    'keyHighlights' => '研究设计与学术论证规范',
-                    'fileName' => '从多智能体到人智学习型组织——多角色智能体支持的人智学习共同体学习活动研究_李海峰.pdf',
-                    'fileUrl' => '',
-                    'fileSize' => '4.2 MB',
-                    'targetGroupId' => 'all',
-                    'targetGroupName' => '全班所有小组'
-                ],
-                [
-                    'id' => 'paper_3',
-                    'title' => '多智能体协同支持的师范生智能教育素养培育研究——“IELES”设计与实践_张洁-2',
-                    'classId' => 'class_101',
-                    'className' => '《现代教育技术》2026春01班',
-                    'taskId' => 'task_default',
-                    'abstract' => '研究设计与学术论证规范',
-                    'keyHighlights' => '研究设计与学术论证规范',
-                    'fileName' => '多智能体协同支持的师范生智能教育素养培育研究——“IELES”设计与实践_张洁-2.pdf',
-                    'fileUrl' => '',
-                    'fileSize' => '3.5 MB',
-                    'targetGroupId' => 'all',
-                    'targetGroupName' => '全班所有小组'
-                ],
-                [
-                    'id' => 'paper_4',
-                    'title' => '多智能体支持论证式协作知识建构：ABCKC-AI系统设计与准实验评估_欧阳璠',
-                    'classId' => 'class_101',
-                    'className' => '《现代教育技术》2026春01班',
-                    'taskId' => 'task_default',
-                    'abstract' => '研究设计与学术论证规范',
-                    'keyHighlights' => '研究设计与学术论证规范',
-                    'fileName' => '多智能体支持论证式协作知识建构：ABCKC-AI系统设计与准实验评估_欧阳璠.pdf',
-                    'fileUrl' => '',
-                    'fileSize' => '5.1 MB',
-                    'targetGroupId' => 'all',
-                    'targetGroupName' => '全班所有小组'
-                ]
-            ],
+            'referencePapers' => [],
             'surveys' => []
         ];
         
