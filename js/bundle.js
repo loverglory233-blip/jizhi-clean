@@ -2186,12 +2186,16 @@
                   ` : `
                     <div style="display:flex; flex-direction:column; gap:8px;">
                       ${configuredEntries.map(([key, url]) => {
-                        const [cId, ...tIdArr] = key.split('_');
-                        const tId = tIdArr.join('_');
+                        let matchedClass = classes.find(c => key.startsWith(c.id + '_') || key.startsWith(c.id + '###'));
+                        let cId = matchedClass ? matchedClass.id : (key.startsWith('class_') ? key.split('_').slice(0, 2).join('_') : key.split('_')[0]);
+                        let tId = matchedClass ? key.slice(matchedClass.id.length + 1) : key.replace(cId + '_', '');
+                        if (tId.startsWith('#')) tId = tId.replace(/^#+/, '');
+                        
                         const cObj = classes.find(c => c.id === cId);
                         const tObj = tasks.find(t => t.id === tId);
-                        const cName = cObj ? cObj.name : cId;
-                        const tName = tObj ? tObj.title : (tId === 'task_default' ? '期末协作写作 (默认测试任务)' : tId);
+                        const cName = cObj ? cObj.name : '《现代教育技术》2026春01班';
+                        const tName = tObj ? tObj.title : (tId === 'task_default' ? '期末协作写作 (默认测试任务)' : (tId.startsWith('task_') ? '协作写作任务' : tId));
+                        
                         return `
                           <div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:8px; padding:10px 14px; display:flex; justify-content:space-between; align-items:center; gap:12px;">
                             <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
