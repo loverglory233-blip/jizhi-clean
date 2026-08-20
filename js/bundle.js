@@ -334,7 +334,7 @@
       if (!localStorage.getItem(STORAGE_KEY_ANNOUNCEMENTS)) localStorage.setItem(STORAGE_KEY_ANNOUNCEMENTS, JSON.stringify(DefaultAnnouncements));
     }
 
-    // 🛡️ 全局小组数据自动清洗与自愈引擎 (班级之间 100% 独立，且完整保留测试组与自定义名称)
+    // 🛡️ 全局小组数据自动清洗与自愈引擎 (班级之间 100% 独立，彻底清除幽灵空组与重复小组)
     sanitizeAndDeduplicateGroups() {
       try {
         const classes = this.getClasses();
@@ -363,6 +363,7 @@
           if (cls.groups.length > 0) {
             // 每个班级独立维护 seenStudentIds，保证班级与班级彻底隔离互不影响
             const seenStudentIdsInClass = new Set();
+            const seenGroupNames = new Set();
             const cleanGroups = [];
 
             cls.groups.forEach(grp => {
@@ -377,10 +378,23 @@
                 }
               });
 
-              // 保留原有名字（如测试组等），不强行覆盖自定义名称
-              if (validMembers.length > 0 || (grp.name && grp.name.includes('测试组'))) {
+              const isTestGroup = grp.name && grp.name.includes('测试组');
+
+              // 🛡️ 关键：只有包含真实成员的小组（或特定的测试组）才保留，彻底清除 0 人的历史幽灵空组！
+              if (validMembers.length > 0 || isTestGroup) {
                 grp.members = validMembers;
                 cleanGroups.push(grp);
+              }
+            });
+
+            // 重新按序规整命名，避免出现断层或混乱重复的组名
+            let nonTestIndex = 2;
+            cleanGroups.forEach((g) => {
+              if (g.name && g.name.includes('测试组')) {
+                g.name = '第 1 协作小组 (测试组)';
+              } else {
+                g.name = `第 ${nonTestIndex} 协作小组`;
+                nonTestIndex++;
               }
             });
 
