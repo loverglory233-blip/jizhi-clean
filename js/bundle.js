@@ -645,9 +645,13 @@
 
     createClass(className, classCode = null) {
       const classes = this.getClasses();
+      const cleanName = (className || '').trim() || '新教学班';
+      if (classes.some(c => (c.name || '').trim().toLowerCase() === cleanName.toLowerCase())) {
+        throw new Error(`已存在名为【${cleanName}】的教学班级，不能重复创建！`);
+      }
       const newClass = {
         id: 'class_' + Date.now(),
-        name: className || '新教学班',
+        name: cleanName,
         code: classCode || ('MET-2026-' + (classes.length + 1).toString().padStart(2, '0')),
         studentIds: [],
         groups: []
@@ -816,13 +820,21 @@
       const cls = classes.find(c => c.id === classId) || classes[0];
       if (!cls) return;
 
+      const cleanGroupName = (groupName || '').trim() || '新协作小组';
       if (!cls.groups) cls.groups = [];
+
+      // 同班级内小组名称强唯一性校验
+      const duplicateGroup = cls.groups.find(g => g.id !== groupId && (g.name || '').trim().toLowerCase() === cleanGroupName.toLowerCase());
+      if (duplicateGroup) {
+        throw new Error(`当前班级已存在名为【${cleanGroupName}】的小组，请换一个小组名称！`);
+      }
+
       let group = cls.groups.find(g => g.id === groupId);
       if (!group) {
-        group = { id: groupId || ('group_' + Date.now()), name: groupName, members: [] };
+        group = { id: groupId || ('group_' + Date.now()), name: cleanGroupName, members: [] };
         cls.groups.push(group);
       } else {
-        group.name = groupName;
+        group.name = cleanGroupName;
       }
 
       const oldMembers = group.members || [];
@@ -1054,6 +1066,15 @@
 
     createTask(title, classId, instructions, resources = [], startTime = null, deadline = null, durationMinutes = 150) {
       const tasks = this.getTasks();
+      const cleanTitle = (title || '').trim();
+      if (!cleanTitle) throw new Error('任务名称不能为空！');
+
+      // 同班级内任务名称强唯一性校验
+      const duplicateTask = tasks.find(t => t.classId === classId && (t.title || '').trim().toLowerCase() === cleanTitle.toLowerCase());
+      if (duplicateTask) {
+        throw new Error(`当前班级已存在名为《${cleanTitle}》的写作任务，请换一个任务名称！`);
+      }
+
       const classes = this.getClasses();
       const targetClass = classes.find(c => c.id === classId) || classes[0];
       const now = new Date();
@@ -2282,7 +2303,7 @@
                     </div>
                   ` : `
                     <div style="display:flex; flex-direction:column; gap:8px;">
-                      ${configuredEntries.map(([key, url]) => {
+                      ${configuredEntries.map(([key, url], sIdx) => {
                         let matchedClass = classes.find(c => key.startsWith(c.id + '_') || key.startsWith(c.id + '###'));
                         let cId = matchedClass ? matchedClass.id : (key.startsWith('class_') ? key.split('_').slice(0, 2).join('_') : key.split('_')[0]);
                         let tId = matchedClass ? key.slice(matchedClass.id.length + 1) : key.replace(cId + '_', '');
@@ -2296,6 +2317,7 @@
                         return `
                           <div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:8px; padding:10px 14px; display:flex; justify-content:space-between; align-items:center; gap:12px;">
                             <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+                              <span style="background:linear-gradient(135deg, #1d4ed8, #2563eb); color:#ffffff; padding:2px 8px; border-radius:6px; font-size:11.5px; font-weight:800;">问卷 ${sIdx + 1}</span>
                               <span style="background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe; padding:2px 8px; border-radius:6px; font-size:12px; font-weight:700;">🏫 ${cName}</span>
                               <span style="background:#f5f3ff; color:#7c3aed; border:1px solid #ddd6fe; padding:2px 8px; border-radius:6px; font-size:12px; font-weight:700;">📌 ${tName}</span>
                               <a href="${url}" target="_blank" style="font-size:12px; color:#2563eb; text-decoration:none; font-family:monospace; max-width:320px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">🔗 ${url}</a>
@@ -2333,13 +2355,15 @@
                       <div style="font-size:15px; font-weight:800; color:#0f172a;">当前暂无上传的课程参考范文</div>
                       <div style="font-size:12.5px; color:#64748b; margin-top:4px;">点击右上角【+ 上传学术参考范文】上传论文样本，学生可在阶段二正文上方随时查阅下载！</div>
                     </div>
-                  ` : refPapers.map(p => {
+                  ` : refPapers.map((p, pIdx) => {
                     const linkedTask = tasks.find(t => t.id === p.taskId);
                     const taskLabel = p.taskId === 'task_all' || !p.taskId ? '🌐 通用范文 (全部任务)' : (linkedTask ? `📌 ${linkedTask.title}` : '📌 专属任务范文');
+                    const isLatest = pIdx === 0;
                     return `
                     <div style="background:#ffffff; border:1px solid #e2e8f0; padding:18px; border-radius:12px; box-shadow:0 1px 3px rgba(15,23,42,0.03);">
                       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
                         <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                          <span style="background:linear-gradient(135deg, #7c3aed, #4f46e5); color:#ffffff; padding:3px 10px; border-radius:8px; font-size:12px; font-weight:800;">范文 ${pIdx + 1}${isLatest ? ' (最新)' : ''}</span>
                           <span style="font-weight:800; color:#1e40af; font-size:16px;">📄 ${p.title}</span>
                           <span style="background:#f5f3ff; color:#7c3aed; border:1px solid #ddd6fe; padding:2px 8px; border-radius:8px; font-size:11.5px; font-weight:700;">${taskLabel}</span>
                           <span style="background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe; padding:2px 8px; border-radius:8px; font-size:11.5px; font-weight:700;">定向受众: ${p.targetGroupName || '全班所有小组'}</span>
@@ -2383,10 +2407,15 @@
                   <button id="btn-v2-open-task-modal" class="teacher-action-btn indigo" style="background:#2563eb; padding:8px 18px; font-size:13px; font-weight:700;">+ 发布全新写作任务</button>
                 </div>
                 <div style="display:flex; flex-direction:column; gap:14px;">
-                  ${tasks.map(t => `
+                  ${tasks.map((t, tIdx) => {
+                    const isLatest = tIdx === 0;
+                    return `
                     <div style="background:#ffffff; border:1px solid #e2e8f0; padding:18px; border-radius:12px; box-shadow:0 1px 3px rgba(15,23,42,0.03);">
                       <div style="display:flex; justify-content:space-between; align-items:center;">
-                        <span style="font-size:16px; font-weight:800; color:#1e40af;">📌 ${t.title}</span>
+                        <div style="display:flex; align-items:center; gap:8px;">
+                          <span style="background:linear-gradient(135deg, #1d4ed8, #2563eb); color:#ffffff; padding:3px 10px; border-radius:8px; font-size:12px; font-weight:800;">任务 ${tIdx + 1}${isLatest ? ' (最新)' : ''}</span>
+                          <span style="font-size:16px; font-weight:800; color:#1e40af;">📌 ${t.title}</span>
+                        </div>
                         <div style="display:flex; align-items:center; gap:8px;">
                           <span style="background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe; padding:4px 12px; border-radius:12px; font-size:12px; font-weight:700;">受众班级: ${t.className}</span>
                           ${t.id !== 'task_default' ? `
@@ -2401,9 +2430,9 @@
                         <span>⌛ <b>截止时间:</b> <span style="color:#dc2626; font-weight:700;">${t.deadline || '无硬性限制'}</span></span>
                         <span>⏱️ <b>预估时长:</b> ${t.durationMinutes} 分钟</span>
                       </div>
-                      <div style="font-size:13px; color:#334155; line-height:1.6;">${t.instructions}</div>
                     </div>
-                  `).join('')}
+                    `;
+                  }).join('')}
                 </div>
               </div>
 
@@ -3198,9 +3227,13 @@
         const leaderUserId = leaderRadio ? leaderRadio.value : (selectedUserIds[0] || null);
 
         if (!name) { alert('⚠️ 请输入小组名称！'); return; }
-        authManager.updateGroupMembers(cls.id, editingGroupId || ('group_' + Date.now()), name, selectedUserIds, leaderUserId);
-        closeModal();
-        renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+        try {
+          authManager.updateGroupMembers(cls.id, editingGroupId || ('group_' + Date.now()), name, selectedUserIds, leaderUserId);
+          closeModal();
+          renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+        } catch (err) {
+          alert('❌ ' + err.message);
+        }
       });
     };
 
@@ -3424,9 +3457,13 @@
           const deadline = modal.querySelector('#modal-task-deadline').value;
 
           if (!title) { alert('⚠️ 请输入写作任务名称！'); return; }
-          authManager.createTask(title, classId, desc, [], startTime, deadline, 150);
-          closeModal();
-          renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+          try {
+            authManager.createTask(title, classId, desc, [], startTime, deadline, 150);
+            closeModal();
+            renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+          } catch (err) {
+            alert('❌ ' + err.message);
+          }
         });
       });
     }
