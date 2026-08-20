@@ -1079,30 +1079,56 @@
           }
         });
 
-        const shuffled = [...classStudents].sort(() => Math.random() - 0.5);
-        const totalGroupCount = Math.max(1, Math.ceil(shuffled.length / parsedGroupSize));
+        // 识别本班是否包含测试 3 人组
+        const testStudentIds = ['u_studentA', 'u_studentB', 'u_studentC'];
+        const testStudentsInClass = classStudents.filter(u => testStudentIds.includes(u.id) || ['202601', '202602', '202603'].includes(u.studentCode));
+        const regularStudents = classStudents.filter(u => !testStudentsInClass.some(tu => tu.id === u.id));
 
         const newGroups = [];
-        for (let i = 0; i < totalGroupCount; i++) {
-          const groupIndex = i + 1;
-          const startIdx = i * parsedGroupSize;
-          const endIdx = Math.min(shuffled.length, startIdx + parsedGroupSize);
-          const groupChunk = shuffled.slice(startIdx, endIdx);
 
-          const groupId = `group_${Date.now()}_${groupIndex}`;
-          const memberIds = groupChunk.map(s => s.id);
-
-          groupChunk.forEach(s => {
+        // 1. 如果班级包含测试账号，固定锁定为【第 1 协作小组 (测试组)】
+        if (testStudentsInClass.length > 0) {
+          const g1Id = 'group_1';
+          testStudentsInClass.forEach(s => {
             const matchedUser = allUsers.find(u => u.id === s.id);
-            if (matchedUser) matchedUser.groupId = groupId;
+            if (matchedUser) matchedUser.groupId = g1Id;
           });
 
           newGroups.push({
-            id: groupId,
-            name: `第 ${groupIndex} 协作小组`,
-            members: memberIds
+            id: g1Id,
+            name: '第 1 协作小组 (测试组)',
+            members: testStudentsInClass.map(s => s.id)
           });
         }
+
+        // 2. 真实学生从后续组号开始随机洗牌分配
+        if (regularStudents.length > 0) {
+          const shuffled = [...regularStudents].sort(() => Math.random() - 0.5);
+          const totalGroupCount = Math.max(1, Math.ceil(shuffled.length / parsedGroupSize));
+          const startIndex = newGroups.length + 1;
+
+          for (let i = 0; i < totalGroupCount; i++) {
+            const groupIndex = startIndex + i;
+            const startIdx = i * parsedGroupSize;
+            const endIdx = Math.min(shuffled.length, startIdx + parsedGroupSize);
+            const groupChunk = shuffled.slice(startIdx, endIdx);
+
+            const groupId = `group_${Date.now()}_${groupIndex}`;
+            const memberIds = groupChunk.map(s => s.id);
+
+            groupChunk.forEach(s => {
+              const matchedUser = allUsers.find(u => u.id === s.id);
+              if (matchedUser) matchedUser.groupId = groupId;
+            });
+
+            newGroups.push({
+              id: groupId,
+              name: `第 ${groupIndex} 协作小组`,
+              members: memberIds
+            });
+          }
+        }
+
         cls.groups = newGroups;
       }
 
