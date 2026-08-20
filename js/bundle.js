@@ -388,7 +388,8 @@
             });
 
             // 重新按序规整命名，避免出现断层或混乱重复的组名
-            let nonTestIndex = 2;
+            const hasTest = cleanGroups.some(g => g.name && g.name.includes('测试组'));
+            let nonTestIndex = hasTest ? 2 : 1;
             cleanGroups.forEach((g) => {
               if (g.name && g.name.includes('测试组')) {
                 g.name = '第 1 协作小组 (测试组)';
@@ -2390,7 +2391,8 @@
                     });
 
                     // 自动规整命名
-                    let nonTestIdx = 2;
+                    const hasTest = validGroups.some(g => g.name && g.name.includes('测试组'));
+                    let nonTestIdx = hasTest ? 2 : 1;
                     validGroups.forEach(g => {
                       if (g.name && g.name.includes('测试组')) {
                         g.name = '第 1 协作小组 (测试组)';
@@ -2719,7 +2721,15 @@
 
                 <div style="display:flex; justify-content:space-between; align-items:center; background:#ffffff; border:1px solid #e2e8f0; border-radius:12px; padding:12px 18px; width:100%; box-shadow:0 1px 3px rgba(15,23,42,0.03);">
                   <div style="display:flex; align-items:center; gap:12px;">
-                    <span style="font-size:13px; font-weight:700; color:#334155;">📍 实时跟随指示: 当前【${activeMonitorGroup.name}】实际处于: <b style="color:#2563eb;">${actualStage === 'stage1' ? '🎪 阶段一：学术拍卖会' : actualStage === 'stage2' ? '📰 阶段二：学术编辑部' : '🎓 阶段三：答辩擂台'}</b></span>
+                    ${(() => {
+                      const mNames = monitorMembersList.map(m => m.name).filter(Boolean);
+                      const mStr = mNames.length > 0 ? `(${mNames.join('、')})` : '';
+                      return `
+                        <span style="font-size:13px; font-weight:700; color:#334155;">
+                          📍 实时跟随指示: 当前【${activeMonitorGroup.name}】<span style="color:#2563eb; font-weight:700; margin-left:4px;">${mStr}</span> 实际处于: <b style="color:#2563eb;">${actualStage === 'stage1' ? '🎪 阶段一：学术拍卖会' : actualStage === 'stage2' ? '📰 阶段二：学术编辑部' : '🎓 阶段三：答辩擂台'}</b>
+                        </span>
+                      `;
+                    })()}
                   </div>
                   <div style="display:flex; align-items:center; gap:8px;">
                     <span style="font-size:12px; color:#64748b; font-weight:600;">🔀 切换同屏切页:</span>
@@ -3553,13 +3563,14 @@
     // 📋 问卷按【班级 + 任务】联动切换与独立保存
     const selSurveyClass = container.querySelector('#sel-survey-class');
     const selSurveyTask = container.querySelector('#sel-survey-task');
-    const surveyUrlInput = container.querySelector('#survey-url-input');
+    const surveyUrlInput = container.querySelector('#input-survey-url') || container.querySelector('#survey-url-input');
 
     const updateSurveyUrlInputVal = () => {
-      if (!surveyUrlInput) return;
+      const inputEl = container.querySelector('#input-survey-url') || container.querySelector('#survey-url-input');
+      if (!inputEl) return;
       const cId = selSurveyClass ? selSurveyClass.value : activeClass.id;
       const tId = selSurveyTask ? selSurveyTask.value : (state.activeTaskId || 'task_default');
-      surveyUrlInput.value = authManager.getSurveyUrl(cId, tId);
+      inputEl.value = authManager.getSurveyUrl(cId, tId);
     };
 
     if (selSurveyClass) selSurveyClass.addEventListener('change', updateSurveyUrlInputVal);
@@ -3568,8 +3579,7 @@
     const btnSaveSurveyUrl = container.querySelector('#btn-save-survey-url');
     if (btnSaveSurveyUrl) {
       btnSaveSurveyUrl.addEventListener('click', () => {
-        const urlInput = container.querySelector('#survey-url-input');
-        const statusEl = container.querySelector('#survey-url-status');
+        const urlInput = container.querySelector('#input-survey-url') || container.querySelector('#survey-url-input');
         const targetClassId = selSurveyClass ? selSurveyClass.value : activeClass.id;
         const targetTaskId = selSurveyTask ? selSurveyTask.value : (state.activeTaskId || 'task_default');
         const url = urlInput ? urlInput.value.trim() : '';
@@ -3581,8 +3591,22 @@
           window.app.cloudSyncEngine.pushSnapshot();
         }
 
-        if (statusEl) { statusEl.style.display = 'block'; setTimeout(() => { statusEl.style.display = 'none'; }, 2500); }
-        setTimeout(() => renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView), 600);
+        alert('✅ 问卷链接已成功保存并永久同步！');
+        renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+      });
+    }
+
+    const btnDeleteSurveyUrl = container.querySelector('#btn-delete-survey-url');
+    if (btnDeleteSurveyUrl) {
+      btnDeleteSurveyUrl.addEventListener('click', () => {
+        const targetClassId = selSurveyClass ? selSurveyClass.value : activeClass.id;
+        const targetTaskId = selSurveyTask ? selSurveyTask.value : (state.activeTaskId || 'task_default');
+        if (confirm('确认清除当前选定班级与任务绑定的问卷链接？')) {
+          authManager.deleteSurveyUrl(targetClassId, targetTaskId);
+          if (window.app && window.app.cloudSyncEngine) window.app.cloudSyncEngine.pushSnapshot();
+          alert('✅ 问卷链接已成功清除！');
+          renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+        }
       });
     }
 
