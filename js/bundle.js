@@ -1062,12 +1062,14 @@
       this.pushGlobalMeta();
     }
 
-    publishAnnouncement(taskId, title, content, attachment = null, targetGroupId = 'all', targetGroupName = '全班所有小组') {
+    publishAnnouncement(taskId, title, content, attachment = null, targetGroupId = 'all', targetGroupName = '全班所有小组', classId = 'all', className = '全校班级') {
       const announcements = this.getAnnouncements();
       const tasks = this.getTasks();
       const task = tasks.find(t => t.id === taskId);
       const newAnn = {
         id: 'ann_' + Date.now(),
+        classId: classId || 'all',
+        className: className || '全校班级',
         taskId: taskId || 'task_all',
         taskTitle: taskId === 'task_all' ? '全班通识广播' : (task ? task.title : '指定写作任务'),
         targetGroupId: targetGroupId || 'all',
@@ -1100,11 +1102,16 @@
       }
     }
 
-    getReferencePapers(groupId = null) {
+    getReferencePapers(groupId = null, classId = null) {
       const data = localStorage.getItem('jizhi_reference_papers_db');
       const papers = data ? JSON.parse(data) : [];
-      if (!groupId || groupId === 'all') return papers;
-      return papers.filter(p => !p.targetGroupId || p.targetGroupId === 'all' || p.targetGroupId === groupId);
+      return papers.filter(p => {
+        // 班级匹配：无指定班级 或 属于当前班级 或 通用全校
+        const matchClass = !classId || classId === 'all' || !p.classId || p.classId === 'all' || p.classId === classId;
+        // 小组匹配：无指定小组 或 属于当前小组 或 通用全班
+        const matchGroup = !groupId || groupId === 'all' || !p.targetGroupId || p.targetGroupId === 'all' || p.targetGroupId === groupId;
+        return matchClass && matchGroup;
+      });
     }
 
     uploadReferencePaper(paper) {
@@ -1118,6 +1125,8 @@
 
       const newPaper = {
         id: paperId,
+        classId: paper.classId || 'all',
+        className: paper.className || '全校班级',
         taskId: paper.taskId || 'task_all',
         title: paper.title || '未命名学术参考范文',
         abstract: paper.abstract || '',
@@ -3290,8 +3299,8 @@
     if (btnOpenAnnV2) {
       btnOpenAnnV2.addEventListener('click', () => {
         document.querySelectorAll('.modal-overlay').forEach(el => el.remove());
-        const freshCls = authManager.getClasses().find(c => c.id === activeClass.id) || activeClass;
-        const classGroups = (freshCls.groups && freshCls.groups.length > 0) ? freshCls.groups : [{ id: 'group_1', name: '第 1 协作小组' }];
+        const allClasses = authManager.getClasses();
+        const initialCls = allClasses.find(c => c.id === activeClass.id) || activeClass;
 
         const modal = document.createElement('div');
         modal.className = 'modal-overlay';
@@ -3302,28 +3311,38 @@
                 <div class="modal-icon-badge ann">📢</div>
                 <div>
                   <h3>发布课堂即时通知</h3>
-                  <p style="font-size:12px; color:#cbd5e1;">选择或拖拽本地文件随附发布，学生端可点击下载</p>
+                  <p style="font-size:12px; color:#cbd5e1;">选择目标班级与受众小组，可随附教学资源文件</p>
                 </div>
               </div>
               <button class="modal-close-btn" id="btn-close-ann-modal">✕</button>
             </div>
             <div class="teacher-modal-body">
+              
               <div class="form-grid-2">
+                <div class="teacher-form-group">
+                  <label><span class="req">*</span> 🏫 目标教学班级</label>
+                  <select id="modal-ann-class" class="teacher-input fancy">
+                    <option value="all">🌐 全校所有班级 (广播)</option>
+                    ${allClasses.map(c => `<option value="${c.id}" ${c.id === initialCls.id ? 'selected' : ''}>🏫 ${c.name}</option>`).join('')}
+                  </select>
+                </div>
                 <div class="teacher-form-group">
                   <label><span class="req">*</span> 📌 关联写作任务</label>
                   <select id="modal-ann-task" class="teacher-input fancy">
-                    <option value="task_all">🌐 全班通识广播 (全流程可见)</option>
+                    <option value="task_all">🌐 全流程通识广播 (全部任务可见)</option>
                     ${tasks.map(t => `<option value="${t.id}">📌 ${t.title}</option>`).join('')}
                   </select>
                 </div>
-                <div class="teacher-form-group">
-                  <label><span class="req">*</span> 🎯 推送受众小组</label>
-                  <select id="modal-ann-target-group" class="teacher-input fancy">
-                    <option value="all">🌐 全班所有小组</option>
-                    ${classGroups.map(g => `<option value="${g.id}">👥 ${g.name}</option>`).join('')}
-                  </select>
-                </div>
               </div>
+
+              <div class="teacher-form-group" style="margin-top:10px;">
+                <label><span class="req">*</span> 🎯 推送受众小组</label>
+                <select id="modal-ann-target-group" class="teacher-input fancy">
+                  <option value="all">🌐 全班所有小组</option>
+                  ${(initialCls.groups || []).map(g => `<option value="${g.id}">👥 ${g.name}</option>`).join('')}
+                </select>
+              </div>
+
               <div class="teacher-form-group" style="margin-top:10px;">
                 <label><span class="req">*</span> 通知标题</label>
                 <input type="text" id="modal-ann-title" class="teacher-input fancy" value="" placeholder="输入通知标题">
@@ -3368,6 +3387,16 @@
         };
         document.addEventListener('keydown', onEscKey);
 
+        // 班级切换联动小组
+        const classSelect = modal.querySelector('#modal-ann-class');
+        const groupSelect = modal.querySelector('#modal-ann-target-group');
+        classSelect.addEventListener('change', (e) => {
+          const selectedCId = e.target.value;
+          const targetCls = allClasses.find(c => c.id === selectedCId);
+          const groups = (targetCls && targetCls.groups) ? targetCls.groups : [];
+          groupSelect.innerHTML = `<option value="all">🌐 全班所有小组</option>` + groups.map(g => `<option value="${g.id}">👥 ${g.name}</option>`).join('');
+        });
+
         const fileInput = modal.querySelector('#modal-ann-file-input');
         const dropzone = modal.querySelector('#ann-file-dropzone');
         const dropText = modal.querySelector('#ann-dropzone-text');
@@ -3384,14 +3413,18 @@
         });
 
         modal.querySelector('#btn-submit-new-ann').addEventListener('click', () => {
+          const selClassId = classSelect.value;
+          const selClassObj = allClasses.find(c => c.id === selClassId);
+          const selClassName = selClassId === 'all' ? '全校班级' : (selClassObj ? selClassObj.name : '指定班级');
+          
           const taskId = modal.querySelector('#modal-ann-task').value;
-          const targetGId = modal.querySelector('#modal-ann-target-group').value;
-          const targetGObj = classGroups.find(g => g.id === targetGId);
+          const targetGId = groupSelect.value;
+          const targetGObj = (selClassObj && selClassObj.groups) ? selClassObj.groups.find(g => g.id === targetGId) : null;
           const targetGName = targetGId === 'all' ? '全班所有小组' : (targetGObj ? targetGObj.name : '指定小组');
           const title = modal.querySelector('#modal-ann-title').value.trim();
           const content = modal.querySelector('#modal-ann-content').value.trim();
           if (!title || !content) { alert('⚠️ 请填齐通知标题与内容！'); return; }
-          authManager.publishAnnouncement(taskId, title, content, selectedAttachment, targetGId, targetGName);
+          authManager.publishAnnouncement(taskId, title, content, selectedAttachment, targetGId, targetGName, selClassId, selClassName);
           closeModal();
           renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
         });
@@ -3399,23 +3432,24 @@
     }
 
     // 📚 参考范文上传 Modal
+    // 📚 参考范文上传 Modal
     const btnOpenPaperModal = container.querySelector('#btn-v2-open-paper-modal');
     if (btnOpenPaperModal) {
       btnOpenPaperModal.addEventListener('click', () => {
         document.querySelectorAll('.modal-overlay').forEach(el => el.remove());
-        const freshCls = authManager.getClasses().find(c => c.id === activeClass.id) || activeClass;
-        const classGroups = (freshCls.groups && freshCls.groups.length > 0) ? freshCls.groups : [{ id: 'group_1', name: '第 1 协作小组' }];
+        const allClasses = authManager.getClasses();
+        const initialCls = allClasses.find(c => c.id === activeClass.id) || activeClass;
 
         const modal = document.createElement('div');
         modal.className = 'modal-overlay';
         modal.innerHTML = `
-          <div class="teacher-modal-card fancy-task-modal" style="width:520px;">
+          <div class="teacher-modal-card fancy-task-modal" style="width:580px;">
             <div class="teacher-modal-header task-theme-gradient" style="background:linear-gradient(135deg, #7c3aed, #4f46e5);">
               <div class="modal-header-title">
                 <div class="modal-icon-badge" style="background:rgba(255,255,255,0.2); color:white;">📚</div>
                 <div>
                   <h3>上传课程学术参考范文</h3>
-                  <p style="font-size:12px; color:#e0e7ff;">选取文献文件并指定推送任务与受众小组</p>
+                  <p style="font-size:12px; color:#e0e7ff;">选取目标班级与文献文件，学生可在协作正文上方查阅下载</p>
                 </div>
               </div>
               <button class="modal-close-btn" id="btn-close-paper-modal">✕</button>
@@ -3423,22 +3457,29 @@
             <div class="teacher-modal-body">
               <div class="teacher-form-group">
                 <label><span class="req">*</span> 📎 选取本地文献文件 (PDF / Word / DOCX / Markdown / TXT)</label>
-                <div id="paper-file-dropzone" style="border:2px dashed #a78bfa; border-radius:10px; padding:20px; text-align:center; background:#f5f3ff; cursor:pointer; transition:all 0.2s;">
+                <div id="paper-file-dropzone" style="border:2px dashed #a78bfa; border-radius:10px; padding:18px; text-align:center; background:#f5f3ff; cursor:pointer; transition:all 0.2s;">
                   <input type="file" id="modal-paper-file-input" style="display:none;" accept=".pdf,.doc,.docx,.txt,.md">
                   <div id="paper-dropzone-text">
-                    <span style="font-size:32px;">📄</span>
-                    <div style="font-size:13.5px; font-weight:700; color:#7c3aed; margin-top:6px;">点击选择或拖拽本地文献文件上传</div>
+                    <span style="font-size:30px;">📄</span>
+                    <div style="font-size:13.5px; font-weight:700; color:#7c3aed; margin-top:4px;">点击选择或拖拽本地文献文件上传</div>
                     <div style="font-size:11.5px; color:#8b5cf6; margin-top:2px;">(选取后将自动识别文件名称作为文献标题)</div>
                   </div>
                 </div>
               </div>
 
-              <div class="teacher-form-group" style="margin-top:12px;">
+              <div class="teacher-form-group" style="margin-top:10px;">
                 <label><span class="req">*</span> 范文文献标题</label>
                 <input type="text" id="modal-paper-title" class="teacher-input fancy" placeholder="例如：《基于大语言模型的多智能体协同学习实证研究》" value="">
               </div>
 
-              <div class="form-grid-2" style="margin-top:12px;">
+              <div class="form-grid-2" style="margin-top:10px;">
+                <div class="teacher-form-group">
+                  <label><span class="req">*</span> 🏫 目标教学班级</label>
+                  <select id="modal-paper-class" class="teacher-input fancy">
+                    <option value="all">🌐 全校所有班级 (通用)</option>
+                    ${allClasses.map(c => `<option value="${c.id}" ${c.id === initialCls.id ? 'selected' : ''}>🏫 ${c.name}</option>`).join('')}
+                  </select>
+                </div>
                 <div class="teacher-form-group">
                   <label><span class="req">*</span> 📌 关联写作任务</label>
                   <select id="modal-paper-task" class="teacher-input fancy">
@@ -3446,13 +3487,14 @@
                     ${tasks.map(t => `<option value="${t.id}">📌 ${t.title}</option>`).join('')}
                   </select>
                 </div>
-                <div class="teacher-form-group">
-                  <label><span class="req">*</span> 🎯 推送受众小组</label>
-                  <select id="modal-paper-target-group" class="teacher-input fancy">
-                    <option value="all">🌐 全班所有小组</option>
-                    ${classGroups.map(g => `<option value="${g.id}">👥 ${g.name}</option>`).join('')}
-                  </select>
-                </div>
+              </div>
+
+              <div class="teacher-form-group" style="margin-top:10px;">
+                <label><span class="req">*</span> 🎯 推送受众小组</label>
+                <select id="modal-paper-target-group" class="teacher-input fancy">
+                  <option value="all">🌐 全班所有小组</option>
+                  ${(initialCls.groups || []).map(g => `<option value="${g.id}">👥 ${g.name}</option>`).join('')}
+                </select>
               </div>
 
               <div style="margin-top:12px; background:#eff6ff; border:1px solid #bfdbfe; padding:10px 14px; border-radius:8px; display:flex; align-items:center; gap:8px;">
@@ -3487,6 +3529,16 @@
         };
         document.addEventListener('keydown', onEscKey);
 
+        // 班级联动小组
+        const paperClassSelect = modal.querySelector('#modal-paper-class');
+        const paperGroupSelect = modal.querySelector('#modal-paper-target-group');
+        paperClassSelect.addEventListener('change', (e) => {
+          const selectedCId = e.target.value;
+          const targetCls = allClasses.find(c => c.id === selectedCId);
+          const groups = (targetCls && targetCls.groups) ? targetCls.groups : [];
+          paperGroupSelect.innerHTML = `<option value="all">🌐 全班所有小组</option>` + groups.map(g => `<option value="${g.id}">👥 ${g.name}</option>`).join('');
+        });
+
         const fileInput = modal.querySelector('#modal-paper-file-input');
         const dropzone = modal.querySelector('#paper-file-dropzone');
         const dropText = modal.querySelector('#paper-dropzone-text');
@@ -3516,8 +3568,12 @@
         submitBtn.addEventListener('click', () => {
           try {
             let title = titleInput.value.trim();
+            const selClassId = paperClassSelect.value;
+            const selClassObj = allClasses.find(c => c.id === selClassId);
+            const selClassName = selClassId === 'all' ? '全校班级' : (selClassObj ? selClassObj.name : '指定班级');
+
             const targetTaskId = modal.querySelector('#modal-paper-task') ? modal.querySelector('#modal-paper-task').value : 'task_all';
-            const targetGId = modal.querySelector('#modal-paper-target-group') ? modal.querySelector('#modal-paper-target-group').value : 'all';
+            const targetGId = paperGroupSelect ? paperGroupSelect.value : 'all';
             const autoPush = modal.querySelector('#modal-paper-auto-push') ? modal.querySelector('#modal-paper-auto-push').checked : true;
 
             if (!selectedFile.name && !title) {
@@ -3528,13 +3584,15 @@
               title = selectedFile.name ? selectedFile.name.replace(/\.[^/.]+$/, '') : '学术参考范文';
             }
 
-            const targetGObj = classGroups.find(g => g.id === targetGId);
+            const targetGObj = (selClassObj && selClassObj.groups) ? selClassObj.groups.find(g => g.id === targetGId) : null;
 
             submitBtn.disabled = true;
             submitBtn.innerText = '⏳ 正在存入范文库...';
 
             const newPaper = authManager.uploadReferencePaper({
               title,
+              classId: selClassId,
+              className: selClassName,
               taskId: targetTaskId,
               abstract: '',
               keyHighlights: '研究设计与学术论证规范',
@@ -3708,9 +3766,16 @@
     const announcements = authManager.getAnnouncements();
     const groupId = (currentUser && currentUser.groupId) ? currentUser.groupId : 'group_1';
     const userClass = classes.find(c => c.id === currentUser?.classId) || classes[0];
+    const userClassId = userClass ? userClass.id : null;
     const groupObj = (userClass && userClass.groups) ? userClass.groups.find(g => g.id === groupId) : null;
     const groupName = groupObj ? groupObj.name : '第1小组';
-    const unreadAnnCount = announcements ? announcements.filter(a => !a.readStatus || !a.readStatus[groupId]).length : 0;
+
+    const relevantAnnouncements = (announcements || []).filter(a => {
+      const matchClass = !a.classId || a.classId === 'all' || !userClassId || a.classId === userClassId;
+      const matchGroup = !a.targetGroupId || a.targetGroupId === 'all' || a.targetGroupId === groupId;
+      return matchClass && matchGroup;
+    });
+    const unreadAnnCount = relevantAnnouncements.filter(a => !a.readStatus || !a.readStatus[groupId]).length;
     const isFinalSubmitted = state.isFinalSubmitted;
 
     const relevantTasks = tasks.filter(t => !t.classId || t.classId === userClass?.id || t.classId === 'all');
@@ -5748,15 +5813,19 @@
           appEl.className = 'app-student-portal-mode';
           renderStudentTaskPortal(
             appEl, this.authManager, this.state,
-            (taskId) => {
+            async (taskId) => {
               this.state.activeTaskId = taskId || 'task_default';
               this.state.studentViewMode = 'workspace';
+              if (this.authManager && this.authManager.pullGlobalMeta) {
+                try { await this.authManager.pullGlobalMeta(); } catch (e) {}
+              }
               this.loadGroupState(currentGroupId);
               this.renderMain();
               if (this.cloudSyncEngine) {
                 this.cloudSyncEngine.updateScopeKeys();
                 this.cloudSyncEngine.pullFromServer();
               }
+              this.checkUnreadAnnouncements();
             },
             () => this.handleLogout(),
             () => this.switchToTeacherView(),
@@ -6337,14 +6406,23 @@
       }, 10000);
     }
 
-    checkUnreadAnnouncements() {
+    async checkUnreadAnnouncements() {
+      if (this.authManager && this.authManager.pullGlobalMeta) {
+        try { await this.authManager.pullGlobalMeta(); } catch (e) {}
+      }
       const currentUser = this.authManager.getCurrentUser();
       const groupId = currentUser && currentUser.groupId ? currentUser.groupId : 'group_1';
+      const userClassId = currentUser ? currentUser.classId : null;
       const allAnns = this.authManager.getAnnouncements();
       
-      // 过滤出当前小组可见且【未读】的通知，严格按创建时间从新到旧排序
+      // 过滤出当前班级、当前小组可见且【未读】的通知，严格按创建时间从新到旧排序
       const unreadList = allAnns
-        .filter(a => (!a.targetGroupId || a.targetGroupId === 'all' || a.targetGroupId === groupId) && (!a.readStatus || !a.readStatus[groupId]))
+        .filter(a => {
+          const matchClass = !a.classId || a.classId === 'all' || !userClassId || a.classId === userClassId;
+          const matchGroup = !a.targetGroupId || a.targetGroupId === 'all' || a.targetGroupId === groupId;
+          const isUnread = !a.readStatus || !a.readStatus[groupId];
+          return matchClass && matchGroup && isUnread;
+        })
         .sort((a, b) => (b.id > a.id ? 1 : -1));
 
       if (unreadList.length > 0) {
@@ -6356,11 +6434,16 @@
       document.querySelectorAll('.modal-overlay').forEach(el => el.remove());
       const currentUser = this.authManager.getCurrentUser();
       const groupId = currentUser && currentUser.groupId ? currentUser.groupId : 'group_1';
+      const userClassId = currentUser ? currentUser.classId : null;
       const allAnns = this.authManager.getAnnouncements();
 
-      // 过滤当前小组可见的通知 (全班广播 或 定向本组)，并按最新发布倒序排
+      // 过滤当前班级、当前小组可见的通知 (全班广播 或 定向本组)，并按最新发布倒序排
       const myAnns = allAnns
-        .filter(a => !a.targetGroupId || a.targetGroupId === 'all' || a.targetGroupId === groupId)
+        .filter(a => {
+          const matchClass = !a.classId || a.classId === 'all' || !userClassId || a.classId === userClassId;
+          const matchGroup = !a.targetGroupId || a.targetGroupId === 'all' || a.targetGroupId === groupId;
+          return matchClass && matchGroup;
+        })
         .sort((a, b) => (b.id > a.id ? 1 : -1));
 
       if (myAnns.length === 0) {
@@ -6628,7 +6711,8 @@
       document.querySelectorAll('.modal-overlay').forEach(el => el.remove());
       const user = this.authManager.getCurrentUser();
       const groupId = user && user.groupId ? user.groupId : (this.state.activeMonitorGroupId || 'group_1');
-      const papers = this.authManager.getReferencePapers(groupId);
+      const classId = user ? user.classId : null;
+      const papers = this.authManager.getReferencePapers(groupId, classId);
 
       const modal = document.createElement('div');
       modal.className = 'modal-overlay';
