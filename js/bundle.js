@@ -428,7 +428,7 @@
         if (res.ok) {
           const data = await res.json();
           if (data) {
-            // 🛡️ 1. 账号池安全增量合并（所有状态下都安全进行，绝不抹除本地已有账号）
+            // 1. 账号池安全增量合并
             if (Array.isArray(data.users)) {
               const localUsers = this.getUsers();
               const mergedUsers = [...localUsers];
@@ -440,23 +440,12 @@
               localStorage.setItem(STORAGE_KEY_USERS_DB, JSON.stringify(mergedUsers));
             }
 
-            // 🛡️ 2. 如果是教师端：教师是全校教务数据的唯一真理源，教务数据 100% 绝对免疫，绝不被远端旧数据覆写
-            if (isTeacher) {
-              this.pushGlobalMeta();
-              return;
-            }
-
-            // 🛡️ 3. 如果是未登录状态：绝对禁止触碰任何班级、任务、通知、问卷或文献数据！
-            if (!currUser || !isStudent) {
-              return;
-            }
-
-            // 👨‍🎓 4. 仅在学生明确登录后，拉取云端权威教务数据供学生端只读浏览
+            // 2. 同步云端保存的权威班级与任务
             if (Array.isArray(data.classes) && data.classes.length > 0) {
               localStorage.setItem(STORAGE_KEY_CLASSES, JSON.stringify(data.classes));
               this.sanitizeAndDeduplicateGroups();
             }
-            if (Array.isArray(data.tasks)) {
+            if (Array.isArray(data.tasks) && data.tasks.length > 0) {
               localStorage.setItem(STORAGE_KEY_TASKS, JSON.stringify(data.tasks));
             }
             if (Array.isArray(data.announcements)) {
@@ -2375,9 +2364,6 @@
     const oldLayout = container.querySelector('.teacher-portal-layout') || document.querySelector('.teacher-portal-layout');
     const savedScrollTop = oldLayout ? oldLayout.scrollTop : (state._teacherScrollTop || 0);
 
-    if (authManager && authManager.pushGlobalMeta) {
-      authManager.pushGlobalMeta();
-    }
     if (authManager && authManager.sanitizeAndDeduplicateGroups) {
       authManager.sanitizeAndDeduplicateGroups();
     }
