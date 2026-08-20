@@ -1356,14 +1356,19 @@
       this.groupId = groupId;
       this.taskId = taskId;
       this.storageKey = `jizhi_cloud_snapshot_v10_pure_${taskId}_${groupId}`;
-      const host = window.location.hostname || '47.99.110.230';
-      const protocol = window.location.protocol || 'http:';
-
-      const sseHost = window.location.hostname || '47.99.110.230';
-      const port = window.location.port ? `:${window.location.port}` : '';
       this.syncEndpoints = [
         `sync.php?taskId=${taskId}&groupId=${groupId}`
       ];
+
+      if ('BroadcastChannel' in window) {
+        try {
+          if (this.bc) { try { this.bc.close(); } catch (e) {} }
+          this.bc = new BroadcastChannel(`jizhi_bc_${this.taskId}_${this.groupId}`);
+          this.bc.onmessage = (e) => {
+            if (e.data && e.data.snapshot) this.handleRemoteSync(e.data.snapshot);
+          };
+        } catch (e) {}
+      }
     }
 
     initSSE() {
@@ -1402,7 +1407,8 @@
 
       if ('BroadcastChannel' in window) {
         try {
-          this.bc = new BroadcastChannel(`jizhi_bc_${this.groupId}`);
+          if (this.bc) { try { this.bc.close(); } catch (e) {} }
+          this.bc = new BroadcastChannel(`jizhi_bc_${this.taskId}_${this.groupId}`);
           this.bc.onmessage = (e) => {
             if (e.data && e.data.snapshot) this.handleRemoteSync(e.data.snapshot);
           };
@@ -3730,11 +3736,12 @@
     const btnResetGroup = container.querySelector('#btn-reset-group-collab');
     if (btnResetGroup) {
       btnResetGroup.addEventListener('click', () => {
-        if (confirm(`⚠️ 确认清空并重置【${activeMonitorGroup.name}】上一次的全部协同数据？\n\n重置后该小组的历史聊天、正文草稿与投票进度将被清空并恢复至阶段一初始状态！`)) {
+        const currentTask = tasks.find(t => t.id === state.activeTaskId) || tasks[0] || { title: '当前写作任务' };
+        if (confirm(`⚠️ 确认清空并重置【${activeMonitorGroup.name}】在任务《${currentTask.title}》中的协同数据？\n\n重置后该小组在《${currentTask.title}》中的历史聊天、正文草稿与投票进度将被清空，绝不影响其他任务！`)) {
           if (window.app) {
-            window.app.resetTestGroupState(activeMonitorGId);
+            window.app.resetTestGroupState(activeMonitorGId, state.activeTaskId || (tasks[0] ? tasks[0].id : 'task_default'));
             renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
-            alert(`✅ 已成功重置【${activeMonitorGroup.name}】的所有协同数据！`);
+            alert(`✅ 已成功重置【${activeMonitorGroup.name}】在《${currentTask.title}》中的协同数据！`);
           }
         }
       });
@@ -5655,7 +5662,9 @@
       localStorage.setItem(`jizhi_sync_chat_v10_pure_${taskId}_${groupId}`, JSON.stringify(this.state.chatLogs));
     }
 
-    resetTestGroupState(groupId = 'group_1') {
+    resetTestGroupState(groupId = 'group_1', taskId = null) {
+      if (taskId) this.state.activeTaskId = taskId;
+      const targetTaskId = this.state.activeTaskId || 'task_default';
       const defaultState = JSON.parse(JSON.stringify(InitialState));
       this.state.activeMonitorGroupId = groupId;
       this.state.stage1 = defaultState.stage1;
@@ -5668,6 +5677,7 @@
       this.saveGroupState(groupId);
       if (this.cloudSyncEngine) {
         this.cloudSyncEngine.groupId = groupId;
+        this.cloudSyncEngine.taskId = targetTaskId;
         this.cloudSyncEngine.updateScopeKeys();
         // 标记为强制重置快照，通知远端各学生端彻底重置本地草稿、合约与聊天
         this.cloudSyncEngine.isResetBroadcast = true;
