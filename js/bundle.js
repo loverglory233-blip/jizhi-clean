@@ -2289,6 +2289,10 @@
     const allUsers = authManager.getUsers();
     const classStudents = authManager.getClassStudents(activeClass.id);
 
+    const currentClassTasks = tasks.filter(t => t.classId === 'all' || t.classId === activeClass.id);
+    const currentClassAnnouncements = announcements.filter(a => a.classId === 'all' || !a.classId || a.classId === activeClass.id);
+    const currentClassPapers = refPapers.filter(p => p.classId === 'all' || !p.classId || p.classId === activeClass.id);
+
     const activeMonitorGId = state.activeMonitorGroupId || (activeClass.groups && activeClass.groups[0] ? activeClass.groups[0].id : 'group_1');
     const activeMonitorGroup = (activeClass.groups || []).find(g => g.id === activeMonitorGId) || { id: 'group_1', name: '第1小组' };
     const monitorMembersObj = authManager.getGroupMembersForWorkspace(activeMonitorGId);
