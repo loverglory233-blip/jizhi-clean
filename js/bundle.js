@@ -2220,11 +2220,11 @@
           <form id="login-form" style="display:flex; flex-direction:column; gap:16px;">
             <div style="display:flex; flex-direction:column; gap:6px;">
               <label style="font-size:13px; font-weight:700; color:#334155;">工号 / 学号</label>
-              <input type="text" id="login-account" class="teacher-input" placeholder="输入教师工号 1001 或学生学号 202601 / 202602 / 202603" value="1001" required style="width:100%;">
+              <input type="text" id="login-account" class="teacher-input" placeholder="输入教师工号 1001 或学生学号" value="" required style="width:100%;">
             </div>
             <div style="display:flex; flex-direction:column; gap:6px;">
-              <label style="font-size:13px; font-weight:700; color:#334155;">密码 (默认统一为 123)</label>
-              <input type="password" id="login-password" class="teacher-input" placeholder="输入密码 123" value="123" required style="width:100%;">
+              <label style="font-size:13px; font-weight:700; color:#334155;">密码</label>
+              <input type="password" id="login-password" class="teacher-input" placeholder="输入登录密码 (默认123)" value="" required style="width:100%;">
             </div>
             <div id="login-error-msg" style="display:none; font-size:12px; color:#dc2626; background:#fef2f2; border:1px solid #fecaca; padding:8px 12px; border-radius:8px;"></div>
             <button type="submit" class="modal-btn submit task-theme" style="width:100%; padding:14px; font-size:15px; border-radius:10px; margin-top:4px;">
@@ -2293,8 +2293,12 @@
     const currentClassAnnouncements = announcements.filter(a => a.classId === 'all' || !a.classId || a.classId === activeClass.id);
     const currentClassPapers = refPapers.filter(p => p.classId === 'all' || !p.classId || p.classId === activeClass.id);
 
-    const activeMonitorGId = state.activeMonitorGroupId || (activeClass.groups && activeClass.groups[0] ? activeClass.groups[0].id : 'group_1');
-    const activeMonitorGroup = (activeClass.groups || []).find(g => g.id === activeMonitorGId) || { id: 'group_1', name: '第1小组' };
+    const classGroupExists = (activeClass.groups || []).some(g => g.id === state.activeMonitorGroupId);
+    const activeMonitorGId = (state.activeMonitorGroupId && classGroupExists)
+      ? state.activeMonitorGroupId
+      : (activeClass.groups && activeClass.groups[0] ? activeClass.groups[0].id : 'group_1');
+    state.activeMonitorGroupId = activeMonitorGId;
+    const activeMonitorGroup = (activeClass.groups || []).find(g => g.id === activeMonitorGId) || (activeClass.groups && activeClass.groups[0]) || { id: 'group_1', name: '第1小组' };
     const monitorMembersObj = authManager.getGroupMembersForWorkspace(activeMonitorGId);
     const monitorMembersList = Object.values(monitorMembersObj);
 
