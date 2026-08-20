@@ -1385,11 +1385,6 @@
       const papers = this.getAllReferencePapers();
       const paperId = 'ref_' + Date.now();
 
-      // 单独持久化大附件数据，保持 global_meta 轻量秒级存入 MySQL
-      if (paper.fileData) {
-        try { localStorage.setItem(`jizhi_paper_data_${paperId}`, paper.fileData); } catch (e) {}
-      }
-
       const newPaper = {
         id: paperId,
         classId: paper.classId || 'all',
@@ -1400,14 +1395,30 @@
         keyHighlights: paper.keyHighlights || '研究设计与学术论证规范',
         fileName: paper.fileName || '',
         fileSize: paper.fileSize || '',
-        fileData: paper.fileData || '',
+        fileUrl: paper.fileUrl || '',
         targetGroupId: paper.targetGroupId || 'all',
         targetGroupName: paper.targetGroupName || '全班所有小组',
         uploadTime: new Date().toLocaleDateString() + ' ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         author: '任课教师'
       };
+
+      // 仅当有 fileData 且无 fileUrl 时，在独立 key 做防崩容错存储
+      if (paper.fileData && !paper.fileUrl) {
+        try {
+          localStorage.setItem(`jizhi_paper_data_${paperId}`, paper.fileData);
+        } catch (e) {
+          console.warn('Paper base64 cache skipped due to quota limits');
+        }
+      }
+
       papers.unshift(newPaper);
-      localStorage.setItem('jizhi_reference_papers_db', JSON.stringify(papers));
+      try {
+        localStorage.setItem('jizhi_reference_papers_db', JSON.stringify(papers));
+      } catch (e) {
+        // 若依然超配额，只保留最近的范文元数据
+        papers.splice(20);
+        try { localStorage.setItem('jizhi_reference_papers_db', JSON.stringify(papers)); } catch (err) {}
+      }
       this.pushGlobalMeta();
       return newPaper;
     }
@@ -3868,7 +3879,8 @@
                 <div class="teacher-form-group">
                   <label><span class="req">*</span> 📌 关联写作任务</label>
                   <select id="modal-ann-task" class="teacher-input fancy">
-                    ${tasks.map(t => `<option value="${t.id}">📌 ${t.title}</option>`).join('')}
+                    <option value="task_all">🌐 全班通识广播 (全部任务可见)</option>
+                    ${tasks.filter(t => t.classId === 'all' || t.classId === activeClass.id).map(t => `<option value="${t.id}">📌 ${t.title}</option>`).join('')}
                   </select>
                 </div>
               </div>
@@ -4021,7 +4033,8 @@
                 <div class="teacher-form-group">
                   <label><span class="req">*</span> 📌 关联写作任务</label>
                   <select id="modal-paper-task" class="teacher-input fancy">
-                    ${tasks.map(t => `<option value="${t.id}">📌 ${t.title}</option>`).join('')}
+                    <option value="task_all">🌐 通用范文 (全班所有写作任务可见)</option>
+                    ${tasks.filter(t => t.classId === 'all' || t.classId === activeClass.id).map(t => `<option value="${t.id}">📌 ${t.title}</option>`).join('')}
                   </select>
                 </div>
               </div>
@@ -4080,7 +4093,7 @@
         const dropzone = modal.querySelector('#paper-file-dropzone');
         const dropText = modal.querySelector('#paper-dropzone-text');
         const titleInput = modal.querySelector('#modal-paper-title');
-        let selectedFile = { name: '', size: '', data: '' };
+        let selectedFile = { name: '', size: '', data: '', fileObj: null };
 
         dropzone.addEventListener('click', () => fileInput.click());
         fileInput.addEventListener('change', (e) => {
@@ -4092,17 +4105,13 @@
             if (!titleInput.value || titleInput.value.trim() === '') {
               titleInput.value = cleanTitle;
             }
-            const reader = new FileReader();
-            reader.onload = (re) => {
-              selectedFile = { name: f.name, size: sizeKB, data: re.target.result };
-              dropText.innerHTML = `<span style="font-size:28px;">✅</span><div style="font-size:13.5px; color:#059669; font-weight:700; margin-top:4px;">已选取文献: ${f.name} (${sizeKB})</div><div style="font-size:11px; color:#10b981; margin-top:2px;">点击可重新更换文件</div>`;
-            };
-            reader.readAsDataURL(f);
+            selectedFile = { name: f.name, size: sizeKB, data: '', fileObj: f };
+            dropText.innerHTML = `<span style="font-size:28px;">✅</span><div style="font-size:13.5px; color:#059669; font-weight:700; margin-top:4px;">已选取文献: ${f.name} (${sizeKB})</div><div style="font-size:11px; color:#10b981; margin-top:2px;">点击可重新更换文件</div>`;
           }
         });
 
         const submitBtn = modal.querySelector('#btn-submit-new-paper');
-        submitBtn.addEventListener('click', () => {
+        submitBtn.addEventListener('click', async () => {
           try {
             let title = titleInput.value.trim();
             const selClassId = paperClassSelect.value;
@@ -4124,6 +4133,28 @@
             const targetGObj = (selClassObj && selClassObj.groups) ? selClassObj.groups.find(g => g.id === targetGId) : null;
 
             submitBtn.disabled = true;
+            submitBtn.innerText = '⏳ 正在上传文献到服务器...';
+
+            let serverFileUrl = '';
+            if (selectedFile.fileObj) {
+              try {
+                const formData = new FormData();
+                formData.append('file', selectedFile.fileObj);
+                const upRes = await fetch('sync.php?action=upload_file', {
+                  method: 'POST',
+                  body: formData
+                });
+                if (upRes.ok) {
+                  const upJson = await upRes.json();
+                  if (upJson.success && upJson.url) {
+                    serverFileUrl = upJson.url;
+                  }
+                }
+              } catch (upErr) {
+                console.warn('Server upload fallback:', upErr);
+              }
+            }
+
             submitBtn.innerText = '⏳ 正在存入范文库...';
 
             const newPaper = authManager.uploadReferencePaper({
@@ -4134,7 +4165,7 @@
               abstract: '',
               keyHighlights: '研究设计与学术论证规范',
               fileName: selectedFile.name || `${title}.pdf`,
-              fileData: selectedFile.data || '',
+              fileUrl: serverFileUrl,
               fileSize: selectedFile.size || '3.5 MB',
               targetGroupId: targetGId,
               targetGroupName: targetGId === 'all' ? '全班所有小组' : (targetGObj ? targetGObj.name : '指定小组')
@@ -4173,11 +4204,20 @@
       btn.addEventListener('click', () => {
         const paperId = btn.dataset.id;
         const paper = refPapers.find(p => p.id === paperId);
-        if (paper && paper.fileName) {
-          if (paper.fileData) {
+        if (paper) {
+          if (paper.fileUrl) {
             const a = document.createElement('a');
-            a.href = paper.fileData;
-            a.download = paper.fileName;
+            a.href = paper.fileUrl;
+            a.download = paper.fileName || '学术参考范文.pdf';
+            a.target = '_blank';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+          } else if (paper.fileData || localStorage.getItem(`jizhi_paper_data_${paperId}`)) {
+            const fData = paper.fileData || localStorage.getItem(`jizhi_paper_data_${paperId}`);
+            const a = document.createElement('a');
+            a.href = fData;
+            a.download = paper.fileName || '学术参考范文.pdf';
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
@@ -7464,12 +7504,20 @@
         btn.addEventListener('click', () => {
           const paperId = btn.dataset.id;
           const paper = papers.find(p => p.id === paperId);
-          if (paper && paper.fileName) {
-            const fileData = localStorage.getItem(`jizhi_paper_data_${paperId}`) || paper.fileData;
-            if (fileData) {
+          if (paper) {
+            if (paper.fileUrl) {
+              const a = document.createElement('a');
+              a.href = paper.fileUrl;
+              a.download = paper.fileName || '学术参考范文.pdf';
+              a.target = '_blank';
+              document.body.appendChild(a);
+              a.click();
+              document.body.removeChild(a);
+            } else if (paper.fileData || localStorage.getItem(`jizhi_paper_data_${paperId}`)) {
+              const fileData = paper.fileData || localStorage.getItem(`jizhi_paper_data_${paperId}`);
               const a = document.createElement('a');
               a.href = fileData;
-              a.download = paper.fileName;
+              a.download = paper.fileName || '学术参考范文.pdf';
               document.body.appendChild(a);
               a.click();
               document.body.removeChild(a);
