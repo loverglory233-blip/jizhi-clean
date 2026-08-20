@@ -1066,14 +1066,7 @@
     }
 
     getReferencePapers(groupId = null, classId = null) {
-      const papers = this.getAllReferencePapers();
-      return papers.filter(p => {
-        // 班级匹配：无指定班级 或 属于当前班级 或 通用全校
-        const matchClass = !classId || classId === 'all' || !p.classId || p.classId === 'all' || p.classId === classId;
-        // 小组匹配：无指定小组 或 属于当前小组 或 通用全班
-        const matchGroup = !groupId || groupId === 'all' || !p.targetGroupId || p.targetGroupId === 'all' || p.targetGroupId === groupId;
-        return matchClass && matchGroup;
-      });
+      return this.getAllReferencePapers();
     }
 
     uploadReferencePaper(paper) {
@@ -3732,18 +3725,11 @@
     const groupObj = (userClass && userClass.groups) ? userClass.groups.find(g => g.id === groupId) : null;
     const groupName = groupObj ? groupObj.name : '第1小组';
 
-    const relevantAnnouncements = (announcements || []).filter(a => {
-      const matchClass = !a.classId || a.classId === 'all' || !userClassId || a.classId === userClassId;
-      const matchGroup = !a.targetGroupId || a.targetGroupId === 'all' || a.targetGroupId === groupId;
-      return matchClass && matchGroup;
-    });
+    const relevantAnnouncements = announcements || [];
     const unreadAnnCount = relevantAnnouncements.filter(a => !a.readStatus || !a.readStatus[groupId]).length;
     const isFinalSubmitted = state.isFinalSubmitted;
 
-    const relevantTasks = tasks.filter(t => !t.classId || t.classId === userClass?.id || t.classId === 'all');
-    if (relevantTasks.length === 0 && tasks.length > 0) {
-      tasks.forEach(t => relevantTasks.push(t));
-    }
+    const relevantTasks = tasks;
 
     container.innerHTML = `
       <div class="student-task-portal" style="min-height:100vh; background:#f0f4f9; display:flex; flex-direction:column;">
@@ -6388,17 +6374,11 @@
       }
       const currentUser = this.authManager.getCurrentUser();
       const groupId = currentUser && currentUser.groupId ? currentUser.groupId : 'group_1';
-      const userClassId = currentUser ? currentUser.classId : null;
       const allAnns = this.authManager.getAnnouncements();
       
-      // 过滤出当前班级、当前小组可见且【未读】的通知，严格按创建时间从新到旧排序
+      // 过滤出未读的通知，严格按创建时间从新到旧排序
       const unreadList = allAnns
-        .filter(a => {
-          const matchClass = !a.classId || a.classId === 'all' || !userClassId || a.classId === userClassId;
-          const matchGroup = !a.targetGroupId || a.targetGroupId === 'all' || a.targetGroupId === groupId;
-          const isUnread = !a.readStatus || !a.readStatus[groupId];
-          return matchClass && matchGroup && isUnread;
-        })
+        .filter(a => !a.readStatus || !a.readStatus[groupId])
         .sort((a, b) => (b.id > a.id ? 1 : -1));
 
       if (unreadList.length > 0) {
@@ -6410,17 +6390,10 @@
       document.querySelectorAll('.modal-overlay').forEach(el => el.remove());
       const currentUser = this.authManager.getCurrentUser();
       const groupId = currentUser && currentUser.groupId ? currentUser.groupId : 'group_1';
-      const userClassId = currentUser ? currentUser.classId : null;
       const allAnns = this.authManager.getAnnouncements();
 
-      // 过滤当前班级、当前小组可见的通知 (全班广播 或 定向本组)，并按最新发布倒序排
-      const myAnns = allAnns
-        .filter(a => {
-          const matchClass = !a.classId || a.classId === 'all' || !userClassId || a.classId === userClassId;
-          const matchGroup = !a.targetGroupId || a.targetGroupId === 'all' || a.targetGroupId === groupId;
-          return matchClass && matchGroup;
-        })
-        .sort((a, b) => (b.id > a.id ? 1 : -1));
+      // 所有教师发布的通知按最新发布倒序排
+      const myAnns = [...allAnns].sort((a, b) => (b.id > a.id ? 1 : -1));
 
       if (myAnns.length === 0) {
         if (!isSequentialFlow) alert('📢 暂无课堂教学通知！');
