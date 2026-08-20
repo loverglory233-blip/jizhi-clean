@@ -2474,22 +2474,62 @@
                     <div style="display:flex; gap:8px; align-items:center;">
                       <span style="font-size:13px; font-weight:700; color:#334155; white-space:nowrap;">📌 绑定任务:</span>
                       <select id="sel-survey-task" class="teacher-input fancy" style="min-width:220px; font-weight:700;">
-                        ${currentClassTasks.map(t => `<option value="${t.id}" ${t.id === (state.activeTaskId || (currentClassTasks[0] ? currentClassTasks[0].id : 'task_default')) ? 'selected' : ''}>📌 ${t.title}</option>`).join('')}
+                        ${currentClassTasks.map((t, idx) => `<option value="${t.id}" ${idx === 0 ? 'selected' : ''}>📌 ${t.title}</option>`).join('')}
                       </select>
                     </div>
                   </div>
 
                   <div style="display:flex; gap:10px; align-items:center;">
-                    <input type="text" id="input-survey-url" class="teacher-input fancy" placeholder="请输入问卷星或第三方问卷网址 (如: https://www.wjx.cn/vm/xxxx.aspx)" value="${currentSelectedSurveyUrl || ''}" style="flex:1;">
-                    <button id="btn-save-survey-url" class="teacher-action-btn" style="background:linear-gradient(135deg, #1d4ed8, #2563eb); border:none; color:white; padding:8px 20px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer; white-space:nowrap;">
+                    <input type="text" id="input-survey-url" class="teacher-input fancy" placeholder="请输入问卷星或第三方问卷网址 (如: https://www.wjx.cn/vm/xxxx.aspx)" value="${authManager.getSurveyUrl(activeClass.id, currentClassTasks[0] ? currentClassTasks[0].id : 'task_default') || ''}" style="flex:1;">
+                    <button id="btn-save-survey-url" class="teacher-action-btn" style="background:linear-gradient(135deg, #1d4ed8, #2563eb); border:none; color:white; padding:8px 20px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer; white-space:nowrap; box-shadow:0 2px 8px rgba(37,99,235,0.25);">
                       💾 保存问卷链接
                     </button>
-                    ${currentSelectedSurveyUrl ? `
-                      <button id="btn-delete-survey-url" class="teacher-action-btn" style="background:#fef2f2; border:1px solid #fecaca; color:#dc2626; padding:8px 16px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer; white-space:nowrap;">
-                        🗑️ 清除此项
-                      </button>
-                    ` : ''}
                   </div>
+                </div>
+
+                <!-- 📊 当前已生效的全部问卷绑定总览 -->
+                <div style="margin-top:16px;">
+                  <div style="font-size:13px; font-weight:800; color:#334155; margin-bottom:10px;">
+                    📊 当前各班级已绑定问卷清单 (${configuredEntries.length} 项已配置):
+                  </div>
+                  ${configuredEntries.length === 0 ? `
+                    <div style="background:#ffffff; border:1px dashed #cbd5e1; border-radius:8px; padding:16px; font-size:13px; color:#94a3b8; text-align:center;">
+                      当前暂无配置的自定义问卷链接（学生提交终稿时将使用默认问卷）
+                    </div>
+                  ` : `
+                    <div style="display:flex; flex-direction:column; gap:8px;">
+                      ${configuredEntries.map(([key, url], sIdx) => {
+                        let matchedClass = classes.find(c => key.startsWith(c.id + '_') || key.startsWith(c.id + '###'));
+                        let cId = matchedClass ? matchedClass.id : (key.startsWith('class_') ? key.split('_').slice(0, 2).join('_') : key.split('_')[0]);
+                        let tId = matchedClass ? key.slice(matchedClass.id.length + 1) : key.replace(cId + '_', '');
+                        if (tId.startsWith('#')) tId = tId.replace(/^#+/, '');
+                        
+                        const cObj = classes.find(c => c.id === cId);
+                        const tObj = tasks.find(t => t.id === tId);
+                        const cName = cObj ? cObj.name : '指定班级';
+                        const tName = tObj ? tObj.title : (tId === 'task_default' ? '期末协作写作 (默认测试任务)' : tId);
+                        
+                        return `
+                          <div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:8px; padding:10px 14px; display:flex; justify-content:space-between; align-items:center; gap:12px; box-shadow:0 1px 3px rgba(15,23,42,0.02);">
+                            <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+                              <span style="background:linear-gradient(135deg, #1d4ed8, #2563eb); color:#ffffff; padding:2px 8px; border-radius:6px; font-size:11.5px; font-weight:800;">问卷 ${sIdx + 1}</span>
+                              <span style="background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe; padding:2px 8px; border-radius:6px; font-size:12px; font-weight:700;">🏫 ${cName}</span>
+                              <span style="background:#f5f3ff; color:#7c3aed; border:1px solid #ddd6fe; padding:2px 8px; border-radius:6px; font-size:12px; font-weight:700;">📌 ${tName}</span>
+                              <a href="${url}" target="_blank" style="font-size:12px; color:#2563eb; text-decoration:none; font-family:monospace; max-width:320px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">🔗 ${url}</a>
+                            </div>
+                            <div style="display:flex; gap:8px;">
+                              <button class="btn-quick-fill-survey" data-cid="${cId}" data-tid="${tId}" data-url="${encodeURIComponent(url)}" style="background:#f8fafc; border:1px solid #cbd5e1; color:#334155; padding:4px 10px; border-radius:6px; font-size:11.5px; font-weight:700; cursor:pointer;">
+                                📝 载入修改
+                              </button>
+                              <button class="btn-delete-survey-item" data-cid="${cId}" data-tid="${tId}" style="background:#fef2f2; border:1px solid #fecaca; color:#dc2626; padding:4px 8px; border-radius:6px; font-size:11.5px; font-weight:700; cursor:pointer;">
+                                🗑️ 清除
+                              </button>
+                            </div>
+                          </div>
+                        `;
+                      }).join('')}
+                    </div>
+                  `}
                 </div>
 
               </div>
@@ -4146,10 +4186,13 @@
     const btnResetGroup = container.querySelector('#btn-reset-group-collab');
     if (btnResetGroup) {
       btnResetGroup.addEventListener('click', () => {
-        const currentTask = tasks.find(t => t.id === state.activeTaskId) || tasks[0] || { title: '当前写作任务' };
+        const selTaskBox = container.querySelector('#sel-switch-monitor-task');
+        const currentTaskId = selTaskBox ? selTaskBox.value : (state.activeTaskId || (tasks[0] ? tasks[0].id : 'task_default'));
+        const currentTask = tasks.find(t => t.id === currentTaskId) || { title: '当前写作任务', id: currentTaskId };
+
         if (confirm(`⚠️ 确认清空并重置【${activeMonitorGroup.name}】在任务《${currentTask.title}》中的协同数据？\n\n重置后该小组在《${currentTask.title}》中的历史聊天、正文草稿与投票进度将被清空，绝不影响其他任务！`)) {
           if (window.app) {
-            window.app.resetTestGroupState(activeMonitorGId, state.activeTaskId || (tasks[0] ? tasks[0].id : 'task_default'));
+            window.app.resetTestGroupState(activeMonitorGId, currentTaskId);
             renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
             alert(`✅ 已成功重置【${activeMonitorGroup.name}】在《${currentTask.title}》中的协同数据！`);
           }
