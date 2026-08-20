@@ -334,7 +334,7 @@
       if (!localStorage.getItem(STORAGE_KEY_ANNOUNCEMENTS)) localStorage.setItem(STORAGE_KEY_ANNOUNCEMENTS, JSON.stringify(DefaultAnnouncements));
     }
 
-    // 🛡️ 全局小组数据自动清洗与自愈引擎 (彻底清除重复小组与重复学生挂组)
+    // 🛡️ 全局小组数据自动清洗与自愈引擎 (班级之间 100% 独立，且完整保留测试组与自定义名称)
     sanitizeAndDeduplicateGroups() {
       try {
         const classes = this.getClasses();
@@ -344,8 +344,25 @@
         const getMemberId = (m) => (typeof m === 'object' && m !== null) ? (m.id || m.userId || m.studentCode) : m;
 
         classes.forEach(cls => {
-          if (cls.groups && Array.isArray(cls.groups) && cls.groups.length > 0) {
-            const seenStudentIds = new Set();
+          if (!cls.groups) cls.groups = [];
+
+          // 1. 如果是 01 班且缺少测试组，自动补回【第 1 协作小组 (测试组)】
+          if (cls.id === 'class_101') {
+            const hasTestGrp = cls.groups.some(g => g.name && g.name.includes('测试组'));
+            if (!hasTestGrp) {
+              const testGroup = {
+                id: 'group_1',
+                name: '第 1 协作小组 (测试组)',
+                members: ['u_studentA', 'u_studentB', 'u_studentC']
+              };
+              cls.groups.unshift(testGroup);
+              isModified = true;
+            }
+          }
+
+          if (cls.groups.length > 0) {
+            // 每个班级独立维护 seenStudentIds，保证班级与班级彻底隔离互不影响
+            const seenStudentIdsInClass = new Set();
             const cleanGroups = [];
 
             cls.groups.forEach(grp => {
@@ -354,25 +371,20 @@
 
               rawMembers.forEach(m => {
                 const mId = getMemberId(m);
-                if (mId && !seenStudentIds.has(mId)) {
-                  seenStudentIds.add(mId);
+                if (mId && !seenStudentIdsInClass.has(mId)) {
+                  seenStudentIdsInClass.add(mId);
                   validMembers.push(mId);
                 }
               });
 
-              // 只要该小组有成员，或属于唯一的自建小组
-              if (validMembers.length > 0) {
+              // 保留原有名字（如测试组等），不强行覆盖自定义名称
+              if (validMembers.length > 0 || (grp.name && grp.name.includes('测试组'))) {
                 grp.members = validMembers;
                 cleanGroups.push(grp);
               }
             });
 
-            // 重新按序规范命名：第 1 协作小组、第 2 协作小组...
-            cleanGroups.forEach((g, idx) => {
-              g.name = `第 ${idx + 1} 协作小组`;
-            });
-
-            if (cleanGroups.length !== cls.groups.length || cleanGroups.some((cg, i) => cg.members.length !== (cls.groups[i] ? cls.groups[i].members.length : 0))) {
+            if (cleanGroups.length !== cls.groups.length) {
               cls.groups = cleanGroups;
               isModified = true;
             }
