@@ -1351,7 +1351,14 @@
         if (!ann.readStatus) ann.readStatus = {};
         ann.readStatus[groupId] = true;
         localStorage.setItem(STORAGE_KEY_ANNOUNCEMENTS, JSON.stringify(announcements));
-        this.pushGlobalMeta();
+        // 只回传这一条通知的已读状态，绝不触碰 tasks/surveys/papers 等教师数据
+        try {
+          fetch('sync.php?action=update_read_status', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ annId, groupId })
+          }).catch(() => {});
+        } catch (e) {}
       }
     }
 

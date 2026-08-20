@@ -155,7 +155,47 @@ if ($action === 'save_global_meta' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     exit;
 }
 
-// 2. 账号唯一在线会话锁 (单账号单设备互斥)
+// 1b. 学生已读通知轻量回传（只更新指定通知的 readStatus，不触碰 tasks/surveys/papers）
+if ($action === 'update_read_status' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    $rawInput = file_get_contents('php://input');
+    $req = json_decode($rawInput, true) ?: [];
+    $annId   = isset($req['annId'])   ? $req['annId']   : '';
+    $groupId = isset($req['groupId']) ? $req['groupId'] : '';
+    if ($annId && $groupId && $pdo) {
+        // 读取当前 global_meta
+        $stmt = $pdo->prepare("SELECT meta_value FROM global_meta WHERE meta_key = 'main_meta'");
+        $stmt->execute();
+        $row = $stmt->fetch();
+        if ($row && !empty($row['meta_value'])) {
+            $meta = json_decode($row['meta_value'], true);
+            if (is_array($meta) && isset($meta['announcements']) && is_array($meta['announcements'])) {
+                $changed = false;
+                foreach ($meta['announcements'] as &$ann) {
+                    if ($ann['id'] === $annId) {
+                        if (!isset($ann['readStatus'])) $ann['readStatus'] = [];
+                        $ann['readStatus'][$groupId] = true;
+                        $changed = true;
+                        break;
+                    }
+                }
+                unset($ann);
+                if ($changed) {
+                    $newVal = json_encode($meta, JSON_UNESCAPED_UNICODE);
+                    $stmt2 = $pdo->prepare("INSERT INTO global_meta (meta_key, meta_value) VALUES ('main_meta', :val) ON DUPLICATE KEY UPDATE meta_value = :val2");
+                    $stmt2->execute([':val' => $newVal, ':val2' => $newVal]);
+                    // 更新变更时间戳
+                    $nowMs = round(microtime(true) * 1000);
+                    $stmt3 = $pdo->prepare("INSERT INTO global_meta (meta_key, meta_value) VALUES ('meta_updated_at', :v) ON DUPLICATE KEY UPDATE meta_value = :v2");
+                    $stmt3->execute([':v' => $nowMs, ':v2' => $nowMs]);
+                }
+            }
+        }
+    }
+    echo json_encode(['success' => true]);
+    exit;
+}
+
+
 if ($action === 'session_login' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $rawInput = file_get_contents('php://input');
     $req = json_decode($rawInput, true) ?: [];
