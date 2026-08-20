@@ -355,29 +355,39 @@
             localStorage.setItem(STORAGE_KEY_CLASSES, JSON.stringify(data.classes));
           }
           if (data && data.tasks && Array.isArray(data.tasks)) {
-            localStorage.setItem(STORAGE_KEY_TASKS, JSON.stringify(data.tasks));
+            const localTasks = this.getTasks();
+            const mergedTasks = [...data.tasks];
+            localTasks.forEach(lt => {
+              if (!mergedTasks.some(mt => mt.id === lt.id)) {
+                mergedTasks.push(lt);
+              }
+            });
+            localStorage.setItem(STORAGE_KEY_TASKS, JSON.stringify(mergedTasks));
           }
           if (data && data.announcements && Array.isArray(data.announcements)) {
-            localStorage.setItem(STORAGE_KEY_ANNOUNCEMENTS, JSON.stringify(data.announcements));
+            const localAnns = this.getAnnouncements();
+            const mergedAnns = [...data.announcements];
+            localAnns.forEach(la => {
+              if (!mergedAnns.some(ma => ma.id === la.id)) {
+                mergedAnns.push(la);
+              }
+            });
+            localStorage.setItem(STORAGE_KEY_ANNOUNCEMENTS, JSON.stringify(mergedAnns));
           }
           if (data && data.referencePapers && Array.isArray(data.referencePapers)) {
             const localPapers = this.getReferencePapers();
-            if (data.referencePapers.length === 0 && localPapers.length > 0) {
-              // 服务端暂时为空但本地已有，自动推送到服务端同步
-              this.pushGlobalMeta();
-            } else if (data.referencePapers.length > 0) {
-              // 按 id 智能合并双方范文
-              const mergedPapers = [...data.referencePapers];
-              localPapers.forEach(lp => {
-                if (!mergedPapers.some(mp => mp.id === lp.id)) {
-                  mergedPapers.unshift(lp);
-                }
-              });
-              localStorage.setItem('jizhi_reference_papers_db', JSON.stringify(mergedPapers));
-            }
+            const mergedPapers = [...data.referencePapers];
+            localPapers.forEach(lp => {
+              if (!mergedPapers.some(mp => mp.id === lp.id)) {
+                mergedPapers.push(lp);
+              }
+            });
+            localStorage.setItem('jizhi_reference_papers_db', JSON.stringify(mergedPapers));
           }
           if (data && data.surveys && typeof data.surveys === 'object') {
-            localStorage.setItem('jizhi_surveys_map_db', JSON.stringify(data.surveys));
+            const localSurveys = this.getSurveysMap();
+            const mergedSurveys = Object.assign({}, localSurveys, data.surveys);
+            localStorage.setItem('jizhi_surveys_map_db', JSON.stringify(mergedSurveys));
           }
         }
       } catch (e) {}
@@ -390,15 +400,25 @@
     saveSurveyUrl(classId, taskId, url) {
       const map = this.getSurveysMap();
       const key = `${classId}_${taskId}`;
-      map[key] = url;
+      if (url && url.trim()) {
+        map[key] = url.trim();
+      } else {
+        delete map[key];
+      }
       localStorage.setItem('jizhi_surveys_map_db', JSON.stringify(map));
-      localStorage.setItem(`jizhi_survey_url_${classId}_${taskId}`, url);
       this.pushGlobalMeta();
     }
     getSurveyUrl(classId, taskId) {
       const map = this.getSurveysMap();
       const key = `${classId}_${taskId}`;
-      return map[key] || localStorage.getItem(`jizhi_survey_url_${classId}_${taskId}`) || localStorage.getItem(`jizhi_survey_url_${taskId}`) || localStorage.getItem('jizhi_survey_url') || '';
+      return map[key] || '';
+    }
+    deleteSurveyUrl(classId, taskId) {
+      const map = this.getSurveysMap();
+      const key = `${classId}_${taskId}`;
+      delete map[key];
+      localStorage.setItem('jizhi_surveys_map_db', JSON.stringify(map));
+      this.pushGlobalMeta();
     }
     pushGlobalMeta() {
       const payload = {
@@ -2081,7 +2101,12 @@
             </div>
           ` : ''}
 
-          ${activeTab === 'view_publishing' ? `
+          ${activeTab === 'view_publishing' ? (() => {
+            const surveysMap = authManager.getSurveysMap();
+            const configuredEntries = Object.entries(surveysMap).filter(([k, v]) => v && v.trim());
+            const currentSelectedSurveyUrl = authManager.getSurveyUrl(activeClass.id, state.activeTaskId || (tasks[0] ? tasks[0].id : "task_default"));
+
+            return `
             <div style="display:flex; flex-direction:column; gap:20px; width:100%;">
 
               <!-- 0. 问卷链接配置 (按 班级 + 任务 双维度独立绑定) -->
@@ -2089,10 +2114,11 @@
                 <div class="card-title" style="margin-bottom:16px;">
                   <span style="font-size:17px; font-weight:800; color:#0f172a;">📋 课程评估问卷链接配置 (按【班级 + 任务】双维度独立绑定)</span>
                 </div>
-                <div style="display:flex; flex-direction:column; gap:14px;">
+                
+                <div style="display:flex; flex-direction:column; gap:14px; background:#f8fafc; padding:18px; border-radius:12px; border:1px solid #e2e8f0;">
                   <div style="display:flex; gap:16px; flex-wrap:wrap; align-items:center;">
                     <div style="display:flex; gap:8px; align-items:center;">
-                      <span style="font-size:13px; font-weight:700; color:#334155; white-space:nowrap;">🏫 配置班级:</span>
+                      <span style="font-size:13px; font-weight:700; color:#334155; white-space:nowrap;">🏫 目标班级:</span>
                       <select id="sel-survey-class" class="teacher-input fancy" style="min-width:220px; font-weight:700;">
                         ${classes.map(c => `<option value="${c.id}" ${c.id === activeClass.id ? 'selected' : ''}>🏫 ${c.name}</option>`).join('')}
                       </select>
@@ -2104,12 +2130,54 @@
                       </select>
                     </div>
                   </div>
+                  
                   <div style="display:flex; gap:12px; align-items:stretch;">
-                    <input type="text" id="survey-url-input" class="teacher-input" placeholder="粘贴该班级该任务专属的问卷链接，例如: https://www.wjx.cn/vm/xxxxx.aspx" value="${authManager.getSurveyUrl(activeClass.id, state.activeTaskId || (tasks[0] ? tasks[0].id : "task_default"))}" style="flex:1; font-family:monospace; font-size:13px;">
+                    <input type="text" id="survey-url-input" class="teacher-input" placeholder="粘贴该班级该任务专属的问卷链接 (留空保存则清除绑定)" value="${currentSelectedSurveyUrl}" style="flex:1; font-family:monospace; font-size:13px;">
                     <button id="btn-save-survey-url" class="teacher-action-btn" style="background:linear-gradient(135deg, #1d4ed8, #2563eb); border:none; color:white; padding:10px 24px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer; white-space:nowrap; box-shadow:0 2px 8px rgba(37,99,235,0.25);">💾 保存绑定并永久同步</button>
                   </div>
                 </div>
                 <div id="survey-url-status" style="font-size:12.5px; color:#059669; display:none; margin-top:10px; font-weight:700;">✅ 该班级与任务绑定的问卷链接已成功保存！学生提交终稿时将精准唤起本班专属问卷。</div>
+
+                <!-- 📊 当前已生效的全部问卷绑定总览 -->
+                <div style="margin-top:16px;">
+                  <div style="font-size:13px; font-weight:800; color:#334155; margin-bottom:10px; display:flex; justify-content:space-between; align-items:center;">
+                    <span>📊 当前全校各班级已绑定问卷清单 (${configuredEntries.length} 项已配置):</span>
+                  </div>
+                  ${configuredEntries.length === 0 ? `
+                    <div style="background:#ffffff; border:1px dashed #cbd5e1; border-radius:8px; padding:12px 16px; font-size:12.5px; color:#94a3b8; text-align:center;">
+                      暂无配置的问卷链接（学生提交终稿时将使用默认评估问卷）
+                    </div>
+                  ` : `
+                    <div style="display:flex; flex-direction:column; gap:8px;">
+                      ${configuredEntries.map(([key, url]) => {
+                        const [cId, ...tIdArr] = key.split('_');
+                        const tId = tIdArr.join('_');
+                        const cObj = classes.find(c => c.id === cId);
+                        const tObj = tasks.find(t => t.id === tId);
+                        const cName = cObj ? cObj.name : cId;
+                        const tName = tObj ? tObj.title : (tId === 'task_default' ? '期末协作写作 (默认测试任务)' : tId);
+                        return `
+                          <div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:8px; padding:10px 14px; display:flex; justify-content:space-between; align-items:center; gap:12px;">
+                            <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+                              <span style="background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe; padding:2px 8px; border-radius:6px; font-size:12px; font-weight:700;">🏫 ${cName}</span>
+                              <span style="background:#f5f3ff; color:#7c3aed; border:1px solid #ddd6fe; padding:2px 8px; border-radius:6px; font-size:12px; font-weight:700;">📌 ${tName}</span>
+                              <a href="${url}" target="_blank" style="font-size:12px; color:#2563eb; text-decoration:none; font-family:monospace; max-width:320px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">🔗 ${url}</a>
+                            </div>
+                            <div style="display:flex; gap:8px;">
+                              <button class="btn-quick-fill-survey" data-cid="${cId}" data-tid="${tId}" data-url="${encodeURIComponent(url)}" style="background:#f8fafc; border:1px solid #cbd5e1; color:#334155; padding:4px 10px; border-radius:6px; font-size:11.5px; font-weight:700; cursor:pointer;">
+                                📝 载入修改
+                              </button>
+                              <button class="btn-delete-survey-item" data-cid="${cId}" data-tid="${tId}" style="background:#fef2f2; border:1px solid #fecaca; color:#dc2626; padding:4px 8px; border-radius:6px; font-size:11.5px; font-weight:700; cursor:pointer;">
+                                🗑️ 清除
+                              </button>
+                            </div>
+                          </div>
+                        `;
+                      }).join('')}
+                    </div>
+                  `}
+                </div>
+
               </div>
 
               <!-- 1. 课程参考范文与文献样例库 -->
@@ -2264,7 +2332,8 @@
                 </div>
               </div>
             </div>
-          ` : ''}
+            `;
+          })() : ''}
 
           ${activeTab === 'view_monitoring' ? (() => {
             const monitorStageMode = state.teacherMonitorStageMode || 'auto';
@@ -3043,6 +3112,33 @@
         setTimeout(() => renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView), 600);
       });
     }
+
+    // 📝 载入问卷修改
+    container.querySelectorAll('.btn-quick-fill-survey').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const cId = btn.dataset.cid;
+        const tId = btn.dataset.tid;
+        const url = decodeURIComponent(btn.dataset.url || '');
+        if (selSurveyClass) selSurveyClass.value = cId;
+        if (selSurveyTask) selSurveyTask.value = tId;
+        if (surveyUrlInput) {
+          surveyUrlInput.value = url;
+          surveyUrlInput.focus();
+        }
+      });
+    });
+
+    // 🗑️ 清除问卷配置
+    container.querySelectorAll('.btn-delete-survey-item').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const cId = btn.dataset.cid;
+        const tId = btn.dataset.tid;
+        if (confirm('🗑️ 确认清除此班级与任务的问卷绑定？')) {
+          authManager.deleteSurveyUrl(cId, tId);
+          renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+        }
+      });
+    });
 
     // 🗑️ 删除写作任务按钮
     container.querySelectorAll('.btn-delete-task').forEach(btn => {
