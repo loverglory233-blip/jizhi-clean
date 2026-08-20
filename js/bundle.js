@@ -2380,6 +2380,10 @@
           ` : ''}
 
           ${activeTab === 'view_publishing' ? (() => {
+            const currentClassTasks = tasks.filter(t => t.classId === 'all' || t.classId === activeClass.id);
+            const currentClassAnnouncements = announcements.filter(a => a.classId === 'all' || !a.classId || a.classId === activeClass.id);
+            const currentClassPapers = refPapers.filter(p => p.classId === 'all' || !p.classId || p.classId === activeClass.id);
+
             const surveysMap = authManager.getSurveysMap();
             const configuredEntries = Object.entries(surveysMap).filter(([k, v]) => v && v.trim());
             const currentSelectedSurveyUrl = authManager.getSurveyUrl(activeClass.id, state.activeTaskId || (tasks[0] ? tasks[0].id : "task_default"));
@@ -2390,7 +2394,7 @@
               <!-- 0. 问卷链接配置 (按 班级 + 任务 双维度独立绑定) -->
               <div class="card" style="border-top:4px solid #2563eb; width:100%; padding:24px;">
                 <div class="card-title" style="margin-bottom:16px;">
-                  <span style="font-size:17px; font-weight:800; color:#0f172a;">📋 课程评估问卷链接配置 (按【班级 + 任务】双维度独立绑定)</span>
+                  <span style="font-size:17px; font-weight:800; color:#0f172a;">📋 课程评估问卷链接配置 (当前主班: ${activeClass.name})</span>
                 </div>
                 
                 <div style="display:flex; flex-direction:column; gap:14px; background:#f8fafc; padding:18px; border-radius:12px; border:1px solid #e2e8f0;">
@@ -2401,64 +2405,26 @@
                         ${classes.map(c => `<option value="${c.id}" ${c.id === activeClass.id ? 'selected' : ''}>🏫 ${c.name}</option>`).join('')}
                       </select>
                     </div>
+
                     <div style="display:flex; gap:8px; align-items:center;">
-                      <span style="font-size:13px; font-weight:700; color:#334155; white-space:nowrap;">🎯 关联写作任务:</span>
+                      <span style="font-size:13px; font-weight:700; color:#334155; white-space:nowrap;">📌 绑定任务:</span>
                       <select id="sel-survey-task" class="teacher-input fancy" style="min-width:220px; font-weight:700;">
-                        ${tasks.map(t => `<option value="${t.id}" ${t.id === (state.activeTaskId || "task_default") ? "selected" : ""}>📌 ${t.title}</option>`).join("")}
+                        ${currentClassTasks.map(t => `<option value="${t.id}" ${t.id === (state.activeTaskId || (currentClassTasks[0] ? currentClassTasks[0].id : 'task_default')) ? 'selected' : ''}>📌 ${t.title}</option>`).join('')}
                       </select>
                     </div>
                   </div>
-                  
-                  <div style="display:flex; gap:12px; align-items:stretch;">
-                    <input type="text" id="survey-url-input" class="teacher-input" placeholder="粘贴该班级该任务专属的问卷链接 (留空保存则清除绑定)" value="${currentSelectedSurveyUrl}" style="flex:1; font-family:monospace; font-size:13px;">
-                    <button id="btn-save-survey-url" class="teacher-action-btn" style="background:linear-gradient(135deg, #1d4ed8, #2563eb); border:none; color:white; padding:10px 24px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer; white-space:nowrap; box-shadow:0 2px 8px rgba(37,99,235,0.25);">💾 保存绑定并永久同步</button>
-                  </div>
-                </div>
-                <div id="survey-url-status" style="font-size:12.5px; color:#059669; display:none; margin-top:10px; font-weight:700;">✅ 该班级与任务绑定的问卷链接已成功保存！学生提交终稿时将精准唤起本班专属问卷。</div>
 
-                <!-- 📊 当前已生效的全部问卷绑定总览 -->
-                <div style="margin-top:16px;">
-                  <div style="font-size:13px; font-weight:800; color:#334155; margin-bottom:10px; display:flex; justify-content:space-between; align-items:center;">
-                    <span>📊 当前全校各班级已绑定问卷清单 (${configuredEntries.length} 项已配置):</span>
+                  <div style="display:flex; gap:10px; align-items:center;">
+                    <input type="text" id="input-survey-url" class="teacher-input fancy" placeholder="请输入问卷星或第三方问卷网址 (如: https://www.wjx.cn/vm/xxxx.aspx)" value="${currentSelectedSurveyUrl || ''}" style="flex:1;">
+                    <button id="btn-save-survey-url" class="teacher-action-btn" style="background:linear-gradient(135deg, #1d4ed8, #2563eb); border:none; color:white; padding:8px 20px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer; white-space:nowrap;">
+                      💾 保存问卷链接
+                    </button>
+                    ${currentSelectedSurveyUrl ? `
+                      <button id="btn-delete-survey-url" class="teacher-action-btn" style="background:#fef2f2; border:1px solid #fecaca; color:#dc2626; padding:8px 16px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer; white-space:nowrap;">
+                        🗑️ 清除此项
+                      </button>
+                    ` : ''}
                   </div>
-                  ${configuredEntries.length === 0 ? `
-                    <div style="background:#ffffff; border:1px dashed #cbd5e1; border-radius:8px; padding:12px 16px; font-size:12.5px; color:#94a3b8; text-align:center;">
-                      暂无配置的问卷链接（学生提交终稿时将使用默认评估问卷）
-                    </div>
-                  ` : `
-                    <div style="display:flex; flex-direction:column; gap:8px;">
-                      ${configuredEntries.map(([key, url], sIdx) => {
-                        let matchedClass = classes.find(c => key.startsWith(c.id + '_') || key.startsWith(c.id + '###'));
-                        let cId = matchedClass ? matchedClass.id : (key.startsWith('class_') ? key.split('_').slice(0, 2).join('_') : key.split('_')[0]);
-                        let tId = matchedClass ? key.slice(matchedClass.id.length + 1) : key.replace(cId + '_', '');
-                        if (tId.startsWith('#')) tId = tId.replace(/^#+/, '');
-                        
-                        const cObj = classes.find(c => c.id === cId);
-                        const tObj = tasks.find(t => t.id === tId);
-                        const cName = cObj ? cObj.name : '《现代教育技术》2026春01班';
-                        const tName = tObj ? tObj.title : (tId === 'task_default' ? '期末协作写作 (默认测试任务)' : (tId.startsWith('task_') ? '协作写作任务' : tId));
-                        
-                        return `
-                          <div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:8px; padding:10px 14px; display:flex; justify-content:space-between; align-items:center; gap:12px;">
-                            <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
-                              <span style="background:linear-gradient(135deg, #1d4ed8, #2563eb); color:#ffffff; padding:2px 8px; border-radius:6px; font-size:11.5px; font-weight:800;">问卷 ${sIdx + 1}</span>
-                              <span style="background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe; padding:2px 8px; border-radius:6px; font-size:12px; font-weight:700;">🏫 ${cName}</span>
-                              <span style="background:#f5f3ff; color:#7c3aed; border:1px solid #ddd6fe; padding:2px 8px; border-radius:6px; font-size:12px; font-weight:700;">📌 ${tName}</span>
-                              <a href="${url}" target="_blank" style="font-size:12px; color:#2563eb; text-decoration:none; font-family:monospace; max-width:320px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">🔗 ${url}</a>
-                            </div>
-                            <div style="display:flex; gap:8px;">
-                              <button class="btn-quick-fill-survey" data-cid="${cId}" data-tid="${tId}" data-url="${encodeURIComponent(url)}" style="background:#f8fafc; border:1px solid #cbd5e1; color:#334155; padding:4px 10px; border-radius:6px; font-size:11.5px; font-weight:700; cursor:pointer;">
-                                📝 载入修改
-                              </button>
-                              <button class="btn-delete-survey-item" data-cid="${cId}" data-tid="${tId}" style="background:#fef2f2; border:1px solid #fecaca; color:#dc2626; padding:4px 8px; border-radius:6px; font-size:11.5px; font-weight:700; cursor:pointer;">
-                                🗑️ 清除
-                              </button>
-                            </div>
-                          </div>
-                        `;
-                      }).join('')}
-                    </div>
-                  `}
                 </div>
 
               </div>
@@ -2466,17 +2432,17 @@
               <!-- 1. 课程参考范文与文献样例库 -->
               <div class="card" style="border-top:4px solid #2563eb; width:100%; padding:24px;">
                 <div class="card-title" style="margin-bottom:16px;">
-                  <span style="font-size:17px; font-weight:800; color:#0f172a;">📚 课程参考范文库 (${refPapers.length} 篇)</span>
+                  <span style="font-size:17px; font-weight:800; color:#0f172a;">📚 课程参考范文库 (${currentClassPapers.length} 篇 · 当前班级: ${activeClass.name})</span>
                   <button id="btn-v2-open-paper-modal" class="teacher-action-btn" style="background:linear-gradient(135deg, #1d4ed8, #2563eb); padding:8px 18px; font-size:13px; font-weight:700; border:none; color:white; border-radius:8px; cursor:pointer; box-shadow:0 2px 8px rgba(37,99,235,0.25);">
                     + 上传学术参考范文
                   </button>
                 </div>
                 
                 <div class="reference-papers-list" style="display:flex; flex-direction:column; gap:14px;">
-                  ${refPapers.length === 0 ? `
+                  ${currentClassPapers.length === 0 ? `
                     <div style="text-align:center; padding:32px; background:#f8fafc; border-radius:10px; border:2px dashed #cbd5e1;">
                       <div style="font-size:32px; margin-bottom:8px;">📚</div>
-                      <div style="font-size:15px; font-weight:800; color:#0f172a;">当前暂无上传的课程参考范文</div>
+                      <div style="font-size:15px; font-weight:800; color:#0f172a;">当前班级暂无上传的课程参考范文</div>
                       <div style="font-size:12.5px; color:#64748b; margin-top:4px;">点击右上角【+ 上传学术参考范文】上传论文样本，学生可在阶段二正文上方随时查阅下载！</div>
                     </div>
                   ` : refPapers.map((p, pIdx) => {
@@ -2531,7 +2497,13 @@
                   <button id="btn-v2-open-task-modal" class="teacher-action-btn indigo" style="background:#2563eb; padding:8px 18px; font-size:13px; font-weight:700;">+ 发布全新写作任务</button>
                 </div>
                 <div style="display:flex; flex-direction:column; gap:14px;">
-                  ${tasks.map((t, tIdx) => {
+                  ${currentClassTasks.length === 0 ? `
+                    <div style="text-align:center; padding:32px; background:#f8fafc; border-radius:10px; border:2px dashed #cbd5e1;">
+                      <div style="font-size:32px; margin-bottom:8px;">📌</div>
+                      <div style="font-size:15px; font-weight:800; color:#0f172a;">当前班级暂无发布的写作任务</div>
+                      <div style="font-size:12.5px; color:#64748b; margin-top:4px;">点击右上角【+ 发布全新写作任务】为本班级创建独立任务！</div>
+                    </div>
+                  ` : currentClassTasks.map((t, tIdx) => {
                     const isLatest = tIdx === 0;
                     return `
                     <div style="background:#ffffff; border:1px solid #e2e8f0; padding:18px; border-radius:12px; box-shadow:0 1px 3px rgba(15,23,42,0.03);">
@@ -2563,13 +2535,19 @@
               <!-- 3. 发布课堂广播通知 -->
               <div class="card" style="border-top:4px solid #2563eb; width:100%; padding:24px;">
                 <div class="card-title" style="margin-bottom:16px;">
-                  <span style="font-size:17px; font-weight:800; color:#0f172a;">📢 课堂即时广播通知发布</span>
+                  <span style="font-size:17px; font-weight:800; color:#0f172a;">📢 课堂即时广播通知发布 (${currentClassAnnouncements.length} 条 · 当前班级: ${activeClass.name})</span>
                   <button id="btn-v2-open-ann-modal" class="teacher-action-btn" style="background:linear-gradient(135deg, #1d4ed8, #2563eb); border:none; color:white; padding:8px 18px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer; box-shadow:0 2px 8px rgba(37,99,235,0.25);">
                     + 发布新通知 (选择/拖拽上传资源文件)
                   </button>
                 </div>
                 <div class="announcement-history-list" style="display:flex; flex-direction:column; gap:16px;">
-                  ${announcements.map((a, idx) => {
+                  ${currentClassAnnouncements.length === 0 ? `
+                    <div style="text-align:center; padding:32px; background:#f8fafc; border-radius:10px; border:2px dashed #cbd5e1;">
+                      <div style="font-size:32px; margin-bottom:8px;">📢</div>
+                      <div style="font-size:15px; font-weight:800; color:#0f172a;">当前班级暂无发布的课堂广播通知</div>
+                      <div style="font-size:12.5px; color:#64748b; margin-top:4px;">点击右上角【+ 发布新通知】向本班学生发布即时指令！</div>
+                    </div>
+                  ` : currentClassAnnouncements.map((a, idx) => {
                     const classGroups = activeClass.groups || [{ id: 'group_1', name: '第1小组' }];
                     const targetGName = a.targetGroupName || (a.targetGroupId === 'all' || !a.targetGroupId ? '全班所有小组' : '指定小组');
                     const taskLabel = a.taskId === 'task_all' || !a.taskId ? '🌐 全班通识广播' : `📌 ${a.taskTitle || '专属任务'}`;
@@ -4189,7 +4167,7 @@
       if (!t.classId || t.classId === 'all') return true;
       return myClassIds.has(t.classId) || (t.className && userClass && t.className === userClass.name);
     });
-    const displayTasks = (relevantTasks.length > 0) ? relevantTasks : tasks;
+    const displayTasks = relevantTasks;
 
     container.innerHTML = `
       <div class="student-task-portal" style="min-height:100vh; background:#f0f4f9; display:flex; flex-direction:column;">
