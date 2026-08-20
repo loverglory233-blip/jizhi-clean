@@ -2379,32 +2379,63 @@
                   💡 <b>班级互斥划分规则：</b>已归属于本班级其他小组的学生会自动隐藏，避免重复挂组。跨班级独立计算。
                 </div>
                 <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(360px, 1fr)); gap:16px;">
-                  ${(activeClass.groups || []).length === 0 ? '<div style="color:#64748b; padding:20px; font-size:14px;">当前班级暂无小组。</div>' : ''}
-                  ${(activeClass.groups || []).map(grp => {
-                    const groupMembers = classStudents.filter(s => (grp.members || []).some(m => {
-                      const mId = (typeof m === 'object' && m !== null) ? (m.id || m.userId || m.studentCode) : m;
-                      return mId === s.id || (mId && s.studentCode && mId.toString() === s.studentCode.toString());
-                    }));
-                    return `
-                      <div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:12px; padding:18px; box-shadow:0 1px 3px rgba(15,23,42,0.03);">
-                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
-                          <span style="font-size:15.5px; font-weight:800; color:#1d4ed8;">👥 ${grp.name} (${groupMembers.length}人)</span>
-                          <div style="display:flex; gap:8px;">
-                            <button class="btn-edit-group-members" data-gid="${grp.id}" style="background:#eff6ff; border:1px solid #bfdbfe; color:#1d4ed8; padding:6px 12px; border-radius:6px; font-size:12px; font-weight:700; cursor:pointer;">⚙️ 勾选组员</button>
-                            <button class="btn-delete-group" data-gid="${grp.id}" style="background:#fef2f2; border:1px solid #fecaca; color:#dc2626; padding:6px 10px; border-radius:6px; font-size:12px; cursor:pointer; font-weight:700;">✕ 解散</button>
+                  ${(() => {
+                    const validGroups = (activeClass.groups || []).filter(grp => {
+                      const groupMembers = classStudents.filter(s => (grp.members || []).some(m => {
+                        const mId = (typeof m === 'object' && m !== null) ? (m.id || m.userId || m.studentCode) : m;
+                        return mId === s.id || (mId && s.studentCode && mId.toString() === s.studentCode.toString());
+                      }));
+                      const isTestGroup = grp.name && grp.name.includes('测试组');
+                      return groupMembers.length > 0 || isTestGroup;
+                    });
+
+                    // 自动规整命名
+                    let nonTestIdx = 2;
+                    validGroups.forEach(g => {
+                      if (g.name && g.name.includes('测试组')) {
+                        g.name = '第 1 协作小组 (测试组)';
+                      } else {
+                        g.name = `第 ${nonTestIdx} 协作小组`;
+                        nonTestIdx++;
+                      }
+                    });
+
+                    if (validGroups.length !== (activeClass.groups || []).length) {
+                      activeClass.groups = validGroups;
+                      localStorage.setItem(STORAGE_KEY_CLASSES, JSON.stringify(classes));
+                      authManager.pushGlobalMeta();
+                    }
+
+                    if (validGroups.length === 0) {
+                      return '<div style="color:#64748b; padding:20px; font-size:14px;">当前班级暂无小组。</div>';
+                    }
+
+                    return validGroups.map(grp => {
+                      const groupMembers = classStudents.filter(s => (grp.members || []).some(m => {
+                        const mId = (typeof m === 'object' && m !== null) ? (m.id || m.userId || m.studentCode) : m;
+                        return mId === s.id || (mId && s.studentCode && mId.toString() === s.studentCode.toString());
+                      }));
+                      return `
+                        <div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:12px; padding:18px; box-shadow:0 1px 3px rgba(15,23,42,0.03);">
+                          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+                            <span style="font-size:15.5px; font-weight:800; color:#1d4ed8;">👥 ${grp.name} (${groupMembers.length}人)</span>
+                            <div style="display:flex; gap:8px;">
+                              <button class="btn-edit-group-members" data-gid="${grp.id}" style="background:#eff6ff; border:1px solid #bfdbfe; color:#1d4ed8; padding:6px 12px; border-radius:6px; font-size:12px; font-weight:700; cursor:pointer;">⚙️ 勾选组员</button>
+                              <button class="btn-delete-group" data-gid="${grp.id}" style="background:#fef2f2; border:1px solid #fecaca; color:#dc2626; padding:6px 10px; border-radius:6px; font-size:12px; cursor:pointer; font-weight:700;">✕ 解散</button>
+                            </div>
+                          </div>
+                          <div style="display:flex; flex-wrap:wrap; gap:8px; font-size:13px;">
+                            ${groupMembers.length === 0 ? '<span style="color:#94a3b8; font-size:12px;">⚠️ 暂未勾选成员</span>' : ''}
+                            ${groupMembers.map(m => `
+                              <span style="background:#eff6ff; border:1px solid #bfdbfe; color:#1d4ed8; padding:4px 10px; border-radius:6px; font-weight:600;">
+                                ${m.avatar || '👤'} ${m.name} ${m.studentCode === 'A' ? '<b style="color:#d97706;">(组长)</b>' : ''}
+                              </span>
+                            `).join('')}
                           </div>
                         </div>
-                        <div style="display:flex; flex-wrap:wrap; gap:8px; font-size:13px;">
-                          ${groupMembers.length === 0 ? '<span style="color:#94a3b8; font-size:12px;">⚠️ 暂未勾选成员</span>' : ''}
-                          ${groupMembers.map(m => `
-                            <span style="background:#eff6ff; border:1px solid #bfdbfe; color:#1d4ed8; padding:4px 10px; border-radius:6px; font-weight:600;">
-                              ${m.avatar || '👤'} ${m.name} ${m.studentCode === 'A' ? '<b style="color:#d97706;">(组长)</b>' : ''}
-                            </span>
-                          `).join('')}
-                        </div>
-                      </div>
-                    `;
-                  }).join('')}
+                      `;
+                    }).join('');
+                  })()}
                 </div>
               </div>
 
