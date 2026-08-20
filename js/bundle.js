@@ -925,6 +925,27 @@
       }
     }
 
+    getStudentActiveGroup(user, classId = null) {
+      if (!user) return { id: 'group_1', name: '第 1 协作小组' };
+      const classes = this.getClasses();
+      const targetClass = classes.find(c => c.id === classId) || classes.find(c => c.id === user.classId) || classes[0];
+      if (targetClass && Array.isArray(targetClass.groups)) {
+        const matched = targetClass.groups.find(g => (g.members || []).some(m => {
+          const mId = (typeof m === 'object' && m !== null) ? (m.id || m.userId || m.studentCode || m.name) : m;
+          return mId === user.id || mId === user.studentCode || mId === user.username || mId === user.name || (typeof m === 'object' && m.name === user.name);
+        }));
+        if (matched) return matched;
+      }
+      if (user.groupId) {
+        for (const c of classes) {
+          const g = (c.groups || []).find(grp => grp.id === user.groupId);
+          if (g) return g;
+        }
+        return { id: user.groupId, name: '当前协作小组' };
+      }
+      return (targetClass && targetClass.groups && targetClass.groups[0]) ? targetClass.groups[0] : { id: 'group_1', name: '第 1 协作小组' };
+    }
+
     getAvailableStudentsForGroup(classId, editingGroupId = null) {
       const allClassStudents = this.getClassStudents(classId);
       const classes = this.getClasses();
@@ -984,23 +1005,27 @@
         }
       });
 
-      // 2. 勾选进入该组的学生，更新 groupId 与学生代号
+      // 2. 勾选进入该组的学生，更新 groupId 与组内角色代号 (绝不覆写学生真实学号 studentCode)
       selectedUserIds.forEach((uid, idx) => {
         const u = users.find(usr => usr.id === uid);
         if (u) {
           u.groupId = group.id;
           if (uid === leaderUserId) {
-            u.studentCode = 'A';
+            u.roleCode = 'A';
+            u.roleTitle = '组长';
           } else {
-            // Assign sequential letters B, C, D...
-            u.studentCode = String.fromCharCode(66 + idx);
+            u.roleCode = String.fromCharCode(66 + idx);
+            u.roleTitle = '组员';
           }
         }
       });
       // If leader was not explicitly specified, first is A
       if (!leaderUserId && selectedUserIds.length > 0) {
         const uFirst = users.find(usr => usr.id === selectedUserIds[0]);
-        if (uFirst) uFirst.studentCode = 'A';
+        if (uFirst) {
+          uFirst.roleCode = 'A';
+          uFirst.roleTitle = '组长';
+        }
       }
       localStorage.setItem(STORAGE_KEY_USERS_DB, JSON.stringify(users));
 
@@ -4941,18 +4966,12 @@
     const activeUserClassId = state.activeStudentClassId || (currentUser?.classId || (classes[0] ? classes[0].id : 'class_101'));
     const userClass = classes.find(c => c.id === activeUserClassId) || classes[0] || { id: 'class_101', name: '教学班级', groups: [] };
 
-    // 👥 2. 匹配该学生在当前选定主视班级里的小组
-    let matchedGroupObj = null;
-    if (userClass && Array.isArray(userClass.groups)) {
-      matchedGroupObj = userClass.groups.find(g => (g.members || []).some(m => {
-        const mId = (typeof m === 'object' && m !== null) ? (m.id || m.userId || m.studentCode) : m;
-        return mId === currentUser?.id || mId === currentUser?.studentCode;
-      }));
-    }
-    const groupId = matchedGroupObj ? matchedGroupObj.id : ((currentUser && currentUser.groupId) ? currentUser.groupId : 'group_1');
-    const groupName = matchedGroupObj ? matchedGroupObj.name : '第1协作小组 (测试组)';
+    // 👥 2. 动态精准匹配该学生在当前选定班级里的真实小组
+    const activeGroupObj = authManager.getStudentActiveGroup(currentUser, userClass.id);
+    const groupId = activeGroupObj.id || 'group_1';
+    const groupName = activeGroupObj.name || '第 1 协作小组';
 
-    // 📋 3. 严格按当前选定班级过滤任务与通知（支持全班级和精准班级匹配）
+    // 📋 3. 严格按当前选定班级和小组过滤通知（杜绝外班通知串入导致未读数虚高）
     const relevantAnnouncements = (announcements || []).filter(a => {
       const matchClass = !a.classId || a.classId === 'all' || a.classId === userClass.id || (a.className && a.className === userClass.name);
       const matchGroup = !a.targetGroupId || a.targetGroupId === 'all' || a.targetGroupId === groupId ||
@@ -5106,14 +5125,25 @@
     if (!header) return;
     const elapsedMin = Math.floor(state.timer.elapsedSeconds / 60);
     const remainingMin = Math.max(0, 150 - elapsedMin);
-    const groupId = currentUser && currentUser.groupId ? currentUser.groupId : 'group_1';
-    const unreadAnnCount = announcements ? announcements.filter(a => !a.readStatus || !a.readStatus[groupId]).length : 0;
+    const activeClassId = state.activeStudentClassId || currentUser?.classId || 'class_101';
+    const activeGroupObj = (window.app && window.app.authManager) ? window.app.authManager.getStudentActiveGroup(currentUser, activeClassId) : { id: 'group_1', name: '第 1 协作小组' };
+    const groupId = activeGroupObj.id || (currentUser && currentUser.groupId ? currentUser.groupId : 'group_1');
+    const groupName = activeGroupObj.name || '第 1 协作小组';
+
+    // 严格按当前班级和当前小组过滤通知，杜绝外班通知串入
+    const relevantAnnouncements = (announcements || []).filter(a => {
+      const matchClass = !a.classId || a.classId === 'all' || a.classId === activeClassId;
+      const matchGroup = !a.targetGroupId || a.targetGroupId === 'all' || a.targetGroupId === groupId ||
+        (Array.isArray(a.targetGroupIds) && (a.targetGroupIds.includes('all') || a.targetGroupIds.includes(groupId)));
+      return matchClass && matchGroup;
+    });
+    const unreadAnnCount = relevantAnnouncements.filter(a => !a.readStatus || !a.readStatus[groupId]).length;
     const isFinalSubmitted = state.isFinalSubmitted;
 
     header.innerHTML = `
       <div class="brand-section">
         <div class="brand-logo">集智 JIZHI</div>
-        <div class="brand-badge">🎓 ${currentUser ? currentUser.name : '学生'} ${isFinalSubmitted ? '<span style="color:#059669; margin-left:3px;">(🔒已归档)</span>' : ''}</div>
+        <div class="brand-badge">🎓 ${currentUser ? currentUser.name : '学生'} · ${groupName} ${isFinalSubmitted ? '<span style="color:#059669; margin-left:3px;">(🔒已归档)</span>' : ''}</div>
         <button id="btn-header-back-tasks" style="background:#f8fafc; border:1px solid #cbd5e1; color:#334155; padding:3px 8px; border-radius:14px; font-size:11px; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; gap:3px;" title="返回我的写作任务大厅">
           📋 任务大厅
         </button>
@@ -7038,7 +7068,9 @@
           }
         );
       } else {
-        const currentGroupId = currentUser && currentUser.groupId ? currentUser.groupId : 'group_1';
+        const effectiveClassId = this.state.activeStudentClassId || currentUser?.classId || 'class_101';
+        const activeGroupObj = this.authManager.getStudentActiveGroup(currentUser, effectiveClassId);
+        const currentGroupId = activeGroupObj.id || (currentUser && currentUser.groupId ? currentUser.groupId : 'group_1');
         this.loadGroupState(currentGroupId);
 
         if (this.state.studentViewMode === 'task_list') {

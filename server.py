@@ -419,6 +419,42 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                 self.wfile.write(json.dumps({'error': str(e)}).encode('utf-8'))
             return
 
+        # ⚡ 学生已读确认通知专属轻量路由
+        if 'action=update_read_status' in self.path:
+            length = int(self.headers.get('Content-Length', 0))
+            body = self.rfile.read(length)
+            try:
+                req = json.loads(body.decode('utf-8'))
+                ann_id = req.get('annId')
+                group_id = req.get('groupId')
+                if ann_id and group_id:
+                    global_file = os.path.join(DIR, 'global_db.json')
+                    if os.path.exists(global_file):
+                        with open(global_file, 'r', encoding='utf-8') as f:
+                            meta = json.load(f)
+                        if isinstance(meta, dict) and 'announcements' in meta and isinstance(meta['announcements'], list):
+                            for ann in meta['announcements']:
+                                if ann.get('id') == ann_id:
+                                    if 'readStatus' not in ann or not isinstance(ann['readStatus'], dict):
+                                        ann['readStatus'] = {}
+                                    ann['readStatus'][group_id] = True
+                                    break
+                            with open(global_file, 'w', encoding='utf-8') as f:
+                                json.dump(meta, f, ensure_ascii=False)
+
+                resp = b'{"success":true}'
+                self.send_response(200)
+                self.send_header('Content-Type', 'application/json; charset=utf-8')
+                self.send_header('Content-Length', str(len(resp)))
+                self.end_headers()
+                self.wfile.write(resp)
+                self.wfile.flush()
+            except Exception as e:
+                self.send_response(200)
+                self.end_headers()
+                self.wfile.write(b'{"success":false}')
+            return
+
         if '/api/snapshot' in self.path or 'sync.php' in self.path:
             groupId = 'group_1'
             if 'groupId=' in self.path:
