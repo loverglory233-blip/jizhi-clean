@@ -979,12 +979,17 @@
       const parsedGroupSize = Math.max(2, parseInt(groupSize, 10) || 3);
       const allUsers = this.getUsers();
 
+      const getMemberId = (m) => (typeof m === 'object' && m !== null) ? (m.id || m.userId || m.studentCode) : m;
+
       if (mode === 'append_unassigned') {
         // 🧩 模式二：保留已有小组，仅将【未进组学生】随机组队
         if (!cls.groups) cls.groups = [];
         const assignedStudentIds = new Set();
         cls.groups.forEach(g => {
-          (g.members || []).forEach(mId => assignedStudentIds.add(mId));
+          (g.members || []).forEach(m => {
+            const mId = getMemberId(m);
+            if (mId) assignedStudentIds.add(mId);
+          });
         });
 
         const unassignedStudents = classStudents.filter(s => !assignedStudentIds.has(s.id));
@@ -2263,7 +2268,10 @@
                 <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(360px, 1fr)); gap:16px;">
                   ${(activeClass.groups || []).length === 0 ? '<div style="color:#64748b; padding:20px; font-size:14px;">当前班级暂无小组。</div>' : ''}
                   ${(activeClass.groups || []).map(grp => {
-                    const groupMembers = classStudents.filter(s => (grp.members || []).includes(s.id));
+                    const groupMembers = classStudents.filter(s => (grp.members || []).some(m => {
+                      const mId = (typeof m === 'object' && m !== null) ? (m.id || m.userId || m.studentCode) : m;
+                      return mId === s.id || (mId && s.studentCode && mId.toString() === s.studentCode.toString());
+                    }));
                     return `
                       <div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:12px; padding:18px; box-shadow:0 1px 3px rgba(15,23,42,0.03);">
                         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
