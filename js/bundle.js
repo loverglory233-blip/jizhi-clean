@@ -446,18 +446,44 @@
             });
             localStorage.setItem(STORAGE_KEY_USERS_DB, JSON.stringify(mergedUsers));
 
-            // 2. 班级列表同步（服务端权威覆盖，本地只读保存，不反推）
+            const isTeacher = currUser && (currUser.role === 'teacher' || currUser.isTeacher || currUser.username === '1001' || currUser.id === 'u_teacher');
+
+            // 2. 班级列表同步（教师端安全增量合并，绝不被远端空数据抹杀）
             if (Array.isArray(data.classes) && data.classes.length > 0) {
-              localStorage.setItem(STORAGE_KEY_CLASSES, JSON.stringify(data.classes));
+              if (isTeacher) {
+                const localClasses = this.getClasses();
+                const mergedClasses = [...data.classes];
+                localClasses.forEach(lc => {
+                  if (!mergedClasses.some(sc => sc.id === lc.id)) {
+                    mergedClasses.push(lc);
+                    hasNewLocalData = true;
+                  }
+                });
+                localStorage.setItem(STORAGE_KEY_CLASSES, JSON.stringify(mergedClasses));
+              } else {
+                localStorage.setItem(STORAGE_KEY_CLASSES, JSON.stringify(data.classes));
+              }
               this.sanitizeAndDeduplicateGroups();
             }
 
-            // 3. 任务列表（以服务端权威数据为准，教师端删除后立即全网同步删除）
+            // 3. 任务列表（教师端本地已配好的任务绝对安全保留并回写上云）
             if (Array.isArray(data.tasks)) {
-              localStorage.setItem(STORAGE_KEY_TASKS, JSON.stringify(data.tasks));
+              if (isTeacher) {
+                const localTasks = this.getTasks();
+                const mergedTasks = [...data.tasks];
+                localTasks.forEach(lt => {
+                  if (!mergedTasks.some(st => st.id === lt.id)) {
+                    mergedTasks.push(lt);
+                    hasNewLocalData = true;
+                  }
+                });
+                localStorage.setItem(STORAGE_KEY_TASKS, JSON.stringify(mergedTasks));
+              } else {
+                localStorage.setItem(STORAGE_KEY_TASKS, JSON.stringify(data.tasks));
+              }
             }
 
-            // 4. 通知列表（以服务端权威列表为准，仅保留本地已读标记，不反推内容）
+            // 4. 通知列表（教师端本地通知绝对安全保留）
             if (Array.isArray(data.announcements)) {
               const localAnns = this.getAnnouncements();
               const serverAnns = data.announcements.map(sa => {
@@ -467,23 +493,55 @@
                 }
                 return sa;
               });
+              if (isTeacher) {
+                localAnns.forEach(la => {
+                  if (!serverAnns.some(sa => sa.id === la.id)) {
+                    serverAnns.push(la);
+                    hasNewLocalData = true;
+                  }
+                });
+              }
               localStorage.setItem(STORAGE_KEY_ANNOUNCEMENTS, JSON.stringify(serverAnns));
             }
 
-            // 5. 参考范文（以服务端权威列表为准）
+            // 5. 参考范文（教师端本地范文绝对安全保留）
             if (Array.isArray(data.referencePapers)) {
-              localStorage.setItem('jizhi_reference_papers_db', JSON.stringify(data.referencePapers));
+              if (isTeacher) {
+                const localPapers = this.getAllReferencePapers();
+                const mergedPapers = [...data.referencePapers];
+                localPapers.forEach(lp => {
+                  if (!mergedPapers.some(sp => sp.id === lp.id)) {
+                    mergedPapers.push(lp);
+                    hasNewLocalData = true;
+                  }
+                });
+                localStorage.setItem('jizhi_reference_papers_db', JSON.stringify(mergedPapers));
+              } else {
+                localStorage.setItem('jizhi_reference_papers_db', JSON.stringify(data.referencePapers));
+              }
             }
 
-            // 6. 问卷列表（以服务端权威列表为准，存入新结构 key）
+            // 6. 问卷列表（教师端本地问卷绝对安全保留）
             if (Array.isArray(data.surveys)) {
-              localStorage.setItem('jizhi_surveys_list_db', JSON.stringify(data.surveys));
+              if (isTeacher) {
+                const localSurveys = this.getSurveysList();
+                const mergedSurveys = [...data.surveys];
+                localSurveys.forEach(ls => {
+                  if (!mergedSurveys.some(ss => ss.id === ls.id)) {
+                    mergedSurveys.push(ls);
+                    hasNewLocalData = true;
+                  }
+                });
+                localStorage.setItem('jizhi_surveys_list_db', JSON.stringify(mergedSurveys));
+              } else {
+                localStorage.setItem('jizhi_surveys_list_db', JSON.stringify(data.surveys));
+              }
             }
 
-            // ⚠️ 严禁在 pullGlobalMeta 中反向推送教务数据回服务器
-            // 教务数据（tasks/announcements/papers/surveys/classes）只能由教师端通过
-            // pushGlobalMeta() 写入服务器，学生端只能读取，绝不反推，防止覆盖教师数据
-            // （已删除 hasNewLocalData → pushGlobalMeta() 的触发逻辑）
+            // 🛡️ 教师端若存在本地未上云的专属数据，立即触发回推固化至服务器，实现 100% 永不丢失！
+            if (isTeacher && hasNewLocalData) {
+              this.pushGlobalMeta();
+            }
           }
         }
       } catch (e) {}
