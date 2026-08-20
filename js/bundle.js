@@ -1066,7 +1066,13 @@
     }
 
     getReferencePapers(groupId = null, classId = null) {
-      return this.getAllReferencePapers();
+      const papers = this.getAllReferencePapers();
+      if (!groupId && !classId) return papers;
+      return papers.filter(p => {
+        const matchClass = !classId || classId === 'all' || !p.classId || p.classId === 'all' || p.classId === classId;
+        const matchGroup = !groupId || groupId === 'all' || !p.targetGroupId || p.targetGroupId === 'all' || p.targetGroupId === groupId;
+        return matchClass && matchGroup;
+      });
     }
 
     uploadReferencePaper(paper) {
@@ -3722,14 +3728,24 @@
     const groupId = (currentUser && currentUser.groupId) ? currentUser.groupId : 'group_1';
     const userClass = classes.find(c => c.id === currentUser?.classId) || classes[0];
     const userClassId = userClass ? userClass.id : null;
-    const groupObj = (userClass && userClass.groups) ? userClass.groups.find(g => g.id === groupId) : null;
-    const groupName = groupObj ? groupObj.name : '第1小组';
+    const myClassIds = new Set([
+      currentUser?.classId,
+      ...(currentUser?.classIds || []),
+      userClass?.id
+    ].filter(Boolean));
 
-    const relevantAnnouncements = announcements || [];
+    const relevantAnnouncements = (announcements || []).filter(a => {
+      const matchClass = !a.classId || a.classId === 'all' || myClassIds.has(a.classId) || (a.className && userClass && a.className === userClass.name);
+      const matchGroup = !a.targetGroupId || a.targetGroupId === 'all' || a.targetGroupId === groupId;
+      return matchClass && matchGroup;
+    });
     const unreadAnnCount = relevantAnnouncements.filter(a => !a.readStatus || !a.readStatus[groupId]).length;
     const isFinalSubmitted = state.isFinalSubmitted;
 
-    const relevantTasks = tasks;
+    const relevantTasks = tasks.filter(t => {
+      if (!t.classId || t.classId === 'all') return true;
+      return myClassIds.has(t.classId) || (t.className && userClass && t.className === userClass.name);
+    });
 
     container.innerHTML = `
       <div class="student-task-portal" style="min-height:100vh; background:#f0f4f9; display:flex; flex-direction:column;">
@@ -6374,11 +6390,16 @@
       }
       const currentUser = this.authManager.getCurrentUser();
       const groupId = currentUser && currentUser.groupId ? currentUser.groupId : 'group_1';
+      const myClassIds = new Set([currentUser?.classId, ...(currentUser?.classIds || [])].filter(Boolean));
       const allAnns = this.authManager.getAnnouncements();
       
-      // 过滤出未读的通知，严格按创建时间从新到旧排序
+      // 过滤出本班/本组且未读的通知，严格按创建时间从新到旧排序
       const unreadList = allAnns
-        .filter(a => !a.readStatus || !a.readStatus[groupId])
+        .filter(a => {
+          const matchClass = !a.classId || a.classId === 'all' || myClassIds.has(a.classId);
+          const matchGroup = !a.targetGroupId || a.targetGroupId === 'all' || a.targetGroupId === groupId;
+          return matchClass && matchGroup && (!a.readStatus || !a.readStatus[groupId]);
+        })
         .sort((a, b) => (b.id > a.id ? 1 : -1));
 
       if (unreadList.length > 0) {
@@ -6390,10 +6411,17 @@
       document.querySelectorAll('.modal-overlay').forEach(el => el.remove());
       const currentUser = this.authManager.getCurrentUser();
       const groupId = currentUser && currentUser.groupId ? currentUser.groupId : 'group_1';
+      const myClassIds = new Set([currentUser?.classId, ...(currentUser?.classIds || [])].filter(Boolean));
       const allAnns = this.authManager.getAnnouncements();
 
-      // 所有教师发布的通知按最新发布倒序排
-      const myAnns = [...allAnns].sort((a, b) => (b.id > a.id ? 1 : -1));
+      // 过滤当前班级与小组可见的通知，按最新发布倒序排
+      const myAnns = allAnns
+        .filter(a => {
+          const matchClass = !a.classId || a.classId === 'all' || myClassIds.has(a.classId);
+          const matchGroup = !a.targetGroupId || a.targetGroupId === 'all' || a.targetGroupId === groupId;
+          return matchClass && matchGroup;
+        })
+        .sort((a, b) => (b.id > a.id ? 1 : -1));
 
       if (myAnns.length === 0) {
         if (!isSequentialFlow) alert('📢 暂无课堂教学通知！');
