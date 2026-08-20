@@ -398,55 +398,35 @@
             });
             localStorage.setItem(STORAGE_KEY_CLASSES, JSON.stringify(mergedClasses));
 
-            // 3. 任务列表双向合并
-            const localTasks = this.getTasks();
-            const serverTasks = Array.isArray(data.tasks) ? data.tasks : [];
-            const mergedTasks = [...serverTasks];
-            localTasks.forEach(lt => {
-              if (!mergedTasks.some(st => st.id === lt.id)) {
-                mergedTasks.push(lt);
-                hasNewLocalData = true;
-              }
-            });
-            localStorage.setItem(STORAGE_KEY_TASKS, JSON.stringify(mergedTasks));
-
-            // 4. 通知列表双向合并 (深度保留本地已读状态)
-            const localAnns = this.getAnnouncements();
-            const serverAnns = Array.isArray(data.announcements) ? data.announcements : [];
-            const mergedAnns = [...serverAnns];
-            localAnns.forEach(la => {
-              const match = mergedAnns.find(sa => sa.id === la.id);
-              if (!match) {
-                mergedAnns.push(la);
-                hasNewLocalData = true;
-              } else {
-                if (la.readStatus) {
-                  match.readStatus = Object.assign({}, match.readStatus || {}, la.readStatus);
-                }
-              }
-            });
-            localStorage.setItem(STORAGE_KEY_ANNOUNCEMENTS, JSON.stringify(mergedAnns));
-
-            // 5. 参考范文双向合并
-            const localPapers = this.getAllReferencePapers();
-            const serverPapers = Array.isArray(data.referencePapers) ? data.referencePapers : [];
-            const mergedPapers = [...serverPapers];
-            localPapers.forEach(lp => {
-              if (!mergedPapers.some(sp => sp.id === lp.id)) {
-                mergedPapers.push(lp);
-                hasNewLocalData = true;
-              }
-            });
-            localStorage.setItem('jizhi_reference_papers_db', JSON.stringify(mergedPapers));
-
-            // 6. 问卷映射表安全合并
-            if (data.surveys && typeof data.surveys === 'object') {
-              const localSurveys = this.getSurveysMap();
-              const mergedSurveys = Object.assign({}, localSurveys, data.surveys);
-              localStorage.setItem('jizhi_surveys_map_db', JSON.stringify(mergedSurveys));
+            // 3. 任务列表（以服务端权威数据为准，教师端删除后立即在全网同步删除）
+            if (Array.isArray(data.tasks)) {
+              localStorage.setItem(STORAGE_KEY_TASKS, JSON.stringify(data.tasks));
             }
 
-            // 如果本地有服务端尚未收录的新数据，立刻自动向服务端持久化
+            // 4. 通知列表（以服务端权威列表为准，保留本地已读标记，服务端删除的通知立即消失）
+            if (Array.isArray(data.announcements)) {
+              const localAnns = this.getAnnouncements();
+              const serverAnns = data.announcements.map(sa => {
+                const localMatch = localAnns.find(la => la.id === sa.id);
+                if (localMatch && localMatch.readStatus) {
+                  sa.readStatus = Object.assign({}, sa.readStatus || {}, localMatch.readStatus);
+                }
+                return sa;
+              });
+              localStorage.setItem(STORAGE_KEY_ANNOUNCEMENTS, JSON.stringify(serverAnns));
+            }
+
+            // 5. 参考范文（以服务端权威列表为准，服务端删除后立即同步清除）
+            if (Array.isArray(data.referencePapers)) {
+              localStorage.setItem('jizhi_reference_papers_db', JSON.stringify(data.referencePapers));
+            }
+
+            // 6. 问卷映射表（以服务端权威映射为准）
+            if (data.surveys && typeof data.surveys === 'object') {
+              localStorage.setItem('jizhi_surveys_map_db', JSON.stringify(data.surveys));
+            }
+
+            // 仅在发现完全缺失的基础学生账号时才补全本地持久化
             if (hasNewLocalData) {
               this.pushGlobalMeta();
             }
@@ -992,46 +972,48 @@
       const classes = this.getClasses();
       const cls = classes.find(c => c.id === classId) || classes[0];
       if (!cls) return;
-      const allUsers = this.getUsers();
-      const classStudents = allUsers.filter(u => u.role !== "teacher" && (cls.studentIds || []).includes(u.id));
-      if (classStudents.length === 0) return;
 
-      // 提取测试 3 人组（李明、王芳、陈强）固定留在第 1 组
-      const testStudents = classStudents.filter(u => u.id === 'u_studentA' || u.id === 'u_studentB' || u.id === 'u_studentC' || ['202601', '202602', '202603'].includes(u.studentCode));
-      const otherStudents = classStudents.filter(u => !testStudents.some(tu => tu.id === u.id));
-
-      const newGroups = [];
-
-      // 1. 如果班级包含测试账号，固定锁定为【第 1 协作小组】
-      if (testStudents.length > 0) {
-        const g1 = {
-          id: 'group_1',
-          name: '第 1 协作小组 (测试组)',
-          members: testStudents.map(s => s.id)
-        };
-        newGroups.push(g1);
-        testStudents.forEach(s => { s.groupId = 'group_1'; });
+      const classStudents = this.getClassStudents(cls.id);
+      if (classStudents.length === 0) {
+        alert('⚠️ 当前班级尚无学生，请先创建或导入学生后再进行随机分组！');
+        return;
       }
 
-      // 2. 剩余的真实学生，从第 2 组开始随机乱序洗牌分配
-      if (otherStudents.length > 0) {
-        const shuffled = [...otherStudents].sort(() => Math.random() - 0.5);
-        const dynamicGroupCount = Math.max(1, Math.ceil(shuffled.length / groupSize));
-        const startIndex = newGroups.length + 1; // 从第 2 组或第 1 组开始
+      const parsedGroupSize = Math.max(2, parseInt(groupSize, 10) || 3);
+      const allUsers = this.getUsers();
 
-        for (let i = 0; i < dynamicGroupCount; i++) {
-          const gid = `group_${Date.now()}_${i + 1}`;
-          newGroups.push({
-            id: gid,
-            name: `第 ${startIndex + i} 协作小组`,
-            members: []
-          });
+      // 先清空本班所有学生旧的 groupId
+      allUsers.forEach(u => {
+        if (classStudents.some(cs => cs.id === u.id)) {
+          u.groupId = null;
         }
+      });
 
-        shuffled.forEach((student, idx) => {
-          const targetDynamicGroup = newGroups[newGroups.length - dynamicGroupCount + (idx % dynamicGroupCount)];
-          targetDynamicGroup.members.push(student.id);
-          student.groupId = targetDynamicGroup.id;
+      // 1. 乱序打乱学生
+      const shuffled = [...classStudents].sort(() => Math.random() - 0.5);
+      const totalGroupCount = Math.max(1, Math.ceil(shuffled.length / parsedGroupSize));
+
+      // 2. 精确创建对应数量的小组
+      const newGroups = [];
+      for (let i = 0; i < totalGroupCount; i++) {
+        const groupIndex = i + 1;
+        const startIdx = i * parsedGroupSize;
+        const endIdx = Math.min(shuffled.length, startIdx + parsedGroupSize);
+        const groupChunk = shuffled.slice(startIdx, endIdx);
+
+        const groupId = `group_${Date.now()}_${groupIndex}`;
+        const memberIds = groupChunk.map(s => s.id);
+
+        // 将该组学生绑定 groupId
+        groupChunk.forEach(s => {
+          const matchedUser = allUsers.find(u => u.id === s.id);
+          if (matchedUser) matchedUser.groupId = groupId;
+        });
+
+        newGroups.push({
+          id: groupId,
+          name: `第 ${groupIndex} 协作小组`,
+          members: memberIds
         });
       }
 
@@ -2396,9 +2378,6 @@
                           ` : '<span style="font-size:12px; color:#94a3b8;">无独立附件文件</span>'}
                         </div>
                         <div style="display:flex; gap:10px;">
-                          <button class="btn-push-paper-to-chat" data-id="${p.id}" data-target="${p.targetGroupId || 'all'}" style="background:linear-gradient(135deg, #1d4ed8, #2563eb); border:none; color:white; padding:6px 14px; border-radius:6px; font-size:12.5px; font-weight:700; cursor:pointer; box-shadow:0 2px 6px rgba(37,99,235,0.25);">
-                            📢 审稿编辑提醒学生查阅此文
-                          </button>
                           <button class="btn-delete-paper" data-id="${p.id}" style="background:#fef2f2; border:1px solid #fecaca; color:#dc2626; padding:6px 12px; border-radius:6px; font-size:12px; font-weight:700; cursor:pointer;">
                             🗑️ 删除
                           </button>
