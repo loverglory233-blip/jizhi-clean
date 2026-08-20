@@ -340,19 +340,61 @@
           if (data && data.users && Array.isArray(data.users) && data.users.length > 0) {
             const currentUsers = this.getUsers();
             const currUser = this.getCurrentUser();
-            // Merge users without wiping activeSessionId
-            const mergedUsers = data.users.map(u => {
-              const localMatch = currentUsers.find(cu => cu.id === u.id || cu.username === u.username);
-              if (u.username === 'weng' && u.studentCode !== 'B') u.studentCode = 'B';
-              if (localMatch && currUser && (currUser.id === u.id || currUser.username === u.username)) {
-                return { ...u, activeSessionId: currUser.activeSessionId };
+            const mergedUsers = [...data.users];
+
+            // 1. 保留本地所有新导入的学生，绝不被服务端旧快照剔除
+            currentUsers.forEach(lu => {
+              const serverMatchIndex = mergedUsers.findIndex(su => su.id === lu.id || su.username === lu.username);
+              if (serverMatchIndex === -1) {
+                mergedUsers.push(lu);
+              } else {
+                // 如果双方都存在，保留本地最新的 groupId 和 activeSessionId
+                const serverUser = mergedUsers[serverMatchIndex];
+                if (lu.groupId && !serverUser.groupId) serverUser.groupId = lu.groupId;
+                if (lu.classIds && Array.isArray(lu.classIds)) {
+                  serverUser.classIds = Array.from(new Set([...(serverUser.classIds || []), ...lu.classIds]));
+                }
+                if (currUser && (currUser.id === lu.id || currUser.username === lu.username)) {
+                  serverUser.activeSessionId = currUser.activeSessionId;
+                }
               }
-              return u;
             });
+
             localStorage.setItem(STORAGE_KEY_USERS_DB, JSON.stringify(mergedUsers));
           }
+
           if (data && data.classes && Array.isArray(data.classes) && data.classes.length > 0) {
-            localStorage.setItem(STORAGE_KEY_CLASSES, JSON.stringify(data.classes));
+            const localClasses = this.getClasses();
+            const mergedClasses = [...data.classes];
+
+            localClasses.forEach(lc => {
+              const match = mergedClasses.find(mc => mc.id === lc.id);
+              if (!match) {
+                mergedClasses.push(lc);
+              } else {
+                // 合并 studentIds，防止本地新加的学生 ID 被服务端冲掉
+                if (lc.studentIds && Array.isArray(lc.studentIds)) {
+                  match.studentIds = Array.from(new Set([...(match.studentIds || []), ...lc.studentIds]));
+                }
+                // 合并 groups，防止本地新创建的小组或小组成员被冲掉
+                if (lc.groups && Array.isArray(lc.groups) && lc.groups.length > 0) {
+                  if (!match.groups || match.groups.length === 0) {
+                    match.groups = lc.groups;
+                  } else {
+                    lc.groups.forEach(lg => {
+                      const serverGroup = match.groups.find(sg => sg.id === lg.id);
+                      if (!serverGroup) {
+                        match.groups.push(lg);
+                      } else if (lg.members && lg.members.length > 0 && (!serverGroup.members || serverGroup.members.length === 0)) {
+                        serverGroup.members = lg.members;
+                      }
+                    });
+                  }
+                }
+              }
+            });
+
+            localStorage.setItem(STORAGE_KEY_CLASSES, JSON.stringify(mergedClasses));
           }
           if (data && data.tasks && Array.isArray(data.tasks)) {
             const localTasks = this.getTasks();
@@ -751,10 +793,22 @@
         group.name = groupName;
       }
 
+      const oldMembers = group.members || [];
       group.members = selectedUserIds;
       localStorage.setItem(STORAGE_KEY_CLASSES, JSON.stringify(classes));
 
       const users = this.getUsers();
+      // 1. 被移出该组的学生，清空其 groupId
+      oldMembers.forEach(oldUid => {
+        if (!selectedUserIds.includes(oldUid)) {
+          const oldU = users.find(usr => usr.id === oldUid);
+          if (oldU && oldU.groupId === group.id) {
+            oldU.groupId = null;
+          }
+        }
+      });
+
+      // 2. 勾选进入该组的学生，更新 groupId 与学生代号
       selectedUserIds.forEach((uid, idx) => {
         const u = users.find(usr => usr.id === uid);
         if (u) {
