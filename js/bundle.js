@@ -498,33 +498,71 @@
         }
       } catch (e) {}
     }
-    getSurveysMap() {
+    getSurveysList() {
+      let list = [];
       try {
-        return JSON.parse(localStorage.getItem('jizhi_surveys_map_db')) || {};
-      } catch (e) { return {}; }
+        list = JSON.parse(localStorage.getItem('jizhi_surveys_list_db')) || [];
+      } catch (e) { list = []; }
+      return Array.isArray(list) ? list : [];
     }
-    saveSurveyUrl(classId, taskId, url) {
-      const map = this.getSurveysMap();
-      const key = `${classId}_${taskId}`;
-      if (url && url.trim()) {
-        map[key] = url.trim();
-      } else {
-        delete map[key];
+    saveSurvey(classId, taskId, url, existingId = null) {
+      if (!url || !url.trim()) return null;
+      let list = this.getSurveysList();
+      const classes = this.getClasses();
+      const tasks = this.getTasks();
+      const cObj = classes.find(c => c.id === classId);
+      const tObj = tasks.find(t => t.id === taskId);
+      const cleanUrl = url.trim();
+
+      if (existingId) {
+        const item = list.find(s => s.id === existingId);
+        if (item) {
+          item.classId = classId;
+          item.className = cObj ? cObj.name : '全校班级';
+          item.taskId = taskId;
+          item.taskTitle = tObj ? tObj.title : (taskId === 'task_default' ? '期末协作写作 (默认测试任务)' : '全班通识任务');
+          item.url = cleanUrl;
+          localStorage.setItem('jizhi_surveys_list_db', JSON.stringify(list));
+          this.pushGlobalMeta();
+          return item;
+        }
       }
-      localStorage.setItem('jizhi_surveys_map_db', JSON.stringify(map));
+
+      // 如果同班级同任务已存在，直接更新其 url；否则作为新配置插入数组首位
+      const existing = list.find(s => s.classId === classId && s.taskId === taskId);
+      if (existing) {
+        existing.url = cleanUrl;
+        existing.className = cObj ? cObj.name : '全校班级';
+        existing.taskTitle = tObj ? tObj.title : (taskId === 'task_default' ? '期末协作写作 (默认测试任务)' : '写作任务');
+        localStorage.setItem('jizhi_surveys_list_db', JSON.stringify(list));
+        this.pushGlobalMeta();
+        return existing;
+      }
+
+      const newSurvey = {
+        id: 'survey_' + Date.now(),
+        classId: classId || 'class_101',
+        className: cObj ? cObj.name : '《现代教育技术》2026春01班',
+        taskId: taskId || 'task_default',
+        taskTitle: tObj ? tObj.title : (taskId === 'task_default' ? '期末协作写作 (默认测试任务)' : '写作任务'),
+        url: cleanUrl,
+        createdAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      };
+      list.unshift(newSurvey);
+      localStorage.setItem('jizhi_surveys_list_db', JSON.stringify(list));
+      this.pushGlobalMeta();
+      return newSurvey;
+    }
+    deleteSurvey(surveyId) {
+      let list = this.getSurveysList();
+      list = list.filter(s => s.id !== surveyId);
+      localStorage.setItem('jizhi_surveys_list_db', JSON.stringify(list));
       this.pushGlobalMeta();
     }
     getSurveyUrl(classId, taskId) {
-      const map = this.getSurveysMap();
-      const key = `${classId}_${taskId}`;
-      return map[key] || '';
-    }
-    deleteSurveyUrl(classId, taskId) {
-      const map = this.getSurveysMap();
-      const key = `${classId}_${taskId}`;
-      delete map[key];
-      localStorage.setItem('jizhi_surveys_map_db', JSON.stringify(map));
-      this.pushGlobalMeta();
+      const list = this.getSurveysList();
+      const matched = list.find(s => (s.classId === classId || s.classId === 'all') && (s.taskId === taskId || s.taskId === 'task_default' || s.taskId === 'task_all'));
+      return matched ? matched.url : '';
     }
     pushGlobalMeta() {
       const payload = {
@@ -533,7 +571,7 @@
         tasks: this.getTasks(),
         announcements: this.getAnnouncements(),
         referencePapers: this.getAllReferencePapers(),
-        surveys: this.getSurveysMap()
+        surveys: this.getSurveysList()
       };
       try {
         fetch('sync.php?action=save_global_meta', {
@@ -2449,9 +2487,8 @@
             const currentClassAnnouncements = announcements.filter(a => a.classId === 'all' || !a.classId || a.classId === activeClass.id);
             const currentClassPapers = refPapers.filter(p => p.classId === 'all' || !p.classId || p.classId === activeClass.id);
 
-            const surveysMap = authManager.getSurveysMap();
-            const configuredEntries = Object.entries(surveysMap).filter(([k, v]) => v && v.trim());
-            const currentSelectedSurveyUrl = authManager.getSurveyUrl(activeClass.id, state.activeTaskId || (tasks[0] ? tasks[0].id : "task_default"));
+            const surveysList = authManager.getSurveysList();
+            const currentSelectedSurveyUrl = authManager.getSurveyUrl(activeClass.id, currentClassTasks[0] ? currentClassTasks[0].id : 'task_default');
 
             return `
             <div style="display:flex; flex-direction:column; gap:20px; width:100%;">
@@ -2480,7 +2517,7 @@
                   </div>
 
                   <div style="display:flex; gap:10px; align-items:center;">
-                    <input type="text" id="input-survey-url" class="teacher-input fancy" placeholder="请输入问卷星或第三方问卷网址 (如: https://www.wjx.cn/vm/xxxx.aspx)" value="${authManager.getSurveyUrl(activeClass.id, currentClassTasks[0] ? currentClassTasks[0].id : 'task_default') || ''}" style="flex:1;">
+                    <input type="text" id="input-survey-url" class="teacher-input fancy" placeholder="请输入问卷星或第三方问卷网址 (如: https://www.wjx.cn/vm/xxxx.aspx)" value="${currentSelectedSurveyUrl || ''}" style="flex:1;">
                     <button id="btn-save-survey-url" class="teacher-action-btn" style="background:linear-gradient(135deg, #1d4ed8, #2563eb); border:none; color:white; padding:8px 20px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer; white-space:nowrap; box-shadow:0 2px 8px rgba(37,99,235,0.25);">
                       💾 保存问卷链接
                     </button>
@@ -2490,40 +2527,30 @@
                 <!-- 📊 当前已生效的全部问卷绑定总览 -->
                 <div style="margin-top:16px;">
                   <div style="font-size:13px; font-weight:800; color:#334155; margin-bottom:10px;">
-                    📊 当前各班级已绑定问卷清单 (${configuredEntries.length} 项已配置):
+                    📊 当前全校已绑定问卷清单 (${surveysList.length} 项已配置):
                   </div>
-                  ${configuredEntries.length === 0 ? `
+                  ${surveysList.length === 0 ? `
                     <div style="background:#ffffff; border:1px dashed #cbd5e1; border-radius:8px; padding:16px; font-size:13px; color:#94a3b8; text-align:center;">
                       当前暂无配置的自定义问卷链接（学生提交终稿时将使用默认问卷）
                     </div>
                   ` : `
                     <div style="display:flex; flex-direction:column; gap:8px;">
-                      ${configuredEntries.map(([key, url], sIdx) => {
-                        let matchedClass = classes.find(c => key.startsWith(c.id + '_') || key.startsWith(c.id + '###'));
-                        let cId = matchedClass ? matchedClass.id : (key.startsWith('class_') ? key.split('_').slice(0, 2).join('_') : key.split('_')[0]);
-                        let tId = matchedClass ? key.slice(matchedClass.id.length + 1) : key.replace(cId + '_', '');
-                        if (tId.startsWith('#')) tId = tId.replace(/^#+/, '');
-                        
-                        const cObj = classes.find(c => c.id === cId);
-                        const tObj = tasks.find(t => t.id === tId);
-                        const cName = cObj ? cObj.name : '指定班级';
-                        const tName = tObj ? tObj.title : (tId === 'task_default' ? '期末协作写作 (默认测试任务)' : tId);
-                        
-                        const surveySeqNum = configuredEntries.length - sIdx;
+                      ${surveysList.map((s, sIdx) => {
+                        const surveySeqNum = surveysList.length - sIdx;
                         const isLatestSurvey = sIdx === 0;
                         return `
                           <div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:8px; padding:10px 14px; display:flex; justify-content:space-between; align-items:center; gap:12px; box-shadow:0 1px 3px rgba(15,23,42,0.02);">
                             <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
                               <span style="background:linear-gradient(135deg, #1d4ed8, #2563eb); color:#ffffff; padding:2px 8px; border-radius:6px; font-size:11.5px; font-weight:800;">问卷 ${surveySeqNum}${isLatestSurvey ? ' (最新)' : ''}</span>
-                              <span style="background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe; padding:2px 8px; border-radius:6px; font-size:12px; font-weight:700;">🏫 ${cName}</span>
-                              <span style="background:#f5f3ff; color:#7c3aed; border:1px solid #ddd6fe; padding:2px 8px; border-radius:6px; font-size:12px; font-weight:700;">📌 ${tName}</span>
-                              <a href="${url}" target="_blank" style="font-size:12px; color:#2563eb; text-decoration:none; font-family:monospace; max-width:320px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">🔗 ${url}</a>
+                              <span style="background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe; padding:2px 8px; border-radius:6px; font-size:12px; font-weight:700;">🏫 ${s.className || '指定班级'}</span>
+                              <span style="background:#f5f3ff; color:#7c3aed; border:1px solid #ddd6fe; padding:2px 8px; border-radius:6px; font-size:12px; font-weight:700;">📌 ${s.taskTitle || '指定写作任务'}</span>
+                              <a href="${s.url}" target="_blank" style="font-size:12px; color:#2563eb; text-decoration:none; font-family:monospace; max-width:320px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">🔗 ${s.url}</a>
                             </div>
                             <div style="display:flex; gap:8px;">
-                              <button class="btn-quick-fill-survey" data-cid="${cId}" data-tid="${tId}" data-url="${encodeURIComponent(url)}" style="background:#f8fafc; border:1px solid #cbd5e1; color:#334155; padding:4px 10px; border-radius:6px; font-size:11.5px; font-weight:700; cursor:pointer;">
+                              <button class="btn-quick-fill-survey" data-id="${s.id}" data-cid="${s.classId}" data-tid="${s.taskId}" data-url="${encodeURIComponent(s.url)}" style="background:#f8fafc; border:1px solid #cbd5e1; color:#334155; padding:4px 10px; border-radius:6px; font-size:11.5px; font-weight:700; cursor:pointer;">
                                 📝 载入修改
                               </button>
-                              <button class="btn-delete-survey-item" data-cid="${cId}" data-tid="${tId}" style="background:#fef2f2; border:1px solid #fecaca; color:#dc2626; padding:4px 8px; border-radius:6px; font-size:11.5px; font-weight:700; cursor:pointer;">
+                              <button class="btn-delete-survey-item" data-id="${s.id}" style="background:#fef2f2; border:1px solid #fecaca; color:#dc2626; padding:4px 8px; border-radius:6px; font-size:11.5px; font-weight:700; cursor:pointer;">
                                 🗑️ 清除
                               </button>
                             </div>
@@ -3614,7 +3641,7 @@
       const inputEl = container.querySelector('#input-survey-url') || container.querySelector('#survey-url-input');
       if (!inputEl) return;
       const cId = selSurveyClass ? selSurveyClass.value : activeClass.id;
-      const tId = selSurveyTask ? selSurveyTask.value : (state.activeTaskId || 'task_default');
+      const tId = selSurveyTask ? selSurveyTask.value : (currentClassTasks[0] ? currentClassTasks[0].id : 'task_default');
       inputEl.value = authManager.getSurveyUrl(cId, tId);
     };
 
@@ -3626,11 +3653,11 @@
       btnSaveSurveyUrl.addEventListener('click', () => {
         const urlInput = container.querySelector('#input-survey-url') || container.querySelector('#survey-url-input');
         const targetClassId = selSurveyClass ? selSurveyClass.value : activeClass.id;
-        const targetTaskId = selSurveyTask ? selSurveyTask.value : (state.activeTaskId || 'task_default');
+        const targetTaskId = selSurveyTask ? selSurveyTask.value : (currentClassTasks[0] ? currentClassTasks[0].id : 'task_default');
         const url = urlInput ? urlInput.value.trim() : '';
         if (!url) { alert('⚠️ 请先填入有效的问卷链接！'); return; }
         
-        authManager.saveSurveyUrl(targetClassId, targetTaskId, url);
+        authManager.saveSurvey(targetClassId, targetTaskId, url);
         
         if (window.app && window.app.cloudSyncEngine) {
           window.app.cloudSyncEngine.pushSnapshot();
@@ -3641,19 +3668,34 @@
       });
     }
 
-    const btnDeleteSurveyUrl = container.querySelector('#btn-delete-survey-url');
-    if (btnDeleteSurveyUrl) {
-      btnDeleteSurveyUrl.addEventListener('click', () => {
-        const targetClassId = selSurveyClass ? selSurveyClass.value : activeClass.id;
-        const targetTaskId = selSurveyTask ? selSurveyTask.value : (state.activeTaskId || 'task_default');
-        if (confirm('确认清除当前选定班级与任务绑定的问卷链接？')) {
-          authManager.deleteSurveyUrl(targetClassId, targetTaskId);
+    // 📝 载入问卷修改
+    container.querySelectorAll('.btn-quick-fill-survey').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const cId = btn.dataset.cid;
+        const tId = btn.dataset.tid;
+        const url = decodeURIComponent(btn.dataset.url || '');
+        if (selSurveyClass) selSurveyClass.value = cId;
+        if (selSurveyTask) selSurveyTask.value = tId;
+        const inputEl = container.querySelector('#input-survey-url') || container.querySelector('#survey-url-input');
+        if (inputEl) {
+          inputEl.value = url;
+          inputEl.focus();
+        }
+      });
+    });
+
+    // 🗑️ 清除/删除单条问卷
+    container.querySelectorAll('.btn-delete-survey-item').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const sId = btn.dataset.id;
+        if (confirm('确认从清单中清除并删除此项问卷配置？')) {
+          authManager.deleteSurvey(sId);
           if (window.app && window.app.cloudSyncEngine) window.app.cloudSyncEngine.pushSnapshot();
-          alert('✅ 问卷链接已成功清除！');
+          alert('✅ 问卷配置已成功删除！');
           renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
         }
       });
-    }
+    });
 
     // 📝 载入问卷修改
     container.querySelectorAll('.btn-quick-fill-survey').forEach(btn => {
