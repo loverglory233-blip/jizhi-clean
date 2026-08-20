@@ -718,6 +718,14 @@
       const cleanCode = (studentCode || '').trim();
       const cleanUsername = cleanCode.toLowerCase();
       
+      const existingUser = users.find(u => 
+        (u.studentCode && u.studentCode.trim().toLowerCase() === cleanCode.toLowerCase()) || 
+        (u.username && u.username.trim().toLowerCase() === cleanUsername)
+      );
+
+      const avatars = ['👨‍🎓', '👩‍🎓', '🧑‍🎓', '🎓', '📚', '🌟'];
+      const avatar = avatars[users.length % avatars.length];
+
       let targetUser;
       if (existingUser) {
         targetUser = existingUser;
@@ -967,7 +975,7 @@
       this.pushGlobalMeta();
     }
 
-    autoRandomGrouping(classId, groupSize = 3) {
+    autoRandomGrouping(classId, groupSize = 3, mode = 'reset_all') {
       const classes = this.getClasses();
       const cls = classes.find(c => c.id === classId) || classes[0];
       if (!cls) return;
@@ -981,42 +989,79 @@
       const parsedGroupSize = Math.max(2, parseInt(groupSize, 10) || 3);
       const allUsers = this.getUsers();
 
-      // 先清空本班所有学生旧的 groupId
-      allUsers.forEach(u => {
-        if (classStudents.some(cs => cs.id === u.id)) {
-          u.groupId = null;
+      if (mode === 'append_unassigned') {
+        // 🧩 模式二：保留已有小组，仅将【未进组学生】随机组队
+        if (!cls.groups) cls.groups = [];
+        const assignedStudentIds = new Set();
+        cls.groups.forEach(g => {
+          (g.members || []).forEach(mId => assignedStudentIds.add(mId));
+        });
+
+        const unassignedStudents = classStudents.filter(s => !assignedStudentIds.has(s.id));
+        if (unassignedStudents.length === 0) {
+          alert('ℹ️ 当前班级所有学生均已在小组中，无需额外分配！');
+          return;
         }
-      });
 
-      // 1. 乱序打乱学生
-      const shuffled = [...classStudents].sort(() => Math.random() - 0.5);
-      const totalGroupCount = Math.max(1, Math.ceil(shuffled.length / parsedGroupSize));
+        const shuffled = [...unassignedStudents].sort(() => Math.random() - 0.5);
+        const appendGroupCount = Math.max(1, Math.ceil(shuffled.length / parsedGroupSize));
+        const startIndex = cls.groups.length + 1;
 
-      // 2. 精确创建对应数量的小组
-      const newGroups = [];
-      for (let i = 0; i < totalGroupCount; i++) {
-        const groupIndex = i + 1;
-        const startIdx = i * parsedGroupSize;
-        const endIdx = Math.min(shuffled.length, startIdx + parsedGroupSize);
-        const groupChunk = shuffled.slice(startIdx, endIdx);
+        for (let i = 0; i < appendGroupCount; i++) {
+          const groupIndex = startIndex + i;
+          const startIdx = i * parsedGroupSize;
+          const endIdx = Math.min(shuffled.length, startIdx + parsedGroupSize);
+          const groupChunk = shuffled.slice(startIdx, endIdx);
 
-        const groupId = `group_${Date.now()}_${groupIndex}`;
-        const memberIds = groupChunk.map(s => s.id);
+          const groupId = `group_${Date.now()}_${groupIndex}`;
+          const memberIds = groupChunk.map(s => s.id);
 
-        // 将该组学生绑定 groupId
-        groupChunk.forEach(s => {
-          const matchedUser = allUsers.find(u => u.id === s.id);
-          if (matchedUser) matchedUser.groupId = groupId;
+          groupChunk.forEach(s => {
+            const matchedUser = allUsers.find(u => u.id === s.id);
+            if (matchedUser) matchedUser.groupId = groupId;
+          });
+
+          cls.groups.push({
+            id: groupId,
+            name: `第 ${groupIndex} 协作小组`,
+            members: memberIds
+          });
+        }
+      } else {
+        // 💥 模式一：全员打散重组
+        allUsers.forEach(u => {
+          if (classStudents.some(cs => cs.id === u.id)) {
+            u.groupId = null;
+          }
         });
 
-        newGroups.push({
-          id: groupId,
-          name: `第 ${groupIndex} 协作小组`,
-          members: memberIds
-        });
+        const shuffled = [...classStudents].sort(() => Math.random() - 0.5);
+        const totalGroupCount = Math.max(1, Math.ceil(shuffled.length / parsedGroupSize));
+
+        const newGroups = [];
+        for (let i = 0; i < totalGroupCount; i++) {
+          const groupIndex = i + 1;
+          const startIdx = i * parsedGroupSize;
+          const endIdx = Math.min(shuffled.length, startIdx + parsedGroupSize);
+          const groupChunk = shuffled.slice(startIdx, endIdx);
+
+          const groupId = `group_${Date.now()}_${groupIndex}`;
+          const memberIds = groupChunk.map(s => s.id);
+
+          groupChunk.forEach(s => {
+            const matchedUser = allUsers.find(u => u.id === s.id);
+            if (matchedUser) matchedUser.groupId = groupId;
+          });
+
+          newGroups.push({
+            id: groupId,
+            name: `第 ${groupIndex} 协作小组`,
+            members: memberIds
+          });
+        }
+        cls.groups = newGroups;
       }
 
-      cls.groups = newGroups;
       localStorage.setItem(STORAGE_KEY_CLASSES, JSON.stringify(classes));
       localStorage.setItem(STORAGE_KEY_USERS_DB, JSON.stringify(allUsers));
       this.pushGlobalMeta();
@@ -3171,15 +3216,18 @@
             </div>
 
             <div class="teacher-form-group" style="margin-top:10px;">
-              <label><span class="req">*</span> 勾选归属本组的学生成员 (本班学生候选人: ${availableStudents.length} 人)</label>
-              <div style="background:rgba(15,23,42,0.7); border:1px solid rgba(255,255,255,0.1); border-radius:10px; padding:12px; max-height:240px; overflow-y:auto; display:flex; flex-direction:column; gap:8px;">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+                <label style="margin:0;"><span class="req">*</span> 勾选归属本组的学生成员 (共 ${availableStudents.length} 人)</label>
+                <input type="text" id="modal-grp-std-search" placeholder="🔍 输入姓名或学号快速搜索..." style="background:rgba(15,23,42,0.8); border:1px solid rgba(255,255,255,0.2); color:#ffffff; padding:4px 10px; border-radius:6px; font-size:12px; width:200px; outline:none;">
+              </div>
+              <div id="modal-grp-candidates-container" style="background:rgba(15,23,42,0.7); border:1px solid rgba(255,255,255,0.1); border-radius:10px; padding:12px; max-height:240px; overflow-y:auto; display:flex; flex-direction:column; gap:8px;">
                 ${availableStudents.length === 0 ? '<div style="color:#94a3b8; font-size:12px; text-align:center;">当前班级暂无学生，请先添加学生。</div>' : ''}
                 ${availableStudents.map(s => {
                   const isChecked = currentMembers.includes(s.id);
                   const isLeader = s.studentCode === 'A';
                   const otherGroup = (cls.groups || []).find(g => g.id !== editingGroupId && g.members && g.members.includes(s.id));
                   return `
-                    <div style="display:flex; justify-content:space-between; align-items:center; background:rgba(30,41,59,0.6); padding:8px 12px; border-radius:8px;">
+                    <div class="grp-student-item" data-search="${(s.name + ' ' + (s.studentCode || '') + ' ' + (s.username || '')).toLowerCase()}" style="display:flex; justify-content:space-between; align-items:center; background:rgba(30,41,59,0.6); padding:8px 12px; border-radius:8px;">
                       <label style="display:flex; align-items:center; gap:10px; cursor:pointer; font-size:13px; color:#f8fafc;">
                         <input type="checkbox" class="chk-grp-member" value="${s.id}" ${isChecked ? 'checked' : ''} style="width:16px; height:16px; cursor:pointer;">
                         <span>${s.avatar || '👤'} <b>${s.name}</b> <code style="color:#38bdf8; font-family:monospace;">${s.studentCode || s.username}</code></span>
@@ -3208,6 +3256,22 @@
       const closeModal = () => modal.remove();
       modal.querySelector('#btn-close-group-edit').addEventListener('click', closeModal);
       modal.querySelector('#btn-cancel-grp-edit').addEventListener('click', closeModal);
+
+      // 🔍 实时模糊搜索学生
+      const searchInput = modal.querySelector('#modal-grp-std-search');
+      if (searchInput) {
+        searchInput.addEventListener('input', (e) => {
+          const query = (e.target.value || '').trim().toLowerCase();
+          modal.querySelectorAll('.grp-student-item').forEach(item => {
+            const searchKey = item.dataset.search || '';
+            if (!query || searchKey.includes(query)) {
+              item.style.display = 'flex';
+            } else {
+              item.style.display = 'none';
+            }
+          });
+        });
+      }
 
       modal.addEventListener('click', (e) => {
         if (e.target === modal) closeModal();
@@ -3268,8 +3332,64 @@
           return;
         }
         const groupSize = selRandomGroupSize ? parseInt(selRandomGroupSize.value, 10) || 3 : 3;
-        if (confirm(`🎲 确认对【${activeClass.name}】的 ${classStudents.length} 名学生进行随机分组？\n\n系统将按【每组 ${groupSize} 人】自动洗牌划分并分配组长。原先的分组将被覆盖重置！`)) {
-          authManager.autoRandomGrouping(activeClass.id, groupSize);
+        const currentGroupsCount = (activeClass.groups || []).length;
+
+        if (currentGroupsCount > 0) {
+          // 当前已有小组，弹出模式选择弹窗
+          document.querySelectorAll('.modal-overlay').forEach(el => el.remove());
+          const modal = document.createElement('div');
+          modal.className = 'modal-overlay';
+          modal.innerHTML = `
+            <div class="teacher-modal-card fancy-task-modal" style="width:480px;">
+              <div class="teacher-modal-header" style="background:linear-gradient(135deg, rgba(16,185,129,0.3), rgba(6,182,212,0.3));">
+                <div class="modal-header-title">
+                  <div class="modal-icon-badge" style="background:rgba(16,185,129,0.3); color:#34d399;">🎲</div>
+                  <div><h3>选择随机分组模式 (${activeClass.name})</h3></div>
+                </div>
+                <button class="modal-close-btn" id="btn-close-rand-modal">✕</button>
+              </div>
+              <div class="teacher-modal-body" style="display:flex; flex-direction:column; gap:12px; padding:20px;">
+                <div style="font-size:13.5px; color:#f8fafc; font-weight:700; margin-bottom:4px;">当前班级已有 ${currentGroupsCount} 个小组。请选择分组方式：</div>
+                
+                <button id="btn-rand-mode-append" style="background:rgba(30,41,59,0.8); border:1.5px solid #10b981; border-radius:10px; padding:14px; text-align:left; cursor:pointer; display:flex; flex-direction:column; gap:4px;">
+                  <div style="font-size:14.5px; font-weight:800; color:#34d399;">🧩 模式一：保留已有小组，仅将【未进组学生】随机组队 (推荐)</div>
+                  <div style="font-size:12px; color:#94a3b8;">已有小组保持不变，自动提取尚未加入任何小组的学生按每组 ${groupSize} 人建立新组。</div>
+                </button>
+
+                <button id="btn-rand-mode-reset" style="background:rgba(30,41,59,0.8); border:1.5px solid #f59e0b; border-radius:10px; padding:14px; text-align:left; cursor:pointer; display:flex; flex-direction:column; gap:4px;">
+                  <div style="font-size:14.5px; font-weight:800; color:#fbbf24;">💥 模式二：全员打散重组 (覆盖重排)</div>
+                  <div style="font-size:12px; color:#94a3b8;">清空已有全部小组，将全班 ${classStudents.length} 名学生重新洗牌并平均分配为每组 ${groupSize} 人。</div>
+                </button>
+              </div>
+              <div class="teacher-modal-footer">
+                <button class="modal-btn cancel" id="btn-cancel-rand-modal">取消</button>
+              </div>
+            </div>
+          `;
+          document.body.appendChild(modal);
+
+          const closeModal = () => modal.remove();
+          modal.querySelector('#btn-close-rand-modal').addEventListener('click', closeModal);
+          modal.querySelector('#btn-cancel-rand-modal').addEventListener('click', closeModal);
+
+          modal.querySelector('#btn-rand-mode-append').addEventListener('click', () => {
+            closeModal();
+            authManager.autoRandomGrouping(activeClass.id, groupSize, 'append_unassigned');
+            renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+            alert(`✅ 已成功将未进组学生随机分配完成！`);
+          });
+
+          modal.querySelector('#btn-rand-mode-reset').addEventListener('click', () => {
+            if (confirm(`⚠️ 确认将全班 ${classStudents.length} 名学生全员打散重新分组？`)) {
+              closeModal();
+              authManager.autoRandomGrouping(activeClass.id, groupSize, 'reset_all');
+              renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+              alert(`✅ 已完成全员打散重组！`);
+            }
+          });
+        } else {
+          // 当前没有小组，直接执行随机分组
+          authManager.autoRandomGrouping(activeClass.id, groupSize, 'reset_all');
           renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
           alert(`✅ 已完成随机分组！按每组 ${groupSize} 人，共自动划分 ${(activeClass.groups || []).length} 个协作小组。`);
         }
