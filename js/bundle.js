@@ -1457,6 +1457,25 @@
         try { localStorage.setItem(localResetSeqKey, String(localResetSeq)); } catch (e) {}
       }
 
+      // 冷启动防覆盖守卫：如果本地处于阶段二/三，但草稿字段意外为空，而本地缓存已有内容，防止发送空快照
+      const taskId = this.app.state.activeTaskId || 'task_default';
+      if (this.app.state.currentStage === 'stage2' && (!this.app.state.stage2 || !this.app.state.stage2.draft)) {
+        try {
+          const cachedS2 = JSON.parse(localStorage.getItem(`jizhi_sync_s2_v10_pure_${taskId}_${groupId}`));
+          if (cachedS2 && cachedS2.draft) {
+            this.app.state.stage2.draft = cachedS2.draft;
+          }
+        } catch (e) {}
+      }
+      if (this.app.state.currentStage === 'stage3' && (!this.app.state.stage3 || !this.app.state.stage3.finalDraft)) {
+        try {
+          const cachedS3 = JSON.parse(localStorage.getItem(`jizhi_sync_s3_v10_pure_${taskId}_${groupId}`));
+          if (cachedS3 && cachedS3.finalDraft) {
+            this.app.state.stage3.finalDraft = cachedS3.finalDraft;
+          }
+        } catch (e) {}
+      }
+
       const snapshot = {
         timestamp: Date.now(),
         groupId: groupId,
@@ -1469,12 +1488,7 @@
         stage2: this.app.state.stage2,
         stage3: this.app.state.stage3,
         currentStage: this.app.state.currentStage,
-        isFinalSubmitted: this.app.state.isFinalSubmitted,
-        users: this.app.authManager.getUsers(),
-        classes: this.app.authManager.getClasses(),
-        tasks: this.app.authManager.getTasks(),
-        announcements: this.app.authManager.getAnnouncements(),
-        referencePapers: this.app.authManager.getReferencePapers()
+        isFinalSubmitted: this.app.state.isFinalSubmitted
       };
 
       this.lastTimestamp = snapshot.timestamp;
@@ -1608,39 +1622,7 @@
         return;
       }
 
-      // ── 全局教务元数据同步 (用户池/班级/任务/通知/范文库) ──
-      // 仅写 localStorage，绝不触发页面重绘
-      if (remoteData.users && Array.isArray(remoteData.users) && remoteData.users.length > 0) {
-        const currUser = this.app.authManager.getCurrentUser();
-        const mergedUsers = remoteData.users.map(u => {
-          if (currUser && (currUser.id === u.id || currUser.username === u.username)) {
-            return { ...u, activeSessionId: currUser.activeSessionId };
-          }
-          return u;
-        });
-        const localJson = localStorage.getItem('jizhi_pure_v10_users_db');
-        const remoteJson = JSON.stringify(mergedUsers);
-        if (localJson !== remoteJson) {
-          localStorage.setItem('jizhi_pure_v10_users_db', remoteJson);
-        }
-      }
-      if (remoteData.classes && Array.isArray(remoteData.classes) && remoteData.classes.length > 0) {
-        const localJson = localStorage.getItem('jizhi_pure_v10_classes_db');
-        const remoteJson = JSON.stringify(remoteData.classes);
-        if (localJson !== remoteJson) {
-          localStorage.setItem('jizhi_pure_v10_classes_db', remoteJson);
-        }
-      }
-      if (remoteData.tasks && Array.isArray(remoteData.tasks)) {
-        localStorage.setItem('jizhi_pure_v10_tasks_db', JSON.stringify(remoteData.tasks));
-      }
-      if (remoteData.announcements && Array.isArray(remoteData.announcements)) {
-        localStorage.setItem('jizhi_pure_v10_ann_db', JSON.stringify(remoteData.announcements));
-      }
-      if (remoteData.referencePapers && Array.isArray(remoteData.referencePapers)) {
-        localStorage.setItem('jizhi_reference_papers_db', JSON.stringify(remoteData.referencePapers));
-      }
-
+      // ── 全局教务元数据 (用户池/班级/任务/通知/范文库) 仅由教师端在明确变更时独立持久化至 MySQL，协同引擎仅负责小组研讨与正文 ──
       if (remoteData.presence) {
         this.app.state.presence = { ...(this.app.state.presence || {}), ...remoteData.presence };
         this.app.renderPresenceCursors();
