@@ -3871,9 +3871,20 @@
                 </div>
               </div>
 
-              <div class="teacher-form-group">
-                <label style="font-size:12.5px; font-weight:700; color:#334155; margin-bottom:4px; display:block;">⏱️ 预估任务时长 (分钟)</label>
-                <input type="number" id="modal-edit-task-duration" class="teacher-input fancy" value="${currentDuration}" min="10" max="600" step="5" style="width:100%; font-size:13px; padding:8px 12px; border:1.5px solid #cbd5e1; border-radius:8px;">
+              <!-- ⚡ 快捷延长截止时间工具条 -->
+              <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:10px 14px;">
+                <div style="font-size:12px; font-weight:700; color:#475569; margin-bottom:8px; display:flex; align-items:center; gap:6px;">
+                  <span>⚡ 快捷延长截止时间:</span>
+                  <span style="font-size:11px; color:#94a3b8; font-weight:normal;">(点击按键自动后延截止时间)</span>
+                </div>
+                <div style="display:flex; flex-wrap:wrap; gap:6px;">
+                  <button type="button" class="btn-quick-extend" data-hours="0.5" style="background:#ffffff; border:1px solid #cbd5e1; color:#1e293b; padding:4px 10px; border-radius:6px; font-size:11.5px; font-weight:700; cursor:pointer;">+30分钟</button>
+                  <button type="button" class="btn-quick-extend" data-hours="1" style="background:#ffffff; border:1px solid #cbd5e1; color:#1e293b; padding:4px 10px; border-radius:6px; font-size:11.5px; font-weight:700; cursor:pointer;">+1小时</button>
+                  <button type="button" class="btn-quick-extend" data-hours="2" style="background:#ffffff; border:1px solid #cbd5e1; color:#1e293b; padding:4px 10px; border-radius:6px; font-size:11.5px; font-weight:700; cursor:pointer;">+2小时</button>
+                  <button type="button" class="btn-quick-extend" data-hours="24" style="background:#eff6ff; border:1px solid #bfdbfe; color:#2563eb; padding:4px 10px; border-radius:6px; font-size:11.5px; font-weight:700; cursor:pointer;">+1天 (24h)</button>
+                  <button type="button" class="btn-quick-extend" data-hours="72" style="background:#eff6ff; border:1px solid #bfdbfe; color:#2563eb; padding:4px 10px; border-radius:6px; font-size:11.5px; font-weight:700; cursor:pointer;">+3天</button>
+                  <button type="button" class="btn-quick-extend" data-hours="168" style="background:#f0fdf4; border:1px solid #bbf7d0; color:#16a34a; padding:4px 10px; border-radius:6px; font-size:11.5px; font-weight:700; cursor:pointer;">+1周 (7天)</button>
+                </div>
               </div>
 
               <div class="teacher-form-group">
@@ -3902,11 +3913,36 @@
         };
         document.addEventListener('keydown', onEscKey);
 
+        const deadlineInput = modal.querySelector('#modal-edit-task-deadline');
+        const startInput = modal.querySelector('#modal-edit-task-start');
+
+        // ⚡ 绑定快捷延长按钮事件
+        modal.querySelectorAll('.btn-quick-extend').forEach(btn => {
+          btn.addEventListener('click', () => {
+            const addHours = parseFloat(btn.dataset.hours) || 1;
+            let baseDate = new Date();
+            if (deadlineInput && deadlineInput.value) {
+              const parsed = new Date(deadlineInput.value);
+              if (!isNaN(parsed.getTime())) baseDate = parsed;
+            } else if (startInput && startInput.value) {
+              const parsed = new Date(startInput.value);
+              if (!isNaN(parsed.getTime())) baseDate = parsed;
+            }
+            const newDate = new Date(baseDate.getTime() + addHours * 3600 * 1000);
+            const pad = (n) => String(n).padStart(2, '0');
+            const newDateStr = `${newDate.getFullYear()}-${pad(newDate.getMonth() + 1)}-${pad(newDate.getDate())}T${pad(newDate.getHours())}:${pad(newDate.getMinutes())}`;
+            if (deadlineInput) {
+              deadlineInput.value = newDateStr;
+              deadlineInput.style.borderColor = '#2563eb';
+              setTimeout(() => { if (deadlineInput) deadlineInput.style.borderColor = '#cbd5e1'; }, 600);
+            }
+          });
+        });
+
         modal.querySelector('#btn-submit-edit-task').addEventListener('click', () => {
           const newTitle = modal.querySelector('#modal-edit-task-title').value.trim();
           const newStart = modal.querySelector('#modal-edit-task-start').value;
           const newDeadline = modal.querySelector('#modal-edit-task-deadline').value;
-          const newDuration = modal.querySelector('#modal-edit-task-duration').value;
           const newDesc = modal.querySelector('#modal-edit-task-desc').value.trim();
 
           if (!newTitle) {
@@ -3914,10 +3950,19 @@
             return;
           }
 
+          let calculatedDuration = 150;
+          if (newStart && newDeadline) {
+            const sDate = new Date(newStart);
+            const dDate = new Date(newDeadline);
+            if (!isNaN(sDate.getTime()) && !isNaN(dDate.getTime()) && dDate > sDate) {
+              calculatedDuration = Math.round((dDate.getTime() - sDate.getTime()) / (60 * 1000));
+            }
+          }
+
           const fmtTimeStr = (v) => v ? v.replace('T', ' ') : '';
 
           try {
-            authManager.updateTask(taskId, newTitle, newDesc, fmtTimeStr(newStart), fmtTimeStr(newDeadline), newDuration);
+            authManager.updateTask(taskId, newTitle, newDesc, fmtTimeStr(newStart), fmtTimeStr(newDeadline), calculatedDuration);
             closeModal();
             alert(`✅ 写作任务《${newTitle}》已成功修改，时间与内容已全网即时同步！`);
             renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
@@ -3991,6 +4036,22 @@
                 </div>
               </div>
 
+              <!-- ⚡ 快捷设定截止时间工具条 -->
+              <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:10px 14px; margin-top:8px;">
+                <div style="font-size:12px; font-weight:700; color:#475569; margin-bottom:8px; display:flex; align-items:center; gap:6px;">
+                  <span>⚡ 快捷设定截止时间:</span>
+                  <span style="font-size:11px; color:#94a3b8; font-weight:normal;">(点击按键自动后延截止时间)</span>
+                </div>
+                <div style="display:flex; flex-wrap:wrap; gap:6px;">
+                  <button type="button" class="btn-create-quick-extend" data-hours="0.5" style="background:#ffffff; border:1px solid #cbd5e1; color:#1e293b; padding:4px 10px; border-radius:6px; font-size:11.5px; font-weight:700; cursor:pointer;">+30分钟</button>
+                  <button type="button" class="btn-create-quick-extend" data-hours="1" style="background:#ffffff; border:1px solid #cbd5e1; color:#1e293b; padding:4px 10px; border-radius:6px; font-size:11.5px; font-weight:700; cursor:pointer;">+1小时</button>
+                  <button type="button" class="btn-create-quick-extend" data-hours="2" style="background:#ffffff; border:1px solid #cbd5e1; color:#1e293b; padding:4px 10px; border-radius:6px; font-size:11.5px; font-weight:700; cursor:pointer;">+2小时</button>
+                  <button type="button" class="btn-create-quick-extend" data-hours="24" style="background:#eff6ff; border:1px solid #bfdbfe; color:#2563eb; padding:4px 10px; border-radius:6px; font-size:11.5px; font-weight:700; cursor:pointer;">+1天 (24h)</button>
+                  <button type="button" class="btn-create-quick-extend" data-hours="72" style="background:#eff6ff; border:1px solid #bfdbfe; color:#2563eb; padding:4px 10px; border-radius:6px; font-size:11.5px; font-weight:700; cursor:pointer;">+3天</button>
+                  <button type="button" class="btn-create-quick-extend" data-hours="168" style="background:#f0fdf4; border:1px solid #bbf7d0; color:#16a34a; padding:4px 10px; border-radius:6px; font-size:11.5px; font-weight:700; cursor:pointer;">+1周 (7天)</button>
+                </div>
+              </div>
+
               <div class="teacher-form-group" style="margin-top:8px;">
                 <label><span class="req">*</span> 写作任务名称</label>
                 <input type="text" id="modal-task-title" class="teacher-input fancy" value="" placeholder="输入写作任务名称">
@@ -4022,6 +4083,33 @@
           }
         };
         document.addEventListener('keydown', onEscKey);
+
+        const deadlineInput = modal.querySelector('#modal-task-deadline');
+        const startInput = modal.querySelector('#modal-task-start');
+
+        // ⚡ 绑定新建弹窗快捷延长按钮
+        modal.querySelectorAll('.btn-create-quick-extend').forEach(btn => {
+          btn.addEventListener('click', () => {
+            const addHours = parseFloat(btn.dataset.hours) || 1;
+            let baseDate = new Date();
+            if (deadlineInput && deadlineInput.value) {
+              const parsed = new Date(deadlineInput.value);
+              if (!isNaN(parsed.getTime())) baseDate = parsed;
+            } else if (startInput && startInput.value) {
+              const parsed = new Date(startInput.value);
+              if (!isNaN(parsed.getTime())) baseDate = parsed;
+            }
+            const newDate = new Date(baseDate.getTime() + addHours * 3600 * 1000);
+            const pad = (n) => String(n).padStart(2, '0');
+            const newDateStr = `${newDate.getFullYear()}-${pad(newDate.getMonth() + 1)}-${pad(newDate.getDate())}T${pad(newDate.getHours())}:${pad(newDate.getMinutes())}`;
+            if (deadlineInput) {
+              deadlineInput.value = newDateStr;
+              deadlineInput.style.borderColor = '#2563eb';
+              setTimeout(() => { if (deadlineInput) deadlineInput.style.borderColor = '#cbd5e1'; }, 600);
+            }
+          });
+        });
+
         modal.querySelector('#btn-submit-new-task').addEventListener('click', () => {
           const classId = modal.querySelector('#modal-task-class').value;
           const title = modal.querySelector('#modal-task-title').value.trim();
@@ -4030,8 +4118,18 @@
           const deadline = modal.querySelector('#modal-task-deadline').value;
 
           if (!title) { alert('⚠️ 请输入写作任务名称！'); return; }
+
+          let calculatedDuration = 150;
+          if (startTime && deadline) {
+            const sDate = new Date(startTime);
+            const dDate = new Date(deadline);
+            if (!isNaN(sDate.getTime()) && !isNaN(dDate.getTime()) && dDate > sDate) {
+              calculatedDuration = Math.round((dDate.getTime() - sDate.getTime()) / (60 * 1000));
+            }
+          }
+
           try {
-            authManager.createTask(title, classId, desc, [], startTime, deadline, 150);
+            authManager.createTask(title, classId, desc, [], startTime, deadline, calculatedDuration);
             closeModal();
             renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
           } catch (err) {
