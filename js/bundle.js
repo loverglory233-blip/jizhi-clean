@@ -3069,6 +3069,20 @@
     container.querySelectorAll('.teacher-tab-nav').forEach(btn => {
       btn.addEventListener('click', () => {
         state.teacherActiveTab = btn.dataset.tab;
+        if (!state.stage1) state.stage1 = { topics: [], bidLogs: [], contract: { confirmedMembers: {}, taskAssignments: {}, timeAllocations: {} } };
+        if (!state.stage2) state.stage2 = { unifiedContent: '', memberContributions: {} };
+        if (!state.stage3) state.stage3 = { reviews: [] };
+        if (!state.chatLogs) state.chatLogs = { stage1: [], stage2: [], stage3: [] };
+
+        if (btn.dataset.tab === 'view_monitoring' && window.app) {
+          try {
+            window.app.loadGroupState(state.activeMonitorGroupId || 'group_1');
+            if (window.app.cloudSyncEngine) {
+              window.app.cloudSyncEngine.updateScopeKeys();
+              window.app.cloudSyncEngine.pullFromServer().catch(() => {});
+            }
+          } catch (e) {}
+        }
         renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
       });
     });
