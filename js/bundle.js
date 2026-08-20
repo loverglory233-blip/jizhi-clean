@@ -785,7 +785,7 @@
         if (!cls.groups) cls.groups = [];
         const newGroup = {
           id: 'group_' + Date.now(),
-          name: groupName || `第${cls.groups.length + 1}小组`,
+          name: groupName || `第 ${cls.groups.length + 1} 协作小组`,
           members: []
         };
         cls.groups.push(newGroup);
@@ -1089,9 +1089,34 @@
     }
 
     deleteTask(taskId) {
+      // 1. 删除任务自身
       let tasks = this.getTasks();
       tasks = tasks.filter(t => t.id !== taskId);
       localStorage.setItem(STORAGE_KEY_TASKS, JSON.stringify(tasks));
+
+      // 2. 级联删除属于该任务的课堂通知
+      let announcements = this.getAnnouncements();
+      announcements = announcements.filter(a => a.taskId !== taskId);
+      localStorage.setItem(STORAGE_KEY_ANNOUNCEMENTS, JSON.stringify(announcements));
+
+      // 3. 级联删除属于该任务的参考范文
+      let papers = this.getAllReferencePapers();
+      papers = papers.filter(p => p.taskId !== taskId);
+      localStorage.setItem('jizhi_reference_papers_db', JSON.stringify(papers));
+
+      // 4. 级联删除属于该任务的问卷绑定
+      const surveysMap = this.getSurveysMap();
+      let surveyChanged = false;
+      Object.keys(surveysMap).forEach(key => {
+        if (key.endsWith(`_${taskId}`)) {
+          delete surveysMap[key];
+          surveyChanged = true;
+        }
+      });
+      if (surveyChanged) {
+        localStorage.setItem('jizhi_surveys_map_db', JSON.stringify(surveysMap));
+      }
+
       this.pushGlobalMeta();
     }
 
@@ -3042,7 +3067,7 @@
           <div class="teacher-modal-body">
             <div class="teacher-form-group">
               <label><span class="req">*</span> 小组名称</label>
-              <input type="text" id="modal-grp-name" class="teacher-input fancy" value="${targetGroup ? targetGroup.name : `第${(cls.groups || []).length + 1}小组`}" placeholder="输入小组名称">
+              <input type="text" id="modal-grp-name" class="teacher-input fancy" value="${targetGroup ? targetGroup.name : `第 ${(cls.groups || []).length + 1} 协作小组`}" placeholder="输入小组名称">
             </div>
 
             <div class="teacher-form-group" style="margin-top:10px;">
@@ -3279,8 +3304,11 @@
             </div>
             <div class="teacher-modal-body">
               <div class="teacher-form-group">
-                <label><span class="req">*</span> 关联受众教学班级</label>
-                <select id="modal-task-class" class="teacher-input fancy">${classes.map(c => `<option value="${c.id}">🏫 ${c.name}</option>`).join('')}</select>
+                <label>🏫 归属教学班级</label>
+                <div style="background:#eff6ff; border:1px solid #bfdbfe; border-radius:8px; padding:10px 14px; font-size:13px; font-weight:700; color:#1e40af;">
+                  🏫 ${activeClass.name}
+                </div>
+                <input type="hidden" id="modal-task-class" value="${activeClass.id}">
               </div>
 
               <div class="form-grid-2" style="margin-top:8px;">
@@ -3365,11 +3393,11 @@
               
               <div class="form-grid-2">
                 <div class="teacher-form-group">
-                  <label><span class="req">*</span> 🏫 目标教学班级</label>
-                  <select id="modal-ann-class" class="teacher-input fancy">
-                    <option value="all">🌐 全校所有班级 (广播)</option>
-                    ${allClasses.map(c => `<option value="${c.id}" ${c.id === initialCls.id ? 'selected' : ''}>🏫 ${c.name}</option>`).join('')}
-                  </select>
+                  <label>🏫 目标教学班级</label>
+                  <div style="background:#eff6ff; border:1px solid #bfdbfe; border-radius:8px; padding:10px 14px; font-size:13px; font-weight:700; color:#1e40af;">
+                    🏫 ${activeClass.name}
+                  </div>
+                  <input type="hidden" id="modal-ann-class" value="${activeClass.id}">
                 </div>
                 <div class="teacher-form-group">
                   <label><span class="req">*</span> 📌 关联写作任务</label>
@@ -3518,11 +3546,11 @@
 
               <div class="form-grid-2" style="margin-top:10px;">
                 <div class="teacher-form-group">
-                  <label><span class="req">*</span> 🏫 目标教学班级</label>
-                  <select id="modal-paper-class" class="teacher-input fancy">
-                    <option value="all">🌐 全校所有班级 (通用)</option>
-                    ${allClasses.map(c => `<option value="${c.id}" ${c.id === initialCls.id ? 'selected' : ''}>🏫 ${c.name}</option>`).join('')}
-                  </select>
+                  <label>🏫 目标教学班级</label>
+                  <div style="background:#eff6ff; border:1px solid #bfdbfe; border-radius:8px; padding:10px 14px; font-size:13px; font-weight:700; color:#1e40af;">
+                    🏫 ${activeClass.name}
+                  </div>
+                  <input type="hidden" id="modal-paper-class" value="${activeClass.id}">
                 </div>
                 <div class="teacher-form-group">
                   <label><span class="req">*</span> 📌 关联写作任务</label>
