@@ -2429,14 +2429,16 @@
                   </button>
                 </div>
                 <div class="announcement-history-list" style="display:flex; flex-direction:column; gap:16px;">
-                  ${announcements.map(a => {
+                  ${announcements.map((a, idx) => {
                     const classGroups = activeClass.groups || [{ id: 'group_1', name: '第1小组' }];
                     const targetGName = a.targetGroupName || (a.targetGroupId === 'all' || !a.targetGroupId ? '全班所有小组' : '指定小组');
                     const taskLabel = a.taskId === 'task_all' || !a.taskId ? '🌐 全班通识广播' : `📌 ${a.taskTitle || '专属任务'}`;
+                    const isLatest = idx === 0;
                     return `
                       <div style="background:#ffffff; border:1px solid #e2e8f0; padding:18px; border-radius:12px; box-shadow:0 1px 3px rgba(15,23,42,0.03);">
                         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
                           <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                            <span style="background:linear-gradient(135deg, #1d4ed8, #2563eb); color:#ffffff; padding:3px 10px; border-radius:8px; font-size:12px; font-weight:800;">通知 ${idx + 1}${isLatest ? ' (最新)' : ''}</span>
                             <span style="font-weight:800; color:#1e40af; font-size:16px;">📢 ${a.title}</span>
                             <span style="background:#f5f3ff; color:#7c3aed; border:1px solid #ddd6fe; padding:2px 8px; border-radius:8px; font-size:11.5px; font-weight:700;">${taskLabel}</span>
                             <span style="background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe; padding:2px 8px; border-radius:8px; font-size:11.5px; font-weight:700;">定向受众: ${targetGName}</span>
