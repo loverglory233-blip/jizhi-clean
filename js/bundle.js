@@ -3803,32 +3803,128 @@
       });
     });
 
-    // ✏️ 修改写作任务按钮
+    // ✏️ 修改写作任务按钮（弹窗支持修改：开始时间、截止时间、任务时长、任务名称、说明要求）
     container.querySelectorAll('.btn-edit-task').forEach(btn => {
       btn.addEventListener('click', () => {
         const taskId = btn.dataset.id;
-        const currentTitle = btn.dataset.title || '';
-        const currentDuration = btn.dataset.duration || 150;
-        const currentInstructions = decodeURIComponent(btn.dataset.instructions || '');
-
-        const newTitle = prompt('✏️ 请输入修改后的写作任务名称：', currentTitle);
-        if (newTitle === null) return;
-        const cleanTitle = newTitle.trim();
-        if (!cleanTitle) {
-          alert('❌ 任务名称不能为空！');
+        const tasks = authManager.getTasks();
+        const task = tasks.find(t => t.id === taskId);
+        if (!task) {
+          alert('❌ 未找到该写作任务！');
           return;
         }
 
-        const newInstructions = prompt('📝 请输入修改后的任务要求说明（可选）：', currentInstructions);
-        if (newInstructions === null) return;
+        document.querySelectorAll('.modal-overlay').forEach(el => el.remove());
 
-        try {
-          authManager.updateTask(taskId, cleanTitle, newInstructions, undefined, undefined, currentDuration);
-          alert(`✅ 写作任务已成功修改为《${cleanTitle}》，并已全网实时同步！`);
-          renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
-        } catch (err) {
-          alert('❌ ' + err.message);
-        }
+        const formatForInput = (val) => {
+          if (!val) return '';
+          const clean = val.trim().replace(' ', 'T');
+          if (clean.length === 16) return clean;
+          if (clean.length > 16) return clean.slice(0, 16);
+          const d = new Date(val);
+          if (!isNaN(d.getTime())) {
+            const pad = (n) => String(n).padStart(2, '0');
+            return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+          }
+          return '';
+        };
+
+        const currentStart = formatForInput(task.startTime) || new Date().toISOString().slice(0, 16);
+        const currentDeadline = formatForInput(task.deadline) || new Date(Date.now() + 150 * 60 * 1000).toISOString().slice(0, 16);
+        const currentDuration = task.durationMinutes || 150;
+
+        const modal = document.createElement('div');
+        modal.className = 'modal-overlay';
+        modal.innerHTML = `
+          <div class="teacher-modal-card fancy-task-modal" style="width:540px;">
+            <div class="teacher-modal-header task-theme-gradient">
+              <div class="modal-header-title">
+                <div class="modal-icon-badge task">✏️</div>
+                <div>
+                  <h3>修改写作任务</h3>
+                  <div style="font-size:11.5px; opacity:0.85; margin-top:2px;">调整任务时间与要求后将实时同步至全班学生端</div>
+                </div>
+              </div>
+              <button class="modal-close-btn" id="btn-close-edit-task-modal">✕</button>
+            </div>
+            <div class="teacher-modal-body" style="padding:22px 24px; display:flex; flex-direction:column; gap:14px;">
+              <div class="teacher-form-group">
+                <label style="font-size:12.5px; font-weight:700; color:#334155; margin-bottom:4px; display:block;">🏫 归属教学班级</label>
+                <div style="background:#eff6ff; border:1px solid #bfdbfe; border-radius:8px; padding:8px 12px; font-size:12.5px; font-weight:700; color:#1e40af;">
+                  🏫 ${task.className || activeClass.name}
+                </div>
+              </div>
+
+              <div class="teacher-form-group">
+                <label style="font-size:12.5px; font-weight:700; color:#334155; margin-bottom:4px; display:block;"><span class="req" style="color:#dc2626;">*</span> 写作任务名称</label>
+                <input type="text" id="modal-edit-task-title" class="teacher-input fancy" value="${task.title || ''}" placeholder="输入写作任务名称" style="width:100%; font-size:13.5px; padding:9px 12px; border:1.5px solid #cbd5e1; border-radius:8px;">
+              </div>
+
+              <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+                <div class="teacher-form-group">
+                  <label style="font-size:12.5px; font-weight:700; color:#334155; margin-bottom:4px; display:block;"><span class="req" style="color:#dc2626;">*</span> 📅 开始时间</label>
+                  <input type="datetime-local" id="modal-edit-task-start" class="teacher-input fancy" value="${currentStart}" style="width:100%; font-size:12.5px; padding:8px 10px; border:1.5px solid #cbd5e1; border-radius:8px;">
+                </div>
+                <div class="teacher-form-group">
+                  <label style="font-size:12.5px; font-weight:700; color:#334155; margin-bottom:4px; display:block;"><span class="req" style="color:#dc2626;">*</span> ⌛ 截止时间</label>
+                  <input type="datetime-local" id="modal-edit-task-deadline" class="teacher-input fancy" value="${currentDeadline}" style="width:100%; font-size:12.5px; padding:8px 10px; border:1.5px solid #cbd5e1; border-radius:8px;">
+                </div>
+              </div>
+
+              <div class="teacher-form-group">
+                <label style="font-size:12.5px; font-weight:700; color:#334155; margin-bottom:4px; display:block;">⏱️ 预估任务时长 (分钟)</label>
+                <input type="number" id="modal-edit-task-duration" class="teacher-input fancy" value="${currentDuration}" min="10" max="600" step="5" style="width:100%; font-size:13px; padding:8px 12px; border:1.5px solid #cbd5e1; border-radius:8px;">
+              </div>
+
+              <div class="teacher-form-group">
+                <label style="font-size:12.5px; font-weight:700; color:#334155; margin-bottom:4px; display:block;">📝 任务详细说明与要求 (选填)</label>
+                <textarea id="modal-edit-task-desc" class="teacher-textarea fancy" style="min-height:85px; width:100%; font-size:13px; padding:10px 12px; border:1.5px solid #cbd5e1; border-radius:8px; line-height:1.5;" placeholder="请输入任务详细说明与指导要求...">${task.instructions || ''}</textarea>
+              </div>
+            </div>
+            <div class="teacher-modal-footer" style="background:#f8fafc; border-top:1px solid #e2e8f0; padding:14px 24px; display:flex; justify-content:flex-end; gap:10px;">
+              <button class="modal-btn cancel" id="btn-cancel-edit-task" style="background:#ffffff; border:1px solid #cbd5e1; color:#475569; padding:8px 18px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer;">取消</button>
+              <button class="modal-btn submit task-theme" id="btn-submit-edit-task" style="background:linear-gradient(135deg, #1d4ed8, #2563eb); border:none; color:white; padding:8px 22px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer; box-shadow:0 3px 8px rgba(37,99,235,0.25);">💾 保存任务修改</button>
+            </div>
+          </div>
+        `;
+        document.body.appendChild(modal);
+
+        const closeModal = () => modal.remove();
+        modal.querySelector('#btn-close-edit-task-modal').addEventListener('click', closeModal);
+        modal.querySelector('#btn-cancel-edit-task').addEventListener('click', closeModal);
+        modal.addEventListener('click', (e) => { if (e.target === modal) closeModal(); });
+
+        const onEscKey = (e) => {
+          if (e.key === 'Escape') {
+            closeModal();
+            document.removeEventListener('keydown', onEscKey);
+          }
+        };
+        document.addEventListener('keydown', onEscKey);
+
+        modal.querySelector('#btn-submit-edit-task').addEventListener('click', () => {
+          const newTitle = modal.querySelector('#modal-edit-task-title').value.trim();
+          const newStart = modal.querySelector('#modal-edit-task-start').value;
+          const newDeadline = modal.querySelector('#modal-edit-task-deadline').value;
+          const newDuration = modal.querySelector('#modal-edit-task-duration').value;
+          const newDesc = modal.querySelector('#modal-edit-task-desc').value.trim();
+
+          if (!newTitle) {
+            alert('⚠️ 写作任务名称不能为空！');
+            return;
+          }
+
+          const fmtTimeStr = (v) => v ? v.replace('T', ' ') : '';
+
+          try {
+            authManager.updateTask(taskId, newTitle, newDesc, fmtTimeStr(newStart), fmtTimeStr(newDeadline), newDuration);
+            closeModal();
+            alert(`✅ 写作任务《${newTitle}》已成功修改，时间与内容已全网即时同步！`);
+            renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+          } catch (err) {
+            alert('❌ ' + err.message);
+          }
+        });
       });
     });
 
