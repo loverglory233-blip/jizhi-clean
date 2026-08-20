@@ -4482,18 +4482,21 @@
      7.5 STUDENT TASK PORTAL / DASHBOARD (我的写作任务大厅)
      ========================================================================== */
   function renderStudentTaskPortal(container, authManager, state, onSelectTask, onLogout, onSwitchTeacher, onOpenAnnModal, onOpenSurveyModal) {
+    const currentTasksSnapshot = localStorage.getItem(STORAGE_KEY_TASKS) || '[]';
+    const currentAnnsSnapshot = localStorage.getItem(STORAGE_KEY_ANNOUNCEMENTS) || '[]';
+
     // ⚡ 每次进入大厅立即静默拉取服务端全量最新数据
     if (authManager && authManager.pullGlobalMeta) {
       authManager.pullGlobalMeta().then(() => {
-        // 若拉取后本地任务列表发生了变化，自动重绘大厅
-        const freshTasks = authManager.getTasks();
-        if (freshTasks.length !== (tasks || []).length) {
+        const freshTasksJson = localStorage.getItem(STORAGE_KEY_TASKS) || '[]';
+        const freshAnnsJson = localStorage.getItem(STORAGE_KEY_ANNOUNCEMENTS) || '[]';
+        if (freshTasksJson !== currentTasksSnapshot || freshAnnsJson !== currentAnnsSnapshot) {
           renderStudentTaskPortal(container, authManager, state, onSelectTask, onLogout, onSwitchTeacher, onOpenAnnModal, onOpenSurveyModal);
         }
       }).catch(() => {});
     }
 
-    // ⚡ 在任务大厅启动 2.5 秒轻量同步定时器，教师发布或删除任务秒级呈现在学生屏幕上
+    // ⚡ 在任务大厅启动 2 秒轻量同步定时器，教师修改/发布/删除任务秒级呈现在学生屏幕上
     if (window._studentPortalSyncInterval) clearInterval(window._studentPortalSyncInterval);
     window._studentPortalSyncInterval = setInterval(async () => {
       if (state.studentViewMode !== 'task_list') {
@@ -4512,7 +4515,7 @@
           }
         } catch (e) {}
       }
-    }, 2500);
+    }, 2000);
 
     const currentUser = authManager.getCurrentUser();
     const classes = authManager.getClasses();
@@ -4624,39 +4627,41 @@
                   const taskSeqNum = displayTasks.length - idx;
                   const isLatest = idx === 0;
                   return `
-                    <div class="student-task-card" style="background:#ffffff; border:1px solid #e2e8f0; border-radius:14px; padding:22px; box-shadow:0 2px 8px rgba(15,23,42,0.04); display:flex; flex-direction:column; justify-content:space-between;">
+                    <div class="student-task-card" style="background:#ffffff; border:1px solid #e2e8f0; border-radius:16px; padding:22px; box-shadow:0 4px 16px -2px rgba(15,23,42,0.04); display:flex; flex-direction:column; justify-content:space-between; transition:all 0.2s ease;">
                       <div>
-                        <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px; margin-bottom:12px;">
+                        <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:12px; margin-bottom:14px;">
                           <div style="font-size:17px; font-weight:800; color:#0f172a; line-height:1.4; display:flex; align-items:center; gap:8px;">
-                            <span style="background:linear-gradient(135deg, #1d4ed8, #2563eb); color:#ffffff; padding:2px 8px; border-radius:6px; font-size:12px; font-weight:800; white-space:nowrap;">任务 ${taskSeqNum}${isLatest ? ' (最新)' : ''}</span>
+                            <span style="background:linear-gradient(135deg, #1e40af, #3b82f6); color:#ffffff; padding:2.5px 9px; border-radius:6px; font-size:12px; font-weight:800; white-space:nowrap; box-shadow:0 2px 6px rgba(30,64,175,0.25);">
+                              任务 ${taskSeqNum}${isLatest ? ' (最新)' : ''}
+                            </span>
                             <span>📌 ${t.title}</span>
                           </div>
-                          <span style="background:#eff6ff; color:#2563eb; border:1px solid #bfdbfe; font-size:11px; font-weight:700; padding:3px 9px; border-radius:16px; flex-shrink:0;">
-                            ${t.targetGroupName || groupName}
+                          <span style="background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe; font-size:11.5px; font-weight:700; padding:3px 10px; border-radius:20px; flex-shrink:0;">
+                            👥 ${t.targetGroupName || groupName}
                           </span>
                         </div>
 
-                        <div style="display:flex; flex-wrap:wrap; gap:8px; font-size:11.5px; color:#64748b; margin-bottom:12px; background:#f8fafc; padding:8px 12px; border-radius:8px; border:1px solid #e2e8f0;">
+                        <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px 12px; font-size:11.5px; color:#475569; margin-bottom:12px; background:#f8fafc; padding:10px 14px; border-radius:10px; border:1px solid #f1f5f9;">
                           <div>🕒 发布时间: <b style="color:#0f172a;">${t.createdAt || t.startTime || '刚刚'}</b></div>
-                          <div>⏱️ 任务时长: <b style="color:#0f172a;">${duration} 分钟</b></div>
+                          <div>⏱️ 任务时长: <b style="color:#2563eb;">${duration} 分钟</b></div>
                           <div>📅 开始时间: <b style="color:#0f172a;">${t.startTime || '随时'}</b></div>
-                          <div>⌛ 截止时间: <b style="color:#0f172a;">${t.deadline || '结课前'}</b></div>
+                          <div>⌛ 截止时间: <b style="color:#dc2626;">${t.deadline || '结课前'}</b></div>
                         </div>
 
-                        <div style="font-size:12.5px; color:#334155; line-height:1.6; margin-bottom:14px; background:#f8fafc; border-left:3px solid #2563eb; padding:8px 12px; border-radius:0 6px 6px 0;">
-                          ${t.instructions ? t.instructions.substring(0, 130) + (t.instructions.length > 130 ? '...' : '') : '暂无详细要求说明'}
+                        <div style="font-size:12.5px; color:#334155; line-height:1.6; margin-bottom:12px; background:#f8fafc; border-left:3.5px solid #2563eb; padding:8px 12px; border-radius:0 8px 8px 0;">
+                          ${t.instructions ? t.instructions.substring(0, 130) + (t.instructions.length > 130 ? '...' : '') : '<span style="color:#94a3b8; font-style:italic;">暂无详细要求说明</span>'}
                         </div>
 
-                        <div style="display:flex; align-items:center; gap:8px; font-size:12px; font-weight:600; color:#475569; margin-bottom:16px;">
+                        <div style="display:flex; align-items:center; gap:8px; font-size:12px; font-weight:600; color:#64748b; margin-bottom:16px;">
                           <span>协作进度状态:</span>
-                          <span style="background:#eff6ff; color:#2563eb; border:1px solid #bfdbfe; padding:2px 8px; border-radius:6px; font-size:11.5px;">
+                          <span style="background:#ecfdf5; color:#059669; border:1px solid #a7f3d0; padding:2px 8px; border-radius:6px; font-size:11.5px; font-weight:700;">
                             ${state.isFinalSubmitted ? '🔒 终稿已全员答辩并提交归档' : (state.currentStage === 'stage1' ? '🎪 阶段一：学术拍卖会' : (state.currentStage === 'stage2' ? '📰 阶段二：学术编辑部 (撰写中)' : '🎓 阶段三：答辩擂台'))}
                           </span>
                         </div>
                       </div>
 
-                      <div style="display:flex; gap:10px; align-items:center; border-top:1px solid #f1f5f9; padding-top:14px;">
-                        <button class="btn-enter-task-workspace" data-task-id="${t.id}" style="flex:1; background:linear-gradient(135deg, #1d4ed8, #2563eb); color:white; border:none; padding:11px 18px; border-radius:10px; font-size:13.5px; font-weight:700; cursor:pointer; box-shadow:0 4px 12px rgba(37,99,235,0.2); display:flex; align-items:center; justify-content:center; gap:6px;">
+                      <div style="border-top:1px solid #f1f5f9; padding-top:14px;">
+                        <button class="btn-enter-task-workspace" data-task-id="${t.id}" style="width:100%; background:linear-gradient(135deg, #1d4ed8, #2563eb); color:white; border:none; padding:11px 18px; border-radius:10px; font-size:13.5px; font-weight:700; cursor:pointer; box-shadow:0 4px 12px rgba(37,99,235,0.2); display:flex; align-items:center; justify-content:center; gap:6px; transition:all 0.2s ease;">
                           🚀 进入协作工作台
                         </button>
                       </div>
