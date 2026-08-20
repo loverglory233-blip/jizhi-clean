@@ -2187,7 +2187,8 @@
      7. TEACHER PORTAL RENDERER (LIVE WORKSPACE MIRROR & ANNOUNCEMENT READ MATRIX)
      ========================================================================== */
   function renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView) {
-    const savedScrollY = window.pageYOffset || document.documentElement.scrollTop || document.body.scrollTop || (container ? container.scrollTop : 0) || (state._teacherScrollY || 0);
+    const oldLayout = container.querySelector('.teacher-portal-layout') || document.querySelector('.teacher-portal-layout');
+    const savedScrollTop = oldLayout ? oldLayout.scrollTop : (state._teacherScrollTop || 0);
 
     if (authManager && authManager.sanitizeAndDeduplicateGroups) {
       authManager.sanitizeAndDeduplicateGroups();
@@ -2210,7 +2211,7 @@
     const monitorMembersList = Object.values(monitorMembersObj);
 
     container.innerHTML = `
-      <div class="teacher-portal-layout" style="min-height:100vh; height:auto; background:#f0f4f9; padding:0; display:flex; flex-direction:column;">
+      <div class="teacher-portal-layout" id="teacher-portal-layout" style="height:100vh; overflow-y:auto !important; -webkit-overflow-scrolling:touch; background:#f0f4f9; padding:0; display:flex; flex-direction:column;">
         <!-- 全屏头部导航 -->
         <header class="teacher-header" style="padding:16px 32px; background:#ffffff; border-bottom:1px solid #e2e8f0; width:100%; flex-shrink:0; box-shadow:0 1px 3px rgba(15,23,42,0.04);">
           <div class="brand-section">
@@ -4143,29 +4144,16 @@
       });
     }
 
-    // 🎯 终极 4 重防跳顶滚动还原引擎（同步+微任务+rAF+延时）
-    if (savedScrollY > 0) {
-      // 1. 同步瞬间还原
-      window.scrollTo(0, savedScrollY);
-      if (document.documentElement) document.documentElement.scrollTop = savedScrollY;
-      if (document.body) document.body.scrollTop = savedScrollY;
-      if (container) container.scrollTop = savedScrollY;
-
-      // 2. 微任务与下一渲染帧锁定
+    // 🎯 精准保持滚动条位置（恢复原容器滚动条位置，绝不跳回最顶部）
+    const newLayout = container.querySelector('.teacher-portal-layout') || document.querySelector('.teacher-portal-layout');
+    if (newLayout && savedScrollTop > 0) {
+      newLayout.scrollTop = savedScrollTop;
       requestAnimationFrame(() => {
-        window.scrollTo(0, savedScrollY);
-        if (document.documentElement) document.documentElement.scrollTop = savedScrollY;
-        if (container) container.scrollTop = savedScrollY;
+        if (newLayout) newLayout.scrollTop = savedScrollTop;
       });
-
-      // 3. 50ms 与 150ms 异步兜底防弹窗焦点劫持
       setTimeout(() => {
-        window.scrollTo(0, savedScrollY);
-        if (document.documentElement) document.documentElement.scrollTop = savedScrollY;
-      }, 50);
-      setTimeout(() => {
-        window.scrollTo(0, savedScrollY);
-      }, 150);
+        if (newLayout) newLayout.scrollTop = savedScrollTop;
+      }, 40);
     }
   }
 
