@@ -446,28 +446,18 @@
             });
             localStorage.setItem(STORAGE_KEY_USERS_DB, JSON.stringify(mergedUsers));
 
-            // 2. 班级列表同步（权威覆盖模式，绝不拼接重复的历史小组）
+            // 2. 班级列表同步（服务端权威覆盖，本地只读保存，不反推）
             if (Array.isArray(data.classes) && data.classes.length > 0) {
-              const localClasses = this.getClasses();
-              const serverClasses = data.classes;
-              
-              // 保留本地独有的新创建班级
-              localClasses.forEach(lc => {
-                if (!serverClasses.some(sc => sc.id === lc.id)) {
-                  serverClasses.push(lc);
-                  hasNewLocalData = true;
-                }
-              });
-              localStorage.setItem(STORAGE_KEY_CLASSES, JSON.stringify(serverClasses));
+              localStorage.setItem(STORAGE_KEY_CLASSES, JSON.stringify(data.classes));
               this.sanitizeAndDeduplicateGroups();
             }
 
-            // 3. 任务列表（以服务端权威数据为准，教师端删除后立即在全网同步删除）
+            // 3. 任务列表（以服务端权威数据为准，教师端删除后立即全网同步删除）
             if (Array.isArray(data.tasks)) {
               localStorage.setItem(STORAGE_KEY_TASKS, JSON.stringify(data.tasks));
             }
 
-            // 4. 通知列表（以服务端权威列表为准，保留本地已读标记，服务端删除的通知立即消失）
+            // 4. 通知列表（以服务端权威列表为准，仅保留本地已读标记，不反推内容）
             if (Array.isArray(data.announcements)) {
               const localAnns = this.getAnnouncements();
               const serverAnns = data.announcements.map(sa => {
@@ -480,20 +470,20 @@
               localStorage.setItem(STORAGE_KEY_ANNOUNCEMENTS, JSON.stringify(serverAnns));
             }
 
-            // 5. 参考范文（以服务端权威列表为准，服务端删除后立即同步清除）
+            // 5. 参考范文（以服务端权威列表为准）
             if (Array.isArray(data.referencePapers)) {
               localStorage.setItem('jizhi_reference_papers_db', JSON.stringify(data.referencePapers));
             }
 
-            // 6. 问卷映射表（以服务端权威映射为准）
-            if (data.surveys && typeof data.surveys === 'object') {
-              localStorage.setItem('jizhi_surveys_map_db', JSON.stringify(data.surveys));
+            // 6. 问卷列表（以服务端权威列表为准，存入新结构 key）
+            if (Array.isArray(data.surveys)) {
+              localStorage.setItem('jizhi_surveys_list_db', JSON.stringify(data.surveys));
             }
 
-            // 仅在发现完全缺失的基础学生账号时才补全本地持久化
-            if (hasNewLocalData) {
-              this.pushGlobalMeta();
-            }
+            // ⚠️ 严禁在 pullGlobalMeta 中反向推送教务数据回服务器
+            // 教务数据（tasks/announcements/papers/surveys/classes）只能由教师端通过
+            // pushGlobalMeta() 写入服务器，学生端只能读取，绝不反推，防止覆盖教师数据
+            // （已删除 hasNewLocalData → pushGlobalMeta() 的触发逻辑）
           }
         }
       } catch (e) {}
