@@ -141,6 +141,79 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                         SSE_CLIENTS[groupId].discard(q)
             return
 
+        # ⚡ 全局教务元数据 (班级/任务/通知/文献/问卷) 专属路由
+        if 'action=get_global_meta' in self.path:
+            global_file = os.path.join(DIR, 'global_db.json')
+            content = None
+            if os.path.exists(global_file):
+                try:
+                    with open(global_file, 'rb') as f:
+                        raw_data = f.read()
+                    parsed = json.loads(raw_data.decode('utf-8'))
+                    if isinstance(parsed, dict) and ('classes' in parsed or 'tasks' in parsed or 'users' in parsed):
+                        content = raw_data
+                except Exception:
+                    pass
+
+            if not content:
+                default_meta = {
+                    "users": [
+                        {"id": "u_teacher1", "username": "1001", "studentCode": "1001", "password": "123", "name": "老师", "role": "teacher", "avatar": "👩‍🏫"},
+                        {"id": "u_studentA", "username": "202601", "studentCode": "202601", "password": "123", "name": "李明 (组长)", "role": "student", "avatar": "👨‍🎓", "classId": "class_101", "groupId": "group_1"},
+                        {"id": "u_studentB", "username": "202602", "studentCode": "202602", "password": "123", "name": "王芳 (组员)", "role": "student", "avatar": "👩‍🎓", "classId": "class_101", "groupId": "group_1"},
+                        {"id": "u_studentC", "username": "202603", "studentCode": "202603", "password": "123", "name": "陈强 (组员)", "role": "student", "avatar": "🧑‍🎓", "classId": "class_101", "groupId": "group_1"}
+                    ],
+                    "classes": [
+                        {
+                            "id": "class_101",
+                            "name": "《现代教育技术》2026春01班",
+                            "code": "ET2026-01",
+                            "studentIds": ["u_studentA", "u_studentB", "u_studentC"],
+                            "groups": [
+                                {
+                                    "id": "group_1",
+                                    "name": "第 1 协作小组 (测试组)",
+                                    "members": [
+                                        {"id": "u_studentA", "name": "李明", "studentCode": "202601", "role": "组长", "roleTitle": "组长", "avatar": "👨‍🎓", "color": "#2563eb"},
+                                        {"id": "u_studentB", "name": "王芳", "studentCode": "202602", "role": "组员", "roleTitle": "组员", "avatar": "👩‍🎓", "color": "#10b981"},
+                                        {"id": "u_studentC", "name": "陈强", "studentCode": "202603", "role": "组员", "roleTitle": "组员", "avatar": "🧑‍🎓", "color": "#f59e0b"}
+                                    ]
+                                }
+                            ]
+                        }
+                    ],
+                    "tasks": [
+                        {
+                            "id": "task_default",
+                            "title": "期末协作写作 (默认测试任务)",
+                            "classId": "class_101",
+                            "className": "《现代教育技术》2026春01班",
+                            "durationMinutes": 150,
+                            "startTime": "2026/08/01 08:00",
+                            "deadline": "2026/08/30 23:59",
+                            "status": "in_progress",
+                            "createdAt": "2026/08/01",
+                            "instructions": "请各小组成员协同完成多智能体学术论文研讨与写作。",
+                            "resources": []
+                        }
+                    ],
+                    "announcements": [],
+                    "referencePapers": [],
+                    "surveys": []
+                }
+                content = json.dumps(default_meta, ensure_ascii=False).encode('utf-8')
+                with open(global_file, 'wb') as f:
+                    f.write(content)
+
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/json; charset=utf-8')
+            self.send_header('Cache-Control', 'no-store, no-cache, must-revalidate')
+            self.send_header('Content-Length', str(len(content)))
+            self.end_headers()
+            self.wfile.write(content)
+            self.wfile.flush()
+            return
+
         if '/api/snapshot' in self.path or 'sync.php' in self.path:
             groupId = 'group_1'
             if 'groupId=' in self.path:
@@ -321,6 +394,29 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             self.send_header('Content-Type', 'application/json')
             self.end_headers()
             self.wfile.write(b'{"success":true}')
+            return
+
+        # ⚡ 全局教务元数据 (班级/任务/通知/文献/问卷) 专属保存路由
+        if 'action=save_global_meta' in self.path:
+            length = int(self.headers.get('Content-Length', 0))
+            body = self.rfile.read(length)
+            try:
+                data = json.loads(body.decode('utf-8'))
+                if isinstance(data, dict) and ('classes' in data or 'tasks' in data or 'users' in data):
+                    global_file = os.path.join(DIR, 'global_db.json')
+                    with open(global_file, 'wb') as f:
+                        f.write(body)
+                resp = json.dumps({'success': True, 'timestamp': int(time.time() * 1000)}).encode('utf-8')
+                self.send_response(200)
+                self.send_header('Content-Type', 'application/json; charset=utf-8')
+                self.send_header('Content-Length', str(len(resp)))
+                self.end_headers()
+                self.wfile.write(resp)
+                self.wfile.flush()
+            except Exception as e:
+                self.send_response(400)
+                self.end_headers()
+                self.wfile.write(json.dumps({'error': str(e)}).encode('utf-8'))
             return
 
         if '/api/snapshot' in self.path or 'sync.php' in self.path:
