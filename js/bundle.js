@@ -2375,6 +2375,9 @@
     const oldLayout = container.querySelector('.teacher-portal-layout') || document.querySelector('.teacher-portal-layout');
     const savedScrollTop = oldLayout ? oldLayout.scrollTop : (state._teacherScrollTop || 0);
 
+    if (authManager && authManager.pushGlobalMeta) {
+      authManager.pushGlobalMeta();
+    }
     if (authManager && authManager.sanitizeAndDeduplicateGroups) {
       authManager.sanitizeAndDeduplicateGroups();
     }
