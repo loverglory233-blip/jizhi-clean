@@ -322,6 +322,7 @@
   class AuthManager {
     constructor() {
       this.initDatabase();
+      this.sanitizeAndDeduplicateGroups();
       this.pullGlobalMeta();
       // 定期拉取全局元数据，保证任何未登录页面或教师端随时获知最新创建的学生
       setInterval(() => this.pullGlobalMeta(), 2000);
@@ -332,6 +333,59 @@
       if (!localStorage.getItem(STORAGE_KEY_TASKS)) localStorage.setItem(STORAGE_KEY_TASKS, JSON.stringify(DefaultTasks));
       if (!localStorage.getItem(STORAGE_KEY_ANNOUNCEMENTS)) localStorage.setItem(STORAGE_KEY_ANNOUNCEMENTS, JSON.stringify(DefaultAnnouncements));
     }
+
+    // 🛡️ 全局小组数据自动清洗与自愈引擎 (彻底清除重复小组与重复学生挂组)
+    sanitizeAndDeduplicateGroups() {
+      try {
+        const classes = this.getClasses();
+        const users = this.getUsers();
+        let isModified = false;
+
+        const getMemberId = (m) => (typeof m === 'object' && m !== null) ? (m.id || m.userId || m.studentCode) : m;
+
+        classes.forEach(cls => {
+          if (cls.groups && Array.isArray(cls.groups) && cls.groups.length > 0) {
+            const seenStudentIds = new Set();
+            const cleanGroups = [];
+
+            cls.groups.forEach(grp => {
+              const rawMembers = Array.isArray(grp.members) ? grp.members : [];
+              const validMembers = [];
+
+              rawMembers.forEach(m => {
+                const mId = getMemberId(m);
+                if (mId && !seenStudentIds.has(mId)) {
+                  seenStudentIds.add(mId);
+                  validMembers.push(mId);
+                }
+              });
+
+              // 只要该小组有成员，或属于唯一的自建小组
+              if (validMembers.length > 0) {
+                grp.members = validMembers;
+                cleanGroups.push(grp);
+              }
+            });
+
+            // 重新按序规范命名：第 1 协作小组、第 2 协作小组...
+            cleanGroups.forEach((g, idx) => {
+              g.name = `第 ${idx + 1} 协作小组`;
+            });
+
+            if (cleanGroups.length !== cls.groups.length || cleanGroups.some((cg, i) => cg.members.length !== (cls.groups[i] ? cls.groups[i].members.length : 0))) {
+              cls.groups = cleanGroups;
+              isModified = true;
+            }
+          }
+        });
+
+        if (isModified) {
+          localStorage.setItem(STORAGE_KEY_CLASSES, JSON.stringify(classes));
+          this.pushGlobalMeta();
+        }
+      } catch (e) {}
+    }
+
     async pullGlobalMeta() {
       try {
         const res = await fetch(`sync.php?action=get_global_meta&nocache=${Date.now()}`);
@@ -365,38 +419,21 @@
             });
             localStorage.setItem(STORAGE_KEY_USERS_DB, JSON.stringify(mergedUsers));
 
-            // 2. 班级列表安全双向合并：保留本地新创建的班级与小组分配
-            const localClasses = this.getClasses();
-            const serverClasses = Array.isArray(data.classes) ? data.classes : [];
-            const mergedClasses = [...serverClasses];
-
-            localClasses.forEach(lc => {
-              const match = mergedClasses.find(sc => sc.id === lc.id);
-              if (!match) {
-                mergedClasses.push(lc);
-                hasNewLocalData = true;
-              } else {
-                if (lc.studentIds && Array.isArray(lc.studentIds)) {
-                  match.studentIds = Array.from(new Set([...(match.studentIds || []), ...lc.studentIds]));
+            // 2. 班级列表同步（权威覆盖模式，绝不拼接重复的历史小组）
+            if (Array.isArray(data.classes) && data.classes.length > 0) {
+              const localClasses = this.getClasses();
+              const serverClasses = data.classes;
+              
+              // 保留本地独有的新创建班级
+              localClasses.forEach(lc => {
+                if (!serverClasses.some(sc => sc.id === lc.id)) {
+                  serverClasses.push(lc);
+                  hasNewLocalData = true;
                 }
-                if (lc.groups && Array.isArray(lc.groups) && lc.groups.length > 0) {
-                  if (!match.groups || match.groups.length === 0) {
-                    match.groups = lc.groups;
-                  } else {
-                    lc.groups.forEach(lg => {
-                      const sg = match.groups.find(g => g.id === lg.id);
-                      if (!sg) {
-                        match.groups.push(lg);
-                        hasNewLocalData = true;
-                      } else if (lg.members && lg.members.length > 0 && (!sg.members || sg.members.length === 0)) {
-                        sg.members = lg.members;
-                      }
-                    });
-                  }
-                }
-              }
-            });
-            localStorage.setItem(STORAGE_KEY_CLASSES, JSON.stringify(mergedClasses));
+              });
+              localStorage.setItem(STORAGE_KEY_CLASSES, JSON.stringify(serverClasses));
+              this.sanitizeAndDeduplicateGroups();
+            }
 
             // 3. 任务列表（以服务端权威数据为准，教师端删除后立即在全网同步删除）
             if (Array.isArray(data.tasks)) {
@@ -2112,6 +2149,9 @@
      7. TEACHER PORTAL RENDERER (LIVE WORKSPACE MIRROR & ANNOUNCEMENT READ MATRIX)
      ========================================================================== */
   function renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView) {
+    if (authManager && authManager.sanitizeAndDeduplicateGroups) {
+      authManager.sanitizeAndDeduplicateGroups();
+    }
     const currentUser = authManager.getCurrentUser();
     const tasks = authManager.getTasks();
     const announcements = authManager.getAnnouncements();
