@@ -1316,7 +1316,7 @@
       this.pushGlobalMeta();
     }
 
-    publishAnnouncement(taskId, title, content, attachment = null, targetGroupId = 'all', targetGroupName = '全班所有小组', classId = 'all', className = '全校班级') {
+    publishAnnouncement(taskId, title, content, attachment = null, targetGroupId = 'all', targetGroupName = '全班所有小组', classId = 'all', className = '全校班级', targetGroupIds = ['all']) {
       const announcements = this.getAnnouncements();
       const tasks = this.getTasks();
       const task = tasks.find(t => t.id === taskId);
@@ -1327,10 +1327,11 @@
         taskId: taskId || 'task_all',
         taskTitle: taskId === 'task_all' ? '全班通识广播' : (task ? task.title : '指定写作任务'),
         targetGroupId: targetGroupId || 'all',
+        targetGroupIds: Array.isArray(targetGroupIds) && targetGroupIds.length > 0 ? targetGroupIds : [targetGroupId || 'all'],
         targetGroupName: targetGroupName || '全班所有小组',
         title, content, attachment,
         time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        author: '老师', readStatus: { 'group_1': false }
+        author: '老师', readStatus: {}
       };
       announcements.unshift(newAnn);
       localStorage.setItem(STORAGE_KEY_ANNOUNCEMENTS, JSON.stringify(announcements));
@@ -1375,7 +1376,8 @@
       if (!groupId && !classId && !taskId) return papers;
       return papers.filter(p => {
         const matchClass = !classId || classId === 'all' || !p.classId || p.classId === 'all' || p.classId === classId;
-        const matchGroup = !groupId || groupId === 'all' || !p.targetGroupId || p.targetGroupId === 'all' || p.targetGroupId === groupId;
+        const matchGroup = !groupId || groupId === 'all' || 
+          (Array.isArray(p.targetGroupIds) ? (p.targetGroupIds.includes('all') || p.targetGroupIds.includes(groupId)) : (!p.targetGroupId || p.targetGroupId === 'all' || p.targetGroupId === groupId));
         const matchTask = !taskId ? true : (p.taskId === taskId || (!p.taskId && taskId === 'task_default'));
         return matchClass && matchGroup && matchTask;
       });
@@ -1397,6 +1399,7 @@
         fileSize: paper.fileSize || '',
         fileUrl: paper.fileUrl || '',
         targetGroupId: paper.targetGroupId || 'all',
+        targetGroupIds: Array.isArray(paper.targetGroupIds) && paper.targetGroupIds.length > 0 ? paper.targetGroupIds : [paper.targetGroupId || 'all'],
         targetGroupName: paper.targetGroupName || '全班所有小组',
         uploadTime: new Date().toLocaleDateString() + ' ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         author: '任课教师'
@@ -2692,8 +2695,14 @@
                       <div style="font-size:12.5px; color:#64748b; margin-top:4px;">点击右上角【+ 发布新通知】向本班学生发布即时指令！</div>
                     </div>
                   ` : currentClassAnnouncements.map((a, idx) => {
-                    const classGroups = activeClass.groups || [{ id: 'group_1', name: '第1小组' }];
-                    const targetGName = a.targetGroupName || (a.targetGroupId === 'all' || !a.targetGroupId ? '全班所有小组' : '指定小组');
+                    const allClassGroups = activeClass.groups || [{ id: 'group_1', name: '第1小组' }];
+                    const targetGroups = allClassGroups.filter(g => {
+                      if (Array.isArray(a.targetGroupIds)) {
+                        return a.targetGroupIds.includes('all') || a.targetGroupIds.includes(g.id);
+                      }
+                      return !a.targetGroupId || a.targetGroupId === 'all' || a.targetGroupId === g.id;
+                    });
+                    const targetGName = a.targetGroupName || (targetGroups.length === allClassGroups.length ? '全班所有小组' : targetGroups.map(g => g.name).join('、'));
                     const taskLabel = a.taskId === 'task_all' || !a.taskId ? '🌐 全班通识广播' : `📌 ${a.taskTitle || '专属任务'}`;
                     const isLatest = idx === 0;
                     const annSeqNum = currentClassAnnouncements.length - idx;
@@ -2720,14 +2729,14 @@
                           </div>
                         ` : ''}
 
-                        <!-- 📊 各小组已读/未读实时确认追踪矩阵 -->
+                        <!-- 📊 受众小组已读/未读实时确认追踪矩阵 (只展示实际接收到通知的受众小组) -->
                         <div style="margin-top:10px; background:#f8fafc; padding:12px 16px; border-radius:10px; border:1px solid #e2e8f0;">
                           <div style="font-size:12px; font-weight:700; color:#334155; margin-bottom:8px; display:flex; justify-content:space-between; align-items:center;">
-                            <span>📊 本班各小组阅读确认追踪矩阵 (${classGroups.length} 个小组):</span>
+                            <span>📊 定向受众小组阅读确认追踪矩阵 (${targetGroups.length} 个小组):</span>
                             <span style="font-size:11px; color:#059669; font-weight:700;">🟢 学生端确认后实时点亮</span>
                           </div>
                           <div style="display:flex; flex-wrap:wrap; gap:10px; font-size:12px;">
-                            ${classGroups.map(g => {
+                            ${targetGroups.map(g => {
                               const isRead = a.readStatus && a.readStatus[g.id];
                               return `
                                 <span style="background:${isRead ? '#ecfdf5' : '#fffbeb'}; border:1px solid ${isRead ? '#a7f3d0' : '#fde68a'}; color:${isRead ? '#059669' : '#d97706'}; padding:6px 12px; border-radius:8px; font-weight:700;">
@@ -3900,11 +3909,21 @@
               </div>
 
               <div class="teacher-form-group" style="margin-top:10px;">
-                <label><span class="req">*</span> 🎯 推送受众小组</label>
-                <select id="modal-ann-target-group" class="teacher-input fancy">
-                  <option value="all">🌐 全班所有小组</option>
-                  ${(initialCls.groups || []).map(g => `<option value="${g.id}">👥 ${g.name}</option>`).join('')}
-                </select>
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+                  <label style="margin:0;"><span class="req">*</span> 🎯 推送受众小组 (支持多选指定)</label>
+                  <div style="display:flex; gap:8px;">
+                    <button type="button" id="btn-ann-select-all-groups" style="background:#eff6ff; border:1px solid #bfdbfe; color:#1d4ed8; padding:2px 8px; border-radius:4px; font-size:11px; font-weight:700; cursor:pointer;">一键全选</button>
+                    <button type="button" id="btn-ann-clear-groups" style="background:#f8fafc; border:1px solid #cbd5e1; color:#475569; padding:2px 8px; border-radius:4px; font-size:11px; cursor:pointer;">清空</button>
+                  </div>
+                </div>
+                <div id="modal-ann-groups-container" style="display:flex; flex-wrap:wrap; gap:8px; background:#f8fafc; padding:10px; border-radius:8px; border:1px solid #e2e8f0; max-height:120px; overflow-y:auto;">
+                  ${(initialCls.groups || []).length === 0 ? '<span style="font-size:12px; color:#94a3b8;">当前班级暂无小组</span>' : (initialCls.groups || []).map(g => `
+                    <label style="display:inline-flex; align-items:center; gap:5px; background:#ffffff; border:1px solid #cbd5e1; padding:4px 10px; border-radius:6px; font-size:12px; font-weight:600; cursor:pointer; user-select:none;">
+                      <input type="checkbox" name="ann-target-group" value="${g.id}" checked style="accent-color:#2563eb; cursor:pointer;">
+                      <span>👥 ${g.name}</span>
+                    </label>
+                  `).join('')}
+                </div>
               </div>
 
               <div class="teacher-form-group" style="margin-top:10px;">
@@ -3951,14 +3970,28 @@
         };
         document.addEventListener('keydown', onEscKey);
 
+        const groupsContainer = modal.querySelector('#modal-ann-groups-container');
+        modal.querySelector('#btn-ann-select-all-groups').addEventListener('click', () => {
+          groupsContainer.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = true);
+        });
+        modal.querySelector('#btn-ann-clear-groups').addEventListener('click', () => {
+          groupsContainer.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = false);
+        });
+
         // 班级切换联动小组
         const classSelect = modal.querySelector('#modal-ann-class');
-        const groupSelect = modal.querySelector('#modal-ann-target-group');
         classSelect.addEventListener('change', (e) => {
           const selectedCId = e.target.value;
           const targetCls = allClasses.find(c => c.id === selectedCId);
           const groups = (targetCls && targetCls.groups) ? targetCls.groups : [];
-          groupSelect.innerHTML = `<option value="all">🌐 全班所有小组</option>` + groups.map(g => `<option value="${g.id}">👥 ${g.name}</option>`).join('');
+          groupsContainer.innerHTML = groups.length === 0
+            ? '<span style="font-size:12px; color:#94a3b8;">当前班级暂无小组</span>'
+            : groups.map(g => `
+              <label style="display:inline-flex; align-items:center; gap:5px; background:#ffffff; border:1px solid #cbd5e1; padding:4px 10px; border-radius:6px; font-size:12px; font-weight:600; cursor:pointer; user-select:none;">
+                <input type="checkbox" name="ann-target-group" value="${g.id}" checked style="accent-color:#2563eb; cursor:pointer;">
+                <span>👥 ${g.name}</span>
+              </label>
+            `).join('');
         });
 
         const fileInput = modal.querySelector('#modal-ann-file-input');
@@ -3982,13 +4015,25 @@
           const selClassName = selClassId === 'all' ? '全校班级' : (selClassObj ? selClassObj.name : '指定班级');
           
           const taskId = modal.querySelector('#modal-ann-task').value;
-          const targetGId = groupSelect.value;
-          const targetGObj = (selClassObj && selClassObj.groups) ? selClassObj.groups.find(g => g.id === targetGId) : null;
-          const targetGName = targetGId === 'all' ? '全班所有小组' : (targetGObj ? targetGObj.name : '指定小组');
+          const checkedGroupCbs = Array.from(groupsContainer.querySelectorAll('input[type="checkbox"]:checked'));
+          if (checkedGroupCbs.length === 0) {
+            alert('⚠️ 请至少勾选一个接收通知的受众小组！');
+            return;
+          }
+          const allGroups = (selClassObj && selClassObj.groups) ? selClassObj.groups : [];
+          const isAllSelected = checkedGroupCbs.length === allGroups.length;
+          const selectedGroupIds = checkedGroupCbs.map(cb => cb.value);
+          const selectedGroupNames = selectedGroupIds.map(gid => {
+            const gObj = allGroups.find(g => g.id === gid);
+            return gObj ? gObj.name : gid;
+          });
+          const targetGId = isAllSelected ? 'all' : selectedGroupIds[0];
+          const targetGName = isAllSelected ? '全班所有小组' : selectedGroupNames.join('、');
+
           const title = modal.querySelector('#modal-ann-title').value.trim();
           const content = modal.querySelector('#modal-ann-content').value.trim();
           if (!title || !content) { alert('⚠️ 请填齐通知标题与内容！'); return; }
-          authManager.publishAnnouncement(taskId, title, content, selectedAttachment, targetGId, targetGName, selClassId, selClassName);
+          authManager.publishAnnouncement(taskId, title, content, selectedAttachment, targetGId, targetGName, selClassId, selClassName, selectedGroupIds);
           closeModal();
           renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
         });
@@ -4057,11 +4102,21 @@
               </div>
 
               <div class="teacher-form-group" style="margin-top:10px;">
-                <label><span class="req">*</span> 🎯 推送受众小组</label>
-                <select id="modal-paper-target-group" class="teacher-input fancy">
-                  <option value="all">🌐 全班所有小组</option>
-                  ${(initialCls.groups || []).map(g => `<option value="${g.id}">👥 ${g.name}</option>`).join('')}
-                </select>
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+                  <label style="margin:0;"><span class="req">*</span> 🎯 推送受众小组 (支持多选指定)</label>
+                  <div style="display:flex; gap:8px;">
+                    <button type="button" id="btn-paper-select-all-groups" style="background:#eff6ff; border:1px solid #bfdbfe; color:#1d4ed8; padding:2px 8px; border-radius:4px; font-size:11px; font-weight:700; cursor:pointer;">一键全选</button>
+                    <button type="button" id="btn-paper-clear-groups" style="background:#f8fafc; border:1px solid #cbd5e1; color:#475569; padding:2px 8px; border-radius:4px; font-size:11px; cursor:pointer;">清空</button>
+                  </div>
+                </div>
+                <div id="modal-paper-groups-container" style="display:flex; flex-wrap:wrap; gap:8px; background:#f8fafc; padding:10px; border-radius:8px; border:1px solid #e2e8f0; max-height:120px; overflow-y:auto;">
+                  ${(initialCls.groups || []).length === 0 ? '<span style="font-size:12px; color:#94a3b8;">当前班级暂无小组</span>' : (initialCls.groups || []).map(g => `
+                    <label style="display:inline-flex; align-items:center; gap:5px; background:#ffffff; border:1px solid #cbd5e1; padding:4px 10px; border-radius:6px; font-size:12px; font-weight:600; cursor:pointer; user-select:none;">
+                      <input type="checkbox" name="paper-target-group" value="${g.id}" checked style="accent-color:#2563eb; cursor:pointer;">
+                      <span>👥 ${g.name}</span>
+                    </label>
+                  `).join('')}
+                </div>
               </div>
 
               <div style="margin-top:12px; background:#eff6ff; border:1px solid #bfdbfe; padding:10px 14px; border-radius:8px; display:flex; align-items:center; gap:8px;">
@@ -4096,14 +4151,28 @@
         };
         document.addEventListener('keydown', onEscKey);
 
+        const paperGroupsContainer = modal.querySelector('#modal-paper-groups-container');
+        modal.querySelector('#btn-paper-select-all-groups').addEventListener('click', () => {
+          paperGroupsContainer.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = true);
+        });
+        modal.querySelector('#btn-paper-clear-groups').addEventListener('click', () => {
+          paperGroupsContainer.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = false);
+        });
+
         // 班级联动小组
         const paperClassSelect = modal.querySelector('#modal-paper-class');
-        const paperGroupSelect = modal.querySelector('#modal-paper-target-group');
         paperClassSelect.addEventListener('change', (e) => {
           const selectedCId = e.target.value;
           const targetCls = allClasses.find(c => c.id === selectedCId);
           const groups = (targetCls && targetCls.groups) ? targetCls.groups : [];
-          paperGroupSelect.innerHTML = `<option value="all">🌐 全班所有小组</option>` + groups.map(g => `<option value="${g.id}">👥 ${g.name}</option>`).join('');
+          paperGroupsContainer.innerHTML = groups.length === 0
+            ? '<span style="font-size:12px; color:#94a3b8;">当前班级暂无小组</span>'
+            : groups.map(g => `
+              <label style="display:inline-flex; align-items:center; gap:5px; background:#ffffff; border:1px solid #cbd5e1; padding:4px 10px; border-radius:6px; font-size:12px; font-weight:600; cursor:pointer; user-select:none;">
+                <input type="checkbox" name="paper-target-group" value="${g.id}" checked style="accent-color:#2563eb; cursor:pointer;">
+                <span>👥 ${g.name}</span>
+              </label>
+            `).join('');
         });
 
         const fileInput = modal.querySelector('#modal-paper-file-input');
@@ -4136,7 +4205,22 @@
             const selClassName = selClassId === 'all' ? '全校班级' : (selClassObj ? selClassObj.name : '指定班级');
 
             const targetTaskId = modal.querySelector('#modal-paper-task') ? modal.querySelector('#modal-paper-task').value : 'task_all';
-            const targetGId = paperGroupSelect ? paperGroupSelect.value : 'all';
+            
+            const checkedGroupCbs = Array.from(paperGroupsContainer.querySelectorAll('input[type="checkbox"]:checked'));
+            if (checkedGroupCbs.length === 0) {
+              alert('⚠️ 请至少勾选一个接收文献的受众小组！');
+              return;
+            }
+            const allGroups = (selClassObj && selClassObj.groups) ? selClassObj.groups : [];
+            const isAllSelected = checkedGroupCbs.length === allGroups.length;
+            const selectedGroupIds = checkedGroupCbs.map(cb => cb.value);
+            const selectedGroupNames = selectedGroupIds.map(gid => {
+              const gObj = allGroups.find(g => g.id === gid);
+              return gObj ? gObj.name : gid;
+            });
+            const targetGId = isAllSelected ? 'all' : selectedGroupIds[0];
+            const targetGName = isAllSelected ? '全班所有小组' : selectedGroupNames.join('、');
+
             const autoPush = modal.querySelector('#modal-paper-auto-push') ? modal.querySelector('#modal-paper-auto-push').checked : true;
 
             if (!selectedFile.name && !title) {
@@ -4146,8 +4230,6 @@
             if (!title) {
               title = selectedFile.name ? selectedFile.name.replace(/\.[^/.]+$/, '') : '学术参考范文';
             }
-
-            const targetGObj = (selClassObj && selClassObj.groups) ? selClassObj.groups.find(g => g.id === targetGId) : null;
 
             submitBtn.disabled = true;
             submitBtn.innerText = '⏳ 正在上传文献到服务器...';
@@ -4185,7 +4267,8 @@
               fileUrl: serverFileUrl,
               fileSize: selectedFile.size || '3.5 MB',
               targetGroupId: targetGId,
-              targetGroupName: targetGId === 'all' ? '全班所有小组' : (targetGObj ? targetGObj.name : '指定小组')
+              targetGroupIds: selectedGroupIds,
+              targetGroupName: targetGName
             });
 
             if (autoPush && newPaper && newPaper.id) {
