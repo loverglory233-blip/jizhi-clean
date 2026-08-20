@@ -7644,7 +7644,8 @@
       }
       const currentUser = this.authManager.getCurrentUser();
       const groupId = currentUser && currentUser.groupId ? currentUser.groupId : 'group_1';
-      const myClassIds = new Set([currentUser?.classId, ...(currentUser?.classIds || [])].filter(Boolean));
+      const effectiveClassId = this.state.activeStudentClassId || currentUser?.classId || 'class_101';
+      const myClassIds = new Set([effectiveClassId, currentUser?.classId, ...(currentUser?.classIds || [])].filter(Boolean));
       const activeTaskId = (this.state && this.state.activeTaskId) ? this.state.activeTaskId : 'task_default';
       const allAnns = this.authManager.getAnnouncements();
       
@@ -7652,20 +7653,22 @@
       const unreadList = allAnns
         .filter(a => {
           const matchClass = !a.classId || a.classId === 'all' || myClassIds.has(a.classId);
-          const matchGroup = !a.targetGroupId || a.targetGroupId === 'all' || a.targetGroupId === groupId;
+          const matchGroup = !a.targetGroupId || a.targetGroupId === 'all' || a.targetGroupId === groupId ||
+            (Array.isArray(a.targetGroupIds) && (a.targetGroupIds.includes('all') || a.targetGroupIds.includes(groupId)));
           const matchTask = !a.taskId || a.taskId === 'task_all' || a.taskId === activeTaskId || (!a.taskId && activeTaskId === 'task_default');
           return matchClass && matchGroup && matchTask && (!a.readStatus || !a.readStatus[groupId]);
         })
         .sort((a, b) => (b.id > a.id ? 1 : -1));
 
       if (unreadList.length > 0) {
-        setTimeout(() => this.showAnnouncementModal(unreadList[0], true), 600);
+        this.showAnnouncementModal(unreadList[0], true);
       }
     }
 
     showAnnouncementModal(targetAnn = null, isSequentialFlow = false) {
       document.querySelectorAll('.modal-overlay').forEach(el => el.remove());
       const currentUser = this.authManager.getCurrentUser();
+      const groupId = (currentUser && currentUser.groupId) ? currentUser.groupId : 'group_1';
       // 获取学生当前选定所在班级
       const effectiveClassId = this.state.activeStudentClassId || currentUser?.classId || 'class_101';
       const activeTaskId = (this.state && this.state.activeTaskId) ? this.state.activeTaskId : 'task_default';
@@ -7675,7 +7678,8 @@
       const myAnns = allAnns
         .filter(a => {
           const matchClass = !a.classId || a.classId === 'all' || a.classId === effectiveClassId;
-          const matchGroup = !a.targetGroupId || a.targetGroupId === 'all' || a.targetGroupId === groupId;
+          const matchGroup = !a.targetGroupId || a.targetGroupId === 'all' || a.targetGroupId === groupId ||
+            (Array.isArray(a.targetGroupIds) && (a.targetGroupIds.includes('all') || a.targetGroupIds.includes(groupId)));
           const matchTask = !a.taskId || a.taskId === 'task_all' || a.taskId === activeTaskId || (!a.taskId && activeTaskId === 'task_default');
           return matchClass && matchGroup && matchTask;
         })
