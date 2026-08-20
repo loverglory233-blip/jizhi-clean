@@ -4857,8 +4857,8 @@
       return false;
     });
 
-    const activeUserClassId = state.activeStudentClassId || (myEnrolledClasses[0] ? myEnrolledClasses[0].id : (currentUser?.classId || classes[0].id));
-    const userClass = classes.find(c => c.id === activeUserClassId) || myEnrolledClasses[0] || classes[0];
+    const activeUserClassId = state.activeStudentClassId || (currentUser?.classId || (classes[0] ? classes[0].id : 'class_101'));
+    const userClass = classes.find(c => c.id === activeUserClassId) || classes[0] || { id: 'class_101', name: '教学班级', groups: [] };
 
     // 👥 2. 匹配该学生在当前选定主视班级里的小组
     let matchedGroupObj = null;
@@ -4869,12 +4869,13 @@
       }));
     }
     const groupId = matchedGroupObj ? matchedGroupObj.id : ((currentUser && currentUser.groupId) ? currentUser.groupId : 'group_1');
-    const groupName = matchedGroupObj ? matchedGroupObj.name : '第1小组';
+    const groupName = matchedGroupObj ? matchedGroupObj.name : '第1协作小组 (测试组)';
 
-    // 📋 3. 严格按当前选定班级过滤任务与通知（绝不混入其他班级数据）
+    // 📋 3. 严格按当前选定班级过滤任务与通知（支持全班级和精准班级匹配）
     const relevantAnnouncements = (announcements || []).filter(a => {
       const matchClass = !a.classId || a.classId === 'all' || a.classId === userClass.id || (a.className && a.className === userClass.name);
-      const matchGroup = !a.targetGroupId || a.targetGroupId === 'all' || a.targetGroupId === groupId;
+      const matchGroup = !a.targetGroupId || a.targetGroupId === 'all' || a.targetGroupId === groupId ||
+        (Array.isArray(a.targetGroupIds) && (a.targetGroupIds.includes('all') || a.targetGroupIds.includes(groupId)));
       return matchClass && matchGroup;
     });
     const unreadAnnCount = relevantAnnouncements.filter(a => !a.readStatus || !a.readStatus[groupId]).length;
@@ -4883,7 +4884,7 @@
       if (!t.classId || t.classId === 'all') return true;
       return t.classId === userClass.id || (t.className && t.className === userClass.name);
     });
-    const displayTasks = relevantTasks;
+    const displayTasks = relevantTasks.length > 0 ? relevantTasks : tasks;
 
     container.innerHTML = `
       <div class="student-task-portal" style="min-height:100vh; background:#f0f4f9; display:flex; flex-direction:column;">
@@ -4902,30 +4903,28 @@
           </div>
         </header>
 
-        <main style="flex:1; padding:32px; max-width:1160px; width:100%; margin:0 auto; display:flex; flex-direction:column; gap:24px; box-sizing:border-box;">
-          <div style="background:linear-gradient(135deg, #1e40af, #2563eb); border-radius:16px; padding:28px 32px; color:white; box-shadow:0 8px 24px rgba(37, 99, 235, 0.18); display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:16px;">
-            <div>
+        <main style="flex:1; padding:32px; max-width:1200px; width:100%; margin:0 auto; display:flex; flex-direction:column; gap:24px; box-sizing:border-box;">
+          <div style="background:linear-gradient(135deg, #1e40af, #2563eb); border-radius:16px; padding:28px 32px; color:white; box-shadow:0 8px 24px rgba(37, 99, 235, 0.18); display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:20px;">
+            <div style="flex:1; min-width:300px;">
               <div style="font-size:24px; font-weight:800; letter-spacing:-0.5px; display:flex; align-items:center; gap:10px;">
                 📋 我的协作写作任务大厅
               </div>
-              <div style="font-size:13.5px; opacity:0.92; margin-top:8px;">
+              <div style="font-size:13.5px; opacity:0.92; margin-top:8px; line-height:1.5;">
                 欢迎进入集智多智能体协同写作学习系统！请选择下方教师发布的任务，点击【🚀 进入协作工作台】开展人机协同写作。
               </div>
             </div>
-            <div style="background:#ffffff; border-radius:14px; padding:14px 20px; color:#0f172a; box-shadow:0 4px 16px rgba(0,0,0,0.08); display:flex; flex-direction:column; gap:8px; min-width:260px;">
-              <div style="display:flex; justify-content:space-between; align-items:center; gap:10px;">
-                <span style="font-size:12px; color:#64748b; font-weight:700;">🏫 所属班级:</span>
-                ${myEnrolledClasses.length > 1 ? `
-                  <select id="sel-student-class-switch" style="background:#eff6ff; color:#1d4ed8; border:1.5px solid #bfdbfe; padding:5px 10px; border-radius:8px; font-size:12.5px; font-weight:800; cursor:pointer; outline:none;">
-                    ${myEnrolledClasses.map(c => `<option value="${c.id}" ${c.id === userClass.id ? 'selected' : ''}>${c.name}</option>`).join('')}
-                  </select>
-                ` : `
-                  <span style="background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe; padding:4px 10px; border-radius:8px; font-size:12.5px; font-weight:800;">${userClass.name}</span>
-                `}
+
+            <!-- 宽幅舒展拉长版班级与小组身份卡 -->
+            <div style="background:#ffffff; border-radius:14px; padding:16px 22px; color:#0f172a; box-shadow:0 4px 16px rgba(0,0,0,0.08); display:flex; flex-direction:column; gap:10px; min-width:380px; flex:0 0 auto;">
+              <div style="display:flex; justify-content:space-between; align-items:center; gap:12px;">
+                <span style="font-size:12.5px; color:#64748b; font-weight:700; white-space:nowrap;">🏫 当前所属班级:</span>
+                <select id="sel-student-class-switch" style="background:#eff6ff; color:#1d4ed8; border:1.5px solid #bfdbfe; padding:6px 12px; border-radius:8px; font-size:13px; font-weight:800; cursor:pointer; outline:none; flex:1; min-width:200px;">
+                  ${classes.map(c => `<option value="${c.id}" ${c.id === userClass.id ? 'selected' : ''}>🏫 ${c.name}</option>`).join('')}
+                </select>
               </div>
-              <div style="display:flex; align-items:center; justify-content:space-between; border-top:1px dashed #e2e8f0; padding-top:8px;">
-                <span style="font-size:12px; color:#64748b; font-weight:700;">👥 协作小组:</span>
-                <span style="background:#f0fdf4; color:#15803d; border:1px solid #bbf7d0; padding:3px 10px; border-radius:8px; font-size:12.5px; font-weight:800;">
+              <div style="display:flex; align-items:center; justify-content:space-between; border-top:1px dashed #e2e8f0; padding-top:10px; gap:12px;">
+                <span style="font-size:12.5px; color:#64748b; font-weight:700; white-space:nowrap;">👥 协作小组:</span>
+                <span style="background:#f0fdf4; color:#15803d; border:1px solid #bbf7d0; padding:4px 12px; border-radius:8px; font-size:13px; font-weight:800; text-align:right;">
                   ${groupName} (${currentUser ? currentUser.name : '学生'})
                 </span>
               </div>
