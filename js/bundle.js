@@ -1376,7 +1376,7 @@
     uploadReferencePaper(paper) {
       const papers = this.getAllReferencePapers();
       const paperId = 'ref_' + Date.now();
-      
+
       // 单独持久化大附件数据，保持 global_meta 轻量秒级存入 MySQL
       if (paper.fileData) {
         try { localStorage.setItem(`jizhi_paper_data_${paperId}`, paper.fileData); } catch (e) {}
@@ -1392,6 +1392,7 @@
         keyHighlights: paper.keyHighlights || '研究设计与学术论证规范',
         fileName: paper.fileName || '',
         fileSize: paper.fileSize || '',
+        fileData: paper.fileData || '',
         targetGroupId: paper.targetGroupId || 'all',
         targetGroupName: paper.targetGroupName || '全班所有小组',
         uploadTime: new Date().toLocaleDateString() + ' ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),

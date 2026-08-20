@@ -33,6 +33,45 @@ if (empty($taskId)) $taskId = 'task_default';
 $scopeKey = $taskId . '_' . $groupId;
 $action = isset($_GET['action']) ? $_GET['action'] : '';
 
+// 0. 教师附件文件上传（存服务器磁盘，返回可访问 URL）
+if ($action === 'upload_file' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    header('Content-Type: application/json; charset=utf-8');
+    $uploadDir = __DIR__ . '/uploads/';
+    if (!is_dir($uploadDir)) {
+        mkdir($uploadDir, 0755, true);
+    }
+    if (!isset($_FILES['file']) || $_FILES['file']['error'] !== UPLOAD_ERR_OK) {
+        echo json_encode(['success' => false, 'message' => '未接收到有效文件']);
+        exit;
+    }
+    $originalName = basename($_FILES['file']['name']);
+    $ext = strtolower(pathinfo($originalName, PATHINFO_EXTENSION));
+    $allowed = ['pdf', 'doc', 'docx', 'ppt', 'pptx', 'xls', 'xlsx', 'txt', 'png', 'jpg', 'jpeg', 'gif', 'zip'];
+    if (!in_array($ext, $allowed)) {
+        echo json_encode(['success' => false, 'message' => '不支持的文件类型']);
+        exit;
+    }
+    $safeName = 'jizhi_' . time() . '_' . preg_replace('/[^a-zA-Z0-9._-]/', '_', $originalName);
+    $destPath = $uploadDir . $safeName;
+    if (!move_uploaded_file($_FILES['file']['tmp_name'], $destPath)) {
+        echo json_encode(['success' => false, 'message' => '文件保存失败']);
+        exit;
+    }
+    // 构建可访问的 URL（基于请求域名）
+    $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+    $host = $_SERVER['HTTP_HOST'];
+    $baseDir = rtrim(dirname($_SERVER['SCRIPT_NAME']), '/');
+    $fileUrl = $protocol . '://' . $host . $baseDir . '/uploads/' . $safeName;
+    echo json_encode([
+        'success'      => true,
+        'url'          => $fileUrl,
+        'fileName'     => $originalName,
+        'fileSize'     => $_FILES['file']['size'],
+        'savedName'    => $safeName
+    ]);
+    exit;
+}
+
 // 1. 全局教务元数据 (用户池/班级/任务/通知/范文库)
 if ($action === 'get_global_meta') {
     if ($pdo) {
