@@ -665,45 +665,15 @@
 
     createClass(className, classCode = null) {
       const classes = this.getClasses();
-      const users = this.getUsers();
-      const classId = 'class_' + Date.now();
-      const testStudentIds = ['u_studentA', 'u_studentB', 'u_studentC'];
-
-      // 1. 创建新班级，默认建立【第 1 协作小组】并容纳 3 名测试学生
       const newClass = {
-        id: classId,
+        id: 'class_' + Date.now(),
         name: className || '新教学班',
         code: classCode || ('MET-2026-' + (classes.length + 1).toString().padStart(2, '0')),
-        studentIds: [...testStudentIds],
-        groups: [
-          {
-            id: 'group_1',
-            name: '第 1 协作小组 (测试组)',
-            members: [
-              { id: 'u_studentA', name: '李明', studentCode: '202601', role: '组长', roleTitle: '组长', avatar: '👨‍🎓', color: '#2563eb' },
-              { id: 'u_studentB', name: '王芳', studentCode: '202602', role: '组员', roleTitle: '组员', avatar: '👩‍🎓', color: '#10b981' },
-              { id: 'u_studentC', name: '陈强', studentCode: '202603', role: '组员', roleTitle: '组员', avatar: '🧑‍🎓', color: '#f59e0b' }
-            ]
-          }
-        ]
+        studentIds: [],
+        groups: []
       };
       classes.unshift(newClass);
       localStorage.setItem(STORAGE_KEY_CLASSES, JSON.stringify(classes));
-
-      // 2. 将新班级 ID 自动追加进这 3 名测试学生的 classIds 列表中
-      users.forEach(u => {
-        if (testStudentIds.includes(u.id) || ['202601', '202602', '202603'].includes(u.studentCode)) {
-          if (!u.classIds || !Array.isArray(u.classIds)) {
-            u.classIds = u.classId ? [u.classId] : ['class_101'];
-          }
-          if (!u.classIds.includes(classId)) {
-            u.classIds.push(classId);
-          }
-          if (!u.groupId) u.groupId = 'group_1';
-        }
-      });
-      localStorage.setItem(STORAGE_KEY_USERS_DB, JSON.stringify(users));
-
       this.pushGlobalMeta();
       if (window.app && window.app.cloudSyncEngine) window.app.cloudSyncEngine.pushSnapshot();
       return newClass;
@@ -723,15 +693,6 @@
       const cleanCode = (studentCode || '').trim();
       const cleanUsername = cleanCode.toLowerCase();
       
-      const existingUser = users.find(u => (u.studentCode || '').trim().toLowerCase() === cleanCode.toLowerCase() || (u.username || '').toLowerCase() === cleanUsername);
-
-      if (existingUser && isStrictUnique) {
-        throw new Error(`学号【${cleanCode}】已被学生【${existingUser.name}】占用，不能重复创建！`);
-      }
-
-      const avatars = ['👨‍🎓', '👩‍🎓', '🧑‍🎓', '🎓', '📚', '🌟'];
-      const avatar = avatars[users.length % avatars.length];
-
       let targetUser;
       if (existingUser) {
         targetUser = existingUser;
@@ -741,7 +702,7 @@
         targetUser.username = cleanCode;
 
         if (!targetUser.classIds || !Array.isArray(targetUser.classIds)) {
-          targetUser.classIds = targetUser.classId ? [targetUser.classId] : [];
+          targetUser.classIds = targetUser.classId ? [targetUser.classId] : ['class_101'];
         }
         if (classId && !targetUser.classIds.includes(classId)) {
           targetUser.classIds.push(classId);
