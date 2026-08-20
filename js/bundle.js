@@ -2247,22 +2247,22 @@
                   <span style="font-size:17px; font-weight:800; color:#0f172a;">🎓 教学班级管理 (${classes.length} 个班级)</span>
                   <button id="btn-v1-create-class" class="teacher-action-btn" style="background:linear-gradient(135deg, #1d4ed8, #2563eb); border:none; color:white; padding:8px 18px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer; box-shadow:0 2px 8px rgba(37,99,235,0.25);">+ 创建全新教学班</button>
                 </div>
-                <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(340px, 1fr)); gap:16px;">
+                <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(360px, 1fr)); gap:16px;">
                   ${classes.map(c => {
                     const isSelected = c.id === activeClass.id;
                     const cStds = authManager.getClassStudents(c.id);
                     return `
-                      <div style="background:${isSelected ? '#eff6ff' : '#ffffff'}; border:1px solid ${isSelected ? '#3b82f6' : '#e2e8f0'}; border-radius:12px; padding:18px; display:flex; justify-content:space-between; align-items:center; box-shadow:0 1px 3px rgba(15,23,42,0.03);">
-                        <div>
-                          <div style="font-size:15.5px; font-weight:800; color:${isSelected ? '#1d4ed8' : '#0f172a'};">🏫 ${c.name}</div>
-                          <div style="font-size:12px; color:#64748b; margin-top:4px;">代码: ${c.code || 'MET'} | 学生: ${cStds.length}人 | 小组: ${(c.groups || []).length}个</div>
+                      <div style="background:${isSelected ? '#eff6ff' : '#ffffff'}; border:1.5px solid ${isSelected ? '#3b82f6' : '#e2e8f0'}; border-radius:12px; padding:18px 20px; display:flex; justify-content:space-between; align-items:center; box-shadow:0 1px 3px rgba(15,23,42,0.03);">
+                        <div style="min-width:0; padding-right:12px;">
+                          <div style="font-size:16px; font-weight:800; color:${isSelected ? '#1d4ed8' : '#0f172a'}; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">🏫 ${c.name}</div>
+                          <div style="font-size:12.5px; color:#64748b; margin-top:5px;">学生: <b>${cStds.length}</b> 人 | 小组: <b>${(c.groups || []).length}</b> 个</div>
                         </div>
-                        <div style="display:flex; gap:8px; align-items:center;">
-                          <button class="btn-select-class" data-id="${c.id}" style="background:${isSelected ? '#ecfdf5' : '#2563eb'}; border:1px solid ${isSelected ? '#a7f3d0' : 'transparent'}; color:${isSelected ? '#059669' : 'white'}; padding:7px 14px; border-radius:8px; font-size:12px; font-weight:700; cursor:pointer;">
+                        <div style="display:flex; gap:8px; align-items:center; flex-shrink:0;">
+                          <button class="btn-select-class" data-id="${c.id}" style="background:${isSelected ? '#ecfdf5' : '#2563eb'}; border:1px solid ${isSelected ? '#a7f3d0' : 'transparent'}; color:${isSelected ? '#059669' : 'white'}; padding:7px 14px; border-radius:8px; font-size:12.5px; font-weight:700; cursor:pointer; white-space:nowrap; display:inline-flex; align-items:center; gap:4px;">
                             ${isSelected ? '✅ 当前主班' : '切换'}
                           </button>
                           ${classes.length > 1 ? `
-                            <button class="btn-delete-class" data-id="${c.id}" data-name="${c.name}" style="background:#fef2f2; border:1px solid #fecaca; color:#dc2626; padding:7px 10px; border-radius:8px; font-size:12px; font-weight:700; cursor:pointer;" title="删除此教学班级">
+                            <button class="btn-delete-class" data-id="${c.id}" data-name="${c.name}" style="background:#fef2f2; border:1px solid #fecaca; color:#dc2626; padding:7px 10px; border-radius:8px; font-size:12px; font-weight:700; cursor:pointer; flex-shrink:0;" title="删除此教学班级">
                               🗑️
                             </button>
                           ` : ''}
@@ -3003,56 +3003,59 @@
         const modal = document.createElement('div');
         modal.className = 'modal-overlay';
         modal.innerHTML = `
-          <div class="teacher-modal-card fancy-task-modal" style="width:540px;">
-            <div class="teacher-modal-header task-theme-gradient">
-              <div class="modal-header-title">
-                <div class="modal-icon-badge task">👨‍🎓</div>
-                <div><h3>添加学生至【${activeClass.name}】</h3></div>
+          <div class="teacher-modal-card fancy-task-modal" style="width:560px; background:#ffffff; border:1px solid #e2e8f0; box-shadow:0 20px 45px rgba(15,23,42,0.12);">
+            <div class="teacher-modal-header" style="background:linear-gradient(135deg, #eff6ff, #f8fafc); border-bottom:1px solid #e2e8f0; padding:18px 24px;">
+              <div class="modal-header-title" style="display:flex; align-items:center; gap:10px;">
+                <div class="modal-icon-badge" style="background:#dbeafe; color:#2563eb; font-size:20px; padding:6px 10px; border-radius:10px;">👨‍🎓</div>
+                <div><h3 style="margin:0; font-size:17px; font-weight:800; color:#0f172a;">添加学生账号 (${activeClass.name})</h3></div>
               </div>
-              <button class="modal-close-btn" id="btn-close-single-student">✕</button>
+              <button class="modal-close-btn" id="btn-close-single-student" style="background:#f1f5f9; border:none; color:#64748b; font-size:16px; border-radius:8px; width:30px; height:30px; cursor:pointer;">✕</button>
             </div>
 
             <!-- 双标签切换 -->
-            <div style="display:flex; border-bottom:1px solid rgba(255,255,255,0.1); background:rgba(15,23,42,0.5);">
-              <button id="tab-new-student" style="flex:1; padding:12px; font-size:13px; font-weight:700; border:none; cursor:pointer; background:rgba(99,102,241,0.25); color:#a5b4fc; border-bottom:3px solid #6366f1;">
+            <div style="display:flex; border-bottom:1px solid #e2e8f0; background:#f8fafc;">
+              <button id="tab-new-student" style="flex:1; padding:12px; font-size:13.5px; font-weight:800; border:none; cursor:pointer; background:#ffffff; color:#2563eb; border-bottom:3px solid #2563eb;">
                 ✏️ 新建学生账号
               </button>
-              <button id="tab-enroll-student" style="flex:1; padding:12px; font-size:13px; font-weight:700; border:none; cursor:pointer; background:transparent; color:#64748b; border-bottom:3px solid transparent;">
+              <button id="tab-enroll-student" style="flex:1; padding:12px; font-size:13.5px; font-weight:800; border:none; cursor:pointer; background:transparent; color:#64748b; border-bottom:3px solid transparent;">
                 🔗 加入已有学生 (${unenrolledStudents.length}人)
               </button>
             </div>
 
             <!-- 面板1: 新建学生 -->
             <div id="panel-new-student">
-              <div class="teacher-modal-body">
-                <div class="teacher-form-group">
-                  <label><span class="req">*</span> 学生姓名</label>
-                  <input type="text" id="modal-std-name" class="teacher-input fancy" placeholder="输入学生姓名 (如: 张三)" value="">
+              <div class="teacher-modal-body" style="padding:22px 24px;">
+                <div class="teacher-form-group" style="margin-bottom:14px;">
+                  <label style="font-size:13px; font-weight:700; color:#334155; margin-bottom:6px; display:block;"><span class="req" style="color:#dc2626;">*</span> 学生姓名</label>
+                  <input type="text" id="modal-std-name" class="teacher-input fancy" placeholder="输入学生姓名 (如: 张三)" value="" style="background:#ffffff; border:1.5px solid #cbd5e1; color:#0f172a; padding:10px 14px; border-radius:8px; width:100%; font-size:13.5px;">
+                </div>
+                <div class="teacher-form-group" style="margin-bottom:14px;">
+                  <label style="font-size:13px; font-weight:700; color:#334155; margin-bottom:6px; display:block;"><span class="req" style="color:#dc2626;">*</span> 学生学号 (登录账号)</label>
+                  <input type="text" id="modal-std-code" class="teacher-input fancy" placeholder="输入学号 (如: 20260101 或 S101)" value="" style="background:#ffffff; border:1.5px solid #cbd5e1; color:#0f172a; padding:10px 14px; border-radius:8px; width:100%; font-size:13.5px;">
                 </div>
                 <div class="teacher-form-group">
-                  <label><span class="req">*</span> 学生学号 (登录账号)</label>
-                  <input type="text" id="modal-std-code" class="teacher-input fancy" placeholder="输入学号 (如: 20260101 或 A)" value="">
-                </div>
-                <div class="teacher-form-group">
-                  <label>设置初始密码 (留空统一定为 123)</label>
-                  <input type="password" id="modal-std-password" class="teacher-input fancy" placeholder="留空默认为 123">
+                  <label style="font-size:13px; font-weight:700; color:#334155; margin-bottom:6px; display:block;">设置初始密码 (留空统一定为 123)</label>
+                  <input type="password" id="modal-std-password" class="teacher-input fancy" placeholder="留空默认为 123" style="background:#ffffff; border:1.5px solid #cbd5e1; color:#0f172a; padding:10px 14px; border-radius:8px; width:100%; font-size:13.5px;">
                 </div>
               </div>
-              <div class="teacher-modal-footer">
-                <button class="modal-btn cancel" id="btn-cancel-single-std">取消</button>
-                <button class="modal-btn submit task-theme" id="btn-submit-single-std">👨‍🎓 确认创建并加入本班</button>
+              <div class="teacher-modal-footer" style="background:#f8fafc; border-top:1px solid #e2e8f0; padding:14px 24px; display:flex; justify-content:flex-end; gap:10px;">
+                <button class="modal-btn cancel" id="btn-cancel-single-std" style="background:#ffffff; border:1px solid #cbd5e1; color:#475569; padding:8px 18px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer;">取消</button>
+                <button class="modal-btn submit task-theme" id="btn-submit-single-std" style="background:linear-gradient(135deg, #1d4ed8, #2563eb); border:none; color:white; padding:8px 20px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer;">👨‍🎓 确认创建并加入本班</button>
               </div>
             </div>
 
             <!-- 面板2: 加入已有学生 -->
             <div id="panel-enroll-student" style="display:none;">
-              <div class="teacher-modal-body">
-                <div style="font-size:12px; color:#94a3b8; background:rgba(99,102,241,0.1); border:1px solid rgba(99,102,241,0.3); border-radius:8px; padding:10px 14px; margin-bottom:12px;">
-                  💡 以下学生账号已在其他班级中存在。勾选后点击确认，可将其同时加入本班，<b style="color:#a5b4fc;">账号不会重复创建</b>。
+              <div class="teacher-modal-body" style="padding:20px 24px;">
+                <div style="font-size:12.5px; color:#1e40af; background:#eff6ff; border:1px solid #bfdbfe; border-radius:8px; padding:10px 14px; margin-bottom:12px;">
+                  💡 以下学生已在其他班级中存在。勾选后可将其同时关联进本班，<b>账号不会重复创建</b>。
                 </div>
-                <div style="max-height:280px; overflow-y:auto; display:flex; flex-direction:column; gap:6px;">
+                <div style="margin-bottom:10px;">
+                  <input type="text" id="input-search-enroll-std" placeholder="🔍 输入姓名或学号快速搜索已有学生..." style="background:#ffffff; border:1.5px solid #cbd5e1; color:#0f172a; padding:8px 12px; border-radius:8px; width:100%; font-size:13px; outline:none;">
+                </div>
+                <div id="enroll-std-list-box" style="max-height:260px; overflow-y:auto; display:flex; flex-direction:column; gap:8px;">
                   ${unenrolledStudents.length === 0 ? `
-                    <div style="text-align:center; color:#64748b; padding:32px; font-size:14px;">
+                    <div style="text-align:center; color:#64748b; padding:32px; font-size:13.5px;">
                       ✅ 当前所有学生账号已加入本班，无可选学生
                     </div>
                   ` : unenrolledStudents.map(s => {
@@ -3060,13 +3063,12 @@
                       (s.classIds || [s.classId]).includes(c.id) && c.id !== activeClass.id
                     );
                     return `
-                      <label style="display:flex; align-items:center; gap:12px; background:rgba(15,23,42,0.6); border:1px solid rgba(255,255,255,0.08); border-radius:10px; padding:10px 14px; cursor:pointer; transition:all 0.15s;">
-                        <input type="checkbox" class="enroll-chk" data-uid="${s.id}" style="width:16px; height:16px; cursor:pointer; accent-color:#6366f1;">
+                      <label class="enroll-std-card-item" data-search="${(s.name + ' ' + (s.studentCode || '') + ' ' + (s.username || '')).toLowerCase()}" style="display:flex; align-items:center; gap:12px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:10px 14px; cursor:pointer; transition:all 0.15s;">
+                        <input type="checkbox" class="enroll-chk" data-uid="${s.id}" style="width:17px; height:17px; cursor:pointer; accent-color:#2563eb;">
                         <div>
-                          <div style="font-size:14px; font-weight:700; color:#f1f5f9;">${s.avatar || '👤'} ${s.name}</div>
-                          <div style="font-size:11px; color:#64748b; margin-top:2px;">
-                            账号: ${s.username} | 学号: ${s.studentCode || '-'}
-                            ${otherClasses.length > 0 ? `| 已在: ${otherClasses.map(c => c.name).join(', ')}` : ''}
+                          <div style="font-size:14px; font-weight:800; color:#0f172a;">${s.avatar || '👤'} ${s.name} <code style="color:#2563eb; font-family:monospace; margin-left:6px;">${s.studentCode || s.username}</code></div>
+                          <div style="font-size:12px; color:#64748b; margin-top:2px;">
+                            ${otherClasses.length > 0 ? `现归属班级: <b>${otherClasses.map(c => c.name).join(', ')}</b>` : '已入库学生'}
                           </div>
                         </div>
                       </label>
@@ -3074,9 +3076,9 @@
                   }).join('')}
                 </div>
               </div>
-              <div class="teacher-modal-footer">
-                <button class="modal-btn cancel" id="btn-cancel-enroll">取消</button>
-                <button class="modal-btn submit task-theme" id="btn-submit-enroll">🔗 确认加入本班</button>
+              <div class="teacher-modal-footer" style="background:#f8fafc; border-top:1px solid #e2e8f0; padding:14px 24px; display:flex; justify-content:flex-end; gap:10px;">
+                <button class="modal-btn cancel" id="btn-cancel-enroll" style="background:#ffffff; border:1px solid #cbd5e1; color:#475569; padding:8px 18px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer;">取消</button>
+                <button class="modal-btn submit task-theme" id="btn-submit-enroll" style="background:linear-gradient(135deg, #1d4ed8, #2563eb); border:none; color:white; padding:8px 20px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer;">🔗 确认加入本班</button>
               </div>
             </div>
           </div>
@@ -3088,6 +3090,19 @@
         modal.querySelector('#btn-cancel-single-std').addEventListener('click', closeModal);
         const cancelEnrollBtn = modal.querySelector('#btn-cancel-enroll');
         if (cancelEnrollBtn) cancelEnrollBtn.addEventListener('click', closeModal);
+
+        // 🔍 加入已有学生选项卡实时模糊搜索
+        const searchEnrollInput = modal.querySelector('#input-search-enroll-std');
+        if (searchEnrollInput) {
+          searchEnrollInput.addEventListener('input', (e) => {
+            const q = (e.target.value || '').trim().toLowerCase();
+            modal.querySelectorAll('.enroll-std-card-item').forEach(el => {
+              const str = el.dataset.search || '';
+              if (!q || str.includes(q)) el.style.display = 'flex';
+              else el.style.display = 'none';
+            });
+          });
+        }
 
         // 点击背景遮罩或按 ESC 键均可便捷关闭弹窗
         modal.addEventListener('click', (e) => {
@@ -3275,42 +3290,42 @@
       const modal = document.createElement('div');
       modal.className = 'modal-overlay';
       modal.innerHTML = `
-        <div class="teacher-modal-card fancy-task-modal" style="width:580px; background:radial-gradient(circle at 50% 10%, #1e1b4b 0%, #0f172a 80%);">
-          <div class="teacher-modal-header" style="background:linear-gradient(135deg, rgba(16,185,129,0.3), rgba(6,182,212,0.3));">
-            <div class="modal-header-title">
-              <div class="modal-icon-badge" style="background:rgba(16,185,129,0.3); color:#34d399;">👥</div>
+        <div class="teacher-modal-card fancy-task-modal" style="width:600px; background:#ffffff; border:1px solid #e2e8f0; box-shadow:0 20px 45px rgba(15,23,42,0.12);">
+          <div class="teacher-modal-header" style="background:linear-gradient(135deg, #eff6ff, #f8fafc); border-bottom:1px solid #e2e8f0; padding:18px 24px;">
+            <div class="modal-header-title" style="display:flex; align-items:center; gap:10px;">
+              <div class="modal-icon-badge" style="background:#dbeafe; color:#2563eb; font-size:20px; padding:6px 10px; border-radius:10px;">👥</div>
               <div>
-                <h3>${targetGroup ? `编辑【${targetGroup.name}】小组成员` : '新建小组并勾选小组成员'} (${cls.name})</h3>
+                <h3 style="margin:0; font-size:17px; font-weight:800; color:#0f172a;">${targetGroup ? `编辑【${targetGroup.name}】小组成员` : '新建协作小组'} (${cls.name})</h3>
               </div>
             </div>
-            <button class="modal-close-btn" id="btn-close-group-edit">✕</button>
+            <button class="modal-close-btn" id="btn-close-group-edit" style="background:#f1f5f9; border:none; color:#64748b; font-size:16px; border-radius:8px; width:30px; height:30px; cursor:pointer;">✕</button>
           </div>
-          <div class="teacher-modal-body">
-            <div class="teacher-form-group">
-              <label><span class="req">*</span> 小组名称</label>
-              <input type="text" id="modal-grp-name" class="teacher-input fancy" value="${targetGroup ? targetGroup.name : `第 ${(cls.groups || []).length + 1} 协作小组`}" placeholder="输入小组名称">
+          <div class="teacher-modal-body" style="padding:22px 24px;">
+            <div class="teacher-form-group" style="margin-bottom:16px;">
+              <label style="font-size:13px; font-weight:700; color:#334155; margin-bottom:6px; display:block;"><span class="req" style="color:#dc2626;">*</span> 小组名称</label>
+              <input type="text" id="modal-grp-name" class="teacher-input fancy" value="${targetGroup ? targetGroup.name : `第 ${(cls.groups || []).length + 1} 协作小组`}" placeholder="输入小组名称" style="background:#ffffff; border:1.5px solid #cbd5e1; color:#0f172a; padding:10px 14px; border-radius:8px; width:100%; font-size:13.5px;">
             </div>
 
-            <div class="teacher-form-group" style="margin-top:10px;">
-              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
-                <label style="margin:0;"><span class="req">*</span> 勾选归属本组的学生成员 (共 ${availableStudents.length} 人)</label>
-                <input type="text" id="modal-grp-std-search" placeholder="🔍 输入姓名或学号快速搜索..." style="background:rgba(15,23,42,0.8); border:1px solid rgba(255,255,255,0.2); color:#ffffff; padding:4px 10px; border-radius:6px; font-size:12px; width:200px; outline:none;">
+            <div class="teacher-form-group">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                <label style="font-size:13px; font-weight:700; color:#334155; margin:0;"><span class="req" style="color:#dc2626;">*</span> 勾选组员 (共 ${availableStudents.length} 人)</label>
+                <input type="text" id="modal-grp-std-search" placeholder="🔍 输入姓名或学号搜索..." style="background:#ffffff; border:1.5px solid #cbd5e1; color:#0f172a; padding:6px 12px; border-radius:6px; font-size:12.5px; width:210px; outline:none;">
               </div>
-              <div id="modal-grp-candidates-container" style="background:rgba(15,23,42,0.7); border:1px solid rgba(255,255,255,0.1); border-radius:10px; padding:12px; max-height:240px; overflow-y:auto; display:flex; flex-direction:column; gap:8px;">
-                ${availableStudents.length === 0 ? '<div style="color:#94a3b8; font-size:12px; text-align:center;">当前班级暂无学生，请先添加学生。</div>' : ''}
+              <div id="modal-grp-candidates-container" style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:10px; max-height:250px; overflow-y:auto; display:flex; flex-direction:column; gap:6px;">
+                ${availableStudents.length === 0 ? '<div style="color:#64748b; font-size:13px; text-align:center; padding:20px;">当前班级暂无学生，请先添加学生。</div>' : ''}
                 ${availableStudents.map(s => {
                   const isChecked = currentMembers.includes(s.id);
                   const isLeader = s.studentCode === 'A';
                   const otherGroup = (cls.groups || []).find(g => g.id !== editingGroupId && g.members && g.members.includes(s.id));
                   return `
-                    <div class="grp-student-item" data-search="${(s.name + ' ' + (s.studentCode || '') + ' ' + (s.username || '')).toLowerCase()}" style="display:flex; justify-content:space-between; align-items:center; background:rgba(30,41,59,0.6); padding:8px 12px; border-radius:8px;">
-                      <label style="display:flex; align-items:center; gap:10px; cursor:pointer; font-size:13px; color:#f8fafc;">
-                        <input type="checkbox" class="chk-grp-member" value="${s.id}" ${isChecked ? 'checked' : ''} style="width:16px; height:16px; cursor:pointer;">
-                        <span>${s.avatar || '👤'} <b>${s.name}</b> <code style="color:#38bdf8; font-family:monospace;">${s.studentCode || s.username}</code></span>
-                        ${otherGroup ? `<span style="background:rgba(234,179,8,0.2); color:#facc15; border:1px solid rgba(234,179,8,0.3); font-size:11px; padding:1px 6px; border-radius:4px;">(现归属: ${otherGroup.name})</span>` : ''}
+                    <div class="grp-student-item" data-search="${(s.name + ' ' + (s.studentCode || '') + ' ' + (s.username || '')).toLowerCase()}" style="display:flex; justify-content:space-between; align-items:center; background:#ffffff; border:1px solid #e2e8f0; padding:10px 14px; border-radius:8px; transition:all 0.15s;">
+                      <label style="display:flex; align-items:center; gap:10px; cursor:pointer; font-size:13.5px; color:#0f172a; font-weight:600;">
+                        <input type="checkbox" class="chk-grp-member" value="${s.id}" ${isChecked ? 'checked' : ''} style="width:17px; height:17px; cursor:pointer; accent-color:#2563eb;">
+                        <span>${s.avatar || '👤'} <b>${s.name}</b> <code style="color:#2563eb; font-family:monospace; margin-left:4px;">${s.studentCode || s.username}</code></span>
+                        ${otherGroup ? `<span style="background:#fef3c7; color:#b45309; border:1px solid #fde68a; font-size:11.5px; padding:1px 8px; border-radius:6px; font-weight:700; margin-left:6px;">(现归属: ${otherGroup.name})</span>` : ''}
                       </label>
-                      <label style="font-size:11px; color:#fbbf24; cursor:pointer; display:flex; align-items:center; gap:4px;">
-                        <input type="radio" name="grp-leader-radio" value="${s.id}" ${isLeader || (isChecked && currentMembers[0] === s.id) ? 'checked' : ''}>
+                      <label style="font-size:12px; color:#b45309; cursor:pointer; display:flex; align-items:center; gap:4px; font-weight:700; background:#fffbeb; border:1px solid #fde68a; padding:3px 8px; border-radius:6px;">
+                        <input type="radio" name="grp-leader-radio" value="${s.id}" ${isLeader || (isChecked && currentMembers[0] === s.id) ? 'checked' : ''} style="cursor:pointer; accent-color:#d97706;">
                         设为组长
                       </label>
                     </div>
@@ -3319,9 +3334,9 @@
               </div>
             </div>
           </div>
-          <div class="teacher-modal-footer">
-            <button class="modal-btn cancel" id="btn-cancel-grp-edit">取消</button>
-            <button class="modal-btn submit task-theme" id="btn-submit-grp-edit" style="background:linear-gradient(135deg, #10b981, #059669);">
+          <div class="teacher-modal-footer" style="background:#f8fafc; border-top:1px solid #e2e8f0; padding:14px 24px; display:flex; justify-content:flex-end; gap:10px;">
+            <button class="modal-btn cancel" id="btn-cancel-grp-edit" style="background:#ffffff; border:1px solid #cbd5e1; color:#475569; padding:8px 18px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer;">取消</button>
+            <button class="modal-btn submit task-theme" id="btn-submit-grp-edit" style="background:linear-gradient(135deg, #1d4ed8, #2563eb); border:none; color:white; padding:8px 20px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer;">
               💾 保存小组划分配置
             </button>
           </div>
@@ -3416,29 +3431,32 @@
           const modal = document.createElement('div');
           modal.className = 'modal-overlay';
           modal.innerHTML = `
-            <div class="teacher-modal-card fancy-task-modal" style="width:480px;">
-              <div class="teacher-modal-header" style="background:linear-gradient(135deg, rgba(16,185,129,0.3), rgba(6,182,212,0.3));">
-                <div class="modal-header-title">
-                  <div class="modal-icon-badge" style="background:rgba(16,185,129,0.3); color:#34d399;">🎲</div>
-                  <div><h3>选择随机分组模式 (${activeClass.name})</h3></div>
+            <div class="teacher-modal-card fancy-task-modal" style="width:520px; background:#ffffff; border:1px solid #e2e8f0; box-shadow:0 20px 45px rgba(15,23,42,0.12);">
+              <div class="teacher-modal-header" style="background:linear-gradient(135deg, #eff6ff, #f8fafc); border-bottom:1px solid #e2e8f0; padding:18px 24px;">
+                <div class="modal-header-title" style="display:flex; align-items:center; gap:10px;">
+                  <div class="modal-icon-badge" style="background:#dbeafe; color:#2563eb; font-size:20px; padding:6px 10px; border-radius:10px;">🎲</div>
+                  <div><h3 style="margin:0; font-size:17px; font-weight:800; color:#0f172a;">选择随机分组模式 (${activeClass.name})</h3></div>
                 </div>
-                <button class="modal-close-btn" id="btn-close-rand-modal">✕</button>
+                <button class="modal-close-btn" id="btn-close-rand-modal" style="background:#f1f5f9; border:none; color:#64748b; font-size:16px; border-radius:8px; width:30px; height:30px; cursor:pointer;">✕</button>
               </div>
-              <div class="teacher-modal-body" style="display:flex; flex-direction:column; gap:12px; padding:20px;">
-                <div style="font-size:13.5px; color:#f8fafc; font-weight:700; margin-bottom:4px;">当前班级已有 ${currentGroupsCount} 个小组。请选择分组方式：</div>
+              <div class="teacher-modal-body" style="display:flex; flex-direction:column; gap:14px; padding:22px 24px;">
+                <div style="font-size:13.5px; color:#475569; font-weight:700;">当前班级已有 <b style="color:#2563eb;">${currentGroupsCount}</b> 个小组。请选择分组方式：</div>
                 
-                <button id="btn-rand-mode-append" style="background:rgba(30,41,59,0.8); border:1.5px solid #10b981; border-radius:10px; padding:14px; text-align:left; cursor:pointer; display:flex; flex-direction:column; gap:4px;">
-                  <div style="font-size:14.5px; font-weight:800; color:#34d399;">🧩 模式一：保留已有小组，仅将【未进组学生】随机组队 (推荐)</div>
-                  <div style="font-size:12px; color:#94a3b8;">已有小组保持不变，自动提取尚未加入任何小组的学生按每组 ${groupSize} 人建立新组。</div>
+                <button id="btn-rand-mode-append" style="background:#f0fdf4; border:1.5px solid #86efac; border-radius:12px; padding:16px; text-align:left; cursor:pointer; display:flex; flex-direction:column; gap:6px; transition:all 0.2s ease;">
+                  <div style="font-size:15px; font-weight:800; color:#15803d; display:flex; align-items:center; gap:6px;">
+                    <span>🧩 模式一：保留已有小组，仅将【未进组学生】随机组队</span>
+                    <span style="background:#dcfce7; color:#166534; font-size:11px; padding:2px 6px; border-radius:4px;">推荐</span>
+                  </div>
+                  <div style="font-size:12.5px; color:#4b5563; line-height:1.5;">已有小组及组员保持不动，系统提取所有未进组的学生按每组 <b>${groupSize}</b> 人顺延建立新小组。</div>
                 </button>
 
-                <button id="btn-rand-mode-reset" style="background:rgba(30,41,59,0.8); border:1.5px solid #f59e0b; border-radius:10px; padding:14px; text-align:left; cursor:pointer; display:flex; flex-direction:column; gap:4px;">
-                  <div style="font-size:14.5px; font-weight:800; color:#fbbf24;">💥 模式二：全员打散重组 (覆盖重排)</div>
-                  <div style="font-size:12px; color:#94a3b8;">清空已有全部小组，将全班 ${classStudents.length} 名学生重新洗牌并平均分配为每组 ${groupSize} 人。</div>
+                <button id="btn-rand-mode-reset" style="background:#fffbeb; border:1.5px solid #fcd34d; border-radius:12px; padding:16px; text-align:left; cursor:pointer; display:flex; flex-direction:column; gap:6px; transition:all 0.2s ease;">
+                  <div style="font-size:15px; font-weight:800; color:#b45309;">💥 模式二：全员打散重组 (覆盖重排)</div>
+                  <div style="font-size:12.5px; color:#4b5563; line-height:1.5;">清空已有全部小组，将全班 <b>${classStudents.length}</b> 名学生重新洗牌并平均分配为每组 <b>${groupSize}</b> 人。</div>
                 </button>
               </div>
-              <div class="teacher-modal-footer">
-                <button class="modal-btn cancel" id="btn-cancel-rand-modal">取消</button>
+              <div class="teacher-modal-footer" style="background:#f8fafc; border-top:1px solid #e2e8f0; padding:14px 24px; display:flex; justify-content:flex-end;">
+                <button class="modal-btn cancel" id="btn-cancel-rand-modal" style="background:#ffffff; border:1px solid #cbd5e1; color:#475569; padding:8px 18px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer;">取消</button>
               </div>
             </div>
           `;
@@ -4120,6 +4138,15 @@
     if (btnExportExcel) {
       btnExportExcel.addEventListener('click', () => {
         authManager.exportGroupChatLogsToExcel(activeMonitorGId, state.chatLogs);
+      });
+    }
+
+    // 🎯 精确还原滚动条位置（绝不跳回最顶部）
+    if (savedScrollY > 0) {
+      requestAnimationFrame(() => {
+        window.scrollTo(0, savedScrollY);
+        const scrollable = document.querySelector('.teacher-portal-layout');
+        if (scrollable) scrollable.scrollTop = savedScrollY;
       });
     }
   }
