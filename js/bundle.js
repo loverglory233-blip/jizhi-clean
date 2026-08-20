@@ -1292,6 +1292,25 @@
       return newTask;
     }
 
+    updateTask(taskId, newTitle, newInstructions, newStartTime, newDeadline, newDurationMinutes) {
+      let tasks = this.getTasks();
+      const taskIndex = tasks.findIndex(t => t.id === taskId);
+      if (taskIndex === -1) throw new Error('任务不存在或已被删除！');
+      
+      const cleanTitle = (newTitle || '').trim();
+      if (!cleanTitle) throw new Error('任务名称不能为空！');
+
+      tasks[taskIndex].title = cleanTitle;
+      if (newInstructions !== undefined) tasks[taskIndex].instructions = newInstructions;
+      if (newStartTime !== undefined) tasks[taskIndex].startTime = newStartTime;
+      if (newDeadline !== undefined) tasks[taskIndex].deadline = newDeadline;
+      if (newDurationMinutes !== undefined) tasks[taskIndex].durationMinutes = parseInt(newDurationMinutes) || 150;
+
+      localStorage.setItem(STORAGE_KEY_TASKS, JSON.stringify(tasks));
+      this.pushGlobalMeta();
+      return tasks[taskIndex];
+    }
+
     deleteTask(taskId) {
       // 1. 删除任务自身
       let tasks = this.getTasks();
@@ -2538,9 +2557,12 @@
                           <span style="font-size:16px; font-weight:800; color:#1e40af;">📌 ${t.title}</span>
                           <span style="background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe; padding:2px 8px; border-radius:8px; font-size:11.5px; font-weight:700;">受众班级: ${t.className}</span>
                         </div>
-                        <div style="display:flex; align-items:center; gap:12px;">
-                          <span style="font-size:12px; color:#64748b;">🕒 发布时间: <b>${t.createdAt || t.startTime || '刚刚'}</b></span>
+                        <div style="display:flex; align-items:center; gap:8px;">
+                          <span style="font-size:12px; color:#64748b; margin-right:4px;">🕒 发布时间: <b>${t.createdAt || t.startTime || '刚刚'}</b></span>
                           ${t.id !== 'task_default' ? `
+                            <button class="btn-edit-task" data-id="${t.id}" data-title="${t.title}" data-duration="${t.durationMinutes || 150}" data-instructions="${encodeURIComponent(t.instructions || '')}" data-start="${t.startTime || ''}" data-deadline="${t.deadline || ''}" style="background:#eff6ff; border:1px solid #bfdbfe; color:#2563eb; padding:4px 10px; border-radius:6px; font-size:12px; font-weight:700; cursor:pointer;" title="编辑修改此写作任务">
+                              ✏️ 修改任务
+                            </button>
                             <button class="btn-delete-task" data-id="${t.id}" data-title="${t.title}" style="background:#fef2f2; border:1px solid #fecaca; color:#dc2626; padding:4px 10px; border-radius:6px; font-size:12px; font-weight:700; cursor:pointer;" title="删除此写作任务">
                               🗑️ 删除任务
                             </button>
@@ -3781,6 +3803,35 @@
       });
     });
 
+    // ✏️ 修改写作任务按钮
+    container.querySelectorAll('.btn-edit-task').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const taskId = btn.dataset.id;
+        const currentTitle = btn.dataset.title || '';
+        const currentDuration = btn.dataset.duration || 150;
+        const currentInstructions = decodeURIComponent(btn.dataset.instructions || '');
+
+        const newTitle = prompt('✏️ 请输入修改后的写作任务名称：', currentTitle);
+        if (newTitle === null) return;
+        const cleanTitle = newTitle.trim();
+        if (!cleanTitle) {
+          alert('❌ 任务名称不能为空！');
+          return;
+        }
+
+        const newInstructions = prompt('📝 请输入修改后的任务要求说明（可选）：', currentInstructions);
+        if (newInstructions === null) return;
+
+        try {
+          authManager.updateTask(taskId, cleanTitle, newInstructions, undefined, undefined, currentDuration);
+          alert(`✅ 写作任务已成功修改为《${cleanTitle}》，并已全网实时同步！`);
+          renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+        } catch (err) {
+          alert('❌ ' + err.message);
+        }
+      });
+    });
+
     // 🗑️ 删除写作任务按钮
     container.querySelectorAll('.btn-delete-task').forEach(btn => {
       btn.addEventListener('click', () => {
@@ -4482,21 +4533,23 @@
      7.5 STUDENT TASK PORTAL / DASHBOARD (我的写作任务大厅)
      ========================================================================== */
   function renderStudentTaskPortal(container, authManager, state, onSelectTask, onLogout, onSwitchTeacher, onOpenAnnModal, onOpenSurveyModal) {
-    const currentTasksSnapshot = localStorage.getItem(STORAGE_KEY_TASKS) || '[]';
-    const currentAnnsSnapshot = localStorage.getItem(STORAGE_KEY_ANNOUNCEMENTS) || '[]';
+    let currentTasksSnapshot = localStorage.getItem(STORAGE_KEY_TASKS) || '[]';
+    let currentAnnsSnapshot = localStorage.getItem(STORAGE_KEY_ANNOUNCEMENTS) || '[]';
+    let currentClassesSnapshot = localStorage.getItem(STORAGE_KEY_CLASSES) || '[]';
 
-    // ⚡ 每次进入大厅立即静默拉取服务端全量最新数据
+    // ⚡ 每次进入大厅立即静默拉取服务端全量最新数据，拉取成功后无条件立即重绘一次确保最新任务百分百渲染
     if (authManager && authManager.pullGlobalMeta) {
       authManager.pullGlobalMeta().then(() => {
         const freshTasksJson = localStorage.getItem(STORAGE_KEY_TASKS) || '[]';
         const freshAnnsJson = localStorage.getItem(STORAGE_KEY_ANNOUNCEMENTS) || '[]';
-        if (freshTasksJson !== currentTasksSnapshot || freshAnnsJson !== currentAnnsSnapshot) {
+        const freshClassesJson = localStorage.getItem(STORAGE_KEY_CLASSES) || '[]';
+        if (freshTasksJson !== currentTasksSnapshot || freshAnnsJson !== currentAnnsSnapshot || freshClassesJson !== currentClassesSnapshot) {
           renderStudentTaskPortal(container, authManager, state, onSelectTask, onLogout, onSwitchTeacher, onOpenAnnModal, onOpenSurveyModal);
         }
       }).catch(() => {});
     }
 
-    // ⚡ 在任务大厅启动 2 秒轻量同步定时器，教师修改/发布/删除任务秒级呈现在学生屏幕上
+    // ⚡ 在任务大厅启动 1.2 秒高频轻量同步定时器，教师修改/发布/删除任务秒级呈现在学生屏幕上
     if (window._studentPortalSyncInterval) clearInterval(window._studentPortalSyncInterval);
     window._studentPortalSyncInterval = setInterval(async () => {
       if (state.studentViewMode !== 'task_list') {
@@ -4507,15 +4560,17 @@
         try {
           const oldTasksJson = localStorage.getItem(STORAGE_KEY_TASKS) || '[]';
           const oldAnnsJson = localStorage.getItem(STORAGE_KEY_ANNOUNCEMENTS) || '[]';
+          const oldClassesJson = localStorage.getItem(STORAGE_KEY_CLASSES) || '[]';
           await authManager.pullGlobalMeta();
           const newTasksJson = localStorage.getItem(STORAGE_KEY_TASKS) || '[]';
           const newAnnsJson = localStorage.getItem(STORAGE_KEY_ANNOUNCEMENTS) || '[]';
-          if (oldTasksJson !== newTasksJson || oldAnnsJson !== newAnnsJson) {
+          const newClassesJson = localStorage.getItem(STORAGE_KEY_CLASSES) || '[]';
+          if (oldTasksJson !== newTasksJson || oldAnnsJson !== newAnnsJson || oldClassesJson !== newClassesJson) {
             renderStudentTaskPortal(container, authManager, state, onSelectTask, onLogout, onSwitchTeacher, onOpenAnnModal, onOpenSurveyModal);
           }
         } catch (e) {}
       }
-    }, 2000);
+    }, 1200);
 
     const currentUser = authManager.getCurrentUser();
     const classes = authManager.getClasses();
@@ -4589,19 +4644,22 @@
                 欢迎进入集智多智能体协同写作学习系统！请选择下方教师发布的任务，点击【🚀 进入协作工作台】开展人机协同写作。
               </div>
             </div>
-            <div style="background:rgba(255,255,255,0.15); border:1px solid rgba(255,255,255,0.25); border-radius:12px; padding:12px 20px; text-align:right; display:flex; flex-direction:column; gap:6px;">
-              <div style="display:flex; justify-content:flex-end; align-items:center; gap:8px;">
-                <span style="font-size:11.5px; opacity:0.85;">当前所属班级:</span>
+            <div style="background:#ffffff; border-radius:14px; padding:14px 20px; color:#0f172a; box-shadow:0 4px 16px rgba(0,0,0,0.08); display:flex; flex-direction:column; gap:8px; min-width:260px;">
+              <div style="display:flex; justify-content:space-between; align-items:center; gap:10px;">
+                <span style="font-size:12px; color:#64748b; font-weight:700;">🏫 所属班级:</span>
                 ${myEnrolledClasses.length > 1 ? `
-                  <select id="sel-student-class-switch" style="background:#ffffff; color:#1e40af; border:none; padding:3px 8px; border-radius:6px; font-size:12px; font-weight:800; cursor:pointer; outline:none;">
-                    ${myEnrolledClasses.map(c => `<option value="${c.id}" ${c.id === userClass.id ? 'selected' : ''}>🏫 ${c.name}</option>`).join('')}
+                  <select id="sel-student-class-switch" style="background:#eff6ff; color:#1d4ed8; border:1.5px solid #bfdbfe; padding:5px 10px; border-radius:8px; font-size:12.5px; font-weight:800; cursor:pointer; outline:none;">
+                    ${myEnrolledClasses.map(c => `<option value="${c.id}" ${c.id === userClass.id ? 'selected' : ''}>${c.name}</option>`).join('')}
                   </select>
                 ` : `
-                  <span style="font-size:12px; font-weight:700;">${userClass.name}</span>
+                  <span style="background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe; padding:4px 10px; border-radius:8px; font-size:12.5px; font-weight:800;">${userClass.name}</span>
                 `}
               </div>
-              <div style="font-size:14px; font-weight:800; border-top:1px solid rgba(255,255,255,0.2); padding-top:4px;">
-                👥 ${groupName} (${currentUser?.name || '学生'})
+              <div style="display:flex; align-items:center; justify-content:space-between; border-top:1px dashed #e2e8f0; padding-top:8px;">
+                <span style="font-size:12px; color:#64748b; font-weight:700;">👥 协作小组:</span>
+                <span style="background:#f0fdf4; color:#15803d; border:1px solid #bbf7d0; padding:3px 10px; border-radius:8px; font-size:12.5px; font-weight:800;">
+                  ${groupName} (${currentUser ? currentUser.name : '学生'})
+                </span>
               </div>
             </div>
           </div>
