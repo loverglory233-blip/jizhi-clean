@@ -337,99 +337,43 @@
         const res = await fetch(`sync.php?action=get_global_meta&nocache=${Date.now()}`);
         if (res.ok) {
           const data = await res.json();
-          if (data && data.users && Array.isArray(data.users) && data.users.length > 0) {
-            const currentUsers = this.getUsers();
-            const currUser = this.getCurrentUser();
-            const mergedUsers = [...data.users];
-
-            // 1. 保留本地所有新导入的学生，绝不被服务端旧快照剔除
-            currentUsers.forEach(lu => {
-              const serverMatchIndex = mergedUsers.findIndex(su => su.id === lu.id || su.username === lu.username);
-              if (serverMatchIndex === -1) {
-                mergedUsers.push(lu);
-              } else {
-                // 如果双方都存在，保留本地最新的 groupId 和 activeSessionId
-                const serverUser = mergedUsers[serverMatchIndex];
-                if (lu.groupId && !serverUser.groupId) serverUser.groupId = lu.groupId;
-                if (lu.classIds && Array.isArray(lu.classIds)) {
-                  serverUser.classIds = Array.from(new Set([...(serverUser.classIds || []), ...lu.classIds]));
+          if (data) {
+            // 1. 用户列表：优先使用服务端的完整真实用户，同时保留当前登录用户的 activeSessionId
+            if (Array.isArray(data.users) && data.users.length > 0) {
+              const currUser = this.getCurrentUser();
+              const serverUsers = data.users.map(u => {
+                if (currUser && (currUser.id === u.id || currUser.username === u.username)) {
+                  return { ...u, activeSessionId: currUser.activeSessionId };
                 }
-                if (currUser && (currUser.id === lu.id || currUser.username === lu.username)) {
-                  serverUser.activeSessionId = currUser.activeSessionId;
-                }
-              }
-            });
+                return u;
+              });
+              localStorage.setItem(STORAGE_KEY_USERS_DB, JSON.stringify(serverUsers));
+            }
 
-            localStorage.setItem(STORAGE_KEY_USERS_DB, JSON.stringify(mergedUsers));
-          }
+            // 2. 班级列表：直接以服务端真实班级为准
+            if (Array.isArray(data.classes) && data.classes.length > 0) {
+              localStorage.setItem(STORAGE_KEY_CLASSES, JSON.stringify(data.classes));
+            }
 
-          if (data && data.classes && Array.isArray(data.classes) && data.classes.length > 0) {
-            const localClasses = this.getClasses();
-            const mergedClasses = [...data.classes];
+            // 3. 任务列表：直接以服务端真实任务为准（避免已删除任务被本地复活）
+            if (Array.isArray(data.tasks)) {
+              localStorage.setItem(STORAGE_KEY_TASKS, JSON.stringify(data.tasks));
+            }
 
-            localClasses.forEach(lc => {
-              const match = mergedClasses.find(mc => mc.id === lc.id);
-              if (!match) {
-                mergedClasses.push(lc);
-              } else {
-                // 合并 studentIds，防止本地新加的学生 ID 被服务端冲掉
-                if (lc.studentIds && Array.isArray(lc.studentIds)) {
-                  match.studentIds = Array.from(new Set([...(match.studentIds || []), ...lc.studentIds]));
-                }
-                // 合并 groups，防止本地新创建的小组或小组成员被冲掉
-                if (lc.groups && Array.isArray(lc.groups) && lc.groups.length > 0) {
-                  if (!match.groups || match.groups.length === 0) {
-                    match.groups = lc.groups;
-                  } else {
-                    lc.groups.forEach(lg => {
-                      const serverGroup = match.groups.find(sg => sg.id === lg.id);
-                      if (!serverGroup) {
-                        match.groups.push(lg);
-                      } else if (lg.members && lg.members.length > 0 && (!serverGroup.members || serverGroup.members.length === 0)) {
-                        serverGroup.members = lg.members;
-                      }
-                    });
-                  }
-                }
-              }
-            });
+            // 4. 通知列表：直接以服务端真实通知为准
+            if (Array.isArray(data.announcements)) {
+              localStorage.setItem(STORAGE_KEY_ANNOUNCEMENTS, JSON.stringify(data.announcements));
+            }
 
-            localStorage.setItem(STORAGE_KEY_CLASSES, JSON.stringify(mergedClasses));
-          }
-          if (data && data.tasks && Array.isArray(data.tasks)) {
-            const localTasks = this.getTasks();
-            const mergedTasks = [...data.tasks];
-            localTasks.forEach(lt => {
-              if (!mergedTasks.some(mt => mt.id === lt.id)) {
-                mergedTasks.push(lt);
-              }
-            });
-            localStorage.setItem(STORAGE_KEY_TASKS, JSON.stringify(mergedTasks));
-          }
-          if (data && data.announcements && Array.isArray(data.announcements)) {
-            const localAnns = this.getAnnouncements();
-            const mergedAnns = [...data.announcements];
-            localAnns.forEach(la => {
-              if (!mergedAnns.some(ma => ma.id === la.id)) {
-                mergedAnns.push(la);
-              }
-            });
-            localStorage.setItem(STORAGE_KEY_ANNOUNCEMENTS, JSON.stringify(mergedAnns));
-          }
-          if (data && data.referencePapers && Array.isArray(data.referencePapers)) {
-            const localPapers = this.getReferencePapers();
-            const mergedPapers = [...data.referencePapers];
-            localPapers.forEach(lp => {
-              if (!mergedPapers.some(mp => mp.id === lp.id)) {
-                mergedPapers.push(lp);
-              }
-            });
-            localStorage.setItem('jizhi_reference_papers_db', JSON.stringify(mergedPapers));
-          }
-          if (data && data.surveys && typeof data.surveys === 'object') {
-            const localSurveys = this.getSurveysMap();
-            const mergedSurveys = Object.assign({}, localSurveys, data.surveys);
-            localStorage.setItem('jizhi_surveys_map_db', JSON.stringify(mergedSurveys));
+            // 5. 参考范文库：直接以服务端真实范文为准
+            if (Array.isArray(data.referencePapers)) {
+              localStorage.setItem('jizhi_reference_papers_db', JSON.stringify(data.referencePapers));
+            }
+
+            // 6. 问卷映射表：直接以服务端真实配置为准
+            if (data.surveys && typeof data.surveys === 'object') {
+              localStorage.setItem('jizhi_surveys_map_db', JSON.stringify(data.surveys));
+            }
           }
         }
       } catch (e) {}
@@ -5554,8 +5498,22 @@
       this.cloudSyncEngine = new CloudSyncEngine(this);
       this.initTimer();
       this.renderMain();
-      // 启动时立刻从远程服务器拉取最新完整数据
-      if (this.cloudSyncEngine) this.cloudSyncEngine.pullFromServer();
+
+      // 启动时立刻从 MySQL 服务器拉取最新全局教务元数据与小组协同数据
+      (async () => {
+        try {
+          await this.authManager.pullGlobalMeta();
+          this.loadGroupState(currentGroupId);
+          this.renderMain();
+          if (this.cloudSyncEngine) {
+            this.cloudSyncEngine.updateScopeKeys();
+            this.cloudSyncEngine.pullFromServer();
+          }
+          if (user && user.role === 'student' && this.state.studentViewMode === 'workspace') {
+            this.checkUnreadAnnouncements();
+          }
+        } catch (e) {}
+      })();
     }
 
     loadGroupState(groupId = 'group_1') {
