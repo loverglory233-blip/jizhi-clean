@@ -1313,16 +1313,11 @@
       localStorage.setItem('jizhi_reference_papers_db', JSON.stringify(papers));
 
       // 4. 级联删除属于该任务的问卷绑定
-      const surveysMap = this.getSurveysMap();
-      let surveyChanged = false;
-      Object.keys(surveysMap).forEach(key => {
-        if (key.endsWith(`_${taskId}`)) {
-          delete surveysMap[key];
-          surveyChanged = true;
-        }
-      });
-      if (surveyChanged) {
-        localStorage.setItem('jizhi_surveys_map_db', JSON.stringify(surveysMap));
+      let surveysList = this.getSurveysList();
+      const origLen = surveysList.length;
+      surveysList = surveysList.filter(s => s.taskId !== taskId);
+      if (surveysList.length !== origLen) {
+        localStorage.setItem('jizhi_surveys_list_db', JSON.stringify(surveysList));
       }
 
       this.pushGlobalMeta();
@@ -4316,33 +4311,52 @@
      7.5 STUDENT TASK PORTAL / DASHBOARD (我的写作任务大厅)
      ========================================================================== */
   function renderStudentTaskPortal(container, authManager, state, onSelectTask, onLogout, onSwitchTeacher, onOpenAnnModal, onOpenSurveyModal) {
+    if (authManager && authManager.pullGlobalMeta) {
+      authManager.pullGlobalMeta().catch(() => {});
+    }
+
     const currentUser = authManager.getCurrentUser();
     const classes = authManager.getClasses();
     const tasks = authManager.getTasks();
     const announcements = authManager.getAnnouncements();
-    const groupId = (currentUser && currentUser.groupId) ? currentUser.groupId : 'group_1';
-    const userClass = classes.find(c => c.id === currentUser?.classId) || classes[0];
-    const userClassId = userClass ? userClass.id : null;
-    const myClassIds = new Set([
-      currentUser?.classId,
-      ...(currentUser?.classIds || []),
-      userClass?.id
-    ].filter(Boolean));
 
+    // 🏫 1. 动态识别学生归属的全部班级列表
+    const myEnrolledClasses = classes.filter(c => {
+      if (currentUser?.classId === c.id) return true;
+      if (Array.isArray(currentUser?.classIds) && currentUser.classIds.includes(c.id)) return true;
+      if (Array.isArray(c.studentIds) && (c.studentIds.includes(currentUser?.id) || c.studentIds.includes(currentUser?.studentCode))) return true;
+      if (Array.isArray(c.groups) && c.groups.some(g => (g.members || []).some(m => {
+        const mId = (typeof m === 'object' && m !== null) ? (m.id || m.userId || m.studentCode) : m;
+        return mId === currentUser?.id || mId === currentUser?.studentCode;
+      }))) return true;
+      return false;
+    });
+
+    const activeUserClassId = state.activeStudentClassId || (myEnrolledClasses[0] ? myEnrolledClasses[0].id : (currentUser?.classId || classes[0].id));
+    const userClass = classes.find(c => c.id === activeUserClassId) || myEnrolledClasses[0] || classes[0];
+
+    // 👥 2. 匹配该学生在当前选定主视班级里的小组
+    let matchedGroupObj = null;
+    if (userClass && Array.isArray(userClass.groups)) {
+      matchedGroupObj = userClass.groups.find(g => (g.members || []).some(m => {
+        const mId = (typeof m === 'object' && m !== null) ? (m.id || m.userId || m.studentCode) : m;
+        return mId === currentUser?.id || mId === currentUser?.studentCode;
+      }));
+    }
+    const groupId = matchedGroupObj ? matchedGroupObj.id : ((currentUser && currentUser.groupId) ? currentUser.groupId : 'group_1');
+    const groupName = matchedGroupObj ? matchedGroupObj.name : '第1小组';
+
+    // 📋 3. 严格按当前选定班级过滤任务与通知（绝不混入其他班级数据）
     const relevantAnnouncements = (announcements || []).filter(a => {
-      const matchClass = !a.classId || a.classId === 'all' || myClassIds.has(a.classId) || (a.className && userClass && a.className === userClass.name);
+      const matchClass = !a.classId || a.classId === 'all' || a.classId === userClass.id || (a.className && a.className === userClass.name);
       const matchGroup = !a.targetGroupId || a.targetGroupId === 'all' || a.targetGroupId === groupId;
       return matchClass && matchGroup;
     });
     const unreadAnnCount = relevantAnnouncements.filter(a => !a.readStatus || !a.readStatus[groupId]).length;
-    const isFinalSubmitted = state.isFinalSubmitted;
-
-    const groupObj = (userClass && userClass.groups) ? userClass.groups.find(g => g.id === groupId) : null;
-    const groupName = groupObj ? groupObj.name : '第1小组';
 
     const relevantTasks = tasks.filter(t => {
       if (!t.classId || t.classId === 'all') return true;
-      return myClassIds.has(t.classId) || (t.className && userClass && t.className === userClass.name);
+      return t.classId === userClass.id || (t.className && t.className === userClass.name);
     });
     const displayTasks = relevantTasks;
 
@@ -4373,15 +4387,26 @@
                 欢迎进入集智多智能体协同写作学习系统！请选择下方教师发布的任务，点击【🚀 进入协作工作台】开展人机协同写作。
               </div>
             </div>
-            <div style="background:rgba(255,255,255,0.15); border:1px solid rgba(255,255,255,0.25); border-radius:12px; padding:12px 20px; text-align:right;">
-              <div style="font-size:11.5px; opacity:0.85;">当前协作身份</div>
-              <div style="font-size:15px; font-weight:800; margin-top:2px;">${groupName} (${currentUser?.name || '学生'})</div>
+            <div style="background:rgba(255,255,255,0.15); border:1px solid rgba(255,255,255,0.25); border-radius:12px; padding:12px 20px; text-align:right; display:flex; flex-direction:column; gap:6px;">
+              <div style="display:flex; justify-content:flex-end; align-items:center; gap:8px;">
+                <span style="font-size:11.5px; opacity:0.85;">当前所属班级:</span>
+                ${myEnrolledClasses.length > 1 ? `
+                  <select id="sel-student-class-switch" style="background:#ffffff; color:#1e40af; border:none; padding:3px 8px; border-radius:6px; font-size:12px; font-weight:800; cursor:pointer; outline:none;">
+                    ${myEnrolledClasses.map(c => `<option value="${c.id}" ${c.id === userClass.id ? 'selected' : ''}>🏫 ${c.name}</option>`).join('')}
+                  </select>
+                ` : `
+                  <span style="font-size:12px; font-weight:700;">${userClass.name}</span>
+                `}
+              </div>
+              <div style="font-size:14px; font-weight:800; border-top:1px solid rgba(255,255,255,0.2); padding-top:4px;">
+                👥 ${groupName} (${currentUser?.name || '学生'})
+              </div>
             </div>
           </div>
 
           <div>
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
-              <div style="font-size:17px; font-weight:800; color:#0f172a;">📚 本班协作任务清单 (${relevantTasks.length} 项)</div>
+              <div style="font-size:17px; font-weight:800; color:#0f172a;">📚 【${userClass.name}】协作任务清单 (${relevantTasks.length} 项)</div>
             </div>
 
             ${relevantTasks.length === 0 ? `
@@ -4444,6 +4469,14 @@
         </main>
       </div>
     `;
+
+    const selClassSwitch = container.querySelector('#sel-student-class-switch');
+    if (selClassSwitch) {
+      selClassSwitch.addEventListener('change', (e) => {
+        state.activeStudentClassId = e.target.value;
+        renderStudentTaskPortal(container, authManager, state, onSelectTask, onLogout, onSwitchTeacher, onOpenAnnModal, onOpenSurveyModal);
+      });
+    }
 
     container.querySelector('#btn-portal-logout')?.addEventListener('click', () => onLogout());
     container.querySelector('#btn-portal-switch-teacher')?.addEventListener('click', () => onSwitchTeacher());
