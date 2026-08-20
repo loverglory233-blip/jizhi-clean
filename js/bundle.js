@@ -3813,10 +3813,14 @@
     const unreadAnnCount = relevantAnnouncements.filter(a => !a.readStatus || !a.readStatus[groupId]).length;
     const isFinalSubmitted = state.isFinalSubmitted;
 
+    const groupObj = (userClass && userClass.groups) ? userClass.groups.find(g => g.id === groupId) : null;
+    const groupName = groupObj ? groupObj.name : '第1小组';
+
     const relevantTasks = tasks.filter(t => {
       if (!t.classId || t.classId === 'all') return true;
       return myClassIds.has(t.classId) || (t.className && userClass && t.className === userClass.name);
     });
+    const displayTasks = (relevantTasks.length > 0) ? relevantTasks : tasks;
 
     container.innerHTML = `
       <div class="student-task-portal" style="min-height:100vh; background:#f0f4f9; display:flex; flex-direction:column;">
@@ -3867,7 +3871,7 @@
               </div>
             ` : `
               <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(460px, 1fr)); gap:20px;">
-                ${relevantTasks.map((t) => {
+                ${displayTasks.map((t) => {
                   const duration = t.durationMinutes || 150;
                   return `
                     <div class="student-task-card" style="background:#ffffff; border:1px solid #e2e8f0; border-radius:14px; padding:22px; box-shadow:0 2px 8px rgba(15,23,42,0.04); display:flex; flex-direction:column; justify-content:space-between;">
