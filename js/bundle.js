@@ -323,9 +323,6 @@
     constructor() {
       this.initDatabase();
       this.sanitizeAndDeduplicateGroups();
-      this.pullGlobalMeta();
-      // 定期拉取全局元数据，保证任何未登录页面或教师端随时获知最新创建的学生
-      setInterval(() => this.pullGlobalMeta(), 2000);
     }
     initDatabase() {
       if (!localStorage.getItem(STORAGE_KEY_USERS_DB)) localStorage.setItem(STORAGE_KEY_USERS_DB, JSON.stringify(DefaultUsers));
@@ -416,35 +413,37 @@
     async pullGlobalMeta() {
       try {
         const currUser = this.getCurrentUser();
+        const isStudent = currUser && (currUser.role === 'student' || currUser.isStudent);
         const isTeacher = currUser && (currUser.role === 'teacher' || currUser.isTeacher || currUser.username === '1001' || currUser.id === 'u_teacher');
 
         const res = await fetch(`sync.php?action=get_global_meta&nocache=${Date.now()}`);
         if (res.ok) {
           const data = await res.json();
           if (data) {
-            // 🛡️ 铁律：如果是教师端，教师是全校教务数据的权威创作者！
-            // 教师端本地的班级、任务、通知、问卷、文献绝对禁止被远端旧数据覆写！
+            // 🛡️ 1. 账号池安全增量合并（所有状态下都安全进行，绝不抹除本地已有账号）
+            if (Array.isArray(data.users)) {
+              const localUsers = this.getUsers();
+              const mergedUsers = [...localUsers];
+              data.users.forEach(su => {
+                if (!mergedUsers.some(lu => (lu.id && lu.id === su.id) || (lu.studentCode && lu.studentCode === su.studentCode) || (lu.username && lu.username === su.username))) {
+                  mergedUsers.push(su);
+                }
+              });
+              localStorage.setItem(STORAGE_KEY_USERS_DB, JSON.stringify(mergedUsers));
+            }
+
+            // 🛡️ 2. 如果是教师端：教师是全校教务数据的唯一真理源，教务数据 100% 绝对免疫，绝不被远端旧数据覆写
             if (isTeacher) {
-              // 教师端只做一件事：如果有新的学生用户账号注册，安全增量合并学生列表，其它教务数据 100% 免疫
-              if (Array.isArray(data.users)) {
-                const localUsers = this.getUsers();
-                const mergedUsers = [...localUsers];
-                data.users.forEach(su => {
-                  if (!mergedUsers.some(lu => (lu.id && lu.id === su.id) || (lu.studentCode && lu.studentCode === su.studentCode) || (lu.username && lu.username === su.username))) {
-                    mergedUsers.push(su);
-                  }
-                });
-                localStorage.setItem(STORAGE_KEY_USERS_DB, JSON.stringify(mergedUsers));
-              }
-              // 教师端每次触发后自动固化本地权威数据至服务器，确保云端永远追随教师端！
               this.pushGlobalMeta();
               return;
             }
 
-            // 👨‍🎓 以下仅对学生端 / 访客端生效（学生端单向读取云端权威教务数据）
-            if (Array.isArray(data.users)) {
-              localStorage.setItem(STORAGE_KEY_USERS_DB, JSON.stringify(data.users));
+            // 🛡️ 3. 如果是未登录状态：绝对禁止触碰任何班级、任务、通知、问卷或文献数据！
+            if (!currUser || !isStudent) {
+              return;
             }
+
+            // 👨‍🎓 4. 仅在学生明确登录后，拉取云端权威教务数据供学生端只读浏览
             if (Array.isArray(data.classes) && data.classes.length > 0) {
               localStorage.setItem(STORAGE_KEY_CLASSES, JSON.stringify(data.classes));
               this.sanitizeAndDeduplicateGroups();
