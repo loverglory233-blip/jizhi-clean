@@ -861,8 +861,9 @@
     }
 
     batchAddStudentsToClass(studentList, classId) {
-      let addedCount = 0;
-      const skippedList = [];
+      let createdCount = 0;
+      let linkedCount = 0;
+      const linkedList = [];
       const users = this.getUsers();
       const classes = this.getClasses();
       const targetClass = classes.find(c => c.id === (classId || 'class_101')) || classes[0];
@@ -875,16 +876,24 @@
         const name = (st.name || '').trim();
         if (!code || !name) return;
 
-        // 查重：检查是否已有该学号
+        // 查重：检查是否已有该学号的学生实体
         const existing = users.find(u => (u.studentCode && u.studentCode.trim().toLowerCase() === code.toLowerCase()) || (u.username && u.username.trim().toLowerCase() === code.toLowerCase()));
         if (existing) {
-          // 学号已存在，记录跳过并继续处理下一个学生
-          skippedList.push({ name: existing.name || name, code });
-          if (!existing.classIds) existing.classIds = [existing.classId || 'class_101'];
-          if (!existing.classIds.includes(targetClass.id)) existing.classIds.push(targetClass.id);
-          existing.classId = targetClass.id;
-          if (!targetClass.studentIds.includes(existing.id)) targetClass.studentIds.push(existing.id);
+          // 同一实体：更新真实姓名，并双向绑定进本班级
+          existing.name = name;
+          if (!existing.classIds || !Array.isArray(existing.classIds)) {
+            existing.classIds = existing.classId ? [existing.classId] : ['class_101'];
+          }
+          if (!existing.classIds.includes(targetClass.id)) {
+            existing.classIds.push(targetClass.id);
+          }
+          if (!targetClass.studentIds.includes(existing.id)) {
+            targetClass.studentIds.push(existing.id);
+          }
+          linkedList.push({ name: existing.name || name, code });
+          linkedCount++;
         } else {
+          // 全新学生：创建实体并绑定本班级
           const newUid = 'u_student_' + Date.now() + '_' + Math.floor(Math.random() * 100000);
           const newUser = {
             id: newUid,
@@ -901,14 +910,14 @@
           };
           users.push(newUser);
           targetClass.studentIds.push(newUid);
-          addedCount++;
+          createdCount++;
         }
       });
 
       localStorage.setItem(STORAGE_KEY_USERS_DB, JSON.stringify(users));
       localStorage.setItem(STORAGE_KEY_CLASSES, JSON.stringify(classes));
       this.pushGlobalMeta();
-      return { addedCount, skippedList };
+      return { createdCount, linkedCount, totalProcessed: createdCount + linkedCount, linkedList };
     }
 
     createGroup(classId, groupName) {
@@ -3540,11 +3549,11 @@
             alert('⚠️ 请上传 XLSX/CSV 文件或粘贴名册文本！');
             return;
           }
-          const { addedCount, skippedList } = authManager.batchAddStudentsToClass(listToImport, activeClass.id);
-          let tipMsg = `🎉 批量导入完成！\n\n✅ 成功新增导入入库: ${addedCount} 人`;
-          if (skippedList && skippedList.length > 0) {
-            tipMsg += `\n\n💡 以下 ${skippedList.length} 位学生因学号已存在已为您跳过（无需重复创建）：\n` + 
-              skippedList.map((s, idx) => `${idx + 1}. ${s.name} (学号: ${s.code})`).join('\n');
+          const { createdCount, linkedCount, totalProcessed, linkedList } = authManager.batchAddStudentsToClass(listToImport, activeClass.id);
+          let tipMsg = `🎉 名册导入完成！\n\n✅ 当前班级【${activeClass.name}】共计导入/就绪学生: ${totalProcessed} 人\n• 🆕 全新创建入库: ${createdCount} 人\n• 🔗 关联已有账号 (如跨班学生): ${linkedCount} 人`;
+          if (linkedList && linkedList.length > 0) {
+            tipMsg += `\n\n💡 以下 ${linkedList.length} 位学生已存在于系统数据库（同一账号数据），已直接关联至本班展示：\n` + 
+              linkedList.map((s, idx) => `${idx + 1}. ${s.name} (学号: ${s.code})`).join('\n');
           }
           alert(tipMsg);
           closeModal();
