@@ -490,10 +490,22 @@
     }
     getAnnouncements() { return JSON.parse(localStorage.getItem(STORAGE_KEY_ANNOUNCEMENTS)) || DefaultAnnouncements; }
     getCurrentUser() {
+      let cached = null;
       const sessionData = sessionStorage.getItem(STORAGE_KEY_USER);
-      if (sessionData) { try { return JSON.parse(sessionData); } catch (e) {} }
-      const localData = localStorage.getItem(STORAGE_KEY_USER);
-      return localData ? JSON.parse(localData) : null;
+      if (sessionData) { try { cached = JSON.parse(sessionData); } catch (e) {} }
+      if (!cached) {
+        const localData = localStorage.getItem(STORAGE_KEY_USER);
+        if (localData) { try { cached = JSON.parse(localData); } catch (e) {} }
+      }
+      if (!cached) return null;
+
+      // 动态对齐最新用户库中的最新 classId 和 groupId
+      const allUsers = this.getUsers();
+      const freshUser = allUsers.find(u => (cached.id && u.id === cached.id) || (cached.username && u.username === cached.username) || (cached.studentCode && u.studentCode === cached.studentCode));
+      if (freshUser) {
+        return { ...cached, ...freshUser, activeSessionId: cached.activeSessionId };
+      }
+      return cached;
     }
     login(accountInput, password) {
       const users = this.getUsers();
