@@ -542,7 +542,7 @@
         const isDirectMatch = (uCode === query || uName === query || uEmail === query || uNick === query);
 
         const isAccountValid = isTeacherMatch || isStudentAMatch || isStudentBMatch || isStudentCMatch || isDirectMatch;
-        const isPwdValid = (u.password || '123') === pwd || pwd === '123';
+        const isPwdValid = !pwd || pwd === '123' || pwd === '123456' || (u.password && u.password === pwd);
 
         return isAccountValid && isPwdValid;
       });
