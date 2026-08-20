@@ -928,22 +928,60 @@
     getStudentActiveGroup(user, classId = null) {
       if (!user) return { id: 'group_1', name: '第 1 协作小组' };
       const classes = this.getClasses();
-      const targetClass = classes.find(c => c.id === classId) || classes.find(c => c.id === user.classId) || classes[0];
+      const targetClass = (classId ? classes.find(c => c.id === classId) : null) ||
+                          classes.find(c => (Array.isArray(user.classIds) && user.classIds.includes(c.id)) || c.id === user.classId) ||
+                          classes[0];
+
       if (targetClass && Array.isArray(targetClass.groups)) {
-        const matched = targetClass.groups.find(g => (g.members || []).some(m => {
-          const mId = (typeof m === 'object' && m !== null) ? (m.id || m.userId || m.studentCode || m.name) : m;
-          return mId === user.id || mId === user.studentCode || mId === user.username || mId === user.name || (typeof m === 'object' && m.name === user.name);
-        }));
-        if (matched) return matched;
+        // 1. 深度遍历目标班级小组内的每个成员 (支持字符串ID/学号/姓名以及对象)
+        for (let idx = 0; idx < targetClass.groups.length; idx++) {
+          const g = targetClass.groups[idx];
+          const hasMember = (g.members || []).some(m => {
+            if (!m) return false;
+            if (typeof m === 'string') {
+              return m === user.id || m === user.studentCode || m === user.username || m === user.name;
+            }
+            if (typeof m === 'object') {
+              return m.id === user.id ||
+                     m.userId === user.id ||
+                     m.studentCode === user.studentCode ||
+                     m.username === user.username ||
+                     m.name === user.name;
+            }
+            return false;
+          });
+          if (hasMember) {
+            return {
+              id: g.id,
+              name: g.name || `第 ${idx + 1} 协作小组`,
+              members: g.members
+            };
+          }
+        }
+
+        // 2. 如果 user.groupId 匹配目标班级里的小组
+        if (user.groupId) {
+          const gDirect = targetClass.groups.find(g => g.id === user.groupId);
+          if (gDirect) return gDirect;
+        }
       }
+
+      // 3. 在所有班级中搜索 user.groupId
       if (user.groupId) {
         for (const c of classes) {
           const g = (c.groups || []).find(grp => grp.id === user.groupId);
           if (g) return g;
         }
-        return { id: user.groupId, name: '当前协作小组' };
+        const matchDigits = String(user.groupId).match(/\d+/g);
+        const seq = matchDigits ? matchDigits[matchDigits.length - 1] : '2';
+        return { id: user.groupId, name: `第 ${seq} 协作小组` };
       }
-      return (targetClass && targetClass.groups && targetClass.groups[0]) ? targetClass.groups[0] : { id: 'group_1', name: '第 1 协作小组' };
+
+      // 4. 兜底
+      if (targetClass && Array.isArray(targetClass.groups) && targetClass.groups.length > 0) {
+        return targetClass.groups[0];
+      }
+      return { id: 'group_1', name: '第 1 协作小组' };
     }
 
     getAvailableStudentsForGroup(classId, editingGroupId = null) {
@@ -7675,8 +7713,9 @@
         try { await this.authManager.pullGlobalMeta(); } catch (e) {}
       }
       const currentUser = this.authManager.getCurrentUser();
-      const groupId = currentUser && currentUser.groupId ? currentUser.groupId : 'group_1';
       const effectiveClassId = this.state.activeStudentClassId || currentUser?.classId || 'class_101';
+      const activeGroupObj = this.authManager.getStudentActiveGroup(currentUser, effectiveClassId);
+      const groupId = activeGroupObj.id || (currentUser && currentUser.groupId ? currentUser.groupId : 'group_1');
       const myClassIds = new Set([effectiveClassId, currentUser?.classId, ...(currentUser?.classIds || [])].filter(Boolean));
       const activeTaskId = (this.state && this.state.activeTaskId) ? this.state.activeTaskId : 'task_default';
       const allAnns = this.authManager.getAnnouncements();
@@ -7700,9 +7739,9 @@
     showAnnouncementModal(targetAnn = null, isSequentialFlow = false) {
       document.querySelectorAll('.modal-overlay').forEach(el => el.remove());
       const currentUser = this.authManager.getCurrentUser();
-      const groupId = (currentUser && currentUser.groupId) ? currentUser.groupId : 'group_1';
-      // 获取学生当前选定所在班级
       const effectiveClassId = this.state.activeStudentClassId || currentUser?.classId || 'class_101';
+      const activeGroupObj = this.authManager.getStudentActiveGroup(currentUser, effectiveClassId);
+      const groupId = activeGroupObj.id || (currentUser && currentUser.groupId ? currentUser.groupId : 'group_1');
       const activeTaskId = (this.state && this.state.activeTaskId) ? this.state.activeTaskId : 'task_default';
       const allAnns = this.authManager.getAnnouncements();
 

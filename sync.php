@@ -205,6 +205,7 @@ if ($action === 'update_read_status' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                     $nowMs = round(microtime(true) * 1000);
                     $stmt3 = $pdo->prepare("INSERT INTO global_meta (meta_key, meta_value) VALUES ('meta_updated_at', :v) ON DUPLICATE KEY UPDATE meta_value = :v2");
                     $stmt3->execute([':v' => $nowMs, ':v2' => $nowMs]);
+                    @file_put_contents(__DIR__ . '/global_db.json', $newVal);
                 }
             }
         }
