@@ -4313,9 +4313,37 @@
      7.5 STUDENT TASK PORTAL / DASHBOARD (我的写作任务大厅)
      ========================================================================== */
   function renderStudentTaskPortal(container, authManager, state, onSelectTask, onLogout, onSwitchTeacher, onOpenAnnModal, onOpenSurveyModal) {
+    // ⚡ 每次进入大厅立即静默拉取服务端全量最新数据
     if (authManager && authManager.pullGlobalMeta) {
-      authManager.pullGlobalMeta().catch(() => {});
+      authManager.pullGlobalMeta().then(() => {
+        // 若拉取后本地任务列表发生了变化，自动重绘大厅
+        const freshTasks = authManager.getTasks();
+        if (freshTasks.length !== (tasks || []).length) {
+          renderStudentTaskPortal(container, authManager, state, onSelectTask, onLogout, onSwitchTeacher, onOpenAnnModal, onOpenSurveyModal);
+        }
+      }).catch(() => {});
     }
+
+    // ⚡ 在任务大厅启动 2.5 秒轻量同步定时器，教师发布或删除任务秒级呈现在学生屏幕上
+    if (window._studentPortalSyncInterval) clearInterval(window._studentPortalSyncInterval);
+    window._studentPortalSyncInterval = setInterval(async () => {
+      if (state.studentViewMode !== 'task_list') {
+        clearInterval(window._studentPortalSyncInterval);
+        return;
+      }
+      if (authManager && authManager.pullGlobalMeta) {
+        try {
+          const oldTasksJson = localStorage.getItem(STORAGE_KEY_TASKS) || '[]';
+          const oldAnnsJson = localStorage.getItem(STORAGE_KEY_ANNOUNCEMENTS) || '[]';
+          await authManager.pullGlobalMeta();
+          const newTasksJson = localStorage.getItem(STORAGE_KEY_TASKS) || '[]';
+          const newAnnsJson = localStorage.getItem(STORAGE_KEY_ANNOUNCEMENTS) || '[]';
+          if (oldTasksJson !== newTasksJson || oldAnnsJson !== newAnnsJson) {
+            renderStudentTaskPortal(container, authManager, state, onSelectTask, onLogout, onSwitchTeacher, onOpenAnnModal, onOpenSurveyModal);
+          }
+        } catch (e) {}
+      }
+    }, 2500);
 
     const currentUser = authManager.getCurrentUser();
     const classes = authManager.getClasses();
