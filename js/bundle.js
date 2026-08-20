@@ -7137,15 +7137,15 @@
     showAnnouncementModal(targetAnn = null, isSequentialFlow = false) {
       document.querySelectorAll('.modal-overlay').forEach(el => el.remove());
       const currentUser = this.authManager.getCurrentUser();
-      const groupId = currentUser && currentUser.groupId ? currentUser.groupId : 'group_1';
-      const myClassIds = new Set([currentUser?.classId, ...(currentUser?.classIds || [])].filter(Boolean));
+      // 获取学生当前选定所在班级
+      const effectiveClassId = this.state.activeStudentClassId || currentUser?.classId || 'class_101';
       const activeTaskId = (this.state && this.state.activeTaskId) ? this.state.activeTaskId : 'task_default';
       const allAnns = this.authManager.getAnnouncements();
 
-      // 过滤当前班级、小组、当前任务可见的通知，按最新发布倒序排
+      // 严格过滤当前班级、小组、当前任务可见的通知，按最新发布倒序排
       const myAnns = allAnns
         .filter(a => {
-          const matchClass = !a.classId || a.classId === 'all' || myClassIds.has(a.classId);
+          const matchClass = !a.classId || a.classId === 'all' || a.classId === effectiveClassId;
           const matchGroup = !a.targetGroupId || a.targetGroupId === 'all' || a.targetGroupId === groupId;
           const matchTask = !a.taskId || a.taskId === 'task_all' || a.taskId === activeTaskId || (!a.taskId && activeTaskId === 'task_default');
           return matchClass && matchGroup && matchTask;
