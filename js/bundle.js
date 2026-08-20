@@ -2863,7 +2863,7 @@
                       
                       <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:12px 14px;">
                         <div style="font-size:12.5px; font-weight:700; color:#1e40af; margin-bottom:4px;">📌 确认融合论文研究主题:</div>
-                        <div style="font-size:14px; font-weight:800; color:#0f172a;">${state.stage1.mergedTitle || '【尚待确定】'}</div>
+                        <div style="font-size:14px; font-weight:800; color:#0f172a;">${state.stage1?.mergedTitle || '【尚待确定】'}</div>
                       </div>
 
                       <!-- 教师端同屏展现 6 大模块时间规划 -->
@@ -2872,27 +2872,27 @@
                         <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:8px; font-size:12px;">
                           <div style="background:#ffffff; border:1px solid #e2e8f0; border-left:3px solid #2563eb; padding:6px 10px; border-radius:6px; display:flex; justify-content:space-between;">
                             <span style="font-weight:700; color:#1e40af;">一、研究背景与意义</span>
-                            <span style="color:#2563eb; font-weight:800;">${state.stage1.contract?.timeAllocations?.background || 25}m</span>
+                            <span style="color:#2563eb; font-weight:800;">${state.stage1?.contract?.timeAllocations?.background || 25}m</span>
                           </div>
                           <div style="background:#ffffff; border:1px solid #e2e8f0; border-left:3px solid #0284c7; padding:6px 10px; border-radius:6px; display:flex; justify-content:space-between;">
                             <span style="font-weight:700; color:#0369a1;">二、文献综述</span>
-                            <span style="color:#0284c7; font-weight:800;">${state.stage1.contract?.timeAllocations?.literature || 30}m</span>
+                            <span style="color:#0284c7; font-weight:800;">${state.stage1?.contract?.timeAllocations?.literature || 30}m</span>
                           </div>
                           <div style="background:#ffffff; border:1px solid #e2e8f0; border-left:3px solid #059669; padding:6px 10px; border-radius:6px; display:flex; justify-content:space-between;">
                             <span style="font-weight:700; color:#065f46;">三、研究问题与假设</span>
-                            <span style="color:#059669; font-weight:800;">${state.stage1.contract?.timeAllocations?.questions || 25}m</span>
+                            <span style="color:#059669; font-weight:800;">${state.stage1?.contract?.timeAllocations?.questions || 25}m</span>
                           </div>
                           <div style="background:#ffffff; border:1px solid #e2e8f0; border-left:3px solid #7c3aed; padding:6px 10px; border-radius:6px; display:flex; justify-content:space-between;">
                             <span style="font-weight:700; color:#6d28d9;">四、研究设计与方法</span>
-                            <span style="color:#7c3aed; font-weight:800;">${state.stage1.contract?.timeAllocations?.method || 40}m</span>
+                            <span style="color:#7c3aed; font-weight:800;">${state.stage1?.contract?.timeAllocations?.method || 40}m</span>
                           </div>
                           <div style="background:#ffffff; border:1px solid #e2e8f0; border-left:3px solid #d97706; padding:6px 10px; border-radius:6px; display:flex; justify-content:space-between;">
                             <span style="font-weight:700; color:#b45309;">五、研究设计的不足与反思</span>
-                            <span style="color:#d97706; font-weight:800;">${state.stage1.contract?.timeAllocations?.reflection || 20}m</span>
+                            <span style="color:#d97706; font-weight:800;">${state.stage1?.contract?.timeAllocations?.reflection || 20}m</span>
                           </div>
                           <div style="background:#ffffff; border:1px solid #e2e8f0; border-left:3px solid #475569; padding:6px 10px; border-radius:6px; display:flex; justify-content:space-between;">
                             <span style="font-weight:700; color:#334155;">六、参考文献</span>
-                            <span style="color:#475569; font-weight:800;">${state.stage1.contract?.timeAllocations?.references || 10}m</span>
+                            <span style="color:#475569; font-weight:800;">${state.stage1?.contract?.timeAllocations?.references || 10}m</span>
                           </div>
                         </div>
                       </div>
@@ -2902,7 +2902,7 @@
                         <div style="font-weight:700; color:#1e40af; margin-bottom:6px;">👥 组员具体章节分工:</div>
                         <div style="display:flex; flex-direction:column; gap:4px;">
                           ${monitorMembersList.map(m => {
-                            const task = state.stage1.contract?.taskAssignments?.[m.id] || '尚未录入分工';
+                            const task = state.stage1?.contract?.taskAssignments?.[m.id] || '尚未录入分工';
                             return `
                               <div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:6px; padding:6px 10px; display:flex; justify-content:space-between;">
                                 <span style="font-weight:700; color:${m.color || '#2563eb'};">${m.avatar || '👤'} ${m.name}:</span>
@@ -2917,7 +2917,7 @@
                         <div style="font-weight:700; color:#1e40af; margin-bottom:6px;">👥 合约签署矩阵:</div>
                         <div style="display:flex; flex-wrap:wrap; gap:8px;">
                           ${monitorMembersList.map(m => {
-                            const isConf = state.stage1.contract.confirmedMembers && state.stage1.contract.confirmedMembers[m.id];
+                            const isConf = state.stage1?.contract?.confirmedMembers && state.stage1.contract.confirmedMembers[m.id];
                             return `
                               <span style="color:${isConf ? '#059669' : '#64748b'}; border:1px solid ${isConf ? '#a7f3d0' : '#e2e8f0'}; background:${isConf ? '#ecfdf5' : '#ffffff'}; padding:4px 10px; border-radius:6px; font-size:12px; font-weight:600;">
                                 ${m.avatar || '👤'} ${m.name}: <b>${isConf ? '✅ 已签署' : '⏳ 未签署'}</b>
@@ -2930,7 +2930,7 @@
                     <div class="card" style="padding:20px; display:flex; flex-direction:column;">
                       <div style="font-size:15px; font-weight:800; color:#0f172a; margin-bottom:12px;">💬 阶段一研讨对话流 (${activeMonitorGroup.name})</div>
                       <div style="flex:1; max-height:420px; overflow-y:auto; background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:12px; font-size:12px; display:flex; flex-direction:column; gap:10px;">
-                        ${(state.chatLogs['stage1'] || []).map(m => {
+                        ${((state.chatLogs && state.chatLogs['stage1']) || []).map(m => {
                           const isAgent = AgentProfiles[m.sender] !== undefined;
                           const senderName = isAgent ? AgentProfiles[m.sender].name : (monitorMembersObj[m.sender] ? monitorMembersObj[m.sender].name : m.sender);
                           const color = isAgent ? AgentProfiles[m.sender].color : (monitorMembersObj[m.sender] ? monitorMembersObj[m.sender].color : '#2563eb');
@@ -2957,20 +2957,20 @@
                           <span style="font-size:15px; font-weight:800; color:#1e40af;">📝 实时写作大正文镜像 (${activeMonitorGroup.name})</span>
                           <span style="font-size:11px; background:#ecfdf5; color:#059669; padding:2px 8px; border-radius:10px; font-weight:700; border:1px solid #a7f3d0;">🟢 实时同步中</span>
                         </div>
-                        <span style="font-size:12.5px; color:#475569;">总字数: <b style="color:#2563eb; font-size:14px;">${state.stage2.unifiedContent.length}</b> 字</span>
+                        <span style="font-size:12.5px; color:#475569;">总字数: <b style="color:#2563eb; font-size:14px;">${(state.stage2?.unifiedContent || '').length}</b> 字</span>
                       </div>
                       <div style="background:#eff6ff; border:1px solid #bfdbfe; border-radius:8px; padding:10px 14px; margin-bottom:12px; font-size:12px; color:#1d4ed8; display:flex; justify-content:space-between;">
                         <span>⚡ <b>当前【${activeMonitorGroup.name}】组内架构 (${monitorMembersList.length}人):</b> ${monitorMembersList.map(m => m.name).join('、')}</span>
                         <span>${state.isFinalSubmitted ? '<b style="color:#059669;">🔒 论文终稿已提交归档</b>' : '<b style="color:#d97706;">✍️ 组员写作推进中</b>'}</span>
                       </div>
                       <div id="teacher-live-doc-mirror" style="flex:1; min-height:340px; max-height:480px; overflow-y:auto; font-family:'SimSun', 'Times New Roman', serif; font-size:13.5px; line-height:1.75; background:#ffffff; color:#0f172a; border:1px solid #cbd5e1; border-radius:6px; padding:16px 20px; box-shadow:inset 0 1px 3px rgba(0,0,0,0.02);">
-                        ${(state.stage2.unifiedContent || '').replace(/<span class="remote-cursor-widget"[\s\S]*?<\/span>/gi, '').trim() || '<span style="color:#94a3b8; font-family:sans-serif; font-style:italic;">（小组成员尚未开始撰写正文）</span>'}
+                        ${(state.stage2?.unifiedContent || '').replace(/<span class="remote-cursor-widget"[\s\S]*?<\/span>/gi, '').trim() || '<span style="color:#94a3b8; font-family:sans-serif; font-style:italic;">（小组成员尚未开始撰写正文）</span>'}
                       </div>
                       <div style="margin-top:14px; background:#f8fafc; padding:12px; border-radius:8px; border:1px solid #e2e8f0;">
                         <div style="font-size:12px; font-weight:700; color:#334155; margin-bottom:6px;">📊 本组 SSRL 成员字数与互动贡献比率 (${monitorMembersList.length} 位成员)</div>
                         <div style="height:10px; background:#e2e8f0; border-radius:6px; overflow:hidden; display:flex;">
                           ${(() => {
-                            const contribs = state.stage2.memberContributions || {};
+                            const contribs = state.stage2?.memberContributions || {};
                             let totalContrib = 0;
                             monitorMembersList.forEach(m => { totalContrib += (contribs[m.id] || 0) + (contribs[m.studentCode] || 0); });
                             if (totalContrib === 0) {
@@ -2986,7 +2986,7 @@
                         </div>
                         <div style="display:flex; justify-content:space-between; font-size:11px; color:#475569; margin-top:6px; flex-wrap:wrap; gap:8px;">
                           ${(() => {
-                            const contribs = state.stage2.memberContributions || {};
+                            const contribs = state.stage2?.memberContributions || {};
                             let totalContrib = 0;
                             monitorMembersList.forEach(m => { totalContrib += (contribs[m.id] || 0) + (contribs[m.studentCode] || 0); });
                             return monitorMembersList.map(m => {
@@ -3001,7 +3001,7 @@
                     <div class="card" style="padding:20px; display:flex; flex-direction:column;">
                       <div style="font-size:15px; font-weight:800; color:#0f172a; margin-bottom:12px;">💬 阶段二编辑部研讨流 (${activeMonitorGroup.name})</div>
                       <div style="flex:1; max-height:460px; overflow-y:auto; background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:12px; font-size:12px; display:flex; flex-direction:column; gap:10px;">
-                        ${(state.chatLogs['stage2'] || []).map(m => {
+                        ${((state.chatLogs && state.chatLogs['stage2']) || []).map(m => {
                           const isAgent = AgentProfiles[m.sender] !== undefined;
                           const senderName = isAgent ? AgentProfiles[m.sender].name : (monitorMembersObj[m.sender] ? monitorMembersObj[m.sender].name : m.sender);
                           const color = isAgent ? AgentProfiles[m.sender].color : (monitorMembersObj[m.sender] ? monitorMembersObj[m.sender].color : '#2563eb');
@@ -3027,14 +3027,14 @@
                       <div style="background:#eff6ff; border:1px solid #bfdbfe; border-radius:10px; padding:12px 14px; flex:1; display:flex; flex-direction:column; overflow:hidden;">
                         <div style="font-size:13px; font-weight:700; color:#1e40af; margin-bottom:8px;">⚖️ 成员辩护裁决与正文状态:</div>
                         <div style="flex:1; overflow-y:auto; font-family:'SimSun', 'Times New Roman', serif; font-size:13.5px; line-height:1.75; background:#ffffff; color:#0f172a; border:1px solid #cbd5e1; border-radius:6px; padding:16px 20px; box-shadow:inset 0 1px 3px rgba(0,0,0,0.02);">
-                          ${(state.stage2.unifiedContent || '').replace(/<span class="remote-cursor-widget"[\s\S]*?<\/span>/gi, '').trim() || '<span style="color:#94a3b8; font-family:sans-serif; font-style:italic;">（小组成员尚未开始撰写正文）</span>'}
+                          ${(state.stage2?.unifiedContent || '').replace(/<span class="remote-cursor-widget"[\s\S]*?<\/span>/gi, '').trim() || '<span style="color:#94a3b8; font-family:sans-serif; font-style:italic;">（小组成员尚未开始撰写正文）</span>'}
                         </div>
                       </div>
                     </div>
                     <div class="card" style="padding:20px; display:flex; flex-direction:column; min-width:0; overflow:hidden;">
                       <div style="font-size:15px; font-weight:800; color:#0f172a; margin-bottom:12px;">💬 阶段三答辩对话流 (${activeMonitorGroup.name})</div>
                       <div style="flex:1; overflow-y:auto; background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:12px; font-size:12px; display:flex; flex-direction:column; gap:10px;">
-                        ${(state.chatLogs['stage3'] || []).map(m => {
+                        ${((state.chatLogs && state.chatLogs['stage3']) || []).map(m => {
                           const isAgent = AgentProfiles[m.sender] !== undefined;
                           const senderName = isAgent ? AgentProfiles[m.sender].name : (monitorMembersObj[m.sender] ? monitorMembersObj[m.sender].name : m.sender);
                           const color = isAgent ? AgentProfiles[m.sender].color : (monitorMembersObj[m.sender] ? monitorMembersObj[m.sender].color : '#2563eb');
@@ -3050,7 +3050,6 @@
                         }).join('')}
                       </div>
                     </div>
-                  </div>
                 ` : ''}
 
               </div>
