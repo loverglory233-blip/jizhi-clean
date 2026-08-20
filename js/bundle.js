@@ -2186,9 +2186,9 @@
                 </div>
                 <div style="border:1px solid #e2e8f0; border-radius:10px; overflow:hidden; background:#ffffff;">
                   <table class="monitor-table" style="font-size:13px;">
-                    <thead><tr><th>序号</th><th>姓名</th><th>学号</th><th>当前归属小组</th><th>密码</th></tr></thead>
+                    <thead><tr><th>序号</th><th>姓名</th><th>学号</th><th>当前归属小组</th><th>密码</th><th>操作</th></tr></thead>
                     <tbody>
-                      ${classStudents.length === 0 ? '<tr><td colspan="5" style="text-align:center; color:#64748b; padding:24px;">当前班级暂无学生账号，请点击右上角按钮创建或导入！</td></tr>' : ''}
+                      ${classStudents.length === 0 ? '<tr><td colspan="6" style="text-align:center; color:#64748b; padding:24px;">当前班级暂无学生账号，请点击右上角按钮创建或导入！</td></tr>' : ''}
                       ${classStudents.map((s, idx) => {
                         const grp = (activeClass.groups || []).find(g => g.members && (g.members.includes(s.id) || g.members.includes(s.studentCode) || (typeof g.members[0] === 'object' && g.members.some(m => m.id === s.id || m.studentCode === s.studentCode))));
                         return `
@@ -2198,6 +2198,11 @@
                             <td><span style="color:#2563eb; font-family:monospace; font-weight:700;">${s.studentCode || s.username}</span></td>
                             <td>${grp ? `<span style="background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe; padding:2px 8px; border-radius:8px; font-size:12px; font-weight:700;">${grp.name}</span>` : '<span style="color:#94a3b8;">⏳ 待划分小组</span>'}</td>
                             <td><span style="color:#059669; font-family:monospace; font-weight:700;">${s.password || '123'}</span></td>
+                            <td>
+                              <button class="delete-student-btn" data-id="${s.id}" style="background:#fef2f2; border:1px solid #fecaca; color:#dc2626; padding:4px 10px; border-radius:6px; font-size:12px; cursor:pointer; font-weight:700;" title="从本班移除">
+                                移除
+                              </button>
+                            </td>
                           </tr>
                         `;
                       }).join('')}
@@ -3238,25 +3243,15 @@
 
     container.querySelectorAll('.delete-student-btn').forEach(btn => {
       btn.addEventListener('click', () => {
-        const users = authManager.getUsers();
-        const student = users.find(u => u.id === btn.dataset.id);
-        const otherClasses = student ? ((student.classIds || []).filter(c => c !== activeClass.id)) : [];
-        const confirmMsg = otherClasses.length > 0
-          ? `确认从【${activeClass.name}】移除此学生？该学生在其他 ${otherClasses.length} 个班级中的账号不受影响。`
-          : `确认移除此学生账号？该学生不在其他班级中，将被完全删除。`;
-        if (confirm(confirmMsg)) {
-          authManager.deleteStudent(btn.dataset.id, activeClass.id);
-          renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
-        }
+        authManager.deleteStudent(btn.dataset.id, activeClass.id);
+        renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
       });
     });
 
     container.querySelectorAll('.btn-delete-group').forEach(btn => {
       btn.addEventListener('click', () => {
-        if (confirm('确认解散并删除此小组？')) {
-          authManager.deleteGroup(activeClass.id, btn.dataset.gid);
-          renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
-        }
+        authManager.deleteGroup(activeClass.id, btn.dataset.gid);
+        renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
       });
     });
 
