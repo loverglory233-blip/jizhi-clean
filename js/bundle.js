@@ -413,7 +413,6 @@
 
         if (isModified) {
           localStorage.setItem(STORAGE_KEY_CLASSES, JSON.stringify(classes));
-          this.pushGlobalMeta();
         }
       } catch (e) {}
     }
