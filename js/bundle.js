@@ -415,75 +415,43 @@
 
     async pullGlobalMeta() {
       try {
+        const currUser = this.getCurrentUser();
+        const isTeacher = currUser && (currUser.role === 'teacher' || currUser.isTeacher || currUser.username === '1001' || currUser.id === 'u_teacher');
+
         const res = await fetch(`sync.php?action=get_global_meta&nocache=${Date.now()}`);
         if (res.ok) {
           const data = await res.json();
           if (data) {
-            let hasNewLocalData = false;
-
-            // 1. 用户列表安全双向合并：绝不抹杀本地已导入的学生
-            const localUsers = this.getUsers();
-            const serverUsers = Array.isArray(data.users) ? data.users : [];
-            const mergedUsers = [...serverUsers];
-            const currUser = this.getCurrentUser();
-
-            localUsers.forEach(lu => {
-              const matchIdx = mergedUsers.findIndex(su => (lu.id && su.id === lu.id) || (lu.studentCode && su.studentCode === lu.studentCode) || (lu.username && su.username === lu.username));
-              if (matchIdx === -1) {
-                mergedUsers.push(lu);
-                hasNewLocalData = true;
-              } else {
-                const su = mergedUsers[matchIdx];
-                if (lu.classId && !su.classId) su.classId = lu.classId;
-                if (lu.groupId && !su.groupId) su.groupId = lu.groupId;
-                if (lu.classIds && Array.isArray(lu.classIds)) {
-                  su.classIds = Array.from(new Set([...(su.classIds || []), ...lu.classIds]));
-                }
-                if (currUser && (currUser.id === lu.id || currUser.username === lu.username)) {
-                  su.activeSessionId = currUser.activeSessionId;
-                }
-              }
-            });
-            localStorage.setItem(STORAGE_KEY_USERS_DB, JSON.stringify(mergedUsers));
-
-            const isTeacher = currUser && (currUser.role === 'teacher' || currUser.isTeacher || currUser.username === '1001' || currUser.id === 'u_teacher');
-
-            // 2. 班级列表同步（教师端安全增量合并，绝不被远端空数据抹杀）
-            if (Array.isArray(data.classes) && data.classes.length > 0) {
-              if (isTeacher) {
-                const localClasses = this.getClasses();
-                const mergedClasses = [...data.classes];
-                localClasses.forEach(lc => {
-                  if (!mergedClasses.some(sc => sc.id === lc.id)) {
-                    mergedClasses.push(lc);
-                    hasNewLocalData = true;
+            // 🛡️ 铁律：如果是教师端，教师是全校教务数据的权威创作者！
+            // 教师端本地的班级、任务、通知、问卷、文献绝对禁止被远端旧数据覆写！
+            if (isTeacher) {
+              // 教师端只做一件事：如果有新的学生用户账号注册，安全增量合并学生列表，其它教务数据 100% 免疫
+              if (Array.isArray(data.users)) {
+                const localUsers = this.getUsers();
+                const mergedUsers = [...localUsers];
+                data.users.forEach(su => {
+                  if (!mergedUsers.some(lu => (lu.id && lu.id === su.id) || (lu.studentCode && lu.studentCode === su.studentCode) || (lu.username && lu.username === su.username))) {
+                    mergedUsers.push(su);
                   }
                 });
-                localStorage.setItem(STORAGE_KEY_CLASSES, JSON.stringify(mergedClasses));
-              } else {
-                localStorage.setItem(STORAGE_KEY_CLASSES, JSON.stringify(data.classes));
+                localStorage.setItem(STORAGE_KEY_USERS_DB, JSON.stringify(mergedUsers));
               }
+              // 教师端每次触发后自动固化本地权威数据至服务器，确保云端永远追随教师端！
+              this.pushGlobalMeta();
+              return;
+            }
+
+            // 👨‍🎓 以下仅对学生端 / 访客端生效（学生端单向读取云端权威教务数据）
+            if (Array.isArray(data.users)) {
+              localStorage.setItem(STORAGE_KEY_USERS_DB, JSON.stringify(data.users));
+            }
+            if (Array.isArray(data.classes) && data.classes.length > 0) {
+              localStorage.setItem(STORAGE_KEY_CLASSES, JSON.stringify(data.classes));
               this.sanitizeAndDeduplicateGroups();
             }
-
-            // 3. 任务列表（教师端本地已配好的任务绝对安全保留并回写上云）
             if (Array.isArray(data.tasks)) {
-              if (isTeacher) {
-                const localTasks = this.getTasks();
-                const mergedTasks = [...data.tasks];
-                localTasks.forEach(lt => {
-                  if (!mergedTasks.some(st => st.id === lt.id)) {
-                    mergedTasks.push(lt);
-                    hasNewLocalData = true;
-                  }
-                });
-                localStorage.setItem(STORAGE_KEY_TASKS, JSON.stringify(mergedTasks));
-              } else {
-                localStorage.setItem(STORAGE_KEY_TASKS, JSON.stringify(data.tasks));
-              }
+              localStorage.setItem(STORAGE_KEY_TASKS, JSON.stringify(data.tasks));
             }
-
-            // 4. 通知列表（教师端本地通知绝对安全保留）
             if (Array.isArray(data.announcements)) {
               const localAnns = this.getAnnouncements();
               const serverAnns = data.announcements.map(sa => {
@@ -493,54 +461,13 @@
                 }
                 return sa;
               });
-              if (isTeacher) {
-                localAnns.forEach(la => {
-                  if (!serverAnns.some(sa => sa.id === la.id)) {
-                    serverAnns.push(la);
-                    hasNewLocalData = true;
-                  }
-                });
-              }
               localStorage.setItem(STORAGE_KEY_ANNOUNCEMENTS, JSON.stringify(serverAnns));
             }
-
-            // 5. 参考范文（教师端本地范文绝对安全保留）
             if (Array.isArray(data.referencePapers)) {
-              if (isTeacher) {
-                const localPapers = this.getAllReferencePapers();
-                const mergedPapers = [...data.referencePapers];
-                localPapers.forEach(lp => {
-                  if (!mergedPapers.some(sp => sp.id === lp.id)) {
-                    mergedPapers.push(lp);
-                    hasNewLocalData = true;
-                  }
-                });
-                localStorage.setItem('jizhi_reference_papers_db', JSON.stringify(mergedPapers));
-              } else {
-                localStorage.setItem('jizhi_reference_papers_db', JSON.stringify(data.referencePapers));
-              }
+              localStorage.setItem('jizhi_reference_papers_db', JSON.stringify(data.referencePapers));
             }
-
-            // 6. 问卷列表（教师端本地问卷绝对安全保留）
             if (Array.isArray(data.surveys)) {
-              if (isTeacher) {
-                const localSurveys = this.getSurveysList();
-                const mergedSurveys = [...data.surveys];
-                localSurveys.forEach(ls => {
-                  if (!mergedSurveys.some(ss => ss.id === ls.id)) {
-                    mergedSurveys.push(ls);
-                    hasNewLocalData = true;
-                  }
-                });
-                localStorage.setItem('jizhi_surveys_list_db', JSON.stringify(mergedSurveys));
-              } else {
-                localStorage.setItem('jizhi_surveys_list_db', JSON.stringify(data.surveys));
-              }
-            }
-
-            // 🛡️ 教师端若存在本地未上云的专属数据，立即触发回推固化至服务器，实现 100% 永不丢失！
-            if (isTeacher && hasNewLocalData) {
-              this.pushGlobalMeta();
+              localStorage.setItem('jizhi_surveys_list_db', JSON.stringify(data.surveys));
             }
           }
         }
