@@ -622,18 +622,10 @@
     getTasks() {
       let tasks = [];
       try {
-        tasks = JSON.parse(localStorage.getItem(STORAGE_KEY_TASKS)) || [];
+        const stored = localStorage.getItem(STORAGE_KEY_TASKS);
+        if (stored) tasks = JSON.parse(stored);
       } catch (e) { tasks = []; }
-      if (!Array.isArray(tasks) || tasks.length === 0) {
-        tasks = JSON.parse(JSON.stringify(DefaultTasks));
-        localStorage.setItem(STORAGE_KEY_TASKS, JSON.stringify(tasks));
-      } else {
-        // 确保默认测试任务常驻在首位
-        if (!tasks.some(t => t.id === 'task_default')) {
-          tasks.unshift(DefaultTasks[0]);
-          localStorage.setItem(STORAGE_KEY_TASKS, JSON.stringify(tasks));
-        }
-      }
+      if (!Array.isArray(tasks)) tasks = [];
       return tasks;
     }
     getAnnouncements() { return JSON.parse(localStorage.getItem(STORAGE_KEY_ANNOUNCEMENTS)) || DefaultAnnouncements; }
