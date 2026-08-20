@@ -2489,7 +2489,51 @@
             return `
             <div style="display:flex; flex-direction:column; gap:20px; width:100%;">
 
-              <!-- 0. 问卷链接配置 (按 班级 + 任务 双维度独立绑定) -->
+              <!-- 1. 课程协作写作任务集中发布中心 (最开始) -->
+              <div class="card" style="border-top:4px solid #2563eb; width:100%; padding:24px;">
+                <div class="card-title" style="margin-bottom:16px;">
+                  <span style="font-size:17px; font-weight:800; color:#0f172a;">📌 课程写作任务发布 (${currentClassTasks.length} 项 · 当前班级: ${activeClass.name})</span>
+                  <button id="btn-v2-open-task-modal" class="teacher-action-btn indigo" style="background:#2563eb; padding:8px 18px; font-size:13px; font-weight:700;">+ 发布全新写作任务</button>
+                </div>
+                <div style="display:flex; flex-direction:column; gap:14px;">
+                  ${currentClassTasks.length === 0 ? `
+                    <div style="text-align:center; padding:32px; background:#f8fafc; border-radius:10px; border:2px dashed #cbd5e1;">
+                      <div style="font-size:32px; margin-bottom:8px;">📌</div>
+                      <div style="font-size:15px; font-weight:800; color:#0f172a;">当前班级暂无发布的写作任务</div>
+                      <div style="font-size:12.5px; color:#64748b; margin-top:4px;">点击右上角【+ 发布全新写作任务】为本班级创建独立任务！</div>
+                    </div>
+                  ` : currentClassTasks.map((t, tIdx) => {
+                    const isLatest = tIdx === 0;
+                    const taskSeqNum = currentClassTasks.length - tIdx;
+                    return `
+                    <div style="background:#ffffff; border:1px solid #e2e8f0; padding:18px; border-radius:12px; box-shadow:0 1px 3px rgba(15,23,42,0.03);">
+                      <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                          <span style="background:linear-gradient(135deg, #1d4ed8, #2563eb); color:#ffffff; padding:3px 10px; border-radius:8px; font-size:12px; font-weight:800;">任务 ${taskSeqNum}${isLatest ? ' (最新)' : ''}</span>
+                          <span style="font-size:16px; font-weight:800; color:#1e40af;">📌 ${t.title}</span>
+                          <span style="background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe; padding:2px 8px; border-radius:8px; font-size:11.5px; font-weight:700;">受众班级: ${t.className}</span>
+                        </div>
+                        <div style="display:flex; align-items:center; gap:12px;">
+                          <span style="font-size:12px; color:#64748b;">🕒 发布时间: <b>${t.createdAt || t.startTime || '刚刚'}</b></span>
+                          ${t.id !== 'task_default' ? `
+                            <button class="btn-delete-task" data-id="${t.id}" data-title="${t.title}" style="background:#fef2f2; border:1px solid #fecaca; color:#dc2626; padding:4px 10px; border-radius:6px; font-size:12px; font-weight:700; cursor:pointer;" title="删除此写作任务">
+                              🗑️ 删除任务
+                            </button>
+                          ` : ''}
+                        </div>
+                      </div>
+                      <div style="font-size:13px; color:#334155; margin:10px 0; display:flex; gap:20px; background:#f8fafc; padding:10px 16px; border-radius:8px; border-left:4px solid #2563eb;">
+                        <span>📅 <b>开始时间:</b> <span style="color:#2563eb; font-weight:700;">${t.startTime || '即时开启'}</span></span>
+                        <span>⌛ <b>截止时间:</b> <span style="color:#dc2626; font-weight:700;">${t.deadline || '无硬性限制'}</span></span>
+                        <span>⏱️ <b>预估时长:</b> ${t.durationMinutes} 分钟</span>
+                      </div>
+                    </div>
+                    `;
+                  }).join('')}
+                </div>
+              </div>
+
+              <!-- 2. 问卷链接配置 (第二个) -->
               <div class="card" style="border-top:4px solid #2563eb; width:100%; padding:24px;">
                 <div class="card-title" style="margin-bottom:16px;">
                   <span style="font-size:17px; font-weight:800; color:#0f172a;">📋 课程评估问卷链接配置 (当前主班: ${activeClass.name})</span>
@@ -2559,7 +2603,7 @@
 
               </div>
 
-              <!-- 1. 课程参考范文与文献样例库 -->
+              <!-- 3. 课程参考范文与文献样例库 (第三个) -->
               <div class="card" style="border-top:4px solid #2563eb; width:100%; padding:24px;">
                 <div class="card-title" style="margin-bottom:16px;">
                   <span style="font-size:17px; font-weight:800; color:#0f172a;">📚 课程参考范文库 (${currentClassPapers.length} 篇 · 当前班级: ${activeClass.name})</span>
@@ -2621,51 +2665,7 @@
                 </div>
               </div>
 
-              <!-- 2. 课程协作写作任务集中发布中心 -->
-              <div class="card" style="border-top:4px solid #2563eb; width:100%; padding:24px;">
-                <div class="card-title" style="margin-bottom:16px;">
-                  <span style="font-size:17px; font-weight:800; color:#0f172a;">📌 课程写作任务发布</span>
-                  <button id="btn-v2-open-task-modal" class="teacher-action-btn indigo" style="background:#2563eb; padding:8px 18px; font-size:13px; font-weight:700;">+ 发布全新写作任务</button>
-                </div>
-                <div style="display:flex; flex-direction:column; gap:14px;">
-                  ${currentClassTasks.length === 0 ? `
-                    <div style="text-align:center; padding:32px; background:#f8fafc; border-radius:10px; border:2px dashed #cbd5e1;">
-                      <div style="font-size:32px; margin-bottom:8px;">📌</div>
-                      <div style="font-size:15px; font-weight:800; color:#0f172a;">当前班级暂无发布的写作任务</div>
-                      <div style="font-size:12.5px; color:#64748b; margin-top:4px;">点击右上角【+ 发布全新写作任务】为本班级创建独立任务！</div>
-                    </div>
-                  ` : currentClassTasks.map((t, tIdx) => {
-                    const isLatest = tIdx === 0;
-                    const taskSeqNum = currentClassTasks.length - tIdx;
-                    return `
-                    <div style="background:#ffffff; border:1px solid #e2e8f0; padding:18px; border-radius:12px; box-shadow:0 1px 3px rgba(15,23,42,0.03);">
-                      <div style="display:flex; justify-content:space-between; align-items:center;">
-                        <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
-                          <span style="background:linear-gradient(135deg, #1d4ed8, #2563eb); color:#ffffff; padding:3px 10px; border-radius:8px; font-size:12px; font-weight:800;">任务 ${taskSeqNum}${isLatest ? ' (最新)' : ''}</span>
-                          <span style="font-size:16px; font-weight:800; color:#1e40af;">📌 ${t.title}</span>
-                          <span style="background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe; padding:2px 8px; border-radius:8px; font-size:11.5px; font-weight:700;">受众班级: ${t.className}</span>
-                        </div>
-                        <div style="display:flex; align-items:center; gap:12px;">
-                          <span style="font-size:12px; color:#64748b;">🕒 发布时间: <b>${t.createdAt || t.startTime || '刚刚'}</b></span>
-                          ${t.id !== 'task_default' ? `
-                            <button class="btn-delete-task" data-id="${t.id}" data-title="${t.title}" style="background:#fef2f2; border:1px solid #fecaca; color:#dc2626; padding:4px 10px; border-radius:6px; font-size:12px; font-weight:700; cursor:pointer;" title="删除此写作任务">
-                              🗑️ 删除任务
-                            </button>
-                          ` : ''}
-                        </div>
-                      </div>
-                      <div style="font-size:13px; color:#334155; margin:10px 0; display:flex; gap:20px; background:#f8fafc; padding:10px 16px; border-radius:8px; border-left:4px solid #2563eb;">
-                        <span>📅 <b>开始时间:</b> <span style="color:#2563eb; font-weight:700;">${t.startTime || '即时开启'}</span></span>
-                        <span>⌛ <b>截止时间:</b> <span style="color:#dc2626; font-weight:700;">${t.deadline || '无硬性限制'}</span></span>
-                        <span>⏱️ <b>预估时长:</b> ${t.durationMinutes} 分钟</span>
-                      </div>
-                    </div>
-                    `;
-                  }).join('')}
-                </div>
-              </div>
-
-              <!-- 3. 发布课堂广播通知 -->
+              <!-- 4. 发布课堂广播通知 (第四个) -->
               <div class="card" style="border-top:4px solid #2563eb; width:100%; padding:24px;">
                 <div class="card-title" style="margin-bottom:16px;">
                   <span style="font-size:17px; font-weight:800; color:#0f172a;">📢 课堂即时广播通知发布 (${currentClassAnnouncements.length} 条 · 当前班级: ${activeClass.name})</span>
