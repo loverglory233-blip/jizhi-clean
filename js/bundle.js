@@ -13,7 +13,7 @@
     currentStage: 'stage1',
     currentUser: 'A',
     isFinalSubmitted: false,
-    studentViewMode: 'workspace', // 'task_list' or 'workspace'
+    studentViewMode: 'task_list', // 默认强制进入任务大厅，点击后再进入协作工作台
     activeTaskId: null,
     timer: {
       elapsedSeconds: 0,
@@ -643,8 +643,9 @@
           }).catch(() => {});
         } catch (e) {}
 
-        if (window.app && window.app.cloudSyncEngine) {
-          window.app.cloudSyncEngine.pushSnapshot();
+        if (window.app) {
+          window.app.state.studentViewMode = 'task_list';
+          if (window.app.cloudSyncEngine) window.app.cloudSyncEngine.pushSnapshot();
         }
 
         return { success: true, user };
