@@ -2051,7 +2051,7 @@
     const activeClass = classes.find(c => c.id === activeClassId) || classes[0] || { id: 'class_101', name: '默认班级', groups: [] };
 
     const allUsers = authManager.getUsers();
-    const classStudents = allUsers.filter(u => u.role !== 'teacher' && u.classId === activeClass.id);
+    const classStudents = authManager.getClassStudents(activeClass.id);
 
     const activeMonitorGId = state.activeMonitorGroupId || (activeClass.groups && activeClass.groups[0] ? activeClass.groups[0].id : 'group_1');
     const activeMonitorGroup = (activeClass.groups || []).find(g => g.id === activeMonitorGId) || { id: 'group_1', name: '第1小组' };
@@ -2101,7 +2101,7 @@
                 <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(340px, 1fr)); gap:16px;">
                   ${classes.map(c => {
                     const isSelected = c.id === activeClass.id;
-                    const cStds = allUsers.filter(u => u.role !== 'teacher' && u.classId === c.id);
+                    const cStds = authManager.getClassStudents(c.id);
                     return `
                       <div style="background:${isSelected ? '#eff6ff' : '#ffffff'}; border:1px solid ${isSelected ? '#3b82f6' : '#e2e8f0'}; border-radius:12px; padding:18px; display:flex; justify-content:space-between; align-items:center; box-shadow:0 1px 3px rgba(15,23,42,0.03);">
                         <div>
