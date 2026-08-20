@@ -808,20 +808,7 @@
     }
 
     getAvailableStudentsForGroup(classId, editingGroupId = null) {
-      const classStudents = this.getClassStudents(classId);
-      const classes = this.getClasses();
-      const cls = classes.find(c => c.id === classId) || classes[0];
-      if (!cls) return [];
-
-      const assignedUserIdsInOtherGroups = new Set();
-      if (cls.groups) {
-        cls.groups.forEach(g => {
-          if (g.id !== editingGroupId && g.members) {
-            g.members.forEach(mId => assignedUserIdsInOtherGroups.add(mId));
-          }
-        });
-      }
-      return classStudents.filter(s => !assignedUserIdsInOtherGroups.has(s.id));
+      return this.getClassStudents(classId);
     }
 
     updateGroupMembers(classId, groupId, groupName, selectedUserIds = [], leaderUserId = null) {
@@ -3155,17 +3142,19 @@
             </div>
 
             <div class="teacher-form-group" style="margin-top:10px;">
-              <label><span class="req">*</span> 勾选归属本组的学生成员 (可选候选人: ${availableStudents.length} 人)</label>
-              <div style="background:rgba(15,23,42,0.7); border:1px solid rgba(255,255,255,0.1); border-radius:10px; padding:12px; max-height:220px; overflow-y:auto; display:flex; flex-direction:column; gap:8px;">
-                ${availableStudents.length === 0 ? '<div style="color:#94a3b8; font-size:12px; text-align:center;">暂无未分组的学生。</div>' : ''}
+              <label><span class="req">*</span> 勾选归属本组的学生成员 (本班学生候选人: ${availableStudents.length} 人)</label>
+              <div style="background:rgba(15,23,42,0.7); border:1px solid rgba(255,255,255,0.1); border-radius:10px; padding:12px; max-height:240px; overflow-y:auto; display:flex; flex-direction:column; gap:8px;">
+                ${availableStudents.length === 0 ? '<div style="color:#94a3b8; font-size:12px; text-align:center;">当前班级暂无学生，请先添加学生。</div>' : ''}
                 ${availableStudents.map(s => {
                   const isChecked = currentMembers.includes(s.id);
                   const isLeader = s.studentCode === 'A';
+                  const otherGroup = (cls.groups || []).find(g => g.id !== editingGroupId && g.members && g.members.includes(s.id));
                   return `
                     <div style="display:flex; justify-content:space-between; align-items:center; background:rgba(30,41,59,0.6); padding:8px 12px; border-radius:8px;">
                       <label style="display:flex; align-items:center; gap:10px; cursor:pointer; font-size:13px; color:#f8fafc;">
                         <input type="checkbox" class="chk-grp-member" value="${s.id}" ${isChecked ? 'checked' : ''} style="width:16px; height:16px; cursor:pointer;">
-                        <span>${s.avatar || '👤'} <b>${s.name}</b> (${s.username})</span>
+                        <span>${s.avatar || '👤'} <b>${s.name}</b> <code style="color:#38bdf8; font-family:monospace;">${s.studentCode || s.username}</code></span>
+                        ${otherGroup ? `<span style="background:rgba(234,179,8,0.2); color:#facc15; border:1px solid rgba(234,179,8,0.3); font-size:11px; padding:1px 6px; border-radius:4px;">(现归属: ${otherGroup.name})</span>` : ''}
                       </label>
                       <label style="font-size:11px; color:#fbbf24; cursor:pointer; display:flex; align-items:center; gap:4px;">
                         <input type="radio" name="grp-leader-radio" value="${s.id}" ${isLeader || (isChecked && currentMembers[0] === s.id) ? 'checked' : ''}>
