@@ -2584,14 +2584,14 @@
                 <!-- 📊 当前班级已生效的问卷绑定总览 -->
                 <div style="margin-top:16px;">
                   ${(() => {
-                    const currentClassSurveys = surveysList.filter(s => s.classId === 'all' || s.classId === activeClass.id);
+                    const currentClassSurveys = surveysList.filter(s => s.classId === activeClass.id);
                     return `
                       <div style="font-size:13px; font-weight:800; color:#334155; margin-bottom:10px;">
                         📊 【${activeClass.name}】已绑定问卷清单 (${currentClassSurveys.length} 项已配置):
                       </div>
                       ${currentClassSurveys.length === 0 ? `
                         <div style="background:#ffffff; border:1px dashed #cbd5e1; border-radius:8px; padding:16px; font-size:13px; color:#94a3b8; text-align:center;">
-                          当前班级暂无配置的自定义问卷链接（学生提交终稿时将使用默认问卷）
+                          【${activeClass.name}】暂无配置的自定义问卷链接（学生提交终稿时将使用默认问卷）
                         </div>
                       ` : `
                         <div style="display:flex; flex-direction:column; gap:8px;">
