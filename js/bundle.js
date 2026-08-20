@@ -410,14 +410,19 @@
             });
             localStorage.setItem(STORAGE_KEY_TASKS, JSON.stringify(mergedTasks));
 
-            // 4. 通知列表双向合并
+            // 4. 通知列表双向合并 (深度保留本地已读状态)
             const localAnns = this.getAnnouncements();
             const serverAnns = Array.isArray(data.announcements) ? data.announcements : [];
             const mergedAnns = [...serverAnns];
             localAnns.forEach(la => {
-              if (!mergedAnns.some(sa => sa.id === la.id)) {
+              const match = mergedAnns.find(sa => sa.id === la.id);
+              if (!match) {
                 mergedAnns.push(la);
                 hasNewLocalData = true;
+              } else {
+                if (la.readStatus) {
+                  match.readStatus = Object.assign({}, match.readStatus || {}, la.readStatus);
+                }
               }
             });
             localStorage.setItem(STORAGE_KEY_ANNOUNCEMENTS, JSON.stringify(mergedAnns));
@@ -1136,13 +1141,14 @@
       } catch (e) { return []; }
     }
 
-    getReferencePapers(groupId = null, classId = null) {
+    getReferencePapers(groupId = null, classId = null, taskId = null) {
       const papers = this.getAllReferencePapers();
-      if (!groupId && !classId) return papers;
+      if (!groupId && !classId && !taskId) return papers;
       return papers.filter(p => {
         const matchClass = !classId || classId === 'all' || !p.classId || p.classId === 'all' || p.classId === classId;
         const matchGroup = !groupId || groupId === 'all' || !p.targetGroupId || p.targetGroupId === 'all' || p.targetGroupId === groupId;
-        return matchClass && matchGroup;
+        const matchTask = !taskId || taskId === 'task_all' || !p.taskId || p.taskId === 'task_all' || p.taskId === taskId;
+        return matchClass && matchGroup && matchTask;
       });
     }
 
@@ -6466,14 +6472,16 @@
       const currentUser = this.authManager.getCurrentUser();
       const groupId = currentUser && currentUser.groupId ? currentUser.groupId : 'group_1';
       const myClassIds = new Set([currentUser?.classId, ...(currentUser?.classIds || [])].filter(Boolean));
+      const activeTaskId = (this.state && this.state.activeTaskId) ? this.state.activeTaskId : 'task_default';
       const allAnns = this.authManager.getAnnouncements();
       
-      // 过滤出本班/本组且未读的通知，严格按创建时间从新到旧排序
+      // 过滤出本班/本组/本任务且未读的通知，严格按创建时间从新到旧排序
       const unreadList = allAnns
         .filter(a => {
           const matchClass = !a.classId || a.classId === 'all' || myClassIds.has(a.classId);
           const matchGroup = !a.targetGroupId || a.targetGroupId === 'all' || a.targetGroupId === groupId;
-          return matchClass && matchGroup && (!a.readStatus || !a.readStatus[groupId]);
+          const matchTask = !a.taskId || a.taskId === 'task_all' || a.taskId === activeTaskId;
+          return matchClass && matchGroup && matchTask && (!a.readStatus || !a.readStatus[groupId]);
         })
         .sort((a, b) => (b.id > a.id ? 1 : -1));
 
@@ -6487,14 +6495,16 @@
       const currentUser = this.authManager.getCurrentUser();
       const groupId = currentUser && currentUser.groupId ? currentUser.groupId : 'group_1';
       const myClassIds = new Set([currentUser?.classId, ...(currentUser?.classIds || [])].filter(Boolean));
+      const activeTaskId = (this.state && this.state.activeTaskId) ? this.state.activeTaskId : 'task_default';
       const allAnns = this.authManager.getAnnouncements();
 
-      // 过滤当前班级与小组可见的通知，按最新发布倒序排
+      // 过滤当前班级、小组、当前任务可见的通知，按最新发布倒序排
       const myAnns = allAnns
         .filter(a => {
           const matchClass = !a.classId || a.classId === 'all' || myClassIds.has(a.classId);
           const matchGroup = !a.targetGroupId || a.targetGroupId === 'all' || a.targetGroupId === groupId;
-          return matchClass && matchGroup;
+          const matchTask = !a.taskId || a.taskId === 'task_all' || a.taskId === activeTaskId;
+          return matchClass && matchGroup && matchTask;
         })
         .sort((a, b) => (b.id > a.id ? 1 : -1));
 
@@ -6681,8 +6691,8 @@
       const currentUser = this.authManager.getCurrentUser();
       const currentClassId = currentUser && currentUser.classId ? currentUser.classId : 'class_101';
       const currentTaskId = this.state.activeTaskId || 'task_default';
-      const surveyUrl = this.authManager.getSurveyUrl(currentClassId, currentTaskId) || 'https://www.wjx.cn/vm/jizhi_eval_2026.aspx';
-      const isConfigured = surveyUrl.startsWith('http');
+      const surveyUrl = this.authManager.getSurveyUrl(currentClassId, currentTaskId);
+      const isConfigured = surveyUrl && surveyUrl.startsWith('http');
       
       const modal = document.createElement('div');
       modal.className = 'modal-overlay';
@@ -6764,7 +6774,8 @@
       const user = this.authManager.getCurrentUser();
       const groupId = user && user.groupId ? user.groupId : (this.state.activeMonitorGroupId || 'group_1');
       const classId = user ? user.classId : null;
-      const papers = this.authManager.getReferencePapers(groupId, classId);
+      const activeTaskId = (this.state && this.state.activeTaskId) ? this.state.activeTaskId : 'task_default';
+      const papers = this.authManager.getReferencePapers(groupId, classId, activeTaskId);
 
       const modal = document.createElement('div');
       modal.className = 'modal-overlay';
