@@ -72,22 +72,30 @@ if ($action === 'upload_file' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     exit;
 }
 
-// 1. 全局教务元数据 (用户池/班级/任务/通知/范文库)
 if ($action === 'get_global_meta') {
     if ($pdo) {
         $stmt = $pdo->prepare("SELECT meta_value FROM global_meta WHERE meta_key = 'main_meta'");
         $stmt->execute();
         $row = $stmt->fetch();
         if ($row && !empty($row['meta_value'])) {
-            echo $row['meta_value'];
-            exit;
+            $parsed = json_decode($row['meta_value'], true);
+            // 🛡️ 严格检验：只有当解析出来是包含教务字段（classes/tasks/users）的对象时才返回
+            if (is_array($parsed) && (isset($parsed['classes']) || isset($parsed['tasks']) || isset($parsed['users']))) {
+                echo $row['meta_value'];
+                exit;
+            }
         }
     }
     // 降级兼容本地文件
     $globalDbFile = __DIR__ . '/global_db.json';
     if (file_exists($globalDbFile) && filesize($globalDbFile) > 0) {
-        echo file_get_contents($globalDbFile);
-    } else {
+        $fileContent = file_get_contents($globalDbFile);
+        $parsedFile = json_decode($fileContent, true);
+        if (is_array($parsedFile) && (isset($parsedFile['classes']) || isset($parsedFile['tasks']) || isset($parsedFile['users']))) {
+            echo $fileContent;
+            exit;
+        }
+    }
         $defaultMeta = [
             'users' => [
                 ['id' => 'u_teacher1', 'username' => 'teacher',   'name' => '张教授 (教师)',        'password' => '123', 'role' => 'teacher', 'studentCode' => '1001',   'classIds' => ['class_101'], 'avatar' => '👩‍🏫'],
