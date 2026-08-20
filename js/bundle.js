@@ -2550,15 +2550,16 @@
                       <div style="font-size:15px; font-weight:800; color:#0f172a;">当前班级暂无上传的课程参考范文</div>
                       <div style="font-size:12.5px; color:#64748b; margin-top:4px;">点击右上角【+ 上传学术参考范文】上传论文样本，学生可在阶段二正文上方随时查阅下载！</div>
                     </div>
-                  ` : refPapers.map((p, pIdx) => {
+                  ` : currentClassPapers.map((p, pIdx) => {
                     const linkedTask = tasks.find(t => t.id === p.taskId);
                     const taskLabel = p.taskId === 'task_all' || !p.taskId ? '🌐 通用范文 (全部任务)' : (linkedTask ? `📌 ${linkedTask.title}` : '📌 专属任务范文');
                     const isLatest = pIdx === 0;
+                    const paperSeqNum = currentClassPapers.length - pIdx;
                     return `
                     <div style="background:#ffffff; border:1px solid #e2e8f0; padding:18px; border-radius:12px; box-shadow:0 1px 3px rgba(15,23,42,0.03);">
                       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
                         <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
-                          <span style="background:linear-gradient(135deg, #7c3aed, #4f46e5); color:#ffffff; padding:3px 10px; border-radius:8px; font-size:12px; font-weight:800;">范文 ${pIdx + 1}${isLatest ? ' (最新)' : ''}</span>
+                          <span style="background:linear-gradient(135deg, #7c3aed, #4f46e5); color:#ffffff; padding:3px 10px; border-radius:8px; font-size:12px; font-weight:800;">范文 ${paperSeqNum}${isLatest ? ' (最新)' : ''}</span>
                           <span style="font-weight:800; color:#1e40af; font-size:16px;">📄 ${p.title}</span>
                           <span style="background:#f5f3ff; color:#7c3aed; border:1px solid #ddd6fe; padding:2px 8px; border-radius:8px; font-size:11.5px; font-weight:700;">${taskLabel}</span>
                           <span style="background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe; padding:2px 8px; border-radius:8px; font-size:11.5px; font-weight:700;">定向受众: ${p.targetGroupName || '全班所有小组'}</span>
@@ -2610,11 +2611,12 @@
                     </div>
                   ` : currentClassTasks.map((t, tIdx) => {
                     const isLatest = tIdx === 0;
+                    const taskSeqNum = currentClassTasks.length - tIdx;
                     return `
                     <div style="background:#ffffff; border:1px solid #e2e8f0; padding:18px; border-radius:12px; box-shadow:0 1px 3px rgba(15,23,42,0.03);">
                       <div style="display:flex; justify-content:space-between; align-items:center;">
                         <div style="display:flex; align-items:center; gap:8px;">
-                          <span style="background:linear-gradient(135deg, #1d4ed8, #2563eb); color:#ffffff; padding:3px 10px; border-radius:8px; font-size:12px; font-weight:800;">任务 ${tIdx + 1}${isLatest ? ' (最新)' : ''}</span>
+                          <span style="background:linear-gradient(135deg, #1d4ed8, #2563eb); color:#ffffff; padding:3px 10px; border-radius:8px; font-size:12px; font-weight:800;">任务 ${taskSeqNum}${isLatest ? ' (最新)' : ''}</span>
                           <span style="font-size:16px; font-weight:800; color:#1e40af;">📌 ${t.title}</span>
                         </div>
                         <div style="display:flex; align-items:center; gap:8px;">
@@ -2657,11 +2659,12 @@
                     const targetGName = a.targetGroupName || (a.targetGroupId === 'all' || !a.targetGroupId ? '全班所有小组' : '指定小组');
                     const taskLabel = a.taskId === 'task_all' || !a.taskId ? '🌐 全班通识广播' : `📌 ${a.taskTitle || '专属任务'}`;
                     const isLatest = idx === 0;
+                    const annSeqNum = currentClassAnnouncements.length - idx;
                     return `
                       <div style="background:#ffffff; border:1px solid #e2e8f0; padding:18px; border-radius:12px; box-shadow:0 1px 3px rgba(15,23,42,0.03);">
                         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
                           <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
-                            <span style="background:linear-gradient(135deg, #1d4ed8, #2563eb); color:#ffffff; padding:3px 10px; border-radius:8px; font-size:12px; font-weight:800;">通知 ${idx + 1}${isLatest ? ' (最新)' : ''}</span>
+                            <span style="background:linear-gradient(135deg, #1d4ed8, #2563eb); color:#ffffff; padding:3px 10px; border-radius:8px; font-size:12px; font-weight:800;">通知 ${annSeqNum}${isLatest ? ' (最新)' : ''}</span>
                             <span style="font-weight:800; color:#1e40af; font-size:16px;">📢 ${a.title}</span>
                             <span style="background:#f5f3ff; color:#7c3aed; border:1px solid #ddd6fe; padding:2px 8px; border-radius:8px; font-size:11.5px; font-weight:700;">${taskLabel}</span>
                             <span style="background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe; padding:2px 8px; border-radius:8px; font-size:11.5px; font-weight:700;">定向受众: ${targetGName}</span>
@@ -4348,13 +4351,18 @@
               </div>
             ` : `
               <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(460px, 1fr)); gap:20px;">
-                ${displayTasks.map((t) => {
+                ${displayTasks.map((t, idx) => {
                   const duration = t.durationMinutes || 150;
+                  const taskSeqNum = displayTasks.length - idx;
+                  const isLatest = idx === 0;
                   return `
                     <div class="student-task-card" style="background:#ffffff; border:1px solid #e2e8f0; border-radius:14px; padding:22px; box-shadow:0 2px 8px rgba(15,23,42,0.04); display:flex; flex-direction:column; justify-content:space-between;">
                       <div>
                         <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px; margin-bottom:12px;">
-                          <div style="font-size:17px; font-weight:800; color:#0f172a; line-height:1.4;">📌 ${t.title}</div>
+                          <div style="font-size:17px; font-weight:800; color:#0f172a; line-height:1.4; display:flex; align-items:center; gap:8px;">
+                            <span style="background:linear-gradient(135deg, #1d4ed8, #2563eb); color:#ffffff; padding:2px 8px; border-radius:6px; font-size:12px; font-weight:800; white-space:nowrap;">任务 ${taskSeqNum}${isLatest ? ' (最新)' : ''}</span>
+                            <span>📌 ${t.title}</span>
+                          </div>
                           <span style="background:#eff6ff; color:#2563eb; border:1px solid #bfdbfe; font-size:11px; font-weight:700; padding:3px 9px; border-radius:16px; flex-shrink:0;">
                             ${t.targetGroupName || groupName}
                           </span>
