@@ -3888,10 +3888,13 @@
                   <input type="hidden" id="modal-ann-class" value="${activeClass.id}">
                 </div>
                 <div class="teacher-form-group">
-                  <label><span class="req">*</span> 📌 关联写作任务</label>
+                  <label><span class="req">*</span> 📌 关联写作任务 (必选指定任务)</label>
                   <select id="modal-ann-task" class="teacher-input fancy">
-                    <option value="task_all">🌐 全班通识广播 (全部任务可见)</option>
-                    ${tasks.filter(t => t.classId === 'all' || t.classId === activeClass.id).map(t => `<option value="${t.id}">📌 ${t.title}</option>`).join('')}
+                    ${(() => {
+                      const classTasks = tasks.filter(t => t.classId === 'all' || t.classId === activeClass.id);
+                      if (classTasks.length === 0) return '<option value="task_default">📌 默认写作任务</option>';
+                      return classTasks.map(t => `<option value="${t.id}">📌 ${t.title}</option>`).join('');
+                    })()}
                   </select>
                 </div>
               </div>
@@ -4042,10 +4045,13 @@
                   <input type="hidden" id="modal-paper-class" value="${activeClass.id}">
                 </div>
                 <div class="teacher-form-group">
-                  <label><span class="req">*</span> 📌 关联写作任务</label>
+                  <label><span class="req">*</span> 📌 关联写作任务 (必选指定任务)</label>
                   <select id="modal-paper-task" class="teacher-input fancy">
-                    <option value="task_all">🌐 通用范文 (全班所有写作任务可见)</option>
-                    ${tasks.filter(t => t.classId === 'all' || t.classId === activeClass.id).map(t => `<option value="${t.id}">📌 ${t.title}</option>`).join('')}
+                    ${(() => {
+                      const classTasks = tasks.filter(t => t.classId === 'all' || t.classId === activeClass.id);
+                      if (classTasks.length === 0) return '<option value="task_default">📌 默认写作任务</option>';
+                      return classTasks.map(t => `<option value="${t.id}">📌 ${t.title}</option>`).join('');
+                    })()}
                   </select>
                 </div>
               </div>
