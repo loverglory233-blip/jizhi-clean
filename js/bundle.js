@@ -317,6 +317,7 @@
       resources: []
     }
   ];
+  const DefaultAnnouncements = [];
   const DefaultReferencePapers = [
     {
       id: 'paper_1',
