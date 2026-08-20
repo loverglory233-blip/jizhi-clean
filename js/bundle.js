@@ -3871,19 +3871,33 @@
                 </div>
               </div>
 
-              <!-- ⚡ 快捷延长截止时间工具条 -->
-              <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:10px 14px;">
-                <div style="font-size:12px; font-weight:700; color:#475569; margin-bottom:8px; display:flex; align-items:center; gap:6px;">
+              <!-- ⚡ 快捷延长截止时间工具条（支持自定义数值与单位：分钟/小时/天/周） -->
+              <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:12px 14px;">
+                <div style="font-size:12px; font-weight:700; color:#334155; margin-bottom:8px; display:flex; align-items:center; gap:6px;">
                   <span>⚡ 快捷延长截止时间:</span>
-                  <span style="font-size:11px; color:#94a3b8; font-weight:normal;">(点击按键自动后延截止时间)</span>
+                  <span style="font-size:11px; color:#64748b; font-weight:normal;">(支持自由输入数字，选择单位快速后延)</span>
                 </div>
-                <div style="display:flex; flex-wrap:wrap; gap:6px;">
-                  <button type="button" class="btn-quick-extend" data-hours="0.5" style="background:#ffffff; border:1px solid #cbd5e1; color:#1e293b; padding:4px 10px; border-radius:6px; font-size:11.5px; font-weight:700; cursor:pointer;">+30分钟</button>
-                  <button type="button" class="btn-quick-extend" data-hours="1" style="background:#ffffff; border:1px solid #cbd5e1; color:#1e293b; padding:4px 10px; border-radius:6px; font-size:11.5px; font-weight:700; cursor:pointer;">+1小时</button>
-                  <button type="button" class="btn-quick-extend" data-hours="2" style="background:#ffffff; border:1px solid #cbd5e1; color:#1e293b; padding:4px 10px; border-radius:6px; font-size:11.5px; font-weight:700; cursor:pointer;">+2小时</button>
-                  <button type="button" class="btn-quick-extend" data-hours="24" style="background:#eff6ff; border:1px solid #bfdbfe; color:#2563eb; padding:4px 10px; border-radius:6px; font-size:11.5px; font-weight:700; cursor:pointer;">+1天 (24h)</button>
-                  <button type="button" class="btn-quick-extend" data-hours="72" style="background:#eff6ff; border:1px solid #bfdbfe; color:#2563eb; padding:4px 10px; border-radius:6px; font-size:11.5px; font-weight:700; cursor:pointer;">+3天</button>
-                  <button type="button" class="btn-quick-extend" data-hours="168" style="background:#f0fdf4; border:1px solid #bbf7d0; color:#16a34a; padding:4px 10px; border-radius:6px; font-size:11.5px; font-weight:700; cursor:pointer;">+1周 (7天)</button>
+                <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:10px;">
+                  <span style="font-size:12.5px; color:#475569; font-weight:600;">延长数值:</span>
+                  <input type="number" id="modal-edit-extend-num" value="1" min="0.1" step="any" style="width:75px; padding:6px 10px; border:1.5px solid #cbd5e1; border-radius:6px; font-size:13px; font-weight:700; text-align:center; outline:none;">
+                  <select id="modal-edit-extend-unit" style="padding:6px 10px; border:1.5px solid #cbd5e1; border-radius:6px; font-size:12.5px; font-weight:700; background:#ffffff; cursor:pointer; outline:none;">
+                    <option value="minute">分钟</option>
+                    <option value="hour" selected>小时</option>
+                    <option value="day">天 (24h)</option>
+                    <option value="week">周 (7天)</option>
+                  </select>
+                  <button type="button" id="btn-edit-apply-custom-extend" style="background:linear-gradient(135deg, #1d4ed8, #2563eb); color:white; border:none; padding:6px 14px; border-radius:6px; font-size:12.5px; font-weight:700; cursor:pointer; box-shadow:0 2px 6px rgba(37,99,235,0.2);">
+                    ⚡ 确认延长
+                  </button>
+                </div>
+                <div style="display:flex; flex-wrap:wrap; gap:6px; align-items:center;">
+                  <span style="font-size:11px; color:#64748b;">快速选择:</span>
+                  <button type="button" class="btn-quick-extend" data-num="30" data-unit="minute" style="background:#ffffff; border:1px solid #cbd5e1; color:#1e293b; padding:3px 8px; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer;">+30分钟</button>
+                  <button type="button" class="btn-quick-extend" data-num="1" data-unit="hour" style="background:#ffffff; border:1px solid #cbd5e1; color:#1e293b; padding:3px 8px; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer;">+1小时</button>
+                  <button type="button" class="btn-quick-extend" data-num="2" data-unit="hour" style="background:#ffffff; border:1px solid #cbd5e1; color:#1e293b; padding:3px 8px; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer;">+2小时</button>
+                  <button type="button" class="btn-quick-extend" data-num="1" data-unit="day" style="background:#eff6ff; border:1px solid #bfdbfe; color:#2563eb; padding:3px 8px; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer;">+1天</button>
+                  <button type="button" class="btn-quick-extend" data-num="3" data-unit="day" style="background:#eff6ff; border:1px solid #bfdbfe; color:#2563eb; padding:3px 8px; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer;">+3天</button>
+                  <button type="button" class="btn-quick-extend" data-num="1" data-unit="week" style="background:#f0fdf4; border:1px solid #bbf7d0; color:#16a34a; padding:3px 8px; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer;">+1周</button>
                 </div>
               </div>
 
@@ -3916,26 +3930,50 @@
         const deadlineInput = modal.querySelector('#modal-edit-task-deadline');
         const startInput = modal.querySelector('#modal-edit-task-start');
 
-        // ⚡ 绑定快捷延长按钮事件
+        const doExtend = (numVal, unitVal) => {
+          const num = parseFloat(numVal) || 0;
+          if (num <= 0) return;
+          let msMultiplier = 3600 * 1000;
+          if (unitVal === 'minute') msMultiplier = 60 * 1000;
+          else if (unitVal === 'hour') msMultiplier = 3600 * 1000;
+          else if (unitVal === 'day') msMultiplier = 24 * 3600 * 1000;
+          else if (unitVal === 'week') msMultiplier = 7 * 24 * 3600 * 1000;
+
+          let baseDate = new Date();
+          if (deadlineInput && deadlineInput.value) {
+            const parsed = new Date(deadlineInput.value);
+            if (!isNaN(parsed.getTime())) baseDate = parsed;
+          } else if (startInput && startInput.value) {
+            const parsed = new Date(startInput.value);
+            if (!isNaN(parsed.getTime())) baseDate = parsed;
+          }
+          const newDate = new Date(baseDate.getTime() + num * msMultiplier);
+          const pad = (n) => String(n).padStart(2, '0');
+          const newDateStr = `${newDate.getFullYear()}-${pad(newDate.getMonth() + 1)}-${pad(newDate.getDate())}T${pad(newDate.getHours())}:${pad(newDate.getMinutes())}`;
+          if (deadlineInput) {
+            deadlineInput.value = newDateStr;
+            deadlineInput.style.borderColor = '#2563eb';
+            setTimeout(() => { if (deadlineInput) deadlineInput.style.borderColor = '#cbd5e1'; }, 600);
+          }
+        };
+
+        // ⚡ 确认自定义延长
+        modal.querySelector('#btn-edit-apply-custom-extend')?.addEventListener('click', () => {
+          const n = modal.querySelector('#modal-edit-extend-num')?.value;
+          const u = modal.querySelector('#modal-edit-extend-unit')?.value;
+          doExtend(n, u);
+        });
+
+        // ⚡ 点击快速选择胶囊
         modal.querySelectorAll('.btn-quick-extend').forEach(btn => {
           btn.addEventListener('click', () => {
-            const addHours = parseFloat(btn.dataset.hours) || 1;
-            let baseDate = new Date();
-            if (deadlineInput && deadlineInput.value) {
-              const parsed = new Date(deadlineInput.value);
-              if (!isNaN(parsed.getTime())) baseDate = parsed;
-            } else if (startInput && startInput.value) {
-              const parsed = new Date(startInput.value);
-              if (!isNaN(parsed.getTime())) baseDate = parsed;
-            }
-            const newDate = new Date(baseDate.getTime() + addHours * 3600 * 1000);
-            const pad = (n) => String(n).padStart(2, '0');
-            const newDateStr = `${newDate.getFullYear()}-${pad(newDate.getMonth() + 1)}-${pad(newDate.getDate())}T${pad(newDate.getHours())}:${pad(newDate.getMinutes())}`;
-            if (deadlineInput) {
-              deadlineInput.value = newDateStr;
-              deadlineInput.style.borderColor = '#2563eb';
-              setTimeout(() => { if (deadlineInput) deadlineInput.style.borderColor = '#cbd5e1'; }, 600);
-            }
+            const n = btn.dataset.num;
+            const u = btn.dataset.unit;
+            const inputNum = modal.querySelector('#modal-edit-extend-num');
+            const selectUnit = modal.querySelector('#modal-edit-extend-unit');
+            if (inputNum) inputNum.value = n;
+            if (selectUnit) selectUnit.value = u;
+            doExtend(n, u);
           });
         });
 
@@ -4036,19 +4074,33 @@
                 </div>
               </div>
 
-              <!-- ⚡ 快捷设定截止时间工具条 -->
-              <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:10px 14px; margin-top:8px;">
-                <div style="font-size:12px; font-weight:700; color:#475569; margin-bottom:8px; display:flex; align-items:center; gap:6px;">
+              <!-- ⚡ 快捷设定截止时间工具条（支持自定义数值与单位：分钟/小时/天/周） -->
+              <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:12px 14px; margin-top:8px;">
+                <div style="font-size:12px; font-weight:700; color:#334155; margin-bottom:8px; display:flex; align-items:center; gap:6px;">
                   <span>⚡ 快捷设定截止时间:</span>
-                  <span style="font-size:11px; color:#94a3b8; font-weight:normal;">(点击按键自动后延截止时间)</span>
+                  <span style="font-size:11px; color:#64748b; font-weight:normal;">(支持自由输入数字，选择单位快速后延)</span>
                 </div>
-                <div style="display:flex; flex-wrap:wrap; gap:6px;">
-                  <button type="button" class="btn-create-quick-extend" data-hours="0.5" style="background:#ffffff; border:1px solid #cbd5e1; color:#1e293b; padding:4px 10px; border-radius:6px; font-size:11.5px; font-weight:700; cursor:pointer;">+30分钟</button>
-                  <button type="button" class="btn-create-quick-extend" data-hours="1" style="background:#ffffff; border:1px solid #cbd5e1; color:#1e293b; padding:4px 10px; border-radius:6px; font-size:11.5px; font-weight:700; cursor:pointer;">+1小时</button>
-                  <button type="button" class="btn-create-quick-extend" data-hours="2" style="background:#ffffff; border:1px solid #cbd5e1; color:#1e293b; padding:4px 10px; border-radius:6px; font-size:11.5px; font-weight:700; cursor:pointer;">+2小时</button>
-                  <button type="button" class="btn-create-quick-extend" data-hours="24" style="background:#eff6ff; border:1px solid #bfdbfe; color:#2563eb; padding:4px 10px; border-radius:6px; font-size:11.5px; font-weight:700; cursor:pointer;">+1天 (24h)</button>
-                  <button type="button" class="btn-create-quick-extend" data-hours="72" style="background:#eff6ff; border:1px solid #bfdbfe; color:#2563eb; padding:4px 10px; border-radius:6px; font-size:11.5px; font-weight:700; cursor:pointer;">+3天</button>
-                  <button type="button" class="btn-create-quick-extend" data-hours="168" style="background:#f0fdf4; border:1px solid #bbf7d0; color:#16a34a; padding:4px 10px; border-radius:6px; font-size:11.5px; font-weight:700; cursor:pointer;">+1周 (7天)</button>
+                <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:10px;">
+                  <span style="font-size:12.5px; color:#475569; font-weight:600;">延长数值:</span>
+                  <input type="number" id="modal-create-extend-num" value="1" min="0.1" step="any" style="width:75px; padding:6px 10px; border:1.5px solid #cbd5e1; border-radius:6px; font-size:13px; font-weight:700; text-align:center; outline:none;">
+                  <select id="modal-create-extend-unit" style="padding:6px 10px; border:1.5px solid #cbd5e1; border-radius:6px; font-size:12.5px; font-weight:700; background:#ffffff; cursor:pointer; outline:none;">
+                    <option value="minute">分钟</option>
+                    <option value="hour" selected>小时</option>
+                    <option value="day">天 (24h)</option>
+                    <option value="week">周 (7天)</option>
+                  </select>
+                  <button type="button" id="btn-create-apply-custom-extend" style="background:linear-gradient(135deg, #1d4ed8, #2563eb); color:white; border:none; padding:6px 14px; border-radius:6px; font-size:12.5px; font-weight:700; cursor:pointer; box-shadow:0 2px 6px rgba(37,99,235,0.2);">
+                    ⚡ 确认延长
+                  </button>
+                </div>
+                <div style="display:flex; flex-wrap:wrap; gap:6px; align-items:center;">
+                  <span style="font-size:11px; color:#64748b;">快速选择:</span>
+                  <button type="button" class="btn-create-quick-extend" data-num="30" data-unit="minute" style="background:#ffffff; border:1px solid #cbd5e1; color:#1e293b; padding:3px 8px; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer;">+30分钟</button>
+                  <button type="button" class="btn-create-quick-extend" data-num="1" data-unit="hour" style="background:#ffffff; border:1px solid #cbd5e1; color:#1e293b; padding:3px 8px; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer;">+1小时</button>
+                  <button type="button" class="btn-create-quick-extend" data-num="2" data-unit="hour" style="background:#ffffff; border:1px solid #cbd5e1; color:#1e293b; padding:3px 8px; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer;">+2小时</button>
+                  <button type="button" class="btn-create-quick-extend" data-num="1" data-unit="day" style="background:#eff6ff; border:1px solid #bfdbfe; color:#2563eb; padding:3px 8px; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer;">+1天</button>
+                  <button type="button" class="btn-create-quick-extend" data-num="3" data-unit="day" style="background:#eff6ff; border:1px solid #bfdbfe; color:#2563eb; padding:3px 8px; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer;">+3天</button>
+                  <button type="button" class="btn-create-quick-extend" data-num="1" data-unit="week" style="background:#f0fdf4; border:1px solid #bbf7d0; color:#16a34a; padding:3px 8px; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer;">+1周</button>
                 </div>
               </div>
 
@@ -4087,26 +4139,50 @@
         const deadlineInput = modal.querySelector('#modal-task-deadline');
         const startInput = modal.querySelector('#modal-task-start');
 
-        // ⚡ 绑定新建弹窗快捷延长按钮
+        const doCreateExtend = (numVal, unitVal) => {
+          const num = parseFloat(numVal) || 0;
+          if (num <= 0) return;
+          let msMultiplier = 3600 * 1000;
+          if (unitVal === 'minute') msMultiplier = 60 * 1000;
+          else if (unitVal === 'hour') msMultiplier = 3600 * 1000;
+          else if (unitVal === 'day') msMultiplier = 24 * 3600 * 1000;
+          else if (unitVal === 'week') msMultiplier = 7 * 24 * 3600 * 1000;
+
+          let baseDate = new Date();
+          if (deadlineInput && deadlineInput.value) {
+            const parsed = new Date(deadlineInput.value);
+            if (!isNaN(parsed.getTime())) baseDate = parsed;
+          } else if (startInput && startInput.value) {
+            const parsed = new Date(startInput.value);
+            if (!isNaN(parsed.getTime())) baseDate = parsed;
+          }
+          const newDate = new Date(baseDate.getTime() + num * msMultiplier);
+          const pad = (n) => String(n).padStart(2, '0');
+          const newDateStr = `${newDate.getFullYear()}-${pad(newDate.getMonth() + 1)}-${pad(newDate.getDate())}T${pad(newDate.getHours())}:${pad(newDate.getMinutes())}`;
+          if (deadlineInput) {
+            deadlineInput.value = newDateStr;
+            deadlineInput.style.borderColor = '#2563eb';
+            setTimeout(() => { if (deadlineInput) deadlineInput.style.borderColor = '#cbd5e1'; }, 600);
+          }
+        };
+
+        // ⚡ 确认自定义延长
+        modal.querySelector('#btn-create-apply-custom-extend')?.addEventListener('click', () => {
+          const n = modal.querySelector('#modal-create-extend-num')?.value;
+          const u = modal.querySelector('#modal-create-extend-unit')?.value;
+          doCreateExtend(n, u);
+        });
+
+        // ⚡ 点击快速选择胶囊
         modal.querySelectorAll('.btn-create-quick-extend').forEach(btn => {
           btn.addEventListener('click', () => {
-            const addHours = parseFloat(btn.dataset.hours) || 1;
-            let baseDate = new Date();
-            if (deadlineInput && deadlineInput.value) {
-              const parsed = new Date(deadlineInput.value);
-              if (!isNaN(parsed.getTime())) baseDate = parsed;
-            } else if (startInput && startInput.value) {
-              const parsed = new Date(startInput.value);
-              if (!isNaN(parsed.getTime())) baseDate = parsed;
-            }
-            const newDate = new Date(baseDate.getTime() + addHours * 3600 * 1000);
-            const pad = (n) => String(n).padStart(2, '0');
-            const newDateStr = `${newDate.getFullYear()}-${pad(newDate.getMonth() + 1)}-${pad(newDate.getDate())}T${pad(newDate.getHours())}:${pad(newDate.getMinutes())}`;
-            if (deadlineInput) {
-              deadlineInput.value = newDateStr;
-              deadlineInput.style.borderColor = '#2563eb';
-              setTimeout(() => { if (deadlineInput) deadlineInput.style.borderColor = '#cbd5e1'; }, 600);
-            }
+            const n = btn.dataset.num;
+            const u = btn.dataset.unit;
+            const inputNum = modal.querySelector('#modal-create-extend-num');
+            const selectUnit = modal.querySelector('#modal-create-extend-unit');
+            if (inputNum) inputNum.value = n;
+            if (selectUnit) selectUnit.value = u;
+            doCreateExtend(n, u);
           });
         });
 
