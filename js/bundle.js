@@ -817,9 +817,18 @@
       const avatar = avatars[users.length % avatars.length];
 
       if (existingUser) {
-        if (isStrictUnique) {
-          throw new Error(`学号【${cleanCode}】已被学生【${existingUser.name}】占用！学号必须唯一，请更换学号或前往【加入已有学生】选项卡中关联！`);
+        // 若学号已存在，安全跳过重复创建，自动关联进当前班级
+        if (!existingUser.classIds) existingUser.classIds = [existingUser.classId || 'class_101'];
+        if (classId && !existingUser.classIds.includes(classId)) existingUser.classIds.push(classId);
+        if (classId) existingUser.classId = classId;
+        
+        const targetClass = classes.find(c => c.id === (classId || 'class_101')) || classes[0];
+        if (targetClass && targetClass.studentIds && !targetClass.studentIds.includes(existingUser.id)) {
+          targetClass.studentIds.push(existingUser.id);
+          localStorage.setItem(STORAGE_KEY_CLASSES, JSON.stringify(classes));
         }
+        localStorage.setItem(STORAGE_KEY_USERS_DB, JSON.stringify(users));
+        this.pushGlobalMeta();
         return existingUser;
       }
 
@@ -869,12 +878,12 @@
         // 查重：检查是否已有该学号
         const existing = users.find(u => (u.studentCode && u.studentCode.trim().toLowerCase() === code.toLowerCase()) || (u.username && u.username.trim().toLowerCase() === code.toLowerCase()));
         if (existing) {
-          existing.name = name; // 同步更新真实姓名
+          // 学号已存在，记录跳过并继续处理下一个学生
+          skippedList.push({ name: existing.name || name, code });
           if (!existing.classIds) existing.classIds = [existing.classId || 'class_101'];
           if (!existing.classIds.includes(targetClass.id)) existing.classIds.push(targetClass.id);
           existing.classId = targetClass.id;
           if (!targetClass.studentIds.includes(existing.id)) targetClass.studentIds.push(existing.id);
-          addedCount++;
         } else {
           const newUid = 'u_student_' + Date.now() + '_' + Math.floor(Math.random() * 100000);
           const newUser = {
@@ -1126,16 +1135,42 @@
           return;
         }
 
+        // 智能分组分块：确保每组至少 2 人，绝不允许出现 1 人组！
+        const createSafeGroupChunks = (studentList, groupSize) => {
+          const n = studentList.length;
+          if (n === 0) return [];
+          if (n === 1) return [studentList];
+          
+          const chunks = [];
+          let cur = 0;
+          while (cur < n) {
+            const rem = n - cur;
+            if (groupSize >= 3 && rem === groupSize + 1) {
+              chunks.push(studentList.slice(cur, cur + 2));
+              chunks.push(studentList.slice(cur + 2, n));
+              break;
+            }
+            if (rem === 1 && chunks.length > 0) {
+              chunks[chunks.length - 1].push(studentList[cur]);
+              break;
+            }
+            const sz = Math.min(rem, groupSize);
+            chunks.push(studentList.slice(cur, cur + sz));
+            cur += sz;
+          }
+          if (chunks.length > 1 && chunks[chunks.length - 1].length === 1) {
+            const last = chunks.pop();
+            chunks[chunks.length - 1].push(last[0]);
+          }
+          return chunks;
+        };
+
         const shuffled = [...unassignedStudents].sort(() => Math.random() - 0.5);
-        const appendGroupCount = Math.max(1, Math.ceil(shuffled.length / parsedGroupSize));
+        const groupChunks = createSafeGroupChunks(shuffled, parsedGroupSize);
         const startIndex = cls.groups.length + 1;
 
-        for (let i = 0; i < appendGroupCount; i++) {
+        groupChunks.forEach((groupChunk, i) => {
           const groupIndex = startIndex + i;
-          const startIdx = i * parsedGroupSize;
-          const endIdx = Math.min(shuffled.length, startIdx + parsedGroupSize);
-          const groupChunk = shuffled.slice(startIdx, endIdx);
-
           const groupId = `group_${Date.now()}_${groupIndex}`;
           const memberIds = groupChunk.map(s => s.id);
 
@@ -1146,10 +1181,10 @@
 
           cls.groups.push({
             id: groupId,
-            name: `第 ${groupIndex} 协作小组`,
+            name: `第 ${groupIndex} 协作小组 (${groupChunk.length}人)`,
             members: memberIds
           });
-        }
+        });
       } else {
         // 💥 模式一：全员打散重组
         allUsers.forEach(u => {
@@ -1182,16 +1217,41 @@
 
         // 2. 真实学生从后续组号开始随机洗牌分配
         if (regularStudents.length > 0) {
+          const createSafeGroupChunks = (studentList, groupSize) => {
+            const n = studentList.length;
+            if (n === 0) return [];
+            if (n === 1) return [studentList];
+            
+            const chunks = [];
+            let cur = 0;
+            while (cur < n) {
+              const rem = n - cur;
+              if (groupSize >= 3 && rem === groupSize + 1) {
+                chunks.push(studentList.slice(cur, cur + 2));
+                chunks.push(studentList.slice(cur + 2, n));
+                break;
+              }
+              if (rem === 1 && chunks.length > 0) {
+                chunks[chunks.length - 1].push(studentList[cur]);
+                break;
+              }
+              const sz = Math.min(rem, groupSize);
+              chunks.push(studentList.slice(cur, cur + sz));
+              cur += sz;
+            }
+            if (chunks.length > 1 && chunks[chunks.length - 1].length === 1) {
+              const last = chunks.pop();
+              chunks[chunks.length - 1].push(last[0]);
+            }
+            return chunks;
+          };
+
           const shuffled = [...regularStudents].sort(() => Math.random() - 0.5);
-          const totalGroupCount = Math.max(1, Math.ceil(shuffled.length / parsedGroupSize));
+          const groupChunks = createSafeGroupChunks(shuffled, parsedGroupSize);
           const startIndex = newGroups.length + 1;
 
-          for (let i = 0; i < totalGroupCount; i++) {
+          groupChunks.forEach((groupChunk, i) => {
             const groupIndex = startIndex + i;
-            const startIdx = i * parsedGroupSize;
-            const endIdx = Math.min(shuffled.length, startIdx + parsedGroupSize);
-            const groupChunk = shuffled.slice(startIdx, endIdx);
-
             const groupId = `group_${Date.now()}_${groupIndex}`;
             const memberIds = groupChunk.map(s => s.id);
 
@@ -1205,7 +1265,7 @@
               name: `第 ${groupIndex} 协作小组`,
               members: memberIds
             });
-          }
+          });
         }
 
         cls.groups = newGroups;
