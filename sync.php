@@ -49,7 +49,52 @@ if ($action === 'get_global_meta') {
     if (file_exists($globalDbFile) && filesize($globalDbFile) > 0) {
         echo file_get_contents($globalDbFile);
     } else {
-        echo json_encode(['users' => [], 'classes' => [], 'tasks' => [], 'announcements' => [], 'referencePapers' => []]);
+        $defaultMeta = [
+            'users' => [
+                ['id' => 'u_teacher1', 'username' => 'teacher',   'name' => '张教授 (教师)',        'password' => '123', 'role' => 'teacher', 'studentCode' => '1001',   'classIds' => ['class_101'], 'avatar' => '👩‍🏫'],
+                ['id' => 'u_studentA', 'username' => 'liming',    'name' => '李明 (学生A/组长)',    'password' => '123', 'role' => 'student', 'studentCode' => '202601', 'classId' => 'class_101', 'classIds' => ['class_101'], 'groupId' => 'group_1', 'avatar' => '👨‍🎓'],
+                ['id' => 'u_studentB', 'username' => 'wangfang',  'name' => '王芳 (学生B/组员)',    'password' => '123', 'role' => 'student', 'studentCode' => '202602', 'classId' => 'class_101', 'classIds' => ['class_101'], 'groupId' => 'group_1', 'avatar' => '👩‍🎓'],
+                ['id' => 'u_studentC', 'username' => 'chenqiang', 'name' => '陈强 (学生C/组员)',    'password' => '123', 'role' => 'student', 'studentCode' => '202603', 'classId' => 'class_101', 'classIds' => ['class_101'], 'groupId' => 'group_1', 'avatar' => '🧑‍🎓']
+            ],
+            'classes' => [
+                [
+                    'id' => 'class_101',
+                    'name' => '《现代教育技术》2026春01班',
+                    'code' => 'ET2026-01',
+                    'studentIds' => ['u_studentA', 'u_studentB', 'u_studentC'],
+                    'groups' => [
+                        [
+                            'id' => 'group_1',
+                            'name' => '第 1 协作小组',
+                            'members' => [
+                                ['id' => 'u_studentA', 'name' => '李明', 'studentCode' => '202601', 'role' => '组长', 'roleTitle' => '组长', 'avatar' => '👨‍🎓', 'color' => '#2563eb'],
+                                ['id' => 'u_studentB', 'name' => '王芳', 'studentCode' => '202602', 'role' => '组员', 'roleTitle' => '组员', 'avatar' => '👩‍🎓', 'color' => '#10b981'],
+                                ['id' => 'u_studentC', 'name' => '陈强', 'studentCode' => '202603', 'role' => '组员', 'roleTitle' => '组员', 'avatar' => '🧑‍🎓', 'color' => '#f59e0b']
+                            ]
+                        ]
+                    ]
+                ]
+            ],
+            'tasks' => [
+                [
+                    'id' => 'task_default',
+                    'title' => '期末协作写作 (默认测试任务)',
+                    'classId' => 'all',
+                    'className' => '全校班级',
+                    'durationMinutes' => 150,
+                    'startTime' => '随时',
+                    'deadline' => '结课前',
+                    'status' => 'in_progress',
+                    'createdAt' => date('Y-m-d'),
+                    'instructions' => '请全组成员围绕选定的人工智能与教育技术命题开展三阶段人机协同研讨与终稿撰写。',
+                    'resources' => []
+                ]
+            ],
+            'announcements' => [],
+            'referencePapers' => [],
+            'surveys' => []
+        ];
+        echo json_encode($defaultMeta, JSON_UNESCAPED_UNICODE);
     }
     exit;
 }

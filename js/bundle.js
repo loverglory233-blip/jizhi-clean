@@ -412,7 +412,7 @@
         classes: this.getClasses(),
         tasks: this.getTasks(),
         announcements: this.getAnnouncements(),
-        referencePapers: this.getReferencePapers(),
+        referencePapers: this.getAllReferencePapers(),
         surveys: this.getSurveysMap()
       };
       try {
@@ -1058,9 +1058,15 @@
       }
     }
 
+    getAllReferencePapers() {
+      try {
+        const data = localStorage.getItem('jizhi_reference_papers_db');
+        return data ? JSON.parse(data) : [];
+      } catch (e) { return []; }
+    }
+
     getReferencePapers(groupId = null, classId = null) {
-      const data = localStorage.getItem('jizhi_reference_papers_db');
-      const papers = data ? JSON.parse(data) : [];
+      const papers = this.getAllReferencePapers();
       return papers.filter(p => {
         // 班级匹配：无指定班级 或 属于当前班级 或 通用全校
         const matchClass = !classId || classId === 'all' || !p.classId || p.classId === 'all' || p.classId === classId;
@@ -1071,7 +1077,7 @@
     }
 
     uploadReferencePaper(paper) {
-      const papers = this.getReferencePapers();
+      const papers = this.getAllReferencePapers();
       const paperId = 'ref_' + Date.now();
       
       // 单独持久化大附件数据，保持 global_meta 轻量秒级存入 MySQL
@@ -1101,10 +1107,10 @@
     }
 
     deleteReferencePaper(paperId) {
-      let papers = this.getReferencePapers();
+      let papers = this.getAllReferencePapers();
       papers = papers.filter(p => p.id !== paperId);
       localStorage.setItem('jizhi_reference_papers_db', JSON.stringify(papers));
-      if (window.app && window.app.cloudSyncEngine) window.app.cloudSyncEngine.pushSnapshot();
+      this.pushGlobalMeta();
     }
 
     pushReferencePaperToGroupChat(paperId, targetGroupId = 'all') {
