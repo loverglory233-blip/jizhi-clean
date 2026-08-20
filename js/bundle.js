@@ -2308,7 +2308,7 @@
     const allUsers = authManager.getUsers();
     const classStudents = authManager.getClassStudents(activeClass.id);
 
-    const currentClassTasks = tasks.filter(t => t.classId === 'all' || t.classId === activeClass.id);
+    const currentClassTasks = tasks.filter(t => t.classId === 'all' || t.classId === activeClass.id || (t.className && t.className === activeClass.name));
     const currentClassAnnouncements = announcements.filter(a => a.classId === 'all' || !a.classId || a.classId === activeClass.id);
     const currentClassPapers = refPapers.filter(p => p.classId === 'all' || !p.classId || p.classId === activeClass.id);
 
