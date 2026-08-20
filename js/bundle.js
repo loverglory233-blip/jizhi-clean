@@ -2509,10 +2509,12 @@
                         const cName = cObj ? cObj.name : '指定班级';
                         const tName = tObj ? tObj.title : (tId === 'task_default' ? '期末协作写作 (默认测试任务)' : tId);
                         
+                        const surveySeqNum = configuredEntries.length - sIdx;
+                        const isLatestSurvey = sIdx === 0;
                         return `
                           <div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:8px; padding:10px 14px; display:flex; justify-content:space-between; align-items:center; gap:12px; box-shadow:0 1px 3px rgba(15,23,42,0.02);">
                             <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
-                              <span style="background:linear-gradient(135deg, #1d4ed8, #2563eb); color:#ffffff; padding:2px 8px; border-radius:6px; font-size:11.5px; font-weight:800;">问卷 ${sIdx + 1}</span>
+                              <span style="background:linear-gradient(135deg, #1d4ed8, #2563eb); color:#ffffff; padding:2px 8px; border-radius:6px; font-size:11.5px; font-weight:800;">问卷 ${surveySeqNum}${isLatestSurvey ? ' (最新)' : ''}</span>
                               <span style="background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe; padding:2px 8px; border-radius:6px; font-size:12px; font-weight:700;">🏫 ${cName}</span>
                               <span style="background:#f5f3ff; color:#7c3aed; border:1px solid #ddd6fe; padding:2px 8px; border-radius:6px; font-size:12px; font-weight:700;">📌 ${tName}</span>
                               <a href="${url}" target="_blank" style="font-size:12px; color:#2563eb; text-decoration:none; font-family:monospace; max-width:320px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">🔗 ${url}</a>
