@@ -3404,7 +3404,14 @@
           const pwd = modal.querySelector('#modal-std-password').value.trim();
           if (!name || !code) { alert('⚠️ 请填齐学生姓名和学号！'); return; }
           try {
-            authManager.addStudentToClass(name, code, activeClass.id, pwd || '123');
+            const users = authManager.getUsers();
+            const isAlreadyExist = users.some(u => (u.studentCode && u.studentCode.trim().toLowerCase() === code.toLowerCase()) || (u.username && u.username.trim().toLowerCase() === code.toLowerCase()));
+            const targetUser = authManager.addStudentToClass(name, code, activeClass.id, pwd || '123');
+            if (isAlreadyExist) {
+              alert(`💡 学号【${code}】对应的学生【${targetUser.name}】已存在于系统中，已跳过重复创建并自动关联至本班级【${activeClass.name}】！`);
+            } else {
+              alert(`🎉 成功创建并添加新学生【${targetUser.name} (学号: ${code})】至当前班级！`);
+            }
             closeModal();
             renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
           } catch (err) {
@@ -3534,9 +3541,10 @@
             return;
           }
           const { addedCount, skippedList } = authManager.batchAddStudentsToClass(listToImport, activeClass.id);
-          let tipMsg = `🎉 成功导入 ${addedCount} 名新学生账号入库【${activeClass.name}】！`;
+          let tipMsg = `🎉 批量导入完成！\n\n✅ 成功新增导入入库: ${addedCount} 人`;
           if (skippedList && skippedList.length > 0) {
-            tipMsg += `\n\n💡 以下 ${skippedList.length} 位学生因学号已存在于学生池中，已自动为您跳过（无需重复创建）：\n` + skippedList.slice(0, 8).map(s => `• ${s.name} (学号: ${s.code})`).join('\n') + (skippedList.length > 8 ? `\n... 等共 ${skippedList.length} 人` : '');
+            tipMsg += `\n\n💡 以下 ${skippedList.length} 位学生因学号已存在已为您跳过（无需重复创建）：\n` + 
+              skippedList.map((s, idx) => `${idx + 1}. ${s.name} (学号: ${s.code})`).join('\n');
           }
           alert(tipMsg);
           closeModal();
