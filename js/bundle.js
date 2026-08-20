@@ -1147,7 +1147,7 @@
       return papers.filter(p => {
         const matchClass = !classId || classId === 'all' || !p.classId || p.classId === 'all' || p.classId === classId;
         const matchGroup = !groupId || groupId === 'all' || !p.targetGroupId || p.targetGroupId === 'all' || p.targetGroupId === groupId;
-        const matchTask = !taskId || taskId === 'task_all' || !p.taskId || p.taskId === 'task_all' || p.taskId === taskId;
+        const matchTask = !taskId ? true : (p.taskId === taskId || (!p.taskId && taskId === 'task_default'));
         return matchClass && matchGroup && matchTask;
       });
     }
@@ -3367,7 +3367,6 @@
                 <div class="teacher-form-group">
                   <label><span class="req">*</span> 📌 关联写作任务</label>
                   <select id="modal-ann-task" class="teacher-input fancy">
-                    <option value="task_all">🌐 全流程通识广播 (全部任务可见)</option>
                     ${tasks.map(t => `<option value="${t.id}">📌 ${t.title}</option>`).join('')}
                   </select>
                 </div>
@@ -3521,7 +3520,6 @@
                 <div class="teacher-form-group">
                   <label><span class="req">*</span> 📌 关联写作任务</label>
                   <select id="modal-paper-task" class="teacher-input fancy">
-                    <option value="task_all">🌐 通用参考范文 (全部任务)</option>
                     ${tasks.map(t => `<option value="${t.id}">📌 ${t.title}</option>`).join('')}
                   </select>
                 </div>
@@ -6480,7 +6478,7 @@
         .filter(a => {
           const matchClass = !a.classId || a.classId === 'all' || myClassIds.has(a.classId);
           const matchGroup = !a.targetGroupId || a.targetGroupId === 'all' || a.targetGroupId === groupId;
-          const matchTask = !a.taskId || a.taskId === 'task_all' || a.taskId === activeTaskId;
+          const matchTask = (a.taskId === activeTaskId) || (!a.taskId && activeTaskId === 'task_default');
           return matchClass && matchGroup && matchTask && (!a.readStatus || !a.readStatus[groupId]);
         })
         .sort((a, b) => (b.id > a.id ? 1 : -1));
@@ -6503,7 +6501,7 @@
         .filter(a => {
           const matchClass = !a.classId || a.classId === 'all' || myClassIds.has(a.classId);
           const matchGroup = !a.targetGroupId || a.targetGroupId === 'all' || a.targetGroupId === groupId;
-          const matchTask = !a.taskId || a.taskId === 'task_all' || a.taskId === activeTaskId;
+          const matchTask = (a.taskId === activeTaskId) || (!a.taskId && activeTaskId === 'task_default');
           return matchClass && matchGroup && matchTask;
         })
         .sort((a, b) => (b.id > a.id ? 1 : -1));
