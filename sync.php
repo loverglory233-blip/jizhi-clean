@@ -141,15 +141,19 @@ if ($action === 'get_global_meta') {
 if ($action === 'save_global_meta' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $rawInput = file_get_contents('php://input');
     if (!empty($rawInput)) {
-        if ($pdo) {
-            $stmt = $pdo->prepare("INSERT INTO global_meta (meta_key, meta_value) VALUES ('main_meta', :val) ON DUPLICATE KEY UPDATE meta_value = :val2");
-            $stmt->execute([':val' => $rawInput, ':val2' => $rawInput]);
-            // 写入变更信号时间戳，让所有轮询设备的 pullFromServer 在下次 400ms 时立刻感知到全局数据已变
-            $nowMs = round(microtime(true) * 1000);
-            $stmt2 = $pdo->prepare("INSERT INTO global_meta (meta_key, meta_value) VALUES ('meta_updated_at', :v) ON DUPLICATE KEY UPDATE meta_value = :v2");
-            $stmt2->execute([':v' => $nowMs, ':v2' => $nowMs]);
+        $decoded = json_decode($rawInput, true);
+        // 🛡️ 严格校验：必须是包含有效教务字段的 JSON 结构，防止空数据或脏请求冲刷
+        if (is_array($decoded) && (isset($decoded['classes']) || isset($decoded['tasks']) || isset($decoded['users']))) {
+            if ($pdo) {
+                $stmt = $pdo->prepare("INSERT INTO global_meta (meta_key, meta_value) VALUES ('main_meta', :val) ON DUPLICATE KEY UPDATE meta_value = :val2");
+                $stmt->execute([':val' => $rawInput, ':val2' => $rawInput]);
+                // 写入变更信号时间戳，让所有轮询设备的 pullFromServer 在下次 400ms 时立刻感知到全局数据已变
+                $nowMs = round(microtime(true) * 1000);
+                $stmt2 = $pdo->prepare("INSERT INTO global_meta (meta_key, meta_value) VALUES ('meta_updated_at', :v) ON DUPLICATE KEY UPDATE meta_value = :v2");
+                $stmt2->execute([':v' => $nowMs, ':v2' => $nowMs]);
+            }
+            @file_put_contents(__DIR__ . '/global_db.json', $rawInput);
         }
-        @file_put_contents(__DIR__ . '/global_db.json', $rawInput);
     }
     echo json_encode(['success' => true]);
     exit;

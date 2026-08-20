@@ -544,6 +544,15 @@
       return classDefaultMatch ? classDefaultMatch.url : '';
     }
     pushGlobalMeta() {
+      const currUser = this.getCurrentUser();
+      const isTeacher = currUser && (currUser.role === 'teacher' || currUser.isTeacher || currUser.username === '1001' || currUser.id === 'u_teacher');
+      
+      // 🛡️ 铁律：只有已登录的教师才拥有向服务器覆写教务元数据的权限！
+      // 学生端、访客端、未登录端调用时直接拦截，绝不发送网络请求，绝不污染服务器！
+      if (!isTeacher) {
+        return;
+      }
+
       const payload = {
         users: this.getUsers(),
         classes: this.getClasses(),
