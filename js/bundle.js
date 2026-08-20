@@ -561,8 +561,10 @@
     }
     getSurveyUrl(classId, taskId) {
       const list = this.getSurveysList();
-      const matched = list.find(s => (s.classId === classId || s.classId === 'all') && (s.taskId === taskId || s.taskId === 'task_default' || s.taskId === 'task_all'));
-      return matched ? matched.url : '';
+      const exactMatch = list.find(s => (s.classId === classId || s.classId === 'all') && s.taskId === taskId);
+      if (exactMatch) return exactMatch.url;
+      const fallbackMatch = list.find(s => (s.classId === classId || s.classId === 'all') && (s.taskId === 'task_default' || s.taskId === 'task_all'));
+      return fallbackMatch ? fallbackMatch.url : '';
     }
     pushGlobalMeta() {
       const payload = {
@@ -5817,7 +5819,10 @@
     const plainTextLen = (s2.unifiedContent || '').replace(/<[^>]*>/g, '').trim().length;
 
     const userGroupId = state.currentUser && state.members[state.currentUser] ? state.members[state.currentUser].groupId : 'group_1';
-    const availablePapers = (window.app && window.app.authManager) ? window.app.authManager.getReferencePapers(userGroupId) : [];
+    const currUser = (window.app && window.app.authManager) ? window.app.authManager.getCurrentUser() : null;
+    const userClassId = currUser ? currUser.classId : null;
+    const activeTaskId = state.activeTaskId || 'task_default';
+    const availablePapers = (window.app && window.app.authManager) ? window.app.authManager.getReferencePapers(userGroupId, userClassId, activeTaskId) : [];
     const paperBtnLabel = availablePapers.length > 0 ? `📚 查阅参考范文 (${availablePapers.length}篇)` : '📚 查阅参考范文库';
 
     canvas.innerHTML = `
@@ -7039,7 +7044,7 @@
         .filter(a => {
           const matchClass = !a.classId || a.classId === 'all' || myClassIds.has(a.classId);
           const matchGroup = !a.targetGroupId || a.targetGroupId === 'all' || a.targetGroupId === groupId;
-          const matchTask = (a.taskId === activeTaskId) || (!a.taskId && activeTaskId === 'task_default');
+          const matchTask = !a.taskId || a.taskId === 'task_all' || a.taskId === activeTaskId || (!a.taskId && activeTaskId === 'task_default');
           return matchClass && matchGroup && matchTask && (!a.readStatus || !a.readStatus[groupId]);
         })
         .sort((a, b) => (b.id > a.id ? 1 : -1));
@@ -7062,7 +7067,7 @@
         .filter(a => {
           const matchClass = !a.classId || a.classId === 'all' || myClassIds.has(a.classId);
           const matchGroup = !a.targetGroupId || a.targetGroupId === 'all' || a.targetGroupId === groupId;
-          const matchTask = (a.taskId === activeTaskId) || (!a.taskId && activeTaskId === 'task_default');
+          const matchTask = !a.taskId || a.taskId === 'task_all' || a.taskId === activeTaskId || (!a.taskId && activeTaskId === 'task_default');
           return matchClass && matchGroup && matchTask;
         })
         .sort((a, b) => (b.id > a.id ? 1 : -1));
