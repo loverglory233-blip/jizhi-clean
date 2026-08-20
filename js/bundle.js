@@ -2761,7 +2761,7 @@
                     <div style="display:flex; align-items:center; gap:8px;">
                       <span style="font-size:13px; font-weight:700; color:#475569;">监控任务:</span>
                       <select id="sel-switch-monitor-task" class="teacher-input fancy" style="font-size:13px; font-weight:700; color:#1e40af; background:#eff6ff; border:1.5px solid #3b82f6; padding:7px 14px; border-radius:8px; cursor:pointer; min-width:180px;">
-                        ${tasks.length === 0 ? '<option value="task_default">📌 默认测试写作任务</option>' : tasks.map(t => {
+                        ${currentClassTasks.length === 0 ? '<option value="task_default">📌 默认测试写作任务</option>' : currentClassTasks.map(t => {
                           const isSel = (state.activeTaskId || 'task_default') === t.id;
                           return `<option value="${t.id}" ${isSel ? 'selected' : ''}>📌 ${t.title}</option>`;
                         }).join('')}
@@ -3653,7 +3653,18 @@
       inputEl.value = authManager.getSurveyUrl(cId, tId);
     };
 
-    if (selSurveyClass) selSurveyClass.addEventListener('change', updateSurveyUrlInputVal);
+    if (selSurveyClass) {
+      selSurveyClass.addEventListener('change', () => {
+        const cId = selSurveyClass.value;
+        const classSpecificTasks = tasks.filter(t => t.classId === 'all' || t.classId === cId);
+        if (selSurveyTask) {
+          selSurveyTask.innerHTML = classSpecificTasks.length === 0
+            ? '<option value="task_default">📌 默认写作任务</option>'
+            : classSpecificTasks.map((t, idx) => `<option value="${t.id}" ${idx === 0 ? 'selected' : ''}>📌 ${t.title}</option>`).join('');
+        }
+        updateSurveyUrlInputVal();
+      });
+    }
     if (selSurveyTask) selSurveyTask.addEventListener('change', updateSurveyUrlInputVal);
 
     const btnSaveSurveyUrl = container.querySelector('#btn-save-survey-url');
