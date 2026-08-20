@@ -338,41 +338,112 @@
         if (res.ok) {
           const data = await res.json();
           if (data) {
-            // 1. 用户列表：优先使用服务端的完整真实用户，同时保留当前登录用户的 activeSessionId
-            if (Array.isArray(data.users) && data.users.length > 0) {
-              const currUser = this.getCurrentUser();
-              const serverUsers = data.users.map(u => {
-                if (currUser && (currUser.id === u.id || currUser.username === u.username)) {
-                  return { ...u, activeSessionId: currUser.activeSessionId };
+            let hasNewLocalData = false;
+
+            // 1. 用户列表安全双向合并：绝不抹杀本地已导入的学生
+            const localUsers = this.getUsers();
+            const serverUsers = Array.isArray(data.users) ? data.users : [];
+            const mergedUsers = [...serverUsers];
+            const currUser = this.getCurrentUser();
+
+            localUsers.forEach(lu => {
+              const matchIdx = mergedUsers.findIndex(su => (lu.id && su.id === lu.id) || (lu.studentCode && su.studentCode === lu.studentCode) || (lu.username && su.username === lu.username));
+              if (matchIdx === -1) {
+                mergedUsers.push(lu);
+                hasNewLocalData = true;
+              } else {
+                const su = mergedUsers[matchIdx];
+                if (lu.classId && !su.classId) su.classId = lu.classId;
+                if (lu.groupId && !su.groupId) su.groupId = lu.groupId;
+                if (lu.classIds && Array.isArray(lu.classIds)) {
+                  su.classIds = Array.from(new Set([...(su.classIds || []), ...lu.classIds]));
                 }
-                return u;
-              });
-              localStorage.setItem(STORAGE_KEY_USERS_DB, JSON.stringify(serverUsers));
-            }
+                if (currUser && (currUser.id === lu.id || currUser.username === lu.username)) {
+                  su.activeSessionId = currUser.activeSessionId;
+                }
+              }
+            });
+            localStorage.setItem(STORAGE_KEY_USERS_DB, JSON.stringify(mergedUsers));
 
-            // 2. 班级列表：直接以服务端真实班级为准
-            if (Array.isArray(data.classes) && data.classes.length > 0) {
-              localStorage.setItem(STORAGE_KEY_CLASSES, JSON.stringify(data.classes));
-            }
+            // 2. 班级列表安全双向合并：保留本地新创建的班级与小组分配
+            const localClasses = this.getClasses();
+            const serverClasses = Array.isArray(data.classes) ? data.classes : [];
+            const mergedClasses = [...serverClasses];
 
-            // 3. 任务列表：直接以服务端真实任务为准（避免已删除任务被本地复活）
-            if (Array.isArray(data.tasks)) {
-              localStorage.setItem(STORAGE_KEY_TASKS, JSON.stringify(data.tasks));
-            }
+            localClasses.forEach(lc => {
+              const match = mergedClasses.find(sc => sc.id === lc.id);
+              if (!match) {
+                mergedClasses.push(lc);
+                hasNewLocalData = true;
+              } else {
+                if (lc.studentIds && Array.isArray(lc.studentIds)) {
+                  match.studentIds = Array.from(new Set([...(match.studentIds || []), ...lc.studentIds]));
+                }
+                if (lc.groups && Array.isArray(lc.groups) && lc.groups.length > 0) {
+                  if (!match.groups || match.groups.length === 0) {
+                    match.groups = lc.groups;
+                  } else {
+                    lc.groups.forEach(lg => {
+                      const sg = match.groups.find(g => g.id === lg.id);
+                      if (!sg) {
+                        match.groups.push(lg);
+                        hasNewLocalData = true;
+                      } else if (lg.members && lg.members.length > 0 && (!sg.members || sg.members.length === 0)) {
+                        sg.members = lg.members;
+                      }
+                    });
+                  }
+                }
+              }
+            });
+            localStorage.setItem(STORAGE_KEY_CLASSES, JSON.stringify(mergedClasses));
 
-            // 4. 通知列表：直接以服务端真实通知为准
-            if (Array.isArray(data.announcements)) {
-              localStorage.setItem(STORAGE_KEY_ANNOUNCEMENTS, JSON.stringify(data.announcements));
-            }
+            // 3. 任务列表双向合并
+            const localTasks = this.getTasks();
+            const serverTasks = Array.isArray(data.tasks) ? data.tasks : [];
+            const mergedTasks = [...serverTasks];
+            localTasks.forEach(lt => {
+              if (!mergedTasks.some(st => st.id === lt.id)) {
+                mergedTasks.push(lt);
+                hasNewLocalData = true;
+              }
+            });
+            localStorage.setItem(STORAGE_KEY_TASKS, JSON.stringify(mergedTasks));
 
-            // 5. 参考范文库：直接以服务端真实范文为准
-            if (Array.isArray(data.referencePapers)) {
-              localStorage.setItem('jizhi_reference_papers_db', JSON.stringify(data.referencePapers));
-            }
+            // 4. 通知列表双向合并
+            const localAnns = this.getAnnouncements();
+            const serverAnns = Array.isArray(data.announcements) ? data.announcements : [];
+            const mergedAnns = [...serverAnns];
+            localAnns.forEach(la => {
+              if (!mergedAnns.some(sa => sa.id === la.id)) {
+                mergedAnns.push(la);
+                hasNewLocalData = true;
+              }
+            });
+            localStorage.setItem(STORAGE_KEY_ANNOUNCEMENTS, JSON.stringify(mergedAnns));
 
-            // 6. 问卷映射表：直接以服务端真实配置为准
+            // 5. 参考范文双向合并
+            const localPapers = this.getAllReferencePapers();
+            const serverPapers = Array.isArray(data.referencePapers) ? data.referencePapers : [];
+            const mergedPapers = [...serverPapers];
+            localPapers.forEach(lp => {
+              if (!mergedPapers.some(sp => sp.id === lp.id)) {
+                mergedPapers.push(lp);
+                hasNewLocalData = true;
+              }
+            });
+            localStorage.setItem('jizhi_reference_papers_db', JSON.stringify(mergedPapers));
+
+            // 6. 问卷映射表安全合并
             if (data.surveys && typeof data.surveys === 'object') {
-              localStorage.setItem('jizhi_surveys_map_db', JSON.stringify(data.surveys));
+              const localSurveys = this.getSurveysMap();
+              const mergedSurveys = Object.assign({}, localSurveys, data.surveys);
+              localStorage.setItem('jizhi_surveys_map_db', JSON.stringify(mergedSurveys));
+            }
+
+            // 如果本地有服务端尚未收录的新数据，立刻自动向服务端持久化
+            if (hasNewLocalData) {
+              this.pushGlobalMeta();
             }
           }
         }
