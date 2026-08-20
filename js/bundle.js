@@ -1279,7 +1279,8 @@
         durationMinutes: parseInt(durationMinutes) || 150,
         startTime: defaultStart,
         deadline: defaultDeadline,
-        status: 'in_progress', createdAt: new Date().toLocaleDateString(),
+        status: 'in_progress',
+        createdAt: new Date().toLocaleDateString() + ' ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         instructions, resources
       };
       tasks.unshift(newTask);
@@ -2639,12 +2640,13 @@
                     return `
                     <div style="background:#ffffff; border:1px solid #e2e8f0; padding:18px; border-radius:12px; box-shadow:0 1px 3px rgba(15,23,42,0.03);">
                       <div style="display:flex; justify-content:space-between; align-items:center;">
-                        <div style="display:flex; align-items:center; gap:8px;">
+                        <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
                           <span style="background:linear-gradient(135deg, #1d4ed8, #2563eb); color:#ffffff; padding:3px 10px; border-radius:8px; font-size:12px; font-weight:800;">任务 ${taskSeqNum}${isLatest ? ' (最新)' : ''}</span>
                           <span style="font-size:16px; font-weight:800; color:#1e40af;">📌 ${t.title}</span>
+                          <span style="background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe; padding:2px 8px; border-radius:8px; font-size:11.5px; font-weight:700;">受众班级: ${t.className}</span>
                         </div>
-                        <div style="display:flex; align-items:center; gap:8px;">
-                          <span style="background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe; padding:4px 12px; border-radius:12px; font-size:12px; font-weight:700;">受众班级: ${t.className}</span>
+                        <div style="display:flex; align-items:center; gap:12px;">
+                          <span style="font-size:12px; color:#64748b;">🕒 发布时间: <b>${t.createdAt || t.startTime || '刚刚'}</b></span>
                           ${t.id !== 'task_default' ? `
                             <button class="btn-delete-task" data-id="${t.id}" data-title="${t.title}" style="background:#fef2f2; border:1px solid #fecaca; color:#dc2626; padding:4px 10px; border-radius:6px; font-size:12px; font-weight:700; cursor:pointer;" title="删除此写作任务">
                               🗑️ 删除任务
@@ -4466,6 +4468,7 @@
                         </div>
 
                         <div style="display:flex; flex-wrap:wrap; gap:8px; font-size:11.5px; color:#64748b; margin-bottom:12px; background:#f8fafc; padding:8px 12px; border-radius:8px; border:1px solid #e2e8f0;">
+                          <div>🕒 发布时间: <b style="color:#0f172a;">${t.createdAt || t.startTime || '刚刚'}</b></div>
                           <div>⏱️ 任务时长: <b style="color:#0f172a;">${duration} 分钟</b></div>
                           <div>📅 开始时间: <b style="color:#0f172a;">${t.startTime || '随时'}</b></div>
                           <div>⌛ 截止时间: <b style="color:#0f172a;">${t.deadline || '结课前'}</b></div>
