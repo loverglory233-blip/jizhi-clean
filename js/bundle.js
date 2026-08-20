@@ -855,6 +855,11 @@
       let addedCount = 0;
       const skippedList = [];
       const users = this.getUsers();
+      const classes = this.getClasses();
+      const targetClass = classes.find(c => c.id === (classId || 'class_101')) || classes[0];
+      if (!targetClass.studentIds) targetClass.studentIds = [];
+
+      const avatars = ['👨‍🎓', '👩‍🎓', '🧑‍🎓', '🎓', '📚', '🌟'];
 
       studentList.forEach(st => {
         const code = (st.studentCode || st.username || '').trim();
@@ -862,22 +867,37 @@
         if (!code || !name) return;
 
         // 查重：检查是否已有该学号
-        const existing = users.find(u => (u.studentCode || '').trim().toLowerCase() === code.toLowerCase());
+        const existing = users.find(u => (u.studentCode && u.studentCode.trim().toLowerCase() === code.toLowerCase()) || (u.username && u.username.trim().toLowerCase() === code.toLowerCase()));
         if (existing) {
-          skippedList.push({ name: existing.name || name, code });
-          // 如果该学生不在本班级，顺便关联进当前班级
-          const classes = this.getClasses();
-          const targetClass = classes.find(c => c.id === (classId || 'class_101'));
-          if (targetClass && !targetClass.studentIds.includes(existing.id)) {
-            targetClass.studentIds.push(existing.id);
-            localStorage.setItem(STORAGE_KEY_CLASSES, JSON.stringify(classes));
-          }
+          existing.name = name; // 同步更新真实姓名
+          if (!existing.classIds) existing.classIds = [existing.classId || 'class_101'];
+          if (!existing.classIds.includes(targetClass.id)) existing.classIds.push(targetClass.id);
+          existing.classId = targetClass.id;
+          if (!targetClass.studentIds.includes(existing.id)) targetClass.studentIds.push(existing.id);
+          addedCount++;
         } else {
-          this.addStudentToClass(name, code, classId, st.customPassword, false);
+          const newUid = 'u_student_' + Date.now() + '_' + Math.floor(Math.random() * 100000);
+          const newUser = {
+            id: newUid,
+            username: code,
+            studentCode: code,
+            email: `${code.toLowerCase()}@jizhi.edu`,
+            password: (st.customPassword && st.customPassword.trim()) ? st.customPassword.trim() : '123',
+            name: name,
+            role: 'student',
+            avatar: avatars[users.length % avatars.length],
+            classId: targetClass.id,
+            classIds: [targetClass.id],
+            groupId: null
+          };
+          users.push(newUser);
+          targetClass.studentIds.push(newUid);
           addedCount++;
         }
       });
 
+      localStorage.setItem(STORAGE_KEY_USERS_DB, JSON.stringify(users));
+      localStorage.setItem(STORAGE_KEY_CLASSES, JSON.stringify(classes));
       this.pushGlobalMeta();
       return { addedCount, skippedList };
     }
