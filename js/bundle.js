@@ -679,6 +679,47 @@
       return newClass;
     }
 
+    deleteClass(classId) {
+      let classes = this.getClasses();
+      if (classes.length <= 1) {
+        throw new Error('系统至少需要保留一个教学班级，无法删除最后一个班级！');
+      }
+      classes = classes.filter(c => c.id !== classId);
+      localStorage.setItem(STORAGE_KEY_CLASSES, JSON.stringify(classes));
+
+      // 级联清理该班级的任务
+      let tasks = this.getTasks();
+      const taskIdsToDelete = tasks.filter(t => t.classId === classId).map(t => t.id);
+      tasks = tasks.filter(t => t.classId !== classId);
+      localStorage.setItem(STORAGE_KEY_TASKS, JSON.stringify(tasks));
+
+      // 级联清理属于该班级的课堂通知
+      let announcements = this.getAnnouncements();
+      announcements = announcements.filter(a => a.classId !== classId && !taskIdsToDelete.includes(a.taskId));
+      localStorage.setItem(STORAGE_KEY_ANNOUNCEMENTS, JSON.stringify(announcements));
+
+      // 级联清理属于该班级的参考范文
+      let papers = this.getAllReferencePapers();
+      papers = papers.filter(p => p.classId !== classId && !taskIdsToDelete.includes(p.taskId));
+      localStorage.setItem('jizhi_reference_papers_db', JSON.stringify(papers));
+
+      // 级联清理问卷
+      const surveysMap = this.getSurveysMap();
+      let surveyChanged = false;
+      Object.keys(surveysMap).forEach(key => {
+        if (key.startsWith(`${classId}_`) || taskIdsToDelete.some(tId => key.endsWith(`_${tId}`))) {
+          delete surveysMap[key];
+          surveyChanged = true;
+        }
+      });
+      if (surveyChanged) {
+        localStorage.setItem('jizhi_surveys_map_db', JSON.stringify(surveysMap));
+      }
+
+      this.pushGlobalMeta();
+      if (window.app && window.app.cloudSyncEngine) window.app.cloudSyncEngine.pushSnapshot();
+    }
+
     getClassStudents(classId) {
       const users = this.getUsers();
       return users.filter(u => u.role !== 'teacher' && (
@@ -2108,9 +2149,16 @@
                           <div style="font-size:15.5px; font-weight:800; color:${isSelected ? '#1d4ed8' : '#0f172a'};">🏫 ${c.name}</div>
                           <div style="font-size:12px; color:#64748b; margin-top:4px;">代码: ${c.code || 'MET'} | 学生: ${cStds.length}人 | 小组: ${(c.groups || []).length}个</div>
                         </div>
-                        <button class="btn-select-class" data-id="${c.id}" style="background:${isSelected ? '#ecfdf5' : '#2563eb'}; border:1px solid ${isSelected ? '#a7f3d0' : 'transparent'}; color:${isSelected ? '#059669' : 'white'}; padding:7px 14px; border-radius:8px; font-size:12px; font-weight:700; cursor:pointer;">
-                          ${isSelected ? '✅ 当前主班' : '切换'}
-                        </button>
+                        <div style="display:flex; gap:8px; align-items:center;">
+                          <button class="btn-select-class" data-id="${c.id}" style="background:${isSelected ? '#ecfdf5' : '#2563eb'}; border:1px solid ${isSelected ? '#a7f3d0' : 'transparent'}; color:${isSelected ? '#059669' : 'white'}; padding:7px 14px; border-radius:8px; font-size:12px; font-weight:700; cursor:pointer;">
+                            ${isSelected ? '✅ 当前主班' : '切换'}
+                          </button>
+                          ${classes.length > 1 ? `
+                            <button class="btn-delete-class" data-id="${c.id}" data-name="${c.name}" style="background:#fef2f2; border:1px solid #fecaca; color:#dc2626; padding:7px 10px; border-radius:8px; font-size:12px; font-weight:700; cursor:pointer;" title="删除此教学班级">
+                              🗑️
+                            </button>
+                          ` : ''}
+                        </div>
                       </div>
                     `;
                   }).join('')}
@@ -2120,11 +2168,16 @@
               <div class="card" style="border-top:4px solid #2563eb; width:100%; padding:24px;">
                 <div class="card-title" style="margin-bottom:16px;">
                   <span style="font-size:17px; font-weight:800; color:#0f172a;">👨‍🎓 学生账号管理 (当前班级: ${activeClass.name})</span>
-                  <div style="display:flex; gap:10px;">
+                  <div style="display:flex; gap:10px; align-items:center;">
                     <button id="btn-v1-add-student" class="teacher-action-btn" style="background:linear-gradient(135deg, #1d4ed8, #2563eb); border:none; color:white; padding:8px 18px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer; box-shadow:0 2px 8px rgba(37,99,235,0.25);">+ 单条创建学生账号</button>
                     <button id="btn-v1-import-file" class="teacher-action-btn" style="background:linear-gradient(135deg, #1d4ed8, #2563eb); border:none; color:white; padding:8px 18px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer; box-shadow:0 2px 8px rgba(37,99,235,0.25);">
                       📥 上传 XLSX / CSV 文件导入
                     </button>
+                    ${classStudents.length > 0 ? `
+                      <button id="btn-clear-class-students" style="background:#fef2f2; border:1px solid #fecaca; color:#dc2626; padding:8px 14px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer;">
+                        🗑️ 一键清空本班学生
+                      </button>
+                    ` : ''}
                   </div>
                 </div>
                 <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:12px 16px; margin-bottom:14px; font-size:13px; color:#334155; display:flex; justify-content:space-between; align-items:center;">
@@ -2133,18 +2186,18 @@
                 </div>
                 <div style="border:1px solid #e2e8f0; border-radius:10px; overflow:hidden; background:#ffffff;">
                   <table class="monitor-table" style="font-size:13px;">
-                    <thead><tr><th>姓名</th><th>学号</th><th>当前归属小组</th><th>密码</th><th>操作</th></tr></thead>
+                    <thead><tr><th>序号</th><th>姓名</th><th>学号</th><th>当前归属小组</th><th>密码</th></tr></thead>
                     <tbody>
-                      ${classStudents.length === 0 ? '<tr><td colspan="5" style="text-align:center; color:#64748b; padding:24px;">当前班级暂无学生账号，请点击右上角按钮创建！</td></tr>' : ''}
-                      ${classStudents.map(s => {
-                        const grp = (activeClass.groups || []).find(g => g.members && (g.members.includes(s.id) || g.members.includes(s.studentCode)));
+                      ${classStudents.length === 0 ? '<tr><td colspan="5" style="text-align:center; color:#64748b; padding:24px;">当前班级暂无学生账号，请点击右上角按钮创建或导入！</td></tr>' : ''}
+                      ${classStudents.map((s, idx) => {
+                        const grp = (activeClass.groups || []).find(g => g.members && (g.members.includes(s.id) || g.members.includes(s.studentCode) || (typeof g.members[0] === 'object' && g.members.some(m => m.id === s.id || m.studentCode === s.studentCode))));
                         return `
                           <tr>
+                            <td style="color:#94a3b8; font-weight:700;">${idx + 1}</td>
                             <td><b>${s.avatar || '👤'} ${s.name}</b></td>
                             <td><span style="color:#2563eb; font-family:monospace; font-weight:700;">${s.studentCode || s.username}</span></td>
                             <td>${grp ? `<span style="background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe; padding:2px 8px; border-radius:8px; font-size:12px; font-weight:700;">${grp.name}</span>` : '<span style="color:#94a3b8;">⏳ 待划分小组</span>'}</td>
                             <td><span style="color:#059669; font-family:monospace; font-weight:700;">${s.password || '123'}</span></td>
-                            <td><button class="delete-student-btn" data-id="${s.id}" style="background:#fef2f2; border:1px solid #fecaca; color:#dc2626; padding:4px 10px; border-radius:6px; font-size:12px; cursor:pointer; font-weight:700;">移除</button></td>
                           </tr>
                         `;
                       }).join('')}
@@ -2745,6 +2798,60 @@
         renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
       });
     });
+
+    // 🗑️ 删除班级（带弹窗二次确认）
+    container.querySelectorAll('.btn-delete-class').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const cId = btn.dataset.id;
+        const cName = btn.dataset.name || '此班级';
+        if (confirm(`🗑️【危险操作·删除班级确认】\n\n您确定要彻底删除教学班级【${cName}】吗？\n\n⚠️ 警告：删除后属于该班级的小组、写作任务、通知与问卷将一并级联删除！`)) {
+          try {
+            authManager.deleteClass(cId);
+            const remainingClasses = authManager.getClasses();
+            state.activeClassId = remainingClasses[0] ? remainingClasses[0].id : 'class_101';
+            alert(`✅ 教学班级【${cName}】已成功删除！`);
+            renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+          } catch (err) {
+            alert('❌ ' + err.message);
+          }
+        }
+      });
+    });
+
+    // 🗑️ 一键清空当前班级学生（带弹窗二次确认）
+    const btnClearStudents = container.querySelector('#btn-clear-class-students');
+    if (btnClearStudents) {
+      btnClearStudents.addEventListener('click', () => {
+        if (confirm(`🗑️【清空名册确认】\n\n您确定要一键清空【${activeClass.name}】下的所有学生吗？\n\n⚠️ 注：清空后将重置本班学生名册与未划分的小组成员绑定！`)) {
+          // 清空当前班级的学生关联，并重置小组
+          const users = authManager.getUsers();
+          users.forEach(u => {
+            if (u.role !== 'teacher') {
+              if (u.classIds && Array.isArray(u.classIds)) {
+                u.classIds = u.classIds.filter(id => id !== activeClass.id);
+              }
+              if (u.classId === activeClass.id) {
+                u.classId = (u.classIds && u.classIds.length > 0) ? u.classIds[0] : null;
+              }
+            }
+          });
+          localStorage.setItem(STORAGE_KEY_USERS_DB, JSON.stringify(users));
+
+          // 清空班级 studentIds 与小组分配
+          const classes = authManager.getClasses();
+          const targetCls = classes.find(c => c.id === activeClass.id);
+          if (targetCls) {
+            targetCls.studentIds = [];
+            (targetCls.groups || []).forEach(g => { g.members = []; });
+            localStorage.setItem(STORAGE_KEY_CLASSES, JSON.stringify(classes));
+          }
+          authManager.pushGlobalMeta();
+          alert(`✅ 已成功清空【${activeClass.name}】的全部学生名册！`);
+          renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+        }
+      });
+    }
 
     const btnCreateClass = container.querySelector('#btn-v1-create-class');
     if (btnCreateClass) {
