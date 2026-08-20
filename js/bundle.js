@@ -4895,19 +4895,20 @@
     let currentAnnsSnapshot = localStorage.getItem(STORAGE_KEY_ANNOUNCEMENTS) || '[]';
     let currentClassesSnapshot = localStorage.getItem(STORAGE_KEY_CLASSES) || '[]';
 
-    // ⚡ 每次进入大厅立即静默拉取服务端全量最新数据，拉取成功后无条件立即重绘一次确保最新任务百分百渲染
+    // ⚡ 进入大厅静默拉取云端数据，若有变更且用户未在操作下拉框时平滑刷新
     if (authManager && authManager.pullGlobalMeta) {
       authManager.pullGlobalMeta().then(() => {
         const freshTasksJson = localStorage.getItem(STORAGE_KEY_TASKS) || '[]';
         const freshAnnsJson = localStorage.getItem(STORAGE_KEY_ANNOUNCEMENTS) || '[]';
         const freshClassesJson = localStorage.getItem(STORAGE_KEY_CLASSES) || '[]';
         if (freshTasksJson !== currentTasksSnapshot || freshAnnsJson !== currentAnnsSnapshot || freshClassesJson !== currentClassesSnapshot) {
-          renderStudentTaskPortal(container, authManager, state, onSelectTask, onLogout, onSwitchTeacher, onOpenAnnModal, onOpenSurveyModal);
+          if (document.activeElement?.id !== 'sel-student-class-switch') {
+            renderStudentTaskPortal(container, authManager, state, onSelectTask, onLogout, onSwitchTeacher, onOpenAnnModal, onOpenSurveyModal);
+          }
         }
       }).catch(() => {});
     }
 
-    // ⚡ 在任务大厅启动 1.2 秒高频轻量同步定时器，教师修改/发布/删除任务秒级呈现在学生屏幕上
     if (window._studentPortalSyncInterval) clearInterval(window._studentPortalSyncInterval);
     window._studentPortalSyncInterval = setInterval(async () => {
       if (state.studentViewMode !== 'task_list') {
@@ -4924,11 +4925,13 @@
           const newAnnsJson = localStorage.getItem(STORAGE_KEY_ANNOUNCEMENTS) || '[]';
           const newClassesJson = localStorage.getItem(STORAGE_KEY_CLASSES) || '[]';
           if (oldTasksJson !== newTasksJson || oldAnnsJson !== newAnnsJson || oldClassesJson !== newClassesJson) {
-            renderStudentTaskPortal(container, authManager, state, onSelectTask, onLogout, onSwitchTeacher, onOpenAnnModal, onOpenSurveyModal);
+            if (document.activeElement?.id !== 'sel-student-class-switch') {
+              renderStudentTaskPortal(container, authManager, state, onSelectTask, onLogout, onSwitchTeacher, onOpenAnnModal, onOpenSurveyModal);
+            }
           }
         } catch (e) {}
       }
-    }, 1200);
+    }, 3000);
 
     const currentUser = authManager.getCurrentUser();
     const classes = authManager.getClasses();
