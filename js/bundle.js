@@ -210,9 +210,15 @@
             callback(students);
           } else {
             const script = document.createElement('script');
-            script.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+            script.src = 'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js';
             script.onload = () => parseXLSXOrCSVFile(file, callback);
-            script.onerror = () => alert('⚠️ 无法加载 SheetJS，请尝试将 Excel 保存为 .csv 格式后重新上传！');
+            script.onerror = () => {
+              const fallbackScript = document.createElement('script');
+              fallbackScript.src = 'https://cdn.bootcdn.net/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+              fallbackScript.onload = () => parseXLSXOrCSVFile(file, callback);
+              fallbackScript.onerror = () => alert('⚠️ 无法加载 Excel 解析引擎，请尝试将表格保存为 .csv 格式后直接上传！');
+              document.head.appendChild(fallbackScript);
+            };
             document.head.appendChild(script);
           }
         } catch (err) {
