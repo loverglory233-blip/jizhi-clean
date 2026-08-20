@@ -873,7 +873,25 @@
     }
 
     getAvailableStudentsForGroup(classId, editingGroupId = null) {
-      return this.getClassStudents(classId);
+      const allClassStudents = this.getClassStudents(classId);
+      const classes = this.getClasses();
+      const cls = classes.find(c => c.id === classId) || classes[0];
+      if (!cls || !cls.groups) return allClassStudents;
+
+      const getMemberId = (m) => (typeof m === 'object' && m !== null) ? (m.id || m.userId || m.studentCode) : m;
+
+      // 收集属于本班【其他小组】的学生 ID，彻底排除已成组的学生
+      const occupiedStudentIds = new Set();
+      cls.groups.forEach(g => {
+        if (g.id !== editingGroupId) {
+          (g.members || []).forEach(m => {
+            const mId = getMemberId(m);
+            if (mId) occupiedStudentIds.add(mId);
+          });
+        }
+      });
+
+      return allClassStudents.filter(s => !occupiedStudentIds.has(s.id) && !occupiedStudentIds.has(s.studentCode));
     }
 
     updateGroupMembers(classId, groupId, groupName, selectedUserIds = [], leaderUserId = null) {
@@ -3303,11 +3321,11 @@
 
             <div class="teacher-form-group">
               <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
-                <label style="font-size:13px; font-weight:700; color:#334155; margin:0;"><span class="req" style="color:#dc2626;">*</span> 勾选组员 (共 ${availableStudents.length} 人)</label>
+                <label style="font-size:13px; font-weight:700; color:#334155; margin:0;"><span class="req" style="color:#dc2626;">*</span> 勾选组员 (仅显示未进组学生，共 ${availableStudents.length} 人)</label>
                 <input type="text" id="modal-grp-std-search" placeholder="🔍 输入姓名或学号搜索..." style="background:#ffffff; border:1.5px solid #cbd5e1; color:#0f172a; padding:6px 12px; border-radius:6px; font-size:12.5px; width:210px; outline:none;">
               </div>
               <div id="modal-grp-candidates-container" style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:10px; max-height:250px; overflow-y:auto; display:flex; flex-direction:column; gap:6px;">
-                ${availableStudents.length === 0 ? '<div style="color:#64748b; font-size:13px; text-align:center; padding:20px;">当前班级暂无学生，请先添加学生。</div>' : ''}
+                ${availableStudents.length === 0 ? '<div style="color:#64748b; font-size:13px; text-align:center; padding:20px;">✅ 当前班级所有学生均已进组，无空闲待分配学生。</div>' : ''}
                 ${availableStudents.map(s => {
                   const isChecked = currentMembers.includes(s.id);
                   const isLeader = s.studentCode === 'A';
