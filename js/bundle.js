@@ -6689,8 +6689,12 @@
       const currentUser = this.authManager.getCurrentUser();
       const currentClassId = currentUser && currentUser.classId ? currentUser.classId : 'class_101';
       const currentTaskId = this.state.activeTaskId || 'task_default';
+      const tasks = this.authManager.getTasks();
+      const currTaskObj = tasks.find(t => t.id === currentTaskId);
+      const taskTitle = currTaskObj ? currTaskObj.title : '指定写作任务';
       const surveyUrl = this.authManager.getSurveyUrl(currentClassId, currentTaskId);
       const isConfigured = surveyUrl && surveyUrl.startsWith('http');
+      const surveyDoneKey = `jizhi_survey_completed_${currentClassId}_${currentTaskId}`;
       
       const modal = document.createElement('div');
       modal.className = 'modal-overlay';
@@ -6705,7 +6709,7 @@
               </div>
               <div>
                 <h3 style="margin:0; font-size:17px; font-weight:800; color:#0f172a;">课程协作学习与体验问卷</h3>
-                <div style="font-size:12px; color:#64748b; margin-top:2px;">请全组成员分别完成在线评估问卷</div>
+                <div style="font-size:12px; color:#64748b; margin-top:2px;">📌 当前任务: <b style="color:#2563eb;">${taskTitle}</b></div>
               </div>
             </div>
             <button id="btn-close-survey-modal" style="background:#f8fafc; border:1px solid #e2e8f0; width:32px; height:32px; border-radius:8px; display:flex; align-items:center; justify-content:center; cursor:pointer; color:#64748b; font-size:14px; transition:all 0.15s ease;">✕</button>
@@ -6715,30 +6719,30 @@
           <div style="padding:24px; display:flex; flex-direction:column; gap:18px;">
             
             <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:14px 16px; font-size:13px; color:#334155; line-height:1.6;">
-              为了持续改进人机协作写作的学习体验，请同学们点击下方按钮前往填写匿名问卷。
+              为评估本任务（<b>${taskTitle}</b>）的协作效果，请同学们点击下方按钮前往填写匿名问卷。
             </div>
 
             <!-- 跳转按钮区域 -->
             <div style="background:#ffffff; border:1.5px dashed #bfdbfe; border-radius:12px; padding:22px 18px; text-align:center;">
               ${isConfigured ? `
                 <a href="${surveyUrl}" target="_blank" id="btn-go-survey" style="display:inline-flex; align-items:center; justify-content:center; gap:8px; background:linear-gradient(135deg, #1d4ed8, #2563eb); color:#ffffff; padding:12px 32px; border-radius:10px; font-size:14px; font-weight:700; text-decoration:none; box-shadow:0 4px 12px rgba(37,99,235,0.25); transition:transform 0.15s ease;">
-                  🚀 打开问卷页面 ↗
+                  🚀 打开本任务问卷页面 ↗
                 </a>
                 <div style="font-size:11.5px; color:#94a3b8; margin-top:10px; word-break:break-all;">
                   问卷地址: <span style="color:#2563eb;">${surveyUrl}</span>
                 </div>
               ` : `
                 <div style="color:#d97706; font-size:13px; font-weight:600;">
-                  ⚠️ 暂未配置有效问卷链接，请联系任课教师在教师端配置。
+                  ⚠️ 任课教师暂未为【${taskTitle}】配置独立问卷链接。
                 </div>
               `}
             </div>
 
             <!-- 勾选确认 -->
             <div style="display:flex; align-items:center; gap:10px; background:#eff6ff; border:1px solid #bfdbfe; border-radius:10px; padding:12px 16px;">
-              <input type="checkbox" id="chk-survey-done" style="width:17px; height:17px; cursor:pointer; accent-color:#2563eb;" ${localStorage.getItem('jizhi_survey_completed') === 'true' ? 'checked' : ''}>
+              <input type="checkbox" id="chk-survey-done" style="width:17px; height:17px; cursor:pointer; accent-color:#2563eb;" ${localStorage.getItem(surveyDoneKey) === 'true' ? 'checked' : ''}>
               <label for="chk-survey-done" style="font-size:13px; font-weight:700; color:#1e40af; cursor:pointer; user-select:none;">
-                我已完成问卷填写并提交
+                我已完成【${taskTitle}】的问卷填写并提交
               </label>
             </div>
 
@@ -6747,7 +6751,7 @@
           <!-- 底部确认关闭 -->
           <div style="padding:16px 24px; background:#f8fafc; border-top:1px solid #f1f5f9; display:flex; justify-content:flex-end;">
             <button id="btn-finish-survey" style="width:100%; background:linear-gradient(135deg, #1d4ed8, #2563eb); color:#ffffff; border:none; padding:11px 24px; border-radius:10px; font-size:13.5px; font-weight:700; cursor:pointer; box-shadow:0 2px 8px rgba(37,99,235,0.2);">
-              完成并返回
+              完成并返回工作台
             </button>
           </div>
 
@@ -6759,7 +6763,7 @@
       modal.querySelector('#btn-close-survey-modal').addEventListener('click', closeModal);
       modal.addEventListener('click', (e) => { if (e.target === modal) closeModal(); });
       modal.querySelector('#chk-survey-done').addEventListener('change', (e) => {
-        localStorage.setItem('jizhi_survey_completed', e.target.checked ? 'true' : 'false');
+        localStorage.setItem(surveyDoneKey, e.target.checked ? 'true' : 'false');
       });
       modal.querySelector('#btn-finish-survey').addEventListener('click', () => {
         closeModal();
