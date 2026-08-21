@@ -2419,6 +2419,33 @@
     const oldLayout = container.querySelector('.teacher-portal-layout') || document.querySelector('.teacher-portal-layout');
     const savedScrollTop = oldLayout ? oldLayout.scrollTop : (state._teacherScrollTop || 0);
 
+    // ⚡ 教师端自动轻量轮询：每 3 秒从云端拉取学生的最新已读确认与小组动态，实时刷新受众追踪矩阵
+    if (window._teacherPortalSyncInterval) clearInterval(window._teacherPortalSyncInterval);
+    window._teacherPortalSyncInterval = setInterval(async () => {
+      const curU = authManager.getCurrentUser();
+      if (!curU || curU.role !== 'teacher') {
+        clearInterval(window._teacherPortalSyncInterval);
+        return;
+      }
+      if (document.querySelector('.modal-overlay')) return;
+
+      if (authManager && authManager.pullGlobalMeta) {
+        try {
+          const oldAnnsJson = localStorage.getItem(STORAGE_KEY_ANNOUNCEMENTS) || '[]';
+          await authManager.pullGlobalMeta();
+          const newAnnsJson = localStorage.getItem(STORAGE_KEY_ANNOUNCEMENTS) || '[]';
+          if (oldAnnsJson !== newAnnsJson) {
+            const layout = container.querySelector('.teacher-portal-layout');
+            const curScroll = layout ? layout.scrollTop : 0;
+            state._teacherScrollTop = curScroll;
+            renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+            const nextLayout = container.querySelector('.teacher-portal-layout');
+            if (nextLayout) nextLayout.scrollTop = curScroll;
+          }
+        } catch (e) {}
+      }
+    }, 3000);
+
     if (authManager && authManager.sanitizeAndDeduplicateGroups) {
       authManager.sanitizeAndDeduplicateGroups();
     }
