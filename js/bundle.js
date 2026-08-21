@@ -5196,13 +5196,16 @@
     const groupName = activeGroupObj.name || '第 1 协作小组';
 
     const activeTaskId = (state && state.activeTaskId) ? state.activeTaskId : 'task_default';
+    const allTasks = (window.app && window.app.authManager) ? window.app.authManager.getTasks() : [];
+    const currentTask = allTasks.find(t => t.id === activeTaskId);
+    const currentTaskTitle = currentTask ? currentTask.title : (activeTaskId === 'task_default' ? '默认写作任务' : '协作写作任务');
 
     // 严格按【当前班级】、【当前任务】和【当前小组】三位一体过滤通知，彻底杜绝跨任务/跨小组干扰
     const relevantAnnouncements = (announcements || []).filter(a => {
       const matchClass = !a.classId || a.classId === 'all' || a.classId === activeClassId;
       const matchGroup = !a.targetGroupId || a.targetGroupId === 'all' || a.targetGroupId === groupId ||
         (Array.isArray(a.targetGroupIds) && (a.targetGroupIds.includes('all') || a.targetGroupIds.includes(groupId)));
-      const matchTask = !a.taskId || a.taskId === 'task_all' || a.taskId === activeTaskId || (!a.taskId && activeTaskId === 'task_default');
+      const matchTask = a.taskId === 'task_all' || a.taskId === activeTaskId || (!a.taskId && activeTaskId === 'task_default');
       return matchClass && matchGroup && matchTask;
     });
     const isAnnRead = (a) => {
@@ -5222,7 +5225,14 @@
     header.innerHTML = `
       <div class="brand-section">
         <div class="brand-logo">集智 JIZHI</div>
-        <div class="brand-badge">🎓 ${currentUser ? currentUser.name : '学生'} · ${groupName} ${isFinalSubmitted ? '<span style="color:#059669; margin-left:3px;">(🔒已归档)</span>' : ''}</div>
+        <div class="brand-badge" style="background:#eff6ff; color:#1d4ed8; padding:3px 12px; border-radius:20px; font-size:12px; font-weight:700; border:1px solid #bfdbfe; display:inline-flex; align-items:center; gap:6px;">
+          <span>🎓 ${currentUser ? currentUser.name : '学生'}</span>
+          <span style="opacity:0.35;">·</span>
+          <span>👥 ${groupName}</span>
+          <span style="opacity:0.35;">·</span>
+          <span style="color:#1e40af; background:#ffffff; padding:1.5px 8px; border-radius:10px; border:1px solid #bfdbfe; font-weight:800;">📌 ${currentTaskTitle}</span>
+          ${isFinalSubmitted ? '<span style="color:#059669; margin-left:3px;">(🔒已归档)</span>' : ''}
+        </div>
         <button id="btn-header-back-tasks" style="background:#f8fafc; border:1px solid #cbd5e1; color:#334155; padding:3px 8px; border-radius:14px; font-size:11px; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; gap:3px;" title="返回我的写作任务大厅">
           📋 任务大厅
         </button>
@@ -7775,7 +7785,7 @@
           const matchClass = !a.classId || a.classId === 'all' || myClassIds.has(a.classId);
           const matchGroup = !a.targetGroupId || a.targetGroupId === 'all' || a.targetGroupId === groupId ||
             (Array.isArray(a.targetGroupIds) && (a.targetGroupIds.includes('all') || a.targetGroupIds.includes(groupId)));
-          const matchTask = !a.taskId || a.taskId === 'task_all' || a.taskId === activeTaskId || (!a.taskId && activeTaskId === 'task_default');
+          const matchTask = a.taskId === 'task_all' || a.taskId === activeTaskId || (!a.taskId && activeTaskId === 'task_default');
           return matchClass && matchGroup && matchTask && !isAnnRead(a);
         })
         .sort((a, b) => (b.id > a.id ? 1 : -1));
@@ -7808,7 +7818,7 @@
           const matchClass = !a.classId || a.classId === 'all' || a.classId === effectiveClassId;
           const matchGroup = !a.targetGroupId || a.targetGroupId === 'all' || a.targetGroupId === groupId ||
             (Array.isArray(a.targetGroupIds) && (a.targetGroupIds.includes('all') || a.targetGroupIds.includes(groupId)));
-          const matchTask = !a.taskId || a.taskId === 'task_all' || a.taskId === activeTaskId || (!a.taskId && activeTaskId === 'task_default');
+          const matchTask = a.taskId === 'task_all' || a.taskId === activeTaskId || (!a.taskId && activeTaskId === 'task_default');
           return matchClass && matchGroup && matchTask;
         })
         .sort((a, b) => (b.id > a.id ? 1 : -1));
