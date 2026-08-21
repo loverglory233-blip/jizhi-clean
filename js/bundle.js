@@ -406,9 +406,35 @@
               localStorage.setItem(STORAGE_KEY_USERS_DB, JSON.stringify(mergedUsers));
             }
 
-            // 2. 同步云端保存的权威班级与任务
+            // 2. 深度合并云端与本地班级及小组列表 (杜绝因单向覆盖导致8个组丢失)
             if (Array.isArray(data.classes) && data.classes.length > 0) {
-              localStorage.setItem(STORAGE_KEY_CLASSES, JSON.stringify(data.classes));
+              const localClasses = this.getClasses();
+              const mergedClasses = data.classes.map(sc => {
+                const lc = localClasses.find(c => c.id === sc.id);
+                if (!lc) return sc;
+                const scGroups = Array.isArray(sc.groups) ? sc.groups : [];
+                const lcGroups = Array.isArray(lc.groups) ? lc.groups : [];
+                const groupMap = new Map();
+                scGroups.forEach(g => { if (g && g.id) groupMap.set(g.id, g); });
+                lcGroups.forEach(g => {
+                  if (g && g.id) {
+                    if (!groupMap.has(g.id)) groupMap.set(g.id, g);
+                    else {
+                      const existing = groupMap.get(g.id);
+                      existing.members = Array.from(new Set([...(existing.members || []), ...(g.members || [])]));
+                    }
+                  }
+                });
+                return {
+                  ...sc,
+                  groups: Array.from(groupMap.values()),
+                  studentIds: Array.from(new Set([...(sc.studentIds || []), ...(lc.studentIds || [])]))
+                };
+              });
+              localClasses.forEach(lc => {
+                if (!mergedClasses.some(c => c.id === lc.id)) mergedClasses.push(lc);
+              });
+              localStorage.setItem(STORAGE_KEY_CLASSES, JSON.stringify(mergedClasses));
               this.sanitizeAndDeduplicateGroups();
             }
             if (Array.isArray(data.tasks) && data.tasks.length > 0) {
@@ -2884,19 +2910,42 @@
                       <div style="font-size:12.5px; color:#64748b; margin-top:4px;">点击右上角【+ 发布新通知】向本班学生发布即时指令！</div>
                     </div>
                   ` : currentClassAnnouncements.map((a, idx) => {
-                    const allClassGroups = activeClass.groups || [{ id: 'group_1', name: '第1小组' }];
-                    let targetGroups = allClassGroups.filter(g => {
-                      if (a.targetGroupId === 'all' || (Array.isArray(a.targetGroupIds) && a.targetGroupIds.includes('all'))) {
-                        return true;
+                    const targetClassObj = (a.classId && a.classId !== 'all') ? classes.find(c => c.id === a.classId) : activeClass;
+                    const allClassGroups = (targetClassObj && Array.isArray(targetClassObj.groups) && targetClassObj.groups.length > 0)
+                      ? targetClassObj.groups
+                      : (activeClass.groups || [{ id: 'group_1', name: '第 1 协作小组' }]);
+
+                    const seenGIds = new Set();
+                    let targetGroups = [];
+                    allClassGroups.forEach(g => {
+                      if (!g || !g.id || seenGIds.has(g.id)) return;
+                      let isMatch = false;
+                      if (!a.targetGroupId || a.targetGroupId === 'all') isMatch = true;
+                      else if (Array.isArray(a.targetGroupIds) && a.targetGroupIds.includes('all')) isMatch = true;
+                      else if (Array.isArray(a.targetGroupIds) && (a.targetGroupIds.includes(g.id) || a.targetGroupIds.includes(g.name))) isMatch = true;
+                      else if (a.targetGroupId === g.id || a.targetGroupId === g.name) isMatch = true;
+                      else if (a.targetGroupName && a.targetGroupName !== '全班所有小组') {
+                        const names = a.targetGroupName.split('、').map(s => s.trim());
+                        if (names.includes(g.name)) isMatch = true;
                       }
-                      const matchId = (Array.isArray(a.targetGroupIds) && a.targetGroupIds.includes(g.id)) || a.targetGroupId === g.id;
-                      const matchName = (Array.isArray(a.targetGroupIds) && a.targetGroupIds.includes(g.name)) ||
-                                        a.targetGroupId === g.name ||
-                                        (a.targetGroupName && (a.targetGroupName.includes(g.name) || g.name.includes(a.targetGroupName)));
-                      return matchId || matchName;
+                      if (isMatch) {
+                        seenGIds.add(g.id);
+                        targetGroups.push(g);
+                      }
                     });
+
                     if (targetGroups.length === 0) {
-                      targetGroups = [{ id: a.targetGroupId || 'group_target', name: a.targetGroupName || '定向协作小组' }];
+                      for (const c of classes) {
+                        const found = (c.groups || []).find(g => g.id === a.targetGroupId || g.name === a.targetGroupId);
+                        if (found && !seenGIds.has(found.id)) {
+                          seenGIds.add(found.id);
+                          targetGroups.push(found);
+                          break;
+                        }
+                      }
+                    }
+                    if (targetGroups.length === 0) {
+                      targetGroups = [{ id: a.targetGroupId || 'group_target', name: a.targetGroupName || '第 2 协作小组' }];
                     }
                     const targetGName = a.targetGroupName || (targetGroups.length === allClassGroups.length ? '全班所有小组' : targetGroups.map(g => g.name).join('、'));
                     const taskLabel = a.taskId === 'task_all' || !a.taskId ? '🌐 全班通识广播' : `📌 ${a.taskTitle || '专属任务'}`;
