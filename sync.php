@@ -32,6 +32,13 @@ if (empty($taskId)) $taskId = 'task_default';
 
 $scopeKey = $taskId . '_' . $groupId;
 $action = isset($_GET['action']) ? $_GET['action'] : '';
+if (empty($action) && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    $peekInput = @file_get_contents('php://input');
+    if (!empty($peekInput)) {
+        $peekData = @json_decode($peekInput, true);
+        if (isset($peekData['action'])) $action = $peekData['action'];
+    }
+}
 
 // 0. 教师附件文件上传（存服务器磁盘，返回可访问 URL）
 if ($action === 'upload_file' && $_SERVER['REQUEST_METHOD'] === 'POST') {
