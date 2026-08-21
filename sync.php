@@ -179,7 +179,11 @@ if ($action === 'update_read_status' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $req = json_decode($rawInput, true) ?: [];
     $annId   = isset($req['annId'])   ? $req['annId']   : '';
     $groupId = isset($req['groupId']) ? $req['groupId'] : '';
-    if ($annId && $groupId && $pdo) {
+    $userId  = isset($req['userId'])  ? $req['userId']  : '';
+    $userCode = isset($req['userCode']) ? $req['userCode'] : '';
+    $userName = isset($req['userName']) ? $req['userName'] : '';
+
+    if ($annId && $pdo) {
         // 读取当前 global_meta
         $stmt = $pdo->prepare("SELECT meta_value FROM global_meta WHERE meta_key = 'main_meta'");
         $stmt->execute();
@@ -190,8 +194,29 @@ if ($action === 'update_read_status' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 $changed = false;
                 foreach ($meta['announcements'] as &$ann) {
                     if ($ann['id'] === $annId) {
-                        if (!isset($ann['readStatus'])) $ann['readStatus'] = [];
-                        $ann['readStatus'][$groupId] = true;
+                        if (!isset($ann['readStatus']) || !is_array($ann['readStatus'])) $ann['readStatus'] = [];
+                        if (!isset($ann['readGroupStatus']) || !is_array($ann['readGroupStatus'])) $ann['readGroupStatus'] = [];
+                        if (!isset($ann['confirmedMembers']) || !is_array($ann['confirmedMembers'])) $ann['confirmedMembers'] = [];
+
+                        if ($userId) $ann['readStatus'][$userId] = true;
+                        if ($userCode) $ann['readStatus'][$userCode] = true;
+                        if ($groupId) $ann['readGroupStatus'][$groupId] = true;
+
+                        $exists = false;
+                        foreach ($ann['confirmedMembers'] as $cm) {
+                            if (is_array($cm) && isset($cm['id']) && $cm['id'] === $userId) {
+                                $exists = true;
+                                break;
+                            }
+                        }
+                        if (!$exists && $userId) {
+                            $ann['confirmedMembers'][] = [
+                                'id' => $userId,
+                                'name' => $userName ?: ($userCode ?: '学生'),
+                                'studentCode' => $userCode ?: '',
+                                'groupId' => $groupId ?: ''
+                            ];
+                        }
                         $changed = true;
                         break;
                     }
