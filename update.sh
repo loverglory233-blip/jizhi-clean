@@ -17,67 +17,19 @@ TARGET_DIRS=($(printf "%s\n" "${TARGET_DIRS[@]}" | sort -u))
 
 echo "📁 目标目录: ${TARGET_DIRS[*]}"
 
-echo "⚡ [2/4] 下载最新代码并校验完整性..."
+echo "⚡ [2/4] 下载最新代码..."
 TMP=/tmp/jizhi_update
 rm -rf "$TMP" && mkdir -p "$TMP/css" "$TMP/js" "$TMP/api"
 
-dl() {
-  local min_lines=1
-  if [ "$f" == "js/bundle.js" ]; then
-    min_lines=9500 # bundle.js 必须大于 9500 行，100% 防止代理截断！
-  fi
-
-  local success=0
-  local urls=(
-    "https://cdn.jsdelivr.net/gh/loverglory233-blip/jizhi-clean@main/$f"
-    "https://fastly.jsdelivr.net/gh/loverglory233-blip/jizhi-clean@main/$f"
-    "https://testingcf.jsdelivr.net/gh/loverglory233-blip/jizhi-clean@main/$f"
-    "https://raw.githubusercontent.com/loverglory233-blip/jizhi-clean/main/$f"
-    "https://ghfast.top/https://raw.githubusercontent.com/loverglory233-blip/jizhi-clean/main/$f"
-    "https://ghproxy.net/https://raw.githubusercontent.com/loverglory233-blip/jizhi-clean/main/$f"
-  )
-  for u in "${urls[@]}"; do
-    curl -s -f -L --connect-timeout 8 --max-time 30 "$u" -o "$TMP/$f" 2>/dev/null
-    if [ -s "$TMP/$f" ]; then
-      local lines=$(grep -c '' "$TMP/$f" 2>/dev/null || echo 0)
-      lines=$((lines + 0))
-      if [ "$lines" -ge "$min_lines" ] && ! grep -q "429: Too Many Requests" "$TMP/$f"; then
-        success=1
-        echo "   ✓ $f 下载完整 ($lines 行)"
-        break
-      fi
-    fi
-  done
-
-  if [ $success -eq 0 ]; then
-    echo "⚠️ 正在使用全球多节点重试 $f ..."
-    for retry_url in "https://cdn.jsdelivr.net/gh/loverglory233-blip/jizhi-clean@main/$f" "https://raw.githubusercontent.com/loverglory233-blip/jizhi-clean/main/$f"; do
-      curl -s -L --connect-timeout 15 --max-time 60 "$retry_url" -o "$TMP/$f" 2>/dev/null
-      local lines=$(grep -c '' "$TMP/$f" 2>/dev/null || echo 0)
-      lines=$((lines + 0))
-      if [ "$lines" -ge "$min_lines" ]; then
-        success=1
-        echo "   ✓ $f 重试下载成功 ($lines 行)"
-        break
-      fi
-    done
-  fi
-
-  if [ $success -eq 0 ]; then
-    echo "❌ 严重错误: $f 未能完整下载 ($lines 行 < $min_lines 行)，已终止覆盖以保护生产环境"
-    rm -f "$TMP/$f"
-    exit 1
-  fi
-}
-
-dl index.html
-dl css/styles.css
-dl js/bundle.js
-dl sync.php
-dl server.py
-dl api/chat_api.php
-dl api/coze_prompt.php
-dl api/db_init.php
+BASE_URL="https://cdn.jsdelivr.net/gh/loverglory233-blip/jizhi-clean@main"
+curl -s -L "$BASE_URL/index.html" -o "$TMP/index.html"
+curl -s -L "$BASE_URL/css/styles.css" -o "$TMP/css/styles.css"
+curl -s -L "$BASE_URL/js/bundle.js" -o "$TMP/js/bundle.js"
+curl -s -L "$BASE_URL/sync.php" -o "$TMP/sync.php"
+curl -s -L "$BASE_URL/server.py" -o "$TMP/server.py"
+curl -s -L "$BASE_URL/api/chat_api.php" -o "$TMP/api/chat_api.php"
+curl -s -L "$BASE_URL/api/coze_prompt.php" -o "$TMP/api/coze_prompt.php"
+curl -s -L "$BASE_URL/api/db_init.php" -o "$TMP/api/db_init.php"
 
 for dir in "${TARGET_DIRS[@]}"; do
   mkdir -p "$dir/css" "$dir/js" "$dir/api"
