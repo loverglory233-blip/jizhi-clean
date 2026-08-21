@@ -7248,12 +7248,23 @@
           }
 
           if (this.state.studentViewMode === 'workspace') {
-            // ⚡ 学生在工作台协作时：每 3 秒后台静默拉取云端，若教师发布了当前任务的新通知，即刻自动弹出并点亮红点！
+            // ⚡ 学生在工作台协作时：每 3 秒后台静默拉取云端，实时感知教师发布的新通知或删除的通知/文献/问卷
             if (!this._studentWorkspacePollTick) this._studentWorkspacePollTick = 0;
             this._studentWorkspacePollTick++;
             if (this._studentWorkspacePollTick % 3 === 0) {
               if (this.authManager && this.authManager.pullGlobalMeta) {
                 this.authManager.pullGlobalMeta().then(() => {
+                  // 1. 若当前屏幕正打开的通知已被教师在后台删除，立即自动关闭该弹窗
+                  const openAnnModal = document.querySelector('.modal-announcement-popup');
+                  if (openAnnModal) {
+                    const openAnnId = openAnnModal.dataset.annId;
+                    const allCurrentAnns = this.authManager.getAnnouncements();
+                    if (openAnnId && !allCurrentAnns.some(a => a.id === openAnnId)) {
+                      openAnnModal.remove();
+                    }
+                  }
+
+                  // 2. 检查是否有属于当前任务/班级/小组的新发布未读通知
                   if (!document.querySelector('.modal-overlay')) {
                     this.checkUnreadAnnouncements();
                   }
@@ -8001,7 +8012,8 @@
         : '';
 
       const modal = document.createElement('div');
-      modal.className = 'modal-overlay';
+      modal.className = 'modal-overlay modal-announcement-popup';
+      modal.dataset.annId = selectedAnn.id;
       modal.innerHTML = `
         <div style="width:620px; max-width:94vw; background:#ffffff; border-radius:16px; box-shadow:0 25px 50px -12px rgba(15,23,42,0.25); overflow:hidden; border:1px solid #e2e8f0; animation:modalFadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);">
           
