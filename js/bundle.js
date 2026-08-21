@@ -8688,38 +8688,41 @@
       if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
 
       if (votesCastCount >= totalMembersCount) {
-        // ── 全员投票完成：落槌公布结果并自动生成合约 ──
-        setTimeout(() => {
+        // ── 全员投票完成：调用大模型拍卖师 API 动态生成专业落槌播报与研讨引导 ──
+        setTimeout(async () => {
           const tally = {};
           Object.values(s1.votes).forEach(pId => { if (pId) tally[pId] = (tally[pId] || 0) + 1; });
-          let summaryText = '🎪 【拍卖师·投票结果播报与主题推进】\n全员投票已全部完成！计票结果如下：\n';
+          const proposalSummaryList = (s1.proposals || []).map(p => `《${p.title}》(${tally[p.id] || 0}票)`).join('，');
+          
           let maxVotes = -1;
           let winningProposal = null;
-          (s1.proposals || []).forEach(p => { 
+          (s1.proposals || []).forEach(p => {
             const count = tally[p.id] || 0;
-            summaryText += `• 《${p.title}》: ${count} 票\n`; 
             if (count > maxVotes) {
               maxVotes = count;
               winningProposal = p;
             }
           });
 
-          const isUnanimous = (maxVotes === totalMembersCount);
-
-          if (isUnanimous) {
-            summaryText += `\n🎉 **【全员一致认同】**：全组 ${totalMembersCount} 票全部支持《${winningProposal.title}》！正式确立该提案为本组研究课题！\n\n👉 **【第 1 步·细化方案内容与研究方向】**：\n请全组先在研讨区头脑风暴：围绕该主题，具体打算涵盖哪些核心内容与关键模块？有哪些想要深入探索的具体设计？\n\n👉 **【第 2 步·商讨分工与时间安排】**：\n内容框架明晰后，大家自主商讨 6 大章节由谁负责、各模块时间如何预算。\n\n🤖 **【研讨充分后一键生成】**：\n当大家完成主题、内容、分工与时间的研讨后，请点击左侧【🤖 研讨差不多了？一键提炼研讨共识生成公约草案】按钮！AI 将基于大家的讨论自动生成公约草案，**生成后请全组成员认真检查并自主修改调整**，确认无误后全员签署生效！`;
-            if (!s1.mergedTitle && winningProposal) {
-              s1.mergedTitle = winningProposal.title;
-            }
-          } else {
-            summaryText += `\n⚖️ **【存在意见分歧·优先协商引导】**：注意到组内对选题持有不同视角！这正是团队协同碰撞创新的最佳契机。\n\n👉 **【第 1 步·协商确定主题与具体内容】**：\n建议各提案作者在讨论区简要说明设计亮点，大家取长补短，**确定一个全组认可的主题**并交流具体打算涵盖的核心内容！\n\n👉 **【第 2 步·商讨分工与时间安排】**：\n内容框架明晰后，大家自主商讨 6 大章节由谁负责、各模块时间如何预算。\n\n🤖 **【研讨充分后一键生成】**：\n当大家完成主题、内容、分工与时间的研讨后，请点击左侧【🤖 研讨差不多了？一键提炼研讨共识生成公约草案】按钮！AI 将基于大家的讨论自动生成公约草案，**生成后请全组成员认真检查并自主修改调整**，确认无误后全员签署生效！`;
-            if (!s1.mergedTitle && winningProposal) {
-              s1.mergedTitle = winningProposal.title;
-            }
+          if (!s1.mergedTitle && winningProposal) {
+            s1.mergedTitle = winningProposal.title;
           }
-
           if (!s1.contract.timeAllocations) {
             s1.contract.timeAllocations = { background: 25, literature: 30, questions: 25, method: 40, reflection: 20, references: 10 };
+          }
+
+          const isUnanimous = (maxVotes === totalMembersCount);
+          const voteContextPrompt = `全组投票已全部完成！计票结果：${proposalSummaryList}。${isUnanimous ? '全员一致投出最高票《' + (winningProposal ? winningProposal.title : '') + '》' : '投票存在分歧，最高票为《' + (winningProposal ? winningProposal.title : '') + '》'}。请作为拍卖师发表 150 字左右的落槌宣布与主题推进引导，引导学生围绕该课题细化方案内容、商讨 6 大章节分工与时间分配，并提示学生研讨充分后点击左侧【🤖 研讨差不多了？一键提炼研讨共识生成公约草案】生成公约并认真核对修改。`;
+
+          let summaryText = await callCozeAgentAPI('auctioneer', voteContextPrompt, {
+            stage: 'stage1',
+            isUnanimous,
+            winningTopic: winningProposal ? winningProposal.title : '',
+            tallySummary: proposalSummaryList
+          });
+
+          if (!summaryText || summaryText.trim().length === 0) {
+            summaryText = `🎪 【拍卖师·落槌结果播报】\n全员投票已全部完成！计票结果：${proposalSummaryList}。\n${isUnanimous ? '🎉 全员一致推选《' + winningProposal.title + '》为本组研究课题！' : '⚖️ 组内存在不同视角，当前最高票为《' + winningProposal.title + '》！'}\n\n👉 请大家在研讨区围绕该主题细化具体研究内容，协商 6 大章节由谁分工负责与各模块时间预算。\n🤖 商讨充分后，请点击左侧【🤖 研讨差不多了？一键提炼研讨共识生成公约草案】生成草案并认真核对修改！`;
           }
 
           const summaryMsg = { sender: 'auctioneer', text: summaryText, timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), _timeMs: Date.now() };
@@ -8729,7 +8732,7 @@
           if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
           renderChat(this.state);
           this.renderStudentWorkspace();
-        }, 1000);
+        }, 800);
       }
       this.renderStudentWorkspace();
     }
