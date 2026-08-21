@@ -8536,31 +8536,7 @@
         if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
         renderChat(this.state);
 
-        // ── 智能感知 1：阶段一当全员投票完成且组内进行了研讨（或出现分工/公约讨论信号），拍卖师主动提示生成草案 ──
-        if (currentStage === 'stage1' && !this.state.stage1.contract.isDraftGenerated) {
-          const s1 = this.state.stage1;
-          const votesCastCount = Object.values(s1.hasVoted || {}).filter(Boolean).length;
-          const totalMembersCount = Object.keys(this.state.members || {}).length || 3;
-          this.stage1StudentChatCount = (this.stage1StudentChatCount || 0) + 1;
-          const isDiscussionSignal = /(?:分工|我负责|负责|时间|写第|公约|章节|选题|主题|草案|生成|差不多|定下来|同意)/i.test(text);
-          if (votesCastCount >= totalMembersCount && (this.stage1StudentChatCount >= 2 || isDiscussionSignal) && !this.stage1DraftPromptSent) {
-            this.stage1DraftPromptSent = true;
-            setTimeout(() => {
-              const promptMsg = {
-                sender: 'auctioneer',
-                text: `🤖 【拍卖师·研讨共识提炼提示】\n检测到小组成员在研讨区已就论文选题与写作分工展开了深入探讨！\n\n👉 **请点击左侧【🤖 研讨差不多了？一键提炼研讨共识生成公约草案】按钮**，AI 将基于大家的研讨内容与高票选题自动生成合作公约草案。\n🔍 **生成后请全组成员认真检查各项分工与时间安排，并按需进行自主微调修改**，确认无误后全员签署生效！`,
-                timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                _timeMs: Date.now()
-              };
-              this.state.chatLogs.stage1.push(promptMsg);
-              this.syncChatLogs();
-              if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
-              renderChat(this.state);
-            }, 1200);
-          }
-        }
-
-        // ── 智能感知 2：如果处于【半程会议后等待组内商讨】状态，当学生在研讨区完成交流后触发审稿编辑 ──
+        // ── 智能感知：如果处于【半程会议后等待组内商讨】状态，当学生在研讨区完成交流后触发审稿编辑 ──
         if (currentStage === 'stage2' && this.state.stage2PendingReviewing) {
           this.state.stage2PendingReviewing.studentMsgCount = (this.state.stage2PendingReviewing.studentMsgCount || 0) + 1;
           const isConsensusSignal = /(?:对齐|同意|商量好了|商定好了|修改|明白了|收到|按这个改|@审稿编辑|统一了|没问题)/i.test(text);
