@@ -2910,18 +2910,19 @@
                       <div style="font-size:12.5px; color:#64748b; margin-top:4px;">点击右上角【+ 发布新通知】向本班学生发布即时指令！</div>
                     </div>
                   ` : currentClassAnnouncements.map((a, idx) => {
-                    const targetClassObj = (a.classId && a.classId !== 'all') ? classes.find(c => c.id === a.classId) : activeClass;
-                    const allClassGroups = (targetClassObj && Array.isArray(targetClassObj.groups) && targetClassObj.groups.length > 0)
-                      ? targetClassObj.groups
-                      : (activeClass.groups || [{ id: 'group_1', name: '第 1 协作小组' }]);
+                    const allClassGroups = (activeClass.groups && activeClass.groups.length > 0)
+                      ? activeClass.groups
+                      : [{ id: 'group_1', name: '第 1 协作小组' }];
 
                     const seenGIds = new Set();
                     let targetGroups = [];
                     allClassGroups.forEach(g => {
                       if (!g || !g.id || seenGIds.has(g.id)) return;
                       let isMatch = false;
+                      // 全班所有小组
                       if (!a.targetGroupId || a.targetGroupId === 'all') isMatch = true;
                       else if (Array.isArray(a.targetGroupIds) && a.targetGroupIds.includes('all')) isMatch = true;
+                      // 定向小组 (按 ID 或名称匹配当前班级中的对应小组)
                       else if (Array.isArray(a.targetGroupIds) && (a.targetGroupIds.includes(g.id) || a.targetGroupIds.includes(g.name))) isMatch = true;
                       else if (a.targetGroupId === g.id || a.targetGroupId === g.name) isMatch = true;
                       else if (a.targetGroupName && a.targetGroupName !== '全班所有小组') {
@@ -2934,18 +2935,9 @@
                       }
                     });
 
+                    // 兜底：若受众组当前未在班级列表中找到，用通知记录的目标组名呈现，绝不呈现空白
                     if (targetGroups.length === 0) {
-                      for (const c of classes) {
-                        const found = (c.groups || []).find(g => g.id === a.targetGroupId || g.name === a.targetGroupId);
-                        if (found && !seenGIds.has(found.id)) {
-                          seenGIds.add(found.id);
-                          targetGroups.push(found);
-                          break;
-                        }
-                      }
-                    }
-                    if (targetGroups.length === 0) {
-                      targetGroups = [{ id: a.targetGroupId || 'group_target', name: a.targetGroupName || '第 2 协作小组' }];
+                      targetGroups = [{ id: a.targetGroupId || 'group_target', name: a.targetGroupName || '定向协作小组' }];
                     }
                     const targetGName = a.targetGroupName || (targetGroups.length === allClassGroups.length ? '全班所有小组' : targetGroups.map(g => g.name).join('、'));
                     const taskLabel = a.taskId === 'task_all' || !a.taskId ? '🌐 全班通识广播' : `📌 ${a.taskTitle || '专属任务'}`;
