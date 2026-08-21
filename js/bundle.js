@@ -7892,18 +7892,36 @@
               timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
               _timeMs: now
             };
-            const msg2 = {
-              sender: 'reviewingEditor',
-              text: `📝 【审稿编辑·终审格式与细节微调建议】：通读全文，整体论证框架已非常完整！在最后冲刺阶段，请大家重点微调排版与格式规范：\n① 参考文献是否符合标准 GB/T 7714 格式；\n② 各级标题层级序号是否统一；\n③ 表格是否采用标准三线表。\n做好细节打磨，准备进入阶段三答辩！`,
-              timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-              _timeMs: now + 500
-            };
             if (!this.state.chatLogs.stage2) this.state.chatLogs.stage2 = [];
             this.state.chatLogs.stage2.push(msg1);
-            this.state.chatLogs.stage2.push(msg2);
             this.syncChatLogs();
             if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
             renderChat(this.state);
+
+            // 🤖 动态调用审稿编辑 API：基于真实正文尾部切片与参考文献进行针对性格式与细节微调审查
+            setTimeout(async () => {
+              const rawDoc = (s2.unifiedContent || '').replace(/<[^>]*>/g, '').trim();
+              const tailSnippet = rawDoc.slice(-800); // 截取尾部 800 字真实参考文献与收尾段落
+              const topic = (this.state.stage1 && this.state.stage1.mergedTitle) ? this.state.stage1.mergedTitle : '本组课题';
+              const sprintReviewPrompt = `团队课题《${topic}》已进入收尾冲刺阶段，当前正文尾部与参考文献切片如下：\n${tailSnippet}\n请作为审稿编辑对该切片进行具体的学术格式与排版审查，发表 130~150 字的终审微调建议：肯定论证框架完整，针对切片中的参考文献规范（GB/T 7714 格式、作者/年份/刊名完整度）、各级标题序号或表格三线表，指出 1~2 点具体微调自查细节，明确强调不要大改结构、只做细节打磨！`;
+              
+              let sprintReviewText = await callCozeAgentAPI('reviewingEditor', sprintReviewPrompt, { stage: 'stage2', topic, actualDoc: tailSnippet });
+              if (!sprintReviewText || sprintReviewText.trim().length === 0) {
+                sprintReviewText = `📝 【审稿编辑·终审格式与细节微调建议】：通读全文，整体论证框架已非常完整！在最后冲刺阶段，请大家重点微调排版与格式规范：\n① 参考文献是否符合标准 GB/T 7714 格式（含著者、题目、刊名、年份）；\n② 各级标题层级序号是否规范统一；\n③ 表格是否采用标准学术三线表。\n做好细节打磨，准备进入阶段三答辩！`;
+              }
+
+              const msg2 = {
+                sender: 'reviewingEditor',
+                text: sprintReviewText,
+                timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                _timeMs: Date.now()
+              };
+              if (!this.state.chatLogs.stage2) this.state.chatLogs.stage2 = [];
+              this.state.chatLogs.stage2.push(msg2);
+              this.syncChatLogs();
+              if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+              renderChat(this.state);
+            }, 1200);
           }
         }
 
