@@ -7045,21 +7045,23 @@
         const allUsers = this.authManager.getUsers();
         let changed = false;
 
-        // 收集该小组所有成员标识
-        const groupMembersKeys = new Set([groupId]);
+        // 严格只收集当前被重置小组及其组员的标识，绝不波及其他小组
+        const groupMembersKeys = new Set();
+        if (groupId) groupMembersKeys.add(groupId);
         classes.forEach(c => {
           (c.groups || []).forEach(g => {
-            if (g.id === groupId || g.name === groupId) {
-              groupMembersKeys.add(g.id);
-              if (g.name) groupMembersKeys.add(g.name);
+            if (g && ((g.id && g.id === groupId) || (g.name && g.name === groupId))) {
+              if (g.id) groupMembersKeys.add(g.id);
               (g.members || []).forEach(m => {
                 const mId = (typeof m === 'object' && m !== null) ? (m.id || m.userId || m.studentCode) : m;
-                if (mId) groupMembersKeys.add(mId);
-                const uObj = allUsers.find(u => u.id === mId || u.studentCode === mId || u.username === mId || u.name === mId);
-                if (uObj) {
-                  if (uObj.id) groupMembersKeys.add(uObj.id);
-                  if (uObj.studentCode) groupMembersKeys.add(uObj.studentCode);
-                  if (uObj.username) groupMembersKeys.add(uObj.username);
+                if (mId) {
+                  groupMembersKeys.add(mId);
+                  const uObj = allUsers.find(u => (u.id === mId || u.studentCode === mId || u.username === mId || u.name === mId));
+                  if (uObj) {
+                    if (uObj.id) groupMembersKeys.add(uObj.id);
+                    if (uObj.studentCode) groupMembersKeys.add(uObj.studentCode);
+                    if (uObj.username) groupMembersKeys.add(uObj.username);
+                  }
                 }
               });
             }
@@ -7070,7 +7072,7 @@
           const matchTask = !ann.taskId || ann.taskId === 'task_all' || ann.taskId === targetTaskId || (targetTaskId === 'task_default' && !ann.taskId);
           if (matchTask) {
             if (ann.readGroupStatus) {
-              if (ann.readGroupStatus[groupId]) { delete ann.readGroupStatus[groupId]; changed = true; }
+              if (groupId && ann.readGroupStatus[groupId]) { delete ann.readGroupStatus[groupId]; changed = true; }
             }
             if (ann.readStatus) {
               groupMembersKeys.forEach(k => {
@@ -7079,7 +7081,13 @@
             }
             if (Array.isArray(ann.confirmedMembers)) {
               const origLen = ann.confirmedMembers.length;
-              ann.confirmedMembers = ann.confirmedMembers.filter(m => m.groupId !== groupId && !groupMembersKeys.has(m.id) && !groupMembersKeys.has(m.studentCode));
+              ann.confirmedMembers = ann.confirmedMembers.filter(m => {
+                if (!m) return false;
+                if (m.groupId === groupId) return false;
+                if (m.id && groupMembersKeys.has(m.id)) return false;
+                if (m.studentCode && groupMembersKeys.has(m.studentCode)) return false;
+                return true;
+              });
               if (ann.confirmedMembers.length !== origLen) changed = true;
             }
           }
