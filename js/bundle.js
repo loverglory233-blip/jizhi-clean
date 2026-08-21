@@ -2311,32 +2311,36 @@
           }
         }
 
-      // ── stage2 正文编辑器：带光标锚定与拼音保护的无感差量合并 ──
+      // ── stage2 正文编辑器：带打字保护与光标锚定的无感差量合并 ──
       if (remoteData.stage2) {
         if (remoteData.stage2.unifiedContent !== undefined) {
           let cleanRemoteContent = (remoteData.stage2.unifiedContent || '').replace(/<span class="remote-cursor-widget"[\s\S]*?<\/span>/gi, '');
-          this.app.state.stage2.unifiedContent = cleanRemoteContent;
           const editor = document.getElementById('stage2-word-editor') || document.getElementById('stage3-word-editor');
           if (editor) {
             const isLocalComposing = (editor.dataset.isComposing === 'true');
+            const lastLocalEdit = Number(editor.dataset.lastLocalEditTime || 0);
+            const now = Date.now();
+            const isActivelyTyping = isLocalComposing || (now - lastLocalEdit < 2000);
             const currentLocalHtml = editor.innerHTML.replace(/<span class="remote-cursor-widget"[\s\S]*?<\/span>/gi, '');
-            
-            // 拼音输入法合成期间绝对挂起，避免拼音候选框被打断
-            if (!isLocalComposing && currentLocalHtml.trim() !== cleanRemoteContent.trim()) {
-              const isEditorFocused = (document.activeElement === editor) || (editor.contains(document.activeElement));
-              
-              if (isEditorFocused) {
-                // 1. 精确记录当前光标在全文中的字符偏移量
-                const savedOffset = getCaretCharacterOffsetWithin(editor);
-                // 2. 平滑更新 HTML
-                editor.innerHTML = cleanRemoteContent || '';
-                // 3. 瞬间恢复光标到原本的字符位置，打字手感 100% 丝滑连贯，绝不乱跳到左上角
-                try { setCaretPositionWithin(editor, savedOffset); } catch (e) {}
-              } else {
-                // 未聚焦状态下静默全量更新
-                editor.innerHTML = cleanRemoteContent || '';
+            const isEditorFocused = (document.activeElement === editor) || (editor.contains(document.activeElement));
+
+            // 如果本地用户正在活跃打字（2秒内），保护本地编辑内容绝不被远端旧快照吞字
+            if (!isActivelyTyping) {
+              if (currentLocalHtml.trim() !== cleanRemoteContent.trim()) {
+                this.app.state.stage2.unifiedContent = cleanRemoteContent;
+                if (isEditorFocused) {
+                  const savedOffset = getCaretCharacterOffsetWithin(editor);
+                  editor.innerHTML = cleanRemoteContent || '';
+                  try { setCaretPositionWithin(editor, savedOffset); } catch (e) {}
+                } else {
+                  editor.innerHTML = cleanRemoteContent || '';
+                }
               }
+            } else {
+              // 本地正在打字：保护本地内容，绝不覆盖 DOM
             }
+          } else {
+            this.app.state.stage2.unifiedContent = cleanRemoteContent;
           }
           this.app.updateContributionUi();
           this.app.renderPresenceCursors();
@@ -6256,28 +6260,8 @@
     const membersList = Object.values(state.members || {});
     const totalMembersCount = membersList.length;
 
-    // 💡 智能自动生成融合主题与默认分工 (无需学生必须点击按钮，自动准备好草案，可自由编辑或点击重新提炼)
-    if (!s1.mergedTitle || s1.mergedTitle.trim().length === 0) {
-      if (s1.proposals && s1.proposals.length > 0) {
-        const sortedProps = [...s1.proposals].sort((a, b) => (b.votes || 0) - (a.votes || 0));
-        s1.mergedTitle = sortedProps[0].title;
-      } else {
-        s1.mergedTitle = '基于多智能体协同的学术论文写作与研究设计方案';
-      }
-    }
     if (!s1.contract.taskAssignments) s1.contract.taskAssignments = {};
-    const defaultSections = [
-      '负责“一、研究背景与意义”及“二、文献综述”起草与资料整理',
-      '负责“三、研究问题与假设”及“四、研究设计与方法”方案制定',
-      '负责“五、不足与反思”撰写及全篇“六、参考文献”引文校对',
-      '负责数据分析模型构建与研究工具问卷设计'
-    ];
-    membersList.forEach((m, idx) => {
-      const mIdKey = m.id || m.studentCode;
-      if (!s1.contract.taskAssignments[mIdKey] && (!m.id || !s1.contract.taskAssignments[m.id]) && (!m.studentCode || !s1.contract.taskAssignments[m.studentCode])) {
-        s1.contract.taskAssignments[mIdKey] = defaultSections[idx % defaultSections.length];
-      }
-    });
+    if (!s1.contract.timeAllocations) s1.contract.timeAllocations = {};
 
     const confirmedMembers = s1.contract.confirmedMembers || {};
     const confirmedCount = membersList.filter(m => confirmedMembers[m.id] || confirmedMembers[m.studentCode] || (m.name && confirmedMembers[m.name])).length;
