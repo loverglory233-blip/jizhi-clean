@@ -39,10 +39,11 @@ dl() {
   for u in "${urls[@]}"; do
     curl -s -f -L --connect-timeout 8 --max-time 30 "$u" -o "$TMP/$f" 2>/dev/null
     if [ -s "$TMP/$f" ]; then
-      local lines=$(wc -l < "$TMP/$f" 2>/dev/null || echo 0)
-      if [ $lines -ge $min_lines ] && ! grep -q "429: Too Many Requests" "$TMP/$f"; then
+      local lines=$(grep -c '' "$TMP/$f" 2>/dev/null || echo 0)
+      lines=$((lines + 0))
+      if [ "$lines" -ge "$min_lines" ] && ! grep -q "429: Too Many Requests" "$TMP/$f"; then
         success=1
-        echo "   ✓ $f 下载完整 ($lines 行, $(awk "BEGIN {printf \"%.1f\", $(wc -c < "$TMP/$f")/1024}") KB)"
+        echo "   ✓ $f 下载完整 ($lines 行)"
         break
       fi
     fi
@@ -52,8 +53,9 @@ dl() {
     echo "⚠️ 正在使用全球多节点重试 $f ..."
     for retry_url in "https://cdn.jsdelivr.net/gh/loverglory233-blip/jizhi-clean@main/$f" "https://raw.githubusercontent.com/loverglory233-blip/jizhi-clean/main/$f"; do
       curl -s -L --connect-timeout 15 --max-time 60 "$retry_url" -o "$TMP/$f" 2>/dev/null
-      local lines=$(wc -l < "$TMP/$f" 2>/dev/null || echo 0)
-      if [ $lines -ge $min_lines ]; then
+      local lines=$(grep -c '' "$TMP/$f" 2>/dev/null || echo 0)
+      lines=$((lines + 0))
+      if [ "$lines" -ge "$min_lines" ]; then
         success=1
         echo "   ✓ $f 重试下载成功 ($lines 行)"
         break
