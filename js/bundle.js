@@ -1537,13 +1537,10 @@
         author: '任课教师'
       };
 
-      // 仅当有 fileData 且无 fileUrl 时，在独立 key 做防崩容错存储
+      // 仅当有 fileData 且无 fileUrl 时，在内存 Map 做防崩容错存储
       if (paper.fileData && !paper.fileUrl) {
-        try {
-          localStorage.setItem(`jizhi_paper_data_${paperId}`, paper.fileData);
-        } catch (e) {
-          console.warn('Paper base64 cache skipped due to quota limits');
-        }
+        if (!window._paperMemoryBlobMap) window._paperMemoryBlobMap = new Map();
+        window._paperMemoryBlobMap.set(paperId, paper.fileData);
       }
 
       papers.unshift(newPaper);
@@ -1561,6 +1558,7 @@
     deleteReferencePaper(paperId) {
       let papers = this.getAllReferencePapers();
       papers = papers.filter(p => p.id !== paperId);
+      if (window._paperMemoryBlobMap) window._paperMemoryBlobMap.delete(paperId);
       localStorage.setItem('jizhi_reference_papers_db', JSON.stringify(papers));
       this.pushGlobalMeta();
     }
@@ -4949,8 +4947,8 @@
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
-          } else if (paper.fileData || localStorage.getItem(`jizhi_paper_data_${paperId}`)) {
-            const fData = paper.fileData || localStorage.getItem(`jizhi_paper_data_${paperId}`);
+          } else if (paper.fileData || (window._paperMemoryBlobMap && window._paperMemoryBlobMap.get(paperId))) {
+            const fData = paper.fileData || window._paperMemoryBlobMap.get(paperId);
             const a = document.createElement('a');
             a.href = fData;
             a.download = paper.fileName || '学术参考范文.pdf';
