@@ -5037,9 +5037,6 @@
             </div>
           </div>
           <div class="header-controls" style="display:flex; align-items:center; gap:10px;">
-            <button class="nav-ann-bell-btn ${unreadAnnCount > 0 ? 'has-unread' : ''}" id="btn-portal-ann-bell" title="课堂通知" style="background:#ffffff; border:1px solid #e2e8f0; color:#334155; padding:6px 14px; border-radius:18px; font-size:12px; font-weight:600; cursor:pointer;">
-              🔔 课堂通知 ${unreadAnnCount > 0 ? `<span class="unread-count">${unreadAnnCount}</span>` : ''}
-            </button>
             <button id="btn-portal-logout" style="background:#fef2f2; color:#dc2626; border:1px solid #fecaca; padding:6px 14px; border-radius:18px; font-size:12px; font-weight:700; cursor:pointer;">🚪 退出登录</button>
           </div>
         </header>
@@ -5171,18 +5168,25 @@
     const groupId = activeGroupObj.id || (currentUser && currentUser.groupId ? currentUser.groupId : 'group_1');
     const groupName = activeGroupObj.name || '第 1 协作小组';
 
-    // 严格按当前班级和当前小组过滤通知，杜绝外班通知串入
+    const activeTaskId = (state && state.activeTaskId) ? state.activeTaskId : 'task_default';
+
+    // 严格按【当前班级】、【当前任务】和【当前小组】三位一体过滤通知，彻底杜绝跨任务/跨小组干扰
     const relevantAnnouncements = (announcements || []).filter(a => {
       const matchClass = !a.classId || a.classId === 'all' || a.classId === activeClassId;
       const matchGroup = !a.targetGroupId || a.targetGroupId === 'all' || a.targetGroupId === groupId ||
         (Array.isArray(a.targetGroupIds) && (a.targetGroupIds.includes('all') || a.targetGroupIds.includes(groupId)));
-      return matchClass && matchGroup;
+      const matchTask = !a.taskId || a.taskId === 'task_all' || a.taskId === activeTaskId || (!a.taskId && activeTaskId === 'task_default');
+      return matchClass && matchGroup && matchTask;
     });
     const isAnnRead = (a) => {
-      if (!a.readStatus) return false;
-      if (currentUser && currentUser.id && a.readStatus[currentUser.id]) return true;
-      if (currentUser && currentUser.studentCode && a.readStatus[currentUser.studentCode]) return true;
-      if (currentUser && currentUser.username && a.readStatus[currentUser.username]) return true;
+      if (!a.readStatus && !a.readGroupStatus) return false;
+      if (currentUser) {
+        if (currentUser.id && a.readStatus && a.readStatus[currentUser.id]) return true;
+        if (currentUser.studentCode && a.readStatus && a.readStatus[currentUser.studentCode]) return true;
+        if (currentUser.username && a.readStatus && a.readStatus[currentUser.username]) return true;
+      }
+      if (groupId && a.readGroupStatus && a.readGroupStatus[groupId]) return true;
+      if (groupId && a.readStatus && a.readStatus[groupId]) return true;
       return false;
     };
     const unreadAnnCount = relevantAnnouncements.filter(a => !isAnnRead(a)).length;
