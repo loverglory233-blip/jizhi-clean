@@ -21,19 +21,41 @@ echo "⚡ [2/4] 下载最新代码..."
 TMP=/tmp/jizhi_update
 rm -rf "$TMP" && mkdir -p "$TMP/css" "$TMP/js" "$TMP/api"
 
-BASE_URL="https://cdn.jsdelivr.net/gh/loverglory233-blip/jizhi-clean@main"
-curl -s -L "$BASE_URL/index.html" -o "$TMP/index.html"
-curl -s -L "$BASE_URL/css/styles.css" -o "$TMP/css/styles.css"
-curl -s -L "$BASE_URL/js/bundle.js" -o "$TMP/js/bundle.js"
-curl -s -L "$BASE_URL/sync.php" -o "$TMP/sync.php"
-curl -s -L "$BASE_URL/server.py" -o "$TMP/server.py"
-curl -s -L "$BASE_URL/api/chat_api.php" -o "$TMP/api/chat_api.php"
-curl -s -L "$BASE_URL/api/coze_prompt.php" -o "$TMP/api/coze_prompt.php"
-curl -s -L "$BASE_URL/api/db_init.php" -o "$TMP/api/db_init.php"
+dl() {
+  local f=$1
+  local success=0
+  local urls=(
+    "https://ghfast.top/https://raw.githubusercontent.com/loverglory233-blip/jizhi-clean/main/$f"
+    "https://ghproxy.net/https://raw.githubusercontent.com/loverglory233-blip/jizhi-clean/main/$f"
+    "https://raw.gitmirror.com/loverglory233-blip/jizhi-clean/main/$f"
+    "https://cdn.jsdelivr.net/gh/loverglory233-blip/jizhi-clean@main/$f"
+    "https://raw.githubusercontent.com/loverglory233-blip/jizhi-clean/main/$f"
+  )
+  for u in "${urls[@]}"; do
+    curl -s -f -L --connect-timeout 2 --max-time 4 "$u" -o "$TMP/$f" 2>/dev/null
+    if [ -s "$TMP/$f" ] && ! grep -q "429: Too Many Requests" "$TMP/$f"; then
+      success=1
+      break
+    fi
+  done
+  if [ $success -eq 0 ]; then
+    echo "⚠️ 正在重试下载 $f ..."
+    curl -s -L --connect-timeout 3 --max-time 5 "https://raw.gitmirror.com/loverglory233-blip/jizhi-clean/main/$f" -o "$TMP/$f" 2>/dev/null
+  fi
+}
+
+dl index.html
+dl css/styles.css
+dl js/bundle.js
+dl sync.php
+dl server.py
+dl api/chat_api.php
+dl api/coze_prompt.php
+dl api/db_init.php
 
 for dir in "${TARGET_DIRS[@]}"; do
   mkdir -p "$dir/css" "$dir/js" "$dir/api"
-  cp -rf "$TMP/"* "$dir/" 2>/dev/null
+  cp -rf "$TMP/"* "$dir/"
   
   # 自动创建本地 MySQL 配置文件（若不存在）
   if [ ! -f "$dir/api/db_config.php" ]; then
