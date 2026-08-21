@@ -6527,12 +6527,14 @@
           // 提交提案时不自动给公约融合主题赋值，必须等待全组投票与讨论协商后确立
 
           const currentStage = state.currentStage;
-          const authorName = state.members[currentUser] ? state.members[currentUser].name : currentUser;
+          const memObj = Object.values(state.members || {}).find(m => m.id === currentUser || m.studentCode === currentUser || m.realStudentCode === currentUser);
+          const authorName = memObj ? memObj.name : (currentUser || '组员');
           const totalMembersCount = Object.keys(state.members || {}).length;
           const submittedAuthorsCount = new Set((s1.proposals || []).map(p => p.author)).size;
 
           const submitNoticeMsg = {
             sender: currentUser,
+            senderName: authorName,
             text: `💡 【新选题提出】我 (${authorName}) 提出了新选题提案《${title}》！`,
             timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
             _timeMs: Date.now()
@@ -6553,18 +6555,17 @@
           setTimeout(async () => {
             const isModify = existingIdx >= 0;
             const evalPrompt = isModify
-              ? `小组成员【${authorName}】刚在学术拍卖会上修改了选题提案，最新标题为《${title}》。请以拍卖师身份，结合该具体题目，严格按照【🔥研究热点 + 💡独特角度 + 🏷️竞拍吸睛建议】输出 120~150 字的极具穿透力的竞拍点评，严禁空洞套话！`
-              : `小组成员【${authorName}】刚在学术拍卖会上提交了一份新选题提案《${title}》。请以拍卖师身份，结合该具体题目，严格按照【🔥研究热点 + 💡独特角度 + 🏷️竞拍吸睛建议】输出 120~150 字的极具穿透力的竞拍看点评估，严禁空洞套话！`;
+              ? `小组成员【${authorName}】在学术拍卖会上修改了选题提案，最新题目为《${title}》。请作为学术拍卖师，直接针对《${title}》的具体字面含义与研究切入点，从【🔥 研究看点】、【💡 独特视角】、【🏷️ 竞拍吸睛建议】三个维度发表 100~130 字的真实深度点评，必须具体联系题目字面内容，严禁使用通用模板套话！`
+              : `小组成员【${authorName}】在学术拍卖会上提交了新选题提案《${title}》。请作为学术拍卖师，直接针对《${title}》的具体字面含义与研究切入点，从【🔥 研究看点】、【💡 独特视角】、【🏷️ 竞拍吸睛建议】三个维度发表 100~130 字的真实深度点评，必须具体联系题目字面内容，严禁使用通用模板套话！`;
             
-            let evalText = await callCozeAgentAPI('auctioneer', evalPrompt, { stage: 'stage1', proposalTitle: title, author: authorName });
+            let evalText = await callCozeAgentAPI('auctioneer', evalPrompt, { stage: 'stage1', proposalTitle: title, author: authorName, topic: title });
             if (!evalText || evalText.trim().length === 0) {
-              evalText = isModify
-                ? `🎪 【拍卖师·选题竞拍看点评估】：收到 ${authorName} 提交的修改版选题《${title}》！\n🔥 **研究热点**：切中了教育技术前沿热点赛道；\n💡 **独特角度**：立意聚焦且切入视角鲜明；\n🏷️ **竞拍建议**：若能在讨论中明确具体学段与技术应用情境，在竞拍投票中将更具吸睛力！`
-                : `🎪 【拍卖师·选题竞拍看点评估】：收到 ${authorName} 提出的新选题《${title}》！\n🔥 **研究热点**：切中了教育数字化与现代教育技术前沿热点赛道；\n💡 **独特角度**：切入视角新颖，立意富有探索空间；\n🏷️ **竞拍建议**：若能在讨论中结合具体的教学场景工具，在接下来的全组竞拍投票中将极具竞争力！`;
+              evalText = `🎪 【拍卖师·选题竞拍看点评估】：收到 ${authorName} 提交的《${title}》！\n🔥 **研究看点**：聚焦于《${title}》所涉及的核心议题；\n💡 **独特视角**：切入视角鲜明，具有探讨与论证空间；\n🏷️ **竞拍建议**：建议全组结合《${title}》深入讨论具体的实施方法，在接下来的投票竞拍中争取更高支持率！`;
             }
 
             const auctioneerEvalMsg = {
               sender: 'auctioneer',
+              senderName: '头脑风暴 · 学术拍卖师',
               text: evalText,
               timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
               _timeMs: Date.now()
