@@ -7186,14 +7186,28 @@
         }
       } catch (e) {}
 
-      if (this.cloudSyncEngine) {
-        this.cloudSyncEngine.groupId = groupId;
-        this.cloudSyncEngine.taskId = targetTaskId;
-        this.cloudSyncEngine.updateScopeKeys();
-        // 标记为强制重置快照，通知远端各学生端彻底重置本地草稿、合约与聊天
-        this.cloudSyncEngine.isResetBroadcast = true;
-        this.cloudSyncEngine.pushSnapshot();
-      }
+      // 发送原子重置请求直达服务端 (独立通道，100% 必达，彻底清空服务端数据库与缓存)
+      fetch(`sync.php?action=reset_group&groupId=${encodeURIComponent(groupId)}&taskId=${encodeURIComponent(targetTaskId)}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isReset: true })
+      }).then(r => r.json()).then(res => {
+        if (this.cloudSyncEngine) {
+          this.cloudSyncEngine.groupId = groupId;
+          this.cloudSyncEngine.taskId = targetTaskId;
+          this.cloudSyncEngine.updateScopeKeys();
+          this.cloudSyncEngine.isResetBroadcast = true;
+          this.cloudSyncEngine.broadcastLocal({ isReset: true, resetSeq: (res && res.resetSeq) ? res.resetSeq : Date.now() });
+        }
+      }).catch(() => {
+        if (this.cloudSyncEngine) {
+          this.cloudSyncEngine.groupId = groupId;
+          this.cloudSyncEngine.taskId = targetTaskId;
+          this.cloudSyncEngine.updateScopeKeys();
+          this.cloudSyncEngine.isResetBroadcast = true;
+          this.cloudSyncEngine.pushSnapshot();
+        }
+      });
     }
 
     saveGroupState(groupId) {

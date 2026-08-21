@@ -287,6 +287,58 @@ if ($action === 'coze_chat' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     exit;
 }
 
+// 3b. 教师端原子重置小组协同数据 (独立可靠通道，绝不依赖并发锁)
+if ($action === 'reset_group' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    $nowMs = round(microtime(true) * 1000);
+    $newResetSeq = 1;
+    if ($pdo) {
+        // 读取并递增 reset_seq
+        $stmtGetResetSeq = $pdo->prepare("SELECT meta_value FROM global_meta WHERE meta_key = :k");
+        $stmtGetResetSeq->execute([':k' => 'reset_seq_' . $scopeKey]);
+        $resetSeqRow = $stmtGetResetSeq->fetch();
+        $serverResetSeq = $resetSeqRow ? intval($resetSeqRow['meta_value']) : 0;
+        $newResetSeq = $serverResetSeq + 1;
+
+        $stmtSetResetSeq = $pdo->prepare("INSERT INTO global_meta (meta_key, meta_value) VALUES (:k, :v) ON DUPLICATE KEY UPDATE meta_value = :v2");
+        $stmtSetResetSeq->execute([':k' => 'reset_seq_' . $scopeKey, ':v' => $newResetSeq, ':v2' => $newResetSeq]);
+
+        // 彻底清空 group_states 表
+        $emptyS1 = json_encode(['proposals' => [], 'votes' => [], 'hasVoted' => [], 'mergedTitle' => '', 'contract' => ['confirmedMembers' => [], 'isConfirmed' => false]], JSON_UNESCAPED_UNICODE);
+        $emptyS2 = json_encode(['unifiedContent' => '', 'meetingSubmissions' => [], 'actionPlan' => null, 'memberContributions' => []], JSON_UNESCAPED_UNICODE);
+        $emptyS3 = json_encode(['proponentAnalysis' => '', 'opponentCritique' => '', 'neutralVerdict' => '', 'feedbackItems' => []], JSON_UNESCAPED_UNICODE);
+        
+        $stmtResetGroup = $pdo->prepare("INSERT INTO group_states (scope_key, task_id, group_id, current_stage, stage1_data, stage2_data, stage3_data, presence_data, is_final_submitted, last_timestamp)
+            VALUES (:sk, :tid, :gid, 'stage1', :s1, :s2, :s3, '[]', 0, :ts)
+            ON DUPLICATE KEY UPDATE current_stage='stage1', stage1_data=:s1b, stage2_data=:s2b, stage3_data=:s3b, presence_data='[]', is_final_submitted=0, last_timestamp=:tsb");
+        $stmtResetGroup->execute([
+            ':sk' => $scopeKey, ':tid' => $taskId, ':gid' => $groupId,
+            ':s1' => $emptyS1, ':s2' => $emptyS2, ':s3' => $emptyS3, ':ts' => $nowMs,
+            ':s1b' => $emptyS1, ':s2b' => $emptyS2, ':s3b' => $emptyS3, ':tsb' => $nowMs
+        ]);
+
+        // 清空 chat_messages 和 chats 快速通道
+        $stmtDelChats = $pdo->prepare("DELETE FROM chat_messages WHERE scope_key = :sk");
+        $stmtDelChats->execute([':sk' => $scopeKey]);
+        $emptyChats = json_encode(['stage1' => [], 'stage2' => [], 'stage3' => []], JSON_UNESCAPED_UNICODE);
+        $stmtClearChatMeta = $pdo->prepare("INSERT INTO global_meta (meta_key, meta_value) VALUES (:k, :v) ON DUPLICATE KEY UPDATE meta_value = :v2");
+        $stmtClearChatMeta->execute([':k' => 'chats_' . $scopeKey, ':v' => $emptyChats, ':v2' => $emptyChats]);
+
+        // 更新全局变更信号
+        $stmtSignal = $pdo->prepare("INSERT INTO global_meta (meta_key, meta_value) VALUES ('meta_updated_at', :v) ON DUPLICATE KEY UPDATE meta_value = :v2");
+        $stmtSignal->execute([':v' => $nowMs, ':v2' => $nowMs]);
+    }
+
+    // 清理本地文件备份
+    @file_put_contents(__DIR__ . '/db_' . $scopeKey . '.json', json_encode([
+        'timestamp' => $nowMs, 'groupId' => $groupId, 'taskId' => $taskId, 'currentStage' => 'stage1',
+        'stage1' => [], 'stage2' => ['unifiedContent' => ''], 'stage3' => [], 'chatLogs' => ['stage1' => [], 'stage2' => [], 'stage3' => []],
+        'resetSeq' => $newResetSeq, 'isReset' => true
+    ], JSON_UNESCAPED_UNICODE));
+
+    echo json_encode(['success' => true, 'resetSeq' => $newResetSeq, 'timestamp' => $nowMs]);
+    exit;
+}
+
 // 4. 数据快照持久化 (MySQL 主存储)
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $rawInput = file_get_contents('php://input');
