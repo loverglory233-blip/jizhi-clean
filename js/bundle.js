@@ -8536,6 +8536,33 @@
         if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
         renderChat(this.state);
 
+        // ── 流程图节点：阶段一全员投票完成后，检测到组内讨论差不多了，拍卖师提示学生去点击生成公约 ──
+        if (currentStage === 'stage1' && !this.state.stage1.contract.isDraftGenerated && !this.state.stage1.contract.isConfirmed) {
+          const s1 = this.state.stage1;
+          const votesCastCount = Object.values(s1.hasVoted || {}).filter(Boolean).length;
+          const totalMembersCount = Object.keys(this.state.members || {}).length || 3;
+          
+          if (votesCastCount >= totalMembersCount && !this.state.stage1DraftPromptSent) {
+            this.stage1StudentChatCount = (this.stage1StudentChatCount || 0) + 1;
+            const isDiscussionSignal = /(?:分工|我负责|负责|时间|写第|公约|章节|选题|主题|草案|生成|差不多|定下来|同意|好的|没问题|对齐)/i.test(text);
+            if (this.stage1StudentChatCount >= 2 || isDiscussionSignal) {
+              this.state.stage1DraftPromptSent = true;
+              setTimeout(() => {
+                const promptMsg = {
+                  sender: 'auctioneer',
+                  text: `🤖 【拍卖师提示】：小组成员已就研究主题、方案内容、写作分工与时间安排展开了充分研讨！\n👉 请点击左侧【🤖 研讨差不多了？一键提炼研讨共识生成公约草案】按钮，AI 将自动提炼生成公约草案。\n🔍 **草案生成后请全组成员认真检查各项分工与时间安排，并按需进行自主修改微调**，确认无误后全员签署生效！`,
+                  timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                  _timeMs: Date.now()
+                };
+                this.state.chatLogs.stage1.push(promptMsg);
+                this.syncChatLogs();
+                if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+                renderChat(this.state);
+              }, 1200);
+            }
+          }
+        }
+
         // ── 智能感知：如果处于【半程会议后等待组内商讨】状态，当学生在研讨区完成交流后触发审稿编辑 ──
         if (currentStage === 'stage2' && this.state.stage2PendingReviewing) {
           this.state.stage2PendingReviewing.studentMsgCount = (this.state.stage2PendingReviewing.studentMsgCount || 0) + 1;
