@@ -330,7 +330,96 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     exit;
                 }
             }
-            // 4a. 保存小组协作快照 (stage1/2/3, presence, members, chatLogs)
+            // 4a. 读取已有的协作状态，进行字段级智能合并保护（杜绝多端互相覆盖）
+            $existingPresence = [];
+            $existingS1 = [];
+            $existingS2 = [];
+            $existingS3 = [];
+            $stmtGetState = $pdo->prepare("SELECT presence_data, stage1_data, stage2_data, stage3_data FROM group_states WHERE scope_key = :sk");
+            $stmtGetState->execute([':sk' => $scopeKey]);
+            $stRow = $stmtGetState->fetch();
+            if ($stRow) {
+                if (!empty($stRow['presence_data'])) $existingPresence = json_decode($stRow['presence_data'], true) ?: [];
+                if (!empty($stRow['stage1_data']))   $existingS1 = json_decode($stRow['stage1_data'], true) ?: [];
+                if (!empty($stRow['stage2_data']))   $existingS2 = json_decode($stRow['stage2_data'], true) ?: [];
+                if (!empty($stRow['stage3_data']))   $existingS3 = json_decode($stRow['stage3_data'], true) ?: [];
+            }
+
+            // 合并 presence
+            $incomingPresence = (isset($data['presence']) && is_array($data['presence'])) ? $data['presence'] : [];
+            $mergedPresence = array_merge($existingPresence, $incomingPresence);
+
+            // 合并 stage1
+            $incomingS1 = (isset($data['stage1']) && is_array($data['stage1'])) ? $data['stage1'] : [];
+            $mergedS1 = $incomingS1;
+            if (!empty($existingS1) && !$isResetVal) {
+                $exProps = isset($existingS1['proposals']) && is_array($existingS1['proposals']) ? $existingS1['proposals'] : [];
+                $inProps = isset($incomingS1['proposals']) && is_array($incomingS1['proposals']) ? $incomingS1['proposals'] : [];
+                $propMap = [];
+                foreach ($exProps as $p) { if (isset($p['author'])) $propMap[$p['author']] = $p; }
+                foreach ($inProps as $p) {
+                    if (isset($p['author'])) {
+                        $author = $p['author'];
+                        if (!isset($propMap[$author]) || (isset($p['updatedAt']) && $p['updatedAt'] >= (isset($propMap[$author]['updatedAt']) ? $propMap[$author]['updatedAt'] : 0))) {
+                            $propMap[$author] = $p;
+                        }
+                    }
+                }
+                $mergedS1['proposals'] = array_values($propMap);
+                $exVotes = isset($existingS1['votes']) && is_array($existingS1['votes']) ? $existingS1['votes'] : [];
+                $inVotes = isset($incomingS1['votes']) && is_array($incomingS1['votes']) ? $incomingS1['votes'] : [];
+                $mergedS1['votes'] = array_merge($exVotes, $inVotes);
+                $exHasVoted = isset($existingS1['hasVoted']) && is_array($existingS1['hasVoted']) ? $existingS1['hasVoted'] : [];
+                $inHasVoted = isset($incomingS1['hasVoted']) && is_array($incomingS1['hasVoted']) ? $incomingS1['hasVoted'] : [];
+                $mergedS1['hasVoted'] = array_merge($exHasVoted, $inHasVoted);
+                $exConfirmed = isset($existingS1['contract']['confirmedMembers']) && is_array($existingS1['contract']['confirmedMembers']) ? $existingS1['contract']['confirmedMembers'] : [];
+                $inConfirmed = isset($incomingS1['contract']['confirmedMembers']) && is_array($incomingS1['contract']['confirmedMembers']) ? $incomingS1['contract']['confirmedMembers'] : [];
+                if (!isset($mergedS1['contract'])) $mergedS1['contract'] = [];
+                $mergedS1['contract']['confirmedMembers'] = array_merge($exConfirmed, $inConfirmed);
+                if (!empty($existingS1['contract']['isConfirmed']) || !empty($incomingS1['contract']['isConfirmed'])) {
+                    $mergedS1['contract']['isConfirmed'] = true;
+                }
+            }
+
+            // 合并 stage2
+            $incomingS2 = (isset($data['stage2']) && is_array($data['stage2'])) ? $data['stage2'] : [];
+            $mergedS2 = $incomingS2;
+            if (!empty($existingS2) && !$isResetVal) {
+                if (empty($incomingS2['unifiedContent']) && !empty($existingS2['unifiedContent'])) {
+                    $mergedS2['unifiedContent'] = $existingS2['unifiedContent'];
+                }
+                $exSubs = isset($existingS2['meetingSubmissions']) && is_array($existingS2['meetingSubmissions']) ? $existingS2['meetingSubmissions'] : [];
+                $inSubs = isset($incomingS2['meetingSubmissions']) && is_array($incomingS2['meetingSubmissions']) ? $incomingS2['meetingSubmissions'] : [];
+                $mergedS2['meetingSubmissions'] = array_merge($exSubs, $inSubs);
+                if (!empty($existingS2['actionPlan']['isGenerated']) && empty($incomingS2['actionPlan']['isGenerated'])) {
+                    $mergedS2['actionPlan'] = $existingS2['actionPlan'];
+                }
+            }
+
+            // 合并 stage3
+            $incomingS3 = (isset($data['stage3']) && is_array($data['stage3'])) ? $data['stage3'] : [];
+            $mergedS3 = $incomingS3;
+            if (!empty($existingS3) && !$isResetVal) {
+                $exItems = isset($existingS3['feedbackItems']) && is_array($existingS3['feedbackItems']) ? $existingS3['feedbackItems'] : [];
+                $inItems = isset($incomingS3['feedbackItems']) && is_array($incomingS3['feedbackItems']) ? $incomingS3['feedbackItems'] : [];
+                $itemMap = [];
+                foreach ($exItems as $it) { if (isset($it['id'])) $itemMap[$it['id']] = $it; }
+                foreach ($inItems as $it) {
+                    if (isset($it['id'])) {
+                        $id = $it['id'];
+                        if (!isset($itemMap[$id])) {
+                            $itemMap[$id] = $it;
+                        } else {
+                            if (!empty($it['response']) || (isset($it['status']) && $it['status'] === 'adopted')) {
+                                $itemMap[$id] = array_merge($itemMap[$id], $it);
+                            }
+                        }
+                    }
+                }
+                $mergedS3['feedbackItems'] = array_values($itemMap);
+            }
+
+            // 保存小组协作快照
             $stmt = $pdo->prepare("INSERT INTO group_states 
                 (scope_key, task_id, group_id, current_stage, stage1_data, stage2_data, stage3_data, presence_data, members_data, is_final_submitted, last_timestamp)
                 VALUES (:sk, :tid, :gid, :cstg, :s1, :s2, :s3, :pr, :mb, :fin, :ts)
@@ -338,33 +427,81 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 current_stage = :cstg2, stage1_data = :s12, stage2_data = :s22, stage3_data = :s32,
                 presence_data = :pr2, members_data = :mb2, is_final_submitted = :fin2, last_timestamp = :ts2");
             
+            $s1Json = json_encode($isResetVal ? ($data['stage1'] ?? []) : $mergedS1, JSON_UNESCAPED_UNICODE);
+            $s2Json = json_encode($isResetVal ? ($data['stage2'] ?? []) : $mergedS2, JSON_UNESCAPED_UNICODE);
+            $s3Json = json_encode($isResetVal ? ($data['stage3'] ?? []) : $mergedS3, JSON_UNESCAPED_UNICODE);
+            $prJson = json_encode($isResetVal ? [] : $mergedPresence, JSON_UNESCAPED_UNICODE);
+            $mbJson = isset($data['members']) ? json_encode($data['members'], JSON_UNESCAPED_UNICODE) : '';
+
             $stmt->execute([
                 ':sk'    => $scopeKey,
                 ':tid'   => $taskId,
                 ':gid'   => $groupId,
                 ':cstg'  => isset($data['currentStage']) ? $data['currentStage'] : 'stage1',
-                ':s1'    => isset($data['stage1']) ? json_encode($data['stage1'], JSON_UNESCAPED_UNICODE) : '',
-                ':s2'    => isset($data['stage2']) ? json_encode($data['stage2'], JSON_UNESCAPED_UNICODE) : '',
-                ':s3'    => isset($data['stage3']) ? json_encode($data['stage3'], JSON_UNESCAPED_UNICODE) : '',
-                ':pr'    => isset($data['presence']) ? json_encode($data['presence'], JSON_UNESCAPED_UNICODE) : '',
-                ':mb'    => isset($data['members']) ? json_encode($data['members'], JSON_UNESCAPED_UNICODE) : '',
+                ':s1'    => $s1Json,
+                ':s2'    => $s2Json,
+                ':s3'    => $s3Json,
+                ':pr'    => $prJson,
+                ':mb'    => $mbJson,
                 ':fin'   => !empty($data['isFinalSubmitted']) ? 1 : 0,
                 ':ts'    => $ts,
                 ':cstg2' => isset($data['currentStage']) ? $data['currentStage'] : 'stage1',
-                ':s12'   => isset($data['stage1']) ? json_encode($data['stage1'], JSON_UNESCAPED_UNICODE) : '',
-                ':s22'   => isset($data['stage2']) ? json_encode($data['stage2'], JSON_UNESCAPED_UNICODE) : '',
-                ':s32'   => isset($data['stage3']) ? json_encode($data['stage3'], JSON_UNESCAPED_UNICODE) : '',
-                ':pr2'   => isset($data['presence']) ? json_encode($data['presence'], JSON_UNESCAPED_UNICODE) : '',
-                ':mb2'   => isset($data['members']) ? json_encode($data['members'], JSON_UNESCAPED_UNICODE) : '',
+                ':s12'   => $s1Json,
+                ':s22'   => $s2Json,
+                ':s32'   => $s3Json,
+                ':pr2'   => $prJson,
+                ':mb2'   => $mbJson,
                 ':fin2'  => !empty($data['isFinalSubmitted']) ? 1 : 0,
                 ':ts2'   => $ts
             ]);
 
-            // 4b. 保存 chatLogs 到 global_meta 快速读取通道，并入库 chat_messages 表进行学术日志归档
-            if (isset($data['chatLogs']) && is_array($data['chatLogs'])) {
-                $stmtSaveChats = $pdo->prepare("INSERT INTO global_meta (meta_key, meta_value) VALUES (:k, :v) ON DUPLICATE KEY UPDATE meta_value = :v2");
-                $chatJson = json_encode($data['chatLogs'], JSON_UNESCAPED_UNICODE);
-                $stmtSaveChats->execute([':k' => 'chats_' . $scopeKey, ':v' => $chatJson, ':v2' => $chatJson]);
+            // 4b. 聊天记录增量并集去重合并（Union & Dedup），确保服务端消息单调递增绝不丢任何发言
+            $existingChats = ['stage1' => [], 'stage2' => [], 'stage3' => []];
+            if (!$isResetVal) {
+                $stmtGetChats = $pdo->prepare("SELECT meta_value FROM global_meta WHERE meta_key = :k");
+                $stmtGetChats->execute([':k' => 'chats_' . $scopeKey]);
+                $cRow = $stmtGetChats->fetch();
+                if ($cRow && !empty($cRow['meta_value'])) {
+                    $parsedC = json_decode($cRow['meta_value'], true);
+                    if (is_array($parsedC)) $existingChats = $parsedC;
+                }
+            }
+
+            $incomingChats = (isset($data['chatLogs']) && is_array($data['chatLogs'])) ? $data['chatLogs'] : [];
+            $mergedChats = ['stage1' => [], 'stage2' => [], 'stage3' => []];
+
+            foreach (['stage1', 'stage2', 'stage3'] as $stg) {
+                if ($isResetVal) {
+                    $mergedChats[$stg] = [];
+                    continue;
+                }
+                $msgMap = [];
+                $exList = isset($existingChats[$stg]) && is_array($existingChats[$stg]) ? $existingChats[$stg] : [];
+                $inList = isset($incomingChats[$stg]) && is_array($incomingChats[$stg]) ? $incomingChats[$stg] : [];
+                
+                foreach (array_merge($exList, $inList) as $m) {
+                    if (!is_array($m)) continue;
+                    $mId = isset($m['id']) && !empty($m['id']) ? $m['id'] : '';
+                    if (!$mId) {
+                        $snd = isset($m['sender']) ? $m['sender'] : '';
+                        $tms = isset($m['_timeMs']) ? $m['_timeMs'] : (isset($m['timestamp']) ? $m['timestamp'] : '');
+                        $th  = isset($m['text']) ? mb_substr($m['text'], 0, 30) : '';
+                        $mId = $snd . '_' . $tms . '_' . $th;
+                    }
+                    $msgMap[$mId] = $m;
+                }
+                $list = array_values($msgMap);
+                usort($list, function($a, $b) {
+                    $ta = isset($a['_timeMs']) ? intval($a['_timeMs']) : (isset($a['timeMs']) ? intval($a['timeMs']) : 0);
+                    $tb = isset($b['_timeMs']) ? intval($b['_timeMs']) : (isset($b['timeMs']) ? intval($b['timeMs']) : 0);
+                    return $ta <=> $tb;
+                });
+                $mergedChats[$stg] = $list;
+            }
+
+            $stmtSaveChats = $pdo->prepare("INSERT INTO global_meta (meta_key, meta_value) VALUES (:k, :v) ON DUPLICATE KEY UPDATE meta_value = :v2");
+            $chatJson = json_encode($mergedChats, JSON_UNESCAPED_UNICODE);
+            $stmtSaveChats->execute([':k' => 'chats_' . $scopeKey, ':v' => $chatJson, ':v2' => $chatJson]);
 
                 // 行级入库 chat_messages 表（记录时间戳、发送者、阶段与内容）
                 $stmtInsertMsg = $pdo->prepare("INSERT IGNORE INTO chat_messages (scope_key, stage, sender, text, timestamp_str, time_ms) VALUES (:sk, :stg, :snd, :txt, :tstr, :tms)");

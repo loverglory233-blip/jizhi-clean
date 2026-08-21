@@ -1352,7 +1352,8 @@
             roleTitle: (u.studentCode === 'A' || idx === 0) ? '组长 · 论文结构' : `组员 · 合作撰写`,
             avatar: u.avatar || avatars[idx % avatars.length],
             color: colors[idx % colors.length],
-            studentCode: letterCode
+            studentCode: letterCode,
+            realStudentCode: u.studentCode  // 真实数字学号，用于 presence 查找
           };
         });
       } else {
@@ -2143,10 +2144,11 @@
           const remoteLogs = Array.isArray(remoteData.chatLogs[stg]) ? remoteData.chatLogs[stg] : [];
           const localLogs = Array.isArray(this.app.state.chatLogs[stg]) ? this.app.state.chatLogs[stg] : [];
           
-          // 建立消息去重 Map（优先根据 _timeMs+sender+text 去重）
+          // 建立消息去重 Map（优先根据 id 去重，无 id 时降级为 _timeMs+sender+text）
           const msgMap = new Map();
           const getMsgKey = (m) => {
             if (!m) return '';
+            if (m.id) return m.id;
             const tMs = m._timeMs || m.timestamp || '';
             const sender = m.sender || '';
             const textHead = (m.text || '').slice(0, 30);
@@ -2170,6 +2172,13 @@
 
           // 如果合并后的总数发生变化或顺序更新
           const mergedLogs = Array.from(msgMap.values());
+          // 严格按时间戳递增排序，保证多端聊天流时序绝对一致
+          mergedLogs.sort((a, b) => {
+            const ta = a._timeMs ? Number(a._timeMs) : 0;
+            const tb = b._timeMs ? Number(b._timeMs) : 0;
+            return ta - tb;
+          });
+
           if (mergedLogs.length !== localLogs.length || JSON.stringify(mergedLogs) !== JSON.stringify(localLogs)) {
             this.app.state.chatLogs[stg] = mergedLogs;
             chatChanged = true;
@@ -2359,27 +2368,41 @@
         }
       }
 
-      // ── stage3 答辩委员意见：靶向增量更新，绝不全屏暴力重新渲染 ──
-      if (remoteData.stage3 && remoteData.stage3.feedbackItems) {
-        if (JSON.stringify(remoteData.stage3.feedbackItems) !== JSON.stringify(this.app.state.stage3.feedbackItems)) {
-          this.app.state.stage3.feedbackItems = remoteData.stage3.feedbackItems;
-          
-          // 靶向更新已渲染的卡片输入框与按钮状态，绝对不销毁整个矩阵 DOM
-          remoteData.stage3.feedbackItems.forEach(item => {
-            const textarea = document.querySelector(`.feedback-direct-input[data-id="${item.id}"]`);
-            if (textarea && document.activeElement !== textarea) {
-              if (textarea.value !== (item.response || '')) {
-                textarea.value = item.response || '';
+
+      // ── stage3 答辩委员意见：新卡片触发重渲染，已有卡片靶向更新 ──
+      if (remoteData.stage3) {
+        const localS3 = this.app.state.stage3;
+        const remoteS3 = remoteData.stage3;
+
+        // feedbackItems 数量变化（新增/删除卡片）→ 触发完整重渲染
+        if (Array.isArray(remoteS3.feedbackItems)) {
+          const localItems = localS3.feedbackItems || [];
+          const remoteItems = remoteS3.feedbackItems;
+
+          if (remoteItems.length !== localItems.length) {
+            // 卡片数量变化，必须完整重渲染
+            this.app.state.stage3.feedbackItems = remoteItems;
+            needWorkspaceRender = true;
+          } else if (JSON.stringify(remoteItems) !== JSON.stringify(localItems)) {
+            // 仅内容变化（response 填写等），靶向更新现有 DOM
+            this.app.state.stage3.feedbackItems = remoteItems;
+            remoteItems.forEach(item => {
+              const textarea = document.querySelector(`.feedback-direct-input[data-id="${item.id}"]`);
+              if (textarea && document.activeElement !== textarea) {
+                if (textarea.value !== (item.response || '')) textarea.value = item.response || '';
+                textarea.style.borderColor = item.response ? '#a7f3d0' : '#cbd5e1';
+                textarea.style.background = this.app.state.isFinalSubmitted ? '#f8fafc' : (item.response ? '#f0fdf4' : '#ffffff');
               }
-              textarea.style.borderColor = item.response ? '#a7f3d0' : '#cbd5e1';
-              textarea.style.background = this.app.state.isFinalSubmitted ? '#f8fafc' : (item.response ? '#f0fdf4' : '#ffffff');
-            }
-            const saveBtn = document.querySelector(`.btn-save-feedback-direct[data-id="${item.id}"]`);
-            if (saveBtn) {
-              saveBtn.innerHTML = item.response ? '🔄 更新并保存本条修改' : '💾 确认并保存本条答复';
-              saveBtn.style.background = item.response ? 'linear-gradient(135deg, #059669, #047857)' : 'linear-gradient(135deg, #2563eb, #1d4ed8)';
-            }
-          });
+              const saveBtn = document.querySelector(`.btn-save-feedback-direct[data-id="${item.id}"]`);
+              if (saveBtn) {
+                saveBtn.innerHTML = item.response ? '🔄 更新并保存本条修改' : '💾 确认并保存本条答复';
+                saveBtn.style.background = item.response ? 'linear-gradient(135deg, #059669, #047857)' : 'linear-gradient(135deg, #2563eb, #1d4ed8)';
+              }
+            });
+            // 如果 DOM 中找不到任何一个卡片（用户不在 stage3 defense 面板），触发重渲染兜底
+            const anyCardInDom = document.querySelector('.feedback-direct-input');
+            if (!anyCardInDom && this.app.state.currentStage === 'stage3') needWorkspaceRender = true;
+          }
         }
       }
 
@@ -6103,18 +6126,23 @@
     const presence = state.presence || {};
     const now = Date.now();
 
+    const allUsers = (window.app && window.app.authManager) ? window.app.authManager.getUsers() : [];
+
     pillsContainer.innerHTML = membersList.map(m => {
-      const p = presence[m.studentCode] || presence[m.id];
-      const isSelf = m.studentCode === currentUserCode || m.id === currentUserCode;
+      const p = presence[m.studentCode] || presence[m.id] || presence[m.realStudentCode];
+      const isSelf = m.studentCode === currentUserCode || m.id === currentUserCode || (m.realStudentCode && m.realStudentCode === currentUserCode);
       // 只有在 15 秒内有心跳活跃的才视为在线
       const isOnline = isSelf || (p && (now - (p.updatedAt || 0) < 15000));
       const sectionText = isSelf ? ' (我)' : (isOnline ? ' (在线)' : ' (离线)');
       const color = m.color || '#2563eb';
+      let displayName = m.name || m.studentCode;
+      const matchedUser = allUsers.find(u => (m.realStudentCode && u.studentCode === m.realStudentCode) || (m.studentCode && u.studentCode === m.studentCode) || (m.id && u.id === m.id) || (m.username && u.username === m.username));
+      if (matchedUser && matchedUser.name) displayName = matchedUser.name;
 
       return `
         <span class="collab-presence-pill ${isOnline ? 'active' : ''}" style="${isOnline ? `border-color:${color}; color:${color}; background:#ffffff;` : 'color:#94a3b8; background:#f1f5f9;'}">
           <span class="collab-presence-dot" style="background:${isOnline ? color : '#cbd5e1'};"></span>
-          ${m.avatar || '👨‍🎓'} ${m.name}<span style="font-weight:normal; font-size:10px; color:${isOnline ? '#475569' : '#94a3b8'};">${sectionText}</span>
+          ${m.avatar || '👨‍🎓'} ${displayName}<span style="font-weight:normal; font-size:10px; color:${isOnline ? '#475569' : '#94a3b8'};">${sectionText}</span>
         </span>
       `;
     }).join('');
@@ -6136,15 +6164,18 @@
 
     membersList.forEach(m => {
       const code = m.studentCode || m.id;
-      if (m.studentCode === currentUserCode || m.id === currentUserCode) return;
+      if (m.studentCode === currentUserCode || m.id === currentUserCode || (m.realStudentCode && m.realStudentCode === currentUserCode)) return;
       if (seenMemberCodes.has(code)) return; // 严格去重
 
-      const p = presence[m.studentCode] || presence[m.id];
+      const p = presence[m.studentCode] || presence[m.id] || presence[m.realStudentCode];
       if (!p || (now - (p.updatedAt || 0) > 20000)) return; // 20秒未活动视为离线
       seenMemberCodes.add(code);
 
       const color = m.color || '#8b5cf6';
-      const name = m.name || m.studentCode;
+      const allUsers = (window.app && window.app.authManager) ? window.app.authManager.getUsers() : [];
+      let name = m.name || m.studentCode;
+      const matchedUser = allUsers.find(u => (m.realStudentCode && u.studentCode === m.realStudentCode) || (m.studentCode && u.studentCode === m.studentCode) || (m.id && u.id === m.id) || (m.username && u.username === m.username));
+      if (matchedUser && matchedUser.name) name = matchedUser.name;
       const avatar = m.avatar || '👨‍🎓';
       const targetOffset = (typeof p.charOffset === 'number' && p.charOffset >= 0) ? p.charOffset : null;
 
