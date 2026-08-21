@@ -7881,25 +7881,26 @@
             }
           }
 
-          // 5. 🎯 终审收尾雷达：正文写到【六、参考文献】或进入最后 15% 冲刺期
-          const hasReachedReferences = /(?:六、|第6章|第六部分|参考文献|References)/i.test(s2.unifiedContent || '');
+          // 5. 🎯 终审收尾雷达：阶段二自身时长达到 85% 或 参考文献录入完毕全文闭环
+          const hasReachedReferences = /(?:六、|第6章|第六部分|参考文献|References)/i.test(s2.unifiedContent || '') && (s2.unifiedContent || '').length > 1500;
           const isTimeOver85Pct = stage2DurationMs >= (totalPlannedMs * 0.85);
           if ((hasReachedReferences || isTimeOver85Pct) && !this.state.stage2FinalNudgeSent && hasMeetingDone) {
             this.state.stage2FinalNudgeSent = true;
             const msg1 = {
               sender: 'managingEditor',
-              text: `🏁 【责任编辑·冲刺倒计时提醒】：方案撰写已进入最终收尾冲刺阶段！\n• 建议全组成员交叉通读全篇，理顺段落衔接；确认无误后可准备点击进入【阶段三：答辩擂台】！`,
+              text: `🤝 【责任编辑·收尾自查提醒】：时间已推进至阶段二最后冲刺阶段，全篇方案已基本成型！\n👉 请组员先**不要大改核心框架**，重点在研讨区协同分工：对全篇段落衔接与前后逻辑进行快速自查自校，做好收尾！`,
               timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
               _timeMs: now
             };
             const msg2 = {
               sender: 'reviewingEditor',
-              text: `📚 【审稿编辑·终审格式排版规范】：请注意检查：\n1. 章节标题序号是否规范统一；\n2. 表格是否采用标准学术三线表；\n3. 参考文献是否符合 GB/T 7714 格式规范。`,
+              text: `📝 【审稿编辑·终审格式与细节微调建议】：通读全文，整体论证框架已非常完整！在最后冲刺阶段，请大家重点微调排版与格式规范：\n① 参考文献是否符合标准 GB/T 7714 格式；\n② 各级标题层级序号是否统一；\n③ 表格是否采用标准三线表。\n做好细节打磨，准备进入阶段三答辩！`,
               timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
               _timeMs: now + 500
             };
             if (!this.state.chatLogs.stage2) this.state.chatLogs.stage2 = [];
-            this.state.chatLogs.stage2.push(msg1, msg2);
+            this.state.chatLogs.stage2.push(msg1);
+            this.state.chatLogs.stage2.push(msg2);
             this.syncChatLogs();
             if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
             renderChat(this.state);
