@@ -6989,6 +6989,60 @@
       this.state.presence = {};
       this.initPresetMessagesForGroup(groupId);
       this.saveGroupState(groupId);
+
+      // 🔔 同步清空该小组在当前任务下的通知已读与教师端追踪矩阵确认状态 (方便反复演练测试)
+      try {
+        const announcements = this.authManager.getAnnouncements();
+        const classes = this.authManager.getClasses();
+        const allUsers = this.authManager.getUsers();
+        let changed = false;
+
+        // 收集该小组所有成员标识
+        const groupMembersKeys = new Set([groupId]);
+        classes.forEach(c => {
+          (c.groups || []).forEach(g => {
+            if (g.id === groupId || g.name === groupId) {
+              groupMembersKeys.add(g.id);
+              if (g.name) groupMembersKeys.add(g.name);
+              (g.members || []).forEach(m => {
+                const mId = (typeof m === 'object' && m !== null) ? (m.id || m.userId || m.studentCode) : m;
+                if (mId) groupMembersKeys.add(mId);
+                const uObj = allUsers.find(u => u.id === mId || u.studentCode === mId || u.username === mId || u.name === mId);
+                if (uObj) {
+                  if (uObj.id) groupMembersKeys.add(uObj.id);
+                  if (uObj.studentCode) groupMembersKeys.add(uObj.studentCode);
+                  if (uObj.username) groupMembersKeys.add(uObj.username);
+                }
+              });
+            }
+          });
+        });
+
+        announcements.forEach(ann => {
+          const matchTask = !ann.taskId || ann.taskId === 'task_all' || ann.taskId === targetTaskId || (targetTaskId === 'task_default' && !ann.taskId);
+          if (matchTask) {
+            if (ann.readGroupStatus) {
+              if (ann.readGroupStatus[groupId]) { delete ann.readGroupStatus[groupId]; changed = true; }
+            }
+            if (ann.readStatus) {
+              groupMembersKeys.forEach(k => {
+                if (ann.readStatus[k]) { delete ann.readStatus[k]; changed = true; }
+              });
+            }
+            if (Array.isArray(ann.confirmedMembers)) {
+              const origLen = ann.confirmedMembers.length;
+              ann.confirmedMembers = ann.confirmedMembers.filter(m => m.groupId !== groupId && !groupMembersKeys.has(m.id) && !groupMembersKeys.has(m.studentCode));
+              if (ann.confirmedMembers.length !== origLen) changed = true;
+            }
+          }
+        });
+
+        if (changed) {
+          localStorage.setItem(STORAGE_KEY_ANNOUNCEMENTS, JSON.stringify(announcements));
+          this.authManager.pushGlobalMeta();
+        }
+      } catch (e) {}
+
       if (this.cloudSyncEngine) {
         this.cloudSyncEngine.groupId = groupId;
         this.cloudSyncEngine.taskId = targetTaskId;
