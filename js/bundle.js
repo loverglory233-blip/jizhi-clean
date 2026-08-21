@@ -8536,7 +8536,31 @@
         if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
         renderChat(this.state);
 
-        // ── 智能感知：如果处于【半程会议后等待组内商讨】状态，当学生在研讨区完成交流后触发审稿编辑 ──
+        // ── 智能感知 1：阶段一当全员投票完成且组内进行了研讨（或出现分工/公约讨论信号），拍卖师主动提示生成草案 ──
+        if (currentStage === 'stage1' && !this.state.stage1.contract.isDraftGenerated) {
+          const s1 = this.state.stage1;
+          const votesCastCount = Object.values(s1.hasVoted || {}).filter(Boolean).length;
+          const totalMembersCount = Object.keys(this.state.members || {}).length || 3;
+          this.stage1StudentChatCount = (this.stage1StudentChatCount || 0) + 1;
+          const isDiscussionSignal = /(?:分工|我负责|负责|时间|写第|公约|章节|选题|主题|草案|生成|差不多|定下来|同意)/i.test(text);
+          if (votesCastCount >= totalMembersCount && (this.stage1StudentChatCount >= 2 || isDiscussionSignal) && !this.stage1DraftPromptSent) {
+            this.stage1DraftPromptSent = true;
+            setTimeout(() => {
+              const promptMsg = {
+                sender: 'auctioneer',
+                text: `🤖 【拍卖师·研讨共识提炼提示】\n检测到小组成员在研讨区已就论文选题与写作分工展开了深入探讨！\n\n👉 **请点击左侧【🤖 研讨差不多了？一键提炼研讨共识生成公约草案】按钮**，AI 将基于大家的研讨内容与高票选题自动生成合作公约草案。\n🔍 **生成后请全组成员认真检查各项分工与时间安排，并按需进行自主微调修改**，确认无误后全员签署生效！`,
+                timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                _timeMs: Date.now()
+              };
+              this.state.chatLogs.stage1.push(promptMsg);
+              this.syncChatLogs();
+              if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+              renderChat(this.state);
+            }, 1200);
+          }
+        }
+
+        // ── 智能感知 2：如果处于【半程会议后等待组内商讨】状态，当学生在研讨区完成交流后触发审稿编辑 ──
         if (currentStage === 'stage2' && this.state.stage2PendingReviewing) {
           this.state.stage2PendingReviewing.studentMsgCount = (this.state.stage2PendingReviewing.studentMsgCount || 0) + 1;
           const isConsensusSignal = /(?:对齐|同意|商量好了|商定好了|修改|明白了|收到|按这个改|@审稿编辑|统一了|没问题)/i.test(text);
@@ -9003,18 +9027,42 @@
         },
         onAiGenerateContract: () => {
           const s1 = this.state.stage1;
+          s1.contract.isDraftGenerated = true;
           if (!s1.contract.taskAssignments) s1.contract.taskAssignments = {};
-          const defaultTasks = ['负责：一、研究背景与二、文献综述', '负责：三、研究问题与四、研究设计', '负责：五、反思与六、参考文献规范'];
+
+          // 1. 提炼最高票选题作为融合研究主题
+          if (!s1.mergedTitle || s1.mergedTitle.trim().length === 0) {
+            const tally = {};
+            Object.values(s1.votes || {}).forEach(pId => { if (pId) tally[pId] = (tally[pId] || 0) + 1; });
+            let winningP = null;
+            let maxV = -1;
+            (s1.proposals || []).forEach(p => {
+              const cnt = tally[p.id] || 0;
+              if (cnt > maxV) { maxV = cnt; winningP = p; }
+            });
+            s1.mergedTitle = winningP ? winningP.title : ((s1.proposals && s1.proposals[0]) ? s1.proposals[0].title : '基于多智能体协同的学术论文写作与研究设计方案');
+          }
+
+          // 2. 提炼 6 大章节的分工安排
+          const defaultTasks = [
+            '负责“一、研究背景与意义”及“二、文献综述”起草与资料整理',
+            '负责“三、研究问题与假设”及“四、研究设计与方法”方案制定',
+            '负责“五、不足与反思”撰写及全篇“六、参考文献”引文校对',
+            '负责数据分析模型构建与研究工具问卷设计'
+          ];
           Object.values(this.state.members || {}).forEach((m, idx) => {
             const taskStr = defaultTasks[idx % defaultTasks.length] || '协作撰写与统稿';
             s1.contract.taskAssignments[m.id] = taskStr;
             if (m.studentCode) s1.contract.taskAssignments[m.studentCode] = taskStr;
           });
-          if (!s1.contract.timeAllocations) {
-            s1.contract.timeAllocations = { background: 25, literature: 30, questions: 25, method: 40, reflection: 20, references: 10 };
-          }
+
+          // 3. 提炼各模块时间规划
+          s1.contract.timeAllocations = { background: 25, literature: 30, questions: 25, method: 40, reflection: 20, references: 10 };
           
-          // 局部填入输入框，绝不暴力销毁 DOM
+          // 4. 局部填入输入框，绝不暴力销毁 DOM
+          const topicInp = document.getElementById('contract-topic-input');
+          if (topicInp) topicInp.value = s1.mergedTitle;
+
           document.querySelectorAll('.task-assignment-input').forEach(inp => {
             const mId = inp.dataset.mid;
             const code = inp.dataset.code;
@@ -9028,9 +9076,10 @@
             }
           });
 
+          // 5. 拍卖师在聊天区提示学生去检查并微调修改
           const draftNoticeMsg = {
             sender: 'auctioneer',
-            text: `📜 【拍卖师·公约提炼生成】：已根据全组研讨共识，智能提炼并生成了《学术合作公约》草案！\n👉 请全组成员仔细核对分工与时间规划，支持随时在输入框中自主微调；确认无误后，全员点击【确认签署】！`,
+            text: `✨ 【拍卖师·公约草案已生成】\n已基于大家的研讨共识与投票结果生成《团队协同合作学术合约草案》！\n\n👉 **请各位组员在左侧仔细检查确认各项研究模块的分工与时间预算，可直接在输入框中自主微调修改**；\n✍️ 确认无误后，请每位成员点击【确认签署公约】，全员签署后公约正式生效并解锁阶段二！`,
             timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
             _timeMs: Date.now()
           };
