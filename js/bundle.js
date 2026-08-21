@@ -7982,17 +7982,23 @@
       }
 
       modal.querySelector('#btn-read-confirm').addEventListener('click', () => {
-        // 1. 标记本条为已读
+        // 1. 标记本条为已读 (个人独立已读 + 小组聚合)
         this.authManager.markAnnouncementRead(selectedAnn.id, groupId);
         closeModal();
 
-        // 2. 重新获取最新的未读通知列表（从新到旧）
+        // 2. 重新获取严格属于【当前班级 + 当前任务 + 当前小组】的未读通知列表（从新到旧），绝不跨任务/跨班级窜入
         const updatedAllAnns = this.authManager.getAnnouncements();
         const nextUnreads = updatedAllAnns
-          .filter(a => (!a.targetGroupId || a.targetGroupId === 'all' || a.targetGroupId === groupId) && (!a.readStatus || !a.readStatus[groupId]))
+          .filter(a => {
+            const matchClass = !a.classId || a.classId === 'all' || a.classId === effectiveClassId;
+            const matchGroup = !a.targetGroupId || a.targetGroupId === 'all' || a.targetGroupId === groupId ||
+              (Array.isArray(a.targetGroupIds) && (a.targetGroupIds.includes('all') || a.targetGroupIds.includes(groupId)));
+            const matchTask = a.taskId === 'task_all' || a.taskId === activeTaskId || (!a.taskId && activeTaskId === 'task_default');
+            return matchClass && matchGroup && matchTask && !isAnnRead(a);
+          })
           .sort((a, b) => (b.id > a.id ? 1 : -1));
 
-        // 3. 如果还有未读通知，自动连续弹出下一条让学生一一确认；如果全确认完则刷新工作区状态
+        // 3. 如果当前任务还有未读通知，自动连续弹出下一条让学生一一确认；如果全确认完则刷新工作区状态
         if (nextUnreads.length > 0) {
           setTimeout(() => this.showAnnouncementModal(nextUnreads[0], true), 200);
         } else {
