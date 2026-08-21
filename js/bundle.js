@@ -2131,8 +2131,8 @@
           document.body.appendChild(lockModal);
           lockModal.querySelector('#btn-close-lock-modal').addEventListener('click', () => lockModal.remove());
 
-          // 2. 立即重新渲染当前工作台阶段，编辑器即刻转为只读或可编辑！
-          this.app.renderCurrentStageView();
+          // 2. 立即重新渲染当前工作台阶段，协同富文本编辑器即刻转为绝对只读或可编辑！
+          this.app.renderStudentWorkspace();
         }
       }
 
@@ -5544,6 +5544,32 @@
   function attachWordEditorEvents(container, editorId, isReadonly, onChangeCallback, onPresenceCallback) {
     const editor = container.querySelector(`#${editorId}`);
     if (!editor) return;
+
+    if (isReadonly) {
+      editor.setAttribute('contenteditable', 'false');
+      editor.contentEditable = 'false';
+      editor.style.userSelect = 'text';
+      editor.style.cursor = 'default';
+      editor.querySelectorAll('[contenteditable]').forEach(el => {
+        el.setAttribute('contenteditable', 'false');
+        el.contentEditable = 'false';
+      });
+
+      const blockEdit = (e) => {
+        if ((e.ctrlKey || e.metaKey) && (e.key === 'c' || e.key === 'C' || e.key === 'a' || e.key === 'A')) {
+          return true;
+        }
+        e.preventDefault();
+        e.stopPropagation();
+        return false;
+      };
+      editor.addEventListener('keydown', blockEdit, true);
+      editor.addEventListener('keypress', blockEdit, true);
+      editor.addEventListener('paste', blockEdit, true);
+      editor.addEventListener('cut', blockEdit, true);
+      editor.addEventListener('drop', blockEdit, true);
+      editor.addEventListener('beforeinput', blockEdit, true);
+    }
 
     if (!isReadonly) {
       const exec = (cmd, val = null) => {
