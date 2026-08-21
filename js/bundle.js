@@ -2410,10 +2410,15 @@
         }
       }
 
-      // ── 阶段切换：同步最新阶段并平滑重绘工作区 ──
+      // ── 阶段切换：仅在非本地主动切换或重大推进时同步，绝不打断学生自主回看阶段 ──
+      const nowMs = Date.now();
+      const lastLocalStageChange = this.app.lastLocalStageChangeTime || 0;
       if (remoteData.currentStage && remoteData.currentStage !== this.app.state.currentStage) {
-        this.app.state.currentStage = remoteData.currentStage;
-        needWorkspaceRender = true;
+        // 如果本地在 5 秒内主动切换了阶段，保护本地视角不被轮询强行拉回
+        if (nowMs - lastLocalStageChange > 5000 && !this.app.state.isFinalSubmitted) {
+          this.app.state.currentStage = remoteData.currentStage;
+          needWorkspaceRender = true;
+        }
       }
 
       // ── 统一保存状态 ──
@@ -5552,10 +5557,6 @@
         ` : `
           <div class="word-toolbar" style="background:rgba(30,41,59,0.9); justify-content:space-between;">
             <div style="font-size:13px; font-weight:700; color:#34d399;">🔒 论文终稿已提交归档 · 只读查阅模式</div>
-            <div style="display:flex; gap:8px;">
-              <button class="word-btn plugin-btn" id="${editorId}-btn-export-doc" style="background:rgba(16,185,129,0.2); border-color:#10b981; color:#34d399;" title="导出为 Word 论文格式文档 (.doc)">📥 导出 Word 终稿</button>
-              <button class="word-btn plugin-btn" id="${editorId}-btn-print-doc" title="打印 / 导出 PDF 论文">📄 打印/PDF</button>
-            </div>
           </div>
         `}
 
@@ -6016,79 +6017,7 @@
       });
     }
 
-    // 导出 Word 文档 (.doc)
-    const btnExportDoc = container.querySelector(`#${editorId}-btn-export-doc`);
-    if (btnExportDoc) {
-      btnExportDoc.addEventListener('click', () => {
-        const contentHtml = editor.innerHTML;
-        const fullWordHtml = `
-          <!DOCTYPE html>
-          <html>
-          <head>
-            <meta charset="utf-8">
-            <title>集智学术方案</title>
-            <style>
-              body { font-family: "SimSun", "Times New Roman", serif; font-size: 12pt; line-height: 1.5; color: #000; margin: 30mm 25mm; }
-              h1 { font-family: "SimHei", sans-serif; font-size: 18pt; text-align: center; margin-bottom: 20pt; }
-              h2 { font-family: "SimHei", sans-serif; font-size: 14pt; margin-top: 15pt; margin-bottom: 8pt; }
-              h3 { font-family: "SimHei", sans-serif; font-size: 12pt; margin-top: 10pt; margin-bottom: 5pt; }
-              p { text-indent: 2em; margin: 6pt 0; text-align: justify; }
-              table { width: 100%; border-collapse: collapse; margin: 12pt 0; }
-              th, td { padding: 6pt; text-align: center; }
-              thead { border-top: 2pt solid #000; border-bottom: 1pt solid #000; }
-              tbody { border-bottom: 2pt solid #000; }
-              .citation-tag { vertical-align: super; font-size: 9pt; color: #000; }
-            </style>
-          </head>
-          <body>
-            ${contentHtml}
-          </body>
-          </html>
-        `;
-        const blob = new Blob(['\ufeff', fullWordHtml], { type: 'application/msword;charset=utf-8' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = '集智协作研究设计方案终稿.doc';
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-      });
-    }
 
-    // 打印 / 导出 PDF
-    const btnPrintDoc = container.querySelector(`#${editorId}-btn-print-doc`);
-    if (btnPrintDoc) {
-      btnPrintDoc.addEventListener('click', () => {
-        const printWindow = window.open('', '_blank');
-        printWindow.document.write(`
-          <!DOCTYPE html>
-          <html>
-          <head>
-            <meta charset="utf-8">
-            <title>集智学术论文打印预览</title>
-            <style>
-              body { font-family: "SimSun", "Times New Roman", serif; padding: 20mm; color: #000; }
-              h1 { text-align: center; font-family: "SimHei", sans-serif; }
-              p { text-indent: 2em; line-height: 1.75; }
-              table { width: 100%; border-collapse: collapse; margin: 16px 0; }
-              th, td { padding: 6px; text-align: center; }
-              thead { border-top: 2.5px solid #000; border-bottom: 1.5px solid #000; }
-              tbody { border-bottom: 2.5px solid #000; }
-              img { max-width: 90%; }
-            </style>
-          </head>
-          <body>
-            ${editor.innerHTML}
-          </body>
-          </html>
-        `);
-        printWindow.document.close();
-        printWindow.focus();
-        setTimeout(() => { printWindow.print(); }, 250);
-      });
-    }
 
     if (!isReadonly) {
       let lastPresenceEmit = 0;
@@ -8954,6 +8883,7 @@
     }
 
     switchStage(newStage) {
+      this.lastLocalStageChangeTime = Date.now();
       this.syncStageChange(newStage);
       this.triggerStageWelcomeSpeech(newStage);
       this.renderStudentWorkspace();
