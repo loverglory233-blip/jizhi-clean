@@ -1590,13 +1590,10 @@
 
       const targetGroups = (targetGroupId === 'all') ? allGroupIds : [targetGroupId];
       targetGroups.forEach(gid => {
-        try {
-          const chatKey = `jizhi_sync_chat_v6_${gid}`;
-          const gChats = JSON.parse(localStorage.getItem(chatKey)) || { stage1: [], stage2: [], stage3: [] };
-          if (!gChats.stage2) gChats.stage2 = [];
-          gChats.stage2.push(pushMsg);
-          localStorage.setItem(chatKey, JSON.stringify(gChats));
-        } catch (e) {}
+        if (window.app && window.app.state && window.app.state.chatLogs) {
+          if (!window.app.state.chatLogs.stage2) window.app.state.chatLogs.stage2 = [];
+          window.app.state.chatLogs.stage2.push(pushMsg);
+        }
       });
 
       if (window.app && window.app.cloudSyncEngine) window.app.cloudSyncEngine.pushSnapshot();
@@ -1604,8 +1601,6 @@
     }
 
     setGroupFinalSubmitted(groupId, isSubmitted) {
-      const taskId = (window.app && window.app.state && window.app.state.activeTaskId) ? window.app.state.activeTaskId : 'task_default';
-      localStorage.setItem(`jizhi_sync_final_submitted_v10_pure_${taskId}_${groupId}`, isSubmitted ? 'true' : 'false');
       if (window.app && window.app.state) {
         window.app.state.isFinalSubmitted = isSubmitted;
       }
@@ -1615,7 +1610,7 @@
     }
 
     exportGroupChatLogsToExcel(groupId = 'group_1', chatLogsState = null) {
-      const currentChatLogs = chatLogsState || JSON.parse(localStorage.getItem(`jizhi_sync_chat_v6_${groupId}`)) || {};
+      const currentChatLogs = chatLogsState || (window.app && window.app.state && window.app.state.chatLogs) || {};
       let csvContent = '\uFEFF名字,时间,内容\n';
       const stageNames = { stage1: '阶段一：学术拍卖会', stage2: '阶段二：学术编辑部', stage3: '阶段三：答辩擂台' };
       const users = this.getUsers();
@@ -7018,33 +7013,13 @@
       const taskId = this.state.activeTaskId || 'task_default';
       this.state.members = this.authManager.getGroupMembersForWorkspace(groupId);
 
-      // 优先从内存与云端拉取，本地仅做安全的非脏初始化
-      const savedChat = localStorage.getItem(`jizhi_sync_chat_v10_pure_${taskId}_${groupId}`);
-      if (savedChat) { 
-        try { 
-          this.state.chatLogs = JSON.parse(savedChat);
-        } catch (e) { this.initPresetMessagesForGroup(groupId); } 
-      } else { 
-        this.initPresetMessagesForGroup(groupId); 
-      }
-
-      const savedS1 = localStorage.getItem(`jizhi_sync_s1_v10_pure_${taskId}_${groupId}`);
-      if (savedS1) { try { this.state.stage1 = { ...defaultState.stage1, ...JSON.parse(savedS1) }; } catch (e) {} }
-      else { this.state.stage1 = JSON.parse(JSON.stringify(defaultState.stage1)); }
-
-      const savedS2 = localStorage.getItem(`jizhi_sync_s2_v10_pure_${taskId}_${groupId}`);
-      if (savedS2) { try { this.state.stage2 = { ...defaultState.stage2, ...JSON.parse(savedS2) }; } catch (e) {} }
-      else { this.state.stage2 = JSON.parse(JSON.stringify(defaultState.stage2)); }
-
-      const savedS3 = localStorage.getItem(`jizhi_sync_s3_v10_pure_${taskId}_${groupId}`);
-      if (savedS3) { try { this.state.stage3 = { ...defaultState.stage3, ...JSON.parse(savedS3) }; } catch (e) {} }
-      else { this.state.stage3 = JSON.parse(JSON.stringify(defaultState.stage3)); }
-
-      const savedStage = localStorage.getItem(`jizhi_sync_current_stage_v10_pure_${taskId}_${groupId}`);
-      this.state.currentStage = savedStage || 'stage1';
-
-      const savedSubmitted = localStorage.getItem(`jizhi_sync_final_submitted_v10_pure_${taskId}_${groupId}`);
-      this.state.isFinalSubmitted = (savedSubmitted === 'true');
+      // 纯净初始内存状态，杜绝本地历史脏读
+      this.state.chatLogs = { stage1: [], stage2: [], stage3: [] };
+      this.state.stage1 = JSON.parse(JSON.stringify(defaultState.stage1));
+      this.state.stage2 = JSON.parse(JSON.stringify(defaultState.stage2));
+      this.state.stage3 = JSON.parse(JSON.stringify(defaultState.stage3));
+      this.state.currentStage = 'stage1';
+      this.state.isFinalSubmitted = false;
 
       // 立即触发云端拉取最新真实数据
       if (this.cloudSyncEngine) {
@@ -7056,9 +7031,7 @@
     }
 
     initPresetMessagesForGroup(groupId) {
-      const taskId = this.state.activeTaskId || 'task_default';
       this.state.chatLogs = { stage1: [], stage2: [], stage3: [] };
-      localStorage.setItem(`jizhi_sync_chat_v10_pure_${taskId}_${groupId}`, JSON.stringify(this.state.chatLogs));
     }
 
     resetTestGroupState(groupId = 'group_1', taskId = null) {
