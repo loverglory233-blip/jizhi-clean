@@ -419,7 +419,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                 self.wfile.write(json.dumps({'error': str(e)}).encode('utf-8'))
             return
 
-        # ⚡ 学生已读确认通知专属轻量路由
+        # ⚡ 学生已读确认通知专属轻量路由 (支持个人独立已读 + 小组聚合确认)
         if 'action=update_read_status' in self.path:
             length = int(self.headers.get('Content-Length', 0))
             body = self.rfile.read(length)
@@ -427,7 +427,11 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                 req = json.loads(body.decode('utf-8'))
                 ann_id = req.get('annId')
                 group_id = req.get('groupId')
-                if ann_id and group_id:
+                user_id = req.get('userId')
+                user_code = req.get('userCode')
+                user_name = req.get('userName')
+
+                if ann_id:
                     global_file = os.path.join(DIR, 'global_db.json')
                     if os.path.exists(global_file):
                         with open(global_file, 'r', encoding='utf-8') as f:
@@ -437,7 +441,25 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                                 if ann.get('id') == ann_id:
                                     if 'readStatus' not in ann or not isinstance(ann['readStatus'], dict):
                                         ann['readStatus'] = {}
-                                    ann['readStatus'][group_id] = True
+                                    if 'readGroupStatus' not in ann or not isinstance(ann['readGroupStatus'], dict):
+                                        ann['readGroupStatus'] = {}
+                                    if 'confirmedMembers' not in ann or not isinstance(ann['confirmedMembers'], list):
+                                        ann['confirmedMembers'] = []
+
+                                    if user_id:
+                                        ann['readStatus'][user_id] = True
+                                    if user_code:
+                                        ann['readStatus'][user_code] = True
+                                    if group_id:
+                                        ann['readGroupStatus'][group_id] = True
+
+                                    if user_id and not any(m.get('id') == user_id for m in ann['confirmedMembers'] if isinstance(m, dict)):
+                                        ann['confirmedMembers'].append({
+                                            'id': user_id,
+                                            'name': user_name or user_code or '学生',
+                                            'studentCode': user_code or '',
+                                            'groupId': group_id or ''
+                                        })
                                     break
                             with open(global_file, 'w', encoding='utf-8') as f:
                                 json.dump(meta, f, ensure_ascii=False)

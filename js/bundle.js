@@ -1504,16 +1504,42 @@
     markAnnouncementRead(annId, groupId = 'group_1') {
       const announcements = this.getAnnouncements();
       const ann = announcements.find(a => a.id === annId);
+      const currUser = this.getCurrentUser();
+      const uKey = currUser ? (currUser.id || currUser.studentCode) : groupId;
       if (ann) {
         if (!ann.readStatus) ann.readStatus = {};
-        ann.readStatus[groupId] = true;
+        if (!ann.readGroupStatus) ann.readGroupStatus = {};
+        if (!Array.isArray(ann.confirmedMembers)) ann.confirmedMembers = [];
+
+        // 1. 记录个人已读 (每个学生完全独立)
+        ann.readStatus[uKey] = true;
+        if (currUser && currUser.studentCode) ann.readStatus[currUser.studentCode] = true;
+        if (currUser && currUser.id) ann.readStatus[currUser.id] = true;
+
+        // 2. 记录小组汇总状态
+        ann.readGroupStatus[groupId] = true;
+        if (currUser && !ann.confirmedMembers.some(m => m.id === currUser.id)) {
+          ann.confirmedMembers.push({
+            id: currUser.id,
+            name: currUser.name || currUser.studentCode || '学生',
+            studentCode: currUser.studentCode || '',
+            groupId: groupId,
+            time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+          });
+        }
+
         localStorage.setItem(STORAGE_KEY_ANNOUNCEMENTS, JSON.stringify(announcements));
-        // 只回传这一条通知的已读状态，绝不触碰 tasks/surveys/papers 等教师数据
+        // 只轻量回传这一条通知的已读状态
         try {
           fetch('sync.php?action=update_read_status', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ annId, groupId })
+            body: JSON.stringify({
+              annId, groupId,
+              userId: currUser ? currUser.id : '',
+              userCode: currUser ? currUser.studentCode : '',
+              userName: currUser ? currUser.name : ''
+            })
           }).catch(() => {});
         } catch (e) {}
       }
@@ -2906,10 +2932,12 @@
                           </div>
                           <div style="display:flex; flex-wrap:wrap; gap:10px; font-size:12px;">
                             ${targetGroups.map(g => {
-                              const isRead = a.readStatus && a.readStatus[g.id];
+                              const groupConfirmedList = (a.confirmedMembers || []).filter(m => m.groupId === g.id);
+                              const isRead = (a.readGroupStatus && a.readGroupStatus[g.id]) || (a.readStatus && a.readStatus[g.id]) || groupConfirmedList.length > 0;
+                              const confirmedNames = groupConfirmedList.map(m => m.name).join('、');
                               return `
                                 <span style="background:${isRead ? '#ecfdf5' : '#fffbeb'}; border:1px solid ${isRead ? '#a7f3d0' : '#fde68a'}; color:${isRead ? '#059669' : '#d97706'}; padding:6px 12px; border-radius:8px; font-weight:700;">
-                                  ${isRead ? '✅' : '⏳'} ${g.name}: <b>${isRead ? '已阅读确认' : '尚未确认'}</b>
+                                  ${isRead ? '✅' : '⏳'} ${g.name}: <b>${isRead ? `已阅读确认${confirmedNames ? ` (${confirmedNames})` : ''}` : '尚未确认'}</b>
                                 </span>
                               `;
                             }).join('')}
@@ -5016,7 +5044,15 @@
         (Array.isArray(a.targetGroupIds) && (a.targetGroupIds.includes('all') || a.targetGroupIds.includes(groupId)));
       return matchClass && matchGroup;
     });
-    const unreadAnnCount = relevantAnnouncements.filter(a => !a.readStatus || !a.readStatus[groupId]).length;
+
+    const isAnnRead = (a) => {
+      if (!a.readStatus) return false;
+      if (currentUser && currentUser.id && a.readStatus[currentUser.id]) return true;
+      if (currentUser && currentUser.studentCode && a.readStatus[currentUser.studentCode]) return true;
+      if (currentUser && currentUser.username && a.readStatus[currentUser.username]) return true;
+      return false;
+    };
+    const unreadAnnCount = relevantAnnouncements.filter(a => !isAnnRead(a)).length;
 
     const relevantTasks = tasks.filter(t => {
       if (!t.classId || t.classId === 'all') return true;
@@ -5175,7 +5211,14 @@
         (Array.isArray(a.targetGroupIds) && (a.targetGroupIds.includes('all') || a.targetGroupIds.includes(groupId)));
       return matchClass && matchGroup;
     });
-    const unreadAnnCount = relevantAnnouncements.filter(a => !a.readStatus || !a.readStatus[groupId]).length;
+    const isAnnRead = (a) => {
+      if (!a.readStatus) return false;
+      if (currentUser && currentUser.id && a.readStatus[currentUser.id]) return true;
+      if (currentUser && currentUser.studentCode && a.readStatus[currentUser.studentCode]) return true;
+      if (currentUser && currentUser.username && a.readStatus[currentUser.username]) return true;
+      return false;
+    };
+    const unreadAnnCount = relevantAnnouncements.filter(a => !isAnnRead(a)).length;
     const isFinalSubmitted = state.isFinalSubmitted;
 
     header.innerHTML = `
@@ -7720,6 +7763,14 @@
       const activeTaskId = (this.state && this.state.activeTaskId) ? this.state.activeTaskId : 'task_default';
       const allAnns = this.authManager.getAnnouncements();
       
+      const isAnnRead = (a) => {
+        if (!a.readStatus) return false;
+        if (currentUser && currentUser.id && a.readStatus[currentUser.id]) return true;
+        if (currentUser && currentUser.studentCode && a.readStatus[currentUser.studentCode]) return true;
+        if (currentUser && currentUser.username && a.readStatus[currentUser.username]) return true;
+        return false;
+      };
+
       // 过滤出本班/本组/本任务且未读的通知，严格按创建时间从新到旧排序
       const unreadList = allAnns
         .filter(a => {
@@ -7727,7 +7778,7 @@
           const matchGroup = !a.targetGroupId || a.targetGroupId === 'all' || a.targetGroupId === groupId ||
             (Array.isArray(a.targetGroupIds) && (a.targetGroupIds.includes('all') || a.targetGroupIds.includes(groupId)));
           const matchTask = !a.taskId || a.taskId === 'task_all' || a.taskId === activeTaskId || (!a.taskId && activeTaskId === 'task_default');
-          return matchClass && matchGroup && matchTask && (!a.readStatus || !a.readStatus[groupId]);
+          return matchClass && matchGroup && matchTask && !isAnnRead(a);
         })
         .sort((a, b) => (b.id > a.id ? 1 : -1));
 
@@ -7745,6 +7796,14 @@
       const activeTaskId = (this.state && this.state.activeTaskId) ? this.state.activeTaskId : 'task_default';
       const allAnns = this.authManager.getAnnouncements();
 
+      const isAnnRead = (a) => {
+        if (!a.readStatus) return false;
+        if (currentUser && currentUser.id && a.readStatus[currentUser.id]) return true;
+        if (currentUser && currentUser.studentCode && a.readStatus[currentUser.studentCode]) return true;
+        if (currentUser && currentUser.username && a.readStatus[currentUser.username]) return true;
+        return false;
+      };
+
       // 严格过滤当前班级、小组、当前任务可见的通知，按最新发布倒序排
       const myAnns = allAnns
         .filter(a => {
@@ -7761,8 +7820,8 @@
         return;
       }
 
-      // 计算当前未读列表（从新到旧）
-      const unreadList = myAnns.filter(a => !a.readStatus || !a.readStatus[groupId]);
+      // 计算当前学生个人的未读列表（从新到旧）
+      const unreadList = myAnns.filter(a => !isAnnRead(a));
 
       // 如果当前是自动弹出流且已无任何未读通知，直接静默退出
       if (isSequentialFlow && unreadList.length === 0) {
@@ -7771,7 +7830,7 @@
 
       // 选中的通知：优先 targetAnn，若无则取最新未读，再无则取最新一条通知
       const selectedAnn = targetAnn || (unreadList.length > 0 ? unreadList[0] : myAnns[0]);
-      const isSelectedRead = selectedAnn.readStatus && selectedAnn.readStatus[groupId];
+      const isSelectedRead = isAnnRead(selectedAnn);
 
       // 计算当前在未读流中的序号
       const unreadIndex = unreadList.findIndex(a => a.id === selectedAnn.id);
