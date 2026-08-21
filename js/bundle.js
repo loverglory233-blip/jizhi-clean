@@ -8402,8 +8402,8 @@
               document.body.appendChild(a);
               a.click();
               document.body.removeChild(a);
-            } else if (paper.fileData || localStorage.getItem(`jizhi_paper_data_${paperId}`)) {
-              const fileData = paper.fileData || localStorage.getItem(`jizhi_paper_data_${paperId}`);
+            } else if (paper.fileData || (window._paperMemoryBlobMap && window._paperMemoryBlobMap.get(paperId))) {
+              const fileData = paper.fileData || window._paperMemoryBlobMap.get(paperId);
               const a = document.createElement('a');
               a.href = fileData;
               a.download = paper.fileName || '学术参考范文.pdf';
