@@ -392,53 +392,14 @@
         if (res.ok) {
           const data = await res.json();
           if (data) {
-            // 1. 账号池安全增量合并与小组/班级绑定更新
-            if (Array.isArray(data.users)) {
-              const localUsers = this.getUsers();
-              const mergedUsers = [...localUsers];
-              data.users.forEach(su => {
-                const existing = mergedUsers.find(lu => (lu.id && lu.id === su.id) || (lu.studentCode && lu.studentCode === su.studentCode) || (lu.username && lu.username === su.username));
-                if (!existing) {
-                  mergedUsers.push(su);
-                } else {
-                  if (su.groupId !== undefined) existing.groupId = su.groupId;
-                  if (su.classId) existing.classId = su.classId;
-                  if (Array.isArray(su.classIds)) existing.classIds = su.classIds;
-                  if (su.name) existing.name = su.name;
-                }
-              });
-              localStorage.setItem(STORAGE_KEY_USERS_DB, JSON.stringify(mergedUsers));
+            // 1. 账号池：直接以云端权威数据库为准
+            if (Array.isArray(data.users) && data.users.length > 0) {
+              localStorage.setItem(STORAGE_KEY_USERS_DB, JSON.stringify(data.users));
             }
 
-            // 2. 深度合并云端与本地班级及小组列表 (杜绝因单向覆盖导致8个组丢失)
+            // 2. 班级与小组：直接以云端权威数据库为准 (杜绝已删除班级/学生死灰复燃)
             if (Array.isArray(data.classes) && data.classes.length > 0) {
-              const localClasses = this.getClasses();
-              const mergedClasses = data.classes.map(sc => {
-                const lc = localClasses.find(c => c.id === sc.id);
-                if (!lc) return sc;
-                const scGroups = Array.isArray(sc.groups) ? sc.groups : [];
-                const lcGroups = Array.isArray(lc.groups) ? lc.groups : [];
-                const groupMap = new Map();
-                scGroups.forEach(g => { if (g && g.id) groupMap.set(g.id, g); });
-                lcGroups.forEach(g => {
-                  if (g && g.id) {
-                    if (!groupMap.has(g.id)) groupMap.set(g.id, g);
-                    else {
-                      const existing = groupMap.get(g.id);
-                      existing.members = Array.from(new Set([...(existing.members || []), ...(g.members || [])]));
-                    }
-                  }
-                });
-                return {
-                  ...sc,
-                  groups: Array.from(groupMap.values()),
-                  studentIds: Array.from(new Set([...(sc.studentIds || []), ...(lc.studentIds || [])]))
-                };
-              });
-              localClasses.forEach(lc => {
-                if (!mergedClasses.some(c => c.id === lc.id)) mergedClasses.push(lc);
-              });
-              localStorage.setItem(STORAGE_KEY_CLASSES, JSON.stringify(mergedClasses));
+              localStorage.setItem(STORAGE_KEY_CLASSES, JSON.stringify(data.classes));
               this.sanitizeAndDeduplicateGroups();
             }
             if (Array.isArray(data.tasks) && data.tasks.length > 0) {
@@ -1900,14 +1861,7 @@
         } catch (e) {}
       }
 
-      // Fallback to local storage
-      try {
-        const localRaw = localStorage.getItem(this.storageKey);
-        if (localRaw) {
-          const localSnap = JSON.parse(localRaw);
-          if (localSnap && localSnap.timestamp > this.lastTimestamp) this.handleRemoteSync(localSnap);
-        }
-      } catch (e) {}
+      // Direct server-first sync (No local storage fallback to avoid stale overwrite)
     }
 
     async pushSnapshot() {
@@ -1917,31 +1871,12 @@
       const isReset = !!this.isResetBroadcast;
       this.isResetBroadcast = false;
 
-      // 读取本地已知的 resetSeq，如果是重置操作则递增 resetSeq 以广播通知所有端强制重置
+      // 读取本地 resetSeq (仅内存与当前广播序列)
       const localResetSeqKey = `jizhi_reset_seq_${this.storageKey}`;
-      let localResetSeq = parseInt(localStorage.getItem(localResetSeqKey) || '0', 10);
+      let localResetSeq = parseInt(sessionStorage.getItem(localResetSeqKey) || '0', 10);
       if (isReset) {
         localResetSeq += 1;
-        try { localStorage.setItem(localResetSeqKey, String(localResetSeq)); } catch (e) {}
-      }
-
-      // 冷启动防覆盖守卫：如果本地处于阶段二/三，但草稿字段意外为空，而本地缓存已有内容，防止发送空快照
-      const taskId = this.app.state.activeTaskId || 'task_default';
-      if (this.app.state.currentStage === 'stage2' && (!this.app.state.stage2 || !this.app.state.stage2.draft)) {
-        try {
-          const cachedS2 = JSON.parse(localStorage.getItem(`jizhi_sync_s2_v10_pure_${taskId}_${groupId}`));
-          if (cachedS2 && cachedS2.draft) {
-            this.app.state.stage2.draft = cachedS2.draft;
-          }
-        } catch (e) {}
-      }
-      if (this.app.state.currentStage === 'stage3' && (!this.app.state.stage3 || !this.app.state.stage3.finalDraft)) {
-        try {
-          const cachedS3 = JSON.parse(localStorage.getItem(`jizhi_sync_s3_v10_pure_${taskId}_${groupId}`));
-          if (cachedS3 && cachedS3.finalDraft) {
-            this.app.state.stage3.finalDraft = cachedS3.finalDraft;
-          }
-        } catch (e) {}
+        try { sessionStorage.setItem(localResetSeqKey, String(localResetSeq)); } catch (e) {}
       }
 
       const snapshot = {
@@ -1962,10 +1897,11 @@
       this.lastTimestamp = snapshot.timestamp;
       const bodyStr = JSON.stringify(snapshot);
 
-      // Save local copy
-      try { localStorage.setItem(this.storageKey, bodyStr); } catch (e) {}
-      // Broadcast to same-browser tabs instantly
+      // Broadcast to same-browser tabs instantly via BroadcastChannel & WebSocket
       if (this.bc) { try { this.bc.postMessage({ snapshot }); } catch (e) {} }
+      if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+        try { this.ws.send(JSON.stringify({ snapshot })); } catch (e) {}
+      }
       // Push via WebSocket for instant cross-device delivery
       if (this.ws && this.ws.readyState === WebSocket.OPEN) {
         try { this.ws.send(JSON.stringify({ snapshot })); } catch (e) {}
@@ -2029,14 +1965,6 @@
       this.app.state.currentStage = 'stage1';
       this.app.state.isFinalSubmitted = false;
       this.app.state.presence = {};
-
-      // 同步写入初始干净数据
-      localStorage.setItem(`jizhi_sync_chat_v10_pure_${taskId}_${myGroupId}`, JSON.stringify(this.app.state.chatLogs));
-      localStorage.setItem(`jizhi_sync_s1_v10_pure_${taskId}_${myGroupId}`, JSON.stringify(this.app.state.stage1));
-      localStorage.setItem(`jizhi_sync_s2_v10_pure_${taskId}_${myGroupId}`, JSON.stringify(this.app.state.stage2));
-      localStorage.setItem(`jizhi_sync_s3_v10_pure_${taskId}_${myGroupId}`, JSON.stringify(this.app.state.stage3));
-      localStorage.setItem(`jizhi_sync_current_stage_v10_pure_${taskId}_${myGroupId}`, 'stage1');
-      localStorage.setItem(`jizhi_sync_final_submitted_v10_pure_${taskId}_${myGroupId}`, 'false');
 
       // 重置时间戳，让后续正常来包不被丢弃
       this.lastTimestamp = 0;
@@ -7233,13 +7161,7 @@
     }
 
     saveGroupState(groupId) {
-      const taskId = this.state.activeTaskId || 'task_default';
-      localStorage.setItem(`jizhi_sync_chat_v10_pure_${taskId}_${groupId}`, JSON.stringify(this.state.chatLogs));
-      localStorage.setItem(`jizhi_sync_s1_v10_pure_${taskId}_${groupId}`, JSON.stringify(this.state.stage1));
-      localStorage.setItem(`jizhi_sync_s2_v10_pure_${taskId}_${groupId}`, JSON.stringify(this.state.stage2));
-      localStorage.setItem(`jizhi_sync_s3_v10_pure_${taskId}_${groupId}`, JSON.stringify(this.state.stage3));
-      localStorage.setItem(`jizhi_sync_current_stage_v10_pure_${taskId}_${groupId}`, this.state.currentStage);
-      localStorage.setItem(`jizhi_sync_final_submitted_v10_pure_${taskId}_${groupId}`, this.state.isFinalSubmitted ? 'true' : 'false');
+      // 彻底废除 LocalStorage 冗余脏备份，状态完全由内存状态机和云端 MySQL 统一权威托管
     }
 
     syncChatLogs() {
