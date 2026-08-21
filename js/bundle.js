@@ -8922,6 +8922,9 @@
         }
       );
 
+      // 默认自动触发当前阶段对应智能体的开场白（如果尚未发送）
+      this.triggerStageWelcomeSpeech(this.state.currentStage || 'stage1');
+
       // ── 核心保护：智能局部 Patch 与非冲突渲染 ──
       const stage2Editor = document.getElementById('stage2-word-editor');
       const stage3Editor = document.getElementById('stage3-word-editor');
