@@ -584,8 +584,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
 
             // 4c. 同步保存全局教务元数据 (users/classes/tasks/announcements/referencePapers)
-            // pushSnapshot 每次都携带这些字段，服务端必须持久化，GET 时才能带给其他设备
-            $hasGlobalMeta = !empty($data['users']) || !empty($data['classes']) || !empty($data['tasks']);
+            // 🛡️ 严格单向权限隔离：只有明确来自教师端 (isTeacher=true 或 userRole='teacher') 的请求才允许更新全局教务表！
+            // 学生端协同快照一律禁止触碰全局教务数据，物理上杜绝学生端冲掉教师配置的班级与任务！
+            $isTeacherPush = (!empty($data['isTeacher']) || (isset($data['userRole']) && $data['userRole'] === 'teacher') || (isset($data['role']) && $data['role'] === 'teacher'));
+            $hasGlobalMeta = $isTeacherPush && (!empty($data['users']) || !empty($data['classes']) || !empty($data['tasks']));
             if ($hasGlobalMeta) {
                 // 先读取已有的 main_meta，做字段级合并（避免一台设备覆盖另一台的未发送字段）
                 $stmtReadMeta = $pdo->prepare("SELECT meta_value FROM global_meta WHERE meta_key = 'main_meta'");
