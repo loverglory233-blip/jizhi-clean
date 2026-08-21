@@ -6617,19 +6617,10 @@
 
     const topicInput = canvas.querySelector('#contract-topic-input');
     if (topicInput && !isContractLocked) {
-      let topicTimer = null;
       topicInput.addEventListener('input', (e) => {
         s1.mergedTitle = e.target.value;
-        clearTimeout(topicTimer);
-        topicTimer = setTimeout(() => {
-          if (window.app) {
-            window.app.syncStage1();
-            if (window.app.cloudSyncEngine) window.app.cloudSyncEngine.pushSnapshot();
-          }
-        }, 150);
       });
       const flushTopic = () => {
-        clearTimeout(topicTimer);
         s1.mergedTitle = topicInput.value;
         if (window.app) {
           window.app.syncStage1();
@@ -6643,23 +6634,14 @@
 
     canvas.querySelectorAll('.contract-time-input').forEach(input => {
       if (!isContractLocked) {
-        let timeTimer = null;
         input.addEventListener('input', (e) => {
           const key = e.target.dataset.key;
           const numVal = Number(e.target.value) || 0;
           if (key && s1.contract.timeAllocations) {
             s1.contract.timeAllocations[key] = numVal;
-            clearTimeout(timeTimer);
-            timeTimer = setTimeout(() => {
-              if (window.app) {
-                window.app.syncStage1();
-                if (window.app.cloudSyncEngine) window.app.cloudSyncEngine.pushSnapshot();
-              }
-            }, 80);
           }
         });
         const flushTime = () => {
-          clearTimeout(timeTimer);
           const key = input.dataset.key;
           const numVal = Number(input.value) || 0;
           if (key && s1.contract.timeAllocations) {
@@ -6678,7 +6660,6 @@
 
     canvas.querySelectorAll('.task-assignment-input').forEach(input => {
       if (!isContractLocked) {
-        let taskTimer = null;
         input.addEventListener('input', (e) => {
           const mId = e.target.dataset.mid;
           const code = e.target.dataset.code;
@@ -6686,16 +6667,8 @@
           if (!s1.contract.taskAssignments) s1.contract.taskAssignments = {};
           if (mId) s1.contract.taskAssignments[mId] = val;
           if (code) s1.contract.taskAssignments[code] = val;
-          clearTimeout(taskTimer);
-          taskTimer = setTimeout(() => {
-            if (window.app) {
-              window.app.syncStage1();
-              if (window.app.cloudSyncEngine) window.app.cloudSyncEngine.pushSnapshot();
-            }
-          }, 80);
         });
         const flushTask = () => {
-          clearTimeout(taskTimer);
           const mId = input.dataset.mid;
           const code = input.dataset.code;
           const val = input.value;
