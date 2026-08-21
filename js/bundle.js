@@ -2009,6 +2009,18 @@
       // 更新本地 resetSeq
       localStorage.setItem(localResetSeqKey, String(newResetSeq));
 
+      // 彻底清理当前小组在所有任务下的旧 localStorage 缓存，杜绝重新登录后读取历史残留
+      try {
+        const keysToRemove = [];
+        for (let i = 0; i < localStorage.length; i++) {
+          const k = localStorage.key(i);
+          if (k && k.startsWith('jizhi_sync_') && (k.endsWith(`_${myGroupId}`) || k.includes(`_${myGroupId}`))) {
+            keysToRemove.push(k);
+          }
+        }
+        keysToRemove.forEach(k => localStorage.removeItem(k));
+      } catch (e) {}
+
       // 彻底重置内存中所有状态至初始状态
       this.app.state.stage1 = JSON.parse(JSON.stringify(InitialState.stage1));
       this.app.state.stage2 = JSON.parse(JSON.stringify(InitialState.stage2));
@@ -2018,7 +2030,7 @@
       this.app.state.isFinalSubmitted = false;
       this.app.state.presence = {};
 
-      // 同步写入 localStorage
+      // 同步写入初始干净数据
       localStorage.setItem(`jizhi_sync_chat_v10_pure_${taskId}_${myGroupId}`, JSON.stringify(this.app.state.chatLogs));
       localStorage.setItem(`jizhi_sync_s1_v10_pure_${taskId}_${myGroupId}`, JSON.stringify(this.app.state.stage1));
       localStorage.setItem(`jizhi_sync_s2_v10_pure_${taskId}_${myGroupId}`, JSON.stringify(this.app.state.stage2));
