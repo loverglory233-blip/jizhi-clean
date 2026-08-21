@@ -2036,32 +2036,27 @@
       this.app.updateContributionUi();
       this.app.renderPresenceCursors();
 
-      if (user?.role === 'student' && this.app.state.studentViewMode === 'workspace') {
-        this.app.renderStudentWorkspace(true);
-        // 弹出友好提示告知学生：教师端已重置本次活动数据
+      if (user?.role === 'student') {
+        // 弹出友好提示告知学生：教师端已重置本次活动数据，确认后强制退回登录界面
         document.querySelectorAll('.reset-notify-modal').forEach(m => m.remove());
         const resetModal = document.createElement('div');
         resetModal.className = 'modal-overlay reset-notify-modal';
         resetModal.innerHTML = `
-          <div class="teacher-modal-card" style="width:420px; text-align:center; padding:28px 24px; background:#ffffff; border-radius:12px; box-shadow:0 20px 25px -5px rgba(0,0,0,0.25);">
+          <div class="teacher-modal-card" style="width:440px; text-align:center; padding:32px 24px; background:#ffffff; border-radius:14px; box-shadow:0 20px 25px -5px rgba(0,0,0,0.25); border:1px solid #e2e8f0; animation:modalFadeIn 0.25s ease;">
             <div style="font-size:44px; margin-bottom:12px;">🔄</div>
-            <div style="font-size:17px; font-weight:800; color:#0f172a; margin-bottom:8px;">教学数据已由教师重置</div>
-            <div style="font-size:13.5px; color:#64748b; line-height:1.6; margin-bottom:22px;">
-              指导教师已清空本组的历史研讨与正文草稿，工作区已恢复至初始阶段一，全组可以重新开始本次写作任务。
+            <div style="font-size:18px; font-weight:800; color:#0f172a; margin-bottom:8px;">教学活动已由指导教师重置</div>
+            <div style="font-size:13.5px; color:#475569; line-height:1.6; margin-bottom:22px;">
+              指导教师已重置清空本组的写作草稿、研讨记录与阅读确认状态。点击下方按钮将返回登录界面，重新登录后即可重新查收课堂通知并开始协作。
             </div>
-            <button id="btn-confirm-reset-ok" style="background:linear-gradient(135deg, #2563eb, #1d4ed8); color:white; border:none; padding:11px 28px; border-radius:8px; font-size:14px; font-weight:700; cursor:pointer; width:100%;">
-              我知道了，开始协作
+            <button id="btn-confirm-reset-logout" style="background:linear-gradient(135deg, #2563eb, #1d4ed8); color:white; border:none; padding:12px 28px; border-radius:8px; font-size:14px; font-weight:700; cursor:pointer; width:100%; box-shadow:0 3px 10px rgba(37,99,235,0.25);">
+              🔑 确认并返回登录界面
             </button>
           </div>
         `;
         document.body.appendChild(resetModal);
-        resetModal.querySelector('#btn-confirm-reset-ok').addEventListener('click', () => {
+        resetModal.querySelector('#btn-confirm-reset-logout').addEventListener('click', () => {
           resetModal.remove();
-          if (this.app.authManager && this.app.authManager.pullGlobalMeta) {
-            this.app.authManager.pullGlobalMeta().then(() => {
-              this.app.checkUnreadAnnouncements();
-            });
-          }
+          this.app.handleLogout();
         });
       }
     }
