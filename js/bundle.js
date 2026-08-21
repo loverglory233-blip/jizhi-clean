@@ -8576,6 +8576,38 @@
           }
         }
 
+        // ── 情绪与同伴安抚感知：检测负向情绪与同伴是否进行安抚 ──
+        const isNegativeEmotion = /(?:太难了|写不出来|不想写|没意义|烦死了|吵什么|凭什么|搞不懂|放弃了|头疼)/i.test(text);
+        const isPeerSupportSignal = /(?:没事|我来写|我来帮|我们一起|别急|慢慢来|别慌|大家商量|赞同你|没关系)/i.test(text);
+
+        if (isNegativeEmotion) {
+          this.pendingNegativeEmotion = { sender: studentCode, time: Date.now(), text: text };
+        } else if (isPeerSupportSignal && this.pendingNegativeEmotion) {
+          // 同伴已主动给出暖心安抚，智能体保持安静，让学生自主发挥同伴互助
+          this.pendingNegativeEmotion = null;
+        }
+
+        // 若同伴在 60 秒内未予回应或继续出现消极，对应阶段智能体精准介入安抚
+        if (this.pendingNegativeEmotion && (Date.now() - this.pendingNegativeEmotion.time > 60000) && (!this.lastEmotionNudgeTime || (Date.now() - this.lastEmotionNudgeTime > 180000))) {
+          this.lastEmotionNudgeTime = Date.now();
+          const targetAgent = (currentStage === 'stage1') ? 'auctioneer' : ((currentStage === 'stage2') ? 'managingEditor' : 'neutral');
+          const agentTitle = (currentStage === 'stage1') ? '拍卖师' : ((currentStage === 'stage2') ? '责任编辑' : '中间委员');
+          const emotionPromptMsg = {
+            sender: targetAgent,
+            text: `🤝 【${agentTitle}·协同支持】：关注到大家在协作中遇到了难点！学术方案设计本身就是一个不断推敲和迭代的过程，遇到卡点非常正常。建议大家在讨论区交流具体哪个环节需要支持，团队分工互助、取长补短，稳步推进！`,
+            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            _timeMs: Date.now()
+          };
+          this.pendingNegativeEmotion = null;
+          setTimeout(() => {
+            if (!this.state.chatLogs[currentStage]) this.state.chatLogs[currentStage] = [];
+            this.state.chatLogs[currentStage].push(emotionPromptMsg);
+            this.syncChatLogs();
+            if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+            renderChat(this.state);
+          }, 1500);
+        }
+
         this.triggerAgentReplyIfNeeded(text);
       };
 
