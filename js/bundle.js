@@ -365,50 +365,11 @@
             }
           }
 
-          if (cls.groups.length > 0) {
-            // 每个班级独立维护 seenStudentIds，保证班级与班级彻底隔离互不影响
-            const seenStudentIdsInClass = new Set();
-            const seenGroupNames = new Set();
-            const cleanGroups = [];
-
-            cls.groups.forEach(grp => {
-              const rawMembers = Array.isArray(grp.members) ? grp.members : [];
-              const validMembers = [];
-
-              rawMembers.forEach(m => {
-                const mId = getMemberId(m);
-                if (mId && !seenStudentIdsInClass.has(mId)) {
-                  seenStudentIdsInClass.add(mId);
-                  validMembers.push(mId);
-                }
-              });
-
-              const isTestGroup = grp.name && grp.name.includes('测试组');
-
-              // 🛡️ 关键：只有包含真实成员的小组（或特定的测试组）才保留，彻底清除 0 人的历史幽灵空组！
-              if (validMembers.length > 0 || isTestGroup) {
-                grp.members = validMembers;
-                cleanGroups.push(grp);
-              }
-            });
-
-            // 重新按序规整命名，避免出现断层或混乱重复的组名
-            const hasTest = cleanGroups.some(g => g.name && g.name.includes('测试组'));
-            let nonTestIndex = hasTest ? 2 : 1;
-            cleanGroups.forEach((g) => {
-              if (g.name && g.name.includes('测试组')) {
-                g.name = '第 1 协作小组 (测试组)';
-              } else {
-                g.name = `第 ${nonTestIndex} 协作小组`;
-                nonTestIndex++;
-              }
-            });
-
-            if (cleanGroups.length !== cls.groups.length) {
-              cls.groups = cleanGroups;
-              isModified = true;
-            }
-          }
+          cls.groups.forEach(grp => {
+            if (!grp.id) grp.id = 'group_' + Date.now();
+            if (!grp.name) grp.name = '协作小组';
+            if (!Array.isArray(grp.members)) grp.members = [];
+          });
         });
 
         if (isModified) {
@@ -427,13 +388,19 @@
         if (res.ok) {
           const data = await res.json();
           if (data) {
-            // 1. 账号池安全增量合并
+            // 1. 账号池安全增量合并与小组/班级绑定更新
             if (Array.isArray(data.users)) {
               const localUsers = this.getUsers();
               const mergedUsers = [...localUsers];
               data.users.forEach(su => {
-                if (!mergedUsers.some(lu => (lu.id && lu.id === su.id) || (lu.studentCode && lu.studentCode === su.studentCode) || (lu.username && lu.username === su.username))) {
+                const existing = mergedUsers.find(lu => (lu.id && lu.id === su.id) || (lu.studentCode && lu.studentCode === su.studentCode) || (lu.username && lu.username === su.username));
+                if (!existing) {
                   mergedUsers.push(su);
+                } else {
+                  if (su.groupId !== undefined) existing.groupId = su.groupId;
+                  if (su.classId) existing.classId = su.classId;
+                  if (Array.isArray(su.classIds)) existing.classIds = su.classIds;
+                  if (su.name) existing.name = su.name;
                 }
               });
               localStorage.setItem(STORAGE_KEY_USERS_DB, JSON.stringify(mergedUsers));
@@ -928,56 +895,56 @@
     getStudentActiveGroup(user, classId = null) {
       if (!user) return { id: 'group_1', name: '第 1 协作小组' };
       const classes = this.getClasses();
+      const uId = user.id;
+      const uCode = user.studentCode;
+      const uName = user.name;
+      const uUsername = user.username;
+
+      // 1. 优先在当前指定班级中深度匹配成员与 groupId
       const targetClass = (classId ? classes.find(c => c.id === classId) : null) ||
                           classes.find(c => (Array.isArray(user.classIds) && user.classIds.includes(c.id)) || c.id === user.classId) ||
                           classes[0];
 
       if (targetClass && Array.isArray(targetClass.groups)) {
-        // 1. 深度遍历目标班级小组内的每个成员 (支持字符串ID/学号/姓名以及对象)
-        for (let idx = 0; idx < targetClass.groups.length; idx++) {
-          const g = targetClass.groups[idx];
+        for (let i = 0; i < targetClass.groups.length; i++) {
+          const g = targetClass.groups[i];
           const hasMember = (g.members || []).some(m => {
             if (!m) return false;
-            if (typeof m === 'string') {
-              return m === user.id || m === user.studentCode || m === user.username || m === user.name;
-            }
-            if (typeof m === 'object') {
-              return m.id === user.id ||
-                     m.userId === user.id ||
-                     m.studentCode === user.studentCode ||
-                     m.username === user.username ||
-                     m.name === user.name;
-            }
+            if (typeof m === 'string') return m === uId || m === uCode || m === uUsername || m === uName;
+            if (typeof m === 'object') return m.id === uId || m.userId === uId || m.studentCode === uCode || m.username === uUsername || m.name === uName;
             return false;
           });
-          if (hasMember) {
-            return {
-              id: g.id,
-              name: g.name || `第 ${idx + 1} 协作小组`,
-              members: g.members
-            };
-          }
+          if (hasMember) return g;
         }
 
-        // 2. 如果 user.groupId 匹配目标班级里的小组
         if (user.groupId) {
-          const gDirect = targetClass.groups.find(g => g.id === user.groupId);
-          if (gDirect) return gDirect;
+          const directG = targetClass.groups.find(g => g.id === user.groupId);
+          if (directG) return directG;
         }
       }
 
-      // 3. 在所有班级中搜索 user.groupId
+      // 2. 遍历全校所有班级深度匹配
+      for (const c of classes) {
+        if (!Array.isArray(c.groups)) continue;
+        for (const g of c.groups) {
+          const hasMember = (g.members || []).some(m => {
+            if (!m) return false;
+            if (typeof m === 'string') return m === uId || m === uCode || m === uUsername || m === uName;
+            if (typeof m === 'object') return m.id === uId || m.userId === uId || m.studentCode === uCode || m.username === uUsername || m.name === uName;
+            return false;
+          });
+          if (hasMember) return g;
+        }
+      }
+
       if (user.groupId) {
         for (const c of classes) {
           const g = (c.groups || []).find(grp => grp.id === user.groupId);
           if (g) return g;
         }
-        const matchDigits = String(user.groupId).match(/\d+/g);
-        const seq = matchDigits ? matchDigits[matchDigits.length - 1] : '2';
-        return { id: user.groupId, name: `第 ${seq} 协作小组` };
       }
 
-      // 4. 兜底
+      // 3. 兜底
       if (targetClass && Array.isArray(targetClass.groups) && targetClass.groups.length > 0) {
         return targetClass.groups[0];
       }
