@@ -2885,12 +2885,19 @@
                     </div>
                   ` : currentClassAnnouncements.map((a, idx) => {
                     const allClassGroups = activeClass.groups || [{ id: 'group_1', name: '第1小组' }];
-                    const targetGroups = allClassGroups.filter(g => {
-                      if (Array.isArray(a.targetGroupIds)) {
-                        return a.targetGroupIds.includes('all') || a.targetGroupIds.includes(g.id);
+                    let targetGroups = allClassGroups.filter(g => {
+                      if (a.targetGroupId === 'all' || (Array.isArray(a.targetGroupIds) && a.targetGroupIds.includes('all'))) {
+                        return true;
                       }
-                      return !a.targetGroupId || a.targetGroupId === 'all' || a.targetGroupId === g.id;
+                      const matchId = (Array.isArray(a.targetGroupIds) && a.targetGroupIds.includes(g.id)) || a.targetGroupId === g.id;
+                      const matchName = (Array.isArray(a.targetGroupIds) && a.targetGroupIds.includes(g.name)) ||
+                                        a.targetGroupId === g.name ||
+                                        (a.targetGroupName && (a.targetGroupName.includes(g.name) || g.name.includes(a.targetGroupName)));
+                      return matchId || matchName;
                     });
+                    if (targetGroups.length === 0) {
+                      targetGroups = [{ id: a.targetGroupId || 'group_target', name: a.targetGroupName || '定向协作小组' }];
+                    }
                     const targetGName = a.targetGroupName || (targetGroups.length === allClassGroups.length ? '全班所有小组' : targetGroups.map(g => g.name).join('、'));
                     const taskLabel = a.taskId === 'task_all' || !a.taskId ? '🌐 全班通识广播' : `📌 ${a.taskTitle || '专属任务'}`;
                     const isLatest = idx === 0;
