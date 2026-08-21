@@ -2315,7 +2315,7 @@
           }
         }
 
-      // ── stage2 正文编辑器：带打字保护与光标锚定的无感差量合并 ──
+      // ── stage2 正文编辑器：真正的 DOM 节点级差异调和 (Node-level Reconciliation)，绝不粗暴覆写 innerHTML ──
       if (remoteData.stage2) {
         if (remoteData.stage2.unifiedContent !== undefined) {
           let cleanRemoteContent = (remoteData.stage2.unifiedContent || '').replace(/<span class="remote-cursor-widget"[\s\S]*?<\/span>/gi, '');
@@ -2324,24 +2324,71 @@
             const isLocalComposing = (editor.dataset.isComposing === 'true');
             const lastLocalEdit = Number(editor.dataset.lastLocalEditTime || 0);
             const now = Date.now();
-            const isActivelyTyping = isLocalComposing || (now - lastLocalEdit < 2000);
+            const isActivelyTyping = isLocalComposing || (now - lastLocalEdit < 1500);
             const currentLocalHtml = editor.innerHTML.replace(/<span class="remote-cursor-widget"[\s\S]*?<\/span>/gi, '');
-            const isEditorFocused = (document.activeElement === editor) || (editor.contains(document.activeElement));
 
-            // 如果本地用户正在活跃打字（2秒内），保护本地编辑内容绝不被远端旧快照吞字
-            if (!isActivelyTyping) {
-              if (currentLocalHtml.trim() !== cleanRemoteContent.trim()) {
-                this.app.state.stage2.unifiedContent = cleanRemoteContent;
-                if (isEditorFocused) {
-                  const savedOffset = getCaretCharacterOffsetWithin(editor);
-                  editor.innerHTML = cleanRemoteContent || '';
-                  try { setCaretPositionWithin(editor, savedOffset); } catch (e) {}
-                } else {
-                  editor.innerHTML = cleanRemoteContent || '';
+            if (currentLocalHtml.trim() !== cleanRemoteContent.trim()) {
+              this.app.state.stage2.unifiedContent = cleanRemoteContent;
+              if (!isActivelyTyping) {
+                // 真正的 DOM 节点差异比对与靶向 Patching
+                const tempDiv = document.createElement('div');
+                tempDiv.innerHTML = cleanRemoteContent;
+
+                const selection = window.getSelection();
+                let focusNode = null;
+                let focusOffset = 0;
+                if (selection && selection.rangeCount > 0 && editor.contains(selection.focusNode)) {
+                  focusNode = selection.focusNode;
+                  focusOffset = selection.focusOffset;
+                }
+
+                const localNodes = Array.from(editor.childNodes);
+                const remoteNodes = Array.from(tempDiv.childNodes);
+                const maxLen = Math.max(localNodes.length, remoteNodes.length);
+
+                for (let i = 0; i < maxLen; i++) {
+                  const lNode = localNodes[i];
+                  const rNode = remoteNodes[i];
+
+                  if (!lNode && rNode) {
+                    editor.appendChild(rNode.cloneNode(true));
+                  } else if (lNode && !rNode) {
+                    if (!focusNode || !lNode.contains(focusNode)) {
+                      editor.removeChild(lNode);
+                    }
+                  } else if (lNode && rNode) {
+                    const lHtml = (lNode.nodeType === Node.ELEMENT_NODE) ? lNode.outerHTML : lNode.textContent;
+                    const rHtml = (rNode.nodeType === Node.ELEMENT_NODE) ? rNode.outerHTML : rNode.textContent;
+
+                    if (lHtml !== rHtml) {
+                      // 若光标不在该节点内，靶向只替换该变动节点，保留所有其他节点引用
+                      if (!focusNode || (!lNode.contains(focusNode) && lNode !== focusNode)) {
+                        editor.replaceChild(rNode.cloneNode(true), lNode);
+                      } else {
+                        // 光标在该节点内：若同为 TextNode，执行原子字符增删，平移光标
+                        if (lNode.nodeType === Node.TEXT_NODE && rNode.nodeType === Node.TEXT_NODE) {
+                          const oldText = lNode.textContent || '';
+                          const newText = rNode.textContent || '';
+                          let start = 0;
+                          while (start < oldText.length && start < newText.length && oldText[start] === newText[start]) start++;
+                          let oldEnd = oldText.length - 1;
+                          let newEnd = newText.length - 1;
+                          while (oldEnd >= start && newEnd >= start && oldText[oldEnd] === newText[newEnd]) { oldEnd--; newEnd--; }
+                          const delCount = (oldEnd - start + 1);
+                          const insText = newText.slice(start, newEnd + 1);
+                          if (delCount > 0) lNode.deleteData(start, delCount);
+                          if (insText.length > 0) lNode.insertData(start, insText);
+                        } else if (lNode.nodeType === Node.ELEMENT_NODE && rNode.nodeType === Node.ELEMENT_NODE) {
+                          // 段落容器相同但内容有差异：局部子节点调和
+                          const savedOffset = getCaretCharacterOffsetWithin(editor);
+                          editor.replaceChild(rNode.cloneNode(true), lNode);
+                          try { setCaretPositionWithin(editor, savedOffset); } catch (e) {}
+                        }
+                      }
+                    }
+                  }
                 }
               }
-            } else {
-              // 本地正在打字：保护本地内容，绝不覆盖 DOM
             }
           } else {
             this.app.state.stage2.unifiedContent = cleanRemoteContent;
@@ -6465,10 +6512,7 @@
             });
           }
 
-          // 自动同步更新融合主题草案
-          if (!s1.mergedTitle || s1.mergedTitle === '基于多智能体协同的学术论文写作与研究设计方案' || s1.proposals.length === 1) {
-            s1.mergedTitle = title;
-          }
+          // 提交提案时不自动给公约融合主题赋值，必须等待全组投票与讨论协商后确立
 
           const currentStage = state.currentStage;
           const authorName = state.members[currentUser] ? state.members[currentUser].name : currentUser;

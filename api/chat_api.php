@@ -186,9 +186,9 @@ $convId = isset($initData['data']['conversation_id']) ? $initData['data']['conve
 
 $answerText = '';
 if ($chatId && $convId) {
-    // 4. 轮询 Retrieve 状态
-    for ($i = 0; $i < 15; $i++) {
-        usleep(800000); // 800ms
+    // 4. 轮询 Retrieve 状态 (最多 25 轮，每轮 600ms，总计 15 秒)
+    for ($i = 0; $i < 25; $i++) {
+        usleep(600000); // 600ms
         $pollUrl = $COZE_API_BASE_URL . "/chat/retrieve?chat_id={$chatId}&conversation_id={$convId}";
         $ch2 = curl_init($pollUrl);
         curl_setopt($ch2, CURLOPT_HTTPHEADER, $headers);
