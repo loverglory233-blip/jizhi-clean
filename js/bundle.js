@@ -7089,6 +7089,7 @@
       const taskId = this.state.activeTaskId || 'task_default';
       this.state.members = this.authManager.getGroupMembersForWorkspace(groupId);
 
+      // 优先从内存与云端拉取，本地仅做安全的非脏初始化
       const savedChat = localStorage.getItem(`jizhi_sync_chat_v10_pure_${taskId}_${groupId}`);
       if (savedChat) { 
         try { 
@@ -7100,21 +7101,29 @@
 
       const savedS1 = localStorage.getItem(`jizhi_sync_s1_v10_pure_${taskId}_${groupId}`);
       if (savedS1) { try { this.state.stage1 = { ...defaultState.stage1, ...JSON.parse(savedS1) }; } catch (e) {} }
-      else { this.state.stage1 = defaultState.stage1; }
+      else { this.state.stage1 = JSON.parse(JSON.stringify(defaultState.stage1)); }
 
       const savedS2 = localStorage.getItem(`jizhi_sync_s2_v10_pure_${taskId}_${groupId}`);
       if (savedS2) { try { this.state.stage2 = { ...defaultState.stage2, ...JSON.parse(savedS2) }; } catch (e) {} }
-      else { this.state.stage2 = defaultState.stage2; }
+      else { this.state.stage2 = JSON.parse(JSON.stringify(defaultState.stage2)); }
 
       const savedS3 = localStorage.getItem(`jizhi_sync_s3_v10_pure_${taskId}_${groupId}`);
       if (savedS3) { try { this.state.stage3 = { ...defaultState.stage3, ...JSON.parse(savedS3) }; } catch (e) {} }
-      else { this.state.stage3 = defaultState.stage3; }
+      else { this.state.stage3 = JSON.parse(JSON.stringify(defaultState.stage3)); }
 
       const savedStage = localStorage.getItem(`jizhi_sync_current_stage_v10_pure_${taskId}_${groupId}`);
       this.state.currentStage = savedStage || 'stage1';
 
       const savedSubmitted = localStorage.getItem(`jizhi_sync_final_submitted_v10_pure_${taskId}_${groupId}`);
       this.state.isFinalSubmitted = (savedSubmitted === 'true');
+
+      // 立即触发云端拉取最新真实数据
+      if (this.cloudSyncEngine) {
+        this.cloudSyncEngine.groupId = groupId;
+        this.cloudSyncEngine.taskId = taskId;
+        this.cloudSyncEngine.updateScopeKeys();
+        this.cloudSyncEngine.pullFromServer();
+      }
     }
 
     initPresetMessagesForGroup(groupId) {
