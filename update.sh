@@ -17,30 +17,53 @@ TARGET_DIRS=($(printf "%s\n" "${TARGET_DIRS[@]}" | sort -u))
 
 echo "📁 目标目录: ${TARGET_DIRS[*]}"
 
-echo "⚡ [2/4] 下载最新代码..."
+echo "⚡ [2/4] 下载最新代码并校验完整性..."
 TMP=/tmp/jizhi_update
 rm -rf "$TMP" && mkdir -p "$TMP/css" "$TMP/js" "$TMP/api"
 
 dl() {
   local f=$1
+  local min_size=10
+  if [ "$f" == "js/bundle.js" ]; then
+    min_size=500000 # bundle.js 必须大于 500KB，防止网络截断
+  fi
+
   local success=0
   local urls=(
+    "https://raw.gitmirror.com/loverglory233-blip/jizhi-clean/main/$f"
     "https://ghfast.top/https://raw.githubusercontent.com/loverglory233-blip/jizhi-clean/main/$f"
     "https://ghproxy.net/https://raw.githubusercontent.com/loverglory233-blip/jizhi-clean/main/$f"
-    "https://raw.gitmirror.com/loverglory233-blip/jizhi-clean/main/$f"
     "https://cdn.jsdelivr.net/gh/loverglory233-blip/jizhi-clean@main/$f"
     "https://raw.githubusercontent.com/loverglory233-blip/jizhi-clean/main/$f"
   )
   for u in "${urls[@]}"; do
-    curl -s -f -L --connect-timeout 2 --max-time 4 "$u" -o "$TMP/$f" 2>/dev/null
-    if [ -s "$TMP/$f" ] && ! grep -q "429: Too Many Requests" "$TMP/$f"; then
-      success=1
-      break
+    curl -s -f -L --connect-timeout 10 --max-time 30 "$u" -o "$TMP/$f" 2>/dev/null
+    if [ -s "$TMP/$f" ]; then
+      local sz=$(wc -c < "$TMP/$f" 2>/dev/null || echo 0)
+      if [ $sz -ge $min_size ] && ! grep -q "429: Too Many Requests" "$TMP/$f"; then
+        success=1
+        echo "   ✓ $f 下载成功 ($(awk "BEGIN {printf \"%.1f\", $sz/1024}") KB)"
+        break
+      fi
     fi
   done
+
   if [ $success -eq 0 ]; then
-    echo "⚠️ 正在重试下载 $f ..."
-    curl -s -L --connect-timeout 3 --max-time 5 "https://raw.gitmirror.com/loverglory233-blip/jizhi-clean/main/$f" -o "$TMP/$f" 2>/dev/null
+    echo "⚠️ 正在使用备份高速镜像重试 $f ..."
+    for retry_url in "https://raw.gitmirror.com/loverglory233-blip/jizhi-clean/main/$f" "https://ghproxy.net/https://raw.githubusercontent.com/loverglory233-blip/jizhi-clean/main/$f"; do
+      curl -s -L --connect-timeout 15 --max-time 45 "$retry_url" -o "$TMP/$f" 2>/dev/null
+      local sz=$(wc -c < "$TMP/$f" 2>/dev/null || echo 0)
+      if [ $sz -ge $min_size ]; then
+        success=1
+        echo "   ✓ $f 重试成功 ($(awk "BEGIN {printf \"%.1f\", $sz/1024}") KB)"
+        break
+      fi
+    done
+  fi
+
+  if [ $success -eq 0 ]; then
+    echo "❌ 警告: $f 未能完整下载，将跳过覆盖以保护现有文件"
+    rm -f "$TMP/$f"
   fi
 }
 
@@ -55,7 +78,7 @@ dl api/db_init.php
 
 for dir in "${TARGET_DIRS[@]}"; do
   mkdir -p "$dir/css" "$dir/js" "$dir/api"
-  cp -rf "$TMP/"* "$dir/"
+  cp -rf "$TMP/"* "$dir/" 2>/dev/null
   
   # 自动创建本地 MySQL 配置文件（若不存在）
   if [ ! -f "$dir/api/db_config.php" ]; then
