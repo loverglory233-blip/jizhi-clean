@@ -22,48 +22,49 @@ TMP=/tmp/jizhi_update
 rm -rf "$TMP" && mkdir -p "$TMP/css" "$TMP/js" "$TMP/api"
 
 dl() {
-  local f=$1
-  local min_size=10
+  local min_lines=1
   if [ "$f" == "js/bundle.js" ]; then
-    min_size=500000 # bundle.js 必须大于 500KB，防止网络截断
+    min_lines=9500 # bundle.js 必须大于 9500 行，100% 防止代理截断！
   fi
 
   local success=0
   local urls=(
-    "https://raw.gitmirror.com/loverglory233-blip/jizhi-clean/main/$f"
+    "https://cdn.jsdelivr.net/gh/loverglory233-blip/jizhi-clean@main/$f"
+    "https://fastly.jsdelivr.net/gh/loverglory233-blip/jizhi-clean@main/$f"
+    "https://testingcf.jsdelivr.net/gh/loverglory233-blip/jizhi-clean@main/$f"
+    "https://raw.githubusercontent.com/loverglory233-blip/jizhi-clean/main/$f"
     "https://ghfast.top/https://raw.githubusercontent.com/loverglory233-blip/jizhi-clean/main/$f"
     "https://ghproxy.net/https://raw.githubusercontent.com/loverglory233-blip/jizhi-clean/main/$f"
-    "https://cdn.jsdelivr.net/gh/loverglory233-blip/jizhi-clean@main/$f"
-    "https://raw.githubusercontent.com/loverglory233-blip/jizhi-clean/main/$f"
   )
   for u in "${urls[@]}"; do
-    curl -s -f -L --connect-timeout 10 --max-time 30 "$u" -o "$TMP/$f" 2>/dev/null
+    curl -s -f -L --connect-timeout 8 --max-time 30 "$u" -o "$TMP/$f" 2>/dev/null
     if [ -s "$TMP/$f" ]; then
-      local sz=$(wc -c < "$TMP/$f" 2>/dev/null || echo 0)
-      if [ $sz -ge $min_size ] && ! grep -q "429: Too Many Requests" "$TMP/$f"; then
+      local lines=$(wc -l < "$TMP/$f" 2>/dev/null || echo 0)
+      if [ $lines -ge $min_lines ] && ! grep -q "429: Too Many Requests" "$TMP/$f"; then
         success=1
-        echo "   ✓ $f 下载成功 ($(awk "BEGIN {printf \"%.1f\", $sz/1024}") KB)"
+        echo "   ✓ $f 下载完整 ($lines 行, $(awk "BEGIN {printf \"%.1f\", $(wc -c < "$TMP/$f")/1024}") KB)"
         break
       fi
     fi
   done
 
   if [ $success -eq 0 ]; then
-    echo "⚠️ 正在使用备份高速镜像重试 $f ..."
-    for retry_url in "https://raw.gitmirror.com/loverglory233-blip/jizhi-clean/main/$f" "https://ghproxy.net/https://raw.githubusercontent.com/loverglory233-blip/jizhi-clean/main/$f"; do
-      curl -s -L --connect-timeout 15 --max-time 45 "$retry_url" -o "$TMP/$f" 2>/dev/null
-      local sz=$(wc -c < "$TMP/$f" 2>/dev/null || echo 0)
-      if [ $sz -ge $min_size ]; then
+    echo "⚠️ 正在使用全球多节点重试 $f ..."
+    for retry_url in "https://cdn.jsdelivr.net/gh/loverglory233-blip/jizhi-clean@main/$f" "https://raw.githubusercontent.com/loverglory233-blip/jizhi-clean/main/$f"; do
+      curl -s -L --connect-timeout 15 --max-time 60 "$retry_url" -o "$TMP/$f" 2>/dev/null
+      local lines=$(wc -l < "$TMP/$f" 2>/dev/null || echo 0)
+      if [ $lines -ge $min_lines ]; then
         success=1
-        echo "   ✓ $f 重试成功 ($(awk "BEGIN {printf \"%.1f\", $sz/1024}") KB)"
+        echo "   ✓ $f 重试下载成功 ($lines 行)"
         break
       fi
     done
   fi
 
   if [ $success -eq 0 ]; then
-    echo "❌ 警告: $f 未能完整下载，将跳过覆盖以保护现有文件"
+    echo "❌ 严重错误: $f 未能完整下载 ($lines 行 < $min_lines 行)，已终止覆盖以保护生产环境"
     rm -f "$TMP/$f"
+    exit 1
   fi
 }
 
