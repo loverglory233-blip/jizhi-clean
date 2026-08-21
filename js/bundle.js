@@ -6213,17 +6213,47 @@
   function renderStage1Canvas(canvas, state, handlers) {
     const s1 = state.stage1;
     const currentUser = state.currentUser;
+    const currUserObj = (window.app && window.app.authManager) ? window.app.authManager.getCurrentUser() : null;
+    const allUsers = (window.app && window.app.authManager) ? window.app.authManager.getUsers() : [];
     const membersList = Object.values(state.members || {});
     const totalMembersCount = membersList.length;
+
+    // 💡 智能自动生成融合主题与默认分工 (无需学生必须点击按钮，自动准备好草案，可自由编辑或点击重新提炼)
+    if (!s1.mergedTitle || s1.mergedTitle.trim().length === 0) {
+      if (s1.proposals && s1.proposals.length > 0) {
+        const sortedProps = [...s1.proposals].sort((a, b) => (b.votes || 0) - (a.votes || 0));
+        s1.mergedTitle = sortedProps[0].title;
+      } else {
+        s1.mergedTitle = '基于多智能体协同的学术论文写作与研究设计方案';
+      }
+    }
+    if (!s1.contract.taskAssignments) s1.contract.taskAssignments = {};
+    const defaultSections = [
+      '负责“一、研究背景与意义”及“二、文献综述”起草与资料整理',
+      '负责“三、研究问题与假设”及“四、研究设计与方法”方案制定',
+      '负责“五、不足与反思”撰写及全篇“六、参考文献”引文校对',
+      '负责数据分析模型构建与研究工具问卷设计'
+    ];
+    membersList.forEach((m, idx) => {
+      const mIdKey = m.id || m.studentCode;
+      if (!s1.contract.taskAssignments[mIdKey] && (!m.id || !s1.contract.taskAssignments[m.id]) && (!m.studentCode || !s1.contract.taskAssignments[m.studentCode])) {
+        s1.contract.taskAssignments[mIdKey] = defaultSections[idx % defaultSections.length];
+      }
+    });
+
     const confirmedMembers = s1.contract.confirmedMembers || {};
-    // 兼容 member.id 和 member.studentCode 两种标识
-    const confirmedCount = membersList.filter(m => confirmedMembers[m.id] || confirmedMembers[m.studentCode]).length;
-    const userHasConfirmed = confirmedMembers[currentUser] || (state.members[currentUser] && confirmedMembers[state.members[currentUser].id]);
+    const confirmedCount = membersList.filter(m => confirmedMembers[m.id] || confirmedMembers[m.studentCode] || (m.name && confirmedMembers[m.name])).length;
+    const userHasConfirmed = confirmedMembers[currentUser] || (currUserObj && (confirmedMembers[currUserObj.id] || confirmedMembers[currUserObj.studentCode] || confirmedMembers[currUserObj.name]));
     const isContractLocked = s1.contract.isConfirmed || state.isFinalSubmitted;
 
-    const userHasVoted = s1.hasVoted && s1.hasVoted[currentUser];
-    const userVotedProposalId = s1.votes ? s1.votes[currentUser] : null;
+    const userHasVoted = s1.hasVoted && (s1.hasVoted[currentUser] || (currUserObj && (s1.hasVoted[currUserObj.id] || s1.hasVoted[currUserObj.studentCode])));
+    const userVotedProposalId = s1.votes ? (s1.votes[currentUser] || (currUserObj && (s1.votes[currUserObj.id] || s1.votes[currUserObj.studentCode]))) : null;
     const totalVotesCast = Object.values(s1.hasVoted || {}).filter(Boolean).length;
+
+    // 严密判断当前登录学生是否已提交提案 (支持 id, studentCode, username, 姓名多重比对)
+    const myIds = new Set([currentUser, currUserObj?.id, currUserObj?.studentCode, currUserObj?.username].filter(Boolean));
+    const hasSubmittedMyProposal = s1.proposals.some(p => myIds.has(p.author) || (currUserObj && (p.authorName === currUserObj.name || p.author === currUserObj.name)));
+    const currentUserName = currUserObj ? currUserObj.name : (state.members[currentUser] ? state.members[currentUser].name : '组员');
 
     canvas.innerHTML = `
       ${isContractLocked ? `
@@ -6241,7 +6271,7 @@
           </div>
           ${!isContractLocked ? `
             <button id="btn-open-submit-proposal" style="background:linear-gradient(135deg, #2563eb, #1d4ed8); border:none; color:white; padding:7px 16px; border-radius:8px; font-weight:700; font-size:13px; cursor:pointer; box-shadow:0 3px 10px rgba(37,99,235,0.3);">
-              ${s1.proposals.some(p => p.author === currentUser) ? '✏️ 修改我的选题' : '+ 提交我的选题'}
+              ${hasSubmittedMyProposal ? '✏️ 修改我的选题' : '+ 提交我的选题'}
             </button>
           ` : ''}
         </div>
@@ -6263,7 +6293,8 @@
                   if (isThisVoted) { btnText = '🔒 已投此提案'; btnClass = 'vote-btn active locked'; }
                   else { btnText = '🔒 投票已锁定'; btnClass = 'vote-btn disabled'; }
                 }
-                const authorName = state.members[p.author] ? state.members[p.author].name : p.author;
+                const authorUser = allUsers.find(u => u.id === p.author || u.studentCode === p.author || u.username === p.author || u.name === p.author || u.name === p.authorName);
+                const authorName = (authorUser ? authorUser.name : null) || p.authorName || (state.members[p.author] ? state.members[p.author].name : p.author);
                 return `
                   <div class="proposal-card ${isThisVoted ? 'voted' : ''}" style="display:flex; flex-direction:column;">
                     <div class="proposal-header">
@@ -6410,7 +6441,7 @@
     if (btnOpenProp) {
       btnOpenProp.addEventListener('click', () => {
         document.querySelectorAll('.modal-overlay').forEach(el => el.remove());
-        const existingProp = s1.proposals.find(p => p.author === currentUser);
+        const existingProp = s1.proposals.find(p => myIds.has(p.author) || (currUserObj && (p.authorName === currUserObj.name || p.author === currUserObj.name)));
         const modal = document.createElement('div');
         modal.className = 'modal-overlay';
         modal.innerHTML = `
@@ -6461,20 +6492,27 @@
 
           if (window.app) window.app.stage1LastActionTime = Date.now();
 
-          const existingIdx = s1.proposals.findIndex(p => p.author === currentUser);
+          const existingIdx = s1.proposals.findIndex(p => myIds.has(p.author) || (currUserObj && (p.authorName === currUserObj.name || p.author === currUserObj.name)));
           const nowMs = Date.now();
           if (existingIdx >= 0) {
             // 已有提案：更新标题与修改时间戳（保持每人 1 份，时间戳最新）
             s1.proposals[existingIdx].title = title;
+            s1.proposals[existingIdx].authorName = currentUserName;
             s1.proposals[existingIdx].updatedAt = nowMs;
           } else {
-            // 新提案：加入提案池（带时间戳）
+            // 新提案：加入提案池（带时间戳与真实姓名）
             s1.proposals.push({
               id: 'prop_' + currentUser + '_' + nowMs,
               author: currentUser,
+              authorName: currentUserName,
               title: title,
               updatedAt: nowMs
             });
+          }
+
+          // 自动同步更新融合主题草案
+          if (!s1.mergedTitle || s1.mergedTitle === '基于多智能体协同的学术论文写作与研究设计方案' || s1.proposals.length === 1) {
+            s1.mergedTitle = title;
           }
 
           const currentStage = state.currentStage;
@@ -6962,13 +7000,36 @@
     const isAtBottom = (stream.scrollHeight - stream.scrollTop - stream.clientHeight) < 90;
     const prevScrollTop = stream.scrollTop;
 
+    const allUsers = (window.app && window.app.authManager) ? window.app.authManager.getUsers() : [];
+
     stream.innerHTML = allMsgs.map(msg => {
-      const isMe = msg.sender === currentUser;
+      const isMe = msg.sender === currentUser || (window.app?.authManager?.getCurrentUser() && (msg.sender === window.app.authManager.getCurrentUser().id || msg.sender === window.app.authManager.getCurrentUser().studentCode));
       const isAgent = AgentProfiles[msg.sender] !== undefined;
-      const profile = isAgent ? AgentProfiles[msg.sender] : (state.members ? state.members[msg.sender] : null);
-      const avatar = profile ? profile.avatar : '👤';
-      const name = profile ? (profile.name || profile.roleTitle) : msg.sender;
-      const color = profile ? profile.color : '#94a3b8';
+      
+      let name = msg.senderName || msg.sender;
+      let avatar = '👤';
+      let color = '#2563eb';
+
+      if (isAgent) {
+        const profile = AgentProfiles[msg.sender];
+        name = profile.roleTitle || profile.name;
+        avatar = profile.avatar;
+        color = profile.color || '#7c3aed';
+      } else {
+        const u = allUsers.find(x => x.id === msg.sender || x.studentCode === msg.sender || x.username === msg.sender || x.name === msg.sender);
+        if (u && u.name) {
+          name = u.name;
+        } else if (state.members) {
+          const mem = Object.values(state.members).find(m => m.id === msg.sender || m.studentCode === msg.sender || m.username === msg.sender || m.name === msg.sender);
+          if (mem && mem.name) name = mem.name;
+        }
+
+        const memObj = state.members ? (state.members[msg.sender] || Object.values(state.members).find(m => m.id === msg.sender || m.studentCode === msg.sender || m.name === name)) : null;
+        if (memObj) {
+          avatar = memObj.avatar || '👨‍🎓';
+          color = memObj.color || '#2563eb';
+        }
+      }
 
       let formattedContent = '';
       if ((msg.text || '').startsWith('[IMG_DATA]:')) {
@@ -8526,10 +8587,13 @@
         const text = input.value.trim();
         if (!text) return;
         const currentUser = this.authManager.getCurrentUser();
-        const studentCode = currentUser ? (currentUser.studentCode || 'A') : 'A';
+        const studentCode = currentUser ? (currentUser.studentCode || currentUser.id || 'student') : 'student';
+        const studentName = currentUser ? currentUser.name : '组员';
         const currentStage = this.state.currentStage;
         const msgObj = { 
+          id: 'msg_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6),
           sender: studentCode, 
+          senderName: studentName,
           text, 
           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
           _timeMs: Date.now()
@@ -8545,6 +8609,7 @@
         this.state.studentChatCounts[studentCode] = (this.state.studentChatCounts[studentCode] || 0) + 1;
 
         this.syncChatLogs();
+        if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
         renderChat(this.state);
 
         // ── 智能感知：如果处于【半程会议后等待组内商讨】状态，当学生在研讨区完成交流后触发审稿编辑 ──
@@ -8956,6 +9021,15 @@
         const userHasVoted = s1.hasVoted && s1.hasVoted[currentUser];
         const isContractLocked = s1.contract.isConfirmed || this.state.isFinalSubmitted;
 
+        const allUsers = this.authManager ? this.authManager.getUsers() : [];
+        const myIds = new Set([this.state.currentUser, currentUser?.id, currentUser?.studentCode, currentUser?.username].filter(Boolean));
+        const hasSubmittedMyProposal = s1.proposals.some(p => myIds.has(p.author) || (currentUser && (p.authorName === currentUser.name || p.author === currentUser.name)));
+
+        const btnOpenProp = document.getElementById('btn-open-submit-proposal');
+        if (btnOpenProp) {
+          btnOpenProp.innerText = hasSubmittedMyProposal ? '✏️ 修改我的选题' : '+ 提交我的选题';
+        }
+
         if (proposalsWrapper) {
           if (Array.isArray(s1.proposals) && s1.proposals.length > 0) {
             proposalsWrapper.innerHTML = `
@@ -8968,7 +9042,8 @@
                     if (isThisVoted) { btnText = '🔒 已投此提案'; btnClass = 'vote-btn active locked'; }
                     else { btnText = '🔒 投票已锁定'; btnClass = 'vote-btn disabled'; }
                   }
-                  const authorName = this.state.members[p.author] ? this.state.members[p.author].name : p.author;
+                  const authorUser = allUsers.find(u => u.id === p.author || u.studentCode === p.author || u.username === p.author || u.name === p.author || u.name === p.authorName);
+                  const authorName = (authorUser ? authorUser.name : null) || p.authorName || (this.state.members[p.author] ? this.state.members[p.author].name : p.author);
                   return `
                     <div class="proposal-card ${isThisVoted ? 'voted' : ''}" style="display:flex; flex-direction:column;">
                       <div class="proposal-header">
