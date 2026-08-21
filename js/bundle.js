@@ -2926,9 +2926,40 @@
                           </div>
                           <div style="display:flex; flex-wrap:wrap; gap:10px; font-size:12px;">
                             ${targetGroups.map(g => {
-                              const groupConfirmedList = (a.confirmedMembers || []).filter(m => m.groupId === g.id);
-                              const isRead = (a.readGroupStatus && a.readGroupStatus[g.id]) || (a.readStatus && a.readStatus[g.id]) || groupConfirmedList.length > 0;
-                              const confirmedNames = groupConfirmedList.map(m => m.name).join('、');
+                              const groupConfirmedList = (a.confirmedMembers || []).filter(m => m && (m.groupId === g.id || (m.groupId && m.groupId === g.name)));
+                              const gMembers = Array.isArray(g.members) ? g.members : [];
+                              const memberConfirmedNames = [];
+
+                              gMembers.forEach(m => {
+                                const mId = (typeof m === 'object' && m !== null) ? (m.id || m.userId || m.studentCode) : m;
+                                const mName = (typeof m === 'object' && m !== null) ? m.name : null;
+                                const uObj = mId ? allUsers.find(u => u.id === mId || u.studentCode === mId || u.username === mId || u.name === mId) : null;
+                                const uName = (uObj ? uObj.name : null) || mName || (typeof mId === 'string' && !mId.startsWith('u_') ? mId : null);
+
+                                const hasRead = a.readStatus && (
+                                  (mId && a.readStatus[mId]) ||
+                                  (uObj && uObj.id && a.readStatus[uObj.id]) ||
+                                  (uObj && uObj.studentCode && a.readStatus[uObj.studentCode]) ||
+                                  (uObj && uObj.username && a.readStatus[uObj.username]) ||
+                                  (uObj && uObj.name && a.readStatus[uObj.name])
+                                );
+                                if (hasRead && uName && !memberConfirmedNames.includes(uName)) {
+                                  memberConfirmedNames.push(uName);
+                                }
+                              });
+
+                              groupConfirmedList.forEach(m => {
+                                if (m.name && !memberConfirmedNames.includes(m.name)) {
+                                  memberConfirmedNames.push(m.name);
+                                }
+                              });
+
+                              const isRead = (a.readGroupStatus && (a.readGroupStatus[g.id] || a.readGroupStatus[g.name])) ||
+                                             (a.readStatus && (a.readStatus[g.id] || a.readStatus[g.name])) ||
+                                             groupConfirmedList.length > 0 ||
+                                             memberConfirmedNames.length > 0;
+
+                              const confirmedNames = memberConfirmedNames.join('、');
                               return `
                                 <span style="background:${isRead ? '#ecfdf5' : '#fffbeb'}; border:1px solid ${isRead ? '#a7f3d0' : '#fde68a'}; color:${isRead ? '#059669' : '#d97706'}; padding:6px 12px; border-radius:8px; font-weight:700;">
                                   ${isRead ? '✅' : '⏳'} ${g.name}: <b>${isRead ? `已阅读确认${confirmedNames ? ` (${confirmedNames})` : ''}` : '尚未确认'}</b>
@@ -7107,6 +7138,19 @@
           }
 
           if (this.state.studentViewMode === 'workspace') {
+            // ⚡ 学生在工作台协作时：每 3 秒后台静默拉取云端，若教师发布了当前任务的新通知，即刻自动弹出并点亮红点！
+            if (!this._studentWorkspacePollTick) this._studentWorkspacePollTick = 0;
+            this._studentWorkspacePollTick++;
+            if (this._studentWorkspacePollTick % 3 === 0) {
+              if (this.authManager && this.authManager.pullGlobalMeta) {
+                this.authManager.pullGlobalMeta().then(() => {
+                  if (!document.querySelector('.modal-overlay')) {
+                    this.checkUnreadAnnouncements();
+                  }
+                }).catch(() => {});
+              }
+            }
+
             renderHeader(
               this.state, currentUser, this.authManager.getAnnouncements(),
               (s) => this.switchStage(s), (sp) => this.setSpeed(sp),
