@@ -9400,18 +9400,23 @@
 
 
 
-      // 1. 🎯 审稿编辑第一次动态质检（检测到正文推进到【二、文献综述】或【三、研究问题与假设】时触发一次）
+      // 1. 🎯 审稿编辑第一次动态质检（检测到正文推进到【二、文献综述】或【三、研究问题与假设】写完时触发一次）
       const hasLitOrQuestionSection = /(?:二、|第2章|第二部分|文献综述|三、|第3章|第三部分|研究问题|研究假设)/i.test(newContent);
       if (hasLitOrQuestionSection && !this.state.stage2FirstReviewDone && timeSinceLastReviewing > 60000) {
         this.state.stage2FirstReviewDone = true;
         const topic = (this.state.stage1 && this.state.stage1.mergedTitle) ? this.state.stage1.mergedTitle : '本组课题';
-        const contentSnippet = newContent.replace(/<[^>]*>/g, '').slice(0, 500);
+        
+        // 智能提取完整的【研究背景】+【文献综述】+【研究问题与假设】章节草稿
+        const rawDoc = newContent.replace(/<[^>]*>/g, '').trim();
+        // 若已推进至第四部分研究方法，则智能截取至方法之前，确保审阅完整的背景与文献综述全貌
+        const methodIndex = rawDoc.search(/(?:四、|第4章|第四部分|研究方法|研究设计)/i);
+        const contentSnippet = (methodIndex > 200) ? rawDoc.slice(0, methodIndex).trim() : rawDoc.slice(0, 1200);
 
         setTimeout(async () => {
-          const firstReviewPrompt = `团队正在撰写课题《${topic}》，目前正文已推进到文献综述与研究问题部分，内容切片如下：\n${contentSnippet}\n请作为审稿编辑发表 120~150 字的初稿进展建议：肯定当前已完成部分的亮点，并给出 1~2 句微调启发建议（确保方法与问题呼应），鼓励团队继续稳步推进！`;
-          let firstReviewText = await callCozeAgentAPI('reviewingEditor', firstReviewPrompt, { stage: 'stage2', topic });
+          const firstReviewPrompt = `团队正在撰写课题《${topic}》，目前已写完研究背景、文献综述与研究问题章节，完整切片如下：\n${contentSnippet}\n请作为审稿编辑对该切片进行实质性学术质检，发表 130~160 字的针对性指导：肯定其背景立意与文献归纳亮点，结合切片中写到的具体概念与变量，指出文献综述与研究问题推导中的 1 处具体对应衔接建议（确保后续方法能呼应问题），绝不讲空泛套话，鼓励团队继续推进！`;
+          let firstReviewText = await callCozeAgentAPI('reviewingEditor', firstReviewPrompt, { stage: 'stage2', topic, actualDoc: contentSnippet });
           if (!firstReviewText || firstReviewText.trim().length === 0) {
-            firstReviewText = `📝 【审稿编辑·初稿进展建议】：审阅了大家目前撰写的正文，论证框架非常清晰！针对当前写到的文献与问题部分，建议对核心概念的操作化描述再做细微补充，确保研究方法与研究问题之间的对应关系清晰可见，大家在讨论区交流一下，继续稳步推进！`;
+            firstReviewText = `📝 【审稿编辑·初稿进展建议】：通读了大家撰写的背景与文献综述部分，论证框架清晰！针对切片中梳理的文献与提出的研究问题，建议对核心变量的操作化定义再做细微补充，确保文献综述的理论依据能精准支撑后续的研究方法设计，大家在讨论区交流一下，继续稳步推进！`;
           }
 
           const firstReviewMsg = {
