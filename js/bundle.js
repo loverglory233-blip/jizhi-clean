@@ -2132,8 +2132,8 @@
           document.body.appendChild(lockModal);
           lockModal.querySelector('#btn-close-lock-modal').addEventListener('click', () => lockModal.remove());
 
-          // 2. 立即重新渲染当前工作台阶段，协同富文本编辑器即刻转为绝对只读或可编辑！
-          this.app.renderStudentWorkspace();
+          // 2. 立即强制重新渲染当前工作台阶段，协同富文本编辑器与输入框即刻转为绝对只读或可编辑！
+          this.app.renderStudentWorkspace(true);
         }
       }
 
@@ -4990,9 +4990,16 @@
         
         // 立即同步写入小组状态并向全组学生端推送最新权限快照
         if (window.app) {
+          window.app.state.isFinalSubmitted = newSub;
+          window.app.state.activeMonitorGroupId = activeMonitorGId;
+          const selTaskBox = container.querySelector('#sel-switch-monitor-task');
+          if (selTaskBox && selTaskBox.value) {
+            window.app.state.activeTaskId = selTaskBox.value;
+          }
           window.app.saveGroupState(activeMonitorGId);
           if (window.app.cloudSyncEngine) {
             window.app.cloudSyncEngine.groupId = activeMonitorGId;
+            window.app.cloudSyncEngine.taskId = window.app.state.activeTaskId || 'task_default';
             window.app.cloudSyncEngine.updateScopeKeys();
             window.app.cloudSyncEngine.pushSnapshot();
           }
