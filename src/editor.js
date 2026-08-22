@@ -668,7 +668,7 @@ export function attachWordEditorEvents(container, editorId, isReadonly, onChange
         `;
         document.body.appendChild(modal);
 
-        const closeModal = () => modal.remove();
+        const closeModal = () => { modal.remove(); if (typeof onEscKey !== 'undefined') document.removeEventListener('keydown', onEscKey); };
         modal.querySelector('#btn-close-table-modal').addEventListener('click', closeModal);
         modal.querySelector('#btn-cancel-table-insert').addEventListener('click', closeModal);
 
@@ -726,7 +726,7 @@ export function attachWordEditorEvents(container, editorId, isReadonly, onChange
           </div>
         `;
         document.body.appendChild(modal);
-        const closeModal = () => modal.remove();
+        const closeModal = () => { modal.remove(); if (typeof onEscKey !== 'undefined') document.removeEventListener('keydown', onEscKey); };
         modal.querySelector('#btn-close-symbol-modal').addEventListener('click', closeModal);
         modal.querySelectorAll('.sym-pick-btn').forEach(btn => {
           btn.addEventListener('click', () => {
@@ -1273,7 +1273,7 @@ function renderStage1Canvas(canvas, state, handlers) {
         </div>
       `;
       document.body.appendChild(modal);
-      const closeModal = () => modal.remove();
+      const closeModal = () => { modal.remove(); if (typeof onEscKey !== 'undefined') document.removeEventListener('keydown', onEscKey); };
       modal.querySelector('#btn-close-prop-modal').addEventListener('click', closeModal);
       modal.querySelector('#btn-cancel-prop').addEventListener('click', closeModal);
 
@@ -1852,11 +1852,12 @@ export function renderChat(state) {
   const allMsgs = [];
   visibleStages.forEach(stg => {
     if (state.chatLogs && state.chatLogs[stg]) {
-      state.chatLogs[stg] = state.chatLogs[stg].filter(msg => {
+      // 渲染时仅过滤展示，绝不改写 state.chatLogs（渲染函数不应有数据副作用，避免快速重渲染丢消息，见审查 #38）
+      state.chatLogs[stg].forEach(msg => {
         const txt = msg.text || '';
-        return !txt.includes('已连续') && !txt.includes('互动督促') && !txt.includes('秒未研讨') && !txt.includes('秒没有发言');
+        if (txt.includes('已连续') || txt.includes('互动督促') || txt.includes('秒未研讨') || txt.includes('秒没有发言')) return;
+        allMsgs.push(msg);
       });
-      state.chatLogs[stg].forEach(msg => allMsgs.push(msg));
     }
   });
 

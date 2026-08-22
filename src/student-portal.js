@@ -14,30 +14,9 @@ import { escapeHtml } from "./utils.js";
    7.5 STUDENT TASK PORTAL / DASHBOARD (我的写作任务大厅)
    ========================================================================== */
 export function renderStudentTaskPortal(container, authManager, state, onSelectTask, onLogout, onSwitchTeacher, onOpenAnnModal, onOpenSurveyModal) {
-  let currentTasksSnapshot = localStorage.getItem(STORAGE_KEY_TASKS) || '[]';
-  let currentAnnsSnapshot = localStorage.getItem(STORAGE_KEY_ANNOUNCEMENTS) || '[]';
-  let currentClassesSnapshot = localStorage.getItem(STORAGE_KEY_CLASSES) || '[]';
-
-  // ⚡ 进入大厅静默拉取云端数据，若有变更且用户未在操作下拉框时平滑刷新
-  if (authManager && authManager.pullGlobalMeta) {
-    authManager.pullGlobalMeta().then(() => {
-      const freshTasksJson = localStorage.getItem(STORAGE_KEY_TASKS) || '[]';
-      const freshAnnsJson = localStorage.getItem(STORAGE_KEY_ANNOUNCEMENTS) || '[]';
-      const freshClassesJson = localStorage.getItem(STORAGE_KEY_CLASSES) || '[]';
-      if (freshTasksJson !== currentTasksSnapshot || freshAnnsJson !== currentAnnsSnapshot || freshClassesJson !== currentClassesSnapshot) {
-        if (document.activeElement?.id !== 'sel-student-class-switch') {
-          renderStudentTaskPortal(container, authManager, state, onSelectTask, onLogout, onSwitchTeacher, onOpenAnnModal, onOpenSurveyModal);
-        }
-      }
-    }).catch(() => {});
-  }
-
-  if (window._studentPortalSyncInterval) clearInterval(window._studentPortalSyncInterval);
-  window._studentPortalSyncInterval = setInterval(async () => {
-    if (state.studentViewMode !== 'task_list') {
-      clearInterval(window._studentPortalSyncInterval);
-      return;
-    }
+  // ⚡ 单一自调度轮询循环：杜绝“一次性 pull + interval”并行导致的并发拉取与递归重渲染
+  const pullAndRefresh = async () => {
+    if (state.studentViewMode !== 'task_list') return; // 离开大厅即停止轮询
     if (authManager && authManager.pullGlobalMeta) {
       try {
         const oldTasksJson = localStorage.getItem(STORAGE_KEY_TASKS) || '[]';
@@ -50,11 +29,15 @@ export function renderStudentTaskPortal(container, authManager, state, onSelectT
         if (oldTasksJson !== newTasksJson || oldAnnsJson !== newAnnsJson || oldClassesJson !== newClassesJson) {
           if (document.activeElement?.id !== 'sel-student-class-switch') {
             renderStudentTaskPortal(container, authManager, state, onSelectTask, onLogout, onSwitchTeacher, onOpenAnnModal, onOpenSurveyModal);
+            return; // 重渲染会重建整套循环，此处无需再自行调度
           }
         }
       } catch (e) {}
     }
-  }, 3000);
+    window._studentPortalSyncTimer = setTimeout(pullAndRefresh, 3000);
+  };
+  if (window._studentPortalSyncTimer) clearTimeout(window._studentPortalSyncTimer);
+  window._studentPortalSyncTimer = setTimeout(pullAndRefresh, 3000);
 
   const currentUser = authManager.getCurrentUser();
   const classes = authManager.getClasses();
@@ -102,8 +85,6 @@ export function renderStudentTaskPortal(container, authManager, state, onSelectT
     if (!t.classId || t.classId === 'all') return true;
     return t.classId === userClass.id || (t.className && t.className === userClass.name);
   });
-  const displayTasks = relevantTasks.length > 0 ? relevantTasks : tasks;
-
   container.innerHTML = `
     <div class="student-task-portal" style="min-height:100vh; background:#f0f4f9; display:flex; flex-direction:column;">
       <header class="app-header" style="height:60px; background:#ffffff; border-bottom:1px solid #e2e8f0; display:flex; align-items:center; justify-content:space-between; padding:0 24px; box-shadow:0 1px 3px rgba(15,23,42,0.04);">
@@ -169,10 +150,15 @@ export function renderStudentTaskPortal(container, authManager, state, onSelectT
             </div>
           ` : `
             <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(460px, 1fr)); gap:20px;">
-              ${displayTasks.map((t, idx) => {
+              ${relevantTasks.map((t, idx) => {
                 const duration = t.durationMinutes || 150;
-                const taskSeqNum = displayTasks.length - idx;
+                const taskSeqNum = relevantTasks.length - idx;
                 const isLatest = idx === 0;
+                // 仅当前进入的任务展示真实协作进度，其余任务展示中立“已发布”状态（避免全局阶段串入各卡片）
+                const isActiveTask = (t.id === state.activeTaskId);
+                const progressLabel = isActiveTask
+                  ? (state.isFinalSubmitted ? '🔒 终稿已全员答辩并提交归档' : (state.currentStage === 'stage1' ? '🎪 阶段一：学术拍卖会' : (state.currentStage === 'stage2' ? '📰 阶段二：学术编辑部 (撰写中)' : '🎓 阶段三：答辩擂台')))
+                  : '📋 已发布 · 待进入协作';
                 return `
                   <div class="student-task-card" style="background:#ffffff; border:1px solid #e2e8f0; border-radius:16px; padding:22px; box-shadow:0 4px 16px -2px rgba(15,23,42,0.04); display:flex; flex-direction:column; justify-content:space-between; transition:all 0.2s ease;">
                     <div>
@@ -202,7 +188,7 @@ export function renderStudentTaskPortal(container, authManager, state, onSelectT
                       <div style="display:flex; align-items:center; gap:8px; font-size:12px; font-weight:600; color:#64748b; margin-bottom:16px;">
                         <span>协作进度状态:</span>
                         <span style="background:#ecfdf5; color:#059669; border:1px solid #a7f3d0; padding:2px 8px; border-radius:6px; font-size:11.5px; font-weight:700;">
-                          ${state.isFinalSubmitted ? '🔒 终稿已全员答辩并提交归档' : (state.currentStage === 'stage1' ? '🎪 阶段一：学术拍卖会' : (state.currentStage === 'stage2' ? '📰 阶段二：学术编辑部 (撰写中)' : '🎓 阶段三：答辩擂台'))}
+                          ${progressLabel}
                         </span>
                       </div>
                     </div>

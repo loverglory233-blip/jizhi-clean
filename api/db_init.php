@@ -34,22 +34,8 @@ function initDatabaseTables() {
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;";
     $pdo->exec($sql2);
 
-    // 仅在 users 表完全为空时写入初始种子用户（仅保留教师初始账号）
-    $chkUserCount = $pdo->query("SELECT COUNT(*) FROM `users`")->fetchColumn();
-    if (intval($chkUserCount) === 0) {
-        $defaultHash = password_hash('123', PASSWORD_DEFAULT);
-        $seedUsers = [
-            ['id' => 'u_teacher1', 'username' => '1001',   'name' => '老师',        'password' => $defaultHash, 'role' => 'teacher', 'student_code' => '1001',   'class_id' => '',          'group_id' => '',        'avatar' => '👩‍🏫']
-        ];
-        $stmtUser = $pdo->prepare("INSERT INTO `users` (`id`, `username`, `name`, `password`, `role`, `student_code`, `class_id`, `group_id`, `avatar`) 
-            VALUES (:id, :un, :nm, :pw, :rl, :sc, :cid, :gid, :av)");
-        foreach ($seedUsers as $su) {
-            $stmtUser->execute([
-                ':id' => $su['id'], ':un' => $su['username'], ':nm' => $su['name'], ':pw' => $su['password'],
-                ':rl' => $su['role'], ':sc' => $su['student_code'], ':cid' => $su['class_id'], ':gid' => $su['group_id'], ':av' => $su['avatar']
-            ]);
-        }
-    }
+    // 🧹 不再写入任何默认/种子账号：平台账号一律由教师在教务管理界面显式创建，
+    // 杜绝 u_teacher1/1001/老师 等历史测试账号在空库重建时死灰复燃
 
     // 3. 教学班级表 (classes)
     $sql3 = "CREATE TABLE IF NOT EXISTS `classes` (
@@ -136,7 +122,12 @@ function initDatabaseTables() {
     // 自动表迁移：确保已存在的 group_states 表包含 revision_id 字段
     try {
         $pdo->exec("ALTER TABLE `group_states` ADD COLUMN `revision_id` BIGINT UNSIGNED NOT NULL DEFAULT 1");
-    } catch (Exception $e) {}
+    } catch (Exception $e) {
+        // 重复执行迁移时字段已存在属预期情况，仅记录非预期异常
+        if (strpos($e->getMessage(), 'Duplicate column') === false) {
+            error_log('db_init.php ALTER group_states: ' . $e->getMessage());
+        }
+    }
 
     // 8. 研讨区实时消息流表 (chat_messages)
     $sql8 = "CREATE TABLE IF NOT EXISTS `chat_messages` (

@@ -4,8 +4,14 @@
  * 职责：检查并自动获取 OAuth Access Token -> Prompt 组装 -> 发起 Chat -> 轮询 Retrieve -> 获取 Message -> 返回纯净回答
  */
 
+require_once __DIR__ . '/config.php';
+require_once __DIR__ . '/coze_prompt.php';
+
 header('Content-Type: application/json; charset=utf-8');
-header('Access-Control-Allow-Origin: *');
+// 🛡️ 仅允许同源或配置的受信来源，杜绝任意域跨站读取 OAuth Token 与学生数据
+if (!empty($CORS_ALLOWED_ORIGIN)) {
+    header('Access-Control-Allow-Origin: ' . $CORS_ALLOWED_ORIGIN);
+}
 header('Access-Control-Allow-Methods: POST, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With');
 
@@ -13,9 +19,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     http_response_code(200);
     exit(0);
 }
-
-require_once __DIR__ . '/config.php';
-require_once __DIR__ . '/coze_prompt.php';
 
 $isPoll = (isset($_GET['action']) && $_GET['action'] === 'coze_poll') || isset($_GET['poll']) || isset($_GET['chat_id']) || isset($_GET['chatId']);
 if ($_SERVER['REQUEST_METHOD'] !== 'POST' && !$isPoll) {
@@ -104,8 +107,8 @@ function getCozeAccessToken() {
         'Content-Type: application/json'
     ]);
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-    curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 2);
     curl_setopt($ch, CURLOPT_TIMEOUT, 15);
     $resp = curl_exec($ch);
     curl_close($ch);
@@ -118,7 +121,7 @@ function getCozeAccessToken() {
             'expires_at' => $now + $expiresIn
         ];
         @file_put_contents($cacheFile, json_encode($cachedData), LOCK_EX);
-        @chmod($cacheFile, 0666);
+        @chmod($cacheFile, 0600);
         return $resData['access_token'];
     }
 
@@ -128,7 +131,7 @@ function getCozeAccessToken() {
 // 0. 单独的非阻塞状态轮询通道 (coze_poll)
 $pollChatId = $_GET['chat_id'] ?? ($req['chat_id'] ?? ($_GET['chatId'] ?? ($req['chatId'] ?? '')));
 $pollConvId = $_GET['conversation_id'] ?? ($req['conversation_id'] ?? ($_GET['conversationId'] ?? ($req['conversationId'] ?? '')));
-$pollBotId  = $_GET['bot_id'] ?? ($req['bot_id'] ?? '7673571806476828713');
+$pollBotId  = $_GET['bot_id'] ?? ($req['bot_id'] ?? (isset($COZE_BOTS['auctioneer']) ? $COZE_BOTS['auctioneer'] : ''));
 
 if (!empty($pollChatId) && !empty($pollConvId) && ($action === 'coze_poll' || isset($_GET['poll']))) {
     $accessToken = getCozeAccessToken();
@@ -141,7 +144,7 @@ if (!empty($pollChatId) && !empty($pollConvId) && ($action === 'coze_poll' || is
     $ch = curl_init($pollUrl);
     curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
     curl_setopt($ch, CURLOPT_TIMEOUT, 6);
     $pollResp = curl_exec($ch);
     curl_close($ch);
@@ -154,7 +157,7 @@ if (!empty($pollChatId) && !empty($pollConvId) && ($action === 'coze_poll' || is
         $ch3 = curl_init($msgUrl);
         curl_setopt($ch3, CURLOPT_HTTPHEADER, $headers);
         curl_setopt($ch3, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch3, CURLOPT_SSL_VERIFYPEER, false);
+        curl_setopt($ch3, CURLOPT_SSL_VERIFYPEER, true);
         curl_setopt($ch3, CURLOPT_TIMEOUT, 6);
         $msgResp = curl_exec($ch3);
         curl_close($ch3);
@@ -185,7 +188,7 @@ if (empty($botId) && !empty($botKey) && isset($COZE_BOTS[$botKey])) {
     $botId = $COZE_BOTS[$botKey];
 }
 if (empty($botId)) {
-    $botId = '7673571806476828713';
+    $botId = isset($COZE_BOTS['auctioneer']) ? $COZE_BOTS['auctioneer'] : '';
 }
 
 $userId = isset($req['user_id']) ? $req['user_id'] : 'student_user';
@@ -238,7 +241,7 @@ curl_setopt($ch, CURLOPT_POST, 1);
 curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
 curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
 curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
 curl_setopt($ch, CURLOPT_TIMEOUT, 12);
 
 $initResp = curl_exec($ch);
@@ -257,7 +260,7 @@ if ($chatId && $convId) {
         $ch2 = curl_init($pollUrl);
         curl_setopt($ch2, CURLOPT_HTTPHEADER, $headers);
         curl_setopt($ch2, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch2, CURLOPT_SSL_VERIFYPEER, false);
+        curl_setopt($ch2, CURLOPT_SSL_VERIFYPEER, true);
         curl_setopt($ch2, CURLOPT_TIMEOUT, 6);
         $pollResp = curl_exec($ch2);
         curl_close($ch2);
@@ -270,7 +273,7 @@ if ($chatId && $convId) {
             $ch3 = curl_init($msgUrl);
             curl_setopt($ch3, CURLOPT_HTTPHEADER, $headers);
             curl_setopt($ch3, CURLOPT_RETURNTRANSFER, true);
-            curl_setopt($ch3, CURLOPT_SSL_VERIFYPEER, false);
+            curl_setopt($ch3, CURLOPT_SSL_VERIFYPEER, true);
             curl_setopt($ch3, CURLOPT_TIMEOUT, 6);
             $msgResp = curl_exec($ch3);
             curl_close($ch3);

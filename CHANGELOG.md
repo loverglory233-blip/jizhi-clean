@@ -135,21 +135,35 @@
 
 ---
 
-## ⚠️ 未修复项说明
+## ⚠️ 未修复项说明（57 项审查报告最终状态）
 
-以下审查问题已记录但本次未修复（原因标注）：
+57 项审查报告已**全部逐一对齐修复**。仅以下 1 项按用户明确要求保留原逻辑，其余全部修复或评估为无需改动：
 
-| 编号 | 问题 | 未修复原因 |
+| 编号 | 问题 | 最终处理 |
 |------|------|----------|
-| P0-6 | auth.js 万能密码后门 | 用户明确要求保留 `!user.password && pwd === '123'` 逻辑 |
-| P0-7 | stream.php SSE 失效 | 属于 PHP 生产端文件，本次仅修改 Python 演示服务器 |
-| P1-13 | teacher.js 轮询重注册 | 涉及整体架构重构，建议后续迭代处理 |
-| P1-14/15 | student-portal 并行轮询冲突 | 同上，需要统一轮询管理器 |
-| P1-16 | pushSnapshot 竞态 | 需要引入队列机制，改动较大 |
-| P1-18 | Stage3 多客户端竞态 | 需要服务端分布式锁，超出本次范围 |
-| P1-22 | Yjs provider 旧连接未关闭 | 需配合编辑器生命周期管理 |
-| P2-27 | 贡献度双重计数 | 需确认数据写入端逻辑后统一修复 |
+| P0-6 | auth.js 万能密码后门 | 用户明确要求保留 `!user.password && pwd === '123'` 逻辑（已确认保留） |
+| P0-7 | stream.php SSE 失效 | ✅ 已重写 stream.php（完整 SSE 循环 + 心跳 + 快照） |
+| P1-13/14/15/16/18 | 轮询/竞态类 | ✅ 已逐一修复（单轮询循环、队列计数、阶段守卫） |
+| P2-27 | 贡献度双重计数 | ✅ 改为单键取值 `(contribs[m.id] || contribs[m.studentCode] || 0)` |
+| P2-25 | DOM diff 陈旧引用 | ✅ 评估无功能性缺陷：`Array.from(childNodes)` 返回活节点引用，每次同步前重新快照 |
+| P1-11 | editor.js try-catch | ✅ 评估为误报：文件 try/catch 配平，无泄漏 |
 
 ---
 
-*此更新日志由代码审查工具自动生成于 2026-08-23*
+## 🟢 本轮收尾修复（2026-08-23 追加）
+
+### 24. renderChat 渲染副作用消除 (editor.js #38)
+- **问题**: `renderChat` 中 `state.chatLogs[stg] = state.chatLogs[stg].filter(...)` 在渲染函数内改写状态，快速重渲染可能丢消息
+- **修复**: 改为仅过滤展示的 `forEach` 遍历，绝不改写 `state.chatLogs`
+
+### 25. 重置广播鉴权加固 (sync.js #43)
+- **问题**: `handleRemoteSync` 中裸 `isReset` 分支无条件 `_applyReset`，任意客户端可伪造重置；且教师重置成功路径调用的 `broadcastLocal` 方法未定义（抛 TypeError）
+- **修复**: 移除裸 `isReset` 分支，仅保留 `resetSeq 严格递增` 的单调保护；补上 `broadcastLocal(data)` 方法（经 BroadcastChannel 广播 resetSeq）
+
+### 26. 情绪安抚定时巡检 (app.js #45)
+- **问题**: 负向情绪安抚仅在“发送消息”时检测，静默期无同伴回应时安抚不触发
+- **修复**: 提取 `checkEmotionComfort()` 方法，`initTimer` 秒级轮询中同步巡检
+
+---
+
+*此更新日志由代码审查工具生成于 2026-08-23*

@@ -18,15 +18,14 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
   const oldLayout = container.querySelector('.teacher-portal-layout') || document.querySelector('.teacher-portal-layout');
   const savedScrollTop = oldLayout ? oldLayout.scrollTop : (state._teacherScrollTop || 0);
 
-  // ⚡ 教师端自动轻量轮询：每 3 秒从云端拉取学生的最新已读确认与小组动态，实时刷新受众追踪矩阵
-  if (window._teacherPortalSyncInterval) clearInterval(window._teacherPortalSyncInterval);
-  window._teacherPortalSyncInterval = setInterval(async () => {
+  // ⚡ 教师端自动轻量轮询：自调度循环，杜绝并发拉取与 interval 重注册竞态
+  const teacherPullAndRefresh = async () => {
     const curU = authManager.getCurrentUser();
-    if (!curU || curU.role !== 'teacher') {
-      clearInterval(window._teacherPortalSyncInterval);
+    if (!curU || curU.role !== 'teacher') return; // 非教师即停止轮询
+    if (document.querySelector('.modal-overlay')) {
+      window._teacherPortalSyncTimer = setTimeout(teacherPullAndRefresh, 3000);
       return;
     }
-    if (document.querySelector('.modal-overlay')) return;
 
     if (authManager && authManager.pullGlobalMeta) {
       try {
@@ -40,10 +39,14 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
           renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
           const nextLayout = container.querySelector('.teacher-portal-layout');
           if (nextLayout) nextLayout.scrollTop = curScroll;
+          return; // 重渲染会重建循环
         }
       } catch (e) {}
     }
-  }, 3000);
+    window._teacherPortalSyncTimer = setTimeout(teacherPullAndRefresh, 3000);
+  };
+  if (window._teacherPortalSyncTimer) clearTimeout(window._teacherPortalSyncTimer);
+  window._teacherPortalSyncTimer = setTimeout(teacherPullAndRefresh, 3000);
 
   if (authManager && authManager.sanitizeAndDeduplicateGroups) {
     authManager.sanitizeAndDeduplicateGroups();
@@ -183,7 +186,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
                           <td><b>${s.avatar || '👤'} ${s.name}</b></td>
                           <td><span style="color:#2563eb; font-family:monospace; font-weight:700;">${stdAcc}</span></td>
                           <td>${grp ? `<span style="background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe; padding:2px 8px; border-radius:8px; font-size:12px; font-weight:700;">${grp.name}</span>` : '<span style="color:#94a3b8;">⏳ 待划分小组</span>'}</td>
-                          <td><span style="color:#059669; font-family:monospace; font-weight:700;">初始 123</span></td>
+                          <td>${(!s.password || s.password === '123') ? '<span style="color:#059669; font-family:monospace; font-weight:700;">初始 123</span>' : '<span style="color:#7c3aed; font-family:monospace; font-weight:700;">已修改密码</span>'}</td>
                           <td>
                             <div style="display:flex; gap:6px; align-items:center;">
                               <button class="reset-student-pwd-btn" data-account="${stdAcc}" data-name="${s.name}" style="background:#eff6ff; border:1px solid #bfdbfe; color:#2563eb; padding:4px 10px; border-radius:6px; font-size:12px; cursor:pointer; font-weight:700;" title="将此学生登录密码重置为 123">
@@ -1183,7 +1186,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
       `;
       document.body.appendChild(modal);
 
-      const closeModal = () => modal.remove();
+      const closeModal = () => { modal.remove(); if (typeof onEscKey !== 'undefined') document.removeEventListener('keydown', onEscKey); };
       modal.querySelector('#btn-close-single-student').addEventListener('click', closeModal);
       modal.querySelector('#btn-cancel-single-std').addEventListener('click', closeModal);
       const cancelEnrollBtn = modal.querySelector('#btn-cancel-enroll');
@@ -1331,7 +1334,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
       `;
       document.body.appendChild(modal);
 
-      const closeModal = () => modal.remove();
+      const closeModal = () => { modal.remove(); if (typeof onEscKey !== 'undefined') document.removeEventListener('keydown', onEscKey); };
       modal.querySelector('#btn-close-file-modal').addEventListener('click', closeModal);
       modal.querySelector('#btn-cancel-file-modal').addEventListener('click', closeModal);
 
@@ -1450,7 +1453,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
     `;
     document.body.appendChild(modal);
 
-    const closeModal = () => modal.remove();
+    const closeModal = () => { modal.remove(); if (typeof onEscKey !== 'undefined') document.removeEventListener('keydown', onEscKey); };
     modal.querySelector('#btn-close-group-edit').addEventListener('click', closeModal);
     modal.querySelector('#btn-cancel-grp-edit').addEventListener('click', closeModal);
 
@@ -1599,7 +1602,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
         `;
         document.body.appendChild(modal);
 
-        const closeModal = () => modal.remove();
+        const closeModal = () => { modal.remove(); if (typeof onEscKey !== 'undefined') document.removeEventListener('keydown', onEscKey); };
         modal.querySelector('#btn-close-rand-modal').addEventListener('click', closeModal);
         modal.querySelector('#btn-cancel-rand-modal').addEventListener('click', closeModal);
 
@@ -1848,7 +1851,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
       `;
       document.body.appendChild(modal);
 
-      const closeModal = () => modal.remove();
+      const closeModal = () => { modal.remove(); if (typeof onEscKey !== 'undefined') document.removeEventListener('keydown', onEscKey); };
       modal.querySelector('#btn-close-edit-task-modal').addEventListener('click', closeModal);
       modal.querySelector('#btn-cancel-edit-task').addEventListener('click', closeModal);
       modal.addEventListener('click', (e) => { if (e.target === modal) closeModal(); });
@@ -2055,7 +2058,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
       `;
       document.body.appendChild(modal);
 
-      const closeModal = () => modal.remove();
+      const closeModal = () => { modal.remove(); if (typeof onEscKey !== 'undefined') document.removeEventListener('keydown', onEscKey); };
       modal.querySelector('#btn-close-task-modal').addEventListener('click', closeModal);
       modal.querySelector('#btn-cancel-task').addEventListener('click', closeModal);
 
@@ -2239,7 +2242,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
       `;
       document.body.appendChild(modal);
 
-      const closeModal = () => modal.remove();
+      const closeModal = () => { modal.remove(); if (typeof onEscKey !== 'undefined') document.removeEventListener('keydown', onEscKey); };
       modal.querySelector('#btn-close-ann-modal').addEventListener('click', closeModal);
       modal.querySelector('#btn-cancel-ann').addEventListener('click', closeModal);
 
@@ -2420,7 +2423,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
       `;
       document.body.appendChild(modal);
 
-      const closeModal = () => modal.remove();
+      const closeModal = () => { modal.remove(); if (typeof onEscKey !== 'undefined') document.removeEventListener('keydown', onEscKey); };
       modal.querySelector('#btn-close-paper-modal').addEventListener('click', closeModal);
       modal.querySelector('#btn-cancel-paper').addEventListener('click', closeModal);
 
