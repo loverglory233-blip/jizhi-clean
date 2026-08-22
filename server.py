@@ -280,7 +280,9 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                             for s in targets:
                                 if s != sock:
                                     try:
-                                        s.sendall(out_frame)
+                                        # 🚀 线程安全互斥写入：通过 WS_LOCK 保护 sendall，彻底消除并发帧撕裂 (Frame Interleaving)
+                                        with WS_LOCK:
+                                            s.sendall(out_frame)
                                     except Exception:
                                         dead.add(s)
                             if dead:
