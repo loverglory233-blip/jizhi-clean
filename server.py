@@ -133,6 +133,7 @@ SSE_LOCK = threading.Lock()
 
 # WebSocket rooms: { roomKey: set(socket1, socket2, ...) }
 WS_ROOMS = {}
+WS_UPDATES = {} # roomKey: [bytes, ...]
 WS_LOCK = threading.Lock()
 
 def make_ws_frame(data, is_binary=False):
@@ -244,6 +245,16 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                     if room not in WS_ROOMS:
                         WS_ROOMS[room] = set()
                     WS_ROOMS[room].add(sock)
+                    if room not in WS_UPDATES:
+                        WS_UPDATES[room] = []
+                    hist_copies = list(WS_UPDATES[room])
+
+                # 🚀 历史增量重放：将已有 CRDT 文档更新帧立即回放给新接入的客户端
+                for hdata in hist_copies:
+                    try:
+                        sock.sendall(make_ws_frame(hdata, is_binary=True))
+                    except Exception:
+                        pass
 
                 try:
                     while True:
@@ -255,6 +266,15 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                             continue
                         if opcode in (1, 2) and data:
                             is_bin = (opcode == 2)
+                            # 🚀 如果是 Yjs 二进制更新 (messageType === 0 即 messageSync)，存入房间历史缓存
+                            if is_bin and len(data) > 0 and data[0] == 0:
+                                with WS_LOCK:
+                                    if room not in WS_UPDATES:
+                                        WS_UPDATES[room] = []
+                                    WS_UPDATES[room].append(data)
+                                    if len(WS_UPDATES[room]) > 500:
+                                        WS_UPDATES[room] = WS_UPDATES[room][-200:]
+
                             out_frame = make_ws_frame(data, is_bin)
                             with WS_LOCK:
                                 targets = list(WS_ROOMS.get(room, set()))
