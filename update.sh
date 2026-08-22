@@ -173,44 +173,31 @@ for dir in "${TARGET_DIRS[@]}"; do
   chown -R www:www "$dir" 2>/dev/null || true
 done
 
-echo "🚀 [4/4] 启动高可用同步服务端 (Python 8088 & Yjs CRDT 1234)..."
+echo "🚀 [4/4] 启动高可用同步服务端..."
 kill -9 $(lsof -t -i:8088 2>/dev/null) 2>/dev/null || true
 pkill -9 -f "server.py" 2>/dev/null || true
 kill -9 $(lsof -t -i:1234 2>/dev/null) 2>/dev/null || true
-pkill -9 -f "server_yjs.js" 2>/dev/null || true
-pkill -9 -f "server_yjs.py" 2>/dev/null || true
+pkill -9 -f "server_yjs" 2>/dev/null || true
 sleep 1
 
-# 自动确保 Node.js 环境就绪
-if ! command -v node >/dev/null 2>&1; then
-  echo "📦 正在自动配置 Node.js 运行环境..."
-  (apt-get update -y && apt-get install -y nodejs npm) >/dev/null 2>&1 || (yum install -y nodejs npm) >/dev/null 2>&1 || true
-fi
-
-for dir in "${TARGET_DIRS[@]}"; do
-  if [ -f "$dir/server.py" ]; then
-    cd "$dir"
+MAIN_DIR="${TARGET_DIRS[0]}"
+if [ -n "$MAIN_DIR" ] && [ -d "$MAIN_DIR" ]; then
+  cd "$MAIN_DIR"
+  if [ -f "server.py" ]; then
     nohup python3 server.py > server.log 2>&1 &
     sleep 1
-    if lsof -i:8088 >/dev/null 2>&1; then
-      echo "   ✅ 端口 8088 同步服务端已就绪 ($dir)"
-    fi
+    echo "   ✅ 端口 8088 服务端已就绪 ($MAIN_DIR)"
   fi
-  if [ -f "$dir/server_yjs.js" ] || [ -f "$dir/server_yjs.py" ]; then
-    cd "$dir"
-    if command -v node >/dev/null 2>&1; then
-      npm install ws --save >/dev/null 2>&1 || true
-      nohup node server_yjs.js > yjs.log 2>&1 &
-      sleep 1
-      echo "   ✅ 端口 1234 Yjs CRDT 协同网关已就绪 (Node.js: $dir)"
-    else
-      pip3 install websockets --break-system-packages >/dev/null 2>&1 || pip3 install websockets >/dev/null 2>&1 || pip install websockets >/dev/null 2>&1 || true
-      nohup python3 server_yjs.py > yjs.log 2>&1 &
-      sleep 1
-      echo "   ✅ 端口 1234 Yjs CRDT 协同网关已就绪 (Python: $dir)"
-    fi
+  if [ -f "server_yjs.py" ]; then
+    nohup python3 server_yjs.py > yjs.log 2>&1 &
+    sleep 1
+    echo "   ✅ 端口 1234 Yjs 协同服务端已就绪 ($MAIN_DIR)"
+  elif [ -f "server_yjs.js" ] && command -v node >/dev/null 2>&1; then
+    nohup node server_yjs.js > yjs.log 2>&1 &
+    sleep 1
+    echo "   ✅ 端口 1234 Yjs 协同服务端已就绪 ($MAIN_DIR)"
   fi
-done
+fi
 
 echo ""
 echo "======================================================"
