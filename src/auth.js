@@ -260,6 +260,40 @@ export class AuthManager {
     }
     return cached;
   }
+  async loginAsync(accountInput, password) {
+    const query = (accountInput || '').trim();
+    const pwd = (password || '').trim();
+
+    if (!query) return { success: false, message: '❌ 请输入工号或学号' };
+    if (!pwd) return { success: false, message: '❌ 请输入登录密码' };
+
+    try {
+      const response = await fetch('sync.php?action=login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ account: query, password: pwd })
+      });
+      const data = await response.json();
+      if (data && data.success && data.user) {
+        const user = data.user;
+        user.token = data.token;
+        user.activeSessionId = data.token;
+        sessionStorage.setItem(STORAGE_KEY_USER, JSON.stringify(user));
+        localStorage.setItem(STORAGE_KEY_USER, JSON.stringify(user));
+        if (window.app) {
+          window.app.state.studentViewMode = 'task_list';
+          if (window.app.cloudSyncEngine) window.app.cloudSyncEngine.pushSnapshot();
+        }
+        return { success: true, user };
+      } else {
+        return { success: false, message: data.message || '❌ 账号或密码错误' };
+      }
+    } catch (err) {
+      // 离线单机沙盒降级
+      return this.login(accountInput, password);
+    }
+  }
+
   login(accountInput, password) {
     const users = this.getUsers();
     const query = (accountInput || '').trim().toLowerCase();
@@ -301,6 +335,7 @@ export class AuthManager {
     // 🚀 一个账号同时只能一个人登录：生成唯一的 activeSessionId 并推送到服务端会话锁
     const newSessionId = 'sess_' + Date.now() + '_' + Math.random().toString(36).substring(2, 8);
     user.activeSessionId = newSessionId;
+    user.token = newSessionId;
     users[userIndex] = user;
     localStorage.setItem(STORAGE_KEY_USERS_DB, JSON.stringify(users));
 

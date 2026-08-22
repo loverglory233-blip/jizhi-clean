@@ -37,10 +37,24 @@ export function renderLoginView(container, authManager, onLoginSuccess) {
   const passwordInput = container.querySelector('#login-password');
   const errorMsg = container.querySelector('#login-error-msg');
 
-  form.addEventListener('submit', (e) => {
+  form.addEventListener('submit', async (e) => {
     e.preventDefault();
-    const res = authManager.login(accountInput.value, passwordInput.value);
-    if (res.success) onLoginSuccess();
-    else { errorMsg.innerText = res.message; errorMsg.style.display = 'block'; }
+    errorMsg.style.display = 'none';
+    const submitBtn = form.querySelector('button[type="submit"]');
+    if (submitBtn) { submitBtn.disabled = true; submitBtn.innerText = '⏳ 正在验证凭证...'; }
+    try {
+      const res = await (authManager.loginAsync ? authManager.loginAsync(accountInput.value, passwordInput.value) : authManager.login(accountInput.value, passwordInput.value));
+      if (res && res.success) {
+        onLoginSuccess();
+      } else {
+        errorMsg.innerText = (res && res.message) ? res.message : '❌ 账号或密码错误';
+        errorMsg.style.display = 'block';
+      }
+    } catch (err) {
+      errorMsg.innerText = '❌ 登录请求失败，请检查网络连接';
+      errorMsg.style.display = 'block';
+    } finally {
+      if (submitBtn) { submitBtn.disabled = false; submitBtn.innerText = '🚀 登录集智平台'; }
+    }
   });
 }
