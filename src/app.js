@@ -648,7 +648,7 @@ export class App {
         return p && (now - (p.updatedAt || 0) < 60000);
       });
 
-      let primaryMember = onlineMembers.find(m => m.studentCode === 'A' || m.studentCode === '202601' || m.roleTitle?.includes('组长') || m.role === 'leader');
+      let primaryMember = onlineMembers.find(m => m.studentCode === 'A' || m.roleTitle?.includes('组长') || m.role === 'leader');
       if (!primaryMember && onlineMembers.length > 0) {
         primaryMember = [...onlineMembers].sort((a, b) => (a.studentCode || a.id || '').localeCompare(b.studentCode || b.id || ''))[0];
       }
@@ -2442,7 +2442,7 @@ ${propText}
         if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
         if (confirmedCount < totalMembersCount) {
           const currentUserObj = this.authManager.getCurrentUser();
-          const isLeader = (user === 'A' || (currentUserObj && (currentUserObj.studentCode === 'A' || currentUserObj.studentCode === '202601' || currentUserObj.role === 'leader' || currentUserObj.roleTitle?.includes('组长'))) || (this.state.members && this.state.members[user]?.roleTitle?.includes('组长')));
+          const isLeader = (user === 'A' || (currentUserObj && (currentUserObj.studentCode === 'A' || currentUserObj.role === 'leader' || currentUserObj.roleTitle?.includes('组长'))) || (this.state.members && this.state.members[user]?.roleTitle?.includes('组长')));
           if (isLeader && confirmedCount >= 1) {
             const allowForceAdvance = confirm(`✅ 你 (${memberName}) 已签署合约！\n\n当前签署进度：${confirmedCount}/${totalMembersCount} 人。\n\n⚠️ 若有部分组员因请假、缺勤未到场，作为组长，您是否确认【全员已就绪，一键代表全组开启阶段二】？`);
             if (allowForceAdvance) {
@@ -2624,7 +2624,7 @@ ${propText}
 
         if (confirmedCount < totalMembersCount) {
           const currentUserObj = this.authManager.getCurrentUser();
-          const isLeader = (user === 'A' || (currentUserObj && (currentUserObj.studentCode === 'A' || currentUserObj.studentCode === '202601' || currentUserObj.role === 'leader' || currentUserObj.roleTitle?.includes('组长'))) || (this.state.members && this.state.members[user]?.roleTitle?.includes('组长')));
+          const isLeader = (user === 'A' || (currentUserObj && (currentUserObj.studentCode === 'A' || currentUserObj.role === 'leader' || currentUserObj.roleTitle?.includes('组长'))) || (this.state.members && this.state.members[user]?.roleTitle?.includes('组长')));
           if (isLeader && confirmedCount >= 1) {
             const allowForceAdvance = confirm(`✅ 你 (${memberName}) 已确认完成初稿！\n\n当前组内确认进度：${confirmedCount}/${totalMembersCount} 人。\n\n⚠️ 若有部分组员因请假缺勤未在场，作为组长，您是否确认【全组初稿已定稿，一键开启阶段三：答辩擂台】？`);
             if (allowForceAdvance) {
