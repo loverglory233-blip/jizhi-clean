@@ -50,18 +50,30 @@ if (!fs.existsSync(dataDir)) {
 
 function loadRoomFromDisk(roomName) {
   if (roomUpdates.has(roomName)) return roomUpdates.get(roomName);
+  const jsonFile = path.join(dataDir, `room_${roomName}.json`);
   const binFile = path.join(dataDir, `room_${roomName}.bin`);
   const updates = [];
-  if (fs.existsSync(binFile)) {
+
+  if (fs.existsSync(jsonFile)) {
+    try {
+      const raw = fs.readFileSync(jsonFile, 'utf8');
+      const list = JSON.parse(raw);
+      if (Array.isArray(list)) {
+        for (const b64 of list) {
+          updates.push(Buffer.from(b64, 'base64'));
+        }
+        console.log(`[Yjs Storage] Loaded ${updates.length} independent frames for room: ${roomName}`);
+      }
+    } catch (e) {
+      console.warn(`[Yjs Storage] Error reading ${jsonFile}:`, e.message);
+    }
+  } else if (fs.existsSync(binFile)) {
     try {
       const data = fs.readFileSync(binFile);
       if (data && data.length > 0) {
         updates.push(data);
-        console.log(`[Yjs Storage] Loaded persisted CRDT update for room: ${roomName} (${data.length} bytes)`);
       }
-    } catch (e) {
-      console.warn(`[Yjs Storage] Error reading ${binFile}:`, e.message);
-    }
+    } catch (e) {}
   }
   roomUpdates.set(roomName, updates);
   return updates;
@@ -149,7 +161,7 @@ let Y = null;
 try { Y = require('yjs'); } catch (e) {}
 
 /**
- * 房间防抖持久化至本地磁盘
+ * 房间防抖持久化至本地磁盘 (以离散帧数组格式存储，杜绝 Buffer.concat 跨帧粘包截断)
  */
 function scheduleRoomPersistence(roomName) {
   if (debounceTimers.has(roomName)) {
@@ -161,17 +173,10 @@ function scheduleRoomPersistence(roomName) {
     try {
       const updates = roomUpdates.get(roomName) || [];
       if (updates.length > 0) {
-        const binFile = path.join(dataDir, `room_${roomName}.bin`);
-        let combined;
-        if (Y && typeof Y.mergeUpdates === 'function') {
-          const uint8Arrays = updates.map(b => (Buffer.isBuffer(b) ? new Uint8Array(b) : b));
-          const merged = Y.mergeUpdates(uint8Arrays);
-          combined = Buffer.from(merged);
-        } else {
-          combined = Buffer.concat(updates.filter(b => Buffer.isBuffer(b)));
-        }
-        fs.writeFileSync(binFile, combined);
-        console.log(`[Yjs Auto-Save] Room ${roomName} (${combined.length} bytes) persisted to disk.`);
+        const jsonFile = path.join(dataDir, `room_${roomName}.json`);
+        const b64List = updates.filter(b => Buffer.isBuffer(b) && b.length > 0).map(b => b.toString('base64'));
+        fs.writeFileSync(jsonFile, JSON.stringify(b64List));
+        console.log(`[Yjs Auto-Save] Room ${roomName} (${b64List.length} discrete frames) persisted to disk.`);
       }
     } catch (e) {
       console.error(`[Yjs Auto-Save Error] Room ${roomName}:`, e);
