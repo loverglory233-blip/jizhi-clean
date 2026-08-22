@@ -34,15 +34,12 @@ function initDatabaseTables() {
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;";
     $pdo->exec($sql2);
 
-    // 仅在 users 表完全为空时写入初始种子用户（防止覆盖教师自定义用户或复活已删除用户）
+    // 仅在 users 表完全为空时写入初始种子用户（仅保留教师初始账号）
     $chkUserCount = $pdo->query("SELECT COUNT(*) FROM `users`")->fetchColumn();
     if (intval($chkUserCount) === 0) {
         $defaultHash = password_hash('123', PASSWORD_DEFAULT);
         $seedUsers = [
-            ['id' => 'u_teacher1', 'username' => '1001',   'name' => '老师',        'password' => $defaultHash, 'role' => 'teacher', 'student_code' => '1001',   'class_id' => '',          'group_id' => '',        'avatar' => '👩‍🏫'],
-            ['id' => 'u_studentA', 'username' => '202601', 'name' => '李明 (组长)',    'password' => $defaultHash, 'role' => 'student', 'student_code' => '202601', 'class_id' => 'class_101', 'group_id' => 'group_1', 'avatar' => '👨‍🎓'],
-            ['id' => 'u_studentB', 'username' => '202602', 'name' => '王芳 (组员)',    'password' => $defaultHash, 'role' => 'student', 'student_code' => '202602', 'class_id' => 'class_101', 'group_id' => 'group_1', 'avatar' => '👩‍🎓'],
-            ['id' => 'u_studentC', 'username' => '202603', 'name' => '陈强 (组员)',    'password' => $defaultHash, 'role' => 'student', 'student_code' => '202603', 'class_id' => 'class_101', 'group_id' => 'group_1', 'avatar' => '🧑‍🎓']
+            ['id' => 'u_teacher1', 'username' => '1001',   'name' => '老师',        'password' => $defaultHash, 'role' => 'teacher', 'student_code' => '1001',   'class_id' => '',          'group_id' => '',        'avatar' => '👩‍🏫']
         ];
         $stmtUser = $pdo->prepare("INSERT INTO `users` (`id`, `username`, `name`, `password`, `role`, `student_code`, `class_id`, `group_id`, `avatar`) 
             VALUES (:id, :un, :nm, :pw, :rl, :sc, :cid, :gid, :av)");
