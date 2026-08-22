@@ -19,7 +19,7 @@ echo "📁 目标目录: ${TARGET_DIRS[*]}"
 
 echo "⚡ [2/4] 下载最新代码..."
 TMP=/tmp/jizhi_update
-rm -rf "$TMP" && mkdir -p "$TMP/css" "$TMP/js" "$TMP/api" "$TMP/src"
+rm -rf "$TMP" && mkdir -p "$TMP/css" "$TMP/css/libs" "$TMP/js" "$TMP/js/libs" "$TMP/api" "$TMP/src"
 
 dl() {
   local f=$1
@@ -46,6 +46,9 @@ dl() {
 
 dl index.html
 dl css/styles.css
+dl css/libs/quill.snow.css
+dl js/libs/xlsx.full.min.js
+dl js/libs/quill.min.js
 dl js/bundle.js
 dl sync.php
 dl server.py
@@ -68,7 +71,7 @@ dl src/editor.js
 dl src/app.js
 
 for dir in "${TARGET_DIRS[@]}"; do
-  mkdir -p "$dir/css" "$dir/js" "$dir/api" "$dir/src"
+  mkdir -p "$dir/css" "$dir/css/libs" "$dir/js" "$dir/js/libs" "$dir/api" "$dir/src"
   cp -rf "$TMP/"* "$dir/"
   
   # 自动创建本地 MySQL 配置文件（若不存在）
