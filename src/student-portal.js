@@ -133,9 +133,15 @@ export function renderStudentTaskPortal(container, authManager, state, onSelectT
           <div style="background:#ffffff; border-radius:14px; padding:16px 22px; color:#0f172a; box-shadow:0 4px 16px rgba(0,0,0,0.08); display:flex; flex-direction:column; gap:10px; min-width:380px; flex:0 0 auto;">
             <div style="display:flex; justify-content:space-between; align-items:center; gap:12px;">
               <span style="font-size:12.5px; color:#64748b; font-weight:700; white-space:nowrap;">🏫 当前所属班级:</span>
-              <select id="sel-student-class-switch" style="background:#eff6ff; color:#1d4ed8; border:1.5px solid #bfdbfe; padding:6px 12px; border-radius:8px; font-size:13px; font-weight:800; cursor:pointer; outline:none; flex:1; min-width:200px;">
-                ${classes.map(c => `<option value="${c.id}" ${c.id === userClass.id ? 'selected' : ''}>🏫 ${c.name}</option>`).join('')}
-              </select>
+              ${myEnrolledClasses.length > 1 ? `
+                <select id="sel-student-class-switch" style="background:#eff6ff; color:#1d4ed8; border:1.5px solid #bfdbfe; padding:6px 12px; border-radius:8px; font-size:13px; font-weight:800; cursor:pointer; outline:none; flex:1; min-width:200px;">
+                  ${myEnrolledClasses.map(c => `<option value="${c.id}" ${c.id === userClass.id ? 'selected' : ''}>🏫 ${c.name}</option>`).join('')}
+                </select>
+              ` : `
+                <span style="background:#eff6ff; color:#1d4ed8; border:1.5px solid #bfdbfe; padding:6px 12px; border-radius:8px; font-size:13px; font-weight:800; text-align:right;">
+                  🏫 ${userClass.name}
+                </span>
+              `}
             </div>
             <div style="display:flex; align-items:center; justify-content:space-between; border-top:1px dashed #e2e8f0; padding-top:10px; gap:12px;">
               <span style="font-size:12.5px; color:#64748b; font-weight:700; white-space:nowrap;">👥 协作小组:</span>

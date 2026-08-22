@@ -118,6 +118,31 @@
    * Standard ES Module (ESM)
    */
 
+  /**
+   * 🛡️ XSS 防护：HTML 字符实体安全转义
+   */
+  function escapeHtml(str) {
+    if (str === null || str === undefined) return '';
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  }
+
+  /**
+   * 🛡️ 安全链接过滤：仅允许 http/https/mailto/tel/相对路径，阻断 javascript: 伪协议
+   */
+  function sanitizeUrl(url) {
+    if (!url || typeof url !== 'string') return '#';
+    const clean = url.trim();
+    if (/^(?:(?:https?|mailto|tel):|\/|\.\/|\.\.\/|#)/i.test(clean)) {
+      return clean;
+    }
+    return '#';
+  }
+
   function downloadFileBlob(filename, textContent = null) {
     const defaultContent = `====================================================\n【集智 JIZHI 平台 - 教学资源文件】\n文件名: ${filename}\n下载时间: ${new Date().toLocaleString()}\n课程名称: 《现代教育技术》期末协作写作研究设计\n====================================================\n\n【文件核心规范摘要】\n1. 结构完整性：论文方案需具备研究背景、问题假设、文献综述、研究设计、反思及参考文献。\n2. 变量操作化：研究假设 H1、H2 需在第四章给出对应的测量量表与操作化说明。\n3. 群体感知：通过可视化字数贡献比与同伴互动进行自律与共享调节 (SSRL)。`;
     const content = textContent || defaultContent;
@@ -5372,9 +5397,15 @@
             <div style="background:#ffffff; border-radius:14px; padding:16px 22px; color:#0f172a; box-shadow:0 4px 16px rgba(0,0,0,0.08); display:flex; flex-direction:column; gap:10px; min-width:380px; flex:0 0 auto;">
               <div style="display:flex; justify-content:space-between; align-items:center; gap:12px;">
                 <span style="font-size:12.5px; color:#64748b; font-weight:700; white-space:nowrap;">🏫 当前所属班级:</span>
-                <select id="sel-student-class-switch" style="background:#eff6ff; color:#1d4ed8; border:1.5px solid #bfdbfe; padding:6px 12px; border-radius:8px; font-size:13px; font-weight:800; cursor:pointer; outline:none; flex:1; min-width:200px;">
-                  ${classes.map(c => `<option value="${c.id}" ${c.id === userClass.id ? 'selected' : ''}>🏫 ${c.name}</option>`).join('')}
-                </select>
+                ${myEnrolledClasses.length > 1 ? `
+                  <select id="sel-student-class-switch" style="background:#eff6ff; color:#1d4ed8; border:1.5px solid #bfdbfe; padding:6px 12px; border-radius:8px; font-size:13px; font-weight:800; cursor:pointer; outline:none; flex:1; min-width:200px;">
+                    ${myEnrolledClasses.map(c => `<option value="${c.id}" ${c.id === userClass.id ? 'selected' : ''}>🏫 ${c.name}</option>`).join('')}
+                  </select>
+                ` : `
+                  <span style="background:#eff6ff; color:#1d4ed8; border:1.5px solid #bfdbfe; padding:6px 12px; border-radius:8px; font-size:13px; font-weight:800; text-align:right;">
+                    🏫 ${userClass.name}
+                  </span>
+                `}
               </div>
               <div style="display:flex; align-items:center; justify-content:space-between; border-top:1px dashed #e2e8f0; padding-top:10px; gap:12px;">
                 <span style="font-size:12.5px; color:#64748b; font-weight:700; white-space:nowrap;">👥 协作小组:</span>
