@@ -921,11 +921,19 @@ class Handler(http.server.SimpleHTTPRequestHandler):
     def log_message(self, format, *args):
         pass
 
-class ThreadingTCPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
-    allow_reuse_address = True
-    daemon_threads = True
+import asyncio
+
+def start_yjs_background_service():
+    try:
+        import server_yjs
+        print("[Yjs Auto-Launcher] Starting Yjs WebSocket Service on Port 1234...", flush=True)
+        asyncio.run(server_yjs.main())
+    except Exception as e:
+        print(f"[Yjs Auto-Launcher Error] {e}", flush=True)
 
 if __name__ == '__main__':
+    yjs_thread = threading.Thread(target=start_yjs_background_service, daemon=True)
+    yjs_thread.start()
     print(f'🚀 集智 Gzip 极速+服务端独占锁服务器运行在端口 {PORT}...', flush=True)
     with ThreadingTCPServer(('0.0.0.0', PORT), Handler) as httpd:
         httpd.serve_forever()
