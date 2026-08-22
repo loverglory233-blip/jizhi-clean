@@ -1,7 +1,11 @@
 /**
  * JIZHI (集智) Platform - Constants & Initial State
  * Standard ES Module (ESM)
+ * Version: 2.1.0 (2026-08-23)
  */
+
+export const APP_VERSION = '2.1.0';
+export const APP_BUILD_DATE = '2026-08-23';
 
 export const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
 export const STORAGE_KEY_USERS_DB = 'jizhi_pure_v10_users_db';
@@ -11,9 +15,7 @@ export const STORAGE_KEY_ANNOUNCEMENTS = 'jizhi_pure_v10_ann_db';
 
 export const DefaultClasses = [];
 
-export const DefaultUsers = [
-  { id: 'u_teacher1', username: '1001', studentCode: '1001', password: '123', name: '老师', role: 'teacher', avatar: '👩‍🏫' }
-];
+export const DefaultUsers = [];
 
 export const DefaultTasks = [];
 export const DefaultAnnouncements = [];

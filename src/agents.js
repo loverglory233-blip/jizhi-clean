@@ -55,7 +55,9 @@ export async function callCozeAgentAPI(botKey, userQuery, currentContext = {}) {
                 break;
               }
             }
-          } catch (err) {}
+          } catch (err) {
+            console.warn('[Coze Poll] 轮询请求异常:', err.message);
+          }
         }
       }
     }

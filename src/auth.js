@@ -39,12 +39,12 @@ export class AuthManager {
       const getMemberId = (m) => (typeof m === 'object' && m !== null) ? (m.id || m.userId || m.studentCode) : m;
 
       classes.forEach(cls => {
-        if (!cls.groups) cls.groups = [];
+        if (!cls.groups) { cls.groups = []; isModified = true; }
 
         cls.groups.forEach(grp => {
-          if (!grp.id) grp.id = 'group_' + Date.now();
-          if (!grp.name) grp.name = '协作小组';
-          if (!Array.isArray(grp.members)) grp.members = [];
+          if (!grp.id) { grp.id = 'group_' + Date.now(); isModified = true; }
+          if (!grp.name) { grp.name = '协作小组'; isModified = true; }
+          if (!Array.isArray(grp.members)) { grp.members = []; isModified = true; }
         });
       });
 
@@ -60,7 +60,7 @@ export class AuthManager {
     try {
       const currUser = this.getCurrentUser();
       const isStudent = currUser && (currUser.role === 'student' || currUser.isStudent);
-      const isTeacher = currUser && (currUser.role === 'teacher' || currUser.isTeacher || currUser.username === '1001' || currUser.id === 'u_teacher');
+      const isTeacher = currUser && (currUser.role === 'teacher' || currUser.isTeacher);
 
       const res = await fetch(`sync.php?action=get_global_meta&nocache=${Date.now()}`);
       if (res.ok) {
@@ -155,7 +155,7 @@ export class AuthManager {
   }
   pushGlobalMeta() {
     const currUser = this.getCurrentUser();
-    const isTeacher = currUser && (currUser.role === 'teacher' || currUser.isTeacher || currUser.username === '1001' || currUser.id === 'u_teacher');
+    const isTeacher = currUser && (currUser.role === 'teacher' || currUser.isTeacher);
     
     // 🛡️ 铁律：只有已登录的教师且已完成云端元数据拉取后，才允许向服务器推送配置，杜绝冷启动默认数据覆盖云端
     if (!isTeacher || !this.isGlobalMetaLoaded) {
@@ -211,9 +211,8 @@ export class AuthManager {
 
       users.forEach(u => {
         if (u.role === 'teacher') {
-          if (u.name !== '老师') { u.name = '老师'; changed = true; }
-          if (u.studentCode !== '1001') { u.studentCode = '1001'; changed = true; }
-          if (u.username !== '1001') { u.username = '1001'; changed = true; }
+          // 🛡️ 仅在字段缺失时补默认值，不再强制覆盖已有教师名/工号（支持多教师）
+          if (!u.name) { u.name = '老师'; changed = true; }
         }
 
         const codeKey = (u.studentCode || u.username || u.id).trim().toLowerCase();
@@ -312,13 +311,9 @@ export class AuthManager {
       const uNick = (u.name || '').toLowerCase();
       const uEmail = (u.email || '').toLowerCase();
       
-      const isTeacherMatch = (u.role === 'teacher') && (
-        query === '1001' || query === 't001' || query === 'teacher' || query === '老师'
-      );
-
       const isDirectMatch = (uCode === query || uName === query || uEmail === query || uNick === query);
 
-      return isTeacherMatch || isDirectMatch;
+      return isDirectMatch;
     });
 
     if (userIndex === -1) {

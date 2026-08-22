@@ -56,10 +56,10 @@ if (empty($action) && $_SERVER['REQUEST_METHOD'] === 'POST') {
 function verifyTeacherSession($userId, $token, $pdo) {
     if (empty($userId) || empty($token)) return false;
     if (!$pdo) {
-        return in_array($userId, ['u_teacher', '1001', 'teacher']);
+        return false;
     }
     // 1. 验证用户在数据库中的角色是否为 teacher
-    $stmtAuth = $pdo->prepare("SELECT role FROM `users` WHERE (`id` = :u OR `username` = :u OR `student_code` = :u) AND (`role` = 'teacher' OR `id` = 'u_teacher' OR `username` = '1001') LIMIT 1");
+    $stmtAuth = $pdo->prepare("SELECT role FROM `users` WHERE (`id` = :u OR `username` = :u OR `student_code` = :u) AND `role` = 'teacher' LIMIT 1");
     $stmtAuth->execute([':u' => $userId]);
     $teacherRow = $stmtAuth->fetch();
     if (!$teacherRow) {
@@ -414,9 +414,7 @@ if ($action === 'get_global_meta') {
         }
     }
         $defaultMeta = [
-            'users' => [
-                ['id' => 'u_teacher1', 'username' => '1001', 'studentCode' => '1001', 'password' => '123', 'name' => '老师', 'role' => 'teacher', 'avatar' => '👩‍🏫']
-            ],
+            'users' => [],
             'classes' => [
                 [
                     'id' => 'class_101',

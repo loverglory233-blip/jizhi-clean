@@ -11,7 +11,7 @@ import {
   STORAGE_KEY_USERS_DB,
   AgentProfiles
 } from "./constants.js";
-import { downloadFileBlob } from "./utils.js";
+import { downloadFileBlob, escapeHtml } from "./utils.js";
 import { callCozeAgentAPI } from "./agents.js";
 import { AuthManager } from "./auth.js";
 import { CloudSyncEngine } from "./sync.js";
@@ -337,7 +337,7 @@ export class App {
         // 🌿 智能静默破冰引导已关闭，避免无人发言时责任编辑重复刷屏
 
         // ⏰ 全局进度与阶段间转场催促 + 阶段二智能体保底机制 (仅由组长单点触发，杜绝多人并发 AI 消息风暴)
-        const isGroupLeader = (myCode === 'A' || myCode === '1001' || myCode === 'leader');
+        const isGroupLeader = !!(currentUser && (currentUser.role === 'leader' || (currentUser.roleTitle || '').includes('组长')));
         const activeTaskId = this.state.activeTaskId || 'task_default';
         const currentGroupId = (currentUser && currentUser.groupId) ? currentUser.groupId : (this.state.activeMonitorGroupId || 'group_1');
         const allTasks = (this.authManager) ? this.authManager.getTasks() : [];
@@ -520,7 +520,7 @@ export class App {
         () => this.handleLogout(),
         () => {
           const users = this.authManager.getUsers();
-          const studentA = users.find(u => u.username === 'liming' || u.email === 'studentA@jizhi.edu');
+          const studentA = users.find(u => (u.role === 'student' || u.isStudent) && u.studentCode);
           if (studentA) {
             sessionStorage.setItem('jizhi_current_user', JSON.stringify(studentA));
             localStorage.setItem('jizhi_current_user', JSON.stringify(studentA));
@@ -1087,6 +1087,7 @@ export class App {
         // 5. 🎯 终审收尾雷达：阶段二自身时长达到 85% 或 参考文献录入完毕全文闭环
         const hasReachedReferences = /(?:六、|第6章|第六部分|参考文献|References)/i.test(s2.unifiedContent || '') && (s2.unifiedContent || '').length > 1500;
         const isTimeOver85Pct = stage2DurationMs >= (totalPlannedMs * 0.85);
+        const hasMeetingDone = !!(s2.actionPlan && s2.actionPlan.isGenerated);
         if ((hasReachedReferences || isTimeOver85Pct) && !this.state.stage2FinalNudgeSent && hasMeetingDone) {
           this.state.stage2FinalNudgeSent = true;
           const msg1 = {
@@ -1318,21 +1319,21 @@ export class App {
             
             <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px; margin-bottom:12px;">
               <h4 style="margin:0; font-size:16.5px; font-weight:800; color:#0f172a; line-height:1.4;">
-                📢 ${selectedAnn.title}
+                📢 ${escapeHtml(selectedAnn.title)}
               </h4>
-              <span style="font-size:11.5px; color:#64748b; white-space:nowrap;">${selectedAnn.time || ''}</span>
+              <span style="font-size:11.5px; color:#64748b; white-space:nowrap;">${escapeHtml(selectedAnn.time || '')}</span>
             </div>
 
             <!-- 标签栏 -->
             <div style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom:14px;">
               <span style="background:#f8fafc; color:#475569; border:1px solid #e2e8f0; padding:3px 10px; border-radius:6px; font-size:11.5px; font-weight:700;">
-                👨‍🏫 发布教师: <b>${selectedAnn.author || '任课教师'}</b>
+                👨‍🏫 发布教师: <b>${escapeHtml(selectedAnn.author || '任课教师')}</b>
               </span>
               <span style="background:#f5f3ff; color:#7c3aed; border:1px solid #ddd6fe; padding:3px 10px; border-radius:6px; font-size:11.5px; font-weight:700;">
-                📌 关联任务: <b>${selectedAnn.taskTitle || '全流程写作'}</b>
+                📌 关联任务: <b>${escapeHtml(selectedAnn.taskTitle || '全流程写作')}</b>
               </span>
               <span style="background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe; padding:3px 10px; border-radius:6px; font-size:11.5px; font-weight:700;">
-                🎯 受众: <b>${selectedAnn.targetGroupName || '全班所有小组'}</b>
+                🎯 受众: <b>${escapeHtml(selectedAnn.targetGroupName || '全班所有小组')}</b>
               </span>
               ${isSelectedRead ? `
                 <span style="background:#ecfdf5; color:#059669; border:1px solid #a7f3d0; padding:3px 10px; border-radius:6px; font-size:11.5px; font-weight:700;">
@@ -1347,7 +1348,7 @@ export class App {
 
             <!-- 正文卡片 -->
             <div style="background:#f8fafc; border:1px solid #f1f5f9; border-radius:10px; padding:14px 16px; font-size:13.5px; color:#334155; line-height:1.7; white-space:pre-wrap; word-break:break-word;">
-              ${selectedAnn.content}
+              ${escapeHtml(selectedAnn.content || '')}
             </div>
 
             <!-- 附件卡片 (如有) -->
@@ -1836,54 +1837,13 @@ export class App {
     input.addEventListener('keypress', (e) => { if (e.key === 'Enter') handleSend(); });
   }
 
-  updateContributionUi() {
-    const editor = document.getElementById('stage2-word-editor');
-    const cleanText = editor ? editor.innerText.replace(/[\s\r\n]+/g, '') : '';
-    const countBadge = document.getElementById('stage2-word-count-num');
-    if (countBadge) countBadge.innerText = `${cleanText.length}`;
-
-    const s2 = this.state.stage2;
-    const membersList = Object.values(this.state.members || {});
-    const contribs = s2.memberContributions || {};
-    let totalContrib = 0;
-    membersList.forEach(m => {
-      totalContrib += (contribs[m.id] || 0) + (contribs[m.studentCode] || 0);
-    });
-
-    const getMemberData = (m) => {
-      const val = (contribs[m.id] || 0) + (contribs[m.studentCode] || 0);
-      if (totalContrib === 0 || val === 0) {
-        const defaultPct = membersList.length > 0 ? Math.round(100 / membersList.length) : 0;
-        return { pct: (totalContrib === 0 ? defaultPct : 0), label: `${m.name}: ${totalContrib === 0 ? defaultPct : 0}%` };
-      }
-      const pct = Math.round((val / totalContrib) * 100);
-      return { pct: pct, label: `${m.name}: ${pct}%` };
-    };
-
-    const barContainer = document.querySelector('.contrib-bars');
-    if (barContainer) {
-      if (totalContrib === 0 && cleanText.length === 0) {
-        barContainer.innerHTML = `<div style="width:100%; height:10px; background:#f1f5f9; border-radius:5px; display:flex; align-items:center; justify-content:center; font-size:10.5px; color:#94a3b8;">暂无协作投入 (开始编辑正文或研讨后将自动呈现贡献占比)</div>`;
-      } else {
-        barContainer.innerHTML = membersList.map((m) => {
-          const data = getMemberData(m);
-          if (data.pct === 0) return '';
-          return `<div class="contrib-segment" style="width:${data.pct}%; background:${m.color || '#2563eb'}; transition:width 0.3s ease;" title="${m.name}: ${data.pct}% (基于写作与修改累计工作量)"></div>`;
-        }).join('');
-      }
-    }
-
-    const labelsContainer = document.querySelector('.contrib-labels');
-    if (labelsContainer) {
-      labelsContainer.innerHTML = membersList.map((m) => {
-        const data = getMemberData(m);
-        return `<span style="color:${m.color || '#2563eb'}; font-weight:700;">● ${data.label}</span>`;
-      }).join('');
-    }
-    this.renderPresenceCursors();
-  }
+  // updateContributionUi() 已在 L258 定义（含 getElementById 精确选择器），此处不再重复覆盖
 
   async triggerAgentReplyIfNeeded(userMsg) {
+    // 🛡️ 并发锁：防止快速发送多条 @消息 导致 AI 回复乱序
+    if (this._isAgentReplyInProgress) return;
+    this._isAgentReplyInProgress = true;
+    try {
     const stage = this.state.currentStage;
     const isExplicitMention = userMsg.includes('@');
     // 阶段一专属里程碑：学生在研讨中商定好分工/时间并确认时触发拍卖师生成合约
@@ -1945,6 +1905,9 @@ export class App {
     this.state.chatLogs[stage].push(agentMsgObj);
     this.syncChatLogs();
     renderChat(this.state);
+    } finally {
+      this._isAgentReplyInProgress = false;
+    }
   }
 
   handleVoteCast(proposalId) {
@@ -3512,11 +3475,7 @@ ${contentSnippet}
     this.renderStudentWorkspace();
   }
 
-  handleLogout() {
-    this.authManager.logout();
-    this.state.studentViewMode = 'task_list';
-    this.renderMain();
-  }
+  // handleLogout() 已在 L1648 定义（含 presence 清理与云端推送），此处不再重复
 }
 
 // Global Launch (Native ESM Support)

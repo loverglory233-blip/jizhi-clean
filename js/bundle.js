@@ -12,7 +12,11 @@
   /**
    * JIZHI (集智) Platform - Constants & Initial State
    * Standard ES Module (ESM)
+   * Version: 2.1.0 (2026-08-23)
    */
+
+  const APP_VERSION = '2.1.0';
+  const APP_BUILD_DATE = '2026-08-23';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
   const STORAGE_KEY_USERS_DB = 'jizhi_pure_v10_users_db';
@@ -22,9 +26,7 @@
 
   const DefaultClasses = [];
 
-  const DefaultUsers = [
-    { id: 'u_teacher1', username: '1001', studentCode: '1001', password: '123', name: '老师', role: 'teacher', avatar: '👩‍🏫' }
-  ];
+  const DefaultUsers = [];
 
   const DefaultTasks = [];
   const DefaultAnnouncements = [];
@@ -417,7 +419,9 @@
                   break;
                 }
               }
-            } catch (err) {}
+            } catch (err) {
+              console.warn('[Coze Poll] 轮询请求异常:', err.message);
+            }
           }
         }
       }
@@ -459,12 +463,12 @@
         const getMemberId = (m) => (typeof m === 'object' && m !== null) ? (m.id || m.userId || m.studentCode) : m;
 
         classes.forEach(cls => {
-          if (!cls.groups) cls.groups = [];
+          if (!cls.groups) { cls.groups = []; isModified = true; }
 
           cls.groups.forEach(grp => {
-            if (!grp.id) grp.id = 'group_' + Date.now();
-            if (!grp.name) grp.name = '协作小组';
-            if (!Array.isArray(grp.members)) grp.members = [];
+            if (!grp.id) { grp.id = 'group_' + Date.now(); isModified = true; }
+            if (!grp.name) { grp.name = '协作小组'; isModified = true; }
+            if (!Array.isArray(grp.members)) { grp.members = []; isModified = true; }
           });
         });
 
@@ -480,7 +484,7 @@
       try {
         const currUser = this.getCurrentUser();
         const isStudent = currUser && (currUser.role === 'student' || currUser.isStudent);
-        const isTeacher = currUser && (currUser.role === 'teacher' || currUser.isTeacher || currUser.username === '1001' || currUser.id === 'u_teacher');
+        const isTeacher = currUser && (currUser.role === 'teacher' || currUser.isTeacher);
 
         const res = await fetch(`sync.php?action=get_global_meta&nocache=${Date.now()}`);
         if (res.ok) {
@@ -575,7 +579,7 @@
     }
     pushGlobalMeta() {
       const currUser = this.getCurrentUser();
-      const isTeacher = currUser && (currUser.role === 'teacher' || currUser.isTeacher || currUser.username === '1001' || currUser.id === 'u_teacher');
+      const isTeacher = currUser && (currUser.role === 'teacher' || currUser.isTeacher);
 
       // 🛡️ 铁律：只有已登录的教师且已完成云端元数据拉取后，才允许向服务器推送配置，杜绝冷启动默认数据覆盖云端
       if (!isTeacher || !this.isGlobalMetaLoaded) {
@@ -631,9 +635,8 @@
 
         users.forEach(u => {
           if (u.role === 'teacher') {
-            if (u.name !== '老师') { u.name = '老师'; changed = true; }
-            if (u.studentCode !== '1001') { u.studentCode = '1001'; changed = true; }
-            if (u.username !== '1001') { u.username = '1001'; changed = true; }
+            // 🛡️ 仅在字段缺失时补默认值，不再强制覆盖已有教师名/工号（支持多教师）
+            if (!u.name) { u.name = '老师'; changed = true; }
           }
 
           const codeKey = (u.studentCode || u.username || u.id).trim().toLowerCase();
@@ -732,13 +735,9 @@
         const uNick = (u.name || '').toLowerCase();
         const uEmail = (u.email || '').toLowerCase();
 
-        const isTeacherMatch = (u.role === 'teacher') && (
-          query === '1001' || query === 't001' || query === 'teacher' || query === '老师'
-        );
-
         const isDirectMatch = (uCode === query || uName === query || uEmail === query || uNick === query);
 
-        return isTeacherMatch || isDirectMatch;
+        return isDirectMatch;
       });
 
       if (userIndex === -1) {
@@ -1713,7 +1712,6 @@
       this.pendingPush = false;
       this.isInitialPullDone = false;
       this.updateScopeKeys();
-      this.initWebSocket();
       this.initPolling();
     }
 
@@ -1743,10 +1741,10 @@
       // 生产环境全面停用 SSE，由 Yjs CRDT WebSocket (1234端口) + 数据库高可用短轮询接管
     }
 
-    initWebSocket() {
-      // 💡 架构分工明确说明：
-      // 1. 富文本毫秒级实时协同：由 Yjs CRDT WebSocket (ws://host:1234) 独立权威承载；
-      // 2. 阶段状态/研讨聊天/全局教务：由 CloudSyncEngine 高频无锁短轮询 + MySQL 事务保障。
+    // 💡 协同架构说明：富文本实时协同由 Yjs CRDT WebSocket (1234端口) 独立承载；
+    // 阶段状态/研讨聊天/全局教务由 CloudSyncEngine 高频短轮询 + 服务端事务保障。
+    // 此方法仅刷新 scope keys，不建立 WebSocket 连接。
+    refreshScopeKeys() {
       this.updateScopeKeys();
     }
 
@@ -1831,8 +1829,8 @@
           const url = `${endpoint}${sep}nocache=${Date.now()}${revParam}`;
           const res = await fetch(url, { cache: 'no-store' });
           if (res.ok) {
-            this.isInitialPullDone = true;
             const data = await res.json();
+            this.isInitialPullDone = true;
             if (data && data.unchanged) {
               if (data.revisionId) this.lastRevisionId = data.revisionId;
               continue;
@@ -2408,9 +2406,8 @@
 
       if (remoteData.timer && this.app.state.timer) {
         if (remoteData.timer.startTimestamp) {
-          if (!this.app.state.timer.startTimestamp || remoteData.timer.startTimestamp < this.app.state.timer.startTimestamp) {
-            this.app.state.timer.startTimestamp = remoteData.timer.startTimestamp;
-          }
+          // 🛡️ 修复计时器重置：接受服务端权威时间戳（无论新旧），教师重置后所有客户端同步
+          this.app.state.timer.startTimestamp = remoteData.timer.startTimestamp;
         }
         if (remoteData.timer.speed !== undefined) {
           this.app.state.timer.speed = remoteData.timer.speed;
@@ -2499,11 +2496,11 @@
           <form id="login-form" style="display:flex; flex-direction:column; gap:16px;">
             <div style="display:flex; flex-direction:column; gap:6px;">
               <label style="font-size:13px; font-weight:700; color:#334155;">工号 / 学号</label>
-              <input type="text" id="login-account" class="teacher-input" placeholder="请输入工号或学号" value="" required style="width:100%;">
+              <input type="text" id="login-account" class="teacher-input" placeholder="" value="" required style="width:100%;">
             </div>
             <div style="display:flex; flex-direction:column; gap:6px;">
               <label style="font-size:13px; font-weight:700; color:#334155;">密码</label>
-              <input type="password" id="login-password" class="teacher-input" placeholder="请输入登录密码" value="" required style="width:100%;">
+              <input type="password" id="login-password" class="teacher-input" placeholder="" value="" required style="width:100%;">
             </div>
             <div id="login-error-msg" style="display:none; font-size:12px; color:#dc2626; background:#fef2f2; border:1px solid #fecaca; padding:8px 12px; border-radius:8px;"></div>
             <button type="submit" class="modal-btn submit task-theme" style="width:100%; padding:14px; font-size:15px; border-radius:10px; margin-top:8px;">
@@ -2772,26 +2769,19 @@
                         const mId = (typeof m === 'object' && m !== null) ? (m.id || m.userId || m.studentCode) : m;
                         return mId === s.id || (mId && s.studentCode && mId.toString() === s.studentCode.toString());
                       }));
-                      const isTestGroup = grp.name && grp.name.includes('测试组');
-                      return groupMembers.length > 0 || isTestGroup;
+                      return groupMembers.length > 0;
                     });
 
-                    // 自动规整命名
-                    const hasTest = validGroups.some(g => g.name && g.name.includes('测试组'));
-                    let nonTestIdx = hasTest ? 2 : 1;
-                    validGroups.forEach(g => {
-                      if (g.name && g.name.includes('测试组')) {
-                        g.name = '第 1 协作小组 (测试组)';
-                      } else {
-                        g.name = `第 ${nonTestIdx} 协作小组`;
-                        nonTestIdx++;
-                      }
+                    // 自动规整命名：按顺序编号
+                    validGroups.forEach((g, idx) => {
+                      g.name = `第 ${idx + 1} 协作小组`;
                     });
 
                     if (validGroups.length !== (activeClass.groups || []).length) {
                       activeClass.groups = validGroups;
                       localStorage.setItem(STORAGE_KEY_CLASSES, JSON.stringify(classes));
-                      authManager.pushGlobalMeta();
+                      // 🛡️ 延迟推送，避免渲染期间触发网络写操作
+                      setTimeout(() => authManager.pushGlobalMeta(), 100);
                     }
 
                     if (validGroups.length === 0) {
@@ -4281,16 +4271,7 @@
     });
 
     // 🗑️ 清除问卷配置
-    container.querySelectorAll('.btn-delete-survey-item').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const cId = btn.dataset.cid;
-        const tId = btn.dataset.tid;
-        if (confirm('🗑️ 确认清除此班级与任务的问卷绑定？')) {
-          authManager.deleteSurveyUrl(cId, tId);
-          renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
-        }
-      });
-    });
+    // btn-delete-survey-item 已在 L1718 注册（使用 deleteSurvey(sId)），此处不再重复注册
 
     // ✏️ 修改写作任务按钮（弹窗支持修改：开始时间、截止时间、任务时长、任务名称、说明要求）
     container.querySelectorAll('.btn-edit-task').forEach(btn => {
@@ -5480,10 +5461,10 @@
                             <span style="background:linear-gradient(135deg, #1e40af, #3b82f6); color:#ffffff; padding:2.5px 9px; border-radius:6px; font-size:12px; font-weight:800; white-space:nowrap; box-shadow:0 2px 6px rgba(30,64,175,0.25);">
                               任务 ${taskSeqNum}${isLatest ? ' (最新)' : ''}
                             </span>
-                            <span>📌 ${t.title}</span>
+                            <span>📌 ${escapeHtml(t.title)}</span>
                           </div>
                           <span style="background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe; font-size:11.5px; font-weight:700; padding:3px 10px; border-radius:20px; flex-shrink:0;">
-                            👥 ${t.targetGroupName || groupName}
+                            👥 ${escapeHtml(t.targetGroupName || groupName)}
                           </span>
                         </div>
 
@@ -5495,7 +5476,7 @@
                         </div>
 
                         <div style="font-size:12.5px; color:#334155; line-height:1.6; margin-bottom:12px; background:#f8fafc; border-left:3.5px solid #2563eb; padding:8px 12px; border-radius:0 8px 8px 0;">
-                          ${t.instructions ? t.instructions.substring(0, 130) + (t.instructions.length > 130 ? '...' : '') : '<span style="color:#94a3b8; font-style:italic;">暂无详细要求说明</span>'}
+                          ${t.instructions ? escapeHtml(t.instructions.substring(0, 130)) + (t.instructions.length > 130 ? '...' : '') : '<span style="color:#94a3b8; font-style:italic;">暂无详细要求说明</span>'}
                         </div>
 
                         <div style="display:flex; align-items:center; gap:8px; font-size:12px; font-weight:600; color:#64748b; margin-bottom:16px;">
@@ -5836,6 +5817,17 @@
     // 🚀 工业级 Yjs CRDT + y-quill 实时协同引擎自动绑定
     let quillInstance = null;
     let yjsBinding = null;
+
+    // 🛡️ 关闭旧 Yjs 连接，防止切换任务/小组时连接泄漏
+    if (window._yjsProvider) {
+      try { window._yjsProvider.destroy(); } catch (e) {}
+      window._yjsProvider = null;
+    }
+    if (window._yjsDoc) {
+      try { window._yjsDoc.destroy(); } catch (e) {}
+      window._yjsDoc = null;
+    }
+
     const QuillClass = window.Quill;
     const YClass = window.Y;
     const WsProviderClass = window.WebsocketProvider || (window.Y && window.Y.WebsocketProvider);
@@ -6000,6 +5992,10 @@
       if (selLineHeight) {
         selLineHeight.addEventListener('change', (e) => {
           editor.style.lineHeight = e.target.value;
+          // 🛡️ 同步写入每个段落，使行间距持久化到 innerHTML 并同步给协同用户
+          editor.querySelectorAll('p, div, h1, h2, h3, h4, li, blockquote').forEach(el => {
+            el.style.lineHeight = e.target.value;
+          });
           if (onChangeCallback) onChangeCallback(editor.innerHTML);
         });
       }
@@ -6314,16 +6310,48 @@
         container.querySelector(`#${editorId}-btn-close-search`).addEventListener('click', () => {
           searchBar.style.display = 'none';
         });
+        // 查找下一个
+        const btnFindNext = container.querySelector(`#${editorId}-btn-find-next`);
+        const findCountTip = container.querySelector(`#${editorId}-find-count-tip`);
+        if (btnFindNext) {
+          btnFindNext.addEventListener('click', () => {
+            const searchVal = container.querySelector(`#${editorId}-search-input`).value;
+            if (!searchVal) return;
+            const text = editor.innerText || '';
+            const matches = text.split(searchVal).length - 1;
+            if (findCountTip) findCountTip.textContent = matches > 0 ? `共 ${matches} 处` : '未找到';
+            // 使用浏览器原生查找高亮
+            if (window.find) {
+              window.find(searchVal, false, false, true);
+            }
+          });
+        }
+        // 替换当前（仅替换第一个匹配）
         container.querySelector(`#${editorId}-btn-do-replace`).addEventListener('click', () => {
           const searchVal = container.querySelector(`#${editorId}-search-input`).value;
           const replaceVal = container.querySelector(`#${editorId}-replace-input`).value;
           if (!searchVal) { alert('请输入要查找的词！'); return; }
           const html = editor.innerHTML;
-          const newHtml = html.split(searchVal).join(replaceVal);
+          const idx = html.indexOf(searchVal);
+          if (idx === -1) { alert('未找到匹配内容'); return; }
+          const newHtml = html.substring(0, idx) + replaceVal + html.substring(idx + searchVal.length);
           editor.innerHTML = newHtml;
           if (onChangeCallback) onChangeCallback(newHtml);
-          alert(`已完成对 "${searchVal}" 的批量替换！`);
         });
+        // 全部替换
+        const btnReplaceAll = container.querySelector(`#${editorId}-btn-do-replace-all`);
+        if (btnReplaceAll) {
+          btnReplaceAll.addEventListener('click', () => {
+            const searchVal = container.querySelector(`#${editorId}-search-input`).value;
+            const replaceVal = container.querySelector(`#${editorId}-replace-input`).value;
+            if (!searchVal) { alert('请输入要查找的词！'); return; }
+            const html = editor.innerHTML;
+            const newHtml = html.split(searchVal).join(replaceVal);
+            editor.innerHTML = newHtml;
+            if (onChangeCallback) onChangeCallback(newHtml);
+            alert(`已完成对 "${searchVal}" 的批量替换！`);
+          });
+        }
       }
 
       // 监听输入法（解决中文拼音输入被切断卡顿问题）与极速广播
@@ -6442,8 +6470,10 @@
     if (!editor) return;
     renderPresencePills(editorId, state);
 
-    // 1. 清除旧光标组件
+    // 1. 清除旧光标组件并修复 DOM 碎片化
     editor.querySelectorAll('.remote-cursor-widget').forEach(el => el.remove());
+    // 🛡️ 合并被 splitText 分裂的相邻文本节点，防止 DOM 碎片无限增长
+    editor.normalize();
 
     const membersList = Object.values(state.members || {});
     const currentUserCode = state.currentUser || 'A';
@@ -7743,7 +7773,7 @@
           // 🌿 智能静默破冰引导已关闭，避免无人发言时责任编辑重复刷屏
 
           // ⏰ 全局进度与阶段间转场催促 + 阶段二智能体保底机制 (仅由组长单点触发，杜绝多人并发 AI 消息风暴)
-          const isGroupLeader = (myCode === 'A' || myCode === '1001' || myCode === 'leader');
+          const isGroupLeader = !!(currentUser && (currentUser.role === 'leader' || (currentUser.roleTitle || '').includes('组长')));
           const activeTaskId = this.state.activeTaskId || 'task_default';
           const currentGroupId = (currentUser && currentUser.groupId) ? currentUser.groupId : (this.state.activeMonitorGroupId || 'group_1');
           const allTasks = (this.authManager) ? this.authManager.getTasks() : [];
@@ -7926,7 +7956,7 @@
           () => this.handleLogout(),
           () => {
             const users = this.authManager.getUsers();
-            const studentA = users.find(u => u.username === 'liming' || u.email === 'studentA@jizhi.edu');
+            const studentA = users.find(u => (u.role === 'student' || u.isStudent) && u.studentCode);
             if (studentA) {
               sessionStorage.setItem('jizhi_current_user', JSON.stringify(studentA));
               localStorage.setItem('jizhi_current_user', JSON.stringify(studentA));
@@ -8493,6 +8523,7 @@
           // 5. 🎯 终审收尾雷达：阶段二自身时长达到 85% 或 参考文献录入完毕全文闭环
           const hasReachedReferences = /(?:六、|第6章|第六部分|参考文献|References)/i.test(s2.unifiedContent || '') && (s2.unifiedContent || '').length > 1500;
           const isTimeOver85Pct = stage2DurationMs >= (totalPlannedMs * 0.85);
+          const hasMeetingDone = !!(s2.actionPlan && s2.actionPlan.isGenerated);
           if ((hasReachedReferences || isTimeOver85Pct) && !this.state.stage2FinalNudgeSent && hasMeetingDone) {
             this.state.stage2FinalNudgeSent = true;
             const msg1 = {
@@ -8724,21 +8755,21 @@
 
               <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px; margin-bottom:12px;">
                 <h4 style="margin:0; font-size:16.5px; font-weight:800; color:#0f172a; line-height:1.4;">
-                  📢 ${selectedAnn.title}
+                  📢 ${escapeHtml(selectedAnn.title)}
                 </h4>
-                <span style="font-size:11.5px; color:#64748b; white-space:nowrap;">${selectedAnn.time || ''}</span>
+                <span style="font-size:11.5px; color:#64748b; white-space:nowrap;">${escapeHtml(selectedAnn.time || '')}</span>
               </div>
 
               <!-- 标签栏 -->
               <div style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom:14px;">
                 <span style="background:#f8fafc; color:#475569; border:1px solid #e2e8f0; padding:3px 10px; border-radius:6px; font-size:11.5px; font-weight:700;">
-                  👨‍🏫 发布教师: <b>${selectedAnn.author || '任课教师'}</b>
+                  👨‍🏫 发布教师: <b>${escapeHtml(selectedAnn.author || '任课教师')}</b>
                 </span>
                 <span style="background:#f5f3ff; color:#7c3aed; border:1px solid #ddd6fe; padding:3px 10px; border-radius:6px; font-size:11.5px; font-weight:700;">
-                  📌 关联任务: <b>${selectedAnn.taskTitle || '全流程写作'}</b>
+                  📌 关联任务: <b>${escapeHtml(selectedAnn.taskTitle || '全流程写作')}</b>
                 </span>
                 <span style="background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe; padding:3px 10px; border-radius:6px; font-size:11.5px; font-weight:700;">
-                  🎯 受众: <b>${selectedAnn.targetGroupName || '全班所有小组'}</b>
+                  🎯 受众: <b>${escapeHtml(selectedAnn.targetGroupName || '全班所有小组')}</b>
                 </span>
                 ${isSelectedRead ? `
                   <span style="background:#ecfdf5; color:#059669; border:1px solid #a7f3d0; padding:3px 10px; border-radius:6px; font-size:11.5px; font-weight:700;">
@@ -8753,7 +8784,7 @@
 
               <!-- 正文卡片 -->
               <div style="background:#f8fafc; border:1px solid #f1f5f9; border-radius:10px; padding:14px 16px; font-size:13.5px; color:#334155; line-height:1.7; white-space:pre-wrap; word-break:break-word;">
-                ${selectedAnn.content}
+                ${escapeHtml(selectedAnn.content || '')}
               </div>
 
               <!-- 附件卡片 (如有) -->
@@ -9242,54 +9273,13 @@
       input.addEventListener('keypress', (e) => { if (e.key === 'Enter') handleSend(); });
     }
 
-    updateContributionUi() {
-      const editor = document.getElementById('stage2-word-editor');
-      const cleanText = editor ? editor.innerText.replace(/[\s\r\n]+/g, '') : '';
-      const countBadge = document.getElementById('stage2-word-count-num');
-      if (countBadge) countBadge.innerText = `${cleanText.length}`;
-
-      const s2 = this.state.stage2;
-      const membersList = Object.values(this.state.members || {});
-      const contribs = s2.memberContributions || {};
-      let totalContrib = 0;
-      membersList.forEach(m => {
-        totalContrib += (contribs[m.id] || 0) + (contribs[m.studentCode] || 0);
-      });
-
-      const getMemberData = (m) => {
-        const val = (contribs[m.id] || 0) + (contribs[m.studentCode] || 0);
-        if (totalContrib === 0 || val === 0) {
-          const defaultPct = membersList.length > 0 ? Math.round(100 / membersList.length) : 0;
-          return { pct: (totalContrib === 0 ? defaultPct : 0), label: `${m.name}: ${totalContrib === 0 ? defaultPct : 0}%` };
-        }
-        const pct = Math.round((val / totalContrib) * 100);
-        return { pct: pct, label: `${m.name}: ${pct}%` };
-      };
-
-      const barContainer = document.querySelector('.contrib-bars');
-      if (barContainer) {
-        if (totalContrib === 0 && cleanText.length === 0) {
-          barContainer.innerHTML = `<div style="width:100%; height:10px; background:#f1f5f9; border-radius:5px; display:flex; align-items:center; justify-content:center; font-size:10.5px; color:#94a3b8;">暂无协作投入 (开始编辑正文或研讨后将自动呈现贡献占比)</div>`;
-        } else {
-          barContainer.innerHTML = membersList.map((m) => {
-            const data = getMemberData(m);
-            if (data.pct === 0) return '';
-            return `<div class="contrib-segment" style="width:${data.pct}%; background:${m.color || '#2563eb'}; transition:width 0.3s ease;" title="${m.name}: ${data.pct}% (基于写作与修改累计工作量)"></div>`;
-          }).join('');
-        }
-      }
-
-      const labelsContainer = document.querySelector('.contrib-labels');
-      if (labelsContainer) {
-        labelsContainer.innerHTML = membersList.map((m) => {
-          const data = getMemberData(m);
-          return `<span style="color:${m.color || '#2563eb'}; font-weight:700;">● ${data.label}</span>`;
-        }).join('');
-      }
-      this.renderPresenceCursors();
-    }
+    // updateContributionUi() 已在 L258 定义（含 getElementById 精确选择器），此处不再重复覆盖
 
     async triggerAgentReplyIfNeeded(userMsg) {
+      // 🛡️ 并发锁：防止快速发送多条 @消息 导致 AI 回复乱序
+      if (this._isAgentReplyInProgress) return;
+      this._isAgentReplyInProgress = true;
+      try {
       const stage = this.state.currentStage;
       const isExplicitMention = userMsg.includes('@');
       // 阶段一专属里程碑：学生在研讨中商定好分工/时间并确认时触发拍卖师生成合约
@@ -9351,6 +9341,9 @@
       this.state.chatLogs[stage].push(agentMsgObj);
       this.syncChatLogs();
       renderChat(this.state);
+      } finally {
+        this._isAgentReplyInProgress = false;
+      }
     }
 
     handleVoteCast(proposalId) {
@@ -10918,11 +10911,7 @@
       this.renderStudentWorkspace();
     }
 
-    handleLogout() {
-      this.authManager.logout();
-      this.state.studentViewMode = 'task_list';
-      this.renderMain();
-    }
+    // handleLogout() 已在 L1648 定义（含 presence 清理与云端推送），此处不再重复
   }
 
   // Global Launch (Native ESM Support)

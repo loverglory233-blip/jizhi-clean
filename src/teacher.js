@@ -233,26 +233,19 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
                       const mId = (typeof m === 'object' && m !== null) ? (m.id || m.userId || m.studentCode) : m;
                       return mId === s.id || (mId && s.studentCode && mId.toString() === s.studentCode.toString());
                     }));
-                    const isTestGroup = grp.name && grp.name.includes('测试组');
-                    return groupMembers.length > 0 || isTestGroup;
+                    return groupMembers.length > 0;
                   });
 
-                  // 自动规整命名
-                  const hasTest = validGroups.some(g => g.name && g.name.includes('测试组'));
-                  let nonTestIdx = hasTest ? 2 : 1;
-                  validGroups.forEach(g => {
-                    if (g.name && g.name.includes('测试组')) {
-                      g.name = '第 1 协作小组 (测试组)';
-                    } else {
-                      g.name = `第 ${nonTestIdx} 协作小组`;
-                      nonTestIdx++;
-                    }
+                  // 自动规整命名：按顺序编号
+                  validGroups.forEach((g, idx) => {
+                    g.name = `第 ${idx + 1} 协作小组`;
                   });
 
                   if (validGroups.length !== (activeClass.groups || []).length) {
                     activeClass.groups = validGroups;
                     localStorage.setItem(STORAGE_KEY_CLASSES, JSON.stringify(classes));
-                    authManager.pushGlobalMeta();
+                    // 🛡️ 延迟推送，避免渲染期间触发网络写操作
+                    setTimeout(() => authManager.pushGlobalMeta(), 100);
                   }
 
                   if (validGroups.length === 0) {
@@ -1742,16 +1735,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
   });
 
   // 🗑️ 清除问卷配置
-  container.querySelectorAll('.btn-delete-survey-item').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const cId = btn.dataset.cid;
-      const tId = btn.dataset.tid;
-      if (confirm('🗑️ 确认清除此班级与任务的问卷绑定？')) {
-        authManager.deleteSurveyUrl(cId, tId);
-        renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
-      }
-    });
-  });
+  // btn-delete-survey-item 已在 L1718 注册（使用 deleteSurvey(sId)），此处不再重复注册
 
   // ✏️ 修改写作任务按钮（弹窗支持修改：开始时间、截止时间、任务时长、任务名称、说明要求）
   container.querySelectorAll('.btn-edit-task').forEach(btn => {
