@@ -383,6 +383,8 @@
     }
 
     async pullGlobalMeta() {
+      if (this._isPullingMeta) return;
+      this._isPullingMeta = true;
       try {
         const currUser = this.getCurrentUser();
         const isStudent = currUser && (currUser.role === 'student' || currUser.isStudent);
@@ -392,6 +394,7 @@
         if (res.ok) {
           const data = await res.json();
           if (data) {
+            this.isGlobalMetaLoaded = true;
             // 1. 账号池：直接以云端权威数据库为准
             if (Array.isArray(data.users) && data.users.length > 0) {
               localStorage.setItem(STORAGE_KEY_USERS_DB, JSON.stringify(data.users));
@@ -416,7 +419,9 @@
             }
           }
         }
-      } catch (e) {}
+      } catch (e) {} finally {
+        this._isPullingMeta = false;
+      }
     }
     getSurveysList() {
       let list = [];
@@ -496,6 +501,11 @@
       // 🛡️ 铁律：只有已登录的教师才拥有向服务器覆写教务元数据的权限！
       // 学生端、访客端、未登录端调用时直接拦截，绝不发送网络请求，绝不污染服务器！
       if (!isTeacher) {
+        return;
+      }
+
+      // 🛡️ 时序保护：若云端元数据还在首次拉取中，禁止推送未初始化的数据覆盖云端
+      if (!this.isGlobalMetaLoaded && this._isPullingMeta) {
         return;
       }
 

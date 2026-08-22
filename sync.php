@@ -720,8 +720,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
 
-        // 本地文件双写备份，确保极端情况下 100% 容灾
-        @file_put_contents(__DIR__ . '/db_' . $scopeKey . '.json', $rawInput);
+        // 本地文件双写备份，写入合并后的完整快照，确保极端情况下 100% 容灾状态一致
+        $fullMergedBackup = [
+            'timestamp'        => $ts,
+            'groupId'          => $groupId,
+            'taskId'           => $taskId,
+            'currentStage'     => isset($data['currentStage']) ? $data['currentStage'] : 'stage1',
+            'isFinalSubmitted' => !empty($data['isFinalSubmitted']),
+            'stage1'           => $isResetVal ? ($data['stage1'] ?? []) : $mergedS1,
+            'stage2'           => $isResetVal ? ($data['stage2'] ?? []) : $mergedS2,
+            'stage3'           => $isResetVal ? ($data['stage3'] ?? []) : $mergedS3,
+            'chatLogs'         => $mergedChats,
+            'presence'         => $isResetVal ? [] : $mergedPresence,
+            'members'          => $data['members'] ?? []
+        ];
+        @file_put_contents(__DIR__ . '/db_' . $scopeKey . '.json', json_encode($fullMergedBackup, JSON_UNESCAPED_UNICODE));
 
         echo json_encode([
             'success'   => true,
