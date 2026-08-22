@@ -319,6 +319,12 @@ export function attachWordEditorEvents(container, editorId, isReadonly, onChange
         const ydoc = new YClass.Doc();
         const ytext = ydoc.getText('quill_content');
         const provider = new WsProviderClass(wsUrl, roomName, ydoc);
+        window._yjsProvider = provider;
+        window._yjsDoc = ydoc;
+
+        provider.on('status', event => {
+          console.log(`%c[Yjs CRDT 协同状态] 🌐 ${event.status === 'connected' ? '✅ 已连接协同服务器 (满血运行中)' : '⏳ 连接中: ' + event.status}`, 'color: #10b981; font-weight: bold;');
+        });
 
         const userColors = ['#2563eb', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4'];
         const colorIdx = (user && user.studentCode ? user.studentCode.charCodeAt(user.studentCode.length - 1) : 0) % userColors.length;
