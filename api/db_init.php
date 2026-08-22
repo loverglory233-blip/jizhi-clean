@@ -34,22 +34,23 @@ function initDatabaseTables() {
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;";
     $pdo->exec($sql2);
 
-    // 写入默认种子用户 (教师与预设学生)，若不存在则自动插入
-    $seedUsers = [
-        ['id' => 'u_teacher1', 'username' => '1001',   'name' => '老师',        'password' => '123', 'role' => 'teacher', 'student_code' => '1001',   'class_id' => '',          'group_id' => '',        'avatar' => '👩‍🏫'],
-        ['id' => 'u_studentA', 'username' => '202601', 'name' => '李明 (组长)',    'password' => '123', 'role' => 'student', 'student_code' => '202601', 'class_id' => 'class_101', 'group_id' => 'group_1', 'avatar' => '👨‍🎓'],
-        ['id' => 'u_studentB', 'username' => '202602', 'name' => '王芳 (组员)',    'password' => '123', 'role' => 'student', 'student_code' => '202602', 'class_id' => 'class_101', 'group_id' => 'group_1', 'avatar' => '👩‍🎓'],
-        ['id' => 'u_studentC', 'username' => '202603', 'name' => '陈强 (组员)',    'password' => '123', 'role' => 'student', 'student_code' => '202603', 'class_id' => 'class_101', 'group_id' => 'group_1', 'avatar' => '🧑‍🎓']
-    ];
-    $stmtUser = $pdo->prepare("INSERT INTO `users` (`id`, `username`, `name`, `password`, `role`, `student_code`, `class_id`, `group_id`, `avatar`) 
-        VALUES (:id, :un, :nm, :pw, :rl, :sc, :cid, :gid, :av)
-        ON DUPLICATE KEY UPDATE `name`=:nm2, `password`=:pw2, `role`=:rl2, `student_code`=:sc2, `class_id`=:cid2, `group_id`=:gid2, `avatar`=:av2");
-    foreach ($seedUsers as $su) {
-        $stmtUser->execute([
-            ':id' => $su['id'], ':un' => $su['username'], ':nm' => $su['name'], ':pw' => $su['password'],
-            ':rl' => $su['role'], ':sc' => $su['student_code'], ':cid' => $su['class_id'], ':gid' => $su['group_id'], ':av' => $su['avatar'],
-            ':nm2' => $su['name'], ':pw2' => $su['password'], ':rl2' => $su['role'], ':sc2' => $su['student_code'], ':cid2' => $su['class_id'], ':gid2' => $su['group_id'], ':av2' => $su['avatar']
-        ]);
+    // 仅在 users 表完全为空时写入初始种子用户（防止覆盖教师自定义用户或复活已删除用户）
+    $chkUserCount = $pdo->query("SELECT COUNT(*) FROM `users`")->fetchColumn();
+    if (intval($chkUserCount) === 0) {
+        $seedUsers = [
+            ['id' => 'u_teacher1', 'username' => '1001',   'name' => '老师',        'password' => '123', 'role' => 'teacher', 'student_code' => '1001',   'class_id' => '',          'group_id' => '',        'avatar' => '👩‍🏫'],
+            ['id' => 'u_studentA', 'username' => '202601', 'name' => '李明 (组长)',    'password' => '123', 'role' => 'student', 'student_code' => '202601', 'class_id' => 'class_101', 'group_id' => 'group_1', 'avatar' => '👨‍🎓'],
+            ['id' => 'u_studentB', 'username' => '202602', 'name' => '王芳 (组员)',    'password' => '123', 'role' => 'student', 'student_code' => '202602', 'class_id' => 'class_101', 'group_id' => 'group_1', 'avatar' => '👩‍🎓'],
+            ['id' => 'u_studentC', 'username' => '202603', 'name' => '陈强 (组员)',    'password' => '123', 'role' => 'student', 'student_code' => '202603', 'class_id' => 'class_101', 'group_id' => 'group_1', 'avatar' => '🧑‍🎓']
+        ];
+        $stmtUser = $pdo->prepare("INSERT INTO `users` (`id`, `username`, `name`, `password`, `role`, `student_code`, `class_id`, `group_id`, `avatar`) 
+            VALUES (:id, :un, :nm, :pw, :rl, :sc, :cid, :gid, :av)");
+        foreach ($seedUsers as $su) {
+            $stmtUser->execute([
+                ':id' => $su['id'], ':un' => $su['username'], ':nm' => $su['name'], ':pw' => $su['password'],
+                ':rl' => $su['role'], ':sc' => $su['student_code'], ':cid' => $su['class_id'], ':gid' => $su['group_id'], ':av' => $su['avatar']
+            ]);
+        }
     }
 
     // 3. 教学班级表 (classes)
@@ -63,23 +64,25 @@ function initDatabaseTables() {
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;";
     $pdo->exec($sql3);
 
-    // 写入默认班级 (ET2026-01)
-    $seedClassGroups = json_encode([
-        [
-            'id' => 'group_1', 
-            'name' => '第 1 协作小组 (测试组)', 
-            'members' => [
-                ['id' => 'u_studentA', 'name' => '李明', 'studentCode' => '202601', 'role' => '组长', 'roleTitle' => '组长', 'avatar' => '👨‍🎓', 'color' => '#2563eb'],
-                ['id' => 'u_studentB', 'name' => '王芳', 'studentCode' => '202602', 'role' => '组员', 'roleTitle' => '组员', 'avatar' => '👩‍🎓', 'color' => '#10b981'],
-                ['id' => 'u_studentC', 'name' => '陈强', 'studentCode' => '202603', 'role' => '组员', 'roleTitle' => '组员', 'avatar' => '🧑‍🎓', 'color' => '#f59e0b']
+    // 仅在 classes 表完全为空时写入初始班级
+    $chkClassCount = $pdo->query("SELECT COUNT(*) FROM `classes`")->fetchColumn();
+    if (intval($chkClassCount) === 0) {
+        $seedClassGroups = json_encode([
+            [
+                'id' => 'group_1', 
+                'name' => '第 1 协作小组 (测试组)', 
+                'members' => [
+                    ['id' => 'u_studentA', 'name' => '李明', 'studentCode' => '202601', 'role' => '组长', 'roleTitle' => '组长', 'avatar' => '👨‍🎓', 'color' => '#2563eb'],
+                    ['id' => 'u_studentB', 'name' => '王芳', 'studentCode' => '202602', 'role' => '组员', 'roleTitle' => '组员', 'avatar' => '👩‍🎓', 'color' => '#10b981'],
+                    ['id' => 'u_studentC', 'name' => '陈强', 'studentCode' => '202603', 'role' => '组员', 'roleTitle' => '组员', 'avatar' => '🧑‍🎓', 'color' => '#f59e0b']
+                ]
             ]
-        ]
-    ], JSON_UNESCAPED_UNICODE);
-    $seedClassStudents = json_encode(['u_studentA', 'u_studentB', 'u_studentC'], JSON_UNESCAPED_UNICODE);
-    $stmtClass = $pdo->prepare("INSERT INTO `classes` (`id`, `name`, `code`, `student_ids`, `groups_data`) 
-        VALUES ('class_101', '《现代教育技术》2026春01班', 'ET2026-01', :sids, :gdata)
-        ON DUPLICATE KEY UPDATE `name`=VALUES(`name`), `code`=VALUES(`code`), `student_ids`=VALUES(`student_ids`), `groups_data`=VALUES(`groups_data`)");
-    $stmtClass->execute([':sids' => $seedClassStudents, ':gdata' => $seedClassGroups]);
+        ], JSON_UNESCAPED_UNICODE);
+        $seedClassStudents = json_encode(['u_studentA', 'u_studentB', 'u_studentC'], JSON_UNESCAPED_UNICODE);
+        $stmtClass = $pdo->prepare("INSERT INTO `classes` (`id`, `name`, `code`, `student_ids`, `groups_data`) 
+            VALUES ('class_101', '《现代教育技术》2026春01班', 'ET2026-01', :sids, :gdata)");
+        $stmtClass->execute([':sids' => $seedClassStudents, ':gdata' => $seedClassGroups]);
+    }
 
     // 4. 发布的教学任务表 (tasks)
     $sql4 = "CREATE TABLE IF NOT EXISTS `tasks` (
@@ -136,10 +139,16 @@ function initDatabaseTables() {
         `members_data` LONGTEXT,
         `is_final_submitted` TINYINT(1) DEFAULT 0,
         `last_timestamp` BIGINT NOT NULL DEFAULT 0,
+        `revision_id` BIGINT UNSIGNED NOT NULL DEFAULT 1,
         `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
         INDEX idx_task_group (`task_id`, `group_id`)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;";
     $pdo->exec($sql7);
+
+    // 自动表迁移：确保已存在的 group_states 表包含 revision_id 字段
+    try {
+        $pdo->exec("ALTER TABLE `group_states` ADD COLUMN `revision_id` BIGINT UNSIGNED NOT NULL DEFAULT 1");
+    } catch (Exception $e) {}
 
     // 8. 研讨区实时消息流表 (chat_messages)
     $sql8 = "CREATE TABLE IF NOT EXISTS `chat_messages` (

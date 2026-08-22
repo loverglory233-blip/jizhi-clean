@@ -23,18 +23,27 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 }
 
 /**
- * 自动获取或刷新 OAuth Access Token (带本地文件缓存)
+ * 自动获取或刷新 OAuth Access Token (带本地文件缓存与排他锁并发保护)
  */
 function getCozeAccessToken() {
     global $COZE_APP_ID, $COZE_KEY_ID, $COZE_PRIVATE_KEY_FILE, $COZE_OAUTH_TOKEN_URL;
     
     $cacheFile = __DIR__ . '/token_cache.json';
     if (file_exists($cacheFile)) {
-        $cached = json_decode(file_get_contents($cacheFile), true);
-        if ($cached && isset($cached['access_token']) && isset($cached['expires_at'])) {
-            // 提前 5 分钟换新，确保绝对不失效
-            if (time() < ($cached['expires_at'] - 300)) {
-                return $cached['access_token'];
+        $fp = @fopen($cacheFile, 'r');
+        if ($fp) {
+            @flock($fp, LOCK_SH);
+            $raw = @stream_get_contents($fp);
+            @flock($fp, LOCK_UN);
+            @fclose($fp);
+            if (!empty($raw)) {
+                $cached = json_decode($raw, true);
+                if ($cached && isset($cached['access_token']) && isset($cached['expires_at'])) {
+                    // 提前 5 分钟换新，确保绝对不失效
+                    if (time() < ($cached['expires_at'] - 300)) {
+                        return $cached['access_token'];
+                    }
+                }
             }
         }
     }
@@ -103,7 +112,7 @@ function getCozeAccessToken() {
             'access_token' => $resData['access_token'],
             'expires_at' => $now + $expiresIn
         ];
-        @file_put_contents($cacheFile, json_encode($cachedData));
+        @file_put_contents($cacheFile, json_encode($cachedData), LOCK_EX);
         @chmod($cacheFile, 0666);
         return $resData['access_token'];
     }
@@ -111,8 +120,59 @@ function getCozeAccessToken() {
     return null;
 }
 
-$rawInput = file_get_contents('php://input');
-$req = json_decode($rawInput, true) ?: [];
+// 0. 单独的非阻塞状态轮询通道 (coze_poll)
+$pollChatId = $_GET['chat_id'] ?? ($req['chat_id'] ?? ($_GET['chatId'] ?? ($req['chatId'] ?? '')));
+$pollConvId = $_GET['conversation_id'] ?? ($req['conversation_id'] ?? ($_GET['conversationId'] ?? ($req['conversationId'] ?? '')));
+$pollBotId  = $_GET['bot_id'] ?? ($req['bot_id'] ?? '7673571806476828713');
+
+if (!empty($pollChatId) && !empty($pollConvId) && ($action === 'coze_poll' || isset($_GET['poll']))) {
+    $accessToken = getCozeAccessToken();
+    if (!$accessToken) {
+        echo json_encode(['success' => false, 'completed' => true, 'message' => 'OAuth token error']);
+        exit;
+    }
+    $headers = ['Authorization: Bearer ' . $accessToken, 'Content-Type: application/json'];
+    $pollUrl = $COZE_API_BASE_URL . "/chat/retrieve?chat_id={$pollChatId}&conversation_id={$pollConvId}";
+    $ch = curl_init($pollUrl);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 6);
+    $pollResp = curl_exec($ch);
+    curl_close($ch);
+
+    $pData = json_decode($pollResp, true) ?: [];
+    $status = isset($pData['data']['status']) ? $pData['data']['status'] : '';
+
+    if ($status === 'completed') {
+        $msgUrl = $COZE_API_BASE_URL . "/chat/message/list?chat_id={$pollChatId}&conversation_id={$pollConvId}";
+        $ch3 = curl_init($msgUrl);
+        curl_setopt($ch3, CURLOPT_HTTPHEADER, $headers);
+        curl_setopt($ch3, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch3, CURLOPT_SSL_VERIFYPEER, false);
+        curl_setopt($ch3, CURLOPT_TIMEOUT, 6);
+        $msgResp = curl_exec($ch3);
+        curl_close($ch3);
+
+        $mData = json_decode($msgResp, true) ?: [];
+        $msgs = isset($mData['data']) ? $mData['data'] : [];
+        $answerText = '';
+        foreach ($msgs as $m) {
+            if (isset($m['type']) && $m['type'] === 'answer') {
+                $answerText = isset($m['content']) ? $m['content'] : '';
+                break;
+            }
+        }
+        echo json_encode(['success' => true, 'completed' => true, 'reply' => $answerText, 'bot_id' => $pollBotId]);
+        exit;
+    } else if ($status === 'failed' || $status === 'canceled') {
+        echo json_encode(['success' => false, 'completed' => true, 'message' => 'Coze chat ' . $status]);
+        exit;
+    } else {
+        echo json_encode(['success' => true, 'completed' => false, 'status' => $status]);
+        exit;
+    }
+}
 
 $botKey = isset($req['bot_key']) ? $req['bot_key'] : '';
 $botId = isset($req['bot_id']) ? $req['bot_id'] : '';
@@ -174,8 +234,7 @@ curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
 curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
 curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
 curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
-curl_setopt($ch, CURLOPT_TIMEOUT, 20);
+curl_setopt($ch, CURLOPT_TIMEOUT, 12);
 
 $initResp = curl_exec($ch);
 curl_close($ch);
@@ -186,16 +245,15 @@ $convId = isset($initData['data']['conversation_id']) ? $initData['data']['conve
 
 $answerText = '';
 if ($chatId && $convId) {
-    // 4. 高频轮询 Retrieve 状态 (前 10 轮每轮 300ms 极速探测，后 15 轮每轮 500ms，2 秒左右即可极速拿到模型回答)
-    for ($i = 0; $i < 25; $i++) {
-        usleep($i < 10 ? 300000 : 500000); // 300ms / 500ms
+    // 4. 极速探测 2 轮 (约 600ms)，若快速生成完成则直接秒回；未完成则立即释放 PHP 进程交由前端非阻塞轮询
+    for ($i = 0; $i < 2; $i++) {
+        usleep(300000); // 300ms
         $pollUrl = $COZE_API_BASE_URL . "/chat/retrieve?chat_id={$chatId}&conversation_id={$convId}";
         $ch2 = curl_init($pollUrl);
         curl_setopt($ch2, CURLOPT_HTTPHEADER, $headers);
         curl_setopt($ch2, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($ch2, CURLOPT_SSL_VERIFYPEER, false);
-        curl_setopt($ch2, CURLOPT_SSL_VERIFYHOST, false);
-        curl_setopt($ch2, CURLOPT_TIMEOUT, 10);
+        curl_setopt($ch2, CURLOPT_TIMEOUT, 6);
         $pollResp = curl_exec($ch2);
         curl_close($ch2);
 
@@ -203,14 +261,12 @@ if ($chatId && $convId) {
         $status = isset($pData['data']['status']) ? $pData['data']['status'] : '';
         
         if ($status === 'completed') {
-            // 5. 拉取 Message 列表中的最新回复
             $msgUrl = $COZE_API_BASE_URL . "/chat/message/list?chat_id={$chatId}&conversation_id={$convId}";
             $ch3 = curl_init($msgUrl);
             curl_setopt($ch3, CURLOPT_HTTPHEADER, $headers);
             curl_setopt($ch3, CURLOPT_RETURNTRANSFER, true);
             curl_setopt($ch3, CURLOPT_SSL_VERIFYPEER, false);
-            curl_setopt($ch3, CURLOPT_SSL_VERIFYHOST, false);
-            curl_setopt($ch3, CURLOPT_TIMEOUT, 10);
+            curl_setopt($ch3, CURLOPT_TIMEOUT, 6);
             $msgResp = curl_exec($ch3);
             curl_close($ch3);
 
@@ -223,7 +279,7 @@ if ($chatId && $convId) {
                 }
             }
             break;
-        } elseif ($status === 'failed' || $status === 'requires_action' || $status === 'canceled') {
+        } elseif ($status === 'failed' || $status === 'canceled') {
             break;
         }
     }
@@ -232,7 +288,18 @@ if ($chatId && $convId) {
 if (!empty($answerText)) {
     echo json_encode([
         'success' => true,
+        'completed' => true,
         'reply' => $answerText,
+        'bot_id' => $botId
+    ]);
+} else if ($chatId && $convId) {
+    // 释放 PHP 进程，让前端以轻量单次请求继续非阻塞轮询，彻底杜绝 PHP 进程池耗尽卡死
+    echo json_encode([
+        'success' => true,
+        'completed' => false,
+        'in_progress' => true,
+        'chat_id' => $chatId,
+        'conversation_id' => $convId,
         'bot_id' => $botId
     ]);
 } else {

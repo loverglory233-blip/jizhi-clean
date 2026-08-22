@@ -1,0 +1,2711 @@
+/**
+ * JIZHI (集智) Platform - Teacher Portal & Analytics Matrix
+ * Standard ES Module (ESM)
+ */
+
+import {
+  STORAGE_KEY_ANNOUNCEMENTS,
+  STORAGE_KEY_TASKS,
+  STORAGE_KEY_CLASSES,
+  STORAGE_KEY_USERS_DB
+} from "./constants.js";
+import { parseXLSXOrCSVFile, downloadFileBlob } from "./utils.js";
+
+/* ==========================================================================
+   7. TEACHER PORTAL RENDERER (LIVE WORKSPACE MIRROR & ANNOUNCEMENT READ MATRIX)
+   ========================================================================== */
+export function renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView) {
+  const oldLayout = container.querySelector('.teacher-portal-layout') || document.querySelector('.teacher-portal-layout');
+  const savedScrollTop = oldLayout ? oldLayout.scrollTop : (state._teacherScrollTop || 0);
+
+  // ⚡ 教师端自动轻量轮询：每 3 秒从云端拉取学生的最新已读确认与小组动态，实时刷新受众追踪矩阵
+  if (window._teacherPortalSyncInterval) clearInterval(window._teacherPortalSyncInterval);
+  window._teacherPortalSyncInterval = setInterval(async () => {
+    const curU = authManager.getCurrentUser();
+    if (!curU || curU.role !== 'teacher') {
+      clearInterval(window._teacherPortalSyncInterval);
+      return;
+    }
+    if (document.querySelector('.modal-overlay')) return;
+
+    if (authManager && authManager.pullGlobalMeta) {
+      try {
+        const oldAnnsJson = localStorage.getItem(STORAGE_KEY_ANNOUNCEMENTS) || '[]';
+        await authManager.pullGlobalMeta();
+        const newAnnsJson = localStorage.getItem(STORAGE_KEY_ANNOUNCEMENTS) || '[]';
+        if (oldAnnsJson !== newAnnsJson) {
+          const layout = container.querySelector('.teacher-portal-layout');
+          const curScroll = layout ? layout.scrollTop : 0;
+          state._teacherScrollTop = curScroll;
+          renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+          const nextLayout = container.querySelector('.teacher-portal-layout');
+          if (nextLayout) nextLayout.scrollTop = curScroll;
+        }
+      } catch (e) {}
+    }
+  }, 3000);
+
+  if (authManager && authManager.sanitizeAndDeduplicateGroups) {
+    authManager.sanitizeAndDeduplicateGroups();
+  }
+  const currentUser = authManager.getCurrentUser();
+  const tasks = authManager.getTasks();
+  const announcements = authManager.getAnnouncements();
+  const refPapers = authManager.getReferencePapers();
+  const classes = authManager.getClasses();
+  const activeTab = state.teacherActiveTab || 'view_architecture';
+  const activeClassId = state.activeClassId || (classes[0] ? classes[0].id : 'class_101');
+  const activeClass = classes.find(c => c.id === activeClassId) || classes[0] || { id: 'class_101', name: '默认班级', groups: [] };
+
+  const allUsers = authManager.getUsers();
+  const classStudents = authManager.getClassStudents(activeClass.id);
+
+  const currentClassTasks = tasks.filter(t => t.classId === 'all' || t.classId === activeClass.id || (t.className && t.className === activeClass.name));
+  const currentClassAnnouncements = announcements.filter(a => a.classId === 'all' || !a.classId || a.classId === activeClass.id);
+  const currentClassPapers = refPapers.filter(p => p.classId === 'all' || !p.classId || p.classId === activeClass.id);
+
+  const classGroupExists = (activeClass.groups || []).some(g => g.id === state.activeMonitorGroupId);
+  const activeMonitorGId = (state.activeMonitorGroupId && classGroupExists)
+    ? state.activeMonitorGroupId
+    : (activeClass.groups && activeClass.groups[0] ? activeClass.groups[0].id : 'group_1');
+  state.activeMonitorGroupId = activeMonitorGId;
+  const activeMonitorGroup = (activeClass.groups || []).find(g => g.id === activeMonitorGId) || (activeClass.groups && activeClass.groups[0]) || { id: 'group_1', name: '第1小组' };
+  const monitorMembersObj = authManager.getGroupMembersForWorkspace(activeMonitorGId);
+  const monitorMembersList = Object.values(monitorMembersObj);
+
+  const teacherAlerts = authManager.getTeacherAlerts ? authManager.getTeacherAlerts() : [];
+  const unreadAlerts = teacherAlerts.filter(a => !a.read);
+  const unreadAlertCount = unreadAlerts.length;
+
+  container.innerHTML = `
+    <div class="teacher-portal-layout" id="teacher-portal-layout" style="height:100vh; overflow-y:auto !important; -webkit-overflow-scrolling:touch; background:#f0f4f9; padding:0; display:flex; flex-direction:column;">
+      <!-- 全屏头部导航 -->
+      <header class="teacher-header" style="padding:16px 32px; background:#ffffff; border-bottom:1px solid #e2e8f0; width:100%; flex-shrink:0; box-shadow:0 1px 3px rgba(15,23,42,0.04);">
+        <div class="brand-section">
+          <div class="brand-logo" style="font-size:22px; font-weight:800; background:linear-gradient(135deg, #1e40af, #2563eb); -webkit-background-clip:text; -webkit-text-fill-color:transparent;">集智 JIZHI 教师端</div>
+          <div class="brand-badge teacher-badge" style="background:#ecfdf5; color:#059669; border:1px solid #a7f3d0; padding:4px 12px; border-radius:12px; font-size:12px; font-weight:700;">👩‍🏫 全局实时教务控制中心 🟢</div>
+        </div>
+        <div class="teacher-info" style="display:flex; align-items:center; gap:14px;">
+          <span style="font-size:13.5px; color:#334155;">当前班级: <b style="color:#2563eb;">${activeClass.name}</b></span>
+          <span style="font-size:13.5px; color:#334155;">教师: <b>${currentUser.name}</b></span>
+          <button id="btn-teacher-alerts" style="background:#fffbeb; border:1px solid #fde68a; color:#b45309; padding:6px 14px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer; display:flex; align-items:center; gap:6px; box-shadow:0 1px 3px rgba(0,0,0,0.05);" title="查看小组代签与重要协同提醒">
+            <span>🔔 协同动态提醒</span>
+            ${unreadAlertCount > 0 ? `<span style="background:#dc2626; color:white; font-size:11px; padding:1px 6px; border-radius:10px; font-weight:800;">${unreadAlertCount}</span>` : ''}
+          </button>
+          <button id="btn-logout" class="header-icon-btn logout" style="background:#fef2f2; color:#dc2626; border:1px solid #fecaca; padding:8px 16px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer;">🚪 退出登录</button>
+        </div>
+      </header>
+
+      <!-- 三大界面导航卡片 -->
+      <div style="padding:16px 32px 0 32px; background:#f0f4f9; width:100%; flex-shrink:0;">
+        <div style="display:flex; gap:12px; width:100%; background:#ffffff; padding:6px; border-radius:14px; border:1px solid #e2e8f0; box-shadow:0 2px 8px rgba(15,23,42,0.04);">
+          <button class="teacher-tab-nav ${activeTab === 'view_architecture' ? 'active' : ''}" data-tab="view_architecture" style="flex:1; padding:12px; border-radius:10px; font-size:14px; font-weight:800; cursor:pointer; border:none; color:${activeTab === 'view_architecture' ? 'white' : '#475569'}; background:${activeTab === 'view_architecture' ? 'linear-gradient(135deg, #1d4ed8, #2563eb)' : '#f8fafc'}; transition:all 0.2s ease;">
+            🛠️ 基础架构管理
+          </button>
+          <button class="teacher-tab-nav ${activeTab === 'view_publishing' ? 'active' : ''}" data-tab="view_publishing" style="flex:1; padding:12px; border-radius:10px; font-size:14px; font-weight:800; cursor:pointer; border:none; color:${activeTab === 'view_publishing' ? 'white' : '#475569'}; background:${activeTab === 'view_publishing' ? 'linear-gradient(135deg, #1d4ed8, #2563eb)' : '#f8fafc'}; transition:all 0.2s ease;">
+            📢 任务与通知发布
+          </button>
+          <button class="teacher-tab-nav ${activeTab === 'view_monitoring' ? 'active' : ''}" data-tab="view_monitoring" style="flex:1; padding:12px; border-radius:10px; font-size:14px; font-weight:800; cursor:pointer; border:none; color:${activeTab === 'view_monitoring' ? 'white' : '#475569'}; background:${activeTab === 'view_monitoring' ? 'linear-gradient(135deg, #1d4ed8, #2563eb)' : '#f8fafc'}; transition:all 0.2s ease;">
+            🖥️ 学生实操实时监控
+          </button>
+        </div>
+      </div>
+
+      <main style="flex:1; padding:20px 32px 40px 32px; width:100%; overflow-y:visible;">
+
+        ${activeTab === 'view_architecture' ? `
+          <div style="display:flex; flex-direction:column; gap:20px; width:100%;">
+
+            <div class="card" style="border-top:4px solid #2563eb; width:100%; padding:24px;">
+              <div class="card-title" style="margin-bottom:16px;">
+                <span style="font-size:17px; font-weight:800; color:#0f172a;">🎓 教学班级管理 (${classes.length} 个班级)</span>
+                <button id="btn-v1-create-class" class="teacher-action-btn" style="background:linear-gradient(135deg, #1d4ed8, #2563eb); border:none; color:white; padding:8px 18px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer; box-shadow:0 2px 8px rgba(37,99,235,0.25);">+ 创建全新教学班</button>
+              </div>
+              <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(360px, 1fr)); gap:16px;">
+                ${classes.map(c => {
+                  const isSelected = c.id === activeClass.id;
+                  const cStds = authManager.getClassStudents(c.id);
+                  return `
+                    <div style="background:${isSelected ? '#eff6ff' : '#ffffff'}; border:1.5px solid ${isSelected ? '#3b82f6' : '#e2e8f0'}; border-radius:12px; padding:18px 20px; display:flex; justify-content:space-between; align-items:center; box-shadow:0 1px 3px rgba(15,23,42,0.03);">
+                      <div style="min-width:0; padding-right:12px;">
+                        <div style="font-size:16px; font-weight:800; color:${isSelected ? '#1d4ed8' : '#0f172a'}; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">🏫 ${c.name}</div>
+                        <div style="font-size:12.5px; color:#64748b; margin-top:5px;">学生: <b>${cStds.length}</b> 人 | 小组: <b>${(c.groups || []).length}</b> 个</div>
+                      </div>
+                      <div style="display:flex; gap:8px; align-items:center; flex-shrink:0;">
+                        <button class="btn-select-class" data-id="${c.id}" style="background:${isSelected ? '#ecfdf5' : '#2563eb'}; border:1px solid ${isSelected ? '#a7f3d0' : 'transparent'}; color:${isSelected ? '#059669' : 'white'}; padding:7px 14px; border-radius:8px; font-size:12.5px; font-weight:700; cursor:pointer; white-space:nowrap; display:inline-flex; align-items:center; gap:4px;">
+                          ${isSelected ? '✅ 当前主班' : '切换'}
+                        </button>
+                        ${classes.length > 1 ? `
+                          <button class="btn-delete-class" data-id="${c.id}" data-name="${c.name}" style="background:#fef2f2; border:1px solid #fecaca; color:#dc2626; padding:7px 10px; border-radius:8px; font-size:12px; font-weight:700; cursor:pointer; flex-shrink:0;" title="删除此教学班级">
+                            🗑️
+                          </button>
+                        ` : ''}
+                      </div>
+                    </div>
+                  `;
+                }).join('')}
+              </div>
+            </div>
+
+            <div class="card" style="border-top:4px solid #2563eb; width:100%; padding:24px;">
+              <div class="card-title" style="margin-bottom:16px;">
+                <span style="font-size:17px; font-weight:800; color:#0f172a;">👨‍🎓 学生账号管理 (当前班级: ${activeClass.name})</span>
+                <div style="display:flex; gap:10px; align-items:center;">
+                  <button id="btn-v1-add-student" class="teacher-action-btn" style="background:linear-gradient(135deg, #1d4ed8, #2563eb); border:none; color:white; padding:8px 18px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer; box-shadow:0 2px 8px rgba(37,99,235,0.25);">+ 单条创建学生账号</button>
+                  <button id="btn-v1-import-file" class="teacher-action-btn" style="background:linear-gradient(135deg, #1d4ed8, #2563eb); border:none; color:white; padding:8px 18px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer; box-shadow:0 2px 8px rgba(37,99,235,0.25);">
+                    📥 上传 XLSX / CSV 文件导入
+                  </button>
+                  ${classStudents.length > 0 ? `
+                    <button id="btn-clear-class-students" style="background:#fef2f2; border:1px solid #fecaca; color:#dc2626; padding:8px 14px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer;">
+                      🗑️ 一键清空本班学生
+                    </button>
+                  ` : ''}
+                </div>
+              </div>
+              <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:12px 16px; margin-bottom:14px; font-size:13px; color:#334155; display:flex; justify-content:space-between; align-items:center;">
+                <div>💡 <b>密码说明：</b> 创建学生时可指定自定义密码（留空统一定为 <code style="color:#059669; font-weight:700;">123</code>）。建立后直接放入班级学生池。</div>
+                <span style="color:#2563eb; font-weight:800; font-size:13.5px;">池内学生: ${classStudents.length} 人</span>
+              </div>
+              <div style="border:1px solid #e2e8f0; border-radius:10px; overflow:hidden; background:#ffffff;">
+                <table class="monitor-table" style="font-size:13px;">
+                  <thead><tr><th>序号</th><th>姓名</th><th>学号</th><th>当前归属小组</th><th>密码</th><th>操作</th></tr></thead>
+                  <tbody>
+                    ${classStudents.length === 0 ? '<tr><td colspan="6" style="text-align:center; color:#64748b; padding:24px;">当前班级暂无学生账号，请点击右上角按钮创建或导入！</td></tr>' : ''}
+                    ${classStudents.map((s, idx) => {
+                      const grp = (activeClass.groups || []).find(g => g.members && (g.members.includes(s.id) || g.members.includes(s.studentCode) || (typeof g.members[0] === 'object' && g.members.some(m => m.id === s.id || m.studentCode === s.studentCode))));
+                      return `
+                        <tr>
+                          <td style="color:#94a3b8; font-weight:700;">${idx + 1}</td>
+                          <td><b>${s.avatar || '👤'} ${s.name}</b></td>
+                          <td><span style="color:#2563eb; font-family:monospace; font-weight:700;">${s.studentCode || s.username}</span></td>
+                          <td>${grp ? `<span style="background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe; padding:2px 8px; border-radius:8px; font-size:12px; font-weight:700;">${grp.name}</span>` : '<span style="color:#94a3b8;">⏳ 待划分小组</span>'}</td>
+                          <td><span style="color:#059669; font-family:monospace; font-weight:700;">${s.password || '123'}</span></td>
+                          <td>
+                            <button class="delete-student-btn" data-id="${s.id}" style="background:#fef2f2; border:1px solid #fecaca; color:#dc2626; padding:4px 10px; border-radius:6px; font-size:12px; cursor:pointer; font-weight:700;" title="从本班移除">
+                              移除
+                            </button>
+                          </td>
+                        </tr>
+                      `;
+                    }).join('')}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div class="card" style="border-top:4px solid #2563eb; width:100%; padding:24px;">
+              <div class="card-title" style="margin-bottom:16px;">
+                <span style="font-size:17px; font-weight:800; color:#0f172a;">👥 小组划分 (当前班级: ${activeClass.name})</span>
+                <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+                  <button id="btn-v1-create-group" class="teacher-action-btn" style="background:linear-gradient(135deg, #1d4ed8, #2563eb); border:none; color:white; padding:8px 16px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer; box-shadow:0 2px 8px rgba(37,99,235,0.25);">+ 新建小组</button>
+                  
+                  <div style="display:flex; align-items:center; gap:6px; background:#f0fdf4; border:1px solid #bbf7d0; padding:4px 10px; border-radius:8px;">
+                    <span style="font-size:12.5px; font-weight:700; color:#166534;">每组</span>
+                    <select id="sel-random-group-size" style="padding:4px 8px; border:1px solid #86efac; border-radius:6px; font-size:13px; font-weight:800; color:#15803d; background:#ffffff; cursor:pointer;">
+                      <option value="2">2 人</option>
+                      <option value="3" selected>3 人</option>
+                      <option value="4">4 人</option>
+                      <option value="5">5 人</option>
+                      <option value="6">6 人</option>
+                    </select>
+                    <button id="btn-v1-random-groups" class="teacher-action-btn" style="background:linear-gradient(135deg, #059669, #10b981); border:none; color:white; padding:6px 14px; border-radius:6px; font-size:12.5px; font-weight:700; cursor:pointer; box-shadow:0 2px 6px rgba(16,185,129,0.25);" title="按所选人数自动随机划分班级内全部学生">🎲 一键随机分组</button>
+                  </div>
+
+                  <button id="btn-v1-dissolve-all-groups" class="teacher-action-btn" style="background:linear-gradient(135deg, #dc2626, #b91c1c); border:none; color:white; padding:8px 16px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer; box-shadow:0 2px 8px rgba(220,38,38,0.25);">💥 一键解散所有小组</button>
+                </div>
+              </div>
+              <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:12px 16px; margin-bottom:14px; font-size:13px; color:#334155;">
+                💡 <b>班级互斥划分规则：</b>已归属于本班级其他小组的学生会自动隐藏，避免重复挂组。跨班级独立计算。
+              </div>
+              <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(360px, 1fr)); gap:16px;">
+                ${(() => {
+                  const validGroups = (activeClass.groups || []).filter(grp => {
+                    const groupMembers = classStudents.filter(s => (grp.members || []).some(m => {
+                      const mId = (typeof m === 'object' && m !== null) ? (m.id || m.userId || m.studentCode) : m;
+                      return mId === s.id || (mId && s.studentCode && mId.toString() === s.studentCode.toString());
+                    }));
+                    const isTestGroup = grp.name && grp.name.includes('测试组');
+                    return groupMembers.length > 0 || isTestGroup;
+                  });
+
+                  // 自动规整命名
+                  const hasTest = validGroups.some(g => g.name && g.name.includes('测试组'));
+                  let nonTestIdx = hasTest ? 2 : 1;
+                  validGroups.forEach(g => {
+                    if (g.name && g.name.includes('测试组')) {
+                      g.name = '第 1 协作小组 (测试组)';
+                    } else {
+                      g.name = `第 ${nonTestIdx} 协作小组`;
+                      nonTestIdx++;
+                    }
+                  });
+
+                  if (validGroups.length !== (activeClass.groups || []).length) {
+                    activeClass.groups = validGroups;
+                    localStorage.setItem(STORAGE_KEY_CLASSES, JSON.stringify(classes));
+                    authManager.pushGlobalMeta();
+                  }
+
+                  if (validGroups.length === 0) {
+                    return '<div style="color:#64748b; padding:20px; font-size:14px;">当前班级暂无小组。</div>';
+                  }
+
+                  return validGroups.map(grp => {
+                    const groupMembers = classStudents.filter(s => (grp.members || []).some(m => {
+                      const mId = (typeof m === 'object' && m !== null) ? (m.id || m.userId || m.studentCode) : m;
+                      return mId === s.id || (mId && s.studentCode && mId.toString() === s.studentCode.toString());
+                    }));
+                    return `
+                      <div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:12px; padding:18px; box-shadow:0 1px 3px rgba(15,23,42,0.03);">
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+                          <span style="font-size:15.5px; font-weight:800; color:#1d4ed8;">👥 ${grp.name} (${groupMembers.length}人)</span>
+                          <div style="display:flex; gap:8px;">
+                            <button class="btn-edit-group-members" data-gid="${grp.id}" style="background:#eff6ff; border:1px solid #bfdbfe; color:#1d4ed8; padding:6px 12px; border-radius:6px; font-size:12px; font-weight:700; cursor:pointer;">⚙️ 勾选组员</button>
+                            <button class="btn-delete-group" data-gid="${grp.id}" style="background:#fef2f2; border:1px solid #fecaca; color:#dc2626; padding:6px 10px; border-radius:6px; font-size:12px; cursor:pointer; font-weight:700;">✕ 解散</button>
+                          </div>
+                        </div>
+                        <div style="display:flex; flex-wrap:wrap; gap:8px; font-size:13px;">
+                          ${groupMembers.length === 0 ? '<span style="color:#94a3b8; font-size:12px;">⚠️ 暂未勾选成员</span>' : ''}
+                          ${groupMembers.map(m => `
+                            <span style="background:#eff6ff; border:1px solid #bfdbfe; color:#1d4ed8; padding:4px 10px; border-radius:6px; font-weight:600;">
+                              ${m.avatar || '👤'} ${m.name} ${(m.role === 'leader' || m.roleTitle?.includes('组长') || m.studentCode === 'A' || m.studentCode === '202601') ? '<b style="color:#d97706;">(组长)</b>' : ''}
+                            </span>
+                          `).join('')}
+                        </div>
+                      </div>
+                    `;
+                  }).join('');
+                })()}
+              </div>
+            </div>
+
+          </div>
+        ` : ''}
+
+        ${activeTab === 'view_publishing' ? (() => {
+          const currentClassTasks = tasks.filter(t => t.classId === 'all' || t.classId === activeClass.id);
+          const currentClassAnnouncements = announcements.filter(a => a.classId === 'all' || !a.classId || a.classId === activeClass.id);
+          const currentClassPapers = refPapers.filter(p => p.classId === 'all' || !p.classId || p.classId === activeClass.id);
+
+          const surveysList = authManager.getSurveysList();
+          const currentSelectedSurveyUrl = authManager.getSurveyUrl(activeClass.id, currentClassTasks[0] ? currentClassTasks[0].id : 'task_default');
+
+          return `
+          <div style="display:flex; flex-direction:column; gap:20px; width:100%;">
+
+            <!-- 1. 课程协作写作任务集中发布中心 (最开始) -->
+            <div class="card" style="border-top:4px solid #2563eb; width:100%; padding:24px;">
+              <div class="card-title" style="margin-bottom:16px;">
+                <span style="font-size:17px; font-weight:800; color:#0f172a;">📌 课程写作任务发布 (${currentClassTasks.length} 项 · 当前班级: ${activeClass.name})</span>
+                <button id="btn-v2-open-task-modal" class="teacher-action-btn indigo" style="background:#2563eb; padding:8px 18px; font-size:13px; font-weight:700;">+ 发布全新写作任务</button>
+              </div>
+              <div style="display:flex; flex-direction:column; gap:14px;">
+                ${currentClassTasks.length === 0 ? `
+                  <div style="text-align:center; padding:32px; background:#f8fafc; border-radius:10px; border:2px dashed #cbd5e1;">
+                    <div style="font-size:32px; margin-bottom:8px;">📌</div>
+                    <div style="font-size:15px; font-weight:800; color:#0f172a;">当前班级暂无发布的写作任务</div>
+                    <div style="font-size:12.5px; color:#64748b; margin-top:4px;">点击右上角【+ 发布全新写作任务】为本班级创建独立任务！</div>
+                  </div>
+                ` : currentClassTasks.map((t, tIdx) => {
+                  const isLatest = tIdx === 0;
+                  const taskSeqNum = currentClassTasks.length - tIdx;
+                  return `
+                  <div style="background:#ffffff; border:1px solid #e2e8f0; padding:18px; border-radius:12px; box-shadow:0 1px 3px rgba(15,23,42,0.03);">
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                      <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                        <span style="background:linear-gradient(135deg, #1d4ed8, #2563eb); color:#ffffff; padding:3px 10px; border-radius:8px; font-size:12px; font-weight:800;">任务 ${taskSeqNum}${isLatest ? ' (最新)' : ''}</span>
+                        <span style="font-size:16px; font-weight:800; color:#1e40af;">📌 ${t.title}</span>
+                        <span style="background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe; padding:2px 8px; border-radius:8px; font-size:11.5px; font-weight:700;">受众班级: ${t.className}</span>
+                      </div>
+                      <div style="display:flex; align-items:center; gap:8px;">
+                        <span style="font-size:12px; color:#64748b; margin-right:4px;">🕒 发布时间: <b>${t.createdAt || t.startTime || '刚刚'}</b></span>
+                        <button class="btn-edit-task" data-id="${t.id}" data-title="${t.title}" data-duration="${t.durationMinutes || 150}" data-instructions="${encodeURIComponent(t.instructions || '')}" data-start="${t.startTime || ''}" data-deadline="${t.deadline || ''}" style="background:#eff6ff; border:1px solid #bfdbfe; color:#2563eb; padding:5px 12px; border-radius:6px; font-size:12.5px; font-weight:700; cursor:pointer;" title="编辑修改此写作任务">
+                          ✏️ 修改任务
+                        </button>
+                        <button class="btn-delete-task" data-id="${t.id}" data-title="${t.title}" style="background:#fef2f2; border:1px solid #fecaca; color:#dc2626; padding:5px 12px; border-radius:6px; font-size:12.5px; font-weight:700; cursor:pointer;" title="删除此写作任务">
+                          🗑️ 删除任务
+                        </button>
+                      </div>
+                    </div>
+                    <div style="font-size:13px; color:#334155; margin:10px 0; display:flex; gap:20px; background:#f8fafc; padding:10px 16px; border-radius:8px; border-left:4px solid #2563eb;">
+                      <span>📅 <b>开始时间:</b> <span style="color:#2563eb; font-weight:700;">${t.startTime || '即时开启'}</span></span>
+                      <span>⌛ <b>截止时间:</b> <span style="color:#dc2626; font-weight:700;">${t.deadline || '无硬性限制'}</span></span>
+                      <span>⏱️ <b>预估时长:</b> ${t.durationMinutes} 分钟</span>
+                    </div>
+                  </div>
+                  `;
+                }).join('')}
+              </div>
+            </div>
+
+            <!-- 2. 问卷链接配置 (第二个) -->
+            <div class="card" style="border-top:4px solid #2563eb; width:100%; padding:24px;">
+              <div class="card-title" style="margin-bottom:16px;">
+                <span style="font-size:17px; font-weight:800; color:#0f172a;">📋 课程评估问卷链接配置 (当前主班: ${activeClass.name})</span>
+              </div>
+              
+              <div style="display:flex; flex-direction:column; gap:14px; background:#f8fafc; padding:18px; border-radius:12px; border:1px solid #e2e8f0;">
+                <div style="display:flex; gap:16px; flex-wrap:wrap; align-items:center;">
+                  <div style="display:flex; gap:8px; align-items:center;">
+                    <span style="font-size:13px; font-weight:700; color:#334155; white-space:nowrap;">🏫 目标班级:</span>
+                    <select id="sel-survey-class" class="teacher-input fancy" style="min-width:220px; font-weight:700;">
+                      ${classes.map(c => `<option value="${c.id}" ${c.id === activeClass.id ? 'selected' : ''}>🏫 ${c.name}</option>`).join('')}
+                    </select>
+                  </div>
+
+                  <div style="display:flex; gap:8px; align-items:center;">
+                    <span style="font-size:13px; font-weight:700; color:#334155; white-space:nowrap;">📌 绑定任务:</span>
+                    <select id="sel-survey-task" class="teacher-input fancy" style="min-width:220px; font-weight:700;">
+                      ${currentClassTasks.map((t, idx) => `<option value="${t.id}" ${idx === 0 ? 'selected' : ''}>📌 ${t.title}</option>`).join('')}
+                    </select>
+                  </div>
+                </div>
+
+                <div style="display:flex; gap:10px; align-items:center;">
+                  <input type="text" id="input-survey-url" class="teacher-input fancy" placeholder="请输入问卷星或第三方问卷网址 (如: https://www.wjx.cn/vm/xxxx.aspx)" value="${currentSelectedSurveyUrl || ''}" style="flex:1;">
+                  <button id="btn-save-survey-url" class="teacher-action-btn" style="background:linear-gradient(135deg, #1d4ed8, #2563eb); border:none; color:white; padding:8px 20px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer; white-space:nowrap; box-shadow:0 2px 8px rgba(37,99,235,0.25);">
+                    💾 保存问卷链接
+                  </button>
+                </div>
+              </div>
+
+              <!-- 📊 当前班级已生效的问卷绑定总览 -->
+              <div style="margin-top:16px;">
+                ${(() => {
+                  const currentClassSurveys = surveysList.filter(s => s.classId === activeClass.id);
+                  return `
+                    <div style="font-size:13px; font-weight:800; color:#334155; margin-bottom:10px;">
+                      📊 【${activeClass.name}】已绑定问卷清单 (${currentClassSurveys.length} 项已配置):
+                    </div>
+                    ${currentClassSurveys.length === 0 ? `
+                      <div style="background:#ffffff; border:1px dashed #cbd5e1; border-radius:8px; padding:16px; font-size:13px; color:#94a3b8; text-align:center;">
+                        【${activeClass.name}】暂无配置的自定义问卷链接（学生提交终稿时将使用默认问卷）
+                      </div>
+                    ` : `
+                      <div style="display:flex; flex-direction:column; gap:8px;">
+                        ${currentClassSurveys.map((s, sIdx) => {
+                          const surveySeqNum = currentClassSurveys.length - sIdx;
+                          const isLatestSurvey = sIdx === 0;
+                          return `
+                            <div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:8px; padding:10px 14px; display:flex; justify-content:space-between; align-items:center; gap:12px; box-shadow:0 1px 3px rgba(15,23,42,0.02);">
+                              <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+                                <span style="background:linear-gradient(135deg, #1d4ed8, #2563eb); color:#ffffff; padding:2px 8px; border-radius:6px; font-size:11.5px; font-weight:800;">问卷 ${surveySeqNum}${isLatestSurvey ? ' (最新)' : ''}</span>
+                                <span style="background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe; padding:2px 8px; border-radius:6px; font-size:12px; font-weight:700;">🏫 ${s.className || '指定班级'}</span>
+                                <span style="background:#f5f3ff; color:#7c3aed; border:1px solid #ddd6fe; padding:2px 8px; border-radius:6px; font-size:12px; font-weight:700;">📌 ${s.taskTitle || '指定写作任务'}</span>
+                                <a href="${s.url}" target="_blank" style="font-size:12px; color:#2563eb; text-decoration:none; font-family:monospace; max-width:320px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">🔗 ${s.url}</a>
+                              </div>
+                              <div style="display:flex; gap:8px;">
+                                <button class="btn-quick-fill-survey" data-id="${s.id}" data-cid="${s.classId}" data-tid="${s.taskId}" data-url="${encodeURIComponent(s.url)}" style="background:#f8fafc; border:1px solid #cbd5e1; color:#334155; padding:4px 10px; border-radius:6px; font-size:11.5px; font-weight:700; cursor:pointer;">
+                                  📝 载入修改
+                                </button>
+                                <button class="btn-delete-survey-item" data-id="${s.id}" style="background:#fef2f2; border:1px solid #fecaca; color:#dc2626; padding:4px 8px; border-radius:6px; font-size:11.5px; font-weight:700; cursor:pointer;">
+                                  🗑️ 清除
+                                </button>
+                              </div>
+                            </div>
+                          `;
+                        }).join('')}
+                      </div>
+                    `}
+                  `;
+                })()}
+              </div>
+
+            </div>
+
+            <!-- 3. 课程参考范文与文献样例库 (第三个) -->
+            <div class="card" style="border-top:4px solid #2563eb; width:100%; padding:24px;">
+              <div class="card-title" style="margin-bottom:16px;">
+                <span style="font-size:17px; font-weight:800; color:#0f172a;">📚 课程参考范文库 (${currentClassPapers.length} 篇 · 当前班级: ${activeClass.name})</span>
+                <button id="btn-v2-open-paper-modal" class="teacher-action-btn" style="background:linear-gradient(135deg, #1d4ed8, #2563eb); padding:8px 18px; font-size:13px; font-weight:700; border:none; color:white; border-radius:8px; cursor:pointer; box-shadow:0 2px 8px rgba(37,99,235,0.25);">
+                  + 上传学术参考范文
+                </button>
+              </div>
+              
+              <div class="reference-papers-list" style="display:flex; flex-direction:column; gap:14px;">
+                ${currentClassPapers.length === 0 ? `
+                  <div style="text-align:center; padding:32px; background:#f8fafc; border-radius:10px; border:2px dashed #cbd5e1;">
+                    <div style="font-size:32px; margin-bottom:8px;">📚</div>
+                    <div style="font-size:15px; font-weight:800; color:#0f172a;">当前班级暂无上传的课程参考范文</div>
+                    <div style="font-size:12.5px; color:#64748b; margin-top:4px;">点击右上角【+ 上传学术参考范文】上传论文样本，学生可在阶段二正文上方随时查阅下载！</div>
+                  </div>
+                ` : currentClassPapers.map((p, pIdx) => {
+                  const linkedTask = tasks.find(t => t.id === p.taskId);
+                  const taskLabel = p.taskId === 'task_all' || !p.taskId ? '🌐 通用范文 (全部任务)' : (linkedTask ? `📌 ${linkedTask.title}` : '📌 专属任务范文');
+                  const isLatest = pIdx === 0;
+                  const paperSeqNum = currentClassPapers.length - pIdx;
+                  return `
+                  <div style="background:#ffffff; border:1px solid #e2e8f0; padding:18px; border-radius:12px; box-shadow:0 1px 3px rgba(15,23,42,0.03);">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                      <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                        <span style="background:linear-gradient(135deg, #7c3aed, #4f46e5); color:#ffffff; padding:3px 10px; border-radius:8px; font-size:12px; font-weight:800;">范文 ${paperSeqNum}${isLatest ? ' (最新)' : ''}</span>
+                        <span style="font-weight:800; color:#1e40af; font-size:16px;">📄 ${p.title}</span>
+                        <span style="background:#f5f3ff; color:#7c3aed; border:1px solid #ddd6fe; padding:2px 8px; border-radius:8px; font-size:11.5px; font-weight:700;">${taskLabel}</span>
+                        <span style="background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe; padding:2px 8px; border-radius:8px; font-size:11.5px; font-weight:700;">定向受众: ${p.targetGroupName || '全班所有小组'}</span>
+                      </div>
+                      <span style="font-size:12px; color:#64748b;">${p.uploadTime} | 上传人: ${p.author || '教师'}</span>
+                    </div>
+                    ${p.keyHighlights ? `
+                      <div style="font-size:13px; color:#334155; margin-bottom:10px; line-height:1.6; background:#f8fafc; padding:10px 14px; border-radius:8px; border-left:3px solid #2563eb;">
+                        <b>💡 核心论证亮点与学术价值：</b>${p.keyHighlights}
+                      </div>
+                    ` : ''}
+                    ${p.abstract ? `
+                      <div style="font-size:12.5px; color:#64748b; margin-bottom:10px; line-height:1.5;">
+                        <b>摘要：</b>${p.abstract}
+                      </div>
+                    ` : ''}
+                    <div style="display:flex; justify-content:space-between; align-items:center; border-top:1px solid #f1f5f9; padding-top:10px; margin-top:6px;">
+                      <div>
+                        ${p.fileName ? `
+                          <button class="btn-download-paper-file" data-id="${p.id}" style="background:#eff6ff; border:1px solid #bfdbfe; color:#2563eb; padding:5px 12px; border-radius:6px; font-size:12px; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; gap:6px;">
+                            📥 下载随附文献: <b>${p.fileName}</b> (${p.fileSize || '附件'})
+                          </button>
+                        ` : '<span style="font-size:12px; color:#94a3b8;">无独立附件文件</span>'}
+                      </div>
+                      <div style="display:flex; gap:10px;">
+                        <button class="btn-delete-paper" data-id="${p.id}" style="background:#fef2f2; border:1px solid #fecaca; color:#dc2626; padding:6px 12px; border-radius:6px; font-size:12px; font-weight:700; cursor:pointer;">
+                          🗑️ 删除
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                  `;
+                }).join('')}
+              </div>
+            </div>
+
+            <!-- 4. 发布课堂广播通知 (第四个) -->
+            <div class="card" style="border-top:4px solid #2563eb; width:100%; padding:24px;">
+              <div class="card-title" style="margin-bottom:16px;">
+                <span style="font-size:17px; font-weight:800; color:#0f172a;">📢 课堂即时广播通知发布 (${currentClassAnnouncements.length} 条 · 当前班级: ${activeClass.name})</span>
+                <button id="btn-v2-open-ann-modal" class="teacher-action-btn" style="background:linear-gradient(135deg, #1d4ed8, #2563eb); border:none; color:white; padding:8px 18px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer; box-shadow:0 2px 8px rgba(37,99,235,0.25);">
+                  + 发布新通知 (选择/拖拽上传资源文件)
+                </button>
+              </div>
+              <div class="announcement-history-list" style="display:flex; flex-direction:column; gap:16px;">
+                ${currentClassAnnouncements.length === 0 ? `
+                  <div style="text-align:center; padding:32px; background:#f8fafc; border-radius:10px; border:2px dashed #cbd5e1;">
+                    <div style="font-size:32px; margin-bottom:8px;">📢</div>
+                    <div style="font-size:15px; font-weight:800; color:#0f172a;">当前班级暂无发布的课堂广播通知</div>
+                    <div style="font-size:12.5px; color:#64748b; margin-top:4px;">点击右上角【+ 发布新通知】向本班学生发布即时指令！</div>
+                  </div>
+                ` : currentClassAnnouncements.map((a, idx) => {
+                  const allClassGroups = (activeClass.groups && activeClass.groups.length > 0)
+                    ? activeClass.groups
+                    : [{ id: 'group_1', name: '第 1 协作小组' }];
+
+                  const seenGIds = new Set();
+                  let targetGroups = [];
+                  allClassGroups.forEach(g => {
+                    if (!g || !g.id || seenGIds.has(g.id)) return;
+                    let isMatch = false;
+                    // 全班所有小组
+                    if (!a.targetGroupId || a.targetGroupId === 'all') isMatch = true;
+                    else if (Array.isArray(a.targetGroupIds) && a.targetGroupIds.includes('all')) isMatch = true;
+                    // 定向小组 (按 ID 或名称匹配当前班级中的对应小组)
+                    else if (Array.isArray(a.targetGroupIds) && (a.targetGroupIds.includes(g.id) || a.targetGroupIds.includes(g.name))) isMatch = true;
+                    else if (a.targetGroupId === g.id || a.targetGroupId === g.name) isMatch = true;
+                    else if (a.targetGroupName && a.targetGroupName !== '全班所有小组') {
+                      const names = a.targetGroupName.split('、').map(s => s.trim());
+                      if (names.includes(g.name)) isMatch = true;
+                    }
+                    if (isMatch) {
+                      seenGIds.add(g.id);
+                      targetGroups.push(g);
+                    }
+                  });
+
+                  // 兜底：若受众组当前未在班级列表中找到，用通知记录的目标组名呈现，绝不呈现空白
+                  if (targetGroups.length === 0) {
+                    targetGroups = [{ id: a.targetGroupId || 'group_target', name: a.targetGroupName || '定向协作小组' }];
+                  }
+                  const targetGName = a.targetGroupName || (targetGroups.length === allClassGroups.length ? '全班所有小组' : targetGroups.map(g => g.name).join('、'));
+                  const taskLabel = a.taskId === 'task_all' || !a.taskId ? '🌐 全班通识广播' : `📌 ${a.taskTitle || '专属任务'}`;
+                  const isLatest = idx === 0;
+                  const annSeqNum = currentClassAnnouncements.length - idx;
+                  return `
+                    <div style="background:#ffffff; border:1px solid #e2e8f0; padding:18px; border-radius:12px; box-shadow:0 1px 3px rgba(15,23,42,0.03);">
+                      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                        <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                          <span style="background:linear-gradient(135deg, #1d4ed8, #2563eb); color:#ffffff; padding:3px 10px; border-radius:8px; font-size:12px; font-weight:800;">通知 ${annSeqNum}${isLatest ? ' (最新)' : ''}</span>
+                          <span style="font-weight:800; color:#1e40af; font-size:16px;">📢 ${a.title}</span>
+                          <span style="background:#f5f3ff; color:#7c3aed; border:1px solid #ddd6fe; padding:2px 8px; border-radius:8px; font-size:11.5px; font-weight:700;">${taskLabel}</span>
+                          <span style="background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe; padding:2px 8px; border-radius:8px; font-size:11.5px; font-weight:700;">定向受众: ${targetGName}</span>
+                        </div>
+                        <div style="display:flex; align-items:center; gap:10px;">
+                          <span style="font-size:12px; color:#64748b;">${a.time} | 发布人: ${a.author || '老师'}</span>
+                          <button class="btn-delete-announcement" data-id="${a.id}" data-title="${a.title}" style="background:#fef2f2; border:1px solid #fecaca; color:#dc2626; padding:3px 8px; border-radius:6px; font-size:11.5px; font-weight:700; cursor:pointer;" title="删除此通知">
+                            🗑️ 删除通知
+                          </button>
+                        </div>
+                      </div>
+                      <div style="font-size:13px; color:#334155; margin-bottom:10px; line-height:1.6;">${a.content}</div>
+                      ${a.attachment ? `
+                        <div style="font-size:12px; color:#1d4ed8; background:#eff6ff; border:1px solid #bfdbfe; padding:6px 12px; border-radius:8px; display:inline-flex; align-items:center; gap:8px; margin-bottom:10px; font-weight:600;">
+                          <span>📎 随附资源文件: <b>${a.attachment.name}</b> (${a.attachment.size})</span>
+                        </div>
+                      ` : ''}
+
+                      <!-- 📊 受众小组已读/未读实时确认追踪矩阵 (只展示实际接收到通知的受众小组) -->
+                      <div style="margin-top:10px; background:#f8fafc; padding:12px 16px; border-radius:10px; border:1px solid #e2e8f0;">
+                        <div style="font-size:12px; font-weight:700; color:#334155; margin-bottom:8px; display:flex; justify-content:space-between; align-items:center;">
+                          <span>📊 定向受众小组阅读确认追踪矩阵 (${targetGroups.length} 个小组):</span>
+                          <span style="font-size:11px; color:#059669; font-weight:700;">🟢 学生端确认后实时点亮</span>
+                        </div>
+                        <div style="display:flex; flex-wrap:wrap; gap:10px; font-size:12px;">
+                          ${targetGroups.map(g => {
+                            const groupConfirmedList = (a.confirmedMembers || []).filter(m => m && (m.groupId === g.id || (m.groupId && m.groupId === g.name)));
+                            const gMembers = Array.isArray(g.members) ? g.members : [];
+                            const memberConfirmedNames = [];
+
+                            gMembers.forEach(m => {
+                              const mId = (typeof m === 'object' && m !== null) ? (m.id || m.userId || m.studentCode) : m;
+                              const mName = (typeof m === 'object' && m !== null) ? m.name : null;
+                              const uObj = mId ? allUsers.find(u => u.id === mId || u.studentCode === mId || u.username === mId || u.name === mId) : null;
+                              const uName = (uObj ? uObj.name : null) || mName || (typeof mId === 'string' && !mId.startsWith('u_') ? mId : null);
+
+                              const hasRead = a.readStatus && (
+                                (mId && a.readStatus[mId]) ||
+                                (uObj && uObj.id && a.readStatus[uObj.id]) ||
+                                (uObj && uObj.studentCode && a.readStatus[uObj.studentCode]) ||
+                                (uObj && uObj.username && a.readStatus[uObj.username]) ||
+                                (uObj && uObj.name && a.readStatus[uObj.name])
+                              );
+                              if (hasRead && uName && !memberConfirmedNames.includes(uName)) {
+                                memberConfirmedNames.push(uName);
+                              }
+                            });
+
+                            groupConfirmedList.forEach(m => {
+                              if (m.name && !memberConfirmedNames.includes(m.name)) {
+                                memberConfirmedNames.push(m.name);
+                              }
+                            });
+
+                            const isRead = (a.readGroupStatus && (a.readGroupStatus[g.id] || a.readGroupStatus[g.name])) ||
+                                           (a.readStatus && (a.readStatus[g.id] || a.readStatus[g.name])) ||
+                                           groupConfirmedList.length > 0 ||
+                                           memberConfirmedNames.length > 0;
+
+                            const confirmedNames = memberConfirmedNames.join('、');
+                            return `
+                              <span style="background:${isRead ? '#ecfdf5' : '#fffbeb'}; border:1px solid ${isRead ? '#a7f3d0' : '#fde68a'}; color:${isRead ? '#059669' : '#d97706'}; padding:6px 12px; border-radius:8px; font-weight:700;">
+                                ${isRead ? '✅' : '⏳'} ${g.name}: <b>${isRead ? `已阅读确认${confirmedNames ? ` (${confirmedNames})` : ''}` : '尚未确认'}</b>
+                              </span>
+                            `;
+                          }).join('')}
+                        </div>
+                      </div>
+
+                    </div>
+                  `;
+                }).join('')}
+              </div>
+            </div>
+          </div>
+          `;
+        })() : ''}
+
+        ${activeTab === 'view_monitoring' ? (() => {
+          const monitorStageMode = state.teacherMonitorStageMode || 'auto';
+          const actualStage = state.currentStage || 'stage1';
+          const effectiveMonitorStage = monitorStageMode === 'auto' ? actualStage : monitorStageMode;
+
+          return `
+            <div style="display:flex; flex-direction:column; gap:16px; width:100%;">
+
+              <div class="card" style="border-top:4px solid #059669; width:100%; padding:18px 22px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
+                <div style="display:flex; align-items:center; gap:14px; flex-wrap:wrap;">
+                  <span style="font-size:16px; font-weight:800; color:#0f172a;">🖥️ 实际操作实时监控终端:</span>
+                  <div style="display:flex; align-items:center; gap:8px;">
+                    <span style="font-size:13px; font-weight:700; color:#475569;">监控任务:</span>
+                    <select id="sel-switch-monitor-task" class="teacher-input fancy" style="font-size:13px; font-weight:700; color:#1e40af; background:#eff6ff; border:1.5px solid #3b82f6; padding:7px 14px; border-radius:8px; cursor:pointer; min-width:180px;">
+                      ${currentClassTasks.length === 0 ? '<option value="task_default">📌 默认测试写作任务</option>' : currentClassTasks.map(t => {
+                        const isSel = (state.activeTaskId || 'task_default') === t.id;
+                        return `<option value="${t.id}" ${isSel ? 'selected' : ''}>📌 ${t.title}</option>`;
+                      }).join('')}
+                    </select>
+                  </div>
+                  <div style="display:flex; align-items:center; gap:8px;">
+                    <span style="font-size:13px; font-weight:700; color:#475569;">监控小组:</span>
+                    <select id="sel-switch-monitor-group" class="teacher-input fancy" style="font-size:13px; font-weight:700; color:#1e40af; background:#eff6ff; border:1.5px solid #3b82f6; padding:7px 14px; border-radius:8px; cursor:pointer; min-width:180px;">
+                      ${(activeClass.groups || []).map(g => {
+                        const isSel = g.id === activeMonitorGId;
+                        return `
+                          <option value="${g.id}" ${isSel ? 'selected' : ''}>
+                            👥 ${g.name} ${isSel ? '(当前正在同屏实时监控 🟢)' : ''}
+                          </option>
+                        `;
+                      }).join('')}
+                    </select>
+                  </div>
+                </div>
+
+                <!-- 全局只读不可修改状态控制与 Excel 导出与教师端重置协同数据 -->
+                <div style="display:flex; align-items:center; gap:10px;">
+                  <span style="font-size:12px; font-weight:700; padding:6px 12px; border-radius:8px; background:${state.isFinalSubmitted ? '#fef2f2' : '#ecfdf5'}; color:${state.isFinalSubmitted ? '#dc2626' : '#059669'}; border:1px solid ${state.isFinalSubmitted ? '#fecaca' : '#a7f3d0'};">
+                    ${state.isFinalSubmitted ? '🔒 全局锁定中 (学生端全盘只读·仅保留聊天)' : '✍️ 学生端可自由协作编辑'}
+                  </span>
+                  <button id="btn-toggle-final-submitted" style="background:${state.isFinalSubmitted ? 'linear-gradient(135deg, #059669, #047857)' : 'linear-gradient(135deg, #dc2626, #b91c1c)'}; border:none; color:white; padding:8px 16px; border-radius:8px; font-size:12.5px; font-weight:700; cursor:pointer; box-shadow:0 2px 6px rgba(0,0,0,0.15);">
+                    ${state.isFinalSubmitted ? '🔓 解除全局锁定 (恢复学生编辑权限)' : '🔒 手动全局锁定 (设为全盘只读)'}
+                  </button>
+                  <button id="btn-reset-group-collab" style="background:linear-gradient(135deg, #f59e0b, #d97706); border:none; color:white; padding:8px 16px; border-radius:8px; font-size:12.5px; font-weight:800; cursor:pointer; box-shadow:0 3px 10px rgba(217,119,6,0.3);" title="清空该测试小组上一次的全部协同数据并恢复初始状态">
+                    🔄 清空重置本组协同
+                  </button>
+                  <button id="btn-export-all-excel" style="background:linear-gradient(135deg, #2563eb, #1d4ed8); border:none; color:white; padding:8px 16px; border-radius:8px; font-size:12.5px; font-weight:800; cursor:pointer; box-shadow:0 3px 10px rgba(37,99,235,0.3);">
+                    📊 导出本组研讨 Excel
+                  </button>
+                </div>
+              </div>
+
+              <div style="display:flex; justify-content:space-between; align-items:center; background:#ffffff; border:1px solid #e2e8f0; border-radius:12px; padding:12px 18px; width:100%; box-shadow:0 1px 3px rgba(15,23,42,0.03);">
+                <div style="display:flex; align-items:center; gap:12px;">
+                  ${(() => {
+                    const mNames = monitorMembersList.map(m => m.name).filter(Boolean);
+                    const mStr = mNames.length > 0 ? `(${mNames.join('、')})` : '';
+                    return `
+                      <span style="font-size:13px; font-weight:700; color:#334155;">
+                        📍 实时跟随指示: 当前【${activeMonitorGroup.name}】<span style="color:#2563eb; font-weight:700; margin-left:4px;">${mStr}</span> 实际处于: <b style="color:#2563eb;">${actualStage === 'stage1' ? '🎪 阶段一：学术拍卖会' : actualStage === 'stage2' ? '📰 阶段二：学术编辑部' : '🎓 阶段三：答辩擂台'}</b>
+                      </span>
+                    `;
+                  })()}
+                </div>
+                <div style="display:flex; align-items:center; gap:8px;">
+                  <span style="font-size:12px; color:#64748b; font-weight:600;">🔀 切换同屏切页:</span>
+                  <button class="btn-monitor-stage-tab ${monitorStageMode === 'auto' ? 'active' : ''}" data-stg="auto" style="background:${monitorStageMode === 'auto' ? '#ecfdf5' : '#f8fafc'}; border:1px solid ${monitorStageMode === 'auto' ? '#a7f3d0' : '#e2e8f0'}; color:${monitorStageMode === 'auto' ? '#059669' : '#475569'}; padding:6px 12px; border-radius:8px; font-size:12px; font-weight:700; cursor:pointer;">
+                    ⚡ 自动跟随 (${actualStage === 'stage1' ? '阶段一' : actualStage === 'stage2' ? '阶段二' : '阶段三'}) 🟢
+                  </button>
+                  <button class="btn-monitor-stage-tab ${monitorStageMode === 'stage1' ? 'active' : ''}" data-stg="stage1" style="background:${monitorStageMode === 'stage1' ? '#eff6ff' : '#f8fafc'}; border:1px solid ${monitorStageMode === 'stage1' ? '#bfdbfe' : '#e2e8f0'}; color:${monitorStageMode === 'stage1' ? '#1d4ed8' : '#475569'}; padding:6px 12px; border-radius:8px; font-size:12px; font-weight:700; cursor:pointer;">
+                    🎪 查看阶段一
+                  </button>
+                  <button class="btn-monitor-stage-tab ${monitorStageMode === 'stage2' ? 'active' : ''}" data-stg="stage2" style="background:${monitorStageMode === 'stage2' ? '#eff6ff' : '#f8fafc'}; border:1px solid ${monitorStageMode === 'stage2' ? '#bfdbfe' : '#e2e8f0'}; color:${monitorStageMode === 'stage2' ? '#1d4ed8' : '#475569'}; padding:6px 12px; border-radius:8px; font-size:12px; font-weight:700; cursor:pointer;">
+                    📰 查看阶段二
+                  </button>
+                  <button class="btn-monitor-stage-tab ${monitorStageMode === 'stage3' ? 'active' : ''}" data-stg="stage3" style="background:${monitorStageMode === 'stage3' ? '#eff6ff' : '#f8fafc'}; border:1px solid ${monitorStageMode === 'stage3' ? '#bfdbfe' : '#e2e8f0'}; color:${monitorStageMode === 'stage3' ? '#1d4ed8' : '#475569'}; padding:6px 12px; border-radius:8px; font-size:12px; font-weight:700; cursor:pointer;">
+                    🎓 查看阶段三
+                  </button>
+                </div>
+              </div>
+
+              ${effectiveMonitorStage === 'stage1' ? `
+                <div style="display:grid; grid-template-columns: 1.6fr 1fr; gap:16px; width:100%;">
+                  <div class="card" style="padding:20px; display:flex; flex-direction:column; border:1px solid #bfdbfe; gap:12px;">
+                    <div style="font-size:15px; font-weight:800; color:#1e40af; display:flex; justify-content:space-between; align-items:center;">
+                      <span>🎪 阶段一实操同屏: 学术合作合约与提案 (${activeMonitorGroup.name})</span>
+                      <span style="background:#eff6ff; color:#1d4ed8; padding:2px 8px; border-radius:8px; font-size:11px; font-weight:700;">阶段一实况</span>
+                    </div>
+                    
+                    <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:12px 14px;">
+                      <div style="font-size:12.5px; font-weight:700; color:#1e40af; margin-bottom:4px;">📌 确认融合论文研究主题:</div>
+                      <div style="font-size:14px; font-weight:800; color:#0f172a;">${state.stage1?.mergedTitle || '【尚待确定】'}</div>
+                    </div>
+
+                    <!-- 教师端同屏展现 6 大模块时间规划 -->
+                    <div style="background:#f8fafc; border:1px solid #bfdbfe; border-radius:10px; padding:12px 14px;">
+                      <div style="font-size:13px; font-weight:800; color:#1e40af; margin-bottom:8px;">📚 6 大研究方案模块与时间规划:</div>
+                      <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:8px; font-size:12px;">
+                        <div style="background:#ffffff; border:1px solid #e2e8f0; border-left:3px solid #2563eb; padding:6px 10px; border-radius:6px; display:flex; justify-content:space-between;">
+                          <span style="font-weight:700; color:#1e40af;">一、研究背景与意义</span>
+                          <span style="color:#2563eb; font-weight:800;">${state.stage1?.contract?.timeAllocations?.background || 25}m</span>
+                        </div>
+                        <div style="background:#ffffff; border:1px solid #e2e8f0; border-left:3px solid #0284c7; padding:6px 10px; border-radius:6px; display:flex; justify-content:space-between;">
+                          <span style="font-weight:700; color:#0369a1;">二、文献综述</span>
+                          <span style="color:#0284c7; font-weight:800;">${state.stage1?.contract?.timeAllocations?.literature || 30}m</span>
+                        </div>
+                        <div style="background:#ffffff; border:1px solid #e2e8f0; border-left:3px solid #059669; padding:6px 10px; border-radius:6px; display:flex; justify-content:space-between;">
+                          <span style="font-weight:700; color:#065f46;">三、研究问题与假设</span>
+                          <span style="color:#059669; font-weight:800;">${state.stage1?.contract?.timeAllocations?.questions || 25}m</span>
+                        </div>
+                        <div style="background:#ffffff; border:1px solid #e2e8f0; border-left:3px solid #7c3aed; padding:6px 10px; border-radius:6px; display:flex; justify-content:space-between;">
+                          <span style="font-weight:700; color:#6d28d9;">四、研究设计与方法</span>
+                          <span style="color:#7c3aed; font-weight:800;">${state.stage1?.contract?.timeAllocations?.method || 40}m</span>
+                        </div>
+                        <div style="background:#ffffff; border:1px solid #e2e8f0; border-left:3px solid #d97706; padding:6px 10px; border-radius:6px; display:flex; justify-content:space-between;">
+                          <span style="font-weight:700; color:#b45309;">五、研究设计的不足与反思</span>
+                          <span style="color:#d97706; font-weight:800;">${state.stage1?.contract?.timeAllocations?.reflection || 20}m</span>
+                        </div>
+                        <div style="background:#ffffff; border:1px solid #e2e8f0; border-left:3px solid #475569; padding:6px 10px; border-radius:6px; display:flex; justify-content:space-between;">
+                          <span style="font-weight:700; color:#334155;">六、参考文献</span>
+                          <span style="color:#475569; font-weight:800;">${state.stage1?.contract?.timeAllocations?.references || 10}m</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- 教师端同屏展现组员具体章节分工 -->
+                    <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:12px 14px; font-size:12.5px;">
+                      <div style="font-weight:700; color:#1e40af; margin-bottom:6px;">👥 组员具体章节分工:</div>
+                      <div style="display:flex; flex-direction:column; gap:4px;">
+                        ${monitorMembersList.map(m => {
+                          const task = state.stage1?.contract?.taskAssignments?.[m.id] || '尚未录入分工';
+                          return `
+                            <div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:6px; padding:6px 10px; display:flex; justify-content:space-between;">
+                              <span style="font-weight:700; color:${m.color || '#2563eb'};">${m.avatar || '👤'} ${m.name}:</span>
+                              <span style="color:#334155;">${task}</span>
+                            </div>
+                          `;
+                        }).join('')}
+                      </div>
+                    </div>
+
+                    <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:12px 14px; font-size:12.5px;">
+                      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; flex-wrap:wrap; gap:6px;">
+                        <span style="font-weight:700; color:#1e40af;">👥 合约签署矩阵:</span>
+                        ${state.stage1?.contract?.isProxySigned ? `
+                          <span style="background:#fffbeb; color:#b45309; border:1px solid #fde68a; padding:2px 8px; border-radius:6px; font-size:11px; font-weight:700;">
+                            ⚠️ 组长【${state.stage1.contract.proxySignLeader || '组长'}】一键代签推进 (已豁免缺勤组员)
+                          </span>
+                        ` : ''}
+                      </div>
+                      <div style="display:flex; flex-wrap:wrap; gap:8px;">
+                        ${monitorMembersList.map(m => {
+                          const isConf = state.stage1?.contract?.confirmedMembers && (state.stage1.contract.confirmedMembers[m.id] || state.stage1.contract.confirmedMembers[m.studentCode]);
+                          const isProxy = state.stage1?.contract?.isProxySigned && !isConf;
+                          return `
+                            <span style="color:${isConf ? '#059669' : (isProxy ? '#b45309' : '#64748b')}; border:1px solid ${isConf ? '#a7f3d0' : (isProxy ? '#fde68a' : '#e2e8f0')}; background:${isConf ? '#ecfdf5' : (isProxy ? '#fffbeb' : '#ffffff')}; padding:4px 10px; border-radius:6px; font-size:12px; font-weight:600;">
+                              ${m.avatar || '👤'} ${m.name}: <b>${isConf ? '✅ 自主签署' : (isProxy ? '⚠️ 组长代签 (缺勤)' : '⏳ 未签署')}</b>
+                            </span>
+                          `;
+                        }).join('')}
+                      </div>
+                    </div>
+                  </div>
+                  <div class="card" style="padding:20px; display:flex; flex-direction:column;">
+                    <div style="font-size:15px; font-weight:800; color:#0f172a; margin-bottom:12px;">💬 阶段一研讨对话流 (${activeMonitorGroup.name})</div>
+                    <div style="flex:1; max-height:420px; overflow-y:auto; background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:12px; font-size:12px; display:flex; flex-direction:column; gap:10px;">
+                      ${((state.chatLogs && state.chatLogs['stage1']) || []).map(m => {
+                        const isAgent = AgentProfiles[m.sender] !== undefined;
+                        const senderName = isAgent ? AgentProfiles[m.sender].name : (monitorMembersObj[m.sender] ? monitorMembersObj[m.sender].name : m.sender);
+                        const color = isAgent ? AgentProfiles[m.sender].color : (monitorMembersObj[m.sender] ? monitorMembersObj[m.sender].color : '#2563eb');
+                        return `
+                          <div style="background:#ffffff; padding:8px 12px; border-radius:8px; border:1px solid #e2e8f0; border-left:3px solid ${color};">
+                            <div style="display:flex; justify-content:space-between; margin-bottom:3px;">
+                              <b style="color:${color}; font-size:12px;">${senderName}</b>
+                              <span style="color:#94a3b8; font-size:10px;">${m.timestamp || ''}</span>
+                            </div>
+                            <div style="color:#0f172a; line-height:1.5;">${m.text}</div>
+                          </div>
+                        `;
+                      }).join('')}
+                    </div>
+                  </div>
+                </div>
+              ` : ''}
+
+              ${effectiveMonitorStage === 'stage2' ? `
+                <div style="display:grid; grid-template-columns: 1.6fr 1fr; gap:16px; width:100%;">
+                  <div class="card" style="padding:20px; display:flex; flex-direction:column; border:1px solid #bfdbfe;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+                      <div style="display:flex; align-items:center; gap:8px;">
+                        <span style="font-size:15px; font-weight:800; color:#1e40af;">📝 实时写作大正文镜像 (${activeMonitorGroup.name})</span>
+                        <span style="font-size:11px; background:#ecfdf5; color:#059669; padding:2px 8px; border-radius:10px; font-weight:700; border:1px solid #a7f3d0;">🟢 实时同步中</span>
+                      </div>
+                      <span style="font-size:12.5px; color:#475569;">总字数: <b style="color:#2563eb; font-size:14px;">${(state.stage2?.unifiedContent || '').length}</b> 字</span>
+                    </div>
+                    <div style="background:#eff6ff; border:1px solid #bfdbfe; border-radius:8px; padding:10px 14px; margin-bottom:12px; font-size:12px; color:#1d4ed8; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+                      <div>
+                        <span>⚡ <b>当前【${activeMonitorGroup.name}】初稿进度:</b></span>
+                        ${state.stage2?.isProxyDraftConfirmed ? `
+                          <span style="background:#fffbeb; color:#b45309; border:1px solid #fde68a; padding:2px 8px; border-radius:6px; font-size:11px; font-weight:700; margin-left:6px;">
+                            ⚠️ 组长【${state.stage2.proxyDraftLeader || '组长'}】一键代确认初稿推进至阶段三
+                          </span>
+                        ` : (state.stage2?.isDraftConfirmed ? '<span style="color:#059669; font-weight:700; margin-left:6px;">✅ 全员已确认完成初稿</span>' : '<span style="color:#2563eb; margin-left:6px;">✍️ 组员协作撰写中</span>')}
+                      </div>
+                      <div style="display:flex; gap:6px; flex-wrap:wrap;">
+                        ${monitorMembersList.map(m => {
+                          const isConf = state.stage2?.confirmedMembers && (state.stage2.confirmedMembers[m.id] || state.stage2.confirmedMembers[m.studentCode]);
+                          const isProxy = state.stage2?.isProxyDraftConfirmed && !isConf;
+                          return `<span style="font-size:11px; padding:1px 8px; border-radius:10px; font-weight:700; background:${isConf ? '#ecfdf5' : (isProxy ? '#fffbeb' : '#ffffff')}; color:${isConf ? '#059669' : (isProxy ? '#b45309' : '#94a3b8')}; border:1px solid ${isConf ? '#a7f3d0' : (isProxy ? '#fde68a' : '#cbd5e1')};">
+                            ${m.avatar || '👤'} ${m.name}: ${isConf ? '✅ 已确认' : (isProxy ? '⚠️ 代确认' : '⏳ 撰写中')}
+                          </span>`;
+                        }).join('')}
+                      </div>
+                    </div>
+                    <div id="teacher-live-doc-mirror" style="flex:1; min-height:340px; max-height:480px; overflow-y:auto; font-family:'SimSun', 'Times New Roman', serif; font-size:13.5px; line-height:1.75; background:#ffffff; color:#0f172a; border:1px solid #cbd5e1; border-radius:6px; padding:16px 20px; box-shadow:inset 0 1px 3px rgba(0,0,0,0.02);">
+                      ${(state.stage2?.unifiedContent || '').replace(/<span class="remote-cursor-widget"[\s\S]*?<\/span>/gi, '').trim() || '<span style="color:#94a3b8; font-family:sans-serif; font-style:italic;">（小组成员尚未开始撰写正文）</span>'}
+                    </div>
+                    <div style="margin-top:14px; background:#f8fafc; padding:12px; border-radius:8px; border:1px solid #e2e8f0;">
+                      <div style="font-size:12px; font-weight:700; color:#334155; margin-bottom:6px;">📊 本组 SSRL 成员字数与互动贡献比率 (${monitorMembersList.length} 位成员)</div>
+                      <div style="height:10px; background:#e2e8f0; border-radius:6px; overflow:hidden; display:flex;">
+                        ${(() => {
+                          const contribs = state.stage2?.memberContributions || {};
+                          let totalContrib = 0;
+                          monitorMembersList.forEach(m => { totalContrib += (contribs[m.id] || 0) + (contribs[m.studentCode] || 0); });
+                          if (totalContrib === 0) {
+                            return `<div style="width:100%; height:10px; background:#e2e8f0; border-radius:6px; display:flex; align-items:center; justify-content:center; font-size:10px; color:#94a3b8;">暂无写作与研讨贡献数据 (各成员贡献均为 0%)</div>`;
+                          }
+                          return monitorMembersList.map((m) => {
+                            const val = (contribs[m.id] || 0) + (contribs[m.studentCode] || 0);
+                            if (val === 0) return '';
+                            const pct = Math.round((val / totalContrib) * 100);
+                            return `<div style="width:${pct}%; background:${m.color || '#2563eb'}; transition:width 0.3s ease;" title="${m.name}: ${pct}% (${val}字)"></div>`;
+                          }).join('');
+                        })()}
+                      </div>
+                      <div style="display:flex; justify-content:space-between; font-size:11px; color:#475569; margin-top:6px; flex-wrap:wrap; gap:8px;">
+                        ${(() => {
+                          const contribs = state.stage2?.memberContributions || {};
+                          let totalContrib = 0;
+                          monitorMembersList.forEach(m => { totalContrib += (contribs[m.id] || 0) + (contribs[m.studentCode] || 0); });
+                          return monitorMembersList.map(m => {
+                            const val = (contribs[m.id] || 0) + (contribs[m.studentCode] || 0);
+                            const pct = (totalContrib === 0 || val === 0) ? (monitorMembersList.length > 0 ? Math.round(100 / monitorMembersList.length) : 0) : Math.round((val / totalContrib) * 100);
+                            return `<span style="color:${m.color || '#2563eb'}; font-weight:700;">● ${m.name}: ${pct}%</span>`;
+                          }).join('');
+                        })()}
+                      </div>
+                    </div>
+                  </div>
+                  <div class="card" style="padding:20px; display:flex; flex-direction:column;">
+                    <div style="font-size:15px; font-weight:800; color:#0f172a; margin-bottom:12px;">💬 阶段二编辑部研讨流 (${activeMonitorGroup.name})</div>
+                    <div style="flex:1; max-height:460px; overflow-y:auto; background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:12px; font-size:12px; display:flex; flex-direction:column; gap:10px;">
+                      ${((state.chatLogs && state.chatLogs['stage2']) || []).map(m => {
+                        const isAgent = AgentProfiles[m.sender] !== undefined;
+                        const senderName = isAgent ? AgentProfiles[m.sender].name : (monitorMembersObj[m.sender] ? monitorMembersObj[m.sender].name : m.sender);
+                        const color = isAgent ? AgentProfiles[m.sender].color : (monitorMembersObj[m.sender] ? monitorMembersObj[m.sender].color : '#2563eb');
+                        return `
+                          <div style="background:#ffffff; padding:8px 12px; border-radius:8px; border:1px solid #e2e8f0; border-left:3px solid ${color};">
+                            <div style="display:flex; justify-content:space-between; margin-bottom:3px;">
+                              <b style="color:${color}; font-size:12px;">${senderName}</b>
+                              <span style="color:#94a3b8; font-size:10px;">${m.timestamp || ''}</span>
+                            </div>
+                            <div style="color:#0f172a; line-height:1.5;">${m.text}</div>
+                          </div>
+                        `;
+                      }).join('')}
+                    </div>
+                  </div>
+                </div>
+              ` : ''}
+
+              ${effectiveMonitorStage === 'stage3' ? `
+                <div style="display:grid; grid-template-columns: 1.6fr 1fr; gap:16px; width:100%; min-height:500px;">
+                  <div class="card" style="padding:20px; display:flex; flex-direction:column; border:1px solid #bfdbfe; min-width:0; overflow:hidden;">
+                    <div style="font-size:15px; font-weight:800; color:#1e40af; margin-bottom:12px;">🎓 答辩擂台与成员裁决 (${activeMonitorGroup.name})</div>
+                    <div style="background:#eff6ff; border:1px solid #bfdbfe; border-radius:10px; padding:12px 14px; flex:1; display:flex; flex-direction:column; overflow:hidden;">
+                      <div style="font-size:13px; font-weight:700; color:#1e40af; margin-bottom:8px;">⚖️ 成员辩护裁决与正文状态:</div>
+                      <div style="flex:1; overflow-y:auto; font-family:'SimSun', 'Times New Roman', serif; font-size:13.5px; line-height:1.75; background:#ffffff; color:#0f172a; border:1px solid #cbd5e1; border-radius:6px; padding:16px 20px; box-shadow:inset 0 1px 3px rgba(0,0,0,0.02);">
+                        ${(state.stage2?.unifiedContent || '').replace(/<span class="remote-cursor-widget"[\s\S]*?<\/span>/gi, '').trim() || '<span style="color:#94a3b8; font-family:sans-serif; font-style:italic;">（小组成员尚未开始撰写正文）</span>'}
+                      </div>
+                    </div>
+                  </div>
+                  <div class="card" style="padding:20px; display:flex; flex-direction:column; min-width:0; overflow:hidden;">
+                    <div style="font-size:15px; font-weight:800; color:#0f172a; margin-bottom:12px;">💬 阶段三答辩对话流 (${activeMonitorGroup.name})</div>
+                    <div style="flex:1; overflow-y:auto; background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:12px; font-size:12px; display:flex; flex-direction:column; gap:10px;">
+                      ${((state.chatLogs && state.chatLogs['stage3']) || []).map(m => {
+                        const isAgent = AgentProfiles[m.sender] !== undefined;
+                        const senderName = isAgent ? AgentProfiles[m.sender].name : (monitorMembersObj[m.sender] ? monitorMembersObj[m.sender].name : m.sender);
+                        const color = isAgent ? AgentProfiles[m.sender].color : (monitorMembersObj[m.sender] ? monitorMembersObj[m.sender].color : '#2563eb');
+                        return `
+                          <div style="background:#ffffff; padding:8px 12px; border-radius:8px; border:1px solid #e2e8f0; border-left:3px solid ${color};">
+                            <div style="display:flex; justify-content:space-between; margin-bottom:3px;">
+                              <b style="color:${color}; font-size:12px;">${senderName}</b>
+                              <span style="color:#94a3b8; font-size:10px;">${m.timestamp || ''}</span>
+                            </div>
+                            <div style="color:#0f172a; line-height:1.5;">${m.text}</div>
+                          </div>
+                        `;
+                      }).join('')}
+                    </div>
+                  </div>
+              ` : ''}
+
+            </div>
+          `;
+        })() : ''}
+
+      </main>
+    </div>
+  `;
+
+  const btnLogout = container.querySelector('#btn-logout');
+  if (btnLogout) btnLogout.addEventListener('click', () => onLogout());
+
+  const btnAlerts = container.querySelector('#btn-teacher-alerts');
+  if (btnAlerts) {
+    btnAlerts.addEventListener('click', () => {
+      authManager.markTeacherAlertsRead();
+      const currentAlerts = authManager.getTeacherAlerts();
+      
+      document.querySelectorAll('.teacher-alerts-modal').forEach(m => m.remove());
+      const modal = document.createElement('div');
+      modal.className = 'modal-overlay teacher-alerts-modal';
+      modal.innerHTML = `
+        <div class="teacher-modal-card" style="width:680px; max-width:92vw; max-height:85vh; display:flex; flex-direction:column; padding:0; overflow:hidden; border-radius:14px; box-shadow:0 20px 25px -5px rgba(0,0,0,0.25);">
+          <div style="background:linear-gradient(135deg, #1e40af, #2563eb); color:white; padding:18px 24px; display:flex; justify-content:space-between; align-items:center;">
+            <div style="display:flex; align-items:center; gap:8px;">
+              <span style="font-size:20px;">🔔</span>
+              <div>
+                <div style="font-size:16px; font-weight:800;">课堂协同动态与组长代签提醒中心</div>
+                <div style="font-size:11.5px; opacity:0.85;">实时捕获各小组在各班级、各任务下的公约签署、缺勤代签与阶段推进</div>
+              </div>
+            </div>
+            <button id="btn-close-alerts-modal" style="background:rgba(255,255,255,0.2); border:none; color:white; width:28px; height:28px; border-radius:50%; font-size:16px; cursor:pointer; display:flex; align-items:center; justify-content:center;">✕</button>
+          </div>
+          <div style="padding:20px 24px; overflow-y:auto; flex:1; display:flex; flex-direction:column; gap:12px; background:#f8fafc;">
+            ${currentAlerts.length === 0 ? `
+              <div style="text-align:center; color:#94a3b8; padding:48px 20px; font-size:13.5px;">
+                ☕ 暂无异常代签或重要推进提醒，各班级小组正在常规协同中！
+              </div>
+            ` : currentAlerts.map(a => `
+              <div style="background:#ffffff; border:1px solid ${a.type && a.type.includes('proxy') ? '#fde68a' : '#e2e8f0'}; border-left:5px solid ${a.type && a.type.includes('proxy') ? '#f59e0b' : '#2563eb'}; border-radius:10px; padding:14px 18px; box-shadow:0 1px 4px rgba(0,0,0,0.04);">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; flex-wrap:wrap; gap:6px;">
+                  <span style="font-size:13.5px; font-weight:800; color:${a.type && a.type.includes('proxy') ? '#b45309' : '#1e40af'};">${a.title || '协同动态通知'}</span>
+                  <span style="font-size:11px; color:#94a3b8;">${a.timestamp || ''} (${a.date || ''})</span>
+                </div>
+                <div style="font-size:13px; color:#1e293b; line-height:1.6; white-space:pre-line; margin-bottom:10px;">
+                  ${a.text}
+                </div>
+                <div style="display:flex; justify-content:space-between; align-items:center; border-top:1px dashed #e2e8f0; padding-top:8px;">
+                  <div style="display:flex; gap:6px; font-size:11px;">
+                    ${a.className ? `<span style="background:#eff6ff; color:#1d4ed8; padding:1px 6px; border-radius:6px; font-weight:700;">🏫 ${a.className}</span>` : ''}
+                    ${a.groupName ? `<span style="background:#f1f5f9; color:#475569; padding:1px 6px; border-radius:6px; font-weight:700;">👥 ${a.groupName}</span>` : ''}
+                    ${a.taskTitle ? `<span style="background:#f0fdf4; color:#15803d; padding:1px 6px; border-radius:6px; font-weight:700;">📌 ${a.taskTitle}</span>` : ''}
+                  </div>
+                  <span style="font-size:11px; color:#64748b;">${a.leaderName ? `组长: <b>${a.leaderName}</b>` : ''}</span>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+          <div style="padding:12px 24px; background:#ffffff; border-top:1px solid #e2e8f0; text-align:right;">
+            <button id="btn-close-alerts-modal-footer" style="background:#2563eb; color:white; border:none; padding:8px 20px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer;">我知道了</button>
+          </div>
+        </div>
+      `;
+      document.body.appendChild(modal);
+      const closeModal = () => { modal.remove(); renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView); };
+      modal.querySelector('#btn-close-alerts-modal').addEventListener('click', closeModal);
+      modal.querySelector('#btn-close-alerts-modal-footer').addEventListener('click', closeModal);
+      modal.addEventListener('click', (e) => { if (e.target === modal) closeModal(); });
+    });
+  }
+
+  const btnSwitchStudent = container.querySelector('#btn-switch-student-preview');
+  if (btnSwitchStudent) btnSwitchStudent.addEventListener('click', () => onSwitchToStudentView());
+
+  container.querySelectorAll('.teacher-tab-nav').forEach(btn => {
+    btn.addEventListener('click', () => {
+      state.teacherActiveTab = btn.dataset.tab;
+      if (!state.stage1) state.stage1 = { topics: [], bidLogs: [], contract: { confirmedMembers: {}, taskAssignments: {}, timeAllocations: {} } };
+      if (!state.stage2) state.stage2 = { unifiedContent: '', memberContributions: {} };
+      if (!state.stage3) state.stage3 = { reviews: [] };
+      if (!state.chatLogs) state.chatLogs = { stage1: [], stage2: [], stage3: [] };
+
+      if (btn.dataset.tab === 'view_monitoring' && window.app) {
+        try {
+          window.app.loadGroupState(state.activeMonitorGroupId || 'group_1');
+          if (window.app.cloudSyncEngine) {
+            window.app.cloudSyncEngine.updateScopeKeys();
+            window.app.cloudSyncEngine.pullFromServer().catch(() => {});
+          }
+        } catch (e) {}
+      }
+      renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+    });
+  });
+
+  container.querySelectorAll('.btn-select-class').forEach(btn => {
+    btn.addEventListener('click', () => {
+      state.activeClassId = btn.dataset.id;
+      renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+    });
+  });
+
+  // 🗑️ 删除班级（带弹窗二次确认）
+  container.querySelectorAll('.btn-delete-class').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const cId = btn.dataset.id;
+      const cName = btn.dataset.name || '此班级';
+      if (confirm(`🗑️【危险操作·删除班级确认】\n\n您确定要彻底删除教学班级【${cName}】吗？\n\n⚠️ 警告：删除后属于该班级的小组、写作任务、通知与问卷将一并级联删除！`)) {
+        try {
+          authManager.deleteClass(cId);
+          const remainingClasses = authManager.getClasses();
+          state.activeClassId = remainingClasses[0] ? remainingClasses[0].id : 'class_101';
+          alert(`✅ 教学班级【${cName}】已成功删除！`);
+          renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+        } catch (err) {
+          alert('❌ ' + err.message);
+        }
+      }
+    });
+  });
+
+  // 🗑️ 一键清空当前班级学生（带弹窗二次确认）
+  const btnClearStudents = container.querySelector('#btn-clear-class-students');
+  if (btnClearStudents) {
+    btnClearStudents.addEventListener('click', () => {
+      if (confirm(`🗑️【清空名册确认】\n\n您确定要一键清空【${activeClass.name}】下的所有学生吗？\n\n⚠️ 注：清空后将重置本班学生名册与未划分的小组成员绑定！`)) {
+        // 清空当前班级的学生关联，并重置小组
+        const users = authManager.getUsers();
+        users.forEach(u => {
+          if (u.role !== 'teacher') {
+            if (u.classIds && Array.isArray(u.classIds)) {
+              u.classIds = u.classIds.filter(id => id !== activeClass.id);
+            }
+            if (u.classId === activeClass.id) {
+              u.classId = (u.classIds && u.classIds.length > 0) ? u.classIds[0] : null;
+            }
+          }
+        });
+        localStorage.setItem(STORAGE_KEY_USERS_DB, JSON.stringify(users));
+
+        // 清空班级 studentIds 与小组分配
+        const classes = authManager.getClasses();
+        const targetCls = classes.find(c => c.id === activeClass.id);
+        if (targetCls) {
+          targetCls.studentIds = [];
+          (targetCls.groups || []).forEach(g => { g.members = []; });
+          localStorage.setItem(STORAGE_KEY_CLASSES, JSON.stringify(classes));
+        }
+        authManager.pushGlobalMeta();
+        alert(`✅ 已成功清空【${activeClass.name}】的全部学生名册！`);
+        renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+      }
+    });
+  }
+
+  const btnCreateClass = container.querySelector('#btn-v1-create-class');
+  if (btnCreateClass) {
+    btnCreateClass.addEventListener('click', () => {
+      const name = prompt('请输入新教学班级名称 (例如: 《现代教育技术》2026春02班):', '《现代教育技术》2026春02班');
+      if (name) {
+        const newC = authManager.createClass(name);
+        state.activeClassId = newC.id;
+        renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+      }
+    });
+  }
+
+  const btnAddStd = container.querySelector('#btn-v1-add-student');
+  if (btnAddStd) {
+    btnAddStd.addEventListener('click', () => {
+      document.querySelectorAll('.modal-overlay').forEach(el => el.remove());
+
+      // 计算当前班级未包含的学生（在其他班但不在本班的学生）
+      const allUsers = authManager.getUsers();
+      const currentClassStudentIds = new Set(authManager.getClassStudents(activeClass.id).map(s => s.id));
+      const unenrolledStudents = allUsers.filter(u =>
+        u.role !== 'teacher' && !currentClassStudentIds.has(u.id)
+      );
+
+      const modal = document.createElement('div');
+      modal.className = 'modal-overlay';
+      modal.innerHTML = `
+        <div class="teacher-modal-card fancy-task-modal" style="width:560px; background:#ffffff; border:1px solid #e2e8f0; box-shadow:0 20px 45px rgba(15,23,42,0.12);">
+          <div class="teacher-modal-header" style="background:linear-gradient(135deg, #eff6ff, #f8fafc); border-bottom:1px solid #e2e8f0; padding:18px 24px;">
+            <div class="modal-header-title" style="display:flex; align-items:center; gap:10px;">
+              <div class="modal-icon-badge" style="background:#dbeafe; color:#2563eb; font-size:20px; padding:6px 10px; border-radius:10px;">👨‍🎓</div>
+              <div><h3 style="margin:0; font-size:17px; font-weight:800; color:#0f172a;">添加学生账号 (${activeClass.name})</h3></div>
+            </div>
+            <button class="modal-close-btn" id="btn-close-single-student" style="background:#f1f5f9; border:none; color:#64748b; font-size:16px; border-radius:8px; width:30px; height:30px; cursor:pointer;">✕</button>
+          </div>
+
+          <!-- 双标签切换 -->
+          <div style="display:flex; border-bottom:1px solid #e2e8f0; background:#f8fafc;">
+            <button id="tab-new-student" style="flex:1; padding:12px; font-size:13.5px; font-weight:800; border:none; cursor:pointer; background:#ffffff; color:#2563eb; border-bottom:3px solid #2563eb;">
+              ✏️ 新建学生账号
+            </button>
+            <button id="tab-enroll-student" style="flex:1; padding:12px; font-size:13.5px; font-weight:800; border:none; cursor:pointer; background:transparent; color:#64748b; border-bottom:3px solid transparent;">
+              🔗 加入已有学生 (${unenrolledStudents.length}人)
+            </button>
+          </div>
+
+          <!-- 面板1: 新建学生 -->
+          <div id="panel-new-student">
+            <div class="teacher-modal-body" style="padding:22px 24px;">
+              <div class="teacher-form-group" style="margin-bottom:14px;">
+                <label style="font-size:13px; font-weight:700; color:#334155; margin-bottom:6px; display:block;"><span class="req" style="color:#dc2626;">*</span> 学生姓名</label>
+                <input type="text" id="modal-std-name" class="teacher-input fancy" placeholder="输入学生姓名 (如: 张三)" value="" style="background:#ffffff; border:1.5px solid #cbd5e1; color:#0f172a; padding:10px 14px; border-radius:8px; width:100%; font-size:13.5px;">
+              </div>
+              <div class="teacher-form-group" style="margin-bottom:14px;">
+                <label style="font-size:13px; font-weight:700; color:#334155; margin-bottom:6px; display:block;"><span class="req" style="color:#dc2626;">*</span> 学生学号 (登录账号)</label>
+                <input type="text" id="modal-std-code" class="teacher-input fancy" placeholder="输入学号 (如: 20260101 或 S101)" value="" style="background:#ffffff; border:1.5px solid #cbd5e1; color:#0f172a; padding:10px 14px; border-radius:8px; width:100%; font-size:13.5px;">
+              </div>
+              <div class="teacher-form-group">
+                <label style="font-size:13px; font-weight:700; color:#334155; margin-bottom:6px; display:block;">设置初始密码 (留空统一定为 123)</label>
+                <input type="password" id="modal-std-password" class="teacher-input fancy" placeholder="留空默认为 123" style="background:#ffffff; border:1.5px solid #cbd5e1; color:#0f172a; padding:10px 14px; border-radius:8px; width:100%; font-size:13.5px;">
+              </div>
+            </div>
+            <div class="teacher-modal-footer" style="background:#f8fafc; border-top:1px solid #e2e8f0; padding:14px 24px; display:flex; justify-content:flex-end; gap:10px;">
+              <button class="modal-btn cancel" id="btn-cancel-single-std" style="background:#ffffff; border:1px solid #cbd5e1; color:#475569; padding:8px 18px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer;">取消</button>
+              <button class="modal-btn submit task-theme" id="btn-submit-single-std" style="background:linear-gradient(135deg, #1d4ed8, #2563eb); border:none; color:white; padding:8px 20px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer;">👨‍🎓 确认创建并加入本班</button>
+            </div>
+          </div>
+
+          <!-- 面板2: 加入已有学生 -->
+          <div id="panel-enroll-student" style="display:none;">
+            <div class="teacher-modal-body" style="padding:20px 24px;">
+              <div style="font-size:12.5px; color:#1e40af; background:#eff6ff; border:1px solid #bfdbfe; border-radius:8px; padding:10px 14px; margin-bottom:12px;">
+                💡 以下学生已在其他班级中存在。勾选后可将其同时关联进本班，<b>账号不会重复创建</b>。
+              </div>
+              <div style="margin-bottom:10px;">
+                <input type="text" id="input-search-enroll-std" placeholder="🔍 输入姓名或学号快速搜索已有学生..." style="background:#ffffff; border:1.5px solid #cbd5e1; color:#0f172a; padding:8px 12px; border-radius:8px; width:100%; font-size:13px; outline:none;">
+              </div>
+              <div id="enroll-std-list-box" style="max-height:260px; overflow-y:auto; display:flex; flex-direction:column; gap:8px;">
+                ${unenrolledStudents.length === 0 ? `
+                  <div style="text-align:center; color:#64748b; padding:32px; font-size:13.5px;">
+                    ✅ 当前所有学生账号已加入本班，无可选学生
+                  </div>
+                ` : unenrolledStudents.map(s => {
+                  const otherClasses = authManager.getClasses().filter(c =>
+                    (s.classIds || [s.classId]).includes(c.id) && c.id !== activeClass.id
+                  );
+                  return `
+                    <label class="enroll-std-card-item" data-search="${(s.name + ' ' + (s.studentCode || '') + ' ' + (s.username || '')).toLowerCase()}" style="display:flex; align-items:center; gap:12px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:10px 14px; cursor:pointer; transition:all 0.15s;">
+                      <input type="checkbox" class="enroll-chk" data-uid="${s.id}" style="width:17px; height:17px; cursor:pointer; accent-color:#2563eb;">
+                      <div>
+                        <div style="font-size:14px; font-weight:800; color:#0f172a;">${s.avatar || '👤'} ${s.name} <code style="color:#2563eb; font-family:monospace; margin-left:6px;">${s.studentCode || s.username}</code></div>
+                        <div style="font-size:12px; color:#64748b; margin-top:2px;">
+                          ${otherClasses.length > 0 ? `现归属班级: <b>${otherClasses.map(c => c.name).join(', ')}</b>` : '已入库学生'}
+                        </div>
+                      </div>
+                    </label>
+                  `;
+                }).join('')}
+              </div>
+            </div>
+            <div class="teacher-modal-footer" style="background:#f8fafc; border-top:1px solid #e2e8f0; padding:14px 24px; display:flex; justify-content:flex-end; gap:10px;">
+              <button class="modal-btn cancel" id="btn-cancel-enroll" style="background:#ffffff; border:1px solid #cbd5e1; color:#475569; padding:8px 18px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer;">取消</button>
+              <button class="modal-btn submit task-theme" id="btn-submit-enroll" style="background:linear-gradient(135deg, #1d4ed8, #2563eb); border:none; color:white; padding:8px 20px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer;">🔗 确认加入本班</button>
+            </div>
+          </div>
+        </div>
+      `;
+      document.body.appendChild(modal);
+
+      const closeModal = () => modal.remove();
+      modal.querySelector('#btn-close-single-student').addEventListener('click', closeModal);
+      modal.querySelector('#btn-cancel-single-std').addEventListener('click', closeModal);
+      const cancelEnrollBtn = modal.querySelector('#btn-cancel-enroll');
+      if (cancelEnrollBtn) cancelEnrollBtn.addEventListener('click', closeModal);
+
+      // 🔍 加入已有学生选项卡实时模糊搜索
+      const searchEnrollInput = modal.querySelector('#input-search-enroll-std');
+      if (searchEnrollInput) {
+        searchEnrollInput.addEventListener('input', (e) => {
+          const q = (e.target.value || '').trim().toLowerCase();
+          modal.querySelectorAll('.enroll-std-card-item').forEach(el => {
+            const str = el.dataset.search || '';
+            if (!q || str.includes(q)) el.style.display = 'flex';
+            else el.style.display = 'none';
+          });
+        });
+      }
+
+      // 点击背景遮罩或按 ESC 键均可便捷关闭弹窗
+      modal.addEventListener('click', (e) => {
+        if (e.target === modal) closeModal();
+      });
+      const onEscKey = (e) => {
+        if (e.key === 'Escape') {
+          closeModal();
+          document.removeEventListener('keydown', onEscKey);
+        }
+      };
+      document.addEventListener('keydown', onEscKey);
+
+      // 标签切换逻辑
+      const tabNew = modal.querySelector('#tab-new-student');
+      const tabEnroll = modal.querySelector('#tab-enroll-student');
+      const panelNew = modal.querySelector('#panel-new-student');
+      const panelEnroll = modal.querySelector('#panel-enroll-student');
+      tabNew.addEventListener('click', () => {
+        tabNew.style.background = 'rgba(99,102,241,0.25)'; tabNew.style.color = '#a5b4fc'; tabNew.style.borderBottom = '3px solid #6366f1';
+        tabEnroll.style.background = 'transparent'; tabEnroll.style.color = '#64748b'; tabEnroll.style.borderBottom = '3px solid transparent';
+        panelNew.style.display = ''; panelEnroll.style.display = 'none';
+      });
+      tabEnroll.addEventListener('click', () => {
+        tabEnroll.style.background = 'rgba(99,102,241,0.25)'; tabEnroll.style.color = '#a5b4fc'; tabEnroll.style.borderBottom = '3px solid #6366f1';
+        tabNew.style.background = 'transparent'; tabNew.style.color = '#64748b'; tabNew.style.borderBottom = '3px solid transparent';
+        panelEnroll.style.display = ''; panelNew.style.display = 'none';
+      });
+
+      // 新建账号提交
+      modal.querySelector('#btn-submit-single-std').addEventListener('click', () => {
+        const name = modal.querySelector('#modal-std-name').value.trim();
+        const code = modal.querySelector('#modal-std-code').value.trim();
+        const pwd = modal.querySelector('#modal-std-password').value.trim();
+        if (!name || !code) { alert('⚠️ 请填齐学生姓名和学号！'); return; }
+        try {
+          const users = authManager.getUsers();
+          const isAlreadyExist = users.some(u => (u.studentCode && u.studentCode.trim().toLowerCase() === code.toLowerCase()) || (u.username && u.username.trim().toLowerCase() === code.toLowerCase()));
+          const targetUser = authManager.addStudentToClass(name, code, activeClass.id, pwd || '123');
+          if (isAlreadyExist) {
+            alert(`💡 学号【${code}】对应的学生【${targetUser.name}】已存在于系统中，已跳过重复创建并自动关联至本班级【${activeClass.name}】！`);
+          } else {
+            alert(`🎉 成功创建并添加新学生【${targetUser.name} (学号: ${code})】至当前班级！`);
+          }
+          closeModal();
+          renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+        } catch (err) {
+          alert('❌ ' + err.message);
+        }
+      });
+
+      // 加入已有学生提交
+      const submitEnrollBtn = modal.querySelector('#btn-submit-enroll');
+      if (submitEnrollBtn) {
+        submitEnrollBtn.addEventListener('click', () => {
+          const checked = modal.querySelectorAll('.enroll-chk:checked');
+          if (checked.length === 0) { alert('⚠️ 请勾选至少一位学生！'); return; }
+          checked.forEach(chk => {
+            // 直接把该学生的 classIds 追加当前班级
+            const users = authManager.getUsers();
+            const student = users.find(u => u.id === chk.dataset.uid);
+            if (student) {
+              if (!student.classIds || !Array.isArray(student.classIds)) {
+                student.classIds = student.classId ? [student.classId] : [];
+              }
+              if (!student.classIds.includes(activeClass.id)) {
+                student.classIds.push(activeClass.id);
+              }
+            }
+            localStorage.setItem(STORAGE_KEY_USERS_DB, JSON.stringify(users));
+            // 同时把 student.id 加入班级 studentIds
+            const classes = authManager.getClasses();
+            const cls = classes.find(c => c.id === activeClass.id);
+            if (cls) {
+              if (!cls.studentIds) cls.studentIds = [];
+              if (!cls.studentIds.includes(chk.dataset.uid)) cls.studentIds.push(chk.dataset.uid);
+              localStorage.setItem(STORAGE_KEY_CLASSES, JSON.stringify(classes));
+            }
+          });
+          authManager.pushGlobalMeta();
+          closeModal();
+          renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+        });
+      }
+    });
+  }
+
+  const btnImportFile = container.querySelector('#btn-v1-import-file');
+  if (btnImportFile) {
+    btnImportFile.addEventListener('click', () => {
+      document.querySelectorAll('.modal-overlay').forEach(el => el.remove());
+      const modal = document.createElement('div');
+      modal.className = 'modal-overlay';
+      modal.innerHTML = `
+        <div class="teacher-modal-card fancy-task-modal" style="width:620px; background:radial-gradient(circle at 50% 10%, #1e1b4b 0%, #0f172a 80%);">
+          <div class="teacher-modal-header" style="background:linear-gradient(135deg, rgba(236,72,153,0.3), rgba(139,92,246,0.3));">
+            <div class="modal-header-title">
+              <div class="modal-icon-badge" style="background:rgba(236,72,153,0.3); color:#f472b6;">📥</div>
+              <div>
+                <h3>上传 XLSX / CSV 文件导入学生账号 (${activeClass.name})</h3>
+              </div>
+            </div>
+            <button class="modal-close-btn" id="btn-close-file-modal">✕</button>
+          </div>
+          <div class="teacher-modal-body">
+            <div class="teacher-form-group">
+              <label><span class="req">*</span> 选择本地 .xlsx 或 .csv 文件上传</label>
+              <div id="file-dropzone" style="border:2px dashed rgba(236,72,153,0.4); border-radius:12px; padding:20px; text-align:center; background:rgba(236,72,153,0.08); cursor:pointer;">
+                <input type="file" id="modal-file-input" accept=".xlsx, .xls, .csv" style="display:none;">
+                <div id="dropzone-text">
+                  <span style="font-size:32px;">📄</span>
+                  <div style="font-size:14px; font-weight:700; color:#f472b6; margin-top:6px;">点击选择或拖拽本地 .xlsx / .csv 文件到此处</div>
+                </div>
+              </div>
+            </div>
+            <div class="teacher-form-group" style="margin-top:14px;">
+              <label>或 直接粘贴名册文本 (每行一人)</label>
+              <textarea id="modal-paste-textarea" class="teacher-textarea fancy" style="min-height:90px; font-family:monospace; font-size:13px;" placeholder="每行一位学生，逗号或空格分隔：&#10;姓名, 登录账号, 学号, 初始密码(可选)"></textarea>
+            </div>
+          </div>
+          <div class="teacher-modal-footer">
+            <button class="modal-btn cancel" id="btn-cancel-file-modal">取消</button>
+            <button class="modal-btn submit task-theme" id="btn-submit-file-import" style="background:linear-gradient(135deg, #ec4899, #8b5cf6);">
+              🚀 确认解析并导入学生池 (未填密码默认为 123)
+            </button>
+          </div>
+        </div>
+      `;
+      document.body.appendChild(modal);
+
+      const closeModal = () => modal.remove();
+      modal.querySelector('#btn-close-file-modal').addEventListener('click', closeModal);
+      modal.querySelector('#btn-cancel-file-modal').addEventListener('click', closeModal);
+
+      modal.addEventListener('click', (e) => {
+        if (e.target === modal) closeModal();
+      });
+      const onEscKey = (e) => {
+        if (e.key === 'Escape') {
+          closeModal();
+          document.removeEventListener('keydown', onEscKey);
+        }
+      };
+      document.addEventListener('keydown', onEscKey);
+
+      const fileInput = modal.querySelector('#modal-file-input');
+      const dropzone = modal.querySelector('#file-dropzone');
+      const dropText = modal.querySelector('#dropzone-text');
+      const textarea = modal.querySelector('#modal-paste-textarea');
+      let loadedParsedStudents = null;
+
+      dropzone.addEventListener('click', () => fileInput.click());
+      fileInput.addEventListener('change', (e) => {
+        if (e.target.files && e.target.files[0]) {
+          const f = e.target.files[0];
+          dropText.innerHTML = `<span style="font-size:28px;">✅</span><div style="font-size:13px; color:#34d399; font-weight:700;">已读取文件: ${f.name}</div>`;
+          parseXLSXOrCSVFile(f, (parsedList) => {
+            loadedParsedStudents = parsedList;
+            dropText.innerHTML = `<span style="font-size:28px;">🎉</span><div style="font-size:14px; color:#34d399; font-weight:700;">成功解析 ${parsedList.length} 名学生记录！</div>`;
+          });
+        }
+      });
+
+      modal.querySelector('#btn-submit-file-import').addEventListener('click', () => {
+        let listToImport = loadedParsedStudents;
+        if (!listToImport && textarea.value.trim()) {
+          listToImport = parseCSVText(textarea.value.trim());
+        }
+        if (!listToImport || listToImport.length === 0) {
+          alert('⚠️ 请上传 XLSX/CSV 文件或粘贴名册文本！');
+          return;
+        }
+        const { createdCount, linkedCount, totalProcessed, linkedList } = authManager.batchAddStudentsToClass(listToImport, activeClass.id);
+        let tipMsg = `🎉 名册导入完成！\n\n✅ 当前班级【${activeClass.name}】共计导入/就绪学生: ${totalProcessed} 人\n• 🆕 全新创建入库: ${createdCount} 人\n• 🔗 关联已有账号 (如跨班学生): ${linkedCount} 人`;
+        if (linkedList && linkedList.length > 0) {
+          tipMsg += `\n\n💡 以下 ${linkedList.length} 位学生已存在于系统数据库（同一账号数据），已直接关联至本班展示：\n` + 
+            linkedList.map((s, idx) => `${idx + 1}. ${s.name} (学号: ${s.code})`).join('\n');
+        }
+        alert(tipMsg);
+        closeModal();
+        renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+      });
+    });
+  }
+
+  const setupGroupModal = (editingGroupId = null) => {
+    document.querySelectorAll('.modal-overlay').forEach(el => el.remove());
+    const cls = activeClass;
+    const targetGroup = editingGroupId ? (cls.groups || []).find(g => g.id === editingGroupId) : null;
+    const currentMembers = targetGroup ? (targetGroup.members || []) : [];
+    const availableStudents = authManager.getAvailableStudentsForGroup(cls.id, editingGroupId);
+
+    const modal = document.createElement('div');
+    modal.className = 'modal-overlay';
+    modal.innerHTML = `
+      <div class="teacher-modal-card fancy-task-modal" style="width:600px; background:#ffffff; border:1px solid #e2e8f0; box-shadow:0 20px 45px rgba(15,23,42,0.12);">
+        <div class="teacher-modal-header" style="background:linear-gradient(135deg, #eff6ff, #f8fafc); border-bottom:1px solid #e2e8f0; padding:18px 24px;">
+          <div class="modal-header-title" style="display:flex; align-items:center; gap:10px;">
+            <div class="modal-icon-badge" style="background:#dbeafe; color:#2563eb; font-size:20px; padding:6px 10px; border-radius:10px;">👥</div>
+            <div>
+              <h3 style="margin:0; font-size:17px; font-weight:800; color:#0f172a;">${targetGroup ? `编辑【${targetGroup.name}】小组成员` : '新建协作小组'} (${cls.name})</h3>
+            </div>
+          </div>
+          <button class="modal-close-btn" id="btn-close-group-edit" style="background:#f1f5f9; border:none; color:#64748b; font-size:16px; border-radius:8px; width:30px; height:30px; cursor:pointer;">✕</button>
+        </div>
+        <div class="teacher-modal-body" style="padding:22px 24px;">
+          <div class="teacher-form-group" style="margin-bottom:16px;">
+            <label style="font-size:13px; font-weight:700; color:#334155; margin-bottom:6px; display:block;"><span class="req" style="color:#dc2626;">*</span> 小组名称</label>
+            <input type="text" id="modal-grp-name" class="teacher-input fancy" value="${targetGroup ? targetGroup.name : `第 ${(cls.groups || []).length + 1} 协作小组`}" placeholder="输入小组名称" style="background:#ffffff; border:1.5px solid #cbd5e1; color:#0f172a; padding:10px 14px; border-radius:8px; width:100%; font-size:13.5px;">
+          </div>
+
+          <div class="teacher-form-group">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+              <label style="font-size:13px; font-weight:700; color:#334155; margin:0;"><span class="req" style="color:#dc2626;">*</span> 勾选组员 (仅显示未进组学生，共 ${availableStudents.length} 人)</label>
+              <input type="text" id="modal-grp-std-search" placeholder="🔍 输入姓名或学号搜索..." style="background:#ffffff; border:1.5px solid #cbd5e1; color:#0f172a; padding:6px 12px; border-radius:6px; font-size:12.5px; width:210px; outline:none;">
+            </div>
+            <div id="modal-grp-candidates-container" style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:10px; max-height:250px; overflow-y:auto; display:flex; flex-direction:column; gap:6px;">
+              ${availableStudents.length === 0 ? '<div style="color:#64748b; font-size:13px; text-align:center; padding:20px;">✅ 当前班级所有学生均已进组，无空闲待分配学生。</div>' : ''}
+              ${availableStudents.map(s => {
+                const isChecked = currentMembers.includes(s.id);
+                const isLeader = s.studentCode === 'A';
+                const otherGroup = (cls.groups || []).find(g => g.id !== editingGroupId && g.members && g.members.includes(s.id));
+                return `
+                  <div class="grp-student-item" data-search="${(s.name + ' ' + (s.studentCode || '') + ' ' + (s.username || '')).toLowerCase()}" style="display:flex; justify-content:space-between; align-items:center; background:#ffffff; border:1px solid #e2e8f0; padding:10px 14px; border-radius:8px; transition:all 0.15s;">
+                    <label style="display:flex; align-items:center; gap:10px; cursor:pointer; font-size:13.5px; color:#0f172a; font-weight:600;">
+                      <input type="checkbox" class="chk-grp-member" value="${s.id}" ${isChecked ? 'checked' : ''} style="width:17px; height:17px; cursor:pointer; accent-color:#2563eb;">
+                      <span>${s.avatar || '👤'} <b>${s.name}</b> <code style="color:#2563eb; font-family:monospace; margin-left:4px;">${s.studentCode || s.username}</code></span>
+                      ${otherGroup ? `<span style="background:#fef3c7; color:#b45309; border:1px solid #fde68a; font-size:11.5px; padding:1px 8px; border-radius:6px; font-weight:700; margin-left:6px;">(现归属: ${otherGroup.name})</span>` : ''}
+                    </label>
+                    <label style="font-size:12px; color:#b45309; cursor:pointer; display:flex; align-items:center; gap:4px; font-weight:700; background:#fffbeb; border:1px solid #fde68a; padding:3px 8px; border-radius:6px;">
+                      <input type="radio" name="grp-leader-radio" value="${s.id}" ${isLeader || (isChecked && currentMembers[0] === s.id) ? 'checked' : ''} style="cursor:pointer; accent-color:#d97706;">
+                      设为组长
+                    </label>
+                  </div>
+                `;
+              }).join('')}
+            </div>
+          </div>
+        </div>
+        <div class="teacher-modal-footer" style="background:#f8fafc; border-top:1px solid #e2e8f0; padding:14px 24px; display:flex; justify-content:flex-end; gap:10px;">
+          <button class="modal-btn cancel" id="btn-cancel-grp-edit" style="background:#ffffff; border:1px solid #cbd5e1; color:#475569; padding:8px 18px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer;">取消</button>
+          <button class="modal-btn submit task-theme" id="btn-submit-grp-edit" style="background:linear-gradient(135deg, #1d4ed8, #2563eb); border:none; color:white; padding:8px 20px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer;">
+            💾 保存小组划分配置
+          </button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(modal);
+
+    const closeModal = () => modal.remove();
+    modal.querySelector('#btn-close-group-edit').addEventListener('click', closeModal);
+    modal.querySelector('#btn-cancel-grp-edit').addEventListener('click', closeModal);
+
+    // 🔍 实时模糊搜索学生
+    const searchInput = modal.querySelector('#modal-grp-std-search');
+    if (searchInput) {
+      searchInput.addEventListener('input', (e) => {
+        const query = (e.target.value || '').trim().toLowerCase();
+        modal.querySelectorAll('.grp-student-item').forEach(item => {
+          const searchKey = item.dataset.search || '';
+          if (!query || searchKey.includes(query)) {
+            item.style.display = 'flex';
+          } else {
+            item.style.display = 'none';
+          }
+        });
+      });
+    }
+
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) closeModal();
+    });
+    const onEscKey = (e) => {
+      if (e.key === 'Escape') {
+        closeModal();
+        document.removeEventListener('keydown', onEscKey);
+      }
+    };
+    document.addEventListener('keydown', onEscKey);
+
+    modal.querySelector('#btn-submit-grp-edit').addEventListener('click', () => {
+      const name = modal.querySelector('#modal-grp-name').value.trim();
+      const selectedUserIds = Array.from(modal.querySelectorAll('.chk-grp-member:checked')).map(cb => cb.value);
+      const leaderRadio = modal.querySelector('input[name="grp-leader-radio"]:checked');
+      const leaderUserId = leaderRadio ? leaderRadio.value : (selectedUserIds[0] || null);
+
+      if (!name) { alert('⚠️ 请输入小组名称！'); return; }
+      try {
+        authManager.updateGroupMembers(cls.id, editingGroupId || ('group_' + Date.now()), name, selectedUserIds, leaderUserId);
+        closeModal();
+        renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+      } catch (err) {
+        alert('❌ ' + err.message);
+      }
+    });
+  };
+
+  const btnCreateGroupV1 = container.querySelector('#btn-v1-create-group');
+  if (btnCreateGroupV1) btnCreateGroupV1.addEventListener('click', () => setupGroupModal(null));
+
+  container.querySelectorAll('.btn-edit-group-members').forEach(btn => {
+    btn.addEventListener('click', () => setupGroupModal(btn.dataset.gid));
+  });
+
+  container.querySelectorAll('.delete-student-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      authManager.deleteStudent(btn.dataset.id, activeClass.id);
+      renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+    });
+  });
+
+  container.querySelectorAll('.btn-delete-group').forEach(btn => {
+    btn.addEventListener('click', () => {
+      authManager.deleteGroup(activeClass.id, btn.dataset.gid);
+      renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+    });
+  });
+
+  // 🎲 随机分组 (按教师所选人数自动洗牌划分并指定组长)
+  const btnRandomGroups = container.querySelector('#btn-v1-random-groups');
+  const selRandomGroupSize = container.querySelector('#sel-random-group-size');
+  if (btnRandomGroups) {
+    btnRandomGroups.addEventListener('click', () => {
+      if (classStudents.length === 0) {
+        alert('⚠️ 当前班级学生池中暂无学生，请先添加学生账号！');
+        return;
+      }
+      const groupSize = selRandomGroupSize ? parseInt(selRandomGroupSize.value, 10) || 3 : 3;
+      const currentGroupsCount = (activeClass.groups || []).length;
+
+      if (currentGroupsCount > 0) {
+        // 当前已有小组，弹出模式选择弹窗
+        document.querySelectorAll('.modal-overlay').forEach(el => el.remove());
+        const modal = document.createElement('div');
+        modal.className = 'modal-overlay';
+        modal.innerHTML = `
+          <div class="teacher-modal-card fancy-task-modal" style="width:520px; background:#ffffff; border:1px solid #e2e8f0; box-shadow:0 20px 45px rgba(15,23,42,0.12);">
+            <div class="teacher-modal-header" style="background:linear-gradient(135deg, #eff6ff, #f8fafc); border-bottom:1px solid #e2e8f0; padding:18px 24px;">
+              <div class="modal-header-title" style="display:flex; align-items:center; gap:10px;">
+                <div class="modal-icon-badge" style="background:#dbeafe; color:#2563eb; font-size:20px; padding:6px 10px; border-radius:10px;">🎲</div>
+                <div><h3 style="margin:0; font-size:17px; font-weight:800; color:#0f172a;">选择随机分组模式 (${activeClass.name})</h3></div>
+              </div>
+              <button class="modal-close-btn" id="btn-close-rand-modal" style="background:#f1f5f9; border:none; color:#64748b; font-size:16px; border-radius:8px; width:30px; height:30px; cursor:pointer;">✕</button>
+            </div>
+            <div class="teacher-modal-body" style="display:flex; flex-direction:column; gap:14px; padding:22px 24px;">
+              <div style="font-size:13.5px; color:#475569; font-weight:700;">当前班级已有 <b style="color:#2563eb;">${currentGroupsCount}</b> 个小组。请选择分组方式：</div>
+              
+              <button id="btn-rand-mode-append" style="background:#f0fdf4; border:1.5px solid #86efac; border-radius:12px; padding:16px; text-align:left; cursor:pointer; display:flex; flex-direction:column; gap:6px; transition:all 0.2s ease;">
+                <div style="font-size:15px; font-weight:800; color:#15803d; display:flex; align-items:center; gap:6px;">
+                  <span>🧩 模式一：保留已有小组，仅将【未进组学生】随机组队</span>
+                  <span style="background:#dcfce7; color:#166534; font-size:11px; padding:2px 6px; border-radius:4px;">推荐</span>
+                </div>
+                <div style="font-size:12.5px; color:#4b5563; line-height:1.5;">已有小组及组员保持不动，系统提取所有未进组的学生按每组 <b>${groupSize}</b> 人顺延建立新小组。</div>
+              </button>
+
+              <button id="btn-rand-mode-reset" style="background:#fffbeb; border:1.5px solid #fcd34d; border-radius:12px; padding:16px; text-align:left; cursor:pointer; display:flex; flex-direction:column; gap:6px; transition:all 0.2s ease;">
+                <div style="font-size:15px; font-weight:800; color:#b45309;">💥 模式二：全员打散重组 (覆盖重排)</div>
+                <div style="font-size:12.5px; color:#4b5563; line-height:1.5;">清空已有全部小组，将全班 <b>${classStudents.length}</b> 名学生重新洗牌并平均分配为每组 <b>${groupSize}</b> 人。</div>
+              </button>
+            </div>
+            <div class="teacher-modal-footer" style="background:#f8fafc; border-top:1px solid #e2e8f0; padding:14px 24px; display:flex; justify-content:flex-end;">
+              <button class="modal-btn cancel" id="btn-cancel-rand-modal" style="background:#ffffff; border:1px solid #cbd5e1; color:#475569; padding:8px 18px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer;">取消</button>
+            </div>
+          </div>
+        `;
+        document.body.appendChild(modal);
+
+        const closeModal = () => modal.remove();
+        modal.querySelector('#btn-close-rand-modal').addEventListener('click', closeModal);
+        modal.querySelector('#btn-cancel-rand-modal').addEventListener('click', closeModal);
+
+        modal.querySelector('#btn-rand-mode-append').addEventListener('click', () => {
+          closeModal();
+          authManager.autoRandomGrouping(activeClass.id, groupSize, 'append_unassigned');
+          renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+          alert(`✅ 已成功将未进组学生随机分配完成！`);
+        });
+
+        modal.querySelector('#btn-rand-mode-reset').addEventListener('click', () => {
+          if (confirm(`⚠️ 确认将全班 ${classStudents.length} 名学生全员打散重新分组？`)) {
+            closeModal();
+            authManager.autoRandomGrouping(activeClass.id, groupSize, 'reset_all');
+            renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+            alert(`✅ 已完成全员打散重组！`);
+          }
+        });
+      } else {
+        // 当前没有小组，直接执行随机分组
+        authManager.autoRandomGrouping(activeClass.id, groupSize, 'reset_all');
+        renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+        alert(`✅ 已完成随机分组！按每组 ${groupSize} 人，共自动划分 ${(activeClass.groups || []).length} 个协作小组。`);
+      }
+    });
+  }
+
+  // 💥 一键解散所有小组
+  const btnDissolveAll = container.querySelector('#btn-v1-dissolve-all-groups');
+  if (btnDissolveAll) {
+    btnDissolveAll.addEventListener('click', () => {
+      if ((activeClass.groups || []).length === 0) {
+        alert('当前班级暂无小组可解散！');
+        return;
+      }
+      if (confirm(`💥 危险操作：确认一键解散【${activeClass.name}】下的所有小组？\n\n解散后全部学生将恢复为【待划分】状态。`)) {
+        authManager.deleteAllGroups(activeClass.id);
+        renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+        alert('✅ 已成功解散当前班级的所有小组！');
+      }
+    });
+  }
+
+  // 📋 问卷按【班级 + 任务】联动切换与独立保存
+  const selSurveyClass = container.querySelector('#sel-survey-class');
+  const selSurveyTask = container.querySelector('#sel-survey-task');
+  const surveyUrlInput = container.querySelector('#input-survey-url') || container.querySelector('#survey-url-input');
+
+  const updateSurveyUrlInputVal = () => {
+    const inputEl = container.querySelector('#input-survey-url') || container.querySelector('#survey-url-input');
+    if (!inputEl) return;
+    const cId = selSurveyClass ? selSurveyClass.value : activeClass.id;
+    const tId = selSurveyTask ? selSurveyTask.value : (currentClassTasks[0] ? currentClassTasks[0].id : 'task_default');
+    inputEl.value = authManager.getSurveyUrl(cId, tId);
+  };
+
+  if (selSurveyClass) {
+    selSurveyClass.addEventListener('change', () => {
+      const cId = selSurveyClass.value;
+      const classSpecificTasks = tasks.filter(t => t.classId === 'all' || t.classId === cId);
+      if (selSurveyTask) {
+        selSurveyTask.innerHTML = classSpecificTasks.length === 0
+          ? '<option value="task_default">📌 默认写作任务</option>'
+          : classSpecificTasks.map((t, idx) => `<option value="${t.id}" ${idx === 0 ? 'selected' : ''}>📌 ${t.title}</option>`).join('');
+      }
+      updateSurveyUrlInputVal();
+    });
+  }
+  if (selSurveyTask) selSurveyTask.addEventListener('change', updateSurveyUrlInputVal);
+
+  const btnSaveSurveyUrl = container.querySelector('#btn-save-survey-url');
+  if (btnSaveSurveyUrl) {
+    btnSaveSurveyUrl.addEventListener('click', () => {
+      const urlInput = container.querySelector('#input-survey-url') || container.querySelector('#survey-url-input');
+      const targetClassId = selSurveyClass ? selSurveyClass.value : activeClass.id;
+      const targetTaskId = selSurveyTask ? selSurveyTask.value : (currentClassTasks[0] ? currentClassTasks[0].id : 'task_default');
+      const url = urlInput ? urlInput.value.trim() : '';
+      if (!url) { alert('⚠️ 请先填入有效的问卷链接！'); return; }
+      
+      authManager.saveSurvey(targetClassId, targetTaskId, url);
+      
+      if (window.app && window.app.cloudSyncEngine) {
+        window.app.cloudSyncEngine.pushSnapshot();
+      }
+
+      alert('✅ 问卷链接已成功保存并永久同步！');
+      renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+    });
+  }
+
+  // 📝 载入问卷修改
+  container.querySelectorAll('.btn-quick-fill-survey').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const cId = btn.dataset.cid;
+      const tId = btn.dataset.tid;
+      const url = decodeURIComponent(btn.dataset.url || '');
+      if (selSurveyClass) selSurveyClass.value = cId;
+      if (selSurveyTask) selSurveyTask.value = tId;
+      const inputEl = container.querySelector('#input-survey-url') || container.querySelector('#survey-url-input');
+      if (inputEl) {
+        inputEl.value = url;
+        inputEl.focus();
+      }
+    });
+  });
+
+  // 🗑️ 清除/删除单条问卷
+  container.querySelectorAll('.btn-delete-survey-item').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const sId = btn.dataset.id;
+      if (confirm('确认从清单中清除并删除此项问卷配置？')) {
+        authManager.deleteSurvey(sId);
+        if (window.app && window.app.cloudSyncEngine) window.app.cloudSyncEngine.pushSnapshot();
+        alert('✅ 问卷配置已成功删除！');
+        renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+      }
+    });
+  });
+
+  // 📝 载入问卷修改
+  container.querySelectorAll('.btn-quick-fill-survey').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const cId = btn.dataset.cid;
+      const tId = btn.dataset.tid;
+      const url = decodeURIComponent(btn.dataset.url || '');
+      if (selSurveyClass) selSurveyClass.value = cId;
+      if (selSurveyTask) selSurveyTask.value = tId;
+      if (surveyUrlInput) {
+        surveyUrlInput.value = url;
+        surveyUrlInput.focus();
+      }
+    });
+  });
+
+  // 🗑️ 清除问卷配置
+  container.querySelectorAll('.btn-delete-survey-item').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const cId = btn.dataset.cid;
+      const tId = btn.dataset.tid;
+      if (confirm('🗑️ 确认清除此班级与任务的问卷绑定？')) {
+        authManager.deleteSurveyUrl(cId, tId);
+        renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+      }
+    });
+  });
+
+  // ✏️ 修改写作任务按钮（弹窗支持修改：开始时间、截止时间、任务时长、任务名称、说明要求）
+  container.querySelectorAll('.btn-edit-task').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const taskId = btn.dataset.id;
+      const tasks = authManager.getTasks();
+      const task = tasks.find(t => t.id === taskId);
+      if (!task) {
+        alert('❌ 未找到该写作任务！');
+        return;
+      }
+
+      document.querySelectorAll('.modal-overlay').forEach(el => el.remove());
+
+      const formatForInput = (val) => {
+        if (!val) return '';
+        const clean = val.trim().replace(' ', 'T');
+        if (clean.length === 16) return clean;
+        if (clean.length > 16) return clean.slice(0, 16);
+        const d = new Date(val);
+        if (!isNaN(d.getTime())) {
+          const pad = (n) => String(n).padStart(2, '0');
+          return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+        }
+        return '';
+      };
+
+      const currentStart = formatForInput(task.startTime) || new Date().toISOString().slice(0, 16);
+      const currentDeadline = formatForInput(task.deadline) || new Date(Date.now() + 150 * 60 * 1000).toISOString().slice(0, 16);
+      const currentDuration = task.durationMinutes || 150;
+
+      const modal = document.createElement('div');
+      modal.className = 'modal-overlay';
+      modal.innerHTML = `
+        <div class="teacher-modal-card fancy-task-modal" style="width:540px;">
+          <div class="teacher-modal-header task-theme-gradient">
+            <div class="modal-header-title">
+              <div class="modal-icon-badge task">✏️</div>
+              <div>
+                <h3>修改写作任务</h3>
+                <div style="font-size:11.5px; opacity:0.85; margin-top:2px;">调整任务时间与要求后将实时同步至全班学生端</div>
+              </div>
+            </div>
+            <button class="modal-close-btn" id="btn-close-edit-task-modal">✕</button>
+          </div>
+          <div class="teacher-modal-body" style="padding:22px 24px; display:flex; flex-direction:column; gap:14px;">
+            <div class="teacher-form-group">
+              <label style="font-size:12.5px; font-weight:700; color:#334155; margin-bottom:4px; display:block;">🏫 归属教学班级</label>
+              <div style="background:#eff6ff; border:1px solid #bfdbfe; border-radius:8px; padding:8px 12px; font-size:12.5px; font-weight:700; color:#1e40af;">
+                🏫 ${task.className || activeClass.name}
+              </div>
+            </div>
+
+            <div class="teacher-form-group">
+              <label style="font-size:12.5px; font-weight:700; color:#334155; margin-bottom:4px; display:block;"><span class="req" style="color:#dc2626;">*</span> 写作任务名称</label>
+              <input type="text" id="modal-edit-task-title" class="teacher-input fancy" value="${task.title || ''}" placeholder="输入写作任务名称" style="width:100%; font-size:13.5px; padding:9px 12px; border:1.5px solid #cbd5e1; border-radius:8px;">
+            </div>
+
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+              <div class="teacher-form-group">
+                <label style="font-size:12.5px; font-weight:700; color:#334155; margin-bottom:4px; display:block;"><span class="req" style="color:#dc2626;">*</span> 📅 开始时间</label>
+                <input type="datetime-local" id="modal-edit-task-start" class="teacher-input fancy" value="${currentStart}" style="width:100%; font-size:12.5px; padding:8px 10px; border:1.5px solid #cbd5e1; border-radius:8px;">
+              </div>
+              <div class="teacher-form-group">
+                <label style="font-size:12.5px; font-weight:700; color:#334155; margin-bottom:4px; display:block;"><span class="req" style="color:#dc2626;">*</span> ⌛ 截止时间</label>
+                <input type="datetime-local" id="modal-edit-task-deadline" class="teacher-input fancy" value="${currentDeadline}" style="width:100%; font-size:12.5px; padding:8px 10px; border:1.5px solid #cbd5e1; border-radius:8px;">
+              </div>
+            </div>
+
+            <!-- ⚡ 快捷延长截止时间工具条（支持自定义数值与单位：分钟/小时/天/周） -->
+            <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:12px 14px;">
+              <div style="font-size:12px; font-weight:700; color:#334155; margin-bottom:8px; display:flex; align-items:center; gap:6px;">
+                <span>⚡ 快捷延长截止时间:</span>
+                <span style="font-size:11px; color:#64748b; font-weight:normal;">(支持自由输入数字，选择单位快速后延)</span>
+              </div>
+              <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:10px;">
+                <span style="font-size:12.5px; color:#475569; font-weight:600;">延长数值:</span>
+                <input type="number" id="modal-edit-extend-num" value="1" min="0.1" step="any" style="width:75px; padding:6px 10px; border:1.5px solid #cbd5e1; border-radius:6px; font-size:13px; font-weight:700; text-align:center; outline:none;">
+                <select id="modal-edit-extend-unit" style="padding:6px 10px; border:1.5px solid #cbd5e1; border-radius:6px; font-size:12.5px; font-weight:700; background:#ffffff; cursor:pointer; outline:none;">
+                  <option value="minute">分钟</option>
+                  <option value="hour" selected>小时</option>
+                  <option value="day">天 (24h)</option>
+                  <option value="week">周 (7天)</option>
+                </select>
+                <button type="button" id="btn-edit-apply-custom-extend" style="background:linear-gradient(135deg, #1d4ed8, #2563eb); color:white; border:none; padding:6px 14px; border-radius:6px; font-size:12.5px; font-weight:700; cursor:pointer; box-shadow:0 2px 6px rgba(37,99,235,0.2);">
+                  ⚡ 确认延长
+                </button>
+              </div>
+              <div style="display:flex; flex-wrap:wrap; gap:6px; align-items:center;">
+                <span style="font-size:11px; color:#64748b;">快速选择:</span>
+                <button type="button" class="btn-quick-extend" data-num="30" data-unit="minute" style="background:#ffffff; border:1px solid #cbd5e1; color:#1e293b; padding:3px 8px; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer;">+30分钟</button>
+                <button type="button" class="btn-quick-extend" data-num="1" data-unit="hour" style="background:#ffffff; border:1px solid #cbd5e1; color:#1e293b; padding:3px 8px; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer;">+1小时</button>
+                <button type="button" class="btn-quick-extend" data-num="2" data-unit="hour" style="background:#ffffff; border:1px solid #cbd5e1; color:#1e293b; padding:3px 8px; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer;">+2小时</button>
+                <button type="button" class="btn-quick-extend" data-num="1" data-unit="day" style="background:#eff6ff; border:1px solid #bfdbfe; color:#2563eb; padding:3px 8px; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer;">+1天</button>
+                <button type="button" class="btn-quick-extend" data-num="3" data-unit="day" style="background:#eff6ff; border:1px solid #bfdbfe; color:#2563eb; padding:3px 8px; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer;">+3天</button>
+                <button type="button" class="btn-quick-extend" data-num="1" data-unit="week" style="background:#f0fdf4; border:1px solid #bbf7d0; color:#16a34a; padding:3px 8px; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer;">+1周</button>
+              </div>
+            </div>
+
+            <div class="teacher-form-group">
+              <label style="font-size:12.5px; font-weight:700; color:#334155; margin-bottom:4px; display:block;">📝 任务详细说明与要求 (选填)</label>
+              <textarea id="modal-edit-task-desc" class="teacher-textarea fancy" style="min-height:85px; width:100%; font-size:13px; padding:10px 12px; border:1.5px solid #cbd5e1; border-radius:8px; line-height:1.5;" placeholder="请输入任务详细说明与指导要求...">${task.instructions || ''}</textarea>
+            </div>
+          </div>
+          <div class="teacher-modal-footer" style="background:#f8fafc; border-top:1px solid #e2e8f0; padding:14px 24px; display:flex; justify-content:flex-end; gap:10px;">
+            <button class="modal-btn cancel" id="btn-cancel-edit-task" style="background:#ffffff; border:1px solid #cbd5e1; color:#475569; padding:8px 18px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer;">取消</button>
+            <button class="modal-btn submit task-theme" id="btn-submit-edit-task" style="background:linear-gradient(135deg, #1d4ed8, #2563eb); border:none; color:white; padding:8px 22px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer; box-shadow:0 3px 8px rgba(37,99,235,0.25);">💾 保存任务修改</button>
+          </div>
+        </div>
+      `;
+      document.body.appendChild(modal);
+
+      const closeModal = () => modal.remove();
+      modal.querySelector('#btn-close-edit-task-modal').addEventListener('click', closeModal);
+      modal.querySelector('#btn-cancel-edit-task').addEventListener('click', closeModal);
+      modal.addEventListener('click', (e) => { if (e.target === modal) closeModal(); });
+
+      const onEscKey = (e) => {
+        if (e.key === 'Escape') {
+          closeModal();
+          document.removeEventListener('keydown', onEscKey);
+        }
+      };
+      document.addEventListener('keydown', onEscKey);
+
+      const deadlineInput = modal.querySelector('#modal-edit-task-deadline');
+      const startInput = modal.querySelector('#modal-edit-task-start');
+
+      const doExtend = (numVal, unitVal) => {
+        const num = parseFloat(numVal) || 0;
+        if (num <= 0) return;
+        let msMultiplier = 3600 * 1000;
+        if (unitVal === 'minute') msMultiplier = 60 * 1000;
+        else if (unitVal === 'hour') msMultiplier = 3600 * 1000;
+        else if (unitVal === 'day') msMultiplier = 24 * 3600 * 1000;
+        else if (unitVal === 'week') msMultiplier = 7 * 24 * 3600 * 1000;
+
+        let baseDate = new Date();
+        if (deadlineInput && deadlineInput.value) {
+          const parsed = new Date(deadlineInput.value);
+          if (!isNaN(parsed.getTime())) baseDate = parsed;
+        } else if (startInput && startInput.value) {
+          const parsed = new Date(startInput.value);
+          if (!isNaN(parsed.getTime())) baseDate = parsed;
+        }
+        const newDate = new Date(baseDate.getTime() + num * msMultiplier);
+        const pad = (n) => String(n).padStart(2, '0');
+        const newDateStr = `${newDate.getFullYear()}-${pad(newDate.getMonth() + 1)}-${pad(newDate.getDate())}T${pad(newDate.getHours())}:${pad(newDate.getMinutes())}`;
+        if (deadlineInput) {
+          deadlineInput.value = newDateStr;
+          deadlineInput.style.borderColor = '#2563eb';
+          setTimeout(() => { if (deadlineInput) deadlineInput.style.borderColor = '#cbd5e1'; }, 600);
+        }
+      };
+
+      // ⚡ 确认自定义延长
+      modal.querySelector('#btn-edit-apply-custom-extend')?.addEventListener('click', () => {
+        const n = modal.querySelector('#modal-edit-extend-num')?.value;
+        const u = modal.querySelector('#modal-edit-extend-unit')?.value;
+        doExtend(n, u);
+      });
+
+      // ⚡ 点击快速选择胶囊
+      modal.querySelectorAll('.btn-quick-extend').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const n = btn.dataset.num;
+          const u = btn.dataset.unit;
+          const inputNum = modal.querySelector('#modal-edit-extend-num');
+          const selectUnit = modal.querySelector('#modal-edit-extend-unit');
+          if (inputNum) inputNum.value = n;
+          if (selectUnit) selectUnit.value = u;
+          doExtend(n, u);
+        });
+      });
+
+      modal.querySelector('#btn-submit-edit-task').addEventListener('click', () => {
+        const newTitle = modal.querySelector('#modal-edit-task-title').value.trim();
+        const newStart = modal.querySelector('#modal-edit-task-start').value;
+        const newDeadline = modal.querySelector('#modal-edit-task-deadline').value;
+        const newDesc = modal.querySelector('#modal-edit-task-desc').value.trim();
+
+        if (!newTitle) {
+          alert('⚠️ 写作任务名称不能为空！');
+          return;
+        }
+
+        let calculatedDuration = 150;
+        if (newStart && newDeadline) {
+          const sDate = new Date(newStart);
+          const dDate = new Date(newDeadline);
+          if (!isNaN(sDate.getTime()) && !isNaN(dDate.getTime()) && dDate > sDate) {
+            calculatedDuration = Math.round((dDate.getTime() - sDate.getTime()) / (60 * 1000));
+          }
+        }
+
+        const fmtTimeStr = (v) => v ? v.replace('T', ' ') : '';
+
+        try {
+          authManager.updateTask(taskId, newTitle, newDesc, fmtTimeStr(newStart), fmtTimeStr(newDeadline), calculatedDuration);
+          closeModal();
+          alert(`✅ 写作任务《${newTitle}》已成功修改，时间与内容已全网即时同步！`);
+          renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+        } catch (err) {
+          alert('❌ ' + err.message);
+        }
+      });
+    });
+  });
+
+  // 🗑️ 删除写作任务按钮
+  container.querySelectorAll('.btn-delete-task').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const taskId = btn.dataset.id;
+      const taskTitle = btn.dataset.title || '此写作任务';
+      if (confirm(`🗑️ 确认删除写作任务《${taskTitle}》？\n\n删除后该任务将从所有教师与学生端移除。`)) {
+        authManager.deleteTask(taskId);
+        alert(`✅ 已成功删除写作任务《${taskTitle}》！`);
+        renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+      }
+    });
+  });
+
+  // 🗑️ 删除课堂通知按钮
+  container.querySelectorAll('.btn-delete-announcement').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const annId = btn.dataset.id;
+      const annTitle = btn.dataset.title || '此通知';
+      if (confirm(`🗑️ 确认删除课堂通知《${annTitle}》？\n\n删除后该通知将从所有学生端的弹窗和通知中心中撤销。`)) {
+        authManager.deleteAnnouncement(annId);
+        alert(`✅ 已成功删除课堂通知《${annTitle}》！`);
+        renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+      }
+    });
+  });
+
+  const btnOpenTaskV2 = container.querySelector('#btn-v2-open-task-modal');
+  if (btnOpenTaskV2) {
+    btnOpenTaskV2.addEventListener('click', () => {
+      document.querySelectorAll('.modal-overlay').forEach(el => el.remove());
+      const now = new Date();
+      const startStr = now.toISOString().slice(0, 16);
+      const deadlineDate = new Date(now.getTime() + 150 * 60 * 1000);
+      const deadlineStr = deadlineDate.toISOString().slice(0, 16);
+
+      const modal = document.createElement('div');
+      modal.className = 'modal-overlay';
+      modal.innerHTML = `
+        <div class="teacher-modal-card fancy-task-modal" style="width:520px;">
+          <div class="teacher-modal-header task-theme-gradient">
+            <div class="modal-header-title"><div class="modal-icon-badge task">📌</div><div><h3>发布全新写作任务</h3></div></div>
+            <button class="modal-close-btn" id="btn-close-task-modal">✕</button>
+          </div>
+          <div class="teacher-modal-body">
+            <div class="teacher-form-group">
+              <label>🏫 归属教学班级</label>
+              <div style="background:#eff6ff; border:1px solid #bfdbfe; border-radius:8px; padding:10px 14px; font-size:13px; font-weight:700; color:#1e40af;">
+                🏫 ${activeClass.name}
+              </div>
+              <input type="hidden" id="modal-task-class" value="${activeClass.id}">
+            </div>
+
+            <div class="form-grid-2" style="margin-top:8px;">
+              <div class="teacher-form-group">
+                <label><span class="req">*</span> 📅 任务开始时间</label>
+                <input type="datetime-local" id="modal-task-start" class="teacher-input fancy" value="${startStr}">
+              </div>
+              <div class="teacher-form-group">
+                <label><span class="req">*</span> ⌛ 任务截止时间</label>
+                <input type="datetime-local" id="modal-task-deadline" class="teacher-input fancy" value="${deadlineStr}">
+              </div>
+            </div>
+
+            <!-- ⚡ 快捷设定截止时间工具条（支持自定义数值与单位：分钟/小时/天/周） -->
+            <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:12px 14px; margin-top:8px;">
+              <div style="font-size:12px; font-weight:700; color:#334155; margin-bottom:8px; display:flex; align-items:center; gap:6px;">
+                <span>⚡ 快捷设定截止时间:</span>
+                <span style="font-size:11px; color:#64748b; font-weight:normal;">(支持自由输入数字，选择单位快速后延)</span>
+              </div>
+              <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:10px;">
+                <span style="font-size:12.5px; color:#475569; font-weight:600;">延长数值:</span>
+                <input type="number" id="modal-create-extend-num" value="1" min="0.1" step="any" style="width:75px; padding:6px 10px; border:1.5px solid #cbd5e1; border-radius:6px; font-size:13px; font-weight:700; text-align:center; outline:none;">
+                <select id="modal-create-extend-unit" style="padding:6px 10px; border:1.5px solid #cbd5e1; border-radius:6px; font-size:12.5px; font-weight:700; background:#ffffff; cursor:pointer; outline:none;">
+                  <option value="minute">分钟</option>
+                  <option value="hour" selected>小时</option>
+                  <option value="day">天 (24h)</option>
+                  <option value="week">周 (7天)</option>
+                </select>
+                <button type="button" id="btn-create-apply-custom-extend" style="background:linear-gradient(135deg, #1d4ed8, #2563eb); color:white; border:none; padding:6px 14px; border-radius:6px; font-size:12.5px; font-weight:700; cursor:pointer; box-shadow:0 2px 6px rgba(37,99,235,0.2);">
+                  ⚡ 确认延长
+                </button>
+              </div>
+              <div style="display:flex; flex-wrap:wrap; gap:6px; align-items:center;">
+                <span style="font-size:11px; color:#64748b;">快速选择:</span>
+                <button type="button" class="btn-create-quick-extend" data-num="30" data-unit="minute" style="background:#ffffff; border:1px solid #cbd5e1; color:#1e293b; padding:3px 8px; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer;">+30分钟</button>
+                <button type="button" class="btn-create-quick-extend" data-num="1" data-unit="hour" style="background:#ffffff; border:1px solid #cbd5e1; color:#1e293b; padding:3px 8px; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer;">+1小时</button>
+                <button type="button" class="btn-create-quick-extend" data-num="2" data-unit="hour" style="background:#ffffff; border:1px solid #cbd5e1; color:#1e293b; padding:3px 8px; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer;">+2小时</button>
+                <button type="button" class="btn-create-quick-extend" data-num="1" data-unit="day" style="background:#eff6ff; border:1px solid #bfdbfe; color:#2563eb; padding:3px 8px; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer;">+1天</button>
+                <button type="button" class="btn-create-quick-extend" data-num="3" data-unit="day" style="background:#eff6ff; border:1px solid #bfdbfe; color:#2563eb; padding:3px 8px; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer;">+3天</button>
+                <button type="button" class="btn-create-quick-extend" data-num="1" data-unit="week" style="background:#f0fdf4; border:1px solid #bbf7d0; color:#16a34a; padding:3px 8px; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer;">+1周</button>
+              </div>
+            </div>
+
+            <div class="teacher-form-group" style="margin-top:8px;">
+              <label><span class="req">*</span> 写作任务名称</label>
+              <input type="text" id="modal-task-title" class="teacher-input fancy" value="" placeholder="输入写作任务名称">
+            </div>
+            <div class="teacher-form-group">
+              <label>任务详细说明与要求 (选填)</label>
+              <textarea id="modal-task-desc" class="teacher-textarea fancy" style="min-height:90px;" placeholder="请输入任务详细说明与指导要求 (可选)..."></textarea>
+            </div>
+          </div>
+          <div class="teacher-modal-footer">
+            <button class="modal-btn cancel" id="btn-cancel-task">取消</button>
+            <button class="modal-btn submit task-theme" id="btn-submit-new-task">🚀 确认发布写作任务</button>
+          </div>
+        </div>
+      `;
+      document.body.appendChild(modal);
+
+      const closeModal = () => modal.remove();
+      modal.querySelector('#btn-close-task-modal').addEventListener('click', closeModal);
+      modal.querySelector('#btn-cancel-task').addEventListener('click', closeModal);
+
+      modal.addEventListener('click', (e) => {
+        if (e.target === modal) closeModal();
+      });
+      const onEscKey = (e) => {
+        if (e.key === 'Escape') {
+          closeModal();
+          document.removeEventListener('keydown', onEscKey);
+        }
+      };
+      document.addEventListener('keydown', onEscKey);
+
+      const deadlineInput = modal.querySelector('#modal-task-deadline');
+      const startInput = modal.querySelector('#modal-task-start');
+
+      const doCreateExtend = (numVal, unitVal) => {
+        const num = parseFloat(numVal) || 0;
+        if (num <= 0) return;
+        let msMultiplier = 3600 * 1000;
+        if (unitVal === 'minute') msMultiplier = 60 * 1000;
+        else if (unitVal === 'hour') msMultiplier = 3600 * 1000;
+        else if (unitVal === 'day') msMultiplier = 24 * 3600 * 1000;
+        else if (unitVal === 'week') msMultiplier = 7 * 24 * 3600 * 1000;
+
+        let baseDate = new Date();
+        if (deadlineInput && deadlineInput.value) {
+          const parsed = new Date(deadlineInput.value);
+          if (!isNaN(parsed.getTime())) baseDate = parsed;
+        } else if (startInput && startInput.value) {
+          const parsed = new Date(startInput.value);
+          if (!isNaN(parsed.getTime())) baseDate = parsed;
+        }
+        const newDate = new Date(baseDate.getTime() + num * msMultiplier);
+        const pad = (n) => String(n).padStart(2, '0');
+        const newDateStr = `${newDate.getFullYear()}-${pad(newDate.getMonth() + 1)}-${pad(newDate.getDate())}T${pad(newDate.getHours())}:${pad(newDate.getMinutes())}`;
+        if (deadlineInput) {
+          deadlineInput.value = newDateStr;
+          deadlineInput.style.borderColor = '#2563eb';
+          setTimeout(() => { if (deadlineInput) deadlineInput.style.borderColor = '#cbd5e1'; }, 600);
+        }
+      };
+
+      // ⚡ 确认自定义延长
+      modal.querySelector('#btn-create-apply-custom-extend')?.addEventListener('click', () => {
+        const n = modal.querySelector('#modal-create-extend-num')?.value;
+        const u = modal.querySelector('#modal-create-extend-unit')?.value;
+        doCreateExtend(n, u);
+      });
+
+      // ⚡ 点击快速选择胶囊
+      modal.querySelectorAll('.btn-create-quick-extend').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const n = btn.dataset.num;
+          const u = btn.dataset.unit;
+          const inputNum = modal.querySelector('#modal-create-extend-num');
+          const selectUnit = modal.querySelector('#modal-create-extend-unit');
+          if (inputNum) inputNum.value = n;
+          if (selectUnit) selectUnit.value = u;
+          doCreateExtend(n, u);
+        });
+      });
+
+      modal.querySelector('#btn-submit-new-task').addEventListener('click', () => {
+        const classId = modal.querySelector('#modal-task-class').value;
+        const title = modal.querySelector('#modal-task-title').value.trim();
+        const desc = modal.querySelector('#modal-task-desc').value.trim();
+        const startTime = modal.querySelector('#modal-task-start').value;
+        const deadline = modal.querySelector('#modal-task-deadline').value;
+
+        if (!title) { alert('⚠️ 请输入写作任务名称！'); return; }
+
+        let calculatedDuration = 150;
+        if (startTime && deadline) {
+          const sDate = new Date(startTime);
+          const dDate = new Date(deadline);
+          if (!isNaN(sDate.getTime()) && !isNaN(dDate.getTime()) && dDate > sDate) {
+            calculatedDuration = Math.round((dDate.getTime() - sDate.getTime()) / (60 * 1000));
+          }
+        }
+
+        try {
+          authManager.createTask(title, classId, desc, [], startTime, deadline, calculatedDuration);
+          closeModal();
+          renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+        } catch (err) {
+          alert('❌ ' + err.message);
+        }
+      });
+    });
+  }
+
+  const btnOpenAnnV2 = container.querySelector('#btn-v2-open-ann-modal');
+  if (btnOpenAnnV2) {
+    btnOpenAnnV2.addEventListener('click', () => {
+      document.querySelectorAll('.modal-overlay').forEach(el => el.remove());
+      const allClasses = authManager.getClasses();
+      const initialCls = allClasses.find(c => c.id === activeClass.id) || activeClass;
+
+      const modal = document.createElement('div');
+      modal.className = 'modal-overlay';
+      modal.innerHTML = `
+        <div class="teacher-modal-card fancy-ann-modal" style="width:600px;">
+          <div class="teacher-modal-header ann-theme-gradient">
+            <div class="modal-header-title">
+              <div class="modal-icon-badge ann">📢</div>
+              <div>
+                <h3>发布课堂即时通知</h3>
+                <p style="font-size:12px; color:#cbd5e1;">选择目标班级与受众小组，可随附教学资源文件</p>
+              </div>
+            </div>
+            <button class="modal-close-btn" id="btn-close-ann-modal">✕</button>
+          </div>
+          <div class="teacher-modal-body">
+            
+            <div class="form-grid-2">
+              <div class="teacher-form-group">
+                <label>🏫 目标教学班级</label>
+                <div style="background:#eff6ff; border:1px solid #bfdbfe; border-radius:8px; padding:10px 14px; font-size:13px; font-weight:700; color:#1e40af;">
+                  🏫 ${activeClass.name}
+                </div>
+                <input type="hidden" id="modal-ann-class" value="${activeClass.id}">
+              </div>
+              <div class="teacher-form-group">
+                <label><span class="req">*</span> 📌 关联写作任务 (必选指定任务)</label>
+                <select id="modal-ann-task" class="teacher-input fancy">
+                  ${(() => {
+                    const classTasks = tasks.filter(t => t.classId === 'all' || t.classId === activeClass.id);
+                    if (classTasks.length === 0) return '<option value="task_default">📌 默认写作任务</option>';
+                    return classTasks.map(t => `<option value="${t.id}">📌 ${t.title}</option>`).join('');
+                  })()}
+                </select>
+              </div>
+            </div>
+
+            <div class="teacher-form-group" style="margin-top:10px;">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+                <label style="margin:0;"><span class="req">*</span> 🎯 推送受众小组 (支持多选指定)</label>
+                <div style="display:flex; gap:8px;">
+                  <button type="button" id="btn-ann-select-all-groups" style="background:#eff6ff; border:1px solid #bfdbfe; color:#1d4ed8; padding:2px 8px; border-radius:4px; font-size:11px; font-weight:700; cursor:pointer;">一键全选</button>
+                  <button type="button" id="btn-ann-clear-groups" style="background:#f8fafc; border:1px solid #cbd5e1; color:#475569; padding:2px 8px; border-radius:4px; font-size:11px; cursor:pointer;">清空</button>
+                </div>
+              </div>
+              <div id="modal-ann-groups-container" style="display:flex; flex-wrap:wrap; gap:8px; background:#f8fafc; padding:10px; border-radius:8px; border:1px solid #e2e8f0; max-height:120px; overflow-y:auto;">
+                ${(initialCls.groups || []).length === 0 ? '<span style="font-size:12px; color:#94a3b8;">当前班级暂无小组</span>' : (initialCls.groups || []).map(g => `
+                  <label style="display:inline-flex; align-items:center; gap:5px; background:#ffffff; border:1px solid #cbd5e1; padding:4px 10px; border-radius:6px; font-size:12px; font-weight:600; cursor:pointer; user-select:none;">
+                    <input type="checkbox" name="ann-target-group" value="${g.id}" checked style="accent-color:#2563eb; cursor:pointer;">
+                    <span>👥 ${g.name}</span>
+                  </label>
+                `).join('')}
+              </div>
+            </div>
+
+            <div class="teacher-form-group" style="margin-top:10px;">
+              <label><span class="req">*</span> 通知标题</label>
+              <input type="text" id="modal-ann-title" class="teacher-input fancy" value="" placeholder="输入通知标题">
+            </div>
+            <div class="teacher-form-group">
+              <label><span class="req">*</span> 通知详细内容</label>
+              <textarea id="modal-ann-content" class="teacher-textarea fancy" style="min-height:80px;" placeholder="输入推送给学生的通知正文..."></textarea>
+            </div>
+
+            <div class="teacher-form-group">
+              <label>📎 随附教学资源文件上传 (支持选择/拖拽 PDF, DOCX, ZIP 等)</label>
+              <div id="ann-file-dropzone" style="border:2px dashed rgba(168,85,247,0.4); border-radius:10px; padding:16px; text-align:center; background:rgba(168,85,247,0.08); cursor:pointer;">
+                <input type="file" id="modal-ann-file-input" style="display:none;">
+                <div id="ann-dropzone-text">
+                  <span style="font-size:24px;">📁</span>
+                  <div style="font-size:13px; font-weight:700; color:#c084fc; margin-top:4px;">点击选择或拖拽本地随附资源文件</div>
+                </div>
+              </div>
+            </div>
+
+          </div>
+          <div class="teacher-modal-footer">
+            <button class="modal-btn cancel" id="btn-cancel-ann">取消</button>
+            <button class="modal-btn submit ann-theme" id="btn-submit-new-ann">📢 广播发布并推送弹窗</button>
+          </div>
+        </div>
+      `;
+      document.body.appendChild(modal);
+
+      const closeModal = () => modal.remove();
+      modal.querySelector('#btn-close-ann-modal').addEventListener('click', closeModal);
+      modal.querySelector('#btn-cancel-ann').addEventListener('click', closeModal);
+
+      modal.addEventListener('click', (e) => {
+        if (e.target === modal) closeModal();
+      });
+      const onEscKey = (e) => {
+        if (e.key === 'Escape') {
+          closeModal();
+          document.removeEventListener('keydown', onEscKey);
+        }
+      };
+      document.addEventListener('keydown', onEscKey);
+
+      const groupsContainer = modal.querySelector('#modal-ann-groups-container');
+      modal.querySelector('#btn-ann-select-all-groups').addEventListener('click', () => {
+        groupsContainer.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = true);
+      });
+      modal.querySelector('#btn-ann-clear-groups').addEventListener('click', () => {
+        groupsContainer.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = false);
+      });
+
+      // 班级切换联动小组
+      const classSelect = modal.querySelector('#modal-ann-class');
+      classSelect.addEventListener('change', (e) => {
+        const selectedCId = e.target.value;
+        const targetCls = allClasses.find(c => c.id === selectedCId);
+        const groups = (targetCls && targetCls.groups) ? targetCls.groups : [];
+        groupsContainer.innerHTML = groups.length === 0
+          ? '<span style="font-size:12px; color:#94a3b8;">当前班级暂无小组</span>'
+          : groups.map(g => `
+            <label style="display:inline-flex; align-items:center; gap:5px; background:#ffffff; border:1px solid #cbd5e1; padding:4px 10px; border-radius:6px; font-size:12px; font-weight:600; cursor:pointer; user-select:none;">
+              <input type="checkbox" name="ann-target-group" value="${g.id}" checked style="accent-color:#2563eb; cursor:pointer;">
+              <span>👥 ${g.name}</span>
+            </label>
+          `).join('');
+      });
+
+      const fileInput = modal.querySelector('#modal-ann-file-input');
+      const dropzone = modal.querySelector('#ann-file-dropzone');
+      const dropText = modal.querySelector('#ann-dropzone-text');
+      let selectedAttachment = null;
+
+      dropzone.addEventListener('click', () => fileInput.click());
+      fileInput.addEventListener('change', (e) => {
+        if (e.target.files && e.target.files[0]) {
+          const f = e.target.files[0];
+          const sizeMB = (f.size / (1024 * 1024)).toFixed(1) + ' MB';
+          selectedAttachment = { name: f.name, size: sizeMB };
+          dropText.innerHTML = `<span style="font-size:24px;">✅</span><div style="font-size:13px; color:#34d399; font-weight:700;">已选中随附文件: ${f.name} (${sizeMB})</div>`;
+        }
+      });
+
+      modal.querySelector('#btn-submit-new-ann').addEventListener('click', () => {
+        const selClassId = classSelect.value;
+        const selClassObj = allClasses.find(c => c.id === selClassId);
+        const selClassName = selClassId === 'all' ? '全校班级' : (selClassObj ? selClassObj.name : '指定班级');
+        
+        const taskId = modal.querySelector('#modal-ann-task').value;
+        const checkedGroupCbs = Array.from(groupsContainer.querySelectorAll('input[type="checkbox"]:checked'));
+        if (checkedGroupCbs.length === 0) {
+          alert('⚠️ 请至少勾选一个接收通知的受众小组！');
+          return;
+        }
+        const allGroups = (selClassObj && selClassObj.groups) ? selClassObj.groups : [];
+        const isAllSelected = checkedGroupCbs.length === allGroups.length;
+        const selectedGroupIds = checkedGroupCbs.map(cb => cb.value);
+        const selectedGroupNames = selectedGroupIds.map(gid => {
+          const gObj = allGroups.find(g => g.id === gid);
+          return gObj ? gObj.name : gid;
+        });
+        const targetGId = isAllSelected ? 'all' : selectedGroupIds[0];
+        const targetGName = isAllSelected ? '全班所有小组' : selectedGroupNames.join('、');
+
+        const title = modal.querySelector('#modal-ann-title').value.trim();
+        const content = modal.querySelector('#modal-ann-content').value.trim();
+        if (!title || !content) { alert('⚠️ 请填齐通知标题与内容！'); return; }
+        authManager.publishAnnouncement(taskId, title, content, selectedAttachment, targetGId, targetGName, selClassId, selClassName, selectedGroupIds);
+        closeModal();
+        renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+      });
+    });
+  }
+
+  // 📚 参考范文上传 Modal
+  // 📚 参考范文上传 Modal
+  const btnOpenPaperModal = container.querySelector('#btn-v2-open-paper-modal');
+  if (btnOpenPaperModal) {
+    btnOpenPaperModal.addEventListener('click', () => {
+      document.querySelectorAll('.modal-overlay').forEach(el => el.remove());
+      const allClasses = authManager.getClasses();
+      const initialCls = allClasses.find(c => c.id === activeClass.id) || activeClass;
+
+      const modal = document.createElement('div');
+      modal.className = 'modal-overlay';
+      modal.innerHTML = `
+        <div class="teacher-modal-card fancy-task-modal" style="width:580px;">
+          <div class="teacher-modal-header task-theme-gradient" style="background:linear-gradient(135deg, #7c3aed, #4f46e5);">
+            <div class="modal-header-title">
+              <div class="modal-icon-badge" style="background:rgba(255,255,255,0.2); color:white;">📚</div>
+              <div>
+                <h3>上传课程学术参考范文</h3>
+                <p style="font-size:12px; color:#e0e7ff;">选取目标班级与文献文件，学生可在协作正文上方查阅下载</p>
+              </div>
+            </div>
+            <button class="modal-close-btn" id="btn-close-paper-modal">✕</button>
+          </div>
+          <div class="teacher-modal-body">
+            <div class="teacher-form-group">
+              <label><span class="req">*</span> 📎 选取本地文献文件 (PDF / Word / DOCX / Markdown / TXT)</label>
+              <div id="paper-file-dropzone" style="border:2px dashed #a78bfa; border-radius:10px; padding:18px; text-align:center; background:#f5f3ff; cursor:pointer; transition:all 0.2s;">
+                <input type="file" id="modal-paper-file-input" style="display:none;" accept=".pdf,.doc,.docx,.txt,.md">
+                <div id="paper-dropzone-text">
+                  <span style="font-size:30px;">📄</span>
+                  <div style="font-size:13.5px; font-weight:700; color:#7c3aed; margin-top:4px;">点击选择或拖拽本地文献文件上传</div>
+                  <div style="font-size:11.5px; color:#8b5cf6; margin-top:2px;">(选取后将自动识别文件名称作为文献标题)</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="teacher-form-group" style="margin-top:10px;">
+              <label><span class="req">*</span> 范文文献标题</label>
+              <input type="text" id="modal-paper-title" class="teacher-input fancy" placeholder="例如：《基于大语言模型的多智能体协同学习实证研究》" value="">
+            </div>
+
+            <div class="form-grid-2" style="margin-top:10px;">
+              <div class="teacher-form-group">
+                <label>🏫 目标教学班级</label>
+                <div style="background:#eff6ff; border:1px solid #bfdbfe; border-radius:8px; padding:10px 14px; font-size:13px; font-weight:700; color:#1e40af;">
+                  🏫 ${activeClass.name}
+                </div>
+                <input type="hidden" id="modal-paper-class" value="${activeClass.id}">
+              </div>
+              <div class="teacher-form-group">
+                <label><span class="req">*</span> 📌 关联写作任务 (必选指定任务)</label>
+                <select id="modal-paper-task" class="teacher-input fancy">
+                  ${(() => {
+                    const classTasks = tasks.filter(t => t.classId === 'all' || t.classId === activeClass.id);
+                    if (classTasks.length === 0) return '<option value="task_default">📌 默认写作任务</option>';
+                    return classTasks.map(t => `<option value="${t.id}">📌 ${t.title}</option>`).join('');
+                  })()}
+                </select>
+              </div>
+            </div>
+
+            <div class="teacher-form-group" style="margin-top:10px;">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+                <label style="margin:0;"><span class="req">*</span> 🎯 推送受众小组 (支持多选指定)</label>
+                <div style="display:flex; gap:8px;">
+                  <button type="button" id="btn-paper-select-all-groups" style="background:#eff6ff; border:1px solid #bfdbfe; color:#1d4ed8; padding:2px 8px; border-radius:4px; font-size:11px; font-weight:700; cursor:pointer;">一键全选</button>
+                  <button type="button" id="btn-paper-clear-groups" style="background:#f8fafc; border:1px solid #cbd5e1; color:#475569; padding:2px 8px; border-radius:4px; font-size:11px; cursor:pointer;">清空</button>
+                </div>
+              </div>
+              <div id="modal-paper-groups-container" style="display:flex; flex-wrap:wrap; gap:8px; background:#f8fafc; padding:10px; border-radius:8px; border:1px solid #e2e8f0; max-height:120px; overflow-y:auto;">
+                ${(initialCls.groups || []).length === 0 ? '<span style="font-size:12px; color:#94a3b8;">当前班级暂无小组</span>' : (initialCls.groups || []).map(g => `
+                  <label style="display:inline-flex; align-items:center; gap:5px; background:#ffffff; border:1px solid #cbd5e1; padding:4px 10px; border-radius:6px; font-size:12px; font-weight:600; cursor:pointer; user-select:none;">
+                    <input type="checkbox" name="paper-target-group" value="${g.id}" checked style="accent-color:#2563eb; cursor:pointer;">
+                    <span>👥 ${g.name}</span>
+                  </label>
+                `).join('')}
+              </div>
+            </div>
+
+            <div style="margin-top:12px; background:#eff6ff; border:1px solid #bfdbfe; padding:10px 14px; border-radius:8px; display:flex; align-items:center; gap:8px;">
+              <input type="checkbox" id="modal-paper-auto-push" checked style="width:16px; height:16px; cursor:pointer; accent-color:#2563eb;">
+              <label for="modal-paper-auto-push" style="font-size:12.5px; color:#1e40af; font-weight:700; cursor:pointer;">
+                📢 上传后立即由【审稿编辑 Agent】向受众小组成员研讨管道推送此范文
+              </label>
+            </div>
+          </div>
+          <div class="teacher-modal-footer">
+            <button class="modal-btn cancel" id="btn-cancel-paper">取消</button>
+            <button class="modal-btn submit task-theme" id="btn-submit-new-paper" style="background:linear-gradient(135deg, #7c3aed, #4f46e5);">
+              📚 确认上传并存入范文库
+            </button>
+          </div>
+        </div>
+      `;
+      document.body.appendChild(modal);
+
+      const closeModal = () => modal.remove();
+      modal.querySelector('#btn-close-paper-modal').addEventListener('click', closeModal);
+      modal.querySelector('#btn-cancel-paper').addEventListener('click', closeModal);
+
+      modal.addEventListener('click', (e) => {
+        if (e.target === modal) closeModal();
+      });
+      const onEscKey = (e) => {
+        if (e.key === 'Escape') {
+          closeModal();
+          document.removeEventListener('keydown', onEscKey);
+        }
+      };
+      document.addEventListener('keydown', onEscKey);
+
+      const paperGroupsContainer = modal.querySelector('#modal-paper-groups-container');
+      modal.querySelector('#btn-paper-select-all-groups').addEventListener('click', () => {
+        paperGroupsContainer.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = true);
+      });
+      modal.querySelector('#btn-paper-clear-groups').addEventListener('click', () => {
+        paperGroupsContainer.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = false);
+      });
+
+      // 班级联动小组
+      const paperClassSelect = modal.querySelector('#modal-paper-class');
+      paperClassSelect.addEventListener('change', (e) => {
+        const selectedCId = e.target.value;
+        const targetCls = allClasses.find(c => c.id === selectedCId);
+        const groups = (targetCls && targetCls.groups) ? targetCls.groups : [];
+        paperGroupsContainer.innerHTML = groups.length === 0
+          ? '<span style="font-size:12px; color:#94a3b8;">当前班级暂无小组</span>'
+          : groups.map(g => `
+            <label style="display:inline-flex; align-items:center; gap:5px; background:#ffffff; border:1px solid #cbd5e1; padding:4px 10px; border-radius:6px; font-size:12px; font-weight:600; cursor:pointer; user-select:none;">
+              <input type="checkbox" name="paper-target-group" value="${g.id}" checked style="accent-color:#2563eb; cursor:pointer;">
+              <span>👥 ${g.name}</span>
+            </label>
+          `).join('');
+      });
+
+      const fileInput = modal.querySelector('#modal-paper-file-input');
+      const dropzone = modal.querySelector('#paper-file-dropzone');
+      const dropText = modal.querySelector('#paper-dropzone-text');
+      const titleInput = modal.querySelector('#modal-paper-title');
+      let selectedFile = { name: '', size: '', data: '', fileObj: null };
+
+      dropzone.addEventListener('click', () => fileInput.click());
+      fileInput.addEventListener('change', (e) => {
+        if (e.target.files && e.target.files[0]) {
+          const f = e.target.files[0];
+          const sizeKB = (f.size / 1024).toFixed(1) + ' KB';
+          // 自动将文件名（去掉扩展名）填入标题输入框
+          const cleanTitle = f.name.replace(/\.[^/.]+$/, '');
+          if (!titleInput.value || titleInput.value.trim() === '') {
+            titleInput.value = cleanTitle;
+          }
+          selectedFile = { name: f.name, size: sizeKB, data: '', fileObj: f };
+          dropText.innerHTML = `<span style="font-size:28px;">✅</span><div style="font-size:13.5px; color:#059669; font-weight:700; margin-top:4px;">已选取文献: ${f.name} (${sizeKB})</div><div style="font-size:11px; color:#10b981; margin-top:2px;">点击可重新更换文件</div>`;
+        }
+      });
+
+      const submitBtn = modal.querySelector('#btn-submit-new-paper');
+      submitBtn.addEventListener('click', async () => {
+        try {
+          let title = titleInput.value.trim();
+          const selClassId = paperClassSelect.value;
+          const selClassObj = allClasses.find(c => c.id === selClassId);
+          const selClassName = selClassId === 'all' ? '全校班级' : (selClassObj ? selClassObj.name : '指定班级');
+
+          const targetTaskId = modal.querySelector('#modal-paper-task') ? modal.querySelector('#modal-paper-task').value : 'task_all';
+          
+          const checkedGroupCbs = Array.from(paperGroupsContainer.querySelectorAll('input[type="checkbox"]:checked'));
+          if (checkedGroupCbs.length === 0) {
+            alert('⚠️ 请至少勾选一个接收文献的受众小组！');
+            return;
+          }
+          const allGroups = (selClassObj && selClassObj.groups) ? selClassObj.groups : [];
+          const isAllSelected = checkedGroupCbs.length === allGroups.length;
+          const selectedGroupIds = checkedGroupCbs.map(cb => cb.value);
+          const selectedGroupNames = selectedGroupIds.map(gid => {
+            const gObj = allGroups.find(g => g.id === gid);
+            return gObj ? gObj.name : gid;
+          });
+          const targetGId = isAllSelected ? 'all' : selectedGroupIds[0];
+          const targetGName = isAllSelected ? '全班所有小组' : selectedGroupNames.join('、');
+
+          const autoPush = modal.querySelector('#modal-paper-auto-push') ? modal.querySelector('#modal-paper-auto-push').checked : true;
+
+          if (!selectedFile.name && !title) {
+            alert('⚠️ 请先选取本地文献文件或输入范文标题！');
+            return;
+          }
+          if (!title) {
+            title = selectedFile.name ? selectedFile.name.replace(/\.[^/.]+$/, '') : '学术参考范文';
+          }
+
+          submitBtn.disabled = true;
+          submitBtn.innerText = '⏳ 正在上传文献到服务器...';
+
+          let serverFileUrl = '';
+          if (selectedFile.fileObj) {
+            try {
+              const formData = new FormData();
+              formData.append('file', selectedFile.fileObj);
+              const upRes = await fetch('sync.php?action=upload_file', {
+                method: 'POST',
+                body: formData
+              });
+              if (upRes.ok) {
+                const upJson = await upRes.json();
+                if (upJson.success && upJson.url) {
+                  serverFileUrl = upJson.url;
+                }
+              }
+            } catch (upErr) {
+              console.warn('Server upload fallback:', upErr);
+            }
+          }
+
+          submitBtn.innerText = '⏳ 正在存入范文库...';
+
+          const newPaper = authManager.uploadReferencePaper({
+            title,
+            classId: selClassId,
+            className: selClassName,
+            taskId: targetTaskId,
+            abstract: '',
+            keyHighlights: '研究设计与学术论证规范',
+            fileName: selectedFile.name || `${title}.pdf`,
+            fileUrl: serverFileUrl,
+            fileSize: selectedFile.size || '3.5 MB',
+            targetGroupId: targetGId,
+            targetGroupIds: selectedGroupIds,
+            targetGroupName: targetGName
+          });
+
+          if (autoPush && newPaper && newPaper.id) {
+            try {
+              authManager.pushReferencePaperToGroupChat(newPaper.id, targetGId);
+            } catch (err) {}
+          }
+
+          alert(`🎉 参考范文《${title}》已成功存入范文库！${autoPush ? '\n审稿编辑 Agent 已同步向受众小组推送！' : ''}`);
+          closeModal();
+          renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+        } catch (err) {
+          alert('❌ 上传失败: ' + err.message);
+          submitBtn.disabled = false;
+          submitBtn.innerText = '📚 确认上传并存入范文库';
+        }
+      });
+    });
+  }
+
+  // 推送范文提醒按钮
+  container.querySelectorAll('.btn-push-paper-to-chat').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const paperId = btn.dataset.id;
+      const targetGId = btn.dataset.target || 'all';
+      authManager.pushReferencePaperToGroupChat(paperId, targetGId);
+      alert('📢 审稿编辑 Agent 已向该小组研讨管道发送范文查阅提醒！');
+    });
+  });
+
+  // 下载范文随附文件
+  container.querySelectorAll('.btn-download-paper-file').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const paperId = btn.dataset.id;
+      const paper = refPapers.find(p => p.id === paperId);
+      if (paper) {
+        if (paper.fileUrl) {
+          const a = document.createElement('a');
+          a.href = paper.fileUrl;
+          a.download = paper.fileName || '学术参考范文.pdf';
+          a.target = '_blank';
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+        } else if (paper.fileData || (window._paperMemoryBlobMap && window._paperMemoryBlobMap.get(paperId))) {
+          const fData = paper.fileData || window._paperMemoryBlobMap.get(paperId);
+          const a = document.createElement('a');
+          a.href = fData;
+          a.download = paper.fileName || '学术参考范文.pdf';
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+        } else {
+          downloadFileBlob(paper.fileName);
+        }
+      }
+    });
+  });
+
+  // 删除范文按钮
+  container.querySelectorAll('.btn-delete-paper').forEach(btn => {
+    btn.addEventListener('click', () => {
+      if (confirm('确认从参考范文库中删除此篇文献？')) {
+        authManager.deleteReferencePaper(btn.dataset.id);
+        renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+      }
+    });
+  });
+
+  // 终稿不可修改状态控制 (教师一键解除锁定 / 重新锁定)
+  const btnToggleFinalSubmitted = container.querySelector('#btn-toggle-final-submitted');
+  if (btnToggleFinalSubmitted) {
+    btnToggleFinalSubmitted.addEventListener('click', () => {
+      const currentSub = state.isFinalSubmitted;
+      const newSub = !currentSub;
+      state.isFinalSubmitted = newSub;
+      authManager.setGroupFinalSubmitted(activeMonitorGId, newSub);
+      
+      // 立即同步写入小组状态并向全组学生端推送最新权限快照
+      if (window.app) {
+        window.app.state.isFinalSubmitted = newSub;
+        window.app.state.activeMonitorGroupId = activeMonitorGId;
+        const selTaskBox = container.querySelector('#sel-switch-monitor-task');
+        if (selTaskBox && selTaskBox.value) {
+          window.app.state.activeTaskId = selTaskBox.value;
+        }
+        window.app.saveGroupState(activeMonitorGId);
+        if (window.app.cloudSyncEngine) {
+          window.app.cloudSyncEngine.groupId = activeMonitorGId;
+          window.app.cloudSyncEngine.taskId = window.app.state.activeTaskId || 'task_default';
+          window.app.cloudSyncEngine.updateScopeKeys();
+          window.app.cloudSyncEngine.pushSnapshot();
+        }
+      }
+
+      renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+      if (newSub) {
+        alert(`🔒 已全局锁定【${activeMonitorGroup.name}】！\n\n该小组学生端已设为【全盘只读模式】（阶段一公约、阶段二富文本与阶段三矩阵全部禁止编辑，仅保留右侧研讨区实时沟通）。`);
+      } else {
+        alert(`🔓 已解除【${activeMonitorGroup.name}】全局只读锁定！\n\n学生端已全面恢复自由协作与编辑修改权限！`);
+      }
+    });
+  }
+
+  // 教师端主动清空/重置该小组协同数据
+  const btnResetGroup = container.querySelector('#btn-reset-group-collab');
+  if (btnResetGroup) {
+    btnResetGroup.addEventListener('click', () => {
+      const selTaskBox = container.querySelector('#sel-switch-monitor-task');
+      const currentTaskId = selTaskBox ? selTaskBox.value : (state.activeTaskId || (tasks[0] ? tasks[0].id : 'task_default'));
+      const currentTask = tasks.find(t => t.id === currentTaskId) || { title: '当前写作任务', id: currentTaskId };
+
+      if (confirm(`⚠️ 确认清空并重置【${activeMonitorGroup.name}】在任务《${currentTask.title}》中的协同数据？\n\n重置后该小组在《${currentTask.title}》中的历史聊天、正文草稿与投票进度将被清空，绝不影响其他任务！`)) {
+        if (window.app) {
+          window.app.resetTestGroupState(activeMonitorGId, currentTaskId);
+          renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+          alert(`✅ 已成功重置【${activeMonitorGroup.name}】在《${currentTask.title}》中的协同数据！`);
+        }
+      }
+    });
+  }
+
+  const selSwitchTask = container.querySelector('#sel-switch-monitor-task');
+  if (selSwitchTask) {
+    selSwitchTask.addEventListener('change', (e) => {
+      state.activeTaskId = e.target.value;
+      if (window.app) {
+        window.app.loadGroupState(state.activeMonitorGroupId || 'group_1');
+        if (window.app.cloudSyncEngine) {
+          window.app.cloudSyncEngine.updateScopeKeys();
+          window.app.cloudSyncEngine.pullFromServer();
+        }
+      }
+      renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+    });
+  }
+
+  const selSwitchGroup = container.querySelector('#sel-switch-monitor-group');
+  if (selSwitchGroup) {
+    selSwitchGroup.addEventListener('change', (e) => {
+      state.activeMonitorGroupId = e.target.value;
+      if (window.app) {
+        window.app.loadGroupState(e.target.value);
+        if (window.app.cloudSyncEngine) {
+          window.app.cloudSyncEngine.updateScopeKeys();
+          window.app.cloudSyncEngine.pullFromServer();
+        }
+      }
+      renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+    });
+  }
+
+  container.querySelectorAll('.btn-switch-monitor-group').forEach(btn => {
+    btn.addEventListener('click', () => {
+      state.activeMonitorGroupId = btn.dataset.gid;
+      if (window.app) window.app.loadGroupState(btn.dataset.gid);
+      renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+    });
+  });
+
+  container.querySelectorAll('.btn-monitor-stage-tab').forEach(btn => {
+    btn.addEventListener('click', () => {
+      state.teacherMonitorStageMode = btn.dataset.stg;
+      renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+    });
+  });
+
+  const btnExportExcel = container.querySelector('#btn-export-all-excel');
+  if (btnExportExcel) {
+    btnExportExcel.addEventListener('click', () => {
+      authManager.exportGroupChatLogsToExcel(activeMonitorGId, state.chatLogs);
+    });
+  }
+
+  // 🎯 精准保持滚动条位置（恢复原容器滚动条位置，绝不跳回最顶部）
+  const newLayout = container.querySelector('.teacher-portal-layout') || document.querySelector('.teacher-portal-layout');
+  if (newLayout && savedScrollTop > 0) {
+    newLayout.scrollTop = savedScrollTop;
+    requestAnimationFrame(() => {
+      if (newLayout) newLayout.scrollTop = savedScrollTop;
+    });
+    setTimeout(() => {
+      if (newLayout) newLayout.scrollTop = savedScrollTop;
+    }, 40);
+  }
+}
+
