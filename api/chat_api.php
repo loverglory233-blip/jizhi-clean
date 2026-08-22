@@ -22,6 +22,10 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     exit;
 }
 
+$rawInput = file_get_contents('php://input');
+$req = json_decode($rawInput, true) ?: [];
+$action = isset($_GET['action']) ? $_GET['action'] : (isset($req['action']) ? $req['action'] : '');
+
 /**
  * 自动获取或刷新 OAuth Access Token (带本地文件缓存与排他锁并发保护)
  */
