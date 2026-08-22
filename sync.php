@@ -97,7 +97,20 @@ if ($action === 'login' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($row) {
             $userExists = true;
             $dbPwd = $row['password'] ?? '123';
-            $pwdMatch = ($password === $dbPwd) || (function_exists('password_verify') && password_verify($password, $dbPwd)) || (empty($dbPwd) && $password === '123');
+            $pwdMatch = false;
+
+            if (password_verify($password, $dbPwd)) {
+                $pwdMatch = true;
+            } else if ($password === $dbPwd || (empty($dbPwd) && $password === '123')) {
+                $pwdMatch = true;
+                // 🚀 平滑无感自动升级：首次登录将明文密码就地升级为工业级 Bcrypt 哈希
+                try {
+                    $hashed = password_hash($password, PASSWORD_DEFAULT);
+                    $stmtUpgrade = $pdo->prepare("UPDATE users SET password = :h WHERE id = :uid");
+                    $stmtUpgrade->execute([':h' => $hashed, ':uid' => $row['id']]);
+                } catch (Exception $e) {}
+            }
+
             if ($pwdMatch) {
                 $foundUser = $row;
             }
@@ -169,13 +182,15 @@ if ($action === 'change_password' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         $currentDbPwd = $user['password'] ?? '123';
-        if ($currentDbPwd !== $oldPwd && !password_verify($oldPwd, $currentDbPwd) && !($oldPwd === '123' && empty($currentDbPwd))) {
+        $oldMatch = password_verify($oldPwd, $currentDbPwd) || ($oldPwd === $currentDbPwd) || ($oldPwd === '123' && empty($currentDbPwd));
+        if (!$oldMatch) {
             echo json_encode(['success' => false, 'message' => '原密码不正确，默认初始密码为 123']);
             exit;
         }
 
+        $hashedNew = password_hash($newPwd, PASSWORD_DEFAULT);
         $stmtUpdate = $pdo->prepare("UPDATE users SET password = :p WHERE id = :uid");
-        $stmtUpdate->execute([':p' => $newPwd, ':uid' => $user['id']]);
+        $stmtUpdate->execute([':p' => $hashedNew, ':uid' => $user['id']]);
 
         // 同步更新 main_meta 里的 users
         $stmtMeta = $pdo->prepare("SELECT meta_value FROM global_meta WHERE meta_key = 'main_meta'");
@@ -186,7 +201,7 @@ if ($action === 'change_password' && $_SERVER['REQUEST_METHOD'] === 'POST') {
             if (isset($gm['users']) && is_array($gm['users'])) {
                 foreach ($gm['users'] as &$gu) {
                     if (($gu['studentCode'] ?? ($gu['username'] ?? ($gu['id'] ?? ''))) === $account) {
-                        $gu['password'] = $newPwd;
+                        $gu['password'] = $hashedNew;
                     }
                 }
                 $encodedGm = json_encode($gm, JSON_UNESCAPED_UNICODE);
@@ -230,8 +245,9 @@ if ($action === 'reset_student_password' && $_SERVER['REQUEST_METHOD'] === 'POST
             exit;
         }
 
+        $hashedReset = password_hash($newPwd, PASSWORD_DEFAULT);
         $stmtUpdate = $pdo->prepare("UPDATE users SET password = :p WHERE id = :uid");
-        $stmtUpdate->execute([':p' => $newPwd, ':uid' => $user['id']]);
+        $stmtUpdate->execute([':p' => $hashedReset, ':uid' => $user['id']]);
 
         // 同步更新 main_meta 里的 users
         $stmtMeta = $pdo->prepare("SELECT meta_value FROM global_meta WHERE meta_key = 'main_meta'");
