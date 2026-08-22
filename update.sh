@@ -30,7 +30,8 @@ for zip_url in \
   "https://codeload.github.com/loverglory233-blip/jizhi-clean/zip/refs/heads/main"; do
   
   if curl -s -f -L --connect-timeout 4 --max-time 15 "$zip_url" -o "$ZIP_FILE" 2>/dev/null && [ -s "$ZIP_FILE" ]; then
-    unzip -q -o "$ZIP_FILE" -d /tmp/jizhi_unzip 2>/dev/null || true
+    rm -rf /tmp/jizhi_unzip && mkdir -p /tmp/jizhi_unzip
+    python3 -c "import zipfile; zipfile.ZipFile('$ZIP_FILE').extractall('/tmp/jizhi_unzip')" 2>/dev/null || unzip -q -o "$ZIP_FILE" -d /tmp/jizhi_unzip 2>/dev/null || true
     if [ -d "/tmp/jizhi_unzip/jizhi-clean-main" ]; then
       cp -rf /tmp/jizhi_unzip/jizhi-clean-main/* "$TMP/"
       rm -rf /tmp/jizhi_unzip "$ZIP_FILE"
@@ -41,14 +42,14 @@ for zip_url in \
   fi
 done
 
-# 回退机制：若无 unzip 则快速并行拉取
+# 回退机制：若无 zipfile 则快速并行拉取
 if [ $DOWNLOADED -eq 0 ]; then
   echo "   ⚠️ 回退到流式同步..."
   mkdir -p "$TMP/css" "$TMP/css/libs" "$TMP/js" "$TMP/js/libs" "$TMP/api" "$TMP/src"
   FILES=(
     "index.html" "css/styles.css" "css/libs/quill.snow.css"
     "js/libs/xlsx.full.min.js" "js/libs/quill.min.js" "js/libs/quill-cursors.min.js"
-    "js/libs/yjs.mjs" "js/libs/y-websocket.mjs" "js/libs/y-quill.mjs" "js/bundle.js"
+    "js/libs/yjs.js" "js/libs/y-websocket.js" "js/libs/y-quill.js" "js/bundle.js"
     "sync.php" "server.py" "server_yjs.js" "server_yjs.py" "package.json"
     "api/chat_api.php" "api/coze_prompt.php" "api/db_init.php" "api/stream.php"
   )
