@@ -353,9 +353,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $data = json_decode($rawInput, true) ?: [];
         $ts = isset($data['timestamp']) ? intval($data['timestamp']) : round(microtime(true) * 1000);
         
+        // 🛡️ 变量防御性初始化，确保极端无数据库或单机容灾模式下变量 100% 绝对安全
+        $isResetVal     = !empty($data['isReset']) ? 1 : 0;
+        $mergedPresence = (isset($data['presence']) && is_array($data['presence'])) ? $data['presence'] : [];
+        $mergedS1       = (isset($data['stage1']) && is_array($data['stage1'])) ? $data['stage1'] : [];
+        $mergedS2       = (isset($data['stage2']) && is_array($data['stage2'])) ? $data['stage2'] : [];
+        $mergedS3       = (isset($data['stage3']) && is_array($data['stage3'])) ? $data['stage3'] : [];
+        $mergedChats    = (isset($data['chatLogs']) && is_array($data['chatLogs'])) ? $data['chatLogs'] : ['stage1' => [], 'stage2' => [], 'stage3' => []];
+
         if ($pdo) {
-            $isResetVal = !empty($data['isReset']) ? 1 : 0;
-            
             // 读取当前服务端 reset_seq
             $stmtGetResetSeq = $pdo->prepare("SELECT meta_value FROM global_meta WHERE meta_key = :k");
             $stmtGetResetSeq->execute([':k' => 'reset_seq_' . $scopeKey]);
