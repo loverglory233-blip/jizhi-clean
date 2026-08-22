@@ -86,14 +86,28 @@ for dir in "${TARGET_DIRS[@]}"; do
 done
 rm -rf "$TMP"
 
-echo "🔄 [3/4] 验证 PHP 环境、清理 Nginx 坏规则并重载..."
-# 清理可能残留的死循环反代规则
+echo "🔄 [3/4] 验证 PHP 环境、配置 Nginx /ws 协同反代并重载..."
+# 为宝塔 Nginx 站点自动配置 /ws 反向代理至 1234 端口 (若尚未配置)
 for cdir in /www/server/panel/vhost/nginx /www/server/nginx/conf/vhost; do
   [ -d "$cdir" ] || continue
   for conf in "$cdir"/*.conf; do
     [ -f "$conf" ] || continue
     sed -i '/location ~ \^\/(sync\\\.php\|api\/)/,/^[[:space:]]*}/d' "$conf" 2>/dev/null || true
     sed -i '/proxy_pass http:\/\/127.0.0.1:8088/d' "$conf" 2>/dev/null || true
+    
+    # 自动补充 /ws WebSocket 转发
+    if ! grep -q "location /ws" "$conf" && ! grep -q "location ^~ /ws" "$conf"; then
+      sed -i '/access_log/i \
+    location /ws {\
+        proxy_pass http://127.0.0.1:1234;\
+        proxy_http_version 1.1;\
+        proxy_set_header Upgrade $http_upgrade;\
+        proxy_set_header Connection "Upgrade";\
+        proxy_set_header Host $host;\
+        proxy_read_timeout 3600s;\
+        proxy_send_timeout 3600s;\
+    }' "$conf" 2>/dev/null || true
+    fi
   done
 done
 nginx -s reload 2>/dev/null || /etc/init.d/nginx reload 2>/dev/null || systemctl reload nginx 2>/dev/null || true
