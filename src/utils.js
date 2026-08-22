@@ -3,6 +3,31 @@
  * Standard ES Module (ESM)
  */
 
+/**
+ * 🛡️ XSS 防护：HTML 字符实体安全转义
+ */
+export function escapeHtml(str) {
+  if (str === null || str === undefined) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+/**
+ * 🛡️ 安全链接过滤：仅允许 http/https/mailto/tel/相对路径，阻断 javascript: 伪协议
+ */
+export function sanitizeUrl(url) {
+  if (!url || typeof url !== 'string') return '#';
+  const clean = url.trim();
+  if (/^(?:(?:https?|mailto|tel):|\/|\.\/|\.\.\/|#)/i.test(clean)) {
+    return clean;
+  }
+  return '#';
+}
+
 export function downloadFileBlob(filename, textContent = null) {
   const defaultContent = `====================================================\n【集智 JIZHI 平台 - 教学资源文件】\n文件名: ${filename}\n下载时间: ${new Date().toLocaleString()}\n课程名称: 《现代教育技术》期末协作写作研究设计\n====================================================\n\n【文件核心规范摘要】\n1. 结构完整性：论文方案需具备研究背景、问题假设、文献综述、研究设计、反思及参考文献。\n2. 变量操作化：研究假设 H1、H2 需在第四章给出对应的测量量表与操作化说明。\n3. 群体感知：通过可视化字数贡献比与同伴互动进行自律与共享调节 (SSRL)。`;
   const content = textContent || defaultContent;
