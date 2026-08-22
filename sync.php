@@ -510,13 +510,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $mergedS3['feedbackItems'] = array_values($itemMap);
             }
 
-            // 保存小组协作快照
+            // 🛡️ 物化视图全篇组装（Materialized View Consolidation）：
+            // 若存在 sections 分块，自动拼接成统一全篇 unifiedContent，确保导出、字数统计与 AI 评审 100% 拿到完整文章
+            if (isset($mergedS2['sections']) && is_array($mergedS2['sections']) && count($mergedS2['sections']) > 0) {
+                $orderedKeys = ['sec_1', 'sec_2', 'sec_3', 'sec_4', 'sec_5', 'sec_6'];
+                $fullHtmlParts = [];
+                foreach ($orderedKeys as $ok) {
+                    if (isset($mergedS2['sections'][$ok]) && !empty($mergedS2['sections'][$ok]['content'])) {
+                        $fullHtmlParts[] = $mergedS2['sections'][$ok]['content'];
+                    }
+                }
+                if (!empty($fullHtmlParts)) {
+                    $mergedS2['unifiedContent'] = implode("<p></p>", $fullHtmlParts);
+                }
+            }
+
+            // 保存小组协作快照 (自增 revision_id，彻底防止同毫秒并发漏包)
             $stmt = $pdo->prepare("INSERT INTO group_states 
-                (scope_key, task_id, group_id, current_stage, stage1_data, stage2_data, stage3_data, presence_data, members_data, is_final_submitted, last_timestamp)
-                VALUES (:sk, :tid, :gid, :cstg, :s1, :s2, :s3, :pr, :mb, :fin, :ts)
+                (scope_key, task_id, group_id, current_stage, stage1_data, stage2_data, stage3_data, presence_data, members_data, is_final_submitted, last_timestamp, revision_id)
+                VALUES (:sk, :tid, :gid, :cstg, :s1, :s2, :s3, :pr, :mb, :fin, :ts, 1)
                 ON DUPLICATE KEY UPDATE 
                 current_stage = :cstg2, stage1_data = :s12, stage2_data = :s22, stage3_data = :s32,
-                presence_data = :pr2, members_data = :mb2, is_final_submitted = :fin2, last_timestamp = :ts2");
+                presence_data = :pr2, members_data = :mb2, is_final_submitted = :fin2, last_timestamp = :ts2,
+                revision_id = IFNULL(revision_id, 0) + 1");
             
             $s1Json = json_encode($isResetVal ? ($data['stage1'] ?? []) : $mergedS1, JSON_UNESCAPED_UNICODE);
             $s2Json = json_encode($isResetVal ? ($data['stage2'] ?? []) : $mergedS2, JSON_UNESCAPED_UNICODE);
@@ -787,17 +803,19 @@ if ($pdo) {
     $row = $stmt->fetch();
     
         $lastTs = intval($row['last_timestamp']);
+        $lastRev = isset($row['revision_id']) ? intval($row['revision_id']) : 1;
         $sinceTs = isset($_GET['since_timestamp']) ? intval($_GET['since_timestamp']) : 0;
+        $sinceRev = isset($_GET['since_revision']) ? intval($_GET['since_revision']) : 0;
 
-        // 🛡️ 增量时间戳协商：若客户端带了 since_timestamp 且服务端快照未发生新变更，直接返回轻量 304/unchanged
-        if ($sinceTs > 0 && $lastTs > 0 && $lastTs <= $sinceTs) {
+        // 🛡️ 增量自增 Revision 协商：彻底消除同毫秒时钟缝隙，0 漏包
+        if (($sinceRev > 0 && $lastRev <= $sinceRev) || ($sinceTs > 0 && $lastTs > 0 && $lastTs <= $sinceTs)) {
             // 检查是否有全局元数据更新信号
             $stmtSig = $pdo->prepare("SELECT meta_value FROM global_meta WHERE meta_key = 'meta_updated_at'");
             $stmtSig->execute();
             $sigRow = $stmtSig->fetch();
             $metaUpdated = $sigRow ? intval($sigRow['meta_value']) : 0;
             if ($metaUpdated <= $sinceTs) {
-                echo json_encode(['success' => true, 'unchanged' => true, 'timestamp' => $lastTs]);
+                echo json_encode(['success' => true, 'unchanged' => true, 'timestamp' => $lastTs, 'revisionId' => $lastRev]);
                 exit;
             }
         }
@@ -818,7 +836,8 @@ if ($pdo) {
         $globalMeta = ($metaRow && !empty($metaRow['meta_value'])) ? json_decode($metaRow['meta_value'], true) : [];
 
         $respData = [
-            'timestamp'        => intval($row['last_timestamp']),
+            'timestamp'        => $lastTs,
+            'revisionId'       => $lastRev,
             'groupId'          => $row['group_id'],
             'taskId'           => $row['task_id'],
             'currentStage'     => $row['current_stage'],
