@@ -17,60 +17,45 @@ TARGET_DIRS=($(printf "%s\n" "${TARGET_DIRS[@]}" | sort -u))
 
 echo "📁 目标目录: ${TARGET_DIRS[*]}"
 
-echo "⚡ [2/4] 下载最新代码..."
+echo "⚡ [2/4] 极速下载最新代码包 (单包秒级解压)..."
 TMP=/tmp/jizhi_update
-rm -rf "$TMP" && mkdir -p "$TMP/css" "$TMP/css/libs" "$TMP/js" "$TMP/js/libs" "$TMP/api" "$TMP/src"
+rm -rf "$TMP" && mkdir -p "$TMP"
 
-dl() {
-  local f=$1
-  local success=0
-  local urls=(
-    "https://raw.githubusercontent.com/loverglory233-blip/jizhi-clean/main/$f"
-    "https://cdn.jsdelivr.net/gh/loverglory233-blip/jizhi-clean@main/$f"
-    "https://ghfast.top/https://raw.githubusercontent.com/loverglory233-blip/jizhi-clean/main/$f"
-    "https://ghproxy.net/https://raw.githubusercontent.com/loverglory233-blip/jizhi-clean/main/$f"
-  )
-  for u in "${urls[@]}"; do
-    curl -s -f -L --connect-timeout 2 --max-time 4 "$u" -o "$TMP/$f" 2>/dev/null
-    if [ -s "$TMP/$f" ] && ! grep -q "429: Too Many Requests" "$TMP/$f"; then
-      success=1
+# 🚀 优先下载完整压缩包 (只需 1 次网络请求，0 阻塞、0 卡顿)
+ZIP_FILE="/tmp/jizhi_main.zip"
+DOWNLOADED=0
+for zip_url in \
+  "https://ghfast.top/https://github.com/loverglory233-blip/jizhi-clean/archive/refs/heads/main.zip" \
+  "https://ghproxy.net/https://github.com/loverglory233-blip/jizhi-clean/archive/refs/heads/main.zip" \
+  "https://codeload.github.com/loverglory233-blip/jizhi-clean/zip/refs/heads/main"; do
+  
+  if curl -s -f -L --connect-timeout 4 --max-time 15 "$zip_url" -o "$ZIP_FILE" 2>/dev/null && [ -s "$ZIP_FILE" ]; then
+    unzip -q -o "$ZIP_FILE" -d /tmp/jizhi_unzip 2>/dev/null || true
+    if [ -d "/tmp/jizhi_unzip/jizhi-clean-main" ]; then
+      cp -rf /tmp/jizhi_unzip/jizhi-clean-main/* "$TMP/"
+      rm -rf /tmp/jizhi_unzip "$ZIP_FILE"
+      DOWNLOADED=1
+      echo "   ✅ 代码包秒级下载解压完成！"
       break
     fi
-  done
-  if [ $success -eq 0 ]; then
-    echo "⚠️ 正在重试下载 $f ..."
-    curl -s -L --connect-timeout 3 --max-time 5 "https://ghfast.top/https://raw.githubusercontent.com/loverglory233-blip/jizhi-clean/main/$f" -o "$TMP/$f" 2>/dev/null
   fi
-}
+done
 
-dl index.html
-dl css/styles.css
-dl css/libs/quill.snow.css
-dl js/libs/xlsx.full.min.js
-dl js/libs/quill.min.js
-dl js/libs/yjs.mjs
-dl js/libs/y-websocket.mjs
-dl js/libs/y-quill.mjs
-dl js/bundle.js
-dl sync.php
-dl server.py
-dl server_yjs.js
-dl server_yjs.py
-dl package.json
-dl api/chat_api.php
-dl api/coze_prompt.php
-dl api/db_init.php
-dl api/stream.php
-dl src/constants.js
-dl src/utils.js
-dl src/agents.js
-dl src/auth.js
-dl src/sync.js
-dl src/login.js
-dl src/teacher.js
-dl src/student-portal.js
-dl src/editor.js
-dl src/app.js
+# 回退机制：若无 unzip 则快速并行拉取
+if [ $DOWNLOADED -eq 0 ]; then
+  echo "   ⚠️ 回退到流式同步..."
+  mkdir -p "$TMP/css" "$TMP/css/libs" "$TMP/js" "$TMP/js/libs" "$TMP/api" "$TMP/src"
+  FILES=(
+    "index.html" "css/styles.css" "css/libs/quill.snow.css"
+    "js/libs/xlsx.full.min.js" "js/libs/quill.min.js" "js/libs/quill-cursors.min.js"
+    "js/libs/yjs.mjs" "js/libs/y-websocket.mjs" "js/libs/y-quill.mjs" "js/bundle.js"
+    "sync.php" "server.py" "server_yjs.js" "server_yjs.py" "package.json"
+    "api/chat_api.php" "api/coze_prompt.php" "api/db_init.php" "api/stream.php"
+  )
+  for f in "${FILES[@]}"; do
+    curl -s -f -L --connect-timeout 3 --max-time 6 "https://ghfast.top/https://raw.githubusercontent.com/loverglory233-blip/jizhi-clean/main/$f" -o "$TMP/$f" 2>/dev/null || true
+  done
+fi
 
 for dir in "${TARGET_DIRS[@]}"; do
   mkdir -p "$dir/css" "$dir/css/libs" "$dir/js" "$dir/js/libs" "$dir/api" "$dir/src" "$dir/uploads" "$dir/data"
