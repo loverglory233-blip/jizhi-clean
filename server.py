@@ -38,7 +38,7 @@ import urllib.request
 import subprocess
 import ssl
 
-COZE_SSL_CTX = ssl._create_unverified_context()
+COZE_SSL_CTX = ssl.create_default_context()
 COZE_APP_ID = '117674722513984684072'
 COZE_KEY_ID = 'EdvxCTETZES-C-m32CsULVkKR_psKeP-J7HwpQnANuk'
 COZE_TOKEN_CACHE = {'token': None, 'expires_at': 0}

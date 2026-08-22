@@ -11,7 +11,7 @@ export class CloudSyncEngine {
     this.app = app;
     this.lastTimestamp = 0;
     this.isPushing = false;
-    this.pendingPush = false;
+    this.pendingPushCount = 0;
     this.isInitialPullDone = false;
     this.updateScopeKeys();
     this.initPolling();
@@ -190,7 +190,7 @@ export class CloudSyncEngine {
       try { this.ws.send(JSON.stringify({ snapshot })); } catch (e) {}
     }
 
-    if (this.isPushing) { this.pendingPush = true; return; }
+    if (this.isPushing) { this.pendingPushCount++; return; }
     this.isPushing = true;
     try {
       const results = await Promise.allSettled(this.syncEndpoints.map(url =>
@@ -212,7 +212,7 @@ export class CloudSyncEngine {
     } catch (e) {
     } finally {
       this.isPushing = false;
-      if (this.pendingPush) { this.pendingPush = false; this.pushSnapshot(); }
+      if (this.pendingPushCount > 0) { this.pendingPushCount = 0; this.pushSnapshot(); }
     }
   }
 
@@ -296,6 +296,11 @@ export class CloudSyncEngine {
     }
   }
 
+  // 📡 仅向本机其他标签页广播一条本地消息（不触达服务端）；供教师重置成功后就地同步 resetSeq（修复 broadcastLocal 未定义，见审查 #43 配套）
+  broadcastLocal(data) {
+    if (this.bc) { try { this.bc.postMessage({ snapshot: data }); } catch (e) {} }
+  }
+
   handleRemoteSync(remoteData) {
     if (!remoteData) return;
 
@@ -304,6 +309,7 @@ export class CloudSyncEngine {
 
     if (remoteData.groupId && remoteData.groupId !== myGroupId && user?.role === 'student') return;
 
+    // 🛡️ 仅接受 resetSeq 严格递增的重置广播；废除无/过期 resetSeq 的裸 isReset 分支（防任意客户端伪造重置，见审查 #43）
     if (remoteData.resetSeq !== undefined) {
       const localResetSeqKey = `jizhi_reset_seq_${this.storageKey}`;
       const localResetSeq = parseInt(localStorage.getItem(localResetSeqKey) || '0', 10);
@@ -311,12 +317,6 @@ export class CloudSyncEngine {
         this._applyReset(remoteData.resetSeq);
         return;
       }
-    }
-
-    const isReset = !!remoteData.isReset;
-    if (isReset) {
-      this._applyReset(remoteData.resetSeq || 1);
-      return;
     }
 
     if (remoteData.presence) {
@@ -376,8 +376,9 @@ export class CloudSyncEngine {
           if (m.id) return m.id;
           const tMs = m._timeMs || m.timestamp || '';
           const sender = m.sender || '';
-          const textHead = (m.text || '').slice(0, 30);
-          return `${sender}_${tMs}_${textHead}`;
+          // 时间戳缺失时用完整文本兜底，避免“开头相同”的两条消息被误去重
+          const textPart = tMs ? (m.text || '').slice(0, 30) : (m.text || '');
+          return `${sender}_${tMs}_${textPart}`;
         };
 
         localLogs.forEach(m => {

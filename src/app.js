@@ -272,10 +272,10 @@ export class App {
         const membersList = Object.values(this.state.members || {});
         const contribs = this.state.stage2.memberContributions || {};
         let rawTotal = 0;
-        membersList.forEach(m => { rawTotal += (contribs[m.id] || 0) + (contribs[m.studentCode] || 0); });
+        membersList.forEach(m => { rawTotal += (contribs[m.id] || contribs[m.studentCode] || 0); });
 
         contribLabelsContainer.innerHTML = membersList.map((m) => {
-          const rawVal = (contribs[m.id] || 0) + (contribs[m.studentCode] || 0);
+          const rawVal = (contribs[m.id] || contribs[m.studentCode] || 0);
           const pct = (rawTotal === 0 || rawVal === 0) ? (membersList.length > 0 ? Math.round(100 / membersList.length) : 0) : Math.round((rawVal / rawTotal) * 100);
           return `<span style="color:${m.color || '#2563eb'}; font-weight:700;">● ${m.name}: ${pct}%</span>`;
         }).join('');
@@ -284,7 +284,7 @@ export class App {
           contribBarsContainer.innerHTML = `<div style="width:100%; height:10px; background:#f1f5f9; border-radius:5px; display:flex; align-items:center; justify-content:center; font-size:10.5px; color:#94a3b8;">暂无协作投入 (开始编辑正文或研讨后将自动呈现贡献占比)</div>`;
         } else {
           contribBarsContainer.innerHTML = membersList.map((m) => {
-            const rawVal = (contribs[m.id] || 0) + (contribs[m.studentCode] || 0);
+            const rawVal = (contribs[m.id] || contribs[m.studentCode] || 0);
             const pct = (rawTotal === 0) ? Math.round(100 / (membersList.length || 1)) : Math.round((rawVal / rawTotal) * 100);
             return `<div class="contrib-segment" style="width:${pct}%; background:${m.color || '#2563eb'}; transition:width 0.3s ease;" title="${m.name}: ${pct}% (基于写作与修改累计工作量)"></div>`;
           }).join('');
@@ -304,6 +304,8 @@ export class App {
 
   initTimer() {
     setInterval(() => {
+      // 🎧 静默期情绪安抚定时巡检（即便无人发言也按周期触发，见审查 #45）
+      this.checkEmotionComfort();
       const currentUser = this.authManager.getCurrentUser();
       if (currentUser && currentUser.role === 'student' && this.state.timer.isRunning) {
         const nowMs = Date.now();
@@ -946,7 +948,7 @@ export class App {
             // 1. 计算总投入与每位成员的实际贡献百分比
             let totalContrib = 0;
             membersList.forEach(m => {
-              totalContrib += (contribs[m.id] || 0) + (contribs[m.studentCode] || 0);
+              totalContrib += (contribs[m.id] || contribs[m.studentCode] || 0);
             });
 
             // 2. 统计每位成员在阶段二的发言条数
@@ -962,7 +964,7 @@ export class App {
             const severeInactiveMembers = [];
             membersList.forEach(m => {
               const userKey = m.studentCode || m.id;
-              const memContrib = (contribs[m.id] || 0) + (contribs[m.studentCode] || 0);
+              const memContrib = (contribs[m.id] || contribs[m.studentCode] || 0);
               const pct = totalContrib > 0 ? Math.round((memContrib / totalContrib) * 100) : 33;
               const chats = (memberChatCounts[userKey] || 0) + (memberChatCounts[m.id] || 0);
 
@@ -1809,26 +1811,8 @@ export class App {
         this.pendingNegativeEmotion = null;
       }
 
-      // 若同伴在 60 秒内未予回应或继续出现消极，对应阶段智能体精准介入安抚
-      if (this.pendingNegativeEmotion && (Date.now() - this.pendingNegativeEmotion.time > 60000) && (!this.lastEmotionNudgeTime || (Date.now() - this.lastEmotionNudgeTime > 180000))) {
-        this.lastEmotionNudgeTime = Date.now();
-        const targetAgent = (currentStage === 'stage1') ? 'auctioneer' : ((currentStage === 'stage2') ? 'managingEditor' : 'neutral');
-        const agentTitle = (currentStage === 'stage1') ? '拍卖师' : ((currentStage === 'stage2') ? '责任编辑' : '中间委员');
-        const emotionPromptMsg = {
-          sender: targetAgent,
-          text: `🤝 【${agentTitle}·协同支持】：关注到大家在协作中遇到了难点！学术方案设计本身就是一个不断推敲和迭代的过程，遇到卡点非常正常。建议大家在讨论区交流具体哪个环节需要支持，团队分工互助、取长补短，稳步推进！`,
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          _timeMs: Date.now()
-        };
-        this.pendingNegativeEmotion = null;
-        setTimeout(() => {
-          if (!this.state.chatLogs[currentStage]) this.state.chatLogs[currentStage] = [];
-          this.state.chatLogs[currentStage].push(emotionPromptMsg);
-          this.syncChatLogs();
-          if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
-          renderChat(this.state);
-        }, 1500);
-      }
+      // 若同伴在 60 秒内未予回应或继续出现消极，对应阶段智能体精准介入安抚（提取为方法，发送与静默轮询共用，见审查 #45）
+      this.checkEmotionComfort(currentStage);
 
       this.triggerAgentReplyIfNeeded(text);
     };
@@ -1838,6 +1822,33 @@ export class App {
   }
 
   // updateContributionUi() 已在 L258 定义（含 getElementById 精确选择器），此处不再重复覆盖
+
+  // 🎧 情绪安抚定时巡检：即便无人发言也按固定周期检查是否存在未安抚的负向情绪并介入（审查 #45）
+  checkEmotionComfort(currentStage) {
+    if (!this.pendingNegativeEmotion) return;
+    const now = Date.now();
+    if ((now - this.pendingNegativeEmotion.time) <= 60000) return;
+    if (this.lastEmotionNudgeTime && (now - this.lastEmotionNudgeTime) <= 180000) return;
+
+    this.lastEmotionNudgeTime = now;
+    const stage = currentStage || this.state.currentStage;
+    const targetAgent = (stage === 'stage1') ? 'auctioneer' : ((stage === 'stage2') ? 'managingEditor' : 'neutral');
+    const agentTitle = (stage === 'stage1') ? '拍卖师' : ((stage === 'stage2') ? '责任编辑' : '中间委员');
+    const emotionPromptMsg = {
+      sender: targetAgent,
+      text: `🤝 【${agentTitle}·协同支持】：关注到大家在协作中遇到了难点！学术方案设计本身就是一个不断推敲和迭代的过程，遇到卡点非常正常。建议大家在讨论区交流具体哪个环节需要支持，团队分工互助、取长补短，稳步推进！`,
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      _timeMs: now
+    };
+    this.pendingNegativeEmotion = null;
+    setTimeout(() => {
+      if (!this.state.chatLogs[stage]) this.state.chatLogs[stage] = [];
+      this.state.chatLogs[stage].push(emotionPromptMsg);
+      this.syncChatLogs();
+      if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+      renderChat(this.state);
+    }, 1500);
+  }
 
   async triggerAgentReplyIfNeeded(userMsg) {
     // 🛡️ 并发锁：防止快速发送多条 @消息 导致 AI 回复乱序
@@ -1922,12 +1933,9 @@ export class App {
     if (isAlreadyVoted) { alert('⚠️ 投票已被锁定！每位成员首次投票后不能再修改选项。'); return; }
     if (!s1.hasVoted) s1.hasVoted = {};
     if (!s1.votes) s1.votes = {};
+    // 单一规范 key 写入，避免 id/studentCode 三键冗余导致的去重与调试混乱
     s1.votes[user] = proposalId;
     s1.hasVoted[user] = true;
-    if (currUserObj) {
-      if (currUserObj.id) { s1.votes[currUserObj.id] = proposalId; s1.hasVoted[currUserObj.id] = true; }
-      if (currUserObj.studentCode) { s1.votes[currUserObj.studentCode] = proposalId; s1.hasVoted[currUserObj.studentCode] = true; }
-    }
     const proposal = (s1.proposals || []).find(p => p.id === proposalId);
     const membersList = Object.values(this.state.members || {});
     const totalMembersCount = membersList.length || 3;
@@ -2067,7 +2075,8 @@ export class App {
     // 🎓 阶段三：严格按时序：① 中间委员开场 ➔ ② 正方肯定 ➔ ③ 反方质询 ➔ ④ 平台写入矩阵 ➔ ⑤ 中间委员抛题引导
     else if (stage === 'stage3') {
       const hasNeutralIntro = logs.some(m => m.sender === 'neutral' && m.text.includes('欢迎来到【阶段三：答辩擂台】'));
-      if (!hasNeutralIntro) {
+      if (!hasNeutralIntro && !this.state.stage3IntroStarted) {
+        this.state.stage3IntroStarted = true;
         const neutralWelcome = {
           sender: 'neutral',
           text: `🟡 【中间委员开场】：各位研究者，欢迎来到【阶段三：答辩擂台】！初稿撰写完毕，答辩委员会已就位，接下来将由正方委员与反方委员分别发表评审意见！`,
@@ -2197,7 +2206,7 @@ ${propText}
       if (!this.state.stage3) this.state.stage3 = {};
       this.state.stage3.stageStartTime = Date.now();
     }
-    this.syncStageChange(this.state.groupMaxStage || newStage);
+    this.syncStageChange(newStage);
     this.triggerStageWelcomeSpeech(newStage);
     this.renderStudentWorkspace();
   }
@@ -2910,7 +2919,8 @@ ${propText}
     const lastManagingMsg = logs.slice().reverse().find(m => m.sender === 'managingEditor');
     const timeSinceLastManaging = lastManagingMsg ? (now - (lastManagingMsg._timeMs || 0)) : 999999;
 
-    if (hasReflectionSection && !isStage2MeetingLocked && timeSinceLastManaging > 60000) {
+    if (hasReflectionSection && !isStage2MeetingLocked && !this.state.stage2MeetingCallSent && timeSinceLastManaging > 60000) {
+      this.state.stage2MeetingCallSent = true;
       const meetingCallMsg = {
         sender: 'managingEditor',
         text: `🤝 【责任编辑·半程会议号召】：关注到小组成员已推进撰写至【研究设计的不足与反思】章节，全篇实证方案已基本成型！请组员点击上方【📢 发起编辑会议】完成 4 维自查打卡，稍后审稿编辑将结合全组情况为大家进行深度内容质检与清单生成！`,
@@ -2958,12 +2968,12 @@ ${propText}
     if (plainLen >= 300 && membersList.length >= 2 && cooldownPassed && (lastWarnTime === 0 || hasMeaningfulProgress)) {
       const contribs = this.state.stage2.memberContributions || {};
       let totalContrib = 0;
-      membersList.forEach(m => { totalContrib += (contribs[m.id] || 0) + (contribs[m.studentCode] || 0); });
+      membersList.forEach(m => { totalContrib += (contribs[m.id] || contribs[m.studentCode] || 0); });
 
       if (totalContrib >= 200 || plainLen >= 300) {
         // 检查是否存在显著失衡：某位成员占比超过 70%，且有成员贡献率低于 10%
         const pcts = membersList.map(m => {
-          const val = (contribs[m.id] || 0) + (contribs[m.studentCode] || 0);
+          const val = (contribs[m.id] || contribs[m.studentCode] || 0);
           return (totalContrib > 0) ? Math.round((val / totalContrib) * 100) : 0;
         });
         const hasMaxSkew = Math.max(...pcts) >= 70;

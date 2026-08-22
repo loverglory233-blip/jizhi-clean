@@ -712,8 +712,8 @@
           return { success: false, message: data.message || '❌ 账号或密码错误' };
         }
       } catch (err) {
-        // 离线单机沙盒降级
-        return this.login(accountInput, password);
+        // 网络异常 Fail-Closed：不放行仅凭本地数据的登录，避免断网伪造本地账号绕过服务端验证
+        return { success: false, message: '⚠️ 无法连接服务器，请检查网络后重试登录' };
       }
     }
 
@@ -1709,7 +1709,7 @@
       this.app = app;
       this.lastTimestamp = 0;
       this.isPushing = false;
-      this.pendingPush = false;
+      this.pendingPushCount = 0;
       this.isInitialPullDone = false;
       this.updateScopeKeys();
       this.initPolling();
@@ -1888,7 +1888,7 @@
         try { this.ws.send(JSON.stringify({ snapshot })); } catch (e) {}
       }
 
-      if (this.isPushing) { this.pendingPush = true; return; }
+      if (this.isPushing) { this.pendingPushCount++; return; }
       this.isPushing = true;
       try {
         const results = await Promise.allSettled(this.syncEndpoints.map(url =>
@@ -1910,7 +1910,7 @@
       } catch (e) {
       } finally {
         this.isPushing = false;
-        if (this.pendingPush) { this.pendingPush = false; this.pushSnapshot(); }
+        if (this.pendingPushCount > 0) { this.pendingPushCount = 0; this.pushSnapshot(); }
       }
     }
 
@@ -1994,6 +1994,11 @@
       }
     }
 
+    // 📡 仅向本机其他标签页广播一条本地消息（不触达服务端）；供教师重置成功后就地同步 resetSeq（修复 broadcastLocal 未定义，见审查 #43 配套）
+    broadcastLocal(data) {
+      if (this.bc) { try { this.bc.postMessage({ snapshot: data }); } catch (e) {} }
+    }
+
     handleRemoteSync(remoteData) {
       if (!remoteData) return;
 
@@ -2002,6 +2007,7 @@
 
       if (remoteData.groupId && remoteData.groupId !== myGroupId && user?.role === 'student') return;
 
+      // 🛡️ 仅接受 resetSeq 严格递增的重置广播；废除无/过期 resetSeq 的裸 isReset 分支（防任意客户端伪造重置，见审查 #43）
       if (remoteData.resetSeq !== undefined) {
         const localResetSeqKey = `jizhi_reset_seq_${this.storageKey}`;
         const localResetSeq = parseInt(localStorage.getItem(localResetSeqKey) || '0', 10);
@@ -2009,12 +2015,6 @@
           this._applyReset(remoteData.resetSeq);
           return;
         }
-      }
-
-      const isReset = !!remoteData.isReset;
-      if (isReset) {
-        this._applyReset(remoteData.resetSeq || 1);
-        return;
       }
 
       if (remoteData.presence) {
@@ -2074,8 +2074,9 @@
             if (m.id) return m.id;
             const tMs = m._timeMs || m.timestamp || '';
             const sender = m.sender || '';
-            const textHead = (m.text || '').slice(0, 30);
-            return `${sender}_${tMs}_${textHead}`;
+            // 时间戳缺失时用完整文本兜底，避免“开头相同”的两条消息被误去重
+            const textPart = tMs ? (m.text || '').slice(0, 30) : (m.text || '');
+            return `${sender}_${tMs}_${textPart}`;
           };
 
           localLogs.forEach(m => {
@@ -2554,15 +2555,14 @@
     const oldLayout = container.querySelector('.teacher-portal-layout') || document.querySelector('.teacher-portal-layout');
     const savedScrollTop = oldLayout ? oldLayout.scrollTop : (state._teacherScrollTop || 0);
 
-    // ⚡ 教师端自动轻量轮询：每 3 秒从云端拉取学生的最新已读确认与小组动态，实时刷新受众追踪矩阵
-    if (window._teacherPortalSyncInterval) clearInterval(window._teacherPortalSyncInterval);
-    window._teacherPortalSyncInterval = setInterval(async () => {
+    // ⚡ 教师端自动轻量轮询：自调度循环，杜绝并发拉取与 interval 重注册竞态
+    const teacherPullAndRefresh = async () => {
       const curU = authManager.getCurrentUser();
-      if (!curU || curU.role !== 'teacher') {
-        clearInterval(window._teacherPortalSyncInterval);
+      if (!curU || curU.role !== 'teacher') return; // 非教师即停止轮询
+      if (document.querySelector('.modal-overlay')) {
+        window._teacherPortalSyncTimer = setTimeout(teacherPullAndRefresh, 3000);
         return;
       }
-      if (document.querySelector('.modal-overlay')) return;
 
       if (authManager && authManager.pullGlobalMeta) {
         try {
@@ -2576,10 +2576,14 @@
             renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
             const nextLayout = container.querySelector('.teacher-portal-layout');
             if (nextLayout) nextLayout.scrollTop = curScroll;
+            return; // 重渲染会重建循环
           }
         } catch (e) {}
       }
-    }, 3000);
+      window._teacherPortalSyncTimer = setTimeout(teacherPullAndRefresh, 3000);
+    };
+    if (window._teacherPortalSyncTimer) clearTimeout(window._teacherPortalSyncTimer);
+    window._teacherPortalSyncTimer = setTimeout(teacherPullAndRefresh, 3000);
 
     if (authManager && authManager.sanitizeAndDeduplicateGroups) {
       authManager.sanitizeAndDeduplicateGroups();
@@ -2719,7 +2723,7 @@
                             <td><b>${s.avatar || '👤'} ${s.name}</b></td>
                             <td><span style="color:#2563eb; font-family:monospace; font-weight:700;">${stdAcc}</span></td>
                             <td>${grp ? `<span style="background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe; padding:2px 8px; border-radius:8px; font-size:12px; font-weight:700;">${grp.name}</span>` : '<span style="color:#94a3b8;">⏳ 待划分小组</span>'}</td>
-                            <td><span style="color:#059669; font-family:monospace; font-weight:700;">初始 123</span></td>
+                            <td>${(!s.password || s.password === '123') ? '<span style="color:#059669; font-family:monospace; font-weight:700;">初始 123</span>' : '<span style="color:#7c3aed; font-family:monospace; font-weight:700;">已修改密码</span>'}</td>
                             <td>
                               <div style="display:flex; gap:6px; align-items:center;">
                                 <button class="reset-student-pwd-btn" data-account="${stdAcc}" data-name="${s.name}" style="background:#eff6ff; border:1px solid #bfdbfe; color:#2563eb; padding:4px 10px; border-radius:6px; font-size:12px; cursor:pointer; font-weight:700;" title="将此学生登录密码重置为 123">
@@ -3719,7 +3723,7 @@
         `;
         document.body.appendChild(modal);
 
-        const closeModal = () => modal.remove();
+        const closeModal = () => { modal.remove(); if (typeof onEscKey !== 'undefined') document.removeEventListener('keydown', onEscKey); };
         modal.querySelector('#btn-close-single-student').addEventListener('click', closeModal);
         modal.querySelector('#btn-cancel-single-std').addEventListener('click', closeModal);
         const cancelEnrollBtn = modal.querySelector('#btn-cancel-enroll');
@@ -3867,7 +3871,7 @@
         `;
         document.body.appendChild(modal);
 
-        const closeModal = () => modal.remove();
+        const closeModal = () => { modal.remove(); if (typeof onEscKey !== 'undefined') document.removeEventListener('keydown', onEscKey); };
         modal.querySelector('#btn-close-file-modal').addEventListener('click', closeModal);
         modal.querySelector('#btn-cancel-file-modal').addEventListener('click', closeModal);
 
@@ -3986,7 +3990,7 @@
       `;
       document.body.appendChild(modal);
 
-      const closeModal = () => modal.remove();
+      const closeModal = () => { modal.remove(); if (typeof onEscKey !== 'undefined') document.removeEventListener('keydown', onEscKey); };
       modal.querySelector('#btn-close-group-edit').addEventListener('click', closeModal);
       modal.querySelector('#btn-cancel-grp-edit').addEventListener('click', closeModal);
 
@@ -4135,7 +4139,7 @@
           `;
           document.body.appendChild(modal);
 
-          const closeModal = () => modal.remove();
+          const closeModal = () => { modal.remove(); if (typeof onEscKey !== 'undefined') document.removeEventListener('keydown', onEscKey); };
           modal.querySelector('#btn-close-rand-modal').addEventListener('click', closeModal);
           modal.querySelector('#btn-cancel-rand-modal').addEventListener('click', closeModal);
 
@@ -4384,7 +4388,7 @@
         `;
         document.body.appendChild(modal);
 
-        const closeModal = () => modal.remove();
+        const closeModal = () => { modal.remove(); if (typeof onEscKey !== 'undefined') document.removeEventListener('keydown', onEscKey); };
         modal.querySelector('#btn-close-edit-task-modal').addEventListener('click', closeModal);
         modal.querySelector('#btn-cancel-edit-task').addEventListener('click', closeModal);
         modal.addEventListener('click', (e) => { if (e.target === modal) closeModal(); });
@@ -4591,7 +4595,7 @@
         `;
         document.body.appendChild(modal);
 
-        const closeModal = () => modal.remove();
+        const closeModal = () => { modal.remove(); if (typeof onEscKey !== 'undefined') document.removeEventListener('keydown', onEscKey); };
         modal.querySelector('#btn-close-task-modal').addEventListener('click', closeModal);
         modal.querySelector('#btn-cancel-task').addEventListener('click', closeModal);
 
@@ -4775,7 +4779,7 @@
         `;
         document.body.appendChild(modal);
 
-        const closeModal = () => modal.remove();
+        const closeModal = () => { modal.remove(); if (typeof onEscKey !== 'undefined') document.removeEventListener('keydown', onEscKey); };
         modal.querySelector('#btn-close-ann-modal').addEventListener('click', closeModal);
         modal.querySelector('#btn-cancel-ann').addEventListener('click', closeModal);
 
@@ -4956,7 +4960,7 @@
         `;
         document.body.appendChild(modal);
 
-        const closeModal = () => modal.remove();
+        const closeModal = () => { modal.remove(); if (typeof onEscKey !== 'undefined') document.removeEventListener('keydown', onEscKey); };
         modal.querySelector('#btn-close-paper-modal').addEventListener('click', closeModal);
         modal.querySelector('#btn-cancel-paper').addEventListener('click', closeModal);
 
@@ -5294,30 +5298,9 @@
      7.5 STUDENT TASK PORTAL / DASHBOARD (我的写作任务大厅)
      ========================================================================== */
   function renderStudentTaskPortal(container, authManager, state, onSelectTask, onLogout, onSwitchTeacher, onOpenAnnModal, onOpenSurveyModal) {
-    let currentTasksSnapshot = localStorage.getItem(STORAGE_KEY_TASKS) || '[]';
-    let currentAnnsSnapshot = localStorage.getItem(STORAGE_KEY_ANNOUNCEMENTS) || '[]';
-    let currentClassesSnapshot = localStorage.getItem(STORAGE_KEY_CLASSES) || '[]';
-
-    // ⚡ 进入大厅静默拉取云端数据，若有变更且用户未在操作下拉框时平滑刷新
-    if (authManager && authManager.pullGlobalMeta) {
-      authManager.pullGlobalMeta().then(() => {
-        const freshTasksJson = localStorage.getItem(STORAGE_KEY_TASKS) || '[]';
-        const freshAnnsJson = localStorage.getItem(STORAGE_KEY_ANNOUNCEMENTS) || '[]';
-        const freshClassesJson = localStorage.getItem(STORAGE_KEY_CLASSES) || '[]';
-        if (freshTasksJson !== currentTasksSnapshot || freshAnnsJson !== currentAnnsSnapshot || freshClassesJson !== currentClassesSnapshot) {
-          if (document.activeElement?.id !== 'sel-student-class-switch') {
-            renderStudentTaskPortal(container, authManager, state, onSelectTask, onLogout, onSwitchTeacher, onOpenAnnModal, onOpenSurveyModal);
-          }
-        }
-      }).catch(() => {});
-    }
-
-    if (window._studentPortalSyncInterval) clearInterval(window._studentPortalSyncInterval);
-    window._studentPortalSyncInterval = setInterval(async () => {
-      if (state.studentViewMode !== 'task_list') {
-        clearInterval(window._studentPortalSyncInterval);
-        return;
-      }
+    // ⚡ 单一自调度轮询循环：杜绝“一次性 pull + interval”并行导致的并发拉取与递归重渲染
+    const pullAndRefresh = async () => {
+      if (state.studentViewMode !== 'task_list') return; // 离开大厅即停止轮询
       if (authManager && authManager.pullGlobalMeta) {
         try {
           const oldTasksJson = localStorage.getItem(STORAGE_KEY_TASKS) || '[]';
@@ -5330,11 +5313,15 @@
           if (oldTasksJson !== newTasksJson || oldAnnsJson !== newAnnsJson || oldClassesJson !== newClassesJson) {
             if (document.activeElement?.id !== 'sel-student-class-switch') {
               renderStudentTaskPortal(container, authManager, state, onSelectTask, onLogout, onSwitchTeacher, onOpenAnnModal, onOpenSurveyModal);
+              return; // 重渲染会重建整套循环，此处无需再自行调度
             }
           }
         } catch (e) {}
       }
-    }, 3000);
+      window._studentPortalSyncTimer = setTimeout(pullAndRefresh, 3000);
+    };
+    if (window._studentPortalSyncTimer) clearTimeout(window._studentPortalSyncTimer);
+    window._studentPortalSyncTimer = setTimeout(pullAndRefresh, 3000);
 
     const currentUser = authManager.getCurrentUser();
     const classes = authManager.getClasses();
@@ -5382,8 +5369,6 @@
       if (!t.classId || t.classId === 'all') return true;
       return t.classId === userClass.id || (t.className && t.className === userClass.name);
     });
-    const displayTasks = relevantTasks.length > 0 ? relevantTasks : tasks;
-
     container.innerHTML = `
       <div class="student-task-portal" style="min-height:100vh; background:#f0f4f9; display:flex; flex-direction:column;">
         <header class="app-header" style="height:60px; background:#ffffff; border-bottom:1px solid #e2e8f0; display:flex; align-items:center; justify-content:space-between; padding:0 24px; box-shadow:0 1px 3px rgba(15,23,42,0.04);">
@@ -5449,10 +5434,15 @@
               </div>
             ` : `
               <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(460px, 1fr)); gap:20px;">
-                ${displayTasks.map((t, idx) => {
+                ${relevantTasks.map((t, idx) => {
                   const duration = t.durationMinutes || 150;
-                  const taskSeqNum = displayTasks.length - idx;
+                  const taskSeqNum = relevantTasks.length - idx;
                   const isLatest = idx === 0;
+                  // 仅当前进入的任务展示真实协作进度，其余任务展示中立“已发布”状态（避免全局阶段串入各卡片）
+                  const isActiveTask = (t.id === state.activeTaskId);
+                  const progressLabel = isActiveTask
+                    ? (state.isFinalSubmitted ? '🔒 终稿已全员答辩并提交归档' : (state.currentStage === 'stage1' ? '🎪 阶段一：学术拍卖会' : (state.currentStage === 'stage2' ? '📰 阶段二：学术编辑部 (撰写中)' : '🎓 阶段三：答辩擂台')))
+                    : '📋 已发布 · 待进入协作';
                   return `
                     <div class="student-task-card" style="background:#ffffff; border:1px solid #e2e8f0; border-radius:16px; padding:22px; box-shadow:0 4px 16px -2px rgba(15,23,42,0.04); display:flex; flex-direction:column; justify-content:space-between; transition:all 0.2s ease;">
                       <div>
@@ -5482,7 +5472,7 @@
                         <div style="display:flex; align-items:center; gap:8px; font-size:12px; font-weight:600; color:#64748b; margin-bottom:16px;">
                           <span>协作进度状态:</span>
                           <span style="background:#ecfdf5; color:#059669; border:1px solid #a7f3d0; padding:2px 8px; border-radius:6px; font-size:11.5px; font-weight:700;">
-                            ${state.isFinalSubmitted ? '🔒 终稿已全员答辩并提交归档' : (state.currentStage === 'stage1' ? '🎪 阶段一：学术拍卖会' : (state.currentStage === 'stage2' ? '📰 阶段二：学术编辑部 (撰写中)' : '🎓 阶段三：答辩擂台'))}
+                            ${progressLabel}
                           </span>
                         </div>
                       </div>
@@ -6192,7 +6182,7 @@
           `;
           document.body.appendChild(modal);
 
-          const closeModal = () => modal.remove();
+          const closeModal = () => { modal.remove(); if (typeof onEscKey !== 'undefined') document.removeEventListener('keydown', onEscKey); };
           modal.querySelector('#btn-close-table-modal').addEventListener('click', closeModal);
           modal.querySelector('#btn-cancel-table-insert').addEventListener('click', closeModal);
 
@@ -6250,7 +6240,7 @@
             </div>
           `;
           document.body.appendChild(modal);
-          const closeModal = () => modal.remove();
+          const closeModal = () => { modal.remove(); if (typeof onEscKey !== 'undefined') document.removeEventListener('keydown', onEscKey); };
           modal.querySelector('#btn-close-symbol-modal').addEventListener('click', closeModal);
           modal.querySelectorAll('.sym-pick-btn').forEach(btn => {
             btn.addEventListener('click', () => {
@@ -6797,7 +6787,7 @@
           </div>
         `;
         document.body.appendChild(modal);
-        const closeModal = () => modal.remove();
+        const closeModal = () => { modal.remove(); if (typeof onEscKey !== 'undefined') document.removeEventListener('keydown', onEscKey); };
         modal.querySelector('#btn-close-prop-modal').addEventListener('click', closeModal);
         modal.querySelector('#btn-cancel-prop').addEventListener('click', closeModal);
 
@@ -7376,11 +7366,12 @@
     const allMsgs = [];
     visibleStages.forEach(stg => {
       if (state.chatLogs && state.chatLogs[stg]) {
-        state.chatLogs[stg] = state.chatLogs[stg].filter(msg => {
+        // 渲染时仅过滤展示，绝不改写 state.chatLogs（渲染函数不应有数据副作用，避免快速重渲染丢消息，见审查 #38）
+        state.chatLogs[stg].forEach(msg => {
           const txt = msg.text || '';
-          return !txt.includes('已连续') && !txt.includes('互动督促') && !txt.includes('秒未研讨') && !txt.includes('秒没有发言');
+          if (txt.includes('已连续') || txt.includes('互动督促') || txt.includes('秒未研讨') || txt.includes('秒没有发言')) return;
+          allMsgs.push(msg);
         });
-        state.chatLogs[stg].forEach(msg => allMsgs.push(msg));
       }
     });
 
@@ -7708,10 +7699,10 @@
           const membersList = Object.values(this.state.members || {});
           const contribs = this.state.stage2.memberContributions || {};
           let rawTotal = 0;
-          membersList.forEach(m => { rawTotal += (contribs[m.id] || 0) + (contribs[m.studentCode] || 0); });
+          membersList.forEach(m => { rawTotal += (contribs[m.id] || contribs[m.studentCode] || 0); });
 
           contribLabelsContainer.innerHTML = membersList.map((m) => {
-            const rawVal = (contribs[m.id] || 0) + (contribs[m.studentCode] || 0);
+            const rawVal = (contribs[m.id] || contribs[m.studentCode] || 0);
             const pct = (rawTotal === 0 || rawVal === 0) ? (membersList.length > 0 ? Math.round(100 / membersList.length) : 0) : Math.round((rawVal / rawTotal) * 100);
             return `<span style="color:${m.color || '#2563eb'}; font-weight:700;">● ${m.name}: ${pct}%</span>`;
           }).join('');
@@ -7720,7 +7711,7 @@
             contribBarsContainer.innerHTML = `<div style="width:100%; height:10px; background:#f1f5f9; border-radius:5px; display:flex; align-items:center; justify-content:center; font-size:10.5px; color:#94a3b8;">暂无协作投入 (开始编辑正文或研讨后将自动呈现贡献占比)</div>`;
           } else {
             contribBarsContainer.innerHTML = membersList.map((m) => {
-              const rawVal = (contribs[m.id] || 0) + (contribs[m.studentCode] || 0);
+              const rawVal = (contribs[m.id] || contribs[m.studentCode] || 0);
               const pct = (rawTotal === 0) ? Math.round(100 / (membersList.length || 1)) : Math.round((rawVal / rawTotal) * 100);
               return `<div class="contrib-segment" style="width:${pct}%; background:${m.color || '#2563eb'}; transition:width 0.3s ease;" title="${m.name}: ${pct}% (基于写作与修改累计工作量)"></div>`;
             }).join('');
@@ -7740,6 +7731,8 @@
 
     initTimer() {
       setInterval(() => {
+        // 🎧 静默期情绪安抚定时巡检（即便无人发言也按周期触发，见审查 #45）
+        this.checkEmotionComfort();
         const currentUser = this.authManager.getCurrentUser();
         if (currentUser && currentUser.role === 'student' && this.state.timer.isRunning) {
           const nowMs = Date.now();
@@ -8382,7 +8375,7 @@
               // 1. 计算总投入与每位成员的实际贡献百分比
               let totalContrib = 0;
               membersList.forEach(m => {
-                totalContrib += (contribs[m.id] || 0) + (contribs[m.studentCode] || 0);
+                totalContrib += (contribs[m.id] || contribs[m.studentCode] || 0);
               });
 
               // 2. 统计每位成员在阶段二的发言条数
@@ -8398,7 +8391,7 @@
               const severeInactiveMembers = [];
               membersList.forEach(m => {
                 const userKey = m.studentCode || m.id;
-                const memContrib = (contribs[m.id] || 0) + (contribs[m.studentCode] || 0);
+                const memContrib = (contribs[m.id] || contribs[m.studentCode] || 0);
                 const pct = totalContrib > 0 ? Math.round((memContrib / totalContrib) * 100) : 33;
                 const chats = (memberChatCounts[userKey] || 0) + (memberChatCounts[m.id] || 0);
 
@@ -9245,26 +9238,8 @@
           this.pendingNegativeEmotion = null;
         }
 
-        // 若同伴在 60 秒内未予回应或继续出现消极，对应阶段智能体精准介入安抚
-        if (this.pendingNegativeEmotion && (Date.now() - this.pendingNegativeEmotion.time > 60000) && (!this.lastEmotionNudgeTime || (Date.now() - this.lastEmotionNudgeTime > 180000))) {
-          this.lastEmotionNudgeTime = Date.now();
-          const targetAgent = (currentStage === 'stage1') ? 'auctioneer' : ((currentStage === 'stage2') ? 'managingEditor' : 'neutral');
-          const agentTitle = (currentStage === 'stage1') ? '拍卖师' : ((currentStage === 'stage2') ? '责任编辑' : '中间委员');
-          const emotionPromptMsg = {
-            sender: targetAgent,
-            text: `🤝 【${agentTitle}·协同支持】：关注到大家在协作中遇到了难点！学术方案设计本身就是一个不断推敲和迭代的过程，遇到卡点非常正常。建议大家在讨论区交流具体哪个环节需要支持，团队分工互助、取长补短，稳步推进！`,
-            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-            _timeMs: Date.now()
-          };
-          this.pendingNegativeEmotion = null;
-          setTimeout(() => {
-            if (!this.state.chatLogs[currentStage]) this.state.chatLogs[currentStage] = [];
-            this.state.chatLogs[currentStage].push(emotionPromptMsg);
-            this.syncChatLogs();
-            if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
-            renderChat(this.state);
-          }, 1500);
-        }
+        // 若同伴在 60 秒内未予回应或继续出现消极，对应阶段智能体精准介入安抚（提取为方法，发送与静默轮询共用，见审查 #45）
+        this.checkEmotionComfort(currentStage);
 
         this.triggerAgentReplyIfNeeded(text);
       };
@@ -9274,6 +9249,33 @@
     }
 
     // updateContributionUi() 已在 L258 定义（含 getElementById 精确选择器），此处不再重复覆盖
+
+    // 🎧 情绪安抚定时巡检：即便无人发言也按固定周期检查是否存在未安抚的负向情绪并介入（审查 #45）
+    checkEmotionComfort(currentStage) {
+      if (!this.pendingNegativeEmotion) return;
+      const now = Date.now();
+      if ((now - this.pendingNegativeEmotion.time) <= 60000) return;
+      if (this.lastEmotionNudgeTime && (now - this.lastEmotionNudgeTime) <= 180000) return;
+
+      this.lastEmotionNudgeTime = now;
+      const stage = currentStage || this.state.currentStage;
+      const targetAgent = (stage === 'stage1') ? 'auctioneer' : ((stage === 'stage2') ? 'managingEditor' : 'neutral');
+      const agentTitle = (stage === 'stage1') ? '拍卖师' : ((stage === 'stage2') ? '责任编辑' : '中间委员');
+      const emotionPromptMsg = {
+        sender: targetAgent,
+        text: `🤝 【${agentTitle}·协同支持】：关注到大家在协作中遇到了难点！学术方案设计本身就是一个不断推敲和迭代的过程，遇到卡点非常正常。建议大家在讨论区交流具体哪个环节需要支持，团队分工互助、取长补短，稳步推进！`,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        _timeMs: now
+      };
+      this.pendingNegativeEmotion = null;
+      setTimeout(() => {
+        if (!this.state.chatLogs[stage]) this.state.chatLogs[stage] = [];
+        this.state.chatLogs[stage].push(emotionPromptMsg);
+        this.syncChatLogs();
+        if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+        renderChat(this.state);
+      }, 1500);
+    }
 
     async triggerAgentReplyIfNeeded(userMsg) {
       // 🛡️ 并发锁：防止快速发送多条 @消息 导致 AI 回复乱序
@@ -9358,12 +9360,9 @@
       if (isAlreadyVoted) { alert('⚠️ 投票已被锁定！每位成员首次投票后不能再修改选项。'); return; }
       if (!s1.hasVoted) s1.hasVoted = {};
       if (!s1.votes) s1.votes = {};
+      // 单一规范 key 写入，避免 id/studentCode 三键冗余导致的去重与调试混乱
       s1.votes[user] = proposalId;
       s1.hasVoted[user] = true;
-      if (currUserObj) {
-        if (currUserObj.id) { s1.votes[currUserObj.id] = proposalId; s1.hasVoted[currUserObj.id] = true; }
-        if (currUserObj.studentCode) { s1.votes[currUserObj.studentCode] = proposalId; s1.hasVoted[currUserObj.studentCode] = true; }
-      }
       const proposal = (s1.proposals || []).find(p => p.id === proposalId);
       const membersList = Object.values(this.state.members || {});
       const totalMembersCount = membersList.length || 3;
@@ -9503,7 +9502,8 @@
       // 🎓 阶段三：严格按时序：① 中间委员开场 ➔ ② 正方肯定 ➔ ③ 反方质询 ➔ ④ 平台写入矩阵 ➔ ⑤ 中间委员抛题引导
       else if (stage === 'stage3') {
         const hasNeutralIntro = logs.some(m => m.sender === 'neutral' && m.text.includes('欢迎来到【阶段三：答辩擂台】'));
-        if (!hasNeutralIntro) {
+        if (!hasNeutralIntro && !this.state.stage3IntroStarted) {
+          this.state.stage3IntroStarted = true;
           const neutralWelcome = {
             sender: 'neutral',
             text: `🟡 【中间委员开场】：各位研究者，欢迎来到【阶段三：答辩擂台】！初稿撰写完毕，答辩委员会已就位，接下来将由正方委员与反方委员分别发表评审意见！`,
@@ -9633,7 +9633,7 @@
         if (!this.state.stage3) this.state.stage3 = {};
         this.state.stage3.stageStartTime = Date.now();
       }
-      this.syncStageChange(this.state.groupMaxStage || newStage);
+      this.syncStageChange(newStage);
       this.triggerStageWelcomeSpeech(newStage);
       this.renderStudentWorkspace();
     }
@@ -10346,7 +10346,8 @@
       const lastManagingMsg = logs.slice().reverse().find(m => m.sender === 'managingEditor');
       const timeSinceLastManaging = lastManagingMsg ? (now - (lastManagingMsg._timeMs || 0)) : 999999;
 
-      if (hasReflectionSection && !isStage2MeetingLocked && timeSinceLastManaging > 60000) {
+      if (hasReflectionSection && !isStage2MeetingLocked && !this.state.stage2MeetingCallSent && timeSinceLastManaging > 60000) {
+        this.state.stage2MeetingCallSent = true;
         const meetingCallMsg = {
           sender: 'managingEditor',
           text: `🤝 【责任编辑·半程会议号召】：关注到小组成员已推进撰写至【研究设计的不足与反思】章节，全篇实证方案已基本成型！请组员点击上方【📢 发起编辑会议】完成 4 维自查打卡，稍后审稿编辑将结合全组情况为大家进行深度内容质检与清单生成！`,
@@ -10394,12 +10395,12 @@
       if (plainLen >= 300 && membersList.length >= 2 && cooldownPassed && (lastWarnTime === 0 || hasMeaningfulProgress)) {
         const contribs = this.state.stage2.memberContributions || {};
         let totalContrib = 0;
-        membersList.forEach(m => { totalContrib += (contribs[m.id] || 0) + (contribs[m.studentCode] || 0); });
+        membersList.forEach(m => { totalContrib += (contribs[m.id] || contribs[m.studentCode] || 0); });
 
         if (totalContrib >= 200 || plainLen >= 300) {
           // 检查是否存在显著失衡：某位成员占比超过 70%，且有成员贡献率低于 10%
           const pcts = membersList.map(m => {
-            const val = (contribs[m.id] || 0) + (contribs[m.studentCode] || 0);
+            const val = (contribs[m.id] || contribs[m.studentCode] || 0);
             return (totalContrib > 0) ? Math.round((val / totalContrib) * 100) : 0;
           });
           const hasMaxSkew = Math.max(...pcts) >= 70;

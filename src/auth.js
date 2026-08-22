@@ -288,8 +288,8 @@ export class AuthManager {
         return { success: false, message: data.message || '❌ 账号或密码错误' };
       }
     } catch (err) {
-      // 离线单机沙盒降级
-      return this.login(accountInput, password);
+      // 网络异常 Fail-Closed：不放行仅凭本地数据的登录，避免断网伪造本地账号绕过服务端验证
+      return { success: false, message: '⚠️ 无法连接服务器，请检查网络后重试登录' };
     }
   }
 

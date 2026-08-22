@@ -20,7 +20,12 @@ class CozePromptFactory {
         if (!empty($actualDoc)) {
             $docLen = mb_strlen($actualDoc, 'UTF-8');
             $docSnippet = mb_substr($actualDoc, 0, 1200, 'UTF-8');
-            $prompt .= "【小组当前真实正文草稿（字数：{$docLen}字）】:\n{$docSnippet}\n";
+            $snippetLen = mb_strlen($docSnippet, 'UTF-8');
+            // 如实告知全文长度与截取范围，避免 AI 误判篇幅
+            $docNote = ($snippetLen < $docLen)
+                ? "（全文共 {$docLen} 字，以下仅摘录前 {$snippetLen} 字）"
+                : "（全文，共 {$docLen} 字）";
+            $prompt .= "【小组当前真实正文草稿{$docNote}】:\n{$docSnippet}\n";
         }
 
         $prompt .= "【审阅/对话指令】: {$userQuery}";
