@@ -80,12 +80,18 @@ export function renderHeader(state, currentUser, announcements, onStageChange, o
         🔔 消息 ${unreadAnnCount > 0 ? `<span class="unread-count">${unreadAnnCount}</span>` : ''}
       </button>
       <div class="timer-box" style="padding:2px 8px; border-radius:14px; font-size:11.5px;">⏱️ ${remainingMin}m</div>
+      <button id="btn-editor-change-pwd" style="background:#f0fdf4; color:#16a34a; border:1px solid #bbf7d0; padding:3px 8px; border-radius:14px; font-size:11px; font-weight:700; cursor:pointer;" title="修改登录密码">🔑 密码</button>
       <button id="btn-user-logout" style="background:#fef2f2; color:#dc2626; border:1px solid #fecaca; padding:3px 8px; border-radius:14px; font-size:11px; font-weight:700; cursor:pointer;" title="退出登录">🚪 退出</button>
     </div>
   `;
 
   header.querySelectorAll('.stage-btn').forEach(btn => {
     btn.addEventListener('click', () => onStageChange(btn.dataset.stage));
+  });
+  header.querySelector('#btn-editor-change-pwd')?.addEventListener('click', () => {
+    if (window.app && window.app.authManager) {
+      window.app.authManager.openChangePasswordModal();
+    }
   });
   header.querySelector('#btn-user-logout').addEventListener('click', () => onLogout());
   header.querySelector('#btn-header-ann-bell').addEventListener('click', () => onOpenAnnModal());

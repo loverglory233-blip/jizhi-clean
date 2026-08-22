@@ -113,6 +113,7 @@ export function renderStudentTaskPortal(container, authManager, state, onSelectT
           </div>
         </div>
         <div class="header-controls" style="display:flex; align-items:center; gap:10px;">
+          <button id="btn-portal-change-pwd" style="background:#f0fdf4; color:#16a34a; border:1px solid #bbf7d0; padding:6px 14px; border-radius:18px; font-size:12px; font-weight:700; cursor:pointer;" title="修改登录密码">🔑 修改密码</button>
           <button id="btn-portal-logout" style="background:#fef2f2; color:#dc2626; border:1px solid #fecaca; padding:6px 14px; border-radius:18px; font-size:12px; font-weight:700; cursor:pointer;">🚪 退出登录</button>
         </div>
       </header>
@@ -223,6 +224,9 @@ export function renderStudentTaskPortal(container, authManager, state, onSelectT
   }
 
   container.querySelector('#btn-portal-logout')?.addEventListener('click', () => onLogout());
+  container.querySelector('#btn-portal-change-pwd')?.addEventListener('click', () => {
+    authManager.openChangePasswordModal();
+  });
   container.querySelector('#btn-portal-switch-teacher')?.addEventListener('click', () => onSwitchTeacher());
   container.querySelector('#btn-portal-ann-bell')?.addEventListener('click', () => onOpenAnnModal());
   container.querySelector('#btn-enter-default-workspace')?.addEventListener('click', () => onSelectTask(null));
