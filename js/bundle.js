@@ -731,7 +731,7 @@
         fetch('sync.php?action=session_login', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ userId: user.id || user.username, token: newSessionId })
+          body: JSON.stringify({ userId: user.id || user.username, token: newSessionId, password: pwd })
         }).catch(() => {});
       } catch (e) {}
 

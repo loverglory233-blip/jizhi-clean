@@ -63,14 +63,15 @@ function verifyTeacherSession($userId, $token, $pdo) {
     if (!$teacherRow) {
         return false;
     }
-    // 2. 严格要求传入的 Token 必须与服务端有效 Session 匹配
+    // 2. 严格要求传入的 Token 必须与服务端有效 Session 匹配 (绝无长度或通配兜底)
     $stmtSess = $pdo->prepare("SELECT meta_value FROM global_meta WHERE meta_key = :k");
     $stmtSess->execute([':k' => 'sess_' . $userId]);
     $sessRow = $stmtSess->fetch();
     if ($sessRow && !empty($sessRow['meta_value'])) {
         return ($sessRow['meta_value'] === $token);
     }
-    return strlen($token) >= 8;
+    // Fail-Closed: 数据库中无此活跃会话直接拒绝放行
+    return false;
 }
 
 // 0a. 服务端统一登录安全鉴权 API (严格校验密码哈希与防脱机绕过)
@@ -136,6 +137,15 @@ if ($action === 'login' && $_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if ($foundUser) {
         $token = 'jwt_jizhi_' . bin2hex(random_bytes(16)) . '_' . time();
+        if ($pdo) {
+            $uId = $foundUser['id'] ?? '';
+            $uName = $foundUser['username'] ?? '';
+            $uCode = $foundUser['student_code'] ?? '';
+            $stmtSess = $pdo->prepare("INSERT INTO global_meta (meta_key, meta_value) VALUES (:k, :v) ON DUPLICATE KEY UPDATE meta_value = :v2");
+            if ($uId) $stmtSess->execute([':k' => 'sess_' . $uId, ':v' => $token, ':v2' => $token]);
+            if ($uName && $uName !== $uId) $stmtSess->execute([':k' => 'sess_' . $uName, ':v' => $token, ':v2' => $token]);
+            if ($uCode && $uCode !== $uId && $uCode !== $uName) $stmtSess->execute([':k' => 'sess_' . $uCode, ':v' => $token, ':v2' => $token]);
+        }
         unset($foundUser['password']); // 安全铁律：绝不向前端返回密码
         echo json_encode([
             'success' => true,
@@ -702,9 +712,21 @@ if ($action === 'session_login' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $req = json_decode($rawInput, true) ?: [];
     $userId = isset($req['userId']) ? $req['userId'] : '';
     $token = isset($req['token']) ? $req['token'] : '';
+    $password = isset($req['password']) ? $req['password'] : '';
+
     if ($userId && $token && $pdo) {
-        $stmt = $pdo->prepare("INSERT INTO global_meta (meta_key, meta_value) VALUES (:k, :v) ON DUPLICATE KEY UPDATE meta_value = :v2");
-        $stmt->execute([':k' => 'sess_' . $userId, ':v' => $token, ':v2' => $token]);
+        // 🛡️ 严格凭据校验：仅允许密码正确或持有合法有效会话的用户更新会话
+        $stmt = $pdo->prepare("SELECT password FROM users WHERE id = :u OR username = :u OR student_code = :u LIMIT 1");
+        $stmt->execute([':u' => $userId]);
+        $uRow = $stmt->fetch(PDO::FETCH_ASSOC);
+        if ($uRow) {
+            $dbPwd = $uRow['password'] ?? '123';
+            $isValid = (!empty($password) && (password_verify($password, $dbPwd) || $password === $dbPwd || (empty($dbPwd) && $password === '123')));
+            if ($isValid) {
+                $stmtSess = $pdo->prepare("INSERT INTO global_meta (meta_key, meta_value) VALUES (:k, :v) ON DUPLICATE KEY UPDATE meta_value = :v2");
+                $stmtSess->execute([':k' => 'sess_' . $userId, ':v' => $token, ':v2' => $token]);
+            }
+        }
     }
     echo json_encode(['success' => true]);
     exit;
