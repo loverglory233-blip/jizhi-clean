@@ -178,6 +178,54 @@ if ($action === 'change_password' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     exit;
 }
 
+// 1.4 教师端一键重置学生密码为 123 (实验环境救急必备)
+if ($action === 'reset_student_password' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    $rawInput = file_get_contents('php://input');
+    $data = json_decode($rawInput, true) ?: [];
+    $account = trim($data['account'] ?? ($data['studentCode'] ?? ($data['username'] ?? '')));
+    $newPwd = trim($data['newPassword'] ?? '123');
+
+    if (empty($account)) {
+        echo json_encode(['success' => false, 'message' => '学生账号不能为空']);
+        exit;
+    }
+
+    if ($pdo) {
+        $stmt = $pdo->prepare("SELECT * FROM users WHERE username = :acc OR student_code = :acc OR id = :acc LIMIT 1");
+        $stmt->execute([':acc' => $account]);
+        $user = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!$user) {
+            echo json_encode(['success' => false, 'message' => '未找到该学生账号']);
+            exit;
+        }
+
+        $stmtUpdate = $pdo->prepare("UPDATE users SET password = :p WHERE id = :uid");
+        $stmtUpdate->execute([':p' => $newPwd, ':uid' => $user['id']]);
+
+        // 同步更新 main_meta 里的 users
+        $stmtMeta = $pdo->prepare("SELECT meta_value FROM global_meta WHERE meta_key = 'main_meta'");
+        $stmtMeta->execute();
+        $metaRow = $stmtMeta->fetch();
+        if ($metaRow && !empty($metaRow['meta_value'])) {
+            $gm = json_decode($metaRow['meta_value'], true) ?: [];
+            if (isset($gm['users']) && is_array($gm['users'])) {
+                foreach ($gm['users'] as &$gu) {
+                    if (($gu['studentCode'] ?? ($gu['username'] ?? ($gu['id'] ?? ''))) === $account) {
+                        $gu['password'] = $newPwd;
+                    }
+                }
+                $encodedGm = json_encode($gm, JSON_UNESCAPED_UNICODE);
+                $stmtSaveGm = $pdo->prepare("UPDATE global_meta SET meta_value = :v WHERE meta_key = 'main_meta'");
+                $stmtSaveGm->execute([':v' => $encodedGm]);
+            }
+        }
+        echo json_encode(['success' => true, 'message' => "已成功将学生【{$user['name']}】的密码重置为 {$newPwd}！"]);
+        exit;
+    }
+    echo json_encode(['success' => false, 'message' => '数据库未连接']);
+    exit;
+}
+
 // 0. 教师附件文件上传（存服务器磁盘，返回可访问 URL）
 if ($action === 'upload_file' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     header('Content-Type: application/json; charset=utf-8');
