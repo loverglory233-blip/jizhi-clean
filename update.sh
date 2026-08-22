@@ -196,22 +196,18 @@ for dir in "${TARGET_DIRS[@]}"; do
       echo "   ✅ 端口 8088 同步服务端已就绪 ($dir)"
     fi
   fi
-  if [ -f "$dir/server_yjs.js" ]; then
+  if [ -f "$dir/server_yjs.js" ] || [ -f "$dir/server_yjs.py" ]; then
     cd "$dir"
-    if [ ! -d "$dir/node_modules/ws" ]; then
+    if command -v node >/dev/null 2>&1; then
       npm install ws --save >/dev/null 2>&1 || true
-    fi
-    if command -v pm2 >/dev/null 2>&1; then
-      pm2 restart jizhi-yjs 2>/dev/null || pm2 start server_yjs.js --name "jizhi-yjs" 2>/dev/null
-      pm2 save >/dev/null 2>&1 || true
-      echo "   ✅ 端口 1234 Yjs CRDT 协同网关已就绪 (PM2守护)"
-    elif command -v node >/dev/null 2>&1; then
       nohup node server_yjs.js > yjs.log 2>&1 &
-      echo "   ✅ 端口 1234 Yjs CRDT 协同网关已就绪 (Node.js常驻)"
+      sleep 1
+      echo "   ✅ 端口 1234 Yjs CRDT 协同网关已就绪 (Node.js: $dir)"
     else
-      pip3 install websockets >/dev/null 2>&1 || pip install websockets >/dev/null 2>&1 || true
+      pip3 install websockets --break-system-packages >/dev/null 2>&1 || pip3 install websockets >/dev/null 2>&1 || pip install websockets >/dev/null 2>&1 || true
       nohup python3 server_yjs.py > yjs.log 2>&1 &
-      echo "   ✅ 端口 1234 Yjs CRDT 协同网关已就绪 (Python常驻)"
+      sleep 1
+      echo "   ✅ 端口 1234 Yjs CRDT 协同网关已就绪 (Python: $dir)"
     fi
   fi
 done

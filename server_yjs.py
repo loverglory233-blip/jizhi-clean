@@ -56,12 +56,30 @@ async def handler(websocket, path):
                 del ROOMS[room_name]
         print(f"[Yjs PyWS] Client disconnected from room: {room_name}")
 
+async def process_request(path, request_headers):
+    # 处理 HTTP 健康检查与普通探针
+    if path == '/health' or path == '/':
+        headers = [
+            ('Content-Type', 'application/json; charset=utf-8'),
+            ('Access-Control-Allow-Origin', '*'),
+            ('Access-Control-Allow-Methods', 'GET, OPTIONS')
+        ]
+        body = json.dumps({
+            'status': 'ok',
+            'service': 'JIZHI Yjs CRDT Python Collaboration Gateway',
+            'version': '2.0.0',
+            'activeRooms': len(ROOMS)
+        }).encode('utf-8')
+        return (200, headers, body)
+    return None
+
 async def main():
     print(f"====================================================")
     print(f"🚀 JIZHI Yjs CRDT Python WebSocket Server Started")
     print(f"📡 Listening on ws://{HOST}:{PORT}")
+    print(f"🩺 Health check on http://{HOST}:{PORT}/health")
     print(f"====================================================")
-    async with websockets.serve(handler, HOST, PORT):
+    async with websockets.serve(handler, HOST, PORT, process_request=process_request):
         await asyncio.Future()  # run forever
 
 if __name__ == '__main__':
