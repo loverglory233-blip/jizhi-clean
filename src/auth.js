@@ -797,26 +797,7 @@ export class AuthManager {
         };
       });
     } else {
-      const defaultStds = [
-        { code: '202601', name: '李明 (组长)', roleTitle: '组长 · 论文结构', avatar: '👨‍🎓', color: '#818cf8', letter: 'A' },
-        { code: '202602', name: '王芳 (组员)', roleTitle: '组员 · 文献综述', avatar: '👩‍🎓', color: '#22d3ee', letter: 'B' },
-        { code: '202603', name: '陈强 (组员)', roleTitle: '组员 · 研究设计', avatar: '🧑‍🎓', color: '#fbbf24', letter: 'C' }
-      ];
-      defaultStds.forEach(d => {
-        membersObj[d.code] = {
-          id: d.code,
-          userId: `u_${d.code}`,
-          name: d.name,
-          roleTitle: d.roleTitle,
-          avatar: d.avatar,
-          color: d.color,
-          studentCode: d.code,
-          realStudentCode: d.code,
-          letterCode: d.letter,
-          groupId: groupId,
-          classId: 'class_101'
-        };
-      });
+      // 真实无成员小组直接返回空集合，绝不自动注入测试学生
     }
     return membersObj;
   }

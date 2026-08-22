@@ -62,21 +62,11 @@ function initDatabaseTables() {
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;";
     $pdo->exec($sql3);
 
-    // 仅在 classes 表完全为空时写入初始班级
+    // 仅在 classes 表完全为空时写入初始空班级
     $chkClassCount = $pdo->query("SELECT COUNT(*) FROM `classes`")->fetchColumn();
     if (intval($chkClassCount) === 0) {
-        $seedClassGroups = json_encode([
-            [
-                'id' => 'group_1', 
-                'name' => '第 1 协作小组 (测试组)', 
-                'members' => [
-                    ['id' => 'u_studentA', 'name' => '李明', 'studentCode' => '202601', 'role' => '组长', 'roleTitle' => '组长', 'avatar' => '👨‍🎓', 'color' => '#2563eb'],
-                    ['id' => 'u_studentB', 'name' => '王芳', 'studentCode' => '202602', 'role' => '组员', 'roleTitle' => '组员', 'avatar' => '👩‍🎓', 'color' => '#10b981'],
-                    ['id' => 'u_studentC', 'name' => '陈强', 'studentCode' => '202603', 'role' => '组员', 'roleTitle' => '组员', 'avatar' => '🧑‍🎓', 'color' => '#f59e0b']
-                ]
-            ]
-        ], JSON_UNESCAPED_UNICODE);
-        $seedClassStudents = json_encode(['u_studentA', 'u_studentB', 'u_studentC'], JSON_UNESCAPED_UNICODE);
+        $seedClassGroups = json_encode([], JSON_UNESCAPED_UNICODE);
+        $seedClassStudents = json_encode([], JSON_UNESCAPED_UNICODE);
         $stmtClass = $pdo->prepare("INSERT INTO `classes` (`id`, `name`, `code`, `student_ids`, `groups_data`) 
             VALUES ('class_101', '《现代教育技术》2026春01班', 'ET2026-01', :sids, :gdata)");
         $stmtClass->execute([':sids' => $seedClassStudents, ':gdata' => $seedClassGroups]);
