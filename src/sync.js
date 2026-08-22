@@ -41,31 +41,11 @@ export class CloudSyncEngine {
   }
 
   initSSE() {
-    this.updateScopeKeys();
-    if (this.sse) { try { this.sse.close(); } catch (e) {} }
-    // 🛡️ 生产环境 (HTTPS / PHP) 直接使用 WebSocket 与智能轮询，跳过开发环境独有的 SSE 接口
-    if (window.location.protocol === 'https:' || (window.location.port !== '8088' && !window.location.port)) {
-      return;
-    }
-    const host = window.location.hostname || 'localhost';
-    const sseUrl = `http://${host}:8088/api/stream?taskId=${this.taskId}&groupId=${this.groupId}`;
-    try {
-      this.sse = new EventSource(sseUrl);
-      this.sse.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data);
-          if (data) this.handleRemoteSync(data);
-        } catch (e) {}
-      };
-      this.sse.onerror = () => {
-        if (this.sse) { try { this.sse.close(); } catch (e) {} }
-      };
-    } catch (e) {}
+    // 生产环境全面采用 WebSocket 与 MySQL 高可用轮询，彻底停用开发专用 SSE
   }
 
   initWebSocket() {
     this.updateScopeKeys();
-    this.initSSE();
   }
 
   initPolling() {
