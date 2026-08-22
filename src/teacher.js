@@ -88,6 +88,9 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
         <div class="teacher-info" style="display:flex; align-items:center; gap:14px;">
           <span style="font-size:13.5px; color:#334155;">当前班级: <b style="color:#2563eb;">${activeClass.name}</b></span>
           <span style="font-size:13.5px; color:#334155;">教师: <b>${currentUser.name}</b></span>
+          <button id="btn-teacher-change-pwd" style="background:#f0fdf4; border:1px solid #bbf7d0; color:#16a34a; padding:6px 14px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer; display:flex; align-items:center; gap:6px;" title="修改登录密码">
+            <span>🔑 修改密码</span>
+          </button>
           <button id="btn-teacher-alerts" style="background:#fffbeb; border:1px solid #fde68a; color:#b45309; padding:6px 14px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer; display:flex; align-items:center; gap:6px; box-shadow:0 1px 3px rgba(0,0,0,0.05);" title="查看小组代签与重要协同提醒">
             <span>🔔 协同动态提醒</span>
             ${unreadAlertCount > 0 ? `<span style="background:#dc2626; color:white; font-size:11px; padding:1px 6px; border-radius:10px; font-weight:800;">${unreadAlertCount}</span>` : ''}
@@ -920,6 +923,13 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
 
   const btnLogout = container.querySelector('#btn-logout');
   if (btnLogout) btnLogout.addEventListener('click', () => onLogout());
+
+  const btnChangePwd = container.querySelector('#btn-teacher-change-pwd');
+  if (btnChangePwd) {
+    btnChangePwd.addEventListener('click', () => {
+      authManager.openChangePasswordModal();
+    });
+  }
 
   const btnAlerts = container.querySelector('#btn-teacher-alerts');
   if (btnAlerts) {

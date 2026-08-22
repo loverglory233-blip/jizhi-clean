@@ -1539,6 +1539,120 @@
       alerts.forEach(a => { a.read = true; });
       localStorage.setItem('jizhi_teacher_alerts_db', JSON.stringify(alerts));
     }
+
+    openChangePasswordModal(presetAccount = null) {
+      const currentUser = this.getCurrentUser();
+      const account = presetAccount || (currentUser ? (currentUser.studentCode || currentUser.username || currentUser.id) : '');
+
+      const oldModal = document.getElementById('modal-change-password');
+      if (oldModal) oldModal.remove();
+
+      const modal = document.createElement('div');
+      modal.id = 'modal-change-password';
+      modal.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,0.7);backdrop-filter:blur(4px);z-index:999999;display:flex;align-items:center;justify-content:center;padding:20px;';
+      modal.innerHTML = `
+        <div style="background:#fff;border-radius:16px;box-shadow:0 20px 25px -5px rgba(0,0,0,0.2);width:100%;max-width:400px;overflow:hidden;animation:fadeIn 0.2s ease;">
+          <div style="background:linear-gradient(135deg,#4f46e5,#6366f1);padding:18px 24px;color:#fff;display:flex;justify-content:space-between;align-items:center;">
+            <div style="font-size:16px;font-weight:700;display:flex;align-items:center;gap:8px;">🔑 修改个人登录密码</div>
+            <button id="btn-close-pwd-modal" style="background:none;border:none;color:#fff;font-size:22px;cursor:pointer;line-height:1;">&times;</button>
+          </div>
+          <div style="padding:24px;">
+            <div style="margin-bottom:14px;">
+              <label style="display:block;font-size:12px;font-weight:600;color:#64748b;margin-bottom:6px;">账号 / 学号 / 工号</label>
+              <input type="text" id="input-pwd-account" value="${account}" ${account ? 'readonly' : ''} style="width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid #cbd5e1;border-radius:8px;font-size:14px;background:${account ? '#f8fafc' : '#fff'};">
+            </div>
+            <div style="margin-bottom:14px;">
+              <label style="display:block;font-size:12px;font-weight:600;color:#64748b;margin-bottom:6px;">原密码 (默认初始密码为 123)</label>
+              <input type="password" id="input-pwd-old" placeholder="请输入原密码" style="width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid #cbd5e1;border-radius:8px;font-size:14px;">
+            </div>
+            <div style="margin-bottom:14px;">
+              <label style="display:block;font-size:12px;font-weight:600;color:#64748b;margin-bottom:6px;">设置新密码</label>
+              <input type="password" id="input-pwd-new" placeholder="请输入新密码 (不少于3位)" style="width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid #cbd5e1;border-radius:8px;font-size:14px;">
+            </div>
+            <div style="margin-bottom:20px;">
+              <label style="display:block;font-size:12px;font-weight:600;color:#64748b;margin-bottom:6px;">确认新密码</label>
+              <input type="password" id="input-pwd-confirm" placeholder="请再次输入新密码" style="width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid #cbd5e1;border-radius:8px;font-size:14px;">
+            </div>
+            <div id="pwd-modal-msg" style="display:none;padding:10px;border-radius:8px;font-size:13px;margin-bottom:16px;"></div>
+            <div style="display:flex;gap:12px;justify-content:flex-end;">
+              <button id="btn-cancel-pwd" style="background:#f1f5f9;color:#475569;border:none;padding:10px 18px;border-radius:8px;font-weight:600;cursor:pointer;">取消</button>
+              <button id="btn-submit-pwd" style="background:#4f46e5;color:#fff;border:none;padding:10px 22px;border-radius:8px;font-weight:600;cursor:pointer;">确认修改</button>
+            </div>
+          </div>
+        </div>
+      `;
+      document.body.appendChild(modal);
+
+      const closeBtn = document.getElementById('btn-close-pwd-modal');
+      const cancelBtn = document.getElementById('btn-cancel-pwd');
+      const submitBtn = document.getElementById('btn-submit-pwd');
+      const msgDiv = document.getElementById('pwd-modal-msg');
+
+      const closeModal = () => modal.remove();
+      if (closeBtn) closeBtn.onclick = closeModal;
+      if (cancelBtn) cancelBtn.onclick = closeModal;
+
+      if (submitBtn) {
+        submitBtn.onclick = async () => {
+          const acc = document.getElementById('input-pwd-account').value.trim();
+          const oldP = document.getElementById('input-pwd-old').value.trim();
+          const newP = document.getElementById('input-pwd-new').value.trim();
+          const confP = document.getElementById('input-pwd-confirm').value.trim();
+
+          if (!acc || !newP) {
+            msgDiv.style.display = 'block';
+            msgDiv.style.background = '#fef2f2';
+            msgDiv.style.color = '#dc2626';
+            msgDiv.textContent = '❌ 账号与新密码不能为空';
+            return;
+          }
+          if (newP !== confP) {
+            msgDiv.style.display = 'block';
+            msgDiv.style.background = '#fef2f2';
+            msgDiv.style.color = '#dc2626';
+            msgDiv.textContent = '❌ 两次输入的新密码不一致';
+            return;
+          }
+          submitBtn.disabled = true;
+          submitBtn.textContent = '保存中...';
+
+          try {
+            const res = await fetch('sync.php?action=change_password', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ account: acc, oldPassword: oldP, newPassword: newP })
+            });
+            const data = await res.json();
+            if (data && data.success) {
+              msgDiv.style.display = 'block';
+              msgDiv.style.background = '#f0fdf4';
+              msgDiv.style.color = '#16a34a';
+              msgDiv.textContent = '✅ ' + (data.message || '密码修改成功！');
+              setTimeout(() => {
+                closeModal();
+                if (window.app && window.app.showNotification) {
+                  window.app.showNotification('🎉 密码修改成功，请牢记新密码');
+                }
+              }, 1200);
+            } else {
+              msgDiv.style.display = 'block';
+              msgDiv.style.background = '#fef2f2';
+              msgDiv.style.color = '#dc2626';
+              msgDiv.textContent = '❌ ' + (data.message || '修改失败，请检查原密码');
+              submitBtn.disabled = false;
+              submitBtn.textContent = '确认修改';
+            }
+          } catch (e) {
+            msgDiv.style.display = 'block';
+            msgDiv.style.background = '#fef2f2';
+            msgDiv.style.color = '#dc2626';
+            msgDiv.textContent = '❌ 网络请求失败，请稍后重试';
+            submitBtn.disabled = false;
+            submitBtn.textContent = '确认修改';
+          }
+        };
+      }
+    }
   }
 
   /* ==========================================================================
@@ -2455,6 +2569,9 @@
           <div class="teacher-info" style="display:flex; align-items:center; gap:14px;">
             <span style="font-size:13.5px; color:#334155;">当前班级: <b style="color:#2563eb;">${activeClass.name}</b></span>
             <span style="font-size:13.5px; color:#334155;">教师: <b>${currentUser.name}</b></span>
+            <button id="btn-teacher-change-pwd" style="background:#f0fdf4; border:1px solid #bbf7d0; color:#16a34a; padding:6px 14px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer; display:flex; align-items:center; gap:6px;" title="修改登录密码">
+              <span>🔑 修改密码</span>
+            </button>
             <button id="btn-teacher-alerts" style="background:#fffbeb; border:1px solid #fde68a; color:#b45309; padding:6px 14px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer; display:flex; align-items:center; gap:6px; box-shadow:0 1px 3px rgba(0,0,0,0.05);" title="查看小组代签与重要协同提醒">
               <span>🔔 协同动态提醒</span>
               ${unreadAlertCount > 0 ? `<span style="background:#dc2626; color:white; font-size:11px; padding:1px 6px; border-radius:10px; font-weight:800;">${unreadAlertCount}</span>` : ''}
@@ -3287,6 +3404,13 @@
 
     const btnLogout = container.querySelector('#btn-logout');
     if (btnLogout) btnLogout.addEventListener('click', () => onLogout());
+
+    const btnChangePwd = container.querySelector('#btn-teacher-change-pwd');
+    if (btnChangePwd) {
+      btnChangePwd.addEventListener('click', () => {
+        authManager.openChangePasswordModal();
+      });
+    }
 
     const btnAlerts = container.querySelector('#btn-teacher-alerts');
     if (btnAlerts) {
@@ -5189,6 +5313,7 @@
             </div>
           </div>
           <div class="header-controls" style="display:flex; align-items:center; gap:10px;">
+            <button id="btn-portal-change-pwd" style="background:#f0fdf4; color:#16a34a; border:1px solid #bbf7d0; padding:6px 14px; border-radius:18px; font-size:12px; font-weight:700; cursor:pointer;" title="修改登录密码">🔑 修改密码</button>
             <button id="btn-portal-logout" style="background:#fef2f2; color:#dc2626; border:1px solid #fecaca; padding:6px 14px; border-radius:18px; font-size:12px; font-weight:700; cursor:pointer;">🚪 退出登录</button>
           </div>
         </header>
@@ -5299,6 +5424,9 @@
     }
 
     container.querySelector('#btn-portal-logout')?.addEventListener('click', () => onLogout());
+    container.querySelector('#btn-portal-change-pwd')?.addEventListener('click', () => {
+      authManager.openChangePasswordModal();
+    });
     container.querySelector('#btn-portal-switch-teacher')?.addEventListener('click', () => onSwitchTeacher());
     container.querySelector('#btn-portal-ann-bell')?.addEventListener('click', () => onOpenAnnModal());
     container.querySelector('#btn-enter-default-workspace')?.addEventListener('click', () => onSelectTask(null));
@@ -5389,12 +5517,18 @@
           🔔 消息 ${unreadAnnCount > 0 ? `<span class="unread-count">${unreadAnnCount}</span>` : ''}
         </button>
         <div class="timer-box" style="padding:2px 8px; border-radius:14px; font-size:11.5px;">⏱️ ${remainingMin}m</div>
+        <button id="btn-editor-change-pwd" style="background:#f0fdf4; color:#16a34a; border:1px solid #bbf7d0; padding:3px 8px; border-radius:14px; font-size:11px; font-weight:700; cursor:pointer;" title="修改登录密码">🔑 密码</button>
         <button id="btn-user-logout" style="background:#fef2f2; color:#dc2626; border:1px solid #fecaca; padding:3px 8px; border-radius:14px; font-size:11px; font-weight:700; cursor:pointer;" title="退出登录">🚪 退出</button>
       </div>
     `;
 
     header.querySelectorAll('.stage-btn').forEach(btn => {
       btn.addEventListener('click', () => onStageChange(btn.dataset.stage));
+    });
+    header.querySelector('#btn-editor-change-pwd')?.addEventListener('click', () => {
+      if (window.app && window.app.authManager) {
+        window.app.authManager.openChangePasswordModal();
+      }
     });
     header.querySelector('#btn-user-logout').addEventListener('click', () => onLogout());
     header.querySelector('#btn-header-ann-bell').addEventListener('click', () => onOpenAnnModal());

@@ -73,8 +73,8 @@ if ($action === 'login' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
         if ($row) {
             $userExists = true;
-            $dbPwd = $row['password'] ?? '';
-            $pwdMatch = ($password === $dbPwd) || (function_exists('password_verify') && password_verify($password, $dbPwd)) || ($password === '123' || $password === '123456');
+            $dbPwd = $row['password'] ?? '123';
+            $pwdMatch = ($password === $dbPwd) || (function_exists('password_verify') && password_verify($password, $dbPwd)) || (empty($dbPwd) && $password === '123');
             if ($pwdMatch) {
                 $foundUser = $row;
             }
@@ -89,7 +89,7 @@ if ($action === 'login' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 if ($uAcc === $account) {
                     $userExists = true;
                     $dbPwd = $u['password'] ?? '123';
-                    if ($password === $dbPwd || $password === '123' || $password === '123456') {
+                    if ($password === $dbPwd || (empty($dbPwd) && $password === '123')) {
                         $foundUser = $u;
                     }
                     break;
@@ -106,13 +106,75 @@ if ($action === 'login' && $_SERVER['REQUEST_METHOD'] === 'POST') {
             'token' => $token,
             'user' => $foundUser
         ]);
+        exit;
     } else if (!$userExists) {
         http_response_code(401);
-        echo json_encode(['success' => false, 'message' => '该账号不存在，请检查工号或学号是否输入正确']);
+        echo json_encode(['success' => false, 'message' => '账号不存在，请检查工号或学号是否输入正确']);
+        exit;
     } else {
         http_response_code(401);
-        echo json_encode(['success' => false, 'message' => '密码错误，请重新输入密码']);
+        echo json_encode(['success' => false, 'message' => '密码错误，默认密码为 123']);
+        exit;
     }
+}
+
+// 1.3 用户修改密码接口 (轻量安全、自动同步 MySQL 与教务元数据)
+if ($action === 'change_password' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    $rawInput = file_get_contents('php://input');
+    $data = json_decode($rawInput, true) ?: [];
+    $account = trim($data['account'] ?? ($data['studentCode'] ?? ($data['username'] ?? '')));
+    $oldPwd = trim($data['oldPassword'] ?? '');
+    $newPwd = trim($data['newPassword'] ?? '');
+
+    if (empty($account) || empty($newPwd)) {
+        echo json_encode(['success' => false, 'message' => '账号或新密码不能为空']);
+        exit;
+    }
+
+    if (strlen($newPwd) < 3) {
+        echo json_encode(['success' => false, 'message' => '新密码长度不能少于 3 个字符']);
+        exit;
+    }
+
+    if ($pdo) {
+        $stmt = $pdo->prepare("SELECT * FROM users WHERE username = :acc OR student_code = :acc OR id = :acc LIMIT 1");
+        $stmt->execute([':acc' => $account]);
+        $user = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!$user) {
+            echo json_encode(['success' => false, 'message' => '用户账号不存在']);
+            exit;
+        }
+
+        $currentDbPwd = $user['password'] ?? '123';
+        if ($currentDbPwd !== $oldPwd && !password_verify($oldPwd, $currentDbPwd) && !($oldPwd === '123' && empty($currentDbPwd))) {
+            echo json_encode(['success' => false, 'message' => '原密码不正确，默认初始密码为 123']);
+            exit;
+        }
+
+        $stmtUpdate = $pdo->prepare("UPDATE users SET password = :p WHERE id = :uid");
+        $stmtUpdate->execute([':p' => $newPwd, ':uid' => $user['id']]);
+
+        // 同步更新 main_meta 里的 users
+        $stmtMeta = $pdo->prepare("SELECT meta_value FROM global_meta WHERE meta_key = 'main_meta'");
+        $stmtMeta->execute();
+        $metaRow = $stmtMeta->fetch();
+        if ($metaRow && !empty($metaRow['meta_value'])) {
+            $gm = json_decode($metaRow['meta_value'], true) ?: [];
+            if (isset($gm['users']) && is_array($gm['users'])) {
+                foreach ($gm['users'] as &$gu) {
+                    if (($gu['studentCode'] ?? ($gu['username'] ?? ($gu['id'] ?? ''))) === $account) {
+                        $gu['password'] = $newPwd;
+                    }
+                }
+                $encodedGm = json_encode($gm, JSON_UNESCAPED_UNICODE);
+                $stmtSaveGm = $pdo->prepare("UPDATE global_meta SET meta_value = :v WHERE meta_key = 'main_meta'");
+                $stmtSaveGm->execute([':v' => $encodedGm]);
+            }
+        }
+        echo json_encode(['success' => true, 'message' => '密码修改成功，请牢记新密码！']);
+        exit;
+    }
+    echo json_encode(['success' => false, 'message' => '数据库未连接']);
     exit;
 }
 
@@ -1180,6 +1242,14 @@ if ($pdo) {
         $metaRow = $stmtMeta->fetch();
         $globalMeta = ($metaRow && !empty($metaRow['meta_value'])) ? json_decode($metaRow['meta_value'], true) : [];
 
+        $sanitizedUsers = [];
+        if (isset($globalMeta['users']) && is_array($globalMeta['users'])) {
+            foreach ($globalMeta['users'] as $u) {
+                unset($u['password']);
+                $sanitizedUsers[] = $u;
+            }
+        }
+
         $respData = [
             'timestamp'        => $lastTs,
             'revisionId'       => $lastRev,
@@ -1194,8 +1264,8 @@ if ($pdo) {
             'isFinalSubmitted' => (bool)$row['is_final_submitted'],
             'chatLogs'         => $chats,
             'resetSeq'         => $resetSeq,
-            // 全局教务字段 - 每次 GET 都带回，让前端 handleRemoteSync 能同步用户池和班级
-            'users'            => isset($globalMeta['users'])            ? $globalMeta['users']            : [],
+            // 全局教务字段 - 每次 GET 都带回，自动脱敏密码，杜绝前端越权查看密码
+            'users'            => $sanitizedUsers,
             'classes'          => isset($globalMeta['classes'])          ? $globalMeta['classes']          : [],
             'tasks'            => isset($globalMeta['tasks'])            ? $globalMeta['tasks']            : [],
             'announcements'    => isset($globalMeta['announcements'])    ? $globalMeta['announcements']    : [],
