@@ -17,11 +17,11 @@ export function renderLoginView(container, authManager, onLoginSuccess) {
         <form id="login-form" style="display:flex; flex-direction:column; gap:16px;">
           <div style="display:flex; flex-direction:column; gap:6px;">
             <label style="font-size:13px; font-weight:700; color:#334155;">工号 / 学号</label>
-            <input type="text" id="login-account" class="teacher-input" placeholder="输入教师工号 1001 或学生学号" value="" required style="width:100%;">
+            <input type="text" id="login-account" class="teacher-input" placeholder="请输入工号或学号" value="" required style="width:100%;">
           </div>
           <div style="display:flex; flex-direction:column; gap:6px;">
             <label style="font-size:13px; font-weight:700; color:#334155;">密码</label>
-            <input type="password" id="login-password" class="teacher-input" placeholder="输入登录密码 (默认123)" value="" required style="width:100%;">
+            <input type="password" id="login-password" class="teacher-input" placeholder="请输入登录密码" value="" required style="width:100%;">
           </div>
           <div id="login-error-msg" style="display:none; font-size:12px; color:#dc2626; background:#fef2f2; border:1px solid #fecaca; padding:8px 12px; border-radius:8px;"></div>
           <button type="submit" class="modal-btn submit task-theme" style="width:100%; padding:14px; font-size:15px; border-radius:10px; margin-top:8px;">
