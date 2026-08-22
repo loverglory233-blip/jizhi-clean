@@ -17,8 +17,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
 require_once __DIR__ . '/config.php';
 require_once __DIR__ . '/coze_prompt.php';
 
-if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    echo json_encode(['success' => false, 'message' => 'Only POST allowed']);
+$isPoll = (isset($_GET['action']) && $_GET['action'] === 'coze_poll') || isset($_GET['poll']) || isset($_GET['chat_id']) || isset($_GET['chatId']);
+if ($_SERVER['REQUEST_METHOD'] !== 'POST' && !$isPoll) {
+    echo json_encode(['success' => false, 'message' => 'Only POST or Poll allowed']);
     exit;
 }
 
