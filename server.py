@@ -272,8 +272,6 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                                     if room not in WS_UPDATES:
                                         WS_UPDATES[room] = []
                                     WS_UPDATES[room].append(data)
-                                    if len(WS_UPDATES[room]) > 500:
-                                        WS_UPDATES[room] = WS_UPDATES[room][-200:]
 
                             out_frame = make_ws_frame(data, is_bin)
                             with WS_LOCK:
