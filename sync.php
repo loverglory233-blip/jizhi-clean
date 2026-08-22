@@ -270,7 +270,7 @@ if ($action === 'reset_student_password' && $_SERVER['REQUEST_METHOD'] === 'POST
             if (isset($gm['users']) && is_array($gm['users'])) {
                 foreach ($gm['users'] as &$gu) {
                     if (($gu['studentCode'] ?? ($gu['username'] ?? ($gu['id'] ?? ''))) === $account) {
-                        $gu['password'] = $newPwd;
+                        $gu['password'] = $hashedReset;
                     }
                 }
                 $encodedGm = json_encode($gm, JSON_UNESCAPED_UNICODE);

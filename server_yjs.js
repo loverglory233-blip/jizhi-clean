@@ -79,10 +79,10 @@ function loadRoomFromDisk(roomName) {
   return updates;
 }
 
-let setupWSConnection = null;
+let ywsUtils = null;
 try {
-  setupWSConnection = require('y-websocket/bin/utils').setupWSConnection;
-  console.log('✅ [Yjs Core] 已加载官方标准 y-websocket setupWSConnection 权威连接调度器');
+  ywsUtils = require('y-websocket/bin/utils');
+  console.log('✅ [Yjs Core] 已加载官方标准 y-websocket utils 权威套件');
 } catch (e) {
   console.log('ℹ️ [Yjs Core] 使用内置自适应 Yjs 二进制帧协同调度器 (可运行 npm i y-websocket 激活官方原装驱动)');
 }
@@ -96,8 +96,16 @@ wss.on('connection', (ws, req) => {
   }
 
   // 🚀 优先使用官方原版 setupWSConnection (权威状态向量、Awareness、GC、SyncStep2 算法)
-  if (typeof setupWSConnection === 'function') {
-    setupWSConnection(ws, req, { docName: roomName, gc: true });
+  if (ywsUtils && typeof ywsUtils.setupWSConnection === 'function') {
+    const doc = ywsUtils.getYDoc(roomName);
+    const ytext = doc.getText('quill');
+    // 如果房间文档全新且尚无内容，由服务端单点权威初始化预置大纲模板 (彻底杜绝客户端多端并发重复粘贴)
+    if (ytext.length === 0) {
+      const defaultTemplate = `一、研究背景与意义\n请在此处阐述研究的现实背景、理论价值与实践意义...\n\n二、研究问题与假设\n1. 核心研究问题：\n2. 研究假设 (H1, H2)：\n\n三、文献综述\n梳理国内外相关领域的核心文献与研究现状...\n\n四、研究设计与方法\n1. 研究对象与被试选择：\n2. 实验变量与测量工具：\n3. 教学实验干预流程：\n\n五、预期结果与讨论\n对实验数据的统计分析方法与预期成效进行阐述...\n\n六、研究反思与不足\n阐述本研究的局限性与未来改进方向...\n\n七、参考文献\n[1] 作者. 论文题目[J]. 期刊名称, 年份, 卷(期): 页码.\n`;
+      ytext.insert(0, defaultTemplate);
+      console.log(`[Yjs Core] 🏛️ 服务端权威单点初始化房间大纲模板: ${roomName}`);
+    }
+    ywsUtils.setupWSConnection(ws, req, { docName: roomName, gc: true });
     return;
   }
 
