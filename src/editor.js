@@ -342,16 +342,33 @@ export function attachWordEditorEvents(container, editorId, isReadonly, onChange
           color: userColors[colorIdx]
         });
 
+        // 🛡️ 初次同步冷启动守卫：如果本地已有数据库历史正文，且 Yjs 服务端尚未建立连接/无数据时，暂不向数据库推送空白快照
+        const initialLocalHtml = (editor.innerHTML && editor.innerHTML.trim() !== '<p><br></p>') ? editor.innerHTML : '';
+        let isInitialSynced = false;
+
+        provider.on('synced', (isSynced) => {
+          if (isSynced) {
+            isInitialSynced = true;
+            // 如果服务端完全无内容但本地有旧正文，由首位连入者将旧正文安全推入 Yjs
+            if (ytext.length === 0 && initialLocalHtml && initialLocalHtml.length > 20) {
+              try {
+                quillInstance.clipboard.dangerouslyPasteHTML(0, initialLocalHtml);
+                console.log('🏛️ [Yjs Sync Guard] 已将本地历史正文安全迁移并同步至 Yjs 协同集群！');
+              } catch (e) {}
+            }
+          }
+        });
+
         yjsBinding = new QuillBindingClass(ytext, quillInstance, provider.awareness);
         window._jizhi_quill = quillInstance;
         window._jizhi_yjs_provider = provider;
 
-        // 🏛️ 彻底消除客户端 Awareness 并发粘贴竞态：
-        // 初始大纲模板已迁移至 Yjs 服务端权威单点初始化，客户端绑定 QuillBinding 后自动精准拉取！
-
         quillInstance.on('text-change', () => {
           const cleanHtml = quillInstance.root.innerHTML;
-          if (onChangeCallback) onChangeCallback(cleanHtml);
+          // 只有当 Yjs 已经至少同步过一次，或者内容非空时，才触发外部快照推送，彻底杜绝冷启动冲刷！
+          if (isInitialSynced || (cleanHtml && cleanHtml.trim().length > 30)) {
+            if (onChangeCallback) onChangeCallback(cleanHtml);
+          }
         });
       }
     } catch (err) {
@@ -821,17 +838,18 @@ export function attachWordEditorEvents(container, editorId, isReadonly, onChange
 
       if (sel && sel.rangeCount > 0) {
         charOffset = getCaretCharacterOffsetWithin(editor);
+        const actualContainer = editor.querySelector('.ql-editor') || editor;
         const node = sel.anchorNode;
         let blockEl = node ? (node.nodeType === 1 ? node : node.parentElement) : null;
-        while (blockEl && blockEl.parentElement !== editor && blockEl !== editor) {
+        while (blockEl && blockEl.parentElement !== actualContainer && blockEl !== actualContainer) {
           blockEl = blockEl.parentElement;
         }
-        if (blockEl && blockEl.parentElement === editor) {
-          nodeIndex = Array.from(editor.children).indexOf(blockEl);
+        if (blockEl && blockEl.parentElement === actualContainer) {
+          nodeIndex = Array.from(actualContainer.children).indexOf(blockEl);
           activeSection = (blockEl.innerText || '').trim().slice(0, 14);
-        } else if (blockEl === editor) {
+        } else if (blockEl === actualContainer) {
           nodeIndex = 0;
-          activeSection = (editor.innerText || '').trim().slice(0, 14);
+          activeSection = (actualContainer.innerText || '').trim().slice(0, 14);
         }
       }
       if (typeof onPresenceCallback === 'function') {

@@ -2558,13 +2558,14 @@ ${propText}
           const sel = window.getSelection();
           const editor = document.getElementById('stage2-word-editor') || document.getElementById('stage3-word-editor');
           if (sel && sel.rangeCount > 0 && editor) {
+            const actualContainer = editor.querySelector('.ql-editor') || editor;
             activeCharOffset = getCaretCharacterOffsetWithin(editor);
             let blockEl = sel.anchorNode ? (sel.anchorNode.nodeType === 1 ? sel.anchorNode : sel.anchorNode.parentElement) : null;
-            while (blockEl && blockEl.parentElement !== editor && blockEl !== editor) {
+            while (blockEl && blockEl.parentElement !== actualContainer && blockEl !== actualContainer) {
               blockEl = blockEl.parentElement;
             }
-            if (blockEl && blockEl.parentElement === editor) {
-              activeNodeIdx = Array.from(editor.children).indexOf(blockEl);
+            if (blockEl && blockEl.parentElement === actualContainer) {
+              activeNodeIdx = Array.from(actualContainer.children).indexOf(blockEl);
             }
           }
         } catch (e) {}
