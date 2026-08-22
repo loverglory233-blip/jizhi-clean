@@ -259,15 +259,41 @@ if ($action === 'reset_student_password' && $_SERVER['REQUEST_METHOD'] === 'POST
     exit;
 }
 
-// 0. 教师附件文件上传（存服务器磁盘，返回可访问 URL）
+// 0. 教师附件文件上传（严格身份鉴权 + 频控防刷）
 if ($action === 'upload_file' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     header('Content-Type: application/json; charset=utf-8');
+
+    // 🛡️ 1. 教师身份与 Session Token 严格鉴权
+    $userId = $_POST['userId'] ?? ($_GET['userId'] ?? '');
+    $token = $_POST['token'] ?? ($_GET['token'] ?? '');
+    if (!verifyTeacherSession($userId, $token, $pdo)) {
+        http_response_code(403);
+        echo json_encode(['success' => false, 'message' => '权限不足：仅允许已认证教师上传教学附件']);
+        exit;
+    }
+
+    // 🛡️ 2. 频控限流防刷盘保护（单个账号 1 分钟内最多上传 20 个文件）
+    $rateLimitKey = sys_get_temp_dir() . '/upload_rate_' . md5($userId . '_' . ($_SERVER['REMOTE_ADDR'] ?? '127.0.0.1'));
+    $uploadCount = 0;
+    if (file_exists($rateLimitKey)) {
+        $rateData = json_decode(@file_get_contents($rateLimitKey), true) ?: [];
+        if (isset($rateData['time']) && (time() - $rateData['time']) < 60) {
+            $uploadCount = intval($rateData['count'] ?? 0);
+            if ($uploadCount >= 20) {
+                http_response_code(429);
+                echo json_encode(['success' => false, 'message' => '上传过于频繁，请稍候再试（磁盘防护限频）']);
+                exit;
+            }
+        }
+    }
+    @file_put_contents($rateLimitKey, json_encode(['time' => time(), 'count' => $uploadCount + 1]));
+
     $uploadDir = __DIR__ . '/uploads/';
     if (!is_dir($uploadDir)) {
         @mkdir($uploadDir, 0755, true);
     }
     
-    // 🛡️ 严格文件上传状态与错误码校验
+    // 🛡️ 3. 严格文件上传状态与错误码校验
     if (!isset($_FILES['file'])) {
         echo json_encode(['success' => false, 'message' => '未接收到有效文件']);
         exit;

@@ -2536,9 +2536,14 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
 
           let serverFileUrl = '';
           if (selectedFile.fileObj) {
-            try {
+              const currT = authManager.getCurrentUser();
+              const tId = (currT && (currT.id || currT.username || currT.studentCode)) || 'u_teacher';
+              const tToken = (currT && (currT.token || currT.activeSessionId)) || '';
+
               const formData = new FormData();
               formData.append('file', selectedFile.fileObj);
+              formData.append('userId', tId);
+              formData.append('token', tToken);
               const upRes = await fetch('sync.php?action=upload_file', {
                 method: 'POST',
                 body: formData
