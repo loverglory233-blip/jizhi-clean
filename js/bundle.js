@@ -558,8 +558,10 @@
       }
 
       const teacherUserId = (currUser && (currUser.id || currUser.username || currUser.studentCode)) || 'u_teacher';
+      const teacherToken = currUser?.token || currUser?.activeSessionId || '';
       const payload = {
         userId: teacherUserId,
+        token: teacherToken,
         expectedVersion: this.globalMetaVersion || 1,
         users: this.getUsers(),
         classes: this.getClasses(),
