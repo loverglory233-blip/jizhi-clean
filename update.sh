@@ -51,7 +51,6 @@ dl js/libs/quill.min.js
 dl js/libs/yjs.mjs
 dl js/libs/y-websocket.mjs
 dl js/libs/y-quill.mjs
-dl js/libs/yjs-bundle.js
 dl js/bundle.js
 dl sync.php
 dl server.py
