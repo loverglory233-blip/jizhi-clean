@@ -40,7 +40,6 @@ async def universal_handler(websocket, *args):
     print(f"[Yjs PyWS] Client connected to room: {room_name} (Total: {len(ROOMS[room_name])})", flush=True)
 
     try:
-        await websocket.send(json.dumps({'type': 'connected', 'room': room_name}))
         async for message in websocket:
             peers = ROOMS.get(room_name, set())
             tasks = []

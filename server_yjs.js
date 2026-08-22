@@ -84,10 +84,7 @@ wss.on('connection', (ws, req) => {
 
   console.log(`[Yjs WS] Client connected to room: ${roomName} (Room size: ${rooms.get(roomName).size})`);
 
-  // 发送心跳与连接确认
-  try {
-    ws.send(JSON.stringify({ type: 'connected', room: roomName }));
-  } catch (e) {}
+  // 官方 y-websocket 客户端遵循纯二进制 CRDT 协议，无需发送文本握手，由客户端主动发起 stateVector 同步
 
   // 🚀 服务端权威同步：将已缓存的 CRDT 历史更新立即重放给新连入的客户端
   const cachedUpdates = loadRoomFromDisk(roomName);
