@@ -687,10 +687,10 @@
       }
 
       const user = users[userIndex];
-      const isPwdValid = (pwd.length > 0) && ((user.password && user.password === pwd) || pwd === '123' || pwd === '123456');
+      const isPwdValid = (pwd.length > 0) && ((user.password && user.password === pwd) || (!user.password && pwd === '123'));
 
       if (!isPwdValid) {
-        return { success: false, message: '❌ 密码错误，请重新输入密码' };
+        return { success: false, message: '❌ 密码错误，默认初始密码为 123' };
       }
 
       // 🚀 一个账号同时只能一个人登录：生成唯一的 activeSessionId 并推送到服务端会话锁
