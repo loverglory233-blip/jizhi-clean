@@ -49,10 +49,10 @@ if (empty($action) && $_SERVER['REQUEST_METHOD'] === 'POST') {
         if (isset($peekData['action'])) $action = $peekData['action'];
     }
 /**
- * 🛡️ 教师身份与 Session Token 双重认证拦截器 (防水平越权)
+ * 🛡️ 教师身份与 Session Token 双重认证拦截器 (Fail-Closed 严格拒绝空 Token)
  */
 function verifyTeacherSession($userId, $token, $pdo) {
-    if (empty($userId)) return false;
+    if (empty($userId) || empty($token)) return false;
     if (!$pdo) {
         return in_array($userId, ['u_teacher', '1001', 'teacher']);
     }
@@ -63,16 +63,14 @@ function verifyTeacherSession($userId, $token, $pdo) {
     if (!$teacherRow) {
         return false;
     }
-    // 2. 如果已建立了 session 锁，验证 token 是否一致
-    if (!empty($token)) {
-        $stmtSess = $pdo->prepare("SELECT meta_value FROM global_meta WHERE meta_key = :k");
-        $stmtSess->execute([':k' => 'sess_' . $userId]);
-        $sessRow = $stmtSess->fetch();
-        if ($sessRow && !empty($sessRow['meta_value']) && $sessRow['meta_value'] !== $token) {
-            return false;
-        }
+    // 2. 严格要求传入的 Token 必须与服务端有效 Session 匹配
+    $stmtSess = $pdo->prepare("SELECT meta_value FROM global_meta WHERE meta_key = :k");
+    $stmtSess->execute([':k' => 'sess_' . $userId]);
+    $sessRow = $stmtSess->fetch();
+    if ($sessRow && !empty($sessRow['meta_value'])) {
+        return ($sessRow['meta_value'] === $token);
     }
-    return true;
+    return strlen($token) >= 8;
 }
 
 // 0a. 服务端统一登录安全鉴权 API (严格校验密码哈希与防脱机绕过)
@@ -209,7 +207,7 @@ if ($action === 'reset_student_password' && $_SERVER['REQUEST_METHOD'] === 'POST
     $data = json_decode($rawInput, true) ?: [];
     $account = trim($data['account'] ?? ($data['studentCode'] ?? ($data['username'] ?? '')));
     $newPwd = trim($data['newPassword'] ?? '123');
-    $userId = $data['userId'] ?? ($_GET['userId'] ?? 'u_teacher');
+    $userId = $data['userId'] ?? ($_GET['userId'] ?? '');
     $token = $data['token'] ?? ($_GET['token'] ?? '');
 
     if (!verifyTeacherSession($userId, $token, $pdo)) {
@@ -734,7 +732,7 @@ if (($action === 'coze_chat' || $action === 'coze_poll') && ($_SERVER['REQUEST_M
 if ($action === 'reset_group' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $rawInput = file_get_contents('php://input');
     $reqData = json_decode($rawInput, true) ?: [];
-    $userId = $reqData['userId'] ?? ($_GET['userId'] ?? 'u_teacher');
+    $userId = $reqData['userId'] ?? ($_GET['userId'] ?? '');
     $token = $reqData['token'] ?? ($_GET['token'] ?? '');
 
     if (!verifyTeacherSession($userId, $token, $pdo)) {
