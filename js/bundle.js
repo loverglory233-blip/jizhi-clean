@@ -1855,20 +1855,22 @@
         }
       }
 
-      // 2. 拉取最新协作数据 (携带 since_timestamp 协商，以服务端数据为唯一权威)
+      // 2. 拉取最新协作数据 (携带 since_revision 自增版本协商，以服务端数据为唯一权威)
       for (const endpoint of this.syncEndpoints) {
         try {
           const sep = endpoint.includes('?') ? '&' : '?';
-          const sinceParam = this.lastTimestamp ? `&since_timestamp=${this.lastTimestamp}` : '';
-          const url = `${endpoint}${sep}nocache=${Date.now()}${sinceParam}`;
+          const revParam = this.lastRevisionId ? `&since_revision=${this.lastRevisionId}` : (this.lastTimestamp ? `&since_timestamp=${this.lastTimestamp}` : '');
+          const url = `${endpoint}${sep}nocache=${Date.now()}${revParam}`;
           const res = await fetch(url, { cache: 'no-store' });
           if (res.ok) {
             const data = await res.json();
             // 若服务端返回 unchanged，说明数据未发生新变更，直接零开销返回
             if (data && data.unchanged) {
+              if (data.revisionId) this.lastRevisionId = data.revisionId;
               continue;
             }
             if (data && (data.timestamp || data.chatLogs || data.stage2)) {
+              if (data.revisionId) this.lastRevisionId = data.revisionId;
               this.handleRemoteSync(data);
               return;
             }
