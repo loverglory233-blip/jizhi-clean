@@ -1,0 +1,46 @@
+/**
+ * JIZHI (集智) Platform - Login View Renderer
+ * Standard ES Module (ESM)
+ */
+
+export function renderLoginView(container, authManager, onLoginSuccess) {
+  if (authManager && authManager.pullGlobalMeta) {
+    authManager.pullGlobalMeta().catch(() => {});
+  }
+  container.innerHTML = `
+    <div style="min-height:100vh; display:flex; align-items:center; justify-content:center; padding:20px; background:linear-gradient(135deg, #f0f4f9 0%, #e2e8f0 100%);">
+      <div style="background:#ffffff; border:1px solid #cbd5e1; border-radius:20px; width:440px; max-width:95vw; padding:36px; box-shadow:0 20px 40px -8px rgba(15, 23, 42, 0.08), 0 4px 12px rgba(15, 23, 42, 0.04);">
+        <div style="text-align:center; margin-bottom:28px;">
+          <div style="font-size:32px; font-weight:800; background:linear-gradient(135deg, #1e40af, #2563eb); -webkit-background-clip:text; -webkit-text-fill-color:transparent;">集智 JIZHI</div>
+          <div style="font-size:13px; color:#64748b; margin-top:6px; font-weight:600;">多智能体协同写作与人机共存学习平台</div>
+        </div>
+        <form id="login-form" style="display:flex; flex-direction:column; gap:16px;">
+          <div style="display:flex; flex-direction:column; gap:6px;">
+            <label style="font-size:13px; font-weight:700; color:#334155;">工号 / 学号</label>
+            <input type="text" id="login-account" class="teacher-input" placeholder="输入教师工号 1001 或学生学号" value="" required style="width:100%;">
+          </div>
+          <div style="display:flex; flex-direction:column; gap:6px;">
+            <label style="font-size:13px; font-weight:700; color:#334155;">密码</label>
+            <input type="password" id="login-password" class="teacher-input" placeholder="输入登录密码 (默认123)" value="" required style="width:100%;">
+          </div>
+          <div id="login-error-msg" style="display:none; font-size:12px; color:#dc2626; background:#fef2f2; border:1px solid #fecaca; padding:8px 12px; border-radius:8px;"></div>
+          <button type="submit" class="modal-btn submit task-theme" style="width:100%; padding:14px; font-size:15px; border-radius:10px; margin-top:8px;">
+            🚀 登录集智平台
+          </button>
+        </form>
+      </div>
+    </div>
+  `;
+
+  const form = container.querySelector('#login-form');
+  const accountInput = container.querySelector('#login-account');
+  const passwordInput = container.querySelector('#login-password');
+  const errorMsg = container.querySelector('#login-error-msg');
+
+  form.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const res = authManager.login(accountInput.value, passwordInput.value);
+    if (res.success) onLoginSuccess();
+    else { errorMsg.innerText = res.message; errorMsg.style.display = 'block'; }
+  });
+}

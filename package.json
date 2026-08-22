@@ -2,10 +2,12 @@
   "name": "jizhi-platform-clean",
   "version": "2.0.0",
   "description": "集智 (JIZHI) - 多智能体支持的在线协作写作平台 (纯净生产版)",
-  "main": "index.html",
+  "type": "module",
+  "main": "src/app.js",
   "scripts": {
     "start": "python3 server.py",
-    "dev": "python3 server.py"
+    "dev": "python3 server.py",
+    "build": "python3 build.py"
   },
   "keywords": [
     "multi-agent",
