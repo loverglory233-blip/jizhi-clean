@@ -199,17 +199,23 @@ sleep 1
 MAIN_DIR="${TARGET_DIRS[0]}"
 if [ -n "$MAIN_DIR" ] && [ -d "$MAIN_DIR" ]; then
   cd "$MAIN_DIR"
+  if command -v npm >/dev/null 2>&1; then
+    npm install --production --no-audit 2>/dev/null || true
+  fi
   if [ -f "server.py" ]; then
     nohup python3 server.py > server.log 2>&1 &
     sleep 1
     echo "   ✅ 端口 8088 服务端已就绪 ($MAIN_DIR)"
   fi
-  if [ -f "server_yjs.py" ]; then
-    nohup python3 server_yjs.py > yjs.log 2>&1 &
-    sleep 1
-    echo "   ✅ 端口 1234 Yjs 协同服务端已就绪 ($MAIN_DIR)"
+  if systemctl is-active --quiet jizhi-yjs.service 2>/dev/null || [ -f "/etc/systemd/system/jizhi-yjs.service" ]; then
+    systemctl restart jizhi-yjs.service 2>/dev/null || true
+    echo "   ✅ Systemd 守护进程 jizhi-yjs.service (1234) 已重启就绪"
   elif [ -f "server_yjs.js" ] && command -v node >/dev/null 2>&1; then
     nohup node server_yjs.js > yjs.log 2>&1 &
+    sleep 1
+    echo "   ✅ 端口 1234 Yjs 协同服务端已就绪 ($MAIN_DIR)"
+  elif [ -f "server_yjs.py" ]; then
+    nohup python3 server_yjs.py > yjs.log 2>&1 &
     sleep 1
     echo "   ✅ 端口 1234 Yjs 协同服务端已就绪 ($MAIN_DIR)"
   fi
