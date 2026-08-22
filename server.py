@@ -24,6 +24,15 @@ from queue import Queue
 PORT = 8088
 DIR = os.path.dirname(os.path.abspath(__file__))
 
+def _safe_id(value, fallback='default'):
+    """🛡️ 路径遍历防护：过滤 taskId/groupId 中的危险字符"""
+    if not value or not isinstance(value, str):
+        return fallback
+    # 仅允许字母、数字、下划线、短横线
+    import re
+    clean = re.sub(r'[^a-zA-Z0-9_\-]', '', value.strip())
+    return clean if clean else fallback
+
 # 🤖 Coze API Python Client (OAuth 2.0 Auto Refresh & Chat Proxy)
 import urllib.request
 import subprocess
@@ -54,7 +63,7 @@ def get_coze_access_token():
         if not os.path.exists(pem_path):
             return None
 
-        payload = {'iss': COZE_APP_ID, 'aud': 'api.coze.cn', 'iat': now, 'exp': now + 3600, 'jti': f'{now}_1234'}
+        payload = {'iss': COZE_APP_ID, 'aud': 'api.coze.cn', 'iat': now, 'exp': now + 3600, 'jti': f'{now}_{os.urandom(4).hex()}'}
         header_b64 = base64.urlsafe_b64encode(json.dumps({'alg': 'RS256', 'typ': 'JWT', 'kid': COZE_KEY_ID}).encode()).decode().rstrip('=')
         payload_b64 = base64.urlsafe_b64encode(json.dumps(payload).encode()).decode().rstrip('=')
         to_sign = f'{header_b64}.{payload_b64}'.encode()
@@ -136,6 +145,22 @@ WS_ROOMS = {}
 WS_UPDATES = {} # roomKey: [bytes, ...]
 WS_LOCK = threading.Lock()
 
+# 🚀 每连接独立发送锁：杜绝同一 socket 的并发帧撕裂，同时避免全局 WS_LOCK 持有期间做阻塞 IO（头阻塞）
+_SEND_LOCKS = {}
+_SEND_LOCKS_GUARD = threading.Lock()
+
+def _send_lock_for(sock):
+    with _SEND_LOCKS_GUARD:
+        lk = _SEND_LOCKS.get(sock)
+        if lk is None:
+            lk = threading.Lock()
+            _SEND_LOCKS[sock] = lk
+        return lk
+
+def _drop_send_lock(sock):
+    with _SEND_LOCKS_GUARD:
+        _SEND_LOCKS.pop(sock, None)
+
 def make_ws_frame(data, is_binary=False):
     if isinstance(data, str):
         data = data.encode('utf-8')
@@ -198,6 +223,9 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         self.send_header('Access-Control-Allow-Origin', '*')
         self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
         self.send_header('Access-Control-Allow-Headers', 'Content-Type, Upgrade, Sec-WebSocket-Key, Sec-WebSocket-Version')
+        # 🛡️ 静态资源与页面一律禁缓存，杜绝“改了不生效”的浏览器陈旧缓存（API/SSE/WebSocket 已各自设置）
+        if not any(p in self.path for p in ('/api', '/health', '/ws', 'action=', '/stream')):
+            self.send_header('Cache-Control', 'no-store, no-cache, must-revalidate')
         super().end_headers()
 
     def do_OPTIONS(self):
@@ -280,8 +308,8 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                             for s in targets:
                                 if s != sock:
                                     try:
-                                        # 🚀 线程安全互斥写入：通过 WS_LOCK 保护 sendall，彻底消除并发帧撕裂 (Frame Interleaving)
-                                        with WS_LOCK:
+                                        # 🚀 每连接独立互斥写入：仅锁住目标 socket，避免阻塞其它连接 (彻底消除并发帧撕裂，且无头阻塞)
+                                        with _send_lock_for(s):
                                             s.sendall(out_frame)
                                     except Exception:
                                         dead.add(s)
@@ -295,6 +323,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                     with WS_LOCK:
                         if room in WS_ROOMS:
                             WS_ROOMS[room].discard(sock)
+                    _drop_send_lock(sock)
                 return
 
         # ⚡ 顶号检测 API (客户端轮询检查自己是否被踢下线)
@@ -350,9 +379,9 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             groupId = 'group_1'
             taskId = 'task_default'
             if 'groupId=' in self.path:
-                groupId = self.path.split('groupId=')[1].split('&')[0]
+                groupId = _safe_id(self.path.split('groupId=')[1].split('&')[0], 'group_1')
             if 'taskId=' in self.path:
-                taskId = self.path.split('taskId=')[1].split('&')[0]
+                taskId = _safe_id(self.path.split('taskId=')[1].split('&')[0], 'task_default')
             
             channel_key = f"{taskId}_{groupId}"
 
@@ -396,6 +425,8 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                 with SSE_LOCK:
                     if groupId in SSE_CLIENTS:
                         SSE_CLIENTS[groupId].discard(q)
+                    if channel_key in SSE_CLIENTS:
+                        SSE_CLIENTS[channel_key].discard(q)
             return
 
         # ⚡ 全局教务元数据 (班级/任务/通知/文献/问卷) 专属路由
@@ -414,9 +445,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
 
             if not content:
                 default_meta = {
-                    "users": [
-                        {"id": "u_teacher1", "username": "1001", "studentCode": "1001", "password": "123", "name": "老师", "role": "teacher", "avatar": "👩‍🏫"}
-                    ],
+                    "users": [],
                     "classes": [
                         {
                             "id": "class_101",
@@ -461,10 +490,10 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         if '/api/snapshot' in self.path or 'sync.php' in self.path:
             groupId = 'group_1'
             if 'groupId=' in self.path:
-                groupId = self.path.split('groupId=')[1].split('&')[0]
+                groupId = _safe_id(self.path.split('groupId=')[1].split('&')[0], 'group_1')
             taskId = 'task_default'
             if 'taskId=' in self.path:
-                taskId = self.path.split('taskId=')[1].split('&')[0]
+                taskId = _safe_id(self.path.split('taskId=')[1].split('&')[0], 'task_default')
             db_file = os.path.join(DIR, f'db_{taskId}_{groupId}.json')
             if not os.path.exists(db_file):
                 db_file_fallback = os.path.join(DIR, f'db_{groupId}.json')
@@ -549,7 +578,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             return
 
         # ⚡ 顶号登录/会话注册 API (POST)
-        if 'action=session_login' in self.path or '/api/session/login' in self.path:
+        if 'action=session_login' in self.path:
             length = int(self.headers.get('Content-Length', 0))
             body = self.rfile.read(length)
             try:
@@ -705,6 +734,17 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             body = self.rfile.read(length)
             try:
                 data = json.loads(body.decode('utf-8'))
+                # 🛡️ 基础会话验证：要求提供有效 userId 和 token
+                req_user_id = data.get('userId') or data.get('_userId')
+                req_token = data.get('token') or data.get('_token')
+                if req_user_id and req_token:
+                    with LOCK_MUTEX:
+                        active = SESSION_LOCKS.get(req_user_id)
+                        if active and active.get('token') != req_token:
+                            self.send_response(403)
+                            self.end_headers()
+                            self.wfile.write(b'{"success":false,"error":"session_invalid"}')
+                            return
                 if isinstance(data, dict) and ('classes' in data or 'tasks' in data or 'users' in data):
                     global_file = os.path.join(DIR, 'global_db.json')
                     with open(global_file, 'wb') as f:
@@ -829,10 +869,10 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         if 'action=send_chat' in self.path:
             groupId = 'group_1'
             if 'groupId=' in self.path:
-                groupId = self.path.split('groupId=')[1].split('&')[0]
+                groupId = _safe_id(self.path.split('groupId=')[1].split('&')[0], 'group_1')
             taskId = 'task_default'
             if 'taskId=' in self.path:
-                taskId = self.path.split('taskId=')[1].split('&')[0]
+                taskId = _safe_id(self.path.split('taskId=')[1].split('&')[0], 'task_default')
             length = int(self.headers.get('Content-Length', 0))
             body = self.rfile.read(length)
             try:
@@ -894,10 +934,10 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         if '/api/snapshot' in self.path or 'sync.php' in self.path:
             groupId = 'group_1'
             if 'groupId=' in self.path:
-                groupId = self.path.split('groupId=')[1].split('&')[0]
+                groupId = _safe_id(self.path.split('groupId=')[1].split('&')[0], 'group_1')
             taskId = 'task_default'
             if 'taskId=' in self.path:
-                taskId = self.path.split('taskId=')[1].split('&')[0]
+                taskId = _safe_id(self.path.split('taskId=')[1].split('&')[0], 'task_default')
             length = int(self.headers.get('Content-Length', 0))
             body = self.rfile.read(length)
             db_file = os.path.join(DIR, f'db_{taskId}_{groupId}.json')

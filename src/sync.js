@@ -14,7 +14,6 @@ export class CloudSyncEngine {
     this.pendingPush = false;
     this.isInitialPullDone = false;
     this.updateScopeKeys();
-    this.initWebSocket();
     this.initPolling();
   }
 
@@ -44,10 +43,10 @@ export class CloudSyncEngine {
     // 生产环境全面停用 SSE，由 Yjs CRDT WebSocket (1234端口) + 数据库高可用短轮询接管
   }
 
-  initWebSocket() {
-    // 💡 架构分工明确说明：
-    // 1. 富文本毫秒级实时协同：由 Yjs CRDT WebSocket (ws://host:1234) 独立权威承载；
-    // 2. 阶段状态/研讨聊天/全局教务：由 CloudSyncEngine 高频无锁短轮询 + MySQL 事务保障。
+  // 💡 协同架构说明：富文本实时协同由 Yjs CRDT WebSocket (1234端口) 独立承载；
+  // 阶段状态/研讨聊天/全局教务由 CloudSyncEngine 高频短轮询 + 服务端事务保障。
+  // 此方法仅刷新 scope keys，不建立 WebSocket 连接。
+  refreshScopeKeys() {
     this.updateScopeKeys();
   }
 
@@ -132,8 +131,8 @@ export class CloudSyncEngine {
         const url = `${endpoint}${sep}nocache=${Date.now()}${revParam}`;
         const res = await fetch(url, { cache: 'no-store' });
         if (res.ok) {
-          this.isInitialPullDone = true;
           const data = await res.json();
+          this.isInitialPullDone = true;
           if (data && data.unchanged) {
             if (data.revisionId) this.lastRevisionId = data.revisionId;
             continue;
@@ -709,9 +708,8 @@ export class CloudSyncEngine {
 
     if (remoteData.timer && this.app.state.timer) {
       if (remoteData.timer.startTimestamp) {
-        if (!this.app.state.timer.startTimestamp || remoteData.timer.startTimestamp < this.app.state.timer.startTimestamp) {
-          this.app.state.timer.startTimestamp = remoteData.timer.startTimestamp;
-        }
+        // 🛡️ 修复计时器重置：接受服务端权威时间戳（无论新旧），教师重置后所有客户端同步
+        this.app.state.timer.startTimestamp = remoteData.timer.startTimestamp;
       }
       if (remoteData.timer.speed !== undefined) {
         this.app.state.timer.speed = remoteData.timer.speed;

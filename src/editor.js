@@ -293,6 +293,17 @@ export function attachWordEditorEvents(container, editorId, isReadonly, onChange
   // 🚀 工业级 Yjs CRDT + y-quill 实时协同引擎自动绑定
   let quillInstance = null;
   let yjsBinding = null;
+
+  // 🛡️ 关闭旧 Yjs 连接，防止切换任务/小组时连接泄漏
+  if (window._yjsProvider) {
+    try { window._yjsProvider.destroy(); } catch (e) {}
+    window._yjsProvider = null;
+  }
+  if (window._yjsDoc) {
+    try { window._yjsDoc.destroy(); } catch (e) {}
+    window._yjsDoc = null;
+  }
+
   const QuillClass = window.Quill;
   const YClass = window.Y;
   const WsProviderClass = window.WebsocketProvider || (window.Y && window.Y.WebsocketProvider);
@@ -457,6 +468,10 @@ export function attachWordEditorEvents(container, editorId, isReadonly, onChange
     if (selLineHeight) {
       selLineHeight.addEventListener('change', (e) => {
         editor.style.lineHeight = e.target.value;
+        // 🛡️ 同步写入每个段落，使行间距持久化到 innerHTML 并同步给协同用户
+        editor.querySelectorAll('p, div, h1, h2, h3, h4, li, blockquote').forEach(el => {
+          el.style.lineHeight = e.target.value;
+        });
         if (onChangeCallback) onChangeCallback(editor.innerHTML);
       });
     }
@@ -771,16 +786,48 @@ export function attachWordEditorEvents(container, editorId, isReadonly, onChange
       container.querySelector(`#${editorId}-btn-close-search`).addEventListener('click', () => {
         searchBar.style.display = 'none';
       });
+      // 查找下一个
+      const btnFindNext = container.querySelector(`#${editorId}-btn-find-next`);
+      const findCountTip = container.querySelector(`#${editorId}-find-count-tip`);
+      if (btnFindNext) {
+        btnFindNext.addEventListener('click', () => {
+          const searchVal = container.querySelector(`#${editorId}-search-input`).value;
+          if (!searchVal) return;
+          const text = editor.innerText || '';
+          const matches = text.split(searchVal).length - 1;
+          if (findCountTip) findCountTip.textContent = matches > 0 ? `共 ${matches} 处` : '未找到';
+          // 使用浏览器原生查找高亮
+          if (window.find) {
+            window.find(searchVal, false, false, true);
+          }
+        });
+      }
+      // 替换当前（仅替换第一个匹配）
       container.querySelector(`#${editorId}-btn-do-replace`).addEventListener('click', () => {
         const searchVal = container.querySelector(`#${editorId}-search-input`).value;
         const replaceVal = container.querySelector(`#${editorId}-replace-input`).value;
         if (!searchVal) { alert('请输入要查找的词！'); return; }
         const html = editor.innerHTML;
-        const newHtml = html.split(searchVal).join(replaceVal);
+        const idx = html.indexOf(searchVal);
+        if (idx === -1) { alert('未找到匹配内容'); return; }
+        const newHtml = html.substring(0, idx) + replaceVal + html.substring(idx + searchVal.length);
         editor.innerHTML = newHtml;
         if (onChangeCallback) onChangeCallback(newHtml);
-        alert(`已完成对 "${searchVal}" 的批量替换！`);
       });
+      // 全部替换
+      const btnReplaceAll = container.querySelector(`#${editorId}-btn-do-replace-all`);
+      if (btnReplaceAll) {
+        btnReplaceAll.addEventListener('click', () => {
+          const searchVal = container.querySelector(`#${editorId}-search-input`).value;
+          const replaceVal = container.querySelector(`#${editorId}-replace-input`).value;
+          if (!searchVal) { alert('请输入要查找的词！'); return; }
+          const html = editor.innerHTML;
+          const newHtml = html.split(searchVal).join(replaceVal);
+          editor.innerHTML = newHtml;
+          if (onChangeCallback) onChangeCallback(newHtml);
+          alert(`已完成对 "${searchVal}" 的批量替换！`);
+        });
+      }
     }
 
     // 监听输入法（解决中文拼音输入被切断卡顿问题）与极速广播
@@ -899,8 +946,10 @@ export function renderRemoteCursors(editorId, state) {
   if (!editor) return;
   renderPresencePills(editorId, state);
 
-  // 1. 清除旧光标组件
+  // 1. 清除旧光标组件并修复 DOM 碎片化
   editor.querySelectorAll('.remote-cursor-widget').forEach(el => el.remove());
+  // 🛡️ 合并被 splitText 分裂的相邻文本节点，防止 DOM 碎片无限增长
+  editor.normalize();
 
   const membersList = Object.values(state.members || {});
   const currentUserCode = state.currentUser || 'A';

@@ -8,6 +8,7 @@ import {
   STORAGE_KEY_ANNOUNCEMENTS,
   STORAGE_KEY_CLASSES
 } from "./constants.js";
+import { escapeHtml } from "./utils.js";
 
 /* ==========================================================================
    7.5 STUDENT TASK PORTAL / DASHBOARD (我的写作任务大厅)
@@ -180,10 +181,10 @@ export function renderStudentTaskPortal(container, authManager, state, onSelectT
                           <span style="background:linear-gradient(135deg, #1e40af, #3b82f6); color:#ffffff; padding:2.5px 9px; border-radius:6px; font-size:12px; font-weight:800; white-space:nowrap; box-shadow:0 2px 6px rgba(30,64,175,0.25);">
                             任务 ${taskSeqNum}${isLatest ? ' (最新)' : ''}
                           </span>
-                          <span>📌 ${t.title}</span>
+                          <span>📌 ${escapeHtml(t.title)}</span>
                         </div>
                         <span style="background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe; font-size:11.5px; font-weight:700; padding:3px 10px; border-radius:20px; flex-shrink:0;">
-                          👥 ${t.targetGroupName || groupName}
+                          👥 ${escapeHtml(t.targetGroupName || groupName)}
                         </span>
                       </div>
 
@@ -195,7 +196,7 @@ export function renderStudentTaskPortal(container, authManager, state, onSelectT
                       </div>
 
                       <div style="font-size:12.5px; color:#334155; line-height:1.6; margin-bottom:12px; background:#f8fafc; border-left:3.5px solid #2563eb; padding:8px 12px; border-radius:0 8px 8px 0;">
-                        ${t.instructions ? t.instructions.substring(0, 130) + (t.instructions.length > 130 ? '...' : '') : '<span style="color:#94a3b8; font-style:italic;">暂无详细要求说明</span>'}
+                        ${t.instructions ? escapeHtml(t.instructions.substring(0, 130)) + (t.instructions.length > 130 ? '...' : '') : '<span style="color:#94a3b8; font-style:italic;">暂无详细要求说明</span>'}
                       </div>
 
                       <div style="display:flex; align-items:center; gap:8px; font-size:12px; font-weight:600; color:#64748b; margin-bottom:16px;">
