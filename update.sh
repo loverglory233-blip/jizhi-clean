@@ -178,7 +178,14 @@ kill -9 $(lsof -t -i:8088 2>/dev/null) 2>/dev/null || true
 pkill -9 -f "server.py" 2>/dev/null || true
 kill -9 $(lsof -t -i:1234 2>/dev/null) 2>/dev/null || true
 pkill -9 -f "server_yjs.js" 2>/dev/null || true
+pkill -9 -f "server_yjs.py" 2>/dev/null || true
 sleep 1
+
+# 自动确保 Node.js 环境就绪
+if ! command -v node >/dev/null 2>&1; then
+  echo "📦 正在自动配置 Node.js 运行环境..."
+  (apt-get update -y && apt-get install -y nodejs npm) >/dev/null 2>&1 || (yum install -y nodejs npm) >/dev/null 2>&1 || true
+fi
 
 for dir in "${TARGET_DIRS[@]}"; do
   if [ -f "$dir/server.py" ]; then
@@ -191,6 +198,9 @@ for dir in "${TARGET_DIRS[@]}"; do
   fi
   if [ -f "$dir/server_yjs.js" ]; then
     cd "$dir"
+    if [ ! -d "$dir/node_modules/ws" ]; then
+      npm install ws --save >/dev/null 2>&1 || true
+    fi
     if command -v pm2 >/dev/null 2>&1; then
       pm2 restart jizhi-yjs 2>/dev/null || pm2 start server_yjs.js --name "jizhi-yjs" 2>/dev/null
       pm2 save >/dev/null 2>&1 || true
@@ -199,6 +209,7 @@ for dir in "${TARGET_DIRS[@]}"; do
       nohup node server_yjs.js > yjs.log 2>&1 &
       echo "   ✅ 端口 1234 Yjs CRDT 协同网关已就绪 (Node.js常驻)"
     else
+      pip3 install websockets >/dev/null 2>&1 || pip install websockets >/dev/null 2>&1 || true
       nohup python3 server_yjs.py > yjs.log 2>&1 &
       echo "   ✅ 端口 1234 Yjs CRDT 协同网关已就绪 (Python常驻)"
     fi
