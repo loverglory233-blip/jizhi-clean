@@ -48,6 +48,31 @@ if (empty($action) && $_SERVER['REQUEST_METHOD'] === 'POST') {
         $peekData = @json_decode($peekInput, true);
         if (isset($peekData['action'])) $action = $peekData['action'];
     }
+/**
+ * 🛡️ 教师身份与 Session Token 双重认证拦截器 (防水平越权)
+ */
+function verifyTeacherSession($userId, $token, $pdo) {
+    if (empty($userId)) return false;
+    if (!$pdo) {
+        return in_array($userId, ['u_teacher', '1001', 'teacher']);
+    }
+    // 1. 验证用户在数据库中的角色是否为 teacher
+    $stmtAuth = $pdo->prepare("SELECT role FROM `users` WHERE (`id` = :u OR `username` = :u OR `student_code` = :u) AND (`role` = 'teacher' OR `id` = 'u_teacher' OR `username` = '1001') LIMIT 1");
+    $stmtAuth->execute([':u' => $userId]);
+    $teacherRow = $stmtAuth->fetch();
+    if (!$teacherRow) {
+        return false;
+    }
+    // 2. 如果已建立了 session 锁，验证 token 是否一致
+    if (!empty($token)) {
+        $stmtSess = $pdo->prepare("SELECT meta_value FROM global_meta WHERE meta_key = :k");
+        $stmtSess->execute([':k' => 'sess_' . $userId]);
+        $sessRow = $stmtSess->fetch();
+        if ($sessRow && !empty($sessRow['meta_value']) && $sessRow['meta_value'] !== $token) {
+            return false;
+        }
+    }
+    return true;
 }
 
 // 0a. 服务端统一登录安全鉴权 API (严格校验密码哈希与防脱机绕过)
@@ -184,6 +209,14 @@ if ($action === 'reset_student_password' && $_SERVER['REQUEST_METHOD'] === 'POST
     $data = json_decode($rawInput, true) ?: [];
     $account = trim($data['account'] ?? ($data['studentCode'] ?? ($data['username'] ?? '')));
     $newPwd = trim($data['newPassword'] ?? '123');
+    $userId = $data['userId'] ?? ($_GET['userId'] ?? 'u_teacher');
+    $token = $data['token'] ?? ($_GET['token'] ?? '');
+
+    if (!verifyTeacherSession($userId, $token, $pdo)) {
+        http_response_code(403);
+        echo json_encode(['success' => false, 'message' => '权限不足：仅允许已认证教师重置学生密码']);
+        exit;
+    }
 
     if (empty($account)) {
         echo json_encode(['success' => false, 'message' => '学生账号不能为空']);
@@ -389,26 +422,15 @@ if ($action === 'save_global_meta' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!empty($rawInput)) {
         $decoded = json_decode($rawInput, true);
 
-        // 🛡️ 严格后端教师角色鉴权（Fail-Closed 默认拒绝，必须提供合法的教师账号）
+        // 🛡️ 严格后端教师角色与 Session Token 双重鉴权（Fail-Closed 默认拒绝）
         $userId = $decoded['userId'] ?? ($_GET['userId'] ?? '');
-        $isAuthorized = false;
-        if ($pdo) {
-            if (!empty($userId)) {
-                $stmtAuth = $pdo->prepare("SELECT role FROM `users` WHERE (`id` = :u OR `username` = :u OR `student_code` = :u) AND (`role` = 'teacher' OR `id` = 'u_teacher' OR `username` = '1001') LIMIT 1");
-                $stmtAuth->execute([':u' => $userId]);
-                $authRow = $stmtAuth->fetch();
-                if ($authRow) {
-                    $isAuthorized = true;
-                }
-            }
-        } else {
-            // 本地无数据库时的降级开发环境
-            $isAuthorized = !empty($userId) && in_array($userId, ['u_teacher', '1001', 'teacher']);
-        }
+        $token = $decoded['token'] ?? ($_GET['token'] ?? ($_SERVER['HTTP_AUTHORIZATION'] ?? ''));
+
+        $isAuthorized = verifyTeacherSession($userId, $token, $pdo);
 
         if (!$isAuthorized) {
             http_response_code(403);
-            echo json_encode(['success' => false, 'error' => '权限不足：仅允许认证教师修改全局教务配置']);
+            echo json_encode(['success' => false, 'error' => '权限不足：仅允许持有有效凭证的认证教师修改全局教务配置']);
             exit;
         }
 
@@ -684,6 +706,17 @@ if (($action === 'coze_chat' || $action === 'coze_poll') && ($_SERVER['REQUEST_M
 
 // 3b. 教师端原子重置小组协同数据 (独立可靠通道，绝不依赖并发锁)
 if ($action === 'reset_group' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    $rawInput = file_get_contents('php://input');
+    $reqData = json_decode($rawInput, true) ?: [];
+    $userId = $reqData['userId'] ?? ($_GET['userId'] ?? 'u_teacher');
+    $token = $reqData['token'] ?? ($_GET['token'] ?? '');
+
+    if (!verifyTeacherSession($userId, $token, $pdo)) {
+        http_response_code(403);
+        echo json_encode(['success' => false, 'error' => '权限不足：仅允许持有有效凭证的认证教师重置小组数据']);
+        exit;
+    }
+
     $nowMs = round(microtime(true) * 1000);
     $newResetSeq = 1;
     if ($pdo) {

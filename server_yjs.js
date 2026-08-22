@@ -101,14 +101,17 @@ wss.on('connection', (ws, req) => {
     const roomClients = rooms.get(roomName);
     if (!roomClients) return;
 
-    // 如果是 Yjs 二进制更新，存入房间缓存
-    if (isBinary && Buffer.isBuffer(message)) {
+    // 🚀 核心优化：仅当消息为 Yjs 状态同步包 (Type 0 / messageSync) 时才存入持久化文档缓存；
+    // 光标位置与在线状态 (Type 1 / messageAwareness) 仅在内存中即时广播，杜绝断线重连时累积重放造成卡死
+    if (isBinary && Buffer.isBuffer(message) && message.length > 0 && message[0] === 0) {
       const updates = loadRoomFromDisk(roomName);
       updates.push(message);
       // 控制单个房间内存更新片断上限 (超量时保留最新)
       if (updates.length > 500) {
         updates.splice(0, updates.length - 200);
       }
+      // 触发防抖持久化 (2 秒后保存)
+      scheduleRoomPersistence(roomName);
     }
 
     // 广播给房间内的所有其他客户端

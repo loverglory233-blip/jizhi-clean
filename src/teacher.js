@@ -1518,10 +1518,14 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
       const name = btn.dataset.name || account;
       if (confirm(`🔑【教师密码重置确认】\n\n您确定要将学生【${name}】(账号: ${account}) 的登录密码重置为初始密码 123 吗？`)) {
         try {
+          const currT = authManager.getCurrentUser();
+          const tId = (currT && (currT.id || currT.username || currT.studentCode)) || 'u_teacher';
+          const tToken = (currT && (currT.token || currT.activeSessionId)) || '';
+
           const res = await fetch('sync.php?action=reset_student_password', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ account, newPassword: '123' })
+            body: JSON.stringify({ account, newPassword: '123', userId: tId, token: tToken })
           });
           const data = await res.json();
           if (data && data.success) {
