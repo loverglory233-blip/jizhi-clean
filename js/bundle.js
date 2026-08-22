@@ -1780,8 +1780,15 @@
 
     initPolling() {
       this.pullFromServer();
-      // Poll server every 200ms for instantaneous near-realtime cross-device sync
-      this.pollTimer = setInterval(() => this.pullFromServer(), 200);
+      // 🛡️ 工业级平滑轮询：1200ms 增量时间戳协商（配合页面不可见时智能放缓至 3500ms，极大释放网络连接池）
+      const getInterval = () => (document.hidden ? 3500 : 1200);
+      let pollTimer = null;
+      const runPoll = () => {
+        this.pullFromServer().finally(() => {
+          this.pollTimer = setTimeout(runPoll, getInterval());
+        });
+      };
+      this.pollTimer = setTimeout(runPoll, 1200);
 
       if ('BroadcastChannel' in window) {
         try {
@@ -1803,7 +1810,7 @@
     async pullFromServer() {
       this.updateScopeKeys();
 
-      // 1. 账号唯一在线检查 (节流至每 4 秒检查一次，避免 400ms 高频请求串行排队拖慢数据同步)
+      // 1. 账号唯一在线检查 (节流至每 4 秒检查一次，避免高频请求串行排队拖慢数据同步)
       const nowMs = Date.now();
       if (!this.lastSessionCheckTime || nowMs - this.lastSessionCheckTime > 4000) {
         this.lastSessionCheckTime = nowMs;
@@ -1815,7 +1822,7 @@
               const chkData = await chkRes.json();
               if (chkData && chkData.kicked) {
                 this.isLoggingOut = true;
-                if (this.pollTimer) { clearInterval(this.pollTimer); this.pollTimer = null; }
+                if (this.pollTimer) { clearTimeout(this.pollTimer); this.pollTimer = null; }
                 this.app.authManager.logout();
                 
                 // 弹出优雅自定义提示弹窗 (点击确定或关闭立即平滑返回登录页，绝不卡死)
@@ -1848,14 +1855,19 @@
         }
       }
 
-      // 2. 拉取最新协作数据 (以服务端数据为唯一真理)
+      // 2. 拉取最新协作数据 (携带 since_timestamp 协商，以服务端数据为唯一权威)
       for (const endpoint of this.syncEndpoints) {
         try {
           const sep = endpoint.includes('?') ? '&' : '?';
-          const url = `${endpoint}${sep}nocache=${Date.now()}`;
+          const sinceParam = this.lastTimestamp ? `&since_timestamp=${this.lastTimestamp}` : '';
+          const url = `${endpoint}${sep}nocache=${Date.now()}${sinceParam}`;
           const res = await fetch(url, { cache: 'no-store' });
           if (res.ok) {
             const data = await res.json();
+            // 若服务端返回 unchanged，说明数据未发生新变更，直接零开销返回
+            if (data && data.unchanged) {
+              continue;
+            }
             if (data && (data.timestamp || data.chatLogs || data.stage2)) {
               this.handleRemoteSync(data);
               return;
@@ -1958,6 +1970,24 @@
           }
         }
         keysToRemove.forEach(k => localStorage.removeItem(k));
+      } catch (e) {}
+
+      // 🛡️ 安全气囊（Lost-and-Found Draft Store）：在清空前自动归档当前草稿，防止学生心血丢失
+      try {
+        const hasContent = (this.app.state.stage2 && this.app.state.stage2.unifiedContent) || 
+                           (this.app.state.stage1 && this.app.state.stage1.proposals && this.app.state.stage1.proposals.length > 0);
+        if (hasContent) {
+          const emergencyDraft = {
+            savedAt: new Date().toLocaleString(),
+            groupId: myGroupId,
+            taskId: taskId,
+            stage1: this.app.state.stage1,
+            stage2: this.app.state.stage2,
+            stage3: this.app.state.stage3,
+            chatLogs: this.app.state.chatLogs
+          };
+          localStorage.setItem('jizhi_lost_and_found_draft', JSON.stringify(emergencyDraft));
+        }
       } catch (e) {}
 
       // 彻底重置内存中所有状态至初始状态

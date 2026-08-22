@@ -165,15 +165,29 @@ if ($action === 'save_global_meta' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         $decoded = json_decode($rawInput, true);
         // 🛡️ 严格校验：必须是包含有效教务字段的 JSON 结构，防止空数据或脏请求冲刷
         if (is_array($decoded) && (isset($decoded['classes']) || isset($decoded['tasks']) || isset($decoded['users']))) {
+            $newVersion = 1;
             if ($pdo) {
+                // 读取并递增 version
+                $stmtVer = $pdo->prepare("SELECT meta_value FROM global_meta WHERE meta_key = 'main_meta_version'");
+                $stmtVer->execute();
+                $verRow = $stmtVer->fetch();
+                $currentVersion = $verRow ? intval($verRow['meta_value']) : 1;
+                $newVersion = $currentVersion + 1;
+
                 $stmt = $pdo->prepare("INSERT INTO global_meta (meta_key, meta_value) VALUES ('main_meta', :val) ON DUPLICATE KEY UPDATE meta_value = :val2");
                 $stmt->execute([':val' => $rawInput, ':val2' => $rawInput]);
-                // 写入变更信号时间戳，让所有轮询设备的 pullFromServer 在下次 400ms 时立刻感知到全局数据已变
+
+                $stmtVerSave = $pdo->prepare("INSERT INTO global_meta (meta_key, meta_value) VALUES ('main_meta_version', :v) ON DUPLICATE KEY UPDATE meta_value = :v2");
+                $stmtVerSave->execute([':v' => $newVersion, ':v2' => $newVersion]);
+
+                // 写入变更信号时间戳，让所有轮询设备的 pullFromServer 立刻感知到全局数据已变
                 $nowMs = round(microtime(true) * 1000);
                 $stmt2 = $pdo->prepare("INSERT INTO global_meta (meta_key, meta_value) VALUES ('meta_updated_at', :v) ON DUPLICATE KEY UPDATE meta_value = :v2");
                 $stmt2->execute([':v' => $nowMs, ':v2' => $nowMs]);
             }
             @file_put_contents(__DIR__ . '/global_db.json', $rawInput);
+            echo json_encode(['success' => true, 'version' => $newVersion]);
+            exit;
         }
     }
     echo json_encode(['success' => true]);
@@ -450,6 +464,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $incomingS2 = (isset($data['stage2']) && is_array($data['stage2'])) ? $data['stage2'] : [];
             $mergedS2 = $incomingS2;
             if (!empty($existingS2) && !$isResetVal) {
+                // 🛡️ 章节级增量合并（Section-level Block Patching），物理隔离各章节编辑
+                if (isset($incomingS2['sections']) && is_array($incomingS2['sections'])) {
+                    $mergedS2['sections'] = isset($existingS2['sections']) && is_array($existingS2['sections']) ? $existingS2['sections'] : [];
+                    foreach ($incomingS2['sections'] as $secKey => $secVal) {
+                        $exSecTime = isset($mergedS2['sections'][$secKey]['updatedAt']) ? intval($mergedS2['sections'][$secKey]['updatedAt']) : 0;
+                        $inSecTime = isset($secVal['updatedAt']) ? intval($secVal['updatedAt']) : $ts;
+                        if (!isset($mergedS2['sections'][$secKey]) || $inSecTime >= $exSecTime) {
+                            $mergedS2['sections'][$secKey] = $secVal;
+                        }
+                    }
+                }
+
                 if (empty($incomingS2['unifiedContent']) && !empty($existingS2['unifiedContent'])) {
                     $mergedS2['unifiedContent'] = $existingS2['unifiedContent'];
                 }
@@ -760,8 +786,21 @@ if ($pdo) {
     $stmt->execute([':sk' => $scopeKey]);
     $row = $stmt->fetch();
     
-    if ($row) {
-        $stmtChats = $pdo->prepare("SELECT meta_value FROM global_meta WHERE meta_key = :k");
+        $lastTs = intval($row['last_timestamp']);
+        $sinceTs = isset($_GET['since_timestamp']) ? intval($_GET['since_timestamp']) : 0;
+
+        // 🛡️ 增量时间戳协商：若客户端带了 since_timestamp 且服务端快照未发生新变更，直接返回轻量 304/unchanged
+        if ($sinceTs > 0 && $lastTs > 0 && $lastTs <= $sinceTs) {
+            // 检查是否有全局元数据更新信号
+            $stmtSig = $pdo->prepare("SELECT meta_value FROM global_meta WHERE meta_key = 'meta_updated_at'");
+            $stmtSig->execute();
+            $sigRow = $stmtSig->fetch();
+            $metaUpdated = $sigRow ? intval($sigRow['meta_value']) : 0;
+            if ($metaUpdated <= $sinceTs) {
+                echo json_encode(['success' => true, 'unchanged' => true, 'timestamp' => $lastTs]);
+                exit;
+            }
+        }
         $stmtChats->execute([':k' => 'chats_' . $scopeKey]);
         $chatRow = $stmtChats->fetch();
         $chats = ($chatRow && !empty($chatRow['meta_value'])) ? json_decode($chatRow['meta_value'], true) : ['stage1' => [], 'stage2' => [], 'stage3' => []];
