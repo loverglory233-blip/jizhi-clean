@@ -49,6 +49,7 @@ dl css/styles.css
 dl css/libs/quill.snow.css
 dl js/libs/xlsx.full.min.js
 dl js/libs/quill.min.js
+dl js/libs/yjs-bundle.js
 dl js/bundle.js
 dl sync.php
 dl server.py
