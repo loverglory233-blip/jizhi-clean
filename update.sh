@@ -50,6 +50,8 @@ if [ $DOWNLOADED -eq 0 ]; then
     "index.html" "css/styles.css" "css/libs/quill.snow.css"
     "js/libs/xlsx.full.min.js" "js/libs/quill.min.js" "js/libs/quill-cursors.min.js"
     "js/libs/yjs.js" "js/libs/y-websocket.js" "js/libs/y-quill.js" "js/bundle.js"
+    "src/constants.js" "src/utils.js" "src/agents.js" "src/auth.js" "src/sync.js"
+    "src/login.js" "src/teacher.js" "src/student-portal.js" "src/editor.js" "src/app.js"
     "sync.php" "server.py" "server_yjs.js" "server_yjs.py" "package.json"
     "api/chat_api.php" "api/coze_prompt.php" "api/db_init.php" "api/stream.php"
   )
