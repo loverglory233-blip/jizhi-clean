@@ -1483,9 +1483,7 @@
             else {
               const foundUser = users.find(u => u.studentCode === msg.sender || u.id === msg.sender || u.username === msg.sender || u.name === msg.sender);
               if (foundUser && foundUser.name) senderDisplayName = foundUser.name;
-              else if (msg.sender === 'A' || msg.sender === 'liming') senderDisplayName = '李明 (组长)';
-              else if (msg.sender === 'B' || msg.sender === 'wangfang') senderDisplayName = '王芳 (组员)';
-              else if (msg.sender === 'C' || msg.sender === 'chenqiang') senderDisplayName = '陈强 (组员)';
+              else senderDisplayName = `小组成员 (${msg.sender})`;
             }
             const time = msg.timestamp || '';
             const text = (msg.text || '').replace(/"/g, '""').replace(/\n/g, ' ');
@@ -2818,7 +2816,7 @@
                             ${groupMembers.length === 0 ? '<span style="color:#94a3b8; font-size:12px;">⚠️ 暂未勾选成员</span>' : ''}
                             ${groupMembers.map(m => `
                               <span style="background:#eff6ff; border:1px solid #bfdbfe; color:#1d4ed8; padding:4px 10px; border-radius:6px; font-weight:600;">
-                                ${m.avatar || '👤'} ${m.name} ${(m.role === 'leader' || m.roleTitle?.includes('组长') || m.studentCode === 'A' || m.studentCode === '202601') ? '<b style="color:#d97706;">(组长)</b>' : ''}
+                                ${m.avatar || '👤'} ${m.name} ${(m.role === 'leader' || m.roleTitle?.includes('组长') || m.studentCode === 'A') ? '<b style="color:#d97706;">(组长)</b>' : ''}
                               </span>
                             `).join('')}
                           </div>
@@ -3677,7 +3675,7 @@
                 </div>
                 <div class="teacher-form-group" style="margin-bottom:14px;">
                   <label style="font-size:13px; font-weight:700; color:#334155; margin-bottom:6px; display:block;"><span class="req" style="color:#dc2626;">*</span> 学生学号 (登录账号)</label>
-                  <input type="text" id="modal-std-code" class="teacher-input fancy" placeholder="输入学号 (如: 20260101 或 S101)" value="" style="background:#ffffff; border:1.5px solid #cbd5e1; color:#0f172a; padding:10px 14px; border-radius:8px; width:100%; font-size:13.5px;">
+                  <input type="text" id="modal-std-code" class="teacher-input fancy" placeholder="请输入学生学号或账号" value="" style="background:#ffffff; border:1.5px solid #cbd5e1; color:#0f172a; padding:10px 14px; border-radius:8px; width:100%; font-size:13.5px;">
                 </div>
                 <div class="teacher-form-group">
                   <label style="font-size:13px; font-weight:700; color:#334155; margin-bottom:6px; display:block;">设置初始密码 (留空统一定为 123)</label>
@@ -8056,7 +8054,7 @@
           return p && (now - (p.updatedAt || 0) < 60000);
         });
 
-        let primaryMember = onlineMembers.find(m => m.studentCode === 'A' || m.studentCode === '202601' || m.roleTitle?.includes('组长') || m.role === 'leader');
+        let primaryMember = onlineMembers.find(m => m.studentCode === 'A' || m.roleTitle?.includes('组长') || m.role === 'leader');
         if (!primaryMember && onlineMembers.length > 0) {
           primaryMember = [...onlineMembers].sort((a, b) => (a.studentCode || a.id || '').localeCompare(b.studentCode || b.id || ''))[0];
         }
@@ -9850,7 +9848,7 @@
           if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
           if (confirmedCount < totalMembersCount) {
             const currentUserObj = this.authManager.getCurrentUser();
-            const isLeader = (user === 'A' || (currentUserObj && (currentUserObj.studentCode === 'A' || currentUserObj.studentCode === '202601' || currentUserObj.role === 'leader' || currentUserObj.roleTitle?.includes('组长'))) || (this.state.members && this.state.members[user]?.roleTitle?.includes('组长')));
+            const isLeader = (user === 'A' || (currentUserObj && (currentUserObj.studentCode === 'A' || currentUserObj.role === 'leader' || currentUserObj.roleTitle?.includes('组长'))) || (this.state.members && this.state.members[user]?.roleTitle?.includes('组长')));
             if (isLeader && confirmedCount >= 1) {
               const allowForceAdvance = confirm(`✅ 你 (${memberName}) 已签署合约！\n\n当前签署进度：${confirmedCount}/${totalMembersCount} 人。\n\n⚠️ 若有部分组员因请假、缺勤未到场，作为组长，您是否确认【全员已就绪，一键代表全组开启阶段二】？`);
               if (allowForceAdvance) {
@@ -10032,7 +10030,7 @@
 
           if (confirmedCount < totalMembersCount) {
             const currentUserObj = this.authManager.getCurrentUser();
-            const isLeader = (user === 'A' || (currentUserObj && (currentUserObj.studentCode === 'A' || currentUserObj.studentCode === '202601' || currentUserObj.role === 'leader' || currentUserObj.roleTitle?.includes('组长'))) || (this.state.members && this.state.members[user]?.roleTitle?.includes('组长')));
+            const isLeader = (user === 'A' || (currentUserObj && (currentUserObj.studentCode === 'A' || currentUserObj.role === 'leader' || currentUserObj.roleTitle?.includes('组长'))) || (this.state.members && this.state.members[user]?.roleTitle?.includes('组长')));
             if (isLeader && confirmedCount >= 1) {
               const allowForceAdvance = confirm(`✅ 你 (${memberName}) 已确认完成初稿！\n\n当前组内确认进度：${confirmedCount}/${totalMembersCount} 人。\n\n⚠️ 若有部分组员因请假缺勤未在场，作为组长，您是否确认【全组初稿已定稿，一键开启阶段三：答辩擂台】？`);
               if (allowForceAdvance) {

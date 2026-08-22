@@ -1063,9 +1063,7 @@ export class AuthManager {
           else {
             const foundUser = users.find(u => u.studentCode === msg.sender || u.id === msg.sender || u.username === msg.sender || u.name === msg.sender);
             if (foundUser && foundUser.name) senderDisplayName = foundUser.name;
-            else if (msg.sender === 'A' || msg.sender === 'liming') senderDisplayName = '李明 (组长)';
-            else if (msg.sender === 'B' || msg.sender === 'wangfang') senderDisplayName = '王芳 (组员)';
-            else if (msg.sender === 'C' || msg.sender === 'chenqiang') senderDisplayName = '陈强 (组员)';
+            else senderDisplayName = `小组成员 (${msg.sender})`;
           }
           const time = msg.timestamp || '';
           const text = (msg.text || '').replace(/"/g, '""').replace(/\n/g, ' ');

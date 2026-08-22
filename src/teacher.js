@@ -277,7 +277,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
                           ${groupMembers.length === 0 ? '<span style="color:#94a3b8; font-size:12px;">⚠️ 暂未勾选成员</span>' : ''}
                           ${groupMembers.map(m => `
                             <span style="background:#eff6ff; border:1px solid #bfdbfe; color:#1d4ed8; padding:4px 10px; border-radius:6px; font-weight:600;">
-                              ${m.avatar || '👤'} ${m.name} ${(m.role === 'leader' || m.roleTitle?.includes('组长') || m.studentCode === 'A' || m.studentCode === '202601') ? '<b style="color:#d97706;">(组长)</b>' : ''}
+                              ${m.avatar || '👤'} ${m.name} ${(m.role === 'leader' || m.roleTitle?.includes('组长') || m.studentCode === 'A') ? '<b style="color:#d97706;">(组长)</b>' : ''}
                             </span>
                           `).join('')}
                         </div>
@@ -1136,7 +1136,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
               </div>
               <div class="teacher-form-group" style="margin-bottom:14px;">
                 <label style="font-size:13px; font-weight:700; color:#334155; margin-bottom:6px; display:block;"><span class="req" style="color:#dc2626;">*</span> 学生学号 (登录账号)</label>
-                <input type="text" id="modal-std-code" class="teacher-input fancy" placeholder="输入学号 (如: 20260101 或 S101)" value="" style="background:#ffffff; border:1.5px solid #cbd5e1; color:#0f172a; padding:10px 14px; border-radius:8px; width:100%; font-size:13.5px;">
+                <input type="text" id="modal-std-code" class="teacher-input fancy" placeholder="请输入学生学号或账号" value="" style="background:#ffffff; border:1.5px solid #cbd5e1; color:#0f172a; padding:10px 14px; border-radius:8px; width:100%; font-size:13.5px;">
               </div>
               <div class="teacher-form-group">
                 <label style="font-size:13px; font-weight:700; color:#334155; margin-bottom:6px; display:block;">设置初始密码 (留空统一定为 123)</label>
