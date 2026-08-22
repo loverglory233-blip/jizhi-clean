@@ -171,22 +171,28 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
               </div>
               <div style="border:1px solid #e2e8f0; border-radius:10px; overflow:hidden; background:#ffffff;">
                 <table class="monitor-table" style="font-size:13px;">
-                  <thead><tr><th>序号</th><th>姓名</th><th>学号</th><th>当前归属小组</th><th>密码</th><th>操作</th></tr></thead>
+                  <thead><tr><th>序号</th><th>姓名</th><th>学号</th><th>当前归属小组</th><th>密码状态</th><th>操作</th></tr></thead>
                   <tbody>
                     ${classStudents.length === 0 ? '<tr><td colspan="6" style="text-align:center; color:#64748b; padding:24px;">当前班级暂无学生账号，请点击右上角按钮创建或导入！</td></tr>' : ''}
                     ${classStudents.map((s, idx) => {
                       const grp = (activeClass.groups || []).find(g => g.members && (g.members.includes(s.id) || g.members.includes(s.studentCode) || (typeof g.members[0] === 'object' && g.members.some(m => m.id === s.id || m.studentCode === s.studentCode))));
+                      const stdAcc = s.studentCode || s.username || s.id;
                       return `
                         <tr>
                           <td style="color:#94a3b8; font-weight:700;">${idx + 1}</td>
                           <td><b>${s.avatar || '👤'} ${s.name}</b></td>
-                          <td><span style="color:#2563eb; font-family:monospace; font-weight:700;">${s.studentCode || s.username}</span></td>
+                          <td><span style="color:#2563eb; font-family:monospace; font-weight:700;">${stdAcc}</span></td>
                           <td>${grp ? `<span style="background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe; padding:2px 8px; border-radius:8px; font-size:12px; font-weight:700;">${grp.name}</span>` : '<span style="color:#94a3b8;">⏳ 待划分小组</span>'}</td>
-                          <td><span style="color:#059669; font-family:monospace; font-weight:700;">${s.password || '123'}</span></td>
+                          <td><span style="color:#059669; font-family:monospace; font-weight:700;">初始 123</span></td>
                           <td>
-                            <button class="delete-student-btn" data-id="${s.id}" style="background:#fef2f2; border:1px solid #fecaca; color:#dc2626; padding:4px 10px; border-radius:6px; font-size:12px; cursor:pointer; font-weight:700;" title="从本班移除">
-                              移除
-                            </button>
+                            <div style="display:flex; gap:6px; align-items:center;">
+                              <button class="reset-student-pwd-btn" data-account="${stdAcc}" data-name="${s.name}" style="background:#eff6ff; border:1px solid #bfdbfe; color:#2563eb; padding:4px 10px; border-radius:6px; font-size:12px; cursor:pointer; font-weight:700;" title="将此学生登录密码重置为 123">
+                                🔑 重置为123
+                              </button>
+                              <button class="delete-student-btn" data-id="${s.id}" style="background:#fef2f2; border:1px solid #fecaca; color:#dc2626; padding:4px 10px; border-radius:6px; font-size:12px; cursor:pointer; font-weight:700;" title="从本班移除">
+                                移除
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       `;
@@ -1504,6 +1510,33 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
 
   container.querySelectorAll('.btn-edit-group-members').forEach(btn => {
     btn.addEventListener('click', () => setupGroupModal(btn.dataset.gid));
+  });
+
+  container.querySelectorAll('.reset-student-pwd-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const account = btn.dataset.account;
+      const name = btn.dataset.name || account;
+      if (confirm(`🔑【教师密码重置确认】\n\n您确定要将学生【${name}】(账号: ${account}) 的登录密码重置为初始密码 123 吗？`)) {
+        try {
+          const res = await fetch('sync.php?action=reset_student_password', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ account, newPassword: '123' })
+          });
+          const data = await res.json();
+          if (data && data.success) {
+            alert(`✅ ${data.message || `学生【${name}】密码已成功重置为 123！`}`);
+            authManager.pullGlobalMeta().then(() => {
+              renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+            });
+          } else {
+            alert('❌ ' + (data.message || '重置失败'));
+          }
+        } catch (e) {
+          alert('❌ 网络请求失败，请稍后重试');
+        }
+      }
+    });
   });
 
   container.querySelectorAll('.delete-student-btn').forEach(btn => {
