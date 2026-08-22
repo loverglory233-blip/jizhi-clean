@@ -963,7 +963,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         }
                     }
                 }
-            }
 
             // 4c. 同步保存全局教务元数据 (users/classes/tasks/announcements/referencePapers)
             // 🛡️ 严格单向权限隔离：只有明确来自教师端 (isTeacher=true 或 userRole='teacher') 的请求才允许更新全局教务表！
