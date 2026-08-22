@@ -58,35 +58,29 @@ async def universal_handler(websocket, *args):
                 del ROOMS[room_name]
         print(f"[Yjs PyWS] Client disconnected from room: {room_name}", flush=True)
 
-async def universal_process_request(*args, **kwargs):
-    # 兼容 websockets 14+ (connection, request) 与 websockets legacy (path, request_headers)
-    path = '/'
-    if len(args) == 2:
-        if isinstance(args[0], str):
-            path = args[0]
-        elif hasattr(args[1], 'path'):
-            path = args[1].path
-    elif len(args) == 1 and hasattr(args[0], 'path'):
-        path = args[0].path
-
-    if path == '/health' or path == '/':
-        body = json.dumps({
-            'status': 'ok',
-            'service': 'JIZHI Yjs CRDT Python Collaboration Gateway',
-            'version': '2.0.0',
-            'activeRooms': len(ROOMS)
-        }).encode('utf-8')
-        
-        # websockets 14+
-        if len(args) >= 1 and hasattr(args[0], 'respond'):
-            return args[0].respond(200, [('Content-Type', 'application/json; charset=utf-8'), ('Access-Control-Allow-Origin', '*')], body)
-        
-        # websockets legacy
-        headers = [
-            ('Content-Type', 'application/json; charset=utf-8'),
-            ('Access-Control-Allow-Origin', '*')
-        ]
-        return (200, headers, body)
+async def universal_process_request(connection, request=None):
+    try:
+        req_path = '/'
+        if request is not None and hasattr(request, 'path'):
+            req_path = request.path
+        elif isinstance(connection, str):
+            req_path = connection
+        elif hasattr(connection, 'path'):
+            req_path = connection.path
+            
+        if req_path in ('/health', '/', '/ws', '/ws/health'):
+            body = b'{"status":"ok","service":"JIZHI Yjs CRDT Python Collaboration Gateway","version":"2.0.0"}\n'
+            if hasattr(connection, 'respond'):
+                return connection.respond(200, [('Content-Type', 'application/json; charset=utf-8'), ('Access-Control-Allow-Origin', '*')], body)
+            try:
+                from websockets.http11 import Response
+                from websockets.datastructures import Headers
+                return Response(200, "OK", Headers([('Content-Type', 'application/json; charset=utf-8'), ('Access-Control-Allow-Origin', '*')]), body)
+            except Exception:
+                pass
+            return (200, [('Content-Type', 'application/json; charset=utf-8'), ('Access-Control-Allow-Origin', '*')], body)
+    except Exception:
+        pass
     return None
 
 async def main():
