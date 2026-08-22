@@ -204,6 +204,24 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         self.end_headers()
 
     def do_GET(self):
+        if self.path.startswith('/health') or self.path.startswith('/api/health'):
+            resp = json.dumps({
+                'status': 'ok',
+                'service': 'JIZHI Yjs CRDT & Multi-Agent Gateway',
+                'version': '2.0.0',
+                'port': PORT,
+                'activeRooms': len(WS_ROOMS),
+                'timestamp': int(time.time() * 1000)
+            }, ensure_ascii=False).encode('utf-8')
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/json; charset=utf-8')
+            self.send_header('Access-Control-Allow-Origin', '*')
+            self.send_header('Content-Length', str(len(resp)))
+            self.end_headers()
+            self.wfile.write(resp)
+            self.wfile.flush()
+            return
+
         # ⚡ 工业级 WebSocket 集中式长连接协同通道 (复用 8088 端口，零额外端口与 NAT 穿透隐患)
         if self.headers.get('Upgrade', '').lower() == 'websocket' or '/ws' in self.path:
             key = self.headers.get('Sec-WebSocket-Key', '')

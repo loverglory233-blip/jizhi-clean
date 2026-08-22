@@ -16,6 +16,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit(0);
 }
 
+if (isset($_GET['action']) && $_GET['action'] === 'health') {
+    echo json_encode(['status' => 'ok', 'service' => 'JIZHI Production PHP & MySQL Gateway', 'version' => '2.0.0', 'timestamp' => round(microtime(true) * 1000)], JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
 require_once __DIR__ . '/api/db_config.php';
 require_once __DIR__ . '/api/db_init.php';
 
