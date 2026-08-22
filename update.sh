@@ -73,97 +73,16 @@ dl src/editor.js
 dl src/app.js
 
 for dir in "${TARGET_DIRS[@]}"; do
-  mkdir -p "$dir/css" "$dir/css/libs" "$dir/js" "$dir/js/libs" "$dir/api" "$dir/src"
+  mkdir -p "$dir/css" "$dir/css/libs" "$dir/js" "$dir/js/libs" "$dir/api" "$dir/src" "$dir/uploads" "$dir/data"
   cp -rf "$TMP/"* "$dir/"
   
-  # 自动创建本地 MySQL 配置文件（若不存在）
-  if [ ! -f "$dir/api/db_config.php" ]; then
-    cat << 'EOF' > "$dir/api/db_config.php"
-<?php
-$DB_HOST = '127.0.0.1';
-$DB_PORT = '3306';
-$DB_NAME = 'jizhi';
-$DB_USER = 'jizhi';
-$DB_PASS = 'KxDmdtSWaTtHafdZ';
-
-function getDbConnection() {
-    global $DB_HOST, $DB_PORT, $DB_NAME, $DB_USER, $DB_PASS;
-    static $pdo = null;
-    if ($pdo !== null) return $pdo;
-    try {
-        $dsn = "mysql:host={$DB_HOST};port={$DB_PORT};dbname={$DB_NAME};charset=utf8mb4";
-        $pdo = new PDO($dsn, $DB_USER, $DB_PASS, [
-            PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-            PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-            PDO::ATTR_EMULATE_PREPARES => false
-        ]);
-        return $pdo;
-    } catch (PDOException $e) {
-        return null;
-    }
-}
-EOF
-  fi
-
-  # 自动创建本地 OAuth 配置文件与私钥（若不存在）
-  if [ ! -f "$dir/api/config.php" ]; then
-    cat << 'EOF' > "$dir/api/config.php"
-<?php
-$COZE_APP_ID = '117674722513984684072';
-$COZE_KEY_ID = 'EdvxCTETZES-C-m32CsULVkKR_psKeP-J7HwpQnANuk';
-$COZE_PRIVATE_KEY_FILE = __DIR__ . '/private_key.pem';
-$COZE_API_BASE_URL = 'https://api.coze.cn/v3';
-$COZE_OAUTH_TOKEN_URL = 'https://api.coze.cn/api/permission/oauth2/token';
-
-$COZE_BOTS = [
-    'auctioneer'      => '7673571806476828713',
-    'managingEditor'  => '7673934462736138294',
-    'reviewingEditor' => '7673943522542141476',
-    'proponent'       => '7673951703640899627',
-    'opponent'        => '7673956980344160307',
-    'neutral'         => '7673955430510870580'
-];
-EOF
-  fi
-
-  if [ ! -f "$dir/api/private_key.pem" ]; then
-    cat << 'EOF' > "$dir/api/private_key.pem"
------BEGIN PRIVATE KEY-----
-MIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQDgTarE6tr/k5fQ
-UXbQiskw4vBOMBEdkPjRzDHe1OtaNsTEFfPE+ReOJqn0m5aTOaNVl4lg0hErkyaB
-J1vxmvzPE1WwJmbLOaXpshgIc7jzxScMkMeeFdXpvVS2LdVBBhDy83Z1kwRpKe/q
-R2sevZDazD8go3sZ7P0heAPTvJJWMuteDCw8lIt26OENh2Fy+I6nlJvJxzAnMudm
-BHnoT+NqPmQi6Qgplp5iMND7v2tGS89D7d5qiK/6J4kdBM+43OzkV2UojWH5Aq9I
-xlyID31JLcGjiGDl+QKj7yUHTxNhmFUIikb4gstelVyYnLiDZoZCgqyxJh1w1qJe
-l9KDcgwFAgMBAAECggEAFZ1f/tJDwLjM7cX76IRUEPVXHOG+GuN7TS3oaSwkpePj
-OdYeHVweBfr51vJRvbKiZ79OylkgtUDcraBIvuzyWCFP2SxKLMlLkLKY/q+DVV8p
-SfYY4yxnGbtYX3N/oMcTeQxqQ1HW7Sw3MpQnrj9F2myWPla8QepRfLLF0HCg7wdf
-WFsWHrnU9RpDBOtWNmtjQiXWbulsve5b3sSjHAKw5Pxul7WLp3y77tSgN9UfM64x
-FAUpYyQwd5SPqhY1la3NAO7KSdYbdHNxt1myhYEEZF+e0ecSRQVWzcHnw3zROxJp
-ofZAGae9kXsmG3qDMUq2sX3X8l5aOfXoEdFODtcNfQKBgQDwSWYPfy5zHGXLJszY
-U8YGlPXmuDrjHlu0/gDZ/N7pUkJiMMXf/C4pM6RNxf2MtFATdu3UiFvHzNeX+Fby
-mXqSDYdQr5Z5jdqEck8737E3DXPYwTSyGJdsZwAERFlR+xI4Nv45xxgdIt/ZkKHW
-VBOLnhCtNFC04hiKioDaIBIeqwKBgQDu+LGvrHLcTF9T+HPkfczGe/wikvfwBdY9
-feQb5pGi7i/UWG2O0iVpIL55m9ZKO7tAOQbKpLdHm5GPP07m0LBC6NGvMEiuYY3T
-DbcS8LgW+h1JoUmZP+s8yal3XubwWoPxl5f7lo1OK6kC1NjpYDCY4LmCf7tidusW
-LX0NeibADwKBgAE7XxqVPFe6vYrdGA/D3jAKc3hLWYHwlefHpZl4gmwPz+dQ+LK9
-SD9N1HnRmgsuoXp4EaAVUuMjWbedvlRgFRDKoPb473yQDZ7AN0fHTdFKcF2cH/kJ
-xzz3Cjj7YLna360KGyOQsb70ftFOvIWsyKzekpdQvVkwD5AmRaLYpz8hAoGBAN35
-zLNt8FOJ7ZLGWoCICkrkqFRFSGGASn1cDyOLjQRXU75fVYUw1udMLyIvC2JxEYKa
-diCN2GF/tDnniJcGinPcZ8nfg+PXYjIFr2S8jYNqWQIn+4GKyivw9qWXVdU1fxJO
-yjI8qo1OKPQkWkiNvRaEyEzb8WeJJt226041hQEpAoGBAO8eTnc41oFkcXcvNMdF
-EBis4TQY8LuvZDFospjUxtCvemMO/Pluq1NEXXVO7txFEi5kYfDoWUEZ/40MF0wk
-ZcEDmyxpdGp3B2CjouQpG8EeihQD8xlWctA5TPFqYSuislur9M7jJcJJqjqBEGf1
-h6cHqx+Y7Dl+ws+3oUKctOrs
------END PRIVATE KEY-----
-EOF
-  fi
-
-  chmod -R 777 "$dir/api"
-  chmod -R 755 "$dir"
-  chmod 777 "$dir/sync.php" 2>/dev/null || true
+  # 🔒 标准权限保护：目录 755，文件 644，数据与上传目录 775
+  find "$dir" -type d -exec chmod 755 {} + 2>/dev/null || true
+  find "$dir" -type f -exec chmod 644 {} + 2>/dev/null || true
+  chmod -R 775 "$dir/uploads" "$dir/data" 2>/dev/null || true
+  chmod 755 "$dir/sync.php" "$dir/update.sh" 2>/dev/null || true
   chown -R www:www "$dir" 2>/dev/null || true
-  echo "   ✅ 已更新: $dir"
+  echo "   ✅ 已安全更新: $dir"
 done
 rm -rf "$TMP"
 
@@ -184,8 +103,7 @@ for dir in "${TARGET_DIRS[@]}"; do
   # 清理初始测试数据
   echo '{"timestamp":0,"groupId":"group_1","presence":{},"chatLogs":{"stage1":[],"stage2":[],"stage3":[]},"stage1":{"mergedTitle":"","votes":{},"hasVoted":{},"proposals":[]},"stage2":{"unifiedContent":"","memberContributions":{"A":0,"B":0,"C":0},"actionPlan":{"isGenerated":false,"items":[]}},"stage3":{"feedbackItems":[]},"currentStage":"stage1","isFinalSubmitted":false}' > "$dir/db_task_default_group_1.json" 2>/dev/null || true
   echo '{}' > "$dir/sessions.json" 2>/dev/null || true
-  chmod 777 "$dir/db_task_default_group_1.json" "$dir/sessions.json" "$dir/sync.php" 2>/dev/null || true
-  chmod -R 777 "$dir" 2>/dev/null || true
+  chmod 664 "$dir/db_task_default_group_1.json" "$dir/sessions.json" 2>/dev/null || true
   chown -R www:www "$dir" 2>/dev/null || true
 done
 

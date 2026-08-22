@@ -337,17 +337,8 @@ export function attachWordEditorEvents(container, editorId, isReadonly, onChange
         window._jizhi_quill = quillInstance;
         window._jizhi_yjs_provider = provider;
 
-        provider.on('synced', () => {
-          // 🛡️ 确定性单点初始化：采用 Math.min 选举最小 clientID，杜绝多端 100ms 内同时进入并发重复粘贴 3 遍！
-          const awarenessStates = provider.awareness ? Array.from(provider.awareness.getStates().keys()) : [provider.awareness.clientID];
-          const minClientId = Math.min(...awarenessStates);
-          const isPioneerLeader = (provider.awareness.clientID === minClientId);
-          if (ytext.length === 0 && editor.innerHTML && editor.innerHTML.trim().length > 0 && editor.innerHTML.trim() !== '<p><br></p>') {
-            if (isPioneerLeader) {
-              quillInstance.clipboard.dangerouslyPasteHTML(0, editor.innerHTML);
-            }
-          }
-        });
+        // 🏛️ 彻底消除客户端 Awareness 并发粘贴竞态：
+        // 初始大纲模板已迁移至 Yjs 服务端权威单点初始化，客户端绑定 QuillBinding 后自动精准拉取！
 
         quillInstance.on('text-change', () => {
           const cleanHtml = quillInstance.root.innerHTML;
