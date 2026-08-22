@@ -1726,10 +1726,13 @@
     }
 
     initSSE() {
-      // 生产环境全面采用 WebSocket 与 MySQL 高可用轮询，彻底停用开发专用 SSE
+      // 生产环境全面停用 SSE，由 Yjs CRDT WebSocket (1234端口) + 数据库高可用短轮询接管
     }
 
     initWebSocket() {
+      // 💡 架构分工明确说明：
+      // 1. 富文本毫秒级实时协同：由 Yjs CRDT WebSocket (ws://host:1234) 独立权威承载；
+      // 2. 阶段状态/研讨聊天/全局教务：由 CloudSyncEngine 高频无锁短轮询 + MySQL 事务保障。
       this.updateScopeKeys();
     }
 

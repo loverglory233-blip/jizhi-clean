@@ -48,6 +48,8 @@ if (empty($action) && $_SERVER['REQUEST_METHOD'] === 'POST') {
         $peekData = @json_decode($peekInput, true);
         if (isset($peekData['action'])) $action = $peekData['action'];
     }
+}
+
 /**
  * 🛡️ 教师身份与 Session Token 双重认证拦截器 (Fail-Closed 严格拒绝空 Token)
  */

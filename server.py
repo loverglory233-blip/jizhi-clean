@@ -953,5 +953,5 @@ if __name__ == '__main__':
     yjs_thread = threading.Thread(target=start_yjs_background_service, daemon=True)
     yjs_thread.start()
     print(f'🚀 集智 Gzip 极速+服务端独占锁服务器运行在端口 {PORT}...', flush=True)
-    with ThreadingTCPServer(('0.0.0.0', PORT), Handler) as httpd:
+    with socketserver.ThreadingTCPServer(('0.0.0.0', PORT), Handler) as httpd:
         httpd.serve_forever()

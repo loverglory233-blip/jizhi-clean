@@ -5,7 +5,7 @@
 
 import { AgentProfiles } from "./constants.js";
 import { callCozeAgentAPI } from "./agents.js";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin } from "./utils.js";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl } from "./utils.js";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)

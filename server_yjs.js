@@ -132,10 +132,6 @@ wss.on('connection', (ws, req) => {
     if (isBinary && Buffer.isBuffer(message) && message.length > 0 && message[0] === 0) {
       const updates = loadRoomFromDisk(roomName);
       updates.push(message);
-      // 控制单个房间内存更新片断上限 (超量时保留最新)
-      if (updates.length > 500) {
-        updates.splice(0, updates.length - 200);
-      }
       // 触发防抖持久化 (2 秒后保存)
       scheduleRoomPersistence(roomName);
     }
