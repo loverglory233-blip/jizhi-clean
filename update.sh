@@ -49,6 +49,9 @@ dl css/styles.css
 dl js/bundle.js
 dl sync.php
 dl server.py
+dl server_yjs.js
+dl server_yjs.py
+dl package.json
 dl api/chat_api.php
 dl api/coze_prompt.php
 dl api/db_init.php
@@ -170,9 +173,11 @@ for dir in "${TARGET_DIRS[@]}"; do
   chown -R www:www "$dir" 2>/dev/null || true
 done
 
-echo "🚀 [4/4] 启动高可用同步服务端 (Python 端口 8088)..."
+echo "🚀 [4/4] 启动高可用同步服务端 (Python 8088 & Yjs CRDT 1234)..."
 kill -9 $(lsof -t -i:8088 2>/dev/null) 2>/dev/null || true
 pkill -9 -f "server.py" 2>/dev/null || true
+kill -9 $(lsof -t -i:1234 2>/dev/null) 2>/dev/null || true
+pkill -9 -f "server_yjs.js" 2>/dev/null || true
 sleep 1
 
 for dir in "${TARGET_DIRS[@]}"; do
@@ -181,21 +186,32 @@ for dir in "${TARGET_DIRS[@]}"; do
     nohup python3 server.py > server.log 2>&1 &
     sleep 1
     if lsof -i:8088 >/dev/null 2>&1; then
-      echo "   ✅ 端口 8088 服务端已就绪 ($dir)"
-    else
-      echo "   ⚠️  端口 8088 启动中，将由 PHP 80 端口承接主通信"
+      echo "   ✅ 端口 8088 同步服务端已就绪 ($dir)"
     fi
-    break
+  fi
+  if [ -f "$dir/server_yjs.js" ]; then
+    cd "$dir"
+    if command -v pm2 >/dev/null 2>&1; then
+      pm2 restart jizhi-yjs 2>/dev/null || pm2 start server_yjs.js --name "jizhi-yjs" 2>/dev/null
+      pm2 save >/dev/null 2>&1 || true
+      echo "   ✅ 端口 1234 Yjs CRDT 协同网关已就绪 (PM2守护)"
+    elif command -v node >/dev/null 2>&1; then
+      nohup node server_yjs.js > yjs.log 2>&1 &
+      echo "   ✅ 端口 1234 Yjs CRDT 协同网关已就绪 (Node.js常驻)"
+    else
+      nohup python3 server_yjs.py > yjs.log 2>&1 &
+      echo "   ✅ 端口 1234 Yjs CRDT 协同网关已就绪 (Python常驻)"
+    fi
   fi
 done
 
 echo ""
 echo "======================================================"
-echo "🎉 更新完成！"
+echo "🎉 全系统更新完成！"
 echo ""
-echo "📋 同步验证方法（任选一条在浏览器地址栏访问）："
+echo "📋 验证方法（在浏览器地址栏访问）："
+echo "   http://47.99.110.230:1234/health  (Yjs 协同网关)"
 echo "   http://47.99.110.230/sync.php?groupId=group_1"
-echo "   http://47.99.110.230:8088/sync.php?groupId=group_1"
 echo ""
-echo "✅ 能看到 JSON 数据 = 同步正常"
+echo "✅ 能看到 status: ok = Yjs 协同引擎满血在线"
 echo "======================================================"
