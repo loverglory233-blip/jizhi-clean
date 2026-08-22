@@ -24,9 +24,10 @@ rm -rf "$TMP" && mkdir -p "$TMP"
 # 🚀 优先下载完整压缩包 (只需 1 次网络请求，0 阻塞、0 卡顿)
 ZIP_FILE="/tmp/jizhi_main.zip"
 DOWNLOADED=0
+NOW_TS=$(date +%s)
 for zip_url in \
-  "https://ghfast.top/https://github.com/loverglory233-blip/jizhi-clean/archive/refs/heads/main.zip" \
-  "https://ghproxy.net/https://github.com/loverglory233-blip/jizhi-clean/archive/refs/heads/main.zip" \
+  "https://ghfast.top/https://github.com/loverglory233-blip/jizhi-clean/archive/refs/heads/main.zip?t=$NOW_TS" \
+  "https://ghproxy.net/https://github.com/loverglory233-blip/jizhi-clean/archive/refs/heads/main.zip?t=$NOW_TS" \
   "https://codeload.github.com/loverglory233-blip/jizhi-clean/zip/refs/heads/main"; do
   
   if curl -s -f -L --connect-timeout 4 --max-time 15 "$zip_url" -o "$ZIP_FILE" 2>/dev/null && [ -s "$ZIP_FILE" ]; then
@@ -56,7 +57,7 @@ if [ $DOWNLOADED -eq 0 ]; then
     "api/chat_api.php" "api/coze_prompt.php" "api/db_init.php" "api/stream.php"
   )
   for f in "${FILES[@]}"; do
-    curl -s -f -L --connect-timeout 3 --max-time 6 "https://ghfast.top/https://raw.githubusercontent.com/loverglory233-blip/jizhi-clean/main/$f" -o "$TMP/$f" 2>/dev/null || true
+    curl -s -f -L --connect-timeout 3 --max-time 6 "https://ghfast.top/https://raw.githubusercontent.com/loverglory233-blip/jizhi-clean/main/$f?t=$NOW_TS" -o "$TMP/$f" 2>/dev/null || true
   done
 fi
 
