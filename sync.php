@@ -415,28 +415,15 @@ if ($action === 'get_global_meta') {
     }
         $defaultMeta = [
             'users' => [
-                ['id' => 'u_teacher1', 'username' => '1001', 'studentCode' => '1001', 'password' => '123', 'name' => '老师', 'role' => 'teacher', 'avatar' => '👩‍🏫'],
-                ['id' => 'u_studentA', 'username' => '202601', 'studentCode' => '202601', 'password' => '123', 'name' => '李明 (组长)', 'role' => 'student', 'avatar' => '👨‍🎓', 'classId' => 'class_101', 'groupId' => 'group_1'],
-                ['id' => 'u_studentB', 'username' => '202602', 'studentCode' => '202602', 'password' => '123', 'name' => '王芳 (组员)', 'role' => 'student', 'avatar' => '👩‍🎓', 'classId' => 'class_101', 'groupId' => 'group_1'],
-                ['id' => 'u_studentC', 'username' => '202603', 'studentCode' => '202603', 'password' => '123', 'name' => '陈强 (组员)', 'role' => 'student', 'avatar' => '🧑‍🎓', 'classId' => 'class_101', 'groupId' => 'group_1']
+                ['id' => 'u_teacher1', 'username' => '1001', 'studentCode' => '1001', 'password' => '123', 'name' => '老师', 'role' => 'teacher', 'avatar' => '👩‍🏫']
             ],
             'classes' => [
                 [
                     'id' => 'class_101',
                     'name' => '《现代教育技术》2026春01班',
                     'code' => 'ET2026-01',
-                    'studentIds' => ['u_studentA', 'u_studentB', 'u_studentC'],
-                    'groups' => [
-                        [
-                            'id' => 'group_1',
-                            'name' => '第 1 协作小组 (测试组)',
-                            'members' => [
-                                ['id' => 'u_studentA', 'name' => '李明', 'studentCode' => '202601', 'role' => '组长', 'roleTitle' => '组长', 'avatar' => '👨‍🎓', 'color' => '#2563eb'],
-                                ['id' => 'u_studentB', 'name' => '王芳', 'studentCode' => '202602', 'role' => '组员', 'roleTitle' => '组员', 'avatar' => '👩‍🎓', 'color' => '#10b981'],
-                                ['id' => 'u_studentC', 'name' => '陈强', 'studentCode' => '202603', 'role' => '组员', 'roleTitle' => '组员', 'avatar' => '🧑‍🎓', 'color' => '#f59e0b']
-                            ]
-                        ]
-                    ]
+                    'studentIds' => [],
+                    'groups' => []
                 ]
             ],
             'tasks' => [
