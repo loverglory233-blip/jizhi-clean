@@ -168,11 +168,15 @@ export class App {
       }
     } catch (e) {}
 
+    const currUser = this.authManager ? this.authManager.getCurrentUser() : null;
+    const teacherUserId = (currUser && (currUser.id || currUser.username || currUser.studentCode)) || 'u_teacher';
+    const teacherToken = (currUser && (currUser.token || currUser.activeSessionId)) || '';
+
     // 发送原子重置请求直达服务端 (独立通道，100% 必达，彻底清空服务端数据库与缓存)
     fetch(`sync.php?action=reset_group&groupId=${encodeURIComponent(groupId)}&taskId=${encodeURIComponent(targetTaskId)}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ isReset: true })
+      body: JSON.stringify({ isReset: true, userId: teacherUserId, token: teacherToken })
     }).then(r => r.json()).then(res => {
       if (this.cloudSyncEngine) {
         this.cloudSyncEngine.groupId = groupId;

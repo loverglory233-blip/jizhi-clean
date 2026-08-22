@@ -4001,10 +4001,14 @@
         const name = btn.dataset.name || account;
         if (confirm(`🔑【教师密码重置确认】\n\n您确定要将学生【${name}】(账号: ${account}) 的登录密码重置为初始密码 123 吗？`)) {
           try {
+            const currT = authManager.getCurrentUser();
+            const tId = (currT && (currT.id || currT.username || currT.studentCode)) || 'u_teacher';
+            const tToken = (currT && (currT.token || currT.activeSessionId)) || '';
+
             const res = await fetch('sync.php?action=reset_student_password', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ account, newPassword: '123' })
+              body: JSON.stringify({ account, newPassword: '123', userId: tId, token: tToken })
             });
             const data = await res.json();
             if (data && data.success) {
@@ -7484,11 +7488,15 @@
         }
       } catch (e) {}
 
+      const currUser = this.authManager ? this.authManager.getCurrentUser() : null;
+      const teacherUserId = (currUser && (currUser.id || currUser.username || currUser.studentCode)) || 'u_teacher';
+      const teacherToken = (currUser && (currUser.token || currUser.activeSessionId)) || '';
+
       // 发送原子重置请求直达服务端 (独立通道，100% 必达，彻底清空服务端数据库与缓存)
       fetch(`sync.php?action=reset_group&groupId=${encodeURIComponent(groupId)}&taskId=${encodeURIComponent(targetTaskId)}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ isReset: true })
+        body: JSON.stringify({ isReset: true, userId: teacherUserId, token: teacherToken })
       }).then(r => r.json()).then(res => {
         if (this.cloudSyncEngine) {
           this.cloudSyncEngine.groupId = groupId;
