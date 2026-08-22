@@ -5865,9 +5865,15 @@
     if (QuillClass && YClass && WsProviderClass && QuillBindingClass && !isReadonly) {
       try {
         if (!editor.classList.contains('ql-container')) {
+          if (window.QuillCursors) {
+            QuillClass.register('modules/cursors', window.QuillCursors, true);
+          }
           quillInstance = new QuillClass(editor, {
             theme: 'snow',
-            modules: { toolbar: false }
+            modules: {
+              toolbar: false,
+              cursors: window.QuillCursors ? true : false
+            }
           });
 
           const protocol = (window.location.protocol === 'https:' ? 'wss:' : 'ws:');
@@ -5877,7 +5883,10 @@
           const taskId = (window.app && window.app.state && window.app.state.activeTaskId) || 'task_default';
           const wsHost = window.location.hostname || 'localhost';
           const isDevServer8088 = (window.location.port === '8088');
-          const wsUrl = (window.location.protocol === 'https:' || isDevServer8088) ? `${protocol}//${host}/ws` : `${protocol}//${wsHost}:1234`;
+          // 自动探测最佳 WebSocket 路由 (优先复用 80/443 的反代 /ws，零额外端口与安全组隐患)
+          const wsUrl = (window.location.protocol === 'https:' || isDevServer8088 || window.location.port === '80' || window.location.port === '')
+            ? `${protocol}//${host}/ws`
+            : `${protocol}//${wsHost}:1234`;
           const roomName = `jizhi_yjs_${taskId}_${groupId}`;
 
           const ydoc = new YClass.Doc();
