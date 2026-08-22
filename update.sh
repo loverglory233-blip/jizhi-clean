@@ -55,6 +55,7 @@ dl package.json
 dl api/chat_api.php
 dl api/coze_prompt.php
 dl api/db_init.php
+dl api/stream.php
 dl src/constants.js
 dl src/utils.js
 dl src/agents.js
