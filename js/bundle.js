@@ -1587,12 +1587,12 @@
     initSSE() {
       this.updateScopeKeys();
       if (this.sse) { try { this.sse.close(); } catch (e) {} }
-      // 动态同源协议与主机名，杜绝任何硬编码公网 IP 导致跨域或混合内容阻断
-      const isHttps = (window.location.protocol === 'https:');
-      const protocol = isHttps ? 'https:' : 'http:';
+      // 🛡️ 生产环境 (HTTPS / PHP) 直接使用 WebSocket 与智能轮询，跳过开发环境独有的 SSE 接口
+      if (window.location.protocol === 'https:' || (window.location.port !== '8088' && !window.location.port)) {
+        return;
+      }
       const host = window.location.hostname || 'localhost';
-      const port = window.location.port ? `:${window.location.port}` : (isHttps ? '' : ':8088');
-      const sseUrl = `${protocol}//${host}${port}/api/stream?taskId=${this.taskId}&groupId=${this.groupId}`;
+      const sseUrl = `http://${host}:8088/api/stream?taskId=${this.taskId}&groupId=${this.groupId}`;
       try {
         this.sse = new EventSource(sseUrl);
         this.sse.onmessage = (event) => {
