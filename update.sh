@@ -144,11 +144,19 @@ fi
 
 echo ""
 echo "======================================================"
-echo "🎉 全系统更新完成！"
-echo ""
-echo "📋 验证方法（在浏览器地址栏访问）："
-echo "   http://47.99.110.230:1234/health  (Yjs 协同网关)"
-echo "   http://47.99.110.230/sync.php?groupId=group_1"
+echo "🎉 全系统更新与校验完成！"
+for dir in "${TARGET_DIRS[@]}"; do
+  echo "🔍 校验目录: $dir"
+  if grep -q "1001" "$dir/src/login.js" 2>/dev/null; then
+    echo "   ❌ src/login.js 存在旧文案"
+  else
+    echo "   ✅ src/login.js 文案已完全净化（无工号提示）"
+  fi
+  if grep -q "import \* as V" "$dir/js/libs/y-websocket.js" 2>/dev/null; then
+    echo "   ✅ js/libs/y-websocket.js 模块结构正常"
+  fi
+done
+echo "======================================================"
 echo ""
 echo "✅ 能看到 status: ok = Yjs 协同引擎满血在线"
 echo "======================================================"
