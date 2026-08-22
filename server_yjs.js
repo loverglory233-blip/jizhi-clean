@@ -79,12 +79,26 @@ function loadRoomFromDisk(roomName) {
   return updates;
 }
 
+let setupWSConnection = null;
+try {
+  setupWSConnection = require('y-websocket/bin/utils').setupWSConnection;
+  console.log('✅ [Yjs Core] 已加载官方标准 y-websocket setupWSConnection 权威连接调度器');
+} catch (e) {
+  console.log('ℹ️ [Yjs Core] 使用内置自适应 Yjs 二进制帧协同调度器 (可运行 npm i y-websocket 激活官方原装驱动)');
+}
+
 wss.on('connection', (ws, req) => {
   // 解析 room 标识 (从 URL query 或 path 获取)
   const urlObj = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
   let roomName = urlObj.searchParams.get('room') || urlObj.pathname.replace(/^\/+/, '').split('?')[0];
   if (!roomName || roomName === 'ws' || roomName === '') {
     roomName = 'jizhi_default_room';
+  }
+
+  // 🚀 优先使用官方原版 setupWSConnection (权威状态向量、Awareness、GC、SyncStep2 算法)
+  if (typeof setupWSConnection === 'function') {
+    setupWSConnection(ws, req, { docName: roomName, gc: true });
+    return;
   }
 
   ws.roomName = roomName;
