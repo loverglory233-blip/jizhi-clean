@@ -26,7 +26,12 @@ require_once __DIR__ . '/api/db_init.php';
 
 $pdo = getDbConnection();
 if ($pdo) {
-    initDatabaseTables();
+    // 🛡️ 高并发优化：使用文件标志位避免每次高频 HTTP 轮询执行 DDL 建表，彻底消除 MySQL 元数据锁 (MDL) 竞争
+    $lockFile = sys_get_temp_dir() . '/jizhi_db_tables_inited.lock';
+    if (!file_exists($lockFile)) {
+        initDatabaseTables();
+        @touch($lockFile);
+    }
 }
 
 $groupId = isset($_GET['groupId']) ? preg_replace('/[^a-zA-Z0-9_-]/', '', $_GET['groupId']) : 'group_1';
@@ -572,40 +577,52 @@ if ($action === 'reset_group' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $nowMs = round(microtime(true) * 1000);
     $newResetSeq = 1;
     if ($pdo) {
-        // 读取并递增 reset_seq
-        $stmtGetResetSeq = $pdo->prepare("SELECT meta_value FROM global_meta WHERE meta_key = :k");
-        $stmtGetResetSeq->execute([':k' => 'reset_seq_' . $scopeKey]);
-        $resetSeqRow = $stmtGetResetSeq->fetch();
-        $serverResetSeq = $resetSeqRow ? intval($resetSeqRow['meta_value']) : 0;
-        $newResetSeq = $serverResetSeq + 1;
+        try {
+            $pdo->beginTransaction();
 
-        $stmtSetResetSeq = $pdo->prepare("INSERT INTO global_meta (meta_key, meta_value) VALUES (:k, :v) ON DUPLICATE KEY UPDATE meta_value = :v2");
-        $stmtSetResetSeq->execute([':k' => 'reset_seq_' . $scopeKey, ':v' => $newResetSeq, ':v2' => $newResetSeq]);
+            // 读取并递增 reset_seq
+            $stmtGetResetSeq = $pdo->prepare("SELECT meta_value FROM global_meta WHERE meta_key = :k");
+            $stmtGetResetSeq->execute([':k' => 'reset_seq_' . $scopeKey]);
+            $resetSeqRow = $stmtGetResetSeq->fetch();
+            $serverResetSeq = $resetSeqRow ? intval($resetSeqRow['meta_value']) : 0;
+            $newResetSeq = $serverResetSeq + 1;
 
-        // 彻底清空 group_states 表
-        $emptyS1 = json_encode(['proposals' => [], 'votes' => [], 'hasVoted' => [], 'mergedTitle' => '', 'contract' => ['confirmedMembers' => [], 'isConfirmed' => false]], JSON_UNESCAPED_UNICODE);
-        $emptyS2 = json_encode(['unifiedContent' => '', 'meetingSubmissions' => [], 'actionPlan' => null, 'memberContributions' => []], JSON_UNESCAPED_UNICODE);
-        $emptyS3 = json_encode(['proponentAnalysis' => '', 'opponentCritique' => '', 'neutralVerdict' => '', 'feedbackItems' => []], JSON_UNESCAPED_UNICODE);
-        
-        $stmtResetGroup = $pdo->prepare("INSERT INTO group_states (scope_key, task_id, group_id, current_stage, stage1_data, stage2_data, stage3_data, presence_data, is_final_submitted, last_timestamp)
-            VALUES (:sk, :tid, :gid, 'stage1', :s1, :s2, :s3, '[]', 0, :ts)
-            ON DUPLICATE KEY UPDATE current_stage='stage1', stage1_data=:s1b, stage2_data=:s2b, stage3_data=:s3b, presence_data='[]', is_final_submitted=0, last_timestamp=:tsb");
-        $stmtResetGroup->execute([
-            ':sk' => $scopeKey, ':tid' => $taskId, ':gid' => $groupId,
-            ':s1' => $emptyS1, ':s2' => $emptyS2, ':s3' => $emptyS3, ':ts' => $nowMs,
-            ':s1b' => $emptyS1, ':s2b' => $emptyS2, ':s3b' => $emptyS3, ':tsb' => $nowMs
-        ]);
+            $stmtSetResetSeq = $pdo->prepare("INSERT INTO global_meta (meta_key, meta_value) VALUES (:k, :v) ON DUPLICATE KEY UPDATE meta_value = :v2");
+            $stmtSetResetSeq->execute([':k' => 'reset_seq_' . $scopeKey, ':v' => $newResetSeq, ':v2' => $newResetSeq]);
 
-        // 清空 chat_messages 和 chats 快速通道
-        $stmtDelChats = $pdo->prepare("DELETE FROM chat_messages WHERE scope_key = :sk");
-        $stmtDelChats->execute([':sk' => $scopeKey]);
-        $emptyChats = json_encode(['stage1' => [], 'stage2' => [], 'stage3' => []], JSON_UNESCAPED_UNICODE);
-        $stmtClearChatMeta = $pdo->prepare("INSERT INTO global_meta (meta_key, meta_value) VALUES (:k, :v) ON DUPLICATE KEY UPDATE meta_value = :v2");
-        $stmtClearChatMeta->execute([':k' => 'chats_' . $scopeKey, ':v' => $emptyChats, ':v2' => $emptyChats]);
+            // 彻底清空 group_states 表
+            $emptyS1 = json_encode(['proposals' => [], 'votes' => [], 'hasVoted' => [], 'mergedTitle' => '', 'contract' => ['confirmedMembers' => [], 'isConfirmed' => false]], JSON_UNESCAPED_UNICODE);
+            $emptyS2 = json_encode(['unifiedContent' => '', 'meetingSubmissions' => [], 'actionPlan' => null, 'memberContributions' => []], JSON_UNESCAPED_UNICODE);
+            $emptyS3 = json_encode(['proponentAnalysis' => '', 'opponentCritique' => '', 'neutralVerdict' => '', 'feedbackItems' => []], JSON_UNESCAPED_UNICODE);
+            
+            $stmtResetGroup = $pdo->prepare("INSERT INTO group_states (scope_key, task_id, group_id, current_stage, stage1_data, stage2_data, stage3_data, presence_data, is_final_submitted, last_timestamp)
+                VALUES (:sk, :tid, :gid, 'stage1', :s1, :s2, :s3, '[]', 0, :ts)
+                ON DUPLICATE KEY UPDATE current_stage='stage1', stage1_data=:s1b, stage2_data=:s2b, stage3_data=:s3b, presence_data='[]', is_final_submitted=0, last_timestamp=:tsb");
+            $stmtResetGroup->execute([
+                ':sk' => $scopeKey, ':tid' => $taskId, ':gid' => $groupId,
+                ':s1' => $emptyS1, ':s2' => $emptyS2, ':s3' => $emptyS3, ':ts' => $nowMs,
+                ':s1b' => $emptyS1, ':s2b' => $emptyS2, ':s3b' => $emptyS3, ':tsb' => $nowMs
+            ]);
 
-        // 更新全局变更信号
-        $stmtSignal = $pdo->prepare("INSERT INTO global_meta (meta_key, meta_value) VALUES ('meta_updated_at', :v) ON DUPLICATE KEY UPDATE meta_value = :v2");
-        $stmtSignal->execute([':v' => $nowMs, ':v2' => $nowMs]);
+            // 清空 chat_messages 和 chats 快速通道
+            $stmtDelChats = $pdo->prepare("DELETE FROM chat_messages WHERE scope_key = :sk");
+            $stmtDelChats->execute([':sk' => $scopeKey]);
+            $emptyChats = json_encode(['stage1' => [], 'stage2' => [], 'stage3' => []], JSON_UNESCAPED_UNICODE);
+            $stmtClearChatMeta = $pdo->prepare("INSERT INTO global_meta (meta_key, meta_value) VALUES (:k, :v) ON DUPLICATE KEY UPDATE meta_value = :v2");
+            $stmtClearChatMeta->execute([':k' => 'chats_' . $scopeKey, ':v' => $emptyChats, ':v2' => $emptyChats]);
+
+            // 更新全局变更信号
+            $stmtSignal = $pdo->prepare("INSERT INTO global_meta (meta_key, meta_value) VALUES ('meta_updated_at', :v) ON DUPLICATE KEY UPDATE meta_value = :v2");
+            $stmtSignal->execute([':v' => $nowMs, ':v2' => $nowMs]);
+
+            $pdo->commit();
+        } catch (Exception $e) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+            exit;
+        }
     }
 
     // 清理本地文件备份

@@ -25,11 +25,10 @@ dl() {
   local f=$1
   local success=0
   local urls=(
+    "https://raw.githubusercontent.com/loverglory233-blip/jizhi-clean/main/$f"
+    "https://cdn.jsdelivr.net/gh/loverglory233-blip/jizhi-clean@main/$f"
     "https://ghfast.top/https://raw.githubusercontent.com/loverglory233-blip/jizhi-clean/main/$f"
     "https://ghproxy.net/https://raw.githubusercontent.com/loverglory233-blip/jizhi-clean/main/$f"
-    "https://raw.gitmirror.com/loverglory233-blip/jizhi-clean/main/$f"
-    "https://cdn.jsdelivr.net/gh/loverglory233-blip/jizhi-clean@main/$f"
-    "https://raw.githubusercontent.com/loverglory233-blip/jizhi-clean/main/$f"
   )
   for u in "${urls[@]}"; do
     curl -s -f -L --connect-timeout 2 --max-time 4 "$u" -o "$TMP/$f" 2>/dev/null
@@ -40,7 +39,7 @@ dl() {
   done
   if [ $success -eq 0 ]; then
     echo "⚠️ 正在重试下载 $f ..."
-    curl -s -L --connect-timeout 3 --max-time 5 "https://raw.gitmirror.com/loverglory233-blip/jizhi-clean/main/$f" -o "$TMP/$f" 2>/dev/null
+    curl -s -L --connect-timeout 3 --max-time 5 "https://ghfast.top/https://raw.githubusercontent.com/loverglory233-blip/jizhi-clean/main/$f" -o "$TMP/$f" 2>/dev/null
   fi
 }
 
