@@ -680,6 +680,40 @@
       }
       return cached;
     }
+    async loginAsync(accountInput, password) {
+      const query = (accountInput || '').trim();
+      const pwd = (password || '').trim();
+
+      if (!query) return { success: false, message: '❌ 请输入工号或学号' };
+      if (!pwd) return { success: false, message: '❌ 请输入登录密码' };
+
+      try {
+        const response = await fetch('sync.php?action=login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ account: query, password: pwd })
+        });
+        const data = await response.json();
+        if (data && data.success && data.user) {
+          const user = data.user;
+          user.token = data.token;
+          user.activeSessionId = data.token;
+          sessionStorage.setItem(STORAGE_KEY_USER, JSON.stringify(user));
+          localStorage.setItem(STORAGE_KEY_USER, JSON.stringify(user));
+          if (window.app) {
+            window.app.state.studentViewMode = 'task_list';
+            if (window.app.cloudSyncEngine) window.app.cloudSyncEngine.pushSnapshot();
+          }
+          return { success: true, user };
+        } else {
+          return { success: false, message: data.message || '❌ 账号或密码错误' };
+        }
+      } catch (err) {
+        // 离线单机沙盒降级
+        return this.login(accountInput, password);
+      }
+    }
+
     login(accountInput, password) {
       const users = this.getUsers();
       const query = (accountInput || '').trim().toLowerCase();
@@ -721,6 +755,7 @@
       // 🚀 一个账号同时只能一个人登录：生成唯一的 activeSessionId 并推送到服务端会话锁
       const newSessionId = 'sess_' + Date.now() + '_' + Math.random().toString(36).substring(2, 8);
       user.activeSessionId = newSessionId;
+      user.token = newSessionId;
       users[userIndex] = user;
       localStorage.setItem(STORAGE_KEY_USERS_DB, JSON.stringify(users));
 
@@ -2505,11 +2540,25 @@
     const passwordInput = container.querySelector('#login-password');
     const errorMsg = container.querySelector('#login-error-msg');
 
-    form.addEventListener('submit', (e) => {
+    form.addEventListener('submit', async (e) => {
       e.preventDefault();
-      const res = authManager.login(accountInput.value, passwordInput.value);
-      if (res.success) onLoginSuccess();
-      else { errorMsg.innerText = res.message; errorMsg.style.display = 'block'; }
+      errorMsg.style.display = 'none';
+      const submitBtn = form.querySelector('button[type="submit"]');
+      if (submitBtn) { submitBtn.disabled = true; submitBtn.innerText = '⏳ 正在验证凭证...'; }
+      try {
+        const res = await (authManager.loginAsync ? authManager.loginAsync(accountInput.value, passwordInput.value) : authManager.login(accountInput.value, passwordInput.value));
+        if (res && res.success) {
+          onLoginSuccess();
+        } else {
+          errorMsg.innerText = (res && res.message) ? res.message : '❌ 账号或密码错误';
+          errorMsg.style.display = 'block';
+        }
+      } catch (err) {
+        errorMsg.innerText = '❌ 登录请求失败，请检查网络连接';
+        errorMsg.style.display = 'block';
+      } finally {
+        if (submitBtn) { submitBtn.disabled = false; submitBtn.innerText = '🚀 登录集智平台'; }
+      }
     });
   }
 
@@ -6552,9 +6601,9 @@
                 return `
                   <div class="proposal-card ${isThisVoted ? 'voted' : ''}" style="display:flex; flex-direction:column;">
                     <div class="proposal-header">
-                      <div class="proposal-title">💡 ${p.title}</div>
+                      <div class="proposal-title">💡 ${escapeHtml(p.title)}</div>
                     </div>
-                    <div style="font-size:12px; color:#64748b; margin-bottom:8px;">提出人: <b style="color:#0f172a;">${authorName}</b></div>
+                    <div style="font-size:12px; color:#64748b; margin-bottom:8px;">提出人: <b style="color:#0f172a;">${escapeHtml(authorName)}</b></div>
                     <button class="${btnClass}" data-id="${p.id}" ${isContractLocked || userHasVoted ? 'disabled' : ''} style="width:100%; margin-top:auto;">${btnText}</button>
                   </div>
                 `;
@@ -7345,25 +7394,26 @@
 
       let formattedContent = '';
       if ((msg.text || '').startsWith('[IMG_DATA]:')) {
-        const imgSrc = msg.text.replace('[IMG_DATA]:', '');
+        const imgSrc = sanitizeUrl(msg.text.replace('[IMG_DATA]:', ''));
         formattedContent = `
           <div style="margin-top:2px;">
             <img src="${imgSrc}" style="max-width:240px; max-height:180px; border-radius:8px; border:1px solid #cbd5e1; cursor:pointer; box-shadow:0 2px 8px rgba(0,0,0,0.1); transition:transform 0.2s;" onclick="window.open('${imgSrc}')" title="点击查看原图">
           </div>
         `;
       } else {
-        let formattedText = msg.text || '';
-        formattedText = formattedText.replace(/(@[^\s@]+)/g, '<span class="mention-tag">$1</span>');
+        let rawText = msg.text || '';
+        let safeText = escapeHtml(rawText);
+        let formattedText = safeText.replace(/(@[^\s@]+)/g, '<span class="mention-tag">$1</span>');
         formattedContent = `<div class="msg-bubble">${formattedText}</div>`;
       }
 
       return `
         <div class="chat-message ${isMe ? 'me' : 'other'}">
-          <div class="msg-avatar" style="background:${color}22; border:1px solid ${color}; color:${color};">${avatar}</div>
+          <div class="msg-avatar" style="background:${color}22; border:1px solid ${color}; color:${color};">${escapeHtml(avatar)}</div>
           <div class="msg-body">
             <div class="msg-meta">
-              <span class="msg-sender" style="color:${color};">${name} ${isMe ? '(我)' : ''}</span>
-              <span style="font-size:10px; color:#64748b; margin-left:6px;">${msg.timestamp || ''}</span>
+              <span class="msg-sender" style="color:${color};">${escapeHtml(name)} ${isMe ? '(我)' : ''}</span>
+              <span style="font-size:10px; color:#64748b; margin-left:6px;">${escapeHtml(msg.timestamp || '')}</span>
             </div>
             ${formattedContent}
           </div>

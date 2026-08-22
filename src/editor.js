@@ -1037,9 +1037,9 @@ function renderStage1Canvas(canvas, state, handlers) {
               return `
                 <div class="proposal-card ${isThisVoted ? 'voted' : ''}" style="display:flex; flex-direction:column;">
                   <div class="proposal-header">
-                    <div class="proposal-title">💡 ${p.title}</div>
+                    <div class="proposal-title">💡 ${escapeHtml(p.title)}</div>
                   </div>
-                  <div style="font-size:12px; color:#64748b; margin-bottom:8px;">提出人: <b style="color:#0f172a;">${authorName}</b></div>
+                  <div style="font-size:12px; color:#64748b; margin-bottom:8px;">提出人: <b style="color:#0f172a;">${escapeHtml(authorName)}</b></div>
                   <button class="${btnClass}" data-id="${p.id}" ${isContractLocked || userHasVoted ? 'disabled' : ''} style="width:100%; margin-top:auto;">${btnText}</button>
                 </div>
               `;
@@ -1830,25 +1830,26 @@ export function renderChat(state) {
 
     let formattedContent = '';
     if ((msg.text || '').startsWith('[IMG_DATA]:')) {
-      const imgSrc = msg.text.replace('[IMG_DATA]:', '');
+      const imgSrc = sanitizeUrl(msg.text.replace('[IMG_DATA]:', ''));
       formattedContent = `
         <div style="margin-top:2px;">
           <img src="${imgSrc}" style="max-width:240px; max-height:180px; border-radius:8px; border:1px solid #cbd5e1; cursor:pointer; box-shadow:0 2px 8px rgba(0,0,0,0.1); transition:transform 0.2s;" onclick="window.open('${imgSrc}')" title="点击查看原图">
         </div>
       `;
     } else {
-      let formattedText = msg.text || '';
-      formattedText = formattedText.replace(/(@[^\s@]+)/g, '<span class="mention-tag">$1</span>');
+      let rawText = msg.text || '';
+      let safeText = escapeHtml(rawText);
+      let formattedText = safeText.replace(/(@[^\s@]+)/g, '<span class="mention-tag">$1</span>');
       formattedContent = `<div class="msg-bubble">${formattedText}</div>`;
     }
 
     return `
       <div class="chat-message ${isMe ? 'me' : 'other'}">
-        <div class="msg-avatar" style="background:${color}22; border:1px solid ${color}; color:${color};">${avatar}</div>
+        <div class="msg-avatar" style="background:${color}22; border:1px solid ${color}; color:${color};">${escapeHtml(avatar)}</div>
         <div class="msg-body">
           <div class="msg-meta">
-            <span class="msg-sender" style="color:${color};">${name} ${isMe ? '(我)' : ''}</span>
-            <span style="font-size:10px; color:#64748b; margin-left:6px;">${msg.timestamp || ''}</span>
+            <span class="msg-sender" style="color:${color};">${escapeHtml(name)} ${isMe ? '(我)' : ''}</span>
+            <span style="font-size:10px; color:#64748b; margin-left:6px;">${escapeHtml(msg.timestamp || '')}</span>
           </div>
           ${formattedContent}
         </div>
