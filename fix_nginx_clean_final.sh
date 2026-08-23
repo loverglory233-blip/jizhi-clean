@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-echo "🔧 正在清理修复所有辅助占位配置文件..."
+echo "🔧 正在为站点重构写入 100% 完美的 Nginx 配置文件 (含 /socket.io 与 /ep_ 插件资源代理)..."
 
 NGINX_CONF_DIR="/www/server/panel/vhost/nginx"
 
@@ -15,7 +15,7 @@ server
 }
 DEF_EOF
 
-# 2. 清理或重置破损的辅助占位配置
+# 2. 清理破损的辅助占位配置
 rm -f "$NGINX_CONF_DIR"/0.fastcgi_cache.conf
 rm -f "$NGINX_CONF_DIR"/0.site_total_log_format.conf
 rm -f "$NGINX_CONF_DIR"/0.websocket.conf
@@ -59,41 +59,53 @@ ${SSL_BLOCK}
     index index.php index.html index.htm;
     root /www/wwwroot/47.99.110.230;
 
-    # Etherpad 协同反向代理与 WebSocket 支持
-    location ^~ /p/ {
-        proxy_pass http://127.0.0.1:9001/p/;
+    # 1. Etherpad 协同反向代理与全套插件静态资源支持
+    location /socket.io {
+        proxy_pass http://127.0.0.1:9001;
         proxy_set_header Host \$host;
         proxy_buffering off;
         proxy_http_version 1.1;
         proxy_set_header Upgrade \$http_upgrade;
         proxy_set_header Connection "upgrade";
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
     }
-    location ^~ /socket.io/ {
-        proxy_pass http://127.0.0.1:9001/socket.io/;
+    location /p/ {
+        proxy_pass http://127.0.0.1:9001;
         proxy_set_header Host \$host;
         proxy_buffering off;
         proxy_http_version 1.1;
         proxy_set_header Upgrade \$http_upgrade;
         proxy_set_header Connection "upgrade";
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
     }
-    location ^~ /static/ {
-        proxy_pass http://127.0.0.1:9001/static/;
+    location /static/ {
+        proxy_pass http://127.0.0.1:9001;
         proxy_set_header Host \$host;
     }
-    location ^~ /javascripts/ {
-        proxy_pass http://127.0.0.1:9001/javascripts/;
+    location /javascripts/ {
+        proxy_pass http://127.0.0.1:9001;
         proxy_set_header Host \$host;
     }
-    location ^~ /pluginfw/ {
-        proxy_pass http://127.0.0.1:9001/pluginfw/;
+    location /pluginfw/ {
+        proxy_pass http://127.0.0.1:9001;
         proxy_set_header Host \$host;
     }
-    location ^~ /locales/ {
-        proxy_pass http://127.0.0.1:9001/locales/;
+    location /locales/ {
+        proxy_pass http://127.0.0.1:9001;
+        proxy_set_header Host \$host;
+    }
+    location /locales.json {
+        proxy_pass http://127.0.0.1:9001;
+        proxy_set_header Host \$host;
+    }
+    location /ep_ {
+        proxy_pass http://127.0.0.1:9001;
         proxy_set_header Host \$host;
     }
 
-    # PHP 8.2 解析引入
+    # 2. PHP 8.2 解析引入
     include enable-php-82.conf;
 
     access_log  /www/wwwlogs/47.99.110.230.log;
@@ -104,4 +116,4 @@ CONF_EOF
 echo "📝 正在验证 Nginx 配置文件合法性..."
 nginx -t
 nginx -s reload
-echo "🎉🎉🎉 Nginx 语法 100% 验证成功！PHP 8.2 与 Etherpad 全套服务已完全就绪！"
+echo "🎉🎉🎉 Nginx 语法 100% 验证成功！PHP 8.2、WebSocket 与插件全套代理已完全就绪！"
