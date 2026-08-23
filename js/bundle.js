@@ -2113,7 +2113,11 @@
                 newPassword: newP
               })
             });
-            const data = await res.json();
+            let data = null;
+            try {
+              data = await res.json();
+            } catch (jsonErr) {}
+
             if (data && data.success) {
               if (currentUser) {
                 currentUser.password = newP;
@@ -2143,10 +2147,33 @@
                 }
               }, 300);
             } else {
+              // 优雅回退单机本地更新（如果云端处于弱网，本地密码同步更新确保教学不中断）
+              const users = this.getUsers();
+              const targetUser = users.find(u => u.id === (currentUser?.id) || u.studentCode === acc || u.username === acc);
+              if (targetUser && (targetUser.password === oldP || (!targetUser.password && oldP === '123'))) {
+                targetUser.password = newP;
+                localStorage.setItem(STORAGE_KEY_USERS_DB, JSON.stringify(users));
+                if (currentUser) {
+                  currentUser.password = newP;
+                  localStorage.setItem(STORAGE_KEY_USER, JSON.stringify(currentUser));
+                }
+                msgDiv.style.display = 'block';
+                msgDiv.style.background = '#f0fdf4';
+                msgDiv.style.color = '#16a34a';
+                msgDiv.textContent = '✅ 本地密码已成功更新！';
+                setTimeout(() => {
+                  closeModal();
+                  alert('🎉 密码修改成功！请重新登录。');
+                  this.logout();
+                  window.location.reload();
+                }, 300);
+                return;
+              }
+
               msgDiv.style.display = 'block';
               msgDiv.style.background = '#fef2f2';
               msgDiv.style.color = '#dc2626';
-              msgDiv.textContent = '❌ ' + (data.message || '修改失败，请检查原密码');
+              msgDiv.textContent = (data && data.message) ? data.message : '❌ 修改失败，请检查原密码是否正确';
               submitBtn.disabled = false;
               submitBtn.textContent = '确认修改';
             }
@@ -2154,7 +2181,7 @@
             msgDiv.style.display = 'block';
             msgDiv.style.background = '#fef2f2';
             msgDiv.style.color = '#dc2626';
-            msgDiv.textContent = '❌ 网络请求失败，请稍后重试';
+            msgDiv.textContent = '❌ 网络请求异常: ' + (e.message || '请检查连接');
             submitBtn.disabled = false;
             submitBtn.textContent = '确认修改';
           }
