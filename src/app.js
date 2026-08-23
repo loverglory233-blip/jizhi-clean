@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260823_v25";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired } from "./utils.js?v=20260823_v25";
-import { callCozeAgentAPI } from "./agents.js?v=20260823_v25";
-import { AuthManager } from "./auth.js?v=20260823_v25";
-import { CloudSyncEngine } from "./sync.js?v=20260823_v25";
-import { renderLoginView } from "./login.js?v=20260823_v25";
-import { renderTeacherPortal } from "./teacher.js?v=20260823_v25";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260823_v25";
+} from "./constants.js?v=20260823_v26";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired } from "./utils.js?v=20260823_v26";
+import { callCozeAgentAPI } from "./agents.js?v=20260823_v26";
+import { AuthManager } from "./auth.js?v=20260823_v26";
+import { CloudSyncEngine } from "./sync.js?v=20260823_v26";
+import { renderLoginView } from "./login.js?v=20260823_v26";
+import { renderTeacherPortal } from "./teacher.js?v=20260823_v26";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260823_v26";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260823_v25";
+} from "./editor.js?v=20260823_v26";
 
 // Make renderChat available on window for sync callbacks
 if (typeof window !== "undefined") {
@@ -1196,24 +1196,45 @@ export class App {
       try { await this.authManager.pullGlobalMeta(); } catch (e) {}
     }
     const currentUser = this.authManager.getCurrentUser();
+    if (!currentUser || currentUser.isTeacher || currentUser.role === 'teacher') return;
     const effectiveClassId = this.state.activeStudentClassId || currentUser?.classId || 'class_101';
     const activeGroupObj = this.authManager.getStudentActiveGroup(currentUser, effectiveClassId);
     const groupId = activeGroupObj.id || (currentUser && currentUser.groupId ? currentUser.groupId : 'group_1');
     const myClassIds = new Set([effectiveClassId, currentUser?.classId, ...(currentUser?.classIds || [])].filter(Boolean));
     const activeTaskId = (this.state && this.state.activeTaskId) ? this.state.activeTaskId : 'task_default';
+    const allTasks = this.authManager.getTasks();
+
+    // 🛡️ 已经截止的任务通知不论看没看都不要再弹窗骚扰学生！
+    const currentTask = allTasks.find(t => t.id === activeTaskId);
+    if (currentTask && isTaskExpired(currentTask)) {
+      return;
+    }
+
     const allAnns = this.authManager.getAnnouncements();
     
     const isAnnRead = (a) => {
-      if (!a.readStatus) return false;
-      if (currentUser && currentUser.id && a.readStatus[currentUser.id]) return true;
-      if (currentUser && currentUser.studentCode && a.readStatus[currentUser.studentCode]) return true;
-      if (currentUser && currentUser.username && a.readStatus[currentUser.username]) return true;
+      if (!a) return false;
+      if (currentUser) {
+        if (currentUser.id && a.readStatus && a.readStatus[currentUser.id]) return true;
+        if (currentUser.studentCode && a.readStatus && a.readStatus[currentUser.studentCode]) return true;
+        if (currentUser.username && a.readStatus && a.readStatus[currentUser.username]) return true;
+        if (currentUser.name && a.readStatus && a.readStatus[currentUser.name]) return true;
+        if (Array.isArray(a.confirmedMembers)) {
+          if (a.confirmedMembers.some(m => m.id === currentUser.id || m.studentCode === currentUser.studentCode || (currentUser.name && m.name === currentUser.name))) return true;
+        }
+      }
+      if (groupId && a.readGroupStatus && a.readGroupStatus[groupId]) return true;
+      if (groupId && a.readStatus && a.readStatus[groupId]) return true;
       return false;
     };
 
-    // 过滤出本班/本组/本任务且未读的通知，严格按创建时间从新到旧排序
+    // 过滤出本班/本组/本任务且未读的通知，且排除已截止任务的通知
     const unreadList = allAnns
       .filter(a => {
+        if (a.taskId && a.taskId !== 'task_all') {
+          const tObj = allTasks.find(t => t.id === a.taskId);
+          if (tObj && isTaskExpired(tObj)) return false;
+        }
         const matchClass = !a.classId || a.classId === 'all' || myClassIds.has(a.classId);
         const matchGroup = !a.targetGroupId || a.targetGroupId === 'all' || a.targetGroupId === groupId ||
           (Array.isArray(a.targetGroupIds) && (a.targetGroupIds.includes('all') || a.targetGroupIds.includes(groupId)));
@@ -1427,10 +1448,17 @@ export class App {
       this.authManager.markAnnouncementRead(selectedAnn.id, groupId);
       closeModal();
 
-      // 2. 重新获取严格属于【当前班级 + 当前任务 + 当前小组】的未读通知列表（从新到旧），绝不跨任务/跨班级窜入
+      const allTasks = this.authManager.getTasks();
+
+      // 2. 重新获取严格属于【当前班级 + 当前任务 + 当前小组】的未读通知列表（从新到旧，排除刚刚已确认的本条与已截止任务）
       const updatedAllAnns = this.authManager.getAnnouncements();
       const nextUnreads = updatedAllAnns
         .filter(a => {
+          if (a.id === selectedAnn.id) return false;
+          if (a.taskId && a.taskId !== 'task_all') {
+            const tObj = allTasks.find(t => t.id === a.taskId);
+            if (tObj && isTaskExpired(tObj)) return false;
+          }
           const matchClass = !a.classId || a.classId === 'all' || a.classId === effectiveClassId;
           const matchGroup = !a.targetGroupId || a.targetGroupId === 'all' || a.targetGroupId === groupId ||
             (Array.isArray(a.targetGroupIds) && (a.targetGroupIds.includes('all') || a.targetGroupIds.includes(groupId)));
@@ -1443,6 +1471,9 @@ export class App {
       if (nextUnreads.length > 0) {
         setTimeout(() => this.showAnnouncementModal(nextUnreads[0], true), 200);
       } else {
+        if (window.app && window.app.showNotification) {
+          window.app.showNotification('🎉 通知已确认已读');
+        }
         this.renderStudentWorkspace();
       }
     });

@@ -5863,10 +5863,46 @@
     const tasks = authManager.getTasks();
     const announcements = authManager.getAnnouncements();
 
-    // 🏫 1. 动态获取系统中所有可用班级列表
-    const displayClasses = classes && classes.length > 0 ? classes : [{ id: 'class_101', name: '教学班级', groups: [] }];
+    // 🏫 1. 严格按学生实际所属/修读的班级进行过滤（不在2班的学生绝不显示2班）
+    const myClasses = (classes || []).filter(c => {
+      if (currentUser?.classId && c.id === currentUser.classId) return true;
+      if (Array.isArray(currentUser?.classIds) && currentUser.classIds.includes(c.id)) return true;
+      if (Array.isArray(c.groups)) {
+        for (const g of c.groups) {
+          if (Array.isArray(g.members)) {
+            const found = g.members.some(m => {
+              const mId = typeof m === 'object' ? (m.id || m.studentCode || m.username || m.name) : m;
+              const mCode = typeof m === 'object' ? (m.studentCode || m.code) : '';
+              const mName = typeof m === 'object' ? m.name : '';
+              return mId === currentUser?.id || mId === currentUser?.studentCode || mId === currentUser?.username ||
+                     mCode === currentUser?.studentCode || (mName && mName === currentUser?.name);
+            });
+            if (found) return true;
+          }
+        }
+      }
+      if (Array.isArray(c.students)) {
+        const inStudents = c.students.some(s => {
+          const sId = typeof s === 'object' ? (s.id || s.studentCode || s.username || s.name) : s;
+          const sCode = typeof s === 'object' ? (s.studentCode || s.code) : '';
+          const sName = typeof s === 'object' ? s.name : '';
+          return sId === currentUser?.id || sId === currentUser?.studentCode || sId === currentUser?.username ||
+                 sCode === currentUser?.studentCode || (sName && sName === currentUser?.name);
+        });
+        if (inStudents) return true;
+      }
+      return false;
+    });
 
-    const activeUserClassId = state.activeStudentClassId || (currentUser?.classId || displayClasses[0].id);
+    const displayClasses = myClasses.length > 0 ? myClasses : (
+      (classes || []).filter(c => c.id === (currentUser?.classId || 'class_101')).length > 0
+        ? (classes || []).filter(c => c.id === (currentUser?.classId || 'class_101'))
+        : [(classes && classes[0]) || { id: 'class_101', name: '教学班级', groups: [] }]
+    );
+
+    const activeUserClassId = state.activeStudentClassId && displayClasses.some(c => c.id === state.activeStudentClassId)
+      ? state.activeStudentClassId
+      : (displayClasses.find(c => c.id === currentUser?.classId)?.id || displayClasses[0].id);
     const userClass = displayClasses.find(c => c.id === activeUserClassId) || displayClasses[0];
     state.activeStudentClassId = userClass.id;
 
@@ -9234,24 +9270,45 @@
         try { await this.authManager.pullGlobalMeta(); } catch (e) {}
       }
       const currentUser = this.authManager.getCurrentUser();
+      if (!currentUser || currentUser.isTeacher || currentUser.role === 'teacher') return;
       const effectiveClassId = this.state.activeStudentClassId || currentUser?.classId || 'class_101';
       const activeGroupObj = this.authManager.getStudentActiveGroup(currentUser, effectiveClassId);
       const groupId = activeGroupObj.id || (currentUser && currentUser.groupId ? currentUser.groupId : 'group_1');
       const myClassIds = new Set([effectiveClassId, currentUser?.classId, ...(currentUser?.classIds || [])].filter(Boolean));
       const activeTaskId = (this.state && this.state.activeTaskId) ? this.state.activeTaskId : 'task_default';
+      const allTasks = this.authManager.getTasks();
+
+      // 🛡️ 已经截止的任务通知不论看没看都不要再弹窗骚扰学生！
+      const currentTask = allTasks.find(t => t.id === activeTaskId);
+      if (currentTask && isTaskExpired(currentTask)) {
+        return;
+      }
+
       const allAnns = this.authManager.getAnnouncements();
 
       const isAnnRead = (a) => {
-        if (!a.readStatus) return false;
-        if (currentUser && currentUser.id && a.readStatus[currentUser.id]) return true;
-        if (currentUser && currentUser.studentCode && a.readStatus[currentUser.studentCode]) return true;
-        if (currentUser && currentUser.username && a.readStatus[currentUser.username]) return true;
+        if (!a) return false;
+        if (currentUser) {
+          if (currentUser.id && a.readStatus && a.readStatus[currentUser.id]) return true;
+          if (currentUser.studentCode && a.readStatus && a.readStatus[currentUser.studentCode]) return true;
+          if (currentUser.username && a.readStatus && a.readStatus[currentUser.username]) return true;
+          if (currentUser.name && a.readStatus && a.readStatus[currentUser.name]) return true;
+          if (Array.isArray(a.confirmedMembers)) {
+            if (a.confirmedMembers.some(m => m.id === currentUser.id || m.studentCode === currentUser.studentCode || (currentUser.name && m.name === currentUser.name))) return true;
+          }
+        }
+        if (groupId && a.readGroupStatus && a.readGroupStatus[groupId]) return true;
+        if (groupId && a.readStatus && a.readStatus[groupId]) return true;
         return false;
       };
 
-      // 过滤出本班/本组/本任务且未读的通知，严格按创建时间从新到旧排序
+      // 过滤出本班/本组/本任务且未读的通知，且排除已截止任务的通知
       const unreadList = allAnns
         .filter(a => {
+          if (a.taskId && a.taskId !== 'task_all') {
+            const tObj = allTasks.find(t => t.id === a.taskId);
+            if (tObj && isTaskExpired(tObj)) return false;
+          }
           const matchClass = !a.classId || a.classId === 'all' || myClassIds.has(a.classId);
           const matchGroup = !a.targetGroupId || a.targetGroupId === 'all' || a.targetGroupId === groupId ||
             (Array.isArray(a.targetGroupIds) && (a.targetGroupIds.includes('all') || a.targetGroupIds.includes(groupId)));
@@ -9465,10 +9522,17 @@
         this.authManager.markAnnouncementRead(selectedAnn.id, groupId);
         closeModal();
 
-        // 2. 重新获取严格属于【当前班级 + 当前任务 + 当前小组】的未读通知列表（从新到旧），绝不跨任务/跨班级窜入
+        const allTasks = this.authManager.getTasks();
+
+        // 2. 重新获取严格属于【当前班级 + 当前任务 + 当前小组】的未读通知列表（从新到旧，排除刚刚已确认的本条与已截止任务）
         const updatedAllAnns = this.authManager.getAnnouncements();
         const nextUnreads = updatedAllAnns
           .filter(a => {
+            if (a.id === selectedAnn.id) return false;
+            if (a.taskId && a.taskId !== 'task_all') {
+              const tObj = allTasks.find(t => t.id === a.taskId);
+              if (tObj && isTaskExpired(tObj)) return false;
+            }
             const matchClass = !a.classId || a.classId === 'all' || a.classId === effectiveClassId;
             const matchGroup = !a.targetGroupId || a.targetGroupId === 'all' || a.targetGroupId === groupId ||
               (Array.isArray(a.targetGroupIds) && (a.targetGroupIds.includes('all') || a.targetGroupIds.includes(groupId)));
@@ -9481,6 +9545,9 @@
         if (nextUnreads.length > 0) {
           setTimeout(() => this.showAnnouncementModal(nextUnreads[0], true), 200);
         } else {
+          if (window.app && window.app.showNotification) {
+            window.app.showNotification('🎉 通知已确认已读');
+          }
           this.renderStudentWorkspace();
         }
       });
