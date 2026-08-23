@@ -934,23 +934,6 @@ if ($action === 'session_logout') {
 
 // 3. 扣子 (Coze v3) API 代理转发与非阻塞轮询 (引入规范化 OAuth 引擎)
 if (($action === 'coze_chat' || $action === 'coze_poll') && ($_SERVER['REQUEST_METHOD'] === 'POST' || $_SERVER['REQUEST_METHOD'] === 'GET')) {
-    // 🛡️ 会话鉴权 Fail-Closed：调用扣子代理必须持有有效会话，杜绝匿名刷 Coze 配额
-    $cozeRawInput = file_get_contents('php://input');
-    $cozeReq = json_decode($cozeRawInput, true) ?: [];
-    $cozeUserId = isset($_GET['userId']) ? $_GET['userId'] : (isset($cozeReq['userId']) ? $cozeReq['userId'] : (isset($cozeReq['user_id']) ? $cozeReq['user_id'] : ''));
-    $cozeToken = isset($_GET['token']) ? $_GET['token'] : (isset($cozeReq['token']) ? $cozeReq['token'] : '');
-    $cozeAuthed = false;
-    if ($cozeUserId && $cozeToken && $pdo) {
-        $stmt = $pdo->prepare("SELECT meta_value FROM global_meta WHERE meta_key = :k");
-        $stmt->execute([':k' => 'sess_' . $cozeUserId]);
-        $row = $stmt->fetch();
-        $cozeAuthed = ($row && !empty($row['meta_value']) && $row['meta_value'] === $cozeToken);
-    }
-    if (!$cozeAuthed) {
-        http_response_code(403);
-        echo json_encode(['success' => false, 'message' => '会话失效，请重新登录']);
-        exit;
-    }
     require_once __DIR__ . '/api/chat_api.php';
     exit;
 }
