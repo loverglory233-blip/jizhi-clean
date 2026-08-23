@@ -597,9 +597,12 @@ if ($action === 'change_password' && $_SERVER['REQUEST_METHOD'] === 'POST') {
             $currentDbPwd = trim($user['password'] ?? '123');
             $cleanOld = trim($oldPwd);
             
-            // 🛡️ 全算法无损自适应比对 (Bcrypt / 明文 / MD5 / 默认123)
+            // 🛡️ 全算法无损自适应比对 (Bcrypt / 明文 / MD5 / 默认123 / 或教师1001本人直接放行)
             $oldMatch = false;
-            if (empty($cleanOld) || $cleanOld === '123' || $cleanOld === $currentDbPwd || password_verify($cleanOld, $currentDbPwd) || md5($cleanOld) === $currentDbPwd) {
+            if ($code === '1001') {
+                // 教师本人修改密码 100% 放行支持
+                $oldMatch = true;
+            } else if (empty($cleanOld) || $cleanOld === '123' || $cleanOld === $currentDbPwd || password_verify($cleanOld, $currentDbPwd) || md5($cleanOld) === $currentDbPwd) {
                 $oldMatch = true;
             } else if (password_verify('123', $currentDbPwd) && $cleanOld === '123') {
                 $oldMatch = true;
