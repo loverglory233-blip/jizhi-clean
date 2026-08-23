@@ -2638,12 +2638,13 @@
 
           this.app.state.stage2.unifiedContent = cleanRemoteContent;
           if (editor && !isYjsLive) {
-            const isUserTypingNow = document.activeElement === editor || editor.contains(document.activeElement);
+            const lastKeyPress = window._jizhi_last_keypress_time || 0;
+            const isActivelyTyping = (Date.now() - lastKeyPress) < 1200;
             const qlEditor = editor.querySelector('.ql-editor') || editor;
             const currentLocalHtml = qlEditor.innerHTML.replace(/<span class="remote-cursor-widget"[\s\S]*?<\/span>/gi, '');
 
-            // 🛡️ 跨设备平滑互见：当前用户未打字时，平滑对齐远端组员正文
-            if (!isUserTypingNow && currentLocalHtml.trim() !== cleanRemoteContent.trim()) {
+            // 🛡️ 跨设备平滑互见：只要当前用户超过 1.2 秒未敲击键盘，即刻平滑对齐远端组员正文
+            if (!isActivelyTyping && currentLocalHtml.trim() !== cleanRemoteContent.trim()) {
               if (window._jizhi_quill && window._jizhi_quill.root) {
                 window._jizhi_quill.root.innerHTML = cleanRemoteContent;
               } else {
@@ -7045,84 +7046,32 @@
         }
       }
 
-      // 监听输入法（解决中文拼音输入被切断卡顿问题）与极速广播
-      let debounceTimer = null;
-      let isComposing = false;
+      if (!quillInstance) {
+        // 仅在未载入 Quill 的原生 DOM 模式下作为备用输入监听
+        let debounceTimer = null;
+        let isComposing = false;
 
-      editor.addEventListener('compositionstart', () => {
-        isComposing = true;
-        editor.dataset.isComposing = 'true';
-      });
-
-      const getCleanEditorHtml = () => {
-        const clone = editor.cloneNode(true);
-        clone.querySelectorAll('.remote-cursor-widget').forEach(el => el.remove());
-        return clone.innerHTML;
-      };
-
-      editor.addEventListener('compositionend', () => {
-        isComposing = false;
-        editor.dataset.isComposing = 'false';
-        if (onChangeCallback) onChangeCallback(getCleanEditorHtml());
-      });
-
-      editor.addEventListener('paste', () => {
-        setTimeout(() => {
-          if (onChangeCallback) onChangeCallback(getCleanEditorHtml());
-        }, 30);
-      });
-
-      editor.addEventListener('input', () => {
-        editor.dataset.lastLocalEditTime = String(Date.now());
-        if (isComposing) return; // 正在输入拼音时不打断输入法选词
-        clearTimeout(debounceTimer);
-        debounceTimer = setTimeout(() => {
-          if (!isComposing && onChangeCallback) {
-            onChangeCallback(getCleanEditorHtml());
-          }
-        }, 120);
-      });
-    }
-
-
-
-    if (!isReadonly) {
-      let lastPresenceEmit = 0;
-      const emitPresence = () => {
-        const now = Date.now();
-        if (now - lastPresenceEmit < 120) return;
-        lastPresenceEmit = now;
-
-        const sel = window.getSelection();
-        let nodeIndex = 0;
-        let activeSection = '';
-        let charOffset = 0;
-
-        if (sel && sel.rangeCount > 0) {
-          charOffset = getCaretCharacterOffsetWithin(editor);
-          const actualContainer = editor.querySelector('.ql-editor') || editor;
-          const node = sel.anchorNode;
-          let blockEl = node ? (node.nodeType === 1 ? node : node.parentElement) : null;
-          while (blockEl && blockEl.parentElement !== actualContainer && blockEl !== actualContainer) {
-            blockEl = blockEl.parentElement;
-          }
-          if (blockEl && blockEl.parentElement === actualContainer) {
-            nodeIndex = Array.from(actualContainer.children).indexOf(blockEl);
-            activeSection = (blockEl.innerText || '').trim().slice(0, 14);
-          } else if (blockEl === actualContainer) {
-            nodeIndex = 0;
-            activeSection = (actualContainer.innerText || '').trim().slice(0, 14);
-          }
-        }
-        if (typeof onPresenceCallback === 'function') {
-          onPresenceCallback(nodeIndex, activeSection, charOffset);
-        }
-      };
-
-      editor.addEventListener('keyup', emitPresence);
-      editor.addEventListener('mouseup', emitPresence);
-      editor.addEventListener('focus', emitPresence);
-      editor.addEventListener('input', emitPresence);
+        editor.addEventListener('compositionstart', () => { isComposing = true; });
+        editor.addEventListener('compositionend', () => {
+          isComposing = false;
+          if (onChangeCallback) onChangeCallback(editor.innerHTML);
+        });
+        editor.addEventListener('input', () => {
+          window._jizhi_last_keypress_time = Date.now();
+          if (isComposing) return;
+          clearTimeout(debounceTimer);
+          debounceTimer = setTimeout(() => {
+            if (!isComposing && onChangeCallback) {
+              onChangeCallback(editor.innerHTML);
+            }
+          }, 300);
+        });
+      } else {
+        // 🚀 Quill 模式：极速记录按键时间戳，供短轮询精确对齐
+        editor.addEventListener('keydown', () => {
+          window._jizhi_last_keypress_time = Date.now();
+        }, { passive: true });
+      }
     }
   }
 
