@@ -3605,6 +3605,25 @@
                   </div>
                 </div>
 
+                ${(() => {
+                  const allAlerts = authManager.getTeacherAlerts ? authManager.getTeacherAlerts() : [];
+                  const currentGroupAlert = allAlerts.find(a => (a.groupId === activeMonitorGId || a.groupName === activeMonitorGroup.name) && a.type && a.type.includes('proxy'));
+                  if (currentGroupAlert) {
+                    const stageNames = (currentGroupAlert.stagesList && currentGroupAlert.stagesList.length > 0) ? currentGroupAlert.stagesList.join('、') : (currentGroupAlert.stageLabel || '公约签署');
+                    const absentStr = (currentGroupAlert.absentMembers && currentGroupAlert.absentMembers.length > 0) ? `，代签了缺勤组员【${currentGroupAlert.absentMembers.join('、')}】` : '';
+                    return `
+                      <div style="background:#fffbeb; border:1.5px solid #fde68a; border-left:5px solid #f59e0b; border-radius:12px; padding:12px 18px; font-size:13px; color:#b45309; font-weight:700; display:flex; justify-content:space-between; align-items:center; box-shadow:0 1px 4px rgba(245,158,11,0.08);">
+                        <div style="display:flex; align-items:center; gap:8px;">
+                          <span style="font-size:18px;">⚠️</span>
+                          <span><b>该小组存在组长代签记录：</b> 组长【${currentGroupAlert.leaderName || '组长'}】在【${stageNames}】执行了代签推进${absentStr}。</span>
+                        </div>
+                        <span style="background:#fef3c7; border:1px solid #fcd34d; color:#b45309; padding:3px 10px; border-radius:6px; font-size:11.5px; font-weight:800; white-space:nowrap;">⚠️ 存在组长代签</span>
+                      </div>
+                    `;
+                  }
+                  return '';
+                })()}
+
                 ${effectiveMonitorStage === 'stage1' ? `
                   <div style="display:grid; grid-template-columns: 1.6fr 1fr; gap:16px; width:100%;">
                     <div class="card" style="padding:20px; display:flex; flex-direction:column; border:1px solid #bfdbfe; gap:12px;">
@@ -3867,29 +3886,38 @@
               <button id="btn-close-alerts-modal" style="background:rgba(255,255,255,0.2); border:none; color:white; width:28px; height:28px; border-radius:50%; font-size:16px; cursor:pointer; display:flex; align-items:center; justify-content:center;">✕</button>
             </div>
             <div style="padding:20px 24px; overflow-y:auto; flex:1; display:flex; flex-direction:column; gap:12px; background:#f8fafc;">
-              ${currentAlerts.length === 0 ? `
-                <div style="text-align:center; color:#94a3b8; padding:48px 20px; font-size:13.5px;">
-                  ☕ 暂无异常代签或重要推进提醒，各班级小组正在常规协同中！
-                </div>
-              ` : currentAlerts.map(a => `
-                <div style="background:#ffffff; border:1px solid ${a.type && a.type.includes('proxy') ? '#fde68a' : '#e2e8f0'}; border-left:5px solid ${a.type && a.type.includes('proxy') ? '#f59e0b' : '#2563eb'}; border-radius:10px; padding:14px 18px; box-shadow:0 1px 4px rgba(0,0,0,0.04);">
-                  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; flex-wrap:wrap; gap:6px;">
-                    <span style="font-size:13.5px; font-weight:800; color:${a.type && a.type.includes('proxy') ? '#b45309' : '#1e40af'};">${a.title || '协同动态通知'}</span>
-                    <span style="font-size:11px; color:#94a3b8;">${a.timestamp || ''} (${a.date || ''})</span>
-                  </div>
-                  <div style="font-size:13px; color:#1e293b; line-height:1.6; white-space:pre-line; margin-bottom:10px;">
-                    ${a.text}
-                  </div>
-                  <div style="display:flex; justify-content:space-between; align-items:center; border-top:1px dashed #e2e8f0; padding-top:8px;">
-                    <div style="display:flex; gap:6px; font-size:11px;">
-                      ${a.className ? `<span style="background:#eff6ff; color:#1d4ed8; padding:1px 6px; border-radius:6px; font-weight:700;">🏫 ${a.className}</span>` : ''}
-                      ${a.groupName ? `<span style="background:#f1f5f9; color:#475569; padding:1px 6px; border-radius:6px; font-weight:700;">👥 ${a.groupName}</span>` : ''}
-                      ${a.taskTitle ? `<span style="background:#f0fdf4; color:#15803d; padding:1px 6px; border-radius:6px; font-weight:700;">📌 ${a.taskTitle}</span>` : ''}
+              ${(() => {
+                const proxyAlerts = currentAlerts.filter(a => a.type && a.type.includes('proxy'));
+                if (proxyAlerts.length === 0) {
+                  return `
+                    <div style="text-align:center; color:#64748b; padding:48px 20px; font-size:13.5px; background:#ffffff; border-radius:10px; border:1px dashed #cbd5e1;">
+                      <div style="font-size:32px; margin-bottom:8px;">✨</div>
+                      <div style="font-weight:700; color:#0f172a;">当前各班级与小组暂无任何组长代签记录</div>
+                      <div style="font-size:12px; color:#94a3b8; margin-top:4px;">全员均正常自主签署与推进，系统未触发缺勤代签。</div>
                     </div>
-                    <span style="font-size:11px; color:#64748b;">${a.leaderName ? `组长: <b>${a.leaderName}</b>` : ''}</span>
-                  </div>
-                </div>
-              `).join('')}
+                  `;
+                }
+                return proxyAlerts.map(a => {
+                  const stageNames = (a.stagesList && a.stagesList.length > 0) ? a.stagesList.join('、') : (a.stageLabel || '公约签署');
+                  const absentStr = (a.absentMembers && a.absentMembers.length > 0) ? `缺勤组员: <b>${a.absentMembers.join('、')}</b>` : '';
+                  return `
+                    <div style="background:#ffffff; border:1.5px solid #fde68a; border-left:5px solid #f59e0b; border-radius:10px; padding:16px 20px; box-shadow:0 1px 4px rgba(245,158,11,0.06);">
+                      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; flex-wrap:wrap; gap:6px;">
+                        <span style="font-size:14px; font-weight:800; color:#b45309;">⚠️ 组长代签提醒: 【${a.groupName || '协作小组'}】</span>
+                        <span style="font-size:11.5px; color:#94a3b8;">${a.timestamp || ''} (${a.date || ''})</span>
+                      </div>
+                      <div style="font-size:13px; color:#1e293b; line-height:1.6; margin-bottom:10px; background:#fffbeb; padding:10px 14px; border-radius:8px; border:1px solid #fef3c7;">
+                        <div>🏫 班级: <b>${a.className || '教学班级'}</b> · 任务: <b>《${a.taskTitle || '协作写作'}》</b></div>
+                        <div style="margin-top:4px;">✍️ 组长 <b>【${a.leaderName || '组长'}】</b> 在 <b>【${stageNames}】</b> 执行了代签推进 ${absentStr ? `(${absentStr})` : ''}。</div>
+                      </div>
+                      <div style="display:flex; justify-content:space-between; align-items:center; font-size:11.5px; color:#64748b;">
+                        <span>代签涉及阶段: <span style="color:#d97706; font-weight:700;">${stageNames}</span></span>
+                        <span>已记录归档至教务中心</span>
+                      </div>
+                    </div>
+                  `;
+                }).join('');
+              })()}
             </div>
             <div style="padding:12px 24px; background:#ffffff; border-top:1px solid #e2e8f0; text-align:right;">
               <button id="btn-close-alerts-modal-footer" style="background:#2563eb; color:white; border:none; padding:8px 20px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer;">我知道了</button>
