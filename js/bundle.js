@@ -3637,16 +3637,13 @@
                     </div>
                   </div>
 
-                  <!-- 全局只读不可修改状态控制与 Excel 导出与教师端重置协同数据 -->
+                  <!-- 全局只读不可修改状态控制与 Excel 导出 -->
                   <div style="display:flex; align-items:center; gap:10px;">
                     <span style="font-size:12px; font-weight:700; padding:6px 12px; border-radius:8px; background:${isMonitorTaskExpired || state.isFinalSubmitted ? '#fef2f2' : '#ecfdf5'}; color:${isMonitorTaskExpired || state.isFinalSubmitted ? '#dc2626' : '#059669'}; border:1px solid ${isMonitorTaskExpired || state.isFinalSubmitted ? '#fecaca' : '#a7f3d0'};">
                       ${isMonitorTaskExpired ? '🛑 任务已截止锁定 (学生端全盘只读)' : (state.isFinalSubmitted ? '🔒 全局锁定中 (学生端全盘只读·仅保留聊天)' : '✍️ 学生端可自由协作编辑')}
                     </span>
                     <button id="btn-toggle-final-submitted" style="background:${state.isFinalSubmitted ? 'linear-gradient(135deg, #059669, #047857)' : 'linear-gradient(135deg, #dc2626, #b91c1c)'}; border:none; color:white; padding:8px 16px; border-radius:8px; font-size:12.5px; font-weight:700; cursor:pointer; box-shadow:0 2px 6px rgba(0,0,0,0.15);">
                       ${state.isFinalSubmitted ? '🔓 解除全局锁定 (恢复学生编辑权限)' : '🔒 手动全局锁定 (设为全盘只读)'}
-                    </button>
-                    <button id="btn-reset-group-collab" style="background:linear-gradient(135deg, #f59e0b, #d97706); border:none; color:white; padding:8px 16px; border-radius:8px; font-size:12.5px; font-weight:800; cursor:pointer; box-shadow:0 3px 10px rgba(217,119,6,0.3);" title="清空该测试小组上一次的全部协同数据并恢复初始状态">
-                      🔄 清空重置本组协同
                     </button>
                     <button id="btn-export-all-excel" style="background:linear-gradient(135deg, #2563eb, #1d4ed8); border:none; color:white; padding:8px 16px; border-radius:8px; font-size:12.5px; font-weight:800; cursor:pointer; box-shadow:0 3px 10px rgba(37,99,235,0.3);">
                       📊 导出本组研讨 Excel
@@ -5752,23 +5749,7 @@
       });
     }
 
-    // 教师端主动清空/重置该小组协同数据
-    const btnResetGroup = container.querySelector('#btn-reset-group-collab');
-    if (btnResetGroup) {
-      btnResetGroup.addEventListener('click', () => {
-        const selTaskBox = container.querySelector('#sel-switch-monitor-task');
-        const currentTaskId = selTaskBox ? selTaskBox.value : (state.activeTaskId || (tasks[0] ? tasks[0].id : 'task_default'));
-        const currentTask = tasks.find(t => t.id === currentTaskId) || { title: '当前写作任务', id: currentTaskId };
 
-        if (confirm(`⚠️ 确认清空并重置【${activeMonitorGroup.name}】在任务《${currentTask.title}》中的协同数据？\n\n重置后该小组在《${currentTask.title}》中的历史聊天、正文草稿与投票进度将被清空，小组成员进入时将收到重置提示！`)) {
-          if (window.app) {
-            window.app.resetTestGroupState(activeMonitorGId, currentTaskId);
-            renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
-            alert(`✅ 已成功重置【${activeMonitorGroup.name}】在《${currentTask.title}》中的协同数据！`);
-          }
-        }
-      });
-    }
 
     const selSwitchTask = container.querySelector('#sel-switch-monitor-task');
     if (selSwitchTask) {
@@ -7933,17 +7914,26 @@
               `).join('')}
             </div>
           </div>
-        ` : `
-          <div class="card" style="flex:1; display:flex; flex-direction:column; padding:16px;">
-            <div class="card-title" style="margin-bottom:10px; display:flex; justify-content:space-between; align-items:center;">
-              <span style="font-size:15px; font-weight:800; color:#0f172a;">📝 论文全篇大正文 ${isFinalSubmitted ? '<span style="font-size:11px; color:#059669; margin-left:6px;">(🔒 终稿已提交 · 归档只读查阅)</span>' : '(依据答辩意见实时修改终稿)'}</span>
-              <span style="font-size:12px; color:#2563eb; background:#eff6ff; padding:2px 8px; border-radius:10px; border:1px solid #bfdbfe;">字数: <b>${plainTextLen}</b> 字</span>
+        ` : (() => {
+          const activeTaskId = state.activeTaskId || 'task_default';
+          const userGroupId = state.currentUser ? (state.currentUser.groupId || 'group_1') : 'group_1';
+          const padName = `jizhi_${activeTaskId}_${userGroupId}`;
+          const currUserName = (currUser && (currUser.name || currUser.username)) || '组员';
+          const currUserColor = (state.members && state.members[currUserCode]?.color) || '#2563eb';
+          const padUrl = `/p/${padName}?userName=${encodeURIComponent(currUserName)}&userColor=${encodeURIComponent(currUserColor)}&showChat=false&showLineNumbers=true&showControls=true`;
+
+          return `
+            <div class="card" style="flex:1; display:flex; flex-direction:column; padding:16px; min-height:600px;">
+              <div class="card-title" style="margin-bottom:10px; display:flex; justify-content:space-between; align-items:center;">
+                <span style="font-size:15px; font-weight:800; color:#0f172a;">📝 论文全篇大正文 ${isFinalSubmitted ? '<span style="font-size:11px; color:#059669; margin-left:6px;">(🔒 终稿已提交 · 归档只读查阅)</span>' : '(依据答辩意见实时协同修改终稿 · Etherpad 毫秒级引擎)'}</span>
+                <span style="font-size:11px; background:#ecfdf5; color:#059669; border:1px solid #a7f3d0; padding:2px 8px; border-radius:10px; font-weight:700;">🟢 Etherpad 协同就绪</span>
+              </div>
+              <div style="flex:1; min-height:0; position:relative; background:#f1f5f9; border-radius:8px; overflow:hidden; border:1px solid #cbd5e1;">
+                <iframe id="stage3-etherpad-frame" src="${padUrl}" style="width:100%; height:100%; min-height:540px; border:none; display:block;" allow="clipboard-read; clipboard-write"></iframe>
+              </div>
             </div>
-            <div style="flex:1; min-height:0; display:flex; flex-direction:column;">
-              ${buildWordEditorHtml('stage3-word-editor', state.stage2.unifiedContent, isFinalSubmitted)}
-            </div>
-          </div>
-        `}
+          `;
+        })()}
       </div>
     `;
 
@@ -7951,13 +7941,6 @@
     const tabEditor = canvas.querySelector('#tab-btn-editor');
     if (tabDefense) tabDefense.addEventListener('click', () => handlers.onSwitchStage3Tab('defense'));
     if (tabEditor) tabEditor.addEventListener('click', () => handlers.onSwitchStage3Tab('editor'));
-
-    if (activeTab === 'editor') {
-      attachWordEditorEvents(canvas, 'stage3-word-editor', isFinalSubmitted, (html) => handlers.onUnifiedContentChange(html), (nodeIdx, sec, charOffset) => {
-        if (handlers.onPresenceChange) handlers.onPresenceChange(nodeIdx, sec, charOffset);
-      });
-      renderRemoteCursors('stage3-word-editor', state);
-    }
 
     if (!isFinalSubmitted) {
       canvas.querySelectorAll('.btn-save-feedback-direct').forEach(btn => {

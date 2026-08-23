@@ -9,8 +9,8 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260823_v94";
-import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired } from "./utils.js?v=20260823_v94";
+} from "./constants.js?v=20260823_v95";
+import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired } from "./utils.js?v=20260823_v95";
 
 /* ==========================================================================
    7. TEACHER PORTAL RENDERER (LIVE WORKSPACE MIRROR & ANNOUNCEMENT READ MATRIX)
@@ -739,16 +739,13 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
                   </div>
                 </div>
 
-                <!-- 全局只读不可修改状态控制与 Excel 导出与教师端重置协同数据 -->
+                <!-- 全局只读不可修改状态控制与 Excel 导出 -->
                 <div style="display:flex; align-items:center; gap:10px;">
                   <span style="font-size:12px; font-weight:700; padding:6px 12px; border-radius:8px; background:${isMonitorTaskExpired || state.isFinalSubmitted ? '#fef2f2' : '#ecfdf5'}; color:${isMonitorTaskExpired || state.isFinalSubmitted ? '#dc2626' : '#059669'}; border:1px solid ${isMonitorTaskExpired || state.isFinalSubmitted ? '#fecaca' : '#a7f3d0'};">
                     ${isMonitorTaskExpired ? '🛑 任务已截止锁定 (学生端全盘只读)' : (state.isFinalSubmitted ? '🔒 全局锁定中 (学生端全盘只读·仅保留聊天)' : '✍️ 学生端可自由协作编辑')}
                   </span>
                   <button id="btn-toggle-final-submitted" style="background:${state.isFinalSubmitted ? 'linear-gradient(135deg, #059669, #047857)' : 'linear-gradient(135deg, #dc2626, #b91c1c)'}; border:none; color:white; padding:8px 16px; border-radius:8px; font-size:12.5px; font-weight:700; cursor:pointer; box-shadow:0 2px 6px rgba(0,0,0,0.15);">
                     ${state.isFinalSubmitted ? '🔓 解除全局锁定 (恢复学生编辑权限)' : '🔒 手动全局锁定 (设为全盘只读)'}
-                  </button>
-                  <button id="btn-reset-group-collab" style="background:linear-gradient(135deg, #f59e0b, #d97706); border:none; color:white; padding:8px 16px; border-radius:8px; font-size:12.5px; font-weight:800; cursor:pointer; box-shadow:0 3px 10px rgba(217,119,6,0.3);" title="清空该测试小组上一次的全部协同数据并恢复初始状态">
-                    🔄 清空重置本组协同
                   </button>
                   <button id="btn-export-all-excel" style="background:linear-gradient(135deg, #2563eb, #1d4ed8); border:none; color:white; padding:8px 16px; border-radius:8px; font-size:12.5px; font-weight:800; cursor:pointer; box-shadow:0 3px 10px rgba(37,99,235,0.3);">
                     📊 导出本组研讨 Excel
@@ -2854,23 +2851,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
     });
   }
 
-  // 教师端主动清空/重置该小组协同数据
-  const btnResetGroup = container.querySelector('#btn-reset-group-collab');
-  if (btnResetGroup) {
-    btnResetGroup.addEventListener('click', () => {
-      const selTaskBox = container.querySelector('#sel-switch-monitor-task');
-      const currentTaskId = selTaskBox ? selTaskBox.value : (state.activeTaskId || (tasks[0] ? tasks[0].id : 'task_default'));
-      const currentTask = tasks.find(t => t.id === currentTaskId) || { title: '当前写作任务', id: currentTaskId };
 
-      if (confirm(`⚠️ 确认清空并重置【${activeMonitorGroup.name}】在任务《${currentTask.title}》中的协同数据？\n\n重置后该小组在《${currentTask.title}》中的历史聊天、正文草稿与投票进度将被清空，小组成员进入时将收到重置提示！`)) {
-        if (window.app) {
-          window.app.resetTestGroupState(activeMonitorGId, currentTaskId);
-          renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
-          alert(`✅ 已成功重置【${activeMonitorGroup.name}】在《${currentTask.title}》中的协同数据！`);
-        }
-      }
-    });
-  }
 
   const selSwitchTask = container.querySelector('#sel-switch-monitor-task');
   if (selSwitchTask) {
