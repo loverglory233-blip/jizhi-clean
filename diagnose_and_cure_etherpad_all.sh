@@ -3,8 +3,6 @@
 # 🚀 集智平台 - Etherpad 全链路自愈与 0 延迟极速就绪脚本
 # ========================================================
 
-set -e
-
 EP_DIR="/www/wwwroot/47.99.110.230/etherpad-lite"
 ROOT_DIR="/www/wwwroot/47.99.110.230"
 
@@ -54,27 +52,40 @@ chmod 644 "$EP_DIR/APIKEY.txt"
 
 echo "🔄 4. 强制杀死旧的 9001 / node 僵尸进程..."
 fuser -k 9001/tcp 2>/dev/null || true
-pkill -f "etherpad" 2>/dev/null || true
+pkill -9 -f "etherpad" 2>/dev/null || true
 sleep 1
 
 echo "🚀 5. 在后台重新启动 Etherpad 服务..."
 mkdir -p "$EP_DIR/var"
 export NODE_ENV=production
-nohup bin/run.sh --root > "$ROOT_DIR/etherpad.log" 2>&1 &
+if [ -f "$EP_DIR/bin/run.sh" ]; then
+    nohup bash bin/run.sh --root > "$ROOT_DIR/etherpad.log" 2>&1 &
+elif [ -f "$EP_DIR/src/node/server.js" ]; then
+    nohup node src/node/server.js > "$ROOT_DIR/etherpad.log" 2>&1 &
+fi
 
 echo "⏳ 等待 Etherpad 9001 端口就绪..."
+EP_OK=0
 for i in {1..30}; do
-    if curl -s -I http://127.0.0.1:9001/p/test | grep -E "HTTP/1.1 (200|302|404)" > /dev/null; then
+    if curl -s -I http://127.0.0.1:9001/p/test | grep -E "HTTP/(1.1|2) (200|302|404)" > /dev/null; then
         echo "🟢 Etherpad 9001 端口在第 $i 秒成功就绪响应！"
+        EP_OK=1
         break
     fi
     sleep 1
 done
 
+if [ $EP_OK -eq 0 ]; then
+    echo "⚠️ 9001 端口响应超时，查看日志最后 20 行："
+    tail -n 20 "$ROOT_DIR/etherpad.log" || true
+fi
+
 echo "🔄 6. 重载 Nginx 代理与静态资源..."
 cd "$ROOT_DIR"
 if [ -f "./fix_domain_jizhiedu_all.sh" ]; then
-    bash ./fix_domain_jizhiedu_all.sh
+    bash ./fix_domain_jizhiedu_all.sh 2>&1 || true
+else
+    nginx -s reload 2>/dev/null || true
 fi
 
 echo "🔍 7. 测试经过 Nginx 后的 Etherpad 接口..."
@@ -86,5 +97,5 @@ if [ "$CURL_STATUS" = "200" ] || [ "$CURL_STATUS" = "302" ]; then
     echo "✅ Etherpad 全链路自愈成功！9001 端口在线，Nginx 反代 100% 畅通！"
     echo "🎉 ========================================================"
 else
-    echo "⚠️ 状态码为 $CURL_STATUS，请查看 $ROOT_DIR/etherpad.log 排查原因"
+    echo "⚠️ Nginx 反代状态码为 $CURL_STATUS，尝试直接通过 9001 访问或检查 Nginx 配置"
 fi

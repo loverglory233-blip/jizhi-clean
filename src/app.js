@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260823_v149";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired } from "./utils.js?v=20260823_v149";
-import { callCozeAgentAPI } from "./agents.js?v=20260823_v149";
-import { AuthManager } from "./auth.js?v=20260823_v149";
-import { CloudSyncEngine } from "./sync.js?v=20260823_v149";
-import { renderLoginView } from "./login.js?v=20260823_v149";
-import { renderTeacherPortal } from "./teacher.js?v=20260823_v149";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260823_v149";
+} from "./constants.js?v=20260823_v150";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired } from "./utils.js?v=20260823_v150";
+import { callCozeAgentAPI } from "./agents.js?v=20260823_v150";
+import { AuthManager } from "./auth.js?v=20260823_v150";
+import { CloudSyncEngine } from "./sync.js?v=20260823_v150";
+import { renderLoginView } from "./login.js?v=20260823_v150";
+import { renderTeacherPortal } from "./teacher.js?v=20260823_v150";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260823_v150";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260823_v149";
+} from "./editor.js?v=20260823_v150";
 
 // Make renderChat available on window for sync callbacks
 if (typeof window !== "undefined") {
@@ -2183,14 +2183,19 @@ export class App {
       return;
     }
 
+    const groupId = this.getEffectiveGroupId();
+    const taskId = this.state.activeTaskId || 'task_default';
+    const welcomeFlagKey = `jizhi_welcomed_${taskId}_${groupId}_${stage}`;
+
     if (!this.state.chatLogs[stage]) this.state.chatLogs[stage] = [];
     const logs = this.state.chatLogs[stage];
     const now = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
     // 🎪 阶段一：拍卖师欢迎开场白
     if (stage === 'stage1') {
-      const hasAuctioneerIntro = logs.some(m => m.sender === 'auctioneer' && m.text.includes('欢迎来到【阶段一：学术拍卖会】'));
-      if (!hasAuctioneerIntro) {
+      const hasAuctioneerIntro = logs.some(m => m.sender === 'auctioneer' && (m.text.includes('欢迎来到【阶段一：学术拍卖会】') || m.text.includes('拍卖师开场')));
+      if (!hasAuctioneerIntro && !localStorage.getItem(welcomeFlagKey)) {
+        localStorage.setItem(welcomeFlagKey, '1');
         const welcomeMsg = {
           sender: 'auctioneer',
           text: `🎪 【拍卖师开场】：欢迎来到【阶段一：学术拍卖会】！我是本阶段的选题顾问拍卖师。\n请全组成员点击左侧【提交我的选题】提出各自的研究构想，并在研讨区充分交流。我们将通过拍卖投票遴选最佳提案，并在下方《学术合作公约》中商定分工与时间分配！`,
@@ -2205,8 +2210,9 @@ export class App {
 
     // 🤝 阶段二：责任编辑欢迎 + 重复上轮分工时间分配 ➔ 审稿编辑提醒推送范文
     else if (stage === 'stage2') {
-      const hasManagingIntro = logs.some(m => m.sender === 'managingEditor' && m.text.includes('欢迎来到【阶段二：学术编辑部】'));
-      if (!hasManagingIntro) {
+      const hasManagingIntro = logs.some(m => m.sender === 'managingEditor' && (m.text.includes('欢迎来到【阶段二：学术编辑部】') || m.text.includes('责任编辑开场')));
+      if (!hasManagingIntro && !localStorage.getItem(welcomeFlagKey)) {
+        localStorage.setItem(welcomeFlagKey, '1');
         const s1 = this.state.stage1 || {};
         const topic = s1.mergedTitle || '未定课题';
         const tasks = s1.contract && s1.contract.taskAssignments ? s1.contract.taskAssignments : {};
@@ -2253,8 +2259,9 @@ export class App {
 
     // 🎓 阶段三：严格按时序：① 中间委员开场 ➔ ② 正方肯定 ➔ ③ 反方质询 ➔ ④ 平台写入矩阵 ➔ ⑤ 中间委员抛题引导
     else if (stage === 'stage3') {
-      const hasNeutralIntro = logs.some(m => m.sender === 'neutral' && m.text.includes('欢迎来到【阶段三：答辩擂台】'));
-      if (!hasNeutralIntro && !this.state.stage3IntroStarted) {
+      const hasNeutralIntro = logs.some(m => m.sender === 'neutral' && (m.text.includes('欢迎来到【阶段三：答辩擂台】') || m.text.includes('中间委员开场')));
+      if (!hasNeutralIntro && !this.state.stage3IntroStarted && !localStorage.getItem(welcomeFlagKey)) {
+        localStorage.setItem(welcomeFlagKey, '1');
         this.state.stage3IntroStarted = true;
         const neutralWelcome = {
           sender: 'neutral',
