@@ -95,9 +95,9 @@ function loadRoomFromDisk(roomName) {
 let ywsUtils = null;
 try {
   ywsUtils = require('y-websocket/bin/utils');
-  console.log('✅ [Yjs Core] 已加载官方标准 y-websocket utils 权威套件');
+  console.log('✅ [Yjs Core] 已成功加载官方标准 y-websocket utils 权威协同套件 (满血握手运行中)');
 } catch (e) {
-  console.log('ℹ️ [Yjs Core] 使用内置自适应 Yjs 二进制帧协同调度器 (可运行 npm i y-websocket 激活官方原装驱动)');
+  console.warn('⚠️ [Yjs Core] 未找到 y-websocket 模块，请运行 npm install 安装依赖以激活官方权威协同！', e.message);
 }
 
 wss.on('connection', (ws, req) => {
@@ -108,9 +108,8 @@ wss.on('connection', (ws, req) => {
   }
 
   if (ywsUtils && typeof ywsUtils.setupWSConnection === 'function') {
-    const doc = ywsUtils.getYDoc(roomName);
     ywsUtils.setupWSConnection(ws, req, { docName: roomName, gc: true });
-    console.log(`[Yjs Official Core] Client joined room: ${roomName} (Active Docs: ${ywsUtils.docs ? ywsUtils.docs.size : 1})`);
+    console.log(`[Yjs Official CRDT] ✅ 客户端已建立权威协同连接 | 房间: ${roomName} | 活跃协同文档数: ${ywsUtils.docs ? ywsUtils.docs.size : 1}`);
     return;
   }
 
