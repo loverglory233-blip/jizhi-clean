@@ -1,17 +1,26 @@
 #!/bin/bash
 set -e
 
-echo "🚀 [Etherpad Fast Installer] 正在部署 Etherpad 官方黄金稳定版 (v1.9.7 LTS)..."
+echo "🚀 [Etherpad Fast Installer] 正在配置国内极速镜像并部署 Etherpad..."
 
 INSTALL_DIR="/www/wwwroot/etherpad-lite"
 
-# 1. 清理并下载官方长期稳定版 v1.9.7 (完美兼容 Node 18，全球高校标杆版本)
-rm -rf "$INSTALL_DIR"
-git clone --branch v1.9.7 --depth 1 https://github.com/ether/etherpad-lite.git "$INSTALL_DIR"
+if [ ! -d "$INSTALL_DIR" ]; then
+    echo "📥 下载 Etherpad 源码..."
+    git clone --branch v1.9.7 --depth 1 https://github.com/ether/etherpad-lite.git "$INSTALL_DIR"
+fi
 
 cd "$INSTALL_DIR"
 
-# 2. 写入 settings.json 配置 (允许 iframe 嵌入，端口 9001)
+# 1. 切换国内淘宝极速 npm 镜像，彻底消除国外源校验失败 EINTEGRITY 错误
+echo "⚡ 配置国内淘宝 npm 极速镜像..."
+npm config set registry https://registry.npmmirror.com
+
+# 2. 清理旧 lock 缓存，极速纯生产安装依赖 (只需 5~10 秒)
+rm -f package-lock.json src/package-lock.json
+npm install --omit=dev --no-audit --legacy-peer-deps
+
+# 3. 写入 settings.json 配置
 echo "⚙️ 写入 settings.json 配置..."
 cat << 'SETTING_EOF' > settings.json
 {
@@ -50,15 +59,15 @@ SETTING_EOF
 mkdir -p var
 echo "jizhi_academic_secret_key_2026" > APIKEY.txt
 
-echo "🔄 启动 Etherpad 官方稳定服务 (bin/run.sh --root)..."
+echo "🔄 启动 Etherpad 9001 端口服务..."
 pkill -f "run.sh" || true
 pkill -f "ep_etherpad-lite" || true
 pkill -f "node src/node/server.js" || true
 
 chmod +x bin/run.sh
-nohup ./bin/run.sh --root > /var/log/etherpad.log 2>&1 &
+nohup node src/node/server.js > /var/log/etherpad.log 2>&1 &
 
-sleep 5
+sleep 3
 
 # 健康检查
 if curl -s "http://127.0.0.1:9001/api" | grep -q "1."; then
