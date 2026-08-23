@@ -438,7 +438,7 @@
           const chatId = data.chat_id;
           const convId = data.conversation_id;
           const targetBotId = data.bot_id || botId;
-          const maxRetries = 40; // 阶梯累计最大容忍 ~24 秒生成时间
+          const maxRetries = 80; // 阶梯累计最大容忍 ~48 秒真实大模型深度审阅生成时间
           for (let p = 0; p < maxRetries; p++) {
             const pollInterval = p < 10 ? 300 : 600;
             await new Promise(r => setTimeout(r, pollInterval));
@@ -10023,28 +10023,21 @@
       if (!isExplicitMention && !isContractFinalizeSignal) return;
 
       let replyAgent = null;
-      let defaultFallbackText = '';
 
       if (isContractFinalizeSignal) {
         replyAgent = 'auctioneer';
       } else if (userMsg.includes('@中间委员') || userMsg.includes('@中间委员 Agent')) {
         replyAgent = 'neutral';
-        defaultFallbackText = `🟡 【中间委员回复】：收到关注！对于正反两方质询，建议团队权衡取舍，在终稿中强化论证逻辑！`;
       } else if (userMsg.includes('@正方委员') || userMsg.includes('@正方委员 Agent')) {
         replyAgent = 'proponent';
-        defaultFallbackText = `🟢 【正方委员回复】：建议团队在方案中进一步突出创新点与应用价值！`;
       } else if (userMsg.includes('@反方委员') || userMsg.includes('@反方委员 Agent')) {
         replyAgent = 'opponent';
-        defaultFallbackText = `🔴 【反方委员回复】：请团队审视研究设计的严谨性，在方法中必须交代抽样代表性与工具信效度！`;
       } else if (userMsg.includes('@审稿编辑') || userMsg.includes('@审稿编辑 Agent')) {
         replyAgent = 'reviewingEditor';
-        defaultFallbackText = `📝 【审稿编辑针对性指导】：收到你的问询！请确保正文各级标题层级分明，理论概念与测量量表精确对应！`;
       } else if (userMsg.includes('@责任编辑') || userMsg.includes('@责任编辑 Agent')) {
         replyAgent = 'managingEditor';
-        defaultFallbackText = `🤝 【责任编辑过程学伴回复】：收到 @ 呼叫！目前小组协同节奏良好，建议组员按合约分工分块推进正文写作。`;
       } else if (userMsg.includes('@拍卖师') || userMsg.includes('@拍卖师 Agent')) {
         replyAgent = 'auctioneer';
-        defaultFallbackText = `🎪 【拍卖师选题顾问回复】：收到！已为您关注组内研讨进展。请大家在左侧查看《学术合作合约》，确认主题、分工与时间无误后全员签署！`;
       }
 
       if (!replyAgent) return;
@@ -11357,9 +11350,7 @@
 
         let managingText = await callCozeAgentAPI('managingEditor', managingPrompt, { stage: 'stage2', topic, bottleneck: bAcademic, peerReview: peerReviewState });
         if (!managingText || managingText.trim().length === 0) {
-          managingText = hasDivergence
-            ? `🤝 【责任编辑·自查研判与对齐引导】：全员自查清单已生成！关注到组内对目前 ${sectionsFocusText} 的撰写构想持有不同看法想深入商榷。各章节核心论点前后衔接顺畅吗？方法设计能否很好呼应背景提出的问题？大家推进节奏很稳健！👉 请全组先在讨论区花 2~3 分钟商定修改方案、统一思路，随后审稿专家将接着为大家做正文深度学术质检！`
-            : `🤝 【责任编辑·高度默契与协同赞扬】：自查清单已生成！太棒了，全组不仅对核心立意认知高度统一（${peerReviewState}），而且各章节撰写节奏顺畅、时间把控极佳！请大家保持这个优秀的团队状态，审稿专家马上接着为大家做正文深度学术质检！`;
+          managingText = `⚠️ 【责任编辑提示】：大模型生成超时或网络稍有延迟，请组员在讨论区发送“@责任编辑 请对当前自查分歧进行指导”重新获取分析。`;
         }
 
         const managingMsg = {
@@ -11408,7 +11399,7 @@
 
       let reviewingText = await callCozeAgentAPI('reviewingEditor', reviewingPrompt, { stage: 'stage2', topic: ctx.topic, bottleneck: ctx.bAcademic, actualDoc: contentSnippet });
       if (!reviewingText || reviewingText.trim().length === 0) {
-        reviewingText = `📝 【审稿编辑·学术质检与答疑】：针对大家勾选的难点『${ctx.bAcademic}』以及学术困惑：建议从教学任务分层与量表维度适配切入化解难点！同时重点审阅了目前正文：前文立意充分，但后续方法设计中变量的实证数据支撑略显单薄。建议在三线表中补充具体的测量维度与数据来源。请全组对照左侧【半程修正清单】分工加速完善！`;
+        reviewingText = `⚠️ 【审稿编辑提示】：大模型学术质检生成超时或网络稍有延迟，请在讨论区发送“@审稿编辑 请对当前论文正文进行学术质检”重新获取真实质检报告。`;
       }
 
       const reviewingMsg = {
