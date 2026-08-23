@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState } from './constants.js?v=20260823_v147';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin } from './utils.js?v=20260823_v147';
+import { InitialState } from './constants.js?v=20260823_v148';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin } from './utils.js?v=20260823_v148';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -578,32 +578,55 @@ export class CloudSyncEngine {
       const localProps = Array.isArray(localS1.proposals) ? localS1.proposals : [];
       const remoteProps = Array.isArray(remoteS1.proposals) ? remoteS1.proposals : [];
       const propByAuthor = new Map();
-      localProps.forEach(p => { if (p && p.author) propByAuthor.set(p.author, p); });
+
+      // 建立作者标识归一化映射
+      const normalizeAuthorKey = (authorId, authorName) => {
+        if (authorName && typeof authorName === 'string' && authorName.trim()) return authorName.trim();
+        return String(authorId || '').trim();
+      };
+
+      localProps.forEach(p => {
+        if (p && (p.author || p.authorName)) {
+          const k = normalizeAuthorKey(p.author, p.authorName);
+          propByAuthor.set(k, p);
+        }
+      });
+
       remoteProps.forEach(remoteP => {
-        if (remoteP && remoteP.author) {
-          const localP = propByAuthor.get(remoteP.author);
+        if (remoteP && (remoteP.author || remoteP.authorName)) {
+          const k = normalizeAuthorKey(remoteP.author, remoteP.authorName);
+          const localP = propByAuthor.get(k);
           if (!localP) {
-            propByAuthor.set(remoteP.author, remoteP);
+            propByAuthor.set(k, remoteP);
           } else {
             const remoteTime = remoteP.updatedAt || 0;
             const localTime = localP.updatedAt || 0;
             if (remoteTime >= localTime) {
-              propByAuthor.set(remoteP.author, remoteP);
+              propByAuthor.set(k, remoteP);
             }
           }
         }
       });
       const mergedProposals = Array.from(propByAuthor.values());
 
+      const mergedVotes = {
+        ...(localS1.votes || {}),
+        ...(remoteS1.votes || {})
+      };
+      const mergedHasVoted = {
+        ...(localS1.hasVoted || {}),
+        ...(remoteS1.hasVoted || {})
+      };
+
       const isProposalChanged = JSON.stringify(mergedProposals) !== JSON.stringify(localProps);
-      const isVoteChanged = JSON.stringify(remoteS1.votes || {}) !== JSON.stringify(localS1.votes || {})
-        || JSON.stringify(remoteS1.hasVoted || {}) !== JSON.stringify(localS1.hasVoted || {});
+      const isVoteChanged = JSON.stringify(mergedVotes) !== JSON.stringify(localS1.votes || {})
+        || JSON.stringify(mergedHasVoted) !== JSON.stringify(localS1.hasVoted || {});
       const isConfirmChanged = remoteS1.contract?.isConfirmed !== localS1.contract?.isConfirmed
         || JSON.stringify(remoteS1.contract?.confirmedMembers) !== JSON.stringify(localS1.contract?.confirmedMembers);
 
       this.app.state.stage1.proposals = mergedProposals;
-      if (remoteS1.votes) this.app.state.stage1.votes = remoteS1.votes;
-      if (remoteS1.hasVoted) this.app.state.stage1.hasVoted = remoteS1.hasVoted;
+      this.app.state.stage1.votes = mergedVotes;
+      this.app.state.stage1.hasVoted = mergedHasVoted;
 
       if (isProposalChanged || isVoteChanged || isConfirmChanged) {
         needWorkspaceRender = true;
