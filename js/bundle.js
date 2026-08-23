@@ -10767,54 +10767,91 @@
         onContractChange: () => {
           this.syncStage1();
         },
-        onAiGenerateContract: () => {
+        onAiGenerateContract: async () => {
           const s1 = this.state.stage1 || {};
           const proposals = s1.proposals || [];
           const logs = (this.state.chatLogs && this.state.chatLogs.stage1) || [];
           const userLogs = logs.filter(m => m.sender && !['auctioneer', 'editor', 'system'].includes(m.sender));
 
-          // 🛡️ 严格教学门禁：如果小组成员尚未提交提案且尚未在讨论区研讨，弹窗提示先商讨！
-          if (proposals.length === 0 && userLogs.length < 2) {
-            alert('💡 【协同提示】：小组成员尚未在讨论区展开选题研讨或提交提案。\n\n请大家先在右侧协同对话区商讨选题意向，并在上方【竞拍提案池】提交各自的选题提案后再点击提炼公约草案！');
+          // 🛡️ 严格教学门禁：必须要有小组成员的真实研讨记录（至少 3 条发言）或已提交提案
+          if (proposals.length === 0 && userLogs.length < 3) {
+            alert('💡 【协同研讨提示】：小组成员尚未在讨论区展开真实的选题研讨或提交提案。\n\n请大家先在右侧协同对话区商讨各自的研究切入点、章节分工意向与时间安排（小组成员也可不点击提炼，直接在左侧输入框中自主分工编辑）！');
             return;
           }
 
-          // 1. 提炼真实得票最高或大家协商一致的选题
+          // 1. 提炼融合研究主题（分析投票分布与分歧）
           const tally = {};
           Object.values(s1.votes || {}).forEach(pId => { if (pId) tally[pId] = (tally[pId] || 0) + 1; });
           let winningP = null;
-          let maxV = -1;
+          let maxV = 0;
+          let isTieOrDivergence = false;
+
           proposals.forEach(p => {
             const cnt = tally[p.id] || 0;
-            if (cnt > maxV) { maxV = cnt; winningP = p; }
+            if (cnt > maxV) {
+              maxV = cnt;
+              winningP = p;
+              isTieOrDivergence = false;
+            } else if (cnt === maxV && maxV > 0) {
+              isTieOrDivergence = true;
+            }
           });
 
-          const selectedTitle = winningP ? winningP.title : (proposals[0] ? proposals[0].title : '');
-          if (!s1.mergedTitle || s1.mergedTitle.trim().length === 0) {
-            s1.mergedTitle = selectedTitle;
+          // 拼接最近研讨记录文本
+          const chatSnippet = userLogs.slice(-15).map(m => `${m.senderName || m.sender}: ${m.text}`).join('\n');
+
+          let determinedTopic = '';
+          if (winningP && !isTieOrDivergence) {
+            // 票数有明显最高者 ➔ 直接采用最高票提案
+            determinedTopic = winningP.title;
+          } else if (isTieOrDivergence || !winningP) {
+            // 存在分歧或平票 ➔ 深度读取聊天记录中大家最终协商达成一致的主题
+            const matchedFromChat = proposals.find(p => chatSnippet.includes(p.title));
+            determinedTopic = matchedFromChat ? matchedFromChat.title : (proposals[0] ? proposals[0].title : '');
           }
 
-          // 2. 根据全组真实成员生成合理的分工建议
+          if (!s1.mergedTitle || s1.mergedTitle.trim().length === 0) {
+            s1.mergedTitle = determinedTopic || '待组员协商填入融合主题';
+          }
+
+          // 2. 根据聊天记录智能提取各成员认领的章节分工
           s1.contract.isDraftGenerated = true;
           s1.contract._draftedTime = Date.now();
           if (!s1.contract.taskAssignments) s1.contract.taskAssignments = {};
 
-          const chapterTasks = [
+          const members = Object.values(this.state.members || {});
+          const defaultChapterTasks = [
             '负责“一、研究背景与意义”及“二、文献综述”起草与资料整理',
             '负责“三、研究问题与假设”及“四、研究设计与方法”方案制定',
             '负责“五、不足与反思”撰写及全篇“六、参考文献”引文校对',
             '负责数据分析模型构建与研究工具问卷设计'
           ];
-          Object.values(this.state.members || {}).forEach((m, idx) => {
-            if (!s1.contract.taskAssignments[m.id]) {
-              s1.contract.taskAssignments[m.id] = chapterTasks[idx % chapterTasks.length] || '协作撰写与统稿';
+
+          members.forEach((m, idx) => {
+            // 扫描该组员在讨论区是否明确表达过认领哪一章
+            let assignedTask = '';
+            const myMsgs = userLogs.filter(msg => msg.sender === m.id || msg.sender === m.studentCode || msg.senderName === m.name);
+            const myText = myMsgs.map(msg => msg.text || '').join(' ');
+
+            if (myText.includes('背景') || myText.includes('综述') || myText.includes('前言')) {
+              assignedTask = '负责“一、研究背景与意义”及“二、文献综述”起草与资料整理';
+            } else if (myText.includes('假设') || myText.includes('方法') || myText.includes('设计') || myText.includes('实验')) {
+              assignedTask = '负责“三、研究问题与假设”及“四、研究设计与方法”方案制定';
+            } else if (myText.includes('反思') || myText.includes('不足') || myText.includes('文献') || myText.includes('校对')) {
+              assignedTask = '负责“五、不足与反思”撰写及全篇“六、参考文献”引文校对';
+            } else if (myText.includes('数据') || myText.includes('问卷') || myText.includes('量表') || myText.includes('模型')) {
+              assignedTask = '负责数据分析模型构建与研究工具问卷设计';
             }
-            if (m.studentCode && !s1.contract.taskAssignments[m.studentCode]) {
-              s1.contract.taskAssignments[m.studentCode] = s1.contract.taskAssignments[m.id];
+
+            if (!assignedTask) {
+              assignedTask = defaultChapterTasks[idx % defaultChapterTasks.length] || '协作撰写与统稿';
             }
+
+            s1.contract.taskAssignments[m.id] = assignedTask;
+            if (m.studentCode) s1.contract.taskAssignments[m.studentCode] = assignedTask;
           });
 
-          // 3. 初始时间规划
+          // 3. 初始时间规划（提取或使用合理基准）
           if (!s1.contract.timeAllocations) {
             s1.contract.timeAllocations = { background: 25, literature: 30, questions: 25, method: 40, reflection: 20, references: 10 };
           }
@@ -10823,10 +10860,10 @@
           if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
           this.renderCanvas();
 
-          // 4. 拍卖师在聊天区提示学生去检查并微调修改
+          // 4. 拍卖师在聊天区发布温馨引导播报
           const draftNoticeMsg = {
             sender: 'auctioneer',
-            text: `✨ 【拍卖师·已提炼研讨共识生成公约草案】\n已基于小组在讨论区的研讨与选题投票结果生成了公约草案！\n\n👉 融合研究主题确立为：《${s1.mergedTitle || '未命名主题'}》\n👉 请组员仔细核对各自的分工与时间预算，可直接在输入框中继续微调协商；确认无误后全员点击【确认签署公约】即可正式生效！`,
+            text: `✨ 【拍卖师·已基于研讨记录提炼公约草案】\n已深度读取大家的研讨发言与选题投票结果，生成《团队协同合作学术合约草案》！\n\n📌 **融合研究主题**：《${s1.mergedTitle}》\n👉 **请组员仔细核查左侧分工与时间预算**：\n• 若与实际商议有出入，每位同学均可**直接在输入框中自主微调修改**；\n• 小组成员也可以不依赖提炼，完全自主在左侧分工填写；\n✍️ 确认无误后，全员点击【确认签署公约】即可正式生效并解锁阶段二！`,
             timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
             _timeMs: Date.now()
           };
