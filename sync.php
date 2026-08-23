@@ -187,11 +187,20 @@ if ($action === 'change_password' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $rawInput = file_get_contents('php://input');
     $data = json_decode($rawInput, true) ?: [];
     $account = trim($data['account'] ?? ($data['studentCode'] ?? ($data['username'] ?? '')));
+    $userId = trim($data['userId'] ?? '');
+    $studentCode = trim($data['studentCode'] ?? '');
+    $username = trim($data['username'] ?? '');
+    $userName = trim($data['name'] ?? '');
     $oldPwd = trim($data['oldPassword'] ?? '');
     $newPwd = trim($data['newPassword'] ?? '');
 
-    if (empty($account) || empty($newPwd)) {
-        echo json_encode(['success' => false, 'message' => '账号或新密码不能为空']);
+    if (empty($account) && empty($userId) && empty($studentCode) && empty($username)) {
+        echo json_encode(['success' => false, 'message' => '账号不能为空']);
+        exit;
+    }
+
+    if (empty($newPwd)) {
+        echo json_encode(['success' => false, 'message' => '新密码不能为空']);
         exit;
     }
 
@@ -201,16 +210,64 @@ if ($action === 'change_password' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     if ($pdo) {
-        $stmt = $pdo->prepare("SELECT * FROM users WHERE username = :acc1 OR student_code = :acc2 OR id = :acc3 LIMIT 1");
-        $stmt->execute([':acc1' => $account, ':acc2' => $account, ':acc3' => $account]);
+        // 1. 尝试在 users 表中多字段比对
+        $stmt = $pdo->prepare("SELECT * FROM users WHERE (student_code = :c1 OR username = :c2 OR id = :c3 OR name = :c4) LIMIT 1");
+        $stmt->execute([
+            ':c1' => $studentCode ?: $account,
+            ':c2' => $username ?: $account,
+            ':c3' => $userId ?: $account,
+            ':c4' => $userName ?: $account
+        ]);
         $user = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        // 2. 如果 users 表未查到，从 global_meta 的 users 里兜底匹配并自动同步写入 users 表
         if (!$user) {
-            echo json_encode(['success' => false, 'message' => '用户账号不存在']);
+            $stmtMeta = $pdo->prepare("SELECT meta_value FROM global_meta WHERE meta_key = 'main_meta'");
+            $stmtMeta->execute();
+            $metaRow = $stmtMeta->fetch();
+            if ($metaRow && !empty($metaRow['meta_value'])) {
+                $gm = json_decode($metaRow['meta_value'], true) ?: [];
+                if (isset($gm['users']) && is_array($gm['users'])) {
+                    foreach ($gm['users'] as $gu) {
+                        $match = (isset($gu['studentCode']) && ($gu['studentCode'] === $account || $gu['studentCode'] === $studentCode)) ||
+                                 (isset($gu['username']) && ($gu['username'] === $account || $gu['username'] === $username)) ||
+                                 (isset($gu['id']) && ($gu['id'] === $account || $gu['id'] === $userId)) ||
+                                 (isset($gu['name']) && ($gu['name'] === $account || $gu['name'] === $userName));
+                        if ($match) {
+                            $user = [
+                                'id' => $gu['id'] ?? ('u_' . round(microtime(true) * 1000)),
+                                'username' => $gu['username'] ?? $account,
+                                'student_code' => $gu['studentCode'] ?? ($gu['username'] ?? $account),
+                                'name' => $gu['name'] ?? $account,
+                                'password' => $gu['password'] ?? '123',
+                                'role' => $gu['role'] ?? ($data['role'] ?? 'student')
+                            ];
+                            // 自动同步插入 users 表
+                            $stmtIns = $pdo->prepare("INSERT INTO users (id, username, student_code, name, password, role) VALUES (:id, :u, :sc, :nm, :p, :r) ON DUPLICATE KEY UPDATE name = :nm2, role = :r2");
+                            $stmtIns->execute([
+                                ':id' => $user['id'],
+                                ':u' => $user['username'],
+                                ':sc' => $user['student_code'],
+                                ':nm' => $user['name'],
+                                ':p' => $user['password'],
+                                ':r' => $user['role'],
+                                ':nm2' => $user['name'],
+                                ':r2' => $user['role']
+                            ]);
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+
+        if (!$user) {
+            echo json_encode(['success' => false, 'message' => '未找到该用户账号，请确认账号/工号是否正确']);
             exit;
         }
 
         $currentDbPwd = $user['password'] ?? '123';
-        $oldMatch = password_verify($oldPwd, $currentDbPwd) || ($oldPwd === $currentDbPwd) || ($oldPwd === '123' && empty($currentDbPwd));
+        $oldMatch = password_verify($oldPwd, $currentDbPwd) || ($oldPwd === $currentDbPwd) || ($oldPwd === '123' && (empty($currentDbPwd) || $currentDbPwd === '123'));
         if (!$oldMatch) {
             echo json_encode(['success' => false, 'message' => '原密码不正确，默认初始密码为 123']);
             exit;
@@ -220,15 +277,15 @@ if ($action === 'change_password' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmtUpdate = $pdo->prepare("UPDATE users SET password = :p WHERE id = :uid");
         $stmtUpdate->execute([':p' => $hashedNew, ':uid' => $user['id']]);
 
-        // 同步更新 main_meta 里的 users
-        $stmtMeta = $pdo->prepare("SELECT meta_value FROM global_meta WHERE meta_key = 'main_meta'");
-        $stmtMeta->execute();
-        $metaRow = $stmtMeta->fetch();
-        if ($metaRow && !empty($metaRow['meta_value'])) {
-            $gm = json_decode($metaRow['meta_value'], true) ?: [];
+        // 同步更新 global_meta 的 main_meta 里的 users
+        $stmtMeta2 = $pdo->prepare("SELECT meta_value FROM global_meta WHERE meta_key = 'main_meta'");
+        $stmtMeta2->execute();
+        $metaRow2 = $stmtMeta2->fetch();
+        if ($metaRow2 && !empty($metaRow2['meta_value'])) {
+            $gm = json_decode($metaRow2['meta_value'], true) ?: [];
             if (isset($gm['users']) && is_array($gm['users'])) {
                 foreach ($gm['users'] as &$gu) {
-                    if (($gu['studentCode'] ?? ($gu['username'] ?? ($gu['id'] ?? ''))) === $account) {
+                    if (($gu['id'] ?? '') === $user['id'] || ($gu['studentCode'] ?? '') === $user['student_code'] || ($gu['username'] ?? '') === $user['username'] || ($gu['name'] ?? '') === $user['name']) {
                         $gu['password'] = $hashedNew;
                     }
                 }
