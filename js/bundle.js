@@ -2631,7 +2631,33 @@
       }
 
       if (remoteData.stage2) {
-        // 🛡️ 纯粹 CRDT 架构：富文本正文 100% 且唯一由 Yjs 实时向量协同接管，短轮询绝不操作富文本 DOM，彻底消除双轨互搏！
+        // 🛡️ 智能平滑双轨保障：本地打字时走 CRDT 零干扰；非打字静默时平滑对齐 MySQL 最新正文快照
+        if (remoteData.stage2.unifiedContent !== undefined) {
+          const remoteContent = remoteData.stage2.unifiedContent || '';
+          const localContent = this.app.state.stage2?.unifiedContent || '';
+
+          const stage2Editor = document.getElementById('stage2-word-editor');
+          const activeEl = document.activeElement;
+          const isLocalTyping = activeEl && (
+            activeEl === stage2Editor ||
+            (stage2Editor && stage2Editor.contains(activeEl)) ||
+            (stage2Editor && stage2Editor.dataset.isComposing === 'true')
+          );
+
+          // 仅在本地非打字状态、且远端内容有更新时平滑对齐
+          if (!isLocalTyping && remoteContent && remoteContent !== localContent) {
+            if (!this.app.state.stage2) this.app.state.stage2 = {};
+            this.app.state.stage2.unifiedContent = remoteContent;
+
+            if (window._jizhi_quill && window._jizhi_quill.root) {
+              const currentQuillHtml = window._jizhi_quill.root.innerHTML.replace(/<span class="remote-cursor-widget"[\s\S]*?<\/span>/gi, '');
+              if (currentQuillHtml !== remoteContent) {
+                window._jizhi_quill.clipboard.dangerouslyPasteHTML(remoteContent);
+              }
+            }
+          }
+        }
+
         if (remoteData.stage2.memberContributions) {
           if (JSON.stringify(remoteData.stage2.memberContributions) !== JSON.stringify(this.app.state.stage2.memberContributions)) {
             this.app.state.stage2.memberContributions = remoteData.stage2.memberContributions;
