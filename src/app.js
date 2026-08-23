@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260823_v53";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired } from "./utils.js?v=20260823_v53";
-import { callCozeAgentAPI } from "./agents.js?v=20260823_v53";
-import { AuthManager } from "./auth.js?v=20260823_v53";
-import { CloudSyncEngine } from "./sync.js?v=20260823_v53";
-import { renderLoginView } from "./login.js?v=20260823_v53";
-import { renderTeacherPortal } from "./teacher.js?v=20260823_v53";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260823_v53";
+} from "./constants.js?v=20260823_v54";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired } from "./utils.js?v=20260823_v54";
+import { callCozeAgentAPI } from "./agents.js?v=20260823_v54";
+import { AuthManager } from "./auth.js?v=20260823_v54";
+import { CloudSyncEngine } from "./sync.js?v=20260823_v54";
+import { renderLoginView } from "./login.js?v=20260823_v54";
+import { renderTeacherPortal } from "./teacher.js?v=20260823_v54";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260823_v54";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260823_v53";
+} from "./editor.js?v=20260823_v54";
 
 // Make renderChat available on window for sync callbacks
 if (typeof window !== "undefined") {
@@ -2612,13 +2612,11 @@ ${propText}
         if (!this.state.stage2.memberContributions) this.state.stage2.memberContributions = {};
         
         if (plain.length === 0) {
-          // 正文为空时，各成员打字字数重置为 0
           this.lastPlainTextLength = 0;
           Object.keys(this.state.members || {}).forEach(mId => {
             this.state.stage2.memberContributions[mId] = 0;
           });
         } else {
-          // 🛡️ 首帧建立基线：首次触发时不做增量统计，避免把编辑器载入的既有正文全部算到当前成员头上
           const prevLen = (this.lastPlainTextLength === undefined) ? plain.length : this.lastPlainTextLength;
           const delta = plain.length - prevLen;
           this.lastPlainTextLength = plain.length;
@@ -2627,35 +2625,16 @@ ${propText}
           }
         }
 
-        if (!this.state.presence) this.state.presence = {};
-        let activeNodeIdx = 0;
-        let activeCharOffset = null;
-        try {
-          const sel = window.getSelection();
-          const editor = document.getElementById('stage2-word-editor') || document.getElementById('stage3-word-editor');
-          if (sel && sel.rangeCount > 0 && editor) {
-            const actualContainer = editor.querySelector('.ql-editor') || editor;
-            activeCharOffset = getCaretCharacterOffsetWithin(editor);
-            let blockEl = sel.anchorNode ? (sel.anchorNode.nodeType === 1 ? sel.anchorNode : sel.anchorNode.parentElement) : null;
-            while (blockEl && blockEl.parentElement !== actualContainer && blockEl !== actualContainer) {
-              blockEl = blockEl.parentElement;
-            }
-            if (blockEl && blockEl.parentElement === actualContainer) {
-              activeNodeIdx = Array.from(actualContainer.children).indexOf(blockEl);
-            }
-          }
-        } catch (e) {}
-
-        this.state.presence[user] = {
-          nodeIndex: activeNodeIdx,
-          activeSection: '正文',
-          charOffset: activeCharOffset,
-          updatedAt: Date.now()
-        };
-        this.updateContributionUi();
-        this.syncStage2();
-        if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
-        this.checkAgentTriggersOnContent(newContent);
+        // 🚀 极致性能：打字期间防抖 600ms 后才执行网络快照推送与重型正则分析，保证按键 0 延迟、0 掉帧
+        if (this._contentSyncDebounceTimer) {
+          clearTimeout(this._contentSyncDebounceTimer);
+        }
+        this._contentSyncDebounceTimer = setTimeout(() => {
+          this.updateContributionUi();
+          this.syncStage2();
+          if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+          this.checkAgentTriggersOnContent(cleanHtml);
+        }, 600);
       },
       onOpenCaseModal: () => {
         this.showReferencePapersModal();

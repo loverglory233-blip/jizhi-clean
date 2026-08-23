@@ -2636,13 +2636,19 @@
           const editor = document.getElementById('stage2-word-editor') || document.getElementById('stage3-word-editor');
           const isYjsLive = window._jizhi_yjs_provider && (window._jizhi_yjs_provider.wsconnected || window._jizhi_yjs_provider.synced);
 
-          // 🛡️ 纯净解耦：短轮询只更新内存快照与教师端大屏，富文本打字与实时协同 100% 由 Yjs 处理，严禁短轮询干扰 Quill DOM
           this.app.state.stage2.unifiedContent = cleanRemoteContent;
-          if (editor && !isYjsLive && !window._jizhi_quill) {
+          if (editor && !isYjsLive) {
             const isUserTypingNow = document.activeElement === editor || editor.contains(document.activeElement);
-            const currentLocalHtml = editor.innerHTML.replace(/<span class="remote-cursor-widget"[\s\S]*?<\/span>/gi, '');
+            const qlEditor = editor.querySelector('.ql-editor') || editor;
+            const currentLocalHtml = qlEditor.innerHTML.replace(/<span class="remote-cursor-widget"[\s\S]*?<\/span>/gi, '');
+
+            // 🛡️ 跨设备平滑互见：当前用户未打字时，平滑对齐远端组员正文
             if (!isUserTypingNow && currentLocalHtml.trim() !== cleanRemoteContent.trim()) {
-              editor.innerHTML = cleanRemoteContent;
+              if (window._jizhi_quill && window._jizhi_quill.root) {
+                window._jizhi_quill.root.innerHTML = cleanRemoteContent;
+              } else {
+                editor.innerHTML = cleanRemoteContent;
+              }
             }
           }
           this.app.updateContributionUi();
@@ -10639,13 +10645,11 @@
           if (!this.state.stage2.memberContributions) this.state.stage2.memberContributions = {};
 
           if (plain.length === 0) {
-            // 正文为空时，各成员打字字数重置为 0
             this.lastPlainTextLength = 0;
             Object.keys(this.state.members || {}).forEach(mId => {
               this.state.stage2.memberContributions[mId] = 0;
             });
           } else {
-            // 🛡️ 首帧建立基线：首次触发时不做增量统计，避免把编辑器载入的既有正文全部算到当前成员头上
             const prevLen = (this.lastPlainTextLength === undefined) ? plain.length : this.lastPlainTextLength;
             const delta = plain.length - prevLen;
             this.lastPlainTextLength = plain.length;
@@ -10654,35 +10658,16 @@
             }
           }
 
-          if (!this.state.presence) this.state.presence = {};
-          let activeNodeIdx = 0;
-          let activeCharOffset = null;
-          try {
-            const sel = window.getSelection();
-            const editor = document.getElementById('stage2-word-editor') || document.getElementById('stage3-word-editor');
-            if (sel && sel.rangeCount > 0 && editor) {
-              const actualContainer = editor.querySelector('.ql-editor') || editor;
-              activeCharOffset = getCaretCharacterOffsetWithin(editor);
-              let blockEl = sel.anchorNode ? (sel.anchorNode.nodeType === 1 ? sel.anchorNode : sel.anchorNode.parentElement) : null;
-              while (blockEl && blockEl.parentElement !== actualContainer && blockEl !== actualContainer) {
-                blockEl = blockEl.parentElement;
-              }
-              if (blockEl && blockEl.parentElement === actualContainer) {
-                activeNodeIdx = Array.from(actualContainer.children).indexOf(blockEl);
-              }
-            }
-          } catch (e) {}
-
-          this.state.presence[user] = {
-            nodeIndex: activeNodeIdx,
-            activeSection: '正文',
-            charOffset: activeCharOffset,
-            updatedAt: Date.now()
-          };
-          this.updateContributionUi();
-          this.syncStage2();
-          if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
-          this.checkAgentTriggersOnContent(newContent);
+          // 🚀 极致性能：打字期间防抖 600ms 后才执行网络快照推送与重型正则分析，保证按键 0 延迟、0 掉帧
+          if (this._contentSyncDebounceTimer) {
+            clearTimeout(this._contentSyncDebounceTimer);
+          }
+          this._contentSyncDebounceTimer = setTimeout(() => {
+            this.updateContributionUi();
+            this.syncStage2();
+            if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+            this.checkAgentTriggersOnContent(cleanHtml);
+          }, 600);
         },
         onOpenCaseModal: () => {
           this.showReferencePapersModal();
