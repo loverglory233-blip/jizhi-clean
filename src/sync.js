@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState } from './constants.js?v=20260823_v96';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin } from './utils.js?v=20260823_v96';
+import { InitialState } from './constants.js?v=20260823_v97';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin } from './utils.js?v=20260823_v97';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -142,18 +142,12 @@ export class CloudSyncEngine {
     for (const endpoint of this.syncEndpoints) {
       try {
         const sep = endpoint.includes('?') ? '&' : '?';
-        const revParam = this.lastRevisionId ? `&since_revision=${this.lastRevisionId}` : (this.lastTimestamp ? `&since_timestamp=${this.lastTimestamp}` : '');
-        const url = `${endpoint}${sep}nocache=${Date.now()}${revParam}`;
+        const url = `${endpoint}${sep}nocache=${Date.now()}`;
         const res = await fetch(url, { cache: 'no-store' });
         if (res.ok) {
           const data = await res.json();
           this.isInitialPullDone = true;
-          if (data && data.unchanged) {
-            if (data.revisionId) this.lastRevisionId = data.revisionId;
-            continue;
-          }
-          if (data && (data.timestamp || data.chatLogs || data.stage2)) {
-            if (data.revisionId) this.lastRevisionId = data.revisionId;
+          if (data && (data.timestamp !== undefined || data.chatLogs || data.stage1 || data.stage2)) {
             this.handleRemoteSync(data);
             return;
           }
@@ -165,17 +159,8 @@ export class CloudSyncEngine {
   async pushSnapshot() {
     this.updateScopeKeys();
     const groupId = this.groupId;
-
     const isReset = !!this.isResetBroadcast;
     this.isResetBroadcast = false;
-
-    const cu = this.app.authManager ? this.app.authManager.getCurrentUser() : null;
-    const isTeacher = cu && (cu.isTeacher || cu.role === 'teacher');
-
-    // 🛡️ 致命防线：冷启动/未从服务端完成首次拉取前，非教师指令且非重置时禁止推送空快照冲刷数据库
-    if (!this.isInitialPullDone && !isReset && !isTeacher) {
-      return;
-    }
 
     const localResetSeqKey = `jizhi_reset_seq_${this.storageKey}`;
     let localResetSeq = parseInt(localStorage.getItem(localResetSeqKey) || '0', 10);
