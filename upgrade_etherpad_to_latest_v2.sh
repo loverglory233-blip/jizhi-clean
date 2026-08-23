@@ -109,10 +109,13 @@ fs.writeFileSync("settings.json", JSON.stringify(settings, null, 2), "utf8");
 console.log("✅ settings.json 现代标准配置生成完毕！");
 '
 
-# 7. 启动现代版 Etherpad 服务
-echo "7️⃣ 正在启动现代版 Etherpad 服务..."
+# 7. 启动现代版 Etherpad 服务 (使用官方 2.x 标准启动命令)
+echo "7️⃣ 正在启动现代版 Etherpad 2.7.3 服务..."
 export NODE_ENV=production
-nohup node src/node/server.js > /var/log/etherpad.log 2>&1 &
+chmod +x bin/run.sh 2>/dev/null || true
+
+# 优先使用 bin/run.sh --root 官方守护入口
+nohup ./bin/run.sh --root > /var/log/etherpad.log 2>&1 &
 
 # 8. 等待 9001 端口就绪
 echo "⏳ 等待 9001 端口启动与官方插件树自编译..."
