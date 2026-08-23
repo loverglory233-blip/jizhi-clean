@@ -26,20 +26,29 @@ ZIP_FILE="/tmp/jizhi_main.zip"
 DOWNLOADED=0
 NOW_TS=$(date +%s)
 for zip_url in \
+  "https://codeload.github.com/loverglory233-blip/jizhi-clean/zip/refs/heads/main" \
   "https://ghfast.top/https://github.com/loverglory233-blip/jizhi-clean/archive/refs/heads/main.zip?t=$NOW_TS" \
-  "https://ghproxy.net/https://github.com/loverglory233-blip/jizhi-clean/archive/refs/heads/main.zip?t=$NOW_TS" \
-  "https://codeload.github.com/loverglory233-blip/jizhi-clean/zip/refs/heads/main"; do
-  
-  if curl -s -f -L --connect-timeout 4 --max-time 15 "$zip_url" -o "$ZIP_FILE" 2>/dev/null && [ -s "$ZIP_FILE" ]; then
-    rm -rf /tmp/jizhi_unzip && mkdir -p /tmp/jizhi_unzip
-    python3 -c "import zipfile; zipfile.ZipFile('$ZIP_FILE').extractall('/tmp/jizhi_unzip')" 2>/dev/null || unzip -q -o "$ZIP_FILE" -d /tmp/jizhi_unzip 2>/dev/null || true
-    if [ -d "/tmp/jizhi_unzip/jizhi-clean-main" ]; then
+  "https://ghproxy.net/https://github.com/loverglory233-blip/jizhi-clean/archive/refs/heads/main.zip?t=$NOW_TS"; do
+
+  curl -s -f -L --connect-timeout 6 --max-time 25 "$zip_url" -o "$ZIP_FILE" 2>/dev/null && [ -s "$ZIP_FILE" ] || continue
+
+  rm -rf /tmp/jizhi_unzip && mkdir -p /tmp/jizhi_unzip
+  python3 -c "import zipfile; zipfile.ZipFile('$ZIP_FILE').extractall('/tmp/jizhi_unzip')" 2>/dev/null || unzip -q -o "$ZIP_FILE" -d /tmp/jizhi_unzip 2>/dev/null || true
+
+  if [ -d "/tmp/jizhi_unzip/jizhi-clean-main" ]; then
+    # 🔍 校验是否为最新版（teacher.js 内部 import 应带 ?v= 版本戳），防止第三方镜像缓存旧代码
+    if grep -q "utils.js?v=" "/tmp/jizhi_unzip/jizhi-clean-main/src/teacher.js" 2>/dev/null; then
       cp -rf /tmp/jizhi_unzip/jizhi-clean-main/* "$TMP/"
       rm -rf /tmp/jizhi_unzip "$ZIP_FILE"
       DOWNLOADED=1
-      echo "   ✅ 代码包秒级下载解压完成！"
+      echo "   ✅ 代码包下载解压完成（已校验为最新版）"
       break
+    else
+      echo "   ⚠️ 该源返回旧版代码，已跳过，尝试下一个源..."
+      rm -rf /tmp/jizhi_unzip "$ZIP_FILE"
     fi
+  else
+    rm -rf /tmp/jizhi_unzip "$ZIP_FILE"
   fi
 done
 
