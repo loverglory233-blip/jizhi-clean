@@ -325,9 +325,10 @@ export class AuthManager {
     }
     return cached;
   }
-  async loginAsync(accountInput, password) {
+  async loginAsync(accountInput, password, role) {
     const query = (accountInput || '').trim();
     const pwd = (password || '').trim();
+    const loginRole = (role || '').trim();
 
     if (!query) return { success: false, message: '❌ 请输入工号或学号' };
     if (!pwd) return { success: false, message: '❌ 请输入登录密码' };
@@ -336,7 +337,7 @@ export class AuthManager {
       const response = await fetch('sync.php?action=login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ account: query, password: pwd })
+        body: JSON.stringify({ account: query, password: pwd, role: loginRole })
       });
       const data = await response.json();
       if (data && data.success && data.user) {
@@ -352,22 +353,23 @@ export class AuthManager {
         return { success: true, user };
       } else {
         // 🚀 本地单机沙盒首次冷启动时服务端账号池为空：回退本地账号库登录（服务端有账号则以服务端权威为准）
-        const localRes = this.login(accountInput, password);
+        const localRes = this.login(accountInput, password, role);
         if (localRes && localRes.success) return localRes;
         return { success: false, message: data.message || (localRes && localRes.message) || '❌ 账号或密码错误' };
       }
     } catch (err) {
       // 网络异常时回退本地账号库，保证本地单机演示可登录
-      const localRes = this.login(accountInput, password);
+      const localRes = this.login(accountInput, password, role);
       if (localRes && localRes.success) return localRes;
       return { success: false, message: '⚠️ 无法连接服务器，请检查网络后重试登录' };
     }
   }
 
-  login(accountInput, password) {
+  login(accountInput, password, role) {
     const users = this.getUsers();
     const query = (accountInput || '').trim().toLowerCase();
     const pwd = (password || '').trim();
+    const loginRole = (role || '').trim();
 
     if (!query) {
       return { success: false, message: '❌ 请输入工号或学号' };
@@ -396,6 +398,15 @@ export class AuthManager {
 
     if (!isPwdValid) {
       return { success: false, message: '❌ 密码错误，默认初始密码为 123' };
+    }
+
+    // 🔐 多重认证：登录界面所选身份必须与账号实际角色一致，防止跨身份误登录
+    const isTeacher = (user.role === 'teacher' || user.isTeacher);
+    if (loginRole === 'teacher' && !isTeacher) {
+      return { success: false, message: '❌ 所选登录身份与账号角色不匹配，请选择【教师】或核对工号' };
+    }
+    if (loginRole === 'student' && isTeacher) {
+      return { success: false, message: '❌ 所选登录身份与账号角色不匹配，请选择【学生】或核对学号' };
     }
 
     // 🚀 一个账号同时只能一个人登录：生成唯一的 activeSessionId 并推送到服务端会话锁
