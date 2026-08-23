@@ -14,8 +14,8 @@ import {
   DefaultTasks,
   DefaultAnnouncements,
   DefaultReferencePapers
-} from './constants.js?v=20260823_v156';
-import { formatExportDateTime } from './utils.js?v=20260823_v156';
+} from './constants.js?v=20260823_v157';
+import { formatExportDateTime } from './utils.js?v=20260823_v157';
 
 export class AuthManager {
   constructor() {
@@ -376,8 +376,12 @@ export class AuthManager {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ account: query, password: pwd, role: loginRole })
       });
-      const data = await response.json();
-      if (data && data.success && data.user) {
+      let data = null;
+      try {
+        data = await response.json();
+      } catch (parseErr) {}
+
+      if (response.ok && data && data.success && data.user) {
         const user = data.user;
         user.token = data.token;
         user.activeSessionId = data.token;
@@ -388,15 +392,19 @@ export class AuthManager {
           if (window.app.cloudSyncEngine) window.app.cloudSyncEngine.pushSnapshot();
         }
         return { success: true, user };
+      } else if (data && data.message) {
+        // 🔐 精准展示服务端返回的真实校验结果（账号不存在/密码错误/身份不匹配）
+        return { success: false, message: data.message };
       } else {
-        // 🔐 服务端权威鉴权：服务端明确返回密码错误或账号不存在时，必须严格拒绝，严禁绕过放行！
-        return { success: false, message: (data && data.message) ? data.message : '❌ 账号或密码错误' };
+        const localRes = this.login(accountInput, password, role);
+        if (localRes && localRes.success) return localRes;
+        return { success: false, message: '❌ 账号不存在或密码错误，请核对后重试' };
       }
     } catch (err) {
-      // 仅在网络完全断开等异常时，才回退本地单机沙盒离线验证
+      // 仅在完全无法连通时回退
       const localRes = this.login(accountInput, password, role);
       if (localRes && localRes.success) return localRes;
-      return { success: false, message: '⚠️ 无法连接服务器，请检查网络后重试登录' };
+      return { success: false, message: '⚠️ 无法连接服务器，请检查网络连接后重试' };
     }
   }
 
