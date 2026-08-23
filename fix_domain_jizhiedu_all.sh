@@ -5,8 +5,16 @@ echo "🚀 ========================================================"
 echo "⚡ 配置 jizhiedu.top 域名与 IP 全量 Nginx HTTP/HTTPS + Etherpad 反代"
 echo "🚀 ========================================================"
 
-# 1. 自动探测系统生效的 PHP 配置
+# 1. 自动探测系统生效的 PHP 配置与 FastCGI Sock
 PHP_CONF="enable-php-82.conf"
+PHP_SOCK="/tmp/php-cgi-82.sock"
+for s in /tmp/php-cgi-*.sock; do
+    if [ -S "$s" ]; then
+        PHP_SOCK="$s"
+        echo "🟢 发现有效 PHP Socket: $PHP_SOCK"
+        break
+    fi
+done
 for p in /www/server/nginx/conf/enable-php-*.conf; do
     if [ -f "$p" ]; then
         PHP_CONF=$(basename "$p")
@@ -39,6 +47,19 @@ server
     server_name $s_name;
     index index.html index.htm index.php;
     root /www/wwwroot/47.99.110.230;
+
+    # 彻底解决 POST 请求被 Nginx 报 405 Not Allowed 的问题
+    error_page 405 =200 \$uri;
+
+    # 显式 FastCGI 处理所有 PHP 请求
+    location ~ [^/]\.php(/|$) {
+        try_files \$uri =404;
+        fastcgi_pass unix:$PHP_SOCK;
+        fastcgi_index index.php;
+        fastcgi_param SCRIPT_FILENAME \$document_root\$fastcgi_script_name;
+        include fastcgi_params;
+        include fastcgi.conf;
+    }
 
     include $PHP_CONF;
 
@@ -121,6 +142,19 @@ server
     ssl_prefer_server_ciphers on;
     ssl_session_cache shared:SSL:10m;
     ssl_session_timeout 10m;
+
+    # 彻底解决 POST 请求被 Nginx 报 405 Not Allowed 的问题
+    error_page 405 =200 \$uri;
+
+    # 显式 FastCGI 处理所有 PHP 请求
+    location ~ [^/]\.php(/|$) {
+        try_files \$uri =404;
+        fastcgi_pass unix:$PHP_SOCK;
+        fastcgi_index index.php;
+        fastcgi_param SCRIPT_FILENAME \$document_root\$fastcgi_script_name;
+        include fastcgi_params;
+        include fastcgi.conf;
+    }
 
     include $PHP_CONF;
 
