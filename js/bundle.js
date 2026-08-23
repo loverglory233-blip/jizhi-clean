@@ -738,12 +738,7 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
         }).then(async (res) => {
-          if (res.status === 409) {
-            alert('⚠️ 【教务配置冲突提示】：其他教师已在此期间更新了全局配置！系统将自动拉取最新配置，请在最新配置基础上再做修改。');
-            this.pullGlobalMeta().then(() => {
-              if (window.app && window.app.renderMain) window.app.renderMain();
-            });
-          } else if (res.ok) {
+          if (res.ok) {
             const data = await res.json().catch(() => ({}));
             if (data && data.version) {
               this.globalMetaVersion = parseInt(data.version, 10);

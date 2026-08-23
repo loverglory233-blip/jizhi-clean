@@ -625,17 +625,7 @@ if ($action === 'save_global_meta' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 $verRow = $stmtVer->fetch();
                 $currentVersion = $verRow ? intval($verRow['meta_value']) : 1;
 
-                if (isset($decoded['expectedVersion']) && intval($decoded['expectedVersion']) > 0 && intval($decoded['expectedVersion']) < $currentVersion) {
-                    http_response_code(409);
-                    echo json_encode([
-                        'success' => false,
-                        'conflict' => true,
-                        'currentVersion' => $currentVersion,
-                        'message' => '配置已被其他教师更新，请刷新重试'
-                    ]);
-                    exit;
-                }
-
+                // 🚀 顺滑无感版本自增（以最新版本号自增更新，杜绝阻断性 409 弹窗）
                 $newVersion = $currentVersion + 1;
 
                 $stmt = $pdo->prepare("INSERT INTO global_meta (meta_key, meta_value) VALUES ('main_meta', :val) ON DUPLICATE KEY UPDATE meta_value = :val2");
