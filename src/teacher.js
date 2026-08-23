@@ -2524,6 +2524,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
 
           let serverFileUrl = '';
           if (selectedFile.fileObj) {
+            try {
               const currT = authManager.getCurrentUser();
               const tId = (currT && (currT.id || currT.username || currT.studentCode)) || 'u_teacher';
               const tToken = (currT && (currT.token || currT.activeSessionId)) || '';
