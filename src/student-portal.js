@@ -7,8 +7,8 @@ import {
   STORAGE_KEY_TASKS,
   STORAGE_KEY_ANNOUNCEMENTS,
   STORAGE_KEY_CLASSES
-} from "./constants.js?v=20260823_v126";
-import { escapeHtml, isTaskExpired } from "./utils.js?v=20260823_v126";
+} from "./constants.js?v=20260823_v127";
+import { escapeHtml, isTaskExpired } from "./utils.js?v=20260823_v127";
 
 /* ==========================================================================
    7.5 STUDENT TASK PORTAL / DASHBOARD (我的写作任务大厅)
@@ -197,6 +197,25 @@ export function renderStudentTaskPortal(container, authManager, state, onSelectT
                   : (isActiveTask
                       ? (state.isFinalSubmitted ? '🔒 终稿已全员答辩并提交归档' : (state.currentStage === 'stage1' ? '🎪 阶段一：学术拍卖会' : (state.currentStage === 'stage2' ? '📰 阶段二：学术编辑部 (撰写中)' : '🎓 阶段三：答辩擂台')))
                       : '📋 进行中 · 待进入协作');
+                const calcRemaining = (deadlineStr) => {
+                  if (!deadlineStr) return null;
+                  try {
+                    const dMs = new Date(deadlineStr.replace(/-/g, '/')).getTime();
+                    if (isNaN(dMs)) return null;
+                    const diff = dMs - Date.now();
+                    if (diff <= 0) return { expired: true, text: '🛑 已截止' };
+                    const totalM = Math.floor(diff / 60000);
+                    const h = Math.floor(totalM / 60);
+                    const m = totalM % 60;
+                    if (h >= 24) {
+                      const days = Math.floor(h / 24);
+                      return { expired: false, text: `⏰ 剩余 ${days}天${h % 24}小时` };
+                    }
+                    return { expired: false, text: `⏰ 剩余 ${h}小时${m}分` };
+                  } catch(e) { return null; }
+                };
+                const remainInfo = calcRemaining(t.deadline);
+
                 return `
                   <div class="student-task-card" style="background:#ffffff; border:1.5px solid ${isExpired ? '#fca5a5' : '#e2e8f0'}; border-radius:16px; padding:22px; box-shadow:0 4px 16px -2px rgba(15,23,42,0.04); display:flex; flex-direction:column; justify-content:space-between; transition:all 0.2s ease;">
                     <div>
@@ -208,15 +227,11 @@ export function renderStudentTaskPortal(container, authManager, state, onSelectT
                           <span>📌 ${escapeHtml(t.title)}</span>
                         </div>
                         <div style="display:flex; gap:6px; align-items:center; flex-shrink:0;">
-                          ${isExpired ? `
-                            <span style="background:#fef2f2; color:#dc2626; border:1px solid #fecaca; font-size:11.5px; font-weight:800; padding:3px 10px; border-radius:20px;">
-                              🛑 已截止
+                          ${remainInfo ? `
+                            <span style="background:${remainInfo.expired ? '#fef2f2' : '#f0fdf4'}; color:${remainInfo.expired ? '#dc2626' : '#16a34a'}; border:1px solid ${remainInfo.expired ? '#fecaca' : '#bbf7d0'}; font-size:11.5px; font-weight:800; padding:3px 10px; border-radius:20px;">
+                              ${remainInfo.text}
                             </span>
-                          ` : `
-                            <span style="background:#ecfdf5; color:#059669; border:1px solid #a7f3d0; font-size:11.5px; font-weight:700; padding:3px 10px; border-radius:20px;">
-                              🟢 进行中
-                            </span>
-                          `}
+                          ` : ''}
                           <span style="background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe; font-size:11.5px; font-weight:700; padding:3px 10px; border-radius:20px;">
                             👥 ${escapeHtml(t.targetGroupName || groupName)}
                           </span>

@@ -6045,6 +6045,25 @@
                     : (isActiveTask
                         ? (state.isFinalSubmitted ? '🔒 终稿已全员答辩并提交归档' : (state.currentStage === 'stage1' ? '🎪 阶段一：学术拍卖会' : (state.currentStage === 'stage2' ? '📰 阶段二：学术编辑部 (撰写中)' : '🎓 阶段三：答辩擂台')))
                         : '📋 进行中 · 待进入协作');
+                  const calcRemaining = (deadlineStr) => {
+                    if (!deadlineStr) return null;
+                    try {
+                      const dMs = new Date(deadlineStr.replace(/-/g, '/')).getTime();
+                      if (isNaN(dMs)) return null;
+                      const diff = dMs - Date.now();
+                      if (diff <= 0) return { expired: true, text: '🛑 已截止' };
+                      const totalM = Math.floor(diff / 60000);
+                      const h = Math.floor(totalM / 60);
+                      const m = totalM % 60;
+                      if (h >= 24) {
+                        const days = Math.floor(h / 24);
+                        return { expired: false, text: `⏰ 剩余 ${days}天${h % 24}小时` };
+                      }
+                      return { expired: false, text: `⏰ 剩余 ${h}小时${m}分` };
+                    } catch(e) { return null; }
+                  };
+                  const remainInfo = calcRemaining(t.deadline);
+
                   return `
                     <div class="student-task-card" style="background:#ffffff; border:1.5px solid ${isExpired ? '#fca5a5' : '#e2e8f0'}; border-radius:16px; padding:22px; box-shadow:0 4px 16px -2px rgba(15,23,42,0.04); display:flex; flex-direction:column; justify-content:space-between; transition:all 0.2s ease;">
                       <div>
@@ -6056,15 +6075,11 @@
                             <span>📌 ${escapeHtml(t.title)}</span>
                           </div>
                           <div style="display:flex; gap:6px; align-items:center; flex-shrink:0;">
-                            ${isExpired ? `
-                              <span style="background:#fef2f2; color:#dc2626; border:1px solid #fecaca; font-size:11.5px; font-weight:800; padding:3px 10px; border-radius:20px;">
-                                🛑 已截止
+                            ${remainInfo ? `
+                              <span style="background:${remainInfo.expired ? '#fef2f2' : '#f0fdf4'}; color:${remainInfo.expired ? '#dc2626' : '#16a34a'}; border:1px solid ${remainInfo.expired ? '#fecaca' : '#bbf7d0'}; font-size:11.5px; font-weight:800; padding:3px 10px; border-radius:20px;">
+                                ${remainInfo.text}
                               </span>
-                            ` : `
-                              <span style="background:#ecfdf5; color:#059669; border:1px solid #a7f3d0; font-size:11.5px; font-weight:700; padding:3px 10px; border-radius:20px;">
-                                🟢 进行中
-                              </span>
-                            `}
+                            ` : ''}
                             <span style="background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe; font-size:11.5px; font-weight:700; padding:3px 10px; border-radius:20px;">
                               👥 ${escapeHtml(t.targetGroupName || groupName)}
                             </span>
@@ -8840,26 +8855,13 @@
           appEl.className = 'app-student-portal-mode';
           renderStudentTaskPortal(
             appEl, this.authManager, this.state,
-            async (taskId) => {
+            (taskId) => {
               this.state.activeTaskId = taskId || 'task_default';
               this.state.studentViewMode = 'workspace';
-              if (this.authManager && this.authManager.pullGlobalMeta) {
-                try { await this.authManager.pullGlobalMeta(); } catch (e) {}
-              }
               const latestClassId = this.state.activeStudentClassId || currentUser?.classId || 'class_101';
               const latestGroupObj = this.authManager.getStudentActiveGroup(currentUser, latestClassId);
               const targetGroupId = latestGroupObj.id || (currentUser && currentUser.groupId ? currentUser.groupId : 'group_1');
               this.loadGroupState(targetGroupId);
-
-              // 🟢 进入任务工作台第 0 毫秒：先拉取云端权威数据，但学生首屏始终先看阶段一（只读或进行中），再自主切换
-              if (this.cloudSyncEngine) {
-                this.cloudSyncEngine.groupId = targetGroupId;
-                this.cloudSyncEngine.taskId = taskId || 'task_default';
-                this.cloudSyncEngine.updateScopeKeys();
-                try {
-                  await this.cloudSyncEngine.pullFromServer();
-                } catch (e) {}
-              }
 
               // 🎯 始终从阶段一进入，若本组已推进至阶段二/三，则阶段一显示为只读归档，并解锁顶部阶段导航供学生自主加入
               this.state.currentStage = 'stage1';
@@ -8872,8 +8874,24 @@
                 this.state.presence[k] = { nodeIndex: 0, activeSection: '在线协作', updatedAt: now };
               });
 
+              // ⚡ 0 毫秒秒切进入工作台！
               this.renderMain();
               this.checkUnreadAnnouncements();
+
+              // 🟢 后台异步静默拉取云端权威数据，绝不阻塞用户界面跳转
+              setTimeout(async () => {
+                if (this.authManager && this.authManager.pullGlobalMeta) {
+                  try { await this.authManager.pullGlobalMeta(); } catch (e) {}
+                }
+                if (this.cloudSyncEngine) {
+                  this.cloudSyncEngine.groupId = targetGroupId;
+                  this.cloudSyncEngine.taskId = taskId || 'task_default';
+                  this.cloudSyncEngine.updateScopeKeys();
+                  try {
+                    await this.cloudSyncEngine.pullFromServer();
+                  } catch (e) {}
+                }
+              }, 10);
             },
             () => this.handleLogout(),
             () => this.switchToTeacherView(),
