@@ -2773,17 +2773,11 @@
       const groupMaxOrder = stageOrder[this.app.state.groupMaxStage || 'stage1'] || 1;
 
       if (remoteData.currentStage) {
-        if (remoteOrder > groupMaxOrder) {
-          this.app.state.groupMaxStage = remoteData.currentStage;
-          this.app.isViewingPastStage = false;
+        this.app.state.groupMaxStage = remoteData.currentStage;
+        // 🎯 如果用户当前正在自主浏览阶段一/过往阶段，则不强制跳走，保留学生知情权与自主切换权
+        if (!this.app.isViewingPastStage && remoteOrder > currentOrder && !this.app.state.isFinalSubmitted) {
           this.app.state.currentStage = remoteData.currentStage;
           needWorkspaceRender = true;
-        } else {
-          this.app.state.groupMaxStage = remoteData.currentStage;
-          if (!this.app.isViewingPastStage && remoteOrder > currentOrder && !this.app.state.isFinalSubmitted) {
-            this.app.state.currentStage = remoteData.currentStage;
-            needWorkspaceRender = true;
-          }
         }
       }
 
@@ -8741,7 +8735,7 @@
               const targetGroupId = latestGroupObj.id || (currentUser && currentUser.groupId ? currentUser.groupId : 'group_1');
               this.loadGroupState(targetGroupId);
 
-              // 🟢 进入任务工作台第 0 毫秒：立即拉取云端权威阶段与历史数据，实现 0 闪烁直出真实状态
+              // 🟢 进入任务工作台第 0 毫秒：先拉取云端权威数据，但学生首屏始终先看阶段一（只读或进行中），再自主切换
               if (this.cloudSyncEngine) {
                 this.cloudSyncEngine.groupId = targetGroupId;
                 this.cloudSyncEngine.taskId = taskId || 'task_default';
@@ -8750,6 +8744,10 @@
                   await this.cloudSyncEngine.pullFromServer();
                 } catch (e) {}
               }
+
+              // 🎯 始终从阶段一进入，若本组已推进至阶段二/三，则阶段一显示为只读归档，并解锁顶部阶段导航供学生自主加入
+              this.state.currentStage = 'stage1';
+              this.isViewingPastStage = (this.state.groupMaxStage && this.state.groupMaxStage !== 'stage1');
 
               if (!this.state.presence) this.state.presence = {};
               const myKeys = [currentUser?.id, currentUser?.studentCode, currentUser?.username, currentUser?.name].filter(Boolean);
