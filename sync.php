@@ -334,9 +334,59 @@ if ($action === 'unlock_field' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $req = json_decode($rawInput, true) ?: [];
     $fieldKey = isset($req['fieldKey']) ? trim($req['fieldKey']) : '';
     $userId = isset($req['userId']) ? trim($req['userId']) : '';
+    $val = $req['value'] ?? null;
     $nowMs = round(microtime(true) * 1000);
 
     if ($fieldKey && $pdo) {
+        // 1. 若附带了最新值，原子更新对应的阶段数据
+        if ($val !== null) {
+            $stmtState = $pdo->prepare("SELECT stage1_data, stage3_data FROM group_states WHERE scope_key = :sk");
+            $stmtState->execute([':sk' => $scopeKey]);
+            $stRow = $stmtState->fetch();
+            
+            if (strpos($fieldKey, 'task_') === 0) {
+                $subKey = substr($fieldKey, 5);
+                $s1 = ($stRow && !empty($stRow['stage1_data'])) ? json_decode($stRow['stage1_data'], true) : [];
+                if (!isset($s1['contract'])) $s1['contract'] = [];
+                if (!isset($s1['contract']['taskAssignments'])) $s1['contract']['taskAssignments'] = [];
+                $s1['contract']['taskAssignments'][$subKey] = (string)$val;
+                $s1Json = json_encode($s1, JSON_UNESCAPED_UNICODE);
+                $pdo->prepare("UPDATE group_states SET stage1_data = :s, last_timestamp = :ts, revision_id = IFNULL(revision_id,0)+1 WHERE scope_key = :sk")
+                    ->execute([':s' => $s1Json, ':ts' => $nowMs, ':sk' => $scopeKey]);
+            } elseif (strpos($fieldKey, 'time_') === 0) {
+                $subKey = substr($fieldKey, 5);
+                $s1 = ($stRow && !empty($stRow['stage1_data'])) ? json_decode($stRow['stage1_data'], true) : [];
+                if (!isset($s1['contract'])) $s1['contract'] = [];
+                if (!isset($s1['contract']['timeAllocations'])) $s1['contract']['timeAllocations'] = [];
+                $s1['contract']['timeAllocations'][$subKey] = intval($val);
+                $s1Json = json_encode($s1, JSON_UNESCAPED_UNICODE);
+                $pdo->prepare("UPDATE group_states SET stage1_data = :s, last_timestamp = :ts, revision_id = IFNULL(revision_id,0)+1 WHERE scope_key = :sk")
+                    ->execute([':s' => $s1Json, ':ts' => $nowMs, ':sk' => $scopeKey]);
+            } elseif ($fieldKey === 'topic_title') {
+                $s1 = ($stRow && !empty($stRow['stage1_data'])) ? json_decode($stRow['stage1_data'], true) : [];
+                $s1['mergedTitle'] = (string)$val;
+                if (!isset($s1['contract'])) $s1['contract'] = [];
+                $s1['contract']['mergedTitle'] = (string)$val;
+                $s1Json = json_encode($s1, JSON_UNESCAPED_UNICODE);
+                $pdo->prepare("UPDATE group_states SET stage1_data = :s, last_timestamp = :ts, revision_id = IFNULL(revision_id,0)+1 WHERE scope_key = :sk")
+                    ->execute([':s' => $s1Json, ':ts' => $nowMs, ':sk' => $scopeKey]);
+            } elseif (strpos($fieldKey, 'fb_') === 0) {
+                $fbId = substr($fieldKey, 3);
+                $s3 = ($stRow && !empty($stRow['stage3_data'])) ? json_decode($stRow['stage3_data'], true) : [];
+                if (!isset($s3['feedbackItems'])) $s3['feedbackItems'] = [];
+                foreach ($s3['feedbackItems'] as &$item) {
+                    if (isset($item['id']) && $item['id'] === $fbId) {
+                        $item['response'] = (string)$val;
+                        $item['respondedAt'] = $nowMs;
+                    }
+                }
+                $s3Json = json_encode($s3, JSON_UNESCAPED_UNICODE);
+                $pdo->prepare("UPDATE group_states SET stage3_data = :s, last_timestamp = :ts, revision_id = IFNULL(revision_id,0)+1 WHERE scope_key = :sk")
+                    ->execute([':s' => $s3Json, ':ts' => $nowMs, ':sk' => $scopeKey]);
+            }
+        }
+
+        // 2. 释放锁
         $stmtGet = $pdo->prepare("SELECT meta_value FROM global_meta WHERE meta_key = :k");
         $stmtGet->execute([':k' => 'locks_' . $scopeKey]);
         $row = $stmtGet->fetch();

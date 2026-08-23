@@ -2551,19 +2551,17 @@
 
         if (remoteS1.contract) {
           if (!this.app.state.stage1.contract) this.app.state.stage1.contract = {};
-          if (!isContractInputActive) {
-            if (remoteS1.contract.taskAssignments) {
-              this.app.state.stage1.contract.taskAssignments = {
-                ...(this.app.state.stage1.contract.taskAssignments || {}),
-                ...remoteS1.contract.taskAssignments
-              };
-            }
-            if (remoteS1.contract.timeAllocations) {
-              this.app.state.stage1.contract.timeAllocations = {
-                ...(this.app.state.stage1.contract.timeAllocations || {}),
-                ...remoteS1.contract.timeAllocations
-              };
-            }
+          if (remoteS1.contract.taskAssignments) {
+            this.app.state.stage1.contract.taskAssignments = {
+              ...(this.app.state.stage1.contract.taskAssignments || {}),
+              ...remoteS1.contract.taskAssignments
+            };
+          }
+          if (remoteS1.contract.timeAllocations) {
+            this.app.state.stage1.contract.timeAllocations = {
+              ...(this.app.state.stage1.contract.timeAllocations || {}),
+              ...remoteS1.contract.timeAllocations
+            };
           }
           if (remoteS1.contract.confirmedMembers) {
             this.app.state.stage1.contract.confirmedMembers = {
@@ -2575,21 +2573,29 @@
             this.app.state.stage1.contract.isConfirmed = remoteS1.contract.isConfirmed;
           }
         }
-        if (!isContractInputActive && remoteS1.mergedTitle !== undefined) {
+        if (remoteS1.mergedTitle !== undefined) {
           this.app.state.stage1.mergedTitle = remoteS1.mergedTitle;
         }
 
         if (remoteS1.contract?.taskAssignments) {
-          if (!this.app.state.stage1.contract.taskAssignments) this.app.state.stage1.contract.taskAssignments = {};
-          Object.assign(this.app.state.stage1.contract.taskAssignments, remoteS1.contract.taskAssignments);
-
           document.querySelectorAll('.task-assignment-input').forEach(inp => {
             const mKey = inp.dataset.mkey;
-            const remoteVal = (mKey && remoteS1.contract.taskAssignments[mKey] !== undefined)
-              ? remoteS1.contract.taskAssignments[mKey]
-              : (inp.dataset.mid && remoteS1.contract.taskAssignments[inp.dataset.mid] !== undefined ? remoteS1.contract.taskAssignments[inp.dataset.mid] : undefined);
+            const mid = inp.dataset.mid;
+            let remoteVal = undefined;
+            if (mKey && remoteS1.contract.taskAssignments[mKey] !== undefined) {
+              remoteVal = remoteS1.contract.taskAssignments[mKey];
+            } else if (mid && remoteS1.contract.taskAssignments[mid] !== undefined) {
+              remoteVal = remoteS1.contract.taskAssignments[mid];
+            } else {
+              // 兼容性模糊匹配（如学号/用户名/ID交叉）
+              for (const [k, v] of Object.entries(remoteS1.contract.taskAssignments)) {
+                if (k === mKey || k === mid || (mKey && (k.endsWith(mKey) || mKey.endsWith(k)))) {
+                  remoteVal = v;
+                  break;
+                }
+              }
+            }
 
-            // 🛡️ 防回退保护：当本地有输入内容且远端为空时，绝不抹空回退；仅在非活动且远端有实质变更时更新
             if (remoteVal !== undefined && document.activeElement !== inp) {
               const currentVal = inp.value;
               if (remoteVal !== '' || currentVal === '') {
@@ -7433,7 +7439,7 @@
     // 1. input 事件：纯本地更新内存，绝对不向网络发包，打字改时间 100% 顺畅
     // 2. blur / change / Enter 事件：用户输入完成离开或敲回车时，立即一次性完整同步上云！
 
-    const getLockPayload = (fieldKey) => {
+    const getLockPayload = (fieldKey, value = null) => {
       const currUser = (window.app && window.app.authManager) ? window.app.authManager.getCurrentUser() : null;
       const effectiveClassId = window.app?.state.activeStudentClassId || (currUser?.classId || 'class_101');
       const activeGroupObj = window.app?.authManager ? window.app.authManager.getStudentActiveGroup(currUser, effectiveClassId) : null;
@@ -7441,7 +7447,9 @@
       const curTaskId = window.app?.state.activeTaskId || 'task_default';
       const uId = currUser ? (currUser.studentCode || currUser.username || currUser.id) : 'u';
       const uName = currUser ? (currUser.name || currUser.username) : '组员';
-      return { fieldKey, userId: uId, userName: uName, groupId: curGid, taskId: curTaskId };
+      const payload = { fieldKey, userId: uId, userName: uName, groupId: curGid, taskId: curTaskId };
+      if (value !== null) payload.value = value;
+      return payload;
     };
 
     const sendLock = (fieldKey) => {
@@ -7453,8 +7461,8 @@
       }).catch(() => {});
     };
 
-    const sendUnlock = (fieldKey) => {
-      const p = getLockPayload(fieldKey);
+    const sendUnlock = (fieldKey, val = null) => {
+      const p = getLockPayload(fieldKey, val);
       fetch(`sync.php?action=unlock_field&groupId=${encodeURIComponent(p.groupId)}&taskId=${encodeURIComponent(p.taskId)}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -7481,7 +7489,7 @@
       topicInput.addEventListener('change', flushTopic);
       topicInput.addEventListener('blur', () => {
         flushTopic();
-        sendUnlock('topic_title');
+        sendUnlock('topic_title', topicInput.value);
       });
       topicInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') { topicInput.blur(); } });
     }
@@ -7528,7 +7536,7 @@
         input.addEventListener('change', flushTime);
         input.addEventListener('blur', () => {
           flushTime();
-          sendUnlock(fieldKey);
+          sendUnlock(fieldKey, Number(input.value) || 0);
         });
         input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { input.blur(); } });
       }
@@ -7574,7 +7582,7 @@
         input.addEventListener('change', flushTask);
         input.addEventListener('blur', () => {
           flushTask();
-          sendUnlock(fieldKey);
+          sendUnlock(fieldKey, input.value);
         });
         input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { input.blur(); } });
       }
