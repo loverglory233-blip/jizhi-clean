@@ -2631,7 +2631,32 @@
       }
 
       if (remoteData.stage2) {
-        // 🛡️ 纯粹单轨 CRDT 架构：富文本正文 100% 由 Yjs 实时向量协同接管，短轮询绝不操作富文本 DOM，彻底杜绝双轨互搏！
+        // 🚀 100% 绝对可靠同步：当远端组员有新内容、且本地当前未在输入时，平滑呈现最新正文
+        if (remoteData.stage2.unifiedContent !== undefined) {
+          const remoteHtml = remoteData.stage2.unifiedContent || '';
+          const localHtml = this.app.state.stage2?.unifiedContent || '';
+
+          const stage2Editor = document.getElementById('stage2-word-editor');
+          const qlEditor = stage2Editor ? stage2Editor.querySelector('.ql-editor') : null;
+          const activeEl = document.activeElement;
+          const isLocalTyping = activeEl && (
+            activeEl === stage2Editor ||
+            activeEl === qlEditor ||
+            (stage2Editor && stage2Editor.contains(activeEl))
+          );
+
+          if (!isLocalTyping && remoteHtml && remoteHtml !== localHtml) {
+            if (!this.app.state.stage2) this.app.state.stage2 = {};
+            this.app.state.stage2.unifiedContent = remoteHtml;
+
+            if (window._jizhi_quill && window._jizhi_quill.root) {
+              if (window._jizhi_quill.root.innerHTML !== remoteHtml) {
+                window._jizhi_quill.root.innerHTML = remoteHtml;
+              }
+            }
+          }
+        }
+
         if (remoteData.stage2.memberContributions) {
           if (JSON.stringify(remoteData.stage2.memberContributions) !== JSON.stringify(this.app.state.stage2.memberContributions)) {
             this.app.state.stage2.memberContributions = remoteData.stage2.memberContributions;
@@ -10626,14 +10651,16 @@
             };
           });
 
-          // 🚀 纯粹 CRDT 架构：打字仅驱动贡献比与智能体语境分析，0 次网络快照骚扰
+          // 🚀 稳健极速同步：打字期间防抖 500ms 自动保存并推送到云端数据库
           if (this._contentSyncDebounceTimer) {
             clearTimeout(this._contentSyncDebounceTimer);
           }
           this._contentSyncDebounceTimer = setTimeout(() => {
             this.updateContributionUi();
+            this.syncStage2();
+            if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
             this.checkAgentTriggersOnContent(cleanHtml);
-          }, 600);
+          }, 500);
         },
         onOpenCaseModal: () => {
           this.showReferencePapersModal();
