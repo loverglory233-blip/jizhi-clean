@@ -14,7 +14,7 @@ import {
   DefaultTasks,
   DefaultAnnouncements,
   DefaultReferencePapers
-} from './constants.js?v=20260823_v99';
+} from './constants.js?v=20260823_v100';
 
 export class AuthManager {
   constructor() {
