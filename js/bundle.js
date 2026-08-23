@@ -10014,13 +10014,15 @@
       // 🛡️ 并发锁：防止快速发送多条 @消息 导致 AI 回复乱序
       if (this._isAgentReplyInProgress) return;
       this._isAgentReplyInProgress = true;
-      try {
       const stage = this.state.currentStage;
       const isExplicitMention = userMsg.includes('@');
       // 阶段一专属里程碑：学生在研讨中商定好分工/时间并确认时触发拍卖师生成合约
       const isContractFinalizeSignal = stage === 'stage1' && /(?:分工确定|确定分工|商定好了|分工好了|确定主题|生成合约|确认分工|时间分配好了|分配完毕|达成共识)/i.test(userMsg);
 
-      if (!isExplicitMention && !isContractFinalizeSignal) return;
+      if (!isExplicitMention && !isContractFinalizeSignal) {
+        this._isAgentReplyInProgress = false;
+        return;
+      }
 
       let replyAgent = null;
 
@@ -10040,7 +10042,10 @@
         replyAgent = 'auctioneer';
       }
 
-      if (!replyAgent) return;
+      if (!replyAgent) {
+        this._isAgentReplyInProgress = false;
+        return;
+      }
 
       this.studentMsgCountSinceLastAgent = 0;
       const currentUser = this.authManager.getCurrentUser();
