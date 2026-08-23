@@ -43,6 +43,20 @@ if [ -n "$REAL_SOCK" ]; then
     echo "🟢 已完成所有 FastCGI Socket 的全量无缝穿透绑定！"
 fi
 
+# 🛡️ 启动独立 TCP 127.0.0.1:9000 FastCGI 引擎作为永不宕机的终极兜底
+PHP_BIN=""
+for b in /www/server/php/*/bin/php-cgi /www/server/php/*/bin/php /usr/bin/php-cgi /usr/bin/php; do
+    if [ -x "$b" ]; then
+        PHP_BIN="$b"
+        break
+    fi
+done
+if [ -n "$PHP_BIN" ]; then
+    fuser -k 9000/tcp 2>/dev/null || true
+    nohup "$PHP_BIN" -b 127.0.0.1:9000 >/dev/null 2>&1 &
+    echo "🟢 已启动独立 127.0.0.1:9000 FastCGI 终极兜底引擎！"
+fi
+
 # 修复 phpMyAdmin 专属配置与目录权限
 chown -R www:www /www/server/phpmyadmin 2>/dev/null || true
 chmod -R 755 /www/server/phpmyadmin 2>/dev/null || true
