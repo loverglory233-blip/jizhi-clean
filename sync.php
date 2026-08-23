@@ -89,6 +89,9 @@ if ($action === 'login' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
+    // 👩‍🏫 数据层保证：幂等确保唯一教师种子账号 1001 存在（非登录后门，密码仍按数据库正常校验）
+    ensureTeacherSeedAccount($pdo);
+
     $foundUser = null;
     $userExists = false;
     $dbPwd = '';
