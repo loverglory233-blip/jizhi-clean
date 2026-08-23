@@ -1376,17 +1376,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $stmtClearChatMeta = $pdo->prepare("INSERT INTO global_meta (meta_key, meta_value) VALUES (:k, :v) ON DUPLICATE KEY UPDATE meta_value = :v2");
                 $stmtClearChatMeta->execute([':k' => 'chats_' . $scopeKey, ':v' => $emptyChats, ':v2' => $emptyChats]);
             } else {
-                // ── 普通推送：如果客户端 reset_seq 落后于服务端，说明该客户端还没处理重置，拒绝本次推送 ──
                 $clientResetSeq = isset($data['resetSeq']) ? intval($data['resetSeq']) : 0;
+                // 仅对齐服务端最新序列号，允许正常数据增量合并
                 if ($clientResetSeq < $serverResetSeq) {
-                    // 客户端数据是重置前的旧数据，拒绝写入，返回当前服务端 reset_seq 提醒客户端同步
-                    echo json_encode([
-                        'success'    => false,
-                        'stale'      => true,
-                        'resetSeq'   => $serverResetSeq,
-                        'message'    => 'Client is behind reset sequence, please sync first'
-                    ]);
-                    exit;
+                    $clientResetSeq = $serverResetSeq;
                 }
             }
             // 4a. 读取已有的协作状态，进行字段级智能合并保护（杜绝多端互相覆盖）

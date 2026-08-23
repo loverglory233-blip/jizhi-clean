@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState } from './constants.js?v=20260823_v149';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin } from './utils.js?v=20260823_v149';
+import { InitialState } from './constants.js?v=20260823_v150';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin } from './utils.js?v=20260823_v150';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -336,15 +336,19 @@ export class CloudSyncEngine {
 
     if (remoteData.groupId && remoteData.groupId !== myGroupId && user?.role === 'student') return;
 
-    // 🛡️ 仅接受 resetSeq 严格递增的重置广播；废除无/过期 resetSeq 的裸 isReset 分支（防任意客户端伪造重置，见审查 #43）
+    // 🛡️ 仅在已完成冷启动拉取且 resetSeq 严格递增时才响应教师重置；首次加载时对齐记录并正常放行同步
     if (remoteData.resetSeq !== undefined) {
       const localResetSeqKey = `jizhi_reset_seq_${this.storageKey}`;
-      const localResetSeq = parseInt(localStorage.getItem(localResetSeqKey) || '0', 10);
-      if (remoteData.resetSeq > localResetSeq) {
+      const rawStored = localStorage.getItem(localResetSeqKey);
+      const localResetSeq = parseInt(rawStored || '0', 10);
+      if (!rawStored || !this._hasInitialPullCompleted) {
+        localStorage.setItem(localResetSeqKey, String(remoteData.resetSeq));
+      } else if (remoteData.resetSeq > localResetSeq) {
         this._applyReset(remoteData.resetSeq);
         return;
       }
     }
+    this._hasInitialPullCompleted = true;
 
     if (remoteData.presence) {
       this.app.state.presence = { ...(this.app.state.presence || {}), ...remoteData.presence };
