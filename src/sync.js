@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState } from './constants.js?v=20260823_v97';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin } from './utils.js?v=20260823_v97';
+import { InitialState } from './constants.js?v=20260823_v98';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin } from './utils.js?v=20260823_v98';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -693,29 +693,8 @@ export class CloudSyncEngine {
 
     if (needWorkspaceRender && user?.role === 'student' && this.app.state.studentViewMode === 'workspace') {
       const activeEl = document.activeElement;
-      const isTypingInWorkspace = activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA') && document.getElementById('canvas-panel')?.contains(activeEl);
-      if (isTypingInWorkspace) {
-        const inputId = activeEl.id;
-        const inputClass = activeEl.className;
-        const dataId = activeEl.dataset.id;
-        const val = activeEl.value;
-        const selStart = activeEl.selectionStart;
-        const selEnd = activeEl.selectionEnd;
-
-        this.app.renderStudentWorkspace();
-
-        try {
-          let target = null;
-          if (inputId) target = document.getElementById(inputId);
-          else if (dataId) target = document.querySelector(`[data-id="${dataId}"]`);
-          else if (inputClass) target = document.querySelector(`.${inputClass.split(' ')[0]}`);
-          if (target) {
-            target.value = val;
-            target.focus();
-            if (typeof selStart === 'number') target.setSelectionRange(selStart, selEnd);
-          }
-        } catch (e) {}
-      } else {
+      const isTypingInWorkspace = activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA') && (document.getElementById('canvas-panel')?.contains(activeEl) || document.querySelector('.contract-card')?.contains(activeEl));
+      if (!isTypingInWorkspace) {
         this.app.renderStudentWorkspace();
       }
     }
