@@ -34,15 +34,9 @@ function initDatabaseTables() {
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;";
     $pdo->exec($sql2);
 
-    // 👩‍🏫 唯一教师种子账号：当 1001 教师账号不存在时写入（初始密码 123），
-    // 教师登录后可在教务界面自行增删学生；测试学生（李明/王芳/陈强）一律不写入
-    $stmtChkTeacher = $pdo->prepare("SELECT COUNT(*) FROM `users` WHERE `username` = '1001' OR `id` = 'u_teacher1'");
-    $stmtChkTeacher->execute();
-    if (intval($stmtChkTeacher->fetchColumn()) === 0) {
-        $stmtSeedUser = $pdo->prepare("INSERT INTO `users` (`id`, `username`, `name`, `password`, `role`, `student_code`, `avatar`)
-            VALUES ('u_teacher1', '1001', '老师', '123', 'teacher', '1001', '👩‍🏫')");
-        $stmtSeedUser->execute();
-    }
+    // 👩‍🏫 唯一教师种子账号：由独立幂等函数 ensureTeacherSeedAccount 保证（见文件末尾），
+    // 建表与登录时都会调用，纠正历史脏记录；测试学生一律不写入
+    ensureTeacherSeedAccount($pdo);
 
     // 3. 教学班级表 (classes)
     $sql3 = "CREATE TABLE IF NOT EXISTS `classes` (
@@ -151,4 +145,24 @@ function initDatabaseTables() {
     $pdo->exec($sql8);
 
     return true;
+}
+
+/**
+ * 幂等确保唯一教师种子账号存在（1001 / 老师 / 初始密码 123）。
+ * - 账号不存在 → 插入标准账号；
+ * - id='u_teacher1' 或 username='1001' 已存在但状态被改脏 → 纠正为标准状态；
+ * - 绝不覆盖 password / avatar（教师已改密码时保持不变）。
+ * 测试学生（李明/王芳/陈强）一律不写入。
+ */
+function ensureTeacherSeedAccount($pdo) {
+    if (!$pdo) return false;
+    try {
+        $stmt = $pdo->prepare("INSERT INTO `users` (`id`, `username`, `name`, `password`, `role`, `student_code`, `avatar`)
+            VALUES ('u_teacher1', '1001', '老师', '123', 'teacher', '1001', '👩‍🏫')
+            ON DUPLICATE KEY UPDATE `username` = '1001', `student_code` = '1001', `name` = '老师', `role` = 'teacher'");
+        return $stmt->execute();
+    } catch (Exception $e) {
+        error_log('ensureTeacherSeedAccount: ' . $e->getMessage());
+        return false;
+    }
 }
