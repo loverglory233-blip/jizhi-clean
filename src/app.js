@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260823_v133";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired } from "./utils.js?v=20260823_v133";
-import { callCozeAgentAPI } from "./agents.js?v=20260823_v133";
-import { AuthManager } from "./auth.js?v=20260823_v133";
-import { CloudSyncEngine } from "./sync.js?v=20260823_v133";
-import { renderLoginView } from "./login.js?v=20260823_v133";
-import { renderTeacherPortal } from "./teacher.js?v=20260823_v133";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260823_v133";
+} from "./constants.js?v=20260823_v134";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired } from "./utils.js?v=20260823_v134";
+import { callCozeAgentAPI } from "./agents.js?v=20260823_v134";
+import { AuthManager } from "./auth.js?v=20260823_v134";
+import { CloudSyncEngine } from "./sync.js?v=20260823_v134";
+import { renderLoginView } from "./login.js?v=20260823_v134";
+import { renderTeacherPortal } from "./teacher.js?v=20260823_v134";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260823_v134";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260823_v133";
+} from "./editor.js?v=20260823_v134";
 
 // Make renderChat available on window for sync callbacks
 if (typeof window !== "undefined") {
@@ -2077,6 +2077,7 @@ export class App {
     if (votesCastCount >= totalMembersCount) {
       // ── 全员投票完成：调用大模型拍卖师 API 动态生成专业落槌播报与研讨引导 ──
       setTimeout(async () => {
+        s1._voteCompletedTime = Date.now();
         const tally = {};
         membersList.forEach(m => {
           const pId = s1.votes[m.id] || s1.votes[m.studentCode];
@@ -2102,11 +2103,11 @@ export class App {
         }
 
         const isUnanimous = (maxVotes === totalMembersCount);
-        const voteContextPrompt = `全组投票已全部完成！计票结果：${proposalSummaryList}。${isUnanimous ? '全员一致投出最高票《' + (winningProposal ? winningProposal.title : '') + '》' : '投票存在分歧，最高票为《' + (winningProposal ? winningProposal.title : '') + '》'}。
+        const voteContextPrompt = `全组投票已全部完成！计票结果清单：${proposalSummaryList}。${isUnanimous ? '全员一致投出最高票《' + (winningProposal ? winningProposal.title : '') + '》' : '投票存在分歧，最高票为《' + (winningProposal ? winningProposal.title : '') + '》'}。
 请作为拍卖师发表 130~160 字的落槌定题与选题推进引导：
-① 宣布竞拍落槌结果，肯定课题《${winningProposal ? winningProposal.title : ''}》的理论与实践价值；
-② 给出 1~2 点具体的研究深化构思建议，启发组员将选题细化为具体研究方案；
-③ 引导组长带头在讨论区组织全组围绕该选题展开深度研讨（【核心铁律】：绝不提前包揽提醒分工与时间规划！）。`;
+① 正式公布全量计票清单（包含全部提案的具体得票数）；
+② ${isUnanimous ? '肯定全员一致推选该选题的理论与实践价值' : '针对各选题的分歧与各自看点进行中肯评述，引导全组协商确定最终融合方案'}；
+③ 引导全组成员带头在讨论区组织展开章节分工与时间预算的深度研讨。`;
 
         let summaryText = await callCozeAgentAPI('auctioneer', voteContextPrompt, {
           stage: 'stage1',
@@ -2116,7 +2117,7 @@ export class App {
         });
 
         if (!summaryText || summaryText.trim().length === 0) {
-          summaryText = `🎪 【拍卖师·落槌定题播报】\n全员投票已全部完成！计票结果：${proposalSummaryList}。\n${isUnanimous ? '🎉 全员一致推选《' + winningProposal.title + '》为本组最终研究课题！' : '⚖️ 组内存在不同视角，当前最高票为《' + winningProposal.title + '》！'}\n\n💡 该课题立意新颖且切中教学实践需求！建议组长带头在研讨区发起交流，大家共同头脑风暴细化具体的研究目标与核心切入点！`;
+          summaryText = `🎪 【拍卖师·落槌定题播报】\n全员投票已全部完成！全量计票结果：${proposalSummaryList}。\n${isUnanimous ? '🎉 全员一致推选《' + winningProposal.title + '》为本组最终研究课题！' : '⚖️ 组内存在不同视角，当前最高票为《' + winningProposal.title + '》！'}\n\n💡 课题立意新颖且切中教学实践需求！请大家在研讨区就各章节的分工（由谁写哪部分）与时间预算展开深度协商！`;
         }
 
         const summaryMsg = { sender: 'auctioneer', text: summaryText, timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), _timeMs: Date.now() };
@@ -2487,18 +2488,37 @@ ${propText}
         const s1 = this.state.stage1 || {};
         const proposals = s1.proposals || [];
         const logs = (this.state.chatLogs && this.state.chatLogs.stage1) || [];
-        const userLogs = logs.filter(m => m.sender && !['auctioneer', 'editor', 'system'].includes(m.sender));
+        const userLogs = logs.filter(m => m.sender && !['auctioneer', 'editor', 'system', 'neutral'].includes(m.sender));
         const members = Object.values(this.state.members || {});
         const totalMembersCount = members.length || 3;
 
-        // 拼接全部学生研讨文本
-        const chatSnippet = userLogs.map(m => `${m.senderName || m.sender}: ${m.text}`).join('\n');
-        const totalChatChars = userLogs.reduce((acc, cur) => acc + (cur.text ? cur.text.trim().length : 0), 0);
-        const hasAcademicMention = ['负责', '我来', '我写', '分工', '选题', '题目', '提案', '背景', '综述', '假设', '方法', '问卷', '数据', '反思', '文献', '时间', '分钟', '同意', '赞同', '可以', '选这个', '定这个'].some(kw => chatSnippet.includes(kw));
+        // 1. 严格计算跨成员研讨交互轮数（发言者交替次数）与参与人数
+        const voteTime = s1._voteCompletedTime || 0;
+        const postVoteLogs = voteTime > 0
+          ? userLogs.filter(m => (m._timeMs || 0) >= (voteTime - 3000))
+          : userLogs;
 
-        // 🛡️ 科学研讨范围门禁校验：必须提交了提案，且讨论区有实质交流（发言不少于2条且包含研讨要素或交流字数充足）
-        if (proposals.length === 0 || userLogs.length < 2 || (!hasAcademicMention && totalChatChars < 20)) {
-          alert('💡 【协同研讨提示】：小组成员尚未在讨论区展开充分的选题与章节分工研讨。\n\n请大家先在右侧协同对话区商讨各自负责的章节（例如“我写背景和综述”、“我负责研究方法与问卷”）及时间规划，达成初步共识后再点击提炼！\n\n👉 提示：小组成员也可不点击提炼，直接在左侧输入框中自主分工编辑。');
+        let interactionTurns = 0;
+        let lastSpeaker = null;
+        const participantSet = new Set();
+
+        postVoteLogs.forEach(msg => {
+          const spk = msg.sender || msg.senderName;
+          if (spk) {
+            participantSet.add(spk);
+            if (lastSpeaker !== null && lastSpeaker !== spk) {
+              interactionTurns++; // 发言人交替换人，才计为 1 轮有效交互！
+            }
+            lastSpeaker = spk;
+          }
+        });
+
+        // 拼接学生研讨文本
+        const chatSnippet = userLogs.map(m => `${m.senderName || m.sender}: ${m.text}`).join('\n');
+        
+        // 🛡️ 严格学术协同门禁：必须提交了提案，且投票后组内交互至少达到 2 轮（跨成员交替研讨）
+        if (proposals.length === 0 || interactionTurns < 2 || participantSet.size < 2) {
+          alert(`💡 【协同研讨提示】：投票结果公布后，小组成员尚未在讨论区展开充分的章节分工与时间规划研讨（当前组内有效交互 ${interactionTurns}/2 轮，参与人数 ${participantSet.size} 人）。\n\n请大家在右侧协同对话区至少进行 2 轮以上的跨成员互动协商（由谁负责哪个章节、各模块用时预算），达成共识后再点击提炼！\n\n👉 提示：小组成员也可不点击提炼，直接在左侧输入框中自主分工编辑。`);
           return;
         }
 
