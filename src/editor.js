@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles } from "./constants.js?v=20260823_v66";
-import { callCozeAgentAPI } from "./agents.js?v=20260823_v66";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired } from "./utils.js?v=20260823_v66";
+import { AgentProfiles } from "./constants.js?v=20260823_v67";
+import { callCozeAgentAPI } from "./agents.js?v=20260823_v67";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired } from "./utils.js?v=20260823_v67";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -427,24 +427,16 @@ export function attachWordEditorEvents(container, editorId, isReadonly, onChange
         // 🛡️ 初次纯净守卫：严禁带有 remote-cursor-widget 或空白段落的脏数据被当成初始正文
         let cleanInitHtml = (editor.innerHTML || '').replace(/<span class="remote-cursor-widget"[\s\S]*?<\/span>/gi, '').trim();
         if (cleanInitHtml === '<p><br></p>' || cleanInitHtml === '<p></p>') cleanInitHtml = '';
-        let isInitialSynced = false;
-
-        provider.on('synced', (isSynced) => {
-          if (isSynced) {
-            isInitialSynced = true;
-            // 仅当服务端无内容、且本地有真实小组正文（非空）时，才同步初始正文
-            if (ytext.length === 0 && cleanInitHtml && cleanInitHtml.length > 5) {
-              try {
-                quillInstance.clipboard.dangerouslyPasteHTML(0, cleanInitHtml);
-                console.log('🏛️ [Yjs Sync Guard] 已将小组当前正文安全同步至 Yjs 协同集群！');
-              } catch (e) {}
-            }
-          }
-        });
-
+        // 🛡️ 官方标准 CRDT 绑定：由 QuillBinding 全权接管 ytext 与 quillInstance 的双向微秒流转
         yjsBinding = new QuillBindingClass(ytext, quillInstance, provider.awareness);
         window._jizhi_quill = quillInstance;
         window._jizhi_yjs_provider = provider;
+
+        provider.on('synced', (isSynced) => {
+          if (isSynced) {
+            console.log('%c[Yjs CRDT] ✅ 权威协同向量对齐完成！', 'color: #10b981; font-weight: bold;');
+          }
+        });
 
         quillInstance.on('text-change', () => {
           const cleanHtml = quillInstance.root.innerHTML;
