@@ -1130,9 +1130,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $existingRevision = isset($stRow['revision_id']) ? intval($stRow['revision_id']) : 0;
             }
 
-            // 合并 presence
+            // 🛡️ 合并 presence: 严格使用 array_replace 完美保留纯数字学号键名，做增量并集合并绝不互相覆盖
             $incomingPresence = (isset($data['presence']) && is_array($data['presence'])) ? $data['presence'] : [];
-            $mergedPresence = array_merge($existingPresence, $incomingPresence);
+            $mergedPresence = array_replace($existingPresence, $incomingPresence);
 
             // 合并 stage1
             $incomingS1 = (isset($data['stage1']) && is_array($data['stage1'])) ? $data['stage1'] : [];
