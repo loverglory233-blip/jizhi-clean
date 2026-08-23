@@ -34,6 +34,63 @@ export function formatDurationHuman(mins, compact = false) {
 }
 
 /**
+ * 💬 研讨聊天区时间智能格式化：
+ * - 今天：HH:mm (如 14:30)
+ * - 昨天：昨天 HH:mm (如 昨天 21:05)
+ * - 跨天（当年）：MM-DD HH:mm (如 08-23 15:40)
+ * - 跨年：YYYY-MM-DD HH:mm
+ */
+export function formatChatDisplayTime(timeVal) {
+  if (!timeVal) return '';
+  let d = null;
+  if (typeof timeVal === 'number') {
+    d = new Date(timeVal);
+  } else if (typeof timeVal === 'string') {
+    if (/^\d{1,2}:\d{2}/.test(timeVal) && !timeVal.includes('-') && !timeVal.includes('/')) {
+      return timeVal; // 已经是 HH:mm
+    }
+    d = new Date(timeVal.replace(/-/g, '/'));
+  }
+  if (!d || isNaN(d.getTime())) return String(timeVal || '');
+
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  const msgDay = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  const oneDayMs = 24 * 60 * 60 * 1000;
+
+  const pad = (n) => String(n).padStart(2, '0');
+  const timePart = `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+
+  if (msgDay === today) {
+    return timePart;
+  } else if (msgDay === today - oneDayMs) {
+    return `昨天 ${timePart}`;
+  } else if (d.getFullYear() === now.getFullYear()) {
+    return `${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${timePart}`;
+  } else {
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${timePart}`;
+  }
+}
+
+/**
+ * 📊 教师端导出 Excel 严谨时间格式：一律 YYYY-MM-DD HH:mm:ss
+ */
+export function formatExportDateTime(timeVal) {
+  if (!timeVal) return new Date().toLocaleString();
+  let d = null;
+  if (typeof timeVal === 'number') {
+    d = new Date(timeVal);
+  } else if (typeof timeVal === 'string') {
+    d = new Date(timeVal.replace(/-/g, '/'));
+  }
+  if (!d || isNaN(d.getTime())) {
+    return String(timeVal);
+  }
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+}
+
+/**
  * 🛡️ 任务截止状态判定：如果当前本地时间已超过截止时间，判定为已截止 (过期)
  */
 export function isTaskExpired(task) {

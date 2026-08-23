@@ -14,7 +14,8 @@ import {
   DefaultTasks,
   DefaultAnnouncements,
   DefaultReferencePapers
-} from './constants.js?v=20260823_v145';
+} from './constants.js?v=20260823_v146';
+import { formatExportDateTime } from './utils.js?v=20260823_v146';
 
 export class AuthManager {
   constructor() {
@@ -1349,7 +1350,7 @@ export class AuthManager {
             if (foundUser && foundUser.name) senderDisplayName = foundUser.name;
             else senderDisplayName = `小组成员 (${msg.sender})`;
           }
-          const time = msg.timestamp || '';
+          const time = formatExportDateTime(msg._timeMs || msg.timestamp);
           const text = (msg.text || '').replace(/"/g, '""').replace(/\n/g, ' ');
           csvContent += `"${senderDisplayName}","${time}","${text}"\n`;
         });

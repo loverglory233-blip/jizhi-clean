@@ -154,6 +154,63 @@
   }
 
   /**
+   * 💬 研讨聊天区时间智能格式化：
+   * - 今天：HH:mm (如 14:30)
+   * - 昨天：昨天 HH:mm (如 昨天 21:05)
+   * - 跨天（当年）：MM-DD HH:mm (如 08-23 15:40)
+   * - 跨年：YYYY-MM-DD HH:mm
+   */
+  function formatChatDisplayTime(timeVal) {
+    if (!timeVal) return '';
+    let d = null;
+    if (typeof timeVal === 'number') {
+      d = new Date(timeVal);
+    } else if (typeof timeVal === 'string') {
+      if (/^\d{1,2}:\d{2}/.test(timeVal) && !timeVal.includes('-') && !timeVal.includes('/')) {
+        return timeVal; // 已经是 HH:mm
+      }
+      d = new Date(timeVal.replace(/-/g, '/'));
+    }
+    if (!d || isNaN(d.getTime())) return String(timeVal || '');
+
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    const msgDay = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+    const oneDayMs = 24 * 60 * 60 * 1000;
+
+    const pad = (n) => String(n).padStart(2, '0');
+    const timePart = `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+
+    if (msgDay === today) {
+      return timePart;
+    } else if (msgDay === today - oneDayMs) {
+      return `昨天 ${timePart}`;
+    } else if (d.getFullYear() === now.getFullYear()) {
+      return `${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${timePart}`;
+    } else {
+      return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${timePart}`;
+    }
+  }
+
+  /**
+   * 📊 教师端导出 Excel 严谨时间格式：一律 YYYY-MM-DD HH:mm:ss
+   */
+  function formatExportDateTime(timeVal) {
+    if (!timeVal) return new Date().toLocaleString();
+    let d = null;
+    if (typeof timeVal === 'number') {
+      d = new Date(timeVal);
+    } else if (typeof timeVal === 'string') {
+      d = new Date(timeVal.replace(/-/g, '/'));
+    }
+    if (!d || isNaN(d.getTime())) {
+      return String(timeVal);
+    }
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+  }
+
+  /**
    * 🛡️ 任务截止状态判定：如果当前本地时间已超过截止时间，判定为已截止 (过期)
    */
   function isTaskExpired(task) {
@@ -1837,7 +1894,7 @@
               if (foundUser && foundUser.name) senderDisplayName = foundUser.name;
               else senderDisplayName = `小组成员 (${msg.sender})`;
             }
-            const time = msg.timestamp || '';
+            const time = formatExportDateTime(msg._timeMs || msg.timestamp);
             const text = (msg.text || '').replace(/"/g, '""').replace(/\n/g, ' ');
             csvContent += `"${senderDisplayName}","${time}","${text}"\n`;
           });
@@ -3863,7 +3920,7 @@
                             <div style="background:#ffffff; padding:8px 12px; border-radius:8px; border:1px solid #e2e8f0; border-left:3px solid ${color};">
                               <div style="display:flex; justify-content:space-between; margin-bottom:3px;">
                                 <b style="color:${color}; font-size:12px;">${escapeHtml(senderName)}</b>
-                                <span style="color:#94a3b8; font-size:10px;">${escapeHtml(m.timestamp || '')}</span>
+                                <span style="color:#94a3b8; font-size:10px;">${escapeHtml(formatChatDisplayTime(m._timeMs || m.timestamp))}</span>
                               </div>
                               <div style="color:#0f172a; line-height:1.5;">${escapeHtml(m.text || '')}</div>
                             </div>
@@ -3944,7 +4001,7 @@
                             <div style="background:#ffffff; padding:8px 12px; border-radius:8px; border:1px solid #e2e8f0; border-left:3px solid ${color};">
                               <div style="display:flex; justify-content:space-between; margin-bottom:3px;">
                                 <b style="color:${color}; font-size:12px;">${escapeHtml(senderName)}</b>
-                                <span style="color:#94a3b8; font-size:10px;">${escapeHtml(m.timestamp || '')}</span>
+                                <span style="color:#94a3b8; font-size:10px;">${escapeHtml(formatChatDisplayTime(m._timeMs || m.timestamp))}</span>
                               </div>
                               <div style="color:#0f172a; line-height:1.5;">${escapeHtml(m.text || '')}</div>
                             </div>
@@ -4035,7 +4092,7 @@
                             <div style="background:#ffffff; padding:8px 12px; border-radius:8px; border:1px solid #e2e8f0; border-left:3px solid ${color};">
                               <div style="display:flex; justify-content:space-between; margin-bottom:3px;">
                                 <b style="color:${color}; font-size:12px;">${escapeHtml(senderName)}</b>
-                                <span style="color:#94a3b8; font-size:10px;">${escapeHtml(m.timestamp || '')}</span>
+                                <span style="color:#94a3b8; font-size:10px;">${escapeHtml(formatChatDisplayTime(m._timeMs || m.timestamp))}</span>
                               </div>
                               <div style="color:#0f172a; line-height:1.5;">${escapeHtml(m.text || '')}</div>
                             </div>
@@ -8381,7 +8438,7 @@
           <div class="msg-body">
             <div class="msg-meta">
               <span class="msg-sender" style="color:${color};">${escapeHtml(name)} ${isMe ? '(我)' : ''}</span>
-              <span style="font-size:10px; color:#64748b; margin-left:6px;">${escapeHtml(msg.timestamp || '')}</span>
+              <span style="font-size:10px; color:#64748b; margin-left:6px;">${escapeHtml(formatChatDisplayTime(msg._timeMs || msg.timestamp))}</span>
             </div>
             ${formattedContent}
           </div>
@@ -10770,6 +10827,35 @@
         const stageTitles = { stage2: '【阶段二：学术编辑部】', stage3: '【阶段三：答辩擂台】' };
         alert(`⚠️ 暂未解锁 ${stageTitles[newStage] || newStage}！\n必须先在当前阶段完成公约签署与阶段任务后，系统将自动全组解锁推进。`);
         return;
+      }
+
+      // 🛡️ 阶段一公约草案锁存：离开阶段一前，主动收集当前 DOM 上所有最新输入框值并立即持久化落盘
+      if (this.state.currentStage === 'stage1') {
+        const topicInp = document.getElementById('contract-topic-input');
+        if (topicInp) {
+          if (!this.state.stage1) this.state.stage1 = {};
+          this.state.stage1.mergedTitle = topicInp.value;
+        }
+        const timeInps = document.querySelectorAll('.contract-time-input');
+        if (timeInps.length > 0) {
+          if (!this.state.stage1.contract) this.state.stage1.contract = {};
+          if (!this.state.stage1.contract.timeAllocations) this.state.stage1.contract.timeAllocations = {};
+          timeInps.forEach(inp => {
+            const k = inp.dataset.key;
+            if (k) this.state.stage1.contract.timeAllocations[k] = Number(inp.value) || 0;
+          });
+        }
+        const taskInps = document.querySelectorAll('.task-assignment-input');
+        if (taskInps.length > 0) {
+          if (!this.state.stage1.contract) this.state.stage1.contract = {};
+          if (!this.state.stage1.contract.taskAssignments) this.state.stage1.contract.taskAssignments = {};
+          taskInps.forEach(inp => {
+            const mk = inp.dataset.mkey;
+            if (mk) this.state.stage1.contract.taskAssignments[mk] = inp.value;
+          });
+        }
+        this.syncStage1();
+        if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
       }
 
       // 🛡️ 正文草稿锁存：切换前将富文本当前内容完整持久化存入内存与快照，绝不丢字
