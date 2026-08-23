@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState } from './constants.js?v=20260823_v27';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin } from './utils.js?v=20260823_v27';
+import { InitialState } from './constants.js?v=20260823_v28';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin } from './utils.js?v=20260823_v28';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -164,8 +164,11 @@ export class CloudSyncEngine {
     const isReset = !!this.isResetBroadcast;
     this.isResetBroadcast = false;
 
-    // 🛡️ 致命防线：冷启动/未从服务端完成首次拉取前，绝对禁止推送空状态快照冲刷数据库
-    if (!this.isInitialPullDone && !isReset) {
+    const cu = this.app.authManager ? this.app.authManager.getCurrentUser() : null;
+    const isTeacher = cu && (cu.isTeacher || cu.role === 'teacher');
+
+    // 🛡️ 致命防线：冷启动/未从服务端完成首次拉取前，非教师指令且非重置时禁止推送空快照冲刷数据库
+    if (!this.isInitialPullDone && !isReset && !isTeacher) {
       return;
     }
 

@@ -9,8 +9,8 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260823_v27";
-import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired } from "./utils.js?v=20260823_v27";
+} from "./constants.js?v=20260823_v28";
+import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired } from "./utils.js?v=20260823_v28";
 
 /* ==========================================================================
    7. TEACHER PORTAL RENDERER (LIVE WORKSPACE MIRROR & ANNOUNCEMENT READ MATRIX)
@@ -26,6 +26,18 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
     if (document.querySelector('.modal-overlay')) {
       window._teacherPortalSyncTimer = setTimeout(teacherPullAndRefresh, 3000);
       return;
+    }
+
+  const teacherPullAndRefresh = async () => {
+    if (state.teacherActiveTab === 'view_monitoring' && window.app && window.app.cloudSyncEngine) {
+      const activeMonitorGId = state.activeMonitorGroupId || (activeClass.groups && activeClass.groups[0] ? activeClass.groups[0].id : 'group_1');
+      const activeTaskId = state.activeTaskId || (currentClassTasks[0] ? currentClassTasks[0].id : 'task_default');
+      window.app.cloudSyncEngine.groupId = activeMonitorGId;
+      window.app.cloudSyncEngine.taskId = activeTaskId;
+      window.app.cloudSyncEngine.updateScopeKeys();
+      try {
+        await window.app.cloudSyncEngine.pullFromServer();
+      } catch (e) {}
     }
 
     if (authManager && authManager.pullGlobalMeta) {
@@ -64,7 +76,8 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
   const allUsers = authManager.getUsers();
   const classStudents = authManager.getClassStudents(activeClass.id);
 
-  const currentClassTasks = tasks.filter(t => t.classId === 'all' || t.classId === activeClass.id || (t.className && t.className === activeClass.name));
+  // 🛡️ 严格按当前主班过滤写作任务（绝不串出其他班级或历史游离任务）
+  const currentClassTasks = tasks.filter(t => t.classId === activeClass.id || (t.className && t.className === activeClass.name) || (!t.classId && activeClass.id === 'class_101'));
   const currentClassAnnouncements = announcements.filter(a => a.classId === 'all' || !a.classId || a.classId === activeClass.id);
   const currentClassPapers = refPapers.filter(p => p.classId === 'all' || !p.classId || p.classId === activeClass.id);
 
@@ -2858,13 +2871,19 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
 
   const selSwitchTask = container.querySelector('#sel-switch-monitor-task');
   if (selSwitchTask) {
-    selSwitchTask.addEventListener('change', (e) => {
-      state.activeTaskId = e.target.value;
+    selSwitchTask.addEventListener('change', async (e) => {
+      const targetTId = e.target.value;
+      state.activeTaskId = targetTId;
       if (window.app) {
+        window.app.state.activeTaskId = targetTId;
         window.app.loadGroupState(state.activeMonitorGroupId || 'group_1');
         if (window.app.cloudSyncEngine) {
+          window.app.cloudSyncEngine.groupId = state.activeMonitorGroupId || 'group_1';
+          window.app.cloudSyncEngine.taskId = targetTId;
           window.app.cloudSyncEngine.updateScopeKeys();
-          window.app.cloudSyncEngine.pullFromServer();
+          try {
+            await window.app.cloudSyncEngine.pullFromServer();
+          } catch (err) {}
         }
       }
       renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
@@ -2873,13 +2892,19 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
 
   const selSwitchGroup = container.querySelector('#sel-switch-monitor-group');
   if (selSwitchGroup) {
-    selSwitchGroup.addEventListener('change', (e) => {
-      state.activeMonitorGroupId = e.target.value;
+    selSwitchGroup.addEventListener('change', async (e) => {
+      const targetGId = e.target.value;
+      state.activeMonitorGroupId = targetGId;
       if (window.app) {
-        window.app.loadGroupState(e.target.value);
+        window.app.state.activeMonitorGroupId = targetGId;
+        window.app.loadGroupState(targetGId);
         if (window.app.cloudSyncEngine) {
+          window.app.cloudSyncEngine.groupId = targetGId;
+          window.app.cloudSyncEngine.taskId = state.activeTaskId || (currentClassTasks[0] ? currentClassTasks[0].id : 'task_default');
           window.app.cloudSyncEngine.updateScopeKeys();
-          window.app.cloudSyncEngine.pullFromServer();
+          try {
+            await window.app.cloudSyncEngine.pullFromServer();
+          } catch (err) {}
         }
       }
       renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);

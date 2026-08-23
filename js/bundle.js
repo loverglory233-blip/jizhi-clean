@@ -2185,8 +2185,11 @@
       const isReset = !!this.isResetBroadcast;
       this.isResetBroadcast = false;
 
-      // 🛡️ 致命防线：冷启动/未从服务端完成首次拉取前，绝对禁止推送空状态快照冲刷数据库
-      if (!this.isInitialPullDone && !isReset) {
+      const cu = this.app.authManager ? this.app.authManager.getCurrentUser() : null;
+      const isTeacher = cu && (cu.isTeacher || cu.role === 'teacher');
+
+      // 🛡️ 致命防线：冷启动/未从服务端完成首次拉取前，非教师指令且非重置时禁止推送空快照冲刷数据库
+      if (!this.isInitialPullDone && !isReset && !isTeacher) {
         return;
       }
 
@@ -2936,6 +2939,18 @@
         return;
       }
 
+    const teacherPullAndRefresh = async () => {
+      if (state.teacherActiveTab === 'view_monitoring' && window.app && window.app.cloudSyncEngine) {
+        const activeMonitorGId = state.activeMonitorGroupId || (activeClass.groups && activeClass.groups[0] ? activeClass.groups[0].id : 'group_1');
+        const activeTaskId = state.activeTaskId || (currentClassTasks[0] ? currentClassTasks[0].id : 'task_default');
+        window.app.cloudSyncEngine.groupId = activeMonitorGId;
+        window.app.cloudSyncEngine.taskId = activeTaskId;
+        window.app.cloudSyncEngine.updateScopeKeys();
+        try {
+          await window.app.cloudSyncEngine.pullFromServer();
+        } catch (e) {}
+      }
+
       if (authManager && authManager.pullGlobalMeta) {
         try {
           const oldAnnsJson = localStorage.getItem(STORAGE_KEY_ANNOUNCEMENTS) || '[]';
@@ -2972,7 +2987,8 @@
     const allUsers = authManager.getUsers();
     const classStudents = authManager.getClassStudents(activeClass.id);
 
-    const currentClassTasks = tasks.filter(t => t.classId === 'all' || t.classId === activeClass.id || (t.className && t.className === activeClass.name));
+    // 🛡️ 严格按当前主班过滤写作任务（绝不串出其他班级或历史游离任务）
+    const currentClassTasks = tasks.filter(t => t.classId === activeClass.id || (t.className && t.className === activeClass.name) || (!t.classId && activeClass.id === 'class_101'));
     const currentClassAnnouncements = announcements.filter(a => a.classId === 'all' || !a.classId || a.classId === activeClass.id);
     const currentClassPapers = refPapers.filter(p => p.classId === 'all' || !p.classId || p.classId === activeClass.id);
 
@@ -5766,13 +5782,19 @@
 
     const selSwitchTask = container.querySelector('#sel-switch-monitor-task');
     if (selSwitchTask) {
-      selSwitchTask.addEventListener('change', (e) => {
-        state.activeTaskId = e.target.value;
+      selSwitchTask.addEventListener('change', async (e) => {
+        const targetTId = e.target.value;
+        state.activeTaskId = targetTId;
         if (window.app) {
+          window.app.state.activeTaskId = targetTId;
           window.app.loadGroupState(state.activeMonitorGroupId || 'group_1');
           if (window.app.cloudSyncEngine) {
+            window.app.cloudSyncEngine.groupId = state.activeMonitorGroupId || 'group_1';
+            window.app.cloudSyncEngine.taskId = targetTId;
             window.app.cloudSyncEngine.updateScopeKeys();
-            window.app.cloudSyncEngine.pullFromServer();
+            try {
+              await window.app.cloudSyncEngine.pullFromServer();
+            } catch (err) {}
           }
         }
         renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
@@ -5781,13 +5803,19 @@
 
     const selSwitchGroup = container.querySelector('#sel-switch-monitor-group');
     if (selSwitchGroup) {
-      selSwitchGroup.addEventListener('change', (e) => {
-        state.activeMonitorGroupId = e.target.value;
+      selSwitchGroup.addEventListener('change', async (e) => {
+        const targetGId = e.target.value;
+        state.activeMonitorGroupId = targetGId;
         if (window.app) {
-          window.app.loadGroupState(e.target.value);
+          window.app.state.activeMonitorGroupId = targetGId;
+          window.app.loadGroupState(targetGId);
           if (window.app.cloudSyncEngine) {
+            window.app.cloudSyncEngine.groupId = targetGId;
+            window.app.cloudSyncEngine.taskId = state.activeTaskId || (currentClassTasks[0] ? currentClassTasks[0].id : 'task_default');
             window.app.cloudSyncEngine.updateScopeKeys();
-            window.app.cloudSyncEngine.pullFromServer();
+            try {
+              await window.app.cloudSyncEngine.pullFromServer();
+            } catch (err) {}
           }
         }
         renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
