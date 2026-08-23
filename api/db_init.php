@@ -34,8 +34,15 @@ function initDatabaseTables() {
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;";
     $pdo->exec($sql2);
 
-    // 🧹 不再写入任何默认/种子账号：平台账号一律由教师在教务管理界面显式创建，
-    // 杜绝 u_teacher1/1001/老师 等历史测试账号在空库重建时死灰复燃
+    // 👩‍🏫 唯一教师种子账号：当 1001 教师账号不存在时写入（初始密码 123），
+    // 教师登录后可在教务界面自行增删学生；测试学生（李明/王芳/陈强）一律不写入
+    $stmtChkTeacher = $pdo->prepare("SELECT COUNT(*) FROM `users` WHERE `username` = '1001' OR `id` = 'u_teacher1'");
+    $stmtChkTeacher->execute();
+    if (intval($stmtChkTeacher->fetchColumn()) === 0) {
+        $stmtSeedUser = $pdo->prepare("INSERT INTO `users` (`id`, `username`, `name`, `password`, `role`, `student_code`, `avatar`)
+            VALUES ('u_teacher1', '1001', '老师', '123', 'teacher', '1001', '👩‍🏫')");
+        $stmtSeedUser->execute();
+    }
 
     // 3. 教学班级表 (classes)
     $sql3 = "CREATE TABLE IF NOT EXISTS `classes` (
