@@ -8,38 +8,42 @@ if ! pidof mysqld >/dev/null 2>&1 && ! pidof mariadbd >/dev/null 2>&1; then
     /etc/init.d/mysqld start 2>/dev/null || /etc/init.d/mysql start 2>/dev/null || systemctl start mysqld 2>/dev/null || systemctl start mariadb 2>/dev/null || true
 fi
 
-echo "🟢 2. 彻底排查并强制拉起所有已安装的 PHP-FPM 服务 (根除 502 Bad Gateway)..."
-ACTIVE_PHP_VER=""
-for v in 83 82 81 80 74 73 72 71 70 56; do
-    if [ -d "/www/server/php/$v" ] || [ -f "/etc/init.d/php-fpm-$v" ]; then
-        echo "   ⚡ 正在启动 PHP-$v..."
-        /etc/init.d/php-fpm-$v stop 2>/dev/null || true
-        /etc/init.d/php-fpm-$v start 2>/dev/null || true
-        systemctl restart php-fpm-$v 2>/dev/null || true
-        if [ -z "$ACTIVE_PHP_VER" ] && [ -S "/tmp/php-cgi-$v.sock" ]; then
-            ACTIVE_PHP_VER="$v"
-        fi
+echo "🟢 2. 彻底清理僵死进程并强制拉起所有 PHP-FPM (物理级根除 502 Bad Gateway)..."
+pkill -9 php-fpm 2>/dev/null || true
+rm -f /www/server/php/*/var/run/php-fpm.pid 2>/dev/null || true
+
+for p in /etc/init.d/php-fpm* /etc/init.d/php*; do
+    if [ -x "$p" ]; then
+        echo "   ⚡ 正在拉起服务: $p"
+        "$p" start 2>/dev/null || true
+    fi
+done
+systemctl restart php-fpm* 2>/dev/null || true
+sleep 1
+
+# 自动探测系统真实监听的 PHP Socket
+REAL_SOCK=""
+for s in /tmp/php-cgi-*.sock /var/run/php/php*-fpm.sock; do
+    if [ -S "$s" ]; then
+        REAL_SOCK="$s"
+        echo "🟢 发现真实健康监听的 PHP Socket: $REAL_SOCK"
+        break
     fi
 done
 
-# 修复所有 sock 权限
-chmod 777 /tmp/php-cgi-*.sock 2>/dev/null || true
-chown www:www /tmp/php-cgi-*.sock 2>/dev/null || true
-
-# 修复 phpMyAdmin 专属配置与目录权限
-echo "🟢 2.1 正在自动校准宝塔 phpMyAdmin 运行环境与关联 PHP..."
-if [ -n "$ACTIVE_PHP_VER" ]; then
-    echo "   🟢 phpMyAdmin 将自动绑定至健康活跃的 PHP-$ACTIVE_PHP_VER"
-    for pma_conf in /www/server/nginx/conf/phpmyadmin.conf /www/server/panel/vhost/nginx/phpmyadmin.conf /www/server/nginx/conf/nginx.conf; do
-        if [ -f "$pma_conf" ]; then
-            sed -i -E "s/enable-php-00\.conf/enable-php-${ACTIVE_PHP_VER}.conf/g" "$pma_conf" 2>/dev/null || true
-            sed -i -E "s/enable-php-[0-9]+\.conf/enable-php-${ACTIVE_PHP_VER}.conf/g" "$pma_conf" 2>/dev/null || true
+# 🛡️ 终极全兼容穿透：将真实存活的 Socket 软链接覆盖所有可能的版本名，彻底消灭 502
+if [ -n "$REAL_SOCK" ]; then
+    for v in 83 82 81 80 74 73 72 71 70 56 00; do
+        if [ "$REAL_SOCK" != "/tmp/php-cgi-$v.sock" ]; then
+            ln -sf "$REAL_SOCK" "/tmp/php-cgi-$v.sock" 2>/dev/null || true
         fi
     done
-    if [ -f "/www/server/nginx/conf/enable-php-${ACTIVE_PHP_VER}.conf" ]; then
-        cp -f "/www/server/nginx/conf/enable-php-${ACTIVE_PHP_VER}.conf" "/www/server/nginx/conf/enable-php-00.conf" 2>/dev/null || true
-    fi
+    chmod 777 /tmp/php-cgi-*.sock 2>/dev/null || true
+    chown www:www /tmp/php-cgi-*.sock 2>/dev/null || true
+    echo "🟢 已完成所有 FastCGI Socket 的全量无缝穿透绑定！"
 fi
+
+# 修复 phpMyAdmin 专属配置与目录权限
 chown -R www:www /www/server/phpmyadmin 2>/dev/null || true
 chmod -R 755 /www/server/phpmyadmin 2>/dev/null || true
 
