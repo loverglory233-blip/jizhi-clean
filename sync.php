@@ -809,87 +809,125 @@ if ($action === 'upload_file' && $_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 if ($action === 'get_global_meta') {
+    $foundMeta = null;
+
     if ($pdo) {
+        // 1. 优先读取全局 JSON 快照
         $stmt = $pdo->prepare("SELECT meta_value FROM global_meta WHERE meta_key = 'main_meta'");
         $stmt->execute();
         $row = $stmt->fetch();
         if ($row && !empty($row['meta_value'])) {
             $parsed = json_decode($row['meta_value'], true);
-            // 🛡️ 严格检验：只有当解析出来是包含教务字段（classes/tasks/users）的对象时才返回
             if (is_array($parsed) && (isset($parsed['classes']) || isset($parsed['tasks']) || isset($parsed['users']))) {
-                // 🛡️ 脱敏：下发前剔除所有用户的 password 字段，防止明文/哈希口令泄露
-                if (isset($parsed['users']) && is_array($parsed['users'])) {
-                    foreach ($parsed['users'] as &$usr) { if (is_array($usr)) unset($usr['password']); }
-                    unset($usr);
-                }
-                echo json_encode($parsed, JSON_UNESCAPED_UNICODE);
-                exit;
+                $foundMeta = $parsed;
             }
         }
+
+        // 2. 🛡️ 深度数据保险：若 main_meta 中缺少任务或班级，从独立关系表（tasks, classes, users, announcements）中聚合还原真实数据
+        try {
+            $aggregatedTasks = [];
+            $stmtT = $pdo->query("SELECT * FROM tasks");
+            if ($stmtT) {
+                while ($tr = $stmtT->fetch(PDO::FETCH_ASSOC)) {
+                    $aggregatedTasks[] = [
+                        'id' => $tr['id'],
+                        'title' => $tr['title'],
+                        'desc' => $tr['desc'] ?? '',
+                        'instructions' => $tr['desc'] ?? '',
+                        'durationMinutes' => intval($tr['duration_minutes'] ?? 150),
+                        'deadline' => $tr['deadline'] ?? '',
+                        'status' => $tr['status'] ?? 'in_progress',
+                        'createdAt' => $tr['created_at_str'] ?? '',
+                        'classId' => ($tr['target_class_ids'] ? (json_decode($tr['target_class_ids'], true)[0] ?? 'class_101') : 'class_101')
+                    ];
+                }
+            }
+
+            $aggregatedClasses = [];
+            $stmtC = $pdo->query("SELECT * FROM classes");
+            if ($stmtC) {
+                while ($cr = $stmtC->fetch(PDO::FETCH_ASSOC)) {
+                    $aggregatedClasses[] = [
+                        'id' => $cr['id'],
+                        'name' => $cr['name'],
+                        'code' => $cr['code'],
+                        'studentIds' => json_decode($cr['student_ids'] ?? '[]', true) ?: [],
+                        'groups' => json_decode($cr['groups_data'] ?? '[]', true) ?: []
+                    ];
+                }
+            }
+
+            $aggregatedUsers = [];
+            $stmtU = $pdo->query("SELECT id, username, name, role, student_code, avatar, class_id, group_id FROM users");
+            if ($stmtU) {
+                while ($ur = $stmtU->fetch(PDO::FETCH_ASSOC)) {
+                    $aggregatedUsers[] = [
+                        'id' => $ur['id'],
+                        'username' => $ur['username'],
+                        'name' => $ur['name'],
+                        'role' => $ur['role'],
+                        'studentCode' => $ur['student_code'] ?: $ur['username'],
+                        'avatar' => $ur['avatar'] ?: '👤',
+                        'classId' => $ur['class_id'] ?? '',
+                        'groupId' => $ur['group_id'] ?? ''
+                    ];
+                }
+            }
+
+            if (!$foundMeta) {
+                $foundMeta = [
+                    'users' => $aggregatedUsers,
+                    'classes' => $aggregatedClasses,
+                    'tasks' => $aggregatedTasks,
+                    'announcements' => [],
+                    'referencePapers' => [],
+                    'surveys' => []
+                ];
+            } else {
+                // 若关系表中有更多真实任务，合并补充
+                if (!empty($aggregatedTasks) && empty($foundMeta['tasks'])) {
+                    $foundMeta['tasks'] = $aggregatedTasks;
+                }
+                if (!empty($aggregatedClasses) && empty($foundMeta['classes'])) {
+                    $foundMeta['classes'] = $aggregatedClasses;
+                }
+                if (!empty($aggregatedUsers) && count($aggregatedUsers) > count($foundMeta['users'] ?? [])) {
+                    $foundMeta['users'] = $aggregatedUsers;
+                }
+            }
+        } catch (Exception $e) {}
     }
+
+    if ($foundMeta) {
+        // 脱敏：下发前剔除 password
+        if (isset($foundMeta['users']) && is_array($foundMeta['users'])) {
+            foreach ($foundMeta['users'] as &$usr) { if (is_array($usr)) unset($usr['password']); }
+            unset($usr);
+        }
+        echo json_encode($foundMeta, JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+
     // 降级兼容本地文件
     $globalDbFile = __DIR__ . '/global_db.json';
     if (file_exists($globalDbFile) && filesize($globalDbFile) > 0) {
         $fileContent = file_get_contents($globalDbFile);
         $parsedFile = json_decode($fileContent, true);
-        if (is_array($parsedFile) && (isset($parsedFile['classes']) || isset($parsedFile['tasks']) || isset($parsedFile['users']))) {
-            // 🛡️ 脱敏：下发前剔除所有用户的 password 字段
-            if (isset($parsedFile['users']) && is_array($parsedFile['users'])) {
-                foreach ($parsedFile['users'] as &$usr2) { if (is_array($usr2)) unset($usr2['password']); }
-                unset($usr2);
-            }
+        if (is_array($parsedFile)) {
             echo json_encode($parsedFile, JSON_UNESCAPED_UNICODE);
             exit;
         }
     }
-        $defaultMeta = [
-            'users' => [
-                [
-                    'id' => 'u_teacher1',
-                    'username' => '1001',
-                    'name' => '老师',
-                    'role' => 'teacher',
-                    'studentCode' => '1001',
-                    'avatar' => '👩‍🏫'
-                ]
-            ],
-            'classes' => [
-                [
-                    'id' => 'class_101',
-                    'name' => '《现代教育技术》2026春01班',
-                    'code' => 'ET2026-01',
-                    'studentIds' => [],
-                    'groups' => []
-                ]
-            ],
-            'tasks' => [
-                [
-                    'id' => 'task_default',
-                    'title' => '期末协作写作 (默认测试任务)',
-                    'classId' => 'class_101',
-                    'className' => '《现代教育技术》2026春01班',
-                    'durationMinutes' => 150,
-                    'startTime' => '2026/08/01 08:00',
-                    'deadline' => '2026/08/30 23:59',
-                    'status' => 'in_progress',
-                    'createdAt' => '2026/08/01',
-                    'instructions' => '请各小组成员协同完成多智能体学术论文研讨与写作。',
-                    'resources' => []
-                ]
-            ],
-            'announcements' => [],
-            'referencePapers' => [],
-            'surveys' => []
-        ];
-        
-        $jsonStr = json_encode($defaultMeta, JSON_UNESCAPED_UNICODE);
-        if ($pdo) {
-            $healStmt = $pdo->prepare("INSERT INTO global_meta (meta_key, meta_value) VALUES ('main_meta', :v) ON DUPLICATE KEY UPDATE meta_value = :v2");
-            $healStmt->execute([':v' => $jsonStr, ':v2' => $jsonStr]);
-        }
-        @file_put_contents(__DIR__ . '/global_db.json', $jsonStr);
-        echo $jsonStr;
-        exit;
+
+    // 兜底返回空容器，绝对不再主动覆盖写入数据库！
+    echo json_encode([
+        'users' => [],
+        'classes' => [],
+        'tasks' => [],
+        'announcements' => [],
+        'referencePapers' => []
+    ], JSON_UNESCAPED_UNICODE);
+    exit;
 }
 
 if ($action === 'save_global_meta' && $_SERVER['REQUEST_METHOD'] === 'POST') {
