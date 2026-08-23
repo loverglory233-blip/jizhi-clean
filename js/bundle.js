@@ -8291,10 +8291,10 @@
     }
 
     initGlobalPresenceHeartbeat() {
+      // 🌿 自然轻量在线：心跳在普通网络交互与阶段流转时随路携带，避免每2.5秒高频强推造成界面抖动
       setInterval(() => {
         const currentUser = this.authManager ? this.authManager.getCurrentUser() : null;
-        // 🛡️ 严格对齐规则：进入任务工作台的学生持续上报在线心跳
-        if (currentUser && currentUser.role === 'student' && this.state.studentViewMode === 'workspace' && this.state.activeTaskId) {
+        if (currentUser && currentUser.role === 'student' && this.state.studentViewMode === 'workspace') {
           if (!this.state.presence) this.state.presence = {};
           const myKeys = [currentUser.id, currentUser.studentCode, currentUser.username, currentUser.name].filter(Boolean);
           const now = Date.now();
@@ -8305,12 +8305,8 @@
               updatedAt: now
             };
           });
-          if (this.cloudSyncEngine) {
-            this.cloudSyncEngine.pushSnapshot();
-          }
-          this.renderPresenceCursors();
         }
-      }, 2500);
+      }, 10000);
     }
 
     initTimer() {
