@@ -14,7 +14,7 @@ import {
   DefaultTasks,
   DefaultAnnouncements,
   DefaultReferencePapers
-} from './constants.js?v=20260823_v33';
+} from './constants.js?v=20260823_v34';
 
 export class AuthManager {
   constructor() {
@@ -1535,10 +1535,14 @@ export class AuthManager {
             msgDiv.textContent = '✅ ' + (data.message || '密码修改成功！');
             setTimeout(() => {
               closeModal();
-              if (window.app && window.app.showNotification) {
-                window.app.showNotification('🎉 密码修改成功，请牢记新密码');
+              alert('🎉 密码修改成功！为了您的账号安全，请使用新密码重新登录。');
+              this.logout();
+              if (window.app && typeof window.app.handleLogout === 'function') {
+                window.app.handleLogout();
+              } else {
+                window.location.reload();
               }
-            }, 1200);
+            }, 300);
           } else {
             msgDiv.style.display = 'block';
             msgDiv.style.background = '#fef2f2';
