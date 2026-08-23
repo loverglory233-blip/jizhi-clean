@@ -8418,10 +8418,14 @@
           myKeys.forEach(k => {
             this.state.presence[k] = {
               nodeIndex: (this.state.presence[k] && this.state.presence[k].nodeIndex) || 0,
-              activeSection: (this.state.presence[k] && this.state.presence[k].activeSection) || '在线研讨',
+              activeSection: (this.state.presence[k] && this.state.presence[k].activeSection) || '在线协作',
               updatedAt: now
             };
           });
+          // 🟢 关键修复：主动向云端广播心跳快照，确保其他设备秒级感知全员在线
+          if (this.cloudSyncEngine) {
+            this.cloudSyncEngine.pushSnapshot();
+          }
         }
       }, 3500);
     }
