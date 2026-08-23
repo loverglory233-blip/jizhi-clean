@@ -51,17 +51,19 @@ SETTING_EOF
 mkdir -p var
 echo "jizhi_academic_secret_key_2026" > APIKEY.txt
 
-echo "🔄 精确重启 Etherpad 9001 端口协同进程..."
-pkill -f "src/node/server.js" || true
+echo "🔄 启动 Etherpad 官方标准运行服务 (bin/run.sh)..."
+pkill -f "run.sh" || true
+pkill -f "ep_etherpad-lite" || true
 
-nohup node src/node/server.js > /var/log/etherpad.log 2>&1 &
+chmod +x bin/run.sh
+nohup ./bin/run.sh > /var/log/etherpad.log 2>&1 &
 
-sleep 3
+sleep 4
 
 # 健康检查
 if curl -s "http://127.0.0.1:9001/api" | grep -q "1."; then
     echo "🎉🎉🎉 [Success] Etherpad-Lite 实时协同引擎已 100% 成功运行在 9001 端口！"
     echo "🔑 API Key: $(cat APIKEY.txt)"
 else
-    echo "⏳ Etherpad 服务已拉起，正在初始化，查看日志: cat /var/log/etherpad.log"
+    echo "⏳ Etherpad 服务已拉起，请查看日志: cat /var/log/etherpad.log"
 fi
