@@ -97,8 +97,8 @@ if ($action === 'login' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $dbPwd = '';
 
     if ($pdo) {
-        $stmt = $pdo->prepare("SELECT * FROM users WHERE username = :acc OR student_code = :acc OR id = :acc LIMIT 1");
-        $stmt->execute([':acc' => $account]);
+        $stmt = $pdo->prepare("SELECT * FROM users WHERE username = :acc1 OR student_code = :acc2 OR id = :acc3 LIMIT 1");
+        $stmt->execute([':acc1' => $account, ':acc2' => $account, ':acc3' => $account]);
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
         if ($row) {
             $userExists = true;
@@ -188,8 +188,8 @@ if ($action === 'change_password' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     if ($pdo) {
-        $stmt = $pdo->prepare("SELECT * FROM users WHERE username = :acc OR student_code = :acc OR id = :acc LIMIT 1");
-        $stmt->execute([':acc' => $account]);
+        $stmt = $pdo->prepare("SELECT * FROM users WHERE username = :acc1 OR student_code = :acc2 OR id = :acc3 LIMIT 1");
+        $stmt->execute([':acc1' => $account, ':acc2' => $account, ':acc3' => $account]);
         $user = $stmt->fetch(PDO::FETCH_ASSOC);
         if (!$user) {
             echo json_encode(['success' => false, 'message' => '用户账号不存在']);
@@ -252,8 +252,8 @@ if ($action === 'reset_student_password' && $_SERVER['REQUEST_METHOD'] === 'POST
     }
 
     if ($pdo) {
-        $stmt = $pdo->prepare("SELECT * FROM users WHERE username = :acc OR student_code = :acc OR id = :acc LIMIT 1");
-        $stmt->execute([':acc' => $account]);
+        $stmt = $pdo->prepare("SELECT * FROM users WHERE username = :acc1 OR student_code = :acc2 OR id = :acc3 LIMIT 1");
+        $stmt->execute([':acc1' => $account, ':acc2' => $account, ':acc3' => $account]);
         $user = $stmt->fetch(PDO::FETCH_ASSOC);
         if (!$user) {
             echo json_encode(['success' => false, 'message' => '未找到该学生账号']);
