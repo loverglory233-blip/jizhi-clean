@@ -3794,20 +3794,21 @@
 
                       <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:12px 14px; font-size:12.5px;">
                         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; flex-wrap:wrap; gap:6px;">
-                          <span style="font-weight:700; color:#1e40af;">👥 合约签署矩阵:</span>
+                          <span style="font-weight:700; color:#1e40af;">👥 公约签署进度与审计矩阵:</span>
                           ${state.stage1?.contract?.isProxySigned ? `
                             <span style="background:#fffbeb; color:#b45309; border:1px solid #fde68a; padding:2px 8px; border-radius:6px; font-size:11px; font-weight:700;">
-                              ⚠️ 组长【${state.stage1.contract.proxySignLeader || '组长'}】一键代签推进 (已豁免缺勤组员)
+                              ⚠️ ${state.stage1?.contract?.proxySignNote || `由【${state.stage1.contract.proxySignLeader || '组员'}】代签推进`}
                             </span>
                           ` : ''}
                         </div>
                         <div style="display:flex; flex-wrap:wrap; gap:8px;">
                           ${monitorMembersList.map(m => {
-                            const isConf = state.stage1?.contract?.confirmedMembers && (state.stage1.contract.confirmedMembers[m.id] || state.stage1.contract.confirmedMembers[m.studentCode]);
+                            const isConf = state.stage1?.contract?.confirmedMembers && (state.stage1.contract.confirmedMembers[m.id] || state.stage1.contract.confirmedMembers[m.studentCode] || (m.name && state.stage1.contract.confirmedMembers[m.name]));
                             const isProxy = state.stage1?.contract?.isProxySigned && !isConf;
+                            const isLeaderRole = (m.studentCode === 'A' || m.role === 'leader' || m.roleTitle?.includes('组长'));
                             return `
                               <span style="color:${isConf ? '#059669' : (isProxy ? '#b45309' : '#64748b')}; border:1px solid ${isConf ? '#a7f3d0' : (isProxy ? '#fde68a' : '#e2e8f0')}; background:${isConf ? '#ecfdf5' : (isProxy ? '#fffbeb' : '#ffffff')}; padding:4px 10px; border-radius:6px; font-size:12px; font-weight:600;">
-                                ${m.avatar || '👤'} ${m.name}: <b>${isConf ? '✅ 自主签署' : (isProxy ? '⚠️ 组长代签 (缺勤)' : '⏳ 未签署')}</b>
+                                ${m.avatar || '👤'} ${m.name} (${m.roleTitle || '组员'}): <b>${isConf ? '✅ 自主签署' : (isProxy ? (isLeaderRole ? '⚠️ 缺勤 (已被组员代签)' : '⚠️ 缺勤代签') : '⏳ 未签署')}</b>
                               </span>
                             `;
                           }).join('')}
@@ -8433,22 +8434,19 @@
     }
 
     syncStage1() {
-      const user = this.authManager.getCurrentUser();
-      const groupId = (user && user.groupId) ? user.groupId : (this.state.activeMonitorGroupId || 'group_1');
+      const groupId = this.getEffectiveGroupId();
       this.saveGroupState(groupId);
       if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
     }
 
     syncStage2() {
-      const user = this.authManager.getCurrentUser();
-      const groupId = (user && user.groupId) ? user.groupId : (this.state.activeMonitorGroupId || 'group_1');
+      const groupId = this.getEffectiveGroupId();
       this.saveGroupState(groupId);
       if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
     }
 
     syncStage3() {
-      const user = this.authManager.getCurrentUser();
-      const groupId = (user && user.groupId) ? user.groupId : (this.state.activeMonitorGroupId || 'group_1');
+      const groupId = this.getEffectiveGroupId();
       this.saveGroupState(groupId);
       if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
     }
@@ -10696,17 +10694,28 @@
           if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
           if (confirmedCount < totalMembersCount) {
             const currentUserObj = this.authManager.getCurrentUser();
+            const leaderMember = Object.values(this.state.members || {}).find(m => m && (m.studentCode === 'A' || m.role === 'leader' || m.roleTitle?.includes('组长'))) || Object.values(this.state.members || {})[0];
+            const isLeaderConfirmed = leaderMember && (s1.contract.confirmedMembers[leaderMember.id] || s1.contract.confirmedMembers[leaderMember.studentCode] || (leaderMember.name && s1.contract.confirmedMembers[leaderMember.name]));
             const isLeader = (user === 'A' || (currentUserObj && (currentUserObj.studentCode === 'A' || currentUserObj.role === 'leader' || currentUserObj.roleTitle?.includes('组长'))) || (this.state.members && this.state.members[user]?.roleTitle?.includes('组长')));
-            if (isLeader && confirmedCount >= 1) {
-              const allowForceAdvance = confirm(`✅ 你 (${memberName}) 已签署合约！\n\n当前签署进度：${confirmedCount}/${totalMembersCount} 人。\n\n⚠️ 若有部分组员因请假、缺勤未到场，作为组长，您是否确认【全员已就绪，一键代表全组开启阶段二】？`);
+
+            // 场景 1: 组长在场代签；场景 2: 组长缺勤/未到场，由在场组员代表全组代签推进
+            const allowProxySign = isLeader || (!isLeaderConfirmed && confirmedCount >= 1);
+            if (allowProxySign) {
+              const promptTitle = isLeader
+                ? `✅ 你 (${memberName}) 已签署合约！\n\n当前签署进度：${confirmedCount}/${totalMembersCount} 人。\n\n⚠️ 若有部分组员因请假、缺勤未到场，作为组长，您是否确认【全员已就绪，一键代表全组开启阶段二】？`
+                : `✅ 你 (${memberName}) 已签署合约！\n\n检测到组长尚未到场，当前在场组员 (${confirmedCount}/${totalMembersCount} 人) 已签署完毕。\n\n⚠️ 是否由在场组员【${memberName}】代表全组一键代签并开启【阶段二：学术编辑部】？`;
+
+              const allowForceAdvance = confirm(promptTitle);
               if (allowForceAdvance) {
                 s1.contract.isConfirmed = true;
                 s1.contract.isProxySigned = true;
                 s1.contract.proxySignLeader = memberName;
                 s1.contract.proxySignTimestamp = Date.now();
-                s1.contract.proxySignNote = `组长 (${memberName}) 一键代签推进合约（已签署: ${confirmedCount}/${totalMembersCount}）`;
+                s1.contract.proxySignNote = isLeader
+                  ? `组长 (${memberName}) 一键代签推进合约（已签署: ${confirmedCount}/${totalMembersCount}）`
+                  : `组长未到场，由在场组员 (${memberName}) 代表全组代签推进（已签署: ${confirmedCount}/${totalMembersCount}，组长已被代签）`;
 
-                const userGroupId = (currentUserObj && currentUserObj.groupId) ? currentUserObj.groupId : 'group_1';
+                const userGroupId = (currentUserObj && currentUserObj.groupId) ? currentUserObj.groupId : this.getEffectiveGroupId();
                 const userClassId = (currentUserObj && currentUserObj.classId) ? currentUserObj.classId : 'class_101';
                 const activeTaskId = this.state.activeTaskId || 'task_default';
                 const classes = this.authManager.getClasses();
@@ -10731,8 +10740,10 @@
                   confirmedCount: confirmedCount,
                   totalCount: totalMembersCount,
                   absentMembers: absentMembers,
-                  title: '⚠️ 【阶段一公约】组长一键代签提醒',
-                  text: `【${userClass.name}】· 任务《${currentTask.title}》\n【${groupObj.name}】组长【${memberName}】已代表全组一键代签并推进【阶段一：合作学术公约】（在场签署: ${confirmedCount}/${totalMembersCount} 人，已豁免未到场缺勤组员 ${absentStr}）。`,
+                  title: isLeader ? '⚠️ 【阶段一公约】组长一键代签提醒' : '⚠️ 【阶段一公约】组长缺勤·在场组员代表代签提醒',
+                  text: isLeader
+                    ? `【${userClass.name}】· 任务《${currentTask.title}》\n【${groupObj.name}】组长【${memberName}】已代表全组一键代签并推进【阶段一：合作学术公约】（在场签署: ${confirmedCount}/${totalMembersCount} 人，已豁免未到场缺勤组员 ${absentStr}）。`
+                    : `【${userClass.name}】· 任务《${currentTask.title}》\n【${groupObj.name}】因组长未到场，已由在场组员【${memberName}】代表全组代签并推进【阶段一：合作学术公约】（在场签署: ${confirmedCount}/${totalMembersCount} 人，组长已被代签，缺勤组员 ${absentStr}）。`,
                   timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
                 });
 
@@ -10741,7 +10752,7 @@
                 this.syncStageChange('stage2');
                 if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
                 setTimeout(() => {
-                  const finalMsg = { sender: 'auctioneer', text: `🎪 【拍卖师宣布】：组长【${memberName}】已一键代签确认！学术合作合约正式生效，阶段一圆满结束，系统自动解锁【阶段二：学术编辑部】！`, timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) };
+                  const finalMsg = { sender: 'auctioneer', text: `🎪 【拍卖师宣布】：${isLeader ? `组长【${memberName}】` : `在场组员代表【${memberName}】`}已一键代签确认！学术合作合约正式生效，阶段一圆满结束，系统自动解锁【阶段二：学术编辑部】！`, timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) };
                   this.state.chatLogs.stage1.push(finalMsg);
                   this.syncChatLogs();
                   if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
@@ -10752,7 +10763,7 @@
                 return;
               }
             }
-            alert(`✅ 你 (${memberName}) 已成功按键确认签署合约！\n\n目前组内签署进度：${confirmedCount}/${totalMembersCount} 人。\n需全组成员确认（或组长一键推进）后方可解锁阶段二！`);
+            alert(`✅ 你 (${memberName}) 已成功按键确认签署合约！\n\n目前组内签署进度：${confirmedCount}/${totalMembersCount} 人。\n需全组成员确认（或在场代表/组长一键推进）后方可解锁阶段二！`);
           } else {
             s1.contract.isConfirmed = true;
             this.state.groupMaxStage = 'stage2';

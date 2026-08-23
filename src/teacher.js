@@ -9,8 +9,8 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260823_v47";
-import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired } from "./utils.js?v=20260823_v47";
+} from "./constants.js?v=20260823_v48";
+import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired } from "./utils.js?v=20260823_v48";
 
 /* ==========================================================================
    7. TEACHER PORTAL RENDERER (LIVE WORKSPACE MIRROR & ANNOUNCEMENT READ MATRIX)
@@ -822,20 +822,21 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
 
                     <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:12px 14px; font-size:12.5px;">
                       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; flex-wrap:wrap; gap:6px;">
-                        <span style="font-weight:700; color:#1e40af;">👥 合约签署矩阵:</span>
+                        <span style="font-weight:700; color:#1e40af;">👥 公约签署进度与审计矩阵:</span>
                         ${state.stage1?.contract?.isProxySigned ? `
                           <span style="background:#fffbeb; color:#b45309; border:1px solid #fde68a; padding:2px 8px; border-radius:6px; font-size:11px; font-weight:700;">
-                            ⚠️ 组长【${state.stage1.contract.proxySignLeader || '组长'}】一键代签推进 (已豁免缺勤组员)
+                            ⚠️ ${state.stage1?.contract?.proxySignNote || `由【${state.stage1.contract.proxySignLeader || '组员'}】代签推进`}
                           </span>
                         ` : ''}
                       </div>
                       <div style="display:flex; flex-wrap:wrap; gap:8px;">
                         ${monitorMembersList.map(m => {
-                          const isConf = state.stage1?.contract?.confirmedMembers && (state.stage1.contract.confirmedMembers[m.id] || state.stage1.contract.confirmedMembers[m.studentCode]);
+                          const isConf = state.stage1?.contract?.confirmedMembers && (state.stage1.contract.confirmedMembers[m.id] || state.stage1.contract.confirmedMembers[m.studentCode] || (m.name && state.stage1.contract.confirmedMembers[m.name]));
                           const isProxy = state.stage1?.contract?.isProxySigned && !isConf;
+                          const isLeaderRole = (m.studentCode === 'A' || m.role === 'leader' || m.roleTitle?.includes('组长'));
                           return `
                             <span style="color:${isConf ? '#059669' : (isProxy ? '#b45309' : '#64748b')}; border:1px solid ${isConf ? '#a7f3d0' : (isProxy ? '#fde68a' : '#e2e8f0')}; background:${isConf ? '#ecfdf5' : (isProxy ? '#fffbeb' : '#ffffff')}; padding:4px 10px; border-radius:6px; font-size:12px; font-weight:600;">
-                              ${m.avatar || '👤'} ${m.name}: <b>${isConf ? '✅ 自主签署' : (isProxy ? '⚠️ 组长代签 (缺勤)' : '⏳ 未签署')}</b>
+                              ${m.avatar || '👤'} ${m.name} (${m.roleTitle || '组员'}): <b>${isConf ? '✅ 自主签署' : (isProxy ? (isLeaderRole ? '⚠️ 缺勤 (已被组员代签)' : '⚠️ 缺勤代签') : '⏳ 未签署')}</b>
                             </span>
                           `;
                         }).join('')}
