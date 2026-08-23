@@ -14,8 +14,8 @@ import {
   DefaultTasks,
   DefaultAnnouncements,
   DefaultReferencePapers
-} from './constants.js?v=20260823_v173';
-import { formatExportDateTime } from './utils.js?v=20260823_v173';
+} from './constants.js?v=20260823_v174';
+import { formatExportDateTime } from './utils.js?v=20260823_v174';
 
 export class AuthManager {
   constructor() {
@@ -1606,7 +1606,8 @@ export class AuthManager {
             msgDiv.style.display = 'block';
             msgDiv.style.background = '#fef2f2';
             msgDiv.style.color = '#dc2626';
-            msgDiv.textContent = (data && data.message) ? data.message : '❌ 修改失败，请检查原密码是否正确';
+            const serverMsg = (data && data.message) ? data.message : '原密码校验未通过';
+            msgDiv.textContent = serverMsg.startsWith('❌') ? serverMsg : ('❌ ' + serverMsg);
             submitBtn.disabled = false;
             submitBtn.textContent = '确认修改';
           }
