@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles } from "./constants.js?v=20260823_v83";
-import { callCozeAgentAPI } from "./agents.js?v=20260823_v83";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired } from "./utils.js?v=20260823_v83";
+import { AgentProfiles } from "./constants.js?v=20260823_v84";
+import { callCozeAgentAPI } from "./agents.js?v=20260823_v84";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired } from "./utils.js?v=20260823_v84";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -326,24 +326,8 @@ export function attachWordEditorEvents(container, editorId, isReadonly, onChange
   editor.addEventListener('paste', blockPasteIntoEditor, true);
   editor.addEventListener('drop', blockPasteIntoEditor, true);
 
-  // 🚀 工业级 Yjs CRDT + y-quill 实时协同引擎自动绑定
   let quillInstance = null;
-  let yjsBinding = null;
-
-  // 🛡️ 关闭旧 Yjs 连接，防止切换任务/小组时连接泄漏
-  if (window._yjsProvider) {
-    try { window._yjsProvider.destroy(); } catch (e) {}
-    window._yjsProvider = null;
-  }
-  if (window._yjsDoc) {
-    try { window._yjsDoc.destroy(); } catch (e) {}
-    window._yjsDoc = null;
-  }
-
   const QuillClass = window.Quill;
-  const YClass = window.Y;
-  const WsProviderClass = window.WebsocketProvider || (window.Y && window.Y.WebsocketProvider);
-  const QuillBindingClass = window.QuillBinding || (window.Y && window.Y.QuillBinding);
 
   if (QuillClass) {
     try {
@@ -925,7 +909,7 @@ export function renderRemoteCursors(editorId, state) {
   const editor = document.getElementById(editorId);
   if (!editor) return;
 
-  // 🛡️ 纯净化图层：彻底清除富文本内部的任何历史残留光标 DOM，光标全权由 Yjs QuillCursors 独立图层承载
+  // 🛡️ 纯净化图层：彻底清除富文本内部的任何历史残留光标 DOM
   editor.querySelectorAll('.remote-cursor-widget').forEach(el => el.remove());
 }
 

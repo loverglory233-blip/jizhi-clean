@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState } from './constants.js?v=20260823_v83';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin } from './utils.js?v=20260823_v83';
+import { InitialState } from './constants.js?v=20260823_v84';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin } from './utils.js?v=20260823_v84';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -51,13 +51,7 @@ export class CloudSyncEngine {
     }
   }
 
-  initSSE() {
-    // 生产环境全面停用 SSE，由 Yjs CRDT WebSocket (1234端口) + 数据库高可用短轮询接管
-  }
-
-  // 💡 协同架构说明：富文本实时协同由 Yjs CRDT WebSocket (1234端口) 独立承载；
-  // 阶段状态/研讨聊天/全局教务由 CloudSyncEngine 高频短轮询 + 服务端事务保障。
-  // 此方法仅刷新 scope keys，不建立 WebSocket 连接。
+  initSSE() {}
   refreshScopeKeys() {
     this.updateScopeKeys();
   }
