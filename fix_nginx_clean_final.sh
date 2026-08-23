@@ -80,6 +80,12 @@ ${SSL_BLOCK}
         proxy_set_header X-Real-IP \$remote_addr;
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
     }
+    # 1.1 插件静态资源由 Nginx 直接从物理磁盘极速直出 (彻底杜绝 404)
+    location ^~ /static/plugins/ {
+        alias /www/wwwroot/etherpad-lite/node_modules/;
+        access_log off;
+        expires 1d;
+    }
     location /static/ {
         proxy_pass http://127.0.0.1:9001;
         proxy_set_header Host \$host;
