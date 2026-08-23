@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260823_v35";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired } from "./utils.js?v=20260823_v35";
-import { callCozeAgentAPI } from "./agents.js?v=20260823_v35";
-import { AuthManager } from "./auth.js?v=20260823_v35";
-import { CloudSyncEngine } from "./sync.js?v=20260823_v35";
-import { renderLoginView } from "./login.js?v=20260823_v35";
-import { renderTeacherPortal } from "./teacher.js?v=20260823_v35";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260823_v35";
+} from "./constants.js?v=20260823_v36";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired } from "./utils.js?v=20260823_v36";
+import { callCozeAgentAPI } from "./agents.js?v=20260823_v36";
+import { AuthManager } from "./auth.js?v=20260823_v36";
+import { CloudSyncEngine } from "./sync.js?v=20260823_v36";
+import { renderLoginView } from "./login.js?v=20260823_v36";
+import { renderTeacherPortal } from "./teacher.js?v=20260823_v36";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260823_v36";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260823_v35";
+} from "./editor.js?v=20260823_v36";
 
 // Make renderChat available on window for sync callbacks
 if (typeof window !== "undefined") {
@@ -1461,40 +1461,50 @@ export class App {
       });
     }
 
-    modal.querySelector('#btn-read-confirm').addEventListener('click', () => {
-      // 1. 标记本条为已读 (个人独立已读 + 小组聚合)
-      this.authManager.markAnnouncementRead(selectedAnn.id, groupId);
-      closeModal();
+    const confirmBtn = modal.querySelector('#btn-read-confirm');
+    if (confirmBtn) {
+      confirmBtn.addEventListener('click', () => {
+        confirmBtn.style.pointerEvents = 'none';
+        confirmBtn.textContent = '✅ 已确认';
 
-      const allTasks = this.authManager.getTasks();
+        // 1. 标记本条为已读 (个人独立已读 + 小组聚合)
+        this.authManager.markAnnouncementRead(selectedAnn.id, groupId);
+        closeModal();
 
-      // 2. 重新获取严格属于【当前班级 + 当前任务 + 当前小组】的未读通知列表（从新到旧，排除刚刚已确认的本条与已截止任务）
-      const updatedAllAnns = this.authManager.getAnnouncements();
-      const nextUnreads = updatedAllAnns
-        .filter(a => {
-          if (a.id === selectedAnn.id) return false;
-          if (a.taskId && a.taskId !== 'task_all') {
-            const tObj = allTasks.find(t => t.id === a.taskId);
-            if (tObj && isTaskExpired(tObj)) return false;
+        const allTasks = this.authManager.getTasks();
+
+        // 2. 重新获取严格属于【当前班级 + 当前任务 + 当前小组】的未读通知列表（排除刚刚已确认的本条与已截止任务）
+        const updatedAllAnns = this.authManager.getAnnouncements();
+        const nextUnreads = updatedAllAnns
+          .filter(a => {
+            if (a.id === selectedAnn.id) return false;
+            if (a.taskId && a.taskId !== 'task_all') {
+              const tObj = allTasks.find(t => t.id === a.taskId);
+              if (tObj && isTaskExpired(tObj)) return false;
+            }
+            const matchClass = !a.classId || a.classId === 'all' || a.classId === effectiveClassId;
+            const matchGroup = !a.targetGroupId || a.targetGroupId === 'all' || a.targetGroupId === groupId ||
+              (Array.isArray(a.targetGroupIds) && (a.targetGroupIds.includes('all') || a.targetGroupIds.includes(groupId)));
+            const matchTask = a.taskId === 'task_all' || a.taskId === activeTaskId || (!a.taskId && activeTaskId === 'task_default');
+            return matchClass && matchGroup && matchTask && !isAnnRead(a);
+          })
+          .sort((a, b) => (b.id > a.id ? 1 : -1));
+
+        // 3. 如果当前任务还有未读通知，自动连续弹出下一条让学生一一确认；如果全确认完则刷新当前视图
+        if (nextUnreads.length > 0) {
+          setTimeout(() => this.showAnnouncementModal(nextUnreads[0], true), 200);
+        } else {
+          if (window.app && window.app.showNotification) {
+            window.app.showNotification('🎉 所有课堂通知已确认已读');
           }
-          const matchClass = !a.classId || a.classId === 'all' || a.classId === effectiveClassId;
-          const matchGroup = !a.targetGroupId || a.targetGroupId === 'all' || a.targetGroupId === groupId ||
-            (Array.isArray(a.targetGroupIds) && (a.targetGroupIds.includes('all') || a.targetGroupIds.includes(groupId)));
-          const matchTask = a.taskId === 'task_all' || a.taskId === activeTaskId || (!a.taskId && activeTaskId === 'task_default');
-          return matchClass && matchGroup && matchTask && !isAnnRead(a);
-        })
-        .sort((a, b) => (b.id > a.id ? 1 : -1));
-
-      // 3. 如果当前任务还有未读通知，自动连续弹出下一条让学生一一确认；如果全确认完则刷新工作区状态
-      if (nextUnreads.length > 0) {
-        setTimeout(() => this.showAnnouncementModal(nextUnreads[0], true), 200);
-      } else {
-        if (window.app && window.app.showNotification) {
-          window.app.showNotification('🎉 通知已确认已读');
+          if (this.state.studentViewMode === 'task_list') {
+            this.renderMain();
+          } else {
+            this.renderStudentWorkspace();
+          }
         }
-        this.renderStudentWorkspace();
-      }
-    });
+      });
+    }
   }
 
   showQuestionnaireModal() {
