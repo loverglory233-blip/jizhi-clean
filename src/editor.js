@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles } from "./constants.js?v=20260823_v54";
-import { callCozeAgentAPI } from "./agents.js?v=20260823_v54";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired } from "./utils.js?v=20260823_v54";
+import { AgentProfiles } from "./constants.js?v=20260823_v55";
+import { callCozeAgentAPI } from "./agents.js?v=20260823_v55";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired } from "./utils.js?v=20260823_v55";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -340,6 +340,22 @@ export function attachWordEditorEvents(container, editorId, isReadonly, onChange
   const WsProviderClass = window.WebsocketProvider || (window.Y && window.Y.WebsocketProvider);
   const QuillBindingClass = window.QuillBinding || (window.Y && window.Y.QuillBinding);
 
+  if (QuillClass) {
+    try {
+      // 🔤 注册 Inline Style Attributors，完美支持任意中文字体与像素字号
+      const FontStyle = QuillClass.import('attributors/style/font');
+      if (FontStyle) { FontStyle.whitelist = null; QuillClass.register(FontStyle, true); }
+      const SizeStyle = QuillClass.import('attributors/style/size');
+      if (SizeStyle) { SizeStyle.whitelist = null; QuillClass.register(SizeStyle, true); }
+      const AlignStyle = QuillClass.import('attributors/style/align');
+      if (AlignStyle) { QuillClass.register(AlignStyle, true); }
+      const ColorStyle = QuillClass.import('attributors/style/color');
+      if (ColorStyle) { QuillClass.register(ColorStyle, true); }
+      const BgStyle = QuillClass.import('attributors/style/background');
+      if (BgStyle) { QuillClass.register(BgStyle, true); }
+    } catch (e) {}
+  }
+
   if (QuillClass && YClass && WsProviderClass && QuillBindingClass && !isReadonly) {
     try {
       if (!editor.classList.contains('ql-container')) {
@@ -420,21 +436,27 @@ export function attachWordEditorEvents(container, editorId, isReadonly, onChange
   if (!isReadonly) {
     const exec = (cmd, val = null) => {
       if (quillInstance) {
-        const range = quillInstance.getSelection(true);
-        if (cmd === 'bold') quillInstance.format('bold', !quillInstance.getFormat().bold);
-        else if (cmd === 'italic') quillInstance.format('italic', !quillInstance.getFormat().italic);
-        else if (cmd === 'underline') quillInstance.format('underline', !quillInstance.getFormat().underline);
-        else if (cmd === 'strikeThrough') quillInstance.format('strike', !quillInstance.getFormat().strike);
-        else if (cmd === 'superscript') quillInstance.format('script', quillInstance.getFormat().script === 'super' ? false : 'super');
-        else if (cmd === 'subscript') quillInstance.format('script', quillInstance.getFormat().script === 'sub' ? false : 'sub');
+        let range = quillInstance.getSelection();
+        if (!range) {
+          quillInstance.focus();
+          range = quillInstance.getSelection() || { index: Math.max(0, quillInstance.getLength() - 1), length: 0 };
+        }
+        
+        const currentFormat = quillInstance.getFormat(range) || {};
+        if (cmd === 'bold') quillInstance.format('bold', !currentFormat.bold);
+        else if (cmd === 'italic') quillInstance.format('italic', !currentFormat.italic);
+        else if (cmd === 'underline') quillInstance.format('underline', !currentFormat.underline);
+        else if (cmd === 'strikeThrough') quillInstance.format('strike', !currentFormat.strike);
+        else if (cmd === 'superscript') quillInstance.format('script', currentFormat.script === 'super' ? false : 'super');
+        else if (cmd === 'subscript') quillInstance.format('script', currentFormat.script === 'sub' ? false : 'sub');
         else if (cmd === 'justifyLeft') quillInstance.format('align', false);
         else if (cmd === 'justifyCenter') quillInstance.format('align', 'center');
         else if (cmd === 'justifyRight') quillInstance.format('align', 'right');
         else if (cmd === 'justifyFull') quillInstance.format('align', 'justify');
         else if (cmd === 'indent') quillInstance.format('indent', '+1');
         else if (cmd === 'outdent') quillInstance.format('indent', '-1');
-        else if (cmd === 'insertUnorderedList') quillInstance.format('list', quillInstance.getFormat().list === 'bullet' ? false : 'bullet');
-        else if (cmd === 'insertOrderedList') quillInstance.format('list', quillInstance.getFormat().list === 'ordered' ? false : 'ordered');
+        else if (cmd === 'insertUnorderedList') quillInstance.format('list', currentFormat.list === 'bullet' ? false : 'bullet');
+        else if (cmd === 'insertOrderedList') quillInstance.format('list', currentFormat.list === 'ordered' ? false : 'ordered');
         else if (cmd === 'formatBlock') {
           const level = (val || '').toLowerCase().replace('h', '');
           quillInstance.format('header', isNaN(level) || level === '' ? false : parseInt(level, 10));
@@ -444,13 +466,12 @@ export function attachWordEditorEvents(container, editorId, isReadonly, onChange
         else if (cmd === 'foreColor') quillInstance.format('color', val || false);
         else if (cmd === 'hiliteColor') quillInstance.format('background', val || false);
         else if (cmd === 'removeFormat') {
-          if (range) quillInstance.removeFormat(range.index, range.length);
+          if (range && range.length > 0) quillInstance.removeFormat(range.index, range.length);
         }
         else if (cmd === 'insertHTML') {
           quillInstance.clipboard.dangerouslyPasteHTML(range ? range.index : quillInstance.getLength(), val);
-        } else {
-          try { document.execCommand(cmd, false, val); } catch (e) {}
         }
+        quillInstance.focus();
         if (onChangeCallback) onChangeCallback(quillInstance.root.innerHTML);
       } else {
         document.execCommand(cmd, false, val);
