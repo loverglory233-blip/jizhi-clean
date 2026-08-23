@@ -9,8 +9,8 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260823_v13";
-import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml } from "./utils.js?v=20260823_v13";
+} from "./constants.js?v=20260823_v14";
+import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired } from "./utils.js?v=20260823_v14";
 
 /* ==========================================================================
    7. TEACHER PORTAL RENDERER (LIVE WORKSPACE MIRROR & ANNOUNCEMENT READ MATRIX)
@@ -315,16 +315,25 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
                 ` : currentClassTasks.map((t, tIdx) => {
                   const isLatest = tIdx === 0;
                   const taskSeqNum = currentClassTasks.length - tIdx;
+                  const isExpired = isTaskExpired(t);
                   return `
-                  <div style="background:#ffffff; border:1px solid #e2e8f0; padding:18px; border-radius:12px; box-shadow:0 1px 3px rgba(15,23,42,0.03);">
-                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                  <div style="background:#ffffff; border:1.5px solid ${isExpired ? '#fca5a5' : '#e2e8f0'}; padding:18px; border-radius:12px; box-shadow:0 1px 3px rgba(15,23,42,0.03);">
+                    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
                       <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
-                        <span style="background:linear-gradient(135deg, #1d4ed8, #2563eb); color:#ffffff; padding:3px 10px; border-radius:8px; font-size:12px; font-weight:800;">任务 ${taskSeqNum}${isLatest ? ' (最新)' : ''}</span>
+                        <span style="background:${isExpired ? 'linear-gradient(135deg, #ef4444, #dc2626)' : 'linear-gradient(135deg, #1d4ed8, #2563eb)'}; color:#ffffff; padding:3px 10px; border-radius:8px; font-size:12px; font-weight:800;">任务 ${taskSeqNum}${isLatest ? ' (最新)' : ''}</span>
                         <span style="font-size:16px; font-weight:800; color:#1e40af;">📌 ${t.title}</span>
                         <span style="background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe; padding:2px 8px; border-radius:8px; font-size:11.5px; font-weight:700;">受众班级: ${t.className}</span>
+                        ${isExpired ? `
+                          <span style="background:#fef2f2; color:#dc2626; border:1px solid #fecaca; padding:2px 8px; border-radius:8px; font-size:11.5px; font-weight:800;">🛑 已截止 · 正文只读</span>
+                        ` : `
+                          <span style="background:#ecfdf5; color:#059669; border:1px solid #a7f3d0; padding:2px 8px; border-radius:8px; font-size:11.5px; font-weight:700;">🟢 开放撰写中</span>
+                        `}
                       </div>
-                      <div style="display:flex; align-items:center; gap:8px;">
+                      <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
                         <span style="font-size:12px; color:#64748b; margin-right:4px;">🕒 发布时间: <b>${t.createdAt || t.startTime || '刚刚'}</b></span>
+                        <button class="btn-extend-task-deadline" data-id="${t.id}" data-title="${t.title}" data-deadline="${t.deadline || ''}" data-duration="${t.durationMinutes || 150}" style="background:linear-gradient(135deg, #d97706, #f59e0b); border:none; color:white; padding:5px 12px; border-radius:6px; font-size:12.5px; font-weight:700; cursor:pointer; box-shadow:0 2px 6px rgba(217,119,6,0.25);" title="为该任务快捷延长截止时间">
+                          ⏳ 延长时间
+                        </button>
                         <button class="btn-edit-task" data-id="${t.id}" data-title="${t.title}" data-duration="${t.durationMinutes || 150}" data-instructions="${encodeURIComponent(t.instructions || '')}" data-start="${t.startTime || ''}" data-deadline="${t.deadline || ''}" style="background:#eff6ff; border:1px solid #bfdbfe; color:#2563eb; padding:5px 12px; border-radius:6px; font-size:12.5px; font-weight:700; cursor:pointer;" title="编辑修改此写作任务">
                           ✏️ 修改任务
                         </button>
@@ -333,10 +342,10 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
                         </button>
                       </div>
                     </div>
-                    <div style="font-size:13px; color:#334155; margin:10px 0; display:flex; gap:20px; background:#f8fafc; padding:10px 16px; border-radius:8px; border-left:4px solid #2563eb;">
+                    <div style="font-size:13px; color:#334155; margin:10px 0; display:flex; gap:20px; background:${isExpired ? '#fef2f2' : '#f8fafc'}; padding:10px 16px; border-radius:8px; border-left:4px solid ${isExpired ? '#dc2626' : '#2563eb'};">
                       <span>📅 <b>开始时间:</b> <span style="color:#2563eb; font-weight:700;">${t.startTime || '即时开启'}</span></span>
-                      <span>⌛ <b>截止时间:</b> <span style="color:#dc2626; font-weight:700;">${t.deadline || '无硬性限制'}</span></span>
-                      <span>⏱️ <b>预估时长:</b> ${t.durationMinutes} 分钟</span>
+                      <span>⌛ <b>截止时间:</b> <span style="color:#dc2626; font-weight:800;">${t.deadline || '无硬性限制'}</span> ${isExpired ? '<b style="color:#dc2626;">(已过截止时间)</b>' : ''}</span>
+                      <span>⏱️ <b>任务时长:</b> ${t.durationMinutes} 分钟</span>
                     </div>
                   </div>
                   `;
@@ -1941,6 +1950,123 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
           authManager.updateTask(taskId, newTitle, newDesc, fmtTimeStr(newStart), fmtTimeStr(newDeadline), calculatedDuration);
           closeModal();
           alert(`✅ 写作任务《${newTitle}》已成功修改，时间与内容已全网即时同步！`);
+          renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+        } catch (err) {
+          alert('❌ ' + err.message);
+        }
+      });
+    });
+  });
+
+  // ⏳ 延长时间快捷弹窗
+  container.querySelectorAll('.btn-extend-task-deadline').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const taskId = btn.dataset.id;
+      const tasks = authManager.getTasks();
+      const task = tasks.find(t => t.id === taskId);
+      if (!task) {
+        alert('❌ 未找到该写作任务！');
+        return;
+      }
+
+      document.querySelectorAll('.modal-overlay').forEach(el => el.remove());
+
+      const formatForInput = (val) => {
+        if (!val) return '';
+        const clean = val.trim().replace(' ', 'T');
+        if (clean.length === 16) return clean;
+        if (clean.length > 16) return clean.slice(0, 16);
+        const d = new Date(val);
+        if (!isNaN(d.getTime())) {
+          const pad = (n) => String(n).padStart(2, '0');
+          return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+        }
+        return '';
+      };
+
+      const now = new Date();
+      let baseDate = new Date();
+      if (task.deadline) {
+        const d = new Date(task.deadline.replace(/-/g, '/'));
+        if (!isNaN(d.getTime()) && d.getTime() > now.getTime()) {
+          baseDate = d;
+        }
+      }
+
+      const modal = document.createElement('div');
+      modal.className = 'modal-overlay';
+      modal.innerHTML = `
+        <div class="teacher-modal-card fancy-task-modal" style="width:480px;">
+          <div class="teacher-modal-header" style="background:linear-gradient(135deg, #d97706, #f59e0b); color:white; padding:18px 24px;">
+            <div class="modal-header-title">
+              <div class="modal-icon-badge" style="background:rgba(255,255,255,0.25); color:white; font-size:20px; padding:6px 10px; border-radius:10px;">⏳</div>
+              <div>
+                <h3 style="margin:0; font-size:17px; font-weight:800; color:white;">延长写作任务截止时间</h3>
+                <div style="font-size:11.5px; opacity:0.9; margin-top:2px;">延期后学生端正文将瞬间解除只读锁定，恢复正常编辑</div>
+              </div>
+            </div>
+            <button class="modal-close-btn" id="btn-close-extend-modal" style="background:rgba(255,255,255,0.2); border:none; color:white; font-size:16px; border-radius:8px; width:30px; height:30px; cursor:pointer;">✕</button>
+          </div>
+          <div class="teacher-modal-body" style="padding:20px 24px; display:flex; flex-direction:column; gap:14px;">
+            <div style="font-size:13.5px; color:#1e293b; font-weight:700;">
+              任务名称：<span style="color:#2563eb;">📌 ${escapeHtml(task.title)}</span>
+            </div>
+            <div style="font-size:12.5px; color:#64748b; background:#f8fafc; padding:8px 12px; border-radius:8px; border:1px solid #e2e8f0;">
+              当前截止时间：<b style="color:#dc2626;">${task.deadline || '无硬性限制'}</b>
+            </div>
+
+            <div style="display:flex; flex-direction:column; gap:6px;">
+              <label style="font-size:12.5px; font-weight:700; color:#334155;">⚡ 快捷延长预设时长：</label>
+              <div style="display:grid; grid-template-columns:repeat(4, 1fr); gap:8px;">
+                <button type="button" class="btn-quick-extend" data-mins="30" style="background:#f0fdf4; border:1px solid #86efac; color:#15803d; padding:8px 0; border-radius:8px; font-size:12px; font-weight:700; cursor:pointer;">+30 分钟</button>
+                <button type="button" class="btn-quick-extend" data-mins="60" style="background:#eff6ff; border:1px solid #93c5fd; color:#1d4ed8; padding:8px 0; border-radius:8px; font-size:12px; font-weight:700; cursor:pointer;">+1 小时</button>
+                <button type="button" class="btn-quick-extend" data-mins="120" style="background:#fef3c7; border:1px solid #fcd34d; color:#b45309; padding:8px 0; border-radius:8px; font-size:12px; font-weight:700; cursor:pointer;">+2 小时</button>
+                <button type="button" class="btn-quick-extend" data-mins="1440" style="background:#faf5ff; border:1px solid #d8b4fe; color:#7e22ce; padding:8px 0; border-radius:8px; font-size:12px; font-weight:700; cursor:pointer;">+1 天</button>
+              </div>
+            </div>
+
+            <div style="display:flex; flex-direction:column; gap:6px;">
+              <label style="font-size:12.5px; font-weight:700; color:#334155;">📅 新的截止时间：</label>
+              <input type="datetime-local" id="input-extend-deadline" class="teacher-input fancy" value="${formatForInput(new Date(baseDate.getTime() + 60 * 60 * 1000).toISOString())}" style="width:100%; font-size:13px; padding:9px 12px; border:1.5px solid #cbd5e1; border-radius:8px;">
+            </div>
+          </div>
+          <div class="teacher-modal-footer" style="background:#f8fafc; border-top:1px solid #e2e8f0; padding:14px 24px; display:flex; justify-content:flex-end; gap:10px;">
+            <button class="modal-btn cancel" id="btn-cancel-extend" style="background:#ffffff; border:1px solid #cbd5e1; color:#475569; padding:8px 18px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer;">取消</button>
+            <button class="modal-btn submit" id="btn-save-extend" style="background:linear-gradient(135deg, #d97706, #f59e0b); border:none; color:white; padding:8px 22px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer; box-shadow:0 3px 10px rgba(217,119,6,0.25);">💾 保存新截止时间</button>
+          </div>
+        </div>
+      `;
+      document.body.appendChild(modal);
+
+      const closeModal = () => { modal.remove(); };
+      modal.querySelector('#btn-close-extend-modal').addEventListener('click', closeModal);
+      modal.querySelector('#btn-cancel-extend').addEventListener('click', closeModal);
+
+      const dlInput = modal.querySelector('#input-extend-deadline');
+
+      let lastAddedMins = 60;
+      modal.querySelectorAll('.btn-quick-extend').forEach(qBtn => {
+        qBtn.addEventListener('click', () => {
+          const mins = parseInt(qBtn.dataset.mins, 10);
+          lastAddedMins = mins;
+          const newD = new Date(baseDate.getTime() + mins * 60 * 1000);
+          dlInput.value = formatForInput(newD.toISOString());
+          dlInput.style.borderColor = '#d97706';
+          setTimeout(() => { if (dlInput) dlInput.style.borderColor = '#cbd5e1'; }, 400);
+        });
+      });
+
+      modal.querySelector('#btn-save-extend').addEventListener('click', () => {
+        const val = dlInput.value;
+        if (!val) {
+          alert('请指定新的截止时间！');
+          return;
+        }
+        const newDeadlineStr = val.replace('T', ' ');
+        try {
+          authManager.extendTaskDeadline(taskId, newDeadlineStr, lastAddedMins);
+          closeModal();
+          alert(`✅ 写作任务《${task.title}》截止时间已延长至 ${newDeadlineStr}！\n\n学生端工作台已自动解除只读锁定，可正常协同编辑。`);
           renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
         } catch (err) {
           alert('❌ ' + err.message);

@@ -124,6 +124,23 @@
    */
 
   /**
+   * 🛡️ 任务截止状态判定：如果当前本地时间已超过截止时间，判定为已截止 (过期)
+   */
+  function isTaskExpired(task) {
+    if (!task || !task.deadline) return false;
+    try {
+      const raw = String(task.deadline).trim();
+      if (!raw || raw.includes('无') || raw.includes('随时') || raw.includes('结课前') || raw.includes('不限')) return false;
+      const deadlineStr = raw.replace(/-/g, '/');
+      const deadlineTime = new Date(deadlineStr).getTime();
+      if (isNaN(deadlineTime)) return false;
+      return Date.now() > deadlineTime;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  /**
    * 🛡️ XSS 防护：HTML 字符实体安全转义
    */
   function escapeHtml(str) {
@@ -1521,6 +1538,19 @@
       if (newDeadline !== undefined) tasks[taskIndex].deadline = newDeadline;
       if (newDurationMinutes !== undefined) tasks[taskIndex].durationMinutes = parseInt(newDurationMinutes) || 150;
 
+      localStorage.setItem(STORAGE_KEY_TASKS, JSON.stringify(tasks));
+      this.pushGlobalMeta();
+      return tasks[taskIndex];
+    }
+
+    extendTaskDeadline(taskId, newDeadline, addedMinutes = 0) {
+      let tasks = this.getTasks();
+      const taskIndex = tasks.findIndex(t => t.id === taskId);
+      if (taskIndex === -1) throw new Error('任务不存在或已被删除！');
+      tasks[taskIndex].deadline = newDeadline;
+      if (addedMinutes > 0) {
+        tasks[taskIndex].durationMinutes = (parseInt(tasks[taskIndex].durationMinutes, 10) || 150) + parseInt(addedMinutes, 10);
+      }
       localStorage.setItem(STORAGE_KEY_TASKS, JSON.stringify(tasks));
       this.pushGlobalMeta();
       return tasks[taskIndex];
@@ -3143,16 +3173,25 @@
                   ` : currentClassTasks.map((t, tIdx) => {
                     const isLatest = tIdx === 0;
                     const taskSeqNum = currentClassTasks.length - tIdx;
+                    const isExpired = isTaskExpired(t);
                     return `
-                    <div style="background:#ffffff; border:1px solid #e2e8f0; padding:18px; border-radius:12px; box-shadow:0 1px 3px rgba(15,23,42,0.03);">
-                      <div style="display:flex; justify-content:space-between; align-items:center;">
+                    <div style="background:#ffffff; border:1.5px solid ${isExpired ? '#fca5a5' : '#e2e8f0'}; padding:18px; border-radius:12px; box-shadow:0 1px 3px rgba(15,23,42,0.03);">
+                      <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
                         <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
-                          <span style="background:linear-gradient(135deg, #1d4ed8, #2563eb); color:#ffffff; padding:3px 10px; border-radius:8px; font-size:12px; font-weight:800;">任务 ${taskSeqNum}${isLatest ? ' (最新)' : ''}</span>
+                          <span style="background:${isExpired ? 'linear-gradient(135deg, #ef4444, #dc2626)' : 'linear-gradient(135deg, #1d4ed8, #2563eb)'}; color:#ffffff; padding:3px 10px; border-radius:8px; font-size:12px; font-weight:800;">任务 ${taskSeqNum}${isLatest ? ' (最新)' : ''}</span>
                           <span style="font-size:16px; font-weight:800; color:#1e40af;">📌 ${t.title}</span>
                           <span style="background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe; padding:2px 8px; border-radius:8px; font-size:11.5px; font-weight:700;">受众班级: ${t.className}</span>
+                          ${isExpired ? `
+                            <span style="background:#fef2f2; color:#dc2626; border:1px solid #fecaca; padding:2px 8px; border-radius:8px; font-size:11.5px; font-weight:800;">🛑 已截止 · 正文只读</span>
+                          ` : `
+                            <span style="background:#ecfdf5; color:#059669; border:1px solid #a7f3d0; padding:2px 8px; border-radius:8px; font-size:11.5px; font-weight:700;">🟢 开放撰写中</span>
+                          `}
                         </div>
-                        <div style="display:flex; align-items:center; gap:8px;">
+                        <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
                           <span style="font-size:12px; color:#64748b; margin-right:4px;">🕒 发布时间: <b>${t.createdAt || t.startTime || '刚刚'}</b></span>
+                          <button class="btn-extend-task-deadline" data-id="${t.id}" data-title="${t.title}" data-deadline="${t.deadline || ''}" data-duration="${t.durationMinutes || 150}" style="background:linear-gradient(135deg, #d97706, #f59e0b); border:none; color:white; padding:5px 12px; border-radius:6px; font-size:12.5px; font-weight:700; cursor:pointer; box-shadow:0 2px 6px rgba(217,119,6,0.25);" title="为该任务快捷延长截止时间">
+                            ⏳ 延长时间
+                          </button>
                           <button class="btn-edit-task" data-id="${t.id}" data-title="${t.title}" data-duration="${t.durationMinutes || 150}" data-instructions="${encodeURIComponent(t.instructions || '')}" data-start="${t.startTime || ''}" data-deadline="${t.deadline || ''}" style="background:#eff6ff; border:1px solid #bfdbfe; color:#2563eb; padding:5px 12px; border-radius:6px; font-size:12.5px; font-weight:700; cursor:pointer;" title="编辑修改此写作任务">
                             ✏️ 修改任务
                           </button>
@@ -3161,10 +3200,10 @@
                           </button>
                         </div>
                       </div>
-                      <div style="font-size:13px; color:#334155; margin:10px 0; display:flex; gap:20px; background:#f8fafc; padding:10px 16px; border-radius:8px; border-left:4px solid #2563eb;">
+                      <div style="font-size:13px; color:#334155; margin:10px 0; display:flex; gap:20px; background:${isExpired ? '#fef2f2' : '#f8fafc'}; padding:10px 16px; border-radius:8px; border-left:4px solid ${isExpired ? '#dc2626' : '#2563eb'};">
                         <span>📅 <b>开始时间:</b> <span style="color:#2563eb; font-weight:700;">${t.startTime || '即时开启'}</span></span>
-                        <span>⌛ <b>截止时间:</b> <span style="color:#dc2626; font-weight:700;">${t.deadline || '无硬性限制'}</span></span>
-                        <span>⏱️ <b>预估时长:</b> ${t.durationMinutes} 分钟</span>
+                        <span>⌛ <b>截止时间:</b> <span style="color:#dc2626; font-weight:800;">${t.deadline || '无硬性限制'}</span> ${isExpired ? '<b style="color:#dc2626;">(已过截止时间)</b>' : ''}</span>
+                        <span>⏱️ <b>任务时长:</b> ${t.durationMinutes} 分钟</span>
                       </div>
                     </div>
                     `;
@@ -4777,6 +4816,123 @@
       });
     });
 
+    // ⏳ 延长时间快捷弹窗
+    container.querySelectorAll('.btn-extend-task-deadline').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const taskId = btn.dataset.id;
+        const tasks = authManager.getTasks();
+        const task = tasks.find(t => t.id === taskId);
+        if (!task) {
+          alert('❌ 未找到该写作任务！');
+          return;
+        }
+
+        document.querySelectorAll('.modal-overlay').forEach(el => el.remove());
+
+        const formatForInput = (val) => {
+          if (!val) return '';
+          const clean = val.trim().replace(' ', 'T');
+          if (clean.length === 16) return clean;
+          if (clean.length > 16) return clean.slice(0, 16);
+          const d = new Date(val);
+          if (!isNaN(d.getTime())) {
+            const pad = (n) => String(n).padStart(2, '0');
+            return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+          }
+          return '';
+        };
+
+        const now = new Date();
+        let baseDate = new Date();
+        if (task.deadline) {
+          const d = new Date(task.deadline.replace(/-/g, '/'));
+          if (!isNaN(d.getTime()) && d.getTime() > now.getTime()) {
+            baseDate = d;
+          }
+        }
+
+        const modal = document.createElement('div');
+        modal.className = 'modal-overlay';
+        modal.innerHTML = `
+          <div class="teacher-modal-card fancy-task-modal" style="width:480px;">
+            <div class="teacher-modal-header" style="background:linear-gradient(135deg, #d97706, #f59e0b); color:white; padding:18px 24px;">
+              <div class="modal-header-title">
+                <div class="modal-icon-badge" style="background:rgba(255,255,255,0.25); color:white; font-size:20px; padding:6px 10px; border-radius:10px;">⏳</div>
+                <div>
+                  <h3 style="margin:0; font-size:17px; font-weight:800; color:white;">延长写作任务截止时间</h3>
+                  <div style="font-size:11.5px; opacity:0.9; margin-top:2px;">延期后学生端正文将瞬间解除只读锁定，恢复正常编辑</div>
+                </div>
+              </div>
+              <button class="modal-close-btn" id="btn-close-extend-modal" style="background:rgba(255,255,255,0.2); border:none; color:white; font-size:16px; border-radius:8px; width:30px; height:30px; cursor:pointer;">✕</button>
+            </div>
+            <div class="teacher-modal-body" style="padding:20px 24px; display:flex; flex-direction:column; gap:14px;">
+              <div style="font-size:13.5px; color:#1e293b; font-weight:700;">
+                任务名称：<span style="color:#2563eb;">📌 ${escapeHtml(task.title)}</span>
+              </div>
+              <div style="font-size:12.5px; color:#64748b; background:#f8fafc; padding:8px 12px; border-radius:8px; border:1px solid #e2e8f0;">
+                当前截止时间：<b style="color:#dc2626;">${task.deadline || '无硬性限制'}</b>
+              </div>
+
+              <div style="display:flex; flex-direction:column; gap:6px;">
+                <label style="font-size:12.5px; font-weight:700; color:#334155;">⚡ 快捷延长预设时长：</label>
+                <div style="display:grid; grid-template-columns:repeat(4, 1fr); gap:8px;">
+                  <button type="button" class="btn-quick-extend" data-mins="30" style="background:#f0fdf4; border:1px solid #86efac; color:#15803d; padding:8px 0; border-radius:8px; font-size:12px; font-weight:700; cursor:pointer;">+30 分钟</button>
+                  <button type="button" class="btn-quick-extend" data-mins="60" style="background:#eff6ff; border:1px solid #93c5fd; color:#1d4ed8; padding:8px 0; border-radius:8px; font-size:12px; font-weight:700; cursor:pointer;">+1 小时</button>
+                  <button type="button" class="btn-quick-extend" data-mins="120" style="background:#fef3c7; border:1px solid #fcd34d; color:#b45309; padding:8px 0; border-radius:8px; font-size:12px; font-weight:700; cursor:pointer;">+2 小时</button>
+                  <button type="button" class="btn-quick-extend" data-mins="1440" style="background:#faf5ff; border:1px solid #d8b4fe; color:#7e22ce; padding:8px 0; border-radius:8px; font-size:12px; font-weight:700; cursor:pointer;">+1 天</button>
+                </div>
+              </div>
+
+              <div style="display:flex; flex-direction:column; gap:6px;">
+                <label style="font-size:12.5px; font-weight:700; color:#334155;">📅 新的截止时间：</label>
+                <input type="datetime-local" id="input-extend-deadline" class="teacher-input fancy" value="${formatForInput(new Date(baseDate.getTime() + 60 * 60 * 1000).toISOString())}" style="width:100%; font-size:13px; padding:9px 12px; border:1.5px solid #cbd5e1; border-radius:8px;">
+              </div>
+            </div>
+            <div class="teacher-modal-footer" style="background:#f8fafc; border-top:1px solid #e2e8f0; padding:14px 24px; display:flex; justify-content:flex-end; gap:10px;">
+              <button class="modal-btn cancel" id="btn-cancel-extend" style="background:#ffffff; border:1px solid #cbd5e1; color:#475569; padding:8px 18px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer;">取消</button>
+              <button class="modal-btn submit" id="btn-save-extend" style="background:linear-gradient(135deg, #d97706, #f59e0b); border:none; color:white; padding:8px 22px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer; box-shadow:0 3px 10px rgba(217,119,6,0.25);">💾 保存新截止时间</button>
+            </div>
+          </div>
+        `;
+        document.body.appendChild(modal);
+
+        const closeModal = () => { modal.remove(); };
+        modal.querySelector('#btn-close-extend-modal').addEventListener('click', closeModal);
+        modal.querySelector('#btn-cancel-extend').addEventListener('click', closeModal);
+
+        const dlInput = modal.querySelector('#input-extend-deadline');
+
+        let lastAddedMins = 60;
+        modal.querySelectorAll('.btn-quick-extend').forEach(qBtn => {
+          qBtn.addEventListener('click', () => {
+            const mins = parseInt(qBtn.dataset.mins, 10);
+            lastAddedMins = mins;
+            const newD = new Date(baseDate.getTime() + mins * 60 * 1000);
+            dlInput.value = formatForInput(newD.toISOString());
+            dlInput.style.borderColor = '#d97706';
+            setTimeout(() => { if (dlInput) dlInput.style.borderColor = '#cbd5e1'; }, 400);
+          });
+        });
+
+        modal.querySelector('#btn-save-extend').addEventListener('click', () => {
+          const val = dlInput.value;
+          if (!val) {
+            alert('请指定新的截止时间！');
+            return;
+          }
+          const newDeadlineStr = val.replace('T', ' ');
+          try {
+            authManager.extendTaskDeadline(taskId, newDeadlineStr, lastAddedMins);
+            closeModal();
+            alert(`✅ 写作任务《${task.title}》截止时间已延长至 ${newDeadlineStr}！\n\n学生端工作台已自动解除只读锁定，可正常协同编辑。`);
+            renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+          } catch (err) {
+            alert('❌ ' + err.message);
+          }
+        });
+      });
+    });
+
     // 🗑️ 删除写作任务按钮
     container.querySelectorAll('.btn-delete-task').forEach(btn => {
       btn.addEventListener('click', () => {
@@ -5731,48 +5887,62 @@
                   const duration = t.durationMinutes || 150;
                   const taskSeqNum = relevantTasks.length - idx;
                   const isLatest = idx === 0;
+                  const isExpired = isTaskExpired(t);
                   // 仅当前进入的任务展示真实协作进度，其余任务展示中立“已发布”状态（避免全局阶段串入各卡片）
                   const isActiveTask = (t.id === state.activeTaskId);
-                  const progressLabel = isActiveTask
-                    ? (state.isFinalSubmitted ? '🔒 终稿已全员答辩并提交归档' : (state.currentStage === 'stage1' ? '🎪 阶段一：学术拍卖会' : (state.currentStage === 'stage2' ? '📰 阶段二：学术编辑部 (撰写中)' : '🎓 阶段三：答辩擂台')))
-                    : '📋 已发布 · 待进入协作';
+                  const progressLabel = isExpired
+                    ? '🛑 本任务已到截止时间 · 已截止'
+                    : (isActiveTask
+                        ? (state.isFinalSubmitted ? '🔒 终稿已全员答辩并提交归档' : (state.currentStage === 'stage1' ? '🎪 阶段一：学术拍卖会' : (state.currentStage === 'stage2' ? '📰 阶段二：学术编辑部 (撰写中)' : '🎓 阶段三：答辩擂台')))
+                        : '📋 进行中 · 待进入协作');
                   return `
-                    <div class="student-task-card" style="background:#ffffff; border:1px solid #e2e8f0; border-radius:16px; padding:22px; box-shadow:0 4px 16px -2px rgba(15,23,42,0.04); display:flex; flex-direction:column; justify-content:space-between; transition:all 0.2s ease;">
+                    <div class="student-task-card" style="background:#ffffff; border:1.5px solid ${isExpired ? '#fca5a5' : '#e2e8f0'}; border-radius:16px; padding:22px; box-shadow:0 4px 16px -2px rgba(15,23,42,0.04); display:flex; flex-direction:column; justify-content:space-between; transition:all 0.2s ease;">
                       <div>
                         <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:12px; margin-bottom:14px;">
                           <div style="font-size:17px; font-weight:800; color:#0f172a; line-height:1.4; display:flex; align-items:center; gap:8px;">
-                            <span style="background:linear-gradient(135deg, #1e40af, #3b82f6); color:#ffffff; padding:2.5px 9px; border-radius:6px; font-size:12px; font-weight:800; white-space:nowrap; box-shadow:0 2px 6px rgba(30,64,175,0.25);">
+                            <span style="background:${isExpired ? 'linear-gradient(135deg, #ef4444, #dc2626)' : 'linear-gradient(135deg, #1e40af, #3b82f6)'}; color:#ffffff; padding:2.5px 9px; border-radius:6px; font-size:12px; font-weight:800; white-space:nowrap; box-shadow:0 2px 6px rgba(30,64,175,0.25);">
                               任务 ${taskSeqNum}${isLatest ? ' (最新)' : ''}
                             </span>
                             <span>📌 ${escapeHtml(t.title)}</span>
                           </div>
-                          <span style="background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe; font-size:11.5px; font-weight:700; padding:3px 10px; border-radius:20px; flex-shrink:0;">
-                            👥 ${escapeHtml(t.targetGroupName || groupName)}
-                          </span>
+                          <div style="display:flex; gap:6px; align-items:center; flex-shrink:0;">
+                            ${isExpired ? `
+                              <span style="background:#fef2f2; color:#dc2626; border:1px solid #fecaca; font-size:11.5px; font-weight:800; padding:3px 10px; border-radius:20px;">
+                                🛑 已截止
+                              </span>
+                            ` : `
+                              <span style="background:#ecfdf5; color:#059669; border:1px solid #a7f3d0; font-size:11.5px; font-weight:700; padding:3px 10px; border-radius:20px;">
+                                🟢 进行中
+                              </span>
+                            `}
+                            <span style="background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe; font-size:11.5px; font-weight:700; padding:3px 10px; border-radius:20px;">
+                              👥 ${escapeHtml(t.targetGroupName || groupName)}
+                            </span>
+                          </div>
                         </div>
 
-                        <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px 12px; font-size:11.5px; color:#475569; margin-bottom:12px; background:#f8fafc; padding:10px 14px; border-radius:10px; border:1px solid #f1f5f9;">
+                        <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px 12px; font-size:11.5px; color:#475569; margin-bottom:12px; background:${isExpired ? '#fef2f2' : '#f8fafc'}; padding:10px 14px; border-radius:10px; border:1px solid ${isExpired ? '#fee2e2' : '#f1f5f9'};">
                           <div>🕒 发布时间: <b style="color:#0f172a;">${t.createdAt || t.startTime || '刚刚'}</b></div>
                           <div>⏱️ 任务时长: <b style="color:#2563eb;">${duration} 分钟</b></div>
                           <div>📅 开始时间: <b style="color:#0f172a;">${t.startTime || '随时'}</b></div>
-                          <div>⌛ 截止时间: <b style="color:#dc2626;">${t.deadline || '结课前'}</b></div>
+                          <div>⌛ 截止时间: <b style="color:#dc2626; font-weight:800;">${t.deadline || '结课前'}</b></div>
                         </div>
 
-                        <div style="font-size:12.5px; color:#334155; line-height:1.6; margin-bottom:12px; background:#f8fafc; border-left:3.5px solid #2563eb; padding:8px 12px; border-radius:0 8px 8px 0;">
+                        <div style="font-size:12.5px; color:#334155; line-height:1.6; margin-bottom:12px; background:#f8fafc; border-left:3.5px solid ${isExpired ? '#dc2626' : '#2563eb'}; padding:8px 12px; border-radius:0 8px 8px 0;">
                           ${t.instructions ? escapeHtml(t.instructions.substring(0, 130)) + (t.instructions.length > 130 ? '...' : '') : '<span style="color:#94a3b8; font-style:italic;">暂无详细要求说明</span>'}
                         </div>
 
                         <div style="display:flex; align-items:center; gap:8px; font-size:12px; font-weight:600; color:#64748b; margin-bottom:16px;">
-                          <span>协作进度状态:</span>
-                          <span style="background:#ecfdf5; color:#059669; border:1px solid #a7f3d0; padding:2px 8px; border-radius:6px; font-size:11.5px; font-weight:700;">
+                          <span>协作状态:</span>
+                          <span style="background:${isExpired ? '#fef2f2' : '#ecfdf5'}; color:${isExpired ? '#dc2626' : '#059669'}; border:1px solid ${isExpired ? '#fecaca' : '#a7f3d0'}; padding:2px 8px; border-radius:6px; font-size:11.5px; font-weight:700;">
                             ${progressLabel}
                           </span>
                         </div>
                       </div>
 
                       <div style="border-top:1px solid #f1f5f9; padding-top:14px;">
-                        <button class="btn-enter-task-workspace" data-task-id="${t.id}" style="width:100%; background:linear-gradient(135deg, #1d4ed8, #2563eb); color:white; border:none; padding:11px 18px; border-radius:10px; font-size:13.5px; font-weight:700; cursor:pointer; box-shadow:0 4px 12px rgba(37,99,235,0.2); display:flex; align-items:center; justify-content:center; gap:6px; transition:all 0.2s ease;">
-                          🚀 进入协作工作台
+                        <button class="btn-enter-task-workspace" data-task-id="${t.id}" style="width:100%; background:${isExpired ? 'linear-gradient(135deg, #475569, #64748b)' : 'linear-gradient(135deg, #1d4ed8, #2563eb)'}; color:white; border:none; padding:11px 18px; border-radius:10px; font-size:13.5px; font-weight:700; cursor:pointer; box-shadow:0 4px 12px ${isExpired ? 'rgba(100,116,139,0.2)' : 'rgba(37,99,235,0.2)'}; display:flex; align-items:center; justify-content:center; gap:6px; transition:all 0.2s ease;">
+                          ${isExpired ? '🔒 查看写作内容 (已截止只读)' : '🚀 进入协作工作台'}
                         </button>
                       </div>
                     </div>
@@ -7323,7 +7493,10 @@
     const s2 = state.stage2;
     const actionPlan = s2.actionPlan;
     const isStage2MeetingLocked = state.currentStage === 'stage3' || state.isFinalSubmitted;
-    const isEditorReadonly = state.isFinalSubmitted;
+    const allTasks = (window.app && window.app.authManager) ? window.app.authManager.getTasks() : [];
+    const currentTask = allTasks.find(t => t.id === state.activeTaskId);
+    const isTaskDeadlineExpired = isTaskExpired(currentTask);
+    const isEditorReadonly = state.isFinalSubmitted || isTaskDeadlineExpired;
     const membersList = Object.values(state.members || {});
     const plainTextLen = (s2.unifiedContent || '').replace(/<[^>]*>/g, '').trim().length;
 
@@ -7342,6 +7515,16 @@
     const isDraftFullyConfirmed = s2.isDraftConfirmed || (confirmedDraftCount >= totalCount && totalCount > 0);
 
     canvas.innerHTML = `
+      ${isTaskDeadlineExpired ? `
+        <div style="background:#fef2f2; border:1.5px solid #fca5a5; border-radius:10px; padding:12px 18px; margin-bottom:12px; font-size:13px; color:#991b1b; font-weight:700; display:flex; justify-content:space-between; align-items:center; box-shadow:0 2px 8px rgba(239,68,68,0.1);">
+          <div style="display:flex; align-items:center; gap:8px;">
+            <span style="font-size:18px;">🔒</span>
+            <span><b>任务已截止锁定：</b> 本任务已于 <b>${currentTask?.deadline || '截止时间'}</b> 截止，写作正文已自动转为<b>【只读模式】</b>不可再编辑。如需修改请联系任课教师延长时间。</span>
+          </div>
+          <span style="font-size:12px; color:#ffffff; background:#dc2626; padding:3px 10px; border-radius:6px; font-weight:800;">已截止</span>
+        </div>
+      ` : ''}
+
       ${isStage2MeetingLocked ? `
         <div style="background:#eff6ff; border:1px solid #bfdbfe; border-radius:8px; padding:10px 14px; margin-bottom:10px; font-size:13px; color:#1d4ed8; font-weight:700; display:flex; justify-content:space-between; align-items:center;">
           <span>🔒 阶段二【半程编辑会议】打分与修正清单已完成并锁定 ${isEditorReadonly ? '· 全盘终稿已提交只读查阅' : '· 可随时回看'}</span>

@@ -4,6 +4,23 @@
  */
 
 /**
+ * 🛡️ 任务截止状态判定：如果当前本地时间已超过截止时间，判定为已截止 (过期)
+ */
+export function isTaskExpired(task) {
+  if (!task || !task.deadline) return false;
+  try {
+    const raw = String(task.deadline).trim();
+    if (!raw || raw.includes('无') || raw.includes('随时') || raw.includes('结课前') || raw.includes('不限')) return false;
+    const deadlineStr = raw.replace(/-/g, '/');
+    const deadlineTime = new Date(deadlineStr).getTime();
+    if (isNaN(deadlineTime)) return false;
+    return Date.now() > deadlineTime;
+  } catch (e) {
+    return false;
+  }
+}
+
+/**
  * 🛡️ XSS 防护：HTML 字符实体安全转义
  */
 export function escapeHtml(str) {

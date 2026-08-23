@@ -59,8 +59,8 @@ function verifyTeacherSession($userId, $token, $pdo) {
         return false;
     }
     // 1. 验证用户在数据库中的角色是否为 teacher
-    $stmtAuth = $pdo->prepare("SELECT role FROM `users` WHERE (`id` = :u OR `username` = :u OR `student_code` = :u) AND `role` = 'teacher' LIMIT 1");
-    $stmtAuth->execute([':u' => $userId]);
+    $stmtAuth = $pdo->prepare("SELECT role FROM `users` WHERE (`id` = :u1 OR `username` = :u2 OR `student_code` = :u3) AND `role` = 'teacher' LIMIT 1");
+    $stmtAuth->execute([':u1' => $userId, ':u2' => $userId, ':u3' => $userId]);
     $teacherRow = $stmtAuth->fetch();
     if (!$teacherRow) {
         return false;
@@ -738,8 +738,8 @@ if ($action === 'session_login' && $_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if ($userId && $token && $pdo) {
         // 🛡️ 严格凭据校验：仅允许密码正确或持有合法有效会话的用户更新会话
-        $stmt = $pdo->prepare("SELECT password FROM users WHERE id = :u OR username = :u OR student_code = :u LIMIT 1");
-        $stmt->execute([':u' => $userId]);
+        $stmt = $pdo->prepare("SELECT password FROM users WHERE id = :u1 OR username = :u2 OR student_code = :u3 LIMIT 1");
+        $stmt->execute([':u1' => $userId, ':u2' => $userId, ':u3' => $userId]);
         $uRow = $stmt->fetch(PDO::FETCH_ASSOC);
         if ($uRow) {
             $dbPwd = $uRow['password'] ?? '123';
