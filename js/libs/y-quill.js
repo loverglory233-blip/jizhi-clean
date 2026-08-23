@@ -1,4 +1,4 @@
-import * as c from "./yjs.js";
+import * as c from "./yjs.js?v=20260823_v9";
 /* esm.sh - y-quill@0.1.5 */
 var x=i=>{if(i.length>0){let e=i[i.length-1],o=e.insert;if(e.attributes===void 0&&o!==void 0&&o.slice(-1)===`
 `){i=i.slice();let t=o.slice(0,-1);for(;t.slice(-1)===`
