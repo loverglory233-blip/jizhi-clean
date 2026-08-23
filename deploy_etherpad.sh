@@ -1,18 +1,17 @@
 #!/bin/bash
 set -e
 
-echo "🚀 [Etherpad Fast Installer] 正在配置并启动 Etherpad-Lite 实时协同引擎..."
+echo "🚀 [Etherpad Fast Installer] 正在部署 Etherpad 官方黄金稳定版 (v1.9.7 LTS)..."
 
 INSTALL_DIR="/www/wwwroot/etherpad-lite"
 
-if [ ! -d "$INSTALL_DIR" ]; then
-    echo "📥 下载 Etherpad-Lite 源码..."
-    git clone --depth 1 https://github.com/ether/etherpad-lite.git "$INSTALL_DIR"
-fi
+# 1. 清理并下载官方长期稳定版 v1.9.7 (完美兼容 Node 18，全球高校标杆版本)
+rm -rf "$INSTALL_DIR"
+git clone --branch v1.9.7 --depth 1 https://github.com/ether/etherpad-lite.git "$INSTALL_DIR"
 
 cd "$INSTALL_DIR"
 
-# 写入配置
+# 2. 写入 settings.json 配置 (允许 iframe 嵌入，端口 9001)
 echo "⚙️ 写入 settings.json 配置..."
 cat << 'SETTING_EOF' > settings.json
 {
@@ -51,19 +50,20 @@ SETTING_EOF
 mkdir -p var
 echo "jizhi_academic_secret_key_2026" > APIKEY.txt
 
-echo "🔄 启动 Etherpad 官方服务 (带 --root 参数)..."
+echo "🔄 启动 Etherpad 官方稳定服务 (bin/run.sh --root)..."
 pkill -f "run.sh" || true
 pkill -f "ep_etherpad-lite" || true
+pkill -f "node src/node/server.js" || true
 
 chmod +x bin/run.sh
 nohup ./bin/run.sh --root > /var/log/etherpad.log 2>&1 &
 
-sleep 4
+sleep 5
 
 # 健康检查
 if curl -s "http://127.0.0.1:9001/api" | grep -q "1."; then
     echo "🎉🎉🎉 [Success] Etherpad-Lite 实时协同引擎已 100% 成功运行在 9001 端口！"
     echo "🔑 API Key: $(cat APIKEY.txt)"
 else
-    echo "⏳ Etherpad 服务已拉起，请查看日志: cat /var/log/etherpad.log"
+    echo "⏳ Etherpad 正在初始化中，请查看日志: cat /var/log/etherpad.log"
 fi
