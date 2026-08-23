@@ -6506,14 +6506,20 @@
           provider.on('synced', (isSynced) => {
             if (isSynced) {
               console.log('%c[Yjs CRDT] ✅ 权威协同向量对齐完成！', 'color: #10b981; font-weight: bold;');
+              const cleanHtml = quillInstance.root.innerHTML;
+              if (onChangeCallback) onChangeCallback(cleanHtml);
             }
+          });
+
+          // 🛡️ 双向守卫：无论是本地敲键盘还是远端组员通过 CRDT 向量推送，100% 触发内容与贡献比联动
+          ytext.observe(() => {
+            const cleanHtml = quillInstance.root.innerHTML;
+            if (onChangeCallback) onChangeCallback(cleanHtml);
           });
 
           quillInstance.on('text-change', () => {
             const cleanHtml = quillInstance.root.innerHTML;
-            if (onChangeCallback) {
-              onChangeCallback(cleanHtml);
-            }
+            if (onChangeCallback) onChangeCallback(cleanHtml);
           });
         }
       } catch (err) {
@@ -8307,7 +8313,7 @@
     initGlobalPresenceHeartbeat() {
       setInterval(() => {
         const currentUser = this.authManager ? this.authManager.getCurrentUser() : null;
-        // 🛡️ 严格对齐规则：只有真正进入了具体写作任务工作台（非大厅列表）的学生，才上报当前任务在线心跳
+        // 🛡️ 严格对齐规则：进入任务工作台的学生持续上报在线心跳
         if (currentUser && currentUser.role === 'student' && this.state.studentViewMode === 'workspace' && this.state.activeTaskId) {
           if (!this.state.presence) this.state.presence = {};
           const myKeys = [currentUser.id, currentUser.studentCode, currentUser.username, currentUser.name].filter(Boolean);
@@ -8322,8 +8328,9 @@
           if (this.cloudSyncEngine) {
             this.cloudSyncEngine.pushSnapshot();
           }
+          this.renderPresenceCursors();
         }
-      }, 3500);
+      }, 2500);
     }
 
     initTimer() {

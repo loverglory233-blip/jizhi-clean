@@ -1138,9 +1138,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $existingRevision = isset($stRow['revision_id']) ? intval($stRow['revision_id']) : 0;
             }
 
-            // 🛡️ 合并 presence: 严格使用 array_replace 完美保留纯数字学号键名，做增量并集合并绝不互相覆盖
+            // 🛡️ 稳健合并 presence: 对每个组员的时间戳取 max()，绝不允许时间戳倒退，彻底解决互斥掉线
             $incomingPresence = (isset($data['presence']) && is_array($data['presence'])) ? $data['presence'] : [];
-            $mergedPresence = array_replace($existingPresence, $incomingPresence);
+            $mergedPresence = $existingPresence;
+            $nowServerMs = round(microtime(true) * 1000);
+            foreach ($incomingPresence as $k => $pVal) {
+                if (!is_array($pVal)) continue;
+                if (!isset($mergedPresence[$k]) || !is_array($mergedPresence[$k])) {
+                    $mergedPresence[$k] = $pVal;
+                } else {
+                    $oldTs = isset($mergedPresence[$k]['updatedAt']) ? intval($mergedPresence[$k]['updatedAt']) : 0;
+                    $newTs = isset($pVal['updatedAt']) ? intval($pVal['updatedAt']) : 0;
+                    if ($newTs >= $oldTs) {
+                        $mergedPresence[$k] = $pVal;
+                    }
+                }
+            }
 
             // 合并 stage1
             $incomingS1 = (isset($data['stage1']) && is_array($data['stage1'])) ? $data['stage1'] : [];
