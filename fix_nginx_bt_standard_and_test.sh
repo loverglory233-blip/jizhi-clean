@@ -13,7 +13,7 @@ CONF_FILE="/www/server/panel/vhost/nginx/47.99.110.230.conf"
 cat << 'CONF' > "$CONF_FILE"
 server
 {
-    listen 80 default_server;
+    listen 80;
     server_name 47.99.110.230 localhost 127.0.0.1;
     index index.html index.htm index.php;
     root /www/wwwroot/47.99.110.230;
