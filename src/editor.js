@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles } from "./constants.js?v=20260823_v80";
-import { callCozeAgentAPI } from "./agents.js?v=20260823_v80";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired } from "./utils.js?v=20260823_v80";
+import { AgentProfiles } from "./constants.js?v=20260823_v81";
+import { callCozeAgentAPI } from "./agents.js?v=20260823_v81";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired } from "./utils.js?v=20260823_v81";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -1537,9 +1537,35 @@ function renderStage2Canvas(canvas, state, handlers) {
         </div>
       </div>
 
-      <!-- Word-grade Academic Rich Text Editor Body -->
+      <!-- Word-grade Academic Collaborative Etherpad OT Engine Body -->
       <div style="flex:1; min-height:0; display:flex; flex-direction:column;">
-        ${buildWordEditorHtml('stage2-word-editor', s2.unifiedContent, isEditorReadonly)}
+        ${(() => {
+          const protocol = window.location.protocol;
+          const host = window.location.hostname || '47.99.110.230';
+          const padName = `jizhi_${activeTaskId}_${userGroupId}`;
+          const currUserName = (currUser && (currUser.name || currUser.username)) || '组员';
+          const currUserColor = (state.members && state.members[currUserCode]?.color) || '#2563eb';
+          const padUrl = `${protocol}//${host}:9001/p/${padName}?userName=${encodeURIComponent(currUserName)}&userColor=${encodeURIComponent(currUserColor)}&showChat=false&showLineNumbers=true&showControls=true`;
+          
+          return `
+            <div class="word-editor-container" style="display:flex; flex-direction:column; height:100%; min-height:580px; border-radius:10px; overflow:hidden; border:1px solid #cbd5e1; box-shadow:0 4px 16px rgba(15,23,42,0.06); background:#ffffff;">
+              <div class="collab-presence-header" id="stage2-word-editor-presence-header" style="display:flex; justify-content:space-between; align-items:center; padding:8px 16px; background:#f8fafc; border-bottom:1px solid #e2e8f0;">
+                <div style="display:flex; align-items:center; gap:8px;">
+                  <div class="collab-presence-title" style="font-size:12.5px; font-weight:800; color:#334155;">
+                    <span>👥 组员协同在线感知 (Etherpad OT 毫秒级字对字引擎):</span>
+                  </div>
+                  <div class="collab-member-pills" id="stage2-word-editor-presence-pills"></div>
+                </div>
+                <div style="display:flex; align-items:center; gap:8px;">
+                  <span style="font-size:11px; background:#ecfdf5; color:#059669; border:1px solid #a7f3d0; padding:2px 8px; border-radius:10px; font-weight:700;">🟢 Etherpad 毫秒协同已就绪</span>
+                </div>
+              </div>
+              <div style="flex:1; min-height:0; position:relative; background:#f1f5f9;">
+                <iframe id="stage2-etherpad-frame" src="${padUrl}" style="width:100%; height:100%; min-height:540px; border:none; display:block;" allow="clipboard-read; clipboard-write"></iframe>
+              </div>
+            </div>
+          `;
+        })()}
       </div>
 
       <div style="margin-top:8px; background:#ffffff; padding:8px 14px; border-radius:8px; border:1px solid #cbd5e1; flex-shrink:0; display:flex; flex-direction:column; gap:6px; box-shadow:0 1px 3px rgba(15,23,42,0.04);">

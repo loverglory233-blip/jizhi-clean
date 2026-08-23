@@ -228,6 +228,34 @@ if ($action === 'login' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
+// 1.25 获取 Etherpad 实时协同正文（供智能体学术质检、半程会议与答辩矩阵分析）
+if ($action === 'get_pad_text') {
+    header('Content-Type: application/json; charset=utf-8');
+    $padId = isset($_GET['padId']) ? preg_replace('/[^a-zA-Z0-9_-]/', '', $_GET['padId']) : 'jizhi_' . $scopeKey;
+    $apiKey = 'jizhi_academic_secret_key_2026';
+    $epUrl = "http://127.0.0.1:9001/api/1.2.14/getText?apikey=" . urlencode($apiKey) . "&padID=" . urlencode($padId);
+    
+    $ch = curl_init($epUrl);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 3);
+    $res = curl_exec($ch);
+    $err = curl_error($ch);
+    curl_close($ch);
+    
+    if (!$err && !empty($res)) {
+        $json = json_decode($res, true);
+        if (isset($json['code']) && $json['code'] === 0 && isset($json['data']['text'])) {
+            echo json_encode([
+                'success' => true,
+                'text' => $json['data']['text']
+            ]);
+            exit;
+        }
+    }
+    echo json_encode(['success' => false, 'text' => '']);
+    exit;
+}
+
 // 1.3 用户修改密码接口 (轻量安全、自动同步 MySQL 与教务元数据)
 if ($action === 'change_password' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $rawInput = file_get_contents('php://input');
