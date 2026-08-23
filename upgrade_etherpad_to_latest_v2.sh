@@ -32,13 +32,16 @@ git checkout v2.7.3 || git checkout $(git tag -l "v2.*" | sort -V | tail -n 1)
 
 echo "📄 当前 Etherpad 源码版本: $(git describe --tags --always)"
 
-# 4. 运行官方依赖安装 (Node 20 原生支持)
-echo "4️⃣ 正在通过 Node 20 原生安装现代版 Etherpad 核心依赖..."
-npm install --no-audit --no-fund --registry=https://registry.npmmirror.com
+# 4. 激活/安装 Node 20 官方推荐的 pnpm 包管理器并安装核心依赖
+echo "4️⃣ 正在通过 Node 20 安装现代 pnpm 包管理器并安装核心依赖..."
+npm install -g pnpm --registry=https://registry.npmmirror.com --no-audit --no-fund 2>/dev/null || corepack enable
+echo "🟢 pnpm 版本: $(pnpm -v)"
+
+pnpm install --registry=https://registry.npmmirror.com
 
 # 5. 安装官方认证的 12 个协同与富文本插件
-echo "5️⃣ 正在正规安装 12 个官方认证插件..."
-npm install --save --no-audit --no-fund --registry=https://registry.npmmirror.com \
+echo "5️⃣ 正在通过 pnpm 正规安装 12 个官方认证插件..."
+pnpm add --registry=https://registry.npmmirror.com \
     ep_cursortrace \
     ep_headings2 \
     ep_font_size \
