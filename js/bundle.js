@@ -3049,6 +3049,39 @@
     const oldLayout = container.querySelector('.teacher-portal-layout') || document.querySelector('.teacher-portal-layout');
     const savedScrollTop = oldLayout ? oldLayout.scrollTop : (state._teacherScrollTop || 0);
 
+    if (authManager && authManager.sanitizeAndDeduplicateGroups) {
+      authManager.sanitizeAndDeduplicateGroups();
+    }
+    const currentUser = authManager.getCurrentUser();
+    const tasks = authManager.getTasks();
+    const announcements = authManager.getAnnouncements();
+    const refPapers = authManager.getReferencePapers();
+    const classes = authManager.getClasses();
+    const activeTab = state.teacherActiveTab || 'view_architecture';
+    const activeClassId = state.activeClassId || (classes[0] ? classes[0].id : 'class_101');
+    const activeClass = classes.find(c => c.id === activeClassId) || classes[0] || { id: 'class_101', name: '默认班级', groups: [] };
+
+    const allUsers = authManager.getUsers();
+    const classStudents = authManager.getClassStudents(activeClass.id);
+
+    // 🛡️ 严格按当前主班过滤写作任务（绝不串出其他班级或历史游离任务）
+    const currentClassTasks = tasks.filter(t => t.classId === activeClass.id || (t.className && t.className === activeClass.name) || (!t.classId && activeClass.id === 'class_101'));
+    const currentClassAnnouncements = announcements.filter(a => (a.classId === 'all' || !a.classId || a.classId === activeClass.id) && !a.isSystemAction);
+    const currentClassPapers = refPapers.filter(p => p.classId === 'all' || !p.classId || p.classId === activeClass.id);
+
+    const classGroupExists = (activeClass.groups || []).some(g => g.id === state.activeMonitorGroupId);
+    const activeMonitorGId = (state.activeMonitorGroupId && classGroupExists)
+      ? state.activeMonitorGroupId
+      : (activeClass.groups && activeClass.groups[0] ? activeClass.groups[0].id : 'group_1');
+    state.activeMonitorGroupId = activeMonitorGId;
+    const activeMonitorGroup = (activeClass.groups || []).find(g => g.id === activeMonitorGId) || (activeClass.groups && activeClass.groups[0]) || { id: 'group_1', name: '第1小组' };
+    const monitorMembersObj = authManager.getGroupMembersForWorkspace(activeMonitorGId);
+    const monitorMembersList = Object.values(monitorMembersObj);
+
+    const teacherAlerts = authManager.getTeacherAlerts ? authManager.getTeacherAlerts() : [];
+    const unreadAlerts = teacherAlerts.filter(a => !a.read);
+    const unreadAlertCount = unreadAlerts.length;
+
     // ⚡ 教师端自动轻量轮询：自调度循环，杜绝并发拉取与 interval 重注册竞态
     const teacherPullAndRefresh = async () => {
       const curU = authManager.getCurrentUser();
@@ -3059,7 +3092,6 @@
       }
 
       if (state.teacherActiveTab === 'view_monitoring' && window.app && window.app.cloudSyncEngine) {
-        const activeMonitorGId = state.activeMonitorGroupId || (activeClass.groups && activeClass.groups[0] ? activeClass.groups[0].id : 'group_1');
         const activeTaskId = state.activeTaskId || (currentClassTasks[0] ? currentClassTasks[0].id : 'task_default');
         window.app.cloudSyncEngine.groupId = activeMonitorGId;
         window.app.cloudSyncEngine.taskId = activeTaskId;
@@ -3133,39 +3165,6 @@
     };
     if (window._teacherPortalSyncTimer) clearTimeout(window._teacherPortalSyncTimer);
     window._teacherPortalSyncTimer = setTimeout(teacherPullAndRefresh, 3000);
-
-    if (authManager && authManager.sanitizeAndDeduplicateGroups) {
-      authManager.sanitizeAndDeduplicateGroups();
-    }
-    const currentUser = authManager.getCurrentUser();
-    const tasks = authManager.getTasks();
-    const announcements = authManager.getAnnouncements();
-    const refPapers = authManager.getReferencePapers();
-    const classes = authManager.getClasses();
-    const activeTab = state.teacherActiveTab || 'view_architecture';
-    const activeClassId = state.activeClassId || (classes[0] ? classes[0].id : 'class_101');
-    const activeClass = classes.find(c => c.id === activeClassId) || classes[0] || { id: 'class_101', name: '默认班级', groups: [] };
-
-    const allUsers = authManager.getUsers();
-    const classStudents = authManager.getClassStudents(activeClass.id);
-
-    // 🛡️ 严格按当前主班过滤写作任务（绝不串出其他班级或历史游离任务）
-    const currentClassTasks = tasks.filter(t => t.classId === activeClass.id || (t.className && t.className === activeClass.name) || (!t.classId && activeClass.id === 'class_101'));
-    const currentClassAnnouncements = announcements.filter(a => (a.classId === 'all' || !a.classId || a.classId === activeClass.id) && !a.isSystemAction);
-    const currentClassPapers = refPapers.filter(p => p.classId === 'all' || !p.classId || p.classId === activeClass.id);
-
-    const classGroupExists = (activeClass.groups || []).some(g => g.id === state.activeMonitorGroupId);
-    const activeMonitorGId = (state.activeMonitorGroupId && classGroupExists)
-      ? state.activeMonitorGroupId
-      : (activeClass.groups && activeClass.groups[0] ? activeClass.groups[0].id : 'group_1');
-    state.activeMonitorGroupId = activeMonitorGId;
-    const activeMonitorGroup = (activeClass.groups || []).find(g => g.id === activeMonitorGId) || (activeClass.groups && activeClass.groups[0]) || { id: 'group_1', name: '第1小组' };
-    const monitorMembersObj = authManager.getGroupMembersForWorkspace(activeMonitorGId);
-    const monitorMembersList = Object.values(monitorMembersObj);
-
-    const teacherAlerts = authManager.getTeacherAlerts ? authManager.getTeacherAlerts() : [];
-    const unreadAlerts = teacherAlerts.filter(a => !a.read);
-    const unreadAlertCount = unreadAlerts.length;
 
     container.innerHTML = `
       <div class="teacher-portal-layout" id="teacher-portal-layout" style="height:100vh; overflow-y:auto !important; -webkit-overflow-scrolling:touch; background:#f0f4f9; padding:0; display:flex; flex-direction:column;">
