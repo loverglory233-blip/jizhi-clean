@@ -3,7 +3,7 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles, PresetMessages, STORAGE_KEY_USER } from './constants.js?v=20260823_v136';
+import { AgentProfiles, PresetMessages, STORAGE_KEY_USER } from './constants.js?v=20260823_v137';
 
 export async function callCozeAgentAPI(botKey, userQuery, currentContext = {}) {
   const profile = AgentProfiles[botKey];
