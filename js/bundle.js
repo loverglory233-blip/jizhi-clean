@@ -10411,19 +10411,31 @@
             }
           });
 
-          if (!s1.mergedTitle && winningProposal) {
+          const isUnanimous = (winningProposal && maxVotes === totalMembersCount && totalMembersCount > 0);
+
+          // 🛡️ 严格学术铁律：只有【全票一致】才自动确立课题；只要不是全票一致（无论 2:1 还是平票），一律算【存在分歧】，留由组员在讨论区协商确定！
+          if (isUnanimous && winningProposal) {
             s1.mergedTitle = winningProposal.title;
           }
+
           if (!s1.contract.timeAllocations) {
             s1.contract.timeAllocations = { background: 25, literature: 30, questions: 25, method: 40, reflection: 20, references: 10 };
           }
 
-          const isUnanimous = (maxVotes === totalMembersCount);
-          const voteContextPrompt = `全组投票已全部完成！计票结果清单：${proposalSummaryList}。${isUnanimous ? '全员一致投出最高票《' + (winningProposal ? winningProposal.title : '') + '》' : '投票存在分歧，最高票为《' + (winningProposal ? winningProposal.title : '') + '》'}。
-  请作为拍卖师发表 130~160 字的落槌定题与选题推进引导：
-  ① 正式公布全量计票清单（包含全部提案的具体得票数）；
-  ② ${isUnanimous ? '肯定全员一致推选该选题的理论与实践价值' : '针对各选题的分歧与各自看点进行中肯评述，引导全组协商确定最终融合方案'}；
-  ③ 引导全组成员带头在讨论区组织展开章节分工与时间预算的深度研讨。`;
+          let voteContextPrompt = '';
+          if (isUnanimous) {
+            voteContextPrompt = `全组投票已全部完成！计票结果清单：${proposalSummaryList}。全组成员 ${totalMembersCount}/${totalMembersCount} 全票一致推选《${winningProposal.title}》！
+  请作为资深学术拍卖师发表 130~160 字的【全票一致落槌定题与细化建议】：
+  ① 隆重宣布竞拍落槌结果，肯定《${winningProposal.title}》获得全票一致认同，正式确立为全组研究课题；
+  ② 针对该选题给出 2~3 条具体的细化方向建议（【核心铁律】：此时绝对不提及分工与时间！）；
+  ③ 引导组长带头在讨论区发起交流，全组共同商议完善具体实施方案。`;
+          } else {
+            voteContextPrompt = `全组投票已全部完成！计票结果清单：${proposalSummaryList}。投票存在分歧（未达成全票一致）！
+  请作为资深学术拍卖师发表 130~160 字的【分歧协商破冰引导】：
+  ① 客观播报票数分布清单（【严格铁律】：严禁指名道姓批评，严禁提及谁投了谁）；
+  ② 引导各提案作者在讨论区简要阐述各自构想的核心亮点，商讨如何取长补短、求同存异；
+  ③ 引导全组在讨论区深入协商，确定一个兼具理论深度与实践可行性的最终统一主题（既可选用多数人看好的主题，亦可融合各方亮点）。`;
+          }
 
           let summaryText = await callCozeAgentAPI('auctioneer', voteContextPrompt, {
             stage: 'stage1',
@@ -10433,7 +10445,11 @@
           });
 
           if (!summaryText || summaryText.trim().length === 0) {
-            summaryText = `🎪 【拍卖师·落槌定题播报】\n全员投票已全部完成！全量计票结果：${proposalSummaryList}。\n${isUnanimous ? '🎉 全员一致推选《' + winningProposal.title + '》为本组最终研究课题！' : '⚖️ 组内存在不同视角，当前最高票为《' + winningProposal.title + '》！'}\n\n💡 课题立意新颖且切中教学实践需求！请大家在研讨区就各章节的分工（由谁写哪部分）与时间预算展开深度协商！`;
+            if (isUnanimous) {
+              summaryText = `🎉 【拍卖师·课题敲定与细化建议】\n恭喜全组！全员投票已全部完成，计票结果：${proposalSummaryList}。\n《${winningProposal.title}》获得全票一致推选，正式确立为全组研究课题！\n\n💡 该课题立意新颖且切中实践需求！建议可聚焦其核心应用场景与实证环节深化设计。👉 请组长带头在讨论区发起交流，全组共同商议完善具体实施方案！`;
+            } else {
+              summaryText = `⚖️ 【拍卖师·分歧协商引导】\n投票已落槌，计票结果为：${proposalSummaryList}。\n注意到组内对选题持有不同视角，存在票数分歧！这正是团队协同碰撞创新的最佳契机。建议各提案作者在讨论区简要阐明自己的设计亮点，大家共同商讨如何取长补短，确定一个兼具理论深度与实践可行性的优质主题！`;
+            }
           }
 
           const summaryMsg = { sender: 'auctioneer', text: summaryText, timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), _timeMs: Date.now() };
