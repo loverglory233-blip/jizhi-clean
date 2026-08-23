@@ -7654,6 +7654,24 @@
     const isUserDraftConfirmed = !!(confirmedDraftMap[currUserCode] || (currUser && confirmedDraftMap[currUser.id]));
     const isDraftFullyConfirmed = s2.isDraftConfirmed || (confirmedDraftCount >= totalCount && totalCount > 0);
 
+    // 🛡️ 极致单例保护：若富文本编辑器已经在当前画布上活跃运行，严禁 innerHTML 销毁重绘！
+    const existingEditorEl = canvas.querySelector('#stage2-word-editor.ql-container');
+    if (existingEditorEl) {
+      renderPresencePills('stage2-word-editor', state);
+      const draftCountBadge = canvas.querySelector('#stage2-draft-count-text');
+      if (draftCountBadge) {
+        draftCountBadge.innerText = isDraftFullyConfirmed ? '✅ 全员已确认完成初稿' : `${confirmedDraftCount}/${totalCount} 人已确认`;
+        draftCountBadge.style.color = isDraftFullyConfirmed ? '#059669' : '#2563eb';
+      }
+      const btnDraft = canvas.querySelector('#btn-confirm-stage2-draft');
+      if (btnDraft) {
+        btnDraft.disabled = isUserDraftConfirmed || isEditorReadonly;
+        btnDraft.innerText = isUserDraftConfirmed ? '✅ 您已确认完成初稿' : '✍️ 确认完成正文初稿';
+        btnDraft.style.background = isUserDraftConfirmed ? '#f1f5f9' : 'linear-gradient(135deg, #059669, #047857)';
+      }
+      return;
+    }
+
     canvas.innerHTML = `
       ${isTaskDeadlineExpired ? `
         <div style="background:#fef2f2; border:1.5px solid #fca5a5; border-radius:10px; padding:12px 18px; margin-bottom:12px; font-size:13px; color:#991b1b; font-weight:700; display:flex; justify-content:space-between; align-items:center; box-shadow:0 2px 8px rgba(239,68,68,0.1);">
