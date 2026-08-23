@@ -167,11 +167,11 @@ if ($action === 'login' && $_SERVER['REQUEST_METHOD'] === 'POST') {
             $cleanInputPwd = trim($password);
             $pwdMatch = false;
 
-            if ($cleanInputPwd === $dbPwd || (empty($dbPwd) && $cleanInputPwd === '123') || $cleanInputPwd === '123') {
+            if ($cleanInputPwd === $dbPwd || (empty($dbPwd) && $cleanInputPwd === '123')) {
                 $pwdMatch = true;
             } else if (password_verify($cleanInputPwd, $dbPwd)) {
+                // 兼容可能存在的历史哈希并降级为明文
                 $pwdMatch = true;
-                // 平滑降级为明文，彻底告别哈希
                 try {
                     $stmtFlat = $pdo->prepare("UPDATE users SET password = :p WHERE id = :uid");
                     $stmtFlat->execute([':p' => $cleanInputPwd, ':uid' => $row['id']]);
@@ -599,14 +599,16 @@ if ($action === 'change_password' && $_SERVER['REQUEST_METHOD'] === 'POST') {
             $cleanOld = trim($oldPwd);
             $cleanNew = trim($newPwd);
 
-            // 🛡️ 智能兼容：原密码匹配当前密码、初始123、历史哈希均直接通过
+            // 🛡️ 标准严谨原密码校验：输入的原密码必须与当前数据库中记录相匹配
             $oldMatch = false;
-            if ($cleanOld === $currentDbPwd || $cleanOld === '123' || empty($cleanOld) || empty($currentDbPwd) || $currentDbPwd === '123' || password_verify($cleanOld, $currentDbPwd)) {
+            if ($cleanOld === $currentDbPwd || (empty($currentDbPwd) && $cleanOld === '123')) {
+                $oldMatch = true;
+            } else if (password_verify($cleanOld, $currentDbPwd)) {
                 $oldMatch = true;
             }
 
             if (!$oldMatch) {
-                echo json_encode(['success' => false, 'message' => '❌ 原密码不正确，默认初始密码为 123']);
+                echo json_encode(['success' => false, 'message' => '❌ 原密码不正确']);
                 exit;
             }
 
