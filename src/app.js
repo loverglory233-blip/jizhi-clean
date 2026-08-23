@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260823_v121";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired } from "./utils.js?v=20260823_v121";
-import { callCozeAgentAPI } from "./agents.js?v=20260823_v121";
-import { AuthManager } from "./auth.js?v=20260823_v121";
-import { CloudSyncEngine } from "./sync.js?v=20260823_v121";
-import { renderLoginView } from "./login.js?v=20260823_v121";
-import { renderTeacherPortal } from "./teacher.js?v=20260823_v121";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260823_v121";
+} from "./constants.js?v=20260823_v122";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired } from "./utils.js?v=20260823_v122";
+import { callCozeAgentAPI } from "./agents.js?v=20260823_v122";
+import { AuthManager } from "./auth.js?v=20260823_v122";
+import { CloudSyncEngine } from "./sync.js?v=20260823_v122";
+import { renderLoginView } from "./login.js?v=20260823_v122";
+import { renderTeacherPortal } from "./teacher.js?v=20260823_v122";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260823_v122";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260823_v121";
+} from "./editor.js?v=20260823_v122";
 
 // Make renderChat available on window for sync callbacks
 if (typeof window !== "undefined") {
@@ -622,11 +622,19 @@ export class App {
           <main class="canvas-panel" id="canvas-panel"></main>
           <aside class="chat-panel">
             <div class="chat-header">
-              <div class="chat-title"><span>💬 协同对话研讨</span></div>
-              <div class="active-agent-pills">
-                <span class="agent-pill">🎪 拍卖师</span>
-                <span class="agent-pill">🤝 责任编辑</span>
-                <span class="agent-pill">📝 审稿编辑</span>
+              <div style="display:flex; justify-content:space-between; align-items:center; width:100%;">
+                <div class="chat-title"><span>💬 协同对话研讨</span></div>
+                <div class="active-agent-pills">
+                  <span class="agent-pill">🎪 拍卖师</span>
+                  <span class="agent-pill">🤝 责任编辑</span>
+                  <span class="agent-pill">📝 审稿编辑</span>
+                </div>
+              </div>
+              <div class="chat-presence-bar" id="chat-presence-bar" style="margin-top:8px; padding:6px 10px; background:#f8fafc; border-radius:8px; border:1px solid #e2e8f0; display:flex; align-items:center; justify-content:space-between; width:100%; box-sizing:border-box;">
+                <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
+                  <span style="font-size:11.5px; font-weight:800; color:#334155;">👥 组员在线:</span>
+                  <div id="chat-member-presence-pills" style="display:flex; gap:6px; flex-wrap:wrap;"></div>
+                </div>
               </div>
             </div>
             <div class="chat-stream" id="chat-stream"></div>
