@@ -557,12 +557,11 @@ if ($action === 'change_password' && $_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt->execute([':c1' => $code, ':c2' => $code, ':c3' => $code]);
             $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
-            // 教师工号 1001 种子自动保障
+            // 教师工号 1001 种子自动保障 (纯明文 123)
             if (!$user && $code === '1001') {
-                $hashedInit = password_hash('123', PASSWORD_DEFAULT);
-                $stmtInsT = $pdo->prepare("INSERT INTO users (id, username, student_code, name, password, role) VALUES ('1001', '1001', '1001', '指导教师', :p, 'teacher') ON DUPLICATE KEY UPDATE username='1001', student_code='1001'");
-                $stmtInsT->execute([':p' => $hashedInit]);
-                $user = ['id' => '1001', 'username' => '1001', 'student_code' => '1001', 'name' => '指导教师', 'password' => '123', 'role' => 'teacher'];
+                $stmtInsT = $pdo->prepare("INSERT INTO users (id, username, student_code, name, password, role) VALUES ('1001', '1001', '1001', '老师', '123', 'teacher') ON DUPLICATE KEY UPDATE username='1001', student_code='1001'");
+                $stmtInsT->execute();
+                $user = ['id' => '1001', 'username' => '1001', 'student_code' => '1001', 'name' => '老师', 'password' => '123', 'role' => 'teacher'];
             }
 
             if (!$user) {
