@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260823_v50";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired } from "./utils.js?v=20260823_v50";
-import { callCozeAgentAPI } from "./agents.js?v=20260823_v50";
-import { AuthManager } from "./auth.js?v=20260823_v50";
-import { CloudSyncEngine } from "./sync.js?v=20260823_v50";
-import { renderLoginView } from "./login.js?v=20260823_v50";
-import { renderTeacherPortal } from "./teacher.js?v=20260823_v50";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260823_v50";
+} from "./constants.js?v=20260823_v51";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired } from "./utils.js?v=20260823_v51";
+import { callCozeAgentAPI } from "./agents.js?v=20260823_v51";
+import { AuthManager } from "./auth.js?v=20260823_v51";
+import { CloudSyncEngine } from "./sync.js?v=20260823_v51";
+import { renderLoginView } from "./login.js?v=20260823_v51";
+import { renderTeacherPortal } from "./teacher.js?v=20260823_v51";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260823_v51";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260823_v50";
+} from "./editor.js?v=20260823_v51";
 
 // Make renderChat available on window for sync callbacks
 if (typeof window !== "undefined") {
@@ -285,16 +285,16 @@ export class App {
 
         contribLabelsContainer.innerHTML = membersList.map((m) => {
           const rawVal = (contribs[m.id] || contribs[m.studentCode] || 0);
-          const pct = (rawTotal === 0 || rawVal === 0) ? (membersList.length > 0 ? Math.round(100 / membersList.length) : 0) : Math.round((rawVal / rawTotal) * 100);
+          const pct = rawTotal > 0 ? Math.round((rawVal / rawTotal) * 100) : 0;
           return `<span style="color:${m.color || '#2563eb'}; font-weight:700;">● ${m.name}: ${pct}%</span>`;
         }).join('');
 
-        if (rawTotal === 0 && cleanText.length === 0) {
+        if (rawTotal === 0) {
           contribBarsContainer.innerHTML = `<div style="width:100%; height:10px; background:#f1f5f9; border-radius:5px; display:flex; align-items:center; justify-content:center; font-size:10.5px; color:#94a3b8;">暂无协作投入 (开始编辑正文或研讨后将自动呈现贡献占比)</div>`;
         } else {
           contribBarsContainer.innerHTML = membersList.map((m) => {
             const rawVal = (contribs[m.id] || contribs[m.studentCode] || 0);
-            const pct = (rawTotal === 0) ? Math.round(100 / (membersList.length || 1)) : Math.round((rawVal / rawTotal) * 100);
+            const pct = Math.round((rawVal / rawTotal) * 100);
             return `<div class="contrib-segment" style="width:${pct}%; background:${m.color || '#2563eb'}; transition:width 0.3s ease;" title="${m.name}: ${pct}% (基于写作与修改累计工作量)"></div>`;
           }).join('');
         }
