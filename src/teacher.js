@@ -9,8 +9,8 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260823_v39";
-import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired } from "./utils.js?v=20260823_v39";
+} from "./constants.js?v=20260823_v40";
+import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired } from "./utils.js?v=20260823_v40";
 
 /* ==========================================================================
    7. TEACHER PORTAL RENDERER (LIVE WORKSPACE MIRROR & ANNOUNCEMENT READ MATRIX)
@@ -2833,7 +2833,27 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
       state.isFinalSubmitted = newSub;
       authManager.setGroupFinalSubmitted(activeMonitorGId, newSub);
       
-      // 立即同步写入小组状态并向全组学生端推送最新权限快照
+      const currentTaskId = window.app ? (window.app.state.activeTaskId || 'task_default') : 'task_default';
+      const curTaskObj = tasks.find(t => t.id === currentTaskId) || { title: '当前写作任务' };
+      const lockTitle = newSub ? `🔒 指导教师已锁定【${activeMonitorGroup.name}】协同文稿` : `🔓 指导教师已恢复【${activeMonitorGroup.name}】编辑权限`;
+      const lockContent = newSub
+        ? `指导教师已将本组（${activeMonitorGroup.name}）在《${curTaskObj.title}》中的文稿设为【归档锁定】！当前工作台所有写作正文、答辩公约均已转为只读模式（不能继续修改编辑），如需继续修改请联系指导教师解锁。`
+        : `指导教师已【恢复本组（${activeMonitorGroup.name}）编辑权限】！当前工作台富文本编辑器已重新开放，小组可以继续协作撰写与修改文稿。`;
+      
+      // 1. 自动向该小组全体成员推送定向课堂教学通知
+      authManager.publishAnnouncement(
+        currentTaskId,
+        lockTitle,
+        lockContent,
+        null,
+        activeMonitorGId,
+        activeMonitorGroup.name,
+        activeClass ? activeClass.id : 'class_101',
+        activeClass ? activeClass.name : '当前班级',
+        [activeMonitorGId]
+      );
+
+      // 2. 立即同步写入小组状态并向全组学生端推送最新权限快照
       if (window.app) {
         window.app.state.isFinalSubmitted = newSub;
         window.app.state.activeMonitorGroupId = activeMonitorGId;
@@ -2852,9 +2872,9 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
 
       renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
       if (newSub) {
-        alert(`🔒 已全局锁定【${activeMonitorGroup.name}】！\n\n该小组学生端已设为【全盘只读模式】（阶段一公约、阶段二富文本与阶段三矩阵全部禁止编辑，仅保留右侧研讨区实时沟通）。`);
+        alert(`🔒 已全局锁定【${activeMonitorGroup.name}】！\n\n已向该组全体成员发送锁定通知，学生端已设为【全盘只读模式】（阶段一公约、阶段二富文本与阶段三矩阵全部禁止编辑，仅保留右侧研讨区实时沟通）。`);
       } else {
-        alert(`🔓 已解除【${activeMonitorGroup.name}】全局只读锁定！\n\n学生端已全面恢复自由协作与编辑修改权限！`);
+        alert(`🔓 已解除【${activeMonitorGroup.name}】全局只读锁定！\n\n已向该组全体成员发送解锁通知，学生端已全面恢复自由协作与编辑修改权限！`);
       }
     });
   }
@@ -2867,11 +2887,25 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
       const currentTaskId = selTaskBox ? selTaskBox.value : (state.activeTaskId || (tasks[0] ? tasks[0].id : 'task_default'));
       const currentTask = tasks.find(t => t.id === currentTaskId) || { title: '当前写作任务', id: currentTaskId };
 
-      if (confirm(`⚠️ 确认清空并重置【${activeMonitorGroup.name}】在任务《${currentTask.title}》中的协同数据？\n\n重置后该小组在《${currentTask.title}》中的历史聊天、正文草稿与投票进度将被清空，绝不影响其他任务！`)) {
+      if (confirm(`⚠️ 确认清空并重置【${activeMonitorGroup.name}】在任务《${currentTask.title}》中的协同数据？\n\n重置后该小组在《${currentTask.title}》中的历史聊天、正文草稿与投票进度将被清空，系统将自动向组内每位成员发送重置通知！`)) {
         if (window.app) {
+          const resetTitle = `⚠️ 指导教师已重置【${activeMonitorGroup.name}】协同数据`;
+          const resetContent = `指导教师已将本组（${activeMonitorGroup.name}）在任务《${currentTask.title}》中的协同数据清空重置，请小组成员重新开始阶段一选题与公约签署。`;
+          authManager.publishAnnouncement(
+            currentTaskId,
+            resetTitle,
+            resetContent,
+            null,
+            activeMonitorGId,
+            activeMonitorGroup.name,
+            activeClass ? activeClass.id : 'class_101',
+            activeClass ? activeClass.name : '当前班级',
+            [activeMonitorGId]
+          );
+
           window.app.resetTestGroupState(activeMonitorGId, currentTaskId);
           renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
-          alert(`✅ 已成功重置【${activeMonitorGroup.name}】在《${currentTask.title}》中的协同数据！`);
+          alert(`✅ 已成功重置【${activeMonitorGroup.name}】在《${currentTask.title}》中的协同数据，已通知组内全部成员！`);
         }
       }
     });
