@@ -181,6 +181,7 @@ export class CloudSyncEngine {
       groupId: groupId,
       isReset: isReset,
       resetSeq: localResetSeq,
+      revisionId: this.lastRevisionId || 0,
       members: this.app.state.members,
       presence: this.app.state.presence || {},
       chatLogs: this.app.state.chatLogs,
