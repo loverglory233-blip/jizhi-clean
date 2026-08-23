@@ -50,6 +50,17 @@ mkdir -p "$EP_DIR"
 echo "jizhi_academic_secret_key_2026" > "$EP_DIR/APIKEY.txt"
 chmod 644 "$EP_DIR/APIKEY.txt"
 
+# 自动寻找 Node.js 环境变量
+export PATH="/www/server/nodejs/v20/bin:/www/server/nodejs/v18/bin:/www/server/nodejs/v16/bin:/usr/local/bin:/usr/bin:$PATH"
+for n in /www/server/nodejs/v*/bin; do
+    if [ -d "$n" ]; then
+        export PATH="$n:$PATH"
+        break
+    fi
+done
+
+echo "🔍 Node.js 探测版本: $(node -v 2>/dev/null || echo '未找到系统全局 node')"
+
 echo "🔄 4. 强制杀死旧的 9001 / node 僵尸进程..."
 fuser -k 9001/tcp 2>/dev/null || true
 pkill -9 -f "etherpad" 2>/dev/null || true
@@ -58,10 +69,10 @@ sleep 1
 echo "🚀 5. 在后台重新启动 Etherpad 服务..."
 mkdir -p "$EP_DIR/var"
 export NODE_ENV=production
-if [ -f "$EP_DIR/bin/run.sh" ]; then
-    nohup bash bin/run.sh --root > "$ROOT_DIR/etherpad.log" 2>&1 &
-elif [ -f "$EP_DIR/src/node/server.js" ]; then
+if [ -f "$EP_DIR/src/node/server.js" ]; then
     nohup node src/node/server.js > "$ROOT_DIR/etherpad.log" 2>&1 &
+elif [ -f "$EP_DIR/bin/run.sh" ]; then
+    nohup bash bin/run.sh --root > "$ROOT_DIR/etherpad.log" 2>&1 &
 fi
 
 echo "⏳ 等待 Etherpad 9001 端口就绪..."
