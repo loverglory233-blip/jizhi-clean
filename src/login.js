@@ -20,6 +20,10 @@ export function renderLoginView(container, authManager, onLoginSuccess) {
             <input type="text" id="login-account" class="teacher-input" placeholder="请输入工号或者学号" value="" required style="width:100%;">
           </div>
           <div style="display:flex; flex-direction:column; gap:6px;">
+            <label style="font-size:13px; font-weight:700; color:#334155;">密码</label>
+            <input type="password" id="login-password" class="teacher-input" placeholder="请输入密码" value="" required style="width:100%;">
+          </div>
+          <div style="display:flex; flex-direction:column; gap:6px;">
             <label style="font-size:13px; font-weight:700; color:#334155;">登录身份</label>
             <div id="login-role-selector" style="display:flex; gap:10px;">
               <label id="role-opt-student" style="flex:1; display:flex; align-items:center; justify-content:center; gap:6px; padding:10px; border:1.5px solid #2563eb; border-radius:8px; cursor:pointer; font-size:13px; font-weight:700; color:#1e40af; background:#eff6ff;">
@@ -29,10 +33,6 @@ export function renderLoginView(container, authManager, onLoginSuccess) {
                 <input type="radio" name="login-role" value="teacher" style="accent-color:#2563eb;"> 👩‍🏫 教师
               </label>
             </div>
-          </div>
-          <div style="display:flex; flex-direction:column; gap:6px;">
-            <label style="font-size:13px; font-weight:700; color:#334155;">密码</label>
-            <input type="password" id="login-password" class="teacher-input" placeholder="请输入密码" value="" required style="width:100%;">
           </div>
           <div id="login-error-msg" style="display:none; font-size:12px; color:#dc2626; background:#fef2f2; border:1px solid #fecaca; padding:8px 12px; border-radius:8px;"></div>
           <button type="submit" class="modal-btn submit task-theme" style="width:100%; padding:14px; font-size:15px; border-radius:10px; margin-top:8px;">
