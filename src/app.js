@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260823_v18";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired } from "./utils.js?v=20260823_v18";
-import { callCozeAgentAPI } from "./agents.js?v=20260823_v18";
-import { AuthManager } from "./auth.js?v=20260823_v18";
-import { CloudSyncEngine } from "./sync.js?v=20260823_v18";
-import { renderLoginView } from "./login.js?v=20260823_v18";
-import { renderTeacherPortal } from "./teacher.js?v=20260823_v18";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260823_v18";
+} from "./constants.js?v=20260823_v19";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired } from "./utils.js?v=20260823_v19";
+import { callCozeAgentAPI } from "./agents.js?v=20260823_v19";
+import { AuthManager } from "./auth.js?v=20260823_v19";
+import { CloudSyncEngine } from "./sync.js?v=20260823_v19";
+import { renderLoginView } from "./login.js?v=20260823_v19";
+import { renderTeacherPortal } from "./teacher.js?v=20260823_v19";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260823_v19";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260823_v18";
+} from "./editor.js?v=20260823_v19";
 
 // Make renderChat available on window for sync callbacks
 if (typeof window !== "undefined") {
@@ -546,7 +546,10 @@ export class App {
             if (this.authManager && this.authManager.pullGlobalMeta) {
               try { await this.authManager.pullGlobalMeta(); } catch (e) {}
             }
-            this.loadGroupState(currentGroupId);
+            const latestClassId = this.state.activeStudentClassId || currentUser?.classId || 'class_101';
+            const latestGroupObj = this.authManager.getStudentActiveGroup(currentUser, latestClassId);
+            const targetGroupId = latestGroupObj.id || (currentUser && currentUser.groupId ? currentUser.groupId : 'group_1');
+            this.loadGroupState(targetGroupId);
             this.renderMain();
             if (this.cloudSyncEngine) {
               this.cloudSyncEngine.updateScopeKeys();
@@ -2248,10 +2251,9 @@ ${propText}
 
   renderStudentWorkspace(isForced = false) {
     const currentUser = this.authManager.getCurrentUser();
-    // 🛡️ 小组解析兜底：缺失 groupId 时按班级/成员关系反查真实小组，避免硬编码 'group_1' 导致空成员视图
-    const currentGroupId = (currentUser && currentUser.groupId)
-      ? currentUser.groupId
-      : ((this.authManager.getStudentActiveGroup(currentUser) || {}).id || 'group_1');
+    const effectiveClassId = this.state.activeStudentClassId || (currentUser?.classId || 'class_101');
+    const activeGroupObj = this.authManager.getStudentActiveGroup(currentUser, effectiveClassId);
+    const currentGroupId = activeGroupObj.id || (currentUser && currentUser.groupId ? currentUser.groupId : 'group_1');
 
     this.state.members = this.authManager.getGroupMembersForWorkspace(currentGroupId);
     this.state.currentUser = currentUser ? (currentUser.studentCode || 'A') : 'A';
