@@ -7,8 +7,8 @@ import {
   STORAGE_KEY_TASKS,
   STORAGE_KEY_ANNOUNCEMENTS,
   STORAGE_KEY_CLASSES
-} from "./constants.js?v=20260823_v13";
-import { escapeHtml } from "./utils.js?v=20260823_v13";
+} from "./constants.js?v=20260823_v14";
+import { escapeHtml, isTaskExpired } from "./utils.js?v=20260823_v14";
 
 /* ==========================================================================
    7.5 STUDENT TASK PORTAL / DASHBOARD (我的写作任务大厅)
@@ -154,48 +154,62 @@ export function renderStudentTaskPortal(container, authManager, state, onSelectT
                 const duration = t.durationMinutes || 150;
                 const taskSeqNum = relevantTasks.length - idx;
                 const isLatest = idx === 0;
+                const isExpired = isTaskExpired(t);
                 // 仅当前进入的任务展示真实协作进度，其余任务展示中立“已发布”状态（避免全局阶段串入各卡片）
                 const isActiveTask = (t.id === state.activeTaskId);
-                const progressLabel = isActiveTask
-                  ? (state.isFinalSubmitted ? '🔒 终稿已全员答辩并提交归档' : (state.currentStage === 'stage1' ? '🎪 阶段一：学术拍卖会' : (state.currentStage === 'stage2' ? '📰 阶段二：学术编辑部 (撰写中)' : '🎓 阶段三：答辩擂台')))
-                  : '📋 已发布 · 待进入协作';
+                const progressLabel = isExpired
+                  ? '🛑 本任务已到截止时间 · 已截止'
+                  : (isActiveTask
+                      ? (state.isFinalSubmitted ? '🔒 终稿已全员答辩并提交归档' : (state.currentStage === 'stage1' ? '🎪 阶段一：学术拍卖会' : (state.currentStage === 'stage2' ? '📰 阶段二：学术编辑部 (撰写中)' : '🎓 阶段三：答辩擂台')))
+                      : '📋 进行中 · 待进入协作');
                 return `
-                  <div class="student-task-card" style="background:#ffffff; border:1px solid #e2e8f0; border-radius:16px; padding:22px; box-shadow:0 4px 16px -2px rgba(15,23,42,0.04); display:flex; flex-direction:column; justify-content:space-between; transition:all 0.2s ease;">
+                  <div class="student-task-card" style="background:#ffffff; border:1.5px solid ${isExpired ? '#fca5a5' : '#e2e8f0'}; border-radius:16px; padding:22px; box-shadow:0 4px 16px -2px rgba(15,23,42,0.04); display:flex; flex-direction:column; justify-content:space-between; transition:all 0.2s ease;">
                     <div>
                       <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:12px; margin-bottom:14px;">
                         <div style="font-size:17px; font-weight:800; color:#0f172a; line-height:1.4; display:flex; align-items:center; gap:8px;">
-                          <span style="background:linear-gradient(135deg, #1e40af, #3b82f6); color:#ffffff; padding:2.5px 9px; border-radius:6px; font-size:12px; font-weight:800; white-space:nowrap; box-shadow:0 2px 6px rgba(30,64,175,0.25);">
+                          <span style="background:${isExpired ? 'linear-gradient(135deg, #ef4444, #dc2626)' : 'linear-gradient(135deg, #1e40af, #3b82f6)'}; color:#ffffff; padding:2.5px 9px; border-radius:6px; font-size:12px; font-weight:800; white-space:nowrap; box-shadow:0 2px 6px rgba(30,64,175,0.25);">
                             任务 ${taskSeqNum}${isLatest ? ' (最新)' : ''}
                           </span>
                           <span>📌 ${escapeHtml(t.title)}</span>
                         </div>
-                        <span style="background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe; font-size:11.5px; font-weight:700; padding:3px 10px; border-radius:20px; flex-shrink:0;">
-                          👥 ${escapeHtml(t.targetGroupName || groupName)}
-                        </span>
+                        <div style="display:flex; gap:6px; align-items:center; flex-shrink:0;">
+                          ${isExpired ? `
+                            <span style="background:#fef2f2; color:#dc2626; border:1px solid #fecaca; font-size:11.5px; font-weight:800; padding:3px 10px; border-radius:20px;">
+                              🛑 已截止
+                            </span>
+                          ` : `
+                            <span style="background:#ecfdf5; color:#059669; border:1px solid #a7f3d0; font-size:11.5px; font-weight:700; padding:3px 10px; border-radius:20px;">
+                              🟢 进行中
+                            </span>
+                          `}
+                          <span style="background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe; font-size:11.5px; font-weight:700; padding:3px 10px; border-radius:20px;">
+                            👥 ${escapeHtml(t.targetGroupName || groupName)}
+                          </span>
+                        </div>
                       </div>
 
-                      <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px 12px; font-size:11.5px; color:#475569; margin-bottom:12px; background:#f8fafc; padding:10px 14px; border-radius:10px; border:1px solid #f1f5f9;">
+                      <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px 12px; font-size:11.5px; color:#475569; margin-bottom:12px; background:${isExpired ? '#fef2f2' : '#f8fafc'}; padding:10px 14px; border-radius:10px; border:1px solid ${isExpired ? '#fee2e2' : '#f1f5f9'};">
                         <div>🕒 发布时间: <b style="color:#0f172a;">${t.createdAt || t.startTime || '刚刚'}</b></div>
                         <div>⏱️ 任务时长: <b style="color:#2563eb;">${duration} 分钟</b></div>
                         <div>📅 开始时间: <b style="color:#0f172a;">${t.startTime || '随时'}</b></div>
-                        <div>⌛ 截止时间: <b style="color:#dc2626;">${t.deadline || '结课前'}</b></div>
+                        <div>⌛ 截止时间: <b style="color:#dc2626; font-weight:800;">${t.deadline || '结课前'}</b></div>
                       </div>
 
-                      <div style="font-size:12.5px; color:#334155; line-height:1.6; margin-bottom:12px; background:#f8fafc; border-left:3.5px solid #2563eb; padding:8px 12px; border-radius:0 8px 8px 0;">
+                      <div style="font-size:12.5px; color:#334155; line-height:1.6; margin-bottom:12px; background:#f8fafc; border-left:3.5px solid ${isExpired ? '#dc2626' : '#2563eb'}; padding:8px 12px; border-radius:0 8px 8px 0;">
                         ${t.instructions ? escapeHtml(t.instructions.substring(0, 130)) + (t.instructions.length > 130 ? '...' : '') : '<span style="color:#94a3b8; font-style:italic;">暂无详细要求说明</span>'}
                       </div>
 
                       <div style="display:flex; align-items:center; gap:8px; font-size:12px; font-weight:600; color:#64748b; margin-bottom:16px;">
-                        <span>协作进度状态:</span>
-                        <span style="background:#ecfdf5; color:#059669; border:1px solid #a7f3d0; padding:2px 8px; border-radius:6px; font-size:11.5px; font-weight:700;">
+                        <span>协作状态:</span>
+                        <span style="background:${isExpired ? '#fef2f2' : '#ecfdf5'}; color:${isExpired ? '#dc2626' : '#059669'}; border:1px solid ${isExpired ? '#fecaca' : '#a7f3d0'}; padding:2px 8px; border-radius:6px; font-size:11.5px; font-weight:700;">
                           ${progressLabel}
                         </span>
                       </div>
                     </div>
 
                     <div style="border-top:1px solid #f1f5f9; padding-top:14px;">
-                      <button class="btn-enter-task-workspace" data-task-id="${t.id}" style="width:100%; background:linear-gradient(135deg, #1d4ed8, #2563eb); color:white; border:none; padding:11px 18px; border-radius:10px; font-size:13.5px; font-weight:700; cursor:pointer; box-shadow:0 4px 12px rgba(37,99,235,0.2); display:flex; align-items:center; justify-content:center; gap:6px; transition:all 0.2s ease;">
-                        🚀 进入协作工作台
+                      <button class="btn-enter-task-workspace" data-task-id="${t.id}" style="width:100%; background:${isExpired ? 'linear-gradient(135deg, #475569, #64748b)' : 'linear-gradient(135deg, #1d4ed8, #2563eb)'}; color:white; border:none; padding:11px 18px; border-radius:10px; font-size:13.5px; font-weight:700; cursor:pointer; box-shadow:0 4px 12px ${isExpired ? 'rgba(100,116,139,0.2)' : 'rgba(37,99,235,0.2)'}; display:flex; align-items:center; justify-content:center; gap:6px; transition:all 0.2s ease;">
+                        ${isExpired ? '🔒 查看写作内容 (已截止只读)' : '🚀 进入协作工作台'}
                       </button>
                     </div>
                   </div>

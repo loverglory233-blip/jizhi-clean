@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles } from "./constants.js?v=20260823_v13";
-import { callCozeAgentAPI } from "./agents.js?v=20260823_v13";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl } from "./utils.js?v=20260823_v13";
+import { AgentProfiles } from "./constants.js?v=20260823_v14";
+import { callCozeAgentAPI } from "./agents.js?v=20260823_v14";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired } from "./utils.js?v=20260823_v14";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -1516,7 +1516,10 @@ function renderStage2Canvas(canvas, state, handlers) {
   const s2 = state.stage2;
   const actionPlan = s2.actionPlan;
   const isStage2MeetingLocked = state.currentStage === 'stage3' || state.isFinalSubmitted;
-  const isEditorReadonly = state.isFinalSubmitted;
+  const allTasks = (window.app && window.app.authManager) ? window.app.authManager.getTasks() : [];
+  const currentTask = allTasks.find(t => t.id === state.activeTaskId);
+  const isTaskDeadlineExpired = isTaskExpired(currentTask);
+  const isEditorReadonly = state.isFinalSubmitted || isTaskDeadlineExpired;
   const membersList = Object.values(state.members || {});
   const plainTextLen = (s2.unifiedContent || '').replace(/<[^>]*>/g, '').trim().length;
 
@@ -1535,6 +1538,16 @@ function renderStage2Canvas(canvas, state, handlers) {
   const isDraftFullyConfirmed = s2.isDraftConfirmed || (confirmedDraftCount >= totalCount && totalCount > 0);
 
   canvas.innerHTML = `
+    ${isTaskDeadlineExpired ? `
+      <div style="background:#fef2f2; border:1.5px solid #fca5a5; border-radius:10px; padding:12px 18px; margin-bottom:12px; font-size:13px; color:#991b1b; font-weight:700; display:flex; justify-content:space-between; align-items:center; box-shadow:0 2px 8px rgba(239,68,68,0.1);">
+        <div style="display:flex; align-items:center; gap:8px;">
+          <span style="font-size:18px;">🔒</span>
+          <span><b>任务已截止锁定：</b> 本任务已于 <b>${currentTask?.deadline || '截止时间'}</b> 截止，写作正文已自动转为<b>【只读模式】</b>不可再编辑。如需修改请联系任课教师延长时间。</span>
+        </div>
+        <span style="font-size:12px; color:#ffffff; background:#dc2626; padding:3px 10px; border-radius:6px; font-weight:800;">已截止</span>
+      </div>
+    ` : ''}
+
     ${isStage2MeetingLocked ? `
       <div style="background:#eff6ff; border:1px solid #bfdbfe; border-radius:8px; padding:10px 14px; margin-bottom:10px; font-size:13px; color:#1d4ed8; font-weight:700; display:flex; justify-content:space-between; align-items:center;">
         <span>🔒 阶段二【半程编辑会议】打分与修正清单已完成并锁定 ${isEditorReadonly ? '· 全盘终稿已提交只读查阅' : '· 可随时回看'}</span>

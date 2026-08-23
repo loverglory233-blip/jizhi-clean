@@ -14,7 +14,7 @@ import {
   DefaultTasks,
   DefaultAnnouncements,
   DefaultReferencePapers
-} from './constants.js?v=20260823_v13';
+} from './constants.js?v=20260823_v14';
 
 export class AuthManager {
   constructor() {
@@ -1080,6 +1080,19 @@ export class AuthManager {
     if (newDeadline !== undefined) tasks[taskIndex].deadline = newDeadline;
     if (newDurationMinutes !== undefined) tasks[taskIndex].durationMinutes = parseInt(newDurationMinutes) || 150;
 
+    localStorage.setItem(STORAGE_KEY_TASKS, JSON.stringify(tasks));
+    this.pushGlobalMeta();
+    return tasks[taskIndex];
+  }
+
+  extendTaskDeadline(taskId, newDeadline, addedMinutes = 0) {
+    let tasks = this.getTasks();
+    const taskIndex = tasks.findIndex(t => t.id === taskId);
+    if (taskIndex === -1) throw new Error('任务不存在或已被删除！');
+    tasks[taskIndex].deadline = newDeadline;
+    if (addedMinutes > 0) {
+      tasks[taskIndex].durationMinutes = (parseInt(tasks[taskIndex].durationMinutes, 10) || 150) + parseInt(addedMinutes, 10);
+    }
     localStorage.setItem(STORAGE_KEY_TASKS, JSON.stringify(tasks));
     this.pushGlobalMeta();
     return tasks[taskIndex];
