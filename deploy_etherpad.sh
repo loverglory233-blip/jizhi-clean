@@ -3,25 +3,25 @@ set -e
 
 echo "🚀 [Etherpad Installer] 正在自动升级 Node.js 并部署 Etherpad-Lite..."
 
-# 1. 强制升级 Node.js 到现代化 v18 LTS
-echo "📦 升级 Node.js 至 v18 LTS..."
+# 1. 安装当前最主流活跃的 Node.js 20 LTS
+echo "📦 安装 Node.js 20 LTS..."
 if command -v apt-get &> /dev/null; then
-    curl -fsSL https://deb.nodesource.com/setup_18.x | bash -
+    curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
     apt-get install -y nodejs
 elif command -v yum &> /dev/null; then
-    curl -fsSL https://rpm.nodesource.com/setup_18.x | bash -
+    curl -fsSL https://rpm.nodesource.com/setup_20.x | bash -
     yum install -y nodejs
 fi
 
 NODE_VER=$(node -v)
 NPM_VER=$(npm -v)
-echo "✅ Node.js 已升级就绪: $NODE_VER (npm $NPM_VER)"
+echo "✅ Node.js 20 环境就绪: $NODE_VER (npm $NPM_VER)"
 
 INSTALL_DIR="/www/wwwroot/etherpad-lite"
 
 # 2. 清理旧目录并克隆稳定版本
 rm -rf "$INSTALL_DIR"
-echo "📥 下载 Etherpad-Lite 稳定源码..."
+echo "📥 下载 Etherpad-Lite 源码..."
 git clone --depth 1 https://github.com/ether/etherpad-lite.git "$INSTALL_DIR"
 
 cd "$INSTALL_DIR"
