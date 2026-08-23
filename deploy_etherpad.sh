@@ -1,34 +1,19 @@
 #!/bin/bash
 set -e
 
-echo "🚀 [Etherpad Installer] 正在自动清理旧版 Node 冲突并部署 Etherpad-Lite..."
-
-# 1. 彻底解决 Ubuntu 系统的 libnode-dev 包文件冲突
-if command -v apt-get &> /dev/null; then
-    echo "🧹 清理旧版 libnode-dev 依赖冲突..."
-    apt-get remove -y libnode-dev libnode72 || true
-    dpkg --remove --force-all libnode-dev libnode72 || true
-    curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
-    apt-get install -y -o Dpkg::Options::="--force-overwrite" nodejs
-elif command -v yum &> /dev/null; then
-    curl -fsSL https://rpm.nodesource.com/setup_20.x | bash -
-    yum install -y nodejs
-fi
-
-NODE_VER=$(node -v)
-NPM_VER=$(npm -v)
-echo "✅ Node.js 20 环境已成功安装: $NODE_VER (npm $NPM_VER)"
+echo "🚀 [Etherpad Installer] 正在配置并启动 Etherpad-Lite 实时协同引擎..."
 
 INSTALL_DIR="/www/wwwroot/etherpad-lite"
 
-# 2. 清理旧目录并克隆稳定源码
-rm -rf "$INSTALL_DIR"
-echo "📥 下载 Etherpad-Lite 稳定源码..."
-git clone --depth 1 https://github.com/ether/etherpad-lite.git "$INSTALL_DIR"
+# 1. 确保目录存在
+if [ ! -d "$INSTALL_DIR" ]; then
+    echo "📥 下载 Etherpad-Lite 源码..."
+    git clone --depth 1 https://github.com/ether/etherpad-lite.git "$INSTALL_DIR"
+fi
 
 cd "$INSTALL_DIR"
 
-# 3. 写入 settings.json 配置 (允许 iframe 嵌入，端口 9001)
+# 2. 写入 settings.json 配置 (允许 iframe 嵌入，端口 9001)
 echo "⚙️ 配置 Etherpad settings.json..."
 cat << 'SETTING_EOF' > settings.json
 {
@@ -72,16 +57,22 @@ cat << 'SETTING_EOF' > settings.json
 }
 SETTING_EOF
 
-# 4. 生成或固定 APIKey
+# 3. 生成固定 APIKey
 mkdir -p var
 echo "jizhi_academic_secret_key_2026" > APIKEY.txt
 
-# 5. 官方自动化构建安装依赖
-echo "📦 执行 Etherpad 依赖安装..."
-export NODE_ENV=production
-npm install --no-audit
+# 4. 执行官方依赖安装（进入 src 目录安装或执行 installDeps.sh）
+echo "📦 执行 Etherpad 官方依赖安装..."
+if [ -d "src" ]; then
+    cd src
+    npm install --no-audit
+    cd ..
+elif [ -f "bin/installDeps.sh" ]; then
+    chmod +x bin/installDeps.sh
+    ./bin/installDeps.sh
+fi
 
-# 6. 后台拉起守护进程
+# 5. 后台拉起守护进程
 echo "🔄 拉起 Etherpad 9001 端口协同进程..."
 pkill -f "src/node/server.js" || true
 pkill -f "etherpad" || true
@@ -89,7 +80,7 @@ nohup node src/node/server.js > /var/log/etherpad.log 2>&1 &
 
 sleep 4
 
-# 7. 健康检查
+# 6. 健康检查
 if curl -s "http://127.0.0.1:9001/api" | grep -q "1."; then
     echo "🎉🎉🎉 [Success] Etherpad-Lite 实时协同引擎已 100% 成功运行在 9001 端口！"
     echo "🔑 API Key: $(cat APIKEY.txt)"
