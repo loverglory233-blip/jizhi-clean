@@ -3079,10 +3079,6 @@
             <button id="btn-teacher-change-pwd" style="background:#f0fdf4; border:1px solid #bbf7d0; color:#16a34a; padding:6px 14px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer; display:flex; align-items:center; gap:6px;" title="修改登录密码">
               <span>🔑 修改密码</span>
             </button>
-            <button id="btn-teacher-alerts" style="background:#fffbeb; border:1px solid #fde68a; color:#b45309; padding:6px 14px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer; display:flex; align-items:center; gap:6px; box-shadow:0 1px 3px rgba(0,0,0,0.05);" title="查看小组代签与重要协同提醒">
-              <span>🔔 协同动态提醒</span>
-              ${unreadAlertCount > 0 ? `<span style="background:#dc2626; color:white; font-size:11px; padding:1px 6px; border-radius:10px; font-weight:800;">${unreadAlertCount}</span>` : ''}
-            </button>
             <button id="btn-logout" class="header-icon-btn logout" style="background:#fef2f2; color:#dc2626; border:1px solid #fecaca; padding:8px 16px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer;">🚪 退出登录</button>
           </div>
         </header>
@@ -4035,51 +4031,6 @@
     if (btnChangePwd) {
       btnChangePwd.addEventListener('click', () => {
         authManager.openChangePasswordModal();
-      });
-    }
-
-    const btnAlerts = container.querySelector('#btn-teacher-alerts');
-    if (btnAlerts) {
-      btnAlerts.addEventListener('click', () => {
-        authManager.markTeacherAlertsRead();
-        const currentAlerts = authManager.getTeacherAlerts();
-
-        document.querySelectorAll('.teacher-alerts-modal').forEach(m => m.remove());
-        const modal = document.createElement('div');
-        modal.className = 'modal-overlay teacher-alerts-modal';
-        modal.innerHTML = `
-          <div class="teacher-modal-card" style="width:680px; max-width:92vw; max-height:85vh; display:flex; flex-direction:column; padding:0; overflow:hidden; border-radius:14px; box-shadow:0 20px 25px -5px rgba(0,0,0,0.25);">
-            <div style="background:linear-gradient(135deg, #1e40af, #2563eb); color:white; padding:18px 24px; display:flex; justify-content:space-between; align-items:center;">
-              <div style="display:flex; align-items:center; gap:8px;">
-                <span style="font-size:20px;">🔔</span>
-                <div>
-                  <div style="font-size:16px; font-weight:800;">课堂协同动态与组长代签提醒中心</div>
-                  <div style="font-size:11.5px; opacity:0.85;">实时捕获各小组在各班级、各任务下的公约签署、缺勤代签与阶段推进</div>
-                </div>
-              </div>
-              <button id="btn-close-alerts-modal" style="background:rgba(255,255,255,0.2); border:none; color:white; width:28px; height:28px; border-radius:50%; font-size:16px; cursor:pointer; display:flex; align-items:center; justify-content:center;">✕</button>
-            </div>
-            <div style="padding:20px 24px; overflow-y:auto; flex:1; display:flex; flex-direction:column; gap:12px; background:#f8fafc;">
-              ${(() => {
-                return `
-                  <div style="text-align:center; color:#64748b; padding:48px 20px; font-size:13.5px; background:#ffffff; border-radius:10px; border:1px dashed #cbd5e1;">
-                    <div style="font-size:32px; margin-bottom:8px;">✨</div>
-                    <div style="font-weight:700; color:#0f172a;">当前各班级教学协作状态正常</div>
-                    <div style="font-size:12px; color:#94a3b8; margin-top:4px;">全员均按教学规范自主推进各阶段协作任务。</div>
-                  </div>
-                `;
-              })()}
-            </div>
-            <div style="padding:12px 24px; background:#ffffff; border-top:1px solid #e2e8f0; text-align:right;">
-              <button id="btn-close-alerts-modal-footer" style="background:#2563eb; color:white; border:none; padding:8px 20px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer;">我知道了</button>
-            </div>
-          </div>
-        `;
-        document.body.appendChild(modal);
-        const closeModal = () => { modal.remove(); renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView); };
-        modal.querySelector('#btn-close-alerts-modal').addEventListener('click', closeModal);
-        modal.querySelector('#btn-close-alerts-modal-footer').addEventListener('click', closeModal);
-        modal.addEventListener('click', (e) => { if (e.target === modal) closeModal(); });
       });
     }
 
