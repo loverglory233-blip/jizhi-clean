@@ -380,6 +380,18 @@
       enrichedQuery = `【协作写作阶段: ${currentContext.stage === 'stage1' ? '阶段一 (选题与公约)' : currentContext.stage === 'stage2' ? '阶段二 (正文撰写)' : '阶段三 (答辩与质询)'}】\n【课题: ${currentContext.topic || '未定'}】${docSnippet}\n【用户对话/审阅指令】: ${userQuery}`;
     }
 
+    // 🛡️ 会话凭证：从当前登录态读取 userId + session token，供服务端鉴权扣子代理
+    let sessionUserId = currentContext.userId || '';
+    let sessionToken = '';
+    try {
+      const rawUser = sessionStorage.getItem(STORAGE_KEY_USER);
+      if (rawUser) {
+        const u = JSON.parse(rawUser);
+        sessionUserId = sessionUserId || u.id || u.username || u.studentCode || 'student_user';
+        sessionToken = u.activeSessionId || u.token || '';
+      }
+    } catch (e) {}
+
     try {
       const resp = await fetch('sync.php?action=coze_chat', {
         method: 'POST',
@@ -387,7 +399,9 @@
         body: JSON.stringify({
           bot_key: botKey,
           bot_id: botId,
-          user_id: currentContext.userId || 'student_user',
+          user_id: sessionUserId || 'student_user',
+          userId: sessionUserId,
+          token: sessionToken,
           query: enrichedQuery,
           stage: currentContext.stage || '',
           topic: currentContext.topic || '',
@@ -409,7 +423,7 @@
             const pollInterval = p < 10 ? 300 : 600;
             await new Promise(r => setTimeout(r, pollInterval));
             try {
-              const pollRes = await fetch(`sync.php?action=coze_poll&chat_id=${encodeURIComponent(chatId)}&conversation_id=${encodeURIComponent(convId)}&bot_id=${encodeURIComponent(targetBotId)}&nocache=${Date.now()}`);
+              const pollRes = await fetch(`sync.php?action=coze_poll&chat_id=${encodeURIComponent(chatId)}&conversation_id=${encodeURIComponent(convId)}&bot_id=${encodeURIComponent(targetBotId)}&userId=${encodeURIComponent(sessionUserId)}&token=${encodeURIComponent(sessionToken)}&nocache=${Date.now()}`);
               if (pollRes.ok) {
                 const pollData = await pollRes.json();
                 if (pollData && pollData.completed) {
@@ -780,8 +794,13 @@
       const user = this.getCurrentUser();
       if (user) {
         try {
-          fetch(`sync.php?action=session_logout&userId=${encodeURIComponent(user.id || user.username)}`).catch(() => {});
+          const token = user.activeSessionId || '';
+          fetch(`sync.php?action=session_logout&userId=${encodeURIComponent(user.id || user.username)}&token=${encodeURIComponent(token)}`).catch(() => {});
         } catch (e) {}
+      }
+      // 🛡️ 登出时同步停止云端短轮询，杜绝登出后轮询循环继续打服务器
+      if (window.app && window.app.cloudSyncEngine && typeof window.app.cloudSyncEngine.stopPolling === 'function') {
+        window.app.cloudSyncEngine.stopPolling();
       }
       sessionStorage.removeItem(STORAGE_KEY_USER);
       localStorage.removeItem(STORAGE_KEY_USER);
@@ -1565,7 +1584,10 @@
       if (alerts.length > 60) alerts.length = 60;
       localStorage.setItem('jizhi_teacher_alerts_db', JSON.stringify(alerts));
       try {
-        fetch('sync.php?action=record_teacher_alert', {
+        const cu = this.getCurrentUser();
+        const uid = cu ? (cu.id || cu.username || '') : '';
+        const tok = cu ? (cu.activeSessionId || '') : '';
+        fetch(`sync.php?action=record_teacher_alert&userId=${encodeURIComponent(uid)}&token=${encodeURIComponent(tok)}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(targetAlert)
@@ -1711,6 +1733,8 @@
       this.isPushing = false;
       this.pendingPushCount = 0;
       this.isInitialPullDone = false;
+      this.isLoggingOut = false;
+      this.pollTimer = null;
       this.updateScopeKeys();
       this.initPolling();
     }
@@ -1751,9 +1775,11 @@
     initPolling() {
       this.pullFromServer();
       const getInterval = () => (document.hidden ? 3500 : 1200);
-      let pollTimer = null;
       const runPoll = () => {
+        // 🛡️ 已登出则彻底停止轮询，杜绝登出后轮询循环死灰复燃
+        if (this.isLoggingOut) return;
         this.pullFromServer().finally(() => {
+          if (this.isLoggingOut) return;
           this.pollTimer = setTimeout(runPoll, getInterval());
         });
       };
@@ -1774,6 +1800,12 @@
           try { this.handleRemoteSync(JSON.parse(e.newValue)); } catch (err) {}
         }
       });
+    }
+
+    // 🛡️ 停止轮询并标记登出，供登出流程调用，彻底终止短轮询循环
+    stopPolling() {
+      this.isLoggingOut = true;
+      if (this.pollTimer) { clearTimeout(this.pollTimer); this.pollTimer = null; }
     }
 
     async pullFromServer() {
@@ -3322,10 +3354,10 @@
                           return `
                             <div style="background:#ffffff; padding:8px 12px; border-radius:8px; border:1px solid #e2e8f0; border-left:3px solid ${color};">
                               <div style="display:flex; justify-content:space-between; margin-bottom:3px;">
-                                <b style="color:${color}; font-size:12px;">${senderName}</b>
-                                <span style="color:#94a3b8; font-size:10px;">${m.timestamp || ''}</span>
+                                <b style="color:${color}; font-size:12px;">${escapeHtml(senderName)}</b>
+                                <span style="color:#94a3b8; font-size:10px;">${escapeHtml(m.timestamp || '')}</span>
                               </div>
-                              <div style="color:#0f172a; line-height:1.5;">${m.text}</div>
+                              <div style="color:#0f172a; line-height:1.5;">${escapeHtml(m.text || '')}</div>
                             </div>
                           `;
                         }).join('')}
@@ -3408,10 +3440,10 @@
                           return `
                             <div style="background:#ffffff; padding:8px 12px; border-radius:8px; border:1px solid #e2e8f0; border-left:3px solid ${color};">
                               <div style="display:flex; justify-content:space-between; margin-bottom:3px;">
-                                <b style="color:${color}; font-size:12px;">${senderName}</b>
-                                <span style="color:#94a3b8; font-size:10px;">${m.timestamp || ''}</span>
+                                <b style="color:${color}; font-size:12px;">${escapeHtml(senderName)}</b>
+                                <span style="color:#94a3b8; font-size:10px;">${escapeHtml(m.timestamp || '')}</span>
                               </div>
-                              <div style="color:#0f172a; line-height:1.5;">${m.text}</div>
+                              <div style="color:#0f172a; line-height:1.5;">${escapeHtml(m.text || '')}</div>
                             </div>
                           `;
                         }).join('')}
@@ -3441,10 +3473,10 @@
                           return `
                             <div style="background:#ffffff; padding:8px 12px; border-radius:8px; border:1px solid #e2e8f0; border-left:3px solid ${color};">
                               <div style="display:flex; justify-content:space-between; margin-bottom:3px;">
-                                <b style="color:${color}; font-size:12px;">${senderName}</b>
-                                <span style="color:#94a3b8; font-size:10px;">${m.timestamp || ''}</span>
+                                <b style="color:${color}; font-size:12px;">${escapeHtml(senderName)}</b>
+                                <span style="color:#94a3b8; font-size:10px;">${escapeHtml(m.timestamp || '')}</span>
                               </div>
-                              <div style="color:#0f172a; line-height:1.5;">${m.text}</div>
+                              <div style="color:#0f172a; line-height:1.5;">${escapeHtml(m.text || '')}</div>
                             </div>
                           `;
                         }).join('')}
@@ -5570,11 +5602,11 @@
       <div class="brand-section">
         <div class="brand-logo">集智 JIZHI</div>
         <div class="brand-badge" style="background:#eff6ff; color:#1d4ed8; padding:3px 12px; border-radius:20px; font-size:12px; font-weight:700; border:1px solid #bfdbfe; display:inline-flex; align-items:center; gap:6px;">
-          <span>🎓 ${currentUser ? currentUser.name : '学生'}</span>
+          <span>🎓 ${escapeHtml(currentUser ? currentUser.name : '学生')}</span>
           <span style="opacity:0.35;">·</span>
-          <span>👥 ${groupName}</span>
+          <span>👥 ${escapeHtml(groupName)}</span>
           <span style="opacity:0.35;">·</span>
-          <span style="color:#1e40af; background:#ffffff; padding:1.5px 8px; border-radius:10px; border:1px solid #bfdbfe; font-weight:800;">📌 ${currentTaskTitle}</span>
+          <span style="color:#1e40af; background:#ffffff; padding:1.5px 8px; border-radius:10px; border:1px solid #bfdbfe; font-weight:800;">📌 ${escapeHtml(currentTaskTitle)}</span>
           ${isFinalSubmitted ? '<span style="color:#059669; margin-left:3px;">(🔒已归档)</span>' : ''}
         </div>
         <button id="btn-header-back-tasks" style="background:#f8fafc; border:1px solid #cbd5e1; color:#334155; padding:3px 8px; border-radius:14px; font-size:11px; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; gap:3px;" title="返回我的写作任务大厅">
@@ -6125,8 +6157,8 @@
                 const caption = prompt('请输入学术图题说明 (例如: 图 1: 研究模型与变量关系架构图):', '图 1: 研究模型与变量关系架构图');
                 const figureHtml = `
                   <div class="academic-figure" contenteditable="false">
-                    <img src="${imgData}" alt="${caption || '学术图表'}" style="max-width:85%; border:1px solid #cbd5e1; border-radius:4px; box-shadow:0 2px 8px rgba(0,0,0,0.1);">
-                    <p class="figure-caption" style="font-weight:700; color:#334155; margin-top:6px; font-size:13px; text-indent:0;">${caption || '图 1: 学术模型与实证架构图'}</p>
+                    <img src="${imgData}" alt="${escapeHtml(caption || '学术图表')}" style="max-width:85%; border:1px solid #cbd5e1; border-radius:4px; box-shadow:0 2px 8px rgba(0,0,0,0.1);">
+                    <p class="figure-caption" style="font-weight:700; color:#334155; margin-top:6px; font-size:13px; text-indent:0;">${escapeHtml(caption || '图 1: 学术模型与实证架构图')}</p>
                   </div>
                   <p><br></p>
                 `;
@@ -6194,7 +6226,7 @@
             closeModal();
 
             let tableHtml = `
-              <p style="text-align:center; font-weight:700; color:#334155; font-size:13px; margin-bottom:4px; text-indent:0;">${title}</p>
+              <p style="text-align:center; font-weight:700; color:#334155; font-size:13px; margin-bottom:4px; text-indent:0;">${escapeHtml(title)}</p>
               <table class="academic-table" style="width:100%; border-collapse:collapse; margin:10px 0; font-size:13px;">
                 <thead style="border-top:2.5px solid #0f172a; border-bottom:1.5px solid #0f172a; background:#f8fafc;">
                   <tr>${Array.from({length: cols}, (_, i) => `<th style="padding:8px; text-align:center;">变量 ${i + 1}</th>`).join('')}</tr>
@@ -7264,14 +7296,14 @@
                   <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
                     <div style="display:flex; align-items:center; gap:8px;">
                       <span style="font-size:16px;">${item.role === 'opponent' ? '🔴' : '🟢'}</span>
-                      <span style="font-weight:800; font-size:14.5px; color:${item.role === 'opponent' ? '#dc2626' : '#059669'};">质询点 ${idx + 1}: ${item.speaker || (item.role === 'opponent' ? '反方委员 Agent' : '正方委员 Agent')} - ${item.title}</span>
+                      <span style="font-weight:800; font-size:14.5px; color:${item.role === 'opponent' ? '#dc2626' : '#059669'};">质询点 ${idx + 1}: ${escapeHtml(item.speaker || (item.role === 'opponent' ? '反方委员 Agent' : '正方委员 Agent'))} - ${escapeHtml(item.title || '')}</span>
                     </div>
                     <span style="font-size:11.5px; padding:3px 10px; border-radius:12px; font-weight:700; background:${item.status === 'adopted' ? '#ecfdf5' : '#fffbeb'}; color:${item.status === 'adopted' ? '#059669' : '#d97706'}; border:1px solid ${item.status === 'adopted' ? '#a7f3d0' : '#fde68a'};">
                       ${item.status === 'adopted' ? '✅ 已研讨并归档' : '⏳ 待组内研讨裁决'}
                     </span>
                   </div>
                   <div style="font-size:13.5px; color:#1e293b; background:#f8fafc; border:1px solid #e2e8f0; padding:12px 14px; border-radius:8px; margin-bottom:12px; line-height:1.6;">
-                    <b>${item.speaker}意见原文:</b><br>${item.content}
+                    <b>${escapeHtml(item.speaker)}意见原文:</b><br>${escapeHtml(item.content || '')}
                   </div>
 
                   <div style="border-top:1px dashed #e2e8f0; padding-top:10px; margin-top:10px;">
@@ -7285,7 +7317,7 @@
                       ${isFinalSubmitted ? 'disabled readonly' : ''} 
                       placeholder="商讨后，在此直接输入本组针对该条意见的简要答复与修改结论..." 
                       style="width:100%; min-height:64px; padding:8px 12px; font-size:13px; line-height:1.5; border:1px solid ${item.response ? '#a7f3d0' : '#cbd5e1'}; background:${isFinalSubmitted ? '#f8fafc' : (item.response ? '#f0fdf4' : '#ffffff')}; border-radius:8px; resize:vertical; box-sizing:border-box; color:#0f172a; font-family:inherit;"
-                    >${item.response || ''}</textarea>
+                    >${escapeHtml(item.response || '')}</textarea>
 
                     ${!isFinalSubmitted ? `
                       <div style="display:flex; justify-content:flex-end; margin-top:8px;">
@@ -9363,6 +9395,7 @@
       // 单一规范 key 写入，避免 id/studentCode 三键冗余导致的去重与调试混乱
       s1.votes[user] = proposalId;
       s1.hasVoted[user] = true;
+      s1._lastVoteTime = Date.now();
       const proposal = (s1.proposals || []).find(p => p.id === proposalId);
       const membersList = Object.values(this.state.members || {});
       const totalMembersCount = membersList.length || 3;
@@ -9563,9 +9596,9 @@
               // 平台自动将正反评审意见写入左侧【答辩裁决矩阵】
               if (!this.state.stage3.feedbackItems || this.state.stage3.feedbackItems.length === 0) {
                 this.state.stage3.feedbackItems = [
-                  { id: 'fb_prop', reviewer: '正方委员 Agent (肯定支持)', comment: propText.replace(/^[^\n]*【[^】]+】\s*/, ''), response: '', isApproved: true },
-                  { id: 'fb_opp_1', reviewer: '反方委员 Agent (尖锐质询)', comment: '质询 1：研究设计的落地实施中控制变量与外推效度说明不足，需明确具体控制方案。', response: '', isApproved: false },
-                  { id: 'fb_opp_2', reviewer: '反方委员 Agent (尖锐质询)', comment: '质询 2：测量工具与核心变量论据支撑略显单薄，需补充信效度检验与操作化依据。', response: '', isApproved: false }
+                  { id: 'fb_prop', role: 'proponent', speaker: '正方委员 Agent (肯定支持)', title: '立论支持', content: propText.replace(/^[^\n]*【[^】]+】\s*/, ''), response: '', status: 'adopted' },
+                  { id: 'fb_opp_1', role: 'opponent', speaker: '反方委员 Agent (尖锐质询)', title: '质询 1', content: '质询 1：研究设计的落地实施中控制变量与外推效度说明不足，需明确具体控制方案。', response: '', status: 'pending' },
+                  { id: 'fb_opp_2', role: 'opponent', speaker: '反方委员 Agent (尖锐质询)', title: '质询 2', content: '质询 2：测量工具与核心变量论据支撑略显单薄，需补充信效度检验与操作化依据。', response: '', status: 'pending' }
                 ];
                 this.syncStage3();
                 this.renderStudentWorkspace();
@@ -9655,7 +9688,10 @@
 
     renderStudentWorkspace(isForced = false) {
       const currentUser = this.authManager.getCurrentUser();
-      const currentGroupId = currentUser && currentUser.groupId ? currentUser.groupId : 'group_1';
+      // 🛡️ 小组解析兜底：缺失 groupId 时按班级/成员关系反查真实小组，避免硬编码 'group_1' 导致空成员视图
+      const currentGroupId = (currentUser && currentUser.groupId)
+        ? currentUser.groupId
+        : ((this.authManager.getStudentActiveGroup(currentUser) || {}).id || 'group_1');
 
       this.state.members = this.authManager.getGroupMembersForWorkspace(currentGroupId);
       this.state.currentUser = currentUser ? (currentUser.studentCode || 'A') : 'A';
@@ -9756,6 +9792,7 @@
         onAiGenerateContract: () => {
           const s1 = this.state.stage1;
           s1.contract.isDraftGenerated = true;
+          s1.contract._draftedTime = Date.now();
           if (!s1.contract.taskAssignments) s1.contract.taskAssignments = {};
 
           // 1. 提炼最高票选题作为融合研究主题
@@ -9942,7 +9979,8 @@
               this.state.stage2.memberContributions[mId] = 0;
             });
           } else {
-            const prevLen = this.lastPlainTextLength || 0;
+            // 🛡️ 首帧建立基线：首次触发时不做增量统计，避免把编辑器载入的既有正文全部算到当前成员头上
+            const prevLen = (this.lastPlainTextLength === undefined) ? plain.length : this.lastPlainTextLength;
             const delta = plain.length - prevLen;
             this.lastPlainTextLength = plain.length;
             if (delta > 0) {

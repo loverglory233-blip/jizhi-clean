@@ -13,6 +13,8 @@ export class CloudSyncEngine {
     this.isPushing = false;
     this.pendingPushCount = 0;
     this.isInitialPullDone = false;
+    this.isLoggingOut = false;
+    this.pollTimer = null;
     this.updateScopeKeys();
     this.initPolling();
   }
@@ -53,9 +55,11 @@ export class CloudSyncEngine {
   initPolling() {
     this.pullFromServer();
     const getInterval = () => (document.hidden ? 3500 : 1200);
-    let pollTimer = null;
     const runPoll = () => {
+      // 🛡️ 已登出则彻底停止轮询，杜绝登出后轮询循环死灰复燃
+      if (this.isLoggingOut) return;
       this.pullFromServer().finally(() => {
+        if (this.isLoggingOut) return;
         this.pollTimer = setTimeout(runPoll, getInterval());
       });
     };
@@ -76,6 +80,12 @@ export class CloudSyncEngine {
         try { this.handleRemoteSync(JSON.parse(e.newValue)); } catch (err) {}
       }
     });
+  }
+
+  // 🛡️ 停止轮询并标记登出，供登出流程调用，彻底终止短轮询循环
+  stopPolling() {
+    this.isLoggingOut = true;
+    if (this.pollTimer) { clearTimeout(this.pollTimer); this.pollTimer = null; }
   }
 
   async pullFromServer() {

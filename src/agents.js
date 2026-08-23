@@ -3,7 +3,7 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles, PresetMessages } from './constants.js';
+import { AgentProfiles, PresetMessages, STORAGE_KEY_USER } from './constants.js';
 
 export async function callCozeAgentAPI(botKey, userQuery, currentContext = {}) {
   const profile = AgentProfiles[botKey];
@@ -16,6 +16,18 @@ export async function callCozeAgentAPI(botKey, userQuery, currentContext = {}) {
     enrichedQuery = `【协作写作阶段: ${currentContext.stage === 'stage1' ? '阶段一 (选题与公约)' : currentContext.stage === 'stage2' ? '阶段二 (正文撰写)' : '阶段三 (答辩与质询)'}】\n【课题: ${currentContext.topic || '未定'}】${docSnippet}\n【用户对话/审阅指令】: ${userQuery}`;
   }
 
+  // 🛡️ 会话凭证：从当前登录态读取 userId + session token，供服务端鉴权扣子代理
+  let sessionUserId = currentContext.userId || '';
+  let sessionToken = '';
+  try {
+    const rawUser = sessionStorage.getItem(STORAGE_KEY_USER);
+    if (rawUser) {
+      const u = JSON.parse(rawUser);
+      sessionUserId = sessionUserId || u.id || u.username || u.studentCode || 'student_user';
+      sessionToken = u.activeSessionId || u.token || '';
+    }
+  } catch (e) {}
+
   try {
     const resp = await fetch('sync.php?action=coze_chat', {
       method: 'POST',
@@ -23,7 +35,9 @@ export async function callCozeAgentAPI(botKey, userQuery, currentContext = {}) {
       body: JSON.stringify({
         bot_key: botKey,
         bot_id: botId,
-        user_id: currentContext.userId || 'student_user',
+        user_id: sessionUserId || 'student_user',
+        userId: sessionUserId,
+        token: sessionToken,
         query: enrichedQuery,
         stage: currentContext.stage || '',
         topic: currentContext.topic || '',
@@ -45,7 +59,7 @@ export async function callCozeAgentAPI(botKey, userQuery, currentContext = {}) {
           const pollInterval = p < 10 ? 300 : 600;
           await new Promise(r => setTimeout(r, pollInterval));
           try {
-            const pollRes = await fetch(`sync.php?action=coze_poll&chat_id=${encodeURIComponent(chatId)}&conversation_id=${encodeURIComponent(convId)}&bot_id=${encodeURIComponent(targetBotId)}&nocache=${Date.now()}`);
+            const pollRes = await fetch(`sync.php?action=coze_poll&chat_id=${encodeURIComponent(chatId)}&conversation_id=${encodeURIComponent(convId)}&bot_id=${encodeURIComponent(targetBotId)}&userId=${encodeURIComponent(sessionUserId)}&token=${encodeURIComponent(sessionToken)}&nocache=${Date.now()}`);
             if (pollRes.ok) {
               const pollData = await pollRes.json();
               if (pollData && pollData.completed) {

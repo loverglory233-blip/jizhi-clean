@@ -356,8 +356,13 @@ export class AuthManager {
     const user = this.getCurrentUser();
     if (user) {
       try {
-        fetch(`sync.php?action=session_logout&userId=${encodeURIComponent(user.id || user.username)}`).catch(() => {});
+        const token = user.activeSessionId || '';
+        fetch(`sync.php?action=session_logout&userId=${encodeURIComponent(user.id || user.username)}&token=${encodeURIComponent(token)}`).catch(() => {});
       } catch (e) {}
+    }
+    // 🛡️ 登出时同步停止云端短轮询，杜绝登出后轮询循环继续打服务器
+    if (window.app && window.app.cloudSyncEngine && typeof window.app.cloudSyncEngine.stopPolling === 'function') {
+      window.app.cloudSyncEngine.stopPolling();
     }
     sessionStorage.removeItem(STORAGE_KEY_USER);
     localStorage.removeItem(STORAGE_KEY_USER);
@@ -1141,7 +1146,10 @@ export class AuthManager {
     if (alerts.length > 60) alerts.length = 60;
     localStorage.setItem('jizhi_teacher_alerts_db', JSON.stringify(alerts));
     try {
-      fetch('sync.php?action=record_teacher_alert', {
+      const cu = this.getCurrentUser();
+      const uid = cu ? (cu.id || cu.username || '') : '';
+      const tok = cu ? (cu.activeSessionId || '') : '';
+      fetch(`sync.php?action=record_teacher_alert&userId=${encodeURIComponent(uid)}&token=${encodeURIComponent(tok)}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(targetAlert)
