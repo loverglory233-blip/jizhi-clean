@@ -1845,6 +1845,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 // 5. GET snapshot (从 MySQL 高速拉取)
 if ($pdo) {
+    // 🛡️ 极速 Session 异地登录校验 (0 延迟合并校验)
+    $reqUserId = isset($_GET['userId']) ? trim($_GET['userId']) : '';
+    $reqSessToken = isset($_GET['sessToken']) ? trim($_GET['sessToken']) : '';
+    if ($reqUserId && $reqSessToken) {
+        $stmtSessChk = $pdo->prepare("SELECT meta_value FROM global_meta WHERE meta_key = :k");
+        $stmtSessChk->execute([':k' => 'sess_' . $reqUserId]);
+        $sessRow = $stmtSessChk->fetch();
+        if ($sessRow && !empty($sessRow['meta_value']) && $sessRow['meta_value'] !== $reqSessToken) {
+            echo json_encode(['kicked' => true]);
+            exit;
+        }
+    }
+
     $stmt = $pdo->prepare("SELECT * FROM group_states WHERE scope_key = :sk");
     $stmt->execute([':sk' => $scopeKey]);
     $row = $stmt->fetch();
@@ -1852,8 +1865,13 @@ if ($pdo) {
     if ($row) {
         $lastTs = intval($row['last_timestamp']);
         $lastRev = isset($row['revision_id']) ? intval($row['revision_id']) : 1;
-        $sinceTs = isset($_GET['since_timestamp']) ? intval($_GET['since_timestamp']) : 0;
-        $sinceRev = isset($_GET['since_revision']) ? intval($_GET['since_revision']) : 0;
+        $sinceRev = isset($_GET['since_rev']) ? intval($_GET['since_rev']) : (isset($_GET['since_revision']) ? intval($_GET['since_revision']) : 0);
+
+        // ⚡ 极速轻量返回：若版本未发生任何变更，直接 1ms 返回 notModified，零 JSON 序列化开销
+        if ($sinceRev > 0 && $sinceRev === $lastRev) {
+            echo json_encode(['notModified' => true, 'revisionId' => $lastRev, 'timestamp' => $lastTs]);
+            exit;
+        }
 
         $stmtChats = $pdo->prepare("SELECT meta_value FROM global_meta WHERE meta_key = :k");
         $stmtChats->execute([':k' => 'chats_' . $scopeKey]);

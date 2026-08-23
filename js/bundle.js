@@ -2216,16 +2216,16 @@
 
     initPolling() {
       this.pullFromServer();
-      const getInterval = () => (document.hidden ? 3500 : 1200);
+      // 🛡️ 智能轻载轮询：活跃时 2.5 秒，后台/静止时 6.5 秒，彻底释放服务器 CPU 与连接池
+      const getInterval = () => (document.hidden ? 6500 : 2500);
       const runPoll = () => {
-        // 🛡️ 已登出则彻底停止轮询，杜绝登出后轮询循环死灰复燃
         if (this.isLoggingOut) return;
         this.pullFromServer().finally(() => {
           if (this.isLoggingOut) return;
           this.pollTimer = setTimeout(runPoll, getInterval());
         });
       };
-      this.pollTimer = setTimeout(runPoll, 1200);
+      this.pollTimer = setTimeout(runPoll, 2500);
 
       if ('BroadcastChannel' in window) {
         try {
@@ -2251,67 +2251,42 @@
     }
 
     async pullFromServer() {
+      if (this.isPulling || this.isLoggingOut) return;
+      this.isPulling = true;
       this.updateScopeKeys();
 
-      const nowMs = Date.now();
-      if (!this.lastSessionCheckTime || nowMs - this.lastSessionCheckTime > 2000) {
-        this.lastSessionCheckTime = nowMs;
-        const currentUser = this.app.authManager.getCurrentUser();
-        const userKey = currentUser ? (currentUser.studentCode || currentUser.username || currentUser.id) : '';
-        if (currentUser && currentUser.activeSessionId && userKey && !this.isLoggingOut) {
-          try {
-            const chkRes = await fetch(`sync.php?action=session_check&userId=${encodeURIComponent(userKey)}&token=${encodeURIComponent(currentUser.activeSessionId)}`);
-            if (chkRes.ok) {
-              const chkData = await chkRes.json();
-              if (chkData && chkData.kicked) {
-                this.isLoggingOut = true;
-                if (this.pollTimer) { clearTimeout(this.pollTimer); this.pollTimer = null; }
-                this.app.authManager.logout();
-
-                document.querySelectorAll('.modal-overlay').forEach(el => el.remove());
-                const kickModal = document.createElement('div');
-                kickModal.className = 'modal-overlay';
-                kickModal.innerHTML = `
-                  <div class="teacher-modal-card" style="width:420px; text-align:center; padding:28px 24px;">
-                    <div style="font-size:48px; margin-bottom:12px;">⚠️</div>
-                    <div style="font-size:18px; font-weight:800; color:#0f172a; margin-bottom:8px;">账号已在其他设备登录</div>
-                    <div style="font-size:13.5px; color:#64748b; line-height:1.6; margin-bottom:24px;">
-                      您的账号【<b>${currentUser.name || currentUser.username}</b>】已在另一台设备/浏览器上登录，当前设备已自动下线。
-                    </div>
-                    <button id="btn-confirm-kicked-ok" style="background:linear-gradient(135deg, #1d4ed8, #2563eb); color:white; border:none; padding:12px 28px; border-radius:10px; font-size:14px; font-weight:700; cursor:pointer; width:100%; box-shadow:0 4px 12px rgba(37,99,235,0.25);">
-                      我知道了 (返回登录)
-                    </button>
-                  </div>
-                `;
-                document.body.appendChild(kickModal);
-                const handleDismiss = () => {
-                  kickModal.remove();
-                  this.app.renderMain();
-                };
-                kickModal.querySelector('#btn-confirm-kicked-ok').addEventListener('click', handleDismiss);
-                kickModal.addEventListener('click', (e) => { if (e.target === kickModal) handleDismiss(); });
-                return;
-              }
-            }
-          } catch (e) {}
-        }
-      }
+      const currentUser = this.app.authManager ? this.app.authManager.getCurrentUser() : null;
+      const userKey = currentUser ? (currentUser.studentCode || currentUser.username || currentUser.id) : '';
+      const sessToken = currentUser?.activeSessionId || '';
+      const lastRev = this.app.state.revisionId || 0;
 
       for (const endpoint of this.syncEndpoints) {
         try {
           const sep = endpoint.includes('?') ? '&' : '?';
-          const url = `${endpoint}${sep}nocache=${Date.now()}`;
+          const url = `${endpoint}${sep}userId=${encodeURIComponent(userKey)}&sessToken=${encodeURIComponent(sessToken)}&since_rev=${lastRev}&nocache=${Date.now()}`;
           const res = await fetch(url, { cache: 'no-store' });
           if (res.ok) {
             const data = await res.json();
             this.isInitialPullDone = true;
-            if (data && (data.timestamp !== undefined || data.chatLogs || data.stage1 || data.stage2)) {
+            if (data && data.kicked) {
+              this.isLoggingOut = true;
+              this.stopPolling();
+              this.app.authManager.logout();
+              alert('⚠️ 您的账号已在另一台设备登录，当前页面已自动下线。');
+              this.app.renderMain();
+              return;
+            }
+            if (data && !data.notModified && (data.timestamp !== undefined || data.chatLogs || data.stage1 || data.stage2)) {
               this.handleRemoteSync(data);
               return;
             }
           }
-        } catch (e) {}
+        } catch (e) {
+        } finally {
+          this.isPulling = false;
+        }
       }
+      this.isPulling = false;
     }
 
     async pushSnapshot() {
