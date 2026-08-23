@@ -8,16 +8,36 @@ if ! pidof mysqld >/dev/null 2>&1 && ! pidof mariadbd >/dev/null 2>&1; then
     /etc/init.d/mysqld start 2>/dev/null || /etc/init.d/mysql start 2>/dev/null || systemctl start mysqld 2>/dev/null || systemctl start mariadb 2>/dev/null || true
 fi
 
-echo "🟢 2. 检查并强制重启所有 PHP-FPM 服务 (彻底解决 phpMyAdmin 502 与 PHP 无响应)..."
-for p in /etc/init.d/php-fpm* /etc/init.d/php*; do
-    if [ -x "$p" ]; then
-        "$p" stop 2>/dev/null || true
-        "$p" start 2>/dev/null || "$p" restart 2>/dev/null || true
+echo "🟢 2. 彻底排查并强制拉起所有已安装的 PHP-FPM 服务 (根除 502 Bad Gateway)..."
+ACTIVE_PHP_VER=""
+for v in 83 82 81 80 74 73 72 71 70 56; do
+    if [ -d "/www/server/php/$v" ] || [ -f "/etc/init.d/php-fpm-$v" ]; then
+        echo "   ⚡ 正在启动 PHP-$v..."
+        /etc/init.d/php-fpm-$v stop 2>/dev/null || true
+        /etc/init.d/php-fpm-$v start 2>/dev/null || true
+        systemctl restart php-fpm-$v 2>/dev/null || true
+        if [ -z "$ACTIVE_PHP_VER" ] && [ -S "/tmp/php-cgi-$v.sock" ]; then
+            ACTIVE_PHP_VER="$v"
+        fi
     fi
 done
-systemctl restart php-fpm* 2>/dev/null || true
+
+# 修复所有 sock 权限
 chmod 777 /tmp/php-cgi-*.sock 2>/dev/null || true
 chown www:www /tmp/php-cgi-*.sock 2>/dev/null || true
+
+# 修复 phpMyAdmin 专属配置与目录权限
+echo "🟢 2.1 正在自动校准宝塔 phpMyAdmin 运行环境与关联 PHP..."
+if [ -n "$ACTIVE_PHP_VER" ]; then
+    echo "   🟢 phpMyAdmin 将自动绑定至健康活跃的 PHP-$ACTIVE_PHP_VER"
+    for pma_conf in /www/server/nginx/conf/phpmyadmin.conf /www/server/panel/vhost/nginx/phpmyadmin.conf; do
+        if [ -f "$pma_conf" ]; then
+            sed -i -E "s/enable-php-[0-9]+\.conf/enable-php-${ACTIVE_PHP_VER}.conf/g" "$pma_conf" 2>/dev/null || true
+        fi
+    done
+fi
+chown -R www:www /www/server/phpmyadmin 2>/dev/null || true
+chmod -R 755 /www/server/phpmyadmin 2>/dev/null || true
 
 echo "🟢 3. 检查并平滑重载 Nginx..."
 /etc/init.d/nginx reload 2>/dev/null || nginx -s reload 2>/dev/null || systemctl reload nginx 2>/dev/null || /etc/init.d/nginx start 2>/dev/null || true
