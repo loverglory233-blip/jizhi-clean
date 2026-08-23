@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260823_v33";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired } from "./utils.js?v=20260823_v33";
-import { callCozeAgentAPI } from "./agents.js?v=20260823_v33";
-import { AuthManager } from "./auth.js?v=20260823_v33";
-import { CloudSyncEngine } from "./sync.js?v=20260823_v33";
-import { renderLoginView } from "./login.js?v=20260823_v33";
-import { renderTeacherPortal } from "./teacher.js?v=20260823_v33";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260823_v33";
+} from "./constants.js?v=20260823_v34";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired } from "./utils.js?v=20260823_v34";
+import { callCozeAgentAPI } from "./agents.js?v=20260823_v34";
+import { AuthManager } from "./auth.js?v=20260823_v34";
+import { CloudSyncEngine } from "./sync.js?v=20260823_v34";
+import { renderLoginView } from "./login.js?v=20260823_v34";
+import { renderTeacherPortal } from "./teacher.js?v=20260823_v34";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260823_v34";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260823_v33";
+} from "./editor.js?v=20260823_v34";
 
 // Make renderChat available on window for sync callbacks
 if (typeof window !== "undefined") {
@@ -1428,8 +1428,8 @@ export class App {
           <button id="btn-close-ann-bottom" style="background:#ffffff; border:1px solid #cbd5e1; color:#475569; padding:10px 20px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer;">
             关闭
           </button>
-          <button id="btn-read-confirm" ${isAnnTaskExpired ? 'disabled' : ''} style="flex:1; background:${isAnnTaskExpired ? '#f1f5f9' : (isSelectedRead ? '#e2e8f0' : 'linear-gradient(135deg, #059669, #047857)')}; color:${isAnnTaskExpired ? '#94a3b8' : (isSelectedRead ? '#64748b' : '#ffffff')}; border:${isAnnTaskExpired ? '1px solid #e2e8f0' : 'none'}; padding:11px 24px; border-radius:8px; font-size:13.5px; font-weight:700; cursor:${isAnnTaskExpired ? 'not-allowed' : 'pointer'}; box-shadow:${isAnnTaskExpired || isSelectedRead ? 'none' : '0 3px 10px rgba(5,150,105,0.2)'}; display:inline-flex; align-items:center; justify-content:center; gap:6px;">
-            ${isAnnTaskExpired ? '🛑 任务已截止锁定 (只读模式·无需确认)' : (isSelectedRead ? '✅ 本条已确认已读 (点击查阅下一条)' : (unreadList.length > 1 ? `✅ 确认本条已读并看下一条 (${unreadIndex + 1}/${unreadList.length}) ➔` : '✅ 我已阅读并确认 (已同步至教师端)'))}
+          <button id="btn-read-confirm" style="flex:1; background:${isSelectedRead ? '#e2e8f0' : 'linear-gradient(135deg, #059669, #047857)'}; color:${isSelectedRead ? '#64748b' : '#ffffff'}; border:none; padding:11px 24px; border-radius:8px; font-size:13.5px; font-weight:700; cursor:pointer; box-shadow:${isSelectedRead ? 'none' : '0 3px 10px rgba(5,150,105,0.2)'}; display:inline-flex; align-items:center; justify-content:center; gap:6px;">
+            ${isSelectedRead ? '✅ 本条已确认已读 (点击关闭/下一条)' : (unreadList.length > 1 ? `✅ 确认本条已读并看下一条 (${unreadIndex + 1}/${unreadList.length}) ➔` : '✅ 我已阅读并确认 (已同步至教师端)')}
           </button>
         </div>
 
