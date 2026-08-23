@@ -4,10 +4,16 @@
  * 默认端口: 1234 (可在环境变量或启动参数中指定: PORT=1234)
  */
 
-const http = require('http');
-const WebSocket = require('ws');
-const fs = require('fs');
-const path = require('path');
+import http from 'http';
+import WebSocket from 'ws';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import { createRequire } from 'module';
+
+const require = createRequire(import.meta.url);
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const PORT = parseInt(process.env.PORT || '1234', 10);
 const HOST = process.env.HOST || '0.0.0.0';
