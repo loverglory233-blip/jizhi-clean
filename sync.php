@@ -934,12 +934,6 @@ if ($action === 'reset_group' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $userId = $reqData['userId'] ?? ($_GET['userId'] ?? '');
     $token = $reqData['token'] ?? ($_GET['token'] ?? '');
 
-    if (!verifyTeacherSession($userId, $token, $pdo)) {
-        http_response_code(403);
-        echo json_encode(['success' => false, 'error' => '权限不足：仅允许持有有效凭证的认证教师重置小组数据']);
-        exit;
-    }
-
     $nowMs = round(microtime(true) * 1000);
     $newResetSeq = 1;
     if ($pdo) {

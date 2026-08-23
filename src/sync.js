@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState } from './constants.js?v=20260823_v48';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin } from './utils.js?v=20260823_v48';
+import { InitialState } from './constants.js?v=20260823_v49';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin } from './utils.js?v=20260823_v49';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -573,92 +573,18 @@ export class CloudSyncEngine {
         let cleanRemoteContent = (remoteData.stage2.unifiedContent || '').replace(/<span class="remote-cursor-widget"[\s\S]*?<\/span>/gi, '');
         const editor = document.getElementById('stage2-word-editor') || document.getElementById('stage3-word-editor');
         const isYjsLive = window._jizhi_yjs_provider && (window._jizhi_yjs_provider.wsconnected || window._jizhi_yjs_provider.synced);
+        
         if (editor) {
-          const isLocalComposing = (editor.dataset.isComposing === 'true');
+          const isUserTypingNow = document.activeElement === editor || editor.contains(document.activeElement);
           const currentLocalHtml = editor.innerHTML.replace(/<span class="remote-cursor-widget"[\s\S]*?<\/span>/gi, '');
 
+          // 🛡️ 零延迟打字盾牌：打字期间绝对不抢焦点、不修改 DOM，保持打字极致丝滑
           if (isYjsLive) {
             this.app.state.stage2.unifiedContent = cleanRemoteContent;
-          }
-          else if (!isYjsLive && currentLocalHtml.trim() !== cleanRemoteContent.trim()) {
+          } else {
             this.app.state.stage2.unifiedContent = cleanRemoteContent;
-            
-            if (!isLocalComposing) {
-              const tempDiv = document.createElement('div');
-              tempDiv.innerHTML = cleanRemoteContent;
-
-              const selection = window.getSelection();
-              let focusNode = null;
-              let focusOffset = 0;
-              let savedCaretOffset = null;
-              if (selection && selection.rangeCount > 0 && editor.contains(selection.focusNode)) {
-                focusNode = selection.focusNode;
-                focusOffset = selection.focusOffset;
-                try { savedCaretOffset = getCaretCharacterOffsetWithin(editor); } catch (e) {}
-              }
-
-              const localNodes = Array.from(editor.childNodes);
-              const remoteNodes = Array.from(tempDiv.childNodes);
-              
-              let head = 0;
-              while (head < localNodes.length && head < remoteNodes.length) {
-                const lH = (localNodes[head].nodeType === Node.ELEMENT_NODE) ? localNodes[head].outerHTML : localNodes[head].textContent;
-                const rH = (remoteNodes[head].nodeType === Node.ELEMENT_NODE) ? remoteNodes[head].outerHTML : remoteNodes[head].textContent;
-                if (lH === rH) head++;
-                else break;
-              }
-
-              let localTail = localNodes.length - 1;
-              let remoteTail = remoteNodes.length - 1;
-              while (localTail >= head && remoteTail >= head) {
-                const lH = (localNodes[localTail].nodeType === Node.ELEMENT_NODE) ? localNodes[localTail].outerHTML : localNodes[localTail].textContent;
-                const rH = (remoteNodes[remoteTail].nodeType === Node.ELEMENT_NODE) ? remoteNodes[remoteTail].outerHTML : remoteNodes[remoteTail].textContent;
-                if (lH === rH) { localTail--; remoteTail--; }
-                else break;
-              }
-
-              for (let i = head; i <= Math.max(localTail, remoteTail); i++) {
-                const lNode = (i <= localTail) ? localNodes[i] : null;
-                const rNode = (i <= remoteTail) ? remoteNodes[i] : null;
-
-                if (!lNode && rNode) {
-                  const refNode = (localTail + 1 < localNodes.length) ? localNodes[localTail + 1] : null;
-                  editor.insertBefore(rNode.cloneNode(true), refNode);
-                } else if (lNode && !rNode) {
-                  if (!focusNode || (!lNode.contains(focusNode) && lNode !== focusNode)) {
-                    editor.removeChild(lNode);
-                  }
-                } else if (lNode && rNode) {
-                  const lHtml = (lNode.nodeType === Node.ELEMENT_NODE) ? lNode.outerHTML : lNode.textContent;
-                  const rHtml = (rNode.nodeType === Node.ELEMENT_NODE) ? rNode.outerHTML : rNode.textContent;
-
-                  if (lHtml !== rHtml) {
-                    if (!focusNode || (!lNode.contains(focusNode) && lNode !== focusNode)) {
-                      editor.replaceChild(rNode.cloneNode(true), lNode);
-                    } else {
-                      // 🌟 用户当前光标聚焦段落：严禁直接用远端 DOM 覆盖本地打字节点，采用安全字符级合并
-                      if (lNode.nodeType === Node.TEXT_NODE && rNode.nodeType === Node.TEXT_NODE) {
-                        const oldText = lNode.textContent || '';
-                        const newText = rNode.textContent || '';
-                        let start = 0;
-                        while (start < oldText.length && start < newText.length && oldText[start] === newText[start]) start++;
-                        let oldEnd = oldText.length - 1;
-                        let newEnd = newText.length - 1;
-                        while (oldEnd >= start && newEnd >= start && oldText[oldEnd] === newText[newEnd]) { oldEnd--; newEnd--; }
-                        const delCount = (oldEnd - start + 1);
-                        const insText = newText.slice(start, newEnd + 1);
-                        if (delCount > 0) lNode.deleteData(start, delCount);
-                        if (insText.length > 0) lNode.insertData(start, insText);
-                      }
-                      // 若为正在输入的元素段落，保留本地 DOM 与光标，待该段失焦后再平滑对齐
-                    }
-                  }
-                }
-              }
-
-              if (savedCaretOffset !== null && savedCaretOffset >= 0) {
-                try { setCaretPositionWithin(editor, savedCaretOffset); } catch (e) {}
-              }
+            if (!isUserTypingNow && currentLocalHtml.trim() !== cleanRemoteContent.trim()) {
+              editor.innerHTML = cleanRemoteContent;
             }
           }
         } else {
@@ -706,23 +632,14 @@ export class CloudSyncEngine {
     if (remoteData.stage3) {
       const localS3 = this.app.state.stage3;
       const remoteS3 = remoteData.stage3;
-
-      if (remoteS3.confirmedMembers) {
-        if (JSON.stringify(remoteS3.confirmedMembers) !== JSON.stringify(localS3.confirmedMembers)) {
-          localS3.confirmedMembers = remoteS3.confirmedMembers;
-          needWorkspaceRender = true;
-        }
-      }
-      if (remoteS3.isRevisionConfirmed !== undefined && remoteS3.isRevisionConfirmed !== localS3.isRevisionConfirmed) {
-        localS3.isRevisionConfirmed = remoteS3.isRevisionConfirmed;
-        needWorkspaceRender = true;
-      }
-
-      if (Array.isArray(remoteS3.feedbackItems)) {
-        const localItems = localS3.feedbackItems || [];
-        const remoteItems = remoteS3.feedbackItems;
-
-        if (remoteItems.length !== localItems.length) {
+      if (remoteS3) {
+        if (remoteS3.proponentAnalysis !== undefined) this.app.state.stage3.proponentAnalysis = remoteS3.proponentAnalysis;
+        if (remoteS3.opponentCritique !== undefined) this.app.state.stage3.opponentCritique = remoteS3.opponentCritique;
+        if (remoteS3.neutralVerdict !== undefined) this.app.state.stage3.neutralVerdict = remoteS3.neutralVerdict;
+        
+        const localItems = Array.isArray(localS3.feedbackItems) ? localS3.feedbackItems : [];
+        const remoteItems = Array.isArray(remoteS3.feedbackItems) ? remoteS3.feedbackItems : [];
+        if (remoteItems.length > 0 && localItems.length === 0) {
           this.app.state.stage3.feedbackItems = remoteItems;
           needWorkspaceRender = true;
         } else if (JSON.stringify(remoteItems) !== JSON.stringify(localItems)) {
@@ -779,6 +696,15 @@ export class CloudSyncEngine {
     if (typeof window.renderChat === 'function') window.renderChat(this.app.state);
     this.app.updateContributionUi();
     this.app.renderPresenceCursors();
+
+    // 👨‍🏫 教师端实时同屏刷新 (当教师正在监控该小组时，实时同屏反映最新进度)
+    const isTeacher = user && (user.isTeacher || user.role === 'teacher');
+    if (isTeacher) {
+      const teacherContainer = document.getElementById('teacher-portal-panel') || document.querySelector('.teacher-portal-layout');
+      if (teacherContainer && typeof renderTeacherPortal === 'function') {
+        renderTeacherPortal(teacherContainer, this.app.authManager, this.app.state, () => this.app.handleLogout(), () => {});
+      }
+    }
 
     if (needWorkspaceRender && user?.role === 'student' && this.app.state.studentViewMode === 'workspace') {
       const activeEl = document.activeElement;
