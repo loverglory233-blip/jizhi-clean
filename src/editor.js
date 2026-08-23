@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles } from "./constants.js?v=20260823_v131";
-import { callCozeAgentAPI } from "./agents.js?v=20260823_v131";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired } from "./utils.js?v=20260823_v131";
+import { AgentProfiles } from "./constants.js?v=20260823_v132";
+import { callCozeAgentAPI } from "./agents.js?v=20260823_v132";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired } from "./utils.js?v=20260823_v132";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -1232,6 +1232,18 @@ function renderStage1Canvas(canvas, state, handlers) {
         };
         if (!state.chatLogs[currentStage]) state.chatLogs[currentStage] = [];
         state.chatLogs[currentStage].push(submitNoticeMsg);
+
+        // 🎪 当全员提案已集齐时，拍卖师主动在讨论区引导“先充分讨论选哪个，再进行投票”
+        if (submittedAuthorsCount >= totalMembersCount && totalMembersCount > 0 && !s1._allProposalsPrompted) {
+          s1._allProposalsPrompted = true;
+          const allCollectedMsg = {
+            sender: 'auctioneer',
+            text: `🎪 【拍卖师·全员提案已集齐】：🎉 小组全部 ${totalMembersCount} 位成员的选题提案已悉数亮相！\n👉 请大家先不要急于投票，先在右侧协同对话区商讨交流各个方案的研究切入点与创新亮点；\n💬 充分研讨达成初步共识后，再在上方为最终认可的方案进行投票！`,
+            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            _timeMs: Date.now() + 50
+          };
+          state.chatLogs[currentStage].push(allCollectedMsg);
+        }
 
         closeModal();
         handlers.onRefresh();

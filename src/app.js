@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260823_v131";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired } from "./utils.js?v=20260823_v131";
-import { callCozeAgentAPI } from "./agents.js?v=20260823_v131";
-import { AuthManager } from "./auth.js?v=20260823_v131";
-import { CloudSyncEngine } from "./sync.js?v=20260823_v131";
-import { renderLoginView } from "./login.js?v=20260823_v131";
-import { renderTeacherPortal } from "./teacher.js?v=20260823_v131";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260823_v131";
+} from "./constants.js?v=20260823_v132";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired } from "./utils.js?v=20260823_v132";
+import { callCozeAgentAPI } from "./agents.js?v=20260823_v132";
+import { AuthManager } from "./auth.js?v=20260823_v132";
+import { CloudSyncEngine } from "./sync.js?v=20260823_v132";
+import { renderLoginView } from "./login.js?v=20260823_v132";
+import { renderTeacherPortal } from "./teacher.js?v=20260823_v132";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260823_v132";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260823_v131";
+} from "./editor.js?v=20260823_v132";
 
 // Make renderChat available on window for sync callbacks
 if (typeof window !== "undefined") {
@@ -2494,12 +2494,9 @@ ${propText}
         // 拼接全部学生研讨文本
         const chatSnippet = userLogs.map(m => `${m.senderName || m.sender}: ${m.text}`).join('\n');
         
-        // 🛡️ 严格教学门禁：检查是否展开了真实的选题与分工学术研讨
-        const academicKeywords = ['负责', '我来', '我写', '分工', '选题', '题目', '提案', '背景', '综述', '假设', '方法', '问卷', '数据', '反思', '文献', '时间', '分钟', '同意', '赞同', '可以', '选这个', '定这个'];
-        const hasRealDiscussion = academicKeywords.some(kw => chatSnippet.includes(kw));
-
-        if (proposals.length === 0 || !hasRealDiscussion || userLogs.length < 3) {
-          alert('💡 【协同研讨提示】：小组成员尚未在讨论区展开实质性的选题与章节分工研讨。\n\n请大家先在右侧协同对话区商讨各自负责的章节（例如“我写背景和综述”、“我负责研究方法与问卷设计”）与时间安排。\n\n👉 提示：小组成员也可不点击提炼，直接在左侧输入框中自主分工编辑！');
+        // 🛡️ 协同门禁校验：如果全组既没有提交任何提案，讨论区也空无一物，提示先交流
+        if (proposals.length === 0 && userLogs.length === 0) {
+          alert('💡 【协同研讨提示】：小组成员尚未在讨论区展开交流或提交提案。\n\n请大家先在右侧协同对话区商讨各自的研究兴趣与分工意向，并在上方提交选题提案后再点击提炼！\n\n👉 提示：小组成员也可不点击提炼，直接在左侧输入框中自主分工编辑。');
           return;
         }
 
