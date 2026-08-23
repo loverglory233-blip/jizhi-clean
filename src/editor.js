@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles } from "./constants.js?v=20260823_v30";
-import { callCozeAgentAPI } from "./agents.js?v=20260823_v30";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired } from "./utils.js?v=20260823_v30";
+import { AgentProfiles } from "./constants.js?v=20260823_v31";
+import { callCozeAgentAPI } from "./agents.js?v=20260823_v31";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired } from "./utils.js?v=20260823_v31";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -354,12 +354,12 @@ export function attachWordEditorEvents(container, editorId, isReadonly, onChange
         const protocol = (window.location.protocol === 'https:' ? 'wss:' : 'ws:');
         const host = window.location.host;
         const user = (window.app && window.app.authManager) ? window.app.authManager.getCurrentUser() : null;
-        const groupId = (user && user.groupId) ? user.groupId : ((window.app && window.app.state && window.app.state.activeMonitorGroupId) || 'group_1');
+        const groupId = (window.app && window.app.getEffectiveGroupId) ? window.app.getEffectiveGroupId() : ((user && user.groupId) ? user.groupId : 'group_1');
         const taskId = (window.app && window.app.state && window.app.state.activeTaskId) || 'task_default';
         const wsHost = window.location.hostname || 'localhost';
-        const isDevServer8088 = (window.location.port === '8088');
-        // 自动探测最佳 WebSocket 路由 (优先复用 80/443 的反代 /ws，零额外端口与安全组隐患)
-        const wsUrl = (window.location.protocol === 'https:' || isDevServer8088 || window.location.port === '80' || window.location.port === '')
+        
+        // 自动探测最佳 WebSocket 路由 (HTTPS走反代/ws，HTTP直连1234端口)
+        const wsUrl = (window.location.protocol === 'https:')
           ? `${protocol}//${host}/ws`
           : `${protocol}//${wsHost}:1234`;
         const roomName = `jizhi_yjs_${taskId}_${groupId}`;
@@ -404,9 +404,8 @@ export function attachWordEditorEvents(container, editorId, isReadonly, onChange
 
         quillInstance.on('text-change', () => {
           const cleanHtml = quillInstance.root.innerHTML;
-          // 只有当 Yjs 已经至少同步过一次，或者内容非空时，才触发外部快照推送，彻底杜绝冷启动冲刷！
-          if (isInitialSynced || (cleanHtml && cleanHtml.trim().length > 30)) {
-            if (onChangeCallback) onChangeCallback(cleanHtml);
+          if (onChangeCallback) {
+            onChangeCallback(cleanHtml);
           }
         });
       }
