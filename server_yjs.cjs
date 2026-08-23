@@ -17,7 +17,24 @@ const server = http.createServer((req, res) => {
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
-  if (req.url === '/health' || req.url === '/') {
+  const reqUrl = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
+
+  if (reqUrl.pathname === '/reset_room' || reqUrl.pathname === '/clear_room') {
+    const roomName = reqUrl.searchParams.get('roomName');
+    if (roomName) {
+      roomUpdates.delete(roomName);
+      const jsonFile = path.join(dataDir, `room_${roomName}.json`);
+      const binFile = path.join(dataDir, `room_${roomName}.bin`);
+      try { if (fs.existsSync(jsonFile)) fs.unlinkSync(jsonFile); } catch (e) {}
+      try { if (fs.existsSync(binFile)) fs.unlinkSync(binFile); } catch (e) {}
+      console.log(`🧹 [Yjs Reset] 已彻底清空房间 [${roomName}] 的内存向量与磁盘历史！`);
+    }
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+    res.end(JSON.stringify({ success: true, message: `Room ${roomName || 'all'} reset` }));
+    return;
+  }
+
+  if (reqUrl.pathname === '/health' || reqUrl.pathname === '/') {
     res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
     res.end(JSON.stringify({
       status: 'ok',

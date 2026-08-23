@@ -985,6 +985,14 @@ if ($action === 'reset_group' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
+    // 🛡️ 彻底清空 Yjs CRDT 协同服务中的内存与磁盘文件，绝无任何幽灵数据残留
+    $yjsRoomName = "jizhi_yjs_{$taskId}_{$groupId}";
+    @file_get_contents("http://127.0.0.1:1234/reset_room?roomName=" . urlencode($yjsRoomName));
+    $yjsJsonFile = __DIR__ . "/data/room_{$yjsRoomName}.json";
+    $yjsBinFile = __DIR__ . "/data/room_{$yjsRoomName}.bin";
+    if (file_exists($yjsJsonFile)) @unlink($yjsJsonFile);
+    if (file_exists($yjsBinFile)) @unlink($yjsBinFile);
+
     // 清理本地文件备份
     @file_put_contents(__DIR__ . '/db_' . $scopeKey . '.json', json_encode([
         'timestamp' => $nowMs, 'groupId' => $groupId, 'taskId' => $taskId, 'currentStage' => 'stage1',
