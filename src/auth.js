@@ -14,7 +14,7 @@ import {
   DefaultTasks,
   DefaultAnnouncements,
   DefaultReferencePapers
-} from './constants.js?v=20260823_v11';
+} from './constants.js?v=20260823_v12';
 
 export class AuthManager {
   constructor() {
@@ -823,10 +823,10 @@ export class AuthManager {
   autoRandomGrouping(classId, groupSize = 3, mode = 'reset_all') {
     const classes = this.getClasses();
     const cls = classes.find(c => c.id === classId) || classes[0];
-    if (!cls) return;
+    if (!cls) return 0;
 
     const classStudents = this.getClassStudents(cls.id);
-    if (!classStudents || classStudents.length === 0) return;
+    if (!classStudents || classStudents.length === 0) return 0;
 
     const users = this.getUsers();
     const size = Math.max(2, parseInt(groupSize, 10) || 3);
@@ -841,6 +841,20 @@ export class AuthManager {
       return arr;
     };
 
+    // 智能分块：确保没有任何小组仅有 1 人（若余数为 1，并入上一小组）
+    const partition = (list, targetSize) => {
+      const chunks = [];
+      for (let i = 0; i < list.length; i += targetSize) {
+        chunks.push(list.slice(i, i + targetSize));
+      }
+      // 🛡️ 严禁单人组：若最后一组仅有 1 人且存在前面小组，合并至前一小组（变为 targetSize + 1 人）
+      if (chunks.length > 1 && chunks[chunks.length - 1].length === 1) {
+        const lastSingle = chunks.pop()[0];
+        chunks[chunks.length - 1].push(lastSingle);
+      }
+      return chunks;
+    };
+
     if (mode === 'reset_all') {
       cls.groups = [];
       // 将所有本班学生重置 groupId
@@ -851,9 +865,10 @@ export class AuthManager {
       });
 
       const shuffled = shuffle(classStudents);
-      let groupIndex = 1;
-      for (let i = 0; i < shuffled.length; i += size) {
-        const chunk = shuffled.slice(i, i + size);
+      const chunks = partition(shuffled, size);
+
+      chunks.forEach((chunk, groupIdx) => {
+        const groupIndex = groupIdx + 1;
         const gId = 'group_' + Date.now() + '_' + groupIndex;
         const gName = `第 ${groupIndex} 协作小组`;
         const memberIds = chunk.map(s => s.id);
@@ -877,8 +892,7 @@ export class AuthManager {
             }
           }
         });
-        groupIndex++;
-      }
+      });
     } else if (mode === 'append_unassigned') {
       if (!cls.groups) cls.groups = [];
       const assignedIds = new Set();
@@ -890,12 +904,14 @@ export class AuthManager {
       });
 
       const unassignedStudents = classStudents.filter(s => !assignedIds.has(s.id));
-      if (unassignedStudents.length === 0) return;
+      if (unassignedStudents.length === 0) return cls.groups.length;
 
       const shuffled = shuffle(unassignedStudents);
-      let groupIndex = cls.groups.length + 1;
-      for (let i = 0; i < shuffled.length; i += size) {
-        const chunk = shuffled.slice(i, i + size);
+      const chunks = partition(shuffled, size);
+
+      const startIndex = cls.groups.length;
+      chunks.forEach((chunk, groupIdx) => {
+        const groupIndex = startIndex + groupIdx + 1;
         const gId = 'group_' + Date.now() + '_' + groupIndex;
         const gName = `第 ${groupIndex} 协作小组`;
         const memberIds = chunk.map(s => s.id);
@@ -919,13 +935,13 @@ export class AuthManager {
             }
           }
         });
-        groupIndex++;
-      }
+      });
     }
 
     localStorage.setItem(STORAGE_KEY_CLASSES, JSON.stringify(classes));
     localStorage.setItem(STORAGE_KEY_USERS_DB, JSON.stringify(users));
     this.pushGlobalMeta();
+    return cls.groups.length;
   }
 
   deleteAllGroups(classId) {

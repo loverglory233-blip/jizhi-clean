@@ -9,8 +9,8 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260823_v11";
-import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml } from "./utils.js?v=20260823_v11";
+} from "./constants.js?v=20260823_v12";
+import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml } from "./utils.js?v=20260823_v12";
 
 /* ==========================================================================
    7. TEACHER PORTAL RENDERER (LIVE WORKSPACE MIRROR & ANNOUNCEMENT READ MATRIX)
@@ -1624,9 +1624,9 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
         });
       } else {
         // 当前没有小组，直接执行随机分组
-        authManager.autoRandomGrouping(activeClass.id, groupSize, 'reset_all');
+        const totalGroups = authManager.autoRandomGrouping(activeClass.id, groupSize, 'reset_all');
         renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
-        alert(`✅ 已完成随机分组！按每组 ${groupSize} 人，共自动划分 ${(activeClass.groups || []).length} 个协作小组。`);
+        alert(`✅ 已完成随机分组！按每组约 ${groupSize} 人，共自动划分 ${totalGroups} 个协作小组（每组至少 2 人）。`);
       }
     });
   }
