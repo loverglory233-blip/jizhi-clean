@@ -1330,6 +1330,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $mergedS3['feedbackItems'] = array_values($itemMap);
             }
 
+            // 🛡️ 阶段防逆流保护：阶段单调递增前进 (stage1 -> stage2 -> stage3)，绝不被掉线客户端旧快照倒退覆盖
+            $stageWeights = ['stage1' => 1, 'stage2' => 2, 'stage3' => 3];
+            $exStage = isset($stRow['current_stage']) ? $stRow['current_stage'] : 'stage1';
+            $inStage = isset($data['currentStage']) ? $data['currentStage'] : 'stage1';
+            $finalStage = $inStage;
+            if (!$isResetVal) {
+                $wEx = $stageWeights[$exStage] ?? 1;
+                $wIn = $stageWeights[$inStage] ?? 1;
+                $finalStage = ($wEx >= $wIn) ? $exStage : $inStage;
+            }
+
+            // 🛡️ 锁定状态防逆流：一旦被教师设为锁定 (1)，普通客户端推送不能逆转为 0
+            $exFinal = !empty($stRow['is_final_submitted']) ? 1 : 0;
+            $inFinal = !empty($data['isFinalSubmitted']) ? 1 : 0;
+            $finalLock = $isResetVal ? 0 : ($exFinal ? 1 : $inFinal);
+
+            // 🛡️ 公约与初稿确认状态防逆流 (Sticky True)
+            if (!$isResetVal && !empty($existingS1['contract']['isConfirmed'])) {
+                if (!isset($mergedS1['contract'])) $mergedS1['contract'] = [];
+                $mergedS1['contract']['isConfirmed'] = true;
+            }
+            if (!$isResetVal && !empty($existingS2['isDraftConfirmed'])) {
+                $mergedS2['isDraftConfirmed'] = true;
+            }
+
             // 保存小组协作快照 (自增 revision_id，彻底防止同毫秒并发漏包)
             $stmt = $pdo->prepare("INSERT INTO group_states 
                 (scope_key, task_id, group_id, current_stage, stage1_data, stage2_data, stage3_data, presence_data, members_data, is_final_submitted, last_timestamp, revision_id)
@@ -1349,21 +1374,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 ':sk'    => $scopeKey,
                 ':tid'   => $taskId,
                 ':gid'   => $groupId,
-                ':cstg'  => isset($data['currentStage']) ? $data['currentStage'] : 'stage1',
+                ':cstg'  => $finalStage,
                 ':s1'    => $s1Json,
                 ':s2'    => $s2Json,
                 ':s3'    => $s3Json,
                 ':pr'    => $prJson,
                 ':mb'    => $mbJson,
-                ':fin'   => !empty($data['isFinalSubmitted']) ? 1 : 0,
+                ':fin'   => $finalLock,
                 ':ts'    => $ts,
-                ':cstg2' => isset($data['currentStage']) ? $data['currentStage'] : 'stage1',
+                ':cstg2' => $finalStage,
                 ':s12'   => $s1Json,
                 ':s22'   => $s2Json,
                 ':s32'   => $s3Json,
                 ':pr2'   => $prJson,
                 ':mb2'   => $mbJson,
-                ':fin2'  => !empty($data['isFinalSubmitted']) ? 1 : 0,
+                ':fin2'  => $finalLock,
                 ':ts2'   => $ts
             ]);
 
