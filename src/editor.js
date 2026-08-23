@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles } from "./constants.js?v=20260823_v68";
-import { callCozeAgentAPI } from "./agents.js?v=20260823_v68";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired } from "./utils.js?v=20260823_v68";
+import { AgentProfiles } from "./constants.js?v=20260823_v69";
+import { callCozeAgentAPI } from "./agents.js?v=20260823_v69";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired } from "./utils.js?v=20260823_v69";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -1541,23 +1541,17 @@ function renderStage2Canvas(canvas, state, handlers) {
       ` : (() => {
         const subs = s2.meetingSubmissions || {};
         const subCount = Object.keys(subs).length;
-        const isLeader = (currUserCode === 'A' || currUser?.role === 'leader' || currUser?.roleTitle?.includes('组长'));
         return `
           <div id="stage2-action-plan-card" style="background:#f8fafc; border:1px dashed #cbd5e1; border-radius:8px; padding:8px 14px; margin-bottom:8px;">
             <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:6px;">
               <div style="font-size:12px; font-weight:700; color:#64748b; display:flex; align-items:center; gap:6px;">
                 <span>📋 【半程修正清单】</span>
                 <span style="font-size:10.5px; background:${subCount > 0 ? '#dbeafe' : '#e2e8f0'}; color:${subCount > 0 ? '#1d4ed8' : '#475569'}; padding:1px 8px; border-radius:10px; font-weight:700;">
-                  ${subCount > 0 ? `待解锁 (已打卡 ${subCount}/${totalCount}人)` : `待解锁 (0/${totalCount}人)`}
+                  ${subCount > 0 ? `待解锁 (全员自查进度 ${subCount}/${totalCount}人)` : `待解锁 (0/${totalCount}人)`}
                 </span>
               </div>
               <div style="display:flex; align-items:center; gap:8px;">
-                <span style="font-size:11px; color:#94a3b8;">（全员完成自查或组长代推进）</span>
-                ${isLeader && !isEditorReadonly ? `
-                  <button id="btn-proxy-action-plan" style="background:#fffbeb; border:1px solid #fde68a; color:#b45309; padding:3px 10px; border-radius:6px; font-size:11.5px; font-weight:700; cursor:pointer;" title="组员缺勤或掉线时组长代为生成修正清单">
-                    ⚡ 组长一键代生成 (豁免缺勤)
-                  </button>
-                ` : ''}
+                <span style="font-size:11px; color:#94a3b8;">（需全组成员完成半程自查后自动生成）</span>
               </div>
             </div>
           </div>
@@ -1648,13 +1642,6 @@ function renderStage2Canvas(canvas, state, handlers) {
   canvas.querySelector('#btn-show-case').addEventListener('click', () => handlers.onOpenCaseModal());
   if (!isStage2MeetingLocked) {
     canvas.querySelector('#btn-trigger-meeting').addEventListener('click', () => handlers.onOpenMeetingModal());
-  }
-
-  const btnProxyPlan = canvas.querySelector('#btn-proxy-action-plan');
-  if (btnProxyPlan && handlers.onProxyGenerateActionPlan) {
-    btnProxyPlan.addEventListener('click', () => {
-      handlers.onProxyGenerateActionPlan();
-    });
   }
 
   const btnConfirmDraft = canvas.querySelector('#btn-confirm-stage2-draft');

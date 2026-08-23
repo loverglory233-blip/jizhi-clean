@@ -9,8 +9,8 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260823_v68";
-import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired } from "./utils.js?v=20260823_v68";
+} from "./constants.js?v=20260823_v69";
+import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired } from "./utils.js?v=20260823_v69";
 
 /* ==========================================================================
    7. TEACHER PORTAL RENDERER (LIVE WORKSPACE MIRROR & ANNOUNCEMENT READ MATRIX)
@@ -741,25 +741,6 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
                 </div>
               </div>
 
-              ${(() => {
-                const allAlerts = authManager.getTeacherAlerts ? authManager.getTeacherAlerts() : [];
-                const currentGroupAlert = allAlerts.find(a => (a.groupId === activeMonitorGId || a.groupName === activeMonitorGroup.name) && a.type && a.type.includes('proxy'));
-                if (currentGroupAlert) {
-                  const stageNames = (currentGroupAlert.stagesList && currentGroupAlert.stagesList.length > 0) ? currentGroupAlert.stagesList.join('、') : (currentGroupAlert.stageLabel || '公约签署');
-                  const absentStr = (currentGroupAlert.absentMembers && currentGroupAlert.absentMembers.length > 0) ? `，代签了缺勤组员【${currentGroupAlert.absentMembers.join('、')}】` : '';
-                  return `
-                    <div style="background:#fffbeb; border:1.5px solid #fde68a; border-left:5px solid #f59e0b; border-radius:12px; padding:12px 18px; font-size:13px; color:#b45309; font-weight:700; display:flex; justify-content:space-between; align-items:center; box-shadow:0 1px 4px rgba(245,158,11,0.08);">
-                      <div style="display:flex; align-items:center; gap:8px;">
-                        <span style="font-size:18px;">⚠️</span>
-                        <span><b>该小组存在组长代签记录：</b> 组长【${currentGroupAlert.leaderName || '组长'}】在【${stageNames}】执行了代签推进${absentStr}。</span>
-                      </div>
-                      <span style="background:#fef3c7; border:1px solid #fcd34d; color:#b45309; padding:3px 10px; border-radius:6px; font-size:11.5px; font-weight:800; white-space:nowrap;">⚠️ 存在组长代签</span>
-                    </div>
-                  `;
-                }
-                return '';
-              })()}
-
               ${effectiveMonitorStage === 'stage1' ? `
                 <div style="display:grid; grid-template-columns: 1.6fr 1fr; gap:16px; width:100%;">
                   <div class="card" style="padding:20px; display:flex; flex-direction:column; border:1px solid #bfdbfe; gap:12px;">
@@ -823,20 +804,13 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
                     <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:12px 14px; font-size:12.5px;">
                       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; flex-wrap:wrap; gap:6px;">
                         <span style="font-weight:700; color:#1e40af;">👥 公约签署进度与审计矩阵:</span>
-                        ${state.stage1?.contract?.isProxySigned ? `
-                          <span style="background:#fffbeb; color:#b45309; border:1px solid #fde68a; padding:2px 8px; border-radius:6px; font-size:11px; font-weight:700;">
-                            ⚠️ ${state.stage1?.contract?.proxySignNote || `由【${state.stage1.contract.proxySignLeader || '组员'}】代签推进`}
-                          </span>
-                        ` : ''}
                       </div>
                       <div style="display:flex; flex-wrap:wrap; gap:8px;">
                         ${monitorMembersList.map(m => {
                           const isConf = state.stage1?.contract?.confirmedMembers && (state.stage1.contract.confirmedMembers[m.id] || state.stage1.contract.confirmedMembers[m.studentCode] || (m.name && state.stage1.contract.confirmedMembers[m.name]));
-                          const isProxy = state.stage1?.contract?.isProxySigned && !isConf;
-                          const isLeaderRole = (m.studentCode === 'A' || m.role === 'leader' || m.roleTitle?.includes('组长'));
                           return `
-                            <span style="color:${isConf ? '#059669' : (isProxy ? '#b45309' : '#64748b')}; border:1px solid ${isConf ? '#a7f3d0' : (isProxy ? '#fde68a' : '#e2e8f0')}; background:${isConf ? '#ecfdf5' : (isProxy ? '#fffbeb' : '#ffffff')}; padding:4px 10px; border-radius:6px; font-size:12px; font-weight:600;">
-                              ${m.avatar || '👤'} ${m.name} (${m.roleTitle || '组员'}): <b>${isConf ? '✅ 自主签署' : (isProxy ? (isLeaderRole ? '⚠️ 缺勤 (已被组员代签)' : '⚠️ 缺勤代签') : '⏳ 未签署')}</b>
+                            <span style="color:${isConf ? '#059669' : '#64748b'}; border:1px solid ${isConf ? '#a7f3d0' : '#e2e8f0'}; background:${isConf ? '#ecfdf5' : '#ffffff'}; padding:4px 10px; border-radius:6px; font-size:12px; font-weight:600;">
+                              ${m.avatar || '👤'} ${m.name} (${m.roleTitle || '组员'}): <b>${isConf ? '✅ 已签署' : '⏳ 未签署'}</b>
                             </span>
                           `;
                         }).join('')}
@@ -878,18 +852,13 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
                     <div style="background:#eff6ff; border:1px solid #bfdbfe; border-radius:8px; padding:10px 14px; margin-bottom:12px; font-size:12px; color:#1d4ed8; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
                       <div>
                         <span>⚡ <b>当前【${activeMonitorGroup.name}】初稿进度:</b></span>
-                        ${state.stage2?.isProxyDraftConfirmed ? `
-                          <span style="background:#fffbeb; color:#b45309; border:1px solid #fde68a; padding:2px 8px; border-radius:6px; font-size:11px; font-weight:700; margin-left:6px;">
-                            ⚠️ 组长【${state.stage2.proxyDraftLeader || '组长'}】一键代确认初稿推进至阶段三
-                          </span>
-                        ` : (state.stage2?.isDraftConfirmed ? '<span style="color:#059669; font-weight:700; margin-left:6px;">✅ 全员已确认完成初稿</span>' : '<span style="color:#2563eb; margin-left:6px;">✍️ 组员协作撰写中</span>')}
+                        ${state.stage2?.isDraftConfirmed ? '<span style="color:#059669; font-weight:700; margin-left:6px;">✅ 全员已确认完成初稿</span>' : '<span style="color:#2563eb; margin-left:6px;">✍️ 组员协作撰写中</span>'}
                       </div>
                       <div style="display:flex; gap:6px; flex-wrap:wrap;">
                         ${monitorMembersList.map(m => {
                           const isConf = state.stage2?.confirmedMembers && (state.stage2.confirmedMembers[m.id] || state.stage2.confirmedMembers[m.studentCode]);
-                          const isProxy = state.stage2?.isProxyDraftConfirmed && !isConf;
-                          return `<span style="font-size:11px; padding:1px 8px; border-radius:10px; font-weight:700; background:${isConf ? '#ecfdf5' : (isProxy ? '#fffbeb' : '#ffffff')}; color:${isConf ? '#059669' : (isProxy ? '#b45309' : '#94a3b8')}; border:1px solid ${isConf ? '#a7f3d0' : (isProxy ? '#fde68a' : '#cbd5e1')};">
-                            ${m.avatar || '👤'} ${m.name}: ${isConf ? '✅ 已确认' : (isProxy ? '⚠️ 代确认' : '⏳ 撰写中')}
+                          return `<span style="font-size:11px; padding:1px 8px; border-radius:10px; font-weight:700; background:${isConf ? '#ecfdf5' : '#ffffff'}; color:${isConf ? '#059669' : '#94a3b8'}; border:1px solid ${isConf ? '#a7f3d0' : '#cbd5e1'};">
+                            ${m.avatar || '👤'} ${m.name}: ${isConf ? '✅ 已确认' : '⏳ 撰写中'}
                           </span>`;
                         }).join('')}
                       </div>
@@ -1024,36 +993,13 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
           </div>
           <div style="padding:20px 24px; overflow-y:auto; flex:1; display:flex; flex-direction:column; gap:12px; background:#f8fafc;">
             ${(() => {
-              const proxyAlerts = currentAlerts.filter(a => a.type && a.type.includes('proxy'));
-              if (proxyAlerts.length === 0) {
-                return `
-                  <div style="text-align:center; color:#64748b; padding:48px 20px; font-size:13.5px; background:#ffffff; border-radius:10px; border:1px dashed #cbd5e1;">
-                    <div style="font-size:32px; margin-bottom:8px;">✨</div>
-                    <div style="font-weight:700; color:#0f172a;">当前各班级与小组暂无任何组长代签记录</div>
-                    <div style="font-size:12px; color:#94a3b8; margin-top:4px;">全员均正常自主签署与推进，系统未触发缺勤代签。</div>
-                  </div>
-                `;
-              }
-              return proxyAlerts.map(a => {
-                const stageNames = (a.stagesList && a.stagesList.length > 0) ? a.stagesList.join('、') : (a.stageLabel || '公约签署');
-                const absentStr = (a.absentMembers && a.absentMembers.length > 0) ? `缺勤组员: <b>${a.absentMembers.join('、')}</b>` : '';
-                return `
-                  <div style="background:#ffffff; border:1.5px solid #fde68a; border-left:5px solid #f59e0b; border-radius:10px; padding:16px 20px; box-shadow:0 1px 4px rgba(245,158,11,0.06);">
-                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; flex-wrap:wrap; gap:6px;">
-                      <span style="font-size:14px; font-weight:800; color:#b45309;">⚠️ 组长代签提醒: 【${a.groupName || '协作小组'}】</span>
-                      <span style="font-size:11.5px; color:#94a3b8;">${a.timestamp || ''} (${a.date || ''})</span>
-                    </div>
-                    <div style="font-size:13px; color:#1e293b; line-height:1.6; margin-bottom:10px; background:#fffbeb; padding:10px 14px; border-radius:8px; border:1px solid #fef3c7;">
-                      <div>🏫 班级: <b>${a.className || '教学班级'}</b> · 任务: <b>《${a.taskTitle || '协作写作'}》</b></div>
-                      <div style="margin-top:4px;">✍️ 组长 <b>【${a.leaderName || '组长'}】</b> 在 <b>【${stageNames}】</b> 执行了代签推进 ${absentStr ? `(${absentStr})` : ''}。</div>
-                    </div>
-                    <div style="display:flex; justify-content:space-between; align-items:center; font-size:11.5px; color:#64748b;">
-                      <span>代签涉及阶段: <span style="color:#d97706; font-weight:700;">${stageNames}</span></span>
-                      <span>已记录归档至教务中心</span>
-                    </div>
-                  </div>
-                `;
-              }).join('');
+              return `
+                <div style="text-align:center; color:#64748b; padding:48px 20px; font-size:13.5px; background:#ffffff; border-radius:10px; border:1px dashed #cbd5e1;">
+                  <div style="font-size:32px; margin-bottom:8px;">✨</div>
+                  <div style="font-weight:700; color:#0f172a;">当前各班级教学协作状态正常</div>
+                  <div style="font-size:12px; color:#94a3b8; margin-top:4px;">全员均按教学规范自主推进各阶段协作任务。</div>
+                </div>
+              `;
             })()}
           </div>
           <div style="padding:12px 24px; background:#ffffff; border-top:1px solid #e2e8f0; text-align:right;">

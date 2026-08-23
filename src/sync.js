@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState } from './constants.js?v=20260823_v68';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin } from './utils.js?v=20260823_v68';
+import { InitialState } from './constants.js?v=20260823_v69';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin } from './utils.js?v=20260823_v69';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -569,29 +569,7 @@ export class CloudSyncEngine {
     }
 
     if (remoteData.stage2) {
-      if (remoteData.stage2.unifiedContent !== undefined) {
-        let cleanRemoteContent = (remoteData.stage2.unifiedContent || '').replace(/<span class="remote-cursor-widget"[\s\S]*?<\/span>/gi, '');
-        const editor = document.getElementById('stage2-word-editor') || document.getElementById('stage3-word-editor');
-        
-        this.app.state.stage2.unifiedContent = cleanRemoteContent;
-        if (editor) {
-          const lastKeyPress = window._jizhi_last_keypress_time || 0;
-          const isActivelyTyping = (Date.now() - lastKeyPress) < 1200;
-          const qlEditor = editor.querySelector('.ql-editor') || editor;
-          const currentLocalHtml = qlEditor.innerHTML.replace(/<span class="remote-cursor-widget"[\s\S]*?<\/span>/gi, '');
-
-          // 🛡️ 绝不死锁（和研讨区聊天一样稳）：当前用户未在打字时，即刻平滑对齐远端组员最新正文！
-          if (!isActivelyTyping && currentLocalHtml.trim() !== cleanRemoteContent.trim()) {
-            if (window._jizhi_quill && window._jizhi_quill.root) {
-              window._jizhi_quill.root.innerHTML = cleanRemoteContent;
-            } else {
-              editor.innerHTML = cleanRemoteContent;
-            }
-          }
-        }
-        this.app.updateContributionUi();
-        this.app.renderPresenceCursors();
-      }
+      // 🛡️ 纯粹 CRDT 架构：富文本正文 100% 且唯一由 Yjs 实时向量协同接管，短轮询绝不操作富文本 DOM，彻底消除双轨互搏！
       if (remoteData.stage2.memberContributions) {
         if (JSON.stringify(remoteData.stage2.memberContributions) !== JSON.stringify(this.app.state.stage2.memberContributions)) {
           this.app.state.stage2.memberContributions = remoteData.stage2.memberContributions;
