@@ -945,6 +945,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $mergedS2       = (isset($data['stage2']) && is_array($data['stage2'])) ? $data['stage2'] : [];
         $mergedS3       = (isset($data['stage3']) && is_array($data['stage3'])) ? $data['stage3'] : [];
         $mergedChats    = (isset($data['chatLogs']) && is_array($data['chatLogs'])) ? $data['chatLogs'] : ['stage1' => [], 'stage2' => [], 'stage3' => []];
+        $clientRevision = isset($data['revisionId']) ? intval($data['revisionId']) : 0;
 
         if ($pdo) {
             // 读取当前服务端 reset_seq
@@ -985,7 +986,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $existingS1 = [];
             $existingS2 = [];
             $existingS3 = [];
-            $stmtGetState = $pdo->prepare("SELECT presence_data, stage1_data, stage2_data, stage3_data FROM group_states WHERE scope_key = :sk");
+            $existingRevision = 0;
+            $stmtGetState = $pdo->prepare("SELECT presence_data, stage1_data, stage2_data, stage3_data, revision_id FROM group_states WHERE scope_key = :sk");
             $stmtGetState->execute([':sk' => $scopeKey]);
             $stRow = $stmtGetState->fetch();
             if ($stRow) {
@@ -993,6 +995,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if (!empty($stRow['stage1_data']))   $existingS1 = json_decode($stRow['stage1_data'], true) ?: [];
                 if (!empty($stRow['stage2_data']))   $existingS2 = json_decode($stRow['stage2_data'], true) ?: [];
                 if (!empty($stRow['stage3_data']))   $existingS3 = json_decode($stRow['stage3_data'], true) ?: [];
+                $existingRevision = isset($stRow['revision_id']) ? intval($stRow['revision_id']) : 0;
             }
 
             // 合并 presence
@@ -1048,8 +1051,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $mergedS2 = $incomingS2;
             if (!empty($existingS2) && !$isResetVal) {
                 // 🛡️ 致命防线：若传入的正文为空字符串，而数据库中已有非空正文草稿，且非重置操作，严格保留已有正文！
+                // 🛡️ 乐观并发控制：客户端携带的 revision_id 落后于服务端时判定为过期正文，拒绝覆盖最新正文（杜绝降级模式下旧快照冲刷）
+                $incomingIsStale = ($clientRevision > 0 && $existingRevision > 0 && $clientRevision < $existingRevision);
                 if (isset($incomingS2['unifiedContent'])) {
                     if (trim($incomingS2['unifiedContent']) === '' && !empty(trim($existingS2['unifiedContent'] ?? ''))) {
+                        $mergedS2['unifiedContent'] = $existingS2['unifiedContent'];
+                    } elseif ($incomingIsStale && !empty(trim($existingS2['unifiedContent'] ?? ''))) {
                         $mergedS2['unifiedContent'] = $existingS2['unifiedContent'];
                     } else {
                         $mergedS2['unifiedContent'] = $incomingS2['unifiedContent'];
@@ -1057,10 +1064,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 } elseif (!empty($existingS2['unifiedContent'])) {
                     $mergedS2['unifiedContent'] = $existingS2['unifiedContent'];
                 }
-                // 贡献度数据合并 (array_replace 避免学号数字键被重新索引)
+                // 贡献度数据合并：逐成员取历史最大值（单调不减），彻底杜绝多端互相清零覆盖 (保留数字学号键)
                 $exContrib = isset($existingS2['memberContributions']) && is_array($existingS2['memberContributions']) ? $existingS2['memberContributions'] : [];
                 $inContrib = isset($incomingS2['memberContributions']) && is_array($incomingS2['memberContributions']) ? $incomingS2['memberContributions'] : [];
-                $mergedS2['memberContributions'] = array_replace($exContrib, $inContrib);
+                $mergedS2['memberContributions'] = $exContrib;
+                foreach ($inContrib as $contribKey => $contribVal) {
+                    $exVal = isset($exContrib[$contribKey]) ? intval($exContrib[$contribKey]) : 0;
+                    $inVal = is_numeric($contribVal) ? intval($contribVal) : 0;
+                    $mergedS2['memberContributions'][$contribKey] = max($exVal, $inVal);
+                }
 
                 // 初稿全员确认字典合并
                 $exConfirmed2 = isset($existingS2['confirmedMembers']) && is_array($existingS2['confirmedMembers']) ? $existingS2['confirmedMembers'] : [];
