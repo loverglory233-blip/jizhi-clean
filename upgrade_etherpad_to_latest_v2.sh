@@ -40,10 +40,10 @@ fi
 
 echo "📄 当前 Etherpad 版本源码 commit: $(git log -1 --oneline)"
 
-# 4. 安装 pnpm 现代包管理器并安装核心依赖
-echo "4️⃣ 正在安装/升级现代包管理器 pnpm 并安装核心依赖..."
-npm install -g pnpm --registry=https://registry.npmmirror.com --no-audit --no-fund 2>/dev/null || true
-export PATH="$PATH:/www/server/nodejs/v18.20.7/lib/node_modules/pnpm/bin"
+# 4. 安装适合 Node 18 的现代包管理器 pnpm@8 和 npm@9
+echo "4️⃣ 正在安装适合 Node 18 的包管理器 pnpm@8 与 npm@9 并安装核心依赖..."
+npm install -g pnpm@8.15.8 npm@9.9.4 --registry=https://registry.npmmirror.com --no-audit --no-fund 2>/dev/null || true
+export PATH="/www/server/nodejs/v18.20.7/bin:$PATH"
 
 pnpm install --registry=https://registry.npmmirror.com || npm install --no-audit --no-fund --registry=https://registry.npmmirror.com
 
