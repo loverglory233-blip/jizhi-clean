@@ -7774,7 +7774,6 @@
   function renderStage3Canvas(canvas, state, handlers) {
     const s3 = state.stage3;
     const activeTab = s3.activeTab || 'defense';
-    const isFinalSubmitted = state.isFinalSubmitted;
     const membersList = Object.values(state.members || {});
     const totalCount = membersList.length || 3;
     const plainTextLen = (state.stage2.unifiedContent || '').replace(/<[^>]*>/g, '').trim().length;
