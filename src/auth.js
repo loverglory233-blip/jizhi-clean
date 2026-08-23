@@ -14,7 +14,7 @@ import {
   DefaultTasks,
   DefaultAnnouncements,
   DefaultReferencePapers
-} from './constants.js?v=20260823_v42';
+} from './constants.js?v=20260823_v43';
 
 export class AuthManager {
   constructor() {
@@ -1152,7 +1152,7 @@ export class AuthManager {
     this.pushGlobalMeta();
   }
 
-  publishAnnouncement(taskId, title, content, attachment = null, targetGroupId = 'all', targetGroupName = '全班所有小组', classId = 'all', className = '全校班级', targetGroupIds = ['all']) {
+  publishAnnouncement(taskId, title, content, attachment = null, targetGroupId = 'all', targetGroupName = '全班所有小组', classId = 'all', className = '全校班级', targetGroupIds = ['all'], isSystemAction = false) {
     const announcements = this.getAnnouncements();
     const tasks = this.getTasks();
     const task = tasks.find(t => t.id === taskId);
@@ -1166,6 +1166,7 @@ export class AuthManager {
       targetGroupIds: Array.isArray(targetGroupIds) && targetGroupIds.length > 0 ? targetGroupIds : [targetGroupId || 'all'],
       targetGroupName: targetGroupName || '全班所有小组',
       title, content, attachment,
+      isSystemAction: !!isSystemAction,
       time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       author: '老师', readStatus: {}
     };
