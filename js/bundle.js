@@ -2040,9 +2040,19 @@
       this.initPolling();
     }
 
+    getEffectiveGroupId() {
+      const user = this.app.authManager ? this.app.authManager.getCurrentUser() : null;
+      const isTeacher = user && (user.isTeacher || user.role === 'teacher');
+      if (isTeacher) {
+        return this.app.state.activeMonitorGroupId || 'group_1';
+      }
+      const effectiveClassId = this.app.state.activeStudentClassId || user?.classId || 'class_101';
+      const activeGroupObj = this.app.authManager ? this.app.authManager.getStudentActiveGroup(user, effectiveClassId) : null;
+      return activeGroupObj?.id || user?.groupId || 'group_1';
+    }
+
     updateScopeKeys() {
-      const user = this.app.authManager.getCurrentUser();
-      const groupId = (user && user.groupId) ? user.groupId : (this.app.state.activeMonitorGroupId || 'group_1');
+      const groupId = this.getEffectiveGroupId();
       const taskId = (this.app.state.activeTaskId) ? this.app.state.activeTaskId : 'task_default';
       this.groupId = groupId;
       this.taskId = taskId;
@@ -2339,8 +2349,8 @@
     handleRemoteSync(remoteData) {
       if (!remoteData) return;
 
-      const user = this.app.authManager.getCurrentUser();
-      const myGroupId = (user && user.groupId) ? user.groupId : (this.app.state.activeMonitorGroupId || 'group_1');
+      const user = this.app.authManager ? this.app.authManager.getCurrentUser() : null;
+      const myGroupId = this.getEffectiveGroupId();
 
       if (remoteData.groupId && remoteData.groupId !== myGroupId && user?.role === 'student') return;
 
@@ -8314,13 +8324,23 @@
       });
     }
 
+    getEffectiveGroupId() {
+      const user = this.authManager ? this.authManager.getCurrentUser() : null;
+      const isTeacher = user && (user.isTeacher || user.role === 'teacher');
+      if (isTeacher) {
+        return this.state.activeMonitorGroupId || 'group_1';
+      }
+      const effectiveClassId = this.state.activeStudentClassId || user?.classId || 'class_101';
+      const activeGroupObj = this.authManager ? this.authManager.getStudentActiveGroup(user, effectiveClassId) : null;
+      return activeGroupObj?.id || user?.groupId || 'group_1';
+    }
+
     saveGroupState(groupId) {
       // 彻底废除 LocalStorage 冗余脏备份，状态完全由内存状态机和云端 MySQL 统一权威托管
     }
 
     syncChatLogs() {
-      const user = this.authManager.getCurrentUser();
-      const groupId = (user && user.groupId) ? user.groupId : (this.state.activeMonitorGroupId || 'group_1');
+      const groupId = this.getEffectiveGroupId();
       const taskId = this.state.activeTaskId || 'task_default';
       const stage = this.state.currentStage || 'stage1';
       const logs = (this.state.chatLogs && this.state.chatLogs[stage]) ? this.state.chatLogs[stage] : [];
