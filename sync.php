@@ -82,6 +82,7 @@ if ($action === 'login' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $req = json_decode($rawInput, true) ?: [];
     $account = trim($req['account'] ?? '');
     $password = trim($req['password'] ?? '');
+    $role = trim($req['role'] ?? '');
 
     if (empty($account) || empty($password)) {
         http_response_code(400);
@@ -141,6 +142,18 @@ if ($action === 'login' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     if ($foundUser) {
+        // 🔐 多重认证：登录界面所选身份必须与账号实际角色一致，防止跨身份误登录
+        $uRole = trim($foundUser['role'] ?? '');
+        $roleMismatch = ($role === 'teacher' && $uRole !== 'teacher') || ($role === 'student' && $uRole === 'teacher');
+        if (!empty($role) && $roleMismatch) {
+            http_response_code(401);
+            $msg = ($uRole === 'teacher')
+                ? '❌ 所选登录身份与账号角色不匹配，请切换为【教师】身份登录'
+                : '❌ 所选登录身份与账号角色不匹配，请切换为【学生】身份登录';
+            echo json_encode(['success' => false, 'message' => $msg], JSON_UNESCAPED_UNICODE);
+            exit;
+        }
+
         $token = 'jwt_jizhi_' . bin2hex(random_bytes(16)) . '_' . time();
         if ($pdo) {
             $uId = $foundUser['id'] ?? '';
