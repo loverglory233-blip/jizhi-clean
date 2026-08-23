@@ -26,7 +26,10 @@
 
   const DefaultClasses = [];
 
-  const DefaultUsers = [];
+  // 🧹 唯一种子：教师端管理账号（1001/老师）。测试学生一律不写入，教师可在教务界面自行增删学生
+  const DefaultUsers = [
+    { id: 'u_teacher1', username: '1001', studentCode: '1001', password: '123', name: '老师', role: 'teacher', avatar: '👩‍🏫' }
+  ];
 
   const DefaultTasks = [];
   const DefaultAnnouncements = [];
@@ -458,6 +461,7 @@
     constructor() {
       this.initDatabase();
       this.sanitizeAndDeduplicateGroups();
+      this.removeLegacyTestAccounts();
     }
     initDatabase() {
       if (!localStorage.getItem(STORAGE_KEY_USERS_DB)) localStorage.setItem(STORAGE_KEY_USERS_DB, JSON.stringify(DefaultUsers));
@@ -487,6 +491,71 @@
         });
 
         if (isModified) {
+          localStorage.setItem(STORAGE_KEY_CLASSES, JSON.stringify(classes));
+        }
+      } catch (e) {}
+    }
+
+    // 🧹 一次性迁移：彻底清除历史遗留的测试学生种子账号及其自动成组（李明/王芳/陈强），杜绝删除后刷新死灰复燃
+    removeLegacyTestAccounts() {
+      try {
+        const LEGACY_IDS = new Set(['u_studentA', 'u_studentB', 'u_studentC']);
+        const LEGACY_CODES = new Set(['202601', '202602', '202603']);
+        const LEGACY_NAMES = new Set(['李明', '王芳', '陈强', '李明 (组长)', '王芳 (组员)', '陈强 (组员)']);
+
+        let users = [];
+        try { users = JSON.parse(localStorage.getItem(STORAGE_KEY_USERS_DB)) || []; } catch (e) { users = []; }
+        if (!Array.isArray(users)) users = [];
+
+        const removedKeys = new Set();
+        const filteredUsers = [];
+        let usersChanged = false;
+        users.forEach(u => {
+          const isLegacy = u && (
+            LEGACY_IDS.has(u.id) ||
+            LEGACY_CODES.has(u.username) ||
+            LEGACY_CODES.has(u.studentCode) ||
+            LEGACY_NAMES.has(u.name)
+          );
+          if (isLegacy) {
+            if (u.id) removedKeys.add(u.id);
+            if (u.username) removedKeys.add(u.username);
+            if (u.studentCode) removedKeys.add(u.studentCode);
+            usersChanged = true;
+          } else {
+            filteredUsers.push(u);
+          }
+        });
+
+        if (usersChanged) {
+          localStorage.setItem(STORAGE_KEY_USERS_DB, JSON.stringify(filteredUsers));
+        }
+
+        // 同步清理班级学生清单与小组自动成组成员，避免幽灵成员残留
+        let classes = [];
+        try { classes = JSON.parse(localStorage.getItem(STORAGE_KEY_CLASSES)) || []; } catch (e) { classes = []; }
+        if (!Array.isArray(classes)) classes = [];
+        let classesChanged = false;
+
+        classes.forEach(cls => {
+          if (cls.studentIds && Array.isArray(cls.studentIds)) {
+            const before = cls.studentIds.length;
+            cls.studentIds = cls.studentIds.filter(id => !removedKeys.has(id));
+            if (cls.studentIds.length !== before) classesChanged = true;
+          }
+          (cls.groups || []).forEach(g => {
+            if (g.members && Array.isArray(g.members)) {
+              const before = g.members.length;
+              g.members = g.members.filter(m => {
+                const mid = (typeof m === 'object' && m !== null) ? (m.id || m.userId || m.studentCode) : m;
+                return !removedKeys.has(mid);
+              });
+              if (g.members.length !== before) classesChanged = true;
+            }
+          });
+        });
+
+        if (classesChanged) {
           localStorage.setItem(STORAGE_KEY_CLASSES, JSON.stringify(classes));
         }
       } catch (e) {}
@@ -697,9 +766,10 @@
       }
       return cached;
     }
-    async loginAsync(accountInput, password) {
+    async loginAsync(accountInput, password, role) {
       const query = (accountInput || '').trim();
       const pwd = (password || '').trim();
+      const loginRole = (role || '').trim();
 
       if (!query) return { success: false, message: '❌ 请输入工号或学号' };
       if (!pwd) return { success: false, message: '❌ 请输入登录密码' };
@@ -708,7 +778,7 @@
         const response = await fetch('sync.php?action=login', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ account: query, password: pwd })
+          body: JSON.stringify({ account: query, password: pwd, role: loginRole })
         });
         const data = await response.json();
         if (data && data.success && data.user) {
@@ -723,18 +793,24 @@
           }
           return { success: true, user };
         } else {
-          return { success: false, message: data.message || '❌ 账号或密码错误' };
+          // 🚀 本地单机沙盒首次冷启动时服务端账号池为空：回退本地账号库登录（服务端有账号则以服务端权威为准）
+          const localRes = this.login(accountInput, password, role);
+          if (localRes && localRes.success) return localRes;
+          return { success: false, message: data.message || (localRes && localRes.message) || '❌ 账号或密码错误' };
         }
       } catch (err) {
-        // 网络异常 Fail-Closed：不放行仅凭本地数据的登录，避免断网伪造本地账号绕过服务端验证
+        // 网络异常时回退本地账号库，保证本地单机演示可登录
+        const localRes = this.login(accountInput, password, role);
+        if (localRes && localRes.success) return localRes;
         return { success: false, message: '⚠️ 无法连接服务器，请检查网络后重试登录' };
       }
     }
 
-    login(accountInput, password) {
+    login(accountInput, password, role) {
       const users = this.getUsers();
       const query = (accountInput || '').trim().toLowerCase();
       const pwd = (password || '').trim();
+      const loginRole = (role || '').trim();
 
       if (!query) {
         return { success: false, message: '❌ 请输入工号或学号' };
@@ -763,6 +839,15 @@
 
       if (!isPwdValid) {
         return { success: false, message: '❌ 密码错误，默认初始密码为 123' };
+      }
+
+      // 🔐 多重认证：登录界面所选身份必须与账号实际角色一致，防止跨身份误登录
+      const isTeacher = (user.role === 'teacher' || user.isTeacher);
+      if (loginRole === 'teacher' && !isTeacher) {
+        return { success: false, message: '❌ 所选登录身份与账号角色不匹配，请选择【教师】或核对工号' };
+      }
+      if (loginRole === 'student' && isTeacher) {
+        return { success: false, message: '❌ 所选登录身份与账号角色不匹配，请选择【学生】或核对学号' };
       }
 
       // 🚀 一个账号同时只能一个人登录：生成唯一的 activeSessionId 并推送到服务端会话锁
@@ -2530,11 +2615,22 @@
           <form id="login-form" style="display:flex; flex-direction:column; gap:16px;">
             <div style="display:flex; flex-direction:column; gap:6px;">
               <label style="font-size:13px; font-weight:700; color:#334155;">工号 / 学号</label>
-              <input type="text" id="login-account" class="teacher-input" placeholder="" value="" required style="width:100%;">
+              <input type="text" id="login-account" class="teacher-input" placeholder="请输入工号或者学号" value="" required style="width:100%;">
             </div>
             <div style="display:flex; flex-direction:column; gap:6px;">
               <label style="font-size:13px; font-weight:700; color:#334155;">密码</label>
-              <input type="password" id="login-password" class="teacher-input" placeholder="" value="" required style="width:100%;">
+              <input type="password" id="login-password" class="teacher-input" placeholder="请输入密码" value="" required style="width:100%;">
+            </div>
+            <div style="display:flex; flex-direction:column; gap:6px;">
+              <label style="font-size:13px; font-weight:700; color:#334155;">登录身份</label>
+              <div id="login-role-selector" style="display:flex; gap:10px;">
+                <label id="role-opt-student" style="flex:1; display:flex; align-items:center; justify-content:center; gap:6px; padding:10px; border:1.5px solid #2563eb; border-radius:8px; cursor:pointer; font-size:13px; font-weight:700; color:#1e40af; background:#eff6ff;">
+                  <input type="radio" name="login-role" value="student" checked style="accent-color:#2563eb;"> 🎓 学生
+                </label>
+                <label id="role-opt-teacher" style="flex:1; display:flex; align-items:center; justify-content:center; gap:6px; padding:10px; border:1.5px solid #cbd5e1; border-radius:8px; cursor:pointer; font-size:13px; font-weight:600; color:#334155; background:#ffffff;">
+                  <input type="radio" name="login-role" value="teacher" style="accent-color:#2563eb;"> 👩‍🏫 教师
+                </label>
+              </div>
             </div>
             <div id="login-error-msg" style="display:none; font-size:12px; color:#dc2626; background:#fef2f2; border:1px solid #fecaca; padding:8px 12px; border-radius:8px;"></div>
             <button type="submit" class="modal-btn submit task-theme" style="width:100%; padding:14px; font-size:15px; border-radius:10px; margin-top:8px;">
@@ -2549,6 +2645,32 @@
     const accountInput = container.querySelector('#login-account');
     const passwordInput = container.querySelector('#login-password');
     const errorMsg = container.querySelector('#login-error-msg');
+    const roleSelector = container.querySelector('#login-role-selector');
+    const roleOptStudent = container.querySelector('#role-opt-student');
+    const roleOptTeacher = container.querySelector('#role-opt-teacher');
+
+    // 🎭 身份切换高亮：让所选「教师/学生」一目了然
+    const highlightRole = () => {
+      const selected = (container.querySelector('input[name="login-role"]:checked') || {}).value;
+      const apply = (el, active) => {
+        if (!el) return;
+        if (active) {
+          el.style.border = '1.5px solid #2563eb';
+          el.style.background = '#eff6ff';
+          el.style.color = '#1e40af';
+          el.style.fontWeight = '700';
+        } else {
+          el.style.border = '1.5px solid #cbd5e1';
+          el.style.background = '#ffffff';
+          el.style.color = '#334155';
+          el.style.fontWeight = '600';
+        }
+      };
+      apply(roleOptStudent, selected === 'student');
+      apply(roleOptTeacher, selected === 'teacher');
+    };
+    if (roleSelector) roleSelector.addEventListener('change', highlightRole);
+    highlightRole();
 
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
@@ -2556,7 +2678,8 @@
       const submitBtn = form.querySelector('button[type="submit"]');
       if (submitBtn) { submitBtn.disabled = true; submitBtn.innerText = '⏳ 正在验证凭证...'; }
       try {
-        const res = await (authManager.loginAsync ? authManager.loginAsync(accountInput.value, passwordInput.value) : authManager.login(accountInput.value, passwordInput.value));
+        const selectedRole = (container.querySelector('input[name="login-role"]:checked') || {}).value || 'student';
+        const res = await (authManager.loginAsync ? authManager.loginAsync(accountInput.value, passwordInput.value, selectedRole) : authManager.login(accountInput.value, passwordInput.value, selectedRole));
         if (res && res.success) {
           onLoginSuccess();
         } else {
@@ -5093,6 +5216,7 @@
 
             let serverFileUrl = '';
             if (selectedFile.fileObj) {
+              try {
                 const currT = authManager.getCurrentUser();
                 const tId = (currT && (currT.id || currT.username || currT.studentCode)) || 'u_teacher';
                 const tToken = (currT && (currT.token || currT.activeSessionId)) || '';
