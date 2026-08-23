@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles } from "./constants.js?v=20260823_v58";
-import { callCozeAgentAPI } from "./agents.js?v=20260823_v58";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired } from "./utils.js?v=20260823_v58";
+import { AgentProfiles } from "./constants.js?v=20260823_v59";
+import { callCozeAgentAPI } from "./agents.js?v=20260823_v59";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired } from "./utils.js?v=20260823_v59";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -1510,6 +1510,24 @@ function renderStage2Canvas(canvas, state, handlers) {
   const currUserCode = state.currentUser || (currUser ? currUser.studentCode : 'A');
   const isUserDraftConfirmed = !!(confirmedDraftMap[currUserCode] || (currUser && confirmedDraftMap[currUser.id]));
   const isDraftFullyConfirmed = s2.isDraftConfirmed || (confirmedDraftCount >= totalCount && totalCount > 0);
+
+  // 🛡️ 极致单例保护：若富文本编辑器已经在当前画布上活跃运行，严禁 innerHTML 销毁重绘！
+  const existingEditorEl = canvas.querySelector('#stage2-word-editor.ql-container');
+  if (existingEditorEl) {
+    renderPresencePills('stage2-word-editor', state);
+    const draftCountBadge = canvas.querySelector('#stage2-draft-count-text');
+    if (draftCountBadge) {
+      draftCountBadge.innerText = isDraftFullyConfirmed ? '✅ 全员已确认完成初稿' : `${confirmedDraftCount}/${totalCount} 人已确认`;
+      draftCountBadge.style.color = isDraftFullyConfirmed ? '#059669' : '#2563eb';
+    }
+    const btnDraft = canvas.querySelector('#btn-confirm-stage2-draft');
+    if (btnDraft) {
+      btnDraft.disabled = isUserDraftConfirmed || isEditorReadonly;
+      btnDraft.innerText = isUserDraftConfirmed ? '✅ 您已确认完成初稿' : '✍️ 确认完成正文初稿';
+      btnDraft.style.background = isUserDraftConfirmed ? '#f1f5f9' : 'linear-gradient(135deg, #059669, #047857)';
+    }
+    return;
+  }
 
   canvas.innerHTML = `
     ${isTaskDeadlineExpired ? `
