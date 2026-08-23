@@ -228,6 +228,57 @@ if ($action === 'login' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
+// 1.28 阶段一公约字段级原子增量 Patch（题目/时间/分工/条款/签署，绝不互相踩踏覆盖）
+if ($action === 'patch_contract_field' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    header('Content-Type: application/json; charset=utf-8');
+    $rawInput = file_get_contents('php://input');
+    $req = json_decode($rawInput, true) ?: [];
+    $field = trim($req['field'] ?? '');
+    $subKey = trim((string)($req['subKey'] ?? ''));
+    $val = $req['value'] ?? null;
+    $nowMs = round(microtime(true) * 1000);
+
+    if ($pdo && !empty($field)) {
+        $stmt = $pdo->prepare("SELECT stage1_data FROM group_states WHERE scope_key = :sk");
+        $stmt->execute([':sk' => $scopeKey]);
+        $row = $stmt->fetch();
+        $s1 = ($row && !empty($row['stage1_data'])) ? json_decode($row['stage1_data'], true) : [];
+        if (!isset($s1['contract']) || !is_array($s1['contract'])) $s1['contract'] = [];
+
+        if ($field === 'mergedTitle') {
+            $s1['mergedTitle'] = (string)$val;
+            $s1['contract']['mergedTitle'] = (string)$val;
+        } elseif ($field === 'timeAllocations' && $subKey !== '') {
+            if (!isset($s1['contract']['timeAllocations'])) $s1['contract']['timeAllocations'] = [];
+            $s1['contract']['timeAllocations'][$subKey] = intval($val);
+        } elseif ($field === 'taskAssignments' && $subKey !== '') {
+            if (!isset($s1['contract']['taskAssignments'])) $s1['contract']['taskAssignments'] = [];
+            $s1['contract']['taskAssignments'][$subKey] = (string)$val;
+        } elseif ($field === 'contractRules' && $subKey !== '') {
+            if (!isset($s1['contract']['contractRules'])) $s1['contract']['contractRules'] = [];
+            $s1['contract']['contractRules'][$subKey] = (string)$val;
+        } elseif ($field === 'sign_member' && $subKey !== '') {
+            if (!isset($s1['contract']['confirmedMembers'])) $s1['contract']['confirmedMembers'] = [];
+            $s1['contract']['confirmedMembers'][$subKey] = true;
+        }
+
+        $s1Json = json_encode($s1, JSON_UNESCAPED_UNICODE);
+        $stmtUp = $pdo->prepare("INSERT INTO group_states (scope_key, task_id, group_id, current_stage, stage1_data, last_timestamp)
+            VALUES (:sk, :tid, :gid, 'stage1', :s1, :ts)
+            ON DUPLICATE KEY UPDATE stage1_data = :s1b, last_timestamp = :tsb");
+        $stmtUp->execute([
+            ':sk' => $scopeKey, ':tid' => $taskId, ':gid' => $groupId,
+            ':s1' => $s1Json, ':ts' => $nowMs,
+            ':s1b' => $s1Json, ':tsb' => $nowMs
+        ]);
+
+        echo json_encode(['success' => true, 'stage1' => $s1]);
+        exit;
+    }
+    echo json_encode(['success' => false]);
+    exit;
+}
+
 // 1.25 获取 Etherpad 实时协同正文（供智能体学术质检、半程会议与答辩矩阵分析）
 if ($action === 'get_pad_text') {
     header('Content-Type: application/json; charset=utf-8');

@@ -7000,6 +7000,12 @@
   }
 
   function renderStage1Canvas(canvas, state, handlers) {
+    // 🛡️ 焦点保护：记录当前正在打字的输入框与光标位置，防止短轮询重绘导致失焦与吞字
+    const activeEl = canvas.querySelector('input:focus, textarea:focus');
+    const activeKey = activeEl ? (activeEl.id || activeEl.dataset.key || activeEl.dataset.mkey) : null;
+    const activeVal = activeEl ? activeEl.value : null;
+    const activeCursor = activeEl ? activeEl.selectionStart : null;
+
     const s1 = state.stage1;
     const currentUser = state.currentUser;
     const currUserObj = (window.app && window.app.authManager) ? window.app.authManager.getCurrentUser() : null;
@@ -7422,7 +7428,21 @@
             s1.contract.timeAllocations[key] = numVal;
             if (window.app) {
               window.app.syncStage1();
-              if (window.app.cloudSyncEngine) window.app.cloudSyncEngine.pushSnapshot();
+              const currUser = window.app.authManager ? window.app.authManager.getCurrentUser() : null;
+              const effectiveClassId = window.app.state.activeStudentClassId || (currUser?.classId || 'class_101');
+              const activeGroupObj = window.app.authManager ? window.app.authManager.getStudentActiveGroup(currUser, effectiveClassId) : null;
+              const curGid = activeGroupObj?.id || (currUser?.groupId || 'group_1');
+              fetch('sync.php?action=patch_contract_field', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  taskId: window.app.state.activeTaskId || 'task_default',
+                  groupId: curGid,
+                  field: 'timeAllocations',
+                  subKey: key,
+                  value: numVal
+                })
+              }).catch(() => {});
             }
           }
         };
@@ -7447,7 +7467,21 @@
           if (mKey) s1.contract.taskAssignments[mKey] = val;
           if (window.app) {
             window.app.syncStage1();
-            if (window.app.cloudSyncEngine) window.app.cloudSyncEngine.pushSnapshot();
+            const currUser = window.app.authManager ? window.app.authManager.getCurrentUser() : null;
+            const effectiveClassId = window.app.state.activeStudentClassId || (currUser?.classId || 'class_101');
+            const activeGroupObj = window.app.authManager ? window.app.authManager.getStudentActiveGroup(currUser, effectiveClassId) : null;
+            const curGid = activeGroupObj?.id || (currUser?.groupId || 'group_1');
+            fetch('sync.php?action=patch_contract_field', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                taskId: window.app.state.activeTaskId || 'task_default',
+                groupId: curGid,
+                field: 'taskAssignments',
+                subKey: mKey,
+                value: val
+              })
+            }).catch(() => {});
           }
         };
         input.addEventListener('change', flushTask);
@@ -7469,8 +7503,36 @@
 
       canvas.querySelector('#btn-confirm-contract').addEventListener('click', () => {
         s1.contract._lastSignTime = Date.now();
+        const currUser = (window.app && window.app.authManager) ? window.app.authManager.getCurrentUser() : null;
+        const myCode = state.currentUser || (currUser ? currUser.studentCode : 'A');
+        const effectiveClassId = window.app.state.activeStudentClassId || (currUser?.classId || 'class_101');
+        const activeGroupObj = window.app.authManager ? window.app.authManager.getStudentActiveGroup(currUser, effectiveClassId) : null;
+        const curGid = activeGroupObj?.id || (currUser?.groupId || 'group_1');
+
+        fetch('sync.php?action=patch_contract_field', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            taskId: state.activeTaskId || 'task_default',
+            groupId: curGid,
+            field: 'sign_member',
+            subKey: myCode,
+            value: true
+          })
+        }).catch(() => {});
+
         handlers.onConfirmContract();
       });
+    }
+
+    // 🛡️ 恢复之前正在打字的输入框焦点与光标，平滑无感
+    if (activeKey) {
+      const restoreInput = canvas.querySelector(`#${activeKey}, [data-key="${activeKey}"], [data-mkey="${activeKey}"]`);
+      if (restoreInput) {
+        restoreInput.value = activeVal;
+        restoreInput.focus();
+        try { restoreInput.setSelectionRange(activeCursor, activeCursor); } catch (e) {}
+      }
     }
 
     renderPresencePills('stage1-canvas', state);
