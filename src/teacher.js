@@ -9,8 +9,8 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260823_v172";
-import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime } from "./utils.js?v=20260823_v172";
+} from "./constants.js?v=20260823_v173";
+import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime } from "./utils.js?v=20260823_v173";
 
 /* ==========================================================================
    7. TEACHER PORTAL RENDERER (LIVE WORKSPACE MIRROR & ANNOUNCEMENT READ MATRIX)
@@ -787,38 +787,37 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
                     </div>
 
                     <!-- 1. 【第一步】💡 组员初始学术提案全景展台 (与学生端顺序一致：先提案后公约) -->
-                    <div style="background:#f8fafc; border:1px solid #bfdbfe; border-radius:10px; padding:12px 14px;">
-                      <div style="font-size:13px; font-weight:800; color:#1e40af; margin-bottom:8px; display:flex; justify-content:space-between; align-items:center;">
+                    <!-- 1. 【第一步】💡 组员初始学术提案展台 (1:1 照抄学生端卡片网格) -->
+                    <div style="background:#f8fafc; border:1px solid #bfdbfe; border-radius:12px; padding:16px;">
+                      <div style="font-size:14px; font-weight:800; color:#1e40af; margin-bottom:12px; display:flex; justify-content:space-between; align-items:center;">
                         <span>💡 组员初始学术提案展台 (${(state.stage1?.proposals || []).length}/${monitorMembersList.length || 3} 人已提交):</span>
-                        <span style="font-size:11px; background:#eff6ff; color:#2563eb; padding:2px 8px; border-radius:6px; font-weight:700;">共投 ${(Object.values(state.stage1?.hasVoted || {}).filter(Boolean)).length} 票</span>
+                        <span style="font-size:11.5px; background:#eff6ff; color:#2563eb; padding:2px 8px; border-radius:6px; font-weight:700;">共投 ${(Object.values(state.stage1?.hasVoted || {}).filter(Boolean)).length} 票</span>
                       </div>
-                      <div style="display:flex; flex-direction:column; gap:8px;">
-                        ${(state.stage1?.proposals && state.stage1.proposals.length > 0) ? state.stage1.proposals.map((p, idx) => {
-                          const authorObj = monitorMembersList.find(m => m.id === p.author || m.studentCode === p.author || m.name === p.authorName || m.name === p.author);
-                          const authorName = authorObj ? authorObj.name : (p.authorName || p.author || `组员${idx+1}`);
-                          const votes = p.votes || 0;
-                          return `
-                            <div style="background:#ffffff; border:1.5px solid ${votes > 0 ? '#93c5fd' : '#e2e8f0'}; border-radius:8px; padding:10px 12px; box-shadow:0 1px 3px rgba(0,0,0,0.02);">
-                              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
-                                <div style="font-size:13px; font-weight:800; color:#0f172a;">
-                                  <span style="color:#2563eb; margin-right:4px;">#${idx+1}</span> ${escapeHtml(p.title || '无标题提案')}
+                      ${(state.stage1?.proposals && state.stage1.proposals.length > 0) ? `
+                        <div class="proposals-grid" style="display:grid; grid-template-columns:repeat(auto-fill, minmax(200px, 1fr)); gap:12px;">
+                          ${state.stage1.proposals.map((p, idx) => {
+                            const authorObj = monitorMembersList.find(m => m.id === p.author || m.studentCode === p.author || m.name === p.authorName || m.name === p.author);
+                            const authorName = authorObj ? authorObj.name : (p.authorName || p.author || `组员${idx+1}`);
+                            const votes = p.votes || 0;
+                            return `
+                              <div class="proposal-card ${votes > 0 ? 'voted' : ''}" style="background:#ffffff; border:1.5px solid ${votes > 0 ? '#3b82f6' : '#cbd5e1'}; border-radius:10px; padding:12px; display:flex; flex-direction:column; box-shadow:0 2px 6px rgba(0,0,0,0.03);">
+                                <div class="proposal-header" style="margin-bottom:8px;">
+                                  <div class="proposal-title" style="font-size:13.5px; font-weight:800; color:#0f172a; line-height:1.4;">💡 ${escapeHtml(p.title || '无标题提案')}</div>
                                 </div>
-                                <div style="display:flex; align-items:center; gap:6px;">
-                                  <span style="font-size:11px; color:#475569; background:#f1f5f9; padding:2px 6px; border-radius:4px; font-weight:700;">✍️ ${escapeHtml(authorName)}</span>
-                                  <span style="font-size:11.5px; color:#ffffff; background:${votes > 0 ? '#2563eb' : '#94a3b8'}; padding:2px 8px; border-radius:10px; font-weight:800;">${votes} 票</span>
+                                <div style="font-size:12px; color:#64748b; margin-bottom:10px;">提出人: <b style="color:#0f172a;">${escapeHtml(authorName)}</b></div>
+                                <div style="margin-top:auto; background:${votes > 0 ? '#eff6ff' : '#f1f5f9'}; color:${votes > 0 ? '#1d4ed8' : '#64748b'}; border:1px solid ${votes > 0 ? '#bfdbfe' : '#e2e8f0'}; border-radius:6px; padding:4px 8px; font-size:11.5px; font-weight:800; text-align:center;">
+                                  ${votes > 0 ? `🗳️ 获投 ${votes} 票` : '⏳ 暂无得票'}
                                 </div>
                               </div>
-                              <div style="font-size:12px; color:#334155; line-height:1.5; background:#f8fafc; padding:6px 8px; border-radius:6px; border-left:3px solid #3b82f6;">
-                                ${escapeHtml(p.content || '暂无详细构思阐述')}
-                              </div>
-                            </div>
-                          `;
-                        }).join('') : `
-                          <div style="text-align:center; padding:16px; color:#94a3b8; font-size:12px; background:#ffffff; border-radius:6px; border:1px dashed #cbd5e1;">
-                            ⏳ 该组组员尚未在阶段一提交初始学术提案
-                          </div>
-                        `}
-                      </div>
+                            `;
+                          }).join('')}
+                        </div>
+                      ` : `
+                        <div style="text-align:center; padding:32px; background:#ffffff; border-radius:8px; border:2px dashed #cbd5e1;">
+                          <div style="font-size:28px; margin-bottom:6px;">💡</div>
+                          <div style="font-size:13.5px; font-weight:800; color:#0f172a;">目前暂无小组成员提交的选题</div>
+                        </div>
+                      `}
                     </div>
 
                     <!-- 2. 【第二步】🤝 确认融合论文研究主题与学术合作公约 -->
