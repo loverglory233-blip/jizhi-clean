@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles } from "./constants.js?v=20260823_v90";
-import { callCozeAgentAPI } from "./agents.js?v=20260823_v90";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired } from "./utils.js?v=20260823_v90";
+import { AgentProfiles } from "./constants.js?v=20260823_v91";
+import { callCozeAgentAPI } from "./agents.js?v=20260823_v91";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired } from "./utils.js?v=20260823_v91";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -364,8 +364,6 @@ export function attachWordEditorEvents(container, editorId, isReadonly, onChange
       }
     } catch (err) {
       console.warn('[Quill Initialization Error]:', err);
-    }
-  }
     }
   }
 

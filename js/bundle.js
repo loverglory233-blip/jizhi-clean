@@ -6496,8 +6496,6 @@
         console.warn('[Quill Initialization Error]:', err);
       }
     }
-      }
-    }
 
     if (!isReadonly) {
       let lastSavedRange = null;
