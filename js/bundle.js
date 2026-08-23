@@ -2150,7 +2150,7 @@
               msgDiv.style.display = 'block';
               msgDiv.style.background = '#fef2f2';
               msgDiv.style.color = '#dc2626';
-              const serverMsg = (data && data.message) ? data.message : '原密码校验未通过';
+              const serverMsg = (data && data.message) ? data.message : `❌ 请求失败 (HTTP ${res.status}): ${res.statusText || '服务端无响应或返回空'}`;
               msgDiv.textContent = serverMsg.startsWith('❌') ? serverMsg : ('❌ ' + serverMsg);
               submitBtn.disabled = false;
               submitBtn.textContent = '确认修改';
