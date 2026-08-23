@@ -10047,28 +10047,43 @@
       const currentTopic = this.state.stage1 ? this.state.stage1.mergedTitle : '';
       const actualDocContent = (this.state.stage2 && this.state.stage2.unifiedContent) ? this.state.stage2.unifiedContent.replace(/<[^>]*>/g, '').trim() : '';
 
-      // 直接异步直连 Coze API 获得真实大模型智能体深度审阅回复
-      let replyText = await callCozeAgentAPI(replyAgent, userMsg, {
-        stage: stage,
-        topic: currentTopic,
-        actualDoc: actualDocContent,
-        userId: currentUser ? (currentUser.id || currentUser.username) : 'student_user'
-      });
-
-      if (!replyText || replyText.trim().length === 0) {
-        replyText = `⚠️ 【系统提示】：大模型智能体未返回有效应答（请检查网络连接或接口状态）。`;
-      }
-
-      const agentMsgObj = {
+      // 💡 异步非阻塞体验：立即插入动态思考气泡，学生无需干等，可自由打字与交流！
+      const agentProfile = AgentProfiles[replyAgent] || { name: '智能体' };
+      const tempThinkingId = 'thinking_' + Date.now();
+      const thinkingMsg = {
+        id: tempThinkingId,
         sender: replyAgent,
-        text: replyText,
+        text: `⏳ 【${agentProfile.name}】：正在通读小组论文并起草学术意见...`,
+        isThinking: true,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         _timeMs: Date.now()
       };
       if (!this.state.chatLogs[stage]) this.state.chatLogs[stage] = [];
-      this.state.chatLogs[stage].push(agentMsgObj);
-      this.syncChatLogs();
+      this.state.chatLogs[stage].push(thinkingMsg);
       renderChat(this.state);
+
+      try {
+        // 异步直连 Coze API 获得真实大模型智能体深度审阅回复
+        let replyText = await callCozeAgentAPI(replyAgent, userMsg, {
+          stage: stage,
+          topic: currentTopic,
+          actualDoc: actualDocContent,
+          userId: currentUser ? (currentUser.id || currentUser.username) : 'student_user'
+        });
+
+        if (!replyText || replyText.trim().length === 0) {
+          thinkingMsg.text = `⚠️ 【${agentProfile.name}提示】：大模型生成超时或网络稍有延迟，可随时在讨论区再次 @ 发送提问。`;
+        } else {
+          thinkingMsg.text = replyText.trim();
+        }
+        delete thinkingMsg.isThinking;
+        this.syncChatLogs();
+        renderChat(this.state);
+      } catch (err) {
+        thinkingMsg.text = `⚠️ 【${agentProfile.name}提示】：网络连接波动，请稍后重试。`;
+        delete thinkingMsg.isThinking;
+        this.syncChatLogs();
+        renderChat(this.state);
       } finally {
         this._isAgentReplyInProgress = false;
       }
