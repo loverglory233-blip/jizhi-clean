@@ -14,7 +14,7 @@ import {
   DefaultTasks,
   DefaultAnnouncements,
   DefaultReferencePapers
-} from './constants.js?v=20260823_v24';
+} from './constants.js?v=20260823_v25';
 
 export class AuthManager {
   constructor() {
@@ -352,13 +352,11 @@ export class AuthManager {
         }
         return { success: true, user };
       } else {
-        // 🚀 本地单机沙盒首次冷启动时服务端账号池为空：回退本地账号库登录（服务端有账号则以服务端权威为准）
-        const localRes = this.login(accountInput, password, role);
-        if (localRes && localRes.success) return localRes;
-        return { success: false, message: data.message || (localRes && localRes.message) || '❌ 账号或密码错误' };
+        // 🔐 服务端权威鉴权：服务端明确返回密码错误或账号不存在时，必须严格拒绝，严禁绕过放行！
+        return { success: false, message: (data && data.message) ? data.message : '❌ 账号或密码错误' };
       }
     } catch (err) {
-      // 网络异常时回退本地账号库，保证本地单机演示可登录
+      // 仅在网络完全断开等异常时，才回退本地单机沙盒离线验证
       const localRes = this.login(accountInput, password, role);
       if (localRes && localRes.success) return localRes;
       return { success: false, message: '⚠️ 无法连接服务器，请检查网络后重试登录' };
@@ -1509,6 +1507,19 @@ export class AuthManager {
           });
           const data = await res.json();
           if (data && data.success) {
+            if (currentUser) {
+              currentUser.password = newP;
+              sessionStorage.setItem(STORAGE_KEY_USER, JSON.stringify(currentUser));
+              localStorage.setItem(STORAGE_KEY_USER, JSON.stringify(currentUser));
+            }
+            const users = this.getUsers();
+            users.forEach(u => {
+              if (u.id === (currentUser?.id) || u.studentCode === acc || u.username === acc) {
+                u.password = newP;
+              }
+            });
+            localStorage.setItem(STORAGE_KEY_USERS_DB, JSON.stringify(users));
+
             msgDiv.style.display = 'block';
             msgDiv.style.background = '#f0fdf4';
             msgDiv.style.color = '#16a34a';
