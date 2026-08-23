@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260823_v71";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired } from "./utils.js?v=20260823_v71";
-import { callCozeAgentAPI } from "./agents.js?v=20260823_v71";
-import { AuthManager } from "./auth.js?v=20260823_v71";
-import { CloudSyncEngine } from "./sync.js?v=20260823_v71";
-import { renderLoginView } from "./login.js?v=20260823_v71";
-import { renderTeacherPortal } from "./teacher.js?v=20260823_v71";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260823_v71";
+} from "./constants.js?v=20260823_v72";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired } from "./utils.js?v=20260823_v72";
+import { callCozeAgentAPI } from "./agents.js?v=20260823_v72";
+import { AuthManager } from "./auth.js?v=20260823_v72";
+import { CloudSyncEngine } from "./sync.js?v=20260823_v72";
+import { renderLoginView } from "./login.js?v=20260823_v72";
+import { renderTeacherPortal } from "./teacher.js?v=20260823_v72";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260823_v72";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260823_v71";
+} from "./editor.js?v=20260823_v72";
 
 // Make renderChat available on window for sync callbacks
 if (typeof window !== "undefined") {
@@ -314,7 +314,7 @@ export class App {
   initGlobalPresenceHeartbeat() {
     setInterval(() => {
       const currentUser = this.authManager ? this.authManager.getCurrentUser() : null;
-      // 🛡️ 严格对齐规则：只有真正进入了具体写作任务工作台（非大厅列表）的学生，才上报当前任务在线心跳
+      // 🛡️ 严格对齐规则：进入任务工作台的学生持续上报在线心跳
       if (currentUser && currentUser.role === 'student' && this.state.studentViewMode === 'workspace' && this.state.activeTaskId) {
         if (!this.state.presence) this.state.presence = {};
         const myKeys = [currentUser.id, currentUser.studentCode, currentUser.username, currentUser.name].filter(Boolean);
@@ -329,8 +329,9 @@ export class App {
         if (this.cloudSyncEngine) {
           this.cloudSyncEngine.pushSnapshot();
         }
+        this.renderPresenceCursors();
       }
-    }, 3500);
+    }, 2500);
   }
 
   initTimer() {

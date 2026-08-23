@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles } from "./constants.js?v=20260823_v71";
-import { callCozeAgentAPI } from "./agents.js?v=20260823_v71";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired } from "./utils.js?v=20260823_v71";
+import { AgentProfiles } from "./constants.js?v=20260823_v72";
+import { callCozeAgentAPI } from "./agents.js?v=20260823_v72";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired } from "./utils.js?v=20260823_v72";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -439,14 +439,20 @@ export function attachWordEditorEvents(container, editorId, isReadonly, onChange
         provider.on('synced', (isSynced) => {
           if (isSynced) {
             console.log('%c[Yjs CRDT] ✅ 权威协同向量对齐完成！', 'color: #10b981; font-weight: bold;');
+            const cleanHtml = quillInstance.root.innerHTML;
+            if (onChangeCallback) onChangeCallback(cleanHtml);
           }
+        });
+
+        // 🛡️ 双向守卫：无论是本地敲键盘还是远端组员通过 CRDT 向量推送，100% 触发内容与贡献比联动
+        ytext.observe(() => {
+          const cleanHtml = quillInstance.root.innerHTML;
+          if (onChangeCallback) onChangeCallback(cleanHtml);
         });
 
         quillInstance.on('text-change', () => {
           const cleanHtml = quillInstance.root.innerHTML;
-          if (onChangeCallback) {
-            onChangeCallback(cleanHtml);
-          }
+          if (onChangeCallback) onChangeCallback(cleanHtml);
         });
       }
     } catch (err) {
