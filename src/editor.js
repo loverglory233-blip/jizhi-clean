@@ -297,34 +297,7 @@ export function attachWordEditorEvents(container, editorId, isReadonly, onChange
     editor.addEventListener('paste', blockEdit, true);
     editor.addEventListener('cut', blockEdit, true);
     editor.addEventListener('drop', blockEdit, true);
-    editor.addEventListener('beforeinput', blockEdit, true);
   }
-
-  // 🛡️ 禁止外部内容粘贴/拖放进正文：强制学生手动撰写，杜绝直接粘贴 AI/范例内容糊弄（保留 Ctrl+C 复制出去用于互评引用）
-  const blockPasteIntoEditor = (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation();
-    let tip = document.querySelector('.jizhi-paste-block-tip');
-    if (!tip) {
-      tip = document.createElement('div');
-      tip.className = 'jizhi-paste-block-tip';
-      tip.style.cssText = 'position:fixed; top:18px; left:50%; transform:translateX(-50%); background:linear-gradient(135deg,#dc2626,#b91c1c); color:#fff; padding:11px 22px; border-radius:10px; font-size:13.5px; font-weight:700; box-shadow:0 10px 24px rgba(0,0,0,0.28); z-index:2147483647; white-space:nowrap; transition:opacity .3s ease; pointer-events:none;';
-      document.body.appendChild(tip);
-    }
-    tip.textContent = '🔒 已禁止粘贴：请手动输入正文（可 Ctrl+C 复制，不可 Ctrl+V 粘贴）';
-    tip.style.opacity = '1';
-    clearTimeout(blockPasteIntoEditor._hideTimer);
-    blockPasteIntoEditor._hideTimer = setTimeout(() => {
-      if (tip && tip.parentNode) {
-        tip.style.opacity = '0';
-        setTimeout(() => { if (tip && tip.parentNode) tip.remove(); }, 300);
-      }
-    }, 2200);
-    return false;
-  };
-  editor.addEventListener('paste', blockPasteIntoEditor, true);
-  editor.addEventListener('drop', blockPasteIntoEditor, true);
 
   let quillInstance = null;
   const QuillClass = window.Quill;
