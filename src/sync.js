@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState } from './constants.js?v=20260823_v34';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin } from './utils.js?v=20260823_v34';
+import { InitialState } from './constants.js?v=20260823_v35';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin } from './utils.js?v=20260823_v35';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -102,12 +102,13 @@ export class CloudSyncEngine {
     this.updateScopeKeys();
 
     const nowMs = Date.now();
-    if (!this.lastSessionCheckTime || nowMs - this.lastSessionCheckTime > 4000) {
+    if (!this.lastSessionCheckTime || nowMs - this.lastSessionCheckTime > 2000) {
       this.lastSessionCheckTime = nowMs;
       const currentUser = this.app.authManager.getCurrentUser();
-      if (currentUser && currentUser.activeSessionId && !this.isLoggingOut) {
+      const userKey = currentUser ? (currentUser.studentCode || currentUser.username || currentUser.id) : '';
+      if (currentUser && currentUser.activeSessionId && userKey && !this.isLoggingOut) {
         try {
-          const chkRes = await fetch(`sync.php?action=session_check&userId=${encodeURIComponent(currentUser.id || currentUser.username)}&token=${encodeURIComponent(currentUser.activeSessionId)}`);
+          const chkRes = await fetch(`sync.php?action=session_check&userId=${encodeURIComponent(userKey)}&token=${encodeURIComponent(currentUser.activeSessionId)}`);
           if (chkRes.ok) {
             const chkData = await chkRes.json();
             if (chkData && chkData.kicked) {

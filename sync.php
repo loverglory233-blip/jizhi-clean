@@ -101,6 +101,50 @@ if ($action === 'login' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt = $pdo->prepare("SELECT * FROM users WHERE username = :acc1 OR student_code = :acc2 OR id = :acc3 LIMIT 1");
         $stmt->execute([':acc1' => $account, ':acc2' => $account, ':acc3' => $account]);
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!$row) {
+            // 🛡️ 自愈回退：如果 users 表中尚未包含该学生，自动从 main_meta 检索并就地同步入库
+            $stmtMeta = $pdo->prepare("SELECT meta_value FROM global_meta WHERE meta_key = 'main_meta'");
+            $stmtMeta->execute();
+            $metaRow = $stmtMeta->fetch();
+            if ($metaRow && !empty($metaRow['meta_value'])) {
+                $gm = json_decode($metaRow['meta_value'], true) ?: [];
+                $gUsers = $gm['users'] ?? [];
+                foreach ($gUsers as $gu) {
+                    $uAcc = strtolower(trim($gu['username'] ?? ($gu['studentCode'] ?? ($gu['id'] ?? ''))));
+                    $uCode = strtolower(trim($gu['studentCode'] ?? ($gu['code'] ?? '')));
+                    $uName = strtolower(trim($gu['name'] ?? ''));
+                    $queryAcc = strtolower($account);
+                    if ($uAcc === $queryAcc || $uCode === $queryAcc || ($uName && $uName === $queryAcc)) {
+                        $userExists = true;
+                        $dbPwd = $gu['password'] ?? '123';
+                        $uId = $gu['id'] ?? ('u_student_' . round(microtime(true) * 1000));
+                        $row = [
+                            'id' => $uId,
+                            'username' => $gu['username'] ?? $account,
+                            'student_code' => $gu['studentCode'] ?? ($gu['username'] ?? $account),
+                            'name' => $gu['name'] ?? $account,
+                            'password' => $dbPwd,
+                            'role' => $gu['role'] ?? 'student'
+                        ];
+                        // 自动同步插入 users 表
+                        try {
+                            $hashedIns = (strlen($dbPwd) > 30) ? $dbPwd : password_hash($dbPwd, PASSWORD_DEFAULT);
+                            $stmtIns = $pdo->prepare("INSERT INTO users (id, username, student_code, name, password, role) VALUES (:id, :u, :sc, :nm, :p, :r) ON DUPLICATE KEY UPDATE name=VALUES(name), student_code=VALUES(student_code), role=VALUES(role)");
+                            $stmtIns->execute([
+                                ':id' => $row['id'],
+                                ':u' => $row['username'],
+                                ':sc' => $row['student_code'],
+                                ':nm' => $row['name'],
+                                ':p' => $hashedIns,
+                                ':r' => $row['role']
+                            ]);
+                        } catch (Exception $e) {}
+                        break;
+                    }
+                }
+            }
+        }
+
         if ($row) {
             $userExists = true;
             $dbPwd = $row['password'] ?? '123';
@@ -128,8 +172,10 @@ if ($action === 'login' && $_SERVER['REQUEST_METHOD'] === 'POST') {
             $dbData = json_decode(file_get_contents($globalDbFile), true) ?: [];
             $userList = $dbData['users'] ?? [];
             foreach ($userList as $u) {
-                $uAcc = $u['username'] ?? ($u['studentCode'] ?? ($u['id'] ?? ''));
-                if ($uAcc === $account) {
+                $uAcc = strtolower(trim($u['username'] ?? ($u['studentCode'] ?? ($u['id'] ?? ''))));
+                $uCode = strtolower(trim($u['studentCode'] ?? ($u['code'] ?? '')));
+                $queryAcc = strtolower($account);
+                if ($uAcc === $queryAcc || $uCode === $queryAcc) {
                     $userExists = true;
                     $dbPwd = $u['password'] ?? '123';
                     if ($password === $dbPwd || (empty($dbPwd) && $password === '123')) {
@@ -827,16 +873,21 @@ if ($action === 'session_login' && $_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 if ($action === 'session_check') {
-    $userId = isset($_GET['userId']) ? $_GET['userId'] : '';
-    $token = isset($_GET['token']) ? $_GET['token'] : '';
+    $userId = isset($_GET['userId']) ? trim($_GET['userId']) : '';
+    $token = isset($_GET['token']) ? trim($_GET['token']) : '';
     $kicked = false;
     if ($userId && $token && $pdo) {
-        $stmt = $pdo->prepare("SELECT meta_value FROM global_meta WHERE meta_key = :k");
-        $stmt->execute([':k' => 'sess_' . $userId]);
-        $row = $stmt->fetch();
-        if ($row && !empty($row['meta_value'])) {
-            if ($row['meta_value'] !== $token) {
+        $keys = ['sess_' . $userId];
+        if (strpos($userId, 'u_') === 0) {
+            $keys[] = 'sess_' . substr($userId, 2);
+        }
+        $inClause = implode(',', array_fill(0, count($keys), '?'));
+        $stmt = $pdo->prepare("SELECT meta_value FROM global_meta WHERE meta_key IN ($inClause)");
+        $stmt->execute($keys);
+        while ($row = $stmt->fetch()) {
+            if (!empty($row['meta_value']) && $row['meta_value'] !== $token) {
                 $kicked = true;
+                break;
             }
         }
     }
@@ -1386,6 +1437,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $sids = isset($cls['studentIds']) ? json_encode($cls['studentIds'], JSON_UNESCAPED_UNICODE) : '[]';
                         $gdata = isset($cls['groups']) ? json_encode($cls['groups'], JSON_UNESCAPED_UNICODE) : '[]';
                         $stmtClassUpsert->execute([':id' => $cid, ':name' => $cname, ':code' => $ccode, ':sids' => $sids, ':gdata' => $gdata]);
+                    }
+                }
+
+                // 4c-2b. 同步写入用户表 (users)，确保教师创建/导入的所有学生 100% 实时落盘至 users 鉴权表
+                if (isset($data['users']) && is_array($data['users'])) {
+                    $existingMeta['users'] = $data['users'];
+                    $stmtUserUpsert = $pdo->prepare("INSERT INTO `users` (`id`, `username`, `student_code`, `name`, `password`, `role`)
+                        VALUES (:id, :u, :sc, :nm, :p, :r)
+                        ON DUPLICATE KEY UPDATE `name`=VALUES(`name`), `student_code`=VALUES(`student_code`), `username`=VALUES(`username`), `role`=VALUES(`role`)");
+                    foreach ($data['users'] as $usr) {
+                        $uid = isset($usr['id']) ? $usr['id'] : ('u_student_' . uniqid());
+                        $uname = isset($usr['username']) ? $usr['username'] : (isset($usr['studentCode']) ? $usr['studentCode'] : $uid);
+                        $ucode = isset($usr['studentCode']) ? $usr['studentCode'] : (isset($usr['username']) ? $usr['username'] : $uid);
+                        $unick = isset($usr['name']) ? $usr['name'] : $uname;
+                        $upwd = isset($usr['password']) ? $usr['password'] : '123';
+                        $hashedPwd = (strlen($upwd) > 30) ? $upwd : password_hash($upwd, PASSWORD_DEFAULT);
+                        $urole = isset($usr['role']) ? $usr['role'] : 'student';
+                        $stmtUserUpsert->execute([
+                            ':id' => $uid, ':u' => $uname, ':sc' => $ucode, ':nm' => $unick, ':p' => $hashedPwd, ':r' => $urole
+                        ]);
                     }
                 }
 
