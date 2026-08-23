@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles } from "./constants.js?v=20260823_v139";
-import { callCozeAgentAPI } from "./agents.js?v=20260823_v139";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired } from "./utils.js?v=20260823_v139";
+import { AgentProfiles } from "./constants.js?v=20260823_v140";
+import { callCozeAgentAPI } from "./agents.js?v=20260823_v140";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired } from "./utils.js?v=20260823_v140";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -1629,7 +1629,11 @@ function renderStage2Canvas(canvas, state, handlers) {
           return `
             <div class="word-editor-container" style="display:flex; flex-direction:column; height:100%; min-height:480px; border-radius:10px; overflow:hidden; border:1px solid #cbd5e1; box-shadow:0 4px 16px rgba(15,23,42,0.06); background:#ffffff;">
               <div style="flex:1; min-height:0; position:relative; background:#f1f5f9;">
-                <iframe id="stage2-etherpad-frame" src="${padUrl}" style="width:100%; height:100%; border:none; display:block;" allow="clipboard-read; clipboard-write"></iframe>
+                <div id="stage2-etherpad-loading-mask" style="position:absolute; inset:0; background:#f8fafc; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px; z-index:10; transition:opacity 0.3s ease;">
+                  <div style="width:32px; height:32px; border:3px solid #e2e8f0; border-top-color:#2563eb; border-radius:50%; animation:spin 0.8s linear infinite;"></div>
+                  <div style="font-size:13px; font-weight:700; color:#334155;">正在连接学术协同编辑器与实时光标...</div>
+                </div>
+                <iframe id="stage2-etherpad-frame" src="${padUrl}" style="width:100%; height:100%; border:none; display:block;" allow="clipboard-read; clipboard-write" onload="const m=document.querySelector('#stage2-etherpad-loading-mask'); if(m){m.style.opacity='0'; setTimeout(()=>m.remove(), 300);}"></iframe>
               </div>
             </div>
           `;

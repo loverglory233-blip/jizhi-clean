@@ -442,6 +442,46 @@ if ($action === 'report_member_contrib') {
     exit;
 }
 
+if ($action === 'get_teacher_monitor_all_groups') {
+    header('Content-Type: application/json; charset=utf-8');
+    $taskId = isset($_GET['taskId']) ? trim($_GET['taskId']) : ($queryTaskId ?: 'task_default');
+    $classId = isset($_GET['classId']) ? trim($_GET['classId']) : '';
+
+    $result = ['success' => true, 'groups' => []];
+
+    if ($pdo) {
+        $stmt = $pdo->prepare("SELECT * FROM group_states WHERE task_id = :tid");
+        $stmt->execute([':tid' => $taskId]);
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        foreach ($rows as $r) {
+            $gid = $r['group_id'];
+            $sk = $r['scope_key'];
+
+            // 获取聊天记录
+            $stmtChats = $pdo->prepare("SELECT meta_value FROM global_meta WHERE meta_key = :k");
+            $stmtChats->execute([':k' => 'chats_' . $sk]);
+            $chatRow = $stmtChats->fetch();
+            $chats = ($chatRow && !empty($chatRow['meta_value'])) ? json_decode($chatRow['meta_value'], true) : ['stage1' => [], 'stage2' => [], 'stage3' => []];
+
+            $result['groups'][$gid] = [
+                'groupId'            => $gid,
+                'scopeKey'           => $sk,
+                'currentStage'       => $r['current_stage'] ?: 'stage1',
+                'stage1'             => !empty($r['stage1_data']) ? json_decode($r['stage1_data'], true) : [],
+                'stage2'             => !empty($r['stage2_data']) ? json_decode($r['stage2_data'], true) : [],
+                'stage3'             => !empty($r['stage3_data']) ? json_decode($r['stage3_data'], true) : [],
+                'chatLogs'           => $chats,
+                'isFinalSubmitted'   => (bool)$r['is_final_submitted'],
+                'lastTimestamp'      => intval($r['last_timestamp']),
+                'revisionId'         => intval($r['revision_id'])
+            ];
+        }
+    }
+    echo json_encode($result, JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
 if ($action === 'get_pad_text') {
     header('Content-Type: application/json; charset=utf-8');
     $padId = isset($_GET['padId']) ? preg_replace('/[^a-zA-Z0-9_-]/', '', $_GET['padId']) : 'jizhi_' . $scopeKey;
