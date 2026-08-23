@@ -9,8 +9,8 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260823_v15";
-import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired } from "./utils.js?v=20260823_v15";
+} from "./constants.js?v=20260823_v16";
+import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired } from "./utils.js?v=20260823_v16";
 
 /* ==========================================================================
    7. TEACHER PORTAL RENDERER (LIVE WORKSPACE MIRROR & ANNOUNCEMENT READ MATRIX)
@@ -2147,8 +2147,8 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
               </div>
               <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:10px;">
                 <span style="font-size:12.5px; color:#475569; font-weight:600;">延长数值:</span>
-                <input type="number" id="modal-create-extend-num" value="1" min="0.1" step="any" style="width:75px; padding:6px 10px; border:1.5px solid #cbd5e1; border-radius:6px; font-size:13px; font-weight:700; text-align:center; outline:none;">
-                <select id="modal-create-extend-unit" style="padding:6px 10px; border:1.5px solid #cbd5e1; border-radius:6px; font-size:12.5px; font-weight:700; background:#ffffff; cursor:pointer; outline:none;">
+                <input type="number" id="modal-create-extend-num" value="2" min="0.1" step="any" style="width:75px; padding:6px 10px; border:1.5px solid #2563eb; border-radius:6px; font-size:13px; font-weight:700; text-align:center; outline:none; color:#1d4ed8; background:#eff6ff;">
+                <select id="modal-create-extend-unit" style="padding:6px 10px; border:1.5px solid #2563eb; border-radius:6px; font-size:12.5px; font-weight:700; background:#eff6ff; color:#1d4ed8; cursor:pointer; outline:none;">
                   <option value="minute">分钟</option>
                   <option value="hour" selected>小时</option>
                   <option value="day">天 (24h)</option>
@@ -2162,10 +2162,10 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
                 <span style="font-size:11px; color:#64748b;">快速选择:</span>
                 <button type="button" class="btn-create-quick-extend" data-num="30" data-unit="minute" style="background:#ffffff; border:1px solid #cbd5e1; color:#1e293b; padding:3px 8px; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer;">+30分钟</button>
                 <button type="button" class="btn-create-quick-extend" data-num="1" data-unit="hour" style="background:#ffffff; border:1px solid #cbd5e1; color:#1e293b; padding:3px 8px; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer;">+1小时</button>
-                <button type="button" class="btn-create-quick-extend" data-num="2" data-unit="hour" style="background:#ffffff; border:1px solid #cbd5e1; color:#1e293b; padding:3px 8px; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer;">+2小时</button>
-                <button type="button" class="btn-create-quick-extend" data-num="1" data-unit="day" style="background:#eff6ff; border:1px solid #bfdbfe; color:#2563eb; padding:3px 8px; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer;">+1天</button>
-                <button type="button" class="btn-create-quick-extend" data-num="3" data-unit="day" style="background:#eff6ff; border:1px solid #bfdbfe; color:#2563eb; padding:3px 8px; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer;">+3天</button>
-                <button type="button" class="btn-create-quick-extend" data-num="1" data-unit="week" style="background:#f0fdf4; border:1px solid #bbf7d0; color:#16a34a; padding:3px 8px; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer;">+1周</button>
+                <button type="button" class="btn-create-quick-extend" data-num="2" data-unit="hour" style="background:#eff6ff; border:1px solid #93c5fd; color:#1d4ed8; padding:3px 8px; border-radius:6px; font-size:11px; font-weight:800; cursor:pointer;">+2小时 (当前初始)</button>
+                <button type="button" class="btn-create-quick-extend" data-num="1" data-unit="day" style="background:#ffffff; border:1px solid #cbd5e1; color:#1e293b; padding:3px 8px; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer;">+1天</button>
+                <button type="button" class="btn-create-quick-extend" data-num="3" data-unit="day" style="background:#ffffff; border:1px solid #cbd5e1; color:#1e293b; padding:3px 8px; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer;">+3天</button>
+                <button type="button" class="btn-create-quick-extend" data-num="1" data-unit="week" style="background:#ffffff; border:1px solid #cbd5e1; color:#1e293b; padding:3px 8px; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer;">+1周</button>
               </div>
             </div>
 
