@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles } from "./constants.js?v=20260823_v79";
-import { callCozeAgentAPI } from "./agents.js?v=20260823_v79";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired } from "./utils.js?v=20260823_v79";
+import { AgentProfiles } from "./constants.js?v=20260823_v80";
+import { callCozeAgentAPI } from "./agents.js?v=20260823_v80";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired } from "./utils.js?v=20260823_v80";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -252,12 +252,12 @@ export function buildWordEditorHtml(editorId, initialHtml, isReadonly) {
       <div class="collab-presence-header" id="${editorId}-presence-header" style="display:flex; justify-content:space-between; align-items:center;">
         <div style="display:flex; align-items:center; gap:8px;">
           <div class="collab-presence-title">
-            <span>👥 组员协同在线与实时光标:</span>
+            <span>👥 组员协同在线感知:</span>
           </div>
           <div class="collab-member-pills" id="${editorId}-presence-pills"></div>
         </div>
-        <div id="${editorId}-yjs-status-badge" style="font-size:11px; font-weight:700; padding:2px 8px; border-radius:12px; border:1px solid #cbd5e1; background:#f8fafc; color:#64748b; white-space:nowrap;">
-          ⏳ 正在探测协同链路...
+        <div style="font-size:11px; font-weight:700; padding:2px 8px; border-radius:12px; border:1px solid #a7f3d0; background:#ecfdf5; color:#059669; white-space:nowrap;">
+          🟢 高可靠实时同步已就绪
         </div>
       </div>
 
@@ -361,125 +361,17 @@ export function attachWordEditorEvents(container, editorId, isReadonly, onChange
     } catch (e) {}
   }
 
-  if (QuillClass && YClass && WsProviderClass && QuillBindingClass && !isReadonly) {
+  if (QuillClass && !isReadonly) {
     try {
       if (!editor.classList.contains('ql-container')) {
-        if (window.QuillCursors) {
-          QuillClass.register('modules/cursors', window.QuillCursors, true);
-        }
         quillInstance = new QuillClass(editor, {
           theme: 'snow',
           modules: {
-            toolbar: false,
-            cursors: window.QuillCursors ? true : false
+            toolbar: false
           }
         });
 
-        const protocol = (window.location.protocol === 'https:' ? 'wss:' : 'ws:');
-        const host = window.location.host;
-        const user = (window.app && window.app.authManager) ? window.app.authManager.getCurrentUser() : null;
-        const effectiveClassId = (window.app && window.app.state && window.app.state.activeStudentClassId) || (user?.classId || 'class_101');
-        const activeGroupObj = (window.app && window.app.authManager) ? window.app.authManager.getStudentActiveGroup(user, effectiveClassId) : null;
-        const groupId = activeGroupObj?.id || (user && user.groupId ? user.groupId : 'group_1');
-        const taskId = (window.app && window.app.state && window.app.state.activeTaskId) || (window.app && window.app.cloudSyncEngine && window.app.cloudSyncEngine.taskId) || 'task_default';
-        const wsHost = window.location.hostname || 'localhost';
-        
-        // 自动探测最佳 WebSocket 路由 (HTTPS走反代/ws，HTTP直连1234端口)
-        const wsUrl = (window.location.protocol === 'https:')
-          ? `${protocol}//${host}/ws`
-          : `${protocol}//${wsHost}:1234`;
-        const roomName = `jizhi_yjs_${taskId}_${groupId}`;
-
-        console.log(`%c[Yjs Room Info] 🏠 房间: ${roomName} | 路由: ${wsUrl} | 任务: ${taskId} | 小组: ${groupId}`, 'color:#6366f1; font-weight:bold;');
-
-        let ydoc = window._jizhi_yjs_doc;
-        let provider = window._jizhi_yjs_provider;
-
-        // 若房间发生变更，先安全销毁旧房间连接
-        if (provider && provider.roomname !== roomName) {
-          try { provider.destroy(); } catch (e) {}
-          provider = null;
-          ydoc = null;
-        }
-
-        if (!ydoc) {
-          ydoc = new YClass.Doc();
-          window._jizhi_yjs_doc = ydoc;
-        }
-        const ytext = ydoc.getText('quill_content');
-
-        if (!provider) {
-          provider = new WsProviderClass(wsUrl, roomName, ydoc);
-          window._jizhi_yjs_provider = provider;
-        }
-        window._yjsProvider = provider;
-        window._yjsDoc = ydoc;
-
-        const statusBadge = container.querySelector(`#${editorId}-yjs-status-badge`);
-        let lastBadgeText = '';
-        const updatePeerStatus = (statusStr) => {
-          if (!statusBadge) return;
-          const peerCount = Array.from(provider.awareness.getStates().keys()).length;
-          let targetHtml = '';
-          if (statusStr === 'connected' || provider.wsconnected) {
-            targetHtml = `🟢 毫秒协同 [${roomName}] (${peerCount}人同屏)`;
-            statusBadge.style.color = '#059669';
-            statusBadge.style.background = '#ecfdf5';
-            statusBadge.style.borderColor = '#a7f3d0';
-          } else if (statusStr === 'connecting') {
-            targetHtml = `🟡 连接协同房间 [${roomName}]...`;
-            statusBadge.style.color = '#d97706';
-            statusBadge.style.background = '#fffbeb';
-            statusBadge.style.borderColor = '#fde68a';
-          } else {
-            targetHtml = `🔴 协同离线 (${wsUrl})`;
-            statusBadge.style.color = '#dc2626';
-            statusBadge.style.background = '#fef2f2';
-            statusBadge.style.borderColor = '#fca5a5';
-          }
-          if (lastBadgeText !== targetHtml) {
-            lastBadgeText = targetHtml;
-            statusBadge.innerHTML = targetHtml;
-          }
-        };
-
-        provider.on('status', event => {
-          console.log(`%c[Yjs CRDT 协同状态] 🌐 ${event.status === 'connected' ? '✅ 已连接协同服务器 (满血运行中)' : '⏳ 连接中: ' + event.status} | 房间: ${roomName}`, 'color: #10b981; font-weight: bold;');
-          updatePeerStatus(event.status);
-        });
-
-        provider.awareness.on('change', () => {
-          updatePeerStatus('connected');
-        });
-
-        const userColors = ['#2563eb', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4'];
-        const colorIdx = (user && user.studentCode ? user.studentCode.charCodeAt(user.studentCode.length - 1) : 0) % userColors.length;
-        provider.awareness.setLocalStateField('user', {
-          name: (user && (user.name || user.username)) || '组员',
-          color: userColors[colorIdx]
-        });
-
-        // 🛡️ 初次纯净守卫：严禁带有 remote-cursor-widget 或空白段落的脏数据被当成初始正文
-        let cleanInitHtml = (editor.innerHTML || '').replace(/<span class="remote-cursor-widget"[\s\S]*?<\/span>/gi, '').trim();
-        if (cleanInitHtml === '<p><br></p>' || cleanInitHtml === '<p></p>') cleanInitHtml = '';
-        // 🛡️ 官方标准 CRDT 绑定：由 QuillBinding 全权接管 ytext 与 quillInstance 的双向微秒流转
-        yjsBinding = new QuillBindingClass(ytext, quillInstance, provider.awareness);
         window._jizhi_quill = quillInstance;
-        window._jizhi_yjs_provider = provider;
-
-        provider.on('synced', (isSynced) => {
-          if (isSynced) {
-            console.log('%c[Yjs CRDT] ✅ 权威协同向量对齐完成！', 'color: #10b981; font-weight: bold;');
-            const cleanHtml = quillInstance.root.innerHTML;
-            if (onChangeCallback) onChangeCallback(cleanHtml);
-          }
-        });
-
-        // 🛡️ 双向守卫：无论是本地敲键盘还是远端组员通过 CRDT 向量推送，100% 触发内容与贡献比联动
-        ytext.observe((event) => {
-          const cleanHtml = quillInstance.root.innerHTML;
-          if (onChangeCallback) onChangeCallback(cleanHtml);
-        });
 
         quillInstance.on('text-change', (delta, oldDelta, source) => {
           const cleanHtml = quillInstance.root.innerHTML;
@@ -487,7 +379,9 @@ export function attachWordEditorEvents(container, editorId, isReadonly, onChange
         });
       }
     } catch (err) {
-      console.warn('[Yjs Quill Binding Fallback]:', err);
+      console.warn('[Quill Initialization Error]:', err);
+    }
+  }
     }
   }
 
