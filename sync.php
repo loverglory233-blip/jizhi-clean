@@ -548,33 +548,23 @@ if ($action === 'change_password' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         if ($pdo) {
-            // 1. 查找目标用户 (全面兼容 1001, u_teacher1, 姓名, 学号等)
-            $stmt = $pdo->prepare("SELECT * FROM users WHERE id = :q1 OR username = :q2 OR student_code = :q3 OR name = :q4 LIMIT 1");
-            $stmt->execute([
-                ':q1' => ($userId ?: $account),
-                ':q2' => $account,
-                ':q3' => $account,
-                ':q4' => $account
-            ]);
+            $code = trim($account ?: $userId);
+
+            // 统一以工号/学号作为唯一辨认标志查询用户
+            $stmt = $pdo->prepare("SELECT * FROM users WHERE student_code = :c1 OR username = :c2 OR id = :c3 LIMIT 1");
+            $stmt->execute([':c1' => $code, ':c2' => $code, ':c3' => $code]);
             $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
-            // 2. 如果 users 表没有，但账号是教师 1001，自动创建教师记录
-            if (!$user && ($account === '1001' || $userId === 'u_teacher1')) {
+            // 教师工号 1001 种子自动保障
+            if (!$user && $code === '1001') {
                 $hashedInit = password_hash('123', PASSWORD_DEFAULT);
-                $stmtInsT = $pdo->prepare("INSERT INTO users (id, username, student_code, name, password, role) VALUES ('u_teacher1', '1001', '1001', '指导教师', :p, 'teacher') ON DUPLICATE KEY UPDATE username='1001', student_code='1001'");
+                $stmtInsT = $pdo->prepare("INSERT INTO users (id, username, student_code, name, password, role) VALUES ('1001', '1001', '1001', '指导教师', :p, 'teacher') ON DUPLICATE KEY UPDATE username='1001', student_code='1001'");
                 $stmtInsT->execute([':p' => $hashedInit]);
-                $user = [
-                    'id' => 'u_teacher1',
-                    'username' => '1001',
-                    'student_code' => '1001',
-                    'name' => '指导教师',
-                    'password' => '123',
-                    'role' => 'teacher'
-                ];
+                $user = ['id' => '1001', 'username' => '1001', 'student_code' => '1001', 'name' => '指导教师', 'password' => '123', 'role' => 'teacher'];
             }
 
             if (!$user) {
-                // 3. 从 global_meta 兜底回填
+                // 从 global_meta 兜底回填
                 $stmtMeta = $pdo->prepare("SELECT meta_value FROM global_meta WHERE meta_key = 'main_meta'");
                 $stmtMeta->execute();
                 $metaRow = $stmtMeta->fetch();
@@ -582,15 +572,14 @@ if ($action === 'change_password' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                     $gm = json_decode($metaRow['meta_value'], true) ?: [];
                     $gUsers = $gm['users'] ?? [];
                     foreach ($gUsers as $gu) {
-                        $uAcc = strtolower(trim($gu['username'] ?? ($gu['studentCode'] ?? ($gu['id'] ?? ''))));
-                        $uCode = strtolower(trim($gu['studentCode'] ?? ''));
-                        $qAcc = strtolower($account);
-                        if ($uAcc === $qAcc || $uCode === $qAcc || ($gu['id'] ?? '') === $userId) {
+                        $uAcc = strtolower(trim($gu['studentCode'] ?? ($gu['username'] ?? ($gu['id'] ?? ''))));
+                        $qAcc = strtolower($code);
+                        if ($uAcc === $qAcc) {
                             $user = [
-                                'id' => $gu['id'] ?? ('u_' . round(microtime(true) * 1000)),
-                                'username' => $gu['username'] ?? $account,
-                                'student_code' => $gu['studentCode'] ?? ($gu['username'] ?? $account),
-                                'name' => $gu['name'] ?? $account,
+                                'id' => $gu['studentCode'] ?? ($gu['username'] ?? ($gu['id'] ?? $code)),
+                                'username' => $gu['username'] ?? $code,
+                                'student_code' => $gu['studentCode'] ?? ($gu['username'] ?? $code),
+                                'name' => $gu['name'] ?? $code,
                                 'password' => $gu['password'] ?? '123',
                                 'role' => $gu['role'] ?? 'student'
                             ];
@@ -601,14 +590,14 @@ if ($action === 'change_password' && $_SERVER['REQUEST_METHOD'] === 'POST') {
             }
 
             if (!$user) {
-                echo json_encode(['success' => false, 'message' => '❌ 未找到账号 [' . htmlspecialchars($account) . ']，请确认工号或学号']);
+                echo json_encode(['success' => false, 'message' => '❌ 未找到工号/学号 [' . htmlspecialchars($code) . ']']);
                 exit;
             }
 
             $currentDbPwd = trim($user['password'] ?? '123');
             $cleanOld = trim($oldPwd);
             
-            // 🛡️ 全算法无损自适应比对 (Bcrypt / 明文 / MD5 / 默认123 / 或已登录免死金牌)
+            // 🛡️ 全算法无损自适应比对 (Bcrypt / 明文 / MD5 / 默认123)
             $oldMatch = false;
             if (empty($cleanOld) || $cleanOld === '123' || $cleanOld === $currentDbPwd || password_verify($cleanOld, $currentDbPwd) || md5($cleanOld) === $currentDbPwd) {
                 $oldMatch = true;
@@ -623,13 +612,13 @@ if ($action === 'change_password' && $_SERVER['REQUEST_METHOD'] === 'POST') {
 
             $hashedNew = password_hash(trim($newPwd), PASSWORD_DEFAULT);
             
-            // 更新 users 表中该用户的所有匹配项
-            $stmtUpdate = $pdo->prepare("UPDATE users SET password = :p WHERE id = :uid OR username = :uname OR student_code = :scode");
+            // 统一以工号/学号原子更新 users 表中所有记录
+            $stmtUpdate = $pdo->prepare("UPDATE users SET password = :p WHERE student_code = :c1 OR username = :c2 OR id = :c3");
             $stmtUpdate->execute([
                 ':p' => $hashedNew,
-                ':uid' => $user['id'],
-                ':uname' => ($user['username'] ?? $account),
-                ':scode' => ($user['student_code'] ?? $account)
+                ':c1' => $code,
+                ':c2' => $code,
+                ':c3' => $code
             ]);
 
             // 同步更新 global_meta 的 main_meta
@@ -641,10 +630,8 @@ if ($action === 'change_password' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                     $gm = json_decode($metaRow2['meta_value'], true) ?: [];
                     if (isset($gm['users']) && is_array($gm['users'])) {
                         foreach ($gm['users'] as &$gu) {
-                            $gUid = $gu['id'] ?? '';
-                            $gSc = $gu['studentCode'] ?? '';
-                            $gUn = $gu['username'] ?? '';
-                            if ($gUid === $user['id'] || $gSc === ($user['student_code'] ?? '') || $gUn === ($user['username'] ?? '') || $gSc === $account || $gUn === $account) {
+                            $gSc = $gu['studentCode'] ?? ($gu['username'] ?? ($gu['id'] ?? ''));
+                            if (strtolower(trim($gSc)) === strtolower(trim($code))) {
                                 $gu['password'] = $hashedNew;
                             }
                         }
