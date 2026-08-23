@@ -17,11 +17,17 @@ npm install fast-deep-equal@2.0.1 --save --no-audit --no-fund --registry=https:/
 cd src && npm install fast-deep-equal@2.0.1 --save --no-audit --no-fund --registry=https://registry.npmmirror.com 2>/dev/null || true
 cd "$EP_DIR"
 
-# 2. 精准释放 9001 端口
+# 1. 仅精准释放 9001 端口 (严禁 pkill 误杀脚本自身)
 fuser -k 9001/tcp 2>/dev/null || true
 sleep 1
 
-# 3. 启动 Etherpad
+# 修复 Settings.js fast-deep-equal/es6 兼容
+if [ -f "src/node/utils/Settings.js" ]; then
+    sed -i "s|require('fast-deep-equal/es6')|require('fast-deep-equal')|g" src/node/utils/Settings.js 2>/dev/null || true
+    sed -i 's|require("fast-deep-equal/es6")|require("fast-deep-equal")|g' src/node/utils/Settings.js 2>/dev/null || true
+fi
+
+# 2. 启动 Etherpad
 echo "🚀 正在拉起 Etherpad 守护进程..."
 nohup node src/node/server.js > /var/log/etherpad.log 2>&1 &
 sleep 4
