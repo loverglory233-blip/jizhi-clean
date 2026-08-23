@@ -51,12 +51,12 @@ SETTING_EOF
 mkdir -p var
 echo "jizhi_academic_secret_key_2026" > APIKEY.txt
 
-echo "🔄 启动 Etherpad 官方标准运行服务 (bin/run.sh)..."
+echo "🔄 启动 Etherpad 官方服务 (带 --root 参数)..."
 pkill -f "run.sh" || true
 pkill -f "ep_etherpad-lite" || true
 
 chmod +x bin/run.sh
-nohup ./bin/run.sh > /var/log/etherpad.log 2>&1 &
+nohup ./bin/run.sh --root > /var/log/etherpad.log 2>&1 &
 
 sleep 4
 
