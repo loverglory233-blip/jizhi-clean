@@ -598,18 +598,20 @@ if ($action === 'change_password' && $_SERVER['REQUEST_METHOD'] === 'POST') {
             $currentDbPwd = trim($user['password'] ?? '123');
             $cleanOld = trim($oldPwd);
             
-            // 🛡️ 标准严谨密码比对：原密码必须与当前数据库中记录相匹配 (支持 Bcrypt 哈希 / 明文 / 初始 123)
+            // 🛡️ 标准严谨密码比对：原密码必须与当前数据库中记录相匹配 (支持 Bcrypt 哈希 / 明文 / MD5 / 初始 123)
             $oldMatch = false;
             if (password_verify($cleanOld, $currentDbPwd)) {
                 $oldMatch = true;
             } else if ($cleanOld === $currentDbPwd) {
                 $oldMatch = true;
-            } else if ((empty($currentDbPwd) || $currentDbPwd === '123') && $cleanOld === '123') {
+            } else if (md5($cleanOld) === $currentDbPwd) {
+                $oldMatch = true;
+            } else if ((empty($currentDbPwd) || $currentDbPwd === '123' || password_verify('123', $currentDbPwd)) && $cleanOld === '123') {
                 $oldMatch = true;
             }
 
             if (!$oldMatch) {
-                echo json_encode(['success' => false, 'message' => '❌ 原密码不正确，请输入当前账号实际生效的旧密码']);
+                echo json_encode(['success' => false, 'message' => '❌ 原密码不正确：若曾修改过请输入修改后的密码，初始默认密码为 123']);
                 exit;
             }
 
