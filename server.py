@@ -915,6 +915,77 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                 self.wfile.write(b'{"success":false}')
             return
 
+        # ⚡ 登录鉴权路由 (镜像生产 sync.php：账号/密码校验 + 会话 token 下发)
+        if 'action=login' in self.path:
+            length = int(self.headers.get('Content-Length', 0))
+            body = self.rfile.read(length)
+            try:
+                req = json.loads(body.decode('utf-8'))
+                account = (req.get('account') or '').strip()
+                password = (req.get('password') or '').strip()
+                if not account or not password:
+                    self.send_response(400)
+                    self.send_header('Content-Type', 'application/json; charset=utf-8')
+                    self.end_headers()
+                    self.wfile.write(json.dumps({'success': False, 'message': '请输入账号和密码'}, ensure_ascii=False).encode('utf-8'))
+                    return
+
+                found_user = None
+                user_exists = False
+                user_list = []
+                global_file = os.path.join(DIR, 'global_db.json')
+                if os.path.exists(global_file):
+                    try:
+                        with JSON_FILE_LOCK:
+                            with open(global_file, 'r', encoding='utf-8') as f:
+                                meta = json.load(f)
+                        if isinstance(meta, dict):
+                            user_list = meta.get('users', []) or []
+                    except Exception:
+                        user_list = []
+                for u in user_list:
+                    if not isinstance(u, dict):
+                        continue
+                    u_acc = u.get('username') or u.get('studentCode') or u.get('id') or ''
+                    if u_acc == account:
+                        user_exists = True
+                        db_pwd = u.get('password') or ''
+                        if password == db_pwd or (not db_pwd and password == '123'):
+                            found_user = u
+                        break
+
+                if found_user:
+                    token = 'jwt_jizhi_' + os.urandom(16).hex() + '_' + str(int(time.time()))
+                    # 🚀 同步注册会话锁，使后续 save_global_meta 等教师鉴权路由能凭该 token 通过校验
+                    now = time.time()
+                    with LOCK_MUTEX:
+                        for _k in (found_user.get('id'), found_user.get('username'), found_user.get('studentCode')):
+                            if _k:
+                                SESSION_LOCKS[_k] = {'token': token, 'lastActive': now, 'userName': found_user.get('name', account)}
+                    user_out = dict(found_user)
+                    user_out.pop('password', None)
+                    resp_bytes = json.dumps({'success': True, 'token': token, 'user': user_out}, ensure_ascii=False).encode('utf-8')
+                    self.send_response(200)
+                    self.send_header('Content-Type', 'application/json; charset=utf-8')
+                    self.send_header('Content-Length', str(len(resp_bytes)))
+                    self.end_headers()
+                    self.wfile.write(resp_bytes)
+                elif not user_exists:
+                    self.send_response(401)
+                    self.send_header('Content-Type', 'application/json; charset=utf-8')
+                    self.end_headers()
+                    self.wfile.write(json.dumps({'success': False, 'message': '账号不存在，请检查工号或学号是否输入正确'}, ensure_ascii=False).encode('utf-8'))
+                else:
+                    self.send_response(401)
+                    self.send_header('Content-Type', 'application/json; charset=utf-8')
+                    self.end_headers()
+                    self.wfile.write(json.dumps({'success': False, 'message': '密码错误，默认密码为 123'}, ensure_ascii=False).encode('utf-8'))
+            except Exception as e:
+                self.send_response(500)
+                self.end_headers()
+                self.wfile.write(json.dumps({'success': False, 'error': str(e)}, ensure_ascii=False).encode('utf-8'))
+            return
+
         # ⚡ 研讨区独立轻量发信路由 (解耦大快照)
         if 'action=send_chat' in self.path:
             groupId = 'group_1'
