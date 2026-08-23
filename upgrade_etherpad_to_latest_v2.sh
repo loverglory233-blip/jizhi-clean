@@ -46,9 +46,9 @@ echo "🟢 pnpm 版本: $(pnpm -v)"
 
 pnpm install --registry=https://registry.npmmirror.com
 
-# 5. 安装官方认证的 12 个协同与富文本插件 (使用 -w 安装至 workspace 根目录)
-echo "5️⃣ 正在通过 pnpm 正规安装 12 个官方认证插件..."
-pnpm add -w --registry=https://registry.npmmirror.com \
+# 5. 安装官方认证的 12 个协同与富文本插件 (安装至 ep_etherpad-lite 主工作区)
+echo "5️⃣ 正在通过 pnpm 将 12 个插件安装至 ep_etherpad-lite 主程序..."
+pnpm --filter ep_etherpad-lite add --registry=https://registry.npmmirror.com \
     ep_cursortrace \
     ep_headings2 \
     ep_font_size \
