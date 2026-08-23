@@ -6393,11 +6393,16 @@
           </div>
         `}
 
-        <div class="collab-presence-header" id="${editorId}-presence-header">
-          <div class="collab-presence-title">
-            <span>👥 组员协同在线与实时光标:</span>
+        <div class="collab-presence-header" id="${editorId}-presence-header" style="display:flex; justify-content:space-between; align-items:center;">
+          <div style="display:flex; align-items:center; gap:8px;">
+            <div class="collab-presence-title">
+              <span>👥 组员协同在线与实时光标:</span>
+            </div>
+            <div class="collab-member-pills" id="${editorId}-presence-pills"></div>
           </div>
-          <div class="collab-member-pills" id="${editorId}-presence-pills"></div>
+          <div id="${editorId}-yjs-status-badge" style="font-size:11px; font-weight:700; padding:2px 8px; border-radius:12px; border:1px solid #cbd5e1; background:#f8fafc; color:#64748b; white-space:nowrap;">
+            ⏳ 正在探测协同链路...
+          </div>
         </div>
 
         <div class="word-page-scroll">
@@ -6533,8 +6538,27 @@
           window._yjsProvider = provider;
           window._yjsDoc = ydoc;
 
+          const statusBadge = container.querySelector(`#${editorId}-yjs-status-badge`);
           provider.on('status', event => {
             console.log(`%c[Yjs CRDT 协同状态] 🌐 ${event.status === 'connected' ? '✅ 已连接协同服务器 (满血运行中)' : '⏳ 连接中: ' + event.status}`, 'color: #10b981; font-weight: bold;');
+            if (statusBadge) {
+              if (event.status === 'connected') {
+                statusBadge.innerHTML = '🟢 Yjs 毫秒协同 (已连接)';
+                statusBadge.style.color = '#059669';
+                statusBadge.style.background = '#ecfdf5';
+                statusBadge.style.borderColor = '#a7f3d0';
+              } else if (event.status === 'connecting') {
+                statusBadge.innerHTML = '🟡 Yjs 协同连接中...';
+                statusBadge.style.color = '#d97706';
+                statusBadge.style.background = '#fffbeb';
+                statusBadge.style.borderColor = '#fde68a';
+              } else {
+                statusBadge.innerHTML = '🔴 协同降级模式 (短轮询同步)';
+                statusBadge.style.color = '#dc2626';
+                statusBadge.style.background = '#fef2f2';
+                statusBadge.style.borderColor = '#fca5a5';
+              }
+            }
           });
 
           const userColors = ['#2563eb', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4'];
