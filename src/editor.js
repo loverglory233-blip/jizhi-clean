@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles } from "./constants.js?v=20260823_v121";
-import { callCozeAgentAPI } from "./agents.js?v=20260823_v121";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired } from "./utils.js?v=20260823_v121";
+import { AgentProfiles } from "./constants.js?v=20260823_v122";
+import { callCozeAgentAPI } from "./agents.js?v=20260823_v122";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired } from "./utils.js?v=20260823_v122";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -1942,6 +1942,50 @@ function renderStage3Canvas(canvas, state, handlers) {
 }
 
 export function renderChat(state) {
+  const presenceContainer = document.getElementById('chat-member-presence-pills');
+  if (presenceContainer) {
+    const members = Object.values(state.members || {});
+    const presence = state.presence || {};
+    const currUser = (window.app && window.app.authManager) ? window.app.authManager.getCurrentUser() : null;
+    const myCode = state.currentUser || (currUser ? currUser.studentCode : '');
+    const nowMs = Date.now();
+
+    // 收集近期 180 秒内发言或操作的所有成员
+    const recentSpeakers = new Set();
+    const visibleStages = ['stage1', 'stage2', 'stage3'];
+    visibleStages.forEach(stg => {
+      if (state.chatLogs && state.chatLogs[stg]) {
+        state.chatLogs[stg].slice(-25).forEach(msg => {
+          if (msg._timeMs && (nowMs - msg._timeMs < 180000)) {
+            if (msg.sender) recentSpeakers.add(msg.sender);
+            if (msg.senderName) recentSpeakers.add(msg.senderName);
+          }
+        });
+      }
+    });
+
+    presenceContainer.innerHTML = members.map(m => {
+      const isMe = (m.id === myCode || m.studentCode === myCode || (currUser && (m.id === currUser.id || m.studentCode === currUser.studentCode || m.name === currUser.name)));
+      let isOnline = isMe;
+      if (!isOnline) {
+        const p = presence[m.studentCode] || presence[m.id] || presence[m.username] || presence[m.name];
+        if (p && (nowMs - (p.lastSeen || p.updatedAt || p.timestamp || 0) < 60000)) {
+          isOnline = true;
+        }
+        if (recentSpeakers.has(m.id) || recentSpeakers.has(m.studentCode) || recentSpeakers.has(m.name) || recentSpeakers.has(m.username)) {
+          isOnline = true;
+        }
+      }
+
+      return `
+        <span style="font-size:11px; padding:2px 8px; border-radius:10px; font-weight:700; display:inline-flex; align-items:center; gap:4px; ${isOnline ? 'background:#ecfdf5; color:#059669; border:1px solid #a7f3d0;' : 'background:#f1f5f9; color:#94a3b8; border:1px solid #e2e8f0;'}">
+          <span style="width:6px; height:6px; border-radius:50%; background:${isOnline ? '#10b981' : '#cbd5e1'};"></span>
+          ${m.avatar || '👤'} ${m.name}${isMe ? ' (我)' : ''}
+        </span>
+      `;
+    }).join('');
+  }
+
   const stream = document.getElementById('chat-stream');
   if (!stream) return;
 
