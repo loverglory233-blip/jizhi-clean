@@ -34,20 +34,20 @@ if (empty($users)) {
 }
 
 echo "\n========================================================\n";
-echo "🛠️ 2. 自动校准：将教师工号 1001 与初始用户密码全部统一重置为 123 (双向兼容)\n";
+echo "🛠️ 2. 自动校准：将教师工号 1001 与初始用户密码全部统一重置为纯明文 '123' (彻底告别哈希)\n";
 echo "========================================================\n";
 
-// 强制为教师 1001 写入最纯净的标准密码哈希
-$hash123 = password_hash('123', PASSWORD_DEFAULT);
-
-// 确保 1001 记录存在且密码为 123
+// 确保 1001 记录存在且密码为明文 '123'
 $stmtFix = $pdo->prepare("INSERT INTO users (id, username, student_code, name, password, role) 
-    VALUES ('1001', '1001', '1001', '指导教师', :p, 'teacher') 
-    ON DUPLICATE KEY UPDATE password = :p2, student_code = '1001', username = '1001', role = 'teacher'");
-$stmtFix->execute([':p' => $hash123, ':p2' => $hash123]);
+    VALUES ('1001', '1001', '1001', '老师', '123', 'teacher') 
+    ON DUPLICATE KEY UPDATE password = '123', student_code = '1001', username = '1001', name = '老师', role = 'teacher'");
+$stmtFix->execute();
 
-// 同时更新可能存在的 u_teacher1 历史主键记录
-$pdo->exec("UPDATE users SET password = '$hash123' WHERE id = 'u_teacher1' OR username = '1001' OR student_code = '1001'");
+// 清理历史旧别名，全库唯一
+$pdo->exec("DELETE FROM users WHERE id != '1001' AND (username = '1001' OR student_code = '1001')");
+
+// 将所有学生的密码也全部统一为明文
+$pdo->exec("UPDATE users SET password = '123' WHERE password LIKE '$2y$%' OR password = '' OR password IS NULL");
 
 // 同步更新 global_meta 中的 main_meta
 $stmtMeta = $pdo->prepare("SELECT meta_value FROM global_meta WHERE meta_key = 'main_meta'");
@@ -58,8 +58,8 @@ if ($row && !empty($row['meta_value'])) {
     if (isset($gm['users']) && is_array($gm['users'])) {
         foreach ($gm['users'] as &$gu) {
             $sc = $gu['studentCode'] ?? ($gu['username'] ?? ($gu['id'] ?? ''));
-            if ($sc === '1001' || $sc === 'u_teacher1') {
-                $gu['password'] = $hash123;
+            if ($sc === '1001') {
+                $gu['password'] = '123';
             }
         }
         $encodedGm = json_encode($gm, JSON_UNESCAPED_UNICODE);
