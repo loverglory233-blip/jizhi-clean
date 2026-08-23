@@ -1864,15 +1864,18 @@
 
     openChangePasswordModal(presetAccount = null) {
       const currentUser = this.getCurrentUser();
-      // 教师与学生账号精准提取：教师优先显示工号/真实账号，杜绝显示通用字符串 'teacher'
+      // 教师与学生账号精准提取：优先显示真实工号/学号，自动剔除系统内部生成的 u_ 前缀
       let account = presetAccount || '';
       if (!account && currentUser) {
         if (currentUser.studentCode) account = currentUser.studentCode;
         else if (currentUser.teacherCode) account = currentUser.teacherCode;
         else if (currentUser.code) account = currentUser.code;
-        else if (currentUser.username && currentUser.username !== 'teacher') account = currentUser.username;
-        else if (currentUser.id && currentUser.id !== 'u_teacher') account = currentUser.id;
-        else account = currentUser.username || currentUser.id || '';
+        else if (currentUser.username && currentUser.username !== 'teacher' && !currentUser.username.startsWith('u_')) account = currentUser.username;
+        else if (currentUser.id) {
+          account = currentUser.id.startsWith('u_') ? currentUser.id.replace(/^u_/, '') : currentUser.id;
+        } else {
+          account = (currentUser.username || '').replace(/^u_/, '');
+        }
       }
 
       const oldModal = document.getElementById('modal-change-password');
@@ -1890,7 +1893,7 @@
           <div style="padding:24px;">
             <div style="margin-bottom:14px;">
               <label style="display:block;font-size:12px;font-weight:600;color:#64748b;margin-bottom:6px;">账号 / 学号 / 工号</label>
-              <input type="text" id="input-pwd-account" value="${account}" ${account ? 'readonly' : ''} style="width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid #cbd5e1;border-radius:8px;font-size:14px;background:${account ? '#f8fafc' : '#fff'};font-weight:700;color:#1e293b;">
+              <input type="text" id="input-pwd-account" value="${account}" placeholder="请输入您的工号或学号..." style="width:100%;box-sizing:border-box;padding:10px 12px;border:1.5px solid #cbd5e1;border-radius:8px;font-size:14px;background:#ffffff;font-weight:700;color:#1e293b;outline:none;">
             </div>
             <div style="margin-bottom:14px;">
               <label style="display:block;font-size:12px;font-weight:600;color:#64748b;margin-bottom:6px;">原密码 (默认初始密码为 123)</label>

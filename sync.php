@@ -210,13 +210,19 @@ if ($action === 'change_password' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     if ($pdo) {
-        // 1. 尝试在 users 表中多字段比对
-        $stmt = $pdo->prepare("SELECT * FROM users WHERE (student_code = :c1 OR username = :c2 OR id = :c3 OR name = :c4) LIMIT 1");
+        $accTrim = preg_replace('/^u_/', '', $account);
+        $accWithU = 'u_' . $accTrim;
+
+        // 1. 尝试在 users 表中多字段比对 (支持带 u_ 与不带 u_ 前缀)
+        $stmt = $pdo->prepare("SELECT * FROM users WHERE (student_code = :c1 OR username = :c2 OR id = :c3 OR name = :c4 OR id = :c5 OR student_code = :c6 OR username = :c7) LIMIT 1");
         $stmt->execute([
             ':c1' => $studentCode ?: $account,
             ':c2' => $username ?: $account,
             ':c3' => $userId ?: $account,
-            ':c4' => $userName ?: $account
+            ':c4' => $userName ?: $account,
+            ':c5' => $accWithU,
+            ':c6' => $accTrim,
+            ':c7' => $accTrim
         ]);
         $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
