@@ -4,12 +4,9 @@ echo "🔍 ========================================================"
 echo "⚡ Etherpad 插件客户端端到端真实激活状态硬核验证"
 echo "🔍 ========================================================"
 
-EP_URL="http://127.0.0.1:9001"
-TEST_PAD="verify_pad_$(date +%s)"
-
-# 1. 创建并抓取真实 Pad 页面
-echo "1️⃣ 正在以真实浏览器身份请求 Pad 页面 (/p/$TEST_PAD)..."
-PAD_HTML=$(curl -s "$EP_URL/p/$TEST_PAD?showControls=true")
+# 探测本地端口与 Nginx 外部路由
+echo "1️⃣ 正在通过 Nginx 链路探测真实 Pad 页面与静态资源..."
+WEB_HOST="http://127.0.0.1"
 
 # 2. 检查 HTML 中是否有插件注入的 script / link 标签
 echo "2️⃣ 检查 Pad 页面 HTML 中的插件挂载情况:"
@@ -44,19 +41,10 @@ TOTAL_COUNT=${#PLUGINS[@]}
 for item in "${PLUGINS[@]}"; do
     IFS=":" read -r pName pRelPath pDesc <<< "$item"
     
-    # 探测多种可能的静态路由
-    URL1="$EP_URL/static/plugins/$pName/$pRelPath"
-    URL2="$EP_URL/static/plugins/$pName/${pRelPath#static/}"
+    URL1="$WEB_HOST/static/plugins/$pName/$pRelPath"
     
     HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" "$URL1")
     TARGET_URL="$URL1"
-    if [ "$HTTP_CODE" != "200" ]; then
-        HTTP_CODE2=$(curl -s -o /dev/null -w "%{http_code}" "$URL2")
-        if [ "$HTTP_CODE2" = "200" ]; then
-            HTTP_CODE="200"
-            TARGET_URL="$URL2"
-        fi
-    fi
     
     if [ "$HTTP_CODE" = "200" ]; then
         SIZE=$(curl -s "$TARGET_URL" | wc -c | awk '{print $1" bytes"}')
