@@ -2,8 +2,15 @@
 set -e
 
 echo "🚀 ========================================================"
-echo "⚡ 全量升级 Etherpad-lite 至官方现代版本并安装原生插件体系"
+echo "⚡ 全量升级 Etherpad-lite 至官方最新版本并安装原生插件体系"
 echo "🚀 ========================================================"
+
+# 0. 检查并确保 Node.js >= 22 (Etherpad 2.7.3 官方硬性要求)
+NODE_MAJOR=$(node -v 2>/dev/null | cut -d'.' -f1 | tr -d 'v' || echo "0")
+if [ "$NODE_MAJOR" -lt 22 ]; then
+    echo "⚡ 检测到 Node < 22，正在自动升级到 Etherpad 2.7.3 官方指定的 Node.js 22 LTS..."
+    curl -fsSL https://deb.nodesource.com/setup_22.x | bash - && apt-get install -y nodejs
+fi
 
 export PATH="/usr/bin:/usr/local/bin:$PATH"
 
@@ -24,18 +31,17 @@ echo "2️⃣ 正在备份当前设置与 APIKEY..."
 cp settings.json settings.json.bak 2>/dev/null || true
 cp APIKEY.txt APIKEY.txt.bak 2>/dev/null || true
 
-# 3. 切换到官方最新 2.x 稳定版本
+# 3. 切换到官方最新 2.x 稳定版本 (v2.7.3)
 echo "3️⃣ 正在切换到 Etherpad 官方最新 2.x 稳定版本 (v2.7.3)..."
 git reset --hard HEAD
 git clean -fd
-git checkout v2.7.3 || git checkout $(git tag -l "v2.*" | sort -V | tail -n 1)
+git checkout v2.7.3
 
 echo "📄 当前 Etherpad 源码版本: $(git describe --tags --always)"
 
-# 4. 安装 Node 20 黄金官方版本 pnpm@9 并安装核心依赖
-echo "4️⃣ 正在安装适合 Node 20 的官方标准包管理器 pnpm@9..."
-rm -rf /root/.local/share/pnpm 2>/dev/null || true
-npm install -g pnpm@9 --registry=https://registry.npmmirror.com --no-audit --no-fund
+# 4. 安装 Node 22 官方匹配的 pnpm 11+ 包管理器并安装核心依赖
+echo "4️⃣ 正在安装匹配 Node 22 的官方标准包管理器 pnpm 并安装核心依赖..."
+npm install -g pnpm --registry=https://registry.npmmirror.com --no-audit --no-fund
 echo "🟢 pnpm 版本: $(pnpm -v)"
 
 pnpm install --registry=https://registry.npmmirror.com
