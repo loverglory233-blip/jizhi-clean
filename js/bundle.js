@@ -1282,16 +1282,28 @@
         return arr;
       };
 
-      // 智能分块：确保没有任何小组仅有 1 人（若余数为 1，并入上一小组）
+      // 智能均分算法：优先拆成 2 人组，严禁出现单人组，严格不超过目标人数（如选3人绝不产生4人组）
       const partition = (list, targetSize) => {
-        const chunks = [];
-        for (let i = 0; i < list.length; i += targetSize) {
-          chunks.push(list.slice(i, i + targetSize));
+        const N = list.length;
+        if (N <= 0) return [];
+        if (N <= 2) return [list];
+
+        // 计算最佳组数 K：令平均每组人数最接近 targetSize，且每组至少 2 人
+        let K = Math.ceil(N / targetSize);
+        if (Math.floor(N / K) < 2) {
+          K = Math.floor(N / 2);
         }
-        // 🛡️ 严禁单人组：若最后一组仅有 1 人且存在前面小组，合并至前一小组（变为 targetSize + 1 人）
-        if (chunks.length > 1 && chunks[chunks.length - 1].length === 1) {
-          const lastSingle = chunks.pop()[0];
-          chunks[chunks.length - 1].push(lastSingle);
+        if (K <= 1) return [list];
+
+        const base = Math.floor(N / K);
+        const rem = N % K;
+
+        const chunks = [];
+        let cursor = 0;
+        for (let k = 0; k < K; k++) {
+          const count = base + (k < rem ? 1 : 0);
+          chunks.push(list.slice(cursor, cursor + count));
+          cursor += count;
         }
         return chunks;
       };
