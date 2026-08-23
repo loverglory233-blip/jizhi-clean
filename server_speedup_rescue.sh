@@ -39,6 +39,24 @@ fi
 chown -R www:www /www/server/phpmyadmin 2>/dev/null || true
 chmod -R 755 /www/server/phpmyadmin 2>/dev/null || true
 
+# 自动将宝塔面板中站点类型从【静态】切换为【PHP-XX】
+echo "🟢 2.2 自动将宝塔面板中 47.99.110.230 站点属性从【静态】升级为【PHP-$ACTIVE_PHP_VER】..."
+python3 -c "
+import sqlite3, os
+db_path = '/www/server/panel/data/default.db'
+php_v = '$ACTIVE_PHP_VER'
+if os.path.exists(db_path) and php_v:
+    try:
+        conn = sqlite3.connect(db_path)
+        c = conn.cursor()
+        c.execute(\"UPDATE sites SET version = ? WHERE name = '47.99.110.230' OR name = 'jizhiedu.top'\", (php_v,))
+        conn.commit()
+        conn.close()
+        print('   ✅ 宝塔数据库已成功将站点从【静态】升级绑定至【PHP-' + php_v + '】！')
+    except Exception as e:
+        print('   ⚠️ 自动更新宝塔 SQLite 异常:', e)
+" 2>/dev/null || true
+
 echo "🟢 3. 检查并平滑重载 Nginx..."
 /etc/init.d/nginx reload 2>/dev/null || nginx -s reload 2>/dev/null || systemctl reload nginx 2>/dev/null || /etc/init.d/nginx start 2>/dev/null || true
 
