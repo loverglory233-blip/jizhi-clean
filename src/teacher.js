@@ -9,8 +9,8 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260823_v142";
-import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman } from "./utils.js?v=20260823_v142";
+} from "./constants.js?v=20260823_v143";
+import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman } from "./utils.js?v=20260823_v143";
 
 /* ==========================================================================
    7. TEACHER PORTAL RENDERER (LIVE WORKSPACE MIRROR & ANNOUNCEMENT READ MATRIX)
@@ -794,7 +794,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
                     <!-- 💡 组员初始学术提案全景展台 (含AI拍卖师点评与得票) -->
                     <div style="background:#f8fafc; border:1px solid #bfdbfe; border-radius:10px; padding:12px 14px;">
                       <div style="font-size:13px; font-weight:800; color:#1e40af; margin-bottom:8px; display:flex; justify-content:space-between; align-items:center;">
-                        <span>💡 组员初始学术提案展台 (${(state.stage1?.proposals || []).length}/${totalMembersCount} 人已提交):</span>
+                        <span>💡 组员初始学术提案展台 (${(state.stage1?.proposals || []).length}/${monitorMembersList.length || 3} 人已提交):</span>
                         <span style="font-size:11px; background:#eff6ff; color:#2563eb; padding:2px 8px; border-radius:6px; font-weight:700;">共投 ${(Object.values(state.stage1?.hasVoted || {}).filter(Boolean)).length} 票</span>
                       </div>
                       <div style="display:flex; flex-direction:column; gap:8px;">
