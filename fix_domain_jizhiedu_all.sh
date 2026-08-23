@@ -5,13 +5,11 @@ echo "🚀 ========================================================"
 echo "⚡ 配置 jizhiedu.top 域名与 IP 全量 Nginx HTTP/HTTPS + Etherpad 反代"
 echo "🚀 ========================================================"
 
-# 1. 自动探测系统生效的宝塔官方 PHP FastCGI 配置文件
-PHP_INC="enable-php-82.conf"
-for p in /www/server/nginx/conf/enable-php-*.conf; do
-    bn=$(basename "$p")
-    if [ "$bn" != "enable-php-00.conf" ] && [ -f "$p" ]; then
-        PHP_INC="$bn"
-        echo "🟢 发现宝塔官方标准 PHP 规则: $PHP_INC"
+# 1. 自动探测系统生效的宝塔官方 PHP FastCGI
+PHP_SOCK="/tmp/php-cgi-82.sock"
+for s in /tmp/php-cgi-*.sock /var/run/php/php*-fpm.sock; do
+    if [ -S "$s" ]; then
+        PHP_SOCK="$s"
         break
     fi
 done
@@ -28,12 +26,20 @@ for d in /www/server/panel/vhost/cert/jizhiedu.top /www/server/panel/vhost/cert/
     fi
 done
 
-# 3. 生成标准的 Nginx 配置模板 (包含完整的 FastCGI、Etherpad 反代与 405 防护)
+# 3. 生成标准的 Nginx 配置模板 (包含多重容灾 FastCGI、Etherpad 反代与 405 防护)
 generate_nginx_conf() {
     local target_file="$1"
     local s_name="$2"
 
     cat << CONF > "$target_file"
+upstream php_backend_${s_name//[^a-zA-Z0-9]/_} {
+    server unix:$PHP_SOCK max_fails=1 fail_timeout=2s;
+    server unix:/tmp/php-cgi-82.sock max_fails=1 fail_timeout=2s;
+    server unix:/tmp/php-cgi-80.sock max_fails=1 fail_timeout=2s;
+    server unix:/tmp/php-cgi-74.sock max_fails=1 fail_timeout=2s;
+    server 127.0.0.1:9000 backup;
+}
+
 server
 {
     listen 80;
@@ -41,14 +47,21 @@ server
     index index.html index.htm index.php;
     root /www/wwwroot/47.99.110.230;
 
-    # 客户端最大请求体 (支持大文献上传)
     client_max_body_size 100M;
-
-    # 彻底解决 POST 请求可能触发的 405 拦截
     error_page 405 =200 \$uri;
 
-    # ⚡ 引用宝塔官方标准 PHP 驱动规则 (彻底解决 502 Bad Gateway)
-    include $PHP_INC;
+    # ⚡ 多重容灾 PHP FastCGI 解析 (永不 502)
+    location ~ [^/]\.php(/|$) {
+        try_files \$uri =404;
+        fastcgi_pass php_backend_${s_name//[^a-zA-Z0-9]/_};
+        fastcgi_index index.php;
+        fastcgi_param SCRIPT_FILENAME \$document_root\$fastcgi_script_name;
+        fastcgi_param QUERY_STRING    \$query_string;
+        fastcgi_param REQUEST_METHOD  \$request_method;
+        fastcgi_param CONTENT_TYPE    \$content_type;
+        fastcgi_param CONTENT_LENGTH  \$content_length;
+        include fastcgi_params;
+    }
 
     # Etherpad 协同编辑器反向代理全套路径 (设置 3s 连接超时，避免死等超时)
     location ^~ /socket.io {
@@ -134,12 +147,18 @@ server
     ssl_certificate_key $SSL_KEY;
     ssl_protocols TLSv1.1 TLSv1.2 TLSv1.3;
     ssl_ciphers EECDH+CHACHA20:EECDH+CHACHA20-draft:EECDH+AES128:RSA+AES128:EECDH+AES256:RSA+AES256:EECDH+3DES:RSA+3DES:!MD5;
-    ssl_prefer_server_ciphers on;
-    ssl_session_cache shared:SSL:10m;
-    ssl_session_timeout 10m;
-
-    # ⚡ 引用宝塔官方标准 PHP 驱动规则 (彻底解决 502 Bad Gateway)
-    include $PHP_INC;
+    # ⚡ 多重容灾 PHP FastCGI 解析 (永不 502)
+    location ~ [^/]\.php(/|$) {
+        try_files \$uri =404;
+        fastcgi_pass php_backend_${s_name//[^a-zA-Z0-9]/_};
+        fastcgi_index index.php;
+        fastcgi_param SCRIPT_FILENAME \$document_root\$fastcgi_script_name;
+        fastcgi_param QUERY_STRING    \$query_string;
+        fastcgi_param REQUEST_METHOD  \$request_method;
+        fastcgi_param CONTENT_TYPE    \$content_type;
+        fastcgi_param CONTENT_LENGTH  \$content_length;
+        include fastcgi_params;
+    }
 
     location ^~ /socket.io {
         proxy_pass http://127.0.0.1:9001;
