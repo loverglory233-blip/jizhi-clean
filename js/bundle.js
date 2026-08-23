@@ -10685,6 +10685,18 @@
             }
           }
 
+          const currUserObj = (this.authManager) ? this.authManager.getCurrentUser() : null;
+          if (!this.state.presence) this.state.presence = {};
+          const myKeys = [user, currUserObj?.id, currUserObj?.studentCode, currUserObj?.username, currUserObj?.name].filter(Boolean);
+          const nowMs = Date.now();
+          myKeys.forEach(k => {
+            this.state.presence[k] = {
+              nodeIndex: 0,
+              activeSection: '正在撰写正文',
+              updatedAt: nowMs
+            };
+          });
+
           // 🚀 极致性能：打字期间防抖 600ms 后才执行网络快照推送与重型正则分析，保证按键 0 延迟、0 掉帧
           if (this._contentSyncDebounceTimer) {
             clearTimeout(this._contentSyncDebounceTimer);
