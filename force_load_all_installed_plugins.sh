@@ -114,8 +114,10 @@ exports.update = async () => {
     hooks.plugins = plugins;
     hooks.parts = parts;
     hooks.hooks = {};
-    for (const part of Object.values(parts)) {
-      if (part.hooks) shared.extractHooks(part, "hooks", hooks.hooks);
+    try {
+      shared.extractHooks(Object.values(parts), "hooks", hooks.hooks);
+    } catch(err) {
+      console.warn("extractHooks error:", err.message);
     }
   }
 
