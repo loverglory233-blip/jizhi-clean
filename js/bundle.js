@@ -10783,18 +10783,27 @@
           const proposals = s1.proposals || [];
           const logs = (this.state.chatLogs && this.state.chatLogs.stage1) || [];
           const userLogs = logs.filter(m => m.sender && !['auctioneer', 'editor', 'system'].includes(m.sender));
+          const members = Object.values(this.state.members || {});
+          const totalMembersCount = members.length || 3;
 
-          // 🛡️ 严格教学门禁：必须要有小组成员的真实研讨记录（至少 3 条发言）或已提交提案
-          if (proposals.length === 0 && userLogs.length < 3) {
-            alert('💡 【协同研讨提示】：小组成员尚未在讨论区展开真实的选题研讨或提交提案。\n\n请大家先在右侧协同对话区商讨各自的研究切入点、章节分工意向与时间安排（小组成员也可不点击提炼，直接在左侧输入框中自主分工编辑）！');
+          // 拼接全部学生研讨文本
+          const chatSnippet = userLogs.map(m => `${m.senderName || m.sender}: ${m.text}`).join('\n');
+
+          // 🛡️ 严格教学门禁：检查是否展开了真实的选题与分工学术研讨
+          const academicKeywords = ['负责', '我来', '我写', '分工', '选题', '题目', '提案', '背景', '综述', '假设', '方法', '问卷', '数据', '反思', '文献', '时间', '分钟', '同意', '赞同', '可以', '选这个', '定这个'];
+          const hasRealDiscussion = academicKeywords.some(kw => chatSnippet.includes(kw));
+
+          if (proposals.length === 0 || !hasRealDiscussion || userLogs.length < 3) {
+            alert('💡 【协同研讨提示】：小组成员尚未在讨论区展开实质性的选题与章节分工研讨。\n\n请大家先在右侧协同对话区商讨各自负责的章节（例如“我写背景和综述”、“我负责研究方法与问卷设计”）与时间安排。\n\n👉 提示：小组成员也可不点击提炼，直接在左侧输入框中自主分工编辑！');
             return;
           }
 
-          // 1. 提炼融合研究主题（分析投票分布与分歧）
+          // 1. 提炼融合研究主题（区分【全票一致】与【分歧协商】）
           const tally = {};
           Object.values(s1.votes || {}).forEach(pId => { if (pId) tally[pId] = (tally[pId] || 0) + 1; });
           let winningP = null;
           let maxV = 0;
+          let isUnanimous = false;
           let isTieOrDivergence = false;
 
           proposals.forEach(p => {
@@ -10808,29 +10817,33 @@
             }
           });
 
-          // 拼接最近研讨记录文本
-          const chatSnippet = userLogs.slice(-15).map(m => `${m.senderName || m.sender}: ${m.text}`).join('\n');
+          if (winningP && maxV >= totalMembersCount && totalMembersCount > 0) {
+            isUnanimous = true;
+          }
 
           let determinedTopic = '';
-          if (winningP && !isTieOrDivergence) {
-            // 票数有明显最高者 ➔ 直接采用最高票提案
+          let topicDecisionReason = '';
+
+          if (isUnanimous && winningP) {
+            // 🏆 模式一：全票一致达成共识
             determinedTopic = winningP.title;
-          } else if (isTieOrDivergence || !winningP) {
-            // 存在分歧或平票 ➔ 深度读取聊天记录中大家最终协商达成一致的主题
+            topicDecisionReason = `🎉 小组成员以 ${maxV}/${totalMembersCount} 全票一致通过该选题！`;
+          } else {
+            // ⚖️ 模式二：存在分歧/平票 ➔ 深度读取研讨流中大家最终协商达成一致的题目
             const matchedFromChat = proposals.find(p => chatSnippet.includes(p.title));
-            determinedTopic = matchedFromChat ? matchedFromChat.title : (proposals[0] ? proposals[0].title : '');
+            determinedTopic = matchedFromChat ? matchedFromChat.title : (winningP ? winningP.title : (proposals[0] ? proposals[0].title : ''));
+            topicDecisionReason = `⚖️ 投票存在不同意见，已深度读取研讨记录中大家最终商定的共识选题。`;
           }
 
           if (!s1.mergedTitle || s1.mergedTitle.trim().length === 0) {
             s1.mergedTitle = determinedTopic || '待组员协商填入融合主题';
           }
 
-          // 2. 根据聊天记录智能提取各成员认领的章节分工
+          // 2. 深度读取研讨流，支持 3 大真实语言模式提取分工
           s1.contract.isDraftGenerated = true;
           s1.contract._draftedTime = Date.now();
           if (!s1.contract.taskAssignments) s1.contract.taskAssignments = {};
 
-          const members = Object.values(this.state.members || {});
           const defaultChapterTasks = [
             '负责“一、研究背景与意义”及“二、文献综述”起草与资料整理',
             '负责“三、研究问题与假设”及“四、研究设计与方法”方案制定',
@@ -10839,19 +10852,43 @@
           ];
 
           members.forEach((m, idx) => {
-            // 扫描该组员在讨论区是否明确表达过认领哪一章
             let assignedTask = '';
-            const myMsgs = userLogs.filter(msg => msg.sender === m.id || msg.sender === m.studentCode || msg.senderName === m.name);
+            const myName = m.name || '';
+            const myCode = m.studentCode || m.id || '';
+
+            // 模式 A：本人主动认领发言 ("蒋诚真: 我来写背景和综述")
+            const myMsgs = userLogs.filter(msg => msg.sender === m.id || msg.sender === myCode || (myName && msg.senderName === myName));
             const myText = myMsgs.map(msg => msg.text || '').join(' ');
 
-            if (myText.includes('背景') || myText.includes('综述') || myText.includes('前言')) {
-              assignedTask = '负责“一、研究背景与意义”及“二、文献综述”起草与资料整理';
-            } else if (myText.includes('假设') || myText.includes('方法') || myText.includes('设计') || myText.includes('实验')) {
-              assignedTask = '负责“三、研究问题与假设”及“四、研究设计与方法”方案制定';
-            } else if (myText.includes('反思') || myText.includes('不足') || myText.includes('文献') || myText.includes('校对')) {
-              assignedTask = '负责“五、不足与反思”撰写及全篇“六、参考文献”引文校对';
-            } else if (myText.includes('数据') || myText.includes('问卷') || myText.includes('量表') || myText.includes('模型')) {
-              assignedTask = '负责数据分析模型构建与研究工具问卷设计';
+            // 模式 B：同伴统筹分配/总结发言 ("杨欣如: 诚真负责第二章，我负责设计")
+            const mentionPattern = new RegExp(`(?:${myName}|${myCode})[\\s:：负责来做写]*(?:“|【)?([^，。,.\n]+)`, 'g');
+            let mentionMatch = null;
+            if (myName) {
+              userLogs.forEach(msg => {
+                if (msg.text && msg.text.includes(myName)) {
+                  if (msg.text.includes('背景') || msg.text.includes('综述') || msg.text.includes('前言')) {
+                    assignedTask = '负责“一、研究背景与意义”及“二、文献综述”起草与资料整理';
+                  } else if (msg.text.includes('假设') || msg.text.includes('方法') || msg.text.includes('设计') || msg.text.includes('问卷')) {
+                    assignedTask = '负责“三、研究问题与假设”及“四、研究设计与方法”方案制定';
+                  } else if (msg.text.includes('反思') || msg.text.includes('不足') || msg.text.includes('文献') || msg.text.includes('校对')) {
+                    assignedTask = '负责“五、不足与反思”撰写及全篇“六、参考文献”引文校对';
+                  } else if (msg.text.includes('数据') || msg.text.includes('量表') || msg.text.includes('模型')) {
+                    assignedTask = '负责数据分析模型构建与研究工具问卷设计';
+                  }
+                }
+              });
+            }
+
+            if (!assignedTask) {
+              if (myText.includes('背景') || myText.includes('综述') || myText.includes('前言')) {
+                assignedTask = '负责“一、研究背景与意义”及“二、文献综述”起草与资料整理';
+              } else if (myText.includes('假设') || myText.includes('方法') || myText.includes('设计') || myText.includes('实验')) {
+                assignedTask = '负责“三、研究问题与假设”及“四、研究设计与方法”方案制定';
+              } else if (myText.includes('反思') || myText.includes('不足') || myText.includes('文献') || myText.includes('校对')) {
+                assignedTask = '负责“五、不足与反思”撰写及全篇“六、参考文献”引文校对';
+              } else if (myText.includes('数据') || myText.includes('问卷') || myText.includes('量表') || myText.includes('模型')) {
+                assignedTask = '负责数据分析模型构建与研究工具问卷设计';
+              }
             }
 
             if (!assignedTask) {
@@ -10862,7 +10899,7 @@
             if (m.studentCode) s1.contract.taskAssignments[m.studentCode] = assignedTask;
           });
 
-          // 3. 初始时间规划（提取或使用合理基准）
+          // 3. 初始时间规划
           if (!s1.contract.timeAllocations) {
             s1.contract.timeAllocations = { background: 25, literature: 30, questions: 25, method: 40, reflection: 20, references: 10 };
           }
@@ -10871,10 +10908,10 @@
           if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
           this.renderCanvas();
 
-          // 4. 拍卖师在聊天区发布温馨引导播报
+          // 4. 拍卖师在聊天区发布权威引导播报
           const draftNoticeMsg = {
             sender: 'auctioneer',
-            text: `✨ 【拍卖师·已基于研讨记录提炼公约草案】\n已深度读取大家的研讨发言与选题投票结果，生成《团队协同合作学术合约草案》！\n\n📌 **融合研究主题**：《${s1.mergedTitle}》\n👉 **请组员仔细核查左侧分工与时间预算**：\n• 若与实际商议有出入，每位同学均可**直接在输入框中自主微调修改**；\n• 小组成员也可以不依赖提炼，完全自主在左侧分工填写；\n✍️ 确认无误后，全员点击【确认签署公约】即可正式生效并解锁阶段二！`,
+            text: `✨ 【拍卖师·已基于研讨记录深度提炼公约草案】\n已深度读取大家的学术研讨发言与选题投票结果，生成《团队协同合作学术合约草案》！\n\n📌 **融合研究主题**：《${s1.mergedTitle}》\n💡 **决策依据**：${topicDecisionReason}\n👉 **请组员仔细核查左侧分工与时间预算**：\n• 若与实际商议有出入，每位同学均可**直接在输入框中自主微调修改**；\n• 小组成员也可以不依赖提炼，完全自主在左侧分工填写；\n✍️ 确认无误后，全员点击【确认签署公约】即可正式生效并解锁阶段二！`,
             timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
             _timeMs: Date.now()
           };
