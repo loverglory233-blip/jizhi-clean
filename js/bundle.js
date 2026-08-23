@@ -608,7 +608,40 @@
               localStorage.setItem(STORAGE_KEY_TASKS, JSON.stringify(data.tasks));
             }
             if (Array.isArray(data.announcements)) {
-              localStorage.setItem(STORAGE_KEY_ANNOUNCEMENTS, JSON.stringify(data.announcements));
+              const localAnns = JSON.parse(localStorage.getItem(STORAGE_KEY_ANNOUNCEMENTS) || '[]');
+              const localMap = new Map();
+              localAnns.forEach(a => { if (a && a.id) localMap.set(a.id, a); });
+
+              const mergedAnns = data.announcements.map(remoteAnn => {
+                const localAnn = localMap.get(remoteAnn.id);
+                if (!localAnn) return remoteAnn;
+
+                // 🛡️ 智能合并已读状态与确认成员，绝不反向冲刷本地已读标记！
+                const mergedReadStatus = { ...(remoteAnn.readStatus || {}), ...(localAnn.readStatus || {}) };
+                const mergedGroupStatus = { ...(remoteAnn.readGroupStatus || {}), ...(localAnn.readGroupStatus || {}) };
+
+                const confMembersMap = new Map();
+                (remoteAnn.confirmedMembers || []).forEach(m => {
+                  if (m) {
+                    const k = m.id || m.studentCode || m.name;
+                    if (k) confMembersMap.set(k, m);
+                  }
+                });
+                (localAnn.confirmedMembers || []).forEach(m => {
+                  if (m) {
+                    const k = m.id || m.studentCode || m.name;
+                    if (k) confMembersMap.set(k, m);
+                  }
+                });
+
+                return {
+                  ...remoteAnn,
+                  readStatus: mergedReadStatus,
+                  readGroupStatus: mergedGroupStatus,
+                  confirmedMembers: Array.from(confMembersMap.values())
+                };
+              });
+              localStorage.setItem(STORAGE_KEY_ANNOUNCEMENTS, JSON.stringify(mergedAnns));
             }
             if (Array.isArray(data.referencePapers)) {
               localStorage.setItem('jizhi_reference_papers_db', JSON.stringify(data.referencePapers));
