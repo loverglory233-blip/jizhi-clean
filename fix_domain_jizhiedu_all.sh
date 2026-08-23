@@ -5,20 +5,12 @@ echo "🚀 ========================================================"
 echo "⚡ 配置 jizhiedu.top 域名与 IP 全量 Nginx HTTP/HTTPS + Etherpad 反代"
 echo "🚀 ========================================================"
 
-# 1. 自动探测系统生效的 PHP 配置与 FastCGI Sock
-PHP_CONF="enable-php-82.conf"
+# 1. 自动探测系统生效的 FastCGI Sock 与 PHP 配置文件
 PHP_SOCK="/tmp/php-cgi-82.sock"
-for s in /tmp/php-cgi-*.sock; do
+for s in /tmp/php-cgi-*.sock /var/run/php/php*-fpm.sock; do
     if [ -S "$s" ]; then
         PHP_SOCK="$s"
-        echo "🟢 发现有效 PHP Socket: $PHP_SOCK"
-        break
-    fi
-done
-for p in /www/server/nginx/conf/enable-php-*.conf; do
-    if [ -f "$p" ]; then
-        PHP_CONF=$(basename "$p")
-        echo "🟢 发现有效 PHP 配置: $PHP_CONF"
+        echo "🟢 发现有效 PHP FastCGI Socket: $PHP_SOCK"
         break
     fi
 done
@@ -35,7 +27,7 @@ for d in /www/server/panel/vhost/cert/jizhiedu.top /www/server/panel/vhost/cert/
     fi
 done
 
-# 3. 生成标准的 Nginx 配置模板 (包含完整的 Etherpad 反代与 3秒极速连接超时)
+# 3. 生成标准的 Nginx 配置模板 (包含完整的 FastCGI、Etherpad 反代与 405 防护)
 generate_nginx_conf() {
     local target_file="$1"
     local s_name="$2"
@@ -48,22 +40,26 @@ server
     index index.html index.htm index.php;
     root /www/wwwroot/47.99.110.230;
 
-    # 彻底解决 POST 请求被 Nginx 报 405 Not Allowed 的问题
+    # 客户端最大请求体 (支持大文献上传)
+    client_max_body_size 100M;
+
+    # 彻底解决 POST 请求可能触发的 405 拦截
     error_page 405 =200 \$uri;
 
-    # 显式 FastCGI 处理所有 PHP 请求
+    # ⚡ 工业级标准 PHP FastCGI 解析 (支持 GET/POST/OPTIONS/PUT/DELETE)
     location ~ [^/]\.php(/|$) {
         try_files \$uri =404;
         fastcgi_pass unix:$PHP_SOCK;
         fastcgi_index index.php;
         fastcgi_param SCRIPT_FILENAME \$document_root\$fastcgi_script_name;
+        fastcgi_param QUERY_STRING    \$query_string;
+        fastcgi_param REQUEST_METHOD  \$request_method;
+        fastcgi_param CONTENT_TYPE    \$content_type;
+        fastcgi_param CONTENT_LENGTH  \$content_length;
         include fastcgi_params;
-        include fastcgi.conf;
     }
 
-    include $PHP_CONF;
-
-    # Etherpad 反向代理全套路径 (设置 3s 连接超时，避免死等超时)
+    # Etherpad 协同编辑器反向代理全套路径 (设置 3s 连接超时，避免死等超时)
     location ^~ /socket.io {
         proxy_pass http://127.0.0.1:9001;
         proxy_set_header Upgrade \$http_upgrade;
@@ -118,6 +114,11 @@ server
         proxy_pass http://127.0.0.1:9001;
         proxy_set_header Host \$host;
         proxy_connect_timeout 3s;
+    }
+
+    # 默认静态资源与单页应用路由
+    location / {
+        try_files \$uri \$uri/ /index.html;
     }
 
     access_log /www/wwwlogs/jizhi_access.log;
@@ -135,6 +136,9 @@ server
     index index.html index.htm index.php;
     root /www/wwwroot/47.99.110.230;
 
+    client_max_body_size 100M;
+    error_page 405 =200 \$uri;
+
     ssl_certificate $SSL_CERT;
     ssl_certificate_key $SSL_KEY;
     ssl_protocols TLSv1.1 TLSv1.2 TLSv1.3;
@@ -143,20 +147,18 @@ server
     ssl_session_cache shared:SSL:10m;
     ssl_session_timeout 10m;
 
-    # 彻底解决 POST 请求被 Nginx 报 405 Not Allowed 的问题
-    error_page 405 =200 \$uri;
-
-    # 显式 FastCGI 处理所有 PHP 请求
+    # ⚡ 工业级标准 PHP FastCGI 解析 (支持 GET/POST/OPTIONS/PUT/DELETE)
     location ~ [^/]\.php(/|$) {
         try_files \$uri =404;
         fastcgi_pass unix:$PHP_SOCK;
         fastcgi_index index.php;
         fastcgi_param SCRIPT_FILENAME \$document_root\$fastcgi_script_name;
+        fastcgi_param QUERY_STRING    \$query_string;
+        fastcgi_param REQUEST_METHOD  \$request_method;
+        fastcgi_param CONTENT_TYPE    \$content_type;
+        fastcgi_param CONTENT_LENGTH  \$content_length;
         include fastcgi_params;
-        include fastcgi.conf;
     }
-
-    include $PHP_CONF;
 
     location ^~ /socket.io {
         proxy_pass http://127.0.0.1:9001;
@@ -212,6 +214,10 @@ server
         proxy_pass http://127.0.0.1:9001;
         proxy_set_header Host \$host;
         proxy_connect_timeout 3s;
+    }
+
+    location / {
+        try_files \$uri \$uri/ /index.html;
     }
 
     access_log /www/wwwlogs/jizhi_access.log;
