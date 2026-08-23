@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260823_v127";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired } from "./utils.js?v=20260823_v127";
-import { callCozeAgentAPI } from "./agents.js?v=20260823_v127";
-import { AuthManager } from "./auth.js?v=20260823_v127";
-import { CloudSyncEngine } from "./sync.js?v=20260823_v127";
-import { renderLoginView } from "./login.js?v=20260823_v127";
-import { renderTeacherPortal } from "./teacher.js?v=20260823_v127";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260823_v127";
+} from "./constants.js?v=20260823_v128";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired } from "./utils.js?v=20260823_v128";
+import { callCozeAgentAPI } from "./agents.js?v=20260823_v128";
+import { AuthManager } from "./auth.js?v=20260823_v128";
+import { CloudSyncEngine } from "./sync.js?v=20260823_v128";
+import { renderLoginView } from "./login.js?v=20260823_v128";
+import { renderTeacherPortal } from "./teacher.js?v=20260823_v128";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260823_v128";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260823_v127";
+} from "./editor.js?v=20260823_v128";
 
 // Make renderChat available on window for sync callbacks
 if (typeof window !== "undefined") {
@@ -2484,64 +2484,65 @@ ${propText}
         this.syncStage1();
       },
       onAiGenerateContract: () => {
-        const s1 = this.state.stage1;
+        const s1 = this.state.stage1 || {};
+        const proposals = s1.proposals || [];
+        const logs = (this.state.chatLogs && this.state.chatLogs.stage1) || [];
+        const userLogs = logs.filter(m => m.sender && !['auctioneer', 'editor', 'system'].includes(m.sender));
+
+        // 🛡️ 严格教学门禁：如果小组成员尚未提交提案且尚未在讨论区研讨，弹窗提示先商讨！
+        if (proposals.length === 0 && userLogs.length < 2) {
+          alert('💡 【协同提示】：小组成员尚未在讨论区展开选题研讨或提交提案。\n\n请大家先在右侧协同对话区商讨选题意向，并在上方【竞拍提案池】提交各自的选题提案后再点击提炼公约草案！');
+          return;
+        }
+
+        // 1. 提炼真实得票最高或大家协商一致的选题
+        const tally = {};
+        Object.values(s1.votes || {}).forEach(pId => { if (pId) tally[pId] = (tally[pId] || 0) + 1; });
+        let winningP = null;
+        let maxV = -1;
+        proposals.forEach(p => {
+          const cnt = tally[p.id] || 0;
+          if (cnt > maxV) { maxV = cnt; winningP = p; }
+        });
+
+        const selectedTitle = winningP ? winningP.title : (proposals[0] ? proposals[0].title : '');
+        if (!s1.mergedTitle || s1.mergedTitle.trim().length === 0) {
+          s1.mergedTitle = selectedTitle;
+        }
+
+        // 2. 根据全组真实成员生成合理的分工建议
         s1.contract.isDraftGenerated = true;
         s1.contract._draftedTime = Date.now();
         if (!s1.contract.taskAssignments) s1.contract.taskAssignments = {};
-
-        // 1. 提炼最高票选题作为融合研究主题
-        if (!s1.mergedTitle || s1.mergedTitle.trim().length === 0) {
-          const tally = {};
-          Object.values(s1.votes || {}).forEach(pId => { if (pId) tally[pId] = (tally[pId] || 0) + 1; });
-          let winningP = null;
-          let maxV = -1;
-          (s1.proposals || []).forEach(p => {
-            const cnt = tally[p.id] || 0;
-            if (cnt > maxV) { maxV = cnt; winningP = p; }
-          });
-          s1.mergedTitle = winningP ? winningP.title : ((s1.proposals && s1.proposals[0]) ? s1.proposals[0].title : '基于多智能体协同的学术论文写作与研究设计方案');
-        }
-
-        // 2. 提炼 6 大章节的分工安排
-        const defaultTasks = [
+        
+        const chapterTasks = [
           '负责“一、研究背景与意义”及“二、文献综述”起草与资料整理',
           '负责“三、研究问题与假设”及“四、研究设计与方法”方案制定',
           '负责“五、不足与反思”撰写及全篇“六、参考文献”引文校对',
           '负责数据分析模型构建与研究工具问卷设计'
         ];
         Object.values(this.state.members || {}).forEach((m, idx) => {
-          const taskStr = defaultTasks[idx % defaultTasks.length] || '协作撰写与统稿';
-          s1.contract.taskAssignments[m.id] = taskStr;
-          if (m.studentCode) s1.contract.taskAssignments[m.studentCode] = taskStr;
-        });
-
-        // 3. 提炼各模块时间规划
-        s1.contract.timeAllocations = { background: 25, literature: 30, questions: 25, method: 40, reflection: 20, references: 10 };
-        
-        // 4. 填入输入框并立即同步云端与重新渲染
-        const topicInp = document.getElementById('contract-topic-input');
-        if (topicInp) topicInp.value = s1.mergedTitle;
-
-        document.querySelectorAll('.task-assignment-input').forEach(inp => {
-          const mId = inp.dataset.mkey || inp.dataset.mid || inp.dataset.code;
-          const val = s1.contract.taskAssignments[mId] || '';
-          inp.value = val;
-        });
-        document.querySelectorAll('.contract-time-input').forEach(inp => {
-          const k = inp.dataset.key;
-          if (k && s1.contract.timeAllocations[k] !== undefined) {
-            inp.value = s1.contract.timeAllocations[k];
+          if (!s1.contract.taskAssignments[m.id]) {
+            s1.contract.taskAssignments[m.id] = chapterTasks[idx % chapterTasks.length] || '协作撰写与统稿';
+          }
+          if (m.studentCode && !s1.contract.taskAssignments[m.studentCode]) {
+            s1.contract.taskAssignments[m.studentCode] = s1.contract.taskAssignments[m.id];
           }
         });
+
+        // 3. 初始时间规划
+        if (!s1.contract.timeAllocations) {
+          s1.contract.timeAllocations = { background: 25, literature: 30, questions: 25, method: 40, reflection: 20, references: 10 };
+        }
 
         this.syncStage1();
         if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
         this.renderCanvas();
 
-        // 5. 拍卖师在聊天区提示学生去检查并微调修改
+        // 4. 拍卖师在聊天区提示学生去检查并微调修改
         const draftNoticeMsg = {
           sender: 'auctioneer',
-          text: `✨ 【拍卖师·公约草案已生成】\n已基于大家的研讨共识与投票结果生成《团队协同合作学术合约草案》！\n\n👉 **请各位组员在左侧仔细检查确认各项研究模块的分工与时间预算，可直接在输入框中自主微调修改**；\n✍️ 确认无误后，请每位成员点击【确认签署公约】，全员签署后公约正式生效并解锁阶段二！`,
+          text: `✨ 【拍卖师·已提炼研讨共识生成公约草案】\n已基于小组在讨论区的研讨与选题投票结果生成了公约草案！\n\n👉 融合研究主题确立为：《${s1.mergedTitle || '未命名主题'}》\n👉 请组员仔细核对各自的分工与时间预算，可直接在输入框中继续微调协商；确认无误后全员点击【确认签署公约】即可正式生效！`,
           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
           _timeMs: Date.now()
         };
