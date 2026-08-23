@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260823_v17";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired } from "./utils.js?v=20260823_v17";
-import { callCozeAgentAPI } from "./agents.js?v=20260823_v17";
-import { AuthManager } from "./auth.js?v=20260823_v17";
-import { CloudSyncEngine } from "./sync.js?v=20260823_v17";
-import { renderLoginView } from "./login.js?v=20260823_v17";
-import { renderTeacherPortal } from "./teacher.js?v=20260823_v17";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260823_v17";
+} from "./constants.js?v=20260823_v18";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired } from "./utils.js?v=20260823_v18";
+import { callCozeAgentAPI } from "./agents.js?v=20260823_v18";
+import { AuthManager } from "./auth.js?v=20260823_v18";
+import { CloudSyncEngine } from "./sync.js?v=20260823_v18";
+import { renderLoginView } from "./login.js?v=20260823_v18";
+import { renderTeacherPortal } from "./teacher.js?v=20260823_v18";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260823_v18";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260823_v17";
+} from "./editor.js?v=20260823_v18";
 
 // Make renderChat available on window for sync callbacks
 if (typeof window !== "undefined") {
@@ -1234,10 +1234,18 @@ export class App {
     const allAnns = this.authManager.getAnnouncements();
 
     const isAnnRead = (a) => {
-      if (!a.readStatus) return false;
-      if (currentUser && currentUser.id && a.readStatus[currentUser.id]) return true;
-      if (currentUser && currentUser.studentCode && a.readStatus[currentUser.studentCode]) return true;
-      if (currentUser && currentUser.username && a.readStatus[currentUser.username]) return true;
+      if (!a) return false;
+      if (currentUser) {
+        if (currentUser.id && a.readStatus && a.readStatus[currentUser.id]) return true;
+        if (currentUser.studentCode && a.readStatus && a.readStatus[currentUser.studentCode]) return true;
+        if (currentUser.username && a.readStatus && a.readStatus[currentUser.username]) return true;
+        if (currentUser.name && a.readStatus && a.readStatus[currentUser.name]) return true;
+        if (Array.isArray(a.confirmedMembers)) {
+          if (a.confirmedMembers.some(m => m.id === currentUser.id || m.studentCode === currentUser.studentCode || (currentUser.name && m.name === currentUser.name))) return true;
+        }
+      }
+      if (groupId && a.readGroupStatus && a.readGroupStatus[groupId]) return true;
+      if (groupId && a.readStatus && a.readStatus[groupId]) return true;
       return false;
     };
 
@@ -1305,7 +1313,7 @@ export class App {
             <!-- 多条通知从新到旧快捷切换栏 -->
             <div style="display:flex; gap:8px; overflow-x:auto; padding-bottom:6px;">
               ${myAnns.map((a, idx) => {
-                const isRead = a.readStatus && a.readStatus[groupId];
+                const isRead = isAnnRead(a);
                 const isCurrent = a.id === selectedAnn.id;
                 return `
                   <button class="btn-switch-ann-tab" data-id="${a.id}" style="padding:6px 12px; border-radius:8px; font-size:12px; font-weight:700; cursor:pointer; border:1px solid ${isCurrent ? '#6366f1' : '#e2e8f0'}; background:${isCurrent ? '#eef2ff' : '#ffffff'}; color:${isCurrent ? '#4338ca' : '#64748b'}; white-space:nowrap; display:inline-flex; align-items:center; gap:6px;">
@@ -2005,6 +2013,13 @@ export class App {
   }
 
   async triggerStageWelcomeSpeech(stage) {
+    const currUser = this.authManager ? this.authManager.getCurrentUser() : null;
+    const isTeacher = currUser && (currUser.role === 'teacher' || currUser.isTeacher);
+    // 🛡️ 铁律：教师端后台监控绝不触发智能体开场白生成；仅允许真实学生进入该阶段时生成
+    if (isTeacher || this.state.isTeacherMonitorView || this.state.isTeacherView) {
+      return;
+    }
+
     if (!this.state.chatLogs[stage]) this.state.chatLogs[stage] = [];
     const logs = this.state.chatLogs[stage];
     const now = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });

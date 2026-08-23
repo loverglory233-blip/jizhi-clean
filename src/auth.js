@@ -14,7 +14,7 @@ import {
   DefaultTasks,
   DefaultAnnouncements,
   DefaultReferencePapers
-} from './constants.js?v=20260823_v17';
+} from './constants.js?v=20260823_v18';
 
 export class AuthManager {
   constructor() {
@@ -1155,28 +1155,37 @@ export class AuthManager {
     const announcements = this.getAnnouncements();
     const ann = announcements.find(a => a.id === annId);
     const currUser = this.getCurrentUser();
-    const uKey = currUser ? (currUser.id || currUser.studentCode) : groupId;
     if (ann) {
       if (!ann.readStatus) ann.readStatus = {};
       if (!ann.readGroupStatus) ann.readGroupStatus = {};
       if (!Array.isArray(ann.confirmedMembers)) ann.confirmedMembers = [];
 
-      ann.readStatus[uKey] = true;
-      if (currUser && currUser.studentCode) ann.readStatus[currUser.studentCode] = true;
-      if (currUser && currUser.id) ann.readStatus[currUser.id] = true;
+      if (currUser) {
+        if (currUser.id) ann.readStatus[currUser.id] = true;
+        if (currUser.studentCode) ann.readStatus[currUser.studentCode] = true;
+        if (currUser.username) ann.readStatus[currUser.username] = true;
+        if (currUser.name) ann.readStatus[currUser.name] = true;
 
-      ann.readGroupStatus[groupId] = true;
-      if (currUser && !ann.confirmedMembers.some(m => m.id === currUser.id)) {
-        ann.confirmedMembers.push({
-          id: currUser.id,
-          name: currUser.name || currUser.studentCode || '学生',
-          studentCode: currUser.studentCode || '',
-          groupId: groupId,
-          time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-        });
+        const alreadyIn = ann.confirmedMembers.some(m => m.id === currUser.id || m.studentCode === currUser.studentCode || (currUser.name && m.name === currUser.name));
+        if (!alreadyIn) {
+          ann.confirmedMembers.push({
+            id: currUser.id || currUser.studentCode || ('u_' + Date.now()),
+            name: currUser.name || currUser.studentCode || '学生',
+            studentCode: currUser.studentCode || '',
+            groupId: groupId,
+            time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+          });
+        }
+      }
+
+      if (groupId) {
+        ann.readGroupStatus[groupId] = true;
+        ann.readStatus[groupId] = true;
       }
 
       localStorage.setItem(STORAGE_KEY_ANNOUNCEMENTS, JSON.stringify(announcements));
+      this.pushGlobalMeta();
+
       try {
         fetch('sync.php?action=update_read_status', {
           method: 'POST',
