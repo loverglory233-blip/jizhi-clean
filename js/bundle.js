@@ -7401,16 +7401,16 @@
             }
           }
 
-          // 1. 异步调用扣子拍卖师 API，对该提案做针对性学术评估与全组播报 (120~180字)
+          // 1. 异步调用扣子拍卖师 API，对该提案做针对性学术评估与全组播报 (具体优点 + 针对性启发)
           setTimeout(async () => {
             const isModify = existingIdx >= 0;
             const evalPrompt = isModify
-              ? `小组成员【${authorName}】在学术拍卖会上修改了选题提案，最新题目为《${title}》。请作为学术拍卖师，直接针对《${title}》的具体字面含义与研究切入点，从【🔥 研究看点】、【💡 独特视角】、【🏷️ 竞拍吸睛建议】三个维度发表 100~130 字的真实深度点评，必须具体联系题目字面内容，严禁使用通用模板套话！`
-              : `小组成员【${authorName}】在学术拍卖会上提交了新选题提案《${title}》。请作为学术拍卖师，直接针对《${title}》的具体字面含义与研究切入点，从【🔥 研究看点】、【💡 独特视角】、【🏷️ 竞拍吸睛建议】三个维度发表 100~130 字的真实深度点评，必须具体联系题目字面内容，严禁使用通用模板套话！`;
+              ? `小组成员【${authorName}】在学术拍卖会上修改了选题提案，最新题目为《${title}》。请作为资深学术拍卖师，通读其学科场景与研究构想，给出 120~160 字充实针对性的学术点评：必须先明确肯定该提案最出彩的 1~2 个具体优点，再顺势提出 1 个具体的启发性落地建议（严禁空泛套话，纯自然语言输出）！`
+              : `小组成员【${authorName}】在学术拍卖会上提交了新选题提案《${title}》。请作为资深学术拍卖师，通读其学科场景与研究构想，给出 120~160 字充实针对性的学术点评：必须先明确肯定该提案最出彩的 1~2 个具体优点，再顺势提出 1 个具体的启发性落地建议（严禁空泛套话，纯自然语言输出）！`;
 
             let evalText = await callCozeAgentAPI('auctioneer', evalPrompt, { stage: 'stage1', proposalTitle: title, author: authorName, topic: title });
             if (!evalText || evalText.trim().length === 0) {
-              evalText = `🎪 【拍卖师·选题竞拍看点评估】：收到 ${authorName} 提交的《${title}》！\n🔥 **研究看点**：聚焦于《${title}》所涉及的核心议题；\n💡 **独特视角**：切入视角鲜明，具有探讨与论证空间；\n🏷️ **竞拍建议**：建议全组结合《${title}》深入讨论具体的实施方法，在接下来的投票竞拍中争取更高支持率！`;
+              evalText = `🎪 【拍卖师·提案评估】：收到 ${authorName} 提出的选题《${title}》！该构想切中要害，最大的亮点在于抓准了核心教学与实践痛点，切入视角鲜明！建议后续在研究设计中进一步明确具体的实证环节与变量测量方案，这样在接下来的竞拍讨论中会更具说服力！`;
             }
 
             const auctioneerEvalMsg = {
@@ -7422,13 +7422,22 @@
             };
             state.chatLogs[currentStage].push(auctioneerEvalMsg);
 
-            // 2. 如果全员都已提交提案（3/3），拍卖师主动发话引导全员进入投票环节
-            if (submittedAuthorsCount >= totalMembersCount) {
-              setTimeout(() => {
+            // 2. 当全员提案已集齐时（例如 3/3），调用智能体主动号召“先充分讨论对比方案，再进行竞拍投票”
+            if (submittedAuthorsCount >= totalMembersCount && !s1._agentGatherPrompted) {
+              s1._agentGatherPrompted = true;
+              setTimeout(async () => {
                 const allSubmittedList = (s1.proposals || []).map((p, idx) => `${idx + 1}. 《${p.title}》(${state.members[p.author] ? state.members[p.author].name : p.author})`).join('\n');
+                const gatherContextPrompt = `全组成员的选题提案已全部提交完毕！全员提案清单如下：\n${allSubmittedList}\n请作为学术拍卖师发表 120~150 字的【全员提案集齐·号召先讨论后投票】：\n① 热情呈现全员提案清单，肯定大家活跃的研究视角；\n② 明确引导全组【先不要急于盲目投票】，先在右侧协同对话区充分交流研讨各个提案的研究看点与实施亮点；\n③ 指引大家在研讨达成初步意向后，再点击左侧【🗳️ 投这篇】进行竞拍投票！`;
+
+                let gatherText = await callCozeAgentAPI('auctioneer', gatherContextPrompt, { stage: 'stage1', allProposals: allSubmittedList });
+                if (!gatherText || gatherText.trim().length === 0) {
+                  gatherText = `🎪 【拍卖师·全员提案已集齐·研讨号召】\n全组 ${totalMembersCount} 位成员的选题提案已全部呈现：\n${allSubmittedList}\n\n👉 **请大家先不要急于投票**！请先在右侧协同对话区商讨交流各个方案的研究看点与实施思路；\n💬 **在充分研讨达成初步共识后，再点击左侧【🗳️ 投这篇】进行竞拍投票**！`;
+                }
+
                 const votePromptMsg = {
                   sender: 'auctioneer',
-                  text: `🗳️ 【拍卖师·全员提案集齐 ➔ 开启竞拍投票】\n全组 ${totalMembersCount} 位成员的选题提案已全部陈列在左侧提案池中：\n${allSubmittedList}\n\n👉 **请全组成员点击左侧提案下方的【🗳️ 投这篇】按钮**，投出你宝贵的一票！全员投完后系统将落槌公布计票结果！`,
+                  senderName: '头脑风暴 · 学术拍卖师',
+                  text: gatherText,
                   timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
                   _timeMs: Date.now()
                 };
@@ -7438,7 +7447,7 @@
                   if (window.app.cloudSyncEngine) window.app.cloudSyncEngine.pushSnapshot();
                   renderChat(state);
                 }
-              }, 1000);
+              }, 800);
             }
 
             if (window.app) {
