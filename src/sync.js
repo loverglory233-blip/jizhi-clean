@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState } from './constants.js?v=20260823_v108';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin } from './utils.js?v=20260823_v108';
+import { InitialState } from './constants.js?v=20260823_v109';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin } from './utils.js?v=20260823_v109';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -489,19 +489,17 @@ export class CloudSyncEngine {
 
       if (remoteS1.contract) {
         if (!this.app.state.stage1.contract) this.app.state.stage1.contract = {};
-        if (!isContractInputActive) {
-          if (remoteS1.contract.taskAssignments) {
-            this.app.state.stage1.contract.taskAssignments = {
-              ...(this.app.state.stage1.contract.taskAssignments || {}),
-              ...remoteS1.contract.taskAssignments
-            };
-          }
-          if (remoteS1.contract.timeAllocations) {
-            this.app.state.stage1.contract.timeAllocations = {
-              ...(this.app.state.stage1.contract.timeAllocations || {}),
-              ...remoteS1.contract.timeAllocations
-            };
-          }
+        if (remoteS1.contract.taskAssignments) {
+          this.app.state.stage1.contract.taskAssignments = {
+            ...(this.app.state.stage1.contract.taskAssignments || {}),
+            ...remoteS1.contract.taskAssignments
+          };
+        }
+        if (remoteS1.contract.timeAllocations) {
+          this.app.state.stage1.contract.timeAllocations = {
+            ...(this.app.state.stage1.contract.timeAllocations || {}),
+            ...remoteS1.contract.timeAllocations
+          };
         }
         if (remoteS1.contract.confirmedMembers) {
           this.app.state.stage1.contract.confirmedMembers = {
@@ -513,21 +511,29 @@ export class CloudSyncEngine {
           this.app.state.stage1.contract.isConfirmed = remoteS1.contract.isConfirmed;
         }
       }
-      if (!isContractInputActive && remoteS1.mergedTitle !== undefined) {
+      if (remoteS1.mergedTitle !== undefined) {
         this.app.state.stage1.mergedTitle = remoteS1.mergedTitle;
       }
 
       if (remoteS1.contract?.taskAssignments) {
-        if (!this.app.state.stage1.contract.taskAssignments) this.app.state.stage1.contract.taskAssignments = {};
-        Object.assign(this.app.state.stage1.contract.taskAssignments, remoteS1.contract.taskAssignments);
-        
         document.querySelectorAll('.task-assignment-input').forEach(inp => {
           const mKey = inp.dataset.mkey;
-          const remoteVal = (mKey && remoteS1.contract.taskAssignments[mKey] !== undefined)
-            ? remoteS1.contract.taskAssignments[mKey]
-            : (inp.dataset.mid && remoteS1.contract.taskAssignments[inp.dataset.mid] !== undefined ? remoteS1.contract.taskAssignments[inp.dataset.mid] : undefined);
+          const mid = inp.dataset.mid;
+          let remoteVal = undefined;
+          if (mKey && remoteS1.contract.taskAssignments[mKey] !== undefined) {
+            remoteVal = remoteS1.contract.taskAssignments[mKey];
+          } else if (mid && remoteS1.contract.taskAssignments[mid] !== undefined) {
+            remoteVal = remoteS1.contract.taskAssignments[mid];
+          } else {
+            // 兼容性模糊匹配（如学号/用户名/ID交叉）
+            for (const [k, v] of Object.entries(remoteS1.contract.taskAssignments)) {
+              if (k === mKey || k === mid || (mKey && (k.endsWith(mKey) || mKey.endsWith(k)))) {
+                remoteVal = v;
+                break;
+              }
+            }
+          }
           
-          // 🛡️ 防回退保护：当本地有输入内容且远端为空时，绝不抹空回退；仅在非活动且远端有实质变更时更新
           if (remoteVal !== undefined && document.activeElement !== inp) {
             const currentVal = inp.value;
             if (remoteVal !== '' || currentVal === '') {

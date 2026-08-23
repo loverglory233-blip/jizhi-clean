@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles } from "./constants.js?v=20260823_v108";
-import { callCozeAgentAPI } from "./agents.js?v=20260823_v108";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired } from "./utils.js?v=20260823_v108";
+import { AgentProfiles } from "./constants.js?v=20260823_v109";
+import { callCozeAgentAPI } from "./agents.js?v=20260823_v109";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired } from "./utils.js?v=20260823_v109";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -1307,7 +1307,7 @@ function renderStage1Canvas(canvas, state, handlers) {
   // 1. input 事件：纯本地更新内存，绝对不向网络发包，打字改时间 100% 顺畅
   // 2. blur / change / Enter 事件：用户输入完成离开或敲回车时，立即一次性完整同步上云！
 
-  const getLockPayload = (fieldKey) => {
+  const getLockPayload = (fieldKey, value = null) => {
     const currUser = (window.app && window.app.authManager) ? window.app.authManager.getCurrentUser() : null;
     const effectiveClassId = window.app?.state.activeStudentClassId || (currUser?.classId || 'class_101');
     const activeGroupObj = window.app?.authManager ? window.app.authManager.getStudentActiveGroup(currUser, effectiveClassId) : null;
@@ -1315,7 +1315,9 @@ function renderStage1Canvas(canvas, state, handlers) {
     const curTaskId = window.app?.state.activeTaskId || 'task_default';
     const uId = currUser ? (currUser.studentCode || currUser.username || currUser.id) : 'u';
     const uName = currUser ? (currUser.name || currUser.username) : '组员';
-    return { fieldKey, userId: uId, userName: uName, groupId: curGid, taskId: curTaskId };
+    const payload = { fieldKey, userId: uId, userName: uName, groupId: curGid, taskId: curTaskId };
+    if (value !== null) payload.value = value;
+    return payload;
   };
 
   const sendLock = (fieldKey) => {
@@ -1327,8 +1329,8 @@ function renderStage1Canvas(canvas, state, handlers) {
     }).catch(() => {});
   };
 
-  const sendUnlock = (fieldKey) => {
-    const p = getLockPayload(fieldKey);
+  const sendUnlock = (fieldKey, val = null) => {
+    const p = getLockPayload(fieldKey, val);
     fetch(`sync.php?action=unlock_field&groupId=${encodeURIComponent(p.groupId)}&taskId=${encodeURIComponent(p.taskId)}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -1355,7 +1357,7 @@ function renderStage1Canvas(canvas, state, handlers) {
     topicInput.addEventListener('change', flushTopic);
     topicInput.addEventListener('blur', () => {
       flushTopic();
-      sendUnlock('topic_title');
+      sendUnlock('topic_title', topicInput.value);
     });
     topicInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') { topicInput.blur(); } });
   }
@@ -1402,7 +1404,7 @@ function renderStage1Canvas(canvas, state, handlers) {
       input.addEventListener('change', flushTime);
       input.addEventListener('blur', () => {
         flushTime();
-        sendUnlock(fieldKey);
+        sendUnlock(fieldKey, Number(input.value) || 0);
       });
       input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { input.blur(); } });
     }
@@ -1448,7 +1450,7 @@ function renderStage1Canvas(canvas, state, handlers) {
       input.addEventListener('change', flushTask);
       input.addEventListener('blur', () => {
         flushTask();
-        sendUnlock(fieldKey);
+        sendUnlock(fieldKey, input.value);
       });
       input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { input.blur(); } });
     }
