@@ -2631,33 +2631,7 @@
       }
 
       if (remoteData.stage2) {
-        // 🛡️ 智能平滑双轨保障：本地打字时走 CRDT 零干扰；非打字静默时平滑对齐 MySQL 最新正文快照
-        if (remoteData.stage2.unifiedContent !== undefined) {
-          const remoteContent = remoteData.stage2.unifiedContent || '';
-          const localContent = this.app.state.stage2?.unifiedContent || '';
-
-          const stage2Editor = document.getElementById('stage2-word-editor');
-          const activeEl = document.activeElement;
-          const isLocalTyping = activeEl && (
-            activeEl === stage2Editor ||
-            (stage2Editor && stage2Editor.contains(activeEl)) ||
-            (stage2Editor && stage2Editor.dataset.isComposing === 'true')
-          );
-
-          // 仅在本地非打字状态、且远端内容有更新时平滑对齐
-          if (!isLocalTyping && remoteContent && remoteContent !== localContent) {
-            if (!this.app.state.stage2) this.app.state.stage2 = {};
-            this.app.state.stage2.unifiedContent = remoteContent;
-
-            if (window._jizhi_quill && window._jizhi_quill.root) {
-              const currentQuillHtml = window._jizhi_quill.root.innerHTML.replace(/<span class="remote-cursor-widget"[\s\S]*?<\/span>/gi, '');
-              if (currentQuillHtml !== remoteContent) {
-                window._jizhi_quill.clipboard.dangerouslyPasteHTML(remoteContent);
-              }
-            }
-          }
-        }
-
+        // 🛡️ 纯粹单轨 CRDT 架构：富文本正文 100% 由 Yjs 实时向量协同接管，短轮询绝不操作富文本 DOM，彻底杜绝双轨互搏！
         if (remoteData.stage2.memberContributions) {
           if (JSON.stringify(remoteData.stage2.memberContributions) !== JSON.stringify(this.app.state.stage2.memberContributions)) {
             this.app.state.stage2.memberContributions = remoteData.stage2.memberContributions;
@@ -10625,14 +10599,12 @@
             };
           });
 
-          // 🚀 极致性能：打字期间防抖 600ms 后才执行网络快照推送与重型正则分析，保证按键 0 延迟、0 掉帧
+          // 🚀 纯粹 CRDT 架构：打字仅驱动贡献比与智能体语境分析，0 次网络快照骚扰
           if (this._contentSyncDebounceTimer) {
             clearTimeout(this._contentSyncDebounceTimer);
           }
           this._contentSyncDebounceTimer = setTimeout(() => {
             this.updateContributionUi();
-            this.syncStage2();
-            if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
             this.checkAgentTriggersOnContent(cleanHtml);
           }, 600);
         },

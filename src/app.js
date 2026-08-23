@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260823_v75";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired } from "./utils.js?v=20260823_v75";
-import { callCozeAgentAPI } from "./agents.js?v=20260823_v75";
-import { AuthManager } from "./auth.js?v=20260823_v75";
-import { CloudSyncEngine } from "./sync.js?v=20260823_v75";
-import { renderLoginView } from "./login.js?v=20260823_v75";
-import { renderTeacherPortal } from "./teacher.js?v=20260823_v75";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260823_v75";
+} from "./constants.js?v=20260823_v76";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired } from "./utils.js?v=20260823_v76";
+import { callCozeAgentAPI } from "./agents.js?v=20260823_v76";
+import { AuthManager } from "./auth.js?v=20260823_v76";
+import { CloudSyncEngine } from "./sync.js?v=20260823_v76";
+import { renderLoginView } from "./login.js?v=20260823_v76";
+import { renderTeacherPortal } from "./teacher.js?v=20260823_v76";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260823_v76";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260823_v75";
+} from "./editor.js?v=20260823_v76";
 
 // Make renderChat available on window for sync callbacks
 if (typeof window !== "undefined") {
@@ -2592,14 +2592,12 @@ ${propText}
           };
         });
 
-        // 🚀 极致性能：打字期间防抖 600ms 后才执行网络快照推送与重型正则分析，保证按键 0 延迟、0 掉帧
+        // 🚀 纯粹 CRDT 架构：打字仅驱动贡献比与智能体语境分析，0 次网络快照骚扰
         if (this._contentSyncDebounceTimer) {
           clearTimeout(this._contentSyncDebounceTimer);
         }
         this._contentSyncDebounceTimer = setTimeout(() => {
           this.updateContributionUi();
-          this.syncStage2();
-          if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
           this.checkAgentTriggersOnContent(cleanHtml);
         }, 600);
       },
