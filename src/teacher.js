@@ -9,8 +9,8 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260823_v85";
-import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired } from "./utils.js?v=20260823_v85";
+} from "./constants.js?v=20260823_v86";
+import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired } from "./utils.js?v=20260823_v86";
 
 /* ==========================================================================
    7. TEACHER PORTAL RENDERER (LIVE WORKSPACE MIRROR & ANNOUNCEMENT READ MATRIX)
@@ -34,9 +34,53 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
       window.app.cloudSyncEngine.groupId = activeMonitorGId;
       window.app.cloudSyncEngine.taskId = activeTaskId;
       window.app.cloudSyncEngine.updateScopeKeys();
+
+      const oldFingerprint = JSON.stringify({
+        cStage: state.currentStage,
+        s1Len: (state.stage1?.proposals || []).length,
+        s1Title: state.stage1?.mergedTitle,
+        s1Votes: Object.keys(state.stage1?.votes || {}).length,
+        s1Conf: Object.keys(state.stage1?.contract?.confirmedMembers || {}).length,
+        s2Len: (state.stage2?.unifiedContent || '').length,
+        s3Len: (state.stage3?.feedbackItems || []).length,
+        chat1: (state.chatLogs?.stage1 || []).length,
+        chat2: (state.chatLogs?.stage2 || []).length,
+        chat3: (state.chatLogs?.stage3 || []).length
+      });
+
       try {
         await window.app.cloudSyncEngine.pullFromServer();
+        // 📝 针对阶段二，同时从 Etherpad 提取最新正文镜像
+        const padName = `jizhi_${activeTaskId}_${activeMonitorGId}`;
+        const epRes = await fetch(`sync.php?action=get_pad_text&padId=${padName}`).then(r => r.json()).catch(() => null);
+        if (epRes && epRes.success && epRes.text) {
+          if (!state.stage2) state.stage2 = {};
+          state.stage2.unifiedContent = epRes.text;
+        }
       } catch (e) {}
+
+      const newFingerprint = JSON.stringify({
+        cStage: state.currentStage,
+        s1Len: (state.stage1?.proposals || []).length,
+        s1Title: state.stage1?.mergedTitle,
+        s1Votes: Object.keys(state.stage1?.votes || {}).length,
+        s1Conf: Object.keys(state.stage1?.contract?.confirmedMembers || {}).length,
+        s2Len: (state.stage2?.unifiedContent || '').length,
+        s3Len: (state.stage3?.feedbackItems || []).length,
+        chat1: (state.chatLogs?.stage1 || []).length,
+        chat2: (state.chatLogs?.stage2 || []).length,
+        chat3: (state.chatLogs?.stage3 || []).length
+      });
+
+      if (oldFingerprint !== newFingerprint) {
+        const layout = container.querySelector('.teacher-portal-layout');
+        const curScroll = layout ? layout.scrollTop : 0;
+        state._teacherScrollTop = curScroll;
+        renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+        const nextLayout = container.querySelector('.teacher-portal-layout');
+        if (nextLayout) nextLayout.scrollTop = curScroll;
+        return; // 重绘后自动重新调度
+      }
     }
 
     if (authManager && authManager.pullGlobalMeta) {
