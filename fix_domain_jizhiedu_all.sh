@@ -5,12 +5,13 @@ echo "🚀 ========================================================"
 echo "⚡ 配置 jizhiedu.top 域名与 IP 全量 Nginx HTTP/HTTPS + Etherpad 反代"
 echo "🚀 ========================================================"
 
-# 1. 自动探测系统生效的 FastCGI Sock 与 PHP 配置文件
-PHP_SOCK="/tmp/php-cgi-82.sock"
-for s in /tmp/php-cgi-*.sock /var/run/php/php*-fpm.sock; do
-    if [ -S "$s" ]; then
-        PHP_SOCK="$s"
-        echo "🟢 发现有效 PHP FastCGI Socket: $PHP_SOCK"
+# 1. 自动探测系统生效的宝塔官方 PHP FastCGI 配置文件
+PHP_INC="enable-php-82.conf"
+for p in /www/server/nginx/conf/enable-php-*.conf; do
+    bn=$(basename "$p")
+    if [ "$bn" != "enable-php-00.conf" ] && [ -f "$p" ]; then
+        PHP_INC="$bn"
+        echo "🟢 发现宝塔官方标准 PHP 规则: $PHP_INC"
         break
     fi
 done
@@ -46,18 +47,8 @@ server
     # 彻底解决 POST 请求可能触发的 405 拦截
     error_page 405 =200 \$uri;
 
-    # ⚡ 工业级标准 PHP FastCGI 解析 (支持 GET/POST/OPTIONS/PUT/DELETE)
-    location ~ [^/]\.php(/|$) {
-        try_files \$uri =404;
-        fastcgi_pass unix:$PHP_SOCK;
-        fastcgi_index index.php;
-        fastcgi_param SCRIPT_FILENAME \$document_root\$fastcgi_script_name;
-        fastcgi_param QUERY_STRING    \$query_string;
-        fastcgi_param REQUEST_METHOD  \$request_method;
-        fastcgi_param CONTENT_TYPE    \$content_type;
-        fastcgi_param CONTENT_LENGTH  \$content_length;
-        include fastcgi_params;
-    }
+    # ⚡ 引用宝塔官方标准 PHP 驱动规则 (彻底解决 502 Bad Gateway)
+    include $PHP_INC;
 
     # Etherpad 协同编辑器反向代理全套路径 (设置 3s 连接超时，避免死等超时)
     location ^~ /socket.io {
@@ -147,18 +138,8 @@ server
     ssl_session_cache shared:SSL:10m;
     ssl_session_timeout 10m;
 
-    # ⚡ 工业级标准 PHP FastCGI 解析 (支持 GET/POST/OPTIONS/PUT/DELETE)
-    location ~ [^/]\.php(/|$) {
-        try_files \$uri =404;
-        fastcgi_pass unix:$PHP_SOCK;
-        fastcgi_index index.php;
-        fastcgi_param SCRIPT_FILENAME \$document_root\$fastcgi_script_name;
-        fastcgi_param QUERY_STRING    \$query_string;
-        fastcgi_param REQUEST_METHOD  \$request_method;
-        fastcgi_param CONTENT_TYPE    \$content_type;
-        fastcgi_param CONTENT_LENGTH  \$content_length;
-        include fastcgi_params;
-    }
+    # ⚡ 引用宝塔官方标准 PHP 驱动规则 (彻底解决 502 Bad Gateway)
+    include $PHP_INC;
 
     location ^~ /socket.io {
         proxy_pass http://127.0.0.1:9001;
