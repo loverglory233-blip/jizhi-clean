@@ -2,7 +2,7 @@
 set -e
 
 echo "🚀 ========================================================"
-echo "⚡ 正在 0.05 秒本地直接生成 var/plugins.json 并秒级拉起"
+echo "⚡ 正在以秒级直连模式启动 Etherpad 协同服务"
 echo "🚀 ========================================================"
 
 export PATH="/www/server/nodejs/v18.20.7/bin:$PATH"
@@ -37,7 +37,7 @@ console.log("✅ settings.json 已净化！");
 '
 
 # 3. 0 联网、本地秒级解析 ep.json 生成 var/plugins.json
-echo "📦 正在扫描 node_modules 并生成 var/plugins.json (0 联网直接写盘)..."
+echo "📦 正在扫描 node_modules 并生成 var/plugins.json..."
 node -e '
 const fs = require("fs");
 const path = require("path");
@@ -88,15 +88,19 @@ if (fs.existsSync(nm)) {
 }
 
 fs.writeFileSync("var/plugins.json", JSON.stringify(pluginsData, null, 2), "utf8");
-console.log("🎉 0.05 秒本地极速生成 var/plugins.json，成功注册 " + Object.keys(pluginsData.plugins).length + " 个核心插件！");
+console.log("🎉 var/plugins.json 已就绪，共 " + Object.keys(pluginsData.plugins).length + " 个核心插件！");
 '
 
-# 4. 启动 Etherpad 服务
-echo "🚀 正在启动 Etherpad 服务..."
-nohup ./bin/run.sh --root > /var/log/etherpad.log 2>&1 &
+# 4. 直接以 node 核心模式秒级启动 (跳过 run.sh 重复运行 npm install 的漫长等待)
+echo "🚀 正在秒级启动 Etherpad Node 服务..."
+export NODE_ENV=production
+nohup node src/node/server.js > /var/log/etherpad.log 2>&1 &
 
-sleep 6
+sleep 5
 
-# 5. 再次自检
+# 5. 重新载入 Nginx 配置
 cd /www/wwwroot/47.99.110.230
+./fix_nginx_clean_final.sh
+
+# 6. 再次自检
 ./check_etherpad_plugins_status.sh
