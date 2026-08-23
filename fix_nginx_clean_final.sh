@@ -1,10 +1,12 @@
 #!/bin/bash
 set -e
 
-echo "🔧 正在为站点重构写入 100% 标准、完整、合法的 Nginx 配置文件..."
+echo "🔧 正在清理修复所有辅助占位配置文件..."
 
-# 1. 恢复 0.default.conf 为干净占位
-cat << 'DEF_EOF' > /www/server/panel/vhost/nginx/0.default.conf
+NGINX_CONF_DIR="/www/server/panel/vhost/nginx"
+
+# 1. 恢复 0.default.conf
+cat << 'DEF_EOF' > "$NGINX_CONF_DIR/0.default.conf"
 server
 {
     listen 80 default_server;
@@ -13,7 +15,14 @@ server
 }
 DEF_EOF
 
-# 2. 检查 SSL 证书路径
+# 2. 清理或重置破损的辅助占位配置
+rm -f "$NGINX_CONF_DIR"/0.fastcgi_cache.conf
+rm -f "$NGINX_CONF_DIR"/0.site_total_log_format.conf
+rm -f "$NGINX_CONF_DIR"/0.websocket.conf
+rm -f "$NGINX_CONF_DIR"/phpfpm_status.conf
+rm -f "$NGINX_CONF_DIR"/waf2monitor_data.conf
+
+# 3. 检查 SSL 证书路径
 CERT_FILE=""
 KEY_FILE=""
 
@@ -29,7 +38,7 @@ SSL_BLOCK=""
 if [ -n "$CERT_FILE" ] && [ -n "$KEY_FILE" ]; then
     echo "🔒 检测到有效 SSL 证书: $CERT_FILE"
     SSL_BLOCK="
-    listen 443 ssl http2;
+    listen 443 ssl;
     ssl_certificate    $CERT_FILE;
     ssl_certificate_key    $KEY_FILE;
     ssl_protocols TLSv1.1 TLSv1.2 TLSv1.3;
@@ -40,8 +49,8 @@ if [ -n "$CERT_FILE" ] && [ -n "$KEY_FILE" ]; then
 "
 fi
 
-# 3. 完整重写 47.99.110.230.conf
-cat << CONF_EOF > /www/server/panel/vhost/nginx/47.99.110.230.conf
+# 4. 完整重写 47.99.110.230.conf
+cat << CONF_EOF > "$NGINX_CONF_DIR/47.99.110.230.conf"
 server
 {
     listen 80;
