@@ -7897,28 +7897,39 @@
           if (countBadge) countBadge.innerText = String(wordCount);
           state.stage2.unifiedContent = cleanTxt;
 
-          // 2. 动态贡献度计算
-          if (!state.stage2.memberContributions) state.stage2.memberContributions = {};
-          const prevLen = state.stage2._prevKnownLen !== undefined ? state.stage2._prevKnownLen : 0;
-          if (prevLen === 0 && wordCount > 0) {
-            state.stage2.memberContributions[currUserCode] = wordCount;
-            state.stage2._prevKnownLen = wordCount;
-            updateContribDom();
-          } else if (wordCount !== prevLen) {
+          // 2. 动态贡献度计算（仅当本人正在打字时向上报增量 delta，杜绝各端独立算全量）
+          const prevLen = state.stage2._prevKnownLen !== undefined ? state.stage2._prevKnownLen : wordCount;
+          state.stage2._prevKnownLen = wordCount;
+
+          const isInputFocused = document.activeElement && document.activeElement.tagName === 'IFRAME';
+          if (wordCount !== prevLen && isInputFocused) {
             const delta = Math.abs(wordCount - prevLen);
-            state.stage2.memberContributions[currUserCode] = (state.stage2.memberContributions[currUserCode] || 0) + delta;
-            state.stage2._prevKnownLen = wordCount;
-            updateContribDom();
-            if (window.app && window.app.cloudSyncEngine) {
-              window.app.cloudSyncEngine.pushSnapshot();
+            if (delta > 0) {
+              fetch('sync.php?action=report_member_contrib', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  taskId: activeTaskId,
+                  groupId: userGroupId,
+                  userCode: currUserCode,
+                  delta: delta
+                })
+              }).then(r => r.json()).then(res => {
+                if (res.success && res.contribs) {
+                  state.stage2.memberContributions = res.contribs;
+                  updateContribDom();
+                }
+              }).catch(() => {});
             }
+          } else {
+            updateContribDom();
           }
         }
       } catch (e) {}
     };
 
     syncPadMetrics();
-    window._stage2WordCountTimer = setInterval(syncPadMetrics, 8000);
+    window._stage2WordCountTimer = setInterval(syncPadMetrics, 5000);
   }
 
   function renderStage3Canvas(canvas, state, handlers) {
