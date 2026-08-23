@@ -8,12 +8,16 @@ if ! pidof mysqld >/dev/null 2>&1 && ! pidof mariadbd >/dev/null 2>&1; then
     /etc/init.d/mysqld start 2>/dev/null || /etc/init.d/mysql start 2>/dev/null || systemctl start mysqld 2>/dev/null || systemctl start mariadb 2>/dev/null || true
 fi
 
-echo "🟢 2. 检查并确保 PHP-FPM 正常运行..."
-for p in /etc/init.d/php-fpm*; do
+echo "🟢 2. 检查并强制重启所有 PHP-FPM 服务 (彻底解决 phpMyAdmin 502 与 PHP 无响应)..."
+for p in /etc/init.d/php-fpm* /etc/init.d/php*; do
     if [ -x "$p" ]; then
-        "$p" start 2>/dev/null || "$p" reload 2>/dev/null || true
+        "$p" stop 2>/dev/null || true
+        "$p" start 2>/dev/null || "$p" restart 2>/dev/null || true
     fi
 done
+systemctl restart php-fpm* 2>/dev/null || true
+chmod 777 /tmp/php-cgi-*.sock 2>/dev/null || true
+chown www:www /tmp/php-cgi-*.sock 2>/dev/null || true
 
 echo "🟢 3. 检查并平滑重载 Nginx..."
 /etc/init.d/nginx reload 2>/dev/null || nginx -s reload 2>/dev/null || systemctl reload nginx 2>/dev/null || /etc/init.d/nginx start 2>/dev/null || true
@@ -58,8 +62,28 @@ if [ -f "./fix_domain_jizhiedu_all.sh" ]; then
 fi
 
 echo ""
+echo "🔍 7. 正在透视数据库中当前教师账号 1001 的实际密码..."
+php -r "
+require_once '$ROOT_DIR/api/db_config.php';
+\$pdo = getDbConnection();
+if (\$pdo) {
+    \$stmt = \$pdo->query(\"SELECT id, username, student_code, name, password FROM users WHERE id='1001' OR username='1001' OR student_code='1001' LIMIT 1\");
+    \$row = \$stmt->fetch(PDO::FETCH_ASSOC);
+    if (\$row) {
+        echo '🔑 数据库记录: 工号 [' . \$row['student_code'] . '] | 姓名 [' . \$row['name'] . '] | 当前真实生效密码: [' . \$row['password'] . \"]\n\";
+    } else {
+        echo '⚠️ 数据库中尚无 1001 记录，正在创建默认 123 账号...\n';
+        \$pdo->exec(\"INSERT INTO users (id, username, student_code, name, password, role) VALUES ('1001', '1001', '1001', '老师', '123', 'teacher')\");
+        echo '✅ 已创建初始账号 1001 (密码: 123)\n';
+    }
+} else {
+    echo '❌ 数据库连接失败！\n';
+}
+" || true
+
+echo ""
 echo "🎉 ========================================================"
-echo "✅ 服务守护与系统环境已全部检查就绪！"
+echo "✅ 服务守护、PHP 运行环境与数据库全部检查就绪！"
 echo "📊 当前服务器内存占用状态："
 free -h || true
 echo "🎉 ========================================================"
