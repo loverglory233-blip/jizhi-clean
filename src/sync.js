@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState } from './constants.js?v=20260823_v41';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin } from './utils.js?v=20260823_v41';
+import { InitialState } from './constants.js?v=20260823_v42';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin } from './utils.js?v=20260823_v42';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -377,12 +377,12 @@ export class CloudSyncEngine {
           lockModal.innerHTML = `
             <div style="width:460px; max-width:92vw; background:#ffffff; border-radius:14px; box-shadow:0 20px 25px -5px rgba(0,0,0,0.25); border:1px solid #e2e8f0; overflow:hidden; animation:modalFadeIn 0.25s ease;">
               <div style="background:${newLockState ? 'linear-gradient(135deg, #dc2626, #b91c1c)' : 'linear-gradient(135deg, #059669, #047857)'}; color:white; padding:16px 20px; font-size:16px; font-weight:800; display:flex; align-items:center; gap:8px;">
-                <span>${newLockState ? '🔒 课堂协同文稿已锁定' : '🔓 课堂协同文稿已解锁'}</span>
+                <span>${newLockState ? '🔒 写作任务已全局锁定' : '🔓 写作任务已恢复编辑权限'}</span>
               </div>
               <div style="padding:20px; font-size:13.5px; color:#334155; line-height:1.6;">
                 ${newLockState
-                  ? '指导教师已将本组任务文稿【归档锁定】！当前工作台所有写作正文、答辩公约均已转为<b>只读模式</b>（不能继续修改编辑），如需继续修改请联系指导教师解锁。'
-                  : '指导教师已【恢复本组编辑权限】！当前工作台富文本编辑器已重新开放，小组可以继续协作撰写与修改文稿。'}
+                  ? '指导教师已将本组整个写作任务设为【全局归档锁定】！当前工作台所有阶段（阶段一公约、阶段二正文撰写、阶段三答辩矩阵）已全盘转为<b>只读模式</b>（不能继续修改编辑），如需继续修改请联系指导教师解锁。'
+                  : '指导教师已【恢复本组写作任务编辑权限】！当前工作台所有阶段已重新开放，小组可以继续协作撰写与修改文稿。'}
               </div>
               <div style="padding:12px 20px; background:#f8fafc; border-top:1px solid #e2e8f0; text-align:right;">
                 <button id="btn-close-lock-modal" style="background:${newLockState ? '#dc2626' : '#059669'}; color:white; border:none; padding:8px 20px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer;">

@@ -9,8 +9,8 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260823_v41";
-import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired } from "./utils.js?v=20260823_v41";
+} from "./constants.js?v=20260823_v42";
+import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired } from "./utils.js?v=20260823_v42";
 
 /* ==========================================================================
    7. TEACHER PORTAL RENDERER (LIVE WORKSPACE MIRROR & ANNOUNCEMENT READ MATRIX)
@@ -2835,10 +2835,10 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
       
       const currentTaskId = window.app ? (window.app.state.activeTaskId || 'task_default') : 'task_default';
       const curTaskObj = tasks.find(t => t.id === currentTaskId) || { title: '当前写作任务' };
-      const lockTitle = newSub ? `🔒 指导教师已锁定【${activeMonitorGroup.name}】协同文稿` : `🔓 指导教师已恢复【${activeMonitorGroup.name}】编辑权限`;
+      const lockTitle = newSub ? `🔒 指导教师已锁定【${activeMonitorGroup.name}】写作任务` : `🔓 指导教师已恢复【${activeMonitorGroup.name}】写作任务编辑权限`;
       const lockContent = newSub
-        ? `指导教师已将本组（${activeMonitorGroup.name}）在《${curTaskObj.title}》中的文稿设为【归档锁定】！当前工作台所有写作正文、答辩公约均已转为只读模式（不能继续修改编辑），如需继续修改请联系指导教师解锁。`
-        : `指导教师已【恢复本组（${activeMonitorGroup.name}）编辑权限】！当前工作台富文本编辑器已重新开放，小组可以继续协作撰写与修改文稿。`;
+        ? `指导教师已将本组（${activeMonitorGroup.name}）在《${curTaskObj.title}》中的整个写作任务设为【全局归档锁定】！当前工作台所有阶段（阶段一选题公约、阶段二正文撰写、阶段三答辩擂台）已全盘转为只读归档模式（禁止继续修改编辑）。如需继续修改请联系指导教师解锁。`
+        : `指导教师已【恢复本组（${activeMonitorGroup.name}）在《${curTaskObj.title}》中的写作任务编辑权限】！当前工作台所有阶段已重新开放，小组可以继续协作撰写与修改文稿。`;
       
       // 1. 自动向该小组全体成员推送定向课堂教学通知
       authManager.publishAnnouncement(
@@ -2872,9 +2872,9 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
 
       renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
       if (newSub) {
-        alert(`🔒 已全局锁定【${activeMonitorGroup.name}】！\n\n已向该组全体成员发送锁定通知，学生端已设为【全盘只读模式】（阶段一公约、阶段二富文本与阶段三矩阵全部禁止编辑，仅保留右侧研讨区实时沟通）。`);
+        alert(`🔒 已全局锁定【${activeMonitorGroup.name}】整个写作任务！\n\n已向该组全体成员发送锁定通知，学生端所有阶段（阶段一公约、阶段二正文、阶段三答辩）已全盘转为【只读归档模式】。`);
       } else {
-        alert(`🔓 已解除【${activeMonitorGroup.name}】全局只读锁定！\n\n已向该组全体成员发送解锁通知，学生端已全面恢复自由协作与编辑修改权限！`);
+        alert(`🔓 已解除【${activeMonitorGroup.name}】写作任务锁定！\n\n已向该组全体成员发送解锁通知，学生端所有写作阶段已全面恢复自由协作与编辑修改权限！`);
       }
     });
   }
