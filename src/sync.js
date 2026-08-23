@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState } from './constants.js?v=20260823_v101';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin } from './utils.js?v=20260823_v101';
+import { InitialState } from './constants.js?v=20260823_v102';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin } from './utils.js?v=20260823_v102';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -426,6 +426,54 @@ export class CloudSyncEngine {
         }
       });
       if (chatChanged && typeof window.renderChat === 'function') window.renderChat(this.app.state);
+    }
+
+    // 🔒 渲染阶段一合约与阶段三答辩的字段级排他聚焦锁
+    if (remoteData.locks !== undefined) {
+      this.app.state.fieldLocks = remoteData.locks || {};
+      const locks = this.app.state.fieldLocks;
+      const currentUser = this.app.authManager ? this.app.authManager.getCurrentUser() : null;
+      const currentUserId = currentUser ? (currentUser.studentCode || currentUser.username || currentUser.id) : '';
+
+      // 阶段一字段锁更新
+      document.querySelectorAll('.task-assignment-input, .contract-time-input, #contract-topic-input, .feedback-direct-input').forEach(el => {
+        const fieldKey = el.dataset.lockKey || el.id || (el.dataset.mkey ? `task_${el.dataset.mkey}` : (el.dataset.key ? `time_${el.dataset.key}` : (el.dataset.id ? `fb_${el.dataset.id}` : '')));
+        if (!fieldKey) return;
+        el.dataset.lockKey = fieldKey;
+
+        const lockInfo = locks[fieldKey];
+        const isLockedByOther = lockInfo && lockInfo.userId !== currentUserId;
+
+        let badge = el.parentElement.querySelector(`.field-lock-badge[data-for="${fieldKey}"]`);
+        if (isLockedByOther) {
+          el.disabled = true;
+          el.style.opacity = '0.65';
+          el.style.backgroundColor = '#f1f5f9';
+          el.style.borderColor = '#94a3b8';
+          el.title = `🔒 ${lockInfo.userName || '其他组员'} 正在编辑中...`;
+          
+          if (!badge) {
+            badge = document.createElement('span');
+            badge.className = 'field-lock-badge';
+            badge.dataset.for = fieldKey;
+            badge.style.cssText = 'font-size:11px; color:#b45309; background:#fef3c7; border:1px solid #fde68a; padding:1px 6px; border-radius:6px; margin-left:6px; font-weight:700; display:inline-flex; align-items:center; gap:2px; vertical-align:middle;';
+            badge.innerHTML = `🔒 ${lockInfo.userName || '组员'} 正在输入...`;
+            if (el.nextSibling) el.parentElement.insertBefore(badge, el.nextSibling);
+            else el.parentElement.appendChild(badge);
+          } else {
+            badge.innerHTML = `🔒 ${lockInfo.userName || '组员'} 正在输入...`;
+          }
+        } else {
+          if (document.activeElement !== el) {
+            el.disabled = false;
+            el.style.opacity = '1';
+            el.style.backgroundColor = '';
+            el.style.borderColor = '';
+            el.title = '';
+          }
+          if (badge) badge.remove();
+        }
+      });
     }
 
     let needWorkspaceRender = false;

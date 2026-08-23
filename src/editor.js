@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles } from "./constants.js?v=20260823_v101";
-import { callCozeAgentAPI } from "./agents.js?v=20260823_v101";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired } from "./utils.js?v=20260823_v101";
+import { AgentProfiles } from "./constants.js?v=20260823_v102";
+import { callCozeAgentAPI } from "./agents.js?v=20260823_v102";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired } from "./utils.js?v=20260823_v102";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -1307,6 +1307,35 @@ function renderStage1Canvas(canvas, state, handlers) {
   // 1. input 事件：纯本地更新内存，绝对不向网络发包，打字改时间 100% 顺畅
   // 2. blur / change / Enter 事件：用户输入完成离开或敲回车时，立即一次性完整同步上云！
 
+  const getLockPayload = (fieldKey) => {
+    const currUser = (window.app && window.app.authManager) ? window.app.authManager.getCurrentUser() : null;
+    const effectiveClassId = window.app?.state.activeStudentClassId || (currUser?.classId || 'class_101');
+    const activeGroupObj = window.app?.authManager ? window.app.authManager.getStudentActiveGroup(currUser, effectiveClassId) : null;
+    const curGid = activeGroupObj?.id || (currUser?.groupId || 'group_1');
+    const curTaskId = window.app?.state.activeTaskId || 'task_default';
+    const uId = currUser ? (currUser.studentCode || currUser.username || currUser.id) : 'u';
+    const uName = currUser ? (currUser.name || currUser.username) : '组员';
+    return { fieldKey, userId: uId, userName: uName, groupId: curGid, taskId: curTaskId };
+  };
+
+  const sendLock = (fieldKey) => {
+    const p = getLockPayload(fieldKey);
+    fetch(`sync.php?action=lock_field&groupId=${encodeURIComponent(p.groupId)}&taskId=${encodeURIComponent(p.taskId)}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(p)
+    }).catch(() => {});
+  };
+
+  const sendUnlock = (fieldKey) => {
+    const p = getLockPayload(fieldKey);
+    fetch(`sync.php?action=unlock_field&groupId=${encodeURIComponent(p.groupId)}&taskId=${encodeURIComponent(p.taskId)}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(p)
+    }).catch(() => {});
+  };
+
   const topicInput = canvas.querySelector('#contract-topic-input');
   if (topicInput && !isContractLocked) {
     let topicTimer = null;
@@ -1317,21 +1346,27 @@ function renderStage1Canvas(canvas, state, handlers) {
         if (window.app.cloudSyncEngine) window.app.cloudSyncEngine.pushSnapshot();
       }
     };
+    topicInput.addEventListener('focus', () => sendLock('topic_title'));
     topicInput.addEventListener('input', (e) => {
       s1.mergedTitle = e.target.value;
       if (topicTimer) clearTimeout(topicTimer);
       topicTimer = setTimeout(flushTopic, 300);
     });
     topicInput.addEventListener('change', flushTopic);
-    topicInput.addEventListener('blur', flushTopic);
+    topicInput.addEventListener('blur', () => {
+      flushTopic();
+      sendUnlock('topic_title');
+    });
     topicInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') { topicInput.blur(); } });
   }
 
   canvas.querySelectorAll('.contract-time-input').forEach(input => {
     if (!isContractLocked) {
+      const key = input.dataset.key;
+      const fieldKey = `time_${key}`;
+      input.dataset.lockKey = fieldKey;
       let timeTimer = null;
       const flushTime = () => {
-        const key = input.dataset.key;
         const numVal = Number(input.value) || 0;
         if (key && s1.contract.timeAllocations) {
           s1.contract.timeAllocations[key] = numVal;
@@ -1355,8 +1390,8 @@ function renderStage1Canvas(canvas, state, handlers) {
           }
         }
       };
+      input.addEventListener('focus', () => sendLock(fieldKey));
       input.addEventListener('input', (e) => {
-        const key = e.target.dataset.key;
         const numVal = Number(e.target.value) || 0;
         if (key && s1.contract.timeAllocations) {
           s1.contract.timeAllocations[key] = numVal;
@@ -1365,16 +1400,21 @@ function renderStage1Canvas(canvas, state, handlers) {
         timeTimer = setTimeout(flushTime, 300);
       });
       input.addEventListener('change', flushTime);
-      input.addEventListener('blur', flushTime);
+      input.addEventListener('blur', () => {
+        flushTime();
+        sendUnlock(fieldKey);
+      });
       input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { input.blur(); } });
     }
   });
 
   canvas.querySelectorAll('.task-assignment-input').forEach(input => {
     if (!isContractLocked) {
+      const mKey = input.dataset.mkey;
+      const fieldKey = `task_${mKey}`;
+      input.dataset.lockKey = fieldKey;
       let taskTimer = null;
       const flushTask = () => {
-        const mKey = input.dataset.mkey;
         const val = input.value;
         if (!s1.contract.taskAssignments) s1.contract.taskAssignments = {};
         if (mKey) s1.contract.taskAssignments[mKey] = val;
@@ -1397,8 +1437,8 @@ function renderStage1Canvas(canvas, state, handlers) {
           }).catch(() => {});
         }
       };
+      input.addEventListener('focus', () => sendLock(fieldKey));
       input.addEventListener('input', (e) => {
-        const mKey = e.target.dataset.mkey;
         const val = e.target.value;
         if (!s1.contract.taskAssignments) s1.contract.taskAssignments = {};
         if (mKey) s1.contract.taskAssignments[mKey] = val;
@@ -1406,7 +1446,10 @@ function renderStage1Canvas(canvas, state, handlers) {
         taskTimer = setTimeout(flushTask, 300);
       });
       input.addEventListener('change', flushTask);
-      input.addEventListener('blur', flushTask);
+      input.addEventListener('blur', () => {
+        flushTask();
+        sendUnlock(fieldKey);
+      });
       input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { input.blur(); } });
     }
   });
@@ -1844,18 +1887,52 @@ function renderStage3Canvas(canvas, state, handlers) {
     canvas.querySelectorAll('.feedback-direct-input').forEach(textarea => {
       let fbTimer = null;
       const itemId = textarea.dataset.id;
+      const fieldKey = `fb_${itemId}`;
+      textarea.dataset.lockKey = fieldKey;
+
       const autoSave = () => {
         const text = textarea.value.trim();
         if (itemId && text && handlers.onSaveDirectFeedback) {
           handlers.onSaveDirectFeedback(itemId, text);
         }
       };
+      textarea.addEventListener('focus', () => {
+        if (window.app) {
+          const currUser = window.app.authManager ? window.app.authManager.getCurrentUser() : null;
+          const effectiveClassId = window.app.state.activeStudentClassId || (currUser?.classId || 'class_101');
+          const activeGroupObj = window.app.authManager ? window.app.authManager.getStudentActiveGroup(currUser, effectiveClassId) : null;
+          const curGid = activeGroupObj?.id || (currUser?.groupId || 'group_1');
+          const curTaskId = window.app.state.activeTaskId || 'task_default';
+          const uId = currUser ? (currUser.studentCode || currUser.username || currUser.id) : 'u';
+          const uName = currUser ? (currUser.name || currUser.username) : '组员';
+          fetch(`sync.php?action=lock_field&groupId=${encodeURIComponent(curGid)}&taskId=${encodeURIComponent(curTaskId)}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ fieldKey, userId: uId, userName: uName })
+          }).catch(() => {});
+        }
+      });
       textarea.addEventListener('input', () => {
         if (fbTimer) clearTimeout(fbTimer);
         fbTimer = setTimeout(autoSave, 300);
       });
       textarea.addEventListener('change', autoSave);
-      textarea.addEventListener('blur', autoSave);
+      textarea.addEventListener('blur', () => {
+        autoSave();
+        if (window.app) {
+          const currUser = window.app.authManager ? window.app.authManager.getCurrentUser() : null;
+          const effectiveClassId = window.app.state.activeStudentClassId || (currUser?.classId || 'class_101');
+          const activeGroupObj = window.app.authManager ? window.app.authManager.getStudentActiveGroup(currUser, effectiveClassId) : null;
+          const curGid = activeGroupObj?.id || (currUser?.groupId || 'group_1');
+          const curTaskId = window.app.state.activeTaskId || 'task_default';
+          const uId = currUser ? (currUser.studentCode || currUser.username || currUser.id) : 'u';
+          fetch(`sync.php?action=unlock_field&groupId=${encodeURIComponent(curGid)}&taskId=${encodeURIComponent(curTaskId)}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ fieldKey, userId: uId })
+          }).catch(() => {});
+        }
+      });
     });
 
     canvas.querySelectorAll('.btn-save-feedback-direct').forEach(btn => {

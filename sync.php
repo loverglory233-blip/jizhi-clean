@@ -277,9 +277,85 @@ if ($action === 'patch_contract_field' && $_SERVER['REQUEST_METHOD'] === 'POST')
     }
     echo json_encode(['success' => false]);
     exit;
+// 1.2 字段级聚焦悲观锁 API (用于阶段一合约与阶段三答辩条目排他性编辑与冲突免疫)
+if ($action === 'lock_field' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    $rawInput = file_get_contents('php://input');
+    $req = json_decode($rawInput, true) ?: [];
+    $fieldKey = isset($req['fieldKey']) ? trim($req['fieldKey']) : '';
+    $userId = isset($req['userId']) ? trim($req['userId']) : '';
+    $userName = isset($req['userName']) ? trim($req['userName']) : '组员';
+    $nowMs = round(microtime(true) * 1000);
+
+    if ($fieldKey && $userId && $pdo) {
+        $stmtGet = $pdo->prepare("SELECT meta_value FROM global_meta WHERE meta_key = :k");
+        $stmtGet->execute([':k' => 'locks_' . $scopeKey]);
+        $row = $stmtGet->fetch();
+        $locks = ($row && !empty($row['meta_value'])) ? json_decode($row['meta_value'], true) : [];
+        if (!is_array($locks)) $locks = [];
+
+        // 清除超过 20 秒过期的死锁
+        foreach ($locks as $k => $info) {
+            if (!isset($info['time']) || ($nowMs - intval($info['time']) > 20000)) {
+                unset($locks[$k]);
+            }
+        }
+
+        // 判断当前字段是否被其他人持有锁
+        $isLockedByOther = (isset($locks[$fieldKey]) && $locks[$fieldKey]['userId'] !== $userId);
+        if (!$isLockedByOther) {
+            $locks[$fieldKey] = [
+                'userId'   => $userId,
+                'userName' => $userName,
+                'time'     => $nowMs
+            ];
+            $locksJson = json_encode($locks, JSON_UNESCAPED_UNICODE);
+            $stmtSave = $pdo->prepare("INSERT INTO global_meta (meta_key, meta_value) VALUES (:k, :v) ON DUPLICATE KEY UPDATE meta_value = :v2");
+            $stmtSave->execute([':k' => 'locks_' . $scopeKey, ':v' => $locksJson, ':v2' => $locksJson]);
+            
+            // 唤醒全局变更
+            $stmtSignal = $pdo->prepare("INSERT INTO global_meta (meta_key, meta_value) VALUES ('meta_updated_at', :v) ON DUPLICATE KEY UPDATE meta_value = :v2");
+            $stmtSignal->execute([':v' => $nowMs, ':v2' => $nowMs]);
+
+            echo json_encode(['success' => true, 'granted' => true, 'locks' => $locks]);
+            exit;
+        } else {
+            echo json_encode(['success' => true, 'granted' => false, 'lockedBy' => $locks[$fieldKey]['userName'], 'locks' => $locks]);
+            exit;
+        }
+    }
+    echo json_encode(['success' => false]);
+    exit;
 }
 
-// 1.25 获取 Etherpad 实时协同正文（供智能体学术质检、半程会议与答辩矩阵分析）
+if ($action === 'unlock_field' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    $rawInput = file_get_contents('php://input');
+    $req = json_decode($rawInput, true) ?: [];
+    $fieldKey = isset($req['fieldKey']) ? trim($req['fieldKey']) : '';
+    $userId = isset($req['userId']) ? trim($req['userId']) : '';
+    $nowMs = round(microtime(true) * 1000);
+
+    if ($fieldKey && $pdo) {
+        $stmtGet = $pdo->prepare("SELECT meta_value FROM global_meta WHERE meta_key = :k");
+        $stmtGet->execute([':k' => 'locks_' . $scopeKey]);
+        $row = $stmtGet->fetch();
+        $locks = ($row && !empty($row['meta_value'])) ? json_decode($row['meta_value'], true) : [];
+        if (is_array($locks) && isset($locks[$fieldKey])) {
+            if (empty($userId) || $locks[$fieldKey]['userId'] === $userId) {
+                unset($locks[$fieldKey]);
+                $locksJson = json_encode($locks, JSON_UNESCAPED_UNICODE);
+                $stmtSave = $pdo->prepare("INSERT INTO global_meta (meta_key, meta_value) VALUES (:k, :v) ON DUPLICATE KEY UPDATE meta_value = :v2");
+                $stmtSave->execute([':k' => 'locks_' . $scopeKey, ':v' => $locksJson, ':v2' => $locksJson]);
+                
+                $stmtSignal = $pdo->prepare("INSERT INTO global_meta (meta_key, meta_value) VALUES ('meta_updated_at', :v) ON DUPLICATE KEY UPDATE meta_value = :v2");
+                $stmtSignal->execute([':v' => $nowMs, ':v2' => $nowMs]);
+            }
+        }
+        echo json_encode(['success' => true, 'locks' => $locks]);
+        exit;
+    }
+    echo json_encode(['success' => true]);
+    exit;
+}
 if ($action === 'get_pad_text') {
     header('Content-Type: application/json; charset=utf-8');
     $padId = isset($_GET['padId']) ? preg_replace('/[^a-zA-Z0-9_-]/', '', $_GET['padId']) : 'jizhi_' . $scopeKey;
@@ -1704,6 +1780,21 @@ if ($pdo) {
             }
         }
 
+        // 读取当前字段聚焦锁列表 (过滤超时死锁)
+        $stmtLocks = $pdo->prepare("SELECT meta_value FROM global_meta WHERE meta_key = :k");
+        $stmtLocks->execute([':k' => 'locks_' . $scopeKey]);
+        $lRow = $stmtLocks->fetch();
+        $rawLocks = ($lRow && !empty($lRow['meta_value'])) ? json_decode($lRow['meta_value'], true) : [];
+        $activeLocks = [];
+        $nowMs = round(microtime(true) * 1000);
+        if (is_array($rawLocks)) {
+            foreach ($rawLocks as $fk => $finfo) {
+                if (isset($finfo['time']) && ($nowMs - intval($finfo['time']) <= 20000)) {
+                    $activeLocks[$fk] = $finfo;
+                }
+            }
+        }
+
         $respData = [
             'timestamp'        => $lastTs,
             'revisionId'       => $lastRev,
@@ -1717,6 +1808,7 @@ if ($pdo) {
             'members'          => json_decode($row['members_data'], true) ?: [],
             'isFinalSubmitted' => (bool)$row['is_final_submitted'],
             'chatLogs'         => $chats,
+            'locks'            => $activeLocks,
             'resetSeq'         => $resetSeq,
             // 全局教务字段 - 每次 GET 都带回，自动脱敏密码，杜绝前端越权查看密码
             'users'            => $sanitizedUsers,
