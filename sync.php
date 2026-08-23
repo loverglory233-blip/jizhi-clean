@@ -585,16 +585,36 @@ if ($action === 'change_password' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 exit;
             }
 
-            $currentDbPwd = $user['password'] ?? '123';
-            $oldMatch = password_verify($oldPwd, $currentDbPwd) || ($oldPwd === $currentDbPwd) || ($oldPwd === '123' && (empty($currentDbPwd) || $currentDbPwd === '123'));
+            $currentDbPwd = trim($user['password'] ?? '123');
+            $cleanOld = trim($oldPwd);
+            
+            // 🛡️ 全算法无损自适应比对 (Bcrypt / 明文 / MD5 / 默认123)
+            $oldMatch = false;
+            if (password_verify($cleanOld, $currentDbPwd)) {
+                $oldMatch = true;
+            } else if ($cleanOld === $currentDbPwd) {
+                $oldMatch = true;
+            } else if (md5($cleanOld) === $currentDbPwd) {
+                $oldMatch = true;
+            } else if ($cleanOld === '123' && (empty($currentDbPwd) || $currentDbPwd === '123' || password_verify('123', $currentDbPwd))) {
+                $oldMatch = true;
+            }
+
             if (!$oldMatch) {
                 echo json_encode(['success' => false, 'message' => '❌ 原密码不正确，默认初始密码为 123']);
                 exit;
             }
 
-            $hashedNew = password_hash($newPwd, PASSWORD_DEFAULT);
-            $stmtUpdate = $pdo->prepare("UPDATE users SET password = :p WHERE id = :uid OR username = :uname");
-            $stmtUpdate->execute([':p' => $hashedNew, ':uid' => $user['id'], ':uname' => $user['username']]);
+            $hashedNew = password_hash(trim($newPwd), PASSWORD_DEFAULT);
+            
+            // 同步更新 users 表中所有相关字段匹配记录 (无论 id 还是 username)
+            $stmtUpdate = $pdo->prepare("UPDATE users SET password = :p WHERE id = :uid OR username = :uname OR student_code = :scode");
+            $stmtUpdate->execute([
+                ':p' => $hashedNew,
+                ':uid' => $user['id'],
+                ':uname' => ($user['username'] ?? $account),
+                ':scode' => ($user['student_code'] ?? $account)
+            ]);
 
             // 同步更新 global_meta 的 main_meta
             try {
@@ -605,7 +625,10 @@ if ($action === 'change_password' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                     $gm = json_decode($metaRow2['meta_value'], true) ?: [];
                     if (isset($gm['users']) && is_array($gm['users'])) {
                         foreach ($gm['users'] as &$gu) {
-                            if (($gu['id'] ?? '') === $user['id'] || ($gu['studentCode'] ?? '') === $user['student_code'] || ($gu['username'] ?? '') === $user['username']) {
+                            $gUid = $gu['id'] ?? '';
+                            $gSc = $gu['studentCode'] ?? '';
+                            $gUn = $gu['username'] ?? '';
+                            if ($gUid === $user['id'] || $gSc === ($user['student_code'] ?? '') || $gUn === ($user['username'] ?? '') || $gSc === $account || $gUn === $account) {
                                 $gu['password'] = $hashedNew;
                             }
                         }
