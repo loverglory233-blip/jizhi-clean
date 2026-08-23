@@ -5849,11 +5849,6 @@
     const tasks = authManager.getTasks();
     const announcements = authManager.getAnnouncements();
 
-    const currentUser = authManager.getCurrentUser();
-    const classes = authManager.getClasses();
-    const tasks = authManager.getTasks();
-    const announcements = authManager.getAnnouncements();
-
     // 🏫 1. 动态获取系统中所有可用班级列表
     const displayClasses = classes && classes.length > 0 ? classes : [{ id: 'class_101', name: '教学班级', groups: [] }];
 
