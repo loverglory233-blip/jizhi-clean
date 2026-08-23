@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState } from './constants.js?v=20260823_v29';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin } from './utils.js?v=20260823_v29';
+import { InitialState } from './constants.js?v=20260823_v30';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin } from './utils.js?v=20260823_v30';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -19,9 +19,19 @@ export class CloudSyncEngine {
     this.initPolling();
   }
 
+  getEffectiveGroupId() {
+    const user = this.app.authManager ? this.app.authManager.getCurrentUser() : null;
+    const isTeacher = user && (user.isTeacher || user.role === 'teacher');
+    if (isTeacher) {
+      return this.app.state.activeMonitorGroupId || 'group_1';
+    }
+    const effectiveClassId = this.app.state.activeStudentClassId || user?.classId || 'class_101';
+    const activeGroupObj = this.app.authManager ? this.app.authManager.getStudentActiveGroup(user, effectiveClassId) : null;
+    return activeGroupObj?.id || user?.groupId || 'group_1';
+  }
+
   updateScopeKeys() {
-    const user = this.app.authManager.getCurrentUser();
-    const groupId = (user && user.groupId) ? user.groupId : (this.app.state.activeMonitorGroupId || 'group_1');
+    const groupId = this.getEffectiveGroupId();
     const taskId = (this.app.state.activeTaskId) ? this.app.state.activeTaskId : 'task_default';
     this.groupId = groupId;
     this.taskId = taskId;
@@ -318,8 +328,8 @@ export class CloudSyncEngine {
   handleRemoteSync(remoteData) {
     if (!remoteData) return;
 
-    const user = this.app.authManager.getCurrentUser();
-    const myGroupId = (user && user.groupId) ? user.groupId : (this.app.state.activeMonitorGroupId || 'group_1');
+    const user = this.app.authManager ? this.app.authManager.getCurrentUser() : null;
+    const myGroupId = this.getEffectiveGroupId();
 
     if (remoteData.groupId && remoteData.groupId !== myGroupId && user?.role === 'student') return;
 

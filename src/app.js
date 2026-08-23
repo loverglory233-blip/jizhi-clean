@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260823_v29";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired } from "./utils.js?v=20260823_v29";
-import { callCozeAgentAPI } from "./agents.js?v=20260823_v29";
-import { AuthManager } from "./auth.js?v=20260823_v29";
-import { CloudSyncEngine } from "./sync.js?v=20260823_v29";
-import { renderLoginView } from "./login.js?v=20260823_v29";
-import { renderTeacherPortal } from "./teacher.js?v=20260823_v29";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260823_v29";
+} from "./constants.js?v=20260823_v30";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired } from "./utils.js?v=20260823_v30";
+import { callCozeAgentAPI } from "./agents.js?v=20260823_v30";
+import { AuthManager } from "./auth.js?v=20260823_v30";
+import { CloudSyncEngine } from "./sync.js?v=20260823_v30";
+import { renderLoginView } from "./login.js?v=20260823_v30";
+import { renderTeacherPortal } from "./teacher.js?v=20260823_v30";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260823_v30";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260823_v29";
+} from "./editor.js?v=20260823_v30";
 
 // Make renderChat available on window for sync callbacks
 if (typeof window !== "undefined") {
@@ -196,13 +196,23 @@ export class App {
     });
   }
 
+  getEffectiveGroupId() {
+    const user = this.authManager ? this.authManager.getCurrentUser() : null;
+    const isTeacher = user && (user.isTeacher || user.role === 'teacher');
+    if (isTeacher) {
+      return this.state.activeMonitorGroupId || 'group_1';
+    }
+    const effectiveClassId = this.state.activeStudentClassId || user?.classId || 'class_101';
+    const activeGroupObj = this.authManager ? this.authManager.getStudentActiveGroup(user, effectiveClassId) : null;
+    return activeGroupObj?.id || user?.groupId || 'group_1';
+  }
+
   saveGroupState(groupId) {
     // 彻底废除 LocalStorage 冗余脏备份，状态完全由内存状态机和云端 MySQL 统一权威托管
   }
 
   syncChatLogs() {
-    const user = this.authManager.getCurrentUser();
-    const groupId = (user && user.groupId) ? user.groupId : (this.state.activeMonitorGroupId || 'group_1');
+    const groupId = this.getEffectiveGroupId();
     const taskId = this.state.activeTaskId || 'task_default';
     const stage = this.state.currentStage || 'stage1';
     const logs = (this.state.chatLogs && this.state.chatLogs[stage]) ? this.state.chatLogs[stage] : [];
