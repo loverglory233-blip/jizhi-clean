@@ -398,7 +398,12 @@ if ($action === 'get_global_meta') {
             $parsed = json_decode($row['meta_value'], true);
             // 🛡️ 严格检验：只有当解析出来是包含教务字段（classes/tasks/users）的对象时才返回
             if (is_array($parsed) && (isset($parsed['classes']) || isset($parsed['tasks']) || isset($parsed['users']))) {
-                echo $row['meta_value'];
+                // 🛡️ 脱敏：下发前剔除所有用户的 password 字段，防止明文/哈希口令泄露
+                if (isset($parsed['users']) && is_array($parsed['users'])) {
+                    foreach ($parsed['users'] as &$usr) { if (is_array($usr)) unset($usr['password']); }
+                    unset($usr);
+                }
+                echo json_encode($parsed, JSON_UNESCAPED_UNICODE);
                 exit;
             }
         }
@@ -409,7 +414,12 @@ if ($action === 'get_global_meta') {
         $fileContent = file_get_contents($globalDbFile);
         $parsedFile = json_decode($fileContent, true);
         if (is_array($parsedFile) && (isset($parsedFile['classes']) || isset($parsedFile['tasks']) || isset($parsedFile['users']))) {
-            echo $fileContent;
+            // 🛡️ 脱敏：下发前剔除所有用户的 password 字段
+            if (isset($parsedFile['users']) && is_array($parsedFile['users'])) {
+                foreach ($parsedFile['users'] as &$usr2) { if (is_array($usr2)) unset($usr2['password']); }
+                unset($usr2);
+            }
+            echo json_encode($parsedFile, JSON_UNESCAPED_UNICODE);
             exit;
         }
     }
@@ -739,7 +749,16 @@ if ($action === 'session_check') {
 
 if ($action === 'session_logout') {
     $userId = isset($_GET['userId']) ? $_GET['userId'] : '';
-    if ($userId && $pdo) {
+    $token = isset($_GET['token']) ? $_GET['token'] : '';
+    // 🛡️ 仅当 token 与会话一致时才允许登出，防止跨站伪造登出 (CSRF/logout-forgery)
+    $canLogout = false;
+    if ($userId && $token && $pdo) {
+        $stmt = $pdo->prepare("SELECT meta_value FROM global_meta WHERE meta_key = :k");
+        $stmt->execute([':k' => 'sess_' . $userId]);
+        $row = $stmt->fetch();
+        $canLogout = ($row && !empty($row['meta_value']) && $row['meta_value'] === $token);
+    }
+    if ($canLogout) {
         $stmt = $pdo->prepare("DELETE FROM global_meta WHERE meta_key = :k");
         $stmt->execute([':k' => 'sess_' . $userId]);
     }
@@ -749,6 +768,23 @@ if ($action === 'session_logout') {
 
 // 3. 扣子 (Coze v3) API 代理转发与非阻塞轮询 (引入规范化 OAuth 引擎)
 if (($action === 'coze_chat' || $action === 'coze_poll') && ($_SERVER['REQUEST_METHOD'] === 'POST' || $_SERVER['REQUEST_METHOD'] === 'GET')) {
+    // 🛡️ 会话鉴权 Fail-Closed：调用扣子代理必须持有有效会话，杜绝匿名刷 Coze 配额
+    $cozeRawInput = file_get_contents('php://input');
+    $cozeReq = json_decode($cozeRawInput, true) ?: [];
+    $cozeUserId = isset($_GET['userId']) ? $_GET['userId'] : (isset($cozeReq['userId']) ? $cozeReq['userId'] : (isset($cozeReq['user_id']) ? $cozeReq['user_id'] : ''));
+    $cozeToken = isset($_GET['token']) ? $_GET['token'] : (isset($cozeReq['token']) ? $cozeReq['token'] : '');
+    $cozeAuthed = false;
+    if ($cozeUserId && $cozeToken && $pdo) {
+        $stmt = $pdo->prepare("SELECT meta_value FROM global_meta WHERE meta_key = :k");
+        $stmt->execute([':k' => 'sess_' . $cozeUserId]);
+        $row = $stmt->fetch();
+        $cozeAuthed = ($row && !empty($row['meta_value']) && $row['meta_value'] === $cozeToken);
+    }
+    if (!$cozeAuthed) {
+        http_response_code(403);
+        echo json_encode(['success' => false, 'message' => '会话失效，请重新登录']);
+        exit;
+    }
     require_once __DIR__ . '/api/chat_api.php';
     exit;
 }
@@ -832,6 +868,21 @@ if ($action === 'reset_group' && $_SERVER['REQUEST_METHOD'] === 'POST') {
 if ($action === 'record_teacher_alert') {
     $rawInput = file_get_contents('php://input');
     $alertItem = json_decode($rawInput, true);
+    // 🛡️ 服务端鉴权：记录协同动态提醒要求持有有效会话（教师或学生组长均需已登录），杜绝匿名刷告警
+    $alertUserId = isset($_GET['userId']) ? $_GET['userId'] : (is_array($alertItem) && isset($alertItem['userId']) ? $alertItem['userId'] : '');
+    $alertToken = isset($_GET['token']) ? $_GET['token'] : (is_array($alertItem) && isset($alertItem['token']) ? $alertItem['token'] : '');
+    $alertAuthed = false;
+    if ($alertUserId && $alertToken && $pdo) {
+        $stmtSess = $pdo->prepare("SELECT meta_value FROM global_meta WHERE meta_key = :k");
+        $stmtSess->execute([':k' => 'sess_' . $alertUserId]);
+        $sessRow = $stmtSess->fetch();
+        $alertAuthed = ($sessRow && !empty($sessRow['meta_value']) && $sessRow['meta_value'] === $alertToken);
+    }
+    if (!$alertAuthed) {
+        http_response_code(403);
+        echo json_encode(['success' => false, 'error' => '会话失效：请重新登录后再记录协同动态提醒']);
+        exit;
+    }
     if ($alertItem && is_array($alertItem)) {
         if ($pdo) {
             $stmt = $pdo->prepare("SELECT meta_value FROM global_meta WHERE meta_key = 'teacher_alerts'");
@@ -1176,8 +1227,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // 4c. 同步保存全局教务元数据 (users/classes/tasks/announcements/referencePapers)
             // 🛡️ 严格单向权限隔离：只有明确来自教师端 (isTeacher=true 或 userRole='teacher') 的请求才允许更新全局教务表！
             // 学生端协同快照一律禁止触碰全局教务数据，物理上杜绝学生端冲掉教师配置的班级与任务！
-            $isTeacherPush = (!empty($data['isTeacher']) || (isset($data['userRole']) && $data['userRole'] === 'teacher') || (isset($data['role']) && $data['role'] === 'teacher'));
-            $hasGlobalMeta = $isTeacherPush && (!empty($data['users']) || !empty($data['classes']) || !empty($data['tasks']));
+            // 🛡️ 服务端强制鉴权：全局教务表写入必须通过 verifyTeacherSession，客户端 isTeacher/userRole/role 字段一律不可信
+            $teacherUserId = isset($data['userId']) ? $data['userId'] : (isset($_GET['userId']) ? $_GET['userId'] : '');
+            $teacherToken = isset($data['token']) ? $data['token'] : (isset($_GET['token']) ? $_GET['token'] : '');
+            $isTeacherVerified = verifyTeacherSession($teacherUserId, $teacherToken, $pdo);
+            $hasGlobalMeta = $isTeacherVerified && (!empty($data['users']) || !empty($data['classes']) || !empty($data['tasks']));
             if ($hasGlobalMeta) {
                 // 先读取已有的 main_meta，做字段级合并（避免一台设备覆盖另一台的未发送字段）
                 $stmtReadMeta = $pdo->prepare("SELECT meta_value FROM global_meta WHERE meta_key = 'main_meta'");

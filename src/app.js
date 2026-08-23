@@ -11,7 +11,7 @@ import {
   STORAGE_KEY_USERS_DB,
   AgentProfiles
 } from "./constants.js";
-import { downloadFileBlob, escapeHtml } from "./utils.js";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin } from "./utils.js";
 import { callCozeAgentAPI } from "./agents.js";
 import { AuthManager } from "./auth.js";
 import { CloudSyncEngine } from "./sync.js";
@@ -1936,6 +1936,7 @@ export class App {
     // 单一规范 key 写入，避免 id/studentCode 三键冗余导致的去重与调试混乱
     s1.votes[user] = proposalId;
     s1.hasVoted[user] = true;
+    s1._lastVoteTime = Date.now();
     const proposal = (s1.proposals || []).find(p => p.id === proposalId);
     const membersList = Object.values(this.state.members || {});
     const totalMembersCount = membersList.length || 3;
@@ -2136,9 +2137,9 @@ ${propText}
             // 平台自动将正反评审意见写入左侧【答辩裁决矩阵】
             if (!this.state.stage3.feedbackItems || this.state.stage3.feedbackItems.length === 0) {
               this.state.stage3.feedbackItems = [
-                { id: 'fb_prop', reviewer: '正方委员 Agent (肯定支持)', comment: propText.replace(/^[^\n]*【[^】]+】\s*/, ''), response: '', isApproved: true },
-                { id: 'fb_opp_1', reviewer: '反方委员 Agent (尖锐质询)', comment: '质询 1：研究设计的落地实施中控制变量与外推效度说明不足，需明确具体控制方案。', response: '', isApproved: false },
-                { id: 'fb_opp_2', reviewer: '反方委员 Agent (尖锐质询)', comment: '质询 2：测量工具与核心变量论据支撑略显单薄，需补充信效度检验与操作化依据。', response: '', isApproved: false }
+                { id: 'fb_prop', role: 'proponent', speaker: '正方委员 Agent (肯定支持)', title: '立论支持', content: propText.replace(/^[^\n]*【[^】]+】\s*/, ''), response: '', status: 'adopted' },
+                { id: 'fb_opp_1', role: 'opponent', speaker: '反方委员 Agent (尖锐质询)', title: '质询 1', content: '质询 1：研究设计的落地实施中控制变量与外推效度说明不足，需明确具体控制方案。', response: '', status: 'pending' },
+                { id: 'fb_opp_2', role: 'opponent', speaker: '反方委员 Agent (尖锐质询)', title: '质询 2', content: '质询 2：测量工具与核心变量论据支撑略显单薄，需补充信效度检验与操作化依据。', response: '', status: 'pending' }
               ];
               this.syncStage3();
               this.renderStudentWorkspace();
@@ -2228,7 +2229,10 @@ ${propText}
 
   renderStudentWorkspace(isForced = false) {
     const currentUser = this.authManager.getCurrentUser();
-    const currentGroupId = currentUser && currentUser.groupId ? currentUser.groupId : 'group_1';
+    // 🛡️ 小组解析兜底：缺失 groupId 时按班级/成员关系反查真实小组，避免硬编码 'group_1' 导致空成员视图
+    const currentGroupId = (currentUser && currentUser.groupId)
+      ? currentUser.groupId
+      : ((this.authManager.getStudentActiveGroup(currentUser) || {}).id || 'group_1');
 
     this.state.members = this.authManager.getGroupMembersForWorkspace(currentGroupId);
     this.state.currentUser = currentUser ? (currentUser.studentCode || 'A') : 'A';
@@ -2329,6 +2333,7 @@ ${propText}
       onAiGenerateContract: () => {
         const s1 = this.state.stage1;
         s1.contract.isDraftGenerated = true;
+        s1.contract._draftedTime = Date.now();
         if (!s1.contract.taskAssignments) s1.contract.taskAssignments = {};
 
         // 1. 提炼最高票选题作为融合研究主题
@@ -2515,7 +2520,8 @@ ${propText}
             this.state.stage2.memberContributions[mId] = 0;
           });
         } else {
-          const prevLen = this.lastPlainTextLength || 0;
+          // 🛡️ 首帧建立基线：首次触发时不做增量统计，避免把编辑器载入的既有正文全部算到当前成员头上
+          const prevLen = (this.lastPlainTextLength === undefined) ? plain.length : this.lastPlainTextLength;
           const delta = plain.length - prevLen;
           this.lastPlainTextLength = plain.length;
           if (delta > 0) {

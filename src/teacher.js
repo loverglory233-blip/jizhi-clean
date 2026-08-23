@@ -7,9 +7,10 @@ import {
   STORAGE_KEY_ANNOUNCEMENTS,
   STORAGE_KEY_TASKS,
   STORAGE_KEY_CLASSES,
-  STORAGE_KEY_USERS_DB
+  STORAGE_KEY_USERS_DB,
+  AgentProfiles
 } from "./constants.js";
-import { parseXLSXOrCSVFile, downloadFileBlob } from "./utils.js";
+import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml } from "./utils.js";
 
 /* ==========================================================================
    7. TEACHER PORTAL RENDERER (LIVE WORKSPACE MIRROR & ANNOUNCEMENT READ MATRIX)
@@ -785,10 +786,10 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
                         return `
                           <div style="background:#ffffff; padding:8px 12px; border-radius:8px; border:1px solid #e2e8f0; border-left:3px solid ${color};">
                             <div style="display:flex; justify-content:space-between; margin-bottom:3px;">
-                              <b style="color:${color}; font-size:12px;">${senderName}</b>
-                              <span style="color:#94a3b8; font-size:10px;">${m.timestamp || ''}</span>
+                              <b style="color:${color}; font-size:12px;">${escapeHtml(senderName)}</b>
+                              <span style="color:#94a3b8; font-size:10px;">${escapeHtml(m.timestamp || '')}</span>
                             </div>
-                            <div style="color:#0f172a; line-height:1.5;">${m.text}</div>
+                            <div style="color:#0f172a; line-height:1.5;">${escapeHtml(m.text || '')}</div>
                           </div>
                         `;
                       }).join('')}
@@ -871,10 +872,10 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
                         return `
                           <div style="background:#ffffff; padding:8px 12px; border-radius:8px; border:1px solid #e2e8f0; border-left:3px solid ${color};">
                             <div style="display:flex; justify-content:space-between; margin-bottom:3px;">
-                              <b style="color:${color}; font-size:12px;">${senderName}</b>
-                              <span style="color:#94a3b8; font-size:10px;">${m.timestamp || ''}</span>
+                              <b style="color:${color}; font-size:12px;">${escapeHtml(senderName)}</b>
+                              <span style="color:#94a3b8; font-size:10px;">${escapeHtml(m.timestamp || '')}</span>
                             </div>
-                            <div style="color:#0f172a; line-height:1.5;">${m.text}</div>
+                            <div style="color:#0f172a; line-height:1.5;">${escapeHtml(m.text || '')}</div>
                           </div>
                         `;
                       }).join('')}
@@ -904,10 +905,10 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
                         return `
                           <div style="background:#ffffff; padding:8px 12px; border-radius:8px; border:1px solid #e2e8f0; border-left:3px solid ${color};">
                             <div style="display:flex; justify-content:space-between; margin-bottom:3px;">
-                              <b style="color:${color}; font-size:12px;">${senderName}</b>
-                              <span style="color:#94a3b8; font-size:10px;">${m.timestamp || ''}</span>
+                              <b style="color:${color}; font-size:12px;">${escapeHtml(senderName)}</b>
+                              <span style="color:#94a3b8; font-size:10px;">${escapeHtml(m.timestamp || '')}</span>
                             </div>
-                            <div style="color:#0f172a; line-height:1.5;">${m.text}</div>
+                            <div style="color:#0f172a; line-height:1.5;">${escapeHtml(m.text || '')}</div>
                           </div>
                         `;
                       }).join('')}

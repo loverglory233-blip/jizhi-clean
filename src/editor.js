@@ -56,11 +56,11 @@ export function renderHeader(state, currentUser, announcements, onStageChange, o
     <div class="brand-section">
       <div class="brand-logo">集智 JIZHI</div>
       <div class="brand-badge" style="background:#eff6ff; color:#1d4ed8; padding:3px 12px; border-radius:20px; font-size:12px; font-weight:700; border:1px solid #bfdbfe; display:inline-flex; align-items:center; gap:6px;">
-        <span>🎓 ${currentUser ? currentUser.name : '学生'}</span>
+        <span>🎓 ${escapeHtml(currentUser ? currentUser.name : '学生')}</span>
         <span style="opacity:0.35;">·</span>
-        <span>👥 ${groupName}</span>
+        <span>👥 ${escapeHtml(groupName)}</span>
         <span style="opacity:0.35;">·</span>
-        <span style="color:#1e40af; background:#ffffff; padding:1.5px 8px; border-radius:10px; border:1px solid #bfdbfe; font-weight:800;">📌 ${currentTaskTitle}</span>
+        <span style="color:#1e40af; background:#ffffff; padding:1.5px 8px; border-radius:10px; border:1px solid #bfdbfe; font-weight:800;">📌 ${escapeHtml(currentTaskTitle)}</span>
         ${isFinalSubmitted ? '<span style="color:#059669; margin-left:3px;">(🔒已归档)</span>' : ''}
       </div>
       <button id="btn-header-back-tasks" style="background:#f8fafc; border:1px solid #cbd5e1; color:#334155; padding:3px 8px; border-radius:14px; font-size:11px; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; gap:3px;" title="返回我的写作任务大厅">
@@ -611,8 +611,8 @@ export function attachWordEditorEvents(container, editorId, isReadonly, onChange
               const caption = prompt('请输入学术图题说明 (例如: 图 1: 研究模型与变量关系架构图):', '图 1: 研究模型与变量关系架构图');
               const figureHtml = `
                 <div class="academic-figure" contenteditable="false">
-                  <img src="${imgData}" alt="${caption || '学术图表'}" style="max-width:85%; border:1px solid #cbd5e1; border-radius:4px; box-shadow:0 2px 8px rgba(0,0,0,0.1);">
-                  <p class="figure-caption" style="font-weight:700; color:#334155; margin-top:6px; font-size:13px; text-indent:0;">${caption || '图 1: 学术模型与实证架构图'}</p>
+                  <img src="${imgData}" alt="${escapeHtml(caption || '学术图表')}" style="max-width:85%; border:1px solid #cbd5e1; border-radius:4px; box-shadow:0 2px 8px rgba(0,0,0,0.1);">
+                  <p class="figure-caption" style="font-weight:700; color:#334155; margin-top:6px; font-size:13px; text-indent:0;">${escapeHtml(caption || '图 1: 学术模型与实证架构图')}</p>
                 </div>
                 <p><br></p>
               `;
@@ -680,7 +680,7 @@ export function attachWordEditorEvents(container, editorId, isReadonly, onChange
           closeModal();
 
           let tableHtml = `
-            <p style="text-align:center; font-weight:700; color:#334155; font-size:13px; margin-bottom:4px; text-indent:0;">${title}</p>
+            <p style="text-align:center; font-weight:700; color:#334155; font-size:13px; margin-bottom:4px; text-indent:0;">${escapeHtml(title)}</p>
             <table class="academic-table" style="width:100%; border-collapse:collapse; margin:10px 0; font-size:13px;">
               <thead style="border-top:2.5px solid #0f172a; border-bottom:1.5px solid #0f172a; background:#f8fafc;">
                 <tr>${Array.from({length: cols}, (_, i) => `<th style="padding:8px; text-align:center;">变量 ${i + 1}</th>`).join('')}</tr>
@@ -1750,14 +1750,14 @@ function renderStage3Canvas(canvas, state, handlers) {
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
                   <div style="display:flex; align-items:center; gap:8px;">
                     <span style="font-size:16px;">${item.role === 'opponent' ? '🔴' : '🟢'}</span>
-                    <span style="font-weight:800; font-size:14.5px; color:${item.role === 'opponent' ? '#dc2626' : '#059669'};">质询点 ${idx + 1}: ${item.speaker || (item.role === 'opponent' ? '反方委员 Agent' : '正方委员 Agent')} - ${item.title}</span>
+                    <span style="font-weight:800; font-size:14.5px; color:${item.role === 'opponent' ? '#dc2626' : '#059669'};">质询点 ${idx + 1}: ${escapeHtml(item.speaker || (item.role === 'opponent' ? '反方委员 Agent' : '正方委员 Agent'))} - ${escapeHtml(item.title || '')}</span>
                   </div>
                   <span style="font-size:11.5px; padding:3px 10px; border-radius:12px; font-weight:700; background:${item.status === 'adopted' ? '#ecfdf5' : '#fffbeb'}; color:${item.status === 'adopted' ? '#059669' : '#d97706'}; border:1px solid ${item.status === 'adopted' ? '#a7f3d0' : '#fde68a'};">
                     ${item.status === 'adopted' ? '✅ 已研讨并归档' : '⏳ 待组内研讨裁决'}
                   </span>
                 </div>
                 <div style="font-size:13.5px; color:#1e293b; background:#f8fafc; border:1px solid #e2e8f0; padding:12px 14px; border-radius:8px; margin-bottom:12px; line-height:1.6;">
-                  <b>${item.speaker}意见原文:</b><br>${item.content}
+                  <b>${escapeHtml(item.speaker)}意见原文:</b><br>${escapeHtml(item.content || '')}
                 </div>
 
                 <div style="border-top:1px dashed #e2e8f0; padding-top:10px; margin-top:10px;">
@@ -1771,7 +1771,7 @@ function renderStage3Canvas(canvas, state, handlers) {
                     ${isFinalSubmitted ? 'disabled readonly' : ''} 
                     placeholder="商讨后，在此直接输入本组针对该条意见的简要答复与修改结论..." 
                     style="width:100%; min-height:64px; padding:8px 12px; font-size:13px; line-height:1.5; border:1px solid ${item.response ? '#a7f3d0' : '#cbd5e1'}; background:${isFinalSubmitted ? '#f8fafc' : (item.response ? '#f0fdf4' : '#ffffff')}; border-radius:8px; resize:vertical; box-sizing:border-box; color:#0f172a; font-family:inherit;"
-                  >${item.response || ''}</textarea>
+                  >${escapeHtml(item.response || '')}</textarea>
                   
                   ${!isFinalSubmitted ? `
                     <div style="display:flex; justify-content:flex-end; margin-top:8px;">

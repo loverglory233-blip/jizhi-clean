@@ -145,9 +145,16 @@ WS_ROOMS = {}
 WS_UPDATES = {} # roomKey: [bytes, ...]
 WS_LOCK = threading.Lock()
 
+# 🛡️ 单帧长度上限与读超时：杜绝慢连接 (slow-loris) 声明超大帧或逐字节滴灌拖垮线程/内存
+MAX_WS_FRAME = 16 * 1024 * 1024   # 16MB
+WS_READ_TIMEOUT = 300            # 300s 读超时，Yjs 客户端心跳 ~30s，足够安全
+
 # 🚀 每连接独立发送锁：杜绝同一 socket 的并发帧撕裂，同时避免全局 WS_LOCK 持有期间做阻塞 IO（头阻塞）
 _SEND_LOCKS = {}
 _SEND_LOCKS_GUARD = threading.Lock()
+
+# 🛡️ JSON 文件读写互斥锁：序列化所有 JSON 文件的读-改-写，避免并发覆盖/读到半写入文件
+JSON_FILE_LOCK = threading.Lock()
 
 def _send_lock_for(sock):
     with _SEND_LOCKS_GUARD:
@@ -191,6 +198,10 @@ def read_ws_frame(sock):
             ext = sock.recv(8)
             if len(ext) < 8: return None, None
             length = struct.unpack('!Q', ext)[0]
+
+        # 🛡️ 长度上限：拒绝异常超大帧，防止内存耗尽
+        if length > MAX_WS_FRAME:
+            return None, None
 
         mask = sock.recv(4) if is_masked else b''
         if is_masked and len(mask) < 4:
@@ -269,6 +280,11 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                     room = self.path.split('/')[-1] or 'default'
 
                 sock = self.request
+                # 🛡️ 读超时：防止慢连接 (slow-loris) 永久占用线程
+                try:
+                    sock.settimeout(WS_READ_TIMEOUT)
+                except Exception:
+                    pass
                 with WS_LOCK:
                     if room not in WS_ROOMS:
                         WS_ROOMS[room] = set()
@@ -277,10 +293,11 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                         WS_UPDATES[room] = []
                     hist_copies = list(WS_UPDATES[room])
 
-                # 🚀 历史增量重放：将已有 CRDT 文档更新帧立即回放给新接入的客户端
+                # 🚀 历史增量重放：将已有 CRDT 文档更新帧立即回放给新接入的客户端（走独立发送锁，杜绝与广播帧交错）
                 for hdata in hist_copies:
                     try:
-                        sock.sendall(make_ws_frame(hdata, is_binary=True))
+                        with _send_lock_for(sock):
+                            sock.sendall(make_ws_frame(hdata, is_binary=True))
                     except Exception:
                         pass
 
@@ -317,6 +334,9 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                                 with WS_LOCK:
                                     if room in WS_ROOMS:
                                         WS_ROOMS[room].difference_update(dead)
+                                # 🛡️ 及时回收死连接的独立发送锁，杜绝 _SEND_LOCKS 缓慢泄漏
+                                for dead_sock in dead:
+                                    _drop_send_lock(dead_sock)
                 except Exception:
                     pass
                 finally:
@@ -425,8 +445,12 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                 with SSE_LOCK:
                     if groupId in SSE_CLIENTS:
                         SSE_CLIENTS[groupId].discard(q)
+                        if not SSE_CLIENTS[groupId]:
+                            del SSE_CLIENTS[groupId]
                     if channel_key in SSE_CLIENTS:
                         SSE_CLIENTS[channel_key].discard(q)
+                        if not SSE_CLIENTS[channel_key]:
+                            del SSE_CLIENTS[channel_key]
             return
 
         # ⚡ 全局教务元数据 (班级/任务/通知/文献/问卷) 专属路由
@@ -435,11 +459,17 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             content = None
             if os.path.exists(global_file):
                 try:
-                    with open(global_file, 'rb') as f:
-                        raw_data = f.read()
+                    with JSON_FILE_LOCK:
+                        with open(global_file, 'rb') as f:
+                            raw_data = f.read()
                     parsed = json.loads(raw_data.decode('utf-8'))
                     if isinstance(parsed, dict) and ('classes' in parsed or 'tasks' in parsed or 'users' in parsed):
-                        content = raw_data
+                        # 🛡️ 脱敏：下发前剔除所有用户的 password 字段，防止明文/哈希口令泄露
+                        if isinstance(parsed.get('users'), list):
+                            for u in parsed['users']:
+                                if isinstance(u, dict):
+                                    u.pop('password', None)
+                        content = json.dumps(parsed, ensure_ascii=False).encode('utf-8')
                 except Exception:
                     pass
 
@@ -475,8 +505,9 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                     "surveys": []
                 }
                 content = json.dumps(default_meta, ensure_ascii=False).encode('utf-8')
-                with open(global_file, 'wb') as f:
-                    f.write(content)
+                with JSON_FILE_LOCK:
+                    with open(global_file, 'wb') as f:
+                        f.write(content)
 
             self.send_response(200)
             self.send_header('Content-Type', 'application/json; charset=utf-8')
@@ -533,9 +564,10 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             self.wfile.flush()
             return
 
-        # Security protection: prevent direct downloading of sensitive key/env/config files
+        # Security protection: prevent direct downloading of sensitive source/config/data files
         clean_path = self.path.split('?')[0].lower()
-        if any(clean_path.endswith(ext) for ext in ['.pem', '.key', '.env']) or clean_path.endswith('config.php'):
+        blocked_ext = ('.pem', '.key', '.env', '.php', '.py', '.json')
+        if any(clean_path.endswith(ext) for ext in blocked_ext):
             self.send_response(403)
             self.send_header('Content-Type', 'text/plain; charset=utf-8')
             self.end_headers()
@@ -552,6 +584,17 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             body = self.rfile.read(length)
             try:
                 req = json.loads(body.decode('utf-8'))
+                # 🛡️ 会话鉴权 Fail-Closed：调用扣子代理必须持有有效会话，杜绝匿名刷 Coze 配额
+                coze_uid = req.get('userId') or req.get('user_id') or ''
+                coze_token = req.get('token') or ''
+                with LOCK_MUTEX:
+                    coze_active = SESSION_LOCKS.get(coze_uid) if coze_uid else None
+                if not coze_uid or not coze_token or not coze_active or coze_active.get('token') != coze_token:
+                    self.send_response(403)
+                    self.send_header('Content-Type', 'application/json; charset=utf-8')
+                    self.end_headers()
+                    self.wfile.write(b'{"success":false,"message":"session_required"}')
+                    return
                 bot_key = req.get('bot_key', '')
                 bot_id = req.get('bot_id', '')
                 if not bot_id and bot_key in COZE_BOTS_MAP:
@@ -734,21 +777,26 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             body = self.rfile.read(length)
             try:
                 data = json.loads(body.decode('utf-8'))
-                # 🛡️ 基础会话验证：要求提供有效 userId 和 token
+                # 🛡️ 强制鉴权 Fail-Closed：缺失凭证或会话不匹配一律拒绝，绝不无凭据放行
                 req_user_id = data.get('userId') or data.get('_userId')
                 req_token = data.get('token') or data.get('_token')
-                if req_user_id and req_token:
-                    with LOCK_MUTEX:
-                        active = SESSION_LOCKS.get(req_user_id)
-                        if active and active.get('token') != req_token:
-                            self.send_response(403)
-                            self.end_headers()
-                            self.wfile.write(b'{"success":false,"error":"session_invalid"}')
-                            return
+                if not req_user_id or not req_token:
+                    self.send_response(403)
+                    self.end_headers()
+                    self.wfile.write(b'{"success":false,"error":"session_required"}')
+                    return
+                with LOCK_MUTEX:
+                    active = SESSION_LOCKS.get(req_user_id)
+                if not active or active.get('token') != req_token:
+                    self.send_response(403)
+                    self.end_headers()
+                    self.wfile.write(b'{"success":false,"error":"session_invalid"}')
+                    return
                 if isinstance(data, dict) and ('classes' in data or 'tasks' in data or 'users' in data):
                     global_file = os.path.join(DIR, 'global_db.json')
-                    with open(global_file, 'wb') as f:
-                        f.write(body)
+                    with JSON_FILE_LOCK:
+                        with open(global_file, 'wb') as f:
+                            f.write(body)
                 resp = json.dumps({'success': True, 'timestamp': int(time.time() * 1000)}).encode('utf-8')
                 self.send_response(200)
                 self.send_header('Content-Type', 'application/json; charset=utf-8')
@@ -777,35 +825,36 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                 if ann_id:
                     global_file = os.path.join(DIR, 'global_db.json')
                     if os.path.exists(global_file):
-                        with open(global_file, 'r', encoding='utf-8') as f:
-                            meta = json.load(f)
-                        if isinstance(meta, dict) and 'announcements' in meta and isinstance(meta['announcements'], list):
-                            for ann in meta['announcements']:
-                                if ann.get('id') == ann_id:
-                                    if 'readStatus' not in ann or not isinstance(ann['readStatus'], dict):
-                                        ann['readStatus'] = {}
-                                    if 'readGroupStatus' not in ann or not isinstance(ann['readGroupStatus'], dict):
-                                        ann['readGroupStatus'] = {}
-                                    if 'confirmedMembers' not in ann or not isinstance(ann['confirmedMembers'], list):
-                                        ann['confirmedMembers'] = []
+                        with JSON_FILE_LOCK:
+                            with open(global_file, 'r', encoding='utf-8') as f:
+                                meta = json.load(f)
+                            if isinstance(meta, dict) and 'announcements' in meta and isinstance(meta['announcements'], list):
+                                for ann in meta['announcements']:
+                                    if ann.get('id') == ann_id:
+                                        if 'readStatus' not in ann or not isinstance(ann['readStatus'], dict):
+                                            ann['readStatus'] = {}
+                                        if 'readGroupStatus' not in ann or not isinstance(ann['readGroupStatus'], dict):
+                                            ann['readGroupStatus'] = {}
+                                        if 'confirmedMembers' not in ann or not isinstance(ann['confirmedMembers'], list):
+                                            ann['confirmedMembers'] = []
 
-                                    if user_id:
-                                        ann['readStatus'][user_id] = True
-                                    if user_code:
-                                        ann['readStatus'][user_code] = True
-                                    if group_id:
-                                        ann['readGroupStatus'][group_id] = True
+                                        if user_id:
+                                            ann['readStatus'][user_id] = True
+                                        if user_code:
+                                            ann['readStatus'][user_code] = True
+                                        if group_id:
+                                            ann['readGroupStatus'][group_id] = True
 
-                                    if user_id and not any(m.get('id') == user_id for m in ann['confirmedMembers'] if isinstance(m, dict)):
-                                        ann['confirmedMembers'].append({
-                                            'id': user_id,
-                                            'name': user_name or user_code or '学生',
-                                            'studentCode': user_code or '',
-                                            'groupId': group_id or ''
-                                        })
-                                    break
-                            with open(global_file, 'w', encoding='utf-8') as f:
-                                json.dump(meta, f, ensure_ascii=False)
+                                        if user_id and not any(m.get('id') == user_id for m in ann['confirmedMembers'] if isinstance(m, dict)):
+                                            ann['confirmedMembers'].append({
+                                                'id': user_id,
+                                                'name': user_name or user_code or '学生',
+                                                'studentCode': user_code or '',
+                                                'groupId': group_id or ''
+                                            })
+                                        break
+                                with open(global_file, 'w', encoding='utf-8') as f:
+                                    json.dump(meta, f, ensure_ascii=False)
 
                 resp = b'{"success":true}'
                 self.send_response(200)
@@ -827,30 +876,31 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             try:
                 alertItem = json.loads(body.decode('utf-8'))
                 alerts_file = os.path.join(DIR, 'teacher_alerts.json')
-                alerts = []
-                if os.path.exists(alerts_file):
-                    try:
-                        with open(alerts_file, 'r', encoding='utf-8') as f:
-                            alerts = json.load(f)
-                    except Exception:
-                        alerts = []
-                if not isinstance(alerts, list):
+                with JSON_FILE_LOCK:
                     alerts = []
-                tId = alertItem.get('taskId', 'task_default')
-                gId = alertItem.get('groupId', 'group_1')
-                ex_idx = -1
-                for idx, a in enumerate(alerts):
-                    if (a.get('taskId') == tId or not a.get('taskId')) and a.get('groupId') == gId:
-                        ex_idx = idx
-                        break
-                if ex_idx >= 0:
-                    alerts[ex_idx] = alertItem
-                else:
-                    alerts.insert(0, alertItem)
-                if len(alerts) > 100:
-                    alerts = alerts[:100]
-                with open(alerts_file, 'w', encoding='utf-8') as f:
-                    json.dump(alerts, f, ensure_ascii=False, indent=2)
+                    if os.path.exists(alerts_file):
+                        try:
+                            with open(alerts_file, 'r', encoding='utf-8') as f:
+                                alerts = json.load(f)
+                        except Exception:
+                            alerts = []
+                    if not isinstance(alerts, list):
+                        alerts = []
+                    tId = alertItem.get('taskId', 'task_default')
+                    gId = alertItem.get('groupId', 'group_1')
+                    ex_idx = -1
+                    for idx, a in enumerate(alerts):
+                        if (a.get('taskId') == tId or not a.get('taskId')) and a.get('groupId') == gId:
+                            ex_idx = idx
+                            break
+                    if ex_idx >= 0:
+                        alerts[ex_idx] = alertItem
+                    else:
+                        alerts.insert(0, alertItem)
+                    if len(alerts) > 100:
+                        alerts = alerts[:100]
+                    with open(alerts_file, 'w', encoding='utf-8') as f:
+                        json.dump(alerts, f, ensure_ascii=False, indent=2)
                 res_body = json.dumps({'success': True, 'alert': alertItem}).encode('utf-8')
                 self.send_response(200)
                 self.send_header('Content-Type', 'application/json; charset=utf-8')
@@ -883,28 +933,29 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                 db_file_compat = os.path.join(DIR, f'db_{groupId}.json')
                 
                 target_file = db_file if os.path.exists(db_file) else (db_file_compat if os.path.exists(db_file_compat) else db_file)
-                data = {}
-                if os.path.exists(target_file):
-                    try:
-                        with open(target_file, 'r', encoding='utf-8') as f:
-                            data = json.load(f)
-                    except Exception:
-                        data = {}
-                
-                if 'chatLogs' not in data or not isinstance(data['chatLogs'], dict):
-                    data['chatLogs'] = {'stage1': [], 'stage2': [], 'stage3': []}
-                if stage not in data['chatLogs'] or not isinstance(data['chatLogs'][stage], list):
-                    data['chatLogs'][stage] = []
-                
-                # 检查去重
-                mId = msgItem.get('id')
-                exists = any(m.get('id') == mId for m in data['chatLogs'][stage] if isinstance(m, dict))
-                if not exists:
-                    data['chatLogs'][stage].append(msgItem)
-                    with open(db_file, 'w', encoding='utf-8') as f:
-                        json.dump(data, f, ensure_ascii=False)
-                    with open(db_file_compat, 'w', encoding='utf-8') as f:
-                        json.dump(data, f, ensure_ascii=False)
+                with JSON_FILE_LOCK:
+                    data = {}
+                    if os.path.exists(target_file):
+                        try:
+                            with open(target_file, 'r', encoding='utf-8') as f:
+                                data = json.load(f)
+                        except Exception:
+                            data = {}
+
+                    if 'chatLogs' not in data or not isinstance(data['chatLogs'], dict):
+                        data['chatLogs'] = {'stage1': [], 'stage2': [], 'stage3': []}
+                    if stage not in data['chatLogs'] or not isinstance(data['chatLogs'][stage], list):
+                        data['chatLogs'][stage] = []
+
+                    # 检查去重
+                    mId = msgItem.get('id')
+                    exists = any(m.get('id') == mId for m in data['chatLogs'][stage] if isinstance(m, dict))
+                    if not exists:
+                        data['chatLogs'][stage].append(msgItem)
+                        with open(db_file, 'w', encoding='utf-8') as f:
+                            json.dump(data, f, ensure_ascii=False)
+                        with open(db_file_compat, 'w', encoding='utf-8') as f:
+                            json.dump(data, f, ensure_ascii=False)
                 
                 # SSE 广播
                 payload = json.dumps({'type': 'chat_update', 'stage': stage, 'message': msgItem})
@@ -945,10 +996,11 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             try:
                 data = json.loads(body.decode('utf-8'))
                 body_str = body.decode('utf-8')
-                with open(db_file, 'w', encoding='utf-8') as f:
-                    f.write(body_str)
-                with open(db_file_compat, 'w', encoding='utf-8') as f:
-                    f.write(body_str)
+                with JSON_FILE_LOCK:
+                    with open(db_file, 'w', encoding='utf-8') as f:
+                        f.write(body_str)
+                    with open(db_file_compat, 'w', encoding='utf-8') as f:
+                        f.write(body_str)
 
                 with SSE_LOCK:
                     channel_key = f"{taskId}_{groupId}"
