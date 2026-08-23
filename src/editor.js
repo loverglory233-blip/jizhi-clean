@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles } from "./constants.js?v=20260823_v120";
-import { callCozeAgentAPI } from "./agents.js?v=20260823_v120";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired } from "./utils.js?v=20260823_v120";
+import { AgentProfiles } from "./constants.js?v=20260823_v121";
+import { callCozeAgentAPI } from "./agents.js?v=20260823_v121";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired } from "./utils.js?v=20260823_v121";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -947,17 +947,6 @@ function renderStage1Canvas(canvas, state, handlers) {
   const currentUserName = currUserObj ? currUserObj.name : (state.members[currentUser] ? state.members[currentUser].name : '组员');
 
   canvas.innerHTML = `
-    <!-- 全局本组在线组员协同胶囊栏 -->
-    <div class="collab-presence-header" id="stage1-canvas-presence-header" style="background:#ffffff; border:1px solid #e2e8f0; border-radius:8px; padding:8px 14px; margin-bottom:12px; display:flex; justify-content:space-between; align-items:center; box-shadow:0 1px 3px rgba(15,23,42,0.03);">
-      <div style="display:flex; align-items:center; gap:8px;">
-        <span style="font-size:12.5px; font-weight:800; color:#1e293b;">👥 本组在线组员:</span>
-        <div class="collab-member-pills" id="stage1-canvas-presence-pills"></div>
-      </div>
-      <div style="font-size:11px; font-weight:700; color:#059669; background:#ecfdf5; border:1px solid #a7f3d0; padding:2px 8px; border-radius:10px;">
-        🟢 实时在线感知已激活
-      </div>
-    </div>
-
     ${isTaskDeadlineExpired ? `
       <div style="background:#fef2f2; border:1.5px solid #fca5a5; border-radius:10px; padding:12px 18px; margin-bottom:12px; font-size:13px; color:#991b1b; font-weight:700; display:flex; justify-content:space-between; align-items:center; box-shadow:0 2px 8px rgba(239,68,68,0.1);">
         <div style="display:flex; align-items:center; gap:8px;">
@@ -1549,7 +1538,7 @@ function renderStage2Canvas(canvas, state, handlers) {
 
   canvas.innerHTML = `
     ${isTaskDeadlineExpired ? `
-      <div style="background:#fef2f2; border:1.5px solid #fca5a5; border-radius:10px; padding:12px 18px; margin-bottom:12px; font-size:13px; color:#991b1b; font-weight:700; display:flex; justify-content:space-between; align-items:center; box-shadow:0 2px 8px rgba(239,68,68,0.1);">
+      <div style="background:#fef2f2; border:1.5px solid #fca5a5; border-radius:10px; padding:12px 18px; margin-bottom:12px; font-size:13px; color:#991b1b; font-weight:700; display:flex; justify-content:space-between; align-items:center; box-shadow:0 2px 8px rgba(239,68,68,0.1); flex-shrink:0;">
         <div style="display:flex; align-items:center; gap:8px;">
           <span style="font-size:18px;">🔒</span>
           <span><b>任务已截止锁定：</b> 本任务已于 <b>${currentTask?.deadline || '截止时间'}</b> 截止，写作正文已自动转为<b>【只读模式】</b>不可再编辑。如需修改请联系任课教师延长时间。</span>
@@ -1559,14 +1548,14 @@ function renderStage2Canvas(canvas, state, handlers) {
     ` : ''}
 
     ${isStage2MeetingLocked ? `
-      <div style="background:#eff6ff; border:1px solid #bfdbfe; border-radius:8px; padding:10px 14px; margin-bottom:10px; font-size:13px; color:#1d4ed8; font-weight:700; display:flex; justify-content:space-between; align-items:center;">
+      <div style="background:#eff6ff; border:1px solid #bfdbfe; border-radius:8px; padding:10px 14px; margin-bottom:10px; font-size:13px; color:#1d4ed8; font-weight:700; display:flex; justify-content:space-between; align-items:center; flex-shrink:0;">
         <span>🔒 阶段二【半程编辑会议】打分与修正清单已完成并锁定 ${isEditorReadonly ? '· 全盘终稿已提交只读查阅' : '· 可随时回看'}</span>
         <span style="font-size:11.5px; color:#1e40af; background:#ffffff; border:1px solid #bfdbfe; padding:4px 8px; border-radius:4px;">归档只读</span>
       </div>
     ` : ''}
 
-    <div class="card" style="height:100%; display:flex; flex-direction:column; padding:16px;">
-      <div class="card-title" style="margin-bottom:10px; display:flex; justify-content:space-between; align-items:center;">
+    <div class="card" style="height:100%; display:flex; flex-direction:column; padding:16px 18px 24px 18px; box-sizing:border-box; overflow-y:auto;">
+      <div class="card-title" style="margin-bottom:10px; display:flex; justify-content:space-between; align-items:center; flex-shrink:0;">
         <div style="display:flex; align-items:center; gap:8px;">
           <span style="font-size:15px; font-weight:800; color:#0f172a;">📝 学术协作富文本编辑器 (对标 Word 学术论文规范)</span>
           <span style="font-size:12px; color:#2563eb; background:#eff6ff; padding:2px 8px; border-radius:10px; border:1px solid #bfdbfe;">字数: <b id="stage2-word-count-num">${plainTextLen}</b> 字</span>
@@ -1580,7 +1569,7 @@ function renderStage2Canvas(canvas, state, handlers) {
       </div>
 
       ${actionPlan && actionPlan.isGenerated ? `
-        <div id="stage2-action-plan-card" style="background:#ecfdf5; border:1px solid #a7f3d0; border-radius:8px; padding:8px 14px; margin-bottom:8px; transition:all 0.2s ease;">
+        <div id="stage2-action-plan-card" style="background:#ecfdf5; border:1px solid #a7f3d0; border-radius:8px; padding:8px 14px; margin-bottom:8px; transition:all 0.2s ease; flex-shrink:0;">
           <div style="display:flex; justify-content:space-between; align-items:center; cursor:pointer;" id="btn-toggle-action-plan">
             <div style="font-size:12.5px; font-weight:800; color:#059669; display:flex; align-items:center; gap:6px;">
               <span>📋 【半程修正清单】(3项修改要求)</span>
@@ -1596,7 +1585,7 @@ function renderStage2Canvas(canvas, state, handlers) {
         const subs = s2.meetingSubmissions || {};
         const subCount = Object.keys(subs).length;
         return `
-          <div id="stage2-action-plan-card" style="background:#f8fafc; border:1px dashed #cbd5e1; border-radius:8px; padding:8px 14px; margin-bottom:8px;">
+          <div id="stage2-action-plan-card" style="background:#f8fafc; border:1px dashed #cbd5e1; border-radius:8px; padding:8px 14px; margin-bottom:8px; flex-shrink:0;">
             <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:6px;">
               <div style="font-size:12px; font-weight:700; color:#64748b; display:flex; align-items:center; gap:6px;">
                 <span>📋 【半程修正清单】</span>
@@ -1636,7 +1625,7 @@ function renderStage2Canvas(canvas, state, handlers) {
       </div>
 
       <!-- Word-grade Academic Collaborative Etherpad OT Engine Body -->
-      <div style="flex:1; min-height:0; display:flex; flex-direction:column;">
+      <div style="flex:1; min-height:480px; height:calc(100vh - 380px); display:flex; flex-direction:column; margin-bottom:12px;">
         ${(() => {
           const padName = `jizhi_${activeTaskId}_${userGroupId}`;
           const currUserName = (currUser && (currUser.name || currUser.username)) || '组员';
@@ -1644,16 +1633,16 @@ function renderStage2Canvas(canvas, state, handlers) {
           const padUrl = `/p/${padName}?userName=${encodeURIComponent(currUserName)}&userColor=${encodeURIComponent(currUserColor)}&showChat=false&showLineNumbers=true&showControls=true`;
           
           return `
-            <div class="word-editor-container" style="display:flex; flex-direction:column; height:100%; min-height:580px; border-radius:10px; overflow:hidden; border:1px solid #cbd5e1; box-shadow:0 4px 16px rgba(15,23,42,0.06); background:#ffffff;">
+            <div class="word-editor-container" style="display:flex; flex-direction:column; height:100%; min-height:480px; border-radius:10px; overflow:hidden; border:1px solid #cbd5e1; box-shadow:0 4px 16px rgba(15,23,42,0.06); background:#ffffff;">
               <div style="flex:1; min-height:0; position:relative; background:#f1f5f9;">
-                <iframe id="stage2-etherpad-frame" src="${padUrl}" style="width:100%; height:100%; min-height:560px; border:none; display:block;" allow="clipboard-read; clipboard-write"></iframe>
+                <iframe id="stage2-etherpad-frame" src="${padUrl}" style="width:100%; height:100%; border:none; display:block;" allow="clipboard-read; clipboard-write"></iframe>
               </div>
             </div>
           `;
         })()}
       </div>
 
-      <div style="margin-top:8px; background:#ffffff; padding:8px 14px; border-radius:8px; border:1px solid #cbd5e1; flex-shrink:0; display:flex; flex-direction:column; gap:6px; box-shadow:0 1px 3px rgba(15,23,42,0.04);">
+      <div style="background:#ffffff; padding:10px 16px; border-radius:8px; border:1px solid #cbd5e1; flex-shrink:0; display:flex; flex-direction:column; gap:6px; box-shadow:0 1px 3px rgba(15,23,42,0.04); margin-bottom:12px;">
         <div style="display:flex; justify-content:space-between; align-items:center;">
           <span style="font-size:12px; font-weight:800; color:#1e293b;">📊 团队协作贡献度占比 (SSRL 群体过程感知):</span>
           <div class="contrib-labels" id="stage2-contrib-labels" style="display:flex; font-size:11.5px; font-weight:700; color:#475569; gap:12px; white-space:nowrap;">
