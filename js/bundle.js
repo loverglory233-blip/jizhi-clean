@@ -2634,16 +2634,15 @@
         if (remoteData.stage2.unifiedContent !== undefined) {
           let cleanRemoteContent = (remoteData.stage2.unifiedContent || '').replace(/<span class="remote-cursor-widget"[\s\S]*?<\/span>/gi, '');
           const editor = document.getElementById('stage2-word-editor') || document.getElementById('stage3-word-editor');
-          const isYjsLive = window._jizhi_yjs_provider && (window._jizhi_yjs_provider.wsconnected || window._jizhi_yjs_provider.synced);
 
           this.app.state.stage2.unifiedContent = cleanRemoteContent;
-          if (editor && !isYjsLive) {
+          if (editor) {
             const lastKeyPress = window._jizhi_last_keypress_time || 0;
             const isActivelyTyping = (Date.now() - lastKeyPress) < 1200;
             const qlEditor = editor.querySelector('.ql-editor') || editor;
             const currentLocalHtml = qlEditor.innerHTML.replace(/<span class="remote-cursor-widget"[\s\S]*?<\/span>/gi, '');
 
-            // 🛡️ 跨设备平滑互见：只要当前用户超过 1.2 秒未敲击键盘，即刻平滑对齐远端组员正文
+            // 🛡️ 绝不死锁（和研讨区聊天一样稳）：当前用户未在打字时，即刻平滑对齐远端组员最新正文！
             if (!isActivelyTyping && currentLocalHtml.trim() !== cleanRemoteContent.trim()) {
               if (window._jizhi_quill && window._jizhi_quill.root) {
                 window._jizhi_quill.root.innerHTML = cleanRemoteContent;
