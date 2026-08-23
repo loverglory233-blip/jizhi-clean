@@ -10,17 +10,17 @@ if [ ! -d "$INSTALL_DIR" ]; then
     git clone --branch v1.9.7 --depth 1 https://github.com/ether/etherpad-lite.git "$INSTALL_DIR"
 fi
 
-cd "$INSTALL_DIR"
-
-# 1. 切换国内淘宝极速 npm 镜像，彻底消除国外源校验失败 EINTEGRITY 错误
+# 1. 切换国内淘宝极速 npm 镜像
 echo "⚡ 配置国内淘宝 npm 极速镜像..."
 npm config set registry https://registry.npmmirror.com
 
-# 2. 清理旧 lock 缓存，极速纯生产安装依赖 (只需 5~10 秒)
-rm -f package-lock.json src/package-lock.json
+# 2. 进入 src 目录安装核心依赖 (只需 5~10 秒)
+cd "$INSTALL_DIR/src"
+rm -f package-lock.json
 npm install --omit=dev --no-audit --legacy-peer-deps
 
-# 3. 写入 settings.json 配置
+# 3. 回到主目录写入 settings.json 配置
+cd "$INSTALL_DIR"
 echo "⚙️ 写入 settings.json 配置..."
 cat << 'SETTING_EOF' > settings.json
 {
