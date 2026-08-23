@@ -2949,7 +2949,6 @@
         return;
       }
 
-    const teacherPullAndRefresh = async () => {
       if (state.teacherActiveTab === 'view_monitoring' && window.app && window.app.cloudSyncEngine) {
         const activeMonitorGId = state.activeMonitorGroupId || (activeClass.groups && activeClass.groups[0] ? activeClass.groups[0].id : 'group_1');
         const activeTaskId = state.activeTaskId || (currentClassTasks[0] ? currentClassTasks[0].id : 'task_default');
