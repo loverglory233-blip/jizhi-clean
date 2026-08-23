@@ -40,13 +40,16 @@ fi
 
 echo "📄 当前 Etherpad 版本源码 commit: $(git log -1 --oneline)"
 
-# 4. 运行官方依赖安装
-echo "4️⃣ 正在安装现代版 Etherpad 核心依赖..."
-npm install --no-audit --no-fund --registry=https://registry.npmmirror.com
+# 4. 安装 pnpm 现代包管理器并安装核心依赖
+echo "4️⃣ 正在安装/升级现代包管理器 pnpm 并安装核心依赖..."
+npm install -g pnpm --registry=https://registry.npmmirror.com --no-audit --no-fund 2>/dev/null || true
+export PATH="$PATH:/www/server/nodejs/v18.20.7/lib/node_modules/pnpm/bin"
+
+pnpm install --registry=https://registry.npmmirror.com || npm install --no-audit --no-fund --registry=https://registry.npmmirror.com
 
 # 5. 安装官方认证的 12 个协同与富文本插件
 echo "5️⃣ 正在正规安装 12 个官方认证插件..."
-npm install --save --no-audit --no-fund --registry=https://registry.npmmirror.com \
+pnpm add \
     ep_cursortrace \
     ep_headings2 \
     ep_font_size \
@@ -58,7 +61,7 @@ npm install --save --no-audit --no-fund --registry=https://registry.npmmirror.co
     ep_author_hover \
     ep_subscript_and_superscript \
     ep_line_spacing \
-    ep_clear_formatting
+    ep_clear_formatting --registry=https://registry.npmmirror.com || npm install --save --no-audit --no-fund --registry=https://registry.npmmirror.com ep_cursortrace ep_headings2 ep_font_size ep_font_family ep_font_color ep_align ep_tables4 ep_image_upload ep_author_hover ep_subscript_and_superscript ep_line_spacing ep_clear_formatting
 
 # 6. 恢复并写入现代标准 settings.json
 echo "6️⃣ 正在生成现代标准 settings.json..."
