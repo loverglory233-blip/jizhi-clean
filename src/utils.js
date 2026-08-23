@@ -4,6 +4,36 @@
  */
 
 /**
+ * ⏱️ 智能人性化时长格式化：将分钟数自动转换为 天 / 小时 / 分钟
+ * 例：3081 -> "2天3小时21分", 150 -> "2小时30分", 60 -> "1小时", 45 -> "45分钟"
+ */
+export function formatDurationHuman(mins, compact = false) {
+  const m = parseInt(mins, 10);
+  if (isNaN(m) || m <= 0) return '不限时';
+  if (m < 60) return `${m}分钟`;
+  
+  const days = Math.floor(m / 1440);
+  const remainMinsAfterDays = m % 1440;
+  const hours = Math.floor(remainMinsAfterDays / 60);
+  const minutes = remainMinsAfterDays % 60;
+
+  if (days > 0) {
+    if (compact) {
+      return hours > 0 ? `${days}天${hours}小时` : `${days}天`;
+    }
+    let res = `${days}天`;
+    if (hours > 0) res += `${hours}小时`;
+    if (minutes > 0 && days < 3) res += `${minutes}分`;
+    return res;
+  }
+  
+  if (compact) {
+    return minutes > 0 ? `${hours}小时${minutes}分` : `${hours}小时`;
+  }
+  return minutes > 0 ? `${hours}小时${minutes}分` : `${hours}小时`;
+}
+
+/**
  * 🛡️ 任务截止状态判定：如果当前本地时间已超过截止时间，判定为已截止 (过期)
  */
 export function isTaskExpired(task) {

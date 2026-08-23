@@ -7,8 +7,8 @@ import {
   STORAGE_KEY_TASKS,
   STORAGE_KEY_ANNOUNCEMENTS,
   STORAGE_KEY_CLASSES
-} from "./constants.js?v=20260823_v141";
-import { escapeHtml, isTaskExpired } from "./utils.js?v=20260823_v141";
+} from "./constants.js?v=20260823_v142";
+import { escapeHtml, isTaskExpired, formatDurationHuman } from "./utils.js?v=20260823_v142";
 
 /* ==========================================================================
    7.5 STUDENT TASK PORTAL / DASHBOARD (我的写作任务大厅)
@@ -240,7 +240,7 @@ export function renderStudentTaskPortal(container, authManager, state, onSelectT
 
                       <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px 12px; font-size:11.5px; color:#475569; margin-bottom:12px; background:${isExpired ? '#fef2f2' : '#f8fafc'}; padding:10px 14px; border-radius:10px; border:1px solid ${isExpired ? '#fee2e2' : '#f1f5f9'};">
                         <div>🕒 发布时间: <b style="color:#0f172a;">${t.createdAt || t.startTime || '刚刚'}</b></div>
-                        <div>⏱️ 任务时长: <b style="color:#2563eb;">${duration} 分钟</b></div>
+                        <div>⏱️ 任务时长: <b style="color:#2563eb;">${formatDurationHuman(duration)}</b></div>
                         <div>📅 开始时间: <b style="color:#0f172a;">${t.startTime || '随时'}</b></div>
                         <div>⌛ 截止时间: <b style="color:#dc2626; font-weight:800;">${t.deadline || '结课前'}</b></div>
                       </div>

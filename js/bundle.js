@@ -124,6 +124,36 @@
    */
 
   /**
+   * ⏱️ 智能人性化时长格式化：将分钟数自动转换为 天 / 小时 / 分钟
+   * 例：3081 -> "2天3小时21分", 150 -> "2小时30分", 60 -> "1小时", 45 -> "45分钟"
+   */
+  function formatDurationHuman(mins, compact = false) {
+    const m = parseInt(mins, 10);
+    if (isNaN(m) || m <= 0) return '不限时';
+    if (m < 60) return `${m}分钟`;
+
+    const days = Math.floor(m / 1440);
+    const remainMinsAfterDays = m % 1440;
+    const hours = Math.floor(remainMinsAfterDays / 60);
+    const minutes = remainMinsAfterDays % 60;
+
+    if (days > 0) {
+      if (compact) {
+        return hours > 0 ? `${days}天${hours}小时` : `${days}天`;
+      }
+      let res = `${days}天`;
+      if (hours > 0) res += `${hours}小时`;
+      if (minutes > 0 && days < 3) res += `${minutes}分`;
+      return res;
+    }
+
+    if (compact) {
+      return minutes > 0 ? `${hours}小时${minutes}分` : `${hours}小时`;
+    }
+    return minutes > 0 ? `${hours}小时${minutes}分` : `${hours}小时`;
+  }
+
+  /**
    * 🛡️ 任务截止状态判定：如果当前本地时间已超过截止时间，判定为已截止 (过期)
    */
   function isTaskExpired(task) {
@@ -3325,7 +3355,7 @@
                       <div style="font-size:13px; color:#334155; margin:10px 0; display:flex; gap:20px; background:${isExpired ? '#fef2f2' : '#f8fafc'}; padding:10px 16px; border-radius:8px; border-left:4px solid ${isExpired ? '#dc2626' : '#2563eb'};">
                         <span>📅 <b>开始时间:</b> <span style="color:#2563eb; font-weight:700;">${t.startTime || '即时开启'}</span></span>
                         <span>⌛ <b>截止时间:</b> <span style="color:#dc2626; font-weight:800;">${t.deadline || '无硬性限制'}</span> ${isExpired ? '<b style="color:#dc2626;">(已过截止时间)</b>' : ''}</span>
-                        <span>⏱️ <b>任务时长:</b> ${t.durationMinutes} 分钟</span>
+                        <span>⏱️ <b>任务时长:</b> ${formatDurationHuman(t.durationMinutes)}</span>
                       </div>
                     </div>
                     `;
@@ -6157,7 +6187,7 @@
 
                         <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px 12px; font-size:11.5px; color:#475569; margin-bottom:12px; background:${isExpired ? '#fef2f2' : '#f8fafc'}; padding:10px 14px; border-radius:10px; border:1px solid ${isExpired ? '#fee2e2' : '#f1f5f9'};">
                           <div>🕒 发布时间: <b style="color:#0f172a;">${t.createdAt || t.startTime || '刚刚'}</b></div>
-                          <div>⏱️ 任务时长: <b style="color:#2563eb;">${duration} 分钟</b></div>
+                          <div>⏱️ 任务时长: <b style="color:#2563eb;">${formatDurationHuman(duration)}</b></div>
                           <div>📅 开始时间: <b style="color:#0f172a;">${t.startTime || '随时'}</b></div>
                           <div>⌛ 截止时间: <b style="color:#dc2626; font-weight:800;">${t.deadline || '结课前'}</b></div>
                         </div>
@@ -6300,7 +6330,9 @@
         <button class="nav-ann-bell-btn ${unreadAnnCount > 0 ? 'has-unread' : ''}" id="btn-header-ann-bell" title="课堂通知" style="padding:3px 8px; border-radius:14px; font-size:11px;">
           🔔 消息 ${unreadAnnCount > 0 ? `<span class="unread-count">${unreadAnnCount}</span>` : ''}
         </button>
-        <div class="timer-box" style="padding:2px 8px; border-radius:14px; font-size:11.5px;">⏱️ ${remainingMin}m</div>
+        <div class="timer-box" style="padding:2px 10px; border-radius:14px; font-size:11.5px; font-weight:700; white-space:nowrap; background:${isTaskDeadlineExpired ? '#fef2f2' : '#eff6ff'}; color:${isTaskDeadlineExpired ? '#dc2626' : '#1d4ed8'}; border:1px solid ${isTaskDeadlineExpired ? '#fecaca' : '#bfdbfe'};">
+          ${isTaskDeadlineExpired ? '🛑 已截止' : `⏱️ ${formatDurationHuman(remainingMin, true)}`}
+        </div>
         <button id="btn-user-logout" style="background:#fef2f2; color:#dc2626; border:1px solid #fecaca; padding:3px 8px; border-radius:14px; font-size:11px; font-weight:700; cursor:pointer;" title="退出登录">🚪 退出</button>
       </div>
     `;
