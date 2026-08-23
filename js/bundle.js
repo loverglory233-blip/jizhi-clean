@@ -2359,6 +2359,7 @@
       this.app.updateContributionUi();
       this.app.renderPresenceCursors();
 
+      this.updateScopeKeys();
       const userKey = user ? (user.id || user.studentCode || user.username || 'u') : 'u';
       const ackResetSeqKey = `jizhi_ack_reset_seq_${userKey}_${this.storageKey}`;
       const localAckSeq = parseInt(localStorage.getItem(ackResetSeqKey) || '0', 10);
@@ -2483,35 +2484,23 @@
           const remoteLogs = Array.isArray(remoteData.chatLogs[stg]) ? remoteData.chatLogs[stg] : [];
           const localLogs = Array.isArray(this.app.state.chatLogs[stg]) ? this.app.state.chatLogs[stg] : [];
 
-          const msgMap = new Map();
-          const getMsgKey = (m) => {
-            if (!m) return '';
-            if (m.id) return m.id;
-            const tMs = m._timeMs || m.timestamp || '';
-            const sender = m.sender || '';
-            // 时间戳缺失时用完整文本兜底，避免“开头相同”的两条消息被误去重
-            const textPart = tMs ? (m.text || '').slice(0, 30) : (m.text || '');
-            return `${sender}_${tMs}_${textPart}`;
-          };
-
-          localLogs.forEach(m => {
-            if (m) msgMap.set(getMsgKey(m), m);
-          });
-          remoteLogs.forEach(m => {
-            if (m) {
-              const k = getMsgKey(m);
-              if (!msgMap.has(k)) {
-                msgMap.set(k, m);
-                chatChanged = true;
-              }
-            }
-          });
-
-          const mergedLogs = Array.from(msgMap.values());
-          mergedLogs.sort((a, b) => {
-            const ta = a._timeMs ? Number(a._timeMs) : 0;
-            const tb = b._timeMs ? Number(b._timeMs) : 0;
+          const mergedLogs = [];
+          const seenKeys = new Set();
+          const allCandidate = [...localLogs, ...remoteLogs];
+          allCandidate.sort((a, b) => {
+            const ta = a?._timeMs ? Number(a._timeMs) : 0;
+            const tb = b?._timeMs ? Number(b._timeMs) : 0;
             return ta - tb;
+          });
+          allCandidate.forEach(m => {
+            if (!m) return;
+            const idKey = m.id ? `id_${m.id}` : null;
+            const contentKey = `${m.sender || ''}_${(m.text || '').trim()}_${m._timeMs ? Math.floor(Number(m._timeMs) / 3000) : (m.timestamp || '')}`;
+            if (idKey && seenKeys.has(idKey)) return;
+            if (seenKeys.has(contentKey)) return;
+            if (idKey) seenKeys.add(idKey);
+            seenKeys.add(contentKey);
+            mergedLogs.push(m);
           });
 
           if (mergedLogs.length !== localLogs.length || JSON.stringify(mergedLogs) !== JSON.stringify(localLogs)) {
@@ -2568,11 +2557,10 @@
           Object.assign(this.app.state.stage1.contract.taskAssignments, remoteS1.contract.taskAssignments);
 
           document.querySelectorAll('.task-assignment-input').forEach(inp => {
-            const mId = inp.dataset.mid;
-            const code = inp.dataset.code;
-            const remoteVal = (remoteS1.contract.taskAssignments[mId] !== undefined)
-              ? remoteS1.contract.taskAssignments[mId]
-              : (code && remoteS1.contract.taskAssignments[code] !== undefined ? remoteS1.contract.taskAssignments[code] : undefined);
+            const mKey = inp.dataset.mkey;
+            const remoteVal = (mKey && remoteS1.contract.taskAssignments[mKey] !== undefined)
+              ? remoteS1.contract.taskAssignments[mKey]
+              : (inp.dataset.mid && remoteS1.contract.taskAssignments[inp.dataset.mid] !== undefined ? remoteS1.contract.taskAssignments[inp.dataset.mid] : undefined);
 
             if (remoteVal !== undefined && document.activeElement !== inp) {
               if (inp.value !== remoteVal) {
@@ -2839,18 +2827,13 @@
       const groupMaxOrder = stageOrder[this.app.state.groupMaxStage || 'stage1'] || 1;
 
       if (remoteData.currentStage) {
-        if (remoteOrder > groupMaxOrder) {
+        if (remoteOrder > groupMaxOrder || remoteOrder > currentOrder) {
           this.app.state.groupMaxStage = remoteData.currentStage;
-          if (!this.app.isViewingPastStage) {
-            this.app.state.currentStage = remoteData.currentStage;
-            needWorkspaceRender = true;
-          }
+          this.app.isViewingPastStage = false;
+          this.app.state.currentStage = remoteData.currentStage;
+          needWorkspaceRender = true;
         } else {
           this.app.state.groupMaxStage = remoteData.currentStage;
-          if (!this.app.isViewingPastStage && remoteOrder > currentOrder && !this.app.state.isFinalSubmitted) {
-            this.app.state.currentStage = remoteData.currentStage;
-            needWorkspaceRender = true;
-          }
         }
       }
 
@@ -6054,11 +6037,9 @@
         if (currentUser.username && a.readStatus[currentUser.username]) return true;
         if (currentUser.name && a.readStatus[currentUser.name]) return true;
         if (Array.isArray(a.confirmedMembers)) {
-          if (a.confirmedMembers.some(m => m.id === currentUser.id || m.studentCode === currentUser.studentCode || (currentUser.name && m.name === currentUser.name))) return true;
+          if (a.confirmedMembers.some(m => m && (m.id === currentUser.id || m.studentCode === currentUser.studentCode || (currentUser.name && m.name === currentUser.name)))) return true;
         }
       }
-      if (groupId && a.readGroupStatus && a.readGroupStatus[groupId]) return true;
-      if (groupId && a.readStatus && a.readStatus[groupId]) return true;
       return false;
     };
 
@@ -6266,14 +6247,16 @@
       return matchClass && matchGroup && matchTask;
     });
     const isAnnRead = (a) => {
-      if (!a.readStatus && !a.readGroupStatus) return false;
+      if (!a || !a.readStatus) return false;
       if (currentUser) {
-        if (currentUser.id && a.readStatus && a.readStatus[currentUser.id]) return true;
-        if (currentUser.studentCode && a.readStatus && a.readStatus[currentUser.studentCode]) return true;
-        if (currentUser.username && a.readStatus && a.readStatus[currentUser.username]) return true;
+        if (currentUser.id && a.readStatus[currentUser.id]) return true;
+        if (currentUser.studentCode && a.readStatus[currentUser.studentCode]) return true;
+        if (currentUser.username && a.readStatus[currentUser.username]) return true;
+        if (currentUser.name && a.readStatus[currentUser.name]) return true;
+        if (Array.isArray(a.confirmedMembers)) {
+          if (a.confirmedMembers.some(m => m && (m.id === currentUser.id || m.studentCode === currentUser.studentCode || (currentUser.name && m.name === currentUser.name)))) return true;
+        }
       }
-      if (groupId && a.readGroupStatus && a.readGroupStatus[groupId]) return true;
-      if (groupId && a.readStatus && a.readStatus[groupId]) return true;
       return false;
     };
     const unreadAnnCount = relevantAnnouncements.filter(a => !isAnnRead(a)).length;
@@ -7475,12 +7458,18 @@
               <span>👥 本组小组成员分工 (共 ${totalMembersCount} 人 · 自动适配全宽展现):</span>
             </div>
             <div style="display:flex; flex-direction:column; gap:10px; width:100%;">
-              ${membersList.map(m => {
-                const taskVal = (s1.contract.taskAssignments && (s1.contract.taskAssignments[m.id] !== undefined ? s1.contract.taskAssignments[m.id] : s1.contract.taskAssignments[m.studentCode])) || '';
+              ${membersList.map((m, idx) => {
+                const mKey = m.id || m.studentCode || m.username || m.name || (`mem_${idx}`);
+                const taskVal = (s1.contract.taskAssignments && (
+                  s1.contract.taskAssignments[mKey] !== undefined ? s1.contract.taskAssignments[mKey] :
+                  (m.id && s1.contract.taskAssignments[m.id] !== undefined ? s1.contract.taskAssignments[m.id] :
+                  (m.studentCode && s1.contract.taskAssignments[m.studentCode] !== undefined ? s1.contract.taskAssignments[m.studentCode] :
+                  (m.name && s1.contract.taskAssignments[m.name] !== undefined ? s1.contract.taskAssignments[m.name] : '')))
+                )) || '';
                 return `
                   <div style="display:flex; flex-direction:column; gap:6px; width:100%; background:#ffffff; padding:12px 14px; border-radius:8px; border:1px solid #e2e8f0; box-sizing:border-box;">
                     <span style="font-weight:800; color:${m.color || '#2563eb'}; font-size:13px;">${m.avatar || '👤'} ${m.name} (${m.roleTitle || '组员'}):</span>
-                    <input type="text" class="large-contract-input task-assignment-input" data-mid="${m.id}" data-code="${m.studentCode || ''}" value="${taskVal}" ${isContractLocked ? 'disabled readonly style="opacity:0.8; cursor:not-allowed;"' : ''} style="width:100%; box-sizing:border-box; background:#ffffff; color:#0f172a; border:1px solid #cbd5e1; border-radius:6px; padding:10px 14px; font-size:13px; font-family:sans-serif;" placeholder="在聊天中商定或在此录入具体负责的写作章节与任务...">
+                    <input type="text" class="large-contract-input task-assignment-input" data-mkey="${mKey}" value="${taskVal}" ${isContractLocked ? 'disabled readonly style="opacity:0.8; cursor:not-allowed;"' : ''} style="width:100%; box-sizing:border-box; background:#ffffff; color:#0f172a; border:1px solid #cbd5e1; border-radius:6px; padding:10px 14px; font-size:13px; font-family:sans-serif;" placeholder="在聊天中商定或在此录入具体负责的写作章节与任务...">
                   </div>
                 `;
               }).join('')}
@@ -7715,20 +7704,16 @@
     canvas.querySelectorAll('.task-assignment-input').forEach(input => {
       if (!isContractLocked) {
         input.addEventListener('input', (e) => {
-          const mId = e.target.dataset.mid;
-          const code = e.target.dataset.code;
+          const mKey = e.target.dataset.mkey;
           const val = e.target.value;
           if (!s1.contract.taskAssignments) s1.contract.taskAssignments = {};
-          if (mId) s1.contract.taskAssignments[mId] = val;
-          if (code) s1.contract.taskAssignments[code] = val;
+          if (mKey) s1.contract.taskAssignments[mKey] = val;
         });
         const flushTask = () => {
-          const mId = input.dataset.mid;
-          const code = input.dataset.code;
+          const mKey = input.dataset.mkey;
           const val = input.value;
           if (!s1.contract.taskAssignments) s1.contract.taskAssignments = {};
-          if (mId) s1.contract.taskAssignments[mId] = val;
-          if (code) s1.contract.taskAssignments[code] = val;
+          if (mKey) s1.contract.taskAssignments[mKey] = val;
           if (window.app) {
             window.app.syncStage1();
             if (window.app.cloudSyncEngine) window.app.cloudSyncEngine.pushSnapshot();
@@ -8432,10 +8417,12 @@
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
+              id: latestMsg.id,
               groupId: groupId,
               taskId: taskId,
               stage: stage,
               sender: latestMsg.sender,
+              senderName: latestMsg.senderName || '',
               text: latestMsg.text,
               timestamp: latestMsg.timestamp,
               _timeMs: latestMsg._timeMs || Date.now()
@@ -9438,11 +9425,9 @@
           if (currentUser.username && a.readStatus && a.readStatus[currentUser.username]) return true;
           if (currentUser.name && a.readStatus && a.readStatus[currentUser.name]) return true;
           if (Array.isArray(a.confirmedMembers)) {
-            if (a.confirmedMembers.some(m => m.id === currentUser.id || m.studentCode === currentUser.studentCode || (currentUser.name && m.name === currentUser.name))) return true;
+            if (a.confirmedMembers.some(m => m && (m.id === currentUser.id || m.studentCode === currentUser.studentCode || (currentUser.name && m.name === currentUser.name)))) return true;
           }
         }
-        if (groupId && a.readGroupStatus && a.readGroupStatus[groupId]) return true;
-        if (groupId && a.readStatus && a.readStatus[groupId]) return true;
         return false;
       };
 
@@ -9483,11 +9468,9 @@
           if (currentUser.username && a.readStatus && a.readStatus[currentUser.username]) return true;
           if (currentUser.name && a.readStatus && a.readStatus[currentUser.name]) return true;
           if (Array.isArray(a.confirmedMembers)) {
-            if (a.confirmedMembers.some(m => m.id === currentUser.id || m.studentCode === currentUser.studentCode || (currentUser.name && m.name === currentUser.name))) return true;
+            if (a.confirmedMembers.some(m => m && (m.id === currentUser.id || m.studentCode === currentUser.studentCode || (currentUser.name && m.name === currentUser.name)))) return true;
           }
         }
-        if (groupId && a.readGroupStatus && a.readGroupStatus[groupId]) return true;
-        if (groupId && a.readStatus && a.readStatus[groupId]) return true;
         return false;
       };
 

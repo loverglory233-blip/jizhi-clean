@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260823_v46";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired } from "./utils.js?v=20260823_v46";
-import { callCozeAgentAPI } from "./agents.js?v=20260823_v46";
-import { AuthManager } from "./auth.js?v=20260823_v46";
-import { CloudSyncEngine } from "./sync.js?v=20260823_v46";
-import { renderLoginView } from "./login.js?v=20260823_v46";
-import { renderTeacherPortal } from "./teacher.js?v=20260823_v46";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260823_v46";
+} from "./constants.js?v=20260823_v47";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired } from "./utils.js?v=20260823_v47";
+import { callCozeAgentAPI } from "./agents.js?v=20260823_v47";
+import { AuthManager } from "./auth.js?v=20260823_v47";
+import { CloudSyncEngine } from "./sync.js?v=20260823_v47";
+import { renderLoginView } from "./login.js?v=20260823_v47";
+import { renderTeacherPortal } from "./teacher.js?v=20260823_v47";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260823_v47";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260823_v46";
+} from "./editor.js?v=20260823_v47";
 
 // Make renderChat available on window for sync callbacks
 if (typeof window !== "undefined") {
@@ -224,10 +224,12 @@ export class App {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
+            id: latestMsg.id,
             groupId: groupId,
             taskId: taskId,
             stage: stage,
             sender: latestMsg.sender,
+            senderName: latestMsg.senderName || '',
             text: latestMsg.text,
             timestamp: latestMsg.timestamp,
             _timeMs: latestMsg._timeMs || Date.now()
@@ -1230,11 +1232,9 @@ export class App {
         if (currentUser.username && a.readStatus && a.readStatus[currentUser.username]) return true;
         if (currentUser.name && a.readStatus && a.readStatus[currentUser.name]) return true;
         if (Array.isArray(a.confirmedMembers)) {
-          if (a.confirmedMembers.some(m => m.id === currentUser.id || m.studentCode === currentUser.studentCode || (currentUser.name && m.name === currentUser.name))) return true;
+          if (a.confirmedMembers.some(m => m && (m.id === currentUser.id || m.studentCode === currentUser.studentCode || (currentUser.name && m.name === currentUser.name)))) return true;
         }
       }
-      if (groupId && a.readGroupStatus && a.readGroupStatus[groupId]) return true;
-      if (groupId && a.readStatus && a.readStatus[groupId]) return true;
       return false;
     };
 
@@ -1275,11 +1275,9 @@ export class App {
         if (currentUser.username && a.readStatus && a.readStatus[currentUser.username]) return true;
         if (currentUser.name && a.readStatus && a.readStatus[currentUser.name]) return true;
         if (Array.isArray(a.confirmedMembers)) {
-          if (a.confirmedMembers.some(m => m.id === currentUser.id || m.studentCode === currentUser.studentCode || (currentUser.name && m.name === currentUser.name))) return true;
+          if (a.confirmedMembers.some(m => m && (m.id === currentUser.id || m.studentCode === currentUser.studentCode || (currentUser.name && m.name === currentUser.name)))) return true;
         }
       }
-      if (groupId && a.readGroupStatus && a.readGroupStatus[groupId]) return true;
-      if (groupId && a.readStatus && a.readStatus[groupId]) return true;
       return false;
     };
 
