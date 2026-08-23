@@ -1586,6 +1586,15 @@
         tasks[taskIndex].durationMinutes = (parseInt(tasks[taskIndex].durationMinutes, 10) || 150) + parseInt(addedMinutes, 10);
       }
       localStorage.setItem(STORAGE_KEY_TASKS, JSON.stringify(tasks));
+
+      // 📢 自动发布全校/全班广播教学通知，通知所有学生端任务已延期
+      this.publishAnnouncement(
+        taskId,
+        `⏳ 任务延期通知：截止时间已延长至 ${newDeadline}`,
+        `任课教师已将写作任务《${tasks[taskIndex].title}》截止时间延长至 ${newDeadline}。各小组写作工作台已自动解除只读锁定，请同学们抓紧时间推进完成！`,
+        null, 'all', '全班所有小组', 'all', '全校班级', ['all'], true
+      );
+
       this.pushGlobalMeta();
       return tasks[taskIndex];
     }
@@ -4957,10 +4966,19 @@
 
         const now = new Date();
         let baseDate = new Date();
+        let displayCurrentDeadline = task.deadline || '无硬性限制';
+        let isPastDeadline = false;
+
         if (task.deadline) {
           const d = new Date(task.deadline.replace(/-/g, '/'));
-          if (!isNaN(d.getTime()) && d.getTime() > now.getTime()) {
-            baseDate = d;
+          if (!isNaN(d.getTime())) {
+            displayCurrentDeadline = task.deadline;
+            if (d.getTime() <= now.getTime()) {
+              isPastDeadline = true;
+              baseDate = now; // 已过期，新建议时间从当前时间往后顺延
+            } else {
+              baseDate = d; // 未过期，新建议时间从原截止时间往后顺延
+            }
           }
         }
 
@@ -4982,8 +5000,9 @@
               <div style="font-size:13.5px; color:#1e293b; font-weight:700;">
                 任务名称：<span style="color:#2563eb;">📌 ${escapeHtml(task.title)}</span>
               </div>
-              <div style="font-size:12.5px; color:#64748b; background:#f8fafc; padding:8px 12px; border-radius:8px; border:1px solid #e2e8f0;">
-                当前截止时间：<b style="color:#dc2626;">${task.deadline || '无硬性限制'}</b>
+              <div style="font-size:12.5px; color:#64748b; background:#f8fafc; padding:8px 12px; border-radius:8px; border:1px solid #e2e8f0; display:flex; justify-content:space-between; align-items:center;">
+                <span>当前最新截止时间：<b style="color:${isPastDeadline ? '#dc2626' : '#2563eb'};">${displayCurrentDeadline}</b></span>
+                ${isPastDeadline ? '<span style="background:#fee2e2; color:#dc2626; font-size:11px; font-weight:800; padding:2px 6px; border-radius:4px;">已过期</span>' : '<span style="background:#ecfdf5; color:#059669; font-size:11px; font-weight:800; padding:2px 6px; border-radius:4px;">进行中</span>'}
               </div>
 
               <div style="display:flex; flex-direction:column; gap:6px;">
@@ -7068,17 +7087,17 @@
 
     canvas.innerHTML = `
       ${isTaskDeadlineExpired ? `
-        <div style="background:#fef2f2; border:1.5px solid #fca5a5; border-radius:10px; padding:12px 18px; margin-bottom:12px; font-size:13px; color:#991b1b; font-weight:700; display:flex; justify-content:space-between; align-items:center; box-shadow:0 2px 8px rgba(239,68,68,0.1);">
-          <div style="display:flex; align-items:center; gap:8px;">
-            <span style="font-size:18px;">🔒</span>
-            <span><b>任务已截止锁定：</b> 本任务已于 <b>${currentTask?.deadline || '截止时间'}</b> 截止，阶段一【学术拍卖会】已自动转为<b>【只读查阅模式】</b>不可再修改。如需修改请联系任课教师延长时间。</span>
+        <div style="background:#fef2f2; border:1.5px solid #fca5a5; border-radius:8px; padding:6px 14px; margin-bottom:12px; font-size:12.5px; color:#991b1b; font-weight:600; display:flex; justify-content:space-between; align-items:center; gap:12px; box-shadow:0 2px 6px rgba(239,68,68,0.08); height:38px; box-sizing:border-box;">
+          <div style="display:flex; align-items:center; gap:8px; min-width:0; flex:1; overflow:hidden; white-space:nowrap; text-overflow:ellipsis;">
+            <span style="font-size:15px; flex-shrink:0;">🔒</span>
+            <span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"><b>任务已截止锁定：</b> 本任务已于 <b>${currentTask?.deadline || '截止时间'}</b> 截止，阶段一【学术拍卖会】已自动转为<b>【只读查阅模式】</b>。如需修改请联系教师延长时间。</span>
           </div>
-          <span style="font-size:12px; color:#ffffff; background:#dc2626; padding:3px 10px; border-radius:6px; font-weight:800;">已截止</span>
+          <span style="font-size:11.5px; color:#ffffff; background:#dc2626; padding:2px 8px; border-radius:4px; font-weight:800; flex-shrink:0; letter-spacing:0.5px;">已截止</span>
         </div>
       ` : (isContractLocked ? `
-        <div style="background:#ecfdf5; border:1px solid #a7f3d0; border-radius:8px; padding:10px 14px; margin-bottom:12px; font-size:13px; color:#059669; font-weight:700; display:flex; align-items:center; justify-content:space-between;">
-          <span>🔒 阶段一【学术拍卖会】合作合约已全员签署生效并锁定 (可随时返回查阅)</span>
-          <span style="font-size:11.5px; color:#065f46; background:#ffffff; border:1px solid #a7f3d0; padding:4px 8px; border-radius:4px;">全组 ${confirmedCount}/${totalMembersCount} 人已签署</span>
+        <div style="background:#ecfdf5; border:1px solid #a7f3d0; border-radius:8px; padding:6px 14px; margin-bottom:12px; font-size:12.5px; color:#059669; font-weight:700; display:flex; align-items:center; justify-content:space-between; height:38px; box-sizing:border-box;">
+          <span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">🔒 阶段一【学术拍卖会】合作公约已全员签署生效并锁定 (可随时查阅)</span>
+          <span style="font-size:11.5px; color:#065f46; background:#ffffff; border:1px solid #a7f3d0; padding:2px 8px; border-radius:4px; flex-shrink:0;">全组 ${confirmedCount}/${totalMembersCount} 人已签署</span>
         </div>
       ` : '')}
 
@@ -7679,12 +7698,12 @@
 
     canvas.innerHTML = `
       ${isTaskDeadlineExpired ? `
-        <div style="background:#fef2f2; border:1.5px solid #fca5a5; border-radius:10px; padding:12px 18px; margin-bottom:12px; font-size:13px; color:#991b1b; font-weight:700; display:flex; justify-content:space-between; align-items:center; box-shadow:0 2px 8px rgba(239,68,68,0.1); flex-shrink:0;">
-          <div style="display:flex; align-items:center; gap:8px;">
-            <span style="font-size:18px;">🔒</span>
-            <span><b>任务已截止锁定：</b> 本任务已于 <b>${currentTask?.deadline || '截止时间'}</b> 截止，写作正文已自动转为<b>【只读模式】</b>不可再编辑。如需修改请联系任课教师延长时间。</span>
+        <div style="background:#fef2f2; border:1.5px solid #fca5a5; border-radius:8px; padding:6px 14px; margin-bottom:12px; font-size:12.5px; color:#991b1b; font-weight:600; display:flex; justify-content:space-between; align-items:center; gap:12px; box-shadow:0 2px 6px rgba(239,68,68,0.08); height:38px; box-sizing:border-box; flex-shrink:0;">
+          <div style="display:flex; align-items:center; gap:8px; min-width:0; flex:1; overflow:hidden; white-space:nowrap; text-overflow:ellipsis;">
+            <span style="font-size:15px; flex-shrink:0;">🔒</span>
+            <span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"><b>任务已截止锁定：</b> 本任务已于 <b>${currentTask?.deadline || '截止时间'}</b> 截止，写作正文已自动转为<b>【只读模式】</b>。如需继续编辑请联系教师延长时间。</span>
           </div>
-          <span style="font-size:12px; color:#ffffff; background:#dc2626; padding:3px 10px; border-radius:6px; font-weight:800;">已截止</span>
+          <span style="font-size:11.5px; color:#ffffff; background:#dc2626; padding:2px 8px; border-radius:4px; font-weight:800; flex-shrink:0; letter-spacing:0.5px;">已截止</span>
         </div>
       ` : ''}
 
@@ -7946,12 +7965,12 @@
     canvas.innerHTML = `
       <div style="height:100%; display:flex; flex-direction:column; gap:12px;">
         ${isTaskDeadlineExpired ? `
-          <div style="background:#fef2f2; border:1.5px solid #fca5a5; border-radius:10px; padding:12px 18px; margin-bottom:4px; font-size:13px; color:#991b1b; font-weight:700; display:flex; justify-content:space-between; align-items:center; box-shadow:0 2px 8px rgba(239,68,68,0.1);">
-            <div style="display:flex; align-items:center; gap:8px;">
-              <span style="font-size:18px;">🔒</span>
-              <span><b>任务已截止锁定：</b> 本任务已于 <b>${currentTask?.deadline || '截止时间'}</b> 截止，阶段三【答辩擂台】已自动转为<b>【只读查阅模式】</b>不可再修改终稿。如需修改请联系任课教师延长时间。</span>
+          <div style="background:#fef2f2; border:1.5px solid #fca5a5; border-radius:8px; padding:6px 14px; margin-bottom:4px; font-size:12.5px; color:#991b1b; font-weight:600; display:flex; justify-content:space-between; align-items:center; gap:12px; box-shadow:0 2px 6px rgba(239,68,68,0.08); height:38px; box-sizing:border-box; flex-shrink:0;">
+            <div style="display:flex; align-items:center; gap:8px; min-width:0; flex:1; overflow:hidden; white-space:nowrap; text-overflow:ellipsis;">
+              <span style="font-size:15px; flex-shrink:0;">🔒</span>
+              <span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"><b>任务已截止锁定：</b> 本任务已于 <b>${currentTask?.deadline || '截止时间'}</b> 截止，阶段三【答辩擂台】已自动转为<b>【只读查阅模式】</b>。如需修改请联系教师延长时间。</span>
             </div>
-            <span style="font-size:12px; color:#ffffff; background:#dc2626; padding:3px 10px; border-radius:6px; font-weight:800;">已截止</span>
+            <span style="font-size:11.5px; color:#ffffff; background:#dc2626; padding:2px 8px; border-radius:4px; font-weight:800; flex-shrink:0; letter-spacing:0.5px;">已截止</span>
           </div>
         ` : (state.isFinalSubmitted ? `
           <div style="background:#eff6ff; border:1px solid #bfdbfe; border-radius:12px; padding:14px 18px; display:flex; justify-content:space-between; align-items:center; flex-shrink:0; box-shadow:0 2px 8px rgba(37,99,235,0.08);">
@@ -9587,6 +9606,25 @@
           return matchClass && matchGroup && matchTask && !isAnnRead(a);
         })
         .sort((a, b) => (b.id > a.id ? 1 : -1));
+
+      // 🔔 实时感知任务延期并自动解除只读锁定
+      if (currentTask && currentTask.deadline) {
+        if (!this._lastKnownDeadlineMap) this._lastKnownDeadlineMap = {};
+        const prevDl = this._lastKnownDeadlineMap[activeTaskId];
+        if (prevDl && prevDl !== currentTask.deadline) {
+          const prevTime = new Date(prevDl.replace(/-/g, '/')).getTime();
+          const newTime = new Date(currentTask.deadline.replace(/-/g, '/')).getTime();
+          if (newTime > prevTime && newTime > Date.now()) {
+            // 弹出顶部优雅 Toast 提示
+            const extToast = document.createElement('div');
+            extToast.style.cssText = 'position:fixed; top:20px; left:50%; transform:translateX(-50%); background:linear-gradient(135deg,#059669,#10b981); color:#ffffff; padding:12px 24px; border-radius:12px; font-size:14px; font-weight:800; box-shadow:0 12px 28px rgba(5,150,105,0.35); z-index:2147483647; display:flex; align-items:center; gap:10px; animation:modalFadeIn 0.3s ease;';
+            extToast.innerHTML = `<span>⏳</span><span>任课教师已将任务截止时间延长至 <b>${currentTask.deadline}</b>，工作台已恢复正常编辑！</span>`;
+            document.body.appendChild(extToast);
+            setTimeout(() => { if (extToast && extToast.parentNode) extToast.remove(); }, 5000);
+          }
+        }
+        this._lastKnownDeadlineMap[activeTaskId] = currentTask.deadline;
+      }
 
       if (unreadList.length > 0) {
         this.showAnnouncementModal(unreadList[0], true);

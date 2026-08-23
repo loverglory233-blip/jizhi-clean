@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260823_v138";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired } from "./utils.js?v=20260823_v138";
-import { callCozeAgentAPI } from "./agents.js?v=20260823_v138";
-import { AuthManager } from "./auth.js?v=20260823_v138";
-import { CloudSyncEngine } from "./sync.js?v=20260823_v138";
-import { renderLoginView } from "./login.js?v=20260823_v138";
-import { renderTeacherPortal } from "./teacher.js?v=20260823_v138";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260823_v138";
+} from "./constants.js?v=20260823_v139";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired } from "./utils.js?v=20260823_v139";
+import { callCozeAgentAPI } from "./agents.js?v=20260823_v139";
+import { AuthManager } from "./auth.js?v=20260823_v139";
+import { CloudSyncEngine } from "./sync.js?v=20260823_v139";
+import { renderLoginView } from "./login.js?v=20260823_v139";
+import { renderTeacherPortal } from "./teacher.js?v=20260823_v139";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260823_v139";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260823_v138";
+} from "./editor.js?v=20260823_v139";
 
 // Make renderChat available on window for sync callbacks
 if (typeof window !== "undefined") {
@@ -1298,6 +1298,25 @@ export class App {
         return matchClass && matchGroup && matchTask && !isAnnRead(a);
       })
       .sort((a, b) => (b.id > a.id ? 1 : -1));
+
+    // 🔔 实时感知任务延期并自动解除只读锁定
+    if (currentTask && currentTask.deadline) {
+      if (!this._lastKnownDeadlineMap) this._lastKnownDeadlineMap = {};
+      const prevDl = this._lastKnownDeadlineMap[activeTaskId];
+      if (prevDl && prevDl !== currentTask.deadline) {
+        const prevTime = new Date(prevDl.replace(/-/g, '/')).getTime();
+        const newTime = new Date(currentTask.deadline.replace(/-/g, '/')).getTime();
+        if (newTime > prevTime && newTime > Date.now()) {
+          // 弹出顶部优雅 Toast 提示
+          const extToast = document.createElement('div');
+          extToast.style.cssText = 'position:fixed; top:20px; left:50%; transform:translateX(-50%); background:linear-gradient(135deg,#059669,#10b981); color:#ffffff; padding:12px 24px; border-radius:12px; font-size:14px; font-weight:800; box-shadow:0 12px 28px rgba(5,150,105,0.35); z-index:2147483647; display:flex; align-items:center; gap:10px; animation:modalFadeIn 0.3s ease;';
+          extToast.innerHTML = `<span>⏳</span><span>任课教师已将任务截止时间延长至 <b>${currentTask.deadline}</b>，工作台已恢复正常编辑！</span>`;
+          document.body.appendChild(extToast);
+          setTimeout(() => { if (extToast && extToast.parentNode) extToast.remove(); }, 5000);
+        }
+      }
+      this._lastKnownDeadlineMap[activeTaskId] = currentTask.deadline;
+    }
 
     if (unreadList.length > 0) {
       this.showAnnouncementModal(unreadList[0], true);
