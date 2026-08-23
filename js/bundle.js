@@ -7247,8 +7247,6 @@
     const s3 = state.stage3;
     const activeTab = s3.activeTab || 'defense';
     const isFinalSubmitted = state.isFinalSubmitted;
-    // 🛡️ 阶段三正文锁定：正文是阶段二定稿成果，进入答辩阶段后不再随意编辑全文，修改结论通过左侧答辩裁决矩阵记录
-    const isStage3BodyLocked = true;
     const membersList = Object.values(state.members || {});
     const totalCount = membersList.length || 3;
     const plainTextLen = (state.stage2.unifiedContent || '').replace(/<[^>]*>/g, '').trim().length;
@@ -7282,7 +7280,7 @@
               🎓 答辩委员会质询与中间委员引导面板
             </button>
             <button id="tab-btn-editor" style="background:${activeTab === 'editor' ? 'linear-gradient(135deg, #059669, #047857)' : '#f1f5f9'}; border:none; color:${activeTab === 'editor' ? 'white' : '#475569'}; padding:8px 16px; border-radius:8px; font-weight:700; font-size:13px; cursor:pointer;">
-              📝 查阅论文终稿 (正文已锁定只读)
+              📝 修改论文终稿 (依据答辩意见完善正文)
             </button>
           </div>
           <div style="display:flex; gap:8px; align-items:center;">
@@ -7363,11 +7361,11 @@
         ` : `
           <div class="card" style="flex:1; display:flex; flex-direction:column; padding:16px;">
             <div class="card-title" style="margin-bottom:10px; display:flex; justify-content:space-between; align-items:center;">
-              <span style="font-size:15px; font-weight:800; color:#0f172a;">📝 论文全篇大正文 ${isFinalSubmitted ? '<span style="font-size:11px; color:#059669; margin-left:6px;">(🔒 终稿已提交 · 归档只读查阅)</span>' : '(正文已锁定只读 · 修改结论请在左侧答辩裁决矩阵记录)'}</span>
+              <span style="font-size:15px; font-weight:800; color:#0f172a;">📝 论文全篇大正文 ${isFinalSubmitted ? '<span style="font-size:11px; color:#059669; margin-left:6px;">(🔒 终稿已提交 · 归档只读查阅)</span>' : '(依据答辩意见实时修改终稿)'}</span>
               <span style="font-size:12px; color:#2563eb; background:#eff6ff; padding:2px 8px; border-radius:10px; border:1px solid #bfdbfe;">字数: <b>${plainTextLen}</b> 字</span>
             </div>
             <div style="flex:1; min-height:0; display:flex; flex-direction:column;">
-              ${buildWordEditorHtml('stage3-word-editor', state.stage2.unifiedContent, isFinalSubmitted || isStage3BodyLocked)}
+              ${buildWordEditorHtml('stage3-word-editor', state.stage2.unifiedContent, isFinalSubmitted)}
             </div>
           </div>
         `}
@@ -7380,7 +7378,7 @@
     if (tabEditor) tabEditor.addEventListener('click', () => handlers.onSwitchStage3Tab('editor'));
 
     if (activeTab === 'editor') {
-      attachWordEditorEvents(canvas, 'stage3-word-editor', isFinalSubmitted || isStage3BodyLocked, (html) => handlers.onUnifiedContentChange(html), (nodeIdx, sec, charOffset) => {
+      attachWordEditorEvents(canvas, 'stage3-word-editor', isFinalSubmitted, (html) => handlers.onUnifiedContentChange(html), (nodeIdx, sec, charOffset) => {
         if (handlers.onPresenceChange) handlers.onPresenceChange(nodeIdx, sec, charOffset);
       });
       renderRemoteCursors('stage3-word-editor', state);
