@@ -64,60 +64,44 @@ ${SSL_BLOCK}
         proxy_pass http://127.0.0.1:9001;
         proxy_set_header Host \$host;
         proxy_buffering off;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade \$http_upgrade;
-        proxy_set_header Connection "upgrade";
-        proxy_set_header X-Real-IP \$remote_addr;
-        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-    }
-    location /p/ {
-        proxy_pass http://127.0.0.1:9001;
-        proxy_set_header Host \$host;
-        proxy_buffering off;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade \$http_upgrade;
-        proxy_set_header Connection "upgrade";
-        proxy_set_header X-Real-IP \$remote_addr;
-        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-    }
-    # 1.1 插件静态资源由 Nginx 直接从物理磁盘极速直出 (彻底杜绝 404)
-    location ^~ /static/plugins/ {
-        alias /www/wwwroot/etherpad-lite/node_modules/;
-        access_log off;
-        expires 1d;
-    }
-    location /static/ {
-        proxy_pass http://127.0.0.1:9001;
-        proxy_set_header Host \$host;
-    }
-    location /javascripts/ {
-        proxy_pass http://127.0.0.1:9001;
-        proxy_set_header Host \$host;
-    }
-    location /pluginfw/ {
-        proxy_pass http://127.0.0.1:9001;
-        proxy_set_header Host \$host;
-    }
-    location /locales/ {
-        proxy_pass http://127.0.0.1:9001;
-        proxy_set_header Host \$host;
-    }
-    location /locales.json {
-        proxy_pass http://127.0.0.1:9001;
-        proxy_set_header Host \$host;
-    }
-    location /ep_ {
-        proxy_pass http://127.0.0.1:9001;
-        proxy_set_header Host \$host;
-    }
-
-    # 2. PHP 8.2 解析引入
+    # 引入宝塔标准 PHP 8.2 解析规则
     include enable-php-82.conf;
 
-    access_log  /www/wwwlogs/47.99.110.230.log;
-    error_log  /www/wwwlogs/47.99.110.230.error.log;
+    # Etherpad 9001 反向代理
+    location ^~ /socket.io {
+        proxy_pass http://127.0.0.1:9001;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_http_version 1.1;
+    }
+
+    location ^~ /p/ {
+        proxy_pass http://127.0.0.1:9001;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    }
+
+    location ^~ /pluginfw/ {
+        proxy_pass http://127.0.0.1:9001;
+        proxy_set_header Host $host;
+    }
+
+    location ^~ /javascripts/ {
+        proxy_pass http://127.0.0.1:9001;
+        proxy_set_header Host $host;
+    }
+
+    location ^~ /static/ {
+        proxy_pass http://127.0.0.1:9001;
+        proxy_set_header Host $host;
+    }
+
+    access_log /www/wwwlogs/47.99.110.230.log;
+    error_log /www/wwwlogs/47.99.110.230.error.log;
 }
-CONF_EOF
+EOF
 
 echo "📝 正在验证 Nginx 配置文件合法性..."
 nginx -t
