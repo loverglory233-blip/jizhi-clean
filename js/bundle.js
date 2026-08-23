@@ -2113,13 +2113,7 @@
       }
     }
 
-    initSSE() {
-      // 生产环境全面停用 SSE，由 Yjs CRDT WebSocket (1234端口) + 数据库高可用短轮询接管
-    }
-
-    // 💡 协同架构说明：富文本实时协同由 Yjs CRDT WebSocket (1234端口) 独立承载；
-    // 阶段状态/研讨聊天/全局教务由 CloudSyncEngine 高频短轮询 + 服务端事务保障。
-    // 此方法仅刷新 scope keys，不建立 WebSocket 连接。
+    initSSE() {}
     refreshScopeKeys() {
       this.updateScopeKeys();
     }
@@ -6418,24 +6412,8 @@
     editor.addEventListener('paste', blockPasteIntoEditor, true);
     editor.addEventListener('drop', blockPasteIntoEditor, true);
 
-    // 🚀 工业级 Yjs CRDT + y-quill 实时协同引擎自动绑定
     let quillInstance = null;
-    let yjsBinding = null;
-
-    // 🛡️ 关闭旧 Yjs 连接，防止切换任务/小组时连接泄漏
-    if (window._yjsProvider) {
-      try { window._yjsProvider.destroy(); } catch (e) {}
-      window._yjsProvider = null;
-    }
-    if (window._yjsDoc) {
-      try { window._yjsDoc.destroy(); } catch (e) {}
-      window._yjsDoc = null;
-    }
-
     const QuillClass = window.Quill;
-    const YClass = window.Y;
-    const WsProviderClass = window.WebsocketProvider || (window.Y && window.Y.WebsocketProvider);
-    const QuillBindingClass = window.QuillBinding || (window.Y && window.Y.QuillBinding);
 
     if (QuillClass) {
       try {
@@ -7017,7 +6995,7 @@
     const editor = document.getElementById(editorId);
     if (!editor) return;
 
-    // 🛡️ 纯净化图层：彻底清除富文本内部的任何历史残留光标 DOM，光标全权由 Yjs QuillCursors 独立图层承载
+    // 🛡️ 纯净化图层：彻底清除富文本内部的任何历史残留光标 DOM
     editor.querySelectorAll('.remote-cursor-widget').forEach(el => el.remove());
   }
 
