@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles } from "./constants.js?v=20260823_v50";
-import { callCozeAgentAPI } from "./agents.js?v=20260823_v50";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired } from "./utils.js?v=20260823_v50";
+import { AgentProfiles } from "./constants.js?v=20260823_v51";
+import { callCozeAgentAPI } from "./agents.js?v=20260823_v51";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired } from "./utils.js?v=20260823_v51";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -952,10 +952,10 @@ export function renderPresencePills(editorId, state) {
   const allUsers = (window.app && window.app.authManager) ? window.app.authManager.getUsers() : [];
 
   pillsContainer.innerHTML = membersList.map(m => {
-    const p = presence[m.studentCode] || presence[m.id] || presence[m.realStudentCode];
-    const isSelf = m.studentCode === currentUserCode || m.id === currentUserCode || (m.realStudentCode && m.realStudentCode === currentUserCode);
-    // 只有在 15 秒内有心跳活跃的才视为在线
-    const isOnline = isSelf || (p && (now - (p.updatedAt || 0) < 15000));
+    const p = presence[m.studentCode] || presence[m.id] || presence[m.realStudentCode] || (m.name && presence[m.name]) || (m.username && presence[m.username]);
+    const isSelf = m.studentCode === currentUserCode || m.id === currentUserCode || (m.realStudentCode && m.realStudentCode === currentUserCode) || (m.username && m.username === currentUserCode) || (m.name && m.name === currentUserCode);
+    // 只要在 35 秒内有活跃心跳即视为在线
+    const isOnline = isSelf || (p && (now - (p.updatedAt || 0) < 35000));
     const sectionText = isSelf ? ' (我)' : (isOnline ? ' (在线)' : ' (离线)');
     const color = m.color || '#2563eb';
     let displayName = m.name || m.studentCode;
@@ -972,98 +972,12 @@ export function renderPresencePills(editorId, state) {
 }
 
 export function renderRemoteCursors(editorId, state) {
+  renderPresencePills(editorId, state);
   const editor = document.getElementById(editorId);
   if (!editor) return;
-  renderPresencePills(editorId, state);
 
-  // 1. 清除旧光标组件并修复 DOM 碎片化
+  // 🛡️ 纯净化图层：彻底清除富文本内部的任何历史残留光标 DOM，光标全权由 Yjs QuillCursors 独立图层承载
   editor.querySelectorAll('.remote-cursor-widget').forEach(el => el.remove());
-  // 🛡️ 合并被 splitText 分裂的相邻文本节点，防止 DOM 碎片无限增长
-  editor.normalize();
-
-  const membersList = Object.values(state.members || {});
-  const currentUserCode = state.currentUser || 'A';
-  const presence = state.presence || {};
-  const now = Date.now();
-  const seenMemberCodes = new Set();
-
-  membersList.forEach(m => {
-    const code = m.studentCode || m.id;
-    if (m.studentCode === currentUserCode || m.id === currentUserCode || (m.realStudentCode && m.realStudentCode === currentUserCode)) return;
-    if (seenMemberCodes.has(code)) return; // 严格去重
-
-    const p = presence[m.studentCode] || presence[m.id] || presence[m.realStudentCode];
-    if (!p || (now - (p.updatedAt || 0) > 20000)) return; // 20秒未活动视为离线
-    seenMemberCodes.add(code);
-
-    const color = m.color || '#8b5cf6';
-    const allUsers = (window.app && window.app.authManager) ? window.app.authManager.getUsers() : [];
-    let name = m.name || m.studentCode;
-    const matchedUser = allUsers.find(u => (m.realStudentCode && u.studentCode === m.realStudentCode) || (m.studentCode && u.studentCode === m.studentCode) || (m.id && u.id === m.id) || (m.username && u.username === m.username));
-    if (matchedUser && matchedUser.name) name = matchedUser.name;
-    const avatar = m.avatar || '👨‍🎓';
-    const targetOffset = (typeof p.charOffset === 'number' && p.charOffset >= 0) ? p.charOffset : null;
-
-    // 创建精致字符级悬浮光标 DOM
-    const cursorWidget = document.createElement('span');
-    cursorWidget.className = 'remote-cursor-widget';
-    cursorWidget.contentEditable = 'false';
-    cursorWidget.style.cssText = 'user-select:none; pointer-events:none; position:relative; display:inline-block; width:0; height:1.15em; vertical-align:text-bottom; z-index:10; line-height:1; margin:0; padding:0;';
-
-    cursorWidget.innerHTML = `
-      <span style="position:absolute; top:-2px; left:-1px; width:2.5px; height:1.25em; background:${color}; border-radius:1.5px; animation:blinkCursor 1.2s infinite; box-shadow:0 0 4px ${color}88;"></span>
-      <span class="remote-caret-flag" style="position:absolute; top:-22px; left:-4px; background:${color}; font-size:10.5px; padding:2px 6px; border-radius:4px 4px 4px 0; color:white; font-weight:700; display:inline-flex; align-items:center; gap:3px; white-space:nowrap; box-shadow:0 2px 6px rgba(0,0,0,0.18); transform:scale(0.92); transform-origin:left bottom; z-index:20;">
-        ${avatar} ${name}
-      </span>
-    `;
-
-    let inserted = false;
-
-    // ── 字符级精准 Range 插入 ──
-    if (targetOffset !== null && targetOffset >= 0) {
-      let charIndex = 0;
-      const nodeStack = [editor];
-      let node;
-
-      while (!inserted && (node = nodeStack.pop())) {
-        if (node.nodeType === 3) { // 文本节点
-          const nextCharIndex = charIndex + node.length;
-          if (targetOffset >= charIndex && targetOffset <= nextCharIndex) {
-            const relOffset = targetOffset - charIndex;
-            if (relOffset === 0) {
-              node.parentNode.insertBefore(cursorWidget, node);
-            } else if (relOffset >= node.length) {
-              if (node.nextSibling) {
-                node.parentNode.insertBefore(cursorWidget, node.nextSibling);
-              } else {
-                node.parentNode.appendChild(cursorWidget);
-              }
-            } else {
-              // 拆分文本节点精确插入在两个字符之间
-              const secondPart = node.splitText(relOffset);
-              node.parentNode.insertBefore(cursorWidget, secondPart);
-            }
-            inserted = true;
-            break;
-          }
-          charIndex = nextCharIndex;
-        } else if (node.nodeType === 1 && !node.classList.contains('remote-cursor-widget')) {
-          let i = node.childNodes.length;
-          while (i--) {
-            nodeStack.push(node.childNodes[i]);
-          }
-        }
-      }
-    }
-
-    // 兜底段落级插入
-    if (!inserted) {
-      const children = Array.from(editor.children);
-      const targetIndex = (typeof p.nodeIndex === 'number' && p.nodeIndex >= 0) ? p.nodeIndex : 0;
-      let targetEl = (children && children[targetIndex]) ? children[targetIndex] : (children.length > 0 ? children[children.length - 1] : editor);
-      if (targetEl) targetEl.appendChild(cursorWidget);
-    }
-  });
 }
 
 function renderStage1Canvas(canvas, state, handlers) {
