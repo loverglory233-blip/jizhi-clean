@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260823_v126";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired } from "./utils.js?v=20260823_v126";
-import { callCozeAgentAPI } from "./agents.js?v=20260823_v126";
-import { AuthManager } from "./auth.js?v=20260823_v126";
-import { CloudSyncEngine } from "./sync.js?v=20260823_v126";
-import { renderLoginView } from "./login.js?v=20260823_v126";
-import { renderTeacherPortal } from "./teacher.js?v=20260823_v126";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260823_v126";
+} from "./constants.js?v=20260823_v127";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired } from "./utils.js?v=20260823_v127";
+import { callCozeAgentAPI } from "./agents.js?v=20260823_v127";
+import { AuthManager } from "./auth.js?v=20260823_v127";
+import { CloudSyncEngine } from "./sync.js?v=20260823_v127";
+import { renderLoginView } from "./login.js?v=20260823_v127";
+import { renderTeacherPortal } from "./teacher.js?v=20260823_v127";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260823_v127";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260823_v126";
+} from "./editor.js?v=20260823_v127";
 
 // Make renderChat available on window for sync callbacks
 if (typeof window !== "undefined") {
@@ -571,26 +571,13 @@ export class App {
         appEl.className = 'app-student-portal-mode';
         renderStudentTaskPortal(
           appEl, this.authManager, this.state,
-          async (taskId) => {
+          (taskId) => {
             this.state.activeTaskId = taskId || 'task_default';
             this.state.studentViewMode = 'workspace';
-            if (this.authManager && this.authManager.pullGlobalMeta) {
-              try { await this.authManager.pullGlobalMeta(); } catch (e) {}
-            }
             const latestClassId = this.state.activeStudentClassId || currentUser?.classId || 'class_101';
             const latestGroupObj = this.authManager.getStudentActiveGroup(currentUser, latestClassId);
             const targetGroupId = latestGroupObj.id || (currentUser && currentUser.groupId ? currentUser.groupId : 'group_1');
             this.loadGroupState(targetGroupId);
-            
-            // 🟢 进入任务工作台第 0 毫秒：先拉取云端权威数据，但学生首屏始终先看阶段一（只读或进行中），再自主切换
-            if (this.cloudSyncEngine) {
-              this.cloudSyncEngine.groupId = targetGroupId;
-              this.cloudSyncEngine.taskId = taskId || 'task_default';
-              this.cloudSyncEngine.updateScopeKeys();
-              try {
-                await this.cloudSyncEngine.pullFromServer();
-              } catch (e) {}
-            }
 
             // 🎯 始终从阶段一进入，若本组已推进至阶段二/三，则阶段一显示为只读归档，并解锁顶部阶段导航供学生自主加入
             this.state.currentStage = 'stage1';
@@ -603,8 +590,24 @@ export class App {
               this.state.presence[k] = { nodeIndex: 0, activeSection: '在线协作', updatedAt: now };
             });
 
+            // ⚡ 0 毫秒秒切进入工作台！
             this.renderMain();
             this.checkUnreadAnnouncements();
+
+            // 🟢 后台异步静默拉取云端权威数据，绝不阻塞用户界面跳转
+            setTimeout(async () => {
+              if (this.authManager && this.authManager.pullGlobalMeta) {
+                try { await this.authManager.pullGlobalMeta(); } catch (e) {}
+              }
+              if (this.cloudSyncEngine) {
+                this.cloudSyncEngine.groupId = targetGroupId;
+                this.cloudSyncEngine.taskId = taskId || 'task_default';
+                this.cloudSyncEngine.updateScopeKeys();
+                try {
+                  await this.cloudSyncEngine.pullFromServer();
+                } catch (e) {}
+              }
+            }, 10);
           },
           () => this.handleLogout(),
           () => this.switchToTeacherView(),
