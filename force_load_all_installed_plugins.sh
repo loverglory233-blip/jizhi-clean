@@ -28,9 +28,12 @@ let code = fs.readFileSync(pFile, "utf8");
 
 const directUpdateFn = `
 exports.update = async () => {
-  const rootDir = path.resolve(__dirname, "../../../..");
-  const srcDir = path.join(rootDir, "src");
-  const nmDir = path.join(rootDir, "node_modules");
+  const fsDirect = require("fs");
+  const pathDirect = require("path");
+
+  const rootDir = pathDirect.resolve(__dirname, "../../../..");
+  const srcDir = pathDirect.join(rootDir, "src");
+  const nmDir = pathDirect.join(rootDir, "node_modules");
 
   const packages = {
     "ep_etherpad-lite": {
@@ -41,13 +44,13 @@ exports.update = async () => {
   };
 
   try {
-    if (fs.existsSync(nmDir)) {
-      const dirs = fs.readdirSync(nmDir);
+    if (fsDirect.existsSync(nmDir)) {
+      const dirs = fsDirect.readdirSync(nmDir);
       dirs.forEach(d => {
         if (d.startsWith("ep_") && d !== "ep_etherpad-lite") {
-          const pDir = path.join(nmDir, d);
+          const pDir = pathDirect.join(nmDir, d);
           let pkg = { name: d, version: "1.0.0" };
-          try { pkg = JSON.parse(fs.readFileSync(path.join(pDir, "package.json"), "utf8")); } catch(e) {}
+          try { pkg = JSON.parse(fsDirect.readFileSync(pathDirect.join(pDir, "package.json"), "utf8")); } catch(e) {}
           packages[d] = {
             name: d,
             version: pkg.version || "1.0.0",
@@ -74,10 +77,10 @@ exports.update = async () => {
       parts: []
     };
 
-    const epJsonPath = path.join(pkg.path, "ep.json");
-    if (fs.existsSync(epJsonPath)) {
+    const epJsonPath = pathDirect.join(pkg.path, "ep.json");
+    if (fsDirect.existsSync(epJsonPath)) {
       try {
-        const epData = JSON.parse(fs.readFileSync(epJsonPath, "utf8"));
+        const epData = JSON.parse(fsDirect.readFileSync(epJsonPath, "utf8"));
         if (Array.isArray(epData.parts)) {
           epData.parts.forEach(part => {
             const partObj = Object.assign({}, part, {
