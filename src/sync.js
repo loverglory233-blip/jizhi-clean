@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState } from './constants.js?v=20260823_v56';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin } from './utils.js?v=20260823_v56';
+import { InitialState } from './constants.js?v=20260823_v57';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin } from './utils.js?v=20260823_v57';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -681,13 +681,17 @@ export class CloudSyncEngine {
     const groupMaxOrder = stageOrder[this.app.state.groupMaxStage || 'stage1'] || 1;
 
     if (remoteData.currentStage) {
-      if (remoteOrder > groupMaxOrder || remoteOrder > currentOrder) {
+      if (remoteOrder > groupMaxOrder) {
         this.app.state.groupMaxStage = remoteData.currentStage;
         this.app.isViewingPastStage = false;
         this.app.state.currentStage = remoteData.currentStage;
         needWorkspaceRender = true;
       } else {
         this.app.state.groupMaxStage = remoteData.currentStage;
+        if (!this.app.isViewingPastStage && remoteOrder > currentOrder && !this.app.state.isFinalSubmitted) {
+          this.app.state.currentStage = remoteData.currentStage;
+          needWorkspaceRender = true;
+        }
       }
     }
 
