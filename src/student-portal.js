@@ -7,8 +7,8 @@ import {
   STORAGE_KEY_TASKS,
   STORAGE_KEY_ANNOUNCEMENTS,
   STORAGE_KEY_CLASSES
-} from "./constants.js?v=20260823_v46";
-import { escapeHtml, isTaskExpired } from "./utils.js?v=20260823_v46";
+} from "./constants.js?v=20260823_v47";
+import { escapeHtml, isTaskExpired } from "./utils.js?v=20260823_v47";
 
 /* ==========================================================================
    7.5 STUDENT TASK PORTAL / DASHBOARD (我的写作任务大厅)
@@ -108,11 +108,9 @@ export function renderStudentTaskPortal(container, authManager, state, onSelectT
       if (currentUser.username && a.readStatus[currentUser.username]) return true;
       if (currentUser.name && a.readStatus[currentUser.name]) return true;
       if (Array.isArray(a.confirmedMembers)) {
-        if (a.confirmedMembers.some(m => m.id === currentUser.id || m.studentCode === currentUser.studentCode || (currentUser.name && m.name === currentUser.name))) return true;
+        if (a.confirmedMembers.some(m => m && (m.id === currentUser.id || m.studentCode === currentUser.studentCode || (currentUser.name && m.name === currentUser.name)))) return true;
       }
     }
-    if (groupId && a.readGroupStatus && a.readGroupStatus[groupId]) return true;
-    if (groupId && a.readStatus && a.readStatus[groupId]) return true;
     return false;
   };
 

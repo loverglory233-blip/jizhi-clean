@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState } from './constants.js?v=20260823_v46';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin } from './utils.js?v=20260823_v46';
+import { InitialState } from './constants.js?v=20260823_v47';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin } from './utils.js?v=20260823_v47';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -297,6 +297,7 @@ export class CloudSyncEngine {
     this.app.updateContributionUi();
     this.app.renderPresenceCursors();
 
+    this.updateScopeKeys();
     const userKey = user ? (user.id || user.studentCode || user.username || 'u') : 'u';
     const ackResetSeqKey = `jizhi_ack_reset_seq_${userKey}_${this.storageKey}`;
     const localAckSeq = parseInt(localStorage.getItem(ackResetSeqKey) || '0', 10);
@@ -421,35 +422,23 @@ export class CloudSyncEngine {
         const remoteLogs = Array.isArray(remoteData.chatLogs[stg]) ? remoteData.chatLogs[stg] : [];
         const localLogs = Array.isArray(this.app.state.chatLogs[stg]) ? this.app.state.chatLogs[stg] : [];
         
-        const msgMap = new Map();
-        const getMsgKey = (m) => {
-          if (!m) return '';
-          if (m.id) return m.id;
-          const tMs = m._timeMs || m.timestamp || '';
-          const sender = m.sender || '';
-          // 时间戳缺失时用完整文本兜底，避免“开头相同”的两条消息被误去重
-          const textPart = tMs ? (m.text || '').slice(0, 30) : (m.text || '');
-          return `${sender}_${tMs}_${textPart}`;
-        };
-
-        localLogs.forEach(m => {
-          if (m) msgMap.set(getMsgKey(m), m);
-        });
-        remoteLogs.forEach(m => {
-          if (m) {
-            const k = getMsgKey(m);
-            if (!msgMap.has(k)) {
-              msgMap.set(k, m);
-              chatChanged = true;
-            }
-          }
-        });
-
-        const mergedLogs = Array.from(msgMap.values());
-        mergedLogs.sort((a, b) => {
-          const ta = a._timeMs ? Number(a._timeMs) : 0;
-          const tb = b._timeMs ? Number(b._timeMs) : 0;
+        const mergedLogs = [];
+        const seenKeys = new Set();
+        const allCandidate = [...localLogs, ...remoteLogs];
+        allCandidate.sort((a, b) => {
+          const ta = a?._timeMs ? Number(a._timeMs) : 0;
+          const tb = b?._timeMs ? Number(b._timeMs) : 0;
           return ta - tb;
+        });
+        allCandidate.forEach(m => {
+          if (!m) return;
+          const idKey = m.id ? `id_${m.id}` : null;
+          const contentKey = `${m.sender || ''}_${(m.text || '').trim()}_${m._timeMs ? Math.floor(Number(m._timeMs) / 3000) : (m.timestamp || '')}`;
+          if (idKey && seenKeys.has(idKey)) return;
+          if (seenKeys.has(contentKey)) return;
+          if (idKey) seenKeys.add(idKey);
+          seenKeys.add(contentKey);
+          mergedLogs.push(m);
         });
 
         if (mergedLogs.length !== localLogs.length || JSON.stringify(mergedLogs) !== JSON.stringify(localLogs)) {
@@ -506,11 +495,10 @@ export class CloudSyncEngine {
         Object.assign(this.app.state.stage1.contract.taskAssignments, remoteS1.contract.taskAssignments);
         
         document.querySelectorAll('.task-assignment-input').forEach(inp => {
-          const mId = inp.dataset.mid;
-          const code = inp.dataset.code;
-          const remoteVal = (remoteS1.contract.taskAssignments[mId] !== undefined)
-            ? remoteS1.contract.taskAssignments[mId]
-            : (code && remoteS1.contract.taskAssignments[code] !== undefined ? remoteS1.contract.taskAssignments[code] : undefined);
+          const mKey = inp.dataset.mkey;
+          const remoteVal = (mKey && remoteS1.contract.taskAssignments[mKey] !== undefined)
+            ? remoteS1.contract.taskAssignments[mKey]
+            : (inp.dataset.mid && remoteS1.contract.taskAssignments[inp.dataset.mid] !== undefined ? remoteS1.contract.taskAssignments[inp.dataset.mid] : undefined);
           
           if (remoteVal !== undefined && document.activeElement !== inp) {
             if (inp.value !== remoteVal) {
@@ -777,18 +765,13 @@ export class CloudSyncEngine {
     const groupMaxOrder = stageOrder[this.app.state.groupMaxStage || 'stage1'] || 1;
 
     if (remoteData.currentStage) {
-      if (remoteOrder > groupMaxOrder) {
+      if (remoteOrder > groupMaxOrder || remoteOrder > currentOrder) {
         this.app.state.groupMaxStage = remoteData.currentStage;
-        if (!this.app.isViewingPastStage) {
-          this.app.state.currentStage = remoteData.currentStage;
-          needWorkspaceRender = true;
-        }
+        this.app.isViewingPastStage = false;
+        this.app.state.currentStage = remoteData.currentStage;
+        needWorkspaceRender = true;
       } else {
         this.app.state.groupMaxStage = remoteData.currentStage;
-        if (!this.app.isViewingPastStage && remoteOrder > currentOrder && !this.app.state.isFinalSubmitted) {
-          this.app.state.currentStage = remoteData.currentStage;
-          needWorkspaceRender = true;
-        }
       }
     }
 
