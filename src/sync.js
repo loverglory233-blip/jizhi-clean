@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState } from './constants.js?v=20260823_v60';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin } from './utils.js?v=20260823_v60';
+import { InitialState } from './constants.js?v=20260823_v61';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin } from './utils.js?v=20260823_v61';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -576,12 +576,13 @@ export class CloudSyncEngine {
         
         this.app.state.stage2.unifiedContent = cleanRemoteContent;
         if (editor && !isYjsLive) {
-          const isUserTypingNow = document.activeElement === editor || editor.contains(document.activeElement);
+          const lastKeyPress = window._jizhi_last_keypress_time || 0;
+          const isActivelyTyping = (Date.now() - lastKeyPress) < 1200;
           const qlEditor = editor.querySelector('.ql-editor') || editor;
           const currentLocalHtml = qlEditor.innerHTML.replace(/<span class="remote-cursor-widget"[\s\S]*?<\/span>/gi, '');
 
-          // 🛡️ 跨设备平滑互见：当前用户未打字时，平滑对齐远端组员正文
-          if (!isUserTypingNow && currentLocalHtml.trim() !== cleanRemoteContent.trim()) {
+          // 🛡️ 跨设备平滑互见：只要当前用户超过 1.2 秒未敲击键盘，即刻平滑对齐远端组员正文
+          if (!isActivelyTyping && currentLocalHtml.trim() !== cleanRemoteContent.trim()) {
             if (window._jizhi_quill && window._jizhi_quill.root) {
               window._jizhi_quill.root.innerHTML = cleanRemoteContent;
             } else {
