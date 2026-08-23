@@ -5803,20 +5803,17 @@
     const tasks = authManager.getTasks();
     const announcements = authManager.getAnnouncements();
 
-    // 🏫 1. 动态识别学生归属的全部班级列表
-    const myEnrolledClasses = classes.filter(c => {
-      if (currentUser?.classId === c.id) return true;
-      if (Array.isArray(currentUser?.classIds) && currentUser.classIds.includes(c.id)) return true;
-      if (Array.isArray(c.studentIds) && (c.studentIds.includes(currentUser?.id) || c.studentIds.includes(currentUser?.studentCode))) return true;
-      if (Array.isArray(c.groups) && c.groups.some(g => (g.members || []).some(m => {
-        const mId = (typeof m === 'object' && m !== null) ? (m.id || m.userId || m.studentCode) : m;
-        return mId === currentUser?.id || mId === currentUser?.studentCode;
-      }))) return true;
-      return false;
-    });
+    const currentUser = authManager.getCurrentUser();
+    const classes = authManager.getClasses();
+    const tasks = authManager.getTasks();
+    const announcements = authManager.getAnnouncements();
 
-    const activeUserClassId = state.activeStudentClassId || (currentUser?.classId || (classes[0] ? classes[0].id : 'class_101'));
-    const userClass = classes.find(c => c.id === activeUserClassId) || classes[0] || { id: 'class_101', name: '教学班级', groups: [] };
+    // 🏫 1. 动态获取系统中所有可用班级列表
+    const displayClasses = classes && classes.length > 0 ? classes : [{ id: 'class_101', name: '教学班级', groups: [] }];
+
+    const activeUserClassId = state.activeStudentClassId || (currentUser?.classId || displayClasses[0].id);
+    const userClass = displayClasses.find(c => c.id === activeUserClassId) || displayClasses[0];
+    state.activeStudentClassId = userClass.id;
 
     // 👥 2. 动态精准匹配该学生在当前选定班级里的真实小组
     const activeGroupObj = authManager.getStudentActiveGroup(currentUser, userClass.id);
@@ -5832,10 +5829,18 @@
     });
 
     const isAnnRead = (a) => {
-      if (!a.readStatus) return false;
-      if (currentUser && currentUser.id && a.readStatus[currentUser.id]) return true;
-      if (currentUser && currentUser.studentCode && a.readStatus[currentUser.studentCode]) return true;
-      if (currentUser && currentUser.username && a.readStatus[currentUser.username]) return true;
+      if (!a || !a.readStatus) return false;
+      if (currentUser) {
+        if (currentUser.id && a.readStatus[currentUser.id]) return true;
+        if (currentUser.studentCode && a.readStatus[currentUser.studentCode]) return true;
+        if (currentUser.username && a.readStatus[currentUser.username]) return true;
+        if (currentUser.name && a.readStatus[currentUser.name]) return true;
+        if (Array.isArray(a.confirmedMembers)) {
+          if (a.confirmedMembers.some(m => m.id === currentUser.id || m.studentCode === currentUser.studentCode || (currentUser.name && m.name === currentUser.name))) return true;
+        }
+      }
+      if (groupId && a.readGroupStatus && a.readGroupStatus[groupId]) return true;
+      if (groupId && a.readStatus && a.readStatus[groupId]) return true;
       return false;
     };
     const unreadAnnCount = relevantAnnouncements.filter(a => !isAnnRead(a)).length;
@@ -5870,22 +5875,16 @@
               </div>
             </div>
 
-            <!-- 宽幅舒展拉长版班级与小组身份卡 -->
+            <!-- 宽幅舒展拉长版班级与小组身份卡 (支持自由切换班级并实时匹配小组) -->
             <div style="background:#ffffff; border-radius:14px; padding:16px 22px; color:#0f172a; box-shadow:0 4px 16px rgba(0,0,0,0.08); display:flex; flex-direction:column; gap:10px; min-width:380px; flex:0 0 auto;">
               <div style="display:flex; justify-content:space-between; align-items:center; gap:12px;">
-                <span style="font-size:12.5px; color:#64748b; font-weight:700; white-space:nowrap;">🏫 当前所属班级:</span>
-                ${myEnrolledClasses.length > 1 ? `
-                  <select id="sel-student-class-switch" style="background:#eff6ff; color:#1d4ed8; border:1.5px solid #bfdbfe; padding:6px 12px; border-radius:8px; font-size:13px; font-weight:800; cursor:pointer; outline:none; flex:1; min-width:200px;">
-                    ${myEnrolledClasses.map(c => `<option value="${c.id}" ${c.id === userClass.id ? 'selected' : ''}>🏫 ${c.name}</option>`).join('')}
-                  </select>
-                ` : `
-                  <span style="background:#eff6ff; color:#1d4ed8; border:1.5px solid #bfdbfe; padding:6px 12px; border-radius:8px; font-size:13px; font-weight:800; text-align:right;">
-                    🏫 ${userClass.name}
-                  </span>
-                `}
+                <span style="font-size:12.5px; color:#64748b; font-weight:700; white-space:nowrap;">🏫 选择修读班级:</span>
+                <select id="sel-student-class-switch" style="background:#eff6ff; color:#1d4ed8; border:1.5px solid #bfdbfe; padding:6px 12px; border-radius:8px; font-size:13px; font-weight:800; cursor:pointer; outline:none; flex:1; min-width:200px;">
+                  ${displayClasses.map(c => `<option value="${c.id}" ${c.id === userClass.id ? 'selected' : ''}>🏫 ${c.name}</option>`).join('')}
+                </select>
               </div>
               <div style="display:flex; align-items:center; justify-content:space-between; border-top:1px dashed #e2e8f0; padding-top:10px; gap:12px;">
-                <span style="font-size:12.5px; color:#64748b; font-weight:700; white-space:nowrap;">👥 协作小组:</span>
+                <span style="font-size:12.5px; color:#64748b; font-weight:700; white-space:nowrap;">👥 匹配协作小组:</span>
                 <span style="background:#f0fdf4; color:#15803d; border:1px solid #bbf7d0; padding:4px 12px; border-radius:8px; font-size:13px; font-weight:800; text-align:right;">
                   ${groupName} (${currentUser ? currentUser.name : '学生'})
                 </span>
@@ -5984,7 +5983,12 @@
     const selClassSwitch = container.querySelector('#sel-student-class-switch');
     if (selClassSwitch) {
       selClassSwitch.addEventListener('change', (e) => {
-        state.activeStudentClassId = e.target.value;
+        const newClassId = e.target.value;
+        state.activeStudentClassId = newClassId;
+        const newGroupObj = authManager.getStudentActiveGroup(currentUser, newClassId);
+        if (window.app && newGroupObj && newGroupObj.id) {
+          window.app.loadGroupState(newGroupObj.id);
+        }
         renderStudentTaskPortal(container, authManager, state, onSelectTask, onLogout, onSwitchTeacher, onOpenAnnModal, onOpenSurveyModal);
       });
     }
@@ -8526,7 +8530,10 @@
               if (this.authManager && this.authManager.pullGlobalMeta) {
                 try { await this.authManager.pullGlobalMeta(); } catch (e) {}
               }
-              this.loadGroupState(currentGroupId);
+              const latestClassId = this.state.activeStudentClassId || currentUser?.classId || 'class_101';
+              const latestGroupObj = this.authManager.getStudentActiveGroup(currentUser, latestClassId);
+              const targetGroupId = latestGroupObj.id || (currentUser && currentUser.groupId ? currentUser.groupId : 'group_1');
+              this.loadGroupState(targetGroupId);
               this.renderMain();
               if (this.cloudSyncEngine) {
                 this.cloudSyncEngine.updateScopeKeys();
@@ -10228,10 +10235,9 @@
 
     renderStudentWorkspace(isForced = false) {
       const currentUser = this.authManager.getCurrentUser();
-      // 🛡️ 小组解析兜底：缺失 groupId 时按班级/成员关系反查真实小组，避免硬编码 'group_1' 导致空成员视图
-      const currentGroupId = (currentUser && currentUser.groupId)
-        ? currentUser.groupId
-        : ((this.authManager.getStudentActiveGroup(currentUser) || {}).id || 'group_1');
+      const effectiveClassId = this.state.activeStudentClassId || (currentUser?.classId || 'class_101');
+      const activeGroupObj = this.authManager.getStudentActiveGroup(currentUser, effectiveClassId);
+      const currentGroupId = activeGroupObj.id || (currentUser && currentUser.groupId ? currentUser.groupId : 'group_1');
 
       this.state.members = this.authManager.getGroupMembersForWorkspace(currentGroupId);
       this.state.currentUser = currentUser ? (currentUser.studentCode || 'A') : 'A';
