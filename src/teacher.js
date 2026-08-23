@@ -9,8 +9,8 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260823_v38";
-import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired } from "./utils.js?v=20260823_v38";
+} from "./constants.js?v=20260823_v39";
+import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired } from "./utils.js?v=20260823_v39";
 
 /* ==========================================================================
    7. TEACHER PORTAL RENDERER (LIVE WORKSPACE MIRROR & ANNOUNCEMENT READ MATRIX)
@@ -582,10 +582,10 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
                         </div>
                         <div style="display:flex; flex-wrap:wrap; gap:10px; font-size:12px;">
                           ${targetGroups.map(g => {
-                            const groupConfirmedList = (a.confirmedMembers || []).filter(m => m && (m.groupId === g.id || (m.groupId && m.groupId === g.name)));
                             const gMembers = Array.isArray(g.members) ? g.members : [];
                             const memberConfirmedNames = [];
 
+                            // 1. 遍历小组名册中的所有学生
                             gMembers.forEach(m => {
                               const mId = (typeof m === 'object' && m !== null) ? (m.id || m.userId || m.studentCode) : m;
                               const mName = (typeof m === 'object' && m !== null) ? m.name : null;
@@ -599,20 +599,29 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
                                 (uObj && uObj.username && a.readStatus[uObj.username]) ||
                                 (uObj && uObj.name && a.readStatus[uObj.name])
                               );
-                              if (hasRead && uName && !memberConfirmedNames.includes(uName)) {
+                              const inConfirmedList = (a.confirmedMembers || []).some(cm => cm && (
+                                (mId && cm.id === mId) ||
+                                (uObj && (cm.id === uObj.id || cm.studentCode === uObj.studentCode || cm.name === uObj.name)) ||
+                                (uName && cm.name === uName)
+                              ));
+
+                              if ((hasRead || inConfirmedList) && uName && !memberConfirmedNames.includes(uName)) {
                                 memberConfirmedNames.push(uName);
                               }
                             });
 
-                            groupConfirmedList.forEach(m => {
-                              if (m.name && !memberConfirmedNames.includes(m.name)) {
-                                memberConfirmedNames.push(m.name);
+                            // 2. 遍历 confirmedMembers 中明确属于该组的学生
+                            (a.confirmedMembers || []).forEach(m => {
+                              if (m && (m.groupId === g.id || m.groupId === g.name || m.groupId === g.groupId)) {
+                                const showName = m.name || m.studentCode || '学生';
+                                if (!memberConfirmedNames.includes(showName)) {
+                                  memberConfirmedNames.push(showName);
+                                }
                               }
                             });
 
                             const isRead = (a.readGroupStatus && (a.readGroupStatus[g.id] || a.readGroupStatus[g.name])) ||
                                            (a.readStatus && (a.readStatus[g.id] || a.readStatus[g.name])) ||
-                                           groupConfirmedList.length > 0 ||
                                            memberConfirmedNames.length > 0;
 
                             const confirmedNames = memberConfirmedNames.join('、');

@@ -14,7 +14,7 @@ import {
   DefaultTasks,
   DefaultAnnouncements,
   DefaultReferencePapers
-} from './constants.js?v=20260823_v38';
+} from './constants.js?v=20260823_v39';
 
 export class AuthManager {
   constructor() {
@@ -1215,17 +1215,17 @@ export class AuthManager {
       }
 
       localStorage.setItem(STORAGE_KEY_ANNOUNCEMENTS, JSON.stringify(announcements));
-      this.pushGlobalMeta();
 
       try {
         fetch('sync.php?action=update_read_status', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            annId, groupId,
-            userId: currUser ? currUser.id : '',
-            userCode: currUser ? currUser.studentCode : '',
-            userName: currUser ? currUser.name : ''
+            annId,
+            groupId,
+            userId: currUser ? (currUser.id || currUser.username || currUser.studentCode) : '',
+            userCode: currUser ? (currUser.studentCode || currUser.username || '') : '',
+            userName: currUser ? (currUser.name || currUser.studentCode || '学生') : ''
           })
         }).catch(() => {});
       } catch (e) {}
