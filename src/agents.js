@@ -3,7 +3,7 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles, PresetMessages, STORAGE_KEY_USER } from './constants.js?v=20260823_v87';
+import { AgentProfiles, PresetMessages, STORAGE_KEY_USER } from './constants.js?v=20260823_v88';
 
 export async function callCozeAgentAPI(botKey, userQuery, currentContext = {}) {
   const profile = AgentProfiles[botKey];
@@ -54,7 +54,7 @@ export async function callCozeAgentAPI(botKey, userQuery, currentContext = {}) {
         const chatId = data.chat_id;
         const convId = data.conversation_id;
         const targetBotId = data.bot_id || botId;
-        const maxRetries = 80; // 阶梯累计最大容忍 ~48 秒真实大模型深度审阅生成时间
+        const maxRetries = 30; // 阶梯敏捷轮询：最长容忍 ~15 秒黄金响应区间，绝不让学生长时间干等！
         for (let p = 0; p < maxRetries; p++) {
           const pollInterval = p < 10 ? 300 : 600;
           await new Promise(r => setTimeout(r, pollInterval));
