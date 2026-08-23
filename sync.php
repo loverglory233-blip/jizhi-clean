@@ -263,9 +263,9 @@ if ($action === 'patch_contract_field' && $_SERVER['REQUEST_METHOD'] === 'POST')
         }
 
         $s1Json = json_encode($s1, JSON_UNESCAPED_UNICODE);
-        $stmtUp = $pdo->prepare("INSERT INTO group_states (scope_key, task_id, group_id, current_stage, stage1_data, last_timestamp)
-            VALUES (:sk, :tid, :gid, 'stage1', :s1, :ts)
-            ON DUPLICATE KEY UPDATE stage1_data = :s1b, last_timestamp = :tsb");
+        $stmtUp = $pdo->prepare("INSERT INTO group_states (scope_key, task_id, group_id, current_stage, stage1_data, last_timestamp, revision_id)
+            VALUES (:sk, :tid, :gid, 'stage1', :s1, :ts, 1)
+            ON DUPLICATE KEY UPDATE stage1_data = :s1b, last_timestamp = :tsb, revision_id = IFNULL(revision_id, 0) + 1");
         $stmtUp->execute([
             ':sk' => $scopeKey, ':tid' => $taskId, ':gid' => $groupId,
             ':s1' => $s1Json, ':ts' => $nowMs,
@@ -902,6 +902,10 @@ if ($action === 'send_chat' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 $stmtSaveChats = $pdo->prepare("INSERT INTO global_meta (meta_key, meta_value) VALUES (:k, :v) ON DUPLICATE KEY UPDATE meta_value = :v2");
                 $chatJson = json_encode($existingChats, JSON_UNESCAPED_UNICODE);
                 $stmtSaveChats->execute([':k' => 'chats_' . $scopeKey, ':v' => $chatJson, ':v2' => $chatJson]);
+
+                // ⚡ 同步自增 group_states 的 revision_id 与 last_timestamp，秒级唤醒所有组员的客户端拉取最新消息
+                $stmtUpState = $pdo->prepare("UPDATE group_states SET revision_id = IFNULL(revision_id, 0) + 1, last_timestamp = :ts WHERE scope_key = :sk");
+                $stmtUpState->execute([':ts' => $nowMs, ':sk' => $scopeKey]);
 
                 // 更新变更时间戳，唤醒轮询
                 $stmtSignal = $pdo->prepare("INSERT INTO global_meta (meta_key, meta_value) VALUES ('meta_updated_at', :v) ON DUPLICATE KEY UPDATE meta_value = :v2");
