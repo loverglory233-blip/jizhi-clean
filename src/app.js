@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260823_v144";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired } from "./utils.js?v=20260823_v144";
-import { callCozeAgentAPI } from "./agents.js?v=20260823_v144";
-import { AuthManager } from "./auth.js?v=20260823_v144";
-import { CloudSyncEngine } from "./sync.js?v=20260823_v144";
-import { renderLoginView } from "./login.js?v=20260823_v144";
-import { renderTeacherPortal } from "./teacher.js?v=20260823_v144";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260823_v144";
+} from "./constants.js?v=20260823_v145";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired } from "./utils.js?v=20260823_v145";
+import { callCozeAgentAPI } from "./agents.js?v=20260823_v145";
+import { AuthManager } from "./auth.js?v=20260823_v145";
+import { CloudSyncEngine } from "./sync.js?v=20260823_v145";
+import { renderLoginView } from "./login.js?v=20260823_v145";
+import { renderTeacherPortal } from "./teacher.js?v=20260823_v145";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260823_v145";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260823_v144";
+} from "./editor.js?v=20260823_v145";
 
 // Make renderChat available on window for sync callbacks
 if (typeof window !== "undefined") {
@@ -49,6 +49,14 @@ export class App {
     this.cloudSyncEngine = new CloudSyncEngine(this);
     this.initTimer();
     this.renderMain();
+
+    // 🛡️ 全局事件委托：确保无论阶段一如何局部刷新，点击“一键生成公约草案” 100% 触发
+    document.addEventListener('click', (e) => {
+      const btn = e.target.closest('#btn-generate-contract-draft');
+      if (btn && this.handleAiGenerateContract) {
+        this.handleAiGenerateContract();
+      }
+    });
 
     // 启动时立刻从 MySQL 服务器拉取最新全局教务元数据与小组协同数据
     (async () => {
@@ -2514,13 +2522,11 @@ ${propText}
       }
     } else if (!isEditorTyping) {
       renderCanvas(this.state, {
-      onVote: (propId) => { this.handleVoteCast(propId); },
-      onRefresh: () => { this.renderStudentWorkspace(); },
-      onContractChange: () => {
-        this.syncStage1();
-      },
-      onAiGenerateContract: async () => {
-        const s1 = this.state.stage1 || {};
+        onVote: (propId) => { this.handleVoteCast(propId); },
+        onRefresh: () => { this.renderStudentWorkspace(); },
+        onContractChange: () => { this.syncStage1(); },
+        onAiGenerateContract: async () => {
+          const s1 = this.state.stage1 || {};
         const proposals = s1.proposals || [];
         const logs = (this.state.chatLogs && this.state.chatLogs.stage1) || [];
         const userLogs = logs.filter(m => m.sender && !['auctioneer', 'editor', 'system', 'neutral'].includes(m.sender));
@@ -2665,7 +2671,7 @@ ${propText}
 
         this.syncStage1();
         if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
-        this.renderCanvas();
+        this.renderStudentWorkspace(true);
 
         // 4. 拍卖师在聊天区发布权威引导播报
         const draftNoticeMsg = {
@@ -2679,6 +2685,8 @@ ${propText}
         this.state.chatLogs[curStage].push(draftNoticeMsg);
         this.syncChatLogs();
         if (typeof renderChat === 'function') renderChat(this.state);
+
+        alert(`🎉 【学术合作公约草案提炼成功！】\n\n📌 融合论文主题：《${s1.mergedTitle}》\n👥 章节分工：已根据全组研讨记录自动分配至各组员\n\n👉 请组员核对左侧时间规划与分工，确认无误后点击下方【✍️ 确认签署公约】！`);
       },
       onConfirmContract: () => {
         if (this.state.stage1.contract.isConfirmed) {
