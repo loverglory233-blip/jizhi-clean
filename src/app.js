@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260823_v171";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired } from "./utils.js?v=20260823_v171";
-import { callCozeAgentAPI } from "./agents.js?v=20260823_v171";
-import { AuthManager } from "./auth.js?v=20260823_v171";
-import { CloudSyncEngine } from "./sync.js?v=20260823_v171";
-import { renderLoginView } from "./login.js?v=20260823_v171";
-import { renderTeacherPortal } from "./teacher.js?v=20260823_v171";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260823_v171";
+} from "./constants.js?v=20260823_v172";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired } from "./utils.js?v=20260823_v172";
+import { callCozeAgentAPI } from "./agents.js?v=20260823_v172";
+import { AuthManager } from "./auth.js?v=20260823_v172";
+import { CloudSyncEngine } from "./sync.js?v=20260823_v172";
+import { renderLoginView } from "./login.js?v=20260823_v172";
+import { renderTeacherPortal } from "./teacher.js?v=20260823_v172";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260823_v172";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260823_v171";
+} from "./editor.js?v=20260823_v172";
 
 // Make renderChat available on window for sync callbacks
 if (typeof window !== "undefined") {
@@ -183,7 +183,7 @@ export class App {
     } catch (e) {}
 
     const currUser = this.authManager ? this.authManager.getCurrentUser() : null;
-    const teacherUserId = (currUser && (currUser.id || currUser.username || currUser.studentCode)) || 'u_teacher';
+    const teacherUserId = (currUser && (currUser.studentCode || currUser.username || currUser.id)) || '1001';
     const teacherToken = (currUser && (currUser.token || currUser.activeSessionId)) || '';
 
     // 发送原子重置请求直达服务端 (独立通道，100% 必达，彻底清空服务端数据库与缓存)

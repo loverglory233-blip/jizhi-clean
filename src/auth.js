@@ -14,8 +14,8 @@ import {
   DefaultTasks,
   DefaultAnnouncements,
   DefaultReferencePapers
-} from './constants.js?v=20260823_v171';
-import { formatExportDateTime } from './utils.js?v=20260823_v171';
+} from './constants.js?v=20260823_v172';
+import { formatExportDateTime } from './utils.js?v=20260823_v172';
 
 export class AuthManager {
   constructor() {
@@ -262,7 +262,7 @@ export class AuthManager {
       return;
     }
 
-    const teacherUserId = (currUser && (currUser.id || currUser.username || currUser.studentCode)) || 'u_teacher';
+    const teacherUserId = (currUser && (currUser.studentCode || currUser.username || currUser.id)) || '1001';
     const teacherToken = currUser?.token || currUser?.activeSessionId || '';
     const payload = {
       userId: teacherUserId,
@@ -576,7 +576,7 @@ export class AuthManager {
     }
 
     const targetUser = {
-      id: 'u_student_' + Date.now() + Math.floor(Math.random() * 1000),
+      id: cleanCode,
       username: cleanCode,
       studentCode: cleanCode,
       email: `${cleanUsername}@jizhi.edu`,
@@ -621,6 +621,7 @@ export class AuthManager {
 
       const existing = users.find(u => (u.studentCode && u.studentCode.trim().toLowerCase() === code.toLowerCase()) || (u.username && u.username.trim().toLowerCase() === code.toLowerCase()));
       if (existing) {
+        existing.id = code;
         existing.name = name;
         if (!existing.classIds || !Array.isArray(existing.classIds)) {
           existing.classIds = existing.classId ? [existing.classId] : ['class_101'];
@@ -634,9 +635,8 @@ export class AuthManager {
         linkedList.push({ name: existing.name || name, code });
         linkedCount++;
       } else {
-        const newUid = 'u_student_' + Date.now() + '_' + Math.floor(Math.random() * 100000);
         const newUser = {
-          id: newUid,
+          id: code,
           username: code,
           studentCode: code,
           email: `${code.toLowerCase()}@jizhi.edu`,

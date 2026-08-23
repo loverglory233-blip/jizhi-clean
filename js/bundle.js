@@ -28,7 +28,7 @@
 
   // 🧹 唯一种子：教师端管理账号（1001/老师）。测试学生一律不写入，教师可在教务界面自行增删学生
   const DefaultUsers = [
-    { id: 'u_teacher1', username: '1001', studentCode: '1001', password: '123', name: '老师', role: 'teacher', avatar: '👩‍🏫' }
+    { id: '1001', username: '1001', studentCode: '1001', password: '123', name: '老师', role: 'teacher', avatar: '👩‍🏫' }
   ];
 
   const DefaultTasks = [];
@@ -806,7 +806,7 @@
         return;
       }
 
-      const teacherUserId = (currUser && (currUser.id || currUser.username || currUser.studentCode)) || 'u_teacher';
+      const teacherUserId = (currUser && (currUser.studentCode || currUser.username || currUser.id)) || '1001';
       const teacherToken = currUser?.token || currUser?.activeSessionId || '';
       const payload = {
         userId: teacherUserId,
@@ -1120,7 +1120,7 @@
       }
 
       const targetUser = {
-        id: 'u_student_' + Date.now() + Math.floor(Math.random() * 1000),
+        id: cleanCode,
         username: cleanCode,
         studentCode: cleanCode,
         email: `${cleanUsername}@jizhi.edu`,
@@ -1165,6 +1165,7 @@
 
         const existing = users.find(u => (u.studentCode && u.studentCode.trim().toLowerCase() === code.toLowerCase()) || (u.username && u.username.trim().toLowerCase() === code.toLowerCase()));
         if (existing) {
+          existing.id = code;
           existing.name = name;
           if (!existing.classIds || !Array.isArray(existing.classIds)) {
             existing.classIds = existing.classId ? [existing.classId] : ['class_101'];
@@ -1178,9 +1179,8 @@
           linkedList.push({ name: existing.name || name, code });
           linkedCount++;
         } else {
-          const newUid = 'u_student_' + Date.now() + '_' + Math.floor(Math.random() * 100000);
           const newUser = {
-            id: newUid,
+            id: code,
             username: code,
             studentCode: code,
             email: `${code.toLowerCase()}@jizhi.edu`,
@@ -4645,7 +4645,7 @@
         if (confirm(`🔑【教师密码重置确认】\n\n您确定要将学生【${name}】(账号: ${account}) 的登录密码重置为初始密码 123 吗？`)) {
           try {
             const currT = authManager.getCurrentUser();
-            const tId = (currT && (currT.id || currT.username || currT.studentCode)) || 'u_teacher';
+            const tId = (currT && (currT.studentCode || currT.username || currT.id)) || '1001';
             const tToken = (currT && (currT.token || currT.activeSessionId)) || '';
 
             const res = await fetch('sync.php?action=reset_student_password', {
@@ -5798,7 +5798,7 @@
             if (selectedFile.fileObj) {
               try {
                 const currT = authManager.getCurrentUser();
-                const tId = (currT && (currT.id || currT.username || currT.studentCode)) || 'u_teacher';
+                const tId = (currT && (currT.studentCode || currT.username || currT.id)) || '1001';
                 const tToken = (currT && (currT.token || currT.activeSessionId)) || '';
 
                 const formData = new FormData();
@@ -8654,7 +8654,7 @@
       } catch (e) {}
 
       const currUser = this.authManager ? this.authManager.getCurrentUser() : null;
-      const teacherUserId = (currUser && (currUser.id || currUser.username || currUser.studentCode)) || 'u_teacher';
+      const teacherUserId = (currUser && (currUser.studentCode || currUser.username || currUser.id)) || '1001';
       const teacherToken = (currUser && (currUser.token || currUser.activeSessionId)) || '';
 
       // 发送原子重置请求直达服务端 (独立通道，100% 必达，彻底清空服务端数据库与缓存)

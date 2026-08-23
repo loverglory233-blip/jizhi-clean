@@ -477,7 +477,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                 default_meta = {
                     "users": [
                         {
-                            "id": "u_teacher1",
+                            "id": "1001",
                             "username": "1001",
                             "studentCode": "1001",
                             "password": "123",
