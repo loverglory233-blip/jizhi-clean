@@ -8338,7 +8338,26 @@
       if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
     }
 
+    initGlobalPresenceHeartbeat() {
+      setInterval(() => {
+        const currentUser = this.authManager ? this.authManager.getCurrentUser() : null;
+        if (currentUser && currentUser.role === 'student') {
+          if (!this.state.presence) this.state.presence = {};
+          const myKeys = [currentUser.id, currentUser.studentCode, currentUser.username, currentUser.name].filter(Boolean);
+          const now = Date.now();
+          myKeys.forEach(k => {
+            this.state.presence[k] = {
+              nodeIndex: (this.state.presence[k] && this.state.presence[k].nodeIndex) || 0,
+              activeSection: (this.state.presence[k] && this.state.presence[k].activeSection) || '在线研讨',
+              updatedAt: now
+            };
+          });
+        }
+      }, 3500);
+    }
+
     initTimer() {
+      this.initGlobalPresenceHeartbeat();
       setInterval(() => {
         // 🎧 静默期情绪安抚定时巡检（即便无人发言也按周期触发，见审查 #45）
         this.checkEmotionComfort();
@@ -8356,21 +8375,6 @@
           const min = this.state.timer.elapsedSeconds / 60;
           const currentStage = this.state.currentStage || 'stage1';
           const logs = (this.state.chatLogs && this.state.chatLogs[currentStage]) || [];
-
-          // ⚡ 阶段切换由学生全员签署完成合约或组内自主点击把控，禁止定时器无预警强行切阶段
-          // if (min >= 25 && this.state.currentStage === 'stage1') this.switchStage('stage2');
-          // else if (min >= 130 && this.state.currentStage === 'stage2') this.switchStage('stage3');
-
-          // ⚡ 自动心跳广播：保持当前账号在各端显示为 (在线) 状态 (仅更新 presence 状态，绝不推送全量正文快照！)
-          const myCode = currentUser ? (currentUser.studentCode || 'A') : 'A';
-          if (!this.state.presence) this.state.presence = {};
-          if (!this.state.presence[myCode] || (Date.now() - (this.state.presence[myCode].updatedAt || 0)) > 5000) {
-            this.state.presence[myCode] = {
-              nodeIndex: (this.state.presence[myCode] && this.state.presence[myCode].nodeIndex) || 0,
-              activeSection: (this.state.presence[myCode] && this.state.presence[myCode].activeSection) || '在线研讨',
-              updatedAt: Date.now()
-            };
-          }
 
           // 🌿 智能静默破冰引导已关闭，避免无人发言时责任编辑重复刷屏
 
