@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles } from "./constants.js?v=20260823_v124";
-import { callCozeAgentAPI } from "./agents.js?v=20260823_v124";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired } from "./utils.js?v=20260823_v124";
+import { AgentProfiles } from "./constants.js?v=20260823_v125";
+import { callCozeAgentAPI } from "./agents.js?v=20260823_v125";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired } from "./utils.js?v=20260823_v125";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -1706,6 +1706,72 @@ function renderStage2Canvas(canvas, state, handlers) {
       handlers.onConfirmStage2Draft();
     });
   }
+
+  // 🚀 实时 Etherpad 真实字数提取与贡献比动态平滑更新
+  if (window._stage2WordCountTimer) clearInterval(window._stage2WordCountTimer);
+  const padName = `jizhi_${activeTaskId}_${userGroupId}`;
+  
+  const updateContribDom = () => {
+    const labelsEl = document.getElementById('stage2-contrib-labels');
+    const barsEl = document.getElementById('stage2-contrib-bars');
+    if (!labelsEl || !barsEl) return;
+    
+    const contribs = s2.memberContributions || {};
+    let rawTotal = 0;
+    membersList.forEach(m => { rawTotal += (contribs[m.id] || 0) + (contribs[m.studentCode] || 0); });
+    
+    labelsEl.innerHTML = membersList.map((m) => {
+      const rawVal = (contribs[m.id] || 0) + (contribs[m.studentCode] || 0);
+      const pct = rawTotal > 0 ? Math.round((rawVal / rawTotal) * 100) : 0;
+      return `<span style="color:${rawVal > 0 ? (m.color || '#2563eb') : '#94a3b8'}; font-weight:700;">● ${m.name}: ${pct}%</span>`;
+    }).join('');
+
+    if (rawTotal === 0) {
+      barsEl.innerHTML = `<div style="width:100%; height:10px; background:#f8fafc; border-radius:5px; display:flex; align-items:center; justify-content:center; font-size:10px; color:#94a3b8; font-weight:600;">⏳ 暂无协作投入 (组员在 Etherpad 中撰写、修改正文或研讨后将平滑累计真实贡献)</div>`;
+    } else {
+      barsEl.innerHTML = membersList.map((m) => {
+        const rawVal = (contribs[m.id] || 0) + (contribs[m.studentCode] || 0);
+        const pct = rawTotal > 0 ? Math.round((rawVal / rawTotal) * 100) : 0;
+        return `<div class="contrib-segment" style="width:${pct}%; background:${m.color || '#2563eb'}; transition:width 0.8s ease-in-out;" title="${m.name}: ${pct}% (基于正文撰写与修改累计工作量)"></div>`;
+      }).join('');
+    }
+  };
+
+  const syncPadMetrics = async () => {
+    try {
+      const res = await fetch(`/p/${padName}/export/txt`);
+      if (res.ok) {
+        const txt = await res.text();
+        const cleanTxt = txt.replace(/\r\n/g, '\n').trim();
+        const wordCount = cleanTxt.length;
+        
+        // 1. 实时更新字数角标
+        const countBadge = document.getElementById('stage2-word-count-num');
+        if (countBadge) countBadge.innerText = String(wordCount);
+        state.stage2.unifiedContent = cleanTxt;
+
+        // 2. 动态贡献度计算
+        if (!state.stage2.memberContributions) state.stage2.memberContributions = {};
+        const prevLen = state.stage2._prevKnownLen !== undefined ? state.stage2._prevKnownLen : 0;
+        if (prevLen === 0 && wordCount > 0) {
+          state.stage2.memberContributions[currUserCode] = wordCount;
+          state.stage2._prevKnownLen = wordCount;
+          updateContribDom();
+        } else if (wordCount !== prevLen) {
+          const delta = Math.abs(wordCount - prevLen);
+          state.stage2.memberContributions[currUserCode] = (state.stage2.memberContributions[currUserCode] || 0) + delta;
+          state.stage2._prevKnownLen = wordCount;
+          updateContribDom();
+          if (window.app && window.app.cloudSyncEngine) {
+            window.app.cloudSyncEngine.pushSnapshot();
+          }
+        }
+      }
+    } catch (e) {}
+  };
+
+  syncPadMetrics();
+  window._stage2WordCountTimer = setInterval(syncPadMetrics, 8000);
 }
 
 function renderStage3Canvas(canvas, state, handlers) {
