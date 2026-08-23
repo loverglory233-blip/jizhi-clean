@@ -4,9 +4,13 @@ echo "🔍 ========================================================"
 echo "⚡ Etherpad 插件客户端端到端真实激活状态硬核验证"
 echo "🔍 ========================================================"
 
-# 探测本地端口与 Nginx 外部路由
-echo "1️⃣ 正在通过 Nginx 链路探测真实 Pad 页面与静态资源..."
-WEB_HOST="http://127.0.0.1"
+# 探测 9001 端口与 Nginx 外部路由
+echo "1️⃣ 正在探测 Etherpad 9001 端口真实 Pad 页面与静态资源..."
+WEB_HOST="http://127.0.0.1:9001"
+TEST_PAD="verify_pad_$(date +%s)"
+
+# 1. 抓取真实 Pad 页面
+PAD_HTML=$(curl -s "$WEB_HOST/p/$TEST_PAD?showControls=true")
 
 # 2. 检查 HTML 中是否有插件注入的 script / link 标签
 echo "2️⃣ 检查 Pad 页面 HTML 中的插件挂载情况:"
