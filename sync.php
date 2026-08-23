@@ -881,6 +881,14 @@ if ($action === 'get_global_meta') {
                 }
             }
 
+            // 🛡️ 智能合流：确保 users 表中的每一个真实学生均被纳入全局用户池与班级学生列表
+            $allStudentCodes = [];
+            foreach ($aggregatedUsers as $au) {
+                if ($au['role'] !== 'teacher') {
+                    $allStudentCodes[] = $au['studentCode'];
+                }
+            }
+
             if (!$foundMeta) {
                 $foundMeta = [
                     'users' => $aggregatedUsers,
@@ -891,16 +899,33 @@ if ($action === 'get_global_meta') {
                     'surveys' => []
                 ];
             } else {
-                // 若关系表中有更多真实任务，合并补充
+                // 合并 users
+                $existingUserMap = [];
+                foreach ($foundMeta['users'] ?? [] as $fu) {
+                    $existingUserMap[$fu['studentCode'] ?? ($fu['username'] ?? '')] = true;
+                }
+                foreach ($aggregatedUsers as $au) {
+                    $uKey = $au['studentCode'] ?? ($au['username'] ?? '');
+                    if (!isset($existingUserMap[$uKey])) {
+                        if (!isset($foundMeta['users'])) $foundMeta['users'] = [];
+                        $foundMeta['users'][] = $au;
+                    }
+                }
                 if (!empty($aggregatedTasks) && empty($foundMeta['tasks'])) {
                     $foundMeta['tasks'] = $aggregatedTasks;
                 }
                 if (!empty($aggregatedClasses) && empty($foundMeta['classes'])) {
                     $foundMeta['classes'] = $aggregatedClasses;
                 }
-                if (!empty($aggregatedUsers) && count($aggregatedUsers) > count($foundMeta['users'] ?? [])) {
-                    $foundMeta['users'] = $aggregatedUsers;
+            }
+
+            // 确保班级的 studentIds 包含所有在库学生，让教师端一览无余
+            if (!empty($foundMeta['classes']) && !empty($allStudentCodes)) {
+                foreach ($foundMeta['classes'] as &$cls) {
+                    $currentSids = is_array($cls['studentIds'] ?? null) ? $cls['studentIds'] : [];
+                    $cls['studentIds'] = array_values(array_unique(array_merge($currentSids, $allStudentCodes)));
                 }
+                unset($cls);
             }
         } catch (Exception $e) {}
     }
