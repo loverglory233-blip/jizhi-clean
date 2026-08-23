@@ -6445,8 +6445,10 @@
           const protocol = (window.location.protocol === 'https:' ? 'wss:' : 'ws:');
           const host = window.location.host;
           const user = (window.app && window.app.authManager) ? window.app.authManager.getCurrentUser() : null;
-          const groupId = (window.app && window.app.getEffectiveGroupId) ? window.app.getEffectiveGroupId() : ((user && user.groupId) ? user.groupId : 'group_1');
-          const taskId = (window.app && window.app.state && window.app.state.activeTaskId) || 'task_default';
+          const effectiveClassId = (window.app && window.app.state && window.app.state.activeStudentClassId) || (user?.classId || 'class_101');
+          const activeGroupObj = (window.app && window.app.authManager) ? window.app.authManager.getStudentActiveGroup(user, effectiveClassId) : null;
+          const groupId = activeGroupObj?.id || (user && user.groupId ? user.groupId : 'group_1');
+          const taskId = (window.app && window.app.state && window.app.state.activeTaskId) || (window.app && window.app.cloudSyncEngine && window.app.cloudSyncEngine.taskId) || 'task_default';
           const wsHost = window.location.hostname || 'localhost';
 
           // 自动探测最佳 WebSocket 路由 (HTTPS走反代/ws，HTTP直连1234端口)
@@ -6454,6 +6456,8 @@
             ? `${protocol}//${host}/ws`
             : `${protocol}//${wsHost}:1234`;
           const roomName = `jizhi_yjs_${taskId}_${groupId}`;
+
+          console.log(`%c[Yjs Room Info] 🏠 房间: ${roomName} | 路由: ${wsUrl} | 任务: ${taskId} | 小组: ${groupId}`, 'color:#6366f1; font-weight:bold;');
 
           const ydoc = new YClass.Doc();
           const ytext = ydoc.getText('quill_content');
@@ -7083,6 +7087,17 @@
     const currentUserName = currUserObj ? currUserObj.name : (state.members[currentUser] ? state.members[currentUser].name : '组员');
 
     canvas.innerHTML = `
+      <!-- 全局本组在线组员协同胶囊栏 -->
+      <div class="collab-presence-header" id="stage1-canvas-presence-header" style="background:#ffffff; border:1px solid #e2e8f0; border-radius:8px; padding:8px 14px; margin-bottom:12px; display:flex; justify-content:space-between; align-items:center; box-shadow:0 1px 3px rgba(15,23,42,0.03);">
+        <div style="display:flex; align-items:center; gap:8px;">
+          <span style="font-size:12.5px; font-weight:800; color:#1e293b;">👥 本组在线组员:</span>
+          <div class="collab-member-pills" id="stage1-canvas-presence-pills"></div>
+        </div>
+        <div style="font-size:11px; font-weight:700; color:#059669; background:#ecfdf5; border:1px solid #a7f3d0; padding:2px 8px; border-radius:10px;">
+          🟢 实时在线感知已激活
+        </div>
+      </div>
+
       ${isTaskDeadlineExpired ? `
         <div style="background:#fef2f2; border:1.5px solid #fca5a5; border-radius:10px; padding:12px 18px; margin-bottom:12px; font-size:13px; color:#991b1b; font-weight:700; display:flex; justify-content:space-between; align-items:center; box-shadow:0 2px 8px rgba(239,68,68,0.1);">
           <div style="display:flex; align-items:center; gap:8px;">
@@ -7515,6 +7530,8 @@
         handlers.onConfirmContract();
       });
     }
+
+    renderPresencePills('stage1-canvas', state);
   }
 
   function renderStage2Canvas(canvas, state, handlers) {

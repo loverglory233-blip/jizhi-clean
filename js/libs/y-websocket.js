@@ -1,4 +1,4 @@
-import * as V from "./yjs.js?v=20260823_v10";
+import * as V from "./yjs.js";
 /* esm.sh - y-websocket@1.5.4 */
 const __Process$ = typeof process !== "undefined" ? process : { env: {}, release: { name: "browser" }, argv: [] };
 const __Buffer$ = typeof Buffer !== "undefined" ? Buffer : { from: (b, off, len) => ({ toString: (enc) => window.btoa(Array.from(new Uint8Array(b.buffer || b, off || 0, len || b.byteLength || b.length)).map(c => String.fromCharCode(c)).join("")) }) };
