@@ -407,7 +407,39 @@ if ($action === 'unlock_field' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     }
     echo json_encode(['success' => true]);
     exit;
+if ($action === 'report_member_contrib') {
+    header('Content-Type: application/json; charset=utf-8');
+    $input = json_decode(file_get_contents('php://input'), true) ?: [];
+    $taskId = $input['taskId'] ?? ($queryTaskId ?: 'task_default');
+    $groupId = $input['groupId'] ?? ($queryGroupId ?: 'group_1');
+    $userCode = $input['userCode'] ?? '';
+    $delta = intval($input['delta'] ?? 0);
+
+    if ($pdo && !empty($userCode) && $delta > 0) {
+        $stmt = $pdo->prepare("SELECT snapshot_data FROM room_snapshots WHERE task_id = :tid AND group_id = :gid LIMIT 1");
+        $stmt->execute([':tid' => $taskId, ':gid' => $groupId]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        $snapshot = $row ? json_decode($row['snapshot_data'], true) : [];
+        if (!isset($snapshot['stage2'])) $snapshot['stage2'] = [];
+        if (!isset($snapshot['stage2']['memberContributions'])) $snapshot['stage2']['memberContributions'] = [];
+
+        $snapshot['stage2']['memberContributions'][$userCode] = intval($snapshot['stage2']['memberContributions'][$userCode] ?? 0) + $delta;
+        $snapshot['updatedAt'] = round(microtime(true) * 1000);
+
+        $upStmt = $pdo->prepare("INSERT INTO room_snapshots (task_id, group_id, snapshot_data, updated_at) VALUES (:tid, :gid, :data, NOW()) ON DUPLICATE KEY UPDATE snapshot_data = VALUES(snapshot_data), updated_at = NOW()");
+        $upStmt->execute([
+            ':tid' => $taskId,
+            ':gid' => $groupId,
+            ':data' => json_encode($snapshot, JSON_UNESCAPED_UNICODE)
+        ]);
+
+        echo json_encode(['success' => true, 'contribs' => $snapshot['stage2']['memberContributions']]);
+        exit;
+    }
+    echo json_encode(['success' => false]);
+    exit;
 }
+
 if ($action === 'get_pad_text') {
     header('Content-Type: application/json; charset=utf-8');
     $padId = isset($_GET['padId']) ? preg_replace('/[^a-zA-Z0-9_-]/', '', $_GET['padId']) : 'jizhi_' . $scopeKey;
