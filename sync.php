@@ -166,7 +166,9 @@ if ($action === 'login' && $_SERVER['REQUEST_METHOD'] === 'POST') {
             $cleanInputPwd = trim($password);
             $pwdMatch = false;
 
-            if ($cleanInputPwd === $dbPwd || (empty($dbPwd) && $cleanInputPwd === '123')) {
+            if ($cleanInputPwd === $dbPwd) {
+                $pwdMatch = true;
+            } else if (empty($dbPwd) && $cleanInputPwd === '123') {
                 $pwdMatch = true;
             } else if (password_verify($cleanInputPwd, $dbPwd)) {
                 // 兼容可能存在的历史哈希并降级为明文
@@ -598,9 +600,11 @@ if ($action === 'change_password' && $_SERVER['REQUEST_METHOD'] === 'POST') {
             $cleanOld = trim($oldPwd);
             $cleanNew = trim($newPwd);
 
-            // 🛡️ 标准严谨原密码校验：输入的原密码必须与当前数据库中记录相匹配
+            // 🛡️ 严格原密码校验：输入的原密码必须与当前数据库中记录 100% 精确一致 (绝无 123 后门)
             $oldMatch = false;
-            if ($cleanOld === $currentDbPwd || (empty($currentDbPwd) && $cleanOld === '123')) {
+            if ($cleanOld === $currentDbPwd) {
+                $oldMatch = true;
+            } else if (empty($currentDbPwd) && $cleanOld === '123') {
                 $oldMatch = true;
             } else if (password_verify($cleanOld, $currentDbPwd)) {
                 $oldMatch = true;
