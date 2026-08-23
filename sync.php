@@ -424,7 +424,16 @@ if ($action === 'get_global_meta') {
         }
     }
         $defaultMeta = [
-            'users' => [],
+            'users' => [
+                [
+                    'id' => 'u_teacher1',
+                    'username' => '1001',
+                    'name' => '老师',
+                    'role' => 'teacher',
+                    'studentCode' => '1001',
+                    'avatar' => '👩‍🏫'
+                ]
+            ],
             'classes' => [
                 [
                     'id' => 'class_101',
