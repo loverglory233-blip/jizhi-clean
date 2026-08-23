@@ -1660,22 +1660,29 @@ if ($pdo) {
         $sinceTs = isset($_GET['since_timestamp']) ? intval($_GET['since_timestamp']) : 0;
         $sinceRev = isset($_GET['since_revision']) ? intval($_GET['since_revision']) : 0;
 
-        // 🛡️ 增量自增 Revision 协商：彻底消除同毫秒时钟缝隙，0 漏包
-        if (($sinceRev > 0 && $lastRev <= $sinceRev) || ($sinceTs > 0 && $lastTs > 0 && $lastTs <= $sinceTs)) {
-            // 检查是否有全局元数据更新信号
-            $stmtSig = $pdo->prepare("SELECT meta_value FROM global_meta WHERE meta_key = 'meta_updated_at'");
-            $stmtSig->execute();
-            $sigRow = $stmtSig->fetch();
-            $metaUpdated = $sigRow ? intval($sigRow['meta_value']) : 0;
-            if ($metaUpdated <= $sinceTs) {
-                echo json_encode(['success' => true, 'unchanged' => true, 'timestamp' => $lastTs, 'revisionId' => $lastRev]);
-                exit;
-            }
-        }
         $stmtChats = $pdo->prepare("SELECT meta_value FROM global_meta WHERE meta_key = :k");
         $stmtChats->execute([':k' => 'chats_' . $scopeKey]);
         $chatRow = $stmtChats->fetch();
-        $chats = ($chatRow && !empty($chatRow['meta_value'])) ? json_decode($chatRow['meta_value'], true) : ['stage1' => [], 'stage2' => [], 'stage3' => []];
+        $chats = ($chatRow && !empty($chatRow['meta_value'])) ? json_decode($chatRow['meta_value'], true) : null;
+
+        // 若 meta 中为空，直接从 chat_messages 关系表查询兜底
+        if (!$chats || !is_array($chats)) {
+            $chats = ['stage1' => [], 'stage2' => [], 'stage3' => []];
+            $stmtAllMsg = $pdo->prepare("SELECT stage, sender, text, timestamp_str, time_ms, id FROM chat_messages WHERE scope_key = :sk ORDER BY time_ms ASC");
+            $stmtAllMsg->execute([':sk' => $scopeKey]);
+            $allRows = $stmtAllMsg->fetchAll(PDO::FETCH_ASSOC);
+            foreach ($allRows as $mr) {
+                $stg = $mr['stage'] ?: 'stage1';
+                if (!isset($chats[$stg])) $chats[$stg] = [];
+                $chats[$stg][] = [
+                    'id'        => $mr['id'] ?: ('msg_' . $mr['time_ms'] . '_' . substr(md5($mr['text']), 0, 6)),
+                    'sender'    => $mr['sender'],
+                    'text'      => $mr['text'],
+                    'timestamp' => $mr['timestamp_str'],
+                    '_timeMs'   => intval($mr['time_ms'])
+                ];
+            }
+        }
 
         // 读取 reset_seq 让客户端感知是否需要重置
         $stmtRsq = $pdo->prepare("SELECT meta_value FROM global_meta WHERE meta_key = :k");
