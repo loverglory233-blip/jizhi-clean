@@ -475,7 +475,17 @@ class Handler(http.server.SimpleHTTPRequestHandler):
 
             if not content:
                 default_meta = {
-                    "users": [],
+                    "users": [
+                        {
+                            "id": "u_teacher1",
+                            "username": "1001",
+                            "studentCode": "1001",
+                            "password": "123",
+                            "name": "老师",
+                            "role": "teacher",
+                            "avatar": "👩‍🏫"
+                        }
+                    ],
                     "classes": [
                         {
                             "id": "class_101",
@@ -923,6 +933,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                 req = json.loads(body.decode('utf-8'))
                 account = (req.get('account') or '').strip()
                 password = (req.get('password') or '').strip()
+                role = (req.get('role') or '').strip()
                 if not account or not password:
                     self.send_response(400)
                     self.send_header('Content-Type', 'application/json; charset=utf-8')
@@ -955,6 +966,15 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                         break
 
                 if found_user:
+                    # 🔐 多重认证：登录界面所选身份必须与账号实际角色一致，防止跨身份误登录
+                    u_role = (found_user.get('role') or '').strip()
+                    role_mismatch = (role == 'teacher' and u_role != 'teacher') or (role == 'student' and u_role == 'teacher')
+                    if role_mismatch:
+                        self.send_response(401)
+                        self.send_header('Content-Type', 'application/json; charset=utf-8')
+                        self.end_headers()
+                        self.wfile.write(json.dumps({'success': False, 'message': '所选登录身份与账号角色不匹配，请核对身份选项'}, ensure_ascii=False).encode('utf-8'))
+                        return
                     token = 'jwt_jizhi_' + os.urandom(16).hex() + '_' + str(int(time.time()))
                     # 🚀 同步注册会话锁，使后续 save_global_meta 等教师鉴权路由能凭该 token 通过校验
                     now = time.time()

@@ -20,6 +20,17 @@ export function renderLoginView(container, authManager, onLoginSuccess) {
             <input type="text" id="login-account" class="teacher-input" placeholder="请输入工号或者学号" value="" required style="width:100%;">
           </div>
           <div style="display:flex; flex-direction:column; gap:6px;">
+            <label style="font-size:13px; font-weight:700; color:#334155;">登录身份</label>
+            <div id="login-role-selector" style="display:flex; gap:10px;">
+              <label id="role-opt-student" style="flex:1; display:flex; align-items:center; justify-content:center; gap:6px; padding:10px; border:1.5px solid #2563eb; border-radius:8px; cursor:pointer; font-size:13px; font-weight:700; color:#1e40af; background:#eff6ff;">
+                <input type="radio" name="login-role" value="student" checked style="accent-color:#2563eb;"> 🎓 学生
+              </label>
+              <label id="role-opt-teacher" style="flex:1; display:flex; align-items:center; justify-content:center; gap:6px; padding:10px; border:1.5px solid #cbd5e1; border-radius:8px; cursor:pointer; font-size:13px; font-weight:600; color:#334155; background:#ffffff;">
+                <input type="radio" name="login-role" value="teacher" style="accent-color:#2563eb;"> 👩‍🏫 教师
+              </label>
+            </div>
+          </div>
+          <div style="display:flex; flex-direction:column; gap:6px;">
             <label style="font-size:13px; font-weight:700; color:#334155;">密码</label>
             <input type="password" id="login-password" class="teacher-input" placeholder="请输入密码" value="" required style="width:100%;">
           </div>
@@ -36,6 +47,32 @@ export function renderLoginView(container, authManager, onLoginSuccess) {
   const accountInput = container.querySelector('#login-account');
   const passwordInput = container.querySelector('#login-password');
   const errorMsg = container.querySelector('#login-error-msg');
+  const roleSelector = container.querySelector('#login-role-selector');
+  const roleOptStudent = container.querySelector('#role-opt-student');
+  const roleOptTeacher = container.querySelector('#role-opt-teacher');
+
+  // 🎭 身份切换高亮：让所选「教师/学生」一目了然
+  const highlightRole = () => {
+    const selected = (container.querySelector('input[name="login-role"]:checked') || {}).value;
+    const apply = (el, active) => {
+      if (!el) return;
+      if (active) {
+        el.style.border = '1.5px solid #2563eb';
+        el.style.background = '#eff6ff';
+        el.style.color = '#1e40af';
+        el.style.fontWeight = '700';
+      } else {
+        el.style.border = '1.5px solid #cbd5e1';
+        el.style.background = '#ffffff';
+        el.style.color = '#334155';
+        el.style.fontWeight = '600';
+      }
+    };
+    apply(roleOptStudent, selected === 'student');
+    apply(roleOptTeacher, selected === 'teacher');
+  };
+  if (roleSelector) roleSelector.addEventListener('change', highlightRole);
+  highlightRole();
 
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -43,7 +80,8 @@ export function renderLoginView(container, authManager, onLoginSuccess) {
     const submitBtn = form.querySelector('button[type="submit"]');
     if (submitBtn) { submitBtn.disabled = true; submitBtn.innerText = '⏳ 正在验证凭证...'; }
     try {
-      const res = await (authManager.loginAsync ? authManager.loginAsync(accountInput.value, passwordInput.value) : authManager.login(accountInput.value, passwordInput.value));
+      const selectedRole = (container.querySelector('input[name="login-role"]:checked') || {}).value || 'student';
+      const res = await (authManager.loginAsync ? authManager.loginAsync(accountInput.value, passwordInput.value, selectedRole) : authManager.login(accountInput.value, passwordInput.value, selectedRole));
       if (res && res.success) {
         onLoginSuccess();
       } else {

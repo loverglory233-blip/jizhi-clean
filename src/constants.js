@@ -15,7 +15,10 @@ export const STORAGE_KEY_ANNOUNCEMENTS = 'jizhi_pure_v10_ann_db';
 
 export const DefaultClasses = [];
 
-export const DefaultUsers = [];
+// 🧹 唯一种子：教师端管理账号（1001/老师）。测试学生一律不写入，教师可在教务界面自行增删学生
+export const DefaultUsers = [
+  { id: 'u_teacher1', username: '1001', studentCode: '1001', password: '123', name: '老师', role: 'teacher', avatar: '👩‍🏫' }
+];
 
 export const DefaultTasks = [];
 export const DefaultAnnouncements = [];
