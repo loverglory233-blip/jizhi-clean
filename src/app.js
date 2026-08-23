@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260823_v14";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin } from "./utils.js?v=20260823_v14";
-import { callCozeAgentAPI } from "./agents.js?v=20260823_v14";
-import { AuthManager } from "./auth.js?v=20260823_v14";
-import { CloudSyncEngine } from "./sync.js?v=20260823_v14";
-import { renderLoginView } from "./login.js?v=20260823_v14";
-import { renderTeacherPortal } from "./teacher.js?v=20260823_v14";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260823_v14";
+} from "./constants.js?v=20260823_v15";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired } from "./utils.js?v=20260823_v15";
+import { callCozeAgentAPI } from "./agents.js?v=20260823_v15";
+import { AuthManager } from "./auth.js?v=20260823_v15";
+import { CloudSyncEngine } from "./sync.js?v=20260823_v15";
+import { renderLoginView } from "./login.js?v=20260823_v15";
+import { renderTeacherPortal } from "./teacher.js?v=20260823_v15";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260823_v15";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260823_v14";
+} from "./editor.js?v=20260823_v15";
 
 // Make renderChat available on window for sync callbacks
 if (typeof window !== "undefined") {
@@ -2187,8 +2187,12 @@ ${propText}
     const currentGroupOrder = stageOrder[currentGroupMax] || 1;
     const targetOrder = stageOrder[newStage] || 1;
 
-    // 🛡️ 阶段防越权门禁：未达成里程碑解锁时，禁止学生随意点击跳级
-    if (targetOrder > currentGroupOrder && !isMilestoneAdvance) {
+    const allTasks = (this.authManager) ? this.authManager.getTasks() : [];
+    const currentTaskObj = allTasks.find(t => t.id === this.state.activeTaskId);
+    const isTaskDeadlineExpired = isTaskExpired(currentTaskObj);
+
+    // 🛡️ 阶段防越权门禁：未达成里程碑解锁时，禁止学生随意点击跳级（截止只读查阅模式下全阶段自由放行浏览）
+    if (!isTaskDeadlineExpired && targetOrder > currentGroupOrder && !isMilestoneAdvance) {
       const stageTitles = { stage2: '【阶段二：学术编辑部】', stage3: '【阶段三：答辩擂台】' };
       alert(`⚠️ 暂未解锁 ${stageTitles[newStage] || newStage}！\n必须先在当前阶段完成公约签署与阶段任务后，系统将自动全组解锁推进。`);
       return;

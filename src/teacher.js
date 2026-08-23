@@ -9,8 +9,8 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260823_v14";
-import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired } from "./utils.js?v=20260823_v14";
+} from "./constants.js?v=20260823_v15";
+import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired } from "./utils.js?v=20260823_v15";
 
 /* ==========================================================================
    7. TEACHER PORTAL RENDERER (LIVE WORKSPACE MIRROR & ANNOUNCEMENT READ MATRIX)
@@ -1930,19 +1930,17 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
         const newDeadline = modal.querySelector('#modal-edit-task-deadline').value;
         const newDesc = modal.querySelector('#modal-edit-task-desc').value.trim();
 
-        if (!newTitle) {
-          alert('⚠️ 写作任务名称不能为空！');
+        if (!newTitle) { alert('⚠️ 写作任务名称不能为空！'); return; }
+        if (!newStart || !newDeadline) { alert('⚠️ 开始时间与截止时间均不能为空！'); return; }
+
+        const sDate = new Date(newStart);
+        const dDate = new Date(newDeadline);
+        if (isNaN(sDate.getTime()) || isNaN(dDate.getTime()) || sDate >= dDate) {
+          alert('⚠️ 截止时间必须晚于开始时间！');
           return;
         }
 
-        let calculatedDuration = 150;
-        if (newStart && newDeadline) {
-          const sDate = new Date(newStart);
-          const dDate = new Date(newDeadline);
-          if (!isNaN(sDate.getTime()) && !isNaN(dDate.getTime()) && dDate > sDate) {
-            calculatedDuration = Math.round((dDate.getTime() - sDate.getTime()) / (60 * 1000));
-          }
-        }
+        let calculatedDuration = Math.round((dDate.getTime() - sDate.getTime()) / (60 * 1000));
 
         const fmtTimeStr = (v) => v ? v.replace('T', ' ') : '';
 
@@ -2105,10 +2103,13 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
   if (btnOpenTaskV2) {
     btnOpenTaskV2.addEventListener('click', () => {
       document.querySelectorAll('.modal-overlay').forEach(el => el.remove());
+      const pad = (n) => String(n).padStart(2, '0');
+      const formatLocal = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+
       const now = new Date();
-      const startStr = now.toISOString().slice(0, 16);
-      const deadlineDate = new Date(now.getTime() + 150 * 60 * 1000);
-      const deadlineStr = deadlineDate.toISOString().slice(0, 16);
+      const startStr = formatLocal(now);
+      const deadlineDate = new Date(now.getTime() + 120 * 60 * 1000); // 默认至少 2 小时后
+      const deadlineStr = formatLocal(deadlineDate);
 
       const modal = document.createElement('div');
       modal.className = 'modal-overlay';
@@ -2129,11 +2130,11 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
 
             <div class="form-grid-2" style="margin-top:8px;">
               <div class="teacher-form-group">
-                <label><span class="req">*</span> 📅 任务开始时间</label>
+                <label><span class="req">*</span> 📅 任务开始时间 (默认当前)</label>
                 <input type="datetime-local" id="modal-task-start" class="teacher-input fancy" value="${startStr}">
               </div>
               <div class="teacher-form-group">
-                <label><span class="req">*</span> ⌛ 任务截止时间</label>
+                <label><span class="req">*</span> ⌛ 任务截止时间 (默认2小时后)</label>
                 <input type="datetime-local" id="modal-task-deadline" class="teacher-input fancy" value="${deadlineStr}">
               </div>
             </div>
@@ -2254,19 +2255,18 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
         const classId = modal.querySelector('#modal-task-class').value;
         const title = modal.querySelector('#modal-task-title').value.trim();
         const desc = modal.querySelector('#modal-task-desc').value.trim();
-        const startTime = modal.querySelector('#modal-task-start').value;
-        const deadline = modal.querySelector('#modal-task-deadline').value;
-
         if (!title) { alert('⚠️ 请输入写作任务名称！'); return; }
+        if (!startTime || !deadline) { alert('⚠️ 请指定任务的开始时间与截止时间！'); return; }
 
-        let calculatedDuration = 150;
-        if (startTime && deadline) {
-          const sDate = new Date(startTime);
-          const dDate = new Date(deadline);
-          if (!isNaN(sDate.getTime()) && !isNaN(dDate.getTime()) && dDate > sDate) {
-            calculatedDuration = Math.round((dDate.getTime() - sDate.getTime()) / (60 * 1000));
-          }
+        const sDate = new Date(startTime);
+        const dDate = new Date(deadline);
+        if (isNaN(sDate.getTime()) || isNaN(dDate.getTime()) || sDate >= dDate) {
+          alert('⚠️ 任务截止时间必须晚于任务开始时间（建议至少设置 2 小时）！');
+          return;
         }
+
+        let calculatedDuration = 120;
+        calculatedDuration = Math.round((dDate.getTime() - sDate.getTime()) / (60 * 1000));
 
         try {
           authManager.createTask(title, classId, desc, [], startTime, deadline, calculatedDuration);
