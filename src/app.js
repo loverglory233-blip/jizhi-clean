@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260823_v145";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired } from "./utils.js?v=20260823_v145";
-import { callCozeAgentAPI } from "./agents.js?v=20260823_v145";
-import { AuthManager } from "./auth.js?v=20260823_v145";
-import { CloudSyncEngine } from "./sync.js?v=20260823_v145";
-import { renderLoginView } from "./login.js?v=20260823_v145";
-import { renderTeacherPortal } from "./teacher.js?v=20260823_v145";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260823_v145";
+} from "./constants.js?v=20260823_v146";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired } from "./utils.js?v=20260823_v146";
+import { callCozeAgentAPI } from "./agents.js?v=20260823_v146";
+import { AuthManager } from "./auth.js?v=20260823_v146";
+import { CloudSyncEngine } from "./sync.js?v=20260823_v146";
+import { renderLoginView } from "./login.js?v=20260823_v146";
+import { renderTeacherPortal } from "./teacher.js?v=20260823_v146";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260823_v146";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260823_v145";
+} from "./editor.js?v=20260823_v146";
 
 // Make renderChat available on window for sync callbacks
 if (typeof window !== "undefined") {
@@ -2380,6 +2380,35 @@ ${propText}
       const stageTitles = { stage2: '【阶段二：学术编辑部】', stage3: '【阶段三：答辩擂台】' };
       alert(`⚠️ 暂未解锁 ${stageTitles[newStage] || newStage}！\n必须先在当前阶段完成公约签署与阶段任务后，系统将自动全组解锁推进。`);
       return;
+    }
+
+    // 🛡️ 阶段一公约草案锁存：离开阶段一前，主动收集当前 DOM 上所有最新输入框值并立即持久化落盘
+    if (this.state.currentStage === 'stage1') {
+      const topicInp = document.getElementById('contract-topic-input');
+      if (topicInp) {
+        if (!this.state.stage1) this.state.stage1 = {};
+        this.state.stage1.mergedTitle = topicInp.value;
+      }
+      const timeInps = document.querySelectorAll('.contract-time-input');
+      if (timeInps.length > 0) {
+        if (!this.state.stage1.contract) this.state.stage1.contract = {};
+        if (!this.state.stage1.contract.timeAllocations) this.state.stage1.contract.timeAllocations = {};
+        timeInps.forEach(inp => {
+          const k = inp.dataset.key;
+          if (k) this.state.stage1.contract.timeAllocations[k] = Number(inp.value) || 0;
+        });
+      }
+      const taskInps = document.querySelectorAll('.task-assignment-input');
+      if (taskInps.length > 0) {
+        if (!this.state.stage1.contract) this.state.stage1.contract = {};
+        if (!this.state.stage1.contract.taskAssignments) this.state.stage1.contract.taskAssignments = {};
+        taskInps.forEach(inp => {
+          const mk = inp.dataset.mkey;
+          if (mk) this.state.stage1.contract.taskAssignments[mk] = inp.value;
+        });
+      }
+      this.syncStage1();
+      if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
     }
 
     // 🛡️ 正文草稿锁存：切换前将富文本当前内容完整持久化存入内存与快照，绝不丢字

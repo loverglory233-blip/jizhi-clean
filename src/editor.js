@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles } from "./constants.js?v=20260823_v145";
-import { callCozeAgentAPI } from "./agents.js?v=20260823_v145";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman } from "./utils.js?v=20260823_v145";
+import { AgentProfiles } from "./constants.js?v=20260823_v146";
+import { callCozeAgentAPI } from "./agents.js?v=20260823_v146";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime } from "./utils.js?v=20260823_v146";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -2135,7 +2135,7 @@ export function renderChat(state) {
         <div class="msg-body">
           <div class="msg-meta">
             <span class="msg-sender" style="color:${color};">${escapeHtml(name)} ${isMe ? '(我)' : ''}</span>
-            <span style="font-size:10px; color:#64748b; margin-left:6px;">${escapeHtml(msg.timestamp || '')}</span>
+            <span style="font-size:10px; color:#64748b; margin-left:6px;">${escapeHtml(formatChatDisplayTime(msg._timeMs || msg.timestamp))}</span>
           </div>
           ${formattedContent}
         </div>
