@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260823_v151";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired } from "./utils.js?v=20260823_v151";
-import { callCozeAgentAPI } from "./agents.js?v=20260823_v151";
-import { AuthManager } from "./auth.js?v=20260823_v151";
-import { CloudSyncEngine } from "./sync.js?v=20260823_v151";
-import { renderLoginView } from "./login.js?v=20260823_v151";
-import { renderTeacherPortal } from "./teacher.js?v=20260823_v151";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260823_v151";
+} from "./constants.js?v=20260823_v152";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired } from "./utils.js?v=20260823_v152";
+import { callCozeAgentAPI } from "./agents.js?v=20260823_v152";
+import { AuthManager } from "./auth.js?v=20260823_v152";
+import { CloudSyncEngine } from "./sync.js?v=20260823_v152";
+import { renderLoginView } from "./login.js?v=20260823_v152";
+import { renderTeacherPortal } from "./teacher.js?v=20260823_v152";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260823_v152";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260823_v151";
+} from "./editor.js?v=20260823_v152";
 
 // Make renderChat available on window for sync callbacks
 if (typeof window !== "undefined") {
@@ -50,11 +50,17 @@ export class App {
     this.initTimer();
     this.renderMain();
 
-    // 🛡️ 全局事件委托：确保无论阶段一如何局部刷新，点击“一键生成公约草案” 100% 触发
+    // 🛡️ 全局事件委托：确保无论阶段一如何局部刷新，点击“一键生成公约草案”/“投票”/“签署” 100% 触发
     document.addEventListener('click', (e) => {
-      const btn = e.target.closest('#btn-generate-contract-draft');
-      if (btn && this.handleAiGenerateContract) {
+      const genBtn = e.target.closest('#btn-generate-contract-draft');
+      if (genBtn && this.handleAiGenerateContract) {
         this.handleAiGenerateContract();
+        return;
+      }
+      const voteBtn = e.target.closest('.vote-btn:not([disabled])');
+      if (voteBtn && voteBtn.dataset.id) {
+        this.handleVoteCast(voteBtn.dataset.id);
+        return;
       }
     });
 

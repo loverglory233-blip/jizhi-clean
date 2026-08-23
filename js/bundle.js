@@ -8531,11 +8531,17 @@
       this.initTimer();
       this.renderMain();
 
-      // 🛡️ 全局事件委托：确保无论阶段一如何局部刷新，点击“一键生成公约草案” 100% 触发
+      // 🛡️ 全局事件委托：确保无论阶段一如何局部刷新，点击“一键生成公约草案”/“投票”/“签署” 100% 触发
       document.addEventListener('click', (e) => {
-        const btn = e.target.closest('#btn-generate-contract-draft');
-        if (btn && this.handleAiGenerateContract) {
+        const genBtn = e.target.closest('#btn-generate-contract-draft');
+        if (genBtn && this.handleAiGenerateContract) {
           this.handleAiGenerateContract();
+          return;
+        }
+        const voteBtn = e.target.closest('.vote-btn:not([disabled])');
+        if (voteBtn && voteBtn.dataset.id) {
+          this.handleVoteCast(voteBtn.dataset.id);
+          return;
         }
       });
 
