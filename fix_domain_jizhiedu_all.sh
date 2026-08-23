@@ -30,7 +30,7 @@ server
     # 包含宝塔标准 PHP 8.2 解析
     include enable-php-82.conf;
 
-    # Etherpad 反向代理
+    # Etherpad 反向代理全套路径 (确保语言包与插件0延迟)
     location ^~ /socket.io {
         proxy_pass http://127.0.0.1:9001;
         proxy_set_header Upgrade \$http_upgrade;
@@ -57,6 +57,21 @@ server
     }
 
     location ^~ /static/ {
+        proxy_pass http://127.0.0.1:9001;
+        proxy_set_header Host \$host;
+    }
+
+    location ^~ /locales/ {
+        proxy_pass http://127.0.0.1:9001;
+        proxy_set_header Host \$host;
+    }
+
+    location = /locales.json {
+        proxy_pass http://127.0.0.1:9001;
+        proxy_set_header Host \$host;
+    }
+
+    location ^~ /ep_ {
         proxy_pass http://127.0.0.1:9001;
         proxy_set_header Host \$host;
     }
@@ -88,7 +103,7 @@ server
     # 包含宝塔标准 PHP 8.2 解析
     include enable-php-82.conf;
 
-    # Etherpad 反向代理
+    # Etherpad 反向代理全套路径 (确保语言包与插件0延迟)
     location ^~ /socket.io {
         proxy_pass http://127.0.0.1:9001;
         proxy_set_header Upgrade \$http_upgrade;
@@ -115,6 +130,21 @@ server
     }
 
     location ^~ /static/ {
+        proxy_pass http://127.0.0.1:9001;
+        proxy_set_header Host \$host;
+    }
+
+    location ^~ /locales/ {
+        proxy_pass http://127.0.0.1:9001;
+        proxy_set_header Host \$host;
+    }
+
+    location = /locales.json {
+        proxy_pass http://127.0.0.1:9001;
+        proxy_set_header Host \$host;
+    }
+
+    location ^~ /ep_ {
         proxy_pass http://127.0.0.1:9001;
         proxy_set_header Host \$host;
     }
