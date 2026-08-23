@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260823_v37";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired } from "./utils.js?v=20260823_v37";
-import { callCozeAgentAPI } from "./agents.js?v=20260823_v37";
-import { AuthManager } from "./auth.js?v=20260823_v37";
-import { CloudSyncEngine } from "./sync.js?v=20260823_v37";
-import { renderLoginView } from "./login.js?v=20260823_v37";
-import { renderTeacherPortal } from "./teacher.js?v=20260823_v37";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260823_v37";
+} from "./constants.js?v=20260823_v38";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired } from "./utils.js?v=20260823_v38";
+import { callCozeAgentAPI } from "./agents.js?v=20260823_v38";
+import { AuthManager } from "./auth.js?v=20260823_v38";
+import { CloudSyncEngine } from "./sync.js?v=20260823_v38";
+import { renderLoginView } from "./login.js?v=20260823_v38";
+import { renderTeacherPortal } from "./teacher.js?v=20260823_v38";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260823_v38";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260823_v37";
+} from "./editor.js?v=20260823_v38";
 
 // Make renderChat available on window for sync callbacks
 if (typeof window !== "undefined") {
@@ -2269,6 +2269,12 @@ ${propText}
     const isTaskDeadlineExpired = isTaskExpired(currentTaskObj);
 
     // 🛡️ 阶段防越权门禁：未达成里程碑解锁时，禁止学生随意点击跳级（截止只读查阅模式下全阶段自由放行浏览）
+    const isContractSigned = !!(this.state.stage1?.contract?.signed || (Array.isArray(this.state.stage1?.contract?.confirmedMembers) && this.state.stage1.contract.confirmedMembers.length > 0));
+    if (!isTaskDeadlineExpired && newStage === 'stage2' && !isMilestoneAdvance && !isContractSigned && currentGroupOrder < 2) {
+      alert('⚠️ 暂未解锁【阶段二：学术编辑部】！\n请先在阶段一完成学术公约的签署与分工确认，方可进入阶段二。');
+      return;
+    }
+
     if (!isTaskDeadlineExpired && targetOrder > currentGroupOrder && !isMilestoneAdvance) {
       const stageTitles = { stage2: '【阶段二：学术编辑部】', stage3: '【阶段三：答辩擂台】' };
       alert(`⚠️ 暂未解锁 ${stageTitles[newStage] || newStage}！\n必须先在当前阶段完成公约签署与阶段任务后，系统将自动全组解锁推进。`);
