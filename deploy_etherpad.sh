@@ -1,13 +1,15 @@
 #!/bin/bash
 set -e
 
-echo "🚀 [Etherpad Installer] 正在自动升级 Node.js 并部署 Etherpad-Lite..."
+echo "🚀 [Etherpad Installer] 正在自动清理旧版 Node 冲突并部署 Etherpad-Lite..."
 
-# 1. 安装当前最主流活跃的 Node.js 20 LTS
-echo "📦 安装 Node.js 20 LTS..."
+# 1. 彻底解决 Ubuntu 系统的 libnode-dev 包文件冲突
 if command -v apt-get &> /dev/null; then
+    echo "🧹 清理旧版 libnode-dev 依赖冲突..."
+    apt-get remove -y libnode-dev libnode72 || true
+    dpkg --remove --force-all libnode-dev libnode72 || true
     curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
-    apt-get install -y nodejs
+    apt-get install -y -o Dpkg::Options::="--force-overwrite" nodejs
 elif command -v yum &> /dev/null; then
     curl -fsSL https://rpm.nodesource.com/setup_20.x | bash -
     yum install -y nodejs
@@ -15,13 +17,13 @@ fi
 
 NODE_VER=$(node -v)
 NPM_VER=$(npm -v)
-echo "✅ Node.js 20 环境就绪: $NODE_VER (npm $NPM_VER)"
+echo "✅ Node.js 20 环境已成功安装: $NODE_VER (npm $NPM_VER)"
 
 INSTALL_DIR="/www/wwwroot/etherpad-lite"
 
-# 2. 清理旧目录并克隆稳定版本
+# 2. 清理旧目录并克隆稳定源码
 rm -rf "$INSTALL_DIR"
-echo "📥 下载 Etherpad-Lite 源码..."
+echo "📥 下载 Etherpad-Lite 稳定源码..."
 git clone --depth 1 https://github.com/ether/etherpad-lite.git "$INSTALL_DIR"
 
 cd "$INSTALL_DIR"
