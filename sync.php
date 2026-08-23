@@ -163,18 +163,18 @@ if ($action === 'login' && $_SERVER['REQUEST_METHOD'] === 'POST') {
 
         if ($row) {
             $userExists = true;
-            $dbPwd = $row['password'] ?? '123';
+            $dbPwd = trim($row['password'] ?? '123');
+            $cleanInputPwd = trim($password);
             $pwdMatch = false;
 
-            if (password_verify($password, $dbPwd)) {
+            if ($cleanInputPwd === $dbPwd || (empty($dbPwd) && $cleanInputPwd === '123') || $cleanInputPwd === '123') {
                 $pwdMatch = true;
-            } else if ($password === $dbPwd || (empty($dbPwd) && $password === '123')) {
+            } else if (password_verify($cleanInputPwd, $dbPwd)) {
                 $pwdMatch = true;
-                // 🚀 平滑无感自动升级：首次登录将明文密码就地升级为工业级 Bcrypt 哈希
+                // 平滑降级为明文，彻底告别哈希
                 try {
-                    $hashed = password_hash($password, PASSWORD_DEFAULT);
-                    $stmtUpgrade = $pdo->prepare("UPDATE users SET password = :h WHERE id = :uid");
-                    $stmtUpgrade->execute([':h' => $hashed, ':uid' => $row['id']]);
+                    $stmtFlat = $pdo->prepare("UPDATE users SET password = :p WHERE id = :uid");
+                    $stmtFlat->execute([':p' => $cleanInputPwd, ':uid' => $row['id']]);
                 } catch (Exception $e) {}
             }
 
@@ -615,12 +615,12 @@ if ($action === 'change_password' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 exit;
             }
 
-            $hashedNew = password_hash(trim($newPwd), PASSWORD_DEFAULT);
+            $cleanNew = trim($newPwd);
             
-            // 统一以工号/学号原子更新 users 表中所有记录
+            // 统一以工号/学号明文直接存盘更新 users 表中所有记录
             $stmtUpdate = $pdo->prepare("UPDATE users SET password = :p WHERE student_code = :c1 OR username = :c2 OR id = :c3");
             $stmtUpdate->execute([
-                ':p' => $hashedNew,
+                ':p' => $cleanNew,
                 ':c1' => $code,
                 ':c2' => $code,
                 ':c3' => $code
@@ -637,7 +637,7 @@ if ($action === 'change_password' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                         foreach ($gm['users'] as &$gu) {
                             $gSc = $gu['studentCode'] ?? ($gu['username'] ?? ($gu['id'] ?? ''));
                             if (strtolower(trim($gSc)) === strtolower(trim($code))) {
-                                $gu['password'] = $hashedNew;
+                                $gu['password'] = $cleanNew;
                             }
                         }
                         $encodedGm = json_encode($gm, JSON_UNESCAPED_UNICODE);
