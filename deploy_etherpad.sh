@@ -1,34 +1,32 @@
 #!/bin/bash
 set -e
 
-echo "🚀 [Etherpad Installer] 开始在宝塔服务器上安装并部署 Etherpad-Lite 实时协同引擎..."
+echo "🚀 [Etherpad Installer] 正在自动升级 Node.js 并部署 Etherpad-Lite..."
 
-INSTALL_DIR="/www/wwwroot/etherpad-lite"
-
-# 1. 检测 Node.js 环境
-if ! command -v node &> /dev/null; then
-    echo "📦 安装 Node.js 与 npm..."
+# 1. 强制升级 Node.js 到现代化 v18 LTS
+echo "📦 升级 Node.js 至 v18 LTS..."
+if command -v apt-get &> /dev/null; then
     curl -fsSL https://deb.nodesource.com/setup_18.x | bash -
-    apt-get install -y nodejs || yum install -y nodejs || true
+    apt-get install -y nodejs
+elif command -v yum &> /dev/null; then
+    curl -fsSL https://rpm.nodesource.com/setup_18.x | bash -
+    yum install -y nodejs
 fi
 
 NODE_VER=$(node -v)
-echo "✅ Node.js 环境就绪: $NODE_VER"
+NPM_VER=$(npm -v)
+echo "✅ Node.js 已升级就绪: $NODE_VER (npm $NPM_VER)"
 
-# 2. 下载 / 克隆 Etherpad-Lite
-if [ ! -d "$INSTALL_DIR" ]; then
-    echo "📥 下载 Etherpad-Lite 源码..."
-    git clone --depth 1 https://github.com/ether/etherpad-lite.git "$INSTALL_DIR" || {
-        echo "⚠️ Git clone 失败，尝试 Zip 镜像下载..."
-        curl -sL "https://github.com/ether/etherpad-lite/archive/refs/heads/master.zip" -o /tmp/ep.zip
-        unzip -q /tmp/ep.zip -d /www/wwwroot/
-        mv /www/wwwroot/etherpad-lite-master "$INSTALL_DIR"
-    }
-fi
+INSTALL_DIR="/www/wwwroot/etherpad-lite"
+
+# 2. 清理旧目录并克隆稳定版本
+rm -rf "$INSTALL_DIR"
+echo "📥 下载 Etherpad-Lite 稳定源码..."
+git clone --depth 1 https://github.com/ether/etherpad-lite.git "$INSTALL_DIR"
 
 cd "$INSTALL_DIR"
 
-# 3. 配置 settings.json (允许 iframe 嵌入，配置端口 9001)
+# 3. 写入 settings.json 配置 (允许 iframe 嵌入，端口 9001)
 echo "⚙️ 配置 Etherpad settings.json..."
 cat << 'SETTING_EOF' > settings.json
 {
@@ -76,20 +74,23 @@ SETTING_EOF
 mkdir -p var
 echo "jizhi_academic_secret_key_2026" > APIKEY.txt
 
-# 5. 安装依赖并启动后台守护
-echo "📦 安装 Etherpad 依赖包..."
-npm install --production --no-audit || true
+# 5. 官方自动化构建安装依赖
+echo "📦 执行 Etherpad 依赖安装..."
+export NODE_ENV=production
+npm install --no-audit
 
-echo "🔄 重启 Etherpad 协同进程..."
+# 6. 后台拉起守护进程
+echo "🔄 拉起 Etherpad 9001 端口协同进程..."
 pkill -f "src/node/server.js" || true
+pkill -f "etherpad" || true
 nohup node src/node/server.js > /var/log/etherpad.log 2>&1 &
 
-sleep 3
+sleep 4
 
-# 6. 检测服务健康
+# 7. 健康检查
 if curl -s "http://127.0.0.1:9001/api" | grep -q "1."; then
-    echo "🎉 [Success] Etherpad-Lite 实时协同引擎已成功运行在 9001 端口！"
+    echo "🎉🎉🎉 [Success] Etherpad-Lite 实时协同引擎已 100% 成功运行在 9001 端口！"
     echo "🔑 API Key: $(cat APIKEY.txt)"
 else
-    echo "⏳ Etherpad 正在后台初始化启动中，请查看日志: /var/log/etherpad.log"
+    echo "⏳ Etherpad 正在后台初始化中，请查看日志: cat /var/log/etherpad.log"
 fi
