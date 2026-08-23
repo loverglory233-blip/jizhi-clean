@@ -77,6 +77,22 @@ function verifyTeacherSession($userId, $token, $pdo) {
 }
 
 // 0a. 服务端统一登录安全鉴权 API (严格校验密码哈希与防脱机绕过)
+// 👩‍🏫 数据层保证：幂等确保唯一教师种子账号 1001 存在
+if (!function_exists('ensureTeacherSeedAccount')) {
+    function ensureTeacherSeedAccount($pdo) {
+        if (!$pdo) return;
+        try {
+            $stmt = $pdo->prepare("SELECT id FROM users WHERE username = '1001' OR student_code = '1001' LIMIT 1");
+            $stmt->execute();
+            if (!$stmt->fetch()) {
+                $hashed = password_hash('123', PASSWORD_DEFAULT);
+                $stmtIns = $pdo->prepare("INSERT INTO users (id, username, student_code, name, password, role) VALUES ('u_teacher_1001', '1001', '1001', '指导教师', :p, 'teacher')");
+                $stmtIns->execute([':p' => $hashed]);
+            }
+        } catch (Exception $e) {}
+    }
+}
+
 if ($action === 'login' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $rawInput = @file_get_contents('php://input');
     $req = json_decode($rawInput, true) ?: [];
@@ -90,7 +106,6 @@ if ($action === 'login' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         exit;
     }
 
-    // 👩‍🏫 数据层保证：幂等确保唯一教师种子账号 1001 存在（非登录后门，密码仍按数据库正常校验）
     ensureTeacherSeedAccount($pdo);
 
     $foundUser = null;
