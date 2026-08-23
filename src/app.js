@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260823_v106";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired } from "./utils.js?v=20260823_v106";
-import { callCozeAgentAPI } from "./agents.js?v=20260823_v106";
-import { AuthManager } from "./auth.js?v=20260823_v106";
-import { CloudSyncEngine } from "./sync.js?v=20260823_v106";
-import { renderLoginView } from "./login.js?v=20260823_v106";
-import { renderTeacherPortal } from "./teacher.js?v=20260823_v106";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260823_v106";
+} from "./constants.js?v=20260823_v107";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired } from "./utils.js?v=20260823_v107";
+import { callCozeAgentAPI } from "./agents.js?v=20260823_v107";
+import { AuthManager } from "./auth.js?v=20260823_v107";
+import { CloudSyncEngine } from "./sync.js?v=20260823_v107";
+import { renderLoginView } from "./login.js?v=20260823_v107";
+import { renderTeacherPortal } from "./teacher.js?v=20260823_v107";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260823_v107";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260823_v106";
+} from "./editor.js?v=20260823_v107";
 
 // Make renderChat available on window for sync callbacks
 if (typeof window !== "undefined") {
@@ -582,7 +582,7 @@ export class App {
             const targetGroupId = latestGroupObj.id || (currentUser && currentUser.groupId ? currentUser.groupId : 'group_1');
             this.loadGroupState(targetGroupId);
             
-            // 🟢 进入任务工作台第 0 毫秒：立即拉取云端权威阶段与历史数据，实现 0 闪烁直出真实状态
+            // 🟢 进入任务工作台第 0 毫秒：先拉取云端权威数据，但学生首屏始终先看阶段一（只读或进行中），再自主切换
             if (this.cloudSyncEngine) {
               this.cloudSyncEngine.groupId = targetGroupId;
               this.cloudSyncEngine.taskId = taskId || 'task_default';
@@ -591,6 +591,10 @@ export class App {
                 await this.cloudSyncEngine.pullFromServer();
               } catch (e) {}
             }
+
+            // 🎯 始终从阶段一进入，若本组已推进至阶段二/三，则阶段一显示为只读归档，并解锁顶部阶段导航供学生自主加入
+            this.state.currentStage = 'stage1';
+            this.isViewingPastStage = (this.state.groupMaxStage && this.state.groupMaxStage !== 'stage1');
 
             if (!this.state.presence) this.state.presence = {};
             const myKeys = [currentUser?.id, currentUser?.studentCode, currentUser?.username, currentUser?.name].filter(Boolean);
