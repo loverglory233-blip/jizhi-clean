@@ -2,12 +2,20 @@
 set -e
 
 echo "🚀 ========================================================"
-echo "⚡ 配置 jizhiedu.top 域名与全量 HTTP/HTTPS 访问"
+echo "⚡ 配置 jizhiedu.top 域名与 IP 全量 Nginx HTTP/HTTPS + Etherpad 反代"
 echo "🚀 ========================================================"
 
-CONF_FILE="/www/server/panel/vhost/nginx/47.99.110.230.conf"
+# 1. 自动探测系统生效的 PHP 配置
+PHP_CONF="enable-php-82.conf"
+for p in /www/server/nginx/conf/enable-php-*.conf; do
+    if [ -f "$p" ]; then
+        PHP_CONF=$(basename "$p")
+        echo "🟢 发现有效 PHP 配置: $PHP_CONF"
+        break
+    fi
+done
 
-# 检查是否存在 SSL 证书
+# 2. 检查是否存在 SSL 证书
 SSL_CERT=""
 SSL_KEY=""
 for d in /www/server/panel/vhost/cert/jizhiedu.top /www/server/panel/vhost/cert/47.99.110.230 /www/server/panel/vhost/cert/*; do
@@ -19,24 +27,31 @@ for d in /www/server/panel/vhost/cert/jizhiedu.top /www/server/panel/vhost/cert/
     fi
 done
 
-cat << CONF > "$CONF_FILE"
+# 3. 生成标准的 Nginx 配置模板 (包含完整的 Etherpad 反代与 3秒极速连接超时)
+generate_nginx_conf() {
+    local target_file="$1"
+    local s_name="$2"
+
+    cat << CONF > "$target_file"
 server
 {
     listen 80;
-    server_name jizhiedu.top www.jizhiedu.top 47.99.110.230 localhost 127.0.0.1;
+    server_name $s_name;
     index index.html index.htm index.php;
     root /www/wwwroot/47.99.110.230;
 
-    # 包含宝塔标准 PHP 8.2 解析
-    include enable-php-82.conf;
+    include $PHP_CONF;
 
-    # Etherpad 反向代理全套路径 (确保语言包与插件0延迟)
+    # Etherpad 反向代理全套路径 (设置 3s 连接超时，避免死等超时)
     location ^~ /socket.io {
         proxy_pass http://127.0.0.1:9001;
         proxy_set_header Upgrade \$http_upgrade;
         proxy_set_header Connection "upgrade";
         proxy_set_header Host \$host;
         proxy_http_version 1.1;
+        proxy_connect_timeout 3s;
+        proxy_read_timeout 60s;
+        proxy_send_timeout 60s;
     }
 
     location ^~ /p/ {
@@ -44,51 +59,58 @@ server
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_connect_timeout 3s;
+        proxy_read_timeout 60s;
     }
 
     location ^~ /pluginfw/ {
         proxy_pass http://127.0.0.1:9001;
         proxy_set_header Host \$host;
+        proxy_connect_timeout 3s;
     }
 
     location ^~ /javascripts/ {
         proxy_pass http://127.0.0.1:9001;
         proxy_set_header Host \$host;
+        proxy_connect_timeout 3s;
     }
 
     location ^~ /static/ {
         proxy_pass http://127.0.0.1:9001;
         proxy_set_header Host \$host;
+        proxy_connect_timeout 3s;
     }
 
     location ^~ /locales/ {
         proxy_pass http://127.0.0.1:9001;
         proxy_set_header Host \$host;
+        proxy_connect_timeout 3s;
     }
 
     location = /locales.json {
         proxy_pass http://127.0.0.1:9001;
         proxy_set_header Host \$host;
+        proxy_connect_timeout 3s;
     }
 
     location ^~ /ep_ {
         proxy_pass http://127.0.0.1:9001;
         proxy_set_header Host \$host;
+        proxy_connect_timeout 3s;
     }
 
-    access_log /www/wwwlogs/47.99.110.230.log;
-    error_log /www/wwwlogs/47.99.110.230.error.log;
+    access_log /www/wwwlogs/jizhi_access.log;
+    error_log /www/wwwlogs/jizhi_error.log;
 }
 CONF
 
-# 如果有 SSL，追加 HTTPS server 块
-if [ -n "$SSL_CERT" ] && [ -n "$SSL_KEY" ]; then
-cat << SSL_CONF >> "$CONF_FILE"
+    if [ -n "$SSL_CERT" ] && [ -n "$SSL_KEY" ]; then
+    cat << SSL_CONF >> "$target_file"
 
 server
 {
     listen 443 ssl http2;
-    server_name jizhiedu.top www.jizhiedu.top 47.99.110.230;
+    server_name $s_name;
     index index.html index.htm index.php;
     root /www/wwwroot/47.99.110.230;
 
@@ -100,16 +122,17 @@ server
     ssl_session_cache shared:SSL:10m;
     ssl_session_timeout 10m;
 
-    # 包含宝塔标准 PHP 8.2 解析
-    include enable-php-82.conf;
+    include $PHP_CONF;
 
-    # Etherpad 反向代理全套路径 (确保语言包与插件0延迟)
     location ^~ /socket.io {
         proxy_pass http://127.0.0.1:9001;
         proxy_set_header Upgrade \$http_upgrade;
         proxy_set_header Connection "upgrade";
         proxy_set_header Host \$host;
         proxy_http_version 1.1;
+        proxy_connect_timeout 3s;
+        proxy_read_timeout 60s;
+        proxy_send_timeout 60s;
     }
 
     location ^~ /p/ {
@@ -117,51 +140,64 @@ server
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_connect_timeout 3s;
+        proxy_read_timeout 60s;
     }
 
     location ^~ /pluginfw/ {
         proxy_pass http://127.0.0.1:9001;
         proxy_set_header Host \$host;
+        proxy_connect_timeout 3s;
     }
 
     location ^~ /javascripts/ {
         proxy_pass http://127.0.0.1:9001;
         proxy_set_header Host \$host;
+        proxy_connect_timeout 3s;
     }
 
     location ^~ /static/ {
         proxy_pass http://127.0.0.1:9001;
         proxy_set_header Host \$host;
+        proxy_connect_timeout 3s;
     }
 
     location ^~ /locales/ {
         proxy_pass http://127.0.0.1:9001;
         proxy_set_header Host \$host;
+        proxy_connect_timeout 3s;
     }
 
     location = /locales.json {
         proxy_pass http://127.0.0.1:9001;
         proxy_set_header Host \$host;
+        proxy_connect_timeout 3s;
     }
 
     location ^~ /ep_ {
         proxy_pass http://127.0.0.1:9001;
         proxy_set_header Host \$host;
+        proxy_connect_timeout 3s;
     }
 
-    access_log /www/wwwlogs/47.99.110.230.log;
-    error_log /www/wwwlogs/47.99.110.230.error.log;
+    access_log /www/wwwlogs/jizhi_access.log;
+    error_log /www/wwwlogs/jizhi_error.log;
 }
 SSL_CONF
-fi
+    fi
+    echo "✅ 已同步生成配置: $target_file"
+}
 
-# 测试与重载 Nginx
+# 4. 同步写入 47.99.110.230.conf 和 jizhiedu.top.conf
+mkdir -p /www/server/panel/vhost/nginx
+generate_nginx_conf "/www/server/panel/vhost/nginx/47.99.110.230.conf" "47.99.110.230 jizhiedu.top www.jizhiedu.top localhost 127.0.0.1"
+generate_nginx_conf "/www/server/panel/vhost/nginx/jizhiedu.top.conf" "jizhiedu.top www.jizhiedu.top 47.99.110.230 localhost 127.0.0.1"
+
+# 5. 测试与重载 Nginx
 nginx -t
-/etc/init.d/nginx restart || systemctl restart nginx
+/etc/init.d/nginx reload || nginx -s reload || systemctl reload nginx
 
 echo ""
-echo "🔍 测试域名 Host 访问状态:"
-curl -i -H "Host: jizhiedu.top" "http://127.0.0.1/" | head -n 12
-
-echo ""
-echo "🎉 jizhiedu.top 域名与 IP 访问已全部 100% 连通！"
+echo "🎉 ========================================================"
+echo "✅ jizhiedu.top 域名与 IP 的 Nginx 反代配置已全部 100% 刷新生效！"
+echo "🎉 ========================================================"
