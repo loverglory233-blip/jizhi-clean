@@ -30,17 +30,21 @@ chown www:www /tmp/php-cgi-*.sock 2>/dev/null || true
 echo "🟢 2.1 正在自动校准宝塔 phpMyAdmin 运行环境与关联 PHP..."
 if [ -n "$ACTIVE_PHP_VER" ]; then
     echo "   🟢 phpMyAdmin 将自动绑定至健康活跃的 PHP-$ACTIVE_PHP_VER"
-    for pma_conf in /www/server/nginx/conf/phpmyadmin.conf /www/server/panel/vhost/nginx/phpmyadmin.conf; do
+    for pma_conf in /www/server/nginx/conf/phpmyadmin.conf /www/server/panel/vhost/nginx/phpmyadmin.conf /www/server/nginx/conf/nginx.conf; do
         if [ -f "$pma_conf" ]; then
+            sed -i -E "s/enable-php-00\.conf/enable-php-${ACTIVE_PHP_VER}.conf/g" "$pma_conf" 2>/dev/null || true
             sed -i -E "s/enable-php-[0-9]+\.conf/enable-php-${ACTIVE_PHP_VER}.conf/g" "$pma_conf" 2>/dev/null || true
         fi
     done
+    if [ -f "/www/server/nginx/conf/enable-php-${ACTIVE_PHP_VER}.conf" ]; then
+        cp -f "/www/server/nginx/conf/enable-php-${ACTIVE_PHP_VER}.conf" "/www/server/nginx/conf/enable-php-00.conf" 2>/dev/null || true
+    fi
 fi
 chown -R www:www /www/server/phpmyadmin 2>/dev/null || true
 chmod -R 755 /www/server/phpmyadmin 2>/dev/null || true
 
-# 自动将宝塔面板中站点类型从【静态】切换为【PHP-XX】
-echo "🟢 2.2 自动将宝塔面板中 47.99.110.230 站点属性从【静态】升级为【PHP-$ACTIVE_PHP_VER】..."
+# 自动将宝塔面板中站点类型与 phpMyAdmin 全局属性从【静态】切换为【PHP-XX】
+echo "🟢 2.2 自动将宝塔面板中 47.99.110.230 站点属性与 phpMyAdmin 升级为【PHP-$ACTIVE_PHP_VER】..."
 python3 -c "
 import sqlite3, os
 db_path = '/www/server/panel/data/default.db'
@@ -50,9 +54,11 @@ if os.path.exists(db_path) and php_v:
         conn = sqlite3.connect(db_path)
         c = conn.cursor()
         c.execute(\"UPDATE sites SET version = ? WHERE name = '47.99.110.230' OR name = 'jizhiedu.top'\", (php_v,))
+        c.execute(\"UPDATE config SET value = ? WHERE name = 'phpmyadmin_php'\", (php_v,))
+        c.execute(\"UPDATE config SET value = 'php' WHERE name = 'phpmyadmin_type'\")
         conn.commit()
         conn.close()
-        print('   ✅ 宝塔数据库已成功将站点从【静态】升级绑定至【PHP-' + php_v + '】！')
+        print('   ✅ 宝塔数据库已成功将站点与 phpMyAdmin 全量升级绑定至【PHP-' + php_v + '】！')
     except Exception as e:
         print('   ⚠️ 自动更新宝塔 SQLite 异常:', e)
 " 2>/dev/null || true
