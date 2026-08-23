@@ -11062,27 +11062,24 @@
             const hintModal = document.createElement('div');
             hintModal.className = 'modal-overlay jizhi-custom-modal';
             hintModal.innerHTML = `
-              <div style="width:480px; max-width:92vw; background:#ffffff; border-radius:16px; box-shadow:0 20px 40px rgba(15,23,42,0.22); overflow:hidden; border:1px solid #e2e8f0; animation:modalFadeIn 0.25s ease;">
+              <div style="width:460px; max-width:92vw; background:#ffffff; border-radius:16px; box-shadow:0 20px 40px rgba(15,23,42,0.22); overflow:hidden; border:1px solid #e2e8f0; animation:modalFadeIn 0.25s ease;">
                 <div style="background:linear-gradient(135deg, #d97706, #f59e0b); padding:18px 24px; color:#ffffff; display:flex; align-items:center; gap:12px;">
                   <span style="font-size:24px;">💡</span>
                   <div>
-                    <h3 style="margin:0; font-size:16px; font-weight:800; color:#ffffff;">协同研讨提示：尚未充分协商</h3>
+                    <h3 style="margin:0; font-size:16px; font-weight:800; color:#ffffff;">研讨协商提示</h3>
                     <div style="font-size:11.5px; opacity:0.9; margin-top:2px;">学术合作公约需由小组成员共同研讨商定</div>
                   </div>
                 </div>
-                <div style="padding:22px 24px; font-size:13.5px; color:#334155; line-height:1.6; display:flex; flex-direction:column; gap:12px;">
-                  <div style="background:#fffbeb; border:1px solid #fde68a; border-radius:8px; padding:12px 14px; color:#92400e; font-size:13px;">
-                    <b>当前全组研讨进度：</b> 有效互动 <b>${interactionTurns}/2</b> 轮 · 参与人数 <b>${participantSet.size}</b> 人
-                  </div>
+                <div style="padding:22px 24px; font-size:13.5px; color:#334155; line-height:1.65; display:flex; flex-direction:column; gap:12px;">
                   <div>
-                    投票结果公布后，小组成员需在右侧讨论区展开充分的<b>章节分工与时间规划研讨</b>（至少进行 2 轮跨成员互动协商），达成共识后再点击提炼！
+                    建议小组成员在<b>右侧协同研讨区</b>先就具体的研究细化构思、各章节分工与时间规划展开充分交流，达成共识后再点击提炼公约草案！
                   </div>
-                  <div style="font-size:12px; color:#64748b; background:#f8fafc; padding:8px 12px; border-radius:6px;">
-                    👉 <b>提示</b>：小组成员也可不点击智能提炼，直接在左侧输入框中自主分工编辑与微调。
+                  <div style="font-size:12px; color:#64748b; background:#f8fafc; padding:8px 12px; border-radius:8px; border:1px solid #e2e8f0;">
+                    👉 <b>提示</b>：小组成员也可不点击智能提炼，直接在左侧输入框中自主分工录入与修改。
                   </div>
                 </div>
                 <div style="background:#f8fafc; border-top:1px solid #e2e8f0; padding:14px 24px; display:flex; justify-content:flex-end;">
-                  <button class="modal-btn submit" id="btn-close-hint-modal" style="background:linear-gradient(135deg, #d97706, #f59e0b); border:none; color:white; padding:8px 22px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer;">我知道了，去研讨</button>
+                  <button class="modal-btn submit" id="btn-close-hint-modal" style="background:linear-gradient(135deg, #d97706, #f59e0b); border:none; color:white; padding:8px 22px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer;">去讨论</button>
                 </div>
               </div>
             `;
@@ -11217,28 +11214,24 @@
           const succModal = document.createElement('div');
           succModal.className = 'modal-overlay jizhi-custom-modal';
           succModal.innerHTML = `
-            <div style="width:500px; max-width:92vw; background:#ffffff; border-radius:16px; box-shadow:0 20px 40px rgba(15,23,42,0.22); overflow:hidden; border:1px solid #e2e8f0; animation:modalFadeIn 0.25s ease;">
+            <div style="width:460px; max-width:92vw; background:#ffffff; border-radius:16px; box-shadow:0 20px 40px rgba(15,23,42,0.22); overflow:hidden; border:1px solid #e2e8f0; animation:modalFadeIn 0.25s ease;">
               <div style="background:linear-gradient(135deg, #059669, #10b981); padding:18px 24px; color:#ffffff; display:flex; align-items:center; gap:12px;">
                 <span style="font-size:24px;">🎉</span>
                 <div>
-                  <h3 style="margin:0; font-size:16px; font-weight:800; color:#ffffff;">学术合作公约草案提炼成功！</h3>
-                  <div style="font-size:11.5px; opacity:0.9; margin-top:2px;">已基于全组研讨记录生成融合主题与章节分工</div>
+                  <h3 style="margin:0; font-size:16px; font-weight:800; color:#ffffff;">学术合作公约草案已生成</h3>
+                  <div style="font-size:11.5px; opacity:0.9; margin-top:2px;">已自动填入左侧公约区域</div>
                 </div>
               </div>
-              <div style="padding:22px 24px; font-size:13.5px; color:#334155; line-height:1.6; display:flex; flex-direction:column; gap:12px;">
-                <div style="background:#ecfdf5; border:1px solid #a7f3d0; border-radius:8px; padding:12px 14px; color:#065f46;">
-                  <div style="font-weight:700; margin-bottom:4px;">📌 确认融合论文主题:</div>
-                  <div style="font-size:14px; font-weight:800; color:#047857;">《${escapeHtml(s1.mergedTitle)}》</div>
-                </div>
+              <div style="padding:22px 24px; font-size:13.5px; color:#334155; line-height:1.65; display:flex; flex-direction:column; gap:12px;">
                 <div>
-                  👥 <b>章节分工与时间规划</b>：已深度读取全组同学在研讨区的协商记录，自动完成初步分配。
+                  系统已根据全组研讨记录自动在左侧填入<b>融合研究主题、各章节分工与时间规划</b>。
                 </div>
-                <div style="font-size:12px; color:#64748b; background:#f8fafc; padding:8px 12px; border-radius:6px;">
-                  👉 <b>下一步</b>：请组员仔细核对左侧公约内容（可直接在输入框微调），确认无误后点击下方【✍️ 确认签署公约】！
+                <div style="font-size:12.5px; color:#065f46; background:#ecfdf5; border:1px solid #a7f3d0; padding:10px 14px; border-radius:8px; font-weight:600;">
+                  👉 请小组成员仔细检查左侧公约内容（可直接在输入框微调修改），确认无误后点击下方【✍️ 确认签署公约】生效！
                 </div>
               </div>
               <div style="background:#f8fafc; border-top:1px solid #e2e8f0; padding:14px 24px; display:flex; justify-content:flex-end;">
-                <button class="modal-btn submit" id="btn-close-succ-modal" style="background:linear-gradient(135deg, #059669, #10b981); border:none; color:white; padding:8px 22px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer;">立即去核对并签署</button>
+                <button class="modal-btn submit" id="btn-close-succ-modal" style="background:linear-gradient(135deg, #059669, #10b981); border:none; color:white; padding:8px 22px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer;">立即检查公约</button>
               </div>
             </div>
           `;
