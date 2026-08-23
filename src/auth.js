@@ -820,6 +820,114 @@ export class AuthManager {
     this.pushGlobalMeta();
   }
 
+  autoRandomGrouping(classId, groupSize = 3, mode = 'reset_all') {
+    const classes = this.getClasses();
+    const cls = classes.find(c => c.id === classId) || classes[0];
+    if (!cls) return;
+
+    const classStudents = this.getClassStudents(cls.id);
+    if (!classStudents || classStudents.length === 0) return;
+
+    const users = this.getUsers();
+    const size = Math.max(2, parseInt(groupSize, 10) || 3);
+
+    // Fisher-Yates 随机乱序算法
+    const shuffle = (array) => {
+      const arr = [...array];
+      for (let i = arr.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+      }
+      return arr;
+    };
+
+    if (mode === 'reset_all') {
+      cls.groups = [];
+      // 将所有本班学生重置 groupId
+      users.forEach(u => {
+        if (cls.studentIds && cls.studentIds.includes(u.id)) {
+          u.groupId = null;
+        }
+      });
+
+      const shuffled = shuffle(classStudents);
+      let groupIndex = 1;
+      for (let i = 0; i < shuffled.length; i += size) {
+        const chunk = shuffled.slice(i, i + size);
+        const gId = 'group_' + Date.now() + '_' + groupIndex;
+        const gName = `第 ${groupIndex} 协作小组`;
+        const memberIds = chunk.map(s => s.id);
+
+        cls.groups.push({
+          id: gId,
+          name: gName,
+          members: memberIds
+        });
+
+        chunk.forEach((st, idx) => {
+          const u = users.find(usr => usr.id === st.id);
+          if (u) {
+            u.groupId = gId;
+            if (idx === 0) {
+              u.roleCode = 'A';
+              u.roleTitle = '组长';
+            } else {
+              u.roleCode = String.fromCharCode(66 + idx);
+              u.roleTitle = '组员';
+            }
+          }
+        });
+        groupIndex++;
+      }
+    } else if (mode === 'append_unassigned') {
+      if (!cls.groups) cls.groups = [];
+      const assignedIds = new Set();
+      cls.groups.forEach(g => {
+        (g.members || []).forEach(m => {
+          const mId = (typeof m === 'object' && m !== null) ? (m.id || m.userId || m.studentCode) : m;
+          if (mId) assignedIds.add(mId);
+        });
+      });
+
+      const unassignedStudents = classStudents.filter(s => !assignedIds.has(s.id));
+      if (unassignedStudents.length === 0) return;
+
+      const shuffled = shuffle(unassignedStudents);
+      let groupIndex = cls.groups.length + 1;
+      for (let i = 0; i < shuffled.length; i += size) {
+        const chunk = shuffled.slice(i, i + size);
+        const gId = 'group_' + Date.now() + '_' + groupIndex;
+        const gName = `第 ${groupIndex} 协作小组`;
+        const memberIds = chunk.map(s => s.id);
+
+        cls.groups.push({
+          id: gId,
+          name: gName,
+          members: memberIds
+        });
+
+        chunk.forEach((st, idx) => {
+          const u = users.find(usr => usr.id === st.id);
+          if (u) {
+            u.groupId = gId;
+            if (idx === 0) {
+              u.roleCode = 'A';
+              u.roleTitle = '组长';
+            } else {
+              u.roleCode = String.fromCharCode(66 + idx);
+              u.roleTitle = '组员';
+            }
+          }
+        });
+        groupIndex++;
+      }
+    }
+
+    localStorage.setItem(STORAGE_KEY_CLASSES, JSON.stringify(classes));
+    localStorage.setItem(STORAGE_KEY_USERS_DB, JSON.stringify(users));
+    this.pushGlobalMeta();
+  }
+
   deleteAllGroups(classId) {
     const classes = this.getClasses();
     const cls = classes.find(c => c.id === classId) || classes[0];
