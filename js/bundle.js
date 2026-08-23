@@ -5971,7 +5971,14 @@
       if (groupId && a.readStatus && a.readStatus[groupId]) return true;
       return false;
     };
-    const unreadAnnCount = relevantAnnouncements.filter(a => !isAnnRead(a)).length;
+
+    const unreadAnnCount = relevantAnnouncements.filter(a => {
+      if (a.taskId && a.taskId !== 'task_all') {
+        const tObj = tasks.find(t => t.id === a.taskId);
+        if (tObj && isTaskExpired(tObj)) return false;
+      }
+      return !isAnnRead(a);
+    }).length;
 
     const relevantTasks = tasks.filter(t => {
       if (!t.classId || t.classId === 'all') return true;
@@ -9418,6 +9425,10 @@
         ? `<span style="background:rgba(239,68,68,0.25); border:1px solid #f87171; color:#ffffff; padding:2px 8px; border-radius:10px; font-size:11px; margin-left:6px;">待确认 ${unreadIndex >= 0 ? unreadIndex + 1 : 1}/${unreadList.length}</span>`
         : '';
 
+      const allTasks = this.authManager.getTasks();
+      const annTaskObj = allTasks.find(t => t.id === selectedAnn.taskId);
+      const isAnnTaskExpired = isTaskExpired(annTaskObj);
+
       const modal = document.createElement('div');
       modal.className = 'modal-overlay modal-announcement-popup';
       modal.dataset.annId = selectedAnn.id;
@@ -9425,17 +9436,17 @@
         <div style="width:620px; max-width:94vw; background:#ffffff; border-radius:16px; box-shadow:0 25px 50px -12px rgba(15,23,42,0.25); overflow:hidden; border:1px solid #e2e8f0; animation:modalFadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);">
 
           <!-- 渐变高颜值头部 -->
-          <div style="background:linear-gradient(135deg, #4338ca, #6366f1); padding:20px 24px; display:flex; justify-content:space-between; align-items:center; color:#ffffff;">
+          <div style="background:linear-gradient(135deg, ${isAnnTaskExpired ? '#991b1b, #dc2626' : '#4338ca, #6366f1'}); padding:20px 24px; display:flex; justify-content:space-between; align-items:center; color:#ffffff;">
             <div style="display:flex; align-items:center; gap:12px;">
               <div style="width:42px; height:42px; border-radius:12px; background:rgba(255,255,255,0.2); display:flex; align-items:center; justify-content:center; font-size:22px; flex-shrink:0;">
-                🔔
+                ${isAnnTaskExpired ? '🛑' : '🔔'}
               </div>
               <div>
                 <div style="display:flex; align-items:center;">
                   <h3 style="margin:0; font-size:17.5px; font-weight:800; color:#ffffff; letter-spacing:0.3px;">课堂教学通知</h3>
                   ${queueBadge}
                 </div>
-                <div style="font-size:12px; color:#e0e7ff; margin-top:2px;">任课教师即时推送的教学指示与随附教学资源</div>
+                <div style="font-size:12px; color:#e0e7ff; margin-top:2px;">${isAnnTaskExpired ? '⚠️ 该通知关联任务已截止，仅供查阅历史教学指示' : '任课教师即时推送的教学指示与随附教学资源'}</div>
               </div>
             </div>
             <button id="btn-close-ann-popup" style="background:rgba(255,255,255,0.15); border:1px solid rgba(255,255,255,0.3); width:32px; height:32px; border-radius:8px; display:flex; align-items:center; justify-content:center; cursor:pointer; color:#ffffff; font-size:14px; transition:all 0.15s ease;">✕</button>
@@ -9480,7 +9491,11 @@
                 <span style="background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe; padding:3px 10px; border-radius:6px; font-size:11.5px; font-weight:700;">
                   🎯 受众: <b>${escapeHtml(selectedAnn.targetGroupName || '全班所有小组')}</b>
                 </span>
-                ${isSelectedRead ? `
+                ${isAnnTaskExpired ? `
+                  <span style="background:#fef2f2; color:#dc2626; border:1px solid #fecaca; padding:3px 10px; border-radius:6px; font-size:11.5px; font-weight:800;">
+                    🛑 任务已截止 · 只读查阅
+                  </span>
+                ` : (isSelectedRead ? `
                   <span style="background:#ecfdf5; color:#059669; border:1px solid #a7f3d0; padding:3px 10px; border-radius:6px; font-size:11.5px; font-weight:700;">
                     ✅ 本组已确认阅读
                   </span>
@@ -9488,7 +9503,7 @@
                   <span style="background:#fef2f2; color:#dc2626; border:1px solid #fecaca; padding:3px 10px; border-radius:6px; font-size:11.5px; font-weight:700;">
                     🔴 待确认阅读
                   </span>
-                `}
+                `)}
               </div>
 
               <!-- 正文卡片 -->
@@ -9519,10 +9534,10 @@
           <!-- 底部操作栏 -->
           <div style="padding:14px 24px; background:#f8fafc; border-top:1px solid #f1f5f9; display:flex; justify-content:space-between; align-items:center; gap:12px;">
             <button id="btn-close-ann-bottom" style="background:#ffffff; border:1px solid #cbd5e1; color:#475569; padding:10px 20px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer;">
-              ${isSelectedRead ? '关闭' : '暂不确认并关闭'}
+              关闭
             </button>
-            <button id="btn-read-confirm" style="flex:1; background:${isSelectedRead ? '#e2e8f0' : 'linear-gradient(135deg, #059669, #047857)'}; color:${isSelectedRead ? '#64748b' : '#ffffff'}; border:none; padding:11px 24px; border-radius:8px; font-size:13.5px; font-weight:700; cursor:pointer; box-shadow:${isSelectedRead ? 'none' : '0 3px 10px rgba(5,150,105,0.2)'}; display:inline-flex; align-items:center; justify-content:center; gap:6px;">
-              ${isSelectedRead ? '✅ 本条已确认已读 (点击查阅下一条)' : (unreadList.length > 1 ? `✅ 确认本条已读并看下一条 (${unreadIndex + 1}/${unreadList.length}) ➔` : '✅ 我已阅读并确认 (已同步至教师端)')}
+            <button id="btn-read-confirm" ${isAnnTaskExpired ? 'disabled' : ''} style="flex:1; background:${isAnnTaskExpired ? '#f1f5f9' : (isSelectedRead ? '#e2e8f0' : 'linear-gradient(135deg, #059669, #047857)')}; color:${isAnnTaskExpired ? '#94a3b8' : (isSelectedRead ? '#64748b' : '#ffffff')}; border:${isAnnTaskExpired ? '1px solid #e2e8f0' : 'none'}; padding:11px 24px; border-radius:8px; font-size:13.5px; font-weight:700; cursor:${isAnnTaskExpired ? 'not-allowed' : 'pointer'}; box-shadow:${isAnnTaskExpired || isSelectedRead ? 'none' : '0 3px 10px rgba(5,150,105,0.2)'}; display:inline-flex; align-items:center; justify-content:center; gap:6px;">
+              ${isAnnTaskExpired ? '🛑 任务已截止锁定 (只读模式·无需确认)' : (isSelectedRead ? '✅ 本条已确认已读 (点击查阅下一条)' : (unreadList.length > 1 ? `✅ 确认本条已读并看下一条 (${unreadIndex + 1}/${unreadList.length}) ➔` : '✅ 我已阅读并确认 (已同步至教师端)'))}
             </button>
           </div>
 
