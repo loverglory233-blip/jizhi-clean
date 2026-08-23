@@ -159,7 +159,7 @@
   function sanitizeUrl(url) {
     if (!url || typeof url !== 'string') return '#';
     const clean = url.trim();
-    if (/^(?:(?:https?|mailto|tel):|\/|\.\/|\.\.\/|#)/i.test(clean)) {
+    if (/^(?:(?:https?|mailto|tel|data):|\/|\.\/|\.\.\/|#)/i.test(clean)) {
       return clean;
     }
     return '#';
@@ -7762,7 +7762,7 @@
             const padName = `jizhi_${activeTaskId}_${userGroupId}`;
             const currUserName = (currUser && (currUser.name || currUser.username)) || '组员';
             const currUserColor = (state.members && state.members[currUserCode]?.color) || '#2563eb';
-            const padUrl = `/p/${padName}?userName=${encodeURIComponent(currUserName)}&userColor=${encodeURIComponent(currUserColor)}&showChat=false&showLineNumbers=true&showControls=true`;
+            const padUrl = `/p/${padName}?userName=${encodeURIComponent(currUserName)}&userColor=${encodeURIComponent(currUserColor)}&noColors=true&showChat=false&showLineNumbers=true&showControls=true`;
 
             return `
               <div class="word-editor-container" style="display:flex; flex-direction:column; height:100%; min-height:480px; border-radius:10px; overflow:hidden; border:1px solid #cbd5e1; box-shadow:0 4px 16px rgba(15,23,42,0.06); background:#ffffff;">
@@ -8178,7 +8178,7 @@
         const imgSrc = sanitizeUrl(msg.text.replace('[IMG_DATA]:', ''));
         formattedContent = `
           <div style="margin-top:2px;">
-            <img src="${imgSrc}" style="max-width:240px; max-height:180px; border-radius:8px; border:1px solid #cbd5e1; cursor:pointer; box-shadow:0 2px 8px rgba(0,0,0,0.1); transition:transform 0.2s;" onclick="window.open('${imgSrc}')" title="点击查看原图">
+            <img src="${imgSrc}" class="chat-attached-img" style="max-width:220px; max-height:160px; border-radius:8px; border:1px solid #cbd5e1; cursor:pointer; box-shadow:0 2px 8px rgba(0,0,0,0.1); transition:transform 0.2s; display:block;" title="点击放大查看图片">
           </div>
         `;
       } else {
@@ -8207,6 +8207,19 @@
     } else {
       stream.scrollTop = prevScrollTop;
     }
+
+    stream.querySelectorAll('.chat-attached-img').forEach(img => {
+      img.onclick = (e) => {
+        e.stopPropagation();
+        document.querySelectorAll('.img-preview-lightbox').forEach(el => el.remove());
+        const box = document.createElement('div');
+        box.className = 'img-preview-lightbox';
+        box.style.cssText = 'position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(15,23,42,0.85); display:flex; align-items:center; justify-content:center; z-index:99999; cursor:zoom-out; backdrop-filter:blur(4px);';
+        box.innerHTML = `<img src="${img.src}" style="max-width:90vw; max-height:90vh; border-radius:10px; box-shadow:0 8px 32px rgba(0,0,0,0.4); border:2px solid #ffffff;">`;
+        box.onclick = () => box.remove();
+        document.body.appendChild(box);
+      };
+    });
   }
 
   /* ==========================================================================
@@ -8820,11 +8833,9 @@
                     <span class="agent-pill">📝 审稿编辑</span>
                   </div>
                 </div>
-                <div class="chat-presence-bar" id="chat-presence-bar" style="margin-top:8px; padding:6px 10px; background:#f8fafc; border-radius:8px; border:1px solid #e2e8f0; display:flex; align-items:center; justify-content:space-between; width:100%; box-sizing:border-box;">
-                  <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
-                    <span style="font-size:11.5px; font-weight:800; color:#334155;">👥 组员在线:</span>
-                    <div id="chat-member-presence-pills" style="display:flex; gap:6px; flex-wrap:wrap;"></div>
-                  </div>
+                <div class="chat-presence-bar" id="chat-presence-bar" style="margin-top:6px; padding:4px 8px; background:#f8fafc; border-radius:6px; border:1px solid #e2e8f0; display:flex; align-items:center; gap:6px; width:100%; box-sizing:border-box; overflow-x:auto; white-space:nowrap;">
+                  <span style="font-size:11px; font-weight:800; color:#475569; flex-shrink:0;">👥 在线:</span>
+                  <div id="chat-member-presence-pills" style="display:flex; align-items:center; gap:4px; flex-shrink:0;"></div>
                 </div>
               </div>
               <div class="chat-stream" id="chat-stream"></div>
@@ -11245,6 +11256,17 @@
                     <option value="存在不同看法，部分论证需要商榷">⚖️ 存在不同看法，对部分论据推导想和同伴商榷</option>
                     <option value="衔接非常自然，很好支撑了后续章节">🔗 章节衔接自然，很好地支撑呼应了后续研究设计</option>
                   </select>
+                  <!-- 第2题专属子项：对同伴具体哪些章节提出商榷 -->
+                  <div id="meeting-peer-divergence-box" style="background:#fffbeb; padding:8px 12px; border-radius:6px; border:1px solid #fef3c7; display:none; flex-direction:column; gap:4px; margin-top:4px;">
+                    <label style="font-size:12px; color:#92400e; font-weight:700;">📌 针对第 2 题：您对同伴所写的哪些具体章节想提出商榷或补充？</label>
+                    <div style="display:flex; flex-wrap:wrap; gap:8px; margin-top:2px;">
+                      <label style="font-size:11.5px; color:#451a03; display:flex; align-items:center; gap:4px;"><input type="checkbox" name="peer-div-sec" value="一、研究背景与意义"> 【一、背景与意义】</label>
+                      <label style="font-size:11.5px; color:#451a03; display:flex; align-items:center; gap:4px;"><input type="checkbox" name="peer-div-sec" value="二、文献综述与前沿"> 【二、文献综述】</label>
+                      <label style="font-size:11.5px; color:#451a03; display:flex; align-items:center; gap:4px;"><input type="checkbox" name="peer-div-sec" value="三、研究问题与假设"> 【三、问题与假设】</label>
+                      <label style="font-size:11.5px; color:#451a03; display:flex; align-items:center; gap:4px;"><input type="checkbox" name="peer-div-sec" value="四、研究设计与方法"> 【四、设计与方法】</label>
+                      <label style="font-size:11.5px; color:#451a03; display:flex; align-items:center; gap:4px;"><input type="checkbox" name="peer-div-sec" value="五、不足与反思"> 【五、不足与反思】</label>
+                    </div>
+                  </div>
                 </div>
 
                 <div style="background:#ffffff; padding:10px 14px; border-radius:8px; border:1px solid #e2e8f0; display:flex; flex-direction:column; gap:6px;">
@@ -11254,17 +11276,15 @@
                     <option value="局部章节过渡稍显生硬，需商定衔接句">🔄 局部章节过渡稍显生硬，需商定衔接句</option>
                     <option value="各章节相对独立，需进一步统一主线">⚠️ 各章节相对独立，需进一步统一核心主线</option>
                   </select>
-                </div>
-
-                <!-- 第4题：条件展开章节勾选框（仅在选了不同看法/商榷/生硬时展开） -->
-                <div id="meeting-divergence-sections-box" style="background:#fffbeb; padding:10px 14px; border-radius:8px; border:1px solid #fef3c7; display:none; flex-direction:column; gap:6px;">
-                  <label style="font-size:12.5px; color:#92400e; font-weight:700;">4. 重点关注定位：组内哪些具体章节需要重点商讨或打通衔接？</label>
-                  <div style="display:flex; flex-wrap:wrap; gap:8px; margin-top:4px;">
-                    <label style="font-size:12px; color:#451a03; display:flex; align-items:center; gap:4px;"><input type="checkbox" name="div-sec" value="一、研究背景与意义"> 【一、研究背景与意义】</label>
-                    <label style="font-size:12px; color:#451a03; display:flex; align-items:center; gap:4px;"><input type="checkbox" name="div-sec" value="二、文献综述与前沿"> 【二、文献综述与前沿】</label>
-                    <label style="font-size:12px; color:#451a03; display:flex; align-items:center; gap:4px;"><input type="checkbox" name="div-sec" value="三、研究问题与假设"> 【三、研究问题与假设】</label>
-                    <label style="font-size:12px; color:#451a03; display:flex; align-items:center; gap:4px;"><input type="checkbox" name="div-sec" value="四、研究设计与方法"> 【四、研究设计与方法】</label>
-                    <label style="font-size:12px; color:#451a03; display:flex; align-items:center; gap:4px;"><input type="checkbox" name="div-sec" value="五、不足与反思"> 【五、不足与反思】</label>
+                  <!-- 第3题专属子项：哪些相邻章节之间需要打通衔接 -->
+                  <div id="meeting-transition-sections-box" style="background:#eff6ff; padding:8px 12px; border-radius:6px; border:1px solid #dbeafe; display:none; flex-direction:column; gap:4px; margin-top:4px;">
+                    <label style="font-size:12px; color:#1e40af; font-weight:700;">🔗 针对第 3 题：您认为哪些相邻章节之间的过渡需要重点打通与统一？</label>
+                    <div style="display:flex; flex-wrap:wrap; gap:8px; margin-top:2px;">
+                      <label style="font-size:11.5px; color:#1e3a8a; display:flex; align-items:center; gap:4px;"><input type="checkbox" name="trans-div-sec" value="背景到综述 (第一至二章)"> 【第一至二章 (背景➔综述)】</label>
+                      <label style="font-size:11.5px; color:#1e3a8a; display:flex; align-items:center; gap:4px;"><input type="checkbox" name="trans-div-sec" value="综述到假设 (第二至三章)"> 【第二至三章 (综述➔假设)】</label>
+                      <label style="font-size:11.5px; color:#1e3a8a; display:flex; align-items:center; gap:4px;"><input type="checkbox" name="trans-div-sec" value="假设到设计 (第三至四章)"> 【第三至四章 (假设➔方法)】</label>
+                      <label style="font-size:11.5px; color:#1e3a8a; display:flex; align-items:center; gap:4px;"><input type="checkbox" name="trans-div-sec" value="设计到反思 (第四至五章)"> 【第四至五章 (方法➔反思)】</label>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -11357,28 +11377,38 @@
       modal.querySelector('#btn-close-meeting').addEventListener('click', closeModal);
       modal.querySelector('#btn-cancel-meeting').addEventListener('click', closeModal);
 
-      // ── 条件动态显隐监听器（只有在选了不同看法/商榷/生硬时平滑展开第4题） ──
+      // ── 第 2 题与第 3 题独立子项条件动态展开 ──
       const peerSelect = modal.querySelector('#meeting-peer-review-select');
+      const peerDivBox = modal.querySelector('#meeting-peer-divergence-box');
       const transitionSelect = modal.querySelector('#meeting-transition-select');
-      const themeSelect = modal.querySelector('#meeting-theme-consistency-select');
-      const divSecBox = modal.querySelector('#meeting-divergence-sections-box');
+      const transDivBox = modal.querySelector('#meeting-transition-sections-box');
 
-      const checkShowSections = () => {
+      const updatePeerBox = () => {
         const pVal = peerSelect ? peerSelect.value : '';
-        const tVal = transitionSelect ? transitionSelect.value : '';
-        const mVal = themeSelect ? themeSelect.value : '';
-        const needShow = pVal.includes('不同看法') || pVal.includes('商榷') || tVal.includes('生硬') || tVal.includes('独立') || mVal.includes('不够充分');
-        if (divSecBox) {
-          divSecBox.style.display = needShow ? 'flex' : 'none';
-          if (!needShow) {
-            divSecBox.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = false);
-          }
+        const needShow = pVal.includes('不同看法') || pVal.includes('商榷');
+        if (peerDivBox) {
+          peerDivBox.style.display = needShow ? 'flex' : 'none';
+          if (!needShow) peerDivBox.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = false);
         }
       };
 
-      if (peerSelect) peerSelect.addEventListener('change', checkShowSections);
-      if (transitionSelect) transitionSelect.addEventListener('change', checkShowSections);
-      if (themeSelect) themeSelect.addEventListener('change', checkShowSections);
+      const updateTransBox = () => {
+        const tVal = transitionSelect ? transitionSelect.value : '';
+        const needShow = tVal.includes('生硬') || tVal.includes('独立');
+        if (transDivBox) {
+          transDivBox.style.display = needShow ? 'flex' : 'none';
+          if (!needShow) transDivBox.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = false);
+        }
+      };
+
+      if (peerSelect) {
+        peerSelect.addEventListener('change', updatePeerBox);
+        updatePeerBox();
+      }
+      if (transitionSelect) {
+        transitionSelect.addEventListener('change', updateTransBox);
+        updateTransBox();
+      }
 
       let logicRating = 4;
       let balanceRating = 5;
