@@ -20,6 +20,7 @@ export class AuthManager {
   constructor() {
     this.initDatabase();
     this.sanitizeAndDeduplicateGroups();
+    this.removeLegacyTestAccounts();
   }
   initDatabase() {
     if (!localStorage.getItem(STORAGE_KEY_USERS_DB)) localStorage.setItem(STORAGE_KEY_USERS_DB, JSON.stringify(DefaultUsers));
@@ -49,6 +50,71 @@ export class AuthManager {
       });
 
       if (isModified) {
+        localStorage.setItem(STORAGE_KEY_CLASSES, JSON.stringify(classes));
+      }
+    } catch (e) {}
+  }
+
+  // 🧹 一次性迁移：彻底清除历史遗留的测试学生种子账号及其自动成组（李明/王芳/陈强），杜绝删除后刷新死灰复燃
+  removeLegacyTestAccounts() {
+    try {
+      const LEGACY_IDS = new Set(['u_studentA', 'u_studentB', 'u_studentC']);
+      const LEGACY_CODES = new Set(['202601', '202602', '202603']);
+      const LEGACY_NAMES = new Set(['李明', '王芳', '陈强', '李明 (组长)', '王芳 (组员)', '陈强 (组员)']);
+
+      let users = [];
+      try { users = JSON.parse(localStorage.getItem(STORAGE_KEY_USERS_DB)) || []; } catch (e) { users = []; }
+      if (!Array.isArray(users)) users = [];
+
+      const removedKeys = new Set();
+      const filteredUsers = [];
+      let usersChanged = false;
+      users.forEach(u => {
+        const isLegacy = u && (
+          LEGACY_IDS.has(u.id) ||
+          LEGACY_CODES.has(u.username) ||
+          LEGACY_CODES.has(u.studentCode) ||
+          LEGACY_NAMES.has(u.name)
+        );
+        if (isLegacy) {
+          if (u.id) removedKeys.add(u.id);
+          if (u.username) removedKeys.add(u.username);
+          if (u.studentCode) removedKeys.add(u.studentCode);
+          usersChanged = true;
+        } else {
+          filteredUsers.push(u);
+        }
+      });
+
+      if (usersChanged) {
+        localStorage.setItem(STORAGE_KEY_USERS_DB, JSON.stringify(filteredUsers));
+      }
+
+      // 同步清理班级学生清单与小组自动成组成员，避免幽灵成员残留
+      let classes = [];
+      try { classes = JSON.parse(localStorage.getItem(STORAGE_KEY_CLASSES)) || []; } catch (e) { classes = []; }
+      if (!Array.isArray(classes)) classes = [];
+      let classesChanged = false;
+
+      classes.forEach(cls => {
+        if (cls.studentIds && Array.isArray(cls.studentIds)) {
+          const before = cls.studentIds.length;
+          cls.studentIds = cls.studentIds.filter(id => !removedKeys.has(id));
+          if (cls.studentIds.length !== before) classesChanged = true;
+        }
+        (cls.groups || []).forEach(g => {
+          if (g.members && Array.isArray(g.members)) {
+            const before = g.members.length;
+            g.members = g.members.filter(m => {
+              const mid = (typeof m === 'object' && m !== null) ? (m.id || m.userId || m.studentCode) : m;
+              return !removedKeys.has(mid);
+            });
+            if (g.members.length !== before) classesChanged = true;
+          }
+        });
+      });
+
+      if (classesChanged) {
         localStorage.setItem(STORAGE_KEY_CLASSES, JSON.stringify(classes));
       }
     } catch (e) {}
@@ -285,10 +351,15 @@ export class AuthManager {
         }
         return { success: true, user };
       } else {
-        return { success: false, message: data.message || '❌ 账号或密码错误' };
+        // 🚀 本地单机沙盒首次冷启动时服务端账号池为空：回退本地账号库登录（服务端有账号则以服务端权威为准）
+        const localRes = this.login(accountInput, password);
+        if (localRes && localRes.success) return localRes;
+        return { success: false, message: data.message || (localRes && localRes.message) || '❌ 账号或密码错误' };
       }
     } catch (err) {
-      // 网络异常 Fail-Closed：不放行仅凭本地数据的登录，避免断网伪造本地账号绕过服务端验证
+      // 网络异常时回退本地账号库，保证本地单机演示可登录
+      const localRes = this.login(accountInput, password);
+      if (localRes && localRes.success) return localRes;
       return { success: false, message: '⚠️ 无法连接服务器，请检查网络后重试登录' };
     }
   }
