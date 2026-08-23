@@ -2743,13 +2743,17 @@
       const groupMaxOrder = stageOrder[this.app.state.groupMaxStage || 'stage1'] || 1;
 
       if (remoteData.currentStage) {
-        if (remoteOrder > groupMaxOrder || remoteOrder > currentOrder) {
+        if (remoteOrder > groupMaxOrder) {
           this.app.state.groupMaxStage = remoteData.currentStage;
           this.app.isViewingPastStage = false;
           this.app.state.currentStage = remoteData.currentStage;
           needWorkspaceRender = true;
         } else {
           this.app.state.groupMaxStage = remoteData.currentStage;
+          if (!this.app.isViewingPastStage && remoteOrder > currentOrder && !this.app.state.isFinalSubmitted) {
+            this.app.state.currentStage = remoteData.currentStage;
+            needWorkspaceRender = true;
+          }
         }
       }
 
@@ -10354,10 +10358,20 @@
         return;
       }
 
+      // 🛡️ 正文草稿锁存：切换前将富文本当前内容完整持久化存入内存与快照，绝不丢字
+      if (this.state.currentStage === 'stage2' && window._jizhi_quill && window._jizhi_quill.root) {
+        const liveHtml = window._jizhi_quill.root.innerHTML.replace(/<span class="remote-cursor-widget"[\s\S]*?<\/span>/gi, '');
+        if (liveHtml && liveHtml.trim() !== '<p><br></p>') {
+          if (!this.state.stage2) this.state.stage2 = {};
+          this.state.stage2.unifiedContent = liveHtml;
+        }
+      }
+
       this.isViewingPastStage = (targetOrder < currentGroupOrder);
       this.state.currentStage = newStage;
       if (isMilestoneAdvance && targetOrder > currentGroupOrder) {
         this.state.groupMaxStage = newStage;
+        this.isViewingPastStage = false;
       }
       if (newStage === 'stage2' && (!this.state.stage2 || !this.state.stage2.stageStartTime)) {
         if (!this.state.stage2) this.state.stage2 = {};

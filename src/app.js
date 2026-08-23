@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260823_v56";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired } from "./utils.js?v=20260823_v56";
-import { callCozeAgentAPI } from "./agents.js?v=20260823_v56";
-import { AuthManager } from "./auth.js?v=20260823_v56";
-import { CloudSyncEngine } from "./sync.js?v=20260823_v56";
-import { renderLoginView } from "./login.js?v=20260823_v56";
-import { renderTeacherPortal } from "./teacher.js?v=20260823_v56";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260823_v56";
+} from "./constants.js?v=20260823_v57";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired } from "./utils.js?v=20260823_v57";
+import { callCozeAgentAPI } from "./agents.js?v=20260823_v57";
+import { AuthManager } from "./auth.js?v=20260823_v57";
+import { CloudSyncEngine } from "./sync.js?v=20260823_v57";
+import { renderLoginView } from "./login.js?v=20260823_v57";
+import { renderTeacherPortal } from "./teacher.js?v=20260823_v57";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260823_v57";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260823_v56";
+} from "./editor.js?v=20260823_v57";
 
 // Make renderChat available on window for sync callbacks
 if (typeof window !== "undefined") {
@@ -2280,10 +2280,20 @@ ${propText}
       return;
     }
 
+    // 🛡️ 正文草稿锁存：切换前将富文本当前内容完整持久化存入内存与快照，绝不丢字
+    if (this.state.currentStage === 'stage2' && window._jizhi_quill && window._jizhi_quill.root) {
+      const liveHtml = window._jizhi_quill.root.innerHTML.replace(/<span class="remote-cursor-widget"[\s\S]*?<\/span>/gi, '');
+      if (liveHtml && liveHtml.trim() !== '<p><br></p>') {
+        if (!this.state.stage2) this.state.stage2 = {};
+        this.state.stage2.unifiedContent = liveHtml;
+      }
+    }
+
     this.isViewingPastStage = (targetOrder < currentGroupOrder);
     this.state.currentStage = newStage;
     if (isMilestoneAdvance && targetOrder > currentGroupOrder) {
       this.state.groupMaxStage = newStage;
+      this.isViewingPastStage = false;
     }
     if (newStage === 'stage2' && (!this.state.stage2 || !this.state.stage2.stageStartTime)) {
       if (!this.state.stage2) this.state.stage2 = {};
