@@ -157,10 +157,19 @@ function initDatabaseTables() {
 function ensureTeacherSeedAccount($pdo) {
     if (!$pdo) return false;
     try {
-        $stmt = $pdo->prepare("INSERT INTO `users` (`id`, `username`, `name`, `password`, `role`, `student_code`, `avatar`)
-            VALUES ('u_teacher1', '1001', '老师', '123', 'teacher', '1001', '👩‍🏫')
-            ON DUPLICATE KEY UPDATE `username` = '1001', `student_code` = '1001', `name` = '老师', `role` = 'teacher'");
-        return $stmt->execute();
+        // 清理可能存在的历史重复记录，保持全库唯一
+        $pdo->exec("DELETE FROM `users` WHERE `id` != '1001' AND (`username` = '1001' OR `student_code` = '1001')");
+        
+        $stmtCheck = $pdo->prepare("SELECT `id`, `password` FROM `users` WHERE `id` = '1001' LIMIT 1");
+        $stmtCheck->execute();
+        $row = $stmtCheck->fetch(PDO::FETCH_ASSOC);
+        if (!$row) {
+            $hashed = password_hash('123', PASSWORD_DEFAULT);
+            $stmt = $pdo->prepare("INSERT INTO `users` (`id`, `username`, `name`, `password`, `role`, `student_code`, `avatar`)
+                VALUES ('1001', '1001', '老师', :p, 'teacher', '1001', '👩‍🏫')");
+            return $stmt->execute([':p' => $hashed]);
+        }
+        return true;
     } catch (Exception $e) {
         error_log('ensureTeacherSeedAccount: ' . $e->getMessage());
         return false;

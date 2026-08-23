@@ -82,11 +82,12 @@ if (!function_exists('ensureTeacherSeedAccount')) {
     function ensureTeacherSeedAccount($pdo) {
         if (!$pdo) return;
         try {
-            $stmt = $pdo->prepare("SELECT id FROM users WHERE username = '1001' OR student_code = '1001' LIMIT 1");
+            $pdo->exec("DELETE FROM users WHERE id != '1001' AND (username = '1001' OR student_code = '1001')");
+            $stmt = $pdo->prepare("SELECT id FROM users WHERE id = '1001' LIMIT 1");
             $stmt->execute();
             if (!$stmt->fetch()) {
                 $hashed = password_hash('123', PASSWORD_DEFAULT);
-                $stmtIns = $pdo->prepare("INSERT INTO users (id, username, student_code, name, password, role) VALUES ('u_teacher_1001', '1001', '1001', '指导教师', :p, 'teacher')");
+                $stmtIns = $pdo->prepare("INSERT INTO users (id, username, student_code, name, password, role) VALUES ('1001', '1001', '1001', '老师', :p, 'teacher')");
                 $stmtIns->execute([':p' => $hashed]);
             }
         } catch (Exception $e) {}
@@ -597,19 +598,18 @@ if ($action === 'change_password' && $_SERVER['REQUEST_METHOD'] === 'POST') {
             $currentDbPwd = trim($user['password'] ?? '123');
             $cleanOld = trim($oldPwd);
             
-            // 🛡️ 全算法无损自适应比对 (Bcrypt / 明文 / MD5 / 默认123 / 或教师1001本人直接放行)
+            // 🛡️ 标准严谨密码比对：原密码必须与当前数据库中记录相匹配 (支持 Bcrypt 哈希 / 明文 / 初始 123)
             $oldMatch = false;
-            if ($code === '1001') {
-                // 教师本人修改密码 100% 放行支持
+            if (password_verify($cleanOld, $currentDbPwd)) {
                 $oldMatch = true;
-            } else if (empty($cleanOld) || $cleanOld === '123' || $cleanOld === $currentDbPwd || password_verify($cleanOld, $currentDbPwd) || md5($cleanOld) === $currentDbPwd) {
+            } else if ($cleanOld === $currentDbPwd) {
                 $oldMatch = true;
-            } else if (password_verify('123', $currentDbPwd) && $cleanOld === '123') {
+            } else if ((empty($currentDbPwd) || $currentDbPwd === '123') && $cleanOld === '123') {
                 $oldMatch = true;
             }
 
             if (!$oldMatch) {
-                echo json_encode(['success' => false, 'message' => '❌ 原密码不正确，默认初始密码为 123']);
+                echo json_encode(['success' => false, 'message' => '❌ 原密码不正确，请输入当前账号实际生效的旧密码']);
                 exit;
             }
 
