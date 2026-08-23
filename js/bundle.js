@@ -7784,8 +7784,8 @@
                 membersList.forEach(m => { rawTotal += (contribs[m.id] || 0) + (contribs[m.studentCode] || 0); });
                 return membersList.map((m) => {
                   const rawVal = (contribs[m.id] || 0) + (contribs[m.studentCode] || 0);
-                  const pct = (rawTotal === 0 || rawVal === 0) ? (membersList.length > 0 ? Math.round(100 / membersList.length) : 0) : Math.round((rawVal / rawTotal) * 100);
-                  return `<span style="color:${m.color || '#2563eb'}; font-weight:700;">● ${m.name}: ${pct}%</span>`;
+                  const pct = rawTotal > 0 ? Math.round((rawVal / rawTotal) * 100) : 0;
+                  return `<span style="color:${rawVal > 0 ? (m.color || '#2563eb') : '#94a3b8'}; font-weight:700;">● ${m.name}: ${pct}%</span>`;
                 }).join('');
               })()}
             </div>
@@ -7795,13 +7795,13 @@
               const contribs = s2.memberContributions || {};
               let rawTotal = 0;
               membersList.forEach(m => { rawTotal += (contribs[m.id] || 0) + (contribs[m.studentCode] || 0); });
-              if (rawTotal === 0 && plainTextLen === 0) {
-                return `<div style="width:100%; height:10px; background:#f1f5f9; border-radius:5px; display:flex; align-items:center; justify-content:center; font-size:10.5px; color:#94a3b8;">暂无协作投入 (开始编辑正文或研讨后将自动呈现贡献占比)</div>`;
+              if (rawTotal === 0) {
+                return `<div style="width:100%; height:10px; background:#f8fafc; border-radius:5px; display:flex; align-items:center; justify-content:center; font-size:10px; color:#94a3b8; font-weight:600;">⏳ 暂无协作投入 (组员在 Etherpad 中撰写、修改正文或研讨后将平滑累计真实贡献)</div>`;
               }
               return membersList.map((m) => {
                 const rawVal = (contribs[m.id] || 0) + (contribs[m.studentCode] || 0);
-                const pct = (rawTotal === 0) ? Math.round(100 / (membersList.length || 1)) : Math.round((rawVal / rawTotal) * 100);
-                return `<div class="contrib-segment" style="width:${pct}%; background:${m.color || '#2563eb'}; transition:width 0.3s ease;" title="${m.name}: ${pct}% (基于写作与修改累计工作量)"></div>`;
+                const pct = rawTotal > 0 ? Math.round((rawVal / rawTotal) * 100) : 0;
+                return `<div class="contrib-segment" style="width:${pct}%; background:${m.color || '#2563eb'}; transition:width 0.8s ease-in-out;" title="${m.name}: ${pct}% (基于正文撰写与修改累计工作量)"></div>`;
               }).join('');
             })()}
           </div>
