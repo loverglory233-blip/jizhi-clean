@@ -34,6 +34,8 @@ CORE_PLUGINS=(
     "ep_subscript_and_superscript:上下标 (公式平方/参考文献引用[1])"
     "ep_line_spacing:学术规范行间距 (1.0/1.5/2.0倍)"
     "ep_clear_formatting:一键清除格式橡皮擦"
+    "ep_tables4:富文本学术表格 (插入表格/增删行列/合并单元格)"
+    "ep_image_upload:图片插入与剪贴板直接粘贴 (Ctrl+V上传图表)"
 )
 
 for item in "${CORE_PLUGINS[@]}"; do
