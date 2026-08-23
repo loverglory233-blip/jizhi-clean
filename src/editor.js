@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles } from "./constants.js?v=20260823_v100";
-import { callCozeAgentAPI } from "./agents.js?v=20260823_v100";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired } from "./utils.js?v=20260823_v100";
+import { AgentProfiles } from "./constants.js?v=20260823_v101";
+import { callCozeAgentAPI } from "./agents.js?v=20260823_v101";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired } from "./utils.js?v=20260823_v101";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -1841,6 +1841,23 @@ function renderStage3Canvas(canvas, state, handlers) {
   if (tabEditor) tabEditor.addEventListener('click', () => handlers.onSwitchStage3Tab('editor'));
 
   if (!isFinalSubmitted) {
+    canvas.querySelectorAll('.feedback-direct-input').forEach(textarea => {
+      let fbTimer = null;
+      const itemId = textarea.dataset.id;
+      const autoSave = () => {
+        const text = textarea.value.trim();
+        if (itemId && text && handlers.onSaveDirectFeedback) {
+          handlers.onSaveDirectFeedback(itemId, text);
+        }
+      };
+      textarea.addEventListener('input', () => {
+        if (fbTimer) clearTimeout(fbTimer);
+        fbTimer = setTimeout(autoSave, 300);
+      });
+      textarea.addEventListener('change', autoSave);
+      textarea.addEventListener('blur', autoSave);
+    });
+
     canvas.querySelectorAll('.btn-save-feedback-direct').forEach(btn => {
       btn.addEventListener('click', () => {
         const itemId = btn.dataset.id;
