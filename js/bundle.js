@@ -8741,7 +8741,16 @@
               const targetGroupId = latestGroupObj.id || (currentUser && currentUser.groupId ? currentUser.groupId : 'group_1');
               this.loadGroupState(targetGroupId);
 
-              // 🟢 进入任务工作台第 0 毫秒：立即广播在线心跳
+              // 🟢 进入任务工作台第 0 毫秒：立即拉取云端权威阶段与历史数据，实现 0 闪烁直出真实状态
+              if (this.cloudSyncEngine) {
+                this.cloudSyncEngine.groupId = targetGroupId;
+                this.cloudSyncEngine.taskId = taskId || 'task_default';
+                this.cloudSyncEngine.updateScopeKeys();
+                try {
+                  await this.cloudSyncEngine.pullFromServer();
+                } catch (e) {}
+              }
+
               if (!this.state.presence) this.state.presence = {};
               const myKeys = [currentUser?.id, currentUser?.studentCode, currentUser?.username, currentUser?.name].filter(Boolean);
               const now = Date.now();
@@ -8750,11 +8759,6 @@
               });
 
               this.renderMain();
-              if (this.cloudSyncEngine) {
-                this.cloudSyncEngine.updateScopeKeys();
-                this.cloudSyncEngine.pushSnapshot();
-                this.cloudSyncEngine.pullFromServer();
-              }
               this.checkUnreadAnnouncements();
             },
             () => this.handleLogout(),
