@@ -2589,9 +2589,13 @@
               ? remoteS1.contract.taskAssignments[mKey]
               : (inp.dataset.mid && remoteS1.contract.taskAssignments[inp.dataset.mid] !== undefined ? remoteS1.contract.taskAssignments[inp.dataset.mid] : undefined);
 
+            // 🛡️ 防回退保护：当本地有输入内容且远端为空时，绝不抹空回退；仅在非活动且远端有实质变更时更新
             if (remoteVal !== undefined && document.activeElement !== inp) {
-              if (inp.value !== remoteVal) {
-                inp.value = remoteVal;
+              const currentVal = inp.value;
+              if (remoteVal !== '' || currentVal === '') {
+                if (currentVal !== remoteVal) {
+                  inp.value = remoteVal;
+                }
               }
             }
           });
@@ -2605,8 +2609,10 @@
             if (k && remoteS1.contract.timeAllocations[k] !== undefined) {
               if (document.activeElement !== inp) {
                 const targetVal = String(remoteS1.contract.timeAllocations[k]);
-                if (inp.value !== targetVal) {
-                  inp.value = targetVal;
+                if (targetVal !== '0' || inp.value === '' || inp.value === '0') {
+                  if (inp.value !== targetVal) {
+                    inp.value = targetVal;
+                  }
                 }
               }
             }
@@ -2616,8 +2622,11 @@
           this.app.state.stage1.mergedTitle = remoteS1.mergedTitle;
           const topicInp = document.getElementById('contract-topic-input');
           if (topicInp && document.activeElement !== topicInp) {
-            if (topicInp.value !== (remoteS1.mergedTitle || '')) {
-              topicInp.value = remoteS1.mergedTitle || '';
+            const remoteTitle = remoteS1.mergedTitle || '';
+            if (remoteTitle !== '' || topicInp.value === '') {
+              if (topicInp.value !== remoteTitle) {
+                topicInp.value = remoteTitle;
+              }
             }
           }
         }
