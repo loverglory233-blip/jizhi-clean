@@ -32,9 +32,10 @@ git checkout v2.7.3 || git checkout $(git tag -l "v2.*" | sort -V | tail -n 1)
 
 echo "📄 当前 Etherpad 源码版本: $(git describe --tags --always)"
 
-# 4. 激活/安装 Node 20 官方推荐的 pnpm 包管理器并安装核心依赖
-echo "4️⃣ 正在通过 Node 20 安装现代 pnpm 包管理器并安装核心依赖..."
-npm install -g pnpm --registry=https://registry.npmmirror.com --no-audit --no-fund 2>/dev/null || corepack enable
+# 4. 安装 Node 20 黄金官方版本 pnpm@9 并安装核心依赖
+echo "4️⃣ 正在安装适合 Node 20 的官方标准包管理器 pnpm@9..."
+rm -rf /root/.local/share/pnpm 2>/dev/null || true
+npm install -g pnpm@9 --registry=https://registry.npmmirror.com --no-audit --no-fund
 echo "🟢 pnpm 版本: $(pnpm -v)"
 
 pnpm install --registry=https://registry.npmmirror.com
