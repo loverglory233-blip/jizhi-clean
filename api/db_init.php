@@ -164,10 +164,9 @@ function ensureTeacherSeedAccount($pdo) {
         $stmtCheck->execute();
         $row = $stmtCheck->fetch(PDO::FETCH_ASSOC);
         if (!$row) {
-            $hashed = password_hash('123', PASSWORD_DEFAULT);
             $stmt = $pdo->prepare("INSERT INTO `users` (`id`, `username`, `name`, `password`, `role`, `student_code`, `avatar`)
-                VALUES ('1001', '1001', '老师', :p, 'teacher', '1001', '👩‍🏫')");
-            return $stmt->execute([':p' => $hashed]);
+                VALUES ('1001', '1001', '老师', '123', 'teacher', '1001', '👩‍🏫')");
+            return $stmt->execute();
         }
         return true;
     } catch (Exception $e) {
