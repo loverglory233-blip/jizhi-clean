@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles } from "./constants.js?v=20260823_v57";
-import { callCozeAgentAPI } from "./agents.js?v=20260823_v57";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired } from "./utils.js?v=20260823_v57";
+import { AgentProfiles } from "./constants.js?v=20260823_v58";
+import { callCozeAgentAPI } from "./agents.js?v=20260823_v58";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired } from "./utils.js?v=20260823_v58";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -400,18 +400,19 @@ export function attachWordEditorEvents(container, editorId, isReadonly, onChange
           color: userColors[colorIdx]
         });
 
-        // 🛡️ 初次同步冷启动守卫：如果本地已有数据库历史正文，且 Yjs 服务端尚未建立连接/无数据时，暂不向数据库推送空白快照
-        const initialLocalHtml = (editor.innerHTML && editor.innerHTML.trim() !== '<p><br></p>') ? editor.innerHTML : '';
+        // 🛡️ 初次纯净守卫：严禁带有 remote-cursor-widget 或空白段落的脏数据被当成初始正文
+        let cleanInitHtml = (editor.innerHTML || '').replace(/<span class="remote-cursor-widget"[\s\S]*?<\/span>/gi, '').trim();
+        if (cleanInitHtml === '<p><br></p>' || cleanInitHtml === '<p></p>') cleanInitHtml = '';
         let isInitialSynced = false;
 
         provider.on('synced', (isSynced) => {
           if (isSynced) {
             isInitialSynced = true;
-            // 如果服务端完全无内容但本地有旧正文，由首位连入者将旧正文安全推入 Yjs
-            if (ytext.length === 0 && initialLocalHtml && initialLocalHtml.length > 20) {
+            // 仅当服务端无内容、且本地有真实小组正文（非空）时，才同步初始正文
+            if (ytext.length === 0 && cleanInitHtml && cleanInitHtml.length > 5) {
               try {
-                quillInstance.clipboard.dangerouslyPasteHTML(0, initialLocalHtml);
-                console.log('🏛️ [Yjs Sync Guard] 已将本地历史正文安全迁移并同步至 Yjs 协同集群！');
+                quillInstance.clipboard.dangerouslyPasteHTML(0, cleanInitHtml);
+                console.log('🏛️ [Yjs Sync Guard] 已将小组当前正文安全同步至 Yjs 协同集群！');
               } catch (e) {}
             }
           }
