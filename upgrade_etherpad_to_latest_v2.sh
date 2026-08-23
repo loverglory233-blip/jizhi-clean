@@ -5,7 +5,10 @@ echo "🚀 ========================================================"
 echo "⚡ 全量升级 Etherpad-lite 至官方现代版本并安装原生插件体系"
 echo "🚀 ========================================================"
 
-export PATH="/www/server/nodejs/v18.20.7/bin:$PATH"
+export PATH="/usr/bin:/usr/local/bin:$PATH"
+
+echo "🟢 当前系统 Node 版本: $(node -v) | npm 版本: $(npm -v)"
+
 EP_DIR="/www/wwwroot/etherpad-lite"
 
 cd "$EP_DIR"
@@ -21,35 +24,21 @@ echo "2️⃣ 正在备份当前设置与 APIKEY..."
 cp settings.json settings.json.bak 2>/dev/null || true
 cp APIKEY.txt APIKEY.txt.bak 2>/dev/null || true
 
-# 3. 还原代码并拉取官方最新 Tags
-echo "3️⃣ 正在从官方仓库拉取最新版本分支..."
+# 3. 切换到官方最新 2.x 稳定版本
+echo "3️⃣ 正在切换到 Etherpad 官方最新 2.x 稳定版本 (v2.7.3)..."
 git reset --hard HEAD
 git clean -fd
-git fetch --tags origin || true
+git checkout v2.7.3 || git checkout $(git tag -l "v2.*" | sort -V | tail -n 1)
 
-# 尝试切换到最新的 2.x 或 master/develop 最新稳定分支
-LATEST_TAG=$(git tag -l "v2.*" | sort -V | tail -n 1)
-if [ -n "$LATEST_TAG" ]; then
-    echo "🎯 发现官方最新 2.x 稳定版本: $LATEST_TAG，正在切换..."
-    git checkout "$LATEST_TAG"
-else
-    echo "🎯 正在切换到官方最新主分支 develop..."
-    git checkout develop 2>/dev/null || git checkout master 2>/dev/null || git checkout main 2>/dev/null || true
-    git pull origin $(git branch --show-current) || true
-fi
+echo "📄 当前 Etherpad 源码版本: $(git describe --tags --always)"
 
-echo "📄 当前 Etherpad 版本源码 commit: $(git log -1 --oneline)"
-
-# 4. 安装适合 Node 18 的现代包管理器 pnpm@8 和 npm@9
-echo "4️⃣ 正在安装适合 Node 18 的包管理器 pnpm@8 与 npm@9 并安装核心依赖..."
-npm install -g pnpm@8.15.8 npm@9.9.4 --registry=https://registry.npmmirror.com --no-audit --no-fund 2>/dev/null || true
-export PATH="/www/server/nodejs/v18.20.7/bin:$PATH"
-
-pnpm install --registry=https://registry.npmmirror.com || npm install --no-audit --no-fund --registry=https://registry.npmmirror.com
+# 4. 运行官方依赖安装 (Node 20 原生支持)
+echo "4️⃣ 正在通过 Node 20 原生安装现代版 Etherpad 核心依赖..."
+npm install --no-audit --no-fund --registry=https://registry.npmmirror.com
 
 # 5. 安装官方认证的 12 个协同与富文本插件
 echo "5️⃣ 正在正规安装 12 个官方认证插件..."
-pnpm add \
+npm install --save --no-audit --no-fund --registry=https://registry.npmmirror.com \
     ep_cursortrace \
     ep_headings2 \
     ep_font_size \
@@ -61,7 +50,7 @@ pnpm add \
     ep_author_hover \
     ep_subscript_and_superscript \
     ep_line_spacing \
-    ep_clear_formatting --registry=https://registry.npmmirror.com || npm install --save --no-audit --no-fund --registry=https://registry.npmmirror.com ep_cursortrace ep_headings2 ep_font_size ep_font_family ep_font_color ep_align ep_tables4 ep_image_upload ep_author_hover ep_subscript_and_superscript ep_line_spacing ep_clear_formatting
+    ep_clear_formatting
 
 # 6. 恢复并写入现代标准 settings.json
 echo "6️⃣ 正在生成现代标准 settings.json..."
