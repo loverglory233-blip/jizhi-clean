@@ -6459,31 +6459,54 @@
 
           console.log(`%c[Yjs Room Info] 🏠 房间: ${roomName} | 路由: ${wsUrl} | 任务: ${taskId} | 小组: ${groupId}`, 'color:#6366f1; font-weight:bold;');
 
-          const ydoc = new YClass.Doc();
+          let ydoc = window._jizhi_yjs_doc;
+          let provider = window._jizhi_yjs_provider;
+
+          // 若房间发生变更，先安全销毁旧房间连接
+          if (provider && provider.roomname !== roomName) {
+            try { provider.destroy(); } catch (e) {}
+            provider = null;
+            ydoc = null;
+          }
+
+          if (!ydoc) {
+            ydoc = new YClass.Doc();
+            window._jizhi_yjs_doc = ydoc;
+          }
           const ytext = ydoc.getText('quill_content');
-          const provider = new WsProviderClass(wsUrl, roomName, ydoc);
+
+          if (!provider) {
+            provider = new WsProviderClass(wsUrl, roomName, ydoc);
+            window._jizhi_yjs_provider = provider;
+          }
           window._yjsProvider = provider;
           window._yjsDoc = ydoc;
 
           const statusBadge = container.querySelector(`#${editorId}-yjs-status-badge`);
+          let lastBadgeText = '';
           const updatePeerStatus = (statusStr) => {
             if (!statusBadge) return;
             const peerCount = Array.from(provider.awareness.getStates().keys()).length;
+            let targetHtml = '';
             if (statusStr === 'connected' || provider.wsconnected) {
-              statusBadge.innerHTML = `🟢 毫秒协同 [${roomName}] (${peerCount}人同屏)`;
+              targetHtml = `🟢 毫秒协同 [${roomName}] (${peerCount}人同屏)`;
               statusBadge.style.color = '#059669';
               statusBadge.style.background = '#ecfdf5';
               statusBadge.style.borderColor = '#a7f3d0';
             } else if (statusStr === 'connecting') {
-              statusBadge.innerHTML = `🟡 连接协同房间 [${roomName}]...`;
+              targetHtml = `🟡 连接协同房间 [${roomName}]...`;
               statusBadge.style.color = '#d97706';
               statusBadge.style.background = '#fffbeb';
               statusBadge.style.borderColor = '#fde68a';
             } else {
-              statusBadge.innerHTML = `🔴 协同离线 (${wsUrl})`;
+              targetHtml = `🔴 协同离线 (${wsUrl})`;
               statusBadge.style.color = '#dc2626';
               statusBadge.style.background = '#fef2f2';
               statusBadge.style.borderColor = '#fca5a5';
+            }
+            if (lastBadgeText !== targetHtml) {
+              lastBadgeText = targetHtml;
+              statusBadge.innerHTML = targetHtml;
             }
           };
 
@@ -7043,7 +7066,7 @@
 
     const allUsers = (window.app && window.app.authManager) ? window.app.authManager.getUsers() : [];
 
-    pillsContainer.innerHTML = membersList.map(m => {
+    const newHtml = membersList.map(m => {
       // 全方位检索组员心跳数据
       const p = presence[m.studentCode] || presence[m.id] || presence[m.student_code] || presence[m.realStudentCode] || (m.name && presence[m.name]) || (m.username && presence[m.username]);
       const isSelf = m.studentCode === currentUserCode || m.id === currentUserCode || (currUserObj && (m.id === currUserObj.id || m.studentCode === currUserObj.studentCode || m.name === currUserObj.name || m.username === currUserObj.username));
@@ -7064,6 +7087,10 @@
         </span>
       `;
     }).join('');
+
+    if (pillsContainer.innerHTML !== newHtml) {
+      pillsContainer.innerHTML = newHtml;
+    }
   }
 
   function renderRemoteCursors(editorId, state) {
