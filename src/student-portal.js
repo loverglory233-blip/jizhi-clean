@@ -7,8 +7,8 @@ import {
   STORAGE_KEY_TASKS,
   STORAGE_KEY_ANNOUNCEMENTS,
   STORAGE_KEY_CLASSES
-} from "./constants.js?v=20260823_v28";
-import { escapeHtml, isTaskExpired } from "./utils.js?v=20260823_v28";
+} from "./constants.js?v=20260823_v29";
+import { escapeHtml, isTaskExpired } from "./utils.js?v=20260823_v29";
 
 /* ==========================================================================
    7.5 STUDENT TASK PORTAL / DASHBOARD (我的写作任务大厅)
@@ -115,7 +115,14 @@ export function renderStudentTaskPortal(container, authManager, state, onSelectT
     if (groupId && a.readStatus && a.readStatus[groupId]) return true;
     return false;
   };
-  const unreadAnnCount = relevantAnnouncements.filter(a => !isAnnRead(a)).length;
+
+  const unreadAnnCount = relevantAnnouncements.filter(a => {
+    if (a.taskId && a.taskId !== 'task_all') {
+      const tObj = tasks.find(t => t.id === a.taskId);
+      if (tObj && isTaskExpired(tObj)) return false;
+    }
+    return !isAnnRead(a);
+  }).length;
 
   const relevantTasks = tasks.filter(t => {
     if (!t.classId || t.classId === 'all') return true;
