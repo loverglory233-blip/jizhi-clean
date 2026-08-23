@@ -18,7 +18,7 @@ sleep 1
 # 2. 彻底删除引发 EINTEGRITY 冲突的旧 lockfile
 rm -f package-lock.json src/package-lock.json 2>/dev/null || true
 
-# 3. 禁用 installDeps.sh 的联网检查 (依赖已全部就绪，无需每次启动重复跑 npm)
+# 3. 禁用 installDeps.sh 的联网检查
 cat << 'EOS' > bin/installDeps.sh
 #!/bin/sh
 exit 0
@@ -43,15 +43,69 @@ delete settings.automaticVersionHost;
 delete settings.toolbar;
 
 fs.writeFileSync("settings.json", JSON.stringify(settings, null, 2), "utf8");
-console.log("✅ settings.json 已更新为最稳官方标准格式！");
+console.log("✅ settings.json 已更新！");
 '
 
-# 5. 秒级直接启动 Node 服务
+# 5. 重新生成并校准 var/plugins.json
+node -e '
+const fs = require("fs");
+const path = require("path");
+
+if (!fs.existsSync("var")) fs.mkdirSync("var", { recursive: true });
+
+const nm = "node_modules";
+const pluginsData = { plugins: {}, parts: [], hooks: {}, loaded: true };
+
+if (fs.existsSync(nm)) {
+  const dirs = fs.readdirSync(nm);
+  dirs.forEach(d => {
+    if (d.startsWith("ep_")) {
+      const pDir = path.join(nm, d);
+      let pkg = { name: d, version: "1.0.0" };
+      try { pkg = JSON.parse(fs.readFileSync(path.join(pDir, "package.json"), "utf8")); } catch(e) {}
+      
+      pluginsData.plugins[d] = {
+        package: pkg,
+        realPath: path.resolve(pDir)
+      };
+      
+      const epPath = path.join(pDir, "ep.json");
+      if (fs.existsSync(epPath)) {
+        try {
+          const ep = JSON.parse(fs.readFileSync(epPath, "utf8"));
+          if (Array.isArray(ep.parts)) {
+            ep.parts.forEach(part => {
+              part.plugin = d;
+              part.fullPath = path.resolve(pDir);
+              pluginsData.parts.push(part);
+              if (part.hooks) {
+                for (const [hk, fn] of Object.entries(part.hooks)) {
+                  if (!pluginsData.hooks[hk]) pluginsData.hooks[hk] = [];
+                  pluginsData.hooks[hk].push({
+                    part: part.name || d,
+                    plugin: d,
+                    location: fn
+                  });
+                }
+              }
+            });
+          }
+        } catch(e) {}
+      }
+    }
+  });
+}
+
+fs.writeFileSync("var/plugins.json", JSON.stringify(pluginsData, null, 2), "utf8");
+console.log("✅ var/plugins.json 已更新 (" + Object.keys(pluginsData.plugins).length + " 个核心插件)！");
+'
+
+# 6. 秒级直接启动 Node 服务
 echo "🚀 正在启动 Etherpad 服务..."
 export NODE_ENV=production
 nohup node src/node/server.js > /var/log/etherpad.log 2>&1 &
 
-# 6. 等待端口就绪 (通常仅需 3 秒)
+# 7. 等待端口就绪
 echo "⏳ 等待 9001 端口监听..."
 SUCCESS=0
 for i in {1..15}; do
@@ -74,6 +128,6 @@ else
     tail -n 25 /var/log/etherpad.log
 fi
 
-# 7. 重新载入 Nginx 配置
+# 8. 重新载入 Nginx 配置
 cd /www/wwwroot/47.99.110.230
 ./fix_nginx_clean_final.sh

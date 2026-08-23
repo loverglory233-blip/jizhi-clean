@@ -8890,16 +8890,16 @@
           <div class="main-content">
             <main class="canvas-panel" id="canvas-panel"></main>
             <aside class="chat-panel">
-              <div class="chat-header">
-                <div style="display:flex; justify-content:space-between; align-items:center; width:100%;">
-                  <div class="chat-title"><span>💬 协同对话研讨</span></div>
-                  <div class="active-agent-pills">
-                    <span class="agent-pill">🎪 拍卖师</span>
-                    <span class="agent-pill">🤝 责任编辑</span>
-                    <span class="agent-pill">📝 审稿编辑</span>
+              <div class="chat-header" style="display:flex; flex-direction:column; gap:6px; padding:10px 12px; border-bottom:1px solid #e2e8f0; background:#ffffff; box-sizing:border-box; width:100%; flex-shrink:0;">
+                <div style="display:flex; justify-content:space-between; align-items:center; width:100%; flex-wrap:wrap; gap:6px;">
+                  <div class="chat-title" style="font-size:14px; font-weight:800; color:#0f172a; display:flex; align-items:center; gap:6px;"><span>💬 协同对话研讨</span></div>
+                  <div class="active-agent-pills" style="display:flex; gap:6px; align-items:center;">
+                    <span class="agent-pill" style="font-size:11px; padding:2px 8px; border-radius:12px; font-weight:700; white-space:nowrap;">🎪 拍卖师</span>
+                    <span class="agent-pill" style="font-size:11px; padding:2px 8px; border-radius:12px; font-weight:700; white-space:nowrap;">🤝 责任编辑</span>
+                    <span class="agent-pill" style="font-size:11px; padding:2px 8px; border-radius:12px; font-weight:700; white-space:nowrap;">📝 审稿编辑</span>
                   </div>
                 </div>
-                <div class="chat-presence-bar" id="chat-presence-bar" style="margin-top:6px; padding:4px 8px; background:#f8fafc; border-radius:6px; border:1px solid #e2e8f0; display:flex; align-items:center; gap:6px; width:100%; box-sizing:border-box; overflow-x:auto; white-space:nowrap;">
+                <div class="chat-presence-bar" id="chat-presence-bar" style="padding:4px 8px; background:#f8fafc; border-radius:6px; border:1px solid #e2e8f0; display:flex; align-items:center; gap:6px; width:100%; box-sizing:border-box; overflow-x:auto; white-space:nowrap;">
                   <span style="font-size:11px; font-weight:800; color:#475569; flex-shrink:0;">👥 在线:</span>
                   <div id="chat-member-presence-pills" style="display:flex; align-items:center; gap:4px; flex-shrink:0;"></div>
                 </div>
@@ -10784,14 +10784,13 @@
           // 3. 提炼各模块时间规划
           s1.contract.timeAllocations = { background: 25, literature: 30, questions: 25, method: 40, reflection: 20, references: 10 };
 
-          // 4. 局部填入输入框，绝不暴力销毁 DOM
+          // 4. 填入输入框并立即同步云端与重新渲染
           const topicInp = document.getElementById('contract-topic-input');
           if (topicInp) topicInp.value = s1.mergedTitle;
 
           document.querySelectorAll('.task-assignment-input').forEach(inp => {
-            const mId = inp.dataset.mid;
-            const code = inp.dataset.code;
-            const val = s1.contract.taskAssignments[mId] || s1.contract.taskAssignments[code] || '';
+            const mId = inp.dataset.mkey || inp.dataset.mid || inp.dataset.code;
+            const val = s1.contract.taskAssignments[mId] || '';
             inp.value = val;
           });
           document.querySelectorAll('.contract-time-input').forEach(inp => {
@@ -10801,6 +10800,10 @@
             }
           });
 
+          this.syncStage1();
+          if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+          this.renderCanvas();
+
           // 5. 拍卖师在聊天区提示学生去检查并微调修改
           const draftNoticeMsg = {
             sender: 'auctioneer',
@@ -10808,12 +10811,11 @@
             timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
             _timeMs: Date.now()
           };
-          if (!this.state.chatLogs.stage1) this.state.chatLogs.stage1 = [];
-          this.state.chatLogs.stage1.push(draftNoticeMsg);
-          this.syncStage1();
+          const curStage = this.state.currentStage || 'stage1';
+          if (!this.state.chatLogs[curStage]) this.state.chatLogs[curStage] = [];
+          this.state.chatLogs[curStage].push(draftNoticeMsg);
           this.syncChatLogs();
-          if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
-          renderChat(this.state);
+          if (typeof renderChat === 'function') renderChat(this.state);
         },
         onConfirmContract: () => {
           if (this.state.stage1.contract.isConfirmed) {
