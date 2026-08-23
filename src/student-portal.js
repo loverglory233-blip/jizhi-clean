@@ -7,8 +7,8 @@ import {
   STORAGE_KEY_TASKS,
   STORAGE_KEY_ANNOUNCEMENTS,
   STORAGE_KEY_CLASSES
-} from "./constants.js?v=20260823_v123";
-import { escapeHtml, isTaskExpired } from "./utils.js?v=20260823_v123";
+} from "./constants.js?v=20260823_v124";
+import { escapeHtml, isTaskExpired } from "./utils.js?v=20260823_v124";
 
 /* ==========================================================================
    7.5 STUDENT TASK PORTAL / DASHBOARD (我的写作任务大厅)

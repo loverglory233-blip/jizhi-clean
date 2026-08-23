@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles } from "./constants.js?v=20260823_v123";
-import { callCozeAgentAPI } from "./agents.js?v=20260823_v123";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired } from "./utils.js?v=20260823_v123";
+import { AgentProfiles } from "./constants.js?v=20260823_v124";
+import { callCozeAgentAPI } from "./agents.js?v=20260823_v124";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired } from "./utils.js?v=20260823_v124";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -1630,7 +1630,7 @@ function renderStage2Canvas(canvas, state, handlers) {
           const padName = `jizhi_${activeTaskId}_${userGroupId}`;
           const currUserName = (currUser && (currUser.name || currUser.username)) || '组员';
           const currUserColor = (state.members && state.members[currUserCode]?.color) || '#2563eb';
-          const padUrl = `/p/${padName}?userName=${encodeURIComponent(currUserName)}&userColor=${encodeURIComponent(currUserColor)}&showChat=false&showLineNumbers=true&showControls=true`;
+          const padUrl = `/p/${padName}?userName=${encodeURIComponent(currUserName)}&userColor=${encodeURIComponent(currUserColor)}&noColors=true&showChat=false&showLineNumbers=true&showControls=true`;
           
           return `
             <div class="word-editor-container" style="display:flex; flex-direction:column; height:100%; min-height:480px; border-radius:10px; overflow:hidden; border:1px solid #cbd5e1; box-shadow:0 4px 16px rgba(15,23,42,0.06); background:#ffffff;">
@@ -2046,7 +2046,7 @@ export function renderChat(state) {
       const imgSrc = sanitizeUrl(msg.text.replace('[IMG_DATA]:', ''));
       formattedContent = `
         <div style="margin-top:2px;">
-          <img src="${imgSrc}" style="max-width:240px; max-height:180px; border-radius:8px; border:1px solid #cbd5e1; cursor:pointer; box-shadow:0 2px 8px rgba(0,0,0,0.1); transition:transform 0.2s;" onclick="window.open('${imgSrc}')" title="点击查看原图">
+          <img src="${imgSrc}" class="chat-attached-img" style="max-width:220px; max-height:160px; border-radius:8px; border:1px solid #cbd5e1; cursor:pointer; box-shadow:0 2px 8px rgba(0,0,0,0.1); transition:transform 0.2s; display:block;" title="点击放大查看图片">
         </div>
       `;
     } else {
@@ -2075,5 +2075,18 @@ export function renderChat(state) {
   } else {
     stream.scrollTop = prevScrollTop;
   }
+
+  stream.querySelectorAll('.chat-attached-img').forEach(img => {
+    img.onclick = (e) => {
+      e.stopPropagation();
+      document.querySelectorAll('.img-preview-lightbox').forEach(el => el.remove());
+      const box = document.createElement('div');
+      box.className = 'img-preview-lightbox';
+      box.style.cssText = 'position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(15,23,42,0.85); display:flex; align-items:center; justify-content:center; z-index:99999; cursor:zoom-out; backdrop-filter:blur(4px);';
+      box.innerHTML = `<img src="${img.src}" style="max-width:90vw; max-height:90vh; border-radius:10px; box-shadow:0 8px 32px rgba(0,0,0,0.4); border:2px solid #ffffff;">`;
+      box.onclick = () => box.remove();
+      document.body.appendChild(box);
+    };
+  });
 }
 

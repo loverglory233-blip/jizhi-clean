@@ -39,7 +39,7 @@ export function escapeHtml(str) {
 export function sanitizeUrl(url) {
   if (!url || typeof url !== 'string') return '#';
   const clean = url.trim();
-  if (/^(?:(?:https?|mailto|tel):|\/|\.\/|\.\.\/|#)/i.test(clean)) {
+  if (/^(?:(?:https?|mailto|tel|data):|\/|\.\/|\.\.\/|#)/i.test(clean)) {
     return clean;
   }
   return '#';
