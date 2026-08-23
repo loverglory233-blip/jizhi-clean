@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles } from "./constants.js?v=20260823_v55";
-import { callCozeAgentAPI } from "./agents.js?v=20260823_v55";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired } from "./utils.js?v=20260823_v55";
+import { AgentProfiles } from "./constants.js?v=20260823_v56";
+import { callCozeAgentAPI } from "./agents.js?v=20260823_v56";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired } from "./utils.js?v=20260823_v56";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -434,15 +434,33 @@ export function attachWordEditorEvents(container, editorId, isReadonly, onChange
   }
 
   if (!isReadonly) {
+    let lastSavedRange = null;
+    if (quillInstance) {
+      quillInstance.on('selection-change', (range) => {
+        if (range) lastSavedRange = range;
+      });
+    }
+
+    // 🛡️ 核心保障：阻止工具栏按钮点击时的默认失焦事件，完美锁定用户选区
+    container.querySelectorAll('.word-toolbar button').forEach(btn => {
+      btn.addEventListener('mousedown', (e) => {
+        e.preventDefault();
+      });
+    });
+
     const exec = (cmd, val = null) => {
       if (quillInstance) {
-        let range = quillInstance.getSelection();
+        let range = quillInstance.getSelection() || lastSavedRange;
         if (!range) {
           quillInstance.focus();
           range = quillInstance.getSelection() || { index: Math.max(0, quillInstance.getLength() - 1), length: 0 };
         }
         
-        const currentFormat = quillInstance.getFormat(range) || {};
+        if (range) {
+          quillInstance.setSelection(range.index, range.length);
+        }
+
+        const currentFormat = (range ? quillInstance.getFormat(range) : {}) || {};
         if (cmd === 'bold') quillInstance.format('bold', !currentFormat.bold);
         else if (cmd === 'italic') quillInstance.format('italic', !currentFormat.italic);
         else if (cmd === 'underline') quillInstance.format('underline', !currentFormat.underline);
@@ -465,6 +483,8 @@ export function attachWordEditorEvents(container, editorId, isReadonly, onChange
         else if (cmd === 'fontSize') quillInstance.format('size', val || false);
         else if (cmd === 'foreColor') quillInstance.format('color', val || false);
         else if (cmd === 'hiliteColor') quillInstance.format('background', val || false);
+        else if (cmd === 'undo') quillInstance.history.undo();
+        else if (cmd === 'redo') quillInstance.history.redo();
         else if (cmd === 'removeFormat') {
           if (range && range.length > 0) quillInstance.removeFormat(range.index, range.length);
         }
