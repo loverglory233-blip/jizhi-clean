@@ -14,7 +14,7 @@ import {
   DefaultTasks,
   DefaultAnnouncements,
   DefaultReferencePapers
-} from './constants.js?v=20260823_v26';
+} from './constants.js?v=20260823_v27';
 
 export class AuthManager {
   constructor() {
@@ -1404,17 +1404,26 @@ export class AuthManager {
 
   openChangePasswordModal(presetAccount = null) {
     const currentUser = this.getCurrentUser();
-    // 教师与学生账号精准提取：优先显示真实工号/学号，自动剔除系统内部生成的 u_ 前缀
+    // 教师与学生账号精准提取：教师统一规范显示标准工号 1001，学生显示其真实学号
     let account = presetAccount || '';
     if (!account && currentUser) {
-      if (currentUser.studentCode) account = currentUser.studentCode;
-      else if (currentUser.teacherCode) account = currentUser.teacherCode;
-      else if (currentUser.code) account = currentUser.code;
-      else if (currentUser.username && currentUser.username !== 'teacher' && !currentUser.username.startsWith('u_')) account = currentUser.username;
-      else if (currentUser.id) {
-        account = currentUser.id.startsWith('u_') ? currentUser.id.replace(/^u_/, '') : currentUser.id;
+      const isTeacher = (currentUser.role === 'teacher' || currentUser.isTeacher);
+      if (isTeacher) {
+        const tCode = currentUser.studentCode || currentUser.teacherCode || currentUser.code || currentUser.username;
+        if (tCode && !tCode.includes('teacher') && !tCode.startsWith('u_')) {
+          account = tCode;
+        } else {
+          account = '1001';
+        }
       } else {
-        account = (currentUser.username || '').replace(/^u_/, '');
+        if (currentUser.studentCode) account = currentUser.studentCode;
+        else if (currentUser.code) account = currentUser.code;
+        else if (currentUser.username && !currentUser.username.startsWith('u_')) account = currentUser.username;
+        else if (currentUser.id) {
+          account = currentUser.id.startsWith('u_') ? currentUser.id.replace(/^u_/, '') : currentUser.id;
+        } else {
+          account = (currentUser.username || '').replace(/^u_/, '');
+        }
       }
     }
 
