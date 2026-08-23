@@ -86,9 +86,8 @@ if (!function_exists('ensureTeacherSeedAccount')) {
             $stmt = $pdo->prepare("SELECT id FROM users WHERE id = '1001' LIMIT 1");
             $stmt->execute();
             if (!$stmt->fetch()) {
-                $hashed = password_hash('123', PASSWORD_DEFAULT);
-                $stmtIns = $pdo->prepare("INSERT INTO users (id, username, student_code, name, password, role) VALUES ('1001', '1001', '1001', '老师', :p, 'teacher')");
-                $stmtIns->execute([':p' => $hashed]);
+                $stmtIns = $pdo->prepare("INSERT INTO users (id, username, student_code, name, password, role) VALUES ('1001', '1001', '1001', '老师', '123', 'teacher')");
+                $stmtIns->execute();
             }
         } catch (Exception $e) {}
     }
