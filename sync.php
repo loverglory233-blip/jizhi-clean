@@ -576,21 +576,30 @@ if ($action === 'update_read_status' && $_SERVER['REQUEST_METHOD'] === 'POST') {
 
                         if ($userId) $ann['readStatus'][$userId] = true;
                         if ($userCode) $ann['readStatus'][$userCode] = true;
-                        if ($groupId) $ann['readGroupStatus'][$groupId] = true;
+                        if ($userName) $ann['readStatus'][$userName] = true;
+                        if ($groupId) {
+                            $ann['readGroupStatus'][$groupId] = true;
+                            $ann['readStatus'][$groupId] = true;
+                        }
 
                         $exists = false;
                         foreach ($ann['confirmedMembers'] as $cm) {
-                            if (is_array($cm) && isset($cm['id']) && $cm['id'] === $userId) {
+                            if (is_array($cm) && (
+                                (isset($cm['id']) && $userId && $cm['id'] === $userId) ||
+                                (isset($cm['studentCode']) && $userCode && $cm['studentCode'] === $userCode) ||
+                                (isset($cm['name']) && $userName && $cm['name'] === $userName)
+                            )) {
                                 $exists = true;
                                 break;
                             }
                         }
-                        if (!$exists && $userId) {
+                        if (!$exists) {
                             $ann['confirmedMembers'][] = [
-                                'id' => $userId,
+                                'id' => $userId ?: ($userCode ?: 'u_' . round(microtime(true) * 1000)),
                                 'name' => $userName ?: ($userCode ?: '学生'),
                                 'studentCode' => $userCode ?: '',
-                                'groupId' => $groupId ?: ''
+                                'groupId' => $groupId ?: '',
+                                'time' => date('H:i')
                             ];
                         }
                         $changed = true;
