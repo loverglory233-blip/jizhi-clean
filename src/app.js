@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260823_v63";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired } from "./utils.js?v=20260823_v63";
-import { callCozeAgentAPI } from "./agents.js?v=20260823_v63";
-import { AuthManager } from "./auth.js?v=20260823_v63";
-import { CloudSyncEngine } from "./sync.js?v=20260823_v63";
-import { renderLoginView } from "./login.js?v=20260823_v63";
-import { renderTeacherPortal } from "./teacher.js?v=20260823_v63";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260823_v63";
+} from "./constants.js?v=20260823_v64";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired } from "./utils.js?v=20260823_v64";
+import { callCozeAgentAPI } from "./agents.js?v=20260823_v64";
+import { AuthManager } from "./auth.js?v=20260823_v64";
+import { CloudSyncEngine } from "./sync.js?v=20260823_v64";
+import { renderLoginView } from "./login.js?v=20260823_v64";
+import { renderTeacherPortal } from "./teacher.js?v=20260823_v64";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260823_v64";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260823_v63";
+} from "./editor.js?v=20260823_v64";
 
 // Make renderChat available on window for sync callbacks
 if (typeof window !== "undefined") {
@@ -314,7 +314,8 @@ export class App {
   initGlobalPresenceHeartbeat() {
     setInterval(() => {
       const currentUser = this.authManager ? this.authManager.getCurrentUser() : null;
-      if (currentUser && currentUser.role === 'student') {
+      // 🛡️ 严格对齐规则：只有真正进入了具体写作任务工作台（非大厅列表）的学生，才上报当前任务在线心跳
+      if (currentUser && currentUser.role === 'student' && this.state.studentViewMode === 'workspace' && this.state.activeTaskId) {
         if (!this.state.presence) this.state.presence = {};
         const myKeys = [currentUser.id, currentUser.studentCode, currentUser.username, currentUser.name].filter(Boolean);
         const now = Date.now();
@@ -325,7 +326,6 @@ export class App {
             updatedAt: now
           };
         });
-        // 🟢 关键修复：主动向云端广播心跳快照，确保其他设备秒级感知全员在线
         if (this.cloudSyncEngine) {
           this.cloudSyncEngine.pushSnapshot();
         }

@@ -8360,7 +8360,8 @@
     initGlobalPresenceHeartbeat() {
       setInterval(() => {
         const currentUser = this.authManager ? this.authManager.getCurrentUser() : null;
-        if (currentUser && currentUser.role === 'student') {
+        // 🛡️ 严格对齐规则：只有真正进入了具体写作任务工作台（非大厅列表）的学生，才上报当前任务在线心跳
+        if (currentUser && currentUser.role === 'student' && this.state.studentViewMode === 'workspace' && this.state.activeTaskId) {
           if (!this.state.presence) this.state.presence = {};
           const myKeys = [currentUser.id, currentUser.studentCode, currentUser.username, currentUser.name].filter(Boolean);
           const now = Date.now();
@@ -8371,7 +8372,6 @@
               updatedAt: now
             };
           });
-          // 🟢 关键修复：主动向云端广播心跳快照，确保其他设备秒级感知全员在线
           if (this.cloudSyncEngine) {
             this.cloudSyncEngine.pushSnapshot();
           }
