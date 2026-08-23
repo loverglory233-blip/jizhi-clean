@@ -3837,14 +3837,9 @@
                                     <span style="font-size:11.5px; color:#ffffff; background:${votes > 0 ? '#2563eb' : '#94a3b8'}; padding:2px 8px; border-radius:10px; font-weight:800;">${votes} 票</span>
                                   </div>
                                 </div>
-                                <div style="font-size:12px; color:#334155; line-height:1.5; margin-bottom:6px; background:#f8fafc; padding:6px 8px; border-radius:6px; border-left:3px solid #3b82f6;">
+                                <div style="font-size:12px; color:#334155; line-height:1.5; background:#f8fafc; padding:6px 8px; border-radius:6px; border-left:3px solid #3b82f6;">
                                   ${escapeHtml(p.content || '暂无详细构思阐述')}
                                 </div>
-                                ${p.aiFeedback ? `
-                                  <div style="font-size:11.5px; color:#1e40af; background:#eff6ff; padding:6px 8px; border-radius:6px; border:1px dashed #93c5fd; line-height:1.45;">
-                                    <b>🤖 AI拍卖师即时评估:</b> ${escapeHtml(p.aiFeedback)}
-                                  </div>
-                                ` : ''}
                               </div>
                             `;
                           }).join('') : `
