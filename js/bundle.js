@@ -2636,21 +2636,14 @@
           const editor = document.getElementById('stage2-word-editor') || document.getElementById('stage3-word-editor');
           const isYjsLive = window._jizhi_yjs_provider && (window._jizhi_yjs_provider.wsconnected || window._jizhi_yjs_provider.synced);
 
-          if (editor) {
+          // 🛡️ 纯净解耦：短轮询只更新内存快照与教师端大屏，富文本打字与实时协同 100% 由 Yjs 处理，严禁短轮询干扰 Quill DOM
+          this.app.state.stage2.unifiedContent = cleanRemoteContent;
+          if (editor && !isYjsLive && !window._jizhi_quill) {
             const isUserTypingNow = document.activeElement === editor || editor.contains(document.activeElement);
             const currentLocalHtml = editor.innerHTML.replace(/<span class="remote-cursor-widget"[\s\S]*?<\/span>/gi, '');
-
-            // 🛡️ 零延迟打字盾牌：打字期间绝对不抢焦点、不修改 DOM，保持打字极致丝滑
-            if (isYjsLive) {
-              this.app.state.stage2.unifiedContent = cleanRemoteContent;
-            } else {
-              this.app.state.stage2.unifiedContent = cleanRemoteContent;
-              if (!isUserTypingNow && currentLocalHtml.trim() !== cleanRemoteContent.trim()) {
-                editor.innerHTML = cleanRemoteContent;
-              }
+            if (!isUserTypingNow && currentLocalHtml.trim() !== cleanRemoteContent.trim()) {
+              editor.innerHTML = cleanRemoteContent;
             }
-          } else {
-            this.app.state.stage2.unifiedContent = cleanRemoteContent;
           }
           this.app.updateContributionUi();
           this.app.renderPresenceCursors();
