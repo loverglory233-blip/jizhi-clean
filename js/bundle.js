@@ -7380,6 +7380,18 @@
           if (!state.chatLogs[currentStage]) state.chatLogs[currentStage] = [];
           state.chatLogs[currentStage].push(submitNoticeMsg);
 
+          // 🎪 当全员提案已集齐时，拍卖师主动在讨论区引导“先充分讨论选哪个，再进行投票”
+          if (submittedAuthorsCount >= totalMembersCount && totalMembersCount > 0 && !s1._allProposalsPrompted) {
+            s1._allProposalsPrompted = true;
+            const allCollectedMsg = {
+              sender: 'auctioneer',
+              text: `🎪 【拍卖师·全员提案已集齐】：🎉 小组全部 ${totalMembersCount} 位成员的选题提案已悉数亮相！\n👉 请大家先不要急于投票，先在右侧协同对话区商讨交流各个方案的研究切入点与创新亮点；\n💬 充分研讨达成初步共识后，再在上方为最终认可的方案进行投票！`,
+              timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+              _timeMs: Date.now() + 50
+            };
+            state.chatLogs[currentStage].push(allCollectedMsg);
+          }
+
           closeModal();
           handlers.onRefresh();
           if (window.app) {
@@ -10789,12 +10801,9 @@
           // 拼接全部学生研讨文本
           const chatSnippet = userLogs.map(m => `${m.senderName || m.sender}: ${m.text}`).join('\n');
 
-          // 🛡️ 严格教学门禁：检查是否展开了真实的选题与分工学术研讨
-          const academicKeywords = ['负责', '我来', '我写', '分工', '选题', '题目', '提案', '背景', '综述', '假设', '方法', '问卷', '数据', '反思', '文献', '时间', '分钟', '同意', '赞同', '可以', '选这个', '定这个'];
-          const hasRealDiscussion = academicKeywords.some(kw => chatSnippet.includes(kw));
-
-          if (proposals.length === 0 || !hasRealDiscussion || userLogs.length < 3) {
-            alert('💡 【协同研讨提示】：小组成员尚未在讨论区展开实质性的选题与章节分工研讨。\n\n请大家先在右侧协同对话区商讨各自负责的章节（例如“我写背景和综述”、“我负责研究方法与问卷设计”）与时间安排。\n\n👉 提示：小组成员也可不点击提炼，直接在左侧输入框中自主分工编辑！');
+          // 🛡️ 协同门禁校验：如果全组既没有提交任何提案，讨论区也空无一物，提示先交流
+          if (proposals.length === 0 && userLogs.length === 0) {
+            alert('💡 【协同研讨提示】：小组成员尚未在讨论区展开交流或提交提案。\n\n请大家先在右侧协同对话区商讨各自的研究兴趣与分工意向，并在上方提交选题提案后再点击提炼！\n\n👉 提示：小组成员也可不点击提炼，直接在左侧输入框中自主分工编辑。');
             return;
           }
 
