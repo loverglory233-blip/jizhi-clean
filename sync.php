@@ -277,6 +277,8 @@ if ($action === 'patch_contract_field' && $_SERVER['REQUEST_METHOD'] === 'POST')
     }
     echo json_encode(['success' => false]);
     exit;
+}
+
 // 1.2 字段级聚焦悲观锁 API (用于阶段一合约与阶段三答辩条目排他性编辑与冲突免疫)
 if ($action === 'lock_field' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $rawInput = file_get_contents('php://input');
