@@ -1610,7 +1610,7 @@
       this.pushGlobalMeta();
     }
 
-    publishAnnouncement(taskId, title, content, attachment = null, targetGroupId = 'all', targetGroupName = '全班所有小组', classId = 'all', className = '全校班级', targetGroupIds = ['all']) {
+    publishAnnouncement(taskId, title, content, attachment = null, targetGroupId = 'all', targetGroupName = '全班所有小组', classId = 'all', className = '全校班级', targetGroupIds = ['all'], isSystemAction = false) {
       const announcements = this.getAnnouncements();
       const tasks = this.getTasks();
       const task = tasks.find(t => t.id === taskId);
@@ -1624,6 +1624,7 @@
         targetGroupIds: Array.isArray(targetGroupIds) && targetGroupIds.length > 0 ? targetGroupIds : [targetGroupId || 'all'],
         targetGroupName: targetGroupName || '全班所有小组',
         title, content, attachment,
+        isSystemAction: !!isSystemAction,
         time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         author: '老师', readStatus: {}
       };
@@ -3047,7 +3048,7 @@
 
     // 🛡️ 严格按当前主班过滤写作任务（绝不串出其他班级或历史游离任务）
     const currentClassTasks = tasks.filter(t => t.classId === activeClass.id || (t.className && t.className === activeClass.name) || (!t.classId && activeClass.id === 'class_101'));
-    const currentClassAnnouncements = announcements.filter(a => a.classId === 'all' || !a.classId || a.classId === activeClass.id);
+    const currentClassAnnouncements = announcements.filter(a => (a.classId === 'all' || !a.classId || a.classId === activeClass.id) && !a.isSystemAction);
     const currentClassPapers = refPapers.filter(p => p.classId === 'all' || !p.classId || p.classId === activeClass.id);
 
     const classGroupExists = (activeClass.groups || []).some(g => g.id === state.activeMonitorGroupId);
@@ -3272,7 +3273,7 @@
 
           ${activeTab === 'view_publishing' ? (() => {
             const currentClassTasks = tasks.filter(t => t.classId === 'all' || t.classId === activeClass.id);
-            const currentClassAnnouncements = announcements.filter(a => a.classId === 'all' || !a.classId || a.classId === activeClass.id);
+            const currentClassAnnouncements = announcements.filter(a => (a.classId === 'all' || !a.classId || a.classId === activeClass.id) && !a.isSystemAction);
             const currentClassPapers = refPapers.filter(p => p.classId === 'all' || !p.classId || p.classId === activeClass.id);
 
             const surveysList = authManager.getSurveysList();
@@ -5810,7 +5811,7 @@
           ? `指导教师已将本组（${activeMonitorGroup.name}）在《${curTaskObj.title}》中的整个写作任务设为【全局归档锁定】！当前工作台所有阶段（阶段一选题公约、阶段二正文撰写、阶段三答辩擂台）已全盘转为只读归档模式（禁止继续修改编辑）。如需继续修改请联系指导教师解锁。`
           : `指导教师已【恢复本组（${activeMonitorGroup.name}）在《${curTaskObj.title}》中的写作任务编辑权限】！当前工作台所有阶段已重新开放，小组可以继续协作撰写与修改文稿。`;
 
-        // 1. 自动向该小组全体成员推送定向课堂教学通知
+        // 1. 自动向该小组全体成员推送定向课堂教学通知 (系统事件标记，不在教师端正式通知列表展示)
         authManager.publishAnnouncement(
           currentTaskId,
           lockTitle,
@@ -5820,7 +5821,8 @@
           activeMonitorGroup.name,
           activeClass ? activeClass.id : 'class_101',
           activeClass ? activeClass.name : '当前班级',
-          [activeMonitorGId]
+          [activeMonitorGId],
+          true
         );
 
         // 2. 立即同步写入小组状态并向全组学生端推送最新权限快照
@@ -5870,7 +5872,8 @@
               activeMonitorGroup.name,
               activeClass ? activeClass.id : 'class_101',
               activeClass ? activeClass.name : '当前班级',
-              [activeMonitorGId]
+              [activeMonitorGId],
+              true
             );
 
             window.app.resetTestGroupState(activeMonitorGId, currentTaskId);
