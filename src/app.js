@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260823_v82";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired } from "./utils.js?v=20260823_v82";
-import { callCozeAgentAPI } from "./agents.js?v=20260823_v82";
-import { AuthManager } from "./auth.js?v=20260823_v82";
-import { CloudSyncEngine } from "./sync.js?v=20260823_v82";
-import { renderLoginView } from "./login.js?v=20260823_v82";
-import { renderTeacherPortal } from "./teacher.js?v=20260823_v82";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260823_v82";
+} from "./constants.js?v=20260823_v83";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired } from "./utils.js?v=20260823_v83";
+import { callCozeAgentAPI } from "./agents.js?v=20260823_v83";
+import { AuthManager } from "./auth.js?v=20260823_v83";
+import { CloudSyncEngine } from "./sync.js?v=20260823_v83";
+import { renderLoginView } from "./login.js?v=20260823_v83";
+import { renderTeacherPortal } from "./teacher.js?v=20260823_v83";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260823_v83";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260823_v82";
+} from "./editor.js?v=20260823_v83";
 
 // Make renderChat available on window for sync callbacks
 if (typeof window !== "undefined") {
@@ -312,10 +312,10 @@ export class App {
   }
 
   initGlobalPresenceHeartbeat() {
+    // 🌿 自然轻量在线：心跳在普通网络交互与阶段流转时随路携带，避免每2.5秒高频强推造成界面抖动
     setInterval(() => {
       const currentUser = this.authManager ? this.authManager.getCurrentUser() : null;
-      // 🛡️ 严格对齐规则：进入任务工作台的学生持续上报在线心跳
-      if (currentUser && currentUser.role === 'student' && this.state.studentViewMode === 'workspace' && this.state.activeTaskId) {
+      if (currentUser && currentUser.role === 'student' && this.state.studentViewMode === 'workspace') {
         if (!this.state.presence) this.state.presence = {};
         const myKeys = [currentUser.id, currentUser.studentCode, currentUser.username, currentUser.name].filter(Boolean);
         const now = Date.now();
@@ -326,12 +326,8 @@ export class App {
             updatedAt: now
           };
         });
-        if (this.cloudSyncEngine) {
-          this.cloudSyncEngine.pushSnapshot();
-        }
-        this.renderPresenceCursors();
       }
-    }, 2500);
+    }, 10000);
   }
 
   initTimer() {
