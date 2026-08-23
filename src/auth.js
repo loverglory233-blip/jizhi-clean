@@ -14,7 +14,7 @@ import {
   DefaultTasks,
   DefaultAnnouncements,
   DefaultReferencePapers
-} from './constants.js?v=20260823_v44';
+} from './constants.js?v=20260823_v45';
 
 export class AuthManager {
   constructor() {
@@ -335,7 +335,15 @@ export class AuthManager {
     if (!Array.isArray(tasks)) tasks = [];
     return tasks;
   }
-  getAnnouncements() { return JSON.parse(localStorage.getItem(STORAGE_KEY_ANNOUNCEMENTS)) || DefaultAnnouncements; }
+  getAnnouncements() {
+    let announcements = [];
+    try {
+      announcements = JSON.parse(localStorage.getItem(STORAGE_KEY_ANNOUNCEMENTS)) || DefaultAnnouncements;
+    } catch (e) {
+      announcements = DefaultAnnouncements;
+    }
+    return (Array.isArray(announcements) ? announcements : []).filter(a => !a.isSystemAction && !a.title?.includes('指导教师已重置') && !a.title?.includes('指导教师已锁定'));
+  }
   getCurrentUser() {
     let cached = null;
     const sessionData = sessionStorage.getItem(STORAGE_KEY_USER);
