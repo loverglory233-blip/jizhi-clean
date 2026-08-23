@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260823_v78";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired } from "./utils.js?v=20260823_v78";
-import { callCozeAgentAPI } from "./agents.js?v=20260823_v78";
-import { AuthManager } from "./auth.js?v=20260823_v78";
-import { CloudSyncEngine } from "./sync.js?v=20260823_v78";
-import { renderLoginView } from "./login.js?v=20260823_v78";
-import { renderTeacherPortal } from "./teacher.js?v=20260823_v78";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260823_v78";
+} from "./constants.js?v=20260823_v79";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired } from "./utils.js?v=20260823_v79";
+import { callCozeAgentAPI } from "./agents.js?v=20260823_v79";
+import { AuthManager } from "./auth.js?v=20260823_v79";
+import { CloudSyncEngine } from "./sync.js?v=20260823_v79";
+import { renderLoginView } from "./login.js?v=20260823_v79";
+import { renderTeacherPortal } from "./teacher.js?v=20260823_v79";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260823_v79";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260823_v78";
+} from "./editor.js?v=20260823_v79";
 
 // Make renderChat available on window for sync callbacks
 if (typeof window !== "undefined") {
@@ -2592,14 +2592,16 @@ ${propText}
           };
         });
 
-        // 🚀 纯粹 CRDT 架构：打字仅驱动贡献比与智能体语境分析，0 次网络快照骚扰
+        // 🚀 稳健极速同步：打字期间防抖 500ms 自动保存并推送到云端数据库
         if (this._contentSyncDebounceTimer) {
           clearTimeout(this._contentSyncDebounceTimer);
         }
         this._contentSyncDebounceTimer = setTimeout(() => {
           this.updateContributionUi();
+          this.syncStage2();
+          if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
           this.checkAgentTriggersOnContent(cleanHtml);
-        }, 600);
+        }, 500);
       },
       onOpenCaseModal: () => {
         this.showReferencePapersModal();

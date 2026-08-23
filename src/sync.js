@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState } from './constants.js?v=20260823_v78';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin } from './utils.js?v=20260823_v78';
+import { InitialState } from './constants.js?v=20260823_v79';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin } from './utils.js?v=20260823_v79';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -569,7 +569,32 @@ export class CloudSyncEngine {
     }
 
     if (remoteData.stage2) {
-      // 🛡️ 纯粹单轨 CRDT 架构：富文本正文 100% 由 Yjs 实时向量协同接管，短轮询绝不操作富文本 DOM，彻底杜绝双轨互搏！
+      // 🚀 100% 绝对可靠同步：当远端组员有新内容、且本地当前未在输入时，平滑呈现最新正文
+      if (remoteData.stage2.unifiedContent !== undefined) {
+        const remoteHtml = remoteData.stage2.unifiedContent || '';
+        const localHtml = this.app.state.stage2?.unifiedContent || '';
+        
+        const stage2Editor = document.getElementById('stage2-word-editor');
+        const qlEditor = stage2Editor ? stage2Editor.querySelector('.ql-editor') : null;
+        const activeEl = document.activeElement;
+        const isLocalTyping = activeEl && (
+          activeEl === stage2Editor ||
+          activeEl === qlEditor ||
+          (stage2Editor && stage2Editor.contains(activeEl))
+        );
+
+        if (!isLocalTyping && remoteHtml && remoteHtml !== localHtml) {
+          if (!this.app.state.stage2) this.app.state.stage2 = {};
+          this.app.state.stage2.unifiedContent = remoteHtml;
+          
+          if (window._jizhi_quill && window._jizhi_quill.root) {
+            if (window._jizhi_quill.root.innerHTML !== remoteHtml) {
+              window._jizhi_quill.root.innerHTML = remoteHtml;
+            }
+          }
+        }
+      }
+
       if (remoteData.stage2.memberContributions) {
         if (JSON.stringify(remoteData.stage2.memberContributions) !== JSON.stringify(this.app.state.stage2.memberContributions)) {
           this.app.state.stage2.memberContributions = remoteData.stage2.memberContributions;
