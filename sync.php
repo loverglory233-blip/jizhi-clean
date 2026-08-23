@@ -233,12 +233,10 @@ if ($action === 'login' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         ]);
         exit;
     } else if (!$userExists) {
-        http_response_code(401);
-        echo json_encode(['success' => false, 'message' => '账号不存在，请检查工号或学号是否输入正确']);
+        echo json_encode(['success' => false, 'message' => '❌ 账号 [' . htmlspecialchars($account) . '] 尚未录入系统，请核对学号或联系指导教师导入']);
         exit;
     } else {
-        http_response_code(401);
-        echo json_encode(['success' => false, 'message' => '密码错误，默认密码为 123']);
+        echo json_encode(['success' => false, 'message' => '❌ 登录密码错误，默认初始密码为 123']);
         exit;
     }
 }
