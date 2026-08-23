@@ -1,7 +1,16 @@
 #!/bin/bash
 set -e
 
-echo "🔧 正在为 Etherpad 安装【学术表格 + 图片上传粘贴】与全套 Word 黄金插件..."
+echo "🔧 正在启用内存防爆保护 (防 OOM Killed) 并启动 Etherpad..."
+
+# 1. 自动启用 2GB Swap 虚拟内存防爆机制 (如果尚未启用)
+if [ ! -f /swapfile_ep ]; then
+    echo "💡 正在配置 2GB Swap 虚拟内存以防止内存耗尽被 Killed..."
+    fallocate -l 2G /swapfile_ep 2>/dev/null || dd if=/dev/zero of=/swapfile_ep bs=1M count=2048 2>/dev/null || true
+    chmod 600 /swapfile_ep 2>/dev/null || true
+    mkswap /swapfile_ep 2>/dev/null || true
+    swapon /swapfile_ep 2>/dev/null || true
+fi
 
 EP_DIR="/www/wwwroot/etherpad-lite"
 if [ ! -d "$EP_DIR" ]; then
@@ -12,32 +21,37 @@ fi
 cd "$EP_DIR"
 export PATH="/www/server/nodejs/v18.20.7/bin:$PATH"
 
-# 1. 杀掉旧残留
+# 2. 彻底杀掉残留进程
 pkill -9 -f "server.js" || true
 pkill -9 -f "etherpad" || true
-fuser -k 9001/tcp || true
+fuser -k 9001/tcp 2>/dev/null || true
 sleep 1
 
-# 2. 清理废弃不兼容包
-rm -rf node_modules/ep_page_view node_modules/ep_spellcheck node_modules/ep_word_count || true
+# 3. 逐个单独低内存安装插件 (单线程, 避免并发爆内存)
+echo "📦 正在以极轻量模式确保插件安装..."
+PLUGINS=(
+    "ep_cursortrace"
+    "ep_author_hover"
+    "ep_font_size"
+    "ep_font_family"
+    "ep_font_color"
+    "ep_align"
+    "ep_headings2"
+    "ep_subscript_and_superscript"
+    "ep_line_spacing"
+    "ep_clear_formatting"
+    "ep_tables4"
+    "ep_image_upload"
+)
 
-# 3. 完整安装：表格 + 图片 + 10 大黄金富文本插件
-npm install --save \
-    ep_cursortrace \
-    ep_author_hover \
-    ep_font_size \
-    ep_font_family \
-    ep_font_color \
-    ep_align \
-    ep_headings2 \
-    ep_subscript_and_superscript \
-    ep_line_spacing \
-    ep_clear_formatting \
-    ep_tables4 \
-    ep_image_upload \
-    --legacy-peer-deps --registry=https://registry.npmmirror.com || true
+for pkg in "${PLUGINS[@]}"; do
+    if [ ! -d "node_modules/$pkg" ]; then
+        echo "   📥 正在安装: $pkg ..."
+        npm install --save "$pkg" --legacy-peer-deps --no-audit --no-fund --registry=https://registry.npmmirror.com || true
+    fi
+done
 
-# 4. 启动 Etherpad
+# 4. 精确启动 Etherpad
 echo "🚀 正在启动 Etherpad 守护进程..."
 nohup node src/node/server.js > /var/log/etherpad.log 2>&1 &
 sleep 4
