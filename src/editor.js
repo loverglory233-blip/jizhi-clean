@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles } from "./constants.js?v=20260823_v70";
-import { callCozeAgentAPI } from "./agents.js?v=20260823_v70";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired } from "./utils.js?v=20260823_v70";
+import { AgentProfiles } from "./constants.js?v=20260823_v71";
+import { callCozeAgentAPI } from "./agents.js?v=20260823_v71";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired } from "./utils.js?v=20260823_v71";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -956,16 +956,20 @@ export function renderPresencePills(editorId, state) {
   if (!pillsContainer) return;
   const membersList = Object.values(state.members || {});
   const currentUserCode = state.currentUser || 'A';
+  const currUserObj = (window.app && window.app.authManager) ? window.app.authManager.getCurrentUser() : null;
   const presence = state.presence || {};
   const now = Date.now();
 
   const allUsers = (window.app && window.app.authManager) ? window.app.authManager.getUsers() : [];
 
   pillsContainer.innerHTML = membersList.map(m => {
-    const p = presence[m.studentCode] || presence[m.id] || presence[m.realStudentCode] || (m.name && presence[m.name]) || (m.username && presence[m.username]);
-    const isSelf = m.studentCode === currentUserCode || m.id === currentUserCode || (m.realStudentCode && m.realStudentCode === currentUserCode) || (m.username && m.username === currentUserCode) || (m.name && m.name === currentUserCode);
-    // 只要在 35 秒内有活跃心跳即视为在线
-    const isOnline = isSelf || (p && (now - (p.updatedAt || 0) < 35000));
+    // 全方位检索组员心跳数据
+    const p = presence[m.studentCode] || presence[m.id] || presence[m.student_code] || presence[m.realStudentCode] || (m.name && presence[m.name]) || (m.username && presence[m.username]);
+    const isSelf = m.studentCode === currentUserCode || m.id === currentUserCode || (currUserObj && (m.id === currUserObj.id || m.studentCode === currUserObj.studentCode || m.name === currUserObj.name || m.username === currUserObj.username));
+    
+    // 🛡️ 稳健在线判定：免疫客户端系统时间正负偏差，90秒内有心跳即视为在线
+    const timeDiff = p ? Math.abs(now - (p.updatedAt || 0)) : 999999;
+    const isOnline = isSelf || (p && timeDiff < 90000);
     const sectionText = isSelf ? ' (我)' : (isOnline ? ' (在线)' : ' (离线)');
     const color = m.color || '#2563eb';
     let displayName = m.name || m.studentCode;
@@ -973,9 +977,9 @@ export function renderPresencePills(editorId, state) {
     if (matchedUser && matchedUser.name) displayName = matchedUser.name;
 
     return `
-      <span class="collab-presence-pill ${isOnline ? 'active' : ''}" style="${isOnline ? `border-color:${color}; color:${color}; background:#ffffff;` : 'color:#94a3b8; background:#f1f5f9;'}">
+      <span class="collab-presence-pill ${isOnline ? 'active' : ''}" style="${isOnline ? `border-color:${color}; color:${color}; background:#ffffff; font-weight:700;` : 'color:#94a3b8; background:#f1f5f9;'}">
         <span class="collab-presence-dot" style="background:${isOnline ? color : '#cbd5e1'};"></span>
-        ${m.avatar || '👨‍🎓'} ${displayName}<span style="font-weight:normal; font-size:10px; color:${isOnline ? '#475569' : '#94a3b8'};">${sectionText}</span>
+        ${m.avatar || '👨‍🎓'} ${displayName}<span style="font-weight:normal; font-size:10px; color:${isOnline ? '#059669' : '#94a3b8'};">${sectionText}</span>
       </span>
     `;
   }).join('');

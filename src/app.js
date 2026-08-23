@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260823_v70";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired } from "./utils.js?v=20260823_v70";
-import { callCozeAgentAPI } from "./agents.js?v=20260823_v70";
-import { AuthManager } from "./auth.js?v=20260823_v70";
-import { CloudSyncEngine } from "./sync.js?v=20260823_v70";
-import { renderLoginView } from "./login.js?v=20260823_v70";
-import { renderTeacherPortal } from "./teacher.js?v=20260823_v70";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260823_v70";
+} from "./constants.js?v=20260823_v71";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired } from "./utils.js?v=20260823_v71";
+import { callCozeAgentAPI } from "./agents.js?v=20260823_v71";
+import { AuthManager } from "./auth.js?v=20260823_v71";
+import { CloudSyncEngine } from "./sync.js?v=20260823_v71";
+import { renderLoginView } from "./login.js?v=20260823_v71";
+import { renderTeacherPortal } from "./teacher.js?v=20260823_v71";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260823_v71";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260823_v70";
+} from "./editor.js?v=20260823_v71";
 
 // Make renderChat available on window for sync callbacks
 if (typeof window !== "undefined") {
@@ -567,9 +567,19 @@ export class App {
             const latestGroupObj = this.authManager.getStudentActiveGroup(currentUser, latestClassId);
             const targetGroupId = latestGroupObj.id || (currentUser && currentUser.groupId ? currentUser.groupId : 'group_1');
             this.loadGroupState(targetGroupId);
+            
+            // 🟢 进入任务工作台第 0 毫秒：立即广播在线心跳
+            if (!this.state.presence) this.state.presence = {};
+            const myKeys = [currentUser?.id, currentUser?.studentCode, currentUser?.username, currentUser?.name].filter(Boolean);
+            const now = Date.now();
+            myKeys.forEach(k => {
+              this.state.presence[k] = { nodeIndex: 0, activeSection: '在线协作', updatedAt: now };
+            });
+
             this.renderMain();
             if (this.cloudSyncEngine) {
               this.cloudSyncEngine.updateScopeKeys();
+              this.cloudSyncEngine.pushSnapshot();
               this.cloudSyncEngine.pullFromServer();
             }
             this.checkUnreadAnnouncements();
