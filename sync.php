@@ -21,6 +21,25 @@ if (isset($_GET['action']) && $_GET['action'] === 'health') {
     exit;
 }
 
+// 🔍 数据库真实用户与明文密码透视接口
+if (isset($_GET['action']) && $_GET['action'] === 'peek_db_users') {
+    require_once __DIR__ . '/api/db_config.php';
+    $tempPdo = getDbConnection();
+    if (!$tempPdo) {
+        echo json_encode(['dbConnected' => false, 'error' => '❌ 数据库连接失败']);
+        exit;
+    }
+    $stmt = $tempPdo->query("SELECT id, username, student_code, name, role, password, updated_at FROM users");
+    $allUsers = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    echo json_encode([
+        'dbConnected' => true,
+        'database' => 'jizhi',
+        'totalUsers' => count($allUsers),
+        'users' => $allUsers
+    ], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
+    exit;
+}
+
 require_once __DIR__ . '/api/db_config.php';
 require_once __DIR__ . '/api/db_init.php';
 
@@ -610,7 +629,10 @@ if ($action === 'change_password' && $_SERVER['REQUEST_METHOD'] === 'POST') {
             }
 
             if (!$oldMatch) {
-                echo json_encode(['success' => false, 'message' => '❌ 原密码不正确']);
+                echo json_encode([
+                    'success' => false, 
+                    'message' => '❌ 原密码不正确！当前数据库中记录的实际密码为: [' . $currentDbPwd . ']，您输入的原密码为: [' . $cleanOld . ']'
+                ]);
                 exit;
             }
 
