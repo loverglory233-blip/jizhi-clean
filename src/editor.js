@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles } from "./constants.js?v=20260823_v14";
-import { callCozeAgentAPI } from "./agents.js?v=20260823_v14";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired } from "./utils.js?v=20260823_v14";
+import { AgentProfiles } from "./constants.js?v=20260823_v15";
+import { callCozeAgentAPI } from "./agents.js?v=20260823_v15";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired } from "./utils.js?v=20260823_v15";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -45,12 +45,14 @@ export function renderHeader(state, currentUser, announcements, onStageChange, o
     return false;
   };
   const unreadAnnCount = relevantAnnouncements.filter(a => !isAnnRead(a)).length;
-  const isFinalSubmitted = state.isFinalSubmitted;
+  const isTaskDeadlineExpired = isTaskExpired(currentTask);
+  const isFinalSubmitted = state.isFinalSubmitted || isTaskDeadlineExpired;
 
   const stageOrder = { stage1: 1, stage2: 2, stage3: 3 };
   const currentMaxOrder = stageOrder[state.groupMaxStage || 'stage1'] || 1;
-  const isS2Locked = currentMaxOrder < 2;
-  const isS3Locked = currentMaxOrder < 3;
+  // 🌟 截止后三个阶段全部解锁，允许学生自由切换查阅回看；未截止时维持严格阶段门禁
+  const isS2Locked = !isTaskDeadlineExpired && currentMaxOrder < 2;
+  const isS3Locked = !isTaskDeadlineExpired && currentMaxOrder < 3;
 
   header.innerHTML = `
     <div class="brand-section">
@@ -1073,10 +1075,14 @@ function renderStage1Canvas(canvas, state, handlers) {
   if (!s1.contract.taskAssignments) s1.contract.taskAssignments = {};
   if (!s1.contract.timeAllocations) s1.contract.timeAllocations = {};
 
+  const allTasks = (window.app && window.app.authManager) ? window.app.authManager.getTasks() : [];
+  const currentTask = allTasks.find(t => t.id === state.activeTaskId);
+  const isTaskDeadlineExpired = isTaskExpired(currentTask);
+
   const confirmedMembers = s1.contract.confirmedMembers || {};
   const confirmedCount = membersList.filter(m => confirmedMembers[m.id] || confirmedMembers[m.studentCode] || (m.name && confirmedMembers[m.name])).length;
   const userHasConfirmed = confirmedMembers[currentUser] || (currUserObj && (confirmedMembers[currUserObj.id] || confirmedMembers[currUserObj.studentCode] || confirmedMembers[currUserObj.name]));
-  const isContractLocked = s1.contract.isConfirmed || state.isFinalSubmitted;
+  const isContractLocked = s1.contract.isConfirmed || state.isFinalSubmitted || isTaskDeadlineExpired;
 
   const userHasVoted = s1.hasVoted && (s1.hasVoted[currentUser] || (currUserObj && (s1.hasVoted[currUserObj.id] || s1.hasVoted[currUserObj.studentCode])));
   const userVotedProposalId = s1.votes ? (s1.votes[currentUser] || (currUserObj && (s1.votes[currUserObj.id] || s1.votes[currUserObj.studentCode]))) : null;
@@ -1088,12 +1094,20 @@ function renderStage1Canvas(canvas, state, handlers) {
   const currentUserName = currUserObj ? currUserObj.name : (state.members[currentUser] ? state.members[currentUser].name : '组员');
 
   canvas.innerHTML = `
-    ${isContractLocked ? `
+    ${isTaskDeadlineExpired ? `
+      <div style="background:#fef2f2; border:1.5px solid #fca5a5; border-radius:10px; padding:12px 18px; margin-bottom:12px; font-size:13px; color:#991b1b; font-weight:700; display:flex; justify-content:space-between; align-items:center; box-shadow:0 2px 8px rgba(239,68,68,0.1);">
+        <div style="display:flex; align-items:center; gap:8px;">
+          <span style="font-size:18px;">🔒</span>
+          <span><b>任务已截止锁定：</b> 本任务已于 <b>${currentTask?.deadline || '截止时间'}</b> 截止，阶段一【学术拍卖会】已自动转为<b>【只读查阅模式】</b>不可再修改。如需修改请联系任课教师延长时间。</span>
+        </div>
+        <span style="font-size:12px; color:#ffffff; background:#dc2626; padding:3px 10px; border-radius:6px; font-weight:800;">已截止</span>
+      </div>
+    ` : (isContractLocked ? `
       <div style="background:#ecfdf5; border:1px solid #a7f3d0; border-radius:8px; padding:10px 14px; margin-bottom:12px; font-size:13px; color:#059669; font-weight:700; display:flex; align-items:center; justify-content:space-between;">
         <span>🔒 阶段一【学术拍卖会】合作合约已全员签署生效并锁定 (可随时返回查阅)</span>
         <span style="font-size:11.5px; color:#065f46; background:#ffffff; border:1px solid #a7f3d0; padding:4px 8px; border-radius:4px;">全组 ${confirmedCount}/${totalMembersCount} 人已签署</span>
       </div>
-    ` : ''}
+    ` : '')}
 
     <div class="card">
       <div class="card-title" style="display:flex; justify-content:space-between; align-items:center;">
@@ -1722,11 +1736,22 @@ function renderStage3Canvas(canvas, state, handlers) {
   const confirmedRevMap = s3.confirmedMembers || {};
   const confirmedRevCount = membersList.filter(m => confirmedRevMap[m.id] || confirmedRevMap[m.studentCode]).length;
   const isUserRevisionConfirmed = !!(confirmedRevMap[currUserCode] || (currUser && confirmedRevMap[currUser.id]));
-  const isRevisionFullyConfirmed = s3.isRevisionConfirmed || (confirmedRevCount >= totalCount && totalCount > 0);
+  const allTasks = (window.app && window.app.authManager) ? window.app.authManager.getTasks() : [];
+  const currentTask = allTasks.find(t => t.id === state.activeTaskId);
+  const isTaskDeadlineExpired = isTaskExpired(currentTask);
+  const isFinalSubmitted = state.isFinalSubmitted || isTaskDeadlineExpired;
 
   canvas.innerHTML = `
     <div style="height:100%; display:flex; flex-direction:column; gap:12px;">
-      ${isFinalSubmitted ? `
+      ${isTaskDeadlineExpired ? `
+        <div style="background:#fef2f2; border:1.5px solid #fca5a5; border-radius:10px; padding:12px 18px; margin-bottom:4px; font-size:13px; color:#991b1b; font-weight:700; display:flex; justify-content:space-between; align-items:center; box-shadow:0 2px 8px rgba(239,68,68,0.1);">
+          <div style="display:flex; align-items:center; gap:8px;">
+            <span style="font-size:18px;">🔒</span>
+            <span><b>任务已截止锁定：</b> 本任务已于 <b>${currentTask?.deadline || '截止时间'}</b> 截止，阶段三【答辩擂台】已自动转为<b>【只读查阅模式】</b>不可再修改终稿。如需修改请联系任课教师延长时间。</span>
+          </div>
+          <span style="font-size:12px; color:#ffffff; background:#dc2626; padding:3px 10px; border-radius:6px; font-weight:800;">已截止</span>
+        </div>
+      ` : (state.isFinalSubmitted ? `
         <div style="background:#eff6ff; border:1px solid #bfdbfe; border-radius:12px; padding:14px 18px; display:flex; justify-content:space-between; align-items:center; flex-shrink:0; box-shadow:0 2px 8px rgba(37,99,235,0.08);">
           <div>
             <div style="font-size:14px; font-weight:800; color:#1e40af; display:flex; align-items:center; gap:8px;">
@@ -1738,7 +1763,7 @@ function renderStage3Canvas(canvas, state, handlers) {
             📋 打开问卷填写界面 ↗
           </button>
         </div>
-      ` : ''}
+      ` : '')}
 
       <div style="display:flex; justify-content:space-between; align-items:center; background:#ffffff; border:1px solid #e2e8f0; border-radius:10px; padding:8px 12px; flex-shrink:0; box-shadow:0 1px 3px rgba(15,23,42,0.04); flex-wrap:wrap; gap:8px;">
         <div style="gap:10px; display:flex; flex-wrap:wrap;">

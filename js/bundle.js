@@ -4788,19 +4788,17 @@
           const newDeadline = modal.querySelector('#modal-edit-task-deadline').value;
           const newDesc = modal.querySelector('#modal-edit-task-desc').value.trim();
 
-          if (!newTitle) {
-            alert('⚠️ 写作任务名称不能为空！');
+          if (!newTitle) { alert('⚠️ 写作任务名称不能为空！'); return; }
+          if (!newStart || !newDeadline) { alert('⚠️ 开始时间与截止时间均不能为空！'); return; }
+
+          const sDate = new Date(newStart);
+          const dDate = new Date(newDeadline);
+          if (isNaN(sDate.getTime()) || isNaN(dDate.getTime()) || sDate >= dDate) {
+            alert('⚠️ 截止时间必须晚于开始时间！');
             return;
           }
 
-          let calculatedDuration = 150;
-          if (newStart && newDeadline) {
-            const sDate = new Date(newStart);
-            const dDate = new Date(newDeadline);
-            if (!isNaN(sDate.getTime()) && !isNaN(dDate.getTime()) && dDate > sDate) {
-              calculatedDuration = Math.round((dDate.getTime() - sDate.getTime()) / (60 * 1000));
-            }
-          }
+          let calculatedDuration = Math.round((dDate.getTime() - sDate.getTime()) / (60 * 1000));
 
           const fmtTimeStr = (v) => v ? v.replace('T', ' ') : '';
 
@@ -4963,10 +4961,13 @@
     if (btnOpenTaskV2) {
       btnOpenTaskV2.addEventListener('click', () => {
         document.querySelectorAll('.modal-overlay').forEach(el => el.remove());
+        const pad = (n) => String(n).padStart(2, '0');
+        const formatLocal = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+
         const now = new Date();
-        const startStr = now.toISOString().slice(0, 16);
-        const deadlineDate = new Date(now.getTime() + 150 * 60 * 1000);
-        const deadlineStr = deadlineDate.toISOString().slice(0, 16);
+        const startStr = formatLocal(now);
+        const deadlineDate = new Date(now.getTime() + 120 * 60 * 1000); // 默认至少 2 小时后
+        const deadlineStr = formatLocal(deadlineDate);
 
         const modal = document.createElement('div');
         modal.className = 'modal-overlay';
@@ -4987,11 +4988,11 @@
 
               <div class="form-grid-2" style="margin-top:8px;">
                 <div class="teacher-form-group">
-                  <label><span class="req">*</span> 📅 任务开始时间</label>
+                  <label><span class="req">*</span> 📅 任务开始时间 (默认当前)</label>
                   <input type="datetime-local" id="modal-task-start" class="teacher-input fancy" value="${startStr}">
                 </div>
                 <div class="teacher-form-group">
-                  <label><span class="req">*</span> ⌛ 任务截止时间</label>
+                  <label><span class="req">*</span> ⌛ 任务截止时间 (默认2小时后)</label>
                   <input type="datetime-local" id="modal-task-deadline" class="teacher-input fancy" value="${deadlineStr}">
                 </div>
               </div>
@@ -5112,19 +5113,18 @@
           const classId = modal.querySelector('#modal-task-class').value;
           const title = modal.querySelector('#modal-task-title').value.trim();
           const desc = modal.querySelector('#modal-task-desc').value.trim();
-          const startTime = modal.querySelector('#modal-task-start').value;
-          const deadline = modal.querySelector('#modal-task-deadline').value;
-
           if (!title) { alert('⚠️ 请输入写作任务名称！'); return; }
+          if (!startTime || !deadline) { alert('⚠️ 请指定任务的开始时间与截止时间！'); return; }
 
-          let calculatedDuration = 150;
-          if (startTime && deadline) {
-            const sDate = new Date(startTime);
-            const dDate = new Date(deadline);
-            if (!isNaN(sDate.getTime()) && !isNaN(dDate.getTime()) && dDate > sDate) {
-              calculatedDuration = Math.round((dDate.getTime() - sDate.getTime()) / (60 * 1000));
-            }
+          const sDate = new Date(startTime);
+          const dDate = new Date(deadline);
+          if (isNaN(sDate.getTime()) || isNaN(dDate.getTime()) || sDate >= dDate) {
+            alert('⚠️ 任务截止时间必须晚于任务开始时间（建议至少设置 2 小时）！');
+            return;
           }
+
+          let calculatedDuration = 120;
+          calculatedDuration = Math.round((dDate.getTime() - sDate.getTime()) / (60 * 1000));
 
           try {
             authManager.createTask(title, classId, desc, [], startTime, deadline, calculatedDuration);
@@ -6022,12 +6022,14 @@
       return false;
     };
     const unreadAnnCount = relevantAnnouncements.filter(a => !isAnnRead(a)).length;
-    const isFinalSubmitted = state.isFinalSubmitted;
+    const isTaskDeadlineExpired = isTaskExpired(currentTask);
+    const isFinalSubmitted = state.isFinalSubmitted || isTaskDeadlineExpired;
 
     const stageOrder = { stage1: 1, stage2: 2, stage3: 3 };
     const currentMaxOrder = stageOrder[state.groupMaxStage || 'stage1'] || 1;
-    const isS2Locked = currentMaxOrder < 2;
-    const isS3Locked = currentMaxOrder < 3;
+    // 🌟 截止后三个阶段全部解锁，允许学生自由切换查阅回看；未截止时维持严格阶段门禁
+    const isS2Locked = !isTaskDeadlineExpired && currentMaxOrder < 2;
+    const isS3Locked = !isTaskDeadlineExpired && currentMaxOrder < 3;
 
     header.innerHTML = `
       <div class="brand-section">
@@ -7050,10 +7052,14 @@
     if (!s1.contract.taskAssignments) s1.contract.taskAssignments = {};
     if (!s1.contract.timeAllocations) s1.contract.timeAllocations = {};
 
+    const allTasks = (window.app && window.app.authManager) ? window.app.authManager.getTasks() : [];
+    const currentTask = allTasks.find(t => t.id === state.activeTaskId);
+    const isTaskDeadlineExpired = isTaskExpired(currentTask);
+
     const confirmedMembers = s1.contract.confirmedMembers || {};
     const confirmedCount = membersList.filter(m => confirmedMembers[m.id] || confirmedMembers[m.studentCode] || (m.name && confirmedMembers[m.name])).length;
     const userHasConfirmed = confirmedMembers[currentUser] || (currUserObj && (confirmedMembers[currUserObj.id] || confirmedMembers[currUserObj.studentCode] || confirmedMembers[currUserObj.name]));
-    const isContractLocked = s1.contract.isConfirmed || state.isFinalSubmitted;
+    const isContractLocked = s1.contract.isConfirmed || state.isFinalSubmitted || isTaskDeadlineExpired;
 
     const userHasVoted = s1.hasVoted && (s1.hasVoted[currentUser] || (currUserObj && (s1.hasVoted[currUserObj.id] || s1.hasVoted[currUserObj.studentCode])));
     const userVotedProposalId = s1.votes ? (s1.votes[currentUser] || (currUserObj && (s1.votes[currUserObj.id] || s1.votes[currUserObj.studentCode]))) : null;
@@ -7065,12 +7071,20 @@
     const currentUserName = currUserObj ? currUserObj.name : (state.members[currentUser] ? state.members[currentUser].name : '组员');
 
     canvas.innerHTML = `
-      ${isContractLocked ? `
+      ${isTaskDeadlineExpired ? `
+        <div style="background:#fef2f2; border:1.5px solid #fca5a5; border-radius:10px; padding:12px 18px; margin-bottom:12px; font-size:13px; color:#991b1b; font-weight:700; display:flex; justify-content:space-between; align-items:center; box-shadow:0 2px 8px rgba(239,68,68,0.1);">
+          <div style="display:flex; align-items:center; gap:8px;">
+            <span style="font-size:18px;">🔒</span>
+            <span><b>任务已截止锁定：</b> 本任务已于 <b>${currentTask?.deadline || '截止时间'}</b> 截止，阶段一【学术拍卖会】已自动转为<b>【只读查阅模式】</b>不可再修改。如需修改请联系任课教师延长时间。</span>
+          </div>
+          <span style="font-size:12px; color:#ffffff; background:#dc2626; padding:3px 10px; border-radius:6px; font-weight:800;">已截止</span>
+        </div>
+      ` : (isContractLocked ? `
         <div style="background:#ecfdf5; border:1px solid #a7f3d0; border-radius:8px; padding:10px 14px; margin-bottom:12px; font-size:13px; color:#059669; font-weight:700; display:flex; align-items:center; justify-content:space-between;">
           <span>🔒 阶段一【学术拍卖会】合作合约已全员签署生效并锁定 (可随时返回查阅)</span>
           <span style="font-size:11.5px; color:#065f46; background:#ffffff; border:1px solid #a7f3d0; padding:4px 8px; border-radius:4px;">全组 ${confirmedCount}/${totalMembersCount} 人已签署</span>
         </div>
-      ` : ''}
+      ` : '')}
 
       <div class="card">
         <div class="card-title" style="display:flex; justify-content:space-between; align-items:center;">
@@ -7699,11 +7713,22 @@
     const confirmedRevMap = s3.confirmedMembers || {};
     const confirmedRevCount = membersList.filter(m => confirmedRevMap[m.id] || confirmedRevMap[m.studentCode]).length;
     const isUserRevisionConfirmed = !!(confirmedRevMap[currUserCode] || (currUser && confirmedRevMap[currUser.id]));
-    const isRevisionFullyConfirmed = s3.isRevisionConfirmed || (confirmedRevCount >= totalCount && totalCount > 0);
+    const allTasks = (window.app && window.app.authManager) ? window.app.authManager.getTasks() : [];
+    const currentTask = allTasks.find(t => t.id === state.activeTaskId);
+    const isTaskDeadlineExpired = isTaskExpired(currentTask);
+    const isFinalSubmitted = state.isFinalSubmitted || isTaskDeadlineExpired;
 
     canvas.innerHTML = `
       <div style="height:100%; display:flex; flex-direction:column; gap:12px;">
-        ${isFinalSubmitted ? `
+        ${isTaskDeadlineExpired ? `
+          <div style="background:#fef2f2; border:1.5px solid #fca5a5; border-radius:10px; padding:12px 18px; margin-bottom:4px; font-size:13px; color:#991b1b; font-weight:700; display:flex; justify-content:space-between; align-items:center; box-shadow:0 2px 8px rgba(239,68,68,0.1);">
+            <div style="display:flex; align-items:center; gap:8px;">
+              <span style="font-size:18px;">🔒</span>
+              <span><b>任务已截止锁定：</b> 本任务已于 <b>${currentTask?.deadline || '截止时间'}</b> 截止，阶段三【答辩擂台】已自动转为<b>【只读查阅模式】</b>不可再修改终稿。如需修改请联系任课教师延长时间。</span>
+            </div>
+            <span style="font-size:12px; color:#ffffff; background:#dc2626; padding:3px 10px; border-radius:6px; font-weight:800;">已截止</span>
+          </div>
+        ` : (state.isFinalSubmitted ? `
           <div style="background:#eff6ff; border:1px solid #bfdbfe; border-radius:12px; padding:14px 18px; display:flex; justify-content:space-between; align-items:center; flex-shrink:0; box-shadow:0 2px 8px rgba(37,99,235,0.08);">
             <div>
               <div style="font-size:14px; font-weight:800; color:#1e40af; display:flex; align-items:center; gap:8px;">
@@ -7715,7 +7740,7 @@
               📋 打开问卷填写界面 ↗
             </button>
           </div>
-        ` : ''}
+        ` : '')}
 
         <div style="display:flex; justify-content:space-between; align-items:center; background:#ffffff; border:1px solid #e2e8f0; border-radius:10px; padding:8px 12px; flex-shrink:0; box-shadow:0 1px 3px rgba(15,23,42,0.04); flex-wrap:wrap; gap:8px;">
           <div style="gap:10px; display:flex; flex-wrap:wrap;">
@@ -10116,8 +10141,12 @@
       const currentGroupOrder = stageOrder[currentGroupMax] || 1;
       const targetOrder = stageOrder[newStage] || 1;
 
-      // 🛡️ 阶段防越权门禁：未达成里程碑解锁时，禁止学生随意点击跳级
-      if (targetOrder > currentGroupOrder && !isMilestoneAdvance) {
+      const allTasks = (this.authManager) ? this.authManager.getTasks() : [];
+      const currentTaskObj = allTasks.find(t => t.id === this.state.activeTaskId);
+      const isTaskDeadlineExpired = isTaskExpired(currentTaskObj);
+
+      // 🛡️ 阶段防越权门禁：未达成里程碑解锁时，禁止学生随意点击跳级（截止只读查阅模式下全阶段自由放行浏览）
+      if (!isTaskDeadlineExpired && targetOrder > currentGroupOrder && !isMilestoneAdvance) {
         const stageTitles = { stage2: '【阶段二：学术编辑部】', stage3: '【阶段三：答辩擂台】' };
         alert(`⚠️ 暂未解锁 ${stageTitles[newStage] || newStage}！\n必须先在当前阶段完成公约签署与阶段任务后，系统将自动全组解锁推进。`);
         return;
