@@ -6466,26 +6466,34 @@
           window._yjsDoc = ydoc;
 
           const statusBadge = container.querySelector(`#${editorId}-yjs-status-badge`);
-          provider.on('status', event => {
-            console.log(`%c[Yjs CRDT 协同状态] 🌐 ${event.status === 'connected' ? '✅ 已连接协同服务器 (满血运行中)' : '⏳ 连接中: ' + event.status}`, 'color: #10b981; font-weight: bold;');
-            if (statusBadge) {
-              if (event.status === 'connected') {
-                statusBadge.innerHTML = '🟢 Yjs 毫秒协同 (已连接)';
-                statusBadge.style.color = '#059669';
-                statusBadge.style.background = '#ecfdf5';
-                statusBadge.style.borderColor = '#a7f3d0';
-              } else if (event.status === 'connecting') {
-                statusBadge.innerHTML = '🟡 Yjs 协同连接中...';
-                statusBadge.style.color = '#d97706';
-                statusBadge.style.background = '#fffbeb';
-                statusBadge.style.borderColor = '#fde68a';
-              } else {
-                statusBadge.innerHTML = '🔴 协同降级模式 (短轮询同步)';
-                statusBadge.style.color = '#dc2626';
-                statusBadge.style.background = '#fef2f2';
-                statusBadge.style.borderColor = '#fca5a5';
-              }
+          const updatePeerStatus = (statusStr) => {
+            if (!statusBadge) return;
+            const peerCount = Array.from(provider.awareness.getStates().keys()).length;
+            if (statusStr === 'connected' || provider.wsconnected) {
+              statusBadge.innerHTML = `🟢 毫秒协同 [${roomName}] (${peerCount}人同屏)`;
+              statusBadge.style.color = '#059669';
+              statusBadge.style.background = '#ecfdf5';
+              statusBadge.style.borderColor = '#a7f3d0';
+            } else if (statusStr === 'connecting') {
+              statusBadge.innerHTML = `🟡 连接协同房间 [${roomName}]...`;
+              statusBadge.style.color = '#d97706';
+              statusBadge.style.background = '#fffbeb';
+              statusBadge.style.borderColor = '#fde68a';
+            } else {
+              statusBadge.innerHTML = `🔴 协同离线 (${wsUrl})`;
+              statusBadge.style.color = '#dc2626';
+              statusBadge.style.background = '#fef2f2';
+              statusBadge.style.borderColor = '#fca5a5';
             }
+          };
+
+          provider.on('status', event => {
+            console.log(`%c[Yjs CRDT 协同状态] 🌐 ${event.status === 'connected' ? '✅ 已连接协同服务器 (满血运行中)' : '⏳ 连接中: ' + event.status} | 房间: ${roomName}`, 'color: #10b981; font-weight: bold;');
+            updatePeerStatus(event.status);
+          });
+
+          provider.awareness.on('change', () => {
+            updatePeerStatus('connected');
           });
 
           const userColors = ['#2563eb', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4'];

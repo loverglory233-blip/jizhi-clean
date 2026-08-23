@@ -102,7 +102,11 @@ try {
 
 wss.on('connection', (ws, req) => {
   const urlObj = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
-  let roomName = urlObj.searchParams.get('room') || urlObj.pathname.replace(/^\/+/, '').split('?')[0];
+  let rawPath = urlObj.pathname.replace(/^\/+/, '').split('?')[0];
+  if (rawPath.startsWith('ws/')) {
+    rawPath = rawPath.slice(3);
+  }
+  let roomName = urlObj.searchParams.get('room') || rawPath;
   if (!roomName || roomName === 'ws' || roomName === '') {
     roomName = 'jizhi_default_room';
   }
