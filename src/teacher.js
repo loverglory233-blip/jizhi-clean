@@ -9,8 +9,8 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260823_v138";
-import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired } from "./utils.js?v=20260823_v138";
+} from "./constants.js?v=20260823_v139";
+import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired } from "./utils.js?v=20260823_v139";
 
 /* ==========================================================================
    7. TEACHER PORTAL RENDERER (LIVE WORKSPACE MIRROR & ANNOUNCEMENT READ MATRIX)
@@ -2038,10 +2038,19 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
 
       const now = new Date();
       let baseDate = new Date();
+      let displayCurrentDeadline = task.deadline || '无硬性限制';
+      let isPastDeadline = false;
+
       if (task.deadline) {
         const d = new Date(task.deadline.replace(/-/g, '/'));
-        if (!isNaN(d.getTime()) && d.getTime() > now.getTime()) {
-          baseDate = d;
+        if (!isNaN(d.getTime())) {
+          displayCurrentDeadline = task.deadline;
+          if (d.getTime() <= now.getTime()) {
+            isPastDeadline = true;
+            baseDate = now; // 已过期，新建议时间从当前时间往后顺延
+          } else {
+            baseDate = d; // 未过期，新建议时间从原截止时间往后顺延
+          }
         }
       }
 
@@ -2063,8 +2072,9 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
             <div style="font-size:13.5px; color:#1e293b; font-weight:700;">
               任务名称：<span style="color:#2563eb;">📌 ${escapeHtml(task.title)}</span>
             </div>
-            <div style="font-size:12.5px; color:#64748b; background:#f8fafc; padding:8px 12px; border-radius:8px; border:1px solid #e2e8f0;">
-              当前截止时间：<b style="color:#dc2626;">${task.deadline || '无硬性限制'}</b>
+            <div style="font-size:12.5px; color:#64748b; background:#f8fafc; padding:8px 12px; border-radius:8px; border:1px solid #e2e8f0; display:flex; justify-content:space-between; align-items:center;">
+              <span>当前最新截止时间：<b style="color:${isPastDeadline ? '#dc2626' : '#2563eb'};">${displayCurrentDeadline}</b></span>
+              ${isPastDeadline ? '<span style="background:#fee2e2; color:#dc2626; font-size:11px; font-weight:800; padding:2px 6px; border-radius:4px;">已过期</span>' : '<span style="background:#ecfdf5; color:#059669; font-size:11px; font-weight:800; padding:2px 6px; border-radius:4px;">进行中</span>'}
             </div>
 
             <div style="display:flex; flex-direction:column; gap:6px;">

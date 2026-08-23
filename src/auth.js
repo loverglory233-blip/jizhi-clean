@@ -14,7 +14,7 @@ import {
   DefaultTasks,
   DefaultAnnouncements,
   DefaultReferencePapers
-} from './constants.js?v=20260823_v138';
+} from './constants.js?v=20260823_v139';
 
 export class AuthManager {
   constructor() {
@@ -1128,6 +1128,15 @@ export class AuthManager {
       tasks[taskIndex].durationMinutes = (parseInt(tasks[taskIndex].durationMinutes, 10) || 150) + parseInt(addedMinutes, 10);
     }
     localStorage.setItem(STORAGE_KEY_TASKS, JSON.stringify(tasks));
+
+    // 📢 自动发布全校/全班广播教学通知，通知所有学生端任务已延期
+    this.publishAnnouncement(
+      taskId,
+      `⏳ 任务延期通知：截止时间已延长至 ${newDeadline}`,
+      `任课教师已将写作任务《${tasks[taskIndex].title}》截止时间延长至 ${newDeadline}。各小组写作工作台已自动解除只读锁定，请同学们抓紧时间推进完成！`,
+      null, 'all', '全班所有小组', 'all', '全校班级', ['all'], true
+    );
+
     this.pushGlobalMeta();
     return tasks[taskIndex];
   }
