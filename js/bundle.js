@@ -2755,29 +2755,8 @@
 
       if (needWorkspaceRender && user?.role === 'student' && this.app.state.studentViewMode === 'workspace') {
         const activeEl = document.activeElement;
-        const isTypingInWorkspace = activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA') && document.getElementById('canvas-panel')?.contains(activeEl);
-        if (isTypingInWorkspace) {
-          const inputId = activeEl.id;
-          const inputClass = activeEl.className;
-          const dataId = activeEl.dataset.id;
-          const val = activeEl.value;
-          const selStart = activeEl.selectionStart;
-          const selEnd = activeEl.selectionEnd;
-
-          this.app.renderStudentWorkspace();
-
-          try {
-            let target = null;
-            if (inputId) target = document.getElementById(inputId);
-            else if (dataId) target = document.querySelector(`[data-id="${dataId}"]`);
-            else if (inputClass) target = document.querySelector(`.${inputClass.split(' ')[0]}`);
-            if (target) {
-              target.value = val;
-              target.focus();
-              if (typeof selStart === 'number') target.setSelectionRange(selStart, selEnd);
-            }
-          } catch (e) {}
-        } else {
+        const isTypingInWorkspace = activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA') && (document.getElementById('canvas-panel')?.contains(activeEl) || document.querySelector('.contract-card')?.contains(activeEl));
+        if (!isTypingInWorkspace) {
           this.app.renderStudentWorkspace();
         }
       }
@@ -7405,9 +7384,7 @@
 
     const topicInput = canvas.querySelector('#contract-topic-input');
     if (topicInput && !isContractLocked) {
-      topicInput.addEventListener('input', (e) => {
-        s1.mergedTitle = e.target.value;
-      });
+      let topicTimer = null;
       const flushTopic = () => {
         s1.mergedTitle = topicInput.value;
         if (window.app) {
@@ -7415,6 +7392,11 @@
           if (window.app.cloudSyncEngine) window.app.cloudSyncEngine.pushSnapshot();
         }
       };
+      topicInput.addEventListener('input', (e) => {
+        s1.mergedTitle = e.target.value;
+        if (topicTimer) clearTimeout(topicTimer);
+        topicTimer = setTimeout(flushTopic, 300);
+      });
       topicInput.addEventListener('change', flushTopic);
       topicInput.addEventListener('blur', flushTopic);
       topicInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') { topicInput.blur(); } });
@@ -7422,13 +7404,7 @@
 
     canvas.querySelectorAll('.contract-time-input').forEach(input => {
       if (!isContractLocked) {
-        input.addEventListener('input', (e) => {
-          const key = e.target.dataset.key;
-          const numVal = Number(e.target.value) || 0;
-          if (key && s1.contract.timeAllocations) {
-            s1.contract.timeAllocations[key] = numVal;
-          }
-        });
+        let timeTimer = null;
         const flushTime = () => {
           const key = input.dataset.key;
           const numVal = Number(input.value) || 0;
@@ -7454,6 +7430,15 @@
             }
           }
         };
+        input.addEventListener('input', (e) => {
+          const key = e.target.dataset.key;
+          const numVal = Number(e.target.value) || 0;
+          if (key && s1.contract.timeAllocations) {
+            s1.contract.timeAllocations[key] = numVal;
+          }
+          if (timeTimer) clearTimeout(timeTimer);
+          timeTimer = setTimeout(flushTime, 300);
+        });
         input.addEventListener('change', flushTime);
         input.addEventListener('blur', flushTime);
         input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { input.blur(); } });
@@ -7462,12 +7447,7 @@
 
     canvas.querySelectorAll('.task-assignment-input').forEach(input => {
       if (!isContractLocked) {
-        input.addEventListener('input', (e) => {
-          const mKey = e.target.dataset.mkey;
-          const val = e.target.value;
-          if (!s1.contract.taskAssignments) s1.contract.taskAssignments = {};
-          if (mKey) s1.contract.taskAssignments[mKey] = val;
-        });
+        let taskTimer = null;
         const flushTask = () => {
           const mKey = input.dataset.mkey;
           const val = input.value;
@@ -7492,6 +7472,14 @@
             }).catch(() => {});
           }
         };
+        input.addEventListener('input', (e) => {
+          const mKey = e.target.dataset.mkey;
+          const val = e.target.value;
+          if (!s1.contract.taskAssignments) s1.contract.taskAssignments = {};
+          if (mKey) s1.contract.taskAssignments[mKey] = val;
+          if (taskTimer) clearTimeout(taskTimer);
+          taskTimer = setTimeout(flushTask, 300);
+        });
         input.addEventListener('change', flushTask);
         input.addEventListener('blur', flushTask);
         input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { input.blur(); } });
