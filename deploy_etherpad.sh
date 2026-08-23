@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-echo "🚀 [Etherpad Installer] 正在配置并启动 Etherpad-Lite 实时协同引擎..."
+echo "🚀 [Etherpad Installer] 正在使用高速国内镜像与 --legacy-peer-deps 安装 Etherpad..."
 
 INSTALL_DIR="/www/wwwroot/etherpad-lite"
 
@@ -61,16 +61,14 @@ SETTING_EOF
 mkdir -p var
 echo "jizhi_academic_secret_key_2026" > APIKEY.txt
 
-# 4. 执行官方依赖安装（进入 src 目录安装或执行 installDeps.sh）
-echo "📦 执行 Etherpad 官方依赖安装..."
-if [ -d "src" ]; then
-    cd src
-    npm install --no-audit
-    cd ..
-elif [ -f "bin/installDeps.sh" ]; then
-    chmod +x bin/installDeps.sh
-    ./bin/installDeps.sh
-fi
+# 4. 设置国内极速镜像并以 --legacy-peer-deps 方式秒级安装
+echo "⚡ 配置国内极速 npm 镜像源..."
+npm config set registry https://registry.npmmirror.com
+
+echo "📦 执行 Etherpad 依赖安装 (--legacy-peer-deps)..."
+cd src
+npm install --legacy-peer-deps --no-audit
+cd ..
 
 # 5. 后台拉起守护进程
 echo "🔄 拉起 Etherpad 9001 端口协同进程..."
