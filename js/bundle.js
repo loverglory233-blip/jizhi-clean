@@ -6329,7 +6329,7 @@
         </div>
 
         <div class="word-page-scroll">
-          <div class="word-page" id="${editorId}" ${!isReadonly ? 'contenteditable="true"' : 'contenteditable="false" style="background:#ffffff; color:#0f172a;"'}>
+          <div class="word-page" id="${editorId}">
             ${initialHtml}
           </div>
         </div>
@@ -6543,12 +6543,12 @@
           });
 
           // 🛡️ 双向守卫：无论是本地敲键盘还是远端组员通过 CRDT 向量推送，100% 触发内容与贡献比联动
-          ytext.observe(() => {
+          ytext.observe((event) => {
             const cleanHtml = quillInstance.root.innerHTML;
             if (onChangeCallback) onChangeCallback(cleanHtml);
           });
 
-          quillInstance.on('text-change', () => {
+          quillInstance.on('text-change', (delta, oldDelta, source) => {
             const cleanHtml = quillInstance.root.innerHTML;
             if (onChangeCallback) onChangeCallback(cleanHtml);
           });
