@@ -8,17 +8,16 @@ if ! pidof mysqld >/dev/null 2>&1 && ! pidof mariadbd >/dev/null 2>&1; then
     /etc/init.d/mysqld start 2>/dev/null || /etc/init.d/mysql start 2>/dev/null || systemctl start mysqld 2>/dev/null || systemctl start mariadb 2>/dev/null || true
 fi
 
-echo "🟢 2. 彻底清理僵死进程并强制拉起所有 PHP-FPM (物理级根除 502 Bad Gateway)..."
+echo "🟢 2. 彻底清理僵死进程并确保 PHP-FPM 正常运行..."
 pkill -9 php-fpm 2>/dev/null || true
 rm -f /www/server/php/*/var/run/php-fpm.pid 2>/dev/null || true
 
 for p in /etc/init.d/php-fpm* /etc/init.d/php*; do
     if [ -x "$p" ]; then
-        echo "   ⚡ 正在拉起服务: $p"
-        "$p" start 2>/dev/null || true
+        "$p" restart >/dev/null 2>&1 || "$p" start >/dev/null 2>&1 || true
     fi
 done
-systemctl restart php-fpm* 2>/dev/null || true
+systemctl restart php-fpm* >/dev/null 2>&1 || true
 sleep 1
 
 # 自动探测系统真实监听的 PHP Socket
