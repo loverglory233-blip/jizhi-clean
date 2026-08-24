@@ -2985,6 +2985,8 @@
         }
       };
       apply(roleOptStudent, selected === 'student');
+      apply(roleOptTeacher, selected === 'teacher');
+    };
     if (roleSelector) roleSelector.addEventListener('change', highlightRole);
     highlightRole();
 
