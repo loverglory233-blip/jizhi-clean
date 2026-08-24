@@ -51,6 +51,8 @@ if ($pdo) {
         initDatabaseTables();
         @touch($lockFile);
     }
+    ensureTeacherSeedAccount($pdo);
+    autoSyncAllUsersFromMeta($pdo);
 }
 
 $groupId = isset($_GET['groupId']) ? preg_replace('/[^a-zA-Z0-9_-]/', '', $_GET['groupId']) : 'group_1';
@@ -117,6 +119,57 @@ if (!function_exists('ensureTeacherSeedAccount')) {
     }
 }
 
+// 🛡️ 全自动自愈同步：将 main_meta 中的所有学生账号 100% 自动同步进 MySQL users 实体表
+if (!function_exists('autoSyncAllUsersFromMeta')) {
+    function autoSyncAllUsersFromMeta($pdo) {
+        if (!$pdo) return;
+        try {
+            $stmtMeta = $pdo->prepare("SELECT meta_value FROM global_meta WHERE meta_key = 'main_meta'");
+            $stmtMeta->execute();
+            $metaRow = $stmtMeta->fetch();
+            if (!$metaRow || empty($metaRow['meta_value'])) return;
+
+            $gm = json_decode($metaRow['meta_value'], true) ?: [];
+            $gUsers = $gm['users'] ?? [];
+            if (!is_array($gUsers) || empty($gUsers)) return;
+
+            $stmtUpsert = $pdo->prepare("INSERT INTO users (id, username, student_code, name, password, role)
+                VALUES (:id, :u, :sc, :nm, :p, :r)
+                ON DUPLICATE KEY UPDATE name = VALUES(name), student_code = VALUES(student_code), username = VALUES(username), role = VALUES(role)");
+
+            foreach ($gUsers as $gu) {
+                $code = trim($gu['studentCode'] ?? ($gu['username'] ?? ($gu['id'] ?? '')));
+                if (empty($code)) continue;
+                $uid = trim($gu['id'] ?? $code);
+                $uname = trim($gu['username'] ?? $code);
+                $ucode = trim($gu['studentCode'] ?? $code);
+                $unick = trim($gu['name'] ?? $code);
+                $urole = trim($gu['role'] ?? 'student');
+                $rawPwd = trim($gu['password'] ?? '');
+                $upwd = !empty($rawPwd) ? $rawPwd : '123';
+
+                $stmtCheck = $pdo->prepare("SELECT id, password FROM users WHERE student_code = :c1 OR username = :c2 OR id = :c3 LIMIT 1");
+                $stmtCheck->execute([':c1' => $code, ':c2' => $code, ':c3' => $uid]);
+                $existRow = $stmtCheck->fetch();
+
+                if ($existRow) {
+                    $stmtUpdate = $pdo->prepare("UPDATE users SET name = :nm, student_code = :sc, username = :u, role = :r WHERE id = :id");
+                    $stmtUpdate->execute([':nm' => $unick, ':sc' => $ucode, ':u' => $uname, ':r' => $urole, ':id' => $existRow['id']]);
+                } else {
+                    $stmtUpsert->execute([
+                        ':id' => $uid,
+                        ':u' => $uname,
+                        ':sc' => $ucode,
+                        ':nm' => $unick,
+                        ':p' => $upwd,
+                        ':r' => $urole
+                    ]);
+                }
+            }
+        } catch (Exception $e) {}
+    }
+}
+
 if ($action === 'login' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $rawInput = @file_get_contents('php://input');
     $req = json_decode($rawInput, true) ?: [];
@@ -131,6 +184,7 @@ if ($action === 'login' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     ensureTeacherSeedAccount($pdo);
+    autoSyncAllUsersFromMeta($pdo);
 
     $foundUser = null;
     $userExists = false;
