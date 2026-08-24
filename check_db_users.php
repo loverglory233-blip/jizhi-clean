@@ -84,8 +84,24 @@ if ($rows) {
     echo "<p class='err'>❌ users 表为空！学生账号没有写入实体表！</p>";
 }
 
-// 2. tasks 任务表
-echo "<h3>② tasks 任务表（数据库中已发布的协作任务）</h3>";
+// 2. classes 班级与分组表
+echo "<h3>② classes 班级表（各教学班与小组成员分组实时落库）</h3>";
+$stmtClasses = $pdo->query("SELECT id, name, code, student_ids, groups_data FROM classes ORDER BY id ASC");
+$cRows = $stmtClasses ? $stmtClasses->fetchAll(PDO::FETCH_ASSOC) : [];
+if ($cRows) {
+    echo "<table><tr><th>class_id</th><th>班级名称</th><th>班级邀请码</th><th>学生人数</th><th>小组数</th></tr>";
+    foreach ($cRows as $c) {
+        $sidsArr = json_decode($c['student_ids'] ?? '[]', true) ?: [];
+        $grpArr = json_decode($c['groups_data'] ?? '[]', true) ?: [];
+        echo "<tr><td>{$c['id']}</td><td><b>" . htmlspecialchars($c['name']) . "</b></td><td>{$c['code']}</td><td>" . count($sidsArr) . " 人</td><td class='ok'>" . count($grpArr) . " 个组</td></tr>";
+    }
+    echo "</table><p class='ok'>✅ classes 表共 " . count($cRows) . " 个班级</p>";
+} else {
+    echo "<p style='color:#666;'>暂无 classes 表记录。</p>";
+}
+
+// 3. tasks 任务表
+echo "<h3>③ tasks 任务表（数据库中已发布的协作任务）</h3>";
 $stmtTasks = $pdo->query("SELECT id, title, created_at_str, status FROM tasks ORDER BY id DESC");
 $tRows = $stmtTasks ? $stmtTasks->fetchAll(PDO::FETCH_ASSOC) : [];
 if ($tRows) {
@@ -95,7 +111,7 @@ if ($tRows) {
     }
     echo "</table><p class='ok'>✅ tasks 表共 " . count($tRows) . " 个任务</p>";
 } else {
-    echo "<p style='color:#666;'>暂无单独 tasks 表记录（任务保存在 global_meta 中）。</p>";
+    echo "<p style='color:#666;'>暂无单独 tasks 表记录。</p>";
 }
 
 // 3. group_states 协同状态表 (公约、正文、阶段)
