@@ -8419,20 +8419,32 @@
       presenceContainer.innerHTML = memberList.map(m => {
         const isMe = (m.id === myCode || m.studentCode === myCode || (currUser && (m.id === currUser.id || m.studentCode === currUser.studentCode || m.name === currUser.name)));
         let isOnline = isMe;
+        let isIdle = false;
+        const p = presence[m.studentCode] || presence[m.id] || presence[m.username] || presence[m.name];
+
         if (!isOnline) {
-          const p = presence[m.studentCode] || presence[m.id] || presence[m.username] || presence[m.name];
           if (p && (nowMs - (p.lastSeen || p.updatedAt || p.timestamp || 0) < 180000)) {
             isOnline = true;
+            isIdle = !!p.isIdle;
           }
           if (recentSpeakers.has(m.id) || recentSpeakers.has(m.studentCode) || recentSpeakers.has(m.name) || recentSpeakers.has(m.username)) {
             isOnline = true;
           }
+        } else {
+          const myP = presence[myCode] || (currUser && (presence[currUser.id] || presence[currUser.studentCode]));
+          if (myP && myP.isIdle) isIdle = true;
         }
 
+        const dotColor = isOnline ? (isIdle ? '#f59e0b' : '#10b981') : '#cbd5e1';
+        const bgStyle = isOnline
+          ? (isIdle ? 'background:#fffbeb; color:#b45309; border:1px solid #fde68a;' : 'background:#ecfdf5; color:#059669; border:1px solid #a7f3d0;')
+          : 'background:#f1f5f9; color:#94a3b8; border:1px solid #e2e8f0;';
+        const statusText = isOnline ? (isIdle ? ' (思考中)' : '') : '';
+
         return `
-          <span style="font-size:11px; padding:2px 8px; border-radius:10px; font-weight:700; display:inline-flex; align-items:center; gap:4px; ${isOnline ? 'background:#ecfdf5; color:#059669; border:1px solid #a7f3d0;' : 'background:#f1f5f9; color:#94a3b8; border:1px solid #e2e8f0;'}">
-            <span style="width:6px; height:6px; border-radius:50%; background:${isOnline ? '#10b981' : '#cbd5e1'};"></span>
-            ${m.avatar || '👤'} ${m.name}${isMe ? ' (我)' : ''}
+          <span style="font-size:11px; padding:2px 8px; border-radius:10px; font-weight:700; display:inline-flex; align-items:center; gap:4px; ${bgStyle}">
+            <span style="width:6px; height:6px; border-radius:50%; background:${dotColor};"></span>
+            ${m.avatar || '👤'} ${m.name}${isMe ? ' (我)' : ''}${statusText}
           </span>
         `;
       }).join('');
@@ -8877,17 +8889,27 @@
     }
 
     initGlobalPresenceHeartbeat() {
-      // 🌿 实时轻量在线心跳：每 8 秒自动刷新当前在线时间戳并广播，让所有同伴即刻感知在线状态
+      this._lastUserActiveTime = Date.now();
+      ['mousemove', 'keydown', 'input', 'scroll', 'click'].forEach(evt => {
+        window.addEventListener(evt, () => { this._lastUserActiveTime = Date.now(); }, { passive: true });
+      });
+
+      // 🌿 实时轻量在线心跳：每 8 秒自动刷新当前在线时间戳并广播，无论输出还是发呆均能精准感知
       setInterval(() => {
         const currentUser = this.authManager ? this.authManager.getCurrentUser() : null;
         if (currentUser && currentUser.role === 'student' && this.state.studentViewMode === 'workspace') {
           if (!this.state.presence) this.state.presence = {};
           const myKeys = [currentUser.id, currentUser.studentCode, currentUser.username, currentUser.name].filter(Boolean);
           const now = Date.now();
+          const isIdle = (now - (this._lastUserActiveTime || now)) > 90000;
+          const activeSection = isIdle ? '思考研读中' : '在线协作中';
+
           myKeys.forEach(k => {
             this.state.presence[k] = {
               nodeIndex: (this.state.presence[k] && this.state.presence[k].nodeIndex) || 0,
-              activeSection: (this.state.presence[k] && this.state.presence[k].activeSection) || '在线协作',
+              activeSection: activeSection,
+              isIdle: isIdle,
+              lastSeen: now,
               updatedAt: now
             };
           });

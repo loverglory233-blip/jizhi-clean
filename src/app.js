@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260823_v208";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired } from "./utils.js?v=20260823_v208";
-import { callCozeAgentAPI } from "./agents.js?v=20260823_v208";
-import { AuthManager } from "./auth.js?v=20260823_v208";
-import { CloudSyncEngine } from "./sync.js?v=20260823_v208";
-import { renderLoginView } from "./login.js?v=20260823_v208";
-import { renderTeacherPortal } from "./teacher.js?v=20260823_v208";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260823_v208";
+} from "./constants.js?v=20260823_v209";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired } from "./utils.js?v=20260823_v209";
+import { callCozeAgentAPI } from "./agents.js?v=20260823_v209";
+import { AuthManager } from "./auth.js?v=20260823_v209";
+import { CloudSyncEngine } from "./sync.js?v=20260823_v209";
+import { renderLoginView } from "./login.js?v=20260823_v209";
+import { renderTeacherPortal } from "./teacher.js?v=20260823_v209";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260823_v209";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260823_v208";
+} from "./editor.js?v=20260823_v209";
 
 // Make renderChat available on window for sync callbacks
 if (typeof window !== "undefined") {
@@ -351,17 +351,27 @@ export class App {
   }
 
   initGlobalPresenceHeartbeat() {
-    // 🌿 实时轻量在线心跳：每 8 秒自动刷新当前在线时间戳并广播，让所有同伴即刻感知在线状态
+    this._lastUserActiveTime = Date.now();
+    ['mousemove', 'keydown', 'input', 'scroll', 'click'].forEach(evt => {
+      window.addEventListener(evt, () => { this._lastUserActiveTime = Date.now(); }, { passive: true });
+    });
+
+    // 🌿 实时轻量在线心跳：每 8 秒自动刷新当前在线时间戳并广播，无论输出还是发呆均能精准感知
     setInterval(() => {
       const currentUser = this.authManager ? this.authManager.getCurrentUser() : null;
       if (currentUser && currentUser.role === 'student' && this.state.studentViewMode === 'workspace') {
         if (!this.state.presence) this.state.presence = {};
         const myKeys = [currentUser.id, currentUser.studentCode, currentUser.username, currentUser.name].filter(Boolean);
         const now = Date.now();
+        const isIdle = (now - (this._lastUserActiveTime || now)) > 90000;
+        const activeSection = isIdle ? '思考研读中' : '在线协作中';
+
         myKeys.forEach(k => {
           this.state.presence[k] = {
             nodeIndex: (this.state.presence[k] && this.state.presence[k].nodeIndex) || 0,
-            activeSection: (this.state.presence[k] && this.state.presence[k].activeSection) || '在线协作',
+            activeSection: activeSection,
+            isIdle: isIdle,
+            lastSeen: now,
             updatedAt: now
           };
         });

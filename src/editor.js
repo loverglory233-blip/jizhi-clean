@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles } from "./constants.js?v=20260823_v208";
-import { callCozeAgentAPI } from "./agents.js?v=20260823_v208";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime } from "./utils.js?v=20260823_v208";
+import { AgentProfiles } from "./constants.js?v=20260823_v209";
+import { callCozeAgentAPI } from "./agents.js?v=20260823_v209";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime } from "./utils.js?v=20260823_v209";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -2074,20 +2074,32 @@ export function renderChat(state) {
     presenceContainer.innerHTML = memberList.map(m => {
       const isMe = (m.id === myCode || m.studentCode === myCode || (currUser && (m.id === currUser.id || m.studentCode === currUser.studentCode || m.name === currUser.name)));
       let isOnline = isMe;
+      let isIdle = false;
+      const p = presence[m.studentCode] || presence[m.id] || presence[m.username] || presence[m.name];
+
       if (!isOnline) {
-        const p = presence[m.studentCode] || presence[m.id] || presence[m.username] || presence[m.name];
         if (p && (nowMs - (p.lastSeen || p.updatedAt || p.timestamp || 0) < 180000)) {
           isOnline = true;
+          isIdle = !!p.isIdle;
         }
         if (recentSpeakers.has(m.id) || recentSpeakers.has(m.studentCode) || recentSpeakers.has(m.name) || recentSpeakers.has(m.username)) {
           isOnline = true;
         }
+      } else {
+        const myP = presence[myCode] || (currUser && (presence[currUser.id] || presence[currUser.studentCode]));
+        if (myP && myP.isIdle) isIdle = true;
       }
 
+      const dotColor = isOnline ? (isIdle ? '#f59e0b' : '#10b981') : '#cbd5e1';
+      const bgStyle = isOnline
+        ? (isIdle ? 'background:#fffbeb; color:#b45309; border:1px solid #fde68a;' : 'background:#ecfdf5; color:#059669; border:1px solid #a7f3d0;')
+        : 'background:#f1f5f9; color:#94a3b8; border:1px solid #e2e8f0;';
+      const statusText = isOnline ? (isIdle ? ' (思考中)' : '') : '';
+
       return `
-        <span style="font-size:11px; padding:2px 8px; border-radius:10px; font-weight:700; display:inline-flex; align-items:center; gap:4px; ${isOnline ? 'background:#ecfdf5; color:#059669; border:1px solid #a7f3d0;' : 'background:#f1f5f9; color:#94a3b8; border:1px solid #e2e8f0;'}">
-          <span style="width:6px; height:6px; border-radius:50%; background:${isOnline ? '#10b981' : '#cbd5e1'};"></span>
-          ${m.avatar || '👤'} ${m.name}${isMe ? ' (我)' : ''}
+        <span style="font-size:11px; padding:2px 8px; border-radius:10px; font-weight:700; display:inline-flex; align-items:center; gap:4px; ${bgStyle}">
+          <span style="width:6px; height:6px; border-radius:50%; background:${dotColor};"></span>
+          ${m.avatar || '👤'} ${m.name}${isMe ? ' (我)' : ''}${statusText}
         </span>
       `;
     }).join('');
