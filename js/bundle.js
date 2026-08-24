@@ -5951,10 +5951,19 @@
           if (selTaskBox && selTaskBox.value) {
             window.app.state.activeTaskId = selTaskBox.value;
           }
+          const effectiveTId = window.app.state.activeTaskId || 'task_default';
+          try {
+            fetch(`sync.php?action=set_task_group_lock&taskId=${encodeURIComponent(effectiveTId)}&groupId=${encodeURIComponent(activeMonitorGId)}`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ taskId: effectiveTId, groupId: activeMonitorGId, isLocked: newSub })
+            }).catch(() => {});
+          } catch (e) {}
+
           window.app.saveGroupState(activeMonitorGId);
           if (window.app.cloudSyncEngine) {
             window.app.cloudSyncEngine.groupId = activeMonitorGId;
-            window.app.cloudSyncEngine.taskId = window.app.state.activeTaskId || 'task_default';
+            window.app.cloudSyncEngine.taskId = effectiveTId;
             window.app.cloudSyncEngine.updateScopeKeys();
             window.app.cloudSyncEngine.pushSnapshot();
           }
@@ -9851,21 +9860,22 @@
         })
         .sort((a, b) => (b.id > a.id ? 1 : -1));
 
-      // 🔔 实时感知任务延期并自动解除只读锁定
+      // 🔔 实时感知任务延期并自动弹出专属弹窗通知（在线即时 + 离线下次登录补弹）
       if (currentTask && currentTask.deadline) {
+        const uKey = currentUser.studentCode || currentUser.username || currentUser.id || 'u';
+        const extAckKey = `jizhi_ack_ext_${uKey}_${activeTaskId}_${currentTask.deadline}`;
+        const isExtAcknowledged = localStorage.getItem(extAckKey) === '1';
+
         if (!this._lastKnownDeadlineMap) this._lastKnownDeadlineMap = {};
         const prevDl = this._lastKnownDeadlineMap[activeTaskId];
-        if (prevDl && prevDl !== currentTask.deadline) {
-          const prevTime = new Date(prevDl.replace(/-/g, '/')).getTime();
-          const newTime = new Date(currentTask.deadline.replace(/-/g, '/')).getTime();
-          if (newTime > prevTime && newTime > Date.now()) {
-            // 弹出顶部优雅 Toast 提示
-            const extToast = document.createElement('div');
-            extToast.style.cssText = 'position:fixed; top:20px; left:50%; transform:translateX(-50%); background:linear-gradient(135deg,#059669,#10b981); color:#ffffff; padding:12px 24px; border-radius:12px; font-size:14px; font-weight:800; box-shadow:0 12px 28px rgba(5,150,105,0.35); z-index:2147483647; display:flex; align-items:center; gap:10px; animation:modalFadeIn 0.3s ease;';
-            extToast.innerHTML = `<span>⏳</span><span>任课教师已将任务截止时间延长至 <b>${currentTask.deadline}</b>，工作台已恢复正常编辑！</span>`;
-            document.body.appendChild(extToast);
-            setTimeout(() => { if (extToast && extToast.parentNode) extToast.remove(); }, 5000);
-          }
+
+        // 判定延期场景：① 在线时截止时间发生后移；② 离线首次登录感知到未读的延期记录
+        const isOnlineExtended = prevDl && prevDl !== currentTask.deadline && (new Date(currentTask.deadline.replace(/-/g, '/')).getTime() > new Date(prevDl.replace(/-/g, '/')).getTime());
+        const isOfflineExtensionUnread = !isExtAcknowledged && currentTask.lastExtension && (new Date(currentTask.deadline.replace(/-/g, '/')).getTime() > Date.now());
+
+        if (isOnlineExtended || isOfflineExtensionUnread) {
+          localStorage.setItem(extAckKey, '1');
+          this.showTaskExtensionModal(currentTask, currentTask.lastExtension);
         }
         this._lastKnownDeadlineMap[activeTaskId] = currentTask.deadline;
       }
@@ -9873,6 +9883,63 @@
       if (unreadList.length > 0) {
         this.showAnnouncementModal(unreadList[0], true);
       }
+    }
+
+    showTaskExtensionModal(task, extInfo = null) {
+      document.querySelectorAll('.task-ext-modal').forEach(el => el.remove());
+      const durationDesc = extInfo?.extendDurationStr || '指定时长';
+      const newDl = task.deadline || '未定';
+
+      const modal = document.createElement('div');
+      modal.className = 'modal-overlay task-ext-modal';
+      modal.innerHTML = `
+        <div style="width:480px; max-width:92vw; background:#ffffff; border-radius:16px; box-shadow:0 25px 50px -12px rgba(0,0,0,0.25); border:1px solid #e2e8f0; overflow:hidden; animation:modalFadeIn 0.25s ease;">
+          <div style="background:linear-gradient(135deg, #1d4ed8, #2563eb); color:white; padding:18px 24px; display:flex; justify-content:space-between; align-items:center;">
+            <div style="display:flex; align-items:center; gap:10px;">
+              <span style="font-size:24px; background:rgba(255,255,255,0.2); border-radius:10px; padding:4px 8px;">⏳</span>
+              <div>
+                <h3 style="margin:0; font-size:17px; font-weight:800; color:white;">写作任务时间已延长</h3>
+                <div style="font-size:11.5px; opacity:0.9; margin-top:2px;">任课教师最新发布的教学时间调整通知</div>
+              </div>
+            </div>
+            <button id="btn-close-ext-x" style="background:rgba(255,255,255,0.2); border:none; color:white; font-size:16px; border-radius:8px; width:30px; height:30px; cursor:pointer;">✕</button>
+          </div>
+          <div style="padding:24px; background:#ffffff;">
+            <div style="background:#eff6ff; border:1.5px solid #bfdbfe; border-radius:12px; padding:16px 18px; margin-bottom:18px;">
+              <div style="font-size:14px; font-weight:800; color:#1e40af; margin-bottom:8px; display:flex; align-items:center; gap:6px;">
+                <span>📌 任务名称：</span>
+                <span>《${task.title}》</span>
+              </div>
+              <div style="font-size:13.5px; color:#1e3a8a; display:flex; align-items:center; gap:6px; margin-bottom:6px;">
+                <span>⚡ 延长时长：</span>
+                <span style="font-weight:800; color:#2563eb;">延长了 ${durationDesc}</span>
+              </div>
+              <div style="font-size:13.5px; color:#1e3a8a; display:flex; align-items:center; gap:6px;">
+                <span>📅 最新截止时间：</span>
+                <span style="font-weight:800; color:#059669; font-size:14px;">${newDl}</span>
+              </div>
+            </div>
+            <div style="font-size:13px; color:#475569; line-height:1.6; margin-bottom:6px;">
+              📢 各写作小组工作台已自动恢复正常编辑权限。请各位同学相互配合，在新的截止时间前高质量完成协同论文撰写与答辩！
+            </div>
+          </div>
+          <div style="padding:14px 24px; background:#f8fafc; border-top:1px solid #e2e8f0; text-align:right;">
+            <button id="btn-confirm-task-ext-ok" style="background:linear-gradient(135deg, #1d4ed8, #2563eb); color:white; border:none; padding:10px 26px; border-radius:8px; font-size:13.5px; font-weight:700; cursor:pointer; box-shadow:0 3px 10px rgba(37,99,235,0.25);">
+              📋 我知道了，继续协作
+            </button>
+          </div>
+        </div>
+      `;
+      document.body.appendChild(modal);
+
+      const closeExtModal = () => {
+        modal.remove();
+        this.renderStudentWorkspace(true);
+      };
+
+      modal.querySelector('#btn-close-ext-x').addEventListener('click', closeExtModal);
+      modal.querySelector('#btn-confirm-task-ext-ok').addEventListener('click', closeExtModal);
+      modal.addEventListener('click', (e) => { if (e.target === modal) closeExtModal(); });
     }
 
     showAnnouncementModal(targetAnn = null, isSequentialFlow = false) {
