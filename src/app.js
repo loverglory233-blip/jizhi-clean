@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260823_v201";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired } from "./utils.js?v=20260823_v201";
-import { callCozeAgentAPI } from "./agents.js?v=20260823_v201";
-import { AuthManager } from "./auth.js?v=20260823_v201";
-import { CloudSyncEngine } from "./sync.js?v=20260823_v201";
-import { renderLoginView } from "./login.js?v=20260823_v201";
-import { renderTeacherPortal } from "./teacher.js?v=20260823_v201";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260823_v201";
+} from "./constants.js?v=20260823_v202";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired } from "./utils.js?v=20260823_v202";
+import { callCozeAgentAPI } from "./agents.js?v=20260823_v202";
+import { AuthManager } from "./auth.js?v=20260823_v202";
+import { CloudSyncEngine } from "./sync.js?v=20260823_v202";
+import { renderLoginView } from "./login.js?v=20260823_v202";
+import { renderTeacherPortal } from "./teacher.js?v=20260823_v202";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260823_v202";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260823_v201";
+} from "./editor.js?v=20260823_v202";
 
 // Make renderChat available on window for sync callbacks
 if (typeof window !== "undefined") {
@@ -2284,8 +2284,8 @@ export class App {
       }
     }
 
-    // 🤝 阶段二：责任编辑欢迎 + 重复上轮分工时间分配 ➔ 审稿编辑提醒推送范文
-    else if (stage === 'stage2') {
+    // 🤝 阶段二：必须小组真实已推进至阶段二（groupMaxStage 为 stage2/3 或公约已确认）时才触发
+    else if (stage === 'stage2' && (this.state.groupMaxStage === 'stage2' || this.state.groupMaxStage === 'stage3' || this.state.stage1?.contract?.isConfirmed)) {
       const hasManagingIntro = logs.some(m => m.sender === 'managingEditor' && (m.text.includes('欢迎来到【阶段二：学术编辑部】') || m.text.includes('责任编辑开场')));
       if (!hasManagingIntro && !localStorage.getItem(welcomeFlagKey)) {
         localStorage.setItem(welcomeFlagKey, '1');
@@ -2295,9 +2295,10 @@ export class App {
         const times = s1.contract && s1.contract.timeAllocations ? s1.contract.timeAllocations : {};
         
         let assignSummary = [];
-        Object.keys(this.state.members || {}).forEach(mId => {
-          const m = this.state.members[mId];
-          const t = tasks[mId] || '待认领';
+        let memberArr = Array.isArray(this.state.members) ? this.state.members : Object.values(this.state.members || {});
+        memberArr.forEach(m => {
+          if (!m) return;
+          const t = tasks[m.id] || tasks[m.studentCode] || tasks[m.name] || '待认领';
           assignSummary.push(`${m.name}: ${t}`);
         });
 
@@ -2311,6 +2312,7 @@ export class App {
 
         const managingWelcome = {
           sender: 'managingEditor',
+          senderName: '责任编辑 · 过程学伴',
           text: `🤝 【责任编辑开场】：欢迎来到【阶段二：学术编辑部】！我是过程学伴责任编辑。\n全组已锁定研究主题《${topic}》。\n\n📜 【阶段一公约执行与协同提醒】\n• 基础分工: ${assignSummary.join(' | ') || '全员协作'}\n• 规划时间: ${timeSummary.join(' / ') || '按需推进'}\n\n💡 **真正的协同不仅是分工起草，更要主动研读同伴写下的段落，在研讨区互评互修、打通前后逻辑！**请大家进入左侧编辑器开启深度协作！`,
           timestamp: now,
           _timeMs: Date.now()
@@ -2322,6 +2324,7 @@ export class App {
         setTimeout(() => {
           const reviewingWelcome = {
             sender: 'reviewingEditor',
+            senderName: '审稿编辑 · 质量把关',
             text: `📝 【审稿编辑提醒】：为辅助各位高效产出高质量学术论文，已为本组匹配并推送了《课程学术参考范文库》！请大家点击上方【📚 查阅参考范文】查阅学习，注意正文三线表规范与研究设计严谨度！`,
             timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
             _timeMs: Date.now()

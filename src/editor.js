@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles } from "./constants.js?v=20260823_v201";
-import { callCozeAgentAPI } from "./agents.js?v=20260823_v201";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime } from "./utils.js?v=20260823_v201";
+import { AgentProfiles } from "./constants.js?v=20260823_v202";
+import { callCozeAgentAPI } from "./agents.js?v=20260823_v202";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime } from "./utils.js?v=20260823_v202";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -2097,11 +2097,12 @@ export function renderChat(state) {
   if (!stream) return;
 
   const currentUser = state.currentUser;
-  // 🛡️ 严格按当前阶段展示历史：在阶段一绝不提前剧透阶段二/三的消息
-  const curStg = state.currentStage || 'stage1';
+  // 🌟 根据全组实际解锁推进的最大阶段（groupMaxStage）展示研讨历史：
+  // 若全组已推进到阶段二或阶段三，即便学生回头切换查看阶段一公约，右侧研讨区依然完整保留并展示全流程所有聊天记录！
+  const unlockedStage = state.groupMaxStage || state.currentStage || 'stage1';
   let visibleStages = ['stage1'];
-  if (curStg === 'stage2') visibleStages = ['stage1', 'stage2'];
-  else if (curStg === 'stage3') visibleStages = ['stage1', 'stage2', 'stage3'];
+  if (unlockedStage === 'stage2') visibleStages = ['stage1', 'stage2'];
+  else if (unlockedStage === 'stage3') visibleStages = ['stage1', 'stage2', 'stage3'];
 
   // Collect all visible messages in order, auto-purging old legacy idle spam
   const allMsgs = [];
