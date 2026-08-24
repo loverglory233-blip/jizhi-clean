@@ -1215,8 +1215,15 @@ if ($action === 'send_chat' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 $stmtSaveChats->execute([':k' => 'chats_' . $scopeKey, ':v' => $chatJson, ':v2' => $chatJson]);
 
                 // ⚡ 同步自增 group_states 的 revision_id 与 last_timestamp，秒级唤醒所有组员的客户端拉取最新消息
-                $stmtUpState = $pdo->prepare("UPDATE group_states SET revision_id = IFNULL(revision_id, 0) + 1, last_timestamp = :ts WHERE scope_key = :sk");
-                $stmtUpState->execute([':ts' => $nowMs, ':sk' => $scopeKey]);
+                $stmtUpState = $pdo->prepare("INSERT INTO group_states (scope_key, task_id, group_id, current_stage, stage1_data, stage2_data, stage3_data, presence_data, members_data, is_final_submitted, last_timestamp, revision_id)
+                    VALUES (:sk, :tid, :gid, 'stage1', '{}', '{}', '{}', '{}', '[]', 0, :ts, 1)
+                    ON DUPLICATE KEY UPDATE revision_id = IFNULL(revision_id, 0) + 1, last_timestamp = VALUES(last_timestamp)");
+                $stmtUpState->execute([
+                    ':sk' => $scopeKey,
+                    ':tid' => $taskId,
+                    ':gid' => $groupId,
+                    ':ts' => $nowMs
+                ]);
 
                 // 更新变更时间戳，唤醒轮询
                 $stmtSignal = $pdo->prepare("INSERT INTO global_meta (meta_key, meta_value) VALUES ('meta_updated_at', :v) ON DUPLICATE KEY UPDATE meta_value = :v2");
@@ -2064,6 +2071,46 @@ if ($pdo) {
             'referencePapers'  => isset($globalMeta['referencePapers']) ? $globalMeta['referencePapers'] : []
         ];
         echo json_encode($respData);
+        exit;
+    } else {
+        // 若当前小组首次建立且尚未生成完整快照，拉取聊天与全局教务元数据回传
+        $stmtChats = $pdo->prepare("SELECT meta_value FROM global_meta WHERE meta_key = :k");
+        $stmtChats->execute([':k' => 'chats_' . $scopeKey]);
+        $chatRow = $stmtChats->fetch();
+        $chats = ($chatRow && !empty($chatRow['meta_value'])) ? json_decode($chatRow['meta_value'], true) : ['stage1' => [], 'stage2' => [], 'stage3' => []];
+
+        $stmtMeta = $pdo->prepare("SELECT meta_value FROM global_meta WHERE meta_key = 'main_meta'");
+        $stmtMeta->execute();
+        $metaRow = $stmtMeta->fetch();
+        $globalMeta = ($metaRow && !empty($metaRow['meta_value'])) ? json_decode($metaRow['meta_value'], true) : [];
+
+        $sanitizedUsers = [];
+        if (isset($globalMeta['users']) && is_array($globalMeta['users'])) {
+            foreach ($globalMeta['users'] as $u) {
+                unset($u['password']);
+                $sanitizedUsers[] = $u;
+            }
+        }
+
+        echo json_encode([
+            'timestamp'        => 0,
+            'revisionId'       => 0,
+            'groupId'          => $groupId,
+            'taskId'           => $taskId,
+            'currentStage'     => 'stage1',
+            'stage1'           => ['proposals' => [], 'votes' => new stdClass(), 'hasVoted' => new stdClass(), 'contract' => ['isConfirmed' => false, 'taskAssignments' => new stdClass(), 'timeAllocations' => new stdClass(), 'confirmedMembers' => new stdClass()]],
+            'stage2'           => ['unifiedContent' => '', 'memberContributions' => new stdClass(), 'confirmedMembers' => new stdClass(), 'meetingSubmissions' => new stdClass()],
+            'stage3'           => ['feedbackItems' => []],
+            'presence'         => new stdClass(),
+            'members'          => [],
+            'isFinalSubmitted' => false,
+            'chatLogs'         => $chats,
+            'users'            => $sanitizedUsers,
+            'classes'          => isset($globalMeta['classes'])          ? $globalMeta['classes']          : [],
+            'tasks'            => isset($globalMeta['tasks'])            ? $globalMeta['tasks']            : [],
+            'announcements'    => isset($globalMeta['announcements'])    ? $globalMeta['announcements']    : [],
+            'referencePapers'  => isset($globalMeta['referencePapers']) ? $globalMeta['referencePapers'] : []
+        ]);
         exit;
     }
 }
