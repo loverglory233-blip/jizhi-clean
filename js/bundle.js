@@ -8452,11 +8452,12 @@
     if (!stream) return;
 
     const currentUser = state.currentUser;
-    // 🛡️ 严格按当前阶段展示历史：在阶段一绝不提前剧透阶段二/三的消息
-    const curStg = state.currentStage || 'stage1';
+    // 🌟 根据全组实际解锁推进的最大阶段（groupMaxStage）展示研讨历史：
+    // 若全组已推进到阶段二或阶段三，即便学生回头切换查看阶段一公约，右侧研讨区依然完整保留并展示全流程所有聊天记录！
+    const unlockedStage = state.groupMaxStage || state.currentStage || 'stage1';
     let visibleStages = ['stage1'];
-    if (curStg === 'stage2') visibleStages = ['stage1', 'stage2'];
-    else if (curStg === 'stage3') visibleStages = ['stage1', 'stage2', 'stage3'];
+    if (unlockedStage === 'stage2') visibleStages = ['stage1', 'stage2'];
+    else if (unlockedStage === 'stage3') visibleStages = ['stage1', 'stage2', 'stage3'];
 
     // Collect all visible messages in order, auto-purging old legacy idle spam
     const allMsgs = [];
@@ -10819,8 +10820,8 @@
         }
       }
 
-      // 🤝 阶段二：责任编辑欢迎 + 重复上轮分工时间分配 ➔ 审稿编辑提醒推送范文
-      else if (stage === 'stage2') {
+      // 🤝 阶段二：必须小组真实已推进至阶段二（groupMaxStage 为 stage2/3 或公约已确认）时才触发
+      else if (stage === 'stage2' && (this.state.groupMaxStage === 'stage2' || this.state.groupMaxStage === 'stage3' || this.state.stage1?.contract?.isConfirmed)) {
         const hasManagingIntro = logs.some(m => m.sender === 'managingEditor' && (m.text.includes('欢迎来到【阶段二：学术编辑部】') || m.text.includes('责任编辑开场')));
         if (!hasManagingIntro && !localStorage.getItem(welcomeFlagKey)) {
           localStorage.setItem(welcomeFlagKey, '1');
@@ -10830,9 +10831,10 @@
           const times = s1.contract && s1.contract.timeAllocations ? s1.contract.timeAllocations : {};
 
           let assignSummary = [];
-          Object.keys(this.state.members || {}).forEach(mId => {
-            const m = this.state.members[mId];
-            const t = tasks[mId] || '待认领';
+          let memberArr = Array.isArray(this.state.members) ? this.state.members : Object.values(this.state.members || {});
+          memberArr.forEach(m => {
+            if (!m) return;
+            const t = tasks[m.id] || tasks[m.studentCode] || tasks[m.name] || '待认领';
             assignSummary.push(`${m.name}: ${t}`);
           });
 
@@ -10846,6 +10848,7 @@
 
           const managingWelcome = {
             sender: 'managingEditor',
+            senderName: '责任编辑 · 过程学伴',
             text: `🤝 【责任编辑开场】：欢迎来到【阶段二：学术编辑部】！我是过程学伴责任编辑。\n全组已锁定研究主题《${topic}》。\n\n📜 【阶段一公约执行与协同提醒】\n• 基础分工: ${assignSummary.join(' | ') || '全员协作'}\n• 规划时间: ${timeSummary.join(' / ') || '按需推进'}\n\n💡 **真正的协同不仅是分工起草，更要主动研读同伴写下的段落，在研讨区互评互修、打通前后逻辑！**请大家进入左侧编辑器开启深度协作！`,
             timestamp: now,
             _timeMs: Date.now()
@@ -10857,6 +10860,7 @@
           setTimeout(() => {
             const reviewingWelcome = {
               sender: 'reviewingEditor',
+              senderName: '审稿编辑 · 质量把关',
               text: `📝 【审稿编辑提醒】：为辅助各位高效产出高质量学术论文，已为本组匹配并推送了《课程学术参考范文库》！请大家点击上方【📚 查阅参考范文】查阅学习，注意正文三线表规范与研究设计严谨度！`,
               timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
               _timeMs: Date.now()
