@@ -2293,14 +2293,10 @@
       this.isPulling = false;
     }
 
-    async pushSnapshot() {
-      if (!this.isInitialPullDone && !this.isResetBroadcast) {
-        // 🛡️ 致命防线：在尚未从云端完成初次拉取前，绝对禁止推送未初始化的空快照覆盖云端已有数据！
-        return;
-      }
+    async pushSnapshot(isReset = false) {
       this.updateScopeKeys();
       const groupId = this.groupId;
-      const isReset = !!this.isResetBroadcast;
+      const isResetVal = !!this.isResetBroadcast || isReset;
       this.isResetBroadcast = false;
 
       const localResetSeqKey = `jizhi_reset_seq_${this.storageKey}`;
@@ -2565,12 +2561,11 @@
             mergedLogs.push(m);
           });
 
-          if (mergedLogs.length !== localLogs.length || JSON.stringify(mergedLogs) !== JSON.stringify(localLogs)) {
+          if (mergedLogs.length > 0) {
             this.app.state.chatLogs[stg] = mergedLogs;
-            chatChanged = true;
           }
         });
-        if (chatChanged && typeof window.renderChat === 'function') window.renderChat(this.app.state);
+        if (typeof window.renderChat === 'function') window.renderChat(this.app.state);
       }
 
       // 🔒 渲染阶段一合约与阶段三答辩的字段级排他聚焦锁
@@ -8831,6 +8826,7 @@
       if (stage === 'stage1') renderPresencePills('stage1-canvas', this.state);
       else if (stage === 'stage2') renderRemoteCursors('stage2-word-editor', this.state);
       else if (stage === 'stage3') renderRemoteCursors('stage3-word-editor', this.state);
+      try { renderChat(this.state); } catch (e) {}
     }
 
     updateContributionUi() {
