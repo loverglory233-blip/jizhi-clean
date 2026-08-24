@@ -1193,7 +1193,7 @@
             groupId: null
           };
           users.push(newUser);
-          targetClass.studentIds.push(newUid);
+          targetClass.studentIds.push(code);
           createdCount++;
         }
       });

@@ -14,8 +14,8 @@ import {
   DefaultTasks,
   DefaultAnnouncements,
   DefaultReferencePapers
-} from './constants.js?v=20260823_v195';
-import { formatExportDateTime } from './utils.js?v=20260823_v195';
+} from './constants.js?v=20260823_v196';
+import { formatExportDateTime } from './utils.js?v=20260823_v196';
 
 export class AuthManager {
   constructor() {
@@ -649,7 +649,7 @@ export class AuthManager {
           groupId: null
         };
         users.push(newUser);
-        targetClass.studentIds.push(newUid);
+        targetClass.studentIds.push(code);
         createdCount++;
       }
     });
