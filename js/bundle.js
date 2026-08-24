@@ -931,7 +931,7 @@
           user.activeSessionId = data.token;
           sessionStorage.setItem(STORAGE_KEY_USER, JSON.stringify(user));
           localStorage.setItem(STORAGE_KEY_USER, JSON.stringify(user));
-          if (window.app) {
+          if (window.app && window.app.state) {
             window.app.state.studentViewMode = 'task_list';
             if (window.app.cloudSyncEngine) window.app.cloudSyncEngine.pushSnapshot();
           }
@@ -1014,7 +1014,7 @@
         }).catch(() => {});
       } catch (e) {}
 
-      if (window.app) {
+      if (window.app && window.app.state) {
         window.app.state.studentViewMode = 'task_list';
         if (window.app.cloudSyncEngine) window.app.cloudSyncEngine.pushSnapshot();
       }
@@ -3076,14 +3076,14 @@
       ? state.activeTaskId
       : (currentClassTasks[0] ? currentClassTasks[0].id : 'task_default');
     state.activeTaskId = effectiveMonitorTaskId;
-    if (window.app) window.app.state.activeTaskId = effectiveMonitorTaskId;
+    if (window.app && window.app.state) window.app.state.activeTaskId = effectiveMonitorTaskId;
 
     const classGroupExists = (activeClass.groups || []).some(g => g.id === state.activeMonitorGroupId);
     const activeMonitorGId = (state.activeMonitorGroupId && classGroupExists)
       ? state.activeMonitorGroupId
       : (activeClass.groups && activeClass.groups[0] ? activeClass.groups[0].id : 'group_1');
     state.activeMonitorGroupId = activeMonitorGId;
-    if (window.app) window.app.state.activeMonitorGroupId = activeMonitorGId;
+    if (window.app && window.app.state) window.app.state.activeMonitorGroupId = activeMonitorGId;
 
     const activeMonitorGroup = (activeClass.groups || []).find(g => g.id === activeMonitorGId) || (activeClass.groups && activeClass.groups[0]) || { id: 'group_1', name: '第1小组' };
     const monitorMembersObj = authManager.getGroupMembersForWorkspace(activeMonitorGId);
