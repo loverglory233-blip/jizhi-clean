@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles } from "./constants.js?v=20260823_v209";
-import { callCozeAgentAPI } from "./agents.js?v=20260823_v209";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime } from "./utils.js?v=20260823_v209";
+import { AgentProfiles } from "./constants.js?v=20260823_v210";
+import { callCozeAgentAPI } from "./agents.js?v=20260823_v210";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime } from "./utils.js?v=20260823_v210";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -1005,7 +1005,7 @@ function renderStage1Canvas(canvas, state, handlers) {
 
       <div style="display:flex; flex-direction:column; gap:8px; width:100%; margin-bottom:20px; background:#eff6ff; padding:16px; border-radius:12px; border:1px solid #bfdbfe; box-sizing:border-box;">
         <label style="font-size:14px; font-weight:800; color:#1e40af;">📌 确认融合论文研究主题:</label>
-        <input type="text" id="contract-topic-input" class="large-contract-input" value="${s1.mergedTitle || ''}" placeholder="在此处输入研究方案最终主题..." ${isContractLocked ? 'disabled readonly style="opacity:0.8; cursor:not-allowed;"' : ''} style="width:100%; box-sizing:border-box; background:#ffffff; color:#0f172a; border:1px solid #cbd5e1; border-radius:8px; padding:12px 14px; font-size:14px; font-weight:700; font-family:sans-serif;">
+        <input type="text" id="contract-topic-input" class="large-contract-input" data-lock-key="topic_title" value="${s1.mergedTitle || ''}" placeholder="在此处输入研究方案最终主题..." ${isContractLocked ? 'disabled readonly style="opacity:0.8; cursor:not-allowed;"' : ''} style="width:100%; box-sizing:border-box; background:#ffffff; color:#0f172a; border:1px solid #cbd5e1; border-radius:8px; padding:12px 14px; font-size:14px; font-weight:700; font-family:sans-serif;">
       </div>
 
       <div style="display:flex; flex-direction:column; gap:16px; width:100%;">
@@ -1020,7 +1020,7 @@ function renderStage1Canvas(canvas, state, handlers) {
             <div style="background:#ffffff; border:1px solid #e2e8f0; border-left:3.5px solid #2563eb; border-radius:8px; padding:12px 14px; display:flex; justify-content:space-between; align-items:center;">
               <span style="font-weight:800; color:#1e40af; font-size:13.5px;">一、研究背景与意义</span>
               <label style="font-size:12px; color:#475569; display:flex; align-items:center; gap:4px;">
-                用时: <input type="number" class="contract-time-input" data-key="background" value="${s1.contract.timeAllocations.background !== undefined ? s1.contract.timeAllocations.background : 25}" ${isContractLocked ? 'disabled readonly style="opacity:0.8; cursor:not-allowed;"' : ''} style="width:48px; padding:3px 4px; border:1px solid #cbd5e1; border-radius:4px; text-align:center; font-weight:700;"> 分钟
+                用时: <input type="number" class="contract-time-input" data-key="background" data-lock-key="time_background" value="${s1.contract.timeAllocations.background !== undefined ? s1.contract.timeAllocations.background : 25}" ${isContractLocked ? 'disabled readonly style="opacity:0.8; cursor:not-allowed;"' : ''} style="width:48px; padding:3px 4px; border:1px solid #cbd5e1; border-radius:4px; text-align:center; font-weight:700;"> 分钟
               </label>
             </div>
 
@@ -1028,7 +1028,7 @@ function renderStage1Canvas(canvas, state, handlers) {
             <div style="background:#ffffff; border:1px solid #e2e8f0; border-left:3.5px solid #0284c7; border-radius:8px; padding:12px 14px; display:flex; justify-content:space-between; align-items:center;">
               <span style="font-weight:800; color:#0369a1; font-size:13.5px;">二、文献综述</span>
               <label style="font-size:12px; color:#475569; display:flex; align-items:center; gap:4px;">
-                用时: <input type="number" class="contract-time-input" data-key="literature" value="${s1.contract.timeAllocations.literature !== undefined ? s1.contract.timeAllocations.literature : 30}" ${isContractLocked ? 'disabled readonly style="opacity:0.8; cursor:not-allowed;"' : ''} style="width:48px; padding:3px 4px; border:1px solid #cbd5e1; border-radius:4px; text-align:center; font-weight:700;"> 分钟
+                用时: <input type="number" class="contract-time-input" data-key="literature" data-lock-key="time_literature" value="${s1.contract.timeAllocations.literature !== undefined ? s1.contract.timeAllocations.literature : 30}" ${isContractLocked ? 'disabled readonly style="opacity:0.8; cursor:not-allowed;"' : ''} style="width:48px; padding:3px 4px; border:1px solid #cbd5e1; border-radius:4px; text-align:center; font-weight:700;"> 分钟
               </label>
             </div>
 
@@ -1036,7 +1036,7 @@ function renderStage1Canvas(canvas, state, handlers) {
             <div style="background:#ffffff; border:1px solid #e2e8f0; border-left:3.5px solid #059669; border-radius:8px; padding:12px 14px; display:flex; justify-content:space-between; align-items:center;">
               <span style="font-weight:800; color:#065f46; font-size:13.5px;">三、研究问题与假设</span>
               <label style="font-size:12px; color:#475569; display:flex; align-items:center; gap:4px;">
-                用时: <input type="number" class="contract-time-input" data-key="questions" value="${s1.contract.timeAllocations.questions !== undefined ? s1.contract.timeAllocations.questions : 25}" ${isContractLocked ? 'disabled readonly style="opacity:0.8; cursor:not-allowed;"' : ''} style="width:48px; padding:3px 4px; border:1px solid #cbd5e1; border-radius:4px; text-align:center; font-weight:700;"> 分钟
+                用时: <input type="number" class="contract-time-input" data-key="questions" data-lock-key="time_questions" value="${s1.contract.timeAllocations.questions !== undefined ? s1.contract.timeAllocations.questions : 25}" ${isContractLocked ? 'disabled readonly style="opacity:0.8; cursor:not-allowed;"' : ''} style="width:48px; padding:3px 4px; border:1px solid #cbd5e1; border-radius:4px; text-align:center; font-weight:700;"> 分钟
               </label>
             </div>
 
@@ -1044,7 +1044,7 @@ function renderStage1Canvas(canvas, state, handlers) {
             <div style="background:#ffffff; border:1px solid #e2e8f0; border-left:3.5px solid #7c3aed; border-radius:8px; padding:12px 14px; display:flex; justify-content:space-between; align-items:center;">
               <span style="font-weight:800; color:#6d28d9; font-size:13.5px;">四、研究设计与方法</span>
               <label style="font-size:12px; color:#475569; display:flex; align-items:center; gap:4px;">
-                用时: <input type="number" class="contract-time-input" data-key="method" value="${s1.contract.timeAllocations.method !== undefined ? s1.contract.timeAllocations.method : 40}" ${isContractLocked ? 'disabled readonly style="opacity:0.8; cursor:not-allowed;"' : ''} style="width:48px; padding:3px 4px; border:1px solid #cbd5e1; border-radius:4px; text-align:center; font-weight:700;"> 分钟
+                用时: <input type="number" class="contract-time-input" data-key="method" data-lock-key="time_method" value="${s1.contract.timeAllocations.method !== undefined ? s1.contract.timeAllocations.method : 40}" ${isContractLocked ? 'disabled readonly style="opacity:0.8; cursor:not-allowed;"' : ''} style="width:48px; padding:3px 4px; border:1px solid #cbd5e1; border-radius:4px; text-align:center; font-weight:700;"> 分钟
               </label>
             </div>
 
@@ -1052,7 +1052,7 @@ function renderStage1Canvas(canvas, state, handlers) {
             <div style="background:#ffffff; border:1px solid #e2e8f0; border-left:3.5px solid #d97706; border-radius:8px; padding:12px 14px; display:flex; justify-content:space-between; align-items:center;">
               <span style="font-weight:800; color:#b45309; font-size:13.5px;">五、研究设计的不足与反思</span>
               <label style="font-size:12px; color:#475569; display:flex; align-items:center; gap:4px;">
-                用时: <input type="number" class="contract-time-input" data-key="reflection" value="${s1.contract.timeAllocations.reflection !== undefined ? s1.contract.timeAllocations.reflection : 20}" ${isContractLocked ? 'disabled readonly style="opacity:0.8; cursor:not-allowed;"' : ''} style="width:48px; padding:3px 4px; border:1px solid #cbd5e1; border-radius:4px; text-align:center; font-weight:700;"> 分钟
+                用时: <input type="number" class="contract-time-input" data-key="reflection" data-lock-key="time_reflection" value="${s1.contract.timeAllocations.reflection !== undefined ? s1.contract.timeAllocations.reflection : 20}" ${isContractLocked ? 'disabled readonly style="opacity:0.8; cursor:not-allowed;"' : ''} style="width:48px; padding:3px 4px; border:1px solid #cbd5e1; border-radius:4px; text-align:center; font-weight:700;"> 分钟
               </label>
             </div>
 
@@ -1060,7 +1060,7 @@ function renderStage1Canvas(canvas, state, handlers) {
             <div style="background:#ffffff; border:1px solid #e2e8f0; border-left:3.5px solid #475569; border-radius:8px; padding:12px 14px; display:flex; justify-content:space-between; align-items:center;">
               <span style="font-weight:800; color:#334155; font-size:13.5px;">六、参考文献</span>
               <label style="font-size:12px; color:#475569; display:flex; align-items:center; gap:4px;">
-                用时: <input type="number" class="contract-time-input" data-key="references" value="${s1.contract.timeAllocations.references !== undefined ? s1.contract.timeAllocations.references : 10}" ${isContractLocked ? 'disabled readonly style="opacity:0.8; cursor:not-allowed;"' : ''} style="width:48px; padding:3px 4px; border:1px solid #cbd5e1; border-radius:4px; text-align:center; font-weight:700;"> 分钟
+                用时: <input type="number" class="contract-time-input" data-key="references" data-lock-key="time_references" value="${s1.contract.timeAllocations.references !== undefined ? s1.contract.timeAllocations.references : 10}" ${isContractLocked ? 'disabled readonly style="opacity:0.8; cursor:not-allowed;"' : ''} style="width:48px; padding:3px 4px; border:1px solid #cbd5e1; border-radius:4px; text-align:center; font-weight:700;"> 分钟
               </label>
             </div>
           </div>
@@ -1082,7 +1082,7 @@ function renderStage1Canvas(canvas, state, handlers) {
               return `
                 <div style="display:flex; flex-direction:column; gap:6px; width:100%; background:#ffffff; padding:12px 14px; border-radius:8px; border:1px solid #e2e8f0; box-sizing:border-box;">
                   <span style="font-weight:800; color:${m.color || '#2563eb'}; font-size:13px;">${m.avatar || '👤'} ${m.name} (${m.roleTitle || '组员'}):</span>
-                  <input type="text" class="large-contract-input task-assignment-input" data-mkey="${mKey}" value="${taskVal}" ${isContractLocked ? 'disabled readonly style="opacity:0.8; cursor:not-allowed;"' : ''} style="width:100%; box-sizing:border-box; background:#ffffff; color:#0f172a; border:1px solid #cbd5e1; border-radius:6px; padding:10px 14px; font-size:13px; font-family:sans-serif;" placeholder="在聊天中商定或在此录入具体负责的写作章节与任务...">
+                  <input type="text" class="large-contract-input task-assignment-input" data-mkey="${mKey}" data-lock-key="task_${mKey}" value="${taskVal}" ${isContractLocked ? 'disabled readonly style="opacity:0.8; cursor:not-allowed;"' : ''} style="width:100%; box-sizing:border-box; background:#ffffff; color:#0f172a; border:1px solid #cbd5e1; border-radius:6px; padding:10px 14px; font-size:13px; font-family:sans-serif;" placeholder="在聊天中商定或在此录入具体负责的写作章节与任务...">
                 </div>
               `;
             }).join('')}
@@ -1324,6 +1324,14 @@ function renderStage1Canvas(canvas, state, handlers) {
 
   const sendLock = (fieldKey) => {
     const p = getLockPayload(fieldKey);
+    try {
+      if (window.app?.cloudSyncEngine?.bc) {
+        const locksObj = { ...(window.app.state.fieldLocks || {}) };
+        locksObj[fieldKey] = { userId: p.userId, userName: p.userName, time: Date.now() };
+        window.app.cloudSyncEngine.bc.postMessage({ snapshot: { locks: locksObj } });
+      }
+    } catch (e) {}
+
     fetch(`sync.php?action=lock_field&groupId=${encodeURIComponent(p.groupId)}&taskId=${encodeURIComponent(p.taskId)}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -1333,6 +1341,14 @@ function renderStage1Canvas(canvas, state, handlers) {
 
   const sendUnlock = (fieldKey, val = null) => {
     const p = getLockPayload(fieldKey, val);
+    try {
+      if (window.app?.cloudSyncEngine?.bc) {
+        const locksObj = { ...(window.app.state.fieldLocks || {}) };
+        delete locksObj[fieldKey];
+        window.app.cloudSyncEngine.bc.postMessage({ snapshot: { locks: locksObj } });
+      }
+    } catch (e) {}
+
     fetch(`sync.php?action=unlock_field&groupId=${encodeURIComponent(p.groupId)}&taskId=${encodeURIComponent(p.taskId)}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -2074,32 +2090,26 @@ export function renderChat(state) {
     presenceContainer.innerHTML = memberList.map(m => {
       const isMe = (m.id === myCode || m.studentCode === myCode || (currUser && (m.id === currUser.id || m.studentCode === currUser.studentCode || m.name === currUser.name)));
       let isOnline = isMe;
-      let isIdle = false;
       const p = presence[m.studentCode] || presence[m.id] || presence[m.username] || presence[m.name];
 
       if (!isOnline) {
         if (p && (nowMs - (p.lastSeen || p.updatedAt || p.timestamp || 0) < 180000)) {
           isOnline = true;
-          isIdle = !!p.isIdle;
         }
         if (recentSpeakers.has(m.id) || recentSpeakers.has(m.studentCode) || recentSpeakers.has(m.name) || recentSpeakers.has(m.username)) {
           isOnline = true;
         }
-      } else {
-        const myP = presence[myCode] || (currUser && (presence[currUser.id] || presence[currUser.studentCode]));
-        if (myP && myP.isIdle) isIdle = true;
       }
 
-      const dotColor = isOnline ? (isIdle ? '#f59e0b' : '#10b981') : '#cbd5e1';
+      const dotColor = isOnline ? '#10b981' : '#cbd5e1';
       const bgStyle = isOnline
-        ? (isIdle ? 'background:#fffbeb; color:#b45309; border:1px solid #fde68a;' : 'background:#ecfdf5; color:#059669; border:1px solid #a7f3d0;')
+        ? 'background:#ecfdf5; color:#059669; border:1px solid #a7f3d0;'
         : 'background:#f1f5f9; color:#94a3b8; border:1px solid #e2e8f0;';
-      const statusText = isOnline ? (isIdle ? ' (思考中)' : '') : '';
 
       return `
         <span style="font-size:11px; padding:2px 8px; border-radius:10px; font-weight:700; display:inline-flex; align-items:center; gap:4px; ${bgStyle}">
           <span style="width:6px; height:6px; border-radius:50%; background:${dotColor};"></span>
-          ${m.avatar || '👤'} ${m.name}${isMe ? ' (我)' : ''}${statusText}
+          ${m.avatar || '👤'} ${m.name}${isMe ? ' (我)' : ''}
         </span>
       `;
     }).join('');
