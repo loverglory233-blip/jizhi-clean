@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState } from './constants.js?v=20260823_v220';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin } from './utils.js?v=20260823_v220';
+import { InitialState } from './constants.js?v=20260823_v221';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin } from './utils.js?v=20260823_v221';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -339,17 +339,8 @@ export class CloudSyncEngine {
       }
     }
 
-    // 🛡️ 仅在当前会话中服务端 resetSeq 发生真实递增变更时才响应教师重置，绝不误踢正在协作的学生
-    if (remoteData.resetSeq !== undefined) {
-      const serverSeq = parseInt(remoteData.resetSeq, 10) || 0;
-      if (this._lastResetSeq === undefined) {
-        this._lastResetSeq = serverSeq;
-      } else if (serverSeq > this._lastResetSeq) {
-        this._lastResetSeq = serverSeq;
-        this._applyReset(serverSeq);
-        return;
-      }
-    }
+    // 🛡️ 教师重置功能已废除，纯净同步阶段协作数据，绝对不误踢正在协作的学生
+    this._hasInitialPullCompleted = true;
 
     if (remoteData.presence) {
       this.app.state.presence = { ...(this.app.state.presence || {}), ...remoteData.presence };
