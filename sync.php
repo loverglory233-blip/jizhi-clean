@@ -219,16 +219,15 @@ if ($action === 'login' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                             'password' => $dbPwd,
                             'role' => $gu['role'] ?? 'student'
                         ];
-                        // 自动同步插入 users 表
+                        $plainIns = !empty($dbPwd) ? $dbPwd : '123';
                         try {
-                            $hashedIns = (strlen($dbPwd) > 30) ? $dbPwd : password_hash($dbPwd, PASSWORD_DEFAULT);
                             $stmtIns = $pdo->prepare("INSERT INTO users (id, username, student_code, name, password, role) VALUES (:id, :u, :sc, :nm, :p, :r) ON DUPLICATE KEY UPDATE name=VALUES(name), student_code=VALUES(student_code), role=VALUES(role)");
                             $stmtIns->execute([
                                 ':id' => $row['id'],
                                 ':u' => $row['username'],
                                 ':sc' => $row['student_code'],
                                 ':nm' => $row['name'],
-                                ':p' => $hashedIns,
+                                ':p' => $plainIns,
                                 ':r' => $row['role']
                             ]);
                         } catch (Exception $e) {}
@@ -797,9 +796,9 @@ if ($action === 'reset_student_password' && $_SERVER['REQUEST_METHOD'] === 'POST
             exit;
         }
 
-        $hashedReset = password_hash($newPwd, PASSWORD_DEFAULT);
+        $plainReset = !empty($newPwd) ? $newPwd : '123';
         $stmtUpdate = $pdo->prepare("UPDATE users SET password = :p WHERE id = :uid");
-        $stmtUpdate->execute([':p' => $hashedReset, ':uid' => $user['id']]);
+        $stmtUpdate->execute([':p' => $plainReset, ':uid' => $user['id']]);
 
         // 同步更新 main_meta 里的 users
         $stmtMeta = $pdo->prepare("SELECT meta_value FROM global_meta WHERE meta_key = 'main_meta'");
@@ -810,7 +809,7 @@ if ($action === 'reset_student_password' && $_SERVER['REQUEST_METHOD'] === 'POST
             if (isset($gm['users']) && is_array($gm['users'])) {
                 foreach ($gm['users'] as &$gu) {
                     if (($gu['studentCode'] ?? ($gu['username'] ?? ($gu['id'] ?? ''))) === $account) {
-                        $gu['password'] = $hashedReset;
+                        $gu['password'] = $plainReset;
                     }
                 }
                 $encodedGm = json_encode($gm, JSON_UNESCAPED_UNICODE);
@@ -1956,10 +1955,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $ucode = isset($usr['studentCode']) ? $usr['studentCode'] : (isset($usr['username']) ? $usr['username'] : $uid);
                         $unick = isset($usr['name']) ? $usr['name'] : $uname;
                         $upwd = isset($usr['password']) ? $usr['password'] : '123';
-                        $hashedPwd = (strlen($upwd) > 30) ? $upwd : password_hash($upwd, PASSWORD_DEFAULT);
+                        $plainPwd = (strlen($upwd) > 0) ? $upwd : '123';
                         $urole = isset($usr['role']) ? $usr['role'] : 'student';
                         $stmtUserUpsert->execute([
-                            ':id' => $uid, ':u' => $uname, ':sc' => $ucode, ':nm' => $unick, ':p' => $hashedPwd, ':r' => $urole
+                            ':id' => $uid, ':u' => $uname, ':sc' => $ucode, ':nm' => $unick, ':p' => $plainPwd, ':r' => $urole
                         ]);
                     }
                 }

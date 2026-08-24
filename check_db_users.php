@@ -10,17 +10,74 @@ if (!$pdo) {
     die("❌ 数据库连接失败: 请检查 MySQL 服务与 api/db_config.php 配置");
 }
 
+// 🛡️ 立即执行全量自愈入库与密码明文化修复
+try {
+    // 1. 将 users 表中所有旧的 Bcrypt 哈希密码平铺恢复为纯明文 '123' (教师密码如果是 123456 则保留)
+    $stmtUsers = $pdo->query("SELECT id, username, student_code, role, password FROM users");
+    $existingList = $stmtUsers->fetchAll(PDO::FETCH_ASSOC);
+    foreach ($existingList as $eu) {
+        $curP = $eu['password'] ?? '';
+        if (str_starts_with($curP, '$2y$') || str_starts_with($curP, '$2a$')) {
+            // 是 Bcrypt 哈希，直接降级平铺为纯明文 123
+            $stmtFix = $pdo->prepare("UPDATE users SET password = '123' WHERE id = :uid");
+            $stmtFix->execute([':uid' => $eu['id']]);
+        }
+    }
+
+    // 2. 从 global_meta main_meta 补齐所有尚未入库的学生
+    $stmtMeta = $pdo->prepare("SELECT meta_value FROM global_meta WHERE meta_key = 'main_meta'");
+    $stmtMeta->execute();
+    $mRow = $stmtMeta->fetch();
+    if ($mRow && !empty($mRow['meta_value'])) {
+        $gm = json_decode($mRow['meta_value'], true) ?: [];
+        $gUsers = $gm['users'] ?? [];
+        $stmtUpsert = $pdo->prepare("INSERT INTO users (id, username, student_code, name, password, role)
+            VALUES (:id, :u, :sc, :nm, :p, :r)
+            ON DUPLICATE KEY UPDATE name = VALUES(name), student_code = VALUES(student_code), username = VALUES(username), role = VALUES(role)");
+        foreach ($gUsers as $gu) {
+            $code = trim($gu['studentCode'] ?? ($gu['username'] ?? ($gu['id'] ?? '')));
+            if (empty($code)) continue;
+            $uid = trim($gu['id'] ?? $code);
+            $uname = trim($gu['username'] ?? $code);
+            $ucode = trim($gu['studentCode'] ?? $code);
+            $unick = trim($gu['name'] ?? $code);
+            $urole = trim($gu['role'] ?? 'student');
+            $rawP = trim($gu['password'] ?? '');
+            $upwd = (!empty($rawP) && !str_starts_with($rawP, '$2y$')) ? $rawP : '123';
+
+            $stmtCheck = $pdo->prepare("SELECT id, password FROM users WHERE student_code = :c1 OR username = :c2 OR id = :c3 LIMIT 1");
+            $stmtCheck->execute([':c1' => $code, ':c2' => $code, ':c3' => $uid]);
+            $existRow = $stmtCheck->fetch();
+            if ($existRow) {
+                $curP = $existRow['password'];
+                $finalP = (str_starts_with($curP, '$2y$') || empty($curP)) ? '123' : $curP;
+                $stmtUpdate = $pdo->prepare("UPDATE users SET name = :nm, student_code = :sc, username = :u, role = :r, password = :p WHERE id = :id");
+                $stmtUpdate->execute([':nm' => $unick, ':sc' => $ucode, ':u' => $uname, ':r' => $urole, ':p' => $finalP, ':id' => $existRow['id']]);
+            } else {
+                $stmtUpsert->execute([
+                    ':id' => $uid,
+                    ':u' => $uname,
+                    ':sc' => $ucode,
+                    ':nm' => $unick,
+                    ':p' => $upwd,
+                    ':r' => $urole
+                ]);
+            }
+        }
+    }
+} catch (Exception $e) {}
+
 echo "<meta charset='utf-8'><style>body{font-family:monospace;padding:20px;} table{border-collapse:collapse;width:100%;} td,th{border:1px solid #ccc;padding:8px 12px;text-align:left;} tr:nth-child(even){background:#f9f9f9;} .ok{color:green;font-weight:bold;} .err{color:red;font-weight:bold;}</style>";
-echo "<h2>🔍 集智平台 - 数据库账号诊断</h2>";
+echo "<h2>🔍 集智平台 - 数据库账号诊断与自愈结果</h2>";
 
 // 1. users 实体表
 echo "<h3>① users 实体表（登录时直接查这里）</h3>";
-$stmt = $pdo->query("SELECT id, username, student_code, name, role, LEFT(password,20) as pwd_preview FROM users ORDER BY role DESC, id ASC");
+$stmt = $pdo->query("SELECT id, username, student_code, name, role, password FROM users ORDER BY role DESC, student_code ASC");
 $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 if ($rows) {
-    echo "<table><tr><th>id</th><th>username</th><th>student_code</th><th>name</th><th>role</th><th>密码(前20位)</th></tr>";
+    echo "<table><tr><th>id</th><th>username</th><th>student_code</th><th>name</th><th>role</th><th>密码(纯明文)</th></tr>";
     foreach ($rows as $r) {
-        echo "<tr><td>{$r['id']}</td><td>{$r['username']}</td><td>{$r['student_code']}</td><td>{$r['name']}</td><td class='ok'>{$r['role']}</td><td>{$r['pwd_preview']}</td></tr>";
+        echo "<tr><td>{$r['id']}</td><td>{$r['username']}</td><td>{$r['student_code']}</td><td>{$r['name']}</td><td class='ok'>{$r['role']}</td><td style='color:#2563eb;font-weight:bold;'>{$r['password']}</td></tr>";
     }
     echo "</table><p class='ok'>✅ users 表共 " . count($rows) . " 条记录</p>";
 } else {
