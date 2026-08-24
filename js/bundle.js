@@ -11033,13 +11033,25 @@
         if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
       }
 
-      // 🛡️ 正文草稿锁存：切换前将富文本当前内容完整持久化存入内存与快照，绝不丢字
-      if (this.state.currentStage === 'stage2' && window._jizhi_quill && window._jizhi_quill.root) {
-        const liveHtml = window._jizhi_quill.root.innerHTML.replace(/<span class="remote-cursor-widget"[\s\S]*?<\/span>/gi, '');
-        if (liveHtml && liveHtml.trim() !== '<p><br></p>') {
-          if (!this.state.stage2) this.state.stage2 = {};
-          this.state.stage2.unifiedContent = liveHtml;
-        }
+      // 🛡️ 正文草稿锁存：切换前从 Etherpad 实时提取最新全文存入内存与快照，绝不丢字，并供阶段三智能体深度分析
+      if (this.state.currentStage === 'stage2') {
+        const activeTaskId = this.state.activeTaskId || 'task_default';
+        const currentUser = this.authManager ? this.authManager.getCurrentUser() : null;
+        const effectiveClassId = this.state.activeStudentClassId || (currentUser?.classId || 'class_101');
+        const activeGroupObj = this.authManager ? this.authManager.getStudentActiveGroup(currentUser, effectiveClassId) : null;
+        const currentGroupId = activeGroupObj?.id || (currentUser?.groupId || 'group_1');
+        const padName = `jizhi_${activeTaskId}_${currentGroupId}`;
+        try {
+          fetch(`sync.php?action=get_pad_text&padId=${padName}`)
+            .then(res => res.json())
+            .then(data => {
+              if (data && data.success && data.text) {
+                if (!this.state.stage2) this.state.stage2 = {};
+                this.state.stage2.unifiedContent = data.text;
+              }
+            })
+            .catch(() => {});
+        } catch (e) {}
       }
 
       this.isViewingPastStage = (targetOrder < currentGroupOrder);
