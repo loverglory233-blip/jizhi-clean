@@ -9,8 +9,8 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260823_v200";
-import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime } from "./utils.js?v=20260823_v200";
+} from "./constants.js?v=20260823_v201";
+import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime } from "./utils.js?v=20260823_v201";
 
 /* ==========================================================================
    7. TEACHER PORTAL RENDERER (LIVE WORKSPACE MIRROR & ANNOUNCEMENT READ MATRIX)
@@ -2919,10 +2919,19 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
         if (selTaskBox && selTaskBox.value) {
           window.app.state.activeTaskId = selTaskBox.value;
         }
+        const effectiveTId = window.app.state.activeTaskId || 'task_default';
+        try {
+          fetch(`sync.php?action=set_task_group_lock&taskId=${encodeURIComponent(effectiveTId)}&groupId=${encodeURIComponent(activeMonitorGId)}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ taskId: effectiveTId, groupId: activeMonitorGId, isLocked: newSub })
+          }).catch(() => {});
+        } catch (e) {}
+
         window.app.saveGroupState(activeMonitorGId);
         if (window.app.cloudSyncEngine) {
           window.app.cloudSyncEngine.groupId = activeMonitorGId;
-          window.app.cloudSyncEngine.taskId = window.app.state.activeTaskId || 'task_default';
+          window.app.cloudSyncEngine.taskId = effectiveTId;
           window.app.cloudSyncEngine.updateScopeKeys();
           window.app.cloudSyncEngine.pushSnapshot();
         }

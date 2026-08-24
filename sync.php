@@ -472,6 +472,32 @@ if ($action === 'report_member_contrib') {
         echo json_encode(['success' => true, 'contribs' => $snapshot['stage2']['memberContributions']]);
         exit;
     }
+if ($action === 'set_task_group_lock') {
+    header('Content-Type: application/json; charset=utf-8');
+    $rawInput = @file_get_contents('php://input');
+    $req = json_decode($rawInput, true) ?: [];
+    $taskId = $req['taskId'] ?? ($queryTaskId ?: 'task_default');
+    $groupId = $req['groupId'] ?? ($queryGroupId ?: 'group_1');
+    $isLocked = !empty($req['isLocked']) ? 1 : 0;
+    $sk = $taskId . '_' . $groupId;
+    $nowMs = round(microtime(true) * 1000);
+
+    if ($pdo) {
+        $stmt = $pdo->prepare("INSERT INTO group_states (scope_key, task_id, group_id, current_stage, stage1_data, stage2_data, stage3_data, presence_data, members_data, is_final_submitted, last_timestamp, revision_id)
+            VALUES (:sk, :tid, :gid, 'stage1', '{}', '{}', '{}', '{}', '[]', :fin, :ts, 1)
+            ON DUPLICATE KEY UPDATE is_final_submitted = :fin2, last_timestamp = :ts2, revision_id = IFNULL(revision_id, 0) + 1");
+        $stmt->execute([
+            ':sk'   => $sk,
+            ':tid'  => $taskId,
+            ':gid'  => $groupId,
+            ':fin'  => $isLocked,
+            ':ts'   => $nowMs,
+            ':fin2' => $isLocked,
+            ':ts2'  => $nowMs
+        ]);
+        echo json_encode(['success' => true, 'isLocked' => (bool)$isLocked, 'scopeKey' => $sk]);
+        exit;
+    }
     echo json_encode(['success' => false]);
     exit;
 }
@@ -1652,10 +1678,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $finalStage = ($wEx >= $wIn) ? $exStage : $inStage;
             }
 
-            // 🛡️ 锁定状态防逆流：一旦被教师设为锁定 (1)，普通客户端推送不能逆转为 0
-            $exFinal = !empty($stRow['is_final_submitted']) ? 1 : 0;
+            // 🛡️ 锁定状态：完全由客户端/教师端权威布尔值控制，支持正常锁定与解锁
             $inFinal = !empty($data['isFinalSubmitted']) ? 1 : 0;
-            $finalLock = $isResetVal ? 0 : ($exFinal ? 1 : $inFinal);
+            $finalLock = $isResetVal ? 0 : $inFinal;
 
             // 🛡️ 公约与初稿确认状态防逆流 (Sticky True)
             if (!$isResetVal && !empty($existingS1['contract']['isConfirmed'])) {
