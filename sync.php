@@ -1808,9 +1808,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 // 🛡️ 乐观并发控制：客户端携带的 revision_id 落后于服务端时判定为过期正文，拒绝覆盖最新正文（杜绝降级模式下旧快照冲刷）
                 $incomingIsStale = ($clientRevision > 0 && $existingRevision > 0 && $clientRevision < $existingRevision);
                 if (isset($incomingS2['unifiedContent'])) {
-                    if (trim($incomingS2['unifiedContent']) === '' && !empty(trim($existingS2['unifiedContent'] ?? ''))) {
+                    $inText = trim($incomingS2['unifiedContent']);
+                    $exText = trim($existingS2['unifiedContent'] ?? '');
+                    
+                    // 🛡️ 精确区分：冷启动空冲刷 vs 正常用户删除
+                    // 1. 如果新客户端从未参与过编辑 (clientRevision === 0) 且发来空正文，判定为冷启动冲刷，保留服务端已有正文
+                    // 2. 如果客户端版本号落后 (incomingIsStale)，判定为旧快照倒流，保留服务端最新正文
+                    // 3. 正常在线编辑用户的任何删除（删一段、删几个字、全选清空），100% 允许落库生效！
+                    if ($inText === '' && !empty($exText) && ($clientRevision === 0 || $incomingIsStale)) {
                         $mergedS2['unifiedContent'] = $existingS2['unifiedContent'];
-                    } elseif ($incomingIsStale && !empty(trim($existingS2['unifiedContent'] ?? ''))) {
+                    } elseif ($incomingIsStale && !empty($exText)) {
                         $mergedS2['unifiedContent'] = $existingS2['unifiedContent'];
                     } else {
                         $mergedS2['unifiedContent'] = $incomingS2['unifiedContent'];
