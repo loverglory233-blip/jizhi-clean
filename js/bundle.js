@@ -2575,16 +2575,21 @@
         const currentUser = this.app.authManager ? this.app.authManager.getCurrentUser() : null;
         const currentUserId = currentUser ? (currentUser.studentCode || currentUser.username || currentUser.id) : '';
 
-        // 阶段一字段锁更新
+        // 阶段一公约与阶段三答辩矩阵字段锁更新
         document.querySelectorAll('.task-assignment-input, .contract-time-input, #contract-topic-input, .feedback-direct-input').forEach(el => {
           const fieldKey = el.dataset.lockKey || el.id || (el.dataset.mkey ? `task_${el.dataset.mkey}` : (el.dataset.key ? `time_${el.dataset.key}` : (el.dataset.id ? `fb_${el.dataset.id}` : '')));
           if (!fieldKey) return;
           el.dataset.lockKey = fieldKey;
 
           const lockInfo = locks[fieldKey];
-          const isLockedByOther = lockInfo && lockInfo.userId !== currentUserId;
+          const currentUserName = currentUser ? currentUser.name : '';
+          const isLockedByOther = lockInfo && lockInfo.userId !== currentUserId && lockInfo.userName !== currentUserName;
 
-          let badge = el.parentElement.querySelector(`.field-lock-badge[data-for="${fieldKey}"]`);
+          // 查找所属卡片或外层容器
+          const isTimeInput = el.classList.contains('contract-time-input');
+          const mountContainer = isTimeInput ? (el.closest('div[style*="border-left"]') || el.parentElement.parentElement) : el.parentElement;
+          let badge = mountContainer.querySelector(`.field-lock-badge[data-for="${fieldKey}"]`);
+
           if (isLockedByOther) {
             el.disabled = true;
             el.style.opacity = '0.65';
@@ -2593,13 +2598,16 @@
             el.title = `🔒 ${lockInfo.userName || '其他组员'} 正在编辑中...`;
 
             if (!badge) {
-              badge = document.createElement('span');
+              badge = document.createElement('div');
               badge.className = 'field-lock-badge';
               badge.dataset.for = fieldKey;
-              badge.style.cssText = 'font-size:11px; color:#b45309; background:#fef3c7; border:1px solid #fde68a; padding:1px 6px; border-radius:6px; margin-left:6px; font-weight:700; display:inline-flex; align-items:center; gap:2px; vertical-align:middle;';
+              if (isTimeInput) {
+                badge.style.cssText = 'font-size:11px; color:#b45309; background:#fef3c7; border:1px solid #fde68a; padding:2px 8px; border-radius:6px; margin-top:6px; font-weight:700; display:flex; align-items:center; justify-content:center; gap:4px; width:100%; box-sizing:border-box;';
+              } else {
+                badge.style.cssText = 'font-size:11px; color:#b45309; background:#fef3c7; border:1px solid #fde68a; padding:2px 8px; border-radius:6px; margin-top:4px; font-weight:700; display:inline-flex; align-items:center; gap:4px;';
+              }
               badge.innerHTML = `🔒 ${lockInfo.userName || '组员'} 正在输入...`;
-              if (el.nextSibling) el.parentElement.insertBefore(badge, el.nextSibling);
-              else el.parentElement.appendChild(badge);
+              mountContainer.appendChild(badge);
             } else {
               badge.innerHTML = `🔒 ${lockInfo.userName || '组员'} 正在输入...`;
             }
