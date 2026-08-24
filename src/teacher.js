@@ -9,8 +9,8 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260823_v197";
-import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime } from "./utils.js?v=20260823_v197";
+} from "./constants.js?v=20260823_v198";
+import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime } from "./utils.js?v=20260823_v198";
 
 /* ==========================================================================
    7. TEACHER PORTAL RENDERER (LIVE WORKSPACE MIRROR & ANNOUNCEMENT READ MATRIX)
@@ -2431,12 +2431,12 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
                 <input type="hidden" id="modal-ann-class" value="${activeClass.id}">
               </div>
               <div class="teacher-form-group">
-                <label>📌 关联写作任务 (选填)</label>
+                <label><span class="req" style="color:#dc2626;">*</span> 📌 关联写作任务 (必须锁定具体任务)</label>
                 <select id="modal-ann-task" class="teacher-input fancy">
                   ${(() => {
                     const classTasks = tasks.filter(t => t.classId === 'all' || t.classId === activeClass.id);
-                    if (classTasks.length === 0) return '<option value="task_all">🌐 全班研讨 (无特定任务)</option>';
-                    return '<option value="task_all">🌐 全班所有任务通用</option>' + classTasks.map(t => `<option value="${t.id}">📌 ${t.title}</option>`).join('');
+                    if (classTasks.length === 0) return '<option value="" disabled selected>⚠️ 当前班级暂无写作任务，请先在【写作任务】中创建！</option>';
+                    return classTasks.map((t, idx) => `<option value="${t.id}" ${idx === 0 ? 'selected' : ''}>📌 ${t.title}</option>`).join('');
                   })()}
                 </select>
               </div>
@@ -2549,6 +2549,10 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
         const selClassName = selClassId === 'all' ? '全校班级' : (selClassObj ? selClassObj.name : '指定班级');
         
         const taskId = modal.querySelector('#modal-ann-task').value;
+        if (!taskId || taskId === 'task_all' || taskId === 'task_default') {
+          alert('⚠️ 请先为当前班级创建具体写作任务，通知必须锁定关联至具体任务！');
+          return;
+        }
         const checkedGroupCbs = Array.from(groupsContainer.querySelectorAll('input[type="checkbox"]:checked'));
         if (checkedGroupCbs.length === 0) {
           alert('⚠️ 请至少勾选一个接收通知的受众小组！');
@@ -2624,12 +2628,12 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
                 <input type="hidden" id="modal-paper-class" value="${activeClass.id}">
               </div>
               <div class="teacher-form-group">
-                <label>📌 关联写作任务 (选填)</label>
+                <label><span class="req" style="color:#dc2626;">*</span> 📌 关联写作任务 (必须锁定具体任务)</label>
                 <select id="modal-paper-task" class="teacher-input fancy">
                   ${(() => {
                     const classTasks = tasks.filter(t => t.classId === 'all' || t.classId === activeClass.id);
-                    if (classTasks.length === 0) return '<option value="task_all">🌐 全班通用 (无特定任务)</option>';
-                    return '<option value="task_all">🌐 全班所有任务通用</option>' + classTasks.map(t => `<option value="${t.id}">📌 ${t.title}</option>`).join('');
+                    if (classTasks.length === 0) return '<option value="" disabled selected>⚠️ 当前班级暂无写作任务，请先在【写作任务】中创建！</option>';
+                    return classTasks.map((t, idx) => `<option value="${t.id}" ${idx === 0 ? 'selected' : ''}>📌 ${t.title}</option>`).join('');
                   })()}
                 </select>
               </div>
@@ -2738,7 +2742,13 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
           const selClassObj = allClasses.find(c => c.id === selClassId);
           const selClassName = selClassId === 'all' ? '全校班级' : (selClassObj ? selClassObj.name : '指定班级');
 
-          const targetTaskId = modal.querySelector('#modal-paper-task') ? modal.querySelector('#modal-paper-task').value : 'task_all';
+          const targetTaskId = modal.querySelector('#modal-paper-task') ? modal.querySelector('#modal-paper-task').value : '';
+          if (!targetTaskId || targetTaskId === 'task_all' || targetTaskId === 'task_default') {
+            alert('⚠️ 请先为当前班级创建具体写作任务，参考文献必须锁定关联至具体任务！');
+            submitBtn.disabled = false;
+            submitBtn.innerText = '📚 确认上传并存入范文库';
+            return;
+          }
           
           const checkedGroupCbs = Array.from(paperGroupsContainer.querySelectorAll('input[type="checkbox"]:checked'));
           if (checkedGroupCbs.length === 0) {
