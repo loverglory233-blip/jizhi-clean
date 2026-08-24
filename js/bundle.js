@@ -11405,27 +11405,51 @@
         },
         onConfirmContract: () => {
           if (this.state.stage1.contract.isConfirmed) {
-            alert('🔒 学术合作合约已被全员确认签署并锁定！无法二次修改。');
+            alert('🔒 学术合作公约已被全员确认签署并锁定！');
             return;
           }
           const user = this.state.currentUser;
           const s1 = this.state.stage1;
-          const totalMembersCount = Object.keys(this.state.members).length;
+
+          let memberArr = [];
+          if (Array.isArray(this.state.members)) memberArr = this.state.members;
+          else if (this.state.members && typeof this.state.members === 'object') memberArr = Object.values(this.state.members);
+          if (memberArr.length === 0 && this.authManager) {
+            const u = this.authManager.getCurrentUser();
+            const effClassId = this.state.activeStudentClassId || u?.classId || 'class_101';
+            const effGroup = this.authManager.getStudentActiveGroup(u, effClassId);
+            memberArr = this.authManager.getGroupMembersForWorkspace(effGroup?.id || 'group_1');
+          }
+          const totalMembersCount = memberArr.length > 0 ? memberArr.length : 3;
+
           if (!s1.contract.confirmedMembers) s1.contract.confirmedMembers = {};
           // 同时写入 studentCode 与 member.id，彻底杜绝 ID 不一致
           s1.contract.confirmedMembers[user] = true;
-          if (this.state.members[user]) {
-            s1.contract.confirmedMembers[this.state.members[user].id] = true;
+          const currMemObj = memberArr.find(m => m && (m.id === user || m.studentCode === user || m.username === user || m.name === user));
+          if (currMemObj) {
+            if (currMemObj.id) s1.contract.confirmedMembers[currMemObj.id] = true;
+            if (currMemObj.studentCode) s1.contract.confirmedMembers[currMemObj.studentCode] = true;
+            if (currMemObj.name) s1.contract.confirmedMembers[currMemObj.name] = true;
           }
-          const confirmedCount = Object.values(this.state.members).filter(m => s1.contract.confirmedMembers[m.id] || s1.contract.confirmedMembers[m.studentCode]).length;
-          const memberName = this.state.members[user] ? this.state.members[user].name : user;
-          const confirmMsg = { sender: user, text: `📢 [合约签署告知]: 我 (${memberName}) 已按键确认签署合作学术合约！（全组确认进度: ${confirmedCount}/${totalMembersCount} 人）`, timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) };
+
+          const confirmedCount = memberArr.filter(m => m && (s1.contract.confirmedMembers[m.id] || s1.contract.confirmedMembers[m.studentCode] || (m.name && s1.contract.confirmedMembers[m.name]))).length;
+          const memberName = currMemObj ? currMemObj.name : user;
+          const confirmMsg = {
+            sender: user,
+            senderName: memberName,
+            text: `📢 [公约签署告知]: 我 (${memberName}) 已按键确认签署合作学术公约！（全组确认进度: ${confirmedCount}/${totalMembersCount} 人）`,
+            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            _timeMs: Date.now()
+          };
+          if (!this.state.chatLogs.stage1) this.state.chatLogs.stage1 = [];
           this.state.chatLogs.stage1.push(confirmMsg);
           this.syncStage1();
           this.syncChatLogs();
           if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
-          if (confirmedCount < totalMembersCount) {
-            alert(`✅ 您 (${memberName}) 已成功签署学术合作公约！\n\n当前签署进度：${confirmedCount}/${totalMembersCount} 人已签署。\n请提醒组内其他同学尽快签署，全员签署完毕后全组将自动解锁并推进至【阶段二：学术编辑部】！`);
+
+          // 🛡️ 严格要求：必须小组所有成员（每一个人）都确认签署后，才解锁推进到阶段二
+          if (confirmedCount < totalMembersCount || totalMembersCount < 2) {
+            alert(`✅ 您 (${memberName}) 已成功签署学术合作公约！\n\n当前全组签署进度：${confirmedCount}/${totalMembersCount} 人已签署。\n⚠️ 必须全组所有成员均完成签署确认后，系统才会正式解锁并自动推进至【阶段二：学术编辑部】！请提醒组内其他同学尽快签署。`);
           } else {
             s1.contract.isConfirmed = true;
             this.state.groupMaxStage = 'stage2';
@@ -11433,11 +11457,18 @@
             this.syncStageChange('stage2');
             if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
             setTimeout(() => {
-              const finalMsg = { sender: 'auctioneer', text: `🎪 【拍卖师宣布】：恭喜！组内全员 ${totalMembersCount}/${totalMembersCount} 名成员已全部完成公约签署！学术合作公约正式生效，阶段一圆满结束，系统自动解锁【阶段二：学术编辑部】！`, timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) };
+              const finalMsg = {
+                sender: 'auctioneer',
+                senderName: '头脑风暴 · 学术拍卖师',
+                text: `🎪 【拍卖师宣布】：🎉 恭喜！组内全员 ${totalMembersCount}/${totalMembersCount} 名成员已全部完成公约签署确认！学术合作公约正式生效，阶段一圆满结束，系统自动全员解锁推进至【阶段二：学术编辑部】！`,
+                timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                _timeMs: Date.now()
+              };
+              if (!this.state.chatLogs.stage1) this.state.chatLogs.stage1 = [];
               this.state.chatLogs.stage1.push(finalMsg);
               this.syncChatLogs();
               if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
-              alert(`🎉 恭喜！组内全员完成公约签署！学术合作公约生效，系统自动解锁【阶段二：学术编辑部】！`);
+              alert(`🎉 恭喜！组内全部 ${totalMembersCount} 位成员已全部完成公约签署！\n\n学术合作公约正式生效，系统自动全组解锁并推进至【阶段二：学术编辑部】！`);
               this.switchStage('stage2', true);
             }, 600);
           }
@@ -11515,22 +11546,37 @@
         },
         onConfirmStage2Draft: () => {
           if (this.state.stage2.isDraftConfirmed) {
-            alert('🔒 正文初稿已被组内确认！已解锁阶段三。');
+            alert('🔒 正文初稿已被组内全员确认！已解锁阶段三。');
             return;
           }
           const user = this.state.currentUser || 'A';
           const s2 = this.state.stage2;
-          const membersList = Object.values(this.state.members || {});
-          const totalMembersCount = membersList.length || 3;
+
+          let memberArr = [];
+          if (Array.isArray(this.state.members)) memberArr = this.state.members;
+          else if (this.state.members && typeof this.state.members === 'object') memberArr = Object.values(this.state.members);
+          if (memberArr.length === 0 && this.authManager) {
+            const u = this.authManager.getCurrentUser();
+            const effClassId = this.state.activeStudentClassId || u?.classId || 'class_101';
+            const effGroup = this.authManager.getStudentActiveGroup(u, effClassId);
+            memberArr = this.authManager.getGroupMembersForWorkspace(effGroup?.id || 'group_1');
+          }
+          const totalMembersCount = memberArr.length > 0 ? memberArr.length : 3;
+
           if (!s2.confirmedMembers) s2.confirmedMembers = {};
           s2.confirmedMembers[user] = true;
-          if (this.state.members[user]) {
-            s2.confirmedMembers[this.state.members[user].id] = true;
+          const currMemObj = memberArr.find(m => m && (m.id === user || m.studentCode === user || m.username === user || m.name === user));
+          if (currMemObj) {
+            if (currMemObj.id) s2.confirmedMembers[currMemObj.id] = true;
+            if (currMemObj.studentCode) s2.confirmedMembers[currMemObj.studentCode] = true;
+            if (currMemObj.name) s2.confirmedMembers[currMemObj.name] = true;
           }
-          const confirmedCount = membersList.filter(m => s2.confirmedMembers[m.id] || s2.confirmedMembers[m.studentCode]).length;
-          const memberName = this.state.members[user] ? this.state.members[user].name : user;
+
+          const confirmedCount = memberArr.filter(m => m && (s2.confirmedMembers[m.id] || s2.confirmedMembers[m.studentCode] || (m.name && s2.confirmedMembers[m.name]))).length;
+          const memberName = currMemObj ? currMemObj.name : user;
           const confirmMsg = {
             sender: user,
+            senderName: memberName,
             text: `📢 [初稿确认告知]: 我 (${memberName}) 已确认完成正文初稿！（全组初稿确认进度: ${confirmedCount}/${totalMembersCount} 人）`,
             timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
             _timeMs: Date.now()
@@ -11541,8 +11587,9 @@
           this.syncChatLogs();
           if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
 
-          if (confirmedCount < totalMembersCount) {
-            alert(`✅ 您 (${memberName}) 已成功确认正文初稿！\n\n当前组内确认进度：${confirmedCount}/${totalMembersCount} 人已确认。\n请提醒组内其他同学尽快确认，全员确认完毕后全组将自动解锁并推进至【阶段三：答辩擂台】！`);
+          // 🛡️ 严格要求：必须全组成员每一个人都点击确认初稿后，才解锁推进至阶段三
+          if (confirmedCount < totalMembersCount || totalMembersCount < 2) {
+            alert(`✅ 您 (${memberName}) 已成功确认正文初稿！\n\n当前组内确认进度：${confirmedCount}/${totalMembersCount} 人已确认。\n⚠️ 必须全组所有成员均完成确认后，系统才会正式解锁并自动推进至【阶段三：答辩擂台】！请提醒组内其他同学尽快确认。`);
           } else {
             s2.isDraftConfirmed = true;
             this.state.groupMaxStage = 'stage3';
@@ -11558,7 +11605,8 @@
             setTimeout(() => {
               const finalMsg = {
                 sender: 'reviewingEditor',
-                text: `🎉 【审稿编辑宣布】：恭喜！组内全员 ${totalMembersCount}/${totalMembersCount} 名成员已全部确认正文初稿定稿！阶段二圆满结束，系统自动解锁【阶段三：答辩擂台】！`,
+                senderName: '审稿编辑 · 质量把关',
+                text: `🎉 【审稿编辑宣布】：恭喜！组内全员 ${totalMembersCount}/${totalMembersCount} 名成员已全部确认正文初稿定稿！阶段二圆满结束，系统自动全员解锁推进至【阶段三：答辩擂台】！`,
                 timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
                 _timeMs: Date.now()
               };
@@ -11566,7 +11614,7 @@
               this.state.chatLogs.stage2.push(finalMsg);
               this.syncChatLogs();
               if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
-              alert(`🎉 恭喜！组内全员完成初稿确认！系统自动解锁【阶段三：答辩擂台】！`);
+              alert(`🎉 恭喜！组内全部 ${totalMembersCount} 位成员已全部完成初稿确认！\n\n系统自动全组解锁并推进至【阶段三：答辩擂台】！`);
               this.switchStage('stage3', true);
             }, 600);
           }
