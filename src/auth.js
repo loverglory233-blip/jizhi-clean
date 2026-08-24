@@ -14,8 +14,8 @@ import {
   DefaultTasks,
   DefaultAnnouncements,
   DefaultReferencePapers
-} from './constants.js?v=20260823_v204';
-import { formatExportDateTime } from './utils.js?v=20260823_v204';
+} from './constants.js?v=20260823_v205';
+import { formatExportDateTime } from './utils.js?v=20260823_v205';
 
 export class AuthManager {
   constructor() {
@@ -387,7 +387,7 @@ export class AuthManager {
         user.activeSessionId = data.token;
         sessionStorage.setItem(STORAGE_KEY_USER, JSON.stringify(user));
         localStorage.setItem(STORAGE_KEY_USER, JSON.stringify(user));
-        if (window.app) {
+        if (window.app && window.app.state) {
           window.app.state.studentViewMode = 'task_list';
           if (window.app.cloudSyncEngine) window.app.cloudSyncEngine.pushSnapshot();
         }
@@ -470,7 +470,7 @@ export class AuthManager {
       }).catch(() => {});
     } catch (e) {}
 
-    if (window.app) {
+    if (window.app && window.app.state) {
       window.app.state.studentViewMode = 'task_list';
       if (window.app.cloudSyncEngine) window.app.cloudSyncEngine.pushSnapshot();
     }
