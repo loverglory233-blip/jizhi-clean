@@ -5915,7 +5915,8 @@
         const currentTaskId = window.app ? (window.app.state.activeTaskId || 'task_default') : 'task_default';
         const curTaskObj = tasks.find(t => t.id === currentTaskId) || { title: '当前写作任务' };
         const lockTitle = newSub ? `🔒 指导教师已锁定【${activeMonitorGroup.name}】写作任务` : `🔓 指导教师已恢复【${activeMonitorGroup.name}】写作任务编辑权限`;
-        const lockContent = newSub
+        const lockContent = newSub ? '当前写作任务已被指导教师锁定为只读状态' : '当前写作任务已恢复正常编辑权限';
+
         // 立即同步写入小组状态并向全组学生端推送最新权限快照
         if (window.app) {
           window.app.state.isFinalSubmitted = newSub;
