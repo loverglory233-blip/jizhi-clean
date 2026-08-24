@@ -101,15 +101,17 @@ if (!function_exists('ensureTeacherSeedAccount')) {
     function ensureTeacherSeedAccount($pdo) {
         if (!$pdo) return;
         try {
-            $stmt = $pdo->prepare("SELECT id, password FROM users WHERE id = '1001' OR username = '1001' OR student_code = '1001' LIMIT 1");
+            $stmt = $pdo->prepare("SELECT id, password, role FROM users WHERE id = '1001' OR username = '1001' OR student_code = '1001' LIMIT 1");
             $stmt->execute();
             $tRow = $stmt->fetch(PDO::FETCH_ASSOC);
             if (!$tRow) {
                 $stmtIns = $pdo->prepare("INSERT INTO users (id, username, student_code, name, password, role) VALUES ('1001', '1001', '1001', '指导教师', '123', 'teacher')");
                 $stmtIns->execute();
             } else {
-                $stmtUp = $pdo->prepare("UPDATE users SET role = 'teacher', password = '123' WHERE id = '1001' OR username = '1001'");
-                $stmtUp->execute();
+                // 仅确保角色为 teacher，绝对不覆盖教师已修改的自定义密码！
+                if ($tRow['role'] !== 'teacher') {
+                    $pdo->exec("UPDATE users SET role = 'teacher' WHERE id = '1001' OR username = '1001'");
+                }
             }
         } catch (Exception $e) {}
     }
