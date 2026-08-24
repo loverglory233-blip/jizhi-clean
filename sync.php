@@ -1047,6 +1047,24 @@ if ($action === 'save_global_meta' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 $stmt = $pdo->prepare("INSERT INTO global_meta (meta_key, meta_value) VALUES ('main_meta', :val) ON DUPLICATE KEY UPDATE meta_value = :val2");
                 $stmt->execute([':val' => $rawInput, ':val2' => $rawInput]);
 
+                // 🛡️ 实体表实时入库：将所有用户/学生 100% 同步 upsert 至 users 实体表，确保异地设备登录 0 延迟秒级识别
+                if (isset($decoded['users']) && is_array($decoded['users'])) {
+                    $stmtUserUpsert = $pdo->prepare("INSERT INTO `users` (`id`, `username`, `student_code`, `name`, `password`, `role`)
+                        VALUES (:id, :u, :sc, :nm, :p, :r)
+                        ON DUPLICATE KEY UPDATE `name`=VALUES(`name`), `student_code`=VALUES(`student_code`), `username`=VALUES(`username`), `password`=VALUES(`password`), `role`=VALUES(`role`)");
+                    foreach ($decoded['users'] as $usr) {
+                        $uid = isset($usr['id']) ? $usr['id'] : ('u_student_' . uniqid());
+                        $uname = isset($usr['username']) ? $usr['username'] : (isset($usr['studentCode']) ? $usr['studentCode'] : $uid);
+                        $ucode = isset($usr['studentCode']) ? $usr['studentCode'] : (isset($usr['username']) ? $usr['username'] : $uid);
+                        $unick = isset($usr['name']) ? $usr['name'] : $uname;
+                        $upwd = isset($usr['password']) ? $usr['password'] : '123';
+                        $urole = isset($usr['role']) ? $usr['role'] : 'student';
+                        $stmtUserUpsert->execute([
+                            ':id' => $uid, ':u' => $uname, ':sc' => $ucode, ':nm' => $unick, ':p' => $upwd, ':r' => $urole
+                        ]);
+                    }
+                }
+
                 $stmtVerSave = $pdo->prepare("INSERT INTO global_meta (meta_key, meta_value) VALUES ('main_meta_version', :v) ON DUPLICATE KEY UPDATE meta_value = :v2");
                 $stmtVerSave->execute([':v' => $newVersion, ':v2' => $newVersion]);
 
