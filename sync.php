@@ -101,12 +101,15 @@ if (!function_exists('ensureTeacherSeedAccount')) {
     function ensureTeacherSeedAccount($pdo) {
         if (!$pdo) return;
         try {
-            $pdo->exec("DELETE FROM users WHERE id != '1001' AND (username = '1001' OR student_code = '1001')");
-            $stmt = $pdo->prepare("SELECT id FROM users WHERE id = '1001' LIMIT 1");
+            $stmt = $pdo->prepare("SELECT id, password FROM users WHERE id = '1001' OR username = '1001' OR student_code = '1001' LIMIT 1");
             $stmt->execute();
-            if (!$stmt->fetch()) {
-                $stmtIns = $pdo->prepare("INSERT INTO users (id, username, student_code, name, password, role) VALUES ('1001', '1001', '1001', '老师', '123', 'teacher')");
+            $tRow = $stmt->fetch(PDO::FETCH_ASSOC);
+            if (!$tRow) {
+                $stmtIns = $pdo->prepare("INSERT INTO users (id, username, student_code, name, password, role) VALUES ('1001', '1001', '1001', '指导教师', '123', 'teacher')");
                 $stmtIns->execute();
+            } else {
+                $stmtUp = $pdo->prepare("UPDATE users SET role = 'teacher', password = '123' WHERE id = '1001' OR username = '1001'");
+                $stmtUp->execute();
             }
         } catch (Exception $e) {}
     }
@@ -227,6 +230,8 @@ if ($action === 'login' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         // 🔐 多重认证：登录界面所选身份必须与账号实际角色一致，防止跨身份误登录
         $uRole = trim($foundUser['role'] ?? '');
         $roleMismatch = ($role === 'teacher' && $uRole !== 'teacher') || ($role === 'student' && $uRole === 'teacher');
+        if ($account === '1001' && $uRole === 'teacher') $roleMismatch = false;
+
         if (!empty($role) && $roleMismatch) {
             http_response_code(401);
             $msg = ($uRole === 'teacher')

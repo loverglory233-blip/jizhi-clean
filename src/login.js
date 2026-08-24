@@ -69,10 +69,19 @@ export function renderLoginView(container, authManager, onLoginSuccess) {
       }
     };
     apply(roleOptStudent, selected === 'student');
-    apply(roleOptTeacher, selected === 'teacher');
-  };
   if (roleSelector) roleSelector.addEventListener('change', highlightRole);
   highlightRole();
+
+  accountInput.addEventListener('input', (e) => {
+    const val = (e.target.value || '').trim();
+    if (val === '1001' || val.toLowerCase() === 'teacher' || val.toLowerCase() === 'admin') {
+      const teacherRadio = container.querySelector('input[name="login-role"][value="teacher"]');
+      if (teacherRadio) {
+        teacherRadio.checked = true;
+        highlightRole();
+      }
+    }
+  });
 
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
