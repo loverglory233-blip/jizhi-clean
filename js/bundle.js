@@ -2271,11 +2271,6 @@
     }
 
     async pushSnapshot(isReset = false) {
-      // 🛡️ 致命防线：冷启动未完成初次云端拉取时，严禁向服务器推送快照，杜绝新设备/刷新冲刷覆盖已有云端协作数据
-      if (!this.isInitialPullDone && !isReset) {
-        return;
-      }
-
       this.updateScopeKeys();
       const groupId = this.groupId;
       const isResetVal = !!this.isResetBroadcast || isReset;

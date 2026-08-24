@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState } from './constants.js?v=20260823_v226';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin } from './utils.js?v=20260823_v226';
+import { InitialState } from './constants.js?v=20260823_v227';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin } from './utils.js?v=20260823_v227';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -121,11 +121,6 @@ export class CloudSyncEngine {
   }
 
   async pushSnapshot(isReset = false) {
-    // 🛡️ 致命防线：冷启动未完成初次云端拉取时，严禁向服务器推送快照，杜绝新设备/刷新冲刷覆盖已有云端协作数据
-    if (!this.isInitialPullDone && !isReset) {
-      return;
-    }
-
     this.updateScopeKeys();
     const groupId = this.groupId;
     const isResetVal = !!this.isResetBroadcast || isReset;

@@ -62,14 +62,10 @@ $taskId = isset($_GET['taskId']) ? preg_replace('/[^a-zA-Z0-9_-]/', '', $_GET['t
 if (empty($taskId)) $taskId = 'task_default';
 
 $scopeKey = $taskId . '_' . $groupId;
-$action = isset($_GET['action']) ? $_GET['action'] : '';
-if (empty($action) && $_SERVER['REQUEST_METHOD'] === 'POST') {
-    $peekInput = @file_get_contents('php://input');
-    if (!empty($peekInput)) {
-        $peekData = @json_decode($peekInput, true);
-        if (isset($peekData['action'])) $action = $peekData['action'];
-    }
-}
+$RAW_INPUT = ($_SERVER['REQUEST_METHOD'] === 'POST') ? @file_get_contents('php://input') : '';
+$REQ_DATA = !empty($RAW_INPUT) ? (@json_decode($RAW_INPUT, true) ?: []) : [];
+
+$action = isset($_GET['action']) ? $_GET['action'] : (isset($REQ_DATA['action']) ? $REQ_DATA['action'] : '');
 
 /**
  * 🛡️ 教师身份与 Session Token 双重认证拦截器 (Fail-Closed 严格拒绝空 Token)
@@ -1391,8 +1387,7 @@ if ($action === 'patch_feedback' && $_SERVER['REQUEST_METHOD'] === 'POST') {
 
 // 1d. 研讨区独立轻量发信接口（领域隔离：仅入库单条消息，绝不触碰 group_states 表中的 stage1/stage2/stage3）
 if ($action === 'send_chat' && $_SERVER['REQUEST_METHOD'] === 'POST') {
-    $rawInput = file_get_contents('php://input');
-    $req = json_decode($rawInput, true) ?: [];
+    $req = !empty($REQ_DATA) ? $REQ_DATA : (@json_decode($RAW_INPUT, true) ?: []);
     $msgItem = isset($req['message']) ? $req['message'] : $req;
     $stage = isset($req['stage']) ? $req['stage'] : (isset($msgItem['stage']) ? $msgItem['stage'] : 'stage1');
     $nowMs = round(microtime(true) * 1000);
@@ -1687,9 +1682,9 @@ if ($action === 'get_teacher_alerts') {
 
 // 4. 数据快照持久化 (MySQL 主存储)
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $rawInput = file_get_contents('php://input');
-    if (!empty($rawInput)) {
-        $data = json_decode($rawInput, true) ?: [];
+    $rawInput = $RAW_INPUT;
+    $data = $REQ_DATA;
+    if (!empty($data) || !empty($rawInput)) {
         $ts = isset($data['timestamp']) ? intval($data['timestamp']) : round(microtime(true) * 1000);
         
         // 🛡️ 变量防御性初始化，确保极端无数据库或单机容灾模式下变量 100% 绝对安全
