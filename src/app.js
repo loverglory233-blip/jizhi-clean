@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260823_v205";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired } from "./utils.js?v=20260823_v205";
-import { callCozeAgentAPI } from "./agents.js?v=20260823_v205";
-import { AuthManager } from "./auth.js?v=20260823_v205";
-import { CloudSyncEngine } from "./sync.js?v=20260823_v205";
-import { renderLoginView } from "./login.js?v=20260823_v205";
-import { renderTeacherPortal } from "./teacher.js?v=20260823_v205";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260823_v205";
+} from "./constants.js?v=20260823_v206";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired } from "./utils.js?v=20260823_v206";
+import { callCozeAgentAPI } from "./agents.js?v=20260823_v206";
+import { AuthManager } from "./auth.js?v=20260823_v206";
+import { CloudSyncEngine } from "./sync.js?v=20260823_v206";
+import { renderLoginView } from "./login.js?v=20260823_v206";
+import { renderTeacherPortal } from "./teacher.js?v=20260823_v206";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260823_v206";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260823_v205";
+} from "./editor.js?v=20260823_v206";
 
 // Make renderChat available on window for sync callbacks
 if (typeof window !== "undefined") {
@@ -91,13 +91,32 @@ export class App {
     const taskId = this.state.activeTaskId || 'task_default';
     this.state.members = this.authManager.getGroupMembersForWorkspace(groupId);
 
-    // 纯净初始内存状态，杜绝本地历史脏读
-    this.state.chatLogs = { stage1: [], stage2: [], stage3: [] };
-    this.state.stage1 = JSON.parse(JSON.stringify(defaultState.stage1));
-    this.state.stage2 = JSON.parse(JSON.stringify(defaultState.stage2));
-    this.state.stage3 = JSON.parse(JSON.stringify(defaultState.stage3));
-    this.state.currentStage = 'stage1';
-    this.state.isFinalSubmitted = false;
+    // 🛡️ 先尝试从本地快照中恢复已有协作数据，绝不暴力清空历史
+    const cacheKey = `jizhi_cloud_snapshot_v10_pure_${taskId}_${groupId}`;
+    let cached = null;
+    try {
+      const raw = localStorage.getItem(cacheKey);
+      if (raw) cached = JSON.parse(raw);
+    } catch (e) {}
+
+    if (cached) {
+      if (cached.chatLogs) this.state.chatLogs = cached.chatLogs;
+      if (cached.stage1) this.state.stage1 = cached.stage1;
+      if (cached.stage2) this.state.stage2 = cached.stage2;
+      if (cached.stage3) this.state.stage3 = cached.stage3;
+      if (cached.currentStage) {
+        this.state.groupMaxStage = cached.currentStage;
+        this.state.currentStage = cached.currentStage;
+      }
+      if (cached.isFinalSubmitted !== undefined) this.state.isFinalSubmitted = cached.isFinalSubmitted;
+    } else {
+      this.state.chatLogs = { stage1: [], stage2: [], stage3: [] };
+      this.state.stage1 = JSON.parse(JSON.stringify(defaultState.stage1));
+      this.state.stage2 = JSON.parse(JSON.stringify(defaultState.stage2));
+      this.state.stage3 = JSON.parse(JSON.stringify(defaultState.stage3));
+      this.state.currentStage = 'stage1';
+      this.state.isFinalSubmitted = false;
+    }
 
     // 立即触发云端拉取最新真实数据
     if (this.cloudSyncEngine) {

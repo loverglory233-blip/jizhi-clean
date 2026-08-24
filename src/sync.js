@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState } from './constants.js?v=20260823_v205';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin } from './utils.js?v=20260823_v205';
+import { InitialState } from './constants.js?v=20260823_v206';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin } from './utils.js?v=20260823_v206';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -69,16 +69,6 @@ export class CloudSyncEngine {
     };
     this.pollTimer = setTimeout(runPoll, 2500);
 
-    if ('BroadcastChannel' in window) {
-      try {
-        if (this.bc) { try { this.bc.close(); } catch (e) {} }
-        this.bc = new BroadcastChannel(`jizhi_bc_${this.taskId}_${this.groupId}`);
-        this.bc.onmessage = (e) => {
-          if (e.data && e.data.snapshot) this.handleRemoteSync(e.data.snapshot);
-        };
-      } catch (e) {}
-    }
-
     window.addEventListener('storage', (e) => {
       if (e.key === this.storageKey && e.newValue) {
         try { this.handleRemoteSync(JSON.parse(e.newValue)); } catch (err) {}
@@ -100,7 +90,8 @@ export class CloudSyncEngine {
     const currentUser = this.app.authManager ? this.app.authManager.getCurrentUser() : null;
     const userKey = currentUser ? (currentUser.studentCode || currentUser.username || currentUser.id) : '';
     const sessToken = currentUser?.activeSessionId || '';
-    const lastRev = this.app.state.revisionId || 0;
+    // 🛡️ 初次拉取必须传 since_rev=0，确保 100% 完整拿回云端最新全量快照，杜绝被 notModified 拦截
+    const lastRev = this.isInitialPullDone ? (this.app.state.revisionId || 0) : 0;
 
     for (const endpoint of this.syncEndpoints) {
       try {
@@ -132,6 +123,10 @@ export class CloudSyncEngine {
   }
 
   async pushSnapshot() {
+    if (!this.isInitialPullDone && !this.isResetBroadcast) {
+      // 🛡️ 致命防线：在尚未从云端完成初次拉取前，绝对禁止推送未初始化的空快照覆盖云端已有数据！
+      return;
+    }
     this.updateScopeKeys();
     const groupId = this.groupId;
     const isReset = !!this.isResetBroadcast;
