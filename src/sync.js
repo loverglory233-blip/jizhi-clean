@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState } from './constants.js?v=20260823_v216';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin } from './utils.js?v=20260823_v216';
+import { InitialState } from './constants.js?v=20260823_v217';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin } from './utils.js?v=20260823_v217';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -90,36 +90,40 @@ export class CloudSyncEngine {
     const currentUser = this.app.authManager ? this.app.authManager.getCurrentUser() : null;
     const userKey = currentUser ? (currentUser.studentCode || currentUser.username || currentUser.id) : '';
     const sessToken = currentUser?.activeSessionId || '';
-    // 🛡️ 初次拉取必须传 since_rev=0，确保 100% 完整拿回云端最新全量快照，杜绝被 notModified 拦截
-    const lastRev = this.isInitialPullDone ? (this.app.state.revisionId || 0) : 0;
+    // 初次拉取传 since_rev=0，确保完整拿回全量快照；后续带上服务端返回的最新 revisionId
+    const lastRev = this.isInitialPullDone ? (this._lastKnownRevisionId || 0) : 0;
 
-    for (const endpoint of this.syncEndpoints) {
-      try {
-        const sep = endpoint.includes('?') ? '&' : '?';
-        const url = `${endpoint}${sep}userId=${encodeURIComponent(userKey)}&sessToken=${encodeURIComponent(sessToken)}&since_rev=${lastRev}&nocache=${Date.now()}`;
-        const res = await fetch(url, { cache: 'no-store' });
-        if (res.ok) {
-          const data = await res.json();
-          this.isInitialPullDone = true;
-          if (data && data.kicked) {
-            this.isLoggingOut = true;
-            this.stopPolling();
-            this.app.authManager.logout();
-            alert('⚠️ 您的账号已在另一台设备登录，当前页面已自动下线。');
-            this.app.renderMain();
-            return;
+    try {
+      for (const endpoint of this.syncEndpoints) {
+        try {
+          const sep = endpoint.includes('?') ? '&' : '?';
+          const url = `${endpoint}${sep}userId=${encodeURIComponent(userKey)}&sessToken=${encodeURIComponent(sessToken)}&since_rev=${lastRev}&nocache=${Date.now()}`;
+          const res = await fetch(url, { cache: 'no-store' });
+          if (res.ok) {
+            const data = await res.json();
+            this.isInitialPullDone = true;
+            if (data && data.kicked) {
+              this.isLoggingOut = true;
+              this.stopPolling();
+              this.app.authManager.logout();
+              alert('⚠️ 您的账号已在另一台设备登录，当前页面已自动下线。');
+              this.app.renderMain();
+              return;
+            }
+            // 无论是否有变更，都更新本地已知的 revisionId
+            if (data && data.revisionId !== undefined) {
+              this._lastKnownRevisionId = data.revisionId;
+            }
+            if (data && !data.notModified && (data.timestamp !== undefined || data.chatLogs || data.stage1 || data.stage2)) {
+              this.handleRemoteSync(data);
+              return;
+            }
           }
-          if (data && !data.notModified && (data.timestamp !== undefined || data.chatLogs || data.stage1 || data.stage2)) {
-            this.handleRemoteSync(data);
-            return;
-          }
-        }
-      } catch (e) {
-      } finally {
-        this.isPulling = false;
+        } catch (e) {}
       }
+    } finally {
+      this.isPulling = false;
     }
-    this.isPulling = false;
   }
 
   async pushSnapshot(isReset = false) {
@@ -301,6 +305,40 @@ export class CloudSyncEngine {
     const myGroupId = this.getEffectiveGroupId();
 
     if (remoteData.groupId && remoteData.groupId !== myGroupId && user?.role === 'student') return;
+
+    // 更新本地已知的服务端 revisionId（每次拉到数据都对齐，防止 since_rev 永远为 0）
+    if (remoteData.revisionId !== undefined) {
+      this._lastKnownRevisionId = remoteData.revisionId;
+    }
+
+    // 🌐 服务端全局教务元数据同步到本地（tasks/users/classes/announcements）
+    // 这样学生端看到的任务时间、组员列表与教师端一致，不再依赖各设备本地 localStorage
+    if (this.app.authManager) {
+      if (Array.isArray(remoteData.tasks) && remoteData.tasks.length > 0) {
+        const key = 'jizhi_pure_v10_tasks_db';
+        const localStr = localStorage.getItem(key) || '[]';
+        const remoteStr = JSON.stringify(remoteData.tasks);
+        if (localStr !== remoteStr) localStorage.setItem(key, remoteStr);
+      }
+      if (Array.isArray(remoteData.users) && remoteData.users.length > 0) {
+        const key = 'jizhi_pure_v10_users_db';
+        const localStr = localStorage.getItem(key) || '[]';
+        const remoteStr = JSON.stringify(remoteData.users);
+        if (localStr !== remoteStr) localStorage.setItem(key, remoteStr);
+      }
+      if (Array.isArray(remoteData.classes) && remoteData.classes.length > 0) {
+        const key = 'jizhi_pure_v10_classes_db';
+        const localStr = localStorage.getItem(key) || '[]';
+        const remoteStr = JSON.stringify(remoteData.classes);
+        if (localStr !== remoteStr) localStorage.setItem(key, remoteStr);
+      }
+      if (Array.isArray(remoteData.announcements)) {
+        const key = 'jizhi_pure_v10_ann_db';
+        const localStr = localStorage.getItem(key) || '[]';
+        const remoteStr = JSON.stringify(remoteData.announcements);
+        if (localStr !== remoteStr) localStorage.setItem(key, remoteStr);
+      }
+    }
 
     // 🛡️ 仅在已完成冷启动拉取且 resetSeq 严格递增时才响应教师重置；首次加载时对齐记录并正常放行同步
     if (remoteData.resetSeq !== undefined) {
