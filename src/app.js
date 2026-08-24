@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260823_v217";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired } from "./utils.js?v=20260823_v217";
-import { callCozeAgentAPI } from "./agents.js?v=20260823_v217";
-import { AuthManager } from "./auth.js?v=20260823_v217";
-import { CloudSyncEngine } from "./sync.js?v=20260823_v217";
-import { renderLoginView } from "./login.js?v=20260823_v217";
-import { renderTeacherPortal } from "./teacher.js?v=20260823_v217";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260823_v217";
+} from "./constants.js?v=20260823_v218";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired } from "./utils.js?v=20260823_v218";
+import { callCozeAgentAPI } from "./agents.js?v=20260823_v218";
+import { AuthManager } from "./auth.js?v=20260823_v218";
+import { CloudSyncEngine } from "./sync.js?v=20260823_v218";
+import { renderLoginView } from "./login.js?v=20260823_v218";
+import { renderTeacherPortal } from "./teacher.js?v=20260823_v218";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260823_v218";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260823_v217";
+} from "./editor.js?v=20260823_v218";
 
 // Make renderChat available on window for sync callbacks
 if (typeof window !== "undefined") {
@@ -118,10 +118,11 @@ export class App {
       this.state.isFinalSubmitted = false;
     }
 
-    // 立即触发云端拉取最新真实数据
+    // 立即触发云端全量拉取最新真实数据 (必须重置 isInitialPullDone，杜绝本地空数据反向冲刷服务器)
     if (this.cloudSyncEngine) {
       this.cloudSyncEngine.groupId = groupId;
       this.cloudSyncEngine.taskId = taskId;
+      this.cloudSyncEngine.isInitialPullDone = false;
       this.cloudSyncEngine.updateScopeKeys();
       this.cloudSyncEngine.pullFromServer();
     }
@@ -2299,9 +2300,8 @@ export class App {
 
     // 🎪 阶段一：拍卖师欢迎开场白
     if (stage === 'stage1') {
-      const hasAuctioneerIntro = logs.some(m => m.sender === 'auctioneer' && (m.text.includes('欢迎来到【阶段一：学术拍卖会】') || m.text.includes('拍卖师开场')));
-      if (!hasAuctioneerIntro && !localStorage.getItem(welcomeFlagKey)) {
-        localStorage.setItem(welcomeFlagKey, '1');
+      const hasAuctioneerIntro = logs.some(m => m && m.sender === 'auctioneer' && (m.text?.includes('欢迎来到【阶段一：学术拍卖会】') || m.text?.includes('拍卖师开场')));
+      if (!hasAuctioneerIntro) {
         const welcomeMsg = {
           sender: 'auctioneer',
           text: `🎪 【拍卖师开场】：欢迎来到【阶段一：学术拍卖会】！我是本阶段的选题顾问拍卖师。\n请全组成员点击左侧【提交我的选题】提出各自的研究构想，并在研讨区充分交流。我们将通过拍卖投票遴选最佳提案，并在下方《学术合作公约》中商定分工与时间分配！`,
@@ -2310,15 +2310,14 @@ export class App {
         };
         logs.unshift(welcomeMsg);
         this.syncChatLogs();
-        renderChat(this.state);
+        if (typeof window.renderChat === 'function') window.renderChat(this.state);
       }
     }
 
     // 🤝 阶段二：必须小组真实已推进至阶段二（groupMaxStage 为 stage2/3 或公约已确认）时才触发
     else if (stage === 'stage2' && (this.state.groupMaxStage === 'stage2' || this.state.groupMaxStage === 'stage3' || this.state.stage1?.contract?.isConfirmed)) {
-      const hasManagingIntro = logs.some(m => m.sender === 'managingEditor' && (m.text.includes('欢迎来到【阶段二：学术编辑部】') || m.text.includes('责任编辑开场')));
-      if (!hasManagingIntro && !localStorage.getItem(welcomeFlagKey)) {
-        localStorage.setItem(welcomeFlagKey, '1');
+      const hasManagingIntro = logs.some(m => m && m.sender === 'managingEditor' && (m.text?.includes('欢迎来到【阶段二：学术编辑部】') || m.text?.includes('责任编辑开场')));
+      if (!hasManagingIntro) {
         const s1 = this.state.stage1 || {};
         const topic = s1.mergedTitle || '未定课题';
         const tasks = s1.contract && s1.contract.taskAssignments ? s1.contract.taskAssignments : {};
@@ -2349,7 +2348,7 @@ export class App {
         };
         logs.unshift(managingWelcome);
         this.syncChatLogs();
-        renderChat(this.state);
+        if (typeof window.renderChat === 'function') window.renderChat(this.state);
 
         setTimeout(() => {
           const reviewingWelcome = {
@@ -2361,7 +2360,7 @@ export class App {
           };
           logs.push(reviewingWelcome);
           this.syncChatLogs();
-          renderChat(this.state);
+          if (typeof window.renderChat === 'function') window.renderChat(this.state);
         }, 3200);
       }
     }
