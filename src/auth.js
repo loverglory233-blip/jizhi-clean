@@ -14,8 +14,8 @@ import {
   DefaultTasks,
   DefaultAnnouncements,
   DefaultReferencePapers
-} from './constants.js?v=20260823_v215';
-import { formatExportDateTime } from './utils.js?v=20260823_v215';
+} from './constants.js?v=20260823_v216';
+import { formatExportDateTime } from './utils.js?v=20260823_v216';
 
 export class AuthManager {
   constructor() {
@@ -1459,12 +1459,8 @@ export class AuthManager {
 
   openChangePasswordModal(presetAccount = null) {
     const currentUser = this.getCurrentUser();
-    // 动态提取当前登录用户的真实工号或学号，绝不硬编码覆盖
-    let account = presetAccount || '';
-    if (!account && currentUser) {
-      account = currentUser.studentCode || currentUser.teacherCode || currentUser.code || currentUser.username || currentUser.id || '';
-      if (account.startsWith('u_')) account = account.replace(/^u_/, '');
-    }
+    const isTeacher = currentUser && (currentUser.role === 'teacher' || currentUser.isTeacher);
+    const account = isTeacher ? '1001' : (presetAccount || currentUser?.studentCode || currentUser?.username || currentUser?.id || '');
 
     const oldModal = document.getElementById('modal-change-password');
     if (oldModal) oldModal.remove();
@@ -1480,12 +1476,12 @@ export class AuthManager {
         </div>
         <div style="padding:24px;">
           <div style="margin-bottom:14px;">
-            <label style="display:block;font-size:12px;font-weight:600;color:#64748b;margin-bottom:6px;">账号 / 学号 / 工号</label>
-            <input type="text" id="input-pwd-account" value="${account}" placeholder="请输入您的工号或学号..." style="width:100%;box-sizing:border-box;padding:10px 12px;border:1.5px solid #cbd5e1;border-radius:8px;font-size:14px;background:#ffffff;font-weight:700;color:#1e293b;outline:none;">
+            <label style="display:block;font-size:12px;font-weight:600;color:#64748b;margin-bottom:6px;">账号 / 工号 (主键)</label>
+            <input type="text" id="input-pwd-account" value="${account}" ${isTeacher ? 'readonly style="width:100%;box-sizing:border-box;padding:10px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:14px;background:#f8fafc;font-weight:700;color:#64748b;cursor:not-allowed;"' : 'style="width:100%;box-sizing:border-box;padding:10px 12px;border:1.5px solid #cbd5e1;border-radius:8px;font-size:14px;background:#ffffff;font-weight:700;color:#1e293b;"'}>
           </div>
           <div style="margin-bottom:14px;">
-            <label style="display:block;font-size:12px;font-weight:600;color:#64748b;margin-bottom:6px;">原密码 (默认初始密码为 123)</label>
-            <input type="password" id="input-pwd-old" placeholder="请输入原密码" style="width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid #cbd5e1;border-radius:8px;font-size:14px;">
+            <label style="display:block;font-size:12px;font-weight:600;color:#64748b;margin-bottom:6px;">原密码 (初始默认密码为 123)</label>
+            <input type="password" id="input-pwd-old" placeholder="请输入当前原密码" style="width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid #cbd5e1;border-radius:8px;font-size:14px;">
           </div>
           <div style="margin-bottom:14px;">
             <label style="display:block;font-size:12px;font-weight:600;color:#64748b;margin-bottom:6px;">设置新密码</label>
