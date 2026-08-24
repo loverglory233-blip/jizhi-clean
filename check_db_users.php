@@ -84,44 +84,47 @@ if ($rows) {
     echo "<p class='err'>❌ users 表为空！学生账号没有写入实体表！</p>";
 }
 
-// 2. global_meta main_meta 里的用户
-echo "<h3>② global_meta 的 main_meta 中的用户（教师在前端创建账号存这里）</h3>";
-$stmt2 = $pdo->prepare("SELECT meta_value FROM global_meta WHERE meta_key = 'main_meta'");
-$stmt2->execute();
-$metaRow = $stmt2->fetch();
-if ($metaRow && !empty($metaRow['meta_value'])) {
-    $gm = json_decode($metaRow['meta_value'], true) ?: [];
-    $gUsers = $gm['users'] ?? [];
-    if ($gUsers) {
-        echo "<table><tr><th>id</th><th>studentCode/username</th><th>name</th><th>role</th><th>password</th></tr>";
-        foreach ($gUsers as $u) {
-            $sc = htmlspecialchars($u['studentCode'] ?? $u['username'] ?? $u['id'] ?? '-');
-            $id = htmlspecialchars($u['id'] ?? '-');
-            $nm = htmlspecialchars($u['name'] ?? '-');
-            $ro = htmlspecialchars($u['role'] ?? '-');
-            $pw = htmlspecialchars($u['password'] ?? '-');
-            echo "<tr><td>{$id}</td><td>{$sc}</td><td>{$nm}</td><td>{$ro}</td><td>{$pw}</td></tr>";
-        }
-        echo "</table><p class='ok'>✅ main_meta 中共 " . count($gUsers) . " 个用户</p>";
-    } else {
-        echo "<p class='err'>❌ main_meta 存在但 users 字段为空！</p>";
+// 2. tasks 任务表
+echo "<h3>② tasks 任务表（数据库中已发布的协作任务）</h3>";
+$stmtTasks = $pdo->query("SELECT id, title, created_at_str, status FROM tasks ORDER BY id DESC");
+$tRows = $stmtTasks ? $stmtTasks->fetchAll(PDO::FETCH_ASSOC) : [];
+if ($tRows) {
+    echo "<table><tr><th>task_id</th><th>任务标题</th><th>创建时间</th><th>状态</th></tr>";
+    foreach ($tRows as $t) {
+        echo "<tr><td>{$t['id']}</td><td><b>" . htmlspecialchars($t['title']) . "</b></td><td>{$t['created_at_str']}</td><td class='ok'>{$t['status']}</td></tr>";
     }
+    echo "</table><p class='ok'>✅ tasks 表共 " . count($tRows) . " 个任务</p>";
 } else {
-    echo "<p class='err'>❌ global_meta 中没有 main_meta！教师数据从未推送到服务器！</p>";
+    echo "<p style='color:#666;'>暂无单独 tasks 表记录（任务保存在 global_meta 中）。</p>";
 }
 
-// 3. 教师 session
-echo "<h3>③ 教师 Session 状态（影响 save_global_meta 能否鉴权通过）</h3>";
-$stmt3 = $pdo->query("SELECT meta_key, LEFT(meta_value,40) as val FROM global_meta WHERE meta_key LIKE 'sess_%'");
-$sessRows = $stmt3->fetchAll(PDO::FETCH_ASSOC);
-if ($sessRows) {
-    echo "<table><tr><th>key</th><th>token(前40位)</th></tr>";
-    foreach ($sessRows as $s) {
-        echo "<tr><td>" . htmlspecialchars($s['meta_key']) . "</td><td class='ok'>" . htmlspecialchars($s['val']) . "</td></tr>";
+// 3. group_states 协同状态表 (公约、正文、阶段)
+echo "<h3>③ group_states 协同状态表（各小组协同正文与公约实时落库记录）</h3>";
+$stmtStates = $pdo->query("SELECT scope_key, task_id, group_id, current_stage, is_final_submitted, last_timestamp, LENGTH(stage1_data) as s1_len, LENGTH(stage2_data) as s2_len FROM group_states ORDER BY last_timestamp DESC");
+$sRows = $stmtStates ? $stmtStates->fetchAll(PDO::FETCH_ASSOC) : [];
+if ($sRows) {
+    echo "<table><tr><th>scope_key (房间唯一标识)</th><th>任务ID</th><th>小组ID</th><th>当前阶段</th><th>最后更新时间</th><th>正文字节数</th></tr>";
+    foreach ($sRows as $s) {
+        $upTime = $s['last_timestamp'] ? date('Y-m-d H:i:s', $s['last_timestamp'] / 1000) : '-';
+        echo "<tr><td><b>{$s['scope_key']}</b></td><td>{$s['task_id']}</td><td>{$s['group_id']}</td><td class='ok'>{$s['current_stage']}</td><td>{$upTime}</td><td>{$s['s2_len']} 字节</td></tr>";
     }
-    echo "</table>";
+    echo "</table><p class='ok'>✅ group_states 表共 " . count($sRows) . " 个房间记录</p>";
 } else {
-    echo "<p class='err'>❌ 没有教师 session！这会导致 save_global_meta 直接 403 拒绝，学生账号无法写入数据库！<br>请在宝塔服务器上重新用教师账号登录一次。</p>";
+    echo "<p class='err'>❌ group_states 表暂无协作记录！</p>";
+}
+
+// 4. chat_messages 聊天消息表
+echo "<h3>④ chat_messages 聊天消息表（最新 20 条讨论记录）</h3>";
+$stmtMsgs = $pdo->query("SELECT id, scope_key, stage, sender, text, timestamp_str, time_ms FROM chat_messages ORDER BY time_ms DESC LIMIT 20");
+$mRows = $stmtMsgs ? $stmtMsgs->fetchAll(PDO::FETCH_ASSOC) : [];
+if ($mRows) {
+    echo "<table><tr><th>房间 scope_key</th><th>阶段</th><th>发送人学号</th><th>内容</th><th>发送时间</th></tr>";
+    foreach ($mRows as $m) {
+        echo "<tr><td>{$m['scope_key']}</td><td>{$m['stage']}</td><td><b>{$m['sender']}</b></td><td>" . htmlspecialchars($m['text']) . "</td><td>{$m['timestamp_str']}</td></tr>";
+    }
+    echo "</table><p class='ok'>✅ chat_messages 表共显示最新 " . count($mRows) . " 条消息</p>";
+} else {
+    echo "<p class='err'>❌ chat_messages 表暂无消息！</p>";
 }
 
 echo "<hr><p style='color:gray;'>⚠️ 查看完毕后请执行 rm /www/wwwroot/47.99.110.230/check_db_users.php 删除此文件</p>";
