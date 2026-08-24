@@ -1547,8 +1547,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             // 合并 stage1
             $incomingS1 = (isset($data['stage1']) && is_array($data['stage1'])) ? $data['stage1'] : [];
-            $mergedS1 = $incomingS1;
+            $mergedS1 = array_merge($existingS1, $incomingS1);
             if (!empty($existingS1) && !$isResetVal) {
+                // 🛡️ 选题主题防空覆盖：若传入的主题为空，严格保留已有主题
+                if (empty(trim($incomingS1['mergedTitle'] ?? '')) && !empty(trim($existingS1['mergedTitle'] ?? ''))) {
+                    $mergedS1['mergedTitle'] = $existingS1['mergedTitle'];
+                }
+
                 $exProps = isset($existingS1['proposals']) && is_array($existingS1['proposals']) ? $existingS1['proposals'] : [];
                 $inProps = isset($incomingS1['proposals']) && is_array($incomingS1['proposals']) ? $incomingS1['proposals'] : [];
                 $propMap = [];
