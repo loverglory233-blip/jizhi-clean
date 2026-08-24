@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState } from './constants.js?v=20260823_v198';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin } from './utils.js?v=20260823_v198';
+import { InitialState } from './constants.js?v=20260823_v199';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin } from './utils.js?v=20260823_v199';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -744,9 +744,11 @@ export class CloudSyncEngine {
     // 👨‍🏫 教师端实时同屏刷新 (当教师正在监控该小组时，实时同屏反映最新进度)
     const isTeacher = user && (user.isTeacher || user.role === 'teacher');
     if (isTeacher) {
-      const teacherContainer = document.getElementById('teacher-portal-panel') || document.querySelector('.teacher-portal-layout');
-      if (teacherContainer && typeof renderTeacherPortal === 'function') {
-        renderTeacherPortal(teacherContainer, this.app.authManager, this.app.state, () => this.app.handleLogout(), () => {});
+      const appContainer = document.getElementById('app');
+      if (appContainer && this.app.state.teacherActiveTab === 'view_monitoring' && typeof renderTeacherPortal === 'function') {
+        const layout = appContainer.querySelector('.teacher-portal-layout');
+        if (layout) this.app.state._teacherScrollTop = layout.scrollTop;
+        renderTeacherPortal(appContainer, this.app.authManager, this.app.state, () => this.app.handleLogout(), () => {});
       }
     }
 

@@ -2915,9 +2915,11 @@
       // 👨‍🏫 教师端实时同屏刷新 (当教师正在监控该小组时，实时同屏反映最新进度)
       const isTeacher = user && (user.isTeacher || user.role === 'teacher');
       if (isTeacher) {
-        const teacherContainer = document.getElementById('teacher-portal-panel') || document.querySelector('.teacher-portal-layout');
-        if (teacherContainer && typeof renderTeacherPortal === 'function') {
-          renderTeacherPortal(teacherContainer, this.app.authManager, this.app.state, () => this.app.handleLogout(), () => {});
+        const appContainer = document.getElementById('app');
+        if (appContainer && this.app.state.teacherActiveTab === 'view_monitoring' && typeof renderTeacherPortal === 'function') {
+          const layout = appContainer.querySelector('.teacher-portal-layout');
+          if (layout) this.app.state._teacherScrollTop = layout.scrollTop;
+          renderTeacherPortal(appContainer, this.app.authManager, this.app.state, () => this.app.handleLogout(), () => {});
         }
       }
 
@@ -8528,8 +8530,13 @@
       this.state = JSON.parse(JSON.stringify(InitialState));
       this.studentMsgCountSinceLastAgent = 0;
 
+      const storedTaskId = sessionStorage.getItem('jizhi_active_task_id') || localStorage.getItem('jizhi_active_task_id');
+      if (storedTaskId) this.state.activeTaskId = storedTaskId;
+
       const user = this.authManager.getCurrentUser();
-      const currentGroupId = user && user.groupId ? user.groupId : 'group_1';
+      const effectiveClassId = user?.classId || 'class_101';
+      const activeGroupObj = this.authManager.getStudentActiveGroup(user, effectiveClassId);
+      const currentGroupId = activeGroupObj?.id || user?.groupId || 'group_1';
       this.loadGroupState(currentGroupId);
 
       this.cloudSyncEngine = new CloudSyncEngine(this);
@@ -9072,7 +9079,12 @@
           renderStudentTaskPortal(
             appEl, this.authManager, this.state,
             (taskId) => {
-              this.state.activeTaskId = taskId || 'task_default';
+              const actualTaskId = taskId || 'task_default';
+              this.state.activeTaskId = actualTaskId;
+              try {
+                sessionStorage.setItem('jizhi_active_task_id', actualTaskId);
+                localStorage.setItem('jizhi_active_task_id', actualTaskId);
+              } catch (e) {}
               this.state.studentViewMode = 'workspace';
               const latestClassId = this.state.activeStudentClassId || currentUser?.classId || 'class_101';
               const latestGroupObj = this.authManager.getStudentActiveGroup(currentUser, latestClassId);

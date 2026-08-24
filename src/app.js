@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260823_v198";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired } from "./utils.js?v=20260823_v198";
-import { callCozeAgentAPI } from "./agents.js?v=20260823_v198";
-import { AuthManager } from "./auth.js?v=20260823_v198";
-import { CloudSyncEngine } from "./sync.js?v=20260823_v198";
-import { renderLoginView } from "./login.js?v=20260823_v198";
-import { renderTeacherPortal } from "./teacher.js?v=20260823_v198";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260823_v198";
+} from "./constants.js?v=20260823_v199";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired } from "./utils.js?v=20260823_v199";
+import { callCozeAgentAPI } from "./agents.js?v=20260823_v199";
+import { AuthManager } from "./auth.js?v=20260823_v199";
+import { CloudSyncEngine } from "./sync.js?v=20260823_v199";
+import { renderLoginView } from "./login.js?v=20260823_v199";
+import { renderTeacherPortal } from "./teacher.js?v=20260823_v199";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260823_v199";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260823_v198";
+} from "./editor.js?v=20260823_v199";
 
 // Make renderChat available on window for sync callbacks
 if (typeof window !== "undefined") {
@@ -42,8 +42,13 @@ export class App {
     this.state = JSON.parse(JSON.stringify(InitialState));
     this.studentMsgCountSinceLastAgent = 0;
 
+    const storedTaskId = sessionStorage.getItem('jizhi_active_task_id') || localStorage.getItem('jizhi_active_task_id');
+    if (storedTaskId) this.state.activeTaskId = storedTaskId;
+
     const user = this.authManager.getCurrentUser();
-    const currentGroupId = user && user.groupId ? user.groupId : 'group_1';
+    const effectiveClassId = user?.classId || 'class_101';
+    const activeGroupObj = this.authManager.getStudentActiveGroup(user, effectiveClassId);
+    const currentGroupId = activeGroupObj?.id || user?.groupId || 'group_1';
     this.loadGroupState(currentGroupId);
 
     this.cloudSyncEngine = new CloudSyncEngine(this);
@@ -586,7 +591,12 @@ export class App {
         renderStudentTaskPortal(
           appEl, this.authManager, this.state,
           (taskId) => {
-            this.state.activeTaskId = taskId || 'task_default';
+            const actualTaskId = taskId || 'task_default';
+            this.state.activeTaskId = actualTaskId;
+            try {
+              sessionStorage.setItem('jizhi_active_task_id', actualTaskId);
+              localStorage.setItem('jizhi_active_task_id', actualTaskId);
+            } catch (e) {}
             this.state.studentViewMode = 'workspace';
             const latestClassId = this.state.activeStudentClassId || currentUser?.classId || 'class_101';
             const latestGroupObj = this.authManager.getStudentActiveGroup(currentUser, latestClassId);
