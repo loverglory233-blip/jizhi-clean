@@ -53,14 +53,62 @@ try {
                 $finalP = (str_starts_with($curP, '$2y$') || empty($curP)) ? '123' : $curP;
                 $stmtUpdate = $pdo->prepare("UPDATE users SET name = :nm, student_code = :sc, username = :u, role = :r, password = :p WHERE id = :id");
                 $stmtUpdate->execute([':nm' => $unick, ':sc' => $ucode, ':u' => $uname, ':r' => $urole, ':p' => $finalP, ':id' => $existRow['id']]);
-            } else {
-                $stmtUpsert->execute([
-                    ':id' => $uid,
-                    ':u' => $uname,
-                    ':sc' => $ucode,
-                    ':nm' => $unick,
-                    ':p' => $upwd,
-                    ':r' => $urole
+                } else {
+                    $stmtUpsert->execute([
+                        ':id' => $uid,
+                        ':u' => $uname,
+                        ':sc' => $ucode,
+                        ':nm' => $unick,
+                        ':p' => $upwd,
+                        ':r' => $urole
+                    ]);
+                }
+            }
+        }
+
+        // 2. 深度自愈 classes 班级表（包含学生名单与分组数据）
+        $gClasses = $gm['classes'] ?? [];
+        $stmtClsUpsert = $pdo->prepare("INSERT INTO `classes` (`id`, `name`, `code`, `student_ids`, `groups_data`)
+            VALUES (:id, :nm, :code, :sids, :gdata)
+            ON DUPLICATE KEY UPDATE `name`=VALUES(`name`), `code`=VALUES(`code`), `student_ids`=VALUES(`student_ids`), `groups_data`=VALUES(`groups_data`)");
+        if (!empty($gClasses) && is_array($gClasses)) {
+            foreach ($gClasses as $cls) {
+                $cid = $cls['id'] ?? 'class_101';
+                $cname = $cls['name'] ?? '《现代教育技术》2026春01班';
+                $ccode = $cls['code'] ?? 'ET2026-01';
+                $sids = $cls['studentIds'] ?? [];
+                // 如果 studentIds 为空，自动把所有学生学号填充进去
+                if (empty($sids)) {
+                    foreach ($gUsers as $gu) {
+                        $c = trim($gu['studentCode'] ?? ($gu['username'] ?? ($gu['id'] ?? '')));
+                        if ($c && ($gu['role'] ?? '') !== 'teacher') $sids[] = $c;
+                    }
+                }
+                $sidsJson = json_encode(array_values(array_unique($sids)), JSON_UNESCAPED_UNICODE);
+                $gdataJson = json_encode($cls['groups'] ?? [], JSON_UNESCAPED_UNICODE);
+                $stmtClsUpsert->execute([':id' => $cid, ':nm' => $cname, ':code' => $ccode, ':sids' => $sidsJson, ':gdata' => $gdataJson]);
+            }
+        }
+
+        // 3. 深度自愈 tasks 任务表
+        $gTasks = $gm['tasks'] ?? [];
+        if (!empty($gTasks) && is_array($gTasks)) {
+            $stmtTaskUpsert = $pdo->prepare("INSERT INTO `tasks` (`id`, `title`, `desc`, `created_at_str`, `deadline`, `duration_minutes`, `target_class_ids`, `attachments`, `status`)
+                VALUES (:id, :title, :desc, :created_at, :deadline, :duration, :cids, :att, :status)
+                ON DUPLICATE KEY UPDATE `title`=VALUES(`title`), `desc`=VALUES(`desc`), `created_at_str`=VALUES(`created_at_str`), `deadline`=VALUES(`deadline`), `duration_minutes`=VALUES(`duration_minutes`), `target_class_ids`=VALUES(`target_class_ids`), `attachments`=VALUES(`attachments`), `status`=VALUES(`status`)");
+            foreach ($gTasks as $tsk) {
+                $tid = $tsk['id'] ?? 'task_default';
+                $ttitle = $tsk['title'] ?? '写作任务';
+                $tdesc = $tsk['instructions'] ?? ($tsk['desc'] ?? '');
+                $tcreated = $tsk['createdAt'] ?? date('Y-m-d H:i:s');
+                $tdeadline = $tsk['deadline'] ?? '';
+                $tduration = intval($tsk['durationMinutes'] ?? 150);
+                $tcids = json_encode($tsk['targetClassIds'] ?? (isset($tsk['classId']) ? [$tsk['classId']] : ['class_101']), JSON_UNESCAPED_UNICODE);
+                $tatt = json_encode($tsk['resources'] ?? ($tsk['attachments'] ?? []), JSON_UNESCAPED_UNICODE);
+                $tstatus = $tsk['status'] ?? 'in_progress';
+                $stmtTaskUpsert->execute([
+                    ':id' => $tid, ':title' => $ttitle, ':desc' => $tdesc, ':created_at' => $tcreated,
+                    ':deadline' => $tdeadline, ':duration' => $tduration, ':cids' => $tcids, ':att' => $tatt, ':status' => $tstatus
                 ]);
             }
         }
@@ -68,7 +116,7 @@ try {
 } catch (Exception $e) {}
 
 echo "<meta charset='utf-8'><style>body{font-family:monospace;padding:20px;} table{border-collapse:collapse;width:100%;} td,th{border:1px solid #ccc;padding:8px 12px;text-align:left;} tr:nth-child(even){background:#f9f9f9;} .ok{color:green;font-weight:bold;} .err{color:red;font-weight:bold;}</style>";
-echo "<h2>🔍 集智平台 - 数据库账号诊断与自愈结果</h2>";
+echo "<h2>🔍 集智平台 - 数据库全景诊断与实时自愈结果</h2>";
 
 // 1. users 实体表
 echo "<h3>① users 实体表（登录时直接查这里）</h3>";
@@ -121,7 +169,7 @@ $sRows = $stmtStates ? $stmtStates->fetchAll(PDO::FETCH_ASSOC) : [];
 if ($sRows) {
     echo "<table><tr><th>scope_key (房间唯一标识)</th><th>任务ID</th><th>小组ID</th><th>当前阶段</th><th>最后更新时间</th><th>正文字节数</th></tr>";
     foreach ($sRows as $s) {
-        $upTime = $s['last_timestamp'] ? date('Y-m-d H:i:s', $s['last_timestamp'] / 1000) : '-';
+        $upTime = $s['last_timestamp'] ? date('Y-m-d H:i:s', intval($s['last_timestamp'] / 1000)) : '-';
         echo "<tr><td><b>{$s['scope_key']}</b></td><td>{$s['task_id']}</td><td>{$s['group_id']}</td><td class='ok'>{$s['current_stage']}</td><td>{$upTime}</td><td>{$s['s2_len']} 字节</td></tr>";
     }
     echo "</table><p class='ok'>✅ group_states 表共 " . count($sRows) . " 个房间记录</p>";
