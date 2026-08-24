@@ -4,14 +4,10 @@
  * 访问：http://47.99.110.230/check_db_users.php
  * 查看完毕后请删除此文件！
  */
-if (file_exists(__DIR__ . '/db_config.php')) require_once __DIR__ . '/db_config.php';
-elseif (file_exists(__DIR__ . '/../db_config.php')) require_once __DIR__ . '/../db_config.php';
-
-$dsn = "mysql:host={$db_host};dbname={$db_name};charset=utf8mb4";
-try {
-    $pdo = new PDO($dsn, $db_user, $db_pass, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
-} catch (Exception $e) {
-    die("❌ 数据库连接失败: " . $e->getMessage());
+require_once __DIR__ . '/api/db_config.php';
+$pdo = getDbConnection();
+if (!$pdo) {
+    die("❌ 数据库连接失败: 请检查 MySQL 服务与 api/db_config.php 配置");
 }
 
 echo "<meta charset='utf-8'><style>body{font-family:monospace;padding:20px;} table{border-collapse:collapse;width:100%;} td,th{border:1px solid #ccc;padding:8px 12px;text-align:left;} tr:nth-child(even){background:#f9f9f9;} .ok{color:green;font-weight:bold;} .err{color:red;font-weight:bold;}</style>";
