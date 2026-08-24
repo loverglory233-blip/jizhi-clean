@@ -933,7 +933,6 @@
           localStorage.setItem(STORAGE_KEY_USER, JSON.stringify(user));
           if (window.app && window.app.state) {
             window.app.state.studentViewMode = 'task_list';
-            if (window.app.cloudSyncEngine) window.app.cloudSyncEngine.pushSnapshot();
           }
           return { success: true, user };
         } else if (data && data.message) {
@@ -2490,19 +2489,17 @@
         }
       }
 
-      // 🛡️ 仅在已完成冷启动拉取且 resetSeq 严格递增时才响应教师重置；首次加载时对齐记录并正常放行同步
+      // 🛡️ 仅在当前会话中服务端 resetSeq 发生真实递增变更时才响应教师重置，绝不误踢正在协作的学生
       if (remoteData.resetSeq !== undefined) {
-        const localResetSeqKey = `jizhi_reset_seq_${this.storageKey}`;
-        const rawStored = localStorage.getItem(localResetSeqKey);
-        const localResetSeq = parseInt(rawStored || '0', 10);
-        if (!rawStored || !this._hasInitialPullCompleted) {
-          localStorage.setItem(localResetSeqKey, String(remoteData.resetSeq));
-        } else if (remoteData.resetSeq > localResetSeq) {
-          this._applyReset(remoteData.resetSeq);
+        const serverSeq = parseInt(remoteData.resetSeq, 10) || 0;
+        if (this._lastResetSeq === undefined) {
+          this._lastResetSeq = serverSeq;
+        } else if (serverSeq > this._lastResetSeq) {
+          this._lastResetSeq = serverSeq;
+          this._applyReset(serverSeq);
           return;
         }
       }
-      this._hasInitialPullCompleted = true;
 
       if (remoteData.presence) {
         this.app.state.presence = { ...(this.app.state.presence || {}), ...remoteData.presence };

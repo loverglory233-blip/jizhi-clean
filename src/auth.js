@@ -14,8 +14,8 @@ import {
   DefaultTasks,
   DefaultAnnouncements,
   DefaultReferencePapers
-} from './constants.js?v=20260823_v219';
-import { formatExportDateTime } from './utils.js?v=20260823_v219';
+} from './constants.js?v=20260823_v220';
+import { formatExportDateTime } from './utils.js?v=20260823_v220';
 
 export class AuthManager {
   constructor() {
@@ -389,7 +389,6 @@ export class AuthManager {
         localStorage.setItem(STORAGE_KEY_USER, JSON.stringify(user));
         if (window.app && window.app.state) {
           window.app.state.studentViewMode = 'task_list';
-          if (window.app.cloudSyncEngine) window.app.cloudSyncEngine.pushSnapshot();
         }
         return { success: true, user };
       } else if (data && data.message) {
