@@ -2017,19 +2017,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 // 5. GET snapshot (从 MySQL 高速拉取)
 if ($pdo) {
-    // 🛡️ 极速 Session 异地登录校验 (0 延迟合并校验)
-    $reqUserId = isset($_GET['userId']) ? trim($_GET['userId']) : '';
-    $reqSessToken = isset($_GET['sessToken']) ? trim($_GET['sessToken']) : '';
-    if ($reqUserId && $reqSessToken) {
-        $stmtSessChk = $pdo->prepare("SELECT meta_value FROM global_meta WHERE meta_key = :k");
-        $stmtSessChk->execute([':k' => 'sess_' . $reqUserId]);
-        $sessRow = $stmtSessChk->fetch();
-        if ($sessRow && !empty($sessRow['meta_value']) && $sessRow['meta_value'] !== $reqSessToken) {
-            echo json_encode(['kicked' => true]);
-            exit;
-        }
-    }
-
     $stmt = $pdo->prepare("SELECT * FROM group_states WHERE scope_key = :sk");
     $stmt->execute([':sk' => $scopeKey]);
     $row = $stmt->fetch();
