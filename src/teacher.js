@@ -9,8 +9,8 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260823_v199";
-import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime } from "./utils.js?v=20260823_v199";
+} from "./constants.js?v=20260823_v200";
+import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime } from "./utils.js?v=20260823_v200";
 
 /* ==========================================================================
    7. TEACHER PORTAL RENDERER (LIVE WORKSPACE MIRROR & ANNOUNCEMENT READ MATRIX)
@@ -39,11 +39,20 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
   const currentClassAnnouncements = announcements.filter(a => (a.classId === 'all' || !a.classId || a.classId === activeClass.id) && !a.isSystemAction);
   const currentClassPapers = refPapers.filter(p => p.classId === 'all' || !p.classId || p.classId === activeClass.id);
 
+  const classTaskExists = currentClassTasks.some(t => t.id === state.activeTaskId);
+  const effectiveMonitorTaskId = (state.activeTaskId && classTaskExists)
+    ? state.activeTaskId
+    : (currentClassTasks[0] ? currentClassTasks[0].id : 'task_default');
+  state.activeTaskId = effectiveMonitorTaskId;
+  if (window.app) window.app.state.activeTaskId = effectiveMonitorTaskId;
+
   const classGroupExists = (activeClass.groups || []).some(g => g.id === state.activeMonitorGroupId);
   const activeMonitorGId = (state.activeMonitorGroupId && classGroupExists)
     ? state.activeMonitorGroupId
     : (activeClass.groups && activeClass.groups[0] ? activeClass.groups[0].id : 'group_1');
   state.activeMonitorGroupId = activeMonitorGId;
+  if (window.app) window.app.state.activeMonitorGroupId = activeMonitorGId;
+
   const activeMonitorGroup = (activeClass.groups || []).find(g => g.id === activeMonitorGId) || (activeClass.groups && activeClass.groups[0]) || { id: 'group_1', name: '第1小组' };
   const monitorMembersObj = authManager.getGroupMembersForWorkspace(activeMonitorGId);
   const monitorMembersList = Object.values(monitorMembersObj);

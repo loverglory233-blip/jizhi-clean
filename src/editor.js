@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles } from "./constants.js?v=20260823_v199";
-import { callCozeAgentAPI } from "./agents.js?v=20260823_v199";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime } from "./utils.js?v=20260823_v199";
+import { AgentProfiles } from "./constants.js?v=20260823_v200";
+import { callCozeAgentAPI } from "./agents.js?v=20260823_v200";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime } from "./utils.js?v=20260823_v200";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -1193,10 +1193,23 @@ function renderStage1Canvas(canvas, state, handlers) {
         // 提交提案时不自动给公约融合主题赋值，必须等待全组投票与讨论协商后确立
 
         const currentStage = state.currentStage;
-        const memObj = Object.values(state.members || {}).find(m => m.id === currentUser || m.studentCode === currentUser || m.realStudentCode === currentUser);
+        let memberArr = [];
+        if (Array.isArray(state.members)) {
+          memberArr = state.members;
+        } else if (state.members && typeof state.members === 'object') {
+          memberArr = Object.values(state.members);
+        }
+        if (memberArr.length === 0 && window.app?.authManager) {
+          const u = window.app.authManager.getCurrentUser();
+          const effClassId = window.app.state.activeStudentClassId || u?.classId || 'class_101';
+          const effGroup = window.app.authManager.getStudentActiveGroup(u, effClassId);
+          memberArr = window.app.authManager.getGroupMembersForWorkspace(effGroup?.id || 'group_1');
+        }
+
+        const memObj = memberArr.find(m => m && (m.id === currentUser || m.studentCode === currentUser || m.realStudentCode === currentUser || m.username === currentUser || m.name === currentUser));
         const authorName = memObj ? memObj.name : (currentUser || '组员');
-        const totalMembersCount = Object.keys(state.members || {}).length;
-        const submittedAuthorsCount = new Set((s1.proposals || []).map(p => p.author)).size;
+        const totalMembersCount = memberArr.length > 0 ? memberArr.length : 3;
+        const submittedAuthorsCount = new Set((s1.proposals || []).map(p => p.author || p.authorName)).size;
 
         const submitNoticeMsg = {
           sender: currentUser,
@@ -1208,11 +1221,12 @@ function renderStage1Canvas(canvas, state, handlers) {
         if (!state.chatLogs[currentStage]) state.chatLogs[currentStage] = [];
         state.chatLogs[currentStage].push(submitNoticeMsg);
 
-        // 🎪 当全员提案已集齐时，拍卖师主动在讨论区引导“先充分讨论选哪个，再进行投票”
-        if (submittedAuthorsCount >= totalMembersCount && totalMembersCount > 0 && !s1._allProposalsPrompted) {
+        // 🎪 仅在真实全员（至少2人且全部提交）集齐时，拍卖师才主动在讨论区引导“先充分讨论选哪个，再进行投票”
+        if (totalMembersCount >= 2 && submittedAuthorsCount >= totalMembersCount && !s1._allProposalsPrompted) {
           s1._allProposalsPrompted = true;
           const allCollectedMsg = {
             sender: 'auctioneer',
+            senderName: '头脑风暴 · 学术拍卖师',
             text: `🎪 【拍卖师·全员提案已集齐】：🎉 小组全部 ${totalMembersCount} 位成员的选题提案已悉数亮相！\n👉 请大家先不要急于投票，先在右侧协同对话区商讨交流各个方案的研究切入点与创新亮点；\n💬 充分研讨达成初步共识后，再在上方为最终认可的方案进行投票！`,
             timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
             _timeMs: Date.now() + 50
@@ -1251,10 +1265,13 @@ function renderStage1Canvas(canvas, state, handlers) {
           state.chatLogs[currentStage].push(auctioneerEvalMsg);
 
           // 2. 当全员提案已集齐时（例如 3/3），调用智能体主动号召“先充分讨论对比方案，再进行竞拍投票”
-          if (submittedAuthorsCount >= totalMembersCount && !s1._agentGatherPrompted) {
+          if (totalMembersCount >= 2 && submittedAuthorsCount >= totalMembersCount && !s1._agentGatherPrompted) {
             s1._agentGatherPrompted = true;
             setTimeout(async () => {
-              const allSubmittedList = (s1.proposals || []).map((p, idx) => `${idx + 1}. 《${p.title}》(${state.members[p.author] ? state.members[p.author].name : p.author})`).join('\n');
+              const allSubmittedList = (s1.proposals || []).map((p, idx) => {
+                const authorP = memberArr.find(m => m && (m.id === p.author || m.studentCode === p.author || m.name === p.authorName));
+                return `${idx + 1}. 《${p.title}》(${authorP ? authorP.name : (p.authorName || p.author)})`;
+              }).join('\n');
               const gatherContextPrompt = `全组成员的选题提案已全部提交完毕！全员提案清单如下：\n${allSubmittedList}\n请作为学术拍卖师发表 120~150 字的【全员提案集齐·号召先讨论后投票】：\n① 热情呈现全员提案清单，肯定大家活跃的研究视角；\n② 明确引导全组【先不要急于盲目投票】，先在右侧协同对话区充分交流研讨各个提案的研究看点与实施亮点；\n③ 指引大家在研讨达成初步意向后，再点击左侧【🗳️ 投这篇】进行竞拍投票！`;
 
               let gatherText = await callCozeAgentAPI('auctioneer', gatherContextPrompt, { stage: 'stage1', allProposals: allSubmittedList });
@@ -2044,12 +2061,22 @@ export function renderChat(state) {
       }
     });
 
-    presenceContainer.innerHTML = members.map(m => {
+    let memberList = [];
+    if (Array.isArray(state.members)) memberList = state.members;
+    else if (state.members && typeof state.members === 'object') memberList = Object.values(state.members);
+    if (memberList.length === 0 && window.app?.authManager) {
+      const u = window.app.authManager.getCurrentUser();
+      const effClassId = window.app.state.activeStudentClassId || u?.classId || 'class_101';
+      const effGroup = window.app.authManager.getStudentActiveGroup(u, effClassId);
+      memberList = window.app.authManager.getGroupMembersForWorkspace(effGroup?.id || 'group_1');
+    }
+
+    presenceContainer.innerHTML = memberList.map(m => {
       const isMe = (m.id === myCode || m.studentCode === myCode || (currUser && (m.id === currUser.id || m.studentCode === currUser.studentCode || m.name === currUser.name)));
       let isOnline = isMe;
       if (!isOnline) {
         const p = presence[m.studentCode] || presence[m.id] || presence[m.username] || presence[m.name];
-        if (p && (nowMs - (p.lastSeen || p.updatedAt || p.timestamp || 0) < 60000)) {
+        if (p && (nowMs - (p.lastSeen || p.updatedAt || p.timestamp || 0) < 180000)) {
           isOnline = true;
         }
         if (recentSpeakers.has(m.id) || recentSpeakers.has(m.studentCode) || recentSpeakers.has(m.name) || recentSpeakers.has(m.username)) {
@@ -2070,14 +2097,16 @@ export function renderChat(state) {
   if (!stream) return;
 
   const currentUser = state.currentUser;
-  // 🌟 全局持久化聊天流：保留阶段一、阶段二、阶段三所有研讨历史，随时回看绝不清空
-  const visibleStages = ['stage1', 'stage2', 'stage3'];
+  // 🛡️ 严格按当前阶段展示历史：在阶段一绝不提前剧透阶段二/三的消息
+  const curStg = state.currentStage || 'stage1';
+  let visibleStages = ['stage1'];
+  if (curStg === 'stage2') visibleStages = ['stage1', 'stage2'];
+  else if (curStg === 'stage3') visibleStages = ['stage1', 'stage2', 'stage3'];
 
   // Collect all visible messages in order, auto-purging old legacy idle spam
   const allMsgs = [];
   visibleStages.forEach(stg => {
     if (state.chatLogs && state.chatLogs[stg]) {
-      // 渲染时仅过滤展示，绝不改写 state.chatLogs（渲染函数不应有数据副作用，避免快速重渲染丢消息，见审查 #38）
       state.chatLogs[stg].forEach(msg => {
         const txt = msg.text || '';
         if (txt.includes('已连续') || txt.includes('互动督促') || txt.includes('秒未研讨') || txt.includes('秒没有发言')) return;

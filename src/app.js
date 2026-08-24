@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260823_v199";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired } from "./utils.js?v=20260823_v199";
-import { callCozeAgentAPI } from "./agents.js?v=20260823_v199";
-import { AuthManager } from "./auth.js?v=20260823_v199";
-import { CloudSyncEngine } from "./sync.js?v=20260823_v199";
-import { renderLoginView } from "./login.js?v=20260823_v199";
-import { renderTeacherPortal } from "./teacher.js?v=20260823_v199";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260823_v199";
+} from "./constants.js?v=20260823_v200";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired } from "./utils.js?v=20260823_v200";
+import { callCozeAgentAPI } from "./agents.js?v=20260823_v200";
+import { AuthManager } from "./auth.js?v=20260823_v200";
+import { CloudSyncEngine } from "./sync.js?v=20260823_v200";
+import { renderLoginView } from "./login.js?v=20260823_v200";
+import { renderTeacherPortal } from "./teacher.js?v=20260823_v200";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260823_v200";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260823_v199";
+} from "./editor.js?v=20260823_v200";
 
 // Make renderChat available on window for sync callbacks
 if (typeof window !== "undefined") {
@@ -331,7 +331,7 @@ export class App {
   }
 
   initGlobalPresenceHeartbeat() {
-    // 🌿 自然轻量在线：心跳在普通网络交互与阶段流转时随路携带，避免每2.5秒高频强推造成界面抖动
+    // 🌿 实时轻量在线心跳：每 8 秒自动刷新当前在线时间戳并广播，让所有同伴即刻感知在线状态
     setInterval(() => {
       const currentUser = this.authManager ? this.authManager.getCurrentUser() : null;
       if (currentUser && currentUser.role === 'student' && this.state.studentViewMode === 'workspace') {
@@ -345,8 +345,10 @@ export class App {
             updatedAt: now
           };
         });
+        this.renderPresenceCursors();
+        if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
       }
-    }, 10000);
+    }, 8000);
   }
 
   initTimer() {
