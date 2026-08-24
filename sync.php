@@ -229,10 +229,9 @@ if ($action === 'login' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     if ($foundUser) {
-        // 🔐 多重认证：登录界面所选身份必须与账号实际角色一致，防止跨身份误登录
-        $uRole = trim($foundUser['role'] ?? '');
+        // 🔐 身份一致性校验：所选身份必须与数据库记录角色匹配
+        $uRole = trim($foundUser['role'] ?? 'student');
         $roleMismatch = ($role === 'teacher' && $uRole !== 'teacher') || ($role === 'student' && $uRole === 'teacher');
-        if ($account === '1001' && $uRole === 'teacher') $roleMismatch = false;
 
         if (!empty($role) && $roleMismatch) {
             http_response_code(401);
@@ -609,11 +608,13 @@ if ($action === 'change_password' && $_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt->execute([':c1' => $code, ':c2' => $code, ':c3' => $code]);
             $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
-            // 教师工号 1001 种子自动保障 (纯明文 123)
+            // 种子保障（仅在完全无记录时初始写入，绝不覆盖已有记录与密码）
             if (!$user && $code === '1001') {
-                $stmtInsT = $pdo->prepare("INSERT INTO users (id, username, student_code, name, password, role) VALUES ('1001', '1001', '1001', '老师', '123', 'teacher') ON DUPLICATE KEY UPDATE username='1001', student_code='1001'");
+                $stmtInsT = $pdo->prepare("INSERT IGNORE INTO users (id, username, student_code, name, password, role) VALUES ('1001', '1001', '1001', '老师', '123', 'teacher')");
                 $stmtInsT->execute();
-                $user = ['id' => '1001', 'username' => '1001', 'student_code' => '1001', 'name' => '老师', 'password' => '123', 'role' => 'teacher'];
+                $stmtRe = $pdo->prepare("SELECT * FROM users WHERE id = '1001' LIMIT 1");
+                $stmtRe->execute();
+                $user = $stmtRe->fetch(PDO::FETCH_ASSOC);
             }
 
             if (!$user) {
