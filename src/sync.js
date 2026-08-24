@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState } from './constants.js?v=20260823_v218';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin } from './utils.js?v=20260823_v218';
+import { InitialState } from './constants.js?v=20260823_v219';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin } from './utils.js?v=20260823_v219';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -58,8 +58,8 @@ export class CloudSyncEngine {
 
   initPolling() {
     this.pullFromServer();
-    // 🛡️ 智能轻载轮询：活跃时 2.5 秒，后台/静止时 6.5 秒，彻底释放服务器 CPU 与连接池
-    const getInterval = () => (document.hidden ? 6500 : 2500);
+    // ⚡ 2 秒极速心跳轮询：无论输入、发呆还是后台，全组状态实时秒级同步
+    const getInterval = () => (document.hidden ? 4000 : 2000);
     const runPoll = () => {
       if (this.isLoggingOut) return;
       this.pullFromServer().finally(() => {
@@ -67,7 +67,7 @@ export class CloudSyncEngine {
         this.pollTimer = setTimeout(runPoll, getInterval());
       });
     };
-    this.pollTimer = setTimeout(runPoll, 2500);
+    this.pollTimer = setTimeout(runPoll, 2000);
 
     window.addEventListener('storage', (e) => {
       if (e.key === this.storageKey && e.newValue) {
@@ -90,14 +90,12 @@ export class CloudSyncEngine {
     const currentUser = this.app.authManager ? this.app.authManager.getCurrentUser() : null;
     const userKey = currentUser ? (currentUser.studentCode || currentUser.username || currentUser.id) : '';
     const sessToken = currentUser?.activeSessionId || '';
-    // 初次拉取传 since_rev=0，确保完整拿回全量快照；后续带上服务端返回的最新 revisionId
-    const lastRev = this.isInitialPullDone ? (this._lastKnownRevisionId || 0) : 0;
 
     try {
       for (const endpoint of this.syncEndpoints) {
         try {
           const sep = endpoint.includes('?') ? '&' : '?';
-          const url = `${endpoint}${sep}userId=${encodeURIComponent(userKey)}&sessToken=${encodeURIComponent(sessToken)}&since_rev=${lastRev}&nocache=${Date.now()}`;
+          const url = `${endpoint}${sep}userId=${encodeURIComponent(userKey)}&sessToken=${encodeURIComponent(sessToken)}&nocache=${Date.now()}`;
           const res = await fetch(url, { cache: 'no-store' });
           if (res.ok) {
             const data = await res.json();
@@ -110,11 +108,7 @@ export class CloudSyncEngine {
               this.app.renderMain();
               return;
             }
-            // 无论是否有变更，都更新本地已知的 revisionId
-            if (data && data.revisionId !== undefined) {
-              this._lastKnownRevisionId = data.revisionId;
-            }
-            if (data && !data.notModified && (data.timestamp !== undefined || data.chatLogs || data.stage1 || data.stage2)) {
+            if (data && (data.timestamp !== undefined || data.chatLogs || data.stage1 || data.stage2 || data.presence || data.locks)) {
               this.handleRemoteSync(data);
               return;
             }
