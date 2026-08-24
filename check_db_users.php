@@ -66,27 +66,32 @@ try {
             }
         }
 
-        // 2. 深度自愈 classes 班级表（包含学生名单与分组数据）
+        // 2. 深度自愈 classes 班级表（100% 严格依照 main_meta 真实班级与真实名单落库）
         $gClasses = $gm['classes'] ?? [];
-        $stmtClsUpsert = $pdo->prepare("INSERT INTO `classes` (`id`, `name`, `code`, `student_ids`, `groups_data`)
-            VALUES (:id, :nm, :code, :sids, :gdata)
-            ON DUPLICATE KEY UPDATE `name`=VALUES(`name`), `code`=VALUES(`code`), `student_ids`=VALUES(`student_ids`), `groups_data`=VALUES(`groups_data`)");
         if (!empty($gClasses) && is_array($gClasses)) {
+            // 获取 main_meta 中所有真实存在的 class ID
+            $validCids = [];
+            $stmtClsUpsert = $pdo->prepare("INSERT INTO `classes` (`id`, `name`, `code`, `student_ids`, `groups_data`)
+                VALUES (:id, :nm, :code, :sids, :gdata)
+                ON DUPLICATE KEY UPDATE `name`=VALUES(`name`), `code`=VALUES(`code`), `student_ids`=VALUES(`student_ids`), `groups_data`=VALUES(`groups_data`)");
             foreach ($gClasses as $cls) {
-                $cid = $cls['id'] ?? 'class_101';
-                $cname = $cls['name'] ?? '《现代教育技术》2026春01班';
-                $ccode = $cls['code'] ?? 'ET2026-01';
-                $sids = $cls['studentIds'] ?? [];
-                // 如果 studentIds 为空，自动把所有学生学号填充进去
-                if (empty($sids)) {
-                    foreach ($gUsers as $gu) {
-                        $c = trim($gu['studentCode'] ?? ($gu['username'] ?? ($gu['id'] ?? '')));
-                        if ($c && ($gu['role'] ?? '') !== 'teacher') $sids[] = $c;
-                    }
-                }
-                $sidsJson = json_encode(array_values(array_unique($sids)), JSON_UNESCAPED_UNICODE);
-                $gdataJson = json_encode($cls['groups'] ?? [], JSON_UNESCAPED_UNICODE);
+                if (empty($cls['id'])) continue;
+                $cid = $cls['id'];
+                $validCids[] = $cid;
+                $cname = $cls['name'] ?? '教学班';
+                $ccode = $cls['code'] ?? $cid;
+                $sids = is_array($cls['studentIds'] ?? null) ? $cls['studentIds'] : [];
+                $gdata = is_array($cls['groups'] ?? null) ? $cls['groups'] : [];
+                
+                $sidsJson = json_encode($sids, JSON_UNESCAPED_UNICODE);
+                $gdataJson = json_encode($gdata, JSON_UNESCAPED_UNICODE);
                 $stmtClsUpsert->execute([':id' => $cid, ':nm' => $cname, ':code' => $ccode, ':sids' => $sidsJson, ':gdata' => $gdataJson]);
+            }
+            // 清理不在 main_meta 里的初始占位班级
+            if (!empty($validCids)) {
+                $inClause = implode(',', array_fill(0, count($validCids), '?'));
+                $stmtCleanCls = $pdo->prepare("DELETE FROM `classes` WHERE `id` NOT IN ($inClause)");
+                $stmtCleanCls->execute($validCids);
             }
         }
 

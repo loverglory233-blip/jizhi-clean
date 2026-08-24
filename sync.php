@@ -165,6 +165,7 @@ if (!function_exists('autoSyncAllUsersFromMeta')) {
 
             // 2. 自动同步 classes 班级实体表
             if (isset($gm['classes']) && is_array($gm['classes'])) {
+                $validCids = [];
                 $stmtClsUpsert = $pdo->prepare("INSERT INTO `classes` (`id`, `name`, `code`, `student_ids`, `groups_data`)
                     VALUES (:id, :nm, :code, :sids, :gdata)
                     ON DUPLICATE KEY UPDATE `name`=VALUES(`name`), `code`=VALUES(`code`), `student_ids`=VALUES(`student_ids`), `groups_data`=VALUES(`groups_data`)");
@@ -174,7 +175,13 @@ if (!function_exists('autoSyncAllUsersFromMeta')) {
                     $ccode = $cls['code'] ?? $cid;
                     $sids = json_encode($cls['studentIds'] ?? [], JSON_UNESCAPED_UNICODE);
                     $gdata = json_encode($cls['groups'] ?? [], JSON_UNESCAPED_UNICODE);
+                    $validCids[] = $cid;
                     $stmtClsUpsert->execute([':id' => $cid, ':nm' => $cname, ':code' => $ccode, ':sids' => $sids, ':gdata' => $gdata]);
+                }
+                if (!empty($validCids)) {
+                    $inClause = implode(',', array_fill(0, count($validCids), '?'));
+                    $stmtCleanCls = $pdo->prepare("DELETE FROM `classes` WHERE `id` NOT IN ($inClause)");
+                    $stmtCleanCls->execute($validCids);
                 }
             }
 
