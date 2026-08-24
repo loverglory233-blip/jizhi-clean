@@ -14,8 +14,8 @@ import {
   DefaultTasks,
   DefaultAnnouncements,
   DefaultReferencePapers
-} from './constants.js?v=20260823_v214';
-import { formatExportDateTime } from './utils.js?v=20260823_v214';
+} from './constants.js?v=20260823_v215';
+import { formatExportDateTime } from './utils.js?v=20260823_v215';
 
 export class AuthManager {
   constructor() {
@@ -262,7 +262,7 @@ export class AuthManager {
       return;
     }
 
-    const teacherUserId = (currUser && (currUser.studentCode || currUser.username || currUser.id)) || '1001';
+    const teacherUserId = (currUser && (currUser.studentCode || currUser.username || currUser.id)) || '';
     const teacherToken = currUser?.token || currUser?.activeSessionId || '';
     const payload = {
       userId: teacherUserId,
@@ -1459,27 +1459,11 @@ export class AuthManager {
 
   openChangePasswordModal(presetAccount = null) {
     const currentUser = this.getCurrentUser();
-    // 教师与学生账号精准提取：教师统一规范显示标准工号 1001，学生显示其真实学号
+    // 动态提取当前登录用户的真实工号或学号，绝不硬编码覆盖
     let account = presetAccount || '';
     if (!account && currentUser) {
-      const isTeacher = (currentUser.role === 'teacher' || currentUser.isTeacher);
-      if (isTeacher) {
-        const tCode = currentUser.studentCode || currentUser.teacherCode || currentUser.code || currentUser.username;
-        if (tCode && !tCode.includes('teacher') && !tCode.startsWith('u_')) {
-          account = tCode;
-        } else {
-          account = '1001';
-        }
-      } else {
-        if (currentUser.studentCode) account = currentUser.studentCode;
-        else if (currentUser.code) account = currentUser.code;
-        else if (currentUser.username && !currentUser.username.startsWith('u_')) account = currentUser.username;
-        else if (currentUser.id) {
-          account = currentUser.id.startsWith('u_') ? currentUser.id.replace(/^u_/, '') : currentUser.id;
-        } else {
-          account = (currentUser.username || '').replace(/^u_/, '');
-        }
-      }
+      account = currentUser.studentCode || currentUser.teacherCode || currentUser.code || currentUser.username || currentUser.id || '';
+      if (account.startsWith('u_')) account = account.replace(/^u_/, '');
     }
 
     const oldModal = document.getElementById('modal-change-password');

@@ -9,8 +9,8 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260823_v214";
-import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime } from "./utils.js?v=20260823_v214";
+} from "./constants.js?v=20260823_v215";
+import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime } from "./utils.js?v=20260823_v215";
 
 /* ==========================================================================
    7. TEACHER PORTAL RENDERER (LIVE WORKSPACE MIRROR & ANNOUNCEMENT READ MATRIX)
@@ -1625,7 +1625,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
       if (confirm(`🔑【教师密码重置确认】\n\n您确定要将学生【${name}】(账号: ${account}) 的登录密码重置为初始密码 123 吗？`)) {
         try {
           const currT = authManager.getCurrentUser();
-          const tId = (currT && (currT.studentCode || currT.username || currT.id)) || '1001';
+          const tId = (currT && (currT.studentCode || currT.username || currT.id)) || '';
           const tToken = (currT && (currT.token || currT.activeSessionId)) || '';
 
           const res = await fetch('sync.php?action=reset_student_password', {
@@ -2791,7 +2791,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
           if (selectedFile.fileObj) {
             try {
               const currT = authManager.getCurrentUser();
-              const tId = (currT && (currT.studentCode || currT.username || currT.id)) || '1001';
+              const tId = (currT && (currT.studentCode || currT.username || currT.id)) || '';
               const tToken = (currT && (currT.token || currT.activeSessionId)) || '';
 
               const formData = new FormData();
