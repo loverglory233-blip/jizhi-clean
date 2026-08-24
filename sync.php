@@ -166,6 +166,59 @@ if (!function_exists('autoSyncAllUsersFromMeta')) {
                     ]);
                 }
             }
+
+            // 2. 自动同步 classes 班级实体表
+            if (isset($gm['classes']) && is_array($gm['classes'])) {
+                $stmtClsUpsert = $pdo->prepare("INSERT INTO `classes` (`id`, `name`, `code`, `student_ids`, `groups_data`)
+                    VALUES (:id, :nm, :code, :sids, :gdata)
+                    ON DUPLICATE KEY UPDATE `name`=VALUES(`name`), `code`=VALUES(`code`), `student_ids`=VALUES(`student_ids`), `groups_data`=VALUES(`groups_data`)");
+                foreach ($gm['classes'] as $cls) {
+                    $cid = $cls['id'] ?? ('class_' . uniqid());
+                    $cname = $cls['name'] ?? '教学班';
+                    $ccode = $cls['code'] ?? $cid;
+                    $sids = json_encode($cls['studentIds'] ?? [], JSON_UNESCAPED_UNICODE);
+                    $gdata = json_encode($cls['groups'] ?? [], JSON_UNESCAPED_UNICODE);
+                    $stmtClsUpsert->execute([':id' => $cid, ':nm' => $cname, ':code' => $ccode, ':sids' => $sids, ':gdata' => $gdata]);
+                }
+            }
+
+            // 3. 自动同步 tasks 任务实体表
+            if (isset($gm['tasks']) && is_array($gm['tasks'])) {
+                $stmtTaskUpsert = $pdo->prepare("INSERT INTO `tasks` (`id`, `title`, `desc`, `created_at_str`, `deadline`, `duration_minutes`, `target_class_ids`, `attachments`, `status`)
+                    VALUES (:id, :title, :desc, :created_at, :deadline, :duration, :cids, :att, :status)
+                    ON DUPLICATE KEY UPDATE `title`=VALUES(`title`), `desc`=VALUES(`desc`), `created_at_str`=VALUES(`created_at_str`), `deadline`=VALUES(`deadline`), `duration_minutes`=VALUES(`duration_minutes`), `target_class_ids`=VALUES(`target_class_ids`), `attachments`=VALUES(`attachments`), `status`=VALUES(`status`)");
+                foreach ($gm['tasks'] as $tsk) {
+                    $tid = $tsk['id'] ?? ('task_' . uniqid());
+                    $ttitle = $tsk['title'] ?? '写作任务';
+                    $tdesc = $tsk['instructions'] ?? ($tsk['desc'] ?? '');
+                    $tcreated = $tsk['createdAt'] ?? date('Y-m-d H:i:s');
+                    $tdeadline = $tsk['deadline'] ?? '';
+                    $tduration = intval($tsk['durationMinutes'] ?? 150);
+                    $tcids = json_encode($tsk['targetClassIds'] ?? (isset($tsk['classId']) ? [$tsk['classId']] : []), JSON_UNESCAPED_UNICODE);
+                    $tatt = json_encode($tsk['resources'] ?? ($tsk['attachments'] ?? []), JSON_UNESCAPED_UNICODE);
+                    $tstatus = $tsk['status'] ?? 'in_progress';
+                    $stmtTaskUpsert->execute([
+                        ':id' => $tid, ':title' => $ttitle, ':desc' => $tdesc, ':created_at' => $tcreated,
+                        ':deadline' => $tdeadline, ':duration' => $tduration, ':cids' => $tcids, ':att' => $tatt, ':status' => $tstatus
+                    ]);
+                }
+            }
+
+            // 4. 自动同步 announcements 通知实体表
+            if (isset($gm['announcements']) && is_array($gm['announcements'])) {
+                $stmtAnnUpsert = $pdo->prepare("INSERT INTO `announcements` (`id`, `title`, `content`, `created_at_str`, `target_class_ids`, `is_pinned`)
+                    VALUES (:id, :title, :content, :created_at, :cids, :pinned)
+                    ON DUPLICATE KEY UPDATE `title`=VALUES(`title`), `content`=VALUES(`content`), `created_at_str`=VALUES(`created_at_str`), `target_class_ids`=VALUES(`target_class_ids`), `is_pinned`=VALUES(`is_pinned`)");
+                foreach ($gm['announcements'] as $ann) {
+                    $aid = $ann['id'] ?? ('ann_' . uniqid());
+                    $atitle = $ann['title'] ?? '通知';
+                    $acontent = $ann['content'] ?? '';
+                    $acreated = $ann['createdAt'] ?? date('Y-m-d H:i:s');
+                    $acids = json_encode($ann['targetClassIds'] ?? [], JSON_UNESCAPED_UNICODE);
+                    $apinned = !empty($ann['isPinned']) ? 1 : 0;
+                    $stmtAnnUpsert->execute([':id' => $aid, ':title' => $atitle, ':content' => $acontent, ':created_at' => $acreated, ':cids' => $acids, ':pinned' => $apinned]);
+                }
+            }
         } catch (Exception $e) {}
     }
 }
@@ -1122,6 +1175,78 @@ if ($action === 'save_global_meta' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                         $urole = isset($usr['role']) ? $usr['role'] : 'student';
                         $stmtUserUpsert->execute([
                             ':id' => $uid, ':u' => $uname, ':sc' => $ucode, ':nm' => $unick, ':p' => $upwd, ':r' => $urole
+                        ]);
+                // 🛡️ 实体表实时入库：将所有班级 classes 100% 同步 upsert 至 classes 实体表
+                if (isset($decoded['classes']) && is_array($decoded['classes'])) {
+                    $stmtClsUpsert = $pdo->prepare("INSERT INTO `classes` (`id`, `name`, `code`, `student_ids`, `groups_data`)
+                        VALUES (:id, :nm, :code, :sids, :gdata)
+                        ON DUPLICATE KEY UPDATE `name`=VALUES(`name`), `code`=VALUES(`code`), `student_ids`=VALUES(`student_ids`), `groups_data`=VALUES(`groups_data`)");
+                    foreach ($decoded['classes'] as $cls) {
+                        $cid = $cls['id'] ?? ('class_' . uniqid());
+                        $cname = $cls['name'] ?? '教学班';
+                        $ccode = $cls['code'] ?? $cid;
+                        $sids = json_encode($cls['studentIds'] ?? [], JSON_UNESCAPED_UNICODE);
+                        $gdata = json_encode($cls['groups'] ?? [], JSON_UNESCAPED_UNICODE);
+                        $stmtClsUpsert->execute([':id' => $cid, ':nm' => $cname, ':code' => $ccode, ':sids' => $sids, ':gdata' => $gdata]);
+                    }
+                }
+
+                // 🛡️ 实体表实时入库：将所有任务 tasks 100% 同步 upsert 至 tasks 实体表
+                if (isset($decoded['tasks']) && is_array($decoded['tasks'])) {
+                    $stmtTaskUpsert = $pdo->prepare("INSERT INTO `tasks` (`id`, `title`, `desc`, `created_at_str`, `deadline`, `duration_minutes`, `target_class_ids`, `attachments`, `status`)
+                        VALUES (:id, :title, :desc, :created_at, :deadline, :duration, :cids, :att, :status)
+                        ON DUPLICATE KEY UPDATE `title`=VALUES(`title`), `desc`=VALUES(`desc`), `created_at_str`=VALUES(`created_at_str`), `deadline`=VALUES(`deadline`), `duration_minutes`=VALUES(`duration_minutes`), `target_class_ids`=VALUES(`target_class_ids`), `attachments`=VALUES(`attachments`), `status`=VALUES(`status`)");
+                    foreach ($decoded['tasks'] as $tsk) {
+                        $tid = $tsk['id'] ?? ('task_' . uniqid());
+                        $ttitle = $tsk['title'] ?? '写作任务';
+                        $tdesc = $tsk['instructions'] ?? ($tsk['desc'] ?? '');
+                        $tcreated = $tsk['createdAt'] ?? date('Y-m-d H:i:s');
+                        $tdeadline = $tsk['deadline'] ?? '';
+                        $tduration = intval($tsk['durationMinutes'] ?? 150);
+                        $tcids = json_encode($tsk['targetClassIds'] ?? (isset($tsk['classId']) ? [$tsk['classId']] : []), JSON_UNESCAPED_UNICODE);
+                        $tatt = json_encode($tsk['resources'] ?? ($tsk['attachments'] ?? []), JSON_UNESCAPED_UNICODE);
+                        $tstatus = $tsk['status'] ?? 'in_progress';
+                        $stmtTaskUpsert->execute([
+                            ':id' => $tid, ':title' => $ttitle, ':desc' => $tdesc, ':created_at' => $tcreated,
+                            ':deadline' => $tdeadline, ':duration' => $tduration, ':cids' => $tcids, ':att' => $tatt, ':status' => $tstatus
+                        ]);
+                    }
+                }
+
+                // 🛡️ 实体表实时入库：将所有通知 announcements 100% 同步 upsert 至 announcements 实体表
+                if (isset($decoded['announcements']) && is_array($decoded['announcements'])) {
+                    $stmtAnnUpsert = $pdo->prepare("INSERT INTO `announcements` (`id`, `title`, `content`, `created_at_str`, `target_class_ids`, `is_pinned`)
+                        VALUES (:id, :title, :content, :created_at, :cids, :pinned)
+                        ON DUPLICATE KEY UPDATE `title`=VALUES(`title`), `content`=VALUES(`content`), `created_at_str`=VALUES(`created_at_str`), `target_class_ids`=VALUES(`target_class_ids`), `is_pinned`=VALUES(`is_pinned`)");
+                    foreach ($decoded['announcements'] as $ann) {
+                        $aid = $ann['id'] ?? ('ann_' . uniqid());
+                        $atitle = $ann['title'] ?? '通知';
+                        $acontent = $ann['content'] ?? '';
+                        $acreated = $ann['createdAt'] ?? date('Y-m-d H:i:s');
+                        $acids = json_encode($ann['targetClassIds'] ?? [], JSON_UNESCAPED_UNICODE);
+                        $apinned = !empty($ann['isPinned']) ? 1 : 0;
+                        $stmtAnnUpsert->execute([':id' => $aid, ':title' => $atitle, ':content' => $acontent, ':created_at' => $acreated, ':cids' => $acids, ':pinned' => $apinned]);
+                    }
+                }
+
+                // 🛡️ 实体表实时入库：将所有范文 reference_papers 100% 同步 upsert 至 reference_papers 实体表
+                if (isset($decoded['referencePapers']) && is_array($decoded['referencePapers'])) {
+                    $stmtPaperUpsert = $pdo->prepare("INSERT INTO `reference_papers` (`id`, `title`, `abstract`, `highlights`, `target_group`, `file_name`, `file_size`, `file_data`, `upload_time`)
+                        VALUES (:id, :title, :abstract, :highlights, :tg, :fname, :fsize, :fdata, :uptime)
+                        ON DUPLICATE KEY UPDATE `title`=VALUES(`title`), `abstract`=VALUES(`abstract`), `highlights`=VALUES(`highlights`), `target_group`=VALUES(`target_group`), `file_name`=VALUES(`file_name`), `file_size`=VALUES(`file_size`), `file_data`=VALUES(`file_data`), `upload_time`=VALUES(`upload_time`)");
+                    foreach ($decoded['referencePapers'] as $rp) {
+                        $rpid = $rp['id'] ?? ('paper_' . uniqid());
+                        $rptitle = $rp['title'] ?? '参考范文';
+                        $rpabstract = $rp['abstract'] ?? '';
+                        $rphighlights = $rp['highlights'] ?? '';
+                        $rptg = $rp['targetGroup'] ?? 'all';
+                        $rpfname = $rp['fileName'] ?? '';
+                        $rpfsize = $rp['fileSize'] ?? '';
+                        $rpfdata = $rp['fileData'] ?? '';
+                        $rpuptime = $rp['uploadTime'] ?? date('Y-m-d H:i:s');
+                        $stmtPaperUpsert->execute([
+                            ':id' => $rpid, ':title' => $rptitle, ':abstract' => $rpabstract, ':highlights' => $rphighlights,
+                            ':tg' => $rptg, ':fname' => $rpfname, ':fsize' => $rpfsize, ':fdata' => $rpfdata, ':uptime' => $rpuptime
                         ]);
                     }
                 }
