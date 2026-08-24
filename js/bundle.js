@@ -2273,6 +2273,19 @@
     async pushSnapshot(isReset = false) {
       this.updateScopeKeys();
       const groupId = this.groupId;
+
+      // 🛡️ 精准内容级防空门禁（杜绝一刀切）：
+      // 只有在【未完成初次拉取】且【当前内存完全是空的初始白板】且【不是主动重置】时才跳过，防止冷启动空页面冲刷；
+      // 如果用户已经产生了任何有效协作（打字/发消息/投票/选题/在线状态），立即 100% 毫秒级放行推送！
+      if (!this.isInitialPullDone && !isReset) {
+        const hasChats = Object.values(this.app.state.chatLogs || {}).some(arr => Array.isArray(arr) && arr.length > 0);
+        const hasS1 = this.app.state.stage1 && (this.app.state.stage1.selectedTopic || this.app.state.stage1.contract?.isDraftGenerated || (this.app.state.stage1.proposals && this.app.state.stage1.proposals.length > 0));
+        const hasS2 = this.app.state.stage2 && (this.app.state.stage2.unifiedContent || this.app.state.stage2.draftHtml);
+        const hasPresence = Object.keys(this.app.state.presence || {}).length > 0;
+        if (!hasChats && !hasS1 && !hasS2 && !hasPresence) {
+          return;
+        }
+      }
       const isResetVal = !!this.isResetBroadcast || isReset;
       this.isResetBroadcast = false;
 
