@@ -9,8 +9,8 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260823_v196";
-import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime } from "./utils.js?v=20260823_v196";
+} from "./constants.js?v=20260823_v197";
+import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime } from "./utils.js?v=20260823_v197";
 
 /* ==========================================================================
    7. TEACHER PORTAL RENDERER (LIVE WORKSPACE MIRROR & ANNOUNCEMENT READ MATRIX)
@@ -1782,7 +1782,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
       const classSpecificTasks = tasks.filter(t => t.classId === 'all' || t.classId === cId);
       if (selSurveyTask) {
         selSurveyTask.innerHTML = classSpecificTasks.length === 0
-          ? '<option value="task_default">📌 默认写作任务</option>'
+          ? '<option value="" disabled selected>（暂无写作任务，请先创建任务）</option>'
           : classSpecificTasks.map((t, idx) => `<option value="${t.id}" ${idx === 0 ? 'selected' : ''}>📌 ${t.title}</option>`).join('');
       }
       updateSurveyUrlInputVal();
@@ -2372,6 +2372,9 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
         const classId = modal.querySelector('#modal-task-class').value;
         const title = modal.querySelector('#modal-task-title').value.trim();
         const desc = modal.querySelector('#modal-task-desc').value.trim();
+        const startTime = modal.querySelector('#modal-task-start') ? modal.querySelector('#modal-task-start').value : '';
+        const deadline = modal.querySelector('#modal-task-deadline') ? modal.querySelector('#modal-task-deadline').value : '';
+
         if (!title) { alert('⚠️ 请输入写作任务名称！'); return; }
         if (!startTime || !deadline) { alert('⚠️ 请指定任务的开始时间与截止时间！'); return; }
 
@@ -2428,12 +2431,12 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
                 <input type="hidden" id="modal-ann-class" value="${activeClass.id}">
               </div>
               <div class="teacher-form-group">
-                <label><span class="req">*</span> 📌 关联写作任务 (必选指定任务)</label>
+                <label>📌 关联写作任务 (选填)</label>
                 <select id="modal-ann-task" class="teacher-input fancy">
                   ${(() => {
                     const classTasks = tasks.filter(t => t.classId === 'all' || t.classId === activeClass.id);
-                    if (classTasks.length === 0) return '<option value="task_default">📌 默认写作任务</option>';
-                    return classTasks.map(t => `<option value="${t.id}">📌 ${t.title}</option>`).join('');
+                    if (classTasks.length === 0) return '<option value="task_all">🌐 全班研讨 (无特定任务)</option>';
+                    return '<option value="task_all">🌐 全班所有任务通用</option>' + classTasks.map(t => `<option value="${t.id}">📌 ${t.title}</option>`).join('');
                   })()}
                 </select>
               </div>
@@ -2621,12 +2624,12 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
                 <input type="hidden" id="modal-paper-class" value="${activeClass.id}">
               </div>
               <div class="teacher-form-group">
-                <label><span class="req">*</span> 📌 关联写作任务 (必选指定任务)</label>
+                <label>📌 关联写作任务 (选填)</label>
                 <select id="modal-paper-task" class="teacher-input fancy">
                   ${(() => {
                     const classTasks = tasks.filter(t => t.classId === 'all' || t.classId === activeClass.id);
-                    if (classTasks.length === 0) return '<option value="task_default">📌 默认写作任务</option>';
-                    return classTasks.map(t => `<option value="${t.id}">📌 ${t.title}</option>`).join('');
+                    if (classTasks.length === 0) return '<option value="task_all">🌐 全班通用 (无特定任务)</option>';
+                    return '<option value="task_all">🌐 全班所有任务通用</option>' + classTasks.map(t => `<option value="${t.id}">📌 ${t.title}</option>`).join('');
                   })()}
                 </select>
               </div>
