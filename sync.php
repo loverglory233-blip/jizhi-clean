@@ -2017,6 +2017,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 // 5. GET snapshot (从 MySQL 高速拉取)
 if ($pdo) {
+    // 🛡️ 同账号精准顶号检测：只有当同一账号在另一台设备登录时才让前一台下线，不同学生账号完全互不干扰
+    $reqUserId = isset($_GET['userId']) ? trim($_GET['userId']) : '';
+    $reqSessToken = isset($_GET['sessToken']) ? trim($_GET['sessToken']) : '';
+    if (!empty($reqUserId) && !empty($reqSessToken)) {
+        $stmtSessChk = $pdo->prepare("SELECT meta_value FROM global_meta WHERE meta_key = :k");
+        $stmtSessChk->execute([':k' => 'sess_' . $reqUserId]);
+        $sessRow = $stmtSessChk->fetch();
+        if ($sessRow && !empty($sessRow['meta_value']) && $sessRow['meta_value'] !== $reqSessToken) {
+            echo json_encode(['kicked' => true]);
+            exit;
+        }
+    }
+
     $stmt = $pdo->prepare("SELECT * FROM group_states WHERE scope_key = :sk");
     $stmt->execute([':sk' => $scopeKey]);
     $row = $stmt->fetch();
