@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260823_v214";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired } from "./utils.js?v=20260823_v214";
-import { callCozeAgentAPI } from "./agents.js?v=20260823_v214";
-import { AuthManager } from "./auth.js?v=20260823_v214";
-import { CloudSyncEngine } from "./sync.js?v=20260823_v214";
-import { renderLoginView } from "./login.js?v=20260823_v214";
-import { renderTeacherPortal } from "./teacher.js?v=20260823_v214";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260823_v214";
+} from "./constants.js?v=20260823_v215";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired } from "./utils.js?v=20260823_v215";
+import { callCozeAgentAPI } from "./agents.js?v=20260823_v215";
+import { AuthManager } from "./auth.js?v=20260823_v215";
+import { CloudSyncEngine } from "./sync.js?v=20260823_v215";
+import { renderLoginView } from "./login.js?v=20260823_v215";
+import { renderTeacherPortal } from "./teacher.js?v=20260823_v215";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260823_v215";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260823_v214";
+} from "./editor.js?v=20260823_v215";
 
 // Make renderChat available on window for sync callbacks
 if (typeof window !== "undefined") {
@@ -207,7 +207,7 @@ export class App {
     } catch (e) {}
 
     const currUser = this.authManager ? this.authManager.getCurrentUser() : null;
-    const teacherUserId = (currUser && (currUser.studentCode || currUser.username || currUser.id)) || '1001';
+    const teacherUserId = (currUser && (currUser.studentCode || currUser.username || currUser.id)) || '';
     const teacherToken = (currUser && (currUser.token || currUser.activeSessionId)) || '';
 
     // 发送原子重置请求直达服务端 (独立通道，100% 必达，彻底清空服务端数据库与缓存)
