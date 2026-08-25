@@ -2741,9 +2741,10 @@
         });
       }
 
-      let needWorkspaceRender = false;
+      let needWorkspaceRender = !this._hasRenderedInitialWorkspace;
 
       if (remoteData.stage1) {
+        needWorkspaceRender = true;
         const localS1 = this.app.state.stage1 || { proposals: [], votes: {}, hasVoted: {}, contract: {} };
         const remoteS1 = remoteData.stage1;
         const isContractInputActive = document.activeElement && (
@@ -3047,10 +3048,11 @@
         localStorage.setItem(this.storageKey, JSON.stringify(snapCache));
       } catch (e) {}
 
-      if ((isFirstPull || needWorkspaceRender) && user?.role === 'student' && this.app.state.studentViewMode === 'workspace') {
+      if ((!this._hasRenderedInitialWorkspace || needWorkspaceRender) && user?.role === 'student' && this.app.state.studentViewMode === 'workspace') {
         const activeEl = document.activeElement;
         const isTypingInWorkspace = activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA') && (document.getElementById('canvas-panel')?.contains(activeEl) || document.querySelector('.contract-card')?.contains(activeEl));
         if (!isTypingInWorkspace) {
+          this._hasRenderedInitialWorkspace = true;
           this.app.renderStudentWorkspace();
         }
       }
