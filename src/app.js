@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260825_v501";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired } from "./utils.js?v=20260825_v501";
-import { callCozeAgentAPI } from "./agents.js?v=20260825_v501";
-import { AuthManager } from "./auth.js?v=20260825_v501";
-import { CloudSyncEngine } from "./sync.js?v=20260825_v501";
-import { renderLoginView } from "./login.js?v=20260825_v501";
-import { renderTeacherPortal } from "./teacher.js?v=20260825_v501";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260825_v501";
+} from "./constants.js?v=20260825_v502";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired } from "./utils.js?v=20260825_v502";
+import { callCozeAgentAPI } from "./agents.js?v=20260825_v502";
+import { AuthManager } from "./auth.js?v=20260825_v502";
+import { CloudSyncEngine } from "./sync.js?v=20260825_v502";
+import { renderLoginView } from "./login.js?v=20260825_v502";
+import { renderTeacherPortal } from "./teacher.js?v=20260825_v502";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260825_v502";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260825_v501";
+} from "./editor.js?v=20260825_v502";
 
 // Make renderChat available on window for sync callbacks
 if (typeof window !== "undefined") {
@@ -364,8 +364,8 @@ export class App {
   }
 
   initGlobalPresenceHeartbeat() {
-    // 🌿 实时轻量在线心跳：每 8 秒自动刷新当前在线时间戳，走专属 presence_ping 物理隔离
-    setInterval(() => {
+    // 🌿 实时轻量在线心跳：每 4 秒自动刷新当前在线时间戳，走专属 presence_ping 物理隔离
+    const doPing = () => {
       const currentUser = this.authManager ? this.authManager.getCurrentUser() : null;
       if (currentUser && currentUser.role === 'student' && this.state.studentViewMode === 'workspace') {
         if (!this.state.presence) this.state.presence = {};
@@ -378,7 +378,9 @@ export class App {
         this.renderPresenceCursors();
         if (this.cloudSyncEngine) this.cloudSyncEngine.sendPresencePing(currentUser);
       }
-    }, 8000);
+    };
+    doPing();
+    setInterval(doPing, 4000);
   }
 
   initTimer() {
@@ -657,9 +659,10 @@ export class App {
               }
               if (this.cloudSyncEngine) {
                 this.cloudSyncEngine.groupId = targetGroupId;
-                this.cloudSyncEngine.taskId = taskId || 'task_default';
+                this.cloudSyncEngine.taskId = actualTaskId;
                 this.cloudSyncEngine.updateScopeKeys();
                 try {
+                  this.cloudSyncEngine.sendPresencePing(currentUser);
                   await this.cloudSyncEngine.pullFromServer();
                 } catch (e) {}
               }

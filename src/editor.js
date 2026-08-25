@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles } from "./constants.js?v=20260825_v501";
-import { callCozeAgentAPI } from "./agents.js?v=20260825_v501";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime } from "./utils.js?v=20260825_v501";
+import { AgentProfiles } from "./constants.js?v=20260825_v502";
+import { callCozeAgentAPI } from "./agents.js?v=20260825_v502";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime } from "./utils.js?v=20260825_v502";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -842,7 +842,18 @@ export function attachWordEditorEvents(container, editorId, isReadonly, onChange
 export function renderPresencePills(editorId, state) {
   const pillsContainer = document.getElementById(`${editorId}-presence-pills`);
   if (!pillsContainer) return;
-  const membersList = Object.values(state.members || {});
+  
+  // 🛡️ 稳健自动水合：若 state.members 为空，自动从 authManager 实时加载本组成员
+  let membersObj = state.members;
+  if (!membersObj || (Array.isArray(membersObj) ? membersObj.length === 0 : Object.keys(membersObj).length === 0)) {
+    if (window.app && window.app.authManager) {
+      const activeGroup = window.app.authManager.getStudentActiveGroup(window.app.authManager.getCurrentUser(), state.activeStudentClassId);
+      const gid = activeGroup?.id || state.activeMonitorGroupId || 'group_1';
+      membersObj = window.app.authManager.getGroupMembersForWorkspace(gid);
+      state.members = membersObj;
+    }
+  }
+  const membersList = Array.isArray(membersObj) ? membersObj : Object.values(membersObj || {});
   const currUserObj = (window.app && window.app.authManager) ? window.app.authManager.getCurrentUser() : null;
   const currentUid = currUserObj ? String(currUserObj.id || currUserObj.studentCode || '').trim() : (state.currentUser || '');
   const presence = state.presence || {};
