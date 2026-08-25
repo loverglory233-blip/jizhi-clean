@@ -359,6 +359,14 @@ export class CloudSyncEngine {
       this.app.state.members = remoteData.members;
     }
 
+    // ⚡ 天然随快照无缝更新通知与文献库，无需前端再发起任何独立请求
+    if (Array.isArray(remoteData.announcements) && this.app.authManager) {
+      this.app.authManager.saveAnnouncements(remoteData.announcements);
+    }
+    if (Array.isArray(remoteData.referencePapers) && this.app.authManager) {
+      this.app.authManager.saveReferencePapers(remoteData.referencePapers);
+    }
+
     if (remoteData.isFinalSubmitted !== undefined) {
       const oldLockState = !!this.app.state.isFinalSubmitted;
       const newLockState = !!remoteData.isFinalSubmitted;
