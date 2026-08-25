@@ -123,11 +123,6 @@ export class AuthManager {
 
   async pullGlobalMeta() {
     if (this._isPullingMeta) return;
-    // 🛡️ 教师推送在途时挂起本次拉取，避免用过期云端数据反向覆盖本地刚写入的新数据（导入学生/建组后被清空的根因）
-    if (this._pushInFlight) {
-      this._pendingPull = true;
-      return;
-    }
     this._isPullingMeta = true;
     try {
       const currUser = this.getCurrentUser();
@@ -264,7 +259,7 @@ export class AuthManager {
     
     // 🛡️ 铁律：只有已登录的教师且已完成云端元数据拉取后，才允许向服务器推送配置，杜绝冷启动默认数据覆盖云端
     if (!isTeacher || !this.isGlobalMetaLoaded) {
-      return Promise.resolve();
+      return;
     }
 
     const teacherUserId = (currUser && (currUser.studentCode || currUser.username || currUser.id)) || '';
@@ -280,44 +275,21 @@ export class AuthManager {
       referencePapers: this.getAllReferencePapers(),
       surveys: this.getSurveysList()
     };
-
-    // 🛡️ 推送在途标记：避免随后触发的 pullGlobalMeta 抢在推送落库前拉回过期数据，反向覆盖本地新写入的学生/班级
-    this._pushInFlight = true;
-    const safetyTimer = setTimeout(() => {
-      if (this._pushInFlight) {
-        this._pushInFlight = false;
-        if (this._pendingPull) { this._pendingPull = false; this.pullGlobalMeta(); }
-      }
-    }, 12000);
-
-    const pushPromise = new Promise((resolve) => {
-      try {
-        fetch(`sync.php?action=save_global_meta&userId=${encodeURIComponent(teacherUserId)}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        }).then(async (res) => {
-          if (res.ok) {
-            const data = await res.json().catch(() => ({}));
-            if (data && data.version) {
-              this.globalMetaVersion = parseInt(data.version, 10);
-            }
+    try {
+      fetch(`sync.php?action=save_global_meta&userId=${encodeURIComponent(teacherUserId)}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      }).then(async (res) => {
+        if (res.ok) {
+          const data = await res.json().catch(() => ({}));
+          if (data && data.version) {
+            this.globalMetaVersion = parseInt(data.version, 10);
           }
-        }).catch(() => {}).finally(() => {
-          clearTimeout(safetyTimer);
-          this._pushInFlight = false;
-          if (this._pendingPull) { this._pendingPull = false; this.pullGlobalMeta(); }
-          resolve();
-        });
-      } catch (e) {
-        clearTimeout(safetyTimer);
-        this._pushInFlight = false;
-        resolve();
-      }
-    });
-
+        }
+      }).catch(() => {});
+    } catch (e) {}
     if (window.app && window.app.cloudSyncEngine) window.app.cloudSyncEngine.pushSnapshot();
-    return pushPromise;
   }
   getUsers() {
     let users = [];
@@ -579,10 +551,9 @@ export class AuthManager {
     const cleanCode = (studentCode || '').trim();
     const cleanUsername = cleanCode.toLowerCase();
     
-    const existingUser = users.find(u =>
-      u.role !== 'teacher' &&
-      ((u.studentCode && u.studentCode.trim().toLowerCase() === cleanCode.toLowerCase()) ||
-      (u.username && u.username.trim().toLowerCase() === cleanUsername))
+    const existingUser = users.find(u => 
+      (u.studentCode && u.studentCode.trim().toLowerCase() === cleanCode.toLowerCase()) || 
+      (u.username && u.username.trim().toLowerCase() === cleanUsername)
     );
 
     const avatars = ['👨‍🎓', '👩‍🎓', '🧑‍🎓', '🎓', '📚', '🌟'];
