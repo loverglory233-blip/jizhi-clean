@@ -1655,17 +1655,14 @@
           if (seen.has(studentCode)) return;
           seen.add(studentCode);
 
-          const letterCode = String.fromCharCode(65 + (seen.size - 1));
           membersObj[studentCode] = {
             id: studentCode,
             userId: u.id || studentCode,
             name: u.name || `学生${seen.size}`,
-            roleTitle: (u.role === 'leader' || idx === 0 || u.roleTitle?.includes('组长') || studentCode === 'A') ? '组长 · 论文结构' : `组员 · 合作撰写`,
+            roleTitle: (u.role === 'leader' || idx === 0 || u.roleTitle?.includes('组长')) ? '组长 · 论文结构' : `组员 · 合作撰写`,
             avatar: u.avatar || avatars[(seen.size - 1) % avatars.length],
             color: colors[(seen.size - 1) % colors.length],
             studentCode: studentCode,
-            realStudentCode: studentCode,
-            letterCode: letterCode,
             groupId: groupId,
             classId: u.classId || (targetGrp ? targetGrp.classId : 'class_101')
           };
@@ -2522,6 +2519,10 @@
 
       // 🛡️ 教师重置功能已废除，纯净同步阶段协作数据，绝对不误踢正在协作的学生
       this._hasInitialPullCompleted = true;
+
+      if (remoteData.timestamp || remoteData.serverTimestamp) {
+        this.app.state.serverTimestamp = Number(remoteData.serverTimestamp || remoteData.timestamp);
+      }
 
       if (remoteData.presence) {
         let incomingPr = {};
@@ -7335,26 +7336,26 @@
     const pillsContainer = document.getElementById(`${editorId}-presence-pills`);
     if (!pillsContainer) return;
     const membersList = Object.values(state.members || {});
-    const currentUserCode = state.currentUser || 'A';
     const currUserObj = (window.app && window.app.authManager) ? window.app.authManager.getCurrentUser() : null;
+    const currentUid = currUserObj ? String(currUserObj.id || currUserObj.studentCode || '').trim() : (state.currentUser || '');
     const presence = state.presence || {};
-    const now = Date.now();
-
+    const serverNow = (state && state.serverTimestamp) ? Number(state.serverTimestamp) : Date.now();
     const allUsers = (window.app && window.app.authManager) ? window.app.authManager.getUsers() : [];
 
     const newHtml = membersList.map(m => {
-      // 全方位检索组员心跳数据 (支持纯数字学号与字符串学号精准命中)
-      const p = presence[m.studentCode] || presence[String(m.studentCode)] || presence[m.id] || presence[String(m.id)] || presence[m.student_code] || presence[m.realStudentCode] || (m.name && presence[m.name]) || (m.username && presence[m.username]);
-      const isSelf = m.studentCode === currentUserCode || m.id === currentUserCode || (currUserObj && (m.id === currUserObj.id || m.studentCode === currUserObj.studentCode || m.name === currUserObj.name || m.username === currUserObj.username));
+      const uid = String(m.id || m.studentCode || m.userId || '').trim();
+      // 统一以成员主键 id 查找在线心跳
+      const p = presence[uid] || presence[m.id] || presence[m.studentCode] || (m.name && presence[m.name]);
+      const isSelf = (uid && uid === currentUid) || (m.studentCode && m.studentCode === currentUid) || (m.id && m.id === currentUid);
 
-      // 🛡️ 稳健在线判定：180秒内有心跳即视为在线
+      // 🛡️ 稳健在线判定：基于服务器权威时间戳计算相对时间差，彻底免疫本地与服务器的时钟偏差
       const pTime = p ? (p.lastSeen || p.updatedAt || 0) : 0;
-      const timeDiff = pTime > 0 ? Math.abs(now - pTime) : 999999;
+      const timeDiff = pTime > 0 ? Math.abs(serverNow - pTime) : 999999;
       const isOnline = isSelf || (p && timeDiff < 180000);
       const sectionText = isSelf ? ' (我)' : (isOnline ? ' (在线)' : ' (离线)');
       const color = m.color || '#2563eb';
-      let displayName = m.name || m.studentCode;
-      const matchedUser = allUsers.find(u => (m.realStudentCode && u.studentCode === m.realStudentCode) || (m.studentCode && u.studentCode === m.studentCode) || (m.id && u.id === m.id) || (m.username && u.username === m.username));
+      let displayName = m.name || m.studentCode || uid;
+      const matchedUser = allUsers.find(u => (u.id && u.id === uid) || (u.studentCode && u.studentCode === uid) || (u.username && u.username === uid));
       if (matchedUser && matchedUser.name) displayName = matchedUser.name;
 
       return `
@@ -10943,7 +10944,7 @@
             senderName: '学术拍卖师',
             text: `🎪 【拍卖师开场】：欢迎来到【阶段一：学术拍卖会】！我是本阶段的选题顾问拍卖师。\n请全组成员点击左侧【提交我的选题】提出各自的研究构想，并在研讨区充分交流。我们将通过拍卖投票遴选最佳提案，并在下方《学术合作公约》中商定分工与时间分配！`,
             timestamp: now,
-            _timeMs: 1
+            _timeMs: Date.now()
           };
           logs.unshift(welcomeMsg);
           this.sendSingleChatMessage(welcomeMsg, 'stage1');
@@ -10982,7 +10983,7 @@
             senderName: '责任编辑 · 过程学伴',
             text: `🤝 【责任编辑开场】：欢迎来到【阶段二：学术编辑部】！我是过程学伴责任编辑。\n全组已锁定研究主题《${topic}》。\n\n📜 【阶段一公约执行与协同提醒】\n• 基础分工: ${assignSummary.join(' | ') || '全员协作'}\n• 规划时间: ${timeSummary.join(' / ') || '按需推进'}\n\n💡 **真正的协同不仅是分工起草，更要主动研读同伴写下的段落，在研讨区互评互修、打通前后逻辑！**请大家进入左侧编辑器开启深度协作！`,
             timestamp: now,
-            _timeMs: 2
+            _timeMs: Date.now()
           };
           logs.unshift(managingWelcome);
           this.sendSingleChatMessage(managingWelcome, 'stage2');
@@ -10995,7 +10996,7 @@
               senderName: '审稿编辑 · 质量把关',
               text: `📝 【审稿编辑提醒】：为辅助各位高效产出高质量学术论文，已为本组匹配并推送了《课程学术参考范文库》！请大家点击上方【📚 查阅参考范文】查阅学习，注意正文三线表规范与研究设计严谨度！`,
               timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-              _timeMs: 3
+              _timeMs: Date.now()
             };
             logs.push(reviewingWelcome);
             this.sendSingleChatMessage(reviewingWelcome, 'stage2');
@@ -11015,7 +11016,7 @@
             senderName: '中间委员 · 裁决引导',
             text: `🟡 【中间委员开场】：各位研究者，欢迎来到【阶段三：答辩擂台】！初稿撰写完毕，答辩委员会已就位，接下来将由正方委员与反方委员分别发表评审意见！`,
             timestamp: now,
-            _timeMs: 4
+            _timeMs: Date.now()
           };
           logs.unshift(neutralWelcome);
           this.sendSingleChatMessage(neutralWelcome, 'stage3');

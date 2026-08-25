@@ -843,26 +843,26 @@ export function renderPresencePills(editorId, state) {
   const pillsContainer = document.getElementById(`${editorId}-presence-pills`);
   if (!pillsContainer) return;
   const membersList = Object.values(state.members || {});
-  const currentUserCode = state.currentUser || 'A';
   const currUserObj = (window.app && window.app.authManager) ? window.app.authManager.getCurrentUser() : null;
+  const currentUid = currUserObj ? String(currUserObj.id || currUserObj.studentCode || '').trim() : (state.currentUser || '');
   const presence = state.presence || {};
-  const now = Date.now();
-
+  const serverNow = (state && state.serverTimestamp) ? Number(state.serverTimestamp) : Date.now();
   const allUsers = (window.app && window.app.authManager) ? window.app.authManager.getUsers() : [];
 
   const newHtml = membersList.map(m => {
-    // 全方位检索组员心跳数据 (支持纯数字学号与字符串学号精准命中)
-    const p = presence[m.studentCode] || presence[String(m.studentCode)] || presence[m.id] || presence[String(m.id)] || presence[m.student_code] || presence[m.realStudentCode] || (m.name && presence[m.name]) || (m.username && presence[m.username]);
-    const isSelf = m.studentCode === currentUserCode || m.id === currentUserCode || (currUserObj && (m.id === currUserObj.id || m.studentCode === currUserObj.studentCode || m.name === currUserObj.name || m.username === currUserObj.username));
+    const uid = String(m.id || m.studentCode || m.userId || '').trim();
+    // 统一以成员主键 id 查找在线心跳
+    const p = presence[uid] || presence[m.id] || presence[m.studentCode] || (m.name && presence[m.name]);
+    const isSelf = (uid && uid === currentUid) || (m.studentCode && m.studentCode === currentUid) || (m.id && m.id === currentUid);
     
-    // 🛡️ 稳健在线判定：180秒内有心跳即视为在线
+    // 🛡️ 稳健在线判定：基于服务器权威时间戳计算相对时间差，彻底免疫本地与服务器的时钟偏差
     const pTime = p ? (p.lastSeen || p.updatedAt || 0) : 0;
-    const timeDiff = pTime > 0 ? Math.abs(now - pTime) : 999999;
+    const timeDiff = pTime > 0 ? Math.abs(serverNow - pTime) : 999999;
     const isOnline = isSelf || (p && timeDiff < 180000);
     const sectionText = isSelf ? ' (我)' : (isOnline ? ' (在线)' : ' (离线)');
     const color = m.color || '#2563eb';
-    let displayName = m.name || m.studentCode;
-    const matchedUser = allUsers.find(u => (m.realStudentCode && u.studentCode === m.realStudentCode) || (m.studentCode && u.studentCode === m.studentCode) || (m.id && u.id === m.id) || (m.username && u.username === m.username));
+    let displayName = m.name || m.studentCode || uid;
+    const matchedUser = allUsers.find(u => (u.id && u.id === uid) || (u.studentCode && u.studentCode === uid) || (u.username && u.username === uid));
     if (matchedUser && matchedUser.name) displayName = matchedUser.name;
 
     return `
