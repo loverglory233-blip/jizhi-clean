@@ -2519,6 +2519,7 @@
 
       // 🛡️ 教师重置功能已废除，纯净同步阶段协作数据，绝对不误踢正在协作的学生
       this._hasInitialPullCompleted = true;
+      this.isInitialPullDone = true;
 
       if (remoteData.timestamp || remoteData.serverTimestamp) {
         this.app.state.serverTimestamp = Number(remoteData.serverTimestamp || remoteData.timestamp);
@@ -8619,24 +8620,25 @@
     if (!stream) return;
 
     const currentUser = state.currentUser;
-    // 🌟 根据全组实际解锁推进的最大阶段（groupMaxStage）展示研讨历史：
-    // 若全组已推进到阶段二或阶段三，即便学生回头切换查看阶段一公约，右侧研讨区依然完整保留并展示全流程所有聊天记录！
-    const unlockedStage = state.groupMaxStage || state.currentStage || 'stage1';
-    let visibleStages = ['stage1'];
-    if (unlockedStage === 'stage2') visibleStages = ['stage1', 'stage2'];
-    else if (unlockedStage === 'stage3') visibleStages = ['stage1', 'stage2', 'stage3'];
+    const currentStage = state.currentStage || 'stage1';
+    const unlockedStage = state.groupMaxStage || currentStage;
+    const stageOrder = ['stage1', 'stage2', 'stage3'];
+    const maxIdx = Math.max(stageOrder.indexOf(currentStage), stageOrder.indexOf(unlockedStage), 0);
+    const visibleStages = stageOrder.slice(0, maxIdx + 1);
 
     // Collect all visible messages in order, auto-purging old legacy idle spam
     const allMsgs = [];
     visibleStages.forEach(stg => {
-      if (state.chatLogs && state.chatLogs[stg]) {
+      if (state.chatLogs && Array.isArray(state.chatLogs[stg])) {
         state.chatLogs[stg].forEach(msg => {
+          if (!msg) return;
           const txt = msg.text || '';
           if (txt.includes('已连续') || txt.includes('互动督促') || txt.includes('秒未研讨') || txt.includes('秒没有发言')) return;
           allMsgs.push(msg);
         });
       }
     });
+    allMsgs.sort((a, b) => (Number(a._timeMs || 0) - Number(b._timeMs || 0)));
 
     // 智能滚动：如果用户正在往上拉浏览历史记录，保持当前视角不被强行打断拉回底部
     const isAtBottom = (stream.scrollHeight - stream.scrollTop - stream.clientHeight) < 90;
