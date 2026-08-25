@@ -2281,7 +2281,7 @@
 
       const currentUser = this.app.authManager ? this.app.authManager.getCurrentUser() : null;
       const userKey = currentUser ? (currentUser.studentCode || currentUser.username || currentUser.id) : '';
-      const sessToken = currentUser ? (currentUser.sessionToken || currentUser.token || '') : '';
+      const sessToken = currentUser ? (currentUser.activeSessionId || currentUser.token || currentUser.sessionToken || '') : '';
       const lastRev = this._lastKnownRevisionId || 0;
       const lastChatMs = this._getLastChatTimeMs();
       const metaVer = this._lastKnownMetaVer || 0;

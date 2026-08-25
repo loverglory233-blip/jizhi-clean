@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState } from './constants.js?v=20260825_v517';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin } from './utils.js?v=20260825_v517';
+import { InitialState } from './constants.js?v=20260825_v518';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin } from './utils.js?v=20260825_v518';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -149,7 +149,7 @@ export class CloudSyncEngine {
 
     const currentUser = this.app.authManager ? this.app.authManager.getCurrentUser() : null;
     const userKey = currentUser ? (currentUser.studentCode || currentUser.username || currentUser.id) : '';
-    const sessToken = currentUser ? (currentUser.sessionToken || currentUser.token || '') : '';
+    const sessToken = currentUser ? (currentUser.activeSessionId || currentUser.token || currentUser.sessionToken || '') : '';
     const lastRev = this._lastKnownRevisionId || 0;
     const lastChatMs = this._getLastChatTimeMs();
     const metaVer = this._lastKnownMetaVer || 0;
