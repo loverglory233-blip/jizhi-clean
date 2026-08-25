@@ -3069,8 +3069,8 @@
     highlightRole();
 
     accountInput.addEventListener('input', (e) => {
-      const val = (e.target.value || '').trim();
-      if (val === '1001' || val.toLowerCase() === 'teacher' || val.toLowerCase() === 'admin') {
+      const val = (e.target.value || '').trim().toLowerCase();
+      if (val === 'teacher' || val === 'admin') {
         const teacherRadio = container.querySelector('input[name="login-role"][value="teacher"]');
         if (teacherRadio) {
           teacherRadio.checked = true;
