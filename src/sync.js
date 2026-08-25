@@ -388,6 +388,10 @@ export class CloudSyncEngine {
     // 🛡️ 教师重置功能已废除，纯净同步阶段协作数据，绝对不误踢正在协作的学生
     this._hasInitialPullCompleted = true;
 
+    if (remoteData.timestamp || remoteData.serverTimestamp) {
+      this.app.state.serverTimestamp = Number(remoteData.serverTimestamp || remoteData.timestamp);
+    }
+
     if (remoteData.presence) {
       let incomingPr = {};
       if (typeof remoteData.presence === 'object' && !Array.isArray(remoteData.presence)) {

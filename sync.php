@@ -2292,6 +2292,7 @@ if ($pdo) {
 
         $respData = [
             'timestamp'        => $lastTs,
+            'serverTimestamp'  => $nowMs,
             'revisionId'       => $lastRev,
             'groupId'          => $row['group_id'],
             'taskId'           => $row['task_id'],
@@ -2346,7 +2347,8 @@ if ($pdo) {
         }
 
         echo json_encode([
-            'timestamp'        => 0,
+            'timestamp'        => $nowMs,
+            'serverTimestamp'  => $nowMs,
             'revisionId'       => 0,
             'groupId'          => $groupId,
             'taskId'           => $taskId,

@@ -1112,17 +1112,14 @@ export class AuthManager {
         if (seen.has(studentCode)) return;
         seen.add(studentCode);
 
-        const letterCode = String.fromCharCode(65 + (seen.size - 1));
         membersObj[studentCode] = {
           id: studentCode,
           userId: u.id || studentCode,
           name: u.name || `学生${seen.size}`,
-          roleTitle: (u.role === 'leader' || idx === 0 || u.roleTitle?.includes('组长') || studentCode === 'A') ? '组长 · 论文结构' : `组员 · 合作撰写`,
+          roleTitle: (u.role === 'leader' || idx === 0 || u.roleTitle?.includes('组长')) ? '组长 · 论文结构' : `组员 · 合作撰写`,
           avatar: u.avatar || avatars[(seen.size - 1) % avatars.length],
           color: colors[(seen.size - 1) % colors.length],
           studentCode: studentCode,
-          realStudentCode: studentCode,
-          letterCode: letterCode,
           groupId: groupId,
           classId: u.classId || (targetGrp ? targetGrp.classId : 'class_101')
         };

@@ -2277,7 +2277,7 @@ export class App {
           senderName: '学术拍卖师',
           text: `🎪 【拍卖师开场】：欢迎来到【阶段一：学术拍卖会】！我是本阶段的选题顾问拍卖师。\n请全组成员点击左侧【提交我的选题】提出各自的研究构想，并在研讨区充分交流。我们将通过拍卖投票遴选最佳提案，并在下方《学术合作公约》中商定分工与时间分配！`,
           timestamp: now,
-          _timeMs: 1
+          _timeMs: Date.now()
         };
         logs.unshift(welcomeMsg);
         this.sendSingleChatMessage(welcomeMsg, 'stage1');
@@ -2316,7 +2316,7 @@ export class App {
           senderName: '责任编辑 · 过程学伴',
           text: `🤝 【责任编辑开场】：欢迎来到【阶段二：学术编辑部】！我是过程学伴责任编辑。\n全组已锁定研究主题《${topic}》。\n\n📜 【阶段一公约执行与协同提醒】\n• 基础分工: ${assignSummary.join(' | ') || '全员协作'}\n• 规划时间: ${timeSummary.join(' / ') || '按需推进'}\n\n💡 **真正的协同不仅是分工起草，更要主动研读同伴写下的段落，在研讨区互评互修、打通前后逻辑！**请大家进入左侧编辑器开启深度协作！`,
           timestamp: now,
-          _timeMs: 2
+          _timeMs: Date.now()
         };
         logs.unshift(managingWelcome);
         this.sendSingleChatMessage(managingWelcome, 'stage2');
@@ -2329,7 +2329,7 @@ export class App {
             senderName: '审稿编辑 · 质量把关',
             text: `📝 【审稿编辑提醒】：为辅助各位高效产出高质量学术论文，已为本组匹配并推送了《课程学术参考范文库》！请大家点击上方【📚 查阅参考范文】查阅学习，注意正文三线表规范与研究设计严谨度！`,
             timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-            _timeMs: 3
+            _timeMs: Date.now()
           };
           logs.push(reviewingWelcome);
           this.sendSingleChatMessage(reviewingWelcome, 'stage2');
@@ -2349,7 +2349,7 @@ export class App {
           senderName: '中间委员 · 裁决引导',
           text: `🟡 【中间委员开场】：各位研究者，欢迎来到【阶段三：答辩擂台】！初稿撰写完毕，答辩委员会已就位，接下来将由正方委员与反方委员分别发表评审意见！`,
           timestamp: now,
-          _timeMs: 4
+          _timeMs: Date.now()
         };
         logs.unshift(neutralWelcome);
         this.sendSingleChatMessage(neutralWelcome, 'stage3');
