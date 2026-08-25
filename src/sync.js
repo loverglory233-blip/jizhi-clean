@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState } from './constants.js?v=20260825_v510';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin } from './utils.js?v=20260825_v510';
+import { InitialState } from './constants.js?v=20260825_v511';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin } from './utils.js?v=20260825_v511';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -847,17 +847,23 @@ export class CloudSyncEngine {
     this.app.renderPresenceCursors();
 
     // 👨‍🏫 教师端实时同屏刷新 (当教师正在监控该小组时，实时同屏反映最新进度)
-    const isTeacher = user && (user.isTeacher || user.role === 'teacher');
-    if (isTeacher) {
-      const appContainer = document.getElementById('app');
-      if (appContainer && this.app.state.teacherActiveTab === 'view_monitoring' && typeof renderTeacherPortal === 'function') {
-        const layout = appContainer.querySelector('.teacher-portal-layout');
-        if (layout) this.app.state._teacherScrollTop = layout.scrollTop;
-        renderTeacherPortal(appContainer, this.app.authManager, this.app.state, () => this.app.handleLogout(), () => {});
-      }
-    }
+    // 🛡️ 本地快照极速持久化：确保下次 F5 刷新时 0 毫秒秒级呈现已有全部协作数据
+    try {
+      const snapCache = {
+        taskId: this.taskId,
+        groupId: myGroupId,
+        chatLogs: this.app.state.chatLogs,
+        stage1: this.app.state.stage1,
+        stage2: this.app.state.stage2,
+        stage3: this.app.state.stage3,
+        currentStage: this.app.state.currentStage,
+        groupMaxStage: this.app.state.groupMaxStage,
+        isFinalSubmitted: this.app.state.isFinalSubmitted
+      };
+      localStorage.setItem(this.storageKey, JSON.stringify(snapCache));
+    } catch (e) {}
 
-    if (needWorkspaceRender && user?.role === 'student' && this.app.state.studentViewMode === 'workspace') {
+    if ((isFirstPull || needWorkspaceRender) && user?.role === 'student' && this.app.state.studentViewMode === 'workspace') {
       const activeEl = document.activeElement;
       const isTypingInWorkspace = activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA') && (document.getElementById('canvas-panel')?.contains(activeEl) || document.querySelector('.contract-card')?.contains(activeEl));
       if (!isTypingInWorkspace) {
