@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState } from './constants.js?v=20260825_v502';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin } from './utils.js?v=20260825_v502';
+import { InitialState } from './constants.js?v=20260825_v503';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin } from './utils.js?v=20260825_v503';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -495,6 +495,9 @@ export class CloudSyncEngine {
         }
       });
       if (typeof window.renderChat === 'function') window.renderChat(this.app.state);
+      if (this.app && typeof this.app.triggerStageWelcomeSpeech === 'function') {
+        this.app.triggerStageWelcomeSpeech(this.app.state.currentStage || 'stage1');
+      }
     }
 
     // 🔒 渲染阶段一合约与阶段三答辩的字段级排他聚焦锁
