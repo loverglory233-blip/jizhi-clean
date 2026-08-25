@@ -136,7 +136,7 @@ fi
 
 echo "======================================================"
 echo "🎉 全系统更新与校验完成！"
-echo "📌 当前全局版本号: 20260825_v510"
+echo "📌 当前全局版本号: 20260825_v511"
 
 # 🔍 探测 9001 端口服务状态
 if lsof -i:9001 >/dev/null 2>&1 || netstat -tuln 2>/dev/null | grep -q ":9001 " || ss -tuln 2>/dev/null | grep -q ":9001 " || curl -s -I --connect-timeout 2 http://127.0.0.1:9001/ >/dev/null 2>&1; then
@@ -147,8 +147,8 @@ fi
 
 for dir in "${TARGET_DIRS[@]}"; do
   echo "🔍 校验目录: $dir"
-  if grep -q "20260825_v510" "$dir/index.html" 2>/dev/null; then
-    echo "   ✅ 版本戳已同步: 20260825_v510"
+  if grep -q "20260825_v511" "$dir/index.html" 2>/dev/null; then
+    echo "   ✅ 版本戳已同步: 20260825_v511"
   else
     echo "   ⚠️ 版本戳异常，请检查网络"
   fi
