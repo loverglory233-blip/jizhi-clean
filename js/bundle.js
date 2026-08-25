@@ -2281,6 +2281,7 @@
 
       const currentUser = this.app.authManager ? this.app.authManager.getCurrentUser() : null;
       const userKey = currentUser ? (currentUser.studentCode || currentUser.username || currentUser.id) : '';
+      const sessToken = currentUser ? (currentUser.sessionToken || currentUser.token || '') : '';
       const lastRev = this._lastKnownRevisionId || 0;
       const lastChatMs = this._getLastChatTimeMs();
       const metaVer = this._lastKnownMetaVer || 0;
@@ -2308,8 +2309,12 @@
                 return;
               }
             }
-          } catch (e) {}
+          } catch (err) {
+            console.warn('[SyncEngine] Pull endpoint warning:', err);
+          }
         }
+      } catch (err) {
+        console.error('[SyncEngine] pullFromServer fatal error:', err);
       } finally {
         this.isPulling = false;
       }

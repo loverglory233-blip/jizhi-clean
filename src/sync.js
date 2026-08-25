@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState } from './constants.js?v=20260825_v516';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin } from './utils.js?v=20260825_v516';
+import { InitialState } from './constants.js?v=20260825_v517';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin } from './utils.js?v=20260825_v517';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -149,6 +149,7 @@ export class CloudSyncEngine {
 
     const currentUser = this.app.authManager ? this.app.authManager.getCurrentUser() : null;
     const userKey = currentUser ? (currentUser.studentCode || currentUser.username || currentUser.id) : '';
+    const sessToken = currentUser ? (currentUser.sessionToken || currentUser.token || '') : '';
     const lastRev = this._lastKnownRevisionId || 0;
     const lastChatMs = this._getLastChatTimeMs();
     const metaVer = this._lastKnownMetaVer || 0;
@@ -176,8 +177,12 @@ export class CloudSyncEngine {
               return;
             }
           }
-        } catch (e) {}
+        } catch (err) {
+          console.warn('[SyncEngine] Pull endpoint warning:', err);
+        }
       }
+    } catch (err) {
+      console.error('[SyncEngine] pullFromServer fatal error:', err);
     } finally {
       this.isPulling = false;
     }
