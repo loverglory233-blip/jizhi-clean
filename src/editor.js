@@ -855,9 +855,9 @@ export function renderPresencePills(editorId, state) {
     const p = presence[m.studentCode] || presence[m.id] || presence[m.student_code] || presence[m.realStudentCode] || (m.name && presence[m.name]) || (m.username && presence[m.username]);
     const isSelf = m.studentCode === currentUserCode || m.id === currentUserCode || (currUserObj && (m.id === currUserObj.id || m.studentCode === currUserObj.studentCode || m.name === currUserObj.name || m.username === currUserObj.username));
     
-    // 🛡️ 稳健在线判定：免疫客户端系统时间正负偏差，90秒内有心跳即视为在线
+    // 🛡️ 稳健在线判定：180秒内有心跳即视为在线（与聊天区口径一致；后台标签页心跳被浏览器节流至约1分钟，90秒窗口会误判在线成员为离线）
     const timeDiff = p ? Math.abs(now - (p.updatedAt || 0)) : 999999;
-    const isOnline = isSelf || (p && timeDiff < 90000);
+    const isOnline = isSelf || (p && timeDiff < 180000);
     const sectionText = isSelf ? ' (我)' : (isOnline ? ' (在线)' : ' (离线)');
     const color = m.color || '#2563eb';
     let displayName = m.name || m.studentCode;
@@ -1017,7 +1017,7 @@ function renderStage1Canvas(canvas, state, handlers) {
           
           <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
             <!-- 模块 1 -->
-            <div style="background:#ffffff; border:1px solid #e2e8f0; border-left:3.5px solid #2563eb; border-radius:8px; padding:12px 14px; display:flex; justify-content:space-between; align-items:center;">
+            <div style="background:#ffffff; border:1px solid #e2e8f0; border-left:3.5px solid #2563eb; border-radius:8px; padding:12px 14px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap;">
               <span style="font-weight:800; color:#1e40af; font-size:13.5px;">一、研究背景与意义</span>
               <label style="font-size:12px; color:#475569; display:flex; align-items:center; gap:4px;">
                 用时: <input type="number" class="contract-time-input" data-key="background" data-lock-key="time_background" value="${s1.contract.timeAllocations.background !== undefined ? s1.contract.timeAllocations.background : 25}" ${isContractLocked ? 'disabled readonly style="opacity:0.8; cursor:not-allowed;"' : ''} style="width:48px; padding:3px 4px; border:1px solid #cbd5e1; border-radius:4px; text-align:center; font-weight:700;"> 分钟
@@ -1025,7 +1025,7 @@ function renderStage1Canvas(canvas, state, handlers) {
             </div>
 
             <!-- 模块 2 -->
-            <div style="background:#ffffff; border:1px solid #e2e8f0; border-left:3.5px solid #0284c7; border-radius:8px; padding:12px 14px; display:flex; justify-content:space-between; align-items:center;">
+            <div style="background:#ffffff; border:1px solid #e2e8f0; border-left:3.5px solid #0284c7; border-radius:8px; padding:12px 14px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap;">
               <span style="font-weight:800; color:#0369a1; font-size:13.5px;">二、文献综述</span>
               <label style="font-size:12px; color:#475569; display:flex; align-items:center; gap:4px;">
                 用时: <input type="number" class="contract-time-input" data-key="literature" data-lock-key="time_literature" value="${s1.contract.timeAllocations.literature !== undefined ? s1.contract.timeAllocations.literature : 30}" ${isContractLocked ? 'disabled readonly style="opacity:0.8; cursor:not-allowed;"' : ''} style="width:48px; padding:3px 4px; border:1px solid #cbd5e1; border-radius:4px; text-align:center; font-weight:700;"> 分钟
@@ -1033,7 +1033,7 @@ function renderStage1Canvas(canvas, state, handlers) {
             </div>
 
             <!-- 模块 3 -->
-            <div style="background:#ffffff; border:1px solid #e2e8f0; border-left:3.5px solid #059669; border-radius:8px; padding:12px 14px; display:flex; justify-content:space-between; align-items:center;">
+            <div style="background:#ffffff; border:1px solid #e2e8f0; border-left:3.5px solid #059669; border-radius:8px; padding:12px 14px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap;">
               <span style="font-weight:800; color:#065f46; font-size:13.5px;">三、研究问题与假设</span>
               <label style="font-size:12px; color:#475569; display:flex; align-items:center; gap:4px;">
                 用时: <input type="number" class="contract-time-input" data-key="questions" data-lock-key="time_questions" value="${s1.contract.timeAllocations.questions !== undefined ? s1.contract.timeAllocations.questions : 25}" ${isContractLocked ? 'disabled readonly style="opacity:0.8; cursor:not-allowed;"' : ''} style="width:48px; padding:3px 4px; border:1px solid #cbd5e1; border-radius:4px; text-align:center; font-weight:700;"> 分钟
@@ -1041,7 +1041,7 @@ function renderStage1Canvas(canvas, state, handlers) {
             </div>
 
             <!-- 模块 4 -->
-            <div style="background:#ffffff; border:1px solid #e2e8f0; border-left:3.5px solid #7c3aed; border-radius:8px; padding:12px 14px; display:flex; justify-content:space-between; align-items:center;">
+            <div style="background:#ffffff; border:1px solid #e2e8f0; border-left:3.5px solid #7c3aed; border-radius:8px; padding:12px 14px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap;">
               <span style="font-weight:800; color:#6d28d9; font-size:13.5px;">四、研究设计与方法</span>
               <label style="font-size:12px; color:#475569; display:flex; align-items:center; gap:4px;">
                 用时: <input type="number" class="contract-time-input" data-key="method" data-lock-key="time_method" value="${s1.contract.timeAllocations.method !== undefined ? s1.contract.timeAllocations.method : 40}" ${isContractLocked ? 'disabled readonly style="opacity:0.8; cursor:not-allowed;"' : ''} style="width:48px; padding:3px 4px; border:1px solid #cbd5e1; border-radius:4px; text-align:center; font-weight:700;"> 分钟
@@ -1049,7 +1049,7 @@ function renderStage1Canvas(canvas, state, handlers) {
             </div>
 
             <!-- 模块 5 -->
-            <div style="background:#ffffff; border:1px solid #e2e8f0; border-left:3.5px solid #d97706; border-radius:8px; padding:12px 14px; display:flex; justify-content:space-between; align-items:center;">
+            <div style="background:#ffffff; border:1px solid #e2e8f0; border-left:3.5px solid #d97706; border-radius:8px; padding:12px 14px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap;">
               <span style="font-weight:800; color:#b45309; font-size:13.5px;">五、研究设计的不足与反思</span>
               <label style="font-size:12px; color:#475569; display:flex; align-items:center; gap:4px;">
                 用时: <input type="number" class="contract-time-input" data-key="reflection" data-lock-key="time_reflection" value="${s1.contract.timeAllocations.reflection !== undefined ? s1.contract.timeAllocations.reflection : 20}" ${isContractLocked ? 'disabled readonly style="opacity:0.8; cursor:not-allowed;"' : ''} style="width:48px; padding:3px 4px; border:1px solid #cbd5e1; border-radius:4px; text-align:center; font-weight:700;"> 分钟
@@ -1057,7 +1057,7 @@ function renderStage1Canvas(canvas, state, handlers) {
             </div>
 
             <!-- 模块 6 -->
-            <div style="background:#ffffff; border:1px solid #e2e8f0; border-left:3.5px solid #475569; border-radius:8px; padding:12px 14px; display:flex; justify-content:space-between; align-items:center;">
+            <div style="background:#ffffff; border:1px solid #e2e8f0; border-left:3.5px solid #475569; border-radius:8px; padding:12px 14px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap;">
               <span style="font-weight:800; color:#334155; font-size:13.5px;">六、参考文献</span>
               <label style="font-size:12px; color:#475569; display:flex; align-items:center; gap:4px;">
                 用时: <input type="number" class="contract-time-input" data-key="references" data-lock-key="time_references" value="${s1.contract.timeAllocations.references !== undefined ? s1.contract.timeAllocations.references : 10}" ${isContractLocked ? 'disabled readonly style="opacity:0.8; cursor:not-allowed;"' : ''} style="width:48px; padding:3px 4px; border:1px solid #cbd5e1; border-radius:4px; text-align:center; font-weight:700;"> 分钟
@@ -1208,7 +1208,7 @@ function renderStage1Canvas(canvas, state, handlers) {
 
         const memObj = memberArr.find(m => m && (m.id === currentUser || m.studentCode === currentUser || m.realStudentCode === currentUser || m.username === currentUser || m.name === currentUser));
         const authorName = memObj ? memObj.name : (currentUser || '组员');
-        const totalMembersCount = memberArr.length > 0 ? memberArr.length : 3;
+        const totalMembersCount = memberArr.length > 0 ? memberArr.length : 0;
         const submittedAuthorsCount = new Set((s1.proposals || []).map(p => p.author || p.authorName)).size;
 
         const submitNoticeMsg = {
@@ -1247,12 +1247,12 @@ function renderStage1Canvas(canvas, state, handlers) {
         setTimeout(async () => {
           const isModify = existingIdx >= 0;
           const evalPrompt = isModify
-            ? `小组成员【${authorName}】在学术拍卖会上修改了选题提案，最新题目为《${title}》。请作为资深学术拍卖师，通读其学科场景与研究构想，给出 120~160 字充实针对性的学术点评：必须先明确肯定该提案最出彩的 1~2 个具体优点，再顺势提出 1 个具体的启发性落地建议（严禁空泛套话，纯自然语言输出）！`
-            : `小组成员【${authorName}】在学术拍卖会上提交了新选题提案《${title}》。请作为资深学术拍卖师，通读其学科场景与研究构想，给出 120~160 字充实针对性的学术点评：必须先明确肯定该提案最出彩的 1~2 个具体优点，再顺势提出 1 个具体的启发性落地建议（严禁空泛套话，纯自然语言输出）！`;
+            ? `小组成员【${authorName}】在学术拍卖会上修改了选题提案，最新题目为《${title}》。请作为资深学术拍卖师，通读其学科场景与研究构想，给出 120~150 字充实针对性的学术点评：若提案内容充实，先明确肯定其最出彩的 1~2 个具体优点，再顺势提出 1 个具体启发性落地建议；若提案仅有无意义字符、重复堆砌或过于空泛（无法体现研究问题/方法设想/预期价值），严禁盲目肯定，应如实指出「内容还需再充实」并引导补充至少一个具体的研究问题或方法设想（严禁空泛套话，纯自然语言输出）！`
+            : `小组成员【${authorName}】在学术拍卖会上提交了新选题提案《${title}》。请作为资深学术拍卖师，通读其学科场景与研究构想，给出 120~150 字充实针对性的学术点评：若提案内容充实，先明确肯定其最出彩的 1~2 个具体优点，再顺势提出 1 个具体启发性落地建议；若提案仅有无意义字符、重复堆砌或过于空泛（无法体现研究问题/方法设想/预期价值），严禁盲目肯定，应如实指出「内容还需再充实」并引导补充至少一个具体的研究问题或方法设想（严禁空泛套话，纯自然语言输出）！`;
           
           let evalText = await callCozeAgentAPI('auctioneer', evalPrompt, { stage: 'stage1', proposalTitle: title, author: authorName, topic: title });
           if (!evalText || evalText.trim().length === 0) {
-            evalText = `🎪 【拍卖师·提案评估】：收到 ${authorName} 提出的选题《${title}》！该构想切中要害，最大的亮点在于抓准了核心教学与实践痛点，切入视角鲜明！建议后续在研究设计中进一步明确具体的实证环节与变量测量方案，这样在接下来的竞拍讨论中会更具说服力！`;
+            evalText = `⚠️ 【拍卖师提示】：大模型提案评估生成超时或网络稍有延迟，可稍后在讨论区发送"@拍卖师 请评估选题《${title}》"重新获取。`;
           }
 
           const auctioneerEvalMsg = {
@@ -1264,37 +1264,7 @@ function renderStage1Canvas(canvas, state, handlers) {
           };
           state.chatLogs[currentStage].push(auctioneerEvalMsg);
 
-          // 2. 当全员提案已集齐时（例如 3/3），调用智能体主动号召“先充分讨论对比方案，再进行竞拍投票”
-          if (totalMembersCount >= 2 && submittedAuthorsCount >= totalMembersCount && !s1._agentGatherPrompted) {
-            s1._agentGatherPrompted = true;
-            setTimeout(async () => {
-              const allSubmittedList = (s1.proposals || []).map((p, idx) => {
-                const authorP = memberArr.find(m => m && (m.id === p.author || m.studentCode === p.author || m.name === p.authorName));
-                return `${idx + 1}. 《${p.title}》(${authorP ? authorP.name : (p.authorName || p.author)})`;
-              }).join('\n');
-              const gatherContextPrompt = `全组成员的选题提案已全部提交完毕！全员提案清单如下：\n${allSubmittedList}\n请作为学术拍卖师发表 120~150 字的【全员提案集齐·号召先讨论后投票】：\n① 热情呈现全员提案清单，肯定大家活跃的研究视角；\n② 明确引导全组【先不要急于盲目投票】，先在右侧协同对话区充分交流研讨各个提案的研究看点与实施亮点；\n③ 指引大家在研讨达成初步意向后，再点击左侧【🗳️ 投这篇】进行竞拍投票！`;
-
-              let gatherText = await callCozeAgentAPI('auctioneer', gatherContextPrompt, { stage: 'stage1', allProposals: allSubmittedList });
-              if (!gatherText || gatherText.trim().length === 0) {
-                gatherText = `🎪 【拍卖师·全员提案已集齐·研讨号召】\n全组 ${totalMembersCount} 位成员的选题提案已全部呈现：\n${allSubmittedList}\n\n👉 **请大家先不要急于投票**！请先在右侧协同对话区商讨交流各个方案的研究看点与实施思路；\n💬 **在充分研讨达成初步共识后，再点击左侧【🗳️ 投这篇】进行竞拍投票**！`;
-              }
-
-              const votePromptMsg = {
-                sender: 'auctioneer',
-                senderName: '头脑风暴 · 学术拍卖师',
-                text: gatherText,
-                timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                _timeMs: Date.now()
-              };
-              state.chatLogs[currentStage].push(votePromptMsg);
-              if (window.app) {
-                window.app.syncChatLogs();
-                if (window.app.cloudSyncEngine) window.app.cloudSyncEngine.pushSnapshot();
-                renderChat(state);
-              }
-            }, 800);
-          }
-
+          // （已移除 AI 版「全员提案集齐·号召先讨论后投票」：该固定流程话术已由上方写死消息承接，避免重复刷屏）
           if (window.app) {
             window.app.syncChatLogs();
             if (window.app.cloudSyncEngine) window.app.cloudSyncEngine.pushSnapshot();
@@ -1659,7 +1629,7 @@ function renderStage2Canvas(canvas, state, handlers) {
           const padName = `jizhi_${activeTaskId}_${userGroupId}`;
           const currUserName = (currUser && (currUser.name || currUser.username)) || '组员';
           const currUserColor = (state.members && state.members[currUserCode]?.color) || '#2563eb';
-          const padUrl = `/p/${padName}?userName=${encodeURIComponent(currUserName)}&userColor=${encodeURIComponent(currUserColor)}&noColors=true&showChat=false&showLineNumbers=true&showControls=true`;
+          const padUrl = `/p/${padName}?userName=${encodeURIComponent(currUserName)}&userColor=${encodeURIComponent(currUserColor)}&showChat=false&showLineNumbers=true&showControls=true`;
           
           return `
             <div class="word-editor-container" style="display:flex; flex-direction:column; height:100%; min-height:480px; border-radius:10px; overflow:hidden; border:1px solid #cbd5e1; box-shadow:0 4px 16px rgba(15,23,42,0.06); background:#ffffff;">

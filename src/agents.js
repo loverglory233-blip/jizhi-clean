@@ -9,11 +9,10 @@ export async function callCozeAgentAPI(botKey, userQuery, currentContext = {}) {
   const profile = AgentProfiles[botKey];
   const botId = profile && profile.cozeBotId ? profile.cozeBotId : '7673571806476828713';
   
-  // 构建针对当前写作阶段的提示词上下文
+  // 构建针对当前写作阶段的提示词上下文（正文草稿由后端 coze_prompt.php 统一从 actual_doc 拼入，前端不再重复切片，避免正文被嵌两次）
   let enrichedQuery = userQuery;
-  const docSnippet = currentContext.actualDoc ? `\n【小组当前正文真实草稿（字数：${currentContext.actualDoc.length}）】：\n${currentContext.actualDoc.slice(0, 1200)}` : '';
   if (currentContext.stage) {
-    enrichedQuery = `【协作写作阶段: ${currentContext.stage === 'stage1' ? '阶段一 (选题与公约)' : currentContext.stage === 'stage2' ? '阶段二 (正文撰写)' : '阶段三 (答辩与质询)'}】\n【课题: ${currentContext.topic || '未定'}】${docSnippet}\n【用户对话/审阅指令】: ${userQuery}`;
+    enrichedQuery = `【协作写作阶段: ${currentContext.stage === 'stage1' ? '阶段一 (选题与公约)' : currentContext.stage === 'stage2' ? '阶段二 (正文撰写)' : '阶段三 (答辩与质询)'}】\n【课题: ${currentContext.topic || '未定'}】\n【用户对话/审阅指令】: ${userQuery}`;
   }
 
   // 🛡️ 会话凭证：从当前登录态读取 userId + session token，供服务端鉴权扣子代理
@@ -54,7 +53,7 @@ export async function callCozeAgentAPI(botKey, userQuery, currentContext = {}) {
         const chatId = data.chat_id;
         const convId = data.conversation_id;
         const targetBotId = data.bot_id || botId;
-        const maxRetries = 30; // 阶梯敏捷轮询：最长容忍 ~15 秒黄金响应区间，绝不让学生长时间干等！
+        const maxRetries = 45; // 阶梯敏捷轮询：前 10 次 300ms 极速响应，其后 600ms 平稳等待，最长容忍 ~24 秒（给上课高峰并发排队留余量）
         for (let p = 0; p < maxRetries; p++) {
           const pollInterval = p < 10 ? 300 : 600;
           await new Promise(r => setTimeout(r, pollInterval));

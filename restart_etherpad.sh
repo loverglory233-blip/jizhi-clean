@@ -29,7 +29,7 @@ fi
 
 # 2. 启动 Etherpad
 echo "🚀 正在拉起 Etherpad 守护进程..."
-nohup node src/node/server.js > /var/log/etherpad.log 2>&1 &
+NODE_OPTIONS="--max-old-space-size=768" nohup node src/node/server.js > /var/log/etherpad.log 2>&1 &
 sleep 4
 
 # 4. 校验 9001 端口响应
