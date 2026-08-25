@@ -2323,16 +2323,24 @@ if ($pdo) {
         $prRaw   = (!empty($row['presence_data']) && strlen($row['presence_data']) < 50000) ? $row['presence_data'] : '{}';
         $memRaw  = !empty($row['members_data']) ? $row['members_data'] : '[]';
 
+        // 🛡️ 教学资源与文献版本戳（教师发布新范文/通知时版本号递增，学生秒级自动感知并拉取，其余时间 0 冗余）
+        $stmtVer = $pdo->prepare("SELECT meta_value FROM global_meta WHERE meta_key = 'main_meta_version'");
+        $stmtVer->execute();
+        $vRow = $stmtVer->fetch();
+        $metaVer = $vRow ? intval($vRow['meta_value']) : 1;
+
         // ⚡ 极速带宽瘦身：增量 Delta 轮询探测（若无新消息且业务无版本推进，仅下发 100 字节轻量心跳包，节省 99.8% 带宽）
         $clientLastRev = isset($_GET['lastRev']) ? intval($_GET['lastRev']) : 0;
         $clientLastChatMs = isset($_GET['lastChatMs']) ? intval($_GET['lastChatMs']) : 0;
-        $clientIncGlobal = isset($_GET['incGlobal']) ? intval($_GET['incGlobal']) : 1;
+        $clientMetaVer = isset($_GET['metaVer']) ? intval($_GET['metaVer']) : 0;
+        $needGlobalSync = ($clientMetaVer < $metaVer) || (isset($_GET['incGlobal']) && intval($_GET['incGlobal']) === 1);
 
-        if ($clientLastRev > 0 && $clientLastRev === $lastRev && $clientLastChatMs >= $maxChatMs && $resetSeq === 0 && $clientIncGlobal === 0) {
+        if ($clientLastRev > 0 && $clientLastRev === $lastRev && $clientLastChatMs >= $maxChatMs && $resetSeq === 0 && !$needGlobalSync) {
             echo json_encode([
                 'unchanged'       => true,
                 'serverTimestamp' => $nowMs,
                 'revisionId'      => $lastRev,
+                'metaVer'         => $metaVer,
                 'presence'        => json_decode($prRaw) ?: new stdClass(),
                 'locks'           => $activeLocks,
                 'resetSeq'        => 0
@@ -2342,7 +2350,7 @@ if ($pdo) {
 
         $globalMeta = [];
         $sanitizedUsers = [];
-        if ($clientIncGlobal === 1) {
+        if ($needGlobalSync) {
             $stmtMeta = $pdo->prepare("SELECT meta_value FROM global_meta WHERE meta_key = 'main_meta'");
             $stmtMeta->execute();
             $metaRow = $stmtMeta->fetch();
@@ -2364,6 +2372,7 @@ if ($pdo) {
             'timestamp'        => $lastTs,
             'serverTimestamp'  => $nowMs,
             'revisionId'       => $lastRev,
+            'metaVer'          => $metaVer,
             'groupId'          => $row['group_id'],
             'taskId'           => $row['task_id'],
             'currentStage'     => $row['current_stage'] ?: 'stage1',

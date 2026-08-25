@@ -2281,16 +2281,16 @@
 
       const currentUser = this.app.authManager ? this.app.authManager.getCurrentUser() : null;
       const userKey = currentUser ? (currentUser.studentCode || currentUser.username || currentUser.id) : '';
-      const sessToken = currentUser?.activeSessionId || '';
       const lastRev = this._lastKnownRevisionId || 0;
       const lastChatMs = this._getLastChatTimeMs();
+      const metaVer = this._lastKnownMetaVer || 0;
       const incGlobal = this._hasPulledGlobal ? 0 : 1;
 
       try {
         for (const endpoint of this.syncEndpoints) {
           try {
             const sep = endpoint.includes('?') ? '&' : '?';
-            const url = `${endpoint}${sep}userId=${encodeURIComponent(userKey)}&sessToken=${encodeURIComponent(sessToken)}&lastRev=${lastRev}&lastChatMs=${lastChatMs}&incGlobal=${incGlobal}&nocache=${Date.now()}`;
+            const url = `${endpoint}${sep}userId=${encodeURIComponent(userKey)}&sessToken=${encodeURIComponent(sessToken)}&lastRev=${lastRev}&lastChatMs=${lastChatMs}&metaVer=${metaVer}&incGlobal=${incGlobal}&nocache=${Date.now()}`;
             const res = await fetch(url, { cache: 'no-store' });
             if (res.ok) {
               const data = await res.json();
@@ -2516,7 +2516,11 @@
 
       if (remoteData.groupId && remoteData.groupId !== myGroupId && user?.role === 'student') return;
 
-      if (remoteData.users || remoteData.tasks) {
+      if (remoteData.metaVer !== undefined) {
+        this._lastKnownMetaVer = remoteData.metaVer;
+      }
+
+      if (remoteData.users || remoteData.tasks || remoteData.referencePapers) {
         this._hasPulledGlobal = true;
       }
 
@@ -2525,8 +2529,8 @@
         this._lastKnownRevisionId = remoteData.revisionId;
       }
 
-      // 🌐 服务端全局教务元数据同步到本地（tasks/users/classes/announcements）
-      // 这样学生端看到的任务时间、组员列表与教师端一致，不再依赖各设备本地 localStorage
+      // 🌐 服务端全局教务与文献资源同步到本地（tasks/users/classes/announcements/referencePapers）
+      // 教师一旦发布新范文或公告，学生端在任务工作台内 1~2 秒内自动无感对齐更新
       if (this.app.authManager) {
         if (Array.isArray(remoteData.tasks) && remoteData.tasks.length > 0) {
           const key = 'jizhi_pure_v10_tasks_db';
@@ -2550,6 +2554,12 @@
           const key = 'jizhi_pure_v10_ann_db';
           const localStr = localStorage.getItem(key) || '[]';
           const remoteStr = JSON.stringify(remoteData.announcements);
+          if (localStr !== remoteStr) localStorage.setItem(key, remoteStr);
+        }
+        if (Array.isArray(remoteData.referencePapers)) {
+          const key = 'jizhi_pure_v10_ref_papers_db';
+          const localStr = localStorage.getItem(key) || '[]';
+          const remoteStr = JSON.stringify(remoteData.referencePapers);
           if (localStr !== remoteStr) localStorage.setItem(key, remoteStr);
         }
       }
