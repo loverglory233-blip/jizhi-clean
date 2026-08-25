@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles } from "./constants.js?v=20260825_v505";
-import { callCozeAgentAPI } from "./agents.js?v=20260825_v505";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime } from "./utils.js?v=20260825_v505";
+import { AgentProfiles } from "./constants.js?v=20260825_v506";
+import { callCozeAgentAPI } from "./agents.js?v=20260825_v506";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime } from "./utils.js?v=20260825_v506";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -2193,11 +2193,46 @@ export function renderChat(state) {
   stream.querySelectorAll('.chat-attached-img').forEach(img => {
     img.onclick = (e) => {
       e.stopPropagation();
-      if (img.src && !img.src.startsWith('data:')) {
+      document.querySelectorAll('.img-preview-lightbox').forEach(el => el.remove());
+
+      const box = document.createElement('div');
+      box.className = 'img-preview-lightbox';
+      box.style.cssText = 'position:fixed; inset:0; background:rgba(15,23,42,0.85); backdrop-filter:blur(8px); display:flex; flex-direction:column; align-items:center; justify-content:center; z-index:99999; animation:modalFadeIn 0.2s ease;';
+
+      box.innerHTML = `
+        <div style="position:absolute; top:20px; right:24px; display:flex; gap:10px; z-index:100000;" onclick="event.stopPropagation()">
+          <button id="btn-lightbox-open-tab" style="background:#ffffff; color:#1e293b; border:none; padding:8px 14px; border-radius:8px; font-size:12.5px; font-weight:700; cursor:pointer; box-shadow:0 4px 12px rgba(0,0,0,0.15); display:flex; align-items:center; gap:6px;">
+            🔗 在新标签页打开
+          </button>
+          <a id="btn-lightbox-download" href="${img.src}" download="jizhi_chat_img_${Date.now()}" style="background:#2563eb; color:#ffffff; border:none; padding:8px 14px; border-radius:8px; font-size:12.5px; font-weight:700; text-decoration:none; box-shadow:0 4px 12px rgba(37,99,235,0.3); display:flex; align-items:center; gap:6px;">
+            💾 下载原图
+          </a>
+          <button id="btn-lightbox-close" style="background:#475569; color:#ffffff; border:none; width:34px; height:34px; border-radius:50%; font-size:16px; font-weight:700; cursor:pointer; display:flex; align-items:center; justify-content:center;">
+            ✕
+          </button>
+        </div>
+        <div style="max-width:90vw; max-height:85vh; display:flex; align-items:center; justify-content:center; cursor:default;" onclick="event.stopPropagation()">
+          <img src="${img.src}" style="max-width:90vw; max-height:85vh; object-fit:contain; border-radius:10px; box-shadow:0 20px 40px rgba(0,0,0,0.5); border:1.5px solid rgba(255,255,255,0.2);">
+        </div>
+        <div style="margin-top:14px; font-size:12px; color:#94a3b8; letter-spacing:0.5px;">按 Esc 或点击任意空白处关闭</div>
+      `;
+
+      const closeBox = () => {
+        box.remove();
+        document.removeEventListener('keydown', handleKey);
+      };
+
+      const handleKey = (ev) => {
+        if (ev.key === 'Escape') closeBox();
+      };
+
+      box.onclick = closeBox;
+      box.querySelector('#btn-lightbox-close')?.addEventListener('click', closeBox);
+      box.querySelector('#btn-lightbox-open-tab')?.addEventListener('click', () => {
         window.open(img.src, '_blank');
-      } else {
-        window.open(img.src, '_blank');
-      }
+      });
+      document.addEventListener('keydown', handleKey);
+      document.body.appendChild(box);
     };
   });
 }
