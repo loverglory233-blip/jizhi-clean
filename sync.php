@@ -4,8 +4,49 @@
  * 支持 MySQL 数据库自动建表、数据行级持久化、单设备会话互斥与 OAuth 智能体中转
  */
 
-ini_set('memory_limit', '512M');
+ini_set('memory_limit', '256M');
 header('Content-Type: application/json; charset=utf-8');
+
+// 🛠️ 智能 Base64 图片文件化清洗迁移器（无损提取为物理文件并回写极短 URL，彻底杜绝内存撑爆与数据截断）
+function migrateBase64StringToUrl($rawContent, $pdo = null, $scopeKey = '', $colName = '') {
+    if (empty($rawContent) || !is_string($rawContent) || strpos($rawContent, 'data:image/') === false) {
+        return $rawContent;
+    }
+    $uploadDir = __DIR__ . '/uploads/';
+    if (!is_dir($uploadDir)) @mkdir($uploadDir, 0755, true);
+
+    $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? "https" : "http";
+    $host = $_SERVER['HTTP_HOST'] ?? 'localhost';
+    $baseDir = rtrim(dirname($_SERVER['SCRIPT_NAME']), '/\\');
+    $baseUrl = $protocol . '://' . $host . $baseDir . '/uploads/';
+
+    $hasReplaced = false;
+    $cleaned = preg_replace_callback('/data:image\/([a-zA-Z0-9]+);base64,([a-zA-Z0-9\+\/=\r\n]+)/', function($matches) use ($uploadDir, $baseUrl, &$hasReplaced) {
+        $ext = strtolower($matches[1]);
+        if ($ext === 'jpeg') $ext = 'jpg';
+        if (!in_array($ext, ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg'])) $ext = 'png';
+        
+        $base64Data = str_replace(["\r", "\n", ' '], '', $matches[2]);
+        $binData = base64_decode($base64Data);
+        if (!$binData) return $matches[0];
+        
+        $fileName = 'migrated_' . substr(md5($binData), 0, 16) . '.' . $ext;
+        $destPath = $uploadDir . $fileName;
+        if (!file_exists($destPath)) {
+            @file_put_contents($destPath, $binData);
+        }
+        $hasReplaced = true;
+        return $baseUrl . $fileName;
+    }, $rawContent);
+
+    if ($hasReplaced && $pdo && !empty($scopeKey) && !empty($colName)) {
+        try {
+            $stmtUp = $pdo->prepare("UPDATE group_states SET `{$colName}` = :val WHERE scope_key = :sk");
+            $stmtUp->execute([':val' => $cleaned, ':sk' => $scopeKey]);
+        } catch (\Exception $e) {}
+    }
+    return $cleaned;
+}
 header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With');
@@ -2296,11 +2337,11 @@ if ($pdo) {
             }
         }
 
-        $stg1Raw = (!empty($row['stage1_data']) && strlen($row['stage1_data']) < 2000000) ? $row['stage1_data'] : '{}';
-        $stg2Raw = (!empty($row['stage2_data']) && strlen($row['stage2_data']) < 5000000) ? $row['stage2_data'] : '{}';
-        $stg3Raw = (!empty($row['stage3_data']) && strlen($row['stage3_data']) < 2000000) ? $row['stage3_data'] : '{}';
+        $stg1Raw = migrateBase64StringToUrl($row['stage1_data'] ?? '', $pdo, $scopeKey, 'stage1_data');
+        $stg2Raw = migrateBase64StringToUrl($row['stage2_data'] ?? '', $pdo, $scopeKey, 'stage2_data');
+        $stg3Raw = migrateBase64StringToUrl($row['stage3_data'] ?? '', $pdo, $scopeKey, 'stage3_data');
         $prRaw   = (!empty($row['presence_data']) && strlen($row['presence_data']) < 50000) ? $row['presence_data'] : '{}';
-        $memRaw  = (!empty($row['members_data']) && strlen($row['members_data']) < 50000) ? $row['members_data'] : '[]';
+        $memRaw  = !empty($row['members_data']) ? $row['members_data'] : '[]';
 
         $respData = [
             'timestamp'        => $lastTs,
@@ -2309,9 +2350,9 @@ if ($pdo) {
             'groupId'          => $row['group_id'],
             'taskId'           => $row['task_id'],
             'currentStage'     => $row['current_stage'] ?: 'stage1',
-            'stage1'           => json_decode($stg1Raw, true) ?: [],
-            'stage2'           => json_decode($stg2Raw, true) ?: [],
-            'stage3'           => json_decode($stg3Raw, true) ?: [],
+            'stage1'           => !empty($stg1Raw) ? (json_decode($stg1Raw, true) ?: []) : [],
+            'stage2'           => !empty($stg2Raw) ? (json_decode($stg2Raw, true) ?: []) : [],
+            'stage3'           => !empty($stg3Raw) ? (json_decode($stg3Raw, true) ?: []) : [],
             'presence'         => json_decode($prRaw) ?: new stdClass(),
             'members'          => json_decode($memRaw, true) ?: [],
             'isFinalSubmitted' => (bool)$row['is_final_submitted'],

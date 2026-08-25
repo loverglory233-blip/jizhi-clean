@@ -7076,7 +7076,7 @@
       const btnClearFormat = container.querySelector(`#${editorId}-btn-clear-format`);
       if (btnClearFormat) btnClearFormat.addEventListener('click', () => exec('removeFormat'));
 
-      // 插件 1: 插入图表与学术图题
+      // 插件 1: 插入图表与学术图题 (纯净 HTTP 文件直传 uploads/，彻底杜绝 Base64 嵌入)
       const btnInsertImg = container.querySelector(`#${editorId}-btn-insert-image`);
       if (btnInsertImg) {
         btnInsertImg.addEventListener('click', () => {
@@ -7086,20 +7086,37 @@
           fileInput.onchange = (e) => {
             if (e.target.files && e.target.files[0]) {
               const file = e.target.files[0];
-              const reader = new FileReader();
-              reader.onload = (ev) => {
-                const imgData = ev.target.result;
-                const caption = prompt('请输入学术图题说明 (例如: 图 1: 研究模型与变量关系架构图):', '图 1: 研究模型与变量关系架构图');
+              const currentUser = this.authManager ? this.authManager.getCurrentUser() : null;
+              const studentCode = currentUser ? (currentUser.studentCode || currentUser.id || 'A') : 'A';
+              const caption = prompt('请输入学术图题说明 (例如: 图 1: 研究模型与变量关系架构图):', '图 1: 研究模型与变量关系架构图');
+
+              const fd = new FormData();
+              fd.append('file', file);
+              fd.append('userId', studentCode);
+
+              fetch('sync.php?action=upload_file', {
+                method: 'POST',
+                body: fd
+              })
+              .then(res => res.json())
+              .then(resData => {
+                const finalUrl = (resData && resData.url) ? resData.url : '';
+                if (!finalUrl) {
+                  alert('图片上传失败，请检查网络后重试');
+                  return;
+                }
                 const figureHtml = `
-                  <div class="academic-figure" contenteditable="false">
-                    <img src="${imgData}" alt="${escapeHtml(caption || '学术图表')}" style="max-width:85%; border:1px solid #cbd5e1; border-radius:4px; box-shadow:0 2px 8px rgba(0,0,0,0.1);">
+                  <div class="academic-figure" contenteditable="false" style="text-align:center; margin:16px 0;">
+                    <img src="${finalUrl}" alt="${escapeHtml(caption || '学术图表')}" style="max-width:85%; border:1px solid #cbd5e1; border-radius:6px; box-shadow:0 2px 8px rgba(0,0,0,0.1); cursor:pointer;" onclick="window.open(this.src, '_blank')">
                     <p class="figure-caption" style="font-weight:700; color:#334155; margin-top:6px; font-size:13px; text-indent:0;">${escapeHtml(caption || '图 1: 学术模型与实证架构图')}</p>
                   </div>
                   <p><br></p>
                 `;
                 exec('insertHTML', figureHtml);
-              };
-              reader.readAsDataURL(file);
+              })
+              .catch(err => {
+                alert('图表上传网络异常，请重试');
+              });
             }
           };
           fileInput.click();
