@@ -1256,6 +1256,52 @@ if ($action === 'save_global_meta' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 // 🚀 顺滑无感版本自增（以最新版本号自增更新，杜绝阻断性 409 弹窗）
                 $newVersion = $currentVersion + 1;
 
+                // 🛡️ 关键修复：合并保留服务器端已有公告的「已读状态 / 确认成员」，杜绝过期客户端快照反向冲刷学生的已读确认
+                // （否则教师端任何一次整块 save_global_meta 都会把学生刚确认的通知已读状态抹掉 → 通知反复弹窗 → 请求风暴）
+                try {
+                    $stmtExAnn = $pdo->prepare("SELECT meta_value FROM global_meta WHERE meta_key = 'main_meta'");
+                    $stmtExAnn->execute();
+                    $exAnnRow = $stmtExAnn->fetch();
+                    if ($exAnnRow && !empty($exAnnRow['meta_value'])) {
+                        $exAnnMeta = json_decode($exAnnRow['meta_value'], true);
+                        $exAnnMap = [];
+                        if (is_array($exAnnMeta) && isset($exAnnMeta['announcements']) && is_array($exAnnMeta['announcements'])) {
+                            foreach ($exAnnMeta['announcements'] as $ea) {
+                                if (is_array($ea) && isset($ea['id'])) $exAnnMap[$ea['id']] = $ea;
+                            }
+                        }
+                        if (!empty($exAnnMap) && isset($cleanDecoded['announcements']) && is_array($cleanDecoded['announcements'])) {
+                            foreach ($cleanDecoded['announcements'] as &$annIn) {
+                                if (!is_array($annIn) || !isset($annIn['id'])) continue;
+                                $eid = $annIn['id'];
+                                if (!isset($exAnnMap[$eid])) continue;
+                                $ea = $exAnnMap[$eid];
+                                // 已读标记只增不减：服务器已有状态优先，客户端过期快照补缺即可
+                                $annIn['readStatus'] = array_replace(
+                                    (isset($ea['readStatus']) && is_array($ea['readStatus'])) ? $ea['readStatus'] : [],
+                                    (isset($annIn['readStatus']) && is_array($annIn['readStatus'])) ? $annIn['readStatus'] : []
+                                );
+                                $annIn['readGroupStatus'] = array_replace(
+                                    (isset($ea['readGroupStatus']) && is_array($ea['readGroupStatus'])) ? $ea['readGroupStatus'] : [],
+                                    (isset($annIn['readGroupStatus']) && is_array($annIn['readGroupStatus'])) ? $annIn['readGroupStatus'] : []
+                                );
+                                // 确认成员按 id/studentCode/name 去重合并，服务器已有优先
+                                $confMap = [];
+                                $eaConf = (isset($ea['confirmedMembers']) && is_array($ea['confirmedMembers'])) ? $ea['confirmedMembers'] : [];
+                                $inConf = (isset($annIn['confirmedMembers']) && is_array($annIn['confirmedMembers'])) ? $annIn['confirmedMembers'] : [];
+                                foreach (array_merge($eaConf, $inConf) as $cm) {
+                                    if (!is_array($cm)) continue;
+                                    $k = (isset($cm['id']) && $cm['id']) ? $cm['id'] : ((isset($cm['studentCode']) && $cm['studentCode']) ? $cm['studentCode'] : (isset($cm['name']) ? $cm['name'] : ''));
+                                    if ($k !== '') $confMap[$k] = $cm;
+                                }
+                                $annIn['confirmedMembers'] = array_values($confMap);
+                            }
+                            unset($annIn);
+                            $cleanJson = json_encode($cleanDecoded, JSON_UNESCAPED_UNICODE);
+                        }
+                    }
+                } catch (Exception $e) {}
+
                 $stmt = $pdo->prepare("INSERT INTO global_meta (meta_key, meta_value) VALUES ('main_meta', :val) ON DUPLICATE KEY UPDATE meta_value = :val2");
                 $stmt->execute([':val' => $cleanJson, ':val2' => $cleanJson]);
 

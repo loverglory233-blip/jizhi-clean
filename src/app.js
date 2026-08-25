@@ -13,7 +13,7 @@ import {
 } from "./constants.js?v=20260823_v231";
 import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired } from "./utils.js?v=20260823_v231";
 import { callCozeAgentAPI } from "./agents.js?v=20260825_v251";
-import { AuthManager } from "./auth.js?v=20260824_v238";
+import { AuthManager } from "./auth.js?v=20260825_v253";
 import { CloudSyncEngine } from "./sync.js?v=20260825_v251";
 import { renderLoginView } from "./login.js?v=20260823_v231";
 import { renderTeacherPortal } from "./teacher.js?v=20260825_v250";
@@ -2258,7 +2258,7 @@ export class App {
 
     // 🎪 阶段一：拍卖师欢迎开场白
     if (stage === 'stage1') {
-      const hasAuctioneerIntro = logs.some(m => m && m.sender === 'auctioneer' && (m.text?.includes('欢迎来到【阶段一：学术拍卖会】') || m.text?.includes('拍卖师开场')));
+      const hasAuctioneerIntro = localStorage.getItem(welcomeFlagKey) === '1' || logs.some(m => m && m.sender === 'auctioneer' && (m.text?.includes('欢迎来到【阶段一：学术拍卖会】') || m.text?.includes('拍卖师开场')));
       if (!hasAuctioneerIntro) {
         const welcomeMsg = {
           sender: 'auctioneer',
@@ -2267,6 +2267,7 @@ export class App {
           _timeMs: Date.now()
         };
         logs.unshift(welcomeMsg);
+        try { localStorage.setItem(welcomeFlagKey, '1'); } catch (e) {}
         this.syncChatLogs();
         if (typeof window.renderChat === 'function') window.renderChat(this.state);
       }
