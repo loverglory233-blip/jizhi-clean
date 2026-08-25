@@ -8820,8 +8820,6 @@
       (async () => {
         try {
           await this.authManager.pullGlobalMeta();
-          this.loadGroupState(currentGroupId);
-          this.renderMain();
           if (this.cloudSyncEngine) {
             this.cloudSyncEngine.updateScopeKeys();
             this.cloudSyncEngine.pullFromServer();
@@ -8847,9 +8845,15 @@
       } catch (e) {}
 
       if (cached) {
-        if (cached.chatLogs) this.state.chatLogs = cached.chatLogs;
-        if (cached.stage1) this.state.stage1 = cached.stage1;
-        if (cached.stage2) this.state.stage2 = cached.stage2;
+        if (cached.chatLogs && (!this.state.chatLogs || (this.state.chatLogs.stage1?.length === 0 && this.state.chatLogs.stage2?.length === 0))) {
+          this.state.chatLogs = cached.chatLogs;
+        }
+        if (cached.stage1 && (!this.state.stage1 || this.state.stage1.proposals?.length === 0)) {
+          this.state.stage1 = cached.stage1;
+        }
+        if (cached.stage2 && (!this.state.stage2 || !this.state.stage2.unifiedContent)) {
+          this.state.stage2 = cached.stage2;
+        }
         if (cached.stage3) this.state.stage3 = cached.stage3;
         if (cached.currentStage) {
           this.state.groupMaxStage = cached.currentStage;
@@ -8857,12 +8861,12 @@
         }
         if (cached.isFinalSubmitted !== undefined) this.state.isFinalSubmitted = cached.isFinalSubmitted;
       } else {
-        this.state.chatLogs = { stage1: [], stage2: [], stage3: [] };
-        this.state.stage1 = JSON.parse(JSON.stringify(defaultState.stage1));
-        this.state.stage2 = JSON.parse(JSON.stringify(defaultState.stage2));
-        this.state.stage3 = JSON.parse(JSON.stringify(defaultState.stage3));
-        this.state.currentStage = 'stage1';
-        this.state.isFinalSubmitted = false;
+        if (!this.state.chatLogs) this.state.chatLogs = { stage1: [], stage2: [], stage3: [] };
+        if (!this.state.stage1) this.state.stage1 = JSON.parse(JSON.stringify(defaultState.stage1));
+        if (!this.state.stage2) this.state.stage2 = JSON.parse(JSON.stringify(defaultState.stage2));
+        if (!this.state.stage3) this.state.stage3 = JSON.parse(JSON.stringify(defaultState.stage3));
+        if (!this.state.currentStage) this.state.currentStage = 'stage1';
+        if (this.state.isFinalSubmitted === undefined) this.state.isFinalSubmitted = false;
       }
 
       // 立即触发云端全量拉取最新真实数据 (必须重置 isInitialPullDone，杜绝本地空数据反向冲刷服务器)
@@ -9365,7 +9369,6 @@
         const effectiveClassId = this.state.activeStudentClassId || currentUser?.classId || 'class_101';
         const activeGroupObj = this.authManager.getStudentActiveGroup(currentUser, effectiveClassId);
         const currentGroupId = activeGroupObj.id || (currentUser && currentUser.groupId ? currentUser.groupId : 'group_1');
-        this.loadGroupState(currentGroupId);
 
         if (this.state.studentViewMode === 'task_list') {
           appEl.className = 'app-student-portal-mode';
