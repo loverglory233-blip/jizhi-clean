@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260823_v231";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired } from "./utils.js?v=20260823_v231";
-import { callCozeAgentAPI } from "./agents.js?v=20260825_v251";
-import { AuthManager } from "./auth.js?v=20260825_v253";
-import { CloudSyncEngine } from "./sync.js?v=20260825_v251";
-import { renderLoginView } from "./login.js?v=20260823_v231";
-import { renderTeacherPortal } from "./teacher.js?v=20260825_v250";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260823_v231";
+} from "./constants.js?v=20260825_v500";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired } from "./utils.js?v=20260825_v500";
+import { callCozeAgentAPI } from "./agents.js?v=20260825_v500";
+import { AuthManager } from "./auth.js?v=20260825_v500";
+import { CloudSyncEngine } from "./sync.js?v=20260825_v500";
+import { renderLoginView } from "./login.js?v=20260825_v500";
+import { renderTeacherPortal } from "./teacher.js?v=20260825_v500";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260825_v500";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260825_v251";
+} from "./editor.js?v=20260825_v500";
 
 // Make renderChat available on window for sync callbacks
 if (typeof window !== "undefined") {
@@ -250,6 +250,34 @@ export class App {
     // 彻底废除 LocalStorage 冗余脏备份，状态完全由内存状态机和云端 MySQL 统一权威托管
   }
 
+  // 💬 精准单条发信入库方法（确保任何来源的消息 100% 毫秒级写入 MySQL chat_messages 实体表）
+  sendSingleChatMessage(msg, stage = null) {
+    if (!msg) return;
+    const groupId = this.getEffectiveGroupId();
+    const taskId = this.state.activeTaskId || 'task_default';
+    const targetStage = stage || this.state.currentStage || 'stage1';
+
+    const payload = {
+      id: msg.id || ('msg_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6)),
+      groupId: groupId,
+      taskId: taskId,
+      stage: targetStage,
+      sender: msg.sender,
+      senderName: msg.senderName || '',
+      text: msg.text,
+      timestamp: msg.timestamp || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      _timeMs: msg._timeMs || Date.now()
+    };
+
+    try {
+      fetch(`sync.php?action=send_chat&groupId=${encodeURIComponent(groupId)}&taskId=${encodeURIComponent(taskId)}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      }).catch(() => {});
+    } catch (e) {}
+  }
+
   syncChatLogs() {
     const groupId = this.getEffectiveGroupId();
     const taskId = this.state.activeTaskId || 'task_default';
@@ -258,23 +286,7 @@ export class App {
     const latestMsg = logs[logs.length - 1];
 
     if (latestMsg) {
-      try {
-        fetch(`sync.php?action=send_chat&groupId=${encodeURIComponent(groupId)}&taskId=${encodeURIComponent(taskId)}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            id: latestMsg.id,
-            groupId: groupId,
-            taskId: taskId,
-            stage: stage,
-            sender: latestMsg.sender,
-            senderName: latestMsg.senderName || '',
-            text: latestMsg.text,
-            timestamp: latestMsg.timestamp,
-            _timeMs: latestMsg._timeMs || Date.now()
-          })
-        }).catch(() => {});
-      } catch (e) {}
+      this.sendSingleChatMessage(latestMsg, stage);
     }
   }
 
@@ -352,7 +364,7 @@ export class App {
   }
 
   initGlobalPresenceHeartbeat() {
-    // 🌿 实时轻量在线心跳：每 8 秒自动刷新当前在线时间戳并广播，无论输出还是发呆均能精准感知
+    // 🌿 实时轻量在线心跳：每 8 秒自动刷新当前在线时间戳，走专属 presence_ping 物理隔离
     setInterval(() => {
       const currentUser = this.authManager ? this.authManager.getCurrentUser() : null;
       if (currentUser && currentUser.role === 'student' && this.state.studentViewMode === 'workspace') {
@@ -361,11 +373,10 @@ export class App {
         const now = Date.now();
 
         myKeys.forEach(k => {
-          // 仅维护「在线/离线」时间戳：不再细分「在线协作中/思考研读中」，避免误判与歧义
           this.state.presence[k] = { lastSeen: now, updatedAt: now };
         });
         this.renderPresenceCursors();
-        if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+        if (this.cloudSyncEngine) this.cloudSyncEngine.sendPresencePing(currentUser);
       }
     }, 8000);
   }
@@ -2258,17 +2269,18 @@ export class App {
 
     // 🎪 阶段一：拍卖师欢迎开场白
     if (stage === 'stage1') {
-      const hasAuctioneerIntro = localStorage.getItem(welcomeFlagKey) === '1' || logs.some(m => m && m.sender === 'auctioneer' && (m.text?.includes('欢迎来到【阶段一：学术拍卖会】') || m.text?.includes('拍卖师开场')));
+      const hasAuctioneerIntro = logs.some(m => m && m.sender === 'auctioneer' && (m.text?.includes('欢迎来到【阶段一：学术拍卖会】') || m.text?.includes('拍卖师开场')));
       if (!hasAuctioneerIntro) {
         const welcomeMsg = {
+          id: `msg_welcome_${taskId}_${groupId}_stage1`,
           sender: 'auctioneer',
+          senderName: '学术拍卖师',
           text: `🎪 【拍卖师开场】：欢迎来到【阶段一：学术拍卖会】！我是本阶段的选题顾问拍卖师。\n请全组成员点击左侧【提交我的选题】提出各自的研究构想，并在研讨区充分交流。我们将通过拍卖投票遴选最佳提案，并在下方《学术合作公约》中商定分工与时间分配！`,
           timestamp: now,
-          _timeMs: Date.now()
+          _timeMs: 1
         };
         logs.unshift(welcomeMsg);
-        try { localStorage.setItem(welcomeFlagKey, '1'); } catch (e) {}
-        this.syncChatLogs();
+        this.sendSingleChatMessage(welcomeMsg, 'stage1');
         if (typeof window.renderChat === 'function') window.renderChat(this.state);
       }
     }
@@ -2299,26 +2311,28 @@ export class App {
         if (times.references) timeSummary.push(`文献表 ${times.references}m`);
 
         const managingWelcome = {
+          id: `msg_welcome_${taskId}_${groupId}_stage2_managing`,
           sender: 'managingEditor',
           senderName: '责任编辑 · 过程学伴',
           text: `🤝 【责任编辑开场】：欢迎来到【阶段二：学术编辑部】！我是过程学伴责任编辑。\n全组已锁定研究主题《${topic}》。\n\n📜 【阶段一公约执行与协同提醒】\n• 基础分工: ${assignSummary.join(' | ') || '全员协作'}\n• 规划时间: ${timeSummary.join(' / ') || '按需推进'}\n\n💡 **真正的协同不仅是分工起草，更要主动研读同伴写下的段落，在研讨区互评互修、打通前后逻辑！**请大家进入左侧编辑器开启深度协作！`,
           timestamp: now,
-          _timeMs: Date.now()
+          _timeMs: 2
         };
         logs.unshift(managingWelcome);
-        this.syncChatLogs();
+        this.sendSingleChatMessage(managingWelcome, 'stage2');
         if (typeof window.renderChat === 'function') window.renderChat(this.state);
 
         setTimeout(() => {
           const reviewingWelcome = {
+            id: `msg_welcome_${taskId}_${groupId}_stage2_reviewing`,
             sender: 'reviewingEditor',
             senderName: '审稿编辑 · 质量把关',
             text: `📝 【审稿编辑提醒】：为辅助各位高效产出高质量学术论文，已为本组匹配并推送了《课程学术参考范文库》！请大家点击上方【📚 查阅参考范文】查阅学习，注意正文三线表规范与研究设计严谨度！`,
             timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-            _timeMs: Date.now()
+            _timeMs: 3
           };
           logs.push(reviewingWelcome);
-          this.syncChatLogs();
+          this.sendSingleChatMessage(reviewingWelcome, 'stage2');
           if (typeof window.renderChat === 'function') window.renderChat(this.state);
         }, 3200);
       }
@@ -2326,19 +2340,20 @@ export class App {
 
     // 🎓 阶段三：严格按时序：① 中间委员开场 ➔ ② 正方肯定 ➔ ③ 反方质询 ➔ ④ 平台写入矩阵 ➔ ⑤ 中间委员抛题引导
     else if (stage === 'stage3') {
-      const hasNeutralIntro = logs.some(m => m.sender === 'neutral' && (m.text.includes('欢迎来到【阶段三：答辩擂台】') || m.text.includes('中间委员开场')));
-      if (!hasNeutralIntro && !this.state.stage3IntroStarted && !localStorage.getItem(welcomeFlagKey)) {
-        localStorage.setItem(welcomeFlagKey, '1');
+      const hasNeutralIntro = logs.some(m => m && m.sender === 'neutral' && (m.text?.includes('欢迎来到【阶段三：答辩擂台】') || m.text?.includes('中间委员开场')));
+      if (!hasNeutralIntro && !this.state.stage3IntroStarted) {
         this.state.stage3IntroStarted = true;
         const neutralWelcome = {
+          id: `msg_welcome_${taskId}_${groupId}_stage3_neutral`,
           sender: 'neutral',
+          senderName: '中间委员 · 裁决引导',
           text: `🟡 【中间委员开场】：各位研究者，欢迎来到【阶段三：答辩擂台】！初稿撰写完毕，答辩委员会已就位，接下来将由正方委员与反方委员分别发表评审意见！`,
           timestamp: now,
-          _timeMs: Date.now()
+          _timeMs: 4
         };
         logs.unshift(neutralWelcome);
-        this.syncChatLogs();
-        renderChat(this.state);
+        this.sendSingleChatMessage(neutralWelcome, 'stage3');
+        if (typeof window.renderChat === 'function') window.renderChat(this.state);
 
         const topic = (this.state.stage1 && this.state.stage1.mergedTitle) ? this.state.stage1.mergedTitle : '本组研究设计';
         const rawContent = (this.state.stage2 && this.state.stage2.unifiedContent) ? this.state.stage2.unifiedContent.replace(/<[^>]*>/g, '').trim() : '';

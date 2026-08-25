@@ -1575,6 +1575,63 @@ if ($action === 'send_chat' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     exit;
 }
 
+// 1e. 专属轻量在线心跳接口（物理隔离：仅更新当前用户在线时间戳，绝不触碰任何阶段协作数据与聊天）
+if ($action === 'presence_ping' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    $req = !empty($REQ_DATA) ? $REQ_DATA : (@json_decode($RAW_INPUT, true) ?: []);
+    $userKey = isset($req['userId']) ? trim($req['userId']) : (isset($req['studentCode']) ? trim($req['studentCode']) : '');
+    $nowMs = round(microtime(true) * 1000);
+
+    if (!empty($userKey) && $pdo) {
+        $stmtGet = $pdo->prepare("SELECT presence_data FROM group_states WHERE scope_key = :sk LIMIT 1");
+        $stmtGet->execute([':sk' => $scopeKey]);
+        $stRow = $stmtGet->fetch();
+        $currPresence = ($stRow && !empty($stRow['presence_data'])) ? json_decode($stRow['presence_data'], true) : [];
+        if (!is_array($currPresence)) $currPresence = [];
+
+        // 清理超过 5 分钟的陈旧心跳
+        $cleanPresence = [];
+        foreach ($currPresence as $k => $v) {
+            $lastSeen = isset($v['lastSeen']) ? intval($v['lastSeen']) : (isset($v['updatedAt']) ? intval($v['updatedAt']) : 0);
+            if ($nowMs - $lastSeen < 300000) {
+                $cleanPresence[strval($k)] = $v;
+            }
+        }
+
+        $pingPayload = [
+            'lastSeen'  => $nowMs,
+            'updatedAt' => $nowMs,
+            'name'      => isset($req['name']) ? $req['name'] : $userKey
+        ];
+        $cleanPresence[strval($userKey)] = $pingPayload;
+        if (isset($req['studentCode']) && !empty($req['studentCode'])) {
+            $cleanPresence[strval($req['studentCode'])] = $pingPayload;
+        }
+
+        $prJson = json_encode($cleanPresence, JSON_UNESCAPED_UNICODE);
+        
+        $stmtUp = $pdo->prepare("INSERT INTO group_states (scope_key, task_id, group_id, current_stage, stage1_data, stage2_data, stage3_data, presence_data, members_data, is_final_submitted, last_timestamp, revision_id)
+            VALUES (:sk, :tid, :gid, 'stage1', '{}', '{}', '{}', :pr, '[]', 0, :ts, 1)
+            ON DUPLICATE KEY UPDATE presence_data = :pr2, last_timestamp = VALUES(last_timestamp)");
+        $stmtUp->execute([
+            ':sk'  => $scopeKey,
+            ':tid' => $taskId,
+            ':gid' => $groupId,
+            ':pr'  => $prJson,
+            ':pr2' => $prJson,
+            ':ts'  => $nowMs
+        ]);
+
+        echo json_encode([
+            'success'   => true,
+            'timestamp' => $nowMs,
+            'presence'  => !empty($cleanPresence) ? (object)$cleanPresence : new stdClass()
+        ], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+    echo json_encode(['success' => true]);
+    exit;
+}
+
 if ($action === 'session_login' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $rawInput = file_get_contents('php://input');
     $req = json_decode($rawInput, true) ?: [];
@@ -1852,9 +1909,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $existingRevision = isset($stRow['revision_id']) ? intval($stRow['revision_id']) : 0;
             }
 
-            // 合并 presence
+            // 合并 presence (🛡️ 使用 array_replace 完美保留纯数字学号 Key，绝不被 PHP array_merge 重置为 0,1,2)
             $incomingPresence = (isset($data['presence']) && is_array($data['presence'])) ? $data['presence'] : [];
-            $mergedPresence = array_merge($existingPresence, $incomingPresence);
+            $mergedPresence = array_replace($existingPresence, $incomingPresence);
 
             // 合并 stage1
             $incomingS1 = (isset($data['stage1']) && is_array($data['stage1'])) ? $data['stage1'] : [];
@@ -2239,11 +2296,11 @@ if ($pdo) {
             'groupId'          => $row['group_id'],
             'taskId'           => $row['task_id'],
             'currentStage'     => $row['current_stage'],
-            'stage1'           => json_decode($row['stage1_data'], true) ?: [],
-            'stage2'           => json_decode($row['stage2_data'], true) ?: [],
-            'stage3'           => json_decode($row['stage3_data'], true) ?: [],
-            'presence'         => json_decode($row['presence_data'], true) ?: [],
-            'members'          => json_decode($row['members_data'], true) ?: [],
+            'stage1'           => !empty($row['stage1_data']) ? json_decode($row['stage1_data'], true) : [],
+            'stage2'           => !empty($row['stage2_data']) ? json_decode($row['stage2_data'], true) : [],
+            'stage3'           => !empty($row['stage3_data']) ? json_decode($row['stage3_data'], true) : [],
+            'presence'         => !empty($row['presence_data']) ? (json_decode($row['presence_data']) ?: new stdClass()) : new stdClass(),
+            'members'          => !empty($row['members_data']) ? json_decode($row['members_data'], true) : [],
             'isFinalSubmitted' => (bool)$row['is_final_submitted'],
             'chatLogs'         => $chats,
             'locks'            => $activeLocks,

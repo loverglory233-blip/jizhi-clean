@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState } from './constants.js?v=20260823_v231';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin } from './utils.js?v=20260823_v231';
+import { InitialState } from './constants.js?v=20260825_v500';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin } from './utils.js?v=20260825_v500';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -56,6 +56,38 @@ export class CloudSyncEngine {
     this.updateScopeKeys();
   }
 
+  // 🌿 独立轻量在线心跳：仅上报当前用户在线状态，物理隔离绝不触碰全量协作数据
+  async sendPresencePing(userObj = null) {
+    if (this.isLoggingOut) return;
+    this.updateScopeKeys();
+    const currentUser = userObj || (this.app.authManager ? this.app.authManager.getCurrentUser() : null);
+    if (!currentUser) return;
+    const userKey = String(currentUser.studentCode || currentUser.username || currentUser.id || '').trim();
+    if (!userKey) return;
+
+    try {
+      const url = `sync.php?action=presence_ping&taskId=${encodeURIComponent(this.taskId)}&groupId=${encodeURIComponent(this.groupId)}`;
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: userKey,
+          studentCode: currentUser.studentCode || userKey,
+          name: currentUser.name || userKey,
+          role: currentUser.role || 'student',
+          timestamp: Date.now()
+        })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data.presence && typeof data.presence === 'object') {
+          this.app.state.presence = { ...(this.app.state.presence || {}), ...data.presence };
+          this.app.renderPresenceCursors();
+        }
+      }
+    } catch (e) {}
+  }
+
   initPolling() {
     this.pullFromServer();
     // ⚡ 2 秒极速心跳轮询：无论输入、发呆还是后台，全组状态实时秒级同步
@@ -72,6 +104,20 @@ export class CloudSyncEngine {
     window.addEventListener('storage', (e) => {
       if (e.key === this.storageKey && e.newValue) {
         try { this.handleRemoteSync(JSON.parse(e.newValue)); } catch (err) {}
+      }
+    });
+
+    // 🌟 多场景感知：当切回标签页或重新获得窗口焦点时，立即发送一次心跳并静默拉取
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible' && !this.isLoggingOut) {
+        this.sendPresencePing();
+        this.pullFromServer();
+      }
+    });
+    window.addEventListener('focus', () => {
+      if (!this.isLoggingOut) {
+        this.sendPresencePing();
+        this.pullFromServer();
       }
     });
   }
@@ -124,17 +170,9 @@ export class CloudSyncEngine {
     this.updateScopeKeys();
     const groupId = this.groupId;
 
-    // 🛡️ 精准内容级防空门禁（杜绝一刀切）：
-    // 只有在【未完成初次拉取】且【当前内存完全是空的初始白板】且【不是主动重置】时才跳过，防止冷启动空页面冲刷；
-    // 如果用户已经产生了任何有效协作（打字/发消息/投票/选题/在线状态），立即 100% 毫秒级放行推送！
+    // 🛡️ 严格读优先防空门禁：只有在【已完成初次拉取】或【显式主动重置】时才允许推送全量快照，彻底杜绝冷启动空内存反向冲刷
     if (!this.isInitialPullDone && !isReset) {
-      const hasChats = Object.values(this.app.state.chatLogs || {}).some(arr => Array.isArray(arr) && arr.length > 0);
-      const hasS1 = this.app.state.stage1 && (this.app.state.stage1.selectedTopic || this.app.state.stage1.contract?.isDraftGenerated || (this.app.state.stage1.proposals && this.app.state.stage1.proposals.length > 0));
-      const hasS2 = this.app.state.stage2 && (this.app.state.stage2.unifiedContent || this.app.state.stage2.draftHtml);
-      const hasPresence = Object.keys(this.app.state.presence || {}).length > 0;
-      if (!hasChats && !hasS1 && !hasS2 && !hasPresence) {
-        return;
-      }
+      return;
     }
     const isResetVal = !!this.isResetBroadcast || isReset;
     this.isResetBroadcast = false;
@@ -351,7 +389,18 @@ export class CloudSyncEngine {
     this._hasInitialPullCompleted = true;
 
     if (remoteData.presence) {
-      this.app.state.presence = { ...(this.app.state.presence || {}), ...remoteData.presence };
+      let incomingPr = {};
+      if (typeof remoteData.presence === 'object' && !Array.isArray(remoteData.presence)) {
+        incomingPr = remoteData.presence;
+      } else if (Array.isArray(remoteData.presence)) {
+        remoteData.presence.forEach((item, idx) => {
+          if (item) {
+            const k = item.studentCode || item.userId || item.id || idx;
+            incomingPr[k] = item;
+          }
+        });
+      }
+      this.app.state.presence = { ...(this.app.state.presence || {}), ...incomingPr };
       this.app.renderPresenceCursors();
     }
 

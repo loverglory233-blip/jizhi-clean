@@ -2191,6 +2191,38 @@
       this.updateScopeKeys();
     }
 
+    // 🌿 独立轻量在线心跳：仅上报当前用户在线状态，物理隔离绝不触碰全量协作数据
+    async sendPresencePing(userObj = null) {
+      if (this.isLoggingOut) return;
+      this.updateScopeKeys();
+      const currentUser = userObj || (this.app.authManager ? this.app.authManager.getCurrentUser() : null);
+      if (!currentUser) return;
+      const userKey = String(currentUser.studentCode || currentUser.username || currentUser.id || '').trim();
+      if (!userKey) return;
+
+      try {
+        const url = `sync.php?action=presence_ping&taskId=${encodeURIComponent(this.taskId)}&groupId=${encodeURIComponent(this.groupId)}`;
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userId: userKey,
+            studentCode: currentUser.studentCode || userKey,
+            name: currentUser.name || userKey,
+            role: currentUser.role || 'student',
+            timestamp: Date.now()
+          })
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data && data.presence && typeof data.presence === 'object') {
+            this.app.state.presence = { ...(this.app.state.presence || {}), ...data.presence };
+            this.app.renderPresenceCursors();
+          }
+        }
+      } catch (e) {}
+    }
+
     initPolling() {
       this.pullFromServer();
       // ⚡ 2 秒极速心跳轮询：无论输入、发呆还是后台，全组状态实时秒级同步
@@ -2207,6 +2239,20 @@
       window.addEventListener('storage', (e) => {
         if (e.key === this.storageKey && e.newValue) {
           try { this.handleRemoteSync(JSON.parse(e.newValue)); } catch (err) {}
+        }
+      });
+
+      // 🌟 多场景感知：当切回标签页或重新获得窗口焦点时，立即发送一次心跳并静默拉取
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible' && !this.isLoggingOut) {
+          this.sendPresencePing();
+          this.pullFromServer();
+        }
+      });
+      window.addEventListener('focus', () => {
+        if (!this.isLoggingOut) {
+          this.sendPresencePing();
+          this.pullFromServer();
         }
       });
     }
@@ -2259,17 +2305,9 @@
       this.updateScopeKeys();
       const groupId = this.groupId;
 
-      // 🛡️ 精准内容级防空门禁（杜绝一刀切）：
-      // 只有在【未完成初次拉取】且【当前内存完全是空的初始白板】且【不是主动重置】时才跳过，防止冷启动空页面冲刷；
-      // 如果用户已经产生了任何有效协作（打字/发消息/投票/选题/在线状态），立即 100% 毫秒级放行推送！
+      // 🛡️ 严格读优先防空门禁：只有在【已完成初次拉取】或【显式主动重置】时才允许推送全量快照，彻底杜绝冷启动空内存反向冲刷
       if (!this.isInitialPullDone && !isReset) {
-        const hasChats = Object.values(this.app.state.chatLogs || {}).some(arr => Array.isArray(arr) && arr.length > 0);
-        const hasS1 = this.app.state.stage1 && (this.app.state.stage1.selectedTopic || this.app.state.stage1.contract?.isDraftGenerated || (this.app.state.stage1.proposals && this.app.state.stage1.proposals.length > 0));
-        const hasS2 = this.app.state.stage2 && (this.app.state.stage2.unifiedContent || this.app.state.stage2.draftHtml);
-        const hasPresence = Object.keys(this.app.state.presence || {}).length > 0;
-        if (!hasChats && !hasS1 && !hasS2 && !hasPresence) {
-          return;
-        }
+        return;
       }
       const isResetVal = !!this.isResetBroadcast || isReset;
       this.isResetBroadcast = false;
@@ -2486,7 +2524,18 @@
       this._hasInitialPullCompleted = true;
 
       if (remoteData.presence) {
-        this.app.state.presence = { ...(this.app.state.presence || {}), ...remoteData.presence };
+        let incomingPr = {};
+        if (typeof remoteData.presence === 'object' && !Array.isArray(remoteData.presence)) {
+          incomingPr = remoteData.presence;
+        } else if (Array.isArray(remoteData.presence)) {
+          remoteData.presence.forEach((item, idx) => {
+            if (item) {
+              const k = item.studentCode || item.userId || item.id || idx;
+              incomingPr[k] = item;
+            }
+          });
+        }
+        this.app.state.presence = { ...(this.app.state.presence || {}), ...incomingPr };
         this.app.renderPresenceCursors();
       }
 
@@ -7294,12 +7343,13 @@
     const allUsers = (window.app && window.app.authManager) ? window.app.authManager.getUsers() : [];
 
     const newHtml = membersList.map(m => {
-      // 全方位检索组员心跳数据
-      const p = presence[m.studentCode] || presence[m.id] || presence[m.student_code] || presence[m.realStudentCode] || (m.name && presence[m.name]) || (m.username && presence[m.username]);
+      // 全方位检索组员心跳数据 (支持纯数字学号与字符串学号精准命中)
+      const p = presence[m.studentCode] || presence[String(m.studentCode)] || presence[m.id] || presence[String(m.id)] || presence[m.student_code] || presence[m.realStudentCode] || (m.name && presence[m.name]) || (m.username && presence[m.username]);
       const isSelf = m.studentCode === currentUserCode || m.id === currentUserCode || (currUserObj && (m.id === currUserObj.id || m.studentCode === currUserObj.studentCode || m.name === currUserObj.name || m.username === currUserObj.username));
 
-      // 🛡️ 稳健在线判定：180秒内有心跳即视为在线（与聊天区口径一致；后台标签页心跳被浏览器节流至约1分钟，90秒窗口会误判在线成员为离线）
-      const timeDiff = p ? Math.abs(now - (p.updatedAt || 0)) : 999999;
+      // 🛡️ 稳健在线判定：180秒内有心跳即视为在线
+      const pTime = p ? (p.lastSeen || p.updatedAt || 0) : 0;
+      const timeDiff = pTime > 0 ? Math.abs(now - pTime) : 999999;
       const isOnline = isSelf || (p && timeDiff < 180000);
       const sectionText = isSelf ? ' (我)' : (isOnline ? ' (在线)' : ' (离线)');
       const color = m.color || '#2563eb';
@@ -8866,6 +8916,34 @@
       // 彻底废除 LocalStorage 冗余脏备份，状态完全由内存状态机和云端 MySQL 统一权威托管
     }
 
+    // 💬 精准单条发信入库方法（确保任何来源的消息 100% 毫秒级写入 MySQL chat_messages 实体表）
+    sendSingleChatMessage(msg, stage = null) {
+      if (!msg) return;
+      const groupId = this.getEffectiveGroupId();
+      const taskId = this.state.activeTaskId || 'task_default';
+      const targetStage = stage || this.state.currentStage || 'stage1';
+
+      const payload = {
+        id: msg.id || ('msg_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6)),
+        groupId: groupId,
+        taskId: taskId,
+        stage: targetStage,
+        sender: msg.sender,
+        senderName: msg.senderName || '',
+        text: msg.text,
+        timestamp: msg.timestamp || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        _timeMs: msg._timeMs || Date.now()
+      };
+
+      try {
+        fetch(`sync.php?action=send_chat&groupId=${encodeURIComponent(groupId)}&taskId=${encodeURIComponent(taskId)}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        }).catch(() => {});
+      } catch (e) {}
+    }
+
     syncChatLogs() {
       const groupId = this.getEffectiveGroupId();
       const taskId = this.state.activeTaskId || 'task_default';
@@ -8874,23 +8952,7 @@
       const latestMsg = logs[logs.length - 1];
 
       if (latestMsg) {
-        try {
-          fetch(`sync.php?action=send_chat&groupId=${encodeURIComponent(groupId)}&taskId=${encodeURIComponent(taskId)}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              id: latestMsg.id,
-              groupId: groupId,
-              taskId: taskId,
-              stage: stage,
-              sender: latestMsg.sender,
-              senderName: latestMsg.senderName || '',
-              text: latestMsg.text,
-              timestamp: latestMsg.timestamp,
-              _timeMs: latestMsg._timeMs || Date.now()
-            })
-          }).catch(() => {});
-        } catch (e) {}
+        this.sendSingleChatMessage(latestMsg, stage);
       }
     }
 
@@ -8968,7 +9030,7 @@
     }
 
     initGlobalPresenceHeartbeat() {
-      // 🌿 实时轻量在线心跳：每 8 秒自动刷新当前在线时间戳并广播，无论输出还是发呆均能精准感知
+      // 🌿 实时轻量在线心跳：每 8 秒自动刷新当前在线时间戳，走专属 presence_ping 物理隔离
       setInterval(() => {
         const currentUser = this.authManager ? this.authManager.getCurrentUser() : null;
         if (currentUser && currentUser.role === 'student' && this.state.studentViewMode === 'workspace') {
@@ -8977,11 +9039,10 @@
           const now = Date.now();
 
           myKeys.forEach(k => {
-            // 仅维护「在线/离线」时间戳：不再细分「在线协作中/思考研读中」，避免误判与歧义
             this.state.presence[k] = { lastSeen: now, updatedAt: now };
           });
           this.renderPresenceCursors();
-          if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+          if (this.cloudSyncEngine) this.cloudSyncEngine.sendPresencePing(currentUser);
         }
       }, 8000);
     }
@@ -10874,17 +10935,18 @@
 
       // 🎪 阶段一：拍卖师欢迎开场白
       if (stage === 'stage1') {
-        const hasAuctioneerIntro = localStorage.getItem(welcomeFlagKey) === '1' || logs.some(m => m && m.sender === 'auctioneer' && (m.text?.includes('欢迎来到【阶段一：学术拍卖会】') || m.text?.includes('拍卖师开场')));
+        const hasAuctioneerIntro = logs.some(m => m && m.sender === 'auctioneer' && (m.text?.includes('欢迎来到【阶段一：学术拍卖会】') || m.text?.includes('拍卖师开场')));
         if (!hasAuctioneerIntro) {
           const welcomeMsg = {
+            id: `msg_welcome_${taskId}_${groupId}_stage1`,
             sender: 'auctioneer',
+            senderName: '学术拍卖师',
             text: `🎪 【拍卖师开场】：欢迎来到【阶段一：学术拍卖会】！我是本阶段的选题顾问拍卖师。\n请全组成员点击左侧【提交我的选题】提出各自的研究构想，并在研讨区充分交流。我们将通过拍卖投票遴选最佳提案，并在下方《学术合作公约》中商定分工与时间分配！`,
             timestamp: now,
-            _timeMs: Date.now()
+            _timeMs: 1
           };
           logs.unshift(welcomeMsg);
-          try { localStorage.setItem(welcomeFlagKey, '1'); } catch (e) {}
-          this.syncChatLogs();
+          this.sendSingleChatMessage(welcomeMsg, 'stage1');
           if (typeof window.renderChat === 'function') window.renderChat(this.state);
         }
       }
@@ -10915,26 +10977,28 @@
           if (times.references) timeSummary.push(`文献表 ${times.references}m`);
 
           const managingWelcome = {
+            id: `msg_welcome_${taskId}_${groupId}_stage2_managing`,
             sender: 'managingEditor',
             senderName: '责任编辑 · 过程学伴',
             text: `🤝 【责任编辑开场】：欢迎来到【阶段二：学术编辑部】！我是过程学伴责任编辑。\n全组已锁定研究主题《${topic}》。\n\n📜 【阶段一公约执行与协同提醒】\n• 基础分工: ${assignSummary.join(' | ') || '全员协作'}\n• 规划时间: ${timeSummary.join(' / ') || '按需推进'}\n\n💡 **真正的协同不仅是分工起草，更要主动研读同伴写下的段落，在研讨区互评互修、打通前后逻辑！**请大家进入左侧编辑器开启深度协作！`,
             timestamp: now,
-            _timeMs: Date.now()
+            _timeMs: 2
           };
           logs.unshift(managingWelcome);
-          this.syncChatLogs();
+          this.sendSingleChatMessage(managingWelcome, 'stage2');
           if (typeof window.renderChat === 'function') window.renderChat(this.state);
 
           setTimeout(() => {
             const reviewingWelcome = {
+              id: `msg_welcome_${taskId}_${groupId}_stage2_reviewing`,
               sender: 'reviewingEditor',
               senderName: '审稿编辑 · 质量把关',
               text: `📝 【审稿编辑提醒】：为辅助各位高效产出高质量学术论文，已为本组匹配并推送了《课程学术参考范文库》！请大家点击上方【📚 查阅参考范文】查阅学习，注意正文三线表规范与研究设计严谨度！`,
               timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-              _timeMs: Date.now()
+              _timeMs: 3
             };
             logs.push(reviewingWelcome);
-            this.syncChatLogs();
+            this.sendSingleChatMessage(reviewingWelcome, 'stage2');
             if (typeof window.renderChat === 'function') window.renderChat(this.state);
           }, 3200);
         }
@@ -10942,19 +11006,20 @@
 
       // 🎓 阶段三：严格按时序：① 中间委员开场 ➔ ② 正方肯定 ➔ ③ 反方质询 ➔ ④ 平台写入矩阵 ➔ ⑤ 中间委员抛题引导
       else if (stage === 'stage3') {
-        const hasNeutralIntro = logs.some(m => m.sender === 'neutral' && (m.text.includes('欢迎来到【阶段三：答辩擂台】') || m.text.includes('中间委员开场')));
-        if (!hasNeutralIntro && !this.state.stage3IntroStarted && !localStorage.getItem(welcomeFlagKey)) {
-          localStorage.setItem(welcomeFlagKey, '1');
+        const hasNeutralIntro = logs.some(m => m && m.sender === 'neutral' && (m.text?.includes('欢迎来到【阶段三：答辩擂台】') || m.text?.includes('中间委员开场')));
+        if (!hasNeutralIntro && !this.state.stage3IntroStarted) {
           this.state.stage3IntroStarted = true;
           const neutralWelcome = {
+            id: `msg_welcome_${taskId}_${groupId}_stage3_neutral`,
             sender: 'neutral',
+            senderName: '中间委员 · 裁决引导',
             text: `🟡 【中间委员开场】：各位研究者，欢迎来到【阶段三：答辩擂台】！初稿撰写完毕，答辩委员会已就位，接下来将由正方委员与反方委员分别发表评审意见！`,
             timestamp: now,
-            _timeMs: Date.now()
+            _timeMs: 4
           };
           logs.unshift(neutralWelcome);
-          this.syncChatLogs();
-          renderChat(this.state);
+          this.sendSingleChatMessage(neutralWelcome, 'stage3');
+          if (typeof window.renderChat === 'function') window.renderChat(this.state);
 
           const topic = (this.state.stage1 && this.state.stage1.mergedTitle) ? this.state.stage1.mergedTitle : '本组研究设计';
           const rawContent = (this.state.stage2 && this.state.stage2.unifiedContent) ? this.state.stage2.unifiedContent.replace(/<[^>]*>/g, '').trim() : '';
