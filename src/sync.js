@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState } from './constants.js?v=20260825_v501';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin } from './utils.js?v=20260825_v501';
+import { InitialState } from './constants.js?v=20260825_v502';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin } from './utils.js?v=20260825_v502';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -408,8 +408,13 @@ export class CloudSyncEngine {
       this.app.renderPresenceCursors();
     }
 
-    if (remoteData.members) {
+    // 🛡️ 保护本组成员名单不被后端的空数组冲刷覆盖
+    if (remoteData.members && (Array.isArray(remoteData.members) ? remoteData.members.length > 0 : Object.keys(remoteData.members).length > 0)) {
       this.app.state.members = remoteData.members;
+    } else if (!this.app.state.members || (Array.isArray(this.app.state.members) ? this.app.state.members.length === 0 : Object.keys(this.app.state.members).length === 0)) {
+      if (this.app.authManager) {
+        this.app.state.members = this.app.authManager.getGroupMembersForWorkspace(this.groupId);
+      }
     }
 
     // ⚡ 天然随快照无缝更新通知与文献库，无需前端再发起任何独立请求

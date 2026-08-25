@@ -2540,8 +2540,13 @@
         this.app.renderPresenceCursors();
       }
 
-      if (remoteData.members) {
+      // 🛡️ 保护本组成员名单不被后端的空数组冲刷覆盖
+      if (remoteData.members && (Array.isArray(remoteData.members) ? remoteData.members.length > 0 : Object.keys(remoteData.members).length > 0)) {
         this.app.state.members = remoteData.members;
+      } else if (!this.app.state.members || (Array.isArray(this.app.state.members) ? this.app.state.members.length === 0 : Object.keys(this.app.state.members).length === 0)) {
+        if (this.app.authManager) {
+          this.app.state.members = this.app.authManager.getGroupMembersForWorkspace(this.groupId);
+        }
       }
 
       // ⚡ 天然随快照无缝更新通知与文献库，无需前端再发起任何独立请求
@@ -7335,7 +7340,18 @@
   function renderPresencePills(editorId, state) {
     const pillsContainer = document.getElementById(`${editorId}-presence-pills`);
     if (!pillsContainer) return;
-    const membersList = Object.values(state.members || {});
+
+    // 🛡️ 稳健自动水合：若 state.members 为空，自动从 authManager 实时加载本组成员
+    let membersObj = state.members;
+    if (!membersObj || (Array.isArray(membersObj) ? membersObj.length === 0 : Object.keys(membersObj).length === 0)) {
+      if (window.app && window.app.authManager) {
+        const activeGroup = window.app.authManager.getStudentActiveGroup(window.app.authManager.getCurrentUser(), state.activeStudentClassId);
+        const gid = activeGroup?.id || state.activeMonitorGroupId || 'group_1';
+        membersObj = window.app.authManager.getGroupMembersForWorkspace(gid);
+        state.members = membersObj;
+      }
+    }
+    const membersList = Array.isArray(membersObj) ? membersObj : Object.values(membersObj || {});
     const currUserObj = (window.app && window.app.authManager) ? window.app.authManager.getCurrentUser() : null;
     const currentUid = currUserObj ? String(currUserObj.id || currUserObj.studentCode || '').trim() : (state.currentUser || '');
     const presence = state.presence || {};
@@ -9031,8 +9047,8 @@
     }
 
     initGlobalPresenceHeartbeat() {
-      // 🌿 实时轻量在线心跳：每 8 秒自动刷新当前在线时间戳，走专属 presence_ping 物理隔离
-      setInterval(() => {
+      // 🌿 实时轻量在线心跳：每 4 秒自动刷新当前在线时间戳，走专属 presence_ping 物理隔离
+      const doPing = () => {
         const currentUser = this.authManager ? this.authManager.getCurrentUser() : null;
         if (currentUser && currentUser.role === 'student' && this.state.studentViewMode === 'workspace') {
           if (!this.state.presence) this.state.presence = {};
@@ -9045,7 +9061,9 @@
           this.renderPresenceCursors();
           if (this.cloudSyncEngine) this.cloudSyncEngine.sendPresencePing(currentUser);
         }
-      }, 8000);
+      };
+      doPing();
+      setInterval(doPing, 4000);
     }
 
     initTimer() {
@@ -9324,9 +9342,10 @@
                 }
                 if (this.cloudSyncEngine) {
                   this.cloudSyncEngine.groupId = targetGroupId;
-                  this.cloudSyncEngine.taskId = taskId || 'task_default';
+                  this.cloudSyncEngine.taskId = actualTaskId;
                   this.cloudSyncEngine.updateScopeKeys();
                   try {
+                    this.cloudSyncEngine.sendPresencePing(currentUser);
                     await this.cloudSyncEngine.pullFromServer();
                   } catch (e) {}
                 }
