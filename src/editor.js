@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles } from "./constants.js?v=20260825_v515";
-import { callCozeAgentAPI } from "./agents.js?v=20260825_v515";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime } from "./utils.js?v=20260825_v515";
+import { AgentProfiles } from "./constants.js?v=20260825_v516";
+import { callCozeAgentAPI } from "./agents.js?v=20260825_v516";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime } from "./utils.js?v=20260825_v516";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -16,9 +16,26 @@ export function renderHeader(state, currentUser, announcements, onStageChange, o
   const activeTaskId = (state && state.activeTaskId) ? state.activeTaskId : 'task_default';
   const allTasks = (window.app && window.app.authManager) ? window.app.authManager.getTasks() : [];
   const currentTask = allTasks.find(t => t.id === activeTaskId);
-  const totalDurationMin = (currentTask && currentTask.durationMinutes) ? Number(currentTask.durationMinutes) : 150;
-  const elapsedMin = Math.floor((state.timer && state.timer.elapsedSeconds ? state.timer.elapsedSeconds : 0) / 60);
-  const remainingMin = Math.max(0, totalDurationMin - elapsedMin);
+  
+  let remainingMin = 150;
+  if (currentTask) {
+    if (currentTask.deadline) {
+      const raw = String(currentTask.deadline).trim();
+      if (raw && !raw.includes('无') && !raw.includes('随时') && !raw.includes('结课前') && !raw.includes('不限')) {
+        const deadlineDate = new Date(raw.replace(/-/g, '/'));
+        if (!isNaN(deadlineDate.getTime())) {
+          const now = new Date();
+          const diffMs = deadlineDate.getTime() - now.getTime();
+          remainingMin = Math.max(0, Math.floor(diffMs / 60000));
+        }
+      }
+    } else {
+      const totalDurationMin = currentTask.durationMinutes ? Number(currentTask.durationMinutes) : 150;
+      const elapsedMin = Math.floor((state.timer && state.timer.elapsedSeconds ? state.timer.elapsedSeconds : 0) / 60);
+      remainingMin = Math.max(0, totalDurationMin - elapsedMin);
+    }
+  }
+
   const activeClassId = state.activeStudentClassId || currentUser?.classId || 'class_101';
   const activeGroupObj = (window.app && window.app.authManager) ? window.app.authManager.getStudentActiveGroup(currentUser, activeClassId) : { id: 'group_1', name: '第 1 协作小组' };
   const groupId = activeGroupObj.id || (currentUser && currentUser.groupId ? currentUser.groupId : 'group_1');
@@ -85,7 +102,7 @@ export function renderHeader(state, currentUser, announcements, onStageChange, o
         🔔 消息 ${unreadAnnCount > 0 ? `<span class="unread-count">${unreadAnnCount}</span>` : ''}
       </button>
       <div class="timer-box" style="padding:2px 10px; border-radius:14px; font-size:11.5px; font-weight:700; white-space:nowrap; background:${isTaskDeadlineExpired ? '#fef2f2' : '#eff6ff'}; color:${isTaskDeadlineExpired ? '#dc2626' : '#1d4ed8'}; border:1px solid ${isTaskDeadlineExpired ? '#fecaca' : '#bfdbfe'};">
-        ${isTaskDeadlineExpired ? '🛑 已截止' : `⏱️ ${formatDurationHuman(remainingMin, true)}`}
+        ${isTaskDeadlineExpired ? '🛑 已截止' : `⏱️ 剩余 ${formatDurationHuman(remainingMin, true)}`}
       </div>
       <button id="btn-user-logout" style="background:#fef2f2; color:#dc2626; border:1px solid #fecaca; padding:3px 8px; border-radius:14px; font-size:11px; font-weight:700; cursor:pointer;" title="退出登录">🚪 退出</button>
     </div>
@@ -2118,15 +2135,11 @@ export function renderChat(state) {
   if (!stream) return;
 
   const currentUser = state.currentUser;
-  const currentStage = state.currentStage || 'stage1';
-  const unlockedStage = state.groupMaxStage || currentStage;
-  const stageOrder = ['stage1', 'stage2', 'stage3'];
-  const maxIdx = Math.max(stageOrder.indexOf(currentStage), stageOrder.indexOf(unlockedStage), 0);
-  const visibleStages = stageOrder.slice(0, maxIdx + 1);
+  const allStages = ['stage1', 'stage2', 'stage3'];
 
-  // Collect all visible messages in order, auto-purging old legacy idle spam
+  // Collect all visible messages in order across all stages, auto-purging old legacy idle spam
   const allMsgs = [];
-  visibleStages.forEach(stg => {
+  allStages.forEach(stg => {
     if (state.chatLogs && Array.isArray(state.chatLogs[stg])) {
       state.chatLogs[stg].forEach(msg => {
         if (!msg) return;
