@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260825_v511";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired } from "./utils.js?v=20260825_v511";
-import { callCozeAgentAPI } from "./agents.js?v=20260825_v511";
-import { AuthManager } from "./auth.js?v=20260825_v511";
-import { CloudSyncEngine } from "./sync.js?v=20260825_v511";
-import { renderLoginView } from "./login.js?v=20260825_v511";
-import { renderTeacherPortal } from "./teacher.js?v=20260825_v511";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260825_v511";
+} from "./constants.js?v=20260825_v512";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired } from "./utils.js?v=20260825_v512";
+import { callCozeAgentAPI } from "./agents.js?v=20260825_v512";
+import { AuthManager } from "./auth.js?v=20260825_v512";
+import { CloudSyncEngine } from "./sync.js?v=20260825_v512";
+import { renderLoginView } from "./login.js?v=20260825_v512";
+import { renderTeacherPortal } from "./teacher.js?v=20260825_v512";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260825_v512";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260825_v511";
+} from "./editor.js?v=20260825_v512";
 
 // Make renderChat available on window for sync callbacks
 if (typeof window !== "undefined") {
@@ -76,8 +76,6 @@ export class App {
     (async () => {
       try {
         await this.authManager.pullGlobalMeta();
-        this.loadGroupState(currentGroupId);
-        this.renderMain();
         if (this.cloudSyncEngine) {
           this.cloudSyncEngine.updateScopeKeys();
           this.cloudSyncEngine.pullFromServer();
@@ -103,9 +101,15 @@ export class App {
     } catch (e) {}
 
     if (cached) {
-      if (cached.chatLogs) this.state.chatLogs = cached.chatLogs;
-      if (cached.stage1) this.state.stage1 = cached.stage1;
-      if (cached.stage2) this.state.stage2 = cached.stage2;
+      if (cached.chatLogs && (!this.state.chatLogs || (this.state.chatLogs.stage1?.length === 0 && this.state.chatLogs.stage2?.length === 0))) {
+        this.state.chatLogs = cached.chatLogs;
+      }
+      if (cached.stage1 && (!this.state.stage1 || this.state.stage1.proposals?.length === 0)) {
+        this.state.stage1 = cached.stage1;
+      }
+      if (cached.stage2 && (!this.state.stage2 || !this.state.stage2.unifiedContent)) {
+        this.state.stage2 = cached.stage2;
+      }
       if (cached.stage3) this.state.stage3 = cached.stage3;
       if (cached.currentStage) {
         this.state.groupMaxStage = cached.currentStage;
@@ -113,12 +117,12 @@ export class App {
       }
       if (cached.isFinalSubmitted !== undefined) this.state.isFinalSubmitted = cached.isFinalSubmitted;
     } else {
-      this.state.chatLogs = { stage1: [], stage2: [], stage3: [] };
-      this.state.stage1 = JSON.parse(JSON.stringify(defaultState.stage1));
-      this.state.stage2 = JSON.parse(JSON.stringify(defaultState.stage2));
-      this.state.stage3 = JSON.parse(JSON.stringify(defaultState.stage3));
-      this.state.currentStage = 'stage1';
-      this.state.isFinalSubmitted = false;
+      if (!this.state.chatLogs) this.state.chatLogs = { stage1: [], stage2: [], stage3: [] };
+      if (!this.state.stage1) this.state.stage1 = JSON.parse(JSON.stringify(defaultState.stage1));
+      if (!this.state.stage2) this.state.stage2 = JSON.parse(JSON.stringify(defaultState.stage2));
+      if (!this.state.stage3) this.state.stage3 = JSON.parse(JSON.stringify(defaultState.stage3));
+      if (!this.state.currentStage) this.state.currentStage = 'stage1';
+      if (this.state.isFinalSubmitted === undefined) this.state.isFinalSubmitted = false;
     }
 
     // 立即触发云端全量拉取最新真实数据 (必须重置 isInitialPullDone，杜绝本地空数据反向冲刷服务器)
@@ -621,7 +625,6 @@ export class App {
       const effectiveClassId = this.state.activeStudentClassId || currentUser?.classId || 'class_101';
       const activeGroupObj = this.authManager.getStudentActiveGroup(currentUser, effectiveClassId);
       const currentGroupId = activeGroupObj.id || (currentUser && currentUser.groupId ? currentUser.groupId : 'group_1');
-      this.loadGroupState(currentGroupId);
 
       if (this.state.studentViewMode === 'task_list') {
         appEl.className = 'app-student-portal-mode';
