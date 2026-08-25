@@ -17,57 +17,88 @@ TARGET_DIRS=($(printf "%s\n" "${TARGET_DIRS[@]}" | sort -u))
 
 echo "📁 目标目录: ${TARGET_DIRS[*]}"
 
-echo "⚡ [2/4] 极速下载最新代码包 (单包秒级解压)..."
+TARGET_VERSION="20260825_v515"
+
+echo "⚡ [2/4] 极速下载最新代码包 ($TARGET_VERSION)..."
 TMP=/tmp/jizhi_update
 rm -rf "$TMP" && mkdir -p "$TMP"
 
-# 🚀 优先下载完整压缩包 (只需 1 次网络请求，0 阻塞、0 卡顿)
-ZIP_FILE="/tmp/jizhi_main.zip"
-DOWNLOADED=0
-NOW_TS=$(date +%s)
-for zip_url in \
-  "https://codeload.github.com/loverglory233-blip/jizhi-clean/zip/refs/heads/main" \
-  "https://ghfast.top/https://github.com/loverglory233-blip/jizhi-clean/archive/refs/heads/main.zip?t=$NOW_TS" \
-  "https://ghproxy.net/https://github.com/loverglory233-blip/jizhi-clean/archive/refs/heads/main.zip?t=$NOW_TS"; do
-
-  curl -s -f -L --connect-timeout 6 --max-time 25 "$zip_url" -o "$ZIP_FILE" 2>/dev/null && [ -s "$ZIP_FILE" ] || continue
-
-  rm -rf /tmp/jizhi_unzip && mkdir -p /tmp/jizhi_unzip
-  python3 -c "import zipfile; zipfile.ZipFile('$ZIP_FILE').extractall('/tmp/jizhi_unzip')" 2>/dev/null || unzip -q -o "$ZIP_FILE" -d /tmp/jizhi_unzip 2>/dev/null || true
-
-  if [ -d "/tmp/jizhi_unzip/jizhi-clean-main" ]; then
-    # 🔍 校验是否为最新版（teacher.js 内部 import 应带 ?v= 版本戳），防止第三方镜像缓存旧代码
-    if grep -q "utils.js?v=" "/tmp/jizhi_unzip/jizhi-clean-main/src/teacher.js" 2>/dev/null; then
-      cp -rf /tmp/jizhi_unzip/jizhi-clean-main/* "$TMP/"
-      rm -rf /tmp/jizhi_unzip "$ZIP_FILE"
-      DOWNLOADED=1
-      echo "   ✅ 代码包下载解压完成（已校验为最新版）"
-      break
-    else
-      echo "   ⚠️ 该源返回旧版代码，已跳过，尝试下一个源..."
-      rm -rf /tmp/jizhi_unzip "$ZIP_FILE"
-    fi
-  else
-    rm -rf /tmp/jizhi_unzip "$ZIP_FILE"
+# 1. 优先尝试 Git 本地强行对齐（0 缓存、秒级精准）
+GIT_SYNCED=0
+for gdir in "${TARGET_DIRS[@]}"; do
+  if [ -d "$gdir/.git" ]; then
+    echo "   🔄 检测到 Git 仓库 ($gdir)，执行精准对齐..."
+    cd "$gdir" && git fetch origin main && git reset --hard origin/main 2>/dev/null && {
+      if grep -q "$TARGET_VERSION" "$gdir/index.html" 2>/dev/null; then
+        GIT_SYNCED=1
+        echo "   ✅ Git 精准对齐成功: $TARGET_VERSION"
+        break
+      fi
+    }
   fi
 done
 
-# 回退机制：若无 zipfile 则快速并行拉取
+DOWNLOADED=$GIT_SYNCED
+NOW_TS=$(date +%s%N 2>/dev/null || date +%s)
+ZIP_FILE="/tmp/jizhi_main.zip"
+
 if [ $DOWNLOADED -eq 0 ]; then
-  echo "   ⚠️ 回退到流式同步..."
+  for zip_url in \
+    "https://codeload.github.com/loverglory233-blip/jizhi-clean/zip/refs/heads/main" \
+    "https://raw.githubusercontent.com/loverglory233-blip/jizhi-clean/main/index.html?t=$NOW_TS" \
+    "https://ghfast.top/https://github.com/loverglory233-blip/jizhi-clean/archive/refs/heads/main.zip?nocache=$NOW_TS" \
+    "https://ghproxy.net/https://github.com/loverglory233-blip/jizhi-clean/archive/refs/heads/main.zip?nocache=$NOW_TS"; do
+
+    if [[ "$zip_url" == *".zip"* ]]; then
+      curl -s -f -L --connect-timeout 6 --max-time 25 "$zip_url" -o "$ZIP_FILE" 2>/dev/null && [ -s "$ZIP_FILE" ] || continue
+      rm -rf /tmp/jizhi_unzip && mkdir -p /tmp/jizhi_unzip
+      python3 -c "import zipfile; zipfile.ZipFile('$ZIP_FILE').extractall('/tmp/jizhi_unzip')" 2>/dev/null || unzip -q -o "$ZIP_FILE" -d /tmp/jizhi_unzip 2>/dev/null || true
+
+      if [ -d "/tmp/jizhi_unzip/jizhi-clean-main" ]; then
+        # 🔍 严格精确校验版本号，杜绝任何第三方镜像返回旧版缓存包！
+        if grep -q "$TARGET_VERSION" "/tmp/jizhi_unzip/jizhi-clean-main/index.html" 2>/dev/null; then
+          cp -rf /tmp/jizhi_unzip/jizhi-clean-main/* "$TMP/"
+          rm -rf /tmp/jizhi_unzip "$ZIP_FILE"
+          DOWNLOADED=1
+          echo "   ✅ 代码包下载解压完成（严格校验通过: $TARGET_VERSION）"
+          break
+        else
+          echo "   ⚠️ 该镜像源返回陈旧缓存包，坚决废弃，尝试直连源..."
+          rm -rf /tmp/jizhi_unzip "$ZIP_FILE"
+        fi
+      fi
+    fi
+  done
+fi
+
+# 3. 权威回退机制：若第三方 zip 缓存落后，强制单文件精准直拉最新版
+if [ $DOWNLOADED -eq 0 ]; then
+  echo "   ⚡ 启动防缓存直连同步最新文件 ($TARGET_VERSION)..."
   mkdir -p "$TMP/css" "$TMP/css/libs" "$TMP/js" "$TMP/js/libs" "$TMP/api" "$TMP/src"
   FILES=(
-    "index.html" "css/styles.css" "css/libs/quill.snow.css"
+    "index.html" "update.sh" "sync.php" "build.py" "package.json"
+    "css/styles.css" "css/libs/quill.snow.css"
     "js/libs/xlsx.full.min.js" "js/libs/quill.min.js" "js/libs/quill-cursors.min.js"
     "js/libs/yjs.js" "js/libs/y-websocket.js" "js/libs/y-quill.js" "js/bundle.js"
     "src/constants.js" "src/utils.js" "src/agents.js" "src/auth.js" "src/sync.js"
     "src/login.js" "src/teacher.js" "src/student-portal.js" "src/editor.js" "src/app.js"
-    "sync.php" "server.py" "server_yjs.js" "server_yjs.py" "package.json"
     "api/chat_api.php" "api/coze_prompt.php" "api/db_init.php" "api/stream.php"
   )
   for f in "${FILES[@]}"; do
-    curl -s -f -L --connect-timeout 3 --max-time 6 "https://ghfast.top/https://raw.githubusercontent.com/loverglory233-blip/jizhi-clean/main/$f?t=$NOW_TS" -o "$TMP/$f" 2>/dev/null || true
+    for raw_host in \
+      "https://raw.githubusercontent.com/loverglory233-blip/jizhi-clean/main" \
+      "https://ghfast.top/https://raw.githubusercontent.com/loverglory233-blip/jizhi-clean/main" \
+      "https://cdn.jsdelivr.net/gh/loverglory233-blip/jizhi-clean@main" \
+      "https://ghproxy.net/https://raw.githubusercontent.com/loverglory233-blip/jizhi-clean/main"; do
+      if curl -s -f -L --connect-timeout 4 --max-time 10 "$raw_host/$f?t=$NOW_TS" -o "$TMP/$f" 2>/dev/null && [ -s "$TMP/$f" ]; then
+        break
+      fi
+    done
   done
+  if grep -q "$TARGET_VERSION" "$TMP/index.html" 2>/dev/null; then
+    DOWNLOADED=1
+    echo "   ✅ 单文件直连同步成功（严格校验通过: $TARGET_VERSION）"
+  fi
 fi
 
 for dir in "${TARGET_DIRS[@]}"; do
@@ -136,7 +167,7 @@ fi
 
 echo "======================================================"
 echo "🎉 全系统更新与校验完成！"
-echo "📌 当前全局版本号: 20260825_v514"
+echo "📌 当前全局版本号: 20260825_v515"
 
 # 🔍 探测 9001 端口服务状态
 if lsof -i:9001 >/dev/null 2>&1 || netstat -tuln 2>/dev/null | grep -q ":9001 " || ss -tuln 2>/dev/null | grep -q ":9001 " || curl -s -I --connect-timeout 2 http://127.0.0.1:9001/ >/dev/null 2>&1; then
@@ -147,8 +178,8 @@ fi
 
 for dir in "${TARGET_DIRS[@]}"; do
   echo "🔍 校验目录: $dir"
-  if grep -q "20260825_v514" "$dir/index.html" 2>/dev/null; then
-    echo "   ✅ 版本戳已同步: 20260825_v514"
+  if grep -q "20260825_v515" "$dir/index.html" 2>/dev/null; then
+    echo "   ✅ 版本戳已同步: 20260825_v515"
   else
     echo "   ⚠️ 版本戳异常，请检查网络"
   fi
