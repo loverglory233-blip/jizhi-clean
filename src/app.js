@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260825_v504";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired } from "./utils.js?v=20260825_v504";
-import { callCozeAgentAPI } from "./agents.js?v=20260825_v504";
-import { AuthManager } from "./auth.js?v=20260825_v504";
-import { CloudSyncEngine } from "./sync.js?v=20260825_v504";
-import { renderLoginView } from "./login.js?v=20260825_v504";
-import { renderTeacherPortal } from "./teacher.js?v=20260825_v504";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260825_v504";
+} from "./constants.js?v=20260825_v505";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired } from "./utils.js?v=20260825_v505";
+import { callCozeAgentAPI } from "./agents.js?v=20260825_v505";
+import { AuthManager } from "./auth.js?v=20260825_v505";
+import { CloudSyncEngine } from "./sync.js?v=20260825_v505";
+import { renderLoginView } from "./login.js?v=20260825_v505";
+import { renderTeacherPortal } from "./teacher.js?v=20260825_v505";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260825_v505";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260825_v504";
+} from "./editor.js?v=20260825_v505";
 
 // Make renderChat available on window for sync callbacks
 if (typeof window !== "undefined") {
@@ -1911,25 +1911,45 @@ export class App {
       fileInputImg.addEventListener('change', (e) => {
         if (e.target.files && e.target.files[0]) {
           const file = e.target.files[0];
-          const reader = new FileReader();
-          reader.onload = (ev) => {
-            const imgData = ev.target.result;
-            const currentUser = this.authManager.getCurrentUser();
-            const studentCode = currentUser ? (currentUser.studentCode || 'A') : 'A';
-            const currentStage = this.state.currentStage;
+          const currentUser = this.authManager.getCurrentUser();
+          const studentCode = currentUser ? (currentUser.studentCode || currentUser.id || 'A') : 'A';
+          const currentStage = this.state.currentStage || 'stage1';
+
+          // 🛡️ 纯正文件上传：直传服务端 uploads/ 目录获取物理 HTTP URL，彻底杜绝 Base64 膨胀
+          const fd = new FormData();
+          fd.append('file', file);
+          fd.append('userId', studentCode);
+
+          fetch('sync.php?action=upload_file', {
+            method: 'POST',
+            body: fd
+          })
+          .then(res => res.json())
+          .then(resData => {
+            const finalUrl = (resData && resData.url) ? resData.url : '';
+            if (!finalUrl) {
+              alert('图片上传失败，请检查网络或文件格式');
+              return;
+            }
             const msgObj = {
+              id: 'msg_img_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6),
               sender: studentCode,
-              text: `[IMG_DATA]:${imgData}`,
+              senderName: currentUser ? currentUser.name : studentCode,
+              text: `[IMG_DATA]:${finalUrl}`,
               timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
               _timeMs: Date.now()
             };
             if (!this.state.chatLogs[currentStage]) this.state.chatLogs[currentStage] = [];
             this.state.chatLogs[currentStage].push(msgObj);
-            this.syncChatLogs();
+            this.sendSingleChatMessage(msgObj, currentStage);
             renderChat(this.state);
-          };
-          reader.readAsDataURL(file);
-          fileInputImg.value = '';
+          })
+          .catch(err => {
+            alert('图片上传网络异常，请重试');
+          })
+          .finally(() => {
+            fileInputImg.value = '';
+          });
         }
       });
     }

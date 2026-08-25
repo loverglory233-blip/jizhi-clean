@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles } from "./constants.js?v=20260825_v504";
-import { callCozeAgentAPI } from "./agents.js?v=20260825_v504";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime } from "./utils.js?v=20260825_v504";
+import { AgentProfiles } from "./constants.js?v=20260825_v505";
+import { callCozeAgentAPI } from "./agents.js?v=20260825_v505";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime } from "./utils.js?v=20260825_v505";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -2193,13 +2193,11 @@ export function renderChat(state) {
   stream.querySelectorAll('.chat-attached-img').forEach(img => {
     img.onclick = (e) => {
       e.stopPropagation();
-      document.querySelectorAll('.img-preview-lightbox').forEach(el => el.remove());
-      const box = document.createElement('div');
-      box.className = 'img-preview-lightbox';
-      box.style.cssText = 'position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(15,23,42,0.85); display:flex; align-items:center; justify-content:center; z-index:99999; cursor:zoom-out; backdrop-filter:blur(4px);';
-      box.innerHTML = `<img src="${img.src}" style="max-width:90vw; max-height:90vh; border-radius:10px; box-shadow:0 8px 32px rgba(0,0,0,0.4); border:2px solid #ffffff;">`;
-      box.onclick = () => box.remove();
-      document.body.appendChild(box);
+      if (img.src && !img.src.startsWith('data:')) {
+        window.open(img.src, '_blank');
+      } else {
+        window.open(img.src, '_blank');
+      }
     };
   });
 }

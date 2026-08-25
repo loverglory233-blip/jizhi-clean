@@ -8694,13 +8694,11 @@
     stream.querySelectorAll('.chat-attached-img').forEach(img => {
       img.onclick = (e) => {
         e.stopPropagation();
-        document.querySelectorAll('.img-preview-lightbox').forEach(el => el.remove());
-        const box = document.createElement('div');
-        box.className = 'img-preview-lightbox';
-        box.style.cssText = 'position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(15,23,42,0.85); display:flex; align-items:center; justify-content:center; z-index:99999; cursor:zoom-out; backdrop-filter:blur(4px);';
-        box.innerHTML = `<img src="${img.src}" style="max-width:90vw; max-height:90vh; border-radius:10px; box-shadow:0 8px 32px rgba(0,0,0,0.4); border:2px solid #ffffff;">`;
-        box.onclick = () => box.remove();
-        document.body.appendChild(box);
+        if (img.src && !img.src.startsWith('data:')) {
+          window.open(img.src, '_blank');
+        } else {
+          window.open(img.src, '_blank');
+        }
       };
     });
   }
@@ -10597,25 +10595,45 @@
         fileInputImg.addEventListener('change', (e) => {
           if (e.target.files && e.target.files[0]) {
             const file = e.target.files[0];
-            const reader = new FileReader();
-            reader.onload = (ev) => {
-              const imgData = ev.target.result;
-              const currentUser = this.authManager.getCurrentUser();
-              const studentCode = currentUser ? (currentUser.studentCode || 'A') : 'A';
-              const currentStage = this.state.currentStage;
+            const currentUser = this.authManager.getCurrentUser();
+            const studentCode = currentUser ? (currentUser.studentCode || currentUser.id || 'A') : 'A';
+            const currentStage = this.state.currentStage || 'stage1';
+
+            // 🛡️ 纯正文件上传：直传服务端 uploads/ 目录获取物理 HTTP URL，彻底杜绝 Base64 膨胀
+            const fd = new FormData();
+            fd.append('file', file);
+            fd.append('userId', studentCode);
+
+            fetch('sync.php?action=upload_file', {
+              method: 'POST',
+              body: fd
+            })
+            .then(res => res.json())
+            .then(resData => {
+              const finalUrl = (resData && resData.url) ? resData.url : '';
+              if (!finalUrl) {
+                alert('图片上传失败，请检查网络或文件格式');
+                return;
+              }
               const msgObj = {
+                id: 'msg_img_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6),
                 sender: studentCode,
-                text: `[IMG_DATA]:${imgData}`,
+                senderName: currentUser ? currentUser.name : studentCode,
+                text: `[IMG_DATA]:${finalUrl}`,
                 timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
                 _timeMs: Date.now()
               };
               if (!this.state.chatLogs[currentStage]) this.state.chatLogs[currentStage] = [];
               this.state.chatLogs[currentStage].push(msgObj);
-              this.syncChatLogs();
+              this.sendSingleChatMessage(msgObj, currentStage);
               renderChat(this.state);
-            };
-            reader.readAsDataURL(file);
-            fileInputImg.value = '';
+            })
+            .catch(err => {
+              alert('图片上传网络异常，请重试');
+            })
+            .finally(() => {
+              fileInputImg.value = '';
+            });
           }
         });
       }
