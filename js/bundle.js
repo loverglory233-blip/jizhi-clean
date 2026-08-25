@@ -586,9 +586,9 @@
         classes.forEach(cls => {
           if (!cls.groups) { cls.groups = []; isModified = true; }
 
-          cls.groups.forEach(grp => {
-            if (!grp.id) { grp.id = 'group_' + Date.now(); isModified = true; }
-            if (!grp.name) { grp.name = '协作小组'; isModified = true; }
+          cls.groups.forEach((grp, gIdx) => {
+            if (!grp.id) { grp.id = `group_${cls.id || 'class'}_${gIdx + 1}`; isModified = true; }
+            if (!grp.name) { grp.name = `第 ${gIdx + 1} 协作小组`; isModified = true; }
             if (!Array.isArray(grp.members)) { grp.members = []; isModified = true; }
           });
         });
