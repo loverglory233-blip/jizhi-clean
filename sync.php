@@ -4,6 +4,7 @@
  * 支持 MySQL 数据库自动建表、数据行级持久化、单设备会话互斥与 OAuth 智能体中转
  */
 
+ini_set('memory_limit', '512M');
 header('Content-Type: application/json; charset=utf-8');
 header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
@@ -1585,7 +1586,12 @@ if ($action === 'presence_ping' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmtGet = $pdo->prepare("SELECT presence_data FROM group_states WHERE scope_key = :sk LIMIT 1");
         $stmtGet->execute([':sk' => $scopeKey]);
         $stRow = $stmtGet->fetch();
-        $currPresence = ($stRow && !empty($stRow['presence_data'])) ? json_decode($stRow['presence_data'], true) : [];
+        $rawPrStr = ($stRow && !empty($stRow['presence_data'])) ? $stRow['presence_data'] : '';
+        // 🛡️ 内存与结构安全防护：正常在线心跳数据小于 5KB，若历史数据异常膨胀（超过 50KB）直接净化，杜绝内存溢出
+        if (strlen($rawPrStr) > 50000) {
+            $rawPrStr = '{}';
+        }
+        $currPresence = !empty($rawPrStr) ? json_decode($rawPrStr, true) : [];
         if (!is_array($currPresence)) $currPresence = [];
 
         // 清理超过 5 分钟的陈旧心跳
@@ -2300,7 +2306,7 @@ if ($pdo) {
             'stage1'           => !empty($row['stage1_data']) ? json_decode($row['stage1_data'], true) : [],
             'stage2'           => !empty($row['stage2_data']) ? json_decode($row['stage2_data'], true) : [],
             'stage3'           => !empty($row['stage3_data']) ? json_decode($row['stage3_data'], true) : [],
-            'presence'         => !empty($row['presence_data']) ? (json_decode($row['presence_data']) ?: new stdClass()) : new stdClass(),
+            'presence'         => (!empty($row['presence_data']) && strlen($row['presence_data']) < 50000) ? (json_decode($row['presence_data']) ?: new stdClass()) : new stdClass(),
             'members'          => !empty($row['members_data']) ? json_decode($row['members_data'], true) : [],
             'isFinalSubmitted' => (bool)$row['is_final_submitted'],
             'chatLogs'         => $chats,
