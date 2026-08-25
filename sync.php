@@ -2296,18 +2296,24 @@ if ($pdo) {
             }
         }
 
+        $stg1Raw = (!empty($row['stage1_data']) && strlen($row['stage1_data']) < 2000000) ? $row['stage1_data'] : '{}';
+        $stg2Raw = (!empty($row['stage2_data']) && strlen($row['stage2_data']) < 5000000) ? $row['stage2_data'] : '{}';
+        $stg3Raw = (!empty($row['stage3_data']) && strlen($row['stage3_data']) < 2000000) ? $row['stage3_data'] : '{}';
+        $prRaw   = (!empty($row['presence_data']) && strlen($row['presence_data']) < 50000) ? $row['presence_data'] : '{}';
+        $memRaw  = (!empty($row['members_data']) && strlen($row['members_data']) < 50000) ? $row['members_data'] : '[]';
+
         $respData = [
             'timestamp'        => $lastTs,
             'serverTimestamp'  => $nowMs,
             'revisionId'       => $lastRev,
             'groupId'          => $row['group_id'],
             'taskId'           => $row['task_id'],
-            'currentStage'     => $row['current_stage'],
-            'stage1'           => !empty($row['stage1_data']) ? json_decode($row['stage1_data'], true) : [],
-            'stage2'           => !empty($row['stage2_data']) ? json_decode($row['stage2_data'], true) : [],
-            'stage3'           => !empty($row['stage3_data']) ? json_decode($row['stage3_data'], true) : [],
-            'presence'         => (!empty($row['presence_data']) && strlen($row['presence_data']) < 50000) ? (json_decode($row['presence_data']) ?: new stdClass()) : new stdClass(),
-            'members'          => !empty($row['members_data']) ? json_decode($row['members_data'], true) : [],
+            'currentStage'     => $row['current_stage'] ?: 'stage1',
+            'stage1'           => json_decode($stg1Raw, true) ?: [],
+            'stage2'           => json_decode($stg2Raw, true) ?: [],
+            'stage3'           => json_decode($stg3Raw, true) ?: [],
+            'presence'         => json_decode($prRaw) ?: new stdClass(),
+            'members'          => json_decode($memRaw, true) ?: [],
             'isFinalSubmitted' => (bool)$row['is_final_submitted'],
             'chatLogs'         => $chats,
             'locks'            => $activeLocks,
