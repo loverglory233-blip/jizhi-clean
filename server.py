@@ -1073,6 +1073,59 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                 self.wfile.write(b'{"success":false}')
                 return
 
+        # ⚡ 独立轻量在线心跳路由
+        if 'action=presence_ping' in self.path:
+            groupId = 'group_1'
+            if 'groupId=' in self.path:
+                groupId = _safe_id(self.path.split('groupId=')[1].split('&')[0], 'group_1')
+            taskId = 'task_default'
+            if 'taskId=' in self.path:
+                taskId = _safe_id(self.path.split('taskId=')[1].split('&')[0], 'task_default')
+            length = int(self.headers.get('Content-Length', 0))
+            body = self.rfile.read(length)
+            try:
+                req = json.loads(body.decode('utf-8'))
+                userKey = str(req.get('userId') or req.get('studentCode') or '').strip()
+                nowMs = int(time.time() * 1000)
+                db_file = os.path.join(DIR, f'db_{taskId}_{groupId}.json')
+                db_file_compat = os.path.join(DIR, f'db_{groupId}.json')
+                target_file = db_file if os.path.exists(db_file) else (db_file_compat if os.path.exists(db_file_compat) else db_file)
+                
+                with JSON_FILE_LOCK:
+                    data = {}
+                    if os.path.exists(target_file):
+                        try:
+                            with open(target_file, 'r', encoding='utf-8') as f:
+                                data = json.load(f)
+                        except Exception:
+                            data = {}
+                    if 'presence' not in data or not isinstance(data['presence'], dict):
+                        data['presence'] = {}
+                    
+                    if userKey:
+                        data['presence'][userKey] = {'lastSeen': nowMs, 'updatedAt': nowMs, 'name': req.get('name', userKey)}
+                        if req.get('studentCode'):
+                            data['presence'][str(req.get('studentCode'))] = {'lastSeen': nowMs, 'updatedAt': nowMs, 'name': req.get('name', userKey)}
+                        
+                        with open(db_file, 'w', encoding='utf-8') as f:
+                            json.dump(data, f, ensure_ascii=False)
+                        with open(db_file_compat, 'w', encoding='utf-8') as f:
+                            json.dump(data, f, ensure_ascii=False)
+
+                resp_bytes = json.dumps({'success': True, 'timestamp': nowMs, 'presence': data.get('presence', {})}).encode('utf-8')
+                self.send_response(200)
+                self.send_header('Content-Type', 'application/json; charset=utf-8')
+                self.send_header('Content-Length', str(len(resp_bytes)))
+                self.end_headers()
+                self.wfile.write(resp_bytes)
+                self.wfile.flush()
+                return
+            except Exception:
+                self.send_response(200)
+                self.end_headers()
+                self.wfile.write(b'{"success":true}')
+                return
+
         if '/api/snapshot' in self.path or 'sync.php' in self.path:
             groupId = 'group_1'
             if 'groupId=' in self.path:

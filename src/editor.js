@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles } from "./constants.js?v=20260823_v231";
-import { callCozeAgentAPI } from "./agents.js?v=20260823_v231";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime } from "./utils.js?v=20260823_v231";
+import { AgentProfiles } from "./constants.js?v=20260825_v500";
+import { callCozeAgentAPI } from "./agents.js?v=20260825_v500";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime } from "./utils.js?v=20260825_v500";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -851,12 +851,13 @@ export function renderPresencePills(editorId, state) {
   const allUsers = (window.app && window.app.authManager) ? window.app.authManager.getUsers() : [];
 
   const newHtml = membersList.map(m => {
-    // 全方位检索组员心跳数据
-    const p = presence[m.studentCode] || presence[m.id] || presence[m.student_code] || presence[m.realStudentCode] || (m.name && presence[m.name]) || (m.username && presence[m.username]);
+    // 全方位检索组员心跳数据 (支持纯数字学号与字符串学号精准命中)
+    const p = presence[m.studentCode] || presence[String(m.studentCode)] || presence[m.id] || presence[String(m.id)] || presence[m.student_code] || presence[m.realStudentCode] || (m.name && presence[m.name]) || (m.username && presence[m.username]);
     const isSelf = m.studentCode === currentUserCode || m.id === currentUserCode || (currUserObj && (m.id === currUserObj.id || m.studentCode === currUserObj.studentCode || m.name === currUserObj.name || m.username === currUserObj.username));
     
-    // 🛡️ 稳健在线判定：180秒内有心跳即视为在线（与聊天区口径一致；后台标签页心跳被浏览器节流至约1分钟，90秒窗口会误判在线成员为离线）
-    const timeDiff = p ? Math.abs(now - (p.updatedAt || 0)) : 999999;
+    // 🛡️ 稳健在线判定：180秒内有心跳即视为在线
+    const pTime = p ? (p.lastSeen || p.updatedAt || 0) : 0;
+    const timeDiff = pTime > 0 ? Math.abs(now - pTime) : 999999;
     const isOnline = isSelf || (p && timeDiff < 180000);
     const sectionText = isSelf ? ' (我)' : (isOnline ? ' (在线)' : ' (离线)');
     const color = m.color || '#2563eb';
