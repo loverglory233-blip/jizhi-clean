@@ -115,10 +115,13 @@ function getCozeAccessToken() {
 
     $resData = json_decode($resp, true);
     if ($resData && isset($resData['access_token'])) {
-        $expiresIn = isset($resData['expires_in']) ? intval($resData['expires_in']) : 86400;
+        // 🛡️ Coze v3 的 expires_in 实际返回的是「绝对过期时间戳(秒)」而非相对时长；
+        // 误当相对时长叠加会把 expires_at 算到数十年后 → 缓存永不刷新 → 次日 token 失效即坏。
+        $expiresIn = isset($resData['expires_in']) ? intval($resData['expires_in']) : 0;
+        $expiresAt = ($expiresIn > $now) ? $expiresIn : ($now + ($expiresIn > 0 ? $expiresIn : 86400));
         $cachedData = [
             'access_token' => $resData['access_token'],
-            'expires_at' => $now + $expiresIn
+            'expires_at' => $expiresAt
         ];
         @file_put_contents($cacheFile, json_encode($cachedData), LOCK_EX);
         @chmod($cacheFile, 0600);

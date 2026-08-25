@@ -57,10 +57,6 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
   const monitorMembersObj = authManager.getGroupMembersForWorkspace(activeMonitorGId);
   const monitorMembersList = Object.values(monitorMembersObj);
 
-  const teacherAlerts = authManager.getTeacherAlerts ? authManager.getTeacherAlerts() : [];
-  const unreadAlerts = teacherAlerts.filter(a => !a.read);
-  const unreadAlertCount = unreadAlerts.length;
-
   // ⚡ 教师端自动轻量轮询：自调度循环，杜绝并发拉取与 interval 重注册竞态
   const teacherPullAndRefresh = async () => {
     const curU = authManager.getCurrentUser();
@@ -86,7 +82,8 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
         s3Len: (state.stage3?.feedbackItems || []).length,
         chat1: (state.chatLogs?.stage1 || []).length,
         chat2: (state.chatLogs?.stage2 || []).length,
-        chat3: (state.chatLogs?.stage3 || []).length
+        chat3: (state.chatLogs?.stage3 || []).length,
+        panorama: state.monitorPanorama ? JSON.stringify(state.monitorPanorama) : '{}'
       });
 
       try {
@@ -97,6 +94,14 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
         if (epRes && epRes.success && epRes.text) {
           if (!state.stage2) state.stage2 = {};
           state.stage2.unifiedContent = epRes.text;
+        }
+        // 🆕 全组全景总览：拉取所有小组的在线/阶段/锁/终稿快照，供顶部全景卡片网格使用
+        const curT = authManager.getCurrentUser();
+        const tToken = (curT && (curT.activeSessionId || curT.token)) || '';
+        const tId = (curT && (curT.id || curT.username)) || '';
+        const panRes = await fetch(`sync.php?action=get_teacher_monitor_all_groups&taskId=${encodeURIComponent(activeTaskId)}&userId=${encodeURIComponent(tId)}&token=${encodeURIComponent(tToken)}`).then(r => r.json()).catch(() => null);
+        if (panRes && panRes.success && panRes.groups) {
+          state.monitorPanorama = panRes.groups;
         }
       } catch (e) {}
 
@@ -110,7 +115,8 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
         s3Len: (state.stage3?.feedbackItems || []).length,
         chat1: (state.chatLogs?.stage1 || []).length,
         chat2: (state.chatLogs?.stage2 || []).length,
-        chat3: (state.chatLogs?.stage3 || []).length
+        chat3: (state.chatLogs?.stage3 || []).length,
+        panorama: state.monitorPanorama ? JSON.stringify(state.monitorPanorama) : '{}'
       });
 
       if (oldFingerprint !== newFingerprint) {
@@ -238,13 +244,20 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
                   <thead><tr><th>序号</th><th>姓名</th><th>学号</th><th>当前归属小组</th><th>密码状态</th><th>操作</th></tr></thead>
                   <tbody>
                     ${classStudents.length === 0 ? '<tr><td colspan="6" style="text-align:center; color:#64748b; padding:24px;">当前班级暂无学生账号，请点击右上角按钮创建或导入！</td></tr>' : ''}
-                    ${classStudents.map((s, idx) => {
+                    ${(() => {
+                      // 同名提示：本班级内姓名重复的学生加一个视觉标记，方便老师区分，绝不自动合并
+                      const _nameBuckets = {};
+                      classStudents.forEach(s => { const _n = (s.name || '').trim(); if (!_n) return; (_nameBuckets[_n] = _nameBuckets[_n] || []).push(s); });
+                      const _escAttr = (v) => String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+                      return classStudents.map((s, idx) => {
                       const grp = (activeClass.groups || []).find(g => g.members && (g.members.includes(s.id) || g.members.includes(s.studentCode) || (typeof g.members[0] === 'object' && g.members.some(m => m.id === s.id || m.studentCode === s.studentCode))));
                       const stdAcc = s.studentCode || s.username || s.id;
+                      const _dupPeers = (_nameBuckets[(s.name || '').trim()] || []).filter(x => x !== s);
+                      const _dupBadge = _dupPeers.length > 0 ? `<span title="${_escAttr('⚠️ 有同名同学：' + _dupPeers.map(x => x.name + '（' + (x.studentCode || x.username || x.id) + '）').join(' / '))}" style="margin-left:6px; background:#fef3c7; border:1px solid #fcd34d; color:#b45309; padding:1px 7px; border-radius:999px; font-size:11px; font-weight:700; cursor:help;">⚠️ 同名 ${_dupPeers.length + 1} 人</span>` : '';
                       return `
                         <tr>
                           <td style="color:#94a3b8; font-weight:700;">${idx + 1}</td>
-                          <td><b>${s.avatar || '👤'} ${s.name}</b></td>
+                          <td><b>${s.avatar || '👤'} ${s.name}</b>${_dupBadge}</td>
                           <td><span style="color:#2563eb; font-family:monospace; font-weight:700;">${stdAcc}</span></td>
                           <td>${grp ? `<span style="background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe; padding:2px 8px; border-radius:8px; font-size:12px; font-weight:700;">${grp.name}</span>` : '<span style="color:#94a3b8;">⏳ 待划分小组</span>'}</td>
                           <td>${(!s.password || s.password === '123') ? '<span style="color:#059669; font-family:monospace; font-weight:700;">初始 123</span>' : '<span style="color:#7c3aed; font-family:monospace; font-weight:700;">已修改密码</span>'}</td>
@@ -260,7 +273,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
                           </td>
                         </tr>
                       `;
-                    }).join('')}
+                    }).join('');})()}
                   </tbody>
                 </table>
               </div>
@@ -715,6 +728,46 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
                   <span style="background:#dc2626; color:white; padding:5px 14px; border-radius:8px; font-size:12.5px; font-weight:800; white-space:nowrap; box-shadow:0 2px 6px rgba(220,38,38,0.3);">🛑 任务已截止 · 只读</span>
                 </div>
               ` : ''}
+
+              <div class="card" style="border-top:4px solid #7c3aed; width:100%; padding:16px 20px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; flex-wrap:wrap; gap:8px;">
+                  <span style="font-size:15px; font-weight:800; color:#0f172a;">📡 全组实时总览 <span style="font-size:11.5px; color:#64748b; font-weight:600;">（一眼扫完 · 点卡片进入单组详情）</span></span>
+                  <span style="font-size:11.5px; color:#64748b; font-weight:600;">
+                    <span style="color:#16a34a;">🟢 正常</span>　<span style="color:#d97706;">🟡 部分离线</span>　<span style="color:#dc2626;">🔴 全员离线/字段占用</span>　<span style="color:#059669;">✅ 已终稿</span>
+                  </span>
+                </div>
+                <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(170px, 1fr)); gap:10px;">
+                  ${(activeClass.groups || []).map(g => {
+                    const p = (state.monitorPanorama && state.monitorPanorama[g.id]) || null;
+                    const total = p ? (p.totalMembers || 0) : ((g.members || []).length || 0);
+                    const online = p ? (p.onlineCount || 0) : 0;
+                    const locks = p ? (p.activeLocks || []).length : 0;
+                    const final = p ? !!p.isFinalSubmitted : false;
+                    const stage = p ? (p.currentStage || 'stage1') : 'stage1';
+                    const stageLabel = stage === 'stage1' ? '🎪 阶段一' : stage === 'stage2' ? '📰 阶段二' : '🎓 阶段三';
+                    const absent = Math.max(0, total - online);
+                    const isSelected = g.id === activeMonitorGId;
+                    let dot = '🟢', dotColor = '#16a34a', hint = '正常推进';
+                    if (final) { dot = '✅'; dotColor = '#059669'; hint = '已终稿'; }
+                    else if (total > 0 && online === 0) { dot = '🔴'; dotColor = '#dc2626'; hint = '全员离线'; }
+                    else if (locks > 0) { dot = '🔴'; dotColor = '#dc2626'; hint = locks + ' 字段占用'; }
+                    else if (absent > 0) { dot = '🟡'; dotColor = '#d97706'; hint = absent + ' 人离线'; }
+                    return `
+                      <button class="btn-monitor-panorama-card" data-gid="${g.id}" style="text-align:left; background:${isSelected ? '#f5f3ff' : '#ffffff'}; border:1.5px solid ${isSelected ? '#7c3aed' : '#e2e8f0'}; border-radius:10px; padding:10px 12px; cursor:pointer; display:flex; flex-direction:column; gap:6px; box-shadow:0 1px 3px rgba(15,23,42,0.03); transition:all 0.15s ease;">
+                        <div style="display:flex; justify-content:space-between; align-items:center;">
+                          <span style="font-size:12.5px; font-weight:800; color:#0f172a;">👥 ${escapeHtml(g.name || g.id)}</span>
+                          <span style="font-size:14px;">${dot}</span>
+                        </div>
+                        <div style="display:flex; justify-content:space-between; align-items:center; gap:6px;">
+                          <span style="font-size:11px; font-weight:700; color:#6d28d9; background:#ede9fe; padding:2px 6px; border-radius:6px;">${stageLabel}</span>
+                          <span style="font-size:11px; color:#64748b; font-weight:600;">在线 ${online}/${total}</span>
+                        </div>
+                        <div style="font-size:10.5px; color:${dotColor}; font-weight:700;">${hint}${locks > 0 ? ' · 锁字段' : ''}</div>
+                      </button>
+                    `;
+                  }).join('')}
+                </div>
+              </div>
 
               <div class="card" style="border-top:4px solid #059669; width:100%; padding:18px 22px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
                 <div style="display:flex; align-items:center; gap:14px; flex-wrap:wrap;">
@@ -2989,6 +3042,23 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
       renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
     });
   }
+
+  container.querySelectorAll('.btn-monitor-panorama-card').forEach(card => {
+    card.addEventListener('click', () => {
+      const gid = card.dataset.gid;
+      state.activeMonitorGroupId = gid;
+      if (window.app) {
+        window.app.state.activeMonitorGroupId = gid;
+        window.app.loadGroupState(gid);
+        if (window.app.cloudSyncEngine) {
+          window.app.cloudSyncEngine.groupId = gid;
+          window.app.cloudSyncEngine.taskId = state.activeTaskId || (currentClassTasks[0] ? currentClassTasks[0].id : 'task_default');
+          window.app.cloudSyncEngine.updateScopeKeys();
+        }
+      }
+      renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+    });
+  });
 
   container.querySelectorAll('.btn-switch-monitor-group').forEach(btn => {
     btn.addEventListener('click', () => {

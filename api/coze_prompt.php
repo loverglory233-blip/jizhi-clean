@@ -18,14 +18,10 @@ class CozePromptFactory {
         $prompt .= "【小组研究课题】: 《{$topicText}》\n";
 
         if (!empty($actualDoc)) {
+            // 🛡️ 全文直传不做截断：审稿编辑多轮质检需内容递增、正反方委员需全文审查，
+            // 切片决策完全由调用方在 actualDoc 字段里控制（如一审截取至方法章节之前），此处不再硬截 1200 字
             $docLen = mb_strlen($actualDoc, 'UTF-8');
-            $docSnippet = mb_substr($actualDoc, 0, 1200, 'UTF-8');
-            $snippetLen = mb_strlen($docSnippet, 'UTF-8');
-            // 如实告知全文长度与截取范围，避免 AI 误判篇幅
-            $docNote = ($snippetLen < $docLen)
-                ? "（全文共 {$docLen} 字，以下仅摘录前 {$snippetLen} 字）"
-                : "（全文，共 {$docLen} 字）";
-            $prompt .= "【小组当前真实正文草稿{$docNote}】:\n{$docSnippet}\n";
+            $prompt .= "【小组当前真实正文草稿（全文，共 {$docLen} 字）】:\n{$actualDoc}\n";
         }
 
         $prompt .= "【审阅/对话指令】: {$userQuery}";

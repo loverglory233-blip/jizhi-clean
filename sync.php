@@ -103,7 +103,9 @@ if (!function_exists('ensureTeacherSeedAccount')) {
             $stmt->execute();
             $tRow = $stmt->fetch(PDO::FETCH_ASSOC);
             if (!$tRow) {
-                $stmtIns = $pdo->prepare("INSERT INTO users (id, username, student_code, name, password, role) VALUES ('1001', '1001', '1001', '指导教师', '123', 'teacher')");
+                $seedHash = password_hash('123', PASSWORD_DEFAULT);
+                $stmtIns = $pdo->prepare("INSERT INTO users (id, username, student_code, name, password, role) VALUES ('1001', '1001', '1001', '指导教师', :pwd, 'teacher')");
+                $stmtIns->bindValue(':pwd', $seedHash);
                 $stmtIns->execute();
             } else {
                 // 仅确保角色为 teacher，绝对不覆盖教师已修改的自定义密码！
@@ -116,8 +118,7 @@ if (!function_exists('ensureTeacherSeedAccount')) {
 }
 
 // 🛡️ 全自动自愈同步：将 main_meta 中的所有学生账号 100% 自动同步进 MySQL users 实体表
-if (!function_exists('autoSyncAllUsersFromMeta')) {
-    function autoSyncAllUsersFromMeta($pdo) {
+function autoSyncAllUsersFromMeta($pdo) {
         if (!$pdo) return;
         try {
             $stmtMeta = $pdo->prepare("SELECT meta_value FROM global_meta WHERE meta_key = 'main_meta'");
@@ -142,7 +143,7 @@ if (!function_exists('autoSyncAllUsersFromMeta')) {
                 $unick = trim($gu['name'] ?? $code);
                 $urole = trim($gu['role'] ?? 'student');
                 $rawPwd = trim($gu['password'] ?? '');
-                $upwd = !empty($rawPwd) ? $rawPwd : '123';
+                $upwd = !empty($rawPwd) ? $rawPwd : password_hash('123', PASSWORD_DEFAULT);
 
                 $stmtCheck = $pdo->prepare("SELECT id, password FROM users WHERE student_code = :c1 OR username = :c2 OR id = :c3 LIMIT 1");
                 $stmtCheck->execute([':c1' => $code, ':c2' => $code, ':c3' => $uid]);
@@ -224,7 +225,6 @@ if (!function_exists('autoSyncAllUsersFromMeta')) {
             }
         } catch (Exception $e) {}
     }
-}
 
 if ($action === 'login' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $rawInput = @file_get_contents('php://input');
@@ -275,7 +275,7 @@ if ($action === 'login' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                             'password' => $dbPwd,
                             'role' => $gu['role'] ?? 'student'
                         ];
-                        $plainIns = !empty($dbPwd) ? $dbPwd : '123';
+                        $plainIns = (strpos($dbPwd, '$2y$') === 0 || strpos($dbPwd, '$2b$') === 0) ? $dbPwd : password_hash(!empty($dbPwd) ? $dbPwd : '123', PASSWORD_DEFAULT);
                         try {
                             $stmtIns = $pdo->prepare("INSERT INTO users (id, username, student_code, name, password, role) VALUES (:id, :u, :sc, :nm, :p, :r) ON DUPLICATE KEY UPDATE name=VALUES(name), student_code=VALUES(student_code), role=VALUES(role)");
                             $stmtIns->execute([
@@ -299,17 +299,17 @@ if ($action === 'login' && $_SERVER['REQUEST_METHOD'] === 'POST') {
             $cleanInputPwd = trim($password);
             $pwdMatch = false;
 
-            if ($cleanInputPwd === $dbPwd) {
+            if (password_verify($cleanInputPwd, $dbPwd)) {
                 $pwdMatch = true;
-            } else if (empty($dbPwd) && $cleanInputPwd === '123') {
-                $pwdMatch = true;
-            } else if (password_verify($cleanInputPwd, $dbPwd)) {
-                // 兼容可能存在的历史哈希并降级为明文
+            } else if ($cleanInputPwd === $dbPwd) {
+                // 历史明文密码 → 首次登录自动升级为 bcrypt 哈希
                 $pwdMatch = true;
                 try {
                     $stmtFlat = $pdo->prepare("UPDATE users SET password = :p WHERE id = :uid");
-                    $stmtFlat->execute([':p' => $cleanInputPwd, ':uid' => $row['id']]);
+                    $stmtFlat->execute([':p' => password_hash($cleanInputPwd, PASSWORD_DEFAULT), ':uid' => $row['id']]);
                 } catch (Exception $e) {}
+            } else if (empty($dbPwd) && $cleanInputPwd === '123') {
+                $pwdMatch = true;
             }
 
             if ($pwdMatch) {
@@ -489,7 +489,27 @@ if ($action === 'unlock_field' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($fieldKey && $pdo) {
         // 1. 若附带了最新值，原子更新对应的阶段数据
         if ($val !== null) {
-            $stmtState = $pdo->prepare("SELECT stage1_data, stage3_data FROM group_states WHERE scope_key = :sk");
+            // 🛡️ 写入前校验锁持有者：字段若被他人持有(未过期)则拒绝写入，杜绝越权覆盖
+            $stmtLkChk = $pdo->prepare("SELECT meta_value FROM global_meta WHERE meta_key = :k");
+            $stmtLkChk->execute([':k' => 'locks_' . $scopeKey]);
+            $lkRow = $stmtLkChk->fetch();
+            $curLocks = ($lkRow && !empty($lkRow['meta_value'])) ? json_decode($lkRow['meta_value'], true) : [];
+            if (is_array($curLocks) && isset($curLocks[$fieldKey]) && !empty($userId)) {
+                $lockInfo = $curLocks[$fieldKey];
+                if (isset($lockInfo['time']) && ($nowMs - intval($lockInfo['time']) <= 20000) && $lockInfo['userId'] !== $userId) {
+                    echo json_encode(['success' => false, 'granted' => false, 'lockedBy' => ($lockInfo['userName'] ?? '他人'), 'message' => '该字段正被 ' . ($lockInfo['userName'] ?? '他人') . ' 编辑，无法写入'], JSON_UNESCAPED_UNICODE);
+                    exit;
+                }
+            }
+
+            // 🔒 事务 + 行级锁：读改写原子化，杜绝并发写整块 JSON 的 lost-update 覆盖
+            $pdo->beginTransaction();
+            try {
+            // 🧷 兜底：该 scope 尚无 group_states 行(首次写)时先建空行，避免 UPDATE 静默丢失
+            $pdo->prepare("INSERT IGNORE INTO group_states (scope_key, task_id, group_id, current_stage, stage1_data, stage2_data, stage3_data, presence_data, members_data, is_final_submitted, last_timestamp, revision_id)
+                VALUES (:sk, :tid, :gid, 'stage1', '{}', '{}', '{}', '{}', '[]', 0, :ts, 1)")
+                ->execute([':sk' => $scopeKey, ':tid' => $taskId, ':gid' => $groupId, ':ts' => $nowMs]);
+            $stmtState = $pdo->prepare("SELECT stage1_data, stage3_data FROM group_states WHERE scope_key = :sk FOR UPDATE");
             $stmtState->execute([':sk' => $scopeKey]);
             $stRow = $stmtState->fetch();
             
@@ -532,6 +552,10 @@ if ($action === 'unlock_field' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 $s3Json = json_encode($s3, JSON_UNESCAPED_UNICODE);
                 $pdo->prepare("UPDATE group_states SET stage3_data = :s, last_timestamp = :ts, revision_id = IFNULL(revision_id,0)+1 WHERE scope_key = :sk")
                     ->execute([':s' => $s3Json, ':ts' => $nowMs, ':sk' => $scopeKey]);
+            }
+            $pdo->commit();
+            } catch (Exception $e) {
+                if ($pdo->inTransaction()) $pdo->rollBack();
             }
         }
 
@@ -587,6 +611,7 @@ if ($action === 'report_member_contrib') {
         echo json_encode(['success' => true, 'contribs' => $snapshot['stage2']['memberContributions']]);
         exit;
     }
+}
 if ($action === 'set_task_group_lock') {
     header('Content-Type: application/json; charset=utf-8');
     $rawInput = @file_get_contents('php://input');
@@ -619,10 +644,20 @@ if ($action === 'set_task_group_lock') {
 
 if ($action === 'get_teacher_monitor_all_groups') {
     header('Content-Type: application/json; charset=utf-8');
+    // 🛡️ 教师身份与 Session Token 双重鉴权 (Fail-Closed)：杜绝越权拉取全组聊天与阶段内容
+    $mUserId = isset($_GET['userId']) ? trim($_GET['userId']) : (isset($REQ_DATA['userId']) ? trim($REQ_DATA['userId']) : '');
+    $mToken = isset($_GET['token']) ? trim($_GET['token']) : (isset($REQ_DATA['token']) ? trim($REQ_DATA['token']) : '');
+    if (!verifyTeacherSession($mUserId, $mToken, $pdo)) {
+        http_response_code(401);
+        echo json_encode(['success' => false, 'message' => '❌ 仅教师可访问，请重新登录']);
+        exit;
+    }
     $taskId = isset($_GET['taskId']) ? trim($_GET['taskId']) : ($queryTaskId ?: 'task_default');
     $classId = isset($_GET['classId']) ? trim($_GET['classId']) : '';
 
     $result = ['success' => true, 'groups' => []];
+    $nowMs = round(microtime(true) * 1000);
+    $ONLINE_WINDOW_MS = 20000; // 20 秒无心跳视为离线
 
     if ($pdo) {
         $stmt = $pdo->prepare("SELECT * FROM group_states WHERE task_id = :tid");
@@ -639,6 +674,48 @@ if ($action === 'get_teacher_monitor_all_groups') {
             $chatRow = $stmtChats->fetch();
             $chats = ($chatRow && !empty($chatRow['meta_value'])) ? json_decode($chatRow['meta_value'], true) : ['stage1' => [], 'stage2' => [], 'stage3' => []];
 
+            // 组员快照 + 在线/缺勤判定（presence 的 key 可能是学号/id/姓名等多键归一，按 20s 心跳窗口判定在线）
+            $members = (!empty($r['members_data'])) ? json_decode($r['members_data'], true) : [];
+            if (!is_array($members)) $members = [];
+            $membersArr = array_values($members);
+            $presence = (!empty($r['presence_data'])) ? json_decode($r['presence_data'], true) : [];
+            if (!is_array($presence)) $presence = [];
+            $presenceByKey = [];
+            foreach ($presence as $pk => $pv) {
+                $presenceByKey[(string)$pk] = (is_array($pv) && isset($pv['updatedAt'])) ? intval($pv['updatedAt']) : 0;
+            }
+            $onlineMembers = [];
+            $absentMembers = [];
+            foreach ($membersArr as $m) {
+                if (!is_array($m)) continue;
+                $candidateKeys = [];
+                foreach (['studentCode', 'id', 'userId', 'name', 'username', 'realStudentCode'] as $f) {
+                    if (isset($m[$f]) && $m[$f] !== '') $candidateKeys[] = (string)$m[$f];
+                }
+                $isFresh = false;
+                foreach ($candidateKeys as $k) {
+                    if (isset($presenceByKey[$k]) && ($nowMs - $presenceByKey[$k]) <= $ONLINE_WINDOW_MS) { $isFresh = true; break; }
+                }
+                $label = (isset($m['name']) && $m['name'] !== '') ? $m['name'] : (isset($m['studentCode']) ? $m['studentCode'] : '成员');
+                if ($isFresh) $onlineMembers[] = $label; else $absentMembers[] = $label;
+            }
+
+            // 活跃字段锁（20 秒未超时 = 当前正被某人占用编辑）
+            $stmtLocks = $pdo->prepare("SELECT meta_value FROM global_meta WHERE meta_key = :k");
+            $stmtLocks->execute([':k' => 'locks_' . $sk]);
+            $lockRow = $stmtLocks->fetch();
+            $activeLocks = [];
+            if ($lockRow && !empty($lockRow['meta_value'])) {
+                $allLocks = json_decode($lockRow['meta_value'], true);
+                if (is_array($allLocks)) {
+                    foreach ($allLocks as $fieldKey => $info) {
+                        if (is_array($info) && isset($info['time']) && ($nowMs - intval($info['time'])) <= 20000) {
+                            $activeLocks[] = ['field' => $fieldKey, 'userName' => ($info['userName'] ?? ''), 'time' => intval($info['time'])];
+                        }
+                    }
+                }
+            }
+
             $result['groups'][$gid] = [
                 'groupId'            => $gid,
                 'scopeKey'           => $sk,
@@ -649,7 +726,13 @@ if ($action === 'get_teacher_monitor_all_groups') {
                 'chatLogs'           => $chats,
                 'isFinalSubmitted'   => (bool)$r['is_final_submitted'],
                 'lastTimestamp'      => intval($r['last_timestamp']),
-                'revisionId'         => intval($r['revision_id'])
+                'revisionId'         => intval($r['revision_id']),
+                'members'            => $membersArr,
+                'totalMembers'       => count($membersArr),
+                'onlineCount'        => count($onlineMembers),
+                'onlineMembers'      => $onlineMembers,
+                'absentMembers'      => $absentMembers,
+                'activeLocks'        => $activeLocks
             ];
         }
     }
@@ -660,7 +743,13 @@ if ($action === 'get_teacher_monitor_all_groups') {
 if ($action === 'get_pad_text') {
     header('Content-Type: application/json; charset=utf-8');
     $padId = isset($_GET['padId']) ? preg_replace('/[^a-zA-Z0-9_-]/', '', $_GET['padId']) : 'jizhi_' . $scopeKey;
-    $apiKey = 'jizhi_academic_secret_key_2026';
+    // 读取 Etherpad 真实 API key（与 APIKEY.txt 保持一致，杜绝硬编码失效）
+    $apiKey = 'c46d86a306a7bba99b4b3e260922245a461918236ffa47aab2d8f54dd18fa0eb';
+    $apiKeyFile = '/www/wwwroot/etherpad-lite/APIKEY.txt';
+    if (is_readable($apiKeyFile)) {
+        $k = trim(@file_get_contents($apiKeyFile));
+        if (!empty($k)) $apiKey = $k;
+    }
     $epUrl = "http://127.0.0.1:9001/api/1.2.14/getText?apikey=" . urlencode($apiKey) . "&padID=" . urlencode($padId);
     
     $ch = curl_init($epUrl);
@@ -774,17 +863,18 @@ if ($action === 'change_password' && $_SERVER['REQUEST_METHOD'] === 'POST') {
             if (!$oldMatch) {
                 echo json_encode([
                     'success' => false, 
-                    'message' => '❌ 原密码不正确！当前数据库中记录的实际密码为: [' . $currentDbPwd . ']，您输入的原密码为: [' . $cleanOld . ']'
+                    'message' => '❌ 原密码不正确，请重试'
                 ]);
                 exit;
             }
 
             $cleanNew = trim($newPwd);
             
-            // 统一以工号/学号明文直接存盘更新 users 表中所有记录
+            // 统一以工号/学号存盘更新 users 表中所有记录（密码存 bcrypt 哈希）
+            $hashNew = password_hash($cleanNew, PASSWORD_DEFAULT);
             $stmtUpdate = $pdo->prepare("UPDATE users SET password = :p WHERE student_code = :c1 OR username = :c2 OR id = :c3");
             $stmtUpdate->execute([
-                ':p' => $cleanNew,
+                ':p' => $hashNew,
                 ':c1' => $code,
                 ':c2' => $code,
                 ':c3' => $code
@@ -801,7 +891,7 @@ if ($action === 'change_password' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                         foreach ($gm['users'] as &$gu) {
                             $gSc = $gu['studentCode'] ?? ($gu['username'] ?? ($gu['id'] ?? ''));
                             if (strtolower(trim($gSc)) === strtolower(trim($code))) {
-                                $gu['password'] = $cleanNew;
+                                $gu['password'] = $hashNew;
                             }
                         }
                         $encodedGm = json_encode($gm, JSON_UNESCAPED_UNICODE);
@@ -853,8 +943,9 @@ if ($action === 'reset_student_password' && $_SERVER['REQUEST_METHOD'] === 'POST
         }
 
         $plainReset = !empty($newPwd) ? $newPwd : '123';
+        $hashReset = password_hash($plainReset, PASSWORD_DEFAULT);
         $stmtUpdate = $pdo->prepare("UPDATE users SET password = :p WHERE id = :uid");
-        $stmtUpdate->execute([':p' => $plainReset, ':uid' => $user['id']]);
+        $stmtUpdate->execute([':p' => $hashReset, ':uid' => $user['id']]);
 
         // 同步更新 main_meta 里的 users
         $stmtMeta = $pdo->prepare("SELECT meta_value FROM global_meta WHERE meta_key = 'main_meta'");
@@ -865,7 +956,7 @@ if ($action === 'reset_student_password' && $_SERVER['REQUEST_METHOD'] === 'POST
             if (isset($gm['users']) && is_array($gm['users'])) {
                 foreach ($gm['users'] as &$gu) {
                     if (($gu['studentCode'] ?? ($gu['username'] ?? ($gu['id'] ?? ''))) === $account) {
-                        $gu['password'] = $plainReset;
+                        $gu['password'] = $hashReset;
                     }
                 }
                 $encodedGm = json_encode($gm, JSON_UNESCAPED_UNICODE);
@@ -1151,6 +1242,10 @@ if ($action === 'save_global_meta' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         // 🛡️ 严格校验：必须是包含有效教务字段的 JSON 结构，防止空数据或脏请求冲刷
         if (is_array($decoded) && (isset($decoded['classes']) || isset($decoded['tasks']) || isset($decoded['users']))) {
             $newVersion = 1;
+            // 🛡️ 剥离请求元数据（userId/token/expectedVersion 仅用于鉴权与版本协商，不属业务数据，绝不落入 main_meta 快照，也避免 token 经 get_global_meta 无鉴权回传泄露）
+            $cleanDecoded = $decoded;
+            unset($cleanDecoded['userId'], $cleanDecoded['token'], $cleanDecoded['expectedVersion']);
+            $cleanJson = json_encode($cleanDecoded, JSON_UNESCAPED_UNICODE);
             if ($pdo) {
                 // 读取当前 version
                 $stmtVer = $pdo->prepare("SELECT meta_value FROM global_meta WHERE meta_key = 'main_meta_version'");
@@ -1162,23 +1257,25 @@ if ($action === 'save_global_meta' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 $newVersion = $currentVersion + 1;
 
                 $stmt = $pdo->prepare("INSERT INTO global_meta (meta_key, meta_value) VALUES ('main_meta', :val) ON DUPLICATE KEY UPDATE meta_value = :val2");
-                $stmt->execute([':val' => $rawInput, ':val2' => $rawInput]);
+                $stmt->execute([':val' => $cleanJson, ':val2' => $cleanJson]);
 
                 // 🛡️ 实体表实时入库：将所有用户/学生 100% 同步 upsert 至 users 实体表，确保异地设备登录 0 延迟秒级识别
                 if (isset($decoded['users']) && is_array($decoded['users'])) {
                     $stmtUserUpsert = $pdo->prepare("INSERT INTO `users` (`id`, `username`, `student_code`, `name`, `password`, `role`)
                         VALUES (:id, :u, :sc, :nm, :p, :r)
-                        ON DUPLICATE KEY UPDATE `name`=VALUES(`name`), `student_code`=VALUES(`student_code`), `username`=VALUES(`username`), `password`=VALUES(`password`), `role`=VALUES(`role`)");
+                        ON DUPLICATE KEY UPDATE `name`=VALUES(`name`), `student_code`=VALUES(`student_code`), `username`=VALUES(`username`), `role`=VALUES(`role`)");
                     foreach ($decoded['users'] as $usr) {
                         $uid = isset($usr['id']) ? $usr['id'] : ('u_student_' . uniqid());
                         $uname = isset($usr['username']) ? $usr['username'] : (isset($usr['studentCode']) ? $usr['studentCode'] : $uid);
                         $ucode = isset($usr['studentCode']) ? $usr['studentCode'] : (isset($usr['username']) ? $usr['username'] : $uid);
                         $unick = isset($usr['name']) ? $usr['name'] : $uname;
-                        $upwd = isset($usr['password']) ? $usr['password'] : '123';
+                        $upwd = isset($usr['password']) ? $usr['password'] : password_hash('123', PASSWORD_DEFAULT);
                         $urole = isset($usr['role']) ? $usr['role'] : 'student';
                         $stmtUserUpsert->execute([
                             ':id' => $uid, ':u' => $uname, ':sc' => $ucode, ':nm' => $unick, ':p' => $upwd, ':r' => $urole
                         ]);
+                    }
+                }
                 // 🛡️ 实体表实时入库：将所有班级 classes 100% 同步 upsert 至 classes 实体表
                 if (isset($decoded['classes']) && is_array($decoded['classes'])) {
                     $stmtClsUpsert = $pdo->prepare("INSERT INTO `classes` (`id`, `name`, `code`, `student_ids`, `groups_data`)
@@ -1241,11 +1338,11 @@ if ($action === 'save_global_meta' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                         $rpid = $rp['id'] ?? ('paper_' . uniqid());
                         $rptitle = $rp['title'] ?? '参考范文';
                         $rpabstract = $rp['abstract'] ?? '';
-                        $rphighlights = $rp['highlights'] ?? '';
-                        $rptg = $rp['targetGroup'] ?? 'all';
+                        $rphighlights = $rp['keyHighlights'] ?? ($rp['highlights'] ?? '');
+                        $rptg = $rp['targetGroupId'] ?? ($rp['targetGroup'] ?? 'all');
                         $rpfname = $rp['fileName'] ?? '';
                         $rpfsize = $rp['fileSize'] ?? '';
-                        $rpfdata = $rp['fileData'] ?? '';
+                        $rpfdata = $rp['fileUrl'] ?? ($rp['fileData'] ?? '');
                         $rpuptime = $rp['uploadTime'] ?? date('Y-m-d H:i:s');
                         $stmtPaperUpsert->execute([
                             ':id' => $rpid, ':title' => $rptitle, ':abstract' => $rpabstract, ':highlights' => $rphighlights,
@@ -1262,7 +1359,7 @@ if ($action === 'save_global_meta' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 $stmt2 = $pdo->prepare("INSERT INTO global_meta (meta_key, meta_value) VALUES ('meta_updated_at', :v) ON DUPLICATE KEY UPDATE meta_value = :v2");
                 $stmt2->execute([':v' => $nowMs, ':v2' => $nowMs]);
             }
-            @file_put_contents(__DIR__ . '/global_db.json', $rawInput);
+            @file_put_contents(__DIR__ . '/global_db.json', $cleanJson);
             echo json_encode(['success' => true, 'version' => $newVersion]);
             exit;
         }
@@ -2044,20 +2141,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     // 同步逐行写入 users 独立数据表
                     $stmtUserUpsert = $pdo->prepare("INSERT INTO `users` (`id`, `username`, `name`, `password`, `role`, `student_code`, `class_id`, `group_id`, `avatar`)
                         VALUES (:id, :un, :nm, :pw, :rl, :sc, :cid, :gid, :av)
-                        ON DUPLICATE KEY UPDATE `name`=:nm2, `password`=:pw2, `role`=:rl2, `student_code`=:sc2, `class_id`=:cid2, `group_id`=:gid2, `avatar`=:av2");
+                        ON DUPLICATE KEY UPDATE `name`=:nm2, `role`=:rl2, `student_code`=:sc2, `class_id`=:cid2, `group_id`=:gid2, `avatar`=:av2");
                     foreach ($data['users'] as $u) {
                         $uid = isset($u['id']) ? $u['id'] : 'u_' . (isset($u['username']) ? $u['username'] : uniqid());
                         $uName = isset($u['name']) ? $u['name'] : '用户';
                         $uUser = isset($u['username']) ? $u['username'] : $uid;
-                        $uPass = isset($u['password']) ? $u['password'] : '123';
+                        $uPass = isset($u['password']) ? $u['password'] : password_hash('123', PASSWORD_DEFAULT);
                         $uRole = isset($u['role']) ? $u['role'] : 'student';
-                        $uCode = isset($u['studentCode']) ? $u['studentCode'] : (isset($u['student_code']) ? $u['student_code'] : '');
+                        $uCode = isset($u['studentCode']) ? $u['studentCode'] : (isset($u['student_code']) ? $u['student_code'] : (isset($u['username']) ? $u['username'] : $uid));
                         $uCid  = isset($u['classId']) ? $u['classId'] : (isset($u['class_id']) ? $u['class_id'] : '');
                         $uGid  = isset($u['groupId']) ? $u['groupId'] : (isset($u['group_id']) ? $u['group_id'] : '');
                         $uAv   = isset($u['avatar']) ? $u['avatar'] : '👤';
                         $stmtUserUpsert->execute([
                             ':id' => $uid, ':un' => $uUser, ':nm' => $uName, ':pw' => $uPass, ':rl' => $uRole, ':sc' => $uCode, ':cid' => $uCid, ':gid' => $uGid, ':av' => $uAv,
-                            ':nm2' => $uName, ':pw2' => $uPass, ':rl2' => $uRole, ':sc2' => $uCode, ':cid2' => $uCid, ':gid2' => $uGid, ':av2' => $uAv
+                            ':nm2' => $uName, ':rl2' => $uRole, ':sc2' => $uCode, ':cid2' => $uCid, ':gid2' => $uGid, ':av2' => $uAv
                         ]);
                     }
                 }
@@ -2088,8 +2185,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $uname = isset($usr['username']) ? $usr['username'] : (isset($usr['studentCode']) ? $usr['studentCode'] : $uid);
                         $ucode = isset($usr['studentCode']) ? $usr['studentCode'] : (isset($usr['username']) ? $usr['username'] : $uid);
                         $unick = isset($usr['name']) ? $usr['name'] : $uname;
-                        $upwd = isset($usr['password']) ? $usr['password'] : '123';
-                        $plainPwd = (strlen($upwd) > 0) ? $upwd : '123';
+                        $upwd = isset($usr['password']) ? $usr['password'] : password_hash('123', PASSWORD_DEFAULT);
+                        $plainPwd = (strlen($upwd) > 0) ? $upwd : password_hash('123', PASSWORD_DEFAULT);
                         $urole = isset($usr['role']) ? $usr['role'] : 'student';
                         $stmtUserUpsert->execute([
                             ':id' => $uid, ':u' => $uname, ':sc' => $ucode, ':nm' => $unick, ':p' => $plainPwd, ':r' => $urole
@@ -2147,11 +2244,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $pid = isset($pap['id']) ? $pap['id'] : 'paper_' . uniqid();
                         $ptitle = isset($pap['title']) ? $pap['title'] : '参考论文';
                         $pabstract = isset($pap['abstract']) ? $pap['abstract'] : '';
-                        $phighlights = isset($pap['highlights']) ? $pap['highlights'] : '';
-                        $ptgroup = isset($pap['targetGroup']) ? $pap['targetGroup'] : 'all';
+                        $phighlights = isset($pap['keyHighlights']) ? $pap['keyHighlights'] : (isset($pap['highlights']) ? $pap['highlights'] : '');
+                        $ptgroup = isset($pap['targetGroupId']) ? $pap['targetGroupId'] : (isset($pap['targetGroup']) ? $pap['targetGroup'] : 'all');
                         $pfname = isset($pap['fileName']) ? $pap['fileName'] : '';
                         $pfsize = isset($pap['fileSize']) ? $pap['fileSize'] : '';
-                        $pfdata = isset($pap['fileData']) ? $pap['fileData'] : '';
+                        $pfdata = isset($pap['fileUrl']) ? $pap['fileUrl'] : (isset($pap['fileData']) ? $pap['fileData'] : '');
                         $putime = isset($pap['uploadTime']) ? $pap['uploadTime'] : '';
                         $stmtPaperUpsert->execute([
                             ':id' => $pid, ':title' => $ptitle, ':abstract' => $pabstract, ':highlights' => $phighlights,

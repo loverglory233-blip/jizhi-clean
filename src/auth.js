@@ -551,9 +551,10 @@ export class AuthManager {
     const cleanCode = (studentCode || '').trim();
     const cleanUsername = cleanCode.toLowerCase();
     
-    const existingUser = users.find(u => 
-      (u.studentCode && u.studentCode.trim().toLowerCase() === cleanCode.toLowerCase()) || 
-      (u.username && u.username.trim().toLowerCase() === cleanUsername)
+    const existingUser = users.find(u =>
+      u.role !== 'teacher' &&
+      ((u.studentCode && u.studentCode.trim().toLowerCase() === cleanCode.toLowerCase()) ||
+      (u.username && u.username.trim().toLowerCase() === cleanUsername))
     );
 
     const avatars = ['👨‍🎓', '👩‍🎓', '🧑‍🎓', '🎓', '📚', '🌟'];
@@ -1371,89 +1372,6 @@ export class AuthManager {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-  }
-
-  getTeacherAlerts() {
-    try {
-      const data = localStorage.getItem('jizhi_teacher_alerts_db');
-      return data ? JSON.parse(data) : [];
-    } catch (e) { return []; }
-  }
-
-  recordTeacherAlert(alertObj) {
-    const alerts = this.getTeacherAlerts();
-    const taskId = alertObj.taskId || 'task_default';
-    const groupId = alertObj.groupId || 'group_1';
-
-    const stageNameMap = {
-      stage1: '阶段一公约',
-      stage2: (alertObj.type === 'proxy_meeting' ? '阶段二会议' : '阶段二初稿'),
-      stage3: '阶段三终稿'
-    };
-    const curStage = stageNameMap[alertObj.stage] || '协同流程';
-    let combinedAbsent = Array.isArray(alertObj.absentMembers) ? [...alertObj.absentMembers] : [];
-
-    // ⚡ 单一收拢：同一个小组在同一任务下只保留 1 条汇总记录，绝不生成多条重复卡片骚扰老师！
-    const existingIdx = alerts.findIndex(a => (a.taskId === taskId || !a.taskId) && a.groupId === groupId);
-    let targetAlert = null;
-
-    if (existingIdx >= 0) {
-      const existing = alerts[existingIdx];
-      const prevStages = existing.stagesList || [existing.stageLabel || stageNameMap[existing.stage] || '阶段一公约'];
-      const allStages = Array.from(new Set([...prevStages, curStage]));
-      const prevAbsent = Array.isArray(existing.absentMembers) ? existing.absentMembers : [];
-      combinedAbsent = Array.from(new Set([...prevAbsent, ...combinedAbsent]));
-      const absentStr = combinedAbsent.length > 0 ? `（缺勤组员: ${combinedAbsent.join('、')}）` : '';
-
-      targetAlert = {
-        ...existing,
-        ...alertObj,
-        id: existing.id,
-        stagesList: allStages,
-        absentMembers: combinedAbsent,
-        title: `⚠️ 【协同代签记录】${alertObj.groupName || '第 1 协作小组'} 曾发生代签`,
-        text: `【${alertObj.className || '班级'}】· 任务《${alertObj.taskTitle || '学术协作写作'}》\n【${alertObj.groupName || '第 1 协作小组'}】组长【${alertObj.leaderName || '组长'}】已代签推进【${allStages.join('、')}】${absentStr}。`,
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        date: new Date().toLocaleDateString(),
-        timeMs: Date.now(),
-        read: false
-      };
-      alerts[existingIdx] = targetAlert;
-    } else {
-      const absentStr = combinedAbsent.length > 0 ? `（缺勤组员: ${combinedAbsent.join('、')}）` : '';
-      targetAlert = {
-        id: 'alert_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
-        read: false,
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        date: new Date().toLocaleDateString(),
-        timeMs: Date.now(),
-        stagesList: [curStage],
-        ...alertObj,
-        title: `⚠️ 【协同代签记录】${alertObj.groupName || '第 1 协作小组'} 曾发生代签`,
-        text: `【${alertObj.className || '班级'}】· 任务《${alertObj.taskTitle || '学术协作写作'}》\n【${alertObj.groupName || '第 1 协作小组'}】组长【${alertObj.leaderName || '组长'}】已代签推进【${curStage}】${absentStr}。`
-      };
-      alerts.unshift(targetAlert);
-    }
-
-    if (alerts.length > 60) alerts.length = 60;
-    localStorage.setItem('jizhi_teacher_alerts_db', JSON.stringify(alerts));
-    try {
-      const cu = this.getCurrentUser();
-      const uid = cu ? (cu.id || cu.username || '') : '';
-      const tok = cu ? (cu.activeSessionId || '') : '';
-      fetch(`sync.php?action=record_teacher_alert&userId=${encodeURIComponent(uid)}&token=${encodeURIComponent(tok)}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(targetAlert)
-      }).catch(() => {});
-    } catch (e) {}
-    return targetAlert;
-  }
-
-  markTeacherAlertsRead() {
-    const alerts = this.getTeacherAlerts();
-    alerts.forEach(a => { a.read = true; });
-    localStorage.setItem('jizhi_teacher_alerts_db', JSON.stringify(alerts));
   }
 
   openChangePasswordModal(presetAccount = null) {

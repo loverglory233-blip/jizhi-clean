@@ -25,7 +25,7 @@ function initDatabaseTables() {
         `name` VARCHAR(64) NOT NULL,
         `password` VARCHAR(255) NOT NULL,
         `role` VARCHAR(32) NOT NULL,
-        `student_code` VARCHAR(32) DEFAULT '',
+        `student_code` VARCHAR(32) DEFAULT '' UNIQUE,
         `class_id` VARCHAR(64) DEFAULT '',
         `group_id` VARCHAR(64) DEFAULT '',
         `avatar` VARCHAR(16) DEFAULT '👤',
@@ -164,8 +164,10 @@ function ensureTeacherSeedAccount($pdo) {
         $stmtCheck->execute();
         $row = $stmtCheck->fetch(PDO::FETCH_ASSOC);
         if (!$row) {
+            $seedHash = password_hash('123', PASSWORD_DEFAULT);
             $stmt = $pdo->prepare("INSERT INTO `users` (`id`, `username`, `name`, `password`, `role`, `student_code`, `avatar`)
-                VALUES ('1001', '1001', '老师', '123', 'teacher', '1001', '👩‍🏫')");
+                VALUES ('1001', '1001', '老师', :pwd, 'teacher', '1001', '👩‍🏫')");
+            $stmt->bindValue(':pwd', $seedHash);
             return $stmt->execute();
         }
         return true;
