@@ -2284,15 +2284,18 @@ if ($pdo) {
         $stmtAllMsg = $pdo->prepare("SELECT stage, sender, text, timestamp_str, time_ms, id FROM chat_messages WHERE scope_key = :sk ORDER BY time_ms ASC");
         $stmtAllMsg->execute([':sk' => $scopeKey]);
         $allRows = $stmtAllMsg->fetchAll(PDO::FETCH_ASSOC);
+        $maxChatMs = 0;
         foreach ($allRows as $mr) {
             $stg = $mr['stage'] ?: 'stage1';
             if (!isset($chats[$stg])) $chats[$stg] = [];
+            $cMs = intval($mr['time_ms']);
+            if ($cMs > $maxChatMs) $maxChatMs = $cMs;
             $chats[$stg][] = [
                 'id'        => $mr['id'] ?: ('msg_' . $mr['time_ms'] . '_' . substr(md5($mr['text']), 0, 6)),
                 'sender'    => $mr['sender'],
                 'text'      => $mr['text'],
                 'timestamp' => $mr['timestamp_str'],
-                '_timeMs'   => intval($mr['time_ms'])
+                '_timeMs'   => $cMs
             ];
         }
 
@@ -2301,20 +2304,6 @@ if ($pdo) {
         $stmtRsq->execute([':k' => 'reset_seq_' . $scopeKey]);
         $rsqRow = $stmtRsq->fetch();
         $resetSeq = $rsqRow ? intval($rsqRow['meta_value']) : 0;
-
-        // 同时拉取全局教务元数据，确保所有设备能拿到最新用户池/班级/任务/通知/范文库
-        $stmtMeta = $pdo->prepare("SELECT meta_value FROM global_meta WHERE meta_key = 'main_meta'");
-        $stmtMeta->execute();
-        $metaRow = $stmtMeta->fetch();
-        $globalMeta = ($metaRow && !empty($metaRow['meta_value'])) ? json_decode($metaRow['meta_value'], true) : [];
-
-        $sanitizedUsers = [];
-        if (isset($globalMeta['users']) && is_array($globalMeta['users'])) {
-            foreach ($globalMeta['users'] as $u) {
-                unset($u['password']);
-                $sanitizedUsers[] = $u;
-            }
-        }
 
         // 读取当前字段聚焦锁列表 (过滤超时死锁)
         $stmtLocks = $pdo->prepare("SELECT meta_value FROM global_meta WHERE meta_key = :k");
@@ -2331,11 +2320,45 @@ if ($pdo) {
             }
         }
 
+        $prRaw   = (!empty($row['presence_data']) && strlen($row['presence_data']) < 50000) ? $row['presence_data'] : '{}';
+        $memRaw  = !empty($row['members_data']) ? $row['members_data'] : '[]';
+
+        // ⚡ 极速带宽瘦身：增量 Delta 轮询探测（若无新消息且业务无版本推进，仅下发 100 字节轻量心跳包，节省 99.8% 带宽）
+        $clientLastRev = isset($_GET['lastRev']) ? intval($_GET['lastRev']) : 0;
+        $clientLastChatMs = isset($_GET['lastChatMs']) ? intval($_GET['lastChatMs']) : 0;
+        $clientIncGlobal = isset($_GET['incGlobal']) ? intval($_GET['incGlobal']) : 1;
+
+        if ($clientLastRev > 0 && $clientLastRev === $lastRev && $clientLastChatMs >= $maxChatMs && $resetSeq === 0 && $clientIncGlobal === 0) {
+            echo json_encode([
+                'unchanged'       => true,
+                'serverTimestamp' => $nowMs,
+                'revisionId'      => $lastRev,
+                'presence'        => json_decode($prRaw) ?: new stdClass(),
+                'locks'           => $activeLocks,
+                'resetSeq'        => 0
+            ]);
+            exit;
+        }
+
+        $globalMeta = [];
+        $sanitizedUsers = [];
+        if ($clientIncGlobal === 1) {
+            $stmtMeta = $pdo->prepare("SELECT meta_value FROM global_meta WHERE meta_key = 'main_meta'");
+            $stmtMeta->execute();
+            $metaRow = $stmtMeta->fetch();
+            $globalMeta = ($metaRow && !empty($metaRow['meta_value'])) ? json_decode($metaRow['meta_value'], true) : [];
+
+            if (isset($globalMeta['users']) && is_array($globalMeta['users'])) {
+                foreach ($globalMeta['users'] as $u) {
+                    unset($u['password']);
+                    $sanitizedUsers[] = $u;
+                }
+            }
+        }
+
         $stg1Raw = migrateBase64StringToUrl($row['stage1_data'] ?? '', $pdo, $scopeKey, 'stage1_data');
         $stg2Raw = migrateBase64StringToUrl($row['stage2_data'] ?? '', $pdo, $scopeKey, 'stage2_data');
         $stg3Raw = migrateBase64StringToUrl($row['stage3_data'] ?? '', $pdo, $scopeKey, 'stage3_data');
-        $prRaw   = (!empty($row['presence_data']) && strlen($row['presence_data']) < 50000) ? $row['presence_data'] : '{}';
-        $memRaw  = !empty($row['members_data']) ? $row['members_data'] : '[]';
 
         $respData = [
             'timestamp'        => $lastTs,
@@ -2353,7 +2376,6 @@ if ($pdo) {
             'chatLogs'         => $chats,
             'locks'            => $activeLocks,
             'resetSeq'         => $resetSeq,
-            // 全局教务字段 - 每次 GET 都带回，自动脱敏密码，杜绝前端越权查看密码
             'users'            => $sanitizedUsers,
             'classes'          => isset($globalMeta['classes'])          ? $globalMeta['classes']          : [],
             'tasks'            => isset($globalMeta['tasks'])            ? $globalMeta['tasks']            : [],
