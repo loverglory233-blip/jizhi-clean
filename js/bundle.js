@@ -2494,6 +2494,14 @@
         this.app.state.members = remoteData.members;
       }
 
+      // ⚡ 天然随快照无缝更新通知与文献库，无需前端再发起任何独立请求
+      if (Array.isArray(remoteData.announcements) && this.app.authManager) {
+        this.app.authManager.saveAnnouncements(remoteData.announcements);
+      }
+      if (Array.isArray(remoteData.referencePapers) && this.app.authManager) {
+        this.app.authManager.saveReferencePapers(remoteData.referencePapers);
+      }
+
       if (remoteData.isFinalSubmitted !== undefined) {
         const oldLockState = !!this.app.state.isFinalSubmitted;
         const newLockState = !!remoteData.isFinalSubmitted;
@@ -9136,10 +9144,10 @@
           }
 
           if (this.state.studentViewMode === 'workspace') {
-            // ⚡ 学生在工作台协作时：每 3 秒后台静默拉取云端，实时感知教师发布的新通知或删除的通知/文献/问卷
+            // ⚡ 快照已每 2 秒天然同步通知与文献，此处仅保留 20 秒轻量静默兜底
             if (!this._studentWorkspacePollTick) this._studentWorkspacePollTick = 0;
             this._studentWorkspacePollTick++;
-            if (this._studentWorkspacePollTick % 3 === 0) {
+            if (this._studentWorkspacePollTick % 20 === 0) {
               if (this.authManager && this.authManager.pullGlobalMeta) {
                 this.authManager.pullGlobalMeta().then(() => {
                   // 1. 若当前屏幕正打开的通知已被教师在后台删除，立即自动关闭该弹窗

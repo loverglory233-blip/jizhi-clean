@@ -528,10 +528,10 @@ export class App {
         }
 
         if (this.state.studentViewMode === 'workspace') {
-          // ⚡ 学生在工作台协作时：每 3 秒后台静默拉取云端，实时感知教师发布的新通知或删除的通知/文献/问卷
+          // ⚡ 快照已每 2 秒天然同步通知与文献，此处仅保留 20 秒轻量静默兜底
           if (!this._studentWorkspacePollTick) this._studentWorkspacePollTick = 0;
           this._studentWorkspacePollTick++;
-          if (this._studentWorkspacePollTick % 3 === 0) {
+          if (this._studentWorkspacePollTick % 20 === 0) {
             if (this.authManager && this.authManager.pullGlobalMeta) {
               this.authManager.pullGlobalMeta().then(() => {
                 // 1. 若当前屏幕正打开的通知已被教师在后台删除，立即自动关闭该弹窗
