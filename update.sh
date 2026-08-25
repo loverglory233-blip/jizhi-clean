@@ -122,32 +122,15 @@ done
 echo "🚀 [4/4] 启动高可用同步服务端..."
 kill -9 $(lsof -t -i:8088 2>/dev/null) 2>/dev/null || true
 pkill -9 -f "server.py" 2>/dev/null || true
-kill -9 $(lsof -t -i:1234 2>/dev/null) 2>/dev/null || true
-pkill -9 -f "server_yjs" 2>/dev/null || true
 sleep 1
 
 MAIN_DIR="${TARGET_DIRS[0]}"
 if [ -n "$MAIN_DIR" ] && [ -d "$MAIN_DIR" ]; then
   cd "$MAIN_DIR"
-  if command -v npm >/dev/null 2>&1; then
-    npm install --production --no-audit 2>/dev/null || true
-  fi
   if [ -f "server.py" ]; then
     nohup python3 server.py > server.log 2>&1 &
     sleep 1
     echo "   ✅ 端口 8088 服务端已就绪 ($MAIN_DIR)"
-  fi
-  if systemctl is-active --quiet jizhi-yjs.service 2>/dev/null || [ -f "/etc/systemd/system/jizhi-yjs.service" ]; then
-    systemctl restart jizhi-yjs.service 2>/dev/null || true
-    echo "   ✅ Systemd 守护进程 jizhi-yjs.service (1234) 已重启就绪"
-  elif [ -f "server_yjs.js" ] && command -v node >/dev/null 2>&1; then
-    nohup node server_yjs.js > yjs.log 2>&1 &
-    sleep 1
-    echo "   ✅ 端口 1234 Yjs 协同服务端已就绪 ($MAIN_DIR)"
-  elif [ -f "server_yjs.py" ]; then
-    nohup python3 server_yjs.py > yjs.log 2>&1 &
-    sleep 1
-    echo "   ✅ 端口 1234 Yjs 协同服务端已就绪 ($MAIN_DIR)"
   fi
 fi
 
@@ -156,16 +139,12 @@ echo "======================================================"
 echo "🎉 全系统更新与校验完成！"
 for dir in "${TARGET_DIRS[@]}"; do
   echo "🔍 校验目录: $dir"
-  if grep -q "1001" "$dir/src/login.js" 2>/dev/null; then
-    echo "   ❌ src/login.js 存在旧文案"
+  if grep -q "20260825_v500" "$dir/index.html" 2>/dev/null; then
+    echo "   ✅ 全局版本戳已对齐: 20260825_v500"
   else
-    echo "   ✅ src/login.js 文案已完全净化（无工号提示）"
-  fi
-  if grep -q "import \* as V" "$dir/js/libs/y-websocket.js" 2>/dev/null; then
-    echo "   ✅ js/libs/y-websocket.js 模块结构正常"
+    echo "   ⚠️ 版本戳校验异常"
   fi
 done
 echo "======================================================"
-echo ""
-echo "✅ 能看到 status: ok = Yjs 协同引擎满血在线"
+echo "✅ 集智云端协同引擎与服务已就绪"
 echo "======================================================"
