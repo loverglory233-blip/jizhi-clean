@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260825_v502";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired } from "./utils.js?v=20260825_v502";
-import { callCozeAgentAPI } from "./agents.js?v=20260825_v502";
-import { AuthManager } from "./auth.js?v=20260825_v502";
-import { CloudSyncEngine } from "./sync.js?v=20260825_v502";
-import { renderLoginView } from "./login.js?v=20260825_v502";
-import { renderTeacherPortal } from "./teacher.js?v=20260825_v502";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260825_v502";
+} from "./constants.js?v=20260825_v503";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired } from "./utils.js?v=20260825_v503";
+import { callCozeAgentAPI } from "./agents.js?v=20260825_v503";
+import { AuthManager } from "./auth.js?v=20260825_v503";
+import { CloudSyncEngine } from "./sync.js?v=20260825_v503";
+import { renderLoginView } from "./login.js?v=20260825_v503";
+import { renderTeacherPortal } from "./teacher.js?v=20260825_v503";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260825_v503";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260825_v502";
+} from "./editor.js?v=20260825_v503";
 
 // Make renderChat available on window for sync callbacks
 if (typeof window !== "undefined") {
@@ -2257,8 +2257,11 @@ export class App {
   async triggerStageWelcomeSpeech(stage) {
     const currUser = this.authManager ? this.authManager.getCurrentUser() : null;
     const isTeacher = currUser && (currUser.role === 'teacher' || currUser.isTeacher);
-    // 🛡️ 铁律：教师端后台监控绝不触发智能体开场白生成；仅允许真实学生进入该阶段时生成
+    // 🛡️ 铁律：教师端监控或尚未完成初次云端拉取前绝不触发开场白生成（防止刷新时冷启动空内存抢跑生成假新开场白）
     if (isTeacher || this.state.isTeacherMonitorView || this.state.isTeacherView) {
+      return;
+    }
+    if (this.cloudSyncEngine && !this.cloudSyncEngine.isInitialPullDone) {
       return;
     }
 

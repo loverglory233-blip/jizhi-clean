@@ -2627,6 +2627,9 @@
           }
         });
         if (typeof window.renderChat === 'function') window.renderChat(this.app.state);
+        if (this.app && typeof this.app.triggerStageWelcomeSpeech === 'function') {
+          this.app.triggerStageWelcomeSpeech(this.app.state.currentStage || 'stage1');
+        }
       }
 
       // 🔒 渲染阶段一合约与阶段三答辩的字段级排他聚焦锁
@@ -10940,8 +10943,11 @@
     async triggerStageWelcomeSpeech(stage) {
       const currUser = this.authManager ? this.authManager.getCurrentUser() : null;
       const isTeacher = currUser && (currUser.role === 'teacher' || currUser.isTeacher);
-      // 🛡️ 铁律：教师端后台监控绝不触发智能体开场白生成；仅允许真实学生进入该阶段时生成
+      // 🛡️ 铁律：教师端监控或尚未完成初次云端拉取前绝不触发开场白生成（防止刷新时冷启动空内存抢跑生成假新开场白）
       if (isTeacher || this.state.isTeacherMonitorView || this.state.isTeacherView) {
+        return;
+      }
+      if (this.cloudSyncEngine && !this.cloudSyncEngine.isInitialPullDone) {
         return;
       }
 
