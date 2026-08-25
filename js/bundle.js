@@ -1605,31 +1605,71 @@
 
     getGroupMembersForWorkspace(groupId = 'group_1') {
       const users = this.getUsers();
-      const groupUsers = users.filter(u => u.groupId === groupId && u.role !== 'teacher');
+      const classes = this.getClasses();
       const colors = ['#818cf8', '#22d3ee', '#fbbf24', '#ec4899', '#34d399', '#f97316', '#a78bfa'];
       const avatars = ['👨‍🎓', '👩‍🎓', '🧑‍🎓', '🎓', '📚', '🌟'];
 
+      // 1. 优先从班级真实分组中检索该小组及其成员
+      let targetGrp = null;
+      for (const c of classes) {
+        if (Array.isArray(c.groups)) {
+          const foundG = c.groups.find(g => g && g.id === groupId);
+          if (foundG) { targetGrp = foundG; break; }
+        }
+      }
+
+      const groupUsers = [];
+      if (targetGrp && Array.isArray(targetGrp.members) && targetGrp.members.length > 0) {
+        targetGrp.members.forEach(m => {
+          if (!m) return;
+          const mKey = (typeof m === 'object') ? (m.studentCode || m.id || m.userId || m.username || m.name) : String(m);
+          const cleanKey = String(mKey || '').trim().toLowerCase();
+          const matchedU = users.find(u => {
+            if (!u) return false;
+            return String(u.studentCode || '').trim().toLowerCase() === cleanKey ||
+                   String(u.id || '').trim().toLowerCase() === cleanKey ||
+                   String(u.username || '').trim().toLowerCase() === cleanKey ||
+                   String(u.name || '').trim().toLowerCase() === cleanKey;
+          });
+          if (matchedU) {
+            groupUsers.push(matchedU);
+          } else if (typeof m === 'object') {
+            groupUsers.push(m);
+          } else {
+            groupUsers.push({ id: mKey, studentCode: mKey, name: mKey, role: 'student' });
+          }
+        });
+      } else {
+        // 2. 兜底：从 users 列表中按 groupId 匹配
+        users.forEach(u => {
+          if (u && u.groupId === groupId && u.role !== 'teacher') groupUsers.push(u);
+        });
+      }
+
       const membersObj = {};
       if (groupUsers.length > 0) {
+        // 按 studentCode/id 去重
+        const seen = new Set();
         groupUsers.forEach((u, idx) => {
-          const studentCode = (u.studentCode || u.username || u.id || `S${idx + 1}`).trim();
-          const letterCode = String.fromCharCode(65 + idx);
+          const studentCode = String(u.studentCode || u.username || u.id || `S${idx + 1}`).trim();
+          if (seen.has(studentCode)) return;
+          seen.add(studentCode);
+
+          const letterCode = String.fromCharCode(65 + (seen.size - 1));
           membersObj[studentCode] = {
             id: studentCode,
             userId: u.id || studentCode,
-            name: u.name || `学生${idx + 1}`,
+            name: u.name || `学生${seen.size}`,
             roleTitle: (u.role === 'leader' || idx === 0 || u.roleTitle?.includes('组长') || studentCode === 'A') ? '组长 · 论文结构' : `组员 · 合作撰写`,
-            avatar: u.avatar || avatars[idx % avatars.length],
-            color: colors[idx % colors.length],
+            avatar: u.avatar || avatars[(seen.size - 1) % avatars.length],
+            color: colors[(seen.size - 1) % colors.length],
             studentCode: studentCode,
             realStudentCode: studentCode,
             letterCode: letterCode,
             groupId: groupId,
-            classId: u.classId || 'class_101'
+            classId: u.classId || (targetGrp ? targetGrp.classId : 'class_101')
           };
         });
-      } else {
-        // 真实无成员小组直接返回空集合，绝不自动注入测试学生
       }
       return membersObj;
     }

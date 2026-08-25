@@ -2181,28 +2181,21 @@ if ($pdo) {
         $lastTs = intval($row['last_timestamp']);
         $lastRev = isset($row['revision_id']) ? intval($row['revision_id']) : 1;
 
-        $stmtChats = $pdo->prepare("SELECT meta_value FROM global_meta WHERE meta_key = :k");
-        $stmtChats->execute([':k' => 'chats_' . $scopeKey]);
-        $chatRow = $stmtChats->fetch();
-        $chats = ($chatRow && !empty($chatRow['meta_value'])) ? json_decode($chatRow['meta_value'], true) : null;
-
-        // 若 meta 中为空，直接从 chat_messages 关系表查询兜底
-        if (!$chats || !is_array($chats)) {
-            $chats = ['stage1' => [], 'stage2' => [], 'stage3' => []];
-            $stmtAllMsg = $pdo->prepare("SELECT stage, sender, text, timestamp_str, time_ms, id FROM chat_messages WHERE scope_key = :sk ORDER BY time_ms ASC");
-            $stmtAllMsg->execute([':sk' => $scopeKey]);
-            $allRows = $stmtAllMsg->fetchAll(PDO::FETCH_ASSOC);
-            foreach ($allRows as $mr) {
-                $stg = $mr['stage'] ?: 'stage1';
-                if (!isset($chats[$stg])) $chats[$stg] = [];
-                $chats[$stg][] = [
-                    'id'        => $mr['id'] ?: ('msg_' . $mr['time_ms'] . '_' . substr(md5($mr['text']), 0, 6)),
-                    'sender'    => $mr['sender'],
-                    'text'      => $mr['text'],
-                    'timestamp' => $mr['timestamp_str'],
-                    '_timeMs'   => intval($mr['time_ms'])
-                ];
-            }
+        // 🛡️ 聊天消息权威恢复：直接从 chat_messages 物理关系表拉取全部历史发言，绝不依赖易被空数组覆盖的缓存
+        $chats = ['stage1' => [], 'stage2' => [], 'stage3' => []];
+        $stmtAllMsg = $pdo->prepare("SELECT stage, sender, text, timestamp_str, time_ms, id FROM chat_messages WHERE scope_key = :sk ORDER BY time_ms ASC");
+        $stmtAllMsg->execute([':sk' => $scopeKey]);
+        $allRows = $stmtAllMsg->fetchAll(PDO::FETCH_ASSOC);
+        foreach ($allRows as $mr) {
+            $stg = $mr['stage'] ?: 'stage1';
+            if (!isset($chats[$stg])) $chats[$stg] = [];
+            $chats[$stg][] = [
+                'id'        => $mr['id'] ?: ('msg_' . $mr['time_ms'] . '_' . substr(md5($mr['text']), 0, 6)),
+                'sender'    => $mr['sender'],
+                'text'      => $mr['text'],
+                'timestamp' => $mr['timestamp_str'],
+                '_timeMs'   => intval($mr['time_ms'])
+            ];
         }
 
         // 读取 reset_seq 让客户端感知是否需要重置
@@ -2265,11 +2258,22 @@ if ($pdo) {
         echo json_encode($respData);
         exit;
     } else {
-        // 若当前小组首次建立且尚未生成完整快照，拉取聊天与全局教务元数据回传
-        $stmtChats = $pdo->prepare("SELECT meta_value FROM global_meta WHERE meta_key = :k");
-        $stmtChats->execute([':k' => 'chats_' . $scopeKey]);
-        $chatRow = $stmtChats->fetch();
-        $chats = ($chatRow && !empty($chatRow['meta_value'])) ? json_decode($chatRow['meta_value'], true) : ['stage1' => [], 'stage2' => [], 'stage3' => []];
+        // 🛡️ 聊天消息权威恢复：直接从 chat_messages 物理关系表拉取全部历史发言
+        $chats = ['stage1' => [], 'stage2' => [], 'stage3' => []];
+        $stmtAllMsg = $pdo->prepare("SELECT stage, sender, text, timestamp_str, time_ms, id FROM chat_messages WHERE scope_key = :sk ORDER BY time_ms ASC");
+        $stmtAllMsg->execute([':sk' => $scopeKey]);
+        $allRows = $stmtAllMsg->fetchAll(PDO::FETCH_ASSOC);
+        foreach ($allRows as $mr) {
+            $stg = $mr['stage'] ?: 'stage1';
+            if (!isset($chats[$stg])) $chats[$stg] = [];
+            $chats[$stg][] = [
+                'id'        => $mr['id'] ?: ('msg_' . $mr['time_ms'] . '_' . substr(md5($mr['text']), 0, 6)),
+                'sender'    => $mr['sender'],
+                'text'      => $mr['text'],
+                'timestamp' => $mr['timestamp_str'],
+                '_timeMs'   => intval($mr['time_ms'])
+            ];
+        }
 
         $stmtMeta = $pdo->prepare("SELECT meta_value FROM global_meta WHERE meta_key = 'main_meta'");
         $stmtMeta->execute();
