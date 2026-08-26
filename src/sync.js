@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState } from './constants.js?v=20260825_v520';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin } from './utils.js?v=20260825_v520';
+import { InitialState } from './constants.js?v=20260826_v600';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin } from './utils.js?v=20260826_v600';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -188,29 +188,18 @@ export class CloudSyncEngine {
     }
   }
 
-  async pushSnapshot(isReset = false) {
+  async pushSnapshot() {
     this.updateScopeKeys();
     const groupId = this.groupId;
 
-    // 🛡️ 严格读优先防空门禁：只有在【已完成初次拉取】或【显式主动重置】时才允许推送全量快照，彻底杜绝冷启动空内存反向冲刷
-    if (!this.isInitialPullDone && !isReset) {
+    // 🛡️ 严格读优先防空门禁：只有在【已完成初次拉取】时才允许推送全量快照，彻底杜绝冷启动空内存反向冲刷
+    if (!this.isInitialPullDone) {
       return;
-    }
-    const isResetVal = !!this.isResetBroadcast || isReset;
-    this.isResetBroadcast = false;
-
-    const localResetSeqKey = `jizhi_reset_seq_${this.storageKey}`;
-    let localResetSeq = parseInt(localStorage.getItem(localResetSeqKey) || '0', 10);
-    if (isReset) {
-      localResetSeq += 1;
-      try { localStorage.setItem(localResetSeqKey, String(localResetSeq)); } catch (e) {}
     }
 
     const snapshot = {
       timestamp: Date.now(),
       groupId: groupId,
-      isReset: isReset,
-      resetSeq: localResetSeq,
       revisionId: this.lastRevisionId || 0,
       members: this.app.state.members,
       presence: this.app.state.presence || {},
@@ -234,135 +223,18 @@ export class CloudSyncEngine {
     if (this.isPushing) { this.pendingPushCount++; return; }
     this.isPushing = true;
     try {
-      const results = await Promise.allSettled(this.syncEndpoints.map(url =>
+      await Promise.allSettled(this.syncEndpoints.map(url =>
         fetch(url, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: bodyStr
         }).then(r => r.json()).catch(() => null)
       ));
-      for (const result of results) {
-        if (result.status === 'fulfilled' && result.value && result.value.stale) {
-          const serverResetSeq = result.value.resetSeq || 0;
-          if (serverResetSeq > localResetSeq) {
-            this._applyReset(serverResetSeq);
-          }
-          break;
-        }
-      }
     } catch (e) {
     } finally {
       this.isPushing = false;
       if (this.pendingPushCount > 0) { this.pendingPushCount = 0; this.pushSnapshot(); }
     }
-  }
-
-  _applyReset(newResetSeq) {
-    const user = this.app.authManager.getCurrentUser();
-    const myGroupId = (user && user.groupId) ? user.groupId : (this.app.state.activeMonitorGroupId || 'group_1');
-    const taskId = this.app.state.activeTaskId || 'task_default';
-    const localResetSeqKey = `jizhi_reset_seq_${this.storageKey}`;
-
-    localStorage.setItem(localResetSeqKey, String(newResetSeq));
-
-    try {
-      const keysToRemove = [];
-      for (let i = 0; i < localStorage.length; i++) {
-        const k = localStorage.key(i);
-        if (k && k.startsWith('jizhi_sync_') && (k.endsWith(`_${myGroupId}`) || k.includes(`_${myGroupId}`))) {
-          keysToRemove.push(k);
-        }
-      }
-      keysToRemove.forEach(k => localStorage.removeItem(k));
-    } catch (e) {}
-
-    try {
-      const hasContent = (this.app.state.stage2 && this.app.state.stage2.unifiedContent) || 
-                         (this.app.state.stage1 && this.app.state.stage1.proposals && this.app.state.stage1.proposals.length > 0);
-      if (hasContent) {
-        const emergencyDraft = {
-          savedAt: new Date().toLocaleString(),
-          groupId: myGroupId,
-          taskId: taskId,
-          stage1: this.app.state.stage1,
-          stage2: this.app.state.stage2,
-          stage3: this.app.state.stage3,
-          chatLogs: this.app.state.chatLogs
-        };
-        localStorage.setItem('jizhi_lost_and_found_draft', JSON.stringify(emergencyDraft));
-      }
-    } catch (e) {}
-
-    this.app.state.stage1 = JSON.parse(JSON.stringify(InitialState.stage1));
-    this.app.state.stage2 = JSON.parse(JSON.stringify(InitialState.stage2));
-    this.app.state.stage3 = JSON.parse(JSON.stringify(InitialState.stage3));
-    this.app.state.chatLogs = { stage1: [], stage2: [], stage3: [] };
-    this.app.state.currentStage = 'stage1';
-    this.app.state.isFinalSubmitted = false;
-    this.app.state.presence = {};
-
-    this.lastTimestamp = 0;
-
-    const oldContractCard = document.querySelector('.contract-card');
-    if (oldContractCard) oldContractCard.remove();
-    const editor = document.getElementById('stage2-word-editor') || document.getElementById('stage3-word-editor');
-    if (editor) editor.innerHTML = '';
-
-    this.app.saveGroupState(myGroupId);
-    if (typeof window.renderChat === 'function') window.renderChat(this.app.state);
-    this.app.updateContributionUi();
-    this.app.renderPresenceCursors();
-
-    this.updateScopeKeys();
-    const userKey = user ? (user.id || user.studentCode || user.username || 'u') : 'u';
-    const ackResetSeqKey = `jizhi_ack_reset_seq_${userKey}_${this.storageKey}`;
-    const localAckSeq = parseInt(localStorage.getItem(ackResetSeqKey) || '0', 10);
-
-    // 仅在首次感知到该版本重置时，才向学生弹窗提示 1 次
-    if (newResetSeq > localAckSeq) {
-      localStorage.setItem(ackResetSeqKey, String(newResetSeq));
-
-      if (user?.role === 'student' || user?.isStudent) {
-        document.querySelectorAll('.reset-notify-modal').forEach(m => m.remove());
-        const resetModal = document.createElement('div');
-        resetModal.className = 'modal-overlay reset-notify-modal';
-        const isCurrentlyInWorkspace = this.app && this.app.state.studentViewMode === 'workspace';
-
-        resetModal.innerHTML = `
-          <div class="teacher-modal-card" style="width:440px; text-align:center; padding:32px 24px; background:#ffffff; border-radius:14px; box-shadow:0 20px 25px -5px rgba(0,0,0,0.25); border:1px solid #e2e8f0; animation:modalFadeIn 0.25s ease;">
-            <div style="font-size:44px; margin-bottom:12px;">🔄</div>
-            <div style="font-size:18px; font-weight:800; color:#0f172a; margin-bottom:8px;">课堂协同数据已重置</div>
-            <div style="font-size:13.5px; color:#475569; line-height:1.6; margin-bottom:22px;">
-              ${isCurrentlyInWorkspace 
-                ? '指导教师已清空重置本组在当前写作任务中的分工公约、正文草稿与讨论记录。小组成员已自动安全返回【任务大厅】。' 
-                : '指导教师已清空重置本组在当前写作任务中的协同数据，已为您开启全新一轮协作写作！'}
-            </div>
-            <button id="btn-confirm-reset-ok" style="background:linear-gradient(135deg, #2563eb, #1d4ed8); color:white; border:none; padding:12px 28px; border-radius:8px; font-size:14px; font-weight:700; cursor:pointer; width:100%; box-shadow:0 3px 10px rgba(37,99,235,0.25);">
-              ${isCurrentlyInWorkspace ? '📋 我知道了 (返回任务大厅)' : '✍️ 我知道了 (开始协作)'}
-            </button>
-          </div>
-        `;
-        document.body.appendChild(resetModal);
-
-        const handleDismiss = () => {
-          resetModal.remove();
-          if (isCurrentlyInWorkspace && this.app) {
-            this.app.state.studentViewMode = 'task_list';
-            this.app.renderMain();
-          } else if (this.app) {
-            this.app.renderStudentWorkspace();
-          }
-        };
-
-        resetModal.querySelector('#btn-confirm-reset-ok').addEventListener('click', handleDismiss);
-        resetModal.addEventListener('click', (e) => { if (e.target === resetModal) handleDismiss(); });
-      }
-    }
-  }
-
-  // 📡 仅向本机其他标签页广播一条本地消息（不触达服务端）；供教师重置成功后就地同步 resetSeq（修复 broadcastLocal 未定义，见审查 #43 配套）
-  broadcastLocal(data) {
-    if (this.bc) { try { this.bc.postMessage({ snapshot: data }); } catch (e) {} }
   }
 
   handleRemoteSync(remoteData) {
@@ -768,30 +640,10 @@ export class CloudSyncEngine {
     }
 
     if (remoteData.stage2) {
-      // 🚀 100% 绝对可靠同步：当远端组员有新内容、且本地当前未在输入时，平滑呈现最新正文
       if (remoteData.stage2.unifiedContent !== undefined) {
         const remoteHtml = remoteData.stage2.unifiedContent || '';
-        const localHtml = this.app.state.stage2?.unifiedContent || '';
-        
-        const stage2Editor = document.getElementById('stage2-word-editor');
-        const qlEditor = stage2Editor ? stage2Editor.querySelector('.ql-editor') : null;
-        const activeEl = document.activeElement;
-        const isLocalTyping = activeEl && (
-          activeEl === stage2Editor ||
-          activeEl === qlEditor ||
-          (stage2Editor && stage2Editor.contains(activeEl))
-        );
-
-        if (!isLocalTyping && remoteHtml && remoteHtml !== localHtml) {
-          if (!this.app.state.stage2) this.app.state.stage2 = {};
-          this.app.state.stage2.unifiedContent = remoteHtml;
-          
-          if (window._jizhi_quill && window._jizhi_quill.root) {
-            if (window._jizhi_quill.root.innerHTML !== remoteHtml) {
-              window._jizhi_quill.root.innerHTML = remoteHtml;
-            }
-          }
-        }
+        if (!this.app.state.stage2) this.app.state.stage2 = {};
+        this.app.state.stage2.unifiedContent = remoteHtml;
       }
 
       if (remoteData.stage2.memberContributions) {
@@ -866,7 +718,6 @@ export class CloudSyncEngine {
 
     if (remoteData.timer && this.app.state.timer) {
       if (remoteData.timer.startTimestamp) {
-        // 🛡️ 修复计时器重置：接受服务端权威时间戳（无论新旧），教师重置后所有客户端同步
         this.app.state.timer.startTimestamp = remoteData.timer.startTimestamp;
       }
       if (remoteData.timer.speed !== undefined) {
@@ -880,7 +731,6 @@ export class CloudSyncEngine {
     const stageOrder = { stage1: 1, stage2: 2, stage3: 3 };
     const currentOrder = stageOrder[this.app.state.currentStage] || 1;
     const remoteOrder = stageOrder[remoteData.currentStage] || 1;
-    const groupMaxOrder = stageOrder[this.app.state.groupMaxStage || 'stage1'] || 1;
 
     if (remoteData.currentStage) {
       this.app.state.groupMaxStage = remoteData.currentStage;
@@ -899,7 +749,6 @@ export class CloudSyncEngine {
     this.app.updateContributionUi();
     this.app.renderPresenceCursors();
 
-    // 👨‍🏫 教师端实时同屏刷新 (当教师正在监控该小组时，实时同屏反映最新进度)
     // 🛡️ 本地快照极速持久化：确保下次 F5 刷新时 0 毫秒秒级呈现已有全部协作数据
     try {
       const snapCache = {
@@ -916,7 +765,8 @@ export class CloudSyncEngine {
       localStorage.setItem(this.storageKey, JSON.stringify(snapCache));
     } catch (e) {}
 
-    if ((!this._hasRenderedInitialWorkspace || needWorkspaceRender) && user?.role === 'student' && this.app.state.studentViewMode === 'workspace') {
+    const isFirstPull = !this._hasRenderedInitialWorkspace;
+    if ((isFirstPull || needWorkspaceRender) && user?.role === 'student' && this.app.state.studentViewMode === 'workspace') {
       const activeEl = document.activeElement;
       const isTypingInWorkspace = activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA') && (document.getElementById('canvas-panel')?.contains(activeEl) || document.querySelector('.contract-card')?.contains(activeEl));
       if (!isTypingInWorkspace) {

@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260825_v520";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired } from "./utils.js?v=20260825_v520";
-import { callCozeAgentAPI } from "./agents.js?v=20260825_v520";
-import { AuthManager } from "./auth.js?v=20260825_v520";
-import { CloudSyncEngine } from "./sync.js?v=20260825_v520";
-import { renderLoginView } from "./login.js?v=20260825_v520";
-import { renderTeacherPortal } from "./teacher.js?v=20260825_v520";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260825_v520";
+} from "./constants.js?v=20260826_v600";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired } from "./utils.js?v=20260826_v600";
+import { callCozeAgentAPI } from "./agents.js?v=20260826_v600";
+import { AuthManager } from "./auth.js?v=20260826_v600";
+import { CloudSyncEngine } from "./sync.js?v=20260826_v600";
+import { renderLoginView } from "./login.js?v=20260826_v600";
+import { renderTeacherPortal } from "./teacher.js?v=20260826_v600";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260826_v600";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260825_v520";
+} from "./editor.js?v=20260826_v600";
 
 // Make renderChat available on window for sync callbacks
 if (typeof window !== "undefined") {
@@ -3182,17 +3182,32 @@ ${propText}
       onConfirmStage3Revision: () => {
         const user = this.state.currentUser || 'A';
         const s3 = this.state.stage3;
-        const membersList = Object.values(this.state.members || {});
-        const totalMembersCount = membersList.length || 3;
+        let memberArr = [];
+        if (Array.isArray(this.state.members)) memberArr = this.state.members;
+        else if (this.state.members && typeof this.state.members === 'object') memberArr = Object.values(this.state.members);
+        if (memberArr.length === 0 && this.authManager) {
+          const u = this.authManager.getCurrentUser();
+          const effClassId = this.state.activeStudentClassId || u?.classId || 'class_101';
+          const effGroup = this.authManager.getStudentActiveGroup(u, effClassId);
+          memberArr = this.authManager.getGroupMembersForWorkspace(effGroup?.id || 'group_1');
+        }
+        const totalMembersCount = memberArr.length > 0 ? memberArr.length : 3;
+
         if (!s3.confirmedMembers) s3.confirmedMembers = {};
         s3.confirmedMembers[user] = true;
-        if (this.state.members[user]) {
-          s3.confirmedMembers[this.state.members[user].id] = true;
+        const currMemObj = memberArr.find(m => m && (m.id === user || m.studentCode === user || m.username === user || m.name === user));
+        if (currMemObj) {
+          if (currMemObj.id) s3.confirmedMembers[currMemObj.id] = true;
+          if (currMemObj.studentCode) s3.confirmedMembers[currMemObj.studentCode] = true;
+          if (currMemObj.username) s3.confirmedMembers[currMemObj.username] = true;
+          if (currMemObj.name) s3.confirmedMembers[currMemObj.name] = true;
         }
-        const confirmedCount = membersList.filter(m => s3.confirmedMembers[m.id] || s3.confirmedMembers[m.studentCode]).length;
-        const memberName = this.state.members[user] ? this.state.members[user].name : user;
+
+        const confirmedCount = memberArr.filter(m => m && (s3.confirmedMembers[m.id] || s3.confirmedMembers[m.studentCode] || s3.confirmedMembers[m.username] || (m.name && s3.confirmedMembers[m.name]))).length;
+        const memberName = currMemObj ? currMemObj.name : user;
         const confirmMsg = {
           sender: user,
+          senderName: memberName,
           text: `📢 [终稿修改确认]: 我 (${memberName}) 已确认完成终稿修改！（全组修改确认进度: ${confirmedCount}/${totalMembersCount} 人）`,
           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
           _timeMs: Date.now()

@@ -780,36 +780,76 @@ if ($action === 'get_teacher_monitor_all_groups') {
     exit;
 }
 
-if ($action === 'get_pad_text') {
+if ($action === 'get_pad_text' || $action === 'get_pad_html') {
     header('Content-Type: application/json; charset=utf-8');
     $padId = isset($_GET['padId']) ? preg_replace('/[^a-zA-Z0-9_-]/', '', $_GET['padId']) : 'jizhi_' . $scopeKey;
-    // 读取 Etherpad 真实 API key（与 APIKEY.txt 保持一致，杜绝硬编码失效）
     $apiKey = 'c46d86a306a7bba99b4b3e260922245a461918236ffa47aab2d8f54dd18fa0eb';
     $apiKeyFile = '/www/wwwroot/etherpad-lite/APIKEY.txt';
     if (is_readable($apiKeyFile)) {
         $k = trim(@file_get_contents($apiKeyFile));
         if (!empty($k)) $apiKey = $k;
     }
-    $epUrl = "http://127.0.0.1:9001/api/1.2.14/getText?apikey=" . urlencode($apiKey) . "&padID=" . urlencode($padId);
-    
-    $ch = curl_init($epUrl);
+
+    $retText = '';
+    $retHtml = '';
+
+    // 1. 优先尝试从 Etherpad 9001 API 获取富文本 HTML (含图片与表格)
+    $epHtmlUrl = "http://127.0.0.1:9001/api/1.2.14/getHTML?apikey=" . urlencode($apiKey) . "&padID=" . urlencode($padId);
+    $ch = curl_init($epHtmlUrl);
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_TIMEOUT, 3);
-    $res = curl_exec($ch);
-    $err = curl_error($ch);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 2);
+    $resHtml = curl_exec($ch);
     curl_close($ch);
-    
-    if (!$err && !empty($res)) {
-        $json = json_decode($res, true);
-        if (isset($json['code']) && $json['code'] === 0 && isset($json['data']['text'])) {
-            echo json_encode([
-                'success' => true,
-                'text' => $json['data']['text']
-            ]);
-            exit;
+
+    if (!empty($resHtml)) {
+        $jsonHtml = json_decode($resHtml, true);
+        if (isset($jsonHtml['code']) && $jsonHtml['code'] === 0 && isset($jsonHtml['data']['html'])) {
+            $retHtml = $jsonHtml['data']['html'];
+            $retText = trim(strip_tags($retHtml));
         }
     }
-    echo json_encode(['success' => false, 'text' => '']);
+
+    // 2. 若 HTML 为空，尝试 getText
+    if (empty($retText)) {
+        $epTextUrl = "http://127.0.0.1:9001/api/1.2.14/getText?apikey=" . urlencode($apiKey) . "&padID=" . urlencode($padId);
+        $ch2 = curl_init($epTextUrl);
+        curl_setopt($ch2, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch2, CURLOPT_TIMEOUT, 2);
+        $resText = curl_exec($ch2);
+        curl_close($ch2);
+        if (!empty($resText)) {
+            $jsonText = json_decode($resText, true);
+            if (isset($jsonText['code']) && $jsonText['code'] === 0 && isset($jsonText['data']['text'])) {
+                $retText = $jsonText['data']['text'];
+                if (empty($retHtml)) $retHtml = $retText;
+            }
+        }
+    }
+
+    // 3. 若 Etherpad 接口未获取到，从平台 group_states 数据库无缝兜底获取学生回传的正文
+    if (empty($retHtml) && empty($retText) && $pdo) {
+        $stmtDb = $pdo->prepare("SELECT stage2_data FROM group_states WHERE scope_key = :sk");
+        $stmtDb->execute([':sk' => $scopeKey]);
+        $rowDb = $stmtDb->fetch();
+        if ($rowDb && !empty($rowDb['stage2_data'])) {
+            $s2Data = json_decode($rowDb['stage2_data'], true);
+            if (!empty($s2Data['unifiedContent'])) {
+                $retHtml = $s2Data['unifiedContent'];
+                $retText = trim(strip_tags($retHtml));
+            }
+        }
+    }
+
+    if (!empty($retHtml) || !empty($retText)) {
+        echo json_encode([
+            'success' => true,
+            'text' => $retText,
+            'html' => $retHtml
+        ]);
+        exit;
+    }
+
+    echo json_encode(['success' => false, 'text' => '', 'html' => '']);
     exit;
 }
 
@@ -1736,82 +1776,7 @@ if (($action === 'coze_chat' || $action === 'coze_poll') && ($_SERVER['REQUEST_M
     exit;
 }
 
-// 3b. 教师端原子重置小组协同数据 (独立可靠通道，绝不依赖并发锁)
-if ($action === 'reset_group' && $_SERVER['REQUEST_METHOD'] === 'POST') {
-    $rawInput = file_get_contents('php://input');
-    $reqData = json_decode($rawInput, true) ?: [];
-    $userId = $reqData['userId'] ?? ($_GET['userId'] ?? '');
-    $token = $reqData['token'] ?? ($_GET['token'] ?? '');
 
-    $nowMs = round(microtime(true) * 1000);
-    $newResetSeq = 1;
-    if ($pdo) {
-        try {
-            $pdo->beginTransaction();
-
-            // 读取并递增 reset_seq
-            $stmtGetResetSeq = $pdo->prepare("SELECT meta_value FROM global_meta WHERE meta_key = :k");
-            $stmtGetResetSeq->execute([':k' => 'reset_seq_' . $scopeKey]);
-            $resetSeqRow = $stmtGetResetSeq->fetch();
-            $serverResetSeq = $resetSeqRow ? intval($resetSeqRow['meta_value']) : 0;
-            $newResetSeq = $serverResetSeq + 1;
-
-            $stmtSetResetSeq = $pdo->prepare("INSERT INTO global_meta (meta_key, meta_value) VALUES (:k, :v) ON DUPLICATE KEY UPDATE meta_value = :v2");
-            $stmtSetResetSeq->execute([':k' => 'reset_seq_' . $scopeKey, ':v' => $newResetSeq, ':v2' => $newResetSeq]);
-
-            // 彻底清空 group_states 表
-            $emptyS1 = json_encode(['proposals' => [], 'votes' => [], 'hasVoted' => [], 'mergedTitle' => '', 'contract' => ['confirmedMembers' => [], 'isConfirmed' => false]], JSON_UNESCAPED_UNICODE);
-            $emptyS2 = json_encode(['unifiedContent' => '', 'meetingSubmissions' => [], 'actionPlan' => null, 'memberContributions' => []], JSON_UNESCAPED_UNICODE);
-            $emptyS3 = json_encode(['proponentAnalysis' => '', 'opponentCritique' => '', 'neutralVerdict' => '', 'feedbackItems' => []], JSON_UNESCAPED_UNICODE);
-            
-            $stmtResetGroup = $pdo->prepare("INSERT INTO group_states (scope_key, task_id, group_id, current_stage, stage1_data, stage2_data, stage3_data, presence_data, is_final_submitted, last_timestamp)
-                VALUES (:sk, :tid, :gid, 'stage1', :s1, :s2, :s3, '[]', 0, :ts)
-                ON DUPLICATE KEY UPDATE current_stage='stage1', stage1_data=:s1b, stage2_data=:s2b, stage3_data=:s3b, presence_data='[]', is_final_submitted=0, last_timestamp=:tsb");
-            $stmtResetGroup->execute([
-                ':sk' => $scopeKey, ':tid' => $taskId, ':gid' => $groupId,
-                ':s1' => $emptyS1, ':s2' => $emptyS2, ':s3' => $emptyS3, ':ts' => $nowMs,
-                ':s1b' => $emptyS1, ':s2b' => $emptyS2, ':s3b' => $emptyS3, ':tsb' => $nowMs
-            ]);
-
-            // 清空 chat_messages 和 chats 快速通道
-            $stmtDelChats = $pdo->prepare("DELETE FROM chat_messages WHERE scope_key = :sk");
-            $stmtDelChats->execute([':sk' => $scopeKey]);
-            $emptyChats = json_encode(['stage1' => [], 'stage2' => [], 'stage3' => []], JSON_UNESCAPED_UNICODE);
-            $stmtClearChatMeta = $pdo->prepare("INSERT INTO global_meta (meta_key, meta_value) VALUES (:k, :v) ON DUPLICATE KEY UPDATE meta_value = :v2");
-            $stmtClearChatMeta->execute([':k' => 'chats_' . $scopeKey, ':v' => $emptyChats, ':v2' => $emptyChats]);
-
-            // 更新全局变更信号
-            $stmtSignal = $pdo->prepare("INSERT INTO global_meta (meta_key, meta_value) VALUES ('meta_updated_at', :v) ON DUPLICATE KEY UPDATE meta_value = :v2");
-            $stmtSignal->execute([':v' => $nowMs, ':v2' => $nowMs]);
-
-            $pdo->commit();
-        } catch (Exception $e) {
-            if ($pdo->inTransaction()) {
-                $pdo->rollBack();
-            }
-            echo json_encode(['success' => false, 'error' => $e->getMessage()]);
-            exit;
-        }
-    }
-
-    // 🛡️ 彻底清空 Yjs CRDT 协同服务中的内存与磁盘文件，绝无任何幽灵数据残留
-    $yjsRoomName = "jizhi_yjs_{$taskId}_{$groupId}";
-    @file_get_contents("http://127.0.0.1:1234/reset_room?roomName=" . urlencode($yjsRoomName));
-    $yjsJsonFile = __DIR__ . "/data/room_{$yjsRoomName}.json";
-    $yjsBinFile = __DIR__ . "/data/room_{$yjsRoomName}.bin";
-    if (file_exists($yjsJsonFile)) @unlink($yjsJsonFile);
-    if (file_exists($yjsBinFile)) @unlink($yjsBinFile);
-
-    // 清理本地文件备份
-    @file_put_contents(__DIR__ . '/db_' . $scopeKey . '.json', json_encode([
-        'timestamp' => $nowMs, 'groupId' => $groupId, 'taskId' => $taskId, 'currentStage' => 'stage1',
-        'stage1' => [], 'stage2' => ['unifiedContent' => ''], 'stage3' => [], 'chatLogs' => ['stage1' => [], 'stage2' => [], 'stage3' => []],
-        'resetSeq' => $newResetSeq, 'isReset' => true
-    ], JSON_UNESCAPED_UNICODE));
-
-    echo json_encode(['success' => true, 'resetSeq' => $newResetSeq, 'timestamp' => $nowMs]);
-    exit;
-}
 
 // ⚡ 3.5 教师端协同动态与代签提醒路由 (GET / POST)
 if ($action === 'record_teacher_alert') {
@@ -1887,8 +1852,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!empty($data) || !empty($rawInput)) {
         $ts = isset($data['timestamp']) ? intval($data['timestamp']) : round(microtime(true) * 1000);
         
-        // 🛡️ 变量防御性初始化，确保极端无数据库或单机容灾模式下变量 100% 绝对安全
-        $isResetVal     = !empty($data['isReset']) ? 1 : 0;
         $mergedPresence = (isset($data['presence']) && is_array($data['presence'])) ? $data['presence'] : [];
         $mergedS1       = (isset($data['stage1']) && is_array($data['stage1'])) ? $data['stage1'] : [];
         $mergedS2       = (isset($data['stage2']) && is_array($data['stage2'])) ? $data['stage2'] : [];
@@ -1897,32 +1860,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $clientRevision = isset($data['revisionId']) ? intval($data['revisionId']) : 0;
 
         if ($pdo) {
-            // 读取当前服务端 reset_seq
-            $stmtGetResetSeq = $pdo->prepare("SELECT meta_value FROM global_meta WHERE meta_key = :k");
-            $stmtGetResetSeq->execute([':k' => 'reset_seq_' . $scopeKey]);
-            $resetSeqRow = $stmtGetResetSeq->fetch();
-            $serverResetSeq = $resetSeqRow ? intval($resetSeqRow['meta_value']) : 0;
-            
-            if ($isResetVal) {
-                // ── 重置指令：递增 reset_seq 并清空所有数据 ──
-                $newResetSeq = $serverResetSeq + 1;
-                $stmtSetResetSeq = $pdo->prepare("INSERT INTO global_meta (meta_key, meta_value) VALUES (:k, :v) ON DUPLICATE KEY UPDATE meta_value = :v2");
-                $stmtSetResetSeq->execute([':k' => 'reset_seq_' . $scopeKey, ':v' => $newResetSeq, ':v2' => $newResetSeq]);
-                $serverResetSeq = $newResetSeq;
-
-                // 清空 chat_messages 和 chats 快速通道
-                $stmtDelChats = $pdo->prepare("DELETE FROM chat_messages WHERE scope_key = :sk");
-                $stmtDelChats->execute([':sk' => $scopeKey]);
-                $emptyChats = json_encode(['stage1' => [], 'stage2' => [], 'stage3' => []], JSON_UNESCAPED_UNICODE);
-                $stmtClearChatMeta = $pdo->prepare("INSERT INTO global_meta (meta_key, meta_value) VALUES (:k, :v) ON DUPLICATE KEY UPDATE meta_value = :v2");
-                $stmtClearChatMeta->execute([':k' => 'chats_' . $scopeKey, ':v' => $emptyChats, ':v2' => $emptyChats]);
-            } else {
-                $clientResetSeq = isset($data['resetSeq']) ? intval($data['resetSeq']) : 0;
-                // 仅对齐服务端最新序列号，允许正常数据增量合并
-                if ($clientResetSeq < $serverResetSeq) {
-                    $clientResetSeq = $serverResetSeq;
-                }
-            }
             // 4a. 读取已有的协作状态，进行字段级智能合并保护（杜绝多端互相覆盖）
             $existingPresence = [];
             $existingS1 = [];
@@ -1947,7 +1884,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // 合并 stage1
             $incomingS1 = (isset($data['stage1']) && is_array($data['stage1'])) ? $data['stage1'] : [];
             $mergedS1 = array_merge($existingS1, $incomingS1);
-            if (!empty($existingS1) && !$isResetVal) {
+            if (!empty($existingS1)) {
                 // 🛡️ 选题主题防空覆盖：若传入的主题为空，严格保留已有主题
                 if (empty(trim($incomingS1['mergedTitle'] ?? '')) && !empty(trim($existingS1['mergedTitle'] ?? ''))) {
                     $mergedS1['mergedTitle'] = $existingS1['mergedTitle'];
@@ -1996,7 +1933,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // 合并 stage2 (全篇单画布协作模型与正常编辑删除支持)
             $incomingS2 = (isset($data['stage2']) && is_array($data['stage2'])) ? $data['stage2'] : [];
             $mergedS2 = $incomingS2;
-            if (!empty($existingS2) && !$isResetVal) {
+            if (!empty($existingS2)) {
                 // 🛡️ 致命防线：若传入的正文为空字符串，而数据库中已有非空正文草稿，且非重置操作，严格保留已有正文！
                 // 🛡️ 乐观并发控制：客户端携带的 revision_id 落后于服务端时判定为过期正文，拒绝覆盖最新正文（杜绝降级模式下旧快照冲刷）
                 $incomingIsStale = ($clientRevision > 0 && $existingRevision > 0 && $clientRevision < $existingRevision);
@@ -2045,7 +1982,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // 合并 stage3 (答辩质询与终稿修改)
             $incomingS3 = (isset($data['stage3']) && is_array($data['stage3'])) ? $data['stage3'] : [];
             $mergedS3 = $incomingS3;
-            if (!empty($existingS3) && !$isResetVal) {
+            if (!empty($existingS3)) {
                 // 终稿修改全员确认字典合并
                 $exConfirmed3 = isset($existingS3['confirmedMembers']) && is_array($existingS3['confirmedMembers']) ? $existingS3['confirmedMembers'] : [];
                 $inConfirmed3 = isset($incomingS3['confirmedMembers']) && is_array($incomingS3['confirmedMembers']) ? $incomingS3['confirmedMembers'] : [];
@@ -2082,23 +2019,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stageWeights = ['stage1' => 1, 'stage2' => 2, 'stage3' => 3];
             $exStage = isset($stRow['current_stage']) ? $stRow['current_stage'] : 'stage1';
             $inStage = isset($data['currentStage']) ? $data['currentStage'] : 'stage1';
-            $finalStage = $inStage;
-            if (!$isResetVal) {
-                $wEx = $stageWeights[$exStage] ?? 1;
-                $wIn = $stageWeights[$inStage] ?? 1;
-                $finalStage = ($wEx >= $wIn) ? $exStage : $inStage;
-            }
+            $wEx = $stageWeights[$exStage] ?? 1;
+            $wIn = $stageWeights[$inStage] ?? 1;
+            $finalStage = ($wEx >= $wIn) ? $exStage : $inStage;
 
             // 🛡️ 锁定状态：完全由客户端/教师端权威布尔值控制，支持正常锁定与解锁
-            $inFinal = !empty($data['isFinalSubmitted']) ? 1 : 0;
-            $finalLock = $isResetVal ? 0 : $inFinal;
+            $finalLock = !empty($data['isFinalSubmitted']) ? 1 : 0;
 
             // 🛡️ 公约与初稿确认状态防逆流 (Sticky True)
-            if (!$isResetVal && !empty($existingS1['contract']['isConfirmed'])) {
+            if (!empty($existingS1['contract']['isConfirmed'])) {
                 if (!isset($mergedS1['contract'])) $mergedS1['contract'] = [];
                 $mergedS1['contract']['isConfirmed'] = true;
             }
-            if (!$isResetVal && !empty($existingS2['isDraftConfirmed'])) {
+            if (!empty($existingS2['isDraftConfirmed'])) {
                 $mergedS2['isDraftConfirmed'] = true;
             }
 
