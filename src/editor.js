@@ -76,7 +76,10 @@ export function renderHeader(state, currentUser, announcements, onStageChange, o
 
   header.innerHTML = `
     <div class="brand-section">
-      <div class="brand-logo">集智 JIZHI</div>
+      <div class="brand-logo" style="display:flex; align-items:center; gap:6px;">
+        <span>集智 JIZHI</span>
+        <span style="font-size:10.5px; -webkit-text-fill-color:#2563eb; color:#2563eb; background:#eff6ff; border:1px solid #bfdbfe; padding:1px 5px; border-radius:4px; font-weight:800;">v20260826_v603</span>
+      </div>
       <div class="brand-badge" style="background:#eff6ff; color:#1d4ed8; padding:3px 12px; border-radius:20px; font-size:12px; font-weight:700; border:1px solid #bfdbfe; display:inline-flex; align-items:center; gap:6px;">
         <span>🎓 ${escapeHtml(currentUser ? currentUser.name : '学生')}</span>
         <span style="opacity:0.35;">·</span>
