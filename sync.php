@@ -707,13 +707,22 @@ if ($action === 'get_teacher_monitor_all_groups') {
     $ONLINE_WINDOW_MS = 60000; // 60 秒心跳/发言窗口判定在线 (彻底杜绝切后台/发完文字误判为离线)
 
     if ($pdo) {
-        // 1. 优先加载官方班级分组名册，确保未登录小组也绝不显示 0/0 人
+        // 1. 优先加载官方班级分组名册与全校学生信息字典
         $officialGroups = [];
+        $userMap = [];
         $stmtMeta = $pdo->prepare("SELECT meta_value FROM global_meta WHERE meta_key = 'main_meta'");
         $stmtMeta->execute();
         $mRow = $stmtMeta->fetch();
         if ($mRow && !empty($mRow['meta_value'])) {
             $parsedMeta = json_decode($mRow['meta_value'], true);
+            if (isset($parsedMeta['users']) && is_array($parsedMeta['users'])) {
+                foreach ($parsedMeta['users'] as $u) {
+                    if (isset($u['id']) && $u['id'] !== '') $userMap[(string)$u['id']] = $u;
+                    if (isset($u['studentCode']) && $u['studentCode'] !== '') $userMap[(string)$u['studentCode']] = $u;
+                    if (isset($u['username']) && $u['username'] !== '') $userMap[(string)$u['username']] = $u;
+                    if (isset($u['name']) && $u['name'] !== '') $userMap[(string)$u['name']] = $u;
+                }
+            }
             if (isset($parsedMeta['classes']) && is_array($parsedMeta['classes'])) {
                 foreach ($parsedMeta['classes'] as $cls) {
                     if (empty($classId) || (isset($cls['id']) && $cls['id'] === $classId)) {
@@ -742,6 +751,8 @@ if ($action === 'get_teacher_monitor_all_groups') {
         $allGroupIds = array_unique(array_merge(array_keys($officialGroups), array_keys($stateMap)));
         if (empty($allGroupIds)) $allGroupIds = ['group_1'];
 
+        $ONLINE_WINDOW_MS = 60000; // 60 秒心跳/发言窗口判定在线 (与学生打字/心跳频率精准对齐)
+
         foreach ($allGroupIds as $gid) {
             $r = $stateMap[$gid] ?? null;
             $sk = $taskId . '_' . $gid;
@@ -753,7 +764,7 @@ if ($action === 'get_teacher_monitor_all_groups') {
             $chatRow = $stmtChats->fetch();
             $chats = ($chatRow && !empty($chatRow['meta_value'])) ? json_decode($chatRow['meta_value'], true) : ['stage1' => [], 'stage2' => [], 'stage3' => []];
 
-            // 查出该组最近 60 秒内发言的学生名单
+            // 查出该组最近发言的学生名单
             $recentActiveSenders = [];
             $cutoffMs = $nowMs - $ONLINE_WINDOW_MS;
             $stmtAct = $pdo->prepare("SELECT DISTINCT sender FROM chat_messages WHERE scope_key = :sk AND time_ms >= :cutoff");
@@ -763,13 +774,13 @@ if ($action === 'get_teacher_monitor_all_groups') {
                 foreach ($actRows as $snd) { $recentActiveSenders[(string)$snd] = true; }
             }
 
-            // 组员名单优先取班级官方分配名单
-            $membersArr = [];
+            // 组员名单优先取班级官方分配名单，并解析为完整成员信息
+            $rawMembers = [];
             if ($offGroup && isset($offGroup['members']) && is_array($offGroup['members']) && count($offGroup['members']) > 0) {
-                $membersArr = array_values($offGroup['members']);
+                $rawMembers = array_values($offGroup['members']);
             } elseif ($r && !empty($r['members_data'])) {
                 $mDec = json_decode($r['members_data'], true);
-                if (is_array($mDec) && count($mDec) > 0) $membersArr = array_values($mDec);
+                if (is_array($mDec) && count($mDec) > 0) $rawMembers = array_values($mDec);
             }
 
             $presence = ($r && !empty($r['presence_data'])) ? json_decode($r['presence_data'], true) : [];
@@ -781,22 +792,35 @@ if ($action === 'get_teacher_monitor_all_groups') {
 
             $onlineMembers = [];
             $absentMembers = [];
-            $groupLastTs = $r ? intval($r['last_timestamp']) : 0;
-            $groupIsActiveRecently = ($nowMs - $groupLastTs) <= $ONLINE_WINDOW_MS;
+            $resolvedMembersList = [];
 
-            foreach ($membersArr as $m) {
-                if (!is_array($m)) continue;
+            foreach ($rawMembers as $m) {
+                $memberObj = null;
+                $mKey = '';
+                if (is_array($m)) {
+                    $mKey = $m['id'] ?? ($m['userId'] ?? ($m['studentCode'] ?? ''));
+                    $memberObj = $userMap[(string)$mKey] ?? $m;
+                } else {
+                    $mKey = (string)$m;
+                    $memberObj = $userMap[$mKey] ?? ['id' => $mKey, 'studentCode' => $mKey, 'name' => $mKey];
+                }
+
                 $candidateKeys = [];
                 foreach (['studentCode', 'id', 'userId', 'name', 'username', 'realStudentCode'] as $f) {
-                    if (isset($m[$f]) && $m[$f] !== '') $candidateKeys[] = (string)$m[$f];
+                    if (isset($memberObj[$f]) && $memberObj[$f] !== '') $candidateKeys[] = (string)$memberObj[$f];
                 }
+                if ($mKey !== '') $candidateKeys[] = (string)$mKey;
+                $candidateKeys = array_unique($candidateKeys);
+
                 $isFresh = false;
                 foreach ($candidateKeys as $k) {
                     if (isset($presenceByKey[$k]) && ($nowMs - $presenceByKey[$k]) <= $ONLINE_WINDOW_MS) { $isFresh = true; break; }
                     if (isset($recentActiveSenders[$k])) { $isFresh = true; break; }
                 }
-                $label = (isset($m['name']) && $m['name'] !== '') ? $m['name'] : (isset($m['studentCode']) ? $m['studentCode'] : '成员');
+
+                $label = !empty($memberObj['name']) ? $memberObj['name'] : (!empty($memberObj['studentCode']) ? $memberObj['studentCode'] : (string)$mKey);
                 if ($isFresh) $onlineMembers[] = $label; else $absentMembers[] = $label;
+                $resolvedMembersList[] = $memberObj;
             }
 
             // 活跃字段锁
@@ -826,8 +850,8 @@ if ($action === 'get_teacher_monitor_all_groups') {
                 'isFinalSubmitted'   => $r ? (bool)$r['is_final_submitted'] : false,
                 'lastTimestamp'      => $r ? intval($r['last_timestamp']) : 0,
                 'revisionId'         => $r ? intval($r['revision_id']) : 1,
-                'members'            => $membersArr,
-                'totalMembers'       => count($membersArr),
+                'members'            => $resolvedMembersList,
+                'totalMembers'       => count($resolvedMembersList),
                 'onlineCount'        => count($onlineMembers),
                 'onlineMembers'      => $onlineMembers,
                 'absentMembers'      => $absentMembers,
@@ -1302,12 +1326,45 @@ if ($action === 'get_global_meta') {
                     }
                 }
 
+                $aggregatedAnnouncements = [];
+                $stmtA = $pdo->query("SELECT * FROM announcements");
+                if ($stmtA) {
+                    while ($ar = $stmtA->fetch(PDO::FETCH_ASSOC)) {
+                        $aggregatedAnnouncements[] = [
+                            'id' => $ar['id'],
+                            'title' => $ar['title'],
+                            'content' => $ar['content'],
+                            'createdAt' => $ar['created_at_str'] ?? '',
+                            'targetClassIds' => json_decode($ar['target_class_ids'] ?? '[]', true) ?: [],
+                            'isPinned' => !empty($ar['is_pinned'])
+                        ];
+                    }
+                }
+
+                $aggregatedPapers = [];
+                $stmtP = $pdo->query("SELECT * FROM reference_papers");
+                if ($stmtP) {
+                    while ($pr = $stmtP->fetch(PDO::FETCH_ASSOC)) {
+                        $aggregatedPapers[] = [
+                            'id' => $pr['id'],
+                            'title' => $pr['title'],
+                            'abstract' => $pr['abstract'] ?? '',
+                            'keyHighlights' => $pr['highlights'] ?? '',
+                            'targetGroupId' => $pr['target_group'] ?? 'all',
+                            'fileName' => $pr['file_name'] ?? '',
+                            'fileSize' => $pr['file_size'] ?? '',
+                            'fileUrl' => $pr['file_data'] ?? '',
+                            'uploadTime' => $pr['upload_time'] ?? ''
+                        ];
+                    }
+                }
+
                 $foundMeta = [
                     'users' => $aggregatedUsers,
                     'classes' => $aggregatedClasses,
                     'tasks' => $aggregatedTasks,
-                    'announcements' => [],
-                    'referencePapers' => [],
+                    'announcements' => $aggregatedAnnouncements,
+                    'referencePapers' => $aggregatedPapers,
                     'surveys' => []
                 ];
             } catch (Exception $e) {}
@@ -1991,7 +2048,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         }
                     }
                 }
-                $mergedS1['proposals'] = array_values($propMap);
+                // 🛡️ 严格小组白名单过滤：仅保留属于本组成员的提案，剔除历史跨组串入的脏提案
+                $allowedKeys = [];
+                if (!empty($mbJson)) {
+                    $mbs = json_decode($mbJson, true);
+                    if (is_array($mbs)) {
+                        foreach ($mbs as $mb) {
+                            if (is_array($mb)) {
+                                foreach (['id', 'studentCode', 'userId', 'username', 'name'] as $f) {
+                                    if (!empty($mb[$f])) $allowedKeys[(string)$mb[$f]] = true;
+                                }
+                            } elseif (is_string($mb) || is_numeric($mb)) {
+                                $allowedKeys[(string)$mb] = true;
+                            }
+                        }
+                    }
+                }
+                if (!empty($allowedKeys)) {
+                    $cleanPropList = [];
+                    foreach ($propMap as $author => $p) {
+                        $aStr = (string)$author;
+                        $anStr = isset($p['authorName']) ? (string)$p['authorName'] : '';
+                        if (isset($allowedKeys[$aStr]) || (!empty($anStr) && isset($allowedKeys[$anStr]))) {
+                            $cleanPropList[] = $p;
+                        }
+                    }
+                    $mergedS1['proposals'] = $cleanPropList;
+                } else {
+                    $mergedS1['proposals'] = array_values($propMap);
+                }
                 $exVotes = isset($existingS1['votes']) && is_array($existingS1['votes']) ? $existingS1['votes'] : [];
                 $inVotes = isset($incomingS1['votes']) && is_array($incomingS1['votes']) ? $incomingS1['votes'] : [];
                 $mergedS1['votes'] = array_replace($exVotes, $inVotes);

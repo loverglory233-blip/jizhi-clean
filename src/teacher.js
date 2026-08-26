@@ -9,8 +9,8 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260827_v611";
-import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash } from "./utils.js?v=20260827_v611";
+} from "./constants.js?v=20260827_v612";
+import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash } from "./utils.js?v=20260827_v612";
 
 /* ==========================================================================
    7. TEACHER PORTAL RENDERER (LIVE WORKSPACE MIRROR & ANNOUNCEMENT READ MATRIX)
@@ -105,6 +105,21 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
         if (panRes && panRes.success && panRes.groups) {
           state.monitorPanorama = panRes.groups;
           if (panRes.hash) state._lastMonitorHash = panRes.hash;
+
+          // 🎯 核心修复：将当前正在同屏监控的小组真实数据精准同步到 state
+          const currentGroupData = panRes.groups[activeMonitorGId];
+          if (currentGroupData) {
+            state.stage1 = currentGroupData.stage1 || { proposals: [], votes: {}, hasVoted: {}, contract: {} };
+            state.stage2 = {
+              ...(state.stage2 || {}),
+              ...(currentGroupData.stage2 || {}),
+              unifiedContent: (state.stage2 && state.stage2.unifiedContent) ? state.stage2.unifiedContent : (currentGroupData.stage2?.unifiedContent || '')
+            };
+            state.stage3 = currentGroupData.stage3 || { feedbackItems: [] };
+            state.chatLogs = currentGroupData.chatLogs || { stage1: [], stage2: [], stage3: [] };
+            state.currentStage = currentGroupData.currentStage || 'stage1';
+            state.isFinalSubmitted = !!currentGroupData.isFinalSubmitted;
+          }
         }
       } catch (e) {}
 
@@ -878,8 +893,10 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
                       ${(state.stage1?.proposals && state.stage1.proposals.length > 0) ? `
                         <div class="proposals-grid" style="display:grid; grid-template-columns:repeat(auto-fill, minmax(200px, 1fr)); gap:12px;">
                           ${state.stage1.proposals.map((p, idx) => {
+                            const allGlobalUsers = (authManager) ? authManager.getUsers() : [];
                             const authorObj = monitorMembersList.find(m => m.id === p.author || m.studentCode === p.author || m.name === p.authorName || m.name === p.author);
-                            const authorName = authorObj ? authorObj.name : (p.authorName || p.author || `组员${idx+1}`);
+                            const authorUser = allGlobalUsers.find(u => u.id === p.author || u.studentCode === p.author || u.username === p.author || u.name === p.authorName);
+                            const authorName = authorObj ? authorObj.name : (authorUser ? authorUser.name : (p.authorName || p.author || `组员${idx+1}`));
                             const votes = p.votes || 0;
                             return `
                               <div class="proposal-card ${votes > 0 ? 'voted' : ''}" style="background:#ffffff; border:1.5px solid ${votes > 0 ? '#3b82f6' : '#cbd5e1'}; border-radius:10px; padding:12px; display:flex; flex-direction:column; box-shadow:0 2px 6px rgba(0,0,0,0.03);">
@@ -975,9 +992,11 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
                     <div style="font-size:15px; font-weight:800; color:#0f172a; margin-bottom:12px;">💬 阶段一研讨对话流 (${activeMonitorGroup.name})</div>
                     <div style="flex:1; max-height:420px; overflow-y:auto; background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:12px; font-size:12px; display:flex; flex-direction:column; gap:10px;">
                       ${((state.chatLogs && state.chatLogs['stage1']) || []).map(m => {
+                        const allGlobalUsers = (authManager) ? authManager.getUsers() : [];
                         const isAgent = AgentProfiles[m.sender] !== undefined;
-                        const senderName = isAgent ? AgentProfiles[m.sender].name : (monitorMembersObj[m.sender] ? monitorMembersObj[m.sender].name : m.sender);
-                        const color = isAgent ? AgentProfiles[m.sender].color : (monitorMembersObj[m.sender] ? monitorMembersObj[m.sender].color : '#2563eb');
+                        const matchedUser = isAgent ? null : allGlobalUsers.find(u => u.id === m.sender || u.studentCode === m.sender || u.username === m.sender || u.name === m.sender);
+                        const senderName = isAgent ? AgentProfiles[m.sender].name : (matchedUser ? matchedUser.name : (m.senderName || (monitorMembersObj[m.sender] ? monitorMembersObj[m.sender].name : m.sender)));
+                        const color = isAgent ? AgentProfiles[m.sender].color : (matchedUser ? (matchedUser.color || '#2563eb') : (monitorMembersObj[m.sender] ? monitorMembersObj[m.sender].color : '#2563eb'));
                         return `
                           <div style="background:#ffffff; padding:8px 12px; border-radius:8px; border:1px solid #e2e8f0; border-left:3px solid ${color};">
                             <div style="display:flex; justify-content:space-between; margin-bottom:3px;">
@@ -1056,9 +1075,11 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
                     <div style="font-size:15px; font-weight:800; color:#0f172a; margin-bottom:12px;">💬 阶段二编辑部研讨流 (${activeMonitorGroup.name})</div>
                     <div style="flex:1; max-height:460px; overflow-y:auto; background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:12px; font-size:12px; display:flex; flex-direction:column; gap:10px;">
                       ${((state.chatLogs && state.chatLogs['stage2']) || []).map(m => {
+                        const allGlobalUsers = (authManager) ? authManager.getUsers() : [];
                         const isAgent = AgentProfiles[m.sender] !== undefined;
-                        const senderName = isAgent ? AgentProfiles[m.sender].name : (monitorMembersObj[m.sender] ? monitorMembersObj[m.sender].name : m.sender);
-                        const color = isAgent ? AgentProfiles[m.sender].color : (monitorMembersObj[m.sender] ? monitorMembersObj[m.sender].color : '#2563eb');
+                        const matchedUser = isAgent ? null : allGlobalUsers.find(u => u.id === m.sender || u.studentCode === m.sender || u.username === m.sender || u.name === m.sender);
+                        const senderName = isAgent ? AgentProfiles[m.sender].name : (matchedUser ? matchedUser.name : (m.senderName || (monitorMembersObj[m.sender] ? monitorMembersObj[m.sender].name : m.sender)));
+                        const color = isAgent ? AgentProfiles[m.sender].color : (matchedUser ? (matchedUser.color || '#2563eb') : (monitorMembersObj[m.sender] ? monitorMembersObj[m.sender].color : '#2563eb'));
                         return `
                           <div style="background:#ffffff; padding:8px 12px; border-radius:8px; border:1px solid #e2e8f0; border-left:3px solid ${color};">
                             <div style="display:flex; justify-content:space-between; margin-bottom:3px;">
@@ -1138,9 +1159,11 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
                     <div style="font-size:15px; font-weight:800; color:#0f172a; margin-bottom:12px;">💬 阶段三答辩对话流 (${activeMonitorGroup.name})</div>
                     <div style="flex:1; max-height:460px; overflow-y:auto; background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:12px; font-size:12px; display:flex; flex-direction:column; gap:10px;">
                       ${((state.chatLogs && state.chatLogs['stage3']) || []).map(m => {
+                        const allGlobalUsers = (authManager) ? authManager.getUsers() : [];
                         const isAgent = AgentProfiles[m.sender] !== undefined;
-                        const senderName = isAgent ? AgentProfiles[m.sender].name : (monitorMembersObj[m.sender] ? monitorMembersObj[m.sender].name : m.sender);
-                        const color = isAgent ? AgentProfiles[m.sender].color : (monitorMembersObj[m.sender] ? monitorMembersObj[m.sender].color : '#2563eb');
+                        const matchedUser = isAgent ? null : allGlobalUsers.find(u => u.id === m.sender || u.studentCode === m.sender || u.username === m.sender || u.name === m.sender);
+                        const senderName = isAgent ? AgentProfiles[m.sender].name : (matchedUser ? matchedUser.name : (m.senderName || (monitorMembersObj[m.sender] ? monitorMembersObj[m.sender].name : m.sender)));
+                        const color = isAgent ? AgentProfiles[m.sender].color : (matchedUser ? (matchedUser.color || '#2563eb') : (monitorMembersObj[m.sender] ? monitorMembersObj[m.sender].color : '#2563eb'));
                         return `
                           <div style="background:#ffffff; padding:8px 12px; border-radius:8px; border:1px solid #e2e8f0; border-left:3px solid ${color};">
                             <div style="display:flex; justify-content:space-between; margin-bottom:3px;">
