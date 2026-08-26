@@ -91,6 +91,19 @@ export function formatExportDateTime(timeVal) {
 }
 
 /**
+ * 🕒 统一标准时间格式化（严格使用横杠 - 分隔）：YYYY-MM-DD HH:mm
+ */
+export function formatStandardDateDash(val) {
+  if (!val) return '';
+  const str = String(val).trim();
+  if (str.includes('无') || str.includes('随时') || str.includes('结课前') || str.includes('刚刚') || str.includes('不限')) return str;
+  const d = new Date(str.replace(/-/g, '/'));
+  if (isNaN(d.getTime())) return str.replace(/\//g, '-');
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+/**
  * 🛡️ 任务截止状态判定：如果当前本地时间已超过截止时间，判定为已截止 (过期)
  */
 export function isTaskExpired(task) {

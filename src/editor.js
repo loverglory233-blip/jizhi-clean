@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles } from "./constants.js?v=20260826_v605";
-import { callCozeAgentAPI } from "./agents.js?v=20260826_v605";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime } from "./utils.js?v=20260826_v605";
+import { AgentProfiles } from "./constants.js?v=20260826_v606";
+import { callCozeAgentAPI } from "./agents.js?v=20260826_v606";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime } from "./utils.js?v=20260826_v606";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -1118,7 +1118,7 @@ function renderStage1Canvas(canvas, state, handlers) {
 
         <div style="background:#f8fafc; padding:16px; border-radius:12px; border:1px solid #e2e8f0; width:100%; box-sizing:border-box;">
           <div style="font-weight:700; color:#1e40af; margin-bottom:12px; font-size:14px; display:flex; justify-content:space-between; align-items:center;">
-            <span>👥 本组小组成员分工 (共 ${totalMembersCount} 人 · 自动适配全宽展现):</span>
+            <span>👥 本组小组成员分工 (共 ${totalMembersCount} 人):</span>
           </div>
           <div style="display:flex; flex-direction:column; gap:10px; width:100%;">
             ${membersList.map((m, idx) => {
@@ -1553,9 +1553,10 @@ function renderStage2Canvas(canvas, state, handlers) {
   const membersList = Object.values(state.members || {});
   const plainTextLen = (s2.unifiedContent || '').replace(/<[^>]*>/g, '').trim().length;
 
-  const userGroupId = state.currentUser && state.members[state.currentUser] ? state.members[state.currentUser].groupId : 'group_1';
   const currUser = (window.app && window.app.authManager) ? window.app.authManager.getCurrentUser() : null;
-  const userClassId = currUser ? currUser.classId : null;
+  const userClassId = state.activeStudentClassId || (currUser ? currUser.classId : null) || 'class_101';
+  const activeGroupObj = (window.app && window.app.authManager) ? window.app.authManager.getStudentActiveGroup(currUser, userClassId) : null;
+  const userGroupId = activeGroupObj?.id || (window.app?.cloudSyncEngine?.groupId) || (currUser?.groupId) || 'group_1';
   const activeTaskId = state.activeTaskId || 'task_default';
   const availablePapers = (window.app && window.app.authManager) ? window.app.authManager.getReferencePapers(userGroupId, userClassId, activeTaskId) : [];
   const paperBtnLabel = availablePapers.length > 0 ? `📚 查阅参考范文 (${availablePapers.length}篇)` : '📚 查阅参考范文库';
@@ -1979,8 +1980,11 @@ function renderStage3Canvas(canvas, state, handlers) {
           </div>
         </div>
       ` : (() => {
+        const currUser = (window.app && window.app.authManager) ? window.app.authManager.getCurrentUser() : null;
+        const userClassId = state.activeStudentClassId || (currUser ? currUser.classId : null) || 'class_101';
+        const activeGroupObj = (window.app && window.app.authManager) ? window.app.authManager.getStudentActiveGroup(currUser, userClassId) : null;
+        const userGroupId = activeGroupObj?.id || (window.app?.cloudSyncEngine?.groupId) || (currUser?.groupId) || 'group_1';
         const activeTaskId = state.activeTaskId || 'task_default';
-        const userGroupId = state.currentUser ? (state.currentUser.groupId || 'group_1') : 'group_1';
         const padName = `jizhi_${activeTaskId}_${userGroupId}`;
         const currUserName = (currUser && (currUser.name || currUser.username)) || '组员';
         const currUserColor = (state.members && state.members[currUserCode]?.color) || '#2563eb';
