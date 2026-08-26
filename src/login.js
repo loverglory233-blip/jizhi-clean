@@ -1,12 +1,17 @@
-/**
- * JIZHI (集智) Platform - Login View Renderer
- * Standard ES Module (ESM)
- */
+import { escapeHtml } from "./utils.js?v=20260826_v607";
 
 export function renderLoginView(container, authManager, onLoginSuccess) {
   if (authManager && authManager.pullGlobalMeta) {
     authManager.pullGlobalMeta().catch(() => {});
   }
+
+  let savedAccount = '';
+  let savedRole = 'student';
+  try {
+    savedAccount = localStorage.getItem('jizhi_last_login_account') || '';
+    savedRole = localStorage.getItem('jizhi_last_login_role') || 'student';
+  } catch (e) {}
+
   container.innerHTML = `
     <div style="min-height:100vh; display:flex; align-items:center; justify-content:center; padding:20px; background:linear-gradient(135deg, #f0f4f9 0%, #e2e8f0 100%);">
       <div style="background:#ffffff; border:1px solid #cbd5e1; border-radius:20px; width:440px; max-width:95vw; padding:36px; box-shadow:0 20px 40px -8px rgba(15, 23, 42, 0.08), 0 4px 12px rgba(15, 23, 42, 0.04);">
@@ -17,20 +22,20 @@ export function renderLoginView(container, authManager, onLoginSuccess) {
         <form id="login-form" style="display:flex; flex-direction:column; gap:16px;">
           <div style="display:flex; flex-direction:column; gap:6px;">
             <label style="font-size:13px; font-weight:700; color:#334155;">工号 / 学号</label>
-            <input type="text" id="login-account" class="teacher-input" placeholder="请输入工号或者学号" value="" required style="width:100%;">
+            <input type="text" id="login-account" class="teacher-input" placeholder="请输入工号或者学号" value="${escapeHtml(savedAccount)}" autocomplete="username" required style="width:100%;">
           </div>
           <div style="display:flex; flex-direction:column; gap:6px;">
             <label style="font-size:13px; font-weight:700; color:#334155;">密码</label>
-            <input type="password" id="login-password" class="teacher-input" placeholder="请输入密码" value="" required style="width:100%;">
+            <input type="password" id="login-password" class="teacher-input" placeholder="请输入密码" value="" autocomplete="current-password" required style="width:100%;">
           </div>
           <div style="display:flex; flex-direction:column; gap:6px;">
             <label style="font-size:13px; font-weight:700; color:#334155;">登录身份</label>
             <div id="login-role-selector" style="display:flex; gap:10px;">
               <label id="role-opt-student" style="flex:1; display:flex; align-items:center; justify-content:center; gap:6px; padding:10px; border:1.5px solid #2563eb; border-radius:8px; cursor:pointer; font-size:13px; font-weight:700; color:#1e40af; background:#eff6ff;">
-                <input type="radio" name="login-role" value="student" checked style="accent-color:#2563eb;"> 🎓 学生
+                <input type="radio" name="login-role" value="student" ${savedRole !== 'teacher' ? 'checked' : ''} style="accent-color:#2563eb;"> 🎓 学生
               </label>
               <label id="role-opt-teacher" style="flex:1; display:flex; align-items:center; justify-content:center; gap:6px; padding:10px; border:1.5px solid #cbd5e1; border-radius:8px; cursor:pointer; font-size:13px; font-weight:600; color:#334155; background:#ffffff;">
-                <input type="radio" name="login-role" value="teacher" style="accent-color:#2563eb;"> 👩‍🏫 教师
+                <input type="radio" name="login-role" value="teacher" ${savedRole === 'teacher' ? 'checked' : ''} style="accent-color:#2563eb;"> 👩‍🏫 教师
               </label>
             </div>
           </div>
@@ -97,6 +102,10 @@ export function renderLoginView(container, authManager, onLoginSuccess) {
       const selectedRole = (container.querySelector('input[name="login-role"]:checked') || {}).value || 'student';
       const res = await (authManager.loginAsync ? authManager.loginAsync(accountInput.value, passwordInput.value, selectedRole) : authManager.login(accountInput.value, passwordInput.value, selectedRole));
       if (res && res.success) {
+        try {
+          localStorage.setItem('jizhi_last_login_account', accountInput.value.trim());
+          localStorage.setItem('jizhi_last_login_role', selectedRole);
+        } catch (e) {}
         onLoginSuccess();
       } else {
         errorMsg.innerText = (res && res.message) ? res.message : '❌ 账号或密码错误';
@@ -109,4 +118,11 @@ export function renderLoginView(container, authManager, onLoginSuccess) {
       if (submitBtn) { submitBtn.disabled = false; submitBtn.innerText = '🚀 登录集智平台'; }
     }
   });
+
+  // 💡 智能光标聚焦：若已自动回填学号，直接聚焦密码框方便输入
+  if (savedAccount && passwordInput) {
+    setTimeout(() => { try { passwordInput.focus(); } catch (e) {} }, 100);
+  } else if (accountInput) {
+    setTimeout(() => { try { accountInput.focus(); } catch (e) {} }, 100);
+  }
 }
