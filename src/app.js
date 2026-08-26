@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260826_v600";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired } from "./utils.js?v=20260826_v600";
-import { callCozeAgentAPI } from "./agents.js?v=20260826_v600";
-import { AuthManager } from "./auth.js?v=20260826_v600";
-import { CloudSyncEngine } from "./sync.js?v=20260826_v600";
-import { renderLoginView } from "./login.js?v=20260826_v600";
-import { renderTeacherPortal } from "./teacher.js?v=20260826_v600";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260826_v600";
+} from "./constants.js?v=20260826_v601";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired } from "./utils.js?v=20260826_v601";
+import { callCozeAgentAPI } from "./agents.js?v=20260826_v601";
+import { AuthManager } from "./auth.js?v=20260826_v601";
+import { CloudSyncEngine } from "./sync.js?v=20260826_v601";
+import { renderLoginView } from "./login.js?v=20260826_v601";
+import { renderTeacherPortal } from "./teacher.js?v=20260826_v601";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260826_v601";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260826_v600";
+} from "./editor.js?v=20260826_v601";
 
 // Make renderChat available on window for sync callbacks
 if (typeof window !== "undefined") {
@@ -645,9 +645,10 @@ export class App {
             const targetGroupId = latestGroupObj.id || (currentUser && currentUser.groupId ? currentUser.groupId : 'group_1');
             this.loadGroupState(targetGroupId);
 
-            // 🎯 始终从阶段一进入，若本组已推进至阶段二/三，则阶段一显示为只读归档，并解锁顶部阶段导航供学生自主加入
-            this.state.currentStage = 'stage1';
-            this.isViewingPastStage = (this.state.groupMaxStage && this.state.groupMaxStage !== 'stage1');
+            // 🎯 保持本组推进到的真实阶段，确保历史消息与当前工作台阶段 100% 对应
+            const effectiveStage = this.state.groupMaxStage || this.state.currentStage || 'stage1';
+            this.state.currentStage = effectiveStage;
+            this.isViewingPastStage = false;
 
             if (!this.state.presence) this.state.presence = {};
             const myKeys = [currentUser?.id, currentUser?.studentCode, currentUser?.username, currentUser?.name].filter(Boolean);
@@ -669,12 +670,10 @@ export class App {
                 this.cloudSyncEngine.groupId = targetGroupId;
                 this.cloudSyncEngine.taskId = actualTaskId;
                 this.cloudSyncEngine.updateScopeKeys();
-                try {
-                  this.cloudSyncEngine.sendPresencePing(currentUser);
-                  await this.cloudSyncEngine.pullFromServer();
-                } catch (e) {}
+                await this.cloudSyncEngine.pullFromServer();
+                if (typeof window.renderChat === 'function') window.renderChat(this.state);
               }
-            }, 10);
+            }, 50);
           },
           () => this.handleLogout(),
           () => this.switchToTeacherView(),

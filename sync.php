@@ -396,6 +396,10 @@ if ($action === 'login' && $_SERVER['REQUEST_METHOD'] === 'POST') {
             $uId = $foundUser['id'] ?? '';
             $uName = $foundUser['username'] ?? '';
             $uCode = $foundUser['student_code'] ?? '';
+            try {
+                $stmtUpUserSess = $pdo->prepare("UPDATE users SET active_session_id = :tok WHERE id = :uid OR student_code = :sc OR username = :un");
+                $stmtUpUserSess->execute([':tok' => $token, ':uid' => $uId, ':sc' => $uCode ?: $uId, ':un' => $uName ?: $uId]);
+            } catch (Exception $e) {}
             $stmtSess = $pdo->prepare("INSERT INTO global_meta (meta_key, meta_value) VALUES (:k, :v) ON DUPLICATE KEY UPDATE meta_value = :v2");
             if ($uId) $stmtSess->execute([':k' => 'sess_' . $uId, ':v' => $token, ':v2' => $token]);
             if ($uName && $uName !== $uId) $stmtSess->execute([':k' => 'sess_' . $uName, ':v' => $token, ':v2' => $token]);
@@ -2184,18 +2188,30 @@ if ($pdo) {
     $reqUserId = isset($_GET['userId']) ? trim($_GET['userId']) : '';
     $reqSessToken = isset($_GET['sessToken']) ? trim($_GET['sessToken']) : '';
     if (!empty($reqUserId) && !empty($reqSessToken)) {
-        $stmtSessChk = $pdo->prepare("SELECT meta_value FROM global_meta WHERE meta_key = :k");
-        $stmtSessChk->execute([':k' => 'sess_' . $reqUserId]);
-        $sessRow = $stmtSessChk->fetch();
-        if ($sessRow && !empty($sessRow['meta_value'])) {
-            if ($sessRow['meta_value'] !== $reqSessToken) {
+        // 1. 优先比对 users 表活跃会话
+        $stmtUserSess = $pdo->prepare("SELECT active_session_id FROM users WHERE id = :u1 OR student_code = :u2 OR username = :u3 LIMIT 1");
+        $stmtUserSess->execute([':u1' => $reqUserId, ':u2' => $reqUserId, ':u3' => $reqUserId]);
+        $uSessRow = $stmtUserSess->fetch(PDO::FETCH_ASSOC);
+        if ($uSessRow && !empty($uSessRow['active_session_id'])) {
+            if ($uSessRow['active_session_id'] !== $reqSessToken) {
                 echo json_encode(['kicked' => true]);
                 exit;
             }
         } else {
-            $stmtSessInit = $pdo->prepare("INSERT INTO global_meta (meta_key, meta_value, updated_at) VALUES (:k, :v, :ts) ON DUPLICATE KEY UPDATE meta_value = :v2, updated_at = :ts2");
-            $nowStr = date('Y-m-d H:i:s');
-            $stmtSessInit->execute([':k' => 'sess_' . $reqUserId, ':v' => $reqSessToken, ':ts' => $nowStr, ':v2' => $reqSessToken, ':ts2' => $nowStr]);
+            // 2. 辅助比对 global_meta
+            $stmtSessChk = $pdo->prepare("SELECT meta_value FROM global_meta WHERE meta_key = :k");
+            $stmtSessChk->execute([':k' => 'sess_' . $reqUserId]);
+            $sessRow = $stmtSessChk->fetch();
+            if ($sessRow && !empty($sessRow['meta_value'])) {
+                if ($sessRow['meta_value'] !== $reqSessToken) {
+                    echo json_encode(['kicked' => true]);
+                    exit;
+                }
+            } else {
+                $stmtSessInit = $pdo->prepare("INSERT INTO global_meta (meta_key, meta_value, updated_at) VALUES (:k, :v, :ts) ON DUPLICATE KEY UPDATE meta_value = :v2, updated_at = :ts2");
+                $nowStr = date('Y-m-d H:i:s');
+                $stmtSessInit->execute([':k' => 'sess_' . $reqUserId, ':v' => $reqSessToken, ':ts' => $nowStr, ':v2' => $reqSessToken, ':ts2' => $nowStr]);
+            }
         }
     }
 
