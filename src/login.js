@@ -40,7 +40,7 @@ export function renderLoginView(container, authManager, onLoginSuccess) {
           </button>
         </form>
         <div style="text-align:center; margin-top:20px; font-size:11.5px; color:#94a3b8; font-weight:600; letter-spacing:0.5px;">
-          📌 系统版本: <b style="color:#2563eb;">20260826_v603</b> · 实时协同已就绪
+          📌 系统版本: <b style="color:#2563eb;">20260826_v604</b> · 实时协同已就绪
         </div>
       </div>
     </div>
