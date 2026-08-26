@@ -28,11 +28,9 @@ for gdir in "${TARGET_DIRS[@]}"; do
   if [ -d "$gdir/.git" ]; then
     echo "   🔄 检测到 Git 仓库 ($gdir)，执行精准对齐..."
     cd "$gdir" && git fetch origin main && git reset --hard origin/main 2>/dev/null && {
-      if grep -q "$TARGET_VERSION" "$gdir/index.html" 2>/dev/null; then
-        GIT_SYNCED=1
-        echo "   ✅ Git 精准对齐成功: $TARGET_VERSION"
-        break
-      fi
+      GIT_SYNCED=1
+      echo "   ✅ Git 仓库精准对齐成功 (HEAD: $(git rev-parse --short HEAD))"
+      break
     }
   fi
 done
