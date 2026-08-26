@@ -11,7 +11,6 @@ for d in /www/wwwroot/*; do
     TARGET_DIRS+=("$d")
   fi
 done
-[ -d "/root/jizhi-clean" ] && TARGET_DIRS+=("/root/jizhi-clean")
 TARGET_DIRS=($(printf "%s\n" "${TARGET_DIRS[@]}" | sort -u))
 [ ${#TARGET_DIRS[@]} -eq 0 ] && TARGET_DIRS+=("/www/wwwroot/47.99.110.230")
 
