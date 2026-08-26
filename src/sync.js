@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState } from './constants.js?v=20260826_v601';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin } from './utils.js?v=20260826_v601';
+import { InitialState } from './constants.js?v=20260826_v602';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin } from './utils.js?v=20260826_v602';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -343,11 +343,21 @@ export class CloudSyncEngine {
     }
 
     // ⚡ 天然随快照无缝更新通知与文献库，无需前端再发起任何独立请求
-    if (Array.isArray(remoteData.announcements) && this.app.authManager) {
-      this.app.authManager.saveAnnouncements(remoteData.announcements);
+    if (Array.isArray(remoteData.announcements)) {
+      try {
+        localStorage.setItem('jizhi_announcements_db', JSON.stringify(remoteData.announcements));
+        if (this.app.authManager && typeof this.app.authManager.saveAnnouncements === 'function') {
+          this.app.authManager.saveAnnouncements(remoteData.announcements);
+        }
+      } catch (e) {}
     }
-    if (Array.isArray(remoteData.referencePapers) && this.app.authManager) {
-      this.app.authManager.saveReferencePapers(remoteData.referencePapers);
+    if (Array.isArray(remoteData.referencePapers)) {
+      try {
+        localStorage.setItem('jizhi_reference_papers_db', JSON.stringify(remoteData.referencePapers));
+        if (this.app.authManager && typeof this.app.authManager.saveReferencePapers === 'function') {
+          this.app.authManager.saveReferencePapers(remoteData.referencePapers);
+        }
+      } catch (e) {}
     }
 
     if (remoteData.isFinalSubmitted !== undefined) {
