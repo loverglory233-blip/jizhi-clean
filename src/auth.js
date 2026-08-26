@@ -14,8 +14,8 @@ import {
   DefaultTasks,
   DefaultAnnouncements,
   DefaultReferencePapers
-} from './constants.js?v=20260827_v611';
-import { formatExportDateTime } from './utils.js?v=20260827_v611';
+} from './constants.js?v=20260827_v612';
+import { formatExportDateTime } from './utils.js?v=20260827_v612';
 
 export class AuthManager {
   constructor() {
@@ -161,42 +161,54 @@ export class AuthManager {
           }
           if (Array.isArray(data.announcements)) {
             const localAnns = JSON.parse(localStorage.getItem(STORAGE_KEY_ANNOUNCEMENTS) || '[]');
-            const localMap = new Map();
-            localAnns.forEach(a => { if (a && a.id) localMap.set(a.id, a); });
+            if (data.announcements.length === 0 && localAnns.length > 0) {
+              // 🛡️ 云端返回空而本地有数据时，保留本地通知，杜绝误清空
+            } else {
+              const localMap = new Map();
+              localAnns.forEach(a => { if (a && a.id) localMap.set(a.id, a); });
 
-            const mergedAnns = data.announcements.map(remoteAnn => {
-              const localAnn = localMap.get(remoteAnn.id);
-              if (!localAnn) return remoteAnn;
-              
-              // 🛡️ 智能合并已读状态与确认成员，绝不反向冲刷本地已读标记！
-              const mergedReadStatus = { ...(remoteAnn.readStatus || {}), ...(localAnn.readStatus || {}) };
-              const mergedGroupStatus = { ...(remoteAnn.readGroupStatus || {}), ...(localAnn.readGroupStatus || {}) };
-              
-              const confMembersMap = new Map();
-              (remoteAnn.confirmedMembers || []).forEach(m => {
-                if (m) {
-                  const k = m.id || m.studentCode || m.name;
-                  if (k) confMembersMap.set(k, m);
-                }
-              });
-              (localAnn.confirmedMembers || []).forEach(m => {
-                if (m) {
-                  const k = m.id || m.studentCode || m.name;
-                  if (k) confMembersMap.set(k, m);
-                }
-              });
+              const mergedAnns = data.announcements.map(remoteAnn => {
+                const localAnn = localMap.get(remoteAnn.id);
+                if (!localAnn) return remoteAnn;
+                
+                // 🛡️ 智能合并已读状态与确认成员，绝不反向冲刷本地已读标记！
+                const mergedReadStatus = { ...(remoteAnn.readStatus || {}), ...(localAnn.readStatus || {}) };
+                const mergedGroupStatus = { ...(remoteAnn.readGroupStatus || {}), ...(localAnn.readGroupStatus || {}) };
+                
+                const confMembersMap = new Map();
+                (remoteAnn.confirmedMembers || []).forEach(m => {
+                  if (m) {
+                    const k = m.id || m.studentCode || m.name;
+                    if (k) confMembersMap.set(k, m);
+                  }
+                });
+                (localAnn.confirmedMembers || []).forEach(m => {
+                  if (m) {
+                    const k = m.id || m.studentCode || m.name;
+                    if (k) confMembersMap.set(k, m);
+                  }
+                });
 
-              return {
-                ...remoteAnn,
-                readStatus: mergedReadStatus,
-                readGroupStatus: mergedGroupStatus,
-                confirmedMembers: Array.from(confMembersMap.values())
-              };
-            });
-            localStorage.setItem(STORAGE_KEY_ANNOUNCEMENTS, JSON.stringify(mergedAnns));
+                return {
+                  ...remoteAnn,
+                  readStatus: mergedReadStatus,
+                  readGroupStatus: mergedGroupStatus,
+                  confirmedMembers: Array.from(confMembersMap.values())
+                };
+              });
+              localStorage.setItem(STORAGE_KEY_ANNOUNCEMENTS, JSON.stringify(mergedAnns));
+            }
           }
           if (Array.isArray(data.referencePapers)) {
-            localStorage.setItem('jizhi_reference_papers_db', JSON.stringify(data.referencePapers));
+            if (data.referencePapers.length > 0) {
+              localStorage.setItem('jizhi_reference_papers_db', JSON.stringify(data.referencePapers));
+            } else {
+              // 🛡️ 防空覆盖：仅在本地本就为空时才写入空数组，绝不反向冲刷本地已有范文
+              const existingLocalPapers = JSON.parse(localStorage.getItem('jizhi_reference_papers_db') || '[]');
+              if (!Array.isArray(existingLocalPapers) || existingLocalPapers.length === 0) {
+                localStorage.setItem('jizhi_reference_papers_db', '[]');
+              }
+            }
           }
           if (Array.isArray(data.surveys)) {
             localStorage.setItem('jizhi_surveys_list_db', JSON.stringify(data.surveys));

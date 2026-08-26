@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState } from './constants.js?v=20260827_v611';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin } from './utils.js?v=20260827_v611';
+import { InitialState } from './constants.js?v=20260827_v612';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin } from './utils.js?v=20260827_v612';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -649,7 +649,43 @@ export class CloudSyncEngine {
           }
         }
       });
-      const mergedProposals = Array.from(propByAuthor.values());
+      // 🛡️ 严格小组白名单过滤：仅保留属于本组成员的提案，剔除历史跨组残留的脏数据
+      let allowedMemberKeys = new Set();
+      const currentMembers = this.app.state.members;
+      if (currentMembers) {
+        const memList = Array.isArray(currentMembers) ? currentMembers : Object.values(currentMembers);
+        memList.forEach(m => {
+          if (m) {
+            if (m.id) allowedMemberKeys.add(String(m.id).trim());
+            if (m.studentCode) allowedMemberKeys.add(String(m.studentCode).trim());
+            if (m.username) allowedMemberKeys.add(String(m.username).trim());
+            if (m.name) allowedMemberKeys.add(String(m.name).trim());
+          }
+        });
+      }
+      if (allowedMemberKeys.size === 0 && this.app.authManager) {
+        const currU = this.app.authManager.getCurrentUser();
+        const effClassId = this.app.state.activeStudentClassId || currU?.classId || 'class_101';
+        const effGroup = this.app.authManager.getStudentActiveGroup(currU, effClassId);
+        const groupMembers = this.app.authManager.getGroupMembersForWorkspace(effGroup?.id || 'group_1');
+        Object.values(groupMembers).forEach(m => {
+          if (m) {
+            if (m.id) allowedMemberKeys.add(String(m.id).trim());
+            if (m.studentCode) allowedMemberKeys.add(String(m.studentCode).trim());
+            if (m.username) allowedMemberKeys.add(String(m.username).trim());
+            if (m.name) allowedMemberKeys.add(String(m.name).trim());
+          }
+        });
+      }
+
+      const allMerged = Array.from(propByAuthor.values());
+      const mergedProposals = allowedMemberKeys.size > 0
+        ? allMerged.filter(p => {
+            const authorId = String(p.author || '').trim();
+            const authorName = String(p.authorName || '').trim();
+            return allowedMemberKeys.has(authorId) || (authorName && allowedMemberKeys.has(authorName));
+          })
+        : allMerged;
 
       const mergedVotes = {
         ...(localS1.votes || {}),
