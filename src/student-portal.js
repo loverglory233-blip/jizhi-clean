@@ -7,8 +7,8 @@ import {
   STORAGE_KEY_TASKS,
   STORAGE_KEY_ANNOUNCEMENTS,
   STORAGE_KEY_CLASSES
-} from "./constants.js?v=20260827_v609";
-import { escapeHtml, isTaskExpired, formatDurationHuman, formatStandardDateDash } from "./utils.js?v=20260827_v609";
+} from "./constants.js?v=20260827_v610";
+import { escapeHtml, isTaskExpired, formatDurationHuman, formatStandardDateDash } from "./utils.js?v=20260827_v610";
 
 /* ==========================================================================
    7.5 STUDENT TASK PORTAL / DASHBOARD (我的写作任务大厅)
@@ -34,11 +34,25 @@ export function renderStudentTaskPortal(container, authManager, state, onSelectT
         }
       } catch (e) {}
     }
-    const sInterval = document.hidden ? 15000 : 3000;
+    const isStudentIdle = () => document.hidden || (Date.now() - (window._lastStudentPortalActivity || Date.now()) > 60000);
+    const sInterval = isStudentIdle() ? 15000 : 3000;
     window._studentPortalSyncTimer = setTimeout(pullAndRefresh, sInterval);
   };
   if (window._studentPortalSyncTimer) clearTimeout(window._studentPortalSyncTimer);
-  const sInitInterval = document.hidden ? 15000 : 3000;
+
+  window._lastStudentPortalActivity = Date.now();
+  const markStudentPortalActive = () => {
+    const wasIdle = (Date.now() - window._lastStudentPortalActivity > 60000);
+    window._lastStudentPortalActivity = Date.now();
+    if (wasIdle && state.studentViewMode === 'task_list') {
+      pullAndRefresh();
+    }
+  };
+  ['mousemove', 'keydown', 'touchstart', 'scroll', 'click'].forEach(evt => {
+    window.addEventListener(evt, markStudentPortalActive, { passive: true });
+  });
+
+  const sInitInterval = (document.hidden ? 15000 : 3000);
   window._studentPortalSyncTimer = setTimeout(pullAndRefresh, sInitInterval);
 
   const currentUser = authManager.getCurrentUser();

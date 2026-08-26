@@ -14,8 +14,8 @@ import {
   DefaultTasks,
   DefaultAnnouncements,
   DefaultReferencePapers
-} from './constants.js?v=20260827_v609';
-import { formatExportDateTime } from './utils.js?v=20260827_v609';
+} from './constants.js?v=20260827_v610';
+import { formatExportDateTime } from './utils.js?v=20260827_v610';
 
 export class AuthManager {
   constructor() {
@@ -140,7 +140,7 @@ export class AuthManager {
         const data = await res.json();
         if (data) {
           this.isGlobalMetaLoaded = true;
-          if (data.version) {
+          if (data.version !== undefined) {
             this.globalMetaVersion = parseInt(data.version, 10);
           }
           if (data.unchanged) {

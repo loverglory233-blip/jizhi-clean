@@ -906,16 +906,24 @@ if ($action === 'get_pad_text' || $action === 'get_pad_html') {
         }
     }
 
-    if (!empty($retHtml) || !empty($retText)) {
-        echo json_encode([
-            'success' => true,
-            'text' => $retText,
-            'html' => $retHtml
-        ]);
+    $calcHash = md5($retHtml . '||' . $retText);
+    $clientHash = isset($_GET['clientHash']) ? trim($_GET['clientHash']) : '';
+    if (!empty($clientHash) && $clientHash === $calcHash) {
+        echo json_encode(['success' => true, 'unchanged' => true, 'hash' => $calcHash], JSON_UNESCAPED_UNICODE);
         exit;
     }
 
-    echo json_encode(['success' => false, 'text' => '', 'html' => '']);
+    if (!empty($retHtml) || !empty($retText)) {
+        echo json_encode([
+            'success' => true,
+            'text'    => $retText,
+            'html'    => $retHtml,
+            'hash'    => $calcHash
+        ], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+
+    echo json_encode(['success' => false, 'text' => '', 'html' => '', 'hash' => '']);
     exit;
 }
 
@@ -1307,6 +1315,7 @@ if ($action === 'get_global_meta') {
     }
 
     if ($foundMeta) {
+        $foundMeta['version'] = $currentVer;
         // 脱敏：下发前剔除 password
         if (isset($foundMeta['users']) && is_array($foundMeta['users'])) {
             foreach ($foundMeta['users'] as &$usr) { if (is_array($usr)) unset($usr['password']); }
@@ -1322,6 +1331,7 @@ if ($action === 'get_global_meta') {
         $fileContent = file_get_contents($globalDbFile);
         $parsedFile = json_decode($fileContent, true);
         if (is_array($parsedFile)) {
+            $parsedFile['version'] = 1;
             echo json_encode($parsedFile, JSON_UNESCAPED_UNICODE);
             exit;
         }
@@ -1329,10 +1339,11 @@ if ($action === 'get_global_meta') {
 
     // 兜底返回空容器，绝对不再主动覆盖写入数据库！
     echo json_encode([
-        'users' => [],
-        'classes' => [],
-        'tasks' => [],
-        'announcements' => [],
+        'version'         => 1,
+        'users'           => [],
+        'classes'         => [],
+        'tasks'           => [],
+        'announcements'   => [],
         'referencePapers' => []
     ], JSON_UNESCAPED_UNICODE);
     exit;
@@ -2418,33 +2429,64 @@ if ($pdo) {
         echo json_encode($respData);
         exit;
     } else {
+        // 读取 main_meta_version
+        $stmtVer = $pdo->prepare("SELECT meta_value FROM global_meta WHERE meta_key = 'main_meta_version'");
+        $stmtVer->execute();
+        $vRow = $stmtVer->fetch();
+        $metaVer = $vRow ? intval($vRow['meta_value']) : 1;
+
+        $clientLastRev = isset($_GET['lastRev']) ? intval($_GET['lastRev']) : 0;
+        $clientLastChatMs = isset($_GET['lastChatMs']) ? intval($_GET['lastChatMs']) : 0;
+        $clientMetaVer = isset($_GET['metaVer']) ? intval($_GET['metaVer']) : 0;
+        $needGlobalSync = ($clientMetaVer < $metaVer) || (isset($_GET['incGlobal']) && intval($_GET['incGlobal']) === 1);
+
         // 🛡️ 聊天消息权威恢复：直接从 chat_messages 物理关系表拉取全部历史发言
         $chats = ['stage1' => [], 'stage2' => [], 'stage3' => []];
         $stmtAllMsg = $pdo->prepare("SELECT stage, sender, text, timestamp_str, time_ms, id FROM chat_messages WHERE scope_key = :sk ORDER BY time_ms ASC");
         $stmtAllMsg->execute([':sk' => $scopeKey]);
         $allRows = $stmtAllMsg->fetchAll(PDO::FETCH_ASSOC);
+        $maxChatMs = 0;
         foreach ($allRows as $mr) {
             $stg = $mr['stage'] ?: 'stage1';
             if (!isset($chats[$stg])) $chats[$stg] = [];
+            $cMs = intval($mr['time_ms']);
+            if ($cMs > $maxChatMs) $maxChatMs = $cMs;
             $chats[$stg][] = [
                 'id'        => $mr['id'] ?: ('msg_' . $mr['time_ms'] . '_' . substr(md5($mr['text']), 0, 6)),
                 'sender'    => $mr['sender'],
                 'text'      => $mr['text'],
                 'timestamp' => $mr['timestamp_str'],
-                '_timeMs'   => intval($mr['time_ms'])
+                '_timeMs'   => $cMs
             ];
         }
 
-        $stmtMeta = $pdo->prepare("SELECT meta_value FROM global_meta WHERE meta_key = 'main_meta'");
-        $stmtMeta->execute();
-        $metaRow = $stmtMeta->fetch();
-        $globalMeta = ($metaRow && !empty($metaRow['meta_value'])) ? json_decode($metaRow['meta_value'], true) : [];
+        // ⚡ 极速早退：若小组尚未产生协作数据，且客户端已拉取过基线且无新聊天/全局元数据，直接返回 20 字节 unchanged
+        if (isset($_GET['lastRev']) && $clientLastRev === 0 && $clientLastChatMs >= $maxChatMs && !$needGlobalSync) {
+            echo json_encode([
+                'unchanged'       => true,
+                'serverTimestamp' => $nowMs,
+                'revisionId'      => 0,
+                'metaVer'         => $metaVer,
+                'presence'        => new stdClass(),
+                'locks'           => [],
+                'resetSeq'        => 0
+            ], JSON_UNESCAPED_UNICODE);
+            exit;
+        }
 
+        $globalMeta = [];
         $sanitizedUsers = [];
-        if (isset($globalMeta['users']) && is_array($globalMeta['users'])) {
-            foreach ($globalMeta['users'] as $u) {
-                unset($u['password']);
-                $sanitizedUsers[] = $u;
+        if ($needGlobalSync) {
+            $stmtMeta = $pdo->prepare("SELECT meta_value FROM global_meta WHERE meta_key = 'main_meta'");
+            $stmtMeta->execute();
+            $metaRow = $stmtMeta->fetch();
+            $globalMeta = ($metaRow && !empty($metaRow['meta_value'])) ? json_decode($metaRow['meta_value'], true) : [];
+
+            if (isset($globalMeta['users']) && is_array($globalMeta['users'])) {
+                foreach ($globalMeta['users'] as $u) {
+                    unset($u['password']);
+                    $sanitizedUsers[] = $u;
+                }
             }
         }
 
@@ -2452,6 +2494,7 @@ if ($pdo) {
             'timestamp'        => $nowMs,
             'serverTimestamp'  => $nowMs,
             'revisionId'       => 0,
+            'metaVer'          => $metaVer,
             'groupId'          => $groupId,
             'taskId'           => $taskId,
             'currentStage'     => 'stage1',
@@ -2462,12 +2505,14 @@ if ($pdo) {
             'members'          => [],
             'isFinalSubmitted' => false,
             'chatLogs'         => $chats,
+            'locks'            => [],
+            'resetSeq'         => 0,
             'users'            => $sanitizedUsers,
             'classes'          => isset($globalMeta['classes'])          ? $globalMeta['classes']          : [],
             'tasks'            => isset($globalMeta['tasks'])            ? $globalMeta['tasks']            : [],
             'announcements'    => isset($globalMeta['announcements'])    ? $globalMeta['announcements']    : [],
             'referencePapers'  => isset($globalMeta['referencePapers']) ? $globalMeta['referencePapers'] : []
-        ]);
+        ], JSON_UNESCAPED_UNICODE);
         exit;
     }
 }

@@ -50,6 +50,12 @@ server
     client_max_body_size 100M;
     error_page 405 =200 \$uri;
 
+    # ⚡ 启用极速 Gzip 压缩（显著降低带宽消耗）
+    gzip on;
+    gzip_min_length 256;
+    gzip_types text/plain text/css application/json application/javascript text/xml application/xml text/javascript;
+    gzip_vary on;
+
     # ⚡ 多重容灾 PHP FastCGI 解析 (永不 502)
     location ~ [^/]\.php(/|$) {
         try_files \$uri =404;
@@ -147,6 +153,13 @@ server
     ssl_certificate_key $SSL_KEY;
     ssl_protocols TLSv1.1 TLSv1.2 TLSv1.3;
     ssl_ciphers EECDH+CHACHA20:EECDH+CHACHA20-draft:EECDH+AES128:RSA+AES128:EECDH+AES256:RSA+AES256:EECDH+3DES:RSA+3DES:!MD5;
+
+    # ⚡ 启用极速 Gzip 压缩（显著降低带宽消耗）
+    gzip on;
+    gzip_min_length 256;
+    gzip_types text/plain text/css application/json application/javascript text/xml application/xml text/javascript;
+    gzip_vary on;
+
     # ⚡ 多重容灾 PHP FastCGI 解析 (永不 502)
     location ~ [^/]\.php(/|$) {
         try_files \$uri =404;

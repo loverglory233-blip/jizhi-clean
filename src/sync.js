@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState } from './constants.js?v=20260827_v609';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin } from './utils.js?v=20260827_v609';
+import { InitialState } from './constants.js?v=20260827_v610';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin } from './utils.js?v=20260827_v610';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -104,8 +104,22 @@ export class CloudSyncEngine {
 
   initPolling() {
     this.pullFromServer();
-    // ⚡ 智能省流心跳轮询：前台 1.5 秒平缓对齐 (秒级响应)，后台挂机静默深度省流 (15秒极简心跳)
-    const getInterval = () => (document.hidden ? 15000 : 1500);
+    // ⚡ 智能省流心跳轮询：前台活跃 1.5 秒快速对齐，无操作挂机/切后台静默 15 秒极简心跳
+    let lastUserActivity = Date.now();
+    const markActive = () => {
+      const wasIdle = (Date.now() - lastUserActivity > 60000);
+      lastUserActivity = Date.now();
+      if (wasIdle && !this.isLoggingOut) {
+        this.pullFromServer();
+      }
+    };
+    ['mousemove', 'keydown', 'touchstart', 'scroll', 'click'].forEach(evt => {
+      window.addEventListener(evt, markActive, { passive: true });
+    });
+
+    const isIdle = () => document.hidden || (Date.now() - lastUserActivity > 60000);
+    const getInterval = () => (isIdle() ? 15000 : 1500);
+
     const runPoll = () => {
       if (this.isLoggingOut) return;
       this.pullFromServer().finally(() => {
@@ -124,12 +138,14 @@ export class CloudSyncEngine {
     // 🌟 多场景感知：当切回标签页或重新获得窗口焦点时，立即发送一次心跳并静默拉取
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'visible' && !this.isLoggingOut) {
+        markActive();
         this.sendPresencePing();
         this.pullFromServer();
       }
     });
     window.addEventListener('focus', () => {
       if (!this.isLoggingOut) {
+        markActive();
         this.sendPresencePing();
         this.pullFromServer();
       }
@@ -245,6 +261,13 @@ export class CloudSyncEngine {
       if (remoteData.serverTimestamp) {
         this.app.state.serverTimestamp = Number(remoteData.serverTimestamp);
       }
+      if (remoteData.revisionId !== undefined) {
+        this._lastKnownRevisionId = remoteData.revisionId;
+      }
+      if (remoteData.metaVer !== undefined) {
+        this._lastKnownMetaVer = remoteData.metaVer;
+      }
+      this._hasPulledGlobal = true;
       if (remoteData.presence) {
         let incomingPr = (typeof remoteData.presence === 'object' && !Array.isArray(remoteData.presence)) ? remoteData.presence : {};
         this.app.state.presence = { ...(this.app.state.presence || {}), ...incomingPr };
