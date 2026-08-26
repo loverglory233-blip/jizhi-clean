@@ -9,8 +9,8 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260826_v602";
-import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime } from "./utils.js?v=20260826_v602";
+} from "./constants.js?v=20260826_v603";
+import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime } from "./utils.js?v=20260826_v603";
 
 /* ==========================================================================
    7. TEACHER PORTAL RENDERER (LIVE WORKSPACE MIRROR & ANNOUNCEMENT READ MATRIX)
@@ -2969,11 +2969,19 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
       if (window.app) {
         window.app.state.isFinalSubmitted = newSub;
         window.app.state.activeMonitorGroupId = activeMonitorGId;
+        
+        let effectiveTId = window.app.state.activeTaskId;
         const selTaskBox = container.querySelector('#sel-switch-monitor-task');
         if (selTaskBox && selTaskBox.value) {
-          window.app.state.activeTaskId = selTaskBox.value;
+          effectiveTId = selTaskBox.value;
+          window.app.state.activeTaskId = effectiveTId;
         }
-        const effectiveTId = window.app.state.activeTaskId || 'task_default';
+        if (!effectiveTId && currentClassTasks && currentClassTasks.length > 0) {
+          effectiveTId = currentClassTasks[0].id;
+          window.app.state.activeTaskId = effectiveTId;
+        }
+        if (!effectiveTId) effectiveTId = 'task_default';
+
         try {
           fetch(`sync.php?action=set_task_group_lock&taskId=${encodeURIComponent(effectiveTId)}&groupId=${encodeURIComponent(activeMonitorGId)}`, {
             method: 'POST',
