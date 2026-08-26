@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260826_v605";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired } from "./utils.js?v=20260826_v605";
-import { callCozeAgentAPI } from "./agents.js?v=20260826_v605";
-import { AuthManager } from "./auth.js?v=20260826_v605";
-import { CloudSyncEngine } from "./sync.js?v=20260826_v605";
-import { renderLoginView } from "./login.js?v=20260826_v605";
-import { renderTeacherPortal } from "./teacher.js?v=20260826_v605";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260826_v605";
+} from "./constants.js?v=20260826_v606";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired } from "./utils.js?v=20260826_v606";
+import { callCozeAgentAPI } from "./agents.js?v=20260826_v606";
+import { AuthManager } from "./auth.js?v=20260826_v606";
+import { CloudSyncEngine } from "./sync.js?v=20260826_v606";
+import { renderLoginView } from "./login.js?v=20260826_v606";
+import { renderTeacherPortal } from "./teacher.js?v=20260826_v606";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260826_v606";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260826_v605";
+} from "./editor.js?v=20260826_v606";
 
 // Make renderChat available on window for sync callbacks
 if (typeof window !== "undefined") {
@@ -45,11 +45,14 @@ export class App {
     const storedTaskId = sessionStorage.getItem('jizhi_active_task_id') || localStorage.getItem('jizhi_active_task_id');
     if (storedTaskId) this.state.activeTaskId = storedTaskId;
 
+    const storedClassId = sessionStorage.getItem('jizhi_active_student_class_id') || localStorage.getItem('jizhi_active_student_class_id');
+    if (storedClassId) this.state.activeStudentClassId = storedClassId;
+
     const storedViewMode = sessionStorage.getItem('jizhi_student_view_mode') || localStorage.getItem('jizhi_student_view_mode');
     if (storedViewMode) this.state.studentViewMode = storedViewMode;
 
     const user = this.authManager.getCurrentUser();
-    const effectiveClassId = user?.classId || 'class_101';
+    const effectiveClassId = this.state.activeStudentClassId || user?.classId || 'class_101';
     const activeGroupObj = this.authManager.getStudentActiveGroup(user, effectiveClassId);
     const currentGroupId = activeGroupObj?.id || user?.groupId || 'group_1';
     this.loadGroupState(currentGroupId);
@@ -641,6 +644,10 @@ export class App {
             sessionStorage.setItem('jizhi_student_view_mode', 'workspace');
             localStorage.setItem('jizhi_student_view_mode', 'workspace');
             const latestClassId = this.state.activeStudentClassId || currentUser?.classId || 'class_101';
+            try {
+              sessionStorage.setItem('jizhi_active_student_class_id', latestClassId);
+              localStorage.setItem('jizhi_active_student_class_id', latestClassId);
+            } catch (e) {}
             const latestGroupObj = this.authManager.getStudentActiveGroup(currentUser, latestClassId);
             const targetGroupId = latestGroupObj.id || (currentUser && currentUser.groupId ? currentUser.groupId : 'group_1');
             this.loadGroupState(targetGroupId);

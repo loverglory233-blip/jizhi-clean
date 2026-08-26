@@ -12,7 +12,7 @@ export function renderLoginView(container, authManager, onLoginSuccess) {
       <div style="background:#ffffff; border:1px solid #cbd5e1; border-radius:20px; width:440px; max-width:95vw; padding:36px; box-shadow:0 20px 40px -8px rgba(15, 23, 42, 0.08), 0 4px 12px rgba(15, 23, 42, 0.04);">
         <div style="text-align:center; margin-bottom:28px;">
           <div style="font-size:32px; font-weight:800; background:linear-gradient(135deg, #1e40af, #2563eb); -webkit-background-clip:text; -webkit-text-fill-color:transparent;">集智 JIZHI</div>
-          <div style="font-size:13px; color:#64748b; margin-top:6px; font-weight:600;">多智能体协同写作与人机共存学习平台</div>
+          <div style="font-size:13.5px; color:#475569; margin-top:6px; font-weight:700;">面向团队协作的多智能体人机协同写作平台</div>
         </div>
         <form id="login-form" style="display:flex; flex-direction:column; gap:16px;">
           <div style="display:flex; flex-direction:column; gap:6px;">
