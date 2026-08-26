@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260827_v610";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired } from "./utils.js?v=20260827_v610";
-import { callCozeAgentAPI } from "./agents.js?v=20260827_v610";
-import { AuthManager } from "./auth.js?v=20260827_v610";
-import { CloudSyncEngine } from "./sync.js?v=20260827_v610";
-import { renderLoginView } from "./login.js?v=20260827_v610";
-import { renderTeacherPortal } from "./teacher.js?v=20260827_v610";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260827_v610";
+} from "./constants.js?v=20260827_v611";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired } from "./utils.js?v=20260827_v611";
+import { callCozeAgentAPI } from "./agents.js?v=20260827_v611";
+import { AuthManager } from "./auth.js?v=20260827_v611";
+import { CloudSyncEngine } from "./sync.js?v=20260827_v611";
+import { renderLoginView } from "./login.js?v=20260827_v611";
+import { renderTeacherPortal } from "./teacher.js?v=20260827_v611";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260827_v611";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260827_v610";
+} from "./editor.js?v=20260827_v611";
 
 // Make renderChat available on window for sync callbacks
 if (typeof window !== "undefined") {
@@ -95,7 +95,7 @@ export class App {
     const taskId = this.state.activeTaskId || 'task_default';
     this.state.members = this.authManager.getGroupMembersForWorkspace(groupId);
 
-    // 🛡️ 先尝试从本地快照中恢复已有协作数据，绝不暴力清空历史
+    // 🛡️ 任务与小组物理隔离：先彻底根据当前任务/小组的独立缓存加载，无缓存则完全使用纯净初始状态
     const cacheKey = `jizhi_cloud_snapshot_v10_pure_${taskId}_${groupId}`;
     let cached = null;
     try {
@@ -104,34 +104,29 @@ export class App {
     } catch (e) {}
 
     if (cached) {
-      if (cached.chatLogs && (!this.state.chatLogs || (this.state.chatLogs.stage1?.length === 0 && this.state.chatLogs.stage2?.length === 0))) {
-        this.state.chatLogs = cached.chatLogs;
-      }
-      if (cached.stage1 && (!this.state.stage1 || this.state.stage1.proposals?.length === 0)) {
-        this.state.stage1 = cached.stage1;
-      }
-      if (cached.stage2 && (!this.state.stage2 || !this.state.stage2.unifiedContent)) {
-        this.state.stage2 = cached.stage2;
-      }
-      if (cached.stage3) this.state.stage3 = cached.stage3;
-      if (cached.currentStage) {
-        this.state.groupMaxStage = cached.currentStage;
-        this.state.currentStage = cached.currentStage;
-      }
-      if (cached.isFinalSubmitted !== undefined) this.state.isFinalSubmitted = cached.isFinalSubmitted;
+      this.state.chatLogs = cached.chatLogs || { stage1: [], stage2: [], stage3: [] };
+      this.state.stage1 = cached.stage1 || JSON.parse(JSON.stringify(defaultState.stage1));
+      this.state.stage2 = cached.stage2 || JSON.parse(JSON.stringify(defaultState.stage2));
+      this.state.stage3 = cached.stage3 || JSON.parse(JSON.stringify(defaultState.stage3));
+      this.state.currentStage = cached.currentStage || 'stage1';
+      this.state.groupMaxStage = cached.currentStage || 'stage1';
+      this.state.isFinalSubmitted = (cached.isFinalSubmitted !== undefined) ? !!cached.isFinalSubmitted : false;
     } else {
-      if (!this.state.chatLogs) this.state.chatLogs = { stage1: [], stage2: [], stage3: [] };
-      if (!this.state.stage1) this.state.stage1 = JSON.parse(JSON.stringify(defaultState.stage1));
-      if (!this.state.stage2) this.state.stage2 = JSON.parse(JSON.stringify(defaultState.stage2));
-      if (!this.state.stage3) this.state.stage3 = JSON.parse(JSON.stringify(defaultState.stage3));
-      if (!this.state.currentStage) this.state.currentStage = 'stage1';
-      if (this.state.isFinalSubmitted === undefined) this.state.isFinalSubmitted = false;
+      this.state.chatLogs = { stage1: [], stage2: [], stage3: [] };
+      this.state.stage1 = JSON.parse(JSON.stringify(defaultState.stage1));
+      this.state.stage2 = JSON.parse(JSON.stringify(defaultState.stage2));
+      this.state.stage3 = JSON.parse(JSON.stringify(defaultState.stage3));
+      this.state.currentStage = 'stage1';
+      this.state.groupMaxStage = 'stage1';
+      this.state.isFinalSubmitted = false;
     }
 
-    // 立即触发云端全量拉取最新真实数据 (必须重置 isInitialPullDone，杜绝本地空数据反向冲刷服务器)
+    // 立即触发云端全量拉取当前任务对应小组的最新权威真实数据
     if (this.cloudSyncEngine) {
       this.cloudSyncEngine.groupId = groupId;
       this.cloudSyncEngine.taskId = taskId;
+      this.cloudSyncEngine._lastKnownRevisionId = 0; // 重置 revisionId，确保拉取到当前任务真实数据
+      this.cloudSyncEngine._hasPulledGlobal = false;
       this.cloudSyncEngine.isInitialPullDone = false;
       this.cloudSyncEngine.updateScopeKeys();
       this.cloudSyncEngine.pullFromServer();

@@ -9,8 +9,8 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260827_v610";
-import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash } from "./utils.js?v=20260827_v610";
+} from "./constants.js?v=20260827_v611";
+import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash } from "./utils.js?v=20260827_v611";
 
 /* ==========================================================================
    7. TEACHER PORTAL RENDERER (LIVE WORKSPACE MIRROR & ANNOUNCEMENT READ MATRIX)
@@ -2986,14 +2986,6 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
             body: JSON.stringify({ taskId: effectiveTId, groupId: activeMonitorGId, isLocked: newSub })
           }).catch(() => {});
         } catch (e) {}
-
-        window.app.saveGroupState(activeMonitorGId);
-        if (window.app.cloudSyncEngine) {
-          window.app.cloudSyncEngine.groupId = activeMonitorGId;
-          window.app.cloudSyncEngine.taskId = effectiveTId;
-          window.app.cloudSyncEngine.updateScopeKeys();
-          window.app.cloudSyncEngine.pushSnapshot();
-        }
       }
 
       renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
