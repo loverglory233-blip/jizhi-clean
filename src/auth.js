@@ -14,8 +14,8 @@ import {
   DefaultTasks,
   DefaultAnnouncements,
   DefaultReferencePapers
-} from './constants.js?v=20260826_v600';
-import { formatExportDateTime } from './utils.js?v=20260826_v600';
+} from './constants.js?v=20260826_v601';
+import { formatExportDateTime } from './utils.js?v=20260826_v601';
 
 export class AuthManager {
   constructor() {
@@ -755,10 +755,9 @@ export class AuthManager {
       }
     }
 
-    if (targetClass && Array.isArray(targetClass.groups) && targetClass.groups.length > 0) {
-      return targetClass.groups[0];
-    }
-    return { id: 'group_1', name: '第 1 协作小组' };
+    // 🛡️ 严格隔离：未被分配到具体小组的学生，赋予独立的隔离空间，绝不默认塞进第 1 小组造成跨组串味
+    const safeUserKey = uCode || uId || uUsername || 'temp';
+    return { id: `group_unassigned_${safeUserKey}`, name: '未分组（待教师分配）' };
   }
 
   getAvailableStudentsForGroup(classId, editingGroupId = null) {
