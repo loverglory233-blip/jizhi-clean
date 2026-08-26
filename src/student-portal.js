@@ -7,8 +7,8 @@ import {
   STORAGE_KEY_TASKS,
   STORAGE_KEY_ANNOUNCEMENTS,
   STORAGE_KEY_CLASSES
-} from "./constants.js?v=20260826_v607";
-import { escapeHtml, isTaskExpired, formatDurationHuman, formatStandardDateDash } from "./utils.js?v=20260826_v607";
+} from "./constants.js?v=20260827_v608";
+import { escapeHtml, isTaskExpired, formatDurationHuman, formatStandardDateDash } from "./utils.js?v=20260827_v608";
 
 /* ==========================================================================
    7.5 STUDENT TASK PORTAL / DASHBOARD (我的写作任务大厅)
@@ -34,10 +34,12 @@ export function renderStudentTaskPortal(container, authManager, state, onSelectT
         }
       } catch (e) {}
     }
-    window._studentPortalSyncTimer = setTimeout(pullAndRefresh, 3000);
+    const sInterval = document.hidden ? 15000 : 3000;
+    window._studentPortalSyncTimer = setTimeout(pullAndRefresh, sInterval);
   };
   if (window._studentPortalSyncTimer) clearTimeout(window._studentPortalSyncTimer);
-  window._studentPortalSyncTimer = setTimeout(pullAndRefresh, 3000);
+  const sInitInterval = document.hidden ? 15000 : 3000;
+  window._studentPortalSyncTimer = setTimeout(pullAndRefresh, sInitInterval);
 
   const currentUser = authManager.getCurrentUser();
   const classes = authManager.getClasses();

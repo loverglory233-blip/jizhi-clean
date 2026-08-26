@@ -14,8 +14,8 @@ import {
   DefaultTasks,
   DefaultAnnouncements,
   DefaultReferencePapers
-} from './constants.js?v=20260826_v607';
-import { formatExportDateTime } from './utils.js?v=20260826_v607';
+} from './constants.js?v=20260827_v608';
+import { formatExportDateTime } from './utils.js?v=20260827_v608';
 
 export class AuthManager {
   constructor() {
@@ -134,13 +134,17 @@ export class AuthManager {
       const isStudent = currUser && (currUser.role === 'student' || currUser.isStudent);
       const isTeacher = currUser && (currUser.role === 'teacher' || currUser.isTeacher);
 
-      const res = await fetch(`sync.php?action=get_global_meta&nocache=${Date.now()}`);
+      const clientVer = this.globalMetaVersion || 0;
+      const res = await fetch(`sync.php?action=get_global_meta&ver=${clientVer}&nocache=${Date.now()}`);
       if (res.ok) {
         const data = await res.json();
         if (data) {
           this.isGlobalMetaLoaded = true;
           if (data.version) {
             this.globalMetaVersion = parseInt(data.version, 10);
+          }
+          if (data.unchanged) {
+            return; // ⚡ 极速早退：服务端版本未变，0 开销
           }
           // 1. 账号池：直接以云端权威数据库为准
           if (Array.isArray(data.users) && data.users.length > 0) {
