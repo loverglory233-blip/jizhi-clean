@@ -320,7 +320,6 @@ export class AuthManager {
       }
     });
 
-    if (window.app && window.app.cloudSyncEngine) window.app.cloudSyncEngine.pushSnapshot();
     return pushPromise;
   }
   getUsers() {
@@ -834,22 +833,10 @@ export class AuthManager {
       const u = users.find(usr => usr.id === uid);
       if (u) {
         u.groupId = group.id;
-        if (uid === leaderUserId) {
-          u.roleCode = 'A';
-          u.roleTitle = '组长';
-        } else {
-          u.roleCode = String.fromCharCode(66 + idx);
-          u.roleTitle = '组员';
-        }
+        u.roleCode = String.fromCharCode(65 + idx);
+        u.roleTitle = '组员';
       }
     });
-    if (!leaderUserId && selectedUserIds.length > 0) {
-      const uFirst = users.find(usr => usr.id === selectedUserIds[0]);
-      if (uFirst) {
-        uFirst.roleCode = 'A';
-        uFirst.roleTitle = '组长';
-      }
-    }
     localStorage.setItem(STORAGE_KEY_USERS_DB, JSON.stringify(users));
 
     this.pushGlobalMeta();
@@ -979,13 +966,8 @@ export class AuthManager {
           const u = users.find(usr => usr.id === st.id);
           if (u) {
             u.groupId = gId;
-            if (idx === 0) {
-              u.roleCode = 'A';
-              u.roleTitle = '组长';
-            } else {
-              u.roleCode = String.fromCharCode(66 + idx);
-              u.roleTitle = '组员';
-            }
+            u.roleCode = String.fromCharCode(65 + idx);
+            u.roleTitle = '组员';
           }
         });
       });
@@ -1022,13 +1004,8 @@ export class AuthManager {
           const u = users.find(usr => usr.id === st.id);
           if (u) {
             u.groupId = gId;
-            if (idx === 0) {
-              u.roleCode = 'A';
-              u.roleTitle = '组长';
-            } else {
-              u.roleCode = String.fromCharCode(66 + idx);
-              u.roleTitle = '组员';
-            }
+            u.roleCode = String.fromCharCode(65 + idx);
+            u.roleTitle = '组员';
           }
         });
       });
@@ -1129,7 +1106,7 @@ export class AuthManager {
           id: studentCode,
           userId: u.id || studentCode,
           name: u.name || `学生${seen.size}`,
-          roleTitle: (u.role === 'leader' || idx === 0 || u.roleTitle?.includes('组长')) ? '组长 · 论文结构' : `组员 · 合作撰写`,
+          roleTitle: '组员 · 合作撰写',
           avatar: u.avatar || avatars[(seen.size - 1) % avatars.length],
           color: colors[(seen.size - 1) % colors.length],
           studentCode: studentCode,
