@@ -43,8 +43,8 @@ def main():
 <body>
   <div id="app-loading-screen">
     <div class="loading-spinner-ring"></div>
-    <div style="margin-top: 16px; font-weight: 700; color: #0f172a; font-size: 15px;">集智 JIZHI</div>
-    <div style="margin-top: 6px; font-size: 12px; color: #64748b;">正在加载多智能体协作平台...</div>
+    <div style="margin-top: 16px; font-weight: 700; color: #0f172a; font-size: 16px;">集智 JIZHI</div>
+    <div style="margin-top: 6px; font-size: 13px; color: #64748b; font-weight: 500;">面向团队协作的多智能体人机协同写作平台</div>
   </div>
   <div id="app"></div>
   <script src="js/bundle.js"></script>
