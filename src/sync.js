@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState } from './constants.js?v=20260827_v610';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin } from './utils.js?v=20260827_v610';
+import { InitialState } from './constants.js?v=20260827_v611';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin } from './utils.js?v=20260827_v611';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -431,11 +431,12 @@ export class CloudSyncEngine {
       let chatChanged = false;
       ['stage1', 'stage2', 'stage3'].forEach(stg => {
         const remoteLogs = Array.isArray(remoteData.chatLogs[stg]) ? remoteData.chatLogs[stg] : [];
-        const localLogs = Array.isArray(this.app.state.chatLogs[stg]) ? this.app.state.chatLogs[stg] : [];
+        // 以远端当前任务小组的权威数据库记录为唯一基准，保留在途未持久化的当前发言
+        const localLogs = (this.isInitialPullDone && Array.isArray(this.app.state.chatLogs[stg])) ? this.app.state.chatLogs[stg] : [];
         
         const mergedLogs = [];
         const seenKeys = new Set();
-        const allCandidate = [...localLogs, ...remoteLogs];
+        const allCandidate = (localLogs.length > 0) ? [...localLogs, ...remoteLogs] : [...remoteLogs];
         allCandidate.sort((a, b) => {
           const ta = a?._timeMs ? Number(a._timeMs) : 0;
           const tb = b?._timeMs ? Number(b._timeMs) : 0;
@@ -452,9 +453,7 @@ export class CloudSyncEngine {
           mergedLogs.push(m);
         });
 
-        if (mergedLogs.length > 0) {
-          this.app.state.chatLogs[stg] = mergedLogs;
-        }
+        this.app.state.chatLogs[stg] = mergedLogs;
       });
       if (typeof window.renderChat === 'function') window.renderChat(this.app.state);
       if (this.app && typeof this.app.triggerStageWelcomeSpeech === 'function') {
