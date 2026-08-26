@@ -14,8 +14,8 @@ import {
   DefaultTasks,
   DefaultAnnouncements,
   DefaultReferencePapers
-} from './constants.js?v=20260826_v601';
-import { formatExportDateTime } from './utils.js?v=20260826_v601';
+} from './constants.js?v=20260826_v602';
+import { formatExportDateTime } from './utils.js?v=20260826_v602';
 
 export class AuthManager {
   constructor() {
@@ -372,6 +372,16 @@ export class AuthManager {
       announcements = DefaultAnnouncements;
     }
     return (Array.isArray(announcements) ? announcements : []).filter(a => !a.isSystemAction && !a.title?.includes('指导教师已重置') && !a.title?.includes('指导教师已锁定'));
+  }
+  saveAnnouncements(list) {
+    if (Array.isArray(list)) {
+      try { localStorage.setItem(STORAGE_KEY_ANNOUNCEMENTS, JSON.stringify(list)); } catch (e) {}
+    }
+  }
+  saveReferencePapers(list) {
+    if (Array.isArray(list)) {
+      try { localStorage.setItem('jizhi_reference_papers_db', JSON.stringify(list)); } catch (e) {}
+    }
   }
   getCurrentUser() {
     let cached = null;
