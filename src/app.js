@@ -137,109 +137,6 @@ export class App {
     this.state.chatLogs = { stage1: [], stage2: [], stage3: [] };
   }
 
-  resetTestGroupState(groupId = 'group_1', taskId = null) {
-    if (taskId) this.state.activeTaskId = taskId;
-    const targetTaskId = this.state.activeTaskId || 'task_default';
-    const defaultState = JSON.parse(JSON.stringify(InitialState));
-    this.state.activeMonitorGroupId = groupId;
-    this.state.stage1 = defaultState.stage1;
-    this.state.stage2 = defaultState.stage2;
-    this.state.stage3 = defaultState.stage3;
-    this.state.currentStage = 'stage1';
-    this.state.isFinalSubmitted = false;
-    this.state.presence = {};
-    this.initPresetMessagesForGroup(groupId);
-    this.saveGroupState(groupId);
-
-    // 🔔 同步清空该小组在当前任务下的通知已读与教师端追踪矩阵确认状态 (方便反复演练测试)
-    try {
-      const announcements = this.authManager.getAnnouncements();
-      const classes = this.authManager.getClasses();
-      const allUsers = this.authManager.getUsers();
-      let changed = false;
-
-      // 严格只收集当前被重置小组及其组员的标识，绝不波及其他小组
-      const groupMembersKeys = new Set();
-      if (groupId) groupMembersKeys.add(groupId);
-      classes.forEach(c => {
-        (c.groups || []).forEach(g => {
-          if (g && ((g.id && g.id === groupId) || (g.name && g.name === groupId))) {
-            if (g.id) groupMembersKeys.add(g.id);
-            (g.members || []).forEach(m => {
-              const mId = (typeof m === 'object' && m !== null) ? (m.id || m.userId || m.studentCode) : m;
-              if (mId) {
-                groupMembersKeys.add(mId);
-                const uObj = allUsers.find(u => (u.id === mId || u.studentCode === mId || u.username === mId || u.name === mId));
-                if (uObj) {
-                  if (uObj.id) groupMembersKeys.add(uObj.id);
-                  if (uObj.studentCode) groupMembersKeys.add(uObj.studentCode);
-                  if (uObj.username) groupMembersKeys.add(uObj.username);
-                }
-              }
-            });
-          }
-        });
-      });
-
-      announcements.forEach(ann => {
-        const matchTask = !ann.taskId || ann.taskId === 'task_all' || ann.taskId === targetTaskId || (targetTaskId === 'task_default' && !ann.taskId);
-        if (matchTask) {
-          if (ann.readGroupStatus) {
-            if (groupId && ann.readGroupStatus[groupId]) { delete ann.readGroupStatus[groupId]; changed = true; }
-          }
-          if (ann.readStatus) {
-            groupMembersKeys.forEach(k => {
-              if (ann.readStatus[k]) { delete ann.readStatus[k]; changed = true; }
-            });
-          }
-          if (Array.isArray(ann.confirmedMembers)) {
-            const origLen = ann.confirmedMembers.length;
-            ann.confirmedMembers = ann.confirmedMembers.filter(m => {
-              if (!m) return false;
-              if (m.groupId === groupId) return false;
-              if (m.id && groupMembersKeys.has(m.id)) return false;
-              if (m.studentCode && groupMembersKeys.has(m.studentCode)) return false;
-              return true;
-            });
-            if (ann.confirmedMembers.length !== origLen) changed = true;
-          }
-        }
-      });
-
-      if (changed) {
-        localStorage.setItem(STORAGE_KEY_ANNOUNCEMENTS, JSON.stringify(announcements));
-        this.authManager.pushGlobalMeta();
-      }
-    } catch (e) {}
-
-    const currUser = this.authManager ? this.authManager.getCurrentUser() : null;
-    const teacherUserId = (currUser && (currUser.studentCode || currUser.username || currUser.id)) || '';
-    const teacherToken = (currUser && (currUser.token || currUser.activeSessionId)) || '';
-
-    // 发送原子重置请求直达服务端 (独立通道，100% 必达，彻底清空服务端数据库与缓存)
-    fetch(`sync.php?action=reset_group&groupId=${encodeURIComponent(groupId)}&taskId=${encodeURIComponent(targetTaskId)}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ isReset: true, userId: teacherUserId, token: teacherToken })
-    }).then(r => r.json()).then(res => {
-      if (this.cloudSyncEngine) {
-        this.cloudSyncEngine.groupId = groupId;
-        this.cloudSyncEngine.taskId = targetTaskId;
-        this.cloudSyncEngine.updateScopeKeys();
-        this.cloudSyncEngine.isResetBroadcast = true;
-        this.cloudSyncEngine.broadcastLocal({ isReset: true, resetSeq: (res && res.resetSeq) ? res.resetSeq : Date.now() });
-      }
-    }).catch(() => {
-      if (this.cloudSyncEngine) {
-        this.cloudSyncEngine.groupId = groupId;
-        this.cloudSyncEngine.taskId = targetTaskId;
-        this.cloudSyncEngine.updateScopeKeys();
-        this.cloudSyncEngine.isResetBroadcast = true;
-        this.cloudSyncEngine.pushSnapshot();
-      }
-    });
-  }
-
   getEffectiveGroupId() {
     const user = this.authManager ? this.authManager.getCurrentUser() : null;
     const isTeacher = user && (user.isTeacher || user.role === 'teacher');
@@ -407,8 +304,8 @@ export class App {
         const currentStage = this.state.currentStage || 'stage1';
         const logs = (this.state.chatLogs && this.state.chatLogs[currentStage]) || [];
 
-        // ⏰ 全局进度与阶段间转场催促 + 阶段二智能体保底机制 (仅由组长单点触发，杜绝多人并发 AI 消息风暴)
-        const isGroupLeader = !!(currentUser && (currentUser.role === 'leader' || (currentUser.roleTitle || '').includes('组长')));
+        // ⏰ 全局进度与阶段间转场催促 + 阶段二智能体保底机制 (由在场学号最小的在线成员单点触发，杜绝多人并发 AI 消息风暴)
+        const myCode = this.state.currentUser || (currentUser ? (currentUser.studentCode || currentUser.id) : 'A');
         const activeTaskId = this.state.activeTaskId || 'task_default';
         const currentGroupId = (currentUser && currentUser.groupId) ? currentUser.groupId : (this.state.activeMonitorGroupId || 'group_1');
         const allTasks = (this.authManager) ? this.authManager.getTasks() : [];
@@ -417,7 +314,18 @@ export class App {
         const totalDurationSec = totalDurationMin * 60;
         const totalProgress = (totalDurationSec > 0) ? (this.state.timer.elapsedSeconds / totalDurationSec) : 0;
 
-        if (isGroupLeader) {
+        const membersList = Object.values(this.state.members || {});
+        const presenceMap = this.state.presence || {};
+        const onlineMembers = membersList.filter(m => {
+          const p = presenceMap[m.studentCode] || presenceMap[m.id];
+          return p && (nowMs - (p.updatedAt || 0) < 180000);
+        });
+        const primaryMember = (onlineMembers.length > 0)
+          ? [...onlineMembers].sort((a, b) => (a.studentCode || a.id || '').localeCompare(b.studentCode || b.id || ''))[0]
+          : (membersList.length > 0 ? [...membersList].sort((a, b) => (a.studentCode || a.id || '').localeCompare(b.studentCode || b.id || ''))[0] : null);
+        const isPrimaryGuardian = primaryMember && (primaryMember.studentCode === myCode || primaryMember.id === myCode);
+
+        if (isPrimaryGuardian) {
           // 1. 【20% 节点】阶段一 ➔ 阶段二防卡关 (总时间 20%)
           const isContractConfirmed = !!(this.state.stage1 && this.state.stage1.contract && this.state.stage1.contract.isConfirmed);
           const s1GateMsgId = `msg_gate_s1_${activeTaskId}_${currentGroupId}_20pct`;
@@ -777,10 +685,9 @@ export class App {
         return p && (now - (p.updatedAt || 0) < 180000); // 放宽到 3 分钟：后台标签页心跳会被浏览器节流（约 1 分钟 1 次），60 秒窗口会误判在场同学为离线
       });
 
-      let primaryMember = onlineMembers.find(m => m.studentCode === 'A' || m.roleTitle?.includes('组长') || m.role === 'leader');
-      if (!primaryMember && onlineMembers.length > 0) {
-        primaryMember = [...onlineMembers].sort((a, b) => (a.studentCode || a.id || '').localeCompare(b.studentCode || b.id || ''))[0];
-      }
+      let primaryMember = (onlineMembers.length > 0)
+        ? [...onlineMembers].sort((a, b) => (a.studentCode || a.id || '').localeCompare(b.studentCode || b.id || ''))[0]
+        : (membersList.length > 0 ? [...membersList].sort((a, b) => (a.studentCode || a.id || '').localeCompare(b.studentCode || b.id || ''))[0] : null);
 
       const isPrimaryGuardian = primaryMember && (primaryMember.studentCode === myCode || primaryMember.id === myCode);
       if (!isPrimaryGuardian) return;
@@ -2229,7 +2136,7 @@ export class App {
 请作为资深学术拍卖师发表 130~150 字的【全票一致落槌定题与细化建议】：
 ① 隆重宣布竞拍落槌结果，肯定《${winningProposal.title}》获得全票一致认同，正式确立为全组研究课题；
 ② 针对该选题给出 2~3 条具体的细化方向建议（【核心铁律】：此时绝对不提及分工与时间！）；
-③ 引导组长带头在讨论区发起交流，全组共同商议完善具体实施方案。`;
+③ 引导组员在讨论区发起交流，全组共同商议完善具体实施方案。`;
         } else {
           voteContextPrompt = `全组投票已全部完成！计票结果清单：${proposalSummaryList}。投票存在分歧（未达成全票一致）！
 请作为资深学术拍卖师发表 130~150 字的【分歧协商破冰引导】：
@@ -2247,7 +2154,7 @@ export class App {
 
         if (!summaryText || summaryText.trim().length === 0) {
           if (isUnanimous) {
-            summaryText = `🎉 【拍卖师·课题敲定告知】：全员投票已完成，计票结果：${proposalSummaryList}。《${winningProposal.title}》获得全票一致推选，正式确立为全组研究课题！\n⚠️ 拍卖师智能体发言生成超时，组长可直接在讨论区发起交流、组织全组细化研究方案与分工。`;
+            summaryText = `🎉 【拍卖师·课题敲定告知】：全员投票已完成，计票结果：${proposalSummaryList}。《${winningProposal.title}》获得全票一致推选，正式确立为全组研究课题！\n⚠️ 拍卖师智能体发言生成超时，组员可直接在讨论区发起交流、组织全组细化研究方案与分工。`;
           } else {
             summaryText = `⚖️ 【拍卖师·分歧协商告知】：投票已落槌，计票结果：${proposalSummaryList}。组内对选题存在票数分歧，请各提案作者在讨论区阐明设计亮点，全组共同商讨确定最终课题。\n⚠️ 拍卖师智能体发言生成超时，如需智能引导可在讨论区 @拍卖师。`;
           }
@@ -3203,7 +3110,7 @@ ${propText}
           s3.isRevisionConfirmed = true;
           const promptMsg = {
             sender: 'neutral',
-            text: `🏆 【中间委员·终稿就绪】：组内全员已确认终稿修改完毕！请组长或代表点击右上方【🚀 提交论文终稿】完成全盘归档！`,
+            text: `🏆 【中间委员·终稿就绪】：组内全员已确认终稿修改完毕！请组员或代表点击右上方【🚀 提交论文终稿】完成全盘归档！`,
             timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
             _timeMs: Date.now()
           };
@@ -3467,10 +3374,9 @@ ${propText}
         if (hasMaxSkew && hasZeroMember) {
           this.state.lastSSRLWarnTimeMs = now; // 记录本次提醒时间，开启 15 分钟静默期
           this.state.lastSSRLWarnLen = plainLen;
-          const leaderName = membersList[0] ? membersList[0].name : '组长';
           const ssrlWarningMsg = {
             sender: 'managingEditor',
-            text: `🤝 【责任编辑·协同关怀】：关注到当前正文撰写推进中，各成员的投入占比出现了一定程度的分化。建议组长（${leaderName}）与组员在讨论区适度协调分工，鼓励尚未充分动笔的同学认领后续章节，共同推进高质量学术成稿哦~`,
+            text: `🤝 【责任编辑·协同关怀】：关注到当前正文撰写推进中，各成员的投入占比出现了一定程度的分化。建议全组同学在讨论区适度协调分工，鼓励尚未充分动笔的同学认领后续章节，共同推进高质量学术成稿哦~`,
             timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
             _timeMs: now
           };

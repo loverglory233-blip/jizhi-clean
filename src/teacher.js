@@ -368,7 +368,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
                           ${groupMembers.length === 0 ? '<span style="color:#94a3b8; font-size:12px;">⚠️ 暂未勾选成员</span>' : ''}
                           ${groupMembers.map(m => `
                             <span style="background:#eff6ff; border:1px solid #bfdbfe; color:#1d4ed8; padding:4px 10px; border-radius:6px; font-weight:600;">
-                              ${m.avatar || '👤'} ${m.name} ${(m.role === 'leader' || m.roleTitle?.includes('组长') || m.studentCode === 'A') ? '<b style="color:#d97706;">(组长)</b>' : ''}
+                              ${m.avatar || '👤'} ${m.name} <code style="font-size:11px; color:#2563eb;">${m.studentCode || m.username || ''}</code>
                             </span>
                           `).join('')}
                         </div>
@@ -1585,18 +1585,13 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
               ${availableStudents.length === 0 ? '<div style="color:#64748b; font-size:13px; text-align:center; padding:20px;">✅ 当前班级所有学生均已进组，无空闲待分配学生。</div>' : ''}
               ${availableStudents.map(s => {
                 const isChecked = currentMembers.includes(s.id);
-                const isLeader = s.studentCode === 'A';
                 const otherGroup = (cls.groups || []).find(g => g.id !== editingGroupId && g.members && g.members.includes(s.id));
                 return `
                   <div class="grp-student-item" data-search="${(s.name + ' ' + (s.studentCode || '') + ' ' + (s.username || '')).toLowerCase()}" style="display:flex; justify-content:space-between; align-items:center; background:#ffffff; border:1px solid #e2e8f0; padding:10px 14px; border-radius:8px; transition:all 0.15s;">
-                    <label style="display:flex; align-items:center; gap:10px; cursor:pointer; font-size:13.5px; color:#0f172a; font-weight:600;">
+                    <label style="display:flex; align-items:center; gap:10px; cursor:pointer; font-size:13.5px; color:#0f172a; font-weight:600; width:100%;">
                       <input type="checkbox" class="chk-grp-member" value="${s.id}" ${isChecked ? 'checked' : ''} style="width:17px; height:17px; cursor:pointer; accent-color:#2563eb;">
                       <span>${s.avatar || '👤'} <b>${s.name}</b> <code style="color:#2563eb; font-family:monospace; margin-left:4px;">${s.studentCode || s.username}</code></span>
-                      ${otherGroup ? `<span style="background:#fef3c7; color:#b45309; border:1px solid #fde68a; font-size:11.5px; padding:1px 8px; border-radius:6px; font-weight:700; margin-left:6px;">(现归属: ${otherGroup.name})</span>` : ''}
-                    </label>
-                    <label style="font-size:12px; color:#b45309; cursor:pointer; display:flex; align-items:center; gap:4px; font-weight:700; background:#fffbeb; border:1px solid #fde68a; padding:3px 8px; border-radius:6px;">
-                      <input type="radio" name="grp-leader-radio" value="${s.id}" ${isLeader || (isChecked && currentMembers[0] === s.id) ? 'checked' : ''} style="cursor:pointer; accent-color:#d97706;">
-                      设为组长
+                      ${otherGroup ? `<span style="background:#fef3c7; color:#b45309; border:1px solid #fde68a; font-size:11.5px; padding:1px 8px; border-radius:6px; font-weight:700; margin-left:auto;">(现归属: ${otherGroup.name})</span>` : ''}
                     </label>
                   </div>
                 `;
@@ -1648,12 +1643,10 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
     modal.querySelector('#btn-submit-grp-edit').addEventListener('click', () => {
       const name = modal.querySelector('#modal-grp-name').value.trim();
       const selectedUserIds = Array.from(modal.querySelectorAll('.chk-grp-member:checked')).map(cb => cb.value);
-      const leaderRadio = modal.querySelector('input[name="grp-leader-radio"]:checked');
-      const leaderUserId = leaderRadio ? leaderRadio.value : (selectedUserIds[0] || null);
 
       if (!name) { alert('⚠️ 请输入小组名称！'); return; }
       try {
-        authManager.updateGroupMembers(cls.id, editingGroupId || ('group_' + Date.now()), name, selectedUserIds, leaderUserId);
+        authManager.updateGroupMembers(cls.id, editingGroupId || ('group_' + Date.now()), name, selectedUserIds);
         closeModal();
         renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
       } catch (err) {
