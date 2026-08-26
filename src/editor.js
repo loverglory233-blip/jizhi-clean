@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles } from "./constants.js?v=20260827_v608";
-import { callCozeAgentAPI } from "./agents.js?v=20260827_v608";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime } from "./utils.js?v=20260827_v608";
+import { AgentProfiles } from "./constants.js?v=20260827_v609";
+import { callCozeAgentAPI } from "./agents.js?v=20260827_v609";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime } from "./utils.js?v=20260827_v609";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -1850,7 +1850,13 @@ function renderStage2Canvas(canvas, state, handlers) {
 
   syncPadMetrics();
   if (window._stage2WordCountTimer) clearInterval(window._stage2WordCountTimer);
-  window._stage2WordCountTimer = setInterval(syncPadMetrics, 15000);
+  const getPadMetricInterval = () => (document.hidden ? 60000 : 15000);
+  const scheduleNextPadMetric = () => {
+    window._stage2WordCountTimer = setTimeout(() => {
+      syncPadMetrics().finally(scheduleNextPadMetric);
+    }, getPadMetricInterval());
+  };
+  scheduleNextPadMetric();
 }
 
 function renderStage3Canvas(canvas, state, handlers) {

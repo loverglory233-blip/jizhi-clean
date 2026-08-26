@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260827_v608";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired } from "./utils.js?v=20260827_v608";
-import { callCozeAgentAPI } from "./agents.js?v=20260827_v608";
-import { AuthManager } from "./auth.js?v=20260827_v608";
-import { CloudSyncEngine } from "./sync.js?v=20260827_v608";
-import { renderLoginView } from "./login.js?v=20260827_v608";
-import { renderTeacherPortal } from "./teacher.js?v=20260827_v608";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260827_v608";
+} from "./constants.js?v=20260827_v609";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired } from "./utils.js?v=20260827_v609";
+import { callCozeAgentAPI } from "./agents.js?v=20260827_v609";
+import { AuthManager } from "./auth.js?v=20260827_v609";
+import { CloudSyncEngine } from "./sync.js?v=20260827_v609";
+import { renderLoginView } from "./login.js?v=20260827_v609";
+import { renderTeacherPortal } from "./teacher.js?v=20260827_v609";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260827_v609";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260827_v608";
+} from "./editor.js?v=20260827_v609";
 
 // Make renderChat available on window for sync callbacks
 if (typeof window !== "undefined") {
@@ -386,11 +386,10 @@ export class App {
           this.state.presence[k] = { lastSeen: now, updatedAt: now };
         });
         this.renderPresenceCursors();
-        if (this.cloudSyncEngine) this.cloudSyncEngine.sendPresencePing(currentUser);
       }
     };
     doPing();
-    setInterval(doPing, 4000);
+    setInterval(doPing, 10000);
   }
 
   initTimer() {
@@ -412,25 +411,6 @@ export class App {
         const min = this.state.timer.elapsedSeconds / 60;
         const currentStage = this.state.currentStage || 'stage1';
         const logs = (this.state.chatLogs && this.state.chatLogs[currentStage]) || [];
-
-        // 📝 自动从 Etherpad 实时提取当前论文最新切片，供审稿编辑/责任编辑深度分析
-        if (currentStage === 'stage2') {
-          const activeTaskId = this.state.activeTaskId || 'task_default';
-          const effectiveClassId = this.state.activeStudentClassId || (currentUser?.classId || 'class_101');
-          const activeGroupObj = this.authManager ? this.authManager.getStudentActiveGroup(currentUser, effectiveClassId) : null;
-          const currentGroupId = activeGroupObj?.id || (currentUser?.groupId || 'group_1');
-          const padName = `jizhi_${activeTaskId}_${currentGroupId}`;
-          fetch(`sync.php?action=get_pad_text&padId=${padName}`)
-            .then(res => res.json())
-            .then(data => {
-              if (data && data.success && data.text) {
-                if (this.state.stage2 && this.state.stage2.unifiedContent !== data.text) {
-                  this.state.stage2.unifiedContent = data.text;
-                }
-              }
-            })
-            .catch(() => {});
-        }
 
         // ⏰ 全局进度与阶段间转场催促 + 阶段二智能体保底机制 (仅由组长单点触发，杜绝多人并发 AI 消息风暴)
         const isGroupLeader = !!(currentUser && (currentUser.role === 'leader' || (currentUser.roleTitle || '').includes('组长')));
