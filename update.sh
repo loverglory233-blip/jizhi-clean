@@ -16,7 +16,7 @@ TARGET_DIRS=($(printf "%s\n" "${TARGET_DIRS[@]}" | sort -u))
 
 echo "📁 目标目录: ${TARGET_DIRS[*]}"
 
-TARGET_VERSION="20260826_v604"
+TARGET_VERSION="20260826_v605"
 
 echo "⚡ [2/4] 极速下载最新代码包 ($TARGET_VERSION)..."
 TMP=/tmp/jizhi_update
@@ -164,7 +164,7 @@ fi
 
 echo "======================================================"
 echo "🎉 全系统更新与校验完成！"
-echo "📌 当前全局版本号: 20260826_v604"
+echo "📌 当前全局版本号: 20260826_v605"
 
 # 🔍 探测 9001 端口服务状态
 if lsof -i:9001 >/dev/null 2>&1 || netstat -tuln 2>/dev/null | grep -q ":9001 " || ss -tuln 2>/dev/null | grep -q ":9001 " || curl -s -I --connect-timeout 2 http://127.0.0.1:9001/ >/dev/null 2>&1; then
@@ -175,8 +175,8 @@ fi
 
 for dir in "${TARGET_DIRS[@]}"; do
   echo "🔍 校验目录: $dir"
-  if grep -q "20260826_v604" "$dir/index.html" 2>/dev/null; then
-    echo "   ✅ 版本戳已同步: 20260826_v604"
+  if grep -q "20260826_v605" "$dir/index.html" 2>/dev/null; then
+    echo "   ✅ 版本戳已同步: 20260826_v605"
   else
     echo "   ⚠️ 版本戳异常，请检查网络"
   fi

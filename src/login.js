@@ -39,8 +39,8 @@ export function renderLoginView(container, authManager, onLoginSuccess) {
             🚀 登录集智平台
           </button>
         </form>
-        <div style="text-align:center; margin-top:20px; font-size:11.5px; color:#94a3b8; font-weight:600; letter-spacing:0.5px;">
-          📌 系统版本: <b style="color:#2563eb;">20260826_v604</b> · 实时协同已就绪
+        <div style="text-align:center; margin-top:24px; font-size:12px; color:#94a3b8; font-weight:500;">
+          <a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener noreferrer" style="color:#94a3b8; text-decoration:none;">浙ICP备2026066047号-1</a>
         </div>
       </div>
     </div>
