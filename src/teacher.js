@@ -9,8 +9,8 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260825_v520";
-import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime } from "./utils.js?v=20260825_v520";
+} from "./constants.js?v=20260826_v600";
+import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime } from "./utils.js?v=20260826_v600";
 
 /* ==========================================================================
    7. TEACHER PORTAL RENDERER (LIVE WORKSPACE MIRROR & ANNOUNCEMENT READ MATRIX)
@@ -90,10 +90,10 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
         await window.app.cloudSyncEngine.pullFromServer();
         // 📝 针对阶段二，同时从 Etherpad 提取最新正文镜像
         const padName = `jizhi_${activeTaskId}_${activeMonitorGId}`;
-        const epRes = await fetch(`sync.php?action=get_pad_text&padId=${padName}`).then(r => r.json()).catch(() => null);
-        if (epRes && epRes.success && epRes.text) {
+        const epRes = await fetch(`sync.php?action=get_pad_html&padId=${padName}`).then(r => r.json()).catch(() => null);
+        if (epRes && epRes.success && (epRes.html || epRes.text)) {
           if (!state.stage2) state.stage2 = {};
-          state.stage2.unifiedContent = epRes.text;
+          state.stage2.unifiedContent = epRes.html || epRes.text;
         }
         // 🆕 全组全景总览：拉取所有小组的在线/阶段/锁/终稿快照，供顶部全景卡片网格使用
         const curT = authManager.getCurrentUser();
@@ -111,7 +111,8 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
         s1Title: state.stage1?.mergedTitle,
         s1Votes: Object.keys(state.stage1?.votes || {}).length,
         s1Conf: Object.keys(state.stage1?.contract?.confirmedMembers || {}).length,
-        s2Len: (state.stage2?.unifiedContent || '').length,
+        s2Conf: Object.keys(state.stage2?.confirmedMembers || {}).length,
+        s2DraftConf: !!state.stage2?.isDraftConfirmed,
         s3Len: (state.stage3?.feedbackItems || []).length,
         chat1: (state.chatLogs?.stage1 || []).length,
         chat2: (state.chatLogs?.stage2 || []).length,
@@ -980,7 +981,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
                         <span style="font-size:15px; font-weight:800; color:#1e40af;">📝 实时写作大正文镜像 (${activeMonitorGroup.name})</span>
                         <span style="font-size:11px; background:#ecfdf5; color:#059669; padding:2px 8px; border-radius:10px; font-weight:700; border:1px solid #a7f3d0;">🟢 实时同步中</span>
                       </div>
-                      <span style="font-size:12.5px; color:#475569;">总字数: <b style="color:#2563eb; font-size:14px;">${(state.stage2?.unifiedContent || '').length}</b> 字</span>
+                      <span style="font-size:12.5px; color:#475569;">总字数: <b style="color:#2563eb; font-size:14px;">${(state.stage2?.unifiedContent || '').replace(/<[^>]*>/g, '').trim().length}</b> 字</span>
                     </div>
                     <div style="background:#eff6ff; border:1px solid #bfdbfe; border-radius:8px; padding:10px 14px; margin-bottom:12px; font-size:12px; color:#1d4ed8; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
                       <div>
@@ -996,8 +997,8 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
                         }).join('')}
                       </div>
                     </div>
-                    <div id="teacher-live-doc-mirror" style="flex:1; min-height:340px; max-height:480px; overflow-y:auto; font-family:'SimSun', 'Times New Roman', serif; font-size:13.5px; line-height:1.75; background:#ffffff; color:#0f172a; border:1px solid #cbd5e1; border-radius:6px; padding:16px 20px; box-shadow:inset 0 1px 3px rgba(0,0,0,0.02);">
-                      ${(state.stage2?.unifiedContent || '').replace(/<span class="remote-cursor-widget"[\s\S]*?<\/span>/gi, '').trim() || '<span style="color:#94a3b8; font-family:sans-serif; font-style:italic;">（小组成员尚未开始撰写正文）</span>'}
+                    <div id="teacher-live-doc-mirror" style="flex:1; min-height:360px; max-height:480px; background:#ffffff; border:1px solid #cbd5e1; border-radius:6px; overflow:hidden; position:relative;">
+                      <iframe src="/p/jizhi_${activeTaskId}_${activeMonitorGId}?showControls=false&showChat=false&showLineNumbers=true" style="pointer-events:none; border:none; width:100%; height:100%; min-height:360px;" title="教师端实时写作同屏镜像"></iframe>
                     </div>
                     <div style="margin-top:14px; background:#f8fafc; padding:12px; border-radius:8px; border:1px solid #e2e8f0;">
                       <div style="font-size:12px; font-weight:700; color:#334155; margin-bottom:6px;">📊 本组 SSRL 成员字数与互动贡献比率 (${monitorMembersList.length} 位成员)</div>
@@ -1069,10 +1070,10 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
                       <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:14px; flex:1; display:flex; flex-direction:column;">
                         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
                           <span style="font-size:13.5px; font-weight:800; color:#1e40af;">📜 论文终稿正文全篇镜像:</span>
-                          <span style="font-size:12px; color:#64748b;">终稿字数: <b style="color:#2563eb; font-size:14px;">${(state.stage3?.finalDraft || state.stage2?.unifiedContent || '').length}</b> 字</span>
+                          <span style="font-size:12px; color:#64748b;">终稿字数: <b style="color:#2563eb; font-size:14px;">${((state.stage3?.finalDraft || state.stage2?.unifiedContent || '').replace(/<[^>]*>/g, '').trim()).length}</b> 字</span>
                         </div>
-                        <div style="flex:1; min-height:360px; max-height:480px; overflow-y:auto; font-family:'SimSun', 'Times New Roman', serif; font-size:13.5px; line-height:1.75; background:#ffffff; color:#0f172a; border:1px solid #cbd5e1; border-radius:6px; padding:16px 20px; box-shadow:inset 0 1px 3px rgba(0,0,0,0.02);">
-                          ${(state.stage3?.finalDraft || state.stage2?.unifiedContent || '').replace(/<span class="remote-cursor-widget"[\s\S]*?<\/span>/gi, '').trim() || '<span style="color:#94a3b8; font-family:sans-serif; font-style:italic;">（小组成员尚未提交论文终稿）</span>'}
+                        <div style="flex:1; min-height:360px; max-height:480px; background:#ffffff; border:1px solid #cbd5e1; border-radius:6px; overflow:hidden; position:relative;">
+                          <iframe src="/p/jizhi_${activeTaskId}_${activeMonitorGId}?showControls=false&showChat=false&showLineNumbers=true" style="pointer-events:none; border:none; width:100%; height:100%; min-height:360px;" title="教师端论文终稿同屏镜像"></iframe>
                         </div>
                       </div>
                     ` : `

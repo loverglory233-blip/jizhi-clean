@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles } from "./constants.js?v=20260825_v520";
-import { callCozeAgentAPI } from "./agents.js?v=20260825_v520";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime } from "./utils.js?v=20260825_v520";
+import { AgentProfiles } from "./constants.js?v=20260826_v600";
+import { callCozeAgentAPI } from "./agents.js?v=20260826_v600";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime } from "./utils.js?v=20260826_v600";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -602,7 +602,7 @@ export function attachWordEditorEvents(container, editorId, isReadonly, onChange
         fileInput.onchange = (e) => {
           if (e.target.files && e.target.files[0]) {
             const file = e.target.files[0];
-            const currentUser = this.authManager ? this.authManager.getCurrentUser() : null;
+            const currentUser = window.app?.authManager ? window.app.authManager.getCurrentUser() : null;
             const studentCode = currentUser ? (currentUser.studentCode || currentUser.id || 'A') : 'A';
             const caption = prompt('请输入学术图题说明 (例如: 图 1: 研究模型与变量关系架构图):', '图 1: 研究模型与变量关系架构图');
 
@@ -1786,20 +1786,33 @@ function renderStage2Canvas(canvas, state, handlers) {
     }
   };
 
+  let _padContentDebounceTimer = null;
   const syncPadMetrics = async () => {
     try {
-      const res = await fetch(`/p/${padName}/export/txt`);
-      if (res.ok) {
-        const txt = await res.text();
-        const cleanTxt = txt.replace(/\r\n/g, '\n').trim();
+      // 🚀 极轻量纯文本提取：耗时 < 0.1ms，体积 1KB，彻底杜绝服务器 Node.js CPU 波动
+      const txtRes = await fetch(`/p/${padName}/export/txt`);
+      if (txtRes.ok) {
+        const cleanTxt = (await txtRes.text()).replace(/\r\n/g, '\n').trim();
         const wordCount = cleanTxt.length;
         
-        // 1. 实时更新字数角标
+        // 实时更新字数角标
         const countBadge = document.getElementById('stage2-word-count-num');
         if (countBadge) countBadge.innerText = String(wordCount);
-        state.stage2.unifiedContent = cleanTxt;
 
-        // 2. 动态贡献度计算（仅当本人正在打字时向上报增量 delta，杜绝各端独立算全量）
+        const prevContent = state.stage2.unifiedContent || '';
+        const hasContentChanged = (cleanTxt && cleanTxt !== prevContent);
+
+        if (hasContentChanged) {
+          state.stage2.unifiedContent = cleanTxt;
+          if (_padContentDebounceTimer) clearTimeout(_padContentDebounceTimer);
+          _padContentDebounceTimer = setTimeout(() => {
+            if (window.app && typeof window.app.syncStage2 === 'function') {
+              window.app.syncStage2();
+            }
+          }, 1500);
+        }
+
+        // 动态贡献度计算（仅当本人正在打字时向上报增量 delta）
         const prevLen = state.stage2._prevKnownLen !== undefined ? state.stage2._prevKnownLen : wordCount;
         state.stage2._prevKnownLen = wordCount;
 
@@ -1831,7 +1844,8 @@ function renderStage2Canvas(canvas, state, handlers) {
   };
 
   syncPadMetrics();
-  window._stage2WordCountTimer = setInterval(syncPadMetrics, 5000);
+  if (window._stage2WordCountTimer) clearInterval(window._stage2WordCountTimer);
+  window._stage2WordCountTimer = setInterval(syncPadMetrics, 15000);
 }
 
 function renderStage3Canvas(canvas, state, handlers) {
@@ -1846,6 +1860,7 @@ function renderStage3Canvas(canvas, state, handlers) {
   const confirmedRevMap = s3.confirmedMembers || {};
   const confirmedRevCount = membersList.filter(m => confirmedRevMap[m.id] || confirmedRevMap[m.studentCode]).length;
   const isUserRevisionConfirmed = !!(confirmedRevMap[currUserCode] || (currUser && confirmedRevMap[currUser.id]));
+  const isRevisionFullyConfirmed = confirmedRevCount >= totalCount && totalCount > 0;
   const allTasks = (window.app && window.app.authManager) ? window.app.authManager.getTasks() : [];
   const currentTask = allTasks.find(t => t.id === state.activeTaskId);
   const isTaskDeadlineExpired = isTaskExpired(currentTask);
