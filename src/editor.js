@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles } from "./constants.js?v=20260827_v609";
-import { callCozeAgentAPI } from "./agents.js?v=20260827_v609";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime } from "./utils.js?v=20260827_v609";
+import { AgentProfiles } from "./constants.js?v=20260827_v610";
+import { callCozeAgentAPI } from "./agents.js?v=20260827_v610";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime } from "./utils.js?v=20260827_v610";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -1762,7 +1762,7 @@ function renderStage2Canvas(canvas, state, handlers) {
   }
 
   // 🚀 实时 Etherpad 真实字数提取与贡献比动态平滑更新
-  if (window._stage2WordCountTimer) clearInterval(window._stage2WordCountTimer);
+  if (window._stage2WordCountTimer) clearTimeout(window._stage2WordCountTimer);
   const padName = `jizhi_${activeTaskId}_${userGroupId}`;
   
   const updateContribDom = () => {
@@ -1849,7 +1849,7 @@ function renderStage2Canvas(canvas, state, handlers) {
   };
 
   syncPadMetrics();
-  if (window._stage2WordCountTimer) clearInterval(window._stage2WordCountTimer);
+  if (window._stage2WordCountTimer) clearTimeout(window._stage2WordCountTimer);
   const getPadMetricInterval = () => (document.hidden ? 60000 : 15000);
   const scheduleNextPadMetric = () => {
     window._stage2WordCountTimer = setTimeout(() => {

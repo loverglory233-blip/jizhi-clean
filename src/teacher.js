@@ -9,8 +9,8 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260827_v609";
-import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash } from "./utils.js?v=20260827_v609";
+} from "./constants.js?v=20260827_v610";
+import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash } from "./utils.js?v=20260827_v610";
 
 /* ==========================================================================
    7. TEACHER PORTAL RENDERER (LIVE WORKSPACE MIRROR & ANNOUNCEMENT READ MATRIX)
@@ -88,10 +88,12 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
 
       try {
         await window.app.cloudSyncEngine.pullFromServer();
-        // 📝 针对阶段二，同时从 Etherpad 提取最新正文镜像
+        // 📝 针对阶段二，同时从 Etherpad 提取最新正文镜像（支持 Hash 增量早退）
         const padName = `jizhi_${activeTaskId}_${activeMonitorGId}`;
-        const epRes = await fetch(`sync.php?action=get_pad_html&padId=${padName}`).then(r => r.json()).catch(() => null);
-        if (epRes && epRes.success && (epRes.html || epRes.text)) {
+        const lastEpHash = state._lastEpHash || '';
+        const epRes = await fetch(`sync.php?action=get_pad_html&padId=${padName}&clientHash=${encodeURIComponent(lastEpHash)}`).then(r => r.json()).catch(() => null);
+        if (epRes && epRes.hash) state._lastEpHash = epRes.hash;
+        if (epRes && epRes.success && !epRes.unchanged && (epRes.html || epRes.text)) {
           if (!state.stage2) state.stage2 = {};
           state.stage2.unifiedContent = epRes.html || epRes.text;
         }
@@ -148,11 +150,26 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
         }
       } catch (e) {}
     }
-    const tInterval = document.hidden ? 15000 : 3000;
+
+    const isTeacherIdle = () => document.hidden || (Date.now() - (window._lastTeacherActivity || Date.now()) > 60000);
+    const tInterval = isTeacherIdle() ? 15000 : 3000;
     window._teacherPortalSyncTimer = setTimeout(teacherPullAndRefresh, tInterval);
   };
   if (window._teacherPortalSyncTimer) clearTimeout(window._teacherPortalSyncTimer);
-  const tInitInterval = document.hidden ? 15000 : 3000;
+
+  window._lastTeacherActivity = Date.now();
+  const markTeacherActive = () => {
+    const wasIdle = (Date.now() - window._lastTeacherActivity > 60000);
+    window._lastTeacherActivity = Date.now();
+    if (wasIdle && state.teacherActiveTab === 'view_monitoring') {
+      teacherPullAndRefresh();
+    }
+  };
+  ['mousemove', 'keydown', 'touchstart', 'scroll', 'click'].forEach(evt => {
+    window.addEventListener(evt, markTeacherActive, { passive: true });
+  });
+
+  const tInitInterval = (document.hidden ? 15000 : 3000);
   window._teacherPortalSyncTimer = setTimeout(teacherPullAndRefresh, tInitInterval);
 
   container.innerHTML = `
