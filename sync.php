@@ -701,16 +701,48 @@ if ($action === 'get_teacher_monitor_all_groups') {
 
     $result = ['success' => true, 'groups' => []];
     $nowMs = round(microtime(true) * 1000);
-    $ONLINE_WINDOW_MS = 20000; // 20 秒无心跳视为离线
+    $ONLINE_WINDOW_MS = 60000; // 60 秒心跳/发言窗口判定在线 (彻底杜绝切后台/发完文字误判为离线)
 
     if ($pdo) {
+        // 1. 优先加载官方班级分组名册，确保未登录小组也绝不显示 0/0 人
+        $officialGroups = [];
+        $stmtMeta = $pdo->prepare("SELECT meta_value FROM global_meta WHERE meta_key = 'main_meta'");
+        $stmtMeta->execute();
+        $mRow = $stmtMeta->fetch();
+        if ($mRow && !empty($mRow['meta_value'])) {
+            $parsedMeta = json_decode($mRow['meta_value'], true);
+            if (isset($parsedMeta['classes']) && is_array($parsedMeta['classes'])) {
+                foreach ($parsedMeta['classes'] as $cls) {
+                    if (empty($classId) || (isset($cls['id']) && $cls['id'] === $classId)) {
+                        if (isset($cls['groups']) && is_array($cls['groups'])) {
+                            foreach ($cls['groups'] as $grp) {
+                                if (isset($grp['id'])) {
+                                    $officialGroups[$grp['id']] = $grp;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // 2. 查出当前任务下所有小组的协同状态
         $stmt = $pdo->prepare("SELECT * FROM group_states WHERE task_id = :tid");
         $stmt->execute([':tid' => $taskId]);
         $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
+        $stateMap = [];
         foreach ($rows as $r) {
-            $gid = $r['group_id'];
-            $sk = $r['scope_key'];
+            $stateMap[$r['group_id']] = $r;
+        }
+
+        // 合并所有应展示的小组列表（以官方小组为主骨架）
+        $allGroupIds = array_unique(array_merge(array_keys($officialGroups), array_keys($stateMap)));
+        if (empty($allGroupIds)) $allGroupIds = ['group_1'];
+
+        foreach ($allGroupIds as $gid) {
+            $r = $stateMap[$gid] ?? null;
+            $sk = $taskId . '_' . $gid;
+            $offGroup = $officialGroups[$gid] ?? null;
 
             // 获取聊天记录
             $stmtChats = $pdo->prepare("SELECT meta_value FROM global_meta WHERE meta_key = :k");
@@ -718,18 +750,37 @@ if ($action === 'get_teacher_monitor_all_groups') {
             $chatRow = $stmtChats->fetch();
             $chats = ($chatRow && !empty($chatRow['meta_value'])) ? json_decode($chatRow['meta_value'], true) : ['stage1' => [], 'stage2' => [], 'stage3' => []];
 
-            // 组员快照 + 在线/缺勤判定（presence 的 key 可能是学号/id/姓名等多键归一，按 20s 心跳窗口判定在线）
-            $members = (!empty($r['members_data'])) ? json_decode($r['members_data'], true) : [];
-            if (!is_array($members)) $members = [];
-            $membersArr = array_values($members);
-            $presence = (!empty($r['presence_data'])) ? json_decode($r['presence_data'], true) : [];
+            // 查出该组最近 60 秒内发言的学生名单
+            $recentActiveSenders = [];
+            $cutoffMs = $nowMs - $ONLINE_WINDOW_MS;
+            $stmtAct = $pdo->prepare("SELECT DISTINCT sender FROM chat_messages WHERE scope_key = :sk AND time_ms >= :cutoff");
+            $stmtAct->execute([':sk' => $sk, ':cutoff' => $cutoffMs]);
+            $actRows = $stmtAct->fetchAll(PDO::FETCH_COLUMN);
+            if (is_array($actRows)) {
+                foreach ($actRows as $snd) { $recentActiveSenders[(string)$snd] = true; }
+            }
+
+            // 组员名单优先取班级官方分配名单
+            $membersArr = [];
+            if ($offGroup && isset($offGroup['members']) && is_array($offGroup['members']) && count($offGroup['members']) > 0) {
+                $membersArr = array_values($offGroup['members']);
+            } elseif ($r && !empty($r['members_data'])) {
+                $mDec = json_decode($r['members_data'], true);
+                if (is_array($mDec) && count($mDec) > 0) $membersArr = array_values($mDec);
+            }
+
+            $presence = ($r && !empty($r['presence_data'])) ? json_decode($r['presence_data'], true) : [];
             if (!is_array($presence)) $presence = [];
             $presenceByKey = [];
             foreach ($presence as $pk => $pv) {
                 $presenceByKey[(string)$pk] = (is_array($pv) && isset($pv['updatedAt'])) ? intval($pv['updatedAt']) : 0;
             }
+
             $onlineMembers = [];
             $absentMembers = [];
+            $groupLastTs = $r ? intval($r['last_timestamp']) : 0;
+            $groupIsActiveRecently = ($nowMs - $groupLastTs) <= $ONLINE_WINDOW_MS;
+
             foreach ($membersArr as $m) {
                 if (!is_array($m)) continue;
                 $candidateKeys = [];
@@ -739,12 +790,13 @@ if ($action === 'get_teacher_monitor_all_groups') {
                 $isFresh = false;
                 foreach ($candidateKeys as $k) {
                     if (isset($presenceByKey[$k]) && ($nowMs - $presenceByKey[$k]) <= $ONLINE_WINDOW_MS) { $isFresh = true; break; }
+                    if (isset($recentActiveSenders[$k])) { $isFresh = true; break; }
                 }
                 $label = (isset($m['name']) && $m['name'] !== '') ? $m['name'] : (isset($m['studentCode']) ? $m['studentCode'] : '成员');
                 if ($isFresh) $onlineMembers[] = $label; else $absentMembers[] = $label;
             }
 
-            // 活跃字段锁（20 秒未超时 = 当前正被某人占用编辑）
+            // 活跃字段锁
             $stmtLocks = $pdo->prepare("SELECT meta_value FROM global_meta WHERE meta_key = :k");
             $stmtLocks->execute([':k' => 'locks_' . $sk]);
             $lockRow = $stmtLocks->fetch();
@@ -763,14 +815,14 @@ if ($action === 'get_teacher_monitor_all_groups') {
             $result['groups'][$gid] = [
                 'groupId'            => $gid,
                 'scopeKey'           => $sk,
-                'currentStage'       => $r['current_stage'] ?: 'stage1',
-                'stage1'             => !empty($r['stage1_data']) ? json_decode($r['stage1_data'], true) : [],
-                'stage2'             => !empty($r['stage2_data']) ? json_decode($r['stage2_data'], true) : [],
-                'stage3'             => !empty($r['stage3_data']) ? json_decode($r['stage3_data'], true) : [],
+                'currentStage'       => $r ? ($r['current_stage'] ?: 'stage1') : 'stage1',
+                'stage1'             => ($r && !empty($r['stage1_data'])) ? json_decode($r['stage1_data'], true) : [],
+                'stage2'             => ($r && !empty($r['stage2_data'])) ? json_decode($r['stage2_data'], true) : [],
+                'stage3'             => ($r && !empty($r['stage3_data'])) ? json_decode($r['stage3_data'], true) : [],
                 'chatLogs'           => $chats,
-                'isFinalSubmitted'   => (bool)$r['is_final_submitted'],
-                'lastTimestamp'      => intval($r['last_timestamp']),
-                'revisionId'         => intval($r['revision_id']),
+                'isFinalSubmitted'   => $r ? (bool)$r['is_final_submitted'] : false,
+                'lastTimestamp'      => $r ? intval($r['last_timestamp']) : 0,
+                'revisionId'         => $r ? intval($r['revision_id']) : 1,
                 'members'            => $membersArr,
                 'totalMembers'       => count($membersArr),
                 'onlineCount'        => count($onlineMembers),
@@ -2030,10 +2082,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             // 🛡️ 锁定状态：完全由客户端/教师端权威布尔值控制，支持正常锁定与解锁
             $finalLock = !empty($data['isFinalSubmitted']) ? 1 : 0;
 
-            // 🛡️ 公约与初稿确认状态防逆流 (Sticky True)
-            if (!empty($existingS1['contract']['isConfirmed'])) {
+            // 🛡️ 公约与初稿确认状态动态比对（仅当签署人数 >= 组员人数且组员人数 > 0 时生效，未达全员绝不锁死）
+            $confirmedMap1 = isset($mergedS1['contract']['confirmedMembers']) && is_array($mergedS1['contract']['confirmedMembers']) ? $mergedS1['contract']['confirmedMembers'] : [];
+            $actualMembersCount1 = isset($data['members']) && is_array($data['members']) ? count($data['members']) : 0;
+            if ($actualMembersCount1 > 0 && count($confirmedMap1) >= $actualMembersCount1) {
                 if (!isset($mergedS1['contract'])) $mergedS1['contract'] = [];
                 $mergedS1['contract']['isConfirmed'] = true;
+            } else {
+                if (isset($mergedS1['contract'])) {
+                    $mergedS1['contract']['isConfirmed'] = false;
+                }
             }
             if (!empty($existingS2['isDraftConfirmed'])) {
                 $mergedS2['isDraftConfirmed'] = true;

@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState } from './constants.js?v=20260826_v602';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin } from './utils.js?v=20260826_v602';
+import { InitialState } from './constants.js?v=20260826_v603';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin } from './utils.js?v=20260826_v603';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -104,8 +104,8 @@ export class CloudSyncEngine {
 
   initPolling() {
     this.pullFromServer();
-    // ⚡ 智能省流心跳轮询：前台 2 秒对齐，后台静默切为 8 秒（带宽节省 75%）
-    const getInterval = () => (document.hidden ? 8000 : 2000);
+    // ⚡ 智能省流心跳轮询：前台 1.5 秒平缓对齐 (平衡 50 人并发峰值与秒级响应)，后台静默切为 8 秒
+    const getInterval = () => (document.hidden ? 8000 : 1500);
     const runPoll = () => {
       if (this.isLoggingOut) return;
       this.pullFromServer().finally(() => {
