@@ -5,6 +5,9 @@
  */
 
 ini_set('memory_limit', '256M');
+if (!ob_start('ob_gzhandler')) {
+    ob_start();
+}
 header('Content-Type: application/json; charset=utf-8');
 
 // 🛠️ 智能 Base64 图片文件化清洗迁移器（无损提取为物理文件并回写极短 URL，彻底杜绝内存撑爆与数据截断）
@@ -832,6 +835,13 @@ if ($action === 'get_teacher_monitor_all_groups') {
             ];
         }
     }
+    $calcHash = md5(json_encode($result));
+    $clientHash = isset($_GET['clientHash']) ? trim($_GET['clientHash']) : '';
+    if (!empty($clientHash) && $clientHash === $calcHash) {
+        echo json_encode(['unchanged' => true, 'hash' => $calcHash], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+    $result['hash'] = $calcHash;
     echo json_encode($result, JSON_UNESCAPED_UNICODE);
     exit;
 }
@@ -1209,6 +1219,18 @@ if ($action === 'get_global_meta') {
     $foundMeta = null;
 
     if ($pdo) {
+        // ⚡ 极速版本探测：若客户端当前版本等于数据库最新版本，直接 20 字节返回 unchanged
+        $clientVer = isset($_GET['ver']) ? intval($_GET['ver']) : 0;
+        $stmtVer = $pdo->prepare("SELECT meta_value FROM global_meta WHERE meta_key = 'main_meta_version'");
+        $stmtVer->execute();
+        $vRow = $stmtVer->fetch();
+        $currentVer = $vRow ? intval($vRow['meta_value']) : 1;
+
+        if ($clientVer > 0 && $clientVer === $currentVer && !isset($_GET['force'])) {
+            echo json_encode(['unchanged' => true, 'version' => $currentVer], JSON_UNESCAPED_UNICODE);
+            exit;
+        }
+
         // 1. 优先极速读取全局权威快照 main_meta（耗时 < 0.5ms，忠实保留 19人班 + 30人班真实名单）
         $stmt = $pdo->prepare("SELECT meta_value FROM global_meta WHERE meta_key = 'main_meta'");
         $stmt->execute();

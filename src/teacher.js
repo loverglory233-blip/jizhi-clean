@@ -9,8 +9,8 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260826_v607";
-import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash } from "./utils.js?v=20260826_v607";
+} from "./constants.js?v=20260827_v608";
+import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash } from "./utils.js?v=20260827_v608";
 
 /* ==========================================================================
    7. TEACHER PORTAL RENDERER (LIVE WORKSPACE MIRROR & ANNOUNCEMENT READ MATRIX)
@@ -95,13 +95,14 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
           if (!state.stage2) state.stage2 = {};
           state.stage2.unifiedContent = epRes.html || epRes.text;
         }
-        // 🆕 全组全景总览：拉取所有小组的在线/阶段/锁/终稿快照，供顶部全景卡片网格使用
         const curT = authManager.getCurrentUser();
         const tToken = (curT && (curT.activeSessionId || curT.token)) || '';
         const tId = (curT && (curT.id || curT.username)) || '';
-        const panRes = await fetch(`sync.php?action=get_teacher_monitor_all_groups&taskId=${encodeURIComponent(activeTaskId)}&userId=${encodeURIComponent(tId)}&token=${encodeURIComponent(tToken)}`).then(r => r.json()).catch(() => null);
+        const lastHash = state._lastMonitorHash || '';
+        const panRes = await fetch(`sync.php?action=get_teacher_monitor_all_groups&taskId=${encodeURIComponent(activeTaskId)}&userId=${encodeURIComponent(tId)}&token=${encodeURIComponent(tToken)}&clientHash=${encodeURIComponent(lastHash)}`).then(r => r.json()).catch(() => null);
         if (panRes && panRes.success && panRes.groups) {
           state.monitorPanorama = panRes.groups;
+          if (panRes.hash) state._lastMonitorHash = panRes.hash;
         }
       } catch (e) {}
 
@@ -147,10 +148,12 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
         }
       } catch (e) {}
     }
-    window._teacherPortalSyncTimer = setTimeout(teacherPullAndRefresh, 3000);
+    const tInterval = document.hidden ? 15000 : 3000;
+    window._teacherPortalSyncTimer = setTimeout(teacherPullAndRefresh, tInterval);
   };
   if (window._teacherPortalSyncTimer) clearTimeout(window._teacherPortalSyncTimer);
-  window._teacherPortalSyncTimer = setTimeout(teacherPullAndRefresh, 3000);
+  const tInitInterval = document.hidden ? 15000 : 3000;
+  window._teacherPortalSyncTimer = setTimeout(teacherPullAndRefresh, tInitInterval);
 
   container.innerHTML = `
     <div class="teacher-portal-layout" id="teacher-portal-layout" style="height:100vh; overflow-y:auto !important; -webkit-overflow-scrolling:touch; background:#f0f4f9; padding:0; display:flex; flex-direction:column;">

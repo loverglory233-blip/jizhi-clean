@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState } from './constants.js?v=20260826_v607';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin } from './utils.js?v=20260826_v607';
+import { InitialState } from './constants.js?v=20260827_v608';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin } from './utils.js?v=20260827_v608';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -104,8 +104,8 @@ export class CloudSyncEngine {
 
   initPolling() {
     this.pullFromServer();
-    // ⚡ 智能省流心跳轮询：前台 1.5 秒平缓对齐 (平衡 50 人并发峰值与秒级响应)，后台静默切为 8 秒
-    const getInterval = () => (document.hidden ? 8000 : 1500);
+    // ⚡ 智能省流心跳轮询：前台 1.5 秒平缓对齐 (秒级响应)，后台挂机静默深度省流 (15秒极简心跳)
+    const getInterval = () => (document.hidden ? 15000 : 1500);
     const runPoll = () => {
       if (this.isLoggingOut) return;
       this.pullFromServer().finally(() => {
@@ -269,10 +269,14 @@ export class CloudSyncEngine {
       this._hasPulledGlobal = true;
     }
 
-    // 更新本地已知的服务端 revisionId（每次拉到数据都对齐，防止 since_rev 永远为 0）
+    // 更新本地已知的服务端 revisionId 和 metaVer（每次拉到数据都对齐，彻底打通 Delta 差量通道）
     if (remoteData.revisionId !== undefined) {
       this._lastKnownRevisionId = remoteData.revisionId;
     }
+    if (remoteData.metaVer !== undefined) {
+      this._lastKnownMetaVer = remoteData.metaVer;
+    }
+    this._hasPulledGlobal = true;
 
     // 🌐 服务端全局教务与文献资源同步到本地（tasks/users/classes/announcements/referencePapers）
     // 教师一旦发布新范文或公告，学生端在任务工作台内 1~2 秒内自动无感对齐更新
