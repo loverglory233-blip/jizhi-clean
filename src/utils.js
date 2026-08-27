@@ -359,3 +359,105 @@ export function setCaretPositionWithin(element, offset) {
     sel.addRange(range);
   }
 }
+
+/**
+ * 🛡️ 聊天数据智能清洗与名单白名单过滤器（方案 A）
+ * 1. 过滤不在当前班级/当前组名单内的早期历史联调测试游离数据 (如 001、梁亦缘)
+ * 2. 智能体开场白去重：重复的开场白仅保留最新 1 条
+ */
+export function filterAndDeduplicateChatLogs(messages, validMembersList = null) {
+  if (!Array.isArray(messages)) return [];
+  const validUserIds = new Set();
+  if (validMembersList && Array.isArray(validMembersList)) {
+    validMembersList.forEach(m => {
+      if (m.id) validUserIds.add(String(m.id).toLowerCase());
+      if (m.studentCode) validUserIds.add(String(m.studentCode).toLowerCase());
+      if (m.username) validUserIds.add(String(m.username).toLowerCase());
+      if (m.name) validUserIds.add(String(m.name).toLowerCase());
+    });
+  }
+
+  const result = [];
+  const seenAgentOpenings = new Set();
+
+  for (let i = 0; i < messages.length; i++) {
+    const m = messages[i];
+    if (!m || typeof m !== 'object') continue;
+    const sender = String(m.sender || '');
+    const isAgent = (m.sender && (m.sender.startsWith('agent_') || ['auctioneer', 'architect', 'analyst', 'editor', 'challenger', 'chair'].includes(m.sender)));
+
+    // 1. 如果不是智能体，检查发言者是否为当前班级/小组的有效成员（过滤早期游离测试账号）
+    if (!isAgent && validMembersList && validMembersList.length > 0) {
+      const senderKey = sender.toLowerCase();
+      const senderName = String(m.senderName || '').toLowerCase();
+      if (!validUserIds.has(senderKey) && !validUserIds.has(senderName)) {
+        continue;
+      }
+    }
+
+    // 2. 智能体重复开场白去重
+    if (isAgent && m.text) {
+      const textTrim = m.text.trim();
+      if (textTrim.includes('【拍卖师开场】') || textTrim.includes('【架构师开场】') || textTrim.includes('【主笔人开场】') || textTrim.includes('【辩论主席开场】')) {
+        const opKey = `${sender}_${textTrim}`;
+        if (seenAgentOpenings.has(opKey)) {
+          continue;
+        }
+        seenAgentOpenings.add(opKey);
+      }
+    }
+
+    result.push(m);
+  }
+
+  return result;
+}
+
+/**
+ * 🔔 全局轻量浮层通知横幅（全场景通用：任务延长、紧急提醒等）
+ */
+export function showGlobalBannerNotice(title, message, type = 'info') {
+  if (typeof document === 'undefined') return;
+  const existing = document.getElementById('jizhi-global-banner-notice');
+  if (existing) existing.remove();
+
+  const banner = document.createElement('div');
+  banner.id = 'jizhi-global-banner-notice';
+  banner.style.cssText = `
+    position: fixed;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 9999999;
+    background: linear-gradient(135deg, #1e293b, #0f172a);
+    color: #ffffff;
+    padding: 12px 22px;
+    border-radius: 12px;
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(255, 255, 255, 0.15);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    font-size: 13.5px;
+    pointer-events: auto;
+  `;
+
+  banner.innerHTML = `
+    <div style="font-size: 20px;">🔔</div>
+    <div>
+      <div style="font-weight: 800; color: #60a5fa; font-size: 14px;">${escapeHtml(title)}</div>
+      <div style="color: #e2e8f0; font-size: 12.5px; margin-top: 2px;">${escapeHtml(message)}</div>
+    </div>
+    <button style="background: none; border: none; color: #94a3b8; font-size: 18px; cursor: pointer; margin-left: 12px; padding: 0 4px; line-height: 1;" onclick="this.parentElement.remove()">×</button>
+  `;
+
+  document.body.appendChild(banner);
+  setTimeout(() => {
+    if (banner && banner.parentElement) {
+      banner.style.transition = 'opacity 0.3s ease, transform 0.3s ease';
+      banner.style.opacity = '0';
+      banner.style.transform = 'translateX(-50%) translateY(-10px)';
+      setTimeout(() => banner.remove(), 300);
+    }
+  }, 6000);
+}

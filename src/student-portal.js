@@ -7,8 +7,8 @@ import {
   STORAGE_KEY_TASKS,
   STORAGE_KEY_ANNOUNCEMENTS,
   STORAGE_KEY_CLASSES
-} from "./constants.js?v=20260827_v632";
-import { escapeHtml, isTaskExpired, formatDurationHuman, formatStandardDateDash } from "./utils.js?v=20260827_v632";
+} from "./constants.js?v=20260828_v633";
+import { escapeHtml, isTaskExpired, formatDurationHuman, formatStandardDateDash, showGlobalBannerNotice } from "./utils.js?v=20260828_v633";
 
 /* ==========================================================================
    7.5 STUDENT TASK PORTAL / DASHBOARD (我的写作任务大厅)
@@ -59,6 +59,34 @@ export function renderStudentTaskPortal(container, authManager, state, onSelectT
   const classes = authManager.getClasses();
   const tasks = authManager.getTasks();
   const announcements = authManager.getAnnouncements();
+
+  // 🔔 检查并播报任务时长延长通知
+  (tasks || []).forEach(t => {
+    if (!t || !t.id || !t.deadline) return;
+    const dlKey = `jizhi_known_deadline_${t.id}`;
+    const unreadKey = `jizhi_unread_deadline_ext_${t.id}`;
+    const prevDl = localStorage.getItem(dlKey);
+    const newDlMs = new Date(t.deadline.replace(/-/g, '/')).getTime();
+
+    let shouldNotify = false;
+    if (localStorage.getItem(unreadKey)) {
+      shouldNotify = true;
+      localStorage.removeItem(unreadKey);
+    } else if (prevDl) {
+      const prevDlMs = Number(prevDl);
+      if (newDlMs > prevDlMs + 60000) {
+        shouldNotify = true;
+      }
+    }
+    localStorage.setItem(dlKey, String(newDlMs));
+
+    if (shouldNotify) {
+      showGlobalBannerNotice(
+        `任务【${t.title}】写作时间已延长！`,
+        `指导教师已为您延长写作截止时间至：${formatStandardDateDash(t.deadline)}，倒计时已同步更新。`
+      );
+    }
+  });
 
   // 🏫 1. 严格按学生实际所属/修读的班级进行过滤（不在2班的学生绝不显示2班）
   const myClasses = (classes || []).filter(c => {

@@ -498,9 +498,9 @@ if ($action === 'lock_field' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         $locks = ($row && !empty($row['meta_value'])) ? json_decode($row['meta_value'], true) : [];
         if (!is_array($locks)) $locks = [];
 
-        // 清除超过 20 秒过期的死锁
+        // 清除超过 2.5 秒过期的死锁
         foreach ($locks as $k => $info) {
-            if (!isset($info['time']) || ($nowMs - intval($info['time']) > 20000)) {
+            if (!isset($info['time']) || ($nowMs - intval($info['time']) > 2500)) {
                 unset($locks[$k]);
             }
         }
@@ -867,7 +867,7 @@ if ($action === 'get_teacher_monitor_all_groups') {
                 $allLocks = json_decode($lockRow['meta_value'], true);
                 if (is_array($allLocks)) {
                     foreach ($allLocks as $fieldKey => $info) {
-                        if (is_array($info) && isset($info['time']) && ($nowMs - intval($info['time'])) <= 20000) {
+                        if (is_array($info) && isset($info['time']) && ($nowMs - intval($info['time'])) <= 2500) {
                             $activeLocks[] = ['field' => $fieldKey, 'userName' => ($info['userName'] ?? ''), 'time' => intval($info['time'])];
                         }
                     }
