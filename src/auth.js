@@ -14,8 +14,8 @@ import {
   DefaultTasks,
   DefaultAnnouncements,
   DefaultReferencePapers
-} from './constants.js?v=20260827_v617';
-import { formatExportDateTime } from './utils.js?v=20260827_v617';
+} from './constants.js?v=20260827_v618';
+import { formatExportDateTime } from './utils.js?v=20260827_v618';
 
 export class AuthManager {
   constructor() {
@@ -196,18 +196,31 @@ export class AuthManager {
                   confirmedMembers: Array.from(confMembersMap.values())
                 };
               });
+
+              // 🛡️ 确保本地最新创建的通知合并保留，绝不被较旧的云端列表冲刷丢弃
+              const remoteAnnIds = new Set(data.announcements.map(a => a.id));
+              localAnns.forEach(la => {
+                if (la && la.id && !remoteAnnIds.has(la.id)) {
+                  mergedAnns.push(la);
+                }
+              });
+
               localStorage.setItem(STORAGE_KEY_ANNOUNCEMENTS, JSON.stringify(mergedAnns));
             }
           }
           if (Array.isArray(data.referencePapers)) {
-            if (data.referencePapers.length > 0) {
-              localStorage.setItem('jizhi_reference_papers_db', JSON.stringify(data.referencePapers));
+            const localPapers = JSON.parse(localStorage.getItem('jizhi_reference_papers_db') || '[]');
+            if (data.referencePapers.length === 0 && localPapers.length > 0) {
+              // 🛡️ 保留本地文献
             } else {
-              // 🛡️ 防空覆盖：仅在本地本就为空时才写入空数组，绝不反向冲刷本地已有范文
-              const existingLocalPapers = JSON.parse(localStorage.getItem('jizhi_reference_papers_db') || '[]');
-              if (!Array.isArray(existingLocalPapers) || existingLocalPapers.length === 0) {
-                localStorage.setItem('jizhi_reference_papers_db', '[]');
-              }
+              const remotePaperIds = new Set(data.referencePapers.map(p => p.id));
+              const mergedPapers = [...data.referencePapers];
+              localPapers.forEach(lp => {
+                if (lp && lp.id && !remotePaperIds.has(lp.id)) {
+                  mergedPapers.push(lp);
+                }
+              });
+              localStorage.setItem('jizhi_reference_papers_db', JSON.stringify(mergedPapers));
             }
           }
           if (Array.isArray(data.surveys)) {
