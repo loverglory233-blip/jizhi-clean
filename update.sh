@@ -55,9 +55,34 @@ for gdir in "${TARGET_DIRS[@]}"; do
   fi
 done
 
-# 2. 若无 Git 仓库或网络受阻，启动多镜像单文件直连秒级穿透
+# 2. 尝试全量代码包一键直连秒级穿透解压（1次请求搞定，绝不卡住）
 if [ $DOWNLOADED -eq 0 ]; then
-  echo "   ⚡ 启动多镜像极速穿透直连同步最新文件..."
+  echo "   ⚡ 启动多镜像极速全量代码包穿透下载..."
+  for tar_url in \
+    "https://ghfast.top/https://github.com/loverglory233-blip/jizhi-clean/archive/refs/heads/main.tar.gz" \
+    "https://mirror.ghproxy.com/https://github.com/loverglory233-blip/jizhi-clean/archive/refs/heads/main.tar.gz" \
+    "https://ghproxy.net/https://github.com/loverglory233-blip/jizhi-clean/archive/refs/heads/main.tar.gz" \
+    "https://github.com/loverglory233-blip/jizhi-clean/archive/refs/heads/main.tar.gz"; do
+    echo "   📦 尝试拉取代码包: $tar_url ..."
+    if curl -s -f -L --connect-timeout 5 --max-time 15 "$tar_url" -o "$TMP/archive.tar.gz" 2>/dev/null && [ -s "$TMP/archive.tar.gz" ]; then
+      tar -xzf "$TMP/archive.tar.gz" -C "$TMP" 2>/dev/null
+      SRC_DIR=$(find "$TMP" -maxdepth 1 -type d -name "jizhi-clean-*" | head -n 1)
+      if [ -n "$SRC_DIR" ] && [ -f "$SRC_DIR/index.html" ]; then
+        for dir in "${TARGET_DIRS[@]}"; do
+          mkdir -p "$dir/css" "$dir/css/libs" "$dir/js" "$dir/js/libs" "$dir/api" "$dir/src" "$dir/uploads" "$dir/data"
+          cp -rf "$SRC_DIR/"* "$dir/" 2>/dev/null || true
+        done
+        DOWNLOADED=1
+        echo "   ✅ 完整代码包解压并同步覆盖完成"
+        break
+      fi
+    fi
+  done
+fi
+
+# 3. 兜底备用：若压缩包受限，启动单文件直连秒级穿透
+if [ $DOWNLOADED -eq 0 ]; then
+  echo "   ⚡ 启动单文件直连同步保底..."
   mkdir -p "$TMP/css" "$TMP/css/libs" "$TMP/js" "$TMP/js/libs" "$TMP/api" "$TMP/src"
   FILES=(
     "index.html" "update.sh" "sync.php" "build.py" "package.json"
@@ -71,12 +96,10 @@ if [ $DOWNLOADED -eq 0 ]; then
   NOW_TS=$(date +%s%N 2>/dev/null || date +%s)
   for f in "${FILES[@]}"; do
     for raw_host in \
-      "https://raw.gitmirror.com/loverglory233-blip/jizhi-clean/main" \
       "https://ghfast.top/https://raw.githubusercontent.com/loverglory233-blip/jizhi-clean/main" \
       "https://mirror.ghproxy.com/https://raw.githubusercontent.com/loverglory233-blip/jizhi-clean/main" \
-      "https://cdn.jsdelivr.net/gh/loverglory233-blip/jizhi-clean@main" \
-      "https://raw.githubusercontent.com/loverglory233-blip/jizhi-clean/main"; do
-      if curl -s -f -L --connect-timeout 4 --max-time 10 "$raw_host/$f?t=$NOW_TS" -o "$TMP/$f" 2>/dev/null && [ -s "$TMP/$f" ]; then
+      "https://raw.gitmirror.com/loverglory233-blip/jizhi-clean/main"; do
+      if curl -s -f -L --connect-timeout 2 --max-time 5 "$raw_host/$f?t=$NOW_TS" -o "$TMP/$f" 2>/dev/null && [ -s "$TMP/$f" ]; then
         break
       fi
     done
