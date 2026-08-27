@@ -9,8 +9,8 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260828_v633";
-import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash, filterAndDeduplicateChatLogs } from "./utils.js?v=20260828_v633";
+} from "./constants.js?v=20260828_v634";
+import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash, filterAndDeduplicateChatLogs } from "./utils.js?v=20260828_v634";
 
 /* ==========================================================================
    7. TEACHER PORTAL RENDERER (LIVE WORKSPACE MIRROR & ANNOUNCEMENT READ MATRIX)
@@ -998,7 +998,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
                   <div class="card" style="padding:20px; display:flex; flex-direction:column; min-width:0; box-sizing:border-box; height:100%;">
                     <div style="font-size:15px; font-weight:800; color:#0f172a; margin-bottom:12px;">💬 阶段一研讨对话流 (${activeMonitorGroup.name})</div>
                     <div style="flex:1; min-height:0; overflow-y:auto; background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:12px; font-size:12px; display:flex; flex-direction:column; gap:10px; box-sizing:border-box;">
-                      ${filterAndDeduplicateChatLogs((state.chatLogs && state.chatLogs['stage1']) || [], monitorMembersList).map(m => {
+                      ${filterAndDeduplicateChatLogs((state.chatLogs && state.chatLogs['stage1']) || []).map(m => {
                         const allGlobalUsers = (authManager) ? authManager.getUsers() : [];
                         const isAgent = AgentProfiles[m.sender] !== undefined;
                         const matchedUser = isAgent ? null : allGlobalUsers.find(u => u.id === m.sender || u.studentCode === m.sender || u.username === m.sender || u.name === m.sender);
@@ -1081,7 +1081,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
                   <div class="card" style="padding:20px; display:flex; flex-direction:column; min-width:0; box-sizing:border-box; height:100%;">
                     <div style="font-size:15px; font-weight:800; color:#0f172a; margin-bottom:12px;">💬 阶段二编辑部研讨流 (${activeMonitorGroup.name})</div>
                     <div style="flex:1; min-height:0; overflow-y:auto; background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:12px; font-size:12px; display:flex; flex-direction:column; gap:10px; box-sizing:border-box;">
-                      ${filterAndDeduplicateChatLogs((state.chatLogs && state.chatLogs['stage2']) || [], monitorMembersList).map(m => {
+                      ${filterAndDeduplicateChatLogs((state.chatLogs && state.chatLogs['stage2']) || []).map(m => {
                         const allGlobalUsers = (authManager) ? authManager.getUsers() : [];
                         const isAgent = AgentProfiles[m.sender] !== undefined;
                         const matchedUser = isAgent ? null : allGlobalUsers.find(u => u.id === m.sender || u.studentCode === m.sender || u.username === m.sender || u.name === m.sender);
@@ -1165,7 +1165,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
                   <div class="card" style="padding:20px; display:flex; flex-direction:column; min-width:0; box-sizing:border-box; height:100%;">
                     <div style="font-size:15px; font-weight:800; color:#0f172a; margin-bottom:12px;">💬 阶段三答辩对话流 (${activeMonitorGroup.name})</div>
                     <div style="flex:1; min-height:0; overflow-y:auto; background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:12px; font-size:12px; display:flex; flex-direction:column; gap:10px; box-sizing:border-box;">
-                      ${filterAndDeduplicateChatLogs((state.chatLogs && state.chatLogs['stage3']) || [], monitorMembersList).map(m => {
+                      ${filterAndDeduplicateChatLogs((state.chatLogs && state.chatLogs['stage3']) || []).map(m => {
                         const allGlobalUsers = (authManager) ? authManager.getUsers() : [];
                         const isAgent = AgentProfiles[m.sender] !== undefined;
                         const matchedUser = isAgent ? null : allGlobalUsers.find(u => u.id === m.sender || u.studentCode === m.sender || u.username === m.sender || u.name === m.sender);

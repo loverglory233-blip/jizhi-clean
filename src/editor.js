@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles } from "./constants.js?v=20260828_v633";
-import { callCozeAgentAPI } from "./agents.js?v=20260828_v633";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs } from "./utils.js?v=20260828_v633";
+import { AgentProfiles } from "./constants.js?v=20260828_v634";
+import { callCozeAgentAPI } from "./agents.js?v=20260828_v634";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs } from "./utils.js?v=20260828_v634";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -2222,7 +2222,7 @@ export function renderChat(state) {
     }
   });
   allMsgs.sort((a, b) => (Number(a._timeMs || 0) - Number(b._timeMs || 0)));
-  const cleanMsgs = filterAndDeduplicateChatLogs(allMsgs, memberList);
+  const cleanMsgs = filterAndDeduplicateChatLogs(allMsgs);
 
   // 智能滚动：如果用户正在往上拉浏览历史记录，保持当前视角不被强行打断拉回底部
   const isAtBottom = (stream.scrollHeight - stream.scrollTop - stream.clientHeight) < 90;

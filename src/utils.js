@@ -362,50 +362,42 @@ export function setCaretPositionWithin(element, offset) {
 
 /**
  * 🛡️ 聊天数据智能清洗与名单白名单过滤器（方案 A）
- * 1. 过滤不在当前班级/当前组名单内的早期历史联调测试游离数据 (如 001、梁亦缘)
- * 2. 智能体开场白去重：重复的开场白仅保留最新 1 条
+/**
+ * 🛡️ 聊天数据安全清洗与智能体开场白去重
+ * 1. 消除智能体重复开场白
+ * 2. 消除相同时间戳与文本的重复气泡
+ * 3. 100% 保护真实组员发言与即时输入新消息，绝不误删
  */
-export function filterAndDeduplicateChatLogs(messages, validMembersList = null) {
+export function filterAndDeduplicateChatLogs(messages) {
   if (!Array.isArray(messages)) return [];
-  const validUserIds = new Set();
-  if (validMembersList && Array.isArray(validMembersList)) {
-    validMembersList.forEach(m => {
-      if (m.id) validUserIds.add(String(m.id).toLowerCase());
-      if (m.studentCode) validUserIds.add(String(m.studentCode).toLowerCase());
-      if (m.username) validUserIds.add(String(m.username).toLowerCase());
-      if (m.name) validUserIds.add(String(m.name).toLowerCase());
-    });
-  }
-
   const result = [];
   const seenAgentOpenings = new Set();
+  const seenMsgKeys = new Set();
 
   for (let i = 0; i < messages.length; i++) {
     const m = messages[i];
     if (!m || typeof m !== 'object') continue;
+    const txt = String(m.text || '').trim();
+    if (!txt) continue;
+
     const sender = String(m.sender || '');
-    const isAgent = (m.sender && (m.sender.startsWith('agent_') || ['auctioneer', 'architect', 'analyst', 'editor', 'challenger', 'chair'].includes(m.sender)));
+    const isAgent = (sender.startsWith('agent_') || ['auctioneer', 'architect', 'analyst', 'editor', 'challenger', 'chair'].includes(sender));
 
-    // 1. 如果不是智能体，检查发言者是否为当前班级/小组的有效成员（过滤早期游离测试账号）
-    if (!isAgent && validMembersList && validMembersList.length > 0) {
-      const senderKey = sender.toLowerCase();
-      const senderName = String(m.senderName || '').toLowerCase();
-      if (!validUserIds.has(senderKey) && !validUserIds.has(senderName)) {
-        continue;
-      }
-    }
-
-    // 2. 智能体重复开场白去重
-    if (isAgent && m.text) {
-      const textTrim = m.text.trim();
-      if (textTrim.includes('【拍卖师开场】') || textTrim.includes('【架构师开场】') || textTrim.includes('【主笔人开场】') || textTrim.includes('【辩论主席开场】')) {
-        const opKey = `${sender}_${textTrim}`;
+    // 1. 智能体重复开场白去重：相同开场白如果重复，只保留最新 1 条
+    if (isAgent) {
+      if (txt.includes('【拍卖师开场】') || txt.includes('【架构师开场】') || txt.includes('【主笔人开场】') || txt.includes('【辩论主席开场】')) {
+        const opKey = `${sender}_${txt}`;
         if (seenAgentOpenings.has(opKey)) {
           continue;
         }
         seenAgentOpenings.add(opKey);
       }
     }
+
+    // 2. 严格消息指纹防重（相同发送者 + 相同时间戳 + 相同文本）
+    const msgKey = `${sender}_${m._timeMs || m.timestamp || ''}_${txt}`;
+    if (seenMsgKeys.has(msgKey)) continue;
+    seenMsgKeys.add(msgKey);
 
     result.push(m);
   }
