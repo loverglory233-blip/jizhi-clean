@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260827_v622";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired } from "./utils.js?v=20260827_v622";
-import { callCozeAgentAPI } from "./agents.js?v=20260827_v622";
-import { AuthManager } from "./auth.js?v=20260827_v622";
-import { CloudSyncEngine } from "./sync.js?v=20260827_v622";
-import { renderLoginView } from "./login.js?v=20260827_v622";
-import { renderTeacherPortal } from "./teacher.js?v=20260827_v622";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260827_v622";
+} from "./constants.js?v=20260827_v623";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired } from "./utils.js?v=20260827_v623";
+import { callCozeAgentAPI } from "./agents.js?v=20260827_v623";
+import { AuthManager } from "./auth.js?v=20260827_v623";
+import { CloudSyncEngine } from "./sync.js?v=20260827_v623";
+import { renderLoginView } from "./login.js?v=20260827_v623";
+import { renderTeacherPortal } from "./teacher.js?v=20260827_v623";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260827_v623";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260827_v622";
+} from "./editor.js?v=20260827_v623";
 
 // Make renderChat available on window for sync callbacks
 if (typeof window !== "undefined") {
@@ -2187,8 +2187,13 @@ export class App {
     }
 
     const groupId = this.getEffectiveGroupId();
+    // 🛡️ 教师端监控与未完成初始拉取时，绝对不主动注入开场白，杜绝重复刷屏与多学生并发重复入库
+    if (this.authManager?.getCurrentUser()?.role === 'teacher') return;
+    if (this.cloudSyncEngine && !this.cloudSyncEngine.isInitialPullDone) return;
+
     const taskId = this.state.activeTaskId || 'task_default';
     const welcomeFlagKey = `jizhi_welcomed_${taskId}_${groupId}_${stage}`;
+    if (sessionStorage.getItem(welcomeFlagKey)) return;
 
     if (!this.state.chatLogs[stage]) this.state.chatLogs[stage] = [];
     const logs = this.state.chatLogs[stage];
@@ -2198,6 +2203,7 @@ export class App {
     if (stage === 'stage1') {
       const hasAuctioneerIntro = logs.some(m => m && m.sender === 'auctioneer' && (m.text?.includes('欢迎来到【阶段一：学术拍卖会】') || m.text?.includes('拍卖师开场')));
       if (!hasAuctioneerIntro) {
+        sessionStorage.setItem(welcomeFlagKey, '1');
         const welcomeMsg = {
           id: `msg_welcome_${taskId}_${groupId}_stage1`,
           sender: 'auctioneer',

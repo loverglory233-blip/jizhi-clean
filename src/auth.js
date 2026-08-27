@@ -14,11 +14,12 @@ import {
   DefaultTasks,
   DefaultAnnouncements,
   DefaultReferencePapers
-} from './constants.js?v=20260827_v622';
-import { formatExportDateTime } from './utils.js?v=20260827_v622';
+} from './constants.js?v=20260827_v623';
+import { formatExportDateTime } from './utils.js?v=20260827_v623';
 
 export class AuthManager {
   constructor() {
+    this._pruneStorageQuota();
     this.initDatabase();
     this.sanitizeAndDeduplicateGroups();
     this.removeLegacyTestAccounts();
