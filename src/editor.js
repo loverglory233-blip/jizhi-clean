@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles } from "./constants.js?v=20260827_v629";
-import { callCozeAgentAPI } from "./agents.js?v=20260827_v629";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime } from "./utils.js?v=20260827_v629";
+import { AgentProfiles } from "./constants.js?v=20260827_v630";
+import { callCozeAgentAPI } from "./agents.js?v=20260827_v630";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime } from "./utils.js?v=20260827_v630";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -2339,4 +2339,10 @@ export function renderChat(state) {
     };
   });
 }
+
+// 🛡️ Fail-safe compatibility exports
+export function renderDefenseRoom() {}
+export function renderWordEditor() {}
+export function renderStageNavigation() {}
+export function renderStudentWorkspace() {}
 
