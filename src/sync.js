@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState } from './constants.js?v=20260828_v633';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin } from './utils.js?v=20260828_v633';
+import { InitialState } from './constants.js?v=20260828_v634';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin } from './utils.js?v=20260828_v634';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -104,6 +104,7 @@ export class CloudSyncEngine {
         const data = await res.json();
         if (data && data.presence && typeof data.presence === 'object') {
           this.app.state.presence = { ...(this.app.state.presence || {}), ...data.presence };
+          if (typeof window.renderChat === 'function') window.renderChat(this.app.state);
           this.app.renderPresenceCursors();
         }
       }

@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260828_v633";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash } from "./utils.js?v=20260828_v633";
-import { callCozeAgentAPI } from "./agents.js?v=20260828_v633";
-import { AuthManager } from "./auth.js?v=20260828_v633";
-import { CloudSyncEngine } from "./sync.js?v=20260828_v633";
-import { renderLoginView } from "./login.js?v=20260828_v633";
-import { renderTeacherPortal } from "./teacher.js?v=20260828_v633";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260828_v633";
+} from "./constants.js?v=20260828_v634";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash } from "./utils.js?v=20260828_v634";
+import { callCozeAgentAPI } from "./agents.js?v=20260828_v634";
+import { AuthManager } from "./auth.js?v=20260828_v634";
+import { CloudSyncEngine } from "./sync.js?v=20260828_v634";
+import { renderLoginView } from "./login.js?v=20260828_v634";
+import { renderTeacherPortal } from "./teacher.js?v=20260828_v634";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260828_v634";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260828_v633";
+} from "./editor.js?v=20260828_v634";
 
 // Make renderChat available on window for sync callbacks
 if (typeof window !== "undefined") {
@@ -119,6 +119,7 @@ export class App {
       this.state.stage1 = cached.stage1 || JSON.parse(JSON.stringify(defaultState.stage1));
       this.state.stage2 = cached.stage2 || JSON.parse(JSON.stringify(defaultState.stage2));
       this.state.stage3 = cached.stage3 || JSON.parse(JSON.stringify(defaultState.stage3));
+      this.state.presence = cached.presence || this.state.presence || {};
       this.state.currentStage = cached.currentStage || 'stage1';
       this.state.groupMaxStage = cached.currentStage || 'stage1';
       this.state.isFinalSubmitted = (cached.isFinalSubmitted !== undefined) ? !!cached.isFinalSubmitted : false;
@@ -176,6 +177,7 @@ export class App {
         stage3: this.state.stage3,
         currentStage: this.state.currentStage,
         groupMaxStage: this.state.groupMaxStage,
+        presence: this.state.presence,
         isFinalSubmitted: this.state.isFinalSubmitted,
         updatedAt: Date.now()
       };
