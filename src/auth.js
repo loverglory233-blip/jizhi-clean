@@ -14,8 +14,8 @@ import {
   DefaultTasks,
   DefaultAnnouncements,
   DefaultReferencePapers
-} from './constants.js?v=20260827_v625';
-import { formatExportDateTime } from './utils.js?v=20260827_v625';
+} from './constants.js?v=20260827_v626';
+import { formatExportDateTime } from './utils.js?v=20260827_v626';
 
 export class AuthManager {
   constructor() {
@@ -761,16 +761,20 @@ export class AuthManager {
           const g = targetClass.groups[i];
           const hasMember = (g.members || []).some(m => {
             if (!m) return false;
-            if (typeof m === 'string') return m === uId || m === uCode || m === uUsername || m === uName;
-            if (typeof m === 'object') return m.id === uId || m.userId === uId || m.studentCode === uCode || m.username === uUsername || m.name === uName;
+            if (typeof m === 'string') return m.trim().toLowerCase() === String(uId).trim().toLowerCase() || m.trim().toLowerCase() === String(uCode).trim().toLowerCase() || m.trim().toLowerCase() === String(uUsername).trim().toLowerCase() || m.trim() === String(uName).trim();
+            if (typeof m === 'object') {
+              const mId = m.id || m.userId;
+              const mCode = m.studentCode;
+              const mUser = m.username;
+              const mName = m.name;
+              return (mId && String(mId).trim().toLowerCase() === String(uId).trim().toLowerCase()) ||
+                     (mCode && String(mCode).trim().toLowerCase() === String(uCode).trim().toLowerCase()) ||
+                     (mUser && String(mUser).trim().toLowerCase() === String(uUsername).trim().toLowerCase()) ||
+                     (mName && String(mName).trim() === String(uName).trim());
+            }
             return false;
           });
           if (hasMember) return g;
-        }
-
-        if (user.groupId) {
-          const directG = targetClass.groups.find(g => g.id === user.groupId);
-          if (directG) return directG;
         }
       }
       // 🛡️ 指定班级下若未分配小组，直接返回专属隔离态，严禁跨班级回退
@@ -785,16 +789,20 @@ export class AuthManager {
         const g = targetClass.groups[i];
         const hasMember = (g.members || []).some(m => {
           if (!m) return false;
-          if (typeof m === 'string') return m === uId || m === uCode || m === uUsername || m === uName;
-          if (typeof m === 'object') return m.id === uId || m.userId === uId || m.studentCode === uCode || m.username === uUsername || m.name === uName;
+          if (typeof m === 'string') return m.trim().toLowerCase() === String(uId).trim().toLowerCase() || m.trim().toLowerCase() === String(uCode).trim().toLowerCase() || m.trim().toLowerCase() === String(uUsername).trim().toLowerCase() || m.trim() === String(uName).trim();
+          if (typeof m === 'object') {
+            const mId = m.id || m.userId;
+            const mCode = m.studentCode;
+            const mUser = m.username;
+            const mName = m.name;
+            return (mId && String(mId).trim().toLowerCase() === String(uId).trim().toLowerCase()) ||
+                   (mCode && String(mCode).trim().toLowerCase() === String(uCode).trim().toLowerCase()) ||
+                   (mUser && String(mUser).trim().toLowerCase() === String(uUsername).trim().toLowerCase()) ||
+                   (mName && String(mName).trim() === String(uName).trim());
+          }
           return false;
         });
         if (hasMember) return g;
-      }
-
-      if (user.groupId) {
-        const directG = targetClass.groups.find(g => g.id === user.groupId);
-        if (directG) return directG;
       }
     }
 

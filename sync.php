@@ -716,7 +716,7 @@ if ($action === 'get_teacher_monitor_all_groups') {
 
     $result = ['success' => true, 'groups' => []];
     $nowMs = round(microtime(true) * 1000);
-    $ONLINE_WINDOW_MS = 60000; // 60 秒心跳/发言窗口判定在线 (彻底杜绝切后台/发完文字误判为离线)
+    $ONLINE_WINDOW_MS = 75000; // 75 秒心跳/发言窗口判定在线 (与分级心跳完美对齐，彻底消除离线闪烁)
 
     if ($pdo) {
         // 1. 优先加载官方班级分组名册与全校学生信息字典
@@ -768,7 +768,7 @@ if ($action === 'get_teacher_monitor_all_groups') {
         }
         if (empty($allGroupIds)) $allGroupIds = ['group_1'];
 
-        $ONLINE_WINDOW_MS = 60000; // 60 秒心跳/发言窗口判定在线 (与学生打字/心跳频率精准对齐)
+        $ONLINE_WINDOW_MS = 75000; // 75 秒心跳/发言窗口判定在线 (与分级心跳精准对齐，保障教师端常绿)
 
         foreach ($allGroupIds as $gid) {
             $r = $stateMap[$gid] ?? null;
@@ -1907,6 +1907,28 @@ if ($action === 'presence_ping' && $_SERVER['REQUEST_METHOD'] === 'POST') {
             'presence'  => !empty($cleanPresence) ? (object)$cleanPresence : new stdClass()
         ], JSON_UNESCAPED_UNICODE);
         exit;
+    }
+    echo json_encode(['success' => true]);
+    exit;
+}
+
+// 1f. 离线即时下线信标接口（页面关闭/跳出时瞬间清除在线状态，无需等待超时）
+if ($action === 'presence_leave' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    $req = !empty($REQ_DATA) ? $REQ_DATA : (@json_decode($RAW_INPUT, true) ?: []);
+    $userKey = isset($req['userId']) ? trim($req['userId']) : (isset($req['studentCode']) ? trim($req['studentCode']) : '');
+    $nowMs = round(microtime(true) * 1000);
+
+    if (!empty($userKey) && $pdo) {
+        $stmtGet = $pdo->prepare("SELECT presence_data FROM group_states WHERE scope_key = :sk LIMIT 1");
+        $stmtGet->execute([':sk' => $scopeKey]);
+        $stRow = $stmtGet->fetch();
+        $currPresence = ($stRow && !empty($stRow['presence_data'])) ? json_decode($stRow['presence_data'], true) : [];
+        if (is_array($currPresence) && isset($currPresence[strval($userKey)])) {
+            unset($currPresence[strval($userKey)]);
+            $prJson = json_encode($currPresence, JSON_UNESCAPED_UNICODE);
+            $stmtUp = $pdo->prepare("UPDATE group_states SET presence_data = :pr, last_timestamp = :ts WHERE scope_key = :sk");
+            $stmtUp->execute([':pr' => $prJson, ':ts' => $nowMs, ':sk' => $scopeKey]);
+        }
     }
     echo json_encode(['success' => true]);
     exit;

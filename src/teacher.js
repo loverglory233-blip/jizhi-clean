@@ -9,8 +9,8 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260827_v625";
-import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash } from "./utils.js?v=20260827_v625";
+} from "./constants.js?v=20260827_v626";
+import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash } from "./utils.js?v=20260827_v626";
 
 /* ==========================================================================
    7. TEACHER PORTAL RENDERER (LIVE WORKSPACE MIRROR & ANNOUNCEMENT READ MATRIX)
@@ -999,9 +999,9 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
                       </div>
                     </div>
                   </div>
-                  <div class="card" style="padding:20px; display:flex; flex-direction:column;">
+                  <div class="card" style="padding:20px; display:flex; flex-direction:column; min-width:0; box-sizing:border-box; height:100%;">
                     <div style="font-size:15px; font-weight:800; color:#0f172a; margin-bottom:12px;">💬 阶段一研讨对话流 (${activeMonitorGroup.name})</div>
-                    <div style="flex:1; max-height:420px; overflow-y:auto; background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:12px; font-size:12px; display:flex; flex-direction:column; gap:10px;">
+                    <div style="flex:1; height:100%; min-height:480px; overflow-y:auto; background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:12px; font-size:12px; display:flex; flex-direction:column; gap:10px; box-sizing:border-box;">
                       ${((state.chatLogs && state.chatLogs['stage1']) || []).map(m => {
                         const allGlobalUsers = (authManager) ? authManager.getUsers() : [];
                         const isAgent = AgentProfiles[m.sender] !== undefined;
@@ -1082,9 +1082,9 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
                       </div>
                     </div>
                   </div>
-                  <div class="card" style="padding:20px; display:flex; flex-direction:column;">
+                  <div class="card" style="padding:20px; display:flex; flex-direction:column; min-width:0; box-sizing:border-box; height:100%;">
                     <div style="font-size:15px; font-weight:800; color:#0f172a; margin-bottom:12px;">💬 阶段二编辑部研讨流 (${activeMonitorGroup.name})</div>
-                    <div style="flex:1; max-height:460px; overflow-y:auto; background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:12px; font-size:12px; display:flex; flex-direction:column; gap:10px;">
+                    <div style="flex:1; height:100%; min-height:480px; overflow-y:auto; background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:12px; font-size:12px; display:flex; flex-direction:column; gap:10px; box-sizing:border-box;">
                       ${((state.chatLogs && state.chatLogs['stage2']) || []).map(m => {
                         const allGlobalUsers = (authManager) ? authManager.getUsers() : [];
                         const isAgent = AgentProfiles[m.sender] !== undefined;

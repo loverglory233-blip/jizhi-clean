@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState } from './constants.js?v=20260827_v625';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin } from './utils.js?v=20260827_v625';
+import { InitialState } from './constants.js?v=20260827_v626';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin } from './utils.js?v=20260827_v626';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -115,12 +115,16 @@ export class CloudSyncEngine {
 
   initPolling() {
     this.pullFromServer();
-    // ⚡ 智能省流心跳轮询：前台活跃 1.5 秒快速对齐，无操作挂机/切后台静默 15 秒极简心跳
+    // ⚡ 动静分级智能心跳与轮询阶梯：
+    // • 活跃态 (< 2分钟有操作): 轮询 1.5s，心跳 10s
+    // • 静止态 (> 2分钟无操作): 轮询 15s，心跳 30s
+    // • 息屏态 (切后台/休眠): 轮询 30s，心跳 60s
     let lastUserActivity = Date.now();
     const markActive = () => {
-      const wasIdle = (Date.now() - lastUserActivity > 60000);
+      const wasIdle = (Date.now() - lastUserActivity > 120000);
       lastUserActivity = Date.now();
       if (wasIdle && !this.isLoggingOut) {
+        this.sendPresencePing();
         this.pullFromServer();
       }
     };
@@ -128,17 +132,36 @@ export class CloudSyncEngine {
       window.addEventListener(evt, markActive, { passive: true });
     });
 
-    const isIdle = () => document.hidden || (Date.now() - lastUserActivity > 60000);
-    const getInterval = () => (isIdle() ? 15000 : 1500);
+    const isHidden = () => document.hidden || document.visibilityState === 'hidden';
+    const isIdle = () => isHidden() || (Date.now() - lastUserActivity > 120000);
+    const getPollInterval = () => (isHidden() ? 30000 : (isIdle() ? 15000 : 1500));
+    const getPingInterval = () => (isHidden() ? 60000 : (isIdle() ? 30000 : 10000));
 
     const runPoll = () => {
       if (this.isLoggingOut) return;
       this.pullFromServer().finally(() => {
         if (this.isLoggingOut) return;
-        this.pollTimer = setTimeout(runPoll, getInterval());
+        this.pollTimer = setTimeout(runPoll, getPollInterval());
       });
     };
     this.pollTimer = setTimeout(runPoll, 2000);
+
+    let lastPingTime = 0;
+    const runPing = () => {
+      if (this.isLoggingOut) return;
+      const now = Date.now();
+      const pInterval = getPingInterval();
+      if (now - lastPingTime >= pInterval) {
+        lastPingTime = now;
+        this.sendPresencePing().finally(() => {
+          if (this.isLoggingOut) return;
+          this.pingTimer = setTimeout(runPing, 5000);
+        });
+      } else {
+        this.pingTimer = setTimeout(runPing, 5000);
+      }
+    };
+    this.pingTimer = setTimeout(runPing, 3000);
 
     window.addEventListener('storage', (e) => {
       if (e.key === this.storageKey && e.newValue) {
@@ -146,10 +169,11 @@ export class CloudSyncEngine {
       }
     });
 
-    // 🌟 多场景感知：当切回标签页或重新获得窗口焦点时，立即发送一次心跳并静默拉取
+    // 🌟 多场景感知：当切回标签页或重新获得窗口焦点时，0毫秒瞬间发送心跳并拉取全量
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'visible' && !this.isLoggingOut) {
         markActive();
+        lastPingTime = Date.now();
         this.sendPresencePing();
         this.pullFromServer();
       }
@@ -157,9 +181,25 @@ export class CloudSyncEngine {
     window.addEventListener('focus', () => {
       if (!this.isLoggingOut) {
         markActive();
+        lastPingTime = Date.now();
         this.sendPresencePing();
         this.pullFromServer();
       }
+    });
+
+    // 🚪 页面关闭/退出时立即发送离线信标，秒级通知教师端
+    window.addEventListener('beforeunload', () => {
+      try {
+        const currentUser = this.app.authManager ? this.app.authManager.getCurrentUser() : null;
+        if (currentUser) {
+          const userKey = String(currentUser.studentCode || currentUser.username || currentUser.id || '').trim();
+          const effectiveClassId = this.effectiveClassId || currentUser.classId || 'class_101';
+          const beaconUrl = `sync.php?action=presence_leave&taskId=${encodeURIComponent(this.taskId)}&groupId=${encodeURIComponent(this.groupId)}&classId=${encodeURIComponent(effectiveClassId)}`;
+          if (navigator.sendBeacon) {
+            navigator.sendBeacon(beaconUrl, JSON.stringify({ userId: userKey }));
+          }
+        }
+      } catch (e) {}
     });
   }
 
@@ -167,6 +207,7 @@ export class CloudSyncEngine {
   stopPolling() {
     this.isLoggingOut = true;
     if (this.pollTimer) { clearTimeout(this.pollTimer); this.pollTimer = null; }
+    if (this.pingTimer) { clearTimeout(this.pingTimer); this.pingTimer = null; }
   }
 
   async pullFromServer() {
