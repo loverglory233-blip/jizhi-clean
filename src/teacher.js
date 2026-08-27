@@ -67,8 +67,10 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
     }
 
     if (state.teacherActiveTab === 'view_monitoring' && window.app && window.app.cloudSyncEngine) {
+      const currentCId = state.activeClassId || activeClass.id || 'class_101';
       const activeTaskId = state.activeTaskId || (currentClassTasks[0] ? currentClassTasks[0].id : 'task_default');
-      window.app.cloudSyncEngine.groupId = activeMonitorGId;
+      const currentGId = state.activeMonitorGroupId || activeMonitorGId;
+      window.app.cloudSyncEngine.groupId = currentGId;
       window.app.cloudSyncEngine.taskId = activeTaskId;
       window.app.cloudSyncEngine.updateScopeKeys();
 
@@ -89,7 +91,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
       try {
         await window.app.cloudSyncEngine.pullFromServer();
         // 📝 针对阶段二，同时从 Etherpad 提取最新正文镜像（支持 Hash 增量早退）
-        const padName = `jizhi_${activeTaskId}_${activeMonitorGId}`;
+        const padName = `jizhi_${activeTaskId}_${currentGId}`;
         const lastEpHash = state._lastEpHash || '';
         const epRes = await fetch(`sync.php?action=get_pad_html&padId=${padName}&clientHash=${encodeURIComponent(lastEpHash)}`).then(r => r.json()).catch(() => null);
         if (epRes && epRes.hash) state._lastEpHash = epRes.hash;
@@ -101,13 +103,13 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
         const tToken = (curT && (curT.activeSessionId || curT.token)) || '';
         const tId = (curT && (curT.id || curT.username)) || '';
         const lastHash = state._lastMonitorHash || '';
-        const panRes = await fetch(`sync.php?action=get_teacher_monitor_all_groups&taskId=${encodeURIComponent(activeTaskId)}&classId=${encodeURIComponent(activeClass.id)}&userId=${encodeURIComponent(tId)}&token=${encodeURIComponent(tToken)}&clientHash=${encodeURIComponent(lastHash)}`).then(r => r.json()).catch(() => null);
+        const panRes = await fetch(`sync.php?action=get_teacher_monitor_all_groups&taskId=${encodeURIComponent(activeTaskId)}&classId=${encodeURIComponent(currentCId)}&userId=${encodeURIComponent(tId)}&token=${encodeURIComponent(tToken)}&clientHash=${encodeURIComponent(lastHash)}`).then(r => r.json()).catch(() => null);
         if (panRes && panRes.success && panRes.groups) {
           state.monitorPanorama = panRes.groups;
           if (panRes.hash) state._lastMonitorHash = panRes.hash;
 
           // 🎯 核心修复：将当前正在同屏监控的小组真实数据精准同步到 state
-          const currentGroupData = panRes.groups[activeMonitorGId];
+          const currentGroupData = panRes.groups[currentGId];
           if (currentGroupData) {
             state.stage1 = currentGroupData.stage1 || { proposals: [], votes: {}, hasVoted: {}, contract: {} };
             state.stage2 = {
@@ -121,7 +123,9 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
             state.isFinalSubmitted = !!currentGroupData.isFinalSubmitted;
           }
         }
-      } catch (e) {}
+      } catch (e) {
+        console.warn('[TeacherMonitor] 监控拉取警告:', e);
+      }
 
       const newFingerprint = JSON.stringify({
         cStage: state.currentStage,
