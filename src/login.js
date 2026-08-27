@@ -1,4 +1,4 @@
-import { escapeHtml } from "./utils.js?v=20260827_v613";
+import { escapeHtml } from "./utils.js?v=20260827_v614";
 
 export function renderLoginView(container, authManager, onLoginSuccess) {
   if (authManager && authManager.pullGlobalMeta) {
@@ -82,16 +82,32 @@ export function renderLoginView(container, authManager, onLoginSuccess) {
   if (roleSelector) roleSelector.addEventListener('change', highlightRole);
   highlightRole();
 
-  accountInput.addEventListener('input', (e) => {
-    const val = (e.target.value || '').trim().toLowerCase();
-    if (val === 'teacher' || val === 'admin') {
+  // 👨‍🏫 智能识别教师账号并自动选定「教师」身份 (教师账号唯一)
+  const autoDetectTeacherRole = () => {
+    const val = (accountInput ? accountInput.value : '').trim().toLowerCase();
+    if (!val) return;
+    const allUsers = (authManager && authManager.getUsers) ? authManager.getUsers() : [];
+    const isTeacher = val === 'teacher' || val === 'admin' || allUsers.some(u => 
+      (u.role === 'teacher' || u.isTeacher) && (
+        (u.username && u.username.toLowerCase() === val) ||
+        (u.studentCode && u.studentCode.toLowerCase() === val) ||
+        (u.id && u.id.toLowerCase() === val) ||
+        (u.name && u.name.toLowerCase() === val)
+      )
+    );
+    if (isTeacher) {
       const teacherRadio = container.querySelector('input[name="login-role"][value="teacher"]');
-      if (teacherRadio) {
+      if (teacherRadio && !teacherRadio.checked) {
         teacherRadio.checked = true;
         highlightRole();
       }
     }
-  });
+  };
+
+  accountInput.addEventListener('input', autoDetectTeacherRole);
+  accountInput.addEventListener('change', autoDetectTeacherRole);
+  accountInput.addEventListener('blur', autoDetectTeacherRole);
+  if (savedAccount) autoDetectTeacherRole();
 
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -108,7 +124,14 @@ export function renderLoginView(container, authManager, onLoginSuccess) {
         } catch (e) {}
         onLoginSuccess();
       } else {
-        errorMsg.innerText = (res && res.message) ? res.message : '❌ 账号或密码错误';
+        if (res && res.suggestedRole) {
+          const targetRadio = container.querySelector(`input[name="login-role"][value="${res.suggestedRole}"]`);
+          if (targetRadio) {
+            targetRadio.checked = true;
+            highlightRole();
+          }
+        }
+        errorMsg.innerText = (res && res.message) ? res.message : '❌ 账号不存在或密码错误，请核对后重试';
         errorMsg.style.display = 'block';
       }
     } catch (err) {
