@@ -14,8 +14,8 @@ import {
   DefaultTasks,
   DefaultAnnouncements,
   DefaultReferencePapers
-} from './constants.js?v=20260827_v620';
-import { formatExportDateTime } from './utils.js?v=20260827_v620';
+} from './constants.js?v=20260827_v621';
+import { formatExportDateTime } from './utils.js?v=20260827_v621';
 
 export class AuthManager {
   constructor() {
@@ -1384,7 +1384,7 @@ export class AuthManager {
     const papers = this.getAllReferencePapers();
     if (!groupId && !classId && !taskId) return papers;
     return papers.filter(p => {
-      const matchClass = !classId || classId === 'all' || !p.classId || p.classId === 'all' || p.classId === classId;
+      const matchClass = !classId || classId === 'all' || p.classId === classId || (!p.classId && classId === 'class_101') || (Array.isArray(p.targetClassIds) && p.targetClassIds.includes(classId));
       const matchGroup = !groupId || groupId === 'all' || 
         (Array.isArray(p.targetGroupIds) ? (p.targetGroupIds.includes('all') || p.targetGroupIds.includes(groupId)) : (!p.targetGroupId || p.targetGroupId === 'all' || p.targetGroupId === groupId));
       const matchTask = !taskId ? true : (p.taskId === taskId || (!p.taskId && taskId === 'task_default'));

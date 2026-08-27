@@ -9,8 +9,8 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260827_v620";
-import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash } from "./utils.js?v=20260827_v620";
+} from "./constants.js?v=20260827_v621";
+import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash } from "./utils.js?v=20260827_v621";
 
 /* ==========================================================================
    7. TEACHER PORTAL RENDERER (LIVE WORKSPACE MIRROR & ANNOUNCEMENT READ MATRIX)
@@ -34,10 +34,10 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
   const allUsers = authManager.getUsers();
   const classStudents = authManager.getClassStudents(activeClass.id);
 
-  // 🛡️ 严格按当前主班过滤写作任务（绝不串出其他班级或历史游离任务）
+  // 🛡️ 严格按当前班级隔离写作任务、通知与文献（绝不串出其他班级数据）
   const currentClassTasks = tasks.filter(t => t.classId === activeClass.id || (t.className && t.className === activeClass.name) || (!t.classId && activeClass.id === 'class_101'));
-  const currentClassAnnouncements = announcements.filter(a => (a.classId === 'all' || !a.classId || a.classId === activeClass.id) && !a.isSystemAction);
-  const currentClassPapers = refPapers.filter(p => p.classId === 'all' || !p.classId || p.classId === activeClass.id);
+  const currentClassAnnouncements = announcements.filter(a => (a.classId === activeClass.id || (a.className && a.className === activeClass.name) || (!a.classId && activeClass.id === 'class_101') || (Array.isArray(a.targetClassIds) && a.targetClassIds.includes(activeClass.id))) && !a.isSystemAction);
+  const currentClassPapers = refPapers.filter(p => p.classId === activeClass.id || (p.className && p.className === activeClass.name) || (!p.classId && activeClass.id === 'class_101') || (Array.isArray(p.targetClassIds) && p.targetClassIds.includes(activeClass.id)));
 
   const classTaskExists = currentClassTasks.some(t => t.id === state.activeTaskId);
   const effectiveMonitorTaskId = (state.activeTaskId && classTaskExists)
@@ -402,9 +402,9 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
         ` : ''}
 
         ${activeTab === 'view_publishing' ? (() => {
-          const currentClassTasks = tasks.filter(t => t.classId === 'all' || t.classId === activeClass.id);
-          const currentClassAnnouncements = announcements.filter(a => (a.classId === 'all' || !a.classId || a.classId === activeClass.id) && !a.isSystemAction);
-          const currentClassPapers = refPapers.filter(p => p.classId === 'all' || !p.classId || p.classId === activeClass.id);
+          const currentClassTasks = tasks.filter(t => t.classId === activeClass.id || (t.className && t.className === activeClass.name) || (!t.classId && activeClass.id === 'class_101'));
+          const currentClassAnnouncements = announcements.filter(a => (a.classId === activeClass.id || (a.className && a.className === activeClass.name) || (!a.classId && activeClass.id === 'class_101') || (Array.isArray(a.targetClassIds) && a.targetClassIds.includes(activeClass.id))) && !a.isSystemAction);
+          const currentClassPapers = refPapers.filter(p => p.classId === activeClass.id || (p.className && p.className === activeClass.name) || (!p.classId && activeClass.id === 'class_101') || (Array.isArray(p.targetClassIds) && p.targetClassIds.includes(activeClass.id)));
 
           const surveysList = authManager.getSurveysList();
           const currentSelectedSurveyUrl = authManager.getSurveyUrl(activeClass.id, currentClassTasks[0] ? currentClassTasks[0].id : 'task_default');
