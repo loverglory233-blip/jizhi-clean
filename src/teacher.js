@@ -9,8 +9,8 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260827_v627";
-import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash } from "./utils.js?v=20260827_v627";
+} from "./constants.js?v=20260827_v628";
+import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash } from "./utils.js?v=20260827_v628";
 
 /* ==========================================================================
    7. TEACHER PORTAL RENDERER (LIVE WORKSPACE MIRROR & ANNOUNCEMENT READ MATRIX)
@@ -96,7 +96,6 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
       });
 
       try {
-        await window.app.cloudSyncEngine.pullFromServer();
         // 📝 针对阶段二，同时从 Etherpad 提取最新正文镜像（支持 Hash 增量早退）
         const padName = `jizhi_${activeTaskId}_${currentGId}`;
         const lastEpHash = state._lastEpHash || '';

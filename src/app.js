@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260827_v627";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired } from "./utils.js?v=20260827_v627";
-import { callCozeAgentAPI } from "./agents.js?v=20260827_v627";
-import { AuthManager } from "./auth.js?v=20260827_v627";
-import { CloudSyncEngine } from "./sync.js?v=20260827_v627";
-import { renderLoginView } from "./login.js?v=20260827_v627";
-import { renderTeacherPortal } from "./teacher.js?v=20260827_v627";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260827_v627";
+} from "./constants.js?v=20260827_v628";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired } from "./utils.js?v=20260827_v628";
+import { callCozeAgentAPI } from "./agents.js?v=20260827_v628";
+import { AuthManager } from "./auth.js?v=20260827_v628";
+import { CloudSyncEngine } from "./sync.js?v=20260827_v628";
+import { renderLoginView } from "./login.js?v=20260827_v628";
+import { renderTeacherPortal } from "./teacher.js?v=20260827_v628";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260827_v628";
 import {
   renderStudentWorkspace,
   renderHeader,
@@ -26,7 +26,7 @@ import {
   renderChat,
   renderWordEditor,
   renderDefenseRoom
-} from "./editor.js?v=20260827_v627";
+} from "./editor.js?v=20260827_v628";
 
 // Make renderChat available on window for sync callbacks
 if (typeof window !== "undefined") {
@@ -600,6 +600,11 @@ export class App {
             myKeys.forEach(k => {
               this.state.presence[k] = { nodeIndex: 0, activeSection: '在线协作', updatedAt: now };
             });
+
+            if (this.cloudSyncEngine) {
+              this.cloudSyncEngine.isLoggingOut = false;
+              this.cloudSyncEngine.initPolling();
+            }
 
             // ⚡ 0 毫秒秒切进入工作台！
             this.renderMain();
@@ -2554,6 +2559,7 @@ ${propText}
         this.state.studentViewMode = 'task_list';
         sessionStorage.setItem('jizhi_student_view_mode', 'task_list');
         localStorage.setItem('jizhi_student_view_mode', 'task_list');
+        if (this.cloudSyncEngine) this.cloudSyncEngine.stopPolling();
         this.renderMain();
       }
     );
@@ -2577,6 +2583,7 @@ ${propText}
         this.state.studentViewMode = 'task_list';
         sessionStorage.setItem('jizhi_student_view_mode', 'task_list');
         localStorage.setItem('jizhi_student_view_mode', 'task_list');
+        if (this.cloudSyncEngine) this.cloudSyncEngine.stopPolling();
         this.renderMain();
       }
     );
