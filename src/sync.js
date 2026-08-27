@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState } from './constants.js?v=20260827_v621';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin } from './utils.js?v=20260827_v621';
+import { InitialState } from './constants.js?v=20260827_v622';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin } from './utils.js?v=20260827_v622';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -31,19 +31,25 @@ export class CloudSyncEngine {
   }
 
   updateScopeKeys() {
+    const isTeacher = this.app.authManager?.getCurrentUser()?.role === 'teacher';
+    const user = this.app.authManager?.getCurrentUser();
+    const effectiveClassId = (isTeacher ? this.app.state.activeClassId : this.app.state.activeStudentClassId) || user?.classId || 'class_101';
     const groupId = this.getEffectiveGroupId();
-    const taskId = (this.app.state.activeTaskId) ? this.app.state.activeTaskId : 'task_default';
+    let taskId = (this.app.state.activeTaskId) ? this.app.state.activeTaskId : `task_${effectiveClassId}_default`;
+    if (taskId === 'task_default') {
+      taskId = `task_${effectiveClassId}_default`;
+    }
     this.groupId = groupId;
     this.taskId = taskId;
-    this.storageKey = `jizhi_cloud_snapshot_v10_pure_${taskId}_${groupId}`;
+    this.storageKey = `jizhi_cloud_snapshot_v10_pure_${effectiveClassId}_${taskId}_${groupId}`;
     this.syncEndpoints = [
-      `sync.php?taskId=${taskId}&groupId=${groupId}`
+      `sync.php?taskId=${taskId}&groupId=${groupId}&classId=${effectiveClassId}`
     ];
 
     if ('BroadcastChannel' in window) {
       try {
         if (this.bc) { try { this.bc.close(); } catch (e) {} }
-        this.bc = new BroadcastChannel(`jizhi_bc_${this.taskId}_${this.groupId}`);
+        this.bc = new BroadcastChannel(`jizhi_bc_${effectiveClassId}_${this.taskId}_${this.groupId}`);
         this.bc.onmessage = (e) => {
           if (e.data && e.data.snapshot) this.handleRemoteSync(e.data.snapshot);
         };

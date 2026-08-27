@@ -9,8 +9,8 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260827_v621";
-import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash } from "./utils.js?v=20260827_v621";
+} from "./constants.js?v=20260827_v622";
+import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash } from "./utils.js?v=20260827_v622";
 
 /* ==========================================================================
    7. TEACHER PORTAL RENDERER (LIVE WORKSPACE MIRROR & ANNOUNCEMENT READ MATRIX)
@@ -880,8 +880,8 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
               </div>
 
               ${effectiveMonitorStage === 'stage1' ? `
-                <div style="display:grid; grid-template-columns: 1.6fr 1fr; gap:16px; width:100%;">
-                  <div class="card" style="padding:20px; display:flex; flex-direction:column; border:1px solid #bfdbfe; gap:12px;">
+                <div style="display:grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap:16px; width:100%; box-sizing:border-box;">
+                  <div class="card" style="padding:20px; display:flex; flex-direction:column; border:1px solid #bfdbfe; gap:12px; min-width:0; box-sizing:border-box;">
                     <div style="font-size:15px; font-weight:800; color:#1e40af; display:flex; justify-content:space-between; align-items:center;">
                       <span>🎪 阶段一实操同屏: 初始提案与学术合作公约 (${activeMonitorGroup.name})</span>
                       <span style="background:#eff6ff; color:#1d4ed8; padding:2px 8px; border-radius:8px; font-size:11px; font-weight:700;">阶段一实况</span>
@@ -1017,8 +1017,8 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
               ` : ''}
 
               ${effectiveMonitorStage === 'stage2' ? `
-                <div style="display:grid; grid-template-columns: 1.6fr 1fr; gap:16px; width:100%;">
-                  <div class="card" style="padding:20px; display:flex; flex-direction:column; border:1px solid #bfdbfe;">
+                <div style="display:grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap:16px; width:100%; box-sizing:border-box;">
+                  <div class="card" style="padding:20px; display:flex; flex-direction:column; border:1px solid #bfdbfe; min-width:0; box-sizing:border-box;">
                     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
                       <div style="display:flex; align-items:center; gap:8px;">
                         <span style="font-size:15px; font-weight:800; color:#1e40af;">📝 实时写作大正文镜像 (${activeMonitorGroup.name})</span>
@@ -1100,8 +1100,8 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
               ` : ''}
 
               ${effectiveMonitorStage === 'stage3' ? `
-                <div style="display:grid; grid-template-columns: 1.6fr 1fr; gap:16px; width:100%; min-height:500px;">
-                  <div class="card" style="padding:20px; display:flex; flex-direction:column; border:1px solid #bfdbfe; min-width:0; gap:12px;">
+                <div style="display:grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap:16px; width:100%; min-height:500px; box-sizing:border-box;">
+                  <div class="card" style="padding:20px; display:flex; flex-direction:column; border:1px solid #bfdbfe; min-width:0; gap:12px; box-sizing:border-box;">
                     <div style="font-size:15px; font-weight:800; color:#1e40af; display:flex; justify-content:space-between; align-items:center;">
                       <span>🎓 阶段三实操同屏: 答辩擂台与终稿 (${activeMonitorGroup.name})</span>
                       <div style="display:flex; gap:6px;">
