@@ -1769,6 +1769,16 @@ if ($action === 'send_chat' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         $msgItem['_timeMs'] = $tms;
 
         if (!empty($txt)) {
+            // 🛡️ AI 智能体开场白全局唯一幂等守护：若本组本阶段已存在该智能体的开场白，绝对拒绝重复插入
+            if (in_array($snd, ['auctioneer', 'managingEditor', 'reviewingEditor']) && mb_strpos($txt, '开场') !== false) {
+                $chkStmt = $pdo->prepare("SELECT id FROM chat_messages WHERE scope_key = :sk AND stage = :stg AND sender = :snd AND text LIKE '%开场%' LIMIT 1");
+                $chkStmt->execute([':sk' => $scopeKey, ':stg' => $stage, ':snd' => $snd]);
+                if ($chkStmt->fetch()) {
+                    echo json_encode(['success' => true, 'timestamp' => $nowMs, 'dedup' => true]);
+                    exit;
+                }
+            }
+
             // 1. 行级插入 chat_messages 表
             $stmtInsertMsg = $pdo->prepare("INSERT IGNORE INTO chat_messages (scope_key, stage, sender, text, timestamp_str, time_ms) VALUES (:sk, :stg, :snd, :txt, :tstr, :tms)");
             $stmtInsertMsg->execute([
