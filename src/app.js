@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260827_v615";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired } from "./utils.js?v=20260827_v615";
-import { callCozeAgentAPI } from "./agents.js?v=20260827_v615";
-import { AuthManager } from "./auth.js?v=20260827_v615";
-import { CloudSyncEngine } from "./sync.js?v=20260827_v615";
-import { renderLoginView } from "./login.js?v=20260827_v615";
-import { renderTeacherPortal } from "./teacher.js?v=20260827_v615";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260827_v615";
+} from "./constants.js?v=20260827_v616";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired } from "./utils.js?v=20260827_v616";
+import { callCozeAgentAPI } from "./agents.js?v=20260827_v616";
+import { AuthManager } from "./auth.js?v=20260827_v616";
+import { CloudSyncEngine } from "./sync.js?v=20260827_v616";
+import { renderLoginView } from "./login.js?v=20260827_v616";
+import { renderTeacherPortal } from "./teacher.js?v=20260827_v616";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260827_v616";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260827_v615";
+} from "./editor.js?v=20260827_v616";
 
 // Make renderChat available on window for sync callbacks
 if (typeof window !== "undefined") {
@@ -93,7 +93,8 @@ export class App {
   loadGroupState(groupId = 'group_1') {
     const defaultState = JSON.parse(JSON.stringify(InitialState));
     const taskId = this.state.activeTaskId || 'task_default';
-    this.state.members = this.authManager.getGroupMembersForWorkspace(groupId);
+    const effectiveClassId = this.state.activeStudentClassId || (this.authManager ? this.authManager.getCurrentUser()?.classId : null) || 'class_101';
+    this.state.members = this.authManager.getGroupMembersForWorkspace(groupId, effectiveClassId);
 
     // 🛡️ 任务与小组物理隔离：先彻底根据当前任务/小组的独立缓存加载，无缓存则完全使用纯净初始状态
     const cacheKey = `jizhi_cloud_snapshot_v10_pure_${taskId}_${groupId}`;
@@ -519,19 +520,21 @@ export class App {
           (taskId) => {
             const actualTaskId = taskId || 'task_default';
             this.state.activeTaskId = actualTaskId;
+            const targetTaskObj = (this.authManager ? this.authManager.getTasks() : []).find(t => t.id === actualTaskId);
+            const taskClassId = (targetTaskObj && targetTaskObj.classId) ? targetTaskObj.classId : (this.state.activeStudentClassId || currentUser?.classId || 'class_101');
+            this.state.activeStudentClassId = taskClassId;
+
             try {
               sessionStorage.setItem('jizhi_active_task_id', actualTaskId);
               localStorage.setItem('jizhi_active_task_id', actualTaskId);
+              sessionStorage.setItem('jizhi_active_student_class_id', taskClassId);
+              localStorage.setItem('jizhi_active_student_class_id', taskClassId);
             } catch (e) {}
             this.state.studentViewMode = 'workspace';
             sessionStorage.setItem('jizhi_student_view_mode', 'workspace');
             localStorage.setItem('jizhi_student_view_mode', 'workspace');
-            const latestClassId = this.state.activeStudentClassId || currentUser?.classId || 'class_101';
-            try {
-              sessionStorage.setItem('jizhi_active_student_class_id', latestClassId);
-              localStorage.setItem('jizhi_active_student_class_id', latestClassId);
-            } catch (e) {}
-            const latestGroupObj = this.authManager.getStudentActiveGroup(currentUser, latestClassId);
+
+            const latestGroupObj = this.authManager.getStudentActiveGroup(currentUser, taskClassId);
             const targetGroupId = latestGroupObj.id || (currentUser && currentUser.groupId ? currentUser.groupId : 'group_1');
             this.loadGroupState(targetGroupId);
 

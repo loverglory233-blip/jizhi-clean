@@ -747,8 +747,12 @@ if ($action === 'get_teacher_monitor_all_groups') {
             $stateMap[$r['group_id']] = $r;
         }
 
-        // 合并所有应展示的小组列表（以官方小组为主骨架）
-        $allGroupIds = array_unique(array_merge(array_keys($officialGroups), array_keys($stateMap)));
+        // 🛡️ 严格按班级物理隔离：若指定了班级，仅呈现该班级官方名册下的小组，绝不混入其他班级或游离小组
+        if (!empty($classId) && !empty($officialGroups)) {
+            $allGroupIds = array_keys($officialGroups);
+        } else {
+            $allGroupIds = array_unique(array_merge(array_keys($officialGroups), array_keys($stateMap)));
+        }
         if (empty($allGroupIds)) $allGroupIds = ['group_1'];
 
         $ONLINE_WINDOW_MS = 60000; // 60 秒心跳/发言窗口判定在线 (与学生打字/心跳频率精准对齐)

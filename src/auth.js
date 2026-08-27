@@ -14,8 +14,8 @@ import {
   DefaultTasks,
   DefaultAnnouncements,
   DefaultReferencePapers
-} from './constants.js?v=20260827_v615';
-import { formatExportDateTime } from './utils.js?v=20260827_v615';
+} from './constants.js?v=20260827_v616';
+import { formatExportDateTime } from './utils.js?v=20260827_v616';
 
 export class AuthManager {
   constructor() {
@@ -737,10 +737,34 @@ export class AuthManager {
     const uCode = user.studentCode;
     const uName = user.name;
     const uUsername = user.username;
+    const safeUserKey = uCode || uId || uUsername || 'temp';
 
-    const targetClass = (classId ? classes.find(c => c.id === classId) : null) ||
-                        classes.find(c => (Array.isArray(user.classIds) && user.classIds.includes(c.id)) || c.id === user.classId) ||
-                        classes[0];
+    // 1. 若指定了班级 ID，严格在该班级内检索小组，未分组绝不跨班级误串
+    if (classId) {
+      const targetClass = classes.find(c => c.id === classId);
+      if (targetClass && Array.isArray(targetClass.groups)) {
+        for (let i = 0; i < targetClass.groups.length; i++) {
+          const g = targetClass.groups[i];
+          const hasMember = (g.members || []).some(m => {
+            if (!m) return false;
+            if (typeof m === 'string') return m === uId || m === uCode || m === uUsername || m === uName;
+            if (typeof m === 'object') return m.id === uId || m.userId === uId || m.studentCode === uCode || m.username === uUsername || m.name === uName;
+            return false;
+          });
+          if (hasMember) return g;
+        }
+
+        if (user.groupId) {
+          const directG = targetClass.groups.find(g => g.id === user.groupId);
+          if (directG) return directG;
+        }
+      }
+      // 🛡️ 指定班级下若未分配小组，直接返回专属隔离态，严禁跨班级回退
+      return { id: `group_unassigned_${safeUserKey}`, name: '未分组（待教师分配）' };
+    }
+
+    // 2. 未指定班级时的自适应检索
+    const targetClass = classes.find(c => (Array.isArray(user.classIds) && user.classIds.includes(c.id)) || c.id === user.classId) || classes[0];
 
     if (targetClass && Array.isArray(targetClass.groups)) {
       for (let i = 0; i < targetClass.groups.length; i++) {
@@ -781,7 +805,6 @@ export class AuthManager {
     }
 
     // 🛡️ 严格隔离：未被分配到具体小组的学生，赋予独立的隔离空间，绝不默认塞进第 1 小组造成跨组串味
-    const safeUserKey = uCode || uId || uUsername || 'temp';
     return { id: `group_unassigned_${safeUserKey}`, name: '未分组（待教师分配）' };
   }
 
@@ -1062,18 +1085,26 @@ export class AuthManager {
     this.pushGlobalMeta();
   }
 
-  getGroupMembersForWorkspace(groupId = 'group_1') {
+  getGroupMembersForWorkspace(groupId = 'group_1', classId = null) {
     const users = this.getUsers();
     const classes = this.getClasses();
     const colors = ['#818cf8', '#22d3ee', '#fbbf24', '#ec4899', '#34d399', '#f97316', '#a78bfa'];
     const avatars = ['👨‍🎓', '👩‍🎓', '🧑‍🎓', '🎓', '📚', '🌟'];
 
-    // 1. 优先从班级真实分组中检索该小组及其成员
+    // 1. 优先从指定班级真实分组中检索该小组及其成员
     let targetGrp = null;
-    for (const c of classes) {
-      if (Array.isArray(c.groups)) {
-        const foundG = c.groups.find(g => g && g.id === groupId);
-        if (foundG) { targetGrp = foundG; break; }
+    if (classId) {
+      const cls = classes.find(c => c.id === classId);
+      if (cls && Array.isArray(cls.groups)) {
+        targetGrp = cls.groups.find(g => g && g.id === groupId);
+      }
+    }
+    if (!targetGrp) {
+      for (const c of classes) {
+        if (Array.isArray(c.groups)) {
+          const foundG = c.groups.find(g => g && g.id === groupId);
+          if (foundG) { targetGrp = foundG; break; }
+        }
       }
     }
 
