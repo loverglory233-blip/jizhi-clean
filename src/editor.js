@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles } from "./constants.js?v=20260827_v625";
-import { callCozeAgentAPI } from "./agents.js?v=20260827_v625";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime } from "./utils.js?v=20260827_v625";
+import { AgentProfiles } from "./constants.js?v=20260827_v626";
+import { callCozeAgentAPI } from "./agents.js?v=20260827_v626";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime } from "./utils.js?v=20260827_v626";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -1384,6 +1384,7 @@ function renderStage1Canvas(canvas, state, handlers) {
   const topicInput = canvas.querySelector('#contract-topic-input');
   if (topicInput && !isContractLocked) {
     let topicTimer = null;
+    let autoUnlockTimer = null;
     const flushTopic = () => {
       s1.mergedTitle = topicInput.value;
       if (window.app) {
@@ -1394,11 +1395,17 @@ function renderStage1Canvas(canvas, state, handlers) {
     topicInput.addEventListener('focus', () => sendLock('topic_title'));
     topicInput.addEventListener('input', (e) => {
       s1.mergedTitle = e.target.value;
+      sendLock('topic_title');
+      if (autoUnlockTimer) clearTimeout(autoUnlockTimer);
+      autoUnlockTimer = setTimeout(() => {
+        sendUnlock('topic_title', topicInput.value);
+      }, 1200);
       if (topicTimer) clearTimeout(topicTimer);
       topicTimer = setTimeout(flushTopic, 300);
     });
     topicInput.addEventListener('change', flushTopic);
     topicInput.addEventListener('blur', () => {
+      if (autoUnlockTimer) clearTimeout(autoUnlockTimer);
       flushTopic();
       sendUnlock('topic_title', topicInput.value);
     });
@@ -1411,6 +1418,7 @@ function renderStage1Canvas(canvas, state, handlers) {
       const fieldKey = `time_${key}`;
       input.dataset.lockKey = fieldKey;
       let timeTimer = null;
+      let autoUnlockTimer = null;
       const flushTime = () => {
         const numVal = Number(input.value) || 0;
         if (key && s1.contract.timeAllocations) {
@@ -1441,11 +1449,17 @@ function renderStage1Canvas(canvas, state, handlers) {
         if (key && s1.contract.timeAllocations) {
           s1.contract.timeAllocations[key] = numVal;
         }
+        sendLock(fieldKey);
+        if (autoUnlockTimer) clearTimeout(autoUnlockTimer);
+        autoUnlockTimer = setTimeout(() => {
+          sendUnlock(fieldKey, Number(input.value) || 0);
+        }, 1200);
         if (timeTimer) clearTimeout(timeTimer);
         timeTimer = setTimeout(flushTime, 300);
       });
       input.addEventListener('change', flushTime);
       input.addEventListener('blur', () => {
+        if (autoUnlockTimer) clearTimeout(autoUnlockTimer);
         flushTime();
         sendUnlock(fieldKey, Number(input.value) || 0);
       });
@@ -1459,6 +1473,7 @@ function renderStage1Canvas(canvas, state, handlers) {
       const fieldKey = `task_${mKey}`;
       input.dataset.lockKey = fieldKey;
       let taskTimer = null;
+      let autoUnlockTimer = null;
       const flushTask = () => {
         const val = input.value;
         if (!s1.contract.taskAssignments) s1.contract.taskAssignments = {};
@@ -1487,11 +1502,17 @@ function renderStage1Canvas(canvas, state, handlers) {
         const val = e.target.value;
         if (!s1.contract.taskAssignments) s1.contract.taskAssignments = {};
         if (mKey) s1.contract.taskAssignments[mKey] = val;
+        sendLock(fieldKey);
+        if (autoUnlockTimer) clearTimeout(autoUnlockTimer);
+        autoUnlockTimer = setTimeout(() => {
+          sendUnlock(fieldKey, input.value);
+        }, 1200);
         if (taskTimer) clearTimeout(taskTimer);
         taskTimer = setTimeout(flushTask, 300);
       });
       input.addEventListener('change', flushTask);
       input.addEventListener('blur', () => {
+        if (autoUnlockTimer) clearTimeout(autoUnlockTimer);
         flushTask();
         sendUnlock(fieldKey, input.value);
       });

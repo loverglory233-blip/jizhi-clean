@@ -10,23 +10,23 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260827_v625";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired } from "./utils.js?v=20260827_v625";
-import { callCozeAgentAPI } from "./agents.js?v=20260827_v625";
-import { AuthManager } from "./auth.js?v=20260827_v625";
-import { CloudSyncEngine } from "./sync.js?v=20260827_v625";
-import { renderLoginView } from "./login.js?v=20260827_v625";
-import { renderTeacherPortal } from "./teacher.js?v=20260827_v625";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260827_v625";
+} from "./constants.js?v=20260827_v626";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired } from "./utils.js?v=20260827_v626";
+import { callCozeAgentAPI } from "./agents.js?v=20260827_v626";
+import { AuthManager } from "./auth.js?v=20260827_v626";
+import { CloudSyncEngine } from "./sync.js?v=20260827_v626";
+import { renderLoginView } from "./login.js?v=20260827_v626";
+import { renderTeacherPortal } from "./teacher.js?v=20260827_v626";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260827_v626";
 import {
-  buildWordEditorHtml,
-  attachWordEditorEvents,
-  renderChat,
+  renderStudentWorkspace,
   renderHeader,
+  renderStageNavigation,
   renderCanvas,
-  renderPresencePills,
-  renderRemoteCursors
-} from "./editor.js?v=20260827_v625";
+  renderChat,
+  renderWordEditor,
+  renderDefenseRoom
+} from "./editor.js?v=20260827_v626";
 
 // Make renderChat available on window for sync callbacks
 if (typeof window !== "undefined") {
@@ -102,12 +102,16 @@ export class App {
     this.state.activeTaskId = taskId;
     this.state.members = this.authManager.getGroupMembersForWorkspace(groupId, effectiveClassId);
 
-    // 🛡️ 任务与小组物理隔离：先彻底根据当前任务/小组的独立缓存加载，无缓存则完全使用纯净初始状态
-    const cacheKey = `jizhi_cloud_snapshot_v10_pure_${effectiveClassId}_${taskId}_${groupId}`;
+    // 🛡️ 优先从单一轻量工作台快照恢复（仅记录当前组，0ms秒开上屏且绝不超5MB配额）
     let cached = null;
     try {
-      const raw = localStorage.getItem(cacheKey) || localStorage.getItem(`jizhi_cloud_snapshot_v10_pure_${taskId}_${groupId}`);
-      if (raw) cached = JSON.parse(raw);
+      const raw = sessionStorage.getItem('jizhi_active_workspace_snap') || localStorage.getItem('jizhi_active_workspace_snap');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed && parsed.classId === effectiveClassId && parsed.taskId === taskId && parsed.groupId === groupId) {
+          cached = parsed;
+        }
+      }
     } catch (e) {}
 
     if (cached) {
@@ -119,6 +123,7 @@ export class App {
       this.state.groupMaxStage = cached.currentStage || 'stage1';
       this.state.isFinalSubmitted = (cached.isFinalSubmitted !== undefined) ? !!cached.isFinalSubmitted : false;
     } else {
+      // 🛡️ 切换到新组时，第1行代码立刻清空内存残留消息，彻底杜绝上一组的聊天残影
       this.state.chatLogs = { stage1: [], stage2: [], stage3: [] };
       this.state.stage1 = JSON.parse(JSON.stringify(defaultState.stage1));
       this.state.stage2 = JSON.parse(JSON.stringify(defaultState.stage2));
@@ -156,7 +161,28 @@ export class App {
   }
 
   saveGroupState(groupId) {
-    // 彻底废除 LocalStorage 冗余脏备份，状态完全由内存状态机和云端 MySQL 统一权威托管
+    // 🛡️ 单一 Key 覆盖轻量快照：仅缓存当前正在操作的 1 个工作台，保障 0ms 秒开，绝不堆积碎片
+    try {
+      const user = this.authManager ? this.authManager.getCurrentUser() : null;
+      const isTeacher = user && (user.isTeacher || user.role === 'teacher');
+      const effectiveClassId = (isTeacher ? this.state.activeClassId : this.state.activeStudentClassId) || user?.classId || 'class_101';
+      const snap = {
+        classId: effectiveClassId,
+        taskId: this.state.activeTaskId,
+        groupId: groupId,
+        chatLogs: this.state.chatLogs,
+        stage1: this.state.stage1,
+        stage2: this.state.stage2,
+        stage3: this.state.stage3,
+        currentStage: this.state.currentStage,
+        groupMaxStage: this.state.groupMaxStage,
+        isFinalSubmitted: this.state.isFinalSubmitted,
+        updatedAt: Date.now()
+      };
+      const snapStr = JSON.stringify(snap);
+      sessionStorage.setItem('jizhi_active_workspace_snap', snapStr);
+      localStorage.setItem('jizhi_active_workspace_snap', snapStr);
+    } catch (e) {}
   }
 
   // 💬 精准单条发信入库方法（确保任何来源的消息 100% 毫秒级写入 MySQL chat_messages 实体表）
