@@ -2525,13 +2525,41 @@ if ($pdo) {
         $nowMs = round(microtime(true) * 1000);
         if (is_array($rawLocks)) {
             foreach ($rawLocks as $fk => $finfo) {
-                if (isset($finfo['time']) && ($nowMs - intval($finfo['time']) <= 20000)) {
+                if (isset($finfo['time']) && ($nowMs - intval($finfo['time']) <= 2500)) {
                     $activeLocks[$fk] = $finfo;
                 }
             }
         }
 
-        $prRaw   = (!empty($row['presence_data']) && strlen($row['presence_data']) < 50000) ? $row['presence_data'] : '{}';
+        // ⚡ 顺风车自动心跳续期（Piggyback）：每次客户端发送 pull 时，自动更新当前用户在当前组的在线时间戳 (15s 窗口)
+        $currPr = (!empty($row['presence_data']) && strlen($row['presence_data']) < 50000) ? json_decode($row['presence_data'], true) : [];
+        if (!is_array($currPr)) $currPr = [];
+        $prChanged = false;
+        if (!empty($reqUserId)) {
+            $currPr[strval($reqUserId)] = [
+                'userId'      => $reqUserId,
+                'studentCode' => $reqUserId,
+                'updatedAt'   => $nowMs,
+                'timestamp'   => $nowMs
+            ];
+            $prChanged = true;
+        }
+        foreach ($currPr as $pk => $pv) {
+            $t = is_array($pv) ? intval($pv['updatedAt'] ?? $pv['timestamp'] ?? 0) : 0;
+            if ($nowMs - $t > 15000) {
+                unset($currPr[$pk]);
+                $prChanged = true;
+            }
+        }
+        if ($prChanged) {
+            $prRaw = json_encode($currPr, JSON_UNESCAPED_UNICODE);
+            try {
+                $stmtUpPr = $pdo->prepare("UPDATE group_states SET presence_data = :pr WHERE scope_key = :sk");
+                $stmtUpPr->execute([':pr' => $prRaw, ':sk' => $scopeKey]);
+            } catch (Exception $e) {}
+        } else {
+            $prRaw = (!empty($row['presence_data']) && strlen($row['presence_data']) < 50000) ? $row['presence_data'] : '{}';
+        }
         $memRaw  = !empty($row['members_data']) ? $row['members_data'] : '[]';
 
         // 🛡️ 教学资源与文献版本戳（教师发布新范文/通知时版本号递增，学生秒级自动感知并拉取，其余时间 0 冗余）
