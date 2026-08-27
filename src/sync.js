@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState } from './constants.js?v=20260827_v624';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin } from './utils.js?v=20260827_v624';
+import { InitialState } from './constants.js?v=20260827_v625';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin } from './utils.js?v=20260827_v625';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -36,11 +36,16 @@ export class CloudSyncEngine {
     const effectiveClassId = (isTeacher ? this.app.state.activeClassId : this.app.state.activeStudentClassId) || user?.classId || 'class_101';
     const groupId = this.getEffectiveGroupId();
     let taskId = (this.app.state.activeTaskId) ? this.app.state.activeTaskId : `task_${effectiveClassId}_default`;
-    if (taskId === 'task_default') {
+    if (taskId === 'task_default' || !taskId) {
       taskId = `task_${effectiveClassId}_default`;
     }
     this.groupId = groupId;
     this.taskId = taskId;
+    this.effectiveClassId = effectiveClassId;
+    if (this.app && this.app.state) {
+      this.app.state.activeTaskId = taskId;
+      this.app.state.activeStudentClassId = effectiveClassId;
+    }
     this.storageKey = `jizhi_cloud_snapshot_v10_pure_${effectiveClassId}_${taskId}_${groupId}`;
     this.syncEndpoints = [
       `sync.php?taskId=${taskId}&groupId=${groupId}&classId=${effectiveClassId}`
@@ -72,7 +77,7 @@ export class CloudSyncEngine {
     if (!userKey) return;
 
     try {
-      const url = `sync.php?action=presence_ping&taskId=${encodeURIComponent(this.taskId)}&groupId=${encodeURIComponent(this.groupId)}`;
+      const url = `sync.php?action=presence_ping&taskId=${encodeURIComponent(this.taskId)}&groupId=${encodeURIComponent(this.groupId)}&classId=${encodeURIComponent(this.effectiveClassId || 'class_101')}`;
       const res = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -452,9 +457,6 @@ export class CloudSyncEngine {
         this.app.state.chatLogs[stg] = remoteLogs;
       });
       if (typeof window.renderChat === 'function') window.renderChat(this.app.state);
-      if (this.app && typeof this.app.triggerStageWelcomeSpeech === 'function') {
-        this.app.triggerStageWelcomeSpeech(this.app.state.currentStage || 'stage1');
-      }
     }
 
     // 🔒 渲染阶段一合约与阶段三答辩的字段级排他聚焦锁
@@ -810,9 +812,6 @@ export class CloudSyncEngine {
     }
 
     this.app.saveGroupState(myGroupId);
-    if (this.app && this.app.triggerStageWelcomeSpeech) {
-      this.app.triggerStageWelcomeSpeech(this.app.state.currentStage || 'stage1');
-    }
     if (typeof window.renderChat === 'function') window.renderChat(this.app.state);
     this.app.updateContributionUi();
     this.app.renderPresenceCursors();

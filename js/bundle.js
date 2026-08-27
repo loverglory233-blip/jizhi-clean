@@ -15,8 +15,8 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '2.1.0';
-  const APP_BUILD_DATE = '2026-08-23';
+  const APP_VERSION = '20260827_v625';
+  const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
   const STORAGE_KEY_USERS_DB = 'jizhi_pure_v10_users_db';
@@ -208,6 +208,19 @@
     }
     const pad = (n) => String(n).padStart(2, '0');
     return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+  }
+
+  /**
+   * 🕒 统一标准时间格式化（严格使用横杠 - 分隔）：YYYY-MM-DD HH:mm
+   */
+  function formatStandardDateDash(val) {
+    if (!val) return '';
+    const str = String(val).trim();
+    if (str.includes('无') || str.includes('随时') || str.includes('结课前') || str.includes('刚刚') || str.includes('不限')) return str;
+    const d = new Date(str.replace(/-/g, '/'));
+    if (isNaN(d.getTime())) return str.replace(/\//g, '-');
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
   }
 
   /**
@@ -562,6 +575,7 @@
 
   class AuthManager {
     constructor() {
+      this._pruneStorageQuota();
       this.initDatabase();
       this.sanitizeAndDeduplicateGroups();
       this.removeLegacyTestAccounts();
@@ -677,13 +691,17 @@
         const isStudent = currUser && (currUser.role === 'student' || currUser.isStudent);
         const isTeacher = currUser && (currUser.role === 'teacher' || currUser.isTeacher);
 
-        const res = await fetch(`sync.php?action=get_global_meta&nocache=${Date.now()}`);
+        const clientVer = this.globalMetaVersion || 0;
+        const res = await fetch(`sync.php?action=get_global_meta&ver=${clientVer}&nocache=${Date.now()}`);
         if (res.ok) {
           const data = await res.json();
           if (data) {
             this.isGlobalMetaLoaded = true;
-            if (data.version) {
+            if (data.version !== undefined) {
               this.globalMetaVersion = parseInt(data.version, 10);
+            }
+            if (data.unchanged) {
+              return; // ⚡ 极速早退：服务端版本未变，0 开销
             }
             // 1. 账号池：直接以云端权威数据库为准
             if (Array.isArray(data.users) && data.users.length > 0) {
@@ -700,42 +718,67 @@
             }
             if (Array.isArray(data.announcements)) {
               const localAnns = JSON.parse(localStorage.getItem(STORAGE_KEY_ANNOUNCEMENTS) || '[]');
-              const localMap = new Map();
-              localAnns.forEach(a => { if (a && a.id) localMap.set(a.id, a); });
+              if (data.announcements.length === 0 && localAnns.length > 0) {
+                // 🛡️ 云端返回空而本地有数据时，保留本地通知，杜绝误清空
+              } else {
+                const localMap = new Map();
+                localAnns.forEach(a => { if (a && a.id) localMap.set(a.id, a); });
 
-              const mergedAnns = data.announcements.map(remoteAnn => {
-                const localAnn = localMap.get(remoteAnn.id);
-                if (!localAnn) return remoteAnn;
+                const mergedAnns = data.announcements.map(remoteAnn => {
+                  const localAnn = localMap.get(remoteAnn.id);
+                  if (!localAnn) return remoteAnn;
 
-                // 🛡️ 智能合并已读状态与确认成员，绝不反向冲刷本地已读标记！
-                const mergedReadStatus = { ...(remoteAnn.readStatus || {}), ...(localAnn.readStatus || {}) };
-                const mergedGroupStatus = { ...(remoteAnn.readGroupStatus || {}), ...(localAnn.readGroupStatus || {}) };
+                  // 🛡️ 智能合并已读状态与确认成员，绝不反向冲刷本地已读标记！
+                  const mergedReadStatus = { ...(remoteAnn.readStatus || {}), ...(localAnn.readStatus || {}) };
+                  const mergedGroupStatus = { ...(remoteAnn.readGroupStatus || {}), ...(localAnn.readGroupStatus || {}) };
 
-                const confMembersMap = new Map();
-                (remoteAnn.confirmedMembers || []).forEach(m => {
-                  if (m) {
-                    const k = m.id || m.studentCode || m.name;
-                    if (k) confMembersMap.set(k, m);
+                  const confMembersMap = new Map();
+                  (remoteAnn.confirmedMembers || []).forEach(m => {
+                    if (m) {
+                      const k = m.id || m.studentCode || m.name;
+                      if (k) confMembersMap.set(k, m);
+                    }
+                  });
+                  (localAnn.confirmedMembers || []).forEach(m => {
+                    if (m) {
+                      const k = m.id || m.studentCode || m.name;
+                      if (k) confMembersMap.set(k, m);
+                    }
+                  });
+
+                  return {
+                    ...remoteAnn,
+                    readStatus: mergedReadStatus,
+                    readGroupStatus: mergedGroupStatus,
+                    confirmedMembers: Array.from(confMembersMap.values())
+                  };
+                });
+
+                // 🛡️ 确保本地最新创建的通知合并保留，绝不被较旧的云端列表冲刷丢弃
+                const remoteAnnIds = new Set(data.announcements.map(a => a.id));
+                localAnns.forEach(la => {
+                  if (la && la.id && !remoteAnnIds.has(la.id)) {
+                    mergedAnns.push(la);
                   }
                 });
-                (localAnn.confirmedMembers || []).forEach(m => {
-                  if (m) {
-                    const k = m.id || m.studentCode || m.name;
-                    if (k) confMembersMap.set(k, m);
-                  }
-                });
 
-                return {
-                  ...remoteAnn,
-                  readStatus: mergedReadStatus,
-                  readGroupStatus: mergedGroupStatus,
-                  confirmedMembers: Array.from(confMembersMap.values())
-                };
-              });
-              localStorage.setItem(STORAGE_KEY_ANNOUNCEMENTS, JSON.stringify(mergedAnns));
+                localStorage.setItem(STORAGE_KEY_ANNOUNCEMENTS, JSON.stringify(mergedAnns));
+              }
             }
             if (Array.isArray(data.referencePapers)) {
-              localStorage.setItem('jizhi_reference_papers_db', JSON.stringify(data.referencePapers));
+              const localPapers = JSON.parse(localStorage.getItem('jizhi_reference_papers_db') || '[]');
+              if (data.referencePapers.length === 0 && localPapers.length > 0) {
+                // 🛡️ 保留本地文献
+              } else {
+                const remotePaperIds = new Set(data.referencePapers.map(p => p.id));
+                const mergedPapers = [...data.referencePapers];
+                localPapers.forEach(lp => {
+                  if (lp && lp.id && !remotePaperIds.has(lp.id)) {
+                    mergedPapers.push(lp);
+                  }
+                });
+                localStorage.setItem('jizhi_reference_papers_db', JSON.stringify(mergedPapers));
+              }
             }
             if (Array.isArray(data.surveys)) {
               localStorage.setItem('jizhi_surveys_list_db', JSON.stringify(data.surveys));
@@ -859,7 +902,6 @@
         }
       });
 
-      if (window.app && window.app.cloudSyncEngine) window.app.cloudSyncEngine.pushSnapshot();
       return pushPromise;
     }
     getUsers() {
@@ -916,6 +958,16 @@
       }
       return (Array.isArray(announcements) ? announcements : []).filter(a => !a.isSystemAction && !a.title?.includes('指导教师已重置') && !a.title?.includes('指导教师已锁定'));
     }
+    saveAnnouncements(list) {
+      if (Array.isArray(list)) {
+        try { localStorage.setItem(STORAGE_KEY_ANNOUNCEMENTS, JSON.stringify(list)); } catch (e) {}
+      }
+    }
+    saveReferencePapers(list) {
+      if (Array.isArray(list)) {
+        try { localStorage.setItem('jizhi_reference_papers_db', JSON.stringify(list)); } catch (e) {}
+      }
+    }
     getCurrentUser() {
       let cached = null;
       const sessionData = sessionStorage.getItem(STORAGE_KEY_USER);
@@ -964,17 +1016,17 @@
           return { success: true, user };
         } else if (data && data.message) {
           // 🔐 精准展示服务端返回的真实校验结果（账号不存在/密码错误/身份不匹配）
-          return { success: false, message: data.message };
+          return { success: false, message: data.message, suggestedRole: data.suggestedRole || null };
         } else {
           const localRes = this.login(accountInput, password, role);
           if (localRes && localRes.success) return localRes;
-          return { success: false, message: '❌ 账号不存在或密码错误，请核对后重试' };
+          return { success: false, message: (localRes && localRes.message) ? localRes.message : '❌ 账号或密码错误，请核对后重试', suggestedRole: localRes?.suggestedRole || null };
         }
       } catch (err) {
         // 仅在完全无法连通时回退
         const localRes = this.login(accountInput, password, role);
         if (localRes && localRes.success) return localRes;
-        return { success: false, message: '⚠️ 无法连接服务器，请检查网络连接后重试' };
+        return { success: false, message: (localRes && localRes.message) ? localRes.message : '⚠️ 无法连接服务器，请检查网络连接后重试', suggestedRole: localRes?.suggestedRole || null };
       }
     }
 
@@ -1003,23 +1055,23 @@
       });
 
       if (userIndex === -1) {
-        return { success: false, message: '❌ 该账号不存在，请检查工号或学号是否输入正确' };
+        return { success: false, message: '❌ 未找到该学号/工号，请核对输入或联系指导教师' };
       }
 
       const user = users[userIndex];
       const isPwdValid = (pwd.length > 0) && ((user.password && user.password === pwd) || (!user.password && pwd === '123'));
 
       if (!isPwdValid) {
-        return { success: false, message: '❌ 密码错误，默认初始密码为 123' };
+        return { success: false, message: '❌ 密码错误，请核对后重试（默认初始密码为 123）' };
       }
 
       // 🔐 多重认证：登录界面所选身份必须与账号实际角色一致，防止跨身份误登录
       const isTeacher = (user.role === 'teacher' || user.isTeacher);
       if (loginRole === 'teacher' && !isTeacher) {
-        return { success: false, message: '❌ 所选登录身份与账号角色不匹配，请选择【教师】或核对工号' };
+        return { success: false, message: '❌ 身份选择错误：该账号为【学生】身份，已自动为您切换为学生，请重新点击登录', suggestedRole: 'student' };
       }
       if (loginRole === 'student' && isTeacher) {
-        return { success: false, message: '❌ 所选登录身份与账号角色不匹配，请选择【学生】或核对学号' };
+        return { success: false, message: '❌ 身份选择错误：该账号为【教师】身份，已自动为您切换为教师，请重新点击登录', suggestedRole: 'teacher' };
       }
 
       // 🚀 一个账号同时只能一个人登录：生成唯一的 activeSessionId 并推送到服务端会话锁
@@ -1255,10 +1307,34 @@
       const uCode = user.studentCode;
       const uName = user.name;
       const uUsername = user.username;
+      const safeUserKey = uCode || uId || uUsername || 'temp';
 
-      const targetClass = (classId ? classes.find(c => c.id === classId) : null) ||
-                          classes.find(c => (Array.isArray(user.classIds) && user.classIds.includes(c.id)) || c.id === user.classId) ||
-                          classes[0];
+      // 1. 若指定了班级 ID，严格在该班级内检索小组，未分组绝不跨班级误串
+      if (classId) {
+        const targetClass = classes.find(c => c.id === classId);
+        if (targetClass && Array.isArray(targetClass.groups)) {
+          for (let i = 0; i < targetClass.groups.length; i++) {
+            const g = targetClass.groups[i];
+            const hasMember = (g.members || []).some(m => {
+              if (!m) return false;
+              if (typeof m === 'string') return m === uId || m === uCode || m === uUsername || m === uName;
+              if (typeof m === 'object') return m.id === uId || m.userId === uId || m.studentCode === uCode || m.username === uUsername || m.name === uName;
+              return false;
+            });
+            if (hasMember) return g;
+          }
+
+          if (user.groupId) {
+            const directG = targetClass.groups.find(g => g.id === user.groupId);
+            if (directG) return directG;
+          }
+        }
+        // 🛡️ 指定班级下若未分配小组，直接返回专属隔离态，严禁跨班级回退
+        return { id: `group_unassigned_${safeUserKey}`, name: '未分组（待教师分配）' };
+      }
+
+      // 2. 未指定班级时的自适应检索
+      const targetClass = classes.find(c => (Array.isArray(user.classIds) && user.classIds.includes(c.id)) || c.id === user.classId) || classes[0];
 
       if (targetClass && Array.isArray(targetClass.groups)) {
         for (let i = 0; i < targetClass.groups.length; i++) {
@@ -1298,10 +1374,8 @@
         }
       }
 
-      if (targetClass && Array.isArray(targetClass.groups) && targetClass.groups.length > 0) {
-        return targetClass.groups[0];
-      }
-      return { id: 'group_1', name: '第 1 协作小组' };
+      // 🛡️ 严格隔离：未被分配到具体小组的学生，赋予独立的隔离空间，绝不默认塞进第 1 小组造成跨组串味
+      return { id: `group_unassigned_${safeUserKey}`, name: '未分组（待教师分配）' };
     }
 
     getAvailableStudentsForGroup(classId, editingGroupId = null) {
@@ -1364,22 +1438,10 @@
         const u = users.find(usr => usr.id === uid);
         if (u) {
           u.groupId = group.id;
-          if (uid === leaderUserId) {
-            u.roleCode = 'A';
-            u.roleTitle = '组长';
-          } else {
-            u.roleCode = String.fromCharCode(66 + idx);
-            u.roleTitle = '组员';
-          }
+          u.roleCode = String.fromCharCode(65 + idx);
+          u.roleTitle = '组员';
         }
       });
-      if (!leaderUserId && selectedUserIds.length > 0) {
-        const uFirst = users.find(usr => usr.id === selectedUserIds[0]);
-        if (uFirst) {
-          uFirst.roleCode = 'A';
-          uFirst.roleTitle = '组长';
-        }
-      }
       localStorage.setItem(STORAGE_KEY_USERS_DB, JSON.stringify(users));
 
       this.pushGlobalMeta();
@@ -1509,13 +1571,8 @@
             const u = users.find(usr => usr.id === st.id);
             if (u) {
               u.groupId = gId;
-              if (idx === 0) {
-                u.roleCode = 'A';
-                u.roleTitle = '组长';
-              } else {
-                u.roleCode = String.fromCharCode(66 + idx);
-                u.roleTitle = '组员';
-              }
+              u.roleCode = String.fromCharCode(65 + idx);
+              u.roleTitle = '组员';
             }
           });
         });
@@ -1552,13 +1609,8 @@
             const u = users.find(usr => usr.id === st.id);
             if (u) {
               u.groupId = gId;
-              if (idx === 0) {
-                u.roleCode = 'A';
-                u.roleTitle = '组长';
-              } else {
-                u.roleCode = String.fromCharCode(66 + idx);
-                u.roleTitle = '组员';
-              }
+              u.roleCode = String.fromCharCode(65 + idx);
+              u.roleTitle = '组员';
             }
           });
         });
@@ -1603,18 +1655,26 @@
       this.pushGlobalMeta();
     }
 
-    getGroupMembersForWorkspace(groupId = 'group_1') {
+    getGroupMembersForWorkspace(groupId = 'group_1', classId = null) {
       const users = this.getUsers();
       const classes = this.getClasses();
       const colors = ['#818cf8', '#22d3ee', '#fbbf24', '#ec4899', '#34d399', '#f97316', '#a78bfa'];
       const avatars = ['👨‍🎓', '👩‍🎓', '🧑‍🎓', '🎓', '📚', '🌟'];
 
-      // 1. 优先从班级真实分组中检索该小组及其成员
+      // 1. 优先从指定班级真实分组中检索该小组及其成员
       let targetGrp = null;
-      for (const c of classes) {
-        if (Array.isArray(c.groups)) {
-          const foundG = c.groups.find(g => g && g.id === groupId);
-          if (foundG) { targetGrp = foundG; break; }
+      if (classId) {
+        const cls = classes.find(c => c.id === classId);
+        if (cls && Array.isArray(cls.groups)) {
+          targetGrp = cls.groups.find(g => g && g.id === groupId);
+        }
+      }
+      if (!targetGrp) {
+        for (const c of classes) {
+          if (Array.isArray(c.groups)) {
+            const foundG = c.groups.find(g => g && g.id === groupId);
+            if (foundG) { targetGrp = foundG; break; }
+          }
         }
       }
 
@@ -1659,7 +1719,7 @@
             id: studentCode,
             userId: u.id || studentCode,
             name: u.name || `学生${seen.size}`,
-            roleTitle: (u.role === 'leader' || idx === 0 || u.roleTitle?.includes('组长')) ? '组长 · 论文结构' : `组员 · 合作撰写`,
+            roleTitle: '组员 · 合作撰写',
             avatar: u.avatar || avatars[(seen.size - 1) % avatars.length],
             color: colors[(seen.size - 1) % colors.length],
             studentCode: studentCode,
@@ -1816,6 +1876,23 @@
       const announcements = this.getAnnouncements();
       const ann = announcements.find(a => a.id === annId);
       const currUser = this.getCurrentUser();
+
+      // 1. 优先以最高优先级向服务端轻量回传已读标记（0 依赖本地 localStorage，绝不受 Quota 影响）
+      try {
+        fetch('sync.php?action=update_read_status', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            annId,
+            groupId,
+            userId: currUser ? (currUser.id || currUser.username || currUser.studentCode) : '',
+            userCode: currUser ? (currUser.studentCode || currUser.username || '') : '',
+            userName: currUser ? (currUser.name || currUser.studentCode || '学生') : ''
+          })
+        }).catch(() => {});
+      } catch (e) {}
+
+      // 2. 本地内存与缓存安全更新 (带 QuotaExceeded 自动熔断与大对象修剪保护)
       if (ann) {
         if (!ann.readStatus) ann.readStatus = {};
         if (!ann.readGroupStatus) ann.readGroupStatus = {};
@@ -1844,22 +1921,28 @@
           ann.readStatus[groupId] = true;
         }
 
-        localStorage.setItem(STORAGE_KEY_ANNOUNCEMENTS, JSON.stringify(announcements));
-
         try {
-          fetch('sync.php?action=update_read_status', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              annId,
-              groupId,
-              userId: currUser ? (currUser.id || currUser.username || currUser.studentCode) : '',
-              userCode: currUser ? (currUser.studentCode || currUser.username || '') : '',
-              userName: currUser ? (currUser.name || currUser.studentCode || '学生') : ''
-            })
-          }).catch(() => {});
-        } catch (e) {}
+          localStorage.setItem(STORAGE_KEY_ANNOUNCEMENTS, JSON.stringify(announcements));
+        } catch (err) {
+          console.warn('[Storage] QuotaExceeded on save announcements, cleaning legacy heavy items...', err);
+          this._pruneStorageQuota();
+          try {
+            localStorage.setItem(STORAGE_KEY_ANNOUNCEMENTS, JSON.stringify(announcements));
+          } catch (e2) {}
+        }
       }
+    }
+
+    // 🧹 存储配额守护清理器：当浏览器 5MB 配额紧张时，自动修剪冗余的历史 Base64 快照
+    _pruneStorageQuota() {
+      try {
+        for (let i = 0; i < localStorage.length; i++) {
+          const k = localStorage.key(i);
+          if (k && (k.startsWith('jizhi_cloud_snapshot_') || k.includes('_backup_'))) {
+            localStorage.removeItem(k);
+          }
+        }
+      } catch (e) {}
     }
 
     markAllTaskAnnouncementsRead(taskId, groupId = 'group_1') {
@@ -1881,7 +1964,7 @@
       const papers = this.getAllReferencePapers();
       if (!groupId && !classId && !taskId) return papers;
       return papers.filter(p => {
-        const matchClass = !classId || classId === 'all' || !p.classId || p.classId === 'all' || p.classId === classId;
+        const matchClass = !classId || classId === 'all' || p.classId === classId || (!p.classId && classId === 'class_101') || (Array.isArray(p.targetClassIds) && p.targetClassIds.includes(classId));
         const matchGroup = !groupId || groupId === 'all' || 
           (Array.isArray(p.targetGroupIds) ? (p.targetGroupIds.includes('all') || p.targetGroupIds.includes(groupId)) : (!p.targetGroupId || p.targetGroupId === 'all' || p.targetGroupId === groupId));
         const matchTask = !taskId ? true : (p.taskId === taskId || (!p.taskId && taskId === 'task_default'));
@@ -2163,19 +2246,30 @@
     }
 
     updateScopeKeys() {
+      const isTeacher = this.app.authManager?.getCurrentUser()?.role === 'teacher';
+      const user = this.app.authManager?.getCurrentUser();
+      const effectiveClassId = (isTeacher ? this.app.state.activeClassId : this.app.state.activeStudentClassId) || user?.classId || 'class_101';
       const groupId = this.getEffectiveGroupId();
-      const taskId = (this.app.state.activeTaskId) ? this.app.state.activeTaskId : 'task_default';
+      let taskId = (this.app.state.activeTaskId) ? this.app.state.activeTaskId : `task_${effectiveClassId}_default`;
+      if (taskId === 'task_default' || !taskId) {
+        taskId = `task_${effectiveClassId}_default`;
+      }
       this.groupId = groupId;
       this.taskId = taskId;
-      this.storageKey = `jizhi_cloud_snapshot_v10_pure_${taskId}_${groupId}`;
+      this.effectiveClassId = effectiveClassId;
+      if (this.app && this.app.state) {
+        this.app.state.activeTaskId = taskId;
+        this.app.state.activeStudentClassId = effectiveClassId;
+      }
+      this.storageKey = `jizhi_cloud_snapshot_v10_pure_${effectiveClassId}_${taskId}_${groupId}`;
       this.syncEndpoints = [
-        `sync.php?taskId=${taskId}&groupId=${groupId}`
+        `sync.php?taskId=${taskId}&groupId=${groupId}&classId=${effectiveClassId}`
       ];
 
       if ('BroadcastChannel' in window) {
         try {
           if (this.bc) { try { this.bc.close(); } catch (e) {} }
-          this.bc = new BroadcastChannel(`jizhi_bc_${this.taskId}_${this.groupId}`);
+          this.bc = new BroadcastChannel(`jizhi_bc_${effectiveClassId}_${this.taskId}_${this.groupId}`);
           this.bc.onmessage = (e) => {
             if (e.data && e.data.snapshot) this.handleRemoteSync(e.data.snapshot);
           };
@@ -2198,7 +2292,7 @@
       if (!userKey) return;
 
       try {
-        const url = `sync.php?action=presence_ping&taskId=${encodeURIComponent(this.taskId)}&groupId=${encodeURIComponent(this.groupId)}`;
+        const url = `sync.php?action=presence_ping&taskId=${encodeURIComponent(this.taskId)}&groupId=${encodeURIComponent(this.groupId)}&classId=${encodeURIComponent(this.effectiveClassId || 'class_101')}`;
         const res = await fetch(url, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -2236,8 +2330,22 @@
 
     initPolling() {
       this.pullFromServer();
-      // ⚡ 智能省流心跳轮询：前台 2 秒对齐，后台静默切为 8 秒（带宽节省 75%）
-      const getInterval = () => (document.hidden ? 8000 : 2000);
+      // ⚡ 智能省流心跳轮询：前台活跃 1.5 秒快速对齐，无操作挂机/切后台静默 15 秒极简心跳
+      let lastUserActivity = Date.now();
+      const markActive = () => {
+        const wasIdle = (Date.now() - lastUserActivity > 60000);
+        lastUserActivity = Date.now();
+        if (wasIdle && !this.isLoggingOut) {
+          this.pullFromServer();
+        }
+      };
+      ['mousemove', 'keydown', 'touchstart', 'scroll', 'click'].forEach(evt => {
+        window.addEventListener(evt, markActive, { passive: true });
+      });
+
+      const isIdle = () => document.hidden || (Date.now() - lastUserActivity > 60000);
+      const getInterval = () => (isIdle() ? 15000 : 1500);
+
       const runPoll = () => {
         if (this.isLoggingOut) return;
         this.pullFromServer().finally(() => {
@@ -2256,12 +2364,14 @@
       // 🌟 多场景感知：当切回标签页或重新获得窗口焦点时，立即发送一次心跳并静默拉取
       document.addEventListener('visibilitychange', () => {
         if (document.visibilityState === 'visible' && !this.isLoggingOut) {
+          markActive();
           this.sendPresencePing();
           this.pullFromServer();
         }
       });
       window.addEventListener('focus', () => {
         if (!this.isLoggingOut) {
+          markActive();
           this.sendPresencePing();
           this.pullFromServer();
         }
@@ -2320,29 +2430,18 @@
       }
     }
 
-    async pushSnapshot(isReset = false) {
+    async pushSnapshot() {
       this.updateScopeKeys();
       const groupId = this.groupId;
 
-      // 🛡️ 严格读优先防空门禁：只有在【已完成初次拉取】或【显式主动重置】时才允许推送全量快照，彻底杜绝冷启动空内存反向冲刷
-      if (!this.isInitialPullDone && !isReset) {
+      // 🛡️ 严格读优先防空门禁：只有在【已完成初次拉取】时才允许推送全量快照，彻底杜绝冷启动空内存反向冲刷
+      if (!this.isInitialPullDone) {
         return;
-      }
-      const isResetVal = !!this.isResetBroadcast || isReset;
-      this.isResetBroadcast = false;
-
-      const localResetSeqKey = `jizhi_reset_seq_${this.storageKey}`;
-      let localResetSeq = parseInt(localStorage.getItem(localResetSeqKey) || '0', 10);
-      if (isReset) {
-        localResetSeq += 1;
-        try { localStorage.setItem(localResetSeqKey, String(localResetSeq)); } catch (e) {}
       }
 
       const snapshot = {
         timestamp: Date.now(),
         groupId: groupId,
-        isReset: isReset,
-        resetSeq: localResetSeq,
         revisionId: this.lastRevisionId || 0,
         members: this.app.state.members,
         presence: this.app.state.presence || {},
@@ -2366,135 +2465,18 @@
       if (this.isPushing) { this.pendingPushCount++; return; }
       this.isPushing = true;
       try {
-        const results = await Promise.allSettled(this.syncEndpoints.map(url =>
+        await Promise.allSettled(this.syncEndpoints.map(url =>
           fetch(url, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: bodyStr
           }).then(r => r.json()).catch(() => null)
         ));
-        for (const result of results) {
-          if (result.status === 'fulfilled' && result.value && result.value.stale) {
-            const serverResetSeq = result.value.resetSeq || 0;
-            if (serverResetSeq > localResetSeq) {
-              this._applyReset(serverResetSeq);
-            }
-            break;
-          }
-        }
       } catch (e) {
       } finally {
         this.isPushing = false;
         if (this.pendingPushCount > 0) { this.pendingPushCount = 0; this.pushSnapshot(); }
       }
-    }
-
-    _applyReset(newResetSeq) {
-      const user = this.app.authManager.getCurrentUser();
-      const myGroupId = (user && user.groupId) ? user.groupId : (this.app.state.activeMonitorGroupId || 'group_1');
-      const taskId = this.app.state.activeTaskId || 'task_default';
-      const localResetSeqKey = `jizhi_reset_seq_${this.storageKey}`;
-
-      localStorage.setItem(localResetSeqKey, String(newResetSeq));
-
-      try {
-        const keysToRemove = [];
-        for (let i = 0; i < localStorage.length; i++) {
-          const k = localStorage.key(i);
-          if (k && k.startsWith('jizhi_sync_') && (k.endsWith(`_${myGroupId}`) || k.includes(`_${myGroupId}`))) {
-            keysToRemove.push(k);
-          }
-        }
-        keysToRemove.forEach(k => localStorage.removeItem(k));
-      } catch (e) {}
-
-      try {
-        const hasContent = (this.app.state.stage2 && this.app.state.stage2.unifiedContent) || 
-                           (this.app.state.stage1 && this.app.state.stage1.proposals && this.app.state.stage1.proposals.length > 0);
-        if (hasContent) {
-          const emergencyDraft = {
-            savedAt: new Date().toLocaleString(),
-            groupId: myGroupId,
-            taskId: taskId,
-            stage1: this.app.state.stage1,
-            stage2: this.app.state.stage2,
-            stage3: this.app.state.stage3,
-            chatLogs: this.app.state.chatLogs
-          };
-          localStorage.setItem('jizhi_lost_and_found_draft', JSON.stringify(emergencyDraft));
-        }
-      } catch (e) {}
-
-      this.app.state.stage1 = JSON.parse(JSON.stringify(InitialState.stage1));
-      this.app.state.stage2 = JSON.parse(JSON.stringify(InitialState.stage2));
-      this.app.state.stage3 = JSON.parse(JSON.stringify(InitialState.stage3));
-      this.app.state.chatLogs = { stage1: [], stage2: [], stage3: [] };
-      this.app.state.currentStage = 'stage1';
-      this.app.state.isFinalSubmitted = false;
-      this.app.state.presence = {};
-
-      this.lastTimestamp = 0;
-
-      const oldContractCard = document.querySelector('.contract-card');
-      if (oldContractCard) oldContractCard.remove();
-      const editor = document.getElementById('stage2-word-editor') || document.getElementById('stage3-word-editor');
-      if (editor) editor.innerHTML = '';
-
-      this.app.saveGroupState(myGroupId);
-      if (typeof window.renderChat === 'function') window.renderChat(this.app.state);
-      this.app.updateContributionUi();
-      this.app.renderPresenceCursors();
-
-      this.updateScopeKeys();
-      const userKey = user ? (user.id || user.studentCode || user.username || 'u') : 'u';
-      const ackResetSeqKey = `jizhi_ack_reset_seq_${userKey}_${this.storageKey}`;
-      const localAckSeq = parseInt(localStorage.getItem(ackResetSeqKey) || '0', 10);
-
-      // 仅在首次感知到该版本重置时，才向学生弹窗提示 1 次
-      if (newResetSeq > localAckSeq) {
-        localStorage.setItem(ackResetSeqKey, String(newResetSeq));
-
-        if (user?.role === 'student' || user?.isStudent) {
-          document.querySelectorAll('.reset-notify-modal').forEach(m => m.remove());
-          const resetModal = document.createElement('div');
-          resetModal.className = 'modal-overlay reset-notify-modal';
-          const isCurrentlyInWorkspace = this.app && this.app.state.studentViewMode === 'workspace';
-
-          resetModal.innerHTML = `
-            <div class="teacher-modal-card" style="width:440px; text-align:center; padding:32px 24px; background:#ffffff; border-radius:14px; box-shadow:0 20px 25px -5px rgba(0,0,0,0.25); border:1px solid #e2e8f0; animation:modalFadeIn 0.25s ease;">
-              <div style="font-size:44px; margin-bottom:12px;">🔄</div>
-              <div style="font-size:18px; font-weight:800; color:#0f172a; margin-bottom:8px;">课堂协同数据已重置</div>
-              <div style="font-size:13.5px; color:#475569; line-height:1.6; margin-bottom:22px;">
-                ${isCurrentlyInWorkspace 
-                  ? '指导教师已清空重置本组在当前写作任务中的分工公约、正文草稿与讨论记录。小组成员已自动安全返回【任务大厅】。' 
-                  : '指导教师已清空重置本组在当前写作任务中的协同数据，已为您开启全新一轮协作写作！'}
-              </div>
-              <button id="btn-confirm-reset-ok" style="background:linear-gradient(135deg, #2563eb, #1d4ed8); color:white; border:none; padding:12px 28px; border-radius:8px; font-size:14px; font-weight:700; cursor:pointer; width:100%; box-shadow:0 3px 10px rgba(37,99,235,0.25);">
-                ${isCurrentlyInWorkspace ? '📋 我知道了 (返回任务大厅)' : '✍️ 我知道了 (开始协作)'}
-              </button>
-            </div>
-          `;
-          document.body.appendChild(resetModal);
-
-          const handleDismiss = () => {
-            resetModal.remove();
-            if (isCurrentlyInWorkspace && this.app) {
-              this.app.state.studentViewMode = 'task_list';
-              this.app.renderMain();
-            } else if (this.app) {
-              this.app.renderStudentWorkspace();
-            }
-          };
-
-          resetModal.querySelector('#btn-confirm-reset-ok').addEventListener('click', handleDismiss);
-          resetModal.addEventListener('click', (e) => { if (e.target === resetModal) handleDismiss(); });
-        }
-      }
-    }
-
-    // 📡 仅向本机其他标签页广播一条本地消息（不触达服务端）；供教师重置成功后就地同步 resetSeq（修复 broadcastLocal 未定义，见审查 #43 配套）
-    broadcastLocal(data) {
-      if (this.bc) { try { this.bc.postMessage({ snapshot: data }); } catch (e) {} }
     }
 
     handleRemoteSync(remoteData) {
@@ -2505,6 +2487,13 @@
         if (remoteData.serverTimestamp) {
           this.app.state.serverTimestamp = Number(remoteData.serverTimestamp);
         }
+        if (remoteData.revisionId !== undefined) {
+          this._lastKnownRevisionId = remoteData.revisionId;
+        }
+        if (remoteData.metaVer !== undefined) {
+          this._lastKnownMetaVer = remoteData.metaVer;
+        }
+        this._hasPulledGlobal = true;
         if (remoteData.presence) {
           let incomingPr = (typeof remoteData.presence === 'object' && !Array.isArray(remoteData.presence)) ? remoteData.presence : {};
           this.app.state.presence = { ...(this.app.state.presence || {}), ...incomingPr };
@@ -2529,10 +2518,14 @@
         this._hasPulledGlobal = true;
       }
 
-      // 更新本地已知的服务端 revisionId（每次拉到数据都对齐，防止 since_rev 永远为 0）
+      // 更新本地已知的服务端 revisionId 和 metaVer（每次拉到数据都对齐，彻底打通 Delta 差量通道）
       if (remoteData.revisionId !== undefined) {
         this._lastKnownRevisionId = remoteData.revisionId;
       }
+      if (remoteData.metaVer !== undefined) {
+        this._lastKnownMetaVer = remoteData.metaVer;
+      }
+      this._hasPulledGlobal = true;
 
       // 🌐 服务端全局教务与文献资源同步到本地（tasks/users/classes/announcements/referencePapers）
       // 教师一旦发布新范文或公告，学生端在任务工作台内 1~2 秒内自动无感对齐更新
@@ -2555,17 +2548,22 @@
           const remoteStr = JSON.stringify(remoteData.classes);
           if (localStr !== remoteStr) localStorage.setItem(key, remoteStr);
         }
-        if (Array.isArray(remoteData.announcements)) {
+        if (Array.isArray(remoteData.announcements) && remoteData.announcements.length > 0) {
           const key = 'jizhi_pure_v10_ann_db';
-          const localStr = localStorage.getItem(key) || '[]';
-          const remoteStr = JSON.stringify(remoteData.announcements);
-          if (localStr !== remoteStr) localStorage.setItem(key, remoteStr);
+          const local = JSON.parse(localStorage.getItem(key) || '[]');
+          const remoteIds = new Set(remoteData.announcements.map(a => a.id));
+          const merged = [...remoteData.announcements];
+          local.forEach(l => { if (l && l.id && !remoteIds.has(l.id)) merged.push(l); });
+          localStorage.setItem(key, JSON.stringify(merged));
         }
-        if (Array.isArray(remoteData.referencePapers)) {
-          const key = 'jizhi_pure_v10_ref_papers_db';
-          const localStr = localStorage.getItem(key) || '[]';
-          const remoteStr = JSON.stringify(remoteData.referencePapers);
-          if (localStr !== remoteStr) localStorage.setItem(key, remoteStr);
+        if (Array.isArray(remoteData.referencePapers) && remoteData.referencePapers.length > 0) {
+          const key = 'jizhi_reference_papers_db';
+          const local = JSON.parse(localStorage.getItem(key) || '[]');
+          const remoteIds = new Set(remoteData.referencePapers.map(p => p.id));
+          const merged = [...remoteData.referencePapers];
+          local.forEach(l => { if (l && l.id && !remoteIds.has(l.id)) merged.push(l); });
+          localStorage.setItem(key, JSON.stringify(merged));
+          localStorage.setItem('jizhi_pure_v10_ref_papers_db', JSON.stringify(merged));
         }
       }
 
@@ -2602,12 +2600,28 @@
         }
       }
 
-      // ⚡ 天然随快照无缝更新通知与文献库，无需前端再发起任何独立请求
-      if (Array.isArray(remoteData.announcements) && this.app.authManager) {
-        this.app.authManager.saveAnnouncements(remoteData.announcements);
+      // ⚡ 天然随快照无缝更新通知与文献库，无损合并保留本地新增
+      if (Array.isArray(remoteData.announcements) && remoteData.announcements.length > 0) {
+        try {
+          const key = 'jizhi_pure_v10_ann_db';
+          const local = JSON.parse(localStorage.getItem(key) || '[]');
+          const remoteIds = new Set(remoteData.announcements.map(a => a.id));
+          const merged = [...remoteData.announcements];
+          local.forEach(l => { if (l && l.id && !remoteIds.has(l.id)) merged.push(l); });
+          localStorage.setItem(key, JSON.stringify(merged));
+          localStorage.setItem('jizhi_announcements_db', JSON.stringify(merged));
+        } catch (e) {}
       }
-      if (Array.isArray(remoteData.referencePapers) && this.app.authManager) {
-        this.app.authManager.saveReferencePapers(remoteData.referencePapers);
+      if (Array.isArray(remoteData.referencePapers) && remoteData.referencePapers.length > 0) {
+        try {
+          const key = 'jizhi_reference_papers_db';
+          const local = JSON.parse(localStorage.getItem(key) || '[]');
+          const remoteIds = new Set(remoteData.referencePapers.map(p => p.id));
+          const merged = [...remoteData.referencePapers];
+          local.forEach(l => { if (l && l.id && !remoteIds.has(l.id)) merged.push(l); });
+          localStorage.setItem(key, JSON.stringify(merged));
+          localStorage.setItem('jizhi_pure_v10_ref_papers_db', JSON.stringify(merged));
+        } catch (e) {}
       }
 
       if (remoteData.isFinalSubmitted !== undefined) {
@@ -2651,38 +2665,13 @@
       }
 
       if (remoteData.chatLogs) {
-        let chatChanged = false;
+        if (!this.app.state.chatLogs) this.app.state.chatLogs = { stage1: [], stage2: [], stage3: [] };
         ['stage1', 'stage2', 'stage3'].forEach(stg => {
           const remoteLogs = Array.isArray(remoteData.chatLogs[stg]) ? remoteData.chatLogs[stg] : [];
-          const localLogs = Array.isArray(this.app.state.chatLogs[stg]) ? this.app.state.chatLogs[stg] : [];
-
-          const mergedLogs = [];
-          const seenKeys = new Set();
-          const allCandidate = [...localLogs, ...remoteLogs];
-          allCandidate.sort((a, b) => {
-            const ta = a?._timeMs ? Number(a._timeMs) : 0;
-            const tb = b?._timeMs ? Number(b._timeMs) : 0;
-            return ta - tb;
-          });
-          allCandidate.forEach(m => {
-            if (!m) return;
-            const idKey = m.id ? `id_${m.id}` : null;
-            const contentKey = `${m.sender || ''}_${(m.text || '').trim()}_${m._timeMs ? Math.floor(Number(m._timeMs) / 3000) : (m.timestamp || '')}`;
-            if (idKey && seenKeys.has(idKey)) return;
-            if (seenKeys.has(contentKey)) return;
-            if (idKey) seenKeys.add(idKey);
-            seenKeys.add(contentKey);
-            mergedLogs.push(m);
-          });
-
-          if (mergedLogs.length > 0) {
-            this.app.state.chatLogs[stg] = mergedLogs;
-          }
+          // 🛡️ 严格按组隔离：直接使用云端针对本组真实返回的消息列表，严禁在前端与上一组内存混淆
+          this.app.state.chatLogs[stg] = remoteLogs;
         });
         if (typeof window.renderChat === 'function') window.renderChat(this.app.state);
-        if (this.app && typeof this.app.triggerStageWelcomeSpeech === 'function') {
-          this.app.triggerStageWelcomeSpeech(this.app.state.currentStage || 'stage1');
-        }
       }
 
       // 🔒 渲染阶段一合约与阶段三答辩的字段级排他聚焦锁
@@ -2873,7 +2862,43 @@
             }
           }
         });
-        const mergedProposals = Array.from(propByAuthor.values());
+        // 🛡️ 严格小组白名单过滤：仅保留属于本组成员的提案，剔除历史跨组残留的脏数据
+        let allowedMemberKeys = new Set();
+        const currentMembers = this.app.state.members;
+        if (currentMembers) {
+          const memList = Array.isArray(currentMembers) ? currentMembers : Object.values(currentMembers);
+          memList.forEach(m => {
+            if (m) {
+              if (m.id) allowedMemberKeys.add(String(m.id).trim());
+              if (m.studentCode) allowedMemberKeys.add(String(m.studentCode).trim());
+              if (m.username) allowedMemberKeys.add(String(m.username).trim());
+              if (m.name) allowedMemberKeys.add(String(m.name).trim());
+            }
+          });
+        }
+        if (allowedMemberKeys.size === 0 && this.app.authManager) {
+          const currU = this.app.authManager.getCurrentUser();
+          const effClassId = this.app.state.activeStudentClassId || currU?.classId || 'class_101';
+          const effGroup = this.app.authManager.getStudentActiveGroup(currU, effClassId);
+          const groupMembers = this.app.authManager.getGroupMembersForWorkspace(effGroup?.id || 'group_1');
+          Object.values(groupMembers).forEach(m => {
+            if (m) {
+              if (m.id) allowedMemberKeys.add(String(m.id).trim());
+              if (m.studentCode) allowedMemberKeys.add(String(m.studentCode).trim());
+              if (m.username) allowedMemberKeys.add(String(m.username).trim());
+              if (m.name) allowedMemberKeys.add(String(m.name).trim());
+            }
+          });
+        }
+
+        const allMerged = Array.from(propByAuthor.values());
+        const mergedProposals = allowedMemberKeys.size > 0
+          ? allMerged.filter(p => {
+              const authorId = String(p.author || '').trim();
+              const authorName = String(p.authorName || '').trim();
+              return allowedMemberKeys.has(authorId) || (authorName && allowedMemberKeys.has(authorName));
+            })
+          : allMerged;
 
         const mergedVotes = {
           ...(localS1.votes || {}),
@@ -2900,30 +2925,10 @@
       }
 
       if (remoteData.stage2) {
-        // 🚀 100% 绝对可靠同步：当远端组员有新内容、且本地当前未在输入时，平滑呈现最新正文
         if (remoteData.stage2.unifiedContent !== undefined) {
           const remoteHtml = remoteData.stage2.unifiedContent || '';
-          const localHtml = this.app.state.stage2?.unifiedContent || '';
-
-          const stage2Editor = document.getElementById('stage2-word-editor');
-          const qlEditor = stage2Editor ? stage2Editor.querySelector('.ql-editor') : null;
-          const activeEl = document.activeElement;
-          const isLocalTyping = activeEl && (
-            activeEl === stage2Editor ||
-            activeEl === qlEditor ||
-            (stage2Editor && stage2Editor.contains(activeEl))
-          );
-
-          if (!isLocalTyping && remoteHtml && remoteHtml !== localHtml) {
-            if (!this.app.state.stage2) this.app.state.stage2 = {};
-            this.app.state.stage2.unifiedContent = remoteHtml;
-
-            if (window._jizhi_quill && window._jizhi_quill.root) {
-              if (window._jizhi_quill.root.innerHTML !== remoteHtml) {
-                window._jizhi_quill.root.innerHTML = remoteHtml;
-              }
-            }
-          }
+          if (!this.app.state.stage2) this.app.state.stage2 = {};
+          this.app.state.stage2.unifiedContent = remoteHtml;
         }
 
         if (remoteData.stage2.memberContributions) {
@@ -2998,7 +3003,6 @@
 
       if (remoteData.timer && this.app.state.timer) {
         if (remoteData.timer.startTimestamp) {
-          // 🛡️ 修复计时器重置：接受服务端权威时间戳（无论新旧），教师重置后所有客户端同步
           this.app.state.timer.startTimestamp = remoteData.timer.startTimestamp;
         }
         if (remoteData.timer.speed !== undefined) {
@@ -3012,7 +3016,6 @@
       const stageOrder = { stage1: 1, stage2: 2, stage3: 3 };
       const currentOrder = stageOrder[this.app.state.currentStage] || 1;
       const remoteOrder = stageOrder[remoteData.currentStage] || 1;
-      const groupMaxOrder = stageOrder[this.app.state.groupMaxStage || 'stage1'] || 1;
 
       if (remoteData.currentStage) {
         this.app.state.groupMaxStage = remoteData.currentStage;
@@ -3024,14 +3027,10 @@
       }
 
       this.app.saveGroupState(myGroupId);
-      if (this.app && this.app.triggerStageWelcomeSpeech) {
-        this.app.triggerStageWelcomeSpeech(this.app.state.currentStage || 'stage1');
-      }
       if (typeof window.renderChat === 'function') window.renderChat(this.app.state);
       this.app.updateContributionUi();
       this.app.renderPresenceCursors();
 
-      // 👨‍🏫 教师端实时同屏刷新 (当教师正在监控该小组时，实时同屏反映最新进度)
       // 🛡️ 本地快照极速持久化：确保下次 F5 刷新时 0 毫秒秒级呈现已有全部协作数据
       try {
         const snapCache = {
@@ -3048,7 +3047,8 @@
         localStorage.setItem(this.storageKey, JSON.stringify(snapCache));
       } catch (e) {}
 
-      if ((!this._hasRenderedInitialWorkspace || needWorkspaceRender) && user?.role === 'student' && this.app.state.studentViewMode === 'workspace') {
+      const isFirstPull = !this._hasRenderedInitialWorkspace;
+      if ((isFirstPull || needWorkspaceRender) && user?.role === 'student' && this.app.state.studentViewMode === 'workspace') {
         const activeEl = document.activeElement;
         const isTypingInWorkspace = activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA') && (document.getElementById('canvas-panel')?.contains(activeEl) || document.querySelector('.contract-card')?.contains(activeEl));
         if (!isTypingInWorkspace) {
@@ -3062,39 +3062,42 @@
   /* ==========================================================================
      MODULE: login.js
      ========================================================================== */
-  /**
-   * JIZHI (集智) Platform - Login View Renderer
-   * Standard ES Module (ESM)
-   */
-
   function renderLoginView(container, authManager, onLoginSuccess) {
     if (authManager && authManager.pullGlobalMeta) {
       authManager.pullGlobalMeta().catch(() => {});
     }
+
+    let savedAccount = '';
+    let savedRole = 'student';
+    try {
+      savedAccount = localStorage.getItem('jizhi_last_login_account') || '';
+      savedRole = localStorage.getItem('jizhi_last_login_role') || 'student';
+    } catch (e) {}
+
     container.innerHTML = `
       <div style="min-height:100vh; display:flex; align-items:center; justify-content:center; padding:20px; background:linear-gradient(135deg, #f0f4f9 0%, #e2e8f0 100%);">
         <div style="background:#ffffff; border:1px solid #cbd5e1; border-radius:20px; width:440px; max-width:95vw; padding:36px; box-shadow:0 20px 40px -8px rgba(15, 23, 42, 0.08), 0 4px 12px rgba(15, 23, 42, 0.04);">
           <div style="text-align:center; margin-bottom:28px;">
             <div style="font-size:32px; font-weight:800; background:linear-gradient(135deg, #1e40af, #2563eb); -webkit-background-clip:text; -webkit-text-fill-color:transparent;">集智 JIZHI</div>
-            <div style="font-size:13px; color:#64748b; margin-top:6px; font-weight:600;">多智能体协同写作与人机共存学习平台</div>
+            <div style="font-size:13.5px; color:#475569; margin-top:6px; font-weight:700;">面向团队协作的多智能体人机协同写作平台</div>
           </div>
           <form id="login-form" style="display:flex; flex-direction:column; gap:16px;">
             <div style="display:flex; flex-direction:column; gap:6px;">
               <label style="font-size:13px; font-weight:700; color:#334155;">工号 / 学号</label>
-              <input type="text" id="login-account" class="teacher-input" placeholder="请输入工号或者学号" value="" required style="width:100%;">
+              <input type="text" id="login-account" class="teacher-input" placeholder="请输入工号或者学号" value="${escapeHtml(savedAccount)}" autocomplete="off" required style="width:100%;">
             </div>
             <div style="display:flex; flex-direction:column; gap:6px;">
               <label style="font-size:13px; font-weight:700; color:#334155;">密码</label>
-              <input type="password" id="login-password" class="teacher-input" placeholder="请输入密码" value="" required style="width:100%;">
+              <input type="password" id="login-password" class="teacher-input" placeholder="请输入密码" value="" autocomplete="off" required style="width:100%;">
             </div>
             <div style="display:flex; flex-direction:column; gap:6px;">
               <label style="font-size:13px; font-weight:700; color:#334155;">登录身份</label>
               <div id="login-role-selector" style="display:flex; gap:10px;">
                 <label id="role-opt-student" style="flex:1; display:flex; align-items:center; justify-content:center; gap:6px; padding:10px; border:1.5px solid #2563eb; border-radius:8px; cursor:pointer; font-size:13px; font-weight:700; color:#1e40af; background:#eff6ff;">
-                  <input type="radio" name="login-role" value="student" checked style="accent-color:#2563eb;"> 🎓 学生
+                  <input type="radio" name="login-role" value="student" ${savedRole !== 'teacher' ? 'checked' : ''} style="accent-color:#2563eb;"> 🎓 学生
                 </label>
                 <label id="role-opt-teacher" style="flex:1; display:flex; align-items:center; justify-content:center; gap:6px; padding:10px; border:1.5px solid #cbd5e1; border-radius:8px; cursor:pointer; font-size:13px; font-weight:600; color:#334155; background:#ffffff;">
-                  <input type="radio" name="login-role" value="teacher" style="accent-color:#2563eb;"> 👩‍🏫 教师
+                  <input type="radio" name="login-role" value="teacher" ${savedRole === 'teacher' ? 'checked' : ''} style="accent-color:#2563eb;"> 👩‍🏫 教师
                 </label>
               </div>
             </div>
@@ -3103,6 +3106,9 @@
               🚀 登录集智平台
             </button>
           </form>
+          <div style="text-align:center; margin-top:24px; font-size:12px; color:#94a3b8; font-weight:500;">
+            <a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener noreferrer" style="color:#94a3b8; text-decoration:none;">浙ICP备2026066047号-1</a>
+          </div>
         </div>
       </div>
     `;
@@ -3138,16 +3144,32 @@
     if (roleSelector) roleSelector.addEventListener('change', highlightRole);
     highlightRole();
 
-    accountInput.addEventListener('input', (e) => {
-      const val = (e.target.value || '').trim().toLowerCase();
-      if (val === 'teacher' || val === 'admin') {
+    // 👨‍🏫 智能识别教师账号并自动选定「教师」身份 (教师账号唯一)
+    const autoDetectTeacherRole = () => {
+      const val = (accountInput ? accountInput.value : '').trim().toLowerCase();
+      if (!val) return;
+      const allUsers = (authManager && authManager.getUsers) ? authManager.getUsers() : [];
+      const isTeacher = val === 'teacher' || val === 'admin' || allUsers.some(u => 
+        (u.role === 'teacher' || u.isTeacher) && (
+          (u.username && u.username.toLowerCase() === val) ||
+          (u.studentCode && u.studentCode.toLowerCase() === val) ||
+          (u.id && u.id.toLowerCase() === val) ||
+          (u.name && u.name.toLowerCase() === val)
+        )
+      );
+      if (isTeacher) {
         const teacherRadio = container.querySelector('input[name="login-role"][value="teacher"]');
-        if (teacherRadio) {
+        if (teacherRadio && !teacherRadio.checked) {
           teacherRadio.checked = true;
           highlightRole();
         }
       }
-    });
+    };
+
+    accountInput.addEventListener('input', autoDetectTeacherRole);
+    accountInput.addEventListener('change', autoDetectTeacherRole);
+    accountInput.addEventListener('blur', autoDetectTeacherRole);
+    if (savedAccount) autoDetectTeacherRole();
 
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
@@ -3158,9 +3180,20 @@
         const selectedRole = (container.querySelector('input[name="login-role"]:checked') || {}).value || 'student';
         const res = await (authManager.loginAsync ? authManager.loginAsync(accountInput.value, passwordInput.value, selectedRole) : authManager.login(accountInput.value, passwordInput.value, selectedRole));
         if (res && res.success) {
+          try {
+            localStorage.setItem('jizhi_last_login_account', accountInput.value.trim());
+            localStorage.setItem('jizhi_last_login_role', selectedRole);
+          } catch (e) {}
           onLoginSuccess();
         } else {
-          errorMsg.innerText = (res && res.message) ? res.message : '❌ 账号或密码错误';
+          if (res && res.suggestedRole) {
+            const targetRadio = container.querySelector(`input[name="login-role"][value="${res.suggestedRole}"]`);
+            if (targetRadio) {
+              targetRadio.checked = true;
+              highlightRole();
+            }
+          }
+          errorMsg.innerText = (res && res.message) ? res.message : '❌ 账号不存在或密码错误，请核对后重试';
           errorMsg.style.display = 'block';
         }
       } catch (err) {
@@ -3170,6 +3203,13 @@
         if (submitBtn) { submitBtn.disabled = false; submitBtn.innerText = '🚀 登录集智平台'; }
       }
     });
+
+    // 💡 智能光标聚焦：若已自动回填学号，直接聚焦密码框方便输入
+    if (savedAccount && passwordInput) {
+      setTimeout(() => { try { passwordInput.focus(); } catch (e) {} }, 100);
+    } else if (accountInput) {
+      setTimeout(() => { try { accountInput.focus(); } catch (e) {} }, 100);
+    }
   }
 
   /* ==========================================================================
@@ -3203,15 +3243,18 @@
     const allUsers = authManager.getUsers();
     const classStudents = authManager.getClassStudents(activeClass.id);
 
-    // 🛡️ 严格按当前主班过滤写作任务（绝不串出其他班级或历史游离任务）
+    // 🛡️ 严格按当前班级隔离写作任务、通知与文献（绝不串出其他班级数据）
     const currentClassTasks = tasks.filter(t => t.classId === activeClass.id || (t.className && t.className === activeClass.name) || (!t.classId && activeClass.id === 'class_101'));
-    const currentClassAnnouncements = announcements.filter(a => (a.classId === 'all' || !a.classId || a.classId === activeClass.id) && !a.isSystemAction);
-    const currentClassPapers = refPapers.filter(p => p.classId === 'all' || !p.classId || p.classId === activeClass.id);
+    const currentClassAnnouncements = announcements.filter(a => (a.classId === activeClass.id || (a.className && a.className === activeClass.name) || (!a.classId && activeClass.id === 'class_101') || (Array.isArray(a.targetClassIds) && a.targetClassIds.includes(activeClass.id))) && !a.isSystemAction);
+    const currentClassPapers = refPapers.filter(p => p.classId === activeClass.id || (p.className && p.className === activeClass.name) || (!p.classId && activeClass.id === 'class_101') || (Array.isArray(p.targetClassIds) && p.targetClassIds.includes(activeClass.id)));
 
     const classTaskExists = currentClassTasks.some(t => t.id === state.activeTaskId);
-    const effectiveMonitorTaskId = (state.activeTaskId && classTaskExists)
+    let effectiveMonitorTaskId = (state.activeTaskId && classTaskExists)
       ? state.activeTaskId
-      : (currentClassTasks[0] ? currentClassTasks[0].id : 'task_default');
+      : (currentClassTasks[0] ? currentClassTasks[0].id : `task_${activeClass.id}_default`);
+    if (!effectiveMonitorTaskId || effectiveMonitorTaskId === 'task_default') {
+      effectiveMonitorTaskId = `task_${activeClass.id}_default`;
+    }
     state.activeTaskId = effectiveMonitorTaskId;
     if (window.app && window.app.state) window.app.state.activeTaskId = effectiveMonitorTaskId;
 
@@ -3223,7 +3266,7 @@
     if (window.app && window.app.state) window.app.state.activeMonitorGroupId = activeMonitorGId;
 
     const activeMonitorGroup = (activeClass.groups || []).find(g => g.id === activeMonitorGId) || (activeClass.groups && activeClass.groups[0]) || { id: 'group_1', name: '第1小组' };
-    const monitorMembersObj = authManager.getGroupMembersForWorkspace(activeMonitorGId);
+    const monitorMembersObj = authManager.getGroupMembersForWorkspace(activeMonitorGId, activeClass.id);
     const monitorMembersList = Object.values(monitorMembersObj);
 
     // ⚡ 教师端自动轻量轮询：自调度循环，杜绝并发拉取与 interval 重注册竞态
@@ -3236,9 +3279,15 @@
       }
 
       if (state.teacherActiveTab === 'view_monitoring' && window.app && window.app.cloudSyncEngine) {
-        const activeTaskId = state.activeTaskId || (currentClassTasks[0] ? currentClassTasks[0].id : 'task_default');
-        window.app.cloudSyncEngine.groupId = activeMonitorGId;
+        const currentCId = state.activeClassId || activeClass.id || 'class_101';
+        let activeTaskId = state.activeTaskId || (currentClassTasks[0] ? currentClassTasks[0].id : `task_${currentCId}_default`);
+        if (!activeTaskId || activeTaskId === 'task_default') {
+          activeTaskId = `task_${currentCId}_default`;
+        }
+        const currentGId = state.activeMonitorGroupId || activeMonitorGId;
+        window.app.cloudSyncEngine.groupId = currentGId;
         window.app.cloudSyncEngine.taskId = activeTaskId;
+        window.app.cloudSyncEngine.effectiveClassId = currentCId;
         window.app.cloudSyncEngine.updateScopeKeys();
 
         const oldFingerprint = JSON.stringify({
@@ -3257,22 +3306,42 @@
 
         try {
           await window.app.cloudSyncEngine.pullFromServer();
-          // 📝 针对阶段二，同时从 Etherpad 提取最新正文镜像
-          const padName = `jizhi_${activeTaskId}_${activeMonitorGId}`;
-          const epRes = await fetch(`sync.php?action=get_pad_text&padId=${padName}`).then(r => r.json()).catch(() => null);
-          if (epRes && epRes.success && epRes.text) {
+          // 📝 针对阶段二，同时从 Etherpad 提取最新正文镜像（支持 Hash 增量早退）
+          const padName = `jizhi_${activeTaskId}_${currentGId}`;
+          const lastEpHash = state._lastEpHash || '';
+          const epRes = await fetch(`sync.php?action=get_pad_html&padId=${padName}&clientHash=${encodeURIComponent(lastEpHash)}`).then(r => r.json()).catch(() => null);
+          if (epRes && epRes.hash) state._lastEpHash = epRes.hash;
+          if (epRes && epRes.success && !epRes.unchanged && (epRes.html || epRes.text)) {
             if (!state.stage2) state.stage2 = {};
-            state.stage2.unifiedContent = epRes.text;
+            state.stage2.unifiedContent = epRes.html || epRes.text;
           }
-          // 🆕 全组全景总览：拉取所有小组的在线/阶段/锁/终稿快照，供顶部全景卡片网格使用
           const curT = authManager.getCurrentUser();
           const tToken = (curT && (curT.activeSessionId || curT.token)) || '';
           const tId = (curT && (curT.id || curT.username)) || '';
-          const panRes = await fetch(`sync.php?action=get_teacher_monitor_all_groups&taskId=${encodeURIComponent(activeTaskId)}&userId=${encodeURIComponent(tId)}&token=${encodeURIComponent(tToken)}`).then(r => r.json()).catch(() => null);
+          const lastHash = state._lastMonitorHash || '';
+          const panRes = await fetch(`sync.php?action=get_teacher_monitor_all_groups&taskId=${encodeURIComponent(activeTaskId)}&classId=${encodeURIComponent(currentCId)}&userId=${encodeURIComponent(tId)}&token=${encodeURIComponent(tToken)}&clientHash=${encodeURIComponent(lastHash)}`).then(r => r.json()).catch(() => null);
           if (panRes && panRes.success && panRes.groups) {
             state.monitorPanorama = panRes.groups;
+            if (panRes.hash) state._lastMonitorHash = panRes.hash;
+
+            // 🎯 核心修复：将当前正在同屏监控的小组真实数据精准同步到 state
+            const currentGroupData = panRes.groups[currentGId];
+            if (currentGroupData) {
+              state.stage1 = currentGroupData.stage1 || { proposals: [], votes: {}, hasVoted: {}, contract: {} };
+              state.stage2 = {
+                ...(state.stage2 || {}),
+                ...(currentGroupData.stage2 || {}),
+                unifiedContent: (state.stage2 && state.stage2.unifiedContent) ? state.stage2.unifiedContent : (currentGroupData.stage2?.unifiedContent || '')
+              };
+              state.stage3 = currentGroupData.stage3 || { feedbackItems: [] };
+              state.chatLogs = currentGroupData.chatLogs || { stage1: [], stage2: [], stage3: [] };
+              state.currentStage = currentGroupData.currentStage || 'stage1';
+              state.isFinalSubmitted = !!currentGroupData.isFinalSubmitted;
+            }
           }
-        } catch (e) {}
+        } catch (e) {
+          console.warn('[TeacherMonitor] 监控拉取警告:', e);
+        }
 
         const newFingerprint = JSON.stringify({
           cStage: state.currentStage,
@@ -3280,7 +3349,8 @@
           s1Title: state.stage1?.mergedTitle,
           s1Votes: Object.keys(state.stage1?.votes || {}).length,
           s1Conf: Object.keys(state.stage1?.contract?.confirmedMembers || {}).length,
-          s2Len: (state.stage2?.unifiedContent || '').length,
+          s2Conf: Object.keys(state.stage2?.confirmedMembers || {}).length,
+          s2DraftConf: !!state.stage2?.isDraftConfirmed,
           s3Len: (state.stage3?.feedbackItems || []).length,
           chat1: (state.chatLogs?.stage1 || []).length,
           chat2: (state.chatLogs?.stage2 || []).length,
@@ -3315,18 +3385,34 @@
           }
         } catch (e) {}
       }
-      window._teacherPortalSyncTimer = setTimeout(teacherPullAndRefresh, 3000);
+
+      const isTeacherIdle = () => document.hidden || (Date.now() - (window._lastTeacherActivity || Date.now()) > 60000);
+      const tInterval = isTeacherIdle() ? 15000 : 3000;
+      window._teacherPortalSyncTimer = setTimeout(teacherPullAndRefresh, tInterval);
     };
     if (window._teacherPortalSyncTimer) clearTimeout(window._teacherPortalSyncTimer);
-    window._teacherPortalSyncTimer = setTimeout(teacherPullAndRefresh, 3000);
+
+    window._lastTeacherActivity = Date.now();
+    const markTeacherActive = () => {
+      const wasIdle = (Date.now() - window._lastTeacherActivity > 60000);
+      window._lastTeacherActivity = Date.now();
+      if (wasIdle && state.teacherActiveTab === 'view_monitoring') {
+        teacherPullAndRefresh();
+      }
+    };
+    ['mousemove', 'keydown', 'touchstart', 'scroll', 'click'].forEach(evt => {
+      window.addEventListener(evt, markTeacherActive, { passive: true });
+    });
+
+    const tInitInterval = (document.hidden ? 15000 : 3000);
+    window._teacherPortalSyncTimer = setTimeout(teacherPullAndRefresh, tInitInterval);
 
     container.innerHTML = `
       <div class="teacher-portal-layout" id="teacher-portal-layout" style="height:100vh; overflow-y:auto !important; -webkit-overflow-scrolling:touch; background:#f0f4f9; padding:0; display:flex; flex-direction:column;">
         <!-- 全屏头部导航 -->
-        <header class="teacher-header" style="padding:16px 32px; background:#ffffff; border-bottom:1px solid #e2e8f0; width:100%; flex-shrink:0; box-shadow:0 1px 3px rgba(15,23,42,0.04);">
-          <div class="brand-section">
+        <header class="teacher-header" style="padding:16px 32px; background:#ffffff; border-bottom:1px solid #e2e8f0; width:100%; flex-shrink:0; box-shadow:0 1px 3px rgba(15,23,42,0.04); display:flex; justify-content:space-between; align-items:center;">
+          <div class="brand-section" style="display:flex; align-items:center; gap:14px;">
             <div class="brand-logo" style="font-size:22px; font-weight:800; background:linear-gradient(135deg, #1e40af, #2563eb); -webkit-background-clip:text; -webkit-text-fill-color:transparent;">集智 JIZHI 教师端</div>
-            <div class="brand-badge teacher-badge" style="background:#ecfdf5; color:#059669; border:1px solid #a7f3d0; padding:4px 12px; border-radius:12px; font-size:12px; font-weight:700;">👩‍🏫 全局实时教务控制中心 🟢</div>
           </div>
           <div class="teacher-info" style="display:flex; align-items:center; gap:14px;">
             <span style="font-size:13.5px; color:#334155;">当前班级: <b style="color:#2563eb;">${activeClass.name}</b></span>
@@ -3392,9 +3478,10 @@
               <div class="card" style="border-top:4px solid #2563eb; width:100%; padding:24px;">
                 <div class="card-title" style="margin-bottom:16px;">
                   <span style="font-size:17px; font-weight:800; color:#0f172a;">👨‍🎓 学生账号管理 (当前班级: ${activeClass.name})</span>
-                  <div style="display:flex; gap:10px; align-items:center;">
-                    <button id="btn-v1-add-student" class="teacher-action-btn" style="background:linear-gradient(135deg, #1d4ed8, #2563eb); border:none; color:white; padding:8px 18px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer; box-shadow:0 2px 8px rgba(37,99,235,0.25);">+ 单条创建学生账号</button>
-                    <button id="btn-v1-import-file" class="teacher-action-btn" style="background:linear-gradient(135deg, #1d4ed8, #2563eb); border:none; color:white; padding:8px 18px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer; box-shadow:0 2px 8px rgba(37,99,235,0.25);">
+                  <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+                    <button id="btn-v1-add-student" class="teacher-action-btn" style="background:linear-gradient(135deg, #1d4ed8, #2563eb); border:none; color:white; padding:8px 16px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer; box-shadow:0 2px 8px rgba(37,99,235,0.25);">+ 单条创建学生账号</button>
+                    <button id="btn-v1-enroll-existing-student" class="teacher-action-btn" style="background:#eff6ff; border:1.5px solid #bfdbfe; color:#1d4ed8; padding:8px 16px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer;">👥 加入已有学生到班级</button>
+                    <button id="btn-v1-import-file" class="teacher-action-btn" style="background:linear-gradient(135deg, #1d4ed8, #2563eb); border:none; color:white; padding:8px 16px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer; box-shadow:0 2px 8px rgba(37,99,235,0.25);">
                       📥 上传 XLSX / CSV 文件导入
                     </button>
                     ${classStudents.length > 0 ? `
@@ -3516,7 +3603,7 @@
                             ${groupMembers.length === 0 ? '<span style="color:#94a3b8; font-size:12px;">⚠️ 暂未勾选成员</span>' : ''}
                             ${groupMembers.map(m => `
                               <span style="background:#eff6ff; border:1px solid #bfdbfe; color:#1d4ed8; padding:4px 10px; border-radius:6px; font-weight:600;">
-                                ${m.avatar || '👤'} ${m.name} ${(m.role === 'leader' || m.roleTitle?.includes('组长') || m.studentCode === 'A') ? '<b style="color:#d97706;">(组长)</b>' : ''}
+                                ${m.avatar || '👤'} ${m.name}
                               </span>
                             `).join('')}
                           </div>
@@ -3531,9 +3618,9 @@
           ` : ''}
 
           ${activeTab === 'view_publishing' ? (() => {
-            const currentClassTasks = tasks.filter(t => t.classId === 'all' || t.classId === activeClass.id);
-            const currentClassAnnouncements = announcements.filter(a => (a.classId === 'all' || !a.classId || a.classId === activeClass.id) && !a.isSystemAction);
-            const currentClassPapers = refPapers.filter(p => p.classId === 'all' || !p.classId || p.classId === activeClass.id);
+            const currentClassTasks = tasks.filter(t => t.classId === activeClass.id || (t.className && t.className === activeClass.name) || (!t.classId && activeClass.id === 'class_101'));
+            const currentClassAnnouncements = announcements.filter(a => (a.classId === activeClass.id || (a.className && a.className === activeClass.name) || (!a.classId && activeClass.id === 'class_101') || (Array.isArray(a.targetClassIds) && a.targetClassIds.includes(activeClass.id))) && !a.isSystemAction);
+            const currentClassPapers = refPapers.filter(p => p.classId === activeClass.id || (p.className && p.className === activeClass.name) || (!p.classId && activeClass.id === 'class_101') || (Array.isArray(p.targetClassIds) && p.targetClassIds.includes(activeClass.id)));
 
             const surveysList = authManager.getSurveysList();
             const currentSelectedSurveyUrl = authManager.getSurveyUrl(activeClass.id, currentClassTasks[0] ? currentClassTasks[0].id : 'task_default');
@@ -3572,7 +3659,7 @@
                           `}
                         </div>
                         <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
-                          <span style="font-size:12px; color:#64748b; margin-right:4px;">🕒 发布时间: <b>${t.createdAt || t.startTime || '刚刚'}</b></span>
+                          <span style="font-size:12px; color:#64748b; margin-right:4px;">🕒 发布时间: <b>${formatStandardDateDash(t.createdAt || t.startTime) || '刚刚'}</b></span>
                           <button class="btn-extend-task-deadline" data-id="${t.id}" data-title="${t.title}" data-deadline="${t.deadline || ''}" data-duration="${t.durationMinutes || 150}" style="background:linear-gradient(135deg, #d97706, #f59e0b); border:none; color:white; padding:5px 12px; border-radius:6px; font-size:12.5px; font-weight:700; cursor:pointer; box-shadow:0 2px 6px rgba(217,119,6,0.25);" title="为该任务快捷延长截止时间">
                             ⏳ 延长时间
                           </button>
@@ -3585,8 +3672,8 @@
                         </div>
                       </div>
                       <div style="font-size:13px; color:#334155; margin:10px 0; display:flex; gap:20px; background:${isExpired ? '#fef2f2' : '#f8fafc'}; padding:10px 16px; border-radius:8px; border-left:4px solid ${isExpired ? '#dc2626' : '#2563eb'};">
-                        <span>📅 <b>开始时间:</b> <span style="color:#2563eb; font-weight:700;">${t.startTime || '即时开启'}</span></span>
-                        <span>⌛ <b>截止时间:</b> <span style="color:#dc2626; font-weight:800;">${t.deadline || '无硬性限制'}</span> ${isExpired ? '<b style="color:#dc2626;">(已过截止时间)</b>' : ''}</span>
+                        <span>📅 <b>开始时间:</b> <span style="color:#2563eb; font-weight:700;">${formatStandardDateDash(t.startTime) || '即时开启'}</span></span>
+                        <span>⌛ <b>截止时间:</b> <span style="color:#dc2626; font-weight:800;">${formatStandardDateDash(t.deadline) || '无硬性限制'}</span> ${isExpired ? '<b style="color:#dc2626;">(已过截止时间)</b>' : ''}</span>
                         <span>⏱️ <b>任务时长:</b> ${formatDurationHuman(t.durationMinutes)}</span>
                       </div>
                     </div>
@@ -3900,7 +3987,7 @@
 
                 <div class="card" style="border-top:4px solid #7c3aed; width:100%; padding:16px 20px;">
                   <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; flex-wrap:wrap; gap:8px;">
-                    <span style="font-size:15px; font-weight:800; color:#0f172a;">📡 全组实时总览 <span style="font-size:11.5px; color:#64748b; font-weight:600;">（一眼扫完 · 点卡片进入单组详情）</span></span>
+                    <span style="font-size:15px; font-weight:800; color:#0f172a;">📡 全组实时总览</span>
                     <span style="font-size:11.5px; color:#64748b; font-weight:600;">
                       <span style="color:#16a34a;">🟢 正常</span>　<span style="color:#d97706;">🟡 部分离线</span>　<span style="color:#dc2626;">🔴 全员离线/字段占用</span>　<span style="color:#059669;">✅ 已终稿</span>
                     </span>
@@ -4009,8 +4096,8 @@
                 </div>
 
                 ${effectiveMonitorStage === 'stage1' ? `
-                  <div style="display:grid; grid-template-columns: 1.6fr 1fr; gap:16px; width:100%;">
-                    <div class="card" style="padding:20px; display:flex; flex-direction:column; border:1px solid #bfdbfe; gap:12px;">
+                  <div style="display:grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap:16px; width:100%; box-sizing:border-box;">
+                    <div class="card" style="padding:20px; display:flex; flex-direction:column; border:1px solid #bfdbfe; gap:12px; min-width:0; box-sizing:border-box;">
                       <div style="font-size:15px; font-weight:800; color:#1e40af; display:flex; justify-content:space-between; align-items:center;">
                         <span>🎪 阶段一实操同屏: 初始提案与学术合作公约 (${activeMonitorGroup.name})</span>
                         <span style="background:#eff6ff; color:#1d4ed8; padding:2px 8px; border-radius:8px; font-size:11px; font-weight:700;">阶段一实况</span>
@@ -4026,8 +4113,10 @@
                         ${(state.stage1?.proposals && state.stage1.proposals.length > 0) ? `
                           <div class="proposals-grid" style="display:grid; grid-template-columns:repeat(auto-fill, minmax(200px, 1fr)); gap:12px;">
                             ${state.stage1.proposals.map((p, idx) => {
+                              const allGlobalUsers = (authManager) ? authManager.getUsers() : [];
                               const authorObj = monitorMembersList.find(m => m.id === p.author || m.studentCode === p.author || m.name === p.authorName || m.name === p.author);
-                              const authorName = authorObj ? authorObj.name : (p.authorName || p.author || `组员${idx+1}`);
+                              const authorUser = allGlobalUsers.find(u => u.id === p.author || u.studentCode === p.author || u.username === p.author || u.name === p.authorName);
+                              const authorName = authorObj ? authorObj.name : (authorUser ? authorUser.name : (p.authorName || p.author || `组员${idx+1}`));
                               const votes = p.votes || 0;
                               return `
                                 <div class="proposal-card ${votes > 0 ? 'voted' : ''}" style="background:#ffffff; border:1.5px solid ${votes > 0 ? '#3b82f6' : '#cbd5e1'}; border-radius:10px; padding:12px; display:flex; flex-direction:column; box-shadow:0 2px 6px rgba(0,0,0,0.03);">
@@ -4123,9 +4212,11 @@
                       <div style="font-size:15px; font-weight:800; color:#0f172a; margin-bottom:12px;">💬 阶段一研讨对话流 (${activeMonitorGroup.name})</div>
                       <div style="flex:1; max-height:420px; overflow-y:auto; background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:12px; font-size:12px; display:flex; flex-direction:column; gap:10px;">
                         ${((state.chatLogs && state.chatLogs['stage1']) || []).map(m => {
+                          const allGlobalUsers = (authManager) ? authManager.getUsers() : [];
                           const isAgent = AgentProfiles[m.sender] !== undefined;
-                          const senderName = isAgent ? AgentProfiles[m.sender].name : (monitorMembersObj[m.sender] ? monitorMembersObj[m.sender].name : m.sender);
-                          const color = isAgent ? AgentProfiles[m.sender].color : (monitorMembersObj[m.sender] ? monitorMembersObj[m.sender].color : '#2563eb');
+                          const matchedUser = isAgent ? null : allGlobalUsers.find(u => u.id === m.sender || u.studentCode === m.sender || u.username === m.sender || u.name === m.sender);
+                          const senderName = isAgent ? AgentProfiles[m.sender].name : (matchedUser ? matchedUser.name : (m.senderName || (monitorMembersObj[m.sender] ? monitorMembersObj[m.sender].name : m.sender)));
+                          const color = isAgent ? AgentProfiles[m.sender].color : (matchedUser ? (matchedUser.color || '#2563eb') : (monitorMembersObj[m.sender] ? monitorMembersObj[m.sender].color : '#2563eb'));
                           return `
                             <div style="background:#ffffff; padding:8px 12px; border-radius:8px; border:1px solid #e2e8f0; border-left:3px solid ${color};">
                               <div style="display:flex; justify-content:space-between; margin-bottom:3px;">
@@ -4142,14 +4233,14 @@
                 ` : ''}
 
                 ${effectiveMonitorStage === 'stage2' ? `
-                  <div style="display:grid; grid-template-columns: 1.6fr 1fr; gap:16px; width:100%;">
-                    <div class="card" style="padding:20px; display:flex; flex-direction:column; border:1px solid #bfdbfe;">
+                  <div style="display:grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap:16px; width:100%; box-sizing:border-box;">
+                    <div class="card" style="padding:20px; display:flex; flex-direction:column; border:1px solid #bfdbfe; min-width:0; box-sizing:border-box;">
                       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
                         <div style="display:flex; align-items:center; gap:8px;">
                           <span style="font-size:15px; font-weight:800; color:#1e40af;">📝 实时写作大正文镜像 (${activeMonitorGroup.name})</span>
                           <span style="font-size:11px; background:#ecfdf5; color:#059669; padding:2px 8px; border-radius:10px; font-weight:700; border:1px solid #a7f3d0;">🟢 实时同步中</span>
                         </div>
-                        <span style="font-size:12.5px; color:#475569;">总字数: <b style="color:#2563eb; font-size:14px;">${(state.stage2?.unifiedContent || '').length}</b> 字</span>
+                        <span style="font-size:12.5px; color:#475569;">总字数: <b style="color:#2563eb; font-size:14px;">${(state.stage2?.unifiedContent || '').replace(/<[^>]*>/g, '').trim().length}</b> 字</span>
                       </div>
                       <div style="background:#eff6ff; border:1px solid #bfdbfe; border-radius:8px; padding:10px 14px; margin-bottom:12px; font-size:12px; color:#1d4ed8; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
                         <div>
@@ -4165,8 +4256,8 @@
                           }).join('')}
                         </div>
                       </div>
-                      <div id="teacher-live-doc-mirror" style="flex:1; min-height:340px; max-height:480px; overflow-y:auto; font-family:'SimSun', 'Times New Roman', serif; font-size:13.5px; line-height:1.75; background:#ffffff; color:#0f172a; border:1px solid #cbd5e1; border-radius:6px; padding:16px 20px; box-shadow:inset 0 1px 3px rgba(0,0,0,0.02);">
-                        ${(state.stage2?.unifiedContent || '').replace(/<span class="remote-cursor-widget"[\s\S]*?<\/span>/gi, '').trim() || '<span style="color:#94a3b8; font-family:sans-serif; font-style:italic;">（小组成员尚未开始撰写正文）</span>'}
+                      <div id="teacher-live-doc-mirror" style="flex:1; min-height:360px; max-height:480px; background:#ffffff; border:1px solid #cbd5e1; border-radius:6px; overflow:hidden; position:relative;">
+                        <iframe src="/p/jizhi_${activeTaskId}_${activeMonitorGId}?showControls=false&showChat=false&showLineNumbers=true" style="pointer-events:none; border:none; width:100%; height:100%; min-height:360px;" title="教师端实时写作同屏镜像"></iframe>
                       </div>
                       <div style="margin-top:14px; background:#f8fafc; padding:12px; border-radius:8px; border:1px solid #e2e8f0;">
                         <div style="font-size:12px; font-weight:700; color:#334155; margin-bottom:6px;">📊 本组 SSRL 成员字数与互动贡献比率 (${monitorMembersList.length} 位成员)</div>
@@ -4204,9 +4295,11 @@
                       <div style="font-size:15px; font-weight:800; color:#0f172a; margin-bottom:12px;">💬 阶段二编辑部研讨流 (${activeMonitorGroup.name})</div>
                       <div style="flex:1; max-height:460px; overflow-y:auto; background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:12px; font-size:12px; display:flex; flex-direction:column; gap:10px;">
                         ${((state.chatLogs && state.chatLogs['stage2']) || []).map(m => {
+                          const allGlobalUsers = (authManager) ? authManager.getUsers() : [];
                           const isAgent = AgentProfiles[m.sender] !== undefined;
-                          const senderName = isAgent ? AgentProfiles[m.sender].name : (monitorMembersObj[m.sender] ? monitorMembersObj[m.sender].name : m.sender);
-                          const color = isAgent ? AgentProfiles[m.sender].color : (monitorMembersObj[m.sender] ? monitorMembersObj[m.sender].color : '#2563eb');
+                          const matchedUser = isAgent ? null : allGlobalUsers.find(u => u.id === m.sender || u.studentCode === m.sender || u.username === m.sender || u.name === m.sender);
+                          const senderName = isAgent ? AgentProfiles[m.sender].name : (matchedUser ? matchedUser.name : (m.senderName || (monitorMembersObj[m.sender] ? monitorMembersObj[m.sender].name : m.sender)));
+                          const color = isAgent ? AgentProfiles[m.sender].color : (matchedUser ? (matchedUser.color || '#2563eb') : (monitorMembersObj[m.sender] ? monitorMembersObj[m.sender].color : '#2563eb'));
                           return `
                             <div style="background:#ffffff; padding:8px 12px; border-radius:8px; border:1px solid #e2e8f0; border-left:3px solid ${color};">
                               <div style="display:flex; justify-content:space-between; margin-bottom:3px;">
@@ -4223,8 +4316,8 @@
                 ` : ''}
 
                 ${effectiveMonitorStage === 'stage3' ? `
-                  <div style="display:grid; grid-template-columns: 1.6fr 1fr; gap:16px; width:100%; min-height:500px;">
-                    <div class="card" style="padding:20px; display:flex; flex-direction:column; border:1px solid #bfdbfe; min-width:0; gap:12px;">
+                  <div style="display:grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap:16px; width:100%; min-height:500px; box-sizing:border-box;">
+                    <div class="card" style="padding:20px; display:flex; flex-direction:column; border:1px solid #bfdbfe; min-width:0; gap:12px; box-sizing:border-box;">
                       <div style="font-size:15px; font-weight:800; color:#1e40af; display:flex; justify-content:space-between; align-items:center;">
                         <span>🎓 阶段三实操同屏: 答辩擂台与终稿 (${activeMonitorGroup.name})</span>
                         <div style="display:flex; gap:6px;">
@@ -4238,10 +4331,10 @@
                         <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:14px; flex:1; display:flex; flex-direction:column;">
                           <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
                             <span style="font-size:13.5px; font-weight:800; color:#1e40af;">📜 论文终稿正文全篇镜像:</span>
-                            <span style="font-size:12px; color:#64748b;">终稿字数: <b style="color:#2563eb; font-size:14px;">${(state.stage3?.finalDraft || state.stage2?.unifiedContent || '').length}</b> 字</span>
+                            <span style="font-size:12px; color:#64748b;">终稿字数: <b style="color:#2563eb; font-size:14px;">${((state.stage3?.finalDraft || state.stage2?.unifiedContent || '').replace(/<[^>]*>/g, '').trim()).length}</b> 字</span>
                           </div>
-                          <div style="flex:1; min-height:360px; max-height:480px; overflow-y:auto; font-family:'SimSun', 'Times New Roman', serif; font-size:13.5px; line-height:1.75; background:#ffffff; color:#0f172a; border:1px solid #cbd5e1; border-radius:6px; padding:16px 20px; box-shadow:inset 0 1px 3px rgba(0,0,0,0.02);">
-                            ${(state.stage3?.finalDraft || state.stage2?.unifiedContent || '').replace(/<span class="remote-cursor-widget"[\s\S]*?<\/span>/gi, '').trim() || '<span style="color:#94a3b8; font-family:sans-serif; font-style:italic;">（小组成员尚未提交论文终稿）</span>'}
+                          <div style="flex:1; min-height:360px; max-height:480px; background:#ffffff; border:1px solid #cbd5e1; border-radius:6px; overflow:hidden; position:relative;">
+                            <iframe src="/p/jizhi_${activeTaskId}_${activeMonitorGId}?showControls=false&showChat=false&showLineNumbers=true" style="pointer-events:none; border:none; width:100%; height:100%; min-height:360px;" title="教师端论文终稿同屏镜像"></iframe>
                           </div>
                         </div>
                       ` : `
@@ -4286,9 +4379,11 @@
                       <div style="font-size:15px; font-weight:800; color:#0f172a; margin-bottom:12px;">💬 阶段三答辩对话流 (${activeMonitorGroup.name})</div>
                       <div style="flex:1; max-height:460px; overflow-y:auto; background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:12px; font-size:12px; display:flex; flex-direction:column; gap:10px;">
                         ${((state.chatLogs && state.chatLogs['stage3']) || []).map(m => {
+                          const allGlobalUsers = (authManager) ? authManager.getUsers() : [];
                           const isAgent = AgentProfiles[m.sender] !== undefined;
-                          const senderName = isAgent ? AgentProfiles[m.sender].name : (monitorMembersObj[m.sender] ? monitorMembersObj[m.sender].name : m.sender);
-                          const color = isAgent ? AgentProfiles[m.sender].color : (monitorMembersObj[m.sender] ? monitorMembersObj[m.sender].color : '#2563eb');
+                          const matchedUser = isAgent ? null : allGlobalUsers.find(u => u.id === m.sender || u.studentCode === m.sender || u.username === m.sender || u.name === m.sender);
+                          const senderName = isAgent ? AgentProfiles[m.sender].name : (matchedUser ? matchedUser.name : (m.senderName || (monitorMembersObj[m.sender] ? monitorMembersObj[m.sender].name : m.sender)));
+                          const color = isAgent ? AgentProfiles[m.sender].color : (matchedUser ? (matchedUser.color || '#2563eb') : (monitorMembersObj[m.sender] ? monitorMembersObj[m.sender].color : '#2563eb'));
                           return `
                             <div style="background:#ffffff; padding:8px 12px; border-radius:8px; border:1px solid #e2e8f0; border-left:3px solid ${color};">
                               <div style="display:flex; justify-content:space-between; margin-bottom:3px;">
@@ -4348,7 +4443,25 @@
 
     container.querySelectorAll('.btn-select-class').forEach(btn => {
       btn.addEventListener('click', () => {
-        state.activeClassId = btn.dataset.id;
+        const newCId = btn.dataset.id;
+        state.activeClassId = newCId;
+        const targetC = (authManager.getClasses() || []).find(c => c.id === newCId);
+        const cTasks = (authManager.getTasks() || []).filter(t => t.classId === newCId || (targetC && t.className === targetC.name) || (!t.classId && newCId === 'class_101'));
+        state.activeTaskId = cTasks[0] ? cTasks[0].id : 'task_default';
+        state.activeMonitorGroupId = (targetC && targetC.groups && targetC.groups[0]) ? targetC.groups[0].id : 'group_1';
+        // 🛡️ 彻底清空旧班级全景与视图缓存
+        state.monitorPanorama = null;
+        state._lastMonitorHash = '';
+        state._lastEpHash = '';
+        state.stage1 = null;
+        state.stage2 = null;
+        state.stage3 = null;
+        state.chatLogs = null;
+        if (window.app && window.app.state) {
+          window.app.state.activeClassId = newCId;
+          window.app.state.activeTaskId = state.activeTaskId;
+          window.app.state.activeMonitorGroupId = state.activeMonitorGroupId;
+        }
         renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
       });
     });
@@ -4363,7 +4476,23 @@
           try {
             authManager.deleteClass(cId);
             const remainingClasses = authManager.getClasses();
-            state.activeClassId = remainingClasses[0] ? remainingClasses[0].id : 'class_101';
+            const nextC = remainingClasses[0] || { id: 'class_101', groups: [] };
+            state.activeClassId = nextC.id;
+            const cTasks = (authManager.getTasks() || []).filter(t => t.classId === nextC.id || (!t.classId && nextC.id === 'class_101'));
+            state.activeTaskId = cTasks[0] ? cTasks[0].id : 'task_default';
+            state.activeMonitorGroupId = (nextC.groups && nextC.groups[0]) ? nextC.groups[0].id : 'group_1';
+            state.monitorPanorama = null;
+            state._lastMonitorHash = '';
+            state._lastEpHash = '';
+            state.stage1 = null;
+            state.stage2 = null;
+            state.stage3 = null;
+            state.chatLogs = null;
+            if (window.app && window.app.state) {
+              window.app.state.activeClassId = nextC.id;
+              window.app.state.activeTaskId = state.activeTaskId;
+              window.app.state.activeMonitorGroupId = state.activeMonitorGroupId;
+            }
             alert(`✅ 教学班级【${cName}】已成功删除！`);
             renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
           } catch (err) {
@@ -4414,156 +4543,69 @@
         if (name) {
           const newC = authManager.createClass(name);
           state.activeClassId = newC.id;
+          state.activeTaskId = 'task_default';
+          state.activeMonitorGroupId = (newC.groups && newC.groups[0]) ? newC.groups[0].id : 'group_1';
+          state.monitorPanorama = null;
+          state._lastMonitorHash = '';
+          state._lastEpHash = '';
+          state.stage1 = null;
+          state.stage2 = null;
+          state.stage3 = null;
+          state.chatLogs = null;
+          if (window.app && window.app.state) {
+            window.app.state.activeClassId = newC.id;
+            window.app.state.activeTaskId = state.activeTaskId;
+            window.app.state.activeMonitorGroupId = state.activeMonitorGroupId;
+          }
           renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
         }
       });
     }
 
+    // 👨‍🎓 1. 单条创建学生账号（纯粹创建面板）
     const btnAddStd = container.querySelector('#btn-v1-add-student');
     if (btnAddStd) {
       btnAddStd.addEventListener('click', () => {
         document.querySelectorAll('.modal-overlay').forEach(el => el.remove());
-
-        // 计算当前班级未包含的学生（在其他班但不在本班的学生）
-        const allUsers = authManager.getUsers();
-        const currentClassStudentIds = new Set(authManager.getClassStudents(activeClass.id).map(s => s.id));
-        const unenrolledStudents = allUsers.filter(u =>
-          u.role !== 'teacher' && !currentClassStudentIds.has(u.id)
-        );
-
         const modal = document.createElement('div');
         modal.className = 'modal-overlay';
         modal.innerHTML = `
-          <div class="teacher-modal-card fancy-task-modal" style="width:560px; background:#ffffff; border:1px solid #e2e8f0; box-shadow:0 20px 45px rgba(15,23,42,0.12);">
-            <div class="teacher-modal-header" style="background:linear-gradient(135deg, #eff6ff, #f8fafc); border-bottom:1px solid #e2e8f0; padding:18px 24px;">
+          <div class="teacher-modal-card fancy-task-modal" style="width:480px; background:#ffffff; border:1px solid #e2e8f0; box-shadow:0 20px 45px rgba(15,23,42,0.12);">
+            <div class="teacher-modal-header" style="background:linear-gradient(135deg, #eff6ff, #f8fafc); border-bottom:1px solid #e2e8f0; padding:18px 24px; display:flex; justify-content:space-between; align-items:center;">
               <div class="modal-header-title" style="display:flex; align-items:center; gap:10px;">
-                <div class="modal-icon-badge" style="background:#dbeafe; color:#2563eb; font-size:20px; padding:6px 10px; border-radius:10px;">👨‍🎓</div>
-                <div><h3 style="margin:0; font-size:17px; font-weight:800; color:#0f172a;">添加学生账号 (${activeClass.name})</h3></div>
+                <div class="modal-icon-badge" style="background:#dbeafe; color:#2563eb; font-size:20px; padding:6px 10px; border-radius:10px;">✏️</div>
+                <div><h3 style="margin:0; font-size:17px; font-weight:800; color:#0f172a;">单条创建学生账号 (${activeClass.name})</h3></div>
               </div>
               <button class="modal-close-btn" id="btn-close-single-student" style="background:#f1f5f9; border:none; color:#64748b; font-size:16px; border-radius:8px; width:30px; height:30px; cursor:pointer;">✕</button>
             </div>
 
-            <!-- 双标签切换 -->
-            <div style="display:flex; border-bottom:1px solid #e2e8f0; background:#f8fafc;">
-              <button id="tab-new-student" style="flex:1; padding:12px; font-size:13.5px; font-weight:800; border:none; cursor:pointer; background:#ffffff; color:#2563eb; border-bottom:3px solid #2563eb;">
-                ✏️ 新建学生账号
-              </button>
-              <button id="tab-enroll-student" style="flex:1; padding:12px; font-size:13.5px; font-weight:800; border:none; cursor:pointer; background:transparent; color:#64748b; border-bottom:3px solid transparent;">
-                🔗 加入已有学生 (${unenrolledStudents.length}人)
-              </button>
-            </div>
-
-            <!-- 面板1: 新建学生 -->
-            <div id="panel-new-student">
-              <div class="teacher-modal-body" style="padding:22px 24px;">
-                <div class="teacher-form-group" style="margin-bottom:14px;">
-                  <label style="font-size:13px; font-weight:700; color:#334155; margin-bottom:6px; display:block;"><span class="req" style="color:#dc2626;">*</span> 学生姓名</label>
-                  <input type="text" id="modal-std-name" class="teacher-input fancy" placeholder="输入学生姓名 (如: 张三)" value="" style="background:#ffffff; border:1.5px solid #cbd5e1; color:#0f172a; padding:10px 14px; border-radius:8px; width:100%; font-size:13.5px;">
-                </div>
-                <div class="teacher-form-group" style="margin-bottom:14px;">
-                  <label style="font-size:13px; font-weight:700; color:#334155; margin-bottom:6px; display:block;"><span class="req" style="color:#dc2626;">*</span> 学生学号 (登录账号)</label>
-                  <input type="text" id="modal-std-code" class="teacher-input fancy" placeholder="请输入学生学号或账号" value="" style="background:#ffffff; border:1.5px solid #cbd5e1; color:#0f172a; padding:10px 14px; border-radius:8px; width:100%; font-size:13.5px;">
-                </div>
-                <div class="teacher-form-group">
-                  <label style="font-size:13px; font-weight:700; color:#334155; margin-bottom:6px; display:block;">设置初始密码 (留空统一定为 123)</label>
-                  <input type="password" id="modal-std-password" class="teacher-input fancy" placeholder="留空默认为 123" style="background:#ffffff; border:1.5px solid #cbd5e1; color:#0f172a; padding:10px 14px; border-radius:8px; width:100%; font-size:13.5px;">
-                </div>
+            <div class="teacher-modal-body" style="padding:22px 24px;">
+              <div class="teacher-form-group" style="margin-bottom:14px;">
+                <label style="font-size:13px; font-weight:700; color:#334155; margin-bottom:6px; display:block;"><span class="req" style="color:#dc2626;">*</span> 学生姓名</label>
+                <input type="text" id="modal-std-name" class="teacher-input fancy" placeholder="输入学生姓名 (如: 张三)" value="" style="background:#ffffff; border:1.5px solid #cbd5e1; color:#0f172a; padding:10px 14px; border-radius:8px; width:100%; font-size:13.5px;">
               </div>
-              <div class="teacher-modal-footer" style="background:#f8fafc; border-top:1px solid #e2e8f0; padding:14px 24px; display:flex; justify-content:flex-end; gap:10px;">
-                <button class="modal-btn cancel" id="btn-cancel-single-std" style="background:#ffffff; border:1px solid #cbd5e1; color:#475569; padding:8px 18px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer;">取消</button>
-                <button class="modal-btn submit task-theme" id="btn-submit-single-std" style="background:linear-gradient(135deg, #1d4ed8, #2563eb); border:none; color:white; padding:8px 20px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer;">👨‍🎓 确认创建并加入本班</button>
+              <div class="teacher-form-group" style="margin-bottom:14px;">
+                <label style="font-size:13px; font-weight:700; color:#334155; margin-bottom:6px; display:block;"><span class="req" style="color:#dc2626;">*</span> 学生学号 (登录账号)</label>
+                <input type="text" id="modal-std-code" class="teacher-input fancy" placeholder="请输入学生学号或账号" value="" style="background:#ffffff; border:1.5px solid #cbd5e1; color:#0f172a; padding:10px 14px; border-radius:8px; width:100%; font-size:13.5px;">
+              </div>
+              <div class="teacher-form-group">
+                <label style="font-size:13px; font-weight:700; color:#334155; margin-bottom:6px; display:block;">设置初始密码 (留空统一定为 123)</label>
+                <input type="password" id="modal-std-password" class="teacher-input fancy" placeholder="留空默认为 123" style="background:#ffffff; border:1.5px solid #cbd5e1; color:#0f172a; padding:10px 14px; border-radius:8px; width:100%; font-size:13.5px;">
               </div>
             </div>
-
-            <!-- 面板2: 加入已有学生 -->
-            <div id="panel-enroll-student" style="display:none;">
-              <div class="teacher-modal-body" style="padding:20px 24px;">
-                <div style="font-size:12.5px; color:#1e40af; background:#eff6ff; border:1px solid #bfdbfe; border-radius:8px; padding:10px 14px; margin-bottom:12px;">
-                  💡 以下学生已在其他班级中存在。勾选后可将其同时关联进本班，<b>账号不会重复创建</b>。
-                </div>
-                <div style="margin-bottom:10px;">
-                  <input type="text" id="input-search-enroll-std" placeholder="🔍 输入姓名或学号快速搜索已有学生..." style="background:#ffffff; border:1.5px solid #cbd5e1; color:#0f172a; padding:8px 12px; border-radius:8px; width:100%; font-size:13px; outline:none;">
-                </div>
-                <div id="enroll-std-list-box" style="max-height:260px; overflow-y:auto; display:flex; flex-direction:column; gap:8px;">
-                  ${unenrolledStudents.length === 0 ? `
-                    <div style="text-align:center; color:#64748b; padding:32px; font-size:13.5px;">
-                      ✅ 当前所有学生账号已加入本班，无可选学生
-                    </div>
-                  ` : unenrolledStudents.map(s => {
-                    const otherClasses = authManager.getClasses().filter(c =>
-                      (s.classIds || [s.classId]).includes(c.id) && c.id !== activeClass.id
-                    );
-                    return `
-                      <label class="enroll-std-card-item" data-search="${(s.name + ' ' + (s.studentCode || '') + ' ' + (s.username || '')).toLowerCase()}" style="display:flex; align-items:center; gap:12px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:10px 14px; cursor:pointer; transition:all 0.15s;">
-                        <input type="checkbox" class="enroll-chk" data-uid="${s.id}" style="width:17px; height:17px; cursor:pointer; accent-color:#2563eb;">
-                        <div>
-                          <div style="font-size:14px; font-weight:800; color:#0f172a;">${s.avatar || '👤'} ${s.name} <code style="color:#2563eb; font-family:monospace; margin-left:6px;">${s.studentCode || s.username}</code></div>
-                          <div style="font-size:12px; color:#64748b; margin-top:2px;">
-                            ${otherClasses.length > 0 ? `现归属班级: <b>${otherClasses.map(c => c.name).join(', ')}</b>` : '已入库学生'}
-                          </div>
-                        </div>
-                      </label>
-                    `;
-                  }).join('')}
-                </div>
-              </div>
-              <div class="teacher-modal-footer" style="background:#f8fafc; border-top:1px solid #e2e8f0; padding:14px 24px; display:flex; justify-content:flex-end; gap:10px;">
-                <button class="modal-btn cancel" id="btn-cancel-enroll" style="background:#ffffff; border:1px solid #cbd5e1; color:#475569; padding:8px 18px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer;">取消</button>
-                <button class="modal-btn submit task-theme" id="btn-submit-enroll" style="background:linear-gradient(135deg, #1d4ed8, #2563eb); border:none; color:white; padding:8px 20px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer;">🔗 确认加入本班</button>
-              </div>
+            <div class="teacher-modal-footer" style="background:#f8fafc; border-top:1px solid #e2e8f0; padding:14px 24px; display:flex; justify-content:flex-end; gap:10px;">
+              <button class="modal-btn cancel" id="btn-cancel-single-std" style="background:#ffffff; border:1px solid #cbd5e1; color:#475569; padding:8px 18px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer;">取消</button>
+              <button class="modal-btn submit task-theme" id="btn-submit-single-std" style="background:linear-gradient(135deg, #1d4ed8, #2563eb); border:none; color:white; padding:8px 20px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer;">👨‍🎓 确认创建并加入本班</button>
             </div>
           </div>
         `;
         document.body.appendChild(modal);
 
-        const closeModal = () => { modal.remove(); if (typeof onEscKey !== 'undefined') document.removeEventListener('keydown', onEscKey); };
+        const closeModal = () => { modal.remove(); };
         modal.querySelector('#btn-close-single-student').addEventListener('click', closeModal);
         modal.querySelector('#btn-cancel-single-std').addEventListener('click', closeModal);
-        const cancelEnrollBtn = modal.querySelector('#btn-cancel-enroll');
-        if (cancelEnrollBtn) cancelEnrollBtn.addEventListener('click', closeModal);
+        modal.addEventListener('click', (e) => { if (e.target === modal) closeModal(); });
 
-        // 🔍 加入已有学生选项卡实时模糊搜索
-        const searchEnrollInput = modal.querySelector('#input-search-enroll-std');
-        if (searchEnrollInput) {
-          searchEnrollInput.addEventListener('input', (e) => {
-            const q = (e.target.value || '').trim().toLowerCase();
-            modal.querySelectorAll('.enroll-std-card-item').forEach(el => {
-              const str = el.dataset.search || '';
-              if (!q || str.includes(q)) el.style.display = 'flex';
-              else el.style.display = 'none';
-            });
-          });
-        }
-
-        // 点击背景遮罩或按 ESC 键均可便捷关闭弹窗
-        modal.addEventListener('click', (e) => {
-          if (e.target === modal) closeModal();
-        });
-        const onEscKey = (e) => {
-          if (e.key === 'Escape') {
-            closeModal();
-            document.removeEventListener('keydown', onEscKey);
-          }
-        };
-        document.addEventListener('keydown', onEscKey);
-
-        // 标签切换逻辑
-        const tabNew = modal.querySelector('#tab-new-student');
-        const tabEnroll = modal.querySelector('#tab-enroll-student');
-        const panelNew = modal.querySelector('#panel-new-student');
-        const panelEnroll = modal.querySelector('#panel-enroll-student');
-        tabNew.addEventListener('click', () => {
-          tabNew.style.background = 'rgba(99,102,241,0.25)'; tabNew.style.color = '#a5b4fc'; tabNew.style.borderBottom = '3px solid #6366f1';
-          tabEnroll.style.background = 'transparent'; tabEnroll.style.color = '#64748b'; tabEnroll.style.borderBottom = '3px solid transparent';
-          panelNew.style.display = ''; panelEnroll.style.display = 'none';
-        });
-        tabEnroll.addEventListener('click', () => {
-          tabEnroll.style.background = 'rgba(99,102,241,0.25)'; tabEnroll.style.color = '#a5b4fc'; tabEnroll.style.borderBottom = '3px solid #6366f1';
-          tabNew.style.background = 'transparent'; tabNew.style.color = '#64748b'; tabNew.style.borderBottom = '3px solid transparent';
-          panelEnroll.style.display = ''; panelNew.style.display = 'none';
-        });
-
-        // 新建账号提交
         modal.querySelector('#btn-submit-single-std').addEventListener('click', () => {
           const name = modal.querySelector('#modal-std-name').value.trim();
           const code = modal.querySelector('#modal-std-code').value.trim();
@@ -4584,40 +4626,118 @@
             alert('❌ ' + err.message);
           }
         });
+      });
+    }
 
-        // 加入已有学生提交
-        const submitEnrollBtn = modal.querySelector('#btn-submit-enroll');
-        if (submitEnrollBtn) {
-          submitEnrollBtn.addEventListener('click', () => {
-            const checked = modal.querySelectorAll('.enroll-chk:checked');
-            if (checked.length === 0) { alert('⚠️ 请勾选至少一位学生！'); return; }
-            checked.forEach(chk => {
-              // 直接把该学生的 classIds 追加当前班级
-              const users = authManager.getUsers();
-              const student = users.find(u => u.id === chk.dataset.uid);
-              if (student) {
-                if (!student.classIds || !Array.isArray(student.classIds)) {
-                  student.classIds = student.classId ? [student.classId] : [];
-                }
-                if (!student.classIds.includes(activeClass.id)) {
-                  student.classIds.push(activeClass.id);
-                }
-              }
-              localStorage.setItem(STORAGE_KEY_USERS_DB, JSON.stringify(users));
-              // 同时把 student.id 加入班级 studentIds
-              const classes = authManager.getClasses();
-              const cls = classes.find(c => c.id === activeClass.id);
-              if (cls) {
-                if (!cls.studentIds) cls.studentIds = [];
-                if (!cls.studentIds.includes(chk.dataset.uid)) cls.studentIds.push(chk.dataset.uid);
-                localStorage.setItem(STORAGE_KEY_CLASSES, JSON.stringify(classes));
-              }
+    // 👥 2. 加入已有学生到班级（独立面板）
+    const btnEnrollExisting = container.querySelector('#btn-v1-enroll-existing-student');
+    if (btnEnrollExisting) {
+      btnEnrollExisting.addEventListener('click', () => {
+        document.querySelectorAll('.modal-overlay').forEach(el => el.remove());
+        const allUsers = authManager.getUsers();
+        const currentClassStudentIds = new Set(authManager.getClassStudents(activeClass.id).map(s => s.id));
+        const unenrolledStudents = allUsers.filter(u =>
+          u.role !== 'teacher' && !currentClassStudentIds.has(u.id)
+        );
+
+        const modal = document.createElement('div');
+        modal.className = 'modal-overlay';
+        modal.innerHTML = `
+          <div class="teacher-modal-card fancy-task-modal" style="width:580px; background:#ffffff; border:1px solid #e2e8f0; box-shadow:0 20px 45px rgba(15,23,42,0.12);">
+            <div class="teacher-modal-header" style="background:linear-gradient(135deg, #eff6ff, #f8fafc); border-bottom:1px solid #e2e8f0; padding:18px 24px; display:flex; justify-content:space-between; align-items:center;">
+              <div class="modal-header-title" style="display:flex; align-items:center; gap:10px;">
+                <div class="modal-icon-badge" style="background:#dbeafe; color:#2563eb; font-size:20px; padding:6px 10px; border-radius:10px;">👥</div>
+                <div><h3 style="margin:0; font-size:17px; font-weight:800; color:#0f172a;">加入已有学生到班级 (${activeClass.name})</h3></div>
+              </div>
+              <button class="modal-close-btn" id="btn-close-enroll-modal" style="background:#f1f5f9; border:none; color:#64748b; font-size:16px; border-radius:8px; width:30px; height:30px; cursor:pointer;">✕</button>
+            </div>
+
+            <div class="teacher-modal-body" style="padding:20px 24px;">
+              <div style="font-size:12.5px; color:#1e40af; background:#eff6ff; border:1px solid #bfdbfe; border-radius:8px; padding:10px 14px; margin-bottom:12px;">
+                💡 以下学生已在平台账号库中。勾选后可将其同时分配进本班级，<b>账号和密码保持不变，绝不重复生成</b>。
+              </div>
+              <div style="margin-bottom:10px;">
+                <input type="text" id="input-search-enroll-std" placeholder="🔍 输入姓名或学号快速搜索已有学生..." style="background:#ffffff; border:1.5px solid #cbd5e1; color:#0f172a; padding:8px 12px; border-radius:8px; width:100%; font-size:13px; outline:none;">
+              </div>
+              <div id="enroll-std-list-box" style="max-height:280px; overflow-y:auto; display:flex; flex-direction:column; gap:8px;">
+                ${unenrolledStudents.length === 0 ? `
+                  <div style="text-align:center; color:#64748b; padding:32px; font-size:13.5px;">
+                    ✅ 平台内所有学生账号均已加入当前班级，无待加入学生
+                  </div>
+                ` : unenrolledStudents.map(s => {
+                  const otherClasses = authManager.getClasses().filter(c =>
+                    (s.classIds || [s.classId]).includes(c.id) && c.id !== activeClass.id
+                  );
+                  return `
+                    <label class="enroll-std-card-item" data-search="${(s.name + ' ' + (s.studentCode || '') + ' ' + (s.username || '')).toLowerCase()}" style="display:flex; align-items:center; gap:12px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:10px 14px; cursor:pointer; transition:all 0.15s;">
+                      <input type="checkbox" class="enroll-chk" data-uid="${s.id}" style="width:17px; height:17px; cursor:pointer; accent-color:#2563eb;">
+                      <div>
+                        <div style="font-size:14px; font-weight:800; color:#0f172a;">${s.avatar || '👤'} ${s.name} <code style="color:#2563eb; font-family:monospace; margin-left:6px;">${s.studentCode || s.username}</code></div>
+                        <div style="font-size:12px; color:#64748b; margin-top:2px;">
+                          ${otherClasses.length > 0 ? `现归属班级: <b>${otherClasses.map(c => c.name).join(', ')}</b>` : '已入库学生'}
+                        </div>
+                      </div>
+                    </label>
+                  `;
+                }).join('')}
+              </div>
+            </div>
+            <div class="teacher-modal-footer" style="background:#f8fafc; border-top:1px solid #e2e8f0; padding:14px 24px; display:flex; justify-content:flex-end; gap:10px;">
+              <button class="modal-btn cancel" id="btn-cancel-enroll" style="background:#ffffff; border:1px solid #cbd5e1; color:#475569; padding:8px 18px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer;">取消</button>
+              <button class="modal-btn submit task-theme" id="btn-submit-enroll" style="background:linear-gradient(135deg, #1d4ed8, #2563eb); border:none; color:white; padding:8px 20px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer;">👥 确认加入本班</button>
+            </div>
+          </div>
+        `;
+        document.body.appendChild(modal);
+
+        const closeModal = () => { modal.remove(); };
+        modal.querySelector('#btn-close-enroll-modal').addEventListener('click', closeModal);
+        modal.querySelector('#btn-cancel-enroll').addEventListener('click', closeModal);
+        modal.addEventListener('click', (e) => { if (e.target === modal) closeModal(); });
+
+        // 🔍 模糊搜索过滤
+        const searchEnrollInput = modal.querySelector('#input-search-enroll-std');
+        if (searchEnrollInput) {
+          searchEnrollInput.addEventListener('input', (e) => {
+            const q = (e.target.value || '').trim().toLowerCase();
+            modal.querySelectorAll('.enroll-std-card-item').forEach(el => {
+              const str = el.dataset.search || '';
+              if (!q || str.includes(q)) el.style.display = 'flex';
+              else el.style.display = 'none';
             });
-            authManager.pushGlobalMeta();
-            closeModal();
-            renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
           });
         }
+
+        // 提交加入本班
+        modal.querySelector('#btn-submit-enroll').addEventListener('click', () => {
+          const checked = modal.querySelectorAll('.enroll-chk:checked');
+          if (checked.length === 0) { alert('⚠️ 请勾选至少一位学生！'); return; }
+          checked.forEach(chk => {
+            const users = authManager.getUsers();
+            const student = users.find(u => u.id === chk.dataset.uid);
+            if (student) {
+              if (!student.classIds || !Array.isArray(student.classIds)) {
+                student.classIds = student.classId ? [student.classId] : [];
+              }
+              if (!student.classIds.includes(activeClass.id)) {
+                student.classIds.push(activeClass.id);
+              }
+            }
+            localStorage.setItem(STORAGE_KEY_USERS_DB, JSON.stringify(users));
+
+            const classes = authManager.getClasses();
+            const cls = classes.find(c => c.id === activeClass.id);
+            if (cls) {
+              if (!cls.studentIds) cls.studentIds = [];
+              if (!cls.studentIds.includes(chk.dataset.uid)) cls.studentIds.push(chk.dataset.uid);
+              localStorage.setItem(STORAGE_KEY_CLASSES, JSON.stringify(classes));
+            }
+          });
+          authManager.pushGlobalMeta();
+          closeModal();
+          alert(`🎉 成功将选中的 ${checked.length} 位学生加入当前班级【${activeClass.name}】！`);
+          renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+        });
       });
     }
 
@@ -4756,18 +4876,13 @@
                 ${availableStudents.length === 0 ? '<div style="color:#64748b; font-size:13px; text-align:center; padding:20px;">✅ 当前班级所有学生均已进组，无空闲待分配学生。</div>' : ''}
                 ${availableStudents.map(s => {
                   const isChecked = currentMembers.includes(s.id);
-                  const isLeader = s.studentCode === 'A';
                   const otherGroup = (cls.groups || []).find(g => g.id !== editingGroupId && g.members && g.members.includes(s.id));
                   return `
                     <div class="grp-student-item" data-search="${(s.name + ' ' + (s.studentCode || '') + ' ' + (s.username || '')).toLowerCase()}" style="display:flex; justify-content:space-between; align-items:center; background:#ffffff; border:1px solid #e2e8f0; padding:10px 14px; border-radius:8px; transition:all 0.15s;">
-                      <label style="display:flex; align-items:center; gap:10px; cursor:pointer; font-size:13.5px; color:#0f172a; font-weight:600;">
+                      <label style="display:flex; align-items:center; gap:10px; cursor:pointer; font-size:13.5px; color:#0f172a; font-weight:600; width:100%;">
                         <input type="checkbox" class="chk-grp-member" value="${s.id}" ${isChecked ? 'checked' : ''} style="width:17px; height:17px; cursor:pointer; accent-color:#2563eb;">
                         <span>${s.avatar || '👤'} <b>${s.name}</b> <code style="color:#2563eb; font-family:monospace; margin-left:4px;">${s.studentCode || s.username}</code></span>
-                        ${otherGroup ? `<span style="background:#fef3c7; color:#b45309; border:1px solid #fde68a; font-size:11.5px; padding:1px 8px; border-radius:6px; font-weight:700; margin-left:6px;">(现归属: ${otherGroup.name})</span>` : ''}
-                      </label>
-                      <label style="font-size:12px; color:#b45309; cursor:pointer; display:flex; align-items:center; gap:4px; font-weight:700; background:#fffbeb; border:1px solid #fde68a; padding:3px 8px; border-radius:6px;">
-                        <input type="radio" name="grp-leader-radio" value="${s.id}" ${isLeader || (isChecked && currentMembers[0] === s.id) ? 'checked' : ''} style="cursor:pointer; accent-color:#d97706;">
-                        设为组长
+                        ${otherGroup ? `<span style="background:#fef3c7; color:#b45309; border:1px solid #fde68a; font-size:11.5px; padding:1px 8px; border-radius:6px; font-weight:700; margin-left:auto;">(现归属: ${otherGroup.name})</span>` : ''}
                       </label>
                     </div>
                   `;
@@ -4819,12 +4934,10 @@
       modal.querySelector('#btn-submit-grp-edit').addEventListener('click', () => {
         const name = modal.querySelector('#modal-grp-name').value.trim();
         const selectedUserIds = Array.from(modal.querySelectorAll('.chk-grp-member:checked')).map(cb => cb.value);
-        const leaderRadio = modal.querySelector('input[name="grp-leader-radio"]:checked');
-        const leaderUserId = leaderRadio ? leaderRadio.value : (selectedUserIds[0] || null);
 
         if (!name) { alert('⚠️ 请输入小组名称！'); return; }
         try {
-          authManager.updateGroupMembers(cls.id, editingGroupId || ('group_' + Date.now()), name, selectedUserIds, leaderUserId);
+          authManager.updateGroupMembers(cls.id, editingGroupId || ('group_' + Date.now()), name, selectedUserIds);
           closeModal();
           renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
         } catch (err) {
@@ -6137,11 +6250,19 @@
         if (window.app) {
           window.app.state.isFinalSubmitted = newSub;
           window.app.state.activeMonitorGroupId = activeMonitorGId;
+
+          let effectiveTId = window.app.state.activeTaskId;
           const selTaskBox = container.querySelector('#sel-switch-monitor-task');
           if (selTaskBox && selTaskBox.value) {
-            window.app.state.activeTaskId = selTaskBox.value;
+            effectiveTId = selTaskBox.value;
+            window.app.state.activeTaskId = effectiveTId;
           }
-          const effectiveTId = window.app.state.activeTaskId || 'task_default';
+          if (!effectiveTId && currentClassTasks && currentClassTasks.length > 0) {
+            effectiveTId = currentClassTasks[0].id;
+            window.app.state.activeTaskId = effectiveTId;
+          }
+          if (!effectiveTId) effectiveTId = 'task_default';
+
           try {
             fetch(`sync.php?action=set_task_group_lock&taskId=${encodeURIComponent(effectiveTId)}&groupId=${encodeURIComponent(activeMonitorGId)}`, {
               method: 'POST',
@@ -6149,14 +6270,6 @@
               body: JSON.stringify({ taskId: effectiveTId, groupId: activeMonitorGId, isLocked: newSub })
             }).catch(() => {});
           } catch (e) {}
-
-          window.app.saveGroupState(activeMonitorGId);
-          if (window.app.cloudSyncEngine) {
-            window.app.cloudSyncEngine.groupId = activeMonitorGId;
-            window.app.cloudSyncEngine.taskId = effectiveTId;
-            window.app.cloudSyncEngine.updateScopeKeys();
-            window.app.cloudSyncEngine.pushSnapshot();
-          }
         }
 
         renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
@@ -6297,10 +6410,26 @@
           }
         } catch (e) {}
       }
-      window._studentPortalSyncTimer = setTimeout(pullAndRefresh, 3000);
+      const isStudentIdle = () => document.hidden || (Date.now() - (window._lastStudentPortalActivity || Date.now()) > 60000);
+      const sInterval = isStudentIdle() ? 15000 : 3000;
+      window._studentPortalSyncTimer = setTimeout(pullAndRefresh, sInterval);
     };
     if (window._studentPortalSyncTimer) clearTimeout(window._studentPortalSyncTimer);
-    window._studentPortalSyncTimer = setTimeout(pullAndRefresh, 3000);
+
+    window._lastStudentPortalActivity = Date.now();
+    const markStudentPortalActive = () => {
+      const wasIdle = (Date.now() - window._lastStudentPortalActivity > 60000);
+      window._lastStudentPortalActivity = Date.now();
+      if (wasIdle && state.studentViewMode === 'task_list') {
+        pullAndRefresh();
+      }
+    };
+    ['mousemove', 'keydown', 'touchstart', 'scroll', 'click'].forEach(evt => {
+      window.addEventListener(evt, markStudentPortalActive, { passive: true });
+    });
+
+    const sInitInterval = (document.hidden ? 15000 : 3000);
+    window._studentPortalSyncTimer = setTimeout(pullAndRefresh, sInitInterval);
 
     const currentUser = authManager.getCurrentUser();
     const classes = authManager.getClasses();
@@ -6357,7 +6486,7 @@
 
     // 📋 3. 严格按当前选定班级和小组过滤通知（杜绝外班通知串入导致未读数虚高）
     const relevantAnnouncements = (announcements || []).filter(a => {
-      const matchClass = !a.classId || a.classId === 'all' || a.classId === userClass.id || (a.className && a.className === userClass.name);
+      const matchClass = a.classId === userClass.id || (a.className && a.className === userClass.name) || (!a.classId && userClass.id === 'class_101') || (Array.isArray(a.targetClassIds) && a.targetClassIds.includes(userClass.id));
       const matchGroup = !a.targetGroupId || a.targetGroupId === 'all' || a.targetGroupId === groupId ||
         (Array.isArray(a.targetGroupIds) && (a.targetGroupIds.includes('all') || a.targetGroupIds.includes(groupId)));
       return matchClass && matchGroup;
@@ -6386,8 +6515,7 @@
     }).length;
 
     const relevantTasks = tasks.filter(t => {
-      if (!t.classId || t.classId === 'all') return true;
-      return t.classId === userClass.id || (t.className && t.className === userClass.name);
+      return t.classId === userClass.id || (t.className && t.className === userClass.name) || (!t.classId && userClass.id === 'class_101');
     });
     container.innerHTML = `
       <div class="student-task-portal" style="min-height:100vh; background:#f0f4f9; display:flex; flex-direction:column;">
@@ -6502,10 +6630,10 @@
                         </div>
 
                         <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px 12px; font-size:11.5px; color:#475569; margin-bottom:12px; background:${isExpired ? '#fef2f2' : '#f8fafc'}; padding:10px 14px; border-radius:10px; border:1px solid ${isExpired ? '#fee2e2' : '#f1f5f9'};">
-                          <div>🕒 发布时间: <b style="color:#0f172a;">${t.createdAt || t.startTime || '刚刚'}</b></div>
+                          <div>🕒 发布时间: <b style="color:#0f172a;">${formatStandardDateDash(t.createdAt || t.startTime) || '刚刚'}</b></div>
                           <div>⏱️ 任务时长: <b style="color:#2563eb;">${formatDurationHuman(duration)}</b></div>
-                          <div>📅 开始时间: <b style="color:#0f172a;">${t.startTime || '随时'}</b></div>
-                          <div>⌛ 截止时间: <b style="color:#dc2626; font-weight:800;">${t.deadline || '结课前'}</b></div>
+                          <div>📅 开始时间: <b style="color:#0f172a;">${formatStandardDateDash(t.startTime) || '随时'}</b></div>
+                          <div>⌛ 截止时间: <b style="color:#dc2626; font-weight:800;">${formatStandardDateDash(t.deadline) || '结课前'}</b></div>
                         </div>
 
                         <div style="font-size:12.5px; color:#334155; line-height:1.6; margin-bottom:12px; background:#f8fafc; border-left:3.5px solid ${isExpired ? '#dc2626' : '#2563eb'}; padding:8px 12px; border-radius:0 8px 8px 0;">
@@ -7164,7 +7292,7 @@
           fileInput.onchange = (e) => {
             if (e.target.files && e.target.files[0]) {
               const file = e.target.files[0];
-              const currentUser = this.authManager ? this.authManager.getCurrentUser() : null;
+              const currentUser = window.app?.authManager ? window.app.authManager.getCurrentUser() : null;
               const studentCode = currentUser ? (currentUser.studentCode || currentUser.id || 'A') : 'A';
               const caption = prompt('请输入学术图题说明 (例如: 图 1: 研究模型与变量关系架构图):', '图 1: 研究模型与变量关系架构图');
 
@@ -7518,7 +7646,11 @@
     const confirmedMembers = s1.contract.confirmedMembers || {};
     const confirmedCount = membersList.filter(m => confirmedMembers[m.id] || confirmedMembers[m.studentCode] || (m.name && confirmedMembers[m.name])).length;
     const userHasConfirmed = confirmedMembers[currentUser] || (currUserObj && (confirmedMembers[currUserObj.id] || confirmedMembers[currUserObj.studentCode] || confirmedMembers[currUserObj.name]));
-    const isContractLocked = s1.contract.isConfirmed || state.isFinalSubmitted || isTaskDeadlineExpired;
+
+    // 🛡️ 真正的公约生效锁定判定：必须是真实签署人数 >= 组员总人数（且总人数 > 0），或全盘已提交/任务已截止
+    const isAllConfirmed = (totalMembersCount > 0 && confirmedCount >= totalMembersCount);
+    const isContractLocked = isAllConfirmed || state.isFinalSubmitted || isTaskDeadlineExpired;
+    if (s1.contract) s1.contract.isConfirmed = isAllConfirmed;
 
     const userHasVoted = s1.hasVoted && (s1.hasVoted[currentUser] || (currUserObj && (s1.hasVoted[currUserObj.id] || s1.hasVoted[currUserObj.studentCode])));
     const userVotedProposalId = s1.votes ? (s1.votes[currentUser] || (currUserObj && (s1.votes[currUserObj.id] || s1.votes[currUserObj.studentCode]))) : null;
@@ -7676,7 +7808,7 @@
 
           <div style="background:#f8fafc; padding:16px; border-radius:12px; border:1px solid #e2e8f0; width:100%; box-sizing:border-box;">
             <div style="font-weight:700; color:#1e40af; margin-bottom:12px; font-size:14px; display:flex; justify-content:space-between; align-items:center;">
-              <span>👥 本组小组成员分工 (共 ${totalMembersCount} 人 · 自动适配全宽展现):</span>
+              <span>👥 本组小组成员分工 (共 ${totalMembersCount} 人):</span>
             </div>
             <div style="display:flex; flex-direction:column; gap:10px; width:100%;">
               ${membersList.map((m, idx) => {
@@ -7788,7 +7920,6 @@
             s1.proposals[existingIdx].authorName = currentUserName;
             s1.proposals[existingIdx].updatedAt = nowMs;
           } else {
-            // 新提案：加入提案池（带时间戳与真实姓名）
             s1.proposals.push({
               id: 'prop_' + currentUser + '_' + nowMs,
               author: currentUser,
@@ -7797,8 +7928,6 @@
               updatedAt: nowMs
             });
           }
-
-          // 提交提案时不自动给公约融合主题赋值，必须等待全组投票与讨论协商后确立
 
           const currentStage = state.currentStage;
           let memberArr = [];
@@ -7829,19 +7958,6 @@
           if (!state.chatLogs[currentStage]) state.chatLogs[currentStage] = [];
           state.chatLogs[currentStage].push(submitNoticeMsg);
 
-          // 🎪 仅在真实全员（至少2人且全部提交）集齐时，拍卖师才主动在讨论区引导“先充分讨论选哪个，再进行投票”
-          if (totalMembersCount >= 2 && submittedAuthorsCount >= totalMembersCount && !s1._allProposalsPrompted) {
-            s1._allProposalsPrompted = true;
-            const allCollectedMsg = {
-              sender: 'auctioneer',
-              senderName: '头脑风暴 · 学术拍卖师',
-              text: `🎪 【拍卖师·全员提案已集齐】：🎉 小组全部 ${totalMembersCount} 位成员的选题提案已悉数亮相！\n👉 请大家先不要急于投票，先在右侧协同对话区商讨交流各个方案的研究切入点与创新亮点；\n💬 充分研讨达成初步共识后，再在上方为最终认可的方案进行投票！`,
-              timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-              _timeMs: Date.now() + 50
-            };
-            state.chatLogs[currentStage].push(allCollectedMsg);
-          }
-
           closeModal();
           handlers.onRefresh();
           if (window.app) {
@@ -7851,7 +7967,6 @@
             }
           }
 
-          // 1. 异步调用扣子拍卖师 API，对该提案做针对性学术评估与全组播报 (具体优点 + 针对性启发)
           setTimeout(async () => {
             const isModify = existingIdx >= 0;
             const evalPrompt = isModify
@@ -7872,7 +7987,29 @@
             };
             state.chatLogs[currentStage].push(auctioneerEvalMsg);
 
-            // （已移除 AI 版「全员提案集齐·号召先讨论后投票」：该固定流程话术已由上方写死消息承接，避免重复刷屏）
+            const isSubstantive = (t) => {
+              const str = (t || '').trim();
+              if (str.length < 4) return false;
+              if (/^\d+$/.test(str)) return false; 
+              if (/^([a-zA-Z0-9\u4e00-\u9fa5])\1+$/.test(str)) return false; 
+              return true;
+            };
+            const currentProps = s1.proposals || [];
+            const validProps = currentProps.filter(p => isSubstantive(p.title));
+            const validAuthors = new Set(validProps.map(p => p.author || p.authorName));
+
+            if (totalMembersCount >= 2 && validAuthors.size >= totalMembersCount && !s1._allProposalsPrompted) {
+              s1._allProposalsPrompted = true;
+              const allCollectedMsg = {
+                sender: 'auctioneer',
+                senderName: '头脑风暴 · 学术拍卖师',
+                text: `🎪 【拍卖师·全员提案已集齐】：🎉 小组全部 ${totalMembersCount} 位成员的选题提案已悉数亮相并完成评估！\n👉 请大家先不要急于投票，先在右侧协同对话区商讨交流各个方案的研究切入点与创新亮点；\n💬 充分研讨达成初步共识后，再在上方为最终认可的方案进行投票！`,
+                timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                _timeMs: Date.now() + 100
+              };
+              state.chatLogs[currentStage].push(allCollectedMsg);
+            }
+
             if (window.app) {
               window.app.syncChatLogs();
               if (window.app.cloudSyncEngine) window.app.cloudSyncEngine.pushSnapshot();
@@ -7883,19 +8020,19 @@
       });
     }
 
-    // ── 方案一实施：解耦实时打字与网络同步，彻底根除时间回弹与打字被吃问题 ──
-    // 1. input 事件：纯本地更新内存，绝对不向网络发包，打字改时间 100% 顺畅
-    // 2. blur / change / Enter 事件：用户输入完成离开或敲回车时，立即一次性完整同步上云！
-
     const getLockPayload = (fieldKey, value = null) => {
       const currUser = (window.app && window.app.authManager) ? window.app.authManager.getCurrentUser() : null;
-      const effectiveClassId = window.app?.state.activeStudentClassId || (currUser?.classId || 'class_101');
+      const isTeacher = currUser && (currUser.role === 'teacher' || currUser.isTeacher);
+      const effectiveClassId = (isTeacher ? window.app?.state.activeClassId : window.app?.state.activeStudentClassId) || (currUser?.classId || 'class_101');
       const activeGroupObj = window.app?.authManager ? window.app.authManager.getStudentActiveGroup(currUser, effectiveClassId) : null;
       const curGid = activeGroupObj?.id || (currUser?.groupId || 'group_1');
-      const curTaskId = window.app?.state.activeTaskId || 'task_default';
+      let curTaskId = window.app?.state.activeTaskId || (window.app?.cloudSyncEngine?.taskId || `task_${effectiveClassId}_default`);
+      if (!curTaskId || curTaskId === 'task_default') {
+        curTaskId = `task_${effectiveClassId}_default`;
+      }
       const uId = currUser ? (currUser.studentCode || currUser.username || currUser.id) : 'u';
       const uName = currUser ? (currUser.name || currUser.username) : '组员';
-      const payload = { fieldKey, userId: uId, userName: uName, groupId: curGid, taskId: curTaskId };
+      const payload = { fieldKey, userId: uId, userName: uName, groupId: curGid, taskId: curTaskId, classId: effectiveClassId };
       if (value !== null) payload.value = value;
       return payload;
     };
@@ -7910,7 +8047,7 @@
         }
       } catch (e) {}
 
-      fetch(`sync.php?action=lock_field&groupId=${encodeURIComponent(p.groupId)}&taskId=${encodeURIComponent(p.taskId)}`, {
+      fetch(`sync.php?action=lock_field&groupId=${encodeURIComponent(p.groupId)}&taskId=${encodeURIComponent(p.taskId)}&classId=${encodeURIComponent(p.classId || 'class_101')}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(p)
@@ -7927,7 +8064,7 @@
         }
       } catch (e) {}
 
-      fetch(`sync.php?action=unlock_field&groupId=${encodeURIComponent(p.groupId)}&taskId=${encodeURIComponent(p.taskId)}`, {
+      fetch(`sync.php?action=unlock_field&groupId=${encodeURIComponent(p.groupId)}&taskId=${encodeURIComponent(p.taskId)}&classId=${encodeURIComponent(p.classId || 'class_101')}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(p)
@@ -8111,10 +8248,12 @@
     const membersList = Object.values(state.members || {});
     const plainTextLen = (s2.unifiedContent || '').replace(/<[^>]*>/g, '').trim().length;
 
-    const userGroupId = state.currentUser && state.members[state.currentUser] ? state.members[state.currentUser].groupId : 'group_1';
     const currUser = (window.app && window.app.authManager) ? window.app.authManager.getCurrentUser() : null;
-    const userClassId = currUser ? currUser.classId : null;
-    const activeTaskId = state.activeTaskId || 'task_default';
+    const userClassId = state.activeStudentClassId || (currUser ? currUser.classId : null) || 'class_101';
+    const activeGroupObj = (window.app && window.app.authManager) ? window.app.authManager.getStudentActiveGroup(currUser, userClassId) : null;
+    const userGroupId = activeGroupObj?.id || (window.app?.cloudSyncEngine?.groupId) || (currUser?.groupId) || 'group_1';
+    let activeTaskId = state.activeTaskId || (window.app?.cloudSyncEngine?.taskId) || (`task_${userClassId}_default`);
+    if (!activeTaskId || activeTaskId === 'task_default') activeTaskId = `task_${userClassId}_default`;
     const availablePapers = (window.app && window.app.authManager) ? window.app.authManager.getReferencePapers(userGroupId, userClassId, activeTaskId) : [];
     const paperBtnLabel = availablePapers.length > 0 ? `📚 查阅参考范文 (${availablePapers.length}篇)` : '📚 查阅参考范文库';
 
@@ -8319,7 +8458,7 @@
     }
 
     // 🚀 实时 Etherpad 真实字数提取与贡献比动态平滑更新
-    if (window._stage2WordCountTimer) clearInterval(window._stage2WordCountTimer);
+    if (window._stage2WordCountTimer) clearTimeout(window._stage2WordCountTimer);
     const padName = `jizhi_${activeTaskId}_${userGroupId}`;
 
     const updateContribDom = () => {
@@ -8348,20 +8487,33 @@
       }
     };
 
+    let _padContentDebounceTimer = null;
     const syncPadMetrics = async () => {
       try {
-        const res = await fetch(`/p/${padName}/export/txt`);
-        if (res.ok) {
-          const txt = await res.text();
-          const cleanTxt = txt.replace(/\r\n/g, '\n').trim();
+        // 🚀 极轻量纯文本提取：耗时 < 0.1ms，体积 1KB，彻底杜绝服务器 Node.js CPU 波动
+        const txtRes = await fetch(`/p/${padName}/export/txt`);
+        if (txtRes.ok) {
+          const cleanTxt = (await txtRes.text()).replace(/\r\n/g, '\n').trim();
           const wordCount = cleanTxt.length;
 
-          // 1. 实时更新字数角标
+          // 实时更新字数角标
           const countBadge = document.getElementById('stage2-word-count-num');
           if (countBadge) countBadge.innerText = String(wordCount);
-          state.stage2.unifiedContent = cleanTxt;
 
-          // 2. 动态贡献度计算（仅当本人正在打字时向上报增量 delta，杜绝各端独立算全量）
+          const prevContent = state.stage2.unifiedContent || '';
+          const hasContentChanged = (cleanTxt && cleanTxt !== prevContent);
+
+          if (hasContentChanged) {
+            state.stage2.unifiedContent = cleanTxt;
+            if (_padContentDebounceTimer) clearTimeout(_padContentDebounceTimer);
+            _padContentDebounceTimer = setTimeout(() => {
+              if (window.app && typeof window.app.syncStage2 === 'function') {
+                window.app.syncStage2();
+              }
+            }, 1500);
+          }
+
+          // 动态贡献度计算（仅当本人正在打字时向上报增量 delta）
           const prevLen = state.stage2._prevKnownLen !== undefined ? state.stage2._prevKnownLen : wordCount;
           state.stage2._prevKnownLen = wordCount;
 
@@ -8369,11 +8521,12 @@
           if (wordCount !== prevLen && isInputFocused) {
             const delta = Math.abs(wordCount - prevLen);
             if (delta > 0) {
-              fetch('sync.php?action=report_member_contrib', {
+              fetch(`sync.php?action=report_member_contrib&groupId=${encodeURIComponent(userGroupId)}&taskId=${encodeURIComponent(activeTaskId)}&classId=${encodeURIComponent(userClassId)}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                   taskId: activeTaskId,
+                  classId: userClassId,
                   groupId: userGroupId,
                   userCode: currUserCode,
                   delta: delta
@@ -8393,7 +8546,14 @@
     };
 
     syncPadMetrics();
-    window._stage2WordCountTimer = setInterval(syncPadMetrics, 5000);
+    if (window._stage2WordCountTimer) clearTimeout(window._stage2WordCountTimer);
+    const getPadMetricInterval = () => (document.hidden ? 60000 : 15000);
+    const scheduleNextPadMetric = () => {
+      window._stage2WordCountTimer = setTimeout(() => {
+        syncPadMetrics().finally(scheduleNextPadMetric);
+      }, getPadMetricInterval());
+    };
+    scheduleNextPadMetric();
   }
 
   function renderStage3Canvas(canvas, state, handlers) {
@@ -8408,6 +8568,7 @@
     const confirmedRevMap = s3.confirmedMembers || {};
     const confirmedRevCount = membersList.filter(m => confirmedRevMap[m.id] || confirmedRevMap[m.studentCode]).length;
     const isUserRevisionConfirmed = !!(confirmedRevMap[currUserCode] || (currUser && confirmedRevMap[currUser.id]));
+    const isRevisionFullyConfirmed = confirmedRevCount >= totalCount && totalCount > 0;
     const allTasks = (window.app && window.app.authManager) ? window.app.authManager.getTasks() : [];
     const currentTask = allTasks.find(t => t.id === state.activeTaskId);
     const isTaskDeadlineExpired = isTaskExpired(currentTask);
@@ -8522,8 +8683,12 @@
             </div>
           </div>
         ` : (() => {
-          const activeTaskId = state.activeTaskId || 'task_default';
-          const userGroupId = state.currentUser ? (state.currentUser.groupId || 'group_1') : 'group_1';
+          const currUser = (window.app && window.app.authManager) ? window.app.authManager.getCurrentUser() : null;
+          const userClassId = state.activeStudentClassId || (currUser ? currUser.classId : null) || 'class_101';
+          const activeGroupObj = (window.app && window.app.authManager) ? window.app.authManager.getStudentActiveGroup(currUser, userClassId) : null;
+          const userGroupId = activeGroupObj?.id || (window.app?.cloudSyncEngine?.groupId) || (currUser?.groupId) || 'group_1';
+          let activeTaskId = state.activeTaskId || (window.app?.cloudSyncEngine?.taskId) || (`task_${userClassId}_default`);
+          if (!activeTaskId || activeTaskId === 'task_default') activeTaskId = `task_${userClassId}_default`;
           const padName = `jizhi_${activeTaskId}_${userGroupId}`;
           const currUserName = (currUser && (currUser.name || currUser.username)) || '组员';
           const currUserColor = (state.members && state.members[currUserCode]?.color) || '#2563eb';
@@ -8571,13 +8736,14 @@
             const effectiveClassId = window.app.state.activeStudentClassId || (currUser?.classId || 'class_101');
             const activeGroupObj = window.app.authManager ? window.app.authManager.getStudentActiveGroup(currUser, effectiveClassId) : null;
             const curGid = activeGroupObj?.id || (currUser?.groupId || 'group_1');
-            const curTaskId = window.app.state.activeTaskId || 'task_default';
+            let curTaskId = window.app.state.activeTaskId || (window.app.cloudSyncEngine?.taskId || `task_${effectiveClassId}_default`);
+            if (!curTaskId || curTaskId === 'task_default') curTaskId = `task_${effectiveClassId}_default`;
             const uId = currUser ? (currUser.studentCode || currUser.username || currUser.id) : 'u';
             const uName = currUser ? (currUser.name || currUser.username) : '组员';
-            fetch(`sync.php?action=lock_field&groupId=${encodeURIComponent(curGid)}&taskId=${encodeURIComponent(curTaskId)}`, {
+            fetch(`sync.php?action=lock_field&groupId=${encodeURIComponent(curGid)}&taskId=${encodeURIComponent(curTaskId)}&classId=${encodeURIComponent(effectiveClassId)}`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ fieldKey, userId: uId, userName: uName })
+              body: JSON.stringify({ fieldKey, userId: uId, userName: uName, classId: effectiveClassId, taskId: curTaskId, groupId: curGid })
             }).catch(() => {});
           }
         });
@@ -8593,12 +8759,13 @@
             const effectiveClassId = window.app.state.activeStudentClassId || (currUser?.classId || 'class_101');
             const activeGroupObj = window.app.authManager ? window.app.authManager.getStudentActiveGroup(currUser, effectiveClassId) : null;
             const curGid = activeGroupObj?.id || (currUser?.groupId || 'group_1');
-            const curTaskId = window.app.state.activeTaskId || 'task_default';
+            let curTaskId = window.app.state.activeTaskId || (window.app.cloudSyncEngine?.taskId || `task_${effectiveClassId}_default`);
+            if (!curTaskId || curTaskId === 'task_default') curTaskId = `task_${effectiveClassId}_default`;
             const uId = currUser ? (currUser.studentCode || currUser.username || currUser.id) : 'u';
-            fetch(`sync.php?action=unlock_field&groupId=${encodeURIComponent(curGid)}&taskId=${encodeURIComponent(curTaskId)}`, {
+            fetch(`sync.php?action=unlock_field&groupId=${encodeURIComponent(curGid)}&taskId=${encodeURIComponent(curTaskId)}&classId=${encodeURIComponent(effectiveClassId)}`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ fieldKey, userId: uId })
+              body: JSON.stringify({ fieldKey, userId: uId, classId: effectiveClassId, taskId: curTaskId, groupId: curGid })
             }).catch(() => {});
           }
         });
@@ -8701,12 +8868,24 @@
 
     // Collect all visible messages in order across all stages, auto-purging old legacy idle spam
     const allMsgs = [];
+    const seenMsgKeys = new Set();
     allStages.forEach(stg => {
       if (state.chatLogs && Array.isArray(state.chatLogs[stg])) {
         state.chatLogs[stg].forEach(msg => {
           if (!msg) return;
           const txt = msg.text || '';
           if (txt.includes('已连续') || txt.includes('互动督促') || txt.includes('秒未研讨') || txt.includes('秒没有发言')) return;
+
+          // 🛡️ 严格去重守护：同一阶段同一发送者同一文本内容（或相同 msg.id）绝不重复渲染
+          const rawTxtNormalized = txt.replace(/[\s\r\n]+/g, ' ').trim();
+          const contentKey = `${msg.sender}_${stg}_${rawTxtNormalized}`;
+          const idKey = msg.id ? `id_${msg.id}` : null;
+          if (seenMsgKeys.has(contentKey) || (idKey && seenMsgKeys.has(idKey))) {
+            return;
+          }
+          seenMsgKeys.add(contentKey);
+          if (idKey) seenMsgKeys.add(idKey);
+
           allMsgs.push(msg);
         });
       }
@@ -8856,11 +9035,14 @@
       const storedTaskId = sessionStorage.getItem('jizhi_active_task_id') || localStorage.getItem('jizhi_active_task_id');
       if (storedTaskId) this.state.activeTaskId = storedTaskId;
 
+      const storedClassId = sessionStorage.getItem('jizhi_active_student_class_id') || localStorage.getItem('jizhi_active_student_class_id');
+      if (storedClassId) this.state.activeStudentClassId = storedClassId;
+
       const storedViewMode = sessionStorage.getItem('jizhi_student_view_mode') || localStorage.getItem('jizhi_student_view_mode');
       if (storedViewMode) this.state.studentViewMode = storedViewMode;
 
       const user = this.authManager.getCurrentUser();
-      const effectiveClassId = user?.classId || 'class_101';
+      const effectiveClassId = this.state.activeStudentClassId || user?.classId || 'class_101';
       const activeGroupObj = this.authManager.getStudentActiveGroup(user, effectiveClassId);
       const currentGroupId = activeGroupObj?.id || user?.groupId || 'group_1';
       this.loadGroupState(currentGroupId);
@@ -8900,46 +9082,48 @@
 
     loadGroupState(groupId = 'group_1') {
       const defaultState = JSON.parse(JSON.stringify(InitialState));
-      const taskId = this.state.activeTaskId || 'task_default';
-      this.state.members = this.authManager.getGroupMembersForWorkspace(groupId);
+      const user = this.authManager ? this.authManager.getCurrentUser() : null;
+      const isTeacher = user && (user.isTeacher || user.role === 'teacher');
+      const effectiveClassId = (isTeacher ? this.state.activeClassId : this.state.activeStudentClassId) || user?.classId || 'class_101';
+      let taskId = this.state.activeTaskId || (this.cloudSyncEngine ? this.cloudSyncEngine.taskId : `task_${effectiveClassId}_default`);
+      if (!taskId || taskId === 'task_default') {
+        taskId = `task_${effectiveClassId}_default`;
+      }
+      this.state.activeTaskId = taskId;
+      this.state.members = this.authManager.getGroupMembersForWorkspace(groupId, effectiveClassId);
 
-      // 🛡️ 先尝试从本地快照中恢复已有协作数据，绝不暴力清空历史
-      const cacheKey = `jizhi_cloud_snapshot_v10_pure_${taskId}_${groupId}`;
+      // 🛡️ 任务与小组物理隔离：先彻底根据当前任务/小组的独立缓存加载，无缓存则完全使用纯净初始状态
+      const cacheKey = `jizhi_cloud_snapshot_v10_pure_${effectiveClassId}_${taskId}_${groupId}`;
       let cached = null;
       try {
-        const raw = localStorage.getItem(cacheKey);
+        const raw = localStorage.getItem(cacheKey) || localStorage.getItem(`jizhi_cloud_snapshot_v10_pure_${taskId}_${groupId}`);
         if (raw) cached = JSON.parse(raw);
       } catch (e) {}
 
       if (cached) {
-        if (cached.chatLogs && (!this.state.chatLogs || (this.state.chatLogs.stage1?.length === 0 && this.state.chatLogs.stage2?.length === 0))) {
-          this.state.chatLogs = cached.chatLogs;
-        }
-        if (cached.stage1 && (!this.state.stage1 || this.state.stage1.proposals?.length === 0)) {
-          this.state.stage1 = cached.stage1;
-        }
-        if (cached.stage2 && (!this.state.stage2 || !this.state.stage2.unifiedContent)) {
-          this.state.stage2 = cached.stage2;
-        }
-        if (cached.stage3) this.state.stage3 = cached.stage3;
-        if (cached.currentStage) {
-          this.state.groupMaxStage = cached.currentStage;
-          this.state.currentStage = cached.currentStage;
-        }
-        if (cached.isFinalSubmitted !== undefined) this.state.isFinalSubmitted = cached.isFinalSubmitted;
+        this.state.chatLogs = cached.chatLogs || { stage1: [], stage2: [], stage3: [] };
+        this.state.stage1 = cached.stage1 || JSON.parse(JSON.stringify(defaultState.stage1));
+        this.state.stage2 = cached.stage2 || JSON.parse(JSON.stringify(defaultState.stage2));
+        this.state.stage3 = cached.stage3 || JSON.parse(JSON.stringify(defaultState.stage3));
+        this.state.currentStage = cached.currentStage || 'stage1';
+        this.state.groupMaxStage = cached.currentStage || 'stage1';
+        this.state.isFinalSubmitted = (cached.isFinalSubmitted !== undefined) ? !!cached.isFinalSubmitted : false;
       } else {
-        if (!this.state.chatLogs) this.state.chatLogs = { stage1: [], stage2: [], stage3: [] };
-        if (!this.state.stage1) this.state.stage1 = JSON.parse(JSON.stringify(defaultState.stage1));
-        if (!this.state.stage2) this.state.stage2 = JSON.parse(JSON.stringify(defaultState.stage2));
-        if (!this.state.stage3) this.state.stage3 = JSON.parse(JSON.stringify(defaultState.stage3));
-        if (!this.state.currentStage) this.state.currentStage = 'stage1';
-        if (this.state.isFinalSubmitted === undefined) this.state.isFinalSubmitted = false;
+        this.state.chatLogs = { stage1: [], stage2: [], stage3: [] };
+        this.state.stage1 = JSON.parse(JSON.stringify(defaultState.stage1));
+        this.state.stage2 = JSON.parse(JSON.stringify(defaultState.stage2));
+        this.state.stage3 = JSON.parse(JSON.stringify(defaultState.stage3));
+        this.state.currentStage = 'stage1';
+        this.state.groupMaxStage = 'stage1';
+        this.state.isFinalSubmitted = false;
       }
 
-      // 立即触发云端全量拉取最新真实数据 (必须重置 isInitialPullDone，杜绝本地空数据反向冲刷服务器)
+      // 立即触发云端全量拉取当前任务对应小组的最新权威真实数据
       if (this.cloudSyncEngine) {
         this.cloudSyncEngine.groupId = groupId;
         this.cloudSyncEngine.taskId = taskId;
+        this.cloudSyncEngine._lastKnownRevisionId = 0; // 重置 revisionId，确保拉取到当前任务真实数据
+        this.cloudSyncEngine._hasPulledGlobal = false;
         this.cloudSyncEngine.isInitialPullDone = false;
         this.cloudSyncEngine.updateScopeKeys();
         this.cloudSyncEngine.pullFromServer();
@@ -8948,109 +9132,6 @@
 
     initPresetMessagesForGroup(groupId) {
       this.state.chatLogs = { stage1: [], stage2: [], stage3: [] };
-    }
-
-    resetTestGroupState(groupId = 'group_1', taskId = null) {
-      if (taskId) this.state.activeTaskId = taskId;
-      const targetTaskId = this.state.activeTaskId || 'task_default';
-      const defaultState = JSON.parse(JSON.stringify(InitialState));
-      this.state.activeMonitorGroupId = groupId;
-      this.state.stage1 = defaultState.stage1;
-      this.state.stage2 = defaultState.stage2;
-      this.state.stage3 = defaultState.stage3;
-      this.state.currentStage = 'stage1';
-      this.state.isFinalSubmitted = false;
-      this.state.presence = {};
-      this.initPresetMessagesForGroup(groupId);
-      this.saveGroupState(groupId);
-
-      // 🔔 同步清空该小组在当前任务下的通知已读与教师端追踪矩阵确认状态 (方便反复演练测试)
-      try {
-        const announcements = this.authManager.getAnnouncements();
-        const classes = this.authManager.getClasses();
-        const allUsers = this.authManager.getUsers();
-        let changed = false;
-
-        // 严格只收集当前被重置小组及其组员的标识，绝不波及其他小组
-        const groupMembersKeys = new Set();
-        if (groupId) groupMembersKeys.add(groupId);
-        classes.forEach(c => {
-          (c.groups || []).forEach(g => {
-            if (g && ((g.id && g.id === groupId) || (g.name && g.name === groupId))) {
-              if (g.id) groupMembersKeys.add(g.id);
-              (g.members || []).forEach(m => {
-                const mId = (typeof m === 'object' && m !== null) ? (m.id || m.userId || m.studentCode) : m;
-                if (mId) {
-                  groupMembersKeys.add(mId);
-                  const uObj = allUsers.find(u => (u.id === mId || u.studentCode === mId || u.username === mId || u.name === mId));
-                  if (uObj) {
-                    if (uObj.id) groupMembersKeys.add(uObj.id);
-                    if (uObj.studentCode) groupMembersKeys.add(uObj.studentCode);
-                    if (uObj.username) groupMembersKeys.add(uObj.username);
-                  }
-                }
-              });
-            }
-          });
-        });
-
-        announcements.forEach(ann => {
-          const matchTask = !ann.taskId || ann.taskId === 'task_all' || ann.taskId === targetTaskId || (targetTaskId === 'task_default' && !ann.taskId);
-          if (matchTask) {
-            if (ann.readGroupStatus) {
-              if (groupId && ann.readGroupStatus[groupId]) { delete ann.readGroupStatus[groupId]; changed = true; }
-            }
-            if (ann.readStatus) {
-              groupMembersKeys.forEach(k => {
-                if (ann.readStatus[k]) { delete ann.readStatus[k]; changed = true; }
-              });
-            }
-            if (Array.isArray(ann.confirmedMembers)) {
-              const origLen = ann.confirmedMembers.length;
-              ann.confirmedMembers = ann.confirmedMembers.filter(m => {
-                if (!m) return false;
-                if (m.groupId === groupId) return false;
-                if (m.id && groupMembersKeys.has(m.id)) return false;
-                if (m.studentCode && groupMembersKeys.has(m.studentCode)) return false;
-                return true;
-              });
-              if (ann.confirmedMembers.length !== origLen) changed = true;
-            }
-          }
-        });
-
-        if (changed) {
-          localStorage.setItem(STORAGE_KEY_ANNOUNCEMENTS, JSON.stringify(announcements));
-          this.authManager.pushGlobalMeta();
-        }
-      } catch (e) {}
-
-      const currUser = this.authManager ? this.authManager.getCurrentUser() : null;
-      const teacherUserId = (currUser && (currUser.studentCode || currUser.username || currUser.id)) || '';
-      const teacherToken = (currUser && (currUser.token || currUser.activeSessionId)) || '';
-
-      // 发送原子重置请求直达服务端 (独立通道，100% 必达，彻底清空服务端数据库与缓存)
-      fetch(`sync.php?action=reset_group&groupId=${encodeURIComponent(groupId)}&taskId=${encodeURIComponent(targetTaskId)}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ isReset: true, userId: teacherUserId, token: teacherToken })
-      }).then(r => r.json()).then(res => {
-        if (this.cloudSyncEngine) {
-          this.cloudSyncEngine.groupId = groupId;
-          this.cloudSyncEngine.taskId = targetTaskId;
-          this.cloudSyncEngine.updateScopeKeys();
-          this.cloudSyncEngine.isResetBroadcast = true;
-          this.cloudSyncEngine.broadcastLocal({ isReset: true, resetSeq: (res && res.resetSeq) ? res.resetSeq : Date.now() });
-        }
-      }).catch(() => {
-        if (this.cloudSyncEngine) {
-          this.cloudSyncEngine.groupId = groupId;
-          this.cloudSyncEngine.taskId = targetTaskId;
-          this.cloudSyncEngine.updateScopeKeys();
-          this.cloudSyncEngine.isResetBroadcast = true;
-          this.cloudSyncEngine.pushSnapshot();
-        }
-      });
     }
 
     getEffectiveGroupId() {
@@ -9071,12 +9152,19 @@
     // 💬 精准单条发信入库方法（确保任何来源的消息 100% 毫秒级写入 MySQL chat_messages 实体表）
     sendSingleChatMessage(msg, stage = null) {
       if (!msg) return;
+      const user = this.authManager ? this.authManager.getCurrentUser() : null;
+      const isTeacher = user && (user.isTeacher || user.role === 'teacher');
+      const effectiveClassId = (isTeacher ? this.state.activeClassId : this.state.activeStudentClassId) || user?.classId || 'class_101';
       const groupId = this.getEffectiveGroupId();
-      const taskId = this.state.activeTaskId || 'task_default';
+      let taskId = this.state.activeTaskId || (this.cloudSyncEngine ? this.cloudSyncEngine.taskId : `task_${effectiveClassId}_default`);
+      if (!taskId || taskId === 'task_default') {
+        taskId = `task_${effectiveClassId}_default`;
+      }
       const targetStage = stage || this.state.currentStage || 'stage1';
 
       const payload = {
         id: msg.id || ('msg_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6)),
+        classId: effectiveClassId,
         groupId: groupId,
         taskId: taskId,
         stage: targetStage,
@@ -9088,7 +9176,7 @@
       };
 
       try {
-        fetch(`sync.php?action=send_chat&groupId=${encodeURIComponent(groupId)}&taskId=${encodeURIComponent(taskId)}`, {
+        fetch(`sync.php?action=send_chat&groupId=${encodeURIComponent(groupId)}&taskId=${encodeURIComponent(taskId)}&classId=${encodeURIComponent(effectiveClassId)}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
@@ -9097,8 +9185,14 @@
     }
 
     syncChatLogs() {
+      const user = this.authManager ? this.authManager.getCurrentUser() : null;
+      const isTeacher = user && (user.isTeacher || user.role === 'teacher');
+      const effectiveClassId = (isTeacher ? this.state.activeClassId : this.state.activeStudentClassId) || user?.classId || 'class_101';
       const groupId = this.getEffectiveGroupId();
-      const taskId = this.state.activeTaskId || 'task_default';
+      let taskId = this.state.activeTaskId || (this.cloudSyncEngine ? this.cloudSyncEngine.taskId : `task_${effectiveClassId}_default`);
+      if (!taskId || taskId === 'task_default') {
+        taskId = `task_${effectiveClassId}_default`;
+      }
       const stage = this.state.currentStage || 'stage1';
       const logs = (this.state.chatLogs && this.state.chatLogs[stage]) ? this.state.chatLogs[stage] : [];
       const latestMsg = logs[logs.length - 1];
@@ -9194,11 +9288,10 @@
             this.state.presence[k] = { lastSeen: now, updatedAt: now };
           });
           this.renderPresenceCursors();
-          if (this.cloudSyncEngine) this.cloudSyncEngine.sendPresencePing(currentUser);
         }
       };
       doPing();
-      setInterval(doPing, 4000);
+      setInterval(doPing, 10000);
     }
 
     initTimer() {
@@ -9221,27 +9314,8 @@
           const currentStage = this.state.currentStage || 'stage1';
           const logs = (this.state.chatLogs && this.state.chatLogs[currentStage]) || [];
 
-          // 📝 自动从 Etherpad 实时提取当前论文最新切片，供审稿编辑/责任编辑深度分析
-          if (currentStage === 'stage2') {
-            const activeTaskId = this.state.activeTaskId || 'task_default';
-            const effectiveClassId = this.state.activeStudentClassId || (currentUser?.classId || 'class_101');
-            const activeGroupObj = this.authManager ? this.authManager.getStudentActiveGroup(currentUser, effectiveClassId) : null;
-            const currentGroupId = activeGroupObj?.id || (currentUser?.groupId || 'group_1');
-            const padName = `jizhi_${activeTaskId}_${currentGroupId}`;
-            fetch(`sync.php?action=get_pad_text&padId=${padName}`)
-              .then(res => res.json())
-              .then(data => {
-                if (data && data.success && data.text) {
-                  if (this.state.stage2 && this.state.stage2.unifiedContent !== data.text) {
-                    this.state.stage2.unifiedContent = data.text;
-                  }
-                }
-              })
-              .catch(() => {});
-          }
-
-          // ⏰ 全局进度与阶段间转场催促 + 阶段二智能体保底机制 (仅由组长单点触发，杜绝多人并发 AI 消息风暴)
-          const isGroupLeader = !!(currentUser && (currentUser.role === 'leader' || (currentUser.roleTitle || '').includes('组长')));
+          // ⏰ 全局进度与阶段间转场催促 + 阶段二智能体保底机制 (由在场学号最小的在线成员单点触发，杜绝多人并发 AI 消息风暴)
+          const myCode = this.state.currentUser || (currentUser ? (currentUser.studentCode || currentUser.id) : 'A');
           const activeTaskId = this.state.activeTaskId || 'task_default';
           const currentGroupId = (currentUser && currentUser.groupId) ? currentUser.groupId : (this.state.activeMonitorGroupId || 'group_1');
           const allTasks = (this.authManager) ? this.authManager.getTasks() : [];
@@ -9250,7 +9324,18 @@
           const totalDurationSec = totalDurationMin * 60;
           const totalProgress = (totalDurationSec > 0) ? (this.state.timer.elapsedSeconds / totalDurationSec) : 0;
 
-          if (isGroupLeader) {
+          const membersList = Object.values(this.state.members || {});
+          const presenceMap = this.state.presence || {};
+          const onlineMembers = membersList.filter(m => {
+            const p = presenceMap[m.studentCode] || presenceMap[m.id];
+            return p && (nowMs - (p.updatedAt || 0) < 180000);
+          });
+          const primaryMember = (onlineMembers.length > 0)
+            ? [...onlineMembers].sort((a, b) => (a.studentCode || a.id || '').localeCompare(b.studentCode || b.id || ''))[0]
+            : (membersList.length > 0 ? [...membersList].sort((a, b) => (a.studentCode || a.id || '').localeCompare(b.studentCode || b.id || ''))[0] : null);
+          const isPrimaryGuardian = primaryMember && (primaryMember.studentCode === myCode || primaryMember.id === myCode);
+
+          if (isPrimaryGuardian) {
             // 1. 【20% 节点】阶段一 ➔ 阶段二防卡关 (总时间 20%)
             const isContractConfirmed = !!(this.state.stage1 && this.state.stage1.contract && this.state.stage1.contract.isConfirmed);
             const s1GateMsgId = `msg_gate_s1_${activeTaskId}_${currentGroupId}_20pct`;
@@ -9444,21 +9529,28 @@
             (taskId) => {
               const actualTaskId = taskId || 'task_default';
               this.state.activeTaskId = actualTaskId;
+              const targetTaskObj = (this.authManager ? this.authManager.getTasks() : []).find(t => t.id === actualTaskId);
+              const taskClassId = (targetTaskObj && targetTaskObj.classId) ? targetTaskObj.classId : (this.state.activeStudentClassId || currentUser?.classId || 'class_101');
+              this.state.activeStudentClassId = taskClassId;
+
               try {
                 sessionStorage.setItem('jizhi_active_task_id', actualTaskId);
                 localStorage.setItem('jizhi_active_task_id', actualTaskId);
+                sessionStorage.setItem('jizhi_active_student_class_id', taskClassId);
+                localStorage.setItem('jizhi_active_student_class_id', taskClassId);
               } catch (e) {}
               this.state.studentViewMode = 'workspace';
               sessionStorage.setItem('jizhi_student_view_mode', 'workspace');
               localStorage.setItem('jizhi_student_view_mode', 'workspace');
-              const latestClassId = this.state.activeStudentClassId || currentUser?.classId || 'class_101';
-              const latestGroupObj = this.authManager.getStudentActiveGroup(currentUser, latestClassId);
+
+              const latestGroupObj = this.authManager.getStudentActiveGroup(currentUser, taskClassId);
               const targetGroupId = latestGroupObj.id || (currentUser && currentUser.groupId ? currentUser.groupId : 'group_1');
               this.loadGroupState(targetGroupId);
 
-              // 🎯 始终从阶段一进入，若本组已推进至阶段二/三，则阶段一显示为只读归档，并解锁顶部阶段导航供学生自主加入
-              this.state.currentStage = 'stage1';
-              this.isViewingPastStage = (this.state.groupMaxStage && this.state.groupMaxStage !== 'stage1');
+              // 🎯 保持本组推进到的真实阶段，确保历史消息与当前工作台阶段 100% 对应
+              const effectiveStage = this.state.groupMaxStage || this.state.currentStage || 'stage1';
+              this.state.currentStage = effectiveStage;
+              this.isViewingPastStage = false;
 
               if (!this.state.presence) this.state.presence = {};
               const myKeys = [currentUser?.id, currentUser?.studentCode, currentUser?.username, currentUser?.name].filter(Boolean);
@@ -9480,12 +9572,10 @@
                   this.cloudSyncEngine.groupId = targetGroupId;
                   this.cloudSyncEngine.taskId = actualTaskId;
                   this.cloudSyncEngine.updateScopeKeys();
-                  try {
-                    this.cloudSyncEngine.sendPresencePing(currentUser);
-                    await this.cloudSyncEngine.pullFromServer();
-                  } catch (e) {}
+                  await this.cloudSyncEngine.pullFromServer();
+                  if (typeof window.renderChat === 'function') window.renderChat(this.state);
                 }
-              }, 10);
+              }, 50);
             },
             () => this.handleLogout(),
             () => this.switchToTeacherView(),
@@ -9607,10 +9697,9 @@
           return p && (now - (p.updatedAt || 0) < 180000); // 放宽到 3 分钟：后台标签页心跳会被浏览器节流（约 1 分钟 1 次），60 秒窗口会误判在场同学为离线
         });
 
-        let primaryMember = onlineMembers.find(m => m.studentCode === 'A' || m.roleTitle?.includes('组长') || m.role === 'leader');
-        if (!primaryMember && onlineMembers.length > 0) {
-          primaryMember = [...onlineMembers].sort((a, b) => (a.studentCode || a.id || '').localeCompare(b.studentCode || b.id || ''))[0];
-        }
+        let primaryMember = (onlineMembers.length > 0)
+          ? [...onlineMembers].sort((a, b) => (a.studentCode || a.id || '').localeCompare(b.studentCode || b.id || ''))[0]
+          : (membersList.length > 0 ? [...membersList].sort((a, b) => (a.studentCode || a.id || '').localeCompare(b.studentCode || b.id || ''))[0] : null);
 
         const isPrimaryGuardian = primaryMember && (primaryMember.studentCode === myCode || primaryMember.id === myCode);
         if (!isPrimaryGuardian) return;
@@ -11059,7 +11148,7 @@
   请作为资深学术拍卖师发表 130~150 字的【全票一致落槌定题与细化建议】：
   ① 隆重宣布竞拍落槌结果，肯定《${winningProposal.title}》获得全票一致认同，正式确立为全组研究课题；
   ② 针对该选题给出 2~3 条具体的细化方向建议（【核心铁律】：此时绝对不提及分工与时间！）；
-  ③ 引导组长带头在讨论区发起交流，全组共同商议完善具体实施方案。`;
+  ③ 引导组员在讨论区发起交流，全组共同商议完善具体实施方案。`;
           } else {
             voteContextPrompt = `全组投票已全部完成！计票结果清单：${proposalSummaryList}。投票存在分歧（未达成全票一致）！
   请作为资深学术拍卖师发表 130~150 字的【分歧协商破冰引导】：
@@ -11077,7 +11166,7 @@
 
           if (!summaryText || summaryText.trim().length === 0) {
             if (isUnanimous) {
-              summaryText = `🎉 【拍卖师·课题敲定告知】：全员投票已完成，计票结果：${proposalSummaryList}。《${winningProposal.title}》获得全票一致推选，正式确立为全组研究课题！\n⚠️ 拍卖师智能体发言生成超时，组长可直接在讨论区发起交流、组织全组细化研究方案与分工。`;
+              summaryText = `🎉 【拍卖师·课题敲定告知】：全员投票已完成，计票结果：${proposalSummaryList}。《${winningProposal.title}》获得全票一致推选，正式确立为全组研究课题！\n⚠️ 拍卖师智能体发言生成超时，组员可直接在讨论区发起交流、组织全组细化研究方案与分工。`;
             } else {
               summaryText = `⚖️ 【拍卖师·分歧协商告知】：投票已落槌，计票结果：${proposalSummaryList}。组内对选题存在票数分歧，请各提案作者在讨论区阐明设计亮点，全组共同商讨确定最终课题。\n⚠️ 拍卖师智能体发言生成超时，如需智能引导可在讨论区 @拍卖师。`;
             }
@@ -11106,9 +11195,15 @@
         return;
       }
 
+      const effectiveClassId = (isTeacher ? this.state.activeClassId : this.state.activeStudentClassId) || currUser?.classId || 'class_101';
       const groupId = this.getEffectiveGroupId();
-      const taskId = this.state.activeTaskId || 'task_default';
+      let taskId = this.state.activeTaskId || (this.cloudSyncEngine ? this.cloudSyncEngine.taskId : `task_${effectiveClassId}_default`);
+      if (!taskId || taskId === 'task_default') {
+        taskId = `task_${effectiveClassId}_default`;
+      }
+
       const welcomeFlagKey = `jizhi_welcomed_${taskId}_${groupId}_${stage}`;
+      if (sessionStorage.getItem(welcomeFlagKey)) return;
 
       if (!this.state.chatLogs[stage]) this.state.chatLogs[stage] = [];
       const logs = this.state.chatLogs[stage];
@@ -11116,10 +11211,15 @@
 
       // 🎪 阶段一：拍卖师欢迎开场白
       if (stage === 'stage1') {
-        const hasAuctioneerIntro = logs.some(m => m && m.sender === 'auctioneer' && (m.text?.includes('欢迎来到【阶段一：学术拍卖会】') || m.text?.includes('拍卖师开场')));
+        const hasAuctioneerIntro = logs.some(m => m && (m.sender === 'auctioneer' || (m.id && String(m.id).includes('auctioneer'))) && (m.text?.includes('阶段一') || m.text?.includes('拍卖会') || m.text?.includes('拍卖师开场')));
         if (!hasAuctioneerIntro) {
+          sessionStorage.setItem(welcomeFlagKey, '1');
           const welcomeMsg = {
             id: `msg_welcome_${taskId}_${groupId}_stage1`,
+            classId: effectiveClassId,
+            groupId: groupId,
+            taskId: taskId,
+            stage: 'stage1',
             sender: 'auctioneer',
             senderName: '学术拍卖师',
             text: `🎪 【拍卖师开场】：欢迎来到【阶段一：学术拍卖会】！我是本阶段的选题顾问拍卖师。\n请全组成员点击左侧【提交我的选题】提出各自的研究构想，并在研讨区充分交流。我们将通过拍卖投票遴选最佳提案，并在下方《学术合作公约》中商定分工与时间分配！`,
@@ -11129,6 +11229,8 @@
           logs.unshift(welcomeMsg);
           this.sendSingleChatMessage(welcomeMsg, 'stage1');
           if (typeof window.renderChat === 'function') window.renderChat(this.state);
+        } else {
+          sessionStorage.setItem(welcomeFlagKey, '1');
         }
       }
 
@@ -11993,17 +12095,32 @@
         onConfirmStage3Revision: () => {
           const user = this.state.currentUser || 'A';
           const s3 = this.state.stage3;
-          const membersList = Object.values(this.state.members || {});
-          const totalMembersCount = membersList.length || 3;
+          let memberArr = [];
+          if (Array.isArray(this.state.members)) memberArr = this.state.members;
+          else if (this.state.members && typeof this.state.members === 'object') memberArr = Object.values(this.state.members);
+          if (memberArr.length === 0 && this.authManager) {
+            const u = this.authManager.getCurrentUser();
+            const effClassId = this.state.activeStudentClassId || u?.classId || 'class_101';
+            const effGroup = this.authManager.getStudentActiveGroup(u, effClassId);
+            memberArr = this.authManager.getGroupMembersForWorkspace(effGroup?.id || 'group_1');
+          }
+          const totalMembersCount = memberArr.length > 0 ? memberArr.length : 3;
+
           if (!s3.confirmedMembers) s3.confirmedMembers = {};
           s3.confirmedMembers[user] = true;
-          if (this.state.members[user]) {
-            s3.confirmedMembers[this.state.members[user].id] = true;
+          const currMemObj = memberArr.find(m => m && (m.id === user || m.studentCode === user || m.username === user || m.name === user));
+          if (currMemObj) {
+            if (currMemObj.id) s3.confirmedMembers[currMemObj.id] = true;
+            if (currMemObj.studentCode) s3.confirmedMembers[currMemObj.studentCode] = true;
+            if (currMemObj.username) s3.confirmedMembers[currMemObj.username] = true;
+            if (currMemObj.name) s3.confirmedMembers[currMemObj.name] = true;
           }
-          const confirmedCount = membersList.filter(m => s3.confirmedMembers[m.id] || s3.confirmedMembers[m.studentCode]).length;
-          const memberName = this.state.members[user] ? this.state.members[user].name : user;
+
+          const confirmedCount = memberArr.filter(m => m && (s3.confirmedMembers[m.id] || s3.confirmedMembers[m.studentCode] || s3.confirmedMembers[m.username] || (m.name && s3.confirmedMembers[m.name]))).length;
+          const memberName = currMemObj ? currMemObj.name : user;
           const confirmMsg = {
             sender: user,
+            senderName: memberName,
             text: `📢 [终稿修改确认]: 我 (${memberName}) 已确认完成终稿修改！（全组修改确认进度: ${confirmedCount}/${totalMembersCount} 人）`,
             timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
             _timeMs: Date.now()
@@ -12018,7 +12135,7 @@
             s3.isRevisionConfirmed = true;
             const promptMsg = {
               sender: 'neutral',
-              text: `🏆 【中间委员·终稿就绪】：组内全员已确认终稿修改完毕！请组长或代表点击右上方【🚀 提交论文终稿】完成全盘归档！`,
+              text: `🏆 【中间委员·终稿就绪】：组内全员已确认终稿修改完毕！请组员或代表点击右上方【🚀 提交论文终稿】完成全盘归档！`,
               timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
               _timeMs: Date.now()
             };
@@ -12282,10 +12399,9 @@
           if (hasMaxSkew && hasZeroMember) {
             this.state.lastSSRLWarnTimeMs = now; // 记录本次提醒时间，开启 15 分钟静默期
             this.state.lastSSRLWarnLen = plainLen;
-            const leaderName = membersList[0] ? membersList[0].name : '组长';
             const ssrlWarningMsg = {
               sender: 'managingEditor',
-              text: `🤝 【责任编辑·协同关怀】：关注到当前正文撰写推进中，各成员的投入占比出现了一定程度的分化。建议组长（${leaderName}）与组员在讨论区适度协调分工，鼓励尚未充分动笔的同学认领后续章节，共同推进高质量学术成稿哦~`,
+              text: `🤝 【责任编辑·协同关怀】：关注到当前正文撰写推进中，各成员的投入占比出现了一定程度的分化。建议全组同学在讨论区适度协调分工，鼓励尚未充分动笔的同学认领后续章节，共同推进高质量学术成稿哦~`,
               timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
               _timeMs: now
             };
