@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260827_v626";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired } from "./utils.js?v=20260827_v626";
-import { callCozeAgentAPI } from "./agents.js?v=20260827_v626";
-import { AuthManager } from "./auth.js?v=20260827_v626";
-import { CloudSyncEngine } from "./sync.js?v=20260827_v626";
-import { renderLoginView } from "./login.js?v=20260827_v626";
-import { renderTeacherPortal } from "./teacher.js?v=20260827_v626";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260827_v626";
+} from "./constants.js?v=20260827_v627";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired } from "./utils.js?v=20260827_v627";
+import { callCozeAgentAPI } from "./agents.js?v=20260827_v627";
+import { AuthManager } from "./auth.js?v=20260827_v627";
+import { CloudSyncEngine } from "./sync.js?v=20260827_v627";
+import { renderLoginView } from "./login.js?v=20260827_v627";
+import { renderTeacherPortal } from "./teacher.js?v=20260827_v627";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260827_v627";
 import {
   renderStudentWorkspace,
   renderHeader,
@@ -26,7 +26,7 @@ import {
   renderChat,
   renderWordEditor,
   renderDefenseRoom
-} from "./editor.js?v=20260827_v626";
+} from "./editor.js?v=20260827_v627";
 
 // Make renderChat available on window for sync callbacks
 if (typeof window !== "undefined") {
@@ -210,6 +210,12 @@ export class App {
       timestamp: msg.timestamp || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       _timeMs: msg._timeMs || Date.now()
     };
+
+    try {
+      if (this.cloudSyncEngine && this.cloudSyncEngine.bc) {
+        this.cloudSyncEngine.bc.postMessage({ chatMessage: payload, stage: targetStage });
+      }
+    } catch (e) {}
 
     try {
       fetch(`sync.php?action=send_chat&groupId=${encodeURIComponent(groupId)}&taskId=${encodeURIComponent(taskId)}&classId=${encodeURIComponent(effectiveClassId)}`, {
