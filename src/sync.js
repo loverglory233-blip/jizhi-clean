@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState } from './constants.js?v=20260827_v626';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin } from './utils.js?v=20260827_v626';
+import { InitialState } from './constants.js?v=20260827_v627';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin } from './utils.js?v=20260827_v627';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -57,6 +57,17 @@ export class CloudSyncEngine {
         this.bc = new BroadcastChannel(`jizhi_bc_${effectiveClassId}_${this.taskId}_${this.groupId}`);
         this.bc.onmessage = (e) => {
           if (e.data && e.data.snapshot) this.handleRemoteSync(e.data.snapshot);
+          if (e.data && e.data.chatMessage) {
+            const cm = e.data.chatMessage;
+            const stg = e.data.stage || this.app.state.currentStage || 'stage1';
+            if (!this.app.state.chatLogs) this.app.state.chatLogs = { stage1: [], stage2: [], stage3: [] };
+            if (!Array.isArray(this.app.state.chatLogs[stg])) this.app.state.chatLogs[stg] = [];
+            const exists = this.app.state.chatLogs[stg].some(m => (cm.id && m.id === cm.id) || (m._timeMs === cm._timeMs && m.text === cm.text));
+            if (!exists) {
+              this.app.state.chatLogs[stg].push(cm);
+              if (typeof window.renderChat === 'function') window.renderChat(this.app.state);
+            }
+          }
         };
       } catch (e) {}
     }
@@ -134,7 +145,7 @@ export class CloudSyncEngine {
 
     const isHidden = () => document.hidden || document.visibilityState === 'hidden';
     const isIdle = () => isHidden() || (Date.now() - lastUserActivity > 120000);
-    const getPollInterval = () => (isHidden() ? 30000 : (isIdle() ? 15000 : 1500));
+    const getPollInterval = () => (isHidden() ? 30000 : (isIdle() ? 15000 : 800));
     const getPingInterval = () => (isHidden() ? 60000 : (isIdle() ? 30000 : 10000));
 
     const runPoll = () => {
