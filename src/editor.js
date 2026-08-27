@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles } from "./constants.js?v=20260828_v635";
-import { callCozeAgentAPI } from "./agents.js?v=20260828_v635";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs } from "./utils.js?v=20260828_v635";
+import { AgentProfiles } from "./constants.js?v=20260828_v636";
+import { callCozeAgentAPI } from "./agents.js?v=20260828_v636";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs } from "./utils.js?v=20260828_v636";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -1399,7 +1399,7 @@ function renderStage1Canvas(canvas, state, handlers) {
       if (autoUnlockTimer) clearTimeout(autoUnlockTimer);
       autoUnlockTimer = setTimeout(() => {
         sendUnlock('topic_title', topicInput.value);
-      }, 800);
+      }, 1000);
       if (topicTimer) clearTimeout(topicTimer);
       topicTimer = setTimeout(flushTopic, 300);
     });
@@ -1409,7 +1409,10 @@ function renderStage1Canvas(canvas, state, handlers) {
       flushTopic();
       sendUnlock('topic_title', topicInput.value);
     });
-    topicInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') { topicInput.blur(); } });
+    topicInput.addEventListener('keydown', (e) => {
+      if (e.isComposing || e.keyCode === 229) return;
+      if (e.key === 'Enter') { topicInput.blur(); }
+    });
   }
 
   canvas.querySelectorAll('.contract-time-input').forEach(input => {
@@ -1453,7 +1456,7 @@ function renderStage1Canvas(canvas, state, handlers) {
         if (autoUnlockTimer) clearTimeout(autoUnlockTimer);
         autoUnlockTimer = setTimeout(() => {
           sendUnlock(fieldKey, Number(input.value) || 0);
-        }, 800);
+        }, 1000);
         if (timeTimer) clearTimeout(timeTimer);
         timeTimer = setTimeout(flushTime, 300);
       });
@@ -1463,7 +1466,10 @@ function renderStage1Canvas(canvas, state, handlers) {
         flushTime();
         sendUnlock(fieldKey, Number(input.value) || 0);
       });
-      input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { input.blur(); } });
+      input.addEventListener('keydown', (e) => {
+        if (e.isComposing || e.keyCode === 229) return;
+        if (e.key === 'Enter') { input.blur(); }
+      });
     }
   });
 
@@ -1506,7 +1512,7 @@ function renderStage1Canvas(canvas, state, handlers) {
         if (autoUnlockTimer) clearTimeout(autoUnlockTimer);
         autoUnlockTimer = setTimeout(() => {
           sendUnlock(fieldKey, input.value);
-        }, 800);
+        }, 1000);
         if (taskTimer) clearTimeout(taskTimer);
         taskTimer = setTimeout(flushTask, 300);
       });
@@ -1516,7 +1522,10 @@ function renderStage1Canvas(canvas, state, handlers) {
         flushTask();
         sendUnlock(fieldKey, input.value);
       });
-      input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { input.blur(); } });
+      input.addEventListener('keydown', (e) => {
+        if (e.isComposing || e.keyCode === 229) return;
+        if (e.key === 'Enter') { input.blur(); }
+      });
     }
   });
 

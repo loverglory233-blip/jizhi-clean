@@ -9,8 +9,8 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260828_v635";
-import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash, filterAndDeduplicateChatLogs } from "./utils.js?v=20260828_v635";
+} from "./constants.js?v=20260828_v636";
+import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash, filterAndDeduplicateChatLogs } from "./utils.js?v=20260828_v636";
 
 /* ==========================================================================
    7. TEACHER PORTAL RENDERER (LIVE WORKSPACE MIRROR & ANNOUNCEMENT READ MATRIX)
@@ -177,7 +177,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
     }
 
     const isTeacherIdle = () => document.hidden || (Date.now() - (window._lastTeacherActivity || Date.now()) > 60000);
-    const tInterval = isTeacherIdle() ? 15000 : 3000;
+    const tInterval = isTeacherIdle() ? 15000 : 1800;
     window._teacherPortalSyncTimer = setTimeout(teacherPullAndRefresh, tInterval);
   };
   if (window._teacherPortalSyncTimer) clearTimeout(window._teacherPortalSyncTimer);
@@ -194,7 +194,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
     window.addEventListener(evt, markTeacherActive, { passive: true });
   });
 
-  const tInitInterval = (document.hidden ? 15000 : 3000);
+  const tInitInterval = (document.hidden ? 15000 : 1800);
   window._teacherPortalSyncTimer = setTimeout(teacherPullAndRefresh, tInitInterval);
 
   container.innerHTML = `
@@ -883,8 +883,8 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
               </div>
 
               ${effectiveMonitorStage === 'stage1' ? `
-                <div style="display:grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap:16px; width:100%; box-sizing:border-box; height:560px; max-height:580px; overflow:hidden;">
-                  <div class="card" style="padding:20px; display:flex; flex-direction:column; border:1px solid #bfdbfe; gap:12px; min-width:0; box-sizing:border-box; height:100%; overflow-y:auto;">
+                <div style="display:grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap:16px; width:100%; box-sizing:border-box; align-items:stretch;">
+                  <div class="card" style="padding:20px; display:flex; flex-direction:column; border:1px solid #bfdbfe; gap:12px; min-width:0; box-sizing:border-box; height:auto; overflow:visible;">
                     <div style="font-size:15px; font-weight:800; color:#1e40af; display:flex; justify-content:space-between; align-items:center;">
                       <span>🎪 阶段一实操同屏: 初始提案与学术合作公约 (${activeMonitorGroup.name})</span>
                       <span style="background:#eff6ff; color:#1d4ed8; padding:2px 8px; border-radius:8px; font-size:11px; font-weight:700;">阶段一实况</span>
@@ -997,7 +997,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
                   </div>
                   <div class="card" style="padding:20px; display:flex; flex-direction:column; min-width:0; box-sizing:border-box; height:100%; overflow:hidden;">
                     <div style="font-size:15px; font-weight:800; color:#0f172a; margin-bottom:12px;">💬 阶段一研讨对话流 (${activeMonitorGroup.name})</div>
-                    <div style="flex:1; min-height:0; overflow-y:auto; background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:12px; font-size:12px; display:flex; flex-direction:column; gap:10px; box-sizing:border-box;">
+                    <div id="teacher-stage1-chat-stream" class="teacher-chat-stream" style="flex:1; min-height:320px; overflow-y:auto; background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:12px; font-size:12px; display:flex; flex-direction:column; gap:10px; box-sizing:border-box;">
                       ${filterAndDeduplicateChatLogs((state.chatLogs && state.chatLogs['stage1']) || []).map(m => {
                         const allGlobalUsers = (authManager) ? authManager.getUsers() : [];
                         const isAgent = AgentProfiles[m.sender] !== undefined;
@@ -1020,7 +1020,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
               ` : ''}
 
               ${effectiveMonitorStage === 'stage2' ? `
-                <div style="display:grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap:16px; width:100%; box-sizing:border-box; height:560px; max-height:580px; overflow:hidden;">
+                <div style="display:grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap:16px; width:100%; box-sizing:border-box; height:540px; max-height:560px; overflow:hidden;">
                   <div class="card" style="padding:20px; display:flex; flex-direction:column; border:1px solid #bfdbfe; min-width:0; box-sizing:border-box; height:100%; overflow-y:auto;">
                     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
                       <div style="display:flex; align-items:center; gap:8px;">
@@ -1043,8 +1043,8 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
                         }).join('')}
                       </div>
                     </div>
-                    <div id="teacher-live-doc-mirror" style="flex:1; min-height:360px; max-height:480px; background:#ffffff; border:1px solid #cbd5e1; border-radius:6px; overflow:hidden; position:relative;">
-                      <iframe src="/p/jizhi_${activeTaskId}_${activeMonitorGId}?showControls=false&showChat=false&showLineNumbers=true" style="pointer-events:none; border:none; width:100%; height:100%; min-height:360px;" title="教师端实时写作同屏镜像"></iframe>
+                    <div id="teacher-live-doc-mirror" style="flex:1; min-height:300px; max-height:420px; background:#ffffff; border:1px solid #cbd5e1; border-radius:6px; overflow:hidden; position:relative;">
+                      <iframe src="/p/jizhi_${encodeURIComponent(activeTaskId)}_${encodeURIComponent(activeMonitorGId)}?showControls=false&showChat=false&showLineNumbers=true" style="border:none; width:100%; height:100%; min-height:300px;" title="教师端实时写作同屏镜像"></iframe>
                     </div>
                     <div style="margin-top:14px; background:#f8fafc; padding:12px; border-radius:8px; border:1px solid #e2e8f0;">
                       <div style="font-size:12px; font-weight:700; color:#334155; margin-bottom:6px;">📊 本组 SSRL 成员字数与互动贡献比率 (${monitorMembersList.length} 位成员)</div>
@@ -1080,7 +1080,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
                   </div>
                   <div class="card" style="padding:20px; display:flex; flex-direction:column; min-width:0; box-sizing:border-box; height:100%; overflow:hidden;">
                     <div style="font-size:15px; font-weight:800; color:#0f172a; margin-bottom:12px;">💬 阶段二编辑部研讨流 (${activeMonitorGroup.name})</div>
-                    <div style="flex:1; min-height:0; overflow-y:auto; background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:12px; font-size:12px; display:flex; flex-direction:column; gap:10px; box-sizing:border-box;">
+                    <div id="teacher-stage2-chat-stream" class="teacher-chat-stream" style="flex:1; min-height:0; overflow-y:auto; background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:12px; font-size:12px; display:flex; flex-direction:column; gap:10px; box-sizing:border-box;">
                       ${filterAndDeduplicateChatLogs((state.chatLogs && state.chatLogs['stage2']) || []).map(m => {
                         const allGlobalUsers = (authManager) ? authManager.getUsers() : [];
                         const isAgent = AgentProfiles[m.sender] !== undefined;
@@ -1103,7 +1103,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
               ` : ''}
 
               ${effectiveMonitorStage === 'stage3' ? `
-                <div style="display:grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap:16px; width:100%; box-sizing:border-box; height:560px; max-height:580px; overflow:hidden;">
+                <div style="display:grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap:16px; width:100%; box-sizing:border-box; height:540px; max-height:560px; overflow:hidden;">
                   <div class="card" style="padding:20px; display:flex; flex-direction:column; border:1px solid #bfdbfe; min-width:0; gap:12px; box-sizing:border-box; height:100%; overflow-y:auto;">
                     <div style="font-size:15px; font-weight:800; color:#1e40af; display:flex; justify-content:space-between; align-items:center;">
                       <span>🎓 阶段三实操同屏: 答辩擂台与终稿 (${activeMonitorGroup.name})</span>
@@ -1120,8 +1120,8 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
                           <span style="font-size:13.5px; font-weight:800; color:#1e40af;">📜 论文终稿正文全篇镜像:</span>
                           <span style="font-size:12px; color:#64748b;">终稿字数: <b style="color:#2563eb; font-size:14px;">${((state.stage3?.finalDraft || state.stage2?.unifiedContent || '').replace(/<[^>]*>/g, '').trim()).length}</b> 字</span>
                         </div>
-                        <div style="flex:1; min-height:360px; max-height:480px; background:#ffffff; border:1px solid #cbd5e1; border-radius:6px; overflow:hidden; position:relative;">
-                          <iframe src="/p/jizhi_${activeTaskId}_${activeMonitorGId}?showControls=false&showChat=false&showLineNumbers=true" style="pointer-events:none; border:none; width:100%; height:100%; min-height:360px;" title="教师端论文终稿同屏镜像"></iframe>
+                        <div style="flex:1; min-height:300px; max-height:420px; background:#ffffff; border:1px solid #cbd5e1; border-radius:6px; overflow:hidden; position:relative;">
+                          <iframe src="/p/jizhi_${encodeURIComponent(activeTaskId)}_${encodeURIComponent(activeMonitorGId)}?showControls=false&showChat=false&showLineNumbers=true" style="border:none; width:100%; height:100%; min-height:300px;" title="教师端论文终稿同屏镜像"></iframe>
                         </div>
                       </div>
                     ` : `
@@ -1164,7 +1164,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
                   </div>
                   <div class="card" style="padding:20px; display:flex; flex-direction:column; min-width:0; box-sizing:border-box; height:100%; overflow:hidden;">
                     <div style="font-size:15px; font-weight:800; color:#0f172a; margin-bottom:12px;">💬 阶段三答辩对话流 (${activeMonitorGroup.name})</div>
-                    <div style="flex:1; min-height:0; overflow-y:auto; background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:12px; font-size:12px; display:flex; flex-direction:column; gap:10px; box-sizing:border-box;">
+                    <div id="teacher-stage3-chat-stream" class="teacher-chat-stream" style="flex:1; min-height:0; overflow-y:auto; background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:12px; font-size:12px; display:flex; flex-direction:column; gap:10px; box-sizing:border-box;">
                       ${filterAndDeduplicateChatLogs((state.chatLogs && state.chatLogs['stage3']) || []).map(m => {
                         const allGlobalUsers = (authManager) ? authManager.getUsers() : [];
                         const isAgent = AgentProfiles[m.sender] !== undefined;
@@ -3084,6 +3084,11 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
       authManager.exportGroupChatLogsToExcel(activeMonitorGId, state.chatLogs);
     });
   }
+
+  // 💬 教师端研讨流自动滚至底部（默认呈现最新消息）
+  container.querySelectorAll('.teacher-chat-stream').forEach(st => {
+    st.scrollTop = st.scrollHeight;
+  });
 
   // 🎯 精准保持滚动条位置（恢复原容器滚动条位置，绝不跳回最顶部）
   const newLayout = container.querySelector('.teacher-portal-layout') || document.querySelector('.teacher-portal-layout');
