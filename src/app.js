@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260827_v624";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired } from "./utils.js?v=20260827_v624";
-import { callCozeAgentAPI } from "./agents.js?v=20260827_v624";
-import { AuthManager } from "./auth.js?v=20260827_v624";
-import { CloudSyncEngine } from "./sync.js?v=20260827_v624";
-import { renderLoginView } from "./login.js?v=20260827_v624";
-import { renderTeacherPortal } from "./teacher.js?v=20260827_v624";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260827_v624";
+} from "./constants.js?v=20260827_v625";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired } from "./utils.js?v=20260827_v625";
+import { callCozeAgentAPI } from "./agents.js?v=20260827_v625";
+import { AuthManager } from "./auth.js?v=20260827_v625";
+import { CloudSyncEngine } from "./sync.js?v=20260827_v625";
+import { renderLoginView } from "./login.js?v=20260827_v625";
+import { renderTeacherPortal } from "./teacher.js?v=20260827_v625";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260827_v625";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260827_v624";
+} from "./editor.js?v=20260827_v625";
 
 // Make renderChat available on window for sync callbacks
 if (typeof window !== "undefined") {
@@ -92,15 +92,21 @@ export class App {
 
   loadGroupState(groupId = 'group_1') {
     const defaultState = JSON.parse(JSON.stringify(InitialState));
-    const taskId = this.state.activeTaskId || 'task_default';
-    const effectiveClassId = this.state.activeStudentClassId || (this.authManager ? this.authManager.getCurrentUser()?.classId : null) || 'class_101';
+    const user = this.authManager ? this.authManager.getCurrentUser() : null;
+    const isTeacher = user && (user.isTeacher || user.role === 'teacher');
+    const effectiveClassId = (isTeacher ? this.state.activeClassId : this.state.activeStudentClassId) || user?.classId || 'class_101';
+    let taskId = this.state.activeTaskId || (this.cloudSyncEngine ? this.cloudSyncEngine.taskId : `task_${effectiveClassId}_default`);
+    if (!taskId || taskId === 'task_default') {
+      taskId = `task_${effectiveClassId}_default`;
+    }
+    this.state.activeTaskId = taskId;
     this.state.members = this.authManager.getGroupMembersForWorkspace(groupId, effectiveClassId);
 
     // 🛡️ 任务与小组物理隔离：先彻底根据当前任务/小组的独立缓存加载，无缓存则完全使用纯净初始状态
-    const cacheKey = `jizhi_cloud_snapshot_v10_pure_${taskId}_${groupId}`;
+    const cacheKey = `jizhi_cloud_snapshot_v10_pure_${effectiveClassId}_${taskId}_${groupId}`;
     let cached = null;
     try {
-      const raw = localStorage.getItem(cacheKey);
+      const raw = localStorage.getItem(cacheKey) || localStorage.getItem(`jizhi_cloud_snapshot_v10_pure_${taskId}_${groupId}`);
       if (raw) cached = JSON.parse(raw);
     } catch (e) {}
 
@@ -156,12 +162,19 @@ export class App {
   // 💬 精准单条发信入库方法（确保任何来源的消息 100% 毫秒级写入 MySQL chat_messages 实体表）
   sendSingleChatMessage(msg, stage = null) {
     if (!msg) return;
+    const user = this.authManager ? this.authManager.getCurrentUser() : null;
+    const isTeacher = user && (user.isTeacher || user.role === 'teacher');
+    const effectiveClassId = (isTeacher ? this.state.activeClassId : this.state.activeStudentClassId) || user?.classId || 'class_101';
     const groupId = this.getEffectiveGroupId();
-    const taskId = this.state.activeTaskId || 'task_default';
+    let taskId = this.state.activeTaskId || (this.cloudSyncEngine ? this.cloudSyncEngine.taskId : `task_${effectiveClassId}_default`);
+    if (!taskId || taskId === 'task_default') {
+      taskId = `task_${effectiveClassId}_default`;
+    }
     const targetStage = stage || this.state.currentStage || 'stage1';
 
     const payload = {
       id: msg.id || ('msg_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6)),
+      classId: effectiveClassId,
       groupId: groupId,
       taskId: taskId,
       stage: targetStage,
@@ -173,7 +186,7 @@ export class App {
     };
 
     try {
-      fetch(`sync.php?action=send_chat&groupId=${encodeURIComponent(groupId)}&taskId=${encodeURIComponent(taskId)}`, {
+      fetch(`sync.php?action=send_chat&groupId=${encodeURIComponent(groupId)}&taskId=${encodeURIComponent(taskId)}&classId=${encodeURIComponent(effectiveClassId)}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
@@ -182,8 +195,14 @@ export class App {
   }
 
   syncChatLogs() {
+    const user = this.authManager ? this.authManager.getCurrentUser() : null;
+    const isTeacher = user && (user.isTeacher || user.role === 'teacher');
+    const effectiveClassId = (isTeacher ? this.state.activeClassId : this.state.activeStudentClassId) || user?.classId || 'class_101';
     const groupId = this.getEffectiveGroupId();
-    const taskId = this.state.activeTaskId || 'task_default';
+    let taskId = this.state.activeTaskId || (this.cloudSyncEngine ? this.cloudSyncEngine.taskId : `task_${effectiveClassId}_default`);
+    if (!taskId || taskId === 'task_default') {
+      taskId = `task_${effectiveClassId}_default`;
+    }
     const stage = this.state.currentStage || 'stage1';
     const logs = (this.state.chatLogs && this.state.chatLogs[stage]) ? this.state.chatLogs[stage] : [];
     const latestMsg = logs[logs.length - 1];
@@ -2186,12 +2205,13 @@ export class App {
       return;
     }
 
+    const effectiveClassId = (isTeacher ? this.state.activeClassId : this.state.activeStudentClassId) || currUser?.classId || 'class_101';
     const groupId = this.getEffectiveGroupId();
-    // 🛡️ 教师端监控与未完成初始拉取时，绝对不主动注入开场白，杜绝重复刷屏与多学生并发重复入库
-    if (this.authManager?.getCurrentUser()?.role === 'teacher') return;
-    if (this.cloudSyncEngine && !this.cloudSyncEngine.isInitialPullDone) return;
+    let taskId = this.state.activeTaskId || (this.cloudSyncEngine ? this.cloudSyncEngine.taskId : `task_${effectiveClassId}_default`);
+    if (!taskId || taskId === 'task_default') {
+      taskId = `task_${effectiveClassId}_default`;
+    }
 
-    const taskId = this.state.activeTaskId || 'task_default';
     const welcomeFlagKey = `jizhi_welcomed_${taskId}_${groupId}_${stage}`;
     if (sessionStorage.getItem(welcomeFlagKey)) return;
 
@@ -2201,11 +2221,15 @@ export class App {
 
     // 🎪 阶段一：拍卖师欢迎开场白
     if (stage === 'stage1') {
-      const hasAuctioneerIntro = logs.some(m => m && m.sender === 'auctioneer' && (m.text?.includes('欢迎来到【阶段一：学术拍卖会】') || m.text?.includes('拍卖师开场')));
+      const hasAuctioneerIntro = logs.some(m => m && (m.sender === 'auctioneer' || (m.id && String(m.id).includes('auctioneer'))) && (m.text?.includes('阶段一') || m.text?.includes('拍卖会') || m.text?.includes('拍卖师开场')));
       if (!hasAuctioneerIntro) {
         sessionStorage.setItem(welcomeFlagKey, '1');
         const welcomeMsg = {
           id: `msg_welcome_${taskId}_${groupId}_stage1`,
+          classId: effectiveClassId,
+          groupId: groupId,
+          taskId: taskId,
+          stage: 'stage1',
           sender: 'auctioneer',
           senderName: '学术拍卖师',
           text: `🎪 【拍卖师开场】：欢迎来到【阶段一：学术拍卖会】！我是本阶段的选题顾问拍卖师。\n请全组成员点击左侧【提交我的选题】提出各自的研究构想，并在研讨区充分交流。我们将通过拍卖投票遴选最佳提案，并在下方《学术合作公约》中商定分工与时间分配！`,
@@ -2215,6 +2239,8 @@ export class App {
         logs.unshift(welcomeMsg);
         this.sendSingleChatMessage(welcomeMsg, 'stage1');
         if (typeof window.renderChat === 'function') window.renderChat(this.state);
+      } else {
+        sessionStorage.setItem(welcomeFlagKey, '1');
       }
     }
 

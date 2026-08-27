@@ -9,8 +9,8 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260827_v624";
-import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash } from "./utils.js?v=20260827_v624";
+} from "./constants.js?v=20260827_v625";
+import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash } from "./utils.js?v=20260827_v625";
 
 /* ==========================================================================
    7. TEACHER PORTAL RENDERER (LIVE WORKSPACE MIRROR & ANNOUNCEMENT READ MATRIX)
@@ -40,9 +40,12 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
   const currentClassPapers = refPapers.filter(p => p.classId === activeClass.id || (p.className && p.className === activeClass.name) || (!p.classId && activeClass.id === 'class_101') || (Array.isArray(p.targetClassIds) && p.targetClassIds.includes(activeClass.id)));
 
   const classTaskExists = currentClassTasks.some(t => t.id === state.activeTaskId);
-  const effectiveMonitorTaskId = (state.activeTaskId && classTaskExists)
+  let effectiveMonitorTaskId = (state.activeTaskId && classTaskExists)
     ? state.activeTaskId
-    : (currentClassTasks[0] ? currentClassTasks[0].id : 'task_default');
+    : (currentClassTasks[0] ? currentClassTasks[0].id : `task_${activeClass.id}_default`);
+  if (!effectiveMonitorTaskId || effectiveMonitorTaskId === 'task_default') {
+    effectiveMonitorTaskId = `task_${activeClass.id}_default`;
+  }
   state.activeTaskId = effectiveMonitorTaskId;
   if (window.app && window.app.state) window.app.state.activeTaskId = effectiveMonitorTaskId;
 
@@ -68,10 +71,14 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
 
     if (state.teacherActiveTab === 'view_monitoring' && window.app && window.app.cloudSyncEngine) {
       const currentCId = state.activeClassId || activeClass.id || 'class_101';
-      const activeTaskId = state.activeTaskId || (currentClassTasks[0] ? currentClassTasks[0].id : 'task_default');
+      let activeTaskId = state.activeTaskId || (currentClassTasks[0] ? currentClassTasks[0].id : `task_${currentCId}_default`);
+      if (!activeTaskId || activeTaskId === 'task_default') {
+        activeTaskId = `task_${currentCId}_default`;
+      }
       const currentGId = state.activeMonitorGroupId || activeMonitorGId;
       window.app.cloudSyncEngine.groupId = currentGId;
       window.app.cloudSyncEngine.taskId = activeTaskId;
+      window.app.cloudSyncEngine.effectiveClassId = currentCId;
       window.app.cloudSyncEngine.updateScopeKeys();
 
       const oldFingerprint = JSON.stringify({

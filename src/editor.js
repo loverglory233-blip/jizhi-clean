@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles } from "./constants.js?v=20260827_v624";
-import { callCozeAgentAPI } from "./agents.js?v=20260827_v624";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime } from "./utils.js?v=20260827_v624";
+import { AgentProfiles } from "./constants.js?v=20260827_v625";
+import { callCozeAgentAPI } from "./agents.js?v=20260827_v625";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime } from "./utils.js?v=20260827_v625";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -1230,7 +1230,6 @@ function renderStage1Canvas(canvas, state, handlers) {
           s1.proposals[existingIdx].authorName = currentUserName;
           s1.proposals[existingIdx].updatedAt = nowMs;
         } else {
-          // 新提案：加入提案池（带时间戳与真实姓名）
           s1.proposals.push({
             id: 'prop_' + currentUser + '_' + nowMs,
             author: currentUser,
@@ -1239,8 +1238,6 @@ function renderStage1Canvas(canvas, state, handlers) {
             updatedAt: nowMs
           });
         }
-
-        // 提交提案时不自动给公约融合主题赋值，必须等待全组投票与讨论协商后确立
 
         const currentStage = state.currentStage;
         let memberArr = [];
@@ -1280,7 +1277,6 @@ function renderStage1Canvas(canvas, state, handlers) {
           }
         }
 
-        // 1. 异步调用扣子拍卖师 API，对该提案做针对性学术评估与全组播报 (具体优点 + 针对性启发)
         setTimeout(async () => {
           const isModify = existingIdx >= 0;
           const evalPrompt = isModify
@@ -1301,12 +1297,11 @@ function renderStage1Canvas(canvas, state, handlers) {
           };
           state.chatLogs[currentStage].push(auctioneerEvalMsg);
 
-          // 🎪 必须在评价输出之后，且确保全部成员的提案均具备实质研究意义（非 222、123、纯数字或无意义短字符），才宣布全员集齐并号召研讨
           const isSubstantive = (t) => {
             const str = (t || '').trim();
             if (str.length < 4) return false;
-            if (/^\d+$/.test(str)) return false; // 纯数字如 222, 123
-            if (/^([a-zA-Z0-9\u4e00-\u9fa5])\1+$/.test(str)) return false; // 纯重复字符如 aaaaa, 哈哈哈
+            if (/^\d+$/.test(str)) return false; 
+            if (/^([a-zA-Z0-9\u4e00-\u9fa5])\1+$/.test(str)) return false; 
             return true;
           };
           const currentProps = s1.proposals || [];
@@ -1335,19 +1330,19 @@ function renderStage1Canvas(canvas, state, handlers) {
     });
   }
 
-  // ── 方案一实施：解耦实时打字与网络同步，彻底根除时间回弹与打字被吃问题 ──
-  // 1. input 事件：纯本地更新内存，绝对不向网络发包，打字改时间 100% 顺畅
-  // 2. blur / change / Enter 事件：用户输入完成离开或敲回车时，立即一次性完整同步上云！
-
   const getLockPayload = (fieldKey, value = null) => {
     const currUser = (window.app && window.app.authManager) ? window.app.authManager.getCurrentUser() : null;
-    const effectiveClassId = window.app?.state.activeStudentClassId || (currUser?.classId || 'class_101');
+    const isTeacher = currUser && (currUser.role === 'teacher' || currUser.isTeacher);
+    const effectiveClassId = (isTeacher ? window.app?.state.activeClassId : window.app?.state.activeStudentClassId) || (currUser?.classId || 'class_101');
     const activeGroupObj = window.app?.authManager ? window.app.authManager.getStudentActiveGroup(currUser, effectiveClassId) : null;
     const curGid = activeGroupObj?.id || (currUser?.groupId || 'group_1');
-    const curTaskId = window.app?.state.activeTaskId || 'task_default';
+    let curTaskId = window.app?.state.activeTaskId || (window.app?.cloudSyncEngine?.taskId || `task_${effectiveClassId}_default`);
+    if (!curTaskId || curTaskId === 'task_default') {
+      curTaskId = `task_${effectiveClassId}_default`;
+    }
     const uId = currUser ? (currUser.studentCode || currUser.username || currUser.id) : 'u';
     const uName = currUser ? (currUser.name || currUser.username) : '组员';
-    const payload = { fieldKey, userId: uId, userName: uName, groupId: curGid, taskId: curTaskId };
+    const payload = { fieldKey, userId: uId, userName: uName, groupId: curGid, taskId: curTaskId, classId: effectiveClassId };
     if (value !== null) payload.value = value;
     return payload;
   };
@@ -1362,7 +1357,7 @@ function renderStage1Canvas(canvas, state, handlers) {
       }
     } catch (e) {}
 
-    fetch(`sync.php?action=lock_field&groupId=${encodeURIComponent(p.groupId)}&taskId=${encodeURIComponent(p.taskId)}`, {
+    fetch(`sync.php?action=lock_field&groupId=${encodeURIComponent(p.groupId)}&taskId=${encodeURIComponent(p.taskId)}&classId=${encodeURIComponent(p.classId || 'class_101')}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(p)
@@ -1379,7 +1374,7 @@ function renderStage1Canvas(canvas, state, handlers) {
       }
     } catch (e) {}
 
-    fetch(`sync.php?action=unlock_field&groupId=${encodeURIComponent(p.groupId)}&taskId=${encodeURIComponent(p.taskId)}`, {
+    fetch(`sync.php?action=unlock_field&groupId=${encodeURIComponent(p.groupId)}&taskId=${encodeURIComponent(p.taskId)}&classId=${encodeURIComponent(p.classId || 'class_101')}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(p)
@@ -1567,7 +1562,8 @@ function renderStage2Canvas(canvas, state, handlers) {
   const userClassId = state.activeStudentClassId || (currUser ? currUser.classId : null) || 'class_101';
   const activeGroupObj = (window.app && window.app.authManager) ? window.app.authManager.getStudentActiveGroup(currUser, userClassId) : null;
   const userGroupId = activeGroupObj?.id || (window.app?.cloudSyncEngine?.groupId) || (currUser?.groupId) || 'group_1';
-  const activeTaskId = state.activeTaskId || 'task_default';
+  let activeTaskId = state.activeTaskId || (window.app?.cloudSyncEngine?.taskId) || (`task_${userClassId}_default`);
+  if (!activeTaskId || activeTaskId === 'task_default') activeTaskId = `task_${userClassId}_default`;
   const availablePapers = (window.app && window.app.authManager) ? window.app.authManager.getReferencePapers(userGroupId, userClassId, activeTaskId) : [];
   const paperBtnLabel = availablePapers.length > 0 ? `📚 查阅参考范文 (${availablePapers.length}篇)` : '📚 查阅参考范文库';
 
@@ -1835,11 +1831,12 @@ function renderStage2Canvas(canvas, state, handlers) {
         if (wordCount !== prevLen && isInputFocused) {
           const delta = Math.abs(wordCount - prevLen);
           if (delta > 0) {
-            fetch('sync.php?action=report_member_contrib', {
+            fetch(`sync.php?action=report_member_contrib&groupId=${encodeURIComponent(userGroupId)}&taskId=${encodeURIComponent(activeTaskId)}&classId=${encodeURIComponent(userClassId)}`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
                 taskId: activeTaskId,
+                classId: userClassId,
                 groupId: userGroupId,
                 userCode: currUserCode,
                 delta: delta
@@ -2000,7 +1997,8 @@ function renderStage3Canvas(canvas, state, handlers) {
         const userClassId = state.activeStudentClassId || (currUser ? currUser.classId : null) || 'class_101';
         const activeGroupObj = (window.app && window.app.authManager) ? window.app.authManager.getStudentActiveGroup(currUser, userClassId) : null;
         const userGroupId = activeGroupObj?.id || (window.app?.cloudSyncEngine?.groupId) || (currUser?.groupId) || 'group_1';
-        const activeTaskId = state.activeTaskId || 'task_default';
+        let activeTaskId = state.activeTaskId || (window.app?.cloudSyncEngine?.taskId) || (`task_${userClassId}_default`);
+        if (!activeTaskId || activeTaskId === 'task_default') activeTaskId = `task_${userClassId}_default`;
         const padName = `jizhi_${activeTaskId}_${userGroupId}`;
         const currUserName = (currUser && (currUser.name || currUser.username)) || '组员';
         const currUserColor = (state.members && state.members[currUserCode]?.color) || '#2563eb';
@@ -2048,13 +2046,14 @@ function renderStage3Canvas(canvas, state, handlers) {
           const effectiveClassId = window.app.state.activeStudentClassId || (currUser?.classId || 'class_101');
           const activeGroupObj = window.app.authManager ? window.app.authManager.getStudentActiveGroup(currUser, effectiveClassId) : null;
           const curGid = activeGroupObj?.id || (currUser?.groupId || 'group_1');
-          const curTaskId = window.app.state.activeTaskId || 'task_default';
+          let curTaskId = window.app.state.activeTaskId || (window.app.cloudSyncEngine?.taskId || `task_${effectiveClassId}_default`);
+          if (!curTaskId || curTaskId === 'task_default') curTaskId = `task_${effectiveClassId}_default`;
           const uId = currUser ? (currUser.studentCode || currUser.username || currUser.id) : 'u';
           const uName = currUser ? (currUser.name || currUser.username) : '组员';
-          fetch(`sync.php?action=lock_field&groupId=${encodeURIComponent(curGid)}&taskId=${encodeURIComponent(curTaskId)}`, {
+          fetch(`sync.php?action=lock_field&groupId=${encodeURIComponent(curGid)}&taskId=${encodeURIComponent(curTaskId)}&classId=${encodeURIComponent(effectiveClassId)}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ fieldKey, userId: uId, userName: uName })
+            body: JSON.stringify({ fieldKey, userId: uId, userName: uName, classId: effectiveClassId, taskId: curTaskId, groupId: curGid })
           }).catch(() => {});
         }
       });
@@ -2070,12 +2069,13 @@ function renderStage3Canvas(canvas, state, handlers) {
           const effectiveClassId = window.app.state.activeStudentClassId || (currUser?.classId || 'class_101');
           const activeGroupObj = window.app.authManager ? window.app.authManager.getStudentActiveGroup(currUser, effectiveClassId) : null;
           const curGid = activeGroupObj?.id || (currUser?.groupId || 'group_1');
-          const curTaskId = window.app.state.activeTaskId || 'task_default';
+          let curTaskId = window.app.state.activeTaskId || (window.app.cloudSyncEngine?.taskId || `task_${effectiveClassId}_default`);
+          if (!curTaskId || curTaskId === 'task_default') curTaskId = `task_${effectiveClassId}_default`;
           const uId = currUser ? (currUser.studentCode || currUser.username || currUser.id) : 'u';
-          fetch(`sync.php?action=unlock_field&groupId=${encodeURIComponent(curGid)}&taskId=${encodeURIComponent(curTaskId)}`, {
+          fetch(`sync.php?action=unlock_field&groupId=${encodeURIComponent(curGid)}&taskId=${encodeURIComponent(curTaskId)}&classId=${encodeURIComponent(effectiveClassId)}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ fieldKey, userId: uId })
+            body: JSON.stringify({ fieldKey, userId: uId, classId: effectiveClassId, taskId: curTaskId, groupId: curGid })
           }).catch(() => {});
         }
       });
@@ -2178,12 +2178,24 @@ export function renderChat(state) {
 
   // Collect all visible messages in order across all stages, auto-purging old legacy idle spam
   const allMsgs = [];
+  const seenMsgKeys = new Set();
   allStages.forEach(stg => {
     if (state.chatLogs && Array.isArray(state.chatLogs[stg])) {
       state.chatLogs[stg].forEach(msg => {
         if (!msg) return;
         const txt = msg.text || '';
         if (txt.includes('已连续') || txt.includes('互动督促') || txt.includes('秒未研讨') || txt.includes('秒没有发言')) return;
+
+        // 🛡️ 严格去重守护：同一阶段同一发送者同一文本内容（或相同 msg.id）绝不重复渲染
+        const rawTxtNormalized = txt.replace(/[\s\r\n]+/g, ' ').trim();
+        const contentKey = `${msg.sender}_${stg}_${rawTxtNormalized}`;
+        const idKey = msg.id ? `id_${msg.id}` : null;
+        if (seenMsgKeys.has(contentKey) || (idKey && seenMsgKeys.has(idKey))) {
+          return;
+        }
+        seenMsgKeys.add(contentKey);
+        if (idKey) seenMsgKeys.add(idKey);
+
         allMsgs.push(msg);
       });
     }

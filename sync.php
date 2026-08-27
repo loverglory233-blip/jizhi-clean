@@ -102,17 +102,17 @@ if ($pdo) {
     }
 }
 
-$groupId = isset($_GET['groupId']) ? preg_replace('/[^a-zA-Z0-9_-]/', '', $_GET['groupId']) : 'group_1';
+$groupId = isset($_GET['groupId']) ? preg_replace('/[^a-zA-Z0-9_-]/', '', $_GET['groupId']) : (isset($REQ_DATA['groupId']) ? preg_replace('/[^a-zA-Z0-9_-]/', '', $REQ_DATA['groupId']) : 'group_1');
 if (empty($groupId)) $groupId = 'group_1';
 
 $RAW_INPUT = ($_SERVER['REQUEST_METHOD'] === 'POST') ? @file_get_contents('php://input') : '';
 $REQ_DATA = !empty($RAW_INPUT) ? (@json_decode($RAW_INPUT, true) ?: []) : [];
 
 $classId = isset($_GET['classId']) ? preg_replace('/[^a-zA-Z0-9_-]/', '', $_GET['classId']) : (isset($REQ_DATA['classId']) ? preg_replace('/[^a-zA-Z0-9_-]/', '', $REQ_DATA['classId']) : '');
+if (empty($classId)) $classId = 'class_101';
 
-$taskId = isset($_GET['taskId']) ? preg_replace('/[^a-zA-Z0-9_-]/', '', $_GET['taskId']) : (isset($REQ_DATA['taskId']) ? preg_replace('/[^a-zA-Z0-9_-]/', '', $REQ_DATA['taskId']) : 'task_default');
-if (empty($taskId)) $taskId = 'task_default';
-if (!empty($classId) && $taskId === 'task_default') {
+$taskId = isset($_GET['taskId']) ? preg_replace('/[^a-zA-Z0-9_-]/', '', $_GET['taskId']) : (isset($REQ_DATA['taskId']) ? preg_replace('/[^a-zA-Z0-9_-]/', '', $REQ_DATA['taskId']) : '');
+if (empty($taskId) || $taskId === 'task_default') {
     $taskId = 'task_' . $classId . '_default';
 }
 
@@ -706,8 +706,13 @@ if ($action === 'get_teacher_monitor_all_groups') {
         echo json_encode(['success' => false, 'message' => '❌ 仅教师可访问，请重新登录']);
         exit;
     }
-    $taskId = isset($_GET['taskId']) ? trim($_GET['taskId']) : ($queryTaskId ?: 'task_default');
-    $classId = isset($_GET['classId']) ? trim($_GET['classId']) : '';
+    $classId = isset($_GET['classId']) ? trim($_GET['classId']) : (isset($REQ_DATA['classId']) ? trim($REQ_DATA['classId']) : '');
+    if (empty($classId)) $classId = 'class_101';
+
+    $taskId = isset($_GET['taskId']) ? trim($_GET['taskId']) : (isset($REQ_DATA['taskId']) ? trim($REQ_DATA['taskId']) : '');
+    if (empty($taskId) || $taskId === 'task_default') {
+        $taskId = 'task_' . $classId . '_default';
+    }
 
     $result = ['success' => true, 'groups' => []];
     $nowMs = round(microtime(true) * 1000);
@@ -745,9 +750,10 @@ if ($action === 'get_teacher_monitor_all_groups') {
             }
         }
 
-        // 2. 查出当前任务下所有小组的协同状态
-        $stmt = $pdo->prepare("SELECT * FROM group_states WHERE task_id = :tid");
-        $stmt->execute([':tid' => $taskId]);
+        // 2. 查出当前任务下所有小组的协同状态 (兼容带班级前缀与裸 task_default)
+        $legacyTid = ($taskId === 'task_' . $classId . '_default') ? 'task_default' : $taskId;
+        $stmt = $pdo->prepare("SELECT * FROM group_states WHERE task_id = :tid OR task_id = :tid2 ORDER BY last_timestamp ASC");
+        $stmt->execute([':tid' => $taskId, ':tid2' => $legacyTid]);
         $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
         $stateMap = [];
         foreach ($rows as $r) {
@@ -766,7 +772,7 @@ if ($action === 'get_teacher_monitor_all_groups') {
 
         foreach ($allGroupIds as $gid) {
             $r = $stateMap[$gid] ?? null;
-            $sk = $taskId . '_' . $gid;
+            $sk = $r ? $r['scope_key'] : ($taskId . '_' . $gid);
             $offGroup = $officialGroups[$gid] ?? null;
 
             // 🛡️ 聊天记录严格隔离：直接从 chat_messages 关系表中拉取属于本组 ($sk) 的历史消息
@@ -1770,8 +1776,12 @@ if ($action === 'send_chat' && $_SERVER['REQUEST_METHOD'] === 'POST') {
 
         if (!empty($txt)) {
             // 🛡️ AI 智能体开场白全局唯一幂等守护：若本组本阶段已存在该智能体的开场白，绝对拒绝重复插入
-            if (in_array($snd, ['auctioneer', 'managingEditor', 'reviewingEditor']) && mb_strpos($txt, '开场') !== false) {
-                $chkStmt = $pdo->prepare("SELECT id FROM chat_messages WHERE scope_key = :sk AND stage = :stg AND sender = :snd AND text LIKE '%开场%' LIMIT 1");
+            $isAgentWelcome = (
+                (in_array($snd, ['auctioneer', 'managingEditor', 'reviewingEditor', 'neutral', 'proponent', 'opponent']) && (mb_strpos($txt, '开场') !== false || mb_strpos($txt, '欢迎来到') !== false || mb_strpos($txt, '开局') !== false))
+                || (strpos((string)$mId, 'msg_welcome_') !== false)
+            );
+            if ($isAgentWelcome) {
+                $chkStmt = $pdo->prepare("SELECT id FROM chat_messages WHERE scope_key = :sk AND stage = :stg AND sender = :snd AND (text LIKE '%开场%' OR text LIKE '%欢迎来到%' OR text LIKE '%开局%' OR id LIKE 'msg_welcome_%') LIMIT 1");
                 $chkStmt->execute([':sk' => $scopeKey, ':stg' => $stage, ':snd' => $snd]);
                 if ($chkStmt->fetch()) {
                     echo json_encode(['success' => true, 'timestamp' => $nowMs, 'dedup' => true]);
@@ -2353,10 +2363,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $txt = isset($msgItem['text']) ? $msgItem['text'] : '';
                         $tstr = isset($msgItem['timestamp']) ? $msgItem['timestamp'] : '';
                         $tms = isset($msgItem['_timeMs']) ? intval($msgItem['_timeMs']) : (isset($msgItem['timeMs']) ? intval($msgItem['timeMs']) : $ts);
+                        $mId = isset($msgItem['id']) ? (string)$msgItem['id'] : '';
                         if (!empty($txt)) {
+                            // 🛡️ AI 智能体开场白唯一性守护：如果本组本阶段已存在该智能体开场白，绝对跳过
+                            $isAgentWelcome = (
+                                (in_array($snd, ['auctioneer', 'managingEditor', 'reviewingEditor', 'neutral', 'proponent', 'opponent']) && (mb_strpos($txt, '开场') !== false || mb_strpos($txt, '欢迎来到') !== false || mb_strpos($txt, '开局') !== false))
+                                || (strpos($mId, 'msg_welcome_') !== false)
+                            );
+                            if ($isAgentWelcome) {
+                                $chkAgentStmt = $pdo->prepare("SELECT id FROM chat_messages WHERE scope_key = :sk AND stage = :stg AND sender = :snd AND (text LIKE '%开场%' OR text LIKE '%欢迎来到%' OR text LIKE '%开局%' OR id LIKE 'msg_welcome_%') LIMIT 1");
+                                $chkAgentStmt->execute([':sk' => $scopeKey, ':stg' => $stg, ':snd' => $snd]);
+                                if ($chkAgentStmt->fetch()) {
+                                    continue; // 彻底跳过重复开场白
+                                }
+                            }
+
                             // 检查避免重复插入完全相同的历史记录
-                            $chkStmt = $pdo->prepare("SELECT id FROM chat_messages WHERE scope_key = :sk AND stage = :stg AND sender = :snd AND time_ms = :tms LIMIT 1");
-                            $chkStmt->execute([':sk' => $scopeKey, ':stg' => $stg, ':snd' => $snd, ':tms' => $tms]);
+                            $chkStmt = $pdo->prepare("SELECT id FROM chat_messages WHERE scope_key = :sk AND stage = :stg AND sender = :snd AND (time_ms = :tms OR text = :txt) LIMIT 1");
+                            $chkStmt->execute([':sk' => $scopeKey, ':stg' => $stg, ':snd' => $snd, ':tms' => $tms, ':txt' => $txt]);
                             if (!$chkStmt->fetch()) {
                                 $stmtInsertMsg->execute([
                                     ':sk' => $scopeKey,
