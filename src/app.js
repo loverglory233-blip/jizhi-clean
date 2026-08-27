@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260827_v630";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired } from "./utils.js?v=20260827_v630";
-import { callCozeAgentAPI } from "./agents.js?v=20260827_v630";
-import { AuthManager } from "./auth.js?v=20260827_v630";
-import { CloudSyncEngine } from "./sync.js?v=20260827_v630";
-import { renderLoginView } from "./login.js?v=20260827_v630";
-import { renderTeacherPortal } from "./teacher.js?v=20260827_v630";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260827_v630";
+} from "./constants.js?v=20260827_v631";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired } from "./utils.js?v=20260827_v631";
+import { callCozeAgentAPI } from "./agents.js?v=20260827_v631";
+import { AuthManager } from "./auth.js?v=20260827_v631";
+import { CloudSyncEngine } from "./sync.js?v=20260827_v631";
+import { renderLoginView } from "./login.js?v=20260827_v631";
+import { renderTeacherPortal } from "./teacher.js?v=20260827_v631";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260827_v631";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260827_v630";
+} from "./editor.js?v=20260827_v631";
 
 // Make renderChat available on window for sync callbacks
 if (typeof window !== "undefined") {
@@ -3856,10 +3856,12 @@ ${hasDivergence
 }
 
 // Global Launch (Native ESM Support)
-if (document.readyState === 'loading') {
-  window.addEventListener('DOMContentLoaded', () => {
+if (typeof document !== 'undefined') {
+  if (document.readyState === 'loading') {
+    window.addEventListener('DOMContentLoaded', () => {
+      window.app = new App();
+    });
+  } else {
     window.app = new App();
-  });
-} else {
-  window.app = new App();
+  }
 }
