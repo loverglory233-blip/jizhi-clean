@@ -388,9 +388,9 @@ if ($action === 'login' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         if (!empty($role) && $roleMismatch) {
             http_response_code(401);
             $msg = ($uRole === 'teacher')
-                ? '❌ 所选登录身份与账号角色不匹配，请切换为【教师】身份登录'
-                : '❌ 所选登录身份与账号角色不匹配，请切换为【学生】身份登录';
-            echo json_encode(['success' => false, 'message' => $msg], JSON_UNESCAPED_UNICODE);
+                ? '❌ 身份选择错误：该账号为【教师】身份，已自动为您切换为教师，请重新点击登录'
+                : '❌ 身份选择错误：该账号为【学生】身份，已自动为您切换为学生，请重新点击登录';
+            echo json_encode(['success' => false, 'message' => $msg, 'suggestedRole' => $uRole], JSON_UNESCAPED_UNICODE);
             exit;
         }
 
@@ -416,10 +416,10 @@ if ($action === 'login' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         ]);
         exit;
     } else if (!$userExists) {
-        echo json_encode(['success' => false, 'message' => '❌ 账号 [' . htmlspecialchars($account) . '] 尚未录入系统，请核对学号或联系指导教师导入']);
+        echo json_encode(['success' => false, 'message' => '❌ 账号 [' . htmlspecialchars($account) . '] 不存在，请核对工号或学号是否输入正确']);
         exit;
     } else {
-        echo json_encode(['success' => false, 'message' => '❌ 登录密码错误，默认初始密码为 123']);
+        echo json_encode(['success' => false, 'message' => '❌ 密码错误，请核对后重试（默认初始密码为 123）']);
         exit;
     }
 }

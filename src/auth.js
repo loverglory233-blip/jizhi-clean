@@ -14,8 +14,8 @@ import {
   DefaultTasks,
   DefaultAnnouncements,
   DefaultReferencePapers
-} from './constants.js?v=20260827_v613';
-import { formatExportDateTime } from './utils.js?v=20260827_v613';
+} from './constants.js?v=20260827_v614';
+import { formatExportDateTime } from './utils.js?v=20260827_v614';
 
 export class AuthManager {
   constructor() {
@@ -446,17 +446,17 @@ export class AuthManager {
         return { success: true, user };
       } else if (data && data.message) {
         // 🔐 精准展示服务端返回的真实校验结果（账号不存在/密码错误/身份不匹配）
-        return { success: false, message: data.message };
+        return { success: false, message: data.message, suggestedRole: data.suggestedRole || null };
       } else {
         const localRes = this.login(accountInput, password, role);
         if (localRes && localRes.success) return localRes;
-        return { success: false, message: '❌ 账号不存在或密码错误，请核对后重试' };
+        return { success: false, message: (localRes && localRes.message) ? localRes.message : '❌ 账号或密码错误，请核对后重试', suggestedRole: localRes?.suggestedRole || null };
       }
     } catch (err) {
       // 仅在完全无法连通时回退
       const localRes = this.login(accountInput, password, role);
       if (localRes && localRes.success) return localRes;
-      return { success: false, message: '⚠️ 无法连接服务器，请检查网络连接后重试' };
+      return { success: false, message: (localRes && localRes.message) ? localRes.message : '⚠️ 无法连接服务器，请检查网络连接后重试', suggestedRole: localRes?.suggestedRole || null };
     }
   }
 
@@ -492,16 +492,16 @@ export class AuthManager {
     const isPwdValid = (pwd.length > 0) && ((user.password && user.password === pwd) || (!user.password && pwd === '123'));
 
     if (!isPwdValid) {
-      return { success: false, message: '❌ 密码错误，默认初始密码为 123' };
+      return { success: false, message: '❌ 密码错误，请核对后重试（默认初始密码为 123）' };
     }
 
     // 🔐 多重认证：登录界面所选身份必须与账号实际角色一致，防止跨身份误登录
     const isTeacher = (user.role === 'teacher' || user.isTeacher);
     if (loginRole === 'teacher' && !isTeacher) {
-      return { success: false, message: '❌ 所选登录身份与账号角色不匹配，请选择【教师】或核对工号' };
+      return { success: false, message: '❌ 身份选择错误：该账号为【学生】身份，已自动为您切换为学生，请重新点击登录', suggestedRole: 'student' };
     }
     if (loginRole === 'student' && isTeacher) {
-      return { success: false, message: '❌ 所选登录身份与账号角色不匹配，请选择【学生】或核对学号' };
+      return { success: false, message: '❌ 身份选择错误：该账号为【教师】身份，已自动为您切换为教师，请重新点击登录', suggestedRole: 'teacher' };
     }
 
     // 🚀 一个账号同时只能一个人登录：生成唯一的 activeSessionId 并推送到服务端会话锁
