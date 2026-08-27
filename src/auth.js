@@ -485,7 +485,7 @@ export class AuthManager {
     });
 
     if (userIndex === -1) {
-      return { success: false, message: '❌ 该账号不存在，请检查工号或学号是否输入正确' };
+      return { success: false, message: '❌ 未找到该学号/工号，请核对输入或联系指导教师' };
     }
 
     const user = users[userIndex];

@@ -416,7 +416,7 @@ if ($action === 'login' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         ]);
         exit;
     } else if (!$userExists) {
-        echo json_encode(['success' => false, 'message' => '❌ 账号 [' . htmlspecialchars($account) . '] 不存在，请核对工号或学号是否输入正确']);
+        echo json_encode(['success' => false, 'message' => '❌ 未找到该学号/工号 [' . htmlspecialchars($account) . ']，请核对输入或联系指导教师']);
         exit;
     } else {
         echo json_encode(['success' => false, 'message' => '❌ 密码错误，请核对后重试（默认初始密码为 123）']);
