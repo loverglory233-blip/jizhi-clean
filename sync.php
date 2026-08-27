@@ -2386,6 +2386,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 // 5. GET snapshot (从 MySQL 高速拉取)
 if ($pdo) {
+    $nowMs = round(microtime(true) * 1000);
     $reqUserId = isset($_GET['userId']) ? trim($_GET['userId']) : '';
     $reqSessToken = isset($_GET['sessToken']) ? trim($_GET['sessToken']) : '';
     if (!empty($reqUserId) && !empty($reqSessToken)) {
