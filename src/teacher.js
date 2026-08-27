@@ -9,8 +9,8 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260827_v632";
-import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash } from "./utils.js?v=20260827_v632";
+} from "./constants.js?v=20260828_v633";
+import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash, filterAndDeduplicateChatLogs } from "./utils.js?v=20260828_v633";
 
 /* ==========================================================================
    7. TEACHER PORTAL RENDERER (LIVE WORKSPACE MIRROR & ANNOUNCEMENT READ MATRIX)
@@ -842,14 +842,11 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
                   </div>
                 </div>
 
-                <!-- 全局只读不可修改状态控制与 Excel 导出 -->
+                <!-- 任务状态感知与 Excel 导出 -->
                 <div style="display:flex; align-items:center; gap:10px;">
                   <span style="font-size:12px; font-weight:700; padding:6px 12px; border-radius:8px; background:${isMonitorTaskExpired || state.isFinalSubmitted ? '#fef2f2' : '#ecfdf5'}; color:${isMonitorTaskExpired || state.isFinalSubmitted ? '#dc2626' : '#059669'}; border:1px solid ${isMonitorTaskExpired || state.isFinalSubmitted ? '#fecaca' : '#a7f3d0'};">
-                    ${isMonitorTaskExpired ? '🛑 任务已截止锁定 (学生端全盘只读)' : (state.isFinalSubmitted ? '🔒 全局锁定中 (学生端全盘只读·仅保留聊天)' : '✍️ 学生端可自由协作编辑')}
+                    ${isMonitorTaskExpired ? '🛑 任务已截止 (只读模式)' : (state.isFinalSubmitted ? '🔒 论文终稿已提交 (已归档)' : '🟢 任务进行中 (组员协作撰写中)')}
                   </span>
-                  <button id="btn-toggle-final-submitted" style="background:${state.isFinalSubmitted ? 'linear-gradient(135deg, #059669, #047857)' : 'linear-gradient(135deg, #dc2626, #b91c1c)'}; border:none; color:white; padding:8px 16px; border-radius:8px; font-size:12.5px; font-weight:700; cursor:pointer; box-shadow:0 2px 6px rgba(0,0,0,0.15);">
-                    ${state.isFinalSubmitted ? '🔓 解除全局锁定 (恢复学生编辑权限)' : '🔒 手动全局锁定 (设为全盘只读)'}
-                  </button>
                   <button id="btn-export-all-excel" style="background:linear-gradient(135deg, #2563eb, #1d4ed8); border:none; color:white; padding:8px 16px; border-radius:8px; font-size:12.5px; font-weight:800; cursor:pointer; box-shadow:0 3px 10px rgba(37,99,235,0.3);">
                     📊 导出本组研讨 Excel
                   </button>
@@ -1001,7 +998,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
                   <div class="card" style="padding:20px; display:flex; flex-direction:column; min-width:0; box-sizing:border-box; height:100%;">
                     <div style="font-size:15px; font-weight:800; color:#0f172a; margin-bottom:12px;">💬 阶段一研讨对话流 (${activeMonitorGroup.name})</div>
                     <div style="flex:1; min-height:0; overflow-y:auto; background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:12px; font-size:12px; display:flex; flex-direction:column; gap:10px; box-sizing:border-box;">
-                      ${((state.chatLogs && state.chatLogs['stage1']) || []).map(m => {
+                      ${filterAndDeduplicateChatLogs((state.chatLogs && state.chatLogs['stage1']) || [], monitorMembersList).map(m => {
                         const allGlobalUsers = (authManager) ? authManager.getUsers() : [];
                         const isAgent = AgentProfiles[m.sender] !== undefined;
                         const matchedUser = isAgent ? null : allGlobalUsers.find(u => u.id === m.sender || u.studentCode === m.sender || u.username === m.sender || u.name === m.sender);
@@ -1084,7 +1081,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
                   <div class="card" style="padding:20px; display:flex; flex-direction:column; min-width:0; box-sizing:border-box; height:100%;">
                     <div style="font-size:15px; font-weight:800; color:#0f172a; margin-bottom:12px;">💬 阶段二编辑部研讨流 (${activeMonitorGroup.name})</div>
                     <div style="flex:1; min-height:0; overflow-y:auto; background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:12px; font-size:12px; display:flex; flex-direction:column; gap:10px; box-sizing:border-box;">
-                      ${((state.chatLogs && state.chatLogs['stage2']) || []).map(m => {
+                      ${filterAndDeduplicateChatLogs((state.chatLogs && state.chatLogs['stage2']) || [], monitorMembersList).map(m => {
                         const allGlobalUsers = (authManager) ? authManager.getUsers() : [];
                         const isAgent = AgentProfiles[m.sender] !== undefined;
                         const matchedUser = isAgent ? null : allGlobalUsers.find(u => u.id === m.sender || u.studentCode === m.sender || u.username === m.sender || u.name === m.sender);
@@ -1168,7 +1165,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
                   <div class="card" style="padding:20px; display:flex; flex-direction:column; min-width:0; box-sizing:border-box; height:100%;">
                     <div style="font-size:15px; font-weight:800; color:#0f172a; margin-bottom:12px;">💬 阶段三答辩对话流 (${activeMonitorGroup.name})</div>
                     <div style="flex:1; min-height:0; overflow-y:auto; background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:12px; font-size:12px; display:flex; flex-direction:column; gap:10px; box-sizing:border-box;">
-                      ${((state.chatLogs && state.chatLogs['stage3']) || []).map(m => {
+                      ${filterAndDeduplicateChatLogs((state.chatLogs && state.chatLogs['stage3']) || [], monitorMembersList).map(m => {
                         const allGlobalUsers = (authManager) ? authManager.getUsers() : [];
                         const isAgent = AgentProfiles[m.sender] !== undefined;
                         const matchedUser = isAgent ? null : allGlobalUsers.find(u => u.id === m.sender || u.studentCode === m.sender || u.username === m.sender || u.name === m.sender);
@@ -3022,57 +3019,6 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
     });
   });
 
-  // 终稿不可修改状态控制 (教师一键解除锁定 / 重新锁定)
-  const btnToggleFinalSubmitted = container.querySelector('#btn-toggle-final-submitted');
-  if (btnToggleFinalSubmitted) {
-    btnToggleFinalSubmitted.addEventListener('click', () => {
-      const currentSub = state.isFinalSubmitted;
-      const newSub = !currentSub;
-      state.isFinalSubmitted = newSub;
-      authManager.setGroupFinalSubmitted(activeMonitorGId, newSub);
-      
-      const currentTaskId = window.app ? (window.app.state.activeTaskId || 'task_default') : 'task_default';
-      const curTaskObj = tasks.find(t => t.id === currentTaskId) || { title: '当前写作任务' };
-      const lockTitle = newSub ? `🔒 指导教师已锁定【${activeMonitorGroup.name}】写作任务` : `🔓 指导教师已恢复【${activeMonitorGroup.name}】写作任务编辑权限`;
-      const lockContent = newSub ? '当前写作任务已被指导教师锁定为只读状态' : '当前写作任务已恢复正常编辑权限';
-
-      // 立即同步写入小组状态并向全组学生端推送最新权限快照
-      if (window.app) {
-        window.app.state.isFinalSubmitted = newSub;
-        window.app.state.activeMonitorGroupId = activeMonitorGId;
-        
-        let effectiveTId = window.app.state.activeTaskId;
-        const selTaskBox = container.querySelector('#sel-switch-monitor-task');
-        if (selTaskBox && selTaskBox.value) {
-          effectiveTId = selTaskBox.value;
-          window.app.state.activeTaskId = effectiveTId;
-        }
-        if (!effectiveTId && currentClassTasks && currentClassTasks.length > 0) {
-          effectiveTId = currentClassTasks[0].id;
-          window.app.state.activeTaskId = effectiveTId;
-        }
-        if (!effectiveTId) effectiveTId = 'task_default';
-
-        try {
-          fetch(`sync.php?action=set_task_group_lock&taskId=${encodeURIComponent(effectiveTId)}&groupId=${encodeURIComponent(activeMonitorGId)}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ taskId: effectiveTId, groupId: activeMonitorGId, isLocked: newSub })
-          }).catch(() => {});
-        } catch (e) {}
-      }
-
-      renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
-      if (newSub) {
-        alert(`🔒 已全局锁定【${activeMonitorGroup.name}】整个写作任务！\n\n学生端所有阶段（阶段一公约、阶段二正文、阶段三答辩）已全盘转为【只读归档模式】。`);
-      } else {
-        alert(`🔓 已解除【${activeMonitorGroup.name}】写作任务锁定！\n\n学生端所有写作阶段已全面恢复自由协作与编辑修改权限！`);
-      }
-    });
-  }
-
-
-
   const selSwitchTask = container.querySelector('#sel-switch-monitor-task');
   if (selSwitchTask) {
     selSwitchTask.addEventListener('change', async (e) => {
@@ -3081,61 +3027,46 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
       if (window.app) {
         window.app.state.activeTaskId = targetTId;
         window.app.loadGroupState(state.activeMonitorGroupId || 'group_1');
-        if (window.app.cloudSyncEngine) {
-          window.app.cloudSyncEngine.groupId = state.activeMonitorGroupId || 'group_1';
-          window.app.cloudSyncEngine.taskId = targetTId;
-          window.app.cloudSyncEngine.updateScopeKeys();
-          try {
-            await window.app.cloudSyncEngine.pullFromServer();
-          } catch (err) {}
-        }
       }
       renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
     });
   }
 
+  const syncGroupDataFromMemory = (targetGId) => {
+    state.activeMonitorGroupId = targetGId;
+    if (state.monitorPanorama && state.monitorPanorama[targetGId]) {
+      const gData = state.monitorPanorama[targetGId];
+      state.stage1 = gData.stage1 || { proposals: [], votes: {}, hasVoted: {}, contract: {} };
+      state.stage2 = { ...(state.stage2 || {}), ...(gData.stage2 || {}), unifiedContent: gData.stage2?.unifiedContent || '' };
+      state.stage3 = gData.stage3 || { feedbackItems: [] };
+      state.chatLogs = gData.chatLogs || { stage1: [], stage2: [], stage3: [] };
+      state.currentStage = gData.currentStage || 'stage1';
+      state.isFinalSubmitted = !!gData.isFinalSubmitted;
+    }
+    if (window.app) {
+      window.app.state.activeMonitorGroupId = targetGId;
+      window.app.loadGroupState(targetGId);
+    }
+  };
+
   const selSwitchGroup = container.querySelector('#sel-switch-monitor-group');
   if (selSwitchGroup) {
-    selSwitchGroup.addEventListener('change', async (e) => {
-      const targetGId = e.target.value;
-      state.activeMonitorGroupId = targetGId;
-      if (window.app) {
-        window.app.state.activeMonitorGroupId = targetGId;
-        window.app.loadGroupState(targetGId);
-        if (window.app.cloudSyncEngine) {
-          window.app.cloudSyncEngine.groupId = targetGId;
-          window.app.cloudSyncEngine.taskId = state.activeTaskId || (currentClassTasks[0] ? currentClassTasks[0].id : 'task_default');
-          window.app.cloudSyncEngine.updateScopeKeys();
-          try {
-            await window.app.cloudSyncEngine.pullFromServer();
-          } catch (err) {}
-        }
-      }
+    selSwitchGroup.addEventListener('change', (e) => {
+      syncGroupDataFromMemory(e.target.value);
       renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
     });
   }
 
   container.querySelectorAll('.btn-monitor-panorama-card').forEach(card => {
     card.addEventListener('click', () => {
-      const gid = card.dataset.gid;
-      state.activeMonitorGroupId = gid;
-      if (window.app) {
-        window.app.state.activeMonitorGroupId = gid;
-        window.app.loadGroupState(gid);
-        if (window.app.cloudSyncEngine) {
-          window.app.cloudSyncEngine.groupId = gid;
-          window.app.cloudSyncEngine.taskId = state.activeTaskId || (currentClassTasks[0] ? currentClassTasks[0].id : 'task_default');
-          window.app.cloudSyncEngine.updateScopeKeys();
-        }
-      }
+      syncGroupDataFromMemory(card.dataset.gid);
       renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
     });
   });
 
   container.querySelectorAll('.btn-switch-monitor-group').forEach(btn => {
     btn.addEventListener('click', () => {
-      state.activeMonitorGroupId = btn.dataset.gid;
-      if (window.app) window.app.loadGroupState(btn.dataset.gid);
+      syncGroupDataFromMemory(btn.dataset.gid);
       renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
     });
   });

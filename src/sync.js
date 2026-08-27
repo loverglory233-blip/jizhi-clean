@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState } from './constants.js?v=20260827_v632';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin } from './utils.js?v=20260827_v632';
+import { InitialState } from './constants.js?v=20260828_v633';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin } from './utils.js?v=20260828_v633';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -126,8 +126,9 @@ export class CloudSyncEngine {
 
   initPolling() {
     this.pullFromServer();
+    this.sendPresencePing(); // ⚡ 进入工作台 0ms 瞬间首发上线心跳，告别等待
     // ⚡ 动静分级智能心跳与轮询阶梯：
-    // • 活跃态 (< 2分钟有操作): 轮询 1.5s，心跳 10s
+    // • 活跃态 (< 2分钟有操作): 轮询 800ms，心跳 5s (单次50字节，秒亮在线绿点)
     // • 静止态 (> 2分钟无操作): 轮询 15s，心跳 30s
     // • 息屏态 (切后台/休眠): 轮询 30s，心跳 60s
     let lastUserActivity = Date.now();
@@ -146,7 +147,7 @@ export class CloudSyncEngine {
     const isHidden = () => document.hidden || document.visibilityState === 'hidden';
     const isIdle = () => isHidden() || (Date.now() - lastUserActivity > 120000);
     const getPollInterval = () => (isHidden() ? 30000 : (isIdle() ? 15000 : 800));
-    const getPingInterval = () => (isHidden() ? 60000 : (isIdle() ? 30000 : 10000));
+    const getPingInterval = () => (isHidden() ? 60000 : (isIdle() ? 30000 : 5000));
 
     const runPoll = () => {
       if (this.isLoggingOut) return;
@@ -155,9 +156,9 @@ export class CloudSyncEngine {
         this.pollTimer = setTimeout(runPoll, getPollInterval());
       });
     };
-    this.pollTimer = setTimeout(runPoll, 2000);
+    this.pollTimer = setTimeout(runPoll, 1000);
 
-    let lastPingTime = 0;
+    let lastPingTime = Date.now();
     const runPing = () => {
       if (this.isLoggingOut) return;
       const now = Date.now();
@@ -166,13 +167,13 @@ export class CloudSyncEngine {
         lastPingTime = now;
         this.sendPresencePing().finally(() => {
           if (this.isLoggingOut) return;
-          this.pingTimer = setTimeout(runPing, 5000);
+          this.pingTimer = setTimeout(runPing, 3000);
         });
       } else {
-        this.pingTimer = setTimeout(runPing, 5000);
+        this.pingTimer = setTimeout(runPing, 3000);
       }
     };
-    this.pingTimer = setTimeout(runPing, 3000);
+    this.pingTimer = setTimeout(runPing, 5000);
 
     window.addEventListener('storage', (e) => {
       if (e.key === this.storageKey && e.newValue) {
@@ -526,7 +527,9 @@ export class CloudSyncEngine {
 
         const lockInfo = locks[fieldKey];
         const currentUserName = currentUser ? currentUser.name : '';
-        const isLockedByOther = lockInfo && lockInfo.userId !== currentUserId && lockInfo.userName !== currentUserName;
+        const nowMs = Date.now();
+        const isLockFresh = lockInfo && (nowMs - Number(lockInfo.timestamp || lockInfo.time || 0) <= 2500);
+        const isLockedByOther = isLockFresh && lockInfo.userId !== currentUserId && lockInfo.userName !== currentUserName;
 
         // 查找所属卡片或外层容器
         const isTimeInput = el.classList.contains('contract-time-input');

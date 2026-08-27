@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260827_v632";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired } from "./utils.js?v=20260827_v632";
-import { callCozeAgentAPI } from "./agents.js?v=20260827_v632";
-import { AuthManager } from "./auth.js?v=20260827_v632";
-import { CloudSyncEngine } from "./sync.js?v=20260827_v632";
-import { renderLoginView } from "./login.js?v=20260827_v632";
-import { renderTeacherPortal } from "./teacher.js?v=20260827_v632";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260827_v632";
+} from "./constants.js?v=20260828_v633";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash } from "./utils.js?v=20260828_v633";
+import { callCozeAgentAPI } from "./agents.js?v=20260828_v633";
+import { AuthManager } from "./auth.js?v=20260828_v633";
+import { CloudSyncEngine } from "./sync.js?v=20260828_v633";
+import { renderLoginView } from "./login.js?v=20260828_v633";
+import { renderTeacherPortal } from "./teacher.js?v=20260828_v633";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260828_v633";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260827_v632";
+} from "./editor.js?v=20260828_v633";
 
 // Make renderChat available on window for sync callbacks
 if (typeof window !== "undefined") {
@@ -2587,6 +2587,47 @@ ${propText}
         this.renderMain();
       }
     );
+
+    // 🔔 检查并通知当前任务的延期
+    if (this.authManager) {
+      const allTasks = this.authManager.getTasks();
+      const currentTask = allTasks.find(t => t.id === this.state.activeTaskId);
+      if (currentTask && currentTask.deadline) {
+        const dlKey = `jizhi_known_deadline_${currentTask.id}`;
+        const unreadKey = `jizhi_unread_deadline_ext_${currentTask.id}`;
+        const prevDl = localStorage.getItem(dlKey);
+        const newDlMs = new Date(currentTask.deadline.replace(/-/g, '/')).getTime();
+        let shouldNotify = false;
+        if (localStorage.getItem(unreadKey)) {
+          shouldNotify = true;
+          localStorage.removeItem(unreadKey);
+        } else if (prevDl) {
+          const prevDlMs = Number(prevDl);
+          if (newDlMs > prevDlMs + 60000) {
+            shouldNotify = true;
+          }
+        }
+        localStorage.setItem(dlKey, String(newDlMs));
+
+        if (shouldNotify) {
+          showGlobalBannerNotice(
+            `指导教师已延长本任务写作时间！`,
+            `截止时间已自动更新至：${formatStandardDateDash(currentTask.deadline)}，剩余时间已增加。`
+          );
+        }
+      }
+      // 记录其他任务的未读延期标记
+      allTasks.forEach(t => {
+        if (!t || !t.id || t.id === this.state.activeTaskId || !t.deadline) return;
+        const dlKey = `jizhi_known_deadline_${t.id}`;
+        const prevDl = localStorage.getItem(dlKey);
+        const newDlMs = new Date(t.deadline.replace(/-/g, '/')).getTime();
+        if (prevDl && newDlMs > Number(prevDl) + 60000) {
+          localStorage.setItem(`jizhi_unread_deadline_ext_${t.id}`, '1');
+          localStorage.setItem(dlKey, String(newDlMs));
+        }
+      });
+    }
 
     // 默认自动触发当前阶段对应智能体的开场白（如果尚未发送）
     this.triggerStageWelcomeSpeech(this.state.currentStage || 'stage1');

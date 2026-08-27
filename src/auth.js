@@ -14,8 +14,8 @@ import {
   DefaultTasks,
   DefaultAnnouncements,
   DefaultReferencePapers
-} from './constants.js?v=20260827_v632';
-import { formatExportDateTime } from './utils.js?v=20260827_v632';
+} from './constants.js?v=20260828_v633';
+import { formatExportDateTime } from './utils.js?v=20260828_v633';
 
 export class AuthManager {
   constructor() {
@@ -1468,15 +1468,6 @@ export class AuthManager {
     if (window._paperMemoryBlobMap) window._paperMemoryBlobMap.delete(paperId);
     localStorage.setItem('jizhi_reference_papers_db', JSON.stringify(papers));
     this.pushGlobalMeta();
-  }
-
-  setGroupFinalSubmitted(groupId, isSubmitted) {
-    if (window.app && window.app.state) {
-      window.app.state.isFinalSubmitted = isSubmitted;
-    }
-    if (window.app && window.app.cloudSyncEngine) {
-      window.app.cloudSyncEngine.pushSnapshot();
-    }
   }
 
   exportGroupChatLogsToExcel(groupId = 'group_1', chatLogsState = null) {

@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles } from "./constants.js?v=20260827_v632";
-import { callCozeAgentAPI } from "./agents.js?v=20260827_v632";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime } from "./utils.js?v=20260827_v632";
+import { AgentProfiles } from "./constants.js?v=20260828_v633";
+import { callCozeAgentAPI } from "./agents.js?v=20260828_v633";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs } from "./utils.js?v=20260828_v633";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -1399,7 +1399,7 @@ function renderStage1Canvas(canvas, state, handlers) {
       if (autoUnlockTimer) clearTimeout(autoUnlockTimer);
       autoUnlockTimer = setTimeout(() => {
         sendUnlock('topic_title', topicInput.value);
-      }, 1200);
+      }, 800);
       if (topicTimer) clearTimeout(topicTimer);
       topicTimer = setTimeout(flushTopic, 300);
     });
@@ -1453,7 +1453,7 @@ function renderStage1Canvas(canvas, state, handlers) {
         if (autoUnlockTimer) clearTimeout(autoUnlockTimer);
         autoUnlockTimer = setTimeout(() => {
           sendUnlock(fieldKey, Number(input.value) || 0);
-        }, 1200);
+        }, 800);
         if (timeTimer) clearTimeout(timeTimer);
         timeTimer = setTimeout(flushTime, 300);
       });
@@ -1506,7 +1506,7 @@ function renderStage1Canvas(canvas, state, handlers) {
         if (autoUnlockTimer) clearTimeout(autoUnlockTimer);
         autoUnlockTimer = setTimeout(() => {
           sendUnlock(fieldKey, input.value);
-        }, 1200);
+        }, 800);
         if (taskTimer) clearTimeout(taskTimer);
         taskTimer = setTimeout(flushTask, 300);
       });
@@ -2222,6 +2222,7 @@ export function renderChat(state) {
     }
   });
   allMsgs.sort((a, b) => (Number(a._timeMs || 0) - Number(b._timeMs || 0)));
+  const cleanMsgs = filterAndDeduplicateChatLogs(allMsgs, memberList);
 
   // 智能滚动：如果用户正在往上拉浏览历史记录，保持当前视角不被强行打断拉回底部
   const isAtBottom = (stream.scrollHeight - stream.scrollTop - stream.clientHeight) < 90;
@@ -2229,7 +2230,7 @@ export function renderChat(state) {
 
   const allUsers = (window.app && window.app.authManager) ? window.app.authManager.getUsers() : [];
 
-  stream.innerHTML = allMsgs.map(msg => {
+  stream.innerHTML = cleanMsgs.map(msg => {
     const isMe = msg.sender === currentUser || (window.app?.authManager?.getCurrentUser() && (msg.sender === window.app.authManager.getCurrentUser().id || msg.sender === window.app.authManager.getCurrentUser().studentCode));
     const isAgent = AgentProfiles[msg.sender] !== undefined;
     
