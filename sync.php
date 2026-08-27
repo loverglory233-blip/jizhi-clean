@@ -105,13 +105,18 @@ if ($pdo) {
 $groupId = isset($_GET['groupId']) ? preg_replace('/[^a-zA-Z0-9_-]/', '', $_GET['groupId']) : 'group_1';
 if (empty($groupId)) $groupId = 'group_1';
 
-$taskId = isset($_GET['taskId']) ? preg_replace('/[^a-zA-Z0-9_-]/', '', $_GET['taskId']) : 'task_default';
-if (empty($taskId)) $taskId = 'task_default';
-
-$scopeKey = $taskId . '_' . $groupId;
 $RAW_INPUT = ($_SERVER['REQUEST_METHOD'] === 'POST') ? @file_get_contents('php://input') : '';
 $REQ_DATA = !empty($RAW_INPUT) ? (@json_decode($RAW_INPUT, true) ?: []) : [];
 
+$classId = isset($_GET['classId']) ? preg_replace('/[^a-zA-Z0-9_-]/', '', $_GET['classId']) : (isset($REQ_DATA['classId']) ? preg_replace('/[^a-zA-Z0-9_-]/', '', $REQ_DATA['classId']) : '');
+
+$taskId = isset($_GET['taskId']) ? preg_replace('/[^a-zA-Z0-9_-]/', '', $_GET['taskId']) : (isset($REQ_DATA['taskId']) ? preg_replace('/[^a-zA-Z0-9_-]/', '', $REQ_DATA['taskId']) : 'task_default');
+if (empty($taskId)) $taskId = 'task_default';
+if (!empty($classId) && $taskId === 'task_default') {
+    $taskId = 'task_' . $classId . '_default';
+}
+
+$scopeKey = $taskId . '_' . $groupId;
 $action = isset($_GET['action']) ? $_GET['action'] : (isset($REQ_DATA['action']) ? $REQ_DATA['action'] : '');
 
 /**
@@ -1684,6 +1689,10 @@ if ($action === 'update_read_status' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                     $newVal = json_encode($meta, JSON_UNESCAPED_UNICODE);
                     $stmt2 = $pdo->prepare("INSERT INTO global_meta (meta_key, meta_value) VALUES ('main_meta', :val) ON DUPLICATE KEY UPDATE meta_value = :val2");
                     $stmt2->execute([':val' => $newVal, ':val2' => $newVal]);
+
+                    // 推进全局元数据版本戳，使所有轮询端与教师端瞬间感知到已读名单更新
+                    $pdo->exec("INSERT INTO global_meta (meta_key, meta_value) VALUES ('main_meta_version', 2) ON DUPLICATE KEY UPDATE meta_value = IFNULL(meta_value, 0) + 1");
+
                     // 更新变更时间戳
                     $nowMs = round(microtime(true) * 1000);
                     $stmt3 = $pdo->prepare("INSERT INTO global_meta (meta_key, meta_value) VALUES ('meta_updated_at', :v) ON DUPLICATE KEY UPDATE meta_value = :v2");

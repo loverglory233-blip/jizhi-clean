@@ -14,8 +14,8 @@ import {
   DefaultTasks,
   DefaultAnnouncements,
   DefaultReferencePapers
-} from './constants.js?v=20260827_v621';
-import { formatExportDateTime } from './utils.js?v=20260827_v621';
+} from './constants.js?v=20260827_v622';
+import { formatExportDateTime } from './utils.js?v=20260827_v622';
 
 export class AuthManager {
   constructor() {
@@ -1319,6 +1319,23 @@ export class AuthManager {
     const announcements = this.getAnnouncements();
     const ann = announcements.find(a => a.id === annId);
     const currUser = this.getCurrentUser();
+
+    // 1. 优先以最高优先级向服务端轻量回传已读标记（0 依赖本地 localStorage，绝不受 Quota 影响）
+    try {
+      fetch('sync.php?action=update_read_status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          annId,
+          groupId,
+          userId: currUser ? (currUser.id || currUser.username || currUser.studentCode) : '',
+          userCode: currUser ? (currUser.studentCode || currUser.username || '') : '',
+          userName: currUser ? (currUser.name || currUser.studentCode || '学生') : ''
+        })
+      }).catch(() => {});
+    } catch (e) {}
+
+    // 2. 本地内存与缓存安全更新 (带 QuotaExceeded 自动熔断与大对象修剪保护)
     if (ann) {
       if (!ann.readStatus) ann.readStatus = {};
       if (!ann.readGroupStatus) ann.readGroupStatus = {};
@@ -1347,22 +1364,28 @@ export class AuthManager {
         ann.readStatus[groupId] = true;
       }
 
-      localStorage.setItem(STORAGE_KEY_ANNOUNCEMENTS, JSON.stringify(announcements));
-
       try {
-        fetch('sync.php?action=update_read_status', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            annId,
-            groupId,
-            userId: currUser ? (currUser.id || currUser.username || currUser.studentCode) : '',
-            userCode: currUser ? (currUser.studentCode || currUser.username || '') : '',
-            userName: currUser ? (currUser.name || currUser.studentCode || '学生') : ''
-          })
-        }).catch(() => {});
-      } catch (e) {}
+        localStorage.setItem(STORAGE_KEY_ANNOUNCEMENTS, JSON.stringify(announcements));
+      } catch (err) {
+        console.warn('[Storage] QuotaExceeded on save announcements, cleaning legacy heavy items...', err);
+        this._pruneStorageQuota();
+        try {
+          localStorage.setItem(STORAGE_KEY_ANNOUNCEMENTS, JSON.stringify(announcements));
+        } catch (e2) {}
+      }
     }
+  }
+
+  // 🧹 存储配额守护清理器：当浏览器 5MB 配额紧张时，自动修剪冗余的历史 Base64 快照
+  _pruneStorageQuota() {
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && (k.startsWith('jizhi_cloud_snapshot_') || k.includes('_backup_'))) {
+          localStorage.removeItem(k);
+        }
+      }
+    } catch (e) {}
   }
 
   markAllTaskAnnouncementsRead(taskId, groupId = 'group_1') {
