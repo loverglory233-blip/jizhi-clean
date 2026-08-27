@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState } from './constants.js?v=20260827_v618';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin } from './utils.js?v=20260827_v618';
+import { InitialState } from './constants.js?v=20260827_v619';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin } from './utils.js?v=20260827_v619';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -322,17 +322,22 @@ export class CloudSyncEngine {
         const remoteStr = JSON.stringify(remoteData.classes);
         if (localStr !== remoteStr) localStorage.setItem(key, remoteStr);
       }
-      if (Array.isArray(remoteData.announcements)) {
+      if (Array.isArray(remoteData.announcements) && remoteData.announcements.length > 0) {
         const key = 'jizhi_pure_v10_ann_db';
-        const localStr = localStorage.getItem(key) || '[]';
-        const remoteStr = JSON.stringify(remoteData.announcements);
-        if (localStr !== remoteStr) localStorage.setItem(key, remoteStr);
+        const local = JSON.parse(localStorage.getItem(key) || '[]');
+        const remoteIds = new Set(remoteData.announcements.map(a => a.id));
+        const merged = [...remoteData.announcements];
+        local.forEach(l => { if (l && l.id && !remoteIds.has(l.id)) merged.push(l); });
+        localStorage.setItem(key, JSON.stringify(merged));
       }
-      if (Array.isArray(remoteData.referencePapers)) {
-        const key = 'jizhi_pure_v10_ref_papers_db';
-        const localStr = localStorage.getItem(key) || '[]';
-        const remoteStr = JSON.stringify(remoteData.referencePapers);
-        if (localStr !== remoteStr) localStorage.setItem(key, remoteStr);
+      if (Array.isArray(remoteData.referencePapers) && remoteData.referencePapers.length > 0) {
+        const key = 'jizhi_reference_papers_db';
+        const local = JSON.parse(localStorage.getItem(key) || '[]');
+        const remoteIds = new Set(remoteData.referencePapers.map(p => p.id));
+        const merged = [...remoteData.referencePapers];
+        local.forEach(l => { if (l && l.id && !remoteIds.has(l.id)) merged.push(l); });
+        localStorage.setItem(key, JSON.stringify(merged));
+        localStorage.setItem('jizhi_pure_v10_ref_papers_db', JSON.stringify(merged));
       }
     }
 
@@ -369,21 +374,27 @@ export class CloudSyncEngine {
       }
     }
 
-    // ⚡ 天然随快照无缝更新通知与文献库，无需前端再发起任何独立请求
-    if (Array.isArray(remoteData.announcements)) {
+    // ⚡ 天然随快照无缝更新通知与文献库，无损合并保留本地新增
+    if (Array.isArray(remoteData.announcements) && remoteData.announcements.length > 0) {
       try {
-        localStorage.setItem('jizhi_announcements_db', JSON.stringify(remoteData.announcements));
-        if (this.app.authManager && typeof this.app.authManager.saveAnnouncements === 'function') {
-          this.app.authManager.saveAnnouncements(remoteData.announcements);
-        }
+        const key = 'jizhi_pure_v10_ann_db';
+        const local = JSON.parse(localStorage.getItem(key) || '[]');
+        const remoteIds = new Set(remoteData.announcements.map(a => a.id));
+        const merged = [...remoteData.announcements];
+        local.forEach(l => { if (l && l.id && !remoteIds.has(l.id)) merged.push(l); });
+        localStorage.setItem(key, JSON.stringify(merged));
+        localStorage.setItem('jizhi_announcements_db', JSON.stringify(merged));
       } catch (e) {}
     }
-    if (Array.isArray(remoteData.referencePapers)) {
+    if (Array.isArray(remoteData.referencePapers) && remoteData.referencePapers.length > 0) {
       try {
-        localStorage.setItem('jizhi_reference_papers_db', JSON.stringify(remoteData.referencePapers));
-        if (this.app.authManager && typeof this.app.authManager.saveReferencePapers === 'function') {
-          this.app.authManager.saveReferencePapers(remoteData.referencePapers);
-        }
+        const key = 'jizhi_reference_papers_db';
+        const local = JSON.parse(localStorage.getItem(key) || '[]');
+        const remoteIds = new Set(remoteData.referencePapers.map(p => p.id));
+        const merged = [...remoteData.referencePapers];
+        local.forEach(l => { if (l && l.id && !remoteIds.has(l.id)) merged.push(l); });
+        localStorage.setItem(key, JSON.stringify(merged));
+        localStorage.setItem('jizhi_pure_v10_ref_papers_db', JSON.stringify(merged));
       } catch (e) {}
     }
 
@@ -428,32 +439,11 @@ export class CloudSyncEngine {
     }
 
     if (remoteData.chatLogs) {
-      let chatChanged = false;
+      if (!this.app.state.chatLogs) this.app.state.chatLogs = { stage1: [], stage2: [], stage3: [] };
       ['stage1', 'stage2', 'stage3'].forEach(stg => {
         const remoteLogs = Array.isArray(remoteData.chatLogs[stg]) ? remoteData.chatLogs[stg] : [];
-        // 以远端当前任务小组的权威数据库记录为唯一基准，保留在途未持久化的当前发言
-        const localLogs = (this.isInitialPullDone && Array.isArray(this.app.state.chatLogs[stg])) ? this.app.state.chatLogs[stg] : [];
-        
-        const mergedLogs = [];
-        const seenKeys = new Set();
-        const allCandidate = (localLogs.length > 0) ? [...localLogs, ...remoteLogs] : [...remoteLogs];
-        allCandidate.sort((a, b) => {
-          const ta = a?._timeMs ? Number(a._timeMs) : 0;
-          const tb = b?._timeMs ? Number(b._timeMs) : 0;
-          return ta - tb;
-        });
-        allCandidate.forEach(m => {
-          if (!m) return;
-          const idKey = m.id ? `id_${m.id}` : null;
-          const contentKey = `${m.sender || ''}_${(m.text || '').trim()}_${m._timeMs ? Math.floor(Number(m._timeMs) / 3000) : (m.timestamp || '')}`;
-          if (idKey && seenKeys.has(idKey)) return;
-          if (seenKeys.has(contentKey)) return;
-          if (idKey) seenKeys.add(idKey);
-          seenKeys.add(contentKey);
-          mergedLogs.push(m);
-        });
-
-        this.app.state.chatLogs[stg] = mergedLogs;
+        // 🛡️ 严格按组隔离：直接使用云端针对本组真实返回的消息列表，严禁在前端与上一组内存混淆
+        this.app.state.chatLogs[stg] = remoteLogs;
       });
       if (typeof window.renderChat === 'function') window.renderChat(this.app.state);
       if (this.app && typeof this.app.triggerStageWelcomeSpeech === 'function') {

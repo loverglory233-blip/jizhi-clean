@@ -4,6 +4,8 @@
  * 支持 MySQL 数据库自动建表、数据行级持久化、单设备会话互斥与 OAuth 智能体中转
  */
 
+ini_set('display_errors', '0');
+error_reporting(E_ALL & ~E_NOTICE & ~E_WARNING & ~E_DEPRECATED);
 ini_set('memory_limit', '256M');
 if (!ob_start('ob_gzhandler')) {
     ob_start();
@@ -762,11 +764,29 @@ if ($action === 'get_teacher_monitor_all_groups') {
             $sk = $taskId . '_' . $gid;
             $offGroup = $officialGroups[$gid] ?? null;
 
-            // 获取聊天记录
-            $stmtChats = $pdo->prepare("SELECT meta_value FROM global_meta WHERE meta_key = :k");
-            $stmtChats->execute([':k' => 'chats_' . $sk]);
-            $chatRow = $stmtChats->fetch();
-            $chats = ($chatRow && !empty($chatRow['meta_value'])) ? json_decode($chatRow['meta_value'], true) : ['stage1' => [], 'stage2' => [], 'stage3' => []];
+            // 🛡️ 聊天记录严格隔离：直接从 chat_messages 关系表中拉取属于本组 ($sk) 的历史消息
+            $chats = ['stage1' => [], 'stage2' => [], 'stage3' => []];
+            $stmtAllMsg = $pdo->prepare("SELECT stage, sender, text, timestamp_str, time_ms, id FROM chat_messages WHERE scope_key = :sk ORDER BY time_ms ASC");
+            $stmtAllMsg->execute([':sk' => $sk]);
+            $allMsgRows = $stmtAllMsg->fetchAll(PDO::FETCH_ASSOC);
+            if (!empty($allMsgRows)) {
+                foreach ($allMsgRows as $mr) {
+                    $stg = $mr['stage'] ?: 'stage1';
+                    if (!isset($chats[$stg])) $chats[$stg] = [];
+                    $chats[$stg][] = [
+                        'id'        => $mr['id'] ?: ('msg_' . $mr['time_ms'] . '_' . substr(md5($mr['text']), 0, 6)),
+                        'sender'    => $mr['sender'],
+                        'text'      => $mr['text'],
+                        'timestamp' => $mr['timestamp_str'],
+                        '_timeMs'   => intval($mr['time_ms'])
+                    ];
+                }
+            } else {
+                $stmtChats = $pdo->prepare("SELECT meta_value FROM global_meta WHERE meta_key = :k");
+                $stmtChats->execute([':k' => 'chats_' . $sk]);
+                $chatRow = $stmtChats->fetch();
+                $chats = ($chatRow && !empty($chatRow['meta_value'])) ? json_decode($chatRow['meta_value'], true) : ['stage1' => [], 'stage2' => [], 'stage3' => []];
+            }
 
             // 查出该组最近发言的学生名单
             $recentActiveSenders = [];
@@ -2008,6 +2028,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $mergedS3       = (isset($data['stage3']) && is_array($data['stage3'])) ? $data['stage3'] : [];
         $mergedChats    = (isset($data['chatLogs']) && is_array($data['chatLogs'])) ? $data['chatLogs'] : ['stage1' => [], 'stage2' => [], 'stage3' => []];
         $clientRevision = isset($data['revisionId']) ? intval($data['revisionId']) : 0;
+        $mbJson         = isset($data['members']) ? (is_string($data['members']) ? $data['members'] : json_encode($data['members'], JSON_UNESCAPED_UNICODE)) : '';
 
         if ($pdo) {
             // 4a. 读取已有的协作状态，进行字段级智能合并保护（杜绝多端互相覆盖）

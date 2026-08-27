@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles } from "./constants.js?v=20260827_v618";
-import { callCozeAgentAPI } from "./agents.js?v=20260827_v618";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime } from "./utils.js?v=20260827_v618";
+import { AgentProfiles } from "./constants.js?v=20260827_v619";
+import { callCozeAgentAPI } from "./agents.js?v=20260827_v619";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime } from "./utils.js?v=20260827_v619";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -1271,19 +1271,6 @@ function renderStage1Canvas(canvas, state, handlers) {
         if (!state.chatLogs[currentStage]) state.chatLogs[currentStage] = [];
         state.chatLogs[currentStage].push(submitNoticeMsg);
 
-        // 🎪 仅在真实全员（至少2人且全部提交）集齐时，拍卖师才主动在讨论区引导“先充分讨论选哪个，再进行投票”
-        if (totalMembersCount >= 2 && submittedAuthorsCount >= totalMembersCount && !s1._allProposalsPrompted) {
-          s1._allProposalsPrompted = true;
-          const allCollectedMsg = {
-            sender: 'auctioneer',
-            senderName: '头脑风暴 · 学术拍卖师',
-            text: `🎪 【拍卖师·全员提案已集齐】：🎉 小组全部 ${totalMembersCount} 位成员的选题提案已悉数亮相！\n👉 请大家先不要急于投票，先在右侧协同对话区商讨交流各个方案的研究切入点与创新亮点；\n💬 充分研讨达成初步共识后，再在上方为最终认可的方案进行投票！`,
-            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-            _timeMs: Date.now() + 50
-          };
-          state.chatLogs[currentStage].push(allCollectedMsg);
-        }
-
         closeModal();
         handlers.onRefresh();
         if (window.app) {
@@ -1314,7 +1301,30 @@ function renderStage1Canvas(canvas, state, handlers) {
           };
           state.chatLogs[currentStage].push(auctioneerEvalMsg);
 
-          // （已移除 AI 版「全员提案集齐·号召先讨论后投票」：该固定流程话术已由上方写死消息承接，避免重复刷屏）
+          // 🎪 必须在评价输出之后，且确保全部成员的提案均具备实质研究意义（非 222、123、纯数字或无意义短字符），才宣布全员集齐并号召研讨
+          const isSubstantive = (t) => {
+            const str = (t || '').trim();
+            if (str.length < 4) return false;
+            if (/^\d+$/.test(str)) return false; // 纯数字如 222, 123
+            if (/^([a-zA-Z0-9\u4e00-\u9fa5])\1+$/.test(str)) return false; // 纯重复字符如 aaaaa, 哈哈哈
+            return true;
+          };
+          const currentProps = s1.proposals || [];
+          const validProps = currentProps.filter(p => isSubstantive(p.title));
+          const validAuthors = new Set(validProps.map(p => p.author || p.authorName));
+
+          if (totalMembersCount >= 2 && validAuthors.size >= totalMembersCount && !s1._allProposalsPrompted) {
+            s1._allProposalsPrompted = true;
+            const allCollectedMsg = {
+              sender: 'auctioneer',
+              senderName: '头脑风暴 · 学术拍卖师',
+              text: `🎪 【拍卖师·全员提案已集齐】：🎉 小组全部 ${totalMembersCount} 位成员的选题提案已悉数亮相并完成评估！\n👉 请大家先不要急于投票，先在右侧协同对话区商讨交流各个方案的研究切入点与创新亮点；\n💬 充分研讨达成初步共识后，再在上方为最终认可的方案进行投票！`,
+              timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+              _timeMs: Date.now() + 100
+            };
+            state.chatLogs[currentStage].push(allCollectedMsg);
+          }
+
           if (window.app) {
             window.app.syncChatLogs();
             if (window.app.cloudSyncEngine) window.app.cloudSyncEngine.pushSnapshot();
