@@ -7,8 +7,8 @@ import {
   STORAGE_KEY_TASKS,
   STORAGE_KEY_ANNOUNCEMENTS,
   STORAGE_KEY_CLASSES
-} from "./constants.js?v=20260827_v620";
-import { escapeHtml, isTaskExpired, formatDurationHuman, formatStandardDateDash } from "./utils.js?v=20260827_v620";
+} from "./constants.js?v=20260827_v621";
+import { escapeHtml, isTaskExpired, formatDurationHuman, formatStandardDateDash } from "./utils.js?v=20260827_v621";
 
 /* ==========================================================================
    7.5 STUDENT TASK PORTAL / DASHBOARD (我的写作任务大厅)
@@ -110,7 +110,7 @@ export function renderStudentTaskPortal(container, authManager, state, onSelectT
 
   // 📋 3. 严格按当前选定班级和小组过滤通知（杜绝外班通知串入导致未读数虚高）
   const relevantAnnouncements = (announcements || []).filter(a => {
-    const matchClass = !a.classId || a.classId === 'all' || a.classId === userClass.id || (a.className && a.className === userClass.name);
+    const matchClass = a.classId === userClass.id || (a.className && a.className === userClass.name) || (!a.classId && userClass.id === 'class_101') || (Array.isArray(a.targetClassIds) && a.targetClassIds.includes(userClass.id));
     const matchGroup = !a.targetGroupId || a.targetGroupId === 'all' || a.targetGroupId === groupId ||
       (Array.isArray(a.targetGroupIds) && (a.targetGroupIds.includes('all') || a.targetGroupIds.includes(groupId)));
     return matchClass && matchGroup;
@@ -139,8 +139,7 @@ export function renderStudentTaskPortal(container, authManager, state, onSelectT
   }).length;
 
   const relevantTasks = tasks.filter(t => {
-    if (!t.classId || t.classId === 'all') return true;
-    return t.classId === userClass.id || (t.className && t.className === userClass.name);
+    return t.classId === userClass.id || (t.className && t.className === userClass.name) || (!t.classId && userClass.id === 'class_101');
   });
   container.innerHTML = `
     <div class="student-task-portal" style="min-height:100vh; background:#f0f4f9; display:flex; flex-direction:column;">
