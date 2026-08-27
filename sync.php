@@ -2525,7 +2525,7 @@ if ($pdo) {
         $nowMs = round(microtime(true) * 1000);
         if (is_array($rawLocks)) {
             foreach ($rawLocks as $fk => $finfo) {
-                if (isset($finfo['time']) && ($nowMs - intval($finfo['time']) <= 2500)) {
+                if (isset($finfo['time']) && ($nowMs - intval($finfo['time']) <= 1500)) {
                     $activeLocks[$fk] = $finfo;
                 }
             }

@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState } from './constants.js?v=20260828_v635';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin } from './utils.js?v=20260828_v635';
+import { InitialState } from './constants.js?v=20260828_v636';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin } from './utils.js?v=20260828_v636';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -530,7 +530,7 @@ export class CloudSyncEngine {
         const lockInfo = locks[fieldKey];
         const currentUserName = currentUser ? currentUser.name : '';
         const nowMs = Date.now();
-        const isLockFresh = lockInfo && (nowMs - Number(lockInfo.timestamp || lockInfo.time || 0) <= 2500);
+        const isLockFresh = lockInfo && (nowMs - Number(lockInfo.timestamp || lockInfo.time || 0) <= 1500);
         const isLockedByOther = isLockFresh && lockInfo.userId !== currentUserId && lockInfo.userName !== currentUserName;
 
         // 查找所属卡片或外层容器
