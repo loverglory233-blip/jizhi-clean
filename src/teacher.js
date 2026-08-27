@@ -9,8 +9,8 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260827_v615";
-import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash } from "./utils.js?v=20260827_v615";
+} from "./constants.js?v=20260827_v616";
+import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash } from "./utils.js?v=20260827_v616";
 
 /* ==========================================================================
    7. TEACHER PORTAL RENDERER (LIVE WORKSPACE MIRROR & ANNOUNCEMENT READ MATRIX)
@@ -54,7 +54,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
   if (window.app && window.app.state) window.app.state.activeMonitorGroupId = activeMonitorGId;
 
   const activeMonitorGroup = (activeClass.groups || []).find(g => g.id === activeMonitorGId) || (activeClass.groups && activeClass.groups[0]) || { id: 'group_1', name: '第1小组' };
-  const monitorMembersObj = authManager.getGroupMembersForWorkspace(activeMonitorGId);
+  const monitorMembersObj = authManager.getGroupMembersForWorkspace(activeMonitorGId, activeClass.id);
   const monitorMembersList = Object.values(monitorMembersObj);
 
   // ⚡ 教师端自动轻量轮询：自调度循环，杜绝并发拉取与 interval 重注册竞态
@@ -101,7 +101,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
         const tToken = (curT && (curT.activeSessionId || curT.token)) || '';
         const tId = (curT && (curT.id || curT.username)) || '';
         const lastHash = state._lastMonitorHash || '';
-        const panRes = await fetch(`sync.php?action=get_teacher_monitor_all_groups&taskId=${encodeURIComponent(activeTaskId)}&userId=${encodeURIComponent(tId)}&token=${encodeURIComponent(tToken)}&clientHash=${encodeURIComponent(lastHash)}`).then(r => r.json()).catch(() => null);
+        const panRes = await fetch(`sync.php?action=get_teacher_monitor_all_groups&taskId=${encodeURIComponent(activeTaskId)}&classId=${encodeURIComponent(activeClass.id)}&userId=${encodeURIComponent(tId)}&token=${encodeURIComponent(tToken)}&clientHash=${encodeURIComponent(lastHash)}`).then(r => r.json()).catch(() => null);
         if (panRes && panRes.success && panRes.groups) {
           state.monitorPanorama = panRes.groups;
           if (panRes.hash) state._lastMonitorHash = panRes.hash;
@@ -1223,7 +1223,25 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
 
   container.querySelectorAll('.btn-select-class').forEach(btn => {
     btn.addEventListener('click', () => {
-      state.activeClassId = btn.dataset.id;
+      const newCId = btn.dataset.id;
+      state.activeClassId = newCId;
+      const targetC = (authManager.getClasses() || []).find(c => c.id === newCId);
+      const cTasks = (authManager.getTasks() || []).filter(t => t.classId === newCId || (targetC && t.className === targetC.name) || (!t.classId && newCId === 'class_101'));
+      state.activeTaskId = cTasks[0] ? cTasks[0].id : 'task_default';
+      state.activeMonitorGroupId = (targetC && targetC.groups && targetC.groups[0]) ? targetC.groups[0].id : 'group_1';
+      // 🛡️ 彻底清空旧班级全景与视图缓存
+      state.monitorPanorama = null;
+      state._lastMonitorHash = '';
+      state._lastEpHash = '';
+      state.stage1 = null;
+      state.stage2 = null;
+      state.stage3 = null;
+      state.chatLogs = null;
+      if (window.app && window.app.state) {
+        window.app.state.activeClassId = newCId;
+        window.app.state.activeTaskId = state.activeTaskId;
+        window.app.state.activeMonitorGroupId = state.activeMonitorGroupId;
+      }
       renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
     });
   });
@@ -1238,7 +1256,23 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
         try {
           authManager.deleteClass(cId);
           const remainingClasses = authManager.getClasses();
-          state.activeClassId = remainingClasses[0] ? remainingClasses[0].id : 'class_101';
+          const nextC = remainingClasses[0] || { id: 'class_101', groups: [] };
+          state.activeClassId = nextC.id;
+          const cTasks = (authManager.getTasks() || []).filter(t => t.classId === nextC.id || (!t.classId && nextC.id === 'class_101'));
+          state.activeTaskId = cTasks[0] ? cTasks[0].id : 'task_default';
+          state.activeMonitorGroupId = (nextC.groups && nextC.groups[0]) ? nextC.groups[0].id : 'group_1';
+          state.monitorPanorama = null;
+          state._lastMonitorHash = '';
+          state._lastEpHash = '';
+          state.stage1 = null;
+          state.stage2 = null;
+          state.stage3 = null;
+          state.chatLogs = null;
+          if (window.app && window.app.state) {
+            window.app.state.activeClassId = nextC.id;
+            window.app.state.activeTaskId = state.activeTaskId;
+            window.app.state.activeMonitorGroupId = state.activeMonitorGroupId;
+          }
           alert(`✅ 教学班级【${cName}】已成功删除！`);
           renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
         } catch (err) {
@@ -1289,6 +1323,20 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
       if (name) {
         const newC = authManager.createClass(name);
         state.activeClassId = newC.id;
+        state.activeTaskId = 'task_default';
+        state.activeMonitorGroupId = (newC.groups && newC.groups[0]) ? newC.groups[0].id : 'group_1';
+        state.monitorPanorama = null;
+        state._lastMonitorHash = '';
+        state._lastEpHash = '';
+        state.stage1 = null;
+        state.stage2 = null;
+        state.stage3 = null;
+        state.chatLogs = null;
+        if (window.app && window.app.state) {
+          window.app.state.activeClassId = newC.id;
+          window.app.state.activeTaskId = state.activeTaskId;
+          window.app.state.activeMonitorGroupId = state.activeMonitorGroupId;
+        }
         renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
       }
     });
