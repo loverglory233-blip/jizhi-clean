@@ -9,8 +9,8 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260827_v617";
-import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash } from "./utils.js?v=20260827_v617";
+} from "./constants.js?v=20260827_v618";
+import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash } from "./utils.js?v=20260827_v618";
 
 /* ==========================================================================
    7. TEACHER PORTAL RENDERER (LIVE WORKSPACE MIRROR & ANNOUNCEMENT READ MATRIX)
@@ -387,7 +387,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
                           ${groupMembers.length === 0 ? '<span style="color:#94a3b8; font-size:12px;">⚠️ 暂未勾选成员</span>' : ''}
                           ${groupMembers.map(m => `
                             <span style="background:#eff6ff; border:1px solid #bfdbfe; color:#1d4ed8; padding:4px 10px; border-radius:6px; font-weight:600;">
-                              ${m.avatar || '👤'} ${m.name} <code style="font-size:11px; color:#2563eb;">${m.studentCode || m.username || ''}</code>
+                              ${m.avatar || '👤'} ${m.name}
                             </span>
                           `).join('')}
                         </div>
