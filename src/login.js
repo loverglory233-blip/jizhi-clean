@@ -1,4 +1,4 @@
-import { escapeHtml } from "./utils.js?v=20260827_v629";
+import { escapeHtml } from "./utils.js?v=20260827_v630";
 
 export function renderLoginView(container, authManager, onLoginSuccess) {
   if (authManager && authManager.pullGlobalMeta) {
