@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles } from "./constants.js?v=20260828_v636";
-import { callCozeAgentAPI } from "./agents.js?v=20260828_v636";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs } from "./utils.js?v=20260828_v636";
+import { AgentProfiles } from "./constants.js?v=20260828_v637";
+import { callCozeAgentAPI } from "./agents.js?v=20260828_v637";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs } from "./utils.js?v=20260828_v637";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -896,14 +896,34 @@ export function renderPresencePills(editorId, state) {
 
   const newHtml = membersList.map(m => {
     const uid = String(m.id || m.studentCode || m.userId || '').trim();
-    // 统一以成员主键 id 查找在线心跳
-    const p = presence[uid] || presence[m.id] || presence[m.studentCode] || (m.name && presence[m.name]);
-    const isSelf = (uid && uid === currentUid) || (m.studentCode && m.studentCode === currentUid) || (m.id && m.id === currentUid);
+    const candidateKeys = [
+      String(m.id || '').trim(),
+      String(m.studentCode || '').trim(),
+      String(m.username || '').trim(),
+      String(m.name || '').trim()
+    ].filter(Boolean);
+
+    const isSelf = (currUserObj && (
+      (currUserObj.id && (m.id === currUserObj.id || uid === String(currUserObj.id))) ||
+      (currUserObj.studentCode && (m.studentCode === currUserObj.studentCode || uid === String(currUserObj.studentCode))) ||
+      (currUserObj.username && (m.username === currUserObj.username || uid === String(currUserObj.username))) ||
+      (currUserObj.name && m.name === currUserObj.name)
+    )) || (uid && uid === currentUid);
     
-    // 🛡️ 稳健在线判定：基于服务器权威时间戳计算相对时间差，彻底免疫本地与服务器的时钟偏差
-    const pTime = p ? (p.lastSeen || p.updatedAt || 0) : 0;
-    const timeDiff = pTime > 0 ? Math.abs(serverNow - pTime) : 999999;
-    const isOnline = isSelf || (p && timeDiff < 180000);
+    let isOnline = isSelf;
+    if (!isOnline) {
+      for (const k of candidateKeys) {
+        const p = presence[k];
+        if (p) {
+          const pTime = Number(p.lastSeen || p.updatedAt || p.timestamp || 0);
+          if (pTime > 0 && Math.abs(serverNow - pTime) <= 25000) {
+            isOnline = true;
+            break;
+          }
+        }
+      }
+    }
+
     const sectionText = isSelf ? ' (我)' : (isOnline ? ' (在线)' : ' (离线)');
     const color = m.color || '#2563eb';
     let displayName = m.name || m.studentCode || uid;
@@ -1347,12 +1367,24 @@ function renderStage1Canvas(canvas, state, handlers) {
     return payload;
   };
 
-  const sendLock = (fieldKey) => {
-    const p = getLockPayload(fieldKey);
+  const isFieldLockedByOther = (fieldKey) => {
+    const currUser = (window.app && window.app.authManager) ? window.app.authManager.getCurrentUser() : null;
+    const myId = currUser ? String(currUser.studentCode || currUser.username || currUser.id || '') : '';
+    const myName = currUser ? String(currUser.name || currUser.username || '') : '';
+    const lock = (window.app?.state?.fieldLocks || {})[fieldKey];
+    if (!lock) return false;
+    const isFresh = (Date.now() - Number(lock.time || lock.timestamp || 0) <= 1500);
+    const lockUser = String(lock.userId || '');
+    const lockName = String(lock.userName || '');
+    return isFresh && lockUser !== myId && (!myName || lockName !== myName);
+  };
+
+  const sendLock = (fieldKey, val = null) => {
+    const p = getLockPayload(fieldKey, val);
     try {
       if (window.app?.cloudSyncEngine?.bc) {
         const locksObj = { ...(window.app.state.fieldLocks || {}) };
-        locksObj[fieldKey] = { userId: p.userId, userName: p.userName, time: Date.now() };
+        locksObj[fieldKey] = { userId: p.userId, userName: p.userName, time: Date.now(), value: val };
         window.app.cloudSyncEngine.bc.postMessage({ snapshot: { locks: locksObj } });
       }
     } catch (e) {}
@@ -1392,10 +1424,21 @@ function renderStage1Canvas(canvas, state, handlers) {
         if (window.app.cloudSyncEngine) window.app.cloudSyncEngine.pushSnapshot();
       }
     };
-    topicInput.addEventListener('focus', () => sendLock('topic_title'));
+    topicInput.addEventListener('focus', (e) => {
+      if (isFieldLockedByOther('topic_title')) {
+        topicInput.blur();
+        return;
+      }
+      sendLock('topic_title', topicInput.value);
+    });
     topicInput.addEventListener('input', (e) => {
+      if (isFieldLockedByOther('topic_title')) {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        return;
+      }
       s1.mergedTitle = e.target.value;
-      sendLock('topic_title');
+      sendLock('topic_title', e.target.value);
       if (autoUnlockTimer) clearTimeout(autoUnlockTimer);
       autoUnlockTimer = setTimeout(() => {
         sendUnlock('topic_title', topicInput.value);
@@ -1410,6 +1453,11 @@ function renderStage1Canvas(canvas, state, handlers) {
       sendUnlock('topic_title', topicInput.value);
     });
     topicInput.addEventListener('keydown', (e) => {
+      if (isFieldLockedByOther('topic_title')) {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        return;
+      }
       if (e.isComposing || e.keyCode === 229) return;
       if (e.key === 'Enter') { topicInput.blur(); }
     });
@@ -1446,13 +1494,24 @@ function renderStage1Canvas(canvas, state, handlers) {
           }
         }
       };
-      input.addEventListener('focus', () => sendLock(fieldKey));
+      input.addEventListener('focus', () => {
+        if (isFieldLockedByOther(fieldKey)) {
+          input.blur();
+          return;
+        }
+        sendLock(fieldKey, Number(input.value) || 0);
+      });
       input.addEventListener('input', (e) => {
+        if (isFieldLockedByOther(fieldKey)) {
+          e.preventDefault();
+          e.stopImmediatePropagation();
+          return;
+        }
         const numVal = Number(e.target.value) || 0;
         if (key && s1.contract.timeAllocations) {
           s1.contract.timeAllocations[key] = numVal;
         }
-        sendLock(fieldKey);
+        sendLock(fieldKey, numVal);
         if (autoUnlockTimer) clearTimeout(autoUnlockTimer);
         autoUnlockTimer = setTimeout(() => {
           sendUnlock(fieldKey, Number(input.value) || 0);
@@ -1467,6 +1526,11 @@ function renderStage1Canvas(canvas, state, handlers) {
         sendUnlock(fieldKey, Number(input.value) || 0);
       });
       input.addEventListener('keydown', (e) => {
+        if (isFieldLockedByOther(fieldKey)) {
+          e.preventDefault();
+          e.stopImmediatePropagation();
+          return;
+        }
         if (e.isComposing || e.keyCode === 229) return;
         if (e.key === 'Enter') { input.blur(); }
       });
@@ -1503,12 +1567,23 @@ function renderStage1Canvas(canvas, state, handlers) {
           }).catch(() => {});
         }
       };
-      input.addEventListener('focus', () => sendLock(fieldKey));
+      input.addEventListener('focus', () => {
+        if (isFieldLockedByOther(fieldKey)) {
+          input.blur();
+          return;
+        }
+        sendLock(fieldKey, input.value);
+      });
       input.addEventListener('input', (e) => {
+        if (isFieldLockedByOther(fieldKey)) {
+          e.preventDefault();
+          e.stopImmediatePropagation();
+          return;
+        }
         const val = e.target.value;
         if (!s1.contract.taskAssignments) s1.contract.taskAssignments = {};
         if (mKey) s1.contract.taskAssignments[mKey] = val;
-        sendLock(fieldKey);
+        sendLock(fieldKey, val);
         if (autoUnlockTimer) clearTimeout(autoUnlockTimer);
         autoUnlockTimer = setTimeout(() => {
           sendUnlock(fieldKey, input.value);
@@ -1523,6 +1598,11 @@ function renderStage1Canvas(canvas, state, handlers) {
         sendUnlock(fieldKey, input.value);
       });
       input.addEventListener('keydown', (e) => {
+        if (isFieldLockedByOther(fieldKey)) {
+          e.preventDefault();
+          e.stopImmediatePropagation();
+          return;
+        }
         if (e.isComposing || e.keyCode === 229) return;
         if (e.key === 'Enter') { input.blur(); }
       });
@@ -2173,16 +2253,40 @@ export function renderChat(state) {
     }
 
     presenceContainer.innerHTML = memberList.map(m => {
-      const isMe = (m.id === myCode || m.studentCode === myCode || (currUser && (m.id === currUser.id || m.studentCode === currUser.studentCode || m.name === currUser.name)));
-      let isOnline = isMe;
-      const p = presence[m.studentCode] || presence[m.id] || presence[m.username] || presence[m.name];
+      const uid = String(m.id || m.studentCode || m.userId || '').trim();
+      const candidateKeys = [
+        String(m.id || '').trim(),
+        String(m.studentCode || '').trim(),
+        String(m.username || '').trim(),
+        String(m.name || '').trim()
+      ].filter(Boolean);
 
+      const isMe = (currUser && (
+        (currUser.id && (m.id === currUser.id || uid === String(currUser.id))) ||
+        (currUser.studentCode && (m.studentCode === currUser.studentCode || uid === String(currUser.studentCode))) ||
+        (currUser.username && (m.username === currUser.username || uid === String(currUser.username))) ||
+        (currUser.name && m.name === currUser.name)
+      )) || (uid && uid === myCode);
+
+      let isOnline = isMe;
       if (!isOnline) {
-        if (p && (nowMs - (p.lastSeen || p.updatedAt || p.timestamp || 0) < 180000)) {
-          isOnline = true;
+        for (const k of candidateKeys) {
+          const p = presence[k];
+          if (p) {
+            const pTime = Number(p.lastSeen || p.updatedAt || p.timestamp || 0);
+            if (pTime > 0 && (nowMs - pTime <= 25000)) {
+              isOnline = true;
+              break;
+            }
+          }
         }
-        if (recentSpeakers.has(m.id) || recentSpeakers.has(m.studentCode) || recentSpeakers.has(m.name) || recentSpeakers.has(m.username)) {
-          isOnline = true;
+        if (!isOnline) {
+          for (const k of candidateKeys) {
+            if (recentSpeakers.has(k)) {
+              isOnline = true;
+              break;
+            }
+          }
         }
       }
 

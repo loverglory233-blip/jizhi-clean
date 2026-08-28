@@ -507,19 +507,25 @@ if ($action === 'lock_field' && $_SERVER['REQUEST_METHOD'] === 'POST') {
 
         // 判断当前字段是否被其他人持有锁
         $isLockedByOther = (isset($locks[$fieldKey]) && $locks[$fieldKey]['userId'] !== $userId);
+        $val = $req['value'] ?? null;
         if (!$isLockedByOther) {
             $locks[$fieldKey] = [
                 'userId'   => $userId,
                 'userName' => $userName,
                 'time'     => $nowMs
             ];
+            if ($val !== null) {
+                $locks[$fieldKey]['value'] = (string)$val;
+            }
             $locksJson = json_encode($locks, JSON_UNESCAPED_UNICODE);
             $stmtSave = $pdo->prepare("INSERT INTO global_meta (meta_key, meta_value) VALUES (:k, :v) ON DUPLICATE KEY UPDATE meta_value = :v2");
             $stmtSave->execute([':k' => 'locks_' . $scopeKey, ':v' => $locksJson, ':v2' => $locksJson]);
             
-            // 唤醒全局变更
-            $stmtSignal = $pdo->prepare("INSERT INTO global_meta (meta_key, meta_value) VALUES ('meta_updated_at', :v) ON DUPLICATE KEY UPDATE meta_value = :v2");
-            $stmtSignal->execute([':v' => $nowMs, ':v2' => $nowMs]);
+            // 唤醒全局变更并递增 revision_id，让组内其他成员立即接收到输入锁与实时输入文字
+            try {
+                $stmtUpRev = $pdo->prepare("UPDATE group_states SET revision_id = IFNULL(revision_id, 0) + 1, last_timestamp = :ts WHERE scope_key = :sk");
+                $stmtUpRev->execute([':ts' => $nowMs, ':sk' => $scopeKey]);
+            } catch (Exception $e) {}
 
             echo json_encode(['success' => true, 'granted' => true, 'locks' => $locks]);
             exit;
@@ -716,7 +722,7 @@ if ($action === 'get_teacher_monitor_all_groups') {
 
     $result = ['success' => true, 'groups' => []];
     $nowMs = round(microtime(true) * 1000);
-    $ONLINE_WINDOW_MS = 75000; // 75 秒心跳/发言窗口判定在线 (与分级心跳完美对齐，彻底消除离线闪烁)
+    $ONLINE_WINDOW_MS = 25000; // 25 秒心跳/发言窗口判定在线 (秒级精准感知，0 误判)
 
     if ($pdo) {
         // 1. 优先加载官方班级分组名册与全校学生信息字典
@@ -1880,11 +1886,18 @@ if ($action === 'presence_ping' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         $pingPayload = [
             'lastSeen'  => $nowMs,
             'updatedAt' => $nowMs,
+            'timestamp' => $nowMs,
             'name'      => isset($req['name']) ? $req['name'] : $userKey
         ];
         $cleanPresence[strval($userKey)] = $pingPayload;
         if (isset($req['studentCode']) && !empty($req['studentCode'])) {
             $cleanPresence[strval($req['studentCode'])] = $pingPayload;
+        }
+        if (isset($req['userId']) && !empty($req['userId'])) {
+            $cleanPresence[strval($req['userId'])] = $pingPayload;
+        }
+        if (isset($req['name']) && !empty($req['name'])) {
+            $cleanPresence[strval($req['name'])] = $pingPayload;
         }
 
         $prJson = json_encode($cleanPresence, JSON_UNESCAPED_UNICODE);
