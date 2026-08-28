@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles } from "./constants.js?v=20260828_v647";
-import { callCozeAgentAPI } from "./agents.js?v=20260828_v647";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs } from "./utils.js?v=20260828_v647";
+import { AgentProfiles } from "./constants.js?v=20260828_v648";
+import { callCozeAgentAPI } from "./agents.js?v=20260828_v648";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs } from "./utils.js?v=20260828_v648";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -1496,6 +1496,10 @@ function renderStage1Canvas(canvas, state, handlers) {
     topicInput.addEventListener('blur', () => {
       if (idleTimer) clearTimeout(idleTimer);
       if (heartbeatTimer) clearInterval(heartbeatTimer);
+      if (topicInput._preemptedByOther || isFieldLockedByOther('topic_title')) {
+        topicInput._preemptedByOther = false;
+        return;
+      }
       flushTopic();
       sendUnlock('topic_title', topicInput.value);
     });
@@ -1597,6 +1601,10 @@ function renderStage1Canvas(canvas, state, handlers) {
       input.addEventListener('blur', () => {
         if (idleTimer) clearTimeout(idleTimer);
         if (heartbeatTimer) clearInterval(heartbeatTimer);
+        if (input._preemptedByOther || isFieldLockedByOther(fieldKey)) {
+          input._preemptedByOther = false;
+          return;
+        }
         flushTime();
         sendUnlock(fieldKey, Number(input.value) || 0);
       });
@@ -1718,6 +1726,10 @@ function renderStage1Canvas(canvas, state, handlers) {
       input.addEventListener('blur', () => {
         if (idleTimer) clearTimeout(idleTimer);
         if (heartbeatTimer) clearInterval(heartbeatTimer);
+        if (input._preemptedByOther || isFieldLockedByOther(fieldKey)) {
+          input._preemptedByOther = false;
+          return;
+        }
         flushTask();
         sendUnlock(fieldKey, input.value);
       });
@@ -2345,6 +2357,10 @@ function renderStage3Canvas(canvas, state, handlers) {
       textarea.addEventListener('blur', () => {
         if (idleTimer) clearTimeout(idleTimer);
         if (heartbeatTimer) clearInterval(heartbeatTimer);
+        if (textarea._preemptedByOther || isFieldLockedByOther(fieldKey)) {
+          textarea._preemptedByOther = false;
+          return;
+        }
         autoSave();
         sendUnlock(fieldKey, textarea.value);
       });
