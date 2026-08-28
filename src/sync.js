@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState } from './constants.js?v=20260828_v640';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin } from './utils.js?v=20260828_v640';
+import { InitialState } from './constants.js?v=20260828_v641';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin } from './utils.js?v=20260828_v641';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -531,7 +531,7 @@ export class CloudSyncEngine {
         const currentUserName = currentUser ? String(currentUser.name || currentUser.username || '') : '';
         const nowMs = Date.now();
         const lockTime = lockInfo ? Number(lockInfo.timestamp || lockInfo.time || 0) : 0;
-        const isLockFresh = lockInfo && (nowMs - lockTime <= 1500);
+        const isLockFresh = lockInfo && (nowMs - lockTime <= 8500);
         const lockUser = lockInfo ? String(lockInfo.userId || '') : '';
         const lockName = lockInfo ? String(lockInfo.userName || '') : '';
         const isLockedByOther = isLockFresh && lockUser !== currentUserId && (!currentUserName || lockName !== currentUserName);
@@ -542,13 +542,15 @@ export class CloudSyncEngine {
         let badge = mountContainer.querySelector(`.field-lock-badge[data-for="${fieldKey}"]`);
 
         if (isLockedByOther) {
-          // 💡 实时呈现对方正在打的文字
+          // 💡 实时呈现对方正在打的成型文字
           if (lockInfo.value !== undefined && lockInfo.value !== null && document.activeElement !== el) {
             el.value = lockInfo.value;
           }
           el.disabled = true;
           el.readOnly = true;
-          el.style.opacity = '0.7';
+          el.style.pointerEvents = 'none';
+          el.style.userSelect = 'none';
+          el.style.opacity = '0.75';
           el.style.backgroundColor = '#fefce8';
           el.style.borderColor = '#f59e0b';
           el.title = `🔒 ${lockInfo.userName || '其他组员'} 正在编辑中...`;
@@ -568,23 +570,27 @@ export class CloudSyncEngine {
             badge.innerHTML = `🔒 ${lockInfo.userName || '组员'} 正在输入...`;
           }
 
-          // ⚡ 1.5 秒强制自毁定时器：对方停手 1.5s 绝不在屏幕上滞留
+          // ⚡ 8.5 秒强制自毁定时器：对方若完全停手 8s 安全交接
           if (badge._selfDestructTimer) clearTimeout(badge._selfDestructTimer);
           badge._selfDestructTimer = setTimeout(() => {
             if (badge) badge.remove();
             if (document.activeElement !== el) {
               el.disabled = false;
               el.readOnly = false;
+              el.style.pointerEvents = 'auto';
+              el.style.userSelect = 'auto';
               el.style.opacity = '1';
               el.style.backgroundColor = '';
               el.style.borderColor = '';
               el.title = '';
             }
-          }, 1500);
+          }, 8500);
         } else {
           if (document.activeElement !== el) {
             el.disabled = false;
             el.readOnly = false;
+            el.style.pointerEvents = 'auto';
+            el.style.userSelect = 'auto';
             el.style.opacity = '1';
             el.style.backgroundColor = '';
             el.style.borderColor = '';
