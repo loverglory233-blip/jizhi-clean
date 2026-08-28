@@ -27,53 +27,54 @@ DOWNLOADED=0
 # 1. 优先尝试 Git 本地与多镜像强行对齐（0 缓存、秒级精准）
 for gdir in "${TARGET_DIRS[@]}"; do
   if [ -d "$gdir/.git" ]; then
-    echo "   🔄 检测到 Git 仓库 ($gdir)，尝试极速对齐..."
+    echo "   🔄 检测到 Git 仓库 ($gdir)，正在拉取最新代码..."
     cd "$gdir"
+    git config --global --add safe.directory "$gdir" 2>/dev/null || true
+    git remote set-url origin https://github.com/loverglory233-blip/jizhi-clean.git 2>/dev/null || true
     
-    # 先尝试原生 origin
-    git fetch --timeout=5 origin main 2>/dev/null && git reset --hard origin/main 2>/dev/null && {
+    # 强制拉取并覆盖本地
+    if git fetch origin main --depth=1 && git reset --hard origin/main; then
       DOWNLOADED=1
-      echo "   ✅ Git 原生通道同步成功 (HEAD: $(git rev-parse --short HEAD 2>/dev/null))"
+      echo "   ✅ Git 原生通道同步成功 (最新 Commit: $(git log -1 --pretty=format:'%h - %s' 2>/dev/null))"
       break
-    }
+    fi
 
     # 若原生网络慢，尝试国内加速镜像 remote
-    git remote remove mirror 2>/dev/null || true
     for mirror_url in \
       "https://ghfast.top/https://github.com/loverglory233-blip/jizhi-clean.git" \
       "https://mirror.ghproxy.com/https://github.com/loverglory233-blip/jizhi-clean.git" \
       "https://ghproxy.net/https://github.com/loverglory233-blip/jizhi-clean.git"; do
-      git remote add mirror "$mirror_url" 2>/dev/null || true
-      if git fetch --timeout=6 mirror main 2>/dev/null && git reset --hard mirror/main 2>/dev/null; then
+      echo "   🔄 尝试镜像拉取: $mirror_url ..."
+      git remote set-url origin "$mirror_url" 2>/dev/null || true
+      if git fetch origin main --depth=1 && git reset --hard origin/main; then
         DOWNLOADED=1
         echo "   ✅ Git 镜像加速通道同步成功 ($mirror_url)"
         break
       fi
-      git remote remove mirror 2>/dev/null || true
     done
     [ $DOWNLOADED -eq 1 ] && break
   fi
 done
 
-# 2. 尝试全量代码包一键直连秒级穿透解压（1次请求搞定，绝不卡住）
+# 2. 尝试全量代码包一键直连秒级穿透解压（直接覆盖到目标目录）
 if [ $DOWNLOADED -eq 0 ]; then
-  echo "   ⚡ 启动多镜像极速全量代码包穿透下载..."
+  echo "   ⚡ 启动多镜像极速全量代码包穿透覆盖..."
   for tar_url in \
     "https://ghfast.top/https://github.com/loverglory233-blip/jizhi-clean/archive/refs/heads/main.tar.gz" \
     "https://mirror.ghproxy.com/https://github.com/loverglory233-blip/jizhi-clean/archive/refs/heads/main.tar.gz" \
     "https://ghproxy.net/https://github.com/loverglory233-blip/jizhi-clean/archive/refs/heads/main.tar.gz" \
     "https://github.com/loverglory233-blip/jizhi-clean/archive/refs/heads/main.tar.gz"; do
-    echo "   📦 尝试拉取代码包: $tar_url ..."
-    if curl -s -f -L --connect-timeout 5 --max-time 15 "$tar_url" -o "$TMP/archive.tar.gz" 2>/dev/null && [ -s "$TMP/archive.tar.gz" ]; then
+    echo "   📦 正在下载并解压: $tar_url ..."
+    if curl -s -f -L --connect-timeout 8 --max-time 30 "$tar_url" -o "$TMP/archive.tar.gz" 2>/dev/null && [ -s "$TMP/archive.tar.gz" ]; then
       tar -xzf "$TMP/archive.tar.gz" -C "$TMP" 2>/dev/null
       SRC_DIR=$(find "$TMP" -maxdepth 1 -type d -name "jizhi-clean-*" | head -n 1)
       if [ -n "$SRC_DIR" ] && [ -f "$SRC_DIR/index.html" ]; then
         for dir in "${TARGET_DIRS[@]}"; do
-          mkdir -p "$dir/css" "$dir/css/libs" "$dir/js" "$dir/js/libs" "$dir/api" "$dir/src" "$dir/uploads" "$dir/data"
-          cp -rf "$SRC_DIR/"* "$dir/" 2>/dev/null || true
+          mkdir -p "$dir/css" "$dir/js" "$dir/api" "$dir/src" "$dir/uploads" "$dir/data"
+          cp -rf "$SRC_DIR/"* "$dir/"
         done
         DOWNLOADED=1
-        echo "   ✅ 完整代码包解压并同步覆盖完成"
+        echo "   ✅ 完整代码包已全量覆盖至所有目标目录"
         break
       fi
     fi
