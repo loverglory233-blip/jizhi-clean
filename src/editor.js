@@ -2688,4 +2688,8 @@ export function renderDefenseRoom() {}
 export function renderWordEditor() {}
 export function renderStageNavigation() {}
 export function renderStudentWorkspace() {}
+export function renderSurveyModal() {}
+export function setupChatAtMentionMenu() {}
+export function updateContributionUi() {}
+export function showSurveyModalIfApplicable() {}
 

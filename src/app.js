@@ -19,13 +19,13 @@ import { renderLoginView } from "./login.js?v=20260828_v649";
 import { renderTeacherPortal } from "./teacher.js?v=20260828_v649";
 import { renderStudentTaskPortal } from "./student-portal.js?v=20260828_v649";
 import {
-  renderStudentWorkspace,
-  renderHeader,
+  buildWordEditorHtml,
+  attachWordEditorEvents,
   renderChat,
-  renderSurveyModal,
-  setupChatAtMentionMenu,
-  updateContributionUi,
-  showSurveyModalIfApplicable
+  renderHeader,
+  renderCanvas,
+  renderPresencePills,
+  renderRemoteCursors
 } from "./editor.js?v=20260828_v649";
 
 // Make renderChat available on window for sync callbacks
