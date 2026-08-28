@@ -9,8 +9,8 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260828_v643";
-import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash, filterAndDeduplicateChatLogs } from "./utils.js?v=20260828_v643";
+} from "./constants.js?v=20260828_v644";
+import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash, filterAndDeduplicateChatLogs } from "./utils.js?v=20260828_v644";
 
 /* ==========================================================================
    7. TEACHER PORTAL RENDERER (LIVE WORKSPACE MIRROR & ANNOUNCEMENT READ MATRIX)
@@ -939,139 +939,136 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
               </div>
 
               ${effectiveMonitorStage === 'stage1' ? `
-                <div style="display:grid; grid-template-columns: minmax(0, 1fr) 380px; gap:16px; width:100%; box-sizing:border-box; height:calc(100vh - 230px); min-height:600px; max-height:800px; align-items:stretch;">
-                  <!-- 左侧卡片：1:1 镜像学生端阶段一实操界面（等高自适应） -->
-                  <div class="card" style="padding:18px 20px; display:flex; flex-direction:column; border:1px solid #bfdbfe; min-width:0; box-sizing:border-box; height:100%; overflow:hidden;">
-                    <div style="flex-shrink:0; font-size:15.5px; font-weight:800; color:#1e40af; display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #e2e8f0; padding-bottom:10px; margin-bottom:12px;">
+                <div style="display:grid; grid-template-columns: minmax(0, 1fr) 380px; gap:16px; width:100%; box-sizing:border-box; align-items:stretch;">
+                  <!-- 左侧卡片：以阶段一左侧为主，不需要内部滑动条，全部自然展开 -->
+                  <div class="card" style="padding:20px; display:flex; flex-direction:column; border:1px solid #bfdbfe; gap:16px; min-width:0; box-sizing:border-box; height:auto;">
+                    <div style="font-size:16px; font-weight:800; color:#1e40af; display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #e2e8f0; padding-bottom:10px;">
                       <span>🎪 阶段一实操同屏: 初始提案与学术合作公约 (${activeMonitorGroup.name})</span>
                       <span style="background:#eff6ff; color:#1d4ed8; padding:3px 10px; border-radius:8px; font-size:12px; font-weight:700;">阶段一实况</span>
                     </div>
 
-                    <!-- 内部自适应滚动区 -->
-                    <div style="flex:1; min-height:0; overflow-y:auto; display:flex; flex-direction:column; gap:14px; padding-right:4px;">
-                      <!-- 1. 【第一步】💡 组员初始学术提案展台 -->
-                      <div style="background:#f8fafc; border:1px solid #bfdbfe; border-radius:12px; padding:14px;">
-                        <div style="font-size:13.5px; font-weight:800; color:#1e40af; margin-bottom:10px; display:flex; justify-content:space-between; align-items:center;">
-                          <span>💡 组员初始学术提案展台 (${(state.stage1?.proposals || []).length}/${monitorMembersList.length || 3} 人已提交):</span>
-                          <span style="font-size:11.5px; background:#eff6ff; color:#2563eb; padding:2px 8px; border-radius:6px; font-weight:700;">共投 ${(Object.values(state.stage1?.hasVoted || {}).filter(Boolean)).length} 票</span>
-                        </div>
-                        ${(state.stage1?.proposals && state.stage1.proposals.length > 0) ? `
-                          <div class="proposals-grid" style="display:grid; grid-template-columns:repeat(auto-fill, minmax(220px, 1fr)); gap:10px;">
-                            ${state.stage1.proposals.map((p, idx) => {
-                              const allGlobalUsers = (authManager) ? authManager.getUsers() : [];
-                              const authorObj = monitorMembersList.find(m => m.id === p.author || m.studentCode === p.author || m.name === p.authorName || m.name === p.author);
-                              const authorUser = allGlobalUsers.find(u => u.id === p.author || u.studentCode === p.author || u.username === p.author || u.name === p.authorName);
-                              const authorName = authorObj ? authorObj.name : (authorUser ? authorUser.name : (p.authorName || p.author || `组员${idx+1}`));
-                              const votes = p.votes || 0;
-                              return `
-                                <div style="background:#ffffff; border:1.5px solid #e2e8f0; border-radius:8px; padding:10px 12px; display:flex; flex-direction:column; justify-content:space-between; gap:6px; box-shadow:0 1px 3px rgba(0,0,0,0.02);">
-                                  <div>
-                                    <div style="font-size:13px; font-weight:800; color:#0f172a; line-height:1.4; margin-bottom:4px;">${escapeHtml(p.title || '未命名选题')}</div>
-                                    <div style="font-size:11px; color:#64748b;">👤 提交人: <b>${escapeHtml(authorName)}</b></div>
-                                  </div>
-                                  <div style="display:flex; justify-content:space-between; align-items:center; border-top:1px solid #f1f5f9; padding-top:6px;">
-                                    <span style="font-size:11px; color:#2563eb; font-weight:700;">🗳️ 得票数: ${votes}</span>
-                                  </div>
+                    <!-- 1. 【第一步】💡 组员初始学术提案展台 (自然完整展开) -->
+                    <div style="background:#f8fafc; border:1px solid #bfdbfe; border-radius:12px; padding:16px;">
+                      <div style="font-size:14px; font-weight:800; color:#1e40af; margin-bottom:12px; display:flex; justify-content:space-between; align-items:center;">
+                        <span>💡 组员初始学术提案展台 (${(state.stage1?.proposals || []).length}/${monitorMembersList.length || 3} 人已提交):</span>
+                        <span style="font-size:11.5px; background:#eff6ff; color:#2563eb; padding:2px 8px; border-radius:6px; font-weight:700;">共投 ${(Object.values(state.stage1?.hasVoted || {}).filter(Boolean)).length} 票</span>
+                      </div>
+                      ${(state.stage1?.proposals && state.stage1.proposals.length > 0) ? `
+                        <div class="proposals-grid" style="display:grid; grid-template-columns:repeat(auto-fill, minmax(220px, 1fr)); gap:12px;">
+                          ${state.stage1.proposals.map((p, idx) => {
+                            const allGlobalUsers = (authManager) ? authManager.getUsers() : [];
+                            const authorObj = monitorMembersList.find(m => m.id === p.author || m.studentCode === p.author || m.name === p.authorName || m.name === p.author);
+                            const authorUser = allGlobalUsers.find(u => u.id === p.author || u.studentCode === p.author || u.username === p.author || u.name === p.authorName);
+                            const authorName = authorObj ? authorObj.name : (authorUser ? authorUser.name : (p.authorName || p.author || `组员${idx+1}`));
+                            const votes = p.votes || 0;
+                            return `
+                              <div style="background:#ffffff; border:1.5px solid #e2e8f0; border-radius:10px; padding:12px; display:flex; flex-direction:column; justify-content:space-between; gap:8px; box-shadow:0 1px 3px rgba(0,0,0,0.02);">
+                                <div>
+                                  <div style="font-size:13px; font-weight:800; color:#0f172a; line-height:1.4; margin-bottom:4px;">${escapeHtml(p.title || '未命名选题')}</div>
+                                  <div style="font-size:11px; color:#64748b;">👤 提交人: <b>${escapeHtml(authorName)}</b></div>
                                 </div>
-                              `;
-                            }).join('')}
-                          </div>
-                        ` : `
-                          <div style="text-align:center; padding:16px; color:#94a3b8; font-size:12px;">⏳ 本组暂无成员提交选题提案</div>
-                        `}
+                                <div style="display:flex; justify-content:space-between; align-items:center; border-top:1px solid #f1f5f9; padding-top:6px;">
+                                  <span style="font-size:11px; color:#2563eb; font-weight:700;">🗳️ 得票数: ${votes}</span>
+                                </div>
+                              </div>
+                            `;
+                          }).join('')}
+                        </div>
+                      ` : `
+                        <div style="text-align:center; padding:20px; color:#94a3b8; font-size:12px;">⏳ 本组暂无成员提交选题提案</div>
+                      `}
+                    </div>
+
+                    <!-- 2. 【第二步】📜 团队协同合作学术合约 (1:1 镜像学生端结构，自然完整展开) -->
+                    <div style="background:#f8fafc; border:1px solid #bfdbfe; border-radius:12px; padding:16px; display:flex; flex-direction:column; gap:14px;">
+                      <div style="font-size:14px; font-weight:800; color:#1e40af; display:flex; justify-content:space-between; align-items:center;">
+                        <span>📜 团队协同合作学术合约 (${activeMonitorGroup.name}):</span>
+                        <span style="font-size:11.5px; background:${state.stage1?.contract?.isLocked ? '#ecfdf5' : '#eff6ff'}; color:${state.stage1?.contract?.isLocked ? '#059669' : '#2563eb'}; padding:2px 8px; border-radius:6px; font-weight:700;">
+                          ${state.stage1?.contract?.isLocked ? '🔒 公约已全员签署生效' : '✍️ 协作拟定中'}
+                        </span>
                       </div>
 
-                      <!-- 2. 【第二步】📜 团队协同合作学术合约 (1:1 镜像学生端结构) -->
-                      <div style="background:#f8fafc; border:1px solid #bfdbfe; border-radius:12px; padding:14px; display:flex; flex-direction:column; gap:12px;">
-                        <div style="font-size:13.5px; font-weight:800; color:#1e40af; display:flex; justify-content:space-between; align-items:center;">
-                          <span>📜 团队协同合作学术合约 (${activeMonitorGroup.name}):</span>
-                          <span style="font-size:11.5px; background:${state.stage1?.contract?.isLocked ? '#ecfdf5' : '#eff6ff'}; color:${state.stage1?.contract?.isLocked ? '#059669' : '#2563eb'}; padding:2px 8px; border-radius:6px; font-weight:700;">
-                            ${state.stage1?.contract?.isLocked ? '🔒 公约已全员签署生效' : '✍️ 协作拟定中'}
-                          </span>
-                        </div>
+                      <!-- 📌 确认融合论文研究主题 -->
+                      <div style="background:#ffffff; border:1px solid #cbd5e1; border-radius:8px; padding:12px 14px; border-left:4px solid #2563eb;">
+                        <div style="font-size:11.5px; font-weight:800; color:#1e40af; margin-bottom:4px;">📌 确认融合论文研究主题:</div>
+                        <div style="font-size:14px; font-weight:800; color:#0f172a; line-height:1.4;">${escapeHtml(state.stage1?.mergedTitle || state.stage1?.contract?.topic || '（小组暂未敲定最终论题）')}</div>
+                      </div>
 
-                        <!-- 📌 确认融合论文研究主题 -->
-                        <div style="background:#ffffff; border:1px solid #cbd5e1; border-radius:8px; padding:10px 12px; border-left:4px solid #2563eb;">
-                          <div style="font-size:11.5px; font-weight:800; color:#1e40af; margin-bottom:3px;">📌 确认融合论文研究主题:</div>
-                          <div style="font-size:13.5px; font-weight:800; color:#0f172a; line-height:1.4;">${escapeHtml(state.stage1?.mergedTitle || state.stage1?.contract?.topic || '（小组暂未敲定最终论题）')}</div>
+                      <!-- 📚 6大研究方案核心模块与时间规划 (独立模块) -->
+                      <div style="background:#ffffff; padding:14px; border-radius:8px; border:1px solid #e2e8f0;">
+                        <div style="font-weight:800; color:#1e40af; margin-bottom:10px; font-size:13px;">
+                          📚 研究方案核心模块与时间规划:
                         </div>
+                        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:10px;">
+                          ${[
+                            { key: 'background', label: '一、研究背景与意义', def: 25, color: '#2563eb' },
+                            { key: 'literature', label: '二、文献综述', def: 30, color: '#0284c7' },
+                            { key: 'questions', label: '三、研究问题与假设', def: 25, color: '#059669' },
+                            { key: 'method', label: '四、研究设计与方法', def: 40, color: '#7c3aed' },
+                            { key: 'reflection', label: '五、研究设计的不足与反思', def: 20, color: '#d97706' },
+                            { key: 'references', label: '六、参考文献', def: 10, color: '#475569' }
+                          ].map(sec => {
+                            const timeAlloc = state.stage1?.contract?.timeAllocations || {};
+                            const timeVal = (timeAlloc[sec.key] !== undefined) ? timeAlloc[sec.key] : sec.def;
+                            return `
+                              <div style="background:#f8fafc; border:1px solid #e2e8f0; border-left:3.5px solid ${sec.color}; border-radius:6px; padding:8px 10px; display:flex; justify-content:space-between; align-items:center;">
+                                <span style="font-weight:700; color:#334155; font-size:12px;">${sec.label}</span>
+                                <span style="font-size:11.5px; color:#2563eb; font-weight:800;">${timeVal} 分钟</span>
+                              </div>
+                            `;
+                          }).join('')}
+                        </div>
+                      </div>
 
-                        <!-- 📚 6大研究方案核心模块与时间规划 (独立模块) -->
-                        <div style="background:#ffffff; padding:12px; border-radius:8px; border:1px solid #e2e8f0;">
-                          <div style="font-weight:800; color:#1e40af; margin-bottom:8px; font-size:12.5px;">
-                            📚 研究方案核心模块与时间规划:
-                          </div>
-                          <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(170px, 1fr)); gap:8px;">
-                            ${[
-                              { key: 'background', label: '一、研究背景与意义', def: 25, color: '#2563eb' },
-                              { key: 'literature', label: '二、文献综述', def: 30, color: '#0284c7' },
-                              { key: 'questions', label: '三、研究问题与假设', def: 25, color: '#059669' },
-                              { key: 'method', label: '四、研究设计与方法', def: 40, color: '#7c3aed' },
-                              { key: 'reflection', label: '五、研究设计的不足与反思', def: 20, color: '#d97706' },
-                              { key: 'references', label: '六、参考文献', def: 10, color: '#475569' }
-                            ].map(sec => {
-                              const timeAlloc = state.stage1?.contract?.timeAllocations || {};
-                              const timeVal = (timeAlloc[sec.key] !== undefined) ? timeAlloc[sec.key] : sec.def;
-                              return `
-                                <div style="background:#f8fafc; border:1px solid #e2e8f0; border-left:3.5px solid ${sec.color}; border-radius:6px; padding:6px 8px; display:flex; justify-content:space-between; align-items:center;">
-                                  <span style="font-weight:700; color:#334155; font-size:11.5px;">${sec.label}</span>
-                                  <span style="font-size:11.5px; color:#2563eb; font-weight:800;">${timeVal} 分钟</span>
+                      <!-- 👥 小组成员具体任务分工 (与时间完全分开，按组员展示) -->
+                      <div style="background:#ffffff; padding:14px; border-radius:8px; border:1px solid #e2e8f0;">
+                        <div style="font-weight:800; color:#1e40af; margin-bottom:10px; font-size:13px;">
+                          👥 本组小组成员具体任务分工 (共 ${monitorMembersList.length} 人):
+                        </div>
+                        <div style="display:flex; flex-direction:column; gap:8px;">
+                          ${monitorMembersList.map((m, idx) => {
+                            const mKey = m.id || m.studentCode || m.username || m.name || (`mem_${idx}`);
+                            const tasks = state.stage1?.contract?.taskAssignments || {};
+                            const taskVal = tasks[mKey] !== undefined ? tasks[mKey] :
+                              (m.id && tasks[m.id] !== undefined ? tasks[m.id] :
+                              (m.studentCode && tasks[m.studentCode] !== undefined ? tasks[m.studentCode] :
+                              (m.name && tasks[m.name] !== undefined ? tasks[m.name] : '')));
+                            return `
+                              <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px; padding:8px 12px; display:flex; flex-direction:column; gap:4px;">
+                                <div style="display:flex; justify-content:space-between; align-items:center;">
+                                  <span style="font-weight:800; color:${m.color || '#2563eb'}; font-size:12.5px;">${m.avatar || '👤'} ${escapeHtml(m.name)} (${m.roleTitle || '组员'}):</span>
                                 </div>
-                              `;
-                            }).join('')}
-                          </div>
-                        </div>
-
-                        <!-- 👥 小组成员具体任务分工 (与时间完全分开，按组员展示) -->
-                        <div style="background:#ffffff; padding:12px; border-radius:8px; border:1px solid #e2e8f0;">
-                          <div style="font-weight:800; color:#1e40af; margin-bottom:8px; font-size:12.5px;">
-                            👥 本组小组成员具体任务分工 (共 ${monitorMembersList.length} 人):
-                          </div>
-                          <div style="display:flex; flex-direction:column; gap:6px;">
-                            ${monitorMembersList.map((m, idx) => {
-                              const mKey = m.id || m.studentCode || m.username || m.name || (`mem_${idx}`);
-                              const tasks = state.stage1?.contract?.taskAssignments || {};
-                              const taskVal = tasks[mKey] !== undefined ? tasks[mKey] :
-                                (m.id && tasks[m.id] !== undefined ? tasks[m.id] :
-                                (m.studentCode && tasks[m.studentCode] !== undefined ? tasks[m.studentCode] :
-                                (m.name && tasks[m.name] !== undefined ? tasks[m.name] : '')));
-                              return `
-                                <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px; padding:7px 10px; display:flex; flex-direction:column; gap:3px;">
-                                  <div style="display:flex; justify-content:space-between; align-items:center;">
-                                    <span style="font-weight:800; color:${m.color || '#2563eb'}; font-size:12px;">${m.avatar || '👤'} ${escapeHtml(m.name)} (${m.roleTitle || '组员'}):</span>
-                                  </div>
-                                  <div style="font-size:11.5px; color:${taskVal ? '#0f172a' : '#94a3b8'}; font-weight:${taskVal ? '600' : '400'};">
-                                    ${taskVal ? escapeHtml(taskVal) : '（暂未在公约中录入具体分工）'}
-                                  </div>
+                                <div style="font-size:12px; color:${taskVal ? '#0f172a' : '#94a3b8'}; font-weight:${taskVal ? '600' : '400'};">
+                                  ${taskVal ? escapeHtml(taskVal) : '（暂未在公约中录入具体分工）'}
                                 </div>
-                              `;
-                            }).join('')}
-                          </div>
+                              </div>
+                            `;
+                          }).join('')}
                         </div>
+                      </div>
 
-                        <!-- ✍️ 组员签署确认状态矩阵 -->
-                        <div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:8px; padding:10px 12px;">
-                          <div style="font-size:12px; font-weight:700; color:#334155; margin-bottom:6px; display:flex; justify-content:space-between; align-items:center;">
-                            <span>✍️ 组员签署确认状态:</span>
-                            <span style="font-size:11.5px; color:#2563eb; font-weight:700;">签署进度: ${(Object.values(state.stage1?.contract?.confirmedMembers || {}).filter(Boolean)).length}/${monitorMembersList.length}</span>
-                          </div>
-                          <div style="display:gap:6px; flex-wrap:wrap; display:flex;">
-                            ${monitorMembersList.map(m => {
-                              const isConf = state.stage1?.contract?.confirmedMembers && (state.stage1.contract.confirmedMembers[m.id] || state.stage1.contract.confirmedMembers[m.studentCode] || (m.name && state.stage1.contract.confirmedMembers[m.name]));
-                              return `
-                                <span style="color:${isConf ? '#059669' : '#64748b'}; border:1px solid ${isConf ? '#a7f3d0' : '#e2e8f0'}; background:${isConf ? '#ecfdf5' : '#f8fafc'}; padding:3px 8px; border-radius:6px; font-size:11.5px; font-weight:700; display:inline-flex; align-items:center; gap:4px;">
-                                  ${m.avatar || '👤'} ${escapeHtml(m.name)}: <b>${isConf ? '✅ 已签署' : '⏳ 未签署'}</b>
-                                </span>
-                              `;
-                            }).join('')}
-                          </div>
+                      <!-- ✍️ 组员签署确认状态矩阵 -->
+                      <div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:8px; padding:12px 14px;">
+                        <div style="font-size:12.5px; font-weight:700; color:#334155; margin-bottom:8px; display:flex; justify-content:space-between; align-items:center;">
+                          <span>✍️ 组员签署确认状态:</span>
+                          <span style="font-size:11.5px; color:#2563eb; font-weight:700;">签署进度: ${(Object.values(state.stage1?.contract?.confirmedMembers || {}).filter(Boolean)).length}/${monitorMembersList.length}</span>
+                        </div>
+                        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                          ${monitorMembersList.map(m => {
+                            const isConf = state.stage1?.contract?.confirmedMembers && (state.stage1.contract.confirmedMembers[m.id] || state.stage1.contract.confirmedMembers[m.studentCode] || (m.name && state.stage1.contract.confirmedMembers[m.name]));
+                            return `
+                              <span style="color:${isConf ? '#059669' : '#64748b'}; border:1px solid ${isConf ? '#a7f3d0' : '#e2e8f0'}; background:${isConf ? '#ecfdf5' : '#f8fafc'}; padding:4px 10px; border-radius:6px; font-size:12px; font-weight:700; display:inline-flex; align-items:center; gap:4px;">
+                                ${m.avatar || '👤'} ${escapeHtml(m.name)}: <b>${isConf ? '✅ 已签署' : '⏳ 未签署'}</b>
+                              </span>
+                            `;
+                          }).join('')}
                         </div>
                       </div>
                     </div>
                   </div>
 
-                  <!-- 右侧卡片：研讨流（等高平齐，内部全高滚动） -->
-                  <div class="card" style="padding:18px 20px; display:flex; flex-direction:column; min-width:0; box-sizing:border-box; height:100%; overflow:hidden; border:1px solid #e2e8f0; box-shadow:0 2px 8px rgba(15,23,42,0.04);">
+                  <!-- 右侧卡片：高度与左侧完全平齐，内部聊天流全高滚动 -->
+                  <div class="card" style="padding:18px 20px; display:flex; flex-direction:column; min-width:0; box-sizing:border-box; height:100%; border:1px solid #e2e8f0; box-shadow:0 2px 8px rgba(15,23,42,0.04);">
                     <div style="flex-shrink:0; font-size:14.5px; font-weight:800; color:#0f172a; margin-bottom:10px; display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #e2e8f0; padding-bottom:8px;">
                       <span>💬 阶段一研讨对话流 (${activeMonitorGroup.name})</span>
                       <span style="font-size:11px; background:#eff6ff; color:#2563eb; padding:2px 6px; border-radius:6px; font-weight:700;">实时对话</span>
@@ -1099,9 +1096,9 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
               ` : ''}
 
               ${effectiveMonitorStage === 'stage2' ? `
-                <div style="display:grid; grid-template-columns: minmax(0, 1fr) 380px; gap:16px; width:100%; box-sizing:border-box; height:calc(100vh - 230px); min-height:600px; max-height:800px; align-items:stretch;">
-                  <!-- 左侧卡片：宽屏大正文镜像（等高平齐） -->
-                  <div class="card" style="padding:18px 20px; display:flex; flex-direction:column; border:1px solid #bfdbfe; min-width:0; box-sizing:border-box; height:100%; overflow:hidden; gap:10px;">
+                <div style="display:grid; grid-template-columns: minmax(0, 1fr) 380px; gap:16px; width:100%; box-sizing:border-box; height:680px; min-height:680px; align-items:stretch;">
+                  <!-- 左侧卡片：扩大到和阶段一一样的高度，中间文档可自由滑动 -->
+                  <div class="card" style="padding:18px 20px; display:flex; flex-direction:column; border:1px solid #bfdbfe; min-width:0; box-sizing:border-box; height:100%; gap:10px;">
                     <div style="flex-shrink:0; display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #e2e8f0; padding-bottom:8px;">
                       <div style="display:flex; align-items:center; gap:8px;">
                         <span style="font-size:15.5px; font-weight:800; color:#1e40af;">📝 阶段二大正文协作镜像 (${activeMonitorGroup.name})</span>
@@ -1125,8 +1122,8 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
                       </div>
                     </div>
 
-                    <!-- 正文镜像视口 (占满剩余高度) -->
-                    <div id="teacher-live-doc-mirror" style="flex:1; min-height:0; background:#ffffff; border:1.5px solid #cbd5e1; border-radius:8px; overflow:hidden; position:relative; box-shadow:inset 0 1px 3px rgba(0,0,0,0.05);">
+                    <!-- 中间文档视口 (撑满高度，内部可自由滑动) -->
+                    <div id="teacher-live-doc-mirror" style="flex:1; min-height:460px; height:100%; background:#ffffff; border:1.5px solid #cbd5e1; border-radius:8px; overflow:hidden; position:relative; box-shadow:inset 0 1px 3px rgba(0,0,0,0.05);">
                       <iframe src="/p/jizhi_${encodeURIComponent(activeTaskId)}_${encodeURIComponent(activeMonitorGId)}?userName=${encodeURIComponent('教师监控')}&userColor=%237c3aed&showControls=false&showChat=false&showLineNumbers=true" style="border:none; width:100%; height:100%;" title="教师端实时写作同屏镜像"></iframe>
                     </div>
 
@@ -1149,7 +1146,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
                           }).join('');
                         })()}
                       </div>
-                      <div style="display:flex; justify-content:space-between; font-size:10.5px; color:#475569; margin-top:4px; flex-wrap:wrap; gap:6px;">
+                      <div style="display:flex; justify-content:space-between; font-size:10.5px; color:#475569; margin-top:4px; flex-wrap:gap:6px; flex-wrap:wrap;">
                         ${(() => {
                           const contribs = state.stage2?.memberContributions || {};
                           let totalContrib = 0;
@@ -1164,8 +1161,8 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
                     </div>
                   </div>
 
-                  <!-- 右侧卡片：阶段二研讨流（等高平齐） -->
-                  <div class="card" style="padding:18px 20px; display:flex; flex-direction:column; min-width:0; box-sizing:border-box; height:100%; overflow:hidden; border:1px solid #e2e8f0; box-shadow:0 2px 8px rgba(15,23,42,0.04);">
+                  <!-- 右侧卡片：阶段二研讨流（与左侧平齐） -->
+                  <div class="card" style="padding:18px 20px; display:flex; flex-direction:column; min-width:0; box-sizing:border-box; height:100%; border:1px solid #e2e8f0; box-shadow:0 2px 8px rgba(15,23,42,0.04);">
                     <div style="flex-shrink:0; font-size:14.5px; font-weight:800; color:#0f172a; margin-bottom:10px; display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #e2e8f0; padding-bottom:8px;">
                       <span>💬 阶段二编辑部研讨流 (${activeMonitorGroup.name})</span>
                       <span style="font-size:11px; background:#eff6ff; color:#2563eb; padding:2px 6px; border-radius:6px; font-weight:700;">实时对话</span>
@@ -1195,8 +1192,9 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
               ${effectiveMonitorStage === 'stage3' ? (() => {
                 const isStage3DocTab = state.stage3TeacherTab === 'doc';
                 return `
-                <div style="display:grid; grid-template-columns: minmax(0, 1fr) 380px; gap:16px; width:100%; box-sizing:border-box; height:calc(100vh - 230px); min-height:600px; max-height:800px; align-items:stretch;">
-                  <div class="card" style="padding:18px 20px; display:flex; flex-direction:column; border:1px solid #bfdbfe; min-width:0; box-sizing:border-box; height:100%; overflow:hidden;">
+                <div style="display:grid; grid-template-columns: minmax(0, 1fr) 380px; gap:16px; width:100%; box-sizing:border-box; ${isStage3DocTab ? 'height:680px; min-height:680px;' : 'min-height:680px;'} align-items:stretch;">
+                  <!-- 阶段三左侧卡片：答辩内部自适应（短了扩大到基准高度，长了可滑动），终稿和阶段二一样 -->
+                  <div class="card" style="padding:18px 20px; display:flex; flex-direction:column; border:1px solid #bfdbfe; min-width:0; box-sizing:border-box; height:100%; min-height:680px;">
                     <div style="flex-shrink:0; font-size:15.5px; font-weight:800; color:#1e40af; display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #e2e8f0; padding-bottom:10px; margin-bottom:12px;">
                       <span>🎓 阶段三实操同屏: 答辩擂台与终稿 (${activeMonitorGroup.name})</span>
                       <div style="display:flex; gap:6px;">
@@ -1206,24 +1204,24 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
                     </div>
 
                     ${isStage3DocTab ? `
-                      <!-- Tab 2: 论文终稿实时镜像 (全高撑满) -->
+                      <!-- Tab 2: 论文终稿实时镜像 (和阶段二完全一样，撑满并自由滑动) -->
                       <div style="flex:1; min-height:0; background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:12px; display:flex; flex-direction:column; gap:10px;">
                         <div style="flex-shrink:0; display:flex; justify-content:space-between; align-items:center;">
                           <span style="font-size:13.5px; font-weight:800; color:#1e40af;">📜 论文终稿正文全篇镜像:</span>
                           <span style="font-size:12px; color:#64748b;">终稿字数: <b style="color:#2563eb; font-size:14px;">${((state.stage3?.finalDraft || state.stage2?.unifiedContent || '').replace(/<[^>]*>/g, '').trim()).length}</b> 字</span>
                         </div>
-                        <div style="flex:1; min-height:0; background:#ffffff; border:1.5px solid #cbd5e1; border-radius:8px; overflow:hidden; position:relative;">
+                        <div style="flex:1; min-height:460px; background:#ffffff; border:1.5px solid #cbd5e1; border-radius:8px; overflow:hidden; position:relative;">
                           <iframe src="/p/jizhi_${encodeURIComponent(activeTaskId)}_${encodeURIComponent(activeMonitorGId)}?userName=${encodeURIComponent('教师监控')}&userColor=%237c3aed&showControls=false&showChat=false&showLineNumbers=true" style="border:none; width:100%; height:100%;" title="教师端论文终稿同屏镜像"></iframe>
                         </div>
                       </div>
                     ` : `
-                      <!-- Tab 1: 答辩委员会质询与小组成员逐条答辩 (内部滚动区) -->
+                      <!-- Tab 1: 答辩质询与答复 (短了扩大撑满680px，长了在内部顺畅滑动) -->
                       <div style="flex:1; min-height:0; overflow-y:auto; background:#f8fafc; border:1px solid #bfdbfe; border-radius:10px; padding:14px; display:flex; flex-direction:column;">
-                        <div style="font-size:13.5px; font-weight:800; color:#1e40af; margin-bottom:12px; display:flex; justify-content:space-between; align-items:center;">
+                        <div style="flex-shrink:0; font-size:13.5px; font-weight:800; color:#1e40af; margin-bottom:12px; display:flex; justify-content:space-between; align-items:center;">
                           <span>🗣️ 答辩委员会质询与小组成员逐条答辩:</span>
                           <span style="font-size:11.5px; background:#eff6ff; color:#2563eb; padding:2px 8px; border-radius:6px; font-weight:700;">共 ${(state.stage3?.feedbackItems || []).length} 条质询对决</span>
                         </div>
-                        <div style="display:flex; flex-direction:column; gap:12px;">
+                        <div style="display:flex; flex-direction:column; gap:12px; flex:1;">
                           ${(state.stage3?.feedbackItems && state.stage3.feedbackItems.length > 0) ? state.stage3.feedbackItems.map((item, i) => `
                             <div style="background:#ffffff; border:1.5px solid ${item.response ? '#93c5fd' : '#fde68a'}; border-radius:8px; padding:12px 14px; font-size:12.5px; box-shadow:0 1px 3px rgba(0,0,0,0.02);">
                               <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
@@ -1246,8 +1244,9 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
                               `}
                             </div>
                           `).join('') : `
-                            <div style="text-align:center; padding:32px 16px; color:#94a3b8; font-size:12px; background:#ffffff; border-radius:8px; border:1px dashed #cbd5e1;">
-                              ⏳ 答辩委员会尚未对该小组发布质询意见，或小组处于答辩准备中
+                            <div style="text-align:center; padding:60px 16px; color:#94a3b8; font-size:13px; background:#ffffff; border-radius:8px; border:1px dashed #cbd5e1; flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:8px;">
+                              <span style="font-size:28px;">⏳</span>
+                              <span>答辩委员会尚未对该小组发布质询意见，或小组正处于答辩准备中</span>
                             </div>
                           `}
                         </div>
@@ -1255,8 +1254,8 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
                     `}
                   </div>
 
-                  <!-- 右侧卡片：阶段三研讨流（等高平齐） -->
-                  <div class="card" style="padding:18px 20px; display:flex; flex-direction:column; min-width:0; box-sizing:border-box; height:100%; overflow:hidden; border:1px solid #e2e8f0; box-shadow:0 2px 8px rgba(15,23,42,0.04);">
+                  <!-- 右侧卡片：阶段三研讨流（与左侧等高平齐） -->
+                  <div class="card" style="padding:18px 20px; display:flex; flex-direction:column; min-width:0; box-sizing:border-box; height:100%; border:1px solid #e2e8f0; box-shadow:0 2px 8px rgba(15,23,42,0.04);">
                     <div style="flex-shrink:0; font-size:14.5px; font-weight:800; color:#0f172a; margin-bottom:10px; display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #e2e8f0; padding-bottom:8px;">
                       <span>💬 阶段三答辩对话流 (${activeMonitorGroup.name})</span>
                       <span style="font-size:11px; background:#eff6ff; color:#2563eb; padding:2px 6px; border-radius:6px; font-weight:700;">实时对话</span>
