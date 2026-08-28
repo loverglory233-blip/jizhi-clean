@@ -498,9 +498,9 @@ if ($action === 'lock_field' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         $locks = ($row && !empty($row['meta_value'])) ? json_decode($row['meta_value'], true) : [];
         if (!is_array($locks)) $locks = [];
 
-        // 清除超过 2.5 秒过期的死锁
+        // 清除超过 10 秒过期的死锁
         foreach ($locks as $k => $info) {
-            if (!isset($info['time']) || ($nowMs - intval($info['time']) > 2500)) {
+            if (!isset($info['time']) || ($nowMs - intval($info['time']) > 10000)) {
                 unset($locks[$k]);
             }
         }
@@ -2538,7 +2538,7 @@ if ($pdo) {
         $nowMs = round(microtime(true) * 1000);
         if (is_array($rawLocks)) {
             foreach ($rawLocks as $fk => $finfo) {
-                if (isset($finfo['time']) && ($nowMs - intval($finfo['time']) <= 1500)) {
+                if (isset($finfo['time']) && ($nowMs - intval($finfo['time']) <= 8500)) {
                     $activeLocks[$fk] = $finfo;
                 }
             }

@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles } from "./constants.js?v=20260828_v640";
-import { callCozeAgentAPI } from "./agents.js?v=20260828_v640";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs } from "./utils.js?v=20260828_v640";
+import { AgentProfiles } from "./constants.js?v=20260828_v641";
+import { callCozeAgentAPI } from "./agents.js?v=20260828_v641";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs } from "./utils.js?v=20260828_v641";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -1373,7 +1373,7 @@ function renderStage1Canvas(canvas, state, handlers) {
     const myName = currUser ? String(currUser.name || currUser.username || '') : '';
     const lock = (window.app?.state?.fieldLocks || {})[fieldKey];
     if (!lock) return false;
-    const isFresh = (Date.now() - Number(lock.time || lock.timestamp || 0) <= 1500);
+    const isFresh = (Date.now() - Number(lock.time || lock.timestamp || 0) <= 8500);
     const lockUser = String(lock.userId || '');
     const lockName = String(lock.userName || '');
     return isFresh && lockUser !== myId && (!myName || lockName !== myName);
@@ -1416,7 +1416,9 @@ function renderStage1Canvas(canvas, state, handlers) {
   const topicInput = canvas.querySelector('#contract-topic-input');
   if (topicInput && !isContractLocked) {
     let topicTimer = null;
-    let autoUnlockTimer = null;
+    let idleTimer = null;
+    let heartbeatTimer = null;
+
     const flushTopic = () => {
       s1.mergedTitle = topicInput.value;
       if (window.app) {
@@ -1424,13 +1426,56 @@ function renderStage1Canvas(canvas, state, handlers) {
         if (window.app.cloudSyncEngine) window.app.cloudSyncEngine.pushSnapshot();
       }
     };
+
+    const startHeartbeat = () => {
+      if (heartbeatTimer) clearInterval(heartbeatTimer);
+      heartbeatTimer = setInterval(() => {
+        if (document.activeElement === topicInput && !isFieldLockedByOther('topic_title')) {
+          sendLock('topic_title', topicInput.value);
+        } else {
+          clearInterval(heartbeatTimer);
+        }
+      }, 2000);
+    };
+
+    const resetIdleTimer = () => {
+      if (idleTimer) clearTimeout(idleTimer);
+      idleTimer = setTimeout(() => {
+        // 8秒静止发呆交接：强制先入库保存，再安全释放锁
+        flushTopic();
+        sendUnlock('topic_title', topicInput.value);
+        if (heartbeatTimer) clearInterval(heartbeatTimer);
+      }, 8000);
+    };
+
     topicInput.addEventListener('focus', (e) => {
       if (isFieldLockedByOther('topic_title')) {
         topicInput.blur();
         return;
       }
       sendLock('topic_title', topicInput.value);
+      startHeartbeat();
+      resetIdleTimer();
     });
+
+    topicInput.addEventListener('compositionstart', () => {
+      topicInput._isComposing = true;
+      resetIdleTimer();
+    });
+
+    topicInput.addEventListener('compositionupdate', () => {
+      resetIdleTimer();
+    });
+
+    topicInput.addEventListener('compositionend', (e) => {
+      topicInput._isComposing = false;
+      s1.mergedTitle = topicInput.value;
+      sendLock('topic_title', topicInput.value);
+      resetIdleTimer();
+      if (topicTimer) clearTimeout(topicTimer);
+      topicTimer = setTimeout(flushTopic, 300);
+    });
+
     topicInput.addEventListener('input', (e) => {
       if (isFieldLockedByOther('topic_title')) {
         e.preventDefault();
@@ -1438,26 +1483,30 @@ function renderStage1Canvas(canvas, state, handlers) {
         return;
       }
       s1.mergedTitle = e.target.value;
-      sendLock('topic_title', e.target.value);
-      if (autoUnlockTimer) clearTimeout(autoUnlockTimer);
-      autoUnlockTimer = setTimeout(() => {
-        sendUnlock('topic_title', topicInput.value);
-      }, 1000);
+      if (!topicInput._isComposing) {
+        sendLock('topic_title', e.target.value);
+      }
+      resetIdleTimer();
       if (topicTimer) clearTimeout(topicTimer);
       topicTimer = setTimeout(flushTopic, 300);
     });
+
     topicInput.addEventListener('change', flushTopic);
+
     topicInput.addEventListener('blur', () => {
-      if (autoUnlockTimer) clearTimeout(autoUnlockTimer);
+      if (idleTimer) clearTimeout(idleTimer);
+      if (heartbeatTimer) clearInterval(heartbeatTimer);
       flushTopic();
       sendUnlock('topic_title', topicInput.value);
     });
+
     topicInput.addEventListener('keydown', (e) => {
       if (isFieldLockedByOther('topic_title')) {
         e.preventDefault();
         e.stopImmediatePropagation();
         return;
       }
+      resetIdleTimer();
       if (e.isComposing || e.keyCode === 229) return;
       if (e.key === 'Enter') { topicInput.blur(); }
     });
@@ -1469,7 +1518,9 @@ function renderStage1Canvas(canvas, state, handlers) {
       const fieldKey = `time_${key}`;
       input.dataset.lockKey = fieldKey;
       let timeTimer = null;
-      let autoUnlockTimer = null;
+      let idleTimer = null;
+      let heartbeatTimer = null;
+
       const flushTime = () => {
         const numVal = Number(input.value) || 0;
         if (key && s1.contract.timeAllocations) {
@@ -1494,13 +1545,37 @@ function renderStage1Canvas(canvas, state, handlers) {
           }
         }
       };
+
+      const startHeartbeat = () => {
+        if (heartbeatTimer) clearInterval(heartbeatTimer);
+        heartbeatTimer = setInterval(() => {
+          if (document.activeElement === input && !isFieldLockedByOther(fieldKey)) {
+            sendLock(fieldKey, Number(input.value) || 0);
+          } else {
+            clearInterval(heartbeatTimer);
+          }
+        }, 2000);
+      };
+
+      const resetIdleTimer = () => {
+        if (idleTimer) clearTimeout(idleTimer);
+        idleTimer = setTimeout(() => {
+          flushTime();
+          sendUnlock(fieldKey, Number(input.value) || 0);
+          if (heartbeatTimer) clearInterval(heartbeatTimer);
+        }, 8000);
+      };
+
       input.addEventListener('focus', () => {
         if (isFieldLockedByOther(fieldKey)) {
           input.blur();
           return;
         }
         sendLock(fieldKey, Number(input.value) || 0);
+        startHeartbeat();
+        resetIdleTimer();
       });
+
       input.addEventListener('input', (e) => {
         if (isFieldLockedByOther(fieldKey)) {
           e.preventDefault();
@@ -1512,25 +1587,27 @@ function renderStage1Canvas(canvas, state, handlers) {
           s1.contract.timeAllocations[key] = numVal;
         }
         sendLock(fieldKey, numVal);
-        if (autoUnlockTimer) clearTimeout(autoUnlockTimer);
-        autoUnlockTimer = setTimeout(() => {
-          sendUnlock(fieldKey, Number(input.value) || 0);
-        }, 1000);
+        resetIdleTimer();
         if (timeTimer) clearTimeout(timeTimer);
         timeTimer = setTimeout(flushTime, 300);
       });
+
       input.addEventListener('change', flushTime);
+
       input.addEventListener('blur', () => {
-        if (autoUnlockTimer) clearTimeout(autoUnlockTimer);
+        if (idleTimer) clearTimeout(idleTimer);
+        if (heartbeatTimer) clearInterval(heartbeatTimer);
         flushTime();
         sendUnlock(fieldKey, Number(input.value) || 0);
       });
+
       input.addEventListener('keydown', (e) => {
         if (isFieldLockedByOther(fieldKey)) {
           e.preventDefault();
           e.stopImmediatePropagation();
           return;
         }
+        resetIdleTimer();
         if (e.isComposing || e.keyCode === 229) return;
         if (e.key === 'Enter') { input.blur(); }
       });
@@ -1543,7 +1620,9 @@ function renderStage1Canvas(canvas, state, handlers) {
       const fieldKey = `task_${mKey}`;
       input.dataset.lockKey = fieldKey;
       let taskTimer = null;
-      let autoUnlockTimer = null;
+      let idleTimer = null;
+      let heartbeatTimer = null;
+
       const flushTask = () => {
         const val = input.value;
         if (!s1.contract.taskAssignments) s1.contract.taskAssignments = {};
@@ -1567,13 +1646,56 @@ function renderStage1Canvas(canvas, state, handlers) {
           }).catch(() => {});
         }
       };
+
+      const startHeartbeat = () => {
+        if (heartbeatTimer) clearInterval(heartbeatTimer);
+        heartbeatTimer = setInterval(() => {
+          if (document.activeElement === input && !isFieldLockedByOther(fieldKey)) {
+            sendLock(fieldKey, input.value);
+          } else {
+            clearInterval(heartbeatTimer);
+          }
+        }, 2000);
+      };
+
+      const resetIdleTimer = () => {
+        if (idleTimer) clearTimeout(idleTimer);
+        idleTimer = setTimeout(() => {
+          flushTask();
+          sendUnlock(fieldKey, input.value);
+          if (heartbeatTimer) clearInterval(heartbeatTimer);
+        }, 8000);
+      };
+
       input.addEventListener('focus', () => {
         if (isFieldLockedByOther(fieldKey)) {
           input.blur();
           return;
         }
         sendLock(fieldKey, input.value);
+        startHeartbeat();
+        resetIdleTimer();
       });
+
+      input.addEventListener('compositionstart', () => {
+        input._isComposing = true;
+        resetIdleTimer();
+      });
+
+      input.addEventListener('compositionupdate', () => {
+        resetIdleTimer();
+      });
+
+      input.addEventListener('compositionend', (e) => {
+        input._isComposing = false;
+        if (!s1.contract.taskAssignments) s1.contract.taskAssignments = {};
+        if (mKey) s1.contract.taskAssignments[mKey] = input.value;
+        sendLock(fieldKey, input.value);
+        resetIdleTimer();
+        if (taskTimer) clearTimeout(taskTimer);
+        taskTimer = setTimeout(flushTask, 300);
+      });
+
       input.addEventListener('input', (e) => {
         if (isFieldLockedByOther(fieldKey)) {
           e.preventDefault();
@@ -1583,26 +1705,30 @@ function renderStage1Canvas(canvas, state, handlers) {
         const val = e.target.value;
         if (!s1.contract.taskAssignments) s1.contract.taskAssignments = {};
         if (mKey) s1.contract.taskAssignments[mKey] = val;
-        sendLock(fieldKey, val);
-        if (autoUnlockTimer) clearTimeout(autoUnlockTimer);
-        autoUnlockTimer = setTimeout(() => {
-          sendUnlock(fieldKey, input.value);
-        }, 1000);
+        if (!input._isComposing) {
+          sendLock(fieldKey, val);
+        }
+        resetIdleTimer();
         if (taskTimer) clearTimeout(taskTimer);
         taskTimer = setTimeout(flushTask, 300);
       });
+
       input.addEventListener('change', flushTask);
+
       input.addEventListener('blur', () => {
-        if (autoUnlockTimer) clearTimeout(autoUnlockTimer);
+        if (idleTimer) clearTimeout(idleTimer);
+        if (heartbeatTimer) clearInterval(heartbeatTimer);
         flushTask();
         sendUnlock(fieldKey, input.value);
       });
+
       input.addEventListener('keydown', (e) => {
         if (isFieldLockedByOther(fieldKey)) {
           e.preventDefault();
           e.stopImmediatePropagation();
           return;
         }
+        resetIdleTimer();
         if (e.isComposing || e.keyCode === 229) return;
         if (e.key === 'Enter') { input.blur(); }
       });
@@ -2140,6 +2266,8 @@ function renderStage3Canvas(canvas, state, handlers) {
   if (!isFinalSubmitted) {
     canvas.querySelectorAll('.feedback-direct-input').forEach(textarea => {
       let fbTimer = null;
+      let idleTimer = null;
+      let heartbeatTimer = null;
       const itemId = textarea.dataset.id;
       const fieldKey = `fb_${itemId}`;
       textarea.dataset.lockKey = fieldKey;
@@ -2150,44 +2278,84 @@ function renderStage3Canvas(canvas, state, handlers) {
           handlers.onSaveDirectFeedback(itemId, text);
         }
       };
+
+      const startHeartbeat = () => {
+        if (heartbeatTimer) clearInterval(heartbeatTimer);
+        heartbeatTimer = setInterval(() => {
+          if (document.activeElement === textarea && !isFieldLockedByOther(fieldKey)) {
+            sendLock(fieldKey, textarea.value);
+          } else {
+            clearInterval(heartbeatTimer);
+          }
+        }, 2000);
+      };
+
+      const resetIdleTimer = () => {
+        if (idleTimer) clearTimeout(idleTimer);
+        idleTimer = setTimeout(() => {
+          autoSave();
+          sendUnlock(fieldKey, textarea.value);
+          if (heartbeatTimer) clearInterval(heartbeatTimer);
+        }, 8000);
+      };
+
       textarea.addEventListener('focus', () => {
-        if (window.app) {
-          const currUser = window.app.authManager ? window.app.authManager.getCurrentUser() : null;
-          const effectiveClassId = window.app.state.activeStudentClassId || (currUser?.classId || 'class_101');
-          const activeGroupObj = window.app.authManager ? window.app.authManager.getStudentActiveGroup(currUser, effectiveClassId) : null;
-          const curGid = activeGroupObj?.id || (currUser?.groupId || 'group_1');
-          let curTaskId = window.app.state.activeTaskId || (window.app.cloudSyncEngine?.taskId || `task_${effectiveClassId}_default`);
-          if (!curTaskId || curTaskId === 'task_default') curTaskId = `task_${effectiveClassId}_default`;
-          const uId = currUser ? (currUser.studentCode || currUser.username || currUser.id) : 'u';
-          const uName = currUser ? (currUser.name || currUser.username) : '组员';
-          fetch(`sync.php?action=lock_field&groupId=${encodeURIComponent(curGid)}&taskId=${encodeURIComponent(curTaskId)}&classId=${encodeURIComponent(effectiveClassId)}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ fieldKey, userId: uId, userName: uName, classId: effectiveClassId, taskId: curTaskId, groupId: curGid })
-          }).catch(() => {});
+        if (isFieldLockedByOther(fieldKey)) {
+          textarea.blur();
+          return;
         }
+        sendLock(fieldKey, textarea.value);
+        startHeartbeat();
+        resetIdleTimer();
       });
-      textarea.addEventListener('input', () => {
+
+      textarea.addEventListener('compositionstart', () => {
+        textarea._isComposing = true;
+        resetIdleTimer();
+      });
+
+      textarea.addEventListener('compositionupdate', () => {
+        resetIdleTimer();
+      });
+
+      textarea.addEventListener('compositionend', () => {
+        textarea._isComposing = false;
+        sendLock(fieldKey, textarea.value);
+        resetIdleTimer();
         if (fbTimer) clearTimeout(fbTimer);
         fbTimer = setTimeout(autoSave, 300);
       });
-      textarea.addEventListener('change', autoSave);
-      textarea.addEventListener('blur', () => {
-        autoSave();
-        if (window.app) {
-          const currUser = window.app.authManager ? window.app.authManager.getCurrentUser() : null;
-          const effectiveClassId = window.app.state.activeStudentClassId || (currUser?.classId || 'class_101');
-          const activeGroupObj = window.app.authManager ? window.app.authManager.getStudentActiveGroup(currUser, effectiveClassId) : null;
-          const curGid = activeGroupObj?.id || (currUser?.groupId || 'group_1');
-          let curTaskId = window.app.state.activeTaskId || (window.app.cloudSyncEngine?.taskId || `task_${effectiveClassId}_default`);
-          if (!curTaskId || curTaskId === 'task_default') curTaskId = `task_${effectiveClassId}_default`;
-          const uId = currUser ? (currUser.studentCode || currUser.username || currUser.id) : 'u';
-          fetch(`sync.php?action=unlock_field&groupId=${encodeURIComponent(curGid)}&taskId=${encodeURIComponent(curTaskId)}&classId=${encodeURIComponent(effectiveClassId)}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ fieldKey, userId: uId, classId: effectiveClassId, taskId: curTaskId, groupId: curGid })
-          }).catch(() => {});
+
+      textarea.addEventListener('input', (e) => {
+        if (isFieldLockedByOther(fieldKey)) {
+          e.preventDefault();
+          e.stopImmediatePropagation();
+          return;
         }
+        if (!textarea._isComposing) {
+          sendLock(fieldKey, e.target.value);
+        }
+        resetIdleTimer();
+        if (fbTimer) clearTimeout(fbTimer);
+        fbTimer = setTimeout(autoSave, 300);
+      });
+
+      textarea.addEventListener('change', autoSave);
+
+      textarea.addEventListener('blur', () => {
+        if (idleTimer) clearTimeout(idleTimer);
+        if (heartbeatTimer) clearInterval(heartbeatTimer);
+        autoSave();
+        sendUnlock(fieldKey, textarea.value);
+      });
+
+      textarea.addEventListener('keydown', (e) => {
+        if (isFieldLockedByOther(fieldKey)) {
+          e.preventDefault();
+          e.stopImmediatePropagation();
+          return;
+        }
+        resetIdleTimer();
       });
     });
 
