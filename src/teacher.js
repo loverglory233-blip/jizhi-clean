@@ -9,8 +9,8 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260828_v646";
-import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash, filterAndDeduplicateChatLogs } from "./utils.js?v=20260828_v646";
+} from "./constants.js?v=20260828_v647";
+import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash, filterAndDeduplicateChatLogs } from "./utils.js?v=20260828_v647";
 
 /* ==========================================================================
    7. TEACHER PORTAL RENDERER (LIVE WORKSPACE MIRROR & ANNOUNCEMENT READ MATRIX)
@@ -978,14 +978,10 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
                         const matchedUser = isAgent ? null : allGlobalUsers.find(u => u.id === m.sender || u.studentCode === m.sender || u.username === m.sender || u.name === m.sender);
                         const senderName = isAgent ? AgentProfiles[m.sender].name : (matchedUser ? matchedUser.name : (m.senderName || (monitorMembersObj[m.sender] ? monitorMembersObj[m.sender].name : m.sender)));
                         const color = isAgent ? AgentProfiles[m.sender].color : (matchedUser ? (matchedUser.color || '#2563eb') : (monitorMembersObj[m.sender] ? monitorMembersObj[m.sender].color : '#2563eb'));
-                        const stgName = m._stageSource === 'stage1' ? '阶段一' : (m._stageSource === 'stage2' ? '阶段二' : (m._stageSource === 'stage3' ? '阶段三' : ''));
                         return `
                           <div style="background:#ffffff; padding:8px 12px; border-radius:8px; border:1px solid #e2e8f0; border-left:3px solid ${color}; box-shadow:0 1px 2px rgba(0,0,0,0.02);">
                             <div style="display:flex; justify-content:space-between; margin-bottom:3px;">
-                              <div style="display:flex; align-items:center; gap:6px;">
-                                <b style="color:${color}; font-size:12px;">${escapeHtml(senderName)}</b>
-                                ${stgName ? `<span style="font-size:9.5px; background:#f1f5f9; color:#64748b; padding:1px 5px; border-radius:4px; font-weight:600;">${stgName}</span>` : ''}
-                              </div>
+                              <b style="color:${color}; font-size:12px;">${escapeHtml(senderName)}</b>
                               <span style="color:#94a3b8; font-size:10px;">${escapeHtml(formatChatDisplayTime(m._timeMs || m.timestamp))}</span>
                             </div>
                             <div style="color:#0f172a; line-height:1.5;">${escapeHtml(m.text || '')}</div>
@@ -1196,16 +1192,18 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
                           </div>
                         </div>
 
-                        <!-- 4. Etherpad 协同编辑器视口 (带刷新按钮与流畅视口) -->
-                        <div style="flex:1; min-height:420px; display:flex; flex-direction:column; border-radius:8px; overflow:hidden; border:1px solid #cbd5e1; box-shadow:0 2px 8px rgba(15,23,42,0.04); background:#ffffff;">
-                          <div style="display:flex; align-items:center; justify-content:space-between; background:#f8fafc; border-bottom:1px solid #e2e8f0; padding:4px 12px; font-size:11.5px; color:#64748b; flex-shrink:0;">
-                            <span>🟢 阶段二协同正文实时同屏</span>
-                            <button onclick="const f=document.getElementById('teacher-stage2-etherpad-frame'); if(f) f.src=f.src;" style="background:transparent; color:#2563eb; border:1px solid #cbd5e1; padding:2px 8px; border-radius:4px; font-size:11px; cursor:pointer; font-weight:600;">🔄 刷新协同文档</button>
+                        <!-- 4. 协同文档视口 (未进入该阶段时显示优雅待命占位，不消耗任何带宽/CPU/内存；进入后自动实时同步) -->
+                        ${state.currentStage === 'stage1' ? `
+                          <div style="flex:1; min-height:420px; display:flex; flex-direction:column; align-items:center; justify-content:center; border-radius:8px; border:1.5px dashed #cbd5e1; background:#ffffff; color:#64748b; padding:24px; text-align:center; gap:8px;">
+                            <span style="font-size:32px;">⏳</span>
+                            <span style="font-size:14px; font-weight:700; color:#334155;">小组当前处于阶段一（学术公约拟定），尚未进入阶段二编辑部正文协作</span>
+                            <span style="font-size:12px; color:#94a3b8;">待组员全员签署公约进入阶段二后，此处将自动实时同步正文协作画面</span>
                           </div>
-                          <div style="flex:1; min-height:0; position:relative; background:#ffffff;">
+                        ` : `
+                          <div style="flex:1; min-height:420px; border-radius:8px; overflow:hidden; border:1.5px solid #cbd5e1; box-shadow:0 2px 8px rgba(15,23,42,0.04); background:#ffffff; position:relative;">
                             <iframe id="teacher-stage2-etherpad-frame" src="/p/jizhi_${encodeURIComponent(activeTaskId)}_${encodeURIComponent(activeMonitorGId)}?userName=${encodeURIComponent('教师监控')}&userColor=%237c3aed&showControls=false&showChat=false&showLineNumbers=true" style="width:100%; height:100%; border:none; display:block; background:#ffffff;" title="教师端实时写作同屏镜像"></iframe>
                           </div>
-                        </div>
+                        `}
 
                         <!-- 5. 📊 团队协作贡献度占比 (SSRL 群体过程感知) - 真实计算，无数据为 0% -->
                         <div style="background:#ffffff; padding:10px 14px; border-radius:8px; border:1px solid #cbd5e1; flex-shrink:0; display:flex; flex-direction:column; gap:6px; box-shadow:0 1px 3px rgba(15,23,42,0.04);">
@@ -1263,20 +1261,22 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
                         </div>
 
                         ${isStage3DocTab ? `
-                          <!-- Tab 2: 论文终稿实时镜像 (和阶段二完全一样，带刷新与贡献度条) -->
+                          <!-- Tab 2: 论文终稿实时镜像 (未进入阶段三时显示待命占位，不消耗资源) -->
                           <div style="flex-shrink:0; display:flex; justify-content:space-between; align-items:center;">
                             <span style="font-size:13.5px; font-weight:800; color:#1e40af;">📜 论文终稿正文全篇镜像:</span>
                             <span style="font-size:12px; color:#64748b;">终稿字数: <b style="color:#2563eb; font-size:14px;">${((state.stage3?.finalDraft || state.stage2?.unifiedContent || '').replace(/<[^>]*>/g, '').trim()).length}</b> 字</span>
                           </div>
-                          <div style="flex:1; min-height:420px; display:flex; flex-direction:column; border-radius:8px; overflow:hidden; border:1px solid #cbd5e1; box-shadow:0 2px 8px rgba(15,23,42,0.04); background:#ffffff;">
-                            <div style="display:flex; align-items:center; justify-content:space-between; background:#f8fafc; border-bottom:1px solid #e2e8f0; padding:4px 12px; font-size:11.5px; color:#64748b; flex-shrink:0;">
-                              <span>🟢 阶段三终稿正文实时同屏</span>
-                              <button onclick="const f=document.getElementById('teacher-stage3-etherpad-frame'); if(f) f.src=f.src;" style="background:transparent; color:#2563eb; border:1px solid #cbd5e1; padding:2px 8px; border-radius:4px; font-size:11px; cursor:pointer; font-weight:600;">🔄 刷新终稿文档</button>
+                          ${(state.currentStage === 'stage1' || state.currentStage === 'stage2') ? `
+                            <div style="flex:1; min-height:420px; display:flex; flex-direction:column; align-items:center; justify-content:center; border-radius:8px; border:1.5px dashed #cbd5e1; background:#ffffff; color:#64748b; padding:24px; text-align:center; gap:8px;">
+                              <span style="font-size:32px;">⏳</span>
+                              <span style="font-size:14px; font-weight:700; color:#334155;">小组尚未进入阶段三论文终稿与答辩阶段</span>
+                              <span style="font-size:12px; color:#94a3b8;">待小组进入阶段三后，此处将自动实时呈现论文终稿镜像</span>
                             </div>
-                            <div style="flex:1; min-height:0; position:relative; background:#ffffff;">
+                          ` : `
+                            <div style="flex:1; min-height:420px; border-radius:8px; overflow:hidden; border:1.5px solid #cbd5e1; box-shadow:0 2px 8px rgba(15,23,42,0.04); background:#ffffff; position:relative;">
                               <iframe id="teacher-stage3-etherpad-frame" src="/p/jizhi_${encodeURIComponent(activeTaskId)}_${encodeURIComponent(activeMonitorGId)}?userName=${encodeURIComponent('教师监控')}&userColor=%237c3aed&showControls=false&showChat=false&showLineNumbers=true" style="width:100%; height:100%; border:none; display:block; background:#ffffff;" title="教师端论文终稿同屏镜像"></iframe>
                             </div>
-                          </div>
+                          `}
                           <div style="background:#ffffff; padding:10px 14px; border-radius:8px; border:1px solid #cbd5e1; flex-shrink:0; display:flex; flex-direction:column; gap:6px; box-shadow:0 1px 3px rgba(15,23,42,0.04);">
                             <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:6px;">
                               <span style="font-size:12px; font-weight:800; color:#1e293b;">📊 终稿协作贡献度占比 (SSRL 群体过程感知):</span>
