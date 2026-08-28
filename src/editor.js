@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles } from "./constants.js?v=20260828_v648";
-import { callCozeAgentAPI } from "./agents.js?v=20260828_v648";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs } from "./utils.js?v=20260828_v648";
+import { AgentProfiles } from "./constants.js?v=20260828_v649";
+import { callCozeAgentAPI } from "./agents.js?v=20260828_v649";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs } from "./utils.js?v=20260828_v649";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -973,21 +973,30 @@ function renderStage1Canvas(canvas, state, handlers) {
   const currentTask = allTasks.find(t => t.id === state.activeTaskId);
   const isTaskDeadlineExpired = isTaskExpired(currentTask);
 
+  // 🛡️ 稳健的多标识判定辅助函数（零破坏底层存储结构，仅在名单比对时精准去重）
+  const isMemberDone = (map, m) => {
+    if (!map || !m) return false;
+    return !!(map[m.id] || map[m.studentCode] || map[m.username] || (m.name && map[m.name]));
+  };
+
   const confirmedMembers = s1.contract.confirmedMembers || {};
-  const confirmedCount = membersList.filter(m => confirmedMembers[m.id] || confirmedMembers[m.studentCode] || (m.name && confirmedMembers[m.name])).length;
-  const userHasConfirmed = confirmedMembers[currentUser] || (currUserObj && (confirmedMembers[currUserObj.id] || confirmedMembers[currUserObj.studentCode] || confirmedMembers[currUserObj.name]));
+  const confirmedCount = membersList.filter(m => isMemberDone(confirmedMembers, m)).length;
+  const userHasConfirmed = isMemberDone(confirmedMembers, { id: currentUser, studentCode: currUserObj?.studentCode, username: currUserObj?.username, name: currUserObj?.name });
   
   // 🛡️ 真正的公约生效锁定判定：必须是真实签署人数 >= 组员总人数（且总人数 > 0），或全盘已提交/任务已截止
   const isAllConfirmed = (totalMembersCount > 0 && confirmedCount >= totalMembersCount);
   const isContractLocked = isAllConfirmed || state.isFinalSubmitted || isTaskDeadlineExpired;
   if (s1.contract) s1.contract.isConfirmed = isAllConfirmed;
 
-  const userHasVoted = s1.hasVoted && (s1.hasVoted[currentUser] || (currUserObj && (s1.hasVoted[currUserObj.id] || s1.hasVoted[currUserObj.studentCode])));
-  const userVotedProposalId = s1.votes ? (s1.votes[currentUser] || (currUserObj && (s1.votes[currUserObj.id] || s1.votes[currUserObj.studentCode]))) : null;
-  const totalVotesCast = Object.values(s1.hasVoted || {}).filter(Boolean).length;
+  const userHasVoted = isMemberDone(s1.hasVoted, { id: currentUser, studentCode: currUserObj?.studentCode, username: currUserObj?.username, name: currUserObj?.name });
+  const userVotedProposalId = s1.votes ? (s1.votes[currentUser] || (currUserObj && (s1.votes[currUserObj.id] || s1.votes[currUserObj.studentCode] || (currUserObj.name && s1.votes[currUserObj.name])))) : null;
+  
+  // 严格统计全组实际已投票人数
+  const totalVotesCast = membersList.filter(m => isMemberDone(s1.hasVoted, m)).length;
+  const isVotingComplete = (totalMembersCount > 0 && totalVotesCast >= totalMembersCount);
 
   // 严密判断当前登录学生是否已提交提案 (支持 id, studentCode, username, 姓名多重比对)
-  const myIds = new Set([currentUser, currUserObj?.id, currUserObj?.studentCode, currUserObj?.username].filter(Boolean));
+  const myIds = new Set([currentUser, currUserObj?.id, currUserObj?.studentCode, currUserObj?.username, currUserObj?.name].filter(Boolean));
   const hasSubmittedMyProposal = s1.proposals.some(p => myIds.has(p.author) || (currUserObj && (p.authorName === currUserObj.name || p.author === currUserObj.name)));
   const currentUserName = currUserObj ? currUserObj.name : (state.members[currentUser] ? state.members[currentUser].name : '组员');
 
@@ -1011,7 +1020,9 @@ function renderStage1Canvas(canvas, state, handlers) {
       <div class="card-title" style="display:flex; justify-content:space-between; align-items:center;">
         <div style="display:flex; align-items:center; gap:10px;">
           <span style="font-weight:800; font-size:15px; color:#0f172a;">💡 竞拍提案池 ${isContractLocked ? '<span style="font-size:11px; color:#059669;">🔒 已锁定</span>' : ''}</span>
-          <span style="font-size:12px; color:#2563eb; background:#eff6ff; padding:2px 8px; border-radius:10px; border:1px solid #bfdbfe;">📊 投票进度: <b>${totalVotesCast}/${totalMembersCount} 人已投票</b></span>
+          <span style="font-size:12px; color:#2563eb; background:#eff6ff; padding:2px 8px; border-radius:10px; border:1px solid #bfdbfe;">
+            ${isVotingComplete ? `🎉 投票已完成 (共投出 ${totalVotesCast} 票)` : `📊 投票进度: <b>${totalVotesCast}/${totalMembersCount} 人已投票</b> ${userHasVoted ? '<span style="color:#059669; font-weight:700; margin-left:4px;">(您已投票，等待其他组员)</span>' : ''}`}
+          </span>
         </div>
         ${!isContractLocked ? `
           <button id="btn-open-submit-proposal" style="background:linear-gradient(135deg, #2563eb, #1d4ed8); border:none; color:white; padding:7px 16px; border-radius:8px; font-weight:700; font-size:13px; cursor:pointer; box-shadow:0 3px 10px rgba(37,99,235,0.3);">
@@ -1030,22 +1041,42 @@ function renderStage1Canvas(canvas, state, handlers) {
         ` : `
           <div class="proposals-grid" style="margin-top:12px;">
             ${s1.proposals.map(p => {
+              // 动态聚合计算该提案的真实得票数
+              const proposalVotesCount = membersList.filter(m => {
+                if (!s1.votes) return false;
+                const v = s1.votes[m.studentCode] || s1.votes[m.id] || s1.votes[m.username] || (m.name && s1.votes[m.name]);
+                return v === p.id;
+              }).length;
+
               const isThisVoted = userVotedProposalId === p.id;
               let btnText = '🗳️ 投票支持';
               let btnClass = 'vote-btn';
-              if (isContractLocked || userHasVoted) {
-                if (isThisVoted) { btnText = '🔒 已投此提案'; btnClass = 'vote-btn active locked'; }
-                else { btnText = '🔒 投票已锁定'; btnClass = 'vote-btn disabled'; }
+              let btnDisabled = false;
+              if (isContractLocked) {
+                btnText = isThisVoted ? '🔒 已确立选题' : '🔒 公约已锁定';
+                btnClass = 'vote-btn disabled';
+                btnDisabled = true;
+              } else if (isVotingComplete) {
+                if (isThisVoted) { btnText = '✅ 我的投票 (全员已完成)'; btnClass = 'vote-btn active locked'; }
+                else { btnText = '未选择'; btnClass = 'vote-btn disabled'; }
+                btnDisabled = true;
+              } else if (userHasVoted) {
+                if (isThisVoted) { btnText = '✅ 我已支持此提案'; btnClass = 'vote-btn active locked'; }
+                else { btnText = '未选择'; btnClass = 'vote-btn disabled'; }
+                btnDisabled = true;
               }
               const authorUser = allUsers.find(u => u.id === p.author || u.studentCode === p.author || u.username === p.author || u.name === p.author || u.name === p.authorName);
               const authorName = (authorUser ? authorUser.name : null) || p.authorName || (state.members[p.author] ? state.members[p.author].name : p.author);
               return `
-                <div class="proposal-card ${isThisVoted ? 'voted' : ''}" style="display:flex; flex-direction:column;">
-                  <div class="proposal-header">
-                    <div class="proposal-title">💡 ${escapeHtml(p.title)}</div>
+                <div class="proposal-card ${isThisVoted ? 'voted' : ''}" style="display:flex; flex-direction:column; position:relative;">
+                  <div class="proposal-header" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                    <div class="proposal-title" style="font-weight:800; font-size:14px; color:#0f172a;">💡 ${escapeHtml(p.title)}</div>
+                    <span style="font-size:11.5px; background:${proposalVotesCount > 0 ? '#eff6ff' : '#f8fafc'}; color:${proposalVotesCount > 0 ? '#2563eb' : '#64748b'}; border:1px solid ${proposalVotesCount > 0 ? '#bfdbfe' : '#e2e8f0'}; padding:2px 8px; border-radius:10px; font-weight:700; flex-shrink:0;">
+                      得票: <b>${proposalVotesCount}</b> 票
+                    </span>
                   </div>
-                  <div style="font-size:12px; color:#64748b; margin-bottom:8px;">提出人: <b style="color:#0f172a;">${escapeHtml(authorName)}</b></div>
-                  <button class="${btnClass}" data-id="${p.id}" ${isContractLocked || userHasVoted ? 'disabled' : ''} style="width:100%; margin-top:auto;">${btnText}</button>
+                  <div style="font-size:12px; color:#64748b; margin-bottom:10px;">提出人: <b style="color:#0f172a;">${escapeHtml(authorName)}</b></div>
+                  <button class="${btnClass}" data-id="${p.id}" ${btnDisabled ? 'disabled' : ''} style="width:100%; margin-top:auto;">${btnText}</button>
                 </div>
               `;
             }).join('')}
@@ -1167,7 +1198,7 @@ function renderStage1Canvas(canvas, state, handlers) {
         </div>
         <div style="display:flex; flex-wrap:wrap; gap:10px; font-size:13px;">
           ${membersList.map(m => {
-            const isConf = confirmedMembers[m.id] || confirmedMembers[m.studentCode];
+            const isConf = isMemberDone(confirmedMembers, m);
             return `
               <span style="color:${isConf ? '#059669' : '#64748b'}; border:1px solid ${isConf ? '#a7f3d0' : '#e2e8f0'}; background:${isConf ? '#ecfdf5' : '#ffffff'}; padding:6px 12px; border-radius:8px; font-weight:600;">
                 ${m.avatar || '👤'} ${m.name}: <b>${isConf ? '✅ 已确认签署' : '⏳ 未确认'}</b>
@@ -1873,32 +1904,46 @@ function renderStage2Canvas(canvas, state, handlers) {
       </div>
 
       ${actionPlan && actionPlan.isGenerated ? `
-        <div id="stage2-action-plan-card" style="background:#ecfdf5; border:1px solid #a7f3d0; border-radius:8px; padding:8px 14px; margin-bottom:8px; transition:all 0.2s ease; flex-shrink:0;">
+        <div id="stage2-action-plan-card" style="background:#ecfdf5; border:1px solid #a7f3d0; border-radius:10px; padding:10px 16px; margin-bottom:10px; transition:all 0.2s ease; flex-shrink:0; box-shadow:0 2px 6px rgba(5,150,105,0.06);">
           <div style="display:flex; justify-content:space-between; align-items:center; cursor:pointer;" id="btn-toggle-action-plan">
-            <div style="font-size:12.5px; font-weight:800; color:#059669; display:flex; align-items:center; gap:6px;">
-              <span>📋 【半程修正清单】(3项修改要求)</span>
-              <span style="font-size:11px; background:#d1fae5; color:#065f46; padding:1px 6px; border-radius:10px;">已生成</span>
+            <div style="font-size:13px; font-weight:800; color:#059669; display:flex; align-items:center; gap:6px;">
+              <span>📋 【半程修正清单】(审稿专家下发 3 项修改要求)</span>
+              <span style="font-size:11px; background:#d1fae5; color:#065f46; padding:1px 8px; border-radius:10px; font-weight:700;">已生成</span>
             </div>
             <span id="icon-toggle-action-plan" style="font-size:11.5px; color:#059669; font-weight:700;">▲ 收起</span>
           </div>
-          <div id="body-action-plan-items" style="font-size:12px; color:#334155; display:flex; flex-direction:column; gap:3px; margin-top:6px;">
-            ${actionPlan.items.map(item => `<div style="line-height:1.5;">• ${item}</div>`).join('')}
+          <div id="body-action-plan-items" style="font-size:12.5px; color:#1e293b; display:flex; flex-direction:column; gap:8px; margin-top:8px;">
+            ${actionPlan.items.map((item, idx) => {
+              // 针对第 2 项如果含有多子项（理论/假设/方法），进行结构化美化渲染
+              let formattedItem = escapeHtml(item);
+              formattedItem = formattedItem
+                .replace(/(?:•\s*|【)?理论与综述层(?:】)?[:：]?/g, '<span style="display:inline-block; background:#eff6ff; color:#2563eb; border:1px solid #bfdbfe; padding:1px 6px; border-radius:4px; font-weight:700; font-size:11.5px; margin-right:4px;">📚 理论与综述层</span>')
+                .replace(/(?:•\s*|【)?假设与(?:问题|机制)层(?:】)?[:：]?/g, '<span style="display:inline-block; background:#faf5ff; color:#7c3aed; border:1px solid #e9d5ff; padding:1px 6px; border-radius:4px; font-weight:700; font-size:11.5px; margin-right:4px;">🔗 假设与机制层</span>')
+                .replace(/(?:•\s*|【)?方法与量表层(?:】)?[:：]?/g, '<span style="display:inline-block; background:#ecfdf5; color:#059669; border:1px solid #a7f3d0; padding:1px 6px; border-radius:4px; font-weight:700; font-size:11.5px; margin-right:4px;">📐 方法与量表层</span>');
+
+              return `
+                <div style="line-height:1.6; background:#ffffff; border:1px solid #e2e8f0; border-radius:8px; padding:8px 12px; box-shadow:0 1px 3px rgba(0,0,0,0.02);">
+                  <b style="color:#0f172a; margin-right:4px;">${idx + 1}.</b> ${formattedItem}
+                </div>
+              `;
+            }).join('')}
           </div>
         </div>
       ` : (() => {
         const subs = s2.meetingSubmissions || {};
         const subCount = Object.keys(subs).length;
+        const isSelfDone = subCount >= totalCount;
         return `
           <div id="stage2-action-plan-card" style="background:#f8fafc; border:1px dashed #cbd5e1; border-radius:8px; padding:8px 14px; margin-bottom:8px; flex-shrink:0;">
             <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:6px;">
               <div style="font-size:12px; font-weight:700; color:#64748b; display:flex; align-items:center; gap:6px;">
                 <span>📋 【半程修正清单】</span>
-                <span style="font-size:10.5px; background:${subCount > 0 ? '#dbeafe' : '#e2e8f0'}; color:${subCount > 0 ? '#1d4ed8' : '#475569'}; padding:1px 8px; border-radius:10px; font-weight:700;">
-                  ${subCount > 0 ? `待解锁 (全员自查进度 ${subCount}/${totalCount}人)` : `待解锁 (0/${totalCount}人)`}
+                <span style="font-size:10.5px; background:${isSelfDone ? '#ecfdf5' : subCount > 0 ? '#dbeafe' : '#e2e8f0'}; color:${isSelfDone ? '#059669' : subCount > 0 ? '#1d4ed8' : '#475569'}; padding:1px 8px; border-radius:10px; font-weight:700;">
+                  ${isSelfDone ? `待解锁: 组内针对自查分歧研讨对齐中 (审稿专家质检后生成)` : (subCount > 0 ? `待解锁 (全员自查进度 ${subCount}/${totalCount}人)` : `待解锁 (0/${totalCount}人)`)}
                 </span>
               </div>
               <div style="display:flex; align-items:center; gap:8px;">
-                <span style="font-size:11px; color:#94a3b8;">（需全组成员完成半程自查后自动生成）</span>
+                <span style="font-size:11px; color:#94a3b8;">（全员自查并完成分歧研讨后，由审稿专家质检下发）</span>
               </div>
             </div>
           </div>

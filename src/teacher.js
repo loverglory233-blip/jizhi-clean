@@ -9,8 +9,8 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260828_v648";
-import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash, filterAndDeduplicateChatLogs } from "./utils.js?v=20260828_v648";
+} from "./constants.js?v=20260828_v649";
+import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash, filterAndDeduplicateChatLogs } from "./utils.js?v=20260828_v649";
 
 /* ==========================================================================
    7. TEACHER PORTAL RENDERER (LIVE WORKSPACE MIRROR & ANNOUNCEMENT READ MATRIX)
@@ -1008,7 +1008,9 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
                         <div style="background:#f8fafc; border:1px solid #bfdbfe; border-radius:12px; padding:14px; flex-shrink:0;">
                           <div style="font-size:13.5px; font-weight:800; color:#1e40af; margin-bottom:10px; display:flex; justify-content:space-between; align-items:center;">
                             <span>💡 组员初始学术提案展台 (${(state.stage1?.proposals || []).length}/${monitorMembersList.length || 3} 人已提交):</span>
-                            <span style="font-size:11.5px; background:#eff6ff; color:#2563eb; padding:2px 8px; border-radius:6px; font-weight:700;">共投 ${(Object.values(state.stage1?.hasVoted || {}).filter(Boolean)).length} 票</span>
+                            <span style="font-size:11.5px; background:#eff6ff; color:#2563eb; padding:2px 8px; border-radius:6px; font-weight:700;">
+                              共投 ${monitorMembersList.filter(m => state.stage1?.hasVoted && (state.stage1.hasVoted[m.id] || state.stage1.hasVoted[m.studentCode] || (m.name && state.stage1.hasVoted[m.name]))).length} 票
+                            </span>
                           </div>
                           ${(state.stage1?.proposals && state.stage1.proposals.length > 0) ? `
                             <div class="proposals-grid" style="display:grid; grid-template-columns:repeat(auto-fill, minmax(200px, 1fr)); gap:10px;">
@@ -1017,7 +1019,11 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
                                 const authorObj = monitorMembersList.find(m => m.id === p.author || m.studentCode === p.author || m.name === p.authorName || m.name === p.author);
                                 const authorUser = allGlobalUsers.find(u => u.id === p.author || u.studentCode === p.author || u.username === p.author || u.name === p.authorName);
                                 const authorName = authorObj ? authorObj.name : (authorUser ? authorUser.name : (p.authorName || p.author || `组员${idx+1}`));
-                                const votes = p.votes || 0;
+                                const votes = monitorMembersList.filter(m => {
+                                  if (!state.stage1?.votes) return false;
+                                  const v = state.stage1.votes[m.studentCode] || state.stage1.votes[m.id] || (m.name && state.stage1.votes[m.name]);
+                                  return v === p.id;
+                                }).length;
                                 return `
                                   <div style="background:#ffffff; border:1.5px solid #e2e8f0; border-radius:8px; padding:10px; display:flex; flex-direction:column; justify-content:space-between; gap:6px; box-shadow:0 1px 3px rgba(0,0,0,0.02);">
                                     <div>
@@ -1108,7 +1114,9 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
                           <div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:8px; padding:10px 12px;">
                             <div style="font-size:12px; font-weight:700; color:#334155; margin-bottom:6px; display:flex; justify-content:space-between; align-items:center;">
                               <span>✍️ 组员签署确认状态:</span>
-                              <span style="font-size:11.5px; color:#2563eb; font-weight:700;">签署进度: ${(Object.values(state.stage1?.contract?.confirmedMembers || {}).filter(Boolean)).length}/${monitorMembersList.length}</span>
+                              <span style="font-size:11.5px; color:#2563eb; font-weight:700;">
+                                签署进度: ${monitorMembersList.filter(m => { const c = state.stage1?.contract?.confirmedMembers || {}; return c[m.id] || c[m.studentCode] || (m.name && c[m.name]); }).length}/${monitorMembersList.length}
+                              </span>
                             </div>
                             <div style="display:flex; gap:6px; flex-wrap:wrap;">
                               ${monitorMembersList.map(m => {
