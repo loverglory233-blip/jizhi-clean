@@ -372,7 +372,7 @@ export function filterAndDeduplicateChatLogs(messages) {
   if (!Array.isArray(messages)) return [];
   const result = [];
   const seenAgentOpenings = new Set();
-  const seenMsgKeys = new Set();
+  const seenMsgIds = new Set();
 
   for (let i = 0; i < messages.length; i++) {
     const m = messages[i];
@@ -394,10 +394,12 @@ export function filterAndDeduplicateChatLogs(messages) {
       }
     }
 
-    // 2. 严格消息指纹防重（相同发送者 + 相同时间戳 + 相同文本）
-    const msgKey = `${sender}_${m._timeMs || m.timestamp || ''}_${txt}`;
-    if (seenMsgKeys.has(msgKey)) continue;
-    seenMsgKeys.add(msgKey);
+    // 2. 严格按数据库主键/唯一标识防重，绝不按文本做模糊误杀
+    const msgId = m.id ? String(m.id) : (m._timeMs ? `${sender}_${m._timeMs}_${i}` : null);
+    if (msgId) {
+      if (seenMsgIds.has(msgId)) continue;
+      seenMsgIds.add(msgId);
+    }
 
     result.push(m);
   }

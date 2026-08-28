@@ -9,8 +9,8 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260828_v636";
-import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash, filterAndDeduplicateChatLogs } from "./utils.js?v=20260828_v636";
+} from "./constants.js?v=20260828_v637";
+import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash, filterAndDeduplicateChatLogs } from "./utils.js?v=20260828_v637";
 
 /* ==========================================================================
    7. TEACHER PORTAL RENDERER (LIVE WORKSPACE MIRROR & ANNOUNCEMENT READ MATRIX)
@@ -755,7 +755,9 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
           const actualStage = state.currentStage || 'stage1';
           const effectiveMonitorStage = monitorStageMode === 'auto' ? actualStage : monitorStageMode;
 
-          const currentMonitorTaskId = state.activeTaskId || 'task_default';
+          const currentClassId = state.activeClassId || (authManager.getClasses()[0] ? authManager.getClasses()[0].id : 'class_101');
+          const activeTaskId = state.activeTaskId || (currentClassTasks[0] ? currentClassTasks[0].id : `task_${currentClassId}_default`);
+          const currentMonitorTaskId = activeTaskId;
           const monitorTaskObj = currentClassTasks.find(t => t.id === currentMonitorTaskId);
           const isMonitorTaskExpired = isTaskExpired(monitorTaskObj);
 
@@ -883,8 +885,8 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
               </div>
 
               ${effectiveMonitorStage === 'stage1' ? `
-                <div style="display:grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap:16px; width:100%; box-sizing:border-box; align-items:stretch;">
-                  <div class="card" style="padding:20px; display:flex; flex-direction:column; border:1px solid #bfdbfe; gap:12px; min-width:0; box-sizing:border-box; height:auto; overflow:visible;">
+                <div style="display:grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap:16px; width:100%; box-sizing:border-box; height:520px; max-height:540px; overflow:hidden;">
+                  <div class="card" style="padding:20px; display:flex; flex-direction:column; border:1px solid #bfdbfe; gap:12px; min-width:0; box-sizing:border-box; height:100%; overflow-y:auto;">
                     <div style="font-size:15px; font-weight:800; color:#1e40af; display:flex; justify-content:space-between; align-items:center;">
                       <span>🎪 阶段一实操同屏: 初始提案与学术合作公约 (${activeMonitorGroup.name})</span>
                       <span style="background:#eff6ff; color:#1d4ed8; padding:2px 8px; border-radius:8px; font-size:11px; font-weight:700;">阶段一实况</span>
@@ -1020,7 +1022,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
               ` : ''}
 
               ${effectiveMonitorStage === 'stage2' ? `
-                <div style="display:grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap:16px; width:100%; box-sizing:border-box; height:540px; max-height:560px; overflow:hidden;">
+                <div style="display:grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap:16px; width:100%; box-sizing:border-box; height:520px; max-height:540px; overflow:hidden;">
                   <div class="card" style="padding:20px; display:flex; flex-direction:column; border:1px solid #bfdbfe; min-width:0; box-sizing:border-box; height:100%; overflow-y:auto;">
                     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
                       <div style="display:flex; align-items:center; gap:8px;">
@@ -1043,8 +1045,8 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
                         }).join('')}
                       </div>
                     </div>
-                    <div id="teacher-live-doc-mirror" style="flex:1; min-height:300px; max-height:420px; background:#ffffff; border:1px solid #cbd5e1; border-radius:6px; overflow:hidden; position:relative;">
-                      <iframe src="/p/jizhi_${encodeURIComponent(activeTaskId)}_${encodeURIComponent(activeMonitorGId)}?showControls=false&showChat=false&showLineNumbers=true" style="border:none; width:100%; height:100%; min-height:300px;" title="教师端实时写作同屏镜像"></iframe>
+                    <div id="teacher-live-doc-mirror" style="flex:1; min-height:280px; background:#ffffff; border:1px solid #cbd5e1; border-radius:6px; overflow:hidden; position:relative;">
+                      <iframe src="/p/jizhi_${encodeURIComponent(activeTaskId)}_${encodeURIComponent(activeMonitorGId)}?showControls=false&showChat=false&showLineNumbers=true" style="border:none; width:100%; height:100%; min-height:280px;" title="教师端实时写作同屏镜像"></iframe>
                     </div>
                     <div style="margin-top:14px; background:#f8fafc; padding:12px; border-radius:8px; border:1px solid #e2e8f0;">
                       <div style="font-size:12px; font-weight:700; color:#334155; margin-bottom:6px;">📊 本组 SSRL 成员字数与互动贡献比率 (${monitorMembersList.length} 位成员)</div>
@@ -1103,7 +1105,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
               ` : ''}
 
               ${effectiveMonitorStage === 'stage3' ? `
-                <div style="display:grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap:16px; width:100%; box-sizing:border-box; height:540px; max-height:560px; overflow:hidden;">
+                <div style="display:grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap:16px; width:100%; box-sizing:border-box; height:520px; max-height:540px; overflow:hidden;">
                   <div class="card" style="padding:20px; display:flex; flex-direction:column; border:1px solid #bfdbfe; min-width:0; gap:12px; box-sizing:border-box; height:100%; overflow-y:auto;">
                     <div style="font-size:15px; font-weight:800; color:#1e40af; display:flex; justify-content:space-between; align-items:center;">
                       <span>🎓 阶段三实操同屏: 答辩擂台与终稿 (${activeMonitorGroup.name})</span>
@@ -3077,6 +3079,21 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
       renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
     });
   });
+
+  const btnStage3Def = container.querySelector('#btn-tab-teacher-stage3-defense');
+  if (btnStage3Def) {
+    btnStage3Def.addEventListener('click', () => {
+      state.stage3TeacherTab = 'defense';
+      renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+    });
+  }
+  const btnStage3Doc = container.querySelector('#btn-tab-teacher-stage3-doc');
+  if (btnStage3Doc) {
+    btnStage3Doc.addEventListener('click', () => {
+      state.stage3TeacherTab = 'doc';
+      renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+    });
+  }
 
   const btnExportExcel = container.querySelector('#btn-export-all-excel');
   if (btnExportExcel) {

@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState } from './constants.js?v=20260828_v636';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin } from './utils.js?v=20260828_v636';
+import { InitialState } from './constants.js?v=20260828_v637';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin } from './utils.js?v=20260828_v637';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -528,10 +528,13 @@ export class CloudSyncEngine {
         el.dataset.lockKey = fieldKey;
 
         const lockInfo = locks[fieldKey];
-        const currentUserName = currentUser ? currentUser.name : '';
+        const currentUserName = currentUser ? String(currentUser.name || currentUser.username || '') : '';
         const nowMs = Date.now();
-        const isLockFresh = lockInfo && (nowMs - Number(lockInfo.timestamp || lockInfo.time || 0) <= 1500);
-        const isLockedByOther = isLockFresh && lockInfo.userId !== currentUserId && lockInfo.userName !== currentUserName;
+        const lockTime = lockInfo ? Number(lockInfo.timestamp || lockInfo.time || 0) : 0;
+        const isLockFresh = lockInfo && (nowMs - lockTime <= 1500);
+        const lockUser = lockInfo ? String(lockInfo.userId || '') : '';
+        const lockName = lockInfo ? String(lockInfo.userName || '') : '';
+        const isLockedByOther = isLockFresh && lockUser !== currentUserId && (!currentUserName || lockName !== currentUserName);
 
         // 查找所属卡片或外层容器
         const isTimeInput = el.classList.contains('contract-time-input');
@@ -539,10 +542,15 @@ export class CloudSyncEngine {
         let badge = mountContainer.querySelector(`.field-lock-badge[data-for="${fieldKey}"]`);
 
         if (isLockedByOther) {
+          // 💡 实时呈现对方正在打的文字
+          if (lockInfo.value !== undefined && lockInfo.value !== null && document.activeElement !== el) {
+            el.value = lockInfo.value;
+          }
           el.disabled = true;
-          el.style.opacity = '0.65';
-          el.style.backgroundColor = '#f1f5f9';
-          el.style.borderColor = '#94a3b8';
+          el.readOnly = true;
+          el.style.opacity = '0.7';
+          el.style.backgroundColor = '#fefce8';
+          el.style.borderColor = '#f59e0b';
           el.title = `🔒 ${lockInfo.userName || '其他组员'} 正在编辑中...`;
           
           if (!badge) {
@@ -559,15 +567,33 @@ export class CloudSyncEngine {
           } else {
             badge.innerHTML = `🔒 ${lockInfo.userName || '组员'} 正在输入...`;
           }
+
+          // ⚡ 1.5 秒强制自毁定时器：对方停手 1.5s 绝不在屏幕上滞留
+          if (badge._selfDestructTimer) clearTimeout(badge._selfDestructTimer);
+          badge._selfDestructTimer = setTimeout(() => {
+            if (badge) badge.remove();
+            if (document.activeElement !== el) {
+              el.disabled = false;
+              el.readOnly = false;
+              el.style.opacity = '1';
+              el.style.backgroundColor = '';
+              el.style.borderColor = '';
+              el.title = '';
+            }
+          }, 1500);
         } else {
           if (document.activeElement !== el) {
             el.disabled = false;
+            el.readOnly = false;
             el.style.opacity = '1';
             el.style.backgroundColor = '';
             el.style.borderColor = '';
             el.title = '';
           }
-          if (badge) badge.remove();
+          if (badge) {
+            if (badge._selfDestructTimer) clearTimeout(badge._selfDestructTimer);
+            badge.remove();
+          }
         }
       });
     }
