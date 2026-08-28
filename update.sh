@@ -16,7 +16,7 @@ TARGET_DIRS=($(printf "%s\n" "${TARGET_DIRS[@]}" | sort -u))
 
 echo "📁 目标目录: ${TARGET_DIRS[*]}"
 
-TARGET_VERSION="20260828_v649"
+TARGET_VERSION="20260828_v650"
 
 echo "⚡ [2/4] 极速同步最新代码包 ($TARGET_VERSION)..."
 TMP=/tmp/jizhi_update
@@ -99,8 +99,9 @@ if [ $DOWNLOADED -eq 0 ]; then
     for raw_host in \
       "https://ghfast.top/https://raw.githubusercontent.com/loverglory233-blip/jizhi-clean/main" \
       "https://mirror.ghproxy.com/https://raw.githubusercontent.com/loverglory233-blip/jizhi-clean/main" \
-      "https://raw.gitmirror.com/loverglory233-blip/jizhi-clean/main"; do
-      if curl -s -f -L --connect-timeout 2 --max-time 5 "$raw_host/$f?t=$NOW_TS" -o "$TMP/$f" 2>/dev/null && [ -s "$TMP/$f" ]; then
+      "https://raw.gitmirror.com/loverglory233-blip/jizhi-clean/main" \
+      "https://raw.githubusercontent.com/loverglory233-blip/jizhi-clean/main"; do
+      if curl -s -f -L --connect-timeout 10 --max-time 30 "$raw_host/$f?t=$NOW_TS" -o "$TMP/$f" 2>/dev/null && [ -s "$TMP/$f" ]; then
         break
       fi
     done
