@@ -9,8 +9,8 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260828_v650";
-import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash, filterAndDeduplicateChatLogs } from "./utils.js?v=20260828_v650";
+} from "./constants.js?v=20260829_v651";
+import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash, filterAndDeduplicateChatLogs } from "./utils.js?v=20260829_v651";
 
 /* ==========================================================================
    7. TEACHER PORTAL RENDERER (LIVE WORKSPACE MIRROR & ANNOUNCEMENT READ MATRIX)
@@ -2165,21 +2165,30 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
 
       document.querySelectorAll('.modal-overlay').forEach(el => el.remove());
 
-      const formatForInput = (val) => {
+      const formatLocalDateForInput = (val) => {
         if (!val) return '';
-        const clean = val.trim().replace(' ', 'T');
-        if (clean.length === 16) return clean;
-        if (clean.length > 16) return clean.slice(0, 16);
-        const d = new Date(val);
-        if (!isNaN(d.getTime())) {
+        let d = (val instanceof Date) ? val : null;
+        if (!d) {
+          if (typeof val === 'number') {
+            d = new Date(val);
+          } else if (typeof val === 'string') {
+            const clean = val.trim();
+            if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(clean)) return clean;
+            if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/.test(clean)) return clean.replace(' ', 'T');
+            if (/^\d{4}\/\d{2}\/\d{2} \d{2}:\d{2}$/.test(clean)) return clean.replace(/\//g, '-').replace(' ', 'T');
+            d = new Date(clean.replace(/-/g, '/'));
+            if (isNaN(d.getTime())) d = new Date(clean);
+          }
+        }
+        if (d && !isNaN(d.getTime())) {
           const pad = (n) => String(n).padStart(2, '0');
           return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
         }
         return '';
       };
 
-      const currentStart = formatForInput(task.startTime) || new Date().toISOString().slice(0, 16);
-      const currentDeadline = formatForInput(task.deadline) || new Date(Date.now() + 150 * 60 * 1000).toISOString().slice(0, 16);
+      const currentStart = formatLocalDateForInput(task.startTime) || formatLocalDateForInput(new Date());
+      const currentDeadline = formatLocalDateForInput(task.deadline) || formatLocalDateForInput(new Date(Date.now() + 150 * 60 * 1000));
       const currentDuration = task.durationMinutes || 150;
 
       const modal = document.createElement('div');
@@ -2371,13 +2380,22 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
 
       document.querySelectorAll('.modal-overlay').forEach(el => el.remove());
 
-      const formatForInput = (val) => {
+      const formatLocalDateForInput = (val) => {
         if (!val) return '';
-        const clean = val.trim().replace(' ', 'T');
-        if (clean.length === 16) return clean;
-        if (clean.length > 16) return clean.slice(0, 16);
-        const d = new Date(val);
-        if (!isNaN(d.getTime())) {
+        let d = (val instanceof Date) ? val : null;
+        if (!d) {
+          if (typeof val === 'number') {
+            d = new Date(val);
+          } else if (typeof val === 'string') {
+            const clean = val.trim();
+            if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(clean)) return clean;
+            if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/.test(clean)) return clean.replace(' ', 'T');
+            if (/^\d{4}\/\d{2}\/\d{2} \d{2}:\d{2}$/.test(clean)) return clean.replace(/\//g, '-').replace(' ', 'T');
+            d = new Date(clean.replace(/-/g, '/'));
+            if (isNaN(d.getTime())) d = new Date(clean);
+          }
+        }
+        if (d && !isNaN(d.getTime())) {
           const pad = (n) => String(n).padStart(2, '0');
           return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
         }
@@ -2437,7 +2455,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
 
             <div style="display:flex; flex-direction:column; gap:6px;">
               <label style="font-size:12.5px; font-weight:700; color:#334155;">📅 新的截止时间：</label>
-              <input type="datetime-local" id="input-extend-deadline" class="teacher-input fancy" value="${formatForInput(new Date(baseDate.getTime() + 60 * 60 * 1000).toISOString())}" style="width:100%; font-size:13px; padding:9px 12px; border:1.5px solid #cbd5e1; border-radius:8px;">
+              <input type="datetime-local" id="input-extend-deadline" class="teacher-input fancy" value="${formatLocalDateForInput(new Date(baseDate.getTime() + 60 * 60 * 1000))}" style="width:100%; font-size:13px; padding:9px 12px; border:1.5px solid #cbd5e1; border-radius:8px;">
             </div>
           </div>
           <div class="teacher-modal-footer" style="background:#f8fafc; border-top:1px solid #e2e8f0; padding:14px 24px; display:flex; justify-content:flex-end; gap:10px;">
@@ -2460,7 +2478,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
           const mins = parseInt(qBtn.dataset.mins, 10);
           lastAddedMins = mins;
           const newD = new Date(baseDate.getTime() + mins * 60 * 1000);
-          dlInput.value = formatForInput(newD.toISOString());
+          dlInput.value = formatLocalDateForInput(newD);
           dlInput.style.borderColor = '#d97706';
           setTimeout(() => { if (dlInput) dlInput.style.borderColor = '#cbd5e1'; }, 400);
         });
