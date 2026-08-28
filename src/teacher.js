@@ -9,8 +9,8 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260828_v638";
-import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash, filterAndDeduplicateChatLogs } from "./utils.js?v=20260828_v638";
+} from "./constants.js?v=20260828_v639";
+import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash, filterAndDeduplicateChatLogs } from "./utils.js?v=20260828_v639";
 
 /* ==========================================================================
    7. TEACHER PORTAL RENDERER (LIVE WORKSPACE MIRROR & ANNOUNCEMENT READ MATRIX)
@@ -18,6 +18,20 @@ import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskE
 export function renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView) {
   const oldLayout = container.querySelector('.teacher-portal-layout') || document.querySelector('.teacher-portal-layout');
   const savedScrollTop = oldLayout ? oldLayout.scrollTop : (state._teacherScrollTop || 0);
+
+  // 💬 保存当前研讨流的滚动状态与贴底标志
+  const chatScrollPositions = state._chatScrollPositions || {};
+  container.querySelectorAll('.teacher-chat-stream').forEach(st => {
+    if (st.id) {
+      const isAtBottom = (st.scrollHeight - st.scrollTop - st.clientHeight) < 40;
+      const streamKey = `${st.id}_${state.activeMonitorGroupId || 'group_1'}`;
+      chatScrollPositions[streamKey] = {
+        scrollTop: st.scrollTop,
+        isAtBottom: isAtBottom
+      };
+    }
+  });
+  state._chatScrollPositions = chatScrollPositions;
 
   if (authManager && authManager.sanitizeAndDeduplicateGroups) {
     authManager.sanitizeAndDeduplicateGroups();
@@ -817,28 +831,95 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
                 </div>
               </div>
 
-              <div style="display:flex; justify-content:space-between; align-items:center; background:#ffffff; border:1px solid #e2e8f0; border-radius:12px; padding:12px 18px; width:100%; box-shadow:0 1px 3px rgba(15,23,42,0.03); flex-wrap:wrap; gap:10px;">
-                <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
-                  <span style="font-size:13px; font-weight:700; color:#334155;">
-                    📍 实时跟随指示: 当前【${activeMonitorGroup.name}】实际处于: <b style="color:#2563eb;">${actualStage === 'stage1' ? '🎪 阶段一：学术拍卖会' : actualStage === 'stage2' ? '📰 阶段二：学术编辑部' : '🎓 阶段三：答辩擂台'}</b>
-                  </span>
-                  <div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap;">
-                    ${(() => {
-                      const panoData = (state.monitorPanorama && state.monitorPanorama[activeMonitorGId]) || null;
-                      const onlineList = (panoData && panoData.onlineMembers) || [];
-                      return monitorMembersList.map(m => {
-                        const isOnline = onlineList.includes(m.name) || onlineList.includes(m.studentCode) || onlineList.includes(m.id);
-                        const dotColor = isOnline ? '#16a34a' : '#cbd5e1';
-                        const bgStyle = isOnline ? 'background:#ecfdf5; color:#059669; border:1px solid #a7f3d0;' : 'background:#f8fafc; color:#94a3b8; border:1px solid #e2e8f0;';
-                        return `
-                          <span style="font-size:11px; padding:2px 8px; border-radius:8px; font-weight:700; display:inline-flex; align-items:center; gap:4px; ${bgStyle}">
-                            <span style="width:6px; height:6px; border-radius:50%; background:${dotColor};"></span>
-                            ${m.avatar || '👤'} ${escapeHtml(m.name || m.studentCode || '成员')} <b style="font-size:10px;">(${isOnline ? '🟢在线' : '离线'})</b>
-                          </span>
-                        `;
-                      }).join('');
-                    })()}
+              <div class="card" style="border-top:4px solid #059669; width:100%; padding:16px 20px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
+                <div style="display:flex; align-items:center; gap:14px; flex-wrap:wrap;">
+                  <span style="font-size:15px; font-weight:800; color:#0f172a;">🖥️ 实际操作实时监控终端:</span>
+                  <div style="display:flex; align-items:center; gap:8px;">
+                    <span style="font-size:13px; font-weight:700; color:#475569;">监控任务:</span>
+                    <select id="sel-switch-monitor-task" class="teacher-input fancy" style="font-size:13px; font-weight:700; color:#1e40af; background:#eff6ff; border:1.5px solid #3b82f6; padding:7px 14px; border-radius:8px; cursor:pointer; min-width:180px;">
+                      ${currentClassTasks.length === 0 ? '<option value="task_default">📌 默认测试写作任务</option>' : currentClassTasks.map(t => {
+                        const isSel = (state.activeTaskId || 'task_default') === t.id;
+                        return `<option value="${t.id}" ${isSel ? 'selected' : ''}>📌 ${t.title}${isTaskExpired(t) ? ' (🛑已截止)' : ''}</option>`;
+                      }).join('')}
+                    </select>
                   </div>
+                  <div style="display:flex; align-items:center; gap:8px;">
+                    <span style="font-size:13px; font-weight:700; color:#475569;">监控小组:</span>
+                    <select id="sel-switch-monitor-group" class="teacher-input fancy" style="font-size:13px; font-weight:700; color:#1e40af; background:#eff6ff; border:1.5px solid #3b82f6; padding:7px 14px; border-radius:8px; cursor:pointer; min-width:180px;">
+                      ${(activeClass.groups || []).map(g => {
+                        const isSel = g.id === activeMonitorGId;
+                        return `
+                          <option value="${g.id}" ${isSel ? 'selected' : ''}>
+                            👥 ${g.name} ${isSel ? '(当前正在同屏实时监控 🟢)' : ''}
+                          </option>
+                        `;
+                      }).join('')}
+                    </select>
+                  </div>
+
+                  <!-- 🌟 方案 A：本组在线/离线成员状态标签 (单行优雅流线胶囊) -->
+                  ${(() => {
+                    const panoData = (state.monitorPanorama && state.monitorPanorama[activeMonitorGId]) || null;
+                    const total = panoData ? (panoData.totalMembers || 0) : (monitorMembersList.length || 0);
+                    const online = panoData ? (panoData.onlineCount || 0) : 0;
+                    const absentList = (panoData && panoData.absentMembers) || [];
+                    const absentCount = Math.max(0, total - online);
+
+                    if (total > 0 && online === 0) {
+                      return `
+                        <span style="font-size:12px; font-weight:700; padding:5px 12px; border-radius:8px; background:#fef2f2; color:#dc2626; border:1px solid #fecaca; display:inline-flex; align-items:center; gap:5px;">
+                          <span style="width:7px; height:7px; border-radius:50%; background:#dc2626;"></span>
+                          🔴 全员离线 (0/${total})
+                        </span>
+                      `;
+                    } else if (absentCount > 0 && absentList.length > 0) {
+                      return `
+                        <span style="font-size:12px; font-weight:700; padding:4px 10px; border-radius:8px; background:#fffbeb; color:#b45309; border:1px solid #fde68a; display:inline-flex; align-items:center; gap:6px; flex-wrap:wrap;">
+                          <span style="display:inline-flex; align-items:center; gap:4px;">
+                            <span style="width:7px; height:7px; border-radius:50%; background:#f59e0b;"></span>
+                            🟡 离线 (${absentCount}人):
+                          </span>
+                          ${absentList.map(name => `
+                            <span style="background:#ffffff; color:#92400e; border:1px solid #fcd34d; padding:1px 6px; border-radius:6px; font-size:11px; font-weight:700;">
+                              👤 ${escapeHtml(name)}
+                            </span>
+                          `).join('')}
+                        </span>
+                      `;
+                    } else {
+                      return `
+                        <span style="font-size:12px; font-weight:700; padding:5px 12px; border-radius:8px; background:#ecfdf5; color:#059669; border:1px solid #a7f3d0; display:inline-flex; align-items:center; gap:5px;">
+                          <span style="width:7px; height:7px; border-radius:50%; background:#10b981;"></span>
+                          🟢 全员在线 (${online}/${total || online})
+                        </span>
+                      `;
+                    }
+                  })()}
+                </div>
+
+                <!-- 任务状态感知与 Excel 导出 -->
+                <div style="display:flex; align-items:center; gap:10px;">
+                  <span style="font-size:12px; font-weight:700; padding:6px 12px; border-radius:8px; background:${isMonitorTaskExpired || state.isFinalSubmitted ? '#fef2f2' : '#ecfdf5'}; color:${isMonitorTaskExpired || state.isFinalSubmitted ? '#dc2626' : '#059669'}; border:1px solid ${isMonitorTaskExpired || state.isFinalSubmitted ? '#fecaca' : '#a7f3d0'};">
+                    ${isMonitorTaskExpired ? '🛑 任务已截止 (只读模式)' : (state.isFinalSubmitted ? '🔒 论文终稿已提交 (已归档)' : '🟢 任务进行中 (组员协作撰写中)')}
+                  </span>
+                  <button id="btn-export-all-excel" style="background:linear-gradient(135deg, #2563eb, #1d4ed8); border:none; color:white; padding:8px 16px; border-radius:8px; font-size:12.5px; font-weight:800; cursor:pointer; box-shadow:0 3px 10px rgba(37,99,235,0.3);">
+                    📊 导出本组研讨 Excel
+                  </button>
+                </div>
+              </div>
+
+              <!-- 📍 实时跟随指示条（清爽标准版） -->
+              <div style="display:flex; justify-content:space-between; align-items:center; background:#ffffff; border:1px solid #e2e8f0; border-radius:12px; padding:12px 18px; width:100%; box-shadow:0 1px 3px rgba(15,23,42,0.03);">
+                <div style="display:flex; align-items:center; gap:12px;">
+                  ${(() => {
+                    const mNames = monitorMembersList.map(m => m.name).filter(Boolean);
+                    const mStr = mNames.length > 0 ? `(${mNames.join('、')})` : '';
+                    return `
+                      <span style="font-size:13px; font-weight:700; color:#334155;">
+                        📍 实时跟随指示: 当前【${activeMonitorGroup.name}】<span style="color:#2563eb; font-weight:700; margin-left:4px;">${mStr}</span> 实际处于: <b style="color:#2563eb;">${actualStage === 'stage1' ? '🎪 阶段一：学术拍卖会' : actualStage === 'stage2' ? '📰 阶段二：学术编辑部' : '🎓 阶段三：答辩擂台'}</b>
+                      </span>
+                    `;
+                  })()}
                 </div>
                 <div style="display:flex; align-items:center; gap:8px;">
                   <span style="font-size:12px; color:#64748b; font-weight:600;">🔀 切换同屏切页:</span>
@@ -3057,9 +3138,19 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
     });
   }
 
-  // 💬 教师端研讨流自动滚至底部（默认呈现最新消息）
+  // 💬 教师端研讨流滚动位置智能恢复（默认打开/首次切换在最下面；教师向上查历史时绝不强行下拉）
   container.querySelectorAll('.teacher-chat-stream').forEach(st => {
-    st.scrollTop = st.scrollHeight;
+    const streamKey = `${st.id || 'stream'}_${activeMonitorGId}`;
+    const saved = state._chatScrollPositions && state._chatScrollPositions[streamKey];
+    if (saved) {
+      if (saved.isAtBottom) {
+        st.scrollTop = st.scrollHeight;
+      } else {
+        st.scrollTop = saved.scrollTop;
+      }
+    } else {
+      st.scrollTop = st.scrollHeight;
+    }
   });
 
   // 🎯 精准保持滚动条位置（恢复原容器滚动条位置，绝不跳回最顶部）
