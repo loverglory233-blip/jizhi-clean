@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState } from './constants.js?v=20260828_v647';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin } from './utils.js?v=20260828_v647';
+import { InitialState } from './constants.js?v=20260828_v648';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin } from './utils.js?v=20260828_v648';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -542,9 +542,14 @@ export class CloudSyncEngine {
         let badge = mountContainer.querySelector(`.field-lock-badge[data-for="${fieldKey}"]`);
 
         if (isLockedByOther) {
-          // 💡 实时呈现对方正在打的成型文字
-          if (lockInfo.value !== undefined && lockInfo.value !== null && document.activeElement !== el) {
+          // 💡 实时呈现对方正在打的成型文字 (无论当前焦点在不在，只要对方锁定了，立即镜像最新内容！)
+          if (lockInfo.value !== undefined && lockInfo.value !== null) {
             el.value = lockInfo.value;
+          }
+          // 🛡️ 如果自己当前正好在该输入框中，标记抢占并安全 blur，杜绝 blur 事件回写覆盖
+          if (document.activeElement === el) {
+            el._preemptedByOther = true;
+            el.blur();
           }
           el.disabled = true;
           el.readOnly = true;
@@ -574,6 +579,7 @@ export class CloudSyncEngine {
           if (badge._selfDestructTimer) clearTimeout(badge._selfDestructTimer);
           badge._selfDestructTimer = setTimeout(() => {
             if (badge) badge.remove();
+            el._preemptedByOther = false;
             if (document.activeElement !== el) {
               el.disabled = false;
               el.readOnly = false;
@@ -586,6 +592,7 @@ export class CloudSyncEngine {
             }
           }, 8500);
         } else {
+          el._preemptedByOther = false;
           if (document.activeElement !== el) {
             el.disabled = false;
             el.readOnly = false;
