@@ -9,8 +9,8 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260828_v639";
-import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash, filterAndDeduplicateChatLogs } from "./utils.js?v=20260828_v639";
+} from "./constants.js?v=20260828_v640";
+import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash, filterAndDeduplicateChatLogs } from "./utils.js?v=20260828_v640";
 
 /* ==========================================================================
    7. TEACHER PORTAL RENDERER (LIVE WORKSPACE MIRROR & ANNOUNCEMENT READ MATRIX)
@@ -1222,7 +1222,8 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
                     </div>
                   </div>
                 </div>
-              ` : ''}
+                `;
+              })() : ''}
 
             </div>
           `;
@@ -1897,22 +1898,6 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
         renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
         alert(`✅ 已完成随机分组！按每组约 ${groupSize} 人，共自动划分 ${totalGroups} 个协作小组（每组至少 2 人）。`);
       }
-    });
-  }
-
-  // 🎓 阶段三教师监控 Tab 切换
-  const btnStage3Def = container.querySelector('#btn-tab-teacher-stage3-defense');
-  if (btnStage3Def) {
-    btnStage3Def.addEventListener('click', () => {
-      state.stage3TeacherTab = 'defense';
-      renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
-    });
-  }
-  const btnStage3Doc = container.querySelector('#btn-tab-teacher-stage3-doc');
-  if (btnStage3Doc) {
-    btnStage3Doc.addEventListener('click', () => {
-      state.stage3TeacherTab = 'doc';
-      renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
     });
   }
 
