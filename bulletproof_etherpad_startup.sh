@@ -77,7 +77,11 @@ chmod 644 "$EP_DIR/APIKEY.txt" 2>/dev/null || true
 # 4. 后台拉起 Etherpad
 echo "🚀 正在启动 Etherpad 服务进程..."
 export NODE_ENV=production
-if [ -f "bin/run.sh" ]; then
+if [ -f "ep_etherpad-lite/node/server.ts" ]; then
+  cd ep_etherpad-lite
+  nohup node --require tsx/cjs node/server.ts > /var/log/etherpad.log 2>&1 &
+  cd ..
+elif [ -f "bin/run.sh" ]; then
   nohup bash bin/run.sh --root > /var/log/etherpad.log 2>&1 &
 elif [ -f "src/node/server.js" ]; then
   nohup node src/node/server.js > /var/log/etherpad.log 2>&1 &
