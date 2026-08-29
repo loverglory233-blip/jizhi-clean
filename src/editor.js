@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles } from "./constants.js?v=20260830_v706";
-import { callCozeAgentAPI } from "./agents.js?v=20260830_v706";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs } from "./utils.js?v=20260830_v706";
+import { AgentProfiles } from "./constants.js?v=20260830_v707";
+import { callCozeAgentAPI } from "./agents.js?v=20260830_v707";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs } from "./utils.js?v=20260830_v707";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -2085,7 +2085,16 @@ function renderStage2Canvas(canvas, state, handlers) {
       <div style="flex:1; min-height:480px; height:calc(100vh - 380px); display:flex; flex-direction:column; margin-bottom:12px;">
         ${(() => {
           const padName = `jizhi_${activeTaskId}_${userGroupId}`;
-          const currUserName = (currUser && (currUser.name || currUser.username)) || '组员';
+          let currUserName = currUser?.name || '';
+          if (!currUserName && state.members && state.members[currUserCode]?.name) {
+            currUserName = state.members[currUserCode].name;
+          }
+          if (!currUserName && window.app && window.app.authManager) {
+            const matchedUser = window.app.authManager.getUsers().find(u => u && (u.studentCode === currUserCode || u.id === currUserCode || u.username === currUserCode || u.id === currUser?.id));
+            if (matchedUser && matchedUser.name) currUserName = matchedUser.name;
+          }
+          if (!currUserName) currUserName = currUser?.username || currUserCode || '组员';
+
           const currUserColor = (state.members && state.members[currUserCode]?.color) || '#2563eb';
           const padUrl = `/p/${padName}?userName=${encodeURIComponent(currUserName)}&userColor=${encodeURIComponent(currUserColor)}&showChat=false&showLineNumbers=true&showControls=${isEditorReadonly ? 'false' : 'true'}&lang=zh-hans`;
           
