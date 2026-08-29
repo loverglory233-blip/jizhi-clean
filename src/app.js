@@ -3862,10 +3862,18 @@ ${propText}
 
 
 
-    // 1. 🎯 审稿编辑第一次学术初审（检测到进入【层级2: 方法与设计】或前序立意文献总字数达到 1000 字以上）
+    // ⏱️ 计算阶段二物理时间进度比例（双轨保底）
+    const times = (this.state.stage1 && this.state.stage1.contract && this.state.stage1.contract.timeAllocations) ? this.state.stage1.contract.timeAllocations : {};
+    const totalPlannedMin = (times.background || 25) + (times.literature || 30) + (times.questions || 25) + (times.method || 40) + (times.reflection || 20) + (times.references || 10);
+    const totalPlannedMs = totalPlannedMin * 60 * 1000;
+    const stage2DurationMs = (this.state.stage2 && this.state.stage2.startTime) ? (now - this.state.stage2.startTime) : 0;
+    const isTimeOver35Pct = totalPlannedMs > 0 && stage2DurationMs >= (totalPlannedMs * 0.35);
+    const isTimeOver85Pct = totalPlannedMs > 0 && stage2DurationMs >= (totalPlannedMs * 0.85);
+
+    // 1. 🎯 审稿编辑第一次学术初审（双轨：字数/方法章节 OR 时间达 35%）
     const rawDoc = newContent.replace(/<[^>]*>/g, '').trim();
     const hasLayer2MethodSection = /(?:二、|三、|四、|第2章|第3章|第4章|设计|方法|路径|方案|实证|模型|过程|实施|框架|量表|样本|实验|调研|问卷|干预)/i.test(newContent);
-    const isReview1MilestoneReached = (rawDoc.length >= 1000) || (hasLayer2MethodSection && rawDoc.length >= 700);
+    const isReview1MilestoneReached = (rawDoc.length >= 1000) || (hasLayer2MethodSection && rawDoc.length >= 700) || (isTimeOver35Pct && rawDoc.length >= 300);
     if (isReview1MilestoneReached && !this.state.stage2FirstReviewDone && timeSinceLastReviewing > 45000) {
       this.state.stage2FirstReviewDone = true;
       const topic = (this.state.stage1 && this.state.stage1.mergedTitle) ? this.state.stage1.mergedTitle : '本组课题';
@@ -3922,9 +3930,9 @@ ${propText}
       renderChat(this.state);
     }
 
-    // 3. 🎯 终审里程碑雷达：推进到【参考文献/终稿收尾】（字数 ≥3600字 或 出现参考文献）
+    // 3. 🎯 终审里程碑雷达（双轨：字数/参考文献 OR 时间达 85% 冲刺期）
     const hasReferenceSection = /(?:参考文献|References|总结与结语)/i.test(newContent);
-    const isFinalMilestoneReached = (rawDoc.length >= 3600) || (hasReferenceSection && rawDoc.length >= 3000);
+    const isFinalMilestoneReached = (rawDoc.length >= 3600) || (hasReferenceSection && rawDoc.length >= 3000) || (isTimeOver85Pct && rawDoc.length >= 1500);
     if (isFinalMilestoneReached && !this.state.stage2RefFormatReviewed && timeSinceLastReviewing > 45000) {
       this.state.stage2RefFormatReviewed = true;
       const refReviewMsg = {
