@@ -285,23 +285,29 @@ if [ -n "$EP_DIR" ]; then
 }
 EPSETEOF
 
-  # 执行全套插件防御式安全装载（确保 12 大插件 100% 挂载且防冲突报错）
-  if [ -n "$MAIN_DIR" ] && [ -f "$MAIN_DIR/bulletproof_etherpad_startup.sh" ]; then
-    cp "$MAIN_DIR/bulletproof_etherpad_startup.sh" "$EP_DIR/" 2>/dev/null || true
-  fi
-  cd "$EP_DIR"
-  if [ -f "bulletproof_etherpad_startup.sh" ]; then
-    bash bulletproof_etherpad_startup.sh 2>&1 || true
+  # 检查 Etherpad 是否已经在健康运行，若已健康运行则绝不重启，保护正在编辑的会话与内存数据
+  if curl -s -I http://127.0.0.1:9001/p/test 2>/dev/null | grep -E "HTTP/(1.1|2) (200|302|404)" >/dev/null; then
+    echo "   🟢 Etherpad 协同文档引擎正在稳定运行，保持活跃状态（不重启，保护会话与正文数据）"
   else
-    fuser -k 9001/tcp 2>/dev/null || true
-    kill -9 $(lsof -t -i:9001 2>/dev/null) 2>/dev/null || true
-    pkill -9 -f "node.*server\.js" 2>/dev/null || true
-    sleep 1
-    export NODE_ENV=production
-    if [ -f "src/node/server.js" ]; then
-      nohup node src/node/server.js > /var/log/etherpad.log 2>&1 &
-    elif [ -f "bin/run.sh" ]; then
-      nohup bash bin/run.sh --root > /var/log/etherpad.log 2>&1 &
+    echo "   ⚡ Etherpad 未运行或异常，启动自愈引擎..."
+    # 执行全套插件防御式安全装载（确保 12 大插件 100% 挂载且防冲突报错）
+    if [ -n "$MAIN_DIR" ] && [ -f "$MAIN_DIR/bulletproof_etherpad_startup.sh" ]; then
+      cp "$MAIN_DIR/bulletproof_etherpad_startup.sh" "$EP_DIR/" 2>/dev/null || true
+    fi
+    cd "$EP_DIR"
+    if [ -f "bulletproof_etherpad_startup.sh" ]; then
+      bash bulletproof_etherpad_startup.sh 2>&1 || true
+    else
+      fuser -k 9001/tcp 2>/dev/null || true
+      kill -9 $(lsof -t -i:9001 2>/dev/null) 2>/dev/null || true
+      pkill -9 -f "node.*server\.js" 2>/dev/null || true
+      sleep 1
+      export NODE_ENV=production
+      if [ -f "src/node/server.js" ]; then
+        nohup node src/node/server.js > /var/log/etherpad.log 2>&1 &
+      elif [ -f "bin/run.sh" ]; then
+        nohup bash bin/run.sh --root > /var/log/etherpad.log 2>&1 &
+      fi
     fi
   fi
 
