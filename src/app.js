@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260830_v723";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash } from "./utils.js?v=20260830_v723";
-import { callCozeAgentAPI } from "./agents.js?v=20260830_v723";
-import { AuthManager } from "./auth.js?v=20260830_v723";
-import { CloudSyncEngine } from "./sync.js?v=20260830_v723";
-import { renderLoginView } from "./login.js?v=20260830_v723";
-import { renderTeacherPortal } from "./teacher.js?v=20260830_v723";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260830_v723";
+} from "./constants.js?v=20260830_v724";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash } from "./utils.js?v=20260830_v724";
+import { callCozeAgentAPI } from "./agents.js?v=20260830_v724";
+import { AuthManager } from "./auth.js?v=20260830_v724";
+import { CloudSyncEngine } from "./sync.js?v=20260830_v724";
+import { renderLoginView } from "./login.js?v=20260830_v724";
+import { renderTeacherPortal } from "./teacher.js?v=20260830_v724";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260830_v724";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260830_v723";
+} from "./editor.js?v=20260830_v724";
 
 // Make renderChat available on window for sync callbacks
 if (typeof window !== "undefined") {
@@ -2961,8 +2961,10 @@ ${fullDiscussionLogs || '成员协商协作撰写'}
     // 🎓 阶段三：严格按时序：① 中间委员开场 ➔ ② 正方肯定 ➔ ③ 反方质询 ➔ ④ 平台写入矩阵 ➔ ⑤ 中间委员抛题引导
     else if (stage === 'stage3') {
       const hasNeutralIntro = logs.some(m => m && m.sender === 'neutral' && (m.text?.includes('欢迎来到【阶段三：答辩擂台】') || m.text?.includes('中间委员开场')));
-      if (!hasNeutralIntro && !this.state.stage3IntroStarted) {
-        this.state.stage3IntroStarted = true;
+      const hasProp = logs.some(m => m && m.sender === 'proponent');
+      const hasOpp = logs.some(m => m && m.sender === 'opponent');
+
+      if (!hasNeutralIntro) {
         const neutralWelcome = {
           id: `msg_welcome_${taskId}_${groupId}_stage3_neutral`,
           sender: 'neutral',
@@ -2974,9 +2976,20 @@ ${fullDiscussionLogs || '成员协商协作撰写'}
         logs.unshift(neutralWelcome);
         this.sendSingleChatMessage(neutralWelcome, 'stage3');
         if (typeof window.renderChat === 'function') window.renderChat(this.state);
+      }
+
+      // 🛡️ 如果正方或反方尚未发表评审，且左侧矩阵未就绪，立即启动答辩委员会全流程评议
+      const needsCommitteeReview = !hasProp || !hasOpp || !this.state.stage3.feedbackItems || this.state.stage3.feedbackItems.length === 0;
+      if (needsCommitteeReview && !this.state.stage3CommitteeEvaluating) {
+        this.state.stage3CommitteeEvaluating = true;
+        this.state.stage3CommitteeLoading = true;
+        this.renderStudentWorkspace();
 
         const topic = (this.state.stage1 && this.state.stage1.mergedTitle) ? this.state.stage1.mergedTitle : '本组研究设计';
-        const rawContent = (this.state.stage2 && this.state.stage2.unifiedContent) ? this.state.stage2.unifiedContent.replace(/<[^>]*>/g, '').trim() : '';
+        let rawContent = (this.state.stage2 && this.state.stage2.unifiedContent) ? this.state.stage2.unifiedContent.replace(/<[^>]*>/g, '').trim() : '';
+        if (!rawContent || rawContent.length < 50) {
+          rawContent = `课题名称: ${topic}。正文涵盖背景意义、文献综述、问题与假设、研究设计与方法、反思等完整初稿。`;
+        }
 
         // 2. 依次异步调用【正方】与【反方】
         setTimeout(async () => {
@@ -3020,34 +3033,32 @@ ${propText}
               _timeMs: Date.now()
             });
 
-            // 平台自动将正反评审意见写入左侧【答辩裁决矩阵】；仅当反方调用成功时才自动解析，失败时留空待学生手动录入，绝不把"超时提示"当成质询写入
-            if (oppSucceeded && (!this.state.stage3.feedbackItems || this.state.stage3.feedbackItems.length === 0)) {
-              // 🛡️ 反方质询必须从 Coze 反方委员真实发言中解析，绝不写死；有多少条质询就写入多少条，确保矩阵与讨论区内容完全一致
-              const oppBody = (oppText || '').replace(/^[^\n]*?【[^】]+】[：:]?\s*/, '').trim();
-              const oppMatches = oppBody.match(/[①②③④⑤][^①②③④⑤]*/g);
-              const oppQueries = (oppMatches && oppMatches.length > 0)
-                ? oppMatches.map(s => s.trim()).filter(s => s.length > 0)
-                : [oppBody];
-              this.state.stage3.feedbackItems = [
-                { id: 'fb_prop', role: 'proponent', speaker: '正方委员 Agent (肯定支持)', title: '立论支持', content: propText.replace(/^[^\n]*?【[^】]+】[：:]?\s*/, ''), response: '', status: 'adopted' }
-              ];
-              oppQueries.forEach((q, i) => {
-                this.state.stage3.feedbackItems.push({
-                  id: 'fb_opp_' + (i + 1),
-                  role: 'opponent',
-                  speaker: '反方委员 Agent (尖锐质询)',
-                  title: '质询 ' + (i + 1),
-                  content: q,
-                  response: '',
-                  status: 'pending'
-                });
+            // 平台自动将正反评审意见写入左侧【答辩裁决矩阵】
+            const oppBody = (oppText || '').replace(/^[^\n]*?【[^】]+】[：:]?\s*/, '').trim();
+            const oppMatches = oppBody.match(/[①②③④⑤][^①②③④⑤]*/g);
+            const oppQueries = (oppMatches && oppMatches.length > 0)
+              ? oppMatches.map(s => s.trim()).filter(s => s.length > 0)
+              : [oppBody];
+            this.state.stage3.feedbackItems = [
+              { id: 'fb_prop', role: 'proponent', speaker: '正方委员 Agent (肯定支持)', title: '立论支持', content: propText.replace(/^[^\n]*?【[^】]+】[：:]?\s*/, ''), response: '', status: 'pending' }
+            ];
+            oppQueries.forEach((q, i) => {
+              this.state.stage3.feedbackItems.push({
+                id: 'fb_opp_' + (i + 1),
+                role: 'opponent',
+                speaker: '反方委员 Agent (尖锐质询)',
+                title: '质询 ' + (i + 1),
+                content: q,
+                response: '',
+                status: 'pending'
               });
-              this.syncStage3();
-              this.renderStudentWorkspace();
-            }
-
+            });
+            this.state.stage3CommitteeLoading = false;
+            this.state.stage3CommitteeEvaluating = false;
+            this.syncStage3();
             this.syncChatLogs();
             renderChat(this.state);
+            this.renderStudentWorkspace();
 
             // 5. 中间委员独立调用 Coze API，引导第 1 题辩护
             setTimeout(async () => {
@@ -3076,7 +3087,7 @@ ${propText}
             }, 2500);
 
           }, 2500);
-        }, 2000);
+        }, 1500);
       }
     }
   }
