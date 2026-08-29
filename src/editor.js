@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles } from "./constants.js?v=20260830_v699";
-import { callCozeAgentAPI } from "./agents.js?v=20260830_v699";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs } from "./utils.js?v=20260830_v699";
+import { AgentProfiles } from "./constants.js?v=20260830_v700";
+import { callCozeAgentAPI } from "./agents.js?v=20260830_v700";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs } from "./utils.js?v=20260830_v700";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -1883,6 +1883,36 @@ function renderStage2Canvas(canvas, state, handlers) {
       }
     }
 
+    const subs = s2.meetingSubmissions || {};
+    const subCount = Object.keys(subs).length;
+    const isMeetingFullyDone = subCount >= totalCount && totalCount > 0;
+    const isCurrentUserSubmitted = isMemberDone(subs, { id: currUserCode, studentCode: currUser?.studentCode, username: currUser?.username, name: currUser?.name });
+
+    const meetingCountBadge = canvas.querySelector('#stage2-meeting-count-text');
+    if (meetingCountBadge) {
+      meetingCountBadge.innerText = isMeetingFullyDone ? '✅ 全员已打卡' : `${subCount}/${totalCount} 人已打卡`;
+      meetingCountBadge.style.color = isMeetingFullyDone ? '#059669' : '#2563eb';
+      meetingCountBadge.style.background = isMeetingFullyDone ? '#d1fae5' : '#eff6ff';
+      meetingCountBadge.style.border = isMeetingFullyDone ? '1px solid #a7f3d0' : '1px solid #bfdbfe';
+    }
+    const meetingPillsContainer = canvas.querySelector('#stage2-meeting-members-pills');
+    if (meetingPillsContainer) {
+      meetingPillsContainer.innerHTML = membersList.map(m => {
+        const isSub = isMemberDone(subs, m);
+        return `<span style="font-size:11px; padding:2px 8px; border-radius:10px; font-weight:700; background:${isSub ? '#ecfdf5' : '#f1f5f9'}; color:${isSub ? '#059669' : '#64748b'}; border:1px solid ${isSub ? '#a7f3d0' : '#e2e8f0'};">
+          ${isSub ? '✓' : '⏳'} ${escapeHtml(m.name)}: ${isSub ? '已打卡' : '待打卡'}
+        </span>`;
+      }).join('');
+    }
+    const btnMeetingPills = canvas.querySelector('#btn-trigger-meeting-pills');
+    if (btnMeetingPills) {
+      btnMeetingPills.disabled = isCurrentUserSubmitted || isStage2MeetingLocked;
+      btnMeetingPills.innerText = isCurrentUserSubmitted ? '✅ 您已完成打卡' : '📢 参与/发起半程打卡';
+      btnMeetingPills.style.background = isCurrentUserSubmitted ? '#f1f5f9' : 'linear-gradient(135deg, #2563eb, #1d4ed8)';
+      btnMeetingPills.style.color = isCurrentUserSubmitted ? '#059669' : 'white';
+      btnMeetingPills.style.cursor = isCurrentUserSubmitted || isStage2MeetingLocked ? 'default' : 'pointer';
+    }
+
     const draftCountBadge = canvas.querySelector('#stage2-draft-count-text');
     if (draftCountBadge) {
       draftCountBadge.innerText = isDraftFullyConfirmed ? '✅ 全员已确认完成初稿' : `${confirmedDraftCount}/${totalCount} 人已确认`;
@@ -1947,16 +1977,16 @@ function renderStage2Canvas(canvas, state, handlers) {
         const subs = s2.meetingSubmissions || {};
         const subCount = Object.keys(subs).length;
         const isMeetingFullyDone = subCount >= totalCount && totalCount > 0;
-        const isCurrentUserSubmitted = isMemberDone(subs, { id: currentUserId, studentCode: currentUserId });
+        const isCurrentUserSubmitted = isMemberDone(subs, { id: currUserCode, studentCode: currUser?.studentCode, username: currUser?.username, name: currUser?.name });
 
         return `
           <div style="background:#ffffff; border:1px solid ${isMeetingFullyDone ? '#a7f3d0' : '#cbd5e1'}; border-radius:8px; padding:8px 14px; margin-bottom:8px; display:flex; justify-content:space-between; align-items:center; box-shadow:0 1px 3px rgba(15,23,42,0.04); flex-wrap:wrap; gap:8px; flex-shrink:0;">
             <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
               <span style="font-size:12.5px; font-weight:800; color:#0f172a;">📢 半程自查打卡进度:</span>
-              <span style="font-size:11.5px; font-weight:800; color:${isMeetingFullyDone ? '#059669' : '#2563eb'}; background:${isMeetingFullyDone ? '#d1fae5' : '#eff6ff'}; padding:2px 10px; border-radius:12px; border:1px solid ${isMeetingFullyDone ? '#a7f3d0' : '#bfdbfe'};">
+              <span id="stage2-meeting-count-text" style="font-size:11.5px; font-weight:800; color:${isMeetingFullyDone ? '#059669' : '#2563eb'}; background:${isMeetingFullyDone ? '#d1fae5' : '#eff6ff'}; padding:2px 10px; border-radius:12px; border:1px solid ${isMeetingFullyDone ? '#a7f3d0' : '#bfdbfe'};">
                 ${isMeetingFullyDone ? '✅ 全员已打卡' : `${subCount}/${totalCount} 人已打卡`}
               </span>
-              <div style="display:flex; gap:6px; flex-wrap:wrap;">
+              <div id="stage2-meeting-members-pills" style="display:flex; gap:6px; flex-wrap:wrap;">
                 ${membersList.map(m => {
                   const isSub = isMemberDone(subs, m);
                   return `<span style="font-size:11px; padding:2px 8px; border-radius:10px; font-weight:700; background:${isSub ? '#ecfdf5' : '#f1f5f9'}; color:${isSub ? '#059669' : '#64748b'}; border:1px solid ${isSub ? '#a7f3d0' : '#e2e8f0'};">
