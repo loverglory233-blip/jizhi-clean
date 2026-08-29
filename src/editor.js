@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles } from "./constants.js?v=20260829_v661";
-import { callCozeAgentAPI } from "./agents.js?v=20260829_v661";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs } from "./utils.js?v=20260829_v661";
+import { AgentProfiles } from "./constants.js?v=20260829_v662";
+import { callCozeAgentAPI } from "./agents.js?v=20260829_v662";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs } from "./utils.js?v=20260829_v662";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -1003,9 +1003,15 @@ function renderStage1Canvas(canvas, state, handlers) {
         </div>
         ${!isContractLocked ? `
           <div style="margin-top:12px; display:flex; justify-content:center;">
-            <button id="btn-generate-contract-draft" style="background:linear-gradient(135deg, #7c3aed, #6d28d9); border:none; color:white; padding:8px 20px; border-radius:20px; font-weight:700; font-size:13px; cursor:pointer; display:inline-flex; align-items:center; gap:6px; box-shadow:0 3px 12px rgba(124,58,237,0.25);">
-              🤖 研讨差不多了？一键提炼研讨共识生成公约草案
-            </button>
+            ${s1.contract?.isDraftGenerated ? `
+              <div style="background:#f0fdf4; border:1.5px solid #86efac; color:#15803d; padding:7px 22px; border-radius:20px; font-weight:800; font-size:13px; display:inline-flex; align-items:center; gap:6px; box-shadow:0 2px 8px rgba(34,197,94,0.15);">
+                ✅ 公约草案已提炼生成（全组可直接在下方各栏目微调修改）
+              </div>
+            ` : `
+              <button id="btn-generate-contract-draft" style="background:linear-gradient(135deg, #7c3aed, #6d28d9); border:none; color:white; padding:8px 20px; border-radius:20px; font-weight:700; font-size:13px; cursor:pointer; display:inline-flex; align-items:center; gap:6px; box-shadow:0 3px 12px rgba(124,58,237,0.25);">
+                🤖 研讨差不多了？一键提炼研讨共识生成公约草案
+              </button>
+            `}
           </div>
         ` : ''}
       </div>
