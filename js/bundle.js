@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260830_v693
+ * Version: 20260830_v694
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260830_v693';
+  const APP_VERSION = '20260830_v694';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -12240,13 +12240,14 @@
           }
 
           // Loop 1: 半程自查播报后，监听学生针对分歧商讨达成共识 -> 唤醒审稿编辑下发清单
-          if (this.state.stage2PendingReviewing) {
-            this.state.stage2PendingReviewing.studentMsgCount = (this.state.stage2PendingReviewing.studentMsgCount || 0) + 1;
-            const isConsensusSignal = /(?:对齐|同意|商量好了|商定好了|修改|明白了|收到|按这个改|@审稿编辑|统一了|没问题|行|结合|没毛病|就这么改|达成共识)/i.test(text);
-            if ((isConsensusSignal || hasValidConsensusPair) && !hasAdversative) {
+          const pendingRev = this.state.stage2?.pendingReviewing || this.state.stage2PendingReviewing;
+          if (pendingRev) {
+            pendingRev.studentMsgCount = (pendingRev.studentMsgCount || 0) + 1;
+            const isConsensusSignal = /(?:对齐|同意|商量好了|商定好了|修改|改|改一下|明白了|收到|按这个改|@审稿编辑|统一了|没问题|行|结合|没毛病|就这么改|达成共识|可以|ke yi|好的|好|OK|ok|开始吧|开始改|动手|写吧|那开始吧|咋修|咋改|怎么改|搞起)/i.test(text);
+            if (isConsensusSignal || pendingRev.studentMsgCount >= 2) {
               setTimeout(() => {
                 this.triggerReviewingEditorAfterDiscussion();
-              }, 1200);
+              }, 800);
               return;
             }
           }
@@ -13834,35 +13835,41 @@
     checkAgentTriggersOnContent(newContent) {
       if (!newContent || this.state.isFinalSubmitted) return;
       const currentStage = this.state.currentStage;
-      // 审稿编辑与责任编辑的正文规范检查仅在【阶段二】生效
       if (currentStage !== 'stage2') return;
+
+      if (!this.state.stage2) this.state.stage2 = {};
+      const s2 = this.state.stage2;
+      if (!s2.reviewMilestone) s2.reviewMilestone = 'none';
 
       const logs = this.state.chatLogs[currentStage] || [];
       const now = Date.now();
       const lastReviewingMsg = logs.slice().reverse().find(m => m.sender === 'reviewingEditor');
       const timeSinceLastReviewing = lastReviewingMsg ? (now - (lastReviewingMsg._timeMs || 0)) : 999999;
 
-
-
       // ⏱️ 计算阶段二物理时间进度比例（双轨保底）
       const times = (this.state.stage1 && this.state.stage1.contract && this.state.stage1.contract.timeAllocations) ? this.state.stage1.contract.timeAllocations : {};
       const totalPlannedMin = (times.background || 25) + (times.literature || 30) + (times.questions || 25) + (times.method || 40) + (times.reflection || 20) + (times.references || 10);
       const totalPlannedMs = totalPlannedMin * 60 * 1000;
-      const stage2DurationMs = (this.state.stage2 && this.state.stage2.startTime) ? (now - this.state.stage2.startTime) : 0;
+      const stage2DurationMs = s2.startTime ? (now - s2.startTime) : 0;
       const isTimeOver35Pct = totalPlannedMs > 0 && stage2DurationMs >= (totalPlannedMs * 0.35);
       const isTimeOver85Pct = totalPlannedMs > 0 && stage2DurationMs >= (totalPlannedMs * 0.85);
 
-      // 1. 🎯 审稿编辑第一次学术初审（双轨：字数/方法章节 OR 时间达 35%）
       const rawDoc = newContent.replace(/<[^>]*>/g, '').trim();
-      const hasLayer2MethodSection = /(?:二、|三、|四、|第2章|第3章|第4章|设计|方法|路径|方案|实证|模型|过程|实施|框架|量表|样本|实验|调研|问卷|干预)/i.test(newContent);
-      const isReview1MilestoneReached = (rawDoc.length >= 1000) || (hasLayer2MethodSection && rawDoc.length >= 700) || (isTimeOver35Pct && rawDoc.length >= 300);
-      if (isReview1MilestoneReached && !this.state.stage2FirstReviewDone && timeSinceLastReviewing > 45000) {
-        this.state.stage2FirstReviewDone = true;
-        const topic = (this.state.stage1 && this.state.stage1.mergedTitle) ? this.state.stage1.mergedTitle : '本组课题';
 
-        // 智能提取完整的【研究背景】+【文献综述】+【研究问题与假设】章节草稿
+      // ═══════════════════════════════════════════════════════════════
+      // 🛡️ 严格阶梯时序门禁 1: 审稿编辑【一审】（初审微调质检）
+      // 仅在初始态 'none' 时可触发，严禁重复触发
+      // ═══════════════════════════════════════════════════════════════
+      const hasLayer2MethodSection = /(?:二、|三、|四、|第2章|第3章|第4章|设计|方法|路径|方案|实证|模型|过程|实施|框架|量表|样本|实验|调研|问卷|干预)/i.test(newContent);
+      const isReview1MilestoneReached = (rawDoc.length >= 800) || (hasLayer2MethodSection && rawDoc.length >= 500) || (isTimeOver35Pct && rawDoc.length >= 300);
+
+      if (s2.reviewMilestone === 'none' && isReview1MilestoneReached && timeSinceLastReviewing > 30000) {
+        s2.reviewMilestone = 'first_review_in_progress';
+        this.syncStage2();
+        if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+
+        const topic = (this.state.stage1 && this.state.stage1.mergedTitle) ? this.state.stage1.mergedTitle : '本组课题';
         const methodIndex = rawDoc.search(/(?:四、|第4章|第四部分|研究方法|研究设计)/i);
-        // 一审聚焦「背景+综述+问题」三章：若已推进至方法章节则截取至方法之前，否则（篇幅尚短）直接全文
         const contentSnippet = (methodIndex > 200) ? rawDoc.slice(0, methodIndex).trim() : rawDoc;
 
         setTimeout(async () => {
@@ -13875,8 +13882,8 @@
           if (!firstReviewText || firstReviewText.trim().length === 0) {
             firstReviewText = `📝 【审稿编辑·初审学术质检】：审阅了大家目前撰写的正文草稿，背景立意非常扎实，文献综述的脉络梳理清晰！建议重点优化以下两点：① 进一步凝练研究述评（Gap），将前文文献直接引向核心研究问题与假设；② 统一各组员在背景与综述中使用的核心概念界定。请全组继续稳步推进！`;
           }
-          this.state.stage2FirstReviewText = firstReviewText;
-          this.state.stage2FirstReviewFinishedTime = Date.now();
+          s2.firstReviewText = firstReviewText;
+          s2.reviewMilestone = 'first_review_done';
 
           const firstReviewMsg = {
             sender: 'reviewingEditor',
@@ -13887,44 +13894,58 @@
           if (!this.state.chatLogs.stage2) this.state.chatLogs.stage2 = [];
           this.state.chatLogs.stage2.push(firstReviewMsg);
           this.syncChatLogs();
+          this.syncStage2();
           if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
           renderChat(this.state);
-        }, 800);
+        }, 600);
+        return;
       }
 
-      // 2. 🎯 半程编辑会议号召（检测到进入反思/讨论 或 正文达到 2400 字以上）
+      // ═══════════════════════════════════════════════════════════════
+      // 🛡️ 严格阶梯时序门禁 2: 责任编辑【半程会议号召】
+      // 必须在【一审完成后】(first_review_done)，且写到反思或字数达标才触发
+      // ═══════════════════════════════════════════════════════════════
       const hasLayer3ReflectionSection = /(?:五、|六、|第5章|第6章|讨论|反思|不足|局限|展望|结论|总结|对策|建议)/i.test(newContent);
-      const isMeetingMilestoneReached = (rawDoc.length >= 2600) || (hasLayer3ReflectionSection && rawDoc.length >= 2000);
-      const isStage2MeetingLocked = this.state.stage2 && this.state.stage2.actionPlan && this.state.stage2.actionPlan.isGenerated;
+      const isMeetingMilestoneReached = (rawDoc.length >= 2200) || (hasLayer3ReflectionSection && rawDoc.length >= 1500);
       const lastManagingMsg = logs.slice().reverse().find(m => m.sender === 'managingEditor');
       const timeSinceLastManaging = lastManagingMsg ? (now - (lastManagingMsg._timeMs || 0)) : 999999;
 
-      if (isMeetingMilestoneReached && !isStage2MeetingLocked && !this.state.stage2MeetingCallSent && timeSinceLastManaging > 45000) {
-        this.state.stage2MeetingCallSent = true;
+      if (s2.reviewMilestone === 'first_review_done' && isMeetingMilestoneReached && timeSinceLastManaging > 30000) {
+        s2.reviewMilestone = 'meeting_called';
         const meetingCallMsg = {
           sender: 'managingEditor',
           text: `🤝 【责任编辑·半程会议号召】：关注到全组方案与方法设计已基本成型，并逐步推进至反思讨论阶段！请大家停下各自打字，通读搭档负责的模块，点击上方【📢 发起编辑会议】完成全篇综合学术审计打卡。稍后审稿专家将结合全组情况为大家进行深度内容质检并下发【半程修正清单】！`,
           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
           _timeMs: now
         };
-        logs.push(meetingCallMsg);
+        if (!this.state.chatLogs.stage2) this.state.chatLogs.stage2 = [];
+        this.state.chatLogs.stage2.push(meetingCallMsg);
         this.syncChatLogs();
+        this.syncStage2();
+        if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
         renderChat(this.state);
+        return;
       }
 
-      // 3. 🎯 终审里程碑雷达（双轨：字数/参考文献 OR 时间达 85% 冲刺期）
+      // ═══════════════════════════════════════════════════════════════
+      // 🛡️ 严格阶梯时序门禁 3: 审稿编辑【三审·终审行文扫描】
+      // 必须在【半程会议且清单下发修改之后】(checklist_issued)，绝不允许跳步触发！
+      // ═══════════════════════════════════════════════════════════════
       const hasReferenceSection = /(?:参考文献|References|总结与结语)/i.test(newContent);
-      const isFinalMilestoneReached = (rawDoc.length >= 3600) || (hasReferenceSection && rawDoc.length >= 3000) || (isTimeOver85Pct && rawDoc.length >= 1500);
-      if (isFinalMilestoneReached && !this.state.stage2RefFormatReviewed && timeSinceLastReviewing > 45000) {
-        this.state.stage2RefFormatReviewed = true;
+      const isFinalMilestoneReached = (rawDoc.length >= 3500) || (hasReferenceSection && rawDoc.length >= 2800) || (isTimeOver85Pct && rawDoc.length >= 2000);
+      if (s2.reviewMilestone === 'checklist_issued' && isFinalMilestoneReached && timeSinceLastReviewing > 45000) {
+        s2.reviewMilestone = 'final_review_done';
         const refReviewMsg = {
           sender: 'reviewingEditor',
-          text: `📝 【审稿编辑·终稿行文扫描诊断】：全篇论文方案已基本定型，整体框架非常完整！在最后收尾阶段，我重点对全文语言表达进行了全维度扫描：①【行文与学术语体】：部分章节中存在个别口语化表述（如“我们觉得”）与长句语病，建议润色为客观规范的第三人称学术语体；②【术语与错别字】：前后核心概念表述需统一，建议全组通读逐一订正；③【参考文献】：核对引用格式规范。请全组成员完成通读润色后，在上方逐一完成【初稿确认】，准备迎接终审答辩！`,
+          text: `📝 【审稿编辑·终稿行文扫描诊断】：全篇论文方案已基本定型，整体框架非常完整！在最后收尾阶段，我重点对全文语言表达进行了全维度扫描：①【行文与学术语体】：部分章节中存在个别口语化表述与长句语病，建议润色为客观规范的第三人称学术语体；②【术语与概念】：前后核心概念表述需统一，建议全组通读逐一订正；③【参考文献】：核对基本著录规范。请全组成员完成通读润色后，在上方逐一完成【初稿确认】，准备迎接终审答辩！`,
           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
           _timeMs: now
         };
-        logs.push(refReviewMsg);
+        if (!this.state.chatLogs.stage2) this.state.chatLogs.stage2 = [];
+        this.state.chatLogs.stage2.push(refReviewMsg);
         this.syncChatLogs();
+        this.syncStage2();
+        if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
         renderChat(this.state);
       }
 
@@ -14136,17 +14157,22 @@
         const ideationSections = Array.from(modal.querySelectorAll('input[name="ideation-sec"]:checked')).map(cb => cb.value);
         const transSections = Array.from(modal.querySelectorAll('input[name="trans-div-sec"]:checked')).map(cb => cb.value);
         const styleSections = Array.from(modal.querySelectorAll('input[name="style-div-sec"]:checked')).map(cb => cb.value);
-        const bAcademic = modal.querySelector('#meeting-bottleneck-academic').value;
-        const userText = modal.querySelector('#meeting-input-text').value.trim();
-        closeModal();
+        const currUser = this.authManager ? this.authManager.getCurrentUser() : null;
+        const userKey = currUser ? (currUser.studentCode || currUser.id || 'A') : (this.state.currentUser || 'A');
+        const memberName = currUser ? currUser.name : (this.state.members[userKey]?.name || userKey);
 
-        const user = this.state.currentUser || 'A';
-        const memberName = this.state.members[user] ? this.state.members[user].name : user;
-        const totalMembersCount = Object.keys(this.state.members || {}).length;
+        // 🛡️ 真实组员人数：从 authManager 严格获取当前工作区绑定的组内真实学生列表
+        let actualGroupMembers = [];
+        if (this.authManager) {
+          const effClassId = this.state.activeStudentClassId || currUser?.classId || 'class_101';
+          const effGroup = this.authManager.getStudentActiveGroup(currUser, effClassId);
+          actualGroupMembers = this.authManager.getGroupMembersForWorkspace(effGroup?.id || this.state.activeGroupId || 'group_1');
+        }
+        const totalMembersCount = Math.max(actualGroupMembers.length, Object.keys(this.state.members || {}).length, 2);
 
         if (!this.state.stage2.meetingSubmissions) this.state.stage2.meetingSubmissions = {};
-        this.state.stage2.meetingSubmissions[user] = {
-          user,
+        this.state.stage2.meetingSubmissions[userKey] = {
+          user: userKey,
           name: memberName,
           ideationConsistency,
           transitionState,
@@ -14236,8 +14262,8 @@
         this.syncChatLogs();
         renderChat(this.state);
 
-        // 3. 平台接管调控：设置【等待组内商讨对齐】状态
-        this.state.stage2PendingReviewing = {
+        // 3. 平台接管调控：设置【等待组内商讨对齐】状态 (写入 stage2.pendingReviewing 全端持久化)
+        this.state.stage2.pendingReviewing = {
           topic,
           bAcademic: primaryAcademicB,
           userText: questionsList,
@@ -14246,13 +14272,16 @@
           timeSubmitted: Date.now(),
           studentMsgCount: 0
         };
+        this.state.stage2PendingReviewing = this.state.stage2.pendingReviewing;
         this.syncStage2();
+        if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
       });
     }
 
     async triggerReviewingEditorAfterDiscussion() {
-      if (!this.state.stage2PendingReviewing) return;
-      const ctx = this.state.stage2PendingReviewing;
+      const ctx = this.state.stage2?.pendingReviewing || this.state.stage2PendingReviewing;
+      if (!ctx) return;
+      if (this.state.stage2) this.state.stage2.pendingReviewing = null;
       this.state.stage2PendingReviewing = null;
       this.syncStage2();
 
