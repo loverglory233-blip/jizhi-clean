@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260829_v690";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash } from "./utils.js?v=20260829_v690";
-import { callCozeAgentAPI } from "./agents.js?v=20260829_v690";
-import { AuthManager } from "./auth.js?v=20260829_v690";
-import { CloudSyncEngine } from "./sync.js?v=20260829_v690";
-import { renderLoginView } from "./login.js?v=20260829_v690";
-import { renderTeacherPortal } from "./teacher.js?v=20260829_v690";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260829_v690";
+} from "./constants.js?v=20260829_v691";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash } from "./utils.js?v=20260829_v691";
+import { callCozeAgentAPI } from "./agents.js?v=20260829_v691";
+import { AuthManager } from "./auth.js?v=20260829_v691";
+import { CloudSyncEngine } from "./sync.js?v=20260829_v691";
+import { renderLoginView } from "./login.js?v=20260829_v691";
+import { renderTeacherPortal } from "./teacher.js?v=20260829_v691";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260829_v691";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260829_v690";
+} from "./editor.js?v=20260829_v691";
 
 // Make renderChat available on window for sync callbacks
 if (typeof window !== "undefined") {
@@ -3811,11 +3811,11 @@ ${propText}
 
 
 
-    // 1. 🎯 审稿编辑第一次动态质检（检测到正文推进到【二、文献综述/问题】或字数达到 100 字以上时触发一次）
+    // 1. 🎯 审稿编辑第一次学术初审（检测到进入【层级2: 方法与设计】或前序立意文献总字数达到 1000 字以上）
     const rawDoc = newContent.replace(/<[^>]*>/g, '').trim();
-    const hasLitOrQuestionSection = /(?:二、|第2章|第二部分|文献综述|三、|第3章|第三部分|研究问题|研究假设)/i.test(newContent);
-    const isFirstMilestoneReached = (rawDoc.length >= 100) || hasLitOrQuestionSection;
-    if (isFirstMilestoneReached && !this.state.stage2FirstReviewDone && timeSinceLastReviewing > 45000) {
+    const hasLayer2MethodSection = /(?:二、|三、|四、|第2章|第3章|第4章|设计|方法|路径|方案|实证|模型|过程|实施|框架|量表|样本|实验|调研|问卷|干预)/i.test(newContent);
+    const isReview1MilestoneReached = (rawDoc.length >= 1000) || (hasLayer2MethodSection && rawDoc.length >= 700);
+    if (isReview1MilestoneReached && !this.state.stage2FirstReviewDone && timeSinceLastReviewing > 45000) {
       this.state.stage2FirstReviewDone = true;
       const topic = (this.state.stage1 && this.state.stage1.mergedTitle) ? this.state.stage1.mergedTitle : '本组课题';
       
@@ -3847,18 +3847,18 @@ ${propText}
       }, 800);
     }
 
-    // 2. 🎯 章节语义里程碑雷达：推进到【总结反思】或正文达到 350 字以上时号召发起【半程编辑会议】
-    const hasReflectionSection = /(?:五、|第5章|第五部分|不足与反思|研究反思|反思与不足|总结与反思|研究局限)/i.test(newContent);
-    const isMidtermMilestoneReached = (rawDoc.length >= 350) || hasReflectionSection;
+    // 2. 🎯 半程编辑会议号召（检测到至少进入【层级3: 讨论/反思/结论/成效】且正文达到 2500 字以上）
+    const hasLayer3ReflectionSection = /(?:五、|六、|第5章|第6章|讨论|反思|不足|局限|展望|结论|总结|对策|建议)/i.test(newContent);
+    const isMeetingMilestoneReached = (rawDoc.length >= 2600) || (hasLayer3ReflectionSection && rawDoc.length >= 2000);
     const isStage2MeetingLocked = this.state.stage2 && this.state.stage2.actionPlan && this.state.stage2.actionPlan.isGenerated;
     const lastManagingMsg = logs.slice().reverse().find(m => m.sender === 'managingEditor');
     const timeSinceLastManaging = lastManagingMsg ? (now - (lastManagingMsg._timeMs || 0)) : 999999;
 
-    if (isMidtermMilestoneReached && !isStage2MeetingLocked && !this.state.stage2MeetingCallSent && timeSinceLastManaging > 45000) {
+    if (isMeetingMilestoneReached && !isStage2MeetingLocked && !this.state.stage2MeetingCallSent && timeSinceLastManaging > 45000) {
       this.state.stage2MeetingCallSent = true;
       const meetingCallMsg = {
         sender: 'managingEditor',
-        text: `🤝 【责任编辑·半程会议号召】：关注到小组成员正文起草已初具规模！请组员点击上方【📢 发起编辑会议】完成 4 维自查打卡，稍后审稿编辑将结合全组情况为大家进行深度内容质检与清单生成！`,
+        text: `🤝 【责任编辑·半程会议号召】：关注到小组成员研究设计与实施方案已基本成型，并逐步推进至讨论反思阶段！请组员点击上方【📢 发起编辑会议】完成 4 维自查打卡，稍后审稿编辑将结合全组情况为大家进行深度内容质检与清单生成！`,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         _timeMs: now
       };
@@ -3867,9 +3867,9 @@ ${propText}
       renderChat(this.state);
     }
 
-    // 4. 🎯 终审里程碑雷达：推进到【六、参考文献】或正文达到 650 字以上时触发终审定稿润色提醒
-    const hasReferenceSection = /(?:六、|第6章|第六部分|参考文献|References)/i.test(newContent);
-    const isFinalMilestoneReached = (rawDoc.length >= 650) || hasReferenceSection;
+    // 3. 🎯 终审里程碑雷达：推进到【参考文献/终稿收尾】（字数 ≥3600字 或 出现参考文献）
+    const hasReferenceSection = /(?:参考文献|References|总结与结语)/i.test(newContent);
+    const isFinalMilestoneReached = (rawDoc.length >= 3600) || (hasReferenceSection && rawDoc.length >= 3000);
     if (isFinalMilestoneReached && !this.state.stage2RefFormatReviewed && timeSinceLastReviewing > 45000) {
       this.state.stage2RefFormatReviewed = true;
       const refReviewMsg = {
