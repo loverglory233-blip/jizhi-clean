@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260830_v698";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash } from "./utils.js?v=20260830_v698";
-import { callCozeAgentAPI } from "./agents.js?v=20260830_v698";
-import { AuthManager } from "./auth.js?v=20260830_v698";
-import { CloudSyncEngine } from "./sync.js?v=20260830_v698";
-import { renderLoginView } from "./login.js?v=20260830_v698";
-import { renderTeacherPortal } from "./teacher.js?v=20260830_v698";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260830_v698";
+} from "./constants.js?v=20260830_v699";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash } from "./utils.js?v=20260830_v699";
+import { callCozeAgentAPI } from "./agents.js?v=20260830_v699";
+import { AuthManager } from "./auth.js?v=20260830_v699";
+import { CloudSyncEngine } from "./sync.js?v=20260830_v699";
+import { renderLoginView } from "./login.js?v=20260830_v699";
+import { renderTeacherPortal } from "./teacher.js?v=20260830_v699";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260830_v699";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260830_v698";
+} from "./editor.js?v=20260830_v699";
 
 // Make renderChat available on window for sync callbacks
 if (typeof window !== "undefined") {
@@ -4060,6 +4060,18 @@ ${propText}
   }
 
   showMeetingModal() {
+    const currUser = this.authManager ? this.authManager.getCurrentUser() : null;
+    let actualGroupMembers = [];
+    if (this.authManager) {
+      const effClassId = this.state.activeStudentClassId || currUser?.classId || 'class_101';
+      const effGroup = this.authManager.getStudentActiveGroup(currUser, effClassId);
+      actualGroupMembers = this.authManager.getGroupMembersForWorkspace(effGroup?.id || this.state.activeGroupId || 'group_1');
+    }
+    const membersList = actualGroupMembers.length > 0 ? actualGroupMembers : Object.values(this.state.members || {});
+    const subs = this.state.stage2?.meetingSubmissions || {};
+    const subCount = Object.keys(subs).length;
+    const totalCount = membersList.length || 2;
+
     const modal = document.createElement('div');
     modal.className = 'modal-overlay';
     modal.innerHTML = `
@@ -4069,6 +4081,20 @@ ${propText}
           <button class="modal-close-btn" id="btn-close-meeting">✕</button>
         </div>
         <div class="teacher-modal-body" style="overflow-y:auto; padding:16px 20px; display:flex; flex-direction:column; gap:12px;">
+          <!-- 全组成员打卡状态矩阵胶囊 -->
+          <div style="background:#eff6ff; border:1px solid #bfdbfe; border-radius:8px; padding:8px 14px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:6px;">
+            <span style="font-size:12px; font-weight:800; color:#1e40af;">👥 全组打卡进度 (${subCount}/${totalCount}人):</span>
+            <div style="display:flex; gap:6px; flex-wrap:wrap;">
+              ${membersList.map(m => {
+                const uid = String(m.id || m.studentCode || m.userId || '').trim();
+                const isSub = !!(subs[uid] || subs[m.name] || subs[m.studentCode] || subs[m.id]);
+                return `<span style="font-size:11px; padding:2px 8px; border-radius:10px; font-weight:700; background:${isSub ? '#ecfdf5' : '#ffffff'}; color:${isSub ? '#059669' : '#64748b'}; border:1px solid ${isSub ? '#a7f3d0' : '#cbd5e1'};">
+                  ${isSub ? '✅' : '⏳'} ${escapeHtml(m.name)}: ${isSub ? '已打卡' : '待打卡'}
+                </span>`;
+              }).join('')}
+            </div>
+          </div>
+
           <!-- 1. 全篇综合自查审计 -->
           <div style="background:#f8fafc; border:1px solid #cbd5e1; border-radius:10px; padding:14px 16px; display:flex; flex-direction:column; gap:12px;">
             <div style="font-size:13px; font-weight:800; color:#1e40af;">📋 一、全篇跨作者交叉审视自查（请跳出单一分工，通读全篇后打卡）</div>
