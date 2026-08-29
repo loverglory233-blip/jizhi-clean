@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState } from './constants.js?v=20260830_v703';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin } from './utils.js?v=20260830_v703';
+import { InitialState } from './constants.js?v=20260830_v704';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin } from './utils.js?v=20260830_v704';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -810,12 +810,26 @@ export class CloudSyncEngine {
     }
 
     if (remoteData.stage2) {
+      if (Array.isArray(remoteData.stage2)) {
+        remoteData.stage2 = { unifiedContent: '', memberContributions: {}, confirmedMembers: {}, meetingSubmissions: {} };
+      }
+      if (!this.app.state.stage2 || Array.isArray(this.app.state.stage2)) {
+        this.app.state.stage2 = {};
+      }
+
+      if (remoteData.stage2.pendingReviewing !== undefined) {
+        this.app.state.stage2.pendingReviewing = remoteData.stage2.pendingReviewing;
+        this.app.state.stage2PendingReviewing = remoteData.stage2.pendingReviewing;
+      }
+      if (remoteData.stage2.reviewMilestone) {
+        this.app.state.stage2.reviewMilestone = remoteData.stage2.reviewMilestone;
+      }
+
       if (remoteData.stage2.unifiedContent !== undefined) {
         let remoteHtml = remoteData.stage2.unifiedContent || '';
         if (remoteHtml.includes('一、研究背景与意义') || remoteHtml.includes('请在此处撰写正文')) {
           remoteHtml = '';
         }
-        if (!this.app.state.stage2) this.app.state.stage2 = {};
         this.app.state.stage2.unifiedContent = remoteHtml;
       }
 

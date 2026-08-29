@@ -2261,6 +2261,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if (!empty($existingS2['actionPlan']['isGenerated']) && empty($incomingS2['actionPlan']['isGenerated'])) {
                     $mergedS2['actionPlan'] = $existingS2['actionPlan'];
                 }
+
+                // 🛡️ 阶段二研讨状态与里程碑合并保护
+                if (isset($incomingS2['pendingReviewing'])) {
+                    $mergedS2['pendingReviewing'] = $incomingS2['pendingReviewing'];
+                } elseif (isset($existingS2['pendingReviewing'])) {
+                    $mergedS2['pendingReviewing'] = $existingS2['pendingReviewing'];
+                }
+
+                if (!empty($incomingS2['reviewMilestone'])) {
+                    $mergedS2['reviewMilestone'] = $incomingS2['reviewMilestone'];
+                } elseif (!empty($existingS2['reviewMilestone'])) {
+                    $mergedS2['reviewMilestone'] = $existingS2['reviewMilestone'];
+                }
             }
 
             // 合并 stage3 (答辩质询与终稿修改)
