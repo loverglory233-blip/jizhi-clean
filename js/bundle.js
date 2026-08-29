@@ -13764,10 +13764,14 @@
         const contentSnippet = (methodIndex > 200) ? rawDoc.slice(0, methodIndex).trim() : rawDoc;
 
         setTimeout(async () => {
-          const firstReviewPrompt = `团队正在撰写课题《${topic}》，目前已写出部分章节。请通读下方【小组当前真实正文草稿】，作为审稿编辑进行实质性学术初审质检（【全局最高红线】：顺应尊重已有构思框架，做局部微调，严禁推翻大改！严禁替写大段正文！）：根据实际草稿质量动态诊断，先肯定当前已写章节的理论/情境亮点，并精准指出 1~3 处实际存在的具体章节、具体变量/论据可深化的优化点（严禁空泛套话，纯自然语言输出，130~150字）！`;
+          const firstReviewPrompt = `团队正在协同撰写课题《${topic}》，目前已完成立意与前序章节起草。
+  请通读下方【小组当前真实正文草稿】，作为国家级教育期刊资深审稿编辑，进行实质性学术初审质检（【全局红线】：顺应尊重已有构思框架，做局部微调，严禁推翻大改！严禁预设具体统计工具，定量/定性/方案均适用）：
+  ① 肯定当前已写章节的立意、现实价值与文献梳理脉络；
+  ② 审查研究述评（Research Gap）是否找准，启发将前文综述的理论概念与后续核心研究问题/待测变量清晰对齐；
+  ③ 指出 1~2 处可深化的具体细节（如核心概念界定或近三年权威文献论据）。严禁空泛套话，纯自然语言输出，130~150字。`;
           let firstReviewText = await callCozeAgentAPI('reviewingEditor', firstReviewPrompt, { stage: 'stage2', topic, actualDoc: contentSnippet });
           if (!firstReviewText || firstReviewText.trim().length === 0) {
-            firstReviewText = `📝 【审稿编辑·初审学术质检】：审阅了大家目前撰写的正文草稿，在已写章节中对研究背景与问题情境的论述非常清晰！建议重点优化以下细节：① 将核心概念的操作化定义与后续教学干预进一步对齐；② 补充近三年相关核心文献支撑论据。请全组继续稳步推进！`;
+            firstReviewText = `📝 【审稿编辑·初审学术质检】：审阅了大家目前撰写的正文草稿，背景立意非常扎实，文献综述的脉络梳理清晰！建议重点优化以下两点：① 进一步凝练研究述评（Gap），将前文文献直接引向核心研究问题与假设；② 统一各组员在背景与综述中使用的核心概念界定。请全组继续稳步推进！`;
           }
           this.state.stage2FirstReviewText = firstReviewText;
           this.state.stage2FirstReviewFinishedTime = Date.now();
@@ -13786,7 +13790,7 @@
         }, 800);
       }
 
-      // 2. 🎯 半程编辑会议号召（检测到至少进入【层级3: 讨论/反思/结论/成效】且正文达到 2500 字以上）
+      // 2. 🎯 半程编辑会议号召（检测到进入反思/讨论 或 正文达到 2400 字以上）
       const hasLayer3ReflectionSection = /(?:五、|六、|第5章|第6章|讨论|反思|不足|局限|展望|结论|总结|对策|建议)/i.test(newContent);
       const isMeetingMilestoneReached = (rawDoc.length >= 2600) || (hasLayer3ReflectionSection && rawDoc.length >= 2000);
       const isStage2MeetingLocked = this.state.stage2 && this.state.stage2.actionPlan && this.state.stage2.actionPlan.isGenerated;
@@ -13797,7 +13801,7 @@
         this.state.stage2MeetingCallSent = true;
         const meetingCallMsg = {
           sender: 'managingEditor',
-          text: `🤝 【责任编辑·半程会议号召】：关注到小组成员研究设计与实施方案已基本成型，并逐步推进至讨论反思阶段！请组员点击上方【📢 发起编辑会议】完成 4 维自查打卡，稍后审稿编辑将结合全组情况为大家进行深度内容质检与清单生成！`,
+          text: `🤝 【责任编辑·半程会议号召】：关注到全组方案与方法设计已基本成型，并逐步推进至反思讨论阶段！请大家停下各自打字，通读搭档负责的模块，点击上方【📢 发起编辑会议】完成全篇综合学术审计打卡。稍后审稿专家将结合全组情况为大家进行深度内容质检并下发【半程修正清单】！`,
           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
           _timeMs: now
         };
@@ -13813,7 +13817,7 @@
         this.state.stage2RefFormatReviewed = true;
         const refReviewMsg = {
           sender: 'reviewingEditor',
-          text: `📝 【审稿编辑·终稿行文扫描诊断】：全篇论文内容已基本定型，整体框架非常完整！在最后收尾阶段，我重点对全文语言表达进行了全维度扫描，请大家重点修正以下具体细节：①【行文与语体】：部分章节中存在个别口语化表述与长句语病，建议润色为规范严谨的学术用语；②【错别字与术语】：个别用词前后术语不统一、存在错别字，建议统一表述并逐一订正。请全组做好细节润色，准备迎接终审答辩！`,
+          text: `📝 【审稿编辑·终稿行文扫描诊断】：全篇论文方案已基本定型，整体框架非常完整！在最后收尾阶段，我重点对全文语言表达进行了全维度扫描：①【行文与学术语体】：部分章节中存在个别口语化表述（如“我们觉得”）与长句语病，建议润色为客观规范的第三人称学术语体；②【术语与错别字】：前后核心概念表述需统一，建议全组通读逐一订正；③【参考文献】：核对引用格式规范。请全组成员完成通读润色后，在上方逐一完成【初稿确认】，准备迎接终审答辩！`,
           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
           _timeMs: now
         };
