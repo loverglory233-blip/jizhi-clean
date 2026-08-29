@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260830_v726
+ * Version: 20260830_v727
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260830_v726';
+  const APP_VERSION = '20260830_v727';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -2959,6 +2959,35 @@
               if (snd === 'managingEditor' && txt.includes('起草提示')) {
                 if (seenWelcome) return;
                 seenWelcome = true;
+              }
+              deduped.push(m);
+            });
+            this.app.state.chatLogs[stg] = deduped;
+          } else if (stg === 'stage3') {
+            const deduped = [];
+            let seenStage3Prop = false;
+            let seenStage3Opp = false;
+            let seenStage3Welcome = false;
+            let seenStage3ChairGuide = false;
+            remoteLogs.forEach(m => {
+              if (!m) return;
+              const snd = m.sender || '';
+              const txt = m.text || '';
+              if (snd === 'proponent' && (txt.includes('正方委员') || txt.includes('立论支持') || txt.includes('通读全篇'))) {
+                if (seenStage3Prop) return;
+                seenStage3Prop = true;
+              }
+              if (snd === 'opponent' && (txt.includes('反方委员') || txt.includes('商讨质询') || txt.includes('尖锐质询'))) {
+                if (seenStage3Opp) return;
+                seenStage3Opp = true;
+              }
+              if (snd === 'neutral' && (txt.includes('中间委员开场') || txt.includes('欢迎来到【阶段三'))) {
+                if (seenStage3Welcome) return;
+                seenStage3Welcome = true;
+              }
+              if (snd === 'neutral' && (txt.includes('答辩思路引导') || txt.includes('质询 ①'))) {
+                if (seenStage3ChairGuide) return;
+                seenStage3ChairGuide = true;
               }
               deduped.push(m);
             });
@@ -13208,9 +13237,13 @@
           if (typeof window.renderChat === 'function') window.renderChat(this.state);
         }
 
-        // 🛡️ 如果正方或反方尚未发表评审，且左侧矩阵未就绪，立即启动答辩委员会全流程评议
+        // 🛡️ 单端触发仲裁：由组内排序第一位成员作为代表发起大模型请求，避免组员双端同时调起产生重复消息
+        const membersList = Object.values(this.state.members || {});
+        const isLeaderClient = !membersList.length || (this.state.currentUser === membersList[0]?.studentCode || this.state.currentUser === membersList[0]?.id || this.state.currentUser === membersList[0]?.username);
+
+        // 🛡️ 如果正方或反方尚未发表评审，且左侧矩阵未就绪，且是组长代表端，立即启动答辩委员会全流程评议
         const needsCommitteeReview = !hasProp || !hasOpp || !this.state.stage3.feedbackItems || this.state.stage3.feedbackItems.length === 0;
-        if (needsCommitteeReview && !this.state.stage3CommitteeEvaluating) {
+        if (needsCommitteeReview && isLeaderClient && !this.state.stage3CommitteeEvaluating) {
           this.state.stage3CommitteeEvaluating = true;
           this.state.stage3CommitteeLoading = true;
           this.renderStudentWorkspace();

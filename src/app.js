@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260830_v726";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash } from "./utils.js?v=20260830_v726";
-import { callCozeAgentAPI } from "./agents.js?v=20260830_v726";
-import { AuthManager } from "./auth.js?v=20260830_v726";
-import { CloudSyncEngine } from "./sync.js?v=20260830_v726";
-import { renderLoginView } from "./login.js?v=20260830_v726";
-import { renderTeacherPortal } from "./teacher.js?v=20260830_v726";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260830_v726";
+} from "./constants.js?v=20260830_v727";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash } from "./utils.js?v=20260830_v727";
+import { callCozeAgentAPI } from "./agents.js?v=20260830_v727";
+import { AuthManager } from "./auth.js?v=20260830_v727";
+import { CloudSyncEngine } from "./sync.js?v=20260830_v727";
+import { renderLoginView } from "./login.js?v=20260830_v727";
+import { renderTeacherPortal } from "./teacher.js?v=20260830_v727";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260830_v727";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260830_v726";
+} from "./editor.js?v=20260830_v727";
 
 // Make renderChat available on window for sync callbacks
 if (typeof window !== "undefined") {
@@ -2986,9 +2986,13 @@ ${fullDiscussionLogs || '成员协商协作撰写'}
         if (typeof window.renderChat === 'function') window.renderChat(this.state);
       }
 
-      // 🛡️ 如果正方或反方尚未发表评审，且左侧矩阵未就绪，立即启动答辩委员会全流程评议
+      // 🛡️ 单端触发仲裁：由组内排序第一位成员作为代表发起大模型请求，避免组员双端同时调起产生重复消息
+      const membersList = Object.values(this.state.members || {});
+      const isLeaderClient = !membersList.length || (this.state.currentUser === membersList[0]?.studentCode || this.state.currentUser === membersList[0]?.id || this.state.currentUser === membersList[0]?.username);
+
+      // 🛡️ 如果正方或反方尚未发表评审，且左侧矩阵未就绪，且是组长代表端，立即启动答辩委员会全流程评议
       const needsCommitteeReview = !hasProp || !hasOpp || !this.state.stage3.feedbackItems || this.state.stage3.feedbackItems.length === 0;
-      if (needsCommitteeReview && !this.state.stage3CommitteeEvaluating) {
+      if (needsCommitteeReview && isLeaderClient && !this.state.stage3CommitteeEvaluating) {
         this.state.stage3CommitteeEvaluating = true;
         this.state.stage3CommitteeLoading = true;
         this.renderStudentWorkspace();
