@@ -29,6 +29,7 @@ echo "3️⃣ [Nginx 排查] 测试 Nginx 代理路由 (/p/ 与 /socket.io):"
 NGINX_PAD_STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1/p/test_diag_pad 2>/dev/null || echo "000")
 echo "   📄 Nginx /p/test_diag_pad 状态码: $NGINX_PAD_STATUS"
 
+# 3.5 检查所有前端静态资源连通性
 echo ""
 echo "3.5️⃣ [静态资源排查] 检查 Etherpad pad.html 引入的所有前端静态文件连通性:"
 PAD_HTML=$(curl -s http://127.0.0.1:9001/p/test_diag_pad 2>/dev/null || echo "")
@@ -38,6 +39,25 @@ echo "$PAD_HTML" | grep -oE '(src|href)="([^"]+\.(js|css|json)[^"]*)"' | while r
     CODE=$(curl -s -o /dev/null -w "%{http_code}" "http://127.0.0.1/$CLEAN_URI" 2>/dev/null || echo "000")
     echo "   - [资源] /$CLEAN_URI => HTTP $CODE"
 done
+
+echo ""
+echo "3.6️⃣ [动态 Chunk 深度探测] 检查 Vite 编译产物目录及子模块:"
+if [ -d "/www/wwwroot/etherpad-lite/src/static/dist" ] || [ -d "/www/wwwroot/etherpad-lite/src/node_modules" ]; then
+    find /www/wwwroot/etherpad-lite/src/static -name "*.min.js" 2>/dev/null | head -n 10 | while read -r jsfile; do
+        REL_NAME=$(basename "$jsfile")
+        CODE=$(curl -s -o /dev/null -w "%{http_code}" "http://127.0.0.1/$REL_NAME" 2>/dev/null || echo "000")
+        echo "   - [子Chunk] /$REL_NAME => HTTP $CODE"
+    done
+fi
+
+echo ""
+echo "3.7️⃣ [Pad 页面 HTML 结构探测] 检查 #padpage 与 #editorloadingbox:"
+if echo "$PAD_HTML" | grep -q 'id="padpage"'; then
+    echo "   🟢 pad.html 包含 #padpage DOM 结构！"
+else
+    echo "   🔴 pad.html 未找到 #padpage，响应预览:"
+    echo "$PAD_HTML" | head -n 10
+fi
 
 # 4. 检查 Socket.IO 握手 (关键：如果这个失败就会导致永久 loading)
 echo ""
