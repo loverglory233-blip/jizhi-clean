@@ -2043,7 +2043,14 @@
             localStorage.setItem(STORAGE_KEY_ANNOUNCEMENTS, JSON.stringify(announcements));
           } catch (e2) {}
         }
+
+        // 3. 及时推送至全局教务元数据，让教师端实时看到已读学生与小组名单
+        this.pushGlobalMeta();
       }
+    }
+
+    markAnnouncementConfirmed(annId, userId, userName, groupId = 'group_1') {
+      return this.markAnnouncementRead(annId, groupId);
     }
 
     // 🧹 存储配额守护清理器：当浏览器 5MB 配额紧张时，自动修剪冗余的历史 Base64 快照
