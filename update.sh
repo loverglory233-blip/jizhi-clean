@@ -16,7 +16,7 @@ TARGET_DIRS=($(printf "%s\n" "${TARGET_DIRS[@]}" | sort -u))
 
 echo "📁 目标目录: ${TARGET_DIRS[*]}"
 
-TARGET_VERSION="20260829_v672"
+TARGET_VERSION="20260829_v673"
 
 echo "⚡ [2/4] 极速同步最新代码包 ($TARGET_VERSION)..."
 TMP=/tmp/jizhi_update
@@ -149,51 +149,51 @@ for cdir in /www/server/panel/vhost/nginx /www/server/nginx/conf/vhost; do
     sed -i '/server_name/a \
     # ETHERPAD_PROXY_START\
     location ^~ /p/ {\
-        proxy_pass http://127.0.0.1:9001/p/;\
+        proxy_pass http://127.0.0.1:9001;\
         proxy_set_header Host $host;\
         proxy_buffering off;\
         proxy_http_version 1.1;\
         proxy_set_header Upgrade $http_upgrade;\
-        proxy_set_header Connection "upgrade";\
+        proxy_set_header Connection $http_connection;\
         proxy_read_timeout 3600s;\
         proxy_send_timeout 3600s;\
     }\
     location ^~ /socket.io {\
-        proxy_pass http://127.0.0.1:9001/socket.io;\
+        proxy_pass http://127.0.0.1:9001;\
         proxy_set_header Host $host;\
         proxy_buffering off;\
         proxy_http_version 1.1;\
         proxy_set_header Upgrade $http_upgrade;\
-        proxy_set_header Connection "upgrade";\
+        proxy_set_header Connection $http_connection;\
         proxy_read_timeout 3600s;\
         proxy_send_timeout 3600s;\
     }\
     location ^~ /static {\
-        proxy_pass http://127.0.0.1:9001/static;\
+        proxy_pass http://127.0.0.1:9001;\
         proxy_set_header Host $host;\
     }\
     location ^~ /javascripts {\
-        proxy_pass http://127.0.0.1:9001/javascripts;\
+        proxy_pass http://127.0.0.1:9001;\
         proxy_set_header Host $host;\
     }\
     location ^~ /pluginfw {\
-        proxy_pass http://127.0.0.1:9001/pluginfw;\
+        proxy_pass http://127.0.0.1:9001;\
         proxy_set_header Host $host;\
     }\
     location ^~ /locales {\
-        proxy_pass http://127.0.0.1:9001/locales;\
+        proxy_pass http://127.0.0.1:9001;\
         proxy_set_header Host $host;\
     }\
     location ^~ /locales.json {\
-        proxy_pass http://127.0.0.1:9001/locales.json;\
+        proxy_pass http://127.0.0.1:9001;\
         proxy_set_header Host $host;\
     }\
     location ^~ /tests {\
-        proxy_pass http://127.0.0.1:9001/tests;\
+        proxy_pass http://127.0.0.1:9001;\
         proxy_set_header Host $host;\
     }\
     location ^~ /ep {\
-        proxy_pass http://127.0.0.1:9001/ep;\
+        proxy_pass http://127.0.0.1:9001;\
         proxy_set_header Host $host;\
     }\
     location ^~ /ws {\
