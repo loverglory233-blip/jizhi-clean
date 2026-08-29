@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState } from './constants.js?v=20260829_v660';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin } from './utils.js?v=20260829_v660';
+import { InitialState } from './constants.js?v=20260829_v661';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin } from './utils.js?v=20260829_v661';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -614,7 +614,6 @@ export class CloudSyncEngine {
     let needWorkspaceRender = !this._hasRenderedInitialWorkspace;
 
     if (remoteData.stage1) {
-      needWorkspaceRender = true;
       const localS1 = this.app.state.stage1 || { proposals: [], votes: {}, hasVoted: {}, contract: {} };
       const remoteS1 = remoteData.stage1;
       const isContractInputActive = document.activeElement && (
