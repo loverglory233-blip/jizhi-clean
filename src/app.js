@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260830_v705";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash } from "./utils.js?v=20260830_v705";
-import { callCozeAgentAPI } from "./agents.js?v=20260830_v705";
-import { AuthManager } from "./auth.js?v=20260830_v705";
-import { CloudSyncEngine } from "./sync.js?v=20260830_v705";
-import { renderLoginView } from "./login.js?v=20260830_v705";
-import { renderTeacherPortal } from "./teacher.js?v=20260830_v705";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260830_v705";
+} from "./constants.js?v=20260830_v706";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash } from "./utils.js?v=20260830_v706";
+import { callCozeAgentAPI } from "./agents.js?v=20260830_v706";
+import { AuthManager } from "./auth.js?v=20260830_v706";
+import { CloudSyncEngine } from "./sync.js?v=20260830_v706";
+import { renderLoginView } from "./login.js?v=20260830_v706";
+import { renderTeacherPortal } from "./teacher.js?v=20260830_v706";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260830_v706";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260830_v705";
+} from "./editor.js?v=20260830_v706";
 
 // Make renderChat available on window for sync callbacks
 if (typeof window !== "undefined") {
@@ -4141,12 +4141,32 @@ ${propText}
           </div>
         </div>
         <div class="teacher-modal-footer" style="padding:12px 20px; border-top:1px solid #e2e8f0; display:flex; justify-content:flex-end; gap:10px;">
-          <button class="modal-btn cancel" id="btn-cancel-meeting">取消</button>
-          <button class="modal-btn submit ann-theme" id="btn-submit-meeting">🚀 提交打卡并生成【半程编辑修正清单】</button>
+          <button class="modal-btn cancel" id="btn-cancel-meeting">关闭</button>
+          <button class="modal-btn submit ann-theme" id="btn-submit-meeting" ${isCurrentUserSubmitted ? 'disabled style="background:#ecfdf5; border:1px solid #a7f3d0; color:#059669; font-weight:800; cursor:default; box-shadow:none;"' : ''}>
+            ${isCurrentUserSubmitted ? '✅ 您已完成打卡 (已提交)' : '🚀 提交打卡并生成【半程编辑修正清单】'}
+          </button>
         </div>
       </div>
     `;
     document.body.appendChild(modal);
+
+    // 🛡️ 若已提交过，回填历史选择数据供查阅
+    if (existingSub) {
+      if (existingSub.ideationConsistency) modal.querySelector('#meeting-ideation-select').value = existingSub.ideationConsistency;
+      if (existingSub.transitionState) modal.querySelector('#meeting-transition-select').value = existingSub.transitionState;
+      if (existingSub.styleState) modal.querySelector('#meeting-style-select').value = existingSub.styleState;
+      if (existingSub.bAcademic) modal.querySelector('#meeting-bottleneck-academic').value = existingSub.bAcademic;
+      if (existingSub.userText) modal.querySelector('#meeting-input-text').value = existingSub.userText;
+      if (Array.isArray(existingSub.ideationSections)) {
+        modal.querySelectorAll('input[name="ideation-sec"]').forEach(cb => { cb.checked = existingSub.ideationSections.includes(cb.value); });
+      }
+      if (Array.isArray(existingSub.transSections)) {
+        modal.querySelectorAll('input[name="trans-div-sec"]').forEach(cb => { cb.checked = existingSub.transSections.includes(cb.value); });
+      }
+      if (Array.isArray(existingSub.styleSections)) {
+        modal.querySelectorAll('input[name="style-div-sec"]').forEach(cb => { cb.checked = existingSub.styleSections.includes(cb.value); });
+      }
+    }
 
     const closeModal = () => document.body.removeChild(modal);
     modal.querySelector('#btn-close-meeting').addEventListener('click', closeModal);
