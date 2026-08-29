@@ -9,8 +9,8 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260829_v652";
-import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash, filterAndDeduplicateChatLogs } from "./utils.js?v=20260829_v652";
+} from "./constants.js?v=20260829_v653";
+import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash, filterAndDeduplicateChatLogs } from "./utils.js?v=20260829_v653";
 
 /* ==========================================================================
    7. TEACHER PORTAL RENDERER (LIVE WORKSPACE MIRROR & ANNOUNCEMENT READ MATRIX)
@@ -2865,12 +2865,13 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
         if (e.target.files && e.target.files[0]) {
           const f = e.target.files[0];
           const sizeMB = (f.size / (1024 * 1024)).toFixed(1) + ' MB';
-          selectedAttachment = { name: f.name, size: sizeMB };
+          selectedAttachment = { name: f.name, size: sizeMB, fileObj: f };
           dropText.innerHTML = `<span style="font-size:24px;">✅</span><div style="font-size:13px; color:#34d399; font-weight:700;">已选中随附文件: ${f.name} (${sizeMB})</div>`;
         }
       });
 
-      modal.querySelector('#btn-submit-new-ann').addEventListener('click', () => {
+      modal.querySelector('#btn-submit-new-ann').addEventListener('click', async () => {
+        const submitBtn = modal.querySelector('#btn-submit-new-ann');
         const selClassId = classSelect.value;
         const selClassObj = allClasses.find(c => c.id === selClassId);
         const selClassName = selClassId === 'all' ? '全校班级' : (selClassObj ? selClassObj.name : '指定班级');
@@ -2898,7 +2899,44 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
         const title = modal.querySelector('#modal-ann-title').value.trim();
         const content = modal.querySelector('#modal-ann-content').value.trim();
         if (!title || !content) { alert('⚠️ 请填齐通知标题与内容！'); return; }
-        authManager.publishAnnouncement(taskId, title, content, selectedAttachment, targetGId, targetGName, selClassId, selClassName, selectedGroupIds);
+
+        submitBtn.disabled = true;
+        submitBtn.innerText = '⏳ 正在上传资源并发布通知...';
+
+        let finalAttachment = null;
+        if (selectedAttachment && selectedAttachment.name) {
+          finalAttachment = {
+            name: selectedAttachment.name,
+            size: selectedAttachment.size,
+            url: ''
+          };
+          if (selectedAttachment.fileObj) {
+            try {
+              const currT = authManager.getCurrentUser();
+              const tId = (currT && (currT.studentCode || currT.username || currT.id)) || '';
+              const tToken = (currT && (currT.token || currT.activeSessionId)) || '';
+
+              const formData = new FormData();
+              formData.append('file', selectedAttachment.fileObj);
+              formData.append('userId', tId);
+              formData.append('token', tToken);
+              const upRes = await fetch('sync.php?action=upload_file', {
+                method: 'POST',
+                body: formData
+              });
+              if (upRes.ok) {
+                const upJson = await upRes.json();
+                if (upJson.success && upJson.url) {
+                  finalAttachment.url = upJson.url;
+                }
+              }
+            } catch (upErr) {
+              console.warn('Attachment upload failed, fallback:', upErr);
+            }
+          }
+        }
+
+        authManager.publishAnnouncement(taskId, title, content, finalAttachment, targetGId, targetGName, selClassId, selClassName, selectedGroupIds);
         closeModal();
         renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
       });
