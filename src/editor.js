@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles } from "./constants.js?v=20260830_v716";
-import { callCozeAgentAPI } from "./agents.js?v=20260830_v716";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs } from "./utils.js?v=20260830_v716";
+import { AgentProfiles } from "./constants.js?v=20260830_v717";
+import { callCozeAgentAPI } from "./agents.js?v=20260830_v717";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs } from "./utils.js?v=20260830_v717";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -1819,6 +1819,15 @@ function renderStage2Canvas(canvas, state, handlers) {
     const wordBadge = canvas.querySelector('#stage2-word-count-num');
     if (wordBadge) wordBadge.innerText = String(plainTextLen);
 
+    const btnShowCase = canvas.querySelector('#btn-show-case');
+    if (btnShowCase) {
+      btnShowCase.innerText = paperBtnLabel;
+      btnShowCase.onclick = (e) => {
+        if (e) { e.preventDefault(); e.stopPropagation(); }
+        handlers.onOpenCaseModal();
+      };
+    }
+
     // 📋 动态增量就地刷新【半程修正清单】(避免重绘 Etherpad iframe 导致内存泄漏或丢失光标)
     const planCardContainer = canvas.querySelector('#stage2-action-plan-card');
     if (planCardContainer) {
@@ -2196,6 +2205,12 @@ function renderStage2Canvas(canvas, state, handlers) {
       });
     });
   }
+
+  const btnShowCaseInit = canvas.querySelector('#btn-show-case');
+  if (btnShowCaseInit) btnShowCaseInit.addEventListener('click', (e) => {
+    if (e) { e.preventDefault(); e.stopPropagation(); }
+    handlers.onOpenCaseModal();
+  });
 
   const btnTrig = canvas.querySelector('#btn-trigger-meeting');
   if (btnTrig) btnTrig.addEventListener('click', () => handlers.onOpenMeetingModal());

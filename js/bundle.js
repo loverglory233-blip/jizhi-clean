@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260830_v716
+ * Version: 20260830_v717
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260830_v716';
+  const APP_VERSION = '20260830_v717';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -9093,6 +9093,15 @@
       const wordBadge = canvas.querySelector('#stage2-word-count-num');
       if (wordBadge) wordBadge.innerText = String(plainTextLen);
 
+      const btnShowCase = canvas.querySelector('#btn-show-case');
+      if (btnShowCase) {
+        btnShowCase.innerText = paperBtnLabel;
+        btnShowCase.onclick = (e) => {
+          if (e) { e.preventDefault(); e.stopPropagation(); }
+          handlers.onOpenCaseModal();
+        };
+      }
+
       // 📋 动态增量就地刷新【半程修正清单】(避免重绘 Etherpad iframe 导致内存泄漏或丢失光标)
       const planCardContainer = canvas.querySelector('#stage2-action-plan-card');
       if (planCardContainer) {
@@ -9470,6 +9479,12 @@
         });
       });
     }
+
+    const btnShowCaseInit = canvas.querySelector('#btn-show-case');
+    if (btnShowCaseInit) btnShowCaseInit.addEventListener('click', (e) => {
+      if (e) { e.preventDefault(); e.stopPropagation(); }
+      handlers.onOpenCaseModal();
+    });
 
     const btnTrig = canvas.querySelector('#btn-trigger-meeting');
     if (btnTrig) btnTrig.addEventListener('click', () => handlers.onOpenMeetingModal());
