@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles } from "./constants.js?v=20260829_v666";
-import { callCozeAgentAPI } from "./agents.js?v=20260829_v666";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs } from "./utils.js?v=20260829_v666";
+import { AgentProfiles } from "./constants.js?v=20260829_v667";
+import { callCozeAgentAPI } from "./agents.js?v=20260829_v667";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs } from "./utils.js?v=20260829_v667";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -1935,12 +1935,17 @@ function renderStage2Canvas(canvas, state, handlers) {
           
           return `
             <div class="word-editor-container" style="display:flex; flex-direction:column; height:100%; min-height:480px; border-radius:10px; overflow:hidden; border:1px solid #cbd5e1; box-shadow:0 4px 16px rgba(15,23,42,0.06); background:#ffffff;">
-              <div id="ep-loading-helper-s2" style="display:flex; align-items:center; justify-content:space-between; background:#f8fafc; border-bottom:1px solid #e2e8f0; padding:4px 12px; font-size:11.5px; color:#64748b;">
-                <span>🟢 Etherpad 协同文档已就绪</span>
-                <button onclick="const f=document.getElementById('stage2-etherpad-frame'); if(f) f.src=f.src;" style="background:transparent; color:#2563eb; border:1px solid #cbd5e1; padding:2px 8px; border-radius:4px; font-size:11px; cursor:pointer; font-weight:600;">🔄 刷新编辑器</button>
+              <div id="ep-loading-helper-s2" style="display:flex; align-items:center; justify-content:space-between; background:#f8fafc; border-bottom:1px solid #e2e8f0; padding:6px 14px; font-size:12px; color:#475569;">
+                <div style="display:flex; align-items:center; gap:8px;">
+                  <span id="ep-status-dot-s2" style="display:inline-block; width:8px; height:8px; border-radius:50%; background:#10b981;"></span>
+                  <span id="ep-status-text-s2" style="font-weight:600;">Etherpad 实时协同引擎已连接 (毫秒级 OT 协同)</span>
+                </div>
+                <div style="display:flex; align-items:center; gap:8px;">
+                  <button onclick="const f=document.getElementById('stage2-etherpad-frame'); if(f) { f.src=f.src; document.getElementById('ep-status-text-s2').innerText='正在重新连接...'; }" style="background:#eff6ff; color:#2563eb; border:1px solid #bfdbfe; padding:3px 10px; border-radius:6px; font-size:11.5px; cursor:pointer; font-weight:700;">🔄 刷新文档连接</button>
+                </div>
               </div>
               <div style="flex:1; min-height:0; position:relative; background:#ffffff;">
-                <iframe id="stage2-etherpad-frame" src="${padUrl}" style="width:100%; height:100%; border:none; display:block; background:#ffffff;" allow="clipboard-read; clipboard-write"></iframe>
+                <iframe id="stage2-etherpad-frame" src="${padUrl}" style="width:100%; height:100%; border:none; display:block; background:#ffffff;" allow="clipboard-read; clipboard-write; fullscreen" onload="const el=document.getElementById('ep-status-text-s2'); if(el) el.innerText='Etherpad 实时协同引擎已就绪 (毫秒级 OT 协同)';"></iframe>
               </div>
             </div>
           `;

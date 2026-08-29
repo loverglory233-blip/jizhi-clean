@@ -16,7 +16,7 @@ TARGET_DIRS=($(printf "%s\n" "${TARGET_DIRS[@]}" | sort -u))
 
 echo "📁 目标目录: ${TARGET_DIRS[*]}"
 
-TARGET_VERSION="20260829_v666"
+TARGET_VERSION="20260829_v667"
 
 echo "⚡ [2/4] 极速同步最新代码包 ($TARGET_VERSION)..."
 TMP=/tmp/jizhi_update
@@ -204,27 +204,90 @@ if [ -n "$MAIN_DIR" ] && [ -d "$MAIN_DIR" ]; then
   php "$MAIN_DIR/api/db_init.php" >/dev/null 2>&1 || true
 fi
 
-# 检查 Etherpad 服务状态
-if ! lsof -i:9001 >/dev/null 2>&1 && ! netstat -tuln 2>/dev/null | grep -q ":9001 "; then
-  echo "   ⚠️ 正在拉起 Etherpad (端口 9001) 服务..."
-  systemctl start etherpad 2>/dev/null || true
-  systemctl start etherpad-lite 2>/dev/null || true
-  pm2 restart etherpad 2>/dev/null || pm2 start etherpad 2>/dev/null || true
-  for ep_dir in /www/wwwroot/etherpad-lite /opt/etherpad-lite /root/etherpad-lite /var/www/etherpad-lite /www/server/etherpad /www/wwwroot/etherpad; do
-    if [ -d "$ep_dir" ]; then
-      cd "$ep_dir"
-      if [ -f "src/node/server.js" ]; then
-        nohup node src/node/server.js > /var/log/etherpad.log 2>&1 &
-        sleep 2
-        break
-      elif [ -f "bin/run.sh" ]; then
-        nohup bash bin/run.sh > /var/log/etherpad.log 2>&1 &
-        sleep 2
+# 🚀 深度自愈与拉起 Etherpad 协同文档引擎
+echo "⚡ 检查与自愈 Etherpad 协同文档服务 (端口 9001)..."
+export PATH="/www/server/nodejs/v20/bin:/www/server/nodejs/v18/bin:/www/server/nodejs/v16/bin:/usr/local/bin:/usr/bin:$PATH"
+for n in /www/server/nodejs/v*/bin; do
+  if [ -d "$n" ]; then
+    export PATH="$n:$PATH"
+    break
+  fi
+done
+
+EP_DIR=""
+for d in /www/wwwroot/47.99.110.230/etherpad-lite /www/wwwroot/etherpad-lite /opt/etherpad-lite /root/etherpad-lite /var/www/etherpad-lite /www/server/etherpad; do
+  if [ -d "$d" ] && [ -f "$d/src/node/server.js" -o -f "$d/bin/run.sh" ]; then
+    EP_DIR="$d"
+    break
+  fi
+done
+
+if [ -n "$EP_DIR" ]; then
+  echo "   📁 定位到 Etherpad 核心目录: $EP_DIR"
+  mkdir -p "$EP_DIR/var"
+  echo "jizhi_academic_secret_key_2026" > "$EP_DIR/APIKEY.txt" 2>/dev/null || true
+  chmod 644 "$EP_DIR/APIKEY.txt" 2>/dev/null || true
+
+  # 写入高可用无拦截 settings.json
+  cat << 'EPSETEOF' > "$EP_DIR/settings.json"
+{
+  "title": "JIZHI Academic Etherpad",
+  "ip": "0.0.0.0",
+  "port": 9001,
+  "dbType": "dirty",
+  "dbSettings": {
+    "filename": "var/dirty.db"
+  },
+  "defaultPadText": "一、研究背景与意义\n\n二、文献综述\n\n三、研究问题与假设\n\n四、研究设计与方法\n\n五、研究设计的不足与反思\n\n六、参考文献\n",
+  "padOptions": {
+    "noColors": true,
+    "showControls": true,
+    "showChat": false,
+    "showLineNumbers": true,
+    "useMonospaceFont": false,
+    "userName": "学术组员"
+  },
+  "suppressErrorsInPadText": true,
+  "requireAuthentication": false,
+  "requireAuthorization": false,
+  "trustProxy": true,
+  "socketTransportProtocols": ["websocket", "polling"],
+  "loadTest": false,
+  "exposeVersion": false,
+  "minify": true,
+  "maxAge": 21600000
+}
+EPSETEOF
+
+  # 若未响应则重启
+  if ! curl -s -I http://127.0.0.1:9001/p/test 2>/dev/null | grep -E "HTTP/(1.1|2) (200|302|404)" >/dev/null; then
+    echo "   🔄 重启 Etherpad 守护进程..."
+    fuser -k 9001/tcp 2>/dev/null || true
+    pkill -9 -f "etherpad" 2>/dev/null || true
+    sleep 1
+    cd "$EP_DIR"
+    export NODE_ENV=production
+    if [ -f "src/node/server.js" ]; then
+      nohup node src/node/server.js > /var/log/etherpad.log 2>&1 &
+    elif [ -f "bin/run.sh" ]; then
+      nohup bash bin/run.sh --root > /var/log/etherpad.log 2>&1 &
+    fi
+
+    for i in {1..15}; do
+      if curl -s -I http://127.0.0.1:9001/p/test 2>/dev/null | grep -E "HTTP/(1.1|2) (200|302|404)" >/dev/null; then
+        echo "   🟢 Etherpad 9001 端口就绪！(耗时 $i 秒)"
         break
       fi
-    fi
-  done
+      sleep 1
+    done
+  else
+    echo "   🟢 Etherpad 9001 端口已在健康运行"
+  fi
 fi
+
+# 校验 Nginx 反代连通性
+NGINX_PAD_STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1/p/test 2>/dev/null || echo "000")
+echo "   📄 Nginx 协同路由 (/p/test) 连通测试状态码: $NGINX_PAD_STATUS"
 
 for dir in "${TARGET_DIRS[@]}"; do
   echo '{"timestamp":0,"groupId":"group_1","presence":{},"chatLogs":{"stage1":[],"stage2":[],"stage3":[]},"stage1":{"mergedTitle":"","votes":{},"hasVoted":{},"proposals":[]},"stage2":{"unifiedContent":"","memberContributions":{"A":0,"B":0,"C":0},"actionPlan":{"isGenerated":false,"items":[]}},"stage3":{"feedbackItems":[]},"currentStage":"stage1","isFinalSubmitted":false}' > "$dir/db_task_default_group_1.json" 2>/dev/null || true
