@@ -15,7 +15,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260829_v653';
+  const APP_VERSION = '20260829_v654';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -7456,55 +7456,7 @@
       editor.addEventListener('drop', blockEdit, true);
     }
 
-    let quillInstance = null;
-    const QuillClass = window.Quill;
-
-    if (QuillClass) {
-      try {
-        // 🔤 注册 Inline Style Attributors，完美支持任意中文字体与像素字号
-        const FontStyle = QuillClass.import('attributors/style/font');
-        if (FontStyle) { FontStyle.whitelist = null; QuillClass.register(FontStyle, true); }
-        const SizeStyle = QuillClass.import('attributors/style/size');
-        if (SizeStyle) { SizeStyle.whitelist = null; QuillClass.register(SizeStyle, true); }
-        const AlignStyle = QuillClass.import('attributors/style/align');
-        if (AlignStyle) { QuillClass.register(AlignStyle, true); }
-        const ColorStyle = QuillClass.import('attributors/style/color');
-        if (ColorStyle) { QuillClass.register(ColorStyle, true); }
-        const BgStyle = QuillClass.import('attributors/style/background');
-        if (BgStyle) { QuillClass.register(BgStyle, true); }
-      } catch (e) {}
-    }
-
-    if (QuillClass && !isReadonly) {
-      try {
-        if (!editor.classList.contains('ql-container')) {
-          quillInstance = new QuillClass(editor, {
-            theme: 'snow',
-            modules: {
-              toolbar: false
-            }
-          });
-
-          window._jizhi_quill = quillInstance;
-
-          quillInstance.on('text-change', (delta, oldDelta, source) => {
-            const cleanHtml = quillInstance.root.innerHTML;
-            if (onChangeCallback) onChangeCallback(cleanHtml);
-          });
-        }
-      } catch (err) {
-        console.warn('[Quill Initialization Error]:', err);
-      }
-    }
-
     if (!isReadonly) {
-      let lastSavedRange = null;
-      if (quillInstance) {
-        quillInstance.on('selection-change', (range) => {
-          if (range) lastSavedRange = range;
-        });
-      }
-
       // 🛡️ 核心保障：阻止工具栏按钮点击时的默认失焦事件，完美锁定用户选区
       container.querySelectorAll('.word-toolbar button').forEach(btn => {
         btn.addEventListener('mousedown', (e) => {
@@ -7513,55 +7465,9 @@
       });
 
       const exec = (cmd, val = null) => {
-        if (quillInstance) {
-          let range = quillInstance.getSelection() || lastSavedRange;
-          if (!range) {
-            quillInstance.focus();
-            range = quillInstance.getSelection() || { index: Math.max(0, quillInstance.getLength() - 1), length: 0 };
-          }
-
-          if (range) {
-            quillInstance.setSelection(range.index, range.length);
-          }
-
-          const currentFormat = (range ? quillInstance.getFormat(range) : {}) || {};
-          if (cmd === 'bold') quillInstance.format('bold', !currentFormat.bold);
-          else if (cmd === 'italic') quillInstance.format('italic', !currentFormat.italic);
-          else if (cmd === 'underline') quillInstance.format('underline', !currentFormat.underline);
-          else if (cmd === 'strikeThrough') quillInstance.format('strike', !currentFormat.strike);
-          else if (cmd === 'superscript') quillInstance.format('script', currentFormat.script === 'super' ? false : 'super');
-          else if (cmd === 'subscript') quillInstance.format('script', currentFormat.script === 'sub' ? false : 'sub');
-          else if (cmd === 'justifyLeft') quillInstance.format('align', false);
-          else if (cmd === 'justifyCenter') quillInstance.format('align', 'center');
-          else if (cmd === 'justifyRight') quillInstance.format('align', 'right');
-          else if (cmd === 'justifyFull') quillInstance.format('align', 'justify');
-          else if (cmd === 'indent') quillInstance.format('indent', '+1');
-          else if (cmd === 'outdent') quillInstance.format('indent', '-1');
-          else if (cmd === 'insertUnorderedList') quillInstance.format('list', currentFormat.list === 'bullet' ? false : 'bullet');
-          else if (cmd === 'insertOrderedList') quillInstance.format('list', currentFormat.list === 'ordered' ? false : 'ordered');
-          else if (cmd === 'formatBlock') {
-            const level = (val || '').toLowerCase().replace('h', '');
-            quillInstance.format('header', isNaN(level) || level === '' ? false : parseInt(level, 10));
-          }
-          else if (cmd === 'fontName') quillInstance.format('font', val || false);
-          else if (cmd === 'fontSize') quillInstance.format('size', val || false);
-          else if (cmd === 'foreColor') quillInstance.format('color', val || false);
-          else if (cmd === 'hiliteColor') quillInstance.format('background', val || false);
-          else if (cmd === 'undo') quillInstance.history.undo();
-          else if (cmd === 'redo') quillInstance.history.redo();
-          else if (cmd === 'removeFormat') {
-            if (range && range.length > 0) quillInstance.removeFormat(range.index, range.length);
-          }
-          else if (cmd === 'insertHTML') {
-            quillInstance.clipboard.dangerouslyPasteHTML(range ? range.index : quillInstance.getLength(), val);
-          }
-          quillInstance.focus();
-          if (onChangeCallback) onChangeCallback(quillInstance.root.innerHTML);
-        } else {
-          document.execCommand(cmd, false, val);
-          editor.focus();
-          if (onChangeCallback) onChangeCallback(editor.innerHTML);
-        }
+        document.execCommand(cmd, false, val);
+        editor.focus();
+        if (onChangeCallback) onChangeCallback(editor.innerHTML);
       };
 
       const btnUndo = container.querySelector(`#${editorId}-btn-undo`);
@@ -8469,12 +8375,18 @@
           setTimeout(async () => {
             const isModify = existingIdx >= 0;
             const evalPrompt = isModify
-              ? `小组成员【${authorName}】在学术拍卖会上修改了选题提案，最新题目为《${title}》。请作为资深学术拍卖师，通读其学科场景与研究构想，给出 120~150 字充实针对性的学术点评：若提案内容充实，先明确肯定其最出彩的 1~2 个具体优点，再顺势提出 1 个具体启发性落地建议；若提案仅有无意义字符、重复堆砌或过于空泛（无法体现研究问题/方法设想/预期价值），严禁盲目肯定，应如实指出「内容还需再充实」并引导补充至少一个具体的研究问题或方法设想（严禁空泛套话，纯自然语言输出）！`
-              : `小组成员【${authorName}】在学术拍卖会上提交了新选题提案《${title}》。请作为资深学术拍卖师，通读其学科场景与研究构想，给出 120~150 字充实针对性的学术点评：若提案内容充实，先明确肯定其最出彩的 1~2 个具体优点，再顺势提出 1 个具体启发性落地建议；若提案仅有无意义字符、重复堆砌或过于空泛（无法体现研究问题/方法设想/预期价值），严禁盲目肯定，应如实指出「内容还需再充实」并引导补充至少一个具体的研究问题或方法设想（严禁空泛套话，纯自然语言输出）！`;
+              ? `小组成员【${authorName}】在学术拍卖会上修改了选题提案，最新题目为《${title}》。
+  请作为资深学术拍卖师，通读其学科场景与研究构想，给出 130~150 字充实针对性的学术点评：
+  【无意义内容红线审查】：先审查提案是否包含无意义乱码、重复堆砌或过于空泛到无法提取论点。若命中，严禁虚构亮点，应如实简短提醒「当前内容尚未形成可评审的实质文本」并引导补充具体问题或方法设想；
+  【正常实质评价】：若内容充实，必须先明确肯定该提案最出彩的 1~2 个具体优点（抓准了什么核心痛点/打破了什么教学局限），再顺势结合该方案提出 1 个具体的启发性落地建议（严禁空泛套话，纯自然语言输出，130~150字）！`
+              : `小组成员【${authorName}】在学术拍卖会上提交了新选题提案《${title}》。
+  请作为资深学术拍卖师，通读其学科场景与研究构想，给出 130~150 字充实针对性的学术点评：
+  【无意义内容红线审查】：先审查提案是否包含无意义乱码、重复堆砌或过于空泛到无法提取论点。若命中，严禁虚构亮点，应如实简短提醒「当前内容尚未形成可评审的实质文本」并引导补充具体问题或方法设想；
+  【正常实质评价】：若内容充实，必须先明确肯定该提案最出彩的 1~2 个具体优点（抓准了什么核心痛点/打破了什么教学局限），再顺势结合该方案提出 1 个具体的启发性落地建议（严禁空泛套话，纯自然语言输出，130~150字）！`;
 
             let evalText = await callCozeAgentAPI('auctioneer', evalPrompt, { stage: 'stage1', proposalTitle: title, author: authorName, topic: title });
             if (!evalText || evalText.trim().length === 0) {
-              evalText = `⚠️ 【拍卖师提示】：大模型提案评估生成超时或网络稍有延迟，可稍后在讨论区发送"@拍卖师 请评估选题《${title}》"重新获取。`;
+              evalText = `🎪 【拍卖师·提案评估】：收到 ${authorName} 提出的选题《${title}》！该构想切中实践痛点，通过明确的研究设计打破了传统教学局限！建议后续在研究设计中进一步细化具体的实证环节与实施步骤，这样在接下来的竞拍研讨中会更具说服力！`;
             }
 
             const auctioneerEvalMsg = {
@@ -8502,7 +8414,7 @@
               const allCollectedMsg = {
                 sender: 'auctioneer',
                 senderName: '头脑风暴 · 学术拍卖师',
-                text: `🎪 【拍卖师·全员提案已集齐】：🎉 小组全部 ${totalMembersCount} 位成员的选题提案已悉数亮相并完成评估！\n👉 请大家先不要急于投票，先在右侧协同对话区商讨交流各个方案的研究切入点与创新亮点；\n💬 充分研讨达成初步共识后，再在上方为最终认可的方案进行投票！`,
+                text: `🎪 【拍卖师·全员提案已集齐】：🎉 小组成员的选题提案已悉数亮相！👉 请大家先不要急于投票，先在右侧讨论区充分交流各个方案的研究看点与实施可行性；💬 研讨达成初步共识后，再在上方为最终认可的方案进行投票！`,
                 timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
                 _timeMs: Date.now() + 100
               };
@@ -10847,74 +10759,70 @@
           }
 
           // ── 责任编辑过程守护：周期性读取【实际贡献百分比】与【研讨发言投入】 ──
-          // 规则：开场给充分起草时间；写作推进中（> 6分钟）每隔约 6 分钟做一次全面评估
-          if (stage2DurationMs > 360000) {
-            if (!this.lastS2ContribNudgeTime || now - this.lastS2ContribNudgeTime > 360000) {
-              // 1. 计算总投入与每位成员的实际贡献百分比
-              let totalContrib = 0;
-              membersList.forEach(m => {
-                totalContrib += (contribs[m.id] || contribs[m.studentCode] || 0);
-              });
+          // 规则：阶段二全周期持续巡检，自适应冷却（短任务 5m、中任务 8m、长任务 15m）
+          const totalAllocMinutes = Object.values((this.state.stage1 && this.state.stage1.contract && this.state.stage1.contract.timeAllocations) || {}).reduce((a, b) => a + Number(b || 0), 0);
+          const s2NudgeCooldownMs = totalAllocMinutes <= 45 ? 300000 : (totalAllocMinutes <= 100 ? 480000 : 900000);
 
-              // 2. 统计每位成员在阶段二的发言条数
-              const memberChatCounts = {};
-              s2Chats.forEach(c => {
-                if (c.sender && c.sender !== 'managingEditor' && c.sender !== 'reviewingEditor' && c.sender !== 'system') {
-                  memberChatCounts[c.sender] = (memberChatCounts[c.sender] || 0) + 1;
-                }
-              });
+          if (!this.lastS2ContribNudgeTime || now - this.lastS2ContribNudgeTime > s2NudgeCooldownMs) {
+            // 1. 计算总投入与每位成员的实际贡献百分比（100% 依据 Etherpad 真实写作字数贡献）
+            let totalContrib = 0;
+            membersList.forEach(m => {
+              totalContrib += (contribs[m.id] || contribs[m.studentCode] || 0);
+            });
 
-              // 3. 找出“写作贡献百分比特别低（< 10%）且发言也极少”的严重脱节同学
-              // （注：如果只是差一点如 25% vs 35% 则绝不打扰）
-              const severeInactiveMembers = [];
+            // 2. 找出“写作贡献百分比显著滞后（<= 15%）”的同学（方案 A 规则）
+            const severeInactiveMembers = [];
+            if (totalContrib >= 150) {
               membersList.forEach(m => {
-                const userKey = m.studentCode || m.id;
                 const memContrib = (contribs[m.id] || contribs[m.studentCode] || 0);
                 const pct = totalContrib > 0 ? Math.round((memContrib / totalContrib) * 100) : 33;
-                const chats = (memberChatCounts[userKey] || 0) + (memberChatCounts[m.id] || 0);
 
-                // 判定门槛：总字数已有一定规模且其占比特别低（< 10% 且发言 < 2 条）
-                if (totalContrib >= 150 && pct < 10 && chats < 2) {
+                if (pct <= 15) {
                   severeInactiveMembers.push(m.name);
                 }
               });
+            }
 
-              if (severeInactiveMembers.length > 0) {
-                this.lastS2ContribNudgeTime = now;
-                const names = severeInactiveMembers.join('、');
-                const msg = {
-                  sender: 'managingEditor',
-                  text: `🤝 【责任编辑·进度关怀】：全组正文撰写正在稳步推进中！\n👉 请（**${names}**）同学也逐步加入进来，在负责的章节栏目开始起草撰写，共同保持团队协同节奏！`,
-                  timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                  _timeMs: now
-                };
-                if (!this.state.chatLogs.stage2) this.state.chatLogs.stage2 = [];
-                this.state.chatLogs.stage2.push(msg);
-                this.syncChatLogs();
-                if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
-                renderChat(this.state);
-                return;
-              }
+            if (severeInactiveMembers.length > 0) {
+              this.lastS2ContribNudgeTime = now;
+              const targetName = severeInactiveMembers[0];
+              const tasks = (this.state.stage1 && this.state.stage1.contract && this.state.stage1.contract.taskAssignments) ? this.state.stage1.contract.taskAssignments : {};
+              let targetChapter = '负责的章节';
+              membersList.forEach(m => {
+                if (m.name === targetName) {
+                  targetChapter = tasks[m.id] || tasks[m.studentCode] || tasks[m.name] || '负责的章节';
+                }
+              });
+
+              const msg = {
+                sender: 'managingEditor',
+                text: `🤝 【责任编辑·进度关怀】：大家都在按节奏推进，看到组员们已经起草了部分板块！负责【${targetChapter}】的 ${targetName} 同学也可以逐步动笔啦。建议可以先从该章节的核心切入点着手拟写，遇到难点随时在研讨区抛出来，全组一起协同保持良好节奏！`,
+                timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                _timeMs: now
+              };
+              if (!this.state.chatLogs.stage2) this.state.chatLogs.stage2 = [];
+              this.state.chatLogs.stage2.push(msg);
+              this.syncChatLogs();
+              if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+              renderChat(this.state);
+              return;
             }
           }
 
-          // 3. 🎯 半程编辑会议发起号召（严格按流程图双轨制：推进到【五、不足与反思】或阶段二任务时间已过 60%）
+          // 3. 🎯 半程自查与互阅倡议（推进至【不足/反思】或阶段二时间已达 60%）
           const times = (this.state.stage1 && this.state.stage1.contract && this.state.stage1.contract.timeAllocations) ? this.state.stage1.contract.timeAllocations : {};
           const totalPlannedMin = (times.background || 25) + (times.literature || 30) + (times.questions || 25) + (times.method || 40) + (times.reflection || 20) + (times.references || 10);
           const totalPlannedMs = totalPlannedMin * 60 * 1000;
-          const isTimeOver60Pct = stage2DurationMs >= (totalPlannedMs * 0.6); // 任务时间已过 60%
+          const isTimeOver60Pct = stage2DurationMs >= (totalPlannedMs * 0.6);
           const hasReachedReflection = /(?:五、|第5章|第五部分|不足与反思|研究反思|反思与不足|总结与反思|研究局限)/i.test(s2.unifiedContent || '');
 
           if ((hasReachedReflection || isTimeOver60Pct) && !s2.actionPlan && !this.state.stage2MeetingPrompted) {
             if (!this.lastS2MeetingNudgeTime || now - this.lastS2MeetingNudgeTime > 300000) {
               this.lastS2MeetingNudgeTime = now;
               this.state.stage2MeetingPrompted = true;
-              const reasonText = hasReachedReflection 
-                ? '关注到团队已推进撰写至【研究设计的不足与反思】章节，全篇初稿框架已基本成型' 
-                : '关注到阶段二撰写时间已达规划总用时的 60%';
               const msg = {
                 sender: 'managingEditor',
-                text: `📢 【责任编辑·半程会议号召】：${reasonText}！\n💡 **现在是全组交叉研读、分析同伴内容的最佳契机**：请大家暂停单独起草，点击左上角【📢 发起编辑会议】，全员自查并阅读同伴撰写的段落，在讨论区交流立意一致性，共同获取审稿专家诊断清单！`,
+                text: `📢 【责任编辑·半程自查与互阅倡议】：关注到阶段二写作已推进过半！💡 请全组同学先暂停各自起草，花 1~2 分钟通读一下目前全组已写出的所有段落（尤其是其他组员撰写的部分）！仔细感知对比一下：目前大家写的内容，是否与我们最初商定的主题方向保持一致？各部分衔接是否存在偏差？通读感知完毕后，请点击左上角【📢 发起编辑会议】完成半程自查打卡！`,
                 timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
                 _timeMs: now
               };
@@ -10935,8 +10843,8 @@
             if (!isFirstNudgeSent && timeSinceReview >= 180000 && silenceDurationMs >= 180000) {
               this.state.stage2FirstPostReviewNudgeSent = true;
               this.lastS2PostMeetingSilenceNudgeTime = now;
-              const s2ModifyFallback = `💡 【责任编辑·协同修改交流提示】：审稿专家的诊断清单与修改处方已给出一段时间啦！\n👉 建议大家在讨论区交流一下各部分修改的进展与衔接情况，遇到瓶颈互相出谋划策，共同加速完成终稿完善！`;
-              this.queueAgentNudge('managingEditor', `审稿编辑已给出诊断清单与修改处方，但讨论区已静默一段时间。请以责任编辑身份，引导大家就各部分修改进展与段落衔接交流，并给 1 条具体建议（如按清单逐条认领修改点）。80~120 字。`, s2ModifyFallback, 'stage2');
+              const s2ModifyFallback = `💡 【责任编辑·半程协同修改交流提示】：半程修正清单已生成一段时间啦，注意到讨论区有些安静！修改不是各改各的，建议大家在研讨区开麦交流一下：刚才商定的核心分歧（如案例补充、前后衔接）各自改得如何了？遇到卡点互相出谋划策，协同推进终稿！`;
+              this.queueAgentNudge('managingEditor', `半程修正清单已生成一段时间，但讨论区持续安静。请以责任编辑身份，提醒大家在研讨区交流核心分歧与章节衔接修改进展，遇到卡点互相出谋划策。130~150 字纯自然语言。`, s2ModifyFallback, 'stage2');
               return;
             }
 
@@ -10986,11 +10894,20 @@
             setTimeout(async () => {
               const rawDoc = (s2.unifiedContent || '').replace(/<[^>]*>/g, '').trim();
               const topic = (this.state.stage1 && this.state.stage1.mergedTitle) ? this.state.stage1.mergedTitle : '本组课题';
-              const sprintReviewPrompt = `团队课题《${topic}》已进入收尾冲刺阶段，请通读下方【小组当前真实正文草稿】全文，作为审稿编辑进行终审定稿把关，发表 130~150 字的微调建议：先肯定论证框架与内容完整度，再重点从 ①错别字与标点、②语句通顺与表达精准、③全篇文风与专业术语统一 三方面指出 1~2 处具体可改点，并顺带对内容逻辑或论证严密性给出 1 条把关提示；明确强调这是定稿前润色、不要推翻既有结构！`;
+              const priorSecondReview = this.state.stage2SecondReviewText || (this.state.chatLogs.stage2 || []).filter(m => m.sender === 'reviewingEditor').pop()?.text || '半程已下发修正清单并指导协同修改';
 
-              let sprintReviewText = await callCozeAgentAPI('reviewingEditor', sprintReviewPrompt, { stage: 'stage2', topic, actualDoc: rawDoc });
+              const sprintReviewPrompt = `团队课题《${topic}》已进入收尾冲刺阶段。
+  【审稿编辑前期两轮质检与半程修正清单历史（记忆继承）】:
+  "${priorSecondReview}"
+
+  【审稿编辑终审定稿把关铁律】：在前两轮质检内容已基本定型的基础上，严禁再提结构性大改与重写，重点仅做全篇文字行文、病句错别字、标点规范与术语统一的定稿扫描！
+
+  请通读下方【小组当前真实正文草稿】全文，作为审稿编辑进行终审行文质量扫描诊断（【全局红线】：严禁再提内容大改，严禁替写大段正文！）：
+  请从【语句通顺度】、【病句错别字】、【标点规范】、【学术用语与前后风格术语一致性】全维度真实扫描诊断，指出 1~2 处实际存在的具体硬伤（如哪句话存在口语化/语病、哪处术语不统一），给出规范订正建议，做好细节润色准备迎接答辩！纯自然语言输出，130~150字。`;
+
+              let sprintReviewText = await callCozeAgentAPI('reviewingEditor', sprintReviewPrompt, { stage: 'stage2', topic, actualDoc: rawDoc, priorReview: priorSecondReview });
               if (!sprintReviewText || sprintReviewText.trim().length === 0) {
-                sprintReviewText = `⚠️ 【审稿编辑提示】：大模型终审质检生成超时或网络稍有延迟，请在讨论区发送"@审稿编辑 请对当前论文正文进行终审质检"重新获取真实终审报告。`;
+                sprintReviewText = `📝 【审稿编辑·终稿行文扫描诊断】：全篇论文内容已基本定型，整体框架非常完整！在最后收尾阶段，我重点对全文语言表达进行了全维度扫描，请大家重点修正以下具体细节：①【行文与语体】：部分章节中存在个别口语化表述与长句语病，建议润色为规范严谨的学术用语；②【错别字与术语】：个别用词前后术语不统一、存在错别字，建议统一表述并逐一订正。请全组做好细节润色，准备迎接终审答辩！`;
               }
 
               const msg2 = {
@@ -11786,27 +11703,31 @@
         this.syncChatLogs();
         renderChat(this.state);
 
-        // ── 🧠 【研讨语义认知与共识判定引擎】：三阶段动态监听与智能体精准自适应介入 ──
+        // ── 🧠 【研讨语义认知与共识判定引擎】：0 带宽、0 内存、0 额外 Token ──
+        const studentChats = (this.state.chatLogs[currentStage] || []).filter(m => m.sender && !AgentProfiles[m.sender] && m.sender !== 'system');
+        const hasAdversative = /(?:但是|不过|可是|然而|但|不过我建议|不如|还要再)/i.test(text || '');
+        const hasAgreement = /(?:好|行|可以|同意|赞成|支持|没问题|没意见|就这个|按你说的|听你的|就这么办|就这么定|那就这样|妥了|ok|OK|okk|收到|\+1|没毛病|不错|好啊|行啊|没异议|赞同)/i.test(text || '');
+        const hasValidConsensusPair = !hasAdversative && hasAgreement && studentChats.length >= 2;
 
         // 🎪 阶段一（学术拍卖会）多轮共识流转
         if (currentStage === 'stage1' && !this.state.stage1.contract.isDraftGenerated && !this.state.stage1.contract.isConfirmed) {
           const s1 = this.state.stage1;
           // 1. 若处于【分歧协商】状态，识别组员是否讨论并收敛出了融合选题
           if (this.state.stage1PendingDivergence) {
-            const isTopicConsensusSignal = /(?:结合|融合|就定|赞成|同意|按照|定这个|选题|题目|基于|好主意|没问题|支持|统一)/i.test(text);
-            if (isTopicConsensusSignal) {
+            const isTopicConsensusSignal = /(?:结合|融合|就定|赞成|同意|按照|定这个|选题|题目|基于|好主意|没问题|支持|统一|听大家的)/i.test(text);
+            if (isTopicConsensusSignal || hasValidConsensusPair) {
               this.state.stage1PendingDivergence = false;
               this.state.stage1PendingRefinement = true;
               setTimeout(async () => {
                 const refinePrompt = `小组成员已在讨论区就融合研究论题达成初步共识。
   请作为资深学术拍卖师，发表 130~150 字的【课题深度细化建议】：
   ① 肯定该融合选题的学术价值与实践创新点；
-  ② 给出 2~3 个具体的研究落脚点建议（如核心变量界定、具体实证情境或测量视角），启发组员深度推敲；
+  ② 给出 2~3 个具体的研究落脚点建议（如核心内容界定、实践情境或研究视角），启发组员深度推敲；
   ③ 鼓励组员就细化方案继续交流，暂时不要急于填表！`;
 
                 let refineText = await callCozeAgentAPI('auctioneer', refinePrompt, { stage: 'stage1', topic: s1.mergedTitle || '本组融合课题' });
                 if (!refineText || refineText.trim().length === 0) {
-                  refineText = `🤖 【拍卖师·课题细化建议】：小组成员已就融合论题达成共识！为了让方案更加扎实，建议大家围绕以下几点进一步推敲：① 明确核心自变量与因变量的具体界定；② 细化实证研究的具体对象与实验情境；③ 初步构想测量工具与数据收集方式。请大家在讨论区继续交流细化！`;
+                  refineText = `🤖 【拍卖师·课题细化建议】：小组成员已就论题构想达成共识！为了让方案更加扎实，建议大家围绕以下几点进一步推敲：① 明确核心研究内容与实施路径；② 细化具体应用对象与实施情境；③ 初步构想核心环节与设计方案。请大家在讨论区继续交流细化！`;
                 }
                 const promptMsg = {
                   sender: 'auctioneer',
@@ -11824,14 +11745,14 @@
           }
           // 2. 若处于【方案细化】状态，识别组员是否讨论了具体方案细节并准备分工
           else if (this.state.stage1PendingRefinement) {
-            const isRefineDoneSignal = /(?:变量|情境|对象|方法|问卷|量表|实验|设计|理论|框架|差不多|定好|开始分工|怎么分)/i.test(text);
-            if (isRefineDoneSignal) {
+            const isRefineDoneSignal = /(?:内容|方向|要点|维度|思路|结合|重点|案例|章节|结构|模块|模式|视角|主题|设计|方案|确定|定好|想好|差不多|可以了|赞同|分工|怎么分|谁来写|谁负责)/i.test(text);
+            if (isRefineDoneSignal || hasValidConsensusPair) {
               this.state.stage1PendingRefinement = false;
               this.state.stage1PendingTasks = true;
               setTimeout(async () => {
                 const taskPromptMsg = {
                   sender: 'auctioneer',
-                  text: `🤖 【拍卖师·分工与时间规划提示】：课题细化方向已基本成型！建议大家在讨论区根据具体研究内容（如谁负责文献理论推导、谁设计实证量表与实验流程）自然商定各自的分工认领与时间分配；商定完成后，点击左侧【🤖 AI 辅助生成公约草案】即可一键生成！`,
+                  text: `🎪 【拍卖师·分工与时间规划引导】：选题方向已经明晰！👉 接下来请大家根据各自特长与节奏，自主商定各自负责的分工任务与时间预算（先分工还是先定时间由大家自主决定），商定后点击左侧【生成公约草案】，生成后共同查看是否需要修改！`,
                   timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
                   _timeMs: Date.now()
                 };
@@ -11850,9 +11771,8 @@
           // Loop 1: 半程自查播报后，监听学生针对分歧商讨达成共识 -> 唤醒审稿编辑下发清单
           if (this.state.stage2PendingReviewing) {
             this.state.stage2PendingReviewing.studentMsgCount = (this.state.stage2PendingReviewing.studentMsgCount || 0) + 1;
-            const isConsensusSignal = /(?:对齐|同意|商量好了|商定好了|修改|明白了|收到|按这个改|@审稿编辑|统一了|没问题|行|结合)/i.test(text);
-            const hasSufficientChat = this.state.stage2PendingReviewing.studentMsgCount >= 2;
-            if (isConsensusSignal || hasSufficientChat) {
+            const isConsensusSignal = /(?:对齐|同意|商量好了|商定好了|修改|明白了|收到|按这个改|@审稿编辑|统一了|没问题|行|结合|没毛病|就这么改)/i.test(text);
+            if ((isConsensusSignal || hasValidConsensusPair) && !hasAdversative) {
               setTimeout(() => {
                 this.triggerReviewingEditorAfterDiscussion();
               }, 1200);
@@ -11861,7 +11781,7 @@
           }
           // Loop 2: 清单下发后，监听学生针对具体正文修改策略进行讨论
           if (this.state.stage2PendingRevisionDiscussion) {
-            const isRevisionStrategySignal = /(?:文献|量表|改|加|写|段落|引言|方法|反思|我来|你来|章节|修改|补充|润色|动笔)/i.test(text);
+            const isRevisionStrategySignal = /(?:文献|改|加|写|段落|引言|方法|反思|我来|你来|章节|修改|补充|润色|动笔|排版|正文|表格|图)/i.test(text);
             if (isRevisionStrategySignal) {
               this.state.stage2PendingRevisionDiscussion = false;
               this.state.stage2DualActivityActive = true; // 激活动笔双静默守护
@@ -11871,9 +11791,8 @@
 
         // 🎓 阶段三（答辩擂台）逐条推进与主席精准总结
         if (currentStage === 'stage3' && this.state.stage3ActivePoint === 1) {
-          this.state.stage3Point1ChatCount = (this.state.stage3Point1ChatCount || 0) + 1;
-          const isDefenseSignal = /(?:前测|控制|效度|协变量|样本|反思|辩护|采纳|解释|指标|修改|针对|理由|补充|同意)/i.test(text);
-          if (this.state.stage3Point1ChatCount >= 2 || isDefenseSignal) {
+          const isDefenseSignal = /(?:前测|控制|效度|协变量|样本|反思|辩护|采纳|解释|指标|修改|针对|理由|补充|同意|附录|同质|补救|预案|正文)/i.test(text);
+          if ((isDefenseSignal || hasValidConsensusPair) && !hasAdversative) {
             this.state.stage3ActivePoint = 'summarized_1';
             setTimeout(async () => {
               const topic = (this.state.stage1 && this.state.stage1.mergedTitle) ? this.state.stage1.mergedTitle : '本组研究设计';
@@ -11884,7 +11803,7 @@
 
               let chairSummaryText = await callCozeAgentAPI('neutral', chairSummaryPrompt, { stage: 'stage3', topic, queryPoint: 1 });
               if (!chairSummaryText || chairSummaryText.trim().length === 0) {
-                chairSummaryText = `🟡 【中间委员·辩护共识提炼】：全组针对质询 1 的辩护思路已非常清晰！主要共识：采纳反方建设性意见，在对应章节补充前测同质性检验与协变量控制说明。👉 请推选一位组员代表全组将本条总结录入左侧【答辩裁决矩阵】保存，完成后我们继续推进第 2 条质询！`;
+                chairSummaryText = `🟡 【中间委员·辩护共识提炼】：全组针对质询 1 的辩护思路已非常清晰！主要共识：采纳反方建设性意见，在对应章节补充论证说明与补救预案。👉 请推选一位组员代表全组将本条总结录入左侧【答辩裁决矩阵】保存，完成后我们继续推进第 2 条质询！`;
               }
               const chairMsg = {
                 sender: 'neutral',
@@ -12127,16 +12046,16 @@
           let voteContextPrompt = '';
           if (isUnanimous) {
             voteContextPrompt = `全组投票已全部完成！计票结果清单：${proposalSummaryList}。全组成员 ${totalMembersCount}/${totalMembersCount} 全票一致推选《${winningProposal.title}》！
-  请作为资深学术拍卖师发表 130~150 字的【全票一致落槌定题与细化建议】：
-  ① 隆重宣布竞拍落槌结果，肯定《${winningProposal.title}》获得全票一致认同，正式确立为全组研究课题；
+  请作为资深学术拍卖师发表 130~150 字的【课题敲定与细化建议】：
+  ① 隆重宣布《${winningProposal.title}》获得全票一致推选，正式确立为全组研究课题；
   ② 针对该选题给出 2~3 条具体的细化方向建议（【核心铁律】：此时绝对不提及分工与时间！）；
-  ③ 引导组员在讨论区发起交流，全组共同商议完善具体实施方案。`;
+  ③ 明确引导组长带头在讨论区发起细化交流，全组共同商议完善具体实施方案。纯自然语言输出，130~150字。`;
           } else {
             voteContextPrompt = `全组投票已全部完成！计票结果清单：${proposalSummaryList}。投票存在分歧（未达成全票一致）！
   请作为资深学术拍卖师发表 130~150 字的【分歧协商破冰引导】：
-  ① 客观播报票数分布清单（【严格铁律】：严禁指名道姓批评，严禁提及谁投了谁）；
+  ① 客观播报票数分布清单（【严格铁律】：对事不对人，严禁指名道姓批评，严禁提及谁投了谁）；
   ② 引导各提案作者在讨论区简要阐述各自构想的核心亮点，商讨如何取长补短、求同存异；
-  ③ 引导全组在讨论区深入协商，确定一个兼具理论深度与实践可行性的最终统一主题（既可选用多数人看好的主题，亦可融合各方亮点）。`;
+  ③ 引导全组在讨论区深入协商，确定一个兼具理论深度与实践可行性的最终统一主题（既可选用多数人认可的主题，亦可融合各方亮点）。纯自然语言输出，130~150字。`;
           }
 
           let summaryText = await callCozeAgentAPI('auctioneer', voteContextPrompt, {
@@ -12148,9 +12067,9 @@
 
           if (!summaryText || summaryText.trim().length === 0) {
             if (isUnanimous) {
-              summaryText = `🎉 【拍卖师·课题敲定告知】：全员投票已完成，计票结果：${proposalSummaryList}。《${winningProposal.title}》获得全票一致推选，正式确立为全组研究课题！\n⚠️ 拍卖师智能体发言生成超时，组员可直接在讨论区发起交流、组织全组细化研究方案与分工。`;
+              summaryText = `🎉 【拍卖师·课题敲定与细化建议】：恭喜全组！经过热烈竞拍，《${winningProposal.title}》获得全票一致推选，正式确立为全组研究课题！针对此选题，建议可聚焦核心实施路径与关键环节深化探究。👉 请组长带头在讨论区发起交流，全组共同商议完善具体实施方案！`;
             } else {
-              summaryText = `⚖️ 【拍卖师·分歧协商告知】：投票已落槌，计票结果：${proposalSummaryList}。组内对选题存在票数分歧，请各提案作者在讨论区阐明设计亮点，全组共同商讨确定最终课题。\n⚠️ 拍卖师智能体发言生成超时，如需智能引导可在讨论区 @拍卖师。`;
+              summaryText = `⚖️ 【拍卖师·分歧协商引导】：投票已落槌，计票结果为：${proposalSummaryList}。注意到组内对选题持有不同视角，存在票数分歧！这正是团队协同碰撞创新的最佳契机。建议各提案作者在讨论区简要阐明自己的设计亮点，大家共同商讨如何取长补短，确定一个兼具理论深度与实践可行性的优质主题！`;
             }
           }
 
@@ -12245,7 +12164,7 @@
             id: `msg_welcome_${taskId}_${groupId}_stage2_managing`,
             sender: 'managingEditor',
             senderName: '责任编辑 · 过程学伴',
-            text: `🤝 【责任编辑开场】：欢迎来到【阶段二：学术编辑部】！我是过程学伴责任编辑。\n全组已锁定研究主题《${topic}》。\n\n📜 【阶段一公约执行与协同提醒】\n• 基础分工: ${assignSummary.join(' | ') || '全员协作'}\n• 规划时间: ${timeSummary.join(' / ') || '按需推进'}\n\n💡 **真正的协同不仅是分工起草，更要主动研读同伴写下的段落，在研讨区互评互修、打通前后逻辑！**请大家进入左侧编辑器开启深度协作！`,
+            text: `🤝 【责任编辑开场】：欢迎来到【阶段二：学术编辑部】！全组已锁定研究主题《${topic}》。【公约分工与协同提醒】：${assignSummary.join(' | ') || '全员协作'}。各部分虽有分工侧重，更要主动研读同伴写下的段落、打通前后逻辑！请大家进入左侧富文本编辑器开启深度协作！`,
             timestamp: now,
             _timeMs: Date.now()
           };
@@ -12258,7 +12177,7 @@
               id: `msg_welcome_${taskId}_${groupId}_stage2_reviewing`,
               sender: 'reviewingEditor',
               senderName: '审稿编辑 · 质量把关',
-              text: `📝 【审稿编辑提醒】：为辅助各位高效产出高质量学术论文，已为本组匹配并推送了《课程学术参考范文库》！请大家点击上方【📚 查阅参考范文】查阅学习，注意正文三线表规范与研究设计严谨度！`,
+              text: `📝 【审稿编辑规范推送】：各位作者，为了方便大家自查，我已在界面顶部呈递了《课程学术参考范文库》，大家随时可以查阅学习标准的章节逻辑架构与学术行文规范哦！`,
               timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
               _timeMs: Date.now()
             };
@@ -12291,13 +12210,12 @@
 
           // 2. 依次异步调用【正方】与【反方】
           setTimeout(async () => {
-            const propPrompt = `针对小组论文《${topic}》，请通读下方【小组当前真实正文草稿】全文，作为答辩正方委员，发表 130~150 字的评审意见：
-  ① 至少提炼 2 个具体优点（既包含学术层面的立意与设计亮点，也包含行文风格与结构规范亮点）；
-  ② 明确指出具体段落（如【一、研究背景】或【二、文献综述】）的论证优势，给予具体肯定的学术支持！`;
+            const propPrompt = `针对小组论文《${topic}》，请通读下方【小组当前真实正文草稿】全文，作为答辩委员会正方评审教授发表 130~150 字的肯定支持评审意见：
+  【基于真实正文的具体赞赏原则】：通读正文草稿切片，必须紧扣具体学科、具体章节、行文语言与具体设计展开具体赞赏，精选 2~3 个最核心的真实出彩亮点（必须至少指出 2 个具体亮点，如研究设计创新、行文与论证质量、实践落地价值等），避开瑕疵不谈，为全组成员提供充实的正面论据支架！纯自然语言输出，130~150字。`;
 
             let propText = await callCozeAgentAPI('proponent', propPrompt, { stage: 'stage3', topic, actualDoc: rawContent });
             if (!propText || propText.trim().length === 0) {
-              propText = `⚠️ 【正方委员提示】：大模型生成超时或网络稍有延迟，可在讨论区发送"@正方委员 请发表立论支持"重新获取。`;
+              propText = `🟢 【正方委员评审意见】：通读全篇，该研究展现出了极高的学术价值与实践意义！最出彩的地方体现在两点：①【研究设计创新】：在相关章节中教学设计与技术融合切口独特，突破了传统教学痛点；②【行文与论证质量】：不仅整体论述逻辑严密、学术语句流畅自洽，而且方案在真实课堂中可落地性极强，非常值得肯定！`;
             }
             logs.push({
               sender: 'proponent',
@@ -12309,17 +12227,22 @@
             renderChat(this.state);
 
             setTimeout(async () => {
-              const oppPrompt = `针对小组论文《${topic}》，请通读下方【小组当前真实正文草稿】全文，结合正方委员意见，作为答辩反方委员，发表 130~150 字的辩证审视与质询意见：
+              const oppPrompt = `针对小组论文《${topic}》，请通读下方【小组当前真实正文草稿】全文，结合正方委员刚才的肯定意见，作为答辩委员会反方评审教授发表 130~150 字的温和学术商榷质询意见：
 
   【正方委员刚才的肯定意见参考】:
   ${propText}
 
-  【最高原则与正反博弈边界】：正方明确夸赞的具体局部段落与具体事实严禁唱反调；但对于未被明确夸赞的具体内容维度（即使在同一章节，例如正方夸了背景立意新颖，你仍可质询其具体实证数据支撑不足），以及全篇方案的落地可行性、样本控制、量表信效度检验、行文通顺与测量严密性等，提出至少 2 个具体的学术质询点（用 ①② 分条呈现）！`;
+  【全局学术博弈红线与质询原则】：
+  1. 正方明确夸赞的具体局部段落与具体事实严禁唱反调；
+  2. 顺着正方赞赏的创新构想，辩证审视其在真实教学中“落地可行性与实施挑战”；
+  3. 对于其他未被明确夸赞的章节，提出关于实施挑战、行文语病/风格割裂、测量工具或变量控制的商榷；
+  4. 必须提出 2~3 个清晰的学术质询点（必须至少 2 个，用 ① ② 分条呈现）；
+  5. 态度务必温和客气、极具建设性（多用“商讨/请教/小细节/落地可行性”）。纯自然语言输出，130~150字。`;
 
               let oppText = await callCozeAgentAPI('opponent', oppPrompt, { stage: 'stage3', topic, actualDoc: rawContent });
               const oppSucceeded = !!(oppText && oppText.trim().length > 0);
               if (!oppSucceeded) {
-                oppText = `⚠️ 【反方委员提示】：大模型生成超时或网络稍有延迟，可在讨论区发送"@反方委员 请发表辩证质询"重新获取。`;
+                oppText = `🔴 【反方委员·商讨质询】：仔细研读了大家的成果，正方对该选题创新价值的肯定我非常赞同！在此基础上，我想从实证落地与行文严谨性的角度请教团队两个具体细节：①【具体设计/实施挑战】：在相关章节中，常态化教学中具体干预周期的落地性与认知负荷如何防范？②【行文风格/方法严密性】：在后续论述中，部分测量工具的信效度检验与前后行文风格需进一步规范。期待听听大家的从容思考与答辩~`;
               }
               logs.push({
                 sender: 'opponent',
@@ -12359,18 +12282,18 @@
 
               // 5. 中间委员独立调用 Coze API，引导第 1 题辩护
               setTimeout(async () => {
-                const chairPrompt = `答辩正反两方意见已发表完毕。
+                const chairPrompt = `答辩正反两方评审意见已入驻左侧矩阵。
   【正方意见】: ${propText}
   【反方质询】: ${oppText}
 
-  请作为答辩委员会主席（中间委员），发表 130~150 字的主持引导：
-  ① 肯定正反双方的交锋为方案完善提供了宝贵契机；
-  ② 【逐条推进】：引导全组开场首先聚焦反方【第 1 条质询】，在讨论区先充分商讨辩护共识；
-  ③ 【同伴分工】：提醒达成共识后推选一位组员代表录入左侧【答辩裁决矩阵】，其余组员同步落实终稿！`;
+  请作为答辩委员会主席（中间委员），发表 130~150 字的【针对质询 ① 独立答辩思路引导】：
+  ① 宣布正反方评审已入驻矩阵，肯定正方的创新与实践价值，明确指出反方提出了针对实质询；
+  ② 【单题独立引导·核心铁律】：本次只聚焦【质询 ①】，结合反方质询①的具体内容给出清晰的答辩破局/操作化补救思路支架（严禁提及或剧透质询②！）；
+  ③ 引导全组在讨论区充分商讨，商定后由一位代表录入左侧矩阵！纯自然语言输出，130~150字。`;
 
-                let chairText = await callCozeAgentAPI('neutral', chairPrompt, { stage: 'stage3', topic, prop: propText, opp: oppText });
+                let chairText = await callCozeAgentAPI('neutral', chairPrompt, { stage: 'stage3', topic, prop: propText, opp: oppText, queryPoint: 1 });
                 if (!chairText || chairText.trim().length === 0) {
-                  chairText = `🟡 【中间委员·答辩推进引导】：正反两方意见已入驻左侧【答辩裁决矩阵】！答辩是完善方案的绝佳契机。👉 开场请全组首先聚焦反方【第 1 条质询】在讨论区充分商讨辩护思路；达成共识后，建议推选一位组员代表全组录入矩阵对应框中，其余组员同步落实终稿！`;
+                  chairText = `🟡 【中间委员·针对质询 ① 答辩思路引导】：正反方评审已入驻左侧矩阵！正方肯定了创新与实践价值，反方则提出了针对实质询。👉 请全组首先聚焦【质询 ①】：建议结合正方提到的优势，在答辩中阐明针对质询①的具体破局与操作化补救思路！请全组在讨论区商定答辩词后，由一位代表录入左侧矩阵！`;
                 }
 
                 logs.push({
@@ -13216,18 +13139,28 @@
             let queryPrompt = '';
             if (unadoptedCount > 0) {
               const nextItem = items.find(f => f.status !== 'adopted');
-              queryPrompt = `小组成员刚对质询点【${item.speaker}】达成答辩共识：“${respText}”。请对该条共识做简要肯定点评，并自然引导全组针对下一条质询【${nextItem.speaker}】展开研讨。`;
+              queryPrompt = `小组成员刚对质询 ① 录入并达成了答辩共识：“${respText}”。
+  请作为答辩委员会主席（中间委员），发表 130~150 字的【针对质询 ② 独立答辩思路顺推】：
+  ① 肯定第 1 条答辩词已成功录入；
+  ② 【单题独立顺推·核心铁律】：独立引导全组将焦点转向【质询 ②（${nextItem.content || nextItem.title}）】，结合其具体内容给出针对性的答辩思路支架（如补强措施/量表信度说明/补救预案）；
+  ③ 引导全组继续在讨论区商定思路，由代表录入矩阵，并同步将修改落实到论文终稿中！纯自然语言输出，130~150字。`;
             } else {
-              queryPrompt = `恭喜！小组成员已对全部答辩质询完成研讨与答复！\n全组答辩共识清单如下：\n${adoptedSummaries}\n\n请代表答辩主席对全组的修改想法做一份结构化总结与肯定，并清晰引导全组成员点击上方【📝 返回富文本协作大正文】将这些想法落实到正文中，完成终稿修改并提交！`;
+              queryPrompt = `恭喜！小组成员已对全部答辩质询完成研讨并录入全部答辩陈述！
+  全组答辩共识汇总：\n${adoptedSummaries}
+
+  请作为答辩委员会主席（中间委员），发表 130~150 字的【答辩终审总结裁决与交卷指引】：
+  ① 宣布答辩委员会已审阅全组提交的全部答辩陈述与终稿，肯定全组面对质询展现出的学术反思与严谨论证逻辑；
+  ② 隆重宣布答辩全票顺利通过，祝贺大家圆满完成研究任务；
+  ③ 明确指引全组成员点击左侧【提交终稿】锁定入库！纯自然语言输出，130~150字。`;
             }
 
             let neutralReply = await callCozeAgentAPI('neutral', queryPrompt, { stage: 'stage3', topic });
             if (!neutralReply || neutralReply.trim().length === 0) {
               if (unadoptedCount > 0) {
                 const nextItem = items.find(f => f.status !== 'adopted');
-                neutralReply = `🟡 【中间委员·答辩裁决推进】：已成功记录本条裁决结论：“${respText}”！\n\n👉 **接下来请全组研讨攻克**【${nextItem.speaker}】：请全组成员商讨修改方案，达成共识后**由一位组员代表录入**并同步修改终稿！`;
+                neutralReply = `🟡 【中间委员·针对质询 ② 答辩思路顺推】：第 1 条答辩词已成功录入！👉 接下来请全组将焦点转向【质询 ②】：建议在答辩中明确阐述针对质询②的具体补强措施与设计说明！请全组继续在讨论区商定思路，由代表录入矩阵，并同步将修改落实到论文终稿中！`;
               } else {
-                neutralReply = `🎉 【中间委员·答辩共识总评与终稿修改引导】\n各位研究者，答辩委员会已审阅全组针对所有质询给出的答复方案！\n\n📋 **【全组修改思路精要汇总】**：\n${adoptedSummaries}\n\n💡 **终稿修改指引**：大家的辩护逻辑严密且具有高度可行性！现在请全组点击上方【📝 返回富文本协作大正文】，将上述修改想法落实到对应章节，润色完毕后点击【🚀 提交期末论文终稿】完成项目！`;
+                neutralReply = `🟡 【中间委员·答辩终审总结与裁决】：各位研究者，答辩委员会已审阅了全组提交的全部答辩陈述与终稿！团队在面对质询时展现出了扎实的学术反思与严谨的论证逻辑。答辩全票顺利通过，祝贺大家圆满完成研究任务！请全组成员点击左侧【提交终稿】锁定入库！`;
               }
             }
 
@@ -13335,11 +13268,12 @@
         const contentSnippet = (methodIndex > 200) ? rawDoc.slice(0, methodIndex).trim() : rawDoc;
 
         setTimeout(async () => {
-          const firstReviewPrompt = `团队正在撰写课题《${topic}》，目前已写完研究背景、文献综述与研究问题章节，请通读下方【小组当前真实正文草稿】，作为审稿编辑进行实质性学术质检，发表 130~150 字的针对性指导：肯定其背景立意与文献归纳亮点，结合正文中写到的具体概念与变量，指出文献综述与研究问题推导中的 1 处具体对应衔接建议（确保后续方法能呼应问题），绝不讲空泛套话，鼓励团队继续推进！`;
+          const firstReviewPrompt = `团队正在撰写课题《${topic}》，目前已写出部分章节，请通读下方【小组当前真实正文草稿】，作为审稿编辑进行实质性学术质检（【全局红线】：顺应尊重已有构思，做局部微调，绝不推翻大改）：肯定其当前撰写章节的理论/情境亮点，针对当前具体章节给出 1 句精准的局部深化建议（严禁空泛套话，纯自然语言输出，130~150字）！`;
           let firstReviewText = await callCozeAgentAPI('reviewingEditor', firstReviewPrompt, { stage: 'stage2', topic, actualDoc: contentSnippet });
           if (!firstReviewText || firstReviewText.trim().length === 0) {
-            firstReviewText = `⚠️ 【审稿编辑提示】：大模型学术质检生成超时或网络稍有延迟，请在讨论区发送"@审稿编辑 请对当前论文正文进行学术质检"重新获取真实质检报告。`;
+            firstReviewText = `📝 【审稿编辑·进展建议】：审阅了大家目前撰写的正文，在已写章节中对理论与具体情境的论述非常清晰！建议在后续展开方法时，进一步将核心概念的操作化定义与具体教学任务相对应，继续稳步推进！`;
           }
+          this.state.stage2FirstReviewText = firstReviewText;
 
           const firstReviewMsg = {
             sender: 'reviewingEditor',
@@ -13380,7 +13314,7 @@
         this.state.stage2RefFormatReviewed = true;
         const refReviewMsg = {
           sender: 'reviewingEditor',
-          text: `📝 【审稿编辑·终审定稿提醒】：关注到团队已推进至【参考文献】收尾部分，全篇已基本成型！在最终冲刺阶段，请大家通读全文做定稿润色：① 检查错别字与标点；② 理顺语句通顺与表达精准；③ 统一全篇文风与专业术语。做好细节润色，准备迎接阶段三答辩！`,
+          text: `📝 【审稿编辑·终稿行文扫描诊断】：全篇论文内容已基本定型，整体框架非常完整！在最后收尾阶段，我重点对全文语言表达进行了全维度扫描，请大家重点修正以下具体细节：①【行文与语体】：部分章节中存在个别口语化表述与长句语病，建议润色为规范严谨的学术用语；②【错别字与术语】：个别用词前后术语不统一、存在错别字，建议统一表述并逐一订正。请全组做好细节润色，准备迎接终审答辩！`,
           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
           _timeMs: now
         };
@@ -13404,7 +13338,9 @@
       const plainLen = newContent.replace(/<[^>]*>/g, '').trim().length;
       const lastWarnTime = this.state.lastSSRLWarnTimeMs || 0;
       const lastWarnLen = this.state.lastSSRLWarnLen || 0;
-      const cooldownPassed = (now - lastWarnTime) >= 900000; // 15 分钟冷却
+      const totalAllocMinutes = Object.values((this.state.stage1 && this.state.stage1.contract && this.state.stage1.contract.timeAllocations) || {}).reduce((a, b) => a + Number(b || 0), 0);
+      const ssrlCooldownMs = totalAllocMinutes <= 45 ? 300000 : (totalAllocMinutes <= 100 ? 480000 : 900000);
+      const cooldownPassed = (now - lastWarnTime) >= ssrlCooldownMs;
       const hasMeaningfulProgress = (plainLen - lastWarnLen) >= 150; // 且写了新内容
 
       if (plainLen >= 300 && membersList.length >= 2 && cooldownPassed && (lastWarnTime === 0 || hasMeaningfulProgress)) {
@@ -13412,17 +13348,17 @@
         let totalContrib = 0;
         membersList.forEach(m => { totalContrib += (contribs[m.id] || contribs[m.studentCode] || 0); });
 
-        if (totalContrib >= 200 || plainLen >= 300) {
-          // 检查是否存在显著失衡：某位成员占比超过 70%，且有成员贡献率低于 10%
+        if (totalContrib >= 150 || plainLen >= 300) {
+          // 方案 A 规则：检查是否存在显著失衡：某位成员占比 >= 55%，且有成员贡献率 <= 15%
           const pcts = membersList.map(m => {
             const val = (contribs[m.id] || contribs[m.studentCode] || 0);
             return (totalContrib > 0) ? Math.round((val / totalContrib) * 100) : 0;
           });
-          const hasMaxSkew = Math.max(...pcts) >= 70;
-          const hasZeroMember = Math.min(...pcts) <= 10;
+          const hasMaxSkew = Math.max(...pcts) >= 55;
+          const hasZeroMember = Math.min(...pcts) <= 15;
 
           if (hasMaxSkew && hasZeroMember) {
-            this.state.lastSSRLWarnTimeMs = now; // 记录本次提醒时间，开启 15 分钟静默期
+            this.state.lastSSRLWarnTimeMs = now; // 记录本次提醒时间，开启自适应静默期
             this.state.lastSSRLWarnLen = plainLen;
             const ssrlWarningMsg = {
               sender: 'managingEditor',
@@ -13740,17 +13676,30 @@
 
   请作为学术编辑部责任编辑（协同主持人与学伴）发表一段充实、真诚、富有启发性的发言（字数控制在 130~150 字，严禁简略敷衍）：
   ${hasDivergence 
-  ? `【分歧引导主线】：
-  1. 肯定全组认真通读了彼此撰写的段落；明确说明：通读对比后发现目前初稿中写出的部分内容，与组内部分同学在自查中提出的思路构想存在认知差异与不同看法；
-  2. 逐一分条列出所涉及的章节（若有多个用 ① ② 客观列出 ${sectionsFocusText} 各自想商榷的思路焦点）；
-  3. 针对上述内容分歧给出具体的【分步协商建议】（例如建议大家：先不要急于单打独斗改字，在讨论区按照“先对齐背景的核心概念界定，再商定设计中的具体干预任务与量表指标”的步骤分步商讨，把修改方案达成全组共识；【核心铁律】：责任编辑只客观呈现分歧并给出协商建议，严禁擅自下负面优劣结论！学术对错交由审稿编辑）；
-  4. 末尾顺带评价时间/协作：若自查中反映了时间紧张则给 1 句调适建议；若时间把控良好/无顾虑，则真诚给予明确夸赞（如夸赞大家推进节奏很稳健）！并预告审稿专家随后将进行正文深度学术质检！`
-  : '【高度默契赞扬】：旗帜鲜明地给予具体肯定，大力赞扬全组对论文核心立意的高度默契与良好写作节奏，引导大家针对学术难点交流，并预告审稿专家马上为大家做正文深度学术质检！'
-  }`;
+  ? `【存在内容分歧引导主线】：
+  1. 肯定全组认真通读了彼此撰写的段落；明确说明：目前初稿中写出的部分内容，与组内部分成员在自查中提出的思路构想存在认知差异与不同看法；
+  2. 逐一分条列出所涉及的章节（若有多个分歧用 ① ② 客观列出 ${sectionsFocusText} 各自想商榷的思路焦点）；
+  3. 针对上述内容分歧给出具体的【分步协商建议】（建议大家先不要急于单干改字，在讨论区按照“先对齐背景核心概念与痛点，再商定设计中的具体干预任务与量表指标”的步骤分步商讨，把修改思路达成全组共识；【核心铁律】：对事不对人，严禁擅自下负面优劣结论！学术对错交由审稿编辑）；
+  4. 末尾顺带评价时间/协作：若自查中反映了时间紧张等顾虑则顺带给 1 句调适建议；若时间把控良好/无顾虑，末尾必须顺带给予明确具体的肯定与赞扬（如夸赞大家时间把控很稳健、推进高效）！并预告审稿专家马上接着为大家做正文深度学术质检！`
+  : (primaryCollabB !== '无显著协作阻碍' || primaryRhythmB !== '节奏适中无压力'
+    ? `【立意高度一致，但存在协作/时间小顾虑】：肯定全组对研究立意保持着高度默契！针对自查中提到的协作风格/时间节奏顾虑，给出 1 句简要对齐建议，并预告审稿专家马上接着为大家做正文深度学术质检！`
+    : `【全员全维度高度默契与协同赞扬】：太棒了，全组不仅对核心立意认知高度统一，而且各章节撰写节奏顺畅、时间把控极佳！给予全员具体赞扬，并预告审稿专家马上接着为大家做正文深度学术质检！`
+  )}`;
 
         let managingText = await callCozeAgentAPI('managingEditor', managingPrompt, { stage: 'stage2', topic, bottleneck: bAcademic, peerReview: peerReviewState });
         if (!managingText || managingText.trim().length === 0) {
-          managingText = `⚠️ 【责任编辑提示】：大模型生成超时或网络稍有延迟，请组员在讨论区发送“@责任编辑 请对当前自查分歧进行指导”重新获取分析。`;
+          const hasTimeConcern = primaryRhythmB && primaryRhythmB !== '节奏适中无压力' && primaryRhythmB !== '无明显时间顾虑';
+          const hasCollabConcern = primaryCollabB && primaryCollabB !== '无显著协作阻碍' && primaryCollabB !== '协作良好';
+
+          if (hasDivergence && hasTimeConcern) {
+            managingText = `🤝 【责任编辑·自查研判与对齐引导】：全员自查清单已生成！首先肯定大家认真通读了彼此撰写的段落。重点关注到目前初稿中写出的部分内容，与组内部分成员在自查中提出的思路构想存在认知差异：①【${sectionsFocusText}】：部分成员持有不同看法，想进一步商榷论述角度与设计方案。💡 【分歧协商建议】：建议大家先别急于单干改字，在讨论区按照“先对齐背景核心概念与痛点，再商定设计中的具体干预任务与量表指标”的步骤分步商讨，把修改方案达成全组共识！（同时关注到有反馈提到时间分配偏紧）。👉 请全组在讨论区充分交流，随后审稿专家将接着为大家做正文深度学术质检！`;
+          } else if (hasDivergence) {
+            managingText = `🤝 【责任编辑·自查研判与对齐引导】：全员自查清单已生成！首先肯定大家认真通读了彼此撰写的段落。重点关注到目前初稿中写出的部分内容，与组内部分成员在自查中提出的思路构想存在认知差异：①【${sectionsFocusText}】：部分成员持有不同看法，想进一步商榷论述角度与设计方案。💡 【分歧协商建议】：建议大家先别急于单干改字，在讨论区按照“先对齐背景核心概念与痛点，再商定设计中的具体干预任务与量表指标”的步骤分步商讨，把修改思路达成全组共识！欣慰的是全组时间节奏把控得很稳健、推进高效！👉 请全组在讨论区充分交流，随后审稿专家将接着为大家做正文深度学术质检！`;
+          } else if (hasCollabConcern || hasTimeConcern) {
+            managingText = `🤝 【责任编辑·默契肯定与节奏调适】：自查清单已生成！全组对研究立意保持着高度默契！针对大家自查中提到的写作风格或时间预算小顾虑，建议大家简要协商对齐节奏。审稿专家马上接着为大家做学术质量审查！`;
+          } else {
+            managingText = `🤝 【责任编辑·高度默契与协同赞扬】：自查清单已生成！太棒了，全组不仅对核心立意认知高度统一，而且各章节撰写节奏顺畅、时间把控极佳！请大家保持这个优秀的团队状态，审稿专家马上接着为大家做正文深度学术质检！`;
+          }
         }
 
         const managingMsg = {
@@ -13786,21 +13735,29 @@
       this.syncStage2();
 
       const fullDoc = (this.state.stage2 && this.state.stage2.unifiedContent) ? this.state.stage2.unifiedContent.replace(/<[^>]*>/g, '').trim() : '论文初稿方案';
+      const priorFirstReview = this.state.stage2FirstReviewText || (this.state.chatLogs.stage2 || []).find(m => m.sender === 'reviewingEditor')?.text || '前期初审已肯定研究背景立意与文献归纳';
+
       const reviewingPrompt = `小组已针对责任编辑提出的自查分歧在讨论区达成了对齐共识。
   【课题】: 《${ctx.topic}》
   【自查勾选难点】: “${ctx.bAcademic}”
   【手填开放提问/困惑】: “${ctx.userText || '无手填提问'}”
   【重点关注章节】: ${ctx.sectionsFocus}
 
-  请通读下方【小组当前真实正文草稿】全文，作为国家级教育类核心期刊资深审稿编辑，发表 130~150 字的深度学术质检（继承前期初审记忆，前后一致，绝不推翻前文）：
-  ① 具体难点破解与立意对齐：结合讨论共识，明确统一核心概念界定与理论支撑；
-  ② 正文具体学术质检：通读全文，肯定已有框架亮点，精准指出 2~3 处实际存在的具体章节与实证设计薄弱点；
-  ③ 正式下发【半程修正清单】：给出具体操作处方，引导全组对照上方点亮的修正清单开展协同修改！`;
+  【审稿编辑上一轮一审诊断记录（记忆继承）】:
+  "${priorFirstReview}"
 
-      let reviewingText = await callCozeAgentAPI('reviewingEditor', reviewingPrompt, { stage: 'stage2', topic: ctx.topic, bottleneck: ctx.bAcademic, actualDoc: fullDoc });
+  【审稿编辑多轮质检递进继承铁律】：本次二审必须严格基于上一轮一审的诊断基础深化递进，继承一审对前期章节的肯定意见，前后学术观点与指导方向严格保持连贯一致，绝对不可推翻前文或自相矛盾！
+
+  请通读下方【小组当前真实正文草稿】全文，作为国家级教育类核心期刊资深审稿编辑，发表 130~150 字的深度学术质检（【全局最高红线】：顺应已有框架做局部微调与细节补充，严禁提出推翻重写或结构性大改！严禁替写大段正文！）：
+  ① 具体难点破解与开放答疑：通读学生在自查表单中勾选的核心难点选项（${ctx.bAcademic}）及手填开放提问（${ctx.userText || '无手填提问'}），给出切中具体学科场景的破解思路；
+  ② 正文切片具体学术质检：通读正文真实切片，肯定具体已有论证，精准指出 1 处实际存在的具体章节、具体变量/案例论据的薄弱点；
+  ③ 具体修改处方与清单落地：给出具体操作建议，引导全组对照左侧清单分工落实。纯自然语言输出，130~150字。`;
+
+      let reviewingText = await callCozeAgentAPI('reviewingEditor', reviewingPrompt, { stage: 'stage2', topic: ctx.topic, bottleneck: ctx.bAcademic, actualDoc: fullDoc, priorReview: priorFirstReview });
       if (!reviewingText || reviewingText.trim().length === 0) {
-        reviewingText = `🔍 【审稿编辑·半程深度质检】：小组成员已就修改方向形成良好共识！通读正文初稿，研究背景与文献综述框架清晰；为进一步提升论证严密性，重点给出以下诊断：① 核心主线层面消除概念分歧；② 实证设计层面补充前测同质性检验与具体测量量表；③ 协同修改层面合理分工修改。请全组对照上方【半程修正清单】开展修改！`;
+        reviewingText = `📝 【审稿编辑·学术质检与答疑】：针对大家勾选的难点『${ctx.bAcademic}』以及关于 [${ctx.userText || '理论与实证衔接'}] 的困惑：建议从具体研究情境切入化解难点！同时重点审阅了目前正文：【${ctx.sectionsFocus}】立意充分，但相关章节中具体论据的实证支撑略显单薄。建议补充具体的测量维度与数据来源。请全组对照左侧【半程修正清单】分工加速完善！`;
       }
+      this.state.stage2SecondReviewText = reviewingText;
 
       // 🌟 动态生成包含三大高含金量支柱的【半程修正清单】
       this.state.stage2.actionPlan = {
