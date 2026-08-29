@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260830_v697
+ * Version: 20260830_v698
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260830_v697';
+  const APP_VERSION = '20260830_v698';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -12239,42 +12239,44 @@
             }, 1000);
           }
 
-          // Loop 1: 半程自查播报后，由【责任编辑】大模型通读小组成员真实研讨对话，智能研判是否达成修改共识
+          // Loop 1: 半程自查播报后，监听组员表达赞同/达成一致 -> 等待 1 分钟无后续讨论后，判定研讨充分并交棒
           const pendingRev = this.state.stage2?.pendingReviewing || this.state.stage2PendingReviewing;
-          if (pendingRev && !this._isEvaluatingConsensus) {
-            pendingRev.studentMsgCount = (pendingRev.studentMsgCount || 0) + 1;
+          if (pendingRev) {
+            const hasAgreementSignal = /(?:好|行|可以|同意|赞成|支持|没问题|没意见|就这个|按你说的|听你的|就这么办|就这么定|那就这样|妥了|ok|OK|okk|收到|\+1|没毛病|不错|好啊|行啊|没异议|赞同|开始吧|开搞|就这么改|ke yi|好的|写吧|那开始吧)/i.test(text || '');
+            const hasAdversativeSignal = /(?:但是|不过|可是|然而|但|不过我建议|不如|还要再|不同意|不妥)/i.test(text || '');
 
-            // 提取自查播报以来的最近组员真实研讨发言
-            const s2Chats = (this.state.chatLogs.stage2 || []).filter(m => m.sender && !AgentProfiles[m.sender] && m.sender !== 'system');
-            const recentChats = s2Chats.slice(-8).map(m => `${m.senderName || m.sender}: ${m.text}`).join('\n');
+            if (hasAgreementSignal && !hasAdversativeSignal) {
+              pendingRev.hasAgreement = true;
+              pendingRev.lastAgreementTime = Date.now();
+              this.syncStage2();
 
-            // 当组员展开交流时，调起【责任编辑】大模型通读对话进行真实认知理解与共识判定
-            if (pendingRev.studentMsgCount >= 2) {
-              this._isEvaluatingConsensus = true;
-              setTimeout(async () => {
-                try {
-                  const evalPrompt = `小组成员正在讨论区商讨半程自查分歧与正文修改方向。
-  【全组自查核心脱节焦点】: ${pendingRev.transFocus}，${pendingRev.styleFocus}
+              // ⏱️ 赞同后启动 1 分钟 (60s) 静默观察期：若 1 分钟内无新异议或补充，判定研讨圆满收敛
+              if (this._consensusDebounceTimer) {
+                clearTimeout(this._consensusDebounceTimer);
+              }
+
+              this._consensusDebounceTimer = setTimeout(async () => {
+                const curCtx = this.state.stage2?.pendingReviewing || this.state.stage2PendingReviewing;
+                if (!curCtx) return;
+
+                const s2Chats = (this.state.chatLogs.stage2 || []).filter(m => m.sender && !AgentProfiles[m.sender] && m.sender !== 'system');
+                const recentChats = s2Chats.slice(-8).map(m => `${m.senderName || m.sender}: ${m.text}`).join('\n');
+
+                const evalPrompt = `小组成员已在讨论区就修改方向达成一致并表达了赞同。
+  【全组自查核心脱节焦点】: ${curCtx.transFocus}，${curCtx.styleFocus}
   【小组最新研讨对话记录】:
   ${recentChats}
 
-  请通读以上小组成员的真实研讨发言，客观判断大家是否已经就修改方向或分工进行了实质切磋并达成了初步共识（例如：商量好改哪个章节、如何衔接假设与方法、统一学术术语或分工修改）：
-  - 若组员尚未充分交流具体修改思路（或仅有简单的只言片语问候），请仅输出: [WAIT]
-  - 若组员已经形成了清晰的修改共识与修改意向，请作为学术编辑部责任编辑发表一段 100~130 字的【一致性研讨小结与交棒】：简明肯定大家对齐的修改思路，并隆重引出审稿专家通读草稿下发 3 项修正清单！（纯自然语言，严禁输出代码块，严禁包含 [WAIT]）`;
+  请通读以上小组成员的真实研讨发言，作为学术编辑部责任编辑发表一段 100~130 字的【一致性研讨小结与交棒】：简明肯定大家对齐的修改思路，并隆重引出审稿专家通读草稿下发 3 项修正清单！（纯自然语言，严禁输出代码块）`;
 
-                  let evalResult = await callCozeAgentAPI('managingEditor', evalPrompt, { stage: 'stage2', topic: pendingRev.topic });
-
-                  if (evalResult && !evalResult.includes('[WAIT]') && evalResult.trim().length > 20) {
-                    // 大模型判定共识达成！执行交棒并下发修正清单
-                    await this.triggerReviewingEditorAfterDiscussion(evalResult.trim());
-                  }
-                } catch (err) {
-                  console.warn('Consensus evaluation error:', err);
-                } finally {
-                  this._isEvaluatingConsensus = false;
-                }
-              }, 800);
-              return;
+                let evalResult = await callCozeAgentAPI('managingEditor', evalPrompt, { stage: 'stage2', topic: curCtx.topic });
+                await this.triggerReviewingEditorAfterDiscussion(evalResult?.trim() || '');
+              }, 60000);
+            } else if (hasAdversativeSignal && this._consensusDebounceTimer) {
+              // 若组员继续提出异议或不同意见，重置计时器，让组员继续充分商榷
+              clearTimeout(this._consensusDebounceTimer);
+              this._consensusDebounceTimer = null;
+              pendingRev.hasAgreement = false;
             }
           }
 
