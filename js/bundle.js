@@ -12171,11 +12171,11 @@
               this.state.stage2PendingRevisionDiscussion = false;
               this.state.stage2DualActivityActive = true; // 激活动笔双静默守护
 
-              // 责任编辑出场收尾确认
+              // 审稿编辑出场收尾确认与号召动手
               setTimeout(() => {
                 const concludeMsg = {
-                  sender: 'managingEditor',
-                  text: `🤝 【责任编辑·分工确认与动手号召】：大家的修改分工非常清晰明确！半程研讨圆满结束，请大家对照上方【半程修正清单】在正文中展开分工修改，完成对应项后可逐项在清单打勾！修改过程中若有疑问可随时在讨论区 @审稿编辑 咨询！`,
+                  sender: 'reviewingEditor',
+                  text: `📝 【审稿编辑·研讨总结与修改号召】：大家的修改思路非常清晰明确！研讨圆满结束，请大家对照上方【半程修正清单】在正文中展开针对性修改，完成对应项后可在清单逐项打勾！修改过程中若有具体学术疑问可随时在讨论区 @审稿编辑 咨询，祝大家修改顺利！`,
                   timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
                   _timeMs: Date.now(),
                   stage: 'stage2'
