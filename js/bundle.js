@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260830_v729
+ * Version: 20260830_v730
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260830_v729';
+  const APP_VERSION = '20260830_v730';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -13323,14 +13323,14 @@
           this.sendSingleChatMessage(oppMsg, 'stage3');
           this.syncChatLogs();
           if (typeof window.renderChat === 'function') window.renderChat(this.state);
-          // ⏱️ 预留 4.5 秒，让组员通读反方质询点
-          await new Promise(r => setTimeout(r, 4500));
+          // ⏱️ 微缓冲 500ms 立即同步上屏左侧矩阵
+          await new Promise(r => setTimeout(r, 500));
         } else {
           const existingOpp = logs.find(m => m && m.sender === 'opponent');
           oppText = existingOpp ? existingOpp.text : '';
         }
 
-        // 4. 平台自动将正反评审意见写入左侧【答辩裁决矩阵】并结束加载
+        // 4. 平台自动将正反评审意见【即刻同步写入】左侧【答辩裁决矩阵】
         const oppBody = (oppText || '').replace(/^[^\n]*?【[^】]+】[：:]?\s*/, '').trim();
         const oppMatches = oppBody.match(/[①②③④⑤][^①②③④⑤]*/g);
         const oppQueries = (oppMatches && oppMatches.length > 0)
@@ -13356,8 +13356,8 @@
         if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
         renderChat(this.state);
         this.renderStudentWorkspace();
-        // ⏱️ 矩阵生成后留 3.5 秒让组员看清左侧矩阵的更新与就位
-        await new Promise(r => setTimeout(r, 3500));
+        // ⏱️ 矩阵就位后预留 2 秒让中间委员出场
+        await new Promise(r => setTimeout(r, 2000));
 
         // 5. 中间委员独立调用 Coze API，引导第 1 题辩护
         const hasChairGuide = logs.some(m => m && m.sender === 'neutral' && (m.text?.includes('答辩思路引导') || m.text?.includes('质询 ①')));
