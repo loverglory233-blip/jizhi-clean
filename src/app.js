@@ -83,8 +83,12 @@ export class App {
           this.cloudSyncEngine.updateScopeKeys();
           this.cloudSyncEngine.pullFromServer();
         }
-        if (user && user.role === 'student' && this.state.studentViewMode === 'workspace') {
-          this.checkUnreadAnnouncements();
+        if (user && (user.role === 'student' || user.isStudent)) {
+          if (this.state.studentViewMode === 'task_list') {
+            this.renderMain();
+          } else {
+            this.checkUnreadAnnouncements();
+          }
         }
       } catch (e) {}
     })();
@@ -533,10 +537,13 @@ export class App {
 
     if (!currentUser) {
       appEl.className = 'app-login-mode';
-      renderLoginView(appEl, this.authManager, () => {
+      renderLoginView(appEl, this.authManager, async () => {
         const u = this.authManager.getCurrentUser();
         const gId = u && u.groupId ? u.groupId : 'group_1';
         this.loadGroupState(gId);
+        try {
+          await this.authManager.pullGlobalMeta();
+        } catch (e) {}
         this.renderMain();
         if (this.cloudSyncEngine) {
           this.cloudSyncEngine.updateScopeKeys();
