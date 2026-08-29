@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260830_v719";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash } from "./utils.js?v=20260830_v719";
-import { callCozeAgentAPI } from "./agents.js?v=20260830_v719";
-import { AuthManager } from "./auth.js?v=20260830_v719";
-import { CloudSyncEngine } from "./sync.js?v=20260830_v719";
-import { renderLoginView } from "./login.js?v=20260830_v719";
-import { renderTeacherPortal } from "./teacher.js?v=20260830_v719";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260830_v719";
+} from "./constants.js?v=20260830_v720";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash } from "./utils.js?v=20260830_v720";
+import { callCozeAgentAPI } from "./agents.js?v=20260830_v720";
+import { AuthManager } from "./auth.js?v=20260830_v720";
+import { CloudSyncEngine } from "./sync.js?v=20260830_v720";
+import { renderLoginView } from "./login.js?v=20260830_v720";
+import { renderTeacherPortal } from "./teacher.js?v=20260830_v720";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260830_v720";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260830_v719";
+} from "./editor.js?v=20260830_v720";
 
 // Make renderChat available on window for sync callbacks
 if (typeof window !== "undefined") {
@@ -3500,10 +3500,15 @@ ${propText}
         const totalMembersCount = memberArr.length > 0 ? memberArr.length : 3;
 
         // 🛡️ 极速状态合并：提取本地持久化与内存中已有所有确认记录，防止并发冲刷
-        const groupId = this.getEffectiveGroupId();
-        const cachedState = this.getGroupState(groupId);
-        if (cachedState && cachedState.stage2 && cachedState.stage2.confirmedMembers) {
-          s2.confirmedMembers = { ...(cachedState.stage2.confirmedMembers || {}), ...(s2.confirmedMembers || {}) };
+        const groupId = (typeof this.getEffectiveGroupId === 'function') ? this.getEffectiveGroupId() : (this.state.activeGroupId || 'group_1');
+        const cachedRaw = localStorage.getItem(`jizhi_group_state_${groupId}`);
+        if (cachedRaw) {
+          try {
+            const cachedState = JSON.parse(cachedRaw);
+            if (cachedState && cachedState.stage2 && cachedState.stage2.confirmedMembers) {
+              s2.confirmedMembers = { ...(cachedState.stage2.confirmedMembers || {}), ...(s2.confirmedMembers || {}) };
+            }
+          } catch(e) {}
         }
         if (!s2.confirmedMembers) s2.confirmedMembers = {};
 
