@@ -1983,9 +1983,9 @@
       };
       announcements.unshift(newAnn);
 
-      // 🧹 最多保留最新 50 条通知，超出部分从最旧一条（末尾）自动滚动删除，保持轻量高效
-      if (announcements.length > 50) {
-        announcements = announcements.slice(0, 50);
+      // 🧹 最多保留最新 15 条通知，超出部分从最旧一条（末尾）自动滚动删除，保持轻量高效
+      if (announcements.length > 15) {
+        announcements = announcements.slice(0, 15);
       }
 
       localStorage.setItem(STORAGE_KEY_ANNOUNCEMENTS, JSON.stringify(announcements));
@@ -7183,8 +7183,8 @@
         <button id="btn-header-survey-link" style="background:#eff6ff; border:1px solid #bfdbfe; color:#2563eb; padding:3px 8px; border-radius:14px; font-size:11px; font-weight:700; cursor:pointer;" title="课程评估问卷">
           📋 问卷
         </button>
-        <button class="nav-ann-bell-btn ${unreadAnnCount > 0 ? 'has-unread' : ''}" id="btn-header-ann-bell" title="课堂通知" style="padding:3px 8px; border-radius:14px; font-size:11px;">
-          🔔 消息 ${unreadAnnCount > 0 ? `<span class="unread-count">${unreadAnnCount}</span>` : ''}
+        <button class="nav-ann-bell-btn ${unreadAnnCount > 0 ? 'has-unread' : ''}" id="btn-header-ann-bell" title="课堂教学通知与延期" style="padding:3px 10px; border-radius:14px; font-size:11.5px; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; gap:4px; background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe;">
+          <span>📢 教学通知</span>${unreadAnnCount > 0 ? `<span style="background:#ef4444; color:#ffffff; font-size:10.5px; font-weight:800; padding:1px 6px; border-radius:10px; box-shadow:0 1px 4px rgba(239,68,68,0.4);">${unreadAnnCount}</span>` : ''}
         </button>
         <div class="timer-box" style="padding:2px 10px; border-radius:14px; font-size:11.5px; font-weight:700; white-space:nowrap; background:${isTaskDeadlineExpired ? '#fef2f2' : '#eff6ff'}; color:${isTaskDeadlineExpired ? '#dc2626' : '#1d4ed8'}; border:1px solid ${isTaskDeadlineExpired ? '#fecaca' : '#bfdbfe'};">
           ${isTaskDeadlineExpired ? '🛑 已截止' : `⏱️ 剩余 ${formatDurationHuman(remainingMin, true)}`}
@@ -11122,179 +11122,261 @@
         return;
       }
 
-      // 选中的通知：优先 targetAnn，若无则取最新一条通知
+      // 选中的通知：仅在传入 targetAnn 时直接进入详情卡片，否则默认展示优雅清晰的竖排通知列表
       const unreadList = myAnns.filter(a => !isAnnRead(a));
+      const showDetailDirectly = !!targetAnn;
       const selectedAnn = targetAnn || (unreadList.length > 0 ? unreadList[0] : myAnns[0]);
 
-      // 查阅即自动消除红点，无需强制二次确认
-      try {
-        this.authManager.markAnnouncementRead(selectedAnn.id, groupId);
-      } catch (e) {}
+      const isSelectedRead = selectedAnn ? isAnnRead(selectedAnn) : true;
+      const isSelectedExtension = selectedAnn ? isExtensionNotice(selectedAnn) : false;
 
       const allTasks = this.authManager.getTasks();
-      const annTaskObj = allTasks.find(t => t.id === selectedAnn.taskId);
+      const annTaskObj = selectedAnn ? allTasks.find(t => t.id === selectedAnn.taskId) : null;
       const isAnnTaskExpired = isTaskExpired(annTaskObj);
-
-      const isSelectedExtension = isExtensionNotice(selectedAnn);
 
       const modal = document.createElement('div');
       modal.className = 'modal-overlay modal-announcement-popup';
-      modal.dataset.annId = selectedAnn.id;
-      modal.innerHTML = `
-        <div style="width:620px; max-width:94vw; background:#ffffff; border-radius:16px; box-shadow:0 25px 50px -12px rgba(15,23,42,0.25); overflow:hidden; border:1px solid #e2e8f0; animation:modalFadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);">
 
+      const renderListHtml = () => `
+        <div style="width:680px; max-width:94vw; background:#ffffff; border-radius:16px; box-shadow:0 25px 50px -12px rgba(15,23,42,0.25); overflow:hidden; border:1px solid #e2e8f0; animation:modalFadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);">
           <!-- 渐变高颜值头部 -->
-          <div style="background:linear-gradient(135deg, ${isAnnTaskExpired ? '#991b1b, #dc2626' : '#1d4ed8, #2563eb'}); padding:20px 24px; display:flex; justify-content:space-between; align-items:center; color:#ffffff;">
+          <div style="background:linear-gradient(135deg, #1d4ed8, #2563eb); padding:20px 24px; display:flex; justify-content:space-between; align-items:center; color:#ffffff;">
             <div style="display:flex; align-items:center; gap:12px;">
               <div style="width:42px; height:42px; border-radius:12px; background:rgba(255,255,255,0.2); display:flex; align-items:center; justify-content:center; font-size:22px; flex-shrink:0;">
-                ${isAnnTaskExpired ? '🛑' : (isSelectedExtension ? '⏳' : '📢')}
+                ${isTaskListMode ? '⏳' : '📢'}
               </div>
               <div>
-                <h3 style="margin:0; font-size:17.5px; font-weight:800; color:#ffffff; letter-spacing:0.3px;">${isTaskListMode ? '⏳ 班级任务延期调整通知' : (isSelectedExtension ? '⏳ 任务时间延期通知' : '班级教学通知')}</h3>
-                <div style="font-size:12px; color:#e0e7ff; margin-top:2px;">${effectiveClassName ? `🏫 归属班级: ${escapeHtml(effectiveClassName)}` : '任课教师发布的教学指示与任务调整'}</div>
+                <div style="display:flex; align-items:center; gap:8px;">
+                  <h3 style="margin:0; font-size:17.5px; font-weight:800; color:#ffffff; letter-spacing:0.3px;">${isTaskListMode ? '班级任务延期通知中心' : '班级教学通知中心'}</h3>
+                  ${unreadList.length > 0 ? `<span style="background:#ef4444; color:#ffffff; font-size:11px; font-weight:800; padding:2px 8px; border-radius:12px; box-shadow:0 2px 6px rgba(239,68,68,0.4);">${unreadList.length} 条未读</span>` : '<span style="background:rgba(255,255,255,0.2); color:#ffffff; font-size:11px; font-weight:700; padding:2px 8px; border-radius:12px;">全部已读</span>'}
+                </div>
+                <div style="font-size:12px; color:#e0e7ff; margin-top:3px;">${effectiveClassName ? `🏫 归属班级: ${escapeHtml(effectiveClassName)}` : '任课教师发布的教学指示与任务延期'} · 共 ${myAnns.length} 条通知</div>
               </div>
             </div>
             <button id="btn-close-ann-popup" style="background:rgba(255,255,255,0.15); border:1px solid rgba(255,255,255,0.3); width:32px; height:32px; border-radius:8px; display:flex; align-items:center; justify-content:center; cursor:pointer; color:#ffffff; font-size:14px; transition:all 0.15s ease;">✕</button>
           </div>
 
-          <!-- 通知内容主体 (带历史通知切换 TAB) -->
-          <div style="padding:20px 24px; max-height:65vh; overflow-y:auto; display:flex; flex-direction:column; gap:16px;">
-
-            ${myAnns.length > 1 ? `
-              <!-- 多条通知切换栏 -->
-              <div style="display:flex; gap:8px; overflow-x:auto; padding-bottom:6px;">
-                ${myAnns.map((a, idx) => {
-                  const isRead = isAnnRead(a);
-                  const isCurrent = a.id === selectedAnn.id;
-                  return `
-                    <button class="btn-switch-ann-tab" data-id="${a.id}" style="padding:6px 12px; border-radius:8px; font-size:12px; font-weight:700; cursor:pointer; border:1px solid ${isCurrent ? '#2563eb' : '#e2e8f0'}; background:${isCurrent ? '#eff6ff' : '#ffffff'}; color:${isCurrent ? '#1d4ed8' : '#64748b'}; white-space:nowrap; display:inline-flex; align-items:center; gap:6px;">
-                      ${isRead ? '✅' : '🔴'} 通知 ${idx + 1}${idx === 0 ? ' (最新)' : ''}
-                    </button>
-                  `;
-                }).join('')}
-              </div>
-            ` : ''}
-
-            <!-- 选中的通知卡片详情 -->
-            <div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:14px; padding:18px; box-shadow:0 2px 8px rgba(15,23,42,0.03);">
-
-              <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px; margin-bottom:12px;">
-                <h4 style="margin:0; font-size:16.5px; font-weight:800; color:#0f172a; line-height:1.4;">
-                  📌 ${escapeHtml(selectedAnn.title)}
-                </h4>
-                <span style="font-size:11.5px; color:#64748b; white-space:nowrap;">${escapeHtml(selectedAnn.time || '')}</span>
-              </div>
-
-              <!-- 标签栏 -->
-              <div style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom:14px;">
-                <span style="background:#f8fafc; color:#475569; border:1px solid #e2e8f0; padding:3px 10px; border-radius:6px; font-size:11.5px; font-weight:700;">
-                  👨‍🏫 发布教师: <b>${escapeHtml(selectedAnn.author || '任课教师')}</b>
-                </span>
-                <span style="background:#f5f3ff; color:#7c3aed; border:1px solid #ddd6fe; padding:3px 10px; border-radius:6px; font-size:11.5px; font-weight:700;">
-                  📌 关联任务: <b>${escapeHtml(selectedAnn.taskTitle || '写作任务')}</b>
-                </span>
-                <span style="background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe; padding:3px 10px; border-radius:6px; font-size:11.5px; font-weight:700;">
-                  🎯 受众: <b>${escapeHtml(selectedAnn.targetGroupName || '全班小组')}</b>
-                </span>
-              </div>
-
-              <!-- 正文卡片 -->
-              <div style="background:#f8fafc; border:1px solid #f1f5f9; border-radius:10px; padding:14px 16px; font-size:13.5px; color:#334155; line-height:1.7; white-space:pre-wrap; word-break:break-word;">
-                ${escapeHtml(selectedAnn.content || '')}
-              </div>
-
-              <!-- 附件卡片 (如有) -->
-              ${selectedAnn.attachment ? `
-                <div style="margin-top:14px; background:#faf5ff; border:1px solid #e9d5ff; border-radius:10px; padding:12px 16px; display:flex; justify-content:space-between; align-items:center; gap:12px;">
-                  <div style="display:flex; align-items:center; gap:10px;">
-                    <span style="font-size:24px;">📎</span>
-                    <div>
-                      <div style="font-size:13px; font-weight:700; color:#6b21a8;">${selectedAnn.attachment.name}</div>
-                      <div style="font-size:11px; color:#9333ea; margin-top:2px;">教学随附资源文献 (${selectedAnn.attachment.size || '附件'})</div>
+          <!-- 竖排通知卡片列表 -->
+          <div style="padding:20px 24px; max-height:62vh; overflow-y:auto; display:flex; flex-direction:column; gap:12px; background:#f8fafc;">
+            ${myAnns.map((a, idx) => {
+              const read = isAnnRead(a);
+              const ext = isExtensionNotice(a);
+              return `
+                <div class="btn-open-ann-item" data-id="${a.id}" style="background:#ffffff; border:1.5px solid ${read ? '#e2e8f0' : '#bfdbfe'}; border-radius:12px; padding:15px 18px; cursor:pointer; display:flex; justify-content:space-between; align-items:center; gap:14px; transition:all 0.15s ease; box-shadow:${read ? '0 1px 3px rgba(15,23,42,0.02)' : '0 4px 12px rgba(37,99,235,0.08)'};">
+                  <div style="display:flex; align-items:flex-start; gap:12px; min-width:0; flex:1;">
+                    <div style="width:36px; height:36px; border-radius:10px; background:${ext ? '#fef3c7' : '#eff6ff'}; display:flex; align-items:center; justify-content:center; font-size:18px; flex-shrink:0; margin-top:2px;">
+                      ${ext ? '⏳' : '📢'}
+                    </div>
+                    <div style="min-width:0; flex:1;">
+                      <div style="display:flex; align-items:center; gap:8px; margin-bottom:4px; flex-wrap:wrap;">
+                        <span style="font-weight:800; font-size:14.5px; color:#0f172a; line-height:1.4;">${escapeHtml(a.title)}</span>
+                        ${read 
+                          ? '<span style="background:#ecfdf5; color:#059669; font-size:11px; font-weight:700; padding:1.5px 8px; border-radius:10px; border:1px solid #a7f3d0;">✅ 已读</span>' 
+                          : '<span style="background:#fef2f2; color:#dc2626; font-size:11px; font-weight:800; padding:1.5px 8px; border-radius:10px; border:1px solid #fecaca;">🔴 待查看</span>'}
+                        ${idx === 0 ? '<span style="background:#eff6ff; color:#2563eb; font-size:10.5px; font-weight:800; padding:1.5px 6px; border-radius:6px; border:1px solid #bfdbfe;">最新</span>' : ''}
+                      </div>
+                      <div style="font-size:12px; color:#64748b; margin-bottom:6px; display:flex; gap:10px; flex-wrap:wrap;">
+                        <span>📌 关联任务: <b>${escapeHtml(a.taskTitle || '写作任务')}</b></span>
+                        <span>👨‍🏫 <b>${escapeHtml(a.author || '任课教师')}</b></span>
+                        <span>🕒 ${escapeHtml(a.time || '')}</span>
+                      </div>
+                      <div style="font-size:12.5px; color:#475569; line-height:1.5; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
+                        ${escapeHtml((a.content || '').substring(0, 75))}${a.content && a.content.length > 75 ? '...' : ''}
+                      </div>
                     </div>
                   </div>
-                  <button id="btn-download-ann-file" style="background:linear-gradient(135deg, #7c3aed, #6366f1); border:none; color:white; padding:7px 16px; border-radius:8px; font-size:12px; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; gap:6px; box-shadow:0 2px 6px rgba(124,58,237,0.25); white-space:nowrap;">
-                    📥 下载资源文件
-                  </button>
+                  <div style="background:${read ? '#f1f5f9' : 'linear-gradient(135deg, #1d4ed8, #2563eb)'}; color:${read ? '#475569' : '#ffffff'}; padding:7px 14px; border-radius:8px; font-size:12px; font-weight:700; white-space:nowrap; flex-shrink:0; display:inline-flex; align-items:center; gap:4px;">
+                    查看详情 ➔
+                  </div>
                 </div>
-              ` : ''}
-
-            </div>
-
+              `;
+            }).join('')}
           </div>
 
-          <!-- 底部操作栏 -->
-          <div style="padding:14px 24px; background:#f8fafc; border-top:1px solid #f1f5f9; display:flex; justify-content:space-between; align-items:center; gap:12px;">
-            <button id="btn-close-ann-bottom" style="background:#ffffff; border:1px solid #cbd5e1; color:#475569; padding:10px 20px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer;">
+          <!-- 底部关闭栏 -->
+          <div style="padding:14px 24px; background:#f8fafc; border-top:1px solid #f1f5f9; display:flex; justify-content:flex-end; align-items:center;">
+            <button id="btn-close-ann-bottom" style="background:#ffffff; border:1px solid #cbd5e1; color:#475569; padding:9px 22px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer;">
               关闭
             </button>
-            ${(isTaskListMode || isSelectedExtension) ? `
-              <button id="btn-ext-got-it" style="flex:1; background:linear-gradient(135deg, #1d4ed8, #2563eb); color:#ffffff; border:none; padding:11px 24px; border-radius:8px; font-size:13.5px; font-weight:700; cursor:pointer; box-shadow:0 3px 10px rgba(37,99,235,0.25);">
-                我知道了 (关闭)
-              </button>
-            ` : `
-              <button id="btn-read-confirm" style="flex:1; background:${isSelectedRead ? '#e2e8f0' : 'linear-gradient(135deg, #059669, #047857)'}; color:${isSelectedRead ? '#64748b' : '#ffffff'}; border:none; padding:11px 24px; border-radius:8px; font-size:13.5px; font-weight:700; cursor:pointer; box-shadow:${isSelectedRead ? 'none' : '0 3px 10px rgba(5,150,105,0.2)'}; display:inline-flex; align-items:center; justify-content:center; gap:6px;">
-                ${isSelectedRead ? '✅ 本条已确认已读 (点击关闭)' : (unreadList.length > 1 ? `✅ 确认本条已读并看下一条 (${unreadIndex + 1}/${unreadList.length}) ➔` : '✅ 我已阅读并确认 (已同步至教师端)')}
-              </button>
-            `}
           </div>
-
         </div>
       `;
-      document.body.appendChild(modal);
+
+      const renderDetailHtml = (ann) => {
+        const isRead = isAnnRead(ann);
+        const isExt = isExtensionNotice(ann);
+        const annTask = allTasks.find(t => t.id === ann.taskId);
+        const isExpired = isTaskExpired(annTask);
+        const unreadIdx = unreadList.findIndex(a => a.id === ann.id);
+
+        return `
+          <div style="width:640px; max-width:94vw; background:#ffffff; border-radius:16px; box-shadow:0 25px 50px -12px rgba(15,23,42,0.25); overflow:hidden; border:1px solid #e2e8f0; animation:modalFadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);">
+            <!-- 渐变高颜值头部 -->
+            <div style="background:linear-gradient(135deg, ${isExpired ? '#991b1b, #dc2626' : '#1d4ed8, #2563eb'}); padding:18px 22px; display:flex; justify-content:space-between; align-items:center; color:#ffffff;">
+              <div style="display:flex; align-items:center; gap:10px;">
+                <button id="btn-back-to-list" style="background:rgba(255,255,255,0.2); border:1px solid rgba(255,255,255,0.35); color:#ffffff; padding:5px 12px; border-radius:8px; font-size:12px; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; gap:4px;">
+                  ⬅️ 全部通知
+                </button>
+                <h3 style="margin:0; font-size:16.5px; font-weight:800; color:#ffffff; letter-spacing:0.3px;">${isExt ? '⏳ 任务时间延期通知' : '📢 班级教学指示'}</h3>
+              </div>
+              <button id="btn-close-ann-popup" style="background:rgba(255,255,255,0.15); border:1px solid rgba(255,255,255,0.3); width:32px; height:32px; border-radius:8px; display:flex; align-items:center; justify-content:center; cursor:pointer; color:#ffffff; font-size:14px; transition:all 0.15s ease;">✕</button>
+            </div>
+
+            <!-- 通知内容主体 -->
+            <div style="padding:20px 24px; max-height:60vh; overflow-y:auto; display:flex; flex-direction:column; gap:16px;">
+              <div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:14px; padding:18px; box-shadow:0 2px 8px rgba(15,23,42,0.03);">
+                <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px; margin-bottom:12px;">
+                  <h4 style="margin:0; font-size:16.5px; font-weight:800; color:#0f172a; line-height:1.4;">
+                    📌 ${escapeHtml(ann.title)}
+                  </h4>
+                  <span style="font-size:11.5px; color:#64748b; white-space:nowrap;">${escapeHtml(ann.time || '')}</span>
+                </div>
+
+                <!-- 标签栏 -->
+                <div style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom:14px;">
+                  <span style="background:#f8fafc; color:#475569; border:1px solid #e2e8f0; padding:3px 10px; border-radius:6px; font-size:11.5px; font-weight:700;">
+                    👨‍🏫 发布教师: <b>${escapeHtml(ann.author || '任课教师')}</b>
+                  </span>
+                  <span style="background:#f5f3ff; color:#7c3aed; border:1px solid #ddd6fe; padding:3px 10px; border-radius:6px; font-size:11.5px; font-weight:700;">
+                    📌 关联任务: <b>${escapeHtml(ann.taskTitle || '写作任务')}</b>
+                  </span>
+                  <span style="background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe; padding:3px 10px; border-radius:6px; font-size:11.5px; font-weight:700;">
+                    🎯 受众: <b>${escapeHtml(ann.targetGroupName || '全班小组')}</b>
+                  </span>
+                  ${isExt ? `
+                    <span style="background:#fef3c7; color:#b45309; border:1px solid #fde68a; padding:3px 10px; border-radius:6px; font-size:11.5px; font-weight:700;">
+                      ⏳ 延期信息
+                    </span>
+                  ` : (isRead ? `
+                    <span style="background:#ecfdf5; color:#059669; border:1px solid #a7f3d0; padding:3px 10px; border-radius:6px; font-size:11.5px; font-weight:700;">
+                      ✅ 本组已确认阅读
+                    </span>
+                  ` : `
+                    <span style="background:#fef2f2; color:#dc2626; border:1px solid #fecaca; padding:3px 10px; border-radius:6px; font-size:11.5px; font-weight:700;">
+                      🔴 待确认阅读
+                    </span>
+                  `)}
+                </div>
+
+                <!-- 正文卡片 -->
+                <div style="background:#f8fafc; border:1px solid #f1f5f9; border-radius:10px; padding:14px 16px; font-size:13.5px; color:#334155; line-height:1.7; white-space:pre-wrap; word-break:break-word;">
+                  ${escapeHtml(ann.content || '')}
+                </div>
+
+                <!-- 附件卡片 (如有) -->
+                ${ann.attachment ? `
+                  <div style="margin-top:14px; background:#faf5ff; border:1px solid #e9d5ff; border-radius:10px; padding:12px 16px; display:flex; justify-content:space-between; align-items:center; gap:12px;">
+                    <div style="display:flex; align-items:center; gap:10px;">
+                      <span style="font-size:24px;">📎</span>
+                      <div>
+                        <div style="font-size:13px; font-weight:700; color:#6b21a8;">${ann.attachment.name}</div>
+                        <div style="font-size:11px; color:#9333ea; margin-top:2px;">教学随附资源文献 (${ann.attachment.size || '附件'})</div>
+                      </div>
+                    </div>
+                    <button id="btn-download-ann-file" style="background:linear-gradient(135deg, #7c3aed, #6366f1); border:none; color:white; padding:7px 16px; border-radius:8px; font-size:12px; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; gap:6px; box-shadow:0 2px 6px rgba(124,58,237,0.25); white-space:nowrap;">
+                      📥 下载资源文件
+                    </button>
+                  </div>
+                ` : ''}
+              </div>
+            </div>
+
+            <!-- 底部操作栏 -->
+            <div style="padding:14px 24px; background:#f8fafc; border-top:1px solid #f1f5f9; display:flex; justify-content:space-between; align-items:center; gap:12px;">
+              <button id="btn-close-ann-bottom" style="background:#ffffff; border:1px solid #cbd5e1; color:#475569; padding:10px 20px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer;">
+                关闭
+              </button>
+              ${(isTaskListMode || isExt) ? `
+                <button id="btn-ext-got-it" style="flex:1; background:linear-gradient(135deg, #1d4ed8, #2563eb); color:#ffffff; border:none; padding:11px 24px; border-radius:8px; font-size:13.5px; font-weight:700; cursor:pointer; box-shadow:0 3px 10px rgba(37,99,235,0.25);">
+                  我知道了 (关闭)
+                </button>
+              ` : `
+                <button id="btn-read-confirm" style="flex:1; background:${isRead ? '#e2e8f0' : 'linear-gradient(135deg, #059669, #047857)'}; color:${isRead ? '#64748b' : '#ffffff'}; border:none; padding:11px 24px; border-radius:8px; font-size:13.5px; font-weight:700; cursor:pointer; box-shadow:${isRead ? 'none' : '0 3px 10px rgba(5,150,105,0.2)'}; display:inline-flex; align-items:center; justify-content:center; gap:6px;">
+                  ${isRead ? '✅ 本条已确认已读 (点击关闭)' : (unreadList.length > 1 ? `✅ 确认本条已读并看下一条 (${unreadIdx + 1}/${unreadList.length}) ➔` : '✅ 我已阅读并确认 (已同步至教师端)')}
+                </button>
+              `}
+            </div>
+          </div>
+        `;
+      };
 
       const closeModal = () => {
         modal.remove();
         if (this.state.studentViewMode === 'task_list') {
           this.renderMain();
+        } else {
+          this.renderStudentWorkspace(true);
         }
       };
-      modal.querySelector('#btn-close-ann-popup').addEventListener('click', closeModal);
-      modal.querySelector('#btn-close-ann-bottom').addEventListener('click', closeModal);
-      modal.addEventListener('click', (e) => { if (e.target === modal) closeModal(); });
 
-      modal.querySelector('#btn-ext-got-it')?.addEventListener('click', () => {
-        this.authManager.markAnnouncementRead(selectedAnn.id, groupId);
-        closeModal();
-      });
+      const attachListEvents = () => {
+        modal.querySelector('#btn-close-ann-popup')?.addEventListener('click', closeModal);
+        modal.querySelector('#btn-close-ann-bottom')?.addEventListener('click', closeModal);
+        modal.querySelectorAll('.btn-open-ann-item').forEach(card => {
+          card.addEventListener('click', () => {
+            const annId = card.dataset.id;
+            const target = myAnns.find(a => a.id === annId);
+            if (target) {
+              showDetail(target);
+            }
+          });
+        });
+      };
 
-      modal.querySelector('#btn-read-confirm')?.addEventListener('click', () => {
-        if (!isSelectedRead) {
-          this.authManager.markAnnouncementRead(selectedAnn.id, groupId);
+      const showDetail = (ann) => {
+        // 查阅即自动消除红点，无需强制二次确认
+        try {
+          this.authManager.markAnnouncementRead(ann.id, groupId);
+        } catch (e) {}
+
+        modal.innerHTML = renderDetailHtml(ann);
+        attachDetailEvents(ann);
+      };
+
+      const attachDetailEvents = (ann) => {
+        modal.querySelector('#btn-close-ann-popup')?.addEventListener('click', closeModal);
+        modal.querySelector('#btn-close-ann-bottom')?.addEventListener('click', closeModal);
+        modal.querySelector('#btn-back-to-list')?.addEventListener('click', () => {
+          modal.innerHTML = renderListHtml();
+          attachListEvents();
+        });
+
+        modal.querySelector('#btn-ext-got-it')?.addEventListener('click', () => {
+          this.authManager.markAnnouncementRead(ann.id, groupId);
+          closeModal();
+        });
+
+        modal.querySelector('#btn-read-confirm')?.addEventListener('click', () => {
+          this.authManager.markAnnouncementRead(ann.id, groupId);
           const myName = currentUser ? currentUser.name : '学生';
-          this.authManager.markAnnouncementConfirmed(selectedAnn.id, currentUser ? (currentUser.id || currentUser.studentCode || currentUser.name) : 'temp', myName, groupId);
-        }
-        closeModal();
-        const remainingUnread = unreadList.filter(a => a.id !== selectedAnn.id && !a.isExtension && !a.title?.includes('延期通知'));
-        if (remainingUnread.length > 0) {
-          setTimeout(() => this.showAnnouncementModal(remainingUnread[0], true), 200);
-        } else {
-          if (this.state.studentViewMode === 'task_list') {
-            this.renderMain();
+          this.authManager.markAnnouncementConfirmed(ann.id, currentUser ? (currentUser.id || currentUser.studentCode || currentUser.name) : 'temp', myName, groupId);
+
+          const remainingUnread = unreadList.filter(a => a.id !== ann.id && !a.isExtension && !a.title?.includes('延期通知'));
+          if (remainingUnread.length > 0) {
+            showDetail(remainingUnread[0]);
           } else {
-            this.renderStudentWorkspace(true);
-          }
-        }
-      });
-
-      // TAB 切换
-      modal.querySelectorAll('.btn-switch-ann-tab').forEach(btn => {
-        btn.addEventListener('click', () => {
-          const annId = btn.dataset.id;
-          const target = myAnns.find(a => a.id === annId);
-          if (target) {
             closeModal();
-            this.showAnnouncementModal(target, false);
           }
         });
-      });
 
-      const downloadBtn = modal.querySelector('#btn-download-ann-file');
-      if (downloadBtn && selectedAnn.attachment) {
-        downloadBtn.addEventListener('click', () => {
-          downloadFileBlob(selectedAnn.attachment.name);
-        });
+        const downloadBtn = modal.querySelector('#btn-download-ann-file');
+        if (downloadBtn && ann.attachment) {
+          downloadBtn.addEventListener('click', () => {
+            downloadFileBlob(ann.attachment.name);
+          });
+        }
+      };
+
+      if (showDetailDirectly && selectedAnn) {
+        modal.innerHTML = renderDetailHtml(selectedAnn);
+        attachDetailEvents(selectedAnn);
+      } else {
+        modal.innerHTML = renderListHtml();
+        attachListEvents();
       }
+
+      modal.addEventListener('click', (e) => { if (e.target === modal) closeModal(); });
+      document.body.appendChild(modal);
     }
 
     showQuestionnaireModal() {
