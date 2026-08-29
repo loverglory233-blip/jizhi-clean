@@ -756,7 +756,6 @@ if ($action === 'get_teacher_monitor_all_groups') {
             }
         }
 
-        // 2. 查出当前任务下所有小组的协同状态 (兼容带班级前缀与裸 task_default)
         $legacyTid = ($taskId === 'task_' . $classId . '_default') ? 'task_default' : $taskId;
         $stmt = $pdo->prepare("SELECT * FROM group_states WHERE task_id = :tid OR task_id = :tid2 ORDER BY last_timestamp ASC");
         $stmt->execute([':tid' => $taskId, ':tid2' => $legacyTid]);
@@ -766,6 +765,15 @@ if ($action === 'get_teacher_monitor_all_groups') {
             $stateMap[$r['group_id']] = $r;
         }
 
+        // 🛡️ 鲁棒性托底：若某小组在此任务下暂无记录，检索该小组最新协同记录，确保在线心跳绝对不漏网
+        $stmtAll = $pdo->prepare("SELECT * FROM group_states ORDER BY last_timestamp ASC");
+        $stmtAll->execute();
+        $allRows = $stmtAll->fetchAll(PDO::FETCH_ASSOC);
+        $fallbackMap = [];
+        foreach ($allRows as $r) {
+            $fallbackMap[$r['group_id']] = $r;
+        }
+
         // 🛡️ 严格按班级物理隔离：若指定了班级，仅呈现该班级官方名册下的小组，绝不混入其他班级或游离小组
         if (!empty($classId) && !empty($officialGroups)) {
             $allGroupIds = array_keys($officialGroups);
@@ -773,6 +781,12 @@ if ($action === 'get_teacher_monitor_all_groups') {
             $allGroupIds = array_unique(array_merge(array_keys($officialGroups), array_keys($stateMap)));
         }
         if (empty($allGroupIds)) $allGroupIds = ['group_1'];
+
+        foreach ($allGroupIds as $gid) {
+            if (!isset($stateMap[$gid]) && isset($fallbackMap[$gid])) {
+                $stateMap[$gid] = $fallbackMap[$gid];
+            }
+        }
 
         $ONLINE_WINDOW_MS = 180000; // 180 秒 (3分钟) 心跳/发言窗口，与浏览器后台标签页节流对齐，确保在线状态稳定常绿不跳变
 
