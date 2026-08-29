@@ -16,7 +16,7 @@ TARGET_DIRS=($(printf "%s\n" "${TARGET_DIRS[@]}" | sort -u))
 
 echo "📁 目标目录: ${TARGET_DIRS[*]}"
 
-TARGET_VERSION="20260829_v665"
+TARGET_VERSION="20260829_v666"
 
 echo "⚡ [2/4] 极速同步最新代码包 ($TARGET_VERSION)..."
 TMP=/tmp/jizhi_update
@@ -131,12 +131,60 @@ for cdir in /www/server/panel/vhost/nginx /www/server/nginx/conf/vhost; do
   [ -d "$cdir" ] || continue
   for conf in "$cdir"/*.conf; do
     [ -f "$conf" ] || continue
-    sed -i '/location ~ \^\/(sync\\\.php\|api\/)/,/^[[:space:]]*}/d' "$conf" 2>/dev/null || true
-    sed -i '/proxy_pass http:\/\/127.0.0.1:8088/d' "$conf" 2>/dev/null || true
     
-    if ! grep -q "location /ws" "$conf" && ! grep -q "location ^~ /ws" "$conf"; then
-      sed -i '/access_log/i \
-    location /ws {\
+    # 彻底清除之前的残留标记与冲突规则
+    sed -i '/# ETHERPAD_PROXY_START/,/# ETHERPAD_PROXY_END/d' "$conf" 2>/dev/null || true
+    sed -i '/location \^~ \/p\//,/}/d' "$conf" 2>/dev/null || true
+    sed -i '/location \^~ \/socket\.io\//,/}/d' "$conf" 2>/dev/null || true
+    sed -i '/location \^~ \/static\//,/}/d' "$conf" 2>/dev/null || true
+    sed -i '/location \^~ \/javascripts\//,/}/d' "$conf" 2>/dev/null || true
+    sed -i '/location \^~ \/pluginfw\//,/}/d' "$conf" 2>/dev/null || true
+    sed -i '/location \^~ \/locales\//,/}/d' "$conf" 2>/dev/null || true
+    sed -i '/location \/p\//,/}/d' "$conf" 2>/dev/null || true
+    sed -i '/location \/socket\.io/,/}/d' "$conf" 2>/dev/null || true
+    sed -i '/location \/ws/,/}/d' "$conf" 2>/dev/null || true
+    sed -i '/location \^~ \/ws/,/}/d' "$conf" 2>/dev/null || true
+
+    # 注入标准反向代理配置
+    sed -i '/server_name/a \
+    # ETHERPAD_PROXY_START\
+    location ^~ /p/ {\
+        proxy_pass http://127.0.0.1:9001/p/;\
+        proxy_set_header Host $host;\
+        proxy_buffering off;\
+        proxy_http_version 1.1;\
+        proxy_set_header Upgrade $http_upgrade;\
+        proxy_set_header Connection "upgrade";\
+        proxy_read_timeout 3600s;\
+        proxy_send_timeout 3600s;\
+    }\
+    location ^~ /socket.io/ {\
+        proxy_pass http://127.0.0.1:9001/socket.io/;\
+        proxy_set_header Host $host;\
+        proxy_buffering off;\
+        proxy_http_version 1.1;\
+        proxy_set_header Upgrade $http_upgrade;\
+        proxy_set_header Connection "upgrade";\
+        proxy_read_timeout 3600s;\
+        proxy_send_timeout 3600s;\
+    }\
+    location ^~ /static/ {\
+        proxy_pass http://127.0.0.1:9001/static/;\
+        proxy_set_header Host $host;\
+    }\
+    location ^~ /javascripts/ {\
+        proxy_pass http://127.0.0.1:9001/javascripts/;\
+        proxy_set_header Host $host;\
+    }\
+    location ^~ /pluginfw/ {\
+        proxy_pass http://127.0.0.1:9001/pluginfw/;\
+        proxy_set_header Host $host;\
+    }\
+    location ^~ /locales/ {\
+        proxy_pass http://127.0.0.1:9001/locales/;\
+        proxy_set_header Host $host;\
+    }\
+    location ^~ /ws {\
         proxy_pass http://127.0.0.1:1234;\
         proxy_http_version 1.1;\
         proxy_set_header Upgrade $http_upgrade;\
@@ -145,38 +193,10 @@ for cdir in /www/server/panel/vhost/nginx /www/server/nginx/conf/vhost; do
         proxy_read_timeout 3600s;\
         proxy_send_timeout 3600s;\
     }\
-    location /p/ {\
-        proxy_pass http://127.0.0.1:9001/p/;\
-        proxy_http_version 1.1;\
-        proxy_set_header Upgrade $http_upgrade;\
-        proxy_set_header Connection "Upgrade";\
-        proxy_set_header Host $host;\
-        proxy_read_timeout 3600s;\
-        proxy_send_timeout 3600s;\
-    }\
-    location /socket.io {\
-        proxy_pass http://127.0.0.1:9001/socket.io;\
-        proxy_http_version 1.1;\
-        proxy_set_header Upgrade $http_upgrade;\
-        proxy_set_header Connection "Upgrade";\
-        proxy_set_header Host $host;\
-    }\
-    location /javascripts {\
-        proxy_pass http://127.0.0.1:9001/javascripts;\
-    }\
-    location /pluginfw {\
-        proxy_pass http://127.0.0.1:9001/pluginfw;\
-    }\
-    location /static {\
-        proxy_pass http://127.0.0.1:9001/static;\
-    }\
-    location /locales {\
-        proxy_pass http://127.0.0.1:9001/locales;\
-    }' "$conf" 2>/dev/null || true
-    fi
+    # ETHERPAD_PROXY_END' "$conf" 2>/dev/null || true
   done
 done
-nginx -s reload 2>/dev/null || /etc/init.d/nginx reload 2>/dev/null || systemctl reload nginx 2>/dev/null || true
+nginx -t 2>/dev/null && (nginx -s reload 2>/dev/null || /etc/init.d/nginx reload 2>/dev/null || systemctl reload nginx 2>/dev/null || true)
 /etc/init.d/php-fpm-82 restart 2>/dev/null || /etc/init.d/php-fpm-81 restart 2>/dev/null || /etc/init.d/php-fpm-80 restart 2>/dev/null || /etc/init.d/php-fpm-74 restart 2>/dev/null || systemctl restart php-fpm 2>/dev/null || true
 
 MAIN_DIR="${TARGET_DIRS[0]}"
@@ -186,19 +206,19 @@ fi
 
 # 检查 Etherpad 服务状态
 if ! lsof -i:9001 >/dev/null 2>&1 && ! netstat -tuln 2>/dev/null | grep -q ":9001 "; then
-  echo "   ⚠️ 检查 Etherpad (端口 9001) 服务..."
+  echo "   ⚠️ 正在拉起 Etherpad (端口 9001) 服务..."
   systemctl start etherpad 2>/dev/null || true
   systemctl start etherpad-lite 2>/dev/null || true
   pm2 restart etherpad 2>/dev/null || pm2 start etherpad 2>/dev/null || true
-  for ep_dir in /opt/etherpad-lite /root/etherpad-lite /var/www/etherpad-lite /www/server/etherpad /www/wwwroot/etherpad; do
+  for ep_dir in /www/wwwroot/etherpad-lite /opt/etherpad-lite /root/etherpad-lite /var/www/etherpad-lite /www/server/etherpad /www/wwwroot/etherpad; do
     if [ -d "$ep_dir" ]; then
       cd "$ep_dir"
       if [ -f "src/node/server.js" ]; then
-        nohup node src/node/server.js > /tmp/etherpad.log 2>&1 &
+        nohup node src/node/server.js > /var/log/etherpad.log 2>&1 &
         sleep 2
         break
       elif [ -f "bin/run.sh" ]; then
-        nohup bash bin/run.sh > /tmp/etherpad.log 2>&1 &
+        nohup bash bin/run.sh > /var/log/etherpad.log 2>&1 &
         sleep 2
         break
       fi
