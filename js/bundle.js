@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260830_v706
+ * Version: 20260830_v707
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260830_v706';
+  const APP_VERSION = '20260830_v707';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -9329,7 +9329,16 @@
         <div style="flex:1; min-height:480px; height:calc(100vh - 380px); display:flex; flex-direction:column; margin-bottom:12px;">
           ${(() => {
             const padName = `jizhi_${activeTaskId}_${userGroupId}`;
-            const currUserName = (currUser && (currUser.name || currUser.username)) || '组员';
+            let currUserName = currUser?.name || '';
+            if (!currUserName && state.members && state.members[currUserCode]?.name) {
+              currUserName = state.members[currUserCode].name;
+            }
+            if (!currUserName && window.app && window.app.authManager) {
+              const matchedUser = window.app.authManager.getUsers().find(u => u && (u.studentCode === currUserCode || u.id === currUserCode || u.username === currUserCode || u.id === currUser?.id));
+              if (matchedUser && matchedUser.name) currUserName = matchedUser.name;
+            }
+            if (!currUserName) currUserName = currUser?.username || currUserCode || '组员';
+
             const currUserColor = (state.members && state.members[currUserCode]?.color) || '#2563eb';
             const padUrl = `/p/${padName}?userName=${encodeURIComponent(currUserName)}&userColor=${encodeURIComponent(currUserColor)}&showChat=false&showLineNumbers=true&showControls=${isEditorReadonly ? 'false' : 'true'}&lang=zh-hans`;
 
