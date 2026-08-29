@@ -34,14 +34,9 @@ echo "3.5️⃣ [静态资源排查] 检查 Etherpad pad.html 引入的所有前
 PAD_HTML=$(curl -s http://127.0.0.1:9001/p/test_diag_pad 2>/dev/null || echo "")
 echo "$PAD_HTML" | grep -oE '(src|href)="([^"]+\.(js|css|json)[^"]*)"' | while read -r line; do
     URI=$(echo "$line" | sed -E 's/(src|href)="([^"]+)"/\2/')
-    # 补全前缀
-    if [[ "$URI" != http* ]] && [[ "$URI" != /* ]]; then
-        URI="/$URI"
-    fi
-    if [[ "$URI" == /* ]]; then
-        CODE=$(curl -s -o /dev/null -w "%{http_code}" "http://127.0.0.1$URI" 2>/dev/null || echo "000")
-        echo "   - [资源] $URI => HTTP $CODE"
-    fi
+    CLEAN_URI=$(echo "$URI" | sed 's|^/||; s|^\.\./||; s|^\.\./||')
+    CODE=$(curl -s -o /dev/null -w "%{http_code}" "http://127.0.0.1/$CLEAN_URI" 2>/dev/null || echo "000")
+    echo "   - [资源] /$CLEAN_URI => HTTP $CODE"
 done
 
 # 4. 检查 Socket.IO 握手 (关键：如果这个失败就会导致永久 loading)

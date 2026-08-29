@@ -14,8 +14,8 @@ import {
   DefaultTasks,
   DefaultAnnouncements,
   DefaultReferencePapers
-} from './constants.js?v=20260829_v680';
-import { formatExportDateTime } from './utils.js?v=20260829_v680';
+} from './constants.js?v=20260829_v681';
+import { formatExportDateTime } from './utils.js?v=20260829_v681';
 
 export class AuthManager {
   constructor() {
