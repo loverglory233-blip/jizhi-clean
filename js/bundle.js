@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260830_v730
+ * Version: 20260830_v731
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260830_v730';
+  const APP_VERSION = '20260830_v731';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -13323,8 +13323,8 @@
           this.sendSingleChatMessage(oppMsg, 'stage3');
           this.syncChatLogs();
           if (typeof window.renderChat === 'function') window.renderChat(this.state);
-          // ⏱️ 微缓冲 500ms 立即同步上屏左侧矩阵
-          await new Promise(r => setTimeout(r, 500));
+          // ⏱️ 反方发言后微留 2 秒让组员看一眼反方要点
+          await new Promise(r => setTimeout(r, 2000));
         } else {
           const existingOpp = logs.find(m => m && m.sender === 'opponent');
           oppText = existingOpp ? existingOpp.text : '';
@@ -13356,8 +13356,8 @@
         if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
         renderChat(this.state);
         this.renderStudentWorkspace();
-        // ⏱️ 矩阵就位后预留 2 秒让中间委员出场
-        await new Promise(r => setTimeout(r, 2000));
+        // ⏱️ 矩阵就位后预留 3 秒通读思考，中间委员再出场下发第 1 题思路引导
+        await new Promise(r => setTimeout(r, 3000));
 
         // 5. 中间委员独立调用 Coze API，引导第 1 题辩护
         const hasChairGuide = logs.some(m => m && m.sender === 'neutral' && (m.text?.includes('答辩思路引导') || m.text?.includes('质询 ①')));
