@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260830_v722
+ * Version: 20260830_v723
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260830_v722';
+  const APP_VERSION = '20260830_v723';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -13728,35 +13728,34 @@
 
           // 🛡️ 严格要求：必须全组成员每一个人都点击确认初稿后，才解锁推进至阶段三
           if (confirmedCount < totalMembersCount) {
-            alert(`✅ 您 (${memberName}) 已成功确认正文初稿！\n\n当前组内确认进度：${confirmedCount}/${totalMembersCount} 人已确认。\n⚠️ 必须全组所有成员均完成确认后，系统才会正式解锁并自动推进至【阶段三：答辩擂台】！请提醒组内其他同学尽快确认。`);
+            alert(`✅ 您 (${memberName}) 已成功确认正文初稿！\n\n当前组内确认进度：${confirmedCount}/${totalMembersCount} 人已确认。\n⚠️ 必须全组所有成员均完成确认后，系统才会正式解锁【阶段三：答辩擂台】！请提醒组内其他同学尽快确认。`);
           } else {
             s2.isDraftConfirmed = true;
             this.state.groupMaxStage = 'stage3';
-            const currentUserObj = this.authManager.getCurrentUser();
+            const currentUserObj = this.authManager ? this.authManager.getCurrentUser() : null;
             const activeTaskId = this.state.activeTaskId || 'task_default';
             const userGroupId = (currentUserObj && currentUserObj.groupId) ? currentUserObj.groupId : 'group_1';
-            if (this.authManager.markAllTaskAnnouncementsRead) {
+            if (this.authManager && this.authManager.markAllTaskAnnouncementsRead) {
               this.authManager.markAllTaskAnnouncementsRead(activeTaskId, userGroupId);
             }
+
+            // 责任编辑立即在阶段二聊天记录中正式宣布全员确认完毕
+            const finalMsg = {
+              sender: 'managingEditor',
+              senderName: '责任编辑 · 过程学伴',
+              text: `🎉 【责任编辑宣布】：恭喜！组内全员 ${totalMembersCount}/${totalMembersCount} 名成员已全部确认正文初稿定稿！阶段二圆满结束，系统已全员解锁【阶段三：答辩擂台】！请大家点击顶部导航进入阶段三开始答辩！`,
+              timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+              _timeMs: Date.now() + 50
+            };
+            if (!this.state.chatLogs.stage2) this.state.chatLogs.stage2 = [];
+            this.state.chatLogs.stage2.push(finalMsg);
             this.syncStage2();
-            this.syncStageChange('stage3');
+            this.syncChatLogs();
             if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
-            setTimeout(() => {
-              const finalMsg = {
-                sender: 'managingEditor',
-                senderName: '责任编辑 · 过程学伴',
-                text: `🎉 【责任编辑宣布】：恭喜！组内全员 ${totalMembersCount}/${totalMembersCount} 名成员已全部确认正文初稿定稿！阶段二圆满结束，系统自动全员解锁推进至【阶段三：答辩擂台】！`,
-                timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                _timeMs: Date.now() + 300
-              };
-              if (!this.state.chatLogs.stage2) this.state.chatLogs.stage2 = [];
-              this.state.chatLogs.stage2.push(finalMsg);
-              this.syncChatLogs();
-              if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
-              renderChat(this.state);
-              alert(`🎉 恭喜！组内全部 ${totalMembersCount} 位成员已全部完成初稿确认！\n\n系统已全组解锁【阶段三：答辩擂台】！请点击顶部导航进入阶段三开始答辩。`);
-              this.renderStudentWorkspace();
-            }, 600);
+            renderChat(this.state);
+            this.renderStudentWorkspace();
+
+            alert(`🎉 恭喜！组内全员 (${totalMembersCount}/${totalMembersCount} 人) 已全部完成初稿确认！\n\n系统已全组解锁【阶段三：答辩擂台】！请随时点击顶部导航栏中的【阶段三：答辩擂台】进入答辩。`);
           }
           this.renderStudentWorkspace();
         },
