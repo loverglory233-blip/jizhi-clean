@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260830_v729";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash } from "./utils.js?v=20260830_v729";
-import { callCozeAgentAPI } from "./agents.js?v=20260830_v729";
-import { AuthManager } from "./auth.js?v=20260830_v729";
-import { CloudSyncEngine } from "./sync.js?v=20260830_v729";
-import { renderLoginView } from "./login.js?v=20260830_v729";
-import { renderTeacherPortal } from "./teacher.js?v=20260830_v729";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260830_v729";
+} from "./constants.js?v=20260830_v730";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash } from "./utils.js?v=20260830_v730";
+import { callCozeAgentAPI } from "./agents.js?v=20260830_v730";
+import { AuthManager } from "./auth.js?v=20260830_v730";
+import { CloudSyncEngine } from "./sync.js?v=20260830_v730";
+import { renderLoginView } from "./login.js?v=20260830_v730";
+import { renderTeacherPortal } from "./teacher.js?v=20260830_v730";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260830_v730";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260830_v729";
+} from "./editor.js?v=20260830_v730";
 
 // Make renderChat available on window for sync callbacks
 if (typeof window !== "undefined") {
@@ -3072,14 +3072,14 @@ ${propText}
         this.sendSingleChatMessage(oppMsg, 'stage3');
         this.syncChatLogs();
         if (typeof window.renderChat === 'function') window.renderChat(this.state);
-        // ⏱️ 预留 4.5 秒，让组员通读反方质询点
-        await new Promise(r => setTimeout(r, 4500));
+        // ⏱️ 微缓冲 500ms 立即同步上屏左侧矩阵
+        await new Promise(r => setTimeout(r, 500));
       } else {
         const existingOpp = logs.find(m => m && m.sender === 'opponent');
         oppText = existingOpp ? existingOpp.text : '';
       }
 
-      // 4. 平台自动将正反评审意见写入左侧【答辩裁决矩阵】并结束加载
+      // 4. 平台自动将正反评审意见【即刻同步写入】左侧【答辩裁决矩阵】
       const oppBody = (oppText || '').replace(/^[^\n]*?【[^】]+】[：:]?\s*/, '').trim();
       const oppMatches = oppBody.match(/[①②③④⑤][^①②③④⑤]*/g);
       const oppQueries = (oppMatches && oppMatches.length > 0)
@@ -3105,8 +3105,8 @@ ${propText}
       if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
       renderChat(this.state);
       this.renderStudentWorkspace();
-      // ⏱️ 矩阵生成后留 3.5 秒让组员看清左侧矩阵的更新与就位
-      await new Promise(r => setTimeout(r, 3500));
+      // ⏱️ 矩阵就位后预留 2 秒让中间委员出场
+      await new Promise(r => setTimeout(r, 2000));
 
       // 5. 中间委员独立调用 Coze API，引导第 1 题辩护
       const hasChairGuide = logs.some(m => m && m.sender === 'neutral' && (m.text?.includes('答辩思路引导') || m.text?.includes('质询 ①')));
