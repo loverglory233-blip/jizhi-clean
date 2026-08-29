@@ -62,7 +62,7 @@ cat << 'EPSETEOF' > "$EP_DIR/settings.json"
   "suppressErrorsInPadText": true,
   "requireAuthentication": false,
   "requireAuthorization": false,
-  "trustProxy": true,
+  "trustProxy": 1,
   "socketTransportProtocols": ["websocket", "polling"],
   "loadTest": false,
   "exposeVersion": false,
