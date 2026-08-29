@@ -2615,7 +2615,9 @@ export function renderChat(state) {
     } else {
       let rawText = msg.text || '';
       let safeText = escapeHtml(rawText);
-      let formattedText = safeText.replace(/(@[^\s@]+)/g, '<span class="mention-tag">$1</span>');
+      let formattedText = safeText
+        .replace(/(@[^\s@]+)/g, '<span class="mention-tag">$1</span>')
+        .replace(/\*\*(.*?)\*\*/g, '<b>$1</b>');
       formattedContent = `<div class="msg-bubble">${formattedText}</div>`;
     }
 
