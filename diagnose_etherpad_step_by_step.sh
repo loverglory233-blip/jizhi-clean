@@ -28,10 +28,21 @@ echo ""
 echo "3️⃣ [Nginx 排查] 测试 Nginx 代理路由 (/p/ 与 /socket.io):"
 NGINX_PAD_STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1/p/test_diag_pad 2>/dev/null || echo "000")
 echo "   📄 Nginx /p/test_diag_pad 状态码: $NGINX_PAD_STATUS"
-if [ "$NGINX_PAD_STATUS" = "500" ] || [ "$LOCAL_PAD" = "500" ]; then
-    echo "   ⚠️ 500 报错排查日志 (前 5 行):"
-    curl -s http://127.0.0.1:9001/p/test_diag_pad 2>/dev/null | head -n 5 || true
-fi
+
+echo ""
+echo "3.5️⃣ [静态资源排查] 检查 Etherpad pad.html 引入的所有前端静态文件连通性:"
+PAD_HTML=$(curl -s http://127.0.0.1:9001/p/test_diag_pad 2>/dev/null || echo "")
+echo "$PAD_HTML" | grep -oE '(src|href)="([^"]+\.(js|css|json)[^"]*)"' | while read -r line; do
+    URI=$(echo "$line" | sed -E 's/(src|href)="([^"]+)"/\2/')
+    # 补全前缀
+    if [[ "$URI" != http* ]] && [[ "$URI" != /* ]]; then
+        URI="/$URI"
+    fi
+    if [[ "$URI" == /* ]]; then
+        CODE=$(curl -s -o /dev/null -w "%{http_code}" "http://127.0.0.1$URI" 2>/dev/null || echo "000")
+        echo "   - [资源] $URI => HTTP $CODE"
+    fi
+done
 
 # 4. 检查 Socket.IO 握手 (关键：如果这个失败就会导致永久 loading)
 echo ""
