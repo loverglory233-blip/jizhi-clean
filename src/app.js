@@ -1218,7 +1218,7 @@ export class App {
           }
         }
 
-        // ── 阶段二修改期静默守护（审稿编辑在 3 次质检意见下发后，若讨论区静默均由责任编辑出面破冰推进） ──
+        // ── 阶段二修改期静默守护（审稿编辑在 3 次质检意见下发后，若讨论区静默由审稿编辑自身出面跟进答疑与提醒） ──
         // 1) 第一次质检（初审微调）后的静默破冰
         if (this.state.stage2FirstReviewFinishedTime && !this.state.stage2PostFirstReviewNudgeSent && !this.state.stage2ReviewingFinishedTime) {
           const timeSinceReview1 = now - this.state.stage2FirstReviewFinishedTime;
@@ -1226,8 +1226,8 @@ export class App {
             this.state.stage2PostFirstReviewNudgeSent = true;
             this.lastS2PostMeetingSilenceNudgeTime = now;
             const msg = {
-              sender: 'managingEditor',
-              text: `💡 【责任编辑·初审修改交流提示】：审稿专家已对大家的前期初稿提出了局部微调建议！👉 建议大家在讨论区交流一下如何落实专家的优化方向，打好后续章节的基础！`,
+              sender: 'reviewingEditor',
+              text: `📝 【审稿编辑·初审跟进提示】：初审微调建议已送达！大家若对核心概念界定或文献引向有具体疑问，随时在讨论区 @审稿编辑 咨询，全组继续稳步分工推进！`,
               timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
               _timeMs: now,
               stage: 'stage2'
@@ -1248,8 +1248,8 @@ export class App {
             this.state.stage2FirstPostReviewNudgeSent = true;
             this.lastS2PostMeetingSilenceNudgeTime = now;
             const msg = {
-              sender: 'managingEditor',
-              text: `💡 【责任编辑·半程协同修改交流提示】：审稿专家的学术质检意见与修正清单已送达！👉 请大家在讨论区开麦交流：对照专家指出的薄弱点与清单，各自如何分工修改？遇到难点互相出谋划策，协同推进终稿！`,
+              sender: 'reviewingEditor',
+              text: `📝 【审稿编辑·修改交流提示】：修正清单已挂在上方！大家若对清单中的量表题目设计、方法闭环或文风润色有任何疑问，随时在讨论区 @审稿编辑 咨询，也可以在群里交流商定对策！`,
               timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
               _timeMs: now,
               stage: 'stage2'
@@ -1270,8 +1270,8 @@ export class App {
             this.state.stage2PostFinalReviewNudgeSent = true;
             this.lastS2PostMeetingSilenceNudgeTime = now;
             const msg = {
-              sender: 'managingEditor',
-              text: `💡 【责任编辑·终稿润色交流提示】：审稿专家的终稿语言与格式扫描诊断已下发！👉 请小组成员在讨论区简要分工：对照专家指出的语病与错别字逐一订正，做好最后的成稿冲刺！`,
+              sender: 'reviewingEditor',
+              text: `📝 【审稿编辑·终稿润色提示】：终稿语言与格式扫描诊断已下发！请大家对照指出的语病与错别字逐一订正，通读润色完毕后在上方完成【初稿确认】，准备迎接答辩！`,
               timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
               _timeMs: now,
               stage: 'stage2'
