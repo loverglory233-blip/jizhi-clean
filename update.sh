@@ -16,7 +16,7 @@ TARGET_DIRS=($(printf "%s\n" "${TARGET_DIRS[@]}" | sort -u))
 
 echo "📁 目标目录: ${TARGET_DIRS[*]}"
 
-TARGET_VERSION="20260829_v676"
+TARGET_VERSION="20260829_v677"
 
 echo "⚡ [2/4] 极速同步最新代码包 ($TARGET_VERSION)..."
 TMP=/tmp/jizhi_update
@@ -127,85 +127,94 @@ done
 rm -rf "$TMP"
 
 echo "🔄 [3/4] 验证 PHP 环境、配置 Nginx /ws 协同反代并重载..."
-for cdir in /www/server/panel/vhost/nginx /www/server/nginx/conf/vhost; do
-  [ -d "$cdir" ] || continue
-  for conf in "$cdir"/*.conf; do
-    [ -f "$conf" ] || continue
-    
-    # 彻底清除之前的残留标记与冲突规则
-    sed -i '/# ETHERPAD_PROXY_START/,/# ETHERPAD_PROXY_END/d' "$conf" 2>/dev/null || true
-    sed -i '/location \^~ \/p\//,/}/d' "$conf" 2>/dev/null || true
-    sed -i '/location \^~ \/socket\.io\//,/}/d' "$conf" 2>/dev/null || true
-    sed -i '/location \^~ \/static\//,/}/d' "$conf" 2>/dev/null || true
-    sed -i '/location \^~ \/javascripts\//,/}/d' "$conf" 2>/dev/null || true
-    sed -i '/location \^~ \/pluginfw\//,/}/d' "$conf" 2>/dev/null || true
-    sed -i '/location \^~ \/locales\//,/}/d' "$conf" 2>/dev/null || true
-    sed -i '/location \/p\//,/}/d' "$conf" 2>/dev/null || true
-    sed -i '/location \/socket\.io/,/}/d' "$conf" 2>/dev/null || true
-    sed -i '/location \/ws/,/}/d' "$conf" 2>/dev/null || true
-    sed -i '/location \^~ \/ws/,/}/d' "$conf" 2>/dev/null || true
+node -e '
+const fs = require("fs");
+const path = require("path");
 
-    # 注入标准反向代理配置
-    sed -i '/server_name/a \
-    # ETHERPAD_PROXY_START\
-    location ^~ /p/ {\
-        proxy_pass http://127.0.0.1:9001/p/;\
-        proxy_set_header Host $host;\
-        proxy_buffering off;\
-        proxy_http_version 1.1;\
-        proxy_read_timeout 3600s;\
-        proxy_send_timeout 3600s;\
-    }\
-    location ^~ /socket.io {\
-        proxy_pass http://127.0.0.1:9001/socket.io;\
-        proxy_set_header Host $host;\
-        proxy_buffering off;\
-        proxy_http_version 1.1;\
-        proxy_set_header Upgrade $http_upgrade;\
-        proxy_set_header Connection "upgrade";\
-        proxy_read_timeout 3600s;\
-        proxy_send_timeout 3600s;\
-    }\
-    location ^~ /static {\
-        proxy_pass http://127.0.0.1:9001/static;\
-        proxy_set_header Host $host;\
-    }\
-    location ^~ /javascripts {\
-        proxy_pass http://127.0.0.1:9001/javascripts;\
-        proxy_set_header Host $host;\
-    }\
-    location ^~ /pluginfw {\
-        proxy_pass http://127.0.0.1:9001/pluginfw;\
-        proxy_set_header Host $host;\
-    }\
-    location ^~ /locales {\
-        proxy_pass http://127.0.0.1:9001/locales;\
-        proxy_set_header Host $host;\
-    }\
-    location ^~ /locales.json {\
-        proxy_pass http://127.0.0.1:9001/locales.json;\
-        proxy_set_header Host $host;\
-    }\
-    location ^~ /tests {\
-        proxy_pass http://127.0.0.1:9001/tests;\
-        proxy_set_header Host $host;\
-    }\
-    location ^~ /ep {\
-        proxy_pass http://127.0.0.1:9001/ep;\
-        proxy_set_header Host $host;\
-    }\
-    location ^~ /ws {\
-        proxy_pass http://127.0.0.1:1234;\
-        proxy_http_version 1.1;\
-        proxy_set_header Upgrade $http_upgrade;\
-        proxy_set_header Connection "Upgrade";\
-        proxy_set_header Host $host;\
-        proxy_read_timeout 3600s;\
-        proxy_send_timeout 3600s;\
-    }\
-    # ETHERPAD_PROXY_END' "$conf" 2>/dev/null || true
-  done
-done
+const dirs = ["/www/server/panel/vhost/nginx", "/www/server/nginx/conf/vhost"];
+dirs.forEach(d => {
+  if (!fs.existsSync(d)) return;
+  const files = fs.readdirSync(d);
+  files.forEach(file => {
+    if (!file.endsWith(".conf")) return;
+    const fullPath = path.join(d, file);
+    let content = fs.readFileSync(fullPath, "utf8");
+    if (!content.includes("server_name")) return;
+
+    // 清理所有历史旧代理规则，防止重复插入
+    content = content.replace(/# ETHERPAD_PROXY_START[\s\S]*?# ETHERPAD_PROXY_END/g, "");
+    content = content.replace(/location\s+\^~\s+\/p\/[\s\S]*?\}\n/g, "");
+    content = content.replace(/location\s+\^~\s+\/socket\.io[\s\S]*?\}\n/g, "");
+    content = content.replace(/location\s+\^~\s+\/static[\s\S]*?\}\n/g, "");
+    content = content.replace(/location\s+\^~\s+\/javascripts[\s\S]*?\}\n/g, "");
+    content = content.replace(/location\s+\^~\s+\/pluginfw[\s\S]*?\}\n/g, "");
+
+    const proxyBlock = `
+    # ETHERPAD_PROXY_START
+    location ^~ /p/ {
+        proxy_pass http://127.0.0.1:9001/p/;
+        proxy_set_header Host $host;
+        proxy_buffering off;
+        proxy_http_version 1.1;
+        proxy_read_timeout 3600s;
+        proxy_send_timeout 3600s;
+    }
+    location ^~ /socket.io {
+        proxy_pass http://127.0.0.1:9001/socket.io;
+        proxy_set_header Host $host;
+        proxy_buffering off;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_read_timeout 3600s;
+        proxy_send_timeout 3600s;
+    }
+    location ^~ /static {
+        proxy_pass http://127.0.0.1:9001/static;
+        proxy_set_header Host $host;
+    }
+    location ^~ /javascripts {
+        proxy_pass http://127.0.0.1:9001/javascripts;
+        proxy_set_header Host $host;
+    }
+    location ^~ /pluginfw {
+        proxy_pass http://127.0.0.1:9001/pluginfw;
+        proxy_set_header Host $host;
+    }
+    location ^~ /locales {
+        proxy_pass http://127.0.0.1:9001/locales;
+        proxy_set_header Host $host;
+    }
+    location ^~ /locales.json {
+        proxy_pass http://127.0.0.1:9001/locales.json;
+        proxy_set_header Host $host;
+    }
+    location ^~ /tests {
+        proxy_pass http://127.0.0.1:9001/tests;
+        proxy_set_header Host $host;
+    }
+    location ^~ /ep {
+        proxy_pass http://127.0.0.1:9001/ep;
+        proxy_set_header Host $host;
+    }
+    location ^~ /ws {
+        proxy_pass http://127.0.0.1:1234;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "Upgrade";
+        proxy_set_header Host $host;
+        proxy_read_timeout 3600s;
+        proxy_send_timeout 3600s;
+    }
+    # ETHERPAD_PROXY_END
+`;
+    // 精准在第一个 server_name 之后插入单份规则
+    content = content.replace(/(server_name[^\n;]+;)/, "$1\n" + proxyBlock);
+    fs.writeFileSync(fullPath, content, "utf8");
+    console.log("   ✅ Nginx 站点配置已完美更新:", file);
+  });
+});
+' 2>/dev/null || true
 nginx -t 2>/dev/null && (nginx -s reload 2>/dev/null || /etc/init.d/nginx reload 2>/dev/null || systemctl reload nginx 2>/dev/null || true)
 /etc/init.d/php-fpm-82 restart 2>/dev/null || /etc/init.d/php-fpm-81 restart 2>/dev/null || /etc/init.d/php-fpm-80 restart 2>/dev/null || /etc/init.d/php-fpm-74 restart 2>/dev/null || systemctl restart php-fpm 2>/dev/null || true
 
