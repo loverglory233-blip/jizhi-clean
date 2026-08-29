@@ -1316,6 +1316,7 @@ export class App {
     const effectiveClassName = currentClassObj ? currentClassObj.name : '';
     const activeGroupObj = this.authManager.getStudentActiveGroup(currentUser, effectiveClassId);
     const groupId = activeGroupObj.id || (currentUser && currentUser.groupId ? currentUser.groupId : 'group_1');
+    const isTaskListMode = (this.state && this.state.studentViewMode === 'task_list');
     const activeTaskId = this.state.activeTaskId || 'task_default';
     const allAnns = this.authManager.getAnnouncements();
 
@@ -1375,6 +1376,8 @@ export class App {
     const annTaskObj = allTasks.find(t => t.id === selectedAnn.taskId);
     const isAnnTaskExpired = isTaskExpired(annTaskObj);
 
+    const isSelectedExtension = isExtensionNotice(selectedAnn);
+
     const modal = document.createElement('div');
     modal.className = 'modal-overlay modal-announcement-popup';
     modal.dataset.annId = selectedAnn.id;
@@ -1385,10 +1388,10 @@ export class App {
         <div style="background:linear-gradient(135deg, ${isAnnTaskExpired ? '#991b1b, #dc2626' : '#1d4ed8, #2563eb'}); padding:20px 24px; display:flex; justify-content:space-between; align-items:center; color:#ffffff;">
           <div style="display:flex; align-items:center; gap:12px;">
             <div style="width:42px; height:42px; border-radius:12px; background:rgba(255,255,255,0.2); display:flex; align-items:center; justify-content:center; font-size:22px; flex-shrink:0;">
-              ${isAnnTaskExpired ? '🛑' : '📢'}
+              ${isAnnTaskExpired ? '🛑' : (isSelectedExtension ? '⏳' : '📢')}
             </div>
             <div>
-              <h3 style="margin:0; font-size:17.5px; font-weight:800; color:#ffffff; letter-spacing:0.3px;">班级教学通知</h3>
+              <h3 style="margin:0; font-size:17.5px; font-weight:800; color:#ffffff; letter-spacing:0.3px;">${isTaskListMode ? '⏳ 班级任务延期调整通知' : (isSelectedExtension ? '⏳ 任务时间延期通知' : '班级教学通知')}</h3>
               <div style="font-size:12px; color:#e0e7ff; margin-top:2px;">${effectiveClassName ? `🏫 归属班级: ${escapeHtml(effectiveClassName)}` : '任课教师发布的教学指示与任务调整'}</div>
             </div>
           </div>
@@ -1466,7 +1469,7 @@ export class App {
           <button id="btn-close-ann-bottom" style="background:#ffffff; border:1px solid #cbd5e1; color:#475569; padding:10px 20px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer;">
             关闭
           </button>
-          ${isExtensionNotice ? `
+          ${(isTaskListMode || isSelectedExtension) ? `
             <button id="btn-ext-got-it" style="flex:1; background:linear-gradient(135deg, #1d4ed8, #2563eb); color:#ffffff; border:none; padding:11px 24px; border-radius:8px; font-size:13.5px; font-weight:700; cursor:pointer; box-shadow:0 3px 10px rgba(37,99,235,0.25);">
               我知道了 (关闭)
             </button>
