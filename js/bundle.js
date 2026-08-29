@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260830_v731
+ * Version: 20260830_v732
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260830_v731';
+  const APP_VERSION = '20260830_v732';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -9666,6 +9666,7 @@
   }
 
   function renderStage3Canvas(canvas, state, handlers) {
+    if (!canvas) return;
     const s3 = state.stage3;
     const activeTab = s3.activeTab || 'defense';
     const membersList = Object.values(state.members || {});
@@ -9683,8 +9684,17 @@
     const isTaskDeadlineExpired = isTaskExpired(currentTask);
     const isFinalSubmitted = state.isFinalSubmitted || isTaskDeadlineExpired;
 
+    // 🛡️ Safari 滚动记忆防回弹保护：捕获渲染前的滚动条高度与聚焦状态
+    const oldDefenseCard = canvas.querySelector('#stage3-defense-card') || canvas.querySelector('.card');
+    const oldScrollTop = oldDefenseCard ? oldDefenseCard.scrollTop : 0;
+    const activeElem = document.activeElement;
+    const activeElemDataId = (activeElem && activeElem.tagName === 'TEXTAREA') ? activeElem.getAttribute('data-id') : null;
+    const activeElemVal = activeElemDataId ? activeElem.value : null;
+    const activeSelectionStart = activeElem?.selectionStart;
+    const activeSelectionEnd = activeElem?.selectionEnd;
+
     canvas.innerHTML = `
-      <div style="height:100%; display:flex; flex-direction:column; gap:12px;">
+      <div style="height:100%; display:flex; flex-direction:column; gap:12px; overscroll-behavior-y:contain;">
         ${isTaskDeadlineExpired ? `
           <div style="background:#fef2f2; border:1.5px solid #fca5a5; border-radius:8px; padding:6px 14px; margin-bottom:4px; font-size:12.5px; color:#991b1b; font-weight:600; display:flex; justify-content:space-between; align-items:center; gap:12px; box-shadow:0 2px 6px rgba(239,68,68,0.08); height:38px; box-sizing:border-box; flex-shrink:0;">
             <div style="display:flex; align-items:center; gap:8px; min-width:0; flex:1; overflow:hidden; white-space:nowrap; text-overflow:ellipsis;">
@@ -9742,7 +9752,7 @@
         ` : ''}
 
         ${activeTab === 'defense' ? `
-          <div class="card" style="flex:1; overflow-y:auto; padding:20px;">
+          <div class="card" id="stage3-defense-card" style="flex:1; overflow-y:auto; padding:20px; overscroll-behavior-y:contain; -webkit-overflow-scrolling:touch;">
             <div class="card-title" style="margin-bottom:14px;">
               <span style="color:#0f172a;">🎓 答辩委员会改进意见与组内裁决矩阵 ${isFinalSubmitted ? '<span style="font-size:11px; color:#059669; margin-left:6px;">(🔒 已提交归档)</span>' : ''}</span>
             </div>
@@ -9828,7 +9838,7 @@
           const padUrl = `/p/${padName}?userName=${encodeURIComponent(currUserName)}&userColor=${encodeURIComponent(currUserColor)}&showChat=false&showLineNumbers=true&showControls=true&lang=zh-hans`;
 
           return `
-            <div class="card" style="flex:1; display:flex; flex-direction:column; padding:16px; min-height:600px;">
+            <div class="card" style="flex:1; display:flex; flex-direction:column; padding:16px; min-height:600px; overscroll-behavior-y:contain; -webkit-overflow-scrolling:touch;">
               <div class="card-title" style="margin-bottom:10px; display:flex; justify-content:space-between; align-items:center;">
                 <span style="font-size:15px; font-weight:800; color:#0f172a;">📝 论文全篇大正文 ${isFinalSubmitted ? '<span style="font-size:11px; color:#059669; margin-left:6px;">(🔒 终稿已提交 · 归档只读查阅)</span>' : '(依据答辩意见实时协同修改终稿 · Etherpad 毫秒级引擎)'}</span>
                 <div style="display:flex; align-items:center; gap:8px;">
@@ -9844,6 +9854,24 @@
         })()}
       </div>
     `;
+
+    // 🛡️ Safari 滚动记忆防回弹：恢复用户此前的滚动高度与聚焦输入状态
+    const newDefenseCard = canvas.querySelector('#stage3-defense-card');
+    if (newDefenseCard && oldScrollTop > 0) {
+      newDefenseCard.scrollTop = oldScrollTop;
+    }
+    if (activeElemDataId) {
+      const newElem = canvas.querySelector(`textarea[data-id="${activeElemDataId}"]`);
+      if (newElem) {
+        if (activeElemVal !== null && newElem.value !== activeElemVal) {
+          newElem.value = activeElemVal;
+        }
+        newElem.focus();
+        if (activeSelectionStart !== undefined) {
+          try { newElem.setSelectionRange(activeSelectionStart, activeSelectionEnd); } catch (e) {}
+        }
+      }
+    }
 
     const tabDefense = canvas.querySelector('#tab-btn-defense');
     const tabEditor = canvas.querySelector('#tab-btn-editor');
