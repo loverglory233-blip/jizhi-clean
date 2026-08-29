@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260830_v713
+ * Version: 20260830_v714
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260830_v713';
+  const APP_VERSION = '20260830_v714';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -14112,6 +14112,7 @@
 
     showMeetingModal() {
       const currUser = this.authManager ? this.authManager.getCurrentUser() : null;
+      const userKey = currUser ? (currUser.studentCode || currUser.id || 'A') : (this.state.currentUser || 'A');
       let actualGroupMembers = [];
       if (this.authManager) {
         const effClassId = this.state.activeStudentClassId || currUser?.classId || 'class_101';
@@ -14122,6 +14123,9 @@
       const subs = this.state.stage2?.meetingSubmissions || {};
       const subCount = Object.keys(subs).length;
       const totalCount = membersList.length || 2;
+
+      const existingSub = subs[userKey] || (currUser?.name && subs[currUser.name]) || (currUser?.studentCode && subs[currUser.studentCode]) || (currUser?.id && subs[currUser.id]) || (this.state.currentUser && subs[this.state.currentUser]);
+      const isCurrentUserSubmitted = !!existingSub;
 
       const modal = document.createElement('div');
       modal.className = 'modal-overlay';
