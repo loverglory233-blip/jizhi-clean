@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260829_v656";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash } from "./utils.js?v=20260829_v656";
-import { callCozeAgentAPI } from "./agents.js?v=20260829_v656";
-import { AuthManager } from "./auth.js?v=20260829_v656";
-import { CloudSyncEngine } from "./sync.js?v=20260829_v656";
-import { renderLoginView } from "./login.js?v=20260829_v656";
-import { renderTeacherPortal } from "./teacher.js?v=20260829_v656";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260829_v656";
+} from "./constants.js?v=20260829_v657";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash } from "./utils.js?v=20260829_v657";
+import { callCozeAgentAPI } from "./agents.js?v=20260829_v657";
+import { AuthManager } from "./auth.js?v=20260829_v657";
+import { CloudSyncEngine } from "./sync.js?v=20260829_v657";
+import { renderLoginView } from "./login.js?v=20260829_v657";
+import { renderTeacherPortal } from "./teacher.js?v=20260829_v657";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260829_v657";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260829_v656";
+} from "./editor.js?v=20260829_v657";
 
 // Make renderChat available on window for sync callbacks
 if (typeof window !== "undefined") {
@@ -2520,19 +2520,33 @@ ${recentDefenseChat}
           s1.contract.timeAllocations = { background: 25, literature: 30, questions: 25, method: 40, reflection: 20, references: 10 };
         }
 
+        // ── 🌟 第 1 条：系统官方计票模板播报 ──
+        const tallySystemMsg = {
+          sender: 'system',
+          text: `📊 【选题竞拍·计票结果】：全组投票已全部完成！计票统计：${proposalSummaryList}。${isUnanimous ? '🎉 全票一致通过！' : '⚖️ 组内对选题持有不同视角（未达成全票一致）。'}`,
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          _timeMs: Date.now()
+        };
+        this.state.chatLogs.stage1.push(tallySystemMsg);
+        this.syncChatLogs();
+        if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+        renderChat(this.state);
+
+        // ── 🌟 第 2 条：智能体拍卖师（Coze 豆包 2.0 Pro）动态落槌点评与题目学术优化 ──
         let voteContextPrompt = '';
         if (isUnanimous) {
-          voteContextPrompt = `全组投票已全部完成！计票结果清单：${proposalSummaryList}。全组成员 ${totalMembersCount}/${totalMembersCount} 全票一致推选《${winningProposal.title}》！
-请作为资深学术拍卖师发表 130~150 字的【课题敲定与细化建议】：
-① 隆重宣布《${winningProposal.title}》获得全票一致推选，正式确立为全组研究课题；
-② 针对该选题给出 2~3 条具体的细化方向建议（【核心铁律】：此时绝对不提及分工与时间！）；
-③ 明确引导组长带头在讨论区发起细化交流，全组共同商议完善具体实施方案。纯自然语言输出，130~150字。`;
+          voteContextPrompt = `全组投票已全部完成！计票结果清单：${proposalSummaryList}。全组成员 ${totalMembersCount}/${totalMembersCount} 全票一致推选《${winningProposal.title}》（作者: ${winningProposal.authorName || winningProposal.author}）！
+请作为资深学术拍卖师发表 130~150 字的【课题敲定、题目学术优化与细化建议】：
+① 宣布《${winningProposal.title}》获得全票一致推选，正式确立为全组研究课题；
+② 【重要】：基于该提案构想，将其规范优化为一个规范严谨、高水准的学术研究论文题目（在回复中用《...》标出，如《基于...的...研究设计与实证分析》）；
+③ 针对该选题给出 2~3 条具体的细化方向建议（【核心铁律】：此时绝对不提及分工与时间！）；
+④ 引导组长带头在讨论区发起细化交流，全组共同商议完善具体实施方案。纯自然语言输出，130~150字。`;
         } else {
           voteContextPrompt = `全组投票已全部完成！计票结果清单：${proposalSummaryList}。投票存在分歧（未达成全票一致）！
 请作为资深学术拍卖师发表 130~150 字的【分歧协商破冰引导】：
 ① 客观播报票数分布清单（【严格铁律】：对事不对人，严禁指名道姓批评，严禁提及谁投了谁）；
-② 引导各提案作者在讨论区简要阐述各自构想的核心亮点，商讨如何取长补短、求同存异；
-③ 引导全组在讨论区深入协商，确定一个兼具理论深度与实践可行性的最终统一主题（既可选用多数人认可的主题，亦可融合各方亮点）。纯自然语言输出，130~150字。`;
+② 引导各提案作者在讨论区简要阐述各自构想的核心亮点，商讨如何取长补短、求同存异或融合创新；
+③ 引导全组在讨论区深入协商，确定一个兼具理论深度与实践可行性的最终统一融合主题。纯自然语言输出，130~150字。`;
         }
 
         let summaryText = await callCozeAgentAPI('auctioneer', voteContextPrompt, {
@@ -2547,6 +2561,14 @@ ${recentDefenseChat}
             summaryText = `🎉 【拍卖师·课题敲定与细化建议】：恭喜全组！经过热烈竞拍，《${winningProposal.title}》获得全票一致推选，正式确立为全组研究课题！针对此选题，建议可聚焦核心实施路径与关键环节深化探究。👉 请组长带头在讨论区发起交流，全组共同商议完善具体实施方案！`;
           } else {
             summaryText = `⚖️ 【拍卖师·分歧协商引导】：投票已落槌，计票结果为：${proposalSummaryList}。注意到组内对选题持有不同视角，存在票数分歧！这正是团队协同碰撞创新的最佳契机。建议各提案作者在讨论区简要阐明自己的设计亮点，大家共同商讨如何取长补短，确定一个兼具理论深度与实践可行性的优质主题！`;
+          }
+        }
+
+        // 若全票一致且智能体给出了优化后的《学术论文题目》，自动将公约预设题目升级为该优化题目
+        if (isUnanimous && summaryText) {
+          const matchTitle = summaryText.match(/《([^》]{4,50})》/);
+          if (matchTitle && matchTitle[1]) {
+            s1.mergedTitle = matchTitle[1].trim();
           }
         }
 
