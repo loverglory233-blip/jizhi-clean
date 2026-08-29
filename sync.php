@@ -2437,7 +2437,39 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $tb = isset($b['_timeMs']) ? intval($b['_timeMs']) : (isset($b['timeMs']) ? intval($b['timeMs']) : 0);
                     return $ta <=> $tb;
                 });
-                $mergedChats[$stg] = $list;
+
+                // 🛡️ 智能体学术质检里程碑全局语义去重：每个核心里程碑严格只保留第一条，坚决杜绝多端并发重复生成
+                $dedupedList = [];
+                $seenFirstReview = false;
+                $seenMeetingCall = false;
+                $seenFinalReview = false;
+                $seenStage2Welcome = false;
+
+                foreach ($list as $m) {
+                    $snd = $m['sender'] ?? '';
+                    $txt = $m['text'] ?? '';
+
+                    if ($stg === 'stage2') {
+                        if ($snd === 'reviewingEditor' && (mb_strpos($txt, '初审') !== false || mb_strpos($txt, '初审微调') !== false || mb_strpos($txt, 'Research Gap') !== false)) {
+                            if ($seenFirstReview) continue;
+                            $seenFirstReview = true;
+                        }
+                        if ($snd === 'managingEditor' && mb_strpos($txt, '半程会议号召') !== false) {
+                            if ($seenMeetingCall) continue;
+                            $seenMeetingCall = true;
+                        }
+                        if ($snd === 'reviewingEditor' && mb_strpos($txt, '终稿行文扫描') !== false) {
+                            if ($seenFinalReview) continue;
+                            $seenFinalReview = true;
+                        }
+                        if ($snd === 'managingEditor' && mb_strpos($txt, '起草提示') !== false) {
+                            if ($seenStage2Welcome) continue;
+                            $seenStage2Welcome = true;
+                        }
+                    }
+                    $dedupedList[] = $m;
+                }
+                $mergedChats[$stg] = $dedupedList;
             }
 
             $stmtSaveChats = $pdo->prepare("INSERT INTO global_meta (meta_key, meta_value) VALUES (:k, :v) ON DUPLICATE KEY UPDATE meta_value = :v2");
