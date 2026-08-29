@@ -16,7 +16,7 @@ TARGET_DIRS=($(printf "%s\n" "${TARGET_DIRS[@]}" | sort -u))
 
 echo "📁 目标目录: ${TARGET_DIRS[*]}"
 
-TARGET_VERSION="20260829_v675"
+TARGET_VERSION="20260829_v676"
 
 echo "⚡ [2/4] 极速同步最新代码包 ($TARGET_VERSION)..."
 TMP=/tmp/jizhi_update
@@ -292,7 +292,8 @@ EPSETEOF
     bash bulletproof_etherpad_startup.sh 2>&1 || true
   else
     fuser -k 9001/tcp 2>/dev/null || true
-    pkill -9 -f "etherpad" 2>/dev/null || true
+    kill -9 $(lsof -t -i:9001 2>/dev/null) 2>/dev/null || true
+    pkill -9 -f "node.*server\.js" 2>/dev/null || true
     sleep 1
     export NODE_ENV=production
     if [ -f "src/node/server.js" ]; then

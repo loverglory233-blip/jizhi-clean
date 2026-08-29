@@ -27,7 +27,8 @@ cd "$EP_DIR"
 
 # 1. 释放 9001 端口并结束旧进程
 fuser -k 9001/tcp 2>/dev/null || true
-pkill -9 -f "etherpad" 2>/dev/null || true
+kill -9 $(lsof -t -i:9001 2>/dev/null) 2>/dev/null || true
+pkill -9 -f "node.*server\.js" 2>/dev/null || true
 sleep 1
 
 # 2. 还原官方源码
