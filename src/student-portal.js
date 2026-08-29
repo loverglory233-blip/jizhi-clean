@@ -52,7 +52,7 @@ export function renderStudentTaskPortal(container, authManager, state, onSelectT
     window.addEventListener(evt, markStudentPortalActive, { passive: true });
   });
 
-  const sInitInterval = (document.hidden ? 15000 : 3000);
+  const sInitInterval = (document.hidden ? 5000 : 50);
   window._studentPortalSyncTimer = setTimeout(pullAndRefresh, sInitInterval);
 
   const currentUser = authManager.getCurrentUser();
