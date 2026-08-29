@@ -1,0 +1,71 @@
+#!/bin/bash
+# ========================================================
+# 🔍 集智平台 - Etherpad 逐项深度排查与健康诊断脚本
+# ========================================================
+
+echo "🔍 ========================================================"
+echo "📋 开始逐项排查 Etherpad 协同文档与 12 大插件运行状态"
+echo "🔍 ========================================================"
+
+# 1. 检查 Node 进程与 9001 端口
+echo "1️⃣ [底座排查] 检查 Node.js 进程与 9001 端口:"
+if lsof -i:9001 >/dev/null 2>&1 || netstat -tuln 2>/dev/null | grep -q ":9001 "; then
+    echo "   🟢 9001 端口正在监听！"
+else
+    echo "   🔴 9001 端口未监听！请检查 Etherpad 是否启动。"
+fi
+
+# 2. 检查本地直连响应
+echo ""
+echo "2️⃣ [内核排查] 测试 Etherpad 内核 HTTP 响应:"
+LOCAL_STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:9001/ 2>/dev/null || echo "000")
+echo "   📄 本地 http://127.0.0.1:9001/ 状态码: $LOCAL_STATUS"
+
+# 3. 检查 Nginx 协同路由代理
+echo ""
+echo "3️⃣ [Nginx 排查] 测试 Nginx 代理路由 (/p/ 与 /socket.io):"
+NGINX_PAD_STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1/p/test_diag_pad 2>/dev/null || echo "000")
+echo "   📄 Nginx /p/test_diag_pad 状态码: $NGINX_PAD_STATUS"
+
+# 4. 检查 Socket.IO 握手 (关键：如果这个失败就会导致永久 loading)
+echo ""
+echo "4️⃣ [协同握手排查] 测试 Socket.io 传输通道:"
+SOCKET_RES=$(curl -s "http://127.0.0.1/socket.io/?EIO=4&transport=polling" 2>/dev/null || curl -s "http://127.0.0.1/socket.io/?EIO=3&transport=polling" 2>/dev/null || echo "")
+if echo "$SOCKET_RES" | grep -E "sid|upgrades|0\{" > /dev/null; then
+    echo "   🟢 Socket.IO 握手成功！(返回了实时会话令牌)"
+else
+    echo "   ⚠️ Socket.IO 响应内容: $SOCKET_RES"
+fi
+
+# 5. 检查 12 大插件的客户端文件与工具栏挂载
+echo ""
+echo "5️⃣ [插件逐一排查] 检查 12 大学术插件的静态资源与挂载:"
+PLUGINS=(
+    "ep_cursortrace:光标追踪与同伴姓名气泡"
+    "ep_headings2:H1~H6大纲标题下拉框"
+    "ep_font_size:字号大小调节"
+    "ep_font_family:中英文字体切换"
+    "ep_font_color:文字颜色与高亮画笔"
+    "ep_align:文字对齐与段落排版"
+    "ep_tables4:学术表格插入与编辑"
+    "ep_image_upload:论文插图与截图上传"
+    "ep_author_hover:作者段落悬停感知"
+    "ep_subscript_and_superscript:上下标学术公式"
+    "ep_line_spacing:行间距调节"
+    "ep_clear_formatting:一键清除多余格式"
+)
+
+for item in "${PLUGINS[@]}"; do
+    IFS=":" read -r pName pDesc <<< "$item"
+    P_CODE=$(curl -s -o /dev/null -w "%{http_code}" "http://127.0.0.1:9001/static/plugins/$pName/static/js/index.js" 2>/dev/null || echo "000")
+    if [ "$P_CODE" = "000" ] || [ "$P_CODE" = "404" ]; then
+        # 尝试备用路径
+        P_CODE=$(curl -s -o /dev/null -w "%{http_code}" "http://127.0.0.1/static/plugins/$pName/static/js/$pName.js" 2>/dev/null || echo "000")
+    fi
+    echo "   - [$pName] ($pDesc) => HTTP $P_CODE"
+done
+
+echo ""
+echo "========================================================"
+echo "🎉 诊断完毕！"
+echo "========================================================"
