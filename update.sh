@@ -202,7 +202,7 @@ dirs.forEach(d => {
     # ETHERPAD_PROXY_END
 `;
     // 精准在第一个 server_name 之后插入单份规则
-    content = content.replace(/(server_name[^\n;]+;)/, "$1\n" + proxyBlock);
+    content = content.replace(/(server_name[^\n;]+;)/g, "$1\n" + proxyBlock);
     fs.writeFileSync(fullPath, content, "utf8");
     console.log("   ✅ Nginx 站点配置已完美更新:", file);
   });
