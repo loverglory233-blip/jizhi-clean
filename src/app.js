@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260829_v658";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash } from "./utils.js?v=20260829_v658";
-import { callCozeAgentAPI } from "./agents.js?v=20260829_v658";
-import { AuthManager } from "./auth.js?v=20260829_v658";
-import { CloudSyncEngine } from "./sync.js?v=20260829_v658";
-import { renderLoginView } from "./login.js?v=20260829_v658";
-import { renderTeacherPortal } from "./teacher.js?v=20260829_v658";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260829_v658";
+} from "./constants.js?v=20260829_v659";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash } from "./utils.js?v=20260829_v659";
+import { callCozeAgentAPI } from "./agents.js?v=20260829_v659";
+import { AuthManager } from "./auth.js?v=20260829_v659";
+import { CloudSyncEngine } from "./sync.js?v=20260829_v659";
+import { renderLoginView } from "./login.js?v=20260829_v659";
+import { renderTeacherPortal } from "./teacher.js?v=20260829_v659";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260829_v659";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260829_v658";
+} from "./editor.js?v=20260829_v659";
 
 // Make renderChat available on window for sync callbacks
 if (typeof window !== "undefined") {
@@ -2694,18 +2694,9 @@ ${recentDefenseChat}
     let determinedTopic = '';
     let topicDecisionReason = '';
 
-    if (isUnanimous && winningP) {
-      determinedTopic = s1._optimizedTitle || winningP.title;
-      topicDecisionReason = `🎉 小组成员以 ${maxV}/${totalMembersCount} 全票一致通过该选题！`;
-    } else {
-      const matchedFromChat = proposals.find(p => chatSnippet.includes(p.title));
-      determinedTopic = matchedFromChat ? matchedFromChat.title : (winningP ? winningP.title : (proposals[0] ? proposals[0].title : ''));
-      topicDecisionReason = winningP ? `⚖️ 投票综合遴选推举最高票选题，并结合研讨记录生成融合题目。` : `⚖️ 已读取全组提案与研讨记录提炼融合共识选题。`;
-    }
-
-    // 🌟 点了生成公约草案后，才正式将优化/融合后的题目填入公约
+    // 🌟 点了生成公约草案后，题目直接由大模型通读全组提案与讨论后权威提炼并填入
     if (!s1.mergedTitle || s1.mergedTitle.trim().length === 0 || s1.mergedTitle === '待组员协商填入融合主题') {
-      s1.mergedTitle = s1._optimizedTitle || determinedTopic || (proposals[0] ? proposals[0].title : '本组融合学术研究课题');
+      s1.mergedTitle = (winningP ? winningP.title : (proposals[0] ? proposals[0].title : '本组学术研究课题'));
     }
 
     if (!s1.contract) s1.contract = {};
