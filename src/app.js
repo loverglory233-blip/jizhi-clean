@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260830_v694";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash } from "./utils.js?v=20260830_v694";
-import { callCozeAgentAPI } from "./agents.js?v=20260830_v694";
-import { AuthManager } from "./auth.js?v=20260830_v694";
-import { CloudSyncEngine } from "./sync.js?v=20260830_v694";
-import { renderLoginView } from "./login.js?v=20260830_v694";
-import { renderTeacherPortal } from "./teacher.js?v=20260830_v694";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260830_v694";
+} from "./constants.js?v=20260830_v695";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash } from "./utils.js?v=20260830_v695";
+import { callCozeAgentAPI } from "./agents.js?v=20260830_v695";
+import { AuthManager } from "./auth.js?v=20260830_v695";
+import { CloudSyncEngine } from "./sync.js?v=20260830_v695";
+import { renderLoginView } from "./login.js?v=20260830_v695";
+import { renderTeacherPortal } from "./teacher.js?v=20260830_v695";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260830_v695";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260830_v694";
+} from "./editor.js?v=20260830_v695";
 
 // Make renderChat available on window for sync callbacks
 if (typeof window !== "undefined") {
@@ -3955,15 +3955,18 @@ ${propText}
 
     // ═══════════════════════════════════════════════════════════════
     // 🛡️ 严格阶梯时序门禁 3: 审稿编辑【三审·终审行文扫描】
-    // 必须在【半程会议且清单下发修改之后】(checklist_issued)，绝不允许跳步触发！
+    // 必须在【半程会议清单下发修改之后】(checklist_issued)，且【严格限定在开始撰写参考文献】时触发！
     // ═══════════════════════════════════════════════════════════════
-    const hasReferenceSection = /(?:参考文献|References|总结与结语)/i.test(newContent);
-    const isFinalMilestoneReached = (rawDoc.length >= 3500) || (hasReferenceSection && rawDoc.length >= 2800) || (isTimeOver85Pct && rawDoc.length >= 2000);
-    if (s2.reviewMilestone === 'checklist_issued' && isFinalMilestoneReached && timeSinceLastReviewing > 45000) {
+    const refIndex = rawDoc.search(/(?:六、|第6章|第六部分)?\s*(?:参考文献|References)/i);
+    const refContentAfter = (refIndex !== -1) ? rawDoc.slice(refIndex).trim() : '';
+    // 严格检测：文档中必须已进入参考文献章节，且在参考文献下方已实际起草了条目（字数 >= 30 字）
+    const isWritingReferences = (refIndex !== -1) && (refContentAfter.length >= 30);
+
+    if (s2.reviewMilestone === 'checklist_issued' && isWritingReferences && timeSinceLastReviewing > 30000) {
       s2.reviewMilestone = 'final_review_done';
       const refReviewMsg = {
         sender: 'reviewingEditor',
-        text: `📝 【审稿编辑·终稿行文扫描诊断】：全篇论文方案已基本定型，整体框架非常完整！在最后收尾阶段，我重点对全文语言表达进行了全维度扫描：①【行文与学术语体】：部分章节中存在个别口语化表述与长句语病，建议润色为客观规范的第三人称学术语体；②【术语与概念】：前后核心概念表述需统一，建议全组通读逐一订正；③【参考文献】：核对基本著录规范。请全组成员完成通读润色后，在上方逐一完成【初稿确认】，准备迎接终审答辩！`,
+        text: `📝 【审稿编辑·终稿行文扫描诊断】：看到全组已进入最后【参考文献】的收尾阶段，整体方案非常完整！在最后定稿阶段，我对全文语言表达进行了全维度扫描：①【行文与学术语体】：部分章节中存在个别口语化表述与长句语病，建议润色为客观规范的第三人称学术语体；②【术语与概念】：前后核心概念表述需统一，建议全组通读逐一订正；③【参考文献】：核对基本著录规范。请全组成员完成通读润色后，在上方逐一完成【初稿确认】，准备迎接终审答辩！`,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         _timeMs: now
       };
