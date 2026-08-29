@@ -146,32 +146,45 @@ export function sanitizeUrl(url) {
 }
 
 export function downloadFileBlob(filename, textContent = null, fileUrl = null) {
+  const safeFilename = filename || '教学资源文件.docx';
+
+  // 1. 如果有真实文件下载 URL（无论是全路径、相对路径 /uploads/ 或 Base64 DataURL / Blob）
   if (fileUrl && typeof fileUrl === 'string' && fileUrl.trim() !== '' && fileUrl !== '#') {
+    const cleanUrl = fileUrl.trim();
     const a = document.createElement('a');
-    a.href = fileUrl;
-    a.download = filename || '教学资源文件';
+    a.href = cleanUrl;
+    a.download = safeFilename;
     a.target = '_blank';
     document.body.appendChild(a);
     a.click();
     setTimeout(() => {
       if (document.body.contains(a)) document.body.removeChild(a);
-    }, 150);
+    }, 200);
     return;
   }
 
-  const defaultContent = `====================================================\n【集智 JIZHI 平台 - 教学资源文件】\n文件名: ${filename}\n下载时间: ${new Date().toLocaleString()}\n课程名称: 《现代教育技术》期末协作写作研究设计\n====================================================\n\n【文件核心规范摘要】\n1. 结构完整性：论文方案需具备研究背景、问题假设、文献综述、研究设计、反思及参考文献。\n2. 变量操作化：研究假设 H1、H2 需在第四章给出对应的测量量表与操作化说明。\n3. 群体感知：通过可视化字数贡献比与同伴互动进行自律与共享调节 (SSRL)。`;
+  // 2. 如果是纯文本内容（仅在明确传入 textContent 时才按文本下载，严禁给已具备后缀的二进制文件名追加 .txt）
+  const defaultContent = `====================================================\n【集智 JIZHI 平台 - 教学资源文件】\n文件名: ${safeFilename}\n下载时间: ${new Date().toLocaleString()}\n课程名称: 《现代教育技术》期末协作写作研究设计\n====================================================\n\n【文件核心规范摘要】\n1. 结构完整性：论文方案需具备研究背景、问题假设、文献综述、研究设计、反思及参考文献。\n2. 变量操作化：研究假设 H1、H2 需在第四章给出对应的测量量表与操作化说明。\n3. 群体感知：通过可视化字数贡献比与同伴互动进行自律与共享调节 (SSRL)。`;
   const content = textContent || defaultContent;
-  const blob = new Blob([content], { type: 'text/plain;charset=utf-8;' });
+  
+  // 智能 MIME 类型判定
+  let mimeType = 'text/plain;charset=utf-8;';
+  if (safeFilename.endsWith('.pdf')) mimeType = 'application/pdf';
+  else if (safeFilename.endsWith('.docx')) mimeType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+  else if (safeFilename.endsWith('.doc')) mimeType = 'application/msword';
+  else if (safeFilename.endsWith('.xlsx')) mimeType = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+
+  const blob = new Blob([content], { type: mimeType });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = filename && filename.endsWith('.txt') ? filename : `${filename}.txt`;
+  a.download = safeFilename;
   document.body.appendChild(a);
   a.click();
   setTimeout(() => {
     if (document.body.contains(a)) document.body.removeChild(a);
     URL.revokeObjectURL(url);
-  }, 150);
+  }, 200);
 }
 
 export function getUniqueMembersList(membersMap) {

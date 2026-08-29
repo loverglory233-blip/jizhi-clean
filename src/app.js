@@ -827,7 +827,7 @@ export class App {
       const stage = this.state.currentStage;
       const totalMembersCount = membersList.length;
       const activeMembersCount = onlineMembers.length;
-      if (activeMembersCount < 2) return; // 基础前提：至少 2 人在线才触发主动关心（不必全员在线，否则一人心跳掉线全组智能体就集体沉默）
+      if (activeMembersCount < 1) return; // 至少 1 人在线即可触发智能体巡检守护与提示
 
       // ======================================================================
       // 🌟 全阶段 SSRL 情绪与挫败感智能守护（同伴优先调节 45~60 秒观察窗）
@@ -1777,7 +1777,7 @@ export class App {
       if (downloadBtn && ann.attachment) {
         downloadBtn.addEventListener('click', (e) => {
           e.stopPropagation();
-          downloadFileBlob(ann.attachment.name, null, ann.attachment.url);
+          downloadFileBlob(ann.attachment.name, null, ann.attachment.url || ann.attachment.fileData);
         });
       }
     };
@@ -1997,7 +1997,7 @@ export class App {
             a.click();
             document.body.removeChild(a);
           } else {
-            downloadFileBlob(paper.fileName);
+            downloadFileBlob(paper.fileName, null, paper.fileUrl || paper.fileData);
           }
         }
       });

@@ -2908,9 +2908,19 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
           finalAttachment = {
             name: selectedAttachment.name,
             size: selectedAttachment.size,
-            url: ''
+            url: '',
+            fileData: ''
           };
           if (selectedAttachment.fileObj) {
+            try {
+              finalAttachment.fileData = await new Promise((resolve) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(reader.result);
+                reader.onerror = () => resolve('');
+                reader.readAsDataURL(selectedAttachment.fileObj);
+              });
+            } catch (e) {}
+
             try {
               const currT = authManager.getCurrentUser();
               const tId = (currT && (currT.studentCode || currT.username || currT.id)) || '';
@@ -3144,7 +3154,17 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
           submitBtn.innerText = '⏳ 正在上传文献到服务器...';
 
           let serverFileUrl = '';
+          let clientDataUrl = '';
           if (selectedFile.fileObj) {
+            try {
+              clientDataUrl = await new Promise((resolve) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(reader.result);
+                reader.onerror = () => resolve('');
+                reader.readAsDataURL(selectedFile.fileObj);
+              });
+            } catch (e) {}
+
             try {
               const currT = authManager.getCurrentUser();
               const tId = (currT && (currT.studentCode || currT.username || currT.id)) || '';
@@ -3180,6 +3200,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
             keyHighlights: '研究设计与学术论证规范',
             fileName: selectedFile.name || `${title}.pdf`,
             fileUrl: serverFileUrl,
+            fileData: clientDataUrl,
             fileSize: selectedFile.size || '3.5 MB',
             targetGroupId: targetGId,
             targetGroupIds: selectedGroupIds,
