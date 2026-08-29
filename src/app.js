@@ -4336,6 +4336,20 @@ ${propText}
     this.state.stage2PendingReviewing = null;
     this.syncStage2();
 
+    // 1. 责任编辑出场做【一致性研讨小结】并交棒
+    const consensusMsg = {
+      sender: 'managingEditor',
+      text: `🤝 【责任编辑·一致性研讨小结】：太好了，看到全组已经在讨论区对齐了修改主线！下面有请审稿编辑通读全文草稿，为大家进行深度学术质检，并下发【3 项半程修正清单】！`,
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      _timeMs: Date.now(),
+      stage: 'stage2'
+    };
+    if (!this.state.chatLogs.stage2) this.state.chatLogs.stage2 = [];
+    this.state.chatLogs.stage2.push(consensusMsg);
+    this.syncChatLogs();
+    if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+    renderChat(this.state);
+
     const fullDoc = (this.state.stage2 && this.state.stage2.unifiedContent) ? this.state.stage2.unifiedContent.replace(/<[^>]*>/g, '').trim() : '论文初稿方案';
     const priorFirstReview = this.state.stage2FirstReviewText || (this.state.chatLogs.stage2 || []).find(m => m.sender === 'reviewingEditor')?.text || '前期初审已肯定研究背景立意与文献归纳';
 
