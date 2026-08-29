@@ -18,14 +18,20 @@ fi
 # 2. 检查本地直连响应
 echo ""
 echo "2️⃣ [内核排查] 测试 Etherpad 内核 HTTP 响应:"
-LOCAL_STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:9001/ 2>/dev/null || echo "000")
-echo "   📄 本地 http://127.0.0.1:9001/ 状态码: $LOCAL_STATUS"
+LOCAL_ROOT=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:9001/ 2>/dev/null || echo "000")
+LOCAL_PAD=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:9001/p/test_diag_pad 2>/dev/null || echo "000")
+echo "   📄 本地根路径 http://127.0.0.1:9001/ 状态码: $LOCAL_ROOT"
+echo "   📄 本地文档路径 http://127.0.0.1:9001/p/test_diag_pad 状态码: $LOCAL_PAD"
 
 # 3. 检查 Nginx 协同路由代理
 echo ""
 echo "3️⃣ [Nginx 排查] 测试 Nginx 代理路由 (/p/ 与 /socket.io):"
 NGINX_PAD_STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1/p/test_diag_pad 2>/dev/null || echo "000")
 echo "   📄 Nginx /p/test_diag_pad 状态码: $NGINX_PAD_STATUS"
+if [ "$NGINX_PAD_STATUS" = "500" ] || [ "$LOCAL_PAD" = "500" ]; then
+    echo "   ⚠️ 500 报错排查日志 (前 5 行):"
+    curl -s http://127.0.0.1:9001/p/test_diag_pad 2>/dev/null | head -n 5 || true
+fi
 
 # 4. 检查 Socket.IO 握手 (关键：如果这个失败就会导致永久 loading)
 echo ""
