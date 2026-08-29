@@ -55,7 +55,7 @@ export async function callCozeAgentAPI(botKey, userQuery, currentContext = {}) {
         const targetBotId = data.bot_id || botId;
         const maxRetries = 45; // 阶梯敏捷轮询：前 10 次 300ms 极速响应，其后 600ms 平稳等待，最长容忍 ~24 秒（给上课高峰并发排队留余量）
         for (let p = 0; p < maxRetries; p++) {
-          const pollInterval = p < 10 ? 300 : 600;
+          const pollInterval = p < 15 ? 200 : 500;
           await new Promise(r => setTimeout(r, pollInterval));
           try {
             const pollRes = await fetch(`sync.php?action=coze_poll&chat_id=${encodeURIComponent(chatId)}&conversation_id=${encodeURIComponent(convId)}&bot_id=${encodeURIComponent(targetBotId)}&userId=${encodeURIComponent(sessionUserId)}&token=${encodeURIComponent(sessionToken)}&nocache=${Date.now()}`);

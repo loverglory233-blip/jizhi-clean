@@ -1234,6 +1234,24 @@ function renderStage1Canvas(canvas, state, handlers) {
           }
         }
 
+        // 💡 0毫秒即时反馈：立即插入拍卖师思考气泡，让学生感知到 AI 已收到提案正在评审
+        const tempThinkingId = 'thinking_eval_' + Date.now();
+        const evalThinkingMsg = {
+          id: tempThinkingId,
+          sender: 'auctioneer',
+          senderName: '头脑风暴 · 学术拍卖师',
+          text: `⏳ 【学术拍卖师】：已收到《${title}》，正在通读研究构想并起草即时学术可行性评估...`,
+          isThinking: true,
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          _timeMs: Date.now()
+        };
+        if (!state.chatLogs[currentStage]) state.chatLogs[currentStage] = [];
+        state.chatLogs[currentStage].push(evalThinkingMsg);
+        if (window.app) {
+          window.app.syncChatLogs();
+          renderChat(state);
+        }
+
         setTimeout(async () => {
           const isModify = existingIdx >= 0;
           const evalPrompt = isModify
@@ -1251,14 +1269,12 @@ function renderStage1Canvas(canvas, state, handlers) {
             evalText = `🎪 【拍卖师·提案评估】：收到 ${authorName} 提出的选题《${title}》！该构想切中实践痛点，通过明确的研究设计打破了传统教学局限！建议后续在研究设计中进一步细化具体的实证环节与实施步骤，这样在接下来的竞拍研讨中会更具说服力！`;
           }
 
-          const auctioneerEvalMsg = {
-            sender: 'auctioneer',
-            senderName: '头脑风暴 · 学术拍卖师',
-            text: evalText,
-            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-            _timeMs: Date.now()
-          };
-          state.chatLogs[currentStage].push(auctioneerEvalMsg);
+          evalThinkingMsg.text = evalText;
+          delete evalThinkingMsg.isThinking;
+          if (window.app) {
+            window.app.syncChatLogs();
+            renderChat(state);
+          }
 
           const isSubstantive = (t) => {
             const str = (t || '').trim();
