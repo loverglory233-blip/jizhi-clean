@@ -9,8 +9,8 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260829_v655";
-import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash, filterAndDeduplicateChatLogs } from "./utils.js?v=20260829_v655";
+} from "./constants.js?v=20260829_v656";
+import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash, filterAndDeduplicateChatLogs } from "./utils.js?v=20260829_v656";
 
 /* ==========================================================================
    7. TEACHER PORTAL RENDERER (LIVE WORKSPACE MIRROR & ANNOUNCEMENT READ MATRIX)
@@ -95,6 +95,11 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
       window.app.cloudSyncEngine.effectiveClassId = currentCId;
       window.app.cloudSyncEngine.updateScopeKeys();
 
+      const getPanoDigest = (p) => {
+        if (!p || typeof p !== 'object') return '';
+        return Object.entries(p).map(([gid, d]) => `${gid}:${d.currentStage || 'stage1'}:${d.onlineCount || 0}:${d.totalMembers || 0}:${d.isFinalSubmitted ? 1 : 0}:${(d.activeLocks || []).length}:${(d.chatLogs?.stage1 || []).length}:${(d.chatLogs?.stage2 || []).length}:${(d.chatLogs?.stage3 || []).length}:${d.stage1?.mergedTitle || ''}:${(d.stage1?.proposals || []).length}`).join('|');
+      };
+
       const oldFingerprint = JSON.stringify({
         cStage: state.currentStage,
         s1Len: (state.stage1?.proposals || []).length,
@@ -106,7 +111,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
         chat1: (state.chatLogs?.stage1 || []).length,
         chat2: (state.chatLogs?.stage2 || []).length,
         chat3: (state.chatLogs?.stage3 || []).length,
-        panorama: state.monitorPanorama ? JSON.stringify(state.monitorPanorama) : '{}'
+        panorama: getPanoDigest(state.monitorPanorama)
       });
 
       try {
@@ -159,7 +164,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
         chat1: (state.chatLogs?.stage1 || []).length,
         chat2: (state.chatLogs?.stage2 || []).length,
         chat3: (state.chatLogs?.stage3 || []).length,
-        panorama: state.monitorPanorama ? JSON.stringify(state.monitorPanorama) : '{}'
+        panorama: getPanoDigest(state.monitorPanorama)
       });
 
       if (oldFingerprint !== newFingerprint) {
@@ -3289,6 +3294,8 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
 
   const syncGroupDataFromMemory = (targetGId) => {
     state.activeMonitorGroupId = targetGId;
+    state._lastMonitorHash = '';
+    state._lastEpHash = '';
     if (state.monitorPanorama && state.monitorPanorama[targetGId]) {
       const gData = state.monitorPanorama[targetGId];
       state.stage1 = gData.stage1 || { proposals: [], votes: {}, hasVoted: {}, contract: {} };

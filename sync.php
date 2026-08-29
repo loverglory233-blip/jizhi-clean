@@ -774,7 +774,7 @@ if ($action === 'get_teacher_monitor_all_groups') {
         }
         if (empty($allGroupIds)) $allGroupIds = ['group_1'];
 
-        $ONLINE_WINDOW_MS = 75000; // 75 秒心跳/发言窗口判定在线 (与分级心跳精准对齐，保障教师端常绿)
+        $ONLINE_WINDOW_MS = 180000; // 180 秒 (3分钟) 心跳/发言窗口，与浏览器后台标签页节流对齐，确保在线状态稳定常绿不跳变
 
         foreach ($allGroupIds as $gid) {
             $r = $stateMap[$gid] ?? null;
