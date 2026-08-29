@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260830_v725";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash } from "./utils.js?v=20260830_v725";
-import { callCozeAgentAPI } from "./agents.js?v=20260830_v725";
-import { AuthManager } from "./auth.js?v=20260830_v725";
-import { CloudSyncEngine } from "./sync.js?v=20260830_v725";
-import { renderLoginView } from "./login.js?v=20260830_v725";
-import { renderTeacherPortal } from "./teacher.js?v=20260830_v725";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260830_v725";
+} from "./constants.js?v=20260830_v726";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash } from "./utils.js?v=20260830_v726";
+import { callCozeAgentAPI } from "./agents.js?v=20260830_v726";
+import { AuthManager } from "./auth.js?v=20260830_v726";
+import { CloudSyncEngine } from "./sync.js?v=20260830_v726";
+import { renderLoginView } from "./login.js?v=20260830_v726";
+import { renderTeacherPortal } from "./teacher.js?v=20260830_v726";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260830_v726";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260830_v725";
+} from "./editor.js?v=20260830_v726";
 
 // Make renderChat available on window for sync callbacks
 if (typeof window !== "undefined") {
@@ -1262,21 +1262,29 @@ ${recentChats}
         const s3 = this.state.stage3;
         if (!s3 || this.state.isFinalSubmitted) return;
         if (!this.stage3StartTime) this.stage3StartTime = now;
-        const stage3DurationMs = now - this.stage3StartTime;
 
+        // 🛡️ 答辩委员会尚未全部就绪或正在生成评审时，严禁静默定时器抢跑插话！
+        if (this.state.stage3CommitteeLoading || this.state.stage3CommitteeEvaluating || !s3.feedbackItems || s3.feedbackItems.length === 0) {
+          return;
+        }
+
+        const stage3DurationMs = now - this.stage3StartTime;
         const s3Chats = (this.state.chatLogs && this.state.chatLogs.stage3) ? this.state.chatLogs.stage3 : [];
-        const lastStudentMsg = [...s3Chats].reverse().find(m => m.sender && m.sender !== 'neutral' && m.sender !== 'proponent' && m.sender !== 'opponent' && m.sender !== 'system');
-        const lastStudentMsgTime = lastStudentMsg ? (lastStudentMsg._timeMs || 0) : this.stage3StartTime;
-        const silenceDurationMs = now - lastStudentMsgTime;
+        const lastStudentMsg = [...s3Chats].reverse().find(m => m.sender && !['neutral', 'proponent', 'opponent', 'system', 'managingEditor', 'reviewingEditor'].includes(m.sender));
+        
+        // 🛡️ 以中间委员下发答辩思路引导的时间为静默计时基准，预留充分的通读思考时间
+        const lastChairGuide = [...s3Chats].reverse().find(m => m.sender === 'neutral' && m.text?.includes('答辩思路引导'));
+        const baselineTime = lastStudentMsg ? (lastStudentMsg._timeMs || now) : (lastChairGuide ? (lastChairGuide._timeMs || now) : now);
+        const silenceDurationMs = now - baselineTime;
 
         const feedbacks = Array.isArray(s3.feedbackItems) ? s3.feedbackItems : [];
         const pendingFeedbacks = feedbacks.filter(f => !f.response || f.response.trim().length === 0);
 
-        // 1. 阶段三开场或讨论中静默超过 3 分钟：提示展开答辩研讨
-        if (silenceDurationMs > 180000 && pendingFeedbacks.length > 0) {
+        // 1. 阶段三开场引导下发后，若全组静默超过 3.5 分钟且仍有未完成质询：才温和提示展开答辩
+        if (silenceDurationMs > 210000 && pendingFeedbacks.length > 0) {
           if (!this.lastS3SilenceNudgeTime || now - this.lastS3SilenceNudgeTime > 240000) {
             this.lastS3SilenceNudgeTime = now;
-            const s3SilenceFallback = `🟡 【中间委员·答辩协商提示】：正反两方委员的评审意见已送达！\n• 请先回顾中间委员此前在聊天框给出的引导建议，再就反方质询点展开辩护讨论；\n• 商定好共识后，**推选一位组员代表全组**录入裁决矩阵，其余成员同步在正文中落实修改！`;
+            const s3SilenceFallback = `🟡 【中间委员·答辩研讨提示】：请大家回顾左侧矩阵中的正反方质询点展开辩护讨论；商定好共识后，由一位组员代表录入裁决矩阵，其余成员同步在正文中落实修改！`;
             this.queueAgentNudge('neutral', `正反两方评审意见已送达，但讨论区已静默一段时间。请以中间委员身份，引导大家先回看你此前在聊天框给出的引导建议，再就反方质询点展开辩护讨论，并给 1 条具体建议。80~120 字。`, s3SilenceFallback, 'stage3');
             return;
           }
