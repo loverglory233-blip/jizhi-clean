@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles } from "./constants.js?v=20260829_v670";
-import { callCozeAgentAPI } from "./agents.js?v=20260829_v670";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs } from "./utils.js?v=20260829_v670";
+import { AgentProfiles } from "./constants.js?v=20260829_v671";
+import { callCozeAgentAPI } from "./agents.js?v=20260829_v671";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs } from "./utils.js?v=20260829_v671";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -1941,6 +1941,7 @@ function renderStage2Canvas(canvas, state, handlers) {
                   <span id="ep-status-text-s2" style="font-weight:600;">Etherpad 实时协同引擎已连接 (毫秒级 OT 协同)</span>
                 </div>
                 <div style="display:flex; align-items:center; gap:8px;">
+                  <a href="${padUrl}" target="_blank" style="background:#ffffff; color:#334155; border:1px solid #cbd5e1; padding:3px 10px; border-radius:6px; font-size:11.5px; text-decoration:none; font-weight:600; display:inline-flex; align-items:center; gap:4px; box-shadow:0 1px 2px rgba(0,0,0,0.04);">↗️ 独立新窗口打开</a>
                   <button onclick="const f=document.getElementById('stage2-etherpad-frame'); if(f) { f.src=f.src; document.getElementById('ep-status-text-s2').innerText='正在重新连接...'; }" style="background:#eff6ff; color:#2563eb; border:1px solid #bfdbfe; padding:3px 10px; border-radius:6px; font-size:11.5px; cursor:pointer; font-weight:700;">🔄 刷新文档连接</button>
                 </div>
               </div>
