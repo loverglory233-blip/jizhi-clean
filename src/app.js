@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260829_v689";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash } from "./utils.js?v=20260829_v689";
-import { callCozeAgentAPI } from "./agents.js?v=20260829_v689";
-import { AuthManager } from "./auth.js?v=20260829_v689";
-import { CloudSyncEngine } from "./sync.js?v=20260829_v689";
-import { renderLoginView } from "./login.js?v=20260829_v689";
-import { renderTeacherPortal } from "./teacher.js?v=20260829_v689";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260829_v689";
+} from "./constants.js?v=20260829_v690";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash } from "./utils.js?v=20260829_v690";
+import { callCozeAgentAPI } from "./agents.js?v=20260829_v690";
+import { AuthManager } from "./auth.js?v=20260829_v690";
+import { CloudSyncEngine } from "./sync.js?v=20260829_v690";
+import { renderLoginView } from "./login.js?v=20260829_v690";
+import { renderTeacherPortal } from "./teacher.js?v=20260829_v690";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260829_v690";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260829_v689";
+} from "./editor.js?v=20260829_v690";
 
 // Make renderChat available on window for sync callbacks
 if (typeof window !== "undefined") {
@@ -3517,15 +3517,21 @@ ${propText}
         const totalMembersCount = memberArr.length > 0 ? memberArr.length : 3;
 
         if (!s2.confirmedMembers) s2.confirmedMembers = {};
-        s2.confirmedMembers[user] = true;
+        const isMemDone = (map, m) => {
+          if (!map || !m) return false;
+          return !!(map[m.id] || map[m.studentCode] || map[m.username] || (m.name && map[m.name]));
+        };
         const currMemObj = memberArr.find(m => m && (m.id === user || m.studentCode === user || m.username === user || m.name === user));
         if (currMemObj) {
           if (currMemObj.id) s2.confirmedMembers[currMemObj.id] = true;
           if (currMemObj.studentCode) s2.confirmedMembers[currMemObj.studentCode] = true;
+          if (currMemObj.username) s2.confirmedMembers[currMemObj.username] = true;
           if (currMemObj.name) s2.confirmedMembers[currMemObj.name] = true;
+        } else {
+          s2.confirmedMembers[user] = true;
         }
 
-        const confirmedCount = memberArr.filter(m => m && (s2.confirmedMembers[m.id] || s2.confirmedMembers[m.studentCode] || (m.name && s2.confirmedMembers[m.name]))).length;
+        const confirmedCount = memberArr.filter(m => isMemDone(s2.confirmedMembers, m)).length;
         const memberName = currMemObj ? currMemObj.name : user;
         const confirmMsg = {
           sender: user,
@@ -3552,6 +3558,8 @@ ${propText}
         this.syncStage2();
         this.syncChatLogs();
         if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+        renderChat(this.state);
+        this.renderStudentWorkspace();
 
         // 🛡️ 严格要求：必须全组成员每一个人都点击确认初稿后，才解锁推进至阶段三
         if (confirmedCount < totalMembersCount || totalMembersCount < 2) {

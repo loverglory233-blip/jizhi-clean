@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles } from "./constants.js?v=20260829_v689";
-import { callCozeAgentAPI } from "./agents.js?v=20260829_v689";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs } from "./utils.js?v=20260829_v689";
+import { AgentProfiles } from "./constants.js?v=20260829_v690";
+import { callCozeAgentAPI } from "./agents.js?v=20260829_v690";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs } from "./utils.js?v=20260829_v690";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -1803,26 +1803,45 @@ function renderStage2Canvas(canvas, state, handlers) {
   const paperBtnLabel = availablePapers.length > 0 ? `📚 查阅参考范文 (${availablePapers.length}篇)` : '📚 查阅参考范文库';
 
   const confirmedDraftMap = s2.confirmedMembers || {};
-  const confirmedDraftCount = membersList.filter(m => confirmedDraftMap[m.id] || confirmedDraftMap[m.studentCode]).length;
+  const isMemberDone = (map, m) => {
+    if (!map || !m) return false;
+    return !!(map[m.id] || map[m.studentCode] || map[m.username] || (m.name && map[m.name]));
+  };
+  const confirmedDraftCount = membersList.filter(m => isMemberDone(confirmedDraftMap, m)).length;
   const totalCount = membersList.length || 3;
   const currUserCode = state.currentUser || (currUser ? currUser.studentCode : 'A');
-  const isUserDraftConfirmed = !!(confirmedDraftMap[currUserCode] || (currUser && confirmedDraftMap[currUser.id]));
+  const isUserDraftConfirmed = isMemberDone(confirmedDraftMap, { id: currUserCode, studentCode: currUser?.studentCode, username: currUser?.username, name: currUser?.name });
   const isDraftFullyConfirmed = s2.isDraftConfirmed || (confirmedDraftCount >= totalCount && totalCount > 0);
 
-  // 🛡️ 极致单例保护：若富文本编辑器已经在当前画布上活跃运行，严禁 innerHTML 销毁重绘！
-  const existingEditorEl = canvas.querySelector('#stage2-word-editor.ql-container');
-  if (existingEditorEl) {
-    renderPresencePills('stage2-word-editor', state);
+  // 🛡️ 极致单例保护：若 Etherpad 协同编辑器或富文本编辑器已经在当前画布上活跃运行，严禁 innerHTML 销毁重绘！
+  const existingFrame = canvas.querySelector('#stage2-etherpad-frame') || canvas.querySelector('#stage2-word-editor.ql-container');
+  if (existingFrame) {
+    const wordBadge = canvas.querySelector('#stage2-word-count-num');
+    if (wordBadge) wordBadge.innerText = String(plainTextLen);
+
     const draftCountBadge = canvas.querySelector('#stage2-draft-count-text');
     if (draftCountBadge) {
       draftCountBadge.innerText = isDraftFullyConfirmed ? '✅ 全员已确认完成初稿' : `${confirmedDraftCount}/${totalCount} 人已确认`;
       draftCountBadge.style.color = isDraftFullyConfirmed ? '#059669' : '#2563eb';
+      draftCountBadge.style.background = isDraftFullyConfirmed ? '#d1fae5' : '#eff6ff';
+      draftCountBadge.style.border = isDraftFullyConfirmed ? '1px solid #a7f3d0' : '1px solid #bfdbfe';
+    }
+    const pillsContainer = canvas.querySelector('#stage2-confirmed-members-pills');
+    if (pillsContainer) {
+      pillsContainer.innerHTML = membersList.map(m => {
+        const isConf = isMemberDone(confirmedDraftMap, m);
+        return `<span style="font-size:11px; padding:1px 8px; border-radius:10px; font-weight:700; background:${isConf ? '#ecfdf5' : '#f1f5f9'}; color:${isConf ? '#059669' : '#94a3b8'}; border:1px solid ${isConf ? '#a7f3d0' : '#e2e8f0'};">
+          ${isConf ? '✓' : '○'} ${escapeHtml(m.name)}
+        </span>`;
+      }).join('');
     }
     const btnDraft = canvas.querySelector('#btn-confirm-stage2-draft');
     if (btnDraft) {
       btnDraft.disabled = isUserDraftConfirmed || isEditorReadonly;
       btnDraft.innerText = isUserDraftConfirmed ? '✅ 您已确认完成初稿' : '✍️ 确认完成正文初稿';
       btnDraft.style.background = isUserDraftConfirmed ? '#f1f5f9' : 'linear-gradient(135deg, #059669, #047857)';
+      btnDraft.style.color = isUserDraftConfirmed ? '#059669' : 'white';
+      btnDraft.style.cursor = isUserDraftConfirmed || isEditorReadonly ? 'default' : 'pointer';
     }
     return;
   }
@@ -1870,7 +1889,6 @@ function renderStage2Canvas(canvas, state, handlers) {
           </div>
           <div id="body-action-plan-items" style="font-size:12.5px; color:#1e293b; display:flex; flex-direction:column; gap:8px; margin-top:8px;">
             ${actionPlan.items.map((item, idx) => {
-              // 针对第 2 项如果含有多子项（理论/假设/方法），进行结构化美化渲染
               let formattedItem = escapeHtml(item);
               formattedItem = formattedItem
                 .replace(/(?:•\s*|【)?理论与综述层(?:】)?[:：]?/g, '<span style="display:inline-block; background:#eff6ff; color:#2563eb; border:1px solid #bfdbfe; padding:1px 6px; border-radius:4px; font-weight:700; font-size:11.5px; margin-right:4px;">📚 理论与综述层</span>')
@@ -1910,14 +1928,14 @@ function renderStage2Canvas(canvas, state, handlers) {
       <div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:8px; padding:8px 14px; margin-bottom:8px; display:flex; justify-content:space-between; align-items:center; box-shadow:0 1px 3px rgba(15,23,42,0.04); flex-wrap:wrap; gap:8px;">
         <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
           <span style="font-size:12.5px; font-weight:800; color:#0f172a;">✍️ 正文初稿确认进度:</span>
-          <span style="font-size:11.5px; font-weight:800; color:${isDraftFullyConfirmed ? '#059669' : '#2563eb'}; background:${isDraftFullyConfirmed ? '#d1fae5' : '#eff6ff'}; padding:2px 10px; border-radius:12px; border:1px solid ${isDraftFullyConfirmed ? '#a7f3d0' : '#bfdbfe'};">
+          <span id="stage2-draft-count-text" style="font-size:11.5px; font-weight:800; color:${isDraftFullyConfirmed ? '#059669' : '#2563eb'}; background:${isDraftFullyConfirmed ? '#d1fae5' : '#eff6ff'}; padding:2px 10px; border-radius:12px; border:1px solid ${isDraftFullyConfirmed ? '#a7f3d0' : '#bfdbfe'};">
             ${isDraftFullyConfirmed ? '✅ 全员已确认完成初稿' : `${confirmedDraftCount}/${totalCount} 人已确认`}
           </span>
-          <div style="display:flex; gap:6px; flex-wrap:wrap;">
+          <div id="stage2-confirmed-members-pills" style="display:flex; gap:6px; flex-wrap:wrap;">
             ${membersList.map(m => {
-              const isConf = confirmedDraftMap[m.id] || confirmedDraftMap[m.studentCode];
+              const isConf = isMemberDone(confirmedDraftMap, m);
               return `<span style="font-size:11px; padding:1px 8px; border-radius:10px; font-weight:700; background:${isConf ? '#ecfdf5' : '#f1f5f9'}; color:${isConf ? '#059669' : '#94a3b8'}; border:1px solid ${isConf ? '#a7f3d0' : '#e2e8f0'};">
-                ${isConf ? '✓' : '○'} ${m.name}
+                ${isConf ? '✓' : '○'} ${escapeHtml(m.name)}
               </span>`;
             }).join('')}
           </div>
