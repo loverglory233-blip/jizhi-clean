@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260830_v702
+ * Version: 20260830_v703
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260830_v702';
+  const APP_VERSION = '20260830_v703';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -11237,24 +11237,32 @@
           }
 
           // ── 阶段二双研讨闭环守护 ──
-          // 0) 半程自查分歧发出后（第 1 次讨论）：若讨论区静默达到阈值，责任编辑出面追问组长带头对齐
-          if (this.state.stage2PendingReviewing && !this.state.stage2PendingReviewingNudgeSent) {
-            const timeSinceMeetingEnd = now - (this.state.stage2PendingReviewing.timeSubmitted || now);
-            if (timeSinceMeetingEnd >= s2SilenceThresholdMs && silenceDurationMs >= s2SilenceThresholdMs) {
-              this.state.stage2PendingReviewingNudgeSent = true;
-              const msg = {
-                sender: 'managingEditor',
-                text: `🤝 【责任编辑·分歧研讨破冰提醒】：刚才梳理出的核心分歧关乎整篇论文的论证根基！大家先别有顾虑，👉 小组成员先用 2 分钟在讨论区把修改思路对齐，磨刀不误砍柴工，全组商定后再动笔效率会更高！若对修改方向有争议随时 @责任编辑 协助梳理！`,
-                timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                _timeMs: now,
-                stage: 'stage2'
-              };
-              if (!this.state.chatLogs.stage2) this.state.chatLogs.stage2 = [];
-              this.state.chatLogs.stage2.push(msg);
-              this.syncChatLogs();
-              if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
-              renderChat(this.state);
-              return;
+          // 0) 半程自查分歧发出后（第 1 次讨论）：若全组达成赞同共识且静默期满（25秒），责任编辑出面小结并交棒
+          const pendingRev = this.state.stage2?.pendingReviewing || this.state.stage2PendingReviewing;
+          if (pendingRev && pendingRev.hasAgreement && !this._isExecutingConsensusHandover) {
+            const timeSinceAgreement = now - (pendingRev.lastAgreementTime || 0);
+            if (timeSinceAgreement >= 25000) { // 赞同后 25 秒无后续争执，判定研讨圆满收敛
+              this._isExecutingConsensusHandover = true;
+              setTimeout(async () => {
+                try {
+                  const s2Chats = (this.state.chatLogs.stage2 || []).filter(m => m.sender && !AgentProfiles[m.sender] && m.sender !== 'system');
+                  const recentChats = s2Chats.slice(-8).map(m => `${m.senderName || m.sender}: ${m.text}`).join('\n');
+
+                  const evalPrompt = `小组成员已在讨论区就修改方向达成一致并表达了赞同。
+  【全组自查核心脱节焦点】: ${pendingRev.transFocus}，${pendingRev.styleFocus}
+  【小组最新研讨对话记录】:
+  ${recentChats}
+
+  请通读以上小组成员的真实研讨发言，作为学术编辑部责任编辑发表一段 100~130 字的【一致性研讨小结与交棒】：简明肯定大家对齐的修改思路，并隆重引出审稿专家通读草稿下发 3 项修正清单！（纯自然语言，严禁输出代码块）`;
+
+                  let evalResult = await callCozeAgentAPI('managingEditor', evalPrompt, { stage: 'stage2', topic: pendingRev.topic });
+                  await this.triggerReviewingEditorAfterDiscussion(evalResult?.trim() || '');
+                } catch (err) {
+                  console.warn('Consensus handover error:', err);
+                } finally {
+                  this._isExecutingConsensusHandover = false;
+                }
+              }, 100);
             }
           }
 
@@ -12240,44 +12248,52 @@
             }, 1000);
           }
 
-          // Loop 1: 半程自查播报后，监听组员表达赞同/达成一致 -> 等待 1 分钟无后续讨论后，判定研讨充分并交棒
+          // Loop 1: 半程自查播报后，监听组员表达赞同/达成一致 -> 静默 25 秒后判定研讨充分并交棒（或 @智能体 立即交棒）
           const pendingRev = this.state.stage2?.pendingReviewing || this.state.stage2PendingReviewing;
           if (pendingRev) {
-            const hasAgreementSignal = /(?:好|行|可以|同意|赞成|支持|没问题|没意见|就这个|按你说的|听你的|就这么办|就这么定|那就这样|妥了|ok|OK|okk|收到|\+1|没毛病|不错|好啊|行啊|没异议|赞同|开始吧|开搞|就这么改|ke yi|好的|写吧|那开始吧)/i.test(text || '');
+            const hasAgreementSignal = /(?:好|行|可以|同意|赞成|支持|没问题|没意见|就这个|按你说的|听你的|就这么办|就这么定|那就这样|妥了|ok|OK|okk|收到|\+1|没毛病|不错|好啊|行啊|没异议|赞同|开始吧|开搞|就这么改|ke yi|好的|写吧|那开始吧|改吧|改一下|按这个|就按|商量好了)/i.test(text || '');
             const hasAdversativeSignal = /(?:但是|不过|可是|然而|但|不过我建议|不如|还要再|不同意|不妥)/i.test(text || '');
+            const isExplicitTrigger = /(?:@审稿编辑|@责任编辑|下发清单|修正清单|清单|请审稿|请责任|讨论结束|开始修改)/i.test(text || '');
 
-            if (hasAgreementSignal && !hasAdversativeSignal) {
-              pendingRev.hasAgreement = true;
-              pendingRev.lastAgreementTime = Date.now();
-              this.syncStage2();
+            const doHandover = async () => {
+              const curCtx = this.state.stage2?.pendingReviewing || this.state.stage2PendingReviewing;
+              if (!curCtx) return;
 
-              // ⏱️ 赞同后启动 1 分钟 (60s) 静默观察期：若 1 分钟内无新异议或补充，判定研讨圆满收敛
-              if (this._consensusDebounceTimer) {
-                clearTimeout(this._consensusDebounceTimer);
-              }
+              const s2Chats = (this.state.chatLogs.stage2 || []).filter(m => m.sender && !AgentProfiles[m.sender] && m.sender !== 'system');
+              const recentChats = s2Chats.slice(-8).map(m => `${m.senderName || m.sender}: ${m.text}`).join('\n');
 
-              this._consensusDebounceTimer = setTimeout(async () => {
-                const curCtx = this.state.stage2?.pendingReviewing || this.state.stage2PendingReviewing;
-                if (!curCtx) return;
-
-                const s2Chats = (this.state.chatLogs.stage2 || []).filter(m => m.sender && !AgentProfiles[m.sender] && m.sender !== 'system');
-                const recentChats = s2Chats.slice(-8).map(m => `${m.senderName || m.sender}: ${m.text}`).join('\n');
-
-                const evalPrompt = `小组成员已在讨论区就修改方向达成一致并表达了赞同。
+              const evalPrompt = `小组成员已在讨论区就修改方向达成一致并表达了赞同。
   【全组自查核心脱节焦点】: ${curCtx.transFocus}，${curCtx.styleFocus}
   【小组最新研讨对话记录】:
   ${recentChats}
 
   请通读以上小组成员的真实研讨发言，作为学术编辑部责任编辑发表一段 100~130 字的【一致性研讨小结与交棒】：简明肯定大家对齐的修改思路，并隆重引出审稿专家通读草稿下发 3 项修正清单！（纯自然语言，严禁输出代码块）`;
 
-                let evalResult = await callCozeAgentAPI('managingEditor', evalPrompt, { stage: 'stage2', topic: curCtx.topic });
-                await this.triggerReviewingEditorAfterDiscussion(evalResult?.trim() || '');
-              }, 60000);
+              let evalResult = await callCozeAgentAPI('managingEditor', evalPrompt, { stage: 'stage2', topic: curCtx.topic });
+              await this.triggerReviewingEditorAfterDiscussion(evalResult?.trim() || '');
+            };
+
+            if (isExplicitTrigger) {
+              // 学生明确召唤或示意讨论完毕：0秒即刻触发交棒
+              if (this._consensusDebounceTimer) clearTimeout(this._consensusDebounceTimer);
+              setTimeout(doHandover, 500);
+            } else if (hasAgreementSignal && !hasAdversativeSignal) {
+              pendingRev.hasAgreement = true;
+              pendingRev.lastAgreementTime = Date.now();
+              this.syncStage2();
+              if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+
+              // ⏱️ 赞同后启动 25 秒静默观察期（足够缓冲发言，又不会漫长假死）
+              if (this._consensusDebounceTimer) {
+                clearTimeout(this._consensusDebounceTimer);
+              }
+              this._consensusDebounceTimer = setTimeout(doHandover, 25000);
             } else if (hasAdversativeSignal && this._consensusDebounceTimer) {
               // 若组员继续提出异议或不同意见，重置计时器，让组员继续充分商榷
               clearTimeout(this._consensusDebounceTimer);
               this._consensusDebounceTimer = null;
               pendingRev.hasAgreement = false;
+              this.syncStage2();
             }
           }
 
