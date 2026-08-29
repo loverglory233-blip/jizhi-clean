@@ -155,6 +155,27 @@ code = code.replace(/exports\.update\s*=\s*(?:async\s*)?\([^)]*\)\s*=>\s*\{[\s\S
 
 fs.writeFileSync(pFile, code, "utf8");
 console.log("✅ src/static/js/pluginfw/plugins.js 已完成防御式重构！");
+
+// 🛡️ 注入客户端 pad.js 强制解除 loading 遮罩兜底机制 (绝不永久卡死 loading)
+const padFile = "src/static/js/pad.js";
+if (fs.existsSync(padFile)) {
+  let padCode = fs.readFileSync(padFile, "utf8");
+  if (!padCode.includes("__JIZHI_AUTOHIDE_LOADING__")) {
+    padCode += `\n/* __JIZHI_AUTOHIDE_LOADING__ */
+if (typeof window !== "undefined") {
+  setTimeout(function() {
+    try {
+      var box = document.getElementById("editorloadingbox");
+      if (box) box.style.display = "none";
+      var pad = document.getElementById("padpage");
+      if (pad) pad.style.display = "block";
+    } catch(e) {}
+  }, 2000);
+}`;
+    fs.writeFileSync(padFile, padCode, "utf8");
+    console.log("✅ src/static/js/pad.js 已注入强制解除 loading 兜底保障！");
+  }
+}
 '
 
 # 5. 清理旧缓存
