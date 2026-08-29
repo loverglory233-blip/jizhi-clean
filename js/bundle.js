@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260830_v708
+ * Version: 20260830_v709
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260830_v708';
+  const APP_VERSION = '20260830_v709';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -2906,8 +2906,38 @@
         if (!this.app.state.chatLogs) this.app.state.chatLogs = { stage1: [], stage2: [], stage3: [] };
         ['stage1', 'stage2', 'stage3'].forEach(stg => {
           const remoteLogs = Array.isArray(remoteData.chatLogs[stg]) ? remoteData.chatLogs[stg] : [];
-          // 🛡️ 严格按组隔离：直接使用云端针对本组真实返回的消息列表，严禁在前端与上一组内存混淆
-          this.app.state.chatLogs[stg] = remoteLogs;
+          if (stg === 'stage2') {
+            const deduped = [];
+            let seenFirstReview = false;
+            let seenMeetingCall = false;
+            let seenFinalReview = false;
+            let seenWelcome = false;
+            remoteLogs.forEach(m => {
+              if (!m) return;
+              const snd = m.sender || '';
+              const txt = m.text || '';
+              if (snd === 'reviewingEditor' && (txt.includes('初审') || txt.includes('初审微调') || txt.includes('Research Gap'))) {
+                if (seenFirstReview) return;
+                seenFirstReview = true;
+              }
+              if (snd === 'managingEditor' && txt.includes('半程会议号召')) {
+                if (seenMeetingCall) return;
+                seenMeetingCall = true;
+              }
+              if (snd === 'reviewingEditor' && txt.includes('终稿行文扫描')) {
+                if (seenFinalReview) return;
+                seenFinalReview = true;
+              }
+              if (snd === 'managingEditor' && txt.includes('起草提示')) {
+                if (seenWelcome) return;
+                seenWelcome = true;
+              }
+              deduped.push(m);
+            });
+            this.app.state.chatLogs[stg] = deduped;
+          } else {
+            this.app.state.chatLogs[stg] = remoteLogs;
+          }
         });
         if (typeof window.renderChat === 'function') window.renderChat(this.app.state);
       }
