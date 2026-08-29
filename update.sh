@@ -16,7 +16,7 @@ TARGET_DIRS=($(printf "%s\n" "${TARGET_DIRS[@]}" | sort -u))
 
 echo "📁 目标目录: ${TARGET_DIRS[*]}"
 
-TARGET_VERSION="20260829_v664"
+TARGET_VERSION="20260829_v665"
 
 echo "⚡ [2/4] 极速同步最新代码包 ($TARGET_VERSION)..."
 TMP=/tmp/jizhi_update
@@ -144,12 +144,67 @@ for cdir in /www/server/panel/vhost/nginx /www/server/nginx/conf/vhost; do
         proxy_set_header Host $host;\
         proxy_read_timeout 3600s;\
         proxy_send_timeout 3600s;\
+    }\
+    location /p/ {\
+        proxy_pass http://127.0.0.1:9001/p/;\
+        proxy_http_version 1.1;\
+        proxy_set_header Upgrade $http_upgrade;\
+        proxy_set_header Connection "Upgrade";\
+        proxy_set_header Host $host;\
+        proxy_read_timeout 3600s;\
+        proxy_send_timeout 3600s;\
+    }\
+    location /socket.io {\
+        proxy_pass http://127.0.0.1:9001/socket.io;\
+        proxy_http_version 1.1;\
+        proxy_set_header Upgrade $http_upgrade;\
+        proxy_set_header Connection "Upgrade";\
+        proxy_set_header Host $host;\
+    }\
+    location /javascripts {\
+        proxy_pass http://127.0.0.1:9001/javascripts;\
+    }\
+    location /pluginfw {\
+        proxy_pass http://127.0.0.1:9001/pluginfw;\
+    }\
+    location /static {\
+        proxy_pass http://127.0.0.1:9001/static;\
+    }\
+    location /locales {\
+        proxy_pass http://127.0.0.1:9001/locales;\
     }' "$conf" 2>/dev/null || true
     fi
   done
 done
 nginx -s reload 2>/dev/null || /etc/init.d/nginx reload 2>/dev/null || systemctl reload nginx 2>/dev/null || true
 /etc/init.d/php-fpm-82 restart 2>/dev/null || /etc/init.d/php-fpm-81 restart 2>/dev/null || /etc/init.d/php-fpm-80 restart 2>/dev/null || /etc/init.d/php-fpm-74 restart 2>/dev/null || systemctl restart php-fpm 2>/dev/null || true
+
+MAIN_DIR="${TARGET_DIRS[0]}"
+if [ -n "$MAIN_DIR" ] && [ -d "$MAIN_DIR" ]; then
+  php "$MAIN_DIR/api/db_init.php" >/dev/null 2>&1 || true
+fi
+
+# 检查 Etherpad 服务状态
+if ! lsof -i:9001 >/dev/null 2>&1 && ! netstat -tuln 2>/dev/null | grep -q ":9001 "; then
+  echo "   ⚠️ 检查 Etherpad (端口 9001) 服务..."
+  systemctl start etherpad 2>/dev/null || true
+  systemctl start etherpad-lite 2>/dev/null || true
+  pm2 restart etherpad 2>/dev/null || pm2 start etherpad 2>/dev/null || true
+  for ep_dir in /opt/etherpad-lite /root/etherpad-lite /var/www/etherpad-lite /www/server/etherpad /www/wwwroot/etherpad; do
+    if [ -d "$ep_dir" ]; then
+      cd "$ep_dir"
+      if [ -f "src/node/server.js" ]; then
+        nohup node src/node/server.js > /tmp/etherpad.log 2>&1 &
+        sleep 2
+        break
+      elif [ -f "bin/run.sh" ]; then
+        nohup bash bin/run.sh > /tmp/etherpad.log 2>&1 &
+        sleep 2
+        break
+      fi
+    fi
+  done
+fi
 
 for dir in "${TARGET_DIRS[@]}"; do
   echo '{"timestamp":0,"groupId":"group_1","presence":{},"chatLogs":{"stage1":[],"stage2":[],"stage3":[]},"stage1":{"mergedTitle":"","votes":{},"hasVoted":{},"proposals":[]},"stage2":{"unifiedContent":"","memberContributions":{"A":0,"B":0,"C":0},"actionPlan":{"isGenerated":false,"items":[]}},"stage3":{"feedbackItems":[]},"currentStage":"stage1","isFinalSubmitted":false}' > "$dir/db_task_default_group_1.json" 2>/dev/null || true
@@ -163,7 +218,6 @@ kill -9 $(lsof -t -i:8088 2>/dev/null) 2>/dev/null || true
 pkill -9 -f "server.py" 2>/dev/null || true
 sleep 1
 
-MAIN_DIR="${TARGET_DIRS[0]}"
 if [ -n "$MAIN_DIR" ] && [ -d "$MAIN_DIR" ]; then
   cd "$MAIN_DIR"
   if [ -f "server.py" ]; then
