@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260829_v655";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash } from "./utils.js?v=20260829_v655";
-import { callCozeAgentAPI } from "./agents.js?v=20260829_v655";
-import { AuthManager } from "./auth.js?v=20260829_v655";
-import { CloudSyncEngine } from "./sync.js?v=20260829_v655";
-import { renderLoginView } from "./login.js?v=20260829_v655";
-import { renderTeacherPortal } from "./teacher.js?v=20260829_v655";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260829_v655";
+} from "./constants.js?v=20260829_v656";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash } from "./utils.js?v=20260829_v656";
+import { callCozeAgentAPI } from "./agents.js?v=20260829_v656";
+import { AuthManager } from "./auth.js?v=20260829_v656";
+import { CloudSyncEngine } from "./sync.js?v=20260829_v656";
+import { renderLoginView } from "./login.js?v=20260829_v656";
+import { renderTeacherPortal } from "./teacher.js?v=20260829_v656";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260829_v656";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260829_v655";
+} from "./editor.js?v=20260829_v656";
 
 // Make renderChat available on window for sync callbacks
 if (typeof window !== "undefined") {
@@ -2633,6 +2633,7 @@ ${recentDefenseChat}
     const chatSnippet = userLogs.map(m => `${m.senderName || m.sender}: ${m.text}`).join('\n');
     const chatSnippetAfterVote = userLogsAfterVote.map(m => `${m.senderName || m.sender}: ${m.text}`).join('\n');
 
+    const proposalsSummary = proposals.map((p, idx) => `提案${idx+1}: 《${p.title}》（作者: ${p.authorName || p.author}）`).join('\n');
     let determinedTopic = '';
     let topicDecisionReason = '';
 
@@ -2642,11 +2643,11 @@ ${recentDefenseChat}
     } else {
       const matchedFromChat = proposals.find(p => chatSnippet.includes(p.title));
       determinedTopic = matchedFromChat ? matchedFromChat.title : (winningP ? winningP.title : (proposals[0] ? proposals[0].title : ''));
-      topicDecisionReason = winningP ? `⚖️ 投票综合遴选推举最高票选题，并结合研讨记录生成。` : `⚖️ 已读取全组研讨记录与提案生成共识选题。`;
+      topicDecisionReason = winningP ? `⚖️ 投票综合遴选推举最高票选题，并结合研讨记录生成融合题目。` : `⚖️ 已读取全组提案与研讨记录提炼融合共识选题。`;
     }
 
-    if (!s1.mergedTitle || s1.mergedTitle.trim().length === 0) {
-      s1.mergedTitle = determinedTopic || '待组员协商填入融合主题';
+    if (!s1.mergedTitle || s1.mergedTitle.trim().length === 0 || s1.mergedTitle === '待组员协商填入融合主题') {
+      s1.mergedTitle = determinedTopic || (proposals[0] ? proposals[0].title : '本组融合学术研究课题');
     }
 
     if (!s1.contract) s1.contract = {};
@@ -2697,25 +2698,30 @@ ${recentDefenseChat}
       if (m.studentCode) s1.contract.taskAssignments[m.studentCode] = assignedTask;
     });
 
-    // ── 异步调用大模型进行公约数据结构化精修覆盖 ──
-    const extractPrompt = `请作为学术拍卖师，通读下方小组成员在【投票定题之后】关于任务分工与时间规划的真实研讨发言记录，提取结构化数据填入《学术合作公约草案》：
+    // ── 异步调用大模型进行公约数据结构化精修覆盖（包含融合论文题目提炼） ──
+    const extractPrompt = `请作为资深学术拍卖师，通读下方小组成员提出的所有选题提案、投票情况以及【投票定题之后】关于任务分工与时间规划的真实研讨发言记录，提取结构化数据填入《学术合作公约草案》：
 
-【小组成员列表】:
+【小组成员名单】:
 ${membersInfo}
 
-【总任务时长参考】: 全场总时长 ${totalDurationMin} 分钟（阶段二正文起草预算约 ${stage2BudgetMin} 分钟）
+【全组成员提出的选题提案列表】:
+${proposalsSummary || '无独立提案'}
 
-【投票定题后的研讨发言记录】:
+【全场任务时长参考】: 全场总时长 ${totalDurationMin} 分钟（阶段二正文起草预算约 ${stage2BudgetMin} 分钟）
+
+【投票后的研讨发言记录】:
 ${chatSnippetAfterVote || chatSnippet || '成员协商协作撰写'}
 
-【时间模糊/缺失推导铁律】:
-1. 若学生明确提及了具体章节时间（如“方法给40分钟”），优先采纳该明确值；
-2. 若学生时间表达模糊（如“均分/差不多就行/前边多留点”）或未提及全部 6 个章节，请按学术论文黄金权重（背景18%、综述22%、问题15%、方法25%、反思12%、文献8%）结合总起草预算（约 ${stage2BudgetMin} 分钟）合理推导补齐全部 6 大章节的时间分钟数！
+【核心提炼要求】:
+1. 融合研究主题 (mergedTitle)：通读全组提案与研讨，提炼/合成出一个严谨、专业、规范的学术研究论文题目（如《基于...的...研究设计与实证分析》），若同学们在研讨中有明确融合意向或明确主题，优先采纳并规范化学术表述；
+2. 任务分工 (taskAssignments)：根据成员在聊天中的主动认领或学术背景，合理分配章节任务；
+3. 时间规划 (timeAllocations)：若学生提及了具体章节时间则优先采纳；若模糊或未提全，按黄金学术比例（背景18%、综述22%、问题15%、方法25%、反思12%、文献8%）推算补齐全部 6 大章节分钟数。
 
 请严格输出合法的 JSON 格式（严禁输出任何额外 markdown 说明或自然语言）：
 {
+  "mergedTitle": "深度提炼与融合全组构想的学术论文研究主题",
   "taskAssignments": {
-    "成员ID或学号": "提取的分工任务描述（支持具体内容/模块，如负责背景文献梳理、负责问卷与数据分析）"
+    "成员ID或学号": "提取的分工任务描述（如负责研究背景与文献综述梳理、负责问卷设计与数据分析）"
   },
   "timeAllocations": {
     "background": 25,
@@ -2732,6 +2738,9 @@ ${chatSnippetAfterVote || chatSnippet || '成员协商协作撰写'}
         try {
           const jsonStr = llmRes.substring(llmRes.indexOf('{'), llmRes.lastIndexOf('}') + 1);
           const parsed = JSON.parse(jsonStr);
+          if (parsed.mergedTitle && typeof parsed.mergedTitle === 'string' && parsed.mergedTitle.trim().length > 0) {
+            s1.mergedTitle = parsed.mergedTitle.trim().replace(/^《|》$/g, '');
+          }
           if (parsed.taskAssignments && typeof parsed.taskAssignments === 'object') {
             Object.assign(s1.contract.taskAssignments, parsed.taskAssignments);
           }
