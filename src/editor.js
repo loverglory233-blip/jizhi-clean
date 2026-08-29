@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles } from "./constants.js?v=20260830_v715";
-import { callCozeAgentAPI } from "./agents.js?v=20260830_v715";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs } from "./utils.js?v=20260830_v715";
+import { AgentProfiles } from "./constants.js?v=20260830_v716";
+import { callCozeAgentAPI } from "./agents.js?v=20260830_v716";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs } from "./utils.js?v=20260830_v716";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -1907,7 +1907,7 @@ function renderStage2Canvas(canvas, state, handlers) {
     const btnMeetingPills = canvas.querySelector('#btn-trigger-meeting-pills');
     if (btnMeetingPills) {
       btnMeetingPills.disabled = false;
-      btnMeetingPills.innerText = isCurrentUserSubmitted ? '✅ 查看我的打卡记录' : '📢 参与/发起半程打卡';
+      btnMeetingPills.innerText = isCurrentUserSubmitted ? '✅ 查看【编辑会议】记录' : '📢 发起/参与【编辑会议】';
       btnMeetingPills.style.background = isCurrentUserSubmitted ? '#ecfdf5' : 'linear-gradient(135deg, #2563eb, #1d4ed8)';
       btnMeetingPills.style.color = isCurrentUserSubmitted ? '#059669' : 'white';
       btnMeetingPills.style.border = isCurrentUserSubmitted ? '1px solid #a7f3d0' : 'none';
@@ -1970,8 +1970,7 @@ function renderStage2Canvas(canvas, state, handlers) {
 
     ${isStage2MeetingLocked ? `
       <div style="background:#eff6ff; border:1px solid #bfdbfe; border-radius:8px; padding:10px 14px; margin-bottom:10px; font-size:13px; color:#1d4ed8; font-weight:700; display:flex; justify-content:space-between; align-items:center; flex-shrink:0;">
-        <span>🔒 阶段二【半程编辑会议】打分与修正清单已完成并锁定 ${isEditorReadonly ? '· 全盘终稿已提交只读查阅' : '· 可随时回看'}</span>
-        <span style="font-size:11.5px; color:#1e40af; background:#ffffff; border:1px solid #bfdbfe; padding:4px 8px; border-radius:4px;">归档只读</span>
+        <span>🔒 阶段二【编辑会议】已完成并锁定 ${isEditorReadonly ? '· 全盘终稿已提交只读查阅' : '· 可随时回看'}</span>
       </div>
     ` : ''}
 
@@ -1986,7 +1985,7 @@ function renderStage2Canvas(canvas, state, handlers) {
         </div>
       </div>
 
-      <!-- 📢 半程编辑会议自查打卡全员状态条 (对标签署与投票胶囊矩阵) -->
+      <!-- 📢 半程【编辑会议】自查打卡全员状态条 (对标公约签署与投票胶囊矩阵) -->
       ${(() => {
         const subs = s2.meetingSubmissions || {};
         const subCount = Object.keys(subs).length;
@@ -1996,7 +1995,7 @@ function renderStage2Canvas(canvas, state, handlers) {
         return `
           <div style="background:#ffffff; border:1px solid ${isMeetingFullyDone ? '#a7f3d0' : '#cbd5e1'}; border-radius:8px; padding:8px 14px; margin-bottom:8px; display:flex; justify-content:space-between; align-items:center; box-shadow:0 1px 3px rgba(15,23,42,0.04); flex-wrap:wrap; gap:8px; flex-shrink:0;">
             <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
-              <span style="font-size:12.5px; font-weight:800; color:#0f172a;">📢 半程自查打卡进度:</span>
+              <span style="font-size:12.5px; font-weight:800; color:#0f172a;">📢 半程【编辑会议】进度:</span>
               <span id="stage2-meeting-count-text" style="font-size:11.5px; font-weight:800; color:${isMeetingFullyDone ? '#059669' : '#2563eb'}; background:${isMeetingFullyDone ? '#d1fae5' : '#eff6ff'}; padding:2px 10px; border-radius:12px; border:1px solid ${isMeetingFullyDone ? '#a7f3d0' : '#bfdbfe'};">
                 ${isMeetingFullyDone ? '✅ 全员已打卡' : `${subCount}/${totalCount} 人已打卡`}
               </span>
@@ -2011,7 +2010,7 @@ function renderStage2Canvas(canvas, state, handlers) {
             </div>
             <div>
               <button id="btn-trigger-meeting-pills" style="background:${isCurrentUserSubmitted ? '#ecfdf5' : 'linear-gradient(135deg, #2563eb, #1d4ed8)'}; border:${isCurrentUserSubmitted ? '1px solid #a7f3d0' : 'none'}; color:${isCurrentUserSubmitted ? '#059669' : 'white'}; padding:5px 12px; border-radius:6px; font-size:11.5px; font-weight:700; cursor:pointer;">
-                ${isCurrentUserSubmitted ? '✅ 查看我的打卡记录' : '📢 参与/发起半程打卡'}
+                ${isCurrentUserSubmitted ? '✅ 查看【编辑会议】记录' : '📢 发起/参与【编辑会议】'}
               </button>
             </div>
           </div>
