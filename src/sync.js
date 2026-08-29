@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState } from './constants.js?v=20260829_v661';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin } from './utils.js?v=20260829_v661';
+import { InitialState } from './constants.js?v=20260829_v662';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin } from './utils.js?v=20260829_v662';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -615,6 +615,11 @@ export class CloudSyncEngine {
 
     if (remoteData.stage1) {
       const localS1 = this.app.state.stage1 || { proposals: [], votes: {}, hasVoted: {}, contract: {} };
+      const prevConfirmedMembersStr = JSON.stringify(this.app.state.stage1?.contract?.confirmedMembers || {});
+      const prevIsConfirmed = this.app.state.stage1?.contract?.isConfirmed;
+      const prevProposalsStr = JSON.stringify(this.app.state.stage1?.proposals || []);
+      const prevVotesStr = JSON.stringify(this.app.state.stage1?.votes || {});
+      const prevHasVotedStr = JSON.stringify(this.app.state.stage1?.hasVoted || {});
       const remoteS1 = remoteData.stage1;
       const isContractInputActive = document.activeElement && (
         document.activeElement.classList.contains('task-assignment-input') ||
@@ -789,11 +794,11 @@ export class CloudSyncEngine {
         ...(remoteS1.hasVoted || {})
       };
 
-      const isProposalChanged = JSON.stringify(mergedProposals) !== JSON.stringify(localProps);
-      const isVoteChanged = JSON.stringify(mergedVotes) !== JSON.stringify(localS1.votes || {})
-        || JSON.stringify(mergedHasVoted) !== JSON.stringify(localS1.hasVoted || {});
-      const isConfirmChanged = remoteS1.contract?.isConfirmed !== localS1.contract?.isConfirmed
-        || JSON.stringify(remoteS1.contract?.confirmedMembers) !== JSON.stringify(localS1.contract?.confirmedMembers);
+      const isProposalChanged = JSON.stringify(mergedProposals) !== prevProposalsStr;
+      const isVoteChanged = JSON.stringify(mergedVotes) !== prevVotesStr
+        || JSON.stringify(mergedHasVoted) !== prevHasVotedStr;
+      const isConfirmChanged = (remoteS1.contract?.isConfirmed !== prevIsConfirmed)
+        || (JSON.stringify(this.app.state.stage1.contract?.confirmedMembers || {}) !== prevConfirmedMembersStr);
 
       this.app.state.stage1.proposals = mergedProposals;
       this.app.state.stage1.votes = mergedVotes;
