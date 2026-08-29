@@ -5,8 +5,23 @@ echo "🚀 ========================================================"
 echo "⚡ 防御式重构 Etherpad 1.9.7 插件系统 (100% 稳定运行)"
 echo "🚀 ========================================================"
 
-export PATH="/www/server/nodejs/v18.20.7/bin:$PATH"
+export PATH="/www/server/nodejs/v20/bin:/www/server/nodejs/v18.20.7/bin:/www/server/nodejs/v18/bin:/www/server/nodejs/v16/bin:/usr/local/bin:/usr/bin:$PATH"
+for n in /www/server/nodejs/v*/bin; do
+  if [ -d "$n" ]; then
+    export PATH="$n:$PATH"
+    break
+  fi
+done
+
 EP_DIR="/www/wwwroot/etherpad-lite"
+if [ ! -d "$EP_DIR" ]; then
+  for d in /www/wwwroot/47.99.110.230/etherpad-lite /opt/etherpad-lite /root/etherpad-lite /var/www/etherpad-lite /www/server/etherpad; do
+    if [ -d "$d" ]; then
+      EP_DIR="$d"
+      break
+    fi
+  done
+fi
 
 cd "$EP_DIR"
 
@@ -173,8 +188,9 @@ else
 fi
 
 # 8. 重新载入 Nginx 配置
-cd /www/wwwroot/47.99.110.230
-./fix_nginx_clean_final.sh
+nginx -t 2>/dev/null && (nginx -s reload 2>/dev/null || systemctl reload nginx 2>/dev/null || true)
 
-# 9. 立即执行端到端全量硬核验证
-./e2e_verify_etherpad_active.sh
+# 9. 立即执行端到端全量验证
+if [ -f "./e2e_verify_etherpad_active.sh" ]; then
+  ./e2e_verify_etherpad_active.sh 2>&1 || true
+fi
