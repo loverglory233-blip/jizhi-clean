@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260830_v728
+ * Version: 20260830_v729
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260830_v728';
+  const APP_VERSION = '20260830_v729';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -13262,7 +13262,8 @@
           this.sendSingleChatMessage(neutralWelcome, 'stage3');
           this.syncChatLogs();
           if (typeof window.renderChat === 'function') window.renderChat(this.state);
-          await new Promise(r => setTimeout(r, 1200));
+          // ⏱️ 预留 2.5 秒，让全组看清中间委员开场
+          await new Promise(r => setTimeout(r, 2500));
         }
 
         // 2. 正方委员发表肯定意见
@@ -13286,7 +13287,8 @@
           this.sendSingleChatMessage(propMsg, 'stage3');
           this.syncChatLogs();
           if (typeof window.renderChat === 'function') window.renderChat(this.state);
-          await new Promise(r => setTimeout(r, 1500));
+          // ⏱️ 预留 5.5 秒通读时间，让组员充分领会正方的肯定亮点
+          await new Promise(r => setTimeout(r, 5500));
         } else {
           const existingProp = logs.find(m => m && m.sender === 'proponent');
           propText = existingProp ? existingProp.text : '';
@@ -13321,7 +13323,8 @@
           this.sendSingleChatMessage(oppMsg, 'stage3');
           this.syncChatLogs();
           if (typeof window.renderChat === 'function') window.renderChat(this.state);
-          await new Promise(r => setTimeout(r, 1200));
+          // ⏱️ 预留 4.5 秒，让组员通读反方质询点
+          await new Promise(r => setTimeout(r, 4500));
         } else {
           const existingOpp = logs.find(m => m && m.sender === 'opponent');
           oppText = existingOpp ? existingOpp.text : '';
@@ -13353,6 +13356,8 @@
         if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
         renderChat(this.state);
         this.renderStudentWorkspace();
+        // ⏱️ 矩阵生成后留 3.5 秒让组员看清左侧矩阵的更新与就位
+        await new Promise(r => setTimeout(r, 3500));
 
         // 5. 中间委员独立调用 Coze API，引导第 1 题辩护
         const hasChairGuide = logs.some(m => m && m.sender === 'neutral' && (m.text?.includes('答辩思路引导') || m.text?.includes('质询 ①')));
