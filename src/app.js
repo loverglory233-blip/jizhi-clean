@@ -3568,7 +3568,14 @@ ${propText}
         }
         const totalMembersCount = memberArr.length > 0 ? memberArr.length : 3;
 
+        // 🛡️ 极速状态合并：提取本地持久化与内存中已有所有确认记录，防止并发冲刷
+        const groupId = this.getEffectiveGroupId();
+        const cachedState = this.getGroupState(groupId);
+        if (cachedState && cachedState.stage2 && cachedState.stage2.confirmedMembers) {
+          s2.confirmedMembers = { ...(cachedState.stage2.confirmedMembers || {}), ...(s2.confirmedMembers || {}) };
+        }
         if (!s2.confirmedMembers) s2.confirmedMembers = {};
+
         const isMemDone = (map, m) => {
           if (!map || !m) return false;
           return !!(map[m.id] || map[m.studentCode] || map[m.username] || (m.name && map[m.name]));

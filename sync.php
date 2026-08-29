@@ -2321,8 +2321,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $mergedS1['contract']['isConfirmed'] = false;
                 }
             }
-            if (!empty($existingS2['isDraftConfirmed'])) {
+            // 🛡️ 阶段二初稿确认状态动态比对：当组内确认人数达到全员时，服务端权威标记 isDraftConfirmed = true 并推进阶段三
+            $confirmedMap2 = isset($mergedS2['confirmedMembers']) && is_array($mergedS2['confirmedMembers']) ? $mergedS2['confirmedMembers'] : [];
+            $membersDataList = isset($data['members']) && is_array($data['members']) ? $data['members'] : [];
+            $actualMembersCount2 = count($membersDataList);
+            $confCount2 = 0;
+            if ($actualMembersCount2 > 0) {
+                foreach ($membersDataList as $m) {
+                    $mId = isset($m['id']) ? $m['id'] : '';
+                    $mCode = isset($m['studentCode']) ? $m['studentCode'] : '';
+                    $mName = isset($m['name']) ? $m['name'] : '';
+                    $mUser = isset($m['username']) ? $m['username'] : '';
+                    if (($mId && !empty($confirmedMap2[$mId])) || ($mCode && !empty($confirmedMap2[$mCode])) || ($mName && !empty($confirmedMap2[$mName])) || ($mUser && !empty($confirmedMap2[$mUser]))) {
+                        $confCount2++;
+                    }
+                }
+            } else {
+                $confCount2 = count($confirmedMap2);
+            }
+            if (!empty($existingS2['isDraftConfirmed']) || ($actualMembersCount2 > 0 && $confCount2 >= $actualMembersCount2)) {
                 $mergedS2['isDraftConfirmed'] = true;
+                if ($finalStage === 'stage2') {
+                    $finalStage = 'stage3';
+                }
             }
 
             // 保存小组协作快照 (自增 revision_id，彻底防止同毫秒并发漏包)

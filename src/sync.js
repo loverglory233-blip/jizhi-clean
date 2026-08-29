@@ -841,9 +841,24 @@ export class CloudSyncEngine {
           this.app.state.stage2.confirmedMembers = mergedConf;
           needWorkspaceRender = true;
         }
+        let memberArr = [];
+        if (Array.isArray(this.app.state.members)) memberArr = this.app.state.members;
+        else if (this.app.state.members && typeof this.app.state.members === 'object') memberArr = Object.values(this.app.state.members);
+        if (memberArr.length > 0) {
+          const isMemDone = (map, m) => !!(map && (map[m.id] || map[m.studentCode] || map[m.username] || (m.name && map[m.name])));
+          const cCount = memberArr.filter(m => isMemDone(mergedConf, m)).length;
+          if (cCount >= memberArr.length && memberArr.length > 0) {
+            this.app.state.stage2.isDraftConfirmed = true;
+            this.app.state.groupMaxStage = 'stage3';
+            needWorkspaceRender = true;
+          }
+        }
       }
       if (remoteData.stage2.isDraftConfirmed !== undefined && remoteData.stage2.isDraftConfirmed !== this.app.state.stage2.isDraftConfirmed) {
         this.app.state.stage2.isDraftConfirmed = remoteData.stage2.isDraftConfirmed;
+        if (remoteData.stage2.isDraftConfirmed) {
+          this.app.state.groupMaxStage = 'stage3';
+        }
         needWorkspaceRender = true;
       }
       if (remoteData.stage2.actionPlan) {

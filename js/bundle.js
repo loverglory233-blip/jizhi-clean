@@ -3238,9 +3238,24 @@
             this.app.state.stage2.confirmedMembers = mergedConf;
             needWorkspaceRender = true;
           }
+          let memberArr = [];
+          if (Array.isArray(this.app.state.members)) memberArr = this.app.state.members;
+          else if (this.app.state.members && typeof this.app.state.members === 'object') memberArr = Object.values(this.app.state.members);
+          if (memberArr.length > 0) {
+            const isMemDone = (map, m) => !!(map && (map[m.id] || map[m.studentCode] || map[m.username] || (m.name && map[m.name])));
+            const cCount = memberArr.filter(m => isMemDone(mergedConf, m)).length;
+            if (cCount >= memberArr.length && memberArr.length > 0) {
+              this.app.state.stage2.isDraftConfirmed = true;
+              this.app.state.groupMaxStage = 'stage3';
+              needWorkspaceRender = true;
+            }
+          }
         }
         if (remoteData.stage2.isDraftConfirmed !== undefined && remoteData.stage2.isDraftConfirmed !== this.app.state.stage2.isDraftConfirmed) {
           this.app.state.stage2.isDraftConfirmed = remoteData.stage2.isDraftConfirmed;
+          if (remoteData.stage2.isDraftConfirmed) {
+            this.app.state.groupMaxStage = 'stage3';
+          }
           needWorkspaceRender = true;
         }
         if (remoteData.stage2.actionPlan) {
@@ -13530,7 +13545,14 @@
           }
           const totalMembersCount = memberArr.length > 0 ? memberArr.length : 3;
 
+          // 🛡️ 极速状态合并：提取本地持久化与内存中已有所有确认记录，防止并发冲刷
+          const groupId = this.getEffectiveGroupId();
+          const cachedState = this.getGroupState(groupId);
+          if (cachedState && cachedState.stage2 && cachedState.stage2.confirmedMembers) {
+            s2.confirmedMembers = { ...(cachedState.stage2.confirmedMembers || {}), ...(s2.confirmedMembers || {}) };
+          }
           if (!s2.confirmedMembers) s2.confirmedMembers = {};
+
           const isMemDone = (map, m) => {
             if (!map || !m) return false;
             return !!(map[m.id] || map[m.studentCode] || map[m.username] || (m.name && map[m.name]));
