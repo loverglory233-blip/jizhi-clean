@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260830_v723
+ * Version: 20260830_v724
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260830_v723';
+  const APP_VERSION = '20260830_v724';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -9690,19 +9690,43 @@
               <span style="color:#0f172a;">🎓 答辩委员会改进意见与组内裁决矩阵 ${isFinalSubmitted ? '<span style="font-size:11px; color:#059669; margin-left:6px;">(🔒 已提交归档)</span>' : ''}</span>
             </div>
             <div style="display:flex; flex-direction:column; gap:14px;">
-              ${s3.feedbackItems.length === 0 ? `
-                <div style="text-align:center; color:#64748b; padding:32px; font-size:14px;">
-                  ⏳ 答辩委员会专家正在审阅初稿，请在右侧研讨区与委员开展交流答辩！
+              ${(state.stage3CommitteeLoading || !s3.feedbackItems || s3.feedbackItems.length === 0) ? `
+                <div style="background:#ffffff; border:1px solid #bfdbfe; border-radius:12px; padding:36px 24px; text-align:center; box-shadow:0 4px 12px rgba(37,99,235,0.06);">
+                  <div style="font-size:36px; margin-bottom:12px;">⏳</div>
+                  <div style="font-size:16px; font-weight:800; color:#1e40af; margin-bottom:6px;">答辩委员会专家正在审阅全篇论文初稿...</div>
+                  <div style="font-size:13px; color:#64748b; line-height:1.6;">正方委员正在提取立论亮点，反方委员正在研拟针对实质询。<br>评审意见与质询要点即将在此生成，并同步呈现在右侧研讨区，请稍候！</div>
                 </div>
-              ` : s3.feedbackItems.map((item, idx) => `
-                <div style="background:#ffffff; padding:16px; border-radius:12px; border:1px solid ${item.role === 'opponent' ? '#fca5a5' : '#86efac'}; box-shadow:0 2px 8px rgba(15,23,42,0.04);">
+              ` : s3.feedbackItems.map((item, idx) => {
+                const isProp = item.role === 'proponent';
+                const hasResponse = !!(item.response && item.response.trim());
+                let badgeText = '⏳ 待组内研讨答辩';
+                let badgeBg = '#fffbeb';
+                let badgeColor = '#d97706';
+                let badgeBorder = '#fde68a';
+
+                if (hasResponse) {
+                  badgeText = isProp ? '✅ 已补充论据并归档' : '✅ 已答辩并归档';
+                  badgeBg = '#ecfdf5';
+                  badgeColor = '#059669';
+                  badgeBorder = '#a7f3d0';
+                } else if (isProp) {
+                  badgeText = '🌟 专家肯定 (立论支持无需答辩)';
+                  badgeBg = '#eff6ff';
+                  badgeColor = '#2563eb';
+                  badgeBorder = '#bfdbfe';
+                }
+
+                return `
+                <div style="background:#ffffff; padding:16px; border-radius:12px; border:1px solid ${isProp ? '#86efac' : '#fca5a5'}; box-shadow:0 2px 8px rgba(15,23,42,0.04);">
                   <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
                     <div style="display:flex; align-items:center; gap:8px;">
-                      <span style="font-size:16px;">${item.role === 'opponent' ? '🔴' : '🟢'}</span>
-                      <span style="font-weight:800; font-size:14.5px; color:${item.role === 'opponent' ? '#dc2626' : '#059669'};">质询点 ${idx + 1}: ${escapeHtml(item.speaker || (item.role === 'opponent' ? '反方委员 Agent' : '正方委员 Agent'))} - ${escapeHtml(item.title || '')}</span>
+                      <span style="font-size:16px;">${isProp ? '🟢' : '🔴'}</span>
+                      <span style="font-weight:800; font-size:14.5px; color:${isProp ? '#059669' : '#dc2626'};">
+                        ${isProp ? '专家立论支持' : `质询要点 ${idx}`}: ${escapeHtml(item.speaker || (isProp ? '正方委员 Agent' : '反方委员 Agent'))} - ${escapeHtml(item.title || '')}
+                      </span>
                     </div>
-                    <span style="font-size:11.5px; padding:3px 10px; border-radius:12px; font-weight:700; background:${item.status === 'adopted' ? '#ecfdf5' : '#fffbeb'}; color:${item.status === 'adopted' ? '#059669' : '#d97706'}; border:1px solid ${item.status === 'adopted' ? '#a7f3d0' : '#fde68a'};">
-                      ${item.status === 'adopted' ? '✅ 已研讨并归档' : '⏳ 待组内研讨裁决'}
+                    <span style="font-size:11.5px; padding:3px 10px; border-radius:12px; font-weight:700; background:${badgeBg}; color:${badgeColor}; border:1px solid ${badgeBorder};">
+                      ${badgeText}
                     </span>
                   </div>
                   <div style="font-size:13.5px; color:#1e293b; background:#f8fafc; border:1px solid #e2e8f0; padding:12px 14px; border-radius:8px; margin-bottom:12px; line-height:1.6;">
@@ -9711,27 +9735,27 @@
 
                   <div style="border-top:1px dashed #e2e8f0; padding-top:10px; margin-top:10px;">
                     <div style="font-size:12.5px; font-weight:700; color:#334155; margin-bottom:6px; display:flex; justify-content:space-between; align-items:center;">
-                      <span>✍️ 本组答辩回复与修改结论：</span>
-                      ${item.response ? '<span style="color:#059669; font-size:11.5px; font-weight:700;">✅ 已保存生效 (可随时二次修改)</span>' : '<span style="color:#64748b; font-size:11.5px;">(请直接在下方输入框中录入简要答复)</span>'}
+                      <span>✍️ ${isProp ? '本组补充说明/强化论据 (选填)：' : '本组答辩回复与修改结论：'}</span>
+                      ${hasResponse ? '<span style="color:#059669; font-size:11.5px; font-weight:700;">✅ 已保存生效 (可随时二次修改)</span>' : (isProp ? '<span style="color:#2563eb; font-size:11.5px;">(立论支持默认通过，如无补充可直接留空)</span>' : '<span style="color:#64748b; font-size:11.5px;">(请直接在下方输入框中录入答辩结论)</span>')}
                     </div>
                     <textarea 
                       class="feedback-direct-input" 
                       data-id="${item.id}" 
                       ${isFinalSubmitted ? 'disabled readonly' : ''} 
-                      placeholder="商讨后，在此直接输入本组针对该条意见的简要答复与修改结论..." 
-                      style="width:100%; min-height:64px; padding:8px 12px; font-size:13px; line-height:1.5; border:1px solid ${item.response ? '#a7f3d0' : '#cbd5e1'}; background:${isFinalSubmitted ? '#f8fafc' : (item.response ? '#f0fdf4' : '#ffffff')}; border-radius:8px; resize:vertical; box-sizing:border-box; color:#0f172a; font-family:inherit;"
+                      placeholder="${isProp ? '正方已给予高度肯定！如本组有进一步想要补充强化的论据可在此记录，无补充可留空...' : '商讨后，在此直接输入本组针对该条意见的简要答复与修改结论...'}" 
+                      style="width:100%; min-height:64px; padding:8px 12px; font-size:13px; line-height:1.5; border:1px solid ${hasResponse ? '#a7f3d0' : '#cbd5e1'}; background:${isFinalSubmitted ? '#f8fafc' : (hasResponse ? '#f0fdf4' : '#ffffff')}; border-radius:8px; resize:vertical; box-sizing:border-box; color:#0f172a; font-family:inherit;"
                     >${escapeHtml(item.response || '')}</textarea>
 
                     ${!isFinalSubmitted ? `
                       <div style="display:flex; justify-content:flex-end; margin-top:8px;">
-                        <button class="btn-save-feedback-direct" data-id="${item.id}" style="background:${item.response ? 'linear-gradient(135deg, #059669, #047857)' : 'linear-gradient(135deg, #2563eb, #1d4ed8)'}; border:none; color:white; padding:6px 14px; border-radius:6px; font-size:12px; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; gap:4px; box-shadow:0 2px 6px rgba(0,0,0,0.12);">
-                          ${item.response ? '🔄 更新并保存本条修改' : '💾 确认并保存本条答复'}
+                        <button class="btn-save-feedback-direct" data-id="${item.id}" style="background:${hasResponse ? 'linear-gradient(135deg, #059669, #047857)' : 'linear-gradient(135deg, #2563eb, #1d4ed8)'}; border:none; color:white; padding:6px 14px; border-radius:6px; font-size:12px; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; gap:4px; box-shadow:0 2px 6px rgba(0,0,0,0.12);">
+                          ${hasResponse ? '🔄 更新并保存答辩记录' : (isProp ? '💾 保存补充论据' : '💾 确认并保存本条答辩')}
                         </button>
                       </div>
                     ` : ''}
                   </div>
                 </div>
-              `).join('')}
+              `;}).join('')}
             </div>
           </div>
         ` : (() => {
@@ -13131,8 +13155,10 @@
       // 🎓 阶段三：严格按时序：① 中间委员开场 ➔ ② 正方肯定 ➔ ③ 反方质询 ➔ ④ 平台写入矩阵 ➔ ⑤ 中间委员抛题引导
       else if (stage === 'stage3') {
         const hasNeutralIntro = logs.some(m => m && m.sender === 'neutral' && (m.text?.includes('欢迎来到【阶段三：答辩擂台】') || m.text?.includes('中间委员开场')));
-        if (!hasNeutralIntro && !this.state.stage3IntroStarted) {
-          this.state.stage3IntroStarted = true;
+        const hasProp = logs.some(m => m && m.sender === 'proponent');
+        const hasOpp = logs.some(m => m && m.sender === 'opponent');
+
+        if (!hasNeutralIntro) {
           const neutralWelcome = {
             id: `msg_welcome_${taskId}_${groupId}_stage3_neutral`,
             sender: 'neutral',
@@ -13144,9 +13170,20 @@
           logs.unshift(neutralWelcome);
           this.sendSingleChatMessage(neutralWelcome, 'stage3');
           if (typeof window.renderChat === 'function') window.renderChat(this.state);
+        }
+
+        // 🛡️ 如果正方或反方尚未发表评审，且左侧矩阵未就绪，立即启动答辩委员会全流程评议
+        const needsCommitteeReview = !hasProp || !hasOpp || !this.state.stage3.feedbackItems || this.state.stage3.feedbackItems.length === 0;
+        if (needsCommitteeReview && !this.state.stage3CommitteeEvaluating) {
+          this.state.stage3CommitteeEvaluating = true;
+          this.state.stage3CommitteeLoading = true;
+          this.renderStudentWorkspace();
 
           const topic = (this.state.stage1 && this.state.stage1.mergedTitle) ? this.state.stage1.mergedTitle : '本组研究设计';
-          const rawContent = (this.state.stage2 && this.state.stage2.unifiedContent) ? this.state.stage2.unifiedContent.replace(/<[^>]*>/g, '').trim() : '';
+          let rawContent = (this.state.stage2 && this.state.stage2.unifiedContent) ? this.state.stage2.unifiedContent.replace(/<[^>]*>/g, '').trim() : '';
+          if (!rawContent || rawContent.length < 50) {
+            rawContent = `课题名称: ${topic}。正文涵盖背景意义、文献综述、问题与假设、研究设计与方法、反思等完整初稿。`;
+          }
 
           // 2. 依次异步调用【正方】与【反方】
           setTimeout(async () => {
@@ -13190,34 +13227,32 @@
                 _timeMs: Date.now()
               });
 
-              // 平台自动将正反评审意见写入左侧【答辩裁决矩阵】；仅当反方调用成功时才自动解析，失败时留空待学生手动录入，绝不把"超时提示"当成质询写入
-              if (oppSucceeded && (!this.state.stage3.feedbackItems || this.state.stage3.feedbackItems.length === 0)) {
-                // 🛡️ 反方质询必须从 Coze 反方委员真实发言中解析，绝不写死；有多少条质询就写入多少条，确保矩阵与讨论区内容完全一致
-                const oppBody = (oppText || '').replace(/^[^\n]*?【[^】]+】[：:]?\s*/, '').trim();
-                const oppMatches = oppBody.match(/[①②③④⑤][^①②③④⑤]*/g);
-                const oppQueries = (oppMatches && oppMatches.length > 0)
-                  ? oppMatches.map(s => s.trim()).filter(s => s.length > 0)
-                  : [oppBody];
-                this.state.stage3.feedbackItems = [
-                  { id: 'fb_prop', role: 'proponent', speaker: '正方委员 Agent (肯定支持)', title: '立论支持', content: propText.replace(/^[^\n]*?【[^】]+】[：:]?\s*/, ''), response: '', status: 'adopted' }
-                ];
-                oppQueries.forEach((q, i) => {
-                  this.state.stage3.feedbackItems.push({
-                    id: 'fb_opp_' + (i + 1),
-                    role: 'opponent',
-                    speaker: '反方委员 Agent (尖锐质询)',
-                    title: '质询 ' + (i + 1),
-                    content: q,
-                    response: '',
-                    status: 'pending'
-                  });
+              // 平台自动将正反评审意见写入左侧【答辩裁决矩阵】
+              const oppBody = (oppText || '').replace(/^[^\n]*?【[^】]+】[：:]?\s*/, '').trim();
+              const oppMatches = oppBody.match(/[①②③④⑤][^①②③④⑤]*/g);
+              const oppQueries = (oppMatches && oppMatches.length > 0)
+                ? oppMatches.map(s => s.trim()).filter(s => s.length > 0)
+                : [oppBody];
+              this.state.stage3.feedbackItems = [
+                { id: 'fb_prop', role: 'proponent', speaker: '正方委员 Agent (肯定支持)', title: '立论支持', content: propText.replace(/^[^\n]*?【[^】]+】[：:]?\s*/, ''), response: '', status: 'pending' }
+              ];
+              oppQueries.forEach((q, i) => {
+                this.state.stage3.feedbackItems.push({
+                  id: 'fb_opp_' + (i + 1),
+                  role: 'opponent',
+                  speaker: '反方委员 Agent (尖锐质询)',
+                  title: '质询 ' + (i + 1),
+                  content: q,
+                  response: '',
+                  status: 'pending'
                 });
-                this.syncStage3();
-                this.renderStudentWorkspace();
-              }
-
+              });
+              this.state.stage3CommitteeLoading = false;
+              this.state.stage3CommitteeEvaluating = false;
+              this.syncStage3();
               this.syncChatLogs();
               renderChat(this.state);
+              this.renderStudentWorkspace();
 
               // 5. 中间委员独立调用 Coze API，引导第 1 题辩护
               setTimeout(async () => {
@@ -13246,7 +13281,7 @@
               }, 2500);
 
             }, 2500);
-          }, 2000);
+          }, 1500);
         }
       }
     }

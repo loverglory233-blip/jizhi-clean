@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles } from "./constants.js?v=20260830_v723";
-import { callCozeAgentAPI } from "./agents.js?v=20260830_v723";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs } from "./utils.js?v=20260830_v723";
+import { AgentProfiles } from "./constants.js?v=20260830_v724";
+import { callCozeAgentAPI } from "./agents.js?v=20260830_v724";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs } from "./utils.js?v=20260830_v724";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -2416,19 +2416,43 @@ function renderStage3Canvas(canvas, state, handlers) {
             <span style="color:#0f172a;">🎓 答辩委员会改进意见与组内裁决矩阵 ${isFinalSubmitted ? '<span style="font-size:11px; color:#059669; margin-left:6px;">(🔒 已提交归档)</span>' : ''}</span>
           </div>
           <div style="display:flex; flex-direction:column; gap:14px;">
-            ${s3.feedbackItems.length === 0 ? `
-              <div style="text-align:center; color:#64748b; padding:32px; font-size:14px;">
-                ⏳ 答辩委员会专家正在审阅初稿，请在右侧研讨区与委员开展交流答辩！
+            ${(state.stage3CommitteeLoading || !s3.feedbackItems || s3.feedbackItems.length === 0) ? `
+              <div style="background:#ffffff; border:1px solid #bfdbfe; border-radius:12px; padding:36px 24px; text-align:center; box-shadow:0 4px 12px rgba(37,99,235,0.06);">
+                <div style="font-size:36px; margin-bottom:12px;">⏳</div>
+                <div style="font-size:16px; font-weight:800; color:#1e40af; margin-bottom:6px;">答辩委员会专家正在审阅全篇论文初稿...</div>
+                <div style="font-size:13px; color:#64748b; line-height:1.6;">正方委员正在提取立论亮点，反方委员正在研拟针对实质询。<br>评审意见与质询要点即将在此生成，并同步呈现在右侧研讨区，请稍候！</div>
               </div>
-            ` : s3.feedbackItems.map((item, idx) => `
-              <div style="background:#ffffff; padding:16px; border-radius:12px; border:1px solid ${item.role === 'opponent' ? '#fca5a5' : '#86efac'}; box-shadow:0 2px 8px rgba(15,23,42,0.04);">
+            ` : s3.feedbackItems.map((item, idx) => {
+              const isProp = item.role === 'proponent';
+              const hasResponse = !!(item.response && item.response.trim());
+              let badgeText = '⏳ 待组内研讨答辩';
+              let badgeBg = '#fffbeb';
+              let badgeColor = '#d97706';
+              let badgeBorder = '#fde68a';
+
+              if (hasResponse) {
+                badgeText = isProp ? '✅ 已补充论据并归档' : '✅ 已答辩并归档';
+                badgeBg = '#ecfdf5';
+                badgeColor = '#059669';
+                badgeBorder = '#a7f3d0';
+              } else if (isProp) {
+                badgeText = '🌟 专家肯定 (立论支持无需答辩)';
+                badgeBg = '#eff6ff';
+                badgeColor = '#2563eb';
+                badgeBorder = '#bfdbfe';
+              }
+
+              return `
+              <div style="background:#ffffff; padding:16px; border-radius:12px; border:1px solid ${isProp ? '#86efac' : '#fca5a5'}; box-shadow:0 2px 8px rgba(15,23,42,0.04);">
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
                   <div style="display:flex; align-items:center; gap:8px;">
-                    <span style="font-size:16px;">${item.role === 'opponent' ? '🔴' : '🟢'}</span>
-                    <span style="font-weight:800; font-size:14.5px; color:${item.role === 'opponent' ? '#dc2626' : '#059669'};">质询点 ${idx + 1}: ${escapeHtml(item.speaker || (item.role === 'opponent' ? '反方委员 Agent' : '正方委员 Agent'))} - ${escapeHtml(item.title || '')}</span>
+                    <span style="font-size:16px;">${isProp ? '🟢' : '🔴'}</span>
+                    <span style="font-weight:800; font-size:14.5px; color:${isProp ? '#059669' : '#dc2626'};">
+                      ${isProp ? '专家立论支持' : `质询要点 ${idx}`}: ${escapeHtml(item.speaker || (isProp ? '正方委员 Agent' : '反方委员 Agent'))} - ${escapeHtml(item.title || '')}
+                    </span>
                   </div>
-                  <span style="font-size:11.5px; padding:3px 10px; border-radius:12px; font-weight:700; background:${item.status === 'adopted' ? '#ecfdf5' : '#fffbeb'}; color:${item.status === 'adopted' ? '#059669' : '#d97706'}; border:1px solid ${item.status === 'adopted' ? '#a7f3d0' : '#fde68a'};">
-                    ${item.status === 'adopted' ? '✅ 已研讨并归档' : '⏳ 待组内研讨裁决'}
+                  <span style="font-size:11.5px; padding:3px 10px; border-radius:12px; font-weight:700; background:${badgeBg}; color:${badgeColor}; border:1px solid ${badgeBorder};">
+                    ${badgeText}
                   </span>
                 </div>
                 <div style="font-size:13.5px; color:#1e293b; background:#f8fafc; border:1px solid #e2e8f0; padding:12px 14px; border-radius:8px; margin-bottom:12px; line-height:1.6;">
@@ -2437,27 +2461,27 @@ function renderStage3Canvas(canvas, state, handlers) {
 
                 <div style="border-top:1px dashed #e2e8f0; padding-top:10px; margin-top:10px;">
                   <div style="font-size:12.5px; font-weight:700; color:#334155; margin-bottom:6px; display:flex; justify-content:space-between; align-items:center;">
-                    <span>✍️ 本组答辩回复与修改结论：</span>
-                    ${item.response ? '<span style="color:#059669; font-size:11.5px; font-weight:700;">✅ 已保存生效 (可随时二次修改)</span>' : '<span style="color:#64748b; font-size:11.5px;">(请直接在下方输入框中录入简要答复)</span>'}
+                    <span>✍️ ${isProp ? '本组补充说明/强化论据 (选填)：' : '本组答辩回复与修改结论：'}</span>
+                    ${hasResponse ? '<span style="color:#059669; font-size:11.5px; font-weight:700;">✅ 已保存生效 (可随时二次修改)</span>' : (isProp ? '<span style="color:#2563eb; font-size:11.5px;">(立论支持默认通过，如无补充可直接留空)</span>' : '<span style="color:#64748b; font-size:11.5px;">(请直接在下方输入框中录入答辩结论)</span>')}
                   </div>
                   <textarea 
                     class="feedback-direct-input" 
                     data-id="${item.id}" 
                     ${isFinalSubmitted ? 'disabled readonly' : ''} 
-                    placeholder="商讨后，在此直接输入本组针对该条意见的简要答复与修改结论..." 
-                    style="width:100%; min-height:64px; padding:8px 12px; font-size:13px; line-height:1.5; border:1px solid ${item.response ? '#a7f3d0' : '#cbd5e1'}; background:${isFinalSubmitted ? '#f8fafc' : (item.response ? '#f0fdf4' : '#ffffff')}; border-radius:8px; resize:vertical; box-sizing:border-box; color:#0f172a; font-family:inherit;"
+                    placeholder="${isProp ? '正方已给予高度肯定！如本组有进一步想要补充强化的论据可在此记录，无补充可留空...' : '商讨后，在此直接输入本组针对该条意见的简要答复与修改结论...'}" 
+                    style="width:100%; min-height:64px; padding:8px 12px; font-size:13px; line-height:1.5; border:1px solid ${hasResponse ? '#a7f3d0' : '#cbd5e1'}; background:${isFinalSubmitted ? '#f8fafc' : (hasResponse ? '#f0fdf4' : '#ffffff')}; border-radius:8px; resize:vertical; box-sizing:border-box; color:#0f172a; font-family:inherit;"
                   >${escapeHtml(item.response || '')}</textarea>
                   
                   ${!isFinalSubmitted ? `
                     <div style="display:flex; justify-content:flex-end; margin-top:8px;">
-                      <button class="btn-save-feedback-direct" data-id="${item.id}" style="background:${item.response ? 'linear-gradient(135deg, #059669, #047857)' : 'linear-gradient(135deg, #2563eb, #1d4ed8)'}; border:none; color:white; padding:6px 14px; border-radius:6px; font-size:12px; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; gap:4px; box-shadow:0 2px 6px rgba(0,0,0,0.12);">
-                        ${item.response ? '🔄 更新并保存本条修改' : '💾 确认并保存本条答复'}
+                      <button class="btn-save-feedback-direct" data-id="${item.id}" style="background:${hasResponse ? 'linear-gradient(135deg, #059669, #047857)' : 'linear-gradient(135deg, #2563eb, #1d4ed8)'}; border:none; color:white; padding:6px 14px; border-radius:6px; font-size:12px; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; gap:4px; box-shadow:0 2px 6px rgba(0,0,0,0.12);">
+                        ${hasResponse ? '🔄 更新并保存答辩记录' : (isProp ? '💾 保存补充论据' : '💾 确认并保存本条答辩')}
                       </button>
                     </div>
                   ` : ''}
                 </div>
               </div>
-            `).join('')}
+            `;}).join('')}
           </div>
         </div>
       ` : (() => {
