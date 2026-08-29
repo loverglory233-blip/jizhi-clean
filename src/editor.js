@@ -42,9 +42,9 @@ export function renderHeader(state, currentUser, announcements, onStageChange, o
   const groupName = activeGroupObj.name || '第 1 协作小组';
   const currentTaskTitle = currentTask ? currentTask.title : (activeTaskId === 'task_default' ? '默认写作任务' : '协作写作任务');
 
-  // 严格按【当前班级】、【当前任务】和【当前小组】三位一体过滤通知，彻底杜绝跨任务/跨小组干扰
+  // 严格按【当前班级】、【当前任务】和【当前小组】三位一体过滤通知，彻底杜绝跨班级、跨任务干扰
   const relevantAnnouncements = (announcements || []).filter(a => {
-    const matchClass = !a.classId || a.classId === 'all' || a.classId === activeClassId;
+    const matchClass = (a.classId === activeClassId) || (Array.isArray(a.targetClassIds) && a.targetClassIds.includes(activeClassId));
     const matchGroup = !a.targetGroupId || a.targetGroupId === 'all' || a.targetGroupId === groupId ||
       (Array.isArray(a.targetGroupIds) && (a.targetGroupIds.includes('all') || a.targetGroupIds.includes(groupId)));
     const matchTask = a.taskId === 'task_all' || a.taskId === activeTaskId || (!a.taskId && activeTaskId === 'task_default');
