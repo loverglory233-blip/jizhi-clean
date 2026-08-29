@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260830_v711
+ * Version: 20260830_v712
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260830_v711';
+  const APP_VERSION = '20260830_v712';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -14042,7 +14042,6 @@
       // ① 必须至少有 2 名及以上组员【当前真实在线活跃】（30秒内有心跳/操作），如果人都不在线则绝不自言自语汇报！
       // ② 每次提醒后至少间隔 15 分钟 (900秒) 冷却期；
       // ③ 正文相比上次提醒至少新增推进了 150 字；
-      const membersList = Object.values(this.state.members || {});
       const presence = this.state.presence || {};
       const activeOnlineCount = membersList.filter(m => {
         const p = presence[m.studentCode] || presence[m.id];
