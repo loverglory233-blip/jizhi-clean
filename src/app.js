@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260830_v701";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash } from "./utils.js?v=20260830_v701";
-import { callCozeAgentAPI } from "./agents.js?v=20260830_v701";
-import { AuthManager } from "./auth.js?v=20260830_v701";
-import { CloudSyncEngine } from "./sync.js?v=20260830_v701";
-import { renderLoginView } from "./login.js?v=20260830_v701";
-import { renderTeacherPortal } from "./teacher.js?v=20260830_v701";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260830_v701";
+} from "./constants.js?v=20260830_v702";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash } from "./utils.js?v=20260830_v702";
+import { callCozeAgentAPI } from "./agents.js?v=20260830_v702";
+import { AuthManager } from "./auth.js?v=20260830_v702";
+import { CloudSyncEngine } from "./sync.js?v=20260830_v702";
+import { renderLoginView } from "./login.js?v=20260830_v702";
+import { renderTeacherPortal } from "./teacher.js?v=20260830_v702";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260830_v702";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260830_v701";
+} from "./editor.js?v=20260830_v702";
 
 // Make renderChat available on window for sync callbacks
 if (typeof window !== "undefined") {
@@ -764,7 +764,7 @@ export class App {
               <button class="chat-tool-btn" id="btn-chat-upload-img" title="发送图片/图表至讨论区" style="background:#f1f5f9; border:1px solid #cbd5e1; border-radius:8px; width:38px; height:38px; display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:18px; color:#475569; flex-shrink:0;">
                 🖼️
               </button>
-              <input type="text" class="chat-input modern-spacious-input" id="chat-input" placeholder="输入 @ 提及同学或智能体，或输入学术讨论..." autocomplete="off">
+              <input type="text" class="chat-input modern-spacious-input" id="chat-input" placeholder="输入 @ 提及同学或智能体，或输入学术讨论..." autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
               <button class="send-btn modern-send-btn" id="send-btn" title="发送消息">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
                   <line x1="22" y1="2" x2="11" y2="13"></line>
@@ -1219,72 +1219,8 @@ export class App {
           }
         }
 
-        // ── 阶段二修改期静默守护（审稿编辑在 3 次质检意见下发后，若讨论区静默由审稿编辑自身出面跟进答疑与提醒） ──
-        // 1) 第一次质检（初审微调）后的静默破冰
-        if (this.state.stage2FirstReviewFinishedTime && !this.state.stage2PostFirstReviewNudgeSent && !this.state.stage2ReviewingFinishedTime) {
-          const timeSinceReview1 = now - this.state.stage2FirstReviewFinishedTime;
-          if (timeSinceReview1 >= s2SilenceThresholdMs && silenceDurationMs >= s2SilenceThresholdMs) {
-            this.state.stage2PostFirstReviewNudgeSent = true;
-            this.lastS2PostMeetingSilenceNudgeTime = now;
-            const msg = {
-              sender: 'reviewingEditor',
-              text: `📝 【审稿编辑·初审跟进提示】：初审微调建议已送达！大家若对核心概念界定或文献引向有具体疑问，随时在讨论区 @审稿编辑 咨询，全组继续稳步分工推进！`,
-              timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-              _timeMs: now,
-              stage: 'stage2'
-            };
-            if (!this.state.chatLogs.stage2) this.state.chatLogs.stage2 = [];
-            this.state.chatLogs.stage2.push(msg);
-            this.syncChatLogs();
-            if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
-            renderChat(this.state);
-            return;
-          }
-        }
-
-        // 2) 第二次质检（半程清单）后的静默破冰
-        if (this.state.stage2ReviewingFinishedTime && !this.state.stage2FirstPostReviewNudgeSent && !this.state.stage2FinalReviewFinishedTime) {
-          const timeSinceReview2 = now - this.state.stage2ReviewingFinishedTime;
-          if (timeSinceReview2 >= s2SilenceThresholdMs && silenceDurationMs >= s2SilenceThresholdMs) {
-            this.state.stage2FirstPostReviewNudgeSent = true;
-            this.lastS2PostMeetingSilenceNudgeTime = now;
-            const msg = {
-              sender: 'reviewingEditor',
-              text: `📝 【审稿编辑·修改交流提示】：修正清单已挂在上方！大家若对清单中的量表题目设计、方法闭环或文风润色有任何疑问，随时在讨论区 @审稿编辑 咨询，也可以在群里交流商定对策！`,
-              timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-              _timeMs: now,
-              stage: 'stage2'
-            };
-            if (!this.state.chatLogs.stage2) this.state.chatLogs.stage2 = [];
-            this.state.chatLogs.stage2.push(msg);
-            this.syncChatLogs();
-            if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
-            renderChat(this.state);
-            return;
-          }
-        }
-
-        // 3) 第三次质检（终审扫描）后的静默破冰
-        if (this.state.stage2FinalReviewFinishedTime && !this.state.stage2PostFinalReviewNudgeSent) {
-          const timeSinceReview3 = now - this.state.stage2FinalReviewFinishedTime;
-          if (timeSinceReview3 >= s2SilenceThresholdMs && silenceDurationMs >= s2SilenceThresholdMs) {
-            this.state.stage2PostFinalReviewNudgeSent = true;
-            this.lastS2PostMeetingSilenceNudgeTime = now;
-            const msg = {
-              sender: 'reviewingEditor',
-              text: `📝 【审稿编辑·终稿润色提示】：终稿语言与格式扫描诊断已下发！请大家对照指出的语病与错别字逐一订正，通读润色完毕后在上方完成【初稿确认】，准备迎接答辩！`,
-              timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-              _timeMs: now,
-              stage: 'stage2'
-            };
-            if (!this.state.chatLogs.stage2) this.state.chatLogs.stage2 = [];
-            this.state.chatLogs.stage2.push(msg);
-            this.syncChatLogs();
-            if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
-            renderChat(this.state);
-            return;
-          }
-        }
+        // ── 阶段二修改期静默守护：审稿编辑保持后台严肃倾听，绝不随意发无意义跟进打扰学生专注写作 ──
+        // （仅在学生主动 @审稿编辑 时或到达三大官方质检里程碑时出面指导）
 
         // 4) 修改期后续周期性提醒 (每隔一个巡检周期做一次跟进提示)
         if (this.state.stage2ReviewingFinishedTime && this.state.stage2FirstPostReviewNudgeSent && silenceDurationMs >= s2NudgeCooldownMs) {
