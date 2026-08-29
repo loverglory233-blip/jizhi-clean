@@ -41,26 +41,25 @@ fi
 echo ""
 echo "5️⃣ [插件逐一排查] 检查 12 大学术插件的静态资源与挂载:"
 PLUGINS=(
-    "ep_cursortrace:光标追踪与同伴姓名气泡"
-    "ep_headings2:H1~H6大纲标题下拉框"
-    "ep_font_size:字号大小调节"
-    "ep_font_family:中英文字体切换"
-    "ep_font_color:文字颜色与高亮画笔"
-    "ep_align:文字对齐与段落排版"
-    "ep_tables4:学术表格插入与编辑"
-    "ep_image_upload:论文插图与截图上传"
-    "ep_author_hover:作者段落悬停感知"
-    "ep_subscript_and_superscript:上下标学术公式"
-    "ep_line_spacing:行间距调节"
-    "ep_clear_formatting:一键清除多余格式"
+    "ep_cursortrace:static/js/cursortrace.js:光标追踪与同伴姓名气泡"
+    "ep_headings2:static/js/headings.js:H1~H6大纲标题下拉框"
+    "ep_font_size:static/js/index.js:字号大小调节"
+    "ep_font_family:static/js/index.js:中英文字体切换"
+    "ep_font_color:static/js/index.js:文字颜色与高亮画笔"
+    "ep_align:static/js/index.js:文字对齐与段落排版"
+    "ep_tables4:static/js/index.js:学术表格插入与编辑"
+    "ep_image_upload:static/js/upload.js:论文插图与截图上传"
+    "ep_author_hover:static/js/index.js:作者段落悬停感知"
+    "ep_subscript_and_superscript:static/js/index.js:上下标学术公式"
+    "ep_line_spacing:static/js/index.js:行间距调节"
+    "ep_clear_formatting:static/js/clear_formatting.js:一键清除多余格式"
 )
 
 for item in "${PLUGINS[@]}"; do
-    IFS=":" read -r pName pDesc <<< "$item"
-    P_CODE=$(curl -s -o /dev/null -w "%{http_code}" "http://127.0.0.1:9001/static/plugins/$pName/static/js/index.js" 2>/dev/null || echo "000")
+    IFS=":" read -r pName pRelPath pDesc <<< "$item"
+    P_CODE=$(curl -s -o /dev/null -w "%{http_code}" "http://127.0.0.1:9001/static/plugins/$pName/$pRelPath" 2>/dev/null || echo "000")
     if [ "$P_CODE" = "000" ] || [ "$P_CODE" = "404" ]; then
-        # 尝试备用路径
-        P_CODE=$(curl -s -o /dev/null -w "%{http_code}" "http://127.0.0.1/static/plugins/$pName/static/js/$pName.js" 2>/dev/null || echo "000")
+        P_CODE=$(curl -s -o /dev/null -w "%{http_code}" "http://127.0.0.1:9001/static/plugins/$pName/static/js/index.js" 2>/dev/null || echo "000")
     fi
     echo "   - [$pName] ($pDesc) => HTTP $P_CODE"
 done
