@@ -1246,145 +1246,16 @@ export class App {
     if (this.authManager && this.authManager.pullGlobalMeta) {
       try { await this.authManager.pullGlobalMeta(); } catch (e) {}
     }
-    const currentUser = this.authManager.getCurrentUser();
-    if (!currentUser || currentUser.isTeacher || currentUser.role === 'teacher') return;
-    const effectiveClassId = this.state.activeStudentClassId || currentUser?.classId || 'class_101';
-    const activeGroupObj = this.authManager.getStudentActiveGroup(currentUser, effectiveClassId);
-    const groupId = activeGroupObj.id || (currentUser && currentUser.groupId ? currentUser.groupId : 'group_1');
-    const myClassIds = new Set([effectiveClassId, currentUser?.classId, ...(currentUser?.classIds || [])].filter(Boolean));
-    const isTaskListMode = (this.state && this.state.studentViewMode === 'task_list');
-    const activeTaskId = (this.state && this.state.activeTaskId) ? this.state.activeTaskId : 'task_default';
-    const allTasks = this.authManager.getTasks();
-
-    const isAnnRead = (a) => {
-      if (!a) return false;
-      if (currentUser) {
-        if (currentUser.id && a.readStatus && a.readStatus[currentUser.id]) return true;
-        if (currentUser.studentCode && a.readStatus && a.readStatus[currentUser.studentCode]) return true;
-        if (currentUser.username && a.readStatus && a.readStatus[currentUser.username]) return true;
-        if (currentUser.name && a.readStatus && a.readStatus[currentUser.name]) return true;
-        if (Array.isArray(a.confirmedMembers)) {
-          if (a.confirmedMembers.some(m => m && (m.id === currentUser.id || m.studentCode === currentUser.studentCode || (currentUser.name && m.name === currentUser.name)))) return true;
-        }
-      }
-      return false;
-    };
-
-    const allAnns = this.authManager.getAnnouncements();
-
-    // 过滤出本班/本组且未读的通知
-    const unreadList = allAnns
-      .filter(a => {
-        if (a.taskId && a.taskId !== 'task_all') {
-          const tObj = allTasks.find(t => t.id === a.taskId);
-          if (tObj && isTaskExpired(tObj)) return false;
-        }
-        const matchClass = !a.classId || a.classId === 'all' || myClassIds.has(a.classId);
-        const matchGroup = !a.targetGroupId || a.targetGroupId === 'all' || a.targetGroupId === groupId ||
-          (Array.isArray(a.targetGroupIds) && (a.targetGroupIds.includes('all') || a.targetGroupIds.includes(groupId)));
-        const matchTask = isTaskListMode
-          ? true // 大厅模式下，本班级/全校的所有任务通知均可呈现
-          : (a.taskId === 'task_all' || a.taskId === activeTaskId || (!a.taskId && activeTaskId === 'task_default'));
-        return matchClass && matchGroup && matchTask && !isAnnRead(a);
-      })
-      .sort((a, b) => (b.id > a.id ? 1 : -1));
-
-    // 🔔 实时感知任务延期并自动弹出专属弹窗通知（在线即时 + 离线下次登录补弹）
-    const tasksToCheck = isTaskListMode
-      ? allTasks.filter(t => myClassIds.has(t.classId) || !t.classId || t.classId === 'all')
-      : allTasks.filter(t => t.id === activeTaskId);
-
-    if (!this._lastKnownDeadlineMap) this._lastKnownDeadlineMap = {};
-    const uKey = currentUser.studentCode || currentUser.username || currentUser.id || 'u';
-
-    for (const t of tasksToCheck) {
-      if (!t || !t.deadline) continue;
-      const extAckKey = `jizhi_ack_ext_${uKey}_${t.id}_${t.deadline}`;
-      const isExtAcknowledged = localStorage.getItem(extAckKey) === '1';
-      const prevDl = this._lastKnownDeadlineMap[t.id];
-
-      const isOnlineExtended = prevDl && prevDl !== t.deadline && (new Date(t.deadline.replace(/-/g, '/')).getTime() > new Date(prevDl.replace(/-/g, '/')).getTime());
-      const isOfflineExtensionUnread = !isExtAcknowledged && t.lastExtension && (new Date(t.deadline.replace(/-/g, '/')).getTime() > Date.now());
-
-      if (isOnlineExtended || isOfflineExtensionUnread) {
-        localStorage.setItem(extAckKey, '1');
-        this._lastKnownDeadlineMap[t.id] = t.deadline;
-        this.showTaskExtensionModal(t, t.lastExtension);
-        return; // 优先弹出任务延期通知
-      }
-      this._lastKnownDeadlineMap[t.id] = t.deadline;
-    }
-
-    if (unreadList.length > 0) {
-      this.showAnnouncementModal(unreadList[0], true);
-    }
+    // 🛡️ 静默红点提醒模式：不主动弹窗强制打断，通过顶部「📢 教学通知」红点徽章优雅提示
   }
 
-  showTaskExtensionModal(task, extInfo = null) {
-    document.querySelectorAll('.task-ext-modal').forEach(el => el.remove());
-    const durationDesc = extInfo?.extendDurationStr || '指定时长';
-    const newDl = task.deadline || '未定';
-
-    const modal = document.createElement('div');
-    modal.className = 'modal-overlay task-ext-modal';
-    modal.innerHTML = `
-      <div style="width:480px; max-width:92vw; background:#ffffff; border-radius:16px; box-shadow:0 25px 50px -12px rgba(0,0,0,0.25); border:1px solid #e2e8f0; overflow:hidden; animation:modalFadeIn 0.25s ease;">
-        <div style="background:linear-gradient(135deg, #1d4ed8, #2563eb); color:white; padding:18px 24px; display:flex; justify-content:space-between; align-items:center;">
-          <div style="display:flex; align-items:center; gap:10px;">
-            <span style="font-size:24px; background:rgba(255,255,255,0.2); border-radius:10px; padding:4px 8px;">⏳</span>
-            <div>
-              <h3 style="margin:0; font-size:17px; font-weight:800; color:white;">写作任务时间已延长</h3>
-              <div style="font-size:11.5px; opacity:0.9; margin-top:2px;">任课教师最新发布的教学时间调整通知</div>
-            </div>
-          </div>
-          <button id="btn-close-ext-x" style="background:rgba(255,255,255,0.2); border:none; color:white; font-size:16px; border-radius:8px; width:30px; height:30px; cursor:pointer;">✕</button>
-        </div>
-        <div style="padding:24px; background:#ffffff;">
-          <div style="background:#eff6ff; border:1.5px solid #bfdbfe; border-radius:12px; padding:16px 18px; margin-bottom:18px;">
-            <div style="font-size:14px; font-weight:800; color:#1e40af; margin-bottom:8px; display:flex; align-items:center; gap:6px;">
-              <span>📌 任务名称：</span>
-              <span>《${task.title}》</span>
-            </div>
-            <div style="font-size:13.5px; color:#1e3a8a; display:flex; align-items:center; gap:6px; margin-bottom:6px;">
-              <span>⚡ 延长时长：</span>
-              <span style="font-weight:800; color:#2563eb;">延长了 ${durationDesc}</span>
-            </div>
-            <div style="font-size:13.5px; color:#1e3a8a; display:flex; align-items:center; gap:6px;">
-              <span>📅 最新截止时间：</span>
-              <span style="font-weight:800; color:#059669; font-size:14px;">${newDl}</span>
-            </div>
-          </div>
-          <div style="font-size:13px; color:#475569; line-height:1.6; margin-bottom:6px;">
-            📢 各写作小组工作台已自动恢复正常编辑权限。请各位同学相互配合，在新的截止时间前高质量完成协同论文撰写与答辩！
-          </div>
-        </div>
-        <div style="padding:14px 24px; background:#f8fafc; border-top:1px solid #e2e8f0; text-align:right;">
-          <button id="btn-confirm-task-ext-ok" style="background:linear-gradient(135deg, #1d4ed8, #2563eb); color:white; border:none; padding:10px 26px; border-radius:8px; font-size:13.5px; font-weight:700; cursor:pointer; box-shadow:0 3px 10px rgba(37,99,235,0.25);">
-            📋 我知道了，继续协作
-          </button>
-        </div>
-      </div>
-    `;
-    document.body.appendChild(modal);
-
-    const closeExtModal = () => {
-      modal.remove();
-      if (this.state.studentViewMode === 'workspace') {
-        this.renderStudentWorkspace(true);
-      } else {
-        this.renderMain();
-      }
-    };
-
-    modal.querySelector('#btn-close-ext-x').addEventListener('click', closeExtModal);
-    modal.querySelector('#btn-confirm-task-ext-ok').addEventListener('click', closeExtModal);
-    modal.addEventListener('click', (e) => { if (e.target === modal) closeExtModal(); });
-  }
-
-  showAnnouncementModal(targetAnn = null, isSequentialFlow = false) {
+  showAnnouncementModal(targetAnn = null) {
     document.querySelectorAll('.modal-overlay').forEach(el => el.remove());
     const currentUser = this.authManager.getCurrentUser();
     const effectiveClassId = this.state.activeStudentClassId || currentUser?.classId || 'class_101';
+    const classes = this.authManager.getClasses();
+    const currentClassObj = classes.find(c => c.id === effectiveClassId);
+    const effectiveClassName = currentClassObj ? currentClassObj.name : '';
     const activeGroupObj = this.authManager.getStudentActiveGroup(currentUser, effectiveClassId);
     const groupId = activeGroupObj.id || (currentUser && currentUser.groupId ? currentUser.groupId : 'group_1');
     const isTaskListMode = (this.state && this.state.studentViewMode === 'task_list');
@@ -1405,10 +1276,13 @@ export class App {
       return false;
     };
 
-    // 严格过滤当前班级、小组、当前任务可见的通知，按最新发布倒序排
+    // 严格过滤仅属于【当前本班级】且本小组可见的通知（绝对杜绝跨班级泄漏）
     const myAnns = allAnns
       .filter(a => {
-        const matchClass = !a.classId || a.classId === 'all' || a.classId === effectiveClassId;
+        if (!a) return false;
+        const matchClass = (a.classId === effectiveClassId) || 
+                           (effectiveClassName && a.className === effectiveClassName) ||
+                           (Array.isArray(a.targetClassIds) && a.targetClassIds.includes(effectiveClassId));
         const matchGroup = !a.targetGroupId || a.targetGroupId === 'all' || a.targetGroupId === groupId ||
           (Array.isArray(a.targetGroupIds) && (a.targetGroupIds.includes('all') || a.targetGroupIds.includes(groupId)));
         const matchTask = isTaskListMode
@@ -1419,27 +1293,18 @@ export class App {
       .sort((a, b) => (b.id > a.id ? 1 : -1));
 
     if (myAnns.length === 0) {
-      if (!isSequentialFlow) alert('📢 暂无课堂教学通知！');
+      alert('📢 暂无本班级的课堂教学通知！');
       return;
     }
 
-    // 计算当前学生个人的未读列表（从新到旧）
+    // 选中的通知：优先 targetAnn，若无则取最新一条通知
     const unreadList = myAnns.filter(a => !isAnnRead(a));
-
-    // 如果当前是自动弹出流且已无任何未读通知，直接静默退出
-    if (isSequentialFlow && unreadList.length === 0) {
-      return;
-    }
-
-    // 选中的通知：优先 targetAnn，若无则取最新未读，再无则取最新一条通知
     const selectedAnn = targetAnn || (unreadList.length > 0 ? unreadList[0] : myAnns[0]);
-    const isSelectedRead = isAnnRead(selectedAnn);
 
-    // 计算当前在未读流中的序号
-    const unreadIndex = unreadList.findIndex(a => a.id === selectedAnn.id);
-    const queueBadge = unreadList.length > 0 && !isSelectedRead
-      ? `<span style="background:rgba(239,68,68,0.25); border:1px solid #f87171; color:#ffffff; padding:2px 8px; border-radius:10px; font-size:11px; margin-left:6px;">待确认 ${unreadIndex >= 0 ? unreadIndex + 1 : 1}/${unreadList.length}</span>`
-      : '';
+    // 查阅即自动消除红点，无需强制二次确认
+    try {
+      this.authManager.markAnnouncementRead(selectedAnn.id, groupId);
+    } catch (e) {}
 
     const allTasks = this.authManager.getTasks();
     const annTaskObj = allTasks.find(t => t.id === selectedAnn.taskId);
@@ -1452,17 +1317,14 @@ export class App {
       <div style="width:620px; max-width:94vw; background:#ffffff; border-radius:16px; box-shadow:0 25px 50px -12px rgba(15,23,42,0.25); overflow:hidden; border:1px solid #e2e8f0; animation:modalFadeIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);">
         
         <!-- 渐变高颜值头部 -->
-        <div style="background:linear-gradient(135deg, ${isAnnTaskExpired ? '#991b1b, #dc2626' : '#4338ca, #6366f1'}); padding:20px 24px; display:flex; justify-content:space-between; align-items:center; color:#ffffff;">
+        <div style="background:linear-gradient(135deg, ${isAnnTaskExpired ? '#991b1b, #dc2626' : '#1d4ed8, #2563eb'}); padding:20px 24px; display:flex; justify-content:space-between; align-items:center; color:#ffffff;">
           <div style="display:flex; align-items:center; gap:12px;">
             <div style="width:42px; height:42px; border-radius:12px; background:rgba(255,255,255,0.2); display:flex; align-items:center; justify-content:center; font-size:22px; flex-shrink:0;">
-              ${isAnnTaskExpired ? '🛑' : '🔔'}
+              ${isAnnTaskExpired ? '🛑' : '📢'}
             </div>
             <div>
-              <div style="display:flex; align-items:center;">
-                <h3 style="margin:0; font-size:17.5px; font-weight:800; color:#ffffff; letter-spacing:0.3px;">课堂教学通知</h3>
-                ${queueBadge}
-              </div>
-              <div style="font-size:12px; color:#e0e7ff; margin-top:2px;">${isAnnTaskExpired ? '⚠️ 该通知关联任务已截止，仅供查阅历史教学指示' : '任课教师即时推送的教学指示与随附教学资源'}</div>
+              <h3 style="margin:0; font-size:17.5px; font-weight:800; color:#ffffff; letter-spacing:0.3px;">班级教学通知</h3>
+              <div style="font-size:12px; color:#e0e7ff; margin-top:2px;">${effectiveClassName ? `🏫 归属班级: ${escapeHtml(effectiveClassName)}` : '任课教师发布的教学指示与任务调整'}</div>
             </div>
           </div>
           <button id="btn-close-ann-popup" style="background:rgba(255,255,255,0.15); border:1px solid rgba(255,255,255,0.3); width:32px; height:32px; border-radius:8px; display:flex; align-items:center; justify-content:center; cursor:pointer; color:#ffffff; font-size:14px; transition:all 0.15s ease;">✕</button>
@@ -1472,13 +1334,13 @@ export class App {
         <div style="padding:20px 24px; max-height:65vh; overflow-y:auto; display:flex; flex-direction:column; gap:16px;">
           
           ${myAnns.length > 1 ? `
-            <!-- 多条通知从新到旧快捷切换栏 -->
+            <!-- 多条通知切换栏 -->
             <div style="display:flex; gap:8px; overflow-x:auto; padding-bottom:6px;">
               ${myAnns.map((a, idx) => {
                 const isRead = isAnnRead(a);
                 const isCurrent = a.id === selectedAnn.id;
                 return `
-                  <button class="btn-switch-ann-tab" data-id="${a.id}" style="padding:6px 12px; border-radius:8px; font-size:12px; font-weight:700; cursor:pointer; border:1px solid ${isCurrent ? '#6366f1' : '#e2e8f0'}; background:${isCurrent ? '#eef2ff' : '#ffffff'}; color:${isCurrent ? '#4338ca' : '#64748b'}; white-space:nowrap; display:inline-flex; align-items:center; gap:6px;">
+                  <button class="btn-switch-ann-tab" data-id="${a.id}" style="padding:6px 12px; border-radius:8px; font-size:12px; font-weight:700; cursor:pointer; border:1px solid ${isCurrent ? '#2563eb' : '#e2e8f0'}; background:${isCurrent ? '#eff6ff' : '#ffffff'}; color:${isCurrent ? '#1d4ed8' : '#64748b'}; white-space:nowrap; display:inline-flex; align-items:center; gap:6px;">
                     ${isRead ? '✅' : '🔴'} 通知 ${idx + 1}${idx === 0 ? ' (最新)' : ''}
                   </button>
                 `;
@@ -1491,7 +1353,7 @@ export class App {
             
             <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px; margin-bottom:12px;">
               <h4 style="margin:0; font-size:16.5px; font-weight:800; color:#0f172a; line-height:1.4;">
-                📢 ${escapeHtml(selectedAnn.title)}
+                📌 ${escapeHtml(selectedAnn.title)}
               </h4>
               <span style="font-size:11.5px; color:#64748b; white-space:nowrap;">${escapeHtml(selectedAnn.time || '')}</span>
             </div>
@@ -1502,24 +1364,11 @@ export class App {
                 👨‍🏫 发布教师: <b>${escapeHtml(selectedAnn.author || '任课教师')}</b>
               </span>
               <span style="background:#f5f3ff; color:#7c3aed; border:1px solid #ddd6fe; padding:3px 10px; border-radius:6px; font-size:11.5px; font-weight:700;">
-                📌 关联任务: <b>${escapeHtml(selectedAnn.taskTitle || '全流程写作')}</b>
+                📌 关联任务: <b>${escapeHtml(selectedAnn.taskTitle || '写作任务')}</b>
               </span>
               <span style="background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe; padding:3px 10px; border-radius:6px; font-size:11.5px; font-weight:700;">
-                🎯 受众: <b>${escapeHtml(selectedAnn.targetGroupName || '全班所有小组')}</b>
+                🎯 受众: <b>${escapeHtml(selectedAnn.targetGroupName || '全班小组')}</b>
               </span>
-              ${isAnnTaskExpired ? `
-                <span style="background:#fef2f2; color:#dc2626; border:1px solid #fecaca; padding:3px 10px; border-radius:6px; font-size:11.5px; font-weight:800;">
-                  🛑 任务已截止 · 只读查阅
-                </span>
-              ` : (isSelectedRead ? `
-                <span style="background:#ecfdf5; color:#059669; border:1px solid #a7f3d0; padding:3px 10px; border-radius:6px; font-size:11.5px; font-weight:700;">
-                  ✅ 本组已确认阅读
-                </span>
-              ` : `
-                <span style="background:#fef2f2; color:#dc2626; border:1px solid #fecaca; padding:3px 10px; border-radius:6px; font-size:11.5px; font-weight:700;">
-                  🔴 待确认阅读
-                </span>
-              `)}
             </div>
 
             <!-- 正文卡片 -->
@@ -1548,12 +1397,9 @@ export class App {
         </div>
 
         <!-- 底部操作栏 -->
-        <div style="padding:14px 24px; background:#f8fafc; border-top:1px solid #f1f5f9; display:flex; justify-content:space-between; align-items:center; gap:12px;">
-          <button id="btn-close-ann-bottom" style="background:#ffffff; border:1px solid #cbd5e1; color:#475569; padding:10px 20px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer;">
-            关闭
-          </button>
-          <button id="btn-read-confirm" style="flex:1; background:${isSelectedRead ? '#e2e8f0' : 'linear-gradient(135deg, #059669, #047857)'}; color:${isSelectedRead ? '#64748b' : '#ffffff'}; border:none; padding:11px 24px; border-radius:8px; font-size:13.5px; font-weight:700; cursor:pointer; box-shadow:${isSelectedRead ? 'none' : '0 3px 10px rgba(5,150,105,0.2)'}; display:inline-flex; align-items:center; justify-content:center; gap:6px;">
-            ${isSelectedRead ? '✅ 本条已确认已读 (点击关闭/下一条)' : (unreadList.length > 1 ? `✅ 确认本条已读并看下一条 (${unreadIndex + 1}/${unreadList.length}) ➔` : '✅ 我已阅读并确认 (已同步至教师端)')}
+        <div style="padding:14px 24px; background:#f8fafc; border-top:1px solid #f1f5f9; display:flex; justify-content:flex-end; align-items:center; gap:12px;">
+          <button id="btn-close-ann-bottom" style="background:linear-gradient(135deg, #1d4ed8, #2563eb); color:#ffffff; border:none; padding:9px 24px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer; box-shadow:0 3px 10px rgba(37,99,235,0.25);">
+            我知道了 (关闭)
           </button>
         </div>
 
@@ -1561,7 +1407,12 @@ export class App {
     `;
     document.body.appendChild(modal);
 
-    const closeModal = () => modal.remove();
+    const closeModal = () => {
+      modal.remove();
+      if (this.state.studentViewMode === 'task_list') {
+        this.renderMain();
+      }
+    };
     modal.querySelector('#btn-close-ann-popup').addEventListener('click', closeModal);
     modal.querySelector('#btn-close-ann-bottom').addEventListener('click', closeModal);
     modal.addEventListener('click', (e) => { if (e.target === modal) closeModal(); });
@@ -1573,7 +1424,7 @@ export class App {
         const target = myAnns.find(a => a.id === annId);
         if (target) {
           closeModal();
-          this.showAnnouncementModal(target, false);
+          this.showAnnouncementModal(target);
         }
       });
     });
@@ -1582,51 +1433,6 @@ export class App {
     if (downloadBtn && selectedAnn.attachment) {
       downloadBtn.addEventListener('click', () => {
         downloadFileBlob(selectedAnn.attachment.name);
-      });
-    }
-
-    const confirmBtn = modal.querySelector('#btn-read-confirm');
-    if (confirmBtn) {
-      confirmBtn.addEventListener('click', () => {
-        confirmBtn.style.pointerEvents = 'none';
-        confirmBtn.textContent = '✅ 已确认';
-
-        // 1. 标记本条为已读 (个人独立已读 + 小组聚合)
-        this.authManager.markAnnouncementRead(selectedAnn.id, groupId);
-        closeModal();
-
-        const allTasks = this.authManager.getTasks();
-
-        // 2. 重新获取严格属于【当前班级 + 当前任务 + 当前小组】的未读通知列表（排除刚刚已确认的本条与已截止任务）
-        const updatedAllAnns = this.authManager.getAnnouncements();
-        const nextUnreads = updatedAllAnns
-          .filter(a => {
-            if (a.id === selectedAnn.id) return false;
-            if (a.taskId && a.taskId !== 'task_all') {
-              const tObj = allTasks.find(t => t.id === a.taskId);
-              if (tObj && isTaskExpired(tObj)) return false;
-            }
-            const matchClass = !a.classId || a.classId === 'all' || a.classId === effectiveClassId;
-            const matchGroup = !a.targetGroupId || a.targetGroupId === 'all' || a.targetGroupId === groupId ||
-              (Array.isArray(a.targetGroupIds) && (a.targetGroupIds.includes('all') || a.targetGroupIds.includes(groupId)));
-            const matchTask = a.taskId === 'task_all' || a.taskId === activeTaskId || (!a.taskId && activeTaskId === 'task_default');
-            return matchClass && matchGroup && matchTask && !isAnnRead(a);
-          })
-          .sort((a, b) => (b.id > a.id ? 1 : -1));
-
-        // 3. 如果当前任务还有未读通知，自动连续弹出下一条让学生一一确认；如果全确认完则刷新当前视图
-        if (nextUnreads.length > 0) {
-          setTimeout(() => this.showAnnouncementModal(nextUnreads[0], true), 200);
-        } else {
-          if (window.app && window.app.showNotification) {
-            window.app.showNotification('🎉 所有课堂通知已确认已读');
-          }
-          if (this.state.studentViewMode === 'task_list') {
-            this.renderMain();
-          } else {
-            this.renderStudentWorkspace();
-          }
-        }
       });
     }
   }
