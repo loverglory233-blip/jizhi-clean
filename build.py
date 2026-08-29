@@ -64,7 +64,49 @@ def clean_esm_for_bundle(content):
         
     return "\n".join(cleaned_lines)
 
+def sync_versions(new_ver):
+    # 1. 更新 constants.js
+    c_path = os.path.join(SRC_DIR, "constants.js")
+    if os.path.exists(c_path):
+        with open(c_path, "r", encoding="utf-8") as f:
+            c = f.read()
+        c = re.sub(r"APP_VERSION\s*=\s*['\"][^'\"]+['\"]", f"APP_VERSION = '{new_ver}'", c)
+        with open(c_path, "w", encoding="utf-8") as f:
+            f.write(c)
+
+    # 2. 更新 index.html
+    idx_path = os.path.join(BASE_DIR, "index.html")
+    if os.path.exists(idx_path):
+        with open(idx_path, "r", encoding="utf-8") as f:
+            idx = f.read()
+        idx = re.sub(r"\?v=\d{8}_v\w+", f"?v={new_ver}", idx)
+        with open(idx_path, "w", encoding="utf-8") as f:
+            f.write(idx)
+
+    # 3. 更新 update.sh
+    up_path = os.path.join(BASE_DIR, "update.sh")
+    if os.path.exists(up_path):
+        with open(up_path, "r", encoding="utf-8") as f:
+            up = f.read()
+        up = re.sub(r'TARGET_VERSION=["\'][^"\']+["\']', f'TARGET_VERSION="{new_ver}"', up)
+        with open(up_path, "w", encoding="utf-8") as f:
+            f.write(up)
+
+    # 4. 更新 src/*.js 的 import 版本后缀
+    for fn in os.listdir(SRC_DIR):
+        if fn.endswith(".js"):
+            fp = os.path.join(SRC_DIR, fn)
+            with open(fp, "r", encoding="utf-8") as f:
+                content = f.read()
+            content = re.sub(r'(\./[a-zA-Z0-9_-]+\.js)\?v=\d{8}_v\w+', rf'\1?v={new_ver}', content)
+            with open(fp, "w", encoding="utf-8") as f:
+                f.write(content)
+    print(f"   🏷️ [Version Sync] 全局版本戳已成功统一更新为: {new_ver}")
+
 def build():
+    NEW_VERSION = "20260830_v693"
+    sync_versions(NEW_VERSION)
+    
     print("🚀 [ESM Build] 开始验证并装配 JIZHI 现代化模块...")
     
     if not os.path.exists(SRC_DIR):
@@ -74,6 +116,7 @@ def build():
     bundle_parts = [
         "/**\n",
         " * JIZHI (集智) Multi-Agent Collaborative Writing Platform\n",
+        f" * Version: {NEW_VERSION}\n",
         " * Modern ES Module Distribution Bundle\n",
         " * (Compiled from src/*.js via build.py)\n",
         " */\n\n",
