@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState } from './constants.js?v=20260830_v733';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin } from './utils.js?v=20260830_v733';
+import { InitialState } from './constants.js?v=20260830_v734';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin } from './utils.js?v=20260830_v734';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -953,6 +953,19 @@ export class CloudSyncEngine {
         if (remoteS3.opponentCritique !== undefined) this.app.state.stage3.opponentCritique = remoteS3.opponentCritique;
         if (remoteS3.neutralVerdict !== undefined) this.app.state.stage3.neutralVerdict = remoteS3.neutralVerdict;
         
+        if (remoteS3.confirmedMembers) {
+          const localConf = this.app.state.stage3.confirmedMembers || {};
+          const mergedConf = { ...localConf, ...remoteS3.confirmedMembers };
+          if (JSON.stringify(localConf) !== JSON.stringify(mergedConf)) {
+            this.app.state.stage3.confirmedMembers = mergedConf;
+            needWorkspaceRender = true;
+          }
+        }
+        if (remoteS3.isRevisionConfirmed !== undefined && remoteS3.isRevisionConfirmed !== this.app.state.stage3.isRevisionConfirmed) {
+          this.app.state.stage3.isRevisionConfirmed = remoteS3.isRevisionConfirmed;
+          needWorkspaceRender = true;
+        }
+
         const localItems = Array.isArray(localS3.feedbackItems) ? localS3.feedbackItems : [];
         const remoteItems = Array.isArray(remoteS3.feedbackItems) ? remoteS3.feedbackItems : [];
         if (remoteItems.length > 0 && localItems.length === 0) {
