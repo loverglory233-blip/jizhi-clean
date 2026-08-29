@@ -4338,19 +4338,6 @@ ${propText}
         studentMsgCount: 0
       };
       this.syncStage2();
-
-      // 🌟 单人测试即时接力 / 多人自适应保底：单人测试 1.2s 自动接力二审；多人 10s 未发言也保底唤醒审稿下发清单！
-      if (totalMembersCount <= 1) {
-        setTimeout(() => {
-          this.triggerReviewingEditorAfterDiscussion();
-        }, 1200);
-      } else {
-        setTimeout(() => {
-          if (this.state.stage2PendingReviewing) {
-            this.triggerReviewingEditorAfterDiscussion();
-          }
-        }, 12000);
-      }
     });
   }
 

@@ -2021,14 +2021,14 @@ function renderStage2Canvas(canvas, state, handlers) {
           const padName = `jizhi_${activeTaskId}_${userGroupId}`;
           const currUserName = (currUser && (currUser.name || currUser.username)) || '组员';
           const currUserColor = (state.members && state.members[currUserCode]?.color) || '#2563eb';
-          const padUrl = `/p/${padName}?userName=${encodeURIComponent(currUserName)}&userColor=${encodeURIComponent(currUserColor)}&showChat=false&showLineNumbers=true&showControls=true`;
+          const padUrl = `/p/${padName}?userName=${encodeURIComponent(currUserName)}&userColor=${encodeURIComponent(currUserColor)}&showChat=false&showLineNumbers=true&showControls=${isEditorReadonly ? 'false' : 'true'}`;
           
           return `
-            <div class="word-editor-container" style="display:flex; flex-direction:column; height:100%; min-height:480px; border-radius:10px; overflow:hidden; border:1px solid #cbd5e1; box-shadow:0 4px 16px rgba(15,23,42,0.06); background:#ffffff;">
+            <div class="word-editor-container" style="display:flex; flex-direction:column; height:100%; min-height:480px; border-radius:10px; overflow:hidden; border:1px solid #cbd5e1; box-shadow:0 4px 16px rgba(15,23,42,0.06); background:#ffffff; position:relative;">
               <div id="ep-loading-helper-s2" style="display:flex; align-items:center; justify-content:space-between; background:#f8fafc; border-bottom:1px solid #e2e8f0; padding:6px 14px; font-size:12px; color:#475569;">
                 <div style="display:flex; align-items:center; gap:8px;">
-                  <span id="ep-status-dot-s2" style="display:inline-block; width:8px; height:8px; border-radius:50%; background:#10b981;"></span>
-                  <span id="ep-status-text-s2" style="font-weight:600;">Etherpad 实时协同引擎已连接 (毫秒级 OT 协同)</span>
+                  <span id="ep-status-dot-s2" style="display:inline-block; width:8px; height:8px; border-radius:50%; background:${isEditorReadonly ? '#dc2626' : '#10b981'};"></span>
+                  <span id="ep-status-text-s2" style="font-weight:600;">${isEditorReadonly ? '🔒 Etherpad 协同文档已锁定 (只读模式)' : 'Etherpad 实时协同引擎已连接 (毫秒级 OT 协同)'}</span>
                 </div>
                 <div style="display:flex; align-items:center; gap:8px;">
                   <a href="${padUrl}" target="_blank" style="background:#ffffff; color:#334155; border:1px solid #cbd5e1; padding:3px 10px; border-radius:6px; font-size:11.5px; text-decoration:none; font-weight:600; display:inline-flex; align-items:center; gap:4px; box-shadow:0 1px 2px rgba(0,0,0,0.04);">↗️ 独立新窗口打开</a>
@@ -2036,7 +2036,8 @@ function renderStage2Canvas(canvas, state, handlers) {
                 </div>
               </div>
               <div style="flex:1; min-height:0; position:relative; background:#ffffff;">
-                <iframe id="stage2-etherpad-frame" src="${padUrl}" style="width:100%; height:100%; border:none; display:block; background:#ffffff;" allow="clipboard-read; clipboard-write; fullscreen" onload="const el=document.getElementById('ep-status-text-s2'); if(el) el.innerText='Etherpad 实时协同引擎已就绪 (毫秒级 OT 协同)';"></iframe>
+                <iframe id="stage2-etherpad-frame" src="${padUrl}" style="width:100%; height:100%; border:none; display:block; background:#ffffff;" allow="clipboard-read; clipboard-write; fullscreen" onload="const el=document.getElementById('ep-status-text-s2'); if(el) el.innerText='${isEditorReadonly ? '🔒 Etherpad 协同文档已锁定 (只读模式)' : 'Etherpad 实时协同引擎已就绪 (毫秒级 OT 协同)'}';"></iframe>
+                ${isEditorReadonly ? '<div style="position:absolute; inset:0; z-index:99; background:rgba(248,250,252,0.15); cursor:not-allowed; display:flex; align-items:center; justify-content:center;" title="🔒 正文已截止锁定为只读模式"><div style="background:rgba(15,23,42,0.8); color:#ffffff; padding:8px 16px; border-radius:8px; font-size:12.5px; font-weight:700; pointer-events:none; box-shadow:0 4px 12px rgba(0,0,0,0.2);">🔒 任务已截止/终稿已锁定 (只读查阅模式)</div></div>' : ''}
               </div>
             </div>
           `;
