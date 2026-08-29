@@ -1246,10 +1246,64 @@ export class App {
     if (this.authManager && this.authManager.pullGlobalMeta) {
       try { await this.authManager.pullGlobalMeta(); } catch (e) {}
     }
-    // 🛡️ 静默红点提醒模式：不主动弹窗强制打断，通过顶部「📢 教学通知」红点徽章优雅提示
+    const currentUser = this.authManager.getCurrentUser();
+    if (!currentUser || currentUser.isTeacher || currentUser.role === 'teacher') return;
+    const effectiveClassId = this.state.activeStudentClassId || currentUser?.classId || 'class_101';
+    const classes = this.authManager.getClasses();
+    const currentClassObj = classes.find(c => c.id === effectiveClassId);
+    const effectiveClassName = currentClassObj ? currentClassObj.name : '';
+    const activeGroupObj = this.authManager.getStudentActiveGroup(currentUser, effectiveClassId);
+    const groupId = activeGroupObj.id || (currentUser && currentUser.groupId ? currentUser.groupId : 'group_1');
+    const isTaskListMode = (this.state && this.state.studentViewMode === 'task_list');
+    const activeTaskId = (this.state && this.state.activeTaskId) ? this.state.activeTaskId : 'task_default';
+    const allTasks = this.authManager.getTasks();
+
+    const isAnnRead = (a) => {
+      if (!a) return false;
+      if (currentUser) {
+        if (currentUser.id && a.readStatus && a.readStatus[currentUser.id]) return true;
+        if (currentUser.studentCode && a.readStatus && a.readStatus[currentUser.studentCode]) return true;
+        if (currentUser.username && a.readStatus && a.readStatus[currentUser.username]) return true;
+        if (currentUser.name && a.readStatus && a.readStatus[currentUser.name]) return true;
+        if (Array.isArray(a.confirmedMembers)) {
+          if (a.confirmedMembers.some(m => m && (m.id === currentUser.id || m.studentCode === currentUser.studentCode || (currentUser.name && m.name === currentUser.name)))) return true;
+        }
+      }
+      return false;
+    };
+
+    const allAnns = this.authManager.getAnnouncements();
+
+    // 过滤出本班/本组且未读的通知（延期通知只通过红点静默提示，不自动弹窗打扰；教师正常教学通知自动弹窗）
+    const unreadList = allAnns
+      .filter(a => {
+        if (!a) return false;
+        // 延期通知只保留红点展示，不进行自动弹窗打扰
+        if (a.isExtension || a.title?.includes('延期通知') || a.title?.includes('时间已延长')) return false;
+
+        if (a.taskId && a.taskId !== 'task_all') {
+          const tObj = allTasks.find(t => t.id === a.taskId);
+          if (tObj && isTaskExpired(tObj)) return false;
+        }
+        const matchClass = (a.classId === effectiveClassId) || 
+                           (effectiveClassName && a.className === effectiveClassName) ||
+                           (Array.isArray(a.targetClassIds) && a.targetClassIds.includes(effectiveClassId));
+        const matchGroup = !a.targetGroupId || a.targetGroupId === 'all' || a.targetGroupId === groupId ||
+          (Array.isArray(a.targetGroupIds) && (a.targetGroupIds.includes('all') || a.targetGroupIds.includes(groupId)));
+        const matchTask = isTaskListMode
+          ? true
+          : (a.taskId === 'task_all' || a.taskId === activeTaskId || (!a.taskId && activeTaskId === 'task_default'));
+        return matchClass && matchGroup && matchTask && !isAnnRead(a);
+      })
+      .sort((a, b) => (b.id > a.id ? 1 : -1));
+
+    // 📢 教师发布的教学指示/课堂通知自动弹窗提示学生阅读并确认
+    if (unreadList.length > 0) {
+      this.showAnnouncementModal(unreadList[0], true);
+    }
   }
 
-  showAnnouncementModal(targetAnn = null) {
+  showAnnouncementModal(targetAnn = null, isSequentialFlow = false) {
     document.querySelectorAll('.modal-overlay').forEach(el => el.remove());
     const currentUser = this.authManager.getCurrentUser();
     const effectiveClassId = this.state.activeStudentClassId || currentUser?.classId || 'class_101';
@@ -1397,10 +1451,19 @@ export class App {
         </div>
 
         <!-- 底部操作栏 -->
-        <div style="padding:14px 24px; background:#f8fafc; border-top:1px solid #f1f5f9; display:flex; justify-content:flex-end; align-items:center; gap:12px;">
-          <button id="btn-close-ann-bottom" style="background:linear-gradient(135deg, #1d4ed8, #2563eb); color:#ffffff; border:none; padding:9px 24px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer; box-shadow:0 3px 10px rgba(37,99,235,0.25);">
-            我知道了 (关闭)
+        <div style="padding:14px 24px; background:#f8fafc; border-top:1px solid #f1f5f9; display:flex; justify-content:space-between; align-items:center; gap:12px;">
+          <button id="btn-close-ann-bottom" style="background:#ffffff; border:1px solid #cbd5e1; color:#475569; padding:10px 20px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer;">
+            关闭
           </button>
+          ${isExtensionNotice ? `
+            <button id="btn-ext-got-it" style="flex:1; background:linear-gradient(135deg, #1d4ed8, #2563eb); color:#ffffff; border:none; padding:11px 24px; border-radius:8px; font-size:13.5px; font-weight:700; cursor:pointer; box-shadow:0 3px 10px rgba(37,99,235,0.25);">
+              我知道了 (关闭)
+            </button>
+          ` : `
+            <button id="btn-read-confirm" style="flex:1; background:${isSelectedRead ? '#e2e8f0' : 'linear-gradient(135deg, #059669, #047857)'}; color:${isSelectedRead ? '#64748b' : '#ffffff'}; border:none; padding:11px 24px; border-radius:8px; font-size:13.5px; font-weight:700; cursor:pointer; box-shadow:${isSelectedRead ? 'none' : '0 3px 10px rgba(5,150,105,0.2)'}; display:inline-flex; align-items:center; justify-content:center; gap:6px;">
+              ${isSelectedRead ? '✅ 本条已确认已读 (点击关闭)' : (unreadList.length > 1 ? `✅ 确认本条已读并看下一条 (${unreadIndex + 1}/${unreadList.length}) ➔` : '✅ 我已阅读并确认 (已同步至教师端)')}
+            </button>
+          `}
         </div>
 
       </div>
@@ -1417,6 +1480,30 @@ export class App {
     modal.querySelector('#btn-close-ann-bottom').addEventListener('click', closeModal);
     modal.addEventListener('click', (e) => { if (e.target === modal) closeModal(); });
 
+    modal.querySelector('#btn-ext-got-it')?.addEventListener('click', () => {
+      this.authManager.markAnnouncementRead(selectedAnn.id, groupId);
+      closeModal();
+    });
+
+    modal.querySelector('#btn-read-confirm')?.addEventListener('click', () => {
+      if (!isSelectedRead) {
+        this.authManager.markAnnouncementRead(selectedAnn.id, groupId);
+        const myName = currentUser ? currentUser.name : '学生';
+        this.authManager.markAnnouncementConfirmed(selectedAnn.id, currentUser ? (currentUser.id || currentUser.studentCode || currentUser.name) : 'temp', myName, groupId);
+      }
+      closeModal();
+      const remainingUnread = unreadList.filter(a => a.id !== selectedAnn.id && !a.isExtension && !a.title?.includes('延期通知'));
+      if (remainingUnread.length > 0) {
+        setTimeout(() => this.showAnnouncementModal(remainingUnread[0], true), 200);
+      } else {
+        if (this.state.studentViewMode === 'task_list') {
+          this.renderMain();
+        } else {
+          this.renderStudentWorkspace(true);
+        }
+      }
+    });
+
     // TAB 切换
     modal.querySelectorAll('.btn-switch-ann-tab').forEach(btn => {
       btn.addEventListener('click', () => {
@@ -1424,7 +1511,7 @@ export class App {
         const target = myAnns.find(a => a.id === annId);
         if (target) {
           closeModal();
-          this.showAnnouncementModal(target);
+          this.showAnnouncementModal(target, false);
         }
       });
     });
