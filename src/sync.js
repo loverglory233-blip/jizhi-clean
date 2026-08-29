@@ -926,15 +926,11 @@ export class CloudSyncEngine {
       this.app.state.groupMaxStage = remoteData.currentStage;
     }
 
-    if ((remoteOrder > currentOrder || (remoteData.stage2 && remoteData.stage2.isDraftConfirmed && this.app.state.currentStage === 'stage2')) && !this.app.state.isTeacher) {
-      const targetStage = remoteData.currentStage || (remoteData.stage2 && remoteData.stage2.isDraftConfirmed ? 'stage3' : this.app.state.currentStage);
-      if (targetStage !== this.app.state.currentStage) {
-        this.app.switchStage(targetStage, true);
-      }
-    }
-
     this.app.saveGroupState(myGroupId);
     if (typeof window.renderChat === 'function') window.renderChat(this.app.state);
+    if (needWorkspaceRender) {
+      this.app.renderStudentWorkspace();
+    }
     this.app.updateContributionUi();
     this.app.renderPresenceCursors();
 

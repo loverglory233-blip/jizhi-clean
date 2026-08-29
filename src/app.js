@@ -3647,8 +3647,8 @@ ${propText}
             this.state.chatLogs.stage2.push(finalMsg);
             this.syncChatLogs();
             if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
-            alert(`🎉 恭喜！组内全部 ${totalMembersCount} 位成员已全部完成初稿确认！\n\n系统自动全组解锁并推进至【阶段三：答辩擂台】！`);
-            this.switchStage('stage3', true);
+            alert(`🎉 恭喜！组内全部 ${totalMembersCount} 位成员已全部完成初稿确认！\n\n系统已全组解锁【阶段三：答辩擂台】！请点击顶部导航进入阶段三开始答辩。`);
+            this.renderStudentWorkspace();
           }, 600);
         }
         this.renderStudentWorkspace();
