@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260830_v735
+ * Version: 20260830_v736
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260830_v735';
+  const APP_VERSION = '20260830_v736';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -9695,6 +9695,8 @@
     const isTaskDeadlineExpired = isTaskExpired(currentTask);
     const isFinalSubmitted = state.isFinalSubmitted || isTaskDeadlineExpired;
 
+    const isDefenseLocked = isRevisionFullyConfirmed || isFinalSubmitted;
+
     // 🛡️ Safari 滚动记忆防回弹保护：捕获渲染前的滚动条高度与聚焦状态
     const oldDefenseCard = canvas.querySelector('#stage3-defense-card') || canvas.querySelector('.card');
     const oldScrollTop = oldDefenseCard ? oldDefenseCard.scrollTop : 0;
@@ -9733,16 +9735,22 @@
             <button id="tab-btn-defense" style="background:${activeTab === 'defense' ? 'linear-gradient(135deg, #2563eb, #1d4ed8)' : '#f1f5f9'}; border:none; color:${activeTab === 'defense' ? 'white' : '#475569'}; padding:8px 16px; border-radius:8px; font-weight:700; font-size:13px; cursor:pointer;">
               🎓 答辩委员会质询与中间委员引导面板
             </button>
-            <button id="tab-btn-editor" style="background:${activeTab === 'editor' ? 'linear-gradient(135deg, #059669, #047857)' : (isRevisionFullyConfirmed ? '#f1f5f9' : '#f8fafc')}; border:${isRevisionFullyConfirmed ? 'none' : '1px dashed #cbd5e1'}; color:${activeTab === 'editor' ? 'white' : (isRevisionFullyConfirmed ? '#475569' : '#94a3b8')}; padding:8px 16px; border-radius:8px; font-weight:700; font-size:13px; cursor:${isRevisionFullyConfirmed ? 'pointer' : 'not-allowed'};" title="${isRevisionFullyConfirmed ? '切换至终稿协同修改' : '需组内全员完成答辩确认后解锁'}">
-              ${isRevisionFullyConfirmed ? '📝 修改论文终稿 (依据答辩意见完善正文)' : '📝 修改论文终稿 (🔒 需全员答辩确认后解锁)'}
+            <button id="tab-btn-editor" style="background:${activeTab === 'editor' ? 'linear-gradient(135deg, #059669, #047857)' : (isRevisionFullyConfirmed ? '#f1f5f9' : '#f8fafc')}; border:${isRevisionFullyConfirmed ? 'none' : '1px dashed #cbd5e1'}; color:${activeTab === 'editor' ? 'white' : (isRevisionFullyConfirmed ? '#475569' : '#94a3b8')}; padding:8px 16px; border-radius:8px; font-weight:700; font-size:13px; cursor:${isRevisionFullyConfirmed ? 'pointer' : 'not-allowed'};" title="${isRevisionFullyConfirmed ? '切换至终稿协同修改' : '需组内全员确认进入终稿修改后解锁'}">
+              ${isRevisionFullyConfirmed ? '📝 修改论文终稿 (依据答辩意见完善正文)' : '📝 修改论文终稿 (🔒 需全员确认进入终稿修改后解锁)'}
             </button>
           </div>
           <div style="display:flex; gap:8px; align-items:center;">
-            ${activeTab === 'defense' ? `
-              <button id="btn-confirm-stage3-revision" ${isUserRevisionConfirmed || isFinalSubmitted ? 'disabled' : ''} style="background:${isUserRevisionConfirmed ? '#f1f5f9' : 'linear-gradient(135deg, #2563eb, #1d4ed8)'}; border:${isUserRevisionConfirmed ? '1px solid #cbd5e1' : 'none'}; color:${isUserRevisionConfirmed ? '#2563eb' : 'white'}; padding:8px 16px; border-radius:8px; font-weight:700; font-size:12.5px; cursor:${isUserRevisionConfirmed || isFinalSubmitted ? 'default' : 'pointer'}; box-shadow:${isUserRevisionConfirmed ? 'none' : '0 2px 8px rgba(37,99,235,0.2)'};">
-                ${isUserRevisionConfirmed ? '✅ 您已确认进入终稿修改' : '✍️ 确认进入终稿修改'}
-              </button>
-            ` : `
+            ${activeTab === 'defense' ? (
+              isDefenseLocked ? `
+                <button disabled style="background:#f1f5f9; border:1px solid #cbd5e1; color:${isFinalSubmitted ? '#94a3b8' : '#059669'}; padding:8px 16px; border-radius:8px; font-weight:700; font-size:12.5px; cursor:default;">
+                  ${isFinalSubmitted ? '🔒 论文终稿已归档 (只读)' : '✅ 全员已确认进入终稿修改 (答辩已锁定)'}
+                </button>
+              ` : `
+                <button id="btn-confirm-stage3-revision" ${isUserRevisionConfirmed ? 'disabled' : ''} style="background:${isUserRevisionConfirmed ? '#f1f5f9' : 'linear-gradient(135deg, #2563eb, #1d4ed8)'}; border:${isUserRevisionConfirmed ? '1px solid #cbd5e1' : 'none'}; color:${isUserRevisionConfirmed ? '#2563eb' : 'white'}; padding:8px 16px; border-radius:8px; font-weight:700; font-size:12.5px; cursor:${isUserRevisionConfirmed ? 'default' : 'pointer'}; box-shadow:${isUserRevisionConfirmed ? 'none' : '0 2px 8px rgba(37,99,235,0.2)'};">
+                  ${isUserRevisionConfirmed ? '✅ 您已确认进入终稿修改' : '✍️ 确认进入终稿修改'}
+                </button>
+              `
+            ) : `
               <button id="btn-final-submit" ${isFinalSubmitted ? 'disabled' : ''} style="background:${isFinalSubmitted ? '#ecfdf5' : 'linear-gradient(135deg, #059669, #047857)'}; border:${isFinalSubmitted ? '1px solid #a7f3d0' : 'none'}; color:${isFinalSubmitted ? '#059669' : 'white'}; padding:8px 18px; border-radius:8px; font-weight:700; cursor:${isFinalSubmitted ? 'not-allowed' : 'pointer'}; font-size:13px; box-shadow:${isFinalSubmitted ? 'none' : '0 3px 10px rgba(5,150,105,0.25)'};">
                 ${isFinalSubmitted ? '🔒 论文终稿已成功提交 (归档只读)' : '🚀 提交论文终稿'}
               </button>
@@ -9750,10 +9758,10 @@
           </div>
         </div>
 
-        <!-- 答辩确认进度提示 -->
+        <!-- 终稿修改确认进度提示 -->
         ${!isFinalSubmitted ? `
           <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:6px 14px; display:flex; justify-content:space-between; align-items:center; font-size:12px;">
-            <span style="color:#475569; font-weight:700;">📝 答辩确认进度: <b style="color:${isRevisionFullyConfirmed ? '#059669' : '#2563eb'};">${confirmedRevCount}/${totalCount}</b> 人已确认进入终稿修改 ${isRevisionFullyConfirmed ? '<span style="color:#059669; margin-left:6px;">(🎉 全员已确认，终稿修改已解锁)</span>' : '<span style="color:#d97706; margin-left:6px;">(全员确认后自动解锁终稿修改)</span>'}</span>
+            <span style="color:#475569; font-weight:700;">📝 终稿修改确认进度: <b style="color:${isRevisionFullyConfirmed ? '#059669' : '#2563eb'};">${confirmedRevCount}/${totalCount}</b> 人已确认进入终稿修改 ${isRevisionFullyConfirmed ? '<span style="color:#059669; margin-left:6px;">(🎉 全员已确认，终稿修改已解锁，答辩已锁定)</span>' : '<span style="color:#d97706; margin-left:6px;">(全员确认后自动解锁终稿修改)</span>'}</span>
             <div style="display:flex; gap:6px;">
               ${membersList.map(m => {
                 const isConf = confirmedRevMap[m.id] || confirmedRevMap[m.studentCode] || confirmedRevMap[m.username] || (m.name && confirmedRevMap[m.name]);
@@ -9767,8 +9775,14 @@
 
         ${activeTab === 'defense' ? `
           <div class="card" id="stage3-defense-card" style="flex:1; overflow-y:auto; padding:20px; overscroll-behavior-y:contain; -webkit-overflow-scrolling:touch;">
+            ${isRevisionFullyConfirmed && !isFinalSubmitted ? `
+              <div style="background:#ecfdf5; border:1px solid #a7f3d0; border-radius:8px; padding:8px 14px; margin-bottom:12px; font-size:12.5px; color:#065f46; font-weight:700; display:flex; justify-content:space-between; align-items:center;">
+                <span>🔒 全组已全员确认进入终稿修改！答辩裁决矩阵已锁定归档（只读查阅），请在【修改论文终稿】面板中完善正文。</span>
+                <button onclick="document.getElementById('tab-btn-editor').click();" style="background:#059669; color:white; border:none; padding:4px 12px; border-radius:6px; font-size:11.5px; cursor:pointer; font-weight:700;">前往修改终稿 ➔</button>
+              </div>
+            ` : ''}
             <div class="card-title" style="margin-bottom:14px;">
-              <span style="color:#0f172a;">🎓 答辩委员会改进意见与组内裁决矩阵 ${isFinalSubmitted ? '<span style="font-size:11px; color:#059669; margin-left:6px;">(🔒 已提交归档)</span>' : ''}</span>
+              <span style="color:#0f172a;">🎓 答辩委员会改进意见与组内裁决矩阵 ${isFinalSubmitted ? '<span style="font-size:11px; color:#059669; margin-left:6px;">(🔒 已全盘提交归档)</span>' : (isRevisionFullyConfirmed ? '<span style="font-size:11px; color:#059669; margin-left:6px;">(🔒 全员已确认进入终稿修改 · 答辩已锁定归档)</span>' : '')}</span>
             </div>
             <div style="display:flex; flex-direction:column; gap:14px;">
               ${(state.stage3CommitteeLoading || !s3.feedbackItems || s3.feedbackItems.length === 0) ? `
@@ -9817,17 +9831,17 @@
                   <div style="border-top:1px dashed #e2e8f0; padding-top:10px; margin-top:10px;">
                     <div style="font-size:12.5px; font-weight:700; color:#334155; margin-bottom:6px; display:flex; justify-content:space-between; align-items:center;">
                       <span>✍️ ${isProp ? '本组补充说明/强化论据 (选填)：' : '本组答辩回复与修改结论：'}</span>
-                      ${hasResponse ? '<span style="color:#059669; font-size:11.5px; font-weight:700;">✅ 已保存生效 (可随时二次修改)</span>' : (isProp ? '<span style="color:#2563eb; font-size:11.5px;">(立论支持默认通过，如无补充可直接留空)</span>' : '<span style="color:#64748b; font-size:11.5px;">(请直接在下方输入框中录入答辩结论)</span>')}
+                      ${hasResponse ? '<span style="color:#059669; font-size:11.5px; font-weight:700;">✅ 已保存生效' + (isDefenseLocked ? ' (已锁定归档)' : ' (可随时二次修改)') + '</span>' : (isProp ? '<span style="color:#2563eb; font-size:11.5px;">(立论支持默认通过，如无补充可直接留空)</span>' : '<span style="color:#64748b; font-size:11.5px;">(请直接在下方输入框中录入答辩结论)</span>')}
                     </div>
                     <textarea 
                       class="feedback-direct-input" 
                       data-id="${item.id}" 
-                      ${isFinalSubmitted ? 'disabled readonly' : ''} 
+                      ${isDefenseLocked ? 'disabled readonly' : ''} 
                       placeholder="${isProp ? '正方已给予高度肯定！如本组有进一步想要补充强化的论据可在此记录，无补充可留空...' : '商讨后，在此直接输入本组针对该条意见的简要答复与修改结论...'}" 
-                      style="width:100%; min-height:64px; padding:8px 12px; font-size:13px; line-height:1.5; border:1px solid ${hasResponse ? '#a7f3d0' : '#cbd5e1'}; background:${isFinalSubmitted ? '#f8fafc' : (hasResponse ? '#f0fdf4' : '#ffffff')}; border-radius:8px; resize:vertical; box-sizing:border-box; color:#0f172a; font-family:inherit;"
+                      style="width:100%; min-height:64px; padding:8px 12px; font-size:13px; line-height:1.5; border:1px solid ${hasResponse ? '#a7f3d0' : '#cbd5e1'}; background:${isDefenseLocked ? '#f8fafc' : (hasResponse ? '#f0fdf4' : '#ffffff')}; border-radius:8px; resize:vertical; box-sizing:border-box; color:#0f172a; font-family:inherit;"
                     >${escapeHtml(item.response || '')}</textarea>
 
-                    ${!isFinalSubmitted ? `
+                    ${!isDefenseLocked ? `
                       <div style="display:flex; justify-content:flex-end; margin-top:8px;">
                         <button class="btn-save-feedback-direct" data-id="${item.id}" style="background:${hasResponse ? 'linear-gradient(135deg, #059669, #047857)' : 'linear-gradient(135deg, #2563eb, #1d4ed8)'}; border:none; color:white; padding:6px 14px; border-radius:6px; font-size:12px; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; gap:4px; box-shadow:0 2px 6px rgba(0,0,0,0.12);">
                           ${hasResponse ? '🔄 更新并保存答辩记录' : (isProp ? '💾 保存补充论据' : '💾 确认并保存本条答辩')}
@@ -9849,7 +9863,7 @@
           const padName = `jizhi_${activeTaskId}_${userGroupId}`;
           const currUserName = (currUser && (currUser.name || currUser.username)) || '组员';
           const currUserColor = (state.members && state.members[currUserCode]?.color) || '#2563eb';
-          const padUrl = `/p/${padName}?userName=${encodeURIComponent(currUserName)}&userColor=${encodeURIComponent(currUserColor)}&showChat=false&showLineNumbers=true&showControls=true&lang=zh-hans`;
+          const padUrl = `/p/${padName}?userName=${encodeURIComponent(currUserName)}&userColor=${encodeURIComponent(currUserColor)}&showChat=false&showLineNumbers=true&showControls=${isFinalSubmitted ? 'false' : 'true'}&lang=zh-hans`;
 
           return `
             <div class="card" style="flex:1; display:flex; flex-direction:column; padding:16px; min-height:600px; overscroll-behavior-y:contain; -webkit-overflow-scrolling:touch;">
@@ -9890,14 +9904,14 @@
     if (tabEditor) {
       tabEditor.addEventListener('click', () => {
         if (!isRevisionFullyConfirmed) {
-          alert(`⚠️ 需组内全员完成答辩确认后，方可解锁进入【修改论文终稿】协同编辑！\n\n当前答辩确认进度：${confirmedRevCount}/${totalCount} 人已确认。\n请提醒组内其他同学点击右上角【✍️ 确认进入终稿修改】！`);
+          alert(`⚠️ 需组内全员确认进入终稿修改后，方可解锁进入【修改论文终稿】协同编辑！\n\n当前确认进度：${confirmedRevCount}/${totalCount} 人已确认。\n请提醒组内其他同学点击右上角【✍️ 确认进入终稿修改】！`);
           return;
         }
         handlers.onSwitchStage3Tab('editor');
       });
     }
 
-    if (!isFinalSubmitted) {
+    if (!isDefenseLocked) {
       canvas.querySelectorAll('.feedback-direct-input').forEach(textarea => {
         const itemId = textarea.dataset.id;
         const fieldKey = `fb_${itemId}`;
@@ -13950,8 +13964,8 @@
           this.renderStudentWorkspace();
         },
         onSaveDirectFeedback: async (id, respText) => {
-          if (this.state.isFinalSubmitted) {
-            alert('🔒 论文终稿已提交，处于全盘只读归档模式！无法再修改研讨结论。');
+          if (this.state.isFinalSubmitted || this.state.stage3?.isRevisionConfirmed) {
+            alert('🔒 全组已全员确认进入终稿修改或已提交终稿，答辩裁决矩阵已处于锁定归档模式！无法再修改答辩结论。');
             return;
           }
           if (this._isSavingDirectFeedback) return;

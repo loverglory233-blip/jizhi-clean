@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260830_v735";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash } from "./utils.js?v=20260830_v735";
-import { callCozeAgentAPI } from "./agents.js?v=20260830_v735";
-import { AuthManager } from "./auth.js?v=20260830_v735";
-import { CloudSyncEngine } from "./sync.js?v=20260830_v735";
-import { renderLoginView } from "./login.js?v=20260830_v735";
-import { renderTeacherPortal } from "./teacher.js?v=20260830_v735";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260830_v735";
+} from "./constants.js?v=20260830_v736";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash } from "./utils.js?v=20260830_v736";
+import { callCozeAgentAPI } from "./agents.js?v=20260830_v736";
+import { AuthManager } from "./auth.js?v=20260830_v736";
+import { CloudSyncEngine } from "./sync.js?v=20260830_v736";
+import { renderLoginView } from "./login.js?v=20260830_v736";
+import { renderTeacherPortal } from "./teacher.js?v=20260830_v736";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260830_v736";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260830_v735";
+} from "./editor.js?v=20260830_v736";
 
 // Make renderChat available on window for sync callbacks
 if (typeof window !== "undefined") {
@@ -3720,8 +3720,8 @@ ${propText}
         this.renderStudentWorkspace();
       },
       onSaveDirectFeedback: async (id, respText) => {
-        if (this.state.isFinalSubmitted) {
-          alert('🔒 论文终稿已提交，处于全盘只读归档模式！无法再修改研讨结论。');
+        if (this.state.isFinalSubmitted || this.state.stage3?.isRevisionConfirmed) {
+          alert('🔒 全组已全员确认进入终稿修改或已提交终稿，答辩裁决矩阵已处于锁定归档模式！无法再修改答辩结论。');
           return;
         }
         if (this._isSavingDirectFeedback) return;
