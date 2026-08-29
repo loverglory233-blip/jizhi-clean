@@ -2559,6 +2559,9 @@ ${recentDefenseChat}
         this.renderStudentWorkspace();
       }, 800);
     }
+    this.renderStudentWorkspace();
+  }
+
   async handleAiGenerateContract() {
     const s1 = this.state.stage1 || {};
     const proposals = s1.proposals || [];
