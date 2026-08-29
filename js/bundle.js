@@ -6868,39 +6868,6 @@
     const groupId = activeGroupObj.id || 'group_1';
     const groupName = activeGroupObj.name || '第 1 协作小组';
 
-    // 📋 3. 严格按当前选定班级（本班）和小组过滤通知，绝不串其他班级
-    const relevantAnnouncements = (announcements || []).filter(a => {
-      if (!a) return false;
-      const matchClass = (a.classId === userClass.id) || 
-                         (a.className && a.className === userClass.name) || 
-                         (Array.isArray(a.targetClassIds) && a.targetClassIds.includes(userClass.id));
-      const matchGroup = !a.targetGroupId || a.targetGroupId === 'all' || a.targetGroupId === groupId ||
-        (Array.isArray(a.targetGroupIds) && (a.targetGroupIds.includes('all') || a.targetGroupIds.includes(groupId)));
-      return matchClass && matchGroup;
-    });
-
-    const isAnnRead = (a) => {
-      if (!a || !a.readStatus) return false;
-      if (currentUser) {
-        if (currentUser.id && a.readStatus[currentUser.id]) return true;
-        if (currentUser.studentCode && a.readStatus[currentUser.studentCode]) return true;
-        if (currentUser.username && a.readStatus[currentUser.username]) return true;
-        if (currentUser.name && a.readStatus[currentUser.name]) return true;
-        if (Array.isArray(a.confirmedMembers)) {
-          if (a.confirmedMembers.some(m => m && (m.id === currentUser.id || m.studentCode === currentUser.studentCode || (currentUser.name && m.name === currentUser.name)))) return true;
-        }
-      }
-      return false;
-    };
-
-    const unreadAnnCount = relevantAnnouncements.filter(a => {
-      if (a.taskId && a.taskId !== 'task_all') {
-        const tObj = tasks.find(t => t.id === a.taskId);
-        if (tObj && isTaskExpired(tObj)) return false;
-      }
-      return !isAnnRead(a);
-    }).length;
-
     const relevantTasks = tasks.filter(t => {
       return t.classId === userClass.id || (t.className && t.className === userClass.name) || (!t.classId && userClass.id === 'class_101');
     });
@@ -6914,10 +6881,6 @@
             </div>
           </div>
           <div class="header-controls" style="display:flex; align-items:center; gap:10px;">
-            <button id="btn-portal-ann-bell" style="position:relative; background:#eff6ff; color:#1d4ed8; border:1.5px solid #bfdbfe; padding:6px 14px; border-radius:18px; font-size:12px; font-weight:700; cursor:pointer; display:flex; align-items:center; gap:4px;" title="查看教师教学指示与延期通知">
-              <span>📢 教学通知</span>
-              ${unreadAnnCount > 0 ? `<span style="background:#ef4444; color:#ffffff; font-size:10.5px; font-weight:800; padding:1px 6px; border-radius:10px; box-shadow:0 1px 4px rgba(239,68,68,0.4);">${unreadAnnCount}</span>` : ''}
-            </button>
             <button id="btn-portal-change-pwd" style="background:#f0fdf4; color:#16a34a; border:1px solid #bbf7d0; padding:6px 14px; border-radius:18px; font-size:12px; font-weight:700; cursor:pointer;" title="修改登录密码">🔑 修改密码</button>
             <button id="btn-portal-logout" style="background:#fef2f2; color:#dc2626; border:1px solid #fecaca; padding:6px 14px; border-radius:18px; font-size:12px; font-weight:700; cursor:pointer;">🚪 退出登录</button>
           </div>
@@ -7072,7 +7035,6 @@
       authManager.openChangePasswordModal();
     });
     container.querySelector('#btn-portal-switch-teacher')?.addEventListener('click', () => onSwitchTeacher());
-    container.querySelector('#btn-portal-ann-bell')?.addEventListener('click', () => onOpenAnnModal());
     container.querySelector('#btn-enter-default-workspace')?.addEventListener('click', () => onSelectTask(null));
     container.querySelectorAll('.btn-enter-task-workspace').forEach(btn => {
       btn.addEventListener('click', () => onSelectTask(btn.dataset.taskId));
@@ -11001,16 +10963,20 @@
       if (this.authManager && this.authManager.pullGlobalMeta) {
         try { await this.authManager.pullGlobalMeta(); } catch (e) {}
       }
+      // 🛡️ 任务大厅模式下绝不弹窗打扰学生，仅在进入具体任务工作台后针对该任务精准匹配
+      if (this.state.studentViewMode !== 'workspace') return;
+
       const currentUser = this.authManager.getCurrentUser();
       if (!currentUser || currentUser.isTeacher || currentUser.role === 'teacher') return;
+      const activeTaskId = this.state.activeTaskId;
+      if (!activeTaskId) return;
+
       const effectiveClassId = this.state.activeStudentClassId || currentUser?.classId || 'class_101';
       const classes = this.authManager.getClasses();
       const currentClassObj = classes.find(c => c.id === effectiveClassId);
       const effectiveClassName = currentClassObj ? currentClassObj.name : '';
       const activeGroupObj = this.authManager.getStudentActiveGroup(currentUser, effectiveClassId);
       const groupId = activeGroupObj.id || (currentUser && currentUser.groupId ? currentUser.groupId : 'group_1');
-      const isTaskListMode = (this.state && this.state.studentViewMode === 'task_list');
-      const activeTaskId = (this.state && this.state.activeTaskId) ? this.state.activeTaskId : 'task_default';
       const allTasks = this.authManager.getTasks();
 
       const isAnnRead = (a) => {
@@ -11029,11 +10995,11 @@
 
       const allAnns = this.authManager.getAnnouncements();
 
-      // 过滤出本班/本组且未读的通知（延期通知只通过红点静默提示，不自动弹窗打扰；教师正常教学通知自动弹窗）
+      // 过滤出严格属于【当前任务 + 当前班级 + 当前小组】且未读的通知
       const unreadList = allAnns
         .filter(a => {
           if (!a) return false;
-          // 延期通知只保留红点展示，不进行自动弹窗打扰
+          // 延期通知仅通过工作台顶部红点提示，不主动弹窗打扰
           if (a.isExtension || a.title?.includes('延期通知') || a.title?.includes('时间已延长')) return false;
 
           if (a.taskId && a.taskId !== 'task_all') {
@@ -11045,14 +11011,12 @@
                              (Array.isArray(a.targetClassIds) && a.targetClassIds.includes(effectiveClassId));
           const matchGroup = !a.targetGroupId || a.targetGroupId === 'all' || a.targetGroupId === groupId ||
             (Array.isArray(a.targetGroupIds) && (a.targetGroupIds.includes('all') || a.targetGroupIds.includes(groupId)));
-          const matchTask = isTaskListMode
-            ? true
-            : (a.taskId === 'task_all' || a.taskId === activeTaskId || (!a.taskId && activeTaskId === 'task_default'));
+          const matchTask = a.taskId === 'task_all' || a.taskId === activeTaskId || (!a.taskId && activeTaskId === 'task_default');
           return matchClass && matchGroup && matchTask && !isAnnRead(a);
         })
         .sort((a, b) => (b.id > a.id ? 1 : -1));
 
-      // 📢 教师发布的教学指示/课堂通知自动弹窗提示学生阅读并确认
+      // 📢 教师发布的教学指示/课堂通知在工作台自动弹窗提示学生阅读并确认
       if (unreadList.length > 0) {
         this.showAnnouncementModal(unreadList[0], true);
       }
@@ -11067,8 +11031,7 @@
       const effectiveClassName = currentClassObj ? currentClassObj.name : '';
       const activeGroupObj = this.authManager.getStudentActiveGroup(currentUser, effectiveClassId);
       const groupId = activeGroupObj.id || (currentUser && currentUser.groupId ? currentUser.groupId : 'group_1');
-      const isTaskListMode = (this.state && this.state.studentViewMode === 'task_list');
-      const activeTaskId = (this.state && this.state.activeTaskId) ? this.state.activeTaskId : 'task_default';
+      const activeTaskId = this.state.activeTaskId || 'task_default';
       const allAnns = this.authManager.getAnnouncements();
 
       const isAnnRead = (a) => {
@@ -11085,7 +11048,7 @@
         return false;
       };
 
-      // 严格过滤仅属于【当前本班级】且本小组可见的通知（绝对杜绝跨班级泄漏）
+      // 严格过滤仅属于【当前任务 + 当前班级 + 当前小组】可见的通知（绝对杜绝跨班级、跨任务泄漏）
       const myAnns = allAnns
         .filter(a => {
           if (!a) return false;
@@ -11094,9 +11057,7 @@
                              (Array.isArray(a.targetClassIds) && a.targetClassIds.includes(effectiveClassId));
           const matchGroup = !a.targetGroupId || a.targetGroupId === 'all' || a.targetGroupId === groupId ||
             (Array.isArray(a.targetGroupIds) && (a.targetGroupIds.includes('all') || a.targetGroupIds.includes(groupId)));
-          const matchTask = isTaskListMode
-            ? true
-            : (a.taskId === 'task_all' || a.taskId === activeTaskId || (!a.taskId && activeTaskId === 'task_default'));
+          const matchTask = (a.taskId === 'task_all' || a.taskId === activeTaskId || (!a.taskId && activeTaskId === 'task_default'));
           return matchClass && matchGroup && matchTask;
         })
         .sort((a, b) => (b.id > a.id ? 1 : -1));
