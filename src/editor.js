@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles } from "./constants.js?v=20260830_v698";
-import { callCozeAgentAPI } from "./agents.js?v=20260830_v698";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs } from "./utils.js?v=20260830_v698";
+import { AgentProfiles } from "./constants.js?v=20260830_v699";
+import { callCozeAgentAPI } from "./agents.js?v=20260830_v699";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs } from "./utils.js?v=20260830_v699";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -1942,6 +1942,38 @@ function renderStage2Canvas(canvas, state, handlers) {
         </div>
       </div>
 
+      <!-- 📢 半程编辑会议自查打卡全员状态条 (对标签署与投票胶囊矩阵) -->
+      ${(() => {
+        const subs = s2.meetingSubmissions || {};
+        const subCount = Object.keys(subs).length;
+        const isMeetingFullyDone = subCount >= totalCount && totalCount > 0;
+        const isCurrentUserSubmitted = isMemberDone(subs, { id: currentUserId, studentCode: currentUserId });
+
+        return `
+          <div style="background:#ffffff; border:1px solid ${isMeetingFullyDone ? '#a7f3d0' : '#cbd5e1'}; border-radius:8px; padding:8px 14px; margin-bottom:8px; display:flex; justify-content:space-between; align-items:center; box-shadow:0 1px 3px rgba(15,23,42,0.04); flex-wrap:wrap; gap:8px; flex-shrink:0;">
+            <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+              <span style="font-size:12.5px; font-weight:800; color:#0f172a;">📢 半程自查打卡进度:</span>
+              <span style="font-size:11.5px; font-weight:800; color:${isMeetingFullyDone ? '#059669' : '#2563eb'}; background:${isMeetingFullyDone ? '#d1fae5' : '#eff6ff'}; padding:2px 10px; border-radius:12px; border:1px solid ${isMeetingFullyDone ? '#a7f3d0' : '#bfdbfe'};">
+                ${isMeetingFullyDone ? '✅ 全员已打卡' : `${subCount}/${totalCount} 人已打卡`}
+              </span>
+              <div style="display:flex; gap:6px; flex-wrap:wrap;">
+                ${membersList.map(m => {
+                  const isSub = isMemberDone(subs, m);
+                  return `<span style="font-size:11px; padding:2px 8px; border-radius:10px; font-weight:700; background:${isSub ? '#ecfdf5' : '#f1f5f9'}; color:${isSub ? '#059669' : '#64748b'}; border:1px solid ${isSub ? '#a7f3d0' : '#e2e8f0'};">
+                    ${isSub ? '✓' : '⏳'} ${escapeHtml(m.name)}: ${isSub ? '已打卡' : '待打卡'}
+                  </span>`;
+                }).join('')}
+              </div>
+            </div>
+            <div>
+              <button id="btn-trigger-meeting-pills" ${isCurrentUserSubmitted || isStage2MeetingLocked ? 'disabled' : ''} style="background:${isCurrentUserSubmitted ? '#f1f5f9' : 'linear-gradient(135deg, #2563eb, #1d4ed8)'}; border:${isCurrentUserSubmitted ? '1px solid #cbd5e1' : 'none'}; color:${isCurrentUserSubmitted ? '#059669' : 'white'}; padding:5px 12px; border-radius:6px; font-size:11.5px; font-weight:700; cursor:${isCurrentUserSubmitted || isStage2MeetingLocked ? 'default' : 'pointer'};">
+                ${isCurrentUserSubmitted ? '✅ 您已完成打卡' : '📢 参与/发起半程打卡'}
+              </button>
+            </div>
+          </div>
+        `;
+      })()}
+
       ${actionPlan && actionPlan.isGenerated ? `
         <div id="stage2-action-plan-card" style="background:#ecfdf5; border:1px solid #a7f3d0; border-radius:10px; padding:10px 16px; margin-bottom:10px; transition:all 0.2s ease; flex-shrink:0; box-shadow:0 2px 6px rgba(5,150,105,0.06);">
           <div style="display:flex; justify-content:space-between; align-items:center; cursor:pointer;" id="btn-toggle-action-plan">
@@ -2115,7 +2147,10 @@ function renderStage2Canvas(canvas, state, handlers) {
 
   canvas.querySelector('#btn-show-case').addEventListener('click', () => handlers.onOpenCaseModal());
   if (!isStage2MeetingLocked) {
-    canvas.querySelector('#btn-trigger-meeting').addEventListener('click', () => handlers.onOpenMeetingModal());
+    const btnTrig = canvas.querySelector('#btn-trigger-meeting');
+    if (btnTrig) btnTrig.addEventListener('click', () => handlers.onOpenMeetingModal());
+    const btnTrigPills = canvas.querySelector('#btn-trigger-meeting-pills');
+    if (btnTrigPills) btnTrigPills.addEventListener('click', () => handlers.onOpenMeetingModal());
   }
 
   const btnConfirmDraft = canvas.querySelector('#btn-confirm-stage2-draft');

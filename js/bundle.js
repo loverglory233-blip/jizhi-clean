@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260830_v698
+ * Version: 20260830_v699
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260830_v698';
+  const APP_VERSION = '20260830_v699';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -9172,6 +9172,38 @@
           </div>
         </div>
 
+        <!-- 📢 半程编辑会议自查打卡全员状态条 (对标签署与投票胶囊矩阵) -->
+        ${(() => {
+          const subs = s2.meetingSubmissions || {};
+          const subCount = Object.keys(subs).length;
+          const isMeetingFullyDone = subCount >= totalCount && totalCount > 0;
+          const isCurrentUserSubmitted = isMemberDone(subs, { id: currentUserId, studentCode: currentUserId });
+
+          return `
+            <div style="background:#ffffff; border:1px solid ${isMeetingFullyDone ? '#a7f3d0' : '#cbd5e1'}; border-radius:8px; padding:8px 14px; margin-bottom:8px; display:flex; justify-content:space-between; align-items:center; box-shadow:0 1px 3px rgba(15,23,42,0.04); flex-wrap:wrap; gap:8px; flex-shrink:0;">
+              <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                <span style="font-size:12.5px; font-weight:800; color:#0f172a;">📢 半程自查打卡进度:</span>
+                <span style="font-size:11.5px; font-weight:800; color:${isMeetingFullyDone ? '#059669' : '#2563eb'}; background:${isMeetingFullyDone ? '#d1fae5' : '#eff6ff'}; padding:2px 10px; border-radius:12px; border:1px solid ${isMeetingFullyDone ? '#a7f3d0' : '#bfdbfe'};">
+                  ${isMeetingFullyDone ? '✅ 全员已打卡' : `${subCount}/${totalCount} 人已打卡`}
+                </span>
+                <div style="display:flex; gap:6px; flex-wrap:wrap;">
+                  ${membersList.map(m => {
+                    const isSub = isMemberDone(subs, m);
+                    return `<span style="font-size:11px; padding:2px 8px; border-radius:10px; font-weight:700; background:${isSub ? '#ecfdf5' : '#f1f5f9'}; color:${isSub ? '#059669' : '#64748b'}; border:1px solid ${isSub ? '#a7f3d0' : '#e2e8f0'};">
+                      ${isSub ? '✓' : '⏳'} ${escapeHtml(m.name)}: ${isSub ? '已打卡' : '待打卡'}
+                    </span>`;
+                  }).join('')}
+                </div>
+              </div>
+              <div>
+                <button id="btn-trigger-meeting-pills" ${isCurrentUserSubmitted || isStage2MeetingLocked ? 'disabled' : ''} style="background:${isCurrentUserSubmitted ? '#f1f5f9' : 'linear-gradient(135deg, #2563eb, #1d4ed8)'}; border:${isCurrentUserSubmitted ? '1px solid #cbd5e1' : 'none'}; color:${isCurrentUserSubmitted ? '#059669' : 'white'}; padding:5px 12px; border-radius:6px; font-size:11.5px; font-weight:700; cursor:${isCurrentUserSubmitted || isStage2MeetingLocked ? 'default' : 'pointer'};">
+                  ${isCurrentUserSubmitted ? '✅ 您已完成打卡' : '📢 参与/发起半程打卡'}
+                </button>
+              </div>
+            </div>
+          `;
+        })()}
+
         ${actionPlan && actionPlan.isGenerated ? `
           <div id="stage2-action-plan-card" style="background:#ecfdf5; border:1px solid #a7f3d0; border-radius:10px; padding:10px 16px; margin-bottom:10px; transition:all 0.2s ease; flex-shrink:0; box-shadow:0 2px 6px rgba(5,150,105,0.06);">
             <div style="display:flex; justify-content:space-between; align-items:center; cursor:pointer;" id="btn-toggle-action-plan">
@@ -9345,7 +9377,10 @@
 
     canvas.querySelector('#btn-show-case').addEventListener('click', () => handlers.onOpenCaseModal());
     if (!isStage2MeetingLocked) {
-      canvas.querySelector('#btn-trigger-meeting').addEventListener('click', () => handlers.onOpenMeetingModal());
+      const btnTrig = canvas.querySelector('#btn-trigger-meeting');
+      if (btnTrig) btnTrig.addEventListener('click', () => handlers.onOpenMeetingModal());
+      const btnTrigPills = canvas.querySelector('#btn-trigger-meeting-pills');
+      if (btnTrigPills) btnTrigPills.addEventListener('click', () => handlers.onOpenMeetingModal());
     }
 
     const btnConfirmDraft = canvas.querySelector('#btn-confirm-stage2-draft');
@@ -14034,6 +14069,18 @@
     }
 
     showMeetingModal() {
+      const currUser = this.authManager ? this.authManager.getCurrentUser() : null;
+      let actualGroupMembers = [];
+      if (this.authManager) {
+        const effClassId = this.state.activeStudentClassId || currUser?.classId || 'class_101';
+        const effGroup = this.authManager.getStudentActiveGroup(currUser, effClassId);
+        actualGroupMembers = this.authManager.getGroupMembersForWorkspace(effGroup?.id || this.state.activeGroupId || 'group_1');
+      }
+      const membersList = actualGroupMembers.length > 0 ? actualGroupMembers : Object.values(this.state.members || {});
+      const subs = this.state.stage2?.meetingSubmissions || {};
+      const subCount = Object.keys(subs).length;
+      const totalCount = membersList.length || 2;
+
       const modal = document.createElement('div');
       modal.className = 'modal-overlay';
       modal.innerHTML = `
@@ -14043,6 +14090,20 @@
             <button class="modal-close-btn" id="btn-close-meeting">✕</button>
           </div>
           <div class="teacher-modal-body" style="overflow-y:auto; padding:16px 20px; display:flex; flex-direction:column; gap:12px;">
+            <!-- 全组成员打卡状态矩阵胶囊 -->
+            <div style="background:#eff6ff; border:1px solid #bfdbfe; border-radius:8px; padding:8px 14px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:6px;">
+              <span style="font-size:12px; font-weight:800; color:#1e40af;">👥 全组打卡进度 (${subCount}/${totalCount}人):</span>
+              <div style="display:flex; gap:6px; flex-wrap:wrap;">
+                ${membersList.map(m => {
+                  const uid = String(m.id || m.studentCode || m.userId || '').trim();
+                  const isSub = !!(subs[uid] || subs[m.name] || subs[m.studentCode] || subs[m.id]);
+                  return `<span style="font-size:11px; padding:2px 8px; border-radius:10px; font-weight:700; background:${isSub ? '#ecfdf5' : '#ffffff'}; color:${isSub ? '#059669' : '#64748b'}; border:1px solid ${isSub ? '#a7f3d0' : '#cbd5e1'};">
+                    ${isSub ? '✅' : '⏳'} ${escapeHtml(m.name)}: ${isSub ? '已打卡' : '待打卡'}
+                  </span>`;
+                }).join('')}
+              </div>
+            </div>
+
             <!-- 1. 全篇综合自查审计 -->
             <div style="background:#f8fafc; border:1px solid #cbd5e1; border-radius:10px; padding:14px 16px; display:flex; flex-direction:column; gap:12px;">
               <div style="font-size:13px; font-weight:800; color:#1e40af;">📋 一、全篇跨作者交叉审视自查（请跳出单一分工，通读全篇后打卡）</div>
