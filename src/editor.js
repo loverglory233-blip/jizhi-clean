@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles } from "./constants.js?v=20260830_v717";
-import { callCozeAgentAPI } from "./agents.js?v=20260830_v717";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs } from "./utils.js?v=20260830_v717";
+import { AgentProfiles } from "./constants.js?v=20260830_v718";
+import { callCozeAgentAPI } from "./agents.js?v=20260830_v718";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs } from "./utils.js?v=20260830_v718";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -2093,7 +2093,7 @@ function renderStage2Canvas(canvas, state, handlers) {
           </div>
         </div>
         <div>
-          <button id="btn-confirm-stage2-draft" ${isUserDraftConfirmed || isEditorReadonly ? 'disabled' : ''} style="background:${isUserDraftConfirmed ? '#ecfdf5' : 'linear-gradient(135deg, #059669, #047857)'}; border:${isUserDraftConfirmed ? '1px solid #a7f3d0' : 'none'}; color:${isUserDraftConfirmed ? '#059669' : 'white'}; padding:6px 14px; border-radius:6px; font-size:12px; font-weight:700; cursor:${isUserDraftConfirmed || isEditorReadonly ? 'default' : 'pointer'}; box-shadow:${isUserDraftConfirmed ? 'none' : '0 2px 8px rgba(5,150,105,0.25)'};">
+          <button id="btn-confirm-stage2-draft" style="background:${isUserDraftConfirmed ? '#ecfdf5' : 'linear-gradient(135deg, #059669, #047857)'}; border:${isUserDraftConfirmed ? '1px solid #a7f3d0' : 'none'}; color:${isUserDraftConfirmed ? '#059669' : 'white'}; padding:6px 14px; border-radius:6px; font-size:12px; font-weight:700; cursor:pointer; box-shadow:${isUserDraftConfirmed ? 'none' : '0 2px 8px rgba(5,150,105,0.25)'};">
             ${isDraftFullyConfirmed ? '🎉 全员已确认初稿 (已解锁阶段三)' : (isUserDraftConfirmed ? `✅ 您已确认 (等待组员 ${confirmedDraftCount}/${totalCount})` : '✍️ 确认完成正文初稿')}
           </button>
         </div>
@@ -2869,4 +2869,49 @@ export function renderSurveyModal() {}
 export function setupChatAtMentionMenu() {}
 export function updateContributionUi() {}
 export function showSurveyModalIfApplicable() {}
+
+// 🚀 全局事件委托守护：确保初稿确认、范文库、编辑会议三大按钮任何时刻 100% 灵敏响应
+if (typeof document !== 'undefined' && !window._stage2GlobalClickDelegated) {
+  window._stage2GlobalClickDelegated = true;
+  document.addEventListener('click', (e) => {
+    // 1. 初稿确认按钮
+    const btnDraft = e.target.closest('#btn-confirm-stage2-draft');
+    if (btnDraft) {
+      e.preventDefault();
+      e.stopPropagation();
+      if (window.app && window.app.handlers && typeof window.app.handlers.onConfirmStage2Draft === 'function') {
+        window.app.handlers.onConfirmStage2Draft();
+      } else if (window.app && typeof window.app.onConfirmStage2Draft === 'function') {
+        window.app.onConfirmStage2Draft();
+      }
+      return;
+    }
+
+    // 2. 参考范文库按钮
+    const btnCase = e.target.closest('#btn-show-case');
+    if (btnCase) {
+      e.preventDefault();
+      e.stopPropagation();
+      if (window.app && window.app.handlers && typeof window.app.handlers.onOpenCaseModal === 'function') {
+        window.app.handlers.onOpenCaseModal();
+      } else if (window.app && typeof window.app.showReferencePapersModal === 'function') {
+        window.app.showReferencePapersModal();
+      }
+      return;
+    }
+
+    // 3. 编辑会议打卡/查阅按钮
+    const btnMeeting = e.target.closest('#btn-trigger-meeting-pills') || e.target.closest('#btn-trigger-meeting');
+    if (btnMeeting) {
+      e.preventDefault();
+      e.stopPropagation();
+      if (window.app && window.app.handlers && typeof window.app.handlers.onOpenMeetingModal === 'function') {
+        window.app.handlers.onOpenMeetingModal();
+      } else if (window.app && typeof window.app.showMeetingModal === 'function') {
+        window.app.showMeetingModal();
+      }
+      return;
+    }
+  }, true); // Use capture phase so nothing can swallow the click!
+}
 

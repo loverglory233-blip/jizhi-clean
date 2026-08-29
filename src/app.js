@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260830_v717";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash } from "./utils.js?v=20260830_v717";
-import { callCozeAgentAPI } from "./agents.js?v=20260830_v717";
-import { AuthManager } from "./auth.js?v=20260830_v717";
-import { CloudSyncEngine } from "./sync.js?v=20260830_v717";
-import { renderLoginView } from "./login.js?v=20260830_v717";
-import { renderTeacherPortal } from "./teacher.js?v=20260830_v717";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260830_v717";
+} from "./constants.js?v=20260830_v718";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash } from "./utils.js?v=20260830_v718";
+import { callCozeAgentAPI } from "./agents.js?v=20260830_v718";
+import { AuthManager } from "./auth.js?v=20260830_v718";
+import { CloudSyncEngine } from "./sync.js?v=20260830_v718";
+import { renderLoginView } from "./login.js?v=20260830_v718";
+import { renderTeacherPortal } from "./teacher.js?v=20260830_v718";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260830_v718";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260830_v717";
+} from "./editor.js?v=20260830_v718";
 
 // Make renderChat available on window for sync callbacks
 if (typeof window !== "undefined") {
@@ -3332,7 +3332,7 @@ ${propText}
         }
       }
     } else if (!isEditorTyping) {
-      renderCanvas(this.state, {
+      const handlers = {
         onVote: (propId) => { this.handleVoteCast(propId); },
         onRefresh: () => { this.renderStudentWorkspace(); },
         onContractChange: () => { this.syncStage1(); },
@@ -3480,12 +3480,13 @@ ${propText}
         this.showMeetingModal(); 
       },
       onConfirmStage2Draft: () => {
-        if (this.state.stage2.isDraftConfirmed) {
+        if (!this.state.stage2) this.state.stage2 = {};
+        const s2 = this.state.stage2;
+        if (s2.isDraftConfirmed) {
           alert('🔒 正文初稿已被组内全员确认！已解锁阶段三。');
           return;
         }
         const user = this.state.currentUser || 'A';
-        const s2 = this.state.stage2;
 
         let memberArr = [];
         if (Array.isArray(this.state.members)) memberArr = this.state.members;
@@ -3767,8 +3768,10 @@ ${propText}
             this.showQuestionnaireModal();
           }, 500);
         }
-      }
-    }); // end renderCanvas
+      };
+      this.handlers = handlers;
+      this.onConfirmStage2Draft = handlers.onConfirmStage2Draft;
+      renderCanvas(this.state, handlers);
     } // end if (!isEditingStage2)
 
     renderChat(this.state);

@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260830_v717
+ * Version: 20260830_v718
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260830_v717';
+  const APP_VERSION = '20260830_v718';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -9367,7 +9367,7 @@
             </div>
           </div>
           <div>
-            <button id="btn-confirm-stage2-draft" ${isUserDraftConfirmed || isEditorReadonly ? 'disabled' : ''} style="background:${isUserDraftConfirmed ? '#ecfdf5' : 'linear-gradient(135deg, #059669, #047857)'}; border:${isUserDraftConfirmed ? '1px solid #a7f3d0' : 'none'}; color:${isUserDraftConfirmed ? '#059669' : 'white'}; padding:6px 14px; border-radius:6px; font-size:12px; font-weight:700; cursor:${isUserDraftConfirmed || isEditorReadonly ? 'default' : 'pointer'}; box-shadow:${isUserDraftConfirmed ? 'none' : '0 2px 8px rgba(5,150,105,0.25)'};">
+            <button id="btn-confirm-stage2-draft" style="background:${isUserDraftConfirmed ? '#ecfdf5' : 'linear-gradient(135deg, #059669, #047857)'}; border:${isUserDraftConfirmed ? '1px solid #a7f3d0' : 'none'}; color:${isUserDraftConfirmed ? '#059669' : 'white'}; padding:6px 14px; border-radius:6px; font-size:12px; font-weight:700; cursor:pointer; box-shadow:${isUserDraftConfirmed ? 'none' : '0 2px 8px rgba(5,150,105,0.25)'};">
               ${isDraftFullyConfirmed ? '🎉 全员已确认初稿 (已解锁阶段三)' : (isUserDraftConfirmed ? `✅ 您已确认 (等待组员 ${confirmedDraftCount}/${totalCount})` : '✍️ 确认完成正文初稿')}
             </button>
           </div>
@@ -10143,6 +10143,51 @@
   function setupChatAtMentionMenu() {}
   function updateContributionUi() {}
   function showSurveyModalIfApplicable() {}
+
+  // 🚀 全局事件委托守护：确保初稿确认、范文库、编辑会议三大按钮任何时刻 100% 灵敏响应
+  if (typeof document !== 'undefined' && !window._stage2GlobalClickDelegated) {
+    window._stage2GlobalClickDelegated = true;
+    document.addEventListener('click', (e) => {
+      // 1. 初稿确认按钮
+      const btnDraft = e.target.closest('#btn-confirm-stage2-draft');
+      if (btnDraft) {
+        e.preventDefault();
+        e.stopPropagation();
+        if (window.app && window.app.handlers && typeof window.app.handlers.onConfirmStage2Draft === 'function') {
+          window.app.handlers.onConfirmStage2Draft();
+        } else if (window.app && typeof window.app.onConfirmStage2Draft === 'function') {
+          window.app.onConfirmStage2Draft();
+        }
+        return;
+      }
+
+      // 2. 参考范文库按钮
+      const btnCase = e.target.closest('#btn-show-case');
+      if (btnCase) {
+        e.preventDefault();
+        e.stopPropagation();
+        if (window.app && window.app.handlers && typeof window.app.handlers.onOpenCaseModal === 'function') {
+          window.app.handlers.onOpenCaseModal();
+        } else if (window.app && typeof window.app.showReferencePapersModal === 'function') {
+          window.app.showReferencePapersModal();
+        }
+        return;
+      }
+
+      // 3. 编辑会议打卡/查阅按钮
+      const btnMeeting = e.target.closest('#btn-trigger-meeting-pills') || e.target.closest('#btn-trigger-meeting');
+      if (btnMeeting) {
+        e.preventDefault();
+        e.stopPropagation();
+        if (window.app && window.app.handlers && typeof window.app.handlers.onOpenMeetingModal === 'function') {
+          window.app.handlers.onOpenMeetingModal();
+        } else if (window.app && typeof window.app.showMeetingModal === 'function') {
+          window.app.showMeetingModal();
+        }
+        return;
+      }
+    }, true); // Use capture phase so nothing can swallow the click!
+  }
 
   /* ==========================================================================
      MODULE: app.js
@@ -13457,7 +13502,7 @@
           }
         }
       } else if (!isEditorTyping) {
-        renderCanvas(this.state, {
+        const handlers = {
           onVote: (propId) => { this.handleVoteCast(propId); },
           onRefresh: () => { this.renderStudentWorkspace(); },
           onContractChange: () => { this.syncStage1(); },
@@ -13605,12 +13650,13 @@
           this.showMeetingModal(); 
         },
         onConfirmStage2Draft: () => {
-          if (this.state.stage2.isDraftConfirmed) {
+          if (!this.state.stage2) this.state.stage2 = {};
+          const s2 = this.state.stage2;
+          if (s2.isDraftConfirmed) {
             alert('🔒 正文初稿已被组内全员确认！已解锁阶段三。');
             return;
           }
           const user = this.state.currentUser || 'A';
-          const s2 = this.state.stage2;
 
           let memberArr = [];
           if (Array.isArray(this.state.members)) memberArr = this.state.members;
@@ -13892,8 +13938,10 @@
               this.showQuestionnaireModal();
             }, 500);
           }
-        }
-      }); // end renderCanvas
+        };
+        this.handlers = handlers;
+        this.onConfirmStage2Draft = handlers.onConfirmStage2Draft;
+        renderCanvas(this.state, handlers);
       } // end if (!isEditingStage2)
 
       renderChat(this.state);
