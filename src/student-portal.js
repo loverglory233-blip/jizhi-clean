@@ -136,15 +136,15 @@ export function renderStudentTaskPortal(container, authManager, state, onSelectT
   const groupId = activeGroupObj.id || 'group_1';
   const groupName = activeGroupObj.name || '第 1 协作小组';
 
-  // 📋 3. 严格按当前选定班级（本班）和小组过滤通知，绝不串其他班级
+  const isExtensionNotice = (a) => !!(a && (a.isExtension || a.title?.includes('延期通知') || a.title?.includes('时间已延长') || a.title?.includes('延长至')));
+
+  // 📋 3. 任务大厅严格只保留与统计【本班级】的【任务延长信息】
   const relevantAnnouncements = (announcements || []).filter(a => {
-    if (!a) return false;
+    if (!a || !isExtensionNotice(a)) return false;
     const matchClass = (a.classId === userClass.id) || 
                        (a.className && a.className === userClass.name) || 
                        (Array.isArray(a.targetClassIds) && a.targetClassIds.includes(userClass.id));
-    const matchGroup = !a.targetGroupId || a.targetGroupId === 'all' || a.targetGroupId === groupId ||
-      (Array.isArray(a.targetGroupIds) && (a.targetGroupIds.includes('all') || a.targetGroupIds.includes(groupId)));
-    return matchClass && matchGroup;
+    return matchClass;
   });
 
   const isAnnRead = (a) => {

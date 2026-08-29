@@ -6868,15 +6868,15 @@
     const groupId = activeGroupObj.id || 'group_1';
     const groupName = activeGroupObj.name || '第 1 协作小组';
 
-    // 📋 3. 严格按当前选定班级（本班）和小组过滤通知，绝不串其他班级
+    const isExtensionNotice = (a) => !!(a && (a.isExtension || a.title?.includes('延期通知') || a.title?.includes('时间已延长') || a.title?.includes('延长至')));
+
+    // 📋 3. 任务大厅严格只保留与统计【本班级】的【任务延长信息】
     const relevantAnnouncements = (announcements || []).filter(a => {
-      if (!a) return false;
+      if (!a || !isExtensionNotice(a)) return false;
       const matchClass = (a.classId === userClass.id) || 
                          (a.className && a.className === userClass.name) || 
                          (Array.isArray(a.targetClassIds) && a.targetClassIds.includes(userClass.id));
-      const matchGroup = !a.targetGroupId || a.targetGroupId === 'all' || a.targetGroupId === groupId ||
-        (Array.isArray(a.targetGroupIds) && (a.targetGroupIds.includes('all') || a.targetGroupIds.includes(groupId)));
-      return matchClass && matchGroup;
+      return matchClass;
     });
 
     const isAnnRead = (a) => {
@@ -10897,7 +10897,9 @@
                   _timeMs: now,
                   stage: 'stage2'
                 };
-                if (!this.state.chatLogs.stage2) this.state.chatLogs.stage2 = [];
+                if (!this.state.chatLogs.stage2) {
+                  this.state.chatLogs.stage2 = [];
+                }
                 this.state.chatLogs.stage2.push(msg);
                 this.syncChatLogs();
                 if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
@@ -11088,25 +11090,32 @@
         return false;
       };
 
-      // 严格过滤仅属于【当前任务 + 当前班级 + 当前小组】可见的通知（绝对杜绝跨班级、跨任务泄漏）
+      const isExtensionNotice = (a) => !!(a && (a.isExtension || a.title?.includes('延期通知') || a.title?.includes('时间已延长') || a.title?.includes('延长至')));
+
+      // 🎯 精确区分两大场景：
+      // 1. 任务大厅模式：只展示与统计【本班级】的【任务延长信息】
+      // 2. 工作台模式：三维精准对应【当前任务 + 本班级 + 本小组】的【教学通知】及【当前任务的延期通知】
       const myAnns = allAnns
         .filter(a => {
           if (!a) return false;
           const matchClass = (a.classId === effectiveClassId) || 
                              (effectiveClassName && a.className === effectiveClassName) ||
                              (Array.isArray(a.targetClassIds) && a.targetClassIds.includes(effectiveClassId));
-          const matchGroup = !a.targetGroupId || a.targetGroupId === 'all' || a.targetGroupId === groupId ||
-            (Array.isArray(a.targetGroupIds) && (a.targetGroupIds.includes('all') || a.targetGroupIds.includes(groupId)));
-          const isTaskListMode = (this.state && this.state.studentViewMode === 'task_list');
-          const matchTask = isTaskListMode
-            ? true
-            : (a.taskId === 'task_all' || a.taskId === activeTaskId || (!a.taskId && activeTaskId === 'task_default'));
-          return matchClass && matchGroup && matchTask;
+          if (isTaskListMode) {
+            return matchClass && isExtensionNotice(a);
+          } else {
+            const matchGroup = !a.targetGroupId || a.targetGroupId === 'all' || a.targetGroupId === groupId ||
+              (Array.isArray(a.targetGroupIds) && (a.targetGroupIds.includes('all') || a.targetGroupIds.includes(groupId)));
+            const matchTask = (a.taskId === 'task_all' || a.taskId === activeTaskId || (!a.taskId && activeTaskId === 'task_default'));
+            return matchClass && matchGroup && matchTask;
+          }
         })
         .sort((a, b) => (b.id > a.id ? 1 : -1));
 
       if (myAnns.length === 0) {
-        alert('📢 暂无本班级的课堂教学通知！');
+        if (!isSequentialFlow) {
+          alert(isTaskListMode ? '⏳ 暂无本班级的任务时间延期通知！' : '📢 暂无针对当前写作任务的教学通知！');
+        }
         return;
       }
 
