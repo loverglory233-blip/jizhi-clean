@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260830_v732
+ * Version: 20260830_v733
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260830_v732';
+  const APP_VERSION = '20260830_v733';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -9860,12 +9860,9 @@
     if (newDefenseCard && oldScrollTop > 0) {
       newDefenseCard.scrollTop = oldScrollTop;
     }
-    if (activeElemDataId) {
+    if (activeElemDataId && document.activeElement === activeElem) {
       const newElem = canvas.querySelector(`textarea[data-id="${activeElemDataId}"]`);
       if (newElem) {
-        if (activeElemVal !== null && newElem.value !== activeElemVal) {
-          newElem.value = activeElemVal;
-        }
         newElem.focus();
         if (activeSelectionStart !== undefined) {
           try { newElem.setSelectionRange(activeSelectionStart, activeSelectionEnd); } catch (e) {}
@@ -9880,39 +9877,9 @@
 
     if (!isFinalSubmitted) {
       canvas.querySelectorAll('.feedback-direct-input').forEach(textarea => {
-        let fbTimer = null;
-        let idleTimer = null;
-        let heartbeatTimer = null;
         const itemId = textarea.dataset.id;
         const fieldKey = `fb_${itemId}`;
         textarea.dataset.lockKey = fieldKey;
-
-        const autoSave = () => {
-          const text = textarea.value.trim();
-          if (itemId && text && handlers.onSaveDirectFeedback) {
-            handlers.onSaveDirectFeedback(itemId, text);
-          }
-        };
-
-        const startHeartbeat = () => {
-          if (heartbeatTimer) clearInterval(heartbeatTimer);
-          heartbeatTimer = setInterval(() => {
-            if (document.activeElement === textarea && !isFieldLockedByOther(fieldKey)) {
-              sendLock(fieldKey, textarea.value);
-            } else {
-              clearInterval(heartbeatTimer);
-            }
-          }, 2000);
-        };
-
-        const resetIdleTimer = () => {
-          if (idleTimer) clearTimeout(idleTimer);
-          idleTimer = setTimeout(() => {
-            autoSave();
-            sendUnlock(fieldKey, textarea.value);
-            if (heartbeatTimer) clearInterval(heartbeatTimer);
-          }, 8000);
-        };
 
         textarea.addEventListener('focus', () => {
           if (isFieldLockedByOther(fieldKey)) {
@@ -9920,25 +9887,6 @@
             return;
           }
           sendLock(fieldKey, textarea.value);
-          startHeartbeat();
-          resetIdleTimer();
-        });
-
-        textarea.addEventListener('compositionstart', () => {
-          textarea._isComposing = true;
-          resetIdleTimer();
-        });
-
-        textarea.addEventListener('compositionupdate', () => {
-          resetIdleTimer();
-        });
-
-        textarea.addEventListener('compositionend', () => {
-          textarea._isComposing = false;
-          sendLock(fieldKey, textarea.value);
-          resetIdleTimer();
-          if (fbTimer) clearTimeout(fbTimer);
-          fbTimer = setTimeout(autoSave, 300);
         });
 
         textarea.addEventListener('input', (e) => {
@@ -9947,39 +9895,18 @@
             e.stopImmediatePropagation();
             return;
           }
-          if (!textarea._isComposing) {
-            sendLock(fieldKey, e.target.value);
-          }
-          resetIdleTimer();
-          if (fbTimer) clearTimeout(fbTimer);
-          fbTimer = setTimeout(autoSave, 300);
+          sendLock(fieldKey, e.target.value);
         });
-
-        textarea.addEventListener('change', autoSave);
 
         textarea.addEventListener('blur', () => {
-          if (idleTimer) clearTimeout(idleTimer);
-          if (heartbeatTimer) clearInterval(heartbeatTimer);
-          if (textarea._preemptedByOther || isFieldLockedByOther(fieldKey)) {
-            textarea._preemptedByOther = false;
-            return;
-          }
-          autoSave();
           sendUnlock(fieldKey, textarea.value);
-        });
-
-        textarea.addEventListener('keydown', (e) => {
-          if (isFieldLockedByOther(fieldKey)) {
-            e.preventDefault();
-            e.stopImmediatePropagation();
-            return;
-          }
-          resetIdleTimer();
         });
       });
 
       canvas.querySelectorAll('.btn-save-feedback-direct').forEach(btn => {
-        btn.addEventListener('click', () => {
+        btn.addEventListener('click', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
           const itemId = btn.dataset.id;
           const textarea = canvas.querySelector(`.feedback-direct-input[data-id="${itemId}"]`);
           const text = textarea ? textarea.value.trim() : '';
@@ -9987,7 +9914,9 @@
             alert('⚠️ 请输入本组针对该条意见的简要答复结论后再保存！');
             return;
           }
-          handlers.onSaveDirectFeedback(itemId, text);
+          if (handlers && handlers.onSaveDirectFeedback) {
+            handlers.onSaveDirectFeedback(itemId, text);
+          }
         });
       });
 
@@ -13999,76 +13928,85 @@
             alert('🔒 论文终稿已提交，处于全盘只读归档模式！无法再修改研讨结论。');
             return;
           }
-          const items = this.state.stage3.feedbackItems || [];
-          const currentIndex = items.findIndex(f => f.id === id);
-          const item = items[currentIndex];
+          if (this._isSavingDirectFeedback) return;
+          this._isSavingDirectFeedback = true;
 
-          if (item) {
-            item.status = 'adopted';
-            item.response = respText;
-            const currentStage = this.state.currentStage;
-            const currentUser = this.state.currentUser;
-            const memberName = this.state.members[currentUser] ? this.state.members[currentUser].name : currentUser;
+          try {
+            const items = this.state.stage3.feedbackItems || [];
+            const currentIndex = items.findIndex(f => f.id === id);
+            const item = items[currentIndex];
 
-            const discMsg = {
-              sender: currentUser,
-              text: `📢 [答辩质询研讨结论]: 组内已对质询点 ${currentIndex + 1}【${item.speaker}】完成裁决并达成共识：“${respText}”！`,
-              timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-              _timeMs: Date.now()
-            };
-            if (!this.state.chatLogs[currentStage]) this.state.chatLogs[currentStage] = [];
-            this.state.chatLogs[currentStage].push(discMsg);
-            this.syncStage3();
-            this.syncChatLogs();
-            this.renderStudentWorkspace();
+            if (item) {
+              item.status = 'adopted';
+              item.response = respText;
+              const currentStage = this.state.currentStage || 'stage3';
+              const currentUser = this.state.currentUser;
 
-            // 异步调用扣子中间委员 Bot 进行点评与后续引导
-            const unadoptedCount = items.filter(f => f.status !== 'adopted').length;
-            const topic = (this.state.stage1 && this.state.stage1.mergedTitle) ? this.state.stage1.mergedTitle : '论文方案';
+              const isProp = item.role === 'proponent';
+              const labelTitle = isProp ? '专家立论支持' : (item.title || `质询 ${currentIndex}`);
+              const discMsg = {
+                sender: currentUser,
+                text: `📢 [答辩质询研讨结论]: 组内已对【${item.speaker} - ${labelTitle}】完成答辩并达成共识：“${respText}”！`,
+                timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                _timeMs: Date.now()
+              };
+              if (!this.state.chatLogs[currentStage]) this.state.chatLogs[currentStage] = [];
+              this.state.chatLogs[currentStage].push(discMsg);
+              this.syncStage3();
+              this.syncChatLogs();
+              if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+              this.renderStudentWorkspace();
+              renderChat(this.state);
 
-            // 汇总全组已录入的所有答辩裁决
-            const adoptedSummaries = items.map((f, i) => `• 质询${i + 1}【${f.speaker}】: ${f.response || '待录入'}`).join('\n');
+              // 只有反方质询且有未完成项时才顺推
+              const unadoptedOppCount = items.filter(f => f.role === 'opponent' && (!f.response || f.response.trim().length === 0)).length;
+              const topic = (this.state.stage1 && this.state.stage1.mergedTitle) ? this.state.stage1.mergedTitle : '论文方案';
 
-            let queryPrompt = '';
-            if (unadoptedCount > 0) {
-              const nextItem = items.find(f => f.status !== 'adopted');
-              const nextIndex = items.indexOf(nextItem) + 1;
-              const completedCount = items.length - unadoptedCount;
-              queryPrompt = `小组成员刚对已完成的质询录入并达成了答辩共识：“${respText}”。
+              const adoptedSummaries = items.map((f, i) => `• 质询${i + 1}【${f.speaker}】: ${f.response || '待录入'}`).join('\n');
+
+              let queryPrompt = '';
+              if (unadoptedOppCount > 0) {
+                const nextItem = items.find(f => f.role === 'opponent' && (!f.response || f.response.trim().length === 0));
+                const nextIndex = items.indexOf(nextItem);
+                queryPrompt = `小组成员刚对已完成的质询录入并达成了答辩共识：“${respText}”。
   请作为答辩委员会主席（中间委员），发表 130~150 字的【针对质询 ${nextIndex} 独立答辩思路顺推】：
   ① 肯定前序答辩词已成功录入；
   ② 【单题独立顺推·核心铁律】：独立引导全组将焦点转向下一项【质询 ${nextIndex}（${nextItem.content || nextItem.title}）】，结合其具体内容给出针对性的答辩思路支架（如补强措施/量表信度说明/补救预案）；
   ③ 引导全组继续在讨论区商定思路，由代表录入矩阵，并同步将修改落实到论文终稿中！纯自然语言输出，130~150字。`;
-            } else {
-              queryPrompt = `恭喜！小组成员已对全部答辩质询完成研讨并录入全部答辩陈述！
+              } else {
+                queryPrompt = `恭喜！小组成员已对全部答辩质询完成研讨并录入全部答辩陈述！
   全组答辩共识汇总：\n${adoptedSummaries}
 
   请作为答辩委员会主席（中间委员），发表 130~150 字的【答辩终审总结裁决与交卷指引】：
   ① 宣布答辩委员会已审阅全组提交的全部答辩陈述与终稿，肯定全组面对质询展现出的学术反思与严谨论证逻辑；
   ② 隆重宣布答辩全票顺利通过，祝贺大家圆满完成研究任务；
   ③ 明确指引全组成员点击左侧【提交终稿】锁定入库！纯自然语言输出，130~150字。`;
-            }
-
-            let neutralReply = await callCozeAgentAPI('neutral', queryPrompt, { stage: 'stage3', topic });
-            if (!neutralReply || neutralReply.trim().length === 0) {
-              if (unadoptedCount > 0) {
-                const nextItem = items.find(f => f.status !== 'adopted');
-                const nextIndex = items.indexOf(nextItem) + 1;
-                neutralReply = `🟡 【中间委员·针对质询 ${nextIndex} 答辩思路顺推】：前序答辩词已成功录入！👉 接下来请全组将焦点转向【质询 ${nextIndex}】：建议在答辩中明确阐述针对该质询的具体补强措施与设计说明！请全组继续在讨论区商定思路，由代表录入矩阵，并同步将修改落实到论文终稿中！`;
-              } else {
-                neutralReply = `🟡 【中间委员·答辩终审总结与裁决】：各位研究者，答辩委员会已审阅了全组提交的全部答辩陈述与终稿！团队在面对质询时展现出了扎实的学术反思与严谨的论证逻辑。答辩全票顺利通过，祝贺大家圆满完成研究任务！请全组成员点击左侧【提交终稿】锁定入库！`;
               }
-            }
 
-            const neutralMsgObj = {
-              sender: 'neutral',
-              text: neutralReply,
-              timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-              _timeMs: Date.now()
-            };
-            this.state.chatLogs[currentStage].push(neutralMsgObj);
-            this.syncChatLogs();
-            renderChat(this.state);
+              let neutralReply = await callCozeAgentAPI('neutral', queryPrompt, { stage: 'stage3', topic });
+              if (!neutralReply || neutralReply.trim().length === 0) {
+                if (unadoptedOppCount > 0) {
+                  const nextItem = items.find(f => f.role === 'opponent' && (!f.response || f.response.trim().length === 0));
+                  const nextIndex = items.indexOf(nextItem);
+                  neutralReply = `🟡 【中间委员·针对质询 ${nextIndex} 答辩思路顺推】：前序答辩词已成功录入！👉 接下来请全组将焦点转向【质询 ${nextIndex}】：建议在答辩中明确阐述针对该质询的具体补强措施与设计说明！请全组继续在讨论区商定思路，由代表录入矩阵，并同步将修改落实到论文终稿中！`;
+                } else {
+                  neutralReply = `🟡 【中间委员·答辩终审总结与裁决】：各位研究者，答辩委员会已审阅了全组提交的全部答辩陈述与终稿！团队在面对质询时展现出了扎实的学术反思与严谨的论证逻辑。答辩全票顺利通过，祝贺大家圆满完成研究任务！请全组成员点击左侧【提交终稿】锁定入库！`;
+                }
+              }
+
+              const neutralMsgObj = {
+                sender: 'neutral',
+                text: neutralReply,
+                timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                _timeMs: Date.now()
+              };
+              this.state.chatLogs[currentStage].push(neutralMsgObj);
+              this.syncChatLogs();
+              if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+              renderChat(this.state);
+            }
+          } finally {
+            this._isSavingDirectFeedback = false;
           }
         },
 

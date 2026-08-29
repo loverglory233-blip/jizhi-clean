@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles } from "./constants.js?v=20260830_v732";
-import { callCozeAgentAPI } from "./agents.js?v=20260830_v732";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs } from "./utils.js?v=20260830_v732";
+import { AgentProfiles } from "./constants.js?v=20260830_v733";
+import { callCozeAgentAPI } from "./agents.js?v=20260830_v733";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs } from "./utils.js?v=20260830_v733";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -2529,12 +2529,9 @@ function renderStage3Canvas(canvas, state, handlers) {
   if (newDefenseCard && oldScrollTop > 0) {
     newDefenseCard.scrollTop = oldScrollTop;
   }
-  if (activeElemDataId) {
+  if (activeElemDataId && document.activeElement === activeElem) {
     const newElem = canvas.querySelector(`textarea[data-id="${activeElemDataId}"]`);
     if (newElem) {
-      if (activeElemVal !== null && newElem.value !== activeElemVal) {
-        newElem.value = activeElemVal;
-      }
       newElem.focus();
       if (activeSelectionStart !== undefined) {
         try { newElem.setSelectionRange(activeSelectionStart, activeSelectionEnd); } catch (e) {}
@@ -2549,39 +2546,9 @@ function renderStage3Canvas(canvas, state, handlers) {
 
   if (!isFinalSubmitted) {
     canvas.querySelectorAll('.feedback-direct-input').forEach(textarea => {
-      let fbTimer = null;
-      let idleTimer = null;
-      let heartbeatTimer = null;
       const itemId = textarea.dataset.id;
       const fieldKey = `fb_${itemId}`;
       textarea.dataset.lockKey = fieldKey;
-
-      const autoSave = () => {
-        const text = textarea.value.trim();
-        if (itemId && text && handlers.onSaveDirectFeedback) {
-          handlers.onSaveDirectFeedback(itemId, text);
-        }
-      };
-
-      const startHeartbeat = () => {
-        if (heartbeatTimer) clearInterval(heartbeatTimer);
-        heartbeatTimer = setInterval(() => {
-          if (document.activeElement === textarea && !isFieldLockedByOther(fieldKey)) {
-            sendLock(fieldKey, textarea.value);
-          } else {
-            clearInterval(heartbeatTimer);
-          }
-        }, 2000);
-      };
-
-      const resetIdleTimer = () => {
-        if (idleTimer) clearTimeout(idleTimer);
-        idleTimer = setTimeout(() => {
-          autoSave();
-          sendUnlock(fieldKey, textarea.value);
-          if (heartbeatTimer) clearInterval(heartbeatTimer);
-        }, 8000);
-      };
 
       textarea.addEventListener('focus', () => {
         if (isFieldLockedByOther(fieldKey)) {
@@ -2589,25 +2556,6 @@ function renderStage3Canvas(canvas, state, handlers) {
           return;
         }
         sendLock(fieldKey, textarea.value);
-        startHeartbeat();
-        resetIdleTimer();
-      });
-
-      textarea.addEventListener('compositionstart', () => {
-        textarea._isComposing = true;
-        resetIdleTimer();
-      });
-
-      textarea.addEventListener('compositionupdate', () => {
-        resetIdleTimer();
-      });
-
-      textarea.addEventListener('compositionend', () => {
-        textarea._isComposing = false;
-        sendLock(fieldKey, textarea.value);
-        resetIdleTimer();
-        if (fbTimer) clearTimeout(fbTimer);
-        fbTimer = setTimeout(autoSave, 300);
       });
 
       textarea.addEventListener('input', (e) => {
@@ -2616,39 +2564,18 @@ function renderStage3Canvas(canvas, state, handlers) {
           e.stopImmediatePropagation();
           return;
         }
-        if (!textarea._isComposing) {
-          sendLock(fieldKey, e.target.value);
-        }
-        resetIdleTimer();
-        if (fbTimer) clearTimeout(fbTimer);
-        fbTimer = setTimeout(autoSave, 300);
+        sendLock(fieldKey, e.target.value);
       });
-
-      textarea.addEventListener('change', autoSave);
 
       textarea.addEventListener('blur', () => {
-        if (idleTimer) clearTimeout(idleTimer);
-        if (heartbeatTimer) clearInterval(heartbeatTimer);
-        if (textarea._preemptedByOther || isFieldLockedByOther(fieldKey)) {
-          textarea._preemptedByOther = false;
-          return;
-        }
-        autoSave();
         sendUnlock(fieldKey, textarea.value);
-      });
-
-      textarea.addEventListener('keydown', (e) => {
-        if (isFieldLockedByOther(fieldKey)) {
-          e.preventDefault();
-          e.stopImmediatePropagation();
-          return;
-        }
-        resetIdleTimer();
       });
     });
 
     canvas.querySelectorAll('.btn-save-feedback-direct').forEach(btn => {
-      btn.addEventListener('click', () => {
+      btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
         const itemId = btn.dataset.id;
         const textarea = canvas.querySelector(`.feedback-direct-input[data-id="${itemId}"]`);
         const text = textarea ? textarea.value.trim() : '';
@@ -2656,7 +2583,9 @@ function renderStage3Canvas(canvas, state, handlers) {
           alert('⚠️ 请输入本组针对该条意见的简要答复结论后再保存！');
           return;
         }
-        handlers.onSaveDirectFeedback(itemId, text);
+        if (handlers && handlers.onSaveDirectFeedback) {
+          handlers.onSaveDirectFeedback(itemId, text);
+        }
       });
     });
 
