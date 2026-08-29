@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260829_v659";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash } from "./utils.js?v=20260829_v659";
-import { callCozeAgentAPI } from "./agents.js?v=20260829_v659";
-import { AuthManager } from "./auth.js?v=20260829_v659";
-import { CloudSyncEngine } from "./sync.js?v=20260829_v659";
-import { renderLoginView } from "./login.js?v=20260829_v659";
-import { renderTeacherPortal } from "./teacher.js?v=20260829_v659";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260829_v659";
+} from "./constants.js?v=20260829_v660";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash } from "./utils.js?v=20260829_v660";
+import { callCozeAgentAPI } from "./agents.js?v=20260829_v660";
+import { AuthManager } from "./auth.js?v=20260829_v660";
+import { CloudSyncEngine } from "./sync.js?v=20260829_v660";
+import { renderLoginView } from "./login.js?v=20260829_v660";
+import { renderTeacherPortal } from "./teacher.js?v=20260829_v660";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260829_v660";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260829_v659";
+} from "./editor.js?v=20260829_v660";
 
 // Make renderChat available on window for sync callbacks
 if (typeof window !== "undefined") {
@@ -2682,17 +2682,26 @@ ${recentDefenseChat}
       isUnanimous = true;
     }
 
-    // 提取研讨切片
+    // 提取研讨切片（包含拍卖师学术定名播报与组员真实研讨）
     const s1ChatLogs = (this.state.chatLogs && this.state.chatLogs.stage1) ? this.state.chatLogs.stage1 : [];
-    const voteNoticeIdx = s1ChatLogs.findIndex(m => m && m.text && (m.text.includes('落槌定题') || m.text.includes('投票结果播报') || m.text.includes('全票一致通过') || m.text.includes('选题确定')));
+    const voteNoticeIdx = s1ChatLogs.findIndex(m => m && m.text && (m.text.includes('计票结果') || m.text.includes('落槌定题') || m.text.includes('全票一致通过') || m.text.includes('选题确定')));
     const relevantLogs = (voteNoticeIdx >= 0) ? s1ChatLogs.slice(voteNoticeIdx) : s1ChatLogs;
+    
+    // 组员发言切片（用于分工规则匹配）
     const userLogsAfterVote = relevantLogs.filter(m => m && m.sender && !AgentProfiles[m.sender] && m.sender !== 'system');
-    const chatSnippet = userLogs.map(m => `${m.senderName || m.sender}: ${m.text}`).join('\n');
-    const chatSnippetAfterVote = userLogsAfterVote.map(m => `${m.senderName || m.sender}: ${m.text}`).join('\n');
+    const chatSnippet = userLogsAfterVote.map(m => `${m.senderName || m.sender}: ${m.text}`).join('\n');
+    
+    // 包含拍卖师学术定名播报与全组讨论的完整记录（用于大模型通读上下文）
+    const fullDiscussionLogs = relevantLogs.map(m => {
+      const senderLabel = m.sender === 'auctioneer' ? '【学术拍卖师】' : (m.sender === 'system' ? '【系统播报】' : (m.senderName || m.sender));
+      return `${senderLabel}: ${m.text}`;
+    }).join('\n');
 
     const proposalsSummary = proposals.map((p, idx) => `提案${idx+1}: 《${p.title}》（作者: ${p.authorName || p.author}）`).join('\n');
-    let determinedTopic = '';
-    let topicDecisionReason = '';
+    const tallyDesc = Object.entries(tally).map(([pid, c]) => {
+      const p = proposals.find(item => item.id === pid);
+      return `《${p ? p.title : pid}》(${c}票)`;
+    }).join('，');
 
     // 🌟 点了生成公约草案后，题目直接由大模型通读全组提案与讨论后权威提炼并填入
     if (!s1.mergedTitle || s1.mergedTitle.trim().length === 0 || s1.mergedTitle === '待组员协商填入融合主题') {
@@ -2747,8 +2756,8 @@ ${recentDefenseChat}
       if (m.studentCode) s1.contract.taskAssignments[m.studentCode] = assignedTask;
     });
 
-    // ── 异步调用大模型进行公约数据结构化精修覆盖（包含融合论文题目提炼） ──
-    const extractPrompt = `请作为资深学术拍卖师，通读下方小组成员提出的所有选题提案、投票情况以及【投票定题之后】关于任务分工与时间规划的真实研讨发言记录，提取结构化数据填入《学术合作公约草案》：
+    // ── 异步调用大模型进行公约数据结构化精修覆盖（包含前后统一的论文题目提炼） ──
+    const extractPrompt = `请作为资深学术拍卖师，通读下方小组成员提出的所有选题提案、投票情况、此前拍卖师的学术定名播报以及【投票定题之后】全组关于分工与时间的真实研讨记录，提取结构化数据填入《学术合作公约草案》：
 
 【小组成员名单】:
 ${membersInfo}
@@ -2756,19 +2765,22 @@ ${membersInfo}
 【全组成员提出的选题提案列表】:
 ${proposalsSummary || '无独立提案'}
 
+【投票定题与计票情况】:
+${isUnanimous ? `全票一致推选《${winningP ? winningP.title : ''}》` : `存在分歧，投票计票分布为：${tallyDesc}`}
+
+【投票后的完整研讨发言记录（包含学术拍卖师学术定名与组员交流）】:
+${fullDiscussionLogs || '成员协商协作撰写'}
+
 【全场任务时长参考】: 全场总时长 ${totalDurationMin} 分钟（阶段二正文起草预算约 ${stage2BudgetMin} 分钟）
 
-【投票后的研讨发言记录】:
-${chatSnippetAfterVote || chatSnippet || '成员协商协作撰写'}
-
 【核心提炼要求】:
-1. 融合研究主题 (mergedTitle)：通读全组提案与研讨，提炼/合成出一个严谨、专业、规范的学术研究论文题目（如《基于...的...研究设计与实证分析》），若同学们在研讨中有明确融合意向或明确主题，优先采纳并规范化学术表述；
+1. 融合研究主题 (mergedTitle)：严格保持前后学术定名连贯性！通读此前拍卖师给出的规范学术题目及组员后续讨论：若全票一致且组员无修改异议，优先承接此前确立的规范学术论文题目（如《基于...的...研究设计与实证分析》）；若同学们在讨论中深入融合了各方亮点，则提炼出全组达成共识的最终融合学术题目；
 2. 任务分工 (taskAssignments)：根据成员在聊天中的主动认领或学术背景，合理分配章节任务；
 3. 时间规划 (timeAllocations)：若学生提及了具体章节时间则优先采纳；若模糊或未提全，按黄金学术比例（背景18%、综述22%、问题15%、方法25%、反思12%、文献8%）推算补齐全部 6 大章节分钟数。
 
 请严格输出合法的 JSON 格式（严禁输出任何额外 markdown 说明或自然语言）：
 {
-  "mergedTitle": "深度提炼与融合全组构想的学术论文研究主题",
+  "mergedTitle": "前后连贯、深度提炼的学术论文研究主题",
   "taskAssignments": {
     "成员ID或学号": "提取的分工任务描述（如负责研究背景与文献综述梳理、负责问卷设计与数据分析）"
   },
