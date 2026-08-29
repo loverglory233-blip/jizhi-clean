@@ -16,7 +16,7 @@ TARGET_DIRS=($(printf "%s\n" "${TARGET_DIRS[@]}" | sort -u))
 
 echo "📁 目标目录: ${TARGET_DIRS[*]}"
 
-TARGET_VERSION="20260829_v685"
+TARGET_VERSION="20260829_v686"
 
 echo "⚡ [2/4] 极速同步最新代码包 ($TARGET_VERSION)..."
 TMP=/tmp/jizhi_update
@@ -152,7 +152,7 @@ dirs.forEach(d => {
     const proxyBlock = `
     # ETHERPAD_PROXY_START
     location ^~ /p/ {
-        proxy_pass http://127.0.0.1:9001/p/;
+        proxy_pass http://127.0.0.1:9001;
         proxy_set_header Host $http_host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -166,7 +166,7 @@ dirs.forEach(d => {
         proxy_send_timeout 3600s;
     }
     location ^~ /socket.io {
-        proxy_pass http://127.0.0.1:9001/socket.io;
+        proxy_pass http://127.0.0.1:9001;
         proxy_set_header Host $http_host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
