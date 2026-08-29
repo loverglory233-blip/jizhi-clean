@@ -6868,6 +6868,39 @@
     const groupId = activeGroupObj.id || 'group_1';
     const groupName = activeGroupObj.name || '第 1 协作小组';
 
+    // 📋 3. 严格按当前选定班级（本班）和小组过滤通知，绝不串其他班级
+    const relevantAnnouncements = (announcements || []).filter(a => {
+      if (!a) return false;
+      const matchClass = (a.classId === userClass.id) || 
+                         (a.className && a.className === userClass.name) || 
+                         (Array.isArray(a.targetClassIds) && a.targetClassIds.includes(userClass.id));
+      const matchGroup = !a.targetGroupId || a.targetGroupId === 'all' || a.targetGroupId === groupId ||
+        (Array.isArray(a.targetGroupIds) && (a.targetGroupIds.includes('all') || a.targetGroupIds.includes(groupId)));
+      return matchClass && matchGroup;
+    });
+
+    const isAnnRead = (a) => {
+      if (!a || !a.readStatus) return false;
+      if (currentUser) {
+        if (currentUser.id && a.readStatus[currentUser.id]) return true;
+        if (currentUser.studentCode && a.readStatus[currentUser.studentCode]) return true;
+        if (currentUser.username && a.readStatus[currentUser.username]) return true;
+        if (currentUser.name && a.readStatus[currentUser.name]) return true;
+        if (Array.isArray(a.confirmedMembers)) {
+          if (a.confirmedMembers.some(m => m && (m.id === currentUser.id || m.studentCode === currentUser.studentCode || (currentUser.name && m.name === currentUser.name)))) return true;
+        }
+      }
+      return false;
+    };
+
+    const unreadAnnCount = relevantAnnouncements.filter(a => {
+      if (a.taskId && a.taskId !== 'task_all') {
+        const tObj = tasks.find(t => t.id === a.taskId);
+        if (tObj && isTaskExpired(tObj)) return false;
+      }
+      return !isAnnRead(a);
+    }).length;
+
     const relevantTasks = tasks.filter(t => {
       return t.classId === userClass.id || (t.className && t.className === userClass.name) || (!t.classId && userClass.id === 'class_101');
     });
@@ -6881,6 +6914,10 @@
             </div>
           </div>
           <div class="header-controls" style="display:flex; align-items:center; gap:10px;">
+            <button id="btn-portal-ann-bell" style="position:relative; background:#eff6ff; color:#1d4ed8; border:1.5px solid #bfdbfe; padding:6px 14px; border-radius:18px; font-size:12px; font-weight:700; cursor:pointer; display:flex; align-items:center; gap:4px;" title="查看本班教学通知与延期通知">
+              <span>📢 教学通知</span>
+              ${unreadAnnCount > 0 ? `<span style="background:#ef4444; color:#ffffff; font-size:10.5px; font-weight:800; padding:1px 6px; border-radius:10px; box-shadow:0 1px 4px rgba(239,68,68,0.4);">${unreadAnnCount}</span>` : ''}
+            </button>
             <button id="btn-portal-change-pwd" style="background:#f0fdf4; color:#16a34a; border:1px solid #bbf7d0; padding:6px 14px; border-radius:18px; font-size:12px; font-weight:700; cursor:pointer;" title="修改登录密码">🔑 修改密码</button>
             <button id="btn-portal-logout" style="background:#fef2f2; color:#dc2626; border:1px solid #fecaca; padding:6px 14px; border-radius:18px; font-size:12px; font-weight:700; cursor:pointer;">🚪 退出登录</button>
           </div>
@@ -7035,6 +7072,9 @@
       authManager.openChangePasswordModal();
     });
     container.querySelector('#btn-portal-switch-teacher')?.addEventListener('click', () => onSwitchTeacher());
+    container.querySelector('#btn-portal-ann-bell')?.addEventListener('click', () => {
+      if (onOpenAnnModal) onOpenAnnModal();
+    });
     container.querySelector('#btn-enter-default-workspace')?.addEventListener('click', () => onSelectTask(null));
     container.querySelectorAll('.btn-enter-task-workspace').forEach(btn => {
       btn.addEventListener('click', () => onSelectTask(btn.dataset.taskId));
@@ -11057,7 +11097,10 @@
                              (Array.isArray(a.targetClassIds) && a.targetClassIds.includes(effectiveClassId));
           const matchGroup = !a.targetGroupId || a.targetGroupId === 'all' || a.targetGroupId === groupId ||
             (Array.isArray(a.targetGroupIds) && (a.targetGroupIds.includes('all') || a.targetGroupIds.includes(groupId)));
-          const matchTask = (a.taskId === 'task_all' || a.taskId === activeTaskId || (!a.taskId && activeTaskId === 'task_default'));
+          const isTaskListMode = (this.state && this.state.studentViewMode === 'task_list');
+          const matchTask = isTaskListMode
+            ? true
+            : (a.taskId === 'task_all' || a.taskId === activeTaskId || (!a.taskId && activeTaskId === 'task_default'));
           return matchClass && matchGroup && matchTask;
         })
         .sort((a, b) => (b.id > a.id ? 1 : -1));
