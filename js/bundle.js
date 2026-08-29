@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260830_v709
+ * Version: 20260830_v710
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260830_v709';
+  const APP_VERSION = '20260830_v710';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -11348,58 +11348,7 @@
             }
           }
 
-          // 5. 🎯 终审收尾雷达：阶段二自身时长达到 85% 或 参考文献录入完毕全文闭环 ➔ 倒计时冲刺提醒
-          const hasReachedReferences = /(?:六、|第6章|第六部分|参考文献|References)/i.test(s2.unifiedContent || '') && (s2.unifiedContent || '').length > 1500;
-          const isTimeOver85Pct = stage2DurationMs >= (totalPlannedMs * 0.85);
-          const hasMeetingDone = !!(s2.actionPlan && s2.actionPlan.isGenerated);
-          if ((hasReachedReferences || isTimeOver85Pct) && !this.state.stage2FinalNudgeSent && hasMeetingDone) {
-            this.state.stage2FinalNudgeSent = true;
-            const msg1 = {
-              sender: 'managingEditor',
-              text: `🤝 【责任编辑·冲刺倒计时】：阶段二正文起草已进入最后 15% 倒计时！请小组成员抓紧收尾当前段落，全篇交叉通读、优化前后衔接，准备迎接答辩擂台！`,
-              timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-              _timeMs: now
-            };
-            if (!this.state.chatLogs.stage2) this.state.chatLogs.stage2 = [];
-            this.state.chatLogs.stage2.push(msg1);
-            this.syncChatLogs();
-            if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
-            renderChat(this.state);
-
-            // 🤖 动态调用审稿编辑 API：终审专注文字润色与内容把关（错别字/通顺/文风统一 + 内容逻辑），不再做格式排版检查
-            setTimeout(async () => {
-              const rawDoc = (s2.unifiedContent || '').replace(/<[^>]*>/g, '').trim();
-              const topic = (this.state.stage1 && this.state.stage1.mergedTitle) ? this.state.stage1.mergedTitle : '本组课题';
-              const priorSecondReview = this.state.stage2SecondReviewText || (this.state.chatLogs.stage2 || []).filter(m => m.sender === 'reviewingEditor').pop()?.text || '半程已下发修正清单并指导协同修改';
-
-              const sprintReviewPrompt = `团队课题《${topic}》已进入最后【参考文献】撰写与初稿定稿收尾阶段。
-  【审稿编辑前期两轮质检与半程修正清单历史（记忆继承）】:
-  "${priorSecondReview}"
-
-  【审稿编辑终审定稿把关铁律】：在前两轮质检内容已基本定型的基础上，必须严格继承前两轮质检指导方向，严禁再提结构性大改与重写，重点仅做全篇文字行文、病句错别字、标点规范与参考文献基础著录的定稿扫描！
-
-  请通读下方【小组当前真实正文草稿】全文，作为审稿编辑进行终审行文质量扫描诊断（【全局红线】：严禁再提内容大改，严禁替写大段正文！）：
-  请从【语句通顺度】、【病句错别字】、【标点规范】、【学术用语与前后风格一致性】及【参考文献基础著录】全维度真实扫描诊断，根据当前实际草稿质量精准指出 1~3 处实际存在的具体硬伤（如哪句话存在口语化/语病、哪处术语不统一），给出规范订正建议，做好细节润色准备迎接答辩！纯自然语言输出，130~150字。`;
-
-              let sprintReviewText = await callCozeAgentAPI('reviewingEditor', sprintReviewPrompt, { stage: 'stage2', topic, actualDoc: rawDoc, priorReview: priorSecondReview });
-              if (!sprintReviewText || sprintReviewText.trim().length === 0) {
-                sprintReviewText = `📝 【审稿编辑·终稿行文扫描诊断】：全篇论文内容已基本定型，整体框架非常完整！在最后收尾阶段，我重点对全文语言表达进行了全维度扫描，请大家重点修正以下 1~3 处具体细节：①【行文与语体】：部分章节中存在个别口语化表述与长句语病，建议润色为规范严谨的学术用语；②【错别字与术语】：个别用词前后术语不统一，建议统一表述并逐一订正。请全组做好细节润色，准备迎接终审答辩！`;
-              }
-
-              const msg2 = {
-                sender: 'reviewingEditor',
-                text: sprintReviewText,
-                timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                _timeMs: Date.now()
-              };
-              this.state.stage2FinalReviewFinishedTime = Date.now();
-              if (!this.state.chatLogs.stage2) this.state.chatLogs.stage2 = [];
-              this.state.chatLogs.stage2.push(msg2);
-              this.syncChatLogs();
-              if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
-              renderChat(this.state);
-            }, 1200);
-          }
+          // ── 阶段二终审行文扫描已严格统归由 checkStage2Milestones() 权威单向状态机统一仲裁 ──
         }
 
         // ======================================================================
@@ -14512,6 +14461,9 @@
   👉 我已为大家下发了 3 项可打勾的【半程修正清单】，若对具体修改有疑问可随时 @审稿编辑 咨询，请全组分工落实！`;
       }
       this.state.stage2SecondReviewText = reviewingText;
+      this.state.stage2.reviewMilestone = 'checklist_issued';
+      this.state.stage2PendingReviewing = null;
+      if (this.state.stage2) this.state.stage2.pendingReviewing = null;
 
       // 🌟 动态生成包含三大高含金量支柱的【半程修正清单】(支持交互勾选)
       this.state.stage2.actionPlan = {
