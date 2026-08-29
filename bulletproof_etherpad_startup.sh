@@ -31,9 +31,15 @@ kill -9 $(lsof -t -i:9001 2>/dev/null) 2>/dev/null || true
 pkill -9 -f "node.*server\.js" 2>/dev/null || true
 sleep 1
 
-# 2. 还原官方源码
+# 2. 还原官方源码与确保插件安装目录无缝关联 (解决根目录与 src/ 安装位置不一致问题)
 git checkout src/ 2>/dev/null || true
 rm -f var/plugin-definitions.json var/plugins.json 2>/dev/null || true
+
+if [ -d "$EP_DIR/node_modules" ] && [ ! -d "$EP_DIR/src/node_modules" ]; then
+  ln -sf "$EP_DIR/node_modules" "$EP_DIR/src/node_modules" 2>/dev/null || true
+elif [ -d "$EP_DIR/src/node_modules" ] && [ ! -d "$EP_DIR/node_modules" ]; then
+  ln -sf "$EP_DIR/src/node_modules" "$EP_DIR/node_modules" 2>/dev/null || true
+fi
 
 # 3. 固化 settings.json
 cat << 'EPSETEOF' > "$EP_DIR/settings.json"
