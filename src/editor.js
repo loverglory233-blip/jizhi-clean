@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles } from "./constants.js?v=20260830_v713";
-import { callCozeAgentAPI } from "./agents.js?v=20260830_v713";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs } from "./utils.js?v=20260830_v713";
+import { AgentProfiles } from "./constants.js?v=20260830_v714";
+import { callCozeAgentAPI } from "./agents.js?v=20260830_v714";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs } from "./utils.js?v=20260830_v714";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)

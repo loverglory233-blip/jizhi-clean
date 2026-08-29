@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260830_v713";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash } from "./utils.js?v=20260830_v713";
-import { callCozeAgentAPI } from "./agents.js?v=20260830_v713";
-import { AuthManager } from "./auth.js?v=20260830_v713";
-import { CloudSyncEngine } from "./sync.js?v=20260830_v713";
-import { renderLoginView } from "./login.js?v=20260830_v713";
-import { renderTeacherPortal } from "./teacher.js?v=20260830_v713";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260830_v713";
+} from "./constants.js?v=20260830_v714";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash } from "./utils.js?v=20260830_v714";
+import { callCozeAgentAPI } from "./agents.js?v=20260830_v714";
+import { AuthManager } from "./auth.js?v=20260830_v714";
+import { CloudSyncEngine } from "./sync.js?v=20260830_v714";
+import { renderLoginView } from "./login.js?v=20260830_v714";
+import { renderTeacherPortal } from "./teacher.js?v=20260830_v714";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260830_v714";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260830_v713";
+} from "./editor.js?v=20260830_v714";
 
 // Make renderChat available on window for sync callbacks
 if (typeof window !== "undefined") {
@@ -3998,6 +3998,7 @@ ${propText}
 
   showMeetingModal() {
     const currUser = this.authManager ? this.authManager.getCurrentUser() : null;
+    const userKey = currUser ? (currUser.studentCode || currUser.id || 'A') : (this.state.currentUser || 'A');
     let actualGroupMembers = [];
     if (this.authManager) {
       const effClassId = this.state.activeStudentClassId || currUser?.classId || 'class_101';
@@ -4008,6 +4009,9 @@ ${propText}
     const subs = this.state.stage2?.meetingSubmissions || {};
     const subCount = Object.keys(subs).length;
     const totalCount = membersList.length || 2;
+
+    const existingSub = subs[userKey] || (currUser?.name && subs[currUser.name]) || (currUser?.studentCode && subs[currUser.studentCode]) || (currUser?.id && subs[currUser.id]) || (this.state.currentUser && subs[this.state.currentUser]);
+    const isCurrentUserSubmitted = !!existingSub;
 
     const modal = document.createElement('div');
     modal.className = 'modal-overlay';
