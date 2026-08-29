@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260830_v733";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash } from "./utils.js?v=20260830_v733";
-import { callCozeAgentAPI } from "./agents.js?v=20260830_v733";
-import { AuthManager } from "./auth.js?v=20260830_v733";
-import { CloudSyncEngine } from "./sync.js?v=20260830_v733";
-import { renderLoginView } from "./login.js?v=20260830_v733";
-import { renderTeacherPortal } from "./teacher.js?v=20260830_v733";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260830_v733";
+} from "./constants.js?v=20260830_v734";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash } from "./utils.js?v=20260830_v734";
+import { callCozeAgentAPI } from "./agents.js?v=20260830_v734";
+import { AuthManager } from "./auth.js?v=20260830_v734";
+import { CloudSyncEngine } from "./sync.js?v=20260830_v734";
+import { renderLoginView } from "./login.js?v=20260830_v734";
+import { renderTeacherPortal } from "./teacher.js?v=20260830_v734";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260830_v734";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260830_v733";
+} from "./editor.js?v=20260830_v734";
 
 // Make renderChat available on window for sync callbacks
 if (typeof window !== "undefined") {
@@ -3683,32 +3683,36 @@ ${propText}
         const confirmMsg = {
           sender: user,
           senderName: memberName,
-          text: `📢 [终稿修改确认]: 我 (${memberName}) 已确认完成终稿修改！（全组修改确认进度: ${confirmedCount}/${totalMembersCount} 人）`,
+          text: `📢 [答辩确认]: 我 (${memberName}) 已确认完成答辩，准备进入终稿修改！（全组确认进度: ${confirmedCount}/${totalMembersCount} 人）`,
           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
           _timeMs: Date.now()
         };
         if (!this.state.chatLogs.stage3) this.state.chatLogs.stage3 = [];
         this.state.chatLogs.stage3.push(confirmMsg);
-        this.syncStage3();
-        this.syncChatLogs();
-        if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
 
         if (confirmedCount >= totalMembersCount) {
           s3.isRevisionConfirmed = true;
           const promptMsg = {
             sender: 'neutral',
-            text: `🏆 【中间委员·终稿就绪】：组内全员已确认终稿修改完毕！请组员或代表点击右上方【🚀 提交论文终稿】完成全盘归档！`,
+            text: `🎉 【中间委员宣布】：恭喜！组内全员 ${totalMembersCount}/${totalMembersCount} 人已全部确认完成答辩！【修改论文终稿】面板已正式解锁！请组员切换至【📝 修改论文终稿】面板完善正文，修改完毕后由代表点击【🚀 提交论文终稿】完成归档！`,
             timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-            _timeMs: Date.now()
+            _timeMs: Date.now() + 50
           };
           this.state.chatLogs.stage3.push(promptMsg);
+          this.syncStage3();
           this.syncChatLogs();
           if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
-          alert(`🎉 组内全员 (${totalMembersCount}/${totalMembersCount} 人) 已完成终稿修改确认！请点击【🚀 提交论文终稿】归档呈递至教师端！`);
+          this.renderStudentWorkspace();
+          renderChat(this.state);
+          alert(`🎉 恭喜！组内全员 (${totalMembersCount}/${totalMembersCount} 人) 已全部完成答辩确认！\n\n【修改论文终稿】面板已正式解锁！请切换至终稿面板协同修改并提交。`);
         } else {
-          alert(`✅ 你 (${memberName}) 已成功确认终稿修改完毕！\n\n目前组内确认进度：${confirmedCount}/${totalMembersCount} 人。`);
+          this.syncStage3();
+          this.syncChatLogs();
+          if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+          this.renderStudentWorkspace();
+          renderChat(this.state);
+          alert(`✅ 您 (${memberName}) 已成功确认完成答辩！\n\n当前组内答辩确认进度：${confirmedCount}/${totalMembersCount} 人已确认。\n⚠️ 必须全组所有成员均完成确认后，系统才会正式解锁【修改论文终稿】面板！请提醒组内其他同学尽快确认。`);
         }
-        this.renderStudentWorkspace();
       },
       onSwitchStage3Tab: (tabKey) => {
         this.state.stage3.activeTab = tabKey;
