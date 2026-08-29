@@ -1908,14 +1908,23 @@
       if (addedMinutes > 0) {
         tasks[taskIndex].durationMinutes = (parseInt(tasks[taskIndex].durationMinutes, 10) || 150) + parseInt(addedMinutes, 10);
       }
+      const taskTitle = tasks[taskIndex].title || '写作任务';
+      const targetClassId = tasks[taskIndex].classId || 'all';
+      const targetClassName = tasks[taskIndex].className || '全校班级';
+      tasks[taskIndex].lastExtension = {
+        extendedAt: Date.now(),
+        newDeadline: newDeadline,
+        addedMinutes: addedMinutes,
+        extendDurationStr: formatDurationHuman(addedMinutes)
+      };
       localStorage.setItem(STORAGE_KEY_TASKS, JSON.stringify(tasks));
 
       // 📢 自动发布全校/全班广播教学通知，通知所有学生端任务已延期
       this.publishAnnouncement(
         taskId,
         `⏳ 任务延期通知：截止时间已延长至 ${newDeadline}`,
-        `任课教师已将写作任务《${tasks[taskIndex].title}》截止时间延长至 ${newDeadline}。各小组写作工作台已自动解除只读锁定，请同学们抓紧时间推进完成！`,
-        null, 'all', '全班所有小组', 'all', '全校班级', ['all'], true
+        `任课教师已将写作任务《${taskTitle}》截止时间延长至 ${newDeadline}。各小组写作工作台已自动解除只读锁定，请同学们抓紧时间推进完成！`,
+        null, 'all', '全班所有小组', targetClassId, targetClassName, ['all'], true
       );
 
       this.pushGlobalMeta();
@@ -6859,9 +6868,9 @@
     const groupId = activeGroupObj.id || 'group_1';
     const groupName = activeGroupObj.name || '第 1 协作小组';
 
-    // 📋 3. 严格按当前选定班级和小组过滤通知（杜绝外班通知串入导致未读数虚高）
+    // 📋 3. 严格按当前选定班级和小组过滤通知（支持全校广播 all 与本班通知）
     const relevantAnnouncements = (announcements || []).filter(a => {
-      const matchClass = a.classId === userClass.id || (a.className && a.className === userClass.name) || (!a.classId && userClass.id === 'class_101') || (Array.isArray(a.targetClassIds) && a.targetClassIds.includes(userClass.id));
+      const matchClass = !a.classId || a.classId === 'all' || a.classId === userClass.id || (a.className && a.className === userClass.name) || (!a.classId && userClass.id === 'class_101') || (Array.isArray(a.targetClassIds) && (a.targetClassIds.includes('all') || a.targetClassIds.includes(userClass.id)));
       const matchGroup = !a.targetGroupId || a.targetGroupId === 'all' || a.targetGroupId === groupId ||
         (Array.isArray(a.targetGroupIds) && (a.targetGroupIds.includes('all') || a.targetGroupIds.includes(groupId)));
       return matchClass && matchGroup;
@@ -6902,6 +6911,10 @@
             </div>
           </div>
           <div class="header-controls" style="display:flex; align-items:center; gap:10px;">
+            <button id="btn-portal-ann-bell" style="position:relative; background:#eff6ff; color:#1d4ed8; border:1.5px solid #bfdbfe; padding:6px 14px; border-radius:18px; font-size:12px; font-weight:700; cursor:pointer; display:flex; align-items:center; gap:4px;" title="查看教师教学指示与延期通知">
+              <span>📢 教学通知</span>
+              ${unreadAnnCount > 0 ? `<span style="background:#ef4444; color:#ffffff; font-size:10.5px; font-weight:800; padding:1px 6px; border-radius:10px; box-shadow:0 1px 4px rgba(239,68,68,0.4);">${unreadAnnCount}</span>` : ''}
+            </button>
             <button id="btn-portal-change-pwd" style="background:#f0fdf4; color:#16a34a; border:1px solid #bbf7d0; padding:6px 14px; border-radius:18px; font-size:12px; font-weight:700; cursor:pointer;" title="修改登录密码">🔑 修改密码</button>
             <button id="btn-portal-logout" style="background:#fef2f2; color:#dc2626; border:1px solid #fecaca; padding:6px 14px; border-radius:18px; font-size:12px; font-weight:700; cursor:pointer;">🚪 退出登录</button>
           </div>
@@ -10991,16 +11004,9 @@
       const activeGroupObj = this.authManager.getStudentActiveGroup(currentUser, effectiveClassId);
       const groupId = activeGroupObj.id || (currentUser && currentUser.groupId ? currentUser.groupId : 'group_1');
       const myClassIds = new Set([effectiveClassId, currentUser?.classId, ...(currentUser?.classIds || [])].filter(Boolean));
+      const isTaskListMode = (this.state && this.state.studentViewMode === 'task_list');
       const activeTaskId = (this.state && this.state.activeTaskId) ? this.state.activeTaskId : 'task_default';
       const allTasks = this.authManager.getTasks();
-
-      // 🛡️ 已经截止的任务通知不论看没看都不要再弹窗骚扰学生！
-      const currentTask = allTasks.find(t => t.id === activeTaskId);
-      if (currentTask && isTaskExpired(currentTask)) {
-        return;
-      }
-
-      const allAnns = this.authManager.getAnnouncements();
 
       const isAnnRead = (a) => {
         if (!a) return false;
@@ -11016,7 +11022,9 @@
         return false;
       };
 
-      // 过滤出本班/本组/本任务且未读的通知，且排除已截止任务的通知
+      const allAnns = this.authManager.getAnnouncements();
+
+      // 过滤出本班/本组且未读的通知
       const unreadList = allAnns
         .filter(a => {
           if (a.taskId && a.taskId !== 'task_all') {
@@ -11026,29 +11034,37 @@
           const matchClass = !a.classId || a.classId === 'all' || myClassIds.has(a.classId);
           const matchGroup = !a.targetGroupId || a.targetGroupId === 'all' || a.targetGroupId === groupId ||
             (Array.isArray(a.targetGroupIds) && (a.targetGroupIds.includes('all') || a.targetGroupIds.includes(groupId)));
-          const matchTask = a.taskId === 'task_all' || a.taskId === activeTaskId || (!a.taskId && activeTaskId === 'task_default');
+          const matchTask = isTaskListMode
+            ? true // 大厅模式下，本班级/全校的所有任务通知均可呈现
+            : (a.taskId === 'task_all' || a.taskId === activeTaskId || (!a.taskId && activeTaskId === 'task_default'));
           return matchClass && matchGroup && matchTask && !isAnnRead(a);
         })
         .sort((a, b) => (b.id > a.id ? 1 : -1));
 
       // 🔔 实时感知任务延期并自动弹出专属弹窗通知（在线即时 + 离线下次登录补弹）
-      if (currentTask && currentTask.deadline) {
-        const uKey = currentUser.studentCode || currentUser.username || currentUser.id || 'u';
-        const extAckKey = `jizhi_ack_ext_${uKey}_${activeTaskId}_${currentTask.deadline}`;
+      const tasksToCheck = isTaskListMode
+        ? allTasks.filter(t => myClassIds.has(t.classId) || !t.classId || t.classId === 'all')
+        : allTasks.filter(t => t.id === activeTaskId);
+
+      if (!this._lastKnownDeadlineMap) this._lastKnownDeadlineMap = {};
+      const uKey = currentUser.studentCode || currentUser.username || currentUser.id || 'u';
+
+      for (const t of tasksToCheck) {
+        if (!t || !t.deadline) continue;
+        const extAckKey = `jizhi_ack_ext_${uKey}_${t.id}_${t.deadline}`;
         const isExtAcknowledged = localStorage.getItem(extAckKey) === '1';
+        const prevDl = this._lastKnownDeadlineMap[t.id];
 
-        if (!this._lastKnownDeadlineMap) this._lastKnownDeadlineMap = {};
-        const prevDl = this._lastKnownDeadlineMap[activeTaskId];
-
-        // 判定延期场景：① 在线时截止时间发生后移；② 离线首次登录感知到未读的延期记录
-        const isOnlineExtended = prevDl && prevDl !== currentTask.deadline && (new Date(currentTask.deadline.replace(/-/g, '/')).getTime() > new Date(prevDl.replace(/-/g, '/')).getTime());
-        const isOfflineExtensionUnread = !isExtAcknowledged && currentTask.lastExtension && (new Date(currentTask.deadline.replace(/-/g, '/')).getTime() > Date.now());
+        const isOnlineExtended = prevDl && prevDl !== t.deadline && (new Date(t.deadline.replace(/-/g, '/')).getTime() > new Date(prevDl.replace(/-/g, '/')).getTime());
+        const isOfflineExtensionUnread = !isExtAcknowledged && t.lastExtension && (new Date(t.deadline.replace(/-/g, '/')).getTime() > Date.now());
 
         if (isOnlineExtended || isOfflineExtensionUnread) {
           localStorage.setItem(extAckKey, '1');
-          this.showTaskExtensionModal(currentTask, currentTask.lastExtension);
+          this._lastKnownDeadlineMap[t.id] = t.deadline;
+          this.showTaskExtensionModal(t, t.lastExtension);
+          return; // 优先弹出任务延期通知
         }
-        this._lastKnownDeadlineMap[activeTaskId] = currentTask.deadline;
+        this._lastKnownDeadlineMap[t.id] = t.deadline;
       }
 
       if (unreadList.length > 0) {
@@ -11105,7 +11121,11 @@
 
       const closeExtModal = () => {
         modal.remove();
-        this.renderStudentWorkspace(true);
+        if (this.state.studentViewMode === 'workspace') {
+          this.renderStudentWorkspace(true);
+        } else {
+          this.renderMain();
+        }
       };
 
       modal.querySelector('#btn-close-ext-x').addEventListener('click', closeExtModal);
@@ -11119,6 +11139,7 @@
       const effectiveClassId = this.state.activeStudentClassId || currentUser?.classId || 'class_101';
       const activeGroupObj = this.authManager.getStudentActiveGroup(currentUser, effectiveClassId);
       const groupId = activeGroupObj.id || (currentUser && currentUser.groupId ? currentUser.groupId : 'group_1');
+      const isTaskListMode = (this.state && this.state.studentViewMode === 'task_list');
       const activeTaskId = (this.state && this.state.activeTaskId) ? this.state.activeTaskId : 'task_default';
       const allAnns = this.authManager.getAnnouncements();
 
@@ -11142,7 +11163,9 @@
           const matchClass = !a.classId || a.classId === 'all' || a.classId === effectiveClassId;
           const matchGroup = !a.targetGroupId || a.targetGroupId === 'all' || a.targetGroupId === groupId ||
             (Array.isArray(a.targetGroupIds) && (a.targetGroupIds.includes('all') || a.targetGroupIds.includes(groupId)));
-          const matchTask = a.taskId === 'task_all' || a.taskId === activeTaskId || (!a.taskId && activeTaskId === 'task_default');
+          const matchTask = isTaskListMode
+            ? true
+            : (a.taskId === 'task_all' || a.taskId === activeTaskId || (!a.taskId && activeTaskId === 'task_default'));
           return matchClass && matchGroup && matchTask;
         })
         .sort((a, b) => (b.id > a.id ? 1 : -1));
