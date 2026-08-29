@@ -14118,84 +14118,12 @@
       });
 
       let overallRating = 4;
-      modal.querySelectorAll('#star-rating-logic .star').forEach(s => {
+      modal.querySelectorAll('#star-rating-overall .star').forEach(s => {
         s.addEventListener('click', (e) => {
           overallRating = Number(e.target.dataset.val);
-          modal.querySelectorAll('#star-rating-logic .star').forEach(st => {
+          modal.querySelectorAll('#star-rating-overall .star').forEach(st => {
             const v = Number(st.dataset.val);
             st.style.color = v <= overallRating ? '#f59e0b' : '#475569';
-          });
-        });
-      });
-      document.body.appendChild(modal);
-
-      const closeModal = () => document.body.removeChild(modal);
-      modal.querySelector('#btn-close-meeting').addEventListener('click', closeModal);
-      modal.querySelector('#btn-cancel-meeting').addEventListener('click', closeModal);
-
-      // ── 第 2 题与第 3 题独立子项条件动态展开 ──
-      const peerSelect = modal.querySelector('#meeting-peer-review-select');
-      const peerDivBox = modal.querySelector('#meeting-peer-divergence-box');
-      const transitionSelect = modal.querySelector('#meeting-transition-select');
-      const transDivBox = modal.querySelector('#meeting-transition-sections-box');
-
-      const updatePeerBox = () => {
-        const pVal = peerSelect ? peerSelect.value : '';
-        const needShow = pVal.includes('不同看法') || pVal.includes('商榷');
-        if (peerDivBox) {
-          peerDivBox.style.display = needShow ? 'flex' : 'none';
-          if (!needShow) peerDivBox.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = false);
-        }
-      };
-
-      const updateTransBox = () => {
-        const tVal = transitionSelect ? transitionSelect.value : '';
-        const needShow = tVal.includes('生硬') || tVal.includes('独立');
-        if (transDivBox) {
-          transDivBox.style.display = needShow ? 'flex' : 'none';
-          if (!needShow) transDivBox.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = false);
-        }
-      };
-
-      if (peerSelect) {
-        peerSelect.addEventListener('change', updatePeerBox);
-        updatePeerBox();
-      }
-      if (transitionSelect) {
-        transitionSelect.addEventListener('change', updateTransBox);
-        updateTransBox();
-      }
-
-      let logicRating = 4;
-      let balanceRating = 5;
-      let confidenceRating = 5;
-
-      modal.querySelectorAll('#star-rating-logic .star').forEach(s => {
-        s.addEventListener('click', (e) => {
-          logicRating = Number(e.target.dataset.val);
-          modal.querySelectorAll('#star-rating-logic .star').forEach(st => {
-            const v = Number(st.dataset.val);
-            st.style.color = v <= logicRating ? '#f59e0b' : '#475569';
-          });
-        });
-      });
-
-      modal.querySelectorAll('#star-rating-balance .star').forEach(s => {
-        s.addEventListener('click', (e) => {
-          balanceRating = Number(e.target.dataset.val);
-          modal.querySelectorAll('#star-rating-balance .star').forEach(st => {
-            const v = Number(st.dataset.val);
-            st.style.color = v <= balanceRating ? '#f59e0b' : '#475569';
-          });
-        });
-      });
-
-      modal.querySelectorAll('#star-rating-confidence .star').forEach(s => {
-        s.addEventListener('click', (e) => {
-          confidenceRating = Number(e.target.dataset.val);
-          modal.querySelectorAll('#star-rating-confidence .star').forEach(st => {
-            const v = Number(st.dataset.val);
-            st.style.color = v <= confidenceRating ? '#f59e0b' : '#475569';
           });
         });
       });
