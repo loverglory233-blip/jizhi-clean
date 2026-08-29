@@ -1125,6 +1125,7 @@ export class App {
         }
 
         // 2. 责任编辑过程守护：周期性读取【实际贡献百分比】与【研讨发言投入】
+        const minContribThreshold = taskDurMin < 60 ? 150 : (taskDurMin <= 180 ? 300 : 600);
         if (!this.lastS2ContribNudgeTime || now - this.lastS2ContribNudgeTime > s2NudgeCooldownMs) {
           // 1. 计算总投入与每位成员的实际贡献百分比（100% 依据 Etherpad 真实写作字数贡献）
           let totalContrib = 0;
@@ -1134,7 +1135,7 @@ export class App {
 
           // 2. 找出“写作贡献百分比显著滞后（<= 15%）”的同学
           const severeInactiveMembers = [];
-          if (totalContrib >= 150) {
+          if (totalContrib >= minContribThreshold) {
             membersList.forEach(m => {
               const memContrib = (contribs[m.id] || contribs[m.studentCode] || 0);
               const pct = totalContrib > 0 ? Math.round((memContrib / totalContrib) * 100) : 33;
@@ -3965,16 +3966,18 @@ ${propText}
     const curTask = allTasks.find(t => t.id === this.state.activeTaskId);
     const totalAllocMinutes = Object.values((this.state.stage1 && this.state.stage1.contract && this.state.stage1.contract.timeAllocations) || {}).reduce((a, b) => a + Number(b || 0), 0);
     const taskDurMin = (curTask && curTask.durationMinutes) ? Number(curTask.durationMinutes) : (totalAllocMinutes || 60);
-    const ssrlCooldownMs = taskDurMin < 100 ? 210000 : (taskDurMin <= 240 ? 360000 : 600000);
+    const ssrlCooldownMs = taskDurMin < 60 ? 210000 : (taskDurMin <= 180 ? 360000 : 600000);
+    const minNewProgressLen = taskDurMin < 60 ? 100 : (taskDurMin <= 180 ? 200 : 400);
+    const minContribThreshold = taskDurMin < 60 ? 150 : (taskDurMin <= 180 ? 300 : 600);
     const cooldownPassed = (now - lastWarnTime) >= ssrlCooldownMs;
-    const hasMeaningfulProgress = (plainLen - lastWarnLen) >= 150; // 且写了新内容
+    const hasMeaningfulProgress = (plainLen - lastWarnLen) >= minNewProgressLen; // 且写了新内容
 
-    if (plainLen >= 300 && membersList.length >= 2 && cooldownPassed && (lastWarnTime === 0 || hasMeaningfulProgress)) {
+    if (plainLen >= minContribThreshold && membersList.length >= 2 && cooldownPassed && (lastWarnTime === 0 || hasMeaningfulProgress)) {
       const contribs = this.state.stage2.memberContributions || {};
       let totalContrib = 0;
       membersList.forEach(m => { totalContrib += (contribs[m.id] || contribs[m.studentCode] || 0); });
 
-      if (totalContrib >= 150 || plainLen >= 300) {
+      if (totalContrib >= minContribThreshold || plainLen >= minContribThreshold) {
         // 方案 A 规则：检查是否存在显著失衡：某位成员占比 >= 55%，且有成员贡献率 <= 15%
         const pcts = membersList.map(m => {
           const val = (contribs[m.id] || contribs[m.studentCode] || 0);
