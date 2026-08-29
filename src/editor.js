@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles } from "./constants.js?v=20260829_v686";
-import { callCozeAgentAPI } from "./agents.js?v=20260829_v686";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs } from "./utils.js?v=20260829_v686";
+import { AgentProfiles } from "./constants.js?v=20260829_v687";
+import { callCozeAgentAPI } from "./agents.js?v=20260829_v687";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs } from "./utils.js?v=20260829_v687";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -1781,7 +1781,7 @@ function renderStage1Canvas(canvas, state, handlers) {
 function renderStage2Canvas(canvas, state, handlers) {
   const s2 = state.stage2;
   // 🧹 自动清理旧版本残留的预设提纲模版，确保初始纯净 0 字
-  if (s2.unifiedContent && (s2.unifiedContent.includes('一、研究背景与意义') || s2.unifiedContent.includes('请在此处撰写正文') || s2.unifiedContent.length === 2016)) {
+  if (s2.unifiedContent && (s2.unifiedContent.includes('一、研究背景与意义') || s2.unifiedContent.includes('请在此处撰写正文'))) {
     s2.unifiedContent = '';
   }
   const actionPlan = s2.actionPlan;
