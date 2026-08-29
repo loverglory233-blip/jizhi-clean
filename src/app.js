@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260830_v696";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash } from "./utils.js?v=20260830_v696";
-import { callCozeAgentAPI } from "./agents.js?v=20260830_v696";
-import { AuthManager } from "./auth.js?v=20260830_v696";
-import { CloudSyncEngine } from "./sync.js?v=20260830_v696";
-import { renderLoginView } from "./login.js?v=20260830_v696";
-import { renderTeacherPortal } from "./teacher.js?v=20260830_v696";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260830_v696";
+} from "./constants.js?v=20260830_v697";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash } from "./utils.js?v=20260830_v697";
+import { callCozeAgentAPI } from "./agents.js?v=20260830_v697";
+import { AuthManager } from "./auth.js?v=20260830_v697";
+import { CloudSyncEngine } from "./sync.js?v=20260830_v697";
+import { renderLoginView } from "./login.js?v=20260830_v697";
+import { renderTeacherPortal } from "./teacher.js?v=20260830_v697";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260830_v697";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260830_v696";
+} from "./editor.js?v=20260830_v697";
 
 // Make renderChat available on window for sync callbacks
 if (typeof window !== "undefined") {
@@ -3981,14 +3981,11 @@ ${propText}
 
     // ═══════════════════════════════════════════════════════════════
     // 🛡️ 严格阶梯时序门禁 3: 审稿编辑【三审·终审行文扫描】
-    // 必须在【半程会议清单下发修改之后】(checklist_issued)，且【严格限定在开始撰写参考文献】时触发！
+    // 必须在【半程会议清单下发修改之后】(checklist_issued)，且【检测到撰写参考文献章节】时即刻触发！
     // ═══════════════════════════════════════════════════════════════
-    const refIndex = rawDoc.search(/(?:六、|第6章|第六部分)?\s*(?:参考文献|References)/i);
-    const refContentAfter = (refIndex !== -1) ? rawDoc.slice(refIndex).trim() : '';
-    // 严格检测：文档中必须已进入参考文献章节，且在参考文献下方已实际起草了条目（字数 >= 30 字）
-    const isWritingReferences = (refIndex !== -1) && (refContentAfter.length >= 30);
+    const hasReferencesSection = /(?:六、|第6章|第六部分)?\s*(?:参考文献|References)/i.test(newContent);
 
-    if (s2.reviewMilestone === 'checklist_issued' && isWritingReferences && timeSinceLastReviewing > 30000) {
+    if (s2.reviewMilestone === 'checklist_issued' && hasReferencesSection && timeSinceLastReviewing > 30000) {
       s2.reviewMilestone = 'final_review_done';
       const refReviewMsg = {
         sender: 'reviewingEditor',
