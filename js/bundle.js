@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260830_v734
+ * Version: 20260830_v735
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260830_v734';
+  const APP_VERSION = '20260830_v735';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -9129,14 +9129,6 @@
       s2.unifiedContent = '';
     }
     const actionPlan = s2.actionPlan;
-    const isStage2MeetingLocked = state.currentStage === 'stage3' || state.isFinalSubmitted;
-    const allTasks = (window.app && window.app.authManager) ? window.app.authManager.getTasks() : [];
-    const currentTask = allTasks.find(t => t.id === state.activeTaskId);
-    const isTaskDeadlineExpired = isTaskExpired(currentTask);
-    const isEditorReadonly = state.isFinalSubmitted || isTaskDeadlineExpired;
-    const membersList = Object.values(state.members || {});
-    const plainTextLen = (s2.unifiedContent || '').replace(/<[^>]*>/g, '').trim().length;
-
     const currUser = (window.app && window.app.authManager) ? window.app.authManager.getCurrentUser() : null;
     const userClassId = state.activeStudentClassId || (currUser ? currUser.classId : null) || 'class_101';
     const activeGroupObj = (window.app && window.app.authManager) ? window.app.authManager.getStudentActiveGroup(currUser, userClassId) : null;
@@ -9146,16 +9138,22 @@
     const availablePapers = (window.app && window.app.authManager) ? window.app.authManager.getReferencePapers(userGroupId, userClassId, activeTaskId) : [];
     const paperBtnLabel = availablePapers.length > 0 ? `📚 查阅参考范文 (${availablePapers.length}篇)` : '📚 查阅参考范文库';
 
+    const allTasks = (window.app && window.app.authManager) ? window.app.authManager.getTasks() : [];
+    const currentTask = allTasks.find(t => t.id === state.activeTaskId);
+    const isTaskDeadlineExpired = isTaskExpired(currentTask);
     const confirmedDraftMap = s2.confirmedMembers || {};
     const isMemberDone = (map, m) => {
       if (!map || !m) return false;
       return !!(map[m.id] || map[m.studentCode] || map[m.username] || (m.name && map[m.name]));
     };
+    const membersList = Object.values(state.members || {});
     const confirmedDraftCount = membersList.filter(m => isMemberDone(confirmedDraftMap, m)).length;
     const totalCount = membersList.length || 3;
     const currUserCode = state.currentUser || (currUser ? currUser.studentCode : 'A');
     const isUserDraftConfirmed = isMemberDone(confirmedDraftMap, { id: currUserCode, studentCode: currUser?.studentCode, username: currUser?.username, name: currUser?.name });
-    const isDraftFullyConfirmed = s2.isDraftConfirmed || (confirmedDraftCount >= totalCount && totalCount > 0);
+    const isDraftFullyConfirmed = s2.isDraftConfirmed || (confirmedDraftCount >= totalCount && totalCount > 0) || (state.groupMaxStage === 'stage3');
+    const isEditorReadonly = state.isFinalSubmitted || isTaskDeadlineExpired || (state.groupMaxStage === 'stage3') || isDraftFullyConfirmed;
+    const plainTextLen = (s2.unifiedContent || '').replace(/<[^>]*>/g, '').trim().length;
 
     // 🛡️ 极致单例保护：若 Etherpad 协同编辑器或富文本编辑器已经在当前画布上活跃运行，严禁 innerHTML 销毁重绘！
     const existingFrame = canvas.querySelector('#stage2-etherpad-frame') || canvas.querySelector('#stage2-word-editor.ql-container');
