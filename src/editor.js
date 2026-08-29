@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles } from "./constants.js?v=20260830_v705";
-import { callCozeAgentAPI } from "./agents.js?v=20260830_v705";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs } from "./utils.js?v=20260830_v705";
+import { AgentProfiles } from "./constants.js?v=20260830_v706";
+import { callCozeAgentAPI } from "./agents.js?v=20260830_v706";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs } from "./utils.js?v=20260830_v706";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -1931,10 +1931,14 @@ function renderStage2Canvas(canvas, state, handlers) {
     }
     const btnDraft = canvas.querySelector('#btn-confirm-stage2-draft');
     if (btnDraft) {
+      const draftBtnText = isDraftFullyConfirmed
+        ? '🎉 全员已确认初稿 (已解锁阶段三)'
+        : (isUserDraftConfirmed ? `✅ 您已确认 (等待组员 ${confirmedDraftCount}/${totalCount})` : '✍️ 确认完成正文初稿');
       btnDraft.disabled = isUserDraftConfirmed || isEditorReadonly;
-      btnDraft.innerText = isUserDraftConfirmed ? '✅ 您已确认完成初稿' : '✍️ 确认完成正文初稿';
-      btnDraft.style.background = isUserDraftConfirmed ? '#f1f5f9' : 'linear-gradient(135deg, #059669, #047857)';
+      btnDraft.innerText = draftBtnText;
+      btnDraft.style.background = isUserDraftConfirmed ? '#ecfdf5' : 'linear-gradient(135deg, #059669, #047857)';
       btnDraft.style.color = isUserDraftConfirmed ? '#059669' : 'white';
+      btnDraft.style.border = isUserDraftConfirmed ? '1px solid #a7f3d0' : 'none';
       btnDraft.style.cursor = isUserDraftConfirmed || isEditorReadonly ? 'default' : 'pointer';
     }
     return;
@@ -2071,8 +2075,8 @@ function renderStage2Canvas(canvas, state, handlers) {
           </div>
         </div>
         <div>
-          <button id="btn-confirm-stage2-draft" ${isUserDraftConfirmed || isEditorReadonly ? 'disabled' : ''} style="background:${isUserDraftConfirmed ? '#f1f5f9' : 'linear-gradient(135deg, #059669, #047857)'}; border:${isUserDraftConfirmed ? '1px solid #cbd5e1' : 'none'}; color:${isUserDraftConfirmed ? '#059669' : 'white'}; padding:6px 14px; border-radius:6px; font-size:12px; font-weight:700; cursor:${isUserDraftConfirmed || isEditorReadonly ? 'default' : 'pointer'}; box-shadow:${isUserDraftConfirmed ? 'none' : '0 2px 8px rgba(5,150,105,0.25)'};">
-            ${isUserDraftConfirmed ? '✅ 您已确认完成初稿' : '✍️ 确认完成正文初稿'}
+          <button id="btn-confirm-stage2-draft" ${isUserDraftConfirmed || isEditorReadonly ? 'disabled' : ''} style="background:${isUserDraftConfirmed ? '#ecfdf5' : 'linear-gradient(135deg, #059669, #047857)'}; border:${isUserDraftConfirmed ? '1px solid #a7f3d0' : 'none'}; color:${isUserDraftConfirmed ? '#059669' : 'white'}; padding:6px 14px; border-radius:6px; font-size:12px; font-weight:700; cursor:${isUserDraftConfirmed || isEditorReadonly ? 'default' : 'pointer'}; box-shadow:${isUserDraftConfirmed ? 'none' : '0 2px 8px rgba(5,150,105,0.25)'};">
+            ${isDraftFullyConfirmed ? '🎉 全员已确认初稿 (已解锁阶段三)' : (isUserDraftConfirmed ? `✅ 您已确认 (等待组员 ${confirmedDraftCount}/${totalCount})` : '✍️ 确认完成正文初稿')}
           </button>
         </div>
       </div>

@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260830_v705
+ * Version: 20260830_v706
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260830_v705';
+  const APP_VERSION = '20260830_v706';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -9175,10 +9175,14 @@
       }
       const btnDraft = canvas.querySelector('#btn-confirm-stage2-draft');
       if (btnDraft) {
+        const draftBtnText = isDraftFullyConfirmed
+          ? '🎉 全员已确认初稿 (已解锁阶段三)'
+          : (isUserDraftConfirmed ? `✅ 您已确认 (等待组员 ${confirmedDraftCount}/${totalCount})` : '✍️ 确认完成正文初稿');
         btnDraft.disabled = isUserDraftConfirmed || isEditorReadonly;
-        btnDraft.innerText = isUserDraftConfirmed ? '✅ 您已确认完成初稿' : '✍️ 确认完成正文初稿';
-        btnDraft.style.background = isUserDraftConfirmed ? '#f1f5f9' : 'linear-gradient(135deg, #059669, #047857)';
+        btnDraft.innerText = draftBtnText;
+        btnDraft.style.background = isUserDraftConfirmed ? '#ecfdf5' : 'linear-gradient(135deg, #059669, #047857)';
         btnDraft.style.color = isUserDraftConfirmed ? '#059669' : 'white';
+        btnDraft.style.border = isUserDraftConfirmed ? '1px solid #a7f3d0' : 'none';
         btnDraft.style.cursor = isUserDraftConfirmed || isEditorReadonly ? 'default' : 'pointer';
       }
       return;
@@ -9315,8 +9319,8 @@
             </div>
           </div>
           <div>
-            <button id="btn-confirm-stage2-draft" ${isUserDraftConfirmed || isEditorReadonly ? 'disabled' : ''} style="background:${isUserDraftConfirmed ? '#f1f5f9' : 'linear-gradient(135deg, #059669, #047857)'}; border:${isUserDraftConfirmed ? '1px solid #cbd5e1' : 'none'}; color:${isUserDraftConfirmed ? '#059669' : 'white'}; padding:6px 14px; border-radius:6px; font-size:12px; font-weight:700; cursor:${isUserDraftConfirmed || isEditorReadonly ? 'default' : 'pointer'}; box-shadow:${isUserDraftConfirmed ? 'none' : '0 2px 8px rgba(5,150,105,0.25)'};">
-              ${isUserDraftConfirmed ? '✅ 您已确认完成初稿' : '✍️ 确认完成正文初稿'}
+            <button id="btn-confirm-stage2-draft" ${isUserDraftConfirmed || isEditorReadonly ? 'disabled' : ''} style="background:${isUserDraftConfirmed ? '#ecfdf5' : 'linear-gradient(135deg, #059669, #047857)'}; border:${isUserDraftConfirmed ? '1px solid #a7f3d0' : 'none'}; color:${isUserDraftConfirmed ? '#059669' : 'white'}; padding:6px 14px; border-radius:6px; font-size:12px; font-weight:700; cursor:${isUserDraftConfirmed || isEditorReadonly ? 'default' : 'pointer'}; box-shadow:${isUserDraftConfirmed ? 'none' : '0 2px 8px rgba(5,150,105,0.25)'};">
+              ${isDraftFullyConfirmed ? '🎉 全员已确认初稿 (已解锁阶段三)' : (isUserDraftConfirmed ? `✅ 您已确认 (等待组员 ${confirmedDraftCount}/${totalCount})` : '✍️ 确认完成正文初稿')}
             </button>
           </div>
         </div>
@@ -14194,12 +14198,32 @@
             </div>
           </div>
           <div class="teacher-modal-footer" style="padding:12px 20px; border-top:1px solid #e2e8f0; display:flex; justify-content:flex-end; gap:10px;">
-            <button class="modal-btn cancel" id="btn-cancel-meeting">取消</button>
-            <button class="modal-btn submit ann-theme" id="btn-submit-meeting">🚀 提交打卡并生成【半程编辑修正清单】</button>
+            <button class="modal-btn cancel" id="btn-cancel-meeting">关闭</button>
+            <button class="modal-btn submit ann-theme" id="btn-submit-meeting" ${isCurrentUserSubmitted ? 'disabled style="background:#ecfdf5; border:1px solid #a7f3d0; color:#059669; font-weight:800; cursor:default; box-shadow:none;"' : ''}>
+              ${isCurrentUserSubmitted ? '✅ 您已完成打卡 (已提交)' : '🚀 提交打卡并生成【半程编辑修正清单】'}
+            </button>
           </div>
         </div>
       `;
       document.body.appendChild(modal);
+
+      // 🛡️ 若已提交过，回填历史选择数据供查阅
+      if (existingSub) {
+        if (existingSub.ideationConsistency) modal.querySelector('#meeting-ideation-select').value = existingSub.ideationConsistency;
+        if (existingSub.transitionState) modal.querySelector('#meeting-transition-select').value = existingSub.transitionState;
+        if (existingSub.styleState) modal.querySelector('#meeting-style-select').value = existingSub.styleState;
+        if (existingSub.bAcademic) modal.querySelector('#meeting-bottleneck-academic').value = existingSub.bAcademic;
+        if (existingSub.userText) modal.querySelector('#meeting-input-text').value = existingSub.userText;
+        if (Array.isArray(existingSub.ideationSections)) {
+          modal.querySelectorAll('input[name="ideation-sec"]').forEach(cb => { cb.checked = existingSub.ideationSections.includes(cb.value); });
+        }
+        if (Array.isArray(existingSub.transSections)) {
+          modal.querySelectorAll('input[name="trans-div-sec"]').forEach(cb => { cb.checked = existingSub.transSections.includes(cb.value); });
+        }
+        if (Array.isArray(existingSub.styleSections)) {
+          modal.querySelectorAll('input[name="style-div-sec"]').forEach(cb => { cb.checked = existingSub.styleSections.includes(cb.value); });
+        }
+      }
 
       const closeModal = () => document.body.removeChild(modal);
       modal.querySelector('#btn-close-meeting').addEventListener('click', closeModal);
