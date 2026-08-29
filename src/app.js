@@ -4278,28 +4278,30 @@ ${propText}
       alert(`✅ 你 (${memberName}) 已成功提交半程自查与互阅打卡！\n\n目前组内已打卡：${submittedCount}/${totalMembersCount} 人。\n全组成员已集齐！责任编辑已在右侧研讨区梳理出本组自查认知分歧，请组员先在讨论区针对分歧商讨对齐，稍后审稿专家将为大家深度质检并下发【半程修正清单】！`);
 
       // 2. 异步调用扣子【责任编辑】Coze API: 匿名化宏观总结与分歧引导
+      const avgOverallRating = (allSubs.reduce((sum, s) => sum + (s.overallRating || 5), 0) / (allSubs.length || 1)).toFixed(1);
       const managingPrompt = `全组成员已全部完成半程全篇综合自查打卡（共 ${totalMembersCount} 人）：
 • 课题: 《${topic}》
-• 个人构思契合度诊断: ${hasIdeationDev ? `部分成员反馈方案局部偏离最初设想（重点涉及: ${ideationFocusText}）` : '全员高度符合最初设想'}
-• 全篇连贯性与前后脱节诊断: ${hasTransDev ? `多位成员指出存在前后脱节（重点涉及: ${transFocusText}）` : '全篇前后衔接自然'}
-• 文风语体与专业术语诊断: ${hasStyleDev ? `组内反馈存在口语化与术语不统一（重点涉及: ${styleFocusText}）` : '文风严谨术语统一'}
-• 核心学术瓶颈共识: ${primaryAcademicB}
-• 组内提问与修改建议汇总: ${questionsList}
+• 个人构思契合度: ${hasIdeationDev ? `部分成员反馈方案局部偏离最初设想（涉及: ${ideationFocusText}）` : '全员高度符合最初设想'}
+• 全篇前后连贯度: ${hasTransDev ? `多数成员明确指出存在前后脱节（涉及: ${transFocusText}）` : '全篇前后衔接自然'}
+• 文风语体与术语: ${hasStyleDev ? `组内反馈存在口语化与术语不统一（涉及: ${styleFocusText}）` : '全篇文风严谨术语统一'}
+• 核心学术瓶颈: ${primaryAcademicB}
+• 整体质量自评打星: 均分 ${avgOverallRating} 星 / 5 星
+• 组内补充建议与提问: ${questionsList}
 
 请作为学术编辑部责任编辑（协同主持人与学伴）发表一段客观、充实、富有启发性的发言（字数控制在 130~150 字，严禁敷衍，严禁点具体学生人名，用“部分成员反馈/多数同学指出”）：
 1. 肯定全组认真通读了全篇已有内容，宏观呈现诊断共识：
    ① 列出构思偏差与多处脱节焦点（如 ${transFocusText}）；
-   ② 点出文风语体需统一的章节（如 ${styleFocusText}）；
-2. 给出具体的研讨引导：号召大家在讨论区围绕“如何将假设与方法接合起来”、“如何统一学术语体”展开 2~3 分钟交流商讨；
+   ② 点出文风语体需统一的章节（如 ${styleFocusText}），若质量打分较高则顺带肯定整体质量；
+2. 给出实用的 1 句话研讨切入指引（建议大家先别急于单干改字，先在讨论区围绕核心脱节商讨 2 分钟，把思路对齐后再动手）；
 3. 预告审稿专家正在通读全篇草稿，稍后将针对大家的瓶颈与脱节下发深度质检与【半程修正清单】！`;
 
       let managingText = await callCozeAgentAPI('managingEditor', managingPrompt, { stage: 'stage2', topic, bottleneck: primaryAcademicB });
       if (!managingText || managingText.trim().length === 0) {
-        managingText = `🤝 【责任编辑·研讨引导】：全员自查打卡已完成！我汇总了大家的诊断，梳理出以下核心焦点：
-  1. 🎯 构思与脱节共识：${hasIdeationDev ? `部分成员反馈 ${ideationFocusText} 偏离了最初设想；` : ''}${hasTransDev ? `多数成员指出存在前后脱节（重点涉及 ${transFocusText}）；` : '全篇前后衔接基本顺畅；'}
-  2. 🎨 文风与术语规范：${hasStyleDev ? `大家一致指出 ${styleFocusText} 存在口语化表述与术语混用，全篇需统一为规范学术语体；` : '全篇文风严谨规范；'}
+        managingText = `🤝 【责任编辑·自查研判与对齐引导】：全员半程综合打卡已完成！首先肯定大家认真通读了全篇已有内容。汇总全组自查，梳理出以下核心焦点：
+  1. 🎯 构思与脱节焦点：${hasIdeationDev ? `部分成员反馈 ${ideationFocusText} 偏离了最初设想；` : ''}${hasTransDev ? `多数成员明确指出了前后脱节（重点涉及 ${transFocusText}）；` : '全篇前后衔接顺畅；'}
+  2. 🎨 文风与术语规范：${hasStyleDev ? `组内指出 ${styleFocusText} 存在口语化表述与术语混用；` : '全篇文风严谨规范，'}整体质量自评给出了 ${avgOverallRating} 星的高分！
   3. 💡 核心瓶颈：全组聚焦在『${primaryAcademicB}』。
-📢 请全组在讨论区围绕：『如何把假设与方法紧密接合起来』与『统一学术语体』展开 2~3 分钟研讨！审稿专家正在通读全篇，稍后给出学术处方！`;
+💡 【研讨切入建议】：建议大家先别急于单干改字，先在讨论区围绕『如何把假设与方法接合起来、统一学术术语』交流 2 分钟，把思路对齐后再动手！审稿专家正在通读全篇，稍后给出学术处方！`;
       }
 
       const managingMsg = {
@@ -4347,17 +4349,17 @@ ${propText}
 【审稿编辑一审记录】:
 "${priorFirstReview}"
 
-请通读下方【小组当前真实正文草稿】全文，作为国家级教育类期刊资深审稿编辑，发表 130~150 字的深度学术质检（【全局红线】：顺应已有框架微调，严禁推翻重写，严禁预设具体统计工具，有数据评数据，无数据评方案）：
-① 直击脱节与瓶颈：通读学生真实草稿，针对学生卡壳的『${ctx.bAcademic}』与脱节处（${ctx.transFocus}），给出切中其具体课题的学术化解处方；
-② 文风与术语润色示范：指出口语化章节（${ctx.styleFocus}）中的典型口语问题，给出规范学术语体改写示范；
+请通读下方【小组当前真实正文草稿】全文，作为国家级教育类期刊资深审稿编辑，发表 130~150 字的深度学术质检（【全局红线】：讲人话、出实招！顺应已有框架微调，严禁推翻重写，有数据看数据，没数据看设计，绝不强求跑真实数据）：
+① 直击脱节与瓶颈：通读学生真实草稿，针对学生卡壳的『${ctx.bAcademic}』与脱节处（${ctx.transFocus}），给出切中其具体课题的通俗化解思路；
+② 文风与术语润色示范：指出口语化章节（${ctx.styleFocus}）中的典型口语问题，给出规范学术第三人称改写示范；
 ③ 反思与定稿冲刺：对后续反思与定稿提出明确要求，提示学生若对修改有疑问可随时 @审稿编辑 咨询！纯自然语言输出，130~150字。`;
 
     let reviewingText = await callCozeAgentAPI('reviewingEditor', reviewingPrompt, { stage: 'stage2', topic: ctx.topic, bottleneck: ctx.bAcademic, actualDoc: fullDoc, priorReview: priorFirstReview });
     if (!reviewingText || reviewingText.trim().length === 0) {
       reviewingText = `📝 【审稿编辑·学术质检与答疑】：通读了全组目前撰写的正文草稿，针对大家卡壳的【${ctx.bAcademic}】与衔接脱节问题：
-① 假设与方法闭环：通读正文，第三章提出的核心假设与第四章测量设计存在局部脱节，建议在方法中补齐对应的操作化测度指标，实现 1:1 闭环；
-② 文风统一规范：通读 ${ctx.styleFocus}，消除“我们觉得”等第一人称口语，润色为严谨客观的第三人称学术语体；
-③ 局限预判：在接下来的第五章深入剖析方案在样本抽样与工具上的潜在局限。
+① 假设与方法闭环：通读正文，第三章提出的核心假设与第四章测量设计存在局部脱节，建议在方法中补齐对应的测量题目或实施指标，别让假设悬空；
+② 文风统一示范：通读 ${ctx.styleFocus}，消除“我们觉得”等第一人称口语，润色为规范客观的第三人称学术语体；
+③ 局限预判：在接下来的第五章深入剖析方案在样本抽样与实施工具上的潜在局限。
 👉 我已为大家下发了 3 项可打勾的【半程修正清单】，若对具体修改有疑问可随时 @审稿编辑 咨询，请全组分工落实！`;
     }
     this.state.stage2SecondReviewText = reviewingText;
