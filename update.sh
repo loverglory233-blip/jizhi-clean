@@ -16,7 +16,7 @@ TARGET_DIRS=($(printf "%s\n" "${TARGET_DIRS[@]}" | sort -u))
 
 echo "📁 目标目录: ${TARGET_DIRS[*]}"
 
-TARGET_VERSION="20260829_v668"
+TARGET_VERSION="20260829_v669"
 
 echo "⚡ [2/4] 极速同步最新代码包 ($TARGET_VERSION)..."
 TMP=/tmp/jizhi_update
@@ -271,30 +271,29 @@ if [ -n "$EP_DIR" ]; then
 }
 EPSETEOF
 
-  # 若未响应则重启
-  if ! curl -s -I http://127.0.0.1:9001/p/test 2>/dev/null | grep -E "HTTP/(1.1|2) (200|302|404)" >/dev/null; then
-    echo "   🔄 重启 Etherpad 守护进程..."
-    fuser -k 9001/tcp 2>/dev/null || true
-    pkill -9 -f "etherpad" 2>/dev/null || true
-    sleep 1
-    cd "$EP_DIR"
-    export NODE_ENV=production
-    if [ -f "src/node/server.js" ]; then
-      nohup node src/node/server.js > /var/log/etherpad.log 2>&1 &
-    elif [ -f "bin/run.sh" ]; then
-      nohup bash bin/run.sh --root > /var/log/etherpad.log 2>&1 &
-    fi
+  # 🧹 彻底清除导致前端 pad.js 白屏/卡死 loading 的未兼容旧插件注册表
+  rm -f "$EP_DIR/var/plugin-definitions.json" 2>/dev/null || true
 
-    for i in {1..15}; do
-      if curl -s -I http://127.0.0.1:9001/p/test 2>/dev/null | grep -E "HTTP/(1.1|2) (200|302|404)" >/dev/null; then
-        echo "   🟢 Etherpad 9001 端口就绪！(耗时 $i 秒)"
-        break
-      fi
-      sleep 1
-    done
-  else
-    echo "   🟢 Etherpad 9001 端口已在健康运行"
+  echo "   🔄 重启 Etherpad 官方纯净高可用进程..."
+  fuser -k 9001/tcp 2>/dev/null || true
+  pkill -9 -f "etherpad" 2>/dev/null || true
+  sleep 1
+  cd "$EP_DIR"
+  git checkout src/ 2>/dev/null || true
+  export NODE_ENV=production
+  if [ -f "src/node/server.js" ]; then
+    nohup node src/node/server.js > /var/log/etherpad.log 2>&1 &
+  elif [ -f "bin/run.sh" ]; then
+    nohup bash bin/run.sh --root > /var/log/etherpad.log 2>&1 &
   fi
+
+  for i in {1..15}; do
+    if curl -s -I http://127.0.0.1:9001/p/test 2>/dev/null | grep -E "HTTP/(1.1|2) (200|302|404)" >/dev/null; then
+      echo "   🟢 Etherpad 官方纯净协同引擎就绪！(耗时 $i 秒)"
+      break
+    fi
+    sleep 1
+  done
 fi
 
 # 校验 Nginx 反代连通性
