@@ -2021,7 +2021,7 @@ function renderStage2Canvas(canvas, state, handlers) {
           const padName = `jizhi_${activeTaskId}_${userGroupId}`;
           const currUserName = (currUser && (currUser.name || currUser.username)) || '组员';
           const currUserColor = (state.members && state.members[currUserCode]?.color) || '#2563eb';
-          const padUrl = `/p/${padName}?userName=${encodeURIComponent(currUserName)}&userColor=${encodeURIComponent(currUserColor)}&showChat=false&showLineNumbers=true&showControls=${isEditorReadonly ? 'false' : 'true'}&lang=zh-cn`;
+          const padUrl = `/p/${padName}?userName=${encodeURIComponent(currUserName)}&userColor=${encodeURIComponent(currUserColor)}&showChat=false&showLineNumbers=true&showControls=${isEditorReadonly ? 'false' : 'true'}&lang=zh-hans`;
           
           return `
             <div class="word-editor-container" style="display:flex; flex-direction:column; height:100%; min-height:480px; border-radius:10px; overflow:hidden; border:1px solid #cbd5e1; box-shadow:0 4px 16px rgba(15,23,42,0.06); background:#ffffff; position:relative;">
@@ -2363,7 +2363,7 @@ function renderStage3Canvas(canvas, state, handlers) {
         const padName = `jizhi_${activeTaskId}_${userGroupId}`;
         const currUserName = (currUser && (currUser.name || currUser.username)) || '组员';
         const currUserColor = (state.members && state.members[currUserCode]?.color) || '#2563eb';
-        const padUrl = `/p/${padName}?userName=${encodeURIComponent(currUserName)}&userColor=${encodeURIComponent(currUserColor)}&showChat=false&showLineNumbers=true&showControls=true&lang=zh-cn`;
+        const padUrl = `/p/${padName}?userName=${encodeURIComponent(currUserName)}&userColor=${encodeURIComponent(currUserColor)}&showChat=false&showLineNumbers=true&showControls=true&lang=zh-hans`;
 
         return `
           <div class="card" style="flex:1; display:flex; flex-direction:column; padding:16px; min-height:600px;">
