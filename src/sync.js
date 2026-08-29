@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState } from './constants.js?v=20260829_v659';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin } from './utils.js?v=20260829_v659';
+import { InitialState } from './constants.js?v=20260829_v660';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin } from './utils.js?v=20260829_v660';
 
 export class CloudSyncEngine {
   constructor(app) {
