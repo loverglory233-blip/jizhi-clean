@@ -1267,12 +1267,12 @@ export class AuthManager {
     };
     localStorage.setItem(STORAGE_KEY_TASKS, JSON.stringify(tasks));
 
-    // 📢 自动发布全校/全班广播教学通知，通知所有学生端任务已延期
+    // 📢 仅向该任务所属的【本班级】发布教学延期通知（绝不跨班级广播）
     this.publishAnnouncement(
       taskId,
       `⏳ 任务延期通知：截止时间已延长至 ${newDeadline}`,
-      `任课教师已将写作任务《${taskTitle}》截止时间延长至 ${newDeadline}。各小组写作工作台已自动解除只读锁定，请同学们抓紧时间推进完成！`,
-      null, 'all', '全班所有小组', targetClassId, targetClassName, ['all'], true
+      `任课教师已将写作任务《${taskTitle}》截止时间延长至 ${newDeadline}。各小组写作工作台已自动解除只读锁定，可正常协同编辑。`,
+      null, 'all', '全班所有小组', targetClassId, targetClassName, [targetClassId], true
     );
 
     this.pushGlobalMeta();

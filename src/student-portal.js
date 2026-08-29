@@ -136,9 +136,12 @@ export function renderStudentTaskPortal(container, authManager, state, onSelectT
   const groupId = activeGroupObj.id || 'group_1';
   const groupName = activeGroupObj.name || '第 1 协作小组';
 
-  // 📋 3. 严格按当前选定班级和小组过滤通知（支持全校广播 all 与本班通知）
+  // 📋 3. 严格按当前选定班级（本班）和小组过滤通知，绝不串其他班级
   const relevantAnnouncements = (announcements || []).filter(a => {
-    const matchClass = !a.classId || a.classId === 'all' || a.classId === userClass.id || (a.className && a.className === userClass.name) || (!a.classId && userClass.id === 'class_101') || (Array.isArray(a.targetClassIds) && (a.targetClassIds.includes('all') || a.targetClassIds.includes(userClass.id)));
+    if (!a) return false;
+    const matchClass = (a.classId === userClass.id) || 
+                       (a.className && a.className === userClass.name) || 
+                       (Array.isArray(a.targetClassIds) && a.targetClassIds.includes(userClass.id));
     const matchGroup = !a.targetGroupId || a.targetGroupId === 'all' || a.targetGroupId === groupId ||
       (Array.isArray(a.targetGroupIds) && (a.targetGroupIds.includes('all') || a.targetGroupIds.includes(groupId)));
     return matchClass && matchGroup;
