@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260830_v720";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash } from "./utils.js?v=20260830_v720";
-import { callCozeAgentAPI } from "./agents.js?v=20260830_v720";
-import { AuthManager } from "./auth.js?v=20260830_v720";
-import { CloudSyncEngine } from "./sync.js?v=20260830_v720";
-import { renderLoginView } from "./login.js?v=20260830_v720";
-import { renderTeacherPortal } from "./teacher.js?v=20260830_v720";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260830_v720";
+} from "./constants.js?v=20260830_v721";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash } from "./utils.js?v=20260830_v721";
+import { callCozeAgentAPI } from "./agents.js?v=20260830_v721";
+import { AuthManager } from "./auth.js?v=20260830_v721";
+import { CloudSyncEngine } from "./sync.js?v=20260830_v721";
+import { renderLoginView } from "./login.js?v=20260830_v721";
+import { renderTeacherPortal } from "./teacher.js?v=20260830_v721";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260830_v721";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260830_v720";
+} from "./editor.js?v=20260830_v721";
 
 // Make renderChat available on window for sync callbacks
 if (typeof window !== "undefined") {
@@ -3558,6 +3558,17 @@ ${propText}
 
         // 🛡️ 严格要求：必须全组成员每一个人都点击确认初稿后，才解锁推进至阶段三
         if (confirmedCount < totalMembersCount) {
+          const waitMsg = {
+            sender: 'managingEditor',
+            senderName: '责任编辑 · 过程学伴',
+            text: `⏳ 【责任编辑提醒】：${memberName} 同学已完成初稿确认！目前全组初稿确认进度：${confirmedCount}/${totalMembersCount} 人。请其他组员通读全文后点击上方【✍️ 确认完成正文初稿】，全组确认后将自动解锁【阶段三：答辩擂台】！`,
+            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            _timeMs: Date.now() + 200
+          };
+          this.state.chatLogs.stage2.push(waitMsg);
+          this.syncChatLogs();
+          if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+          renderChat(this.state);
           alert(`✅ 您 (${memberName}) 已成功确认正文初稿！\n\n当前组内确认进度：${confirmedCount}/${totalMembersCount} 人已确认。\n⚠️ 必须全组所有成员均完成确认后，系统才会正式解锁并自动推进至【阶段三：答辩擂台】！请提醒组内其他同学尽快确认。`);
         } else {
           s2.isDraftConfirmed = true;
@@ -3577,12 +3588,13 @@ ${propText}
               senderName: '责任编辑 · 过程学伴',
               text: `🎉 【责任编辑宣布】：恭喜！组内全员 ${totalMembersCount}/${totalMembersCount} 名成员已全部确认正文初稿定稿！阶段二圆满结束，系统自动全员解锁推进至【阶段三：答辩擂台】！`,
               timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-              _timeMs: Date.now()
+              _timeMs: Date.now() + 300
             };
             if (!this.state.chatLogs.stage2) this.state.chatLogs.stage2 = [];
             this.state.chatLogs.stage2.push(finalMsg);
             this.syncChatLogs();
             if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+            renderChat(this.state);
             alert(`🎉 恭喜！组内全部 ${totalMembersCount} 位成员已全部完成初稿确认！\n\n系统已全组解锁【阶段三：答辩擂台】！请点击顶部导航进入阶段三开始答辩。`);
             this.renderStudentWorkspace();
           }, 600);
