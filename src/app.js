@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260830_v700";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash } from "./utils.js?v=20260830_v700";
-import { callCozeAgentAPI } from "./agents.js?v=20260830_v700";
-import { AuthManager } from "./auth.js?v=20260830_v700";
-import { CloudSyncEngine } from "./sync.js?v=20260830_v700";
-import { renderLoginView } from "./login.js?v=20260830_v700";
-import { renderTeacherPortal } from "./teacher.js?v=20260830_v700";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260830_v700";
+} from "./constants.js?v=20260830_v701";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash } from "./utils.js?v=20260830_v701";
+import { callCozeAgentAPI } from "./agents.js?v=20260830_v701";
+import { AuthManager } from "./auth.js?v=20260830_v701";
+import { CloudSyncEngine } from "./sync.js?v=20260830_v701";
+import { renderLoginView } from "./login.js?v=20260830_v701";
+import { renderTeacherPortal } from "./teacher.js?v=20260830_v701";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260830_v701";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260830_v700";
+} from "./editor.js?v=20260830_v701";
 
 // Make renderChat available on window for sync callbacks
 if (typeof window !== "undefined") {
@@ -1332,14 +1332,14 @@ export class App {
             const topic = (this.state.stage1 && this.state.stage1.mergedTitle) ? this.state.stage1.mergedTitle : '本组课题';
             const priorSecondReview = this.state.stage2SecondReviewText || (this.state.chatLogs.stage2 || []).filter(m => m.sender === 'reviewingEditor').pop()?.text || '半程已下发修正清单并指导协同修改';
 
-            const sprintReviewPrompt = `团队课题《${topic}》已进入收尾冲刺阶段。
+            const sprintReviewPrompt = `团队课题《${topic}》已进入最后【参考文献】撰写与初稿定稿收尾阶段。
 【审稿编辑前期两轮质检与半程修正清单历史（记忆继承）】:
 "${priorSecondReview}"
 
-【审稿编辑终审定稿把关铁律】：在前两轮质检内容已基本定型的基础上，必须严格继承前两轮质检指导方向，严禁再提结构性大改与重写，重点仅做全篇文字行文、病句错别字、标点规范与术语统一的定稿扫描！
+【审稿编辑终审定稿把关铁律】：在前两轮质检内容已基本定型的基础上，必须严格继承前两轮质检指导方向，严禁再提结构性大改与重写，重点仅做全篇文字行文、病句错别字、标点规范与参考文献基础著录的定稿扫描！
 
 请通读下方【小组当前真实正文草稿】全文，作为审稿编辑进行终审行文质量扫描诊断（【全局红线】：严禁再提内容大改，严禁替写大段正文！）：
-请从【语句通顺度】、【病句错别字】、【标点规范】、【学术用语与前后风格术语一致性】全维度真实扫描诊断，根据当前实际草稿质量精准指出 1~3 处实际存在的具体硬伤（如哪句话存在口语化/语病、哪处术语不统一），给出规范订正建议，做好细节润色准备迎接答辩！纯自然语言输出，130~150字。`;
+请从【语句通顺度】、【病句错别字】、【标点规范】、【学术用语与前后风格一致性】及【参考文献基础著录】全维度真实扫描诊断，根据当前实际草稿质量精准指出 1~3 处实际存在的具体硬伤（如哪句话存在口语化/语病、哪处术语不统一），给出规范订正建议，做好细节润色准备迎接答辩！纯自然语言输出，130~150字。`;
 
             let sprintReviewText = await callCozeAgentAPI('reviewingEditor', sprintReviewPrompt, { stage: 'stage2', topic, actualDoc: rawDoc, priorReview: priorSecondReview });
             if (!sprintReviewText || sprintReviewText.trim().length === 0) {
