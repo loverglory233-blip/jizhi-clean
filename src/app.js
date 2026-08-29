@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260829_v657";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash } from "./utils.js?v=20260829_v657";
-import { callCozeAgentAPI } from "./agents.js?v=20260829_v657";
-import { AuthManager } from "./auth.js?v=20260829_v657";
-import { CloudSyncEngine } from "./sync.js?v=20260829_v657";
-import { renderLoginView } from "./login.js?v=20260829_v657";
-import { renderTeacherPortal } from "./teacher.js?v=20260829_v657";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260829_v657";
+} from "./constants.js?v=20260829_v658";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash } from "./utils.js?v=20260829_v658";
+import { callCozeAgentAPI } from "./agents.js?v=20260829_v658";
+import { AuthManager } from "./auth.js?v=20260829_v658";
+import { CloudSyncEngine } from "./sync.js?v=20260829_v658";
+import { renderLoginView } from "./login.js?v=20260829_v658";
+import { renderTeacherPortal } from "./teacher.js?v=20260829_v658";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260829_v658";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260829_v657";
+} from "./editor.js?v=20260829_v658";
 
 // Make renderChat available on window for sync callbacks
 if (typeof window !== "undefined") {
@@ -2532,48 +2532,83 @@ ${recentDefenseChat}
         if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
         renderChat(this.state);
 
-        // ── 🌟 第 2 条：智能体拍卖师（Coze 豆包 2.0 Pro）动态落槌点评与题目学术优化 ──
-        let voteContextPrompt = '';
+        // ── 🌟 智能体拍卖师（Coze 豆包 2.0 Pro）分两条独立播报：① 题目优化确立  ② 细化探究指引 ──
         if (isUnanimous) {
-          voteContextPrompt = `全组投票已全部完成！计票结果清单：${proposalSummaryList}。全组成员 ${totalMembersCount}/${totalMembersCount} 全票一致推选《${winningProposal.title}》（作者: ${winningProposal.authorName || winningProposal.author}）！
-请作为资深学术拍卖师发表 130~150 字的【课题敲定、题目学术优化与细化建议】：
-① 宣布《${winningProposal.title}》获得全票一致推选，正式确立为全组研究课题；
-② 【重要】：基于该提案构想，将其规范优化为一个规范严谨、高水准的学术研究论文题目（在回复中用《...》标出，如《基于...的...研究设计与实证分析》）；
-③ 针对该选题给出 2~3 条具体的细化方向建议（【核心铁律】：此时绝对不提及分工与时间！）；
-④ 引导组长带头在讨论区发起细化交流，全组共同商议完善具体实施方案。纯自然语言输出，130~150字。`;
-        } else {
-          voteContextPrompt = `全组投票已全部完成！计票结果清单：${proposalSummaryList}。投票存在分歧（未达成全票一致）！
-请作为资深学术拍卖师发表 130~150 字的【分歧协商破冰引导】：
-① 客观播报票数分布清单（【严格铁律】：对事不对人，严禁指名道姓批评，严禁提及谁投了谁）；
-② 引导各提案作者在讨论区简要阐述各自构想的核心亮点，商讨如何取长补短、求同存异或融合创新；
-③ 引导全组在讨论区深入协商，确定一个兼具理论深度与实践可行性的最终统一融合主题。纯自然语言输出，130~150字。`;
-        }
+          const titleOptimizePrompt = `全组投票已全部完成！全组成员 ${totalMembersCount}/${totalMembersCount} 全票一致推选《${winningProposal.title}》（作者: ${winningProposal.authorName || winningProposal.author}）！
+请作为资深学术拍卖师发表 70~90 字的【课题敲定与题目学术优化】：
+① 隆重宣布《${winningProposal.title}》获得全票一致推选，正式确立为全组研究课题；
+② 【核心任务】：基于该提案构想，将其提炼优化为一个规范严谨、高水准的学术研究论文题目（在回复中必须用《...》标出，如《基于...的...研究设计与实证分析》）。纯自然语言输出，70~90字。`;
 
-        let summaryText = await callCozeAgentAPI('auctioneer', voteContextPrompt, {
-          stage: 'stage1',
-          isUnanimous,
-          winningTopic: winningProposal ? winningProposal.title : '',
-          tallySummary: proposalSummaryList
-        });
+          const guidancePrompt = `全组已全票确立研究课题《${winningProposal.title}》。
+请作为资深学术拍卖师发表 70~90 字的【细化探究方向指引】：
+① 针对该选题给出 2~3 条具体的细化深化探究方向建议（【严格铁律】：此时绝对不提及任务分工与时间分配！）；
+② 明确引导组长带头在讨论区发起细化交流，全组共同商议完善具体实施方案。纯自然语言输出，70~90字。`;
 
-        if (!summaryText || summaryText.trim().length === 0) {
-          if (isUnanimous) {
-            summaryText = `🎉 【拍卖师·课题敲定与细化建议】：恭喜全组！经过热烈竞拍，《${winningProposal.title}》获得全票一致推选，正式确立为全组研究课题！针对此选题，建议可聚焦核心实施路径与关键环节深化探究。👉 请组长带头在讨论区发起交流，全组共同商议完善具体实施方案！`;
-          } else {
-            summaryText = `⚖️ 【拍卖师·分歧协商引导】：投票已落槌，计票结果为：${proposalSummaryList}。注意到组内对选题持有不同视角，存在票数分歧！这正是团队协同碰撞创新的最佳契机。建议各提案作者在讨论区简要阐明自己的设计亮点，大家共同商讨如何取长补短，确定一个兼具理论深度与实践可行性的优质主题！`;
+          let msg1Text = await callCozeAgentAPI('auctioneer', titleOptimizePrompt, {
+            stage: 'stage1',
+            isUnanimous: true,
+            winningTopic: winningProposal ? winningProposal.title : ''
+          });
+
+          let msg2Text = await callCozeAgentAPI('auctioneer', guidancePrompt, {
+            stage: 'stage1',
+            isUnanimous: true,
+            winningTopic: winningProposal ? winningProposal.title : ''
+          });
+
+          if (!msg1Text || msg1Text.trim().length === 0) {
+            msg1Text = `🎉 【学术拍卖师·课题敲定与学术定名】：恭喜全组！经全员一致推选，《${winningProposal.title}》正式确立为全组研究课题。建议本组学术论文题目正式确立为：《基于${winningProposal.title}的实证研究与方案设计》！`;
           }
-        }
+          if (!msg2Text || msg2Text.trim().length === 0) {
+            msg2Text = `💡 【学术拍卖师·细化探究指引】：针对该选题，建议重点围绕核心变量界定、理论框架支撑与研究方法路径深化探究。👉 请组长在讨论区带头组织大家展开细化交流！`;
+          }
 
-        // 若全票一致且智能体给出了优化后的《学术论文题目》，自动将公约预设题目升级为该优化题目
-        if (isUnanimous && summaryText) {
-          const matchTitle = summaryText.match(/《([^》]{4,50})》/);
+          // 提取优化后的题目暂存内存中（此时先不填入左侧公约，待组员点击生成公约时才填入）
+          const matchTitle = msg1Text.match(/《([^》]{4,50})》/);
           if (matchTitle && matchTitle[1]) {
-            s1.mergedTitle = matchTitle[1].trim();
+            s1._optimizedTitle = matchTitle[1].trim();
+          } else {
+            s1._optimizedTitle = winningProposal.title;
           }
+
+          const msg1 = { sender: 'auctioneer', text: msg1Text, timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), _timeMs: Date.now() };
+          const msg2 = { sender: 'auctioneer', text: msg2Text, timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), _timeMs: Date.now() + 100 };
+          this.state.chatLogs.stage1.push(msg1, msg2);
+        } else {
+          // ── 分歧分支：分两条播报（① 破冰播报 ② 协商融合指引） ──
+          const divergencePrompt1 = `全组投票已全部完成！计票结果清单：${proposalSummaryList}。投票存在分歧（未达成全票一致）！
+请作为资深学术拍卖师发表 60~80 字的【分歧破冰播报】：
+① 客观播报票数分布，指出组内对选题持有不同视角（【严格铁律】：对事不对人，严禁指名道姓批评，严禁提及谁投了谁）；
+② 鼓励大家这是碰撞创新、求同存异的最佳契机。纯自然语言输出，60~80字。`;
+
+          const divergencePrompt2 = `全组投票存在分歧，准备进入选题协商融合阶段。
+请作为资深学术拍卖师发表 60~80 字的【协商融合指引】：
+① 引导各提案作者在讨论区简要阐述各自构想的核心亮点；
+② 引导全组在讨论区深入协商，融合各方亮点确定一个最终统一主题。纯自然语言输出，60~80字。`;
+
+          let dMsg1 = await callCozeAgentAPI('auctioneer', divergencePrompt1, {
+            stage: 'stage1',
+            isUnanimous: false,
+            tallySummary: proposalSummaryList
+          });
+          let dMsg2 = await callCozeAgentAPI('auctioneer', divergencePrompt2, {
+            stage: 'stage1',
+            isUnanimous: false,
+            tallySummary: proposalSummaryList
+          });
+
+          if (!dMsg1 || dMsg1.trim().length === 0) {
+            dMsg1 = `⚖️ 【学术拍卖师·分歧协商破冰】：计票已落槌，计票结果为：${proposalSummaryList}。注意到组内存在不同视角，这正是团队碰撞创新、求同存异的最佳契机！`;
+          }
+          if (!dMsg2 || dMsg2.trim().length === 0) {
+            dMsg2 = `💡 【学术拍卖师·协商融合指引】：建议各提案作者在讨论区简要阐明自己的设计亮点，大家共同商讨如何取长补短，确定一个兼具理论深度与实践可行性的最终统一融合课题！`;
+          }
+
+          const msg1 = { sender: 'auctioneer', text: dMsg1, timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), _timeMs: Date.now() };
+          const msg2 = { sender: 'auctioneer', text: dMsg2, timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), _timeMs: Date.now() + 100 };
+          this.state.chatLogs.stage1.push(msg1, msg2);
         }
 
-        const summaryMsg = { sender: 'auctioneer', text: summaryText, timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), _timeMs: Date.now() };
-        this.state.chatLogs.stage1.push(summaryMsg);
         this.syncStage1();
         this.syncChatLogs();
         if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
@@ -2660,7 +2695,7 @@ ${recentDefenseChat}
     let topicDecisionReason = '';
 
     if (isUnanimous && winningP) {
-      determinedTopic = winningP.title;
+      determinedTopic = s1._optimizedTitle || winningP.title;
       topicDecisionReason = `🎉 小组成员以 ${maxV}/${totalMembersCount} 全票一致通过该选题！`;
     } else {
       const matchedFromChat = proposals.find(p => chatSnippet.includes(p.title));
@@ -2668,8 +2703,9 @@ ${recentDefenseChat}
       topicDecisionReason = winningP ? `⚖️ 投票综合遴选推举最高票选题，并结合研讨记录生成融合题目。` : `⚖️ 已读取全组提案与研讨记录提炼融合共识选题。`;
     }
 
+    // 🌟 点了生成公约草案后，才正式将优化/融合后的题目填入公约
     if (!s1.mergedTitle || s1.mergedTitle.trim().length === 0 || s1.mergedTitle === '待组员协商填入融合主题') {
-      s1.mergedTitle = determinedTopic || (proposals[0] ? proposals[0].title : '本组融合学术研究课题');
+      s1.mergedTitle = s1._optimizedTitle || determinedTopic || (proposals[0] ? proposals[0].title : '本组融合学术研究课题');
     }
 
     if (!s1.contract) s1.contract = {};
