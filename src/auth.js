@@ -1331,9 +1331,9 @@ export class AuthManager {
     };
     announcements.unshift(newAnn);
 
-    // 🧹 最多保留最新 50 条通知，超出部分从最旧一条（末尾）自动滚动删除，保持轻量高效
-    if (announcements.length > 50) {
-      announcements = announcements.slice(0, 50);
+    // 🧹 最多保留最新 15 条通知，超出部分从最旧一条（末尾）自动滚动删除，保持轻量高效
+    if (announcements.length > 15) {
+      announcements = announcements.slice(0, 15);
     }
 
     localStorage.setItem(STORAGE_KEY_ANNOUNCEMENTS, JSON.stringify(announcements));
