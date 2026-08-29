@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260830_v710
+ * Version: 20260830_v711
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260830_v710';
+  const APP_VERSION = '20260830_v711';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -14332,6 +14332,15 @@
           return;
         }
 
+        // 🛡️ 严格单次幂等门禁：若全组已播报过分歧，绝对不再重复调起
+        if (this.state.stage2.hasBroadcastedMeetingDivergence) {
+          this.syncStage2();
+          if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+          this.renderStudentWorkspace();
+          return;
+        }
+        this.state.stage2.hasBroadcastedMeetingDivergence = true;
+
         // ── 全员打卡完毕：汇聚全组数据并由责任编辑播报分歧（匿名宏观，不点具体人名） ──
         const topic = (this.state.stage1 && this.state.stage1.mergedTitle) ? this.state.stage1.mergedTitle : '本组课题';
         const allSubs = Object.values(submissions);
@@ -14413,8 +14422,10 @@
     }
 
     async triggerReviewingEditorAfterDiscussion(customManagingSummary = '') {
+      if (this._isTriggeringSecondReview) return;
       const ctx = this.state.stage2?.pendingReviewing || this.state.stage2PendingReviewing;
       if (!ctx) return;
+      this._isTriggeringSecondReview = true;
       if (this.state.stage2) this.state.stage2.pendingReviewing = null;
       this.state.stage2PendingReviewing = null;
       this.syncStage2();
@@ -14494,6 +14505,7 @@
       if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
       renderChat(this.state);
       this.renderStudentWorkspace();
+      this._isTriggeringSecondReview = false;
     }
 
     // handleLogout() 已在 L1648 定义（含 presence 清理与云端推送），此处不再重复

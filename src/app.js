@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260830_v710";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash } from "./utils.js?v=20260830_v710";
-import { callCozeAgentAPI } from "./agents.js?v=20260830_v710";
-import { AuthManager } from "./auth.js?v=20260830_v710";
-import { CloudSyncEngine } from "./sync.js?v=20260830_v710";
-import { renderLoginView } from "./login.js?v=20260830_v710";
-import { renderTeacherPortal } from "./teacher.js?v=20260830_v710";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260830_v710";
+} from "./constants.js?v=20260830_v711";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash } from "./utils.js?v=20260830_v711";
+import { callCozeAgentAPI } from "./agents.js?v=20260830_v711";
+import { AuthManager } from "./auth.js?v=20260830_v711";
+import { CloudSyncEngine } from "./sync.js?v=20260830_v711";
+import { renderLoginView } from "./login.js?v=20260830_v711";
+import { renderTeacherPortal } from "./teacher.js?v=20260830_v711";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260830_v711";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260830_v710";
+} from "./editor.js?v=20260830_v711";
 
 // Make renderChat available on window for sync callbacks
 if (typeof window !== "undefined") {
@@ -4236,6 +4236,15 @@ ${propText}
         return;
       }
 
+      // 🛡️ 严格单次幂等门禁：若全组已播报过分歧，绝对不再重复调起
+      if (this.state.stage2.hasBroadcastedMeetingDivergence) {
+        this.syncStage2();
+        if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+        this.renderStudentWorkspace();
+        return;
+      }
+      this.state.stage2.hasBroadcastedMeetingDivergence = true;
+
       // ── 全员打卡完毕：汇聚全组数据并由责任编辑播报分歧（匿名宏观，不点具体人名） ──
       const topic = (this.state.stage1 && this.state.stage1.mergedTitle) ? this.state.stage1.mergedTitle : '本组课题';
       const allSubs = Object.values(submissions);
@@ -4317,8 +4326,10 @@ ${propText}
   }
 
   async triggerReviewingEditorAfterDiscussion(customManagingSummary = '') {
+    if (this._isTriggeringSecondReview) return;
     const ctx = this.state.stage2?.pendingReviewing || this.state.stage2PendingReviewing;
     if (!ctx) return;
+    this._isTriggeringSecondReview = true;
     if (this.state.stage2) this.state.stage2.pendingReviewing = null;
     this.state.stage2PendingReviewing = null;
     this.syncStage2();
@@ -4398,6 +4409,7 @@ ${propText}
     if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
     renderChat(this.state);
     this.renderStudentWorkspace();
+    this._isTriggeringSecondReview = false;
   }
 
   // handleLogout() 已在 L1648 定义（含 presence 清理与云端推送），此处不再重复
