@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState } from './constants.js?v=20260830_v726';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin } from './utils.js?v=20260830_v726';
+import { InitialState } from './constants.js?v=20260830_v727';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin } from './utils.js?v=20260830_v727';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -533,6 +533,35 @@ export class CloudSyncEngine {
             if (snd === 'managingEditor' && txt.includes('起草提示')) {
               if (seenWelcome) return;
               seenWelcome = true;
+            }
+            deduped.push(m);
+          });
+          this.app.state.chatLogs[stg] = deduped;
+        } else if (stg === 'stage3') {
+          const deduped = [];
+          let seenStage3Prop = false;
+          let seenStage3Opp = false;
+          let seenStage3Welcome = false;
+          let seenStage3ChairGuide = false;
+          remoteLogs.forEach(m => {
+            if (!m) return;
+            const snd = m.sender || '';
+            const txt = m.text || '';
+            if (snd === 'proponent' && (txt.includes('正方委员') || txt.includes('立论支持') || txt.includes('通读全篇'))) {
+              if (seenStage3Prop) return;
+              seenStage3Prop = true;
+            }
+            if (snd === 'opponent' && (txt.includes('反方委员') || txt.includes('商讨质询') || txt.includes('尖锐质询'))) {
+              if (seenStage3Opp) return;
+              seenStage3Opp = true;
+            }
+            if (snd === 'neutral' && (txt.includes('中间委员开场') || txt.includes('欢迎来到【阶段三'))) {
+              if (seenStage3Welcome) return;
+              seenStage3Welcome = true;
+            }
+            if (snd === 'neutral' && (txt.includes('答辩思路引导') || txt.includes('质询 ①'))) {
+              if (seenStage3ChairGuide) return;
+              seenStage3ChairGuide = true;
             }
             deduped.push(m);
           });

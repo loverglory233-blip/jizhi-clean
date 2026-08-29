@@ -2444,6 +2444,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $seenMeetingCall = false;
                 $seenFinalReview = false;
                 $seenStage2Welcome = false;
+                $seenStage3Prop = false;
+                $seenStage3Opp = false;
+                $seenStage3Welcome = false;
+                $seenStage3ChairGuide = false;
 
                 foreach ($list as $m) {
                     $snd = $m['sender'] ?? '';
@@ -2465,6 +2469,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         if ($snd === 'managingEditor' && mb_strpos($txt, '起草提示') !== false) {
                             if ($seenStage2Welcome) continue;
                             $seenStage2Welcome = true;
+                        }
+                    } else if ($stg === 'stage3') {
+                        if ($snd === 'proponent' && (mb_strpos($txt, '正方委员') !== false || mb_strpos($txt, '立论支持') !== false || mb_strpos($txt, '通读全篇') !== false)) {
+                            if ($seenStage3Prop) continue;
+                            $seenStage3Prop = true;
+                        }
+                        if ($snd === 'opponent' && (mb_strpos($txt, '反方委员') !== false || mb_strpos($txt, '商讨质询') !== false || mb_strpos($txt, '尖锐质询') !== false)) {
+                            if ($seenStage3Opp) continue;
+                            $seenStage3Opp = true;
+                        }
+                        if ($snd === 'neutral' && (mb_strpos($txt, '中间委员开场') !== false || mb_strpos($txt, '欢迎来到【阶段三') !== false)) {
+                            if ($seenStage3Welcome) continue;
+                            $seenStage3Welcome = true;
+                        }
+                        if ($snd === 'neutral' && (mb_strpos($txt, '答辩思路引导') !== false || mb_strpos($txt, '质询 ①') !== false)) {
+                            if ($seenStage3ChairGuide) continue;
+                            $seenStage3ChairGuide = true;
                         }
                     }
                     $dedupedList[] = $m;
