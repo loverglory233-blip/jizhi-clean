@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles } from "./constants.js?v=20260829_v662";
-import { callCozeAgentAPI } from "./agents.js?v=20260829_v662";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs } from "./utils.js?v=20260829_v662";
+import { AgentProfiles } from "./constants.js?v=20260829_v663";
+import { callCozeAgentAPI } from "./agents.js?v=20260829_v663";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs } from "./utils.js?v=20260829_v663";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -1120,10 +1120,16 @@ function renderStage1Canvas(canvas, state, handlers) {
         </div>
       </div>
 
-      <div style="margin-top:20px; text-align:center;">
-        <button id="btn-confirm-contract" ${isContractLocked ? 'disabled' : ''} style="background:${isContractLocked ? '#ecfdf5' : userHasConfirmed ? '#eff6ff' : 'linear-gradient(135deg, #059669, #047857)'}; border:1px solid ${isContractLocked ? '#a7f3d0' : userHasConfirmed ? '#bfdbfe' : 'transparent'}; color:${isContractLocked ? '#059669' : userHasConfirmed ? '#1d4ed8' : 'white'}; padding:13px 32px; border-radius:10px; font-weight:800; cursor:${isContractLocked ? 'not-allowed' : 'pointer'}; font-size:14.5px; box-shadow:0 3px 12px rgba(5,150,105,0.25);">
-          ${isContractLocked ? '🔒 学术合作合约已全员签署生效并锁定 (只读归档查阅)' : userHasConfirmed ? `✅ 我 (${currentUserName}) 已按键确认签署 (${confirmedCount}/${totalMembersCount} 人已完成)` : `✍️ 我以 (${currentUserName}) 身份按键确认签署合约 (已确认 ${confirmedCount}/${totalMembersCount} 人)`}
-        </button>
+      <div style="margin-top:20px; text-align:center; display:flex; justify-content:center; gap:12px; flex-wrap:wrap;">
+        ${isContractLocked ? `
+          <button id="btn-goto-stage2" style="background:linear-gradient(135deg, #2563eb, #1d4ed8); border:none; color:white; padding:13px 36px; border-radius:10px; font-weight:800; cursor:pointer; font-size:15px; box-shadow:0 4px 14px rgba(37,99,235,0.3); display:inline-flex; align-items:center; gap:8px;">
+            🚀 全员已签署完毕！前往【阶段二：学术编辑部】开始论文起草 →
+          </button>
+        ` : `
+          <button id="btn-confirm-contract" style="background:${userHasConfirmed ? '#eff6ff' : 'linear-gradient(135deg, #059669, #047857)'}; border:1px solid ${userHasConfirmed ? '#bfdbfe' : 'transparent'}; color:${userHasConfirmed ? '#1d4ed8' : 'white'}; padding:13px 32px; border-radius:10px; font-weight:800; cursor:pointer; font-size:14.5px; box-shadow:0 3px 12px rgba(5,150,105,0.25);">
+            ${userHasConfirmed ? `✅ 我 (${currentUserName}) 已按键确认签署 (${confirmedCount}/${totalMembersCount} 人已完成)` : `✍️ 我以 (${currentUserName}) 身份按键确认签署合约 (已确认 ${confirmedCount}/${totalMembersCount} 人)`}
+          </button>
+        `}
       </div>
 
     </div>
@@ -1723,28 +1729,40 @@ function renderStage1Canvas(canvas, state, handlers) {
       });
     }
 
-    canvas.querySelector('#btn-confirm-contract').addEventListener('click', () => {
-      s1.contract._lastSignTime = Date.now();
-      const currUser = (window.app && window.app.authManager) ? window.app.authManager.getCurrentUser() : null;
-      const myCode = state.currentUser || (currUser ? currUser.studentCode : 'A');
-      const effectiveClassId = window.app.state.activeStudentClassId || (currUser?.classId || 'class_101');
-      const activeGroupObj = window.app.authManager ? window.app.authManager.getStudentActiveGroup(currUser, effectiveClassId) : null;
-      const curGid = activeGroupObj?.id || (currUser?.groupId || 'group_1');
-      
-      fetch('sync.php?action=patch_contract_field', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          taskId: state.activeTaskId || 'task_default',
-          groupId: curGid,
-          field: 'sign_member',
-          subKey: myCode,
-          value: true
-        })
-      }).catch(() => {});
+    const btnConfirm = canvas.querySelector('#btn-confirm-contract');
+    if (btnConfirm) {
+      btnConfirm.addEventListener('click', () => {
+        s1.contract._lastSignTime = Date.now();
+        const currUser = (window.app && window.app.authManager) ? window.app.authManager.getCurrentUser() : null;
+        const myCode = state.currentUser || (currUser ? currUser.studentCode : 'A');
+        const effectiveClassId = window.app.state.activeStudentClassId || (currUser?.classId || 'class_101');
+        const activeGroupObj = window.app.authManager ? window.app.authManager.getStudentActiveGroup(currUser, effectiveClassId) : null;
+        const curGid = activeGroupObj?.id || (currUser?.groupId || 'group_1');
+        
+        fetch('sync.php?action=patch_contract_field', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            taskId: state.activeTaskId || 'task_default',
+            groupId: curGid,
+            field: 'sign_member',
+            subKey: myCode,
+            value: true
+          })
+        }).catch(() => {});
 
-      handlers.onConfirmContract();
-    });
+        handlers.onConfirmContract();
+      });
+    }
+
+    const btnGotoS2 = canvas.querySelector('#btn-goto-stage2');
+    if (btnGotoS2) {
+      btnGotoS2.addEventListener('click', () => {
+        if (window.app && typeof window.app.switchStage === 'function') {
+          window.app.switchStage('stage2', true);
+        }
+      });
+    }
   }
 
   // 🛡️ 恢复之前正在打字的输入框焦点与光标，平滑无感
