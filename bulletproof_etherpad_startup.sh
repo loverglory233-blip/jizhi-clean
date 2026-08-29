@@ -2,10 +2,10 @@
 set -e
 
 echo "🚀 ========================================================"
-echo "⚡ 防御式重构 Etherpad 1.9.7 插件系统 (100% 稳定运行)"
+echo "⚡ Etherpad 官方核心协同引擎与 12 大插件启动"
 echo "🚀 ========================================================"
 
-export PATH="/www/server/nodejs/v20/bin:/www/server/nodejs/v18.20.7/bin:/www/server/nodejs/v18/bin:/www/server/nodejs/v16/bin:/usr/local/bin:/usr/bin:$PATH"
+export PATH="/www/server/nodejs/v22/bin:/www/server/nodejs/v20/bin:/www/server/nodejs/v18.20.7/bin:/www/server/nodejs/v18/bin:/www/server/nodejs/v16/bin:/usr/local/bin:/usr/bin:$PATH"
 for n in /www/server/nodejs/v*/bin; do
   if [ -d "$n" ]; then
     export PATH="$n:$PATH"
@@ -27,191 +27,86 @@ cd "$EP_DIR"
 
 # 1. 释放 9001 端口并结束旧进程
 fuser -k 9001/tcp 2>/dev/null || true
-pkill -9 -f "node" 2>/dev/null || true
+pkill -9 -f "etherpad" 2>/dev/null || true
 sleep 1
 
 # 2. 还原官方源码
 git checkout src/ 2>/dev/null || true
+rm -f var/plugin-definitions.json var/plugins.json 2>/dev/null || true
 
-# 3. 建立根目录与 src symlink 兜底
-rm -rf ep_etherpad-lite 2>/dev/null || true
-ln -sf src ep_etherpad-lite
-
-# 4. 深度重构 src/static/js/pluginfw/plugins.js
-node -e '
-const fs = require("fs");
-const path = require("path");
-
-const pFile = "src/static/js/pluginfw/plugins.js";
-let code = fs.readFileSync(pFile, "utf8");
-
-const bulletproofUpdate = `
-exports.update = async () => {
-  const fsDirect = require("fs");
-  const pathDirect = require("path");
-
-  const rootDir = pathDirect.resolve(__dirname, "../../../..");
-  const srcDir = pathDirect.join(rootDir, "src");
-  const nmDir = pathDirect.join(rootDir, "node_modules");
-
-  const packages = {
-    "ep_etherpad-lite": {
-      name: "ep_etherpad-lite",
-      version: "1.9.7",
-      path: srcDir
-    }
-  };
-
-  try {
-    if (fsDirect.existsSync(nmDir)) {
-      const dirs = fsDirect.readdirSync(nmDir);
-      dirs.forEach(d => {
-        if (d.startsWith("ep_") && d !== "ep_etherpad-lite") {
-          const pDir = pathDirect.join(nmDir, d);
-          let pkg = { name: d, version: "1.0.0" };
-          try { pkg = JSON.parse(fsDirect.readFileSync(pathDirect.join(pDir, "package.json"), "utf8")); } catch(e) {}
-          packages[d] = {
-            name: d,
-            version: pkg.version || "1.0.0",
-            path: pDir
-          };
-        }
-      });
-    }
-  } catch(e) {
-    console.error("Scan error:", e);
-  }
-
-  const parts = {};
-  const plugins = {};
-  const defs = {};
-
-  for (const [pluginName, pkg] of Object.entries(packages)) {
-    plugins[pluginName] = {
-      package: pkg,
-      realPath: pkg.path
-    };
-    defs[pluginName] = {
-      package: pkg,
-      parts: []
-    };
-
-    const epJsonPath = pathDirect.join(pkg.path, "ep.json");
-    if (fsDirect.existsSync(epJsonPath)) {
-      try {
-        const epData = JSON.parse(fsDirect.readFileSync(epJsonPath, "utf8"));
-        if (Array.isArray(epData.parts)) {
-          epData.parts.forEach(part => {
-            const partObj = Object.assign({}, part, {
-              plugin: pluginName,
-              fullPath: pkg.path
-            });
-            const partName = pluginName + "/" + (part.name || "main");
-            partObj.name = partName;
-            parts[partName] = partObj;
-            defs[pluginName].parts.push(partObj);
-          });
-        }
-      } catch(err) {
-        console.warn("Parse ep.json error for " + pluginName + ":", err.message);
-      }
-    }
-  }
-
-  exports.packages = packages;
-  exports.plugins = plugins;
-  exports.parts = parts;
-  exports.definitions = defs;
-  
-  const hooks = require("./hooks");
-  const shared = require("./shared");
-  if (hooks) {
-    hooks.plugins = plugins;
-    hooks.parts = parts;
-    hooks.hooks = {};
-    
-    // 手动安全挂载 hooks，绝不触发外部报错
-    for (const part of Object.values(parts)) {
-      if (part.hooks) {
-        for (const [hk, loc] of Object.entries(part.hooks)) {
-          if (!hooks.hooks[hk]) hooks.hooks[hk] = [];
-          try {
-            const loaded = (typeof shared.loadFn === "function") ? shared.loadFn(loc, hk, part.name) : loc;
-            hooks.hooks[hk].push({ part: part.name, location: loc, hook_fn: loaded });
-          } catch(e) {
-            hooks.hooks[hk].push({ part: part.name, location: loc });
-          }
-        }
-      }
-    }
-  }
-
-  console.log("🎉 [JIZHI_KERNEL] 成功稳固直载全量插件 (" + Object.keys(plugins).length + " 个):", Object.keys(plugins).filter(p => p !== "ep_etherpad-lite").join(", "));
-  return { plugins, parts };
-};
-`;
-
-code = code.replace(/exports\.update\s*=\s*(?:async\s*)?\([^)]*\)\s*=>\s*\{[\s\S]*?\n\};/, bulletproofUpdate);
-
-fs.writeFileSync(pFile, code, "utf8");
-console.log("✅ src/static/js/pluginfw/plugins.js 已完成防御式重构！");
-
-// 🛡️ 注入客户端 pad.js 强制解除 loading 遮罩兜底机制 (绝不永久卡死 loading)
-const padFile = "src/static/js/pad.js";
-if (fs.existsSync(padFile)) {
-  let padCode = fs.readFileSync(padFile, "utf8");
-  if (!padCode.includes("__JIZHI_AUTOHIDE_LOADING__")) {
-    padCode += `\n/* __JIZHI_AUTOHIDE_LOADING__ */
-if (typeof window !== "undefined") {
-  setTimeout(function() {
-    try {
-      var box = document.getElementById("editorloadingbox");
-      if (box) box.style.display = "none";
-      var pad = document.getElementById("padpage");
-      if (pad) pad.style.display = "block";
-    } catch(e) {}
-  }, 2000);
-}`;
-    fs.writeFileSync(padFile, padCode, "utf8");
-    console.log("✅ src/static/js/pad.js 已注入强制解除 loading 兜底保障！");
-  }
+# 3. 固化 settings.json
+cat << 'EPSETEOF' > "$EP_DIR/settings.json"
+{
+  "title": "JIZHI Academic Etherpad",
+  "ip": "0.0.0.0",
+  "port": 9001,
+  "dbType": "dirty",
+  "dbSettings": {
+    "filename": "var/dirty.db"
+  },
+  "defaultPadText": "一、研究背景与意义\n\n二、文献综述\n\n三、研究问题与假设\n\n四、研究设计与方法\n\n五、研究设计的不足与反思\n\n六、参考文献\n",
+  "padOptions": {
+    "noColors": true,
+    "showControls": true,
+    "showChat": false,
+    "showLineNumbers": true,
+    "useMonospaceFont": false,
+    "userName": "学术组员"
+  },
+  "toolbar": {
+    "left": [
+      ["bold", "italic", "underline", "strikethrough"],
+      ["orderedlist", "unorderedlist", "indent", "outdent"],
+      ["heading", "font-size", "font-family", "font-color"],
+      ["left", "center", "right", "justify"],
+      ["insertTable", "imageUpload"],
+      ["undo", "redo"],
+      ["clearauthorship"]
+    ],
+    "right": [
+      ["importexport", "timeslider", "settings", "showusers"]
+    ]
+  },
+  "suppressErrorsInPadText": true,
+  "requireAuthentication": false,
+  "requireAuthorization": false,
+  "trustProxy": true,
+  "socketTransportProtocols": ["websocket", "polling"],
+  "loadTest": false,
+  "exposeVersion": false,
+  "minify": false,
+  "maxAge": 21600000
 }
-'
+EPSETEOF
 
-# 5. 清理旧缓存
-rm -rf var/plugins.json var/minified_* 2>/dev/null || true
+echo "jizhi_academic_secret_key_2026" > "$EP_DIR/APIKEY.txt" 2>/dev/null || true
+chmod 644 "$EP_DIR/APIKEY.txt" 2>/dev/null || true
 
-# 6. 启动 Etherpad
-echo "🚀 正在启动 Etherpad 服务..."
+# 4. 后台拉起 Etherpad
+echo "🚀 正在启动 Etherpad 服务进程..."
 export NODE_ENV=production
-nohup node src/node/server.js > /var/log/etherpad.log 2>&1 &
+if [ -f "bin/run.sh" ]; then
+  nohup bash bin/run.sh --root > /var/log/etherpad.log 2>&1 &
+elif [ -f "src/node/server.js" ]; then
+  nohup node src/node/server.js > /var/log/etherpad.log 2>&1 &
+fi
 
-# 7. 等待 9001 端口就绪
-echo "⏳ 等待 9001 端口监听..."
+# 5. 等待 9001 端口就绪
+echo "⏳ 等待 9001 端口就绪..."
 SUCCESS=0
-for i in {1..20}; do
-    if curl -s -I http://127.0.0.1:9001/ 2>/dev/null | grep -E "200|302|HTTP" > /dev/null; then
-        SUCCESS=1
-        break
-    fi
-    echo -n "..."
-    sleep 1
+for i in {1..25}; do
+  if curl -s -I http://127.0.0.1:9001/ 2>/dev/null | grep -E "200|302|HTTP" > /dev/null; then
+    SUCCESS=1
+    echo "🎉 Etherpad (9001 端口) 在第 $i 秒完全就绪！"
+    break
+  fi
+  sleep 1
 done
-echo ""
 
-if [ $SUCCESS -eq 1 ]; then
-    echo "🎉🎉🎉 Etherpad 已成功永久稳定监听 9001 端口！"
-    tail -n 15 /var/log/etherpad.log
-else
-    echo "❌ 启动失败日志:"
-    tail -n 25 /var/log/etherpad.log
-    exit 1
+if [ $SUCCESS -eq 0 ]; then
+  echo "⚠️ 9001 端口未就绪，查看最后 20 行日志:"
+  tail -n 20 /var/log/etherpad.log 2>/dev/null || true
 fi
 
-# 8. 重新载入 Nginx 配置
+# 6. 重新载入 Nginx 配置
 nginx -t 2>/dev/null && (nginx -s reload 2>/dev/null || systemctl reload nginx 2>/dev/null || true)
-
-# 9. 立即执行端到端全量验证
-if [ -f "./e2e_verify_etherpad_active.sh" ]; then
-  ./e2e_verify_etherpad_active.sh 2>&1 || true
-fi
