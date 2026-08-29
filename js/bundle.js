@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260830_v704
+ * Version: 20260830_v705
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260830_v704';
+  const APP_VERSION = '20260830_v705';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -11251,11 +11251,11 @@
           }
 
           // ── 阶段二双研讨闭环守护 ──
-          // 0) 半程自查分歧发出后（第 1 次讨论）：若全组达成赞同共识且静默期满（25秒），责任编辑出面小结并交棒
+          // 0) 半程自查分歧发出后（第 1 次讨论）：若全组达成赞同共识且静默期满（35秒），责任编辑出面小结并交棒
           const pendingRev = this.state.stage2?.pendingReviewing || this.state.stage2PendingReviewing;
           if (pendingRev && pendingRev.hasAgreement && !this._isExecutingConsensusHandover) {
             const timeSinceAgreement = now - (pendingRev.lastAgreementTime || 0);
-            if (timeSinceAgreement >= 25000) { // 赞同后 25 秒无后续争执，判定研讨圆满收敛
+            if (timeSinceAgreement >= 35000) { // 赞同后 35 秒无后续争执，判定研讨圆满收敛
               this._isExecutingConsensusHandover = true;
               setTimeout(async () => {
                 try {
@@ -12297,11 +12297,11 @@
               this.syncStage2();
               if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
 
-              // ⏱️ 赞同后启动 25 秒静默观察期（足够缓冲发言，又不会漫长假死）
+              // ⏱️ 赞同后启动 35 秒静默观察期（足够缓冲发言，又不会漫长假死）
               if (this._consensusDebounceTimer) {
                 clearTimeout(this._consensusDebounceTimer);
               }
-              this._consensusDebounceTimer = setTimeout(doHandover, 25000);
+              this._consensusDebounceTimer = setTimeout(doHandover, 35000);
             } else if (hasAdversativeSignal && this._consensusDebounceTimer) {
               // 若组员继续提出异议或不同意见，重置计时器，让组员继续充分商榷
               clearTimeout(this._consensusDebounceTimer);
