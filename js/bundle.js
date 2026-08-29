@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260830_v707
+ * Version: 20260830_v708
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260830_v707';
+  const APP_VERSION = '20260830_v708';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -13930,12 +13930,27 @@
 
       // ═══════════════════════════════════════════════════════════════
       // 🛡️ 严格阶梯时序门禁 1: 审稿编辑【一审】（初审微调质检）
-      // 仅在初始态 'none' 时可触发，严禁重复触发
+      // 仅在初始态 'none' 时由单端触发一次，严禁多端并发重复触发
       // ═══════════════════════════════════════════════════════════════
+      const s2ChatList = this.state.chatLogs?.stage2 || [];
+      const hasFirstReviewInLogs = s2ChatList.some(m => m.sender === 'reviewingEditor' && (m.text.includes('初审') || m.text.includes('Research Gap')));
+      if (hasFirstReviewInLogs && (s2.reviewMilestone === 'none' || s2.reviewMilestone === 'first_review_in_progress')) {
+        s2.reviewMilestone = 'first_review_done';
+        this.syncStage2();
+      }
+
       const hasLayer2MethodSection = /(?:二、|三、|四、|第2章|第3章|第4章|设计|方法|路径|方案|实证|模型|过程|实施|框架|量表|样本|实验|调研|问卷|干预)/i.test(newContent);
       const isReview1MilestoneReached = (rawDoc.length >= 800) || (hasLayer2MethodSection && rawDoc.length >= 500) || (isTimeOver35Pct && rawDoc.length >= 300);
 
-      if (s2.reviewMilestone === 'none' && isReview1MilestoneReached && timeSinceLastReviewing > 30000) {
+      // 单端触发仲裁：由组内排序第一位成员作为代表发起大模型请求，避免组员双端同时调起产生重复消息
+      const membersList = Object.values(this.state.members || {});
+      const isLeaderClient = !membersList.length || (this.state.currentUser === membersList[0]?.studentCode || this.state.currentUser === membersList[0]?.id || this.state.currentUser === membersList[0]?.username);
+
+      if (!hasFirstReviewInLogs && s2.reviewMilestone === 'none' && isReview1MilestoneReached && timeSinceLastReviewing > 30000 && !this._isTriggeringFirstReview) {
+        if (!isLeaderClient && membersList.length > 1) {
+          return; // 非领头客户端等待领头客户端触发并同步
+        }
+        this._isTriggeringFirstReview = true;
         s2.reviewMilestone = 'first_review_in_progress';
         this.syncStage2();
         if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
@@ -13945,30 +13960,34 @@
         const contentSnippet = (methodIndex > 200) ? rawDoc.slice(0, methodIndex).trim() : rawDoc;
 
         setTimeout(async () => {
-          const firstReviewPrompt = `团队正在协同撰写课题《${topic}》，目前已完成立意与前序章节起草。
+          try {
+            const firstReviewPrompt = `团队正在协同撰写课题《${topic}》，目前已完成立意与前序章节起草。
   请通读下方【小组当前真实正文草稿】，作为国家级教育期刊资深审稿编辑，进行实质性学术初审质检（【全局红线】：顺应尊重已有构思框架，做局部微调，严禁推翻大改！严禁预设具体统计工具，定量/定性/方案均适用）：
   ① 肯定当前已写章节的立意、现实价值与文献梳理脉络；
   ② 审查研究述评（Research Gap）是否找准，启发将前文综述的理论概念与后续核心研究问题/待测变量清晰对齐；
   ③ 指出 1~2 处可深化的具体细节（如核心概念界定或近三年权威文献论据）。严禁空泛套话，纯自然语言输出，130~150字。`;
-          let firstReviewText = await callCozeAgentAPI('reviewingEditor', firstReviewPrompt, { stage: 'stage2', topic, actualDoc: contentSnippet });
-          if (!firstReviewText || firstReviewText.trim().length === 0) {
-            firstReviewText = `📝 【审稿编辑·初审学术质检】：审阅了大家目前撰写的正文草稿，背景立意非常扎实，文献综述的脉络梳理清晰！建议重点优化以下两点：① 进一步凝练研究述评（Gap），将前文文献直接引向核心研究问题与假设；② 统一各组员在背景与综述中使用的核心概念界定。请全组继续稳步推进！`;
-          }
-          s2.firstReviewText = firstReviewText;
-          s2.reviewMilestone = 'first_review_done';
+            let firstReviewText = await callCozeAgentAPI('reviewingEditor', firstReviewPrompt, { stage: 'stage2', topic, actualDoc: contentSnippet });
+            if (!firstReviewText || firstReviewText.trim().length === 0) {
+              firstReviewText = `📝 【审稿编辑·初审学术质检】：审阅了大家目前撰写的正文草稿，背景立意非常扎实，文献综述的脉络梳理清晰！建议重点优化以下两点：① 进一步凝练研究述评（Gap），将前文文献直接引向核心研究问题与假设；② 统一各组员在背景与综述中使用的核心概念界定。请全组继续稳步推进！`;
+            }
+            s2.firstReviewText = firstReviewText;
+            s2.reviewMilestone = 'first_review_done';
 
-          const firstReviewMsg = {
-            sender: 'reviewingEditor',
-            text: firstReviewText,
-            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-            _timeMs: Date.now()
-          };
-          if (!this.state.chatLogs.stage2) this.state.chatLogs.stage2 = [];
-          this.state.chatLogs.stage2.push(firstReviewMsg);
-          this.syncChatLogs();
-          this.syncStage2();
-          if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
-          renderChat(this.state);
+            const firstReviewMsg = {
+              sender: 'reviewingEditor',
+              text: firstReviewText,
+              timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+              _timeMs: Date.now()
+            };
+            if (!this.state.chatLogs.stage2) this.state.chatLogs.stage2 = [];
+            this.state.chatLogs.stage2.push(firstReviewMsg);
+            this.syncChatLogs();
+            this.syncStage2();
+            if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+            renderChat(this.state);
+          } finally {
+            this._isTriggeringFirstReview = false;
+          }
         }, 600);
         return;
       }
@@ -13977,12 +13996,21 @@
       // 🛡️ 严格阶梯时序门禁 2: 责任编辑【半程会议号召】
       // 必须在【一审完成后】(first_review_done)，且写到反思或字数达标才触发
       // ═══════════════════════════════════════════════════════════════
+      const hasMeetingCalledInLogs = s2ChatList.some(m => m.sender === 'managingEditor' && m.text.includes('半程会议号召'));
+      if (hasMeetingCalledInLogs && s2.reviewMilestone === 'first_review_done') {
+        s2.reviewMilestone = 'meeting_called';
+        this.syncStage2();
+      }
+
       const hasLayer3ReflectionSection = /(?:五、|六、|第5章|第6章|讨论|反思|不足|局限|展望|结论|总结|对策|建议)/i.test(newContent);
       const isMeetingMilestoneReached = (rawDoc.length >= 2200) || (hasLayer3ReflectionSection && rawDoc.length >= 1500);
       const lastManagingMsg = logs.slice().reverse().find(m => m.sender === 'managingEditor');
       const timeSinceLastManaging = lastManagingMsg ? (now - (lastManagingMsg._timeMs || 0)) : 999999;
 
-      if (s2.reviewMilestone === 'first_review_done' && isMeetingMilestoneReached && timeSinceLastManaging > 30000) {
+      if (!hasMeetingCalledInLogs && s2.reviewMilestone === 'first_review_done' && isMeetingMilestoneReached && timeSinceLastManaging > 30000) {
+        if (!isLeaderClient && membersList.length > 1) {
+          return;
+        }
         s2.reviewMilestone = 'meeting_called';
         const meetingCallMsg = {
           sender: 'managingEditor',
@@ -14003,9 +14031,18 @@
       // 🛡️ 严格阶梯时序门禁 3: 审稿编辑【三审·终审行文扫描】
       // 必须在【半程会议清单下发修改之后】(checklist_issued)，且【检测到撰写参考文献章节】时即刻触发！
       // ═══════════════════════════════════════════════════════════════
+      const hasFinalReviewInLogs = s2ChatList.some(m => m.sender === 'reviewingEditor' && m.text.includes('终稿行文扫描'));
+      if (hasFinalReviewInLogs && s2.reviewMilestone === 'checklist_issued') {
+        s2.reviewMilestone = 'final_review_done';
+        this.syncStage2();
+      }
+
       const hasReferencesSection = /(?:六、|第6章|第六部分)?\s*(?:参考文献|References)/i.test(newContent);
 
-      if (s2.reviewMilestone === 'checklist_issued' && hasReferencesSection && timeSinceLastReviewing > 30000) {
+      if (!hasFinalReviewInLogs && s2.reviewMilestone === 'checklist_issued' && hasReferencesSection && timeSinceLastReviewing > 30000) {
+        if (!isLeaderClient && membersList.length > 1) {
+          return;
+        }
         s2.reviewMilestone = 'final_review_done';
         const refReviewMsg = {
           sender: 'reviewingEditor',
