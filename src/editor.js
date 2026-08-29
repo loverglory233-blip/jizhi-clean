@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles } from "./constants.js?v=20260830_v712";
-import { callCozeAgentAPI } from "./agents.js?v=20260830_v712";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs } from "./utils.js?v=20260830_v712";
+import { AgentProfiles } from "./constants.js?v=20260830_v713";
+import { callCozeAgentAPI } from "./agents.js?v=20260830_v713";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs } from "./utils.js?v=20260830_v713";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -1906,11 +1906,13 @@ function renderStage2Canvas(canvas, state, handlers) {
     }
     const btnMeetingPills = canvas.querySelector('#btn-trigger-meeting-pills');
     if (btnMeetingPills) {
-      btnMeetingPills.disabled = isCurrentUserSubmitted || isStage2MeetingLocked;
-      btnMeetingPills.innerText = isCurrentUserSubmitted ? '✅ 您已完成打卡' : '📢 参与/发起半程打卡';
-      btnMeetingPills.style.background = isCurrentUserSubmitted ? '#f1f5f9' : 'linear-gradient(135deg, #2563eb, #1d4ed8)';
+      btnMeetingPills.disabled = false;
+      btnMeetingPills.innerText = isCurrentUserSubmitted ? '✅ 查看我的打卡记录' : '📢 参与/发起半程打卡';
+      btnMeetingPills.style.background = isCurrentUserSubmitted ? '#ecfdf5' : 'linear-gradient(135deg, #2563eb, #1d4ed8)';
       btnMeetingPills.style.color = isCurrentUserSubmitted ? '#059669' : 'white';
-      btnMeetingPills.style.cursor = isCurrentUserSubmitted || isStage2MeetingLocked ? 'default' : 'pointer';
+      btnMeetingPills.style.border = isCurrentUserSubmitted ? '1px solid #a7f3d0' : 'none';
+      btnMeetingPills.style.cursor = 'pointer';
+      btnMeetingPills.onclick = () => handlers.onOpenMeetingModal();
     }
 
     const draftCountBadge = canvas.querySelector('#stage2-draft-count-text');
@@ -1934,12 +1936,23 @@ function renderStage2Canvas(canvas, state, handlers) {
       const draftBtnText = isDraftFullyConfirmed
         ? '🎉 全员已确认初稿 (已解锁阶段三)'
         : (isUserDraftConfirmed ? `✅ 您已确认 (等待组员 ${confirmedDraftCount}/${totalCount})` : '✍️ 确认完成正文初稿');
-      btnDraft.disabled = isUserDraftConfirmed || isEditorReadonly;
+      btnDraft.disabled = false;
       btnDraft.innerText = draftBtnText;
       btnDraft.style.background = isUserDraftConfirmed ? '#ecfdf5' : 'linear-gradient(135deg, #059669, #047857)';
       btnDraft.style.color = isUserDraftConfirmed ? '#059669' : 'white';
       btnDraft.style.border = isUserDraftConfirmed ? '1px solid #a7f3d0' : 'none';
-      btnDraft.style.cursor = isUserDraftConfirmed || isEditorReadonly ? 'default' : 'pointer';
+      btnDraft.style.cursor = 'pointer';
+      btnDraft.onclick = () => {
+        if (isUserDraftConfirmed) {
+          alert(`✅ 您已于此前确认完成初稿！\n当前全组确认进度：${confirmedDraftCount}/${totalCount} 人。\n所有组员全部确认后将自动全组解锁阶段三。`);
+          return;
+        }
+        if (isEditorReadonly) {
+          alert('🔒 当前任务已截止或已只读锁定。');
+          return;
+        }
+        handlers.onConfirmStage2Draft();
+      };
     }
     return;
   }
@@ -2000,8 +2013,8 @@ function renderStage2Canvas(canvas, state, handlers) {
               </div>
             </div>
             <div>
-              <button id="btn-trigger-meeting-pills" ${isCurrentUserSubmitted || isStage2MeetingLocked ? 'disabled' : ''} style="background:${isCurrentUserSubmitted ? '#f1f5f9' : 'linear-gradient(135deg, #2563eb, #1d4ed8)'}; border:${isCurrentUserSubmitted ? '1px solid #cbd5e1' : 'none'}; color:${isCurrentUserSubmitted ? '#059669' : 'white'}; padding:5px 12px; border-radius:6px; font-size:11.5px; font-weight:700; cursor:${isCurrentUserSubmitted || isStage2MeetingLocked ? 'default' : 'pointer'};">
-                ${isCurrentUserSubmitted ? '✅ 您已完成打卡' : '📢 参与/发起半程打卡'}
+              <button id="btn-trigger-meeting-pills" style="background:${isCurrentUserSubmitted ? '#ecfdf5' : 'linear-gradient(135deg, #2563eb, #1d4ed8)'}; border:${isCurrentUserSubmitted ? '1px solid #a7f3d0' : 'none'}; color:${isCurrentUserSubmitted ? '#059669' : 'white'}; padding:5px 12px; border-radius:6px; font-size:11.5px; font-weight:700; cursor:pointer;">
+                ${isCurrentUserSubmitted ? '✅ 查看我的打卡记录' : '📢 参与/发起半程打卡'}
               </button>
             </div>
           </div>
@@ -2188,17 +2201,22 @@ function renderStage2Canvas(canvas, state, handlers) {
     });
   }
 
-  canvas.querySelector('#btn-show-case').addEventListener('click', () => handlers.onOpenCaseModal());
-  if (!isStage2MeetingLocked) {
-    const btnTrig = canvas.querySelector('#btn-trigger-meeting');
-    if (btnTrig) btnTrig.addEventListener('click', () => handlers.onOpenMeetingModal());
-    const btnTrigPills = canvas.querySelector('#btn-trigger-meeting-pills');
-    if (btnTrigPills) btnTrigPills.addEventListener('click', () => handlers.onOpenMeetingModal());
-  }
+  const btnTrig = canvas.querySelector('#btn-trigger-meeting');
+  if (btnTrig) btnTrig.addEventListener('click', () => handlers.onOpenMeetingModal());
+  const btnTrigPills = canvas.querySelector('#btn-trigger-meeting-pills');
+  if (btnTrigPills) btnTrigPills.addEventListener('click', () => handlers.onOpenMeetingModal());
 
   const btnConfirmDraft = canvas.querySelector('#btn-confirm-stage2-draft');
-  if (btnConfirmDraft && !isUserDraftConfirmed && !isEditorReadonly) {
+  if (btnConfirmDraft) {
     btnConfirmDraft.addEventListener('click', () => {
+      if (isUserDraftConfirmed) {
+        alert(`✅ 您已于此前确认完成初稿！\n当前全组确认进度：${confirmedDraftCount}/${totalCount} 人。\n所有组员全部确认后将自动全组解锁阶段三。`);
+        return;
+      }
+      if (isEditorReadonly) {
+        alert('🔒 当前任务已截止或已只读锁定。');
+        return;
+      }
       handlers.onConfirmStage2Draft();
     });
   }
