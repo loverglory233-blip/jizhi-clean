@@ -889,10 +889,10 @@ function renderStage1Canvas(canvas, state, handlers) {
   const confirmedCount = membersList.filter(m => isMemberDone(confirmedMembers, m)).length;
   const userHasConfirmed = isMemberDone(confirmedMembers, { id: currentUser, studentCode: currUserObj?.studentCode, username: currUserObj?.username, name: currUserObj?.name });
   
-  // 🛡️ 真正的公约生效锁定判定：必须是真实签署人数 >= 组员总人数（且总人数 > 0），或全盘已提交/任务已截止
+  // 🛡️ 真正的公约生效锁定判定：服务端公约已标记生效、或全员已签、或小组已进入阶段二/三、或全盘已提交/任务已截止
   const isAllConfirmed = (totalMembersCount > 0 && confirmedCount >= totalMembersCount);
-  const isContractLocked = isAllConfirmed || state.isFinalSubmitted || isTaskDeadlineExpired;
-  if (s1.contract) s1.contract.isConfirmed = isAllConfirmed;
+  const isContractLocked = !!(s1.contract && s1.contract.isConfirmed) || isAllConfirmed || (state.groupMaxStage === 'stage2' || state.groupMaxStage === 'stage3') || state.isFinalSubmitted || isTaskDeadlineExpired;
+  if (s1.contract && isAllConfirmed) s1.contract.isConfirmed = true;
 
   const userHasVoted = isMemberDone(s1.hasVoted, { id: currentUser, studentCode: currUserObj?.studentCode, username: currUserObj?.username, name: currUserObj?.name });
   const userVotedProposalId = s1.votes ? (s1.votes[currentUser] || (currUserObj && (s1.votes[currUserObj.id] || s1.votes[currUserObj.studentCode] || (currUserObj.name && s1.votes[currUserObj.name])))) : null;
@@ -2074,6 +2074,9 @@ function renderStage2Canvas(canvas, state, handlers) {
           _padContentDebounceTimer = setTimeout(() => {
             if (window.app && typeof window.app.syncStage2 === 'function') {
               window.app.syncStage2();
+            }
+            if (window.app && typeof window.app.checkAgentTriggersOnContent === 'function') {
+              window.app.checkAgentTriggersOnContent(cleanTxt);
             }
           }, 1500);
         }

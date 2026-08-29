@@ -2093,7 +2093,12 @@ export class App {
       });
     }
 
+    let isComposing = false;
+    input.addEventListener('compositionstart', () => { isComposing = true; });
+    input.addEventListener('compositionend', () => { isComposing = false; });
+
     input.addEventListener('input', (e) => {
+      if (isComposing || e.isComposing) return;
       const val = input.value;
       const lastChar = val.slice(-1);
       if (lastChar === '@' || (val.includes('@') && !val.includes(' '))) atMentionMenu.style.display = 'block';
@@ -2315,7 +2320,14 @@ ${recentDefenseChat}
     };
 
     sendBtn.addEventListener('click', handleSend);
-    input.addEventListener('keypress', (e) => { if (e.key === 'Enter') handleSend(); });
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        // 🛡️ Safari / WebKit 中文输入法合成防吞字：若处于输入法选词状态或 keyCode 229，绝对禁止触发发送与清空
+        if (isComposing || e.isComposing || e.keyCode === 229) return;
+        e.preventDefault();
+        handleSend();
+      }
+    });
   }
 
   // updateContributionUi() 已在 L258 定义（含 getElementById 精确选择器），此处不再重复覆盖
@@ -3524,6 +3536,19 @@ ${propText}
         };
         if (!this.state.chatLogs.stage2) this.state.chatLogs.stage2 = [];
         this.state.chatLogs.stage2.push(confirmMsg);
+
+        // 📝 审稿编辑终审把关兜底触发：只要有组员开始确认初稿，立刻自动送达审稿编辑终审质检反馈
+        if (!this.state.stage2RefFormatReviewed) {
+          this.state.stage2RefFormatReviewed = true;
+          const refReviewMsg = {
+            sender: 'reviewingEditor',
+            text: `📝 【审稿编辑·终稿行文扫描诊断】：小组成员已开始发起初稿定稿确认！在最后收尾阶段，我重点对全文语言表达与行文规范进行了全维度扫描：①【行文与语体】：整体论述连贯，建议再次通读检查是否有口语化表达；②【错别字与标点】：重点核对前后术语与标点规范。请大家完成最后通读后，在上方逐一完成初稿确认，准备迎接终审答辩！`,
+            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            _timeMs: Date.now() + 100
+          };
+          this.state.chatLogs.stage2.push(refReviewMsg);
+        }
+
         this.syncStage2();
         this.syncChatLogs();
         if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
@@ -3778,15 +3803,15 @@ ${propText}
 
 
 
-    // 1. 🎯 审稿编辑第一次动态质检（检测到正文推进到【二、文献综述】或【三、研究问题与假设】写完时触发一次）
+    // 1. 🎯 审稿编辑第一次动态质检（检测到正文推进到【二、文献综述/问题】或字数达到 100 字以上时触发一次）
+    const rawDoc = newContent.replace(/<[^>]*>/g, '').trim();
     const hasLitOrQuestionSection = /(?:二、|第2章|第二部分|文献综述|三、|第3章|第三部分|研究问题|研究假设)/i.test(newContent);
-    if (hasLitOrQuestionSection && !this.state.stage2FirstReviewDone && timeSinceLastReviewing > 60000) {
+    const isFirstMilestoneReached = (rawDoc.length >= 100) || hasLitOrQuestionSection;
+    if (isFirstMilestoneReached && !this.state.stage2FirstReviewDone && timeSinceLastReviewing > 45000) {
       this.state.stage2FirstReviewDone = true;
       const topic = (this.state.stage1 && this.state.stage1.mergedTitle) ? this.state.stage1.mergedTitle : '本组课题';
       
       // 智能提取完整的【研究背景】+【文献综述】+【研究问题与假设】章节草稿
-      const rawDoc = newContent.replace(/<[^>]*>/g, '').trim();
-      // 若已推进至第四部分研究方法，则智能截取至方法之前，确保审阅完整的背景与文献综述全貌
       const methodIndex = rawDoc.search(/(?:四、|第4章|第四部分|研究方法|研究设计)/i);
       // 一审聚焦「背景+综述+问题」三章：若已推进至方法章节则截取至方法之前，否则（篇幅尚短）直接全文
       const contentSnippet = (methodIndex > 200) ? rawDoc.slice(0, methodIndex).trim() : rawDoc;
@@ -3814,17 +3839,18 @@ ${propText}
       }, 800);
     }
 
-    // 2. 🎯 章节语义里程碑雷达：推进到【总结反思】时号召发起【半程编辑会议】
+    // 2. 🎯 章节语义里程碑雷达：推进到【总结反思】或正文达到 350 字以上时号召发起【半程编辑会议】
     const hasReflectionSection = /(?:五、|第5章|第五部分|不足与反思|研究反思|反思与不足|总结与反思|研究局限)/i.test(newContent);
+    const isMidtermMilestoneReached = (rawDoc.length >= 350) || hasReflectionSection;
     const isStage2MeetingLocked = this.state.stage2 && this.state.stage2.actionPlan && this.state.stage2.actionPlan.isGenerated;
     const lastManagingMsg = logs.slice().reverse().find(m => m.sender === 'managingEditor');
     const timeSinceLastManaging = lastManagingMsg ? (now - (lastManagingMsg._timeMs || 0)) : 999999;
 
-    if (hasReflectionSection && !isStage2MeetingLocked && !this.state.stage2MeetingCallSent && timeSinceLastManaging > 60000) {
+    if (isMidtermMilestoneReached && !isStage2MeetingLocked && !this.state.stage2MeetingCallSent && timeSinceLastManaging > 45000) {
       this.state.stage2MeetingCallSent = true;
       const meetingCallMsg = {
         sender: 'managingEditor',
-        text: `🤝 【责任编辑·半程会议号召】：关注到小组成员已推进撰写至【研究设计的不足与反思】章节，全篇实证方案已基本成型！请组员点击上方【📢 发起编辑会议】完成 4 维自查打卡，稍后审稿编辑将结合全组情况为大家进行深度内容质检与清单生成！`,
+        text: `🤝 【责任编辑·半程会议号召】：关注到小组成员正文起草已初具规模！请组员点击上方【📢 发起编辑会议】完成 4 维自查打卡，稍后审稿编辑将结合全组情况为大家进行深度内容质检与清单生成！`,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         _timeMs: now
       };
@@ -3833,9 +3859,10 @@ ${propText}
       renderChat(this.state);
     }
 
-    // 4. 🎯 终审里程碑雷达：推进到【六、参考文献】时触发终审定稿润色提醒
+    // 4. 🎯 终审里程碑雷达：推进到【六、参考文献】或正文达到 650 字以上时触发终审定稿润色提醒
     const hasReferenceSection = /(?:六、|第6章|第六部分|参考文献|References)/i.test(newContent);
-    if (hasReferenceSection && !this.state.stage2RefFormatReviewed && timeSinceLastReviewing > 60000) {
+    const isFinalMilestoneReached = (rawDoc.length >= 650) || hasReferenceSection;
+    if (isFinalMilestoneReached && !this.state.stage2RefFormatReviewed && timeSinceLastReviewing > 45000) {
       this.state.stage2RefFormatReviewed = true;
       const refReviewMsg = {
         sender: 'reviewingEditor',
