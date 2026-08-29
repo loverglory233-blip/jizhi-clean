@@ -1252,17 +1252,10 @@ export class App {
     const activeGroupObj = this.authManager.getStudentActiveGroup(currentUser, effectiveClassId);
     const groupId = activeGroupObj.id || (currentUser && currentUser.groupId ? currentUser.groupId : 'group_1');
     const myClassIds = new Set([effectiveClassId, currentUser?.classId, ...(currentUser?.classIds || [])].filter(Boolean));
+    const isTaskListMode = (this.state && this.state.studentViewMode === 'task_list');
     const activeTaskId = (this.state && this.state.activeTaskId) ? this.state.activeTaskId : 'task_default';
     const allTasks = this.authManager.getTasks();
 
-    // 🛡️ 已经截止的任务通知不论看没看都不要再弹窗骚扰学生！
-    const currentTask = allTasks.find(t => t.id === activeTaskId);
-    if (currentTask && isTaskExpired(currentTask)) {
-      return;
-    }
-
-    const allAnns = this.authManager.getAnnouncements();
-    
     const isAnnRead = (a) => {
       if (!a) return false;
       if (currentUser) {
@@ -1277,7 +1270,9 @@ export class App {
       return false;
     };
 
-    // 过滤出本班/本组/本任务且未读的通知，且排除已截止任务的通知
+    const allAnns = this.authManager.getAnnouncements();
+
+    // 过滤出本班/本组且未读的通知
     const unreadList = allAnns
       .filter(a => {
         if (a.taskId && a.taskId !== 'task_all') {
@@ -1287,29 +1282,37 @@ export class App {
         const matchClass = !a.classId || a.classId === 'all' || myClassIds.has(a.classId);
         const matchGroup = !a.targetGroupId || a.targetGroupId === 'all' || a.targetGroupId === groupId ||
           (Array.isArray(a.targetGroupIds) && (a.targetGroupIds.includes('all') || a.targetGroupIds.includes(groupId)));
-        const matchTask = a.taskId === 'task_all' || a.taskId === activeTaskId || (!a.taskId && activeTaskId === 'task_default');
+        const matchTask = isTaskListMode
+          ? true // 大厅模式下，本班级/全校的所有任务通知均可呈现
+          : (a.taskId === 'task_all' || a.taskId === activeTaskId || (!a.taskId && activeTaskId === 'task_default'));
         return matchClass && matchGroup && matchTask && !isAnnRead(a);
       })
       .sort((a, b) => (b.id > a.id ? 1 : -1));
 
     // 🔔 实时感知任务延期并自动弹出专属弹窗通知（在线即时 + 离线下次登录补弹）
-    if (currentTask && currentTask.deadline) {
-      const uKey = currentUser.studentCode || currentUser.username || currentUser.id || 'u';
-      const extAckKey = `jizhi_ack_ext_${uKey}_${activeTaskId}_${currentTask.deadline}`;
+    const tasksToCheck = isTaskListMode
+      ? allTasks.filter(t => myClassIds.has(t.classId) || !t.classId || t.classId === 'all')
+      : allTasks.filter(t => t.id === activeTaskId);
+
+    if (!this._lastKnownDeadlineMap) this._lastKnownDeadlineMap = {};
+    const uKey = currentUser.studentCode || currentUser.username || currentUser.id || 'u';
+
+    for (const t of tasksToCheck) {
+      if (!t || !t.deadline) continue;
+      const extAckKey = `jizhi_ack_ext_${uKey}_${t.id}_${t.deadline}`;
       const isExtAcknowledged = localStorage.getItem(extAckKey) === '1';
+      const prevDl = this._lastKnownDeadlineMap[t.id];
 
-      if (!this._lastKnownDeadlineMap) this._lastKnownDeadlineMap = {};
-      const prevDl = this._lastKnownDeadlineMap[activeTaskId];
-
-      // 判定延期场景：① 在线时截止时间发生后移；② 离线首次登录感知到未读的延期记录
-      const isOnlineExtended = prevDl && prevDl !== currentTask.deadline && (new Date(currentTask.deadline.replace(/-/g, '/')).getTime() > new Date(prevDl.replace(/-/g, '/')).getTime());
-      const isOfflineExtensionUnread = !isExtAcknowledged && currentTask.lastExtension && (new Date(currentTask.deadline.replace(/-/g, '/')).getTime() > Date.now());
+      const isOnlineExtended = prevDl && prevDl !== t.deadline && (new Date(t.deadline.replace(/-/g, '/')).getTime() > new Date(prevDl.replace(/-/g, '/')).getTime());
+      const isOfflineExtensionUnread = !isExtAcknowledged && t.lastExtension && (new Date(t.deadline.replace(/-/g, '/')).getTime() > Date.now());
 
       if (isOnlineExtended || isOfflineExtensionUnread) {
         localStorage.setItem(extAckKey, '1');
-        this.showTaskExtensionModal(currentTask, currentTask.lastExtension);
+        this._lastKnownDeadlineMap[t.id] = t.deadline;
+        this.showTaskExtensionModal(t, t.lastExtension);
+        return; // 优先弹出任务延期通知
       }
-      this._lastKnownDeadlineMap[activeTaskId] = currentTask.deadline;
+      this._lastKnownDeadlineMap[t.id] = t.deadline;
     }
 
     if (unreadList.length > 0) {
@@ -1366,7 +1369,11 @@ export class App {
 
     const closeExtModal = () => {
       modal.remove();
-      this.renderStudentWorkspace(true);
+      if (this.state.studentViewMode === 'workspace') {
+        this.renderStudentWorkspace(true);
+      } else {
+        this.renderMain();
+      }
     };
 
     modal.querySelector('#btn-close-ext-x').addEventListener('click', closeExtModal);
@@ -1380,6 +1387,7 @@ export class App {
     const effectiveClassId = this.state.activeStudentClassId || currentUser?.classId || 'class_101';
     const activeGroupObj = this.authManager.getStudentActiveGroup(currentUser, effectiveClassId);
     const groupId = activeGroupObj.id || (currentUser && currentUser.groupId ? currentUser.groupId : 'group_1');
+    const isTaskListMode = (this.state && this.state.studentViewMode === 'task_list');
     const activeTaskId = (this.state && this.state.activeTaskId) ? this.state.activeTaskId : 'task_default';
     const allAnns = this.authManager.getAnnouncements();
 
@@ -1403,7 +1411,9 @@ export class App {
         const matchClass = !a.classId || a.classId === 'all' || a.classId === effectiveClassId;
         const matchGroup = !a.targetGroupId || a.targetGroupId === 'all' || a.targetGroupId === groupId ||
           (Array.isArray(a.targetGroupIds) && (a.targetGroupIds.includes('all') || a.targetGroupIds.includes(groupId)));
-        const matchTask = a.taskId === 'task_all' || a.taskId === activeTaskId || (!a.taskId && activeTaskId === 'task_default');
+        const matchTask = isTaskListMode
+          ? true
+          : (a.taskId === 'task_all' || a.taskId === activeTaskId || (!a.taskId && activeTaskId === 'task_default'));
         return matchClass && matchGroup && matchTask;
       })
       .sort((a, b) => (b.id > a.id ? 1 : -1));
