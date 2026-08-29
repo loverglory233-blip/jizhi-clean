@@ -15,7 +15,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260829_v691';
+  const APP_VERSION = '20260829_v692';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -265,33 +265,74 @@
     return '#';
   }
 
-  function downloadFileBlob(filename, textContent = null, fileUrl = null) {
+  async function downloadFileBlob(filename, textContent = null, fileUrl = null) {
+    const safeFilename = filename || '教学资源文件.docx';
+
+    // 1. 如果有真实文件下载 URL（无论是全路径、相对路径 /uploads/ 或 Base64 DataURL / Blob）
     if (fileUrl && typeof fileUrl === 'string' && fileUrl.trim() !== '' && fileUrl !== '#') {
+      const cleanUrl = fileUrl.trim();
+      if (cleanUrl.startsWith('data:')) {
+        const a = document.createElement('a');
+        a.href = cleanUrl;
+        a.download = safeFilename;
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(() => { if (document.body.contains(a)) document.body.removeChild(a); }, 200);
+        return;
+      }
+
+      try {
+        // 🚀 通过 fetch 转化为真实二进制 Blob，强制以真实文件名触发原生下载，绝不损坏文件！
+        const res = await fetch(cleanUrl);
+        if (res.ok) {
+          const blob = await res.blob();
+          const blobUrl = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = blobUrl;
+          a.download = safeFilename;
+          document.body.appendChild(a);
+          a.click();
+          setTimeout(() => {
+            if (document.body.contains(a)) document.body.removeChild(a);
+            URL.revokeObjectURL(blobUrl);
+          }, 600);
+          return;
+        }
+      } catch (err) {
+        console.warn('Fetch blob download fallback:', err);
+      }
+
+      // 若 fetch 受限，使用 window.open 或原生 a 标签直接跳转下载
       const a = document.createElement('a');
-      a.href = fileUrl;
-      a.download = filename || '教学资源文件';
+      a.href = cleanUrl;
+      a.download = safeFilename;
       a.target = '_blank';
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => { if (document.body.contains(a)) document.body.removeChild(a); }, 200);
+      return;
+    }
+
+    // 2. 如果仅有纯文本
+    if (textContent) {
+      let mimeType = 'text/plain;charset=utf-8;';
+      if (safeFilename.endsWith('.pdf')) mimeType = 'application/pdf';
+      else if (safeFilename.endsWith('.docx')) mimeType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+      else if (safeFilename.endsWith('.doc')) mimeType = 'application/msword';
+      else if (safeFilename.endsWith('.xlsx')) mimeType = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+
+      const blob = new Blob([textContent], { type: mimeType });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = safeFilename;
       document.body.appendChild(a);
       a.click();
       setTimeout(() => {
         if (document.body.contains(a)) document.body.removeChild(a);
-      }, 150);
-      return;
+        URL.revokeObjectURL(url);
+      }, 200);
     }
-
-    const defaultContent = `====================================================\n【集智 JIZHI 平台 - 教学资源文件】\n文件名: ${filename}\n下载时间: ${new Date().toLocaleString()}\n课程名称: 《现代教育技术》期末协作写作研究设计\n====================================================\n\n【文件核心规范摘要】\n1. 结构完整性：论文方案需具备研究背景、问题假设、文献综述、研究设计、反思及参考文献。\n2. 变量操作化：研究假设 H1、H2 需在第四章给出对应的测量量表与操作化说明。\n3. 群体感知：通过可视化字数贡献比与同伴互动进行自律与共享调节 (SSRL)。`;
-    const content = textContent || defaultContent;
-    const blob = new Blob([content], { type: 'text/plain;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename && filename.endsWith('.txt') ? filename : `${filename}.txt`;
-    document.body.appendChild(a);
-    a.click();
-    setTimeout(() => {
-      if (document.body.contains(a)) document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-    }, 150);
   }
 
   function getUniqueMembersList(membersMap) {
@@ -650,7 +691,7 @@
           const targetBotId = data.bot_id || botId;
           const maxRetries = 45; // 阶梯敏捷轮询：前 10 次 300ms 极速响应，其后 600ms 平稳等待，最长容忍 ~24 秒（给上课高峰并发排队留余量）
           for (let p = 0; p < maxRetries; p++) {
-            const pollInterval = p < 10 ? 300 : 600;
+            const pollInterval = p < 15 ? 200 : 500;
             await new Promise(r => setTimeout(r, pollInterval));
             try {
               const pollRes = await fetch(`sync.php?action=coze_poll&chat_id=${encodeURIComponent(chatId)}&conversation_id=${encodeURIComponent(convId)}&bot_id=${encodeURIComponent(targetBotId)}&userId=${encodeURIComponent(sessionUserId)}&token=${encodeURIComponent(sessionToken)}&nocache=${Date.now()}`);
@@ -2970,8 +3011,12 @@
       let needWorkspaceRender = !this._hasRenderedInitialWorkspace;
 
       if (remoteData.stage1) {
-        needWorkspaceRender = true;
         const localS1 = this.app.state.stage1 || { proposals: [], votes: {}, hasVoted: {}, contract: {} };
+        const prevConfirmedMembersStr = JSON.stringify(this.app.state.stage1?.contract?.confirmedMembers || {});
+        const prevIsConfirmed = this.app.state.stage1?.contract?.isConfirmed;
+        const prevProposalsStr = JSON.stringify(this.app.state.stage1?.proposals || []);
+        const prevVotesStr = JSON.stringify(this.app.state.stage1?.votes || {});
+        const prevHasVotedStr = JSON.stringify(this.app.state.stage1?.hasVoted || {});
         const remoteS1 = remoteData.stage1;
         const isContractInputActive = document.activeElement && (
           document.activeElement.classList.contains('task-assignment-input') ||
@@ -3146,11 +3191,11 @@
           ...(remoteS1.hasVoted || {})
         };
 
-        const isProposalChanged = JSON.stringify(mergedProposals) !== JSON.stringify(localProps);
-        const isVoteChanged = JSON.stringify(mergedVotes) !== JSON.stringify(localS1.votes || {})
-          || JSON.stringify(mergedHasVoted) !== JSON.stringify(localS1.hasVoted || {});
-        const isConfirmChanged = remoteS1.contract?.isConfirmed !== localS1.contract?.isConfirmed
-          || JSON.stringify(remoteS1.contract?.confirmedMembers) !== JSON.stringify(localS1.contract?.confirmedMembers);
+        const isProposalChanged = JSON.stringify(mergedProposals) !== prevProposalsStr;
+        const isVoteChanged = JSON.stringify(mergedVotes) !== prevVotesStr
+          || JSON.stringify(mergedHasVoted) !== prevHasVotedStr;
+        const isConfirmChanged = (remoteS1.contract?.isConfirmed !== prevIsConfirmed)
+          || (JSON.stringify(this.app.state.stage1.contract?.confirmedMembers || {}) !== prevConfirmedMembersStr);
 
         this.app.state.stage1.proposals = mergedProposals;
         this.app.state.stage1.votes = mergedVotes;
@@ -3163,7 +3208,10 @@
 
       if (remoteData.stage2) {
         if (remoteData.stage2.unifiedContent !== undefined) {
-          const remoteHtml = remoteData.stage2.unifiedContent || '';
+          let remoteHtml = remoteData.stage2.unifiedContent || '';
+          if (remoteHtml.includes('一、研究背景与意义') || remoteHtml.includes('请在此处撰写正文')) {
+            remoteHtml = '';
+          }
           if (!this.app.state.stage2) this.app.state.stage2 = {};
           this.app.state.stage2.unifiedContent = remoteHtml;
         }
@@ -3184,8 +3232,10 @@
           }
         }
         if (remoteData.stage2.confirmedMembers) {
-          if (JSON.stringify(remoteData.stage2.confirmedMembers) !== JSON.stringify(this.app.state.stage2.confirmedMembers)) {
-            this.app.state.stage2.confirmedMembers = remoteData.stage2.confirmedMembers;
+          const localConf = this.app.state.stage2.confirmedMembers || {};
+          const mergedConf = { ...localConf, ...remoteData.stage2.confirmedMembers };
+          if (JSON.stringify(mergedConf) !== JSON.stringify(localConf)) {
+            this.app.state.stage2.confirmedMembers = mergedConf;
             needWorkspaceRender = true;
           }
         }
@@ -3256,11 +3306,6 @@
 
       if (remoteData.currentStage) {
         this.app.state.groupMaxStage = remoteData.currentStage;
-        // 🎯 如果用户当前正在自主浏览阶段一/过往阶段，则不强制跳走，保留学生知情权与自主切换权
-        if (!this.app.isViewingPastStage && remoteOrder > currentOrder && !this.app.state.isFinalSubmitted) {
-          this.app.state.currentStage = remoteData.currentStage;
-          needWorkspaceRender = true;
-        }
       }
 
       this.app.saveGroupState(myGroupId);
@@ -3541,6 +3586,11 @@
         window.app.cloudSyncEngine.effectiveClassId = currentCId;
         window.app.cloudSyncEngine.updateScopeKeys();
 
+        const getPanoDigest = (p) => {
+          if (!p || typeof p !== 'object') return '';
+          return Object.entries(p).map(([gid, d]) => `${gid}:${d.currentStage || 'stage1'}:${d.onlineCount || 0}:${d.totalMembers || 0}:${d.isFinalSubmitted ? 1 : 0}:${(d.activeLocks || []).length}:${(d.chatLogs?.stage1 || []).length}:${(d.chatLogs?.stage2 || []).length}:${(d.chatLogs?.stage3 || []).length}:${d.stage1?.mergedTitle || ''}:${(d.stage1?.proposals || []).length}`).join('|');
+        };
+
         const oldFingerprint = JSON.stringify({
           cStage: state.currentStage,
           s1Len: (state.stage1?.proposals || []).length,
@@ -3552,7 +3602,7 @@
           chat1: (state.chatLogs?.stage1 || []).length,
           chat2: (state.chatLogs?.stage2 || []).length,
           chat3: (state.chatLogs?.stage3 || []).length,
-          panorama: state.monitorPanorama ? JSON.stringify(state.monitorPanorama) : '{}'
+          panorama: getPanoDigest(state.monitorPanorama)
         });
 
         try {
@@ -3605,7 +3655,7 @@
           chat1: (state.chatLogs?.stage1 || []).length,
           chat2: (state.chatLogs?.stage2 || []).length,
           chat3: (state.chatLogs?.stage3 || []).length,
-          panorama: state.monitorPanorama ? JSON.stringify(state.monitorPanorama) : '{}'
+          panorama: getPanoDigest(state.monitorPanorama)
         });
 
         if (oldFingerprint !== newFingerprint) {
@@ -4588,7 +4638,7 @@
                     const s2Subs = state.stage2?.meetingSubmissions || {};
                     const s2SubCount = Object.keys(s2Subs).length;
                     const totalMemberCount = monitorMembersList.length || 3;
-                    const confirmedDraftCount = Object.values(state.stage2?.confirmedMembers || {}).filter(Boolean).length;
+                    const confirmedDraftCount = monitorMembersList.filter(m => state.stage2?.confirmedMembers && (state.stage2.confirmedMembers[m.id] || state.stage2.confirmedMembers[m.studentCode] || state.stage2.confirmedMembers[m.username] || (m.name && state.stage2.confirmedMembers[m.name]))).length;
 
                     return `
                       <div style="display:grid; grid-template-columns: minmax(0, 1fr) 380px; gap:16px; width:100%; box-sizing:border-box; height:860px; max-height:860px; overflow:hidden; align-items:stretch;">
@@ -6354,9 +6404,19 @@
             finalAttachment = {
               name: selectedAttachment.name,
               size: selectedAttachment.size,
-              url: ''
+              url: '',
+              fileData: ''
             };
             if (selectedAttachment.fileObj) {
+              try {
+                finalAttachment.fileData = await new Promise((resolve) => {
+                  const reader = new FileReader();
+                  reader.onload = () => resolve(reader.result);
+                  reader.onerror = () => resolve('');
+                  reader.readAsDataURL(selectedAttachment.fileObj);
+                });
+              } catch (e) {}
+
               try {
                 const currT = authManager.getCurrentUser();
                 const tId = (currT && (currT.studentCode || currT.username || currT.id)) || '';
@@ -6590,7 +6650,17 @@
             submitBtn.innerText = '⏳ 正在上传文献到服务器...';
 
             let serverFileUrl = '';
+            let clientDataUrl = '';
             if (selectedFile.fileObj) {
+              try {
+                clientDataUrl = await new Promise((resolve) => {
+                  const reader = new FileReader();
+                  reader.onload = () => resolve(reader.result);
+                  reader.onerror = () => resolve('');
+                  reader.readAsDataURL(selectedFile.fileObj);
+                });
+              } catch (e) {}
+
               try {
                 const currT = authManager.getCurrentUser();
                 const tId = (currT && (currT.studentCode || currT.username || currT.id)) || '';
@@ -6626,6 +6696,7 @@
               keyHighlights: '研究设计与学术论证规范',
               fileName: selectedFile.name || `${title}.pdf`,
               fileUrl: serverFileUrl,
+              fileData: clientDataUrl,
               fileSize: selectedFile.size || '3.5 MB',
               targetGroupId: targetGId,
               targetGroupIds: selectedGroupIds,
@@ -6714,6 +6785,8 @@
 
     const syncGroupDataFromMemory = (targetGId) => {
       state.activeMonitorGroupId = targetGId;
+      state._lastMonitorHash = '';
+      state._lastEpHash = '';
       if (state.monitorPanorama && state.monitorPanorama[targetGId]) {
         const gData = state.monitorPanorama[targetGId];
         state.stage1 = gData.stage1 || { proposals: [], votes: {}, hasVoted: {}, contract: {} };
@@ -8027,10 +8100,10 @@
     const confirmedCount = membersList.filter(m => isMemberDone(confirmedMembers, m)).length;
     const userHasConfirmed = isMemberDone(confirmedMembers, { id: currentUser, studentCode: currUserObj?.studentCode, username: currUserObj?.username, name: currUserObj?.name });
 
-    // 🛡️ 真正的公约生效锁定判定：必须是真实签署人数 >= 组员总人数（且总人数 > 0），或全盘已提交/任务已截止
+    // 🛡️ 真正的公约生效锁定判定：服务端公约已标记生效、或全员已签、或小组已进入阶段二/三、或全盘已提交/任务已截止
     const isAllConfirmed = (totalMembersCount > 0 && confirmedCount >= totalMembersCount);
-    const isContractLocked = isAllConfirmed || state.isFinalSubmitted || isTaskDeadlineExpired;
-    if (s1.contract) s1.contract.isConfirmed = isAllConfirmed;
+    const isContractLocked = !!(s1.contract && s1.contract.isConfirmed) || isAllConfirmed || (state.groupMaxStage === 'stage2' || state.groupMaxStage === 'stage3') || state.isFinalSubmitted || isTaskDeadlineExpired;
+    if (s1.contract && isAllConfirmed) s1.contract.isConfirmed = true;
 
     const userHasVoted = isMemberDone(s1.hasVoted, { id: currentUser, studentCode: currUserObj?.studentCode, username: currUserObj?.username, name: currUserObj?.name });
     const userVotedProposalId = s1.votes ? (s1.votes[currentUser] || (currUserObj && (s1.votes[currUserObj.id] || s1.votes[currUserObj.studentCode] || (currUserObj.name && s1.votes[currUserObj.name])))) : null;
@@ -8141,9 +8214,15 @@
           </div>
           ${!isContractLocked ? `
             <div style="margin-top:12px; display:flex; justify-content:center;">
-              <button id="btn-generate-contract-draft" style="background:linear-gradient(135deg, #7c3aed, #6d28d9); border:none; color:white; padding:8px 20px; border-radius:20px; font-weight:700; font-size:13px; cursor:pointer; display:inline-flex; align-items:center; gap:6px; box-shadow:0 3px 12px rgba(124,58,237,0.25);">
-                🤖 研讨差不多了？一键提炼研讨共识生成公约草案
-              </button>
+              ${s1.contract?.isDraftGenerated ? `
+                <div style="background:#f0fdf4; border:1.5px solid #86efac; color:#15803d; padding:7px 22px; border-radius:20px; font-weight:800; font-size:13px; display:inline-flex; align-items:center; gap:6px; box-shadow:0 2px 8px rgba(34,197,94,0.15);">
+                  ✅ 公约草案已提炼生成（全组可直接在下方各栏目微调修改）
+                </div>
+              ` : `
+                <button id="btn-generate-contract-draft" style="background:linear-gradient(135deg, #7c3aed, #6d28d9); border:none; color:white; padding:8px 20px; border-radius:20px; font-weight:700; font-size:13px; cursor:pointer; display:inline-flex; align-items:center; gap:6px; box-shadow:0 3px 12px rgba(124,58,237,0.25);">
+                  🤖 研讨差不多了？一键提炼研讨共识生成公约草案
+                </button>
+              `}
             </div>
           ` : ''}
         </div>
@@ -8252,10 +8331,16 @@
           </div>
         </div>
 
-        <div style="margin-top:20px; text-align:center;">
-          <button id="btn-confirm-contract" ${isContractLocked ? 'disabled' : ''} style="background:${isContractLocked ? '#ecfdf5' : userHasConfirmed ? '#eff6ff' : 'linear-gradient(135deg, #059669, #047857)'}; border:1px solid ${isContractLocked ? '#a7f3d0' : userHasConfirmed ? '#bfdbfe' : 'transparent'}; color:${isContractLocked ? '#059669' : userHasConfirmed ? '#1d4ed8' : 'white'}; padding:13px 32px; border-radius:10px; font-weight:800; cursor:${isContractLocked ? 'not-allowed' : 'pointer'}; font-size:14.5px; box-shadow:0 3px 12px rgba(5,150,105,0.25);">
-            ${isContractLocked ? '🔒 学术合作合约已全员签署生效并锁定 (只读归档查阅)' : userHasConfirmed ? `✅ 我 (${currentUserName}) 已按键确认签署 (${confirmedCount}/${totalMembersCount} 人已完成)` : `✍️ 我以 (${currentUserName}) 身份按键确认签署合约 (已确认 ${confirmedCount}/${totalMembersCount} 人)`}
-          </button>
+        <div style="margin-top:20px; text-align:center; display:flex; justify-content:center; gap:12px; flex-wrap:wrap;">
+          ${isContractLocked ? `
+            <button id="btn-goto-stage2" style="background:linear-gradient(135deg, #2563eb, #1d4ed8); border:none; color:white; padding:13px 36px; border-radius:10px; font-weight:800; cursor:pointer; font-size:15px; box-shadow:0 4px 14px rgba(37,99,235,0.3); display:inline-flex; align-items:center; gap:8px;">
+              🚀 全员已签署完毕！前往【阶段二：学术编辑部】开始论文起草 →
+            </button>
+          ` : `
+            <button id="btn-confirm-contract" style="background:${userHasConfirmed ? '#eff6ff' : 'linear-gradient(135deg, #059669, #047857)'}; border:1px solid ${userHasConfirmed ? '#bfdbfe' : 'transparent'}; color:${userHasConfirmed ? '#1d4ed8' : 'white'}; padding:13px 32px; border-radius:10px; font-weight:800; cursor:pointer; font-size:14.5px; box-shadow:0 3px 12px rgba(5,150,105,0.25);">
+              ${userHasConfirmed ? `✅ 我 (${currentUserName}) 已按键确认签署 (${confirmedCount}/${totalMembersCount} 人已完成)` : `✍️ 我以 (${currentUserName}) 身份按键确认签署合约 (已确认 ${confirmedCount}/${totalMembersCount} 人)`}
+            </button>
+          `}
         </div>
 
       </div>
@@ -8372,6 +8457,24 @@
             }
           }
 
+          // 💡 0毫秒即时反馈：立即插入拍卖师思考气泡，让学生感知到 AI 已收到提案正在评审
+          const tempThinkingId = 'thinking_eval_' + Date.now();
+          const evalThinkingMsg = {
+            id: tempThinkingId,
+            sender: 'auctioneer',
+            senderName: '头脑风暴 · 学术拍卖师',
+            text: `⏳ 【学术拍卖师】：已收到《${title}》，正在通读研究构想并起草即时学术可行性评估...`,
+            isThinking: true,
+            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            _timeMs: Date.now()
+          };
+          if (!state.chatLogs[currentStage]) state.chatLogs[currentStage] = [];
+          state.chatLogs[currentStage].push(evalThinkingMsg);
+          if (window.app) {
+            window.app.syncChatLogs();
+            renderChat(state);
+          }
+
           setTimeout(async () => {
             const isModify = existingIdx >= 0;
             const evalPrompt = isModify
@@ -8389,14 +8492,12 @@
               evalText = `🎪 【拍卖师·提案评估】：收到 ${authorName} 提出的选题《${title}》！该构想切中实践痛点，通过明确的研究设计打破了传统教学局限！建议后续在研究设计中进一步细化具体的实证环节与实施步骤，这样在接下来的竞拍研讨中会更具说服力！`;
             }
 
-            const auctioneerEvalMsg = {
-              sender: 'auctioneer',
-              senderName: '头脑风暴 · 学术拍卖师',
-              text: evalText,
-              timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-              _timeMs: Date.now()
-            };
-            state.chatLogs[currentStage].push(auctioneerEvalMsg);
+            evalThinkingMsg.text = evalText;
+            delete evalThinkingMsg.isThinking;
+            if (window.app) {
+              window.app.syncChatLogs();
+              renderChat(state);
+            }
 
             const isSubstantive = (t) => {
               const str = (t || '').trim();
@@ -8839,28 +8940,40 @@
         });
       }
 
-      canvas.querySelector('#btn-confirm-contract').addEventListener('click', () => {
-        s1.contract._lastSignTime = Date.now();
-        const currUser = (window.app && window.app.authManager) ? window.app.authManager.getCurrentUser() : null;
-        const myCode = state.currentUser || (currUser ? currUser.studentCode : 'A');
-        const effectiveClassId = window.app.state.activeStudentClassId || (currUser?.classId || 'class_101');
-        const activeGroupObj = window.app.authManager ? window.app.authManager.getStudentActiveGroup(currUser, effectiveClassId) : null;
-        const curGid = activeGroupObj?.id || (currUser?.groupId || 'group_1');
+      const btnConfirm = canvas.querySelector('#btn-confirm-contract');
+      if (btnConfirm) {
+        btnConfirm.addEventListener('click', () => {
+          s1.contract._lastSignTime = Date.now();
+          const currUser = (window.app && window.app.authManager) ? window.app.authManager.getCurrentUser() : null;
+          const myCode = state.currentUser || (currUser ? currUser.studentCode : 'A');
+          const effectiveClassId = window.app.state.activeStudentClassId || (currUser?.classId || 'class_101');
+          const activeGroupObj = window.app.authManager ? window.app.authManager.getStudentActiveGroup(currUser, effectiveClassId) : null;
+          const curGid = activeGroupObj?.id || (currUser?.groupId || 'group_1');
 
-        fetch('sync.php?action=patch_contract_field', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            taskId: state.activeTaskId || 'task_default',
-            groupId: curGid,
-            field: 'sign_member',
-            subKey: myCode,
-            value: true
-          })
-        }).catch(() => {});
+          fetch('sync.php?action=patch_contract_field', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              taskId: state.activeTaskId || 'task_default',
+              groupId: curGid,
+              field: 'sign_member',
+              subKey: myCode,
+              value: true
+            })
+          }).catch(() => {});
 
-        handlers.onConfirmContract();
-      });
+          handlers.onConfirmContract();
+        });
+      }
+
+      const btnGotoS2 = canvas.querySelector('#btn-goto-stage2');
+      if (btnGotoS2) {
+        btnGotoS2.addEventListener('click', () => {
+          if (window.app && typeof window.app.switchStage === 'function') {
+            window.app.switchStage('stage2', true);
+          }
+        });
+      }
     }
 
     // 🛡️ 恢复之前正在打字的输入框焦点与光标，平滑无感
@@ -8878,6 +8991,10 @@
 
   function renderStage2Canvas(canvas, state, handlers) {
     const s2 = state.stage2;
+    // 🧹 自动清理旧版本残留的预设提纲模版，确保初始纯净 0 字
+    if (s2.unifiedContent && (s2.unifiedContent.includes('一、研究背景与意义') || s2.unifiedContent.includes('请在此处撰写正文'))) {
+      s2.unifiedContent = '';
+    }
     const actionPlan = s2.actionPlan;
     const isStage2MeetingLocked = state.currentStage === 'stage3' || state.isFinalSubmitted;
     const allTasks = (window.app && window.app.authManager) ? window.app.authManager.getTasks() : [];
@@ -8897,26 +9014,45 @@
     const paperBtnLabel = availablePapers.length > 0 ? `📚 查阅参考范文 (${availablePapers.length}篇)` : '📚 查阅参考范文库';
 
     const confirmedDraftMap = s2.confirmedMembers || {};
-    const confirmedDraftCount = membersList.filter(m => confirmedDraftMap[m.id] || confirmedDraftMap[m.studentCode]).length;
+    const isMemberDone = (map, m) => {
+      if (!map || !m) return false;
+      return !!(map[m.id] || map[m.studentCode] || map[m.username] || (m.name && map[m.name]));
+    };
+    const confirmedDraftCount = membersList.filter(m => isMemberDone(confirmedDraftMap, m)).length;
     const totalCount = membersList.length || 3;
     const currUserCode = state.currentUser || (currUser ? currUser.studentCode : 'A');
-    const isUserDraftConfirmed = !!(confirmedDraftMap[currUserCode] || (currUser && confirmedDraftMap[currUser.id]));
+    const isUserDraftConfirmed = isMemberDone(confirmedDraftMap, { id: currUserCode, studentCode: currUser?.studentCode, username: currUser?.username, name: currUser?.name });
     const isDraftFullyConfirmed = s2.isDraftConfirmed || (confirmedDraftCount >= totalCount && totalCount > 0);
 
-    // 🛡️ 极致单例保护：若富文本编辑器已经在当前画布上活跃运行，严禁 innerHTML 销毁重绘！
-    const existingEditorEl = canvas.querySelector('#stage2-word-editor.ql-container');
-    if (existingEditorEl) {
-      renderPresencePills('stage2-word-editor', state);
+    // 🛡️ 极致单例保护：若 Etherpad 协同编辑器或富文本编辑器已经在当前画布上活跃运行，严禁 innerHTML 销毁重绘！
+    const existingFrame = canvas.querySelector('#stage2-etherpad-frame') || canvas.querySelector('#stage2-word-editor.ql-container');
+    if (existingFrame) {
+      const wordBadge = canvas.querySelector('#stage2-word-count-num');
+      if (wordBadge) wordBadge.innerText = String(plainTextLen);
+
       const draftCountBadge = canvas.querySelector('#stage2-draft-count-text');
       if (draftCountBadge) {
         draftCountBadge.innerText = isDraftFullyConfirmed ? '✅ 全员已确认完成初稿' : `${confirmedDraftCount}/${totalCount} 人已确认`;
         draftCountBadge.style.color = isDraftFullyConfirmed ? '#059669' : '#2563eb';
+        draftCountBadge.style.background = isDraftFullyConfirmed ? '#d1fae5' : '#eff6ff';
+        draftCountBadge.style.border = isDraftFullyConfirmed ? '1px solid #a7f3d0' : '1px solid #bfdbfe';
+      }
+      const pillsContainer = canvas.querySelector('#stage2-confirmed-members-pills');
+      if (pillsContainer) {
+        pillsContainer.innerHTML = membersList.map(m => {
+          const isConf = isMemberDone(confirmedDraftMap, m);
+          return `<span style="font-size:11px; padding:1px 8px; border-radius:10px; font-weight:700; background:${isConf ? '#ecfdf5' : '#f1f5f9'}; color:${isConf ? '#059669' : '#94a3b8'}; border:1px solid ${isConf ? '#a7f3d0' : '#e2e8f0'};">
+            ${isConf ? '✓' : '○'} ${escapeHtml(m.name)}
+          </span>`;
+        }).join('');
       }
       const btnDraft = canvas.querySelector('#btn-confirm-stage2-draft');
       if (btnDraft) {
         btnDraft.disabled = isUserDraftConfirmed || isEditorReadonly;
         btnDraft.innerText = isUserDraftConfirmed ? '✅ 您已确认完成初稿' : '✍️ 确认完成正文初稿';
         btnDraft.style.background = isUserDraftConfirmed ? '#f1f5f9' : 'linear-gradient(135deg, #059669, #047857)';
+        btnDraft.style.color = isUserDraftConfirmed ? '#059669' : 'white';
+        btnDraft.style.cursor = isUserDraftConfirmed || isEditorReadonly ? 'default' : 'pointer';
       }
       return;
     }
@@ -8957,14 +9093,14 @@
           <div id="stage2-action-plan-card" style="background:#ecfdf5; border:1px solid #a7f3d0; border-radius:10px; padding:10px 16px; margin-bottom:10px; transition:all 0.2s ease; flex-shrink:0; box-shadow:0 2px 6px rgba(5,150,105,0.06);">
             <div style="display:flex; justify-content:space-between; align-items:center; cursor:pointer;" id="btn-toggle-action-plan">
               <div style="font-size:13px; font-weight:800; color:#059669; display:flex; align-items:center; gap:6px;">
-                <span>📋 【半程修正清单】(审稿专家下发 3 项修改要求)</span>
+                <span>📋 【半程修正清单】(审稿专家下发 3 项修改要求 · 完成可点击打勾)</span>
                 <span style="font-size:11px; background:#d1fae5; color:#065f46; padding:1px 8px; border-radius:10px; font-weight:700;">已生成</span>
               </div>
               <span id="icon-toggle-action-plan" style="font-size:11.5px; color:#059669; font-weight:700;">▲ 收起</span>
             </div>
             <div id="body-action-plan-items" style="font-size:12.5px; color:#1e293b; display:flex; flex-direction:column; gap:8px; margin-top:8px;">
               ${actionPlan.items.map((item, idx) => {
-                // 针对第 2 项如果含有多子项（理论/假设/方法），进行结构化美化渲染
+                const isChecked = !!(actionPlan.completedMap && actionPlan.completedMap[idx]);
                 let formattedItem = escapeHtml(item);
                 formattedItem = formattedItem
                   .replace(/(?:•\s*|【)?理论与综述层(?:】)?[:：]?/g, '<span style="display:inline-block; background:#eff6ff; color:#2563eb; border:1px solid #bfdbfe; padding:1px 6px; border-radius:4px; font-weight:700; font-size:11.5px; margin-right:4px;">📚 理论与综述层</span>')
@@ -8972,8 +9108,11 @@
                   .replace(/(?:•\s*|【)?方法与量表层(?:】)?[:：]?/g, '<span style="display:inline-block; background:#ecfdf5; color:#059669; border:1px solid #a7f3d0; padding:1px 6px; border-radius:4px; font-weight:700; font-size:11.5px; margin-right:4px;">📐 方法与量表层</span>');
 
                 return `
-                  <div style="line-height:1.6; background:#ffffff; border:1px solid #e2e8f0; border-radius:8px; padding:8px 12px; box-shadow:0 1px 3px rgba(0,0,0,0.02);">
-                    <b style="color:#0f172a; margin-right:4px;">${idx + 1}.</b> ${formattedItem}
+                  <div class="action-plan-item-box" data-item-idx="${idx}" style="line-height:1.6; background:${isChecked ? '#f0fdf4' : '#ffffff'}; border:1px solid ${isChecked ? '#86efac' : '#e2e8f0'}; border-radius:8px; padding:8px 12px; box-shadow:0 1px 3px rgba(0,0,0,0.02); display:flex; align-items:flex-start; gap:8px; cursor:pointer;">
+                    <input type="checkbox" class="action-plan-check-input" data-idx="${idx}" ${isChecked ? 'checked' : ''} style="cursor:pointer; margin-top:4px; transform:scale(1.15);">
+                    <div style="flex:1; text-decoration:${isChecked ? 'line-through' : 'none'}; color:${isChecked ? '#166534' : '#1e293b'};">
+                      <b style="color:${isChecked ? '#166534' : '#0f172a'}; margin-right:4px;">${idx + 1}.</b> ${formattedItem}
+                    </div>
                   </div>
                 `;
               }).join('')}
@@ -9004,14 +9143,14 @@
         <div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:8px; padding:8px 14px; margin-bottom:8px; display:flex; justify-content:space-between; align-items:center; box-shadow:0 1px 3px rgba(15,23,42,0.04); flex-wrap:wrap; gap:8px;">
           <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
             <span style="font-size:12.5px; font-weight:800; color:#0f172a;">✍️ 正文初稿确认进度:</span>
-            <span style="font-size:11.5px; font-weight:800; color:${isDraftFullyConfirmed ? '#059669' : '#2563eb'}; background:${isDraftFullyConfirmed ? '#d1fae5' : '#eff6ff'}; padding:2px 10px; border-radius:12px; border:1px solid ${isDraftFullyConfirmed ? '#a7f3d0' : '#bfdbfe'};">
+            <span id="stage2-draft-count-text" style="font-size:11.5px; font-weight:800; color:${isDraftFullyConfirmed ? '#059669' : '#2563eb'}; background:${isDraftFullyConfirmed ? '#d1fae5' : '#eff6ff'}; padding:2px 10px; border-radius:12px; border:1px solid ${isDraftFullyConfirmed ? '#a7f3d0' : '#bfdbfe'};">
               ${isDraftFullyConfirmed ? '✅ 全员已确认完成初稿' : `${confirmedDraftCount}/${totalCount} 人已确认`}
             </span>
-            <div style="display:flex; gap:6px; flex-wrap:wrap;">
+            <div id="stage2-confirmed-members-pills" style="display:flex; gap:6px; flex-wrap:wrap;">
               ${membersList.map(m => {
-                const isConf = confirmedDraftMap[m.id] || confirmedDraftMap[m.studentCode];
+                const isConf = isMemberDone(confirmedDraftMap, m);
                 return `<span style="font-size:11px; padding:1px 8px; border-radius:10px; font-weight:700; background:${isConf ? '#ecfdf5' : '#f1f5f9'}; color:${isConf ? '#059669' : '#94a3b8'}; border:1px solid ${isConf ? '#a7f3d0' : '#e2e8f0'};">
-                  ${isConf ? '✓' : '○'} ${m.name}
+                  ${isConf ? '✓' : '○'} ${escapeHtml(m.name)}
                 </span>`;
               }).join('')}
             </div>
@@ -9033,12 +9172,18 @@
 
             return `
               <div class="word-editor-container" style="display:flex; flex-direction:column; height:100%; min-height:480px; border-radius:10px; overflow:hidden; border:1px solid #cbd5e1; box-shadow:0 4px 16px rgba(15,23,42,0.06); background:#ffffff;">
-                <div id="ep-loading-helper-s2" style="display:flex; align-items:center; justify-content:space-between; background:#f8fafc; border-bottom:1px solid #e2e8f0; padding:4px 12px; font-size:11.5px; color:#64748b;">
-                  <span>🟢 Etherpad 协同文档已就绪</span>
-                  <button onclick="const f=document.getElementById('stage2-etherpad-frame'); if(f) f.src=f.src;" style="background:transparent; color:#2563eb; border:1px solid #cbd5e1; padding:2px 8px; border-radius:4px; font-size:11px; cursor:pointer; font-weight:600;">🔄 刷新编辑器</button>
+                <div id="ep-loading-helper-s2" style="display:flex; align-items:center; justify-content:space-between; background:#f8fafc; border-bottom:1px solid #e2e8f0; padding:6px 14px; font-size:12px; color:#475569;">
+                  <div style="display:flex; align-items:center; gap:8px;">
+                    <span id="ep-status-dot-s2" style="display:inline-block; width:8px; height:8px; border-radius:50%; background:#10b981;"></span>
+                    <span id="ep-status-text-s2" style="font-weight:600;">Etherpad 实时协同引擎已连接 (毫秒级 OT 协同)</span>
+                  </div>
+                  <div style="display:flex; align-items:center; gap:8px;">
+                    <a href="${padUrl}" target="_blank" style="background:#ffffff; color:#334155; border:1px solid #cbd5e1; padding:3px 10px; border-radius:6px; font-size:11.5px; text-decoration:none; font-weight:600; display:inline-flex; align-items:center; gap:4px; box-shadow:0 1px 2px rgba(0,0,0,0.04);">↗️ 独立新窗口打开</a>
+                    <button onclick="const f=document.getElementById('stage2-etherpad-frame'); if(f) { f.src=f.src; document.getElementById('ep-status-text-s2').innerText='正在重新连接...'; }" style="background:#eff6ff; color:#2563eb; border:1px solid #bfdbfe; padding:3px 10px; border-radius:6px; font-size:11.5px; cursor:pointer; font-weight:700;">🔄 刷新文档连接</button>
+                  </div>
                 </div>
                 <div style="flex:1; min-height:0; position:relative; background:#ffffff;">
-                  <iframe id="stage2-etherpad-frame" src="${padUrl}" style="width:100%; height:100%; border:none; display:block; background:#ffffff;" allow="clipboard-read; clipboard-write"></iframe>
+                  <iframe id="stage2-etherpad-frame" src="${padUrl}" style="width:100%; height:100%; border:none; display:block; background:#ffffff;" allow="clipboard-read; clipboard-write; fullscreen" onload="const el=document.getElementById('ep-status-text-s2'); if(el) el.innerText='Etherpad 实时协同引擎已就绪 (毫秒级 OT 协同)';"></iframe>
                 </div>
               </div>
             `;
@@ -9087,7 +9232,8 @@
 
     const btnTogglePlan = canvas.querySelector('#btn-toggle-action-plan');
     if (btnTogglePlan) {
-      btnTogglePlan.addEventListener('click', () => {
+      btnTogglePlan.addEventListener('click', (e) => {
+        if (e.target.closest('.action-plan-item-box') || e.target.classList.contains('action-plan-check-input')) return;
         const bodyItems = canvas.querySelector('#body-action-plan-items');
         const iconToggle = canvas.querySelector('#icon-toggle-action-plan');
         if (bodyItems) {
@@ -9095,6 +9241,21 @@
           bodyItems.style.display = isHidden ? 'flex' : 'none';
           if (iconToggle) iconToggle.innerText = isHidden ? '▲ 收起' : '▼ 展开';
         }
+      });
+
+      canvas.querySelectorAll('.action-plan-item-box').forEach(box => {
+        box.addEventListener('click', (e) => {
+          const idx = Number(box.dataset.itemIdx);
+          if (!state.stage2.actionPlan.completedMap) state.stage2.actionPlan.completedMap = {};
+          state.stage2.actionPlan.completedMap[idx] = !state.stage2.actionPlan.completedMap[idx];
+          if (handlers.onActionPlanToggle) {
+            handlers.onActionPlanToggle(idx, state.stage2.actionPlan.completedMap[idx]);
+          } else if (window.app) {
+            window.app.syncStage2();
+            if (window.app.cloudSyncEngine) window.app.cloudSyncEngine.pushSnapshot();
+            window.app.renderStudentWorkspace();
+          }
+        });
       });
     }
 
@@ -9162,6 +9323,9 @@
             _padContentDebounceTimer = setTimeout(() => {
               if (window.app && typeof window.app.syncStage2 === 'function') {
                 window.app.syncStage2();
+              }
+              if (window.app && typeof window.app.checkAgentTriggersOnContent === 'function') {
+                window.app.checkAgentTriggersOnContent(cleanTxt);
               }
             }, 1500);
           }
@@ -10108,24 +10272,41 @@
           const isPrimaryGuardian = primaryMember && (primaryMember.studentCode === myCode || primaryMember.id === myCode);
 
           if (isPrimaryGuardian) {
-            // 1. 【20% 节点】阶段一 ➔ 阶段二防卡关 (总时间 20%)
+            // 1. 【阶段一 ➔ 阶段二转场提示】(大中小任务自适应 + 防教师延时二次触发) - 归属【拍卖师 (Auctioneer)】
+            if (!this.state.gate20TriggeredMap) this.state.gate20TriggeredMap = {};
             const isContractConfirmed = !!(this.state.stage1 && this.state.stage1.contract && this.state.stage1.contract.isConfirmed);
-            const s1GateMsgId = `msg_gate_s1_${activeTaskId}_${currentGroupId}_20pct`;
-            const s1AlreadySent = (this.state.chatLogs.stage1 || []).some(m => m.id === s1GateMsgId || (m.text && m.text.includes('已消耗总时间 20%')));
+            const s1GateMsgId = `msg_gate_s1_${activeTaskId}_${currentGroupId}_transfer`;
+            const allChatLogsListS1 = Object.values(this.state.chatLogs || {}).flat();
+            const s1AlreadySent = !!this.state.gate20TriggeredMap[activeTaskId] ||
+              allChatLogsListS1.some(m => m && (m.id === s1GateMsgId || (m.text && (m.text.includes('选题研讨的时间') || m.text.includes('签署确认')))));
 
-          if (totalProgress >= 0.20 && currentStage === 'stage1' && !isContractConfirmed && !s1AlreadySent) {
-            const msgStage1 = {
-              id: s1GateMsgId,
-              sender: 'auctioneer',
-              text: `🎪 【拍卖师·进度提示】：选题研讨的时间已经走过 20% 啦，大家的想法也越来越清晰了～\n👉 如果研究方向已经基本确定，可以在公约卡片点击【签署确认】，随时进入【阶段二：学术编辑部】开始动笔；如果还有想补充的点子，也欢迎继续在讨论区交流！`,
-              timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-              _timeMs: nowMs
-            };
-            if (!this.state.chatLogs.stage1) this.state.chatLogs.stage1 = [];
-            this.state.chatLogs.stage1.push(msgStage1);
-            this.syncChatLogs();
-            renderChat(this.state);
-          }
+            const elapsedMinS1 = (this.state.timer ? (this.state.timer.elapsedSeconds || 0) : 0) / 60;
+            let isS1Due = false;
+            if (totalDurationMin < 100) {
+              // 小任务(<100m)：耗时达到 10 分钟触发，严格控制选题时间，提醒签署公约进入阶段二
+              isS1Due = (elapsedMinS1 >= 10.0);
+            } else if (totalDurationMin <= 240) {
+              // 中任务(100~240m)：进度达到 20% 节点触发
+              isS1Due = (totalProgress >= 0.20);
+            } else {
+              // 大任务(>240m)：进度达到 20%(上限耗时 35 分钟)触发
+              isS1Due = (totalProgress >= 0.20) || (elapsedMinS1 >= 35.0);
+            }
+
+            if (isS1Due && currentStage === 'stage1' && !isContractConfirmed && !s1AlreadySent) {
+              this.state.gate20TriggeredMap[activeTaskId] = true;
+              const msgStage1 = {
+                id: s1GateMsgId,
+                sender: 'auctioneer',
+                text: `🎪 【拍卖师·进度提示】：选题研讨的时间已经走过约 ${Math.ceil(elapsedMinS1)} 分钟啦，大家的想法也越来越清晰了～\n👉 如果研究方向已经基本确定，可以在公约卡片点击【签署确认】，随时进入【阶段二：学术编辑部】开始动笔；如果还有想补充的点子，也欢迎在后续撰写中继续深化！`,
+                timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                _timeMs: nowMs
+              };
+              if (!this.state.chatLogs.stage1) this.state.chatLogs.stage1 = [];
+              this.state.chatLogs.stage1.push(msgStage1);
+              this.syncChatLogs();
+              renderChat(this.state);
+            }
 
           // 2. 【阶段二智能体保底机制】(S2 经历 60% 正常轨 + 全局 75% 极端保底轨)
           if (currentStage === 'stage2') {
@@ -10158,19 +10339,35 @@
             }
           }
 
-          // 3. 【90% 节点】阶段二 ➔ 阶段三防卡关 (总时间 90%) - 动态由当前所处阶段智能体接管
-          const gate90MsgId = `msg_gate_90pct_${activeTaskId}_${currentGroupId}`;
-          const gate90AlreadySent = (this.state.chatLogs[currentStage] || []).some(m => m.id === gate90MsgId || (m.text && m.text.includes('已消耗 90%')));
+          // 3. 【最晚转场指令节点】阶段二 ➔ 阶段三防卡关 (大中小任务自适应 + 纯提示非强制锁死 + 防教师延时二次触发)
+          if (!this.state.gate90TriggeredMap) this.state.gate90TriggeredMap = {};
+          const gate90MsgId = `msg_gate_transfer_${activeTaskId}_${currentGroupId}`;
+          const allChatLogsList = Object.values(this.state.chatLogs || {}).flat();
+          const gate90AlreadySent = !!this.state.gate90TriggeredMap[activeTaskId] ||
+            allChatLogsList.some(m => m && (m.id === gate90MsgId || (m.text && (m.text.includes('转场指令') || m.text.includes('正文起草时间已达上限') || m.text.includes('紧急通牒')))));
 
-          if (totalProgress >= 0.90 && !gate90AlreadySent) {
+          // 自适应触发条件：小任务(<100m)在最后10分钟(剩余<=10m)提示转入答辩；中任务(100~240m)在进度>=90%或剩余<=15m触发；大任务(>240m)在进度>=90%触发
+          const elapsedSec = this.state.timer ? (this.state.timer.elapsedSeconds || 0) : 0;
+          const remainingMin = Math.max(0, (totalDurationSec - elapsedSec) / 60);
+          let isTransferDue = false;
+          if (totalDurationMin < 100) {
+            isTransferDue = (remainingMin <= 10.0);
+          } else if (totalDurationMin <= 240) {
+            isTransferDue = (totalProgress >= 0.90) || (remainingMin <= 15.0);
+          } else {
+            isTransferDue = (totalProgress >= 0.90) || (remainingMin <= 25.0);
+          }
+
+          if (isTransferDue && !gate90AlreadySent && currentStage !== 'stage3') {
+            this.state.gate90TriggeredMap[activeTaskId] = true;
             let sender90 = null;
             let text90 = '';
             if (currentStage === 'stage1') {
               sender90 = 'auctioneer';
-              text90 = `🎪 【拍卖师·紧急通牒】：全场时间已消耗 90%！本组严重滞后，请全员立刻在公约卡片点击【签署确认】，一秒都不能再耽误了！`;
+              text90 = `🎪 【拍卖师·紧急通牒】：全场剩余时间仅剩约 ${Math.ceil(remainingMin)} 分钟！本组选题严重滞后，请全员立刻在公约卡片点击【签署确认】，随时进入正文起草！`;
             } else if (currentStage === 'stage2') {
-              sender90 = 'reviewingEditor';
-              text90 = `📝 【审稿编辑·转场指令】：正文起草时间已达上限（总时间已消耗 90%）！请小组成员立即停止新增段落，点击上方导航栏进入【🎓 阶段三：答辩擂台】，留足时间完成答辩质询！`;
+              sender90 = 'managingEditor';
+              text90 = `🤝 【责任编辑·转场提示】：正文起草时间已达建议上限（最后 10 分钟已到）！建议小组成员点击上方导航栏进入【🎓 阶段三：答辩擂台】，留足时间完成答辩质询与终稿完善！`;
             }
             if (sender90) {
               const msg90 = {
@@ -10187,32 +10384,63 @@
             }
           }
 
-          // 4. 【95% 节点】阶段三 ➔ 终稿提交防漏交 (总时间 95%) - 动态由当前所处阶段智能体接管
-          const gate95MsgId = `msg_gate_95pct_${activeTaskId}_${currentGroupId}`;
-          const gate95AlreadySent = (this.state.chatLogs[currentStage] || []).some(m => m.id === gate95MsgId || (m.text && m.text.includes('最后 5%')));
+          // 3.5. 【阶段三：答辩收尾 ➔ 提醒进入终稿润色节点】(大中小任务自适应 + 防教师延时二次触发) - 归属【中间委员 (Neutral)】
+          if (!this.state.gateFinalPolishTriggeredMap) this.state.gateFinalPolishTriggeredMap = {};
+          const gatePolishMsgId = `msg_gate_final_polish_${activeTaskId}_${currentGroupId}`;
+          const gatePolishAlreadySent = !!this.state.gateFinalPolishTriggeredMap[activeTaskId] ||
+            allChatLogsList.some(m => m && (m.id === gatePolishMsgId || (m.text && (m.text.includes('终稿润色与收尾提示') || m.text.includes('终稿润色与前后校对')))));
 
-          if (totalProgress >= 0.95 && !this.state.isFinalSubmitted && !gate95AlreadySent) {
-            let sender95 = 'neutral';
-            let text95 = `🟡 【中间委员·终稿警报】：距离全盘任务锁定仅剩最后 5% 时间！请组内确认答辩修改无误，立即点击左侧【🚀 提交论文终稿】完成归档！`;
-            if (currentStage === 'stage1') {
-              sender95 = 'auctioneer';
-              text95 = `🚨 【拍卖师·最后通牒】：距离全盘任务锁定仅剩最后 5% 时间！请组内立刻签署公约并提交终稿，否则本次作业将被强制归档！`;
-            } else if (currentStage === 'stage2') {
-              sender95 = 'reviewingEditor';
-              text95 = `🚨 【审稿编辑·最后通牒】：距离全盘任务锁定仅剩最后 5% 时间！请立即停止修改正文，快速提交终稿归档！`;
-            }
-            const msg95 = {
-              id: gate95MsgId,
-              sender: sender95,
-              text: text95,
+          // 自适应触发条件：小任务(<100m)在最后5分钟(剩余<=5.0m)触发；中大任务(>=100m)在进度>=95%触发
+          let isPolishDue = false;
+          if (totalDurationMin < 100) {
+            isPolishDue = (remainingMin <= 5.0);
+          } else {
+            isPolishDue = (totalProgress >= 0.95);
+          }
+
+          if (isPolishDue && currentStage === 'stage3' && !this.state.isFinalSubmitted && !gatePolishAlreadySent) {
+            this.state.gateFinalPolishTriggeredMap[activeTaskId] = true;
+            const msgPolish = {
+              id: gatePolishMsgId,
+              sender: 'neutral',
+              text: `🟡 【中间委员·终稿修改提示】：答辩研讨时间已过半（全场剩余约 ${Math.ceil(remainingMin)} 分钟）！\n👉 请小组成员抓紧收尾答辩，把答辩中的修改结论落实到大正文终稿中，做好最后的通读核对与润色！`,
               timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
               _timeMs: nowMs
             };
-              if (!this.state.chatLogs[currentStage]) this.state.chatLogs[currentStage] = [];
-              this.state.chatLogs[currentStage].push(msg95);
-              this.syncChatLogs();
-              renderChat(this.state);
-            }
+            if (!this.state.chatLogs.stage3) this.state.chatLogs.stage3 = [];
+            this.state.chatLogs.stage3.push(msgPolish);
+            this.syncChatLogs();
+            renderChat(this.state);
+          }
+
+          // 4. 【最晚终稿提交防漏交节点】阶段三 ➔ 终稿提交防漏交 (大中小任务自适应 + 防教师延时二次触发) - 统一归属【中间委员 (Neutral)】
+          if (!this.state.gate95TriggeredMap) this.state.gate95TriggeredMap = {};
+          const gate95MsgId = `msg_gate_final_submit_${activeTaskId}_${currentGroupId}`;
+          const gate95AlreadySent = !!this.state.gate95TriggeredMap[activeTaskId] ||
+            allChatLogsList.some(m => m && (m.id === gate95MsgId || (m.text && (m.text.includes('终稿警报') || m.text.includes('最后提交') || m.text.includes('距离全盘任务锁定')))));
+
+          // 自适应触发条件：小任务(<100m)在最后 2.5 分钟(剩余<=2.5m)触发；中大任务(>=100m)在最后 3 分钟(剩余<=3.0m)触发
+          let isFinalSubmitDue = false;
+          if (totalDurationMin < 100) {
+            isFinalSubmitDue = (remainingMin <= 2.5);
+          } else {
+            isFinalSubmitDue = (remainingMin <= 3.0);
+          }
+
+          if (isFinalSubmitDue && !this.state.isFinalSubmitted && !gate95AlreadySent) {
+            this.state.gate95TriggeredMap[activeTaskId] = true;
+            const msg95 = {
+              id: gate95MsgId,
+              sender: 'neutral',
+              text: `🟡 【中间委员·终稿警报】：距离全盘任务锁定仅剩最后约 ${Math.ceil(remainingMin)} 分钟！请组内确认答辩修改无误，立即点击左侧【🚀 提交论文终稿】完成归档！`,
+              timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+              _timeMs: nowMs
+            };
+            if (!this.state.chatLogs[currentStage]) this.state.chatLogs[currentStage] = [];
+            this.state.chatLogs[currentStage].push(msg95);
+            this.syncChatLogs();
+            renderChat(this.state);
+          }
           }
 
           if (this.state.studentViewMode === 'workspace') {
@@ -10487,7 +10715,7 @@
         const stage = this.state.currentStage;
         const totalMembersCount = membersList.length;
         const activeMembersCount = onlineMembers.length;
-        if (activeMembersCount < 2) return; // 基础前提：至少 2 人在线才触发主动关心（不必全员在线，否则一人心跳掉线全组智能体就集体沉默）
+        if (activeMembersCount < 1) return; // 至少 1 人在线即可触发智能体巡检守护与提示
 
         // ======================================================================
         // 🌟 全阶段 SSRL 情绪与挫败感智能守护（同伴优先调节 45~60 秒观察窗）
@@ -10566,17 +10794,27 @@
           const submittedAuthors = new Set(proposals.map(p => p.author));
           const votesCastCount = Object.values(s1.hasVoted || {}).filter(Boolean).length;
 
-          // 核心守护保护：同时检测【讨论区发言】与【左侧提案操作活跃态】
-          const lastProposalTime = proposals.length > 0 ? Math.max(...proposals.map(p => p.updatedAt || 0)) : 0;
-          const lastLeftActionTime = Math.max(lastProposalTime, this.stage1LastActionTime || 0);
-          const timeSinceLastLeftAction = now - lastLeftActionTime;
+          // 动态三档自适应冷场阈值 (小任务<1h/60m: 2分钟; 中任务1~3h/60~180m: 3分钟; 大任务>3h/180m: 4.5分钟)
+          const allTasks = (this.authManager) ? this.authManager.getTasks() : [];
+          const curTask = allTasks.find(t => t.id === this.state.activeTaskId);
+          const taskDurMin = (curTask && curTask.durationMinutes) ? Number(curTask.durationMinutes) : 60;
+          const silenceThresholdMs = taskDurMin < 60 ? 120000 : (taskDurMin <= 180 ? 180000 : 270000);
 
-          // 1. 【提案阶段研讨静默守护】：只有当【讨论区无人发言 > 3min】且【左侧也无人在操作/撰写提案 > 3min】时，才判定为真正冷场并破冰！
-          if (submittedCount < totalMembersCount && silenceDurationMs > 180000 && timeSinceLastLeftAction > 180000) {
-            if (!this.lastDiscussionNudgeTime || now - this.lastDiscussionNudgeTime > 240000) {
+          // 1. 【提案阶段研讨静默守护】：只有当【讨论区无人发言 > 阈值】且【左侧也无人在操作/撰写提案 > 阈值】时，才判定为真正冷场并提示！
+          if (submittedCount < totalMembersCount && silenceDurationMs > silenceThresholdMs && timeSinceLastLeftAction > silenceThresholdMs) {
+            if (!this.lastDiscussionNudgeTime || now - this.lastDiscussionNudgeTime > (silenceThresholdMs + 60000)) {
               this.lastDiscussionNudgeTime = now;
-              const s1SilenceFallback = `💡 【拍卖师·研讨互动提示】：大家在构思选题的过程中，可以在讨论区互相交流灵感、探讨研究问题的价值与可行性，共同激发更好的提案！`;
-              this.queueAgentNudge('auctioneer', `全组进入选题研讨后已静默一段时间（讨论区无人发言、左侧也无人撰写提案）。请以学术拍卖师身份，用一句轻松的话破冰，再给出 1~2 个能立刻激发大家发言的开放式问题（例如引导从真实教学场景或研究兴趣切入）。80~120 字，热情但不催促。`, s1SilenceFallback, 'stage1');
+              const msg = {
+                sender: 'auctioneer',
+                text: `💡 【拍卖师·研讨互动提示】：关注到大家正在构思选题！可以在讨论区交流灵感与研究想法，构思成熟后点击左侧【提交我的选题】卡片进行提交～`,
+                timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                _timeMs: now
+              };
+              if (!this.state.chatLogs.stage1) this.state.chatLogs.stage1 = [];
+              this.state.chatLogs.stage1.push(msg);
+              this.syncChatLogs();
+              if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+              renderChat(this.state);
               return;
             }
           }
@@ -10748,21 +10986,33 @@
           const plainTextLen = plainText.length;
           const contribs = s2.memberContributions || {};
 
-          // 1. 阶段二开场超过 4 分钟完全静默且正文字数 < 50 字：提示开始起草与交叉研讨
-          if (silenceDurationMs > 240000 && plainTextLen < 50) {
-            if (!this.lastS2SilenceNudgeTime || now - this.lastS2SilenceNudgeTime > 300000) {
+          // 动态读取任务时长判定大中小任务 (小任务<1h/60m: 冷却3.5m, 静默2m; 中任务1~3h/60~180m: 冷却6m, 静默3m; 大任务>3h/180m: 冷却10m, 静默4.5m)
+          const allTasks = (this.authManager) ? this.authManager.getTasks() : [];
+          const curTask = allTasks.find(t => t.id === this.state.activeTaskId);
+          const taskDurMin = (curTask && curTask.durationMinutes) ? Number(curTask.durationMinutes) : 60;
+          const s2NudgeCooldownMs = taskDurMin < 60 ? 210000 : (taskDurMin <= 180 ? 360000 : 600000);
+          const s2SilenceThresholdMs = taskDurMin < 60 ? 120000 : (taskDurMin <= 180 ? 180000 : 270000);
+
+          // 1. 阶段二开场静默提示 (纯系统模板)：开场达到阈值完全静默且正文字数 < 50 字
+          if (silenceDurationMs > s2SilenceThresholdMs && plainTextLen < 50) {
+            if (!this.lastS2SilenceNudgeTime || now - this.lastS2SilenceNudgeTime > (s2SilenceThresholdMs + 60000)) {
               this.lastS2SilenceNudgeTime = now;
-              const s2SilenceFallback = `🤝 【责任编辑·起草提示】：大家已进入协作工作区！\n• 建议组员按照阶段一公约分工开始撰写各自负责的内容；\n• 撰写同时，多阅读同伴已写好的段落，在研讨区互相提出优化建议或协助润色，共同打磨全篇！`;
-              this.queueAgentNudge('managingEditor', `全组进入正文协作后已静默一段时间、正文尚未动笔。请以责任编辑身份，温柔提醒大家按阶段一公约分工开始起草，并给 1 条具体的起步建议（如先各自写自己负责章节的开头两三句、再交叉阅读）。80~120 字，鼓励不施压。`, s2SilenceFallback, 'stage2');
+              const msg = {
+                sender: 'managingEditor',
+                text: `🤝 【责任编辑·起草提示】：大家已进入阶段二正文协作！\n👉 请组员按照阶段一公约分工开始撰写各自负责的内容；撰写同时多阅读同伴段落，在研讨区互相交流衔接，协同推进！`,
+                timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                _timeMs: now
+              };
+              if (!this.state.chatLogs.stage2) this.state.chatLogs.stage2 = [];
+              this.state.chatLogs.stage2.push(msg);
+              this.syncChatLogs();
+              if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+              renderChat(this.state);
               return;
             }
           }
 
-          // ── 责任编辑过程守护：周期性读取【实际贡献百分比】与【研讨发言投入】 ──
-          // 规则：阶段二全周期持续巡检，自适应冷却（短任务 5m、中任务 8m、长任务 15m）
-          const totalAllocMinutes = Object.values((this.state.stage1 && this.state.stage1.contract && this.state.stage1.contract.timeAllocations) || {}).reduce((a, b) => a + Number(b || 0), 0);
-          const s2NudgeCooldownMs = totalAllocMinutes <= 45 ? 300000 : (totalAllocMinutes <= 100 ? 480000 : 900000);
-
+          // 2. 责任编辑过程守护：周期性读取【实际贡献百分比】与【研讨发言投入】
           if (!this.lastS2ContribNudgeTime || now - this.lastS2ContribNudgeTime > s2NudgeCooldownMs) {
             // 1. 计算总投入与每位成员的实际贡献百分比（100% 依据 Etherpad 真实写作字数贡献）
             let totalContrib = 0;
@@ -10770,7 +11020,7 @@
               totalContrib += (contribs[m.id] || contribs[m.studentCode] || 0);
             });
 
-            // 2. 找出“写作贡献百分比显著滞后（<= 15%）”的同学（方案 A 规则）
+            // 2. 找出“写作贡献百分比显著滞后（<= 15%）”的同学
             const severeInactiveMembers = [];
             if (totalContrib >= 150) {
               membersList.forEach(m => {
@@ -10834,45 +11084,118 @@
             }
           }
 
-          // ── 阶段二修改期静默守护（严格在审稿编辑发表学术质检开方之后正式开启计时） ──
-          if (this.state.stage2ReviewingFinishedTime) {
-            const timeSinceReview = now - this.state.stage2ReviewingFinishedTime;
-            const isFirstNudgeSent = !!this.state.stage2FirstPostReviewNudgeSent;
-
-            // ① 第一次提醒：审稿编辑讲完后，讨论区静默达到 3 分钟（180s）
-            if (!isFirstNudgeSent && timeSinceReview >= 180000 && silenceDurationMs >= 180000) {
-              this.state.stage2FirstPostReviewNudgeSent = true;
-              this.lastS2PostMeetingSilenceNudgeTime = now;
-              const s2ModifyFallback = `💡 【责任编辑·半程协同修改交流提示】：半程修正清单已生成一段时间啦，注意到讨论区有些安静！修改不是各改各的，建议大家在研讨区开麦交流一下：刚才商定的核心分歧（如案例补充、前后衔接）各自改得如何了？遇到卡点互相出谋划策，协同推进终稿！`;
-              this.queueAgentNudge('managingEditor', `半程修正清单已生成一段时间，但讨论区持续安静。请以责任编辑身份，提醒大家在研讨区交流核心分歧与章节衔接修改进展，遇到卡点互相出谋划策。130~150 字纯自然语言。`, s2ModifyFallback, 'stage2');
+          // ── 阶段二双研讨闭环守护 ──
+          // 0) 半程自查分歧发出后（第 1 次讨论）：若讨论区静默达到阈值，责任编辑出面追问组长带头对齐
+          if (this.state.stage2PendingReviewing && !this.state.stage2PendingReviewingNudgeSent) {
+            const timeSinceMeetingEnd = now - (this.state.stage2PendingReviewing.timeSubmitted || now);
+            if (timeSinceMeetingEnd >= s2SilenceThresholdMs && silenceDurationMs >= s2SilenceThresholdMs) {
+              this.state.stage2PendingReviewingNudgeSent = true;
+              const msg = {
+                sender: 'managingEditor',
+                text: `🤝 【责任编辑·分歧研讨破冰提醒】：刚才梳理出的核心分歧关乎整篇论文的论证根基！大家先别有顾虑，👉 请组长带头在讨论区抛出你的看法，大家先用 2 分钟把修改思路对齐，磨刀不误砍柴工，全组商定后再动笔效率会更高！`,
+                timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                _timeMs: now,
+                stage: 'stage2'
+              };
+              if (!this.state.chatLogs.stage2) this.state.chatLogs.stage2 = [];
+              this.state.chatLogs.stage2.push(msg);
+              this.syncChatLogs();
+              if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+              renderChat(this.state);
               return;
-            }
-
-            // ② 后续周期性提醒：第一次提醒发出后，后续每隔 5~8 分钟（动态自适应阈值）做一次跟进提示
-            const dynamicPostMeetingSilenceMs = 360000; // 固定每 6 分钟一次（原 5~8 分钟动态区间过于细碎，改为单一节奏）
-            if (isFirstNudgeSent && silenceDurationMs >= dynamicPostMeetingSilenceMs) {
-              if (!this.lastS2PostMeetingSilenceNudgeTime || now - this.lastS2PostMeetingSilenceNudgeTime >= dynamicPostMeetingSilenceMs) {
-                this.lastS2PostMeetingSilenceNudgeTime = now;
-                const msg = {
-                  sender: 'managingEditor',
-                  text: `💡 【责任编辑·协同修改推进跟进】：全组正文修改正在稳步推进！\n👉 建议大家继续在讨论区同步各章节的修改进度与段落衔接，保持全篇逻辑的一体化！`,
-                  timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                  _timeMs: now,
-                  stage: 'stage2'
-                };
-                if (!this.state.chatLogs.stage2) {
-                  this.state.chatLogs.stage2 = [];
-                }
-                this.state.chatLogs.stage2.push(msg);
-                this.syncChatLogs();
-                if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
-                renderChat(this.state);
-                return;
-              }
             }
           }
 
-          // 5. 🎯 终审收尾雷达：阶段二自身时长达到 85% 或 参考文献录入完毕全文闭环
+          // ── 阶段二修改期静默守护（审稿编辑在 3 次质检意见下发后，若讨论区静默均由责任编辑出面破冰推进） ──
+          // 1) 第一次质检（初审微调）后的静默破冰
+          if (this.state.stage2FirstReviewFinishedTime && !this.state.stage2PostFirstReviewNudgeSent && !this.state.stage2ReviewingFinishedTime) {
+            const timeSinceReview1 = now - this.state.stage2FirstReviewFinishedTime;
+            if (timeSinceReview1 >= s2SilenceThresholdMs && silenceDurationMs >= s2SilenceThresholdMs) {
+              this.state.stage2PostFirstReviewNudgeSent = true;
+              this.lastS2PostMeetingSilenceNudgeTime = now;
+              const msg = {
+                sender: 'managingEditor',
+                text: `💡 【责任编辑·初审修改交流提示】：审稿专家已对大家的前期初稿提出了局部微调建议！👉 建议大家在讨论区交流一下如何落实专家的优化方向，打好后续章节的基础！`,
+                timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                _timeMs: now,
+                stage: 'stage2'
+              };
+              if (!this.state.chatLogs.stage2) this.state.chatLogs.stage2 = [];
+              this.state.chatLogs.stage2.push(msg);
+              this.syncChatLogs();
+              if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+              renderChat(this.state);
+              return;
+            }
+          }
+
+          // 2) 第二次质检（半程清单）后的静默破冰
+          if (this.state.stage2ReviewingFinishedTime && !this.state.stage2FirstPostReviewNudgeSent && !this.state.stage2FinalReviewFinishedTime) {
+            const timeSinceReview2 = now - this.state.stage2ReviewingFinishedTime;
+            if (timeSinceReview2 >= s2SilenceThresholdMs && silenceDurationMs >= s2SilenceThresholdMs) {
+              this.state.stage2FirstPostReviewNudgeSent = true;
+              this.lastS2PostMeetingSilenceNudgeTime = now;
+              const msg = {
+                sender: 'managingEditor',
+                text: `💡 【责任编辑·半程协同修改交流提示】：审稿专家的学术质检意见与修正清单已送达！👉 请大家在讨论区开麦交流：对照专家指出的薄弱点与清单，各自如何分工修改？遇到难点互相出谋划策，协同推进终稿！`,
+                timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                _timeMs: now,
+                stage: 'stage2'
+              };
+              if (!this.state.chatLogs.stage2) this.state.chatLogs.stage2 = [];
+              this.state.chatLogs.stage2.push(msg);
+              this.syncChatLogs();
+              if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+              renderChat(this.state);
+              return;
+            }
+          }
+
+          // 3) 第三次质检（终审扫描）后的静默破冰
+          if (this.state.stage2FinalReviewFinishedTime && !this.state.stage2PostFinalReviewNudgeSent) {
+            const timeSinceReview3 = now - this.state.stage2FinalReviewFinishedTime;
+            if (timeSinceReview3 >= s2SilenceThresholdMs && silenceDurationMs >= s2SilenceThresholdMs) {
+              this.state.stage2PostFinalReviewNudgeSent = true;
+              this.lastS2PostMeetingSilenceNudgeTime = now;
+              const msg = {
+                sender: 'managingEditor',
+                text: `💡 【责任编辑·终稿润色交流提示】：审稿专家的终稿语言与格式扫描诊断已下发！👉 请小组成员在讨论区简要分工：对照专家指出的语病与错别字逐一订正，做好最后的成稿冲刺！`,
+                timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                _timeMs: now,
+                stage: 'stage2'
+              };
+              if (!this.state.chatLogs.stage2) this.state.chatLogs.stage2 = [];
+              this.state.chatLogs.stage2.push(msg);
+              this.syncChatLogs();
+              if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+              renderChat(this.state);
+              return;
+            }
+          }
+
+          // 4) 修改期后续周期性提醒 (每隔一个巡检周期做一次跟进提示)
+          if (this.state.stage2ReviewingFinishedTime && this.state.stage2FirstPostReviewNudgeSent && silenceDurationMs >= s2NudgeCooldownMs) {
+            if (!this.lastS2PostMeetingSilenceNudgeTime || now - this.lastS2PostMeetingSilenceNudgeTime >= s2NudgeCooldownMs) {
+              this.lastS2PostMeetingSilenceNudgeTime = now;
+              const msg = {
+                sender: 'managingEditor',
+                text: `💡 【责任编辑·协同修改推进跟进】：全组正文修改正在稳步推进！\n👉 建议大家继续在讨论区同步各章节的修改进度与段落衔接，保持全篇逻辑的一体化！`,
+                timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                _timeMs: now,
+                stage: 'stage2'
+              };
+              if (!this.state.chatLogs.stage2) {
+                this.state.chatLogs.stage2 = [];
+              }
+              this.state.chatLogs.stage2.push(msg);
+              this.syncChatLogs();
+              if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+              renderChat(this.state);
+              return;
+            }
+          }
+
+          // 5. 🎯 终审收尾雷达：阶段二自身时长达到 85% 或 参考文献录入完毕全文闭环 ➔ 倒计时冲刺提醒
           const hasReachedReferences = /(?:六、|第6章|第六部分|参考文献|References)/i.test(s2.unifiedContent || '') && (s2.unifiedContent || '').length > 1500;
           const isTimeOver85Pct = stage2DurationMs >= (totalPlannedMs * 0.85);
           const hasMeetingDone = !!(s2.actionPlan && s2.actionPlan.isGenerated);
@@ -10880,7 +11203,7 @@
             this.state.stage2FinalNudgeSent = true;
             const msg1 = {
               sender: 'managingEditor',
-              text: `🤝 【责任编辑·收尾自查提醒】：时间已推进至阶段二最后冲刺阶段，全篇方案已基本成型！\n👉 请组员先**不要大改核心框架**，重点在研讨区协同分工：对全篇段落衔接与前后逻辑进行快速自查自校，做好收尾！`,
+              text: `🤝 【责任编辑·冲刺倒计时】：阶段二正文起草已进入最后 15% 倒计时！请小组成员抓紧收尾当前段落，全篇交叉通读、优化前后衔接，准备迎接答辩擂台！`,
               timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
               _timeMs: now
             };
@@ -10900,14 +11223,14 @@
   【审稿编辑前期两轮质检与半程修正清单历史（记忆继承）】:
   "${priorSecondReview}"
 
-  【审稿编辑终审定稿把关铁律】：在前两轮质检内容已基本定型的基础上，严禁再提结构性大改与重写，重点仅做全篇文字行文、病句错别字、标点规范与术语统一的定稿扫描！
+  【审稿编辑终审定稿把关铁律】：在前两轮质检内容已基本定型的基础上，必须严格继承前两轮质检指导方向，严禁再提结构性大改与重写，重点仅做全篇文字行文、病句错别字、标点规范与术语统一的定稿扫描！
 
   请通读下方【小组当前真实正文草稿】全文，作为审稿编辑进行终审行文质量扫描诊断（【全局红线】：严禁再提内容大改，严禁替写大段正文！）：
-  请从【语句通顺度】、【病句错别字】、【标点规范】、【学术用语与前后风格术语一致性】全维度真实扫描诊断，指出 1~2 处实际存在的具体硬伤（如哪句话存在口语化/语病、哪处术语不统一），给出规范订正建议，做好细节润色准备迎接答辩！纯自然语言输出，130~150字。`;
+  请从【语句通顺度】、【病句错别字】、【标点规范】、【学术用语与前后风格术语一致性】全维度真实扫描诊断，根据当前实际草稿质量精准指出 1~3 处实际存在的具体硬伤（如哪句话存在口语化/语病、哪处术语不统一），给出规范订正建议，做好细节润色准备迎接答辩！纯自然语言输出，130~150字。`;
 
               let sprintReviewText = await callCozeAgentAPI('reviewingEditor', sprintReviewPrompt, { stage: 'stage2', topic, actualDoc: rawDoc, priorReview: priorSecondReview });
               if (!sprintReviewText || sprintReviewText.trim().length === 0) {
-                sprintReviewText = `📝 【审稿编辑·终稿行文扫描诊断】：全篇论文内容已基本定型，整体框架非常完整！在最后收尾阶段，我重点对全文语言表达进行了全维度扫描，请大家重点修正以下具体细节：①【行文与语体】：部分章节中存在个别口语化表述与长句语病，建议润色为规范严谨的学术用语；②【错别字与术语】：个别用词前后术语不统一、存在错别字，建议统一表述并逐一订正。请全组做好细节润色，准备迎接终审答辩！`;
+                sprintReviewText = `📝 【审稿编辑·终稿行文扫描诊断】：全篇论文内容已基本定型，整体框架非常完整！在最后收尾阶段，我重点对全文语言表达进行了全维度扫描，请大家重点修正以下 1~3 处具体细节：①【行文与语体】：部分章节中存在个别口语化表述与长句语病，建议润色为规范严谨的学术用语；②【错别字与术语】：个别用词前后术语不统一，建议统一表述并逐一订正。请全组做好细节润色，准备迎接终审答辩！`;
               }
 
               const msg2 = {
@@ -10916,6 +11239,7 @@
                 timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
                 _timeMs: Date.now()
               };
+              this.state.stage2FinalReviewFinishedTime = Date.now();
               if (!this.state.chatLogs.stage2) this.state.chatLogs.stage2 = [];
               this.state.chatLogs.stage2.push(msg2);
               this.syncChatLogs();
@@ -11341,7 +11665,7 @@
         if (downloadBtn && ann.attachment) {
           downloadBtn.addEventListener('click', (e) => {
             e.stopPropagation();
-            downloadFileBlob(ann.attachment.name, null, ann.attachment.url);
+            downloadFileBlob(ann.attachment.name, null, ann.attachment.url || ann.attachment.fileData);
           });
         }
       };
@@ -11561,7 +11885,7 @@
               a.click();
               document.body.removeChild(a);
             } else {
-              downloadFileBlob(paper.fileName);
+              downloadFileBlob(paper.fileName, null, paper.fileUrl || paper.fileData);
             }
           }
         });
@@ -11657,7 +11981,12 @@
         });
       }
 
+      let isComposing = false;
+      input.addEventListener('compositionstart', () => { isComposing = true; });
+      input.addEventListener('compositionend', () => { isComposing = false; });
+
       input.addEventListener('input', (e) => {
+        if (isComposing || e.isComposing) return;
         const val = input.value;
         const lastChar = val.slice(-1);
         if (lastChar === '@' || (val.includes('@') && !val.includes(' '))) atMentionMenu.style.display = 'block';
@@ -11743,7 +12072,7 @@
               }, 1200);
             }
           }
-          // 2. 若处于【方案细化】状态，识别组员是否讨论了具体方案细节并准备分工
+          // 2. 若处于【方案细化】状态，识别组员是否讨论了具体方案细节并准备商议分工与时间
           else if (this.state.stage1PendingRefinement) {
             const isRefineDoneSignal = /(?:内容|方向|要点|维度|思路|结合|重点|案例|章节|结构|模块|模式|视角|主题|设计|方案|确定|定好|想好|差不多|可以了|赞同|分工|怎么分|谁来写|谁负责)/i.test(text);
             if (isRefineDoneSignal || hasValidConsensusPair) {
@@ -11752,7 +12081,7 @@
               setTimeout(async () => {
                 const taskPromptMsg = {
                   sender: 'auctioneer',
-                  text: `🎪 【拍卖师·分工与时间规划引导】：选题方向已经明晰！👉 接下来请大家根据各自特长与节奏，自主商定各自负责的分工任务与时间预算（先分工还是先定时间由大家自主决定），商定后点击左侧【生成公约草案】，生成后共同查看是否需要修改！`,
+                  text: `🎪 【拍卖师·分工与时间规划引导】：具体研究内容已基本明晰！👉 接下来请大家在讨论区商定：① 规划 6 大章节的时间预算；② 确定各自的任务分工（大家可以按具体内容模块分工，也可以按章节分工；先定时间还是先定分工由全组自主决定）！`,
                   timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
                   _timeMs: Date.now()
                 };
@@ -11764,14 +12093,69 @@
               }, 1200);
             }
           }
+          // 3. 若处于【分工与时间商议】状态，识别组员是否已完成分工与时间讨论 ➔ 提醒点击【生成公约草案】
+          else if (this.state.stage1PendingTasks) {
+            const isTasksDoneSignal = /(?:分工好了|时间定好|分钟|负责|我来|你来|分配|定好|差不多|可以了|赞同|生成公约|搞定|没问题|商定|确认分工)/i.test(text);
+            if (isTasksDoneSignal || hasValidConsensusPair) {
+              this.state.stage1PendingTasks = false;
+              this.state.stage1PendingDraftClick = true;
+              setTimeout(async () => {
+                const draftPromptMsg = {
+                  sender: 'auctioneer',
+                  text: `📜 【拍卖师·公约草案生成提醒】：分工与时间规划已商定就绪！👉 请组员点击左侧【生成公约草案】卡片，系统将根据大家的研讨记录自动生成草案，生成后可继续微调修改！`,
+                  timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                  _timeMs: Date.now()
+                };
+                if (!this.state.chatLogs.stage1) this.state.chatLogs.stage1 = [];
+                this.state.chatLogs.stage1.push(draftPromptMsg);
+                this.syncChatLogs();
+                if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+                renderChat(this.state);
+              }, 1200);
+            }
+          }
         }
 
-        // 📰 阶段二（学术编辑部）双研讨闭环
+        // 📰 阶段二（学术编辑部）双研讨闭环与按需学术答疑
         if (currentStage === 'stage2') {
+          // 0. 支持学生在讨论区随时主动 @审稿编辑 咨询具体学术疑问
+          const isMentioningReviewer = /(?:@审稿编辑|@审稿专家|@审稿)/i.test(text);
+          if (isMentioningReviewer) {
+            setTimeout(async () => {
+              const topic = (this.state.stage1 && this.state.stage1.mergedTitle) ? this.state.stage1.mergedTitle : '本组课题';
+              const fullDoc = (this.state.stage2 && this.state.stage2.unifiedContent) ? this.state.stage2.unifiedContent.replace(/<[^>]*>/g, '').trim() : '论文草稿';
+              const userQuestion = text.replace(/@(?:审稿编辑|审稿专家|审稿)/g, '').trim() || '请问针对当前正文草稿，我们该如何进一步深化修改？';
+
+              const askPrompt = `小组成员在讨论区主动向你提问咨询学术问题：
+  【课题】: 《${topic}》
+  【组员提问】: “${userQuestion}”
+
+  请通读学生真实正文草稿切片，作为国家级教育期刊资深审稿编辑，给予 80~120 字切中其实际课题的具体点拨与修改操作建议（纯自然语言输出，对靶解答，给出 1~2 个具体操作化支架）：`;
+
+              let reviewerAnswer = await callCozeAgentAPI('reviewingEditor', askPrompt, { stage: 'stage2', topic, userQuestion, actualDoc: fullDoc });
+              if (!reviewerAnswer || reviewerAnswer.trim().length === 0) {
+                reviewerAnswer = `📝 【审稿编辑·即时答疑】：针对大家提出的问题『${userQuestion}』：建议从具体研究对象的操作化指标切入！如果是量表题项，可从具体行为表现拟定 2~3 个具体题项；若是文献衔接，建议在对应章节末尾增加 1~2 句承上启下的述评过渡。大家可以直接在文档中尝试补充！`;
+              }
+
+              const replyMsg = {
+                sender: 'reviewingEditor',
+                text: reviewerAnswer,
+                timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                _timeMs: Date.now(),
+                stage: 'stage2'
+              };
+              if (!this.state.chatLogs.stage2) this.state.chatLogs.stage2 = [];
+              this.state.chatLogs.stage2.push(replyMsg);
+              this.syncChatLogs();
+              if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+              renderChat(this.state);
+            }, 1000);
+          }
+
           // Loop 1: 半程自查播报后，监听学生针对分歧商讨达成共识 -> 唤醒审稿编辑下发清单
           if (this.state.stage2PendingReviewing) {
             this.state.stage2PendingReviewing.studentMsgCount = (this.state.stage2PendingReviewing.studentMsgCount || 0) + 1;
-            const isConsensusSignal = /(?:对齐|同意|商量好了|商定好了|修改|明白了|收到|按这个改|@审稿编辑|统一了|没问题|行|结合|没毛病|就这么改)/i.test(text);
+            const isConsensusSignal = /(?:对齐|同意|商量好了|商定好了|修改|明白了|收到|按这个改|@审稿编辑|统一了|没问题|行|结合|没毛病|就这么改|达成共识)/i.test(text);
             if ((isConsensusSignal || hasValidConsensusPair) && !hasAdversative) {
               setTimeout(() => {
                 this.triggerReviewingEditorAfterDiscussion();
@@ -11779,31 +12163,68 @@
               return;
             }
           }
-          // Loop 2: 清单下发后，监听学生针对具体正文修改策略进行讨论
+
+          // Loop 2: 清单下发后，监听学生针对具体正文修改策略与分工进行讨论
           if (this.state.stage2PendingRevisionDiscussion) {
-            const isRevisionStrategySignal = /(?:文献|改|加|写|段落|引言|方法|反思|我来|你来|章节|修改|补充|润色|动笔|排版|正文|表格|图)/i.test(text);
+            const isRevisionStrategySignal = /(?:文献|改|加|写|段落|引言|方法|反思|我来|你来|我负责|你负责|章节|修改|补充|润色|动笔|排版|正文|表格|图|清单|开始改)/i.test(text);
             if (isRevisionStrategySignal) {
               this.state.stage2PendingRevisionDiscussion = false;
               this.state.stage2DualActivityActive = true; // 激活动笔双静默守护
+
+              // 责任编辑出场收尾确认
+              setTimeout(() => {
+                const concludeMsg = {
+                  sender: 'managingEditor',
+                  text: `🤝 【责任编辑·分工确认与动手号召】：大家的修改分工非常清晰明确！半程研讨圆满结束，请大家对照上方【半程修正清单】在正文中展开分工修改，完成对应项后可逐项在清单打勾！修改过程中若有疑问可随时在讨论区 @审稿编辑 咨询！`,
+                  timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                  _timeMs: Date.now(),
+                  stage: 'stage2'
+                };
+                if (!this.state.chatLogs.stage2) this.state.chatLogs.stage2 = [];
+                this.state.chatLogs.stage2.push(concludeMsg);
+                this.syncChatLogs();
+                if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+                renderChat(this.state);
+              }, 1500);
             }
           }
         }
 
-        // 🎓 阶段三（答辩擂台）逐条推进与主席精准总结
-        if (currentStage === 'stage3' && this.state.stage3ActivePoint === 1) {
-          const isDefenseSignal = /(?:前测|控制|效度|协变量|样本|反思|辩护|采纳|解释|指标|修改|针对|理由|补充|同意|附录|同质|补救|预案|正文)/i.test(text);
-          if ((isDefenseSignal || hasValidConsensusPair) && !hasAdversative) {
-            this.state.stage3ActivePoint = 'summarized_1';
+        // 🎓 阶段三（答辩擂台）逐条推进与主席精准总结 (支持质询 1, 2, 3... 动态识别)
+        if (currentStage === 'stage3') {
+          const s3Feedbacks = this.state.stage3?.feedbackItems || [];
+          const pendingItem = s3Feedbacks.find(f => f.status !== 'adopted');
+          const activeQueryIndex = pendingItem ? (s3Feedbacks.indexOf(pendingItem) + 1) : 1;
+
+          if (!this.state.stage3DefenseMsgCountMap) this.state.stage3DefenseMsgCountMap = {};
+          this.state.stage3DefenseMsgCountMap[activeQueryIndex] = (this.state.stage3DefenseMsgCountMap[activeQueryIndex] || 0) + 1;
+
+          const isDefenseSignal = /(?:前测|控制|效度|协变量|样本|反思|辩护|采纳|解释|指标|修改|针对|理由|补充|同意|附录|同质|补救|预案|正文|问卷|设计|方法)/i.test(text);
+          const hasEnoughDiscussion = (this.state.stage3DefenseMsgCountMap[activeQueryIndex] >= 2) || (text.length >= 15 && isDefenseSignal);
+
+          if (!this.state.stage3SummarizedMap) this.state.stage3SummarizedMap = {};
+
+          if (pendingItem && !this.state.stage3SummarizedMap[activeQueryIndex] && ((isDefenseSignal && hasEnoughDiscussion) || hasValidConsensusPair) && !hasAdversative) {
+            this.state.stage3SummarizedMap[activeQueryIndex] = true;
             setTimeout(async () => {
               const topic = (this.state.stage1 && this.state.stage1.mergedTitle) ? this.state.stage1.mergedTitle : '本组研究设计';
-              const chairSummaryPrompt = `小组成员已就反方委员的【第 1 条质询】在讨论区展开了充分的学术辩护研讨。
-  请通读组内最新讨论发言，作为答辩委员会主席（中间委员），发表 100~130 字的【全组辩护决断精准总结】：
-  ① 简明扼要提炼全组商定出的核心辩护理由与正文落地修改动作；
-  ② 提示组员推选一位代表将本条总结结论录入左侧【答辩裁决矩阵】对应项并保存，随后推进至下一条质询！`;
 
-              let chairSummaryText = await callCozeAgentAPI('neutral', chairSummaryPrompt, { stage: 'stage3', topic, queryPoint: 1 });
+              // 提取针对当前质询最近的 6~8 条真实组内研讨发言（精准截取当前题目的辩护上下文，绝不喂无关历史）
+              const s3Logs = (this.state.chatLogs && this.state.chatLogs.stage3) ? this.state.chatLogs.stage3 : [];
+              const recentDefenseChat = s3Logs.slice(-8).filter(m => m && m.sender && !['system', 'neutral', 'proponent', 'opponent'].includes(m.sender))
+                .map(m => `${m.senderName || m.sender}: ${m.text}`).join('\n') || text;
+
+              const chairSummaryPrompt = `小组成员已就反方委员的【质询 ${activeQueryIndex}（${pendingItem.content || pendingItem.title}）】在讨论区展开了充分的学术辩护研讨。
+  【组内针对本题的最新讨论发言切片】:
+  ${recentDefenseChat}
+
+  请通读上述发言，作为答辩委员会主席（中间委员），发表 100~130 字的【全组针对质询 ${activeQueryIndex} 辩护决断精准总结】：
+  ① 简明扼要提炼全组商定出的核心辩护理由与正文落地修改动作；
+  ② 提示组员推选一位代表将本条总结结论录入左侧【答辩裁决矩阵】对应项并保存，随后推进至下一条质询！纯自然语言输出，100~130字。`;
+
+              let chairSummaryText = await callCozeAgentAPI('neutral', chairSummaryPrompt, { stage: 'stage3', topic, queryPoint: activeQueryIndex });
               if (!chairSummaryText || chairSummaryText.trim().length === 0) {
-                chairSummaryText = `🟡 【中间委员·辩护共识提炼】：全组针对质询 1 的辩护思路已非常清晰！主要共识：采纳反方建设性意见，在对应章节补充论证说明与补救预案。👉 请推选一位组员代表全组将本条总结录入左侧【答辩裁决矩阵】保存，完成后我们继续推进第 2 条质询！`;
+                chairSummaryText = `🟡 【中间委员·辩护共识提炼】：全组针对质询 ${activeQueryIndex} 的辩护思路已非常清晰！主要共识：采纳反方建设性意见，在对应章节补充论证说明与补救预案。👉 请推选一位组员代表全组将本条总结录入左侧【答辩裁决矩阵】保存，完成后我们继续推进下一项质询！`;
               }
               const chairMsg = {
                 sender: 'neutral',
@@ -11838,7 +12259,14 @@
       };
 
       sendBtn.addEventListener('click', handleSend);
-      input.addEventListener('keypress', (e) => { if (e.key === 'Enter') handleSend(); });
+      input.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+          // 🛡️ Safari / WebKit 中文输入法合成防吞字：若处于输入法选词状态或 keyCode 229，绝对禁止触发发送与清空
+          if (isComposing || e.isComposing || e.keyCode === 229) return;
+          e.preventDefault();
+          handleSend();
+        }
+      });
     }
 
     // updateContributionUi() 已在 L258 定义（含 getElementById 精确选择器），此处不再重复覆盖
@@ -12034,7 +12462,7 @@
           // 🛡️ 严格学术铁律：只有【全票一致】才自动确立课题；只要不是全票一致（无论 2:1 还是平票），一律算【存在分歧】，留由组员在讨论区协商确定！
           if (isUnanimous && winningProposal) {
             s1.mergedTitle = winningProposal.title;
-            this.state.stage1PendingTasks = true;
+            this.state.stage1PendingRefinement = true;
           } else {
             this.state.stage1PendingDivergence = true;
           }
@@ -12043,38 +12471,95 @@
             s1.contract.timeAllocations = { background: 25, literature: 30, questions: 25, method: 40, reflection: 20, references: 10 };
           }
 
-          let voteContextPrompt = '';
+          // ── 🌟 第 1 条：系统官方计票模板播报 ──
+          const tallySystemMsg = {
+            sender: 'system',
+            text: `📊 【选题竞拍·计票结果】：全组投票已全部完成！计票统计：${proposalSummaryList}。${isUnanimous ? '🎉 全票一致通过！' : '⚖️ 组内对选题持有不同视角（未达成全票一致）。'}`,
+            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            _timeMs: Date.now()
+          };
+          this.state.chatLogs.stage1.push(tallySystemMsg);
+          this.syncChatLogs();
+          if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+          renderChat(this.state);
+
+          // ── 🌟 智能体拍卖师（Coze 豆包 2.0 Pro）分两条独立播报：① 题目优化确立  ② 细化探究指引 ──
           if (isUnanimous) {
-            voteContextPrompt = `全组投票已全部完成！计票结果清单：${proposalSummaryList}。全组成员 ${totalMembersCount}/${totalMembersCount} 全票一致推选《${winningProposal.title}》！
-  请作为资深学术拍卖师发表 130~150 字的【课题敲定与细化建议】：
+            const titleOptimizePrompt = `全组投票已全部完成！全组成员 ${totalMembersCount}/${totalMembersCount} 全票一致推选《${winningProposal.title}》（作者: ${winningProposal.authorName || winningProposal.author}）！
+  请作为资深学术拍卖师发表 70~90 字的【课题敲定与题目学术优化】：
   ① 隆重宣布《${winningProposal.title}》获得全票一致推选，正式确立为全组研究课题；
-  ② 针对该选题给出 2~3 条具体的细化方向建议（【核心铁律】：此时绝对不提及分工与时间！）；
-  ③ 明确引导组长带头在讨论区发起细化交流，全组共同商议完善具体实施方案。纯自然语言输出，130~150字。`;
-          } else {
-            voteContextPrompt = `全组投票已全部完成！计票结果清单：${proposalSummaryList}。投票存在分歧（未达成全票一致）！
-  请作为资深学术拍卖师发表 130~150 字的【分歧协商破冰引导】：
-  ① 客观播报票数分布清单（【严格铁律】：对事不对人，严禁指名道姓批评，严禁提及谁投了谁）；
-  ② 引导各提案作者在讨论区简要阐述各自构想的核心亮点，商讨如何取长补短、求同存异；
-  ③ 引导全组在讨论区深入协商，确定一个兼具理论深度与实践可行性的最终统一主题（既可选用多数人认可的主题，亦可融合各方亮点）。纯自然语言输出，130~150字。`;
-          }
+  ② 【核心任务】：基于该提案构想，将其提炼优化为一个规范严谨、高水准的学术研究论文题目（在回复中必须用《...》标出，如《基于...的...研究设计与实证分析》）。纯自然语言输出，70~90字。`;
 
-          let summaryText = await callCozeAgentAPI('auctioneer', voteContextPrompt, {
-            stage: 'stage1',
-            isUnanimous,
-            winningTopic: winningProposal ? winningProposal.title : '',
-            tallySummary: proposalSummaryList
-          });
+            const guidancePrompt = `全组已全票确立研究课题《${winningProposal.title}》。
+  请作为资深学术拍卖师发表 70~90 字的【细化探究方向指引】：
+  ① 针对该选题给出 2~3 条具体的细化深化探究方向建议（【严格铁律】：此时绝对不提及任务分工与时间分配！）；
+  ② 明确引导组长带头在讨论区发起细化交流，全组共同商议完善具体实施方案。纯自然语言输出，70~90字。`;
 
-          if (!summaryText || summaryText.trim().length === 0) {
-            if (isUnanimous) {
-              summaryText = `🎉 【拍卖师·课题敲定与细化建议】：恭喜全组！经过热烈竞拍，《${winningProposal.title}》获得全票一致推选，正式确立为全组研究课题！针对此选题，建议可聚焦核心实施路径与关键环节深化探究。👉 请组长带头在讨论区发起交流，全组共同商议完善具体实施方案！`;
-            } else {
-              summaryText = `⚖️ 【拍卖师·分歧协商引导】：投票已落槌，计票结果为：${proposalSummaryList}。注意到组内对选题持有不同视角，存在票数分歧！这正是团队协同碰撞创新的最佳契机。建议各提案作者在讨论区简要阐明自己的设计亮点，大家共同商讨如何取长补短，确定一个兼具理论深度与实践可行性的优质主题！`;
+            let msg1Text = await callCozeAgentAPI('auctioneer', titleOptimizePrompt, {
+              stage: 'stage1',
+              isUnanimous: true,
+              winningTopic: winningProposal ? winningProposal.title : ''
+            });
+
+            let msg2Text = await callCozeAgentAPI('auctioneer', guidancePrompt, {
+              stage: 'stage1',
+              isUnanimous: true,
+              winningTopic: winningProposal ? winningProposal.title : ''
+            });
+
+            if (!msg1Text || msg1Text.trim().length === 0) {
+              msg1Text = `🎉 【学术拍卖师·课题敲定与学术定名】：恭喜全组！经全员一致推选，《${winningProposal.title}》正式确立为全组研究课题。建议本组学术论文题目正式确立为：《基于${winningProposal.title}的实证研究与方案设计》！`;
             }
+            if (!msg2Text || msg2Text.trim().length === 0) {
+              msg2Text = `💡 【学术拍卖师·细化探究指引】：针对该选题，建议重点围绕核心变量界定、理论框架支撑与研究方法路径深化探究。👉 请组长在讨论区带头组织大家展开细化交流！`;
+            }
+
+            // 提取优化后的题目暂存内存中（此时先不填入左侧公约，待组员点击生成公约时才填入）
+            const matchTitle = msg1Text.match(/《([^》]{4,50})》/);
+            if (matchTitle && matchTitle[1]) {
+              s1._optimizedTitle = matchTitle[1].trim();
+            } else {
+              s1._optimizedTitle = winningProposal.title;
+            }
+
+            const msg1 = { sender: 'auctioneer', text: msg1Text, timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), _timeMs: Date.now() };
+            const msg2 = { sender: 'auctioneer', text: msg2Text, timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), _timeMs: Date.now() + 100 };
+            this.state.chatLogs.stage1.push(msg1, msg2);
+          } else {
+            // ── 分歧分支：分两条播报（① 破冰播报 ② 协商融合指引） ──
+            const divergencePrompt1 = `全组投票已全部完成！计票结果清单：${proposalSummaryList}。投票存在分歧（未达成全票一致）！
+  请作为资深学术拍卖师发表 60~80 字的【分歧破冰播报】：
+  ① 客观播报票数分布，指出组内对选题持有不同视角（【严格铁律】：对事不对人，严禁指名道姓批评，严禁提及谁投了谁）；
+  ② 鼓励大家这是碰撞创新、求同存异的最佳契机。纯自然语言输出，60~80字。`;
+
+            const divergencePrompt2 = `全组投票存在分歧，准备进入选题协商融合阶段。
+  请作为资深学术拍卖师发表 60~80 字的【协商融合指引】：
+  ① 引导各提案作者在讨论区简要阐述各自构想的核心亮点；
+  ② 引导全组在讨论区深入协商，融合各方亮点确定一个最终统一主题。纯自然语言输出，60~80字。`;
+
+            let dMsg1 = await callCozeAgentAPI('auctioneer', divergencePrompt1, {
+              stage: 'stage1',
+              isUnanimous: false,
+              tallySummary: proposalSummaryList
+            });
+            let dMsg2 = await callCozeAgentAPI('auctioneer', divergencePrompt2, {
+              stage: 'stage1',
+              isUnanimous: false,
+              tallySummary: proposalSummaryList
+            });
+
+            if (!dMsg1 || dMsg1.trim().length === 0) {
+              dMsg1 = `⚖️ 【学术拍卖师·分歧协商破冰】：计票已落槌，计票结果为：${proposalSummaryList}。注意到组内存在不同视角，这正是团队碰撞创新、求同存异的最佳契机！`;
+            }
+            if (!dMsg2 || dMsg2.trim().length === 0) {
+              dMsg2 = `💡 【学术拍卖师·协商融合指引】：建议各提案作者在讨论区简要阐明自己的设计亮点，大家共同商讨如何取长补短，确定一个兼具理论深度与实践可行性的最终统一融合课题！`;
+            }
+
+            const msg1 = { sender: 'auctioneer', text: dMsg1, timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), _timeMs: Date.now() };
+            const msg2 = { sender: 'auctioneer', text: dMsg2, timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), _timeMs: Date.now() + 100 };
+            this.state.chatLogs.stage1.push(msg1, msg2);
           }
 
-          const summaryMsg = { sender: 'auctioneer', text: summaryText, timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), _timeMs: Date.now() };
-          this.state.chatLogs.stage1.push(summaryMsg);
           this.syncStage1();
           this.syncChatLogs();
           if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
@@ -12083,6 +12568,248 @@
         }, 800);
       }
       this.renderStudentWorkspace();
+    }
+
+    async handleAiGenerateContract() {
+      const s1 = this.state.stage1 || {};
+      const proposals = s1.proposals || [];
+      const logs = (this.state.chatLogs && this.state.chatLogs.stage1) || [];
+      const userLogs = logs.filter(m => m.sender && !['auctioneer', 'editor', 'system', 'neutral'].includes(m.sender));
+      let members = [];
+      if (Array.isArray(this.state.members)) members = this.state.members;
+      else if (this.state.members && typeof this.state.members === 'object') members = Object.values(this.state.members);
+      const totalMembersCount = members.length || 3;
+      const membersInfo = members.map(m => `- ${m.name || m.studentCode || m.id} (学号/ID: ${m.studentCode || m.id})`).join('\n');
+
+      // 🛡️ 协同门禁：必须至少有 1 个选题提案
+      if (proposals.length === 0) {
+        document.querySelectorAll('.jizhi-custom-modal').forEach(m => m.remove());
+        const hintModal = document.createElement('div');
+        hintModal.className = 'modal-overlay jizhi-custom-modal';
+        hintModal.innerHTML = `
+          <div style="width:460px; max-width:92vw; background:#ffffff; border-radius:16px; box-shadow:0 20px 40px rgba(15,23,42,0.22); overflow:hidden; border:1px solid #e2e8f0; animation:modalFadeIn 0.25s ease;">
+            <div style="background:linear-gradient(135deg, #d97706, #f59e0b); padding:18px 24px; color:#ffffff; display:flex; align-items:center; gap:12px;">
+              <span style="font-size:24px;">💡</span>
+              <div>
+                <h3 style="margin:0; font-size:16px; font-weight:800; color:#ffffff;">研讨协商提示</h3>
+                <div style="font-size:11.5px; opacity:0.9; margin-top:2px;">学术合作公约需先有选题提案</div>
+              </div>
+            </div>
+            <div style="padding:22px 24px; font-size:13.5px; color:#334155; line-height:1.65; display:flex; flex-direction:column; gap:12px;">
+              <div>
+                请小组成员先点击左侧<b>【提交我的选题】</b>提出至少 1 个研究设想，再生成公约草案！
+              </div>
+              <div style="font-size:12px; color:#64748b; background:#f8fafc; padding:8px 12px; border-radius:8px; border:1px solid #e2e8f0;">
+                👉 <b>提示</b>：全组也可以直接在左侧输入框中自主分工录入与修改。
+              </div>
+            </div>
+            <div style="background:#f8fafc; border-top:1px solid #e2e8f0; padding:14px 24px; display:flex; justify-content:flex-end;">
+              <button class="modal-btn submit" id="btn-close-hint-modal" style="background:linear-gradient(135deg, #d97706, #f59e0b); border:none; color:white; padding:8px 22px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer;">知道了</button>
+            </div>
+          </div>
+        `;
+        document.body.appendChild(hintModal);
+        hintModal.querySelector('#btn-close-hint-modal').addEventListener('click', () => hintModal.remove());
+        hintModal.addEventListener('click', (e) => { if (e.target === hintModal) hintModal.remove(); });
+        return;
+      }
+
+      // 1. 提炼融合研究主题（区分【全票一致】与【分歧协商】）
+      const tally = {};
+      Object.values(s1.votes || {}).forEach(pId => { if (pId) tally[pId] = (tally[pId] || 0) + 1; });
+      let winningP = null;
+      let maxV = 0;
+      let isUnanimous = false;
+
+      proposals.forEach(p => {
+        const cnt = tally[p.id] || 0;
+        if (cnt > maxV) {
+          maxV = cnt;
+          winningP = p;
+        }
+      });
+
+      if (winningP && maxV >= totalMembersCount && totalMembersCount > 0) {
+        isUnanimous = true;
+      }
+
+      // 提取研讨切片（包含拍卖师学术定名播报与组员真实研讨）
+      const s1ChatLogs = (this.state.chatLogs && this.state.chatLogs.stage1) ? this.state.chatLogs.stage1 : [];
+      const voteNoticeIdx = s1ChatLogs.findIndex(m => m && m.text && (m.text.includes('计票结果') || m.text.includes('落槌定题') || m.text.includes('全票一致通过') || m.text.includes('选题确定')));
+      const relevantLogs = (voteNoticeIdx >= 0) ? s1ChatLogs.slice(voteNoticeIdx) : s1ChatLogs;
+
+      // 组员发言切片（用于分工规则匹配）
+      const userLogsAfterVote = relevantLogs.filter(m => m && m.sender && !AgentProfiles[m.sender] && m.sender !== 'system');
+      const chatSnippet = userLogsAfterVote.map(m => `${m.senderName || m.sender}: ${m.text}`).join('\n');
+
+      // 包含拍卖师学术定名播报与全组讨论的完整记录（用于大模型通读上下文）
+      const fullDiscussionLogs = relevantLogs.map(m => {
+        const senderLabel = m.sender === 'auctioneer' ? '【学术拍卖师】' : (m.sender === 'system' ? '【系统播报】' : (m.senderName || m.sender));
+        return `${senderLabel}: ${m.text}`;
+      }).join('\n');
+
+      const proposalsSummary = proposals.map((p, idx) => `提案${idx+1}: 《${p.title}》（作者: ${p.authorName || p.author}）`).join('\n');
+      const tallyDesc = Object.entries(tally).map(([pid, c]) => {
+        const p = proposals.find(item => item.id === pid);
+        return `《${p ? p.title : pid}》(${c}票)`;
+      }).join('，');
+
+      // 🌟 点了生成公约草案后，题目直接由大模型通读全组提案与讨论后权威提炼并填入
+      if (!s1.mergedTitle || s1.mergedTitle.trim().length === 0 || s1.mergedTitle === '待组员协商填入融合主题') {
+        s1.mergedTitle = (winningP ? winningP.title : (proposals[0] ? proposals[0].title : '本组学术研究课题'));
+      }
+
+      if (!s1.contract) s1.contract = {};
+      s1.contract.isDraftGenerated = true;
+      s1.contract._draftedTime = Date.now();
+      if (!s1.contract.taskAssignments) s1.contract.taskAssignments = {};
+      const allTasks = (this.authManager) ? this.authManager.getTasks() : [];
+      const curTask = allTasks.find(t => t.id === this.state.activeTaskId);
+      const totalDurationMin = (curTask && curTask.durationMinutes) ? Number(curTask.durationMinutes) : 150;
+      const stage2BudgetMin = Math.max(20, Math.round(totalDurationMin * 0.70)); // 阶段二正文起草总预算时长
+
+      // 默认按任务时长科学比例初始化（学术黄金比例）
+      s1.contract.timeAllocations = {
+        background: Math.max(5, Math.round(stage2BudgetMin * 0.18)),
+        literature: Math.max(5, Math.round(stage2BudgetMin * 0.22)),
+        questions: Math.max(5, Math.round(stage2BudgetMin * 0.15)),
+        method: Math.max(8, Math.round(stage2BudgetMin * 0.25)),
+        reflection: Math.max(3, Math.round(stage2BudgetMin * 0.12)),
+        references: Math.max(2, Math.round(stage2BudgetMin * 0.08))
+      };
+
+      // 本地快速规则填充
+      const defaultChapterTasks = [
+        '负责“一、研究背景与意义”及“二、文献综述”起草与资料整理',
+        '负责“三、研究问题与假设”及“四、研究设计与方法”方案制定',
+        '负责“五、不足与反思”撰写及全篇“六、参考文献”引文校对',
+        '负责数据分析模型构建与研究工具问卷设计'
+      ];
+
+      members.forEach((m, idx) => {
+        let assignedTask = '';
+        const myName = m.name || '';
+        const myCode = m.studentCode || m.id || '';
+        const myMsgs = userLogsAfterVote.filter(msg => msg.sender === m.id || msg.sender === myCode || (myName && msg.senderName === myName));
+        const myText = myMsgs.map(msg => msg.text || '').join(' ');
+
+        if (myText.includes('背景') || myText.includes('综述') || myText.includes('前言')) {
+          assignedTask = '负责“一、研究背景与意义”及“二、文献综述”起草与资料整理';
+        } else if (myText.includes('假设') || myText.includes('方法') || myText.includes('设计') || myText.includes('问卷') || myText.includes('实验')) {
+          assignedTask = '负责“三、研究问题与假设”及“四、研究设计与方法”方案制定';
+        } else if (myText.includes('反思') || myText.includes('不足') || myText.includes('文献') || myText.includes('校对')) {
+          assignedTask = '负责“五、不足与反思”撰写及全篇“六、参考文献”引文校对';
+        } else if (myText.includes('数据') || myText.includes('量表') || myText.includes('模型')) {
+          assignedTask = '负责数据分析模型构建与研究工具问卷设计';
+        }
+        if (!assignedTask) assignedTask = defaultChapterTasks[idx % defaultChapterTasks.length] || '协作撰写与统稿';
+        s1.contract.taskAssignments[m.id] = assignedTask;
+        if (m.studentCode) s1.contract.taskAssignments[m.studentCode] = assignedTask;
+      });
+
+      // ── 异步调用大模型进行公约数据结构化精修覆盖（包含前后统一的论文题目提炼） ──
+      const extractPrompt = `请作为资深学术拍卖师，通读下方小组成员提出的所有选题提案、投票情况、此前拍卖师的学术定名播报以及【投票定题之后】全组关于分工与时间的真实研讨记录，提取结构化数据填入《学术合作公约草案》：
+
+  【小组成员名单】:
+  ${membersInfo}
+
+  【全组成员提出的选题提案列表】:
+  ${proposalsSummary || '无独立提案'}
+
+  【投票定题与计票情况】:
+  ${isUnanimous ? `全票一致推选《${winningP ? winningP.title : ''}》` : `存在分歧，投票计票分布为：${tallyDesc}`}
+
+  【投票后的完整研讨发言记录（包含学术拍卖师学术定名与组员交流）】:
+  ${fullDiscussionLogs || '成员协商协作撰写'}
+
+  【全场任务时长参考】: 全场总时长 ${totalDurationMin} 分钟（阶段二正文起草预算约 ${stage2BudgetMin} 分钟）
+
+  【核心提炼要求】:
+  1. 融合研究主题 (mergedTitle)：严格保持前后学术定名连贯性！通读此前拍卖师给出的规范学术题目及组员后续讨论：若全票一致且组员无修改异议，优先承接此前确立的规范学术论文题目（如《基于...的...研究设计与实证分析》）；若同学们在讨论中深入融合了各方亮点，则提炼出全组达成共识的最终融合学术题目；
+  2. 任务分工 (taskAssignments)：根据成员在聊天中的主动认领或学术背景，合理分配章节任务；
+  3. 时间规划 (timeAllocations)：若学生提及了具体章节时间则优先采纳；若模糊或未提全，按黄金学术比例（背景18%、综述22%、问题15%、方法25%、反思12%、文献8%）推算补齐全部 6 大章节分钟数。
+
+  请严格输出合法的 JSON 格式（严禁输出任何额外 markdown 说明或自然语言）：
+  {
+    "mergedTitle": "前后连贯、深度提炼的学术论文研究主题",
+    "taskAssignments": {
+      "成员ID或学号": "提取的分工任务描述（如负责研究背景与文献综述梳理、负责问卷设计与数据分析）"
+    },
+    "timeAllocations": {
+      "background": 25,
+      "literature": 30,
+      "questions": 25,
+      "method": 40,
+      "reflection": 20,
+      "references": 10
+    }
+  }`;
+
+      callCozeAgentAPI('auctioneer', extractPrompt, { stage: 'stage1', topic: s1.mergedTitle }).then(llmRes => {
+        if (llmRes && llmRes.includes('{')) {
+          try {
+            const jsonStr = llmRes.substring(llmRes.indexOf('{'), llmRes.lastIndexOf('}') + 1);
+            const parsed = JSON.parse(jsonStr);
+            if (parsed.mergedTitle && typeof parsed.mergedTitle === 'string' && parsed.mergedTitle.trim().length > 0) {
+              s1.mergedTitle = parsed.mergedTitle.trim().replace(/^《|》$/g, '');
+            }
+            if (parsed.taskAssignments && typeof parsed.taskAssignments === 'object') {
+              Object.assign(s1.contract.taskAssignments, parsed.taskAssignments);
+            }
+            if (parsed.timeAllocations && typeof parsed.timeAllocations === 'object') {
+              Object.assign(s1.contract.timeAllocations, parsed.timeAllocations);
+            }
+            this.syncStage1();
+            if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+            this.renderStudentWorkspace(true);
+          } catch (e) {}
+        }
+      }).catch(() => {});
+
+      this.syncStage1();
+      if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+      this.renderStudentWorkspace(true);
+
+      // 拍卖师在聊天区发布权威引导播报
+      const draftNoticeMsg = {
+        sender: 'auctioneer',
+        text: `✨ 【拍卖师·已提炼公约草案】\n已读取学术研讨发言与选题投票结果，生成《团队协同合作学术合约草案》！\n\n📌 **融合研究主题**：《${s1.mergedTitle}》\n💡 **决策依据**：${topicDecisionReason}\n👉 **请组员仔细核查左侧分工与时间预算**：\n• 若与实际商议有出入，每位同学均可**直接在输入框中自主微调修改**；\n• 小组成员也可以不依赖提炼，完全自主在左侧分工填写；\n✍️ 确认无误后，全员点击【确认签署公约】即可正式生效并解锁阶段二！`,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        _timeMs: Date.now()
+      };
+      const curStage = this.state.currentStage || 'stage1';
+      if (!this.state.chatLogs[curStage]) this.state.chatLogs[curStage] = [];
+      this.state.chatLogs[curStage].push(draftNoticeMsg);
+      this.syncChatLogs();
+
+      document.querySelectorAll('.jizhi-custom-modal').forEach(m => m.remove());
+      const succModal = document.createElement('div');
+      succModal.className = 'modal-overlay jizhi-custom-modal';
+      succModal.innerHTML = `
+        <div style="width:460px; max-width:92vw; background:#ffffff; border-radius:16px; box-shadow:0 20px 40px rgba(15,23,42,0.22); overflow:hidden; border:1px solid #e2e8f0; animation:modalFadeIn 0.25s ease;">
+          <div style="background:linear-gradient(135deg, #059669, #10b981); padding:18px 24px; color:#ffffff; display:flex; align-items:center; gap:12px;">
+            <span style="font-size:24px;">🎉</span>
+            <div>
+              <h3 style="margin:0; font-size:16px; font-weight:800; color:#ffffff;">学术合作公约草案已生成</h3>
+              <div style="font-size:11.5px; opacity:0.9; margin-top:2px;">已自动填入左侧公约区域</div>
+            </div>
+          </div>
+          <div style="padding:22px 24px; font-size:13.5px; color:#334155; line-height:1.65; display:flex; flex-direction:column; gap:12px;">
+            <div>
+              系统已自动在左侧填入<b>融合研究主题、各章节分工与时间规划</b>。
+            </div>
+            <div style="font-size:12.5px; color:#065f46; background:#ecfdf5; border:1px solid #a7f3d0; padding:10px 14px; border-radius:8px; font-weight:600;">
+              👉 请小组成员仔细检查左侧公约内容（可直接在输入框微调修改），确认无误后点击下方【✍️ 确认签署公约】生效！
+            </div>
+          </div>
+          <div style="background:#f8fafc; border-top:1px solid #e2e8f0; padding:14px 24px; display:flex; justify-content:flex-end;">
+            <button class="modal-btn submit" id="btn-close-succ-modal" style="background:linear-gradient(135deg, #059669, #10b981); border:none; color:white; padding:8px 22px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer;">立即检查公约</button>
+          </div>
+        </div>
+      `;
+      document.body.appendChild(succModal);
+      succModal.querySelector('#btn-close-succ-modal').addEventListener('click', () => succModal.remove());
+      succModal.addEventListener('click', (e) => { if (e.target === succModal) succModal.remove(); });
     }
 
     async triggerStageWelcomeSpeech(stage) {
@@ -12211,11 +12938,11 @@
           // 2. 依次异步调用【正方】与【反方】
           setTimeout(async () => {
             const propPrompt = `针对小组论文《${topic}》，请通读下方【小组当前真实正文草稿】全文，作为答辩委员会正方评审教授发表 130~150 字的肯定支持评审意见：
-  【基于真实正文的具体赞赏原则】：通读正文草稿切片，必须紧扣具体学科、具体章节、行文语言与具体设计展开具体赞赏，精选 2~3 个最核心的真实出彩亮点（必须至少指出 2 个具体亮点，如研究设计创新、行文与论证质量、实践落地价值等），避开瑕疵不谈，为全组成员提供充实的正面论据支架！纯自然语言输出，130~150字。`;
+  【基于真实正文的动态赞赏原则】：通读正文草稿全文，从 5 大赞赏维度（①行文风格与语言通顺、②选题与立意创新、③设计与方法严密、④实践落地与推广价值、⑤规范与术语统一）中，根据本篇论文的真实闪光点，动态灵活挑选 2~3 个最契合的核心亮点（必须至少 2 个，最多 3 个，严禁死板固化在某两个固定维度），紧扣具体学科与章节展开具体赞赏，为全组提供充实的正面论据支架！纯自然语言输出，130~150字。`;
 
             let propText = await callCozeAgentAPI('proponent', propPrompt, { stage: 'stage3', topic, actualDoc: rawContent });
             if (!propText || propText.trim().length === 0) {
-              propText = `🟢 【正方委员评审意见】：通读全篇，该研究展现出了极高的学术价值与实践意义！最出彩的地方体现在两点：①【研究设计创新】：在相关章节中教学设计与技术融合切口独特，突破了传统教学痛点；②【行文与论证质量】：不仅整体论述逻辑严密、学术语句流畅自洽，而且方案在真实课堂中可落地性极强，非常值得肯定！`;
+              propText = `🟢 【正方委员评审意见】：通读全篇，该研究展现出了极高的学术价值与实践意义！最出彩的地方体现在两点：①【选题与立意创新】：针对教学痛点提出的干预切口非常新颖独特；②【实践落地与推广价值】：方案在真实课堂中的教学活动设计可操作性极强，论据充分，为全组的深度协同点赞！`;
             }
             logs.push({
               sender: 'proponent',
@@ -12232,12 +12959,11 @@
   【正方委员刚才的肯定意见参考】:
   ${propText}
 
-  【全局学术博弈红线与质询原则】：
-  1. 正方明确夸赞的具体局部段落与具体事实严禁唱反调；
-  2. 顺着正方赞赏的创新构想，辩证审视其在真实教学中“落地可行性与实施挑战”；
-  3. 对于其他未被明确夸赞的章节，提出关于实施挑战、行文语病/风格割裂、测量工具或变量控制的商榷；
-  4. 必须提出 2~3 个清晰的学术质询点（必须至少 2 个，用 ① ② 分条呈现）；
-  5. 态度务必温和客气、极具建设性（多用“商讨/请教/小细节/落地可行性”）。纯自然语言输出，130~150字。`;
+  【全局学术博弈红线与动态质询原则】：
+  1. 正方明确夸赞的具体局部段落与具体事实严禁唱反调；顺着正方赞赏的创新构想，可辩证审视其在真实教学中“落地可行性与实施挑战”；
+  2. 从 5 大质询维度（①具体设计落地的可行性与实施挑战、②行文风格割裂与语言表达通顺度、③变量操作化与测量工具严密性、④实验对照与变量控制逻辑、⑤正方未夸赞章节的行文与术语规范）中，根据本篇论文的真实薄弱处，动态灵活挑选 2~3 个最切中要害的质询点（必须至少 2 个，最多 3 个，严禁死板固化在某两个固定维度）；
+  3. 必须以清晰的序号 ① ② 分条呈现质询焦点；
+  4. 态度务必温和客气、极具建设性（多用“商讨/请教/小细节/落地可行性”）。纯自然语言输出，130~150字。`;
 
               let oppText = await callCozeAgentAPI('opponent', oppPrompt, { stage: 'stage3', topic, actualDoc: rawContent });
               const oppSucceeded = !!(oppText && oppText.trim().length > 0);
@@ -12567,336 +13293,82 @@
           onVote: (propId) => { this.handleVoteCast(propId); },
           onRefresh: () => { this.renderStudentWorkspace(); },
           onContractChange: () => { this.syncStage1(); },
-          onAiGenerateContract: async () => {
+          onAiGenerateContract: () => { this.handleAiGenerateContract(); },
+          onConfirmContract: () => {
+            const user = this.state.currentUser;
             const s1 = this.state.stage1 || {};
-          const proposals = s1.proposals || [];
-          const logs = (this.state.chatLogs && this.state.chatLogs.stage1) || [];
-          const userLogs = logs.filter(m => m.sender && !['auctioneer', 'editor', 'system', 'neutral'].includes(m.sender));
-          const members = Object.values(this.state.members || {});
-          const totalMembersCount = members.length || 3;
+            if (!s1.contract) s1.contract = {};
+            if (!s1.contract.confirmedMembers) s1.contract.confirmedMembers = {};
 
-          // 1. 严格计算跨成员研讨交互轮数（发言者交替次数）与参与人数
-          const voteTime = s1._voteCompletedTime || 0;
-          const postVoteLogs = voteTime > 0
-            ? userLogs.filter(m => (m._timeMs || 0) >= (voteTime - 3000))
-            : userLogs;
-
-          let interactionTurns = 0;
-          let lastSpeaker = null;
-          const participantSet = new Set();
-
-          postVoteLogs.forEach(msg => {
-            const spk = msg.sender || msg.senderName;
-            if (spk) {
-              participantSet.add(spk);
-              if (lastSpeaker !== null && lastSpeaker !== spk) {
-                interactionTurns++; // 发言人交替换人，才计为 1 轮有效交互！
-              }
-              lastSpeaker = spk;
+            let memberArr = [];
+            if (Array.isArray(this.state.members)) memberArr = this.state.members;
+            else if (this.state.members && typeof this.state.members === 'object') memberArr = Object.values(this.state.members);
+            if (memberArr.length === 0 && this.authManager) {
+              const u = this.authManager.getCurrentUser();
+              const effClassId = this.state.activeStudentClassId || u?.classId || 'class_101';
+              const effGroup = this.authManager.getStudentActiveGroup(u, effClassId);
+              memberArr = this.authManager.getGroupMembersForWorkspace(effGroup?.id || 'group_1', effClassId);
             }
-          });
+            const currMemObj = memberArr.find(m => m && (m.id === user || m.studentCode === user || m.username === user || m.name === user));
+            const memberName = currMemObj ? currMemObj.name : user;
+            const totalMembersCount = Math.max(memberArr.length, 2);
 
-          // 拼接学生研讨文本
-          const chatSnippet = userLogs.map(m => `${m.senderName || m.sender}: ${m.text}`).join('\n');
+            // 检查当前点击的用户自己是否已经签署过
+            const userAlreadySigned = !!(s1.contract.confirmedMembers[user] || (currMemObj && (s1.contract.confirmedMembers[currMemObj.id] || s1.contract.confirmedMembers[currMemObj.studentCode] || (currMemObj.name && s1.contract.confirmedMembers[currMemObj.name]))));
 
-          // 🛡️ 严格学术协同门禁：必须提交了提案，且投票后组内交互至少达到 2 轮（跨成员交替研讨）
-          if (proposals.length === 0 || interactionTurns < 2 || participantSet.size < 2) {
-            document.querySelectorAll('.jizhi-custom-modal').forEach(m => m.remove());
-            const hintModal = document.createElement('div');
-            hintModal.className = 'modal-overlay jizhi-custom-modal';
-            hintModal.innerHTML = `
-              <div style="width:460px; max-width:92vw; background:#ffffff; border-radius:16px; box-shadow:0 20px 40px rgba(15,23,42,0.22); overflow:hidden; border:1px solid #e2e8f0; animation:modalFadeIn 0.25s ease;">
-                <div style="background:linear-gradient(135deg, #d97706, #f59e0b); padding:18px 24px; color:#ffffff; display:flex; align-items:center; gap:12px;">
-                  <span style="font-size:24px;">💡</span>
-                  <div>
-                    <h3 style="margin:0; font-size:16px; font-weight:800; color:#ffffff;">研讨协商提示</h3>
-                    <div style="font-size:11.5px; opacity:0.9; margin-top:2px;">学术合作公约需由小组成员共同研讨商定</div>
-                  </div>
-                </div>
-                <div style="padding:22px 24px; font-size:13.5px; color:#334155; line-height:1.65; display:flex; flex-direction:column; gap:12px;">
-                  <div>
-                    建议小组成员在<b>右侧协同研讨区</b>先就具体的研究细化构思、各章节分工与时间规划展开充分交流，达成共识后再点击提炼公约草案！
-                  </div>
-                  <div style="font-size:12px; color:#64748b; background:#f8fafc; padding:8px 12px; border-radius:8px; border:1px solid #e2e8f0;">
-                    👉 <b>提示</b>：小组成员也可不点击智能提炼，直接在左侧输入框中自主分工录入与修改。
-                  </div>
-                </div>
-                <div style="background:#f8fafc; border-top:1px solid #e2e8f0; padding:14px 24px; display:flex; justify-content:flex-end;">
-                  <button class="modal-btn submit" id="btn-close-hint-modal" style="background:linear-gradient(135deg, #d97706, #f59e0b); border:none; color:white; padding:8px 22px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer;">去讨论</button>
-                </div>
-              </div>
-            `;
-            document.body.appendChild(hintModal);
-            hintModal.querySelector('#btn-close-hint-modal').addEventListener('click', () => hintModal.remove());
-            hintModal.addEventListener('click', (e) => { if (e.target === hintModal) hintModal.remove(); });
-            return;
-          }
-
-          // 1. 提炼融合研究主题（区分【全票一致】与【分歧协商】）
-          const tally = {};
-          Object.values(s1.votes || {}).forEach(pId => { if (pId) tally[pId] = (tally[pId] || 0) + 1; });
-          let winningP = null;
-          let maxV = 0;
-          let isUnanimous = false;
-          let isTieOrDivergence = false;
-
-          proposals.forEach(p => {
-            const cnt = tally[p.id] || 0;
-            if (cnt > maxV) {
-              maxV = cnt;
-              winningP = p;
-              isTieOrDivergence = false;
-            } else if (cnt === maxV && maxV > 0) {
-              isTieOrDivergence = true;
+            if (userAlreadySigned && s1.contract.isConfirmed) {
+              alert('🔒 学术合作公约已被全员确认签署并锁定！您可以随时点击上方【阶段二：学术编辑部】或下方按钮开始写作。');
+              return;
             }
-          });
-
-          if (winningP && maxV >= totalMembersCount && totalMembersCount > 0) {
-            isUnanimous = true;
-          }
-
-          let determinedTopic = '';
-          let topicDecisionReason = '';
-
-          if (isUnanimous && winningP) {
-            // 🏆 模式一：全票一致达成共识
-            determinedTopic = winningP.title;
-            topicDecisionReason = `🎉 小组成员以 ${maxV}/${totalMembersCount} 全票一致通过该选题！`;
-          } else {
-            // ⚖️ 模式二：存在分歧/平票 ➔ 深度读取研讨流中大家最终协商达成一致的题目
-            const matchedFromChat = proposals.find(p => chatSnippet.includes(p.title));
-            determinedTopic = matchedFromChat ? matchedFromChat.title : (winningP ? winningP.title : (proposals[0] ? proposals[0].title : ''));
-            topicDecisionReason = `⚖️ 投票存在不同意见，已深度读取研讨记录中大家最终商定的共识选题。`;
-          }
-
-          if (!s1.mergedTitle || s1.mergedTitle.trim().length === 0) {
-            s1.mergedTitle = determinedTopic || '待组员协商填入融合主题';
-          }
-
-          // 2. 深度读取研讨流，支持 3 大真实语言模式提取分工
-          s1.contract.isDraftGenerated = true;
-          s1.contract._draftedTime = Date.now();
-          if (!s1.contract.taskAssignments) s1.contract.taskAssignments = {};
-
-          const defaultChapterTasks = [
-            '负责“一、研究背景与意义”及“二、文献综述”起草与资料整理',
-            '负责“三、研究问题与假设”及“四、研究设计与方法”方案制定',
-            '负责“五、不足与反思”撰写及全篇“六、参考文献”引文校对',
-            '负责数据分析模型构建与研究工具问卷设计'
-          ];
-
-          members.forEach((m, idx) => {
-            let assignedTask = '';
-            const myName = m.name || '';
-            const myCode = m.studentCode || m.id || '';
-
-            // 模式 A：本人主动认领发言 ("蒋诚真: 我来写背景和综述")
-            const myMsgs = userLogs.filter(msg => msg.sender === m.id || msg.sender === myCode || (myName && msg.senderName === myName));
-            const myText = myMsgs.map(msg => msg.text || '').join(' ');
-
-            // 模式 B：同伴统筹分配/总结发言 ("杨欣如: 诚真负责第二章，我负责设计")
-            const mentionPattern = new RegExp(`(?:${myName}|${myCode})[\\s:：负责来做写]*(?:“|【)?([^，。,.\n]+)`, 'g');
-            let mentionMatch = null;
-            if (myName) {
-              userLogs.forEach(msg => {
-                if (msg.text && msg.text.includes(myName)) {
-                  if (msg.text.includes('背景') || msg.text.includes('综述') || msg.text.includes('前言')) {
-                    assignedTask = '负责“一、研究背景与意义”及“二、文献综述”起草与资料整理';
-                  } else if (msg.text.includes('假设') || msg.text.includes('方法') || msg.text.includes('设计') || msg.text.includes('问卷')) {
-                    assignedTask = '负责“三、研究问题与假设”及“四、研究设计与方法”方案制定';
-                  } else if (msg.text.includes('反思') || msg.text.includes('不足') || msg.text.includes('文献') || msg.text.includes('校对')) {
-                    assignedTask = '负责“五、不足与反思”撰写及全篇“六、参考文献”引文校对';
-                  } else if (msg.text.includes('数据') || msg.text.includes('量表') || msg.text.includes('模型')) {
-                    assignedTask = '负责数据分析模型构建与研究工具问卷设计';
-                  }
-                }
-              });
+            if (userAlreadySigned) {
+              alert(`✅ 您 (${memberName}) 此前已完成签署确认！正在等待组内其他同学签署。`);
+              return;
             }
 
-            if (!assignedTask) {
-              if (myText.includes('背景') || myText.includes('综述') || myText.includes('前言')) {
-                assignedTask = '负责“一、研究背景与意义”及“二、文献综述”起草与资料整理';
-              } else if (myText.includes('假设') || myText.includes('方法') || myText.includes('设计') || myText.includes('实验')) {
-                assignedTask = '负责“三、研究问题与假设”及“四、研究设计与方法”方案制定';
-              } else if (myText.includes('反思') || myText.includes('不足') || myText.includes('文献') || myText.includes('校对')) {
-                assignedTask = '负责“五、不足与反思”撰写及全篇“六、参考文献”引文校对';
-              } else if (myText.includes('数据') || myText.includes('问卷') || myText.includes('量表') || myText.includes('模型')) {
-                assignedTask = '负责数据分析模型构建与研究工具问卷设计';
-              }
+            // 写入当前用户的签署记录
+            s1.contract.confirmedMembers[user] = true;
+            if (currMemObj) {
+              if (currMemObj.id) s1.contract.confirmedMembers[currMemObj.id] = true;
+              if (currMemObj.studentCode) s1.contract.confirmedMembers[currMemObj.studentCode] = true;
+              if (currMemObj.name) s1.contract.confirmedMembers[currMemObj.name] = true;
             }
 
-            if (!assignedTask) {
-              assignedTask = defaultChapterTasks[idx % defaultChapterTasks.length] || '协作撰写与统稿';
-            }
+            const confirmedCount = memberArr.filter(m => m && (s1.contract.confirmedMembers[m.id] || s1.contract.confirmedMembers[m.studentCode] || (m.name && s1.contract.confirmedMembers[m.name]))).length;
 
-            s1.contract.taskAssignments[m.id] = assignedTask;
-            if (m.studentCode) s1.contract.taskAssignments[m.studentCode] = assignedTask;
-          });
+            const confirmMsg = {
+              sender: user,
+              senderName: memberName,
+              text: `📢 [公约签署告知]: 我 (${memberName}) 已按键确认签署合作学术公约！（全组确认进度: ${confirmedCount}/${totalMembersCount} 人）`,
+              timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+              _timeMs: Date.now()
+            };
+            if (!this.state.chatLogs.stage1) this.state.chatLogs.stage1 = [];
+            this.state.chatLogs.stage1.push(confirmMsg);
 
-          // 3. 时间规划：优先从研讨记录提取（支持 小时/分钟/半小时 等单位换算），未提及章节回退默认值
-          if (!s1.contract.timeAllocations) {
-            s1.contract.timeAllocations = { background: 25, literature: 30, questions: 25, method: 40, reflection: 20, references: 10 };
-          }
-          // 中文/阿拉伯数字 → 数值（含「三十」→30、「二十五」→25）
-          const cnNumToInt = (s) => {
-            if (/^\d/.test(s)) return parseFloat(s);
-            const d = { '零': 0, '一': 1, '二': 2, '两': 2, '三': 3, '四': 4, '五': 5, '六': 6, '七': 7, '八': 8, '九': 9 };
-            const i = s.indexOf('十');
-            if (i >= 0) {
-              const tens = s.slice(0, i), ones = s.slice(i + 1);
-              return (tens ? (d[tens] ?? 1) : 1) * 10 + (ones ? (d[ones] ?? 0) : 0);
-            }
-            return d[s] ?? 1;
-          };
-          // 时间表达 → 分钟数（半小时/一刻钟/一个半小时/小时/分钟 等单位统一换算）
-          const timeToMinutes = (text) => {
-            if (/一个半小时|1个半小时|一个半钟|1\.5\s*小时/i.test(text)) return 90;
-            if (/半小时|半个钟/.test(text)) return 30;
-            if (/一刻钟/.test(text)) return 15;
-            let m = text.match(/(\d+(?:\.\d+)?|[一二两三四五六七八九十]+)\s*个?\s*(小时|钟|h)/i);
-            if (m) return Math.round(cnNumToInt(m[1]) * 60);
-            m = text.match(/(\d+(?:\.\d+)?|[一二两三四五六七八九十]+)\s*个?\s*(分钟|分|min)/i);
-            if (m) return Math.round(cnNumToInt(m[1]));
-            return null;
-          };
-          const timeChapterKeys = [
-            { key: 'background', kw: ['背景', '前言', '意义'] },
-            { key: 'literature', kw: ['文献综述', '综述'] },
-            { key: 'questions', kw: ['问题', '假设'] },
-            { key: 'method', kw: ['方法', '设计', '问卷', '量表', '数据', '模型', '实验'] },
-            { key: 'reflection', kw: ['反思', '不足', '结论'] },
-            { key: 'references', kw: ['参考文献', '引用', '校对'] }
-          ];
-          userLogs.forEach(lm => {
-            const text = lm.text || '';
-            // 按标点切段，逐段匹配「章节关键词 + 时间表达」，避免一条消息里多个章节共用一个时间
-            const segments = text.split(/[，。、；;,\n]+/);
-            for (const seg of segments) {
-              const mins = timeToMinutes(seg);
-              if (mins === null) continue;
-              for (const tc of timeChapterKeys) {
-                if (tc.kw.some(k => seg.includes(k))) {
-                  s1.contract.timeAllocations[tc.key] = mins; // 讨论值覆盖默认
-                }
-              }
-            }
-          });
-
-          this.syncStage1();
-          if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
-          this.renderStudentWorkspace(true);
-
-          // 4. 拍卖师在聊天区发布权威引导播报
-          const draftNoticeMsg = {
-            sender: 'auctioneer',
-            text: `✨ 【拍卖师·已基于研讨记录深度提炼公约草案】\n已深度读取大家的学术研讨发言与选题投票结果，生成《团队协同合作学术合约草案》！\n\n📌 **融合研究主题**：《${s1.mergedTitle}》\n💡 **决策依据**：${topicDecisionReason}\n👉 **请组员仔细核查左侧分工与时间预算**：\n• 若与实际商议有出入，每位同学均可**直接在输入框中自主微调修改**；\n• 小组成员也可以不依赖提炼，完全自主在左侧分工填写；\n✍️ 确认无误后，全员点击【确认签署公约】即可正式生效并解锁阶段二！`,
-            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-            _timeMs: Date.now()
-          };
-          const curStage = this.state.currentStage || 'stage1';
-          if (!this.state.chatLogs[curStage]) this.state.chatLogs[curStage] = [];
-          this.state.chatLogs[curStage].push(draftNoticeMsg);
-          this.syncChatLogs();
-          document.querySelectorAll('.jizhi-custom-modal').forEach(m => m.remove());
-          const succModal = document.createElement('div');
-          succModal.className = 'modal-overlay jizhi-custom-modal';
-          succModal.innerHTML = `
-            <div style="width:460px; max-width:92vw; background:#ffffff; border-radius:16px; box-shadow:0 20px 40px rgba(15,23,42,0.22); overflow:hidden; border:1px solid #e2e8f0; animation:modalFadeIn 0.25s ease;">
-              <div style="background:linear-gradient(135deg, #059669, #10b981); padding:18px 24px; color:#ffffff; display:flex; align-items:center; gap:12px;">
-                <span style="font-size:24px;">🎉</span>
-                <div>
-                  <h3 style="margin:0; font-size:16px; font-weight:800; color:#ffffff;">学术合作公约草案已生成</h3>
-                  <div style="font-size:11.5px; opacity:0.9; margin-top:2px;">已自动填入左侧公约区域</div>
-                </div>
-              </div>
-              <div style="padding:22px 24px; font-size:13.5px; color:#334155; line-height:1.65; display:flex; flex-direction:column; gap:12px;">
-                <div>
-                  系统已根据全组研讨记录自动在左侧填入<b>融合研究主题、各章节分工与时间规划</b>。
-                </div>
-                <div style="font-size:12.5px; color:#065f46; background:#ecfdf5; border:1px solid #a7f3d0; padding:10px 14px; border-radius:8px; font-weight:600;">
-                  👉 请小组成员仔细检查左侧公约内容（可直接在输入框微调修改），确认无误后点击下方【✍️ 确认签署公约】生效！
-                </div>
-              </div>
-              <div style="background:#f8fafc; border-top:1px solid #e2e8f0; padding:14px 24px; display:flex; justify-content:flex-end;">
-                <button class="modal-btn submit" id="btn-close-succ-modal" style="background:linear-gradient(135deg, #059669, #10b981); border:none; color:white; padding:8px 22px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer;">立即检查公约</button>
-              </div>
-            </div>
-          `;
-          document.body.appendChild(succModal);
-          succModal.querySelector('#btn-close-succ-modal').addEventListener('click', () => succModal.remove());
-          succModal.addEventListener('click', (e) => { if (e.target === succModal) succModal.remove(); });
-        },
-        onConfirmContract: () => {
-          if (this.state.stage1.contract.isConfirmed) {
-            alert('🔒 学术合作公约已被全员确认签署并锁定！');
-            return;
-          }
-          const user = this.state.currentUser;
-          const s1 = this.state.stage1;
-
-          let memberArr = [];
-          if (Array.isArray(this.state.members)) memberArr = this.state.members;
-          else if (this.state.members && typeof this.state.members === 'object') memberArr = Object.values(this.state.members);
-          if (memberArr.length === 0 && this.authManager) {
-            const u = this.authManager.getCurrentUser();
-            const effClassId = this.state.activeStudentClassId || u?.classId || 'class_101';
-            const effGroup = this.authManager.getStudentActiveGroup(u, effClassId);
-            memberArr = this.authManager.getGroupMembersForWorkspace(effGroup?.id || 'group_1');
-          }
-          const totalMembersCount = memberArr.length > 0 ? memberArr.length : 3;
-
-          if (!s1.contract.confirmedMembers) s1.contract.confirmedMembers = {};
-          // 同时写入 studentCode 与 member.id，彻底杜绝 ID 不一致
-          s1.contract.confirmedMembers[user] = true;
-          const currMemObj = memberArr.find(m => m && (m.id === user || m.studentCode === user || m.username === user || m.name === user));
-          if (currMemObj) {
-            if (currMemObj.id) s1.contract.confirmedMembers[currMemObj.id] = true;
-            if (currMemObj.studentCode) s1.contract.confirmedMembers[currMemObj.studentCode] = true;
-            if (currMemObj.name) s1.contract.confirmedMembers[currMemObj.name] = true;
-          }
-
-          const confirmedCount = memberArr.filter(m => m && (s1.contract.confirmedMembers[m.id] || s1.contract.confirmedMembers[m.studentCode] || (m.name && s1.contract.confirmedMembers[m.name]))).length;
-          const memberName = currMemObj ? currMemObj.name : user;
-          const confirmMsg = {
-            sender: user,
-            senderName: memberName,
-            text: `📢 [公约签署告知]: 我 (${memberName}) 已按键确认签署合作学术公约！（全组确认进度: ${confirmedCount}/${totalMembersCount} 人）`,
-            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-            _timeMs: Date.now()
-          };
-          if (!this.state.chatLogs.stage1) this.state.chatLogs.stage1 = [];
-          this.state.chatLogs.stage1.push(confirmMsg);
-          this.syncStage1();
-          this.syncChatLogs();
-          if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
-
-          // 🛡️ 严格要求：必须小组所有成员（每一个人）都确认签署后，才解锁推进到阶段二
-          if (confirmedCount < totalMembersCount || totalMembersCount < 2) {
-            alert(`✅ 您 (${memberName}) 已成功签署学术合作公约！\n\n当前全组签署进度：${confirmedCount}/${totalMembersCount} 人已签署。\n⚠️ 必须全组所有成员均完成签署确认后，系统才会正式解锁并自动推进至【阶段二：学术编辑部】！请提醒组内其他同学尽快签署。`);
-          } else {
-            s1.contract.isConfirmed = true;
-            this.state.groupMaxStage = 'stage2';
-            this.syncStage1();
-            this.syncStageChange('stage2');
-            if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
-            setTimeout(() => {
+            if (confirmedCount >= totalMembersCount) {
+              s1.contract.isConfirmed = true;
+              this.state.groupMaxStage = 'stage2';
               const finalMsg = {
                 sender: 'auctioneer',
                 senderName: '头脑风暴 · 学术拍卖师',
-                text: `🎪 【拍卖师宣布】：🎉 恭喜！组内全员 ${totalMembersCount}/${totalMembersCount} 名成员已全部完成公约签署确认！学术合作公约正式生效，阶段一圆满结束，系统自动全员解锁推进至【阶段二：学术编辑部】！`,
+                text: `🎪 【拍卖师宣布】：🎉 恭喜！组内全员 ${totalMembersCount}/${totalMembersCount} 名成员已全部完成公约签署确认！学术合作公约正式生效，阶段一圆满结束！请同学们点击上方【阶段二：学术编辑部】或下方按钮开始正文撰写！`,
                 timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
                 _timeMs: Date.now()
               };
-              if (!this.state.chatLogs.stage1) this.state.chatLogs.stage1 = [];
               this.state.chatLogs.stage1.push(finalMsg);
+              this.syncStage1();
+              this.syncChatLogs();
+              this.syncStageChange('stage2');
+              if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+              alert(`🎉 恭喜！组内全部 ${totalMembersCount} 位成员已全部完成公约签署！\n\n学术合作公约正式生效锁定！您可以随时点击上方导航栏【阶段二：学术编辑部】或下方按钮进入开始写作。`);
+            } else {
+              this.syncStage1();
               this.syncChatLogs();
               if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
-              alert(`🎉 恭喜！组内全部 ${totalMembersCount} 位成员已全部完成公约签署！\n\n学术合作公约正式生效，系统自动全组解锁并推进至【阶段二：学术编辑部】！`);
-              this.switchStage('stage2', true);
-            }, 600);
-          }
-          this.renderStudentWorkspace();
-        },
+              alert(`✅ 您 (${memberName}) 已成功签署学术合作公约！\n\n当前全组签署进度：${confirmedCount}/${totalMembersCount} 人已签署。\n⚠️ 需全组所有成员均完成签署后公约才正式生效锁定，请提醒组内其他同学尽快签署。`);
+            }
+            this.renderStudentWorkspace();
+          },
         onPresenceChange: (nodeIdx, sectionTitle, charOffset) => {
           const user = this.state.currentUser || 'A';
           if (!this.state.presence) this.state.presence = {};
@@ -12984,15 +13456,21 @@
           const totalMembersCount = memberArr.length > 0 ? memberArr.length : 3;
 
           if (!s2.confirmedMembers) s2.confirmedMembers = {};
-          s2.confirmedMembers[user] = true;
+          const isMemDone = (map, m) => {
+            if (!map || !m) return false;
+            return !!(map[m.id] || map[m.studentCode] || map[m.username] || (m.name && map[m.name]));
+          };
           const currMemObj = memberArr.find(m => m && (m.id === user || m.studentCode === user || m.username === user || m.name === user));
           if (currMemObj) {
             if (currMemObj.id) s2.confirmedMembers[currMemObj.id] = true;
             if (currMemObj.studentCode) s2.confirmedMembers[currMemObj.studentCode] = true;
+            if (currMemObj.username) s2.confirmedMembers[currMemObj.username] = true;
             if (currMemObj.name) s2.confirmedMembers[currMemObj.name] = true;
+          } else {
+            s2.confirmedMembers[user] = true;
           }
 
-          const confirmedCount = memberArr.filter(m => m && (s2.confirmedMembers[m.id] || s2.confirmedMembers[m.studentCode] || (m.name && s2.confirmedMembers[m.name]))).length;
+          const confirmedCount = memberArr.filter(m => isMemDone(s2.confirmedMembers, m)).length;
           const memberName = currMemObj ? currMemObj.name : user;
           const confirmMsg = {
             sender: user,
@@ -13003,9 +13481,24 @@
           };
           if (!this.state.chatLogs.stage2) this.state.chatLogs.stage2 = [];
           this.state.chatLogs.stage2.push(confirmMsg);
+
+          // 📝 审稿编辑终审把关兜底触发：只要有组员开始确认初稿，立刻自动送达审稿编辑终审质检反馈
+          if (!this.state.stage2RefFormatReviewed) {
+            this.state.stage2RefFormatReviewed = true;
+            const refReviewMsg = {
+              sender: 'reviewingEditor',
+              text: `📝 【审稿编辑·终稿行文扫描诊断】：小组成员已开始发起初稿定稿确认！在最后收尾阶段，我重点对全文语言表达与行文规范进行了全维度扫描：①【行文与语体】：整体论述连贯，建议再次通读检查是否有口语化表达；②【错别字与标点】：重点核对前后术语与标点规范。请大家完成最后通读后，在上方逐一完成初稿确认，准备迎接终审答辩！`,
+              timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+              _timeMs: Date.now() + 100
+            };
+            this.state.chatLogs.stage2.push(refReviewMsg);
+          }
+
           this.syncStage2();
           this.syncChatLogs();
           if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+          renderChat(this.state);
+          this.renderStudentWorkspace();
 
           // 🛡️ 严格要求：必须全组成员每一个人都点击确认初稿后，才解锁推进至阶段三
           if (confirmedCount < totalMembersCount || totalMembersCount < 2) {
@@ -13139,10 +13632,12 @@
             let queryPrompt = '';
             if (unadoptedCount > 0) {
               const nextItem = items.find(f => f.status !== 'adopted');
-              queryPrompt = `小组成员刚对质询 ① 录入并达成了答辩共识：“${respText}”。
-  请作为答辩委员会主席（中间委员），发表 130~150 字的【针对质询 ② 独立答辩思路顺推】：
-  ① 肯定第 1 条答辩词已成功录入；
-  ② 【单题独立顺推·核心铁律】：独立引导全组将焦点转向【质询 ②（${nextItem.content || nextItem.title}）】，结合其具体内容给出针对性的答辩思路支架（如补强措施/量表信度说明/补救预案）；
+              const nextIndex = items.indexOf(nextItem) + 1;
+              const completedCount = items.length - unadoptedCount;
+              queryPrompt = `小组成员刚对已完成的质询录入并达成了答辩共识：“${respText}”。
+  请作为答辩委员会主席（中间委员），发表 130~150 字的【针对质询 ${nextIndex} 独立答辩思路顺推】：
+  ① 肯定前序答辩词已成功录入；
+  ② 【单题独立顺推·核心铁律】：独立引导全组将焦点转向下一项【质询 ${nextIndex}（${nextItem.content || nextItem.title}）】，结合其具体内容给出针对性的答辩思路支架（如补强措施/量表信度说明/补救预案）；
   ③ 引导全组继续在讨论区商定思路，由代表录入矩阵，并同步将修改落实到论文终稿中！纯自然语言输出，130~150字。`;
             } else {
               queryPrompt = `恭喜！小组成员已对全部答辩质询完成研讨并录入全部答辩陈述！
@@ -13158,7 +13653,8 @@
             if (!neutralReply || neutralReply.trim().length === 0) {
               if (unadoptedCount > 0) {
                 const nextItem = items.find(f => f.status !== 'adopted');
-                neutralReply = `🟡 【中间委员·针对质询 ② 答辩思路顺推】：第 1 条答辩词已成功录入！👉 接下来请全组将焦点转向【质询 ②】：建议在答辩中明确阐述针对质询②的具体补强措施与设计说明！请全组继续在讨论区商定思路，由代表录入矩阵，并同步将修改落实到论文终稿中！`;
+                const nextIndex = items.indexOf(nextItem) + 1;
+                neutralReply = `🟡 【中间委员·针对质询 ${nextIndex} 答辩思路顺推】：前序答辩词已成功录入！👉 接下来请全组将焦点转向【质询 ${nextIndex}】：建议在答辩中明确阐述针对该质询的具体补强措施与设计说明！请全组继续在讨论区商定思路，由代表录入矩阵，并同步将修改落实到论文终稿中！`;
               } else {
                 neutralReply = `🟡 【中间委员·答辩终审总结与裁决】：各位研究者，答辩委员会已审阅了全组提交的全部答辩陈述与终稿！团队在面对质询时展现出了扎实的学术反思与严谨的论证逻辑。答辩全票顺利通过，祝贺大家圆满完成研究任务！请全组成员点击左侧【提交终稿】锁定入库！`;
               }
@@ -13254,26 +13750,27 @@
 
 
 
-      // 1. 🎯 审稿编辑第一次动态质检（检测到正文推进到【二、文献综述】或【三、研究问题与假设】写完时触发一次）
-      const hasLitOrQuestionSection = /(?:二、|第2章|第二部分|文献综述|三、|第3章|第三部分|研究问题|研究假设)/i.test(newContent);
-      if (hasLitOrQuestionSection && !this.state.stage2FirstReviewDone && timeSinceLastReviewing > 60000) {
+      // 1. 🎯 审稿编辑第一次学术初审（检测到进入【层级2: 方法与设计】或前序立意文献总字数达到 1000 字以上）
+      const rawDoc = newContent.replace(/<[^>]*>/g, '').trim();
+      const hasLayer2MethodSection = /(?:二、|三、|四、|第2章|第3章|第4章|设计|方法|路径|方案|实证|模型|过程|实施|框架|量表|样本|实验|调研|问卷|干预)/i.test(newContent);
+      const isReview1MilestoneReached = (rawDoc.length >= 1000) || (hasLayer2MethodSection && rawDoc.length >= 700);
+      if (isReview1MilestoneReached && !this.state.stage2FirstReviewDone && timeSinceLastReviewing > 45000) {
         this.state.stage2FirstReviewDone = true;
         const topic = (this.state.stage1 && this.state.stage1.mergedTitle) ? this.state.stage1.mergedTitle : '本组课题';
 
         // 智能提取完整的【研究背景】+【文献综述】+【研究问题与假设】章节草稿
-        const rawDoc = newContent.replace(/<[^>]*>/g, '').trim();
-        // 若已推进至第四部分研究方法，则智能截取至方法之前，确保审阅完整的背景与文献综述全貌
         const methodIndex = rawDoc.search(/(?:四、|第4章|第四部分|研究方法|研究设计)/i);
         // 一审聚焦「背景+综述+问题」三章：若已推进至方法章节则截取至方法之前，否则（篇幅尚短）直接全文
         const contentSnippet = (methodIndex > 200) ? rawDoc.slice(0, methodIndex).trim() : rawDoc;
 
         setTimeout(async () => {
-          const firstReviewPrompt = `团队正在撰写课题《${topic}》，目前已写出部分章节，请通读下方【小组当前真实正文草稿】，作为审稿编辑进行实质性学术质检（【全局红线】：顺应尊重已有构思，做局部微调，绝不推翻大改）：肯定其当前撰写章节的理论/情境亮点，针对当前具体章节给出 1 句精准的局部深化建议（严禁空泛套话，纯自然语言输出，130~150字）！`;
+          const firstReviewPrompt = `团队正在撰写课题《${topic}》，目前已写出部分章节。请通读下方【小组当前真实正文草稿】，作为审稿编辑进行实质性学术初审质检（【全局最高红线】：顺应尊重已有构思框架，做局部微调，严禁推翻大改！严禁替写大段正文！）：根据实际草稿质量动态诊断，先肯定当前已写章节的理论/情境亮点，并精准指出 1~3 处实际存在的具体章节、具体变量/论据可深化的优化点（严禁空泛套话，纯自然语言输出，130~150字）！`;
           let firstReviewText = await callCozeAgentAPI('reviewingEditor', firstReviewPrompt, { stage: 'stage2', topic, actualDoc: contentSnippet });
           if (!firstReviewText || firstReviewText.trim().length === 0) {
-            firstReviewText = `📝 【审稿编辑·进展建议】：审阅了大家目前撰写的正文，在已写章节中对理论与具体情境的论述非常清晰！建议在后续展开方法时，进一步将核心概念的操作化定义与具体教学任务相对应，继续稳步推进！`;
+            firstReviewText = `📝 【审稿编辑·初审学术质检】：审阅了大家目前撰写的正文草稿，在已写章节中对研究背景与问题情境的论述非常清晰！建议重点优化以下细节：① 将核心概念的操作化定义与后续教学干预进一步对齐；② 补充近三年相关核心文献支撑论据。请全组继续稳步推进！`;
           }
           this.state.stage2FirstReviewText = firstReviewText;
+          this.state.stage2FirstReviewFinishedTime = Date.now();
 
           const firstReviewMsg = {
             sender: 'reviewingEditor',
@@ -13289,17 +13786,18 @@
         }, 800);
       }
 
-      // 2. 🎯 章节语义里程碑雷达：推进到【总结反思】时号召发起【半程编辑会议】
-      const hasReflectionSection = /(?:五、|第5章|第五部分|不足与反思|研究反思|反思与不足|总结与反思|研究局限)/i.test(newContent);
+      // 2. 🎯 半程编辑会议号召（检测到至少进入【层级3: 讨论/反思/结论/成效】且正文达到 2500 字以上）
+      const hasLayer3ReflectionSection = /(?:五、|六、|第5章|第6章|讨论|反思|不足|局限|展望|结论|总结|对策|建议)/i.test(newContent);
+      const isMeetingMilestoneReached = (rawDoc.length >= 2600) || (hasLayer3ReflectionSection && rawDoc.length >= 2000);
       const isStage2MeetingLocked = this.state.stage2 && this.state.stage2.actionPlan && this.state.stage2.actionPlan.isGenerated;
       const lastManagingMsg = logs.slice().reverse().find(m => m.sender === 'managingEditor');
       const timeSinceLastManaging = lastManagingMsg ? (now - (lastManagingMsg._timeMs || 0)) : 999999;
 
-      if (hasReflectionSection && !isStage2MeetingLocked && !this.state.stage2MeetingCallSent && timeSinceLastManaging > 60000) {
+      if (isMeetingMilestoneReached && !isStage2MeetingLocked && !this.state.stage2MeetingCallSent && timeSinceLastManaging > 45000) {
         this.state.stage2MeetingCallSent = true;
         const meetingCallMsg = {
           sender: 'managingEditor',
-          text: `🤝 【责任编辑·半程会议号召】：关注到小组成员已推进撰写至【研究设计的不足与反思】章节，全篇实证方案已基本成型！请组员点击上方【📢 发起编辑会议】完成 4 维自查打卡，稍后审稿编辑将结合全组情况为大家进行深度内容质检与清单生成！`,
+          text: `🤝 【责任编辑·半程会议号召】：关注到小组成员研究设计与实施方案已基本成型，并逐步推进至讨论反思阶段！请组员点击上方【📢 发起编辑会议】完成 4 维自查打卡，稍后审稿编辑将结合全组情况为大家进行深度内容质检与清单生成！`,
           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
           _timeMs: now
         };
@@ -13308,9 +13806,10 @@
         renderChat(this.state);
       }
 
-      // 4. 🎯 终审里程碑雷达：推进到【六、参考文献】时触发终审定稿润色提醒
-      const hasReferenceSection = /(?:六、|第6章|第六部分|参考文献|References)/i.test(newContent);
-      if (hasReferenceSection && !this.state.stage2RefFormatReviewed && timeSinceLastReviewing > 60000) {
+      // 3. 🎯 终审里程碑雷达：推进到【参考文献/终稿收尾】（字数 ≥3600字 或 出现参考文献）
+      const hasReferenceSection = /(?:参考文献|References|总结与结语)/i.test(newContent);
+      const isFinalMilestoneReached = (rawDoc.length >= 3600) || (hasReferenceSection && rawDoc.length >= 3000);
+      if (isFinalMilestoneReached && !this.state.stage2RefFormatReviewed && timeSinceLastReviewing > 45000) {
         this.state.stage2RefFormatReviewed = true;
         const refReviewMsg = {
           sender: 'reviewingEditor',
@@ -13338,8 +13837,11 @@
       const plainLen = newContent.replace(/<[^>]*>/g, '').trim().length;
       const lastWarnTime = this.state.lastSSRLWarnTimeMs || 0;
       const lastWarnLen = this.state.lastSSRLWarnLen || 0;
+      const allTasks = (this.authManager) ? this.authManager.getTasks() : [];
+      const curTask = allTasks.find(t => t.id === this.state.activeTaskId);
       const totalAllocMinutes = Object.values((this.state.stage1 && this.state.stage1.contract && this.state.stage1.contract.timeAllocations) || {}).reduce((a, b) => a + Number(b || 0), 0);
-      const ssrlCooldownMs = totalAllocMinutes <= 45 ? 300000 : (totalAllocMinutes <= 100 ? 480000 : 900000);
+      const taskDurMin = (curTask && curTask.durationMinutes) ? Number(curTask.durationMinutes) : (totalAllocMinutes || 60);
+      const ssrlCooldownMs = taskDurMin < 100 ? 210000 : (taskDurMin <= 240 ? 360000 : 600000);
       const cooldownPassed = (now - lastWarnTime) >= ssrlCooldownMs;
       const hasMeaningfulProgress = (plainLen - lastWarnLen) >= 150; // 且写了新内容
 
@@ -13378,149 +13880,146 @@
       const modal = document.createElement('div');
       modal.className = 'modal-overlay';
       modal.innerHTML = `
-        <div class="teacher-modal-card" style="width:640px;">
+        <div class="teacher-modal-card" style="width:660px; max-height:85vh; display:flex; flex-direction:column;">
           <div class="teacher-modal-header ann-theme">
-            <div class="modal-header-title"><span class="modal-icon">📢</span><div><h3>学术编辑部【半程编辑会议】</h3><p>全篇互阅、思想碰撞与半程修正清单生成</p></div></div>
+            <div class="modal-header-title"><span class="modal-icon">📢</span><div><h3>学术编辑部 ·【半程全篇综合学术审计会议】</h3><p>全篇互阅 · 构思对齐 · 前后贯通 · 文风统一 · 攻克瓶颈</p></div></div>
             <button class="modal-close-btn" id="btn-close-meeting">✕</button>
           </div>
-          <div class="teacher-modal-body">
-            <!-- 1. 全篇通读与思想碰撞 -->
-            <div style="background:#f8fafc; border:1px solid #cbd5e1; border-radius:10px; padding:14px 16px;">
-              <div style="font-size:13px; font-weight:800; color:#1e40af; margin-bottom:12px;">📋 一、全篇通读与思想碰撞</div>
+          <div class="teacher-modal-body" style="overflow-y:auto; padding:16px 20px; display:flex; flex-direction:column; gap:12px;">
+            <!-- 1. 全篇综合自查审计 -->
+            <div style="background:#f8fafc; border:1px solid #cbd5e1; border-radius:10px; padding:14px 16px; display:flex; flex-direction:column; gap:12px;">
+              <div style="font-size:13px; font-weight:800; color:#1e40af;">📋 一、全篇跨作者交叉审视自查（请跳出单一分工，通读全篇后打卡）</div>
 
-              <div style="display:flex; flex-direction:column; gap:10px;">
-                <div style="background:#ffffff; padding:10px 14px; border-radius:8px; border:1px solid #e2e8f0; display:flex; flex-direction:column; gap:6px;">
-                  <label style="font-size:12.5px; color:#1e293b; font-weight:700;">1. 负责章节自查：目前自己所写部分的论述情况？</label>
-                  <select id="meeting-theme-consistency-select" class="teacher-input" style="width:100%; padding:6px 10px; font-size:12.5px; border-radius:6px; border:1px solid #cbd5e1; background:#ffffff;">
-                    <option value="紧扣研究主旨，论点明确且论据充实">✅ 紧扣研究主旨，论点明确且论据充实</option>
-                    <option value="基本契合主旨，局部论述需深化拓展">🔄 基本契合主旨，局部论述需深化拓展</option>
-                    <option value="存在论证发散或核心概念界定不清">⚠️ 论据不够充分，或感觉有些偏离初衷</option>
-                  </select>
-                </div>
-
-                <div style="background:#ffffff; padding:10px 14px; border-radius:8px; border:1px solid #e2e8f0; display:flex; flex-direction:column; gap:6px;">
-                  <label style="font-size:12.5px; color:#1e293b; font-weight:700;">2. 同伴内容互阅：通读其他成员撰写内容后的想法？</label>
-                  <select id="meeting-peer-review-select" class="teacher-input" style="width:100%; padding:6px 10px; font-size:12.5px; border-radius:6px; border:1px solid #cbd5e1; background:#ffffff;">
-                    <option value="逻辑严密连贯，高度认同同伴思路与论述">✅ 逻辑严密连贯，高度认同同伴思路与论述</option>
-                    <option value="启发新思路，建议为同伴补充论据">💡 启发了新思路，想在讨论区为同伴补充论据视角</option>
-                    <option value="存在不同看法，部分论证需要商榷">⚖️ 存在不同看法，对部分论据推导想和同伴商榷</option>
-                    <option value="衔接非常自然，很好支撑了后续章节">🔗 章节衔接自然，很好地支撑呼应了后续研究设计</option>
-                  </select>
-                  <!-- 第2题专属子项：对同伴具体哪些章节提出商榷 -->
-                  <div id="meeting-peer-divergence-box" style="background:#fffbeb; padding:8px 12px; border-radius:6px; border:1px solid #fef3c7; display:none; flex-direction:column; gap:4px; margin-top:4px;">
-                    <label style="font-size:12px; color:#92400e; font-weight:700;">📌 针对第 2 题：您对同伴所写的哪些具体章节想提出商榷或补充？</label>
-                    <div style="display:flex; flex-wrap:wrap; gap:8px; margin-top:2px;">
-                      <label style="font-size:11.5px; color:#451a03; display:flex; align-items:center; gap:4px;"><input type="checkbox" name="peer-div-sec" value="一、研究背景与意义"> 【一、背景与意义】</label>
-                      <label style="font-size:11.5px; color:#451a03; display:flex; align-items:center; gap:4px;"><input type="checkbox" name="peer-div-sec" value="二、文献综述与前沿"> 【二、文献综述】</label>
-                      <label style="font-size:11.5px; color:#451a03; display:flex; align-items:center; gap:4px;"><input type="checkbox" name="peer-div-sec" value="三、研究问题与假设"> 【三、问题与假设】</label>
-                      <label style="font-size:11.5px; color:#451a03; display:flex; align-items:center; gap:4px;"><input type="checkbox" name="peer-div-sec" value="四、研究设计与方法"> 【四、设计与方法】</label>
-                      <label style="font-size:11.5px; color:#451a03; display:flex; align-items:center; gap:4px;"><input type="checkbox" name="peer-div-sec" value="五、不足与反思"> 【五、不足与反思】</label>
-                    </div>
-                  </div>
-                </div>
-
-                <div style="background:#ffffff; padding:10px 14px; border-radius:8px; border:1px solid #e2e8f0; display:flex; flex-direction:column; gap:6px;">
-                  <label style="font-size:12.5px; color:#1e293b; font-weight:700;">3. 全篇衔接与贯通：各章节之间的逻辑连贯性？</label>
-                  <select id="meeting-transition-select" class="teacher-input" style="width:100%; padding:6px 10px; font-size:12.5px; border-radius:6px; border:1px solid #cbd5e1; background:#ffffff;">
-                    <option value="环环相扣，前后呼应非常自然顺畅">✅ 环环相扣，前后呼应非常自然顺畅</option>
-                    <option value="局部章节过渡稍显生硬，需商定衔接句">🔄 局部章节过渡稍显生硬，需商定衔接句</option>
-                    <option value="各章节相对独立，需进一步统一主线">⚠️ 各章节相对独立，需进一步统一核心主线</option>
-                  </select>
-                  <!-- 第3题专属子项：哪些相邻章节之间需要打通衔接 -->
-                  <div id="meeting-transition-sections-box" style="background:#eff6ff; padding:8px 12px; border-radius:6px; border:1px solid #dbeafe; display:none; flex-direction:column; gap:4px; margin-top:4px;">
-                    <label style="font-size:12px; color:#1e40af; font-weight:700;">🔗 针对第 3 题：您认为哪些相邻章节之间的过渡需要重点打通与统一？</label>
-                    <div style="display:flex; flex-wrap:wrap; gap:8px; margin-top:2px;">
-                      <label style="font-size:11.5px; color:#1e3a8a; display:flex; align-items:center; gap:4px;"><input type="checkbox" name="trans-div-sec" value="背景到综述 (第一至二章)"> 【第一至二章 (背景➔综述)】</label>
-                      <label style="font-size:11.5px; color:#1e3a8a; display:flex; align-items:center; gap:4px;"><input type="checkbox" name="trans-div-sec" value="综述到假设 (第二至三章)"> 【第二至三章 (综述➔假设)】</label>
-                      <label style="font-size:11.5px; color:#1e3a8a; display:flex; align-items:center; gap:4px;"><input type="checkbox" name="trans-div-sec" value="假设到设计 (第三至四章)"> 【第三至四章 (假设➔方法)】</label>
-                      <label style="font-size:11.5px; color:#1e3a8a; display:flex; align-items:center; gap:4px;"><input type="checkbox" name="trans-div-sec" value="设计到反思 (第四至五章)"> 【第四至五章 (方法➔反思)】</label>
-                    </div>
+              <!-- Q1: 个人构思契合度 (3档) -->
+              <div style="background:#ffffff; padding:10px 14px; border-radius:8px; border:1px solid #e2e8f0; display:flex; flex-direction:column; gap:6px;">
+                <label style="font-size:12.5px; color:#1e293b; font-weight:700;">🎯 1. 【个人构思契合度】目前全组写出来的方案，和你自己最初预想的构思是否一致？</label>
+                <select id="meeting-ideation-select" class="teacher-input" style="width:100%; padding:6px 10px; font-size:12px; border-radius:6px; border:1px solid #cbd5e1; background:#ffffff;">
+                  <option value="完全符合最初构思">✅ 完全符合最初构思（目前的推进方向和我的设想完全契合）</option>
+                  <option value="局部偏离最初构思">🔄 局部偏离最初构思（部分章节的切入角度或深度和我最初想的有些不一样）</option>
+                  <option value="明显偏离最初构思">⚠️ 明显偏离最初构思（整体方案与我最初的构想差异很大，需全组重新对齐）</option>
+                </select>
+                <div id="meeting-ideation-sections-box" style="background:#fffbeb; padding:8px 12px; border-radius:6px; border:1px solid #fef3c7; display:none; flex-direction:column; gap:4px; margin-top:4px;">
+                  <label style="font-size:11.5px; color:#92400e; font-weight:700;">📌 针对第 1 题：您觉得具体是哪些章节偏离了您最初的设想？(可多选)</label>
+                  <div style="display:flex; flex-wrap:wrap; gap:8px; margin-top:2px;">
+                    <label style="font-size:11.5px; color:#451a03; display:flex; align-items:center; gap:4px;"><input type="checkbox" name="ideation-sec" value="一、背景与意义"> 【一、背景意义】</label>
+                    <label style="font-size:11.5px; color:#451a03; display:flex; align-items:center; gap:4px;"><input type="checkbox" name="ideation-sec" value="二、文献综述"> 【二、文献综述】</label>
+                    <label style="font-size:11.5px; color:#451a03; display:flex; align-items:center; gap:4px;"><input type="checkbox" name="ideation-sec" value="三、研究问题与假设"> 【三、问题假设】</label>
+                    <label style="font-size:11.5px; color:#451a03; display:flex; align-items:center; gap:4px;"><input type="checkbox" name="ideation-sec" value="四、研究设计与方法"> 【四、设计方法】</label>
+                    <label style="font-size:11.5px; color:#451a03; display:flex; align-items:center; gap:4px;"><input type="checkbox" name="ideation-sec" value="五、不足与反思"> 【五、不足反思】</label>
                   </div>
                 </div>
               </div>
-            </div>
 
-            <!-- 2. 团队共享调节 3 维打星自评 -->
-            <div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:10px; padding:12px 16px; margin-top:12px; display:flex; flex-direction:column; gap:10px;">
-              <div style="font-size:13px; font-weight:800; color:#0f172a;">🌟 二、团队共享调节 3 维打星自评</div>
-
-              <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px dashed #f1f5f9; padding-bottom:6px;">
-                <span style="font-size:12.5px; font-weight:600; color:#334155;">① 内容逻辑与学术严谨度：</span>
-                <div class="rating-stars" id="star-rating-logic" style="font-size:22px; cursor:pointer; user-select:none;">
-                  <span class="star" data-val="1" style="color:#f59e0b;">★</span>
-                  <span class="star" data-val="2" style="color:#f59e0b;">★</span>
-                  <span class="star" data-val="3" style="color:#f59e0b;">★</span>
-                  <span class="star" data-val="4" style="color:#f59e0b;">★</span>
-                  <span class="star" data-val="5" style="color:#475569;">★</span>
+              <!-- Q2: 全篇前后连贯度 (3档) -->
+              <div style="background:#ffffff; padding:10px 14px; border-radius:8px; border:1px solid #e2e8f0; display:flex; flex-direction:column; gap:6px;">
+                <label style="font-size:12.5px; color:#1e293b; font-weight:700;">🔗 2. 【全篇前后连贯度】目前各章节写出来的内容，前后是否衔接一致？</label>
+                <select id="meeting-transition-select" class="teacher-input" style="width:100%; padding:6px 10px; font-size:12px; border-radius:6px; border:1px solid #cbd5e1; background:#ffffff;">
+                  <option value="前后衔接非常自然">✅ 前后衔接非常自然（各章节环环相扣，逻辑自然连贯）</option>
+                  <option value="存在局部脱节衔接不顺">🔄 存在局部脱节衔接不顺（部分章节之间过渡生硬，前后内容未能完全呼应）</option>
+                  <option value="前后多处严重脱节矛盾">⚠️ 前后多处严重脱节矛盾（多处章节脱节，前后论述自相矛盾）</option>
+                </select>
+                <div id="meeting-transition-sections-box" style="background:#eff6ff; padding:8px 12px; border-radius:6px; border:1px solid #dbeafe; display:none; flex-direction:column; gap:4px; margin-top:4px;">
+                  <label style="font-size:11.5px; color:#1e40af; font-weight:700;">🔗 针对第 2 题：具体是哪几处之间衔接脱节？(可多选多处)</label>
+                  <div style="display:flex; flex-wrap:wrap; gap:8px; margin-top:2px;">
+                    <label style="font-size:11.5px; color:#1e3a8a; display:flex; align-items:center; gap:4px;"><input type="checkbox" name="trans-div-sec" value="背景到综述 (第一至二章)"> 【第一至二章 (背景➔综述)】</label>
+                    <label style="font-size:11.5px; color:#1e3a8a; display:flex; align-items:center; gap:4px;"><input type="checkbox" name="trans-div-sec" value="综述到假设 (第二至三章)"> 【第二至三章 (综述➔假设)】</label>
+                    <label style="font-size:11.5px; color:#1e3a8a; display:flex; align-items:center; gap:4px;"><input type="checkbox" name="trans-div-sec" value="假设到方法 (第三至四章)"> 【第三至四章 (假设➔方法)】</label>
+                    <label style="font-size:11.5px; color:#1e3a8a; display:flex; align-items:center; gap:4px;"><input type="checkbox" name="trans-div-sec" value="方法到反思 (第四至五章)"> 【第四至五章 (方法➔反思)】</label>
+                  </div>
                 </div>
               </div>
 
-              <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px dashed #f1f5f9; padding-bottom:6px;">
-                <span style="font-size:12.5px; font-weight:600; color:#334155;">② 团队分工与参与平衡度：</span>
-                <div class="rating-stars" id="star-rating-balance" style="font-size:22px; cursor:pointer; user-select:none;">
-                  <span class="star" data-val="1" style="color:#f59e0b;">★</span>
-                  <span class="star" data-val="2" style="color:#f59e0b;">★</span>
-                  <span class="star" data-val="3" style="color:#f59e0b;">★</span>
-                  <span class="star" data-val="4" style="color:#f59e0b;">★</span>
-                  <span class="star" data-val="5" style="color:#f59e0b;">★</span>
-                </div>
-              </div>
-
-              <div style="display:flex; justify-content:space-between; align-items:center;">
-                <span style="font-size:12.5px; font-weight:600; color:#334155;">③ 组内沟通协同与信心状态：</span>
-                <div class="rating-stars" id="star-rating-confidence" style="font-size:22px; cursor:pointer; user-select:none;">
-                  <span class="star" data-val="1" style="color:#f59e0b;">★</span>
-                  <span class="star" data-val="2" style="color:#f59e0b;">★</span>
-                  <span class="star" data-val="3" style="color:#f59e0b;">★</span>
-                  <span class="star" data-val="4" style="color:#f59e0b;">★</span>
-                  <span class="star" data-val="5" style="color:#f59e0b;">★</span>
+              <!-- Q3: 文风与专业术语 (3档) -->
+              <div style="background:#ffffff; padding:10px 14px; border-radius:8px; border:1px solid #e2e8f0; display:flex; flex-direction:column; gap:6px;">
+                <label style="font-size:12.5px; color:#1e293b; font-weight:700;">🎨 3. 【文风与专业术语】全篇语言文风与专业词汇是否统一？</label>
+                <select id="meeting-style-select" class="teacher-input" style="width:100%; padding:6px 10px; font-size:12px; border-radius:6px; border:1px solid #cbd5e1; background:#ffffff;">
+                  <option value="文风严谨术语统一">✅ 文风严谨术语统一（全篇均采用规范客观的学术第三人称，术语命名一致）</option>
+                  <option value="局部存在文风/术语割裂">🔄 局部存在文风/术语割裂（部分章节偏口语化，或同一术语前后叫法不同）</option>
+                  <option value="文风口语化严重/术语混乱">⚠️ 文风口语化严重/术语混乱（多处章节使用“我们觉得”等第一人称口语，术语冲突多）</option>
+                </select>
+                <div id="meeting-style-sections-box" style="background:#f5f3ff; padding:8px 12px; border-radius:6px; border:1px solid #ddd6fe; display:none; flex-direction:column; gap:4px; margin-top:4px;">
+                  <label style="font-size:11.5px; color:#6d28d9; font-weight:700;">🎨 针对第 3 题：您觉得哪些章节需要重点润色文风或统一术语？(可多选)</label>
+                  <div style="display:flex; flex-wrap:wrap; gap:8px; margin-top:2px;">
+                    <label style="font-size:11.5px; color:#4c1d95; display:flex; align-items:center; gap:4px;"><input type="checkbox" name="style-div-sec" value="一、背景与意义"> 【一、背景意义】</label>
+                    <label style="font-size:11.5px; color:#4c1d95; display:flex; align-items:center; gap:4px;"><input type="checkbox" name="style-div-sec" value="二、文献综述"> 【二、文献综述】</label>
+                    <label style="font-size:11.5px; color:#4c1d95; display:flex; align-items:center; gap:4px;"><input type="checkbox" name="style-div-sec" value="三、研究问题与假设"> 【三、问题假设】</label>
+                    <label style="font-size:11.5px; color:#4c1d95; display:flex; align-items:center; gap:4px;"><input type="checkbox" name="style-div-sec" value="四、研究设计与方法"> 【四、设计方法】</label>
+                    <label style="font-size:11.5px; color:#4c1d95; display:flex; align-items:center; gap:4px;"><input type="checkbox" name="style-div-sec" value="五、不足与反思"> 【五、不足反思】</label>
+                  </div>
                 </div>
               </div>
             </div>
 
-            <!-- 3. 三维难点瓶颈全面自评 -->
-            <div style="background:#f8fafc; border:1px solid #cbd5e1; border-radius:10px; padding:12px 16px; margin-top:12px; display:flex; flex-direction:column; gap:10px;">
-              <div style="font-size:13px; font-weight:800; color:#0f172a;">⚠️ 三、团队 3 维瓶颈自查</div>
+            <!-- Q4: 核心通俗瓶颈自查 -->
+            <div style="background:#ffffff; border:1px solid #cbd5e1; border-radius:10px; padding:12px 16px; display:flex; flex-direction:column; gap:6px;">
+              <label style="font-size:12.5px; font-weight:700; color:#0f172a;">💡 4. 【核心瓶颈自查】当前全篇最让大家卡壳、最难写的是什么？(单选)</label>
+              <select id="meeting-bottleneck-academic" class="teacher-input" style="width:100%; padding:6px 10px; font-size:12px; border-radius:6px; border:1px solid #cbd5e1; background:#ffffff;">
+                <option value="方法与问题不搭：不知道该怎么设计方法/量表来回答前面的研究问题">方法与问题不搭：不知道该怎么设计方法/量表来回答前面的研究问题</option>
+                <option value="理论与文献不足：找不到足够的文献依据，理论支撑单薄">理论与文献不足：找不到足够的文献依据，理论支撑单薄</option>
+                <option value="方案步骤不清晰：不知道具体的研究对象、实施过程该怎么写具体">方案步骤不清晰：不知道具体的研究对象、实施过程该怎么写具体</option>
+                <option value="局限与反思卡壳：不知道该怎么客观分析方案的不足和潜在问题">局限与反思卡壳：不知道该怎么客观分析方案的不足和潜在问题</option>
+              </select>
+            </div>
 
-              <div>
-                <label style="font-size:12px; font-weight:700; color:#1e40af;">📚 维度 ① 学术内容难点：</label>
-                <select id="meeting-bottleneck-academic" class="teacher-input" style="width:100%; margin-top:3px; padding:4px 8px; font-size:12px;">
-                  <option value="假设与研究设计测量工具对应不明确">假设与研究设计测量工具对应不明确</option>
-                  <option value="国内外文献综述支撑力度与权威性不足">国内外文献综述支撑力度与权威性不足</option>
-                  <option value="核心变量的操作化测量量表不够完善">核心变量的操作化测量量表不够完善</option>
-                </select>
-              </div>
-
-              <div>
-                <label style="font-size:12px; font-weight:700; color:#047857;">👥 维度 ② 团队协作难点：</label>
-                <select id="meeting-bottleneck-collab" class="teacher-input" style="width:100%; margin-top:3px; padding:4px 8px; font-size:12px;">
-                  <option value="各成员撰写风格不一致，章节过渡衔接缺乏逻辑">各成员撰写风格不一致，章节过渡衔接缺乏逻辑</option>
-                  <option value="对部分核心观点的论证存在组内争议尚未统一">对部分核心观点的论证存在组内争议尚未统一</option>
-                  <option value="分工执行存在部分脱节，需加强同步沟通">分工执行存在部分脱节，需加强同步沟通</option>
-                </select>
-              </div>
-
-              <div>
-                <label style="font-size:12px; font-weight:700; color:#b45309;">⏳ 维度 ③ 进度与心理难点：</label>
-                <select id="meeting-bottleneck-rhythm" class="teacher-input" style="width:100%; margin-top:3px; padding:4px 8px; font-size:12px;">
-                  <option value="时间分配偏紧，担心后半程收尾仓促">时间分配偏紧，担心后半程收尾仓促</option>
-                  <option value="写作遇到思路卡顿，感到有些焦虑">写作遇到思路卡顿，感到有些焦虑</option>
-                  <option value="篇幅与精简把控困难，精力消耗较大">篇幅与精简把控困难，精力消耗较大</option>
-                </select>
+            <!-- Q5: 整体质量打星 -->
+            <div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:10px; padding:12px 16px; display:flex; justify-content:space-between; align-items:center;">
+              <span style="font-size:12.5px; font-weight:700; color:#0f172a;">🌟 5. 【整体质量自评】全篇整体学术质量与严谨度打分：</span>
+              <div class="rating-stars" id="star-rating-logic" style="font-size:22px; cursor:pointer; user-select:none;">
+                <span class="star" data-val="1" style="color:#f59e0b;">★</span>
+                <span class="star" data-val="2" style="color:#f59e0b;">★</span>
+                <span class="star" data-val="3" style="color:#f59e0b;">★</span>
+                <span class="star" data-val="4" style="color:#f59e0b;">★</span>
+                <span class="star" data-val="5" style="color:#475569;">★</span>
               </div>
             </div>
 
-            <div class="teacher-form-group" style="margin-top:10px;">
-              <label style="font-size:13px; font-weight:700;">✍️ 向审稿专家提问 / 组内核心困惑说明 (选填)</label>
-              <textarea id="meeting-input-text" class="teacher-textarea" style="min-height:55px;" placeholder="请输入组内最想向审稿编辑请教的学术问题或论证困惑..."></textarea>
+            <!-- Q6: 一句话修改聚焦 -->
+            <div class="teacher-form-group" style="margin:0;">
+              <label style="font-size:12.5px; font-weight:700; color:#0f172a;">📝 6. 【一句话修改聚焦】写下一处你认为全组目前最急需合力修改的具体问题：</label>
+              <input id="meeting-input-text" class="teacher-input" style="width:100%; padding:6px 10px; font-size:12px; border-radius:6px; border:1px solid #cbd5e1; box-sizing:border-box;" placeholder="例如：在第4章方法中补齐针对第3章假设的测量维度，并统一第1章口语化表述...">
             </div>
           </div>
-          <div class="teacher-modal-footer">
+          <div class="teacher-modal-footer" style="padding:12px 20px; border-top:1px solid #e2e8f0; display:flex; justify-content:flex-end; gap:10px;">
             <button class="modal-btn cancel" id="btn-cancel-meeting">取消</button>
-            <button class="modal-btn submit ann-theme" id="btn-submit-meeting">🚀 提交打分并生成【半程编辑修正清单】</button>
+            <button class="modal-btn submit ann-theme" id="btn-submit-meeting">🚀 提交打卡并生成【半程编辑修正清单】</button>
           </div>
         </div>
       `;
+      document.body.appendChild(modal);
+
+      const closeModal = () => document.body.removeChild(modal);
+      modal.querySelector('#btn-close-meeting').addEventListener('click', closeModal);
+      modal.querySelector('#btn-cancel-meeting').addEventListener('click', closeModal);
+
+      // 联动展开逻辑
+      const ideationSel = modal.querySelector('#meeting-ideation-select');
+      const ideationBox = modal.querySelector('#meeting-ideation-sections-box');
+      ideationSel.addEventListener('change', () => {
+        ideationBox.style.display = ideationSel.value.includes('偏离') ? 'flex' : 'none';
+      });
+
+      const transSel = modal.querySelector('#meeting-transition-select');
+      const transBox = modal.querySelector('#meeting-transition-sections-box');
+      transSel.addEventListener('change', () => {
+        transBox.style.display = transSel.value.includes('脱节') ? 'flex' : 'none';
+      });
+
+      const styleSel = modal.querySelector('#meeting-style-select');
+      const styleBox = modal.querySelector('#meeting-style-sections-box');
+      styleSel.addEventListener('change', () => {
+        styleBox.style.display = (styleSel.value.includes('割裂') || styleSel.value.includes('混乱') || styleSel.value.includes('口语')) ? 'flex' : 'none';
+      });
+
+      let overallRating = 4;
+      modal.querySelectorAll('#star-rating-logic .star').forEach(s => {
+        s.addEventListener('click', (e) => {
+          overallRating = Number(e.target.dataset.val);
+          modal.querySelectorAll('#star-rating-logic .star').forEach(st => {
+            const v = Number(st.dataset.val);
+            st.style.color = v <= overallRating ? '#f59e0b' : '#475569';
+          });
+        });
+      });
       document.body.appendChild(modal);
 
       const closeModal = () => document.body.removeChild(modal);
@@ -13595,13 +14094,13 @@
       });
 
       modal.querySelector('#btn-submit-meeting').addEventListener('click', async () => {
-        const themeConsistency = modal.querySelector('#meeting-theme-consistency-select').value;
-        const peerReviewState = modal.querySelector('#meeting-peer-review-select').value;
-        const transitionState = modal.querySelector('#meeting-transition-select') ? modal.querySelector('#meeting-transition-select').value : '环环相扣';
-        const checkedSections = Array.from(modal.querySelectorAll('input[name="peer-div-sec"]:checked')).map(cb => cb.value);
+        const ideationConsistency = modal.querySelector('#meeting-ideation-select').value;
+        const transitionState = modal.querySelector('#meeting-transition-select').value;
+        const styleState = modal.querySelector('#meeting-style-select').value;
+        const ideationSections = Array.from(modal.querySelectorAll('input[name="ideation-sec"]:checked')).map(cb => cb.value);
+        const transSections = Array.from(modal.querySelectorAll('input[name="trans-div-sec"]:checked')).map(cb => cb.value);
+        const styleSections = Array.from(modal.querySelectorAll('input[name="style-div-sec"]:checked')).map(cb => cb.value);
         const bAcademic = modal.querySelector('#meeting-bottleneck-academic').value;
-        const bCollab = modal.querySelector('#meeting-bottleneck-collab').value;
-        const bRhythm = modal.querySelector('#meeting-bottleneck-rhythm').value;
         const userText = modal.querySelector('#meeting-input-text').value.trim();
         closeModal();
 
@@ -13613,17 +14112,15 @@
         this.state.stage2.meetingSubmissions[user] = {
           user,
           name: memberName,
-          themeConsistency,
-          peerReviewState,
+          ideationConsistency,
           transitionState,
-          checkedSections,
+          styleState,
+          ideationSections,
+          transSections,
+          styleSections,
           bAcademic,
-          bCollab,
-          bRhythm,
+          overallRating,
           userText,
-          logicRating,
-          balanceRating,
-          confidenceRating,
           submittedAt: Date.now()
         };
 
@@ -13639,67 +14136,54 @@
           return;
         }
 
-        // ── 全员打卡完毕：汇聚全组数据并由责任编辑播报分歧 ──
+        // ── 全员打卡完毕：汇聚全组数据并由责任编辑播报分歧（匿名宏观，不点具体人名） ──
         const topic = (this.state.stage1 && this.state.stage1.mergedTitle) ? this.state.stage1.mergedTitle : '本组课题';
         const allSubs = Object.values(submissions);
-        const hasDivergence = allSubs.some(s => s.themeConsistency.includes('偏离') || s.themeConsistency.includes('不够充分') || s.peerReviewState.includes('不同看法') || s.peerReviewState.includes('商榷') || (s.checkedSections && s.checkedSections.length > 0));
 
-        // 汇总全组自查状态
-        const consistencySummary = allSubs.map(s => `${s.name}: ${s.themeConsistency.slice(0, 10)}`).join('；');
-        const peerSummary = allSubs.map(s => `${s.name}: ${s.peerReviewState.slice(0, 10)}`).join('；');
-        const transitionSummary = allSubs.map(s => `${s.name}: ${(s.transitionState || '连贯').slice(0, 10)}`).join('；');
-        const allCheckedSecs = Array.from(new Set(allSubs.flatMap(s => s.checkedSections || [])));
-        const sectionsFocusText = allCheckedSecs.length > 0 ? allCheckedSecs.map(sec => `【${sec}】`).join(' 与 ') : '【一、研究背景】与【四、研究设计】';
+        const allIdeationSecs = Array.from(new Set(allSubs.flatMap(s => s.ideationSections || [])));
+        const allTransSecs = Array.from(new Set(allSubs.flatMap(s => s.transSections || [])));
+        const allStyleSecs = Array.from(new Set(allSubs.flatMap(s => s.styleSections || [])));
 
-        const primaryAcademicB = allSubs[0].bAcademic;
-        const primaryCollabB = allSubs[0].bCollab;
-        const primaryRhythmB = allSubs[0].bRhythm;
-        const questionsList = allSubs.filter(s => s.userText).map(s => `${s.name}提问：“${s.userText}”`).join('；') || '暂无补充提问';
+        const hasIdeationDev = allSubs.some(s => (s.ideationConsistency || '').includes('偏离'));
+        const hasTransDev = allSubs.some(s => (s.transitionState || '').includes('脱节'));
+        const hasStyleDev = allSubs.some(s => (s.styleState || '').includes('割裂') || (s.styleState || '').includes('混乱') || (s.styleState || '').includes('口语'));
 
-        // 暂不提前点亮清单，等待组内完成分歧商讨后由审稿专家质检下发
+        const primaryAcademicB = allSubs[0].bAcademic || '方法与问题对齐与实施设计';
+        const questionsList = allSubs.filter(s => s.userText).map(s => `“${s.userText}”`).join('；') || '暂无补充提问';
+
+        let transFocusText = allTransSecs.length > 0 ? allTransSecs.map(s => `【${s}】`).join('、') : '【假设 ↔ 方法】';
+        let ideationFocusText = allIdeationSecs.length > 0 ? allIdeationSecs.map(s => `【${s}】`).join('、') : '部分核心章节';
+        let styleFocusText = allStyleSecs.length > 0 ? allStyleSecs.map(s => `【${s}】`).join('、') : '【一、背景与意义】与【三、研究问题与假设】';
+
         this.syncStage2();
         if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
         this.renderStudentWorkspace();
 
         alert(`✅ 你 (${memberName}) 已成功提交半程自查与互阅打卡！\n\n目前组内已打卡：${submittedCount}/${totalMembersCount} 人。\n全组成员已集齐！责任编辑已在右侧研讨区梳理出本组自查认知分歧，请组员先在讨论区针对分歧商讨对齐，稍后审稿专家将为大家深度质检并下发【半程修正清单】！`);
 
-        // 2. 异步调用扣子【责任编辑】Coze API: 全景研判 (客观呈现分歧章节 80% 主线，协作时间 20% 顺带；全员一致则全面具体赞扬)
-        const managingPrompt = `全组成员已全部完成半程编辑会议自查打卡（共 ${totalMembersCount} 人）：
+        // 2. 异步调用扣子【责任编辑】Coze API: 匿名化宏观总结与分歧引导
+        const managingPrompt = `全组成员已全部完成半程全篇综合自查打卡（共 ${totalMembersCount} 人）：
   • 课题: 《${topic}》
-  • 组内重点关注/产生认知差异的具体章节: ${sectionsFocusText}
-  • 全组负责章节自查汇总: ${consistencySummary}
-  • 全组通读同伴思想研判: ${peerSummary}
-  • 全篇过渡与衔接感知汇总: ${transitionSummary}
-  • 组内核心学术瓶颈: ${primaryAcademicB} | 协作瓶颈: ${primaryCollabB} | 进度瓶颈: ${primaryRhythmB}
-  • 组内说明与提问汇总: ${questionsList}
-  • 判定状态: ${hasDivergence ? '【存在显著分歧/不同看法】' : '【全员高度一致认同】'}
+  • 个人构思契合度诊断: ${hasIdeationDev ? `部分成员反馈方案局部偏离最初设想（重点涉及: ${ideationFocusText}）` : '全员高度符合最初设想'}
+  • 全篇连贯性与前后脱节诊断: ${hasTransDev ? `多位成员指出存在前后脱节（重点涉及: ${transFocusText}）` : '全篇前后衔接自然'}
+  • 文风语体与专业术语诊断: ${hasStyleDev ? `组内反馈存在口语化与术语不统一（重点涉及: ${styleFocusText}）` : '文风严谨术语统一'}
+  • 核心学术瓶颈共识: ${primaryAcademicB}
+  • 组内提问与修改建议汇总: ${questionsList}
 
-  请作为学术编辑部责任编辑（协同主持人与学伴）发表一段充实、真诚、富有启发性的发言（字数控制在 130~150 字，严禁简略敷衍）：
-  ${hasDivergence 
-  ? `【存在内容分歧引导主线】：
-  1. 肯定全组认真通读了彼此撰写的段落；明确说明：目前初稿中写出的部分内容，与组内部分成员在自查中提出的思路构想存在认知差异与不同看法；
-  2. 逐一分条列出所涉及的章节（若有多个分歧用 ① ② 客观列出 ${sectionsFocusText} 各自想商榷的思路焦点）；
-  3. 针对上述内容分歧给出具体的【分步协商建议】（建议大家先不要急于单干改字，在讨论区按照“先对齐背景核心概念与痛点，再商定设计中的具体干预任务与量表指标”的步骤分步商讨，把修改思路达成全组共识；【核心铁律】：对事不对人，严禁擅自下负面优劣结论！学术对错交由审稿编辑）；
-  4. 末尾顺带评价时间/协作：若自查中反映了时间紧张等顾虑则顺带给 1 句调适建议；若时间把控良好/无顾虑，末尾必须顺带给予明确具体的肯定与赞扬（如夸赞大家时间把控很稳健、推进高效）！并预告审稿专家马上接着为大家做正文深度学术质检！`
-  : (primaryCollabB !== '无显著协作阻碍' || primaryRhythmB !== '节奏适中无压力'
-    ? `【立意高度一致，但存在协作/时间小顾虑】：肯定全组对研究立意保持着高度默契！针对自查中提到的协作风格/时间节奏顾虑，给出 1 句简要对齐建议，并预告审稿专家马上接着为大家做正文深度学术质检！`
-    : `【全员全维度高度默契与协同赞扬】：太棒了，全组不仅对核心立意认知高度统一，而且各章节撰写节奏顺畅、时间把控极佳！给予全员具体赞扬，并预告审稿专家马上接着为大家做正文深度学术质检！`
-  )}`;
+  请作为学术编辑部责任编辑（协同主持人与学伴）发表一段客观、充实、富有启发性的发言（字数控制在 130~150 字，严禁敷衍，严禁点具体学生人名，用“部分成员反馈/多数同学指出”）：
+  1. 肯定全组认真通读了全篇已有内容，宏观呈现诊断共识：
+     ① 列出构思偏差与多处脱节焦点（如 ${transFocusText}）；
+     ② 点出文风语体需统一的章节（如 ${styleFocusText}）；
+  2. 给出具体的研讨引导：号召大家在讨论区围绕“如何将假设与方法接合起来”、“如何统一学术语体”展开 2~3 分钟交流商讨；
+  3. 预告审稿专家正在通读全篇草稿，稍后将针对大家的瓶颈与脱节下发深度质检与【半程修正清单】！`;
 
-        let managingText = await callCozeAgentAPI('managingEditor', managingPrompt, { stage: 'stage2', topic, bottleneck: bAcademic, peerReview: peerReviewState });
+        let managingText = await callCozeAgentAPI('managingEditor', managingPrompt, { stage: 'stage2', topic, bottleneck: primaryAcademicB });
         if (!managingText || managingText.trim().length === 0) {
-          const hasTimeConcern = primaryRhythmB && primaryRhythmB !== '节奏适中无压力' && primaryRhythmB !== '无明显时间顾虑';
-          const hasCollabConcern = primaryCollabB && primaryCollabB !== '无显著协作阻碍' && primaryCollabB !== '协作良好';
-
-          if (hasDivergence && hasTimeConcern) {
-            managingText = `🤝 【责任编辑·自查研判与对齐引导】：全员自查清单已生成！首先肯定大家认真通读了彼此撰写的段落。重点关注到目前初稿中写出的部分内容，与组内部分成员在自查中提出的思路构想存在认知差异：①【${sectionsFocusText}】：部分成员持有不同看法，想进一步商榷论述角度与设计方案。💡 【分歧协商建议】：建议大家先别急于单干改字，在讨论区按照“先对齐背景核心概念与痛点，再商定设计中的具体干预任务与量表指标”的步骤分步商讨，把修改方案达成全组共识！（同时关注到有反馈提到时间分配偏紧）。👉 请全组在讨论区充分交流，随后审稿专家将接着为大家做正文深度学术质检！`;
-          } else if (hasDivergence) {
-            managingText = `🤝 【责任编辑·自查研判与对齐引导】：全员自查清单已生成！首先肯定大家认真通读了彼此撰写的段落。重点关注到目前初稿中写出的部分内容，与组内部分成员在自查中提出的思路构想存在认知差异：①【${sectionsFocusText}】：部分成员持有不同看法，想进一步商榷论述角度与设计方案。💡 【分歧协商建议】：建议大家先别急于单干改字，在讨论区按照“先对齐背景核心概念与痛点，再商定设计中的具体干预任务与量表指标”的步骤分步商讨，把修改思路达成全组共识！欣慰的是全组时间节奏把控得很稳健、推进高效！👉 请全组在讨论区充分交流，随后审稿专家将接着为大家做正文深度学术质检！`;
-          } else if (hasCollabConcern || hasTimeConcern) {
-            managingText = `🤝 【责任编辑·默契肯定与节奏调适】：自查清单已生成！全组对研究立意保持着高度默契！针对大家自查中提到的写作风格或时间预算小顾虑，建议大家简要协商对齐节奏。审稿专家马上接着为大家做学术质量审查！`;
-          } else {
-            managingText = `🤝 【责任编辑·高度默契与协同赞扬】：自查清单已生成！太棒了，全组不仅对核心立意认知高度统一，而且各章节撰写节奏顺畅、时间把控极佳！请大家保持这个优秀的团队状态，审稿专家马上接着为大家做正文深度学术质检！`;
-          }
+          managingText = `🤝 【责任编辑·研讨引导】：全员自查打卡已完成！我汇总了大家的诊断，梳理出以下核心焦点：
+    1. 🎯 构思与脱节共识：${hasIdeationDev ? `部分成员反馈 ${ideationFocusText} 偏离了最初设想；` : ''}${hasTransDev ? `多数成员指出存在前后脱节（重点涉及 ${transFocusText}）；` : '全篇前后衔接基本顺畅；'}
+    2. 🎨 文风与术语规范：${hasStyleDev ? `大家一致指出 ${styleFocusText} 存在口语化表述与术语混用，全篇需统一为规范学术语体；` : '全篇文风严谨规范；'}
+    3. 💡 核心瓶颈：全组聚焦在『${primaryAcademicB}』。
+  📢 请全组在讨论区围绕：『如何把假设与方法紧密接合起来』与『统一学术语体』展开 2~3 分钟研讨！审稿专家正在通读全篇，稍后给出学术处方！`;
         }
 
         const managingMsg = {
@@ -13714,13 +14198,13 @@
         this.syncChatLogs();
         renderChat(this.state);
 
-        // 3. 平台接管调控：设置【等待组内商讨对齐】状态，全景汇聚全组所有难点与提问
+        // 3. 平台接管调控：设置【等待组内商讨对齐】状态
         this.state.stage2PendingReviewing = {
           topic,
           bAcademic: primaryAcademicB,
           userText: questionsList,
-          sectionsFocus: sectionsFocusText,
-          hasDivergence,
+          transFocus: transFocusText,
+          styleFocus: styleFocusText,
           timeSubmitted: Date.now(),
           studentMsgCount: 0
         };
@@ -13737,35 +14221,39 @@
       const fullDoc = (this.state.stage2 && this.state.stage2.unifiedContent) ? this.state.stage2.unifiedContent.replace(/<[^>]*>/g, '').trim() : '论文初稿方案';
       const priorFirstReview = this.state.stage2FirstReviewText || (this.state.chatLogs.stage2 || []).find(m => m.sender === 'reviewingEditor')?.text || '前期初审已肯定研究背景立意与文献归纳';
 
-      const reviewingPrompt = `小组已针对责任编辑提出的自查分歧在讨论区达成了对齐共识。
+      const reviewingPrompt = `小组已针对责任编辑提出的自查分歧在讨论区达成了初步对齐共识。
   【课题】: 《${ctx.topic}》
-  【自查勾选难点】: “${ctx.bAcademic}”
-  【手填开放提问/困惑】: “${ctx.userText || '无手填提问'}”
-  【重点关注章节】: ${ctx.sectionsFocus}
+  【全组自查核心瓶颈】: “${ctx.bAcademic}”
+  【前后脱节重点章节】: ${ctx.transFocus}
+  【文风偏口语化章节】: ${ctx.styleFocus}
+  【手填开放提问/修改建议】: “${ctx.userText || '无手填提问'}”
 
-  【审稿编辑上一轮一审诊断记录（记忆继承）】:
+  【审稿编辑一审记录】:
   "${priorFirstReview}"
 
-  【审稿编辑多轮质检递进继承铁律】：本次二审必须严格基于上一轮一审的诊断基础深化递进，继承一审对前期章节的肯定意见，前后学术观点与指导方向严格保持连贯一致，绝对不可推翻前文或自相矛盾！
-
-  请通读下方【小组当前真实正文草稿】全文，作为国家级教育类核心期刊资深审稿编辑，发表 130~150 字的深度学术质检（【全局最高红线】：顺应已有框架做局部微调与细节补充，严禁提出推翻重写或结构性大改！严禁替写大段正文！）：
-  ① 具体难点破解与开放答疑：通读学生在自查表单中勾选的核心难点选项（${ctx.bAcademic}）及手填开放提问（${ctx.userText || '无手填提问'}），给出切中具体学科场景的破解思路；
-  ② 正文切片具体学术质检：通读正文真实切片，肯定具体已有论证，精准指出 1 处实际存在的具体章节、具体变量/案例论据的薄弱点；
-  ③ 具体修改处方与清单落地：给出具体操作建议，引导全组对照左侧清单分工落实。纯自然语言输出，130~150字。`;
+  请通读下方【小组当前真实正文草稿】全文，作为国家级教育类期刊资深审稿编辑，发表 130~150 字的深度学术质检（【全局红线】：顺应已有框架微调，严禁推翻重写，严禁预设具体统计工具，有数据评数据，无数据评方案）：
+  ① 直击脱节与瓶颈：通读学生真实草稿，针对学生卡壳的『${ctx.bAcademic}』与脱节处（${ctx.transFocus}），给出切中其具体课题的学术化解处方；
+  ② 文风与术语润色示范：指出口语化章节（${ctx.styleFocus}）中的典型口语问题，给出规范学术语体改写示范；
+  ③ 反思与定稿冲刺：对后续反思与定稿提出明确要求，提示学生若对修改有疑问可随时 @审稿编辑 咨询！纯自然语言输出，130~150字。`;
 
       let reviewingText = await callCozeAgentAPI('reviewingEditor', reviewingPrompt, { stage: 'stage2', topic: ctx.topic, bottleneck: ctx.bAcademic, actualDoc: fullDoc, priorReview: priorFirstReview });
       if (!reviewingText || reviewingText.trim().length === 0) {
-        reviewingText = `📝 【审稿编辑·学术质检与答疑】：针对大家勾选的难点『${ctx.bAcademic}』以及关于 [${ctx.userText || '理论与实证衔接'}] 的困惑：建议从具体研究情境切入化解难点！同时重点审阅了目前正文：【${ctx.sectionsFocus}】立意充分，但相关章节中具体论据的实证支撑略显单薄。建议补充具体的测量维度与数据来源。请全组对照左侧【半程修正清单】分工加速完善！`;
+        reviewingText = `📝 【审稿编辑·学术质检与答疑】：通读了全组目前撰写的正文草稿，针对大家卡壳的【${ctx.bAcademic}】与衔接脱节问题：
+  ① 假设与方法闭环：通读正文，第三章提出的核心假设与第四章测量设计存在局部脱节，建议在方法中补齐对应的操作化测度指标，实现 1:1 闭环；
+  ② 文风统一规范：通读 ${ctx.styleFocus}，消除“我们觉得”等第一人称口语，润色为严谨客观的第三人称学术语体；
+  ③ 局限预判：在接下来的第五章深入剖析方案在样本抽样与工具上的潜在局限。
+  👉 我已为大家下发了 3 项可打勾的【半程修正清单】，若对具体修改有疑问可随时 @审稿编辑 咨询，请全组分工落实！`;
       }
       this.state.stage2SecondReviewText = reviewingText;
 
-      // 🌟 动态生成包含三大高含金量支柱的【半程修正清单】
+      // 🌟 动态生成包含三大高含金量支柱的【半程修正清单】(支持交互勾选)
       this.state.stage2.actionPlan = {
         isGenerated: true,
+        completedMap: {},
         items: [
-          `【核心主线·消除立意与逻辑不一致】(重点关注: ${ctx.sectionsFocus}): 结合研讨共识，统一前后章节核心概念界定与研究假设，消除思路矛盾，确保主线一贯到底。`,
-          `【学术论证与方法瓶颈深度突破】: • 理论与综述层: 深化核心理论推导与近三年顶刊文献支撑； • 假设与机制层: 明确中介/调节效应逻辑传导链条； • 方法与量表层: 补充操作化测量工具与信效度检验。`,
-          `【协同修改落地与反思冲刺】: 组员分工协同修改正文，重点完善第五节【研究设计的不足与反思】，把控后半程进度节奏！`
+          `🎯【消除前后脱节与构思分歧】(重点关注: ${ctx.transFocus}): 完善第四章方法与测量工具，确保能有效检验前文提出的全部核心假设，消除“两张皮”脱节硬伤，使主线一贯到底！`,
+          `✍️【统一语言文风与专业术语】(重点关注: ${ctx.styleFocus}): 通读全篇，消除口语化表达与第一人称叙述，润色为规范严谨的客观学术语体，统一全篇核心概念命名。`,
+          `💡【攻克瓶颈与局限反思冲刺】: 按照自查瓶颈（${ctx.bAcademic}），细化实施设计，并在即将起草的第五章深入剖析方案潜在局限，把控节奏，准备初稿定稿！`
         ]
       };
 

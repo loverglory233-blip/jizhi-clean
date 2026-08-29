@@ -1882,13 +1882,14 @@ function renderStage2Canvas(canvas, state, handlers) {
         <div id="stage2-action-plan-card" style="background:#ecfdf5; border:1px solid #a7f3d0; border-radius:10px; padding:10px 16px; margin-bottom:10px; transition:all 0.2s ease; flex-shrink:0; box-shadow:0 2px 6px rgba(5,150,105,0.06);">
           <div style="display:flex; justify-content:space-between; align-items:center; cursor:pointer;" id="btn-toggle-action-plan">
             <div style="font-size:13px; font-weight:800; color:#059669; display:flex; align-items:center; gap:6px;">
-              <span>📋 【半程修正清单】(审稿专家下发 3 项修改要求)</span>
+              <span>📋 【半程修正清单】(审稿专家下发 3 项修改要求 · 完成可点击打勾)</span>
               <span style="font-size:11px; background:#d1fae5; color:#065f46; padding:1px 8px; border-radius:10px; font-weight:700;">已生成</span>
             </div>
             <span id="icon-toggle-action-plan" style="font-size:11.5px; color:#059669; font-weight:700;">▲ 收起</span>
           </div>
           <div id="body-action-plan-items" style="font-size:12.5px; color:#1e293b; display:flex; flex-direction:column; gap:8px; margin-top:8px;">
             ${actionPlan.items.map((item, idx) => {
+              const isChecked = !!(actionPlan.completedMap && actionPlan.completedMap[idx]);
               let formattedItem = escapeHtml(item);
               formattedItem = formattedItem
                 .replace(/(?:•\s*|【)?理论与综述层(?:】)?[:：]?/g, '<span style="display:inline-block; background:#eff6ff; color:#2563eb; border:1px solid #bfdbfe; padding:1px 6px; border-radius:4px; font-weight:700; font-size:11.5px; margin-right:4px;">📚 理论与综述层</span>')
@@ -1896,8 +1897,11 @@ function renderStage2Canvas(canvas, state, handlers) {
                 .replace(/(?:•\s*|【)?方法与量表层(?:】)?[:：]?/g, '<span style="display:inline-block; background:#ecfdf5; color:#059669; border:1px solid #a7f3d0; padding:1px 6px; border-radius:4px; font-weight:700; font-size:11.5px; margin-right:4px;">📐 方法与量表层</span>');
 
               return `
-                <div style="line-height:1.6; background:#ffffff; border:1px solid #e2e8f0; border-radius:8px; padding:8px 12px; box-shadow:0 1px 3px rgba(0,0,0,0.02);">
-                  <b style="color:#0f172a; margin-right:4px;">${idx + 1}.</b> ${formattedItem}
+                <div class="action-plan-item-box" data-item-idx="${idx}" style="line-height:1.6; background:${isChecked ? '#f0fdf4' : '#ffffff'}; border:1px solid ${isChecked ? '#86efac' : '#e2e8f0'}; border-radius:8px; padding:8px 12px; box-shadow:0 1px 3px rgba(0,0,0,0.02); display:flex; align-items:flex-start; gap:8px; cursor:pointer;">
+                  <input type="checkbox" class="action-plan-check-input" data-idx="${idx}" ${isChecked ? 'checked' : ''} style="cursor:pointer; margin-top:4px; transform:scale(1.15);">
+                  <div style="flex:1; text-decoration:${isChecked ? 'line-through' : 'none'}; color:${isChecked ? '#166534' : '#1e293b'};">
+                    <b style="color:${isChecked ? '#166534' : '#0f172a'}; margin-right:4px;">${idx + 1}.</b> ${formattedItem}
+                  </div>
                 </div>
               `;
             }).join('')}
@@ -2017,7 +2021,8 @@ function renderStage2Canvas(canvas, state, handlers) {
 
   const btnTogglePlan = canvas.querySelector('#btn-toggle-action-plan');
   if (btnTogglePlan) {
-    btnTogglePlan.addEventListener('click', () => {
+    btnTogglePlan.addEventListener('click', (e) => {
+      if (e.target.closest('.action-plan-item-box') || e.target.classList.contains('action-plan-check-input')) return;
       const bodyItems = canvas.querySelector('#body-action-plan-items');
       const iconToggle = canvas.querySelector('#icon-toggle-action-plan');
       if (bodyItems) {
@@ -2025,6 +2030,21 @@ function renderStage2Canvas(canvas, state, handlers) {
         bodyItems.style.display = isHidden ? 'flex' : 'none';
         if (iconToggle) iconToggle.innerText = isHidden ? '▲ 收起' : '▼ 展开';
       }
+    });
+
+    canvas.querySelectorAll('.action-plan-item-box').forEach(box => {
+      box.addEventListener('click', (e) => {
+        const idx = Number(box.dataset.itemIdx);
+        if (!state.stage2.actionPlan.completedMap) state.stage2.actionPlan.completedMap = {};
+        state.stage2.actionPlan.completedMap[idx] = !state.stage2.actionPlan.completedMap[idx];
+        if (handlers.onActionPlanToggle) {
+          handlers.onActionPlanToggle(idx, state.stage2.actionPlan.completedMap[idx]);
+        } else if (window.app) {
+          window.app.syncStage2();
+          if (window.app.cloudSyncEngine) window.app.cloudSyncEngine.pushSnapshot();
+          window.app.renderStudentWorkspace();
+        }
+      });
     });
   }
 
