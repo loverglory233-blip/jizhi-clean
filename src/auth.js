@@ -1303,9 +1303,17 @@ export class AuthManager {
   }
 
   publishAnnouncement(taskId, title, content, attachment = null, targetGroupId = 'all', targetGroupName = '全班所有小组', classId = 'all', className = '全校班级', targetGroupIds = ['all'], isSystemAction = false) {
-    const announcements = this.getAnnouncements();
+    let announcements = this.getAnnouncements();
     const tasks = this.getTasks();
     const task = tasks.find(t => t.id === taskId);
+    const isExtension = !!(isSystemAction || title?.includes('延期通知') || title?.includes('时间已延长') || title?.includes('延长至'));
+
+    // 🧹 智能延期合并与自动修剪：
+    // 若为同一任务发布新的延期通知，自动清理该任务先前的历史延期记录，避免产生多条重复过时的时间通知
+    if (isExtension && taskId && taskId !== 'task_all') {
+      announcements = announcements.filter(a => !(a.taskId === taskId && (a.isExtension || a.title?.includes('延期通知') || a.title?.includes('时间已延长'))));
+    }
+
     const newAnn = {
       id: 'ann_' + Date.now(),
       classId: classId || 'all',
@@ -1317,10 +1325,17 @@ export class AuthManager {
       targetGroupName: targetGroupName || '全班所有小组',
       title, content, attachment,
       isSystemAction: !!isSystemAction,
+      isExtension: isExtension,
       time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       author: '老师', readStatus: {}
     };
     announcements.unshift(newAnn);
+
+    // 🧹 最多保留最新 50 条通知，超出部分从最旧一条（末尾）自动滚动删除，保持轻量高效
+    if (announcements.length > 50) {
+      announcements = announcements.slice(0, 50);
+    }
+
     localStorage.setItem(STORAGE_KEY_ANNOUNCEMENTS, JSON.stringify(announcements));
     this.pushGlobalMeta();
     return newAnn;
