@@ -3614,7 +3614,7 @@ ${propText}
         this.renderStudentWorkspace();
 
         // 🛡️ 严格要求：必须全组成员每一个人都点击确认初稿后，才解锁推进至阶段三
-        if (confirmedCount < totalMembersCount || totalMembersCount < 2) {
+        if (confirmedCount < totalMembersCount) {
           alert(`✅ 您 (${memberName}) 已成功确认正文初稿！\n\n当前组内确认进度：${confirmedCount}/${totalMembersCount} 人已确认。\n⚠️ 必须全组所有成员均完成确认后，系统才会正式解锁并自动推进至【阶段三：答辩擂台】！请提醒组内其他同学尽快确认。`);
         } else {
           s2.isDraftConfirmed = true;
@@ -4338,6 +4338,19 @@ ${propText}
         studentMsgCount: 0
       };
       this.syncStage2();
+
+      // 🌟 单人测试即时接力 / 多人自适应保底：单人测试 1.2s 自动接力二审；多人 10s 未发言也保底唤醒审稿下发清单！
+      if (totalMembersCount <= 1) {
+        setTimeout(() => {
+          this.triggerReviewingEditorAfterDiscussion();
+        }, 1200);
+      } else {
+        setTimeout(() => {
+          if (this.state.stage2PendingReviewing) {
+            this.triggerReviewingEditorAfterDiscussion();
+          }
+        }, 12000);
+      }
     });
   }
 
