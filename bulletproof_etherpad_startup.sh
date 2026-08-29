@@ -57,22 +57,7 @@ cat << 'EPSETEOF' > "$EP_DIR/settings.json"
     "showControls": true,
     "showChat": false,
     "showLineNumbers": true,
-    "useMonospaceFont": false,
-    "userName": "学术组员"
-  },
-  "toolbar": {
-    "left": [
-      ["bold", "italic", "underline", "strikethrough"],
-      ["orderedlist", "unorderedlist", "indent", "outdent"],
-      ["heading", "font-size", "font-family", "font-color"],
-      ["left", "center", "right", "justify"],
-      ["insertTable", "imageUpload"],
-      ["undo", "redo"],
-      ["clearauthorship"]
-    ],
-    "right": [
-      ["importexport", "timeslider", "settings", "showusers"]
-    ]
+    "useMonospaceFont": false
   },
   "suppressErrorsInPadText": true,
   "requireAuthentication": false,
