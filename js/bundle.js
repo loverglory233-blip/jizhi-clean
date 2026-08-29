@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260830_v721
+ * Version: 20260830_v722
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260830_v721';
+  const APP_VERSION = '20260830_v722';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -13728,17 +13728,6 @@
 
           // 🛡️ 严格要求：必须全组成员每一个人都点击确认初稿后，才解锁推进至阶段三
           if (confirmedCount < totalMembersCount) {
-            const waitMsg = {
-              sender: 'managingEditor',
-              senderName: '责任编辑 · 过程学伴',
-              text: `⏳ 【责任编辑提醒】：${memberName} 同学已完成初稿确认！目前全组初稿确认进度：${confirmedCount}/${totalMembersCount} 人。请其他组员通读全文后点击上方【✍️ 确认完成正文初稿】，全组确认后将自动解锁【阶段三：答辩擂台】！`,
-              timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-              _timeMs: Date.now() + 200
-            };
-            this.state.chatLogs.stage2.push(waitMsg);
-            this.syncChatLogs();
-            if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
-            renderChat(this.state);
             alert(`✅ 您 (${memberName}) 已成功确认正文初稿！\n\n当前组内确认进度：${confirmedCount}/${totalMembersCount} 人已确认。\n⚠️ 必须全组所有成员均完成确认后，系统才会正式解锁并自动推进至【阶段三：答辩擂台】！请提醒组内其他同学尽快确认。`);
           } else {
             s2.isDraftConfirmed = true;
