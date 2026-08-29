@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260830_v724
+ * Version: 20260830_v725
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260830_v724';
+  const APP_VERSION = '20260830_v725';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -643,10 +643,34 @@
 
 
   async function callCozeAgentAPI(botKey, userQuery, currentContext = {}) {
-    const profile = AgentProfiles[botKey];
+    const profile = AgentProfiles[botKey] || { name: '智能体专家', avatar: '🤖' };
     const botId = profile && profile.cozeBotId ? profile.cozeBotId : '7673571806476828713';
 
-    // 构建针对当前写作阶段的提示词上下文（正文草稿由后端 coze_prompt.php 统一从 actual_doc 拼入，前端不再重复切片，避免正文被嵌两次）
+    // 💡 自动在聊天流底部呈现温和优雅的【智能体正在思考分析中】动态提示
+    const showThinkingIndicator = () => {
+      if (typeof document === 'undefined') return;
+      const stream = document.getElementById('chat-stream');
+      if (!stream) return;
+      let indicator = document.getElementById('agent-thinking-indicator');
+      if (!indicator) {
+        indicator = document.createElement('div');
+        indicator.id = 'agent-thinking-indicator';
+        indicator.style.cssText = 'padding:8px 14px; margin:8px 0; background:#f0fdf4; border:1px solid #bbf7d0; border-radius:10px; font-size:12px; color:#166534; display:flex; align-items:center; gap:8px; box-shadow:0 2px 6px rgba(22,101,52,0.06);';
+        stream.appendChild(indicator);
+      }
+      indicator.innerHTML = `<span style="font-size:14px; animation:pulse 1.2s infinite ease-in-out;">⏳</span> <span><b>${profile.avatar || '🤖'} ${profile.name}</b> 正在审阅分析中，请稍候...</span>`;
+      stream.scrollTop = stream.scrollHeight;
+    };
+
+    const removeThinkingIndicator = () => {
+      if (typeof document === 'undefined') return;
+      const indicator = document.getElementById('agent-thinking-indicator');
+      if (indicator) indicator.remove();
+    };
+
+    showThinkingIndicator();
+
+    // 构建针对当前写作阶段的提示词上下文
     let enrichedQuery = userQuery;
     if (currentContext.stage) {
       enrichedQuery = `【协作写作阶段: ${currentContext.stage === 'stage1' ? '阶段一 (选题与公约)' : currentContext.stage === 'stage2' ? '阶段二 (正文撰写)' : '阶段三 (答辩与质询)'}】\n【课题: ${currentContext.topic || '未定'}】\n【用户对话/审阅指令】: ${userQuery}`;
@@ -683,6 +707,7 @@
       if (resp.ok) {
         const data = await resp.json();
         if (data && data.success && data.reply && data.reply.trim().length > 0) {
+          removeThinkingIndicator();
           return data.reply.trim();
         }
         // 如果后端处于生成中，采用阶梯式敏捷轮询：前 10 次 300ms 极速响应，后续 600ms 平稳等待
@@ -690,7 +715,7 @@
           const chatId = data.chat_id;
           const convId = data.conversation_id;
           const targetBotId = data.bot_id || botId;
-          const maxRetries = 45; // 阶梯敏捷轮询：前 10 次 300ms 极速响应，其后 600ms 平稳等待，最长容忍 ~24 秒（给上课高峰并发排队留余量）
+          const maxRetries = 45;
           for (let p = 0; p < maxRetries; p++) {
             const pollInterval = p < 15 ? 200 : 500;
             await new Promise(r => setTimeout(r, pollInterval));
@@ -700,7 +725,8 @@
                 const pollData = await pollRes.json();
                 if (pollData && pollData.completed) {
                   if (pollData.reply && pollData.reply.trim().length > 0) {
-                    return pollData.reply.trim(); // 一旦生成完毕立刻秒回，绝不多等 1 毫秒！
+                    removeThinkingIndicator();
+                    return pollData.reply.trim();
                   }
                   break;
                 }
@@ -713,6 +739,8 @@
       }
     } catch (e) {
       console.warn('Coze API fallback:', e);
+    } finally {
+      removeThinkingIndicator();
     }
     return null;
   }
