@@ -51,7 +51,7 @@ cat << 'EPSETEOF' > "$EP_DIR/settings.json"
   "dbSettings": {
     "filename": "var/dirty.db"
   },
-  "defaultPadText": "一、研究背景与意义\n\n二、文献综述\n\n三、研究问题与假设\n\n四、研究设计与方法\n\n五、研究设计的不足与反思\n\n六、参考文献\n",
+  "defaultPadText": "",
   "padOptions": {
     "noColors": true,
     "showControls": true,
