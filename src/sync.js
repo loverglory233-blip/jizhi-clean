@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState } from './constants.js?v=20260829_v684';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin } from './utils.js?v=20260829_v684';
+import { InitialState } from './constants.js?v=20260829_v685';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin } from './utils.js?v=20260829_v685';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -811,7 +811,10 @@ export class CloudSyncEngine {
 
     if (remoteData.stage2) {
       if (remoteData.stage2.unifiedContent !== undefined) {
-        const remoteHtml = remoteData.stage2.unifiedContent || '';
+        let remoteHtml = remoteData.stage2.unifiedContent || '';
+        if (remoteHtml.includes('一、研究背景与意义') || remoteHtml.includes('请在此处撰写正文') || remoteHtml.length === 2016) {
+          remoteHtml = '';
+        }
         if (!this.app.state.stage2) this.app.state.stage2 = {};
         this.app.state.stage2.unifiedContent = remoteHtml;
       }
