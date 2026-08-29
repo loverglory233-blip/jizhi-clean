@@ -2228,12 +2228,46 @@ export class App {
         }
       }
 
-      // 📰 阶段二（学术编辑部）双研讨闭环
+      // 📰 阶段二（学术编辑部）双研讨闭环与按需学术答疑
       if (currentStage === 'stage2') {
+        // 0. 支持学生在讨论区随时主动 @审稿编辑 咨询具体学术疑问
+        const isMentioningReviewer = /(?:@审稿编辑|@审稿专家|@审稿)/i.test(text);
+        if (isMentioningReviewer) {
+          setTimeout(async () => {
+            const topic = (this.state.stage1 && this.state.stage1.mergedTitle) ? this.state.stage1.mergedTitle : '本组课题';
+            const fullDoc = (this.state.stage2 && this.state.stage2.unifiedContent) ? this.state.stage2.unifiedContent.replace(/<[^>]*>/g, '').trim() : '论文草稿';
+            const userQuestion = text.replace(/@(?:审稿编辑|审稿专家|审稿)/g, '').trim() || '请问针对当前正文草稿，我们该如何进一步深化修改？';
+            
+            const askPrompt = `小组成员在讨论区主动向你提问咨询学术问题：
+【课题】: 《${topic}》
+【组员提问】: “${userQuestion}”
+
+请通读学生真实正文草稿切片，作为国家级教育期刊资深审稿编辑，给予 80~120 字切中其实际课题的具体点拨与修改操作建议（纯自然语言输出，对靶解答，给出 1~2 个具体操作化支架）：`;
+
+            let reviewerAnswer = await callCozeAgentAPI('reviewingEditor', askPrompt, { stage: 'stage2', topic, userQuestion, actualDoc: fullDoc });
+            if (!reviewerAnswer || reviewerAnswer.trim().length === 0) {
+              reviewerAnswer = `📝 【审稿编辑·即时答疑】：针对大家提出的问题『${userQuestion}』：建议从具体研究对象的操作化指标切入！如果是量表题项，可从具体行为表现拟定 2~3 个具体题项；若是文献衔接，建议在对应章节末尾增加 1~2 句承上启下的述评过渡。大家可以直接在文档中尝试补充！`;
+            }
+
+            const replyMsg = {
+              sender: 'reviewingEditor',
+              text: reviewerAnswer,
+              timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+              _timeMs: Date.now(),
+              stage: 'stage2'
+            };
+            if (!this.state.chatLogs.stage2) this.state.chatLogs.stage2 = [];
+            this.state.chatLogs.stage2.push(replyMsg);
+            this.syncChatLogs();
+            if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+            renderChat(this.state);
+          }, 1000);
+        }
+
         // Loop 1: 半程自查播报后，监听学生针对分歧商讨达成共识 -> 唤醒审稿编辑下发清单
         if (this.state.stage2PendingReviewing) {
           this.state.stage2PendingReviewing.studentMsgCount = (this.state.stage2PendingReviewing.studentMsgCount || 0) + 1;
-          const isConsensusSignal = /(?:对齐|同意|商量好了|商定好了|修改|明白了|收到|按这个改|@审稿编辑|统一了|没问题|行|结合|没毛病|就这么改)/i.test(text);
+          const isConsensusSignal = /(?:对齐|同意|商量好了|商定好了|修改|明白了|收到|按这个改|@审稿编辑|统一了|没问题|行|结合|没毛病|就这么改|达成共识)/i.test(text);
           if ((isConsensusSignal || hasValidConsensusPair) && !hasAdversative) {
             setTimeout(() => {
               this.triggerReviewingEditorAfterDiscussion();
@@ -2241,12 +2275,29 @@ export class App {
             return;
           }
         }
-        // Loop 2: 清单下发后，监听学生针对具体正文修改策略进行讨论
+
+        // Loop 2: 清单下发后，监听学生针对具体正文修改策略与分工进行讨论
         if (this.state.stage2PendingRevisionDiscussion) {
-          const isRevisionStrategySignal = /(?:文献|改|加|写|段落|引言|方法|反思|我来|你来|章节|修改|补充|润色|动笔|排版|正文|表格|图)/i.test(text);
+          const isRevisionStrategySignal = /(?:文献|改|加|写|段落|引言|方法|反思|我来|你来|我负责|你负责|章节|修改|补充|润色|动笔|排版|正文|表格|图|清单|开始改)/i.test(text);
           if (isRevisionStrategySignal) {
             this.state.stage2PendingRevisionDiscussion = false;
             this.state.stage2DualActivityActive = true; // 激活动笔双静默守护
+
+            // 责任编辑出场收尾确认
+            setTimeout(() => {
+              const concludeMsg = {
+                sender: 'managingEditor',
+                text: `🤝 【责任编辑·分工确认与动手号召】：大家的修改分工非常清晰明确！半程研讨圆满结束，请大家对照上方【半程修正清单】在正文中展开分工修改，完成对应项后可逐项在清单打勾！修改过程中若有疑问可随时在讨论区 @审稿编辑 咨询！`,
+                timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                _timeMs: Date.now(),
+                stage: 'stage2'
+              };
+              if (!this.state.chatLogs.stage2) this.state.chatLogs.stage2 = [];
+              this.state.chatLogs.stage2.push(concludeMsg);
+              this.syncChatLogs();
+              if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+              renderChat(this.state);
+            }, 1500);
           }
         }
       }
@@ -3941,149 +3992,146 @@ ${propText}
     const modal = document.createElement('div');
     modal.className = 'modal-overlay';
     modal.innerHTML = `
-      <div class="teacher-modal-card" style="width:640px;">
+      <div class="teacher-modal-card" style="width:660px; max-height:85vh; display:flex; flex-direction:column;">
         <div class="teacher-modal-header ann-theme">
-          <div class="modal-header-title"><span class="modal-icon">📢</span><div><h3>学术编辑部【半程编辑会议】</h3><p>全篇互阅、思想碰撞与半程修正清单生成</p></div></div>
+          <div class="modal-header-title"><span class="modal-icon">📢</span><div><h3>学术编辑部 ·【半程全篇综合学术审计会议】</h3><p>全篇互阅 · 构思对齐 · 前后贯通 · 文风统一 · 攻克瓶颈</p></div></div>
           <button class="modal-close-btn" id="btn-close-meeting">✕</button>
         </div>
-        <div class="teacher-modal-body">
-          <!-- 1. 全篇通读与思想碰撞 -->
-          <div style="background:#f8fafc; border:1px solid #cbd5e1; border-radius:10px; padding:14px 16px;">
-            <div style="font-size:13px; font-weight:800; color:#1e40af; margin-bottom:12px;">📋 一、全篇通读与思想碰撞</div>
+        <div class="teacher-modal-body" style="overflow-y:auto; padding:16px 20px; display:flex; flex-direction:column; gap:12px;">
+          <!-- 1. 全篇综合自查审计 -->
+          <div style="background:#f8fafc; border:1px solid #cbd5e1; border-radius:10px; padding:14px 16px; display:flex; flex-direction:column; gap:12px;">
+            <div style="font-size:13px; font-weight:800; color:#1e40af;">📋 一、全篇跨作者交叉审视自查（请跳出单一分工，通读全篇后打卡）</div>
             
-            <div style="display:flex; flex-direction:column; gap:10px;">
-              <div style="background:#ffffff; padding:10px 14px; border-radius:8px; border:1px solid #e2e8f0; display:flex; flex-direction:column; gap:6px;">
-                <label style="font-size:12.5px; color:#1e293b; font-weight:700;">1. 负责章节自查：目前自己所写部分的论述情况？</label>
-                <select id="meeting-theme-consistency-select" class="teacher-input" style="width:100%; padding:6px 10px; font-size:12.5px; border-radius:6px; border:1px solid #cbd5e1; background:#ffffff;">
-                  <option value="紧扣研究主旨，论点明确且论据充实">✅ 紧扣研究主旨，论点明确且论据充实</option>
-                  <option value="基本契合主旨，局部论述需深化拓展">🔄 基本契合主旨，局部论述需深化拓展</option>
-                  <option value="存在论证发散或核心概念界定不清">⚠️ 论据不够充分，或感觉有些偏离初衷</option>
-                </select>
-              </div>
-
-              <div style="background:#ffffff; padding:10px 14px; border-radius:8px; border:1px solid #e2e8f0; display:flex; flex-direction:column; gap:6px;">
-                <label style="font-size:12.5px; color:#1e293b; font-weight:700;">2. 同伴内容互阅：通读其他成员撰写内容后的想法？</label>
-                <select id="meeting-peer-review-select" class="teacher-input" style="width:100%; padding:6px 10px; font-size:12.5px; border-radius:6px; border:1px solid #cbd5e1; background:#ffffff;">
-                  <option value="逻辑严密连贯，高度认同同伴思路与论述">✅ 逻辑严密连贯，高度认同同伴思路与论述</option>
-                  <option value="启发新思路，建议为同伴补充论据">💡 启发了新思路，想在讨论区为同伴补充论据视角</option>
-                  <option value="存在不同看法，部分论证需要商榷">⚖️ 存在不同看法，对部分论据推导想和同伴商榷</option>
-                  <option value="衔接非常自然，很好支撑了后续章节">🔗 章节衔接自然，很好地支撑呼应了后续研究设计</option>
-                </select>
-                <!-- 第2题专属子项：对同伴具体哪些章节提出商榷 -->
-                <div id="meeting-peer-divergence-box" style="background:#fffbeb; padding:8px 12px; border-radius:6px; border:1px solid #fef3c7; display:none; flex-direction:column; gap:4px; margin-top:4px;">
-                  <label style="font-size:12px; color:#92400e; font-weight:700;">📌 针对第 2 题：您对同伴所写的哪些具体章节想提出商榷或补充？</label>
-                  <div style="display:flex; flex-wrap:wrap; gap:8px; margin-top:2px;">
-                    <label style="font-size:11.5px; color:#451a03; display:flex; align-items:center; gap:4px;"><input type="checkbox" name="peer-div-sec" value="一、研究背景与意义"> 【一、背景与意义】</label>
-                    <label style="font-size:11.5px; color:#451a03; display:flex; align-items:center; gap:4px;"><input type="checkbox" name="peer-div-sec" value="二、文献综述与前沿"> 【二、文献综述】</label>
-                    <label style="font-size:11.5px; color:#451a03; display:flex; align-items:center; gap:4px;"><input type="checkbox" name="peer-div-sec" value="三、研究问题与假设"> 【三、问题与假设】</label>
-                    <label style="font-size:11.5px; color:#451a03; display:flex; align-items:center; gap:4px;"><input type="checkbox" name="peer-div-sec" value="四、研究设计与方法"> 【四、设计与方法】</label>
-                    <label style="font-size:11.5px; color:#451a03; display:flex; align-items:center; gap:4px;"><input type="checkbox" name="peer-div-sec" value="五、不足与反思"> 【五、不足与反思】</label>
-                  </div>
-                </div>
-              </div>
-
-              <div style="background:#ffffff; padding:10px 14px; border-radius:8px; border:1px solid #e2e8f0; display:flex; flex-direction:column; gap:6px;">
-                <label style="font-size:12.5px; color:#1e293b; font-weight:700;">3. 全篇衔接与贯通：各章节之间的逻辑连贯性？</label>
-                <select id="meeting-transition-select" class="teacher-input" style="width:100%; padding:6px 10px; font-size:12.5px; border-radius:6px; border:1px solid #cbd5e1; background:#ffffff;">
-                  <option value="环环相扣，前后呼应非常自然顺畅">✅ 环环相扣，前后呼应非常自然顺畅</option>
-                  <option value="局部章节过渡稍显生硬，需商定衔接句">🔄 局部章节过渡稍显生硬，需商定衔接句</option>
-                  <option value="各章节相对独立，需进一步统一主线">⚠️ 各章节相对独立，需进一步统一核心主线</option>
-                </select>
-                <!-- 第3题专属子项：哪些相邻章节之间需要打通衔接 -->
-                <div id="meeting-transition-sections-box" style="background:#eff6ff; padding:8px 12px; border-radius:6px; border:1px solid #dbeafe; display:none; flex-direction:column; gap:4px; margin-top:4px;">
-                  <label style="font-size:12px; color:#1e40af; font-weight:700;">🔗 针对第 3 题：您认为哪些相邻章节之间的过渡需要重点打通与统一？</label>
-                  <div style="display:flex; flex-wrap:wrap; gap:8px; margin-top:2px;">
-                    <label style="font-size:11.5px; color:#1e3a8a; display:flex; align-items:center; gap:4px;"><input type="checkbox" name="trans-div-sec" value="背景到综述 (第一至二章)"> 【第一至二章 (背景➔综述)】</label>
-                    <label style="font-size:11.5px; color:#1e3a8a; display:flex; align-items:center; gap:4px;"><input type="checkbox" name="trans-div-sec" value="综述到假设 (第二至三章)"> 【第二至三章 (综述➔假设)】</label>
-                    <label style="font-size:11.5px; color:#1e3a8a; display:flex; align-items:center; gap:4px;"><input type="checkbox" name="trans-div-sec" value="假设到设计 (第三至四章)"> 【第三至四章 (假设➔方法)】</label>
-                    <label style="font-size:11.5px; color:#1e3a8a; display:flex; align-items:center; gap:4px;"><input type="checkbox" name="trans-div-sec" value="设计到反思 (第四至五章)"> 【第四至五章 (方法➔反思)】</label>
-                  </div>
+            <!-- Q1: 个人构思契合度 (3档) -->
+            <div style="background:#ffffff; padding:10px 14px; border-radius:8px; border:1px solid #e2e8f0; display:flex; flex-direction:column; gap:6px;">
+              <label style="font-size:12.5px; color:#1e293b; font-weight:700;">🎯 1. 【个人构思契合度】目前全组写出来的方案，和你自己最初预想的构思是否一致？</label>
+              <select id="meeting-ideation-select" class="teacher-input" style="width:100%; padding:6px 10px; font-size:12px; border-radius:6px; border:1px solid #cbd5e1; background:#ffffff;">
+                <option value="完全符合最初构思">✅ 完全符合最初构思（目前的推进方向和我的设想完全契合）</option>
+                <option value="局部偏离最初构思">🔄 局部偏离最初构思（部分章节的切入角度或深度和我最初想的有些不一样）</option>
+                <option value="明显偏离最初构思">⚠️ 明显偏离最初构思（整体方案与我最初的构想差异很大，需全组重新对齐）</option>
+              </select>
+              <div id="meeting-ideation-sections-box" style="background:#fffbeb; padding:8px 12px; border-radius:6px; border:1px solid #fef3c7; display:none; flex-direction:column; gap:4px; margin-top:4px;">
+                <label style="font-size:11.5px; color:#92400e; font-weight:700;">📌 针对第 1 题：您觉得具体是哪些章节偏离了您最初的设想？(可多选)</label>
+                <div style="display:flex; flex-wrap:wrap; gap:8px; margin-top:2px;">
+                  <label style="font-size:11.5px; color:#451a03; display:flex; align-items:center; gap:4px;"><input type="checkbox" name="ideation-sec" value="一、背景与意义"> 【一、背景意义】</label>
+                  <label style="font-size:11.5px; color:#451a03; display:flex; align-items:center; gap:4px;"><input type="checkbox" name="ideation-sec" value="二、文献综述"> 【二、文献综述】</label>
+                  <label style="font-size:11.5px; color:#451a03; display:flex; align-items:center; gap:4px;"><input type="checkbox" name="ideation-sec" value="三、研究问题与假设"> 【三、问题假设】</label>
+                  <label style="font-size:11.5px; color:#451a03; display:flex; align-items:center; gap:4px;"><input type="checkbox" name="ideation-sec" value="四、研究设计与方法"> 【四、设计方法】</label>
+                  <label style="font-size:11.5px; color:#451a03; display:flex; align-items:center; gap:4px;"><input type="checkbox" name="ideation-sec" value="五、不足与反思"> 【五、不足反思】</label>
                 </div>
               </div>
             </div>
-          </div>
 
-          <!-- 2. 团队共享调节 3 维打星自评 -->
-          <div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:10px; padding:12px 16px; margin-top:12px; display:flex; flex-direction:column; gap:10px;">
-            <div style="font-size:13px; font-weight:800; color:#0f172a;">🌟 二、团队共享调节 3 维打星自评</div>
-            
-            <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px dashed #f1f5f9; padding-bottom:6px;">
-              <span style="font-size:12.5px; font-weight:600; color:#334155;">① 内容逻辑与学术严谨度：</span>
-              <div class="rating-stars" id="star-rating-logic" style="font-size:22px; cursor:pointer; user-select:none;">
-                <span class="star" data-val="1" style="color:#f59e0b;">★</span>
-                <span class="star" data-val="2" style="color:#f59e0b;">★</span>
-                <span class="star" data-val="3" style="color:#f59e0b;">★</span>
-                <span class="star" data-val="4" style="color:#f59e0b;">★</span>
-                <span class="star" data-val="5" style="color:#475569;">★</span>
+            <!-- Q2: 全篇前后连贯度 (3档) -->
+            <div style="background:#ffffff; padding:10px 14px; border-radius:8px; border:1px solid #e2e8f0; display:flex; flex-direction:column; gap:6px;">
+              <label style="font-size:12.5px; color:#1e293b; font-weight:700;">🔗 2. 【全篇前后连贯度】目前各章节写出来的内容，前后是否衔接一致？</label>
+              <select id="meeting-transition-select" class="teacher-input" style="width:100%; padding:6px 10px; font-size:12px; border-radius:6px; border:1px solid #cbd5e1; background:#ffffff;">
+                <option value="前后衔接非常自然">✅ 前后衔接非常自然（各章节环环相扣，逻辑自然连贯）</option>
+                <option value="存在局部脱节衔接不顺">🔄 存在局部脱节衔接不顺（部分章节之间过渡生硬，前后内容未能完全呼应）</option>
+                <option value="前后多处严重脱节矛盾">⚠️ 前后多处严重脱节矛盾（多处章节脱节，前后论述自相矛盾）</option>
+              </select>
+              <div id="meeting-transition-sections-box" style="background:#eff6ff; padding:8px 12px; border-radius:6px; border:1px solid #dbeafe; display:none; flex-direction:column; gap:4px; margin-top:4px;">
+                <label style="font-size:11.5px; color:#1e40af; font-weight:700;">🔗 针对第 2 题：具体是哪几处之间衔接脱节？(可多选多处)</label>
+                <div style="display:flex; flex-wrap:wrap; gap:8px; margin-top:2px;">
+                  <label style="font-size:11.5px; color:#1e3a8a; display:flex; align-items:center; gap:4px;"><input type="checkbox" name="trans-div-sec" value="背景到综述 (第一至二章)"> 【第一至二章 (背景➔综述)】</label>
+                  <label style="font-size:11.5px; color:#1e3a8a; display:flex; align-items:center; gap:4px;"><input type="checkbox" name="trans-div-sec" value="综述到假设 (第二至三章)"> 【第二至三章 (综述➔假设)】</label>
+                  <label style="font-size:11.5px; color:#1e3a8a; display:flex; align-items:center; gap:4px;"><input type="checkbox" name="trans-div-sec" value="假设到方法 (第三至四章)"> 【第三至四章 (假设➔方法)】</label>
+                  <label style="font-size:11.5px; color:#1e3a8a; display:flex; align-items:center; gap:4px;"><input type="checkbox" name="trans-div-sec" value="方法到反思 (第四至五章)"> 【第四至五章 (方法➔反思)】</label>
+                </div>
               </div>
             </div>
 
-            <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px dashed #f1f5f9; padding-bottom:6px;">
-              <span style="font-size:12.5px; font-weight:600; color:#334155;">② 团队分工与参与平衡度：</span>
-              <div class="rating-stars" id="star-rating-balance" style="font-size:22px; cursor:pointer; user-select:none;">
-                <span class="star" data-val="1" style="color:#f59e0b;">★</span>
-                <span class="star" data-val="2" style="color:#f59e0b;">★</span>
-                <span class="star" data-val="3" style="color:#f59e0b;">★</span>
-                <span class="star" data-val="4" style="color:#f59e0b;">★</span>
-                <span class="star" data-val="5" style="color:#f59e0b;">★</span>
-              </div>
-            </div>
-
-            <div style="display:flex; justify-content:space-between; align-items:center;">
-              <span style="font-size:12.5px; font-weight:600; color:#334155;">③ 组内沟通协同与信心状态：</span>
-              <div class="rating-stars" id="star-rating-confidence" style="font-size:22px; cursor:pointer; user-select:none;">
-                <span class="star" data-val="1" style="color:#f59e0b;">★</span>
-                <span class="star" data-val="2" style="color:#f59e0b;">★</span>
-                <span class="star" data-val="3" style="color:#f59e0b;">★</span>
-                <span class="star" data-val="4" style="color:#f59e0b;">★</span>
-                <span class="star" data-val="5" style="color:#f59e0b;">★</span>
+            <!-- Q3: 文风与专业术语 (3档) -->
+            <div style="background:#ffffff; padding:10px 14px; border-radius:8px; border:1px solid #e2e8f0; display:flex; flex-direction:column; gap:6px;">
+              <label style="font-size:12.5px; color:#1e293b; font-weight:700;">🎨 3. 【文风与专业术语】全篇语言文风与专业词汇是否统一？</label>
+              <select id="meeting-style-select" class="teacher-input" style="width:100%; padding:6px 10px; font-size:12px; border-radius:6px; border:1px solid #cbd5e1; background:#ffffff;">
+                <option value="文风严谨术语统一">✅ 文风严谨术语统一（全篇均采用规范客观的学术第三人称，术语命名一致）</option>
+                <option value="局部存在文风/术语割裂">🔄 局部存在文风/术语割裂（部分章节偏口语化，或同一术语前后叫法不同）</option>
+                <option value="文风口语化严重/术语混乱">⚠️ 文风口语化严重/术语混乱（多处章节使用“我们觉得”等第一人称口语，术语冲突多）</option>
+              </select>
+              <div id="meeting-style-sections-box" style="background:#f5f3ff; padding:8px 12px; border-radius:6px; border:1px solid #ddd6fe; display:none; flex-direction:column; gap:4px; margin-top:4px;">
+                <label style="font-size:11.5px; color:#6d28d9; font-weight:700;">🎨 针对第 3 题：您觉得哪些章节需要重点润色文风或统一术语？(可多选)</label>
+                <div style="display:flex; flex-wrap:wrap; gap:8px; margin-top:2px;">
+                  <label style="font-size:11.5px; color:#4c1d95; display:flex; align-items:center; gap:4px;"><input type="checkbox" name="style-div-sec" value="一、背景与意义"> 【一、背景意义】</label>
+                  <label style="font-size:11.5px; color:#4c1d95; display:flex; align-items:center; gap:4px;"><input type="checkbox" name="style-div-sec" value="二、文献综述"> 【二、文献综述】</label>
+                  <label style="font-size:11.5px; color:#4c1d95; display:flex; align-items:center; gap:4px;"><input type="checkbox" name="style-div-sec" value="三、研究问题与假设"> 【三、问题假设】</label>
+                  <label style="font-size:11.5px; color:#4c1d95; display:flex; align-items:center; gap:4px;"><input type="checkbox" name="style-div-sec" value="四、研究设计与方法"> 【四、设计方法】</label>
+                  <label style="font-size:11.5px; color:#4c1d95; display:flex; align-items:center; gap:4px;"><input type="checkbox" name="style-div-sec" value="五、不足与反思"> 【五、不足反思】</label>
+                </div>
               </div>
             </div>
           </div>
 
-          <!-- 3. 三维难点瓶颈全面自评 -->
-          <div style="background:#f8fafc; border:1px solid #cbd5e1; border-radius:10px; padding:12px 16px; margin-top:12px; display:flex; flex-direction:column; gap:10px;">
-            <div style="font-size:13px; font-weight:800; color:#0f172a;">⚠️ 三、团队 3 维瓶颈自查</div>
-            
-            <div>
-              <label style="font-size:12px; font-weight:700; color:#1e40af;">📚 维度 ① 学术内容难点：</label>
-              <select id="meeting-bottleneck-academic" class="teacher-input" style="width:100%; margin-top:3px; padding:4px 8px; font-size:12px;">
-                <option value="假设与研究设计测量工具对应不明确">假设与研究设计测量工具对应不明确</option>
-                <option value="国内外文献综述支撑力度与权威性不足">国内外文献综述支撑力度与权威性不足</option>
-                <option value="核心变量的操作化测量量表不够完善">核心变量的操作化测量量表不够完善</option>
-              </select>
-            </div>
+          <!-- Q4: 核心通俗瓶颈自查 -->
+          <div style="background:#ffffff; border:1px solid #cbd5e1; border-radius:10px; padding:12px 16px; display:flex; flex-direction:column; gap:6px;">
+            <label style="font-size:12.5px; font-weight:700; color:#0f172a;">💡 4. 【核心瓶颈自查】当前全篇最让大家卡壳、最难写的是什么？(单选)</label>
+            <select id="meeting-bottleneck-academic" class="teacher-input" style="width:100%; padding:6px 10px; font-size:12px; border-radius:6px; border:1px solid #cbd5e1; background:#ffffff;">
+              <option value="方法与问题不搭：不知道该怎么设计方法/量表来回答前面的研究问题">方法与问题不搭：不知道该怎么设计方法/量表来回答前面的研究问题</option>
+              <option value="理论与文献不足：找不到足够的文献依据，理论支撑单薄">理论与文献不足：找不到足够的文献依据，理论支撑单薄</option>
+              <option value="方案步骤不清晰：不知道具体的研究对象、实施过程该怎么写具体">方案步骤不清晰：不知道具体的研究对象、实施过程该怎么写具体</option>
+              <option value="局限与反思卡壳：不知道该怎么客观分析方案的不足和潜在问题">局限与反思卡壳：不知道该怎么客观分析方案的不足和潜在问题</option>
+            </select>
+          </div>
 
-            <div>
-              <label style="font-size:12px; font-weight:700; color:#047857;">👥 维度 ② 团队协作难点：</label>
-              <select id="meeting-bottleneck-collab" class="teacher-input" style="width:100%; margin-top:3px; padding:4px 8px; font-size:12px;">
-                <option value="各成员撰写风格不一致，章节过渡衔接缺乏逻辑">各成员撰写风格不一致，章节过渡衔接缺乏逻辑</option>
-                <option value="对部分核心观点的论证存在组内争议尚未统一">对部分核心观点的论证存在组内争议尚未统一</option>
-                <option value="分工执行存在部分脱节，需加强同步沟通">分工执行存在部分脱节，需加强同步沟通</option>
-              </select>
-            </div>
-
-            <div>
-              <label style="font-size:12px; font-weight:700; color:#b45309;">⏳ 维度 ③ 进度与心理难点：</label>
-              <select id="meeting-bottleneck-rhythm" class="teacher-input" style="width:100%; margin-top:3px; padding:4px 8px; font-size:12px;">
-                <option value="时间分配偏紧，担心后半程收尾仓促">时间分配偏紧，担心后半程收尾仓促</option>
-                <option value="写作遇到思路卡顿，感到有些焦虑">写作遇到思路卡顿，感到有些焦虑</option>
-                <option value="篇幅与精简把控困难，精力消耗较大">篇幅与精简把控困难，精力消耗较大</option>
-              </select>
+          <!-- Q5: 整体质量打星 -->
+          <div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:10px; padding:12px 16px; display:flex; justify-content:space-between; align-items:center;">
+            <span style="font-size:12.5px; font-weight:700; color:#0f172a;">🌟 5. 【整体质量自评】全篇整体学术质量与严谨度打分：</span>
+            <div class="rating-stars" id="star-rating-logic" style="font-size:22px; cursor:pointer; user-select:none;">
+              <span class="star" data-val="1" style="color:#f59e0b;">★</span>
+              <span class="star" data-val="2" style="color:#f59e0b;">★</span>
+              <span class="star" data-val="3" style="color:#f59e0b;">★</span>
+              <span class="star" data-val="4" style="color:#f59e0b;">★</span>
+              <span class="star" data-val="5" style="color:#475569;">★</span>
             </div>
           </div>
 
-          <div class="teacher-form-group" style="margin-top:10px;">
-            <label style="font-size:13px; font-weight:700;">✍️ 向审稿专家提问 / 组内核心困惑说明 (选填)</label>
-            <textarea id="meeting-input-text" class="teacher-textarea" style="min-height:55px;" placeholder="请输入组内最想向审稿编辑请教的学术问题或论证困惑..."></textarea>
+          <!-- Q6: 一句话修改聚焦 -->
+          <div class="teacher-form-group" style="margin:0;">
+            <label style="font-size:12.5px; font-weight:700; color:#0f172a;">📝 6. 【一句话修改聚焦】写下一处你认为全组目前最急需合力修改的具体问题：</label>
+            <input id="meeting-input-text" class="teacher-input" style="width:100%; padding:6px 10px; font-size:12px; border-radius:6px; border:1px solid #cbd5e1; box-sizing:border-box;" placeholder="例如：在第4章方法中补齐针对第3章假设的测量维度，并统一第1章口语化表述...">
           </div>
         </div>
-        <div class="teacher-modal-footer">
+        <div class="teacher-modal-footer" style="padding:12px 20px; border-top:1px solid #e2e8f0; display:flex; justify-content:flex-end; gap:10px;">
           <button class="modal-btn cancel" id="btn-cancel-meeting">取消</button>
-          <button class="modal-btn submit ann-theme" id="btn-submit-meeting">🚀 提交打分并生成【半程编辑修正清单】</button>
+          <button class="modal-btn submit ann-theme" id="btn-submit-meeting">🚀 提交打卡并生成【半程编辑修正清单】</button>
         </div>
       </div>
     `;
+    document.body.appendChild(modal);
+
+    const closeModal = () => document.body.removeChild(modal);
+    modal.querySelector('#btn-close-meeting').addEventListener('click', closeModal);
+    modal.querySelector('#btn-cancel-meeting').addEventListener('click', closeModal);
+
+    // 联动展开逻辑
+    const ideationSel = modal.querySelector('#meeting-ideation-select');
+    const ideationBox = modal.querySelector('#meeting-ideation-sections-box');
+    ideationSel.addEventListener('change', () => {
+      ideationBox.style.display = ideationSel.value.includes('偏离') ? 'flex' : 'none';
+    });
+
+    const transSel = modal.querySelector('#meeting-transition-select');
+    const transBox = modal.querySelector('#meeting-transition-sections-box');
+    transSel.addEventListener('change', () => {
+      transBox.style.display = transSel.value.includes('脱节') ? 'flex' : 'none';
+    });
+
+    const styleSel = modal.querySelector('#meeting-style-select');
+    const styleBox = modal.querySelector('#meeting-style-sections-box');
+    styleSel.addEventListener('change', () => {
+      styleBox.style.display = (styleSel.value.includes('割裂') || styleSel.value.includes('混乱') || styleSel.value.includes('口语')) ? 'flex' : 'none';
+    });
+
+    let overallRating = 4;
+    modal.querySelectorAll('#star-rating-logic .star').forEach(s => {
+      s.addEventListener('click', (e) => {
+        overallRating = Number(e.target.dataset.val);
+        modal.querySelectorAll('#star-rating-logic .star').forEach(st => {
+          const v = Number(st.dataset.val);
+          st.style.color = v <= overallRating ? '#f59e0b' : '#475569';
+        });
+      });
+    });
     document.body.appendChild(modal);
 
     const closeModal = () => document.body.removeChild(modal);
@@ -4158,13 +4206,13 @@ ${propText}
     });
 
     modal.querySelector('#btn-submit-meeting').addEventListener('click', async () => {
-      const themeConsistency = modal.querySelector('#meeting-theme-consistency-select').value;
-      const peerReviewState = modal.querySelector('#meeting-peer-review-select').value;
-      const transitionState = modal.querySelector('#meeting-transition-select') ? modal.querySelector('#meeting-transition-select').value : '环环相扣';
-      const checkedSections = Array.from(modal.querySelectorAll('input[name="peer-div-sec"]:checked')).map(cb => cb.value);
+      const ideationConsistency = modal.querySelector('#meeting-ideation-select').value;
+      const transitionState = modal.querySelector('#meeting-transition-select').value;
+      const styleState = modal.querySelector('#meeting-style-select').value;
+      const ideationSections = Array.from(modal.querySelectorAll('input[name="ideation-sec"]:checked')).map(cb => cb.value);
+      const transSections = Array.from(modal.querySelectorAll('input[name="trans-div-sec"]:checked')).map(cb => cb.value);
+      const styleSections = Array.from(modal.querySelectorAll('input[name="style-div-sec"]:checked')).map(cb => cb.value);
       const bAcademic = modal.querySelector('#meeting-bottleneck-academic').value;
-      const bCollab = modal.querySelector('#meeting-bottleneck-collab').value;
-      const bRhythm = modal.querySelector('#meeting-bottleneck-rhythm').value;
       const userText = modal.querySelector('#meeting-input-text').value.trim();
       closeModal();
 
@@ -4176,17 +4224,15 @@ ${propText}
       this.state.stage2.meetingSubmissions[user] = {
         user,
         name: memberName,
-        themeConsistency,
-        peerReviewState,
+        ideationConsistency,
         transitionState,
-        checkedSections,
+        styleState,
+        ideationSections,
+        transSections,
+        styleSections,
         bAcademic,
-        bCollab,
-        bRhythm,
+        overallRating,
         userText,
-        logicRating,
-        balanceRating,
-        confidenceRating,
         submittedAt: Date.now()
       };
 
@@ -4202,67 +4248,54 @@ ${propText}
         return;
       }
 
-      // ── 全员打卡完毕：汇聚全组数据并由责任编辑播报分歧 ──
+      // ── 全员打卡完毕：汇聚全组数据并由责任编辑播报分歧（匿名宏观，不点具体人名） ──
       const topic = (this.state.stage1 && this.state.stage1.mergedTitle) ? this.state.stage1.mergedTitle : '本组课题';
       const allSubs = Object.values(submissions);
-      const hasDivergence = allSubs.some(s => s.themeConsistency.includes('偏离') || s.themeConsistency.includes('不够充分') || s.peerReviewState.includes('不同看法') || s.peerReviewState.includes('商榷') || (s.checkedSections && s.checkedSections.length > 0));
       
-      // 汇总全组自查状态
-      const consistencySummary = allSubs.map(s => `${s.name}: ${s.themeConsistency.slice(0, 10)}`).join('；');
-      const peerSummary = allSubs.map(s => `${s.name}: ${s.peerReviewState.slice(0, 10)}`).join('；');
-      const transitionSummary = allSubs.map(s => `${s.name}: ${(s.transitionState || '连贯').slice(0, 10)}`).join('；');
-      const allCheckedSecs = Array.from(new Set(allSubs.flatMap(s => s.checkedSections || [])));
-      const sectionsFocusText = allCheckedSecs.length > 0 ? allCheckedSecs.map(sec => `【${sec}】`).join(' 与 ') : '【一、研究背景】与【四、研究设计】';
+      const allIdeationSecs = Array.from(new Set(allSubs.flatMap(s => s.ideationSections || [])));
+      const allTransSecs = Array.from(new Set(allSubs.flatMap(s => s.transSections || [])));
+      const allStyleSecs = Array.from(new Set(allSubs.flatMap(s => s.styleSections || [])));
+      
+      const hasIdeationDev = allSubs.some(s => (s.ideationConsistency || '').includes('偏离'));
+      const hasTransDev = allSubs.some(s => (s.transitionState || '').includes('脱节'));
+      const hasStyleDev = allSubs.some(s => (s.styleState || '').includes('割裂') || (s.styleState || '').includes('混乱') || (s.styleState || '').includes('口语'));
 
-      const primaryAcademicB = allSubs[0].bAcademic;
-      const primaryCollabB = allSubs[0].bCollab;
-      const primaryRhythmB = allSubs[0].bRhythm;
-      const questionsList = allSubs.filter(s => s.userText).map(s => `${s.name}提问：“${s.userText}”`).join('；') || '暂无补充提问';
+      const primaryAcademicB = allSubs[0].bAcademic || '方法与问题对齐与实施设计';
+      const questionsList = allSubs.filter(s => s.userText).map(s => `“${s.userText}”`).join('；') || '暂无补充提问';
 
-      // 暂不提前点亮清单，等待组内完成分歧商讨后由审稿专家质检下发
+      let transFocusText = allTransSecs.length > 0 ? allTransSecs.map(s => `【${s}】`).join('、') : '【假设 ↔ 方法】';
+      let ideationFocusText = allIdeationSecs.length > 0 ? allIdeationSecs.map(s => `【${s}】`).join('、') : '部分核心章节';
+      let styleFocusText = allStyleSecs.length > 0 ? allStyleSecs.map(s => `【${s}】`).join('、') : '【一、背景与意义】与【三、研究问题与假设】';
+
       this.syncStage2();
       if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
       this.renderStudentWorkspace();
 
       alert(`✅ 你 (${memberName}) 已成功提交半程自查与互阅打卡！\n\n目前组内已打卡：${submittedCount}/${totalMembersCount} 人。\n全组成员已集齐！责任编辑已在右侧研讨区梳理出本组自查认知分歧，请组员先在讨论区针对分歧商讨对齐，稍后审稿专家将为大家深度质检并下发【半程修正清单】！`);
 
-      // 2. 异步调用扣子【责任编辑】Coze API: 全景研判 (客观呈现分歧章节 80% 主线，协作时间 20% 顺带；全员一致则全面具体赞扬)
-      const managingPrompt = `全组成员已全部完成半程编辑会议自查打卡（共 ${totalMembersCount} 人）：
+      // 2. 异步调用扣子【责任编辑】Coze API: 匿名化宏观总结与分歧引导
+      const managingPrompt = `全组成员已全部完成半程全篇综合自查打卡（共 ${totalMembersCount} 人）：
 • 课题: 《${topic}》
-• 组内重点关注/产生认知差异的具体章节: ${sectionsFocusText}
-• 全组负责章节自查汇总: ${consistencySummary}
-• 全组通读同伴思想研判: ${peerSummary}
-• 全篇过渡与衔接感知汇总: ${transitionSummary}
-• 组内核心学术瓶颈: ${primaryAcademicB} | 协作瓶颈: ${primaryCollabB} | 进度瓶颈: ${primaryRhythmB}
-• 组内说明与提问汇总: ${questionsList}
-• 判定状态: ${hasDivergence ? '【存在显著分歧/不同看法】' : '【全员高度一致认同】'}
+• 个人构思契合度诊断: ${hasIdeationDev ? `部分成员反馈方案局部偏离最初设想（重点涉及: ${ideationFocusText}）` : '全员高度符合最初设想'}
+• 全篇连贯性与前后脱节诊断: ${hasTransDev ? `多位成员指出存在前后脱节（重点涉及: ${transFocusText}）` : '全篇前后衔接自然'}
+• 文风语体与专业术语诊断: ${hasStyleDev ? `组内反馈存在口语化与术语不统一（重点涉及: ${styleFocusText}）` : '文风严谨术语统一'}
+• 核心学术瓶颈共识: ${primaryAcademicB}
+• 组内提问与修改建议汇总: ${questionsList}
 
-请作为学术编辑部责任编辑（协同主持人与学伴）发表一段充实、真诚、富有启发性的发言（字数控制在 130~150 字，严禁简略敷衍）：
-${hasDivergence 
-? `【存在内容分歧引导主线】：
-1. 肯定全组认真通读了彼此撰写的段落；明确说明：目前初稿中写出的部分内容，与组内部分成员在自查中提出的思路构想存在认知差异与不同看法；
-2. 逐一分条列出所涉及的章节（若有多个分歧用 ① ② 客观列出 ${sectionsFocusText} 各自想商榷的思路焦点）；
-3. 针对上述内容分歧给出具体的【分步协商建议】（建议大家先不要急于单干改字，在讨论区按照“先对齐背景核心概念与痛点，再商定设计中的具体干预任务与量表指标”的步骤分步商讨，把修改思路达成全组共识；【核心铁律】：对事不对人，严禁擅自下负面优劣结论！学术对错交由审稿编辑）；
-4. 末尾顺带评价时间/协作：若自查中反映了时间紧张等顾虑则顺带给 1 句调适建议；若时间把控良好/无顾虑，末尾必须顺带给予明确具体的肯定与赞扬（如夸赞大家时间把控很稳健、推进高效）！并预告审稿专家马上接着为大家做正文深度学术质检！`
-: (primaryCollabB !== '无显著协作阻碍' || primaryRhythmB !== '节奏适中无压力'
-  ? `【立意高度一致，但存在协作/时间小顾虑】：肯定全组对研究立意保持着高度默契！针对自查中提到的协作风格/时间节奏顾虑，给出 1 句简要对齐建议，并预告审稿专家马上接着为大家做正文深度学术质检！`
-  : `【全员全维度高度默契与协同赞扬】：太棒了，全组不仅对核心立意认知高度统一，而且各章节撰写节奏顺畅、时间把控极佳！给予全员具体赞扬，并预告审稿专家马上接着为大家做正文深度学术质检！`
-)}`;
+请作为学术编辑部责任编辑（协同主持人与学伴）发表一段客观、充实、富有启发性的发言（字数控制在 130~150 字，严禁敷衍，严禁点具体学生人名，用“部分成员反馈/多数同学指出”）：
+1. 肯定全组认真通读了全篇已有内容，宏观呈现诊断共识：
+   ① 列出构思偏差与多处脱节焦点（如 ${transFocusText}）；
+   ② 点出文风语体需统一的章节（如 ${styleFocusText}）；
+2. 给出具体的研讨引导：号召大家在讨论区围绕“如何将假设与方法接合起来”、“如何统一学术语体”展开 2~3 分钟交流商讨；
+3. 预告审稿专家正在通读全篇草稿，稍后将针对大家的瓶颈与脱节下发深度质检与【半程修正清单】！`;
 
-      let managingText = await callCozeAgentAPI('managingEditor', managingPrompt, { stage: 'stage2', topic, bottleneck: bAcademic, peerReview: peerReviewState });
+      let managingText = await callCozeAgentAPI('managingEditor', managingPrompt, { stage: 'stage2', topic, bottleneck: primaryAcademicB });
       if (!managingText || managingText.trim().length === 0) {
-        const hasTimeConcern = primaryRhythmB && primaryRhythmB !== '节奏适中无压力' && primaryRhythmB !== '无明显时间顾虑';
-        const hasCollabConcern = primaryCollabB && primaryCollabB !== '无显著协作阻碍' && primaryCollabB !== '协作良好';
-
-        if (hasDivergence && hasTimeConcern) {
-          managingText = `🤝 【责任编辑·自查研判与对齐引导】：全员自查清单已生成！首先肯定大家认真通读了彼此撰写的段落。重点关注到目前初稿中写出的部分内容，与组内部分成员在自查中提出的思路构想存在认知差异：①【${sectionsFocusText}】：部分成员持有不同看法，想进一步商榷论述角度与设计方案。💡 【分歧协商建议】：建议大家先别急于单干改字，在讨论区按照“先对齐背景核心概念与痛点，再商定设计中的具体干预任务与量表指标”的步骤分步商讨，把修改方案达成全组共识！（同时关注到有反馈提到时间分配偏紧）。👉 请全组在讨论区充分交流，随后审稿专家将接着为大家做正文深度学术质检！`;
-        } else if (hasDivergence) {
-          managingText = `🤝 【责任编辑·自查研判与对齐引导】：全员自查清单已生成！首先肯定大家认真通读了彼此撰写的段落。重点关注到目前初稿中写出的部分内容，与组内部分成员在自查中提出的思路构想存在认知差异：①【${sectionsFocusText}】：部分成员持有不同看法，想进一步商榷论述角度与设计方案。💡 【分歧协商建议】：建议大家先别急于单干改字，在讨论区按照“先对齐背景核心概念与痛点，再商定设计中的具体干预任务与量表指标”的步骤分步商讨，把修改思路达成全组共识！欣慰的是全组时间节奏把控得很稳健、推进高效！👉 请全组在讨论区充分交流，随后审稿专家将接着为大家做正文深度学术质检！`;
-        } else if (hasCollabConcern || hasTimeConcern) {
-          managingText = `🤝 【责任编辑·默契肯定与节奏调适】：自查清单已生成！全组对研究立意保持着高度默契！针对大家自查中提到的写作风格或时间预算小顾虑，建议大家简要协商对齐节奏。审稿专家马上接着为大家做学术质量审查！`;
-        } else {
-          managingText = `🤝 【责任编辑·高度默契与协同赞扬】：自查清单已生成！太棒了，全组不仅对核心立意认知高度统一，而且各章节撰写节奏顺畅、时间把控极佳！请大家保持这个优秀的团队状态，审稿专家马上接着为大家做正文深度学术质检！`;
-        }
+        managingText = `🤝 【责任编辑·研讨引导】：全员自查打卡已完成！我汇总了大家的诊断，梳理出以下核心焦点：
+  1. 🎯 构思与脱节共识：${hasIdeationDev ? `部分成员反馈 ${ideationFocusText} 偏离了最初设想；` : ''}${hasTransDev ? `多数成员指出存在前后脱节（重点涉及 ${transFocusText}）；` : '全篇前后衔接基本顺畅；'}
+  2. 🎨 文风与术语规范：${hasStyleDev ? `大家一致指出 ${styleFocusText} 存在口语化表述与术语混用，全篇需统一为规范学术语体；` : '全篇文风严谨规范；'}
+  3. 💡 核心瓶颈：全组聚焦在『${primaryAcademicB}』。
+📢 请全组在讨论区围绕：『如何把假设与方法紧密接合起来』与『统一学术语体』展开 2~3 分钟研讨！审稿专家正在通读全篇，稍后给出学术处方！`;
       }
 
       const managingMsg = {
@@ -4277,13 +4310,13 @@ ${hasDivergence
       this.syncChatLogs();
       renderChat(this.state);
 
-      // 3. 平台接管调控：设置【等待组内商讨对齐】状态，全景汇聚全组所有难点与提问
+      // 3. 平台接管调控：设置【等待组内商讨对齐】状态
       this.state.stage2PendingReviewing = {
         topic,
         bAcademic: primaryAcademicB,
         userText: questionsList,
-        sectionsFocus: sectionsFocusText,
-        hasDivergence,
+        transFocus: transFocusText,
+        styleFocus: styleFocusText,
         timeSubmitted: Date.now(),
         studentMsgCount: 0
       };
@@ -4300,35 +4333,39 @@ ${hasDivergence
     const fullDoc = (this.state.stage2 && this.state.stage2.unifiedContent) ? this.state.stage2.unifiedContent.replace(/<[^>]*>/g, '').trim() : '论文初稿方案';
     const priorFirstReview = this.state.stage2FirstReviewText || (this.state.chatLogs.stage2 || []).find(m => m.sender === 'reviewingEditor')?.text || '前期初审已肯定研究背景立意与文献归纳';
 
-    const reviewingPrompt = `小组已针对责任编辑提出的自查分歧在讨论区达成了对齐共识。
+    const reviewingPrompt = `小组已针对责任编辑提出的自查分歧在讨论区达成了初步对齐共识。
 【课题】: 《${ctx.topic}》
-【自查勾选难点】: “${ctx.bAcademic}”
-【手填开放提问/困惑】: “${ctx.userText || '无手填提问'}”
-【重点关注章节】: ${ctx.sectionsFocus}
+【全组自查核心瓶颈】: “${ctx.bAcademic}”
+【前后脱节重点章节】: ${ctx.transFocus}
+【文风偏口语化章节】: ${ctx.styleFocus}
+【手填开放提问/修改建议】: “${ctx.userText || '无手填提问'}”
 
-【审稿编辑上一轮一审诊断记录（记忆继承）】:
+【审稿编辑一审记录】:
 "${priorFirstReview}"
 
-【审稿编辑多轮质检递进继承铁律】：本次二审必须严格基于上一轮一审的诊断基础深化递进，根据当前正文草稿的实际内容质量动态调整；继承一审对前期章节的肯定意见，前后学术观点与指导方向严格保持连贯一致，绝对不可推翻前文或自相矛盾！
-
-请通读下方【小组当前真实正文草稿】全文，作为国家级教育类核心期刊资深审稿编辑，发表 130~150 字的深度学术质检（【全局最高红线】：顺应已有框架做局部微调与细节补充，严禁提出推翻重写或结构性大改！严禁替写大段正文！）：
-① 具体难点破解与开放答疑：通读学生在自查表单中勾选的核心难点（${ctx.bAcademic}）及手填开放提问（${ctx.userText || '无手填提问'}），给出切中具体学科场景的破解思路；
-② 正文切片深度学术质检：通读正文真实切片，根据当前质量精准指出 1~3 处实际存在的具体章节、具体变量/案例论据的薄弱点；
-③ 具体修改处方与清单落地：给出具体操作建议，引导全组对照左侧清单分工落实。纯自然语言输出，130~150字。`;
+请通读下方【小组当前真实正文草稿】全文，作为国家级教育类期刊资深审稿编辑，发表 130~150 字的深度学术质检（【全局红线】：顺应已有框架微调，严禁推翻重写，严禁预设具体统计工具，有数据评数据，无数据评方案）：
+① 直击脱节与瓶颈：通读学生真实草稿，针对学生卡壳的『${ctx.bAcademic}』与脱节处（${ctx.transFocus}），给出切中其具体课题的学术化解处方；
+② 文风与术语润色示范：指出口语化章节（${ctx.styleFocus}）中的典型口语问题，给出规范学术语体改写示范；
+③ 反思与定稿冲刺：对后续反思与定稿提出明确要求，提示学生若对修改有疑问可随时 @审稿编辑 咨询！纯自然语言输出，130~150字。`;
 
     let reviewingText = await callCozeAgentAPI('reviewingEditor', reviewingPrompt, { stage: 'stage2', topic: ctx.topic, bottleneck: ctx.bAcademic, actualDoc: fullDoc, priorReview: priorFirstReview });
     if (!reviewingText || reviewingText.trim().length === 0) {
-      reviewingText = `📝 【审稿编辑·学术质检与答疑】：针对大家勾选的难点『${ctx.bAcademic}』以及关于 [${ctx.userText || '理论与实证衔接'}] 的困惑：建议从具体研究情境切入化解难点！同时重点审阅了目前正文：【${ctx.sectionsFocus}】立意充分，但仍有 1~2 处可深化空间（如具体论据支撑与量表维度衔接）。建议对照左侧【半程修正清单】分工加速完善！`;
+      reviewingText = `📝 【审稿编辑·学术质检与答疑】：通读了全组目前撰写的正文草稿，针对大家卡壳的【${ctx.bAcademic}】与衔接脱节问题：
+① 假设与方法闭环：通读正文，第三章提出的核心假设与第四章测量设计存在局部脱节，建议在方法中补齐对应的操作化测度指标，实现 1:1 闭环；
+② 文风统一规范：通读 ${ctx.styleFocus}，消除“我们觉得”等第一人称口语，润色为严谨客观的第三人称学术语体；
+③ 局限预判：在接下来的第五章深入剖析方案在样本抽样与工具上的潜在局限。
+👉 我已为大家下发了 3 项可打勾的【半程修正清单】，若对具体修改有疑问可随时 @审稿编辑 咨询，请全组分工落实！`;
     }
     this.state.stage2SecondReviewText = reviewingText;
 
-    // 🌟 动态生成包含三大高含金量支柱的【半程修正清单】
+    // 🌟 动态生成包含三大高含金量支柱的【半程修正清单】(支持交互勾选)
     this.state.stage2.actionPlan = {
       isGenerated: true,
+      completedMap: {},
       items: [
-        `【核心主线·消除立意与逻辑不一致】(重点关注: ${ctx.sectionsFocus}): 结合研讨共识，统一前后章节核心概念界定与研究假设，消除思路矛盾，确保主线一贯到底。`,
-        `【学术论证与方法瓶颈深度突破】: • 理论与综述层: 深化核心理论推导与近三年顶刊文献支撑； • 假设与机制层: 明确中介/调节效应逻辑传导链条； • 方法与量表层: 补充操作化测量工具与信效度检验。`,
-        `【协同修改落地与反思冲刺】: 组员分工协同修改正文，重点完善第五节【研究设计的不足与反思】，把控后半程进度节奏！`
+        `🎯【消除前后脱节与构思分歧】(重点关注: ${ctx.transFocus}): 完善第四章方法与测量工具，确保能有效检验前文提出的全部核心假设，消除“两张皮”脱节硬伤，使主线一贯到底！`,
+        `✍️【统一语言文风与专业术语】(重点关注: ${ctx.styleFocus}): 通读全篇，消除口语化表达与第一人称叙述，润色为规范严谨的客观学术语体，统一全篇核心概念命名。`,
+        `💡【攻克瓶颈与局限反思冲刺】: 按照自查瓶颈（${ctx.bAcademic}），细化实施设计，并在即将起草的第五章深入剖析方案潜在局限，把控节奏，准备初稿定稿！`
       ]
     };
 
