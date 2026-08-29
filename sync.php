@@ -1391,7 +1391,9 @@ if ($action === 'get_global_meta') {
                             'content' => $ar['content'],
                             'createdAt' => $ar['created_at_str'] ?? '',
                             'targetClassIds' => json_decode($ar['target_class_ids'] ?? '[]', true) ?: [],
-                            'isPinned' => !empty($ar['is_pinned'])
+                            'isPinned' => !empty($ar['is_pinned']),
+                            'attachment' => !empty($ar['attachment']) ? (json_decode($ar['attachment'], true) ?: $ar['attachment']) : null,
+                            'confirmedMembers' => !empty($ar['confirmed_members']) ? (json_decode($ar['confirmed_members'], true) ?: []) : []
                         ];
                     }
                 }
@@ -1409,6 +1411,7 @@ if ($action === 'get_global_meta') {
                             'fileName' => $pr['file_name'] ?? '',
                             'fileSize' => $pr['file_size'] ?? '',
                             'fileUrl' => $pr['file_data'] ?? '',
+                            'fileData' => $pr['file_data'] ?? '',
                             'uploadTime' => $pr['upload_time'] ?? ''
                         ];
                     }
@@ -1600,9 +1603,11 @@ if ($action === 'save_global_meta' && $_SERVER['REQUEST_METHOD'] === 'POST') {
 
                 // 🛡️ 实体表实时入库：将所有通知 announcements 100% 同步 upsert 至 announcements 实体表
                 if (isset($decoded['announcements']) && is_array($decoded['announcements'])) {
-                    $stmtAnnUpsert = $pdo->prepare("INSERT INTO `announcements` (`id`, `title`, `content`, `created_at_str`, `target_class_ids`, `is_pinned`)
-                        VALUES (:id, :title, :content, :created_at, :cids, :pinned)
-                        ON DUPLICATE KEY UPDATE `title`=VALUES(`title`), `content`=VALUES(`content`), `created_at_str`=VALUES(`created_at_str`), `target_class_ids`=VALUES(`target_class_ids`), `is_pinned`=VALUES(`is_pinned`)");
+                    @$pdo->exec("ALTER TABLE `announcements` ADD COLUMN `attachment` LONGTEXT NULL");
+                    @$pdo->exec("ALTER TABLE `announcements` ADD COLUMN `confirmed_members` LONGTEXT NULL");
+                    $stmtAnnUpsert = $pdo->prepare("INSERT INTO `announcements` (`id`, `title`, `content`, `created_at_str`, `target_class_ids`, `is_pinned`, `attachment`, `confirmed_members`)
+                        VALUES (:id, :title, :content, :created_at, :cids, :pinned, :att, :conf)
+                        ON DUPLICATE KEY UPDATE `title`=VALUES(`title`), `content`=VALUES(`content`), `created_at_str`=VALUES(`created_at_str`), `target_class_ids`=VALUES(`target_class_ids`), `is_pinned`=VALUES(`is_pinned`), `attachment`=VALUES(`attachment`), `confirmed_members`=VALUES(`confirmed_members`)");
                     foreach ($decoded['announcements'] as $ann) {
                         $aid = $ann['id'] ?? ('ann_' . uniqid());
                         $atitle = $ann['title'] ?? '通知';
@@ -1610,7 +1615,9 @@ if ($action === 'save_global_meta' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                         $acreated = $ann['createdAt'] ?? date('Y-m-d H:i:s');
                         $acids = json_encode($ann['targetClassIds'] ?? [], JSON_UNESCAPED_UNICODE);
                         $apinned = !empty($ann['isPinned']) ? 1 : 0;
-                        $stmtAnnUpsert->execute([':id' => $aid, ':title' => $atitle, ':content' => $acontent, ':created_at' => $acreated, ':cids' => $acids, ':pinned' => $apinned]);
+                        $aatt = !empty($ann['attachment']) ? json_encode($ann['attachment'], JSON_UNESCAPED_UNICODE) : null;
+                        $aconf = !empty($ann['confirmedMembers']) ? json_encode($ann['confirmedMembers'], JSON_UNESCAPED_UNICODE) : null;
+                        $stmtAnnUpsert->execute([':id' => $aid, ':title' => $atitle, ':content' => $acontent, ':created_at' => $acreated, ':cids' => $acids, ':pinned' => $apinned, ':att' => $aatt, ':conf' => $aconf]);
                     }
                 }
 

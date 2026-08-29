@@ -81,10 +81,14 @@ function initDatabaseTables() {
         `content` LONGTEXT NOT NULL,
         `created_at_str` VARCHAR(64) DEFAULT '',
         `target_class_ids` LONGTEXT,
+        `attachment` LONGTEXT,
+        `confirmed_members` LONGTEXT,
         `is_pinned` TINYINT(1) DEFAULT 0,
         `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;";
     $pdo->exec($sql5);
+    @$pdo->exec("ALTER TABLE `announcements` ADD COLUMN `attachment` LONGTEXT NULL");
+    @$pdo->exec("ALTER TABLE `announcements` ADD COLUMN `confirmed_members` LONGTEXT NULL");
 
     // 6. 学术参考范文库表 (reference_papers)
     $sql6 = "CREATE TABLE IF NOT EXISTS `reference_papers` (
