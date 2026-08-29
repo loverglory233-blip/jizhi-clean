@@ -199,6 +199,7 @@ $userQuery = isset($req['query']) ? $req['query'] : '';
 $stage = isset($req['stage']) ? $req['stage'] : '';
 $topic = isset($req['topic']) ? $req['topic'] : '';
 $actualDoc = isset($req['actual_doc']) ? $req['actual_doc'] : '';
+$priorReview = isset($req['prior_review']) ? $req['prior_review'] : '';
 
 if (empty($userQuery)) {
     echo json_encode(['success' => false, 'message' => 'Query is empty']);
@@ -216,7 +217,7 @@ if (!$accessToken) {
 }
 
 // 2. 使用 Prompt 工厂进行结构化组装
-$assembledPrompt = CozePromptFactory::buildPrompt($stage, $topic, $userQuery, $actualDoc);
+$assembledPrompt = CozePromptFactory::buildPrompt($stage, $topic, $userQuery, $actualDoc, $botKey, $priorReview);
 
 // 3. 发起 Chat 请求
 $cozeUrl = $COZE_API_BASE_URL . '/chat';

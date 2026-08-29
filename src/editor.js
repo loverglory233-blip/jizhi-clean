@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles } from "./constants.js?v=20260829_v653";
-import { callCozeAgentAPI } from "./agents.js?v=20260829_v653";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs } from "./utils.js?v=20260829_v653";
+import { AgentProfiles } from "./constants.js?v=20260829_v654";
+import { callCozeAgentAPI } from "./agents.js?v=20260829_v654";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs } from "./utils.js?v=20260829_v654";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -318,55 +318,7 @@ export function attachWordEditorEvents(container, editorId, isReadonly, onChange
     editor.addEventListener('drop', blockEdit, true);
   }
 
-  let quillInstance = null;
-  const QuillClass = window.Quill;
-
-  if (QuillClass) {
-    try {
-      // 🔤 注册 Inline Style Attributors，完美支持任意中文字体与像素字号
-      const FontStyle = QuillClass.import('attributors/style/font');
-      if (FontStyle) { FontStyle.whitelist = null; QuillClass.register(FontStyle, true); }
-      const SizeStyle = QuillClass.import('attributors/style/size');
-      if (SizeStyle) { SizeStyle.whitelist = null; QuillClass.register(SizeStyle, true); }
-      const AlignStyle = QuillClass.import('attributors/style/align');
-      if (AlignStyle) { QuillClass.register(AlignStyle, true); }
-      const ColorStyle = QuillClass.import('attributors/style/color');
-      if (ColorStyle) { QuillClass.register(ColorStyle, true); }
-      const BgStyle = QuillClass.import('attributors/style/background');
-      if (BgStyle) { QuillClass.register(BgStyle, true); }
-    } catch (e) {}
-  }
-
-  if (QuillClass && !isReadonly) {
-    try {
-      if (!editor.classList.contains('ql-container')) {
-        quillInstance = new QuillClass(editor, {
-          theme: 'snow',
-          modules: {
-            toolbar: false
-          }
-        });
-
-        window._jizhi_quill = quillInstance;
-
-        quillInstance.on('text-change', (delta, oldDelta, source) => {
-          const cleanHtml = quillInstance.root.innerHTML;
-          if (onChangeCallback) onChangeCallback(cleanHtml);
-        });
-      }
-    } catch (err) {
-      console.warn('[Quill Initialization Error]:', err);
-    }
-  }
-
   if (!isReadonly) {
-    let lastSavedRange = null;
-    if (quillInstance) {
-      quillInstance.on('selection-change', (range) => {
-        if (range) lastSavedRange = range;
-      });
-    }
-
     // 🛡️ 核心保障：阻止工具栏按钮点击时的默认失焦事件，完美锁定用户选区
     container.querySelectorAll('.word-toolbar button').forEach(btn => {
       btn.addEventListener('mousedown', (e) => {
@@ -375,55 +327,9 @@ export function attachWordEditorEvents(container, editorId, isReadonly, onChange
     });
 
     const exec = (cmd, val = null) => {
-      if (quillInstance) {
-        let range = quillInstance.getSelection() || lastSavedRange;
-        if (!range) {
-          quillInstance.focus();
-          range = quillInstance.getSelection() || { index: Math.max(0, quillInstance.getLength() - 1), length: 0 };
-        }
-        
-        if (range) {
-          quillInstance.setSelection(range.index, range.length);
-        }
-
-        const currentFormat = (range ? quillInstance.getFormat(range) : {}) || {};
-        if (cmd === 'bold') quillInstance.format('bold', !currentFormat.bold);
-        else if (cmd === 'italic') quillInstance.format('italic', !currentFormat.italic);
-        else if (cmd === 'underline') quillInstance.format('underline', !currentFormat.underline);
-        else if (cmd === 'strikeThrough') quillInstance.format('strike', !currentFormat.strike);
-        else if (cmd === 'superscript') quillInstance.format('script', currentFormat.script === 'super' ? false : 'super');
-        else if (cmd === 'subscript') quillInstance.format('script', currentFormat.script === 'sub' ? false : 'sub');
-        else if (cmd === 'justifyLeft') quillInstance.format('align', false);
-        else if (cmd === 'justifyCenter') quillInstance.format('align', 'center');
-        else if (cmd === 'justifyRight') quillInstance.format('align', 'right');
-        else if (cmd === 'justifyFull') quillInstance.format('align', 'justify');
-        else if (cmd === 'indent') quillInstance.format('indent', '+1');
-        else if (cmd === 'outdent') quillInstance.format('indent', '-1');
-        else if (cmd === 'insertUnorderedList') quillInstance.format('list', currentFormat.list === 'bullet' ? false : 'bullet');
-        else if (cmd === 'insertOrderedList') quillInstance.format('list', currentFormat.list === 'ordered' ? false : 'ordered');
-        else if (cmd === 'formatBlock') {
-          const level = (val || '').toLowerCase().replace('h', '');
-          quillInstance.format('header', isNaN(level) || level === '' ? false : parseInt(level, 10));
-        }
-        else if (cmd === 'fontName') quillInstance.format('font', val || false);
-        else if (cmd === 'fontSize') quillInstance.format('size', val || false);
-        else if (cmd === 'foreColor') quillInstance.format('color', val || false);
-        else if (cmd === 'hiliteColor') quillInstance.format('background', val || false);
-        else if (cmd === 'undo') quillInstance.history.undo();
-        else if (cmd === 'redo') quillInstance.history.redo();
-        else if (cmd === 'removeFormat') {
-          if (range && range.length > 0) quillInstance.removeFormat(range.index, range.length);
-        }
-        else if (cmd === 'insertHTML') {
-          quillInstance.clipboard.dangerouslyPasteHTML(range ? range.index : quillInstance.getLength(), val);
-        }
-        quillInstance.focus();
-        if (onChangeCallback) onChangeCallback(quillInstance.root.innerHTML);
-      } else {
-        document.execCommand(cmd, false, val);
-        editor.focus();
-        if (onChangeCallback) onChangeCallback(editor.innerHTML);
-      }
+      document.execCommand(cmd, false, val);
+      editor.focus();
+      if (onChangeCallback) onChangeCallback(editor.innerHTML);
     };
 
     const btnUndo = container.querySelector(`#${editorId}-btn-undo`);
@@ -1331,12 +1237,18 @@ function renderStage1Canvas(canvas, state, handlers) {
         setTimeout(async () => {
           const isModify = existingIdx >= 0;
           const evalPrompt = isModify
-            ? `小组成员【${authorName}】在学术拍卖会上修改了选题提案，最新题目为《${title}》。请作为资深学术拍卖师，通读其学科场景与研究构想，给出 120~150 字充实针对性的学术点评：若提案内容充实，先明确肯定其最出彩的 1~2 个具体优点，再顺势提出 1 个具体启发性落地建议；若提案仅有无意义字符、重复堆砌或过于空泛（无法体现研究问题/方法设想/预期价值），严禁盲目肯定，应如实指出「内容还需再充实」并引导补充至少一个具体的研究问题或方法设想（严禁空泛套话，纯自然语言输出）！`
-            : `小组成员【${authorName}】在学术拍卖会上提交了新选题提案《${title}》。请作为资深学术拍卖师，通读其学科场景与研究构想，给出 120~150 字充实针对性的学术点评：若提案内容充实，先明确肯定其最出彩的 1~2 个具体优点，再顺势提出 1 个具体启发性落地建议；若提案仅有无意义字符、重复堆砌或过于空泛（无法体现研究问题/方法设想/预期价值），严禁盲目肯定，应如实指出「内容还需再充实」并引导补充至少一个具体的研究问题或方法设想（严禁空泛套话，纯自然语言输出）！`;
+            ? `小组成员【${authorName}】在学术拍卖会上修改了选题提案，最新题目为《${title}》。
+请作为资深学术拍卖师，通读其学科场景与研究构想，给出 130~150 字充实针对性的学术点评：
+【无意义内容红线审查】：先审查提案是否包含无意义乱码、重复堆砌或过于空泛到无法提取论点。若命中，严禁虚构亮点，应如实简短提醒「当前内容尚未形成可评审的实质文本」并引导补充具体问题或方法设想；
+【正常实质评价】：若内容充实，必须先明确肯定该提案最出彩的 1~2 个具体优点（抓准了什么核心痛点/打破了什么教学局限），再顺势结合该方案提出 1 个具体的启发性落地建议（严禁空泛套话，纯自然语言输出，130~150字）！`
+            : `小组成员【${authorName}】在学术拍卖会上提交了新选题提案《${title}》。
+请作为资深学术拍卖师，通读其学科场景与研究构想，给出 130~150 字充实针对性的学术点评：
+【无意义内容红线审查】：先审查提案是否包含无意义乱码、重复堆砌或过于空泛到无法提取论点。若命中，严禁虚构亮点，应如实简短提醒「当前内容尚未形成可评审的实质文本」并引导补充具体问题或方法设想；
+【正常实质评价】：若内容充实，必须先明确肯定该提案最出彩的 1~2 个具体优点（抓准了什么核心痛点/打破了什么教学局限），再顺势结合该方案提出 1 个具体的启发性落地建议（严禁空泛套话，纯自然语言输出，130~150字）！`;
           
           let evalText = await callCozeAgentAPI('auctioneer', evalPrompt, { stage: 'stage1', proposalTitle: title, author: authorName, topic: title });
           if (!evalText || evalText.trim().length === 0) {
-            evalText = `⚠️ 【拍卖师提示】：大模型提案评估生成超时或网络稍有延迟，可稍后在讨论区发送"@拍卖师 请评估选题《${title}》"重新获取。`;
+            evalText = `🎪 【拍卖师·提案评估】：收到 ${authorName} 提出的选题《${title}》！该构想切中实践痛点，通过明确的研究设计打破了传统教学局限！建议后续在研究设计中进一步细化具体的实证环节与实施步骤，这样在接下来的竞拍研讨中会更具说服力！`;
           }
 
           const auctioneerEvalMsg = {
@@ -1364,7 +1276,7 @@ function renderStage1Canvas(canvas, state, handlers) {
             const allCollectedMsg = {
               sender: 'auctioneer',
               senderName: '头脑风暴 · 学术拍卖师',
-              text: `🎪 【拍卖师·全员提案已集齐】：🎉 小组全部 ${totalMembersCount} 位成员的选题提案已悉数亮相并完成评估！\n👉 请大家先不要急于投票，先在右侧协同对话区商讨交流各个方案的研究切入点与创新亮点；\n💬 充分研讨达成初步共识后，再在上方为最终认可的方案进行投票！`,
+              text: `🎪 【拍卖师·全员提案已集齐】：🎉 小组成员的选题提案已悉数亮相！👉 请大家先不要急于投票，先在右侧讨论区充分交流各个方案的研究看点与实施可行性；💬 研讨达成初步共识后，再在上方为最终认可的方案进行投票！`,
               timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
               _timeMs: Date.now() + 100
             };
