@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260830_v736
+ * Version: 20260830_v737
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260830_v736';
+  const APP_VERSION = '20260830_v737';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -3384,6 +3384,14 @@
             const mergedConf = { ...localConf, ...remoteS3.confirmedMembers };
             if (JSON.stringify(localConf) !== JSON.stringify(mergedConf)) {
               this.app.state.stage3.confirmedMembers = mergedConf;
+              needWorkspaceRender = true;
+            }
+          }
+          if (remoteS3.finalSubmittedMembers) {
+            const localFinal = this.app.state.stage3.finalSubmittedMembers || {};
+            const mergedFinal = { ...localFinal, ...remoteS3.finalSubmittedMembers };
+            if (JSON.stringify(localFinal) !== JSON.stringify(mergedFinal)) {
+              this.app.state.stage3.finalSubmittedMembers = mergedFinal;
               needWorkspaceRender = true;
             }
           }
@@ -9687,13 +9695,19 @@
     const currUser = (window.app && window.app.authManager) ? window.app.authManager.getCurrentUser() : null;
     const currUserCode = state.currentUser || (currUser ? currUser.studentCode : 'A');
     const confirmedRevMap = s3.confirmedMembers || {};
-    const confirmedRevCount = membersList.filter(m => confirmedRevMap[m.id] || confirmedRevMap[m.studentCode]).length;
-    const isUserRevisionConfirmed = !!(confirmedRevMap[currUserCode] || (currUser && confirmedRevMap[currUser.id]));
+    const confirmedRevCount = membersList.filter(m => confirmedRevMap[m.id] || confirmedRevMap[m.studentCode] || confirmedRevMap[m.username] || (m.name && confirmedRevMap[m.name])).length;
+    const isUserRevisionConfirmed = !!(confirmedRevMap[currUserCode] || (currUser && (confirmedRevMap[currUser.id] || confirmedRevMap[currUser.studentCode])));
     const isRevisionFullyConfirmed = confirmedRevCount >= totalCount && totalCount > 0;
+
+    const finalSubmittedMap = s3.finalSubmittedMembers || {};
+    const finalSubmittedCount = membersList.filter(m => finalSubmittedMap[m.id] || finalSubmittedMap[m.studentCode] || finalSubmittedMap[m.username] || (m.name && finalSubmittedMap[m.name])).length;
+    const isUserFinalSubmitted = !!(finalSubmittedMap[currUserCode] || (currUser && (finalSubmittedMap[currUser.id] || finalSubmittedMap[currUser.studentCode])));
+    const isAllFinalSubmitted = state.isFinalSubmitted || (finalSubmittedCount >= totalCount && totalCount > 0);
+
     const allTasks = (window.app && window.app.authManager) ? window.app.authManager.getTasks() : [];
     const currentTask = allTasks.find(t => t.id === state.activeTaskId);
     const isTaskDeadlineExpired = isTaskExpired(currentTask);
-    const isFinalSubmitted = state.isFinalSubmitted || isTaskDeadlineExpired;
+    const isFinalSubmitted = state.isFinalSubmitted || isAllFinalSubmitted || isTaskDeadlineExpired;
 
     const isDefenseLocked = isRevisionFullyConfirmed || isFinalSubmitted;
 
@@ -9720,7 +9734,7 @@
           <div style="background:#eff6ff; border:1px solid #bfdbfe; border-radius:12px; padding:14px 18px; display:flex; justify-content:space-between; align-items:center; flex-shrink:0; box-shadow:0 2px 8px rgba(37,99,235,0.08);">
             <div>
               <div style="font-size:14px; font-weight:800; color:#1e40af; display:flex; align-items:center; gap:8px;">
-                <span>🔒 本组论文终稿与评估报告已成功归档提交至教师端！</span>
+                <span>🔒 本组论文终稿与评估报告已全员成功归档提交至教师端！</span>
               </div>
               <div style="font-size:12px; color:#475569; margin-top:3px;">请组内每位成员点击右侧按钮进入【课程协作体验与 SSRL 效果评估问卷】填写界面。</div>
             </div>
@@ -9750,16 +9764,26 @@
                   ${isUserRevisionConfirmed ? '✅ 您已确认进入终稿修改' : '✍️ 确认进入终稿修改'}
                 </button>
               `
-            ) : `
-              <button id="btn-final-submit" ${isFinalSubmitted ? 'disabled' : ''} style="background:${isFinalSubmitted ? '#ecfdf5' : 'linear-gradient(135deg, #059669, #047857)'}; border:${isFinalSubmitted ? '1px solid #a7f3d0' : 'none'}; color:${isFinalSubmitted ? '#059669' : 'white'}; padding:8px 18px; border-radius:8px; font-weight:700; cursor:${isFinalSubmitted ? 'not-allowed' : 'pointer'}; font-size:13px; box-shadow:${isFinalSubmitted ? 'none' : '0 3px 10px rgba(5,150,105,0.25)'};">
-                ${isFinalSubmitted ? '🔒 论文终稿已成功提交 (归档只读)' : '🚀 提交论文终稿'}
-              </button>
-            `}
+            ) : (
+              state.isFinalSubmitted ? `
+                <button disabled style="background:#ecfdf5; border:1px solid #a7f3d0; color:#059669; padding:8px 18px; border-radius:8px; font-weight:700; cursor:default; font-size:13px;">
+                  🔒 论文终稿已全员提交归档
+                </button>
+              ` : (isUserFinalSubmitted ? `
+                <button disabled style="background:#f1f5f9; border:1px solid #cbd5e1; color:#059669; padding:8px 16px; border-radius:8px; font-weight:700; font-size:12.5px; cursor:default;">
+                  ✅ 您已确认提交终稿 (等待组员 ${finalSubmittedCount}/${totalCount})
+                </button>
+              ` : `
+                <button id="btn-final-submit" style="background:linear-gradient(135deg, #059669, #047857); border:none; color:white; padding:8px 18px; border-radius:8px; font-weight:700; cursor:pointer; font-size:13px; box-shadow:0 3px 10px rgba(5,150,105,0.25);">
+                  🚀 确认提交论文终稿
+                </button>
+              `)
+            )}
           </div>
         </div>
 
         <!-- 终稿修改确认进度提示 -->
-        ${!isFinalSubmitted ? `
+        ${!isFinalSubmitted && activeTab === 'defense' ? `
           <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:6px 14px; display:flex; justify-content:space-between; align-items:center; font-size:12px;">
             <span style="color:#475569; font-weight:700;">📝 终稿修改确认进度: <b style="color:${isRevisionFullyConfirmed ? '#059669' : '#2563eb'};">${confirmedRevCount}/${totalCount}</b> 人已确认进入终稿修改 ${isRevisionFullyConfirmed ? '<span style="color:#059669; margin-left:6px;">(🎉 全员已确认，终稿修改已解锁，答辩已锁定)</span>' : '<span style="color:#d97706; margin-left:6px;">(全员确认后自动解锁终稿修改)</span>'}</span>
             <div style="display:flex; gap:6px;">
@@ -9767,6 +9791,21 @@
                 const isConf = confirmedRevMap[m.id] || confirmedRevMap[m.studentCode] || confirmedRevMap[m.username] || (m.name && confirmedRevMap[m.name]);
                 return `<span style="font-size:11px; padding:1px 8px; border-radius:10px; font-weight:700; background:${isConf ? '#ecfdf5' : '#ffffff'}; color:${isConf ? '#059669' : '#94a3b8'}; border:1px solid ${isConf ? '#a7f3d0' : '#e2e8f0'};">
                   ${isConf ? '✓' : '○'} ${m.name}
+                </span>`;
+              }).join('')}
+            </div>
+          </div>
+        ` : ''}
+
+        <!-- 终稿提交全员确认进度提示 -->
+        ${!state.isFinalSubmitted && activeTab === 'editor' ? `
+          <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:6px 14px; display:flex; justify-content:space-between; align-items:center; font-size:12px;">
+            <span style="color:#475569; font-weight:700;">🚀 终稿提交确认进度: <b style="color:${isAllFinalSubmitted ? '#059669' : '#059669'};">${finalSubmittedCount}/${totalCount}</b> 人已确认提交 ${isAllFinalSubmitted ? '<span style="color:#059669; margin-left:6px;">(🎉 全员已确认提交)</span>' : '<span style="color:#d97706; margin-left:6px;">(需全组所有成员均确认提交后正式归档入库)</span>'}</span>
+            <div style="display:flex; gap:6px;">
+              ${membersList.map(m => {
+                const isSub = finalSubmittedMap[m.id] || finalSubmittedMap[m.studentCode] || finalSubmittedMap[m.username] || (m.name && finalSubmittedMap[m.name]);
+                return `<span style="font-size:11px; padding:1px 8px; border-radius:10px; font-weight:700; background:${isSub ? '#ecfdf5' : '#ffffff'}; color:${isSub ? '#059669' : '#94a3b8'}; border:1px solid ${isSub ? '#a7f3d0' : '#e2e8f0'};">
+                  ${isSub ? '✓' : '○'} ${m.name}
                 </span>`;
               }).join('')}
             </div>
@@ -14052,48 +14091,83 @@
 
         onFinalSubmit: () => { 
           if (this.state.isFinalSubmitted) {
-            alert('🔒 论文终稿已于此前成功提交！目前处于全盘只读归档模式，可随时切页查阅各阶段记录。');
+            alert('🔒 论文终稿已于此前成功全员提交！目前处于全盘只读归档模式，可随时切页查阅各阶段记录。');
             return;
           }
-          const topicTitle = this.state.stage1.mergedTitle || '本组研究设计方案';
-          const confirmSub = confirm(`🚀 确认提交《${topicTitle}》期末方案终稿？\n\n提交后本组的方案与研讨矩阵将锁定归档呈递至教师端，其他小组不受影响！提交后将自动标记所有前置通知已读，并弹窗引导进入课程评估问卷！`);
-          if (confirmSub) {
+          const user = this.state.currentUser || 'A';
+          const s3 = this.state.stage3;
+          let memberArr = [];
+          if (Array.isArray(this.state.members)) memberArr = this.state.members;
+          else if (this.state.members && typeof this.state.members === 'object') memberArr = Object.values(this.state.members);
+          if (memberArr.length === 0 && this.authManager) {
+            const u = this.authManager.getCurrentUser();
+            const effClassId = this.state.activeStudentClassId || u?.classId || 'class_101';
+            const effGroup = this.authManager.getStudentActiveGroup(u, effClassId);
+            memberArr = this.authManager.getGroupMembersForWorkspace(effGroup?.id || 'group_1');
+          }
+          const totalMembersCount = memberArr.length > 0 ? memberArr.length : 3;
+
+          if (!s3.finalSubmittedMembers) s3.finalSubmittedMembers = {};
+          s3.finalSubmittedMembers[user] = true;
+          const currMemObj = memberArr.find(m => m && (m.id === user || m.studentCode === user || m.username === user || m.name === user));
+          if (currMemObj) {
+            if (currMemObj.id) s3.finalSubmittedMembers[currMemObj.id] = true;
+            if (currMemObj.studentCode) s3.finalSubmittedMembers[currMemObj.studentCode] = true;
+            if (currMemObj.username) s3.finalSubmittedMembers[currMemObj.username] = true;
+            if (currMemObj.name) s3.finalSubmittedMembers[currMemObj.name] = true;
+          }
+
+          const finalSubmittedCount = memberArr.filter(m => m && (s3.finalSubmittedMembers[m.id] || s3.finalSubmittedMembers[m.studentCode] || s3.finalSubmittedMembers[m.username] || (m.name && s3.finalSubmittedMembers[m.name]))).length;
+          const memberName = currMemObj ? currMemObj.name : user;
+          const currentStage = this.state.currentStage || 'stage3';
+
+          const submitMsg = {
+            sender: user,
+            senderName: memberName,
+            text: `📢 [终稿提交确认]: 我 (${memberName}) 已确认提交论文终稿！（全组终稿提交确认进度: ${finalSubmittedCount}/${totalMembersCount} 人）`,
+            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            _timeMs: Date.now()
+          };
+          if (!this.state.chatLogs[currentStage]) this.state.chatLogs[currentStage] = [];
+          this.state.chatLogs[currentStage].push(submitMsg);
+
+          if (finalSubmittedCount >= totalMembersCount) {
             this.state.isFinalSubmitted = true;
-            const currentStage = this.state.currentStage;
-            const currentUser = this.state.currentUser;
-            const currentUserObj = this.authManager.getCurrentUser();
+            s3.isRevisionConfirmed = true;
+            const currentUserObj = this.authManager ? this.authManager.getCurrentUser() : null;
             const activeTaskId = this.state.activeTaskId || 'task_default';
             const userGroupId = (currentUserObj && currentUserObj.groupId) ? currentUserObj.groupId : 'group_1';
 
-            // ⚡ 提交终稿后：自动将当前任务的所有前置通知/问卷标记为已读
             if (this.authManager && this.authManager.markAllTaskAnnouncementsRead) {
               this.authManager.markAllTaskAnnouncementsRead(activeTaskId, userGroupId);
             }
 
-            const submitMsg = {
-              sender: currentUser,
-              text: `🎉 【期末论文终稿成功提交告知】全组已完成论文终稿与答辩质询归档，方案已锁定并提交至教师端！大家可以随时返回各阶段查阅！`,
-              timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-              _timeMs: Date.now()
-            };
-            if (!this.state.chatLogs[currentStage]) this.state.chatLogs[currentStage] = [];
-            this.state.chatLogs[currentStage].push(submitMsg);
-
             const neutralFinalMsg = {
               sender: 'neutral',
-              text: `🏆 【中间委员 Agent 祝贺】热烈祝贺小组圆满完成本期写作任务与答辩！终稿已全盘锁入云端归档库。请全组成员点击弹窗填写课程评估问卷！`,
+              text: `🏆 【中间委员·答辩终审总结与祝贺】：热烈祝贺全组成员 (${totalMembersCount}/${totalMembersCount} 人) 已全部确认提交论文终稿！本组正文与答辩成果已正式全盘锁定归档呈递至教师端！请各位同学点击上方【📋 打开问卷填写界面】完成问卷！`,
               timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-              _timeMs: Date.now()
+              _timeMs: Date.now() + 50
             };
             this.state.chatLogs[currentStage].push(neutralFinalMsg);
 
             this.syncStage3();
             this.syncChatLogs();
+            if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
             this.renderStudentWorkspace();
+            renderChat(this.state);
 
+            alert(`🎉 恭喜！组内全员 (${totalMembersCount}/${totalMembersCount} 人) 已全部确认提交论文终稿！\n\n本组期末论文与答辩成果已正式归档提交至教师端！请每位同学填写课程体验评估问卷。`);
             setTimeout(() => {
               this.showQuestionnaireModal();
             }, 500);
+          } else {
+            this.syncStage3();
+            this.syncChatLogs();
+            if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+            this.renderStudentWorkspace();
+            renderChat(this.state);
+
+            alert(`✅ 您 (${memberName}) 已成功确认提交论文终稿！\n\n当前组内终稿提交确认进度：${finalSubmittedCount}/${totalMembersCount} 人已确认。\n⚠️ 必须全组所有成员均完成确认提交后，系统才会正式将终稿归档提交至教师端！请提醒组内其他同学尽快确认提交。`);
           }
         }
       };

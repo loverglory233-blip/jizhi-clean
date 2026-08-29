@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles } from "./constants.js?v=20260830_v736";
-import { callCozeAgentAPI } from "./agents.js?v=20260830_v736";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs } from "./utils.js?v=20260830_v736";
+import { AgentProfiles } from "./constants.js?v=20260830_v737";
+import { callCozeAgentAPI } from "./agents.js?v=20260830_v737";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs } from "./utils.js?v=20260830_v737";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -2343,13 +2343,19 @@ function renderStage3Canvas(canvas, state, handlers) {
   const currUser = (window.app && window.app.authManager) ? window.app.authManager.getCurrentUser() : null;
   const currUserCode = state.currentUser || (currUser ? currUser.studentCode : 'A');
   const confirmedRevMap = s3.confirmedMembers || {};
-  const confirmedRevCount = membersList.filter(m => confirmedRevMap[m.id] || confirmedRevMap[m.studentCode]).length;
-  const isUserRevisionConfirmed = !!(confirmedRevMap[currUserCode] || (currUser && confirmedRevMap[currUser.id]));
+  const confirmedRevCount = membersList.filter(m => confirmedRevMap[m.id] || confirmedRevMap[m.studentCode] || confirmedRevMap[m.username] || (m.name && confirmedRevMap[m.name])).length;
+  const isUserRevisionConfirmed = !!(confirmedRevMap[currUserCode] || (currUser && (confirmedRevMap[currUser.id] || confirmedRevMap[currUser.studentCode])));
   const isRevisionFullyConfirmed = confirmedRevCount >= totalCount && totalCount > 0;
+  
+  const finalSubmittedMap = s3.finalSubmittedMembers || {};
+  const finalSubmittedCount = membersList.filter(m => finalSubmittedMap[m.id] || finalSubmittedMap[m.studentCode] || finalSubmittedMap[m.username] || (m.name && finalSubmittedMap[m.name])).length;
+  const isUserFinalSubmitted = !!(finalSubmittedMap[currUserCode] || (currUser && (finalSubmittedMap[currUser.id] || finalSubmittedMap[currUser.studentCode])));
+  const isAllFinalSubmitted = state.isFinalSubmitted || (finalSubmittedCount >= totalCount && totalCount > 0);
+
   const allTasks = (window.app && window.app.authManager) ? window.app.authManager.getTasks() : [];
   const currentTask = allTasks.find(t => t.id === state.activeTaskId);
   const isTaskDeadlineExpired = isTaskExpired(currentTask);
-  const isFinalSubmitted = state.isFinalSubmitted || isTaskDeadlineExpired;
+  const isFinalSubmitted = state.isFinalSubmitted || isAllFinalSubmitted || isTaskDeadlineExpired;
 
   const isDefenseLocked = isRevisionFullyConfirmed || isFinalSubmitted;
 
@@ -2376,7 +2382,7 @@ function renderStage3Canvas(canvas, state, handlers) {
         <div style="background:#eff6ff; border:1px solid #bfdbfe; border-radius:12px; padding:14px 18px; display:flex; justify-content:space-between; align-items:center; flex-shrink:0; box-shadow:0 2px 8px rgba(37,99,235,0.08);">
           <div>
             <div style="font-size:14px; font-weight:800; color:#1e40af; display:flex; align-items:center; gap:8px;">
-              <span>🔒 本组论文终稿与评估报告已成功归档提交至教师端！</span>
+              <span>🔒 本组论文终稿与评估报告已全员成功归档提交至教师端！</span>
             </div>
             <div style="font-size:12px; color:#475569; margin-top:3px;">请组内每位成员点击右侧按钮进入【课程协作体验与 SSRL 效果评估问卷】填写界面。</div>
           </div>
@@ -2406,16 +2412,26 @@ function renderStage3Canvas(canvas, state, handlers) {
                 ${isUserRevisionConfirmed ? '✅ 您已确认进入终稿修改' : '✍️ 确认进入终稿修改'}
               </button>
             `
-          ) : `
-            <button id="btn-final-submit" ${isFinalSubmitted ? 'disabled' : ''} style="background:${isFinalSubmitted ? '#ecfdf5' : 'linear-gradient(135deg, #059669, #047857)'}; border:${isFinalSubmitted ? '1px solid #a7f3d0' : 'none'}; color:${isFinalSubmitted ? '#059669' : 'white'}; padding:8px 18px; border-radius:8px; font-weight:700; cursor:${isFinalSubmitted ? 'not-allowed' : 'pointer'}; font-size:13px; box-shadow:${isFinalSubmitted ? 'none' : '0 3px 10px rgba(5,150,105,0.25)'};">
-              ${isFinalSubmitted ? '🔒 论文终稿已成功提交 (归档只读)' : '🚀 提交论文终稿'}
-            </button>
-          `}
+          ) : (
+            state.isFinalSubmitted ? `
+              <button disabled style="background:#ecfdf5; border:1px solid #a7f3d0; color:#059669; padding:8px 18px; border-radius:8px; font-weight:700; cursor:default; font-size:13px;">
+                🔒 论文终稿已全员提交归档
+              </button>
+            ` : (isUserFinalSubmitted ? `
+              <button disabled style="background:#f1f5f9; border:1px solid #cbd5e1; color:#059669; padding:8px 16px; border-radius:8px; font-weight:700; font-size:12.5px; cursor:default;">
+                ✅ 您已确认提交终稿 (等待组员 ${finalSubmittedCount}/${totalCount})
+              </button>
+            ` : `
+              <button id="btn-final-submit" style="background:linear-gradient(135deg, #059669, #047857); border:none; color:white; padding:8px 18px; border-radius:8px; font-weight:700; cursor:pointer; font-size:13px; box-shadow:0 3px 10px rgba(5,150,105,0.25);">
+                🚀 确认提交论文终稿
+              </button>
+            `)
+          )}
         </div>
       </div>
 
       <!-- 终稿修改确认进度提示 -->
-      ${!isFinalSubmitted ? `
+      ${!isFinalSubmitted && activeTab === 'defense' ? `
         <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:6px 14px; display:flex; justify-content:space-between; align-items:center; font-size:12px;">
           <span style="color:#475569; font-weight:700;">📝 终稿修改确认进度: <b style="color:${isRevisionFullyConfirmed ? '#059669' : '#2563eb'};">${confirmedRevCount}/${totalCount}</b> 人已确认进入终稿修改 ${isRevisionFullyConfirmed ? '<span style="color:#059669; margin-left:6px;">(🎉 全员已确认，终稿修改已解锁，答辩已锁定)</span>' : '<span style="color:#d97706; margin-left:6px;">(全员确认后自动解锁终稿修改)</span>'}</span>
           <div style="display:flex; gap:6px;">
@@ -2423,6 +2439,21 @@ function renderStage3Canvas(canvas, state, handlers) {
               const isConf = confirmedRevMap[m.id] || confirmedRevMap[m.studentCode] || confirmedRevMap[m.username] || (m.name && confirmedRevMap[m.name]);
               return `<span style="font-size:11px; padding:1px 8px; border-radius:10px; font-weight:700; background:${isConf ? '#ecfdf5' : '#ffffff'}; color:${isConf ? '#059669' : '#94a3b8'}; border:1px solid ${isConf ? '#a7f3d0' : '#e2e8f0'};">
                 ${isConf ? '✓' : '○'} ${m.name}
+              </span>`;
+            }).join('')}
+          </div>
+        </div>
+      ` : ''}
+
+      <!-- 终稿提交全员确认进度提示 -->
+      ${!state.isFinalSubmitted && activeTab === 'editor' ? `
+        <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:6px 14px; display:flex; justify-content:space-between; align-items:center; font-size:12px;">
+          <span style="color:#475569; font-weight:700;">🚀 终稿提交确认进度: <b style="color:${isAllFinalSubmitted ? '#059669' : '#059669'};">${finalSubmittedCount}/${totalCount}</b> 人已确认提交 ${isAllFinalSubmitted ? '<span style="color:#059669; margin-left:6px;">(🎉 全员已确认提交)</span>' : '<span style="color:#d97706; margin-left:6px;">(需全组所有成员均确认提交后正式归档入库)</span>'}</span>
+          <div style="display:flex; gap:6px;">
+            ${membersList.map(m => {
+              const isSub = finalSubmittedMap[m.id] || finalSubmittedMap[m.studentCode] || finalSubmittedMap[m.username] || (m.name && finalSubmittedMap[m.name]);
+              return `<span style="font-size:11px; padding:1px 8px; border-radius:10px; font-weight:700; background:${isSub ? '#ecfdf5' : '#ffffff'}; color:${isSub ? '#059669' : '#94a3b8'}; border:1px solid ${isSub ? '#a7f3d0' : '#e2e8f0'};">
+                ${isSub ? '✓' : '○'} ${m.name}
               </span>`;
             }).join('')}
           </div>

@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260830_v736";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash } from "./utils.js?v=20260830_v736";
-import { callCozeAgentAPI } from "./agents.js?v=20260830_v736";
-import { AuthManager } from "./auth.js?v=20260830_v736";
-import { CloudSyncEngine } from "./sync.js?v=20260830_v736";
-import { renderLoginView } from "./login.js?v=20260830_v736";
-import { renderTeacherPortal } from "./teacher.js?v=20260830_v736";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260830_v736";
+} from "./constants.js?v=20260830_v737";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash } from "./utils.js?v=20260830_v737";
+import { callCozeAgentAPI } from "./agents.js?v=20260830_v737";
+import { AuthManager } from "./auth.js?v=20260830_v737";
+import { CloudSyncEngine } from "./sync.js?v=20260830_v737";
+import { renderLoginView } from "./login.js?v=20260830_v737";
+import { renderTeacherPortal } from "./teacher.js?v=20260830_v737";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260830_v737";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260830_v736";
+} from "./editor.js?v=20260830_v737";
 
 // Make renderChat available on window for sync callbacks
 if (typeof window !== "undefined") {
@@ -3808,48 +3808,83 @@ ${propText}
 
       onFinalSubmit: () => { 
         if (this.state.isFinalSubmitted) {
-          alert('🔒 论文终稿已于此前成功提交！目前处于全盘只读归档模式，可随时切页查阅各阶段记录。');
+          alert('🔒 论文终稿已于此前成功全员提交！目前处于全盘只读归档模式，可随时切页查阅各阶段记录。');
           return;
         }
-        const topicTitle = this.state.stage1.mergedTitle || '本组研究设计方案';
-        const confirmSub = confirm(`🚀 确认提交《${topicTitle}》期末方案终稿？\n\n提交后本组的方案与研讨矩阵将锁定归档呈递至教师端，其他小组不受影响！提交后将自动标记所有前置通知已读，并弹窗引导进入课程评估问卷！`);
-        if (confirmSub) {
+        const user = this.state.currentUser || 'A';
+        const s3 = this.state.stage3;
+        let memberArr = [];
+        if (Array.isArray(this.state.members)) memberArr = this.state.members;
+        else if (this.state.members && typeof this.state.members === 'object') memberArr = Object.values(this.state.members);
+        if (memberArr.length === 0 && this.authManager) {
+          const u = this.authManager.getCurrentUser();
+          const effClassId = this.state.activeStudentClassId || u?.classId || 'class_101';
+          const effGroup = this.authManager.getStudentActiveGroup(u, effClassId);
+          memberArr = this.authManager.getGroupMembersForWorkspace(effGroup?.id || 'group_1');
+        }
+        const totalMembersCount = memberArr.length > 0 ? memberArr.length : 3;
+
+        if (!s3.finalSubmittedMembers) s3.finalSubmittedMembers = {};
+        s3.finalSubmittedMembers[user] = true;
+        const currMemObj = memberArr.find(m => m && (m.id === user || m.studentCode === user || m.username === user || m.name === user));
+        if (currMemObj) {
+          if (currMemObj.id) s3.finalSubmittedMembers[currMemObj.id] = true;
+          if (currMemObj.studentCode) s3.finalSubmittedMembers[currMemObj.studentCode] = true;
+          if (currMemObj.username) s3.finalSubmittedMembers[currMemObj.username] = true;
+          if (currMemObj.name) s3.finalSubmittedMembers[currMemObj.name] = true;
+        }
+
+        const finalSubmittedCount = memberArr.filter(m => m && (s3.finalSubmittedMembers[m.id] || s3.finalSubmittedMembers[m.studentCode] || s3.finalSubmittedMembers[m.username] || (m.name && s3.finalSubmittedMembers[m.name]))).length;
+        const memberName = currMemObj ? currMemObj.name : user;
+        const currentStage = this.state.currentStage || 'stage3';
+
+        const submitMsg = {
+          sender: user,
+          senderName: memberName,
+          text: `📢 [终稿提交确认]: 我 (${memberName}) 已确认提交论文终稿！（全组终稿提交确认进度: ${finalSubmittedCount}/${totalMembersCount} 人）`,
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          _timeMs: Date.now()
+        };
+        if (!this.state.chatLogs[currentStage]) this.state.chatLogs[currentStage] = [];
+        this.state.chatLogs[currentStage].push(submitMsg);
+
+        if (finalSubmittedCount >= totalMembersCount) {
           this.state.isFinalSubmitted = true;
-          const currentStage = this.state.currentStage;
-          const currentUser = this.state.currentUser;
-          const currentUserObj = this.authManager.getCurrentUser();
+          s3.isRevisionConfirmed = true;
+          const currentUserObj = this.authManager ? this.authManager.getCurrentUser() : null;
           const activeTaskId = this.state.activeTaskId || 'task_default';
           const userGroupId = (currentUserObj && currentUserObj.groupId) ? currentUserObj.groupId : 'group_1';
 
-          // ⚡ 提交终稿后：自动将当前任务的所有前置通知/问卷标记为已读
           if (this.authManager && this.authManager.markAllTaskAnnouncementsRead) {
             this.authManager.markAllTaskAnnouncementsRead(activeTaskId, userGroupId);
           }
 
-          const submitMsg = {
-            sender: currentUser,
-            text: `🎉 【期末论文终稿成功提交告知】全组已完成论文终稿与答辩质询归档，方案已锁定并提交至教师端！大家可以随时返回各阶段查阅！`,
-            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-            _timeMs: Date.now()
-          };
-          if (!this.state.chatLogs[currentStage]) this.state.chatLogs[currentStage] = [];
-          this.state.chatLogs[currentStage].push(submitMsg);
-
           const neutralFinalMsg = {
             sender: 'neutral',
-            text: `🏆 【中间委员 Agent 祝贺】热烈祝贺小组圆满完成本期写作任务与答辩！终稿已全盘锁入云端归档库。请全组成员点击弹窗填写课程评估问卷！`,
+            text: `🏆 【中间委员·答辩终审总结与祝贺】：热烈祝贺全组成员 (${totalMembersCount}/${totalMembersCount} 人) 已全部确认提交论文终稿！本组正文与答辩成果已正式全盘锁定归档呈递至教师端！请各位同学点击上方【📋 打开问卷填写界面】完成问卷！`,
             timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-            _timeMs: Date.now()
+            _timeMs: Date.now() + 50
           };
           this.state.chatLogs[currentStage].push(neutralFinalMsg);
 
           this.syncStage3();
           this.syncChatLogs();
+          if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
           this.renderStudentWorkspace();
-          
+          renderChat(this.state);
+
+          alert(`🎉 恭喜！组内全员 (${totalMembersCount}/${totalMembersCount} 人) 已全部确认提交论文终稿！\n\n本组期末论文与答辩成果已正式归档提交至教师端！请每位同学填写课程体验评估问卷。`);
           setTimeout(() => {
             this.showQuestionnaireModal();
           }, 500);
+        } else {
+          this.syncStage3();
+          this.syncChatLogs();
+          if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+          this.renderStudentWorkspace();
+          renderChat(this.state);
+
+          alert(`✅ 您 (${memberName}) 已成功确认提交论文终稿！\n\n当前组内终稿提交确认进度：${finalSubmittedCount}/${totalMembersCount} 人已确认。\n⚠️ 必须全组所有成员均完成确认提交后，系统才会正式将终稿归档提交至教师端！请提醒组内其他同学尽快确认提交。`);
         }
       }
     };

@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState } from './constants.js?v=20260830_v736';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin } from './utils.js?v=20260830_v736';
+import { InitialState } from './constants.js?v=20260830_v737';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin } from './utils.js?v=20260830_v737';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -958,6 +958,14 @@ export class CloudSyncEngine {
           const mergedConf = { ...localConf, ...remoteS3.confirmedMembers };
           if (JSON.stringify(localConf) !== JSON.stringify(mergedConf)) {
             this.app.state.stage3.confirmedMembers = mergedConf;
+            needWorkspaceRender = true;
+          }
+        }
+        if (remoteS3.finalSubmittedMembers) {
+          const localFinal = this.app.state.stage3.finalSubmittedMembers || {};
+          const mergedFinal = { ...localFinal, ...remoteS3.finalSubmittedMembers };
+          if (JSON.stringify(localFinal) !== JSON.stringify(mergedFinal)) {
+            this.app.state.stage3.finalSubmittedMembers = mergedFinal;
             needWorkspaceRender = true;
           }
         }
