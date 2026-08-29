@@ -16,7 +16,7 @@ TARGET_DIRS=($(printf "%s\n" "${TARGET_DIRS[@]}" | sort -u))
 
 echo "📁 目标目录: ${TARGET_DIRS[*]}"
 
-TARGET_VERSION="20260829_v682"
+TARGET_VERSION="20260829_v683"
 
 echo "⚡ [2/4] 极速同步最新代码包 ($TARGET_VERSION)..."
 TMP=/tmp/jizhi_update
@@ -157,6 +157,9 @@ dirs.forEach(d => {
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_hide_header X-Frame-Options;
+        proxy_hide_header Content-Security-Policy;
+        add_header X-Frame-Options "SAMEORIGIN" always;
         proxy_buffering off;
         proxy_http_version 1.1;
         proxy_read_timeout 3600s;
@@ -175,53 +178,17 @@ dirs.forEach(d => {
         proxy_read_timeout 3600s;
         proxy_send_timeout 3600s;
     }
-    location ~* \.min\.(js|css)(\.map)?$ {
+    location ~* \.(min\.js|min\.css)(\.map)?$ {
         proxy_pass http://127.0.0.1:9001;
         proxy_set_header Host $http_host;
     }
-    location ^~ /assets/ {
-        proxy_pass http://127.0.0.1:9001/assets/;
-        proxy_set_header Host $http_host;
-    }
-    location ~* ^/(padbootstrap|timesliderbootstrap|adminbootstrap) {
+    location ~* ^/(assets|static|javascripts|pluginfw|locales|tests|ep)/ {
         proxy_pass http://127.0.0.1:9001;
         proxy_set_header Host $http_host;
     }
-    location ^~ /manifest.json {
-        proxy_pass http://127.0.0.1:9001/manifest.json;
+    location ~* ^/(padbootstrap|timesliderbootstrap|adminbootstrap|plugin-definitions|manifest\.json|locales\.json) {
+        proxy_pass http://127.0.0.1:9001;
         proxy_set_header Host $http_host;
-    }
-    location ^~ /plugin-definitions {
-        proxy_pass http://127.0.0.1:9001/plugin-definitions;
-        proxy_set_header Host $http_host;
-    }
-    location ^~ /static {
-        proxy_pass http://127.0.0.1:9001/static;
-        proxy_set_header Host $host;
-    }
-    location ^~ /javascripts {
-        proxy_pass http://127.0.0.1:9001/javascripts;
-        proxy_set_header Host $host;
-    }
-    location ^~ /pluginfw {
-        proxy_pass http://127.0.0.1:9001/pluginfw;
-        proxy_set_header Host $host;
-    }
-    location ^~ /locales {
-        proxy_pass http://127.0.0.1:9001/locales;
-        proxy_set_header Host $host;
-    }
-    location ^~ /locales.json {
-        proxy_pass http://127.0.0.1:9001/locales.json;
-        proxy_set_header Host $host;
-    }
-    location ^~ /tests {
-        proxy_pass http://127.0.0.1:9001/tests;
-        proxy_set_header Host $host;
-    }
-    location ^~ /ep {
-        proxy_pass http://127.0.0.1:9001/ep;
-        proxy_set_header Host $host;
     }
     location ^~ /ws {
         proxy_pass http://127.0.0.1:1234;
