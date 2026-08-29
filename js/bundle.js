@@ -11092,7 +11092,7 @@
               this.state.stage2PendingReviewingNudgeSent = true;
               const msg = {
                 sender: 'managingEditor',
-                text: `🤝 【责任编辑·分歧研讨破冰提醒】：刚才梳理出的核心分歧关乎整篇论文的论证根基！大家先别有顾虑，👉 请组长带头在讨论区抛出你的看法，大家先用 2 分钟把修改思路对齐，磨刀不误砍柴工，全组商定后再动笔效率会更高！`,
+                text: `🤝 【责任编辑·分歧研讨破冰提醒】：刚才梳理出的核心分歧关乎整篇论文的论证根基！大家先别有顾虑，👉 小组成员先用 2 分钟在讨论区把修改思路对齐，磨刀不误砍柴工，全组商定后再动笔效率会更高！若对修改方向有争议随时 @责任编辑 协助梳理！`,
                 timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
                 _timeMs: now,
                 stage: 'stage2'
