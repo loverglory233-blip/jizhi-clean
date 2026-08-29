@@ -1819,6 +1819,70 @@ function renderStage2Canvas(canvas, state, handlers) {
     const wordBadge = canvas.querySelector('#stage2-word-count-num');
     if (wordBadge) wordBadge.innerText = String(plainTextLen);
 
+    // 📋 动态增量就地刷新【半程修正清单】(避免重绘 Etherpad iframe 导致内存泄漏或丢失光标)
+    const planCardContainer = canvas.querySelector('#stage2-action-plan-card');
+    if (planCardContainer) {
+      if (actionPlan && actionPlan.isGenerated && Array.isArray(actionPlan.items) && actionPlan.items.length > 0) {
+        planCardContainer.outerHTML = `
+          <div id="stage2-action-plan-card" style="background:#ecfdf5; border:1px solid #a7f3d0; border-radius:10px; padding:10px 16px; margin-bottom:10px; transition:all 0.2s ease; flex-shrink:0; box-shadow:0 2px 6px rgba(5,150,105,0.06);">
+            <div style="display:flex; justify-content:space-between; align-items:center; cursor:pointer;" id="btn-toggle-action-plan">
+              <div style="font-size:13px; font-weight:800; color:#059669; display:flex; align-items:center; gap:6px;">
+                <span>📋 【半程修正清单】(审稿专家下发 3 项修改要求 · 完成可点击打勾)</span>
+                <span style="font-size:11px; background:#d1fae5; color:#065f46; padding:1px 8px; border-radius:10px; font-weight:700;">已生成</span>
+              </div>
+              <span id="icon-toggle-action-plan" style="font-size:11.5px; color:#059669; font-weight:700;">▲ 收起</span>
+            </div>
+            <div id="body-action-plan-items" style="font-size:12.5px; color:#1e293b; display:flex; flex-direction:column; gap:8px; margin-top:8px;">
+              ${actionPlan.items.map((item, idx) => {
+                const isChecked = !!(actionPlan.completedMap && actionPlan.completedMap[idx]);
+                let formattedItem = escapeHtml(item);
+                return `
+                  <div class="action-plan-item-box" data-item-idx="${idx}" style="line-height:1.6; background:${isChecked ? '#f0fdf4' : '#ffffff'}; border:1px solid ${isChecked ? '#86efac' : '#e2e8f0'}; border-radius:8px; padding:8px 12px; box-shadow:0 1px 3px rgba(0,0,0,0.02); display:flex; align-items:flex-start; gap:8px; cursor:pointer;">
+                    <input type="checkbox" class="action-plan-check-input" data-idx="${idx}" ${isChecked ? 'checked' : ''} style="cursor:pointer; margin-top:4px; transform:scale(1.15);">
+                    <div style="flex:1; text-decoration:${isChecked ? 'line-through' : 'none'}; color:${isChecked ? '#166534' : '#1e293b'};">
+                      <b style="color:${isChecked ? '#166534' : '#0f172a'}; margin-right:4px;">${idx + 1}.</b> ${formattedItem}
+                    </div>
+                  </div>
+                `;
+              }).join('')}
+            </div>
+          </div>
+        `;
+        
+        // 绑定清单交互事件
+        const newPlanCard = canvas.querySelector('#stage2-action-plan-card');
+        if (newPlanCard) {
+          const btnToggle = newPlanCard.querySelector('#btn-toggle-action-plan');
+          if (btnToggle) {
+            btnToggle.onclick = (e) => {
+              if (e.target.closest('.action-plan-item-box') || e.target.classList.contains('action-plan-check-input')) return;
+              const bodyItems = newPlanCard.querySelector('#body-action-plan-items');
+              const iconToggle = newPlanCard.querySelector('#icon-toggle-action-plan');
+              if (bodyItems) {
+                const isHidden = bodyItems.style.display === 'none';
+                bodyItems.style.display = isHidden ? 'flex' : 'none';
+                if (iconToggle) iconToggle.innerText = isHidden ? '▲ 收起' : '▼ 展开';
+              }
+            };
+          }
+          newPlanCard.querySelectorAll('.action-plan-item-box').forEach(box => {
+            box.onclick = (e) => {
+              const idx = Number(box.dataset.itemIdx);
+              if (!state.stage2.actionPlan.completedMap) state.stage2.actionPlan.completedMap = {};
+              state.stage2.actionPlan.completedMap[idx] = !state.stage2.actionPlan.completedMap[idx];
+              if (handlers.onActionPlanToggle) {
+                handlers.onActionPlanToggle(idx, state.stage2.actionPlan.completedMap[idx]);
+              } else if (window.app) {
+                window.app.syncStage2();
+                if (window.app.cloudSyncEngine) window.app.cloudSyncEngine.pushSnapshot();
+                window.app.renderStudentWorkspace();
+              }
+            };
+          });
+        }
+      }
+    }
+
     const draftCountBadge = canvas.querySelector('#stage2-draft-count-text');
     if (draftCountBadge) {
       draftCountBadge.innerText = isDraftFullyConfirmed ? '✅ 全员已确认完成初稿' : `${confirmedDraftCount}/${totalCount} 人已确认`;
