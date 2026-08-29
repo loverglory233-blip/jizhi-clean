@@ -16,7 +16,7 @@ TARGET_DIRS=($(printf "%s\n" "${TARGET_DIRS[@]}" | sort -u))
 
 echo "📁 目标目录: ${TARGET_DIRS[*]}"
 
-TARGET_VERSION="20260829_v669"
+TARGET_VERSION="20260829_v670"
 
 echo "⚡ [2/4] 极速同步最新代码包 ($TARGET_VERSION)..."
 TMP=/tmp/jizhi_update
@@ -240,7 +240,7 @@ if [ -n "$EP_DIR" ]; then
   echo "jizhi_academic_secret_key_2026" > "$EP_DIR/APIKEY.txt" 2>/dev/null || true
   chmod 644 "$EP_DIR/APIKEY.txt" 2>/dev/null || true
 
-  # 写入高可用无拦截 settings.json
+  # 写入高可用无拦截且包含全套学术插件工具栏的 settings.json
   cat << 'EPSETEOF' > "$EP_DIR/settings.json"
 {
   "title": "JIZHI Academic Etherpad",
@@ -259,6 +259,20 @@ if [ -n "$EP_DIR" ]; then
     "useMonospaceFont": false,
     "userName": "学术组员"
   },
+  "toolbar": {
+    "left": [
+      ["bold", "italic", "underline", "strikethrough"],
+      ["orderedlist", "unorderedlist", "indent", "outdent"],
+      ["heading", "font-size", "font-family", "font-color"],
+      ["left", "center", "right", "justify"],
+      ["insertTable", "imageUpload"],
+      ["undo", "redo"],
+      ["clearauthorship"]
+    ],
+    "right": [
+      ["importexport", "timeslider", "settings", "showusers"]
+    ]
+  },
   "suppressErrorsInPadText": true,
   "requireAuthentication": false,
   "requireAuthorization": false,
@@ -266,30 +280,33 @@ if [ -n "$EP_DIR" ]; then
   "socketTransportProtocols": ["websocket", "polling"],
   "loadTest": false,
   "exposeVersion": false,
-  "minify": true,
+  "minify": false,
   "maxAge": 21600000
 }
 EPSETEOF
 
-  # 🧹 彻底清除导致前端 pad.js 白屏/卡死 loading 的未兼容旧插件注册表
-  rm -f "$EP_DIR/var/plugin-definitions.json" 2>/dev/null || true
-
-  echo "   🔄 重启 Etherpad 官方纯净高可用进程..."
-  fuser -k 9001/tcp 2>/dev/null || true
-  pkill -9 -f "etherpad" 2>/dev/null || true
-  sleep 1
+  # 执行全套插件防御式安全装载（确保 12 大插件 100% 挂载且防冲突报错）
+  if [ -n "$MAIN_DIR" ] && [ -f "$MAIN_DIR/bulletproof_etherpad_startup.sh" ]; then
+    cp "$MAIN_DIR/bulletproof_etherpad_startup.sh" "$EP_DIR/" 2>/dev/null || true
+  fi
   cd "$EP_DIR"
-  git checkout src/ 2>/dev/null || true
-  export NODE_ENV=production
-  if [ -f "src/node/server.js" ]; then
-    nohup node src/node/server.js > /var/log/etherpad.log 2>&1 &
-  elif [ -f "bin/run.sh" ]; then
-    nohup bash bin/run.sh --root > /var/log/etherpad.log 2>&1 &
+  if [ -f "bulletproof_etherpad_startup.sh" ]; then
+    bash bulletproof_etherpad_startup.sh 2>&1 || true
+  else
+    fuser -k 9001/tcp 2>/dev/null || true
+    pkill -9 -f "etherpad" 2>/dev/null || true
+    sleep 1
+    export NODE_ENV=production
+    if [ -f "src/node/server.js" ]; then
+      nohup node src/node/server.js > /var/log/etherpad.log 2>&1 &
+    elif [ -f "bin/run.sh" ]; then
+      nohup bash bin/run.sh --root > /var/log/etherpad.log 2>&1 &
+    fi
   fi
 
   for i in {1..15}; do
     if curl -s -I http://127.0.0.1:9001/p/test 2>/dev/null | grep -E "HTTP/(1.1|2) (200|302|404)" >/dev/null; then
-      echo "   🟢 Etherpad 官方纯净协同引擎就绪！(耗时 $i 秒)"
+      echo "   🟢 Etherpad 学术全插件协同引擎就绪！(耗时 $i 秒)"
       break
     fi
     sleep 1
