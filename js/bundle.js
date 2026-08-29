@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260830_v719
+ * Version: 20260830_v720
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260830_v719';
+  const APP_VERSION = '20260830_v720';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -13670,10 +13670,15 @@
           const totalMembersCount = memberArr.length > 0 ? memberArr.length : 3;
 
           // 🛡️ 极速状态合并：提取本地持久化与内存中已有所有确认记录，防止并发冲刷
-          const groupId = this.getEffectiveGroupId();
-          const cachedState = this.getGroupState(groupId);
-          if (cachedState && cachedState.stage2 && cachedState.stage2.confirmedMembers) {
-            s2.confirmedMembers = { ...(cachedState.stage2.confirmedMembers || {}), ...(s2.confirmedMembers || {}) };
+          const groupId = (typeof this.getEffectiveGroupId === 'function') ? this.getEffectiveGroupId() : (this.state.activeGroupId || 'group_1');
+          const cachedRaw = localStorage.getItem(`jizhi_group_state_${groupId}`);
+          if (cachedRaw) {
+            try {
+              const cachedState = JSON.parse(cachedRaw);
+              if (cachedState && cachedState.stage2 && cachedState.stage2.confirmedMembers) {
+                s2.confirmedMembers = { ...(cachedState.stage2.confirmedMembers || {}), ...(s2.confirmedMembers || {}) };
+              }
+            } catch(e) {}
           }
           if (!s2.confirmedMembers) s2.confirmedMembers = {};
 
