@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260830_v711";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash } from "./utils.js?v=20260830_v711";
-import { callCozeAgentAPI } from "./agents.js?v=20260830_v711";
-import { AuthManager } from "./auth.js?v=20260830_v711";
-import { CloudSyncEngine } from "./sync.js?v=20260830_v711";
-import { renderLoginView } from "./login.js?v=20260830_v711";
-import { renderTeacherPortal } from "./teacher.js?v=20260830_v711";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260830_v711";
+} from "./constants.js?v=20260830_v712";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash } from "./utils.js?v=20260830_v712";
+import { callCozeAgentAPI } from "./agents.js?v=20260830_v712";
+import { AuthManager } from "./auth.js?v=20260830_v712";
+import { CloudSyncEngine } from "./sync.js?v=20260830_v712";
+import { renderLoginView } from "./login.js?v=20260830_v712";
+import { renderTeacherPortal } from "./teacher.js?v=20260830_v712";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260830_v712";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260830_v711";
+} from "./editor.js?v=20260830_v712";
 
 // Make renderChat available on window for sync callbacks
 if (typeof window !== "undefined") {
@@ -3946,7 +3946,6 @@ ${propText}
     // ① 必须至少有 2 名及以上组员【当前真实在线活跃】（30秒内有心跳/操作），如果人都不在线则绝不自言自语汇报！
     // ② 每次提醒后至少间隔 15 分钟 (900秒) 冷却期；
     // ③ 正文相比上次提醒至少新增推进了 150 字；
-    const membersList = Object.values(this.state.members || {});
     const presence = this.state.presence || {};
     const activeOnlineCount = membersList.filter(m => {
       const p = presence[m.studentCode] || presence[m.id];
