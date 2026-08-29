@@ -42,22 +42,15 @@ done
 
 echo ""
 echo "3.6️⃣ [动态 Chunk 深度探测] 检查 Vite 编译产物目录及子模块:"
-if [ -d "/www/wwwroot/etherpad-lite/src/static/dist" ] || [ -d "/www/wwwroot/etherpad-lite/src/node_modules" ]; then
-    find /www/wwwroot/etherpad-lite/src/static -name "*.min.js" 2>/dev/null | head -n 10 | while read -r jsfile; do
-        REL_NAME=$(basename "$jsfile")
-        CODE=$(curl -s -o /dev/null -w "%{http_code}" "http://127.0.0.1/$REL_NAME" 2>/dev/null || echo "000")
-        echo "   - [子Chunk] /$REL_NAME => HTTP $CODE"
-    done
-fi
+find /www/wwwroot/etherpad-lite -name "*bootstrap*.min.js" 2>/dev/null | head -n 10 | while read -r jsfile; do
+    REL_NAME=$(basename "$jsfile")
+    CODE=$(curl -s -o /dev/null -w "%{http_code}" "http://127.0.0.1/$REL_NAME" 2>/dev/null || echo "000")
+    echo "   - [子Chunk] /$REL_NAME => HTTP $CODE (来自: $jsfile)"
+done
 
 echo ""
-echo "3.7️⃣ [Pad 页面 HTML 结构探测] 检查 #padpage 与 #editorloadingbox:"
-if echo "$PAD_HTML" | grep -q 'id="padpage"'; then
-    echo "   🟢 pad.html 包含 #padpage DOM 结构！"
-else
-    echo "   🔴 pad.html 未找到 #padpage，响应预览:"
-    echo "$PAD_HTML" | head -n 10
-fi
+echo "3.7️⃣ [Pad 页面 HTML Body 结构分析]:"
+echo "$PAD_HTML" | grep -A 25 '<body' | head -n 25
 
 # 4. 检查 Socket.IO 握手 (关键：如果这个失败就会导致永久 loading)
 echo ""
