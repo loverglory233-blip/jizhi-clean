@@ -2559,7 +2559,233 @@ ${recentDefenseChat}
         this.renderStudentWorkspace();
       }, 800);
     }
-    this.renderStudentWorkspace();
+  async handleAiGenerateContract() {
+    const s1 = this.state.stage1 || {};
+    const proposals = s1.proposals || [];
+    const logs = (this.state.chatLogs && this.state.chatLogs.stage1) || [];
+    const userLogs = logs.filter(m => m.sender && !['auctioneer', 'editor', 'system', 'neutral'].includes(m.sender));
+    let members = [];
+    if (Array.isArray(this.state.members)) members = this.state.members;
+    else if (this.state.members && typeof this.state.members === 'object') members = Object.values(this.state.members);
+    const totalMembersCount = members.length || 3;
+    const membersInfo = members.map(m => `- ${m.name || m.studentCode || m.id} (学号/ID: ${m.studentCode || m.id})`).join('\n');
+
+    // 🛡️ 协同门禁：必须至少有 1 个选题提案
+    if (proposals.length === 0) {
+      document.querySelectorAll('.jizhi-custom-modal').forEach(m => m.remove());
+      const hintModal = document.createElement('div');
+      hintModal.className = 'modal-overlay jizhi-custom-modal';
+      hintModal.innerHTML = `
+        <div style="width:460px; max-width:92vw; background:#ffffff; border-radius:16px; box-shadow:0 20px 40px rgba(15,23,42,0.22); overflow:hidden; border:1px solid #e2e8f0; animation:modalFadeIn 0.25s ease;">
+          <div style="background:linear-gradient(135deg, #d97706, #f59e0b); padding:18px 24px; color:#ffffff; display:flex; align-items:center; gap:12px;">
+            <span style="font-size:24px;">💡</span>
+            <div>
+              <h3 style="margin:0; font-size:16px; font-weight:800; color:#ffffff;">研讨协商提示</h3>
+              <div style="font-size:11.5px; opacity:0.9; margin-top:2px;">学术合作公约需先有选题提案</div>
+            </div>
+          </div>
+          <div style="padding:22px 24px; font-size:13.5px; color:#334155; line-height:1.65; display:flex; flex-direction:column; gap:12px;">
+            <div>
+              请小组成员先点击左侧<b>【提交我的选题】</b>提出至少 1 个研究设想，再生成公约草案！
+            </div>
+            <div style="font-size:12px; color:#64748b; background:#f8fafc; padding:8px 12px; border-radius:8px; border:1px solid #e2e8f0;">
+              👉 <b>提示</b>：全组也可以直接在左侧输入框中自主分工录入与修改。
+            </div>
+          </div>
+          <div style="background:#f8fafc; border-top:1px solid #e2e8f0; padding:14px 24px; display:flex; justify-content:flex-end;">
+            <button class="modal-btn submit" id="btn-close-hint-modal" style="background:linear-gradient(135deg, #d97706, #f59e0b); border:none; color:white; padding:8px 22px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer;">知道了</button>
+          </div>
+        </div>
+      `;
+      document.body.appendChild(hintModal);
+      hintModal.querySelector('#btn-close-hint-modal').addEventListener('click', () => hintModal.remove());
+      hintModal.addEventListener('click', (e) => { if (e.target === hintModal) hintModal.remove(); });
+      return;
+    }
+
+    // 1. 提炼融合研究主题（区分【全票一致】与【分歧协商】）
+    const tally = {};
+    Object.values(s1.votes || {}).forEach(pId => { if (pId) tally[pId] = (tally[pId] || 0) + 1; });
+    let winningP = null;
+    let maxV = 0;
+    let isUnanimous = false;
+
+    proposals.forEach(p => {
+      const cnt = tally[p.id] || 0;
+      if (cnt > maxV) {
+        maxV = cnt;
+        winningP = p;
+      }
+    });
+
+    if (winningP && maxV >= totalMembersCount && totalMembersCount > 0) {
+      isUnanimous = true;
+    }
+
+    // 提取研讨切片
+    const s1ChatLogs = (this.state.chatLogs && this.state.chatLogs.stage1) ? this.state.chatLogs.stage1 : [];
+    const voteNoticeIdx = s1ChatLogs.findIndex(m => m && m.text && (m.text.includes('落槌定题') || m.text.includes('投票结果播报') || m.text.includes('全票一致通过') || m.text.includes('选题确定')));
+    const relevantLogs = (voteNoticeIdx >= 0) ? s1ChatLogs.slice(voteNoticeIdx) : s1ChatLogs;
+    const userLogsAfterVote = relevantLogs.filter(m => m && m.sender && !AgentProfiles[m.sender] && m.sender !== 'system');
+    const chatSnippet = userLogs.map(m => `${m.senderName || m.sender}: ${m.text}`).join('\n');
+    const chatSnippetAfterVote = userLogsAfterVote.map(m => `${m.senderName || m.sender}: ${m.text}`).join('\n');
+
+    let determinedTopic = '';
+    let topicDecisionReason = '';
+
+    if (isUnanimous && winningP) {
+      determinedTopic = winningP.title;
+      topicDecisionReason = `🎉 小组成员以 ${maxV}/${totalMembersCount} 全票一致通过该选题！`;
+    } else {
+      const matchedFromChat = proposals.find(p => chatSnippet.includes(p.title));
+      determinedTopic = matchedFromChat ? matchedFromChat.title : (winningP ? winningP.title : (proposals[0] ? proposals[0].title : ''));
+      topicDecisionReason = winningP ? `⚖️ 投票综合遴选推举最高票选题，并结合研讨记录生成。` : `⚖️ 已读取全组研讨记录与提案生成共识选题。`;
+    }
+
+    if (!s1.mergedTitle || s1.mergedTitle.trim().length === 0) {
+      s1.mergedTitle = determinedTopic || '待组员协商填入融合主题';
+    }
+
+    if (!s1.contract) s1.contract = {};
+    s1.contract.isDraftGenerated = true;
+    s1.contract._draftedTime = Date.now();
+    if (!s1.contract.taskAssignments) s1.contract.taskAssignments = {};
+    const allTasks = (this.authManager) ? this.authManager.getTasks() : [];
+    const curTask = allTasks.find(t => t.id === this.state.activeTaskId);
+    const totalDurationMin = (curTask && curTask.durationMinutes) ? Number(curTask.durationMinutes) : 150;
+    const stage2BudgetMin = Math.max(20, Math.round(totalDurationMin * 0.70)); // 阶段二正文起草总预算时长
+
+    // 默认按任务时长科学比例初始化（学术黄金比例）
+    s1.contract.timeAllocations = {
+      background: Math.max(5, Math.round(stage2BudgetMin * 0.18)),
+      literature: Math.max(5, Math.round(stage2BudgetMin * 0.22)),
+      questions: Math.max(5, Math.round(stage2BudgetMin * 0.15)),
+      method: Math.max(8, Math.round(stage2BudgetMin * 0.25)),
+      reflection: Math.max(3, Math.round(stage2BudgetMin * 0.12)),
+      references: Math.max(2, Math.round(stage2BudgetMin * 0.08))
+    };
+
+    // 本地快速规则填充
+    const defaultChapterTasks = [
+      '负责“一、研究背景与意义”及“二、文献综述”起草与资料整理',
+      '负责“三、研究问题与假设”及“四、研究设计与方法”方案制定',
+      '负责“五、不足与反思”撰写及全篇“六、参考文献”引文校对',
+      '负责数据分析模型构建与研究工具问卷设计'
+    ];
+
+    members.forEach((m, idx) => {
+      let assignedTask = '';
+      const myName = m.name || '';
+      const myCode = m.studentCode || m.id || '';
+      const myMsgs = userLogsAfterVote.filter(msg => msg.sender === m.id || msg.sender === myCode || (myName && msg.senderName === myName));
+      const myText = myMsgs.map(msg => msg.text || '').join(' ');
+
+      if (myText.includes('背景') || myText.includes('综述') || myText.includes('前言')) {
+        assignedTask = '负责“一、研究背景与意义”及“二、文献综述”起草与资料整理';
+      } else if (myText.includes('假设') || myText.includes('方法') || myText.includes('设计') || myText.includes('问卷') || myText.includes('实验')) {
+        assignedTask = '负责“三、研究问题与假设”及“四、研究设计与方法”方案制定';
+      } else if (myText.includes('反思') || myText.includes('不足') || myText.includes('文献') || myText.includes('校对')) {
+        assignedTask = '负责“五、不足与反思”撰写及全篇“六、参考文献”引文校对';
+      } else if (myText.includes('数据') || myText.includes('量表') || myText.includes('模型')) {
+        assignedTask = '负责数据分析模型构建与研究工具问卷设计';
+      }
+      if (!assignedTask) assignedTask = defaultChapterTasks[idx % defaultChapterTasks.length] || '协作撰写与统稿';
+      s1.contract.taskAssignments[m.id] = assignedTask;
+      if (m.studentCode) s1.contract.taskAssignments[m.studentCode] = assignedTask;
+    });
+
+    // ── 异步调用大模型进行公约数据结构化精修覆盖 ──
+    const extractPrompt = `请作为学术拍卖师，通读下方小组成员在【投票定题之后】关于任务分工与时间规划的真实研讨发言记录，提取结构化数据填入《学术合作公约草案》：
+
+【小组成员列表】:
+${membersInfo}
+
+【总任务时长参考】: 全场总时长 ${totalDurationMin} 分钟（阶段二正文起草预算约 ${stage2BudgetMin} 分钟）
+
+【投票定题后的研讨发言记录】:
+${chatSnippetAfterVote || chatSnippet || '成员协商协作撰写'}
+
+【时间模糊/缺失推导铁律】:
+1. 若学生明确提及了具体章节时间（如“方法给40分钟”），优先采纳该明确值；
+2. 若学生时间表达模糊（如“均分/差不多就行/前边多留点”）或未提及全部 6 个章节，请按学术论文黄金权重（背景18%、综述22%、问题15%、方法25%、反思12%、文献8%）结合总起草预算（约 ${stage2BudgetMin} 分钟）合理推导补齐全部 6 大章节的时间分钟数！
+
+请严格输出合法的 JSON 格式（严禁输出任何额外 markdown 说明或自然语言）：
+{
+  "taskAssignments": {
+    "成员ID或学号": "提取的分工任务描述（支持具体内容/模块，如负责背景文献梳理、负责问卷与数据分析）"
+  },
+  "timeAllocations": {
+    "background": 25,
+    "literature": 30,
+    "questions": 25,
+    "method": 40,
+    "reflection": 20,
+    "references": 10
+  }
+}`;
+
+    callCozeAgentAPI('auctioneer', extractPrompt, { stage: 'stage1', topic: s1.mergedTitle }).then(llmRes => {
+      if (llmRes && llmRes.includes('{')) {
+        try {
+          const jsonStr = llmRes.substring(llmRes.indexOf('{'), llmRes.lastIndexOf('}') + 1);
+          const parsed = JSON.parse(jsonStr);
+          if (parsed.taskAssignments && typeof parsed.taskAssignments === 'object') {
+            Object.assign(s1.contract.taskAssignments, parsed.taskAssignments);
+          }
+          if (parsed.timeAllocations && typeof parsed.timeAllocations === 'object') {
+            Object.assign(s1.contract.timeAllocations, parsed.timeAllocations);
+          }
+          this.syncStage1();
+          if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+          this.renderStudentWorkspace(true);
+        } catch (e) {}
+      }
+    }).catch(() => {});
+
+    this.syncStage1();
+    if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+    this.renderStudentWorkspace(true);
+
+    // 拍卖师在聊天区发布权威引导播报
+    const draftNoticeMsg = {
+      sender: 'auctioneer',
+      text: `✨ 【拍卖师·已提炼公约草案】\n已读取学术研讨发言与选题投票结果，生成《团队协同合作学术合约草案》！\n\n📌 **融合研究主题**：《${s1.mergedTitle}》\n💡 **决策依据**：${topicDecisionReason}\n👉 **请组员仔细核查左侧分工与时间预算**：\n• 若与实际商议有出入，每位同学均可**直接在输入框中自主微调修改**；\n• 小组成员也可以不依赖提炼，完全自主在左侧分工填写；\n✍️ 确认无误后，全员点击【确认签署公约】即可正式生效并解锁阶段二！`,
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      _timeMs: Date.now()
+    };
+    const curStage = this.state.currentStage || 'stage1';
+    if (!this.state.chatLogs[curStage]) this.state.chatLogs[curStage] = [];
+    this.state.chatLogs[curStage].push(draftNoticeMsg);
+    this.syncChatLogs();
+
+    document.querySelectorAll('.jizhi-custom-modal').forEach(m => m.remove());
+    const succModal = document.createElement('div');
+    succModal.className = 'modal-overlay jizhi-custom-modal';
+    succModal.innerHTML = `
+      <div style="width:460px; max-width:92vw; background:#ffffff; border-radius:16px; box-shadow:0 20px 40px rgba(15,23,42,0.22); overflow:hidden; border:1px solid #e2e8f0; animation:modalFadeIn 0.25s ease;">
+        <div style="background:linear-gradient(135deg, #059669, #10b981); padding:18px 24px; color:#ffffff; display:flex; align-items:center; gap:12px;">
+          <span style="font-size:24px;">🎉</span>
+          <div>
+            <h3 style="margin:0; font-size:16px; font-weight:800; color:#ffffff;">学术合作公约草案已生成</h3>
+            <div style="font-size:11.5px; opacity:0.9; margin-top:2px;">已自动填入左侧公约区域</div>
+          </div>
+        </div>
+        <div style="padding:22px 24px; font-size:13.5px; color:#334155; line-height:1.65; display:flex; flex-direction:column; gap:12px;">
+          <div>
+            系统已自动在左侧填入<b>融合研究主题、各章节分工与时间规划</b>。
+          </div>
+          <div style="font-size:12.5px; color:#065f46; background:#ecfdf5; border:1px solid #a7f3d0; padding:10px 14px; border-radius:8px; font-weight:600;">
+            👉 请小组成员仔细检查左侧公约内容（可直接在输入框微调修改），确认无误后点击下方【✍️ 确认签署公约】生效！
+          </div>
+        </div>
+        <div style="background:#f8fafc; border-top:1px solid #e2e8f0; padding:14px 24px; display:flex; justify-content:flex-end;">
+          <button class="modal-btn submit" id="btn-close-succ-modal" style="background:linear-gradient(135deg, #059669, #10b981); border:none; color:white; padding:8px 22px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer;">立即检查公约</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(succModal);
+    succModal.querySelector('#btn-close-succ-modal').addEventListener('click', () => succModal.remove());
+    succModal.addEventListener('click', (e) => { if (e.target === succModal) succModal.remove(); });
   }
 
   async triggerStageWelcomeSpeech(stage) {
@@ -3043,260 +3269,8 @@ ${propText}
         onVote: (propId) => { this.handleVoteCast(propId); },
         onRefresh: () => { this.renderStudentWorkspace(); },
         onContractChange: () => { this.syncStage1(); },
-        onAiGenerateContract: async () => {
-          const s1 = this.state.stage1 || {};
-        const proposals = s1.proposals || [];
-        const logs = (this.state.chatLogs && this.state.chatLogs.stage1) || [];
-        const userLogs = logs.filter(m => m.sender && !['auctioneer', 'editor', 'system', 'neutral'].includes(m.sender));
-        const members = Object.values(this.state.members || {});
-        const totalMembersCount = members.length || 3;
-
-        // 1. 严格计算跨成员研讨交互轮数（发言者交替次数）与参与人数
-        const voteTime = s1._voteCompletedTime || 0;
-        const postVoteLogs = voteTime > 0
-          ? userLogs.filter(m => (m._timeMs || 0) >= (voteTime - 3000))
-          : userLogs;
-
-        let interactionTurns = 0;
-        let lastSpeaker = null;
-        const participantSet = new Set();
-
-        postVoteLogs.forEach(msg => {
-          const spk = msg.sender || msg.senderName;
-          if (spk) {
-            participantSet.add(spk);
-            if (lastSpeaker !== null && lastSpeaker !== spk) {
-              interactionTurns++; // 发言人交替换人，才计为 1 轮有效交互！
-            }
-            lastSpeaker = spk;
-          }
-        });
-
-        // 拼接学生研讨文本
-        const chatSnippet = userLogs.map(m => `${m.senderName || m.sender}: ${m.text}`).join('\n');
-        
-        // 🛡️ 严格学术协同门禁：必须提交了提案，且投票后组内交互至少达到 2 轮（跨成员交替研讨）
-        if (proposals.length === 0 || interactionTurns < 2 || participantSet.size < 2) {
-          document.querySelectorAll('.jizhi-custom-modal').forEach(m => m.remove());
-          const hintModal = document.createElement('div');
-          hintModal.className = 'modal-overlay jizhi-custom-modal';
-          hintModal.innerHTML = `
-            <div style="width:460px; max-width:92vw; background:#ffffff; border-radius:16px; box-shadow:0 20px 40px rgba(15,23,42,0.22); overflow:hidden; border:1px solid #e2e8f0; animation:modalFadeIn 0.25s ease;">
-              <div style="background:linear-gradient(135deg, #d97706, #f59e0b); padding:18px 24px; color:#ffffff; display:flex; align-items:center; gap:12px;">
-                <span style="font-size:24px;">💡</span>
-                <div>
-                  <h3 style="margin:0; font-size:16px; font-weight:800; color:#ffffff;">研讨协商提示</h3>
-                  <div style="font-size:11.5px; opacity:0.9; margin-top:2px;">学术合作公约需由小组成员共同研讨商定</div>
-                </div>
-              </div>
-              <div style="padding:22px 24px; font-size:13.5px; color:#334155; line-height:1.65; display:flex; flex-direction:column; gap:12px;">
-                <div>
-                  建议小组成员在<b>右侧协同研讨区</b>先就具体的研究细化构思、各章节分工与时间规划展开充分交流，达成共识后再点击提炼公约草案！
-                </div>
-                <div style="font-size:12px; color:#64748b; background:#f8fafc; padding:8px 12px; border-radius:8px; border:1px solid #e2e8f0;">
-                  👉 <b>提示</b>：小组成员也可不点击智能提炼，直接在左侧输入框中自主分工录入与修改。
-                </div>
-              </div>
-              <div style="background:#f8fafc; border-top:1px solid #e2e8f0; padding:14px 24px; display:flex; justify-content:flex-end;">
-                <button class="modal-btn submit" id="btn-close-hint-modal" style="background:linear-gradient(135deg, #d97706, #f59e0b); border:none; color:white; padding:8px 22px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer;">去讨论</button>
-              </div>
-            </div>
-          `;
-          document.body.appendChild(hintModal);
-          hintModal.querySelector('#btn-close-hint-modal').addEventListener('click', () => hintModal.remove());
-          hintModal.addEventListener('click', (e) => { if (e.target === hintModal) hintModal.remove(); });
-          return;
-        }
-
-        // 1. 提炼融合研究主题（区分【全票一致】与【分歧协商】）
-        const tally = {};
-        Object.values(s1.votes || {}).forEach(pId => { if (pId) tally[pId] = (tally[pId] || 0) + 1; });
-        let winningP = null;
-        let maxV = 0;
-        let isUnanimous = false;
-        let isTieOrDivergence = false;
-
-        proposals.forEach(p => {
-          const cnt = tally[p.id] || 0;
-          if (cnt > maxV) {
-            maxV = cnt;
-            winningP = p;
-            isTieOrDivergence = false;
-          } else if (cnt === maxV && maxV > 0) {
-            isTieOrDivergence = true;
-          }
-        });
-
-        if (winningP && maxV >= totalMembersCount && totalMembersCount > 0) {
-          isUnanimous = true;
-        }
-
-        // 提取【投票定题之后】到当前的所有真实研讨记录切片
-        const s1ChatLogs = (this.state.chatLogs && this.state.chatLogs.stage1) ? this.state.chatLogs.stage1 : [];
-        const voteNoticeIdx = s1ChatLogs.findIndex(m => m && m.text && (m.text.includes('落槌定题') || m.text.includes('投票结果播报') || m.text.includes('全票一致通过') || m.text.includes('选题确定')));
-        const relevantLogs = (voteNoticeIdx >= 0) ? s1ChatLogs.slice(voteNoticeIdx) : s1ChatLogs;
-        const userLogsAfterVote = relevantLogs.filter(m => m && m.sender && !AgentProfiles[m.sender] && m.sender !== 'system');
-        const chatSnippetAfterVote = userLogsAfterVote.map(m => `${m.senderName || m.sender}: ${m.text}`).join('\n');
-
-        let determinedTopic = '';
-        let topicDecisionReason = '';
-
-        if (isUnanimous && winningP) {
-          // 🏆 模式一：全票一致达成共识
-          determinedTopic = winningP.title;
-          topicDecisionReason = `🎉 小组成员以 ${maxV}/${totalMembersCount} 全票一致通过该选题！`;
-        } else {
-          // ⚖️ 模式二：存在分歧/平票 ➔ 深度读取研讨流中大家最终协商达成一致的题目
-          const matchedFromChat = proposals.find(p => chatSnippet.includes(p.title));
-          determinedTopic = matchedFromChat ? matchedFromChat.title : (winningP ? winningP.title : (proposals[0] ? proposals[0].title : ''));
-          topicDecisionReason = `⚖️ 投票存在不同意见，已深度读取研讨记录中大家最终商定的共识选题。`;
-        }
-
-        if (!s1.mergedTitle || s1.mergedTitle.trim().length === 0) {
-          s1.mergedTitle = determinedTopic || '待组员协商填入融合主题';
-        }
-
-        s1.contract.isDraftGenerated = true;
-        s1.contract._draftedTime = Date.now();
-        if (!s1.contract.taskAssignments) s1.contract.taskAssignments = {};
-        const allTasks = (this.authManager) ? this.authManager.getTasks() : [];
-        const curTask = allTasks.find(t => t.id === this.state.activeTaskId);
-        const totalDurationMin = (curTask && curTask.durationMinutes) ? Number(curTask.durationMinutes) : 150;
-        const stage2BudgetMin = Math.max(20, Math.round(totalDurationMin * 0.70)); // 阶段二正文起草总预算时长
-
-        // ── 异步调用大模型进行公约数据结构化提取（带模糊时间自适应推算） ──
-        const extractPrompt = `请作为学术拍卖师，通读下方小组成员在【投票定题之后】关于任务分工与时间规划的真实研讨发言记录，提取结构化数据填入《学术合作公约草案》：
-
-【小组成员列表】:
-${membersInfo}
-
-【总任务时长参考】: 全场总时长 ${totalDurationMin} 分钟（阶段二正文起草预算约 ${stage2BudgetMin} 分钟）
-
-【投票定题后的研讨发言记录】:
-${chatSnippetAfterVote || chatSnippet || '成员协商协作撰写'}
-
-【时间模糊/缺失推导铁律】:
-1. 若学生明确提及了具体章节时间（如“方法给40分钟”），优先采纳该明确值；
-2. 若学生时间表达模糊（如“均分/差不多就行/前边多留点”）或未提及全部 6 个章节，请按学术论文黄金权重（背景18%、综述22%、问题15%、方法25%、反思12%、文献8%）结合总起草预算（约 ${stage2BudgetMin} 分钟）合理推导补齐全部 6 大章节的时间分钟数！
-
-请严格输出合法的 JSON 格式（严禁输出任何额外 markdown 说明或自然语言）：
-{
-  "taskAssignments": {
-    "成员ID或学号": "提取的分工任务描述（支持具体内容/模块，如负责背景文献梳理、负责问卷与数据分析）"
-  },
-  "timeAllocations": {
-    "background": 25,
-    "literature": 30,
-    "questions": 25,
-    "method": 40,
-    "reflection": 20,
-    "references": 10
-  }
-}`;
-
-        // 默认按任务时长科学比例初始化（防模糊/完全不聊时间）
-        s1.contract.timeAllocations = {
-          background: Math.max(5, Math.round(stage2BudgetMin * 0.18)),
-          literature: Math.max(5, Math.round(stage2BudgetMin * 0.22)),
-          questions: Math.max(5, Math.round(stage2BudgetMin * 0.15)),
-          method: Math.max(8, Math.round(stage2BudgetMin * 0.25)),
-          reflection: Math.max(3, Math.round(stage2BudgetMin * 0.12)),
-          references: Math.max(2, Math.round(stage2BudgetMin * 0.08))
-        };
-
-        // 先执行本地快速规则填充作为即时呈现
-        const defaultChapterTasks = [
-          '负责“一、研究背景与意义”及“二、文献综述”起草与资料整理',
-          '负责“三、研究问题与假设”及“四、研究设计与方法”方案制定',
-          '负责“五、不足与反思”撰写及全篇“六、参考文献”引文校对',
-          '负责数据分析模型构建与研究工具问卷设计'
-        ];
-
-        members.forEach((m, idx) => {
-          let assignedTask = '';
-          const myName = m.name || '';
-          const myCode = m.studentCode || m.id || '';
-          const myMsgs = userLogsAfterVote.filter(msg => msg.sender === m.id || msg.sender === myCode || (myName && msg.senderName === myName));
-          const myText = myMsgs.map(msg => msg.text || '').join(' ');
-
-          if (myText.includes('背景') || myText.includes('综述') || myText.includes('前言')) {
-            assignedTask = '负责“一、研究背景与意义”及“二、文献综述”起草与资料整理';
-          } else if (myText.includes('假设') || myText.includes('方法') || myText.includes('设计') || myText.includes('问卷') || myText.includes('实验')) {
-            assignedTask = '负责“三、研究问题与假设”及“四、研究设计与方法”方案制定';
-          } else if (myText.includes('反思') || myText.includes('不足') || myText.includes('文献') || myText.includes('校对')) {
-            assignedTask = '负责“五、不足与反思”撰写及全篇“六、参考文献”引文校对';
-          } else if (myText.includes('数据') || myText.includes('量表') || myText.includes('模型')) {
-            assignedTask = '负责数据分析模型构建与研究工具问卷设计';
-          }
-          if (!assignedTask) assignedTask = defaultChapterTasks[idx % defaultChapterTasks.length] || '协作撰写与统稿';
-          s1.contract.taskAssignments[m.id] = assignedTask;
-          if (m.studentCode) s1.contract.taskAssignments[m.studentCode] = assignedTask;
-        });
-
-        // 尝试大模型结构化精修覆盖
-        callCozeAgentAPI('auctioneer', extractPrompt, { stage: 'stage1', topic: s1.mergedTitle }).then(llmRes => {
-          if (llmRes && llmRes.includes('{')) {
-            try {
-              const jsonStr = llmRes.substring(llmRes.indexOf('{'), llmRes.lastIndexOf('}') + 1);
-              const parsed = JSON.parse(jsonStr);
-              if (parsed.taskAssignments && typeof parsed.taskAssignments === 'object') {
-                Object.assign(s1.contract.taskAssignments, parsed.taskAssignments);
-              }
-              if (parsed.timeAllocations && typeof parsed.timeAllocations === 'object') {
-                Object.assign(s1.contract.timeAllocations, parsed.timeAllocations);
-              }
-              this.syncStage1();
-              if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
-              this.renderStudentWorkspace(true);
-            } catch (e) {}
-          }
-        }).catch(() => {});
-
-        this.syncStage1();
-        if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
-        this.renderStudentWorkspace(true);
-
-        // 4. 拍卖师在聊天区发布权威引导播报
-        const draftNoticeMsg = {
-          sender: 'auctioneer',
-          text: `✨ 【拍卖师·已基于研讨记录深度提炼公约草案】\n已深度读取大家的学术研讨发言与选题投票结果，生成《团队协同合作学术合约草案》！\n\n📌 **融合研究主题**：《${s1.mergedTitle}》\n💡 **决策依据**：${topicDecisionReason}\n👉 **请组员仔细核查左侧分工与时间预算**：\n• 若与实际商议有出入，每位同学均可**直接在输入框中自主微调修改**；\n• 小组成员也可以不依赖提炼，完全自主在左侧分工填写；\n✍️ 确认无误后，全员点击【确认签署公约】即可正式生效并解锁阶段二！`,
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          _timeMs: Date.now()
-        };
-        const curStage = this.state.currentStage || 'stage1';
-        if (!this.state.chatLogs[curStage]) this.state.chatLogs[curStage] = [];
-        this.state.chatLogs[curStage].push(draftNoticeMsg);
-        this.syncChatLogs();
-        document.querySelectorAll('.jizhi-custom-modal').forEach(m => m.remove());
-        const succModal = document.createElement('div');
-        succModal.className = 'modal-overlay jizhi-custom-modal';
-        succModal.innerHTML = `
-          <div style="width:460px; max-width:92vw; background:#ffffff; border-radius:16px; box-shadow:0 20px 40px rgba(15,23,42,0.22); overflow:hidden; border:1px solid #e2e8f0; animation:modalFadeIn 0.25s ease;">
-            <div style="background:linear-gradient(135deg, #059669, #10b981); padding:18px 24px; color:#ffffff; display:flex; align-items:center; gap:12px;">
-              <span style="font-size:24px;">🎉</span>
-              <div>
-                <h3 style="margin:0; font-size:16px; font-weight:800; color:#ffffff;">学术合作公约草案已生成</h3>
-                <div style="font-size:11.5px; opacity:0.9; margin-top:2px;">已自动填入左侧公约区域</div>
-              </div>
-            </div>
-            <div style="padding:22px 24px; font-size:13.5px; color:#334155; line-height:1.65; display:flex; flex-direction:column; gap:12px;">
-              <div>
-                系统已根据全组研讨记录自动在左侧填入<b>融合研究主题、各章节分工与时间规划</b>。
-              </div>
-              <div style="font-size:12.5px; color:#065f46; background:#ecfdf5; border:1px solid #a7f3d0; padding:10px 14px; border-radius:8px; font-weight:600;">
-                👉 请小组成员仔细检查左侧公约内容（可直接在输入框微调修改），确认无误后点击下方【✍️ 确认签署公约】生效！
-              </div>
-            </div>
-            <div style="background:#f8fafc; border-top:1px solid #e2e8f0; padding:14px 24px; display:flex; justify-content:flex-end;">
-              <button class="modal-btn submit" id="btn-close-succ-modal" style="background:linear-gradient(135deg, #059669, #10b981); border:none; color:white; padding:8px 22px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer;">立即检查公约</button>
-            </div>
-          </div>
-        `;
-        document.body.appendChild(succModal);
-        succModal.querySelector('#btn-close-succ-modal').addEventListener('click', () => succModal.remove());
-        succModal.addEventListener('click', (e) => { if (e.target === succModal) succModal.remove(); });
-      },
-      onConfirmContract: () => {
+        onAiGenerateContract: () => { this.handleAiGenerateContract(); },
+        onConfirmContract: () => {
         if (this.state.stage1.contract.isConfirmed) {
           alert('🔒 学术合作公约已被全员确认签署并锁定！');
           return;
