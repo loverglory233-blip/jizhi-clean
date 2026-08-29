@@ -16,7 +16,7 @@ TARGET_DIRS=($(printf "%s\n" "${TARGET_DIRS[@]}" | sort -u))
 
 echo "📁 目标目录: ${TARGET_DIRS[*]}"
 
-TARGET_VERSION="20260830_v695"
+TARGET_VERSION="20260830_v696"
 
 echo "⚡ [2/4] 极速同步最新代码包 ($TARGET_VERSION)..."
 TMP=/tmp/jizhi_update
@@ -327,7 +327,7 @@ if [ -n "$EP_DIR" ]; then
   // 补齐核心 locales
   searchDirs.slice(0, 2).forEach(d => patchLocaleDir(d));
 
-  // 补齐各插件 locales 与 ep_font_family 中文字体映射
+  // 补齐各插件 locales
   searchDirs.slice(2).forEach(nm => {
     if (!fs.existsSync(nm)) return;
     try {
@@ -337,27 +337,13 @@ if [ -n "$EP_DIR" ]; then
           patchLocaleDir(path.join(nm, pkg, "locales"));
         }
       });
-      const fontCssPath = path.join(nm, "ep_font_family", "static", "css", "font_family.css");
-      if (fs.existsSync(fontCssPath)) {
-        const extraFontCss = `
-.font-simsun, [class*="font-宋体"] { font-family: SimSun, "Songti SC", STSong, serif !important; }
-.font-simhei, [class*="font-黑体"] { font-family: SimHei, "Heiti SC", STHeiti, sans-serif !important; }
-.font-kaiti, [class*="font-楷体"] { font-family: KaiTi, "Kaiti SC", STKaiti, serif !important; }
-.font-fangsong, [class*="font-仿宋"] { font-family: FangSong, "FangSong SC", STFangsong, serif !important; }
-.font-microsoft-yahei, [class*="font-微软雅黑"] { font-family: "Microsoft YaHei", "PingFang SC", sans-serif !important; }
-`;
-        let cssContent = fs.readFileSync(fontCssPath, "utf8");
-        if (!cssContent.includes("font-simsun")) {
-          fs.writeFileSync(fontCssPath, cssContent + extraFontCss, "utf8");
-        }
-      }
     } catch (e) {}
   });
 
-  console.log("   ✅ 已为 Etherpad 核心及 12 大学术插件全量注入高精中文翻译包与学术中文字体！");
+  console.log("   ✅ 已为 Etherpad 核心及 12 大学术插件全量注入高精中文翻译包！");
   ' "$EP_DIR" 2>/dev/null || true
 
-  # 写入高可用无拦截且包含全套学术插件工具栏与学术中文字体的 settings.json
+  # 写入高可用无拦截且包含全套学术插件工具栏的标准 settings.json
   cat << 'EPSETEOF' > "$EP_DIR/settings.json"
 {
   "title": "JIZHI Academic Etherpad",
@@ -368,18 +354,6 @@ if [ -n "$EP_DIR" ]; then
     "filename": "var/dirty.db"
   },
   "defaultPadText": "一、研究背景与意义\n\n二、文献综述\n\n三、研究问题与假设\n\n四、研究设计与方法\n\n五、研究设计的不足与反思\n\n六、参考文献\n",
-  "ep_font_family": {
-    "fonts": [
-      "宋体 (SimSun)",
-      "黑体 (SimHei)",
-      "楷体 (KaiTi)",
-      "仿宋 (FangSong)",
-      "微软雅黑 (Microsoft YaHei)",
-      "Arial",
-      "Times New Roman",
-      "Courier New"
-    ]
-  },
   "padOptions": {
     "noColors": true,
     "showControls": true,
