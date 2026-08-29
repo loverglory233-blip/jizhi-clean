@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260829_v652";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash } from "./utils.js?v=20260829_v652";
-import { callCozeAgentAPI } from "./agents.js?v=20260829_v652";
-import { AuthManager } from "./auth.js?v=20260829_v652";
-import { CloudSyncEngine } from "./sync.js?v=20260829_v652";
-import { renderLoginView } from "./login.js?v=20260829_v652";
-import { renderTeacherPortal } from "./teacher.js?v=20260829_v652";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260829_v652";
+} from "./constants.js?v=20260829_v653";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash } from "./utils.js?v=20260829_v653";
+import { callCozeAgentAPI } from "./agents.js?v=20260829_v653";
+import { AuthManager } from "./auth.js?v=20260829_v653";
+import { CloudSyncEngine } from "./sync.js?v=20260829_v653";
+import { renderLoginView } from "./login.js?v=20260829_v653";
+import { renderTeacherPortal } from "./teacher.js?v=20260829_v653";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260829_v653";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260829_v652";
+} from "./editor.js?v=20260829_v653";
 
 // Make renderChat available on window for sync callbacks
 if (typeof window !== "undefined") {
@@ -1543,12 +1543,20 @@ export class App {
 
     const closeModal = () => {
       modal.remove();
+      document.removeEventListener('keydown', onEsc);
       if (this.state.studentViewMode === 'task_list') {
         this.renderMain();
       } else {
         this.renderStudentWorkspace(true);
       }
     };
+
+    const onEsc = (e) => {
+      if (e.key === 'Escape') {
+        closeModal();
+      }
+    };
+    document.addEventListener('keydown', onEsc);
 
     const attachListEvents = () => {
       modal.querySelector('#btn-close-ann-popup')?.addEventListener('click', closeModal);
@@ -1602,8 +1610,9 @@ export class App {
 
       const downloadBtn = modal.querySelector('#btn-download-ann-file');
       if (downloadBtn && ann.attachment) {
-        downloadBtn.addEventListener('click', () => {
-          downloadFileBlob(ann.attachment.name);
+        downloadBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          downloadFileBlob(ann.attachment.name, null, ann.attachment.url);
         });
       }
     };

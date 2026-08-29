@@ -15,7 +15,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260829_v652';
+  const APP_VERSION = '20260829_v653';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -265,18 +265,33 @@
     return '#';
   }
 
-  function downloadFileBlob(filename, textContent = null) {
+  function downloadFileBlob(filename, textContent = null, fileUrl = null) {
+    if (fileUrl && typeof fileUrl === 'string' && fileUrl.trim() !== '' && fileUrl !== '#') {
+      const a = document.createElement('a');
+      a.href = fileUrl;
+      a.download = filename || '教学资源文件';
+      a.target = '_blank';
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => {
+        if (document.body.contains(a)) document.body.removeChild(a);
+      }, 150);
+      return;
+    }
+
     const defaultContent = `====================================================\n【集智 JIZHI 平台 - 教学资源文件】\n文件名: ${filename}\n下载时间: ${new Date().toLocaleString()}\n课程名称: 《现代教育技术》期末协作写作研究设计\n====================================================\n\n【文件核心规范摘要】\n1. 结构完整性：论文方案需具备研究背景、问题假设、文献综述、研究设计、反思及参考文献。\n2. 变量操作化：研究假设 H1、H2 需在第四章给出对应的测量量表与操作化说明。\n3. 群体感知：通过可视化字数贡献比与同伴互动进行自律与共享调节 (SSRL)。`;
     const content = textContent || defaultContent;
     const blob = new Blob([content], { type: 'text/plain;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = filename;
+    a.download = filename && filename.endsWith('.txt') ? filename : `${filename}.txt`;
     document.body.appendChild(a);
     a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    setTimeout(() => {
+      if (document.body.contains(a)) document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }, 150);
   }
 
   function getUniqueMembersList(membersMap) {
@@ -6296,12 +6311,13 @@
           if (e.target.files && e.target.files[0]) {
             const f = e.target.files[0];
             const sizeMB = (f.size / (1024 * 1024)).toFixed(1) + ' MB';
-            selectedAttachment = { name: f.name, size: sizeMB };
+            selectedAttachment = { name: f.name, size: sizeMB, fileObj: f };
             dropText.innerHTML = `<span style="font-size:24px;">✅</span><div style="font-size:13px; color:#34d399; font-weight:700;">已选中随附文件: ${f.name} (${sizeMB})</div>`;
           }
         });
 
-        modal.querySelector('#btn-submit-new-ann').addEventListener('click', () => {
+        modal.querySelector('#btn-submit-new-ann').addEventListener('click', async () => {
+          const submitBtn = modal.querySelector('#btn-submit-new-ann');
           const selClassId = classSelect.value;
           const selClassObj = allClasses.find(c => c.id === selClassId);
           const selClassName = selClassId === 'all' ? '全校班级' : (selClassObj ? selClassObj.name : '指定班级');
@@ -6329,7 +6345,44 @@
           const title = modal.querySelector('#modal-ann-title').value.trim();
           const content = modal.querySelector('#modal-ann-content').value.trim();
           if (!title || !content) { alert('⚠️ 请填齐通知标题与内容！'); return; }
-          authManager.publishAnnouncement(taskId, title, content, selectedAttachment, targetGId, targetGName, selClassId, selClassName, selectedGroupIds);
+
+          submitBtn.disabled = true;
+          submitBtn.innerText = '⏳ 正在上传资源并发布通知...';
+
+          let finalAttachment = null;
+          if (selectedAttachment && selectedAttachment.name) {
+            finalAttachment = {
+              name: selectedAttachment.name,
+              size: selectedAttachment.size,
+              url: ''
+            };
+            if (selectedAttachment.fileObj) {
+              try {
+                const currT = authManager.getCurrentUser();
+                const tId = (currT && (currT.studentCode || currT.username || currT.id)) || '';
+                const tToken = (currT && (currT.token || currT.activeSessionId)) || '';
+
+                const formData = new FormData();
+                formData.append('file', selectedAttachment.fileObj);
+                formData.append('userId', tId);
+                formData.append('token', tToken);
+                const upRes = await fetch('sync.php?action=upload_file', {
+                  method: 'POST',
+                  body: formData
+                });
+                if (upRes.ok) {
+                  const upJson = await upRes.json();
+                  if (upJson.success && upJson.url) {
+                    finalAttachment.url = upJson.url;
+                  }
+                }
+              } catch (upErr) {
+                console.warn('Attachment upload failed, fallback:', upErr);
+              }
+            }
+          }
+
+          authManager.publishAnnouncement(taskId, title, content, finalAttachment, targetGId, targetGName, selClassId, selClassName, selectedGroupIds);
           closeModal();
           renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
         });
@@ -11302,12 +11355,20 @@
 
       const closeModal = () => {
         modal.remove();
+        document.removeEventListener('keydown', onEsc);
         if (this.state.studentViewMode === 'task_list') {
           this.renderMain();
         } else {
           this.renderStudentWorkspace(true);
         }
       };
+
+      const onEsc = (e) => {
+        if (e.key === 'Escape') {
+          closeModal();
+        }
+      };
+      document.addEventListener('keydown', onEsc);
 
       const attachListEvents = () => {
         modal.querySelector('#btn-close-ann-popup')?.addEventListener('click', closeModal);
@@ -11361,8 +11422,9 @@
 
         const downloadBtn = modal.querySelector('#btn-download-ann-file');
         if (downloadBtn && ann.attachment) {
-          downloadBtn.addEventListener('click', () => {
-            downloadFileBlob(ann.attachment.name);
+          downloadBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            downloadFileBlob(ann.attachment.name, null, ann.attachment.url);
           });
         }
       };
