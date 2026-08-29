@@ -1340,7 +1340,10 @@ export class App {
                            (Array.isArray(a.targetClassIds) && a.targetClassIds.includes(effectiveClassId));
         const matchGroup = !a.targetGroupId || a.targetGroupId === 'all' || a.targetGroupId === groupId ||
           (Array.isArray(a.targetGroupIds) && (a.targetGroupIds.includes('all') || a.targetGroupIds.includes(groupId)));
-        const matchTask = (a.taskId === 'task_all' || a.taskId === activeTaskId || (!a.taskId && activeTaskId === 'task_default'));
+        const isTaskListMode = (this.state && this.state.studentViewMode === 'task_list');
+        const matchTask = isTaskListMode
+          ? true
+          : (a.taskId === 'task_all' || a.taskId === activeTaskId || (!a.taskId && activeTaskId === 'task_default'));
         return matchClass && matchGroup && matchTask;
       })
       .sort((a, b) => (b.id > a.id ? 1 : -1));
