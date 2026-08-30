@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260831_v940";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch } from "./utils.js?v=20260831_v940";
-import { callCozeAgentAPI } from "./agents.js?v=20260831_v940";
-import { AuthManager } from "./auth.js?v=20260831_v940";
-import { CloudSyncEngine } from "./sync.js?v=20260831_v940";
-import { renderLoginView } from "./login.js?v=20260831_v940";
-import { renderTeacherPortal } from "./teacher.js?v=20260831_v940";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260831_v940";
+} from "./constants.js?v=20260831_v941";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch } from "./utils.js?v=20260831_v941";
+import { callCozeAgentAPI } from "./agents.js?v=20260831_v941";
+import { AuthManager } from "./auth.js?v=20260831_v941";
+import { CloudSyncEngine } from "./sync.js?v=20260831_v941";
+import { renderLoginView } from "./login.js?v=20260831_v941";
+import { renderTeacherPortal } from "./teacher.js?v=20260831_v941";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260831_v941";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260831_v940";
+} from "./editor.js?v=20260831_v941";
 
 // Make renderChat available on window for sync callbacks
 if (typeof window !== "undefined") {
@@ -4439,6 +4439,15 @@ ${propText}
         onExtractTasks: () => { this.handleExtractTasks(); },
         onAiGenerateContract: () => { this.handleAiGenerateContract(); },
         onConfirmContract: () => { this.handleConfirmContract(); },
+        onActionPlanToggle: (idx, isCompleted) => {
+          if (!this.state.stage2) this.state.stage2 = {};
+          if (!this.state.stage2.actionPlan) this.state.stage2.actionPlan = { items: [], completedMap: {} };
+          if (!this.state.stage2.actionPlan.completedMap) this.state.stage2.actionPlan.completedMap = {};
+          this.state.stage2.actionPlan.completedMap[idx] = !!isCompleted;
+          this.syncStage2();
+          if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+          this.renderStudentWorkspace();
+        },
       onPresenceChange: (nodeIdx, sectionTitle, charOffset) => {
         const user = this.state.currentUser;
         if (!this.state.presence) this.state.presence = {};
