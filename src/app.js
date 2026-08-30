@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260831_v971";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch } from "./utils.js?v=20260831_v971";
-import { callCozeAgentAPI } from "./agents.js?v=20260831_v971";
-import { AuthManager } from "./auth.js?v=20260831_v971";
-import { CloudSyncEngine } from "./sync.js?v=20260831_v971";
-import { renderLoginView } from "./login.js?v=20260831_v971";
-import { renderTeacherPortal } from "./teacher.js?v=20260831_v971";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260831_v971";
+} from "./constants.js?v=20260831_v972";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch } from "./utils.js?v=20260831_v972";
+import { callCozeAgentAPI } from "./agents.js?v=20260831_v972";
+import { AuthManager } from "./auth.js?v=20260831_v972";
+import { CloudSyncEngine } from "./sync.js?v=20260831_v972";
+import { renderLoginView } from "./login.js?v=20260831_v972";
+import { renderTeacherPortal } from "./teacher.js?v=20260831_v972";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260831_v972";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260831_v971";
+} from "./editor.js?v=20260831_v972";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -1490,23 +1490,25 @@ export class App {
           }
         }
         // 2.5 【一审后静默跟进】：一审发出后若讨论区冷场超 3 分钟，温和提示随时 @ 咨询（全场严格仅 1 次）
-        const hasFirstReviewMsg = s2Chats.some(m => m && m.sender === 'reviewingEditor' && (m.text?.includes('一审破题把脉') || m.text?.includes('Research Gap') || m.text?.includes('审稿编辑·一审')));
+        const firstReviewMsgObj = [...s2Chats].reverse().find(m => m && m.sender === 'reviewingEditor' && (m.text?.includes('一审破题把脉') || m.text?.includes('Research Gap') || m.text?.includes('审稿编辑·一审')));
         const hasFirstReviewSilenceFollowed = s2Chats.some(m => m && m.sender === 'reviewingEditor' && (m.text?.includes('初审跟进提示') || m.text?.includes('初审微调建议已送达')));
         
-        if (hasFirstReviewMsg && !hasFirstReviewSilenceFollowed && !s2.firstReviewSilenceSent) {
-          const firstReviewMsgObj = [...s2Chats].reverse().find(m => m && m.sender === 'reviewingEditor' && (m.text?.includes('一审破题把脉') || m.text?.includes('Research Gap') || m.text?.includes('审稿编辑·一审')));
-          let msgTime = firstReviewMsgObj?._timeMs;
-          if (!msgTime && firstReviewMsgObj?.timestamp) {
-            const parts = firstReviewMsgObj.timestamp.split(':');
+        if (firstReviewMsgObj && !hasFirstReviewSilenceFollowed) {
+          let reviewTime = firstReviewMsgObj._timeMs;
+          if (!reviewTime && firstReviewMsgObj.timestamp) {
+            const parts = String(firstReviewMsgObj.timestamp).split(':');
             if (parts.length >= 2) {
               const d = new Date();
               d.setHours(parseInt(parts[0], 10), parseInt(parts[1], 10), 0, 0);
-              msgTime = d.getTime();
+              reviewTime = d.getTime();
             }
           }
-          const reviewElapsed = msgTime ? (now - msgTime) : silenceDurationMs;
+          const reviewElapsed = reviewTime ? (now - reviewTime) : silenceDurationMs;
+          const studentMsgAfterReview = s2Chats.filter(m => m && m.sender && m.sender !== 'managingEditor' && m.sender !== 'reviewingEditor' && m.sender !== 'system' && Number(m._timeMs || 0) > (reviewTime || 0));
+          const lastStudentMsgAfterReview = studentMsgAfterReview.length > 0 ? studentMsgAfterReview[studentMsgAfterReview.length - 1] : null;
+          const silenceAfterReview = lastStudentMsgAfterReview ? (now - Number(lastStudentMsgAfterReview._timeMs || 0)) : reviewElapsed;
 
-          if (reviewElapsed >= 180000 && silenceDurationMs >= 180000) { // 严格 3 分钟静默
+          if (reviewElapsed >= 180000 && silenceAfterReview >= 180000) { // 严格 3 分钟静默
             s2.firstReviewSilenceSent = true;
             const followMsg = {
               sender: 'reviewingEditor',
@@ -1539,18 +1541,20 @@ export class App {
         if (isMeetingActive) {
           let meetingMsgTime = lastMeetingMsg?._timeMs;
           if (!meetingMsgTime && lastMeetingMsg?.timestamp) {
-            const parts = lastMeetingMsg.timestamp.split(':');
+            const parts = String(lastMeetingMsg.timestamp).split(':');
             if (parts.length >= 2) {
               const d = new Date();
               d.setHours(parseInt(parts[0], 10), parseInt(parts[1], 10), 0, 0);
               meetingMsgTime = d.getTime();
             }
           }
-          const lastActivityTime = Math.max(lastStudentMsgTime, meetingMsgTime || 0, s2.lastActionTime || 0);
-          const silenceMs = now - lastActivityTime;
+          const meetingElapsed = meetingMsgTime ? (now - meetingMsgTime) : silenceDurationMs;
+          const studentMsgAfterMeeting = s2Chats.filter(m => m && m.sender && m.sender !== 'managingEditor' && m.sender !== 'reviewingEditor' && m.sender !== 'system' && Number(m._timeMs || 0) > (meetingMsgTime || 0));
+          const lastStudentMsgAfterMeeting = studentMsgAfterMeeting.length > 0 ? studentMsgAfterMeeting[studentMsgAfterMeeting.length - 1] : null;
+          const silenceAfterMeeting = lastStudentMsgAfterMeeting ? (now - Number(lastStudentMsgAfterMeeting._timeMs || 0)) : meetingElapsed;
 
-          if (silenceMs > 150000) { // 2.5 分钟静默
-            if (lastStudentMsgTime > (this._lastNudgeActivityTime?.['s2_meeting_silence'] || 0)) {
+          if (meetingElapsed >= 150000 && silenceAfterMeeting >= 150000) { // 2.5 分钟静默
+            if (lastStudentMsgAfterMeeting && Number(lastStudentMsgAfterMeeting._timeMs || 0) > (this._lastNudgeActivityTime?.['s2_meeting_silence'] || 0)) {
               this._nudgeCounts['s2_meeting_silence'] = 0;
             }
             const count = this._nudgeCounts['s2_meeting_silence'] || 0;
@@ -1558,7 +1562,7 @@ export class App {
               this.lastS2MeetingSilenceNudgeTime = now;
               this._nudgeCounts['s2_meeting_silence'] = count + 1;
               if (!this._lastNudgeActivityTime) this._lastNudgeActivityTime = {};
-              this._lastNudgeActivityTime['s2_meeting_silence'] = lastStudentMsgTime;
+              this._lastNudgeActivityTime['s2_meeting_silence'] = lastStudentMsgAfterMeeting ? Number(lastStudentMsgAfterMeeting._timeMs) : now;
 
               const subs = s2.meetingSubmissions || {};
               const unsubmittedMembers = membersList.filter(m => {
