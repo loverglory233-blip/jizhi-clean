@@ -33,11 +33,11 @@ $action = isset($_GET['action']) ? $_GET['action'] : (isset($req['action']) ? $r
 /**
  * 自动获取或刷新 OAuth Access Token (带本地文件缓存与排他锁并发保护)
  */
-function getCozeAccessToken() {
+function getCozeAccessToken($forceRefresh = false) {
     global $COZE_APP_ID, $COZE_KEY_ID, $COZE_PRIVATE_KEY_FILE, $COZE_OAUTH_TOKEN_URL;
     
     $cacheFile = __DIR__ . '/token_cache.json';
-    if (file_exists($cacheFile)) {
+    if (!$forceRefresh && file_exists($cacheFile)) {
         $fp = @fopen($cacheFile, 'r');
         if ($fp) {
             @flock($fp, LOCK_SH);
@@ -107,16 +107,14 @@ function getCozeAccessToken() {
         'Content-Type: application/json'
     ]);
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
-    curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 2);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 0);
     curl_setopt($ch, CURLOPT_TIMEOUT, 15);
     $resp = curl_exec($ch);
     curl_close($ch);
 
     $resData = json_decode($resp, true);
     if ($resData && isset($resData['access_token'])) {
-        // 🛡️ Coze v3 的 expires_in 实际返回的是「绝对过期时间戳(秒)」而非相对时长；
-        // 误当相对时长叠加会把 expires_at 算到数十年后 → 缓存永不刷新 → 次日 token 失效即坏。
         $expiresIn = isset($resData['expires_in']) ? intval($resData['expires_in']) : 0;
         $expiresAt = ($expiresIn > $now) ? $expiresIn : ($now + ($expiresIn > 0 ? $expiresIn : 86400));
         $cachedData = [
@@ -245,7 +243,8 @@ curl_setopt($ch, CURLOPT_POST, 1);
 curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
 curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
 curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
+curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 0);
 curl_setopt($ch, CURLOPT_TIMEOUT, 12);
 
 $initResp = curl_exec($ch);
@@ -254,6 +253,29 @@ curl_close($ch);
 $initData = json_decode($initResp, true) ?: [];
 $chatId = isset($initData['data']['id']) ? $initData['data']['id'] : null;
 $convId = isset($initData['data']['conversation_id']) ? $initData['data']['conversation_id'] : null;
+
+// 🛡️ 智能 Token 4100/4001 失效自愈：自动清除缓存、换新 Token 并重试一次
+if (!$chatId && isset($initData['code']) && in_array(intval($initData['code']), [4100, 4001, 4000, 4002, 4003, 401])) {
+    $cacheFile = __DIR__ . '/token_cache.json';
+    @unlink($cacheFile);
+    $accessToken = getCozeAccessToken(true);
+    if ($accessToken) {
+        $headers = ['Authorization: Bearer ' . $accessToken, 'Content-Type: application/json'];
+        $chRetry = curl_init($cozeUrl);
+        curl_setopt($chRetry, CURLOPT_POST, 1);
+        curl_setopt($chRetry, CURLOPT_POSTFIELDS, json_encode($payload));
+        curl_setopt($chRetry, CURLOPT_HTTPHEADER, $headers);
+        curl_setopt($chRetry, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($chRetry, CURLOPT_SSL_VERIFYPEER, false);
+        curl_setopt($chRetry, CURLOPT_SSL_VERIFYHOST, 0);
+        curl_setopt($chRetry, CURLOPT_TIMEOUT, 12);
+        $initResp = curl_exec($chRetry);
+        curl_close($chRetry);
+        $initData = json_decode($initResp, true) ?: [];
+        $chatId = isset($initData['data']['id']) ? $initData['data']['id'] : null;
+        $convId = isset($initData['data']['conversation_id']) ? $initData['data']['conversation_id'] : null;
+    }
+}
 
 $answerText = '';
 if ($chatId && $convId) {
@@ -264,7 +286,8 @@ if ($chatId && $convId) {
         $ch2 = curl_init($pollUrl);
         curl_setopt($ch2, CURLOPT_HTTPHEADER, $headers);
         curl_setopt($ch2, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch2, CURLOPT_SSL_VERIFYPEER, true);
+        curl_setopt($ch2, CURLOPT_SSL_VERIFYPEER, false);
+        curl_setopt($ch2, CURLOPT_SSL_VERIFYHOST, 0);
         curl_setopt($ch2, CURLOPT_TIMEOUT, 6);
         $pollResp = curl_exec($ch2);
         curl_close($ch2);
@@ -277,7 +300,8 @@ if ($chatId && $convId) {
             $ch3 = curl_init($msgUrl);
             curl_setopt($ch3, CURLOPT_HTTPHEADER, $headers);
             curl_setopt($ch3, CURLOPT_RETURNTRANSFER, true);
-            curl_setopt($ch3, CURLOPT_SSL_VERIFYPEER, true);
+            curl_setopt($ch3, CURLOPT_SSL_VERIFYPEER, false);
+            curl_setopt($ch3, CURLOPT_SSL_VERIFYHOST, 0);
             curl_setopt($ch3, CURLOPT_TIMEOUT, 6);
             $msgResp = curl_exec($ch3);
             curl_close($ch3);
