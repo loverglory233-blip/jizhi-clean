@@ -230,7 +230,7 @@ $payload = [
     'bot_id' => $botId,
     'user_id' => $userId,
     'stream' => false,
-    'auto_save_history' => true,
+    'auto_save_history' => false, // 彻底关闭云端长会话历史累积，杜绝上下文雪崩膨胀，单次积分直降90%！
     'additional_messages' => [
         [
             'role' => 'user',
