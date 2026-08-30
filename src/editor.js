@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles } from "./constants.js?v=20260830_v904";
-import { callCozeAgentAPI } from "./agents.js?v=20260830_v904";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap } from "./utils.js?v=20260830_v904";
+import { AgentProfiles } from "./constants.js?v=20260830_v905";
+import { callCozeAgentAPI } from "./agents.js?v=20260830_v905";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap } from "./utils.js?v=20260830_v905";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -1291,10 +1291,14 @@ function renderStage1Canvas(canvas, state, handlers) {
         const totalMembersCount = memberArr.length > 0 ? memberArr.length : 0;
         const submittedAuthorsCount = new Set((s1.proposals || []).map(p => p.author || p.authorName)).size;
 
+        const isModify = existingIdx >= 0;
         const submitNoticeMsg = {
+          id: 'msg_prop_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6),
           sender: currentUser,
           senderName: authorName,
-          text: `💡 【新选题提出】我 (${authorName}) 提出了新选题提案《${title}》！`,
+          text: isModify
+            ? `✏️ 【选题提案修改】我 (${authorName}) 修改完善了选题提案《${title}》！`
+            : `💡 【新选题提出】我 (${authorName}) 提出了新选题提案《${title}》！`,
           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
           _timeMs: Date.now()
         };
@@ -1307,6 +1311,9 @@ function renderStage1Canvas(canvas, state, handlers) {
           window.app.syncStage1();
           if (window.app.cloudSyncEngine) {
             window.app.cloudSyncEngine.pushSnapshot();
+          }
+          if (typeof window.app.sendSingleChatMessage === 'function') {
+            window.app.sendSingleChatMessage(submitNoticeMsg, currentStage);
           }
           window.app.renderStudentWorkspace();
         }
@@ -1324,14 +1331,10 @@ function renderStage1Canvas(canvas, state, handlers) {
         };
         if (!state.chatLogs[currentStage]) state.chatLogs[currentStage] = [];
         state.chatLogs[currentStage].push(evalThinkingMsg);
-        if (window.app) {
-          window.app.syncChatLogs();
-        }
         renderChat(state);
 
         setTimeout(async () => {
           try {
-            const isModify = existingIdx >= 0;
             const evalPrompt = `小组成员【${authorName}】在选题池${isModify ? '修改完善了' : '提出了新'}研究提案《${title}》。
 请作为资深学术拍卖师，发表 60~80 字的【选题学术亮点速评与启发】：
 ① 精准肯定该选题的研究切入点或实践价值；
@@ -1344,24 +1347,55 @@ function renderStage1Canvas(canvas, state, handlers) {
             }
             if (!evalText.startsWith('🎪')) evalText = `🎪 【拍卖师·选题速评】：${evalText}`;
 
+            const finalAiMsg = {
+              id: 'eval_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6),
+              sender: 'auctioneer',
+              senderName: '头脑风暴 · 学术拍卖师',
+              text: evalText,
+              timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+              _timeMs: Date.now()
+            };
+
             // 🛡️ 找到思考气泡直接优雅替换，消除多余残留
             const foundThinking = state.chatLogs[currentStage].find(m => m && m.id === tempThinkingId);
             if (foundThinking) {
+              foundThinking.id = finalAiMsg.id;
               foundThinking.text = evalText;
               delete foundThinking.isThinking;
-              foundThinking.timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-              foundThinking._timeMs = Date.now();
+              foundThinking.timestamp = finalAiMsg.timestamp;
+              foundThinking._timeMs = finalAiMsg._timeMs;
             } else {
-              state.chatLogs[currentStage].push({
-                id: 'eval_' + Date.now(),
-                sender: 'auctioneer',
-                senderName: '头脑风暴 · 学术拍卖师',
-                text: evalText,
-                timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                _timeMs: Date.now()
-              });
+              state.chatLogs[currentStage].push(finalAiMsg);
             }
 
+            if (window.app) {
+              if (typeof window.app.sendSingleChatMessage === 'function') {
+                window.app.sendSingleChatMessage(finalAiMsg, currentStage);
+              }
+              if (window.app.cloudSyncEngine) window.app.cloudSyncEngine.pushSnapshot();
+            }
+            renderChat(state);
+          } catch (aiErr) {
+            console.warn('[Proposal AI Feedback] Error:', aiErr);
+            const fallbackAiMsg = {
+              id: 'eval_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6),
+              sender: 'auctioneer',
+              senderName: '头脑风暴 · 学术拍卖师',
+              text: `🎪 【拍卖师·选题速评】：收到 ${authorName} 提交的《${title}》！建议组员在研讨区就具体的研究对象与实施情境交流补充！`,
+              timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+              _timeMs: Date.now()
+            };
+            const foundThinking = state.chatLogs[currentStage]?.find(m => m && m.id === tempThinkingId);
+            if (foundThinking) {
+              foundThinking.id = fallbackAiMsg.id;
+              foundThinking.text = fallbackAiMsg.text;
+              delete foundThinking.isThinking;
+            }
+            if (window.app && typeof window.app.sendSingleChatMessage === 'function') {
+              window.app.sendSingleChatMessage(fallbackAiMsg, currentStage);
+            }
+            renderChat(state);
+          } finally {
             const isSubstantive = (t) => {
               const str = (t || '').trim();
               if (str.length < 4) return false;
@@ -1376,6 +1410,7 @@ function renderStage1Canvas(canvas, state, handlers) {
             if (totalMembersCount >= 2 && validAuthors.size >= totalMembersCount && !s1._allProposalsPrompted) {
               s1._allProposalsPrompted = true;
               const allCollectedMsg = {
+                id: 'all_prop_' + Date.now(),
                 sender: 'auctioneer',
                 senderName: '头脑风暴 · 学术拍卖师',
                 text: `🎪 【拍卖师·全员提案已集齐】：🎉 小组成员的选题提案已悉数亮相！👉 请大家先不要急于投票，先在右侧讨论区充分交流各个方案的研究看点与实施可行性；💬 研讨达成初步共识后，再在上方为最终认可的方案进行投票！`,
@@ -1383,19 +1418,9 @@ function renderStage1Canvas(canvas, state, handlers) {
                 _timeMs: Date.now() + 100
               };
               state.chatLogs[currentStage].push(allCollectedMsg);
-            }
-
-            if (window.app) {
-              window.app.syncChatLogs();
-              if (window.app.cloudSyncEngine) window.app.cloudSyncEngine.pushSnapshot();
-            }
-            renderChat(state);
-          } catch (aiErr) {
-            console.warn('[Proposal AI Feedback] Error:', aiErr);
-            const foundThinking = state.chatLogs[currentStage]?.find(m => m && m.id === tempThinkingId);
-            if (foundThinking) {
-              foundThinking.text = `🎪 【拍卖师·选题速评】：收到 ${authorName} 提交的《${title}》！建议组员在研讨区就具体的研究对象与实施情境交流补充！`;
-              delete foundThinking.isThinking;
+              if (window.app && typeof window.app.sendSingleChatMessage === 'function') {
+                window.app.sendSingleChatMessage(allCollectedMsg, currentStage);
+              }
               renderChat(state);
             }
           }

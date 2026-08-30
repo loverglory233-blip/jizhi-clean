@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState } from './constants.js?v=20260830_v904';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal } from './utils.js?v=20260830_v904';
+import { InitialState } from './constants.js?v=20260830_v905';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal } from './utils.js?v=20260830_v905';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -902,75 +902,31 @@ export class CloudSyncEngine {
         }
       }
 
-      const localProps = Array.isArray(localS1.proposals) ? localS1.proposals : [];
-      const remoteProps = Array.isArray(remoteS1.proposals) ? remoteS1.proposals : [];
       const propByAuthor = new Map();
-
-      // 建立作者标识归一化映射
-      const normalizeAuthorKey = (authorId, authorName) => {
-        if (authorName && typeof authorName === 'string' && authorName.trim()) return authorName.trim();
-        return String(authorId || '').trim();
-      };
-
-      localProps.forEach(p => {
+      (remoteS1.proposals || []).forEach(p => {
         if (p && (p.author || p.authorName)) {
-          const k = normalizeAuthorKey(p.author, p.authorName);
+          const k = String(p.author || p.authorName).trim();
           propByAuthor.set(k, p);
         }
       });
 
-      remoteProps.forEach(remoteP => {
-        if (remoteP && (remoteP.author || remoteP.authorName)) {
-          const k = normalizeAuthorKey(remoteP.author, remoteP.authorName);
-          const localP = propByAuthor.get(k);
-          if (!localP) {
-            propByAuthor.set(k, remoteP);
+      (localS1.proposals || []).forEach(p => {
+        if (p && (p.author || p.authorName)) {
+          const k = String(p.author || p.authorName).trim();
+          const remoteP = propByAuthor.get(k);
+          if (!remoteP) {
+            propByAuthor.set(k, p);
           } else {
             const remoteTime = remoteP.updatedAt || 0;
-            const localTime = localP.updatedAt || 0;
-            if (remoteTime >= localTime) {
-              propByAuthor.set(k, remoteP);
+            const localTime = p.updatedAt || 0;
+            if (localTime > remoteTime) {
+              propByAuthor.set(k, p);
             }
           }
         }
       });
-      // 🛡️ 严格小组白名单过滤：仅保留属于本组成员的提案，剔除历史跨组残留的脏数据
-      let allowedMemberKeys = new Set();
-      const currentMembers = this.app.state.members;
-      if (currentMembers) {
-        const memList = Array.isArray(currentMembers) ? currentMembers : Object.values(currentMembers);
-        memList.forEach(m => {
-          if (m) {
-            if (m.id) allowedMemberKeys.add(String(m.id).trim());
-            if (m.studentCode) allowedMemberKeys.add(String(m.studentCode).trim());
-            if (m.username) allowedMemberKeys.add(String(m.username).trim());
-            if (m.name) allowedMemberKeys.add(String(m.name).trim());
-          }
-        });
-      }
-      if (allowedMemberKeys.size === 0 && this.app.authManager) {
-        const currU = this.app.authManager.getCurrentUser();
-        const effClassId = this.app.state.activeStudentClassId || currU?.classId || null;
-        const effGroup = this.app.authManager.getStudentActiveGroup(currU, effClassId);
-        const groupMembers = this.app.authManager.getGroupMembersForWorkspace(effGroup?.id || this.app.state.activeGroupId || null);
-        Object.values(groupMembers).forEach(m => {
-          if (m) {
-            if (m.id) allowedMemberKeys.add(String(m.id).trim());
-            if (m.studentCode) allowedMemberKeys.add(String(m.studentCode).trim());
-            if (m.username) allowedMemberKeys.add(String(m.username).trim());
-            if (m.name) allowedMemberKeys.add(String(m.name).trim());
-          }
-        });
-      }
 
-      const allMerged = Array.from(propByAuthor.values());
-      const mergedProposals = allowedMemberKeys.size > 0
-        ? allMerged.filter(p => {
-            const authorId = String(p.author || '').trim();
-            const authorName = String(p.authorName || '').trim();
-            return allowedMemberKeys.has(authorId) || (authorName && allowedMemberKeys.has(authorName));
-          })
-        : allMerged;
+      const mergedProposals = Array.from(propByAuthor.values());
 
       const mergedVotes = {
         ...(localS1.votes || {}),
