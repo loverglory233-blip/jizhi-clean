@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260831_v925
+ * Version: 20260831_v926
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260831_v925';
+  const APP_VERSION = '20260831_v926';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -3183,6 +3183,7 @@
         stage1: this.app.state.stage1,
         stage2: this.app.state.stage2,
         stage3: this.app.state.stage3,
+        stepConfirmations: this.app.state.stepConfirmations || {},
         timer: this.app.state.timer,
         currentStage: this.app.state.groupMaxStage || this.app.state.currentStage,
         isFinalSubmitted: this.app.state.isFinalSubmitted
@@ -3941,6 +3942,19 @@
             const anyCardInDom = document.querySelector('.feedback-direct-input');
             if (!anyCardInDom && this.app.state.currentStage === 'stage3') needWorkspaceRender = true;
           }
+        }
+      }
+
+      if (remoteData.stepConfirmations !== undefined) {
+        if (!this.app.state.stepConfirmations) this.app.state.stepConfirmations = {};
+        const localStr = JSON.stringify(this.app.state.stepConfirmations);
+        const remoteConfs = remoteData.stepConfirmations || {};
+        for (const [stepKey, userMap] of Object.entries(remoteConfs)) {
+          if (!this.app.state.stepConfirmations[stepKey]) this.app.state.stepConfirmations[stepKey] = {};
+          Object.assign(this.app.state.stepConfirmations[stepKey], userMap || {});
+        }
+        if (JSON.stringify(this.app.state.stepConfirmations) !== localStr) {
+          needWorkspaceRender = true;
         }
       }
 
@@ -9307,7 +9321,7 @@
             ${isContractLocked ? `<span style="color:#059669; font-weight:700;">🔒 全员 ${confirmedCount}/${totalMembersCount} 人完成签署 · 归档生效中</span>` : '小组成员在研讨区商讨后，可按步骤一键提炼或自由微调各项内容，全员确认后签署生效'}
           </div>
           ${!isContractLocked ? `
-            <div style="margin-top:12px; display:flex; justify-content:center;">
+            <div id="stage1-contract-action-bar-mount" style="margin-top:12px; display:flex; justify-content:center;">
               ${(() => {
                 const confs = state.stepConfirmations || {};
                 const isDoneHelper = (map) => {
@@ -15691,6 +15705,71 @@
                 <div style="font-size:12.5px; color:#64748b; margin-top:4px;">请点击右上角【+ 提交我的选题】录入选题名称。</div>
               </div>
             `;
+          }
+        }
+
+        // 🛡️ 实时动态更新公约顶部操作提炼按钮及协同确认计数
+        const contractActionBarMount = document.getElementById('stage1-contract-action-bar-mount');
+        if (contractActionBarMount && !isContractLocked) {
+          const confs = this.state.stepConfirmations || {};
+          const totalMembersCount = membersList.length || 2;
+          const totalVotesCast = membersList.filter(m => (isUserInMap(s1.hasVoted, m) || (m && (s1.hasVoted[m.id] || s1.hasVoted[m.studentCode] || s1.hasVoted[m.username] || (m.name && s1.hasVoted[m.name]))))).length;
+          const isVotingComplete = (totalMembersCount > 0 && totalVotesCast >= totalMembersCount);
+          const currUserCode = this.state.currentUser;
+
+          const isDoneHelper = (map) => {
+            if (!map) return 0;
+            return membersList.filter(m => map[m.id] || map[m.studentCode] || map[m.username] || (m.name && map[m.name])).length;
+          };
+          const isMyDoneHelper = (map) => {
+            if (!map) return false;
+            return !!(map[currUserCode] || (currentUserObj && (map[currentUserObj.id] || map[currentUserObj.studentCode] || map[currentUserObj.username] || map[currentUserObj.name])));
+          };
+
+          if (s1.contractStep === 'completed' || s1.contract?.isDraftGenerated) {
+            contractActionBarMount.innerHTML = `
+              <div style="background:#f0fdf4; border:1.5px solid #86efac; color:#15803d; padding:7px 22px; border-radius:20px; font-weight:800; font-size:13px; display:inline-flex; align-items:center; gap:6px; box-shadow:0 2px 8px rgba(34,197,94,0.15);">
+                ✅ 公约草案已全部提炼生成（全组可微调修改，并在下方签署确认）
+              </div>
+            `;
+          } else if (s1.contractStep === 'tasks') {
+            const count = isDoneHelper(confs.s1_tasks);
+            const isMe = isMyDoneHelper(confs.s1_tasks);
+            contractActionBarMount.innerHTML = `
+              <button id="btn-extract-tasks" style="background:${isMe ? 'linear-gradient(135deg, #059669, #047857)' : 'linear-gradient(135deg, #7c3aed, #6d28d9)'}; border:none; color:white; padding:9px 24px; border-radius:20px; font-weight:800; font-size:13.5px; cursor:pointer; display:inline-flex; align-items:center; gap:6px; box-shadow:0 4px 14px rgba(124,58,237,0.3); transition:all 0.2s;">
+                ${isMe ? `✅ 您已确认提炼分工 (${count}/${totalMembersCount} 等待其他组员)` : `👥 研讨差不多了？一键提炼【任务分工】 (${count}/${totalMembersCount})`}
+              </button>
+            `;
+            contractActionBarMount.querySelector('#btn-extract-tasks')?.addEventListener('click', () => this.handleExtractTasks());
+          } else if (s1.contractStep === 'time') {
+            const count = isDoneHelper(confs.s1_time);
+            const isMe = isMyDoneHelper(confs.s1_time);
+            contractActionBarMount.innerHTML = `
+              <button id="btn-extract-time" style="background:${isMe ? 'linear-gradient(135deg, #059669, #047857)' : 'linear-gradient(135deg, #0284c7, #0369a1)'}; border:none; color:white; padding:9px 24px; border-radius:20px; font-weight:800; font-size:13.5px; cursor:pointer; display:inline-flex; align-items:center; gap:6px; box-shadow:0 4px 14px rgba(2,132,199,0.3); transition:all 0.2s;">
+                ${isMe ? `✅ 您已确认提炼时间 (${count}/${totalMembersCount} 等待其他组员)` : `⏱️ 时间讨论差不多了？一键提炼【时间分配】 (${count}/${totalMembersCount})`}
+              </button>
+            `;
+            contractActionBarMount.querySelector('#btn-extract-time')?.addEventListener('click', () => this.handleExtractTime());
+          } else {
+            const count = isDoneHelper(confs.s1_topic);
+            const isMe = isMyDoneHelper(confs.s1_topic);
+            if (!isVotingComplete) {
+              contractActionBarMount.innerHTML = `
+                <button id="btn-extract-topic" class="locked-pending-btn" style="background:#f1f5f9; border:1px solid #cbd5e1; color:#94a3b8; padding:9px 24px; border-radius:20px; font-weight:800; font-size:13.5px; cursor:not-allowed; display:inline-flex; align-items:center; gap:6px; box-shadow:none;">
+                  🔒 请先完成投票推选 (${totalVotesCast}/${totalMembersCount} 人已投)
+                </button>
+              `;
+              contractActionBarMount.querySelector('#btn-extract-topic')?.addEventListener('click', () => {
+                alert(`🔒 请先完成全员提案提交与投票推选！\n\n当前全组投票进度：${totalVotesCast}/${totalMembersCount} 人已投票。\n投票结束后拍卖师将落槌揭晓结果，随后方可开启主题与方案提炼。`);
+              });
+            } else {
+              contractActionBarMount.innerHTML = `
+                <button id="btn-extract-topic" style="background:${isMe ? 'linear-gradient(135deg, #059669, #047857)' : 'linear-gradient(135deg, #2563eb, #1d4ed8)'}; border:none; color:white; padding:9px 24px; border-radius:20px; font-weight:800; font-size:13.5px; cursor:pointer; display:inline-flex; align-items:center; gap:6px; box-shadow:0 4px 14px rgba(37,99,235,0.3); transition:all 0.2s;">
+                  ${isMe ? `✅ 您已确认提炼主题与方案 (${count}/${totalMembersCount} 等待其他组员)` : `💡 讨论差不多了？一键提炼【主题与研究方案】 (${count}/${totalMembersCount})`}
+                </button>
+              `;
+              contractActionBarMount.querySelector('#btn-extract-topic')?.addEventListener('click', () => this.handleExtractTopic());
+            }
           }
         }
       } else if (!isEditorTyping) {

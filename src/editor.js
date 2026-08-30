@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles } from "./constants.js?v=20260831_v925";
-import { callCozeAgentAPI } from "./agents.js?v=20260831_v925";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap } from "./utils.js?v=20260831_v925";
+import { AgentProfiles } from "./constants.js?v=20260831_v926";
+import { callCozeAgentAPI } from "./agents.js?v=20260831_v926";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap } from "./utils.js?v=20260831_v926";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -1045,7 +1045,7 @@ function renderStage1Canvas(canvas, state, handlers) {
           ${isContractLocked ? `<span style="color:#059669; font-weight:700;">🔒 全员 ${confirmedCount}/${totalMembersCount} 人完成签署 · 归档生效中</span>` : '小组成员在研讨区商讨后，可按步骤一键提炼或自由微调各项内容，全员确认后签署生效'}
         </div>
         ${!isContractLocked ? `
-          <div style="margin-top:12px; display:flex; justify-content:center;">
+          <div id="stage1-contract-action-bar-mount" style="margin-top:12px; display:flex; justify-content:center;">
             ${(() => {
               const confs = state.stepConfirmations || {};
               const isDoneHelper = (map) => {
