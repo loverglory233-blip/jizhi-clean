@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260830_v771
+ * Version: 20260830_v772
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260830_v771';
+  const APP_VERSION = '20260830_v772';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -654,7 +654,8 @@
     modal.style.cssText = 'position:fixed; inset:0; z-index:9999999; background:rgba(15,23,42,0.68); backdrop-filter:blur(4px); display:flex; align-items:center; justify-content:center; animation:fadeIn 0.25s ease;';
 
     modal.innerHTML = `
-      <div style="background:#ffffff; border-radius:16px; width:90%; max-width:440px; padding:28px 24px; box-shadow:0 20px 40px rgba(15,23,42,0.25); text-align:center; border:2px solid #3b82f6; display:flex; flex-direction:column; gap:16px; animation:scaleUp 0.25s ease; font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+      <div style="background:#ffffff; border-radius:16px; width:90%; max-width:440px; padding:28px 24px; box-shadow:0 20px 40px rgba(15,23,42,0.25); text-align:center; border:2px solid #3b82f6; display:flex; flex-direction:column; gap:16px; animation:scaleUp 0.25s ease; font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; position:relative;">
+        <button id="btn-close-task-unlock-x" style="position:absolute; top:12px; right:12px; border:none; background:#f1f5f9; color:#64748b; font-size:18px; width:28px; height:28px; border-radius:50%; cursor:pointer; display:flex; align-items:center; justify-content:center; font-weight:800;" title="关闭">✕</button>
         <div style="width:60px; height:60px; border-radius:50%; background:#eff6ff; border:2px solid #bfdbfe; display:flex; align-items:center; justify-content:center; font-size:30px; margin:0 auto;">
           ⏳
         </div>
@@ -677,8 +678,8 @@
           </div>
         `}
         <div style="display:flex; gap:10px; margin-top:4px;">
-          <button id="btn-confirm-task-unlock" style="flex:1; background:linear-gradient(135deg, #2563eb, #1d4ed8); color:#ffffff; border:none; padding:10px 16px; border-radius:8px; font-size:14px; font-weight:700; cursor:pointer; box-shadow:0 4px 12px rgba(37,99,235,0.25); transition:all 0.2s;">
-            🚀 立即继续协作 (<span id="unlock-auto-close-countdown">3</span>s)
+          <button id="btn-confirm-task-unlock" style="flex:1; background:linear-gradient(135deg, #2563eb, #1d4ed8); color:#ffffff; border:none; padding:12px 18px; border-radius:10px; font-size:15px; font-weight:800; cursor:pointer; box-shadow:0 4px 12px rgba(37,99,235,0.28); transition:all 0.2s;">
+            🚀 我知道了，立即继续协作
           </button>
         </div>
       </div>
@@ -686,24 +687,19 @@
 
     document.body.appendChild(modal);
 
-    let remainSec = 3;
-    const timer = setInterval(() => {
-      remainSec--;
-      const numEl = modal.querySelector('#unlock-auto-close-countdown');
-      if (numEl) numEl.innerText = remainSec;
-      if (remainSec <= 0) {
-        clearInterval(timer);
-        if (modal.parentElement) modal.remove();
-      }
-    }, 1000);
+    const closeModal = () => {
+      if (modal && modal.parentElement) modal.remove();
+    };
 
     const btn = modal.querySelector('#btn-confirm-task-unlock');
-    if (btn) {
-      btn.addEventListener('click', () => {
-        clearInterval(timer);
-        if (modal.parentElement) modal.remove();
-      });
-    }
+    if (btn) btn.addEventListener('click', closeModal);
+
+    const btnX = modal.querySelector('#btn-close-task-unlock-x');
+    if (btnX) btnX.addEventListener('click', closeModal);
+
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) closeModal();
+    });
   }
 
   /**
@@ -2776,6 +2772,11 @@
 
       // 🛡️ 教师端自身延期操作绝不给自己弹窗
       if (isTeacher) return;
+
+      if (!this._shownDeadlineEvents) this._shownDeadlineEvents = new Set();
+      const eventKey = `${t.id}_${t.deadline}`;
+      if (this._shownDeadlineEvents.has(eventKey)) return;
+      this._shownDeadlineEvents.add(eventKey);
 
       const prevExpired = isTaskExpired(prevDeadline);
       const nowExpired = isTaskExpired(t.deadline);
