@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles } from "./constants.js?v=20260830_v877";
-import { callCozeAgentAPI } from "./agents.js?v=20260830_v877";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap } from "./utils.js?v=20260830_v877";
+import { AgentProfiles } from "./constants.js?v=20260830_v878";
+import { callCozeAgentAPI } from "./agents.js?v=20260830_v878";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap } from "./utils.js?v=20260830_v878";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -1052,7 +1052,7 @@ function renderStage1Canvas(canvas, state, handlers) {
                 const isMe = isMyDoneHelper(confs.s1_time);
                 return `
                   <button id="btn-extract-time" style="background:${isMe ? 'linear-gradient(135deg, #059669, #047857)' : 'linear-gradient(135deg, #0284c7, #0369a1)'}; border:none; color:white; padding:9px 24px; border-radius:20px; font-weight:800; font-size:13.5px; cursor:pointer; display:inline-flex; align-items:center; gap:6px; box-shadow:0 4px 14px rgba(2,132,199,0.3); transition:all 0.2s;">
-                    ${isMe ? `✅ 您已确认提炼时间 (${count}/${totalMembersCount} 等待其他组员)` : `⏱️ 研讨差不多了？一键提炼【时间分配】 (${count}/${totalMembersCount})`}
+                    ${isMe ? `✅ 您已确认提炼时间 (${count}/${totalMembersCount} 等待其他组员)` : `⏱️ 时间讨论差不多了？一键提炼【时间分配】 (${count}/${totalMembersCount})`}
                   </button>
                 `;
               } else {
@@ -1060,7 +1060,7 @@ function renderStage1Canvas(canvas, state, handlers) {
                 const isMe = isMyDoneHelper(confs.s1_topic);
                 return `
                   <button id="btn-extract-topic" style="background:${isMe ? 'linear-gradient(135deg, #059669, #047857)' : 'linear-gradient(135deg, #2563eb, #1d4ed8)'}; border:none; color:white; padding:9px 24px; border-radius:20px; font-weight:800; font-size:13.5px; cursor:pointer; display:inline-flex; align-items:center; gap:6px; box-shadow:0 4px 14px rgba(37,99,235,0.3); transition:all 0.2s;">
-                    ${isMe ? `✅ 您已确认提炼主题 (${count}/${totalMembersCount} 等待其他组员)` : `💡 研讨差不多了？一键提炼【最终主题】 (${count}/${totalMembersCount})`}
+                    ${isMe ? `✅ 您已确认提炼主题与方案 (${count}/${totalMembersCount} 等待其他组员)` : `💡 讨论差不多了？一键提炼【主题与研究方案】 (${count}/${totalMembersCount})`}
                   </button>
                 `;
               }
@@ -1069,9 +1069,20 @@ function renderStage1Canvas(canvas, state, handlers) {
         ` : ''}
       </div>
 
-      <div style="display:flex; flex-direction:column; gap:8px; width:100%; margin-bottom:20px; background:#eff6ff; padding:16px; border-radius:12px; border:1px solid #bfdbfe; box-sizing:border-box;">
-        <label style="font-size:14px; font-weight:800; color:#1e40af;">📌 确认融合论文研究主题:</label>
-        <input type="text" id="contract-topic-input" class="large-contract-input" data-lock-key="topic_title" value="${s1.mergedTitle || ''}" placeholder="在此处输入研究方案最终主题..." ${isContractLocked ? 'disabled readonly style="opacity:0.8; cursor:not-allowed;"' : ''} style="width:100%; box-sizing:border-box; background:#ffffff; color:#0f172a; border:1px solid #cbd5e1; border-radius:8px; padding:12px 14px; font-size:14px; font-weight:700; font-family:sans-serif;">
+      <!-- 槽位 1：论文主题 / 题目 -->
+      <div style="display:flex; flex-direction:column; gap:8px; width:100%; margin-bottom:14px; background:#eff6ff; padding:16px; border-radius:12px; border:1px solid #bfdbfe; box-sizing:border-box;">
+        <label style="font-size:14px; font-weight:800; color:#1e40af; display:flex; align-items:center; gap:6px;">
+          📌 【槽位 1】确认论文主题 / 题目:
+        </label>
+        <input type="text" id="contract-topic-input" class="large-contract-input" data-lock-key="topic_title" value="${s1.mergedTitle || s1.contract?.topic || ''}" placeholder="${s1.mergedTitle ? '在此处输入论文规范题名...' : '投票有分歧或待定，请在讨论区商定后点击上方一键提炼生成...'}" ${isContractLocked ? 'disabled readonly style="opacity:0.8; cursor:not-allowed;"' : ''} style="width:100%; box-sizing:border-box; background:#ffffff; color:#0f172a; border:1px solid #cbd5e1; border-radius:8px; padding:12px 14px; font-size:14.5px; font-weight:700; font-family:sans-serif;">
+      </div>
+
+      <!-- 槽位 2：研究方案概述 (容纳具体情境、案例、聚焦点与方法) -->
+      <div style="display:flex; flex-direction:column; gap:8px; width:100%; margin-bottom:20px; background:#f0f9ff; padding:16px; border-radius:12px; border:1px solid #bae6fd; box-sizing:border-box;">
+        <label style="font-size:14px; font-weight:800; color:#0369a1; display:flex; align-items:center; gap:6px;">
+          📝 【槽位 2】研究方案概述 (具体情境、案例、聚焦点与方法):
+        </label>
+        <textarea id="contract-overview-input" class="contract-overview-textarea" data-lock-key="research_overview" placeholder="请在讨论区围绕具体情境/案例、核心聚焦问题与拟采用方法展开研讨，点击上方按钮一键提炼生成（生成后可自由微调）..." ${isContractLocked ? 'disabled readonly style="opacity:0.8; cursor:not-allowed;"' : ''} style="width:100%; min-height:88px; box-sizing:border-box; background:#ffffff; color:#0f172a; border:1px solid #cbd5e1; border-radius:8px; padding:10px 12px; font-size:13px; line-height:1.6; font-family:sans-serif; resize:vertical;">${s1.contract?.overview || s1.researchOverview || ''}</textarea>
       </div>
 
       <div style="display:flex; flex-direction:column; gap:16px; width:100%;">
@@ -1556,6 +1567,30 @@ function renderStage1Canvas(canvas, state, handlers) {
       if (e.isComposing || e.keyCode === 229) return;
       if (e.key === 'Enter') { topicInput.blur(); }
     });
+  }
+
+  const overviewInput = canvas.querySelector('#contract-overview-input');
+  if (overviewInput && !isContractLocked) {
+    let overviewTimer = null;
+    const flushOverview = () => {
+      if (!s1.contract) s1.contract = {};
+      s1.contract.overview = overviewInput.value;
+      s1.researchOverview = overviewInput.value;
+      if (window.app) {
+        window.app.syncStage1();
+        if (window.app.cloudSyncEngine) window.app.cloudSyncEngine.pushSnapshot();
+      }
+    };
+
+    overviewInput.addEventListener('input', (e) => {
+      if (!s1.contract) s1.contract = {};
+      s1.contract.overview = e.target.value;
+      s1.researchOverview = e.target.value;
+      if (overviewTimer) clearTimeout(overviewTimer);
+      overviewTimer = setTimeout(flushOverview, 400);
+    });
+    overviewInput.addEventListener('change', flushOverview);
+    overviewInput.addEventListener('blur', flushOverview);
   }
 
   canvas.querySelectorAll('.contract-time-input').forEach(input => {
