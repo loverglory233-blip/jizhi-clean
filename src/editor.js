@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles } from "./constants.js?v=20260830_v788";
-import { callCozeAgentAPI } from "./agents.js?v=20260830_v788";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly } from "./utils.js?v=20260830_v788";
+import { AgentProfiles } from "./constants.js?v=20260830_v789";
+import { callCozeAgentAPI } from "./agents.js?v=20260830_v789";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly } from "./utils.js?v=20260830_v789";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -2134,22 +2134,7 @@ function renderStage2Canvas(canvas, state, handlers) {
           const currUserColor = (state.members && state.members[currUserCode]?.color) || '#2563eb';
           
           // 🛡️ 若处于只读锁定模式，严格使用只读 ID (r.xxxx)，从引擎底层禁用编辑与工具栏，同时保留完整滚动浏览能力
-          if (!state._readOnlyPadMap) state._readOnlyPadMap = {};
-          const readOnlyPadId = state._readOnlyPadMap[rawPadName];
-          if (isEditorReadonly && !readOnlyPadId) {
-            fetch(`sync.php?action=get_readonly_pad_id&padId=${rawPadName}`).then(r => r.json()).then(res => {
-              if (res && res.success && res.readOnlyID) {
-                state._readOnlyPadMap[rawPadName] = res.readOnlyID;
-                const f = document.getElementById('stage2-etherpad-frame');
-                if (f && !f.src.includes(res.readOnlyID)) {
-                  f.src = `/p/${res.readOnlyID}?userName=${encodeURIComponent(currUserName)}&userColor=${encodeURIComponent(currUserColor)}&showChat=false&showLineNumbers=true&showControls=false&lang=zh-hans`;
-                }
-              }
-            }).catch(() => {});
-          }
-
-          const effectivePad = (isEditorReadonly && readOnlyPadId) ? readOnlyPadId : rawPadName;
-          const padUrl = `/p/${effectivePad}?userName=${encodeURIComponent(currUserName)}&userColor=${encodeURIComponent(currUserColor)}&showChat=false&showLineNumbers=true&showControls=${isEditorReadonly ? 'false' : 'true'}&lang=zh-hans`;
+          const padUrl = `/p/${rawPadName}?userName=${encodeURIComponent(currUserName)}&userColor=${encodeURIComponent(currUserColor)}&showChat=false&showLineNumbers=true&showControls=${isEditorReadonly ? 'false' : 'true'}&lang=zh-hans`;
           
           return `
             <div class="word-editor-container" style="display:flex; flex-direction:column; height:100%; min-height:480px; border-radius:10px; overflow:hidden; border:1px solid #cbd5e1; box-shadow:0 4px 16px rgba(15,23,42,0.06); background:#ffffff; position:relative;">
@@ -2620,23 +2605,7 @@ function renderStage3Canvas(canvas, state, handlers) {
           const currUserName = (currUser && (currUser.name || currUser.username)) || '组员';
           const currUserColor = (state.members && state.members[currUserCode]?.color) || '#2563eb';
 
-          // 🛡️ 若已全员提交终稿，严格使用只读 ID (r.xxxx)，从底层彻底禁用编辑与工具栏，同时保留完整滚动浏览能力
-          if (!state._readOnlyPadMap) state._readOnlyPadMap = {};
-          const readOnlyPadId = state._readOnlyPadMap[rawPadName];
-          if (isFinalSubmitted && !readOnlyPadId) {
-            fetch(`sync.php?action=get_readonly_pad_id&padId=${rawPadName}`).then(r => r.json()).then(res => {
-              if (res && res.success && res.readOnlyID) {
-                state._readOnlyPadMap[rawPadName] = res.readOnlyID;
-                const f = document.getElementById('stage3-etherpad-frame');
-                if (f && !f.src.includes(res.readOnlyID)) {
-                  f.src = `/p/${res.readOnlyID}?userName=${encodeURIComponent(currUserName)}&userColor=${encodeURIComponent(currUserColor)}&showChat=false&showLineNumbers=true&showControls=false&lang=zh-hans`;
-                }
-              }
-            }).catch(() => {});
-          }
-
-          const effectivePad = (isFinalSubmitted && readOnlyPadId) ? readOnlyPadId : rawPadName;
-          const padUrl = `/p/${effectivePad}?userName=${encodeURIComponent(currUserName)}&userColor=${encodeURIComponent(currUserColor)}&showChat=false&showLineNumbers=true&showControls=${isFinalSubmitted ? 'false' : 'true'}&lang=zh-hans`;
+          const padUrl = `/p/${rawPadName}?userName=${encodeURIComponent(currUserName)}&userColor=${encodeURIComponent(currUserColor)}&showChat=false&showLineNumbers=true&showControls=${isFinalSubmitted ? 'false' : 'true'}&lang=zh-hans`;
 
           return `
             <div class="card-title" style="margin-bottom:10px; display:flex; justify-content:space-between; align-items:center;">

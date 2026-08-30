@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260830_v788
+ * Version: 20260830_v789
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260830_v788';
+  const APP_VERSION = '20260830_v789';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -763,55 +763,55 @@
         container.appendChild(shield);
       }
 
-      // 🖱️ 护盾鼠标滚轮透传：精准拦截并驱动 Etherpad 内部各层容器丝滑上下滚动
+      // 🖱️ 护盾鼠标滚轮与触控透传：精准拦截并驱动 Etherpad 内部各层容器丝滑上下滚动
+      const performScroll = (deltaY) => {
+        try {
+          const doc = iframe.contentDocument || iframe.contentWindow?.document;
+          if (iframe.contentWindow) {
+            try { iframe.contentWindow.scrollBy(0, deltaY); } catch(e) {}
+          }
+          if (!doc) return;
+
+          if (doc.scrollingElement) doc.scrollingElement.scrollTop += deltaY;
+          if (doc.documentElement) doc.documentElement.scrollTop += deltaY;
+          if (doc.body) doc.body.scrollTop += deltaY;
+
+          const aceOuter = doc.querySelector('iframe[name="ace_outer"]') || doc.querySelector('#ace_outer');
+          if (aceOuter) {
+            const outerWin = aceOuter.contentWindow;
+            if (outerWin) {
+              try { outerWin.scrollBy(0, deltaY); } catch(e) {}
+            }
+            const outerDoc = aceOuter.contentDocument || outerWin?.document;
+            if (outerDoc) {
+              const outerBody = outerDoc.querySelector('#outerdocbody') || outerDoc.body || outerDoc.documentElement;
+              if (outerBody) outerBody.scrollTop += deltaY;
+              if (outerDoc.scrollingElement) outerDoc.scrollingElement.scrollTop += deltaY;
+
+              const aceInner = outerDoc.querySelector('iframe[name="ace_inner"]') || outerDoc.querySelector('#ace_inner');
+              if (aceInner) {
+                const innerWin = aceInner.contentWindow;
+                if (innerWin) {
+                  try { innerWin.scrollBy(0, deltaY); } catch(e) {}
+                }
+                const innerDoc = aceInner.contentDocument || innerWin?.document;
+                if (innerDoc) {
+                  const innerBody = innerDoc.querySelector('#innerdocbody') || innerDoc.body || innerDoc.documentElement;
+                  if (innerBody) innerBody.scrollTop += deltaY;
+                  if (innerDoc.scrollingElement) innerDoc.scrollingElement.scrollTop += deltaY;
+                }
+              }
+            }
+          }
+        } catch(err) {}
+      };
+
       if (!shield._wheelBound) {
         shield._wheelBound = true;
         shield.addEventListener('wheel', (e) => {
           e.preventDefault();
           e.stopPropagation();
-
-          try {
-            const doc = iframe.contentDocument || iframe.contentWindow?.document;
-            if (iframe.contentWindow) {
-              try { iframe.contentWindow.scrollBy(0, e.deltaY); } catch (e1) {}
-            }
-            if (doc) {
-              if (doc.scrollingElement) doc.scrollingElement.scrollTop += e.deltaY;
-              if (doc.documentElement) doc.documentElement.scrollTop += e.deltaY;
-              if (doc.body) doc.body.scrollTop += e.deltaY;
-
-              const aceOuter = doc.querySelector('iframe[name="ace_outer"]');
-              if (aceOuter) {
-                if (aceOuter.contentWindow) {
-                  try { aceOuter.contentWindow.scrollBy(0, e.deltaY); } catch (e2) {}
-                }
-                const outerDoc = aceOuter.contentDocument || aceOuter.contentWindow?.document;
-                if (outerDoc) {
-                  if (outerDoc.scrollingElement) outerDoc.scrollingElement.scrollTop += e.deltaY;
-                  if (outerDoc.documentElement) outerDoc.documentElement.scrollTop += e.deltaY;
-                  const outerBody = outerDoc.querySelector('#outerdocbody') || outerDoc.body;
-                  if (outerBody) {
-                    outerBody.scrollTop += e.deltaY;
-                  }
-                  const aceInner = outerDoc.querySelector('iframe[name="ace_inner"]');
-                  if (aceInner) {
-                    if (aceInner.contentWindow) {
-                      try { aceInner.contentWindow.scrollBy(0, e.deltaY); } catch (e3) {}
-                    }
-                    const innerDoc = aceInner.contentDocument || aceInner.contentWindow?.document;
-                    if (innerDoc) {
-                      if (innerDoc.scrollingElement) innerDoc.scrollingElement.scrollTop += e.deltaY;
-                      if (innerDoc.documentElement) innerDoc.documentElement.scrollTop += e.deltaY;
-                      const innerBody = innerDoc.querySelector('#innerdocbody') || innerDoc.body;
-                      if (innerBody) {
-                        innerBody.scrollTop += e.deltaY;
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          } catch(err) {}
+          performScroll(e.deltaY);
         }, { passive: false });
       }
 
@@ -826,17 +826,7 @@
           const currentY = e.touches[0].clientY;
           const deltaY = (startY - currentY) * 1.5;
           startY = currentY;
-          try {
-            const doc = iframe.contentDocument || iframe.contentWindow?.document;
-            if (iframe.contentWindow) {
-              try { iframe.contentWindow.scrollBy(0, deltaY); } catch (e1) {}
-            }
-            if (doc) {
-              if (doc.scrollingElement) doc.scrollingElement.scrollTop += deltaY;
-              if (doc.documentElement) doc.documentElement.scrollTop += deltaY;
-              if (doc.body) doc.body.scrollTop += deltaY;
-            }
-          } catch(err) {}
+          performScroll(deltaY);
         }, { passive: true });
       }
     }
@@ -10284,22 +10274,7 @@
             const currUserColor = (state.members && state.members[currUserCode]?.color) || '#2563eb';
 
             // 🛡️ 若处于只读锁定模式，严格使用只读 ID (r.xxxx)，从引擎底层禁用编辑与工具栏，同时保留完整滚动浏览能力
-            if (!state._readOnlyPadMap) state._readOnlyPadMap = {};
-            const readOnlyPadId = state._readOnlyPadMap[rawPadName];
-            if (isEditorReadonly && !readOnlyPadId) {
-              fetch(`sync.php?action=get_readonly_pad_id&padId=${rawPadName}`).then(r => r.json()).then(res => {
-                if (res && res.success && res.readOnlyID) {
-                  state._readOnlyPadMap[rawPadName] = res.readOnlyID;
-                  const f = document.getElementById('stage2-etherpad-frame');
-                  if (f && !f.src.includes(res.readOnlyID)) {
-                    f.src = `/p/${res.readOnlyID}?userName=${encodeURIComponent(currUserName)}&userColor=${encodeURIComponent(currUserColor)}&showChat=false&showLineNumbers=true&showControls=false&lang=zh-hans`;
-                  }
-                }
-              }).catch(() => {});
-            }
-
-            const effectivePad = (isEditorReadonly && readOnlyPadId) ? readOnlyPadId : rawPadName;
-            const padUrl = `/p/${effectivePad}?userName=${encodeURIComponent(currUserName)}&userColor=${encodeURIComponent(currUserColor)}&showChat=false&showLineNumbers=true&showControls=${isEditorReadonly ? 'false' : 'true'}&lang=zh-hans`;
+            const padUrl = `/p/${rawPadName}?userName=${encodeURIComponent(currUserName)}&userColor=${encodeURIComponent(currUserColor)}&showChat=false&showLineNumbers=true&showControls=${isEditorReadonly ? 'false' : 'true'}&lang=zh-hans`;
 
             return `
               <div class="word-editor-container" style="display:flex; flex-direction:column; height:100%; min-height:480px; border-radius:10px; overflow:hidden; border:1px solid #cbd5e1; box-shadow:0 4px 16px rgba(15,23,42,0.06); background:#ffffff; position:relative;">
@@ -10770,23 +10745,7 @@
             const currUserName = (currUser && (currUser.name || currUser.username)) || '组员';
             const currUserColor = (state.members && state.members[currUserCode]?.color) || '#2563eb';
 
-            // 🛡️ 若已全员提交终稿，严格使用只读 ID (r.xxxx)，从底层彻底禁用编辑与工具栏，同时保留完整滚动浏览能力
-            if (!state._readOnlyPadMap) state._readOnlyPadMap = {};
-            const readOnlyPadId = state._readOnlyPadMap[rawPadName];
-            if (isFinalSubmitted && !readOnlyPadId) {
-              fetch(`sync.php?action=get_readonly_pad_id&padId=${rawPadName}`).then(r => r.json()).then(res => {
-                if (res && res.success && res.readOnlyID) {
-                  state._readOnlyPadMap[rawPadName] = res.readOnlyID;
-                  const f = document.getElementById('stage3-etherpad-frame');
-                  if (f && !f.src.includes(res.readOnlyID)) {
-                    f.src = `/p/${res.readOnlyID}?userName=${encodeURIComponent(currUserName)}&userColor=${encodeURIComponent(currUserColor)}&showChat=false&showLineNumbers=true&showControls=false&lang=zh-hans`;
-                  }
-                }
-              }).catch(() => {});
-            }
-
-            const effectivePad = (isFinalSubmitted && readOnlyPadId) ? readOnlyPadId : rawPadName;
-            const padUrl = `/p/${effectivePad}?userName=${encodeURIComponent(currUserName)}&userColor=${encodeURIComponent(currUserColor)}&showChat=false&showLineNumbers=true&showControls=${isFinalSubmitted ? 'false' : 'true'}&lang=zh-hans`;
+            const padUrl = `/p/${rawPadName}?userName=${encodeURIComponent(currUserName)}&userColor=${encodeURIComponent(currUserColor)}&showChat=false&showLineNumbers=true&showControls=${isFinalSubmitted ? 'false' : 'true'}&lang=zh-hans`;
 
             return `
               <div class="card-title" style="margin-bottom:10px; display:flex; justify-content:space-between; align-items:center;">
