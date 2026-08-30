@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260830_v903
+ * Version: 20260830_v904
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260830_v903';
+  const APP_VERSION = '20260830_v904';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -1079,16 +1079,18 @@
               return; // ⚡ 极速早退：服务端版本未变，0 开销
             }
             // 1. 账号池：直接以云端权威数据库为准
-            if (Array.isArray(data.users) && data.users.length > 0) {
+            if (Array.isArray(data.users)) {
               localStorage.setItem(STORAGE_KEY_USERS_DB, JSON.stringify(data.users));
             }
 
             // 2. 班级与小组：直接以云端权威数据库为准 (杜绝已删除班级/学生死灰复燃)
-            if (Array.isArray(data.classes) && data.classes.length > 0) {
+            if (Array.isArray(data.classes)) {
               localStorage.setItem(STORAGE_KEY_CLASSES, JSON.stringify(data.classes));
               this.sanitizeAndDeduplicateGroups();
             }
-            if (Array.isArray(data.tasks) && data.tasks.length > 0) {
+
+            // 3. 写作任务：直接以云端权威数据库为准 (智能继承本地更新的延期截止时间)
+            if (Array.isArray(data.tasks)) {
               const localTasks = this.getTasks();
               const mergedTasks = data.tasks.map(remoteT => {
                 const localT = localTasks.find(lt => lt.id === remoteT.id || (lt.title && lt.title === remoteT.title));
@@ -1103,12 +1105,13 @@
               });
               localStorage.setItem(STORAGE_KEY_TASKS, JSON.stringify(mergedTasks));
             }
+
+            // 4. 课堂通知：严格以云端权威列表为准，仅智能继承本地已读标记，绝不反向复活已删除通知！
             if (Array.isArray(data.announcements)) {
               const localAnns = JSON.parse(localStorage.getItem(STORAGE_KEY_ANNOUNCEMENTS) || '[]');
               const localMap = new Map();
               localAnns.forEach(a => { if (a && a.id) localMap.set(a.id, a); });
 
-              // 🛡️ 严格以云端权威列表为准，仅智能继承本地已读标记，绝不反向复活已删除通知！
               const mergedAnns = data.announcements.map(remoteAnn => {
                 const localAnn = localMap.get(remoteAnn.id);
                 if (!localAnn) return remoteAnn;
@@ -1148,9 +1151,13 @@
                 window.app.checkUnreadAnnouncements();
               }
             }
+
+            // 5. 学术文献与范文：直接以云端权威数据库为准
             if (Array.isArray(data.referencePapers)) {
               localStorage.setItem('jizhi_reference_papers_db', JSON.stringify(data.referencePapers));
             }
+
+            // 6. 课程问卷配置：直接以云端权威数据库为准
             if (Array.isArray(data.surveys)) {
               localStorage.setItem('jizhi_surveys_list_db', JSON.stringify(data.surveys));
             }
