@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260830_v760
+ * Version: 20260830_v761
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260830_v760';
+  const APP_VERSION = '20260830_v761';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -639,6 +639,71 @@
         setTimeout(() => banner.remove(), 300);
       }
     }, 6000);
+  }
+
+  /**
+   * ⏳ 任务截止时间延长弹窗（场景 1：学生正处于该任务内）
+   */
+  function showTaskExtendedUnlockModal(task, prevDeadline, isUnlockedNow = false) {
+    if (typeof document === 'undefined') return;
+    const existing = document.getElementById('modal-task-extended-unlock');
+    if (existing) existing.remove();
+
+    const modal = document.createElement('div');
+    modal.id = 'modal-task-extended-unlock';
+    modal.style.cssText = 'position:fixed; inset:0; z-index:9999999; background:rgba(15,23,42,0.68); backdrop-filter:blur(4px); display:flex; align-items:center; justify-content:center; animation:fadeIn 0.25s ease;';
+
+    modal.innerHTML = `
+      <div style="background:#ffffff; border-radius:16px; width:90%; max-width:440px; padding:28px 24px; box-shadow:0 20px 40px rgba(15,23,42,0.25); text-align:center; border:2px solid #3b82f6; display:flex; flex-direction:column; gap:16px; animation:scaleUp 0.25s ease; font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+        <div style="width:60px; height:60px; border-radius:50%; background:#eff6ff; border:2px solid #bfdbfe; display:flex; align-items:center; justify-content:center; font-size:30px; margin:0 auto;">
+          ⏳
+        </div>
+        <div>
+          <div style="font-size:18px; font-weight:800; color:#1e3a8a;">任务截止时间已延长！</div>
+          <div style="font-size:13.5px; color:#475569; margin-top:8px; line-height:1.6;">
+            任课教师已将任务《<b>${escapeHtml(task.title || '协作写作')}</b>》截止时间延长至：
+          </div>
+          <div style="font-size:16px; font-weight:800; color:#2563eb; background:#f0f7ff; padding:8px 14px; border-radius:8px; margin:10px auto 0; border:1px dashed #93c5fd; display:inline-block;">
+            📅 ${escapeHtml(task.deadline || '未设定')}
+          </div>
+        </div>
+        ${isUnlockedNow ? `
+          <div style="background:#ecfdf5; border:1px solid #a7f3d0; border-radius:8px; padding:10px 12px; color:#065f46; font-size:12.5px; font-weight:700; display:flex; align-items:center; justify-content:center; gap:6px;">
+            <span>✅ 协作正文已为您自动【解除只读锁定】，可正常编辑！</span>
+          </div>
+        ` : `
+          <div style="background:#f0fdf4; border:1px solid #bbf7d0; border-radius:8px; padding:10px 12px; color:#15803d; font-size:12.5px; font-weight:700; display:flex; align-items:center; justify-content:center; gap:6px;">
+            <span>⏱️ 写作时长已同步增加，请抓紧时间协同完成！</span>
+          </div>
+        `}
+        <div style="display:flex; gap:10px; margin-top:4px;">
+          <button id="btn-confirm-task-unlock" style="flex:1; background:linear-gradient(135deg, #2563eb, #1d4ed8); color:#ffffff; border:none; padding:10px 16px; border-radius:8px; font-size:14px; font-weight:700; cursor:pointer; box-shadow:0 4px 12px rgba(37,99,235,0.25); transition:all 0.2s;">
+            🚀 立即继续协作 (<span id="unlock-auto-close-countdown">3</span>s)
+          </button>
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(modal);
+
+    let remainSec = 3;
+    const timer = setInterval(() => {
+      remainSec--;
+      const numEl = modal.querySelector('#unlock-auto-close-countdown');
+      if (numEl) numEl.innerText = remainSec;
+      if (remainSec <= 0) {
+        clearInterval(timer);
+        if (modal.parentElement) modal.remove();
+      }
+    }, 1000);
+
+    const btn = modal.querySelector('#btn-confirm-task-unlock');
+    if (btn) {
+      btn.addEventListener('click', () => {
+        clearInterval(timer);
+        if (modal.parentElement) modal.remove();
+      });
+    }
   }
 
   /**
@@ -2951,7 +3016,52 @@
           const key = 'jizhi_pure_v10_tasks_db';
           const localStr = localStorage.getItem(key) || '[]';
           const remoteStr = JSON.stringify(remoteData.tasks);
-          if (localStr !== remoteStr) localStorage.setItem(key, remoteStr);
+          if (localStr !== remoteStr) {
+            let prevTasks = [];
+            try { prevTasks = JSON.parse(localStr); } catch (e) {}
+            localStorage.setItem(key, remoteStr);
+
+            // ⚡ 检测任务延期并根据三大场景智能响应
+            if (Array.isArray(prevTasks) && prevTasks.length > 0) {
+              remoteData.tasks.forEach(t => {
+                const prev = prevTasks.find(p => p.id === t.id);
+                if (prev && t.deadline && prev.deadline && t.deadline !== prev.deadline) {
+                  const prevExpired = isTaskExpired(prev.deadline);
+                  const nowExpired = isTaskExpired(t.deadline);
+                  const isCurrentTask = (this.app.state.activeTaskId === t.id && this.app.state.currentView !== 'student_portal' && !this.app.state.isTeacherPortal);
+                  const isTaskHall = (this.app.state.currentView === 'student_portal' || !this.app.state.activeTaskId);
+
+                  if (isCurrentTask) {
+                    // 🎯 场景 1：学生正处于该任务工作台内部
+                    document.querySelectorAll('.etherpad-readonly-shield').forEach(s => s.remove());
+                    const f2 = document.getElementById('stage2-etherpad-frame');
+                    if (f2 && f2.src.includes('showControls=false') && !nowExpired) {
+                      f2.src = f2.src.replace('showControls=false', 'showControls=true');
+                    }
+                    const f3 = document.getElementById('stage3-etherpad-frame');
+                    if (f3 && f3.src.includes('showControls=false') && !nowExpired) {
+                      f3.src = f3.src.replace('showControls=false', 'showControls=true');
+                    }
+                    this.app.renderHeader();
+                    if (prevExpired && !nowExpired) {
+                      showTaskExtendedUnlockModal(t, prev.deadline, true);
+                      this.app.renderStudentWorkspace();
+                    } else {
+                      showGlobalBannerNotice('⏳ 写作截止时间已延长', `任课教师已将本任务截止时间调整至 ${t.deadline}。`, 'info');
+                    }
+                  } else if (isTaskHall) {
+                    // 📋 场景 2：学生在任务大厅
+                    this.app.renderStudentWorkspace();
+                    showGlobalBannerNotice('🔔 任务延期通知', `写作任务《${t.title || '协作任务'}》截止时间已延长至 ${t.deadline}，协作通道已重新开启！`, 'info');
+                  } else {
+                    // ✍️ 场景 3：学生在另一个不同的任务内
+                    showGlobalBannerNotice('🔔 课程任务延期提醒', `您的另一项写作任务《${t.title || '协作任务'}》截止时间已延长至 ${t.deadline}。`, 'info');
+                    this.app.renderHeader();
+                  }
+                }
+              });
+            }
+          }
         }
         if (Array.isArray(remoteData.users) && remoteData.users.length > 0) {
           const key = 'jizhi_pure_v10_users_db';

@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState } from './constants.js?v=20260830_v760';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin } from './utils.js?v=20260830_v760';
+import { InitialState } from './constants.js?v=20260830_v761';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal } from './utils.js?v=20260830_v761';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -374,7 +374,52 @@ export class CloudSyncEngine {
         const key = 'jizhi_pure_v10_tasks_db';
         const localStr = localStorage.getItem(key) || '[]';
         const remoteStr = JSON.stringify(remoteData.tasks);
-        if (localStr !== remoteStr) localStorage.setItem(key, remoteStr);
+        if (localStr !== remoteStr) {
+          let prevTasks = [];
+          try { prevTasks = JSON.parse(localStr); } catch (e) {}
+          localStorage.setItem(key, remoteStr);
+
+          // ⚡ 检测任务延期并根据三大场景智能响应
+          if (Array.isArray(prevTasks) && prevTasks.length > 0) {
+            remoteData.tasks.forEach(t => {
+              const prev = prevTasks.find(p => p.id === t.id);
+              if (prev && t.deadline && prev.deadline && t.deadline !== prev.deadline) {
+                const prevExpired = isTaskExpired(prev.deadline);
+                const nowExpired = isTaskExpired(t.deadline);
+                const isCurrentTask = (this.app.state.activeTaskId === t.id && this.app.state.currentView !== 'student_portal' && !this.app.state.isTeacherPortal);
+                const isTaskHall = (this.app.state.currentView === 'student_portal' || !this.app.state.activeTaskId);
+
+                if (isCurrentTask) {
+                  // 🎯 场景 1：学生正处于该任务工作台内部
+                  document.querySelectorAll('.etherpad-readonly-shield').forEach(s => s.remove());
+                  const f2 = document.getElementById('stage2-etherpad-frame');
+                  if (f2 && f2.src.includes('showControls=false') && !nowExpired) {
+                    f2.src = f2.src.replace('showControls=false', 'showControls=true');
+                  }
+                  const f3 = document.getElementById('stage3-etherpad-frame');
+                  if (f3 && f3.src.includes('showControls=false') && !nowExpired) {
+                    f3.src = f3.src.replace('showControls=false', 'showControls=true');
+                  }
+                  this.app.renderHeader();
+                  if (prevExpired && !nowExpired) {
+                    showTaskExtendedUnlockModal(t, prev.deadline, true);
+                    this.app.renderStudentWorkspace();
+                  } else {
+                    showGlobalBannerNotice('⏳ 写作截止时间已延长', `任课教师已将本任务截止时间调整至 ${t.deadline}。`, 'info');
+                  }
+                } else if (isTaskHall) {
+                  // 📋 场景 2：学生在任务大厅
+                  this.app.renderStudentWorkspace();
+                  showGlobalBannerNotice('🔔 任务延期通知', `写作任务《${t.title || '协作任务'}》截止时间已延长至 ${t.deadline}，协作通道已重新开启！`, 'info');
+                } else {
+                  // ✍️ 场景 3：学生在另一个不同的任务内
+                  showGlobalBannerNotice('🔔 课程任务延期提醒', `您的另一项写作任务《${t.title || '协作任务'}》截止时间已延长至 ${t.deadline}。`, 'info');
+                  this.app.renderHeader();
+                }
+              }
+            });
+          }
+        }
       }
       if (Array.isArray(remoteData.users) && remoteData.users.length > 0) {
         const key = 'jizhi_pure_v10_users_db';
