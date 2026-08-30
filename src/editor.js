@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles } from "./constants.js?v=20260831_v946";
-import { callCozeAgentAPI } from "./agents.js?v=20260831_v946";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap } from "./utils.js?v=20260831_v946";
+import { AgentProfiles } from "./constants.js?v=20260831_v947";
+import { callCozeAgentAPI } from "./agents.js?v=20260831_v947";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap } from "./utils.js?v=20260831_v947";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -2086,10 +2086,11 @@ function renderStage2Canvas(canvas, state, handlers) {
             if (window.app && typeof window.app.syncStage2 === 'function') {
               window.app.syncStage2();
             }
-            if (window.app && typeof window.app.checkAgentTriggersOnContent === 'function') {
-              window.app.checkAgentTriggersOnContent(cleanTxt);
-            }
           }, 1500);
+        }
+
+        if (window.app && typeof window.app.checkAgentTriggersOnContent === 'function') {
+          window.app.checkAgentTriggersOnContent(cleanTxt);
         }
 
         // 动态贡献度计算：
