@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260831_v920
+ * Version: 20260831_v921
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260831_v920';
+  const APP_VERSION = '20260831_v921';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -14399,25 +14399,29 @@
   【获胜提案内容/设想】: ${winningProposal.description || '暂无详细描述'}
 
   请作为资深学术拍卖师：
-  发表 100~140 字的全票通过祝贺与方案细化研讨引导：
-  1. 肯定全员一致推选《${winningProposal.title}》（${totalMembersCount} 票）；
-  2. 结合该提案的具体设想，启发全组在讨论区进一步商量具体的研究设计与切入角度（如结合什么具体课例/情境、聚焦什么核心痛点问题、采用什么研究或实验方法等）；
-  3. 明确提示：“聊得差不多后随时点击上方【💡 讨论差不多了？一键提炼【主题与研究方案】】按钮生成完整方案~”
-  纯自然语言输出，开头统一：🤖 【学术拍卖师·全票通过】：`;
+  发表 100~130 字的单条全票通过祝贺与方案细化研讨引导：
+  ① 宣布全员一致通过该主题《${winningProposal.title}》（${totalMembersCount} 票）；
+  ② 顺势引导大家在群里进一步商量具体的研究设计与切入角度（如结合什么具体情境/案例、聚焦什么核心问题、采用什么方法等）；
+  ③ 末尾提示：“商量好后，请点击左侧公约看板中的【💡 讨论差不多了？一键提炼【主题与研究方案】】按钮！”
+  （纯自然语言输出，100~130字，严禁拆分成多条）`;
 
-            let guideText = `🤖 【学术拍卖师·全票通过】：太棒了！全员一致通过选题《${winningProposal.title}》（${totalMembersCount} 票）！请大家在群里进一步商量具体的研究设计与切入角度（如结合什么具体情境/案例、聚焦什么核心问题、采用什么方法等）。聊得差不多后随时点击上方【💡 讨论差不多了？一键提炼【主题与研究方案】】按钮生成完整方案~`;
+            let guideText = `恭喜全员一致通过选题《${winningProposal.title}》（${totalMembersCount} 票）！请大家在群里进一步商量具体的研究设计与切入角度（如结合什么具体情境/案例、聚焦什么核心问题、采用什么方法等）。商量好后，请点击左侧公约看板中的【💡 讨论差不多了？一键提炼【主题与研究方案】】按钮！`;
 
             try {
               const aiResp = await callCozeAgentAPI('auctioneer', unanimousPrompt, { stage: 'stage1', topic: winningProposal.title });
               if (aiResp && aiResp.trim().length > 0) {
                 guideText = aiResp.trim();
-                if (!guideText.startsWith('🤖')) guideText = `🤖 【学术拍卖师·全票通过】：${guideText}`;
               }
             } catch (e) {
               console.warn('Auctioneer unanimous prompt fallback', e);
             }
 
+            // 🛡️ 智能清洗并统一前缀为标准的单层格式
+            guideText = guideText.replace(/^(?:🤖|🎪|🏛️)?\s*【(?:学术拍卖师|拍卖师)[·\s]*(?:全票通过|落槌与方案研讨|分歧指引|定名指引)?】[：:]\s*/g, '');
+            guideText = `🏛️ 【学术拍卖师·落槌与方案研讨】：${guideText.trim()}`;
+
             const guideMsg = {
+              id: 'vote_unanimous_' + Date.now(),
               sender: 'auctioneer',
               senderName: '头脑风暴 · 学术拍卖师',
               text: guideText,
@@ -14425,9 +14429,11 @@
               _timeMs: Date.now()
             };
             this.state.chatLogs.stage1.push(guideMsg);
+            if (typeof this.sendSingleChatMessage === 'function') {
+              this.sendSingleChatMessage(guideMsg, 'stage1');
+            }
           } else {
             // 情境 B：投票存在分歧（有不同票数）
-            // 左侧槽位表现：【论文主题】与【研究方案概述】两个框均保持空白待定。
             s1.mergedTitle = '';
             if (!s1.contract) s1.contract = {};
             s1.contract.topic = '';
@@ -14437,33 +14443,36 @@
             // 结构化整理各方向票数与提案内容（严禁点名，只报票数与方向）
             const directionSummaries = (s1.proposals || []).map((p, idx) => {
               const vCount = tally[p.id] || 0;
-              return `【方向${idx + 1}：《${p.title}》】获得 ${vCount} 票（设想：${p.description || '无'}）`;
-            }).join('\n');
+              return `【方案${idx + 1}：《${p.title}》】(${vCount}票)`;
+            }).join('，');
 
             const divergencePrompt = `小组成员完成了选题投票，投票结果出炉（存在分歧）：
-  ${directionSummaries}
+  各方案得票分布: ${directionSummaries}
 
   请作为资深学术拍卖师：
-  发表 110~150 字的投票揭晓与分歧协商融合引导（严禁点名任何作者，只报方向、票数与侧重点）：
-  1. 播报各方向票数与侧重点（如【方向一：《XX》】获得 X 票；【方向二：《YY》】获得 Y 票）；
-  2. 启发大家围绕各方案的互补性在讨论区商量确定一个统一或融合的方向，并进一步细化具体的研究情境、案例与方法；
-  3. 明确提示：“聊得差不多后随时点击上方【💡 讨论差不多了？一键提炼【主题与研究方案】】按钮生成完整方案~”
-  纯自然语言输出，开头统一：🤖 【学术拍卖师·分歧指引】：`;
+  发表 100~130 字的单条投票揭晓与方案研讨引导（严禁点名任何组员）：
+  ① 客观播报各方案得票分布（如《方案A》(X票)，《方案B》(Y票)）；
+  ② 客观分析不同得票方向的侧重点与互补性，引导全组商量确定一个统一或融合的方向，并进一步细化具体的研究情境与方案；
+  ③ 末尾提示：“商量好后，请点击左侧公约看板中的【💡 讨论差不多了？一键提炼【主题与研究方案】】按钮！”
+  （纯自然语言输出，100~130字，严禁拆分成多条）`;
 
-            const directionBrief = (s1.proposals || []).map((p, idx) => `【方向${idx + 1}：《${p.title}》】获得 ${tally[p.id] || 0} 票`).join('；');
-            let guideText = `🤖 【学术拍卖师·分歧指引】：投票结果出炉：${directionBrief}。请大家商量确定一个统一或融合的方向，并进一步细化具体的研究情境与方案。聊得差不多后随时点击上方【💡 讨论差不多了？一键提炼【主题与研究方案】】按钮生成完整方案~`;
+            let guideText = `投票结果已出炉：${directionSummaries}！各方案各有千秋，建议大家在讨论区交流融合，重点商定核心问题与具体实施路径。商量好后，请点击左侧公约看板中的【💡 讨论差不多了？一键提炼【主题与研究方案】】按钮！`;
 
             try {
               const aiResp = await callCozeAgentAPI('auctioneer', divergencePrompt, { stage: 'stage1', topic: '方案分歧融合' });
               if (aiResp && aiResp.trim().length > 0) {
                 guideText = aiResp.trim();
-                if (!guideText.startsWith('🤖')) guideText = `🤖 【学术拍卖师·分歧指引】：${guideText}`;
               }
             } catch (e) {
               console.warn('Auctioneer divergence prompt fallback', e);
             }
 
+            // 🛡️ 智能清洗并统一前缀为标准的单层格式
+            guideText = guideText.replace(/^(?:🤖|🎪|🏛️)?\s*【(?:学术拍卖师|拍卖师)[·\s]*(?:全票通过|落槌与方案研讨|分歧指引|定名指引)?】[：:]\s*/g, '');
+            guideText = `🏛️ 【学术拍卖师·落槌与方案研讨】：${guideText.trim()}`;
+
             const guideMsg = {
+              id: 'vote_divergence_' + Date.now(),
               sender: 'auctioneer',
               senderName: '头脑风暴 · 学术拍卖师',
               text: guideText,
@@ -14471,6 +14480,9 @@
               _timeMs: Date.now()
             };
             this.state.chatLogs.stage1.push(guideMsg);
+            if (typeof this.sendSingleChatMessage === 'function') {
+              this.sendSingleChatMessage(guideMsg, 'stage1');
+            }
           }
 
           this.syncStage1();
