@@ -1592,26 +1592,6 @@ if ($action === 'extend_task_deadline' && $_SERVER['REQUEST_METHOD'] === 'POST')
             $gm['tasks'][] = $updatedTask;
         }
 
-        // 自动同步发布延期公告
-        if (!isset($gm['announcements']) || !is_array($gm['announcements'])) $gm['announcements'] = [];
-        $annTitle = "⏳ 任务延期通知：截止时间已延长至 {$newDeadline}";
-        $annContent = "任课教师已将写作任务《" . ($updatedTask['title'] ?? '写作任务') . "》截止时间延长至 {$newDeadline}。各小组写作工作台已自动解除只读锁定，可正常编辑。";
-        $newAnn = [
-            'id' => 'ann_ext_' . time() . '_' . substr(md5($taskId . $newDeadline), 0, 6),
-            'taskId' => $taskId,
-            'title' => $annTitle,
-            'content' => $annContent,
-            'createdAt' => date('Y-m-d H:i:s'),
-            'classId' => $updatedTask['classId'] ?? 'all',
-            'className' => $updatedTask['className'] ?? '全校班级',
-            'targetClassIds' => isset($updatedTask['classId']) ? [$updatedTask['classId']] : ['all'],
-            'isExtension' => true,
-            'readStatus' => [],
-            'readGroupStatus' => [],
-            'confirmedMembers' => []
-        ];
-        array_unshift($gm['announcements'], $newAnn);
-
         // 递增全局版本号
         $stmtVer = $pdo->prepare("SELECT meta_value FROM global_meta WHERE meta_key = 'main_meta_version'");
         $stmtVer->execute();
@@ -1636,8 +1616,7 @@ if ($action === 'extend_task_deadline' && $_SERVER['REQUEST_METHOD'] === 'POST')
         echo json_encode([
             'success' => true,
             'version' => $newVer,
-            'task' => $updatedTask,
-            'announcement' => $newAnn
+            'task' => $updatedTask
         ], JSON_UNESCAPED_UNICODE);
         exit;
     }

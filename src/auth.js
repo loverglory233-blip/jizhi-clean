@@ -14,8 +14,8 @@ import {
   DefaultTasks,
   DefaultAnnouncements,
   DefaultReferencePapers
-} from './constants.js?v=20260830_v772';
-import { formatExportDateTime, formatDurationHuman } from './utils.js?v=20260830_v772';
+} from './constants.js?v=20260830_v773';
+import { formatExportDateTime, formatDurationHuman } from './utils.js?v=20260830_v773';
 
 export class AuthManager {
   constructor() {
@@ -400,7 +400,14 @@ export class AuthManager {
     } catch (e) {
       announcements = DefaultAnnouncements;
     }
-    return (Array.isArray(announcements) ? announcements : []).filter(a => !a.isSystemAction && !a.title?.includes('指导教师已重置') && !a.title?.includes('指导教师已锁定'));
+    return (Array.isArray(announcements) ? announcements : []).filter(a => 
+      !a.isSystemAction && 
+      !a.isExtension && 
+      !a.title?.includes('任务延期通知') && 
+      !a.title?.includes('时间已延长') && 
+      !a.title?.includes('指导教师已重置') && 
+      !a.title?.includes('指导教师已锁定')
+    );
   }
   saveAnnouncements(list) {
     if (Array.isArray(list)) {

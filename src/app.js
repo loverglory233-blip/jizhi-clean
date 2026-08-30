@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260830_v772";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash } from "./utils.js?v=20260830_v772";
-import { callCozeAgentAPI } from "./agents.js?v=20260830_v772";
-import { AuthManager } from "./auth.js?v=20260830_v772";
-import { CloudSyncEngine } from "./sync.js?v=20260830_v772";
-import { renderLoginView } from "./login.js?v=20260830_v772";
-import { renderTeacherPortal } from "./teacher.js?v=20260830_v772";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260830_v772";
+} from "./constants.js?v=20260830_v773";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash } from "./utils.js?v=20260830_v773";
+import { callCozeAgentAPI } from "./agents.js?v=20260830_v773";
+import { AuthManager } from "./auth.js?v=20260830_v773";
+import { CloudSyncEngine } from "./sync.js?v=20260830_v773";
+import { renderLoginView } from "./login.js?v=20260830_v773";
+import { renderTeacherPortal } from "./teacher.js?v=20260830_v773";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260830_v773";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260830_v772";
+} from "./editor.js?v=20260830_v773";
 
 // Make renderChat available on window for sync callbacks
 if (typeof window !== "undefined") {
@@ -1403,29 +1403,24 @@ ${recentChats}
 
     const isExtensionNotice = (a) => !!(a && (a.isExtension || a.title?.includes('延期通知') || a.title?.includes('时间已延长') || a.title?.includes('延长至')));
 
-    // 🎯 精确区分两大场景：
-    // 1. 任务大厅模式：只展示与统计【本班级】的【任务延长信息】
-    // 2. 工作台模式：三维精准对应【当前任务 + 本班级 + 本小组】的【教学通知】及【当前任务的延期通知】
+    // 🎯 教学通知中心仅展示与统计纯正的【教学任务与作业通知】（延期由瞬时大弹窗处理，不堆积在通知中心）
     const myAnns = allAnns
       .filter(a => {
         if (!a) return false;
+        if (isExtensionNotice(a)) return false; // 🚫 彻底屏蔽延期通知混入通知中心
         const matchClass = (a.classId === effectiveClassId) || 
                            (effectiveClassName && a.className === effectiveClassName) ||
                            (Array.isArray(a.targetClassIds) && a.targetClassIds.includes(effectiveClassId));
-        if (isTaskListMode) {
-          return matchClass && isExtensionNotice(a);
-        } else {
-          const matchGroup = !a.targetGroupId || a.targetGroupId === 'all' || a.targetGroupId === groupId ||
-            (Array.isArray(a.targetGroupIds) && (a.targetGroupIds.includes('all') || a.targetGroupIds.includes(groupId)));
-          const matchTask = (a.taskId === 'task_all' || a.taskId === activeTaskId || (!a.taskId && activeTaskId === 'task_default'));
-          return matchClass && matchGroup && matchTask;
-        }
+        const matchGroup = !a.targetGroupId || a.targetGroupId === 'all' || a.targetGroupId === groupId ||
+          (Array.isArray(a.targetGroupIds) && (a.targetGroupIds.includes('all') || a.targetGroupIds.includes(groupId)));
+        const matchTask = (a.taskId === 'task_all' || a.taskId === activeTaskId || (!a.taskId && activeTaskId === 'task_default'));
+        return matchClass && matchGroup && matchTask;
       })
       .sort((a, b) => (b.id > a.id ? 1 : -1));
 
     if (myAnns.length === 0) {
       if (!isSequentialFlow) {
-        alert(isTaskListMode ? '⏳ 暂无本班级的任务时间延期通知！' : '📢 暂无针对当前写作任务的教学通知！');
+        alert('📢 暂无针对当前写作任务的教学通知！');
       }
       return;
     }
