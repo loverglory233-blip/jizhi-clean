@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260831_v952
+ * Version: 20260831_v953
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260831_v952';
+  const APP_VERSION = '20260831_v953';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -16413,8 +16413,6 @@
       const rawDoc = newContent.replace(/<[^>]*>/g, '').trim();
       const wordProgress = targetWordCount > 0 ? (rawDoc.length / targetWordCount) : (rawDoc.length / 4300);
 
-      const times = (this.state.stage1 && this.state.stage1.contract && this.state.stage1.contract.timeAllocations) ? this.state.stage1.contract.timeAllocations : {};
-      const totalPlannedMin = (times.background || 25) + (times.literature || 30) + (times.questions || 25) + (times.method || 40) + (times.reflection || 20) + (times.references || 10);
       const totalPlannedMs = totalPlannedMin * 60 * 1000;
       const stage2DurationMs = s2.startTime ? (now - s2.startTime) : 0;
       const timeProgress = totalPlannedMs > 0 ? (stage2DurationMs / totalPlannedMs) : 0;

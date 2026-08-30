@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260831_v952";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch } from "./utils.js?v=20260831_v952";
-import { callCozeAgentAPI } from "./agents.js?v=20260831_v952";
-import { AuthManager } from "./auth.js?v=20260831_v952";
-import { CloudSyncEngine } from "./sync.js?v=20260831_v952";
-import { renderLoginView } from "./login.js?v=20260831_v952";
-import { renderTeacherPortal } from "./teacher.js?v=20260831_v952";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260831_v952";
+} from "./constants.js?v=20260831_v953";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch } from "./utils.js?v=20260831_v953";
+import { callCozeAgentAPI } from "./agents.js?v=20260831_v953";
+import { AuthManager } from "./auth.js?v=20260831_v953";
+import { CloudSyncEngine } from "./sync.js?v=20260831_v953";
+import { renderLoginView } from "./login.js?v=20260831_v953";
+import { renderTeacherPortal } from "./teacher.js?v=20260831_v953";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260831_v953";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260831_v952";
+} from "./editor.js?v=20260831_v953";
 
 // Make renderChat available on window for sync callbacks
 if (typeof window !== "undefined") {
@@ -4871,8 +4871,6 @@ ${propText}
     const rawDoc = newContent.replace(/<[^>]*>/g, '').trim();
     const wordProgress = targetWordCount > 0 ? (rawDoc.length / targetWordCount) : (rawDoc.length / 4300);
 
-    const times = (this.state.stage1 && this.state.stage1.contract && this.state.stage1.contract.timeAllocations) ? this.state.stage1.contract.timeAllocations : {};
-    const totalPlannedMin = (times.background || 25) + (times.literature || 30) + (times.questions || 25) + (times.method || 40) + (times.reflection || 20) + (times.references || 10);
     const totalPlannedMs = totalPlannedMin * 60 * 1000;
     const stage2DurationMs = s2.startTime ? (now - s2.startTime) : 0;
     const timeProgress = totalPlannedMs > 0 ? (stage2DurationMs / totalPlannedMs) : 0;
