@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260830_v858
+ * Version: 20260830_v859
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260830_v858';
+  const APP_VERSION = '20260830_v859';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -3134,28 +3134,38 @@
           const remoteStr = JSON.stringify(remoteData.users);
           if (localStr !== remoteStr) localStorage.setItem(key, remoteStr);
         }
-        if (Array.isArray(remoteData.classes) && remoteData.classes.length > 0) {
-          const key = 'jizhi_pure_v10_classes_db';
-          const localStr = localStorage.getItem(key) || '[]';
-          const remoteStr = JSON.stringify(remoteData.classes);
-          if (localStr !== remoteStr) localStorage.setItem(key, remoteStr);
-        }
-        if (Array.isArray(remoteData.announcements) && remoteData.announcements.length > 0) {
-          const key = 'jizhi_pure_v10_ann_db';
-          const local = JSON.parse(localStorage.getItem(key) || '[]');
-          const remoteIds = new Set(remoteData.announcements.map(a => a.id));
-          const merged = [...remoteData.announcements];
-          local.forEach(l => { if (l && l.id && !remoteIds.has(l.id)) merged.push(l); });
-          localStorage.setItem(key, JSON.stringify(merged));
-        }
-        if (Array.isArray(remoteData.referencePapers) && remoteData.referencePapers.length > 0) {
-          const key = 'jizhi_reference_papers_db';
-          const local = JSON.parse(localStorage.getItem(key) || '[]');
-          const remoteIds = new Set(remoteData.referencePapers.map(p => p.id));
-          const merged = [...remoteData.referencePapers];
-          local.forEach(l => { if (l && l.id && !remoteIds.has(l.id)) merged.push(l); });
-          localStorage.setItem(key, JSON.stringify(merged));
-          localStorage.setItem('jizhi_pure_v10_ref_papers_db', JSON.stringify(merged));
+        try {
+          if (Array.isArray(remoteData.classes) && remoteData.classes.length > 0) {
+            const key = 'jizhi_pure_v10_classes_db';
+            const localStr = localStorage.getItem(key) || '[]';
+            const remoteStr = JSON.stringify(remoteData.classes);
+            if (localStr !== remoteStr) localStorage.setItem(key, remoteStr);
+          }
+          if (Array.isArray(remoteData.announcements) && remoteData.announcements.length > 0) {
+            const key = 'jizhi_pure_v10_ann_db';
+            const local = JSON.parse(localStorage.getItem(key) || '[]');
+            const remoteIds = new Set(remoteData.announcements.map(a => a.id));
+            const merged = [...remoteData.announcements];
+            local.forEach(l => { if (l && l.id && !remoteIds.has(l.id)) merged.push(l); });
+            // 最多保留最新 15 条轻量通知，杜绝 Base64 塞满配额
+            const trimmed = merged.slice(0, 15);
+            localStorage.setItem(key, JSON.stringify(trimmed));
+          }
+          if (Array.isArray(remoteData.referencePapers) && remoteData.referencePapers.length > 0) {
+            const key = 'jizhi_reference_papers_db';
+            const local = JSON.parse(localStorage.getItem(key) || '[]');
+            const remoteIds = new Set(remoteData.referencePapers.map(p => p.id));
+            const merged = [...remoteData.referencePapers];
+            local.forEach(l => { if (l && l.id && !remoteIds.has(l.id)) merged.push(l); });
+            const trimmed = merged.slice(0, 20);
+            localStorage.setItem(key, JSON.stringify(trimmed));
+            localStorage.setItem('jizhi_pure_v10_ref_papers_db', JSON.stringify(trimmed));
+          }
+        } catch (err) {
+          // 存储超限时自动修剪历史旧快照与冗余缓存
+          try {
+            if (this.app?.authManager?._pruneStorageQuota) this.app.authManager._pruneStorageQuota();
+          } catch (e) {}
         }
       }
 
@@ -8097,9 +8107,9 @@
 
     const activeClassId = (window.app?.authManager ? window.app.authManager.getEffectiveStudentClassId(currentUser, state.activeTaskId) : (state.activeStudentClassId || currentUser?.classId || null));
     const activeGroupObj = (window.app && window.app.authManager) ? window.app.authManager.getStudentActiveGroup(currentUser, activeClassId) : null;
-    const groupId = state.activeGroupId || (window.app && window.app.cloudSyncEngine?.groupId) || activeGroupObj.id || (currentUser && currentUser.groupId ? currentUser.groupId : 'group_1');
-    const groupName = activeGroupObj.name || '第 1 协作小组';
-    const currentTaskTitle = currentTask ? currentTask.title : (activeTaskId === 'task_default' ? '默认写作任务' : '协作写作任务');
+    const groupId = state.activeGroupId || (window.app && window.app.cloudSyncEngine?.groupId) || activeGroupObj?.id || currentUser?.groupId || 'group_unassigned';
+    const groupName = activeGroupObj?.name || '协作小组';
+    const currentTaskTitle = currentTask ? currentTask.title : '写作任务';
 
     // 严格按【当前班级】、【当前任务】和【当前小组】三位一体过滤教学通知（延期由瞬时大弹窗处理，不混入通知中心）
     const relevantAnnouncements = (announcements || []).filter(a => {
