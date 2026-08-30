@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260830_v800
+ * Version: 20260830_v805
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260830_v800';
+  const APP_VERSION = '20260830_v805';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -1096,6 +1096,14 @@
                 });
 
                 localStorage.setItem(STORAGE_KEY_ANNOUNCEMENTS, JSON.stringify(mergedAnns));
+
+                // ⚡ 异步元数据到达瞬间：纯前端 DOM 局部更新通知红点与未读弹窗（0 网络请求，0 数据上传）
+                if (window.app && typeof window.app.renderHeader === 'function' && window.app.state && window.app.state.studentViewMode === 'workspace') {
+                  window.app.renderHeader();
+                }
+                if (window.app && typeof window.app.checkUnreadAnnouncements === 'function' && window.app.state && window.app.state.studentViewMode === 'workspace') {
+                  window.app.checkUnreadAnnouncements();
+                }
               }
             }
             if (Array.isArray(data.referencePapers)) {
@@ -3793,6 +3801,16 @@
         if (!isTypingInWorkspace) {
           this._hasRenderedInitialWorkspace = true;
           this.app.renderStudentWorkspace();
+        }
+      }
+
+      // ⚡ 首次拉取就绪：纯前端局部更新右侧聊天与未读通知检查（0 数据上传）
+      if (isFirstPull && user?.role === 'student' && this.app.state.studentViewMode === 'workspace') {
+        if (typeof this.app.triggerStageWelcomeSpeech === 'function') {
+          this.app.triggerStageWelcomeSpeech(this.app.state.currentStage || 'stage1');
+        }
+        if (typeof this.app.checkUnreadAnnouncements === 'function') {
+          setTimeout(() => this.app.checkUnreadAnnouncements(), 300);
         }
       }
     }
@@ -11992,6 +12010,7 @@
           const curTask = allTasks.find(t => t.id === this.state.activeTaskId);
           const taskDurMin = (curTask && curTask.durationMinutes) ? Number(curTask.durationMinutes) : 60;
           const silenceThresholdMs = taskDurMin < 60 ? 120000 : (taskDurMin <= 180 ? 180000 : 270000);
+          const timeSinceLastLeftAction = now - (this.stage1LastActionTime || this.stage1StartTime || now);
 
           // 1. 【提案阶段研讨静默守护】：只有当【讨论区无人发言 > 阈值】且【左侧也无人在操作/撰写提案 > 阈值】时，才判定为真正冷场并提示！
           if (submittedCount < totalMembersCount && silenceDurationMs > silenceThresholdMs && timeSinceLastLeftAction > silenceThresholdMs) {

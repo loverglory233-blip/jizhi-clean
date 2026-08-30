@@ -14,8 +14,8 @@ import {
   DefaultTasks,
   DefaultAnnouncements,
   DefaultReferencePapers
-} from './constants.js?v=20260830_v800';
-import { formatExportDateTime, formatDurationHuman } from './utils.js?v=20260830_v800';
+} from './constants.js?v=20260830_v805';
+import { formatExportDateTime, formatDurationHuman } from './utils.js?v=20260830_v805';
 
 export class AuthManager {
   constructor() {
@@ -219,6 +219,14 @@ export class AuthManager {
               });
 
               localStorage.setItem(STORAGE_KEY_ANNOUNCEMENTS, JSON.stringify(mergedAnns));
+
+              // ⚡ 异步元数据到达瞬间：纯前端 DOM 局部更新通知红点与未读弹窗（0 网络请求，0 数据上传）
+              if (window.app && typeof window.app.renderHeader === 'function' && window.app.state && window.app.state.studentViewMode === 'workspace') {
+                window.app.renderHeader();
+              }
+              if (window.app && typeof window.app.checkUnreadAnnouncements === 'function' && window.app.state && window.app.state.studentViewMode === 'workspace') {
+                window.app.checkUnreadAnnouncements();
+              }
             }
           }
           if (Array.isArray(data.referencePapers)) {

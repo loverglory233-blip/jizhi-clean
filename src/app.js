@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260830_v800";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash } from "./utils.js?v=20260830_v800";
-import { callCozeAgentAPI } from "./agents.js?v=20260830_v800";
-import { AuthManager } from "./auth.js?v=20260830_v800";
-import { CloudSyncEngine } from "./sync.js?v=20260830_v800";
-import { renderLoginView } from "./login.js?v=20260830_v800";
-import { renderTeacherPortal } from "./teacher.js?v=20260830_v800";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260830_v800";
+} from "./constants.js?v=20260830_v805";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash } from "./utils.js?v=20260830_v805";
+import { callCozeAgentAPI } from "./agents.js?v=20260830_v805";
+import { AuthManager } from "./auth.js?v=20260830_v805";
+import { CloudSyncEngine } from "./sync.js?v=20260830_v805";
+import { renderLoginView } from "./login.js?v=20260830_v805";
+import { renderTeacherPortal } from "./teacher.js?v=20260830_v805";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260830_v805";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260830_v800";
+} from "./editor.js?v=20260830_v805";
 
 // Make renderChat available on window for sync callbacks
 if (typeof window !== "undefined") {
@@ -916,6 +916,7 @@ export class App {
         const curTask = allTasks.find(t => t.id === this.state.activeTaskId);
         const taskDurMin = (curTask && curTask.durationMinutes) ? Number(curTask.durationMinutes) : 60;
         const silenceThresholdMs = taskDurMin < 60 ? 120000 : (taskDurMin <= 180 ? 180000 : 270000);
+        const timeSinceLastLeftAction = now - (this.stage1LastActionTime || this.stage1StartTime || now);
 
         // 1. 【提案阶段研讨静默守护】：只有当【讨论区无人发言 > 阈值】且【左侧也无人在操作/撰写提案 > 阈值】时，才判定为真正冷场并提示！
         if (submittedCount < totalMembersCount && silenceDurationMs > silenceThresholdMs && timeSinceLastLeftAction > silenceThresholdMs) {
