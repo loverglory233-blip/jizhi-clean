@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260830_v793
+ * Version: 20260830_v794
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260830_v793';
+  const APP_VERSION = '20260830_v794';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -1513,9 +1513,13 @@
           user.token = data.token;
           user.activeSessionId = data.token;
           sessionStorage.setItem(STORAGE_KEY_USER, JSON.stringify(user));
-          localStorage.setItem(STORAGE_KEY_USER, JSON.stringify(user));
+          sessionStorage.setItem('jizhi_student_view_mode', 'task_list');
+          localStorage.setItem('jizhi_student_view_mode', 'task_list');
+          sessionStorage.removeItem('jizhi_active_task_id');
+          localStorage.removeItem('jizhi_active_task_id');
           if (window.app && window.app.state) {
             window.app.state.studentViewMode = 'task_list';
+            window.app.state.activeTaskId = null;
           }
           return { success: true, user };
         } else if (data && data.message) {
@@ -1596,8 +1600,13 @@
         }).catch(() => {});
       } catch (e) {}
 
+      sessionStorage.setItem('jizhi_student_view_mode', 'task_list');
+      localStorage.setItem('jizhi_student_view_mode', 'task_list');
+      sessionStorage.removeItem('jizhi_active_task_id');
+      localStorage.removeItem('jizhi_active_task_id');
       if (window.app && window.app.state) {
         window.app.state.studentViewMode = 'task_list';
+        window.app.state.activeTaskId = null;
         if (window.app.cloudSyncEngine) window.app.cloudSyncEngine.pushSnapshot();
       }
 
@@ -11218,9 +11227,14 @@
       this.state = JSON.parse(JSON.stringify(InitialState));
       this.studentMsgCountSinceLastAgent = 0;
 
-      this.state.studentViewMode = 'task_list';
-      sessionStorage.setItem('jizhi_student_view_mode', 'task_list');
-      localStorage.setItem('jizhi_student_view_mode', 'task_list');
+      const storedTaskId = sessionStorage.getItem('jizhi_active_task_id') || localStorage.getItem('jizhi_active_task_id');
+      if (storedTaskId) this.state.activeTaskId = storedTaskId;
+
+      const storedClassId = sessionStorage.getItem('jizhi_active_student_class_id') || localStorage.getItem('jizhi_active_student_class_id');
+      if (storedClassId) this.state.activeStudentClassId = storedClassId;
+
+      const storedViewMode = sessionStorage.getItem('jizhi_student_view_mode') || localStorage.getItem('jizhi_student_view_mode');
+      this.state.studentViewMode = (storedViewMode === 'workspace' && storedTaskId) ? 'workspace' : 'task_list';
 
       const user = this.authManager.getCurrentUser();
       const effectiveClassId = this.state.activeStudentClassId || user?.classId || 'class_101';
