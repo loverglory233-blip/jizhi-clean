@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState } from './constants.js?v=20260830_v858';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal } from './utils.js?v=20260830_v858';
+import { InitialState } from './constants.js?v=20260830_v859';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal } from './utils.js?v=20260830_v859';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -489,28 +489,38 @@ export class CloudSyncEngine {
         const remoteStr = JSON.stringify(remoteData.users);
         if (localStr !== remoteStr) localStorage.setItem(key, remoteStr);
       }
-      if (Array.isArray(remoteData.classes) && remoteData.classes.length > 0) {
-        const key = 'jizhi_pure_v10_classes_db';
-        const localStr = localStorage.getItem(key) || '[]';
-        const remoteStr = JSON.stringify(remoteData.classes);
-        if (localStr !== remoteStr) localStorage.setItem(key, remoteStr);
-      }
-      if (Array.isArray(remoteData.announcements) && remoteData.announcements.length > 0) {
-        const key = 'jizhi_pure_v10_ann_db';
-        const local = JSON.parse(localStorage.getItem(key) || '[]');
-        const remoteIds = new Set(remoteData.announcements.map(a => a.id));
-        const merged = [...remoteData.announcements];
-        local.forEach(l => { if (l && l.id && !remoteIds.has(l.id)) merged.push(l); });
-        localStorage.setItem(key, JSON.stringify(merged));
-      }
-      if (Array.isArray(remoteData.referencePapers) && remoteData.referencePapers.length > 0) {
-        const key = 'jizhi_reference_papers_db';
-        const local = JSON.parse(localStorage.getItem(key) || '[]');
-        const remoteIds = new Set(remoteData.referencePapers.map(p => p.id));
-        const merged = [...remoteData.referencePapers];
-        local.forEach(l => { if (l && l.id && !remoteIds.has(l.id)) merged.push(l); });
-        localStorage.setItem(key, JSON.stringify(merged));
-        localStorage.setItem('jizhi_pure_v10_ref_papers_db', JSON.stringify(merged));
+      try {
+        if (Array.isArray(remoteData.classes) && remoteData.classes.length > 0) {
+          const key = 'jizhi_pure_v10_classes_db';
+          const localStr = localStorage.getItem(key) || '[]';
+          const remoteStr = JSON.stringify(remoteData.classes);
+          if (localStr !== remoteStr) localStorage.setItem(key, remoteStr);
+        }
+        if (Array.isArray(remoteData.announcements) && remoteData.announcements.length > 0) {
+          const key = 'jizhi_pure_v10_ann_db';
+          const local = JSON.parse(localStorage.getItem(key) || '[]');
+          const remoteIds = new Set(remoteData.announcements.map(a => a.id));
+          const merged = [...remoteData.announcements];
+          local.forEach(l => { if (l && l.id && !remoteIds.has(l.id)) merged.push(l); });
+          // 最多保留最新 15 条轻量通知，杜绝 Base64 塞满配额
+          const trimmed = merged.slice(0, 15);
+          localStorage.setItem(key, JSON.stringify(trimmed));
+        }
+        if (Array.isArray(remoteData.referencePapers) && remoteData.referencePapers.length > 0) {
+          const key = 'jizhi_reference_papers_db';
+          const local = JSON.parse(localStorage.getItem(key) || '[]');
+          const remoteIds = new Set(remoteData.referencePapers.map(p => p.id));
+          const merged = [...remoteData.referencePapers];
+          local.forEach(l => { if (l && l.id && !remoteIds.has(l.id)) merged.push(l); });
+          const trimmed = merged.slice(0, 20);
+          localStorage.setItem(key, JSON.stringify(trimmed));
+          localStorage.setItem('jizhi_pure_v10_ref_papers_db', JSON.stringify(trimmed));
+        }
+      } catch (err) {
+        // 存储超限时自动修剪历史旧快照与冗余缓存
+        try {
+          if (this.app?.authManager?._pruneStorageQuota) this.app.authManager._pruneStorageQuota();
+        } catch (e) {}
       }
     }
 
