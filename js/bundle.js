@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260831_v928
+ * Version: 20260831_v929
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260831_v928';
+  const APP_VERSION = '20260831_v929';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -3674,8 +3674,19 @@
           document.activeElement.id === 'contract-topic-input'
         );
 
+        if (remoteS1.contractStep !== undefined && remoteS1.contractStep !== this.app.state.stage1.contractStep) {
+          this.app.state.stage1.contractStep = remoteS1.contractStep;
+          needWorkspaceRender = true;
+        }
+        if (remoteS1.researchOverview !== undefined) {
+          this.app.state.stage1.researchOverview = remoteS1.researchOverview;
+        }
+
         if (remoteS1.contract) {
           if (!this.app.state.stage1.contract) this.app.state.stage1.contract = {};
+          if (remoteS1.contract.topic) this.app.state.stage1.contract.topic = remoteS1.contract.topic;
+          if (remoteS1.contract.overview) this.app.state.stage1.contract.overview = remoteS1.contract.overview;
+          if (remoteS1.contract.isDraftGenerated !== undefined) this.app.state.stage1.contract.isDraftGenerated = remoteS1.contract.isDraftGenerated;
           if (remoteS1.contract.taskAssignments) {
             this.app.state.stage1.contract.taskAssignments = {
               ...(this.app.state.stage1.contract.taskAssignments || {}),
