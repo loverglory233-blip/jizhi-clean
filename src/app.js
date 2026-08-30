@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260831_v927";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch } from "./utils.js?v=20260831_v927";
-import { callCozeAgentAPI } from "./agents.js?v=20260831_v927";
-import { AuthManager } from "./auth.js?v=20260831_v927";
-import { CloudSyncEngine } from "./sync.js?v=20260831_v927";
-import { renderLoginView } from "./login.js?v=20260831_v927";
-import { renderTeacherPortal } from "./teacher.js?v=20260831_v927";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260831_v927";
+} from "./constants.js?v=20260831_v928";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch } from "./utils.js?v=20260831_v928";
+import { callCozeAgentAPI } from "./agents.js?v=20260831_v928";
+import { AuthManager } from "./auth.js?v=20260831_v928";
+import { CloudSyncEngine } from "./sync.js?v=20260831_v928";
+import { renderLoginView } from "./login.js?v=20260831_v928";
+import { renderTeacherPortal } from "./teacher.js?v=20260831_v928";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260831_v928";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260831_v927";
+} from "./editor.js?v=20260831_v928";
 
 // Make renderChat available on window for sync callbacks
 if (typeof window !== "undefined") {
@@ -3083,15 +3083,21 @@ ${chatSnippet}
       s1.researchOverview = finalOverview;
       s1.contractStep = 'time'; // 顺推至时间分配阶段
 
-      if (!guideSpeech.startsWith('🎪')) guideSpeech = `🎪 【拍卖师·方案确立】：${guideSpeech}`;
+      guideSpeech = guideSpeech.replace(/^(?:🎪|🏛️)?\s*【(?:学术拍卖师|拍卖师)[·\s]*(?:方案确立|主题与方案确立|方案提炼)?】[：:]\s*/g, '');
+      const noticeText = `🏛️ 【学术拍卖师·主题与方案确立】：全组研究论题《${finalTopic}》与方案概述已成功提炼并录入公约看板！👉 接下来请全组在讨论区商讨 6 大章节的时间预算分配，商定完成后点击左侧【⏱️ 时间讨论差不多了？一键提炼【时间分配】】！`;
+
       const noticeMsg = {
+        id: 'msg_topic_done_' + Date.now(),
         sender: 'auctioneer',
         senderName: '头脑风暴 · 学术拍卖师',
-        text: guideSpeech,
+        text: noticeText,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         _timeMs: Date.now()
       };
       s1ChatLogs.push(noticeMsg);
+      if (typeof this.sendSingleChatMessage === 'function') {
+        this.sendSingleChatMessage(noticeMsg, 'stage1');
+      }
 
       this.syncStage1();
       this.syncChatLogs();
@@ -3172,15 +3178,21 @@ ${chatSnippet}
       s1.contract.timeAllocations = timeAlloc;
       s1.contractStep = 'tasks'; // 推进至第三步：任务分工
 
-      if (!guideSpeech.startsWith('🎪')) guideSpeech = `🎪 【拍卖师·时间预算确立】：${guideSpeech}`;
+      guideSpeech = guideSpeech.replace(/^(?:🎪|🏛️)?\s*【(?:学术拍卖师|拍卖师)[·\s]*(?:时间预算确立|时间分配)?】[：:]\s*/g, '');
+      const noticeText = `🏛️ 【学术拍卖师·时间预算确立】：全篇 6 大章节时间预算已成功配置并录入公约看板！👉 接下来请全组在讨论区商定各自负责认领的写作章节与任务分工！商定完成后点击左侧【👥 研讨差不多了？一键提炼任务分工】！`;
+
       const noticeMsg = {
+        id: 'msg_time_done_' + Date.now(),
         sender: 'auctioneer',
         senderName: '头脑风暴 · 学术拍卖师',
-        text: guideSpeech,
+        text: noticeText,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         _timeMs: Date.now()
       };
       s1ChatLogs.push(noticeMsg);
+      if (typeof this.sendSingleChatMessage === 'function') {
+        this.sendSingleChatMessage(noticeMsg, 'stage1');
+      }
 
       this.syncStage1();
       this.syncChatLogs();
@@ -3276,18 +3288,21 @@ ${chatSnippet}
       s1.contract._draftedTime = Date.now();
       s1.contractStep = 'completed'; // 提炼全部完成
 
-      if (!guideSpeech.startsWith('📜') && !guideSpeech.startsWith('🎪')) {
-        guideSpeech = `📜 【拍卖师·公约生成完毕】：${guideSpeech}`;
-      }
+      guideSpeech = guideSpeech.replace(/^(?:📜|🎪|🏛️)?\s*【(?:学术拍卖师|拍卖师)[·\s]*(?:公约生成完毕|任务分工|草案就绪)?】[：:]\s*/g, '');
+      const noticeText = `🏛️ 【学术拍卖师·公约草案就绪】：全组成员写作分工已成功配置，公约草案已全部生成就绪！👉 请全员在左侧下方点击【✍️ 签署确认学术公约】，全员签署后开启阶段二！`;
 
       const noticeMsg = {
+        id: 'msg_tasks_done_' + Date.now(),
         sender: 'auctioneer',
         senderName: '头脑风暴 · 学术拍卖师',
-        text: guideSpeech,
+        text: noticeText,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         _timeMs: Date.now()
       };
       s1ChatLogs.push(noticeMsg);
+      if (typeof this.sendSingleChatMessage === 'function') {
+        this.sendSingleChatMessage(noticeMsg, 'stage1');
+      }
 
       this.syncStage1();
       this.syncChatLogs();
@@ -4156,24 +4171,31 @@ ${propText}
         } else if (s1.contractStep === 'tasks') {
           const count = isDoneHelper(confs.s1_tasks);
           const isMe = isMyDoneHelper(confs.s1_tasks);
+          const isFull = count >= totalMembersCount && totalMembersCount > 0;
           contractActionBarMount.innerHTML = `
-            <button id="btn-extract-tasks" style="background:${isMe ? 'linear-gradient(135deg, #059669, #047857)' : 'linear-gradient(135deg, #7c3aed, #6d28d9)'}; border:none; color:white; padding:9px 24px; border-radius:20px; font-weight:800; font-size:13.5px; cursor:pointer; display:inline-flex; align-items:center; gap:6px; box-shadow:0 4px 14px rgba(124,58,237,0.3); transition:all 0.2s;">
-              ${isMe ? `✅ 您已确认提炼分工 (${count}/${totalMembersCount} 等待其他组员)` : `👥 研讨差不多了？一键提炼【任务分工】 (${count}/${totalMembersCount})`}
+            <button id="btn-extract-tasks" style="background:${isFull ? 'linear-gradient(135deg, #d97706, #b45309)' : (isMe ? 'linear-gradient(135deg, #059669, #047857)' : 'linear-gradient(135deg, #7c3aed, #6d28d9)')}; border:none; color:white; padding:9px 24px; border-radius:20px; font-weight:800; font-size:13.5px; cursor:${isFull ? 'wait' : 'pointer'}; display:inline-flex; align-items:center; gap:6px; box-shadow:0 4px 14px rgba(124,58,237,0.3); transition:all 0.2s;" ${isFull ? 'disabled' : ''}>
+              ${isFull ? `⏳ 全员已确认 (${count}/${totalMembersCount}) · 正在生成公约草案...` : (isMe ? `✅ 您已确认提炼分工 (${count}/${totalMembersCount} 等待其他组员)` : `👥 研讨差不多了？一键提炼【任务分工】 (${count}/${totalMembersCount})`)}
             </button>
           `;
-          contractActionBarMount.querySelector('#btn-extract-tasks')?.addEventListener('click', () => this.handleExtractTasks());
+          if (!isFull) {
+            contractActionBarMount.querySelector('#btn-extract-tasks')?.addEventListener('click', () => this.handleExtractTasks());
+          }
         } else if (s1.contractStep === 'time') {
           const count = isDoneHelper(confs.s1_time);
           const isMe = isMyDoneHelper(confs.s1_time);
+          const isFull = count >= totalMembersCount && totalMembersCount > 0;
           contractActionBarMount.innerHTML = `
-            <button id="btn-extract-time" style="background:${isMe ? 'linear-gradient(135deg, #059669, #047857)' : 'linear-gradient(135deg, #0284c7, #0369a1)'}; border:none; color:white; padding:9px 24px; border-radius:20px; font-weight:800; font-size:13.5px; cursor:pointer; display:inline-flex; align-items:center; gap:6px; box-shadow:0 4px 14px rgba(2,132,199,0.3); transition:all 0.2s;">
-              ${isMe ? `✅ 您已确认提炼时间 (${count}/${totalMembersCount} 等待其他组员)` : `⏱️ 时间讨论差不多了？一键提炼【时间分配】 (${count}/${totalMembersCount})`}
+            <button id="btn-extract-time" style="background:${isFull ? 'linear-gradient(135deg, #d97706, #b45309)' : (isMe ? 'linear-gradient(135deg, #059669, #047857)' : 'linear-gradient(135deg, #0284c7, #0369a1)')}; border:none; color:white; padding:9px 24px; border-radius:20px; font-weight:800; font-size:13.5px; cursor:${isFull ? 'wait' : 'pointer'}; display:inline-flex; align-items:center; gap:6px; box-shadow:0 4px 14px rgba(2,132,199,0.3); transition:all 0.2s;" ${isFull ? 'disabled' : ''}>
+              ${isFull ? `⏳ 全员已确认 (${count}/${totalMembersCount}) · 正在提炼时间分配...` : (isMe ? `✅ 您已确认提炼时间 (${count}/${totalMembersCount} 等待其他组员)` : `⏱️ 时间讨论差不多了？一键提炼【时间分配】 (${count}/${totalMembersCount})`)}
             </button>
           `;
-          contractActionBarMount.querySelector('#btn-extract-time')?.addEventListener('click', () => this.handleExtractTime());
+          if (!isFull) {
+            contractActionBarMount.querySelector('#btn-extract-time')?.addEventListener('click', () => this.handleExtractTime());
+          }
         } else {
           const count = isDoneHelper(confs.s1_topic);
           const isMe = isMyDoneHelper(confs.s1_topic);
+          const isFull = count >= totalMembersCount && totalMembersCount > 0;
           if (!isVotingComplete) {
             contractActionBarMount.innerHTML = `
               <button id="btn-extract-topic" class="locked-pending-btn" style="background:#f1f5f9; border:1px solid #cbd5e1; color:#94a3b8; padding:9px 24px; border-radius:20px; font-weight:800; font-size:13.5px; cursor:not-allowed; display:inline-flex; align-items:center; gap:6px; box-shadow:none;">
@@ -4185,11 +4207,13 @@ ${propText}
             });
           } else {
             contractActionBarMount.innerHTML = `
-              <button id="btn-extract-topic" style="background:${isMe ? 'linear-gradient(135deg, #059669, #047857)' : 'linear-gradient(135deg, #2563eb, #1d4ed8)'}; border:none; color:white; padding:9px 24px; border-radius:20px; font-weight:800; font-size:13.5px; cursor:pointer; display:inline-flex; align-items:center; gap:6px; box-shadow:0 4px 14px rgba(37,99,235,0.3); transition:all 0.2s;">
-                ${isMe ? `✅ 您已确认提炼主题与方案 (${count}/${totalMembersCount} 等待其他组员)` : `💡 讨论差不多了？一键提炼【主题与研究方案】 (${count}/${totalMembersCount})`}
+              <button id="btn-extract-topic" style="background:${isFull ? 'linear-gradient(135deg, #d97706, #b45309)' : (isMe ? 'linear-gradient(135deg, #059669, #047857)' : 'linear-gradient(135deg, #2563eb, #1d4ed8)')}; border:none; color:white; padding:9px 24px; border-radius:20px; font-weight:800; font-size:13.5px; cursor:${isFull ? 'wait' : 'pointer'}; display:inline-flex; align-items:center; gap:6px; box-shadow:0 4px 14px rgba(37,99,235,0.3); transition:all 0.2s;" ${isFull ? 'disabled' : ''}>
+                ${isFull ? `⏳ 全员已确认 (${count}/${totalMembersCount}) · 正在提炼【主题与研究方案】...` : (isMe ? `✅ 您已确认提炼主题与方案 (${count}/${totalMembersCount} 等待其他组员)` : `💡 讨论差不多了？一键提炼【主题与研究方案】 (${count}/${totalMembersCount})`)}
               </button>
             `;
-            contractActionBarMount.querySelector('#btn-extract-topic')?.addEventListener('click', () => this.handleExtractTopic());
+            if (!isFull) {
+              contractActionBarMount.querySelector('#btn-extract-topic')?.addEventListener('click', () => this.handleExtractTopic());
+            }
           }
         }
       }
