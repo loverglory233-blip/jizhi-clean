@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260830_v866";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap } from "./utils.js?v=20260830_v866";
-import { callCozeAgentAPI } from "./agents.js?v=20260830_v866";
-import { AuthManager } from "./auth.js?v=20260830_v866";
-import { CloudSyncEngine } from "./sync.js?v=20260830_v866";
-import { renderLoginView } from "./login.js?v=20260830_v866";
-import { renderTeacherPortal } from "./teacher.js?v=20260830_v866";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260830_v866";
+} from "./constants.js?v=20260830_v867";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap } from "./utils.js?v=20260830_v867";
+import { callCozeAgentAPI } from "./agents.js?v=20260830_v867";
+import { AuthManager } from "./auth.js?v=20260830_v867";
+import { CloudSyncEngine } from "./sync.js?v=20260830_v867";
+import { renderLoginView } from "./login.js?v=20260830_v867";
+import { renderTeacherPortal } from "./teacher.js?v=20260830_v867";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260830_v867";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260830_v866";
+} from "./editor.js?v=20260830_v867";
 
 // Make renderChat available on window for sync callbacks
 if (typeof window !== "undefined") {
@@ -1557,6 +1557,71 @@ ${recentChats}
 
         const feedbacks = Array.isArray(s3.feedbackItems) ? s3.feedbackItems : [];
         const pendingFeedbacks = feedbacks.filter(f => !f.response || f.response.trim().length === 0);
+
+        // ── 🎓 阶段三质询答辩核心闭环 (与阶段一/阶段二完全统一：学生讨论 ➔ 40s 静默 ➔ 中间委员通读总结判定 + 自动顺推) ──
+        const currentPendingInquiry = feedbacks.find(f => f.role === 'opponent' && (!f.response || f.response.trim().length === 0));
+        if (currentPendingInquiry && lastStudentMsg && (now - (lastStudentMsg._timeMs || 0) >= 40000) && !this._isEvaluatingInquiry) {
+          const lastChairIdx = s3Chats.map(m => m.sender).lastIndexOf('neutral');
+          const msgsForInquiry = s3Chats.slice(lastChairIdx + 1).filter(m => m.sender && !AgentProfiles[m.sender] && m.sender !== 'system');
+
+          if (msgsForInquiry.length > 0) {
+            this._isEvaluatingInquiry = true;
+            const inquiryIndex = feedbacks.indexOf(currentPendingInquiry);
+            const chatContent = msgsForInquiry.map(m => `${m.senderName || m.sender}: ${m.text}`).join('\n');
+            const topic = (this.state.stage1 && this.state.stage1.mergedTitle) ? this.state.stage1.mergedTitle : '论文方案';
+
+            const remainingOppCount = feedbacks.filter(f => f.role === 'opponent' && (!f.response || f.response.trim().length === 0)).length;
+
+            const evalInquiryPrompt = `小组成员已就【反方质询】在讨论区展开了答辩辩护交流。
+【反方原始质询】: ${currentPendingInquiry.comment}
+【小组真实答辩研讨记录】:
+${chatContent}
+
+请通读上述发言，作为答辩委员会主席（中间委员），进行【答辩研判与自适应引导】（100~130字）：
+【研判与输出准则（宽进原则）】：
+1. 肯定答辩思路：精准提炼出小组成员在发言中体现的辩护要点与操作化补救措施；
+2. 顺推或裁决：
+   ${remainingOppCount > 1 
+     ? '👉 肯定本题答辩要点，并自然顺推引导全组将焦点转向下一道【反方质询】展开讨论！' 
+     : '🎉 祝贺全组已针对全部质询完成扎实辩护！宣布答辩全票通过，指引全组完善终稿并准备提交归档！'}
+（纯自然语言输出，100~130字，严禁输出代码块）`;
+
+            setTimeout(async () => {
+              try {
+                const evalReply = await callCozeAgentAPI('neutral', evalInquiryPrompt, { stage: 'stage3', topic });
+                const fallbackText = remainingOppCount > 1
+                  ? `🟡 【中间委员·针对质询答辩思路顺推】：看到全组已商定好辩护要点！前序答辩已得到委员会认可。👉 接下来请全组将焦点转向下一项反方质询，继续在讨论区商定对策！`
+                  : `🟡 【中间委员·答辩终审总结与裁决】：各位研究者，答辩委员会已通读了全组针对各项质询的辩护陈述！团队展现出了扎实的学术反思与严谨的论证逻辑。答辩全票顺利通过，祝贺大家！请全组成员完善终稿并点击提交归档！`;
+                
+                const finalChairText = (evalReply && evalReply.trim().length > 0) ? evalReply.trim() : fallbackText;
+
+                // 自动将提炼的答辩词同步至左侧矩阵卡片（学生亦可微调）
+                if (!currentPendingInquiry.response || currentPendingInquiry.response.trim().length === 0) {
+                  currentPendingInquiry.response = msgsForInquiry.map(m => m.text).join('；').slice(0, 300);
+                  this.syncStage3();
+                }
+
+                const chairMsgObj = {
+                  sender: 'neutral',
+                  text: finalChairText.startsWith('🟡') ? finalChairText : `🟡 【中间委员·答辩小结与顺推】：${finalChairText}`,
+                  timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                  _timeMs: Date.now()
+                };
+                if (!this.state.chatLogs.stage3) this.state.chatLogs.stage3 = [];
+                this.state.chatLogs.stage3.push(chairMsgObj);
+                this.syncChatLogs();
+                if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+                this.renderStudentWorkspace();
+                renderChat(this.state);
+              } catch (e) {
+                console.warn('Inquiry auto evaluation error:', e);
+              } finally {
+                this._isEvaluatingInquiry = false;
+              }
+            }, 100);
+            return;
+          }
+        }
 
         // 1. 阶段三开场引导下发后，若全组静默超过 3.5 分钟且仍有未完成质询：才温和提示展开答辩（最多连续2次，有新发言自动重置）
         if (silenceDurationMs > 210000 && pendingFeedbacks.length > 0) {
