@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260831_v978";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch } from "./utils.js?v=20260831_v978";
-import { callCozeAgentAPI } from "./agents.js?v=20260831_v978";
-import { AuthManager } from "./auth.js?v=20260831_v978";
-import { CloudSyncEngine } from "./sync.js?v=20260831_v978";
-import { renderLoginView } from "./login.js?v=20260831_v978";
-import { renderTeacherPortal } from "./teacher.js?v=20260831_v978";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260831_v978";
+} from "./constants.js?v=20260831_v979";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch } from "./utils.js?v=20260831_v979";
+import { callCozeAgentAPI } from "./agents.js?v=20260831_v979";
+import { AuthManager } from "./auth.js?v=20260831_v979";
+import { CloudSyncEngine } from "./sync.js?v=20260831_v979";
+import { renderLoginView } from "./login.js?v=20260831_v979";
+import { renderTeacherPortal } from "./teacher.js?v=20260831_v979";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260831_v979";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260831_v978";
+} from "./editor.js?v=20260831_v979";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -1489,6 +1489,21 @@ export class App {
             return;
           }
         }
+        // 通用消息毫秒时间戳解析工具
+        const parseMsgTime = (m) => {
+          if (!m) return 0;
+          if (m._timeMs && Number(m._timeMs) > 0) return Number(m._timeMs);
+          if (m.timestamp) {
+            const parts = String(m.timestamp).split(':');
+            if (parts.length >= 2) {
+              const d = new Date();
+              d.setHours(parseInt(parts[0], 10), parseInt(parts[1], 10), parseInt(parts[2] || '0', 10), 0);
+              return d.getTime();
+            }
+          }
+          return 0;
+        };
+
         // ======================================================================
         // 📌 质检/讨论梯度 A：审稿编辑建议讨论（连续冷场 3 / 6 / 10 分钟静默守护）
         // ======================================================================
@@ -1503,91 +1518,75 @@ export class App {
         )) || !!s2.meetingStep || !!s2.isDraftConfirmed;
         
         if (lastReviewMsgObj && !hasPassedToSubsequentStages) {
-          let reviewTime = lastReviewMsgObj._timeMs;
-          if (!reviewTime && lastReviewMsgObj.timestamp) {
-            const parts = String(lastReviewMsgObj.timestamp).split(':');
-            if (parts.length >= 2) {
-              const d = new Date();
-              d.setHours(parseInt(parts[0], 10), parseInt(parts[1], 10), 0, 0);
-              reviewTime = d.getTime();
-            }
-          }
-          const reviewElapsed = reviewTime ? (now - reviewTime) : silenceDurationMs;
-          const studentMsgAfterReview = s2Chats.filter(m => m && m.sender && m.sender !== 'managingEditor' && m.sender !== 'reviewingEditor' && m.sender !== 'system' && Number(m._timeMs || 0) > (reviewTime || 0));
+          const reviewTime = parseMsgTime(lastReviewMsgObj) || this.stage2StartTime || (now - 60000);
+          const reviewElapsed = Math.max(0, now - reviewTime);
+          const studentMsgAfterReview = s2Chats.filter(m => m && m.sender && m.sender !== 'managingEditor' && m.sender !== 'reviewingEditor' && m.sender !== 'system' && parseMsgTime(m) > reviewTime);
           const lastStudentMsgAfterReview = studentMsgAfterReview.length > 0 ? studentMsgAfterReview[studentMsgAfterReview.length - 1] : null;
-          const silenceAfterReview = lastStudentMsgAfterReview ? (now - Number(lastStudentMsgAfterReview._timeMs || 0)) : reviewElapsed;
+          const lastStudentMsgAfterReviewTime = parseMsgTime(lastStudentMsgAfterReview);
+          const silenceAfterReview = lastStudentMsgAfterReviewTime ? Math.max(0, now - lastStudentMsgAfterReviewTime) : reviewElapsed;
 
           // 🛡️ 学生有发言即解除静默，重置计数
-          if (lastStudentMsgAfterReview && Number(lastStudentMsgAfterReview._timeMs || 0) > (this._lastNudgeActivityTime?.['s2_review'] || 0)) {
+          if (lastStudentMsgAfterReviewTime > (this._lastNudgeActivityTime?.['s2_review'] || 0)) {
             this._nudgeCounts['s2_review_silence_3m'] = 0;
             this._nudgeCounts['s2_review_silence_6m'] = 0;
             if (!this._lastNudgeActivityTime) this._lastNudgeActivityTime = {};
-            this._lastNudgeActivityTime['s2_review'] = Number(lastStudentMsgAfterReview._timeMs);
+            this._lastNudgeActivityTime['s2_review'] = lastStudentMsgAfterReviewTime;
           }
 
           // ── ① 3 分钟没讨论：破冰跟进提示 ──
-          if (silenceAfterReview >= 180000 && silenceAfterReview < 360000) {
-            const nudgeKey = 's2_review_silence_3m';
-            if (!this._nudgeCounts[nudgeKey]) {
-              this._nudgeCounts[nudgeKey] = 1;
-              const followMsg = {
-                sender: 'reviewingEditor',
-                senderName: '学术质量 · 审稿编辑',
-                text: `📝 【审稿编辑·初审跟进提示】：初审微调建议已送达！大家若对概念界定、文献引向或后续章节衔接有疑问，随时在讨论区 @审稿编辑 咨询，全组继续稳步协同推进！`,
-                timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                _timeMs: now
-              };
-              if (!this.state.chatLogs.stage2) this.state.chatLogs.stage2 = [];
-              this.state.chatLogs.stage2.push(followMsg);
-              this.syncChatLogs();
-              if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
-              renderChat(this.state);
-              return;
-            }
+          if (silenceAfterReview >= 180000 && !this._nudgeCounts['s2_review_silence_3m']) {
+            this._nudgeCounts['s2_review_silence_3m'] = 1;
+            const followMsg = {
+              sender: 'reviewingEditor',
+              senderName: '学术质量 · 审稿编辑',
+              text: `📝 【审稿编辑·初审跟进提示】：初审微调建议已送达！大家若对概念界定、文献引向或后续章节衔接有疑问，随时在讨论区 @审稿编辑 咨询，全组继续稳步协同推进！`,
+              timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+              _timeMs: now
+            };
+            if (!this.state.chatLogs.stage2) this.state.chatLogs.stage2 = [];
+            this.state.chatLogs.stage2.push(followMsg);
+            this.syncChatLogs();
+            if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+            renderChat(this.state);
+            return;
           }
 
           // ── ② 6 分钟仍没讨论：修改落实催促 ──
-          if (silenceAfterReview >= 360000 && silenceAfterReview < 600000) {
-            const nudgeKey = 's2_review_silence_6m';
-            if (!this._nudgeCounts[nudgeKey]) {
-              this._nudgeCounts[nudgeKey] = 1;
-              const followMsg = {
-                sender: 'reviewingEditor',
-                senderName: '学术质量 · 审稿编辑',
-                text: `⏳ 【审稿编辑·修改落实催促】：评审建议已下发 6 分钟，请负责相应章节的同学在讨论区交流修改思路，并在正文中着手落实完善！`,
-                timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                _timeMs: now
-              };
-              if (!this.state.chatLogs.stage2) this.state.chatLogs.stage2 = [];
-              this.state.chatLogs.stage2.push(followMsg);
-              this.syncChatLogs();
-              if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
-              renderChat(this.state);
-              return;
-            }
+          if (silenceAfterReview >= 360000 && !this._nudgeCounts['s2_review_silence_6m']) {
+            this._nudgeCounts['s2_review_silence_6m'] = 1;
+            const followMsg = {
+              sender: 'reviewingEditor',
+              senderName: '学术质量 · 审稿编辑',
+              text: `⏳ 【审稿编辑·修改落实催促】：评审建议已下发 6 分钟，请负责相应章节的同学在讨论区交流修改思路，并在正文中着手落实完善！`,
+              timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+              _timeMs: now
+            };
+            if (!this.state.chatLogs.stage2) this.state.chatLogs.stage2 = [];
+            this.state.chatLogs.stage2.push(followMsg);
+            this.syncChatLogs();
+            if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+            renderChat(this.state);
+            return;
           }
 
           // ── ③ 强兜底进度推进：讨论持续满 10 分钟（长任务 20 分钟）自动推进 ──
           const reviewFallbackMs = isLargeTask ? 1200000 : 600000;
           const reviewFallbackMinText = isLargeTask ? '20' : '10';
-          if (reviewElapsed >= reviewFallbackMs) {
-            const nudgeKey = 's2_review_silence_fallback';
-            if (!this._nudgeCounts[nudgeKey]) {
-              this._nudgeCounts[nudgeKey] = 1;
-              const followMsg = {
-                sender: 'managingEditor',
-                senderName: '协同调度 · 责任编辑',
-                text: `🤖 【责任编辑·阶段进度推进】：评审建议研讨时间已达 ${reviewFallbackMinText} 分钟，请全组同学加快在 Etherpad 正文中的拟写进度，向半程成稿目标稳步推进！`,
-                timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                _timeMs: now
-              };
-              if (!this.state.chatLogs.stage2) this.state.chatLogs.stage2 = [];
-              this.state.chatLogs.stage2.push(followMsg);
-              this.syncChatLogs();
-              if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
-              renderChat(this.state);
-              return;
-            }
+          if (reviewElapsed >= reviewFallbackMs && !this._nudgeCounts['s2_review_silence_fallback']) {
+            this._nudgeCounts['s2_review_silence_fallback'] = 1;
+            const followMsg = {
+              sender: 'managingEditor',
+              senderName: '协同调度 · 责任编辑',
+              text: `🤖 【责任编辑·阶段进度推进】：评审建议研讨时间已达 ${reviewFallbackMinText} 分钟，请全组同学加快在 Etherpad 正文中的拟写进度，向半程成稿目标稳步推进！`,
+              timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+              _timeMs: now
+            };
+            if (!this.state.chatLogs.stage2) this.state.chatLogs.stage2 = [];
+            this.state.chatLogs.stage2.push(followMsg);
+            this.syncChatLogs();
+            if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+            renderChat(this.state);
+            return;
           }
         }
 
@@ -1645,69 +1644,56 @@ export class App {
           // ======================================================================
           if (!hasUnsubmitted) {
             const checklistMsg = [...s2Chats].reverse().find(m => m && (m.text?.includes('半程修正清单') || m.text?.includes('半程编辑修正清单')));
-            let checklistTime = checklistMsg?._timeMs || meetingMsgTime;
-            if (!checklistTime && checklistMsg?.timestamp) {
-              const parts = String(checklistMsg.timestamp).split(':');
-              if (parts.length >= 2) {
-                const d = new Date();
-                d.setHours(parseInt(parts[0], 10), parseInt(parts[1], 10), 0, 0);
-                checklistTime = d.getTime();
-              }
-            }
-            const checklistElapsed = checklistTime ? (now - checklistTime) : meetingElapsed;
-            const studentMsgAfterChecklist = s2Chats.filter(m => m && m.sender && m.sender !== 'managingEditor' && m.sender !== 'reviewingEditor' && m.sender !== 'system' && Number(m._timeMs || 0) > (checklistTime || 0));
+            const checklistTime = parseMsgTime(checklistMsg) || meetingMsgTime || this.stage2StartTime || (now - 60000);
+            const checklistElapsed = Math.max(0, now - checklistTime);
+            const studentMsgAfterChecklist = s2Chats.filter(m => m && m.sender && m.sender !== 'managingEditor' && m.sender !== 'reviewingEditor' && m.sender !== 'system' && parseMsgTime(m) > checklistTime);
             const lastStudentMsgAfterChecklist = studentMsgAfterChecklist.length > 0 ? studentMsgAfterChecklist[studentMsgAfterChecklist.length - 1] : null;
-            const silenceAfterChecklist = lastStudentMsgAfterChecklist ? (now - Number(lastStudentMsgAfterChecklist._timeMs || 0)) : checklistElapsed;
+            const lastStudentMsgAfterChecklistTime = parseMsgTime(lastStudentMsgAfterChecklist);
+            const silenceAfterChecklist = lastStudentMsgAfterChecklistTime ? Math.max(0, now - lastStudentMsgAfterChecklistTime) : checklistElapsed;
 
             // 🛡️ 学生有发言即解除静默，重置一致性讨论计数
-            if (lastStudentMsgAfterChecklist && Number(lastStudentMsgAfterChecklist._timeMs || 0) > (this._lastNudgeActivityTime?.['s2_consistency'] || 0)) {
+            if (lastStudentMsgAfterChecklistTime > (this._lastNudgeActivityTime?.['s2_consistency'] || 0)) {
               this._nudgeCounts['s2_consistency_silence_3m'] = 0;
               this._nudgeCounts['s2_consistency_silence_6m'] = 0;
               if (!this._lastNudgeActivityTime) this._lastNudgeActivityTime = {};
-              this._lastNudgeActivityTime['s2_consistency'] = Number(lastStudentMsgAfterChecklist._timeMs);
+              this._lastNudgeActivityTime['s2_consistency'] = lastStudentMsgAfterChecklistTime;
             }
 
             // ── ① 3 分钟没讨论：破冰点拨 ──
-            if (silenceAfterChecklist >= 180000 && silenceAfterChecklist < 360000) {
-              const nudgeKey = 's2_consistency_silence_3m';
-              if (!this._nudgeCounts[nudgeKey]) {
-                this._nudgeCounts[nudgeKey] = 1;
-                const msg = {
-                  sender: 'managingEditor',
-                  senderName: '协同调度 · 责任编辑',
-                  text: `🤝 【责任编辑·一致性研讨点拨】：全组已顺利完成自查打卡！请大家针对清单中的修改分工（如前后逻辑衔接、术语规范与论证深度）在讨论区充分交流，商定具体修改方案哦～`,
-                  timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                  _timeMs: now
-                };
-                if (!this.state.chatLogs.stage2) this.state.chatLogs.stage2 = [];
-                this.state.chatLogs.stage2.push(msg);
-                this.syncChatLogs();
-                if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
-                renderChat(this.state);
-                return;
-              }
+            if (silenceAfterChecklist >= 180000 && !this._nudgeCounts['s2_consistency_silence_3m']) {
+              this._nudgeCounts['s2_consistency_silence_3m'] = 1;
+              const msg = {
+                sender: 'managingEditor',
+                senderName: '协同调度 · 责任编辑',
+                text: `🤝 【责任编辑·一致性研讨点拨】：全组已顺利完成自查打卡！请大家针对清单中的修改分工（如前后逻辑衔接、术语规范与论证深度）在讨论区充分交流，商定具体修改方案哦～`,
+                timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                _timeMs: now
+              };
+              if (!this.state.chatLogs.stage2) this.state.chatLogs.stage2 = [];
+              this.state.chatLogs.stage2.push(msg);
+              this.syncChatLogs();
+              if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+              renderChat(this.state);
+              return;
             }
 
             // ── ② 6 分钟仍没讨论：强化收拢催促 ──
-            if (silenceAfterChecklist >= 360000 && silenceAfterChecklist < 600000) {
-              const nudgeKey = 's2_consistency_silence_6m';
-              if (!this._nudgeCounts[nudgeKey]) {
-                this._nudgeCounts[nudgeKey] = 1;
-                const btnName = (s2.meetingStep === 'discussing_checklist') ? '【📝 讨论差不多了？让审稿编辑总结】' : '【💡 讨论差不多了？让责任编辑总结】';
-                const msg = {
-                  sender: 'managingEditor',
-                  senderName: '协同调度 · 责任编辑',
-                  text: `⏳ 【责任编辑·研讨收拢提醒】：一致性研讨已进行 6 分钟！请全组同学抓紧商定各板块的修改方案。商量差不多后，请点击聊天框上方的 ${btnName} 按钮，系统将为大家一键提炼研讨要点并推进后续！`,
-                  timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                  _timeMs: now
-                };
-                if (!this.state.chatLogs.stage2) this.state.chatLogs.stage2 = [];
-                this.state.chatLogs.stage2.push(msg);
-                this.syncChatLogs();
-                if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
-                renderChat(this.state);
-                return;
-              }
+            if (silenceAfterChecklist >= 360000 && !this._nudgeCounts['s2_consistency_silence_6m']) {
+              this._nudgeCounts['s2_consistency_silence_6m'] = 1;
+              const btnName = (s2.meetingStep === 'discussing_checklist') ? '【📝 讨论差不多了？让审稿编辑总结】' : '【💡 讨论差不多了？让责任编辑总结】';
+              const msg = {
+                sender: 'managingEditor',
+                senderName: '协同调度 · 责任编辑',
+                text: `⏳ 【责任编辑·研讨收拢提醒】：一致性研讨已进行 6 分钟！请全组同学抓紧商定各板块的修改方案。商量差不多后，请点击聊天框上方的 ${btnName} 按钮，系统将为大家一键提炼研讨要点并推进后续！`,
+                timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                _timeMs: now
+              };
+              if (!this.state.chatLogs.stage2) this.state.chatLogs.stage2 = [];
+              this.state.chatLogs.stage2.push(msg);
+              this.syncChatLogs();
+              if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+              renderChat(this.state);
+              return;
             }
 
             // ── ③ 强兜底智能提炼回填并顺推：讨论持续满 10 分钟（长任务 20 分钟）自动触发 ──
