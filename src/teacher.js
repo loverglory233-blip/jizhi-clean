@@ -9,8 +9,8 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260830_v899";
-import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, showGlobalBannerNotice } from "./utils.js?v=20260830_v899";
+} from "./constants.js?v=20260830_v900";
+import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, showGlobalBannerNotice } from "./utils.js?v=20260830_v900";
 
 /* ==========================================================================
    7. TEACHER PORTAL RENDERER (LIVE WORKSPACE MIRROR & ANNOUNCEMENT READ MATRIX)
@@ -48,10 +48,10 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
   const allUsers = authManager.getUsers();
   const classStudents = authManager.getClassStudents(activeClass.id);
 
-  // 🛡️ 严格按当前班级隔离写作任务、通知与文献（延期仅作用于任务本身，绝不混入教学广播列表）
-  const currentClassTasks = tasks.filter(t => t.classId === activeClass.id || (t.className && t.className === activeClass.name) || (!t.classId && activeClass.id === 'class_101'));
-  const currentClassAnnouncements = announcements.filter(a => (a.classId === activeClass.id || (a.className && a.className === activeClass.name) || (!a.classId && activeClass.id === 'class_101') || (Array.isArray(a.targetClassIds) && a.targetClassIds.includes(activeClass.id))) && !a.isSystemAction && !a.isExtension && !a.title?.includes('延期') && !a.title?.includes('延长至'));
-  const currentClassPapers = refPapers.filter(p => p.classId === activeClass.id || (p.className && p.className === activeClass.name) || (!p.classId && activeClass.id === 'class_101') || (Array.isArray(p.targetClassIds) && p.targetClassIds.includes(activeClass.id)));
+  // 🛡️ 严格按当前班级隔离写作任务、通知与文献（支持全校通用广播与多班级分发）
+  const currentClassTasks = tasks.filter(t => !t.classId || t.classId === 'all' || t.classId === activeClass.id || (t.className && t.className === activeClass.name) || (Array.isArray(t.targetClassIds) && (t.targetClassIds.includes('all') || t.targetClassIds.includes(activeClass.id))));
+  const currentClassAnnouncements = announcements.filter(a => (!a.classId || a.classId === 'all' || a.classId === activeClass.id || (a.className && a.className === activeClass.name) || (Array.isArray(a.targetClassIds) && (a.targetClassIds.includes('all') || a.targetClassIds.includes(activeClass.id)))) && !a.isSystemAction && !a.isExtension && !a.title?.includes('延期') && !a.title?.includes('延长至'));
+  const currentClassPapers = refPapers.filter(p => (!p.classId || p.classId === 'all' || p.classId === activeClass.id || (p.className && p.className === activeClass.name) || (Array.isArray(p.targetClassIds) && (p.targetClassIds.includes('all') || p.targetClassIds.includes(activeClass.id)))));
 
   const classTaskExists = currentClassTasks.some(t => t.id === state.activeTaskId);
   let effectiveMonitorTaskId = (state.activeTaskId && classTaskExists)
@@ -688,9 +688,9 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
         ` : ''}
 
         ${activeTab === 'view_publishing' ? (() => {
-          const currentClassTasks = tasks.filter(t => t.classId === activeClass.id || (t.className && t.className === activeClass.name) || (!t.classId && activeClass.id === 'class_101'));
-          const currentClassAnnouncements = announcements.filter(a => (a.classId === activeClass.id || (a.className && a.className === activeClass.name) || (!a.classId && activeClass.id === 'class_101') || (Array.isArray(a.targetClassIds) && a.targetClassIds.includes(activeClass.id))) && !a.isSystemAction && !a.isExtension && !a.title?.includes('延期') && !a.title?.includes('延长至'));
-          const currentClassPapers = refPapers.filter(p => p.classId === activeClass.id || (p.className && p.className === activeClass.name) || (!p.classId && activeClass.id === 'class_101') || (Array.isArray(p.targetClassIds) && p.targetClassIds.includes(activeClass.id)));
+          const currentClassTasks = tasks.filter(t => !t.classId || t.classId === 'all' || t.classId === activeClass.id || (t.className && t.className === activeClass.name) || (Array.isArray(t.targetClassIds) && (t.targetClassIds.includes('all') || t.targetClassIds.includes(activeClass.id))));
+          const currentClassAnnouncements = announcements.filter(a => (!a.classId || a.classId === 'all' || a.classId === activeClass.id || (a.className && a.className === activeClass.name) || (Array.isArray(a.targetClassIds) && (a.targetClassIds.includes('all') || a.targetClassIds.includes(activeClass.id)))) && !a.isSystemAction && !a.isExtension && !a.title?.includes('延期') && !a.title?.includes('延长至'));
+          const currentClassPapers = refPapers.filter(p => (!p.classId || p.classId === 'all' || p.classId === activeClass.id || (p.className && p.className === activeClass.name) || (Array.isArray(p.targetClassIds) && (p.targetClassIds.includes('all') || p.targetClassIds.includes(activeClass.id)))));
 
           const surveysList = authManager.getSurveysList();
           const currentSelectedSurveyUrl = authManager.getSurveyUrl(activeClass.id, currentClassTasks[0] ? currentClassTasks[0].id : 'task_default');
