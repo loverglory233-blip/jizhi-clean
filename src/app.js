@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260830_v855";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash } from "./utils.js?v=20260830_v855";
-import { callCozeAgentAPI } from "./agents.js?v=20260830_v855";
-import { AuthManager } from "./auth.js?v=20260830_v855";
-import { CloudSyncEngine } from "./sync.js?v=20260830_v855";
-import { renderLoginView } from "./login.js?v=20260830_v855";
-import { renderTeacherPortal } from "./teacher.js?v=20260830_v855";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260830_v855";
+} from "./constants.js?v=20260830_v856";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash } from "./utils.js?v=20260830_v856";
+import { callCozeAgentAPI } from "./agents.js?v=20260830_v856";
+import { AuthManager } from "./auth.js?v=20260830_v856";
+import { CloudSyncEngine } from "./sync.js?v=20260830_v856";
+import { renderLoginView } from "./login.js?v=20260830_v856";
+import { renderTeacherPortal } from "./teacher.js?v=20260830_v856";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260830_v856";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260830_v855";
+} from "./editor.js?v=20260830_v856";
 
 // Make renderChat available on window for sync callbacks
 if (typeof window !== "undefined") {
@@ -60,9 +60,9 @@ export class App {
     if (storedTeacherTab) this.state.teacherActiveTab = storedTeacherTab;
 
     const user = this.authManager.getCurrentUser();
-    const effectiveClassId = (this.authManager ? this.authManager.getEffectiveStudentClassId(user, this.state.activeTaskId) : (this.state.activeStudentClassId || user?.classId || 'class_101'));
+    const effectiveClassId = (this.authManager ? this.authManager.getEffectiveStudentClassId(user, this.state.activeTaskId) : (this.state.activeStudentClassId || user?.classId || null));
     const activeGroupObj = this.authManager.getStudentActiveGroup(user, effectiveClassId);
-    const currentGroupId = activeGroupObj?.id || user?.groupId || 'group_1';
+    const currentGroupId = activeGroupObj?.id || user?.groupId || this.state.activeGroupId || null;
     this.loadGroupState(currentGroupId);
 
     this.cloudSyncEngine = new CloudSyncEngine(this);
@@ -106,7 +106,7 @@ export class App {
     const defaultState = JSON.parse(JSON.stringify(InitialState));
     const user = this.authManager ? this.authManager.getCurrentUser() : null;
     const isTeacher = user && (user.isTeacher || user.role === 'teacher');
-    const effectiveClassId = (isTeacher ? this.state.activeClassId : this.state.activeStudentClassId) || user?.classId || 'class_101';
+    const effectiveClassId = (isTeacher ? this.state.activeClassId : this.state.activeStudentClassId) || user?.classId || null;
     let taskId = this.state.activeTaskId || (this.cloudSyncEngine ? this.cloudSyncEngine.taskId : `task_${effectiveClassId}_default`);
     if (!taskId || taskId === 'task_default') {
       taskId = `task_${effectiveClassId}_default`;
@@ -166,11 +166,11 @@ export class App {
     const user = this.authManager ? this.authManager.getCurrentUser() : null;
     const isTeacher = user && (user.isTeacher || user.role === 'teacher');
     if (isTeacher) {
-      return this.state.activeMonitorGroupId || 'group_1';
+      return this.state.activeMonitorGroupId || this.state.activeGroupId || null;
     }
-    const effectiveClassId = (this.authManager ? this.authManager.getEffectiveStudentClassId(user, this.state.activeTaskId) : (this.state.activeStudentClassId || user?.classId || 'class_101'));
+    const effectiveClassId = (this.authManager ? this.authManager.getEffectiveStudentClassId(user, this.state.activeTaskId) : (this.state.activeStudentClassId || user?.classId || null));
     const activeGroupObj = this.authManager ? this.authManager.getStudentActiveGroup(user, effectiveClassId) : null;
-    return activeGroupObj?.id || user?.groupId || 'group_1';
+    return activeGroupObj?.id || user?.groupId || this.state.activeGroupId || null;
   }
 
   saveGroupState(groupId) {
@@ -178,7 +178,7 @@ export class App {
     try {
       const user = this.authManager ? this.authManager.getCurrentUser() : null;
       const isTeacher = user && (user.isTeacher || user.role === 'teacher');
-      const effectiveClassId = (isTeacher ? this.state.activeClassId : this.state.activeStudentClassId) || user?.classId || 'class_101';
+      const effectiveClassId = (isTeacher ? this.state.activeClassId : this.state.activeStudentClassId) || user?.classId || null;
       const snap = {
         classId: effectiveClassId,
         taskId: this.state.activeTaskId,
@@ -204,7 +204,7 @@ export class App {
     if (!msg) return;
     const user = this.authManager ? this.authManager.getCurrentUser() : null;
     const isTeacher = user && (user.isTeacher || user.role === 'teacher');
-    const effectiveClassId = (isTeacher ? this.state.activeClassId : this.state.activeStudentClassId) || user?.classId || 'class_101';
+    const effectiveClassId = (isTeacher ? this.state.activeClassId : this.state.activeStudentClassId) || user?.classId || null;
     const groupId = this.getEffectiveGroupId();
     let taskId = this.state.activeTaskId || (this.cloudSyncEngine ? this.cloudSyncEngine.taskId : `task_${effectiveClassId}_default`);
     if (!taskId || taskId === 'task_default') {
@@ -243,7 +243,7 @@ export class App {
   syncChatLogs() {
     const user = this.authManager ? this.authManager.getCurrentUser() : null;
     const isTeacher = user && (user.isTeacher || user.role === 'teacher');
-    const effectiveClassId = (isTeacher ? this.state.activeClassId : this.state.activeStudentClassId) || user?.classId || 'class_101';
+    const effectiveClassId = (isTeacher ? this.state.activeClassId : this.state.activeStudentClassId) || user?.classId || null;
     const groupId = this.getEffectiveGroupId();
     let taskId = this.state.activeTaskId || (this.cloudSyncEngine ? this.cloudSyncEngine.taskId : `task_${effectiveClassId}_default`);
     if (!taskId || taskId === 'task_default') {
@@ -325,7 +325,7 @@ export class App {
 
   syncStageChange(stage) {
     const user = this.authManager.getCurrentUser();
-    const groupId = (user && user.groupId) ? user.groupId : (this.state.activeMonitorGroupId || 'group_1');
+    const groupId = (user && user.groupId) ? user.groupId : (this.state.activeMonitorGroupId || this.state.activeGroupId || null);
     this.state.currentStage = stage;
     this.saveGroupState(groupId);
     if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
@@ -372,8 +372,8 @@ export class App {
 
         // ⏰ 全局进度与阶段间转场催促 + 阶段二智能体保底机制 (由在场学号最小的在线成员单点触发，杜绝多人并发 AI 消息风暴)
         const myCode = this.state.currentUser || (currentUser ? (currentUser.studentCode || currentUser.id) : 'A');
-        const activeTaskId = this.state.activeTaskId || 'task_default';
-        const currentGroupId = (currentUser && currentUser.groupId) ? currentUser.groupId : (this.state.activeMonitorGroupId || 'group_1');
+        const activeTaskId = this.state.activeTaskId || null;
+        const currentGroupId = (currentUser && currentUser.groupId) ? currentUser.groupId : (this.state.activeMonitorGroupId || this.state.activeGroupId || null);
         const allTasks = (this.authManager) ? this.authManager.getTasks() : [];
         const curTask = allTasks.find(t => t.id === activeTaskId);
         const totalDurationMin = (curTask && curTask.durationMinutes) ? Number(curTask.durationMinutes) : 150;
@@ -638,7 +638,7 @@ export class App {
         }
       );
     } else {
-      const effectiveClassId = this.authManager ? this.authManager.getEffectiveStudentClassId(currentUser, this.state.activeTaskId) : (this.state.activeStudentClassId || currentUser?.classId || 'class_101');
+      const effectiveClassId = this.authManager ? this.authManager.getEffectiveStudentClassId(currentUser, this.state.activeTaskId) : (this.state.activeStudentClassId || currentUser?.classId || null);
       const activeGroupObj = this.authManager.getStudentActiveGroup(currentUser, effectiveClassId);
       const currentGroupId = activeGroupObj.id || (currentUser && currentUser.groupId ? currentUser.groupId : 'group_1');
 
@@ -647,10 +647,10 @@ export class App {
         renderStudentTaskPortal(
           appEl, this.authManager, this.state,
           (taskId) => {
-            const actualTaskId = taskId || 'task_default';
+            const actualTaskId = taskId || null;
             this.state.activeTaskId = actualTaskId;
             const targetTaskObj = (this.authManager ? this.authManager.getTasks() : []).find(t => t.id === actualTaskId);
-            const taskClassId = (targetTaskObj && targetTaskObj.classId) ? targetTaskObj.classId : (this.authManager ? this.authManager.getEffectiveStudentClassId(currentUser, this.state.activeTaskId) : (this.state.activeStudentClassId || currentUser?.classId || 'class_101'));
+            const taskClassId = (targetTaskObj && targetTaskObj.classId) ? targetTaskObj.classId : (this.authManager ? this.authManager.getEffectiveStudentClassId(currentUser, this.state.activeTaskId) : (this.state.activeStudentClassId || currentUser?.classId || null));
             this.state.activeStudentClassId = taskClassId;
 
             try {
@@ -885,7 +885,7 @@ export class App {
       }
 
       // 🛡️ 2. 全局新任务发布感知与顶部横幅通知：无论在工作台内还是大厅，新任务发布均有横幅提示
-      const effClassId = this.state.activeStudentClassId || currUserObj.classId || 'class_101';
+      const effClassId = this.state.activeStudentClassId || currUserObj.classId || null;
       const effGroup = this.authManager ? this.authManager.getStudentActiveGroup(currUserObj, effClassId) : null;
       const visibleTasks = allTasks.filter(t => {
         if (t.classId && t.classId !== effClassId) return false;
@@ -1570,7 +1570,7 @@ ${recentChats}
     const activeTaskId = this.state.activeTaskId;
     if (!activeTaskId) return;
 
-    const effectiveClassId = this.authManager ? this.authManager.getEffectiveStudentClassId(currentUser, this.state.activeTaskId) : (this.state.activeStudentClassId || currentUser?.classId || "class_101");
+    const effectiveClassId = this.authManager ? this.authManager.getEffectiveStudentClassId(currentUser, this.state.activeTaskId) : (this.state.activeStudentClassId || currentUser?.classId || null);
     const classes = this.authManager.getClasses();
     const currentClassObj = classes.find(c => c.id === effectiveClassId);
     const effectiveClassName = currentClassObj ? currentClassObj.name : '';
@@ -1628,14 +1628,14 @@ ${recentChats}
   showAnnouncementModal(targetAnn = null, isSequentialFlow = false) {
     document.querySelectorAll('.modal-overlay').forEach(el => el.remove());
     const currentUser = this.authManager.getCurrentUser();
-    const effectiveClassId = this.authManager ? this.authManager.getEffectiveStudentClassId(currentUser, this.state.activeTaskId) : (this.state.activeStudentClassId || currentUser?.classId || "class_101");
+    const effectiveClassId = this.authManager ? this.authManager.getEffectiveStudentClassId(currentUser, this.state.activeTaskId) : (this.state.activeStudentClassId || currentUser?.classId || null);
     const classes = this.authManager.getClasses();
     const currentClassObj = classes.find(c => c.id === effectiveClassId);
     const effectiveClassName = currentClassObj ? currentClassObj.name : '';
     const activeGroupObj = this.authManager.getStudentActiveGroup(currentUser, effectiveClassId);
     const groupId = this.state.activeGroupId || this.cloudSyncEngine?.groupId || activeGroupObj.id || (currentUser && currentUser.groupId ? currentUser.groupId : 'group_1');
     const isTaskListMode = (this.state && this.state.studentViewMode === 'task_list');
-    const activeTaskId = this.state.activeTaskId || 'task_default';
+    const activeTaskId = this.state.activeTaskId || null;
     const allAnns = this.authManager.getAnnouncements();
 
     const isAnnRead = (a) => {
@@ -1940,7 +1940,7 @@ ${recentChats}
       modal.querySelector('#btn-read-confirm')?.addEventListener('click', () => {
         this.authManager.markAnnouncementRead(ann.id, groupId);
         const myName = currentUser ? currentUser.name : '学生';
-        this.authManager.markAnnouncementConfirmed(ann.id, currentUser ? (currentUser.id || currentUser.studentCode || currentUser.name) : 'temp', myName, groupId);
+        this.authManager.markAnnouncementConfirmed(ann.id, currentUser ? (currentUser.id || currentUser.studentCode || currentUser.name) : (currentUser?.studentCode || currentUser?.id || ''), myName, groupId);
         
         const remainingUnread = unreadList.filter(a => a.id !== ann.id && !a.isExtension && !a.title?.includes('延期通知'));
         if (remainingUnread.length > 0) {
@@ -1979,7 +1979,7 @@ ${recentChats}
     document.querySelectorAll('.modal-overlay').forEach(el => el.remove());
     const currentUser = this.authManager.getCurrentUser();
     const currentClassId = currentUser && currentUser.classId ? currentUser.classId : 'class_101';
-    const currentTaskId = this.state.activeTaskId || 'task_default';
+    const currentTaskId = this.state.activeTaskId || null;
     const tasks = this.authManager.getTasks();
     const currTaskObj = tasks.find(t => t.id === currentTaskId);
     const taskTitle = currTaskObj ? currTaskObj.title : '指定写作任务';
@@ -2065,7 +2065,7 @@ ${recentChats}
   showReferencePapersModal() {
     document.querySelectorAll('.modal-overlay').forEach(el => el.remove());
     const user = this.authManager.getCurrentUser();
-    const groupId = user && user.groupId ? user.groupId : (this.state.activeMonitorGroupId || 'group_1');
+    const groupId = user && user.groupId ? user.groupId : (this.state.activeMonitorGroupId || this.state.activeGroupId || null);
     const classId = user ? user.classId : null;
     const activeTaskId = (this.state && this.state.activeTaskId) ? this.state.activeTaskId : 'task_default';
     const papers = this.authManager.getReferencePapers(groupId, classId, activeTaskId);
@@ -2240,7 +2240,7 @@ ${recentChats}
         if (e.target.files && e.target.files[0]) {
           const file = e.target.files[0];
           const currentUser = this.authManager.getCurrentUser();
-          const studentCode = currentUser ? (currentUser.studentCode || currentUser.id || 'A') : 'A';
+          const studentCode = currentUser ? (currentUser?.name || currentUser?.studentCode || currentUser?.id) : 'A';
           const currentStage = this.state.currentStage || 'stage1';
 
           // 🛡️ 纯正文件上传：直传服务端 uploads/ 目录获取物理 HTTP URL，彻底杜绝 Base64 膨胀
@@ -3261,7 +3261,7 @@ ${fullDiscussionLogs || '成员协商协作撰写'}
       return;
     }
 
-    const effectiveClassId = (isTeacher ? this.state.activeClassId : this.state.activeStudentClassId) || currUser?.classId || 'class_101';
+    const effectiveClassId = (isTeacher ? this.state.activeClassId : this.state.activeStudentClassId) || currUser?.classId || null;
     const groupId = this.getEffectiveGroupId();
     let taskId = this.state.activeTaskId || (this.cloudSyncEngine ? this.cloudSyncEngine.taskId : `task_${effectiveClassId}_default`);
     if (!taskId || taskId === 'task_default') {
@@ -3604,11 +3604,11 @@ ${propText}
 
     // 🛡️ 正文草稿锁存：切换前从 Etherpad 实时提取最新全文存入内存与快照，绝不丢字，并供阶段三智能体深度分析
     if (this.state.currentStage === 'stage2') {
-      const activeTaskId = this.state.activeTaskId || 'task_default';
+      const activeTaskId = this.state.activeTaskId || null;
       const currentUser = this.authManager ? this.authManager.getCurrentUser() : null;
-      const effectiveClassId = this.state.activeStudentClassId || (currentUser?.classId || 'class_101');
+      const effectiveClassId = this.state.activeStudentClassId || (currentUser?.classId || null);
       const activeGroupObj = this.authManager ? this.authManager.getStudentActiveGroup(currentUser, effectiveClassId) : null;
-      const currentGroupId = activeGroupObj?.id || (currentUser?.groupId || 'group_1');
+      const currentGroupId = activeGroupObj?.id || (currentUser?.groupId || this.state.activeGroupId || null);
       const padName = `jizhi_${activeTaskId}_${currentGroupId}`;
       try {
         fetch(`sync.php?action=get_pad_text&padId=${padName}`)
@@ -3664,12 +3664,12 @@ ${propText}
     if (isStageTransition) isForced = true;
 
     const currentUser = this.authManager.getCurrentUser();
-    const effectiveClassId = this.state.activeStudentClassId || (currentUser?.classId || 'class_101');
+    const effectiveClassId = this.state.activeStudentClassId || (currentUser?.classId || null);
     const activeGroupObj = this.authManager.getStudentActiveGroup(currentUser, effectiveClassId);
     const currentGroupId = activeGroupObj.id || (currentUser && currentUser.groupId ? currentUser.groupId : 'group_1');
 
     this.state.members = this.authManager.getGroupMembersForWorkspace(currentGroupId);
-    this.state.currentUser = currentUser ? (currentUser.studentCode || 'A') : 'A';
+    this.state.currentUser = currentUser ? (currentUser.name || currentUser.studentCode || currentUser.id) : null;
 
     renderHeader(
       this.state, currentUser, this.authManager.getAnnouncements(),
@@ -3822,9 +3822,9 @@ ${propText}
           else if (this.state.members && typeof this.state.members === 'object') memberArr = Object.values(this.state.members);
           if (memberArr.length === 0 && this.authManager) {
             const u = this.authManager.getCurrentUser();
-            const effClassId = (this.authManager ? this.authManager.getEffectiveStudentClassId(u, this.state.activeTaskId) : (this.state.activeStudentClassId || u?.classId || 'class_101'));
+            const effClassId = (this.authManager ? this.authManager.getEffectiveStudentClassId(u, this.state.activeTaskId) : (this.state.activeStudentClassId || u?.classId || null));
             const effGroup = this.authManager.getStudentActiveGroup(u, effClassId);
-            memberArr = this.authManager.getGroupMembersForWorkspace(effGroup?.id || 'group_1', effClassId);
+            memberArr = this.authManager.getGroupMembersForWorkspace(effGroup?.id || this.state.activeGroupId || null, effClassId);
           }
           const currMemObj = memberArr.find(m => m && (m.id === user || m.studentCode === user || m.username === user || m.name === user));
           const memberName = currMemObj ? currMemObj.name : user;
@@ -3887,7 +3887,7 @@ ${propText}
           this.renderStudentWorkspace();
         },
       onPresenceChange: (nodeIdx, sectionTitle, charOffset) => {
-        const user = this.state.currentUser || 'A';
+        const user = this.state.currentUser;
         if (!this.state.presence) this.state.presence = {};
         this.state.presence[user] = {
           nodeIndex: nodeIdx,
@@ -3901,7 +3901,7 @@ ${propText}
         if (this.state.isFinalSubmitted) return;
         const cleanHtml = (newContent || '').replace(/<span class="remote-cursor-widget"[\s\S]*?<\/span>/gi, '');
         this.state.stage2.unifiedContent = cleanHtml;
-        const user = this.state.currentUser || 'A';
+        const user = this.state.currentUser;
         const plain = cleanHtml.replace(/<[^>]*>/g, '').trim();
         
         if (!this.state.stage2.memberContributions) this.state.stage2.memberContributions = {};
@@ -3960,21 +3960,21 @@ ${propText}
           alert('🔒 正文初稿已被组内全员确认！已解锁阶段三。');
           return;
         }
-        const user = this.state.currentUser || 'A';
+        const user = this.state.currentUser;
 
         let memberArr = [];
         if (Array.isArray(this.state.members)) memberArr = this.state.members;
         else if (this.state.members && typeof this.state.members === 'object') memberArr = Object.values(this.state.members);
         if (memberArr.length === 0 && this.authManager) {
           const u = this.authManager.getCurrentUser();
-          const effClassId = (this.authManager ? this.authManager.getEffectiveStudentClassId(u, this.state.activeTaskId) : (this.state.activeStudentClassId || u?.classId || 'class_101'));
+          const effClassId = (this.authManager ? this.authManager.getEffectiveStudentClassId(u, this.state.activeTaskId) : (this.state.activeStudentClassId || u?.classId || null));
           const effGroup = this.authManager.getStudentActiveGroup(u, effClassId);
-          memberArr = this.authManager.getGroupMembersForWorkspace(effGroup?.id || 'group_1');
+          memberArr = this.authManager.getGroupMembersForWorkspace(effGroup?.id || this.state.activeGroupId || null);
         }
         const totalMembersCount = memberArr.length > 0 ? memberArr.length : 3;
 
         // 🛡️ 极速状态合并：提取本地持久化与内存中已有所有确认记录，防止并发冲刷
-        const groupId = (typeof this.getEffectiveGroupId === 'function') ? this.getEffectiveGroupId() : (this.state.activeGroupId || 'group_1');
+        const groupId = (typeof this.getEffectiveGroupId === 'function') ? this.getEffectiveGroupId() : (this.state.activeGroupId || this.state.activeGroupId || null);
         const cachedRaw = localStorage.getItem(`jizhi_group_state_${groupId}`);
         if (cachedRaw) {
           try {
@@ -4037,7 +4037,7 @@ ${propText}
           s2.isDraftConfirmed = true;
           this.state.groupMaxStage = 'stage3';
           const currentUserObj = this.authManager ? this.authManager.getCurrentUser() : null;
-          const activeTaskId = this.state.activeTaskId || 'task_default';
+          const activeTaskId = this.state.activeTaskId || null;
           const userGroupId = (currentUserObj && currentUserObj.groupId) ? currentUserObj.groupId : 'group_1';
           if (this.authManager && this.authManager.markAllTaskAnnouncementsRead) {
             this.authManager.markAllTaskAnnouncementsRead(activeTaskId, userGroupId);
@@ -4064,16 +4064,16 @@ ${propText}
         this.renderStudentWorkspace();
       },
       onConfirmStage3Revision: () => {
-        const user = this.state.currentUser || 'A';
+        const user = this.state.currentUser;
         const s3 = this.state.stage3;
         let memberArr = [];
         if (Array.isArray(this.state.members)) memberArr = this.state.members;
         else if (this.state.members && typeof this.state.members === 'object') memberArr = Object.values(this.state.members);
         if (memberArr.length === 0 && this.authManager) {
           const u = this.authManager.getCurrentUser();
-          const effClassId = (this.authManager ? this.authManager.getEffectiveStudentClassId(u, this.state.activeTaskId) : (this.state.activeStudentClassId || u?.classId || 'class_101'));
+          const effClassId = (this.authManager ? this.authManager.getEffectiveStudentClassId(u, this.state.activeTaskId) : (this.state.activeStudentClassId || u?.classId || null));
           const effGroup = this.authManager.getStudentActiveGroup(u, effClassId);
-          memberArr = this.authManager.getGroupMembersForWorkspace(effGroup?.id || 'group_1');
+          memberArr = this.authManager.getGroupMembersForWorkspace(effGroup?.id || this.state.activeGroupId || null);
         }
         const totalMembersCount = memberArr.length > 0 ? memberArr.length : 3;
 
@@ -4220,16 +4220,16 @@ ${propText}
           alert('🔒 论文终稿已于此前成功全员提交！目前处于全盘只读归档模式，可随时切页查阅各阶段记录。');
           return;
         }
-        const user = this.state.currentUser || 'A';
+        const user = this.state.currentUser;
         const s3 = this.state.stage3;
         let memberArr = [];
         if (Array.isArray(this.state.members)) memberArr = this.state.members;
         else if (this.state.members && typeof this.state.members === 'object') memberArr = Object.values(this.state.members);
         if (memberArr.length === 0 && this.authManager) {
           const u = this.authManager.getCurrentUser();
-          const effClassId = (this.authManager ? this.authManager.getEffectiveStudentClassId(u, this.state.activeTaskId) : (this.state.activeStudentClassId || u?.classId || 'class_101'));
+          const effClassId = (this.authManager ? this.authManager.getEffectiveStudentClassId(u, this.state.activeTaskId) : (this.state.activeStudentClassId || u?.classId || null));
           const effGroup = this.authManager.getStudentActiveGroup(u, effClassId);
-          memberArr = this.authManager.getGroupMembersForWorkspace(effGroup?.id || 'group_1');
+          memberArr = this.authManager.getGroupMembersForWorkspace(effGroup?.id || this.state.activeGroupId || null);
         }
         const totalMembersCount = memberArr.length > 0 ? memberArr.length : 3;
 
@@ -4261,7 +4261,7 @@ ${propText}
           this.state.isFinalSubmitted = true;
           s3.isRevisionConfirmed = true;
           const currentUserObj = this.authManager ? this.authManager.getCurrentUser() : null;
-          const activeTaskId = this.state.activeTaskId || 'task_default';
+          const activeTaskId = this.state.activeTaskId || null;
           const userGroupId = (currentUserObj && currentUserObj.groupId) ? currentUserObj.groupId : 'group_1';
 
           if (this.authManager && this.authManager.markAllTaskAnnouncementsRead) {
@@ -4529,12 +4529,12 @@ ${propText}
 
   showMeetingModal() {
     const currUser = this.authManager ? this.authManager.getCurrentUser() : null;
-    const userKey = currUser ? (currUser.studentCode || currUser.id || 'A') : (this.state.currentUser || 'A');
+    const userKey = currUser ? (currUser.name || currUser.studentCode || currUser.id) : this.state.currentUser;
     let actualGroupMembers = [];
     if (this.authManager) {
-      const effClassId = this.state.activeStudentClassId || currUser?.classId || 'class_101';
+      const effClassId = this.state.activeStudentClassId || currUser?.classId || null;
       const effGroup = this.authManager.getStudentActiveGroup(currUser, effClassId);
-      actualGroupMembers = this.authManager.getGroupMembersForWorkspace(effGroup?.id || this.state.activeGroupId || 'group_1');
+      actualGroupMembers = this.authManager.getGroupMembersForWorkspace(effGroup?.id || this.state.activeGroupId || this.state.activeGroupId || null);
     }
     const membersList = actualGroupMembers.length > 0 ? actualGroupMembers : Object.values(this.state.members || {});
     const subs = this.state.stage2?.meetingSubmissions || {};
@@ -4730,15 +4730,15 @@ ${propText}
       const transSections = Array.from(modal.querySelectorAll('input[name="trans-div-sec"]:checked')).map(cb => cb.value);
       const styleSections = Array.from(modal.querySelectorAll('input[name="style-div-sec"]:checked')).map(cb => cb.value);
       const currUser = this.authManager ? this.authManager.getCurrentUser() : null;
-      const userKey = currUser ? (currUser.studentCode || currUser.id || 'A') : (this.state.currentUser || 'A');
+      const userKey = currUser ? (currUser.name || currUser.studentCode || currUser.id) : this.state.currentUser;
       const memberName = currUser ? currUser.name : (this.state.members[userKey]?.name || userKey);
 
       // 🛡️ 真实组员人数：从 authManager 严格获取当前工作区绑定的组内真实学生列表
       let actualGroupMembers = [];
       if (this.authManager) {
-        const effClassId = this.state.activeStudentClassId || currUser?.classId || 'class_101';
+        const effClassId = this.state.activeStudentClassId || currUser?.classId || null;
         const effGroup = this.authManager.getStudentActiveGroup(currUser, effClassId);
-        actualGroupMembers = this.authManager.getGroupMembersForWorkspace(effGroup?.id || this.state.activeGroupId || 'group_1');
+        actualGroupMembers = this.authManager.getGroupMembersForWorkspace(effGroup?.id || this.state.activeGroupId || this.state.activeGroupId || null);
       }
       const totalMembersCount = Math.max(actualGroupMembers.length, Object.keys(this.state.members || {}).length, 2);
 

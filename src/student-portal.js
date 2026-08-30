@@ -7,8 +7,8 @@ import {
   STORAGE_KEY_TASKS,
   STORAGE_KEY_ANNOUNCEMENTS,
   STORAGE_KEY_CLASSES
-} from "./constants.js?v=20260830_v855";
-import { escapeHtml, isTaskExpired, formatDurationHuman, formatStandardDateDash, showGlobalBannerNotice } from "./utils.js?v=20260830_v855";
+} from "./constants.js?v=20260830_v856";
+import { escapeHtml, isTaskExpired, formatDurationHuman, formatStandardDateDash, showGlobalBannerNotice } from "./utils.js?v=20260830_v856";
 
 /* ==========================================================================
    10. STUDENT TASK PORTAL (CENTRALIZED HUB & COLLABORATION ENTRY)
@@ -125,9 +125,9 @@ export function renderStudentTaskPortal(container, authManager, state, onSelectT
   });
 
   const displayClasses = myClasses.length > 0 ? myClasses : (
-    (classes || []).filter(c => c.id === (currentUser?.classId || 'class_101')).length > 0
-      ? (classes || []).filter(c => c.id === (currentUser?.classId || 'class_101'))
-      : [(classes && classes[0]) || { id: 'class_101', name: '教学班级', groups: [] }]
+    (classes || []).filter(c => c.id === (currentUser?.classId || null)).length > 0
+      ? (classes || []).filter(c => c.id === (currentUser?.classId || null))
+      : (classes || [])
   );
 
   const activeUserClassId = state.activeStudentClassId && displayClasses.some(c => c.id === state.activeStudentClassId)
@@ -138,7 +138,7 @@ export function renderStudentTaskPortal(container, authManager, state, onSelectT
 
   // 👥 2. 动态精准匹配该学生在当前选定班级里的真实小组
   const activeGroupObj = authManager.getStudentActiveGroup(currentUser, userClass.id);
-  const groupId = activeGroupObj.id || 'group_1';
+  const groupId = activeGroupObj.id;
   const groupName = activeGroupObj.name || '第 1 协作小组';
 
   const relevantTasks = tasks.filter(t => {

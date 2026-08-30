@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState } from './constants.js?v=20260830_v855';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal } from './utils.js?v=20260830_v855';
+import { InitialState } from './constants.js?v=20260830_v856';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal } from './utils.js?v=20260830_v856';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -25,17 +25,17 @@ export class CloudSyncEngine {
     const user = this.app.authManager ? this.app.authManager.getCurrentUser() : null;
     const isTeacher = user && (user.isTeacher || user.role === 'teacher');
     if (isTeacher) {
-      return this.app.state.activeMonitorGroupId || 'group_1';
+      return this.app.state.activeMonitorGroupId || this.app.state.activeGroupId || null;
     }
-    const effectiveClassId = (this.app?.authManager ? this.app.authManager.getEffectiveStudentClassId(user, this.app?.state?.activeTaskId) : (this.app?.state?.activeStudentClassId || user?.classId || 'class_101'));
+    const effectiveClassId = (this.app?.authManager ? this.app.authManager.getEffectiveStudentClassId(user, this.app?.state?.activeTaskId) : (this.app?.state?.activeStudentClassId || user?.classId || null));
     const activeGroupObj = this.app.authManager ? this.app.authManager.getStudentActiveGroup(user, effectiveClassId) : null;
-    return activeGroupObj?.id || user?.groupId || 'group_1';
+    return this.app.state.activeGroupId || activeGroupObj?.id || user?.groupId || null;
   }
 
   updateScopeKeys() {
     const isTeacher = this.app.authManager?.getCurrentUser()?.role === 'teacher';
     const user = this.app.authManager?.getCurrentUser();
-    const effectiveClassId = (isTeacher ? this.app.state.activeClassId : this.app.state.activeStudentClassId) || user?.classId || 'class_101';
+    const effectiveClassId = (isTeacher ? this.app.state.activeClassId : this.app.state.activeStudentClassId) || user?.classId || null;
     const groupId = this.getEffectiveGroupId();
     let taskId = (this.app.state.activeTaskId) ? this.app.state.activeTaskId : `task_${effectiveClassId}_default`;
     if (taskId === 'task_default' || !taskId) {
@@ -182,7 +182,7 @@ export class CloudSyncEngine {
     if (!userKey) return;
 
     try {
-      const url = `sync.php?action=presence_ping&taskId=${encodeURIComponent(this.taskId)}&groupId=${encodeURIComponent(this.groupId)}&classId=${encodeURIComponent(this.effectiveClassId || 'class_101')}`;
+      const url = `sync.php?action=presence_ping&taskId=${encodeURIComponent(this.taskId)}&groupId=${encodeURIComponent(this.groupId)}&classId=${encodeURIComponent(this.effectiveClassId || null)}`;
       const res = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -300,7 +300,7 @@ export class CloudSyncEngine {
         const currentUser = this.app.authManager ? this.app.authManager.getCurrentUser() : null;
         if (currentUser) {
           const userKey = String(currentUser.studentCode || currentUser.username || currentUser.id || '').trim();
-          const effectiveClassId = this.effectiveClassId || currentUser.classId || 'class_101';
+          const effectiveClassId = this.effectiveClassId || currentUser.classId || null;
           const beaconUrl = `sync.php?action=presence_leave&taskId=${encodeURIComponent(this.taskId)}&groupId=${encodeURIComponent(this.groupId)}&classId=${encodeURIComponent(effectiveClassId)}`;
           if (navigator.sendBeacon) {
             navigator.sendBeacon(beaconUrl, JSON.stringify({ userId: userKey }));
@@ -929,9 +929,9 @@ export class CloudSyncEngine {
       }
       if (allowedMemberKeys.size === 0 && this.app.authManager) {
         const currU = this.app.authManager.getCurrentUser();
-        const effClassId = this.app.state.activeStudentClassId || currU?.classId || 'class_101';
+        const effClassId = this.app.state.activeStudentClassId || currU?.classId || null;
         const effGroup = this.app.authManager.getStudentActiveGroup(currU, effClassId);
-        const groupMembers = this.app.authManager.getGroupMembersForWorkspace(effGroup?.id || 'group_1');
+        const groupMembers = this.app.authManager.getGroupMembersForWorkspace(effGroup?.id || this.app.state.activeGroupId || null);
         Object.values(groupMembers).forEach(m => {
           if (m) {
             if (m.id) allowedMemberKeys.add(String(m.id).trim());
