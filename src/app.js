@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260830_v850";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash } from "./utils.js?v=20260830_v850";
-import { callCozeAgentAPI } from "./agents.js?v=20260830_v850";
-import { AuthManager } from "./auth.js?v=20260830_v850";
-import { CloudSyncEngine } from "./sync.js?v=20260830_v850";
-import { renderLoginView } from "./login.js?v=20260830_v850";
-import { renderTeacherPortal } from "./teacher.js?v=20260830_v850";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260830_v850";
+} from "./constants.js?v=20260830_v851";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash } from "./utils.js?v=20260830_v851";
+import { callCozeAgentAPI } from "./agents.js?v=20260830_v851";
+import { AuthManager } from "./auth.js?v=20260830_v851";
+import { CloudSyncEngine } from "./sync.js?v=20260830_v851";
+import { renderLoginView } from "./login.js?v=20260830_v851";
+import { renderTeacherPortal } from "./teacher.js?v=20260830_v851";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260830_v851";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260830_v850";
+} from "./editor.js?v=20260830_v851";
 
 // Make renderChat available on window for sync callbacks
 if (typeof window !== "undefined") {
@@ -860,9 +860,14 @@ export class App {
   initCrossStageInactivityChecker() {
     this._nudgeCounts = this._nudgeCounts || {};
     if (this.stageInactivityTimer) clearInterval(this.stageInactivityTimer);
-    this.stageInactivityTimer = setInterval(() => {
+    this.stageInactivityTimer = setInterval(async () => {
       const currUserObj = this.authManager ? this.authManager.getCurrentUser() : null;
       if (!currUserObj || currUserObj.role === 'teacher') return;
+
+      // 🔄 0. 极速版本心跳同步：拉取教师端最新发布的通知、任务与延期 (基于服务端版本戳，版本未变 0 开销)
+      if (this.authManager && this.authManager.pullGlobalMeta) {
+        try { await this.authManager.pullGlobalMeta(); } catch (e) {}
+      }
 
       // 🛡️ 1. 任务存在性检测：如果当前正在某个任务中，但该任务已被教师在后台删除/重置
       const allTasks = this.authManager ? this.authManager.getTasks() : [];
@@ -912,6 +917,9 @@ export class App {
         } else {
           this._lastVisibleTaskHash = currentTaskHash;
         }
+      } else {
+        // 🛡️ 3. 工作台模式下：实时检查并弹出教师新下发的教学通知与延期弹窗
+        this.checkUnreadAnnouncements();
       }
 
       // ⚡ 单点守护主节点动态选举：优先由组长担当；若组长缺勤/掉线，自动由当前在场学号最小的在线成员接管，杜绝单点失效与并发重复！
