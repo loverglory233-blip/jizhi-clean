@@ -529,6 +529,41 @@ export function showGlobalBannerNotice(title, message, type = 'info') {
 export function enforceEtherpadReadonly(iframe) {
   if (!iframe) return;
 
+  // 🛡️ 1. 挂载物理只读透明护盾：光标显示 🚫 (not-allowed)，完全物理阻断点击、双击与输入
+  const container = iframe.parentElement;
+  if (container) {
+    let shield = container.querySelector('.etherpad-readonly-shield');
+    if (!shield) {
+      shield = document.createElement('div');
+      shield.className = 'etherpad-readonly-shield';
+      shield.style.cssText = 'position:absolute; inset:0; z-index:25; background:transparent; cursor:not-allowed;';
+      shield.title = '🔒 只读查阅模式 (已锁定禁止编辑)';
+      container.style.position = 'relative';
+      container.appendChild(shield);
+
+      // 🖱️ 护盾鼠标滚轮透传：直接驱动 Etherpad 内部 outerdocbody 丝滑滚动
+      shield.addEventListener('wheel', (e) => {
+        try {
+          const doc = iframe.contentDocument || iframe.contentWindow?.document;
+          if (!doc) return;
+          const aceOuter = doc.querySelector('iframe[name="ace_outer"]');
+          if (aceOuter) {
+            const outerDoc = aceOuter.contentDocument || aceOuter.contentWindow?.document;
+            if (outerDoc) {
+              const outerBody = outerDoc.querySelector('#outerdocbody') || outerDoc.documentElement || outerDoc.body;
+              if (outerBody) {
+                outerBody.scrollTop += e.deltaY;
+              }
+              if (outerDoc.documentElement) {
+                outerDoc.documentElement.scrollTop += e.deltaY;
+              }
+            }
+          }
+        } catch(err) {}
+      }, { passive: true });
+    }
+  }
+
   const tryLock = () => {
     try {
       const doc = iframe.contentDocument || iframe.contentWindow?.document;
@@ -555,12 +590,9 @@ export function enforceEtherpadReadonly(iframe) {
                 if (innerBody.getAttribute('contenteditable') !== 'false') {
                   innerBody.setAttribute('contenteditable', 'false');
                 }
-                innerBody.style.setProperty('cursor', 'default', 'important');
-                innerBody.style.setProperty('user-select', 'text', 'important');
-                innerBody.style.setProperty('-webkit-user-select', 'text', 'important');
+                innerBody.style.setProperty('cursor', 'not-allowed', 'important');
               }
 
-              // 🛡️ 捕获阶段拦截所有可能造成文字篡改的键盘输入与粘贴事件（允许复制与滚动键）
               if (!innerDoc._readonlyBlocked) {
                 innerDoc._readonlyBlocked = true;
                 const blockInput = (e) => {
