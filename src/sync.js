@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState } from './constants.js?v=20260830_v895';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal } from './utils.js?v=20260830_v895';
+import { InitialState } from './constants.js?v=20260830_v896';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal } from './utils.js?v=20260830_v896';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -423,8 +423,19 @@ export class CloudSyncEngine {
       if (remoteData.revisionId !== undefined) {
         this._lastKnownRevisionId = remoteData.revisionId;
       }
-      if (remoteData.metaVer !== undefined) {
+      if (remoteData.metaVer !== undefined && remoteData.metaVer !== this._lastKnownMetaVer) {
         this._lastKnownMetaVer = remoteData.metaVer;
+        if (this.app && this.app.authManager && this.app.authManager.pullGlobalMeta) {
+          this.app.authManager.pullGlobalMeta().then(() => {
+            if (this.app.state.studentViewMode === 'workspace' && this.app.state.activeTaskId) {
+              const allTasks = this.app.authManager.getTasks();
+              const isCurrentTaskAlive = allTasks.some(t => t.id === this.app.state.activeTaskId);
+              if (!isCurrentTaskAlive && !this.app._isHandlingTaskRevoked) {
+                this.app.showTaskRevokedModal(this.app.state.activeTaskTitle || '当前写作任务');
+              }
+            }
+          }).catch(() => {});
+        }
       }
       this._hasPulledGlobal = true;
       if (remoteData.presence) {

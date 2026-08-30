@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260830_v895
+ * Version: 20260830_v896
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260830_v895';
+  const APP_VERSION = '20260830_v896';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -3141,8 +3141,19 @@
         if (remoteData.revisionId !== undefined) {
           this._lastKnownRevisionId = remoteData.revisionId;
         }
-        if (remoteData.metaVer !== undefined) {
+        if (remoteData.metaVer !== undefined && remoteData.metaVer !== this._lastKnownMetaVer) {
           this._lastKnownMetaVer = remoteData.metaVer;
+          if (this.app && this.app.authManager && this.app.authManager.pullGlobalMeta) {
+            this.app.authManager.pullGlobalMeta().then(() => {
+              if (this.app.state.studentViewMode === 'workspace' && this.app.state.activeTaskId) {
+                const allTasks = this.app.authManager.getTasks();
+                const isCurrentTaskAlive = allTasks.some(t => t.id === this.app.state.activeTaskId);
+                if (!isCurrentTaskAlive && !this.app._isHandlingTaskRevoked) {
+                  this.app.showTaskRevokedModal(this.app.state.activeTaskTitle || '当前写作任务');
+                }
+              }
+            }).catch(() => {});
+          }
         }
         this._hasPulledGlobal = true;
         if (remoteData.presence) {
@@ -11614,9 +11625,18 @@
       const defaultState = JSON.parse(JSON.stringify(InitialState));
       const user = this.authManager ? this.authManager.getCurrentUser() : null;
       const isTeacher = user && (user.isTeacher || user.role === 'teacher');
+      const isStudent = user && (user.role === 'student' || user.isStudent);
       const effectiveClassId = (isTeacher ? this.state.activeClassId : this.state.activeStudentClassId) || user?.classId || null;
-      let taskId = this.state.activeTaskId || (this.cloudSyncEngine ? this.cloudSyncEngine.taskId : `task_${effectiveClassId}_default`);
-      if (!taskId || taskId === 'task_default') {
+
+      // 🛡️ 核心守卫：学生处于任务大厅模式时，必须保持 activeTaskId 为 null，绝不能强塞默认任务 ID
+      if (isStudent && this.state.studentViewMode === 'task_list') {
+        this.state.activeTaskId = null;
+        this.state.activeTaskTitle = null;
+        return;
+      }
+
+      let taskId = this.state.activeTaskId || (this.cloudSyncEngine ? this.cloudSyncEngine.taskId : null);
+      if (!taskId && isTeacher) {
         taskId = `task_${effectiveClassId}_default`;
       }
       this.state.activeTaskId = taskId;
@@ -12167,6 +12187,7 @@
           renderStudentTaskPortal(
             appEl, this.authManager, this.state,
             (taskId) => {
+              this._isHandlingTaskRevoked = false;
               const actualTaskId = taskId || null;
               this.state.activeTaskId = actualTaskId;
               const targetTaskObj = (this.authManager ? this.authManager.getTasks() : []).find(t => t.id === actualTaskId);
@@ -13786,7 +13807,6 @@
     }
 
     backToTaskList() {
-      this._isHandlingTaskRevoked = false;
       this.state.studentViewMode = 'task_list';
       this.state.activeTaskId = null;
       this.state.activeTaskTitle = null;
@@ -13799,7 +13819,22 @@
     }
 
     showTaskRevokedModal(taskTitle = '写作任务') {
-      document.querySelectorAll('.modal-overlay').forEach(el => el.remove());
+      // 🛡️ 立即锁定撤销状态，并把全局状态直接切回任务大厅模式，终止工作台同步
+      this._isHandlingTaskRevoked = true;
+      this.state.studentViewMode = 'task_list';
+      this.state.activeTaskId = null;
+      this.state.activeTaskTitle = null;
+      sessionStorage.setItem('jizhi_student_view_mode', 'task_list');
+      sessionStorage.removeItem('jizhi_active_task_id');
+      localStorage.setItem('jizhi_student_view_mode', 'task_list');
+      localStorage.removeItem('jizhi_active_task_id');
+      if (this.cloudSyncEngine) this.cloudSyncEngine.stopPolling();
+
+      // 立即切回大厅底层视图
+      this.renderMain();
+
+      // 确保弹窗在最顶层且全场仅保留 1 个
+      document.querySelectorAll('.modal-task-deleted-overlay').forEach(el => el.remove());
       const modal = document.createElement('div');
       modal.className = 'modal-overlay modal-task-deleted-overlay';
       modal.style.cssText = 'z-index:999999; display:flex; align-items:center; justify-content:center; position:fixed; inset:0; background:rgba(15,23,42,0.65); backdrop-filter:blur(4px);';
@@ -13809,25 +13844,22 @@
           <h3 style="margin:0 0 10px; font-size:19px; color:#0f172a; font-weight:700;">任务已被教师撤销</h3>
           <p style="margin:0 0 24px; font-size:14px; color:#475569; line-height:1.65;">
             当前协作任务《<b>${escapeHtml(taskTitle)}</b>》已被任课教师从系统撤销或删除。<br/>
-            系统将自动为你安全返回任务大厅。
+            系统已为你安全返回任务大厅。
           </p>
-          <button id="btn-return-portal-revoked" class="btn btn-primary" style="width:100%; padding:12px 18px; font-size:15px; font-weight:600; border-radius:8px; background:#2563eb; color:#fff; border:none; cursor:pointer;">返回任务大厅</button>
+          <button id="btn-return-portal-revoked" class="btn btn-primary" style="width:100%; padding:12px 18px; font-size:15px; font-weight:600; border-radius:8px; background:#2563eb; color:#fff; border:none; cursor:pointer;">我知道了</button>
         </div>
       `;
       document.body.appendChild(modal);
 
-      const handleBack = () => {
-        modal.remove();
-        this.backToTaskList();
+      const closeModal = () => {
+        if (document.body.contains(modal)) {
+          modal.remove();
+        }
       };
 
-      modal.querySelector('#btn-return-portal-revoked')?.addEventListener('click', handleBack);
-      // 5 秒自动平滑重定向回大厅
-      setTimeout(() => {
-        if (document.body.contains(modal)) {
-          handleBack();
-        }
-      }, 5000);
+      modal.querySelector('#btn-return-portal-revoked')?.addEventListener('click', closeModal);
+      // 4 秒自动淡出关闭弹窗
+      setTimeout(closeModal, 4000);
     }
 
     renderHeader() {
