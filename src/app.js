@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260831_v926";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch } from "./utils.js?v=20260831_v926";
-import { callCozeAgentAPI } from "./agents.js?v=20260831_v926";
-import { AuthManager } from "./auth.js?v=20260831_v926";
-import { CloudSyncEngine } from "./sync.js?v=20260831_v926";
-import { renderLoginView } from "./login.js?v=20260831_v926";
-import { renderTeacherPortal } from "./teacher.js?v=20260831_v926";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260831_v926";
+} from "./constants.js?v=20260831_v927";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch } from "./utils.js?v=20260831_v927";
+import { callCozeAgentAPI } from "./agents.js?v=20260831_v927";
+import { AuthManager } from "./auth.js?v=20260831_v927";
+import { CloudSyncEngine } from "./sync.js?v=20260831_v927";
+import { renderLoginView } from "./login.js?v=20260831_v927";
+import { renderTeacherPortal } from "./teacher.js?v=20260831_v927";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260831_v927";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260831_v926";
+} from "./editor.js?v=20260831_v927";
 
 // Make renderChat available on window for sync callbacks
 if (typeof window !== "undefined") {
@@ -2939,20 +2939,21 @@ export class App {
   }
 
   /**
-   * 🌟 通用全员协同确认包装器：需组内全员点击确认后才真正触发大模型生成并推进
+   * 🌟 通用全员协同确认包装器：需组内全员点击确认后才真正触发大模型生成并推进（原子后端 API 驱动，零覆盖）
    */
-  handleStepConfirmation(stepKey, onCompleteCallback, stepLabel) {
+  async handleStepConfirmation(stepKey, onCompleteCallback, stepLabel) {
     if (!this.state.stepConfirmations) this.state.stepConfirmations = {};
     if (!this.state.stepConfirmations[stepKey]) this.state.stepConfirmations[stepKey] = {};
 
     const user = this.state.currentUser;
     const currUserObj = this.authManager ? this.authManager.getCurrentUser() : null;
-    const userKeys = [user, currUserObj?.id, currUserObj?.studentCode, currUserObj?.username, currUserObj?.name].filter(Boolean);
+    const primaryKey = String(currUserObj?.studentCode || currUserObj?.id || user || 'A').trim();
+    const userKeys = [primaryKey, user, currUserObj?.id, currUserObj?.studentCode, currUserObj?.username, currUserObj?.name].filter(Boolean);
 
     let members = [];
     if (Array.isArray(this.state.members)) members = this.state.members;
     else if (this.state.members && typeof this.state.members === 'object') members = Object.values(this.state.members);
-    const totalCount = members.length || 3;
+    const totalCount = members.length || 2;
 
     const isMemberDone = (map, m) => {
       if (!map || !m) return false;
@@ -2962,18 +2963,58 @@ export class App {
     const isAlreadyDone = userKeys.some(k => this.state.stepConfirmations[stepKey][k]);
     if (isAlreadyDone) {
       const currentCount = members.filter(m => isMemberDone(this.state.stepConfirmations[stepKey], m)).length;
-      alert(`💡 您已经确认过【${stepLabel}】啦！\n当前全组确认进度：${currentCount}/${totalCount} 人。\n请提醒组内其他同学点击确认，全员确认后将自动提炼并推进！`);
-      return;
+      if (currentCount < totalCount) {
+        alert(`💡 您已经确认过【${stepLabel}】啦！\n当前全组确认进度：${currentCount}/${totalCount} 人。\n请提醒组内其他同学点击确认，全员确认后将自动提炼并推进！`);
+        return;
+      }
     }
 
+    // 1. 0ms 本地即时记录并重绘视图
     userKeys.forEach(k => { this.state.stepConfirmations[stepKey][k] = true; });
-    const currentCount = members.filter(m => isMemberDone(this.state.stepConfirmations[stepKey], m)).length;
-
-    if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
     this.renderStudentWorkspace();
     if (typeof window.renderChat === 'function') window.renderChat(this.state);
 
-    if (currentCount >= totalCount) {
+    // 2. ⚡ 原子提交至服务端 confirm_step 接口，合并全组成员点击
+    const activeTaskId = this.state.activeTaskId || null;
+    const effectiveClassId = this.state.activeStudentClassId || (currUserObj?.classId || null);
+    const activeGroupObj = this.authManager ? this.authManager.getStudentActiveGroup(currUserObj, effectiveClassId) : null;
+    const currentGroupId = activeGroupObj?.id || (currUserObj && currUserObj.groupId ? currUserObj.groupId : (this.state.activeGroupId || 'group_1'));
+
+    try {
+      const res = await fetch('sync.php?action=confirm_step', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          taskId: activeTaskId,
+          groupId: currentGroupId,
+          stepKey: stepKey,
+          userKey: primaryKey,
+          userName: currUserObj?.name || primaryKey
+        })
+      });
+      const resData = await res.json();
+      if (resData && resData.success && resData.stepConfirmations) {
+        this.state.stepConfirmations = resData.stepConfirmations;
+      }
+    } catch (e) {
+      console.warn('confirm_step API network error:', e);
+    }
+
+    // 3. 重新聚合计算全组确认达成人数
+    const finalCount = members.filter(m => isMemberDone(this.state.stepConfirmations[stepKey], m)).length;
+    this.renderStudentWorkspace();
+    if (typeof window.renderChat === 'function') window.renderChat(this.state);
+
+    // 4. 达成全员确认：清空服务端确认记录并触发后续大模型提炼
+    if (finalCount >= totalCount) {
+      try {
+        fetch('sync.php?action=clear_step_confirmation', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ taskId: activeTaskId, groupId: currentGroupId, stepKey: stepKey })
+        }).catch(() => {});
+      } catch (e) {}
+
       delete this.state.stepConfirmations[stepKey];
       if (typeof onCompleteCallback === 'function') {
         onCompleteCallback();

@@ -2004,6 +2004,78 @@ if ($action === 'patch_feedback' && $_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 
+// 1c-2. 全员协同确认原子接口（无竞态覆盖，秒级原子合并各成员点击确认）
+if ($action === 'confirm_step' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    $req = !empty($REQ_DATA) ? $REQ_DATA : (@json_decode($RAW_INPUT, true) ?: []);
+    $stepKey = isset($req['stepKey']) ? trim((string)$req['stepKey']) : '';
+    $userKey = isset($req['userKey']) ? trim((string)$req['userKey']) : '';
+    $nowMs = round(microtime(true) * 1000);
+
+    if (!empty($stepKey) && !empty($userKey) && $pdo) {
+        $metaKey = 'confs_' . $scopeKey;
+        $stmtGet = $pdo->prepare("SELECT meta_value FROM global_meta WHERE meta_key = :k");
+        $stmtGet->execute([':k' => $metaKey]);
+        $row = $stmtGet->fetch();
+        $confs = ($row && !empty($row['meta_value'])) ? (json_decode($row['meta_value'], true) ?: []) : [];
+
+        if (!isset($confs[$stepKey]) || !is_array($confs[$stepKey])) {
+            $confs[$stepKey] = [];
+        }
+        $confs[$stepKey][$userKey] = true;
+
+        $confJson = json_encode($confs, JSON_UNESCAPED_UNICODE);
+        $stmtSave = $pdo->prepare("INSERT INTO global_meta (meta_key, meta_value, updated_at) VALUES (:k, :v, :ts) ON DUPLICATE KEY UPDATE meta_value = :v2, updated_at = :ts2");
+        $nowStr = date('Y-m-d H:i:s');
+        $stmtSave->execute([':k' => $metaKey, ':v' => $confJson, ':ts' => $nowStr, ':v2' => $confJson, ':ts2' => $nowStr]);
+
+        // 唤醒客户端拉取
+        $stmtUp = $pdo->prepare("UPDATE group_states SET last_timestamp = :ts, revision_id = IFNULL(revision_id, 0) + 1 WHERE scope_key = :sk");
+        $stmtUp->execute([':ts' => $nowMs, ':sk' => $scopeKey]);
+
+        echo json_encode([
+            'success' => true,
+            'stepConfirmations' => $confs,
+            'stepKey' => $stepKey,
+            'currentConfirmedUsers' => array_keys($confs[$stepKey]),
+            'count' => count($confs[$stepKey]),
+            'timestamp' => $nowMs
+        ], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+    echo json_encode(['success' => false, 'error' => 'invalid_parameters']);
+    exit;
+}
+
+if ($action === 'clear_step_confirmation' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    $req = !empty($REQ_DATA) ? $REQ_DATA : (@json_decode($RAW_INPUT, true) ?: []);
+    $stepKey = isset($req['stepKey']) ? trim((string)$req['stepKey']) : '';
+    $nowMs = round(microtime(true) * 1000);
+
+    if ($pdo) {
+        $metaKey = 'confs_' . $scopeKey;
+        $stmtGet = $pdo->prepare("SELECT meta_value FROM global_meta WHERE meta_key = :k");
+        $stmtGet->execute([':k' => $metaKey]);
+        $row = $stmtGet->fetch();
+        $confs = ($row && !empty($row['meta_value'])) ? (json_decode($row['meta_value'], true) ?: []) : [];
+
+        if (!empty($stepKey)) {
+            unset($confs[$stepKey]);
+        } else {
+            $confs = [];
+        }
+
+        $confJson = json_encode($confs, JSON_UNESCAPED_UNICODE);
+        $stmtSave = $pdo->prepare("INSERT INTO global_meta (meta_key, meta_value, updated_at) VALUES (:k, :v, :ts) ON DUPLICATE KEY UPDATE meta_value = :v2, updated_at = :ts2");
+        $nowStr = date('Y-m-d H:i:s');
+        $stmtSave->execute([':k' => $metaKey, ':v' => $confJson, ':ts' => $nowStr, ':v2' => $confJson, ':ts2' => $nowStr]);
+
+        echo json_encode(['success' => true, 'stepConfirmations' => $confs, 'timestamp' => $nowMs], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+    echo json_encode(['success' => true]);
+    exit;
+}
+
 // 1d. 研讨区独立轻量发信接口（领域隔离：仅入库单条消息，绝不触碰 group_states 表中的 stage1/stage2/stage3）
 if ($action === 'send_chat' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $req = !empty($REQ_DATA) ? $REQ_DATA : (@json_decode($RAW_INPUT, true) ?: []);
@@ -2992,6 +3064,11 @@ if ($pdo) {
         $stg2Raw = migrateBase64StringToUrl($row['stage2_data'] ?? '', $pdo, $scopeKey, 'stage2_data');
         $stg3Raw = migrateBase64StringToUrl($row['stage3_data'] ?? '', $pdo, $scopeKey, 'stage3_data');
 
+        $stmtGetConfs = $pdo->prepare("SELECT meta_value FROM global_meta WHERE meta_key = :k");
+        $stmtGetConfs->execute([':k' => 'confs_' . $scopeKey]);
+        $cRow = $stmtGetConfs->fetch();
+        $stepConfs = ($cRow && !empty($cRow['meta_value'])) ? (json_decode($cRow['meta_value'], true) ?: []) : [];
+
         $respData = [
             'timestamp'        => $lastTs,
             'serverTimestamp'  => $nowMs,
@@ -3003,6 +3080,7 @@ if ($pdo) {
             'stage1'           => !empty($stg1Raw) ? (json_decode($stg1Raw, true) ?: []) : [],
             'stage2'           => !empty($stg2Raw) ? (json_decode($stg2Raw, true) ?: []) : [],
             'stage3'           => !empty($stg3Raw) ? (json_decode($stg3Raw, true) ?: []) : [],
+            'stepConfirmations'=> $stepConfs,
             'presence'         => json_decode($prRaw) ?: new stdClass(),
             'members'          => json_decode($memRaw, true) ?: [],
             'isFinalSubmitted' => (bool)$row['is_final_submitted'],
