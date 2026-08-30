@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles } from "./constants.js?v=20260831_v921";
-import { callCozeAgentAPI } from "./agents.js?v=20260831_v921";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap } from "./utils.js?v=20260831_v921";
+import { AgentProfiles } from "./constants.js?v=20260831_v922";
+import { callCozeAgentAPI } from "./agents.js?v=20260831_v922";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap } from "./utils.js?v=20260831_v922";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -2246,10 +2246,21 @@ function renderStage2Canvas(canvas, state, handlers) {
                   }).join('')}
                 </div>
               </div>
-              <div>
+              <div style="display:flex; gap:6px; align-items:center;">
                 <button id="btn-trigger-meeting-pills" style="background:${isCurrentUserSubmitted ? '#ecfdf5' : 'linear-gradient(135deg, #2563eb, #1d4ed8)'}; border:${isCurrentUserSubmitted ? '1px solid #a7f3d0' : 'none'}; color:${isCurrentUserSubmitted ? '#059669' : 'white'}; padding:4px 10px; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer;">
-                  ${isCurrentUserSubmitted ? '✅ 查看【编辑会议】记录' : '📢 参与【编辑会议】'}
+                  ${isCurrentUserSubmitted ? '✅ 查看自查记录' : '📢 参与【编辑会议】'}
                 </button>
+                ${isMeetingFullyDone && (!s2.meetingStep || s2.meetingStep === 'initial' || s2.meetingStep === 'discussing_agreement') ? `
+                  <button id="btn-s2-managing-summary" style="background:linear-gradient(135deg, #d97706, #b45309); border:none; color:white; padding:4px 12px; border-radius:6px; font-size:11.5px; font-weight:800; cursor:pointer; box-shadow:0 2px 6px rgba(217,119,6,0.25);">
+                    🤝 讨论差不多了？让责任编辑总结
+                  </button>
+                ` : (s2.meetingStep === 'discussing_checklist' ? `
+                  <button id="btn-s2-reviewing-summary" style="background:linear-gradient(135deg, #059669, #047857); border:none; color:white; padding:4px 12px; border-radius:6px; font-size:11.5px; font-weight:800; cursor:pointer; box-shadow:0 2px 6px rgba(5,150,105,0.25);">
+                    📝 讨论差不多了？让审稿编辑总结
+                  </button>
+                ` : (s2.meetingStep === 'completed' ? `
+                  <span style="font-size:11px; color:#059669; font-weight:700; background:#ecfdf5; padding:3px 8px; border-radius:6px; border:1px solid #a7f3d0;">✅ 会议已闭环</span>
+                ` : ''))}
               </div>
             </div>
           `;
@@ -2423,6 +2434,28 @@ function renderStage2Canvas(canvas, state, handlers) {
   if (btnTrig) btnTrig.addEventListener('click', () => handlers.onOpenMeetingModal());
   const btnTrigPills = canvas.querySelector('#btn-trigger-meeting-pills');
   if (btnTrigPills) btnTrigPills.addEventListener('click', () => handlers.onOpenMeetingModal());
+
+  const btnS2ManagingSummary = canvas.querySelector('#btn-s2-managing-summary');
+  if (btnS2ManagingSummary) {
+    btnS2ManagingSummary.addEventListener('click', async () => {
+      btnS2ManagingSummary.disabled = true;
+      btnS2ManagingSummary.innerText = '⏳ 责任编辑与审稿专家总结中...';
+      if (window.app && typeof window.app.handleS2ManagingSummary === 'function') {
+        await window.app.handleS2ManagingSummary();
+      }
+    });
+  }
+
+  const btnS2ReviewingSummary = canvas.querySelector('#btn-s2-reviewing-summary');
+  if (btnS2ReviewingSummary) {
+    btnS2ReviewingSummary.addEventListener('click', async () => {
+      btnS2ReviewingSummary.disabled = true;
+      btnS2ReviewingSummary.innerText = '⏳ 审稿编辑总结冲刺中...';
+      if (window.app && typeof window.app.handleS2ReviewingSummary === 'function') {
+        await window.app.handleS2ReviewingSummary();
+      }
+    });
+  }
 
   const btnConfirmDraft = canvas.querySelector('#btn-confirm-stage2-draft');
   if (btnConfirmDraft) {

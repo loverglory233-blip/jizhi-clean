@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260831_v921";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch } from "./utils.js?v=20260831_v921";
-import { callCozeAgentAPI } from "./agents.js?v=20260831_v921";
-import { AuthManager } from "./auth.js?v=20260831_v921";
-import { CloudSyncEngine } from "./sync.js?v=20260831_v921";
-import { renderLoginView } from "./login.js?v=20260831_v921";
-import { renderTeacherPortal } from "./teacher.js?v=20260831_v921";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260831_v921";
+} from "./constants.js?v=20260831_v922";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch } from "./utils.js?v=20260831_v922";
+import { callCozeAgentAPI } from "./agents.js?v=20260831_v922";
+import { AuthManager } from "./auth.js?v=20260831_v922";
+import { CloudSyncEngine } from "./sync.js?v=20260831_v922";
+import { renderLoginView } from "./login.js?v=20260831_v922";
+import { renderTeacherPortal } from "./teacher.js?v=20260831_v922";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260831_v922";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260831_v921";
+} from "./editor.js?v=20260831_v922";
 
 // Make renderChat available on window for sync callbacks
 if (typeof window !== "undefined") {
@@ -2786,7 +2786,11 @@ export class App {
     }
 
     if (votesCastCount >= totalMembersCount) {
-      // ── 全员投票完成：调用大模型拍卖师 API 动态生成专业落槌播报与研讨引导 ──
+      // ── 全员投票完成：立即提示并调用大模型拍卖师 API 动态生成专业落槌播报与研讨引导 ──
+      const progressBadge = document.getElementById('proposal-vote-progress-badge');
+      if (progressBadge) {
+        progressBadge.innerHTML = `🎉 全员已投完 (共投出 ${votesCastCount} 票) · 正在呼叫拍卖师落槌...`;
+      }
       setTimeout(async () => {
         s1._voteCompletedTime = Date.now();
         const tally = {};
