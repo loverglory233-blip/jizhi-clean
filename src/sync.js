@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState } from './constants.js?v=20260830_v783';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal } from './utils.js?v=20260830_v783';
+import { InitialState } from './constants.js?v=20260830_v784';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal } from './utils.js?v=20260830_v784';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -134,7 +134,11 @@ export class CloudSyncEngine {
         }
       }
       // ⏱️ 仅就地刷新顶部倒计时与状态（变绿），绝不调用全页重绘
-      this.app.renderHeader();
+      if (typeof this.app.renderHeader === 'function') {
+        this.app.renderHeader();
+      } else if (typeof this.app.renderStudentWorkspace === 'function') {
+        this.app.renderStudentWorkspace();
+      }
       showGlobalBannerNotice(
         '⏳ 任务截止时间已延长',
         `任课教师已将当前任务《${t.title || '协作写作'}》截止时间延长至 ${t.deadline} ${extDurationStr}！协作通道已畅通。`,
