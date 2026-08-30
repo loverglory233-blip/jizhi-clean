@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260830_v875";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap } from "./utils.js?v=20260830_v875";
-import { callCozeAgentAPI } from "./agents.js?v=20260830_v875";
-import { AuthManager } from "./auth.js?v=20260830_v875";
-import { CloudSyncEngine } from "./sync.js?v=20260830_v875";
-import { renderLoginView } from "./login.js?v=20260830_v875";
-import { renderTeacherPortal } from "./teacher.js?v=20260830_v875";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260830_v875";
+} from "./constants.js?v=20260830_v876";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap } from "./utils.js?v=20260830_v876";
+import { callCozeAgentAPI } from "./agents.js?v=20260830_v876";
+import { AuthManager } from "./auth.js?v=20260830_v876";
+import { CloudSyncEngine } from "./sync.js?v=20260830_v876";
+import { renderLoginView } from "./login.js?v=20260830_v876";
+import { renderTeacherPortal } from "./teacher.js?v=20260830_v876";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260830_v876";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260830_v875";
+} from "./editor.js?v=20260830_v876";
 
 // Make renderChat available on window for sync callbacks
 if (typeof window !== "undefined") {
@@ -2985,16 +2985,6 @@ ${recentDefenseChat}
     userKeys.forEach(k => { this.state.stepConfirmations[stepKey][k] = true; });
     const currentCount = members.filter(m => isMemberDone(this.state.stepConfirmations[stepKey], m)).length;
 
-    const notifyMsg = {
-      sender: user,
-      text: `📢 [研讨对齐]: 我已确认【${stepLabel}】研讨就绪！（当前全组已集齐 ${currentCount}/${totalCount} 人）`,
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      _timeMs: Date.now()
-    };
-    const curStage = this.state.currentStage || 'stage1';
-    if (!this.state.chatLogs[curStage]) this.state.chatLogs[curStage] = [];
-    this.state.chatLogs[curStage].push(notifyMsg);
-    this.syncChatLogs();
     if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
     this.renderStudentWorkspace();
     if (typeof window.renderChat === 'function') window.renderChat(this.state);

@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260830_v875
+ * Version: 20260830_v876
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260830_v875';
+  const APP_VERSION = '20260830_v876';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -14296,16 +14296,6 @@
       userKeys.forEach(k => { this.state.stepConfirmations[stepKey][k] = true; });
       const currentCount = members.filter(m => isMemberDone(this.state.stepConfirmations[stepKey], m)).length;
 
-      const notifyMsg = {
-        sender: user,
-        text: `📢 [研讨对齐]: 我已确认【${stepLabel}】研讨就绪！（当前全组已集齐 ${currentCount}/${totalCount} 人）`,
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        _timeMs: Date.now()
-      };
-      const curStage = this.state.currentStage || 'stage1';
-      if (!this.state.chatLogs[curStage]) this.state.chatLogs[curStage] = [];
-      this.state.chatLogs[curStage].push(notifyMsg);
-      this.syncChatLogs();
       if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
       this.renderStudentWorkspace();
       if (typeof window.renderChat === 'function') window.renderChat(this.state);
