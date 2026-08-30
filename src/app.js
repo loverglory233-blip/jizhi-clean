@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260830_v892";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap } from "./utils.js?v=20260830_v892";
-import { callCozeAgentAPI } from "./agents.js?v=20260830_v892";
-import { AuthManager } from "./auth.js?v=20260830_v892";
-import { CloudSyncEngine } from "./sync.js?v=20260830_v892";
-import { renderLoginView } from "./login.js?v=20260830_v892";
-import { renderTeacherPortal } from "./teacher.js?v=20260830_v892";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260830_v892";
+} from "./constants.js?v=20260830_v893";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap } from "./utils.js?v=20260830_v893";
+import { callCozeAgentAPI } from "./agents.js?v=20260830_v893";
+import { AuthManager } from "./auth.js?v=20260830_v893";
+import { CloudSyncEngine } from "./sync.js?v=20260830_v893";
+import { renderLoginView } from "./login.js?v=20260830_v893";
+import { renderTeacherPortal } from "./teacher.js?v=20260830_v893";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260830_v893";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260830_v892";
+} from "./editor.js?v=20260830_v893";
 
 // Make renderChat available on window for sync callbacks
 if (typeof window !== "undefined") {
@@ -1209,41 +1209,20 @@ export class App {
           }
         }
 
-        // 5. 【阶段一 50% 选题半程提醒】：阶段一时间已过半但尚未完成投票（全场严格仅发 1 次）
-        const stage1PlannedMs = (totalDurationSec * 1000) * 0.20;
-        const stage1TimeProgress = stage1PlannedMs > 0 ? (stage1DurationMs / stage1PlannedMs) : 0;
-        const hasS1MidNudge = s1AllLogs.some(m => m && m.sender === 'auctioneer' && (m.text?.includes('选题进度提示') || m.text?.includes('阶段一选题研讨时间已过半')));
-        if (stage1TimeProgress >= 0.50 && votesCastCount < totalMembersCount && !hasS1MidNudge && !s1.midTimeNudgeSent) {
-          s1.midTimeNudgeSent = true;
-          const midMsg = {
+        // 5. 【阶段一 20% 总时间到期转场提醒】：阶段一时间已耗尽（达到总时间 20%）但尚未全员签署公约（全场严格仅发 1 次）
+        const stage1TotalBudgetMs = (totalDurationSec * 1000) * 0.20;
+        const hasS1TransitionNudge = s1AllLogs.some(m => m && m.sender === 'auctioneer' && (m.text?.includes('阶段一转场提醒') || m.text?.includes('阶段一分配的时间已用完')));
+        if (stage1DurationMs >= stage1TotalBudgetMs && !s1.contract?.isConfirmed && !hasS1TransitionNudge && !s1.transitionNudgeSent) {
+          s1.transitionNudgeSent = true;
+          const transMsg = {
             sender: 'auctioneer',
             senderName: '学术选题 · 拍卖师',
-            text: `🎪 【拍卖师·选题进度提示】：阶段一选题研讨时间已过半！大家的选题思路越来越清晰了～\n👉 建议大家浏览左侧提案池并在讨论区充分交流，准备开启投票锁定核心研究方向！`,
+            text: `🎪 【拍卖师·转场提醒】：阶段一分配的时间已用完（已达总时间 20%）！\n👉 请大家抓紧在左侧公约卡片点击【签署确认】，全员签署后立即进入【阶段二：学术编辑部】开始动笔写作！`,
             timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
             _timeMs: now
           };
           if (!this.state.chatLogs.stage1) this.state.chatLogs.stage1 = [];
-          this.state.chatLogs.stage1.push(midMsg);
-          this.syncChatLogs();
-          this.syncStage1();
-          if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
-          renderChat(this.state);
-          return;
-        }
-
-        // 6. 【阶段一 85% 公约签署收尾提醒】：阶段一时间已过 85% 但尚未全员签署公约（全场严格仅发 1 次）
-        const hasS1EndNudge = s1AllLogs.some(m => m && m.sender === 'auctioneer' && (m.text?.includes('阶段一收尾提示') || m.text?.includes('阶段一研讨时间已过 85%')));
-        if (stage1TimeProgress >= 0.85 && !s1.contract?.isConfirmed && !hasS1EndNudge && !s1.endTimeNudgeSent) {
-          s1.endTimeNudgeSent = true;
-          const endMsg = {
-            sender: 'auctioneer',
-            senderName: '学术选题 · 拍卖师',
-            text: `🎪 【拍卖师·阶段一收尾提示】：阶段一研讨时间已过 85%！\n👉 请大家抓紧完成公约三步研讨，在左侧公约卡片点击【签署确认】，准备进入【阶段二：学术编辑部】开始动笔写作！`,
-            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-            _timeMs: now
-          };
-          if (!this.state.chatLogs.stage1) this.state.chatLogs.stage1 = [];
-          this.state.chatLogs.stage1.push(endMsg);
+          this.state.chatLogs.stage1.push(transMsg);
           this.syncChatLogs();
           this.syncStage1();
           if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
