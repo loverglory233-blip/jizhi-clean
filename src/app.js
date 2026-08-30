@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260830_v845";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash } from "./utils.js?v=20260830_v845";
-import { callCozeAgentAPI } from "./agents.js?v=20260830_v845";
-import { AuthManager } from "./auth.js?v=20260830_v845";
-import { CloudSyncEngine } from "./sync.js?v=20260830_v845";
-import { renderLoginView } from "./login.js?v=20260830_v845";
-import { renderTeacherPortal } from "./teacher.js?v=20260830_v845";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260830_v845";
+} from "./constants.js?v=20260830_v846";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash } from "./utils.js?v=20260830_v846";
+import { callCozeAgentAPI } from "./agents.js?v=20260830_v846";
+import { AuthManager } from "./auth.js?v=20260830_v846";
+import { CloudSyncEngine } from "./sync.js?v=20260830_v846";
+import { renderLoginView } from "./login.js?v=20260830_v846";
+import { renderTeacherPortal } from "./teacher.js?v=20260830_v846";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260830_v846";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260830_v845";
+} from "./editor.js?v=20260830_v846";
 
 // Make renderChat available on window for sync callbacks
 if (typeof window !== "undefined") {
@@ -2695,19 +2695,15 @@ ${recentDefenseChat}
     this._isAgentReplyInProgress = true;
     const stage = this.state.currentStage;
     const isExplicitMention = userMsg.includes('@');
-    // 阶段一专属里程碑：学生在研讨中商定好分工/时间并确认时触发拍卖师生成合约
-    const isContractFinalizeSignal = stage === 'stage1' && /(?:分工确定|确定分工|商定好了|分工好了|确定主题|生成合约|确认分工|时间分配好了|分配完毕|达成共识)/i.test(userMsg);
 
-    if (!isExplicitMention && !isContractFinalizeSignal) {
+    if (!isExplicitMention) {
       this._isAgentReplyInProgress = false;
       return;
     }
 
     let replyAgent = null;
 
-    if (isContractFinalizeSignal) {
-      replyAgent = 'auctioneer';
-    } else if (userMsg.includes('@中间委员') || userMsg.includes('@中间委员 Agent')) {
+    if (userMsg.includes('@中间委员') || userMsg.includes('@中间委员 Agent')) {
       replyAgent = 'neutral';
     } else if (userMsg.includes('@正方委员') || userMsg.includes('@正方委员 Agent')) {
       replyAgent = 'proponent';

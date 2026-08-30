@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260830_v845
+ * Version: 20260830_v846
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260830_v845';
+  const APP_VERSION = '20260830_v846';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -13786,19 +13786,15 @@
       this._isAgentReplyInProgress = true;
       const stage = this.state.currentStage;
       const isExplicitMention = userMsg.includes('@');
-      // 阶段一专属里程碑：学生在研讨中商定好分工/时间并确认时触发拍卖师生成合约
-      const isContractFinalizeSignal = stage === 'stage1' && /(?:分工确定|确定分工|商定好了|分工好了|确定主题|生成合约|确认分工|时间分配好了|分配完毕|达成共识)/i.test(userMsg);
 
-      if (!isExplicitMention && !isContractFinalizeSignal) {
+      if (!isExplicitMention) {
         this._isAgentReplyInProgress = false;
         return;
       }
 
       let replyAgent = null;
 
-      if (isContractFinalizeSignal) {
-        replyAgent = 'auctioneer';
-      } else if (userMsg.includes('@中间委员') || userMsg.includes('@中间委员 Agent')) {
+      if (userMsg.includes('@中间委员') || userMsg.includes('@中间委员 Agent')) {
         replyAgent = 'neutral';
       } else if (userMsg.includes('@正方委员') || userMsg.includes('@正方委员 Agent')) {
         replyAgent = 'proponent';
