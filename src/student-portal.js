@@ -7,8 +7,8 @@ import {
   STORAGE_KEY_TASKS,
   STORAGE_KEY_ANNOUNCEMENTS,
   STORAGE_KEY_CLASSES
-} from "./constants.js?v=20260830_v790";
-import { escapeHtml, isTaskExpired, formatDurationHuman, formatStandardDateDash, showGlobalBannerNotice } from "./utils.js?v=20260830_v790";
+} from "./constants.js?v=20260830_v791";
+import { escapeHtml, isTaskExpired, formatDurationHuman, formatStandardDateDash, showGlobalBannerNotice } from "./utils.js?v=20260830_v791";
 
 /* ==========================================================================
    10. STUDENT TASK PORTAL (CENTRALIZED HUB & COLLABORATION ENTRY)
@@ -65,7 +65,7 @@ export function renderStudentTaskPortal(container, authManager, state, onSelectT
       } catch (e) {}
     }
     const isStudentIdle = () => document.hidden || (Date.now() - (window._lastStudentPortalActivity || Date.now()) > 60000);
-    const sInterval = isStudentIdle() ? 10000 : 1500;
+    const sInterval = isStudentIdle() ? 10000 : 3000;
     window._studentPortalSyncTimer = setTimeout(pullAndRefresh, sInterval);
   };
   if (window._studentPortalSyncTimer) clearTimeout(window._studentPortalSyncTimer);
