@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles } from "./constants.js?v=20260830_v908";
-import { callCozeAgentAPI } from "./agents.js?v=20260830_v908";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap } from "./utils.js?v=20260830_v908";
+import { AgentProfiles } from "./constants.js?v=20260830_v909";
+import { callCozeAgentAPI } from "./agents.js?v=20260830_v909";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap } from "./utils.js?v=20260830_v909";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -888,7 +888,7 @@ function renderStage1Canvas(canvas, state, handlers) {
   const currentUser = state.currentUser;
   const currUserObj = (window.app && window.app.authManager) ? window.app.authManager.getCurrentUser() : null;
   const allUsers = (window.app && window.app.authManager) ? window.app.authManager.getUsers() : [];
-  const membersList = Object.values(state.members || {});
+  const membersList = Array.isArray(state.members) ? state.members : Object.values(state.members || {});
   const totalMembersCount = membersList.length;
 
   if (!s1.contract.taskAssignments) s1.contract.taskAssignments = {};
@@ -898,32 +898,48 @@ function renderStage1Canvas(canvas, state, handlers) {
   const currentTask = allTasks.find(t => t.id === state.activeTaskId);
   const isTaskDeadlineExpired = isTaskExpired(currentTask);
 
+  // 🛡️ 稳健解析当前用户的真实姓名与标识
+  let currentUserName = currUserObj?.name || '';
+  if (!currentUserName && currentUser) {
+    const matchedM = membersList.find(m => isSameUser(m, currentUser) || m.id === currentUser || m.studentCode === currentUser || m.name === currentUser);
+    if (matchedM && matchedM.name) currentUserName = matchedM.name;
+    else {
+      const matchedU = allUsers.find(u => isSameUser(u, currentUser) || u.id === currentUser || u.studentCode === currentUser || u.name === currentUser);
+      if (matchedU && matchedU.name) currentUserName = matchedU.name;
+    }
+  }
+  if (!currentUserName) currentUserName = (typeof currentUser === 'string' && currentUser) ? currentUser : '组员';
+
   // 🛡️ 稳健的多标识判定辅助函数（零破坏底层存储结构，仅在名单比对时精准去重）
   const isMemberDone = (map, m) => {
     if (!map || !m) return false;
-    return !!(map[m.id] || map[m.studentCode] || map[m.username] || (m.name && map[m.name]));
+    return isUserInMap(map, m) || !!(map[m.id] || map[m.studentCode] || map[m.username] || (m.name && map[m.name]));
   };
 
   const confirmedMembers = s1.contract.confirmedMembers || {};
   const confirmedCount = membersList.filter(m => isMemberDone(confirmedMembers, m)).length;
-  const userHasConfirmed = isMemberDone(confirmedMembers, { id: currentUser, studentCode: currUserObj?.studentCode, username: currUserObj?.username, name: currUserObj?.name });
+  const userHasConfirmed = isMemberDone(confirmedMembers, currUserObj || { id: currentUser, studentCode: currUserObj?.studentCode, username: currUserObj?.username, name: currentUserName });
   
   // 🛡️ 真正的公约生效锁定判定：服务端公约已标记生效、或全员已签、或小组已进入阶段二/三、或全盘已提交/任务已截止
   const isAllConfirmed = (totalMembersCount > 0 && confirmedCount >= totalMembersCount);
   const isContractLocked = !!(s1.contract && s1.contract.isConfirmed) || isAllConfirmed || (state.groupMaxStage === 'stage2' || state.groupMaxStage === 'stage3') || state.isFinalSubmitted || isTaskDeadlineExpired;
   if (s1.contract && isAllConfirmed) s1.contract.isConfirmed = true;
 
-  const userHasVoted = isMemberDone(s1.hasVoted, { id: currentUser, studentCode: currUserObj?.studentCode, username: currUserObj?.username, name: currUserObj?.name });
-  const userVotedProposalId = s1.votes ? (s1.votes[currentUser] || (currUserObj && (s1.votes[currUserObj.id] || s1.votes[currUserObj.studentCode] || (currUserObj.name && s1.votes[currUserObj.name])))) : null;
+  const userHasVoted = isMemberDone(s1.hasVoted, currUserObj || { id: currentUser, studentCode: currUserObj?.studentCode, username: currUserObj?.username, name: currentUserName });
+  const userVotedProposalId = s1.votes ? (getUserFromMap(s1.votes, currUserObj) || s1.votes[currentUser] || (currUserObj && (s1.votes[currUserObj.id] || s1.votes[currUserObj.studentCode] || (currUserObj.name && s1.votes[currUserObj.name])))) : null;
   
   // 严格统计全组实际已投票人数
   const totalVotesCast = membersList.filter(m => isMemberDone(s1.hasVoted, m)).length;
   const isVotingComplete = (totalMembersCount > 0 && totalVotesCast >= totalMembersCount);
 
   // 严密判断当前登录学生是否已提交提案 (支持 id, studentCode, username, 姓名多重比对)
-  const myIds = new Set([currentUser, currUserObj?.id, currUserObj?.studentCode, currUserObj?.username, currUserObj?.name].filter(Boolean));
-  const hasSubmittedMyProposal = s1.proposals.some(p => myIds.has(p.author) || (currUserObj && (p.authorName === currUserObj.name || p.author === currUserObj.name)));
-  const currentUserName = currUserObj ? currUserObj.name : (state.members[currentUser] ? state.members[currentUser].name : '组员');
+  const myKeys = new Set([...getUserAllKeys(currUserObj), ...getUserAllKeys(currentUser), currentUserName, currentUser].filter(Boolean));
+  const hasSubmittedMyProposal = s1.proposals.some(p => {
+    if (!p) return false;
+    if (myKeys.has(p.author) || myKeys.has(p.authorName) || myKeys.has(p.authorId)) return true;
+    if (currUserObj && (isSameUser(p.author, currUserObj) || isSameUser(p.authorName, currUserObj) || (p.authorName && p.authorName === currentUserName))) return true;
+    return false;
+  });
 
   canvas.innerHTML = `
     ${isTaskDeadlineExpired ? `
@@ -969,7 +985,7 @@ function renderStage1Canvas(canvas, state, handlers) {
               // 动态聚合计算该提案的真实得票数
               const proposalVotesCount = membersList.filter(m => {
                 if (!s1.votes) return false;
-                const v = s1.votes[m.studentCode] || s1.votes[m.id] || s1.votes[m.username] || (m.name && s1.votes[m.name]);
+                const v = getUserFromMap(s1.votes, m) || s1.votes[m.studentCode] || s1.votes[m.id] || s1.votes[m.username] || (m.name && s1.votes[m.name]);
                 return v === p.id;
               }).length;
 
@@ -990,8 +1006,16 @@ function renderStage1Canvas(canvas, state, handlers) {
                 else { btnText = '未选择'; btnClass = 'vote-btn disabled'; }
                 btnDisabled = true;
               }
-              const authorUser = allUsers.find(u => u.id === p.author || u.studentCode === p.author || u.username === p.author || u.name === p.author || u.name === p.authorName);
-              const authorName = (authorUser ? authorUser.name : null) || p.authorName || (state.members[p.author] ? state.members[p.author].name : p.author);
+              let authorName = (p.authorName && p.authorName !== '组员') ? p.authorName : null;
+              if (!authorName) {
+                const authorUser = allUsers.find(u => isSameUser(u, p.author) || isSameUser(u, p.authorName) || u.id === p.author || u.studentCode === p.author || u.username === p.author || u.name === p.author || u.name === p.authorName);
+                if (authorUser && authorUser.name) authorName = authorUser.name;
+              }
+              if (!authorName) {
+                const authorMem = membersList.find(m => isSameUser(m, p.author) || isSameUser(m, p.authorName) || m.id === p.author || m.studentCode === p.author || m.name === p.author);
+                if (authorMem && authorMem.name) authorName = authorMem.name;
+              }
+              if (!authorName) authorName = p.authorName || p.author || '组员';
               return `
                 <div class="proposal-card ${isThisVoted ? 'voted' : ''}" style="display:flex; flex-direction:column; position:relative;">
                   <div class="proposal-header" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
@@ -1204,7 +1228,12 @@ function renderStage1Canvas(canvas, state, handlers) {
   if (btnOpenProp) {
     btnOpenProp.addEventListener('click', () => {
       document.querySelectorAll('.modal-overlay').forEach(el => el.remove());
-      const existingProp = s1.proposals.find(p => myIds.has(p.author) || (currUserObj && (p.authorName === currUserObj.name || p.author === currUserObj.name)));
+      const existingProp = s1.proposals.find(p => {
+        if (!p) return false;
+        if (myKeys.has(p.author) || myKeys.has(p.authorName) || myKeys.has(p.authorId)) return true;
+        if (currUserObj && (isSameUser(p.author, currUserObj) || isSameUser(p.authorName, currUserObj) || (p.authorName && p.authorName === currentUserName))) return true;
+        return false;
+      });
       const modal = document.createElement('div');
       modal.className = 'modal-overlay';
       modal.innerHTML = `
@@ -1255,42 +1284,37 @@ function renderStage1Canvas(canvas, state, handlers) {
 
         if (window.app) window.app.stage1LastActionTime = Date.now();
 
-        const existingIdx = s1.proposals.findIndex(p => myIds.has(p.author) || (currUserObj && (p.authorName === currUserObj.name || p.author === currUserObj.name)));
+        const existingIdx = s1.proposals.findIndex(p => {
+          if (!p) return false;
+          if (myKeys.has(p.author) || myKeys.has(p.authorName) || myKeys.has(p.authorId)) return true;
+          if (currUserObj && (isSameUser(p.author, currUserObj) || isSameUser(p.authorName, currUserObj) || (p.authorName && p.authorName === currentUserName))) return true;
+          return false;
+        });
         const nowMs = Date.now();
+        const effectiveAuthorKey = currUserObj?.studentCode || currUserObj?.id || (typeof currentUser === 'string' ? currentUser : '') || currentUserName;
+        const effectiveAuthorName = currUserObj?.name || currentUserName;
+        const effectiveAuthorId = currUserObj?.id || effectiveAuthorKey;
+
         if (existingIdx >= 0) {
           // 已有提案：更新标题与修改时间戳（保持每人 1 份，时间戳最新）
           s1.proposals[existingIdx].title = title;
-          s1.proposals[existingIdx].authorName = currentUserName;
+          s1.proposals[existingIdx].author = s1.proposals[existingIdx].author || effectiveAuthorKey;
+          s1.proposals[existingIdx].authorName = effectiveAuthorName;
+          s1.proposals[existingIdx].authorId = s1.proposals[existingIdx].authorId || effectiveAuthorId;
           s1.proposals[existingIdx].updatedAt = nowMs;
         } else {
           s1.proposals.push({
-            id: 'prop_' + currentUser + '_' + nowMs,
-            author: currentUser,
-            authorName: currentUserName,
+            id: 'prop_' + effectiveAuthorKey + '_' + nowMs,
+            author: effectiveAuthorKey,
+            authorName: effectiveAuthorName,
+            authorId: effectiveAuthorId,
             title: title,
             updatedAt: nowMs
           });
         }
 
         const currentStage = state.currentStage;
-        let memberArr = [];
-        if (Array.isArray(state.members)) {
-          memberArr = state.members;
-        } else if (state.members && typeof state.members === 'object') {
-          memberArr = Object.values(state.members);
-        }
-        if (memberArr.length === 0 && window.app?.authManager) {
-          const u = window.app.authManager.getCurrentUser();
-          const effClassId = (window.app?.authManager ? window.app.authManager.getEffectiveStudentClassId(u, window.app?.state?.activeTaskId) : (window.app?.state?.activeStudentClassId || u?.classId || null));
-          const effGroup = window.app.authManager.getStudentActiveGroup(u, effClassId);
-          memberArr = window.app.authManager.getGroupMembersForWorkspace(effGroup?.id || state.activeGroupId || null);
-        }
-
-        const memObj = memberArr.find(m => m && (m.id === currentUser || m.studentCode === currentUser || m.realStudentCode === currentUser || m.username === currentUser || m.name === currentUser));
-        const authorName = memObj ? memObj.name : (currentUser || '组员');
-        const totalMembersCount = memberArr.length > 0 ? memberArr.length : 0;
-        const submittedAuthorsCount = new Set((s1.proposals || []).map(p => p.author || p.authorName)).size;
-
+        const authorName = effectiveAuthorName;
         const isModify = existingIdx >= 0;
         const submitNoticeMsg = {
           id: 'msg_prop_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6),
@@ -3113,15 +3137,20 @@ export function renderChat(state) {
       avatar = profile.avatar;
       color = profile.color || '#7c3aed';
     } else {
-      const u = allUsers.find(x => x.id === msg.sender || x.studentCode === msg.sender || x.username === msg.sender || x.name === msg.sender);
+      if (msg.senderName && msg.senderName !== '组员') {
+        name = msg.senderName;
+      }
+      const u = allUsers.find(x => isSameUser(x, msg.sender) || isSameUser(x, msg.senderName) || x.id === msg.sender || x.studentCode === msg.sender || x.username === msg.sender || x.name === msg.sender || (name && x.name === name));
       if (u && u.name) {
         name = u.name;
       } else if (state.members) {
-        const mem = Object.values(state.members).find(m => m.id === msg.sender || m.studentCode === msg.sender || m.username === msg.sender || m.name === msg.sender);
+        const memList = Array.isArray(state.members) ? state.members : Object.values(state.members);
+        const mem = memList.find(m => isSameUser(m, msg.sender) || isSameUser(m, msg.senderName) || m.id === msg.sender || m.studentCode === msg.sender || m.username === msg.sender || m.name === msg.sender);
         if (mem && mem.name) name = mem.name;
       }
 
-      const memObj = state.members ? (state.members[msg.sender] || Object.values(state.members).find(m => m.id === msg.sender || m.studentCode === msg.sender || m.name === name)) : null;
+      const memList = Array.isArray(state.members) ? state.members : Object.values(state.members || {});
+      const memObj = memList.find(m => isSameUser(m, msg.sender) || m.id === msg.sender || m.studentCode === msg.sender || m.name === name) || null;
       if (memObj) {
         avatar = memObj.avatar || '👨‍🎓';
         color = memObj.color || '#2563eb';

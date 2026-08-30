@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260830_v908
+ * Version: 20260830_v909
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260830_v908';
+  const APP_VERSION = '20260830_v909';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -3437,6 +3437,20 @@
         if (!this.app.state.chatLogs) this.app.state.chatLogs = { stage1: [], stage2: [], stage3: [] };
         ['stage1', 'stage2', 'stage3'].forEach(stg => {
           const remoteLogs = Array.isArray(remoteData.chatLogs[stg]) ? remoteData.chatLogs[stg] : [];
+          const localLogs = Array.isArray(this.app.state.chatLogs[stg]) ? this.app.state.chatLogs[stg] : [];
+
+          // 🛡️ 智能保留本地未决思考气泡与 10 秒内未落库临时消息（防吞防闪烁）
+          const now = Date.now();
+          const localPending = localLogs.filter(m => {
+            if (!m) return false;
+            if (m.isThinking) return true;
+            const isRecent = (now - (m._timeMs || 0) < 10000);
+            if (!isRecent) return false;
+            const existsInRemote = remoteLogs.some(rm => (rm.id && rm.id === m.id) || (rm._timeMs === m._timeMs && rm.text === m.text));
+            return !existsInRemote;
+          });
+
+          let baseLogs = remoteLogs;
           if (stg === 'stage2') {
             const deduped = [];
             let seenFirstReview = false;
@@ -3465,7 +3479,7 @@
               }
               deduped.push(m);
             });
-            this.app.state.chatLogs[stg] = deduped;
+            baseLogs = deduped;
           } else if (stg === 'stage3') {
             const deduped = [];
             let seenStage3Prop = false;
@@ -3494,10 +3508,32 @@
               }
               deduped.push(m);
             });
-            this.app.state.chatLogs[stg] = deduped;
-          } else {
-            this.app.state.chatLogs[stg] = remoteLogs;
+            baseLogs = deduped;
           }
+
+          // 合并 baseLogs 与 localPending
+          const mergedList = [...baseLogs];
+          localPending.forEach(lp => {
+            const exists = mergedList.some(m => (lp.id && m.id === lp.id) || (m._timeMs === lp._timeMs && m.text === lp.text));
+            if (!exists) mergedList.push(lp);
+          });
+
+          // 稳健补全缺省 senderName
+          const allUsers = this.app.authManager ? this.app.authManager.getUsers() : [];
+          const membersList = Array.isArray(this.app.state.members) ? this.app.state.members : Object.values(this.app.state.members || {});
+          mergedList.forEach(m => {
+            if (!m.senderName && m.sender) {
+              const matchedU = allUsers.find(u => isSameUser(u, m.sender) || u.id === m.sender || u.studentCode === m.sender || u.username === m.sender);
+              if (matchedU && matchedU.name) m.senderName = matchedU.name;
+              else {
+                const matchedM = membersList.find(mem => isSameUser(mem, m.sender) || mem.id === m.sender || mem.studentCode === m.sender);
+                if (matchedM && matchedM.name) m.senderName = matchedM.name;
+              }
+            }
+          });
+
+          mergedList.sort((a, b) => (a._timeMs || 0) - (b._timeMs || 0));
+          this.app.state.chatLogs[stg] = mergedList;
         });
         if (typeof window.renderChat === 'function') window.renderChat(this.app.state);
       }
@@ -3703,31 +3739,32 @@
           }
         }
 
-        const propByAuthor = new Map();
+        const propMap = new Map();
         (remoteS1.proposals || []).forEach(p => {
-          if (p && (p.author || p.authorName)) {
-            const k = String(p.author || p.authorName).trim();
-            propByAuthor.set(k, p);
+          if (p) {
+            const k = String(p.id || p.author || p.authorName).trim();
+            if (k) propMap.set(k, p);
           }
         });
 
         (localS1.proposals || []).forEach(p => {
-          if (p && (p.author || p.authorName)) {
-            const k = String(p.author || p.authorName).trim();
-            const remoteP = propByAuthor.get(k);
+          if (p) {
+            const k = String(p.id || p.author || p.authorName).trim();
+            if (!k) return;
+            const remoteP = propMap.get(k);
             if (!remoteP) {
-              propByAuthor.set(k, p);
+              propMap.set(k, p);
             } else {
               const remoteTime = remoteP.updatedAt || 0;
               const localTime = p.updatedAt || 0;
-              if (localTime > remoteTime) {
-                propByAuthor.set(k, p);
+              if (localTime >= remoteTime) {
+                propMap.set(k, p);
               }
             }
           }
         });
 
-        const mergedProposals = Array.from(propByAuthor.values());
+        const mergedProposals = Array.from(propMap.values());
 
         const mergedVotes = {
           ...(localS1.votes || {}),
@@ -9091,7 +9128,7 @@
     const currentUser = state.currentUser;
     const currUserObj = (window.app && window.app.authManager) ? window.app.authManager.getCurrentUser() : null;
     const allUsers = (window.app && window.app.authManager) ? window.app.authManager.getUsers() : [];
-    const membersList = Object.values(state.members || {});
+    const membersList = Array.isArray(state.members) ? state.members : Object.values(state.members || {});
     const totalMembersCount = membersList.length;
 
     if (!s1.contract.taskAssignments) s1.contract.taskAssignments = {};
@@ -9101,32 +9138,48 @@
     const currentTask = allTasks.find(t => t.id === state.activeTaskId);
     const isTaskDeadlineExpired = isTaskExpired(currentTask);
 
+    // 🛡️ 稳健解析当前用户的真实姓名与标识
+    let currentUserName = currUserObj?.name || '';
+    if (!currentUserName && currentUser) {
+      const matchedM = membersList.find(m => isSameUser(m, currentUser) || m.id === currentUser || m.studentCode === currentUser || m.name === currentUser);
+      if (matchedM && matchedM.name) currentUserName = matchedM.name;
+      else {
+        const matchedU = allUsers.find(u => isSameUser(u, currentUser) || u.id === currentUser || u.studentCode === currentUser || u.name === currentUser);
+        if (matchedU && matchedU.name) currentUserName = matchedU.name;
+      }
+    }
+    if (!currentUserName) currentUserName = (typeof currentUser === 'string' && currentUser) ? currentUser : '组员';
+
     // 🛡️ 稳健的多标识判定辅助函数（零破坏底层存储结构，仅在名单比对时精准去重）
     const isMemberDone = (map, m) => {
       if (!map || !m) return false;
-      return !!(map[m.id] || map[m.studentCode] || map[m.username] || (m.name && map[m.name]));
+      return isUserInMap(map, m) || !!(map[m.id] || map[m.studentCode] || map[m.username] || (m.name && map[m.name]));
     };
 
     const confirmedMembers = s1.contract.confirmedMembers || {};
     const confirmedCount = membersList.filter(m => isMemberDone(confirmedMembers, m)).length;
-    const userHasConfirmed = isMemberDone(confirmedMembers, { id: currentUser, studentCode: currUserObj?.studentCode, username: currUserObj?.username, name: currUserObj?.name });
+    const userHasConfirmed = isMemberDone(confirmedMembers, currUserObj || { id: currentUser, studentCode: currUserObj?.studentCode, username: currUserObj?.username, name: currentUserName });
 
     // 🛡️ 真正的公约生效锁定判定：服务端公约已标记生效、或全员已签、或小组已进入阶段二/三、或全盘已提交/任务已截止
     const isAllConfirmed = (totalMembersCount > 0 && confirmedCount >= totalMembersCount);
     const isContractLocked = !!(s1.contract && s1.contract.isConfirmed) || isAllConfirmed || (state.groupMaxStage === 'stage2' || state.groupMaxStage === 'stage3') || state.isFinalSubmitted || isTaskDeadlineExpired;
     if (s1.contract && isAllConfirmed) s1.contract.isConfirmed = true;
 
-    const userHasVoted = isMemberDone(s1.hasVoted, { id: currentUser, studentCode: currUserObj?.studentCode, username: currUserObj?.username, name: currUserObj?.name });
-    const userVotedProposalId = s1.votes ? (s1.votes[currentUser] || (currUserObj && (s1.votes[currUserObj.id] || s1.votes[currUserObj.studentCode] || (currUserObj.name && s1.votes[currUserObj.name])))) : null;
+    const userHasVoted = isMemberDone(s1.hasVoted, currUserObj || { id: currentUser, studentCode: currUserObj?.studentCode, username: currUserObj?.username, name: currentUserName });
+    const userVotedProposalId = s1.votes ? (getUserFromMap(s1.votes, currUserObj) || s1.votes[currentUser] || (currUserObj && (s1.votes[currUserObj.id] || s1.votes[currUserObj.studentCode] || (currUserObj.name && s1.votes[currUserObj.name])))) : null;
 
     // 严格统计全组实际已投票人数
     const totalVotesCast = membersList.filter(m => isMemberDone(s1.hasVoted, m)).length;
     const isVotingComplete = (totalMembersCount > 0 && totalVotesCast >= totalMembersCount);
 
     // 严密判断当前登录学生是否已提交提案 (支持 id, studentCode, username, 姓名多重比对)
-    const myIds = new Set([currentUser, currUserObj?.id, currUserObj?.studentCode, currUserObj?.username, currUserObj?.name].filter(Boolean));
-    const hasSubmittedMyProposal = s1.proposals.some(p => myIds.has(p.author) || (currUserObj && (p.authorName === currUserObj.name || p.author === currUserObj.name)));
-    const currentUserName = currUserObj ? currUserObj.name : (state.members[currentUser] ? state.members[currentUser].name : '组员');
+    const myKeys = new Set([...getUserAllKeys(currUserObj), ...getUserAllKeys(currentUser), currentUserName, currentUser].filter(Boolean));
+    const hasSubmittedMyProposal = s1.proposals.some(p => {
+      if (!p) return false;
+      if (myKeys.has(p.author) || myKeys.has(p.authorName) || myKeys.has(p.authorId)) return true;
+      if (currUserObj && (isSameUser(p.author, currUserObj) || isSameUser(p.authorName, currUserObj) || (p.authorName && p.authorName === currentUserName))) return true;
+      return false;
+    });
 
     canvas.innerHTML = `
       ${isTaskDeadlineExpired ? `
@@ -9172,7 +9225,7 @@
                 // 动态聚合计算该提案的真实得票数
                 const proposalVotesCount = membersList.filter(m => {
                   if (!s1.votes) return false;
-                  const v = s1.votes[m.studentCode] || s1.votes[m.id] || s1.votes[m.username] || (m.name && s1.votes[m.name]);
+                  const v = getUserFromMap(s1.votes, m) || s1.votes[m.studentCode] || s1.votes[m.id] || s1.votes[m.username] || (m.name && s1.votes[m.name]);
                   return v === p.id;
                 }).length;
 
@@ -9193,8 +9246,16 @@
                   else { btnText = '未选择'; btnClass = 'vote-btn disabled'; }
                   btnDisabled = true;
                 }
-                const authorUser = allUsers.find(u => u.id === p.author || u.studentCode === p.author || u.username === p.author || u.name === p.author || u.name === p.authorName);
-                const authorName = (authorUser ? authorUser.name : null) || p.authorName || (state.members[p.author] ? state.members[p.author].name : p.author);
+                let authorName = (p.authorName && p.authorName !== '组员') ? p.authorName : null;
+                if (!authorName) {
+                  const authorUser = allUsers.find(u => isSameUser(u, p.author) || isSameUser(u, p.authorName) || u.id === p.author || u.studentCode === p.author || u.username === p.author || u.name === p.author || u.name === p.authorName);
+                  if (authorUser && authorUser.name) authorName = authorUser.name;
+                }
+                if (!authorName) {
+                  const authorMem = membersList.find(m => isSameUser(m, p.author) || isSameUser(m, p.authorName) || m.id === p.author || m.studentCode === p.author || m.name === p.author);
+                  if (authorMem && authorMem.name) authorName = authorMem.name;
+                }
+                if (!authorName) authorName = p.authorName || p.author || '组员';
                 return `
                   <div class="proposal-card ${isThisVoted ? 'voted' : ''}" style="display:flex; flex-direction:column; position:relative;">
                     <div class="proposal-header" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
@@ -9407,7 +9468,12 @@
     if (btnOpenProp) {
       btnOpenProp.addEventListener('click', () => {
         document.querySelectorAll('.modal-overlay').forEach(el => el.remove());
-        const existingProp = s1.proposals.find(p => myIds.has(p.author) || (currUserObj && (p.authorName === currUserObj.name || p.author === currUserObj.name)));
+        const existingProp = s1.proposals.find(p => {
+          if (!p) return false;
+          if (myKeys.has(p.author) || myKeys.has(p.authorName) || myKeys.has(p.authorId)) return true;
+          if (currUserObj && (isSameUser(p.author, currUserObj) || isSameUser(p.authorName, currUserObj) || (p.authorName && p.authorName === currentUserName))) return true;
+          return false;
+        });
         const modal = document.createElement('div');
         modal.className = 'modal-overlay';
         modal.innerHTML = `
@@ -9458,42 +9524,37 @@
 
           if (window.app) window.app.stage1LastActionTime = Date.now();
 
-          const existingIdx = s1.proposals.findIndex(p => myIds.has(p.author) || (currUserObj && (p.authorName === currUserObj.name || p.author === currUserObj.name)));
+          const existingIdx = s1.proposals.findIndex(p => {
+            if (!p) return false;
+            if (myKeys.has(p.author) || myKeys.has(p.authorName) || myKeys.has(p.authorId)) return true;
+            if (currUserObj && (isSameUser(p.author, currUserObj) || isSameUser(p.authorName, currUserObj) || (p.authorName && p.authorName === currentUserName))) return true;
+            return false;
+          });
           const nowMs = Date.now();
+          const effectiveAuthorKey = currUserObj?.studentCode || currUserObj?.id || (typeof currentUser === 'string' ? currentUser : '') || currentUserName;
+          const effectiveAuthorName = currUserObj?.name || currentUserName;
+          const effectiveAuthorId = currUserObj?.id || effectiveAuthorKey;
+
           if (existingIdx >= 0) {
             // 已有提案：更新标题与修改时间戳（保持每人 1 份，时间戳最新）
             s1.proposals[existingIdx].title = title;
-            s1.proposals[existingIdx].authorName = currentUserName;
+            s1.proposals[existingIdx].author = s1.proposals[existingIdx].author || effectiveAuthorKey;
+            s1.proposals[existingIdx].authorName = effectiveAuthorName;
+            s1.proposals[existingIdx].authorId = s1.proposals[existingIdx].authorId || effectiveAuthorId;
             s1.proposals[existingIdx].updatedAt = nowMs;
           } else {
             s1.proposals.push({
-              id: 'prop_' + currentUser + '_' + nowMs,
-              author: currentUser,
-              authorName: currentUserName,
+              id: 'prop_' + effectiveAuthorKey + '_' + nowMs,
+              author: effectiveAuthorKey,
+              authorName: effectiveAuthorName,
+              authorId: effectiveAuthorId,
               title: title,
               updatedAt: nowMs
             });
           }
 
           const currentStage = state.currentStage;
-          let memberArr = [];
-          if (Array.isArray(state.members)) {
-            memberArr = state.members;
-          } else if (state.members && typeof state.members === 'object') {
-            memberArr = Object.values(state.members);
-          }
-          if (memberArr.length === 0 && window.app?.authManager) {
-            const u = window.app.authManager.getCurrentUser();
-            const effClassId = (window.app?.authManager ? window.app.authManager.getEffectiveStudentClassId(u, window.app?.state?.activeTaskId) : (window.app?.state?.activeStudentClassId || u?.classId || null));
-            const effGroup = window.app.authManager.getStudentActiveGroup(u, effClassId);
-            memberArr = window.app.authManager.getGroupMembersForWorkspace(effGroup?.id || state.activeGroupId || null);
-          }
-
-          const memObj = memberArr.find(m => m && (m.id === currentUser || m.studentCode === currentUser || m.realStudentCode === currentUser || m.username === currentUser || m.name === currentUser));
-          const authorName = memObj ? memObj.name : (currentUser || '组员');
-          const totalMembersCount = memberArr.length > 0 ? memberArr.length : 0;
-          const submittedAuthorsCount = new Set((s1.proposals || []).map(p => p.author || p.authorName)).size;
-
+          const authorName = effectiveAuthorName;
           const isModify = existingIdx >= 0;
           const submitNoticeMsg = {
             id: 'msg_prop_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6),
@@ -11316,15 +11377,20 @@
         avatar = profile.avatar;
         color = profile.color || '#7c3aed';
       } else {
-        const u = allUsers.find(x => x.id === msg.sender || x.studentCode === msg.sender || x.username === msg.sender || x.name === msg.sender);
+        if (msg.senderName && msg.senderName !== '组员') {
+          name = msg.senderName;
+        }
+        const u = allUsers.find(x => isSameUser(x, msg.sender) || isSameUser(x, msg.senderName) || x.id === msg.sender || x.studentCode === msg.sender || x.username === msg.sender || x.name === msg.sender || (name && x.name === name));
         if (u && u.name) {
           name = u.name;
         } else if (state.members) {
-          const mem = Object.values(state.members).find(m => m.id === msg.sender || m.studentCode === msg.sender || m.username === msg.sender || m.name === msg.sender);
+          const memList = Array.isArray(state.members) ? state.members : Object.values(state.members);
+          const mem = memList.find(m => isSameUser(m, msg.sender) || isSameUser(m, msg.senderName) || m.id === msg.sender || m.studentCode === msg.sender || m.username === msg.sender || m.name === msg.sender);
           if (mem && mem.name) name = mem.name;
         }
 
-        const memObj = state.members ? (state.members[msg.sender] || Object.values(state.members).find(m => m.id === msg.sender || m.studentCode === msg.sender || m.name === name)) : null;
+        const memList = Array.isArray(state.members) ? state.members : Object.values(state.members || {});
+        const memObj = memList.find(m => isSameUser(m, msg.sender) || m.id === msg.sender || m.studentCode === msg.sender || m.name === name) || null;
         if (memObj) {
           avatar = memObj.avatar || '👨‍🎓';
           color = memObj.color || '#2563eb';
@@ -11881,21 +11947,21 @@
       } catch (e) {}
     }
 
-    syncChatLogs() {
-      const user = this.authManager ? this.authManager.getCurrentUser() : null;
-      const isTeacher = user && (user.isTeacher || user.role === 'teacher');
-      const effectiveClassId = (isTeacher ? this.state.activeClassId : this.state.activeStudentClassId) || user?.classId || null;
-      const groupId = this.getEffectiveGroupId();
-      let taskId = this.state.activeTaskId || (this.cloudSyncEngine ? this.cloudSyncEngine.taskId : `task_${effectiveClassId}_default`);
-      if (!taskId || taskId === 'task_default') {
-        taskId = `task_${effectiveClassId}_default`;
+    syncChatLogs(specifiedMsg = null, stage = null) {
+      const targetStage = stage || this.state.currentStage || 'stage1';
+      if (specifiedMsg) {
+        if (Array.isArray(specifiedMsg)) {
+          specifiedMsg.forEach(m => this.sendSingleChatMessage(m, targetStage));
+        } else {
+          this.sendSingleChatMessage(specifiedMsg, targetStage);
+        }
+        return;
       }
-      const stage = this.state.currentStage || 'stage1';
-      const logs = (this.state.chatLogs && this.state.chatLogs[stage]) ? this.state.chatLogs[stage] : [];
+      const logs = (this.state.chatLogs && this.state.chatLogs[targetStage]) ? this.state.chatLogs[targetStage] : [];
       const latestMsg = logs[logs.length - 1];
 
       if (latestMsg) {
-        this.sendSingleChatMessage(latestMsg, stage);
+        this.sendSingleChatMessage(latestMsg, targetStage);
       }
     }
 
@@ -14153,7 +14219,7 @@
 
                 if (!this.state.chatLogs.stage1) this.state.chatLogs.stage1 = [];
                 this.state.chatLogs.stage1.push(msg1, msg2);
-                this.syncChatLogs();
+                this.syncChatLogs([msg1, msg2], 'stage1');
                 if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
                 renderChat(this.state);
               }, 800);
@@ -15898,8 +15964,13 @@
         const isContractLocked = s1.contract.isConfirmed || this.state.isFinalSubmitted;
 
         const allUsers = this.authManager ? this.authManager.getUsers() : [];
-        const myIds = new Set([this.state.currentUser, currentUser?.id, currentUser?.studentCode, currentUser?.username].filter(Boolean));
-        const hasSubmittedMyProposal = s1.proposals.some(p => myIds.has(p.author) || (currentUser && (p.authorName === currentUser.name || p.author === currentUser.name)));
+        const myKeys = new Set([...getUserAllKeys(currentUser), this.state.currentUser].filter(Boolean));
+        const hasSubmittedMyProposal = s1.proposals.some(p => {
+          if (!p) return false;
+          if (myKeys.has(p.author) || myKeys.has(p.authorName) || myKeys.has(p.authorId)) return true;
+          if (currentUser && (isSameUser(p.author, currentUser) || isSameUser(p.authorName, currentUser) || (p.authorName && p.authorName === currentUser.name))) return true;
+          return false;
+        });
 
         const btnOpenProp = document.getElementById('btn-open-submit-proposal');
         if (btnOpenProp) {
@@ -15914,7 +15985,7 @@
                   // 动态聚合计算该提案的真实得票数
                   const proposalVotesCount = membersList.filter(m => {
                     if (!s1.votes) return false;
-                    const v = s1.votes[m.studentCode] || s1.votes[m.id] || s1.votes[m.username] || (m.name && s1.votes[m.name]);
+                    const v = getUserFromMap(s1.votes, m) || s1.votes[m.studentCode] || s1.votes[m.id] || s1.votes[m.username] || (m.name && s1.votes[m.name]);
                     return v === p.id;
                   }).length;
 
@@ -15925,8 +15996,16 @@
                     if (isThisVoted) { btnText = '🔒 已投此提案'; btnClass = 'vote-btn active locked'; }
                     else { btnText = '🔒 投票已锁定'; btnClass = 'vote-btn disabled'; }
                   }
-                  const authorUser = allUsers.find(u => u.id === p.author || u.studentCode === p.author || u.username === p.author || u.name === p.author || u.name === p.authorName);
-                  const authorName = (authorUser ? authorUser.name : null) || p.authorName || (this.state.members[p.author] ? this.state.members[p.author].name : p.author);
+                  let authorName = (p.authorName && p.authorName !== '组员') ? p.authorName : null;
+                  if (!authorName) {
+                    const authorUser = allUsers.find(u => isSameUser(u, p.author) || isSameUser(u, p.authorName) || u.id === p.author || u.studentCode === p.author || u.username === p.author || u.name === p.author || u.name === p.authorName);
+                    if (authorUser && authorUser.name) authorName = authorUser.name;
+                  }
+                  if (!authorName) {
+                    const authorMem = membersList.find(m => isSameUser(m, p.author) || isSameUser(m, p.authorName) || m.id === p.author || m.studentCode === p.author || m.name === p.author);
+                    if (authorMem && authorMem.name) authorName = authorMem.name;
+                  }
+                  if (!authorName) authorName = p.authorName || p.author || '组员';
                   return `
                     <div class="proposal-card ${isThisVoted ? 'voted' : ''}" style="display:flex; flex-direction:column; position:relative;">
                       <div class="proposal-header" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">

@@ -140,6 +140,7 @@ function initDatabaseTables() {
         `scope_key` VARCHAR(128) NOT NULL,
         `stage` VARCHAR(32) NOT NULL,
         `sender` VARCHAR(64) NOT NULL,
+        `sender_name` VARCHAR(64) DEFAULT '',
         `text` LONGTEXT NOT NULL,
         `timestamp_str` VARCHAR(32) NOT NULL,
         `time_ms` BIGINT NOT NULL,
@@ -147,6 +148,14 @@ function initDatabaseTables() {
         INDEX idx_scope_stage (`scope_key`, `stage`, `time_ms`)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;";
     $pdo->exec($sql8);
+
+    try {
+        $pdo->exec("ALTER TABLE `chat_messages` ADD COLUMN `sender_name` VARCHAR(64) DEFAULT '' AFTER `sender`");
+    } catch (Exception $e) {
+        if (strpos($e->getMessage(), 'Duplicate column') === false) {
+            error_log('db_init.php ALTER chat_messages: ' . $e->getMessage());
+        }
+    }
 
     return true;
 }

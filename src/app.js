@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260830_v908";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch } from "./utils.js?v=20260830_v908";
-import { callCozeAgentAPI } from "./agents.js?v=20260830_v908";
-import { AuthManager } from "./auth.js?v=20260830_v908";
-import { CloudSyncEngine } from "./sync.js?v=20260830_v908";
-import { renderLoginView } from "./login.js?v=20260830_v908";
-import { renderTeacherPortal } from "./teacher.js?v=20260830_v908";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260830_v908";
+} from "./constants.js?v=20260830_v909";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch } from "./utils.js?v=20260830_v909";
+import { callCozeAgentAPI } from "./agents.js?v=20260830_v909";
+import { AuthManager } from "./auth.js?v=20260830_v909";
+import { CloudSyncEngine } from "./sync.js?v=20260830_v909";
+import { renderLoginView } from "./login.js?v=20260830_v909";
+import { renderTeacherPortal } from "./teacher.js?v=20260830_v909";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260830_v909";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260830_v908";
+} from "./editor.js?v=20260830_v909";
 
 // Make renderChat available on window for sync callbacks
 if (typeof window !== "undefined") {
@@ -333,21 +333,21 @@ export class App {
     } catch (e) {}
   }
 
-  syncChatLogs() {
-    const user = this.authManager ? this.authManager.getCurrentUser() : null;
-    const isTeacher = user && (user.isTeacher || user.role === 'teacher');
-    const effectiveClassId = (isTeacher ? this.state.activeClassId : this.state.activeStudentClassId) || user?.classId || null;
-    const groupId = this.getEffectiveGroupId();
-    let taskId = this.state.activeTaskId || (this.cloudSyncEngine ? this.cloudSyncEngine.taskId : `task_${effectiveClassId}_default`);
-    if (!taskId || taskId === 'task_default') {
-      taskId = `task_${effectiveClassId}_default`;
+  syncChatLogs(specifiedMsg = null, stage = null) {
+    const targetStage = stage || this.state.currentStage || 'stage1';
+    if (specifiedMsg) {
+      if (Array.isArray(specifiedMsg)) {
+        specifiedMsg.forEach(m => this.sendSingleChatMessage(m, targetStage));
+      } else {
+        this.sendSingleChatMessage(specifiedMsg, targetStage);
+      }
+      return;
     }
-    const stage = this.state.currentStage || 'stage1';
-    const logs = (this.state.chatLogs && this.state.chatLogs[stage]) ? this.state.chatLogs[stage] : [];
+    const logs = (this.state.chatLogs && this.state.chatLogs[targetStage]) ? this.state.chatLogs[targetStage] : [];
     const latestMsg = logs[logs.length - 1];
 
     if (latestMsg) {
-      this.sendSingleChatMessage(latestMsg, stage);
+      this.sendSingleChatMessage(latestMsg, targetStage);
     }
   }
 
@@ -2605,7 +2605,7 @@ export class App {
 
               if (!this.state.chatLogs.stage1) this.state.chatLogs.stage1 = [];
               this.state.chatLogs.stage1.push(msg1, msg2);
-              this.syncChatLogs();
+              this.syncChatLogs([msg1, msg2], 'stage1');
               if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
               renderChat(this.state);
             }, 800);
@@ -4350,8 +4350,13 @@ ${propText}
       const isContractLocked = s1.contract.isConfirmed || this.state.isFinalSubmitted;
 
       const allUsers = this.authManager ? this.authManager.getUsers() : [];
-      const myIds = new Set([this.state.currentUser, currentUser?.id, currentUser?.studentCode, currentUser?.username].filter(Boolean));
-      const hasSubmittedMyProposal = s1.proposals.some(p => myIds.has(p.author) || (currentUser && (p.authorName === currentUser.name || p.author === currentUser.name)));
+      const myKeys = new Set([...getUserAllKeys(currentUser), this.state.currentUser].filter(Boolean));
+      const hasSubmittedMyProposal = s1.proposals.some(p => {
+        if (!p) return false;
+        if (myKeys.has(p.author) || myKeys.has(p.authorName) || myKeys.has(p.authorId)) return true;
+        if (currentUser && (isSameUser(p.author, currentUser) || isSameUser(p.authorName, currentUser) || (p.authorName && p.authorName === currentUser.name))) return true;
+        return false;
+      });
 
       const btnOpenProp = document.getElementById('btn-open-submit-proposal');
       if (btnOpenProp) {
@@ -4366,7 +4371,7 @@ ${propText}
                 // 动态聚合计算该提案的真实得票数
                 const proposalVotesCount = membersList.filter(m => {
                   if (!s1.votes) return false;
-                  const v = s1.votes[m.studentCode] || s1.votes[m.id] || s1.votes[m.username] || (m.name && s1.votes[m.name]);
+                  const v = getUserFromMap(s1.votes, m) || s1.votes[m.studentCode] || s1.votes[m.id] || s1.votes[m.username] || (m.name && s1.votes[m.name]);
                   return v === p.id;
                 }).length;
 
@@ -4377,8 +4382,16 @@ ${propText}
                   if (isThisVoted) { btnText = '🔒 已投此提案'; btnClass = 'vote-btn active locked'; }
                   else { btnText = '🔒 投票已锁定'; btnClass = 'vote-btn disabled'; }
                 }
-                const authorUser = allUsers.find(u => u.id === p.author || u.studentCode === p.author || u.username === p.author || u.name === p.author || u.name === p.authorName);
-                const authorName = (authorUser ? authorUser.name : null) || p.authorName || (this.state.members[p.author] ? this.state.members[p.author].name : p.author);
+                let authorName = (p.authorName && p.authorName !== '组员') ? p.authorName : null;
+                if (!authorName) {
+                  const authorUser = allUsers.find(u => isSameUser(u, p.author) || isSameUser(u, p.authorName) || u.id === p.author || u.studentCode === p.author || u.username === p.author || u.name === p.author || u.name === p.authorName);
+                  if (authorUser && authorUser.name) authorName = authorUser.name;
+                }
+                if (!authorName) {
+                  const authorMem = membersList.find(m => isSameUser(m, p.author) || isSameUser(m, p.authorName) || m.id === p.author || m.studentCode === p.author || m.name === p.author);
+                  if (authorMem && authorMem.name) authorName = authorMem.name;
+                }
+                if (!authorName) authorName = p.authorName || p.author || '组员';
                 return `
                   <div class="proposal-card ${isThisVoted ? 'voted' : ''}" style="display:flex; flex-direction:column; position:relative;">
                     <div class="proposal-header" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">

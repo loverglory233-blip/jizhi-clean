@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState } from './constants.js?v=20260830_v908';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal } from './utils.js?v=20260830_v908';
+import { InitialState } from './constants.js?v=20260830_v909';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal } from './utils.js?v=20260830_v909';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -636,6 +636,20 @@ export class CloudSyncEngine {
       if (!this.app.state.chatLogs) this.app.state.chatLogs = { stage1: [], stage2: [], stage3: [] };
       ['stage1', 'stage2', 'stage3'].forEach(stg => {
         const remoteLogs = Array.isArray(remoteData.chatLogs[stg]) ? remoteData.chatLogs[stg] : [];
+        const localLogs = Array.isArray(this.app.state.chatLogs[stg]) ? this.app.state.chatLogs[stg] : [];
+        
+        // 🛡️ 智能保留本地未决思考气泡与 10 秒内未落库临时消息（防吞防闪烁）
+        const now = Date.now();
+        const localPending = localLogs.filter(m => {
+          if (!m) return false;
+          if (m.isThinking) return true;
+          const isRecent = (now - (m._timeMs || 0) < 10000);
+          if (!isRecent) return false;
+          const existsInRemote = remoteLogs.some(rm => (rm.id && rm.id === m.id) || (rm._timeMs === m._timeMs && rm.text === m.text));
+          return !existsInRemote;
+        });
+
+        let baseLogs = remoteLogs;
         if (stg === 'stage2') {
           const deduped = [];
           let seenFirstReview = false;
@@ -664,7 +678,7 @@ export class CloudSyncEngine {
             }
             deduped.push(m);
           });
-          this.app.state.chatLogs[stg] = deduped;
+          baseLogs = deduped;
         } else if (stg === 'stage3') {
           const deduped = [];
           let seenStage3Prop = false;
@@ -693,10 +707,32 @@ export class CloudSyncEngine {
             }
             deduped.push(m);
           });
-          this.app.state.chatLogs[stg] = deduped;
-        } else {
-          this.app.state.chatLogs[stg] = remoteLogs;
+          baseLogs = deduped;
         }
+
+        // 合并 baseLogs 与 localPending
+        const mergedList = [...baseLogs];
+        localPending.forEach(lp => {
+          const exists = mergedList.some(m => (lp.id && m.id === lp.id) || (m._timeMs === lp._timeMs && m.text === lp.text));
+          if (!exists) mergedList.push(lp);
+        });
+
+        // 稳健补全缺省 senderName
+        const allUsers = this.app.authManager ? this.app.authManager.getUsers() : [];
+        const membersList = Array.isArray(this.app.state.members) ? this.app.state.members : Object.values(this.app.state.members || {});
+        mergedList.forEach(m => {
+          if (!m.senderName && m.sender) {
+            const matchedU = allUsers.find(u => isSameUser(u, m.sender) || u.id === m.sender || u.studentCode === m.sender || u.username === m.sender);
+            if (matchedU && matchedU.name) m.senderName = matchedU.name;
+            else {
+              const matchedM = membersList.find(mem => isSameUser(mem, m.sender) || mem.id === m.sender || mem.studentCode === m.sender);
+              if (matchedM && matchedM.name) m.senderName = matchedM.name;
+            }
+          }
+        });
+
+        mergedList.sort((a, b) => (a._timeMs || 0) - (b._timeMs || 0));
+        this.app.state.chatLogs[stg] = mergedList;
       });
       if (typeof window.renderChat === 'function') window.renderChat(this.app.state);
     }
@@ -902,31 +938,32 @@ export class CloudSyncEngine {
         }
       }
 
-      const propByAuthor = new Map();
+      const propMap = new Map();
       (remoteS1.proposals || []).forEach(p => {
-        if (p && (p.author || p.authorName)) {
-          const k = String(p.author || p.authorName).trim();
-          propByAuthor.set(k, p);
+        if (p) {
+          const k = String(p.id || p.author || p.authorName).trim();
+          if (k) propMap.set(k, p);
         }
       });
 
       (localS1.proposals || []).forEach(p => {
-        if (p && (p.author || p.authorName)) {
-          const k = String(p.author || p.authorName).trim();
-          const remoteP = propByAuthor.get(k);
+        if (p) {
+          const k = String(p.id || p.author || p.authorName).trim();
+          if (!k) return;
+          const remoteP = propMap.get(k);
           if (!remoteP) {
-            propByAuthor.set(k, p);
+            propMap.set(k, p);
           } else {
             const remoteTime = remoteP.updatedAt || 0;
             const localTime = p.updatedAt || 0;
-            if (localTime > remoteTime) {
-              propByAuthor.set(k, p);
+            if (localTime >= remoteTime) {
+              propMap.set(k, p);
             }
           }
         }
       });
 
-      const mergedProposals = Array.from(propByAuthor.values());
+      const mergedProposals = Array.from(propMap.values());
 
       const mergedVotes = {
         ...(localS1.votes || {}),
