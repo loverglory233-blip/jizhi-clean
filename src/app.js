@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260830_v825";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash } from "./utils.js?v=20260830_v825";
-import { callCozeAgentAPI } from "./agents.js?v=20260830_v825";
-import { AuthManager } from "./auth.js?v=20260830_v825";
-import { CloudSyncEngine } from "./sync.js?v=20260830_v825";
-import { renderLoginView } from "./login.js?v=20260830_v825";
-import { renderTeacherPortal } from "./teacher.js?v=20260830_v825";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260830_v825";
+} from "./constants.js?v=20260830_v826";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash } from "./utils.js?v=20260830_v826";
+import { callCozeAgentAPI } from "./agents.js?v=20260830_v826";
+import { AuthManager } from "./auth.js?v=20260830_v826";
+import { CloudSyncEngine } from "./sync.js?v=20260830_v826";
+import { renderLoginView } from "./login.js?v=20260830_v826";
+import { renderTeacherPortal } from "./teacher.js?v=20260830_v826";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260830_v826";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260830_v825";
+} from "./editor.js?v=20260830_v826";
 
 // Make renderChat available on window for sync callbacks
 if (typeof window !== "undefined") {
@@ -2224,7 +2224,8 @@ ${recentChats}
           };
 
           if (isExplicitFinalizeOrTaskSignal) {
-            setTimeout(triggerTaskGuidance, 800);
+            // 主动表达收敛意向后，给予 5 秒自然拟人缓冲窗口再温和切入
+            setTimeout(triggerTaskGuidance, 5000);
           } else if (hasValidConsensusPair) {
             // 组内达成共识后，启动 40 秒观察窗口；40 秒内若有任何同学继续提出新补充则自动顺延，40秒完全静默才判定方案充分定型！
             this._refineDebounceTimer = setTimeout(triggerTaskGuidance, 40000);
@@ -2252,7 +2253,7 @@ ${recentChats}
               this.syncStage1();
               if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
               renderChat(this.state);
-            }, 800);
+            }, 5000);
           }
         }
       }

@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260830_v825
+ * Version: 20260830_v826
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260830_v825';
+  const APP_VERSION = '20260830_v826';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -13317,7 +13317,8 @@
             };
 
             if (isExplicitFinalizeOrTaskSignal) {
-              setTimeout(triggerTaskGuidance, 800);
+              // 主动表达收敛意向后，给予 5 秒自然拟人缓冲窗口再温和切入
+              setTimeout(triggerTaskGuidance, 5000);
             } else if (hasValidConsensusPair) {
               // 组内达成共识后，启动 40 秒观察窗口；40 秒内若有任何同学继续提出新补充则自动顺延，40秒完全静默才判定方案充分定型！
               this._refineDebounceTimer = setTimeout(triggerTaskGuidance, 40000);
@@ -13345,7 +13346,7 @@
                 this.syncStage1();
                 if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
                 renderChat(this.state);
-              }, 800);
+              }, 5000);
             }
           }
         }
