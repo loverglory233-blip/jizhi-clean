@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles } from "./constants.js?v=20260831_v949";
-import { callCozeAgentAPI } from "./agents.js?v=20260831_v949";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap } from "./utils.js?v=20260831_v949";
+import { AgentProfiles } from "./constants.js?v=20260831_v950";
+import { callCozeAgentAPI } from "./agents.js?v=20260831_v950";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap } from "./utils.js?v=20260831_v950";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -1129,8 +1129,9 @@ function renderStage1Canvas(canvas, state, handlers) {
       <div style="display:flex; flex-direction:column; gap:16px; width:100%;">
         <!-- 6大研究设计方案模块与时间规划 -->
         <div style="background:#f8fafc; padding:18px; border-radius:12px; border:1px solid #bfdbfe; width:100%; box-sizing:border-box;">
-          <div style="font-weight:800; color:#1e40af; margin-bottom:14px; font-size:14px;">
-            📚 研究方案核心模块与时间规划:
+          <div style="font-weight:800; color:#1e40af; margin-bottom:14px; font-size:14px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+            <span>📚 研究方案核心模块与时间规划 (6 大模块起草):</span>
+            <span style="font-size:12px; background:#eff6ff; color:#1d4ed8; padding:2px 10px; border-radius:12px; border:1px solid #bfdbfe; font-weight:800;">⏱️ 任务总规划时长: 150 分钟 (各部分合计)</span>
           </div>
           
           <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
