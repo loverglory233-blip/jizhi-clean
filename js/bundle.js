@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260831_v965
+ * Version: 20260831_v966
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260831_v965';
+  const APP_VERSION = '20260831_v966';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -13133,7 +13133,7 @@
           const isTimeOver60Pct = stage2DurationMs >= (totalPlannedMs * 0.6);
           const hasReachedReflection = /(?:五、|第5章|第五部分|不足与反思|研究反思|反思与不足|总结与反思|研究局限)/i.test(s2.unifiedContent || '');
 
-          // 3. 【半程研讨 2.5 分钟静默守护】：半程会议或修正清单发出后，若全组超过 2.5 分钟没有任何动静，责任编辑温和提醒推进研讨（最多连续 2 次，有新动静自动重置）
+          // 3. 【半程研讨 2.5 分钟静默守护】：半程会议号召或清单发出后，若全组超过 2.5 分钟没有任何动静，责任编辑温和提醒推进（最多连续 2 次）
           const lastMeetingMsg = [...s2Chats].reverse().find(m => m && m.sender === 'managingEditor' && (m.text?.includes('半程研讨号召') || m.text?.includes('半程会议号召') || m.text?.includes('半程自查')));
           const isMeetingActive = (lastMeetingMsg || s2.meetingStep) && s2.meetingStep !== 'completed' && !s2.isDraftConfirmed;
 
@@ -13161,11 +13161,30 @@
                 if (!this._lastNudgeActivityTime) this._lastNudgeActivityTime = {};
                 this._lastNudgeActivityTime['s2_meeting_silence'] = lastStudentMsgTime;
 
-                const btnName = (s2.meetingStep === 'discussing_checklist') ? '【📝 讨论差不多了？让审稿编辑总结】' : '【💡 讨论差不多了？让责任编辑总结】';
+                const subs = s2.meetingSubmissions || {};
+                const unsubmittedMembers = membersList.filter(m => {
+                  const uid = String(m.id || m.studentCode || m.userId || '').trim();
+                  return !(subs[uid] || subs[m.name] || subs[m.studentCode] || subs[m.id]);
+                });
+                const totalCount = membersList.length || 2;
+                const submittedCount = totalCount - unsubmittedMembers.length;
+                const hasUnsubmitted = unsubmittedMembers.length > 0;
+
+                let silenceText = '';
+                if (hasUnsubmitted) {
+                  // 分支 ①：半程会议号召后 2.5 分钟，仍有组员未参与打卡
+                  const unsubmittedNames = unsubmittedMembers.map(m => m.name || m.username || m.studentCode).join('、');
+                  silenceText = `🤝 【责任编辑·半程会议参与提示】：半程学术审计会议已号召发起 2.5 分钟啦！目前组内打卡进度为【${submittedCount}/${totalCount} 人】，看到 ${unsubmittedNames} 同学尚未完成打卡。请尚未打卡的同学点击上方【📢 发起会议 / 打卡】按钮通读全篇完成自查，全员打卡后系统将自动为大家汇总生成《半程修正清单》！`;
+                } else {
+                  // 分支 ②：全员已打卡（或已下发清单），研讨区超过 2.5 分钟无人发言研讨
+                  const btnName = (s2.meetingStep === 'discussing_checklist') ? '【📝 讨论差不多了？让审稿编辑总结】' : '【💡 讨论差不多了？让责任编辑总结】';
+                  silenceText = `🤝 【责任编辑·半程研讨推进提示】：大家针对刚才提出的修改方向商量得怎么样啦？研讨差不多后，请点击聊天框上方的 ${btnName} 按钮，系统将为大家一键提炼研讨要点并推进后续！`;
+                }
+
                 const msg = {
                   sender: 'managingEditor',
                   senderName: '协同调度 · 责任编辑',
-                  text: `🤝 【责任编辑·半程研讨推进提示】：大家针对刚才提出的修改方向商量得怎么样啦？研讨差不多后，请点击聊天框上方的 ${btnName} 按钮，系统将为大家一键提炼研讨要点并推进后续！`,
+                  text: silenceText,
                   timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
                   _timeMs: now
                 };
