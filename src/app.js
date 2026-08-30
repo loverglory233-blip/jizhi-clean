@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260831_v982";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch } from "./utils.js?v=20260831_v982";
-import { callCozeAgentAPI } from "./agents.js?v=20260831_v982";
-import { AuthManager } from "./auth.js?v=20260831_v982";
-import { CloudSyncEngine } from "./sync.js?v=20260831_v982";
-import { renderLoginView } from "./login.js?v=20260831_v982";
-import { renderTeacherPortal } from "./teacher.js?v=20260831_v982";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260831_v982";
+} from "./constants.js?v=20260831_v983";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch } from "./utils.js?v=20260831_v983";
+import { callCozeAgentAPI } from "./agents.js?v=20260831_v983";
+import { AuthManager } from "./auth.js?v=20260831_v983";
+import { CloudSyncEngine } from "./sync.js?v=20260831_v983";
+import { renderLoginView } from "./login.js?v=20260831_v983";
+import { renderTeacherPortal } from "./teacher.js?v=20260831_v983";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260831_v983";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260831_v982";
+} from "./editor.js?v=20260831_v983";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -1526,7 +1526,8 @@ export class App {
         // ======================================================================
         // 📝 审稿编辑一审后静默跟进（严格 3 分钟冷场静默提示）
         // ======================================================================
-        const lastReviewMsgObj = [...s2Chats].reverse().find(m => m && m.sender === 'reviewingEditor' && (m.text?.includes('一审破题把脉') || m.text?.includes('Research Gap') || m.text?.includes('审稿编辑·一审')));
+        const lastReviewMsgObj = [...s2Chats].reverse().find(m => m && m.sender === 'reviewingEditor' && !m.text?.includes('初审跟进提示') && !m.text?.includes('终稿') && !m.text?.includes('终审'));
+        const isFirstReviewIssued = !!lastReviewMsgObj || s2.reviewMilestone === 'first_review_done' || !!s2.firstReviewText;
         const hasPassedToSubsequentStages = s2Chats.some(m => m && (
           m.text?.includes('半程研讨号召') || 
           m.text?.includes('半程会议号召') || 
@@ -1536,7 +1537,7 @@ export class App {
           m.text?.includes('终审定稿总评')
         )) || !!s2.meetingStep || !!s2.isDraftConfirmed;
         
-        if (lastReviewMsgObj && !hasPassedToSubsequentStages) {
+        if (isFirstReviewIssued && !hasPassedToSubsequentStages) {
           const reviewTime = parseMsgTime(lastReviewMsgObj) || this.stage2StartTime || (now - 60000);
           const reviewElapsed = Math.max(0, now - reviewTime);
           const studentMsgAfterReview = s2Chats.filter(m => m && m.sender && m.sender !== 'managingEditor' && m.sender !== 'reviewingEditor' && m.sender !== 'system' && parseMsgTime(m) > reviewTime);
@@ -1566,30 +1567,27 @@ export class App {
         // ======================================================================
         // 📌 质检/讨论梯度 B：半程会议自查打卡（3 分钟未打卡静默提醒）
         // ======================================================================
-        const lastMeetingMsg = [...s2Chats].reverse().find(m => m && m.sender === 'managingEditor' && (m.text?.includes('半程研讨号召') || m.text?.includes('半程会议号召') || m.text?.includes('半程自查')));
+        const lastMeetingMsg = [...s2Chats].reverse().find(m => m && m.sender === 'managingEditor' && (m.text?.includes('半程研讨号召') || m.text?.includes('半程会议号召') || m.text?.includes('半程自查') || m.text?.includes('半程会议')));
         const isMeetingActive = (lastMeetingMsg || s2.meetingStep) && s2.meetingStep !== 'completed' && !s2.isDraftConfirmed;
 
         if (isMeetingActive) {
-          let meetingMsgTime = lastMeetingMsg?._timeMs;
-          if (!meetingMsgTime && lastMeetingMsg?.timestamp) {
-            const parts = String(lastMeetingMsg.timestamp).split(':');
-            if (parts.length >= 2) {
-              const d = new Date();
-              d.setHours(parseInt(parts[0], 10), parseInt(parts[1], 10), 0, 0);
-              meetingMsgTime = d.getTime();
-            }
-          }
-          const meetingElapsed = meetingMsgTime ? (now - meetingMsgTime) : silenceDurationMs;
+          const meetingMsgTime = parseMsgTime(lastMeetingMsg) || s2.meetingCalledTime || this.stage2StartTime || (now - 60000);
+          const meetingElapsed = Math.max(0, now - meetingMsgTime);
 
           const subs = s2.meetingSubmissions || {};
-          const unsubmittedMembers = membersList.filter(m => {
-            const uid = String(m.id || m.studentCode || m.userId || '').trim();
-            return !(subs[uid] || subs[m.name] || subs[m.studentCode] || subs[m.id]);
+          const effClassId = this.state.activeStudentClassId || currUserObj.classId || null;
+          const effGroup = this.authManager ? this.authManager.getStudentActiveGroup(currUserObj, effClassId) : null;
+          const allGroupMembers = (effGroup && Array.isArray(effGroup.members)) ? effGroup.members : membersList;
+
+          const unsubmittedMembers = allGroupMembers.filter(m => {
+            const uid = typeof m === 'object' ? String(m.id || m.studentCode || m.userId || '').trim() : String(m).trim();
+            const uname = typeof m === 'object' ? String(m.name || m.username || '').trim() : '';
+            return !(subs[uid] || (uname && subs[uname]) || subs[m.studentCode] || subs[m.id]);
           });
-          const totalCount = membersList.length || 2;
+          const totalCount = allGroupMembers.length || 2;
           const submittedCount = totalCount - unsubmittedMembers.length;
           const hasUnsubmitted = unsubmittedMembers.length > 0;
-          const unsubmittedNames = unsubmittedMembers.map(m => m.name || m.username || m.studentCode).join('、');
+          const unsubmittedNames = unsubmittedMembers.map(m => (typeof m === 'object' ? (m.name || m.username || m.studentCode) : m)).join('、');
 
           // ── 半程打卡：仅 3 分钟（180,000ms）单次点名催促 ──
           if (hasUnsubmitted && meetingElapsed >= 180000) {
