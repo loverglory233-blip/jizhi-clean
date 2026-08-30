@@ -521,6 +521,71 @@ export function showGlobalBannerNotice(title, message, type = 'info') {
 }
 
 /**
+ * ⏳ 任务截止时间延长弹窗（场景 1：学生正处于该任务内）
+ */
+export function showTaskExtendedUnlockModal(task, prevDeadline, isUnlockedNow = false) {
+  if (typeof document === 'undefined') return;
+  const existing = document.getElementById('modal-task-extended-unlock');
+  if (existing) existing.remove();
+
+  const modal = document.createElement('div');
+  modal.id = 'modal-task-extended-unlock';
+  modal.style.cssText = 'position:fixed; inset:0; z-index:9999999; background:rgba(15,23,42,0.68); backdrop-filter:blur(4px); display:flex; align-items:center; justify-content:center; animation:fadeIn 0.25s ease;';
+
+  modal.innerHTML = `
+    <div style="background:#ffffff; border-radius:16px; width:90%; max-width:440px; padding:28px 24px; box-shadow:0 20px 40px rgba(15,23,42,0.25); text-align:center; border:2px solid #3b82f6; display:flex; flex-direction:column; gap:16px; animation:scaleUp 0.25s ease; font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+      <div style="width:60px; height:60px; border-radius:50%; background:#eff6ff; border:2px solid #bfdbfe; display:flex; align-items:center; justify-content:center; font-size:30px; margin:0 auto;">
+        ⏳
+      </div>
+      <div>
+        <div style="font-size:18px; font-weight:800; color:#1e3a8a;">任务截止时间已延长！</div>
+        <div style="font-size:13.5px; color:#475569; margin-top:8px; line-height:1.6;">
+          任课教师已将任务《<b>${escapeHtml(task.title || '协作写作')}</b>》截止时间延长至：
+        </div>
+        <div style="font-size:16px; font-weight:800; color:#2563eb; background:#f0f7ff; padding:8px 14px; border-radius:8px; margin:10px auto 0; border:1px dashed #93c5fd; display:inline-block;">
+          📅 ${escapeHtml(task.deadline || '未设定')}
+        </div>
+      </div>
+      ${isUnlockedNow ? `
+        <div style="background:#ecfdf5; border:1px solid #a7f3d0; border-radius:8px; padding:10px 12px; color:#065f46; font-size:12.5px; font-weight:700; display:flex; align-items:center; justify-content:center; gap:6px;">
+          <span>✅ 协作正文已为您自动【解除只读锁定】，可正常编辑！</span>
+        </div>
+      ` : `
+        <div style="background:#f0fdf4; border:1px solid #bbf7d0; border-radius:8px; padding:10px 12px; color:#15803d; font-size:12.5px; font-weight:700; display:flex; align-items:center; justify-content:center; gap:6px;">
+          <span>⏱️ 写作时长已同步增加，请抓紧时间协同完成！</span>
+        </div>
+      `}
+      <div style="display:flex; gap:10px; margin-top:4px;">
+        <button id="btn-confirm-task-unlock" style="flex:1; background:linear-gradient(135deg, #2563eb, #1d4ed8); color:#ffffff; border:none; padding:10px 16px; border-radius:8px; font-size:14px; font-weight:700; cursor:pointer; box-shadow:0 4px 12px rgba(37,99,235,0.25); transition:all 0.2s;">
+          🚀 立即继续协作 (<span id="unlock-auto-close-countdown">3</span>s)
+        </button>
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(modal);
+
+  let remainSec = 3;
+  const timer = setInterval(() => {
+    remainSec--;
+    const numEl = modal.querySelector('#unlock-auto-close-countdown');
+    if (numEl) numEl.innerText = remainSec;
+    if (remainSec <= 0) {
+      clearInterval(timer);
+      if (modal.parentElement) modal.remove();
+    }
+  }, 1000);
+
+  const btn = modal.querySelector('#btn-confirm-task-unlock');
+  if (btn) {
+    btn.addEventListener('click', () => {
+      clearInterval(timer);
+      if (modal.parentElement) modal.remove();
+    });
+  }
+}
+
+/**
  * 🔒 权威只读注入器：从 DOM 层与内核层双重锁定 Etherpad 文档
  * - 彻底隐藏顶部编辑工具栏与底部操作栏
  * - 强制设置 innerdocbody contenteditable="false"，彻底杜绝键盘输入、剪切与修改
