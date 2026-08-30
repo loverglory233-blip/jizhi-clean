@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260831_v933";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch } from "./utils.js?v=20260831_v933";
-import { callCozeAgentAPI } from "./agents.js?v=20260831_v933";
-import { AuthManager } from "./auth.js?v=20260831_v933";
-import { CloudSyncEngine } from "./sync.js?v=20260831_v933";
-import { renderLoginView } from "./login.js?v=20260831_v933";
-import { renderTeacherPortal } from "./teacher.js?v=20260831_v933";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260831_v933";
+} from "./constants.js?v=20260831_v934";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch } from "./utils.js?v=20260831_v934";
+import { callCozeAgentAPI } from "./agents.js?v=20260831_v934";
+import { AuthManager } from "./auth.js?v=20260831_v934";
+import { CloudSyncEngine } from "./sync.js?v=20260831_v934";
+import { renderLoginView } from "./login.js?v=20260831_v934";
+import { renderTeacherPortal } from "./teacher.js?v=20260831_v934";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260831_v934";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260831_v933";
+} from "./editor.js?v=20260831_v934";
 
 // Make renderChat available on window for sync callbacks
 if (typeof window !== "undefined") {
@@ -3985,7 +3985,14 @@ ${propText}
     const s2 = this.state.stage2 || {};
     const s3 = this.state.stage3 || {};
 
-    const isContractSigned = !!(s1.contract?.signed || s1.contract?.isConfirmed || (Array.isArray(s1.contract?.confirmedMembers) && s1.contract.confirmedMembers.length > 0));
+    const isContractSigned = !!(
+      s1.contract?.signed || 
+      s1.contract?.isConfirmed || 
+      (s1.contract?.confirmedMembers && (
+        (Array.isArray(s1.contract.confirmedMembers) && s1.contract.confirmedMembers.length > 0) ||
+        (typeof s1.contract.confirmedMembers === 'object' && Object.keys(s1.contract.confirmedMembers).length > 0)
+      ))
+    );
     const isDraftDone = !!(s2.isDraftConfirmed || (s2.meetingSubmissions && Object.keys(s2.meetingSubmissions).length > 0) || this.state.groupMaxStage === 'stage3' || this.state.isFinalSubmitted);
     const isStage3Active = !!(this.state.groupMaxStage === 'stage3' || this.state.isFinalSubmitted || isDraftDone || (s3.confirmedMembers && Object.keys(s3.confirmedMembers).length > 0) || (s3.finalSubmittedMembers && Object.keys(s3.finalSubmittedMembers).length > 0));
 
