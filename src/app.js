@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260830_v851";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash } from "./utils.js?v=20260830_v851";
-import { callCozeAgentAPI } from "./agents.js?v=20260830_v851";
-import { AuthManager } from "./auth.js?v=20260830_v851";
-import { CloudSyncEngine } from "./sync.js?v=20260830_v851";
-import { renderLoginView } from "./login.js?v=20260830_v851";
-import { renderTeacherPortal } from "./teacher.js?v=20260830_v851";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260830_v851";
+} from "./constants.js?v=20260830_v852";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash } from "./utils.js?v=20260830_v852";
+import { callCozeAgentAPI } from "./agents.js?v=20260830_v852";
+import { AuthManager } from "./auth.js?v=20260830_v852";
+import { CloudSyncEngine } from "./sync.js?v=20260830_v852";
+import { renderLoginView } from "./login.js?v=20260830_v852";
+import { renderTeacherPortal } from "./teacher.js?v=20260830_v852";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260830_v852";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260830_v851";
+} from "./editor.js?v=20260830_v852";
 
 // Make renderChat available on window for sync callbacks
 if (typeof window !== "undefined") {
@@ -1609,12 +1609,12 @@ ${recentChats}
           const tObj = allTasks.find(t => t.id === a.taskId);
           if (tObj && isTaskExpired(tObj)) return false;
         }
-        const matchClass = (a.classId === effectiveClassId) || 
+        const matchClass = !a.classId || a.classId === 'all' || (a.classId === effectiveClassId) || 
                            (effectiveClassName && a.className === effectiveClassName) ||
-                           (Array.isArray(a.targetClassIds) && a.targetClassIds.includes(effectiveClassId));
+                           (Array.isArray(a.targetClassIds) && (a.targetClassIds.includes('all') || a.targetClassIds.includes(effectiveClassId)));
         const matchGroup = !a.targetGroupId || a.targetGroupId === 'all' || a.targetGroupId === groupId ||
           (Array.isArray(a.targetGroupIds) && (a.targetGroupIds.includes('all') || a.targetGroupIds.includes(groupId)));
-        const matchTask = a.taskId === 'task_all' || a.taskId === activeTaskId || (!a.taskId && activeTaskId === 'task_default');
+        const matchTask = !a.taskId || a.taskId === 'task_all' || a.taskId === activeTaskId || (!a.taskId && activeTaskId === 'task_default');
         return matchClass && matchGroup && matchTask && !isAnnRead(a);
       })
       .sort((a, b) => (b.id > a.id ? 1 : -1));
@@ -1658,17 +1658,17 @@ ${recentChats}
 
     const isExtensionNotice = (a) => !!(a && (a.isExtension || a.title?.includes('延期通知') || a.title?.includes('时间已延长') || a.title?.includes('延长至')));
 
-    // 🎯 教学通知中心仅展示与统计纯正的【教学任务与作业通知】（延期由瞬时大弹窗处理，不堆积在通知中心）
+    // 🎯 教学通知中心展示与统计纯正的【教学任务与作业通知】（延期由瞬时大弹窗处理）
     const myAnns = allAnns
       .filter(a => {
         if (!a) return false;
         if (isExtensionNotice(a)) return false; // 🚫 彻底屏蔽延期通知混入通知中心
-        const matchClass = (a.classId === effectiveClassId) || 
+        const matchClass = !a.classId || a.classId === 'all' || (a.classId === effectiveClassId) || 
                            (effectiveClassName && a.className === effectiveClassName) ||
-                           (Array.isArray(a.targetClassIds) && a.targetClassIds.includes(effectiveClassId));
+                           (Array.isArray(a.targetClassIds) && (a.targetClassIds.includes('all') || a.targetClassIds.includes(effectiveClassId)));
         const matchGroup = !a.targetGroupId || a.targetGroupId === 'all' || a.targetGroupId === groupId ||
           (Array.isArray(a.targetGroupIds) && (a.targetGroupIds.includes('all') || a.targetGroupIds.includes(groupId)));
-        const matchTask = (a.taskId === 'task_all' || a.taskId === activeTaskId || (!a.taskId && activeTaskId === 'task_default'));
+        const matchTask = !a.taskId || a.taskId === 'task_all' || a.taskId === activeTaskId || (!a.taskId && activeTaskId === 'task_default');
         return matchClass && matchGroup && matchTask;
       })
       .sort((a, b) => (b.id > a.id ? 1 : -1));
@@ -1861,10 +1861,35 @@ ${recentChats}
     const closeModal = () => {
       modal.remove();
       document.removeEventListener('keydown', onEsc);
+      // ⚡ 0 延迟即时刷新右上角【教学通知】红点角标
+      const bellBtn = document.getElementById('btn-header-ann-bell');
+      if (bellBtn) {
+        const curAllAnns = this.authManager.getAnnouncements();
+        const curUnread = curAllAnns.filter(a => {
+          if (!a || isExtensionNotice(a)) return false;
+          const mClass = !a.classId || a.classId === 'all' || a.classId === effectiveClassId;
+          const mTask = !a.taskId || a.taskId === 'task_all' || a.taskId === activeTaskId;
+          return mClass && mTask && !isAnnRead(a);
+        });
+        if (curUnread.length === 0) {
+          bellBtn.classList.remove('has-unread');
+          const badge = bellBtn.querySelector('span:not(:first-child)');
+          if (badge) badge.remove();
+        } else {
+          bellBtn.classList.add('has-unread');
+          let badge = bellBtn.querySelector('span:not(:first-child)');
+          if (badge) {
+            badge.innerText = curUnread.length;
+          } else {
+            const newBadge = document.createElement('span');
+            newBadge.style.cssText = 'background:#ef4444; color:#ffffff; font-size:10.5px; font-weight:800; padding:1px 6px; border-radius:10px; box-shadow:0 1px 4px rgba(239,68,68,0.4);';
+            newBadge.innerText = curUnread.length;
+            bellBtn.appendChild(newBadge);
+          }
+        }
+      }
       if (this.state.studentViewMode === 'task_list') {
         this.renderMain();
-      } else {
-        this.renderStudentWorkspace(true);
       }
     };
 
