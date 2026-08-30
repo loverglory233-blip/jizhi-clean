@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles } from "./constants.js?v=20260831_v939";
-import { callCozeAgentAPI } from "./agents.js?v=20260831_v939";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap } from "./utils.js?v=20260831_v939";
+import { AgentProfiles } from "./constants.js?v=20260831_v940";
+import { callCozeAgentAPI } from "./agents.js?v=20260831_v940";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap } from "./utils.js?v=20260831_v940";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -2117,32 +2117,39 @@ function renderStage2Canvas(canvas, state, handlers) {
         </div>
       </div>
 
-      <!-- 🌟 2. 可折叠半程修正清单 (极紧凑单行条，按需展开) -->
-      ${actionPlan && actionPlan.isGenerated ? `
-        <div id="stage2-action-plan-card" style="background:#ecfdf5; border:1px solid #a7f3d0; border-radius:6px; padding:4px 10px; margin-bottom:6px; flex-shrink:0; box-shadow:0 1px 2px rgba(5,150,105,0.04);">
-          <div style="display:flex; justify-content:space-between; align-items:center; cursor:pointer;" id="btn-toggle-action-plan">
-            <div style="font-size:11.5px; font-weight:800; color:#059669; display:flex; align-items:center; gap:6px;">
-              <span>📋 【半程修正清单】(审稿专家 3 项修改要求)</span>
-              <span style="font-size:10px; background:#d1fae5; color:#065f46; padding:0 6px; border-radius:6px; font-weight:700;">已下发</span>
+      <!-- 🌟 2. 半程修正清单 (下发后自动展开呈现 3 项具体修改要求，支持实时打勾与一键折叠) -->
+      ${actionPlan && actionPlan.isGenerated ? (() => {
+        const completedCount = Object.values(actionPlan.completedMap || {}).filter(Boolean).length;
+        const totalItems = (actionPlan.items || []).length;
+        const isAllDone = completedCount >= totalItems && totalItems > 0;
+        return `
+          <div id="stage2-action-plan-card" style="background:#ecfdf5; border:1px solid #a7f3d0; border-radius:6px; padding:6px 12px; margin-bottom:6px; flex-shrink:0; box-shadow:0 1px 3px rgba(5,150,105,0.06);">
+            <div style="display:flex; justify-content:space-between; align-items:center; cursor:pointer;" id="btn-toggle-action-plan">
+              <div style="font-size:12px; font-weight:800; color:#059669; display:flex; align-items:center; gap:8px;">
+                <span>📋 【半程修正清单】(审稿专家 3 项修改要求)</span>
+                <span style="font-size:11px; background:${isAllDone ? '#d1fae5' : '#fef3c7'}; color:${isAllDone ? '#065f46' : '#b45309'}; border:1px solid ${isAllDone ? '#a7f3d0' : '#fde68a'}; padding:1px 8px; border-radius:10px; font-weight:800;">
+                  ${isAllDone ? '🎉 3 项要求已全部落实' : `⏳ 已落实 ${completedCount}/${totalItems} 项`}
+                </span>
+              </div>
+              <span id="icon-toggle-action-plan" style="font-size:11px; color:#059669; font-weight:700; background:#ffffff; border:1px solid #a7f3d0; padding:1.5px 8px; border-radius:4px;">▲ 收起清单</span>
             </div>
-            <span id="icon-toggle-action-plan" style="font-size:10.5px; color:#059669; font-weight:700;">▼ 展开/收起</span>
-          </div>
-          <div id="body-action-plan-items" style="font-size:11.5px; color:#1e293b; display:none; flex-direction:column; gap:4px; margin-top:6px;">
-            ${actionPlan.items.map((item, idx) => {
-              const isChecked = !!(actionPlan.completedMap && actionPlan.completedMap[idx]);
-              let formattedItem = escapeHtml(item);
-              return `
-                <div class="action-plan-item-box" data-item-idx="${idx}" style="line-height:1.4; background:${isChecked ? '#f0fdf4' : '#ffffff'}; border:1px solid ${isChecked ? '#86efac' : '#e2e8f0'}; border-radius:4px; padding:4px 8px; display:flex; align-items:flex-start; gap:6px; cursor:pointer;">
-                  <input type="checkbox" class="action-plan-check-input" data-idx="${idx}" ${isChecked ? 'checked' : ''} style="cursor:pointer; margin-top:2px;">
-                  <div style="flex:1; text-decoration:${isChecked ? 'line-through' : 'none'}; color:${isChecked ? '#166534' : '#1e293b'};">
-                    <b style="color:${isChecked ? '#166534' : '#0f172a'}; margin-right:4px;">${idx + 1}.</b> ${formattedItem}
+            <div id="body-action-plan-items" style="font-size:11.5px; color:#1e293b; display:flex; flex-direction:column; gap:5px; margin-top:6px;">
+              ${actionPlan.items.map((item, idx) => {
+                const isChecked = !!(actionPlan.completedMap && actionPlan.completedMap[idx]);
+                let formattedItem = escapeHtml(item);
+                return `
+                  <div class="action-plan-item-box" data-item-idx="${idx}" style="line-height:1.4; background:${isChecked ? '#f0fdf4' : '#ffffff'}; border:1px solid ${isChecked ? '#86efac' : '#cbd5e1'}; border-radius:4px; padding:5px 8px; display:flex; align-items:flex-start; gap:6px; cursor:pointer; transition:all 0.15s ease;">
+                    <input type="checkbox" class="action-plan-check-input" data-idx="${idx}" ${isChecked ? 'checked' : ''} style="cursor:pointer; margin-top:2px; transform:scale(1.1);">
+                    <div style="flex:1; text-decoration:${isChecked ? 'line-through' : 'none'}; color:${isChecked ? '#166534' : '#1e293b'};">
+                      <b style="color:${isChecked ? '#166534' : '#0f172a'}; margin-right:4px;">${idx + 1}.</b> ${formattedItem}
+                    </div>
                   </div>
-                </div>
-              `;
-            }).join('')}
+                `;
+              }).join('')}
+            </div>
           </div>
-        </div>
-      ` : ''}
+        `;
+      })() : ''}
 
       <!-- 🌟 3. Etherpad 在线协同富文本编辑器主体 (撑满整个画布) -->
       <div style="flex:1; height:100%; min-height:480px; display:flex; flex-direction:column; margin-bottom:6px;">
