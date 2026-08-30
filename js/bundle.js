@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260831_v974
+ * Version: 20260831_v975
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260831_v974';
+  const APP_VERSION = '20260831_v975';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -13103,9 +13103,10 @@
               return;
             }
           }
-          // 2.5 【一审后静默跟进】：一审发出后若讨论区冷场超 3 分钟，温和提示随时 @ 咨询（全场严格仅 1 次，仅在未进入半程会议及后续阶段前生效）
-          const firstReviewMsgObj = [...s2Chats].reverse().find(m => m && m.sender === 'reviewingEditor' && (m.text?.includes('一审破题把脉') || m.text?.includes('Research Gap') || m.text?.includes('审稿编辑·一审')));
-          const hasFirstReviewSilenceFollowed = s2Chats.some(m => m && m.sender === 'reviewingEditor' && (m.text?.includes('初审跟进提示') || m.text?.includes('初审微调建议已送达')));
+          // ======================================================================
+          // 📌 质检/讨论梯度 A：审稿编辑建议讨论（3 / 6 / 10 分钟三梯度）
+          // ======================================================================
+          const lastReviewMsgObj = [...s2Chats].reverse().find(m => m && m.sender === 'reviewingEditor' && (m.text?.includes('一审破题把脉') || m.text?.includes('二审') || m.text?.includes('审稿编辑·一审') || m.text?.includes('审稿编辑·二审')));
           const hasPassedToSubsequentStages = s2Chats.some(m => m && (
             m.text?.includes('半程研讨号召') || 
             m.text?.includes('半程会议号召') || 
@@ -13113,12 +13114,12 @@
             m.text?.includes('半程修正清单') || 
             m.text?.includes('终稿行文扫描') || 
             m.text?.includes('终审定稿总评')
-          )) || !!s2.meetingStep || !!s2.isDraftConfirmed || (plainTextLen >= (isLargeTask ? 4500 : 2150));
+          )) || !!s2.meetingStep || !!s2.isDraftConfirmed;
 
-          if (firstReviewMsgObj && !hasFirstReviewSilenceFollowed && !hasPassedToSubsequentStages) {
-            let reviewTime = firstReviewMsgObj._timeMs;
-            if (!reviewTime && firstReviewMsgObj.timestamp) {
-              const parts = String(firstReviewMsgObj.timestamp).split(':');
+          if (lastReviewMsgObj && !hasPassedToSubsequentStages) {
+            let reviewTime = lastReviewMsgObj._timeMs;
+            if (!reviewTime && lastReviewMsgObj.timestamp) {
+              const parts = String(lastReviewMsgObj.timestamp).split(':');
               if (parts.length >= 2) {
                 const d = new Date();
                 d.setHours(parseInt(parts[0], 10), parseInt(parts[1], 10), 0, 0);
@@ -13130,33 +13131,73 @@
             const lastStudentMsgAfterReview = studentMsgAfterReview.length > 0 ? studentMsgAfterReview[studentMsgAfterReview.length - 1] : null;
             const silenceAfterReview = lastStudentMsgAfterReview ? (now - Number(lastStudentMsgAfterReview._timeMs || 0)) : reviewElapsed;
 
-            if (reviewElapsed >= 180000 && silenceAfterReview >= 180000) { // 严格 3 分钟静默
-              s2.firstReviewSilenceSent = true;
-              const followMsg = {
-                sender: 'reviewingEditor',
-                senderName: '学术质量 · 审稿编辑',
-                text: `📝 【审稿编辑·初审跟进提示】：初审微调建议已送达！大家若对概念界定、文献引向或后续章节衔接有疑问，随时在讨论区 @审稿编辑 咨询，全组继续稳步协同推进！`,
-                timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                _timeMs: now
-              };
-              if (!this.state.chatLogs.stage2) this.state.chatLogs.stage2 = [];
-              this.state.chatLogs.stage2.push(followMsg);
-              this.syncChatLogs();
-              this.syncStage2();
-              if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
-              renderChat(this.state);
-              return;
+            // ── ① 3 分钟梯度：初审跟进提示 ──
+            if (reviewElapsed >= 180000 && silenceAfterReview >= 180000 && silenceAfterReview < 360000) {
+              const nudgeKey = 's2_review_silence_3m';
+              if (!this._nudgeCounts[nudgeKey]) {
+                this._nudgeCounts[nudgeKey] = 1;
+                const followMsg = {
+                  sender: 'reviewingEditor',
+                  senderName: '学术质量 · 审稿编辑',
+                  text: `📝 【审稿编辑·初审跟进提示】：初审微调建议已送达！大家若对概念界定、文献引向或后续章节衔接有疑问，随时在讨论区 @审稿编辑 咨询，全组继续稳步协同推进！`,
+                  timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                  _timeMs: now
+                };
+                if (!this.state.chatLogs.stage2) this.state.chatLogs.stage2 = [];
+                this.state.chatLogs.stage2.push(followMsg);
+                this.syncChatLogs();
+                if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+                renderChat(this.state);
+                return;
+              }
+            }
+
+            // ── ② 6 分钟梯度：建议研讨催促 ──
+            if (reviewElapsed >= 360000 && silenceAfterReview >= 360000 && silenceAfterReview < 600000) {
+              const nudgeKey = 's2_review_silence_6m';
+              if (!this._nudgeCounts[nudgeKey]) {
+                this._nudgeCounts[nudgeKey] = 1;
+                const followMsg = {
+                  sender: 'reviewingEditor',
+                  senderName: '学术质量 · 审稿编辑',
+                  text: `⏳ 【审稿编辑·修改落实催促】：评审建议已下发 6 分钟，请负责相应章节的同学在讨论区交流修改思路，并在正文中着手落实完善！`,
+                  timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                  _timeMs: now
+                };
+                if (!this.state.chatLogs.stage2) this.state.chatLogs.stage2 = [];
+                this.state.chatLogs.stage2.push(followMsg);
+                this.syncChatLogs();
+                if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+                renderChat(this.state);
+                return;
+              }
+            }
+
+            // ── ③ 10 分钟梯度：强兜底智能推进 ──
+            if (reviewElapsed >= 600000 && silenceAfterReview >= 600000) {
+              const nudgeKey = 's2_review_silence_10m';
+              if (!this._nudgeCounts[nudgeKey]) {
+                this._nudgeCounts[nudgeKey] = 1;
+                const followMsg = {
+                  sender: 'managingEditor',
+                  senderName: '协同调度 · 责任编辑',
+                  text: `🤖 【责任编辑·阶段进度推进】：评审建议研讨时间已达 10 分钟，请全组同学加快在 Etherpad 正文中的拟写进度，向半程成稿目标稳步推进！`,
+                  timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                  _timeMs: now
+                };
+                if (!this.state.chatLogs.stage2) this.state.chatLogs.stage2 = [];
+                this.state.chatLogs.stage2.push(followMsg);
+                this.syncChatLogs();
+                if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+                renderChat(this.state);
+                return;
+              }
             }
           }
 
-          // 3. 🎯 半程自查与互阅倡议（推进至【不足/反思】或阶段二时间已达 60%）
-          const times = (this.state.stage1 && this.state.stage1.contract && this.state.stage1.contract.timeAllocations) ? this.state.stage1.contract.timeAllocations : {};
-          const totalPlannedMin = (times.background || 25) + (times.literature || 30) + (times.questions || 25) + (times.method || 40) + (times.reflection || 20) + (times.references || 10);
-          const totalPlannedMs = totalPlannedMin * 60 * 1000;
-          const isTimeOver60Pct = stage2DurationMs >= (totalPlannedMs * 0.6);
-          const hasReachedReflection = /(?:五、|第5章|第五部分|不足与反思|研究反思|反思与不足|总结与反思|研究局限)/i.test(s2.unifiedContent || '');
-
-          // 3. 【半程研讨与一致性讨论 3 / 6 / 10 分钟三级阶梯静默守护】
+          // ======================================================================
+          // 📌 质检/讨论梯度 B：半程会议自查打卡（3 分钟单次提醒）
+          // ======================================================================
           const lastMeetingMsg = [...s2Chats].reverse().find(m => m && m.sender === 'managingEditor' && (m.text?.includes('半程研讨号召') || m.text?.includes('半程会议号召') || m.text?.includes('半程自查')));
           const isMeetingActive = (lastMeetingMsg || s2.meetingStep) && s2.meetingStep !== 'completed' && !s2.isDraftConfirmed;
 
@@ -13171,9 +13212,6 @@
               }
             }
             const meetingElapsed = meetingMsgTime ? (now - meetingMsgTime) : silenceDurationMs;
-            const studentMsgAfterMeeting = s2Chats.filter(m => m && m.sender && m.sender !== 'managingEditor' && m.sender !== 'reviewingEditor' && m.sender !== 'system' && Number(m._timeMs || 0) > (meetingMsgTime || 0));
-            const lastStudentMsgAfterMeeting = studentMsgAfterMeeting.length > 0 ? studentMsgAfterMeeting[studentMsgAfterMeeting.length - 1] : null;
-            const silenceAfterMeeting = lastStudentMsgAfterMeeting ? (now - Number(lastStudentMsgAfterMeeting._timeMs || 0)) : meetingElapsed;
 
             const subs = s2.meetingSubmissions || {};
             const unsubmittedMembers = membersList.filter(m => {
@@ -13185,19 +13223,15 @@
             const hasUnsubmitted = unsubmittedMembers.length > 0;
             const unsubmittedNames = unsubmittedMembers.map(m => m.name || m.username || m.studentCode).join('、');
 
-            // ── ① 3 分钟（180,000ms）阶梯：破冰引导 ──
-            if (meetingElapsed >= 180000 && silenceAfterMeeting >= 180000 && silenceAfterMeeting < 360000) {
-              const nudgeKey = 's2_meeting_silence_3m';
+            // ── 半程打卡：仅 3 分钟（180,000ms）单次点名催促 ──
+            if (hasUnsubmitted && meetingElapsed >= 180000) {
+              const nudgeKey = 's2_meeting_checkin_3m';
               if (!this._nudgeCounts[nudgeKey]) {
                 this._nudgeCounts[nudgeKey] = 1;
-                const text = hasUnsubmitted
-                  ? `🤝 【责任编辑·半程会议参与提示】：半程学术审计会议已号召发起 3 分钟啦！目前组内打卡进度为【${submittedCount}/${totalCount} 人】，看到 ${unsubmittedNames} 同学尚未完成打卡。请尚未打卡的同学点击上方【📢 发起会议 / 打卡】按钮通读全篇完成自查，全员打卡后系统将自动为大家汇总生成《半程修正清单》！`
-                  : `🤝 【责任编辑·一致性研讨点拨】：全组已顺利完成自查打卡！请大家针对清单中的修改分工（如前后逻辑衔接、术语规范与论证深度）在讨论区充分交流，商定具体修改方案哦～`;
-
                 const msg = {
                   sender: 'managingEditor',
                   senderName: '协同调度 · 责任编辑',
-                  text: text,
+                  text: `🤝 【责任编辑·半程会议参与提示】：半程学术审计会议已号召发起 3 分钟啦！目前组内打卡进度为【${submittedCount}/${totalCount} 人】，看到 ${unsubmittedNames} 同学尚未完成打卡。请尚未打卡的同学点击上方【📢 发起会议 / 打卡】按钮通读全篇完成自查，全员打卡后系统将自动为大家汇总生成《半程修正清单》！`,
                   timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
                   _timeMs: now
                 };
@@ -13210,55 +13244,92 @@
               }
             }
 
-            // ── ② 6 分钟（360,000ms）阶梯：强化催促与收拢 ──
-            if (meetingElapsed >= 360000 && silenceAfterMeeting >= 360000 && silenceAfterMeeting < 600000) {
-              const nudgeKey = 's2_meeting_silence_6m';
-              if (!this._nudgeCounts[nudgeKey]) {
-                this._nudgeCounts[nudgeKey] = 1;
-                const btnName = (s2.meetingStep === 'discussing_checklist') ? '【📝 讨论差不多了？让审稿编辑总结】' : '【💡 讨论差不多了？让责任编辑总结】';
-                const text = hasUnsubmitted
-                  ? `⏳ 【责任编辑·打卡催促】：半程会议已发起 6 分钟，目前仍有 ${unsubmittedNames} 同学未完成打卡。请尽快通读全文并提交打卡，以便全组及时进入修正清单研讨！`
-                  : `⏳ 【责任编辑·研讨收拢提醒】：一致性研讨已进行 6 分钟！请全组同学抓紧商定各板块的修改方案。商量差不多后，请点击聊天框上方的 ${btnName} 按钮，系统将为大家一键提炼研讨要点并推进后续！`;
-
-                const msg = {
-                  sender: 'managingEditor',
-                  senderName: '协同调度 · 责任编辑',
-                  text: text,
-                  timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                  _timeMs: now
-                };
-                if (!this.state.chatLogs.stage2) this.state.chatLogs.stage2 = [];
-                this.state.chatLogs.stage2.push(msg);
-                this.syncChatLogs();
-                if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
-                renderChat(this.state);
-                return;
+            // ======================================================================
+            // 📌 质检/讨论梯度 C：一致性讨论（全员打卡后针对清单的 3 / 6 / 10 分钟三梯度）
+            // ======================================================================
+            if (!hasUnsubmitted) {
+              const checklistMsg = [...s2Chats].reverse().find(m => m && (m.text?.includes('半程修正清单') || m.text?.includes('半程编辑修正清单')));
+              let checklistTime = checklistMsg?._timeMs || meetingMsgTime;
+              if (!checklistTime && checklistMsg?.timestamp) {
+                const parts = String(checklistMsg.timestamp).split(':');
+                if (parts.length >= 2) {
+                  const d = new Date();
+                  d.setHours(parseInt(parts[0], 10), parseInt(parts[1], 10), 0, 0);
+                  checklistTime = d.getTime();
+                }
               }
-            }
+              const checklistElapsed = checklistTime ? (now - checklistTime) : meetingElapsed;
+              const studentMsgAfterChecklist = s2Chats.filter(m => m && m.sender && m.sender !== 'managingEditor' && m.sender !== 'reviewingEditor' && m.sender !== 'system' && Number(m._timeMs || 0) > (checklistTime || 0));
+              const lastStudentMsgAfterChecklist = studentMsgAfterChecklist.length > 0 ? studentMsgAfterChecklist[studentMsgAfterChecklist.length - 1] : null;
+              const silenceAfterChecklist = lastStudentMsgAfterChecklist ? (now - Number(lastStudentMsgAfterChecklist._timeMs || 0)) : checklistElapsed;
 
-            // ── ③ 10 分钟（600,000ms）阶梯：强兜底智能提炼与自动顺推 ──
-            if (meetingElapsed >= 600000 && silenceAfterMeeting >= 600000 && !this._s2MeetingAutoFallbackRunning) {
-              const nudgeKey = 's2_meeting_auto_fallback_10m';
-              if (!this._nudgeCounts[nudgeKey]) {
-                this._nudgeCounts[nudgeKey] = 1;
-                this._s2MeetingAutoFallbackRunning = true;
-                s2.meetingStep = 'completed';
+              // ── ① 3 分钟梯度：破冰引导点拨 ──
+              if (checklistElapsed >= 180000 && silenceAfterChecklist >= 180000 && silenceAfterChecklist < 360000) {
+                const nudgeKey = 's2_consistency_silence_3m';
+                if (!this._nudgeCounts[nudgeKey]) {
+                  this._nudgeCounts[nudgeKey] = 1;
+                  const msg = {
+                    sender: 'managingEditor',
+                    senderName: '协同调度 · 责任编辑',
+                    text: `🤝 【责任编辑·一致性研讨点拨】：全组已顺利完成自查打卡！请大家针对清单中的修改分工（如前后逻辑衔接、术语规范与论证深度）在讨论区充分交流，商定具体修改方案哦～`,
+                    timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                    _timeMs: now
+                  };
+                  if (!this.state.chatLogs.stage2) this.state.chatLogs.stage2 = [];
+                  this.state.chatLogs.stage2.push(msg);
+                  this.syncChatLogs();
+                  if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+                  renderChat(this.state);
+                  return;
+                }
+              }
 
-                const autoNoticeMsg = {
-                  sender: 'managingEditor',
-                  senderName: '协同调度 · 责任编辑',
-                  text: `🤖 【责任编辑·智能生成与收拢】：半程研讨时间已满 10 分钟，为确保正文推进节奏，责任编辑已结合全组自查清单与学术规范，自动为大家提炼形成【半程修改决议】！请全组同学按照决议分工，集中精力在正文中修改落实！`,
-                  timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                  _timeMs: now
-                };
-                if (!this.state.chatLogs.stage2) this.state.chatLogs.stage2 = [];
-                this.state.chatLogs.stage2.push(autoNoticeMsg);
-                this.syncChatLogs();
-                this.syncStage2();
-                if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
-                renderChat(this.state);
-                this._s2MeetingAutoFallbackRunning = false;
-                return;
+              // ── ② 6 分钟梯度：强化催促与收拢 ──
+              if (checklistElapsed >= 360000 && silenceAfterChecklist >= 360000 && silenceAfterChecklist < 600000) {
+                const nudgeKey = 's2_consistency_silence_6m';
+                if (!this._nudgeCounts[nudgeKey]) {
+                  this._nudgeCounts[nudgeKey] = 1;
+                  const btnName = (s2.meetingStep === 'discussing_checklist') ? '【📝 讨论差不多了？让审稿编辑总结】' : '【💡 讨论差不多了？让责任编辑总结】';
+                  const msg = {
+                    sender: 'managingEditor',
+                    senderName: '协同调度 · 责任编辑',
+                    text: `⏳ 【责任编辑·研讨收拢提醒】：一致性研讨已进行 6 分钟！请全组同学抓紧商定各板块的修改方案。商量差不多后，请点击聊天框上方的 ${btnName} 按钮，系统将为大家一键提炼研讨要点并推进后续！`,
+                    timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                    _timeMs: now
+                  };
+                  if (!this.state.chatLogs.stage2) this.state.chatLogs.stage2 = [];
+                  this.state.chatLogs.stage2.push(msg);
+                  this.syncChatLogs();
+                  if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+                  renderChat(this.state);
+                  return;
+                }
+              }
+
+              // ── ③ 10 分钟梯度：强兜底智能提炼与自动顺推 ──
+              if (checklistElapsed >= 600000 && silenceAfterChecklist >= 600000 && !this._s2MeetingAutoFallbackRunning) {
+                const nudgeKey = 's2_consistency_auto_fallback_10m';
+                if (!this._nudgeCounts[nudgeKey]) {
+                  this._nudgeCounts[nudgeKey] = 1;
+                  this._s2MeetingAutoFallbackRunning = true;
+                  s2.meetingStep = 'completed';
+
+                  const autoNoticeMsg = {
+                    sender: 'managingEditor',
+                    senderName: '协同调度 · 责任编辑',
+                    text: `🤖 【责任编辑·智能生成与收拢】：半程研讨时间已满 10 分钟，为确保正文推进节奏，责任编辑已结合全组自查清单与学术规范，自动为大家提炼形成【半程修改决议】！请全组同学按照决议分工，集中精力在正文中修改落实！`,
+                    timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                    _timeMs: now
+                  };
+                  if (!this.state.chatLogs.stage2) this.state.chatLogs.stage2 = [];
+                  this.state.chatLogs.stage2.push(autoNoticeMsg);
+                  this.syncChatLogs();
+                  this.syncStage2();
+                  if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+                  renderChat(this.state);
+                  this._s2MeetingAutoFallbackRunning = false;
+                  return;
+                }
               }
             }
           }
