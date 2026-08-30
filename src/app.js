@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260830_v854";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash } from "./utils.js?v=20260830_v854";
-import { callCozeAgentAPI } from "./agents.js?v=20260830_v854";
-import { AuthManager } from "./auth.js?v=20260830_v854";
-import { CloudSyncEngine } from "./sync.js?v=20260830_v854";
-import { renderLoginView } from "./login.js?v=20260830_v854";
-import { renderTeacherPortal } from "./teacher.js?v=20260830_v854";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260830_v854";
+} from "./constants.js?v=20260830_v855";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash } from "./utils.js?v=20260830_v855";
+import { callCozeAgentAPI } from "./agents.js?v=20260830_v855";
+import { AuthManager } from "./auth.js?v=20260830_v855";
+import { CloudSyncEngine } from "./sync.js?v=20260830_v855";
+import { renderLoginView } from "./login.js?v=20260830_v855";
+import { renderTeacherPortal } from "./teacher.js?v=20260830_v855";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260830_v855";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260830_v854";
+} from "./editor.js?v=20260830_v855";
 
 // Make renderChat available on window for sync callbacks
 if (typeof window !== "undefined") {
@@ -60,7 +60,7 @@ export class App {
     if (storedTeacherTab) this.state.teacherActiveTab = storedTeacherTab;
 
     const user = this.authManager.getCurrentUser();
-    const effectiveClassId = this.state.activeStudentClassId || user?.classId || 'class_101';
+    const effectiveClassId = (this.authManager ? this.authManager.getEffectiveStudentClassId(user, this.state.activeTaskId) : (this.state.activeStudentClassId || user?.classId || 'class_101'));
     const activeGroupObj = this.authManager.getStudentActiveGroup(user, effectiveClassId);
     const currentGroupId = activeGroupObj?.id || user?.groupId || 'group_1';
     this.loadGroupState(currentGroupId);
@@ -168,7 +168,7 @@ export class App {
     if (isTeacher) {
       return this.state.activeMonitorGroupId || 'group_1';
     }
-    const effectiveClassId = this.state.activeStudentClassId || user?.classId || 'class_101';
+    const effectiveClassId = (this.authManager ? this.authManager.getEffectiveStudentClassId(user, this.state.activeTaskId) : (this.state.activeStudentClassId || user?.classId || 'class_101'));
     const activeGroupObj = this.authManager ? this.authManager.getStudentActiveGroup(user, effectiveClassId) : null;
     return activeGroupObj?.id || user?.groupId || 'group_1';
   }
@@ -638,7 +638,7 @@ export class App {
         }
       );
     } else {
-      const effectiveClassId = this.state.activeStudentClassId || currentUser?.classId || 'class_101';
+      const effectiveClassId = this.authManager ? this.authManager.getEffectiveStudentClassId(currentUser, this.state.activeTaskId) : (this.state.activeStudentClassId || currentUser?.classId || 'class_101');
       const activeGroupObj = this.authManager.getStudentActiveGroup(currentUser, effectiveClassId);
       const currentGroupId = activeGroupObj.id || (currentUser && currentUser.groupId ? currentUser.groupId : 'group_1');
 
@@ -650,7 +650,7 @@ export class App {
             const actualTaskId = taskId || 'task_default';
             this.state.activeTaskId = actualTaskId;
             const targetTaskObj = (this.authManager ? this.authManager.getTasks() : []).find(t => t.id === actualTaskId);
-            const taskClassId = (targetTaskObj && targetTaskObj.classId) ? targetTaskObj.classId : (this.state.activeStudentClassId || currentUser?.classId || 'class_101');
+            const taskClassId = (targetTaskObj && targetTaskObj.classId) ? targetTaskObj.classId : (this.authManager ? this.authManager.getEffectiveStudentClassId(currentUser, this.state.activeTaskId) : (this.state.activeStudentClassId || currentUser?.classId || 'class_101'));
             this.state.activeStudentClassId = taskClassId;
 
             try {
@@ -1570,7 +1570,7 @@ ${recentChats}
     const activeTaskId = this.state.activeTaskId;
     if (!activeTaskId) return;
 
-    const effectiveClassId = this.state.activeStudentClassId || currentUser?.classId || 'class_101';
+    const effectiveClassId = this.authManager ? this.authManager.getEffectiveStudentClassId(currentUser, this.state.activeTaskId) : (this.state.activeStudentClassId || currentUser?.classId || "class_101");
     const classes = this.authManager.getClasses();
     const currentClassObj = classes.find(c => c.id === effectiveClassId);
     const effectiveClassName = currentClassObj ? currentClassObj.name : '';
@@ -1628,7 +1628,7 @@ ${recentChats}
   showAnnouncementModal(targetAnn = null, isSequentialFlow = false) {
     document.querySelectorAll('.modal-overlay').forEach(el => el.remove());
     const currentUser = this.authManager.getCurrentUser();
-    const effectiveClassId = this.state.activeStudentClassId || currentUser?.classId || 'class_101';
+    const effectiveClassId = this.authManager ? this.authManager.getEffectiveStudentClassId(currentUser, this.state.activeTaskId) : (this.state.activeStudentClassId || currentUser?.classId || "class_101");
     const classes = this.authManager.getClasses();
     const currentClassObj = classes.find(c => c.id === effectiveClassId);
     const effectiveClassName = currentClassObj ? currentClassObj.name : '';
@@ -3822,7 +3822,7 @@ ${propText}
           else if (this.state.members && typeof this.state.members === 'object') memberArr = Object.values(this.state.members);
           if (memberArr.length === 0 && this.authManager) {
             const u = this.authManager.getCurrentUser();
-            const effClassId = this.state.activeStudentClassId || u?.classId || 'class_101';
+            const effClassId = (this.authManager ? this.authManager.getEffectiveStudentClassId(u, this.state.activeTaskId) : (this.state.activeStudentClassId || u?.classId || 'class_101'));
             const effGroup = this.authManager.getStudentActiveGroup(u, effClassId);
             memberArr = this.authManager.getGroupMembersForWorkspace(effGroup?.id || 'group_1', effClassId);
           }
@@ -3967,7 +3967,7 @@ ${propText}
         else if (this.state.members && typeof this.state.members === 'object') memberArr = Object.values(this.state.members);
         if (memberArr.length === 0 && this.authManager) {
           const u = this.authManager.getCurrentUser();
-          const effClassId = this.state.activeStudentClassId || u?.classId || 'class_101';
+          const effClassId = (this.authManager ? this.authManager.getEffectiveStudentClassId(u, this.state.activeTaskId) : (this.state.activeStudentClassId || u?.classId || 'class_101'));
           const effGroup = this.authManager.getStudentActiveGroup(u, effClassId);
           memberArr = this.authManager.getGroupMembersForWorkspace(effGroup?.id || 'group_1');
         }
@@ -4071,7 +4071,7 @@ ${propText}
         else if (this.state.members && typeof this.state.members === 'object') memberArr = Object.values(this.state.members);
         if (memberArr.length === 0 && this.authManager) {
           const u = this.authManager.getCurrentUser();
-          const effClassId = this.state.activeStudentClassId || u?.classId || 'class_101';
+          const effClassId = (this.authManager ? this.authManager.getEffectiveStudentClassId(u, this.state.activeTaskId) : (this.state.activeStudentClassId || u?.classId || 'class_101'));
           const effGroup = this.authManager.getStudentActiveGroup(u, effClassId);
           memberArr = this.authManager.getGroupMembersForWorkspace(effGroup?.id || 'group_1');
         }
@@ -4227,7 +4227,7 @@ ${propText}
         else if (this.state.members && typeof this.state.members === 'object') memberArr = Object.values(this.state.members);
         if (memberArr.length === 0 && this.authManager) {
           const u = this.authManager.getCurrentUser();
-          const effClassId = this.state.activeStudentClassId || u?.classId || 'class_101';
+          const effClassId = (this.authManager ? this.authManager.getEffectiveStudentClassId(u, this.state.activeTaskId) : (this.state.activeStudentClassId || u?.classId || 'class_101'));
           const effGroup = this.authManager.getStudentActiveGroup(u, effClassId);
           memberArr = this.authManager.getGroupMembersForWorkspace(effGroup?.id || 'group_1');
         }

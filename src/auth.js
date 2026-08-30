@@ -14,8 +14,8 @@ import {
   DefaultTasks,
   DefaultAnnouncements,
   DefaultReferencePapers
-} from './constants.js?v=20260830_v854';
-import { formatExportDateTime, formatDurationHuman } from './utils.js?v=20260830_v854';
+} from './constants.js?v=20260830_v855';
+import { formatExportDateTime, formatDurationHuman } from './utils.js?v=20260830_v855';
 
 export class AuthManager {
   constructor() {
@@ -778,6 +778,50 @@ export class AuthManager {
       this.pushGlobalMeta();
       return newGroup;
     }
+  }
+
+  getEffectiveStudentClassId(user, activeTaskId = null) {
+    const classes = this.getClasses();
+    if (!Array.isArray(classes) || classes.length === 0) return 'class_101';
+
+    // 1. 若有指定任务，以该任务绑定的班级为最高准则
+    if (activeTaskId) {
+      const tasks = this.getTasks();
+      const curTask = tasks.find(t => t.id === activeTaskId);
+      if (curTask && curTask.classId && classes.some(c => c.id === curTask.classId)) {
+        return curTask.classId;
+      }
+    }
+
+    // 2. 若学生账号有明确的班级属性
+    if (user) {
+      if (user.classId && classes.some(c => c.id === user.classId)) return user.classId;
+      if (Array.isArray(user.classIds) && user.classIds.length > 0) {
+        const found = classes.find(c => user.classIds.includes(c.id));
+        if (found) return found.id;
+      }
+
+      // 3. 全局扫描学生真正加入的小组所属班级
+      const uId = user.id;
+      const uCode = user.studentCode;
+      const uUsername = user.username;
+      const uName = user.name;
+      for (const c of classes) {
+        if (!Array.isArray(c.groups)) continue;
+        for (const g of c.groups) {
+          const hasMember = (g.members || []).some(m => {
+            if (!m) return false;
+            if (typeof m === 'string') return m === uId || m === uCode || m === uUsername || m === uName;
+            if (typeof m === 'object') return (m.id && m.id === uId) || (m.studentCode && m.studentCode === uCode) || (m.username && m.username === uUsername) || (m.name && m.name === uName);
+            return false;
+          });
+          if (hasMember) return c.id;
+        }
+      }
+    }
+
+    // 4. 回退到第一个真实班级
+    return classes[0].id;
   }
 
   getStudentActiveGroup(user, classId = null) {

@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState } from './constants.js?v=20260830_v854';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal } from './utils.js?v=20260830_v854';
+import { InitialState } from './constants.js?v=20260830_v855';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal } from './utils.js?v=20260830_v855';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -27,7 +27,7 @@ export class CloudSyncEngine {
     if (isTeacher) {
       return this.app.state.activeMonitorGroupId || 'group_1';
     }
-    const effectiveClassId = this.app.state.activeStudentClassId || user?.classId || 'class_101';
+    const effectiveClassId = (this.app?.authManager ? this.app.authManager.getEffectiveStudentClassId(user, this.app?.state?.activeTaskId) : (this.app?.state?.activeStudentClassId || user?.classId || 'class_101'));
     const activeGroupObj = this.app.authManager ? this.app.authManager.getStudentActiveGroup(user, effectiveClassId) : null;
     return activeGroupObj?.id || user?.groupId || 'group_1';
   }
