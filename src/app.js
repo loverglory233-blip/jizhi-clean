@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260830_v896";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap } from "./utils.js?v=20260830_v896";
-import { callCozeAgentAPI } from "./agents.js?v=20260830_v896";
-import { AuthManager } from "./auth.js?v=20260830_v896";
-import { CloudSyncEngine } from "./sync.js?v=20260830_v896";
-import { renderLoginView } from "./login.js?v=20260830_v896";
-import { renderTeacherPortal } from "./teacher.js?v=20260830_v896";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260830_v896";
+} from "./constants.js?v=20260830_v897";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap } from "./utils.js?v=20260830_v897";
+import { callCozeAgentAPI } from "./agents.js?v=20260830_v897";
+import { AuthManager } from "./auth.js?v=20260830_v897";
+import { CloudSyncEngine } from "./sync.js?v=20260830_v897";
+import { renderLoginView } from "./login.js?v=20260830_v897";
+import { renderTeacherPortal } from "./teacher.js?v=20260830_v897";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260830_v897";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260830_v896";
+} from "./editor.js?v=20260830_v897";
 
 // Make renderChat available on window for sync callbacks
 if (typeof window !== "undefined") {
@@ -132,6 +132,25 @@ export class App {
               this.showTaskRevokedModal(delTaskTitle);
             } else if (this.state.studentViewMode === 'task_list') {
               this.renderMain();
+            }
+          }
+
+          // 3. 教师发布教学通知（秒级拉取并在工作台即时弹出）
+          if (e.data.type === 'announcement_created') {
+            if (this.authManager && this.authManager.pullGlobalMeta) {
+              this.authManager.pullGlobalMeta().then(() => {
+                if (this.state.studentViewMode === 'workspace') {
+                  this.checkUnreadAnnouncements();
+                }
+                this.renderHeader();
+              }).catch(() => {});
+            }
+          }
+
+          // 4. 教师更新问卷配置
+          if (e.data.type === 'survey_updated') {
+            if (this.authManager && this.authManager.pullGlobalMeta) {
+              this.authManager.pullGlobalMeta().catch(() => {});
             }
           }
         };
@@ -1745,12 +1764,16 @@ export class App {
           const tObj = allTasks.find(t => t.id === a.taskId);
           if (tObj && isTaskExpired(tObj)) return false;
         }
-        const matchClass = !a.classId || a.classId === 'all' || (a.classId === effectiveClassId) || 
+        const matchClass = !a.classId || a.classId === 'all' || 
+                           (effectiveClassId && a.classId === effectiveClassId) || 
+                           (currentUser?.classId && a.classId === currentUser.classId) ||
                            (effectiveClassName && a.className === effectiveClassName) ||
-                           (Array.isArray(a.targetClassIds) && (a.targetClassIds.includes('all') || a.targetClassIds.includes(effectiveClassId)));
-        const matchGroup = !a.targetGroupId || a.targetGroupId === 'all' || a.targetGroupId === groupId ||
-          (Array.isArray(a.targetGroupIds) && (a.targetGroupIds.includes('all') || a.targetGroupIds.includes(groupId)));
-        const matchTask = !a.taskId || a.taskId === 'task_all' || a.taskId === activeTaskId || (!a.taskId && activeTaskId === 'task_default');
+                           (Array.isArray(a.targetClassIds) && (a.targetClassIds.includes('all') || (effectiveClassId && a.targetClassIds.includes(effectiveClassId)) || (currentUser?.classId && a.targetClassIds.includes(currentUser.classId))));
+        
+        const matchGroup = !a.targetGroupId || a.targetGroupId === 'all' || a.targetGroupId === groupId || a.targetGroupId === (currentUser && currentUser.groupId) ||
+          (Array.isArray(a.targetGroupIds) && (a.targetGroupIds.includes('all') || a.targetGroupIds.includes(groupId) || (currentUser?.groupId && a.targetGroupIds.includes(currentUser.groupId))));
+        
+        const matchTask = !a.taskId || a.taskId === 'task_all' || a.taskId === 'all' || a.taskId === activeTaskId || (!a.taskId && activeTaskId === 'task_default');
         return matchClass && matchGroup && matchTask && !isAnnRead(a);
       })
       .sort((a, b) => (b.id > a.id ? 1 : -1));
@@ -1799,12 +1822,16 @@ export class App {
       .filter(a => {
         if (!a) return false;
         if (isExtensionNotice(a)) return false; // 🚫 彻底屏蔽延期通知混入通知中心
-        const matchClass = !a.classId || a.classId === 'all' || (a.classId === effectiveClassId) || 
+        const matchClass = !a.classId || a.classId === 'all' || 
+                           (effectiveClassId && a.classId === effectiveClassId) || 
+                           (currentUser?.classId && a.classId === currentUser.classId) ||
                            (effectiveClassName && a.className === effectiveClassName) ||
-                           (Array.isArray(a.targetClassIds) && (a.targetClassIds.includes('all') || a.targetClassIds.includes(effectiveClassId)));
-        const matchGroup = !a.targetGroupId || a.targetGroupId === 'all' || a.targetGroupId === groupId ||
-          (Array.isArray(a.targetGroupIds) && (a.targetGroupIds.includes('all') || a.targetGroupIds.includes(groupId)));
-        const matchTask = !a.taskId || a.taskId === 'task_all' || a.taskId === activeTaskId || (!a.taskId && activeTaskId === 'task_default');
+                           (Array.isArray(a.targetClassIds) && (a.targetClassIds.includes('all') || (effectiveClassId && a.targetClassIds.includes(effectiveClassId)) || (currentUser?.classId && a.targetClassIds.includes(currentUser.classId))));
+        
+        const matchGroup = !a.targetGroupId || a.targetGroupId === 'all' || a.targetGroupId === groupId || a.targetGroupId === (currentUser && currentUser.groupId) ||
+          (Array.isArray(a.targetGroupIds) && (a.targetGroupIds.includes('all') || a.targetGroupIds.includes(groupId) || (currentUser?.groupId && a.targetGroupIds.includes(currentUser.groupId))));
+        
+        const matchTask = !a.taskId || a.taskId === 'task_all' || a.taskId === 'all' || a.taskId === activeTaskId || (!a.taskId && activeTaskId === 'task_default');
         return matchClass && matchGroup && matchTask;
       })
       .sort((a, b) => (b.id > a.id ? 1 : -1));
