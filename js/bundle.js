@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260830_v765
+ * Version: 20260830_v766
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260830_v765';
+  const APP_VERSION = '20260830_v766';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -7814,39 +7814,6 @@
     const activeGroupObj = authManager.getStudentActiveGroup(currentUser, userClass.id);
     const groupId = activeGroupObj.id || 'group_1';
     const groupName = activeGroupObj.name || '第 1 协作小组';
-
-    const isExtensionNotice = (a) => !!(a && (a.isExtension || a.title?.includes('延期通知') || a.title?.includes('时间已延长') || a.title?.includes('延长至')));
-
-    // 📋 3. 任务大厅严格只保留与统计【本班级】的【任务延长信息】
-    const relevantAnnouncements = (announcements || []).filter(a => {
-      if (!a || !isExtensionNotice(a)) return false;
-      const matchClass = (a.classId === userClass.id) || 
-                         (a.className && a.className === userClass.name) || 
-                         (Array.isArray(a.targetClassIds) && a.targetClassIds.includes(userClass.id));
-      return matchClass;
-    });
-
-    const isAnnRead = (a) => {
-      if (!a || !a.readStatus) return false;
-      if (currentUser) {
-        if (currentUser.id && a.readStatus[currentUser.id]) return true;
-        if (currentUser.studentCode && a.readStatus[currentUser.studentCode]) return true;
-        if (currentUser.username && a.readStatus[currentUser.username]) return true;
-        if (currentUser.name && a.readStatus[currentUser.name]) return true;
-        if (Array.isArray(a.confirmedMembers)) {
-          if (a.confirmedMembers.some(m => m && (m.id === currentUser.id || m.studentCode === currentUser.studentCode || (currentUser.name && m.name === currentUser.name)))) return true;
-        }
-      }
-      return false;
-    };
-
-    const unreadAnnCount = relevantAnnouncements.filter(a => {
-      if (a.taskId && a.taskId !== 'task_all') {
-        const tObj = tasks.find(t => t.id === a.taskId);
-        if (tObj && isTaskExpired(tObj)) return false;
-      }
-      return !isAnnRead(a);
-    }).length;
 
     const relevantTasks = tasks.filter(t => {
       return t.classId === userClass.id || (t.className && t.className === userClass.name) || (!t.classId && userClass.id === 'class_101');
