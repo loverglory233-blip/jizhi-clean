@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260830_v776
+ * Version: 20260830_v777
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260830_v776';
+  const APP_VERSION = '20260830_v777';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -2799,7 +2799,15 @@
       const prevExpired = isTaskExpired(prevDeadline);
       const nowExpired = isTaskExpired(t.deadline);
       const isWorkspace = (this.app.state.studentViewMode === 'workspace' || !!document.getElementById('chat-stream') || !!document.querySelector('.app-layout'));
-      const isCurrentTask = isWorkspace && (this.app.state.activeTaskId === t.id || (!this.app.state.activeTaskId && (t.id === 'task_default' || t.id.includes('default'))));
+      const badgeText = document.querySelector('.brand-badge')?.innerText || '';
+      const isCurrentTask = isWorkspace && (
+        !this.app.state.activeTaskId ||
+        this.app.state.activeTaskId === t.id ||
+        (t.title && this.app.state.activeTaskId === t.title) ||
+        (t.id && t.id.includes('default')) ||
+        (this.app.state.activeTaskId && this.app.state.activeTaskId.includes('default')) ||
+        (t.title && badgeText.includes(t.title))
+      );
       const isTaskHall = !isWorkspace || this.app.state.studentViewMode === 'task_list';
 
       if (isCurrentTask) {
@@ -3137,6 +3145,9 @@
             if (oldDeadline !== undefined && t.deadline && oldDeadline !== t.deadline) {
               this._knownTaskDeadlines[t.id] = t.deadline;
               this.handleTaskDeadlineChange(t, oldDeadline);
+            } else if (oldDeadline === undefined && t.lastExtension && (Date.now() - (t.lastExtension.extendedAt || 0) < 180000)) {
+              this._knownTaskDeadlines[t.id] = t.deadline;
+              this.handleTaskDeadlineChange(t, '');
             } else if (t.deadline) {
               this._knownTaskDeadlines[t.id] = t.deadline;
             }
