@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260831_v979";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch } from "./utils.js?v=20260831_v979";
-import { callCozeAgentAPI } from "./agents.js?v=20260831_v979";
-import { AuthManager } from "./auth.js?v=20260831_v979";
-import { CloudSyncEngine } from "./sync.js?v=20260831_v979";
-import { renderLoginView } from "./login.js?v=20260831_v979";
-import { renderTeacherPortal } from "./teacher.js?v=20260831_v979";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260831_v979";
+} from "./constants.js?v=20260831_v980";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch } from "./utils.js?v=20260831_v980";
+import { callCozeAgentAPI } from "./agents.js?v=20260831_v980";
+import { AuthManager } from "./auth.js?v=20260831_v980";
+import { CloudSyncEngine } from "./sync.js?v=20260831_v980";
+import { renderLoginView } from "./login.js?v=20260831_v980";
+import { renderTeacherPortal } from "./teacher.js?v=20260831_v980";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260831_v980";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260831_v979";
+} from "./editor.js?v=20260831_v980";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -1042,15 +1042,8 @@ export class App {
       const membersList = Object.values(this.state.members || {});
       const presenceMap = this.state.presence || {};
       
-      const onlineMembers = membersList.filter(m => {
-        const p = presenceMap[m.studentCode] || presenceMap[m.id];
-        return p && (now - (p.updatedAt || 0) < 180000); // 放宽到 3 分钟：后台标签页心跳会被浏览器节流（约 1 分钟 1 次），60 秒窗口会误判在场同学为离线
-      });
-
       const stage = this.state.currentStage;
       const totalMembersCount = membersList.length;
-      const activeMembersCount = onlineMembers.length;
-      if (activeMembersCount < 1 && membersList.length > 0) return; // 组内无人则跳过
 
       // ======================================================================
       // 🧠 SSRL 情绪挫败检测与社会性调节支持机制 (带 45s 同伴互助留白保护)

@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260831_v979
+ * Version: 20260831_v980
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260831_v979';
+  const APP_VERSION = '20260831_v980';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -12656,15 +12656,8 @@
         const membersList = Object.values(this.state.members || {});
         const presenceMap = this.state.presence || {};
 
-        const onlineMembers = membersList.filter(m => {
-          const p = presenceMap[m.studentCode] || presenceMap[m.id];
-          return p && (now - (p.updatedAt || 0) < 180000); // 放宽到 3 分钟：后台标签页心跳会被浏览器节流（约 1 分钟 1 次），60 秒窗口会误判在场同学为离线
-        });
-
         const stage = this.state.currentStage;
         const totalMembersCount = membersList.length;
-        const activeMembersCount = onlineMembers.length;
-        if (activeMembersCount < 1 && membersList.length > 0) return; // 组内无人则跳过
 
         // ======================================================================
         // 🧠 SSRL 情绪挫败检测与社会性调节支持机制 (带 45s 同伴互助留白保护)
