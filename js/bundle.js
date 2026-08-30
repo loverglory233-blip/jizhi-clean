@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260830_v900
+ * Version: 20260830_v901
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260830_v900';
+  const APP_VERSION = '20260830_v901';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -7408,12 +7408,16 @@
 
           const taskId = modal.querySelector('#modal-ann-task').value;
           if (!taskId || taskId === 'task_all' || taskId === 'task_default') {
-            alert('⚠️ 请先为当前班级创建具体写作任务，通知必须锁定关联至具体任务！');
+            alert('❌ 发布失败：请先为当前班级创建具体写作任务，通知必须锁定关联至具体任务！');
+            submitBtn.disabled = false;
+            submitBtn.innerText = '📢 确认发布通知';
             return;
           }
           const checkedGroupCbs = Array.from(groupsContainer.querySelectorAll('input[type="checkbox"]:checked'));
           if (checkedGroupCbs.length === 0) {
-            alert('⚠️ 请至少勾选一个接收通知的受众小组！');
+            alert('❌ 发布失败：请至少勾选一个接收通知的受众小组！');
+            submitBtn.disabled = false;
+            submitBtn.innerText = '📢 确认发布通知';
             return;
           }
           const allGroups = (selClassObj && selClassObj.groups) ? selClassObj.groups : [];
@@ -7639,7 +7643,7 @@
 
             const targetTaskId = modal.querySelector('#modal-paper-task') ? modal.querySelector('#modal-paper-task').value : '';
             if (!targetTaskId || targetTaskId === 'task_all' || targetTaskId === 'task_default') {
-              alert('⚠️ 请先为当前班级创建具体写作任务，参考文献必须锁定关联至具体任务！');
+              alert('❌ 上传失败：请先为当前班级创建具体写作任务，参考文献必须锁定关联至具体任务！');
               submitBtn.disabled = false;
               submitBtn.innerText = '📚 确认上传并存入范文库';
               return;
@@ -7647,7 +7651,9 @@
 
             const checkedGroupCbs = Array.from(paperGroupsContainer.querySelectorAll('input[type="checkbox"]:checked'));
             if (checkedGroupCbs.length === 0) {
-              alert('⚠️ 请至少勾选一个接收文献的受众小组！');
+              alert('❌ 上传失败：请至少勾选一个接收文献的受众小组！');
+              submitBtn.disabled = false;
+              submitBtn.innerText = '📚 确认上传并存入范文库';
               return;
             }
             const allGroups = (selClassObj && selClassObj.groups) ? selClassObj.groups : [];

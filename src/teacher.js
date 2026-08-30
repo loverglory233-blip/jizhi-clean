@@ -9,8 +9,8 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260830_v900";
-import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, showGlobalBannerNotice } from "./utils.js?v=20260830_v900";
+} from "./constants.js?v=20260830_v901";
+import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, showGlobalBannerNotice } from "./utils.js?v=20260830_v901";
 
 /* ==========================================================================
    7. TEACHER PORTAL RENDERER (LIVE WORKSPACE MIRROR & ANNOUNCEMENT READ MATRIX)
@@ -3245,12 +3245,16 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
         
         const taskId = modal.querySelector('#modal-ann-task').value;
         if (!taskId || taskId === 'task_all' || taskId === 'task_default') {
-          alert('⚠️ 请先为当前班级创建具体写作任务，通知必须锁定关联至具体任务！');
+          alert('❌ 发布失败：请先为当前班级创建具体写作任务，通知必须锁定关联至具体任务！');
+          submitBtn.disabled = false;
+          submitBtn.innerText = '📢 确认发布通知';
           return;
         }
         const checkedGroupCbs = Array.from(groupsContainer.querySelectorAll('input[type="checkbox"]:checked'));
         if (checkedGroupCbs.length === 0) {
-          alert('⚠️ 请至少勾选一个接收通知的受众小组！');
+          alert('❌ 发布失败：请至少勾选一个接收通知的受众小组！');
+          submitBtn.disabled = false;
+          submitBtn.innerText = '📢 确认发布通知';
           return;
         }
         const allGroups = (selClassObj && selClassObj.groups) ? selClassObj.groups : [];
@@ -3476,7 +3480,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
 
           const targetTaskId = modal.querySelector('#modal-paper-task') ? modal.querySelector('#modal-paper-task').value : '';
           if (!targetTaskId || targetTaskId === 'task_all' || targetTaskId === 'task_default') {
-            alert('⚠️ 请先为当前班级创建具体写作任务，参考文献必须锁定关联至具体任务！');
+            alert('❌ 上传失败：请先为当前班级创建具体写作任务，参考文献必须锁定关联至具体任务！');
             submitBtn.disabled = false;
             submitBtn.innerText = '📚 确认上传并存入范文库';
             return;
@@ -3484,7 +3488,9 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
           
           const checkedGroupCbs = Array.from(paperGroupsContainer.querySelectorAll('input[type="checkbox"]:checked'));
           if (checkedGroupCbs.length === 0) {
-            alert('⚠️ 请至少勾选一个接收文献的受众小组！');
+            alert('❌ 上传失败：请至少勾选一个接收文献的受众小组！');
+            submitBtn.disabled = false;
+            submitBtn.innerText = '📚 确认上传并存入范文库';
             return;
           }
           const allGroups = (selClassObj && selClassObj.groups) ? selClassObj.groups : [];
