@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260831_v961";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch } from "./utils.js?v=20260831_v961";
-import { callCozeAgentAPI } from "./agents.js?v=20260831_v961";
-import { AuthManager } from "./auth.js?v=20260831_v961";
-import { CloudSyncEngine } from "./sync.js?v=20260831_v961";
-import { renderLoginView } from "./login.js?v=20260831_v961";
-import { renderTeacherPortal } from "./teacher.js?v=20260831_v961";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260831_v961";
+} from "./constants.js?v=20260831_v962";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch } from "./utils.js?v=20260831_v962";
+import { callCozeAgentAPI } from "./agents.js?v=20260831_v962";
+import { AuthManager } from "./auth.js?v=20260831_v962";
+import { CloudSyncEngine } from "./sync.js?v=20260831_v962";
+import { renderLoginView } from "./login.js?v=20260831_v962";
+import { renderTeacherPortal } from "./teacher.js?v=20260831_v962";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260831_v962";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260831_v961";
+} from "./editor.js?v=20260831_v962";
 
 // Make renderChat available on window for sync callbacks
 if (typeof window !== "undefined") {
@@ -388,10 +388,13 @@ export class App {
       const getVal = (m) => {
         if (!m) return 0;
         const keys = [m.studentCode, m.id, m.username, m.name].filter(Boolean);
+        let maxVal = 0;
         for (const k of keys) {
-          if (contribs[k] !== undefined && Number(contribs[k]) > 0) return Number(contribs[k]);
+          if (contribs[k] !== undefined && Number(contribs[k]) > maxVal) {
+            maxVal = Number(contribs[k]);
+          }
         }
-        return 0;
+        return maxVal;
       };
 
       let rawTotal = 0;

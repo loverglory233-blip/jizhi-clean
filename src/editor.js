@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles } from "./constants.js?v=20260831_v961";
-import { callCozeAgentAPI } from "./agents.js?v=20260831_v961";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap } from "./utils.js?v=20260831_v961";
+import { AgentProfiles } from "./constants.js?v=20260831_v962";
+import { callCozeAgentAPI } from "./agents.js?v=20260831_v962";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap } from "./utils.js?v=20260831_v962";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -2034,7 +2034,14 @@ function renderStage2Canvas(canvas, state, handlers) {
 
   const getMemberContribVal = (contribs, m) => {
     if (!contribs || !m) return 0;
-    return Number(contribs[m.studentCode] || contribs[m.id] || contribs[m.username] || (m.name ? contribs[m.name] : 0) || 0);
+    const keys = [m.studentCode, m.id, m.username, m.name].filter(Boolean);
+    let maxVal = 0;
+    for (const k of keys) {
+      if (contribs[k] !== undefined && Number(contribs[k]) > maxVal) {
+        maxVal = Number(contribs[k]);
+      }
+    }
+    return maxVal;
   };
 
   const updateContribDom = () => {
@@ -2111,12 +2118,24 @@ function renderStage2Canvas(canvas, state, handlers) {
 
         const delta = (wordCount > prevLen) ? (wordCount - prevLen) : ((wordCount > 0 && rawTotal === 0) ? wordCount : 0);
         if (delta > 0) {
-          // 🚀 乐观即时更新前端内存并重绘 DOM
-          const effectiveCode = currUserObj?.studentCode || currUserObj?.id || currUserCode;
-          contribs[effectiveCode] = (contribs[effectiveCode] || 0) + delta;
+          const matchedMember = membersList.find(m => {
+            if (!m) return false;
+            if (currUser && (m.id === currUser.id || m.studentCode === currUser.studentCode || m.username === currUser.username || (m.name && m.name === currUser.name))) return true;
+            if (state.currentUser && (m.id === state.currentUser || m.studentCode === state.currentUser || m.username === state.currentUser || m.name === state.currentUser)) return true;
+            return false;
+          }) || membersList[0];
+
+          const curVal = getMemberContribVal(contribs, matchedMember);
+          const newVal = curVal + delta;
+
+          const keysToUpdate = [matchedMember?.studentCode, matchedMember?.id, matchedMember?.username, matchedMember?.name, currUser?.studentCode, currUser?.id, currUserCode].filter(Boolean);
+          keysToUpdate.forEach(k => {
+            contribs[k] = newVal;
+          });
           updateContribDom();
 
           // 📡 异步持久化到服务端双表
+          const reportCode = matchedMember?.studentCode || matchedMember?.id || currUser?.studentCode || currUserCode;
           fetch(`sync.php?action=report_member_contrib&groupId=${encodeURIComponent(userGroupId)}&taskId=${encodeURIComponent(activeTaskId)}&classId=${encodeURIComponent(userClassId)}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -2124,11 +2143,14 @@ function renderStage2Canvas(canvas, state, handlers) {
               taskId: activeTaskId,
               classId: userClassId,
               groupId: userGroupId,
-              userCode: effectiveCode,
+              userCode: reportCode,
               delta: delta
             })
           }).then(r => r.json()).then(res => {
-            if (res.success && res.contribs) {
+            if (res && res.success && res.contribs) {
+              keysToUpdate.forEach(k => {
+                res.contribs[k] = newVal;
+              });
               state.stage2.memberContributions = res.contribs;
               updateContribDom();
             }
