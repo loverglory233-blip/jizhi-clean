@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260830_v885
+ * Version: 20260830_v886
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260830_v885';
+  const APP_VERSION = '20260830_v886';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -12450,12 +12450,12 @@
           const submittedAuthors = new Set(proposals.map(p => p.author));
           const votesCastCount = Object.values(s1.hasVoted || {}).filter(Boolean).length;
 
-          // 动态自适应冷场阈值（以 150 分钟为界：中任务 <=150m: 3分钟; 大任务 >150m: 4分钟）
+          // 动态自适应冷场阈值（全系统统一：3 分钟破冰，6 分钟强兜底）
           const allTasks = (this.authManager) ? this.authManager.getTasks() : [];
           const curTask = allTasks.find(t => t.id === this.state.activeTaskId);
           const taskDurMin = (curTask && curTask.durationMinutes) ? Number(curTask.durationMinutes) : 150;
           const isLargeTask = taskDurMin > 150;
-          const silenceThresholdMs = isLargeTask ? 240000 : 180000;
+          const silenceThresholdMs = 180000; // 统一 3 分钟破冰
 
           // 1. 【研讨互动提示】：全组长时间静默无人发言（不干活）时，温和点拨破冰（同一次连续冷场最多提醒 2 次，学生说话自动重置）！
           if (submittedCount < totalMembersCount && silenceDurationMs >= silenceThresholdMs) {
@@ -12724,13 +12724,13 @@
           const plainTextLen = plainText.length;
           const contribs = s2.memberContributions || {};
 
-          // 动态读取任务时长判定任务规模（以 150 分钟为界：中任务 <=150m: 冷却6m/静默3m; 大任务 >150m: 冷却8m/静默4m）
+          // 动态读取任务时长判定任务规模（全系统统一：静默 3 分钟破冰，6 分钟催促，10 分钟强兜底）
           const allTasks = (this.authManager) ? this.authManager.getTasks() : [];
           const curTask = allTasks.find(t => t.id === this.state.activeTaskId);
           const taskDurMin = (curTask && curTask.durationMinutes) ? Number(curTask.durationMinutes) : 150;
           const isLargeTask = taskDurMin > 150;
           const s2NudgeCooldownMs = isLargeTask ? 480000 : 360000;
-          const s2SilenceThresholdMs = isLargeTask ? 240000 : 180000;
+          const s2SilenceThresholdMs = 180000; // 统一 3 分钟破冰
 
           // 1. 阶段二开场静默提示 (纯系统模板)：开场达到阈值完全静默且正文字数 < 50 字（最多2次）
           if (silenceDurationMs > s2SilenceThresholdMs && plainTextLen < 50) {
