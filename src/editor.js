@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles } from "./constants.js?v=20260831_v936";
-import { callCozeAgentAPI } from "./agents.js?v=20260831_v936";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap } from "./utils.js?v=20260831_v936";
+import { AgentProfiles } from "./constants.js?v=20260831_v937";
+import { callCozeAgentAPI } from "./agents.js?v=20260831_v937";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap } from "./utils.js?v=20260831_v937";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -1985,9 +1985,9 @@ function renderStage2Canvas(canvas, state, handlers) {
   const currUser = (window.app && window.app.authManager) ? window.app.authManager.getCurrentUser() : null;
   const userClassId = state.activeStudentClassId || (currUser ? currUser.classId : null) || null;
   const activeGroupObj = (window.app && window.app.authManager) ? window.app.authManager.getStudentActiveGroup(currUser, userClassId) : null;
-  const userGroupId = activeGroupObj?.id || (window.app?.cloudSyncEngine?.groupId) || (currUser?.groupId) || state.activeGroupId || null;
-  let activeTaskId = state.activeTaskId || (window.app?.cloudSyncEngine?.taskId) || (`task_${userClassId}_default`);
-  if (!activeTaskId || activeTaskId === 'task_default') activeTaskId = `task_${userClassId}_default`;
+  const userGroupId = activeGroupObj?.id || (window.app?.cloudSyncEngine?.groupId) || (currUser?.groupId) || state.activeGroupId || 'group_1';
+  let activeTaskId = state.activeTaskId || (window.app?.cloudSyncEngine?.taskId) || (`task_${userClassId || 'default'}_default`);
+  if (!activeTaskId || activeTaskId === 'task_default') activeTaskId = `task_${userClassId || 'default'}_default`;
   const availablePapers = (window.app && window.app.authManager) ? window.app.authManager.getReferencePapers(userGroupId, userClassId, activeTaskId) : [];
   const paperBtnLabel = availablePapers.length > 0 ? `📚 查阅参考范文 (${availablePapers.length}篇)` : '📚 查阅参考范文库';
 
@@ -2822,9 +2822,9 @@ function renderStage3Canvas(canvas, state, handlers) {
           const currUser = (window.app && window.app.authManager) ? window.app.authManager.getCurrentUser() : null;
           const userClassId = state.activeStudentClassId || (currUser ? currUser.classId : null) || null;
           const activeGroupObj = (window.app && window.app.authManager) ? window.app.authManager.getStudentActiveGroup(currUser, userClassId) : null;
-          const userGroupId = activeGroupObj?.id || (window.app?.cloudSyncEngine?.groupId) || (currUser?.groupId) || state.activeGroupId || null;
-          let activeTaskId = state.activeTaskId || (window.app?.cloudSyncEngine?.taskId) || (`task_${userClassId}_default`);
-          if (!activeTaskId || activeTaskId === 'task_default') activeTaskId = `task_${userClassId}_default`;
+          const userGroupId = activeGroupObj?.id || (window.app?.cloudSyncEngine?.groupId) || (currUser?.groupId) || state.activeGroupId || 'group_1';
+          let activeTaskId = state.activeTaskId || (window.app?.cloudSyncEngine?.taskId) || (`task_${userClassId || 'default'}_default`);
+          if (!activeTaskId || activeTaskId === 'task_default') activeTaskId = `task_${userClassId || 'default'}_default`;
           const rawPadName = `jizhi_${activeTaskId}_${userGroupId}`;
           const currUserName = (currUser && (currUser.name || currUser.username)) || '组员';
           const currUserColor = (state.members && state.members[currUserCode]?.color) || '#2563eb';
