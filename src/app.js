@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260831_v968";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch } from "./utils.js?v=20260831_v968";
-import { callCozeAgentAPI } from "./agents.js?v=20260831_v968";
-import { AuthManager } from "./auth.js?v=20260831_v968";
-import { CloudSyncEngine } from "./sync.js?v=20260831_v968";
-import { renderLoginView } from "./login.js?v=20260831_v968";
-import { renderTeacherPortal } from "./teacher.js?v=20260831_v968";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260831_v968";
+} from "./constants.js?v=20260831_v969";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch } from "./utils.js?v=20260831_v969";
+import { callCozeAgentAPI } from "./agents.js?v=20260831_v969";
+import { AuthManager } from "./auth.js?v=20260831_v969";
+import { CloudSyncEngine } from "./sync.js?v=20260831_v969";
+import { renderLoginView } from "./login.js?v=20260831_v969";
+import { renderTeacherPortal } from "./teacher.js?v=20260831_v969";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260831_v969";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260831_v968";
+} from "./editor.js?v=20260831_v969";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -5085,13 +5085,13 @@ ${contentSnippet}
       membersList.forEach(m => { totalContrib += getVal(m); });
 
       if (totalContrib >= minContribThreshold || plainLen >= minContribThreshold) {
-        // 规则：仅当组内出现极端失衡（某位成员独揽 >= 75% 且有在场成员 <= 10%）时才介入
+        // 严格原定规则：仅当组内出现失衡（某位成员占比 >= 55% 且有成员 <= 15%）时才介入
         const pcts = membersList.map(m => {
           const val = getVal(m);
           return (totalContrib > 0) ? Math.round((val / totalContrib) * 100) : 0;
         });
-        const hasMaxSkew = Math.max(...pcts) >= 75;
-        const hasZeroMember = Math.min(...pcts) <= 10;
+        const hasMaxSkew = Math.max(...pcts) >= 55;
+        const hasZeroMember = Math.min(...pcts) <= 15;
 
         if (hasMaxSkew && hasZeroMember) {
           this.state.lastSSRLWarnTimeMs = now;
