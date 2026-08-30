@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles } from "./constants.js?v=20260830_v851";
-import { callCozeAgentAPI } from "./agents.js?v=20260830_v851";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly } from "./utils.js?v=20260830_v851";
+import { AgentProfiles } from "./constants.js?v=20260830_v852";
+import { callCozeAgentAPI } from "./agents.js?v=20260830_v852";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly } from "./utils.js?v=20260830_v852";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -45,19 +45,25 @@ export function renderHeader(state, currentUser, announcements, onStageChange, o
   // 严格按【当前班级】、【当前任务】和【当前小组】三位一体过滤教学通知（延期由瞬时大弹窗处理，不混入通知中心）
   const relevantAnnouncements = (announcements || []).filter(a => {
     if (!a || a.isExtension || a.title?.includes('延期') || a.title?.includes('延长至')) return false;
-    const matchClass = (a.classId === activeClassId) || (Array.isArray(a.targetClassIds) && a.targetClassIds.includes(activeClassId));
+    const matchClass = !a.classId || a.classId === 'all' || (a.classId === activeClassId) || 
+                       (Array.isArray(a.targetClassIds) && (a.targetClassIds.includes('all') || a.targetClassIds.includes(activeClassId)));
     const matchGroup = !a.targetGroupId || a.targetGroupId === 'all' || a.targetGroupId === groupId ||
       (Array.isArray(a.targetGroupIds) && (a.targetGroupIds.includes('all') || a.targetGroupIds.includes(groupId)));
-    const matchTask = a.taskId === 'task_all' || a.taskId === activeTaskId || (!a.taskId && activeTaskId === 'task_default');
+    const matchTask = !a.taskId || a.taskId === 'task_all' || a.taskId === activeTaskId || (!a.taskId && activeTaskId === 'task_default');
     return matchClass && matchGroup && matchTask;
   });
   const isAnnRead = (a) => {
-    if (!a || !a.readStatus) return false;
+    if (!a) return false;
+    try {
+      const localReadMap = JSON.parse(localStorage.getItem('jizhi_locally_read_announcements') || '{}');
+      if (localReadMap[a.id]) return true;
+    } catch (e) {}
     if (currentUser) {
-      if (currentUser.id && a.readStatus[currentUser.id]) return true;
-      if (currentUser.studentCode && a.readStatus[currentUser.studentCode]) return true;
-      if (currentUser.username && a.readStatus[currentUser.username]) return true;
-      if (currentUser.name && a.readStatus[currentUser.name]) return true;
+      if (currentUser.id && a.readStatus && a.readStatus[currentUser.id]) return true;
+      if (currentUser.studentCode && a.readStatus && a.readStatus[currentUser.studentCode]) return true;
+      if (currentUser.username && a.readStatus && a.readStatus[currentUser.username]) return true;
+      if (currentUser.name && a.readStatus && a.readStatus[currentUser.name]) return true;
+      if (groupId && a.readGroupStatus && a.readGroupStatus[groupId]) return true;
       if (Array.isArray(a.confirmedMembers)) {
         if (a.confirmedMembers.some(m => m && (m.id === currentUser.id || m.studentCode === currentUser.studentCode || (currentUser.name && m.name === currentUser.name)))) return true;
       }

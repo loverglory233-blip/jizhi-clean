@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260830_v851
+ * Version: 20260830_v852
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260830_v851';
+  const APP_VERSION = '20260830_v852';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -8085,19 +8085,25 @@
     // 严格按【当前班级】、【当前任务】和【当前小组】三位一体过滤教学通知（延期由瞬时大弹窗处理，不混入通知中心）
     const relevantAnnouncements = (announcements || []).filter(a => {
       if (!a || a.isExtension || a.title?.includes('延期') || a.title?.includes('延长至')) return false;
-      const matchClass = (a.classId === activeClassId) || (Array.isArray(a.targetClassIds) && a.targetClassIds.includes(activeClassId));
+      const matchClass = !a.classId || a.classId === 'all' || (a.classId === activeClassId) || 
+                         (Array.isArray(a.targetClassIds) && (a.targetClassIds.includes('all') || a.targetClassIds.includes(activeClassId)));
       const matchGroup = !a.targetGroupId || a.targetGroupId === 'all' || a.targetGroupId === groupId ||
         (Array.isArray(a.targetGroupIds) && (a.targetGroupIds.includes('all') || a.targetGroupIds.includes(groupId)));
-      const matchTask = a.taskId === 'task_all' || a.taskId === activeTaskId || (!a.taskId && activeTaskId === 'task_default');
+      const matchTask = !a.taskId || a.taskId === 'task_all' || a.taskId === activeTaskId || (!a.taskId && activeTaskId === 'task_default');
       return matchClass && matchGroup && matchTask;
     });
     const isAnnRead = (a) => {
-      if (!a || !a.readStatus) return false;
+      if (!a) return false;
+      try {
+        const localReadMap = JSON.parse(localStorage.getItem('jizhi_locally_read_announcements') || '{}');
+        if (localReadMap[a.id]) return true;
+      } catch (e) {}
       if (currentUser) {
-        if (currentUser.id && a.readStatus[currentUser.id]) return true;
-        if (currentUser.studentCode && a.readStatus[currentUser.studentCode]) return true;
-        if (currentUser.username && a.readStatus[currentUser.username]) return true;
-        if (currentUser.name && a.readStatus[currentUser.name]) return true;
+        if (currentUser.id && a.readStatus && a.readStatus[currentUser.id]) return true;
+        if (currentUser.studentCode && a.readStatus && a.readStatus[currentUser.studentCode]) return true;
+        if (currentUser.username && a.readStatus && a.readStatus[currentUser.username]) return true;
+        if (currentUser.name && a.readStatus && a.readStatus[currentUser.name]) return true;
+        if (groupId && a.readGroupStatus && a.readGroupStatus[groupId]) return true;
         if (Array.isArray(a.confirmedMembers)) {
           if (a.confirmedMembers.some(m => m && (m.id === currentUser.id || m.studentCode === currentUser.studentCode || (currentUser.name && m.name === currentUser.name)))) return true;
         }
@@ -12700,12 +12706,12 @@
             const tObj = allTasks.find(t => t.id === a.taskId);
             if (tObj && isTaskExpired(tObj)) return false;
           }
-          const matchClass = (a.classId === effectiveClassId) || 
+          const matchClass = !a.classId || a.classId === 'all' || (a.classId === effectiveClassId) || 
                              (effectiveClassName && a.className === effectiveClassName) ||
-                             (Array.isArray(a.targetClassIds) && a.targetClassIds.includes(effectiveClassId));
+                             (Array.isArray(a.targetClassIds) && (a.targetClassIds.includes('all') || a.targetClassIds.includes(effectiveClassId)));
           const matchGroup = !a.targetGroupId || a.targetGroupId === 'all' || a.targetGroupId === groupId ||
             (Array.isArray(a.targetGroupIds) && (a.targetGroupIds.includes('all') || a.targetGroupIds.includes(groupId)));
-          const matchTask = a.taskId === 'task_all' || a.taskId === activeTaskId || (!a.taskId && activeTaskId === 'task_default');
+          const matchTask = !a.taskId || a.taskId === 'task_all' || a.taskId === activeTaskId || (!a.taskId && activeTaskId === 'task_default');
           return matchClass && matchGroup && matchTask && !isAnnRead(a);
         })
         .sort((a, b) => (b.id > a.id ? 1 : -1));
@@ -12749,17 +12755,17 @@
 
       const isExtensionNotice = (a) => !!(a && (a.isExtension || a.title?.includes('延期通知') || a.title?.includes('时间已延长') || a.title?.includes('延长至')));
 
-      // 🎯 教学通知中心仅展示与统计纯正的【教学任务与作业通知】（延期由瞬时大弹窗处理，不堆积在通知中心）
+      // 🎯 教学通知中心展示与统计纯正的【教学任务与作业通知】（延期由瞬时大弹窗处理）
       const myAnns = allAnns
         .filter(a => {
           if (!a) return false;
           if (isExtensionNotice(a)) return false; // 🚫 彻底屏蔽延期通知混入通知中心
-          const matchClass = (a.classId === effectiveClassId) || 
+          const matchClass = !a.classId || a.classId === 'all' || (a.classId === effectiveClassId) || 
                              (effectiveClassName && a.className === effectiveClassName) ||
-                             (Array.isArray(a.targetClassIds) && a.targetClassIds.includes(effectiveClassId));
+                             (Array.isArray(a.targetClassIds) && (a.targetClassIds.includes('all') || a.targetClassIds.includes(effectiveClassId)));
           const matchGroup = !a.targetGroupId || a.targetGroupId === 'all' || a.targetGroupId === groupId ||
             (Array.isArray(a.targetGroupIds) && (a.targetGroupIds.includes('all') || a.targetGroupIds.includes(groupId)));
-          const matchTask = (a.taskId === 'task_all' || a.taskId === activeTaskId || (!a.taskId && activeTaskId === 'task_default'));
+          const matchTask = !a.taskId || a.taskId === 'task_all' || a.taskId === activeTaskId || (!a.taskId && activeTaskId === 'task_default');
           return matchClass && matchGroup && matchTask;
         })
         .sort((a, b) => (b.id > a.id ? 1 : -1));
@@ -12952,10 +12958,35 @@
       const closeModal = () => {
         modal.remove();
         document.removeEventListener('keydown', onEsc);
+        // ⚡ 0 延迟即时刷新右上角【教学通知】红点角标
+        const bellBtn = document.getElementById('btn-header-ann-bell');
+        if (bellBtn) {
+          const curAllAnns = this.authManager.getAnnouncements();
+          const curUnread = curAllAnns.filter(a => {
+            if (!a || isExtensionNotice(a)) return false;
+            const mClass = !a.classId || a.classId === 'all' || a.classId === effectiveClassId;
+            const mTask = !a.taskId || a.taskId === 'task_all' || a.taskId === activeTaskId;
+            return mClass && mTask && !isAnnRead(a);
+          });
+          if (curUnread.length === 0) {
+            bellBtn.classList.remove('has-unread');
+            const badge = bellBtn.querySelector('span:not(:first-child)');
+            if (badge) badge.remove();
+          } else {
+            bellBtn.classList.add('has-unread');
+            let badge = bellBtn.querySelector('span:not(:first-child)');
+            if (badge) {
+              badge.innerText = curUnread.length;
+            } else {
+              const newBadge = document.createElement('span');
+              newBadge.style.cssText = 'background:#ef4444; color:#ffffff; font-size:10.5px; font-weight:800; padding:1px 6px; border-radius:10px; box-shadow:0 1px 4px rgba(239,68,68,0.4);';
+              newBadge.innerText = curUnread.length;
+              bellBtn.appendChild(newBadge);
+            }
+          }
+        }
         if (this.state.studentViewMode === 'task_list') {
           this.renderMain();
-        } else {
-          this.renderStudentWorkspace(true);
         }
       };
 
