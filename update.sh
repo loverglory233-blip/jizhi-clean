@@ -16,7 +16,7 @@ TARGET_DIRS=($(printf "%s\n" "${TARGET_DIRS[@]}" | sort -u))
 
 echo "📁 目标目录: ${TARGET_DIRS[*]}"
 
-TARGET_VERSION="20260830_v794"
+TARGET_VERSION="20260830_v795"
 
 echo "⚡ [2/4] 极速同步最新代码包 ($TARGET_VERSION)..."
 TMP=/tmp/jizhi_update
@@ -383,7 +383,7 @@ if [ -n "$EP_DIR" ]; then
   "socketTransportProtocols": ["websocket", "polling"],
   "loadTest": false,
   "exposeVersion": false,
-  "minify": false,
+  "minify": true,
   "maxAge": 21600000
 }
 EPSETEOF

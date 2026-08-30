@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles } from "./constants.js?v=20260830_v794";
-import { callCozeAgentAPI } from "./agents.js?v=20260830_v794";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly } from "./utils.js?v=20260830_v794";
+import { AgentProfiles } from "./constants.js?v=20260830_v795";
+import { callCozeAgentAPI } from "./agents.js?v=20260830_v795";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly } from "./utils.js?v=20260830_v795";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -2149,7 +2149,7 @@ function renderStage2Canvas(canvas, state, handlers) {
                 </div>
               </div>
               <div style="flex:1; min-height:0; position:relative; background:#ffffff;">
-                ${isEditorReadonly ? '<div class="etherpad-readonly-shield" style="position:absolute; inset:0; z-index:25; background:transparent; cursor:not-allowed;" title="🔒 只读查阅模式 (已锁定禁止编辑)"></div>' : ''}
+                ${isEditorReadonly ? '<div class="etherpad-readonly-shield" style="position:absolute; inset:0; z-index:25; background:transparent; cursor:not-allowed; pointer-events:none;" title="🔒 只读查阅模式 (已锁定禁止编辑)"></div>' : ''}
                 <iframe id="stage2-etherpad-frame" src="${padUrl}" style="width:100%; height:100%; border:none; display:block; background:#ffffff;" allow="clipboard-read; clipboard-write; fullscreen" onload="const el=document.getElementById('ep-status-text-s2'); if(el) el.innerText='${isEditorReadonly ? '🔒 Etherpad 协同文档已锁定 (只读模式)' : 'Etherpad 实时协同引擎已就绪 (毫秒级 OT 协同)'}';"></iframe>
                 ${isEditorReadonly ? '<div style="position:absolute; top:12px; right:12px; z-index:99; pointer-events:none; display:flex; align-items:center; justify-content:center;" title="🔒 正文已截止锁定为只读模式"><div style="background:rgba(15,23,42,0.8); color:#ffffff; padding:6px 14px; border-radius:6px; font-size:12px; font-weight:700; pointer-events:none; box-shadow:0 4px 12px rgba(0,0,0,0.18);">🔒 任务已截止/初稿已锁定 (只读查阅模式)</div></div>' : ''}
               </div>
@@ -2616,7 +2616,7 @@ function renderStage3Canvas(canvas, state, handlers) {
               </div>
             </div>
             <div style="flex:1; min-height:0; position:relative; background:#f1f5f9; border-radius:8px; overflow:hidden; border:1px solid #cbd5e1;">
-              ${isFinalSubmitted ? '<div class="etherpad-readonly-shield" style="position:absolute; inset:0; z-index:25; background:transparent; cursor:not-allowed;" title="🔒 只读查阅模式 (已锁定禁止编辑)"></div>' : ''}
+              ${isFinalSubmitted ? '<div class="etherpad-readonly-shield" style="position:absolute; inset:0; z-index:25; background:transparent; cursor:not-allowed; pointer-events:none;" title="🔒 只读查阅模式 (已锁定禁止编辑)"></div>' : ''}
               <iframe id="stage3-etherpad-frame" src="${padUrl}" style="width:100%; height:100%; min-height:540px; border:none; display:block;" allow="clipboard-read; clipboard-write"></iframe>
               ${isFinalSubmitted ? `
                 <div style="position:absolute; top:12px; right:12px; z-index:99; pointer-events:none; display:flex; align-items:center; justify-content:center;" title="🔒 论文终稿已全员提交归档锁定">
