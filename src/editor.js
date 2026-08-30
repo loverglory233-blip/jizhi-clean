@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles } from "./constants.js?v=20260830_v854";
-import { callCozeAgentAPI } from "./agents.js?v=20260830_v854";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly } from "./utils.js?v=20260830_v854";
+import { AgentProfiles } from "./constants.js?v=20260830_v855";
+import { callCozeAgentAPI } from "./agents.js?v=20260830_v855";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly } from "./utils.js?v=20260830_v855";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -36,7 +36,7 @@ export function renderHeader(state, currentUser, announcements, onStageChange, o
     }
   }
 
-  const activeClassId = state.activeStudentClassId || currentUser?.classId || 'class_101';
+  const activeClassId = (window.app?.authManager ? window.app.authManager.getEffectiveStudentClassId(currentUser, state.activeTaskId) : (state.activeStudentClassId || currentUser?.classId || 'class_101'));
   const activeGroupObj = (window.app && window.app.authManager) ? window.app.authManager.getStudentActiveGroup(currentUser, activeClassId) : { id: 'group_1', name: '第 1 协作小组' };
   const groupId = state.activeGroupId || (window.app && window.app.cloudSyncEngine?.groupId) || activeGroupObj.id || (currentUser && currentUser.groupId ? currentUser.groupId : 'group_1');
   const groupName = activeGroupObj.name || '第 1 协作小组';
@@ -1236,7 +1236,7 @@ function renderStage1Canvas(canvas, state, handlers) {
         }
         if (memberArr.length === 0 && window.app?.authManager) {
           const u = window.app.authManager.getCurrentUser();
-          const effClassId = window.app.state.activeStudentClassId || u?.classId || 'class_101';
+          const effClassId = (window.app?.authManager ? window.app.authManager.getEffectiveStudentClassId(u, window.app?.state?.activeTaskId) : (window.app?.state?.activeStudentClassId || u?.classId || 'class_101'));
           const effGroup = window.app.authManager.getStudentActiveGroup(u, effClassId);
           memberArr = window.app.authManager.getGroupMembersForWorkspace(effGroup?.id || 'group_1');
         }
@@ -2813,7 +2813,7 @@ export function renderChat(state) {
     else if (state.members && typeof state.members === 'object') memberList = Object.values(state.members);
     if (memberList.length === 0 && window.app?.authManager) {
       const u = window.app.authManager.getCurrentUser();
-      const effClassId = window.app.state.activeStudentClassId || u?.classId || 'class_101';
+      const effClassId = (window.app?.authManager ? window.app.authManager.getEffectiveStudentClassId(u, window.app?.state?.activeTaskId) : (window.app?.state?.activeStudentClassId || u?.classId || 'class_101'));
       const effGroup = window.app.authManager.getStudentActiveGroup(u, effClassId);
       memberList = window.app.authManager.getGroupMembersForWorkspace(effGroup?.id || 'group_1');
     }
