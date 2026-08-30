@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState } from './constants.js?v=20260830_v776';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal } from './utils.js?v=20260830_v776';
+import { InitialState } from './constants.js?v=20260830_v777';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal } from './utils.js?v=20260830_v777';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -105,7 +105,15 @@ export class CloudSyncEngine {
     const prevExpired = isTaskExpired(prevDeadline);
     const nowExpired = isTaskExpired(t.deadline);
     const isWorkspace = (this.app.state.studentViewMode === 'workspace' || !!document.getElementById('chat-stream') || !!document.querySelector('.app-layout'));
-    const isCurrentTask = isWorkspace && (this.app.state.activeTaskId === t.id || (!this.app.state.activeTaskId && (t.id === 'task_default' || t.id.includes('default'))));
+    const badgeText = document.querySelector('.brand-badge')?.innerText || '';
+    const isCurrentTask = isWorkspace && (
+      !this.app.state.activeTaskId ||
+      this.app.state.activeTaskId === t.id ||
+      (t.title && this.app.state.activeTaskId === t.title) ||
+      (t.id && t.id.includes('default')) ||
+      (this.app.state.activeTaskId && this.app.state.activeTaskId.includes('default')) ||
+      (t.title && badgeText.includes(t.title))
+    );
     const isTaskHall = !isWorkspace || this.app.state.studentViewMode === 'task_list';
 
     if (isCurrentTask) {
@@ -443,6 +451,9 @@ export class CloudSyncEngine {
           if (oldDeadline !== undefined && t.deadline && oldDeadline !== t.deadline) {
             this._knownTaskDeadlines[t.id] = t.deadline;
             this.handleTaskDeadlineChange(t, oldDeadline);
+          } else if (oldDeadline === undefined && t.lastExtension && (Date.now() - (t.lastExtension.extendedAt || 0) < 180000)) {
+            this._knownTaskDeadlines[t.id] = t.deadline;
+            this.handleTaskDeadlineChange(t, '');
           } else if (t.deadline) {
             this._knownTaskDeadlines[t.id] = t.deadline;
           }
