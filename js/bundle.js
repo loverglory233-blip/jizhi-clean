@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260830_v777
+ * Version: 20260830_v778
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260830_v777';
+  const APP_VERSION = '20260830_v778';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -2811,7 +2811,7 @@
       const isTaskHall = !isWorkspace || this.app.state.studentViewMode === 'task_list';
 
       if (isCurrentTask) {
-        // 🎯 场景 1：学生正处于该任务工作台内部（无论此前是否截止，统一弹出中央仪式感卡片）
+        // 🎯 场景 1：学生正处于该任务工作台内部（无论此前是否截止，统一弹出中央仪式感卡片，立即解除只读）
         document.querySelectorAll('.etherpad-readonly-shield').forEach(s => s.remove());
         const f2 = document.getElementById('stage2-etherpad-frame');
         if (f2 && f2.src.includes('showControls=false') && !nowExpired) {
@@ -2827,13 +2827,13 @@
           this.app.renderStudentWorkspace();
         }
       } else if (isTaskHall) {
-        // 📋 场景 2：学生在任务大厅
+        // 📋 场景 2：学生在任务大厅（弹出居中大卡片，刷新大厅任务卡片）
         this.app.renderStudentWorkspace();
-        showGlobalBannerNotice('🔔 任务延期通知', `写作任务《${t.title || '协作任务'}》截止时间已延长至 ${t.deadline}！`, 'info');
+        showTaskExtendedUnlockModal(t, prevDeadline, false);
       } else {
-        // ✍️ 场景 3：学生在另一个不同的任务内
-        showGlobalBannerNotice('🔔 课程任务延期提醒', `您的另一项写作任务《${t.title || '协作任务'}》截止时间已延长至 ${t.deadline}。`, 'info');
+        // ✍️ 场景 3：学生在其他任务工作台内（弹出居中大卡片提醒）
         this.app.renderHeader();
+        showTaskExtendedUnlockModal(t, prevDeadline, false);
       }
     }
 
@@ -7767,7 +7767,7 @@
           if (e.data && e.data.type === 'task_extended' && e.data.task) {
             const t = e.data.task;
             renderStudentTaskPortal(container, authManager, state, onSelectTask, onLogout, onSwitchTeacher, onOpenAnnModal, onOpenSurveyModal);
-            showGlobalBannerNotice('🔔 任务延期通知', `写作任务《${t.title || '协作任务'}》截止时间已延长至 ${t.deadline}，协作通道已重新开启！`, 'info');
+            showTaskExtendedUnlockModal(t, e.data.prevDeadline || '', false);
           }
         };
       } catch (e) {}
@@ -7793,7 +7793,7 @@
                 newT.forEach(nt => {
                   const ot = oldT.find(o => o.id === nt.id);
                   if (ot && nt.deadline && ot.deadline && ot.deadline !== nt.deadline) {
-                    showGlobalBannerNotice('🔔 任务延期通知', `写作任务《${nt.title || '协作任务'}》截止时间已延长至 ${nt.deadline}，协作通道已重新开启！`, 'info');
+                    showTaskExtendedUnlockModal(nt, ot.deadline, false);
                   }
                 });
               } catch (err) {}

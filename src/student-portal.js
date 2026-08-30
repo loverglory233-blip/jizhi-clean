@@ -7,8 +7,8 @@ import {
   STORAGE_KEY_TASKS,
   STORAGE_KEY_ANNOUNCEMENTS,
   STORAGE_KEY_CLASSES
-} from "./constants.js?v=20260830_v777";
-import { escapeHtml, isTaskExpired, formatDurationHuman, formatStandardDateDash, showGlobalBannerNotice } from "./utils.js?v=20260830_v777";
+} from "./constants.js?v=20260830_v778";
+import { escapeHtml, isTaskExpired, formatDurationHuman, formatStandardDateDash, showTaskExtendedUnlockModal } from "./utils.js?v=20260830_v778";
 
 /* ==========================================================================
    7.5 STUDENT TASK PORTAL / DASHBOARD (我的写作任务大厅)
@@ -24,7 +24,7 @@ export function renderStudentTaskPortal(container, authManager, state, onSelectT
         if (e.data && e.data.type === 'task_extended' && e.data.task) {
           const t = e.data.task;
           renderStudentTaskPortal(container, authManager, state, onSelectTask, onLogout, onSwitchTeacher, onOpenAnnModal, onOpenSurveyModal);
-          showGlobalBannerNotice('🔔 任务延期通知', `写作任务《${t.title || '协作任务'}》截止时间已延长至 ${t.deadline}，协作通道已重新开启！`, 'info');
+          showTaskExtendedUnlockModal(t, e.data.prevDeadline || '', false);
         }
       };
     } catch (e) {}
@@ -50,7 +50,7 @@ export function renderStudentTaskPortal(container, authManager, state, onSelectT
               newT.forEach(nt => {
                 const ot = oldT.find(o => o.id === nt.id);
                 if (ot && nt.deadline && ot.deadline && ot.deadline !== nt.deadline) {
-                  showGlobalBannerNotice('🔔 任务延期通知', `写作任务《${nt.title || '协作任务'}》截止时间已延长至 ${nt.deadline}，协作通道已重新开启！`, 'info');
+                  showTaskExtendedUnlockModal(nt, ot.deadline, false);
                 }
               });
             } catch (err) {}
