@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState } from './constants.js?v=20260831_v958';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap } from './utils.js?v=20260831_v958';
+import { InitialState } from './constants.js?v=20260831_v959';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap } from './utils.js?v=20260831_v959';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -1193,9 +1193,15 @@ export class CloudSyncEngine {
     }
 
     this.app.saveGroupState(myGroupId);
-    if (typeof window.renderChat === 'function') window.renderChat(this.app.state);
-    if (needWorkspaceRender) {
-      this.app.renderStudentWorkspace();
+    
+    // 🛡️ 输入中焦点保护：如果用户当前正在聊天框打字或输入法合成中，绝不冲刷消息列表
+    const activeEl = document.activeElement;
+    const isTypingInChat = activeEl && (activeEl.id === 'chat-input' || activeEl.tagName === 'TEXTAREA' || activeEl.isContentEditable);
+    if (!isTypingInChat) {
+      if (typeof window.renderChat === 'function') window.renderChat(this.app.state);
+      if (needWorkspaceRender) {
+        this.app.renderStudentWorkspace();
+      }
     }
     this.app.updateContributionUi();
     this.app.renderPresenceCursors();

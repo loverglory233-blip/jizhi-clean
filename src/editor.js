@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles } from "./constants.js?v=20260831_v958";
-import { callCozeAgentAPI } from "./agents.js?v=20260831_v958";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap } from "./utils.js?v=20260831_v958";
+import { AgentProfiles } from "./constants.js?v=20260831_v959";
+import { callCozeAgentAPI } from "./agents.js?v=20260831_v959";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap } from "./utils.js?v=20260831_v959";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -2092,11 +2092,10 @@ function renderStage2Canvas(canvas, state, handlers) {
             if (window.app && typeof window.app.syncStage2 === 'function') {
               window.app.syncStage2();
             }
-          }, 1500);
-        }
-
-        if (window.app && typeof window.app.checkAgentTriggersOnContent === 'function') {
-          window.app.checkAgentTriggersOnContent(cleanTxt);
+            if (window.app && typeof window.app.checkAgentTriggersOnContent === 'function') {
+              window.app.checkAgentTriggersOnContent(cleanTxt);
+            }
+          }, 2000);
         }
 
         // 动态贡献度计算（支持乐观立即更新与服务端持久化）：
