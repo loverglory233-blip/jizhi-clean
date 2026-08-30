@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260830_v737
+ * Version: 20260830_v738
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260830_v737';
+  const APP_VERSION = '20260830_v738';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -3706,6 +3706,221 @@
     const monitorMembersObj = authManager.getGroupMembersForWorkspace(activeMonitorGId, activeClass.id);
     const monitorMembersList = Object.values(monitorMembersObj);
 
+    const monitorStageMode = state.monitorStageTab || 'auto';
+    const effectiveMonitorStage = monitorStageMode === 'auto' ? (state.currentStage || 'stage1') : monitorStageMode;
+    const currentS3Tab = state.stage3TeacherTab || 'defense';
+
+    // 🛡️ 教师端单例保护：若当前已经在 view_monitoring 标签下且监控同一个班级/小组/任务/阶段/子页，优先执行增量就地更新，杜绝 innerHTML 重写导致 Etherpad iframe 重新加载与滚动回弹！
+    const existingLayout = container.querySelector('.teacher-portal-layout');
+    const renderedCId = container.dataset.renderedClassId;
+    const renderedGId = container.dataset.renderedGroupId;
+    const renderedTaskId = container.dataset.renderedTaskId;
+    const renderedStage = container.dataset.renderedStage;
+    const renderedS3Tab = container.dataset.renderedS3Tab;
+    const renderedTab = container.dataset.renderedTab;
+
+    if (existingLayout && activeTab === 'view_monitoring' && renderedTab === 'view_monitoring' &&
+        renderedCId === activeClassId && renderedGId === activeMonitorGId &&
+        renderedTaskId === effectiveMonitorTaskId && renderedStage === effectiveMonitorStage &&
+        (effectiveMonitorStage !== 'stage3' || renderedS3Tab === currentS3Tab)) {
+
+      // 1. Stage 2 in-place update
+      if (effectiveMonitorStage === 'stage2') {
+        const existingFrame = container.querySelector('#teacher-stage2-etherpad-frame');
+        if (existingFrame) {
+          const wc = container.querySelector('#teacher-stage2-word-count-num');
+          if (wc) wc.innerText = String(((state.stage2?.unifiedContent || '').replace(/<[^>]*>/g, '').trim()).length);
+
+          const apContainer = container.querySelector('#teacher-stage2-action-plan-container');
+          if (apContainer) {
+            const s2ActionPlan = state.stage2?.actionPlan;
+            const s2Subs = state.stage2?.meetingSubmissions || {};
+            const s2SubCount = Object.keys(s2Subs).length;
+            const totalMemberCount = monitorMembersList.length || 3;
+            if (s2ActionPlan && s2ActionPlan.isGenerated) {
+              apContainer.innerHTML = `
+                <div style="background:#ecfdf5; border:1px solid #a7f3d0; border-radius:8px; padding:8px 12px; flex-shrink:0;">
+                  <div style="font-size:12px; font-weight:800; color:#059669; display:flex; justify-content:space-between; align-items:center;">
+                    <span>📋 【半程修正清单】(3项修改要求)</span>
+                    <span style="font-size:10.5px; background:#d1fae5; color:#065f46; padding:1px 6px; border-radius:10px;">已生成</span>
+                  </div>
+                  <div style="font-size:11.5px; color:#334155; display:flex; flex-direction:column; gap:2px; margin-top:4px;">
+                    ${(s2ActionPlan.items || []).map(item => `<div style="line-height:1.4;">• ${escapeHtml(item)}</div>`).join('')}
+                  </div>
+                </div>
+              `;
+            } else {
+              apContainer.innerHTML = `
+                <div style="background:#f8fafc; border:1px dashed #cbd5e1; border-radius:8px; padding:8px 12px; flex-shrink:0;">
+                  <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:6px;">
+                    <div style="font-size:12px; font-weight:700; color:#64748b; display:flex; align-items:center; gap:6px;">
+                      <span>📋 【半程修正清单】</span>
+                      <span style="font-size:10.5px; background:${s2SubCount > 0 ? '#dbeafe' : '#e2e8f0'}; color:${s2SubCount > 0 ? '#1d4ed8' : '#475569'}; padding:1px 8px; border-radius:10px; font-weight:700;">
+                        ${s2SubCount > 0 ? `待解锁 (全员自查进度 ${s2SubCount}/${totalMemberCount}人)` : `待解锁 (0/${totalMemberCount}人)`}
+                      </span>
+                    </div>
+                    <span style="font-size:11px; color:#94a3b8;">（需全组成员完成半程自查后自动生成）</span>
+                  </div>
+                </div>
+              `;
+            }
+          }
+
+          const pills = container.querySelector('#teacher-stage2-confirmed-pills');
+          if (pills) {
+            pills.innerHTML = monitorMembersList.map(m => {
+              const isConf = state.stage2?.confirmedMembers && (state.stage2.confirmedMembers[m.id] || state.stage2.confirmedMembers[m.studentCode] || (m.name && state.stage2.confirmedMembers[m.name]));
+              return `<span style="font-size:11px; padding:1px 8px; border-radius:10px; font-weight:700; background:${isConf ? '#ecfdf5' : '#f8fafc'}; color:${isConf ? '#059669' : '#94a3b8'}; border:1px solid ${isConf ? '#a7f3d0' : '#e2e8f0'};">
+                ${isConf ? '✓' : '○'} ${escapeHtml(m.name)}
+              </span>`;
+            }).join('');
+          }
+
+          const contribs = state.stage2?.memberContributions || {};
+          let rawTotal = 0;
+          monitorMembersList.forEach(m => { rawTotal += (contribs[m.id] || 0) + (contribs[m.studentCode] || 0); });
+          const cl = container.querySelector('#teacher-stage2-contrib-labels');
+          if (cl) {
+            cl.innerHTML = monitorMembersList.map((m) => {
+              const rawVal = (contribs[m.id] || 0) + (contribs[m.studentCode] || 0);
+              const pct = rawTotal > 0 ? Math.round((rawVal / rawTotal) * 100) : 0;
+              return `<span style="color:${rawVal > 0 ? (m.color || '#2563eb') : '#94a3b8'}; font-weight:700;">● ${escapeHtml(m.name)}: ${pct}%</span>`;
+            }).join('');
+          }
+          const cb = container.querySelector('#teacher-stage2-contrib-bars');
+          if (cb) {
+            cb.innerHTML = rawTotal === 0 ? `<div style="width:100%; height:10px; background:#f8fafc; border-radius:5px; display:flex; align-items:center; justify-content:center; font-size:10px; color:#94a3b8; font-weight:600;">⏳ 暂无协作投入 (组员在 Etherpad 中撰写、修改正文或研讨后将平滑累计真实贡献)</div>` : monitorMembersList.map((m) => {
+              const rawVal = (contribs[m.id] || 0) + (contribs[m.studentCode] || 0);
+              if (rawVal === 0) return '';
+              const pct = Math.round((rawVal / rawTotal) * 100);
+              return `<div style="width:${pct}%; background:${m.color || '#2563eb'}; transition:width 0.3s ease;" title="${escapeHtml(m.name)}: ${pct}% (${rawVal}字)"></div>`;
+            }).join('');
+          }
+        }
+      }
+
+      // 2. Stage 3 in-place update
+      if (effectiveMonitorStage === 'stage3') {
+        if (currentS3Tab === 'doc') {
+          const existingFrame = container.querySelector('#teacher-stage3-etherpad-frame');
+          if (existingFrame) {
+            const wc = container.querySelector('#teacher-stage3-word-count-num');
+            if (wc) wc.innerText = String(((state.stage3?.finalDraft || state.stage2?.unifiedContent || '').replace(/<[^>]*>/g, '').trim()).length);
+
+            const contribs = state.stage2?.memberContributions || {};
+            let rawTotal = 0;
+            monitorMembersList.forEach(m => { rawTotal += (contribs[m.id] || 0) + (contribs[m.studentCode] || 0); });
+            const cl = container.querySelector('#teacher-stage3-contrib-labels');
+            if (cl) {
+              cl.innerHTML = monitorMembersList.map((m) => {
+                const rawVal = (contribs[m.id] || 0) + (contribs[m.studentCode] || 0);
+                const pct = rawTotal > 0 ? Math.round((rawVal / rawTotal) * 100) : 0;
+                return `<span style="color:${rawVal > 0 ? (m.color || '#2563eb') : '#94a3b8'}; font-weight:700;">● ${escapeHtml(m.name)}: ${pct}%</span>`;
+              }).join('');
+            }
+            const cb = container.querySelector('#teacher-stage3-contrib-bars');
+            if (cb) {
+              cb.innerHTML = rawTotal === 0 ? `<div style="width:100%; height:10px; background:#f8fafc; border-radius:5px; display:flex; align-items:center; justify-content:center; font-size:10px; color:#94a3b8; font-weight:600;">⏳ 暂无协作投入</div>` : monitorMembersList.map((m) => {
+                const rawVal = (contribs[m.id] || 0) + (contribs[m.studentCode] || 0);
+                if (rawVal === 0) return '';
+                const pct = Math.round((rawVal / rawTotal) * 100);
+                return `<div style="width:${pct}%; background:${m.color || '#2563eb'}; transition:width 0.3s ease;" title="${escapeHtml(m.name)}: ${pct}% (${rawVal}字)"></div>`;
+              }).join('');
+            }
+          }
+        } else {
+          const fbList = container.querySelector('#teacher-stage3-feedback-list');
+          if (fbList) {
+            fbList.innerHTML = (state.stage3?.feedbackItems && state.stage3.feedbackItems.length > 0) ? state.stage3.feedbackItems.map((item, i) => {
+              const isProp = item.role === 'proponent';
+              const roleLabel = item.speaker || (isProp ? '正方委员 Agent (立论支持)' : '反方委员 Agent (学术质询)');
+              const titleLabel = item.title ? ` - ${item.title}` : '';
+              const questionText = item.content || item.question || item.comment || item.text || '质询内容生成中...';
+              return `
+              <div style="background:#ffffff; border:1.5px solid ${item.response ? '#93c5fd' : (isProp ? '#86efac' : '#fca5a5')}; border-radius:8px; padding:12px 14px; font-size:12.5px; box-shadow:0 1px 3px rgba(0,0,0,0.02);">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+                  <span style="font-weight:800; color:${isProp ? '#059669' : '#0f172a'}; font-size:13px;">
+                    ${isProp ? '🟢 专家立论支持' : `💬 答辩质询 #${i+1}`} (${escapeHtml(roleLabel)}${escapeHtml(titleLabel)}):
+                  </span>
+                  <span style="font-size:11px; background:${item.response ? '#ecfdf5' : (isProp ? '#eff6ff' : '#fef3c7')}; color:${item.response ? '#059669' : (isProp ? '#2563eb' : '#b45309')}; padding:2px 8px; border-radius:4px; font-weight:700;">
+                    ${item.response ? '✅ 小组已答辩并归档' : (isProp ? '🌟 专家肯定 (立论支持无需答辩)' : '⏳ 待组内研讨答辩')}
+                  </span>
+                </div>
+                <div style="color:#1e293b; background:#f8fafc; padding:8px 10px; border-radius:6px; margin-bottom:8px; border-left:3px solid ${isProp ? '#10b981' : '#ef4444'}; line-height:1.5;">
+                  ${escapeHtml(questionText)}
+                </div>
+                ${item.response ? `
+                  <div style="color:#065f46; background:#ecfdf5; padding:8px 10px; border-radius:6px; border-left:3px solid #10b981; line-height:1.5;">
+                    <b>✍️ 小组辩护陈述与修改方案:</b> ${escapeHtml(item.response)}
+                  </div>
+                ` : `
+                  <div style="color:#94a3b8; font-style:italic; font-size:11.5px; padding:4px 8px;">
+                    ${isProp ? '（立论支持默认通过，如无补充可直接留空）' : '（本小组尚未提交对该质询的答辩回应）'}
+                  </div>
+                `}
+              </div>
+            `;}).join('') : `
+              <div style="text-align:center; padding:60px 16px; color:#94a3b8; font-size:13px; background:#ffffff; border-radius:8px; border:1px dashed #cbd5e1; flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:8px;">
+                <span style="font-size:28px;">⏳</span>
+                <span>答辩委员会尚未对该小组发布质询意见，或小组正处于答辩准备中</span>
+              </div>
+            `;
+          }
+        }
+      }
+
+      // 3. Update right chat stream
+      const chatStream = container.querySelector('#teacher-unified-chat-stream');
+      if (chatStream) {
+        const allStages = ['stage1', 'stage2', 'stage3'];
+        const allMsgs = [];
+        const seenMsgKeys = new Set();
+        allStages.forEach(stg => {
+          if (state.chatLogs && Array.isArray(state.chatLogs[stg])) {
+            state.chatLogs[stg].forEach(msg => {
+              if (!msg) return;
+              const txt = msg.text || '';
+              if (txt.includes('已连续') || txt.includes('互动督促') || txt.includes('秒未研讨') || txt.includes('秒没有发言')) return;
+              const rawTxtNormalized = txt.replace(/[\s\r\n]+/g, ' ').trim();
+              const contentKey = `${msg.sender}_${stg}_${rawTxtNormalized}`;
+              const idKey = msg.id ? `id_${msg.id}` : null;
+              if (seenMsgKeys.has(contentKey) || (idKey && seenMsgKeys.has(idKey))) return;
+              seenMsgKeys.add(contentKey);
+              if (idKey) seenMsgKeys.add(idKey);
+              allMsgs.push({ ...msg, _stageSource: stg });
+            });
+          }
+        });
+        allMsgs.sort((a, b) => (Number(a._timeMs || a.timestamp || 0) - Number(b._timeMs || b.timestamp || 0)));
+        const combinedGroupChatLogs = filterAndDeduplicateChatLogs(allMsgs);
+
+        const oldScroll = chatStream.scrollTop;
+        const isAtBottom = (chatStream.scrollHeight - chatStream.scrollTop - chatStream.clientHeight) < 40;
+        chatStream.innerHTML = combinedGroupChatLogs.length > 0 ? combinedGroupChatLogs.map(m => {
+          const allGlobalUsers = (authManager) ? authManager.getUsers() : [];
+          const isAgent = AgentProfiles[m.sender] !== undefined;
+          const matchedUser = isAgent ? null : allGlobalUsers.find(u => u.id === m.sender || u.studentCode === m.sender || u.username === m.sender || u.name === m.sender);
+          const senderName = isAgent ? AgentProfiles[m.sender].name : (matchedUser ? matchedUser.name : (m.senderName || (monitorMembersObj[m.sender] ? monitorMembersObj[m.sender].name : m.sender)));
+          const color = isAgent ? AgentProfiles[m.sender].color : (matchedUser ? (matchedUser.color || '#2563eb') : (monitorMembersObj[m.sender] ? monitorMembersObj[m.sender].color : '#2563eb'));
+          return `
+            <div style="background:#ffffff; padding:8px 12px; border-radius:8px; border:1px solid #e2e8f0; border-left:3px solid ${color}; box-shadow:0 1px 2px rgba(0,0,0,0.02);">
+              <div style="display:flex; justify-content:space-between; margin-bottom:3px;">
+                <b style="color:${color}; font-size:12px;">${escapeHtml(senderName)}</b>
+                <span style="color:#94a3b8; font-size:10px;">${escapeHtml(formatChatDisplayTime(m._timeMs || m.timestamp))}</span>
+              </div>
+              <div style="color:#0f172a; line-height:1.5;">${escapeHtml(m.text || '')}</div>
+            </div>
+          `;
+        }).join('') : `
+          <div style="text-align:center; padding:40px 16px; color:#94a3b8; font-size:12px;">⏳ 本小组暂无研讨发言记录</div>
+        `;
+        if (isAtBottom) chatStream.scrollTop = chatStream.scrollHeight;
+        else chatStream.scrollTop = oldScroll;
+      }
+
+      return; // Fast in-place update completed without reloading Etherpad!
+    }
+
     // ⚡ 教师端自动轻量轮询：自调度循环，杜绝并发拉取与 interval 重注册竞态
     const teacherPullAndRefresh = async () => {
       const curU = authManager.getCurrentUser();
@@ -4608,7 +4823,7 @@
                         <span>💬 团队全程研讨对话流 (${activeMonitorGroup.name})</span>
                         <span style="font-size:11px; background:#eff6ff; color:#2563eb; padding:2px 8px; border-radius:6px; font-weight:700;">全阶段汇总 (${combinedGroupChatLogs.length}条)</span>
                       </div>
-                      <div class="teacher-chat-stream" style="flex:1; min-height:0; height:100%; max-height:100%; overflow-y:auto; background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:12px; font-size:12px; display:flex; flex-direction:column; gap:10px; box-sizing:border-box;">
+                      <div class="teacher-chat-stream" id="teacher-unified-chat-stream" style="flex:1; min-height:0; height:100%; max-height:100%; overflow-y:auto; background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:12px; font-size:12px; display:flex; flex-direction:column; gap:10px; box-sizing:border-box;">
                         ${combinedGroupChatLogs.length > 0 ? combinedGroupChatLogs.map(m => {
                           const allGlobalUsers = (authManager) ? authManager.getUsers() : [];
                           const isAgent = AgentProfiles[m.sender] !== undefined;
@@ -4791,33 +5006,35 @@
                               <span style="font-size:15px; font-weight:800; color:#1e40af;">📝 学术协作富文本编辑器 (${activeMonitorGroup.name})</span>
                               <span style="font-size:11px; background:#ecfdf5; color:#059669; padding:2px 8px; border-radius:10px; font-weight:700; border:1px solid #a7f3d0;">🟢 实时同步中</span>
                             </div>
-                            <span style="font-size:12px; color:#475569;">总字数: <b style="color:#2563eb; font-size:14px;">${(state.stage2?.unifiedContent || '').replace(/<[^>]*>/g, '').trim().length}</b> 字</span>
+                            <span style="font-size:12px; color:#475569;">总字数: <b id="teacher-stage2-word-count-num" style="color:#2563eb; font-size:14px;">${(state.stage2?.unifiedContent || '').replace(/<[^>]*>/g, '').trim().length}</b> 字</span>
                           </div>
 
                           <!-- 2. 半程修正清单 (1:1 镜像学生端：已生成显示绿色卡片，未生成显示虚线占位卡片) -->
-                          ${(s2ActionPlan && s2ActionPlan.isGenerated) ? `
-                            <div style="background:#ecfdf5; border:1px solid #a7f3d0; border-radius:8px; padding:8px 12px; flex-shrink:0;">
-                              <div style="font-size:12px; font-weight:800; color:#059669; display:flex; justify-content:space-between; align-items:center;">
-                                <span>📋 【半程修正清单】(3项修改要求)</span>
-                                <span style="font-size:10.5px; background:#d1fae5; color:#065f46; padding:1px 6px; border-radius:10px;">已生成</span>
-                              </div>
-                              <div style="font-size:11.5px; color:#334155; display:flex; flex-direction:column; gap:2px; margin-top:4px;">
-                                ${(s2ActionPlan.items || []).map(item => `<div style="line-height:1.4;">• ${escapeHtml(item)}</div>`).join('')}
-                              </div>
-                            </div>
-                          ` : `
-                            <div style="background:#f8fafc; border:1px dashed #cbd5e1; border-radius:8px; padding:8px 12px; flex-shrink:0;">
-                              <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:6px;">
-                                <div style="font-size:12px; font-weight:700; color:#64748b; display:flex; align-items:center; gap:6px;">
-                                  <span>📋 【半程修正清单】</span>
-                                  <span style="font-size:10.5px; background:${s2SubCount > 0 ? '#dbeafe' : '#e2e8f0'}; color:${s2SubCount > 0 ? '#1d4ed8' : '#475569'}; padding:1px 8px; border-radius:10px; font-weight:700;">
-                                    ${s2SubCount > 0 ? `待解锁 (全员自查进度 ${s2SubCount}/${totalMemberCount}人)` : `待解锁 (0/${totalMemberCount}人)`}
-                                  </span>
+                          <div id="teacher-stage2-action-plan-container">
+                            ${(s2ActionPlan && s2ActionPlan.isGenerated) ? `
+                              <div style="background:#ecfdf5; border:1px solid #a7f3d0; border-radius:8px; padding:8px 12px; flex-shrink:0;">
+                                <div style="font-size:12px; font-weight:800; color:#059669; display:flex; justify-content:space-between; align-items:center;">
+                                  <span>📋 【半程修正清单】(3项修改要求)</span>
+                                  <span style="font-size:10.5px; background:#d1fae5; color:#065f46; padding:1px 6px; border-radius:10px;">已生成</span>
                                 </div>
-                                <span style="font-size:11px; color:#94a3b8;">（需全组成员完成半程自查后自动生成）</span>
+                                <div style="font-size:11.5px; color:#334155; display:flex; flex-direction:column; gap:2px; margin-top:4px;">
+                                  ${(s2ActionPlan.items || []).map(item => `<div style="line-height:1.4;">• ${escapeHtml(item)}</div>`).join('')}
+                                </div>
                               </div>
-                            </div>
-                          `}
+                            ` : `
+                              <div style="background:#f8fafc; border:1px dashed #cbd5e1; border-radius:8px; padding:8px 12px; flex-shrink:0;">
+                                <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:6px;">
+                                  <div style="font-size:12px; font-weight:700; color:#64748b; display:flex; align-items:center; gap:6px;">
+                                    <span>📋 【半程修正清单】</span>
+                                    <span style="font-size:10.5px; background:${s2SubCount > 0 ? '#dbeafe' : '#e2e8f0'}; color:${s2SubCount > 0 ? '#1d4ed8' : '#475569'}; padding:1px 8px; border-radius:10px; font-weight:700;">
+                                      ${s2SubCount > 0 ? `待解锁 (全员自查进度 ${s2SubCount}/${totalMemberCount}人)` : `待解锁 (0/${totalMemberCount}人)`}
+                                    </span>
+                                  </div>
+                                  <span style="font-size:11px; color:#94a3b8;">（需全组成员完成半程自查后自动生成）</span>
+                                </div>
+                              </div>
+                            `}
+                          </div>
 
                           <!-- 3. 正文初稿确认进度 (1:1 镜像学生端) -->
                           <div style="flex-shrink:0; background:#ffffff; border:1px solid #e2e8f0; border-radius:8px; padding:8px 12px; font-size:12px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:6px; box-shadow:0 1px 2px rgba(15,23,42,0.02);">
@@ -4826,7 +5043,7 @@
                               <span style="font-weight:700; color:${state.stage2?.isDraftConfirmed ? '#059669' : '#2563eb'}; background:${state.stage2?.isDraftConfirmed ? '#ecfdf5' : '#eff6ff'}; padding:2px 8px; border-radius:10px; border:1px solid ${state.stage2?.isDraftConfirmed ? '#a7f3d0' : '#bfdbfe'}; font-size:11px;">
                                 ${state.stage2?.isDraftConfirmed ? '✅ 全员已确认完成初稿' : `${confirmedDraftCount}/${totalMemberCount} 人已确认`}
                               </span>
-                              <div style="display:flex; gap:6px; flex-wrap:wrap;">
+                              <div id="teacher-stage2-confirmed-pills" style="display:flex; gap:6px; flex-wrap:wrap;">
                                 ${monitorMembersList.map(m => {
                                   const isConf = state.stage2?.confirmedMembers && (state.stage2.confirmedMembers[m.id] || state.stage2.confirmedMembers[m.studentCode] || (m.name && state.stage2.confirmedMembers[m.name]));
                                   return `<span style="font-size:11px; padding:1px 8px; border-radius:10px; font-weight:700; background:${isConf ? '#ecfdf5' : '#f8fafc'}; color:${isConf ? '#059669' : '#94a3b8'}; border:1px solid ${isConf ? '#a7f3d0' : '#e2e8f0'};">
@@ -4854,7 +5071,7 @@
                           <div style="background:#ffffff; padding:10px 14px; border-radius:8px; border:1px solid #cbd5e1; flex-shrink:0; display:flex; flex-direction:column; gap:6px; box-shadow:0 1px 3px rgba(15,23,42,0.04);">
                             <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:6px;">
                               <span style="font-size:12px; font-weight:800; color:#1e293b;">📊 团队协作贡献度占比 (SSRL 群体过程感知):</span>
-                              <div class="contrib-labels" style="display:flex; font-size:11.5px; font-weight:700; color:#475569; gap:10px; white-space:nowrap; flex-wrap:wrap;">
+                              <div class="contrib-labels" id="teacher-stage2-contrib-labels" style="display:flex; font-size:11.5px; font-weight:700; color:#475569; gap:10px; white-space:nowrap; flex-wrap:wrap;">
                                 ${(() => {
                                   const contribs = state.stage2?.memberContributions || {};
                                   let rawTotal = 0;
@@ -4867,7 +5084,7 @@
                                 })()}
                               </div>
                             </div>
-                            <div class="contrib-bars" style="width:100%; height:10px; border-radius:5px; display:flex; overflow:hidden; background:#e2e8f0;">
+                            <div class="contrib-bars" id="teacher-stage2-contrib-bars" style="width:100%; height:10px; border-radius:5px; display:flex; overflow:hidden; background:#e2e8f0;">
                               ${(() => {
                                 const contribs = state.stage2?.memberContributions || {};
                                 let rawTotal = 0;
@@ -4909,7 +5126,7 @@
                             <!-- Tab 2: 论文终稿实时镜像 (未进入阶段三时显示待命占位，不消耗资源) -->
                             <div style="flex-shrink:0; display:flex; justify-content:space-between; align-items:center;">
                               <span style="font-size:13.5px; font-weight:800; color:#1e40af;">📜 论文终稿正文全篇镜像:</span>
-                              <span style="font-size:12px; color:#64748b;">终稿字数: <b style="color:#2563eb; font-size:14px;">${((state.stage3?.finalDraft || state.stage2?.unifiedContent || '').replace(/<[^>]*>/g, '').trim()).length}</b> 字</span>
+                              <span style="font-size:12px; color:#64748b;">终稿字数: <b id="teacher-stage3-word-count-num" style="color:#2563eb; font-size:14px;">${((state.stage3?.finalDraft || state.stage2?.unifiedContent || '').replace(/<[^>]*>/g, '').trim()).length}</b> 字</span>
                             </div>
                             ${(state.currentStage === 'stage1' || state.currentStage === 'stage2') ? `
                               <div style="flex:1; min-height:420px; display:flex; flex-direction:column; align-items:center; justify-content:center; border-radius:8px; border:1.5px dashed #cbd5e1; background:#ffffff; color:#64748b; padding:24px; text-align:center; gap:8px;">
@@ -4925,7 +5142,7 @@
                             <div style="background:#ffffff; padding:10px 14px; border-radius:8px; border:1px solid #cbd5e1; flex-shrink:0; display:flex; flex-direction:column; gap:6px; box-shadow:0 1px 3px rgba(15,23,42,0.04);">
                               <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:6px;">
                                 <span style="font-size:12px; font-weight:800; color:#1e293b;">📊 终稿协作贡献度占比 (SSRL 群体过程感知):</span>
-                                <div class="contrib-labels" style="display:flex; font-size:11.5px; font-weight:700; color:#475569; gap:10px; white-space:nowrap; flex-wrap:wrap;">
+                                <div class="contrib-labels" id="teacher-stage3-contrib-labels" style="display:flex; font-size:11.5px; font-weight:700; color:#475569; gap:10px; white-space:nowrap; flex-wrap:wrap;">
                                   ${(() => {
                                     const contribs = state.stage2?.memberContributions || {};
                                     let rawTotal = 0;
@@ -4938,7 +5155,7 @@
                                   })()}
                                 </div>
                               </div>
-                              <div class="contrib-bars" style="width:100%; height:10px; border-radius:5px; display:flex; overflow:hidden; background:#e2e8f0;">
+                              <div class="contrib-bars" id="teacher-stage3-contrib-bars" style="width:100%; height:10px; border-radius:5px; display:flex; overflow:hidden; background:#e2e8f0;">
                                 ${(() => {
                                   const contribs = state.stage2?.memberContributions || {};
                                   let rawTotal = 0;
@@ -4962,17 +5179,24 @@
                                 <span>🗣️ 答辩委员会质询与小组成员逐条答辩:</span>
                                 <span style="font-size:11.5px; background:#eff6ff; color:#2563eb; padding:2px 8px; border-radius:6px; font-weight:700;">共 ${(state.stage3?.feedbackItems || []).length} 条质询对决</span>
                               </div>
-                              <div style="display:flex; flex-direction:column; gap:12px; flex:1;">
-                                ${(state.stage3?.feedbackItems && state.stage3.feedbackItems.length > 0) ? state.stage3.feedbackItems.map((item, i) => `
-                                  <div style="background:#ffffff; border:1.5px solid ${item.response ? '#93c5fd' : '#fde68a'}; border-radius:8px; padding:12px 14px; font-size:12.5px; box-shadow:0 1px 3px rgba(0,0,0,0.02);">
+                              <div id="teacher-stage3-feedback-list" style="display:flex; flex-direction:column; gap:12px; flex:1;">
+                                ${(state.stage3?.feedbackItems && state.stage3.feedbackItems.length > 0) ? state.stage3.feedbackItems.map((item, i) => {
+                                  const isProp = item.role === 'proponent';
+                                  const roleLabel = item.speaker || (isProp ? '正方委员 Agent (立论支持)' : '反方委员 Agent (学术质询)');
+                                  const titleLabel = item.title ? ` - ${item.title}` : '';
+                                  const questionText = item.content || item.question || item.comment || item.text || '质询内容生成中...';
+                                  return `
+                                  <div style="background:#ffffff; border:1.5px solid ${item.response ? '#93c5fd' : (isProp ? '#86efac' : '#fca5a5')}; border-radius:8px; padding:12px 14px; font-size:12.5px; box-shadow:0 1px 3px rgba(0,0,0,0.02);">
                                     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
-                                      <span style="font-weight:800; color:#0f172a; font-size:13px;">💬 答辩质询 #${i+1} (${escapeHtml(item.fromGroupName || item.roleName || '答辩委员会')}):</span>
-                                      <span style="font-size:11px; background:${item.response ? '#ecfdf5' : '#fef3c7'}; color:${item.response ? '#059669' : '#b45309'}; padding:2px 8px; border-radius:4px; font-weight:700;">
-                                        ${item.response ? '✅ 小组已答复' : '⏳ 待答辩回复'}
+                                      <span style="font-weight:800; color:${isProp ? '#059669' : '#0f172a'}; font-size:13px;">
+                                        ${isProp ? '🟢 专家立论支持' : `💬 答辩质询 #${i+1}`} (${escapeHtml(roleLabel)}${escapeHtml(titleLabel)}):
+                                      </span>
+                                      <span style="font-size:11px; background:${item.response ? '#ecfdf5' : (isProp ? '#eff6ff' : '#fef3c7')}; color:${item.response ? '#059669' : (isProp ? '#2563eb' : '#b45309')}; padding:2px 8px; border-radius:4px; font-weight:700;">
+                                        ${item.response ? '✅ 小组已答辩并归档' : (isProp ? '🌟 专家肯定 (立论支持无需答辩)' : '⏳ 待组内研讨答辩')}
                                       </span>
                                     </div>
-                                    <div style="color:#1e293b; background:#f8fafc; padding:8px 10px; border-radius:6px; margin-bottom:8px; border-left:3px solid #3b82f6; line-height:1.5;">
-                                      ${escapeHtml(item.question || item.comment || item.text || '质询内容生成中...')}
+                                    <div style="color:#1e293b; background:#f8fafc; padding:8px 10px; border-radius:6px; margin-bottom:8px; border-left:3px solid ${isProp ? '#10b981' : '#ef4444'}; line-height:1.5;">
+                                      ${escapeHtml(questionText)}
                                     </div>
                                     ${item.response ? `
                                       <div style="color:#065f46; background:#ecfdf5; padding:8px 10px; border-radius:6px; border-left:3px solid #10b981; line-height:1.5;">
@@ -4980,11 +5204,11 @@
                                       </div>
                                     ` : `
                                       <div style="color:#94a3b8; font-style:italic; font-size:11.5px; padding:4px 8px;">
-                                        （本小组尚未提交对该质询的答辩回应）
+                                        ${isProp ? '（立论支持默认通过，如无补充可直接留空）' : '（本小组尚未提交对该质询的答辩回应）'}
                                       </div>
                                     `}
                                   </div>
-                                `).join('') : `
+                                `;}).join('') : `
                                   <div style="text-align:center; padding:60px 16px; color:#94a3b8; font-size:13px; background:#ffffff; border-radius:8px; border:1px dashed #cbd5e1; flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:8px;">
                                     <span style="font-size:28px;">⏳</span>
                                     <span>答辩委员会尚未对该小组发布质询意见，或小组正处于答辩准备中</span>
@@ -5010,6 +5234,13 @@
         </main>
       </div>
     `;
+
+    container.dataset.renderedClassId = activeClassId;
+    container.dataset.renderedGroupId = activeMonitorGId;
+    container.dataset.renderedTaskId = effectiveMonitorTaskId;
+    container.dataset.renderedStage = effectiveMonitorStage;
+    container.dataset.renderedS3Tab = currentS3Tab;
+    container.dataset.renderedTab = activeTab;
 
     const btnLogout = container.querySelector('#btn-logout');
     if (btnLogout) btnLogout.addEventListener('click', () => onLogout());
