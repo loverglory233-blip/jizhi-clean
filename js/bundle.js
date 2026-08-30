@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260830_v782
+ * Version: 20260830_v783
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260830_v782';
+  const APP_VERSION = '20260830_v783';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -595,7 +595,7 @@
   /**
    * 🔔 全局轻量浮层通知横幅（全场景通用：任务延长、紧急提醒等）
    */
-  function showGlobalBannerNotice(title, message, type = 'info') {
+  function showGlobalBannerNotice(title, message, type = 'info', duration = 8000) {
     if (typeof document === 'undefined') return;
     const existing = document.getElementById('jizhi-global-banner-notice');
     if (existing) existing.remove();
@@ -608,37 +608,76 @@
       left: 50%;
       transform: translateX(-50%);
       z-index: 9999999;
-      background: linear-gradient(135deg, #1e293b, #0f172a);
-      color: #ffffff;
-      padding: 12px 22px;
+      background: #ffffff;
+      color: #0f172a;
+      padding: 12px 20px;
       border-radius: 12px;
-      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(255, 255, 255, 0.15);
+      box-shadow: 0 12px 32px rgba(30, 58, 138, 0.16), 0 0 0 1px #93c5fd;
+      border: 1.5px solid #3b82f6;
       display: flex;
       align-items: center;
       gap: 12px;
+      max-width: 90vw;
+      width: max-content;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
       font-size: 13.5px;
       pointer-events: auto;
+      animation: bannerSlideDown 0.25s cubic-bezier(0.16, 1, 0.3, 1);
     `;
 
     banner.innerHTML = `
-      <div style="font-size: 20px;">🔔</div>
-      <div>
-        <div style="font-weight: 800; color: #60a5fa; font-size: 14px;">${escapeHtml(title)}</div>
-        <div style="color: #e2e8f0; font-size: 12.5px; margin-top: 2px;">${escapeHtml(message)}</div>
+      <style>
+        @keyframes bannerSlideDown {
+          from { opacity: 0; transform: translateX(-50%) translateY(-18px) scale(0.96); }
+          to { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
+        }
+      </style>
+      <div style="font-size: 22px; line-height: 1; flex-shrink: 0;">⏳</div>
+      <div style="display: flex; flex-direction: column; gap: 2px; text-align: left;">
+        <div style="font-weight: 800; color: #1e3a8a; font-size: 14px; display: flex; align-items: center; gap: 6px;">
+          <span>${escapeHtml(title)}</span>
+        </div>
+        <div style="color: #334155; font-size: 13px; line-height: 1.5;">${escapeHtml(message)}</div>
       </div>
-      <button style="background: none; border: none; color: #94a3b8; font-size: 18px; cursor: pointer; margin-left: 12px; padding: 0 4px; line-height: 1;" onclick="this.parentElement.remove()">×</button>
+      <button id="btn-close-global-banner" style="background: #f1f5f9; border: 1px solid #cbd5e1; color: #64748b; font-size: 16px; width: 26px; height: 26px; border-radius: 50%; cursor: pointer; margin-left: 12px; display: flex; align-items: center; justify-content: center; font-weight: 700; flex-shrink: 0; transition: all 0.15s;" title="关闭">✕</button>
     `;
 
     document.body.appendChild(banner);
-    setTimeout(() => {
-      if (banner && banner.parentElement) {
-        banner.style.transition = 'opacity 0.3s ease, transform 0.3s ease';
+
+    let dismissTimer = null;
+    const startTimer = (ms) => {
+      if (dismissTimer) clearTimeout(dismissTimer);
+      dismissTimer = setTimeout(() => {
+        if (banner && banner.parentElement) {
+          banner.style.transition = 'opacity 0.25s ease, transform 0.25s ease';
+          banner.style.opacity = '0';
+          banner.style.transform = 'translateX(-50%) translateY(-14px)';
+          setTimeout(() => { if (banner && banner.parentElement) banner.remove(); }, 250);
+        }
+      }, ms);
+    };
+
+    startTimer(duration);
+
+    banner.addEventListener('mouseenter', () => {
+      if (dismissTimer) clearTimeout(dismissTimer);
+    });
+
+    banner.addEventListener('mouseleave', () => {
+      startTimer(3000);
+    });
+
+    const btnClose = banner.querySelector('#btn-close-global-banner');
+    if (btnClose) {
+      btnClose.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (dismissTimer) clearTimeout(dismissTimer);
+        banner.style.transition = 'opacity 0.15s ease, transform 0.15s ease';
         banner.style.opacity = '0';
-        banner.style.transform = 'translateX(-50%) translateY(-10px)';
-        setTimeout(() => banner.remove(), 300);
-      }
-    }, 6000);
+        banner.style.transform = 'translateX(-50%) translateY(-14px)';
+        setTimeout(() => { if (banner && banner.parentElement) banner.remove(); }, 150);
+      });
+    }
   }
 
   /**
@@ -2834,10 +2873,11 @@
         (t.title && badgeText.includes(t.title))
       );
       const isTaskHall = !isWorkspace || this.app.state.studentViewMode === 'task_list';
+      const extDurationStr = t.lastExtension?.extendDurationStr || (t.lastExtension?.addedMinutes ? `（增加了 ${t.lastExtension.addedMinutes} 分钟）` : '');
 
       if (isCurrentTask) {
         // 🎯 场景 1：学生正处于该任务工作台内部
-        // 🛡️ 严格保护：若小组已全员终稿提交归档（isFinalSubmitted），绝不解开只读锁定，保持只读归档状态
+        // 🛡️ 严格保护：若小组未归档，0ms 就地解除只读锁（绝不销毁重载 iframe，0 闪烁 0 白屏）
         if (!this.app.state.isFinalSubmitted) {
           if (!nowExpired) {
             document.querySelectorAll('.etherpad-readonly-shield').forEach(s => s.remove());
@@ -2851,19 +2891,31 @@
             }
           }
         }
+        // ⏱️ 仅就地刷新顶部倒计时与状态（变绿），绝不调用全页重绘
         this.app.renderHeader();
-        showTaskExtendedUnlockModal(t, prevDeadline, prevExpired && !nowExpired && !this.app.state.isFinalSubmitted);
-        if (prevExpired && !nowExpired && !this.app.state.isFinalSubmitted) {
-          this.app.renderStudentWorkspace();
-        }
+        showGlobalBannerNotice(
+          '⏳ 任务截止时间已延长',
+          `任课教师已将当前任务《${t.title || '协作写作'}》截止时间延长至 ${t.deadline} ${extDurationStr}！协作通道已畅通。`,
+          'info',
+          8000
+        );
       } else if (isTaskHall) {
-        // 📋 场景 2：学生在任务大厅（弹出居中大卡片，刷新大厅任务卡片）
+        // 📋 场景 2：学生在任务大厅（就地刷新大厅任务卡片，滑出顶部通知横幅）
         this.app.renderStudentWorkspace();
-        showTaskExtendedUnlockModal(t, prevDeadline, false);
+        showGlobalBannerNotice(
+          '⏳ 任务延期提醒',
+          `班级写作任务《${t.title || '协作任务'}》截止时间已延长至 ${t.deadline} ${extDurationStr}！`,
+          'info',
+          8000
+        );
       } else {
-        // ✍️ 场景 3：学生在其他任务工作台内（弹出居中大卡片提醒）
-        this.app.renderHeader();
-        showTaskExtendedUnlockModal(t, prevDeadline, false);
+        // ✍️ 场景 3：学生在其他任务工作台内（当前写作 100% 保持稳定，仅顶部滑出通知横幅）
+        showGlobalBannerNotice(
+          '⏳ 其他任务延期',
+          `您的另一项写作任务《${t.title || '写作任务'}》截止时间已延长至 ${t.deadline} ${extDurationStr}。`,
+          'info',
+          8000
+        );
       }
     }
 
@@ -7784,7 +7836,7 @@
 
 
   /* ==========================================================================
-     7.5 STUDENT TASK PORTAL / DASHBOARD (我的写作任务大厅)
+     10. STUDENT TASK PORTAL (CENTRALIZED HUB & COLLABORATION ENTRY)
      ========================================================================== */
   function renderStudentTaskPortal(container, authManager, state, onSelectTask, onLogout, onSwitchTeacher, onOpenAnnModal, onOpenSurveyModal) {
     // ⚡ 监听全局广播（跨标签页秒级无感热同步大厅任务卡片与下发延期通知）
@@ -7797,7 +7849,8 @@
           if (e.data && e.data.type === 'task_extended' && e.data.task) {
             const t = e.data.task;
             renderStudentTaskPortal(container, authManager, state, onSelectTask, onLogout, onSwitchTeacher, onOpenAnnModal, onOpenSurveyModal);
-            showTaskExtendedUnlockModal(t, e.data.prevDeadline || '', false);
+            const extDurationStr = t.lastExtension?.extendDurationStr || (t.lastExtension?.addedMinutes ? `（增加了 ${t.lastExtension.addedMinutes} 分钟）` : '');
+            showGlobalBannerNotice('⏳ 任务延期提醒', `班级写作任务《${t.title || '协作任务'}》截止时间已延长至 ${t.deadline} ${extDurationStr}！`, 'info', 8000);
           }
         };
       } catch (e) {}
@@ -7823,7 +7876,8 @@
                 newT.forEach(nt => {
                   const ot = oldT.find(o => o.id === nt.id);
                   if (ot && nt.deadline && ot.deadline && ot.deadline !== nt.deadline) {
-                    showTaskExtendedUnlockModal(nt, ot.deadline, false);
+                    const extDurationStr = nt.lastExtension?.extendDurationStr || (nt.lastExtension?.addedMinutes ? `（增加了 ${nt.lastExtension.addedMinutes} 分钟）` : '');
+                    showGlobalBannerNotice('⏳ 任务延期提醒', `班级写作任务《${nt.title || '协作任务'}》截止时间已延长至 ${nt.deadline} ${extDurationStr}！`, 'info', 8000);
                   }
                 });
               } catch (err) {}
@@ -10500,14 +10554,15 @@
 
     const isDefenseLocked = isRevisionFullyConfirmed || isFinalSubmitted;
 
-    // 🛡️ Safari 滚动记忆防回弹保护：捕获渲染前的滚动条高度与聚焦状态
-    const oldDefenseCard = canvas.querySelector('#stage3-defense-card') || canvas.querySelector('.card');
-    const oldScrollTop = oldDefenseCard ? oldDefenseCard.scrollTop : 0;
-    const activeElem = document.activeElement;
-    const activeElemDataId = (activeElem && activeElem.tagName === 'TEXTAREA') ? activeElem.getAttribute('data-id') : null;
-    const activeElemVal = activeElemDataId ? activeElem.value : null;
-    const activeSelectionStart = activeElem?.selectionStart;
-    const activeSelectionEnd = activeElem?.selectionEnd;
+    // 🛡️ 极致单例保护：若 Stage 3 Etherpad 已经在当前画布上活跃运行，严禁 innerHTML 销毁重绘！
+    if (canvas.dataset.renderedTab === activeTab && activeTab === 'editor' && canvas.querySelector('#stage3-etherpad-frame')) {
+      if (isFinalSubmitted) {
+        const s3Frame = canvas.querySelector('#stage3-etherpad-frame');
+        if (s3Frame) enforceEtherpadReadonly(s3Frame);
+      }
+      return;
+    }
+    canvas.dataset.renderedTab = activeTab;
 
     canvas.innerHTML = `
       <div style="height:100%; display:flex; flex-direction:column; gap:12px; overscroll-behavior-y:contain;">

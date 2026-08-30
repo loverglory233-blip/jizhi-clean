@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles } from "./constants.js?v=20260830_v782";
-import { callCozeAgentAPI } from "./agents.js?v=20260830_v782";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly } from "./utils.js?v=20260830_v782";
+import { AgentProfiles } from "./constants.js?v=20260830_v783";
+import { callCozeAgentAPI } from "./agents.js?v=20260830_v783";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly } from "./utils.js?v=20260830_v783";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -2408,14 +2408,15 @@ function renderStage3Canvas(canvas, state, handlers) {
 
   const isDefenseLocked = isRevisionFullyConfirmed || isFinalSubmitted;
 
-  // 🛡️ Safari 滚动记忆防回弹保护：捕获渲染前的滚动条高度与聚焦状态
-  const oldDefenseCard = canvas.querySelector('#stage3-defense-card') || canvas.querySelector('.card');
-  const oldScrollTop = oldDefenseCard ? oldDefenseCard.scrollTop : 0;
-  const activeElem = document.activeElement;
-  const activeElemDataId = (activeElem && activeElem.tagName === 'TEXTAREA') ? activeElem.getAttribute('data-id') : null;
-  const activeElemVal = activeElemDataId ? activeElem.value : null;
-  const activeSelectionStart = activeElem?.selectionStart;
-  const activeSelectionEnd = activeElem?.selectionEnd;
+  // 🛡️ 极致单例保护：若 Stage 3 Etherpad 已经在当前画布上活跃运行，严禁 innerHTML 销毁重绘！
+  if (canvas.dataset.renderedTab === activeTab && activeTab === 'editor' && canvas.querySelector('#stage3-etherpad-frame')) {
+    if (isFinalSubmitted) {
+      const s3Frame = canvas.querySelector('#stage3-etherpad-frame');
+      if (s3Frame) enforceEtherpadReadonly(s3Frame);
+    }
+    return;
+  }
+  canvas.dataset.renderedTab = activeTab;
 
   canvas.innerHTML = `
     <div style="height:100%; display:flex; flex-direction:column; gap:12px; overscroll-behavior-y:contain;">
