@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles } from "./constants.js?v=20260830_v916";
-import { callCozeAgentAPI } from "./agents.js?v=20260830_v916";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap } from "./utils.js?v=20260830_v916";
+import { AgentProfiles } from "./constants.js?v=20260830_v917";
+import { callCozeAgentAPI } from "./agents.js?v=20260830_v917";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap } from "./utils.js?v=20260830_v917";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -1363,7 +1363,7 @@ function renderStage1Canvas(canvas, state, handlers) {
 请作为资深学术拍卖师，仅发表 60~80 字的【选题学术亮点速评与启发】：
 ① 精准肯定该选题的研究切入点或实践价值；
 ② 给出 1 点前瞻性探究启发，鼓励全组在研讨区就此交流！
-【严格限制】：纯自然语言，60~80字；严禁代码块；严禁提及任何界面按钮、操作引导、下一步流程说明；严禁要求点击任何按钮；仅聚焦对该提案的学术评价本身。`;
+【格式要求】：纯自然语言，60~80字，严禁代码块。`;
             
             let evalText = await callCozeAgentAPI('auctioneer', evalPrompt, { stage: 'stage1', proposalTitle: title, author: authorName, topic: title });
 
