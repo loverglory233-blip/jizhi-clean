@@ -655,6 +655,11 @@ export function enforceEtherpadReadonly(iframe) {
         if (doc.documentElement) doc.documentElement.scrollTop += deltaY;
         if (doc.body) doc.body.scrollTop += deltaY;
 
+        const editBox = doc.getElementById('editorcontainerbox') || doc.querySelector('#editorcontainerbox');
+        if (editBox) editBox.scrollTop += deltaY;
+        const editCont = doc.getElementById('editorcontainer') || doc.querySelector('#editorcontainer');
+        if (editCont) editCont.scrollTop += deltaY;
+
         const aceOuter = doc.querySelector('iframe[name="ace_outer"]') || doc.querySelector('#ace_outer');
         if (aceOuter) {
           const outerWin = aceOuter.contentWindow;
@@ -663,7 +668,11 @@ export function enforceEtherpadReadonly(iframe) {
           }
           const outerDoc = aceOuter.contentDocument || outerWin?.document;
           if (outerDoc) {
-            const outerBody = outerDoc.querySelector('#outerdocbody') || outerDoc.body || outerDoc.documentElement;
+            if (outerDoc.scrollingElement) outerDoc.scrollingElement.scrollTop += deltaY;
+            if (outerDoc.documentElement) outerDoc.documentElement.scrollTop += deltaY;
+            if (outerDoc.body) outerDoc.body.scrollTop += deltaY;
+
+            const outerBody = outerDoc.getElementById('outerdocbody') || outerDoc.querySelector('#outerdocbody') || outerDoc.body;
             if (outerBody) {
               outerBody.scrollTop += deltaY;
               try {
@@ -677,7 +686,6 @@ export function enforceEtherpadReadonly(iframe) {
                 outerBody.dispatchEvent(syntheticEvt);
               } catch(e) {}
             }
-            if (outerDoc.scrollingElement) outerDoc.scrollingElement.scrollTop += deltaY;
 
             const aceInner = outerDoc.querySelector('iframe[name="ace_inner"]') || outerDoc.querySelector('#ace_inner');
             if (aceInner) {
@@ -687,9 +695,14 @@ export function enforceEtherpadReadonly(iframe) {
               }
               const innerDoc = aceInner.contentDocument || innerWin?.document;
               if (innerDoc) {
-                const innerBody = innerDoc.querySelector('#innerdocbody') || innerDoc.body || innerDoc.documentElement;
-                if (innerBody) innerBody.scrollTop += deltaY;
                 if (innerDoc.scrollingElement) innerDoc.scrollingElement.scrollTop += deltaY;
+                if (innerDoc.documentElement) innerDoc.documentElement.scrollTop += deltaY;
+                if (innerDoc.body) innerDoc.body.scrollTop += deltaY;
+
+                const innerBody = innerDoc.getElementById('innerdocbody') || innerDoc.querySelector('#innerdocbody') || innerDoc.body;
+                if (innerBody) {
+                  innerBody.scrollTop += deltaY;
+                }
               }
             }
           }
@@ -720,6 +733,18 @@ export function enforceEtherpadReadonly(iframe) {
         startY = currentY;
         performScroll(deltaY);
       }, { passive: true });
+    }
+
+    if (!shield._keyBound) {
+      shield._keyBound = true;
+      shield.setAttribute('tabindex', '0');
+      shield.style.outline = 'none';
+      shield.addEventListener('keydown', (e) => {
+        if (e.key === 'ArrowDown') { e.preventDefault(); performScroll(40); }
+        else if (e.key === 'ArrowUp') { e.preventDefault(); performScroll(-40); }
+        else if (e.key === 'PageDown' || e.key === ' ') { e.preventDefault(); performScroll(300); }
+        else if (e.key === 'PageUp') { e.preventDefault(); performScroll(-300); }
+      });
     }
   }
 
