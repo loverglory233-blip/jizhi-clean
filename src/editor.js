@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles } from "./constants.js?v=20260830_v780";
-import { callCozeAgentAPI } from "./agents.js?v=20260830_v780";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly } from "./utils.js?v=20260830_v780";
+import { AgentProfiles } from "./constants.js?v=20260830_v781";
+import { callCozeAgentAPI } from "./agents.js?v=20260830_v781";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly } from "./utils.js?v=20260830_v781";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -68,9 +68,19 @@ export function renderHeader(state, currentUser, announcements, onStageChange, o
   const isTaskDeadlineExpired = isTaskExpired(currentTask);
   const isFinalSubmitted = state.isFinalSubmitted || isTaskDeadlineExpired;
 
+  const s1 = state.stage1 || {};
+  const s2 = state.stage2 || {};
+  const s3 = state.stage3 || {};
+  const isContractSigned = !!(s1.contract?.signed || s1.contract?.isConfirmed || (Array.isArray(s1.contract?.confirmedMembers) && s1.contract.confirmedMembers.length > 0));
+  const isDraftDone = !!(s2.isDraftConfirmed || (s2.meetingSubmissions && Object.keys(s2.meetingSubmissions).length > 0) || state.groupMaxStage === 'stage3' || state.isFinalSubmitted);
+  const isStage3Active = !!(state.groupMaxStage === 'stage3' || state.isFinalSubmitted || isDraftDone || (s3.confirmedMembers && Object.keys(s3.confirmedMembers).length > 0) || (s3.finalSubmittedMembers && Object.keys(s3.finalSubmittedMembers).length > 0));
+
+  let currentMaxStage = state.groupMaxStage || 'stage1';
+  if (isStage3Active) currentMaxStage = 'stage3';
+  else if (isContractSigned || currentMaxStage === 'stage2') currentMaxStage = 'stage2';
+
   const stageOrder = { stage1: 1, stage2: 2, stage3: 3 };
-  const currentMaxOrder = stageOrder[state.groupMaxStage || 'stage1'] || 1;
-  const isContractSigned = !!(state.stage1?.contract?.signed || (Array.isArray(state.stage1?.contract?.confirmedMembers) && state.stage1.contract.confirmedMembers.length > 0));
+  const currentMaxOrder = stageOrder[currentMaxStage] || 1;
   // 🌟 截止后或已归档后三个阶段全部解锁，允许学生自由切换查阅回看；未截止且未归档时按协作进度阶梯式解锁
   const isS2Locked = !isTaskDeadlineExpired && !state.isFinalSubmitted && (!isContractSigned && currentMaxOrder < 2);
   const isS3Locked = !isTaskDeadlineExpired && !state.isFinalSubmitted && currentMaxOrder < 3;
