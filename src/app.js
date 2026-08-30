@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260831_v975";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch } from "./utils.js?v=20260831_v975";
-import { callCozeAgentAPI } from "./agents.js?v=20260831_v975";
-import { AuthManager } from "./auth.js?v=20260831_v975";
-import { CloudSyncEngine } from "./sync.js?v=20260831_v975";
-import { renderLoginView } from "./login.js?v=20260831_v975";
-import { renderTeacherPortal } from "./teacher.js?v=20260831_v975";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260831_v975";
+} from "./constants.js?v=20260831_v976";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch } from "./utils.js?v=20260831_v976";
+import { callCozeAgentAPI } from "./agents.js?v=20260831_v976";
+import { AuthManager } from "./auth.js?v=20260831_v976";
+import { CloudSyncEngine } from "./sync.js?v=20260831_v976";
+import { renderLoginView } from "./login.js?v=20260831_v976";
+import { renderTeacherPortal } from "./teacher.js?v=20260831_v976";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260831_v976";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260831_v975";
+} from "./editor.js?v=20260831_v976";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -1490,7 +1490,7 @@ export class App {
           }
         }
         // ======================================================================
-        // 📌 质检/讨论梯度 A：审稿编辑建议讨论（3 / 6 / 10 分钟三梯度）
+        // 📌 质检/讨论梯度 A：审稿编辑建议讨论（连续冷场 3 / 6 / 10 分钟静默守护）
         // ======================================================================
         const lastReviewMsgObj = [...s2Chats].reverse().find(m => m && m.sender === 'reviewingEditor' && (m.text?.includes('一审破题把脉') || m.text?.includes('二审') || m.text?.includes('审稿编辑·一审') || m.text?.includes('审稿编辑·二审')));
         const hasPassedToSubsequentStages = s2Chats.some(m => m && (
@@ -1517,8 +1517,16 @@ export class App {
           const lastStudentMsgAfterReview = studentMsgAfterReview.length > 0 ? studentMsgAfterReview[studentMsgAfterReview.length - 1] : null;
           const silenceAfterReview = lastStudentMsgAfterReview ? (now - Number(lastStudentMsgAfterReview._timeMs || 0)) : reviewElapsed;
 
-          // ── ① 3 分钟梯度：初审跟进提示 ──
-          if (reviewElapsed >= 180000 && silenceAfterReview >= 180000 && silenceAfterReview < 360000) {
+          // 🛡️ 学生有发言即解除静默，重置计数
+          if (lastStudentMsgAfterReview && Number(lastStudentMsgAfterReview._timeMs || 0) > (this._lastNudgeActivityTime?.['s2_review'] || 0)) {
+            this._nudgeCounts['s2_review_silence_3m'] = 0;
+            this._nudgeCounts['s2_review_silence_6m'] = 0;
+            if (!this._lastNudgeActivityTime) this._lastNudgeActivityTime = {};
+            this._lastNudgeActivityTime['s2_review'] = Number(lastStudentMsgAfterReview._timeMs);
+          }
+
+          // ── ① 3 分钟没讨论：破冰跟进提示 ──
+          if (silenceAfterReview >= 180000 && silenceAfterReview < 360000) {
             const nudgeKey = 's2_review_silence_3m';
             if (!this._nudgeCounts[nudgeKey]) {
               this._nudgeCounts[nudgeKey] = 1;
@@ -1538,8 +1546,8 @@ export class App {
             }
           }
 
-          // ── ② 6 分钟梯度：建议研讨催促 ──
-          if (reviewElapsed >= 360000 && silenceAfterReview >= 360000 && silenceAfterReview < 600000) {
+          // ── ② 6 分钟仍没讨论：修改落实催促 ──
+          if (silenceAfterReview >= 360000 && silenceAfterReview < 600000) {
             const nudgeKey = 's2_review_silence_6m';
             if (!this._nudgeCounts[nudgeKey]) {
               this._nudgeCounts[nudgeKey] = 1;
@@ -1559,8 +1567,8 @@ export class App {
             }
           }
 
-          // ── ③ 10 分钟梯度：强兜底智能推进 ──
-          if (reviewElapsed >= 600000 && silenceAfterReview >= 600000) {
+          // ── ③ 10 分钟全组挂机没讨论：强兜底智能推进 ──
+          if (silenceAfterReview >= 600000) {
             const nudgeKey = 's2_review_silence_10m';
             if (!this._nudgeCounts[nudgeKey]) {
               this._nudgeCounts[nudgeKey] = 1;
@@ -1582,7 +1590,7 @@ export class App {
         }
 
         // ======================================================================
-        // 📌 质检/讨论梯度 B：半程会议自查打卡（3 分钟单次提醒）
+        // 📌 质检/讨论梯度 B：半程会议自查打卡（3 分钟未打卡静默提醒）
         // ======================================================================
         const lastMeetingMsg = [...s2Chats].reverse().find(m => m && m.sender === 'managingEditor' && (m.text?.includes('半程研讨号召') || m.text?.includes('半程会议号召') || m.text?.includes('半程自查')));
         const isMeetingActive = (lastMeetingMsg || s2.meetingStep) && s2.meetingStep !== 'completed' && !s2.isDraftConfirmed;
@@ -1631,7 +1639,7 @@ export class App {
           }
 
           // ======================================================================
-          // 📌 质检/讨论梯度 C：一致性讨论（全员打卡后针对清单的 3 / 6 / 10 分钟三梯度）
+          // 📌 质检/讨论梯度 C：一致性讨论（连续冷场 3 / 6 / 10 分钟静默守护）
           // ======================================================================
           if (!hasUnsubmitted) {
             const checklistMsg = [...s2Chats].reverse().find(m => m && (m.text?.includes('半程修正清单') || m.text?.includes('半程编辑修正清单')));
@@ -1649,8 +1657,16 @@ export class App {
             const lastStudentMsgAfterChecklist = studentMsgAfterChecklist.length > 0 ? studentMsgAfterChecklist[studentMsgAfterChecklist.length - 1] : null;
             const silenceAfterChecklist = lastStudentMsgAfterChecklist ? (now - Number(lastStudentMsgAfterChecklist._timeMs || 0)) : checklistElapsed;
 
-            // ── ① 3 分钟梯度：破冰引导点拨 ──
-            if (checklistElapsed >= 180000 && silenceAfterChecklist >= 180000 && silenceAfterChecklist < 360000) {
+            // 🛡️ 学生有发言即解除静默，重置一致性讨论计数
+            if (lastStudentMsgAfterChecklist && Number(lastStudentMsgAfterChecklist._timeMs || 0) > (this._lastNudgeActivityTime?.['s2_consistency'] || 0)) {
+              this._nudgeCounts['s2_consistency_silence_3m'] = 0;
+              this._nudgeCounts['s2_consistency_silence_6m'] = 0;
+              if (!this._lastNudgeActivityTime) this._lastNudgeActivityTime = {};
+              this._lastNudgeActivityTime['s2_consistency'] = Number(lastStudentMsgAfterChecklist._timeMs);
+            }
+
+            // ── ① 3 分钟没讨论：破冰点拨 ──
+            if (silenceAfterChecklist >= 180000 && silenceAfterChecklist < 360000) {
               const nudgeKey = 's2_consistency_silence_3m';
               if (!this._nudgeCounts[nudgeKey]) {
                 this._nudgeCounts[nudgeKey] = 1;
@@ -1670,8 +1686,8 @@ export class App {
               }
             }
 
-            // ── ② 6 分钟梯度：强化催促与收拢 ──
-            if (checklistElapsed >= 360000 && silenceAfterChecklist >= 360000 && silenceAfterChecklist < 600000) {
+            // ── ② 6 分钟仍没讨论：强化收拢催促 ──
+            if (silenceAfterChecklist >= 360000 && silenceAfterChecklist < 600000) {
               const nudgeKey = 's2_consistency_silence_6m';
               if (!this._nudgeCounts[nudgeKey]) {
                 this._nudgeCounts[nudgeKey] = 1;
@@ -1692,8 +1708,8 @@ export class App {
               }
             }
 
-            // ── ③ 10 分钟梯度：强兜底智能提炼与自动顺推 ──
-            if (checklistElapsed >= 600000 && silenceAfterChecklist >= 600000 && !this._s2MeetingAutoFallbackRunning) {
+            // ── ③ 10 分钟全组挂机没讨论：强兜底智能提炼回填 ──
+            if (silenceAfterChecklist >= 600000 && !this._s2MeetingAutoFallbackRunning) {
               const nudgeKey = 's2_consistency_auto_fallback_10m';
               if (!this._nudgeCounts[nudgeKey]) {
                 this._nudgeCounts[nudgeKey] = 1;
