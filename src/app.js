@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260830_v805";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash } from "./utils.js?v=20260830_v805";
-import { callCozeAgentAPI } from "./agents.js?v=20260830_v805";
-import { AuthManager } from "./auth.js?v=20260830_v805";
-import { CloudSyncEngine } from "./sync.js?v=20260830_v805";
-import { renderLoginView } from "./login.js?v=20260830_v805";
-import { renderTeacherPortal } from "./teacher.js?v=20260830_v805";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260830_v805";
+} from "./constants.js?v=20260830_v806";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash } from "./utils.js?v=20260830_v806";
+import { callCozeAgentAPI } from "./agents.js?v=20260830_v806";
+import { AuthManager } from "./auth.js?v=20260830_v806";
+import { CloudSyncEngine } from "./sync.js?v=20260830_v806";
+import { renderLoginView } from "./login.js?v=20260830_v806";
+import { renderTeacherPortal } from "./teacher.js?v=20260830_v806";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260830_v806";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260830_v805";
+} from "./editor.js?v=20260830_v806";
 
 // Make renderChat available on window for sync callbacks
 if (typeof window !== "undefined") {
@@ -877,24 +877,6 @@ export class App {
             // 同伴已成功出面调节，AI 默默记录并全程保持静默
             this.lastEmotionHandledId = lastNegativeChat._timeMs;
           }
-        }
-      }
-
-      // 🌐 全局静默防轰炸：取最近一次任意静默提示时间，5 分钟内不再追加（冷场只做一次精准破冰，避免连环打扰）
-      const _lastSilenceMs = Math.max(
-        0,
-        this.lastDiscussionNudgeTime || 0,
-        this.lastZeroProposalNudgeTime || 0,
-        this.lastPartialProposalNudgeTime || 0,
-        this.lastVoteNudgeTime || 0,
-        this.lastS2SilenceNudgeTime || 0,
-        this.lastS2ContribNudgeTime || 0,
-        this.lastS2MeetingNudgeTime || 0,
-        this.lastS2PostMeetingSilenceNudgeTime || 0,
-        this.lastS3SilenceNudgeTime || 0
-      );
-      if (_lastSilenceMs && (now - _lastSilenceMs < 300000)) return;
-
       if (stage === 'stage1') {
         const s1 = this.state.stage1;
         if (!s1 || s1.contract?.isConfirmed) return;
@@ -911,15 +893,14 @@ export class App {
         const submittedAuthors = new Set(proposals.map(p => p.author));
         const votesCastCount = Object.values(s1.hasVoted || {}).filter(Boolean).length;
 
-        // 动态三档自适应冷场阈值 (小任务<1h/60m: 2分钟; 中任务1~3h/60~180m: 3分钟; 大任务>3h/180m: 4.5分钟)
+        // 动态自适应冷场阈值 (小任务<1h: 2分钟; 标准任务1~3h: 3分钟; 大任务>3h: 4.5分钟)
         const allTasks = (this.authManager) ? this.authManager.getTasks() : [];
         const curTask = allTasks.find(t => t.id === this.state.activeTaskId);
         const taskDurMin = (curTask && curTask.durationMinutes) ? Number(curTask.durationMinutes) : 60;
         const silenceThresholdMs = taskDurMin < 60 ? 120000 : (taskDurMin <= 180 ? 180000 : 270000);
-        const timeSinceLastLeftAction = now - (this.stage1LastActionTime || this.stage1StartTime || now);
 
-        // 1. 【提案阶段研讨静默守护】：只有当【讨论区无人发言 > 阈值】且【左侧也无人在操作/撰写提案 > 阈值】时，才判定为真正冷场并提示！
-        if (submittedCount < totalMembersCount && silenceDurationMs > silenceThresholdMs && timeSinceLastLeftAction > silenceThresholdMs) {
+        // 1. 【提案阶段研讨静默守护】：研讨区持续无人发言达到阈值（标准3分钟）准时破冰提示！
+        if (submittedCount < totalMembersCount && silenceDurationMs >= silenceThresholdMs) {
           if (!this.lastDiscussionNudgeTime || now - this.lastDiscussionNudgeTime > (silenceThresholdMs + 60000)) {
             this.lastDiscussionNudgeTime = now;
             const msg = {
