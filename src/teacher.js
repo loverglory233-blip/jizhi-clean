@@ -9,8 +9,8 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260830_v752";
-import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash, filterAndDeduplicateChatLogs } from "./utils.js?v=20260830_v752";
+} from "./constants.js?v=20260830_v753";
+import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash, filterAndDeduplicateChatLogs } from "./utils.js?v=20260830_v753";
 
 /* ==========================================================================
    7. TEACHER PORTAL RENDERER (LIVE WORKSPACE MIRROR & ANNOUNCEMENT READ MATRIX)
@@ -452,6 +452,22 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
   ['mousemove', 'keydown', 'touchstart', 'scroll', 'click'].forEach(evt => {
     window.addEventListener(evt, markTeacherActive, { passive: true });
   });
+
+  if (!window._teacherWheelHandlerAttached) {
+    window._teacherWheelHandlerAttached = true;
+    window.addEventListener('wheel', (e) => {
+      const layout = document.getElementById('teacher-portal-layout');
+      if (!layout) return;
+      const target = e.target;
+      if (target && target.closest) {
+        if (target.closest('#teacher-unified-chat-stream')) return;
+        if (target.tagName === 'TEXTAREA' || target.tagName === 'INPUT' || target.tagName === 'SELECT') return;
+      }
+      if (layout.scrollHeight > layout.clientHeight) {
+        layout.scrollTop += e.deltaY;
+      }
+    }, { passive: true });
+  }
 
   const tInitInterval = (document.hidden ? 15000 : 1800);
   window._teacherPortalSyncTimer = setTimeout(teacherPullAndRefresh, tInitInterval);
@@ -1470,7 +1486,20 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
                           </div>
                         ` : (() => {
                           const rawPadName = `jizhi_${activeTaskId}_${activeMonitorGId}`;
-                          const effectivePadName = (state._readOnlyPadMap && state._readOnlyPadMap[rawPadName]) ? state._readOnlyPadMap[rawPadName] : rawPadName;
+                          if (!state._readOnlyPadMap) state._readOnlyPadMap = {};
+                          const readOnlyPadId = state._readOnlyPadMap[rawPadName];
+                          if (!readOnlyPadId) {
+                            fetch(`sync.php?action=get_readonly_pad_id&padId=${rawPadName}`).then(r => r.json()).then(res => {
+                              if (res && res.success && res.readOnlyID) {
+                                state._readOnlyPadMap[rawPadName] = res.readOnlyID;
+                                const f2 = document.querySelector('#teacher-stage2-etherpad-frame');
+                                if (f2 && !f2.src.includes(res.readOnlyID)) {
+                                  f2.src = `/p/${res.readOnlyID}?userName=${encodeURIComponent('教师监控')}&userColor=%237c3aed&showControls=false&showChat=false&showLineNumbers=true&lang=zh-hans`;
+                                }
+                              }
+                            }).catch(() => {});
+                          }
+                          const effectivePadName = readOnlyPadId || rawPadName;
                           return `
                             <div class="teacher-etherpad-container" style="flex:1; min-height:560px; border-radius:8px; overflow:hidden; border:1.5px solid #cbd5e1; box-shadow:0 2px 8px rgba(15,23,42,0.04); background:#ffffff; position:relative; display:flex; flex-direction:column;">
                               <div style="display:flex; justify-content:space-between; align-items:center; background:#f8fafc; border-bottom:1px solid #e2e8f0; padding:6px 12px; font-size:12px; color:#475569; flex-shrink:0;">
@@ -1481,8 +1510,6 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
                                 <span style="font-size:11px; background:#ecfdf5; color:#059669; border:1px solid #a7f3d0; padding:1px 8px; border-radius:4px; font-weight:700;">只读监控</span>
                               </div>
                               <div style="position:relative; flex:1; width:100%; height:100%; min-height:520px; display:flex;">
-                                <!-- 🛡️ 教师端只读工具栏点击阻断遮罩（防止教师误触工具按钮） -->
-                                <div style="position:absolute; top:0; left:0; width:100%; height:44px; z-index:15; pointer-events:auto; cursor:not-allowed;" title="只读阅卷监控模式 (工具栏已锁定，仅供教师阅览)"></div>
                                 <iframe id="teacher-stage2-etherpad-frame" src="/p/${encodeURIComponent(effectivePadName)}?userName=${encodeURIComponent('教师监控')}&userColor=%237c3aed&showControls=false&showChat=false&showLineNumbers=true&lang=zh-hans" style="flex:1; width:100%; height:100%; min-height:520px; border:none; display:block; background:#ffffff;" title="教师端实时写作同屏镜像 (只读)"></iframe>
                               </div>
                             </div>
@@ -1558,7 +1585,20 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
                             </div>
                           ` : (() => {
                             const rawPadName = `jizhi_${activeTaskId}_${activeMonitorGId}`;
-                            const effectivePadName = (state._readOnlyPadMap && state._readOnlyPadMap[rawPadName]) ? state._readOnlyPadMap[rawPadName] : rawPadName;
+                            if (!state._readOnlyPadMap) state._readOnlyPadMap = {};
+                            const readOnlyPadId = state._readOnlyPadMap[rawPadName];
+                            if (!readOnlyPadId) {
+                              fetch(`sync.php?action=get_readonly_pad_id&padId=${rawPadName}`).then(r => r.json()).then(res => {
+                                if (res && res.success && res.readOnlyID) {
+                                  state._readOnlyPadMap[rawPadName] = res.readOnlyID;
+                                  const f3 = document.querySelector('#teacher-stage3-etherpad-frame');
+                                  if (f3 && !f3.src.includes(res.readOnlyID)) {
+                                    f3.src = `/p/${res.readOnlyID}?userName=${encodeURIComponent('教师监控')}&userColor=%237c3aed&showControls=false&showChat=false&showLineNumbers=true&lang=zh-hans`;
+                                  }
+                                }
+                              }).catch(() => {});
+                            }
+                            const effectivePadName = readOnlyPadId || rawPadName;
                             return `
                               <div class="teacher-etherpad-container" style="flex:1; min-height:560px; border-radius:8px; overflow:hidden; border:1.5px solid #cbd5e1; box-shadow:0 2px 8px rgba(15,23,42,0.04); background:#ffffff; position:relative; display:flex; flex-direction:column;">
                                 <div style="display:flex; justify-content:space-between; align-items:center; background:#f8fafc; border-bottom:1px solid #e2e8f0; padding:6px 12px; font-size:12px; color:#475569; flex-shrink:0;">
@@ -1569,8 +1609,6 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
                                   <span style="font-size:11px; background:#ecfdf5; color:#059669; border:1px solid #a7f3d0; padding:1px 8px; border-radius:4px; font-weight:700;">只读监控</span>
                                 </div>
                                 <div style="position:relative; flex:1; width:100%; height:100%; min-height:520px; display:flex;">
-                                  <!-- 🛡️ 教师端只读工具栏点击阻断遮罩（防止教师误触工具按钮） -->
-                                  <div style="position:absolute; top:0; left:0; width:100%; height:44px; z-index:15; pointer-events:auto; cursor:not-allowed;" title="只读阅卷监控模式 (工具栏已锁定，仅供教师阅览)"></div>
                                   <iframe id="teacher-stage3-etherpad-frame" src="/p/${encodeURIComponent(effectivePadName)}?userName=${encodeURIComponent('教师监控')}&userColor=%237c3aed&showControls=false&showChat=false&showLineNumbers=true&lang=zh-hans" style="flex:1; width:100%; height:100%; min-height:520px; border:none; display:block; background:#ffffff;" title="教师端论文终稿同屏镜像 (只读)"></iframe>
                                 </div>
                               </div>

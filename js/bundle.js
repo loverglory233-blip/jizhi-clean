@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260830_v752
+ * Version: 20260830_v753
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260830_v752';
+  const APP_VERSION = '20260830_v753';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -4093,6 +4093,22 @@
       window.addEventListener(evt, markTeacherActive, { passive: true });
     });
 
+    if (!window._teacherWheelHandlerAttached) {
+      window._teacherWheelHandlerAttached = true;
+      window.addEventListener('wheel', (e) => {
+        const layout = document.getElementById('teacher-portal-layout');
+        if (!layout) return;
+        const target = e.target;
+        if (target && target.closest) {
+          if (target.closest('#teacher-unified-chat-stream')) return;
+          if (target.tagName === 'TEXTAREA' || target.tagName === 'INPUT' || target.tagName === 'SELECT') return;
+        }
+        if (layout.scrollHeight > layout.clientHeight) {
+          layout.scrollTop += e.deltaY;
+        }
+      }, { passive: true });
+    }
+
     const tInitInterval = (document.hidden ? 15000 : 1800);
     window._teacherPortalSyncTimer = setTimeout(teacherPullAndRefresh, tInitInterval);
 
@@ -5110,7 +5126,20 @@
                             </div>
                           ` : (() => {
                             const rawPadName = `jizhi_${activeTaskId}_${activeMonitorGId}`;
-                            const effectivePadName = (state._readOnlyPadMap && state._readOnlyPadMap[rawPadName]) ? state._readOnlyPadMap[rawPadName] : rawPadName;
+                            if (!state._readOnlyPadMap) state._readOnlyPadMap = {};
+                            const readOnlyPadId = state._readOnlyPadMap[rawPadName];
+                            if (!readOnlyPadId) {
+                              fetch(`sync.php?action=get_readonly_pad_id&padId=${rawPadName}`).then(r => r.json()).then(res => {
+                                if (res && res.success && res.readOnlyID) {
+                                  state._readOnlyPadMap[rawPadName] = res.readOnlyID;
+                                  const f2 = document.querySelector('#teacher-stage2-etherpad-frame');
+                                  if (f2 && !f2.src.includes(res.readOnlyID)) {
+                                    f2.src = `/p/${res.readOnlyID}?userName=${encodeURIComponent('教师监控')}&userColor=%237c3aed&showControls=false&showChat=false&showLineNumbers=true&lang=zh-hans`;
+                                  }
+                                }
+                              }).catch(() => {});
+                            }
+                            const effectivePadName = readOnlyPadId || rawPadName;
                             return `
                               <div class="teacher-etherpad-container" style="flex:1; min-height:560px; border-radius:8px; overflow:hidden; border:1.5px solid #cbd5e1; box-shadow:0 2px 8px rgba(15,23,42,0.04); background:#ffffff; position:relative; display:flex; flex-direction:column;">
                                 <div style="display:flex; justify-content:space-between; align-items:center; background:#f8fafc; border-bottom:1px solid #e2e8f0; padding:6px 12px; font-size:12px; color:#475569; flex-shrink:0;">
@@ -5121,8 +5150,6 @@
                                   <span style="font-size:11px; background:#ecfdf5; color:#059669; border:1px solid #a7f3d0; padding:1px 8px; border-radius:4px; font-weight:700;">只读监控</span>
                                 </div>
                                 <div style="position:relative; flex:1; width:100%; height:100%; min-height:520px; display:flex;">
-                                  <!-- 🛡️ 教师端只读工具栏点击阻断遮罩（防止教师误触工具按钮） -->
-                                  <div style="position:absolute; top:0; left:0; width:100%; height:44px; z-index:15; pointer-events:auto; cursor:not-allowed;" title="只读阅卷监控模式 (工具栏已锁定，仅供教师阅览)"></div>
                                   <iframe id="teacher-stage2-etherpad-frame" src="/p/${encodeURIComponent(effectivePadName)}?userName=${encodeURIComponent('教师监控')}&userColor=%237c3aed&showControls=false&showChat=false&showLineNumbers=true&lang=zh-hans" style="flex:1; width:100%; height:100%; min-height:520px; border:none; display:block; background:#ffffff;" title="教师端实时写作同屏镜像 (只读)"></iframe>
                                 </div>
                               </div>
@@ -5198,7 +5225,20 @@
                               </div>
                             ` : (() => {
                               const rawPadName = `jizhi_${activeTaskId}_${activeMonitorGId}`;
-                              const effectivePadName = (state._readOnlyPadMap && state._readOnlyPadMap[rawPadName]) ? state._readOnlyPadMap[rawPadName] : rawPadName;
+                              if (!state._readOnlyPadMap) state._readOnlyPadMap = {};
+                              const readOnlyPadId = state._readOnlyPadMap[rawPadName];
+                              if (!readOnlyPadId) {
+                                fetch(`sync.php?action=get_readonly_pad_id&padId=${rawPadName}`).then(r => r.json()).then(res => {
+                                  if (res && res.success && res.readOnlyID) {
+                                    state._readOnlyPadMap[rawPadName] = res.readOnlyID;
+                                    const f3 = document.querySelector('#teacher-stage3-etherpad-frame');
+                                    if (f3 && !f3.src.includes(res.readOnlyID)) {
+                                      f3.src = `/p/${res.readOnlyID}?userName=${encodeURIComponent('教师监控')}&userColor=%237c3aed&showControls=false&showChat=false&showLineNumbers=true&lang=zh-hans`;
+                                    }
+                                  }
+                                }).catch(() => {});
+                              }
+                              const effectivePadName = readOnlyPadId || rawPadName;
                               return `
                                 <div class="teacher-etherpad-container" style="flex:1; min-height:560px; border-radius:8px; overflow:hidden; border:1.5px solid #cbd5e1; box-shadow:0 2px 8px rgba(15,23,42,0.04); background:#ffffff; position:relative; display:flex; flex-direction:column;">
                                   <div style="display:flex; justify-content:space-between; align-items:center; background:#f8fafc; border-bottom:1px solid #e2e8f0; padding:6px 12px; font-size:12px; color:#475569; flex-shrink:0;">
@@ -5209,8 +5249,6 @@
                                     <span style="font-size:11px; background:#ecfdf5; color:#059669; border:1px solid #a7f3d0; padding:1px 8px; border-radius:4px; font-weight:700;">只读监控</span>
                                   </div>
                                   <div style="position:relative; flex:1; width:100%; height:100%; min-height:520px; display:flex;">
-                                    <!-- 🛡️ 教师端只读工具栏点击阻断遮罩（防止教师误触工具按钮） -->
-                                    <div style="position:absolute; top:0; left:0; width:100%; height:44px; z-index:15; pointer-events:auto; cursor:not-allowed;" title="只读阅卷监控模式 (工具栏已锁定，仅供教师阅览)"></div>
                                     <iframe id="teacher-stage3-etherpad-frame" src="/p/${encodeURIComponent(effectivePadName)}?userName=${encodeURIComponent('教师监控')}&userColor=%237c3aed&showControls=false&showChat=false&showLineNumbers=true&lang=zh-hans" style="flex:1; width:100%; height:100%; min-height:520px; border:none; display:block; background:#ffffff;" title="教师端论文终稿同屏镜像 (只读)"></iframe>
                                   </div>
                                 </div>
@@ -9790,7 +9828,7 @@
         <!-- Word-grade Academic Collaborative Etherpad OT Engine Body -->
         <div style="flex:1; min-height:560px; display:flex; flex-direction:column; margin-bottom:8px;">
           ${(() => {
-            const padName = `jizhi_${activeTaskId}_${userGroupId}`;
+            const rawPadName = `jizhi_${activeTaskId}_${userGroupId}`;
             let currUserName = currUser?.name || '';
             if (!currUserName && state.members && state.members[currUserCode]?.name) {
               currUserName = state.members[currUserCode].name;
@@ -9802,7 +9840,24 @@
             if (!currUserName) currUserName = currUser?.username || currUserCode || '组员';
 
             const currUserColor = (state.members && state.members[currUserCode]?.color) || '#2563eb';
-            const padUrl = `/p/${padName}?userName=${encodeURIComponent(currUserName)}&userColor=${encodeURIComponent(currUserColor)}&showChat=false&showLineNumbers=true&showControls=${isEditorReadonly ? 'false' : 'true'}&lang=zh-hans`;
+
+            // 🛡️ 若处于只读锁定模式，严格使用只读 ID (r.xxxx)，从引擎底层禁用编辑与工具栏，同时保留完整滚动浏览能力
+            if (!state._readOnlyPadMap) state._readOnlyPadMap = {};
+            const readOnlyPadId = state._readOnlyPadMap[rawPadName];
+            if (isEditorReadonly && !readOnlyPadId) {
+              fetch(`sync.php?action=get_readonly_pad_id&padId=${rawPadName}`).then(r => r.json()).then(res => {
+                if (res && res.success && res.readOnlyID) {
+                  state._readOnlyPadMap[rawPadName] = res.readOnlyID;
+                  const f = document.getElementById('stage2-etherpad-frame');
+                  if (f && !f.src.includes(res.readOnlyID)) {
+                    f.src = `/p/${res.readOnlyID}?userName=${encodeURIComponent(currUserName)}&userColor=${encodeURIComponent(currUserColor)}&showChat=false&showLineNumbers=true&showControls=false&lang=zh-hans`;
+                  }
+                }
+              }).catch(() => {});
+            }
+
+            const effectivePad = (isEditorReadonly && readOnlyPadId) ? readOnlyPadId : rawPadName;
+            const padUrl = `/p/${effectivePad}?userName=${encodeURIComponent(currUserName)}&userColor=${encodeURIComponent(currUserColor)}&showChat=false&showLineNumbers=true&showControls=${isEditorReadonly ? 'false' : 'true'}&lang=zh-hans`;
 
             return `
               <div class="word-editor-container" style="display:flex; flex-direction:column; height:100%; min-height:480px; border-radius:10px; overflow:hidden; border:1px solid #cbd5e1; box-shadow:0 4px 16px rgba(15,23,42,0.06); background:#ffffff; position:relative;">
@@ -10237,10 +10292,27 @@
           const userGroupId = activeGroupObj?.id || (window.app?.cloudSyncEngine?.groupId) || (currUser?.groupId) || 'group_1';
           let activeTaskId = state.activeTaskId || (window.app?.cloudSyncEngine?.taskId) || (`task_${userClassId}_default`);
           if (!activeTaskId || activeTaskId === 'task_default') activeTaskId = `task_${userClassId}_default`;
-          const padName = `jizhi_${activeTaskId}_${userGroupId}`;
+          const rawPadName = `jizhi_${activeTaskId}_${userGroupId}`;
           const currUserName = (currUser && (currUser.name || currUser.username)) || '组员';
           const currUserColor = (state.members && state.members[currUserCode]?.color) || '#2563eb';
-          const padUrl = `/p/${padName}?userName=${encodeURIComponent(currUserName)}&userColor=${encodeURIComponent(currUserColor)}&showChat=false&showLineNumbers=true&showControls=${isFinalSubmitted ? 'false' : 'true'}&lang=zh-hans`;
+
+          // 🛡️ 若已全员提交终稿，严格使用只读 ID (r.xxxx)，从底层彻底禁用编辑与工具栏，同时保留完整滚动浏览能力
+          if (!state._readOnlyPadMap) state._readOnlyPadMap = {};
+          const readOnlyPadId = state._readOnlyPadMap[rawPadName];
+          if (isFinalSubmitted && !readOnlyPadId) {
+            fetch(`sync.php?action=get_readonly_pad_id&padId=${rawPadName}`).then(r => r.json()).then(res => {
+              if (res && res.success && res.readOnlyID) {
+                state._readOnlyPadMap[rawPadName] = res.readOnlyID;
+                const f = document.getElementById('stage3-etherpad-frame');
+                if (f && !f.src.includes(res.readOnlyID)) {
+                  f.src = `/p/${res.readOnlyID}?userName=${encodeURIComponent(currUserName)}&userColor=${encodeURIComponent(currUserColor)}&showChat=false&showLineNumbers=true&showControls=false&lang=zh-hans`;
+                }
+              }
+            }).catch(() => {});
+          }
+
+          const effectivePad = (isFinalSubmitted && readOnlyPadId) ? readOnlyPadId : rawPadName;
+          const padUrl = `/p/${effectivePad}?userName=${encodeURIComponent(currUserName)}&userColor=${encodeURIComponent(currUserColor)}&showChat=false&showLineNumbers=true&showControls=${isFinalSubmitted ? 'false' : 'true'}&lang=zh-hans`;
 
           return `
             <div class="card" style="flex:1; display:flex; flex-direction:column; padding:16px; min-height:600px; overscroll-behavior-y:contain; -webkit-overflow-scrolling:touch;">

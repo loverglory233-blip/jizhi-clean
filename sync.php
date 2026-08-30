@@ -935,6 +935,14 @@ if ($action === 'get_readonly_pad_id') {
         if (!empty($k)) $apiKey = $k;
     }
 
+    // 🛡️ 先确保 pad 已在 Etherpad 引擎中创建，防止 getReadOnlyID 抛出 padID does not exist
+    $createUrl = "http://127.0.0.1:9001/api/1.2.14/createPad?apikey=" . urlencode($apiKey) . "&padID=" . urlencode($padId);
+    $chC = curl_init($createUrl);
+    curl_setopt($chC, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($chC, CURLOPT_TIMEOUT, 2);
+    curl_exec($chC);
+    curl_close($chC);
+
     $epUrl = "http://127.0.0.1:9001/api/1.2.14/getReadOnlyID?apikey=" . urlencode($apiKey) . "&padID=" . urlencode($padId);
     $ch = curl_init($epUrl);
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
