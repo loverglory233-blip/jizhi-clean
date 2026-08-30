@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260831_v963";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch } from "./utils.js?v=20260831_v963";
-import { callCozeAgentAPI } from "./agents.js?v=20260831_v963";
-import { AuthManager } from "./auth.js?v=20260831_v963";
-import { CloudSyncEngine } from "./sync.js?v=20260831_v963";
-import { renderLoginView } from "./login.js?v=20260831_v963";
-import { renderTeacherPortal } from "./teacher.js?v=20260831_v963";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260831_v963";
+} from "./constants.js?v=20260831_v964";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch } from "./utils.js?v=20260831_v964";
+import { callCozeAgentAPI } from "./agents.js?v=20260831_v964";
+import { AuthManager } from "./auth.js?v=20260831_v964";
+import { CloudSyncEngine } from "./sync.js?v=20260831_v964";
+import { renderLoginView } from "./login.js?v=20260831_v964";
+import { renderTeacherPortal } from "./teacher.js?v=20260831_v964";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260831_v964";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260831_v963";
+} from "./editor.js?v=20260831_v964";
 
 // Make renderChat available on window for sync callbacks
 if (typeof window !== "undefined") {
@@ -1527,9 +1527,22 @@ export class App {
         const hasReachedReflection = /(?:五、|第5章|第五部分|不足与反思|研究反思|反思与不足|总结与反思|研究局限)/i.test(s2.unifiedContent || '');
 
         // 3. 【半程研讨 2.5 分钟静默守护】：半程会议或修正清单发出后，若全组超过 2.5 分钟没有任何动静，责任编辑温和提醒推进研讨（最多连续 2 次，有新动静自动重置）
-        if (s2.meetingStep && s2.meetingStep !== 'completed') {
-          const lastActivityTime = Math.max(lastStudentMsgTime, s2.lastActionTime || 0, s2.meetingCalledTime || 0, s2.meetingChecklistTime || 0);
+        const lastMeetingMsg = [...s2Chats].reverse().find(m => m && m.sender === 'managingEditor' && (m.text?.includes('半程研讨号召') || m.text?.includes('半程会议号召') || m.text?.includes('半程自查')));
+        const isMeetingActive = (lastMeetingMsg || s2.meetingStep) && s2.meetingStep !== 'completed' && !s2.isDraftConfirmed;
+
+        if (isMeetingActive) {
+          let meetingMsgTime = lastMeetingMsg?._timeMs;
+          if (!meetingMsgTime && lastMeetingMsg?.timestamp) {
+            const parts = lastMeetingMsg.timestamp.split(':');
+            if (parts.length >= 2) {
+              const d = new Date();
+              d.setHours(parseInt(parts[0], 10), parseInt(parts[1], 10), 0, 0);
+              meetingMsgTime = d.getTime();
+            }
+          }
+          const lastActivityTime = Math.max(lastStudentMsgTime, meetingMsgTime || 0, s2.lastActionTime || 0);
           const silenceMs = now - lastActivityTime;
+
           if (silenceMs > 150000) { // 2.5 分钟静默
             if (lastStudentMsgTime > (this._lastNudgeActivityTime?.['s2_meeting_silence'] || 0)) {
               this._nudgeCounts['s2_meeting_silence'] = 0;
