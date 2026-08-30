@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260831_v918
+ * Version: 20260831_v919
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260831_v918';
+  const APP_VERSION = '20260831_v919';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -9223,7 +9223,7 @@
         <div class="card-title" style="display:flex; justify-content:space-between; align-items:center;">
           <div style="display:flex; align-items:center; gap:10px;">
             <span style="font-weight:800; font-size:15px; color:#0f172a;">💡 竞拍提案池 ${isContractLocked ? '<span style="font-size:11px; color:#059669;">🔒 已锁定</span>' : ''}</span>
-            <span style="font-size:12px; color:#2563eb; background:#eff6ff; padding:2px 8px; border-radius:10px; border:1px solid #bfdbfe;">
+            <span id="proposal-vote-progress-badge" style="font-size:12px; color:#2563eb; background:#eff6ff; padding:2px 8px; border-radius:10px; border:1px solid #bfdbfe;">
               ${isVotingComplete ? `🎉 投票已完成 (共投出 ${totalVotesCast} 票)` : `📊 投票进度: <b>${totalVotesCast}/${totalMembersCount} 人已投票</b> ${userHasVoted ? '<span style="color:#059669; font-weight:700; margin-left:4px;">(您已投票，等待其他组员)</span>' : ''}`}
             </span>
           </div>
@@ -14726,9 +14726,12 @@
 
       this.syncStage1();
       if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+      // 💡 0ms 立即局部重绘视图，按钮变为【已投此提案】且得票数和进度条毫秒级跳动
+      this.renderStudentWorkspace();
 
-      // 🌟 弹出温和、清晰、带有进度告知的友好弹窗
-      alert(`🎉 投票成功！\n\n您已成功投票支持提案《${proposalTitle}》！\n\n📊 当前全组投票进度：${votesCastCount}/${totalMembersCount} 人已完成。\n💡 每位成员仅有一次投票机会，请耐心等待组内其他同学完成投票，全员投完后拍卖师将揭晓竞拍结果！`);
+      if (typeof showGlobalBannerNotice === 'function') {
+        showGlobalBannerNotice(`🎉 投票成功！您已支持《${proposalTitle}》`, `📊 当前全组投票进度：${votesCastCount}/${totalMembersCount} 人已完成，等待全员投票揭晓结果。`);
+      }
 
       if (votesCastCount >= totalMembersCount) {
         // ── 全员投票完成：调用大模型拍卖师 API 动态生成专业落槌播报与研讨引导 ──
@@ -15931,6 +15934,17 @@
         const btnOpenProp = document.getElementById('btn-open-submit-proposal');
         if (btnOpenProp) {
           btnOpenProp.innerText = hasSubmittedMyProposal ? '✏️ 修改我的选题' : '+ 提交我的选题';
+        }
+
+        // 🛡️ 实时动态更新顶部投票进度条 Badge (解决多端投票进度滞后未同步问题)
+        const progressBadge = document.getElementById('proposal-vote-progress-badge');
+        if (progressBadge) {
+          const totalVotesCast = membersList.filter(m => (isUserInMap(s1.hasVoted, m) || (m && (s1.hasVoted[m.id] || s1.hasVoted[m.studentCode] || s1.hasVoted[m.username] || (m.name && s1.hasVoted[m.name]))))).length;
+          const totalMembersCount = membersList.length || 2;
+          const isVotingComplete = (totalMembersCount > 0 && totalVotesCast >= totalMembersCount);
+          progressBadge.innerHTML = isVotingComplete
+            ? `🎉 投票已完成 (共投出 ${totalVotesCast} 票)`
+            : `📊 投票进度: <b>${totalVotesCast}/${totalMembersCount} 人已投票</b> ${userHasVoted ? '<span style="color:#059669; font-weight:700; margin-left:4px;">(您已投票，等待其他组员)</span>' : ''}`;
         }
 
         if (proposalsWrapper) {

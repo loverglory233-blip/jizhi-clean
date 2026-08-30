@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260831_v918";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch } from "./utils.js?v=20260831_v918";
-import { callCozeAgentAPI } from "./agents.js?v=20260831_v918";
-import { AuthManager } from "./auth.js?v=20260831_v918";
-import { CloudSyncEngine } from "./sync.js?v=20260831_v918";
-import { renderLoginView } from "./login.js?v=20260831_v918";
-import { renderTeacherPortal } from "./teacher.js?v=20260831_v918";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260831_v918";
+} from "./constants.js?v=20260831_v919";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch } from "./utils.js?v=20260831_v919";
+import { callCozeAgentAPI } from "./agents.js?v=20260831_v919";
+import { AuthManager } from "./auth.js?v=20260831_v919";
+import { CloudSyncEngine } from "./sync.js?v=20260831_v919";
+import { renderLoginView } from "./login.js?v=20260831_v919";
+import { renderTeacherPortal } from "./teacher.js?v=20260831_v919";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260831_v919";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260831_v918";
+} from "./editor.js?v=20260831_v919";
 
 // Make renderChat available on window for sync callbacks
 if (typeof window !== "undefined") {
@@ -3166,9 +3166,12 @@ ${recentDefenseChat}
 
     this.syncStage1();
     if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+    // 💡 0ms 立即局部重绘视图，按钮变为【已投此提案】且得票数和进度条毫秒级跳动
+    this.renderStudentWorkspace();
 
-    // 🌟 弹出温和、清晰、带有进度告知的友好弹窗
-    alert(`🎉 投票成功！\n\n您已成功投票支持提案《${proposalTitle}》！\n\n📊 当前全组投票进度：${votesCastCount}/${totalMembersCount} 人已完成。\n💡 每位成员仅有一次投票机会，请耐心等待组内其他同学完成投票，全员投完后拍卖师将揭晓竞拍结果！`);
+    if (typeof showGlobalBannerNotice === 'function') {
+      showGlobalBannerNotice(`🎉 投票成功！您已支持《${proposalTitle}》`, `📊 当前全组投票进度：${votesCastCount}/${totalMembersCount} 人已完成，等待全员投票揭晓结果。`);
+    }
 
     if (votesCastCount >= totalMembersCount) {
       // ── 全员投票完成：调用大模型拍卖师 API 动态生成专业落槌播报与研讨引导 ──
@@ -4371,6 +4374,17 @@ ${propText}
       const btnOpenProp = document.getElementById('btn-open-submit-proposal');
       if (btnOpenProp) {
         btnOpenProp.innerText = hasSubmittedMyProposal ? '✏️ 修改我的选题' : '+ 提交我的选题';
+      }
+
+      // 🛡️ 实时动态更新顶部投票进度条 Badge (解决多端投票进度滞后未同步问题)
+      const progressBadge = document.getElementById('proposal-vote-progress-badge');
+      if (progressBadge) {
+        const totalVotesCast = membersList.filter(m => (isUserInMap(s1.hasVoted, m) || (m && (s1.hasVoted[m.id] || s1.hasVoted[m.studentCode] || s1.hasVoted[m.username] || (m.name && s1.hasVoted[m.name]))))).length;
+        const totalMembersCount = membersList.length || 2;
+        const isVotingComplete = (totalMembersCount > 0 && totalVotesCast >= totalMembersCount);
+        progressBadge.innerHTML = isVotingComplete
+          ? `🎉 投票已完成 (共投出 ${totalVotesCast} 票)`
+          : `📊 投票进度: <b>${totalVotesCast}/${totalMembersCount} 人已投票</b> ${userHasVoted ? '<span style="color:#059669; font-weight:700; margin-left:4px;">(您已投票，等待其他组员)</span>' : ''}`;
       }
 
       if (proposalsWrapper) {
