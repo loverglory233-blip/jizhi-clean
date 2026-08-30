@@ -416,8 +416,7 @@ export function filterAndDeduplicateChatLogs(messages) {
 
     // 1. 智能体连发防重：智能体若因网络重试/定时器连发了完全相同的引导提示，自动去重仅保留 1 条
     if (isAgent) {
-      const normTxt = txt.replace(/[\s
-]+/g, ' ').trim();
+      const normTxt = txt.replace(/\s+/g, " ").trim();
       const opKey = `${sender}_${normTxt}`;
       if (seenAgentOpenings.has(opKey)) {
         continue;

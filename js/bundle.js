@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260830_v830
+ * Version: 20260830_v831
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260830_v830';
+  const APP_VERSION = '20260830_v831';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -537,8 +537,7 @@
 
       // 1. 智能体连发防重：智能体若因网络重试/定时器连发了完全相同的引导提示，自动去重仅保留 1 条
       if (isAgent) {
-        const normTxt = txt.replace(/[\s
-  ]+/g, ' ').trim();
+        const normTxt = txt.replace(/\s+/g, " ").trim();
         const opKey = `${sender}_${normTxt}`;
         if (seenAgentOpenings.has(opKey)) {
           continue;
