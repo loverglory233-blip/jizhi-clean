@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260830_v861";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap } from "./utils.js?v=20260830_v861";
-import { callCozeAgentAPI } from "./agents.js?v=20260830_v861";
-import { AuthManager } from "./auth.js?v=20260830_v861";
-import { CloudSyncEngine } from "./sync.js?v=20260830_v861";
-import { renderLoginView } from "./login.js?v=20260830_v861";
-import { renderTeacherPortal } from "./teacher.js?v=20260830_v861";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260830_v861";
+} from "./constants.js?v=20260830_v862";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap } from "./utils.js?v=20260830_v862";
+import { callCozeAgentAPI } from "./agents.js?v=20260830_v862";
+import { AuthManager } from "./auth.js?v=20260830_v862";
+import { CloudSyncEngine } from "./sync.js?v=20260830_v862";
+import { renderLoginView } from "./login.js?v=20260830_v862";
+import { renderTeacherPortal } from "./teacher.js?v=20260830_v862";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260830_v862";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260830_v861";
+} from "./editor.js?v=20260830_v862";
 
 // Make renderChat available on window for sync callbacks
 if (typeof window !== "undefined") {
@@ -1032,31 +1032,49 @@ export class App {
         const taskDurMin = (curTask && curTask.durationMinutes) ? Number(curTask.durationMinutes) : 60;
         const silenceThresholdMs = taskDurMin < 60 ? 120000 : (taskDurMin <= 180 ? 180000 : 270000);
 
-        // 1. 【选题构思与提交引导】：研讨持续静默达到阈值或开场较久未交题，温和点拨 1 次（全场最多仅 1 次，绝不连发）！
-        if (submittedCount < totalMembersCount) {
-          const shouldNudge = (silenceDurationMs >= silenceThresholdMs) || (submittedCount === 0 && stage1DurationMs > 360000);
-          if (shouldNudge) {
-            const count = this._nudgeCounts['s1_prop_guide'] || 0;
-            if (count < 1 && (!this.lastDiscussionNudgeTime || now - this.lastDiscussionNudgeTime > 300000)) {
-              this.lastDiscussionNudgeTime = now;
-              this._nudgeCounts['s1_prop_guide'] = 1;
-              const msg = {
-                sender: 'auctioneer',
-                text: `💡 【拍卖师·选题研讨与提交指引】：关注到大家正在构思选题！可以在研讨区充分交流研究灵感；构思成熟后，请点击左侧【+ 提交我的选题】录入提案池，开启学术竞拍～`,
-                timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                _timeMs: now
-              };
-              if (!this.state.chatLogs.stage1) this.state.chatLogs.stage1 = [];
-              this.state.chatLogs.stage1.push(msg);
-              this.syncChatLogs();
-              if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
-              renderChat(this.state);
-              return;
-            }
+        // 1. 【研讨互动提示】：关注到大家正在构思选题，温和点拨交流灵感（该类型全场仅发 1 次，绝不发第 2 次）！
+        if (submittedCount < totalMembersCount && silenceDurationMs >= silenceThresholdMs) {
+          const count = this._nudgeCounts['s1_discussion'] || 0;
+          if (count < 1 && (!this.lastDiscussionNudgeTime || now - this.lastDiscussionNudgeTime > 300000)) {
+            this.lastDiscussionNudgeTime = now;
+            this._nudgeCounts['s1_discussion'] = 1;
+            const msg = {
+              sender: 'auctioneer',
+              text: `💡 【拍卖师·研讨互动提示】：关注到大家正在构思选题！可以在讨论区交流灵感与研究想法，构思成熟后点击左侧【提交我的选题】卡片进行提交～`,
+              timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+              _timeMs: now
+            };
+            if (!this.state.chatLogs.stage1) this.state.chatLogs.stage1 = [];
+            this.state.chatLogs.stage1.push(msg);
+            this.syncChatLogs();
+            if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+            renderChat(this.state);
+            return;
           }
         }
 
-        // 2. 【个别落后跟进】：部分人已交，但有人超过 3.5 分钟仍未交（全场最多仅 1 次）
+        // 2. 【选题提交引导】：开场 > 6 分钟仍 0 人提交提案，引导尽快动笔录入提案池（该类型全场仅发 1 次，绝不发第 2 次）
+        if (submittedCount === 0 && stage1DurationMs > 360000) {
+          const count = this._nudgeCounts['s1_zero_prop'] || 0;
+          if (count < 1 && (!this.lastZeroProposalNudgeTime || now - this.lastZeroProposalNudgeTime > 300000)) {
+            this.lastZeroProposalNudgeTime = now;
+            this._nudgeCounts['s1_zero_prop'] = 1;
+            const msg = {
+              sender: 'auctioneer',
+              text: `⏳ 【拍卖师·选题提交引导】：研讨已经展开一段时间啦！\n👉 请各位组员将脑海中构思成熟的研究题目，点击左侧【提交我的选题】卡片正式提交到提案池，开启学术竞拍！`,
+              timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+              _timeMs: now
+            };
+            if (!this.state.chatLogs.stage1) this.state.chatLogs.stage1 = [];
+            this.state.chatLogs.stage1.push(msg);
+            this.syncChatLogs();
+            if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+            renderChat(this.state);
+            return;
+          }
+        }
+
+        // 3. 【个别落后跟进】：有人已提交，但超过 3.5 分钟仍有个别人未交，跟进提醒未交同学（该类型全场仅发 1 次，绝不发第 2 次）
         if (submittedCount > 0 && submittedCount < totalMembersCount) {
           const lastProposal = proposals[proposals.length - 1];
           const lastProposalTime = lastProposal ? (lastProposal.updatedAt || this.stage1StartTime) : this.stage1StartTime;
@@ -1070,7 +1088,7 @@ export class App {
                 const names = unsubmitted.map(m => m.name).join('、');
                 const msg = {
                   sender: 'auctioneer',
-                  text: `📢 【拍卖师·提案跟进通知】：组内已有 ${submittedCount}/${totalMembersCount} 位组员完成选题提交！\n👉 请尚未提交的同学（**${names}**）点击左侧【提交我的选题】，全员集齐后即可正式进入竞拍投票！`,
+                  text: `📢 【拍卖师·提案跟进通知】：组内已有 ${submittedCount}/${totalMembersCount} 位组员完成选题提交！\n👉 请尚未提交的同学（**${names}**）抓紧点击左侧【提交我的选题】，全员集齐后即可正式进入竞拍投票！`,
                   timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
                   _timeMs: now
                 };
@@ -1085,7 +1103,7 @@ export class App {
           }
         }
 
-        // 3. 提案集齐但投票守护（全场最多仅 1 次）
+        // 4. 【提案集齐但投票守护】：全员交齐后引导投票（该类型全场仅发 1 次，绝不发第 2 次）
         if (submittedCount >= totalMembersCount && votesCastCount < totalMembersCount) {
           const lastVoteTime = s1._lastVoteTime || this.stage1StartTime;
           const voteSilenceMs = now - lastVoteTime;
@@ -1113,6 +1131,26 @@ export class App {
               renderChat(this.state);
               return;
             }
+          }
+        }
+
+        // 5. 【阶段一进度时间规划提示】：研讨时间超过 35 分钟且公约未签署（该类型全场仅发 1 次，绝不发第 2 次）
+        if (stage1DurationMs > 2100000 && !s1.contract?.isConfirmed) {
+          const count = this._nudgeCounts['s1_progress'] || 0;
+          if (count < 1) {
+            this._nudgeCounts['s1_progress'] = 1;
+            const progressMsg = {
+              sender: 'auctioneer',
+              text: `🎪 【拍卖师·进度提示】：选题研讨的时间已经走过约 35 分钟啦，大家的想法也越来越清晰了～\n👉 如果研究方向已经基本确定，可以在公约卡片点击【签署确认】，随时进入【阶段二：学术编辑部】开始动笔；如果还有想补充的点子，也欢迎在后续撰写中继续深化！`,
+              timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+              _timeMs: now
+            };
+            if (!this.state.chatLogs.stage1) this.state.chatLogs.stage1 = [];
+            this.state.chatLogs.stage1.push(progressMsg);
+            this.syncChatLogs();
+            if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+            renderChat(this.state);
+            return;
           }
         }
 
