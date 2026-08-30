@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260830_v822
+ * Version: 20260830_v823
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260830_v822';
+  const APP_VERSION = '20260830_v823';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -13312,7 +13312,7 @@
           }
           // 3. 若处于【分工与时间商议】状态，识别组员是否已完成分工与时间讨论 ➔ 提醒点击【生成公约草案】
           else if (s1.flowStep === 'tasks' || this.state.stage1PendingTasks || (hasTopicEstablished && hasTaskPromptSent && !s1.contract.isDraftGenerated)) {
-            const isTasksDoneSignal = /(?:分工好了|时间定好|分钟|负责|我来|你来|分配|定好|差不多|可以了|赞同|生成公约|搞定|没问题|商定|确认分工|第一章|第二章|第三章|第四章|第五章|第六章|背景|文献|方法|反思)/i.test(text);
+            const isTasksDoneSignal = /(?:分工|时间|分钟|平均|均分|随便|默认|差不多|都行|平分|推荐|负责|我来|你来|分配|定好|定了吧|可以了|赞同|同意|行|好|生成公约|搞定|没问题|商定|确认|按顺序|各自|第一章|第二章|第三章|第四章|第五章|第六章|背景|文献|方法|反思)/i.test(text);
             if (isTasksDoneSignal || hasValidConsensusPair) {
               s1.flowStep = 'ready_draft';
               this.state.stage1PendingTasks = false;

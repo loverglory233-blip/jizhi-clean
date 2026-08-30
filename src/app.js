@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260830_v822";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash } from "./utils.js?v=20260830_v822";
-import { callCozeAgentAPI } from "./agents.js?v=20260830_v822";
-import { AuthManager } from "./auth.js?v=20260830_v822";
-import { CloudSyncEngine } from "./sync.js?v=20260830_v822";
-import { renderLoginView } from "./login.js?v=20260830_v822";
-import { renderTeacherPortal } from "./teacher.js?v=20260830_v822";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260830_v822";
+} from "./constants.js?v=20260830_v823";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash } from "./utils.js?v=20260830_v823";
+import { callCozeAgentAPI } from "./agents.js?v=20260830_v823";
+import { AuthManager } from "./auth.js?v=20260830_v823";
+import { CloudSyncEngine } from "./sync.js?v=20260830_v823";
+import { renderLoginView } from "./login.js?v=20260830_v823";
+import { renderTeacherPortal } from "./teacher.js?v=20260830_v823";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260830_v823";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260830_v822";
+} from "./editor.js?v=20260830_v823";
 
 // Make renderChat available on window for sync callbacks
 if (typeof window !== "undefined") {
@@ -2219,7 +2219,7 @@ ${recentChats}
         }
         // 3. 若处于【分工与时间商议】状态，识别组员是否已完成分工与时间讨论 ➔ 提醒点击【生成公约草案】
         else if (s1.flowStep === 'tasks' || this.state.stage1PendingTasks || (hasTopicEstablished && hasTaskPromptSent && !s1.contract.isDraftGenerated)) {
-          const isTasksDoneSignal = /(?:分工好了|时间定好|分钟|负责|我来|你来|分配|定好|差不多|可以了|赞同|生成公约|搞定|没问题|商定|确认分工|第一章|第二章|第三章|第四章|第五章|第六章|背景|文献|方法|反思)/i.test(text);
+          const isTasksDoneSignal = /(?:分工|时间|分钟|平均|均分|随便|默认|差不多|都行|平分|推荐|负责|我来|你来|分配|定好|定了吧|可以了|赞同|同意|行|好|生成公约|搞定|没问题|商定|确认|按顺序|各自|第一章|第二章|第三章|第四章|第五章|第六章|背景|文献|方法|反思)/i.test(text);
           if (isTasksDoneSignal || hasValidConsensusPair) {
             s1.flowStep = 'ready_draft';
             this.state.stage1PendingTasks = false;
