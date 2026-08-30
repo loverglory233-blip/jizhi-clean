@@ -395,9 +395,66 @@ export class App {
         if (isPrimaryGuardian) {
           const allChatLogsList = Object.values(this.state.chatLogs || {}).flat();
 
+          // ── 0. 【阶段一守卫：3分钟静默破冰、6分钟无提案强催促(点名)、提案全齐先交流】 ──
+          const isContractConfirmed = !!(this.state.stage1 && this.state.stage1.contract && this.state.stage1.contract.isConfirmed);
+          if (currentStage === 'stage1' && !isContractConfirmed) {
+            const s1 = this.state.stage1 || {};
+            const propList = s1.proposals || [];
+            const propCount = propList.length;
+            const unsubmittedMembers = membersList.filter(m => !propList.some(p => p.author === m.id || p.author === m.studentCode || p.author === m.username || (m.name && p.authorName === m.name)));
+            const unsubmittedNames = unsubmittedMembers.map(m => m.name || m.username || m.studentCode).join('、');
+
+            // ① 开场 3 分钟未动笔静默破冰（紧扣研究方向与任务要求）
+            if (!this.state.s1_3minBreakSent && elapsedSec >= 180 && propCount === 0) {
+              this.state.s1_3minBreakSent = true;
+              const msg3Min = {
+                sender: 'auctioneer',
+                senderName: '头脑风暴 · 学术拍卖师',
+                text: `🎪 【学术拍卖师·破冰启发】：头脑风暴已经开始 3 分钟啦～请大家紧扣本次任务要求与给定的研究方向，结合具体的实践情境或核心问题拟定选题；有想法了就随时在左侧【提交提案】卡片写下你的题目与设想！`,
+                timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                _timeMs: nowMs
+              };
+              if (!this.state.chatLogs.stage1) this.state.chatLogs.stage1 = [];
+              this.state.chatLogs.stage1.push(msg3Min);
+              this.syncChatLogs();
+              renderChat(this.state);
+            }
+
+            // ② 6 分钟全组无提案强催促（精准点名）
+            if (!this.state.s1_6minUrgeSent && elapsedSec >= 360 && propCount === 0 && unsubmittedNames) {
+              this.state.s1_6minUrgeSent = true;
+              const msg6Min = {
+                sender: 'auctioneer',
+                senderName: '头脑风暴 · 学术拍卖师',
+                text: `🎪 【学术拍卖师·提案催促】：头脑风暴时间已进行 6 分钟，当前组内尚未产生任何提案！请【${unsubmittedNames}】同学抓紧结合任务要求，在左侧卡片提交各自的初拟方案，集齐后我们将开启全组研讨！`,
+                timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                _timeMs: nowMs
+              };
+              if (!this.state.chatLogs.stage1) this.state.chatLogs.stage1 = [];
+              this.state.chatLogs.stage1.push(msg6Min);
+              this.syncChatLogs();
+              renderChat(this.state);
+            }
+
+            // ③ 提案全齐但尚未投票：提示先交流 1~2 分钟再投票
+            if (!this.state.s1_allPropsGatheredSent && propCount >= membersList.length && propCount > 0) {
+              this.state.s1_allPropsGatheredSent = true;
+              const msgPropsAll = {
+                sender: 'auctioneer',
+                senderName: '头脑风暴 · 学术拍卖师',
+                text: `🎪 【学术拍卖师·提案集齐与研讨引导】：太棒了！全组成员的提案均已全部集齐！请大家先在讨论区围绕各自提案的创新亮点与研究可行性交流讨论 1~2 分钟，充分了解彼此想法后，点击左侧卡片为你最支持的方案投出关键的一票！`,
+                timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                _timeMs: nowMs
+              };
+              if (!this.state.chatLogs.stage1) this.state.chatLogs.stage1 = [];
+              this.state.chatLogs.stage1.push(msgPropsAll);
+              this.syncChatLogs();
+              renderChat(this.state);
+            }
+          }
+
           // ── 1. 【20% 时间节点：阶段一选题研讨进度提示】(归属拍卖师 · 严格已发去重，延时不重复) ──
           if (!this.state.gate20TriggeredMap) this.state.gate20TriggeredMap = {};
-          const isContractConfirmed = !!(this.state.stage1 && this.state.stage1.contract && this.state.stage1.contract.isConfirmed);
           const s1GateMsgId = `msg_gate_s1_${activeTaskId}_${currentGroupId}_transfer`;
           const s1AlreadySent = !!this.state.gate20TriggeredMap[activeTaskId] ||
             allChatLogsList.some(m => m && (m.id === s1GateMsgId || (m.text && (m.text.includes('选题研讨的时间') || m.text.includes('【拍卖师·进度提示】')))));
@@ -2842,7 +2899,7 @@ ${recentDefenseChat}
           s1.contract.timeAllocations = { background: 25, literature: 30, questions: 25, method: 40, reflection: 20, references: 10 };
         }
 
-        // ── 🌟 拍卖师引导逻辑与槽位初始状态 ──
+        // ── 🌟 拍卖师引导逻辑与槽位初始状态（调用大模型动态生成深度学术方案引导） ──
         s1.contractStep = 'topic'; // 初始锁定第一步：主题与研究方案提炼
 
         if (isUnanimous && winningProposal) {
@@ -2854,10 +2911,32 @@ ${recentDefenseChat}
           s1.contract.overview = '';
           s1.researchOverview = '';
 
+          const unanimousPrompt = `全组成员全票一致推选了研究课题《${winningProposal.title}》（共 ${totalMembersCount} 票）。
+【获胜提案内容/设想】: ${winningProposal.description || '暂无详细描述'}
+
+请作为资深学术拍卖师：
+发表 100~140 字的全票通过祝贺与方案细化研讨引导：
+1. 肯定全员一致推选《${winningProposal.title}》（${totalMembersCount} 票）；
+2. 结合该提案的具体设想，启发全组在讨论区进一步商量具体的研究设计与切入角度（如结合什么具体课例/情境、聚焦什么核心痛点问题、采用什么研究或实验方法等）；
+3. 明确提示：“聊得差不多后随时点击上方【💡 讨论差不多了？一键提炼【主题与研究方案】】按钮生成完整方案~”
+纯自然语言输出，开头统一：🤖 【学术拍卖师·全票通过】：`;
+
+          let guideText = `🤖 【学术拍卖师·全票通过】：太棒了！全员一致通过选题《${winningProposal.title}》（${totalMembersCount} 票）！请大家在群里进一步商量具体的研究设计与切入角度（如结合什么具体情境/案例、聚焦什么核心问题、采用什么方法等）。聊得差不多后随时点击上方【💡 讨论差不多了？一键提炼【主题与研究方案】】按钮生成完整方案~`;
+
+          try {
+            const aiResp = await callCozeAgentAPI('auctioneer', unanimousPrompt, { stage: 'stage1', topic: winningProposal.title });
+            if (aiResp && aiResp.trim().length > 0) {
+              guideText = aiResp.trim();
+              if (!guideText.startsWith('🤖')) guideText = `🤖 【学术拍卖师·全票通过】：${guideText}`;
+            }
+          } catch (e) {
+            console.warn('Auctioneer unanimous prompt fallback', e);
+          }
+
           const guideMsg = {
             sender: 'auctioneer',
             senderName: '头脑风暴 · 学术拍卖师',
-            text: `🤖 【学术拍卖师·全票通过】：太棒了！全员一致通过选题《${winningProposal.title}》（${totalMembersCount} 票）！请大家在群里进一步商量具体的研究设计与切入角度（如结合什么具体情境/案例、聚焦什么核心问题、采用什么方法等）。聊得差不多后随时点击上方按钮生成完整方案~`,
+            text: guideText,
             timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
             _timeMs: Date.now()
           };
@@ -2871,16 +2950,39 @@ ${recentDefenseChat}
           s1.contract.overview = '';
           s1.researchOverview = '';
 
-          // 结构化整理各方向票数（严禁点名，只报票数与方向）
+          // 结构化整理各方向票数与提案内容（严禁点名，只报票数与方向）
           const directionSummaries = (s1.proposals || []).map((p, idx) => {
             const vCount = tally[p.id] || 0;
-            return `【方向${idx + 1}：《${p.title}》】获得 ${vCount} 票`;
-          }).join('；');
+            return `【方向${idx + 1}：《${p.title}》】获得 ${vCount} 票（设想：${p.description || '无'}）`;
+          }).join('\n');
+
+          const divergencePrompt = `小组成员完成了选题投票，投票结果出炉（存在分歧）：
+${directionSummaries}
+
+请作为资深学术拍卖师：
+发表 110~150 字的投票揭晓与分歧协商融合引导（严禁点名任何作者，只报方向、票数与侧重点）：
+1. 播报各方向票数与侧重点（如【方向一：《XX》】获得 X 票；【方向二：《YY》】获得 Y 票）；
+2. 启发大家围绕各方案的互补性在讨论区商量确定一个统一或融合的方向，并进一步细化具体的研究情境、案例与方法；
+3. 明确提示：“聊得差不多后随时点击上方【💡 讨论差不多了？一键提炼【主题与研究方案】】按钮生成完整方案~”
+纯自然语言输出，开头统一：🤖 【学术拍卖师·分歧指引】：`;
+
+          const directionBrief = (s1.proposals || []).map((p, idx) => `【方向${idx + 1}：《${p.title}》】获得 ${tally[p.id] || 0} 票`).join('；');
+          let guideText = `🤖 【学术拍卖师·分歧指引】：投票结果出炉：${directionBrief}。请大家商量确定一个统一或融合的方向，并进一步细化具体的研究情境与方案。聊得差不多后随时点击上方【💡 讨论差不多了？一键提炼【主题与研究方案】】按钮生成完整方案~`;
+
+          try {
+            const aiResp = await callCozeAgentAPI('auctioneer', divergencePrompt, { stage: 'stage1', topic: '方案分歧融合' });
+            if (aiResp && aiResp.trim().length > 0) {
+              guideText = aiResp.trim();
+              if (!guideText.startsWith('🤖')) guideText = `🤖 【学术拍卖师·分歧指引】：${guideText}`;
+            }
+          } catch (e) {
+            console.warn('Auctioneer divergence prompt fallback', e);
+          }
 
           const guideMsg = {
             sender: 'auctioneer',
             senderName: '头脑风暴 · 学术拍卖师',
-            text: `🤖 【学术拍卖师·分歧指引】：投票结果出炉：${directionSummaries}。请大家商量确定一个统一或融合的方向，并进一步细化具体的研究情境与方案。聊得差不多后随时点击上方按钮生成完整方案~`,
+            text: guideText,
             timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
             _timeMs: Date.now()
           };
@@ -3262,18 +3364,17 @@ ${chatSnippet}
       s2ChatLogs.push(msgManaging);
 
       // 2. 审稿专家结合半程会议讨论与正文下发《二审修正清单》
-      const reviewingPrompt = `【角色与红线】：你是一位极具教学同理心的资深期刊审稿编辑。严格顺应学生已有构思，坚决不推翻大改，若学生写的是研究方案设计，严禁强求跑真实数据或补SPSS统计图表，不苛求排版格式！
-针对课题《${topic}》，结合小组成员刚才商定的修改思路，通读下方正文草稿，给出 120~150 字的【二审修正清单】：
+      const reviewingPrompt = `针对课题《${topic}》，结合小组成员刚才商定的修改思路，通读下方正文草稿，作为资深审稿编辑给出【二审修正清单】（120~150字）：
 【正文草稿参考】:
 ${rawDoc.slice(0, 1500)}
 【小组成员商定的修改思路】:
 ${chatSnippet}
 
 请下发包含 3 项具体可执行的《二审修正清单》：
-① 核心概念与研究问题对齐；
-② 研究方法、量表或实施步骤细节补全（紧扣问题与假设）；
-③ 行文衔接与学术语体润色。
-并在末尾明确提示全组：“请大家围绕清单商定落实分工，讨论差不多后点击下方【📝 讨论差不多了？让审稿编辑总结】！”（纯自然语言，120~150字，严禁代码块）`;
+① 核心概念与问题对齐；
+② 研究方法与工具操作化细节补全；
+③ 行文衔接与学术语体规范。
+并在末尾明确提示全组：“请大家围绕清单简要商定分工与修改计划，讨论差不多后点击下方【📝 讨论差不多了？让审稿编辑总结】！”（纯自然语言，120~150字）`;
 
       const respReviewing = await callCozeAgentAPI('reviewingEditor', reviewingPrompt, { stage: 'stage2', topic, actualDoc: rawDoc });
       let reviewingText = (respReviewing && respReviewing.trim().length > 0)
@@ -3315,13 +3416,13 @@ ${chatSnippet}
 
     const topic = (this.state.stage1 && this.state.stage1.mergedTitle) ? this.state.stage1.mergedTitle : '本组课题';
 
-    const summaryPrompt = `【角色与定位】：你是资深期刊审稿编辑。小组成员已就《二审修正清单》在讨论区明确了各自的修改落实分工与计划。
+    const summaryPrompt = `小组成员已就《二审修正清单》在讨论区明确了各自的修改落实分工与计划。
 【组内关于清单落实的讨论记录】:
 ${chatSnippet}
 
 请作为审稿编辑，发表 90~120 字的【修改落实确认与终审冲刺寄语】：
 ① 肯定大家清晰务实的修改分工与严谨态度；
-② 鼓励全组回到左侧正文写作区，将商定好的修改对策落实到位，继续推进后续章节，冲刺终审定稿！（纯自然语言，90~120字，严禁代码块）`;
+② 鼓励全组回到左侧正文继续高效撰写与修改，冲刺最终高质量学术成文！（纯自然语言，90~120字）`;
 
     try {
       const respSummary = await callCozeAgentAPI('reviewingEditor', summaryPrompt, { stage: 'stage2', topic });
