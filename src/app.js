@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260830_v897";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap } from "./utils.js?v=20260830_v897";
-import { callCozeAgentAPI } from "./agents.js?v=20260830_v897";
-import { AuthManager } from "./auth.js?v=20260830_v897";
-import { CloudSyncEngine } from "./sync.js?v=20260830_v897";
-import { renderLoginView } from "./login.js?v=20260830_v897";
-import { renderTeacherPortal } from "./teacher.js?v=20260830_v897";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260830_v897";
+} from "./constants.js?v=20260830_v898";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch } from "./utils.js?v=20260830_v898";
+import { callCozeAgentAPI } from "./agents.js?v=20260830_v898";
+import { AuthManager } from "./auth.js?v=20260830_v898";
+import { CloudSyncEngine } from "./sync.js?v=20260830_v898";
+import { renderLoginView } from "./login.js?v=20260830_v898";
+import { renderTeacherPortal } from "./teacher.js?v=20260830_v898";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260830_v898";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260830_v897";
+} from "./editor.js?v=20260830_v898";
 
 // Make renderChat available on window for sync callbacks
 if (typeof window !== "undefined") {
@@ -1760,21 +1760,19 @@ export class App {
         // 延期通知仅通过工作台顶部红点提示，不主动弹窗打扰
         if (a.isExtension || a.title?.includes('延期通知') || a.title?.includes('时间已延长')) return false;
 
-        if (a.taskId && a.taskId !== 'task_all') {
+        if (a.taskId && a.taskId !== 'task_all' && a.taskId !== 'all') {
           const tObj = allTasks.find(t => t.id === a.taskId);
           if (tObj && isTaskExpired(tObj)) return false;
         }
-        const matchClass = !a.classId || a.classId === 'all' || 
-                           (effectiveClassId && a.classId === effectiveClassId) || 
-                           (currentUser?.classId && a.classId === currentUser.classId) ||
-                           (effectiveClassName && a.className === effectiveClassName) ||
-                           (Array.isArray(a.targetClassIds) && (a.targetClassIds.includes('all') || (effectiveClassId && a.targetClassIds.includes(effectiveClassId)) || (currentUser?.classId && a.targetClassIds.includes(currentUser.classId))));
-        
-        const matchGroup = !a.targetGroupId || a.targetGroupId === 'all' || a.targetGroupId === groupId || a.targetGroupId === (currentUser && currentUser.groupId) ||
-          (Array.isArray(a.targetGroupIds) && (a.targetGroupIds.includes('all') || a.targetGroupIds.includes(groupId) || (currentUser?.groupId && a.targetGroupIds.includes(currentUser.groupId))));
-        
-        const matchTask = !a.taskId || a.taskId === 'task_all' || a.taskId === 'all' || a.taskId === activeTaskId || (!a.taskId && activeTaskId === 'task_default');
-        return matchClass && matchGroup && matchTask && !isAnnRead(a);
+
+        const isMatched = isScopeMatch(a, {
+          userClassId: effectiveClassId || currentUser?.classId,
+          userGroupId: groupId,
+          currentTaskId: activeTaskId,
+          userClassName: effectiveClassName
+        });
+
+        return isMatched && !isAnnRead(a);
       })
       .sort((a, b) => (b.id > a.id ? 1 : -1));
 
@@ -1822,17 +1820,12 @@ export class App {
       .filter(a => {
         if (!a) return false;
         if (isExtensionNotice(a)) return false; // 🚫 彻底屏蔽延期通知混入通知中心
-        const matchClass = !a.classId || a.classId === 'all' || 
-                           (effectiveClassId && a.classId === effectiveClassId) || 
-                           (currentUser?.classId && a.classId === currentUser.classId) ||
-                           (effectiveClassName && a.className === effectiveClassName) ||
-                           (Array.isArray(a.targetClassIds) && (a.targetClassIds.includes('all') || (effectiveClassId && a.targetClassIds.includes(effectiveClassId)) || (currentUser?.classId && a.targetClassIds.includes(currentUser.classId))));
-        
-        const matchGroup = !a.targetGroupId || a.targetGroupId === 'all' || a.targetGroupId === groupId || a.targetGroupId === (currentUser && currentUser.groupId) ||
-          (Array.isArray(a.targetGroupIds) && (a.targetGroupIds.includes('all') || a.targetGroupIds.includes(groupId) || (currentUser?.groupId && a.targetGroupIds.includes(currentUser.groupId))));
-        
-        const matchTask = !a.taskId || a.taskId === 'task_all' || a.taskId === 'all' || a.taskId === activeTaskId || (!a.taskId && activeTaskId === 'task_default');
-        return matchClass && matchGroup && matchTask;
+        return isScopeMatch(a, {
+          userClassId: effectiveClassId || currentUser?.classId,
+          userGroupId: groupId,
+          currentTaskId: activeTaskId,
+          userClassName: effectiveClassName
+        });
       })
       .sort((a, b) => (b.id > a.id ? 1 : -1));
 

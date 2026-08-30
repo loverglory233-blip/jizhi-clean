@@ -14,8 +14,8 @@ import {
   DefaultTasks,
   DefaultAnnouncements,
   DefaultReferencePapers
-} from './constants.js?v=20260830_v897';
-import { formatExportDateTime, formatDurationHuman } from './utils.js?v=20260830_v897';
+} from './constants.js?v=20260830_v898';
+import { formatExportDateTime, formatDurationHuman, isScopeMatch } from './utils.js?v=20260830_v898';
 
 export class AuthManager {
   constructor() {
@@ -456,6 +456,18 @@ export class AuthManager {
     let announcements = [];
     try {
       announcements = JSON.parse(localStorage.getItem(STORAGE_KEY_ANNOUNCEMENTS)) || DefaultAnnouncements;
+      if (Array.isArray(announcements)) {
+        let changed = false;
+        announcements.forEach(a => {
+          if (a && a.attachment && a.attachment.fileData) {
+            delete a.attachment.fileData;
+            changed = true;
+          }
+        });
+        if (changed) {
+          localStorage.setItem(STORAGE_KEY_ANNOUNCEMENTS, JSON.stringify(announcements));
+        }
+      }
     } catch (e) {
       announcements = DefaultAnnouncements;
     }
@@ -1617,7 +1629,20 @@ export class AuthManager {
   getAllReferencePapers() {
     try {
       const data = localStorage.getItem('jizhi_reference_papers_db');
-      return data ? JSON.parse(data) : [];
+      let papers = data ? JSON.parse(data) : [];
+      if (Array.isArray(papers)) {
+        let changed = false;
+        papers.forEach(p => {
+          if (p && p.fileData) {
+            delete p.fileData;
+            changed = true;
+          }
+        });
+        if (changed) {
+          localStorage.setItem('jizhi_reference_papers_db', JSON.stringify(papers));
+        }
+      }
+      return Array.isArray(papers) ? papers : [];
     } catch (e) { return []; }
   }
 
@@ -1625,11 +1650,11 @@ export class AuthManager {
     const papers = this.getAllReferencePapers();
     if (!groupId && !classId && !taskId) return papers;
     return papers.filter(p => {
-      const matchClass = !classId || classId === 'all' || p.classId === classId || (!p.classId && classId === 'class_101') || (Array.isArray(p.targetClassIds) && p.targetClassIds.includes(classId));
-      const matchGroup = !groupId || groupId === 'all' || 
-        (Array.isArray(p.targetGroupIds) ? (p.targetGroupIds.includes('all') || p.targetGroupIds.includes(groupId)) : (!p.targetGroupId || p.targetGroupId === 'all' || p.targetGroupId === groupId));
-      const matchTask = !taskId ? true : (p.taskId === taskId || (!p.taskId && taskId === 'task_default'));
-      return matchClass && matchGroup && matchTask;
+      return isScopeMatch(p, {
+        userClassId: classId,
+        userGroupId: groupId,
+        currentTaskId: taskId
+      });
     });
   }
 
@@ -1654,11 +1679,6 @@ export class AuthManager {
       uploadTime: new Date().toLocaleDateString() + ' ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       author: '任课教师'
     };
-
-    if (paper.fileData && !paper.fileUrl) {
-      if (!window._paperMemoryBlobMap) window._paperMemoryBlobMap = new Map();
-      window._paperMemoryBlobMap.set(paperId, paper.fileData);
-    }
 
     papers.unshift(newPaper);
     try {

@@ -696,3 +696,29 @@ export function enforceEtherpadReadonly(iframe) {
   iframe.addEventListener('load', tryLock, { once: true });
   tryLock();
 }
+
+/**
+ * 🌐 全局统一教学范围匹配器 (Universal Educational Scope Matcher)
+ * 彻底消除因全等与死板判定导致的通知/问卷/范文“误杀遗漏”
+ */
+export function isScopeMatch(target = {}, context = {}) {
+  const { classId: tClassId, targetGroupId: tGroupId, taskId: tTaskId, targetClassIds: tClassIds, targetGroupIds: tGroupIds, className: tClassName } = target;
+  const { userClassId, userGroupId, currentTaskId, userClassName } = context;
+
+  // 1. 班级范围匹配 (支持 all / 空值 / 班级ID一致 / 班级名称一致 / 班级ID数组包含)
+  const matchClass = !tClassId || tClassId === 'all' || tClassId === 'class_all' ||
+                     (userClassId && tClassId === userClassId) ||
+                     (userClassName && tClassName && tClassName === userClassName) ||
+                     (Array.isArray(tClassIds) && (tClassIds.includes('all') || tClassIds.includes('class_all') || (userClassId && tClassIds.includes(userClassId))));
+
+  // 2. 小组范围匹配 (支持 all / 空值 / 小组ID一致 / 小组ID数组包含)
+  const matchGroup = !tGroupId || tGroupId === 'all' || tGroupId === 'group_all' ||
+                     (userGroupId && tGroupId === userGroupId) ||
+                     (Array.isArray(tGroupIds) && (tGroupIds.includes('all') || tGroupIds.includes('group_all') || (userGroupId && tGroupIds.includes(userGroupId))));
+
+  // 3. 任务范围匹配 (支持 all / task_all / task_default / 空值 / 任务ID一致)
+  const matchTask = !tTaskId || tTaskId === 'all' || tTaskId === 'task_all' || tTaskId === 'task_default' ||
+                    (!currentTaskId) || (currentTaskId && tTaskId === currentTaskId);
+
+  return !!(matchClass && matchGroup && matchTask);
+}
