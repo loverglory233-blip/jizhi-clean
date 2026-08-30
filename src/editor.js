@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles } from "./constants.js?v=20260831_v943";
-import { callCozeAgentAPI } from "./agents.js?v=20260831_v943";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap } from "./utils.js?v=20260831_v943";
+import { AgentProfiles } from "./constants.js?v=20260831_v944";
+import { callCozeAgentAPI } from "./agents.js?v=20260831_v944";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap } from "./utils.js?v=20260831_v944";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -1888,6 +1888,124 @@ function renderStage1Canvas(canvas, state, handlers) {
       });
     }
   });
+  if (!isContractLocked) {
+    canvas.querySelectorAll('.vote-btn:not([disabled])').forEach(btn => {
+      btn.addEventListener('click', () => handlers.onVote(btn.dataset.id));
+    });
+    const btnExtractTopic = canvas.querySelector('#btn-extract-topic');
+    if (btnExtractTopic) {
+      btnExtractTopic.addEventListener('click', () => {
+        if (!isVotingComplete) {
+          alert();
+          return;
+        }
+        if (handlers.onExtractTopic) handlers.onExtractTopic();
+      });
+    }
+
+    const btnExtractTime = canvas.querySelector('#btn-extract-time');
+    if (btnExtractTime) {
+      btnExtractTime.addEventListener('click', () => {
+        if (handlers.onExtractTime) handlers.onExtractTime();
+      });
+    }
+
+    const btnExtractTasks = canvas.querySelector('#btn-extract-tasks');
+    if (btnExtractTasks) {
+      btnExtractTasks.addEventListener('click', () => {
+        if (handlers.onExtractTasks) handlers.onExtractTasks();
+      });
+    }
+
+    const btnGenDraft = canvas.querySelector('#btn-generate-contract-draft');
+    if (btnGenDraft) {
+      btnGenDraft.addEventListener('click', () => {
+        if (handlers.onAiGenerateContract) handlers.onAiGenerateContract();
+      });
+    }
+
+    const btnConfirm = canvas.querySelector('#btn-confirm-contract');
+    if (btnConfirm) {
+      btnConfirm.addEventListener('click', () => {
+        s1.contract._lastSignTime = Date.now();
+        const currUser = (window.app && window.app.authManager) ? window.app.authManager.getCurrentUser() : null;
+        const myCode = state.currentUser || (currUser ? currUser.studentCode : 'A');
+        const effectiveClassId = window.app.state.activeStudentClassId || (currUser?.classId || null);
+        const activeGroupObj = window.app.authManager ? window.app.authManager.getStudentActiveGroup(currUser, effectiveClassId) : null;
+        const curGid = activeGroupObj?.id || (currUser?.groupId || state.activeGroupId || null);
+        
+        fetch('sync.php?action=patch_contract_field', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            taskId: state.activeTaskId || null,
+            groupId: curGid,
+            field: 'sign_member',
+            subKey: myCode,
+            value: true
+          })
+        }).catch(() => {});
+
+        handlers.onConfirmContract();
+      });
+    }
+
+    const btnGotoS2 = canvas.querySelector('#btn-goto-stage2');
+    if (btnGotoS2) {
+      btnGotoS2.addEventListener('click', () => {
+        if (window.app && typeof window.app.switchStage === 'function') {
+          window.app.switchStage('stage2', true);
+        }
+      });
+    }
+  }
+
+  if (activeKey) {
+    const restoreInput = canvas.querySelector();
+    if (restoreInput) {
+      restoreInput.value = activeVal;
+      restoreInput.focus();
+      try { restoreInput.setSelectionRange(activeCursor, activeCursor); } catch (e) {}
+    }
+  }
+
+  renderPresencePills('stage1-canvas', state);
+}
+
+function renderStage2Canvas(canvas, state, handlers) {
+  if (!canvas) return;
+  const s2 = state.stage2;
+  if (s2.unifiedContent && (s2.unifiedContent.includes('一、研究背景与意义') || s2.unifiedContent.includes('请在此处撰写正文'))) {
+    s2.unifiedContent = '';
+  }
+  const actionPlan = s2.actionPlan;
+  const currUser = (window.app && window.app.authManager) ? window.app.authManager.getCurrentUser() : null;
+  const userClassId = state.activeStudentClassId || (currUser ? currUser.classId : null) || null;
+  const activeGroupObj = (window.app && window.app.authManager) ? window.app.authManager.getStudentActiveGroup(currUser, userClassId) : null;
+  const userGroupId = activeGroupObj?.id || (window.app?.cloudSyncEngine?.groupId) || (currUser?.groupId) || state.activeGroupId || 'group_1';
+  let activeTaskId = state.activeTaskId || (window.app?.cloudSyncEngine?.taskId) || ();
+  if (!activeTaskId || activeTaskId === 'task_default') activeTaskId = ;
+  const availablePapers = (window.app && window.app.authManager) ? window.app.authManager.getReferencePapers(userGroupId, userClassId, activeTaskId) : [];
+  const paperBtnLabel = availablePapers.length > 0 ?  : '📚 查阅参考范文库';
+
+  const allTasks = (window.app && window.app.authManager) ? window.app.authManager.getTasks() : [];
+  const currentTask = allTasks.find(t => t.id === state.activeTaskId);
+  const isTaskDeadlineExpired = isTaskExpired(currentTask);
+  const confirmedDraftMap = s2.confirmedMembers || {};
+  const isMemberDone = (map, m) => {
+    if (!map || !m) return false;
+    return !!(map[m.id] || map[m.studentCode] || map[m.username] || (m.name && map[m.name]));
+  };
+  const membersList = Object.values(state.members || {});
+  const confirmedDraftCount = membersList.filter(m => isMemberDone(confirmedDraftMap, m)).length;
+  const totalCount = membersList.length || 3;
+  const currUserCode = state.currentUser || (currUser ? currUser.studentCode : 'A');
+  const isUserDraftConfirmed = isMemberDone(confirmedDraftMap, { id: currUserCode, studentCode: currUser?.studentCode, username: currUser?.username, name: currUser?.name });
+  const isDraftFullyConfirmed = s2.isDraftConfirmed || (confirmedDraftCount >= totalCount && totalCount > 0) || (state.groupMaxStage === 'stage3') || state.isFinalSubmitted;
+  const meetingSubs = s2.meetingSubmissions || {};
+  const isStage2MeetingLocked = s2.isMeetingLocked || (Object.keys(meetingSubs).length >= totalCount && totalCount > 0) || isDraftFullyConfirmed;
+  const isEditorReadonly = state.isFinalSubmitted || isTaskDeadlineExpired || (state.groupMaxStage === 'stage3') || isDraftFullyConfirmed;
+  const plainTextLen = (s2.unifiedContent || '').replace(/<[^>]*>/g, '').trim().length;
 
   const padName = `jizhi_${activeTaskId}_${userGroupId}`;
 
@@ -2365,111 +2483,6 @@ function renderStage1Canvas(canvas, state, handlers) {
     });
   }
 
-  // 🚀 实时 Etherpad 真实字数提取与贡献比动态平滑更新
-  if (window._stage2WordCountTimer) clearTimeout(window._stage2WordCountTimer);
-  const padName = `jizhi_${activeTaskId}_${userGroupId}`;
-  
-  const updateContribDom = () => {
-    const labelsEl = document.getElementById('stage2-contrib-labels');
-    const barsEl = document.getElementById('stage2-contrib-bars');
-    if (!labelsEl || !barsEl) return;
-    
-    const contribs = s2.memberContributions || {};
-    let rawTotal = 0;
-    membersList.forEach(m => { rawTotal += (contribs[m.id] || 0) + (contribs[m.studentCode] || 0); });
-    
-    labelsEl.innerHTML = membersList.map((m) => {
-      const rawVal = (contribs[m.id] || 0) + (contribs[m.studentCode] || 0);
-      const pct = rawTotal > 0 ? Math.round((rawVal / rawTotal) * 100) : 0;
-      return `<span style="color:${rawVal > 0 ? (m.color || '#2563eb') : '#94a3b8'}; font-weight:700;">● ${m.name}: ${pct}%</span>`;
-    }).join('');
-
-    if (rawTotal === 0) {
-      barsEl.innerHTML = `<div style="width:100%; height:10px; background:#f8fafc; border-radius:5px; display:flex; align-items:center; justify-content:center; font-size:10px; color:#94a3b8; font-weight:600;">⏳ 暂无协作投入 (组员在 Etherpad 中撰写、修改正文或研讨后将平滑累计真实贡献)</div>`;
-    } else {
-      barsEl.innerHTML = membersList.map((m) => {
-        const rawVal = (contribs[m.id] || 0) + (contribs[m.studentCode] || 0);
-        const pct = rawTotal > 0 ? Math.round((rawVal / rawTotal) * 100) : 0;
-        return `<div class="contrib-segment" style="width:${pct}%; background:${m.color || '#2563eb'}; transition:width 0.8s ease-in-out;" title="${m.name}: ${pct}% (基于正文撰写与修改累计工作量)"></div>`;
-      }).join('');
-    }
-  };
-
-  let _padContentDebounceTimer = null;
-  const syncPadMetrics = async () => {
-    try {
-      // 🚀 权威服务端代理提取：通过 Etherpad API 安全读取纯文本，0% 报错与 0 404
-      const res = await fetch(`sync.php?action=get_pad_text&padId=${encodeURIComponent(padName)}`).then(r => r.json()).catch(() => null);
-      if (res && res.success) {
-        const cleanTxt = (res.text || '').replace(/\r\n/g, '\n').trim();
-        const wordCount = cleanTxt.length;
-        
-        // 实时更新字数角标
-        const countBadge = document.getElementById('stage2-word-count-num');
-        if (countBadge) countBadge.innerText = String(wordCount);
-
-        const prevContent = state.stage2.unifiedContent || '';
-        const hasContentChanged = (cleanTxt && cleanTxt !== prevContent);
-
-        if (hasContentChanged) {
-          state.stage2.unifiedContent = cleanTxt;
-          if (_padContentDebounceTimer) clearTimeout(_padContentDebounceTimer);
-          _padContentDebounceTimer = setTimeout(() => {
-            if (window.app && typeof window.app.syncStage2 === 'function') {
-              window.app.syncStage2();
-            }
-            if (window.app && typeof window.app.checkAgentTriggersOnContent === 'function') {
-              window.app.checkAgentTriggersOnContent(cleanTxt);
-            }
-          }, 1500);
-        }
-
-        // 动态贡献度计算（仅当本人正在打字时向上报增量 delta）
-        const prevLen = state.stage2._prevKnownLen !== undefined ? state.stage2._prevKnownLen : wordCount;
-        state.stage2._prevKnownLen = wordCount;
-
-        const isInputFocused = document.activeElement && document.activeElement.tagName === 'IFRAME';
-        if (wordCount !== prevLen && isInputFocused) {
-          const delta = Math.abs(wordCount - prevLen);
-          if (delta > 0) {
-            fetch(`sync.php?action=report_member_contrib&groupId=${encodeURIComponent(userGroupId)}&taskId=${encodeURIComponent(activeTaskId)}&classId=${encodeURIComponent(userClassId)}`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                taskId: activeTaskId,
-                classId: userClassId,
-                groupId: userGroupId,
-                userCode: currUserCode,
-                delta: delta
-              })
-            }).then(r => r.json()).then(res => {
-              if (res.success && res.contribs) {
-                state.stage2.memberContributions = res.contribs;
-                updateContribDom();
-              }
-            }).catch(() => {});
-          }
-        } else {
-          updateContribDom();
-        }
-      }
-    } catch (e) {}
-  };
-
-  syncPadMetrics();
-  if (window._stage2WordCountTimer) clearTimeout(window._stage2WordCountTimer);
-  const getPadMetricInterval = () => (document.hidden ? 60000 : 15000);
-  const scheduleNextPadMetric = () => {
-    window._stage2WordCountTimer = setTimeout(() => {
-      syncPadMetrics().finally(scheduleNextPadMetric);
-    }, getPadMetricInterval());
-  };
-  scheduleNextPadMetric();
-
-  if (isEditorReadonly) {
-    const f2 = canvas.querySelector('#stage2-etherpad-frame');
-    if (f2) enforceEtherpadReadonly(f2);
-  }
 }
 
 function renderStage3Canvas(canvas, state, handlers) {
