@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260830_v831";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash } from "./utils.js?v=20260830_v831";
-import { callCozeAgentAPI } from "./agents.js?v=20260830_v831";
-import { AuthManager } from "./auth.js?v=20260830_v831";
-import { CloudSyncEngine } from "./sync.js?v=20260830_v831";
-import { renderLoginView } from "./login.js?v=20260830_v831";
-import { renderTeacherPortal } from "./teacher.js?v=20260830_v831";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260830_v831";
+} from "./constants.js?v=20260830_v832";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash } from "./utils.js?v=20260830_v832";
+import { callCozeAgentAPI } from "./agents.js?v=20260830_v832";
+import { AuthManager } from "./auth.js?v=20260830_v832";
+import { CloudSyncEngine } from "./sync.js?v=20260830_v832";
+import { renderLoginView } from "./login.js?v=20260830_v832";
+import { renderTeacherPortal } from "./teacher.js?v=20260830_v832";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260830_v832";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260830_v831";
+} from "./editor.js?v=20260830_v832";
 
 // Make renderChat available on window for sync callbacks
 if (typeof window !== "undefined") {
@@ -2192,26 +2192,51 @@ ${recentChats}
             }, 800);
           }
         }
-        // 2. 若处于【方案细化】状态：40秒静默观察窗口（Debounce），学生持续发言自动打断重置，完全讨论完毕且40秒无新发言才自然切入分工
+        // 2. 若处于【方案细化】状态：对齐阶段二优雅架构，40s静默后由大模型通读真实讨论切片，个性化点评并下发分工时间指引
         else if (s1.flowStep === 'refining' || this.state.stage1PendingRefinement || (hasTopicEstablished && !hasTaskPromptSent)) {
-          // 每次发言先打断之前的 40 秒等待定时器，确保学生继续讨论时不被打扰
-          if (this._refineDebounceTimer) {
-            clearTimeout(this._refineDebounceTimer);
-            this._refineDebounceTimer = null;
+          if (this._s1RefineTimer) {
+            clearTimeout(this._s1RefineTimer);
+            this._s1RefineTimer = null;
           }
 
-          // 判定是否是主动发出的明确收敛/分工信号 (无需等40秒，直接秒级推进)
           const isExplicitFinalizeOrTaskSignal = /(?:定好|定了吧|想好|差不多了|可以了|没问题了|就按这个|就这么定|就这么办|妥了|开始分工|怎么分工|谁负责|谁来写|分配任务|商量分工|准备分工)/i.test(text);
           
-          const triggerTaskGuidance = () => {
+          const triggerTaskGuidance = async () => {
+            if (this._isS1TaskGuidanceInProgress) return;
+            this._isS1TaskGuidanceInProgress = true;
             s1.flowStep = 'tasks';
             this.state.stage1PendingRefinement = false;
             this.state.stage1PendingTasks = true;
             this.syncStage1();
+
+            const topic = s1.mergedTitle || '本组研究论题';
+            const s1Logs = (this.state.chatLogs && this.state.chatLogs.stage1) ? this.state.chatLogs.stage1 : [];
+            const topicNoticeIdx = s1Logs.findLastIndex(m => m && m.sender === 'auctioneer' && (m.text.includes('课题确立') || m.text.includes('全票') || m.text.includes('落槌')));
+            const relevantRefineLogs = (topicNoticeIdx >= 0) ? s1Logs.slice(topicNoticeIdx + 1) : s1Logs;
+            const userRefineChat = relevantRefineLogs.filter(m => m && m.sender && !AgentProfiles[m.sender] && m.sender !== 'system')
+              .map(m => `${m.senderName || m.sender}: ${m.text}`).join('\n') || text;
+
+            const refineSummaryPrompt = `小组成员已就研究课题《${topic}》在讨论区展开了深入细化研讨。
+【组内关于方案细化的真实讨论切片】:
+${userRefineChat}
+
+请通读上述发言，作为资深学术拍卖师，发表 90~110 字的【方案细化学术小结与分工引导】：
+① 简要肯定并提炼大家商定出的具体研究方案核心亮点（如确定的学段、方法、情境或核心变量）；
+② 自然承接，引导全组开始在讨论区商定：规划 6 大章节的时间预算以及各自的任务分工（纯自然语言，90~110字）！`;
+
+            let refineSummaryText = await callCozeAgentAPI('auctioneer', refineSummaryPrompt, { stage: 'stage1', topic });
+            let finalTaskText = (refineSummaryText && refineSummaryText.trim().length > 0)
+              ? refineSummaryText.trim()
+              : `🎪 【拍卖师·分工与时间规划引导】：具体研究内容已基本明晰！👉 接下来请大家在讨论区商定：① 规划 6 大章节的时间预算；② 确定各自的任务分工（大家可以按具体内容模块分工，也可以按章节分工；先定时间还是先定分工由全组自主决定）！`;
+
+            if (!finalTaskText.includes('【拍卖师')) {
+              finalTaskText = `🎪 【拍卖师·方案细化小结与分工引导】：${finalTaskText}`;
+            }
+
             const taskPromptMsg = {
               sender: 'auctioneer',
               senderName: '头脑风暴 · 学术拍卖师',
-              text: `🎪 【拍卖师·分工与时间规划引导】：具体研究内容已基本明晰！👉 接下来请大家在讨论区商定：① 规划 6 大章节的时间预算；② 确定各自的任务分工（大家可以按具体内容模块分工，也可以按章节分工；先定时间还是先定分工由全组自主决定）！`,
+              text: finalTaskText,
               timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
               _timeMs: Date.now()
             };
@@ -2221,39 +2246,78 @@ ${recentChats}
             this.syncStage1();
             if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
             renderChat(this.state);
+            this._isS1TaskGuidanceInProgress = false;
           };
 
           if (isExplicitFinalizeOrTaskSignal) {
-            // 主动表达收敛意向后，给予 5 秒自然拟人缓冲窗口再温和切入
             setTimeout(triggerTaskGuidance, 5000);
-          } else if (hasValidConsensusPair) {
-            // 组内达成共识后，启动 40 秒观察窗口；40 秒内若有任何同学继续提出新补充则自动顺延，40秒完全静默才判定方案充分定型！
-            this._refineDebounceTimer = setTimeout(triggerTaskGuidance, 40000);
+          } else if (hasValidConsensusPair || hasAgreement) {
+            // 组员发表方案并表达赞同后，进入 40 秒静默观察期；期间有新发言自动重置，40秒完全静默后大模型通读发言自然切入
+            this._s1RefineTimer = setTimeout(triggerTaskGuidance, 40000);
           }
         }
-        // 3. 若处于【分工与时间商议】状态，识别组员是否已完成分工与时间讨论 ➔ 提醒点击【生成公约草案】
+        // 3. 若处于【分工与时间商议】状态：40s静默后由大模型通读分工记录，个性化确认并提醒生成公约草案
         else if (s1.flowStep === 'tasks' || this.state.stage1PendingTasks || (hasTopicEstablished && hasTaskPromptSent && !s1.contract.isDraftGenerated)) {
-          const isTasksDoneSignal = /(?:分工|时间|分钟|平均|均分|随便|默认|差不多|都行|平分|推荐|负责|我来|你来|分配|定好|定了吧|可以了|赞同|同意|行|好|生成公约|搞定|没问题|商定|确认|按顺序|各自|第一章|第二章|第三章|第四章|第五章|第六章|背景|文献|方法|反思)/i.test(text);
-          if (isTasksDoneSignal || hasValidConsensusPair) {
+          if (this._s1TasksTimer) {
+            clearTimeout(this._s1TasksTimer);
+            this._s1TasksTimer = null;
+          }
+
+          const isExplicitDraftSignal = /(?:生成公约|搞定|可以生成|草案|差不多了|确认分工|商定好了|定好了)/i.test(text);
+
+          const triggerDraftReminder = async () => {
+            if (this._isS1DraftReminderInProgress) return;
+            this._isS1DraftReminderInProgress = true;
             s1.flowStep = 'ready_draft';
             this.state.stage1PendingTasks = false;
             this.state.stage1PendingDraftClick = true;
             this.syncStage1();
-            setTimeout(async () => {
-              const draftPromptMsg = {
-                sender: 'auctioneer',
-                senderName: '头脑风暴 · 学术拍卖师',
-                text: `📜 【拍卖师·公约草案生成提醒】：分工与时间规划已商定就绪！👉 请组员点击左侧【生成公约草案】卡片，系统将根据大家的研讨记录自动生成草案，生成后可继续微调修改！`,
-                timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                _timeMs: Date.now()
-              };
-              if (!this.state.chatLogs.stage1) this.state.chatLogs.stage1 = [];
-              this.state.chatLogs.stage1.push(draftPromptMsg);
-              this.syncChatLogs();
-              this.syncStage1();
-              if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
-              renderChat(this.state);
-            }, 5000);
+
+            const topic = s1.mergedTitle || '本组研究论题';
+            const s1Logs = (this.state.chatLogs && this.state.chatLogs.stage1) ? this.state.chatLogs.stage1 : [];
+            const taskNoticeIdx = s1Logs.findLastIndex(m => m && m.sender === 'auctioneer' && (m.text.includes('分工与时间规划') || m.text.includes('分工引导')));
+            const relevantTaskLogs = (taskNoticeIdx >= 0) ? s1Logs.slice(taskNoticeIdx + 1) : s1Logs;
+            const userTaskChat = relevantTaskLogs.filter(m => m && m.sender && !AgentProfiles[m.sender] && m.sender !== 'system')
+              .map(m => `${m.senderName || m.sender}: ${m.text}`).join('\n') || text;
+
+            const taskSummaryPrompt = `小组成员已在讨论区就 6 大章节的时间预算与任务分工展开了商议。
+【组内关于分工与时间的真实讨论切片】:
+${userTaskChat}
+
+请通读上述发言，作为资深学术拍卖师，发表 70~90 字的【分工规划确认与公约草案生成提醒】：
+① 简要肯定大家商定出的分工意向与时间规划构想（如章节分工或平均时间）；
+② 提醒组员点击左侧【生成公约草案】卡片，系统将根据大家的研讨记录自动生成草案！（纯自然语言，70~90字）`;
+
+            let draftSummaryText = await callCozeAgentAPI('auctioneer', taskSummaryPrompt, { stage: 'stage1', topic });
+            let finalDraftText = (draftSummaryText && draftSummaryText.trim().length > 0)
+              ? draftSummaryText.trim()
+              : `📜 【拍卖师·公约草案生成提醒】：分工与时间规划已商定就绪！👉 请组员点击左侧【生成公约草案】卡片，系统将根据大家的研讨记录自动生成草案，生成后可继续微调修改！`;
+
+            if (!finalDraftText.includes('【拍卖师')) {
+              finalDraftText = `📜 【拍卖师·公约草案生成提醒】：${finalDraftText}`;
+            }
+
+            const draftPromptMsg = {
+              sender: 'auctioneer',
+              senderName: '头脑风暴 · 学术拍卖师',
+              text: finalDraftText,
+              timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+              _timeMs: Date.now()
+            };
+            if (!this.state.chatLogs.stage1) this.state.chatLogs.stage1 = [];
+            this.state.chatLogs.stage1.push(draftPromptMsg);
+            this.syncChatLogs();
+            this.syncStage1();
+            if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+            renderChat(this.state);
+            this._isS1DraftReminderInProgress = false;
+          };
+
+          if (isExplicitDraftSignal) {
+            setTimeout(triggerDraftReminder, 5000);
+          } else if (hasValidConsensusPair || hasAgreement) {
+            // 组员发表分工时间并达成一致后，进入 40 秒静默观察期；期间有新发言自动重置，40秒完全静默后大模型通读发言自然切入
+            this._s1TasksTimer = setTimeout(triggerDraftReminder, 40000);
           }
         }
       }
