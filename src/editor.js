@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles } from "./constants.js?v=20260830_v870";
-import { callCozeAgentAPI } from "./agents.js?v=20260830_v870";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap } from "./utils.js?v=20260830_v870";
+import { AgentProfiles } from "./constants.js?v=20260830_v871";
+import { callCozeAgentAPI } from "./agents.js?v=20260830_v871";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap } from "./utils.js?v=20260830_v871";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -1018,17 +1018,25 @@ function renderStage1Canvas(canvas, state, handlers) {
           📜 团队协同合作学术合约
         </div>
         <div style="font-size:12.5px; color:#64748b; margin-top:4px;">
-          ${isContractLocked ? `<span style="color:#059669; font-weight:700;">🔒 全员 ${confirmedCount}/${totalMembersCount} 人完成签署 · 归档生效中</span>` : '小组成员在研讨区商讨后，可提炼生成或自由微调各项内容，全员确认后签署生效'}
+          ${isContractLocked ? `<span style="color:#059669; font-weight:700;">🔒 全员 ${confirmedCount}/${totalMembersCount} 人完成签署 · 归档生效中</span>` : '小组成员在研讨区商讨后，可按步骤一键提炼或自由微调各项内容，全员确认后签署生效'}
         </div>
         ${!isContractLocked ? `
           <div style="margin-top:12px; display:flex; justify-content:center;">
-            ${s1.contract?.isDraftGenerated ? `
+            ${(s1.contractStep === 'completed' || s1.contract?.isDraftGenerated) ? `
               <div style="background:#f0fdf4; border:1.5px solid #86efac; color:#15803d; padding:7px 22px; border-radius:20px; font-weight:800; font-size:13px; display:inline-flex; align-items:center; gap:6px; box-shadow:0 2px 8px rgba(34,197,94,0.15);">
-                ✅ 公约草案已提炼生成（全组可直接在下方各栏目微调修改）
+                ✅ 公约草案已全部提炼生成（全组可微调修改，并在下方签署确认）
               </div>
+            ` : (s1.contractStep === 'tasks') ? `
+              <button id="btn-extract-tasks" style="background:linear-gradient(135deg, #7c3aed, #6d28d9); border:none; color:white; padding:9px 24px; border-radius:20px; font-weight:800; font-size:13.5px; cursor:pointer; display:inline-flex; align-items:center; gap:6px; box-shadow:0 4px 14px rgba(124,58,237,0.3); transition:all 0.2s;">
+                👥 研讨差不多了？一键提炼【任务分工】
+              </button>
+            ` : (s1.contractStep === 'time') ? `
+              <button id="btn-extract-time" style="background:linear-gradient(135deg, #0284c7, #0369a1); border:none; color:white; padding:9px 24px; border-radius:20px; font-weight:800; font-size:13.5px; cursor:pointer; display:inline-flex; align-items:center; gap:6px; box-shadow:0 4px 14px rgba(2,132,199,0.3); transition:all 0.2s;">
+                ⏱️ 研讨差不多了？一键提炼【时间分配】
+              </button>
             ` : `
-              <button id="btn-generate-contract-draft" style="background:linear-gradient(135deg, #7c3aed, #6d28d9); border:none; color:white; padding:8px 20px; border-radius:20px; font-weight:700; font-size:13px; cursor:pointer; display:inline-flex; align-items:center; gap:6px; box-shadow:0 3px 12px rgba(124,58,237,0.25);">
-                🤖 研讨差不多了？一键提炼研讨共识生成公约草案
+              <button id="btn-extract-topic" style="background:linear-gradient(135deg, #2563eb, #1d4ed8); border:none; color:white; padding:9px 24px; border-radius:20px; font-weight:800; font-size:13.5px; cursor:pointer; display:inline-flex; align-items:center; gap:6px; box-shadow:0 4px 14px rgba(37,99,235,0.3); transition:all 0.2s;">
+                💡 研讨差不多了？一键提炼【最终主题】
               </button>
             `}
           </div>
@@ -1756,6 +1764,27 @@ function renderStage1Canvas(canvas, state, handlers) {
     canvas.querySelectorAll('.vote-btn:not([disabled])').forEach(btn => {
       btn.addEventListener('click', () => handlers.onVote(btn.dataset.id));
     });
+    const btnExtractTopic = canvas.querySelector('#btn-extract-topic');
+    if (btnExtractTopic) {
+      btnExtractTopic.addEventListener('click', () => {
+        if (handlers.onExtractTopic) handlers.onExtractTopic();
+      });
+    }
+
+    const btnExtractTime = canvas.querySelector('#btn-extract-time');
+    if (btnExtractTime) {
+      btnExtractTime.addEventListener('click', () => {
+        if (handlers.onExtractTime) handlers.onExtractTime();
+      });
+    }
+
+    const btnExtractTasks = canvas.querySelector('#btn-extract-tasks');
+    if (btnExtractTasks) {
+      btnExtractTasks.addEventListener('click', () => {
+        if (handlers.onExtractTasks) handlers.onExtractTasks();
+      });
+    }
+
     const btnGenDraft = canvas.querySelector('#btn-generate-contract-draft');
     if (btnGenDraft) {
       btnGenDraft.addEventListener('click', () => {
