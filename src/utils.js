@@ -474,7 +474,7 @@ export function filterAndDeduplicateChatLogs(messages) {
 /**
  * 🔔 全局轻量浮层通知横幅（全场景通用：任务延长、紧急提醒等）
  */
-export function showGlobalBannerNotice(title, message, type = 'info') {
+export function showGlobalBannerNotice(title, message, type = 'info', duration = 8000) {
   if (typeof document === 'undefined') return;
   const existing = document.getElementById('jizhi-global-banner-notice');
   if (existing) existing.remove();
@@ -487,37 +487,76 @@ export function showGlobalBannerNotice(title, message, type = 'info') {
     left: 50%;
     transform: translateX(-50%);
     z-index: 9999999;
-    background: linear-gradient(135deg, #1e293b, #0f172a);
-    color: #ffffff;
-    padding: 12px 22px;
+    background: #ffffff;
+    color: #0f172a;
+    padding: 12px 20px;
     border-radius: 12px;
-    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(255, 255, 255, 0.15);
+    box-shadow: 0 12px 32px rgba(30, 58, 138, 0.16), 0 0 0 1px #93c5fd;
+    border: 1.5px solid #3b82f6;
     display: flex;
     align-items: center;
     gap: 12px;
+    max-width: 90vw;
+    width: max-content;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     font-size: 13.5px;
     pointer-events: auto;
+    animation: bannerSlideDown 0.25s cubic-bezier(0.16, 1, 0.3, 1);
   `;
 
   banner.innerHTML = `
-    <div style="font-size: 20px;">🔔</div>
-    <div>
-      <div style="font-weight: 800; color: #60a5fa; font-size: 14px;">${escapeHtml(title)}</div>
-      <div style="color: #e2e8f0; font-size: 12.5px; margin-top: 2px;">${escapeHtml(message)}</div>
+    <style>
+      @keyframes bannerSlideDown {
+        from { opacity: 0; transform: translateX(-50%) translateY(-18px) scale(0.96); }
+        to { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
+      }
+    </style>
+    <div style="font-size: 22px; line-height: 1; flex-shrink: 0;">⏳</div>
+    <div style="display: flex; flex-direction: column; gap: 2px; text-align: left;">
+      <div style="font-weight: 800; color: #1e3a8a; font-size: 14px; display: flex; align-items: center; gap: 6px;">
+        <span>${escapeHtml(title)}</span>
+      </div>
+      <div style="color: #334155; font-size: 13px; line-height: 1.5;">${escapeHtml(message)}</div>
     </div>
-    <button style="background: none; border: none; color: #94a3b8; font-size: 18px; cursor: pointer; margin-left: 12px; padding: 0 4px; line-height: 1;" onclick="this.parentElement.remove()">×</button>
+    <button id="btn-close-global-banner" style="background: #f1f5f9; border: 1px solid #cbd5e1; color: #64748b; font-size: 16px; width: 26px; height: 26px; border-radius: 50%; cursor: pointer; margin-left: 12px; display: flex; align-items: center; justify-content: center; font-weight: 700; flex-shrink: 0; transition: all 0.15s;" title="关闭">✕</button>
   `;
 
   document.body.appendChild(banner);
-  setTimeout(() => {
-    if (banner && banner.parentElement) {
-      banner.style.transition = 'opacity 0.3s ease, transform 0.3s ease';
+
+  let dismissTimer = null;
+  const startTimer = (ms) => {
+    if (dismissTimer) clearTimeout(dismissTimer);
+    dismissTimer = setTimeout(() => {
+      if (banner && banner.parentElement) {
+        banner.style.transition = 'opacity 0.25s ease, transform 0.25s ease';
+        banner.style.opacity = '0';
+        banner.style.transform = 'translateX(-50%) translateY(-14px)';
+        setTimeout(() => { if (banner && banner.parentElement) banner.remove(); }, 250);
+      }
+    }, ms);
+  };
+
+  startTimer(duration);
+
+  banner.addEventListener('mouseenter', () => {
+    if (dismissTimer) clearTimeout(dismissTimer);
+  });
+
+  banner.addEventListener('mouseleave', () => {
+    startTimer(3000);
+  });
+
+  const btnClose = banner.querySelector('#btn-close-global-banner');
+  if (btnClose) {
+    btnClose.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (dismissTimer) clearTimeout(dismissTimer);
+      banner.style.transition = 'opacity 0.15s ease, transform 0.15s ease';
       banner.style.opacity = '0';
-      banner.style.transform = 'translateX(-50%) translateY(-10px)';
-      setTimeout(() => banner.remove(), 300);
-    }
-  }, 6000);
+      banner.style.transform = 'translateX(-50%) translateY(-14px)';
+      setTimeout(() => { if (banner && banner.parentElement) banner.remove(); }, 150);
+    });
+  }
 }
 
 /**

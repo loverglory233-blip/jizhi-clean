@@ -7,11 +7,11 @@ import {
   STORAGE_KEY_TASKS,
   STORAGE_KEY_ANNOUNCEMENTS,
   STORAGE_KEY_CLASSES
-} from "./constants.js?v=20260830_v782";
-import { escapeHtml, isTaskExpired, formatDurationHuman, formatStandardDateDash, showTaskExtendedUnlockModal } from "./utils.js?v=20260830_v782";
+} from "./constants.js?v=20260830_v783";
+import { escapeHtml, isTaskExpired, formatDurationHuman, formatStandardDateDash, showGlobalBannerNotice } from "./utils.js?v=20260830_v783";
 
 /* ==========================================================================
-   7.5 STUDENT TASK PORTAL / DASHBOARD (我的写作任务大厅)
+   10. STUDENT TASK PORTAL (CENTRALIZED HUB & COLLABORATION ENTRY)
    ========================================================================== */
 export function renderStudentTaskPortal(container, authManager, state, onSelectTask, onLogout, onSwitchTeacher, onOpenAnnModal, onOpenSurveyModal) {
   // ⚡ 监听全局广播（跨标签页秒级无感热同步大厅任务卡片与下发延期通知）
@@ -24,7 +24,8 @@ export function renderStudentTaskPortal(container, authManager, state, onSelectT
         if (e.data && e.data.type === 'task_extended' && e.data.task) {
           const t = e.data.task;
           renderStudentTaskPortal(container, authManager, state, onSelectTask, onLogout, onSwitchTeacher, onOpenAnnModal, onOpenSurveyModal);
-          showTaskExtendedUnlockModal(t, e.data.prevDeadline || '', false);
+          const extDurationStr = t.lastExtension?.extendDurationStr || (t.lastExtension?.addedMinutes ? `（增加了 ${t.lastExtension.addedMinutes} 分钟）` : '');
+          showGlobalBannerNotice('⏳ 任务延期提醒', `班级写作任务《${t.title || '协作任务'}》截止时间已延长至 ${t.deadline} ${extDurationStr}！`, 'info', 8000);
         }
       };
     } catch (e) {}
@@ -50,7 +51,8 @@ export function renderStudentTaskPortal(container, authManager, state, onSelectT
               newT.forEach(nt => {
                 const ot = oldT.find(o => o.id === nt.id);
                 if (ot && nt.deadline && ot.deadline && ot.deadline !== nt.deadline) {
-                  showTaskExtendedUnlockModal(nt, ot.deadline, false);
+                  const extDurationStr = nt.lastExtension?.extendDurationStr || (nt.lastExtension?.addedMinutes ? `（增加了 ${nt.lastExtension.addedMinutes} 分钟）` : '');
+                  showGlobalBannerNotice('⏳ 任务延期提醒', `班级写作任务《${nt.title || '协作任务'}》截止时间已延长至 ${nt.deadline} ${extDurationStr}！`, 'info', 8000);
                 }
               });
             } catch (err) {}
