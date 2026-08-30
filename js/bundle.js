@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260831_v951
+ * Version: 20260831_v952
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260831_v951';
+  const APP_VERSION = '20260831_v952';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -16400,10 +16400,13 @@
       const lastReviewingMsg = logs.slice().reverse().find(m => m.sender === 'reviewingEditor');
       const timeSinceLastReviewing = lastReviewingMsg ? (now - (lastReviewingMsg._timeMs || 0)) : 999999;
 
-      // ⏱️ 计算阶段二物理时间与字数水位线（中任务 4300 字，大任务 9000 字）
+      // ⏱️ 计算阶段二物理时间与字数水位线（中任务 0~150 分钟 / 4300 字，大任务 >150 分钟 / 9000 字）
       const allTasks = (this.authManager) ? this.authManager.getTasks() : [];
       const curTask = allTasks.find(t => t.id === this.state.activeTaskId);
-      const isLargeTask = curTask && (curTask.scale === 'large' || curTask.type === 'large' || (curTask.targetWordCount && Number(curTask.targetWordCount) >= 6000));
+      const times = (this.state.stage1 && this.state.stage1.contract && this.state.stage1.contract.timeAllocations) ? this.state.stage1.contract.timeAllocations : {};
+      const totalPlannedMin = (times.background || 25) + (times.literature || 30) + (times.questions || 25) + (times.method || 40) + (times.reflection || 20) + (times.references || 10);
+      const taskDurMin = (curTask && curTask.duration) ? Number(curTask.duration) : totalPlannedMin;
+      const isLargeTask = curTask && (curTask.scale === 'large' || curTask.type === 'large' || taskDurMin > 150 || (curTask.targetWordCount && Number(curTask.targetWordCount) >= 6000));
       const defaultWordTarget = isLargeTask ? 9000 : 4300;
 
       const targetWordCount = (curTask && curTask.targetWordCount) ? Number(curTask.targetWordCount) : defaultWordTarget;
