@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260831_v923
+ * Version: 20260831_v924
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260831_v923';
+  const APP_VERSION = '20260831_v924';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -9344,6 +9344,13 @@
                 } else {
                   const count = isDoneHelper(confs.s1_topic);
                   const isMe = isMyDoneHelper(confs.s1_topic);
+                  if (!isVotingComplete) {
+                    return `
+                      <button id="btn-extract-topic" class="locked-pending-btn" style="background:#f1f5f9; border:1px solid #cbd5e1; color:#94a3b8; padding:9px 24px; border-radius:20px; font-weight:800; font-size:13.5px; cursor:not-allowed; display:inline-flex; align-items:center; gap:6px; box-shadow:none;">
+                        🔒 请先完成投票推选 (${totalVotesCast}/${totalMembersCount} 人已投)
+                      </button>
+                    `;
+                  }
                   return `
                     <button id="btn-extract-topic" style="background:${isMe ? 'linear-gradient(135deg, #059669, #047857)' : 'linear-gradient(135deg, #2563eb, #1d4ed8)'}; border:none; color:white; padding:9px 24px; border-radius:20px; font-weight:800; font-size:13.5px; cursor:pointer; display:inline-flex; align-items:center; gap:6px; box-shadow:0 4px 14px rgba(37,99,235,0.3); transition:all 0.2s;">
                       ${isMe ? `✅ 您已确认提炼主题与方案 (${count}/${totalMembersCount} 等待其他组员)` : `💡 讨论差不多了？一键提炼【主题与研究方案】 (${count}/${totalMembersCount})`}
@@ -10141,6 +10148,10 @@
       const btnExtractTopic = canvas.querySelector('#btn-extract-topic');
       if (btnExtractTopic) {
         btnExtractTopic.addEventListener('click', () => {
+          if (!isVotingComplete) {
+            alert(`🔒 请先完成全员提案提交与投票推选！\n\n当前全组投票进度：${totalVotesCast}/${totalMembersCount} 人已投票。\n投票结束后拍卖师将落槌揭晓结果，随后方可开启主题与方案提炼。`);
+            return;
+          }
           if (handlers.onExtractTopic) handlers.onExtractTopic();
         });
       }
@@ -11485,9 +11496,18 @@
       const s2SubCount = Object.keys(s2Subs).length;
       const isS2MeetingDone = s2SubCount >= totalCount && totalCount > 0;
 
-      if (curStage === 'stage2' && isS2MeetingDone && s2.meetingStep !== 'completed') {
+      if (curStage === 'stage2' && s2.meetingStep !== 'completed') {
         actionBar.style.display = 'block';
-        if (!s2.meetingStep || s2.meetingStep === 'discussing_divergence' || s2.meetingStep === 'initial' || s2.meetingStep === 'discussing_agreement') {
+        if (!isS2MeetingDone) {
+          actionBar.innerHTML = `
+            <button id="btn-s2-locked-notice" style="background:#f1f5f9; border:1px solid #cbd5e1; color:#94a3b8; padding:7px 18px; border-radius:18px; font-weight:800; font-size:12.5px; cursor:not-allowed; display:inline-flex; align-items:center; gap:6px; box-shadow:none;">
+              🔒 请先全员参与【编辑会议】打卡 (${s2SubCount}/${totalCount} 人已打卡)
+            </button>
+          `;
+          actionBar.querySelector('#btn-s2-locked-notice')?.addEventListener('click', () => {
+            alert(`🔒 请先在正文上方点击【📢 参与【编辑会议】】完成半程自查打卡！\n\n当前打卡进度：${s2SubCount}/${totalCount} 人。\n全员打卡完成后，责任编辑将主持会议，届时方可点击总结。`);
+          });
+        } else if (!s2.meetingStep || s2.meetingStep === 'discussing_divergence' || s2.meetingStep === 'initial' || s2.meetingStep === 'discussing_agreement') {
           const count = isDoneHelper(confs.s2_managing);
           const isMe = isMyDoneHelper(confs.s2_managing);
           actionBar.innerHTML = `
