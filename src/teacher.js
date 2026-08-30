@@ -9,8 +9,8 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260830_v794";
-import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, showGlobalBannerNotice } from "./utils.js?v=20260830_v794";
+} from "./constants.js?v=20260830_v795";
+import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, showGlobalBannerNotice } from "./utils.js?v=20260830_v795";
 
 /* ==========================================================================
    7. TEACHER PORTAL RENDERER (LIVE WORKSPACE MIRROR & ANNOUNCEMENT READ MATRIX)
@@ -1747,6 +1747,10 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
   container.querySelectorAll('.teacher-tab-nav').forEach(btn => {
     btn.addEventListener('click', () => {
       state.teacherActiveTab = btn.dataset.tab;
+      try {
+        sessionStorage.setItem('jizhi_teacher_active_tab', btn.dataset.tab);
+        localStorage.setItem('jizhi_teacher_active_tab', btn.dataset.tab);
+      } catch (e) {}
       if (!state.stage1) state.stage1 = { topics: [], bidLogs: [], contract: { confirmedMembers: {}, taskAssignments: {}, timeAllocations: {} } };
       if (!state.stage2) state.stage2 = { unifiedContent: '', memberContributions: {} };
       if (!state.stage3) state.stage3 = { reviews: [] };
@@ -1786,6 +1790,12 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
         window.app.state.activeTaskId = state.activeTaskId;
         window.app.state.activeMonitorGroupId = state.activeMonitorGroupId;
       }
+      try {
+        sessionStorage.setItem('jizhi_teacher_active_class_id', newCId);
+        localStorage.setItem('jizhi_teacher_active_class_id', newCId);
+        sessionStorage.setItem('jizhi_teacher_active_group_id', state.activeMonitorGroupId);
+        localStorage.setItem('jizhi_teacher_active_group_id', state.activeMonitorGroupId);
+      } catch (e) {}
       renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
     });
   });
@@ -3644,6 +3654,11 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
       window.app.state.activeMonitorGroupId = targetGId;
       window.app.loadGroupState(targetGId);
     }
+    // 🛡️ 小组切换持久化：刷新后精准恢复到此次选中的小组
+    try {
+      sessionStorage.setItem('jizhi_teacher_active_group_id', targetGId);
+      localStorage.setItem('jizhi_teacher_active_group_id', targetGId);
+    } catch (e) {}
   };
 
   const selSwitchGroup = container.querySelector('#sel-switch-monitor-group');

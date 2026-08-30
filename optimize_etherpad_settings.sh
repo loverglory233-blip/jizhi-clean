@@ -27,8 +27,8 @@ try {
 
 settings.ip = "0.0.0.0";
 settings.port = 9001;
-settings.minify = false;
-settings.maxAge = 0;
+settings.minify = true;        // ⚡ 开启 JS/CSS 合并压缩，大幅降低并发加载时的 Node.js CPU 峰值与带宽消耗
+settings.maxAge = 21600000;    // ⚡ 静态外壳资源 6 小时强缓存 (21600000ms)，二次访问 0 带宽
 settings.showSettingsInAdminPage = true;
 settings.suppressErrorsInPadText = true;
 settings.requireAuthentication = false;

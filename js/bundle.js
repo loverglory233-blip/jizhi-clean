@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260830_v794
+ * Version: 20260830_v795
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260830_v794';
+  const APP_VERSION = '20260830_v795';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -745,127 +745,26 @@
    * 🔒 权威只读注入器：从 DOM 层与内核层双重锁定 Etherpad 文档
    * - 彻底隐藏顶部编辑工具栏与底部操作栏
    * - 强制设置 innerdocbody contenteditable="false"，彻底杜绝键盘输入、剪切与修改
-   * - 完整保留原生鼠标滚轮、触摸滑动与文字查阅能力
+   * - 完整保留原生鼠标滚轮、触摸滑动与文字查阅能力（shield 采用 pointer-events:none，不拦截任何滚动事件）
    */
   function enforceEtherpadReadonly(iframe) {
     if (!iframe) return;
 
-    // 🛡️ 1. 挂载物理只读透明护盾：光标显示 🚫 (not-allowed)，完全物理阻断点击、双击与输入
+    // 🛡️ 1. 仅保留视觉提示遮罩：pointer-events:none 确保鼠标滚轮与触控滑动 100% 穿透到 iframe，原生滚动完全不受干扰
     const container = iframe.parentElement;
     if (container) {
       let shield = container.querySelector('.etherpad-readonly-shield');
       if (!shield) {
         shield = document.createElement('div');
         shield.className = 'etherpad-readonly-shield';
-        shield.style.cssText = 'position:absolute; inset:0; z-index:25; background:transparent; cursor:not-allowed;';
+        // pointer-events:none 是关键：遮罩只做视觉提示，一切鼠标/触控/滚轮事件完全穿透给 iframe
+        shield.style.cssText = 'position:absolute; inset:0; z-index:25; background:transparent; cursor:not-allowed; pointer-events:none;';
         shield.title = '🔒 只读查阅模式 (已锁定禁止编辑)';
         container.style.position = 'relative';
         container.appendChild(shield);
-      }
-
-      // 🖱️ 护盾鼠标滚轮与触控透传：精准拦截并驱动 Etherpad 内部各层容器丝滑上下滚动
-      const performScroll = (deltaY, rawEvent = null) => {
-        try {
-          const doc = iframe.contentDocument || iframe.contentWindow?.document;
-          if (iframe.contentWindow) {
-            try { iframe.contentWindow.scrollBy(0, deltaY); } catch(e) {}
-          }
-          if (!doc) return;
-
-          if (doc.scrollingElement) doc.scrollingElement.scrollTop += deltaY;
-          if (doc.documentElement) doc.documentElement.scrollTop += deltaY;
-          if (doc.body) doc.body.scrollTop += deltaY;
-
-          const editBox = doc.getElementById('editorcontainerbox') || doc.querySelector('#editorcontainerbox');
-          if (editBox) editBox.scrollTop += deltaY;
-          const editCont = doc.getElementById('editorcontainer') || doc.querySelector('#editorcontainer');
-          if (editCont) editCont.scrollTop += deltaY;
-
-          const aceOuter = doc.querySelector('iframe[name="ace_outer"]') || doc.querySelector('#ace_outer');
-          if (aceOuter) {
-            const outerWin = aceOuter.contentWindow;
-            if (outerWin) {
-              try { outerWin.scrollBy(0, deltaY); } catch(e) {}
-            }
-            const outerDoc = aceOuter.contentDocument || outerWin?.document;
-            if (outerDoc) {
-              if (outerDoc.scrollingElement) outerDoc.scrollingElement.scrollTop += deltaY;
-              if (outerDoc.documentElement) outerDoc.documentElement.scrollTop += deltaY;
-              if (outerDoc.body) outerDoc.body.scrollTop += deltaY;
-
-              const outerBody = outerDoc.getElementById('outerdocbody') || outerDoc.querySelector('#outerdocbody') || outerDoc.body;
-              if (outerBody) {
-                outerBody.scrollTop += deltaY;
-                try {
-                  const syntheticEvt = new WheelEvent('wheel', {
-                    deltaY: deltaY,
-                    deltaMode: 0,
-                    bubbles: true,
-                    cancelable: true,
-                    view: outerWin || window
-                  });
-                  outerBody.dispatchEvent(syntheticEvt);
-                } catch(e) {}
-              }
-
-              const aceInner = outerDoc.querySelector('iframe[name="ace_inner"]') || outerDoc.querySelector('#ace_inner');
-              if (aceInner) {
-                const innerWin = aceInner.contentWindow;
-                if (innerWin) {
-                  try { innerWin.scrollBy(0, deltaY); } catch(e) {}
-                }
-                const innerDoc = aceInner.contentDocument || innerWin?.document;
-                if (innerDoc) {
-                  if (innerDoc.scrollingElement) innerDoc.scrollingElement.scrollTop += deltaY;
-                  if (innerDoc.documentElement) innerDoc.documentElement.scrollTop += deltaY;
-                  if (innerDoc.body) innerDoc.body.scrollTop += deltaY;
-
-                  const innerBody = innerDoc.getElementById('innerdocbody') || innerDoc.querySelector('#innerdocbody') || innerDoc.body;
-                  if (innerBody) {
-                    innerBody.scrollTop += deltaY;
-                  }
-                }
-              }
-            }
-          }
-        } catch(err) {}
-      };
-
-      if (!shield._wheelBound) {
-        shield._wheelBound = true;
-        shield.addEventListener('wheel', (e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          const delta = (e.deltaMode === 1) ? e.deltaY * 33 : ((e.deltaMode === 2) ? e.deltaY * 600 : e.deltaY);
-          performScroll(delta, e);
-        }, { passive: false });
-      }
-
-      if (!shield._touchBound) {
-        shield._touchBound = true;
-        let startY = 0;
-        shield.addEventListener('touchstart', (e) => {
-          if (e.touches && e.touches[0]) startY = e.touches[0].clientY;
-        }, { passive: true });
-        shield.addEventListener('touchmove', (e) => {
-          if (!e.touches || !e.touches[0]) return;
-          const currentY = e.touches[0].clientY;
-          const deltaY = (startY - currentY) * 1.5;
-          startY = currentY;
-          performScroll(deltaY);
-        }, { passive: true });
-      }
-
-      if (!shield._keyBound) {
-        shield._keyBound = true;
-        shield.setAttribute('tabindex', '0');
-        shield.style.outline = 'none';
-        shield.addEventListener('keydown', (e) => {
-          if (e.key === 'ArrowDown') { e.preventDefault(); performScroll(40); }
-          else if (e.key === 'ArrowUp') { e.preventDefault(); performScroll(-40); }
-          else if (e.key === 'PageDown' || e.key === ' ') { e.preventDefault(); performScroll(300); }
-          else if (e.key === 'PageUp') { e.preventDefault(); performScroll(-300); }
-        });
+      } else {
+        // 兼容已存在的 shield：强制覆盖为 pointer-events:none，修复旧版遮罩阻塞滚动的问题
+        shield.style.pointerEvents = 'none';
       }
     }
 
@@ -5853,6 +5752,10 @@
     container.querySelectorAll('.teacher-tab-nav').forEach(btn => {
       btn.addEventListener('click', () => {
         state.teacherActiveTab = btn.dataset.tab;
+        try {
+          sessionStorage.setItem('jizhi_teacher_active_tab', btn.dataset.tab);
+          localStorage.setItem('jizhi_teacher_active_tab', btn.dataset.tab);
+        } catch (e) {}
         if (!state.stage1) state.stage1 = { topics: [], bidLogs: [], contract: { confirmedMembers: {}, taskAssignments: {}, timeAllocations: {} } };
         if (!state.stage2) state.stage2 = { unifiedContent: '', memberContributions: {} };
         if (!state.stage3) state.stage3 = { reviews: [] };
@@ -5892,6 +5795,12 @@
           window.app.state.activeTaskId = state.activeTaskId;
           window.app.state.activeMonitorGroupId = state.activeMonitorGroupId;
         }
+        try {
+          sessionStorage.setItem('jizhi_teacher_active_class_id', newCId);
+          localStorage.setItem('jizhi_teacher_active_class_id', newCId);
+          sessionStorage.setItem('jizhi_teacher_active_group_id', state.activeMonitorGroupId);
+          localStorage.setItem('jizhi_teacher_active_group_id', state.activeMonitorGroupId);
+        } catch (e) {}
         renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
       });
     });
@@ -7750,6 +7659,11 @@
         window.app.state.activeMonitorGroupId = targetGId;
         window.app.loadGroupState(targetGId);
       }
+      // 🛡️ 小组切换持久化：刷新后精准恢复到此次选中的小组
+      try {
+        sessionStorage.setItem('jizhi_teacher_active_group_id', targetGId);
+        localStorage.setItem('jizhi_teacher_active_group_id', targetGId);
+      } catch (e) {}
     };
 
     const selSwitchGroup = container.querySelector('#sel-switch-monitor-group');
@@ -10336,7 +10250,7 @@
                   </div>
                 </div>
                 <div style="flex:1; min-height:0; position:relative; background:#ffffff;">
-                  ${isEditorReadonly ? '<div class="etherpad-readonly-shield" style="position:absolute; inset:0; z-index:25; background:transparent; cursor:not-allowed;" title="🔒 只读查阅模式 (已锁定禁止编辑)"></div>' : ''}
+                  ${isEditorReadonly ? '<div class="etherpad-readonly-shield" style="position:absolute; inset:0; z-index:25; background:transparent; cursor:not-allowed; pointer-events:none;" title="🔒 只读查阅模式 (已锁定禁止编辑)"></div>' : ''}
                   <iframe id="stage2-etherpad-frame" src="${padUrl}" style="width:100%; height:100%; border:none; display:block; background:#ffffff;" allow="clipboard-read; clipboard-write; fullscreen" onload="const el=document.getElementById('ep-status-text-s2'); if(el) el.innerText='${isEditorReadonly ? '🔒 Etherpad 协同文档已锁定 (只读模式)' : 'Etherpad 实时协同引擎已就绪 (毫秒级 OT 协同)'}';"></iframe>
                   ${isEditorReadonly ? '<div style="position:absolute; top:12px; right:12px; z-index:99; pointer-events:none; display:flex; align-items:center; justify-content:center;" title="🔒 正文已截止锁定为只读模式"><div style="background:rgba(15,23,42,0.8); color:#ffffff; padding:6px 14px; border-radius:6px; font-size:12px; font-weight:700; pointer-events:none; box-shadow:0 4px 12px rgba(0,0,0,0.18);">🔒 任务已截止/初稿已锁定 (只读查阅模式)</div></div>' : ''}
                 </div>
@@ -10803,7 +10717,7 @@
                 </div>
               </div>
               <div style="flex:1; min-height:0; position:relative; background:#f1f5f9; border-radius:8px; overflow:hidden; border:1px solid #cbd5e1;">
-                ${isFinalSubmitted ? '<div class="etherpad-readonly-shield" style="position:absolute; inset:0; z-index:25; background:transparent; cursor:not-allowed;" title="🔒 只读查阅模式 (已锁定禁止编辑)"></div>' : ''}
+                ${isFinalSubmitted ? '<div class="etherpad-readonly-shield" style="position:absolute; inset:0; z-index:25; background:transparent; cursor:not-allowed; pointer-events:none;" title="🔒 只读查阅模式 (已锁定禁止编辑)"></div>' : ''}
                 <iframe id="stage3-etherpad-frame" src="${padUrl}" style="width:100%; height:100%; min-height:540px; border:none; display:block;" allow="clipboard-read; clipboard-write"></iframe>
                 ${isFinalSubmitted ? `
                   <div style="position:absolute; top:12px; right:12px; z-index:99; pointer-events:none; display:flex; align-items:center; justify-content:center;" title="🔒 论文终稿已全员提交归档锁定">
@@ -11235,6 +11149,14 @@
 
       const storedViewMode = sessionStorage.getItem('jizhi_student_view_mode') || localStorage.getItem('jizhi_student_view_mode');
       this.state.studentViewMode = (storedViewMode === 'workspace' && storedTaskId) ? 'workspace' : 'task_list';
+
+      // 🛡️ 教师端状态持久化恢复：刷新后精准停留在上次选中的班级/小组/Tab
+      const storedTeacherClassId = sessionStorage.getItem('jizhi_teacher_active_class_id') || localStorage.getItem('jizhi_teacher_active_class_id');
+      if (storedTeacherClassId) this.state.activeClassId = storedTeacherClassId;
+      const storedTeacherGroupId = sessionStorage.getItem('jizhi_teacher_active_group_id') || localStorage.getItem('jizhi_teacher_active_group_id');
+      if (storedTeacherGroupId) this.state.activeMonitorGroupId = storedTeacherGroupId;
+      const storedTeacherTab = sessionStorage.getItem('jizhi_teacher_active_tab') || localStorage.getItem('jizhi_teacher_active_tab');
+      if (storedTeacherTab) this.state.teacherActiveTab = storedTeacherTab;
 
       const user = this.authManager.getCurrentUser();
       const effectiveClassId = this.state.activeStudentClassId || user?.classId || 'class_101';
@@ -11770,10 +11692,7 @@
               (s) => this.switchStage(s), (sp) => this.setSpeed(sp),
               () => this.handleLogout(), () => this.switchToTeacherView(),
               () => this.showAnnouncementModal(), () => this.showQuestionnaireModal(),
-              () => {
-                this.state.studentViewMode = 'task_list';
-                this.renderMain();
-              }
+              () => this.backToTaskList()
             );
           }
         }
