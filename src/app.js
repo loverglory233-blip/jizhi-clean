@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260830_v783";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash } from "./utils.js?v=20260830_v783";
-import { callCozeAgentAPI } from "./agents.js?v=20260830_v783";
-import { AuthManager } from "./auth.js?v=20260830_v783";
-import { CloudSyncEngine } from "./sync.js?v=20260830_v783";
-import { renderLoginView } from "./login.js?v=20260830_v783";
-import { renderTeacherPortal } from "./teacher.js?v=20260830_v783";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260830_v783";
+} from "./constants.js?v=20260830_v784";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash } from "./utils.js?v=20260830_v784";
+import { callCozeAgentAPI } from "./agents.js?v=20260830_v784";
+import { AuthManager } from "./auth.js?v=20260830_v784";
+import { CloudSyncEngine } from "./sync.js?v=20260830_v784";
+import { renderLoginView } from "./login.js?v=20260830_v784";
+import { renderTeacherPortal } from "./teacher.js?v=20260830_v784";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260830_v784";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260830_v783";
+} from "./editor.js?v=20260830_v784";
 
 // Make renderChat available on window for sync callbacks
 if (typeof window !== "undefined") {
@@ -1906,6 +1906,27 @@ ${recentChats}
     sessionStorage.removeItem('jizhi_student_view_mode');
     localStorage.removeItem('jizhi_student_view_mode');
     this.renderMain(); 
+  }
+
+  backToTaskList() {
+    this.state.studentViewMode = 'task_list';
+    sessionStorage.setItem('jizhi_student_view_mode', 'task_list');
+    localStorage.setItem('jizhi_student_view_mode', 'task_list');
+    if (this.cloudSyncEngine) this.cloudSyncEngine.stopPolling();
+    this.renderMain();
+  }
+
+  renderHeader() {
+    const currentUser = this.authManager.getCurrentUser();
+    const headerEl = document.querySelector('.header-wrapper') || document.querySelector('.header');
+    if (!headerEl) return;
+    renderHeader(
+      this.state, currentUser, this.authManager.getAnnouncements(),
+      (s) => this.switchStage(s), (sp) => this.setSpeed(sp),
+      () => this.handleLogout(), () => this.switchToTeacherView(),
+      () => this.showAnnouncementModal(), () => this.showQuestionnaireModal(),
+      () => this.backToTaskList()
+    );
   }
 
   switchToTeacherView() {
