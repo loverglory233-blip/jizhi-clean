@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260831_v932";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch } from "./utils.js?v=20260831_v932";
-import { callCozeAgentAPI } from "./agents.js?v=20260831_v932";
-import { AuthManager } from "./auth.js?v=20260831_v932";
-import { CloudSyncEngine } from "./sync.js?v=20260831_v932";
-import { renderLoginView } from "./login.js?v=20260831_v932";
-import { renderTeacherPortal } from "./teacher.js?v=20260831_v932";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260831_v932";
+} from "./constants.js?v=20260831_v933";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch } from "./utils.js?v=20260831_v933";
+import { callCozeAgentAPI } from "./agents.js?v=20260831_v933";
+import { AuthManager } from "./auth.js?v=20260831_v933";
+import { CloudSyncEngine } from "./sync.js?v=20260831_v933";
+import { renderLoginView } from "./login.js?v=20260831_v933";
+import { renderTeacherPortal } from "./teacher.js?v=20260831_v933";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260831_v933";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260831_v932";
+} from "./editor.js?v=20260831_v933";
 
 // Make renderChat available on window for sync callbacks
 if (typeof window !== "undefined") {
@@ -3378,6 +3378,101 @@ ${chatSnippet}
   }
 
   /**
+   * ✍️ 阶段一：小组成员点击签署确认学术合作公约
+   */
+  handleConfirmContract() {
+    const user = this.state.currentUser;
+    const s1 = this.state.stage1 || {};
+    if (!s1.contract) s1.contract = {};
+    if (!s1.contract.confirmedMembers) s1.contract.confirmedMembers = {};
+
+    let memberArr = [];
+    if (Array.isArray(this.state.members)) memberArr = this.state.members;
+    else if (this.state.members && typeof this.state.members === 'object') memberArr = Object.values(this.state.members);
+    if (memberArr.length === 0 && this.authManager) {
+      const u = this.authManager.getCurrentUser();
+      const effClassId = (this.authManager ? this.authManager.getEffectiveStudentClassId(u, this.state.activeTaskId) : (this.state.activeStudentClassId || u?.classId || null));
+      const effGroup = this.authManager.getStudentActiveGroup(u, effClassId);
+      memberArr = this.authManager.getGroupMembersForWorkspace(effGroup?.id || this.state.activeGroupId || null, effClassId);
+    }
+    const currMemObj = memberArr.find(m => m && (m.id === user || m.studentCode === user || m.username === user || m.name === user));
+    const memberName = currMemObj ? currMemObj.name : user;
+    const totalMembersCount = Math.max(memberArr.length, 2);
+
+    const userAlreadySigned = !!(s1.contract.confirmedMembers[user] || (currMemObj && (s1.contract.confirmedMembers[currMemObj.id] || s1.contract.confirmedMembers[currMemObj.studentCode] || (currMemObj.name && s1.contract.confirmedMembers[currMemObj.name]))));
+
+    if (userAlreadySigned && s1.contract.isConfirmed) {
+      this.switchStage('stage2');
+      return;
+    }
+    if (userAlreadySigned) {
+      alert(`✅ 您 (${memberName}) 此前已完成签署确认！正在等待组内其他同学签署。`);
+      return;
+    }
+
+    // 写入当前用户的签署记录（兼容写入多标识键）
+    s1.contract.confirmedMembers[user] = true;
+    if (currMemObj) {
+      if (currMemObj.id) s1.contract.confirmedMembers[currMemObj.id] = true;
+      if (currMemObj.studentCode) s1.contract.confirmedMembers[currMemObj.studentCode] = true;
+      if (currMemObj.name) s1.contract.confirmedMembers[currMemObj.name] = true;
+      if (currMemObj.username) s1.contract.confirmedMembers[currMemObj.username] = true;
+    }
+
+    // 🌐 原子同步给后端数据库
+    const activeGroupObj = this.authManager ? this.authManager.getStudentActiveGroup(currMemObj, this.state.activeStudentClassId || currMemObj?.classId || null) : null;
+    const curGid = activeGroupObj?.id || (currMemObj?.groupId || this.state.activeGroupId || null);
+    fetch('sync.php?action=patch_contract_field', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        taskId: this.state.activeTaskId || null,
+        groupId: curGid,
+        field: 'sign_member',
+        subKey: currMemObj?.studentCode || currMemObj?.id || user,
+        value: true
+      })
+    }).catch(() => {});
+
+    const confirmedCount = memberArr.filter(m => m && (s1.contract.confirmedMembers[m.id] || s1.contract.confirmedMembers[m.studentCode] || (m.name && s1.contract.confirmedMembers[m.name]))).length;
+
+    if (confirmedCount >= totalMembersCount) {
+      s1.contract.isConfirmed = true;
+      this.state.groupMaxStage = 'stage2';
+      const finalMsg = {
+        id: 'msg_contract_signed_' + Date.now(),
+        sender: 'auctioneer',
+        senderName: '头脑风暴 · 学术拍卖师',
+        text: `🏛️ 【学术拍卖师宣布】：🎉 恭喜！组内全员 ${totalMembersCount}/${totalMembersCount} 名成员已全部完成公约签署确认！学术合作公约正式生效锁定，阶段一圆满结束！请同学们开启阶段二开始正文协同撰写！`,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        _timeMs: Date.now()
+      };
+      if (!this.state.chatLogs.stage1) this.state.chatLogs.stage1 = [];
+      this.state.chatLogs.stage1.push(finalMsg);
+      if (typeof this.sendSingleChatMessage === 'function') {
+        this.sendSingleChatMessage(finalMsg, 'stage1');
+      }
+      this.syncStage1();
+      this.syncChatLogs();
+      this.syncStageChange('stage2');
+      if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+      if (typeof showGlobalBannerNotice === 'function') {
+        showGlobalBannerNotice(`🎉 全员公约签署完毕 (${totalMembersCount}/${totalMembersCount})`, `学术公约正式锁定生效！正在为您无缝进入【阶段二：学术编辑部】开启 Etherpad 实时协同写作！`);
+      }
+      // 🚀 直接无缝切换到阶段二，Etherpad 立即呈现！
+      this.switchStage('stage2');
+    } else {
+      this.syncStage1();
+      this.syncChatLogs();
+      if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+      if (typeof showGlobalBannerNotice === 'function') {
+        showGlobalBannerNotice(`✅ 签署成功！您 (${memberName}) 已完成公约确认`, `当前全组签署进度：${confirmedCount}/${totalMembersCount} 人已签署。需全员签署后开启阶段二。`);
+      }
+      this.renderStudentWorkspace();
+    }
+  }
+
+  /**
    * 💡 阶段二半程会议第一步：责任编辑提炼分歧并引出审稿专家修正清单
    */
   async handleS2ManagingSummary() {
@@ -4275,6 +4370,58 @@ ${propText}
           }
         }
       }
+
+      // 🛡️ 实时动态更新公约底部签署矩阵与确认操作按钮
+      const signMatrixMount = document.getElementById('stage1-contract-sign-matrix-mount');
+      const signActionMount = document.getElementById('stage1-contract-sign-action-mount');
+      if (signMatrixMount || signActionMount) {
+        const totalMembersCount = membersList.length || 2;
+        const currUserCode = this.state.currentUser;
+        const confirmedMembers = s1.contract?.confirmedMembers || {};
+        const confirmedCount = membersList.filter(m => (confirmedMembers[m.id] || confirmedMembers[m.studentCode] || confirmedMembers[m.username] || (m.name && confirmedMembers[m.name]))).length;
+        const userHasConfirmed = !!(confirmedMembers[currUserCode] || (currentUserObj && (confirmedMembers[currentUserObj.id] || confirmedMembers[currentUserObj.studentCode] || confirmedMembers[currentUserObj.username] || confirmedMembers[currentUserObj.name])));
+
+        if (signMatrixMount) {
+          signMatrixMount.innerHTML = `
+            <div style="font-size:13px; font-weight:700; color:#334155; margin-bottom:10px; display:flex; justify-content:space-between; flex-wrap:wrap; gap:10px;">
+              <span>📌 本组全员确认签署状态矩阵 (规则：需 ${totalMembersCount}/${totalMembersCount} 人全部点击确认):</span>
+              <span style="color:${confirmedCount === totalMembersCount ? '#059669' : '#d97706'}; font-weight:800;">签署进度: ${confirmedCount}/${totalMembersCount} 人已完成 ${confirmedCount === totalMembersCount ? '🎉 (合约已生效)' : ''}</span>
+            </div>
+            <div style="display:flex; flex-wrap:wrap; gap:10px; font-size:13px;">
+              ${membersList.map(m => {
+                const isConf = !!(confirmedMembers[m.id] || confirmedMembers[m.studentCode] || confirmedMembers[m.username] || (m.name && confirmedMembers[m.name]));
+                return `
+                  <span style="color:${isConf ? '#059669' : '#64748b'}; border:1px solid ${isConf ? '#a7f3d0' : '#e2e8f0'}; background:${isConf ? '#ecfdf5' : '#ffffff'}; padding:6px 12px; border-radius:8px; font-weight:600;">
+                    ${m.avatar || '👤'} ${m.name}: <b>${isConf ? '✅ 已确认签署' : '⏳ 未确认'}</b>
+                  </span>
+                `;
+              }).join('')}
+            </div>
+          `;
+        }
+
+        if (signActionMount) {
+          if (isContractLocked) {
+            signActionMount.innerHTML = `
+              <button id="btn-goto-stage2" style="background:linear-gradient(135deg, #2563eb, #1d4ed8); border:none; color:white; padding:13px 36px; border-radius:10px; font-weight:800; cursor:pointer; font-size:15px; box-shadow:0 4px 14px rgba(37,99,235,0.3); display:inline-flex; align-items:center; gap:8px;">
+                🚀 全员已签署完毕！前往【阶段二：学术编辑部】开始论文起草 →
+              </button>
+            `;
+            signActionMount.querySelector('#btn-goto-stage2')?.addEventListener('click', () => {
+              this.switchStage('stage2');
+            });
+          } else {
+            signActionMount.innerHTML = `
+              <button id="btn-confirm-contract" style="background:${userHasConfirmed ? '#eff6ff' : 'linear-gradient(135deg, #059669, #047857)'}; border:1px solid ${userHasConfirmed ? '#bfdbfe' : 'transparent'}; color:${userHasConfirmed ? '#1d4ed8' : 'white'}; padding:13px 32px; border-radius:10px; font-weight:800; cursor:pointer; font-size:14.5px; box-shadow:0 3px 12px rgba(5,150,105,0.25);">
+                ${userHasConfirmed ? `✅ 我 (${currentUserName}) 已按键确认签署 (${confirmedCount}/${totalMembersCount} 人已完成)` : `✍️ 我以 (${currentUserName}) 身份按键确认签署合约 (已确认 ${confirmedCount}/${totalMembersCount} 人)`}
+              </button>
+            `;
+            signActionMount.querySelector('#btn-confirm-contract')?.addEventListener('click', () => {
+              this.handleConfirmContract();
+            });
+          }
+        }
+      }
     } else if (!isEditorTyping) {
       const handlers = {
         onVote: (propId) => { this.handleVoteCast(propId); },
@@ -4284,71 +4431,7 @@ ${propText}
         onExtractTime: () => { this.handleExtractTime(); },
         onExtractTasks: () => { this.handleExtractTasks(); },
         onAiGenerateContract: () => { this.handleAiGenerateContract(); },
-        onConfirmContract: () => {
-          const user = this.state.currentUser;
-          const s1 = this.state.stage1 || {};
-          if (!s1.contract) s1.contract = {};
-          if (!s1.contract.confirmedMembers) s1.contract.confirmedMembers = {};
-
-          let memberArr = [];
-          if (Array.isArray(this.state.members)) memberArr = this.state.members;
-          else if (this.state.members && typeof this.state.members === 'object') memberArr = Object.values(this.state.members);
-          if (memberArr.length === 0 && this.authManager) {
-            const u = this.authManager.getCurrentUser();
-            const effClassId = (this.authManager ? this.authManager.getEffectiveStudentClassId(u, this.state.activeTaskId) : (this.state.activeStudentClassId || u?.classId || null));
-            const effGroup = this.authManager.getStudentActiveGroup(u, effClassId);
-            memberArr = this.authManager.getGroupMembersForWorkspace(effGroup?.id || this.state.activeGroupId || null, effClassId);
-          }
-          const currMemObj = memberArr.find(m => m && (m.id === user || m.studentCode === user || m.username === user || m.name === user));
-          const memberName = currMemObj ? currMemObj.name : user;
-          const totalMembersCount = Math.max(memberArr.length, 2);
-
-          // 检查当前点击的用户自己是否已经签署过
-          const userAlreadySigned = !!(s1.contract.confirmedMembers[user] || (currMemObj && (s1.contract.confirmedMembers[currMemObj.id] || s1.contract.confirmedMembers[currMemObj.studentCode] || (currMemObj.name && s1.contract.confirmedMembers[currMemObj.name]))));
-
-          if (userAlreadySigned && s1.contract.isConfirmed) {
-            alert('🔒 学术合作公约已被全员确认签署并锁定！您可以随时点击上方【阶段二：学术编辑部】或下方按钮开始写作。');
-            return;
-          }
-          if (userAlreadySigned) {
-            alert(`✅ 您 (${memberName}) 此前已完成签署确认！正在等待组内其他同学签署。`);
-            return;
-          }
-
-          // 写入当前用户的签署记录
-          s1.contract.confirmedMembers[user] = true;
-          if (currMemObj) {
-            if (currMemObj.id) s1.contract.confirmedMembers[currMemObj.id] = true;
-            if (currMemObj.studentCode) s1.contract.confirmedMembers[currMemObj.studentCode] = true;
-            if (currMemObj.name) s1.contract.confirmedMembers[currMemObj.name] = true;
-          }
-
-          const confirmedCount = memberArr.filter(m => m && (s1.contract.confirmedMembers[m.id] || s1.contract.confirmedMembers[m.studentCode] || (m.name && s1.contract.confirmedMembers[m.name]))).length;
-
-          if (confirmedCount >= totalMembersCount) {
-            s1.contract.isConfirmed = true;
-            this.state.groupMaxStage = 'stage2';
-            const finalMsg = {
-              sender: 'auctioneer',
-              senderName: '头脑风暴 · 学术拍卖师',
-              text: `🎪 【拍卖师宣布】：🎉 恭喜！组内全员 ${totalMembersCount}/${totalMembersCount} 名成员已全部完成公约签署确认！学术合作公约正式生效，阶段一圆满结束！请同学们点击上方【阶段二：学术编辑部】或下方按钮开始正文撰写！`,
-              timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-              _timeMs: Date.now()
-            };
-            this.state.chatLogs.stage1.push(finalMsg);
-            this.syncStage1();
-            this.syncChatLogs();
-            this.syncStageChange('stage2');
-            if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
-            alert(`🎉 恭喜！组内全部 ${totalMembersCount} 位成员已全部完成公约签署！\n\n学术合作公约正式生效锁定！您可以随时点击上方导航栏【阶段二：学术编辑部】或下方按钮进入开始写作。`);
-          } else {
-            this.syncStage1();
-            this.syncChatLogs();
-            if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
-            alert(`✅ 您 (${memberName}) 已成功签署学术合作公约！\n\n当前全组签署进度：${confirmedCount}/${totalMembersCount} 人已签署。\n⚠️ 需全组所有成员均完成签署后公约才正式生效锁定，请提醒组内其他同学尽快签署。`);
-          }
-          this.renderStudentWorkspace();
-        },
+        onConfirmContract: () => { this.handleConfirmContract(); },
       onPresenceChange: (nodeIdx, sectionTitle, charOffset) => {
         const user = this.state.currentUser;
         if (!this.state.presence) this.state.presence = {};
