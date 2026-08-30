@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260830_v878
+ * Version: 20260830_v879
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260830_v878';
+  const APP_VERSION = '20260830_v879';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -9687,6 +9687,9 @@
     const overviewInput = canvas.querySelector('#contract-overview-input');
     if (overviewInput && !isContractLocked) {
       let overviewTimer = null;
+      let idleTimer = null;
+      let heartbeatTimer = null;
+
       const flushOverview = () => {
         if (!s1.contract) s1.contract = {};
         s1.contract.overview = overviewInput.value;
@@ -9697,15 +9700,85 @@
         }
       };
 
+      const startHeartbeat = () => {
+        if (heartbeatTimer) clearInterval(heartbeatTimer);
+        heartbeatTimer = setInterval(() => {
+          if (document.activeElement === overviewInput && !isFieldLockedByOther('research_overview')) {
+            sendLock('research_overview', overviewInput.value);
+          } else {
+            clearInterval(heartbeatTimer);
+          }
+        }, 2000);
+      };
+
+      const resetIdleTimer = () => {
+        if (idleTimer) clearTimeout(idleTimer);
+        idleTimer = setTimeout(() => {
+          flushOverview();
+          sendUnlock('research_overview', overviewInput.value);
+          if (heartbeatTimer) clearInterval(heartbeatTimer);
+        }, 8000);
+      };
+
+      overviewInput.addEventListener('focus', (e) => {
+        if (isFieldLockedByOther('research_overview')) {
+          overviewInput.blur();
+          return;
+        }
+        sendLock('research_overview', overviewInput.value);
+        startHeartbeat();
+        resetIdleTimer();
+      });
+
+      overviewInput.addEventListener('compositionstart', () => {
+        overviewInput._isComposing = true;
+        resetIdleTimer();
+      });
+
+      overviewInput.addEventListener('compositionupdate', () => {
+        resetIdleTimer();
+      });
+
+      overviewInput.addEventListener('compositionend', (e) => {
+        overviewInput._isComposing = false;
+        if (!s1.contract) s1.contract = {};
+        s1.contract.overview = overviewInput.value;
+        s1.researchOverview = overviewInput.value;
+        sendLock('research_overview', overviewInput.value);
+        resetIdleTimer();
+        if (overviewTimer) clearTimeout(overviewTimer);
+        overviewTimer = setTimeout(flushOverview, 300);
+      });
+
       overviewInput.addEventListener('input', (e) => {
+        if (isFieldLockedByOther('research_overview')) {
+          e.preventDefault();
+          e.stopImmediatePropagation();
+          return;
+        }
         if (!s1.contract) s1.contract = {};
         s1.contract.overview = e.target.value;
         s1.researchOverview = e.target.value;
+        if (!overviewInput._isComposing) {
+          sendLock('research_overview', e.target.value);
+        }
+        resetIdleTimer();
         if (overviewTimer) clearTimeout(overviewTimer);
-        overviewTimer = setTimeout(flushOverview, 400);
+        overviewTimer = setTimeout(flushOverview, 300);
       });
+
       overviewInput.addEventListener('change', flushOverview);
-      overviewInput.addEventListener('blur', flushOverview);
+
+      overviewInput.addEventListener('blur', () => {
+        if (idleTimer) clearTimeout(idleTimer);
+        if (heartbeatTimer) clearInterval(heartbeatTimer);
+        if (overviewInput._preemptedByOther || isFieldLockedByOther('research_overview')) {
+          overviewInput._preemptedByOther = false;
+          return;
+        }
+        flushOverview();
+        sendUnlock('research_overview', overviewInput.value);
+      });
     }
 
     canvas.querySelectorAll('.contract-time-input').forEach(input => {
