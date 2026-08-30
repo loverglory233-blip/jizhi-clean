@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260830_v868
+ * Version: 20260830_v869
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260830_v868';
+  const APP_VERSION = '20260830_v869';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -12744,19 +12744,18 @@
 
               const remainingOppCount = feedbacks.filter(f => f.role === 'opponent' && (!f.response || f.response.trim().length === 0)).length;
 
-              const evalInquiryPrompt = `小组成员已就【反方质询】在讨论区展开了答辩辩护交流。
-  【反方原始质询】: ${currentPendingInquiry.comment}
-  【小组真实答辩研讨记录】:
+              const evalInquiryPrompt = `小组成员已就核心课题《${topic}》针对【反方质询】在研讨区展开了辩护商议。
+  【反方质询内容】: ${currentPendingInquiry.comment}
+  【小组成员的真实辩护讨论记录】:
   ${chatContent}
 
-  请通读上述发言，作为答辩委员会主席（中间委员），进行【答辩研判与自适应引导】（100~130字）：
-  【研判与输出准则（宽进原则）】：
-  1. 肯定答辩思路：精准提炼出小组成员在发言中体现的辩护要点与操作化补救措施；
-  2. 顺推或裁决：
+  请作为学术答辩委员会主席（中间委员），发表 110~140 字的【答辩质询审阅与顺推裁决】：
+  1. 【提炼答辩共识】：通读全组成员的研讨，精准提炼出团队针对该质询所商定出的核心辩护思路与具体操作化补救措施；
+  2. 【委员会裁决与顺推】：
      ${remainingOppCount > 1 
-       ? '👉 肯定本题答辩要点，并自然顺推引导全组将焦点转向下一道【反方质询】展开讨论！' 
-       : '🎉 祝贺全组已针对全部质询完成扎实辩护！宣布答辩全票通过，指引全组完善终稿并准备提交归档！'}
-  （纯自然语言输出，100~130字，严禁输出代码块）`;
+       ? '① 宣布本项质询辩护有效并予以采纳，答辩陈述已自动归档入库；\n② 【单题顺推】：顺承引导全组将焦点转向下一项反方质询，就下一题展开深入辩护交流！' 
+       : '① 宣布全部质询辩护完毕且均获委员会全票认可；\n② 发表终审裁决总结，祝贺团队圆满通过学术答辩，指引全组在正文中落实最终修改并提交终稿！'}
+  （纯学术语体，自然流畅，110~140字，严禁输出代码块或技术标记）`;
 
               setTimeout(async () => {
                 try {
