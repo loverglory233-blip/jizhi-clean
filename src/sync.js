@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState } from './constants.js?v=20260830_v771';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal } from './utils.js?v=20260830_v771';
+import { InitialState } from './constants.js?v=20260830_v772';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal } from './utils.js?v=20260830_v772';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -97,6 +97,11 @@ export class CloudSyncEngine {
     
     // 🛡️ 教师端自身延期操作绝不给自己弹窗
     if (isTeacher) return;
+
+    if (!this._shownDeadlineEvents) this._shownDeadlineEvents = new Set();
+    const eventKey = `${t.id}_${t.deadline}`;
+    if (this._shownDeadlineEvents.has(eventKey)) return;
+    this._shownDeadlineEvents.add(eventKey);
 
     const prevExpired = isTaskExpired(prevDeadline);
     const nowExpired = isTaskExpired(t.deadline);
