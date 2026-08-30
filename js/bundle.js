@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260830_v867
+ * Version: 20260830_v868
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260830_v867';
+  const APP_VERSION = '20260830_v868';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -12795,7 +12795,7 @@
             }
           }
 
-          // 1. 阶段三开场引导下发后，若全组静默超过 3.5 分钟且仍有未完成质询：才温和提示展开答辩（最多连续2次，有新发言自动重置）
+          // 1. 阶段三开场引导下发后，若全组静默超过 3.5 分钟且仍有未完成质询：温和提示展开讨论（最多连续 2 次，有新发言自动重置）
           if (silenceDurationMs > 210000 && pendingFeedbacks.length > 0) {
             if (lastStudentMsg && (lastStudentMsg._timeMs || 0) > (this._lastNudgeActivityTime?.['s3_silence'] || 0)) {
               this._nudgeCounts['s3_silence'] = 0;
@@ -12806,29 +12806,9 @@
               this._nudgeCounts['s3_silence'] = count + 1;
               if (!this._lastNudgeActivityTime) this._lastNudgeActivityTime = {};
               this._lastNudgeActivityTime['s3_silence'] = lastStudentMsg ? (lastStudentMsg._timeMs || now) : now;
-              const s3SilenceFallback = `🟡 【中间委员·答辩研讨提示】：请大家回顾左侧矩阵中的正反方质询点展开辩护讨论；商定好共识后，由一位组员代表录入裁决矩阵，其余成员同步在正文中落实修改！`;
-              this.queueAgentNudge('neutral', `正反两方评审意见已送达，但讨论区已静默一段时间。请以中间委员身份，引导大家先回看你此前在聊天框给出的引导建议，再就反方质询点展开辩护讨论，并给 1 条具体建议。80~120 字。`, s3SilenceFallback, 'stage3');
+              const s3SilenceFallback = `🟡 【中间委员·答辩研讨提示】：请大家结合左侧矩阵中的正反方意见，在讨论区展开辩护交流；讨论成熟后我将为大家提炼答辩陈述！`;
+              this.queueAgentNudge('neutral', `正反两方评审意见已送达，但讨论区已静默一段时间。请以中间委员身份，引导大家结合反方质询点在讨论区展开辩护研讨交流。80~120 字。`, s3SilenceFallback, 'stage3');
               return;
-            }
-          }
-
-          // 2. 学生讨论活跃但左侧裁决矩阵答辩仍有未填写项：适时提示将答辩共识录入矩阵并修改终稿（最多2次）
-          if (stage3DurationMs > 240000 && pendingFeedbacks.length > 0) {
-            const count = this._nudgeCounts['s3_matrix'] || 0;
-            if (count < 2 && (!this.lastS3MatrixNudgeTime || now - this.lastS3MatrixNudgeTime > 240000)) {
-              this.lastS3MatrixNudgeTime = now;
-              this._nudgeCounts['s3_matrix'] = count + 1;
-              const msg = {
-                sender: 'neutral',
-                text: `💡 【中间委员·矩阵录入与终稿落实提醒】：看到大家在讨论区已展开充分辩护交流！\n👉 请组员将商定好的辩护共识，**推选一位同学录入**到左侧【答辩裁决矩阵】对应质询下方并保存，同时点击【返回富文本协作大正文】将修改落实到论文终稿中！`,
-                timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                _timeMs: now
-              };
-              if (!this.state.chatLogs.stage3) this.state.chatLogs.stage3 = [];
-              this.state.chatLogs.stage3.push(msg);
-              this.syncChatLogs();
-              if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
-              renderChat(this.state);
             }
           }
         }
