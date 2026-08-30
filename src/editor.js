@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles } from "./constants.js?v=20260830_v781";
-import { callCozeAgentAPI } from "./agents.js?v=20260830_v781";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly } from "./utils.js?v=20260830_v781";
+import { AgentProfiles } from "./constants.js?v=20260830_v782";
+import { callCozeAgentAPI } from "./agents.js?v=20260830_v782";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly } from "./utils.js?v=20260830_v782";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -2374,6 +2374,11 @@ function renderStage2Canvas(canvas, state, handlers) {
     }, getPadMetricInterval());
   };
   scheduleNextPadMetric();
+
+  if (isEditorReadonly) {
+    const f2 = canvas.querySelector('#stage2-etherpad-frame');
+    if (f2) enforceEtherpadReadonly(f2);
+  }
 }
 
 function renderStage3Canvas(canvas, state, handlers) {

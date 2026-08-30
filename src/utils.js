@@ -654,6 +654,31 @@ export function enforceEtherpadReadonly(iframe) {
         } catch(err) {}
       }, { passive: false });
     }
+
+    if (!shield._touchBound) {
+      shield._touchBound = true;
+      let startY = 0;
+      shield.addEventListener('touchstart', (e) => {
+        if (e.touches && e.touches[0]) startY = e.touches[0].clientY;
+      }, { passive: true });
+      shield.addEventListener('touchmove', (e) => {
+        if (!e.touches || !e.touches[0]) return;
+        const currentY = e.touches[0].clientY;
+        const deltaY = (startY - currentY) * 1.5;
+        startY = currentY;
+        try {
+          const doc = iframe.contentDocument || iframe.contentWindow?.document;
+          if (iframe.contentWindow) {
+            try { iframe.contentWindow.scrollBy(0, deltaY); } catch (e1) {}
+          }
+          if (doc) {
+            if (doc.scrollingElement) doc.scrollingElement.scrollTop += deltaY;
+            if (doc.documentElement) doc.documentElement.scrollTop += deltaY;
+            if (doc.body) doc.body.scrollTop += deltaY;
+          }
+        } catch(err) {}
+      }, { passive: true });
+    }
   }
 
   const tryLock = () => {
