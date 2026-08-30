@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260831_v953";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch } from "./utils.js?v=20260831_v953";
-import { callCozeAgentAPI } from "./agents.js?v=20260831_v953";
-import { AuthManager } from "./auth.js?v=20260831_v953";
-import { CloudSyncEngine } from "./sync.js?v=20260831_v953";
-import { renderLoginView } from "./login.js?v=20260831_v953";
-import { renderTeacherPortal } from "./teacher.js?v=20260831_v953";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260831_v953";
+} from "./constants.js?v=20260831_v954";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch } from "./utils.js?v=20260831_v954";
+import { callCozeAgentAPI } from "./agents.js?v=20260831_v954";
+import { AuthManager } from "./auth.js?v=20260831_v954";
+import { CloudSyncEngine } from "./sync.js?v=20260831_v954";
+import { renderLoginView } from "./login.js?v=20260831_v954";
+import { renderTeacherPortal } from "./teacher.js?v=20260831_v954";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260831_v954";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260831_v953";
+} from "./editor.js?v=20260831_v954";
 
 // Make renderChat available on window for sync callbacks
 if (typeof window !== "undefined") {
@@ -5005,9 +5005,6 @@ ${contentSnippet}
     const plainLen = newContent.replace(/<[^>]*>/g, '').trim().length;
     const lastWarnTime = this.state.lastSSRLWarnTimeMs || 0;
     const lastWarnLen = this.state.lastSSRLWarnLen || 0;
-    const totalAllocMinutes = Object.values((this.state.stage1 && this.state.stage1.contract && this.state.stage1.contract.timeAllocations) || {}).reduce((a, b) => a + Number(b || 0), 0);
-    const taskDurMin = (curTask && curTask.durationMinutes) ? Number(curTask.durationMinutes) : (totalAllocMinutes || 150);
-    const isLargeTask = taskDurMin > 150;
     const ssrlCooldownMs = isLargeTask ? 480000 : 360000;
     const minNewProgressLen = isLargeTask ? 120 : 60;
     const minContribThreshold = isLargeTask ? 600 : 300;
