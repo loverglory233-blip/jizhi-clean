@@ -383,7 +383,7 @@ if [ -n "$EP_DIR" ]; then
   "socketTransportProtocols": ["websocket", "polling"],
   "loadTest": false,
   "exposeVersion": false,
-  "minify": true,
+  "minify": false,
   "maxAge": 21600000
 }
 EPSETEOF
