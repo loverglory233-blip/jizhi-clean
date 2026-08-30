@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles } from "./constants.js?v=20260830_v744";
-import { callCozeAgentAPI } from "./agents.js?v=20260830_v744";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs } from "./utils.js?v=20260830_v744";
+import { AgentProfiles } from "./constants.js?v=20260830_v745";
+import { callCozeAgentAPI } from "./agents.js?v=20260830_v745";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs } from "./utils.js?v=20260830_v745";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -1994,6 +1994,49 @@ function renderStage2Canvas(canvas, state, handlers) {
     `}
 
     <div class="card" style="height:100%; flex:1; display:flex; flex-direction:column; padding:10px 14px; box-sizing:border-box; overflow-y:auto;">
+      ${actionPlan && actionPlan.isGenerated ? `
+        <div id="stage2-action-plan-card" style="background:#ecfdf5; border:1px solid #a7f3d0; border-radius:8px; padding:6px 12px; margin-bottom:8px; transition:all 0.2s ease; flex-shrink:0; box-shadow:0 1px 3px rgba(5,150,105,0.06);">
+          <div style="display:flex; justify-content:space-between; align-items:center; cursor:pointer;" id="btn-toggle-action-plan">
+            <div style="font-size:12.5px; font-weight:800; color:#059669; display:flex; align-items:center; gap:6px;">
+              <span>📋 【半程修正清单】(审稿专家 3 项修改要求)</span>
+              <span style="font-size:10.5px; background:#d1fae5; color:#065f46; padding:1px 6px; border-radius:8px; font-weight:700;">已下发</span>
+            </div>
+            <span id="icon-toggle-action-plan" style="font-size:11px; color:#059669; font-weight:700;">▲ 收起</span>
+          </div>
+          <div id="body-action-plan-items" style="font-size:12px; color:#1e293b; display:flex; flex-direction:column; gap:6px; margin-top:6px;">
+            ${actionPlan.items.map((item, idx) => {
+              const isChecked = !!(actionPlan.completedMap && actionPlan.completedMap[idx]);
+              let formattedItem = escapeHtml(item);
+              formattedItem = formattedItem
+                .replace(/(?:•\s*|【)?理论与综述层(?:】)?[:：]?/g, '<span style="display:inline-block; background:#eff6ff; color:#2563eb; border:1px solid #bfdbfe; padding:1px 6px; border-radius:4px; font-weight:700; font-size:11px; margin-right:4px;">📚 理论与综述层</span>')
+                .replace(/(?:•\s*|【)?假设与(?:问题|机制)层(?:】)?[:：]?/g, '<span style="display:inline-block; background:#faf5ff; color:#7c3aed; border:1px solid #e9d5ff; padding:1px 6px; border-radius:4px; font-weight:700; font-size:11px; margin-right:4px;">🔗 假设与机制层</span>')
+                .replace(/(?:•\s*|【)?方法与量表层(?:】)?[:：]?/g, '<span style="display:inline-block; background:#ecfdf5; color:#059669; border:1px solid #a7f3d0; padding:1px 6px; border-radius:4px; font-weight:700; font-size:11px; margin-right:4px;">📐 方法与量表层</span>');
+
+              return `
+                <div class="action-plan-item-box" data-item-idx="${idx}" style="line-height:1.5; background:${isChecked ? '#f0fdf4' : '#ffffff'}; border:1px solid ${isChecked ? '#86efac' : '#e2e8f0'}; border-radius:6px; padding:6px 10px; display:flex; align-items:flex-start; gap:6px; cursor:pointer;">
+                  <input type="checkbox" class="action-plan-check-input" data-idx="${idx}" ${isChecked ? 'checked' : ''} style="cursor:pointer; margin-top:3px; transform:scale(1.1);">
+                  <div style="flex:1; text-decoration:${isChecked ? 'line-through' : 'none'}; color:${isChecked ? '#166534' : '#1e293b'};">
+                    <b style="color:${isChecked ? '#166534' : '#0f172a'}; margin-right:4px;">${idx + 1}.</b> ${formattedItem}
+                  </div>
+                </div>
+              `;
+            }).join('')}
+          </div>
+        </div>
+      ` : `
+        <div id="stage2-action-plan-card" style="background:#f8fafc; border:1px dashed #cbd5e1; border-radius:6px; padding:6px 12px; margin-bottom:8px; flex-shrink:0;">
+          <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:6px;">
+            <div style="font-size:12px; font-weight:700; color:#64748b; display:flex; align-items:center; gap:6px;">
+              <span>📋 【半程修正清单】</span>
+              <span style="font-size:10.5px; background:${isDraftFullyConfirmed ? '#ecfdf5' : '#eff6ff'}; color:${isDraftFullyConfirmed ? '#059669' : '#1d4ed8'}; padding:1px 8px; border-radius:10px; font-weight:700;">
+                ${isDraftFullyConfirmed ? '已随初稿归档' : '待解锁 (组内针对自查分歧研讨对齐后，由审稿专家质检下发)'}
+              </span>
+            </div>
+            <span style="font-size:11px; color:#94a3b8;">（完成分歧研讨后审稿专家智能质检下发）</span>
+          </div>
+        </div>
+      `}
+
       ${!isArchiveMode ? `
         <div class="card-title" style="margin-bottom:8px; display:flex; justify-content:space-between; align-items:center; flex-shrink:0;">
           <div style="display:flex; align-items:center; gap:8px;">
@@ -2036,37 +2079,6 @@ function renderStage2Canvas(canvas, state, handlers) {
             </div>
           `;
         })()}
-
-        ${actionPlan && actionPlan.isGenerated ? `
-          <div id="stage2-action-plan-card" style="background:#ecfdf5; border:1px solid #a7f3d0; border-radius:8px; padding:6px 12px; margin-bottom:6px; transition:all 0.2s ease; flex-shrink:0;">
-            <div style="display:flex; justify-content:space-between; align-items:center; cursor:pointer;" id="btn-toggle-action-plan">
-              <div style="font-size:12px; font-weight:800; color:#059669; display:flex; align-items:center; gap:6px;">
-                <span>📋 【半程修正清单】(审稿专家 3 项修改要求)</span>
-                <span style="font-size:10.5px; background:#d1fae5; color:#065f46; padding:1px 6px; border-radius:8px; font-weight:700;">已生成</span>
-              </div>
-              <span id="icon-toggle-action-plan" style="font-size:11px; color:#059669; font-weight:700;">▲ 收起</span>
-            </div>
-            <div id="body-action-plan-items" style="font-size:12px; color:#1e293b; display:flex; flex-direction:column; gap:6px; margin-top:6px;">
-              ${actionPlan.items.map((item, idx) => {
-                const isChecked = !!(actionPlan.completedMap && actionPlan.completedMap[idx]);
-                let formattedItem = escapeHtml(item);
-                formattedItem = formattedItem
-                  .replace(/(?:•\s*|【)?理论与综述层(?:】)?[:：]?/g, '<span style="display:inline-block; background:#eff6ff; color:#2563eb; border:1px solid #bfdbfe; padding:1px 6px; border-radius:4px; font-weight:700; font-size:11px; margin-right:4px;">📚 理论与综述层</span>')
-                  .replace(/(?:•\s*|【)?假设与(?:问题|机制)层(?:】)?[:：]?/g, '<span style="display:inline-block; background:#faf5ff; color:#7c3aed; border:1px solid #e9d5ff; padding:1px 6px; border-radius:4px; font-weight:700; font-size:11px; margin-right:4px;">🔗 假设与机制层</span>')
-                  .replace(/(?:•\s*|【)?方法与量表层(?:】)?[:：]?/g, '<span style="display:inline-block; background:#ecfdf5; color:#059669; border:1px solid #a7f3d0; padding:1px 6px; border-radius:4px; font-weight:700; font-size:11px; margin-right:4px;">📐 方法与量表层</span>');
-
-                return `
-                  <div class="action-plan-item-box" data-item-idx="${idx}" style="line-height:1.5; background:${isChecked ? '#f0fdf4' : '#ffffff'}; border:1px solid ${isChecked ? '#86efac' : '#e2e8f0'}; border-radius:6px; padding:6px 10px; display:flex; align-items:flex-start; gap:6px; cursor:pointer;">
-                    <input type="checkbox" class="action-plan-check-input" data-idx="${idx}" ${isChecked ? 'checked' : ''} style="cursor:pointer; margin-top:3px; transform:scale(1.1);">
-                    <div style="flex:1; text-decoration:${isChecked ? 'line-through' : 'none'}; color:${isChecked ? '#166534' : '#1e293b'};">
-                      <b style="color:${isChecked ? '#166534' : '#0f172a'}; margin-right:4px;">${idx + 1}.</b> ${formattedItem}
-                    </div>
-                  </div>
-                `;
-              }).join('')}
-            </div>
-          </div>
-        ` : ''}
 
         <!-- 全员确认完成初稿状态条 -->
         <div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:6px; padding:6px 10px; margin-bottom:6px; display:flex; justify-content:space-between; align-items:center; box-shadow:0 1px 2px rgba(15,23,42,0.03); flex-wrap:wrap; gap:6px; flex-shrink:0;">
