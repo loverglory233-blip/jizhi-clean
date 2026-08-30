@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260830_v823
+ * Version: 20260830_v824
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260830_v823';
+  const APP_VERSION = '20260830_v824';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -13285,10 +13285,18 @@
               }, 800);
             }
           }
-          // 2. 若处于【方案细化】状态，识别组员是否讨论了具体方案细节并准备商议分工与时间 (支持多端同步与聊天推导)
+          // 2. 若处于【方案细化】状态，支持学生就学段、方法、理论、变量等多轮深入研讨，绝不因单次发言过早打断
           else if (s1.flowStep === 'refining' || this.state.stage1PendingRefinement || (hasTopicEstablished && !hasTaskPromptSent)) {
-            const isRefineDoneSignal = /(?:内容|方向|要点|维度|思路|结合|重点|案例|章节|结构|模块|模式|视角|主题|设计|方案|确定|定好|想好|差不多|可以了|赞同|分工|怎么分|谁来写|谁负责|背景|文献|综述|方法|步骤|对象|学段|年级|高中|初中|小学|大学|学科|课堂|情境|场景|变量|理论|框架|量表|问卷|访谈|实验|干预|样本|数据|分析|实证)/i.test(text);
-            if (isRefineDoneSignal || hasValidConsensusPair) {
+            if (!s1._refineMsgCount) s1._refineMsgCount = 0;
+            s1._refineMsgCount += 1;
+
+            // 判定是否是明确的方案定型/分工意向信号
+            const isExplicitFinalizeOrTaskSignal = /(?:定好|定了吧|想好|差不多了|可以了|没问题了|就按这个|就这么定|就这么办|妥了|开始分工|怎么分工|谁负责|谁来写|分配任务|商量分工|准备分工)/i.test(text);
+
+            // 判定是否经过多轮充分研讨（3条以上方案交流）并且当前组内达成最终确认
+            const isDeepDiscussionWithConsensus = (s1._refineMsgCount >= 3) && hasValidConsensusPair;
+
+            if (isExplicitFinalizeOrTaskSignal || isDeepDiscussionWithConsensus) {
               s1.flowStep = 'tasks';
               this.state.stage1PendingRefinement = false;
               this.state.stage1PendingTasks = true;
