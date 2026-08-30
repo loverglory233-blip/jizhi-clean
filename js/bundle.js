@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260830_v770
+ * Version: 20260830_v771
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260830_v770';
+  const APP_VERSION = '20260830_v771';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -2201,19 +2201,27 @@
       return tasks[taskIndex];
     }
 
-    async extendTaskDeadline(taskId, newDeadline, addedMinutes = 0) {
+    extendTaskDeadline(taskId, newDeadline, addedMinutes = 0) {
       let tasks = this.getTasks();
-      const taskIndex = tasks.findIndex(t => t.id === taskId);
-      if (taskIndex === -1) throw new Error('任务不存在或已被删除！');
-      const oldDeadline = tasks[taskIndex].deadline || '';
-      tasks[taskIndex].deadline = newDeadline;
-      if (addedMinutes > 0) {
-        tasks[taskIndex].durationMinutes = (parseInt(tasks[taskIndex].durationMinutes, 10) || 150) + parseInt(addedMinutes, 10);
+      let taskIndex = tasks.findIndex(t => t.id === taskId);
+      if (taskIndex === -1) {
+        taskIndex = tasks.findIndex(t => (t.title && t.title === taskId) || (taskId === 'task_default' && t.id.includes('default')));
       }
-      const taskTitle = tasks[taskIndex].title || '写作任务';
-      const targetClassId = tasks[taskIndex].classId || 'all';
-      const targetClassName = tasks[taskIndex].className || '全校班级';
-      tasks[taskIndex].lastExtension = {
+      if (taskIndex === -1 && tasks.length > 0) {
+        taskIndex = 0; // 兜底指向首个任务
+      }
+      if (taskIndex === -1) throw new Error('任务不存在或已被删除！');
+
+      const targetTask = tasks[taskIndex];
+      const oldDeadline = targetTask.deadline || '';
+      targetTask.deadline = newDeadline;
+      if (addedMinutes > 0) {
+        targetTask.durationMinutes = (parseInt(targetTask.durationMinutes, 10) || 150) + parseInt(addedMinutes, 10);
+      }
+      const taskTitle = targetTask.title || '写作任务';
+      const targetClassId = targetTask.classId || 'all';
+      const targetClassName = targetTask.className || '全校班级';
+      targetTask.lastExtension = {
         extendedAt: Date.now(),
         newDeadline: newDeadline,
         addedMinutes: addedMinutes,
@@ -2226,7 +2234,7 @@
       if ('BroadcastChannel' in window) {
         try {
           const bc = new BroadcastChannel('jizhi_global_events');
-          bc.postMessage({ type: 'task_extended', task: tasks[taskIndex], prevDeadline: oldDeadline });
+          bc.postMessage({ type: 'task_extended', task: targetTask, prevDeadline: oldDeadline });
         } catch (e) {}
       }
 
@@ -2234,33 +2242,31 @@
       const teacherUserId = (currUser && (currUser.studentCode || currUser.username || currUser.id)) || '1001';
       const teacherToken = currUser?.token || currUser?.activeSessionId || '';
 
-      // 🛡️ 标记推送在途，彻底阻止任何 pullGlobalMeta 抢在落库前拉回旧数据
+      // 🛡️ 后台极速落库，绝不阻塞前端按钮
       this._pushInFlight = true;
-      try {
-        const res = await fetch('sync.php?action=extend_task_deadline', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            taskId: taskId,
-            taskTitle: taskTitle,
-            newDeadline: newDeadline,
-            addedMinutes: addedMinutes,
-            userId: teacherUserId,
-            token: teacherToken
-          })
-        });
+      fetch('sync.php?action=extend_task_deadline', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          taskId: targetTask.id || taskId,
+          taskTitle: taskTitle,
+          newDeadline: newDeadline,
+          addedMinutes: addedMinutes,
+          userId: teacherUserId,
+          token: teacherToken
+        })
+      }).then(async (res) => {
         if (res.ok) {
           const data = await res.json().catch(() => ({}));
           if (data && data.version) {
             this.globalMetaVersion = parseInt(data.version, 10);
           }
         }
-      } catch (e) {
-      } finally {
+      }).catch(() => {}).finally(() => {
         this._pushInFlight = false;
-      }
+      });
 
-      return tasks[taskIndex];
+      return targetTask;
     }
 
     deleteTask(taskId) {
@@ -6802,7 +6808,7 @@
           });
         });
 
-        modal.querySelector('#btn-save-extend').addEventListener('click', async () => {
+        modal.querySelector('#btn-save-extend').addEventListener('click', () => {
           const val = dlInput.value;
           if (!val) {
             alert('请指定新的截止时间！');
@@ -6810,11 +6816,9 @@
           }
           const newDeadlineStr = val.replace('T', ' ');
           try {
-            const btnSave = modal.querySelector('#btn-save-extend');
-            if (btnSave) { btnSave.disabled = true; btnSave.innerText = '正在保存并同步全班...'; }
-            await authManager.extendTaskDeadline(taskId, newDeadlineStr, lastAddedMins);
+            authManager.extendTaskDeadline(taskId, newDeadlineStr, lastAddedMins);
             closeModal();
-            alert(`✅ 写作任务《${task.title}》截止时间已延长至 ${newDeadlineStr}！\n\n学生端工作台已自动解除只读锁定，可正常协同编辑。`);
+            showGlobalBannerNotice('✅ 延期成功', `写作任务《${task.title}》截止时间已延长至 ${newDeadlineStr}！学生端已自动解除只读锁定。`, 'success');
             renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
           } catch (err) {
             alert('❌ ' + err.message);

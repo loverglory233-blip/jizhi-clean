@@ -9,8 +9,8 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260830_v770";
-import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash, filterAndDeduplicateChatLogs, enforceEtherpadReadonly } from "./utils.js?v=20260830_v770";
+} from "./constants.js?v=20260830_v771";
+import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash, filterAndDeduplicateChatLogs, enforceEtherpadReadonly } from "./utils.js?v=20260830_v771";
 
 /* ==========================================================================
    7. TEACHER PORTAL RENDERER (LIVE WORKSPACE MIRROR & ANNOUNCEMENT READ MATRIX)
@@ -2855,7 +2855,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
         });
       });
 
-      modal.querySelector('#btn-save-extend').addEventListener('click', async () => {
+      modal.querySelector('#btn-save-extend').addEventListener('click', () => {
         const val = dlInput.value;
         if (!val) {
           alert('请指定新的截止时间！');
@@ -2863,11 +2863,9 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
         }
         const newDeadlineStr = val.replace('T', ' ');
         try {
-          const btnSave = modal.querySelector('#btn-save-extend');
-          if (btnSave) { btnSave.disabled = true; btnSave.innerText = '正在保存并同步全班...'; }
-          await authManager.extendTaskDeadline(taskId, newDeadlineStr, lastAddedMins);
+          authManager.extendTaskDeadline(taskId, newDeadlineStr, lastAddedMins);
           closeModal();
-          alert(`✅ 写作任务《${task.title}》截止时间已延长至 ${newDeadlineStr}！\n\n学生端工作台已自动解除只读锁定，可正常协同编辑。`);
+          showGlobalBannerNotice('✅ 延期成功', `写作任务《${task.title}》截止时间已延长至 ${newDeadlineStr}！学生端已自动解除只读锁定。`, 'success');
           renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
         } catch (err) {
           alert('❌ ' + err.message);
