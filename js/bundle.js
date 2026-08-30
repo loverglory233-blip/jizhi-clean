@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260830_v843
+ * Version: 20260830_v844
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260830_v843';
+  const APP_VERSION = '20260830_v844';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -12492,7 +12492,7 @@
           // ── 阶段二修改期静默守护：审稿编辑保持后台严肃倾听，绝不随意发无意义跟进打扰学生专注写作 ──
           // （仅在学生主动 @审稿编辑 时或到达三大官方质检里程碑时出面指导）
 
-          // 4) 修改期后续周期性提醒 (动态自适应任务时长，最多2次)
+          // 4) 二审修正清单下发后的静默跟进提示 (独家全包给审稿编辑，最多2次)
           if (this.state.stage2ReviewingFinishedTime && silenceDurationMs >= s2NudgeCooldownMs) {
             if (lastStudentMsgTime > (this._lastNudgeActivityTime?.['s2_post_meeting'] || 0)) {
               this._nudgeCounts['s2_post_meeting'] = 0;
@@ -12504,8 +12504,8 @@
               if (!this._lastNudgeActivityTime) this._lastNudgeActivityTime = {};
               this._lastNudgeActivityTime['s2_post_meeting'] = lastStudentMsgTime;
               const msg = {
-                sender: 'managingEditor',
-                text: `💡 【责任编辑·审稿意见落实提示】：审稿专家已为全组下发了针对性的修改建议与修正清单！\n👉 建议大家在讨论区对照专家意见充分商讨修改思路，并在左侧富文本编辑器中针对性完善各章节内容，协同打磨高质量论文！`,
+                sender: 'reviewingEditor',
+                text: `📝 【审稿编辑·修改交流提示】：修正清单已挂在上方！大家若对清单中的量表题目设计、方法闭环或文风润色有任何疑问，随时在讨论区 @审稿编辑 咨询，也可以在群里交流商定对策！`,
                 timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
                 _timeMs: now,
                 stage: 'stage2'
