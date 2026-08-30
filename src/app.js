@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260830_v915";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch } from "./utils.js?v=20260830_v915";
-import { callCozeAgentAPI } from "./agents.js?v=20260830_v915";
-import { AuthManager } from "./auth.js?v=20260830_v915";
-import { CloudSyncEngine } from "./sync.js?v=20260830_v915";
-import { renderLoginView } from "./login.js?v=20260830_v915";
-import { renderTeacherPortal } from "./teacher.js?v=20260830_v915";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260830_v915";
+} from "./constants.js?v=20260830_v916";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch } from "./utils.js?v=20260830_v916";
+import { callCozeAgentAPI } from "./agents.js?v=20260830_v916";
+import { AuthManager } from "./auth.js?v=20260830_v916";
+import { CloudSyncEngine } from "./sync.js?v=20260830_v916";
+import { renderLoginView } from "./login.js?v=20260830_v916";
+import { renderTeacherPortal } from "./teacher.js?v=20260830_v916";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260830_v916";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260830_v915";
+} from "./editor.js?v=20260830_v916";
 
 // Make renderChat available on window for sync callbacks
 if (typeof window !== "undefined") {
@@ -4393,6 +4393,9 @@ ${propText}
                   if (authorMem && authorMem.name) authorName = authorMem.name;
                 }
                 if (!authorName) authorName = p.authorName || p.author || '组员';
+                // 判断是否为当前用户自己的提案
+                const isMyProposal = myKeys.has(p.author) || myKeys.has(p.authorName) || myKeys.has(p.authorId) ||
+                  (currentUserObj && (isSameUser(p.author, currentUserObj) || isSameUser(p.authorName, currentUserObj)));
                 return `
                   <div class="proposal-card ${isThisVoted ? 'voted' : ''}" style="display:flex; flex-direction:column; position:relative;">
                     <div class="proposal-header" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
@@ -4402,6 +4405,7 @@ ${propText}
                       </span>
                     </div>
                     <div style="font-size:12px; color:#64748b; margin-bottom:8px;">提出人: <b style="color:#0f172a;">${escapeHtml(authorName)}</b></div>
+                    ${isMyProposal ? `<button class="btn-retry-eval" data-title="${escapeHtml(p.title)}" data-author="${escapeHtml(authorName)}" style="width:100%; margin-bottom:6px; padding:5px 0; font-size:12px; background:#f0fdf4; color:#16a34a; border:1px solid #86efac; border-radius:6px; cursor:pointer;">🔄 重新请求速评</button>` : ''}
                     <button class="${btnClass}" data-id="${p.id}" ${isContractLocked || userHasVoted ? 'disabled' : ''} style="width:100%; margin-top:auto;">${btnText}</button>
                   </div>
                 `;
@@ -4410,6 +4414,17 @@ ${propText}
           `;
           proposalsWrapper.querySelectorAll('.vote-btn:not([disabled])').forEach(btn => {
             btn.addEventListener('click', () => this.handleVoteCast(btn.dataset.id));
+          });
+          proposalsWrapper.querySelectorAll('.btn-retry-eval').forEach(btn => {
+            btn.addEventListener('click', async () => {
+              btn.disabled = true;
+              btn.textContent = '⏳ 请求中...';
+              try {
+                await this.handleProposalSubmittedAIFeedback(btn.dataset.title, btn.dataset.author, false);
+              } catch(e) {}
+              btn.disabled = false;
+              btn.textContent = '🔄 重新请求速评';
+            });
           });
         } else {
           proposalsWrapper.innerHTML = `

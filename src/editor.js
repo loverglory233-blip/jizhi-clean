@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles } from "./constants.js?v=20260830_v915";
-import { callCozeAgentAPI } from "./agents.js?v=20260830_v915";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap } from "./utils.js?v=20260830_v915";
+import { AgentProfiles } from "./constants.js?v=20260830_v916";
+import { callCozeAgentAPI } from "./agents.js?v=20260830_v916";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap } from "./utils.js?v=20260830_v916";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -1360,9 +1360,10 @@ function renderStage1Canvas(canvas, state, handlers) {
         setTimeout(async () => {
           try {
             const evalPrompt = `小组成员【${authorName}】在选题池${isModify ? '修改完善了' : '提出了新'}研究提案《${title}》。
-请作为资深学术拍卖师，发表 60~80 字的【选题学术亮点速评与启发】：
+请作为资深学术拍卖师，仅发表 60~80 字的【选题学术亮点速评与启发】：
 ① 精准肯定该选题的研究切入点或实践价值；
-② 给出 1 点前瞻性探究启发，鼓励全组在研讨区就此交流！纯自然语言，60~80字，严禁代码块。`;
+② 给出 1 点前瞻性探究启发，鼓励全组在研讨区就此交流！
+【严格限制】：纯自然语言，60~80字；严禁代码块；严禁提及任何界面按钮、操作引导、下一步流程说明；严禁要求点击任何按钮；仅聚焦对该提案的学术评价本身。`;
             
             let evalText = await callCozeAgentAPI('auctioneer', evalPrompt, { stage: 'stage1', proposalTitle: title, author: authorName, topic: title });
 
@@ -1402,19 +1403,26 @@ function renderStage1Canvas(canvas, state, handlers) {
             renderChat(state);
           } catch (aiErr) {
             console.warn('[Proposal AI Feedback] Error:', aiErr);
+            const fallbackId = 'eval_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6);
             const fallbackAiMsg = {
-              id: 'eval_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6),
+              id: fallbackId,
               sender: 'auctioneer',
               senderName: '头脑风暴 · 学术拍卖师',
-              text: `⚠️ 【学术拍卖师提示】：网络连接波动，可随时在讨论区 @拍卖师 再次提问。`,
+              text: `⚠️ 【学术拍卖师提示】：网络波动，AI 速评未能完成。`,
+              _retryTitle: title,
+              _retryAuthor: authorName,
               timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
               _timeMs: Date.now()
             };
             const foundThinking = state.chatLogs[currentStage]?.find(m => m && m.id === tempThinkingId);
             if (foundThinking) {
-              foundThinking.id = fallbackAiMsg.id;
+              foundThinking.id = fallbackId;
               foundThinking.text = fallbackAiMsg.text;
+              foundThinking._retryTitle = title;
+              foundThinking._retryAuthor = authorName;
               delete foundThinking.isThinking;
+            } else {
+              state.chatLogs[currentStage].push(fallbackAiMsg);
             }
             if (window.app && typeof window.app.sendSingleChatMessage === 'function') {
               window.app.sendSingleChatMessage(fallbackAiMsg, currentStage);
