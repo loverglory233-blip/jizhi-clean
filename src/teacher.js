@@ -9,8 +9,8 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260830_v746";
-import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash, filterAndDeduplicateChatLogs } from "./utils.js?v=20260830_v746";
+} from "./constants.js?v=20260830_v747";
+import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash, filterAndDeduplicateChatLogs } from "./utils.js?v=20260830_v747";
 
 /* ==========================================================================
    7. TEACHER PORTAL RENDERER (LIVE WORKSPACE MIRROR & ANNOUNCEMENT READ MATRIX)
@@ -74,7 +74,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
   const monitorMembersObj = authManager.getGroupMembersForWorkspace(activeMonitorGId, activeClass.id);
   const monitorMembersList = Object.values(monitorMembersObj);
 
-  const monitorStageMode = state.monitorStageTab || 'auto';
+  const monitorStageMode = state.teacherMonitorStageMode || state.monitorStageTab || 'auto';
   const effectiveMonitorStage = monitorStageMode === 'auto' ? (state.currentStage || 'stage1') : monitorStageMode;
   const currentS3Tab = state.stage3TeacherTab || 'defense';
 
@@ -1202,8 +1202,8 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
                 })();
 
                 const renderUnifiedRightChatCard = () => `
-                  <!-- 右侧卡片：高度自适应屏幕视口，内部聊天流全高滚动 -->
-                  <div class="card" style="padding:16px 18px; display:flex; flex-direction:column; min-width:0; box-sizing:border-box; height:calc(100vh - 180px); min-height:640px; border:1px solid #e2e8f0; box-shadow:0 2px 8px rgba(15,23,42,0.04);">
+                  <!-- 右侧卡片：高度统一为 680px，与左侧绝对平齐，内部聊天流全高滚动 -->
+                  <div class="card" style="padding:16px 18px; display:flex; flex-direction:column; min-width:0; box-sizing:border-box; height:680px; max-height:680px; border:1px solid #e2e8f0; box-shadow:0 2px 8px rgba(15,23,42,0.04);">
                     <div style="flex-shrink:0; font-size:14.5px; font-weight:800; color:#0f172a; margin-bottom:8px; display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #e2e8f0; padding-bottom:8px;">
                       <span>💬 团队全程研讨对话流 (${activeMonitorGroup.name})</span>
                       <span style="font-size:11px; background:#eff6ff; color:#2563eb; padding:2px 8px; border-radius:6px; font-weight:700;">全阶段汇总 (${combinedGroupChatLogs.length}条)</span>
@@ -1233,9 +1233,9 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
 
                 if (effectiveMonitorStage === 'stage1') {
                   return `
-                    <div style="display:grid; grid-template-columns: minmax(0, 1fr) 380px; gap:16px; width:100%; box-sizing:border-box; min-height:640px; align-items:stretch;">
-                      <!-- 左侧卡片：以阶段一左侧为主，高度自适应滚动，呈现完整结构 -->
-                      <div class="card" style="padding:18px 20px; display:flex; flex-direction:column; border:1px solid #bfdbfe; gap:12px; min-width:0; box-sizing:border-box; height:calc(100vh - 180px); min-height:640px; overflow-y:auto; -webkit-overflow-scrolling:touch; overscroll-behavior-y:contain;">
+                    <div style="display:grid; grid-template-columns: minmax(0, 1fr) 380px; gap:16px; width:100%; box-sizing:border-box; height:680px; max-height:680px; align-items:stretch;">
+                      <!-- 左侧卡片：以阶段一左侧为主，高度统一为 680px，内部自适应滚动 -->
+                      <div class="card" style="padding:18px 20px; display:flex; flex-direction:column; border:1px solid #bfdbfe; gap:12px; min-width:0; box-sizing:border-box; height:680px; max-height:680px; overflow-y:auto; -webkit-overflow-scrolling:touch; overscroll-behavior-y:contain;">
                         <div style="flex-shrink:0; font-size:16px; font-weight:800; color:#1e40af; display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #e2e8f0; padding-bottom:10px;">
                           <span>🎪 阶段一实操同屏: 初始提案与学术合作公约 (${activeMonitorGroup.name})</span>
                           <span style="background:#eff6ff; color:#1d4ed8; padding:3px 10px; border-radius:8px; font-size:12px; font-weight:700;">阶段一实况</span>
@@ -1382,9 +1382,9 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
                   const confirmedDraftCount = monitorMembersList.filter(m => state.stage2?.confirmedMembers && (state.stage2.confirmedMembers[m.id] || state.stage2.confirmedMembers[m.studentCode] || state.stage2.confirmedMembers[m.username] || (m.name && state.stage2.confirmedMembers[m.name]))).length;
 
                   return `
-                    <div style="display:grid; grid-template-columns: minmax(0, 1fr) 380px; gap:16px; width:100%; box-sizing:border-box; min-height:640px; align-items:stretch;">
-                      <!-- 左侧卡片：1:1 镜像学生端阶段二全部结构，自适应视口 -->
-                      <div class="card" style="padding:16px 18px; display:flex; flex-direction:column; border:1px solid #bfdbfe; min-width:0; box-sizing:border-box; height:calc(100vh - 180px); min-height:640px; gap:8px; overflow:hidden;">
+                    <div style="display:grid; grid-template-columns: minmax(0, 1fr) 380px; gap:16px; width:100%; box-sizing:border-box; height:680px; max-height:680px; align-items:stretch;">
+                      <!-- 左侧卡片：1:1 镜像学生端阶段二全部结构，高度统一为 680px -->
+                      <div class="card" style="padding:16px 18px; display:flex; flex-direction:column; border:1px solid #bfdbfe; min-width:0; box-sizing:border-box; height:680px; max-height:680px; gap:8px; overflow:hidden;">
                         <!-- 1. 顶部标题与字数 -->
                         <div style="flex-shrink:0; display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #e2e8f0; padding-bottom:8px;">
                           <div style="display:flex; align-items:center; gap:8px;">
@@ -1507,9 +1507,9 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
                 if (effectiveMonitorStage === 'stage3') {
                   const isStage3DocTab = state.stage3TeacherTab === 'doc';
                   return `
-                    <div style="display:grid; grid-template-columns: minmax(0, 1fr) 380px; gap:16px; width:100%; box-sizing:border-box; min-height:640px; align-items:stretch;">
-                      <!-- 阶段三左侧卡片：自适应视口；答辩页自适应内部滚动，终稿页与阶段二一样带贡献度 -->
-                      <div class="card" style="padding:16px 18px; display:flex; flex-direction:column; border:1px solid #bfdbfe; min-width:0; box-sizing:border-box; height:calc(100vh - 180px); min-height:640px; gap:8px; overflow:hidden;">
+                    <div style="display:grid; grid-template-columns: minmax(0, 1fr) 380px; gap:16px; width:100%; box-sizing:border-box; height:680px; max-height:680px; align-items:stretch;">
+                      <!-- 阶段三左侧卡片：高度统一为 680px；答辩页自适应内部滚动，终稿页与阶段二一样带贡献度 -->
+                      <div class="card" style="padding:16px 18px; display:flex; flex-direction:column; border:1px solid #bfdbfe; min-width:0; box-sizing:border-box; height:680px; max-height:680px; gap:8px; overflow:hidden;">
                         <div style="flex-shrink:0; font-size:15.5px; font-weight:800; color:#1e40af; display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #e2e8f0; padding-bottom:8px;">
                           <span>🎓 阶段三实操同屏: 答辩擂台与终稿 (${activeMonitorGroup.name})</span>
                           <div style="display:flex; gap:6px;">
@@ -3587,22 +3587,30 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
   });
 
   container.querySelectorAll('.btn-monitor-stage-tab').forEach(btn => {
-    btn.addEventListener('click', () => {
-      state.teacherMonitorStageMode = btn.dataset.stg;
+    btn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const stg = btn.dataset.stg;
+      state.teacherMonitorStageMode = stg;
+      state.monitorStageTab = stg;
       renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
     });
   });
 
   const btnStage3Def = container.querySelector('#btn-tab-teacher-stage3-defense');
   if (btnStage3Def) {
-    btnStage3Def.addEventListener('click', () => {
+    btnStage3Def.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
       state.stage3TeacherTab = 'defense';
       renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
     });
   }
   const btnStage3Doc = container.querySelector('#btn-tab-teacher-stage3-doc');
   if (btnStage3Doc) {
-    btnStage3Doc.addEventListener('click', () => {
+    btnStage3Doc.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
       state.stage3TeacherTab = 'doc';
       renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
     });
