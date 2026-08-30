@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles } from "./constants.js?v=20260830_v813";
-import { callCozeAgentAPI } from "./agents.js?v=20260830_v813";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly } from "./utils.js?v=20260830_v813";
+import { AgentProfiles } from "./constants.js?v=20260830_v814";
+import { callCozeAgentAPI } from "./agents.js?v=20260830_v814";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly } from "./utils.js?v=20260830_v814";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -1281,38 +1281,37 @@ function renderStage1Canvas(canvas, state, handlers) {
           const isModify = existingIdx >= 0;
           const evalPrompt = isModify
             ? `小组成员【${authorName}】在学术拍卖会上修改了选题提案，最新题目为《${title}》。
-请作为资深学术拍卖师，通读其学科场景与研究构想，给出 130~150 字充实针对性的学术点评：
-【无意义内容红线审查】：先审查提案是否包含无意义乱码、重复堆砌或过于空泛到无法提取论点。若命中，严禁虚构亮点，应如实简短提醒「当前内容尚未形成可评审的实质文本」并引导补充具体问题或方法设想；
-【正常实质评价】：若内容充实，必须先明确肯定该提案最出彩的 1~2 个具体优点（抓准了什么核心痛点/打破了什么教学局限），再顺势结合该方案提出 1 个具体的启发性落地建议（严禁空泛套话，纯自然语言输出，130~150字）！`
+请作为资深学术拍卖师，用 90~110 字简练精准点评（直击要害，快速响应）：
+① 肯定该方案最抓人的 1 个痛点切口或创新亮点；
+② 给出 1 个具体的落地建议。纯自然语言，90~110字。`
             : `小组成员【${authorName}】在学术拍卖会上提交了新选题提案《${title}》。
-请作为资深学术拍卖师，通读其学科场景与研究构想，给出 130~150 字充实针对性的学术点评：
-【无意义内容红线审查】：先审查提案是否包含无意义乱码、重复堆砌或过于空泛到无法提取论点。若命中，严禁虚构亮点，应如实简短提醒「当前内容尚未形成可评审的实质文本」并引导补充具体问题或方法设想；
-【正常实质评价】：若内容充实，必须先明确肯定该提案最出彩的 1~2 个具体优点（抓准了什么核心痛点/打破了什么教学局限），再顺势结合该方案提出 1 个具体的启发性落地建议（严禁空泛套话，纯自然语言输出，130~150字）！`;
+请作为资深学术拍卖师，用 90~110 字简练精准点评（直击要害，快速响应）：
+① 肯定该方案最抓人的 1 个痛点切口或创新亮点；
+② 给出 1 个具体的落地建议。纯自然语言，90~110字。`;
           
-          // ⏱️ 8 秒极速安全窗口：大模型超时直接无缝出具专业点评，绝不让学生傻等卡死
+          // ⏱️ 6 秒极速安全窗口：大模型超时直接无缝出具专业点评，绝不让学生傻等
           let evalPromise = callCozeAgentAPI('auctioneer', evalPrompt, { stage: 'stage1', proposalTitle: title, author: authorName, topic: title });
-          let timeoutPromise = new Promise(r => setTimeout(() => r(null), 8000));
+          let timeoutPromise = new Promise(r => setTimeout(() => r(null), 6000));
           let evalText = await Promise.race([evalPromise, timeoutPromise]);
 
           if (!evalText || evalText.trim().length === 0) {
-            evalText = `🎪 【拍卖师·提案评估】：收到 ${authorName} 提出的选题《${title}》！该构想切中实践痛点，通过明确的研究设计打破了传统教学局限！建议后续在研究设计中进一步细化具体的实证环节与实施步骤，这样在接下来的竞拍研讨中会更具说服力！`;
+            evalText = `🎪 【拍卖师·提案评估】：收到 ${authorName} 提出的选题《${title}》！该构想切中实践痛点，设计新颖！建议后续进一步细化具体的实证环节与实施步骤，在接下来的竞拍研讨中会更具说服力！`;
           }
 
-          // 🛡️ 依据唯一 ID 精准查找并原地替换，彻底杜绝引用脱节卡死
+          // 🛡️ 100% 彻底清除“正在通读/起草”的临时占位气泡，确保只留下唯一 1 条真正的学术点评
           if (!state.chatLogs[currentStage]) state.chatLogs[currentStage] = [];
-          const targetIdx = state.chatLogs[currentStage].findIndex(m => m && m.id === tempThinkingId);
-          if (targetIdx >= 0) {
-            state.chatLogs[currentStage][targetIdx].text = evalText;
-            delete state.chatLogs[currentStage][targetIdx].isThinking;
-          } else {
-            state.chatLogs[currentStage].push({
-              sender: 'auctioneer',
-              senderName: '头脑风暴 · 学术拍卖师',
-              text: evalText,
-              timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-              _timeMs: Date.now()
-            });
-          }
+          state.chatLogs[currentStage] = state.chatLogs[currentStage].filter(m => 
+            m && m.id !== tempThinkingId && !m.isThinking && !(m.text && m.text.includes('正在通读研究构想'))
+          );
+
+          state.chatLogs[currentStage].push({
+            id: 'eval_' + Date.now(),
+            sender: 'auctioneer',
+            senderName: '头脑风暴 · 学术拍卖师',
+            text: evalText,
+            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            _timeMs: Date.now()
+          });
 
           if (window.app) {
             window.app.syncChatLogs();
