@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState } from './constants.js?v=20260830_v761';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal } from './utils.js?v=20260830_v761';
+import { InitialState } from './constants.js?v=20260830_v762';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal } from './utils.js?v=20260830_v762';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -390,7 +390,7 @@ export class CloudSyncEngine {
                 const isTaskHall = (this.app.state.currentView === 'student_portal' || !this.app.state.activeTaskId);
 
                 if (isCurrentTask) {
-                  // 🎯 场景 1：学生正处于该任务工作台内部
+                  // 🎯 场景 1：学生正处于该任务工作台内部（无论此前是否截止，统一弹出中央仪式感卡片）
                   document.querySelectorAll('.etherpad-readonly-shield').forEach(s => s.remove());
                   const f2 = document.getElementById('stage2-etherpad-frame');
                   if (f2 && f2.src.includes('showControls=false') && !nowExpired) {
@@ -401,11 +401,9 @@ export class CloudSyncEngine {
                     f3.src = f3.src.replace('showControls=false', 'showControls=true');
                   }
                   this.app.renderHeader();
+                  showTaskExtendedUnlockModal(t, prev.deadline, prevExpired && !nowExpired);
                   if (prevExpired && !nowExpired) {
-                    showTaskExtendedUnlockModal(t, prev.deadline, true);
                     this.app.renderStudentWorkspace();
-                  } else {
-                    showGlobalBannerNotice('⏳ 写作截止时间已延长', `任课教师已将本任务截止时间调整至 ${t.deadline}。`, 'info');
                   }
                 } else if (isTaskHall) {
                   // 📋 场景 2：学生在任务大厅
