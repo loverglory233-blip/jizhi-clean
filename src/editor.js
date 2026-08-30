@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles } from "./constants.js?v=20260831_v966";
-import { callCozeAgentAPI } from "./agents.js?v=20260831_v966";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap } from "./utils.js?v=20260831_v966";
+import { AgentProfiles } from "./constants.js?v=20260831_v967";
+import { callCozeAgentAPI } from "./agents.js?v=20260831_v967";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap } from "./utils.js?v=20260831_v967";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -2949,7 +2949,7 @@ export function renderChat(state) {
       memberList = window.app.authManager.getGroupMembersForWorkspace(effGroup?.id || state.activeGroupId || null);
     }
 
-    presenceContainer.innerHTML = memberList.map(m => {
+    const newPresenceHtml = memberList.map(m => {
       const uid = String(m.id || m.studentCode || m.userId || '').trim();
       const candidateKeys = [
         String(m.id || '').trim(),
