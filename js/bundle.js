@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260830_v799
+ * Version: 20260830_v800
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260830_v799';
+  const APP_VERSION = '20260830_v800';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -278,48 +278,15 @@
         cleanUrl = cleanUrl.substring(cleanUrl.indexOf('/uploads/'));
       }
 
-      if (cleanUrl.startsWith('data:')) {
-        const a = document.createElement('a');
-        a.href = cleanUrl;
-        a.download = safeFilename;
-        document.body.appendChild(a);
-        a.click();
-        setTimeout(() => { if (document.body.contains(a)) document.body.removeChild(a); }, 300);
-        return;
-      }
-
-      try {
-        // 🚀 通过 fetch 转化为真实二进制 Blob，强制以真实文件名触发原生下载，绝不损坏文件！
-        const res = await fetch(cleanUrl);
-        if (res.ok) {
-          const blob = await res.blob();
-          const blobUrl = URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = blobUrl;
-          a.download = safeFilename;
-          document.body.appendChild(a);
-          a.click();
-          setTimeout(() => {
-            if (document.body.contains(a)) document.body.removeChild(a);
-            URL.revokeObjectURL(blobUrl);
-          }, 1000);
-          return;
-        }
-      } catch (err) {
-        console.warn('Fetch blob download fallback:', err);
-      }
-
-      // 若 fetch 受限，使用原生 a 标签直接跳转下载
-      try {
-        const a = document.createElement('a');
-        a.href = cleanUrl;
-        a.download = safeFilename;
-        a.target = '_blank';
-        document.body.appendChild(a);
-        a.click();
-        setTimeout(() => { if (document.body.contains(a)) document.body.removeChild(a); }, 500);
-        return;
-      } catch (e) {}
+      // ⚡ 0 毫秒即时唤起原生下载：绝不用 fetch 阻塞等待全文件下载到内存
+      const a = document.createElement('a');
+      a.href = cleanUrl;
+      a.download = safeFilename;
+      a.target = '_blank';
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => { if (document.body.contains(a)) document.body.removeChild(a); }, 500);
+      return;
     }
 
     // 2. 兜底保障：若文件 URL 暂未落盘或为纯文本，自适应生成规范文献学习文档立即启动下载，确保点击必有响应！
@@ -2328,7 +2295,15 @@
       const ann = announcements.find(a => a.id === annId);
       const currUser = this.getCurrentUser();
 
-      // 1. 优先以最高优先级向服务端轻量回传已读标记（0 依赖本地 localStorage，绝不受 Quota 影响）
+      // ⚡ 1. 立即持久化本地已读记录（杜绝任何时序差导致的二次弹出）
+      try {
+        const localMap = JSON.parse(localStorage.getItem('jizhi_locally_read_announcements') || '{}');
+        localMap[annId] = true;
+        localStorage.setItem('jizhi_locally_read_announcements', JSON.stringify(localMap));
+        sessionStorage.setItem('jizhi_locally_read_announcements', JSON.stringify(localMap));
+      } catch (e) {}
+
+      // 2. 优先以最高优先级向服务端轻量回传已读标记（单条极速写入，绝不全量推流阻塞）
       try {
         fetch('sync.php?action=update_read_status', {
           method: 'POST',
@@ -2343,7 +2318,7 @@
         }).catch(() => {});
       } catch (e) {}
 
-      // 2. 本地内存与缓存安全更新 (带 QuotaExceeded 自动熔断与大对象修剪保护)
+      // 3. 本地内存与缓存安全更新
       if (ann) {
         if (!ann.readStatus) ann.readStatus = {};
         if (!ann.readGroupStatus) ann.readGroupStatus = {};
@@ -2375,15 +2350,11 @@
         try {
           localStorage.setItem(STORAGE_KEY_ANNOUNCEMENTS, JSON.stringify(announcements));
         } catch (err) {
-          console.warn('[Storage] QuotaExceeded on save announcements, cleaning legacy heavy items...', err);
           this._pruneStorageQuota();
           try {
             localStorage.setItem(STORAGE_KEY_ANNOUNCEMENTS, JSON.stringify(announcements));
           } catch (e2) {}
         }
-
-        // 3. 及时推送至全局教务元数据，让教师端实时看到已读学生与小组名单
-        this.pushGlobalMeta();
       }
     }
 
@@ -2761,10 +2732,12 @@
       // 🛡️ 仅当当前标签页正处于教师管理大屏时，才不给自己弹窗；学生端（及学生视角）100% 触发弹窗
       if (isTeacherPortalUI) return;
 
-      if (!this._shownDeadlineEvents) this._shownDeadlineEvents = new Set();
+      let shownEvents = {};
+      try { shownEvents = JSON.parse(sessionStorage.getItem('jizhi_shown_deadline_events') || '{}'); } catch (e) {}
       const eventKey = `${t.id}_${t.deadline}`;
-      if (this._shownDeadlineEvents.has(eventKey)) return;
-      this._shownDeadlineEvents.add(eventKey);
+      if (shownEvents[eventKey]) return;
+      shownEvents[eventKey] = true;
+      try { sessionStorage.setItem('jizhi_shown_deadline_events', JSON.stringify(shownEvents)); } catch (e) {}
 
       const prevExpired = isTaskExpired(prevDeadline);
       const nowExpired = isTaskExpired(t.deadline);
@@ -7774,8 +7747,16 @@
           if (e.data && e.data.type === 'task_extended' && e.data.task) {
             const t = e.data.task;
             renderStudentTaskPortal(container, authManager, state, onSelectTask, onLogout, onSwitchTeacher, onOpenAnnModal, onOpenSurveyModal);
-            const extDurationStr = t.lastExtension?.extendDurationStr || (t.lastExtension?.addedMinutes ? `（增加了 ${t.lastExtension.addedMinutes} 分钟）` : '');
-            showGlobalBannerNotice('⏳ 任务延期提醒', `班级写作任务《${t.title || '协作任务'}》截止时间已延长至 ${t.deadline} ${extDurationStr}！`, 'info', 8000);
+
+            let shownEvents = {};
+            try { shownEvents = JSON.parse(sessionStorage.getItem('jizhi_shown_deadline_events') || '{}'); } catch (err) {}
+            const eventKey = `${t.id}_${t.deadline}`;
+            if (!shownEvents[eventKey]) {
+              shownEvents[eventKey] = true;
+              try { sessionStorage.setItem('jizhi_shown_deadline_events', JSON.stringify(shownEvents)); } catch (err) {}
+              const extDurationStr = t.lastExtension?.extendDurationStr || (t.lastExtension?.addedMinutes ? `（增加了 ${t.lastExtension.addedMinutes} 分钟）` : '');
+              showGlobalBannerNotice('⏳ 任务延期提醒', `班级写作任务《${t.title || '协作任务'}》截止时间已延长至 ${t.deadline} ${extDurationStr}！`, 'info', 8000);
+            }
           }
         };
       } catch (e) {}
@@ -7794,19 +7775,6 @@
           const newAnnsJson = localStorage.getItem(STORAGE_KEY_ANNOUNCEMENTS) || '[]';
           const newClassesJson = localStorage.getItem(STORAGE_KEY_CLASSES) || '[]';
           if (oldTasksJson !== newTasksJson || oldAnnsJson !== newAnnsJson || oldClassesJson !== newClassesJson) {
-            if (oldTasksJson !== newTasksJson) {
-              try {
-                const oldT = JSON.parse(oldTasksJson);
-                const newT = JSON.parse(newTasksJson);
-                newT.forEach(nt => {
-                  const ot = oldT.find(o => o.id === nt.id);
-                  if (ot && nt.deadline && ot.deadline && ot.deadline !== nt.deadline) {
-                    const extDurationStr = nt.lastExtension?.extendDurationStr || (nt.lastExtension?.addedMinutes ? `（增加了 ${nt.lastExtension.addedMinutes} 分钟）` : '');
-                    showGlobalBannerNotice('⏳ 任务延期提醒', `班级写作任务《${nt.title || '协作任务'}》截止时间已延长至 ${nt.deadline} ${extDurationStr}！`, 'info', 8000);
-                  }
-                });
-              } catch (err) {}
-            }
             if (document.activeElement?.id !== 'sel-student-class-switch') {
               renderStudentTaskPortal(container, authManager, state, onSelectTask, onLogout, onSwitchTeacher, onOpenAnnModal, onOpenSurveyModal);
               return; // 重渲染会重建整套循环，此处无需再自行调度
@@ -12446,6 +12414,10 @@
 
       const isAnnRead = (a) => {
         if (!a) return false;
+        try {
+          const localReadMap = JSON.parse(localStorage.getItem('jizhi_locally_read_announcements') || '{}');
+          if (localReadMap[a.id]) return true;
+        } catch (e) {}
         if (currentUser) {
           if (currentUser.id && a.readStatus && a.readStatus[currentUser.id]) return true;
           if (currentUser.studentCode && a.readStatus && a.readStatus[currentUser.studentCode]) return true;
@@ -12502,6 +12474,10 @@
 
       const isAnnRead = (a) => {
         if (!a) return false;
+        try {
+          const localReadMap = JSON.parse(localStorage.getItem('jizhi_locally_read_announcements') || '{}');
+          if (localReadMap[a.id]) return true;
+        } catch (e) {}
         if (currentUser) {
           if (currentUser.id && a.readStatus && a.readStatus[currentUser.id]) return true;
           if (currentUser.studentCode && a.readStatus && a.readStatus[currentUser.studentCode]) return true;
