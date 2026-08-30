@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260830_v848";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash } from "./utils.js?v=20260830_v848";
-import { callCozeAgentAPI } from "./agents.js?v=20260830_v848";
-import { AuthManager } from "./auth.js?v=20260830_v848";
-import { CloudSyncEngine } from "./sync.js?v=20260830_v848";
-import { renderLoginView } from "./login.js?v=20260830_v848";
-import { renderTeacherPortal } from "./teacher.js?v=20260830_v848";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260830_v848";
+} from "./constants.js?v=20260830_v849";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash } from "./utils.js?v=20260830_v849";
+import { callCozeAgentAPI } from "./agents.js?v=20260830_v849";
+import { AuthManager } from "./auth.js?v=20260830_v849";
+import { CloudSyncEngine } from "./sync.js?v=20260830_v849";
+import { renderLoginView } from "./login.js?v=20260830_v849";
+import { renderTeacherPortal } from "./teacher.js?v=20260830_v849";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260830_v849";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260830_v848";
+} from "./editor.js?v=20260830_v849";
 
 // Make renderChat available on window for sync callbacks
 if (typeof window !== "undefined") {
@@ -861,8 +861,42 @@ export class App {
     this._nudgeCounts = this._nudgeCounts || {};
     if (this.stageInactivityTimer) clearInterval(this.stageInactivityTimer);
     this.stageInactivityTimer = setInterval(() => {
+      const currUserObj = this.authManager ? this.authManager.getCurrentUser() : null;
+      if (!currUserObj || currUserObj.role === 'teacher') return;
+
+      // 🛡️ 1. 任务存在性检测：如果当前正在某个任务中，但该任务已被教师在后台删除/重置
+      const allTasks = this.authManager ? this.authManager.getTasks() : [];
+      if (this.state.activeTaskId) {
+        const isCurrentTaskAlive = allTasks.some(t => t.id === this.state.activeTaskId);
+        if (!isCurrentTaskAlive && !this._isExitingDeletedTask) {
+          this._isExitingDeletedTask = true;
+          console.warn('⚠️ 当前任务已被教师在后台删除或重置，自动退回至任务大厅');
+          alert('ℹ️ 提示：教师已删除或重置当前任务，系统正在为你返回任务大厅！');
+          this.state.activeTaskId = null;
+          this.renderStudentWorkspace();
+          setTimeout(() => { this._isExitingDeletedTask = false; }, 3000);
+          return;
+        }
+      } else {
+        // 🛡️ 2. 任务大厅实时感知：如果当前停留在任务大厅，感知教师端新建任务或删除任务，自动更新大厅卡片
+        const effClassId = this.state.activeStudentClassId || currUserObj.classId || 'class_101';
+        const effGroup = this.authManager ? this.authManager.getStudentActiveGroup(currUserObj, effClassId) : null;
+        const visibleTasks = allTasks.filter(t => {
+          if (t.classId && t.classId !== effClassId) return false;
+          if (t.targetGroupId && effGroup && t.targetGroupId !== effGroup.id) return false;
+          return true;
+        });
+        const currentTaskHash = visibleTasks.map(t => `${t.id}_${t.updatedAt || t.createdAt || ''}`).join('|');
+        if (this._lastVisibleTaskHash && this._lastVisibleTaskHash !== currentTaskHash) {
+          console.log('🔄 任务大厅检测到教师端发布了新任务或更新了任务，自动刷新大厅');
+          this._lastVisibleTaskHash = currentTaskHash;
+          this.renderStudentWorkspace();
+        } else {
+          this._lastVisibleTaskHash = currentTaskHash;
+        }
+      }
+
       // ⚡ 单点守护主节点动态选举：优先由组长担当；若组长缺勤/掉线，自动由当前在场学号最小的在线成员接管，杜绝单点失效与并发重复！
-      const currUserObj = this.authManager.getCurrentUser();
       const myCode = this.state.currentUser || (currUserObj ? (currUserObj.studentCode || currUserObj.id) : 'A');
       const now = Date.now();
       const membersList = Object.values(this.state.members || {});
