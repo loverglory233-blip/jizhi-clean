@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260830_v884";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap } from "./utils.js?v=20260830_v884";
-import { callCozeAgentAPI } from "./agents.js?v=20260830_v884";
-import { AuthManager } from "./auth.js?v=20260830_v884";
-import { CloudSyncEngine } from "./sync.js?v=20260830_v884";
-import { renderLoginView } from "./login.js?v=20260830_v884";
-import { renderTeacherPortal } from "./teacher.js?v=20260830_v884";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260830_v884";
+} from "./constants.js?v=20260830_v885";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap } from "./utils.js?v=20260830_v885";
+import { callCozeAgentAPI } from "./agents.js?v=20260830_v885";
+import { AuthManager } from "./auth.js?v=20260830_v885";
+import { CloudSyncEngine } from "./sync.js?v=20260830_v885";
+import { renderLoginView } from "./login.js?v=20260830_v885";
+import { renderTeacherPortal } from "./teacher.js?v=20260830_v885";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260830_v885";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260830_v884";
+} from "./editor.js?v=20260830_v885";
 
 // Make renderChat available on window for sync callbacks
 if (typeof window !== "undefined") {
@@ -1028,11 +1028,12 @@ export class App {
         const submittedAuthors = new Set(proposals.map(p => p.author));
         const votesCastCount = Object.values(s1.hasVoted || {}).filter(Boolean).length;
 
-        // 动态自适应冷场阈值 (小任务<1h: 2分钟; 标准任务1~3h: 3分钟; 大任务>3h: 4.5分钟)
+        // 动态自适应冷场阈值（以 150 分钟为界：中任务 <=150m: 3分钟; 大任务 >150m: 4分钟）
         const allTasks = (this.authManager) ? this.authManager.getTasks() : [];
         const curTask = allTasks.find(t => t.id === this.state.activeTaskId);
-        const taskDurMin = (curTask && curTask.durationMinutes) ? Number(curTask.durationMinutes) : 60;
-        const silenceThresholdMs = taskDurMin < 60 ? 120000 : (taskDurMin <= 180 ? 180000 : 270000);
+        const taskDurMin = (curTask && curTask.durationMinutes) ? Number(curTask.durationMinutes) : 150;
+        const isLargeTask = taskDurMin > 150;
+        const silenceThresholdMs = isLargeTask ? 240000 : 180000;
 
         // 1. 【研讨互动提示】：全组长时间静默无人发言（不干活）时，温和点拨破冰（同一次连续冷场最多提醒 2 次，学生说话自动重置）！
         if (submittedCount < totalMembersCount && silenceDurationMs >= silenceThresholdMs) {
@@ -1301,12 +1302,13 @@ export class App {
         const plainTextLen = plainText.length;
         const contribs = s2.memberContributions || {};
 
-        // 动态读取任务时长判定大中小任务 (小任务<1h/60m: 冷却3.5m, 静默2m; 中任务1~3h/60~180m: 冷却6m, 静默3m; 大任务>3h/180m: 冷却10m, 静默4.5m)
+        // 动态读取任务时长判定任务规模（以 150 分钟为界：中任务 <=150m: 冷却6m/静默3m; 大任务 >150m: 冷却8m/静默4m）
         const allTasks = (this.authManager) ? this.authManager.getTasks() : [];
         const curTask = allTasks.find(t => t.id === this.state.activeTaskId);
-        const taskDurMin = (curTask && curTask.durationMinutes) ? Number(curTask.durationMinutes) : 60;
-        const s2NudgeCooldownMs = taskDurMin < 60 ? 210000 : (taskDurMin <= 180 ? 360000 : 600000);
-        const s2SilenceThresholdMs = taskDurMin < 60 ? 120000 : (taskDurMin <= 180 ? 180000 : 270000);
+        const taskDurMin = (curTask && curTask.durationMinutes) ? Number(curTask.durationMinutes) : 150;
+        const isLargeTask = taskDurMin > 150;
+        const s2NudgeCooldownMs = isLargeTask ? 480000 : 360000;
+        const s2SilenceThresholdMs = isLargeTask ? 240000 : 180000;
 
         // 1. 阶段二开场静默提示 (纯系统模板)：开场达到阈值完全静默且正文字数 < 50 字（最多2次）
         if (silenceDurationMs > s2SilenceThresholdMs && plainTextLen < 50) {
@@ -1330,7 +1332,7 @@ export class App {
         }
 
         // 2. 责任编辑过程守护：周期性读取【实际贡献百分比】与【研讨发言投入】（最多2次）
-        const minContribThreshold = taskDurMin < 60 ? 150 : (taskDurMin <= 180 ? 300 : 600);
+        const minContribThreshold = isLargeTask ? 600 : 300;
         const s2ContribCount = this._nudgeCounts['s2_contrib'] || 0;
         if (s2ContribCount < 2 && (!this.lastS2ContribNudgeTime || now - this.lastS2ContribNudgeTime > s2NudgeCooldownMs)) {
           // 1. 计算总投入与每位成员的实际贡献百分比（100% 依据 Etherpad 真实写作字数贡献）
@@ -1420,7 +1422,6 @@ export class App {
         }
 
         // ── 🛡️ 阶段二三次质检水位线标准（中任务默认4300字，大任务默认9000字） ──
-        const isLargeTask = taskDurMin > 180;
         const defaultWordTarget = isLargeTask ? 9000 : 4300;
         const targetWordCount = (curTask && curTask.targetWordCount) ? Number(curTask.targetWordCount) : defaultWordTarget;
         const wordProgress = targetWordCount > 0 ? (plainTextLen / targetWordCount) : (plainTextLen / 4300);
@@ -4830,10 +4831,11 @@ ${propText}
     const lastWarnTime = this.state.lastSSRLWarnTimeMs || 0;
     const lastWarnLen = this.state.lastSSRLWarnLen || 0;
     const totalAllocMinutes = Object.values((this.state.stage1 && this.state.stage1.contract && this.state.stage1.contract.timeAllocations) || {}).reduce((a, b) => a + Number(b || 0), 0);
-    const taskDurMin = (curTask && curTask.durationMinutes) ? Number(curTask.durationMinutes) : (totalAllocMinutes || 60);
-    const ssrlCooldownMs = taskDurMin < 60 ? 210000 : (taskDurMin <= 180 ? 360000 : 600000);
-    const minNewProgressLen = taskDurMin < 60 ? 100 : (taskDurMin <= 180 ? 200 : 400);
-    const minContribThreshold = taskDurMin < 60 ? 150 : (taskDurMin <= 180 ? 300 : 600);
+    const taskDurMin = (curTask && curTask.durationMinutes) ? Number(curTask.durationMinutes) : (totalAllocMinutes || 150);
+    const isLargeTask = taskDurMin > 150;
+    const ssrlCooldownMs = isLargeTask ? 480000 : 360000;
+    const minNewProgressLen = isLargeTask ? 120 : 60;
+    const minContribThreshold = isLargeTask ? 600 : 300;
     const cooldownPassed = (now - lastWarnTime) >= ssrlCooldownMs;
     const hasMeaningfulProgress = (plainLen - lastWarnLen) >= minNewProgressLen; // 且写了新内容
 
