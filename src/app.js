@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260831_v981";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch } from "./utils.js?v=20260831_v981";
-import { callCozeAgentAPI } from "./agents.js?v=20260831_v981";
-import { AuthManager } from "./auth.js?v=20260831_v981";
-import { CloudSyncEngine } from "./sync.js?v=20260831_v981";
-import { renderLoginView } from "./login.js?v=20260831_v981";
-import { renderTeacherPortal } from "./teacher.js?v=20260831_v981";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260831_v981";
+} from "./constants.js?v=20260831_v982";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch } from "./utils.js?v=20260831_v982";
+import { callCozeAgentAPI } from "./agents.js?v=20260831_v982";
+import { AuthManager } from "./auth.js?v=20260831_v982";
+import { CloudSyncEngine } from "./sync.js?v=20260831_v982";
+import { renderLoginView } from "./login.js?v=20260831_v982";
+import { renderTeacherPortal } from "./teacher.js?v=20260831_v982";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260831_v982";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260831_v981";
+} from "./editor.js?v=20260831_v982";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -1412,8 +1412,8 @@ export class App {
         const s2NudgeCooldownMs = isLargeTask ? 480000 : 360000;
         const s2SilenceThresholdMs = 180000; // 统一 3 分钟破冰
 
-        // 1. 阶段二开场静默提示 (纯系统模板)：开场达到阈值完全静默且正文字数 < 50 字（最多2次）
-        if (silenceDurationMs > s2SilenceThresholdMs && plainTextLen < 50) {
+        // 1. 阶段二开场起草提示：开场达到 3 分钟完全静默且正文字数 < 50 字（最多2次）
+        if (silenceDurationMs >= s2SilenceThresholdMs && plainTextLen < 50) {
           const count = this._nudgeCounts['s2_silence'] || 0;
           if (count < 2 && (!this.lastS2SilenceNudgeTime || now - this.lastS2SilenceNudgeTime > (s2SilenceThresholdMs + 60000))) {
             this.lastS2SilenceNudgeTime = now;
@@ -1421,6 +1421,32 @@ export class App {
             const msg = {
               sender: 'managingEditor',
               text: `🤝 【责任编辑·起草提示】：大家已进入阶段二正文协作！\n👉 请组员按照阶段一公约分工开始撰写各自负责的内容；撰写同时多阅读同伴段落，在研讨区互相交流衔接，协同推进！`,
+              timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+              _timeMs: now
+            };
+            if (!this.state.chatLogs.stage2) this.state.chatLogs.stage2 = [];
+            this.state.chatLogs.stage2.push(msg);
+            this.syncChatLogs();
+            if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+            renderChat(this.state);
+            return;
+          }
+        }
+
+        // 1.5 【阶段二日常研讨互动提示】：正文已起步但全组讨论区冷场满 3 分钟（不交流），温和点拨破冰（与阶段一完全对齐，学生说话自动重置）
+        if (plainTextLen >= 50 && !s2.meetingStep && !s2.isDraftConfirmed && silenceDurationMs >= s2SilenceThresholdMs) {
+          if (lastStudentMsgTime > (this._lastNudgeActivityTime?.['s2_discussion'] || 0)) {
+            this._nudgeCounts['s2_discussion'] = 0;
+          }
+          const count = this._nudgeCounts['s2_discussion'] || 0;
+          if (count < 2 && (!this.lastS2DiscussionNudgeTime || now - this.lastS2DiscussionNudgeTime > (s2SilenceThresholdMs + 60000))) {
+            this.lastS2DiscussionNudgeTime = now;
+            this._nudgeCounts['s2_discussion'] = count + 1;
+            if (!this._lastNudgeActivityTime) this._lastNudgeActivityTime = {};
+            this._lastNudgeActivityTime['s2_discussion'] = lastStudentMsgTime;
+            const msg = {
+              sender: 'managingEditor',
+              text: `💡 【责任编辑·研讨互动提示】：大家正在按公约分工撰写各自板块！可以在讨论区同步当前撰写进度与遇到的难点，彼此参考衔接，协同推进正文成型～`,
               timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
               _timeMs: now
             };
