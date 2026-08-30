@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260830_v812
+ * Version: 20260830_v813
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260830_v812';
+  const APP_VERSION = '20260830_v813';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -854,14 +854,14 @@
             removeThinkingIndicator();
             return data.reply.trim();
           }
-          // 如果后端处于生成中，采用阶梯式敏捷轮询：前 15 次 200ms 极速响应，后续 500ms 平稳等待
+          // 如果后端处于生成中，采用阶梯式敏捷轮询：前 20 次 100ms 极速响应，后续 300ms 紧密等待
           if (data && data.in_progress && data.chat_id && data.conversation_id) {
             const chatId = data.chat_id;
             const convId = data.conversation_id;
             const targetBotId = data.bot_id || botId;
-            const maxRetries = 50;
+            const maxRetries = 60;
             for (let p = 0; p < maxRetries; p++) {
-              const pollInterval = p < 15 ? 200 : 500;
+              const pollInterval = p < 20 ? 100 : 300;
               await new Promise(r => setTimeout(r, pollInterval));
               try {
                 const pollRes = await fetch(`sync.php?action=coze_poll&chat_id=${encodeURIComponent(chatId)}&conversation_id=${encodeURIComponent(convId)}&bot_id=${encodeURIComponent(targetBotId)}&userId=${encodeURIComponent(sessionUserId)}&token=${encodeURIComponent(sessionToken)}&nocache=${Date.now()}`);
@@ -9356,15 +9356,34 @@
   【无意义内容红线审查】：先审查提案是否包含无意义乱码、重复堆砌或过于空泛到无法提取论点。若命中，严禁虚构亮点，应如实简短提醒「当前内容尚未形成可评审的实质文本」并引导补充具体问题或方法设想；
   【正常实质评价】：若内容充实，必须先明确肯定该提案最出彩的 1~2 个具体优点（抓准了什么核心痛点/打破了什么教学局限），再顺势结合该方案提出 1 个具体的启发性落地建议（严禁空泛套话，纯自然语言输出，130~150字）！`;
 
-            let evalText = await callCozeAgentAPI('auctioneer', evalPrompt, { stage: 'stage1', proposalTitle: title, author: authorName, topic: title });
+            // ⏱️ 8 秒极速安全窗口：大模型超时直接无缝出具专业点评，绝不让学生傻等卡死
+            let evalPromise = callCozeAgentAPI('auctioneer', evalPrompt, { stage: 'stage1', proposalTitle: title, author: authorName, topic: title });
+            let timeoutPromise = new Promise(r => setTimeout(() => r(null), 8000));
+            let evalText = await Promise.race([evalPromise, timeoutPromise]);
+
             if (!evalText || evalText.trim().length === 0) {
               evalText = `🎪 【拍卖师·提案评估】：收到 ${authorName} 提出的选题《${title}》！该构想切中实践痛点，通过明确的研究设计打破了传统教学局限！建议后续在研究设计中进一步细化具体的实证环节与实施步骤，这样在接下来的竞拍研讨中会更具说服力！`;
             }
 
-            evalThinkingMsg.text = evalText;
-            delete evalThinkingMsg.isThinking;
+            // 🛡️ 依据唯一 ID 精准查找并原地替换，彻底杜绝引用脱节卡死
+            if (!state.chatLogs[currentStage]) state.chatLogs[currentStage] = [];
+            const targetIdx = state.chatLogs[currentStage].findIndex(m => m && m.id === tempThinkingId);
+            if (targetIdx >= 0) {
+              state.chatLogs[currentStage][targetIdx].text = evalText;
+              delete state.chatLogs[currentStage][targetIdx].isThinking;
+            } else {
+              state.chatLogs[currentStage].push({
+                sender: 'auctioneer',
+                senderName: '头脑风暴 · 学术拍卖师',
+                text: evalText,
+                timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                _timeMs: Date.now()
+              });
+            }
+
             if (window.app) {
               window.app.syncChatLogs();
+              if (window.app.cloudSyncEngine) window.app.cloudSyncEngine.pushSnapshot();
               renderChat(state);
             }
 
