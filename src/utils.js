@@ -150,14 +150,20 @@ export async function downloadFileBlob(filename, textContent = null, fileUrl = n
 
   // 1. 如果有真实文件下载 URL（无论是全路径、相对路径 /uploads/ 或 Base64 DataURL / Blob）
   if (fileUrl && typeof fileUrl === 'string' && fileUrl.trim() !== '' && fileUrl !== '#') {
-    const cleanUrl = fileUrl.trim();
+    let cleanUrl = fileUrl.trim();
+
+    // 🛡️ 智能同源相对路径标准化：提取 /uploads/ 后的路径，规避跨协议/跨域/SSL Mixed Content 拦截
+    if (cleanUrl.includes('/uploads/')) {
+      cleanUrl = cleanUrl.substring(cleanUrl.indexOf('/uploads/'));
+    }
+
     if (cleanUrl.startsWith('data:')) {
       const a = document.createElement('a');
       a.href = cleanUrl;
       a.download = safeFilename;
       document.body.appendChild(a);
       a.click();
-      setTimeout(() => { if (document.body.contains(a)) document.body.removeChild(a); }, 200);
+      setTimeout(() => { if (document.body.contains(a)) document.body.removeChild(a); }, 300);
       return;
     }
 
@@ -175,21 +181,21 @@ export async function downloadFileBlob(filename, textContent = null, fileUrl = n
         setTimeout(() => {
           if (document.body.contains(a)) document.body.removeChild(a);
           URL.revokeObjectURL(blobUrl);
-        }, 600);
+        }, 1000);
         return;
       }
     } catch (err) {
       console.warn('Fetch blob download fallback:', err);
     }
 
-    // 若 fetch 受限，使用 window.open 或原生 a 标签直接跳转下载
+    // 若 fetch 受限，使用原生 a 标签直接跳转下载
     const a = document.createElement('a');
     a.href = cleanUrl;
     a.download = safeFilename;
     a.target = '_blank';
     document.body.appendChild(a);
     a.click();
-    setTimeout(() => { if (document.body.contains(a)) document.body.removeChild(a); }, 200);
+    setTimeout(() => { if (document.body.contains(a)) document.body.removeChild(a); }, 500);
     return;
   }
 

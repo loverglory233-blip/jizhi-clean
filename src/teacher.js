@@ -9,8 +9,8 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260830_v739";
-import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash, filterAndDeduplicateChatLogs } from "./utils.js?v=20260830_v739";
+} from "./constants.js?v=20260830_v740";
+import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash, filterAndDeduplicateChatLogs } from "./utils.js?v=20260830_v740";
 
 /* ==========================================================================
    7. TEACHER PORTAL RENDERER (LIVE WORKSPACE MIRROR & ANNOUNCEMENT READ MATRIX)
@@ -3516,25 +3516,8 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
       const paperId = btn.dataset.id;
       const paper = refPapers.find(p => p.id === paperId);
       if (paper) {
-        if (paper.fileUrl) {
-          const a = document.createElement('a');
-          a.href = paper.fileUrl;
-          a.download = paper.fileName || '学术参考范文.pdf';
-          a.target = '_blank';
-          document.body.appendChild(a);
-          a.click();
-          document.body.removeChild(a);
-        } else if (paper.fileData || (window._paperMemoryBlobMap && window._paperMemoryBlobMap.get(paperId))) {
-          const fData = paper.fileData || window._paperMemoryBlobMap.get(paperId);
-          const a = document.createElement('a');
-          a.href = fData;
-          a.download = paper.fileName || '学术参考范文.pdf';
-          document.body.appendChild(a);
-          a.click();
-          document.body.removeChild(a);
-        } else {
-          downloadFileBlob(paper.fileName);
-        }
+        const fData = paper.fileUrl || paper.fileData || (window._paperMemoryBlobMap && window._paperMemoryBlobMap.get(paperId));
+        downloadFileBlob(paper.fileName || '学术参考范文.pdf', null, fData);
       }
     });
   });

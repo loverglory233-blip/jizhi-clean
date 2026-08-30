@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260830_v739";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash } from "./utils.js?v=20260830_v739";
-import { callCozeAgentAPI } from "./agents.js?v=20260830_v739";
-import { AuthManager } from "./auth.js?v=20260830_v739";
-import { CloudSyncEngine } from "./sync.js?v=20260830_v739";
-import { renderLoginView } from "./login.js?v=20260830_v739";
-import { renderTeacherPortal } from "./teacher.js?v=20260830_v739";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260830_v739";
+} from "./constants.js?v=20260830_v740";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash } from "./utils.js?v=20260830_v740";
+import { callCozeAgentAPI } from "./agents.js?v=20260830_v740";
+import { AuthManager } from "./auth.js?v=20260830_v740";
+import { CloudSyncEngine } from "./sync.js?v=20260830_v740";
+import { renderLoginView } from "./login.js?v=20260830_v740";
+import { renderTeacherPortal } from "./teacher.js?v=20260830_v740";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260830_v740";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260830_v739";
+} from "./editor.js?v=20260830_v740";
 
 // Make renderChat available on window for sync callbacks
 if (typeof window !== "undefined") {
@@ -1882,25 +1882,8 @@ ${recentChats}
         const paperId = btn.dataset.id;
         const paper = papers.find(p => p.id === paperId);
         if (paper) {
-          if (paper.fileUrl) {
-            const a = document.createElement('a');
-            a.href = paper.fileUrl;
-            a.download = paper.fileName || '学术参考范文.pdf';
-            a.target = '_blank';
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-          } else if (paper.fileData || (window._paperMemoryBlobMap && window._paperMemoryBlobMap.get(paperId))) {
-            const fileData = paper.fileData || window._paperMemoryBlobMap.get(paperId);
-            const a = document.createElement('a');
-            a.href = fileData;
-            a.download = paper.fileName || '学术参考范文.pdf';
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-          } else {
-            downloadFileBlob(paper.fileName, null, paper.fileUrl || paper.fileData);
-          }
+          const fileData = paper.fileUrl || paper.fileData || (window._paperMemoryBlobMap && window._paperMemoryBlobMap.get(paperId));
+          downloadFileBlob(paper.fileName || '学术参考范文.pdf', null, fileData);
         }
       });
     });
