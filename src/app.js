@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260830_v874";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap } from "./utils.js?v=20260830_v874";
-import { callCozeAgentAPI } from "./agents.js?v=20260830_v874";
-import { AuthManager } from "./auth.js?v=20260830_v874";
-import { CloudSyncEngine } from "./sync.js?v=20260830_v874";
-import { renderLoginView } from "./login.js?v=20260830_v874";
-import { renderTeacherPortal } from "./teacher.js?v=20260830_v874";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260830_v874";
+} from "./constants.js?v=20260830_v875";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap } from "./utils.js?v=20260830_v875";
+import { callCozeAgentAPI } from "./agents.js?v=20260830_v875";
+import { AuthManager } from "./auth.js?v=20260830_v875";
+import { CloudSyncEngine } from "./sync.js?v=20260830_v875";
+import { renderLoginView } from "./login.js?v=20260830_v875";
+import { renderTeacherPortal } from "./teacher.js?v=20260830_v875";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260830_v875";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260830_v874";
+} from "./editor.js?v=20260830_v875";
 
 // Make renderChat available on window for sync callbacks
 if (typeof window !== "undefined") {
@@ -1390,7 +1390,7 @@ export class App {
           }
         }
 
-        // ── 🛡️ 阶段二第三次质检（85% 时间 OR 90% 字数 · 责任编辑倒计时与终审定稿扫描，全场仅 1 次） ──
+        // ── 🛡️ 阶段二第三次质检（字数 >= 90% OR 时间 >= 85% OR 确认初稿 · 审稿编辑终审定稿总评，全场严格仅 1 次） ──
         const targetWordCount = (curTask && curTask.targetWordCount) ? Number(curTask.targetWordCount) : 2000;
         const wordProgress = targetWordCount > 0 ? (plainTextLen / targetWordCount) : (plainTextLen / 2000);
         const timeProgress = totalPlannedMs > 0 ? (stage2DurationMs / totalPlannedMs) : 0;
@@ -1402,37 +1402,52 @@ export class App {
           this.syncStage2();
         }
 
+        const membersList = Object.values(this.state.members || {});
+        const isLeaderClient = !membersList.length || (this.state.currentUser === membersList[0]?.studentCode || this.state.currentUser === membersList[0]?.id || this.state.currentUser === membersList[0]?.username);
+
+        // 1. 审稿编辑【第三次质检·终审定稿扫描】（全场严格仅 1 次）
         if (!hasFinalReviewInLogs && s2.reviewMilestone !== 'final_review_done' && isFinalReviewDue && !this._isTriggeringFinalReview) {
-          const membersList = Object.values(this.state.members || {});
-          const isLeaderClient = !membersList.length || (this.state.currentUser === membersList[0]?.studentCode || this.state.currentUser === membersList[0]?.id || this.state.currentUser === membersList[0]?.username);
           if (isLeaderClient || membersList.length <= 1) {
             this._isTriggeringFinalReview = true;
             s2.reviewMilestone = 'final_review_done';
             
-            const remainingStage2Min = Math.max(1, Math.ceil((totalPlannedMs - stage2DurationMs) / 60000));
-            const countdownMsg = {
-              sender: 'managingEditor',
-              senderName: '协同调度 · 责任编辑',
-              text: `🤝 【责任编辑·写作阶段倒计时提醒】：阶段二写作时间已过 85%（本阶段仅剩最后约 ${remainingStage2Min} 分钟）！请大家抓紧完成最后段落的撰写与通读。审稿编辑已为大家进行了全文终审扫描与总评，请通读核对无误后在上方逐一完成【初稿确认】，准备迎接阶段三学术答辩！`,
-              timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-              _timeMs: now
-            };
-
             const refReviewMsg = {
               sender: 'reviewingEditor',
               senderName: '学术质量 · 审稿编辑',
               text: `📝 【审稿编辑·终审定稿总评与行文扫描】：看到全组已进入最后成文冲刺阶段，整体框架完整！我对全文质量与学术规范进行了终审扫描：①【学术语体】：整体论述连贯，建议通读核对消除残留的口语化表述；②【术语规范】：前后核心概念表述保持高度统一；③【参考文献】：核对著录规范。请全组成员完成最终通读后，在上方逐一完成【初稿确认】，准备迎接阶段三学术答辩！`,
               timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-              _timeMs: now + 200
+              _timeMs: now
             };
 
             if (!this.state.chatLogs.stage2) this.state.chatLogs.stage2 = [];
-            this.state.chatLogs.stage2.push(countdownMsg, refReviewMsg);
+            this.state.chatLogs.stage2.push(refReviewMsg);
             this.syncChatLogs();
             this.syncStage2();
             if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
             renderChat(this.state);
             this._isTriggeringFinalReview = false;
+          }
+        }
+
+        // 2. 责任编辑【85% 时间写作倒计时提醒】（全场严格仅 1 次）
+        const hasCountdownInLogs = s2Chats.some(m => m && m.sender === 'managingEditor' && m.text?.includes('写作阶段倒计时提醒'));
+        if (timeProgress >= 0.85 && !hasCountdownInLogs && !s2.countdown85Sent) {
+          if (isLeaderClient || membersList.length <= 1) {
+            s2.countdown85Sent = true;
+            const remainingStage2Min = Math.max(1, Math.ceil((totalPlannedMs - stage2DurationMs) / 60000));
+            const countdownMsg = {
+              sender: 'managingEditor',
+              senderName: '协同调度 · 责任编辑',
+              text: `🤝 【责任编辑·写作阶段倒计时提醒】：阶段二写作时间已过 85%（本阶段仅剩最后约 ${remainingStage2Min} 分钟）！请大家抓紧完成最后段落的撰写与通读，在上方逐一完成【初稿确认】，准备迎接阶段三学术答辩！`,
+              timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+              _timeMs: now
+            };
+            if (!this.state.chatLogs.stage2) this.state.chatLogs.stage2 = [];
+            this.state.chatLogs.stage2.push(countdownMsg);
+            this.syncChatLogs();
+            this.syncStage2();
+            if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+            renderChat(this.state);
           }
         }
 
@@ -2937,13 +2952,69 @@ ${recentDefenseChat}
         this.renderStudentWorkspace();
       }, 800);
     }
+  }
+
+  /**
+   * 🌟 通用全员协同确认包装器：需组内全员点击确认后才真正触发大模型生成并推进
+   */
+  handleStepConfirmation(stepKey, onCompleteCallback, stepLabel) {
+    if (!this.state.stepConfirmations) this.state.stepConfirmations = {};
+    if (!this.state.stepConfirmations[stepKey]) this.state.stepConfirmations[stepKey] = {};
+
+    const user = this.state.currentUser;
+    const currUserObj = this.authManager ? this.authManager.getCurrentUser() : null;
+    const userKeys = [user, currUserObj?.id, currUserObj?.studentCode, currUserObj?.username, currUserObj?.name].filter(Boolean);
+
+    let members = [];
+    if (Array.isArray(this.state.members)) members = this.state.members;
+    else if (this.state.members && typeof this.state.members === 'object') members = Object.values(this.state.members);
+    const totalCount = members.length || 3;
+
+    const isMemberDone = (map, m) => {
+      if (!map || !m) return false;
+      return !!(map[m.id] || map[m.studentCode] || map[m.username] || (m.name && map[m.name]));
+    };
+
+    const isAlreadyDone = userKeys.some(k => this.state.stepConfirmations[stepKey][k]);
+    if (isAlreadyDone) {
+      const currentCount = members.filter(m => isMemberDone(this.state.stepConfirmations[stepKey], m)).length;
+      alert(`💡 您已经确认过【${stepLabel}】啦！\n当前全组确认进度：${currentCount}/${totalCount} 人。\n请提醒组内其他同学点击确认，全员确认后将自动提炼并推进！`);
+      return;
+    }
+
+    userKeys.forEach(k => { this.state.stepConfirmations[stepKey][k] = true; });
+    const currentCount = members.filter(m => isMemberDone(this.state.stepConfirmations[stepKey], m)).length;
+
+    const notifyMsg = {
+      sender: user,
+      text: `📢 [研讨对齐]: 我已确认【${stepLabel}】研讨就绪！（当前全组已集齐 ${currentCount}/${totalCount} 人）`,
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      _timeMs: Date.now()
+    };
+    const curStage = this.state.currentStage || 'stage1';
+    if (!this.state.chatLogs[curStage]) this.state.chatLogs[curStage] = [];
+    this.state.chatLogs[curStage].push(notifyMsg);
+    this.syncChatLogs();
+    if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
     this.renderStudentWorkspace();
+    if (typeof window.renderChat === 'function') window.renderChat(this.state);
+
+    if (currentCount >= totalCount) {
+      delete this.state.stepConfirmations[stepKey];
+      if (typeof onCompleteCallback === 'function') {
+        onCompleteCallback();
+      }
+    }
   }
 
   /**
    * 💡 阶段一公约第一步：一键提炼【最终主题】
    */
   async handleExtractTopic() {
+    this.handleStepConfirmation('s1_topic', () => this._doExtractTopic(), '最终主题');
+  }
+
+  async _doExtractTopic() {
     const s1 = this.state.stage1 || {};
     const s1ChatLogs = (this.state.chatLogs && this.state.chatLogs.stage1) ? this.state.chatLogs.stage1 : [];
     const voteNoticeIdx = s1ChatLogs.findIndex(m => m && m.text && (m.text.includes('计票结果') || m.text.includes('落槌') || m.text.includes('选题确定') || m.text.includes('投票')));
@@ -3020,6 +3091,10 @@ ${chatSnippet}
    * ⏱️ 阶段一公约第二步：一键提炼【时间分配】
    */
   async handleExtractTime() {
+    this.handleStepConfirmation('s1_time', () => this._doExtractTime(), '时间分配');
+  }
+
+  async _doExtractTime() {
     const s1 = this.state.stage1 || {};
     const s1ChatLogs = (this.state.chatLogs && this.state.chatLogs.stage1) ? this.state.chatLogs.stage1 : [];
     const topicNoticeIdx = s1ChatLogs.findIndex(m => m && m.text && (m.text.includes('主题确立') || m.text.includes('时间分配') || m.text.includes('时间规划')));
@@ -3104,6 +3179,10 @@ ${chatSnippet}
    * 👥 阶段一公约第三步：一键提炼【任务分工】并生成完整草案
    */
   async handleExtractTasks() {
+    this.handleStepConfirmation('s1_tasks', () => this._doExtractTasks(), '任务分工');
+  }
+
+  async _doExtractTasks() {
     const s1 = this.state.stage1 || {};
     let members = [];
     if (Array.isArray(this.state.members)) members = this.state.members;
@@ -4627,24 +4706,15 @@ ${propText}
       if (!isLeaderClient && membersList.length > 1) return;
       s2.reviewMilestone = 'final_review_done';
 
-      const remainingStage2Min = Math.max(1, Math.ceil((totalPlannedMs - stage2DurationMs) / 60000));
-      const countdownMsg = {
-        sender: 'managingEditor',
-        senderName: '协同调度 · 责任编辑',
-        text: `🤝 【责任编辑·写作阶段倒计时提醒】：阶段二写作时间已过 85%（本阶段仅剩最后约 ${remainingStage2Min} 分钟）！请大家抓紧完成最后段落的撰写与通读。审稿编辑已为大家进行了全文终审扫描与总评，请通读核对无误后在上方逐一完成【初稿确认】，准备迎接阶段三学术答辩！`,
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        _timeMs: now
-      };
-
       const refReviewMsg = {
         sender: 'reviewingEditor',
         senderName: '学术质量 · 审稿编辑',
         text: `📝 【审稿编辑·终审定稿总评与行文扫描】：看到全组已进入最后成文冲刺阶段，整体框架完整！我对全文质量与学术规范进行了终审扫描：①【学术语体】：整体论述连贯，建议通读核对消除残留的口语化表述；②【术语规范】：前后核心概念表述保持高度统一；③【参考文献】：核对著录规范。请全组成员完成最终核对后，在上方逐一完成【初稿确认】，准备迎接阶段三学术答辩！`,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        _timeMs: now + 200
+        _timeMs: now
       };
       if (!this.state.chatLogs.stage2) this.state.chatLogs.stage2 = [];
-      this.state.chatLogs.stage2.push(countdownMsg, refReviewMsg);
+      this.state.chatLogs.stage2.push(refReviewMsg);
       this.syncChatLogs();
       this.syncStage2();
       if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
