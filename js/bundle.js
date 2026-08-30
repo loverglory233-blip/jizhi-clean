@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260830_v772
+ * Version: 20260830_v773
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260830_v772';
+  const APP_VERSION = '20260830_v773';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -1349,7 +1349,14 @@
       } catch (e) {
         announcements = DefaultAnnouncements;
       }
-      return (Array.isArray(announcements) ? announcements : []).filter(a => !a.isSystemAction && !a.title?.includes('指导教师已重置') && !a.title?.includes('指导教师已锁定'));
+      return (Array.isArray(announcements) ? announcements : []).filter(a => 
+        !a.isSystemAction && 
+        !a.isExtension && 
+        !a.title?.includes('任务延期通知') && 
+        !a.title?.includes('时间已延长') && 
+        !a.title?.includes('指导教师已重置') && 
+        !a.title?.includes('指导教师已锁定')
+      );
     }
     saveAnnouncements(list) {
       if (Array.isArray(list)) {
@@ -8075,8 +8082,9 @@
     const groupName = activeGroupObj.name || '第 1 协作小组';
     const currentTaskTitle = currentTask ? currentTask.title : (activeTaskId === 'task_default' ? '默认写作任务' : '协作写作任务');
 
-    // 严格按【当前班级】、【当前任务】和【当前小组】三位一体过滤通知，彻底杜绝跨班级、跨任务干扰
+    // 严格按【当前班级】、【当前任务】和【当前小组】三位一体过滤教学通知（延期由瞬时大弹窗处理，不混入通知中心）
     const relevantAnnouncements = (announcements || []).filter(a => {
+      if (!a || a.isExtension || a.title?.includes('延期') || a.title?.includes('延长至')) return false;
       const matchClass = (a.classId === activeClassId) || (Array.isArray(a.targetClassIds) && a.targetClassIds.includes(activeClassId));
       const matchGroup = !a.targetGroupId || a.targetGroupId === 'all' || a.targetGroupId === groupId ||
         (Array.isArray(a.targetGroupIds) && (a.targetGroupIds.includes('all') || a.targetGroupIds.includes(groupId)));
@@ -12431,29 +12439,24 @@
 
       const isExtensionNotice = (a) => !!(a && (a.isExtension || a.title?.includes('延期通知') || a.title?.includes('时间已延长') || a.title?.includes('延长至')));
 
-      // 🎯 精确区分两大场景：
-      // 1. 任务大厅模式：只展示与统计【本班级】的【任务延长信息】
-      // 2. 工作台模式：三维精准对应【当前任务 + 本班级 + 本小组】的【教学通知】及【当前任务的延期通知】
+      // 🎯 教学通知中心仅展示与统计纯正的【教学任务与作业通知】（延期由瞬时大弹窗处理，不堆积在通知中心）
       const myAnns = allAnns
         .filter(a => {
           if (!a) return false;
+          if (isExtensionNotice(a)) return false; // 🚫 彻底屏蔽延期通知混入通知中心
           const matchClass = (a.classId === effectiveClassId) || 
                              (effectiveClassName && a.className === effectiveClassName) ||
                              (Array.isArray(a.targetClassIds) && a.targetClassIds.includes(effectiveClassId));
-          if (isTaskListMode) {
-            return matchClass && isExtensionNotice(a);
-          } else {
-            const matchGroup = !a.targetGroupId || a.targetGroupId === 'all' || a.targetGroupId === groupId ||
-              (Array.isArray(a.targetGroupIds) && (a.targetGroupIds.includes('all') || a.targetGroupIds.includes(groupId)));
-            const matchTask = (a.taskId === 'task_all' || a.taskId === activeTaskId || (!a.taskId && activeTaskId === 'task_default'));
-            return matchClass && matchGroup && matchTask;
-          }
+          const matchGroup = !a.targetGroupId || a.targetGroupId === 'all' || a.targetGroupId === groupId ||
+            (Array.isArray(a.targetGroupIds) && (a.targetGroupIds.includes('all') || a.targetGroupIds.includes(groupId)));
+          const matchTask = (a.taskId === 'task_all' || a.taskId === activeTaskId || (!a.taskId && activeTaskId === 'task_default'));
+          return matchClass && matchGroup && matchTask;
         })
         .sort((a, b) => (b.id > a.id ? 1 : -1));
 
       if (myAnns.length === 0) {
         if (!isSequentialFlow) {
-          alert(isTaskListMode ? '⏳ 暂无本班级的任务时间延期通知！' : '📢 暂无针对当前写作任务的教学通知！');
+          alert('📢 暂无针对当前写作任务的教学通知！');
         }
         return;
       }
