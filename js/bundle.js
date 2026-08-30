@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260830_v872
+ * Version: 20260830_v873
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260830_v872';
+  const APP_VERSION = '20260830_v873';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -10703,42 +10703,42 @@
             </div>
           ` : ''}
           <div class="card-title" style="margin-bottom:14px;">
-            <span style="color:#0f172a;">🎓 答辩委员会改进意见与组内裁决矩阵 ${isFinalSubmitted ? '<span style="font-size:11px; color:#059669; margin-left:6px;">(🔒 已全盘提交归档)</span>' : (isRevisionFullyConfirmed ? '<span style="font-size:11px; color:#059669; margin-left:6px;">(🔒 全员已确认进入终稿修改 · 答辩已锁定归档)</span>' : '')}</span>
+            <span style="color:#0f172a;">📋 答辩与终稿修改清单 ${isFinalSubmitted ? '<span style="font-size:11px; color:#059669; margin-left:6px;">(🔒 已全盘提交归档)</span>' : (isRevisionFullyConfirmed ? '<span style="font-size:11px; color:#059669; margin-left:6px;">(🔒 全员已确认进入终稿修改 · 答辩清单已定案归档)</span>' : '')}</span>
           </div>
           <div style="display:flex; flex-direction:column; gap:14px;">
             ${(state.stage3CommitteeLoading || !s3.feedbackItems || s3.feedbackItems.length === 0) ? `
               <div style="background:#ffffff; border:1px solid #bfdbfe; border-radius:12px; padding:36px 24px; text-align:center; box-shadow:0 4px 12px rgba(37,99,235,0.06);">
                 <div style="font-size:36px; margin-bottom:12px;">⏳</div>
                 <div style="font-size:16px; font-weight:800; color:#1e40af; margin-bottom:6px;">答辩委员会专家正在审阅全篇论文初稿...</div>
-                <div style="font-size:13px; color:#64748b; line-height:1.6;">正方委员正在提取立论亮点，反方委员正在研拟针对实质询。<br>评审意见与质询要点即将在此生成，并同步呈现在右侧研讨区，请稍候！</div>
+                <div style="font-size:13px; color:#64748b; line-height:1.6;">正方委员正在提取立论亮点，反方委员正在研拟针对实质询。<br>【答辩与终稿修改清单】即将在此生成，并同步呈现在右侧研讨区，请稍候！</div>
               </div>
             ` : s3.feedbackItems.map((item, idx) => {
               const isProp = item.role === 'proponent';
               const hasResponse = !!(item.response && item.response.trim());
-              let badgeText = '⏳ 待组内研讨答辩';
+              let badgeText = '⏳ 待研讨';
               let badgeBg = '#fffbeb';
               let badgeColor = '#d97706';
               let badgeBorder = '#fde68a';
 
               if (hasResponse) {
-                badgeText = isProp ? '✅ 已补充论据并归档' : '✅ 已答辩并归档';
+                badgeText = '✅ 已定案';
                 badgeBg = '#ecfdf5';
                 badgeColor = '#059669';
                 badgeBorder = '#a7f3d0';
               } else if (isProp) {
-                badgeText = '🌟 专家肯定 (立论支持无需答辩)';
+                badgeText = '🌟 专家肯定 (立论支持)';
                 badgeBg = '#eff6ff';
                 badgeColor = '#2563eb';
                 badgeBorder = '#bfdbfe';
               }
 
               return `
-              <div style="background:#ffffff; padding:16px; border-radius:12px; border:1px solid ${isProp ? '#86efac' : '#fca5a5'}; box-shadow:0 2px 8px rgba(15,23,42,0.04);">
+              <div style="background:#ffffff; padding:16px; border-radius:12px; border:1px solid ${isProp ? '#86efac' : (hasResponse ? '#a7f3d0' : '#fca5a5')}; box-shadow:0 2px 8px rgba(15,23,42,0.04);">
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
                   <div style="display:flex; align-items:center; gap:8px;">
-                    <span style="font-size:16px;">${isProp ? '🟢' : '🔴'}</span>
-                    <span style="font-weight:800; font-size:14.5px; color:${isProp ? '#059669' : '#dc2626'};">
-                      ${isProp ? '专家立论支持' : `质询要点 ${idx}`}: ${escapeHtml(item.speaker || (isProp ? '正方委员 Agent' : '反方委员 Agent'))} - ${escapeHtml(item.title || '')}
+                    <span style="font-size:16px;">${isProp ? '🟢' : (hasResponse ? '✅' : '🔴')}</span>
+                    <span style="font-weight:800; font-size:14.5px; color:${isProp ? '#059669' : (hasResponse ? '#0f766e' : '#dc2626')};">
+                      ${isProp ? '专家立论支持' : `意见 ${idx}`}: ${escapeHtml(item.speaker || (isProp ? '正方委员 Agent' : '反方委员 Agent'))} - ${escapeHtml(item.title || '')}
                     </span>
                   </div>
                   <span style="font-size:11.5px; padding:3px 10px; border-radius:12px; font-weight:700; background:${badgeBg}; color:${badgeColor}; border:1px solid ${badgeBorder};">
@@ -11193,6 +11193,40 @@
               window.app.handleS2ReviewingSummary();
             }
           });
+        }
+      } else if (curStage === 'stage3') {
+        const s3 = state.stage3 || {};
+        const feedbacks = Array.isArray(s3.feedbackItems) ? s3.feedbackItems : [];
+        const pendingInquiries = feedbacks.filter(f => f.role === 'opponent' && (!f.response || !f.response.trim()));
+        const currentInquiry = pendingInquiries[0];
+
+        if (currentInquiry) {
+          const inqIndex = feedbacks.indexOf(currentInquiry);
+          const inqLabel = inqIndex >= 1 ? `意见 ${inqIndex}` : '当前质询';
+          actionBar.style.display = 'block';
+          actionBar.innerHTML = `
+            <button id="btn-s3-inquiry-summary" style="background:linear-gradient(135deg, #d97706, #b45309); border:none; color:white; padding:7px 18px; border-radius:18px; font-weight:800; font-size:12.5px; cursor:pointer; display:inline-flex; align-items:center; gap:6px; box-shadow:0 3px 10px rgba(217,119,6,0.25); transition:all 0.2s;">
+              💡 ${inqLabel} 讨论差不多了？帮我总结并填入
+            </button>
+          `;
+          actionBar.querySelector('#btn-s3-inquiry-summary')?.addEventListener('click', () => {
+            if (window.app && typeof window.app.handleS3InquirySummary === 'function') {
+              window.app.handleS3InquirySummary(currentInquiry);
+            }
+          });
+        } else if (feedbacks.length > 0) {
+          actionBar.style.display = 'block';
+          actionBar.innerHTML = `
+            <button id="btn-s3-goto-editor" style="background:linear-gradient(135deg, #059669, #047857); border:none; color:white; padding:7px 18px; border-radius:18px; font-weight:800; font-size:12.5px; cursor:pointer; display:inline-flex; align-items:center; gap:6px; box-shadow:0 3px 10px rgba(5,150,105,0.25); transition:all 0.2s;">
+              🚀 全部意见已定案！前往【修改论文终稿】完善正文 →
+            </button>
+          `;
+          actionBar.querySelector('#btn-s3-goto-editor')?.addEventListener('click', () => {
+            document.getElementById('tab-btn-editor')?.click();
+          });
+        } else {
+          actionBar.style.display = 'none';
+          actionBar.innerHTML = '';
         }
       } else {
         actionBar.style.display = 'none';
@@ -12687,72 +12721,24 @@
           const feedbacks = Array.isArray(s3.feedbackItems) ? s3.feedbackItems : [];
           const pendingFeedbacks = feedbacks.filter(f => !f.response || f.response.trim().length === 0);
 
-          // ── 🎓 阶段三质询答辩核心闭环 (与阶段一/阶段二完全统一：学生讨论 ➔ 40s 静默 ➔ 中间委员通读总结判定 + 自动顺推) ──
-          const currentPendingInquiry = feedbacks.find(f => f.role === 'opponent' && (!f.response || f.response.trim().length === 0));
-          if (currentPendingInquiry && lastStudentMsg && (now - (lastStudentMsg._timeMs || 0) >= 40000) && !this._isEvaluatingInquiry) {
-            const lastChairIdx = s3Chats.map(m => m.sender).lastIndexOf('neutral');
-            const msgsForInquiry = s3Chats.slice(lastChairIdx + 1).filter(m => m.sender && !AgentProfiles[m.sender] && m.sender !== 'system');
-
-            if (msgsForInquiry.length > 0) {
-              this._isEvaluatingInquiry = true;
-              const inquiryIndex = feedbacks.indexOf(currentPendingInquiry);
-              const chatContent = msgsForInquiry.map(m => `${m.senderName || m.sender}: ${m.text}`).join('\n');
-              const topic = (this.state.stage1 && this.state.stage1.mergedTitle) ? this.state.stage1.mergedTitle : '论文方案';
-
-              const remainingOppCount = feedbacks.filter(f => f.role === 'opponent' && (!f.response || f.response.trim().length === 0)).length;
-
-              const evalInquiryPrompt = `小组成员已就核心课题《${topic}》针对【反方质询】在研讨区展开了辩护商议。
-  【反方原始质询】: ${currentPendingInquiry.comment}
-  【小组成员的真实辩护讨论记录】:
-  ${chatContent}
-
-  请作为学术答辩委员会主席（中间委员），发表 100~130 字的【答辩研讨小结与矩阵录入提醒】：
-  1. 【提炼辩护要点】：肯定并提炼全组成员在研讨中商定出的核心辩护思路与操作化措施；
-  2. 【提醒录入矩阵】：明确提醒小组成员推选一位代表，将商定好的辩护共识录入到左侧【答辩裁决矩阵】对应质询下方并保存，随后系统将进行下一步评审与推进！
-  （纯学术语体，亲切自然，100~130字，严禁输出代码块或技术标记）`;
-
-              setTimeout(async () => {
-                try {
-                  const evalReply = await callCozeAgentAPI('neutral', evalInquiryPrompt, { stage: 'stage3', topic });
-                  const fallbackText = `🟡 【中间委员·答辩小结与录入指引】：关注到全组已围绕当前质询商定好了清晰的辩护对策！👉 请组内推选一位代表，将商定好的辩护陈述录入到左侧【答辩交锋区】对应质询卡片下方并保存！`;
-
-                  const finalChairText = (evalReply && evalReply.trim().length > 0) ? evalReply.trim() : fallbackText;
-
-                  const chairMsgObj = {
-                    sender: 'neutral',
-                    text: finalChairText.startsWith('🟡') ? finalChairText : `🟡 【中间委员·答辩小结与录入指引】：${finalChairText}`,
-                    timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                    _timeMs: Date.now()
-                  };
-                  if (!this.state.chatLogs.stage3) this.state.chatLogs.stage3 = [];
-                  this.state.chatLogs.stage3.push(chairMsgObj);
-                  this.syncChatLogs();
-                  if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
-                  this.renderStudentWorkspace();
-                  renderChat(this.state);
-                } catch (e) {
-                  console.warn('Inquiry evaluation error:', e);
-                } finally {
-                  this._isEvaluatingInquiry = false;
-                }
-              }, 100);
-              return;
-            }
-          }
-
-          // 1. 阶段三开场引导下发后，若全组静默超过 3.5 分钟且仍有未完成质询：温和提示展开讨论（最多连续 2 次，有新发言自动重置）
-          if (silenceDurationMs > 210000 && pendingFeedbacks.length > 0) {
+          // ── 🎓 阶段三静默守护：中间委员引导后，若全组静默超过 2.5 分钟且仍有待研讨质询，温和提示展开讨论（最多连续 2 次，有新发言自动重置）
+          if (silenceDurationMs > 150000 && pendingFeedbacks.length > 0) {
             if (lastStudentMsg && (lastStudentMsg._timeMs || 0) > (this._lastNudgeActivityTime?.['s3_silence'] || 0)) {
               this._nudgeCounts['s3_silence'] = 0;
             }
             const count = this._nudgeCounts['s3_silence'] || 0;
-            if (count < 2 && (!this.lastS3SilenceNudgeTime || now - this.lastS3SilenceNudgeTime > 240000)) {
+            if (count < 2 && (!this.lastS3SilenceNudgeTime || now - this.lastS3SilenceNudgeTime > 200000)) {
               this.lastS3SilenceNudgeTime = now;
               this._nudgeCounts['s3_silence'] = count + 1;
               if (!this._lastNudgeActivityTime) this._lastNudgeActivityTime = {};
               this._lastNudgeActivityTime['s3_silence'] = lastStudentMsg ? (lastStudentMsg._timeMs || now) : now;
-              const s3SilenceFallback = `🟡 【中间委员·答辩研讨提示】：请大家结合左侧矩阵中的正反方意见，在讨论区展开辩护交流；讨论成熟后我将为大家提炼答辩陈述！`;
-              this.queueAgentNudge('neutral', `正反两方评审意见已送达，但讨论区已静默一段时间。请以中间委员身份，引导大家结合反方质询点在讨论区展开辩护研讨交流。80~120 字。`, s3SilenceFallback, 'stage3');
+
+              const currentPending = pendingFeedbacks[0];
+              const inqIndex = feedbacks.indexOf(currentPending);
+              const inqLabel = inqIndex >= 1 ? `意见 ${inqIndex}` : '当前质询';
+
+              const s3SilenceFallback = `🟡 【中间委员·答辩研讨提示】：请大家结合左侧【${inqLabel}】在研讨区展开辩护商议；研讨差不多后，点击上方【💡 ${inqLabel} 讨论差不多了？帮我总结并填入】按钮，我将为大家提炼答辩词并自动回填定案！`;
+              this.queueAgentNudge('neutral', `反方质询【${inqLabel}】已下发，但讨论区已静默超过 2.5 分钟。请以答辩委员会主席（中间委员）身份，启发全组结合该质询展开辩护商讨，并说明商定后点击上方按钮即可一键总结填入。80~110 字。`, s3SilenceFallback, 'stage3');
               return;
             }
           }
@@ -14603,6 +14589,94 @@
       }
     }
 
+    /**
+     * 🎓 阶段三队列式逐条研讨：一键提炼当前质询答辩词，自动回填左侧矩阵，并顺推下一题/终审裁决
+     */
+    async handleS3InquirySummary(targetInquiry) {
+      const s3 = this.state.stage3 || {};
+      const feedbacks = Array.isArray(s3.feedbackItems) ? s3.feedbackItems : [];
+      const currentInquiry = targetInquiry || feedbacks.find(f => f.role === 'opponent' && (!f.response || !f.response.trim()));
+      if (!currentInquiry) return;
+
+      const inqIndex = feedbacks.indexOf(currentInquiry);
+      const inqLabel = inqIndex >= 1 ? `意见 ${inqIndex}` : '当前质询';
+
+      const s3ChatLogs = (this.state.chatLogs && this.state.chatLogs.stage3) ? this.state.chatLogs.stage3 : [];
+      const lastChairIdx = s3ChatLogs.map(m => m.sender).lastIndexOf('neutral');
+      const msgsForInquiry = s3ChatLogs.slice(lastChairIdx + 1).filter(m => m.sender && !AgentProfiles[m.sender] && m.sender !== 'system');
+      const chatSnippet = msgsForInquiry.map(m => `${m.senderName || m.sender}: ${m.text}`).join('\n') || '组员正在商讨辩护思路与修改对策';
+
+      const remainingOppCount = feedbacks.filter(f => f.role === 'opponent' && f !== currentInquiry && (!f.response || !f.response.trim())).length;
+      const nextInquiry = feedbacks.find(f => f.role === 'opponent' && f !== currentInquiry && (!f.response || !f.response.trim()));
+      const nextIndex = nextInquiry ? feedbacks.indexOf(nextInquiry) : -1;
+      const nextLabel = nextIndex >= 1 ? `意见 ${nextIndex}` : '下一项质询';
+
+      const topic = (this.state.stage1 && this.state.stage1.mergedTitle) ? this.state.stage1.mergedTitle : '论文方案';
+
+      const evalInquiryPrompt = `小组成员已就核心课题《${topic}》针对【反方质询 ${inqLabel}】在研讨区展开了辩护与修改商议。
+  【反方原始质询】: ${currentInquiry.comment || currentInquiry.content}
+  【小组成员的真实辩护讨论记录】:
+  ${chatSnippet}
+
+  请作为答辩委员会主席（中间委员），发表【答辩审阅定案与顺推裁决】：
+  1. 【提炼答辩共识】：精准提炼全组成员达成的核心辩护陈述与修改方案要点（用于回填归档）；
+  2. 【委员会定案与推进】：
+     ${remainingOppCount > 0
+       ? `① 宣布【${inqLabel}】辩护有效并予以采纳，答辩陈述已定案回填入库；\n② 【单题顺推】：顺承引导全组将焦点转向【${nextLabel}】展开深入研讨，并给出 1 条启发性思路点拨！`
+       : `① 宣布全部质询辩护完毕且均获委员会全票认可，已全部定案；\n② 发表答辩终审裁决总结，祝贺团队圆满通过学术答辩，提醒全组点击左侧【修改论文终稿】面板，将答辩修改落实到正文中准备最终归档！`}
+  请按以下格式输出：
+  答辩陈述：[提取的 60~90 字精准答辩词，用于回填左侧矩阵]
+  主席发言：[100~130 字自然语言点评与顺推裁决]`;
+
+      try {
+        const resp = await callCozeAgentAPI('neutral', evalInquiryPrompt, { stage: 'stage3', topic });
+        let extractedResponse = chatSnippet.slice(0, 150);
+        let chairSpeech = (remainingOppCount > 0)
+          ? `🟡 【中间委员·答辩定案与顺推】：【${inqLabel}】辩护方案已定案归档！👉 请全组将研讨焦点转向【${nextLabel}】，继续在讨论区商定对策！商定后点击上方【💡 ${nextLabel} 讨论差不多了？帮我总结并填入】！`
+          : `🟡 【中间委员·答辩终审总结与裁决】：🎉 各位研究者，全部质询均已辩护定案并获委员会全票认可！答辩圆满顺利通过！👉 请全组成员点击左侧【修改论文终稿】面板，将答辩中的修改共识落实到论文终稿正文中，准备最终归档！`;
+
+        if (resp && resp.trim().length > 0) {
+          const lines = resp.trim().split('\n');
+          const respLine = lines.find(l => l.includes('答辩陈述：') || l.includes('答辩陈述:'));
+          const speechLine = lines.find(l => l.includes('主席发言：') || l.includes('主席发言:'));
+          if (respLine) extractedResponse = respLine.replace(/^.*答辩陈述[：:]\s*/, '').trim() || extractedResponse;
+          if (speechLine) chairSpeech = speechLine.replace(/^.*主席发言[：:]\s*/, '').trim() || chairSpeech;
+          else if (!respLine && lines.length > 0) chairSpeech = resp.trim();
+        }
+
+        // 自动回填至左侧当前卡片并标记定案
+        currentInquiry.response = extractedResponse;
+        currentInquiry.isFinalized = true;
+        currentInquiry.status = 'finalized';
+
+        if (!chairSpeech.startsWith('🟡')) {
+          chairSpeech = `🟡 【中间委员·答辩定案与顺推】：${chairSpeech}`;
+        }
+
+        const chairMsgObj = {
+          sender: 'neutral',
+          senderName: '答辩委员会主席 · 中间委员',
+          text: chairSpeech,
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          _timeMs: Date.now()
+        };
+        s3ChatLogs.push(chairMsgObj);
+
+        this.syncStage3();
+        this.syncChatLogs();
+        if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+        this.renderStudentWorkspace();
+        renderChat(this.state);
+      } catch (e) {
+        console.warn('handleS3InquirySummary error:', e);
+        currentInquiry.response = msgsForInquiry.map(m => m.text).join('；').slice(0, 150) || '全组已达成辩护共识并落实修改。';
+        currentInquiry.isFinalized = true;
+        this.syncStage3();
+        this.renderStudentWorkspace();
+        renderChat(this.state);
+      }
+    }
+
     async handleAiGenerateContract() {
       await this.handleExtractTasks();
     }
@@ -14860,17 +14934,18 @@
   【反方质询】: ${oppText}
 
   请作为答辩委员会主席（中间委员），发表 130~150 字的【针对质询 ① 独立答辩思路引导】：
-  ① 宣布正反方评审已正式送达并入驻左侧矩阵，肯定正方的创新与实践价值，明确指出反方提出了针对实质询；
-  ② 【单题独立引导·核心铁律】：本次只聚焦【质询 ①】，结合反方质询①的具体内容给出清晰的答辩破局/操作化补救思路支架（严禁提及或剧透质询②！）；
-  ③ 引导全组在讨论区充分商讨，商定后由一位代表录入左侧矩阵！纯自然语言输出，130~150字。`;
+  ① 宣布正反方评审已正式送达并生成【答辩与终稿修改清单】，肯定正方的创新与实践价值，明确指出反方提出了针对实质询；
+  ② 【单题独立引导·核心铁律】：本次只聚焦【意见 1 / 质询 ①】，结合反方质询①的具体内容给出清晰的答辩破局/操作化补救思路支架（严禁提及或剧透后续质询！）；
+  ③ 引导全组在讨论区充分商讨，商定差不多后点击聊天框上方【💡 意见 1 讨论差不多了？帮我总结并填入】按钮！纯自然语言输出，130~150字。`;
 
           let chairText = await callCozeAgentAPI('neutral', chairPrompt, { stage: 'stage3', topic, prop: propText, opp: oppText, queryPoint: 1 });
           if (!chairText || chairText.trim().length === 0) {
-            chairText = `🟡 【中间委员·针对质询 ① 答辩思路引导】：正反方评审已送达并入驻左侧矩阵！请大家通读正反方意见，首先聚焦【质询 ①】：建议结合正方提到的优势，在答辩中阐明针对质询①的具体破局与操作化补救思路！请全组在讨论区商定答辩词后，由一位代表录入左侧矩阵！`;
+            chairText = `🟡 【中间委员·针对意见 1 答辩思路引导】：正反方评审已正式送达并生成修改清单！请大家通读意见，首先聚焦【意见 1】：建议结合正方提到的优势，在答辩中阐明针对意见1的具体破局与操作化补救思路！请全组在讨论区商定对策，商定后点击上方【💡 意见 1 讨论差不多了？帮我总结并填入】按钮！`;
           }
 
           const chairMsg = {
             sender: 'neutral',
+            senderName: '答辩委员会主席 · 中间委员',
             text: chairText,
             timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
             _timeMs: Date.now()

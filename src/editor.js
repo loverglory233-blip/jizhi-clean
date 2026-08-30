@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles } from "./constants.js?v=20260830_v872";
-import { callCozeAgentAPI } from "./agents.js?v=20260830_v872";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap } from "./utils.js?v=20260830_v872";
+import { AgentProfiles } from "./constants.js?v=20260830_v873";
+import { callCozeAgentAPI } from "./agents.js?v=20260830_v873";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap } from "./utils.js?v=20260830_v873";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -2588,42 +2588,42 @@ function renderStage3Canvas(canvas, state, handlers) {
           </div>
         ` : ''}
         <div class="card-title" style="margin-bottom:14px;">
-          <span style="color:#0f172a;">🎓 答辩委员会改进意见与组内裁决矩阵 ${isFinalSubmitted ? '<span style="font-size:11px; color:#059669; margin-left:6px;">(🔒 已全盘提交归档)</span>' : (isRevisionFullyConfirmed ? '<span style="font-size:11px; color:#059669; margin-left:6px;">(🔒 全员已确认进入终稿修改 · 答辩已锁定归档)</span>' : '')}</span>
+          <span style="color:#0f172a;">📋 答辩与终稿修改清单 ${isFinalSubmitted ? '<span style="font-size:11px; color:#059669; margin-left:6px;">(🔒 已全盘提交归档)</span>' : (isRevisionFullyConfirmed ? '<span style="font-size:11px; color:#059669; margin-left:6px;">(🔒 全员已确认进入终稿修改 · 答辩清单已定案归档)</span>' : '')}</span>
         </div>
         <div style="display:flex; flex-direction:column; gap:14px;">
           ${(state.stage3CommitteeLoading || !s3.feedbackItems || s3.feedbackItems.length === 0) ? `
             <div style="background:#ffffff; border:1px solid #bfdbfe; border-radius:12px; padding:36px 24px; text-align:center; box-shadow:0 4px 12px rgba(37,99,235,0.06);">
               <div style="font-size:36px; margin-bottom:12px;">⏳</div>
               <div style="font-size:16px; font-weight:800; color:#1e40af; margin-bottom:6px;">答辩委员会专家正在审阅全篇论文初稿...</div>
-              <div style="font-size:13px; color:#64748b; line-height:1.6;">正方委员正在提取立论亮点，反方委员正在研拟针对实质询。<br>评审意见与质询要点即将在此生成，并同步呈现在右侧研讨区，请稍候！</div>
+              <div style="font-size:13px; color:#64748b; line-height:1.6;">正方委员正在提取立论亮点，反方委员正在研拟针对实质询。<br>【答辩与终稿修改清单】即将在此生成，并同步呈现在右侧研讨区，请稍候！</div>
             </div>
           ` : s3.feedbackItems.map((item, idx) => {
             const isProp = item.role === 'proponent';
             const hasResponse = !!(item.response && item.response.trim());
-            let badgeText = '⏳ 待组内研讨答辩';
+            let badgeText = '⏳ 待研讨';
             let badgeBg = '#fffbeb';
             let badgeColor = '#d97706';
             let badgeBorder = '#fde68a';
 
             if (hasResponse) {
-              badgeText = isProp ? '✅ 已补充论据并归档' : '✅ 已答辩并归档';
+              badgeText = '✅ 已定案';
               badgeBg = '#ecfdf5';
               badgeColor = '#059669';
               badgeBorder = '#a7f3d0';
             } else if (isProp) {
-              badgeText = '🌟 专家肯定 (立论支持无需答辩)';
+              badgeText = '🌟 专家肯定 (立论支持)';
               badgeBg = '#eff6ff';
               badgeColor = '#2563eb';
               badgeBorder = '#bfdbfe';
             }
 
             return `
-            <div style="background:#ffffff; padding:16px; border-radius:12px; border:1px solid ${isProp ? '#86efac' : '#fca5a5'}; box-shadow:0 2px 8px rgba(15,23,42,0.04);">
+            <div style="background:#ffffff; padding:16px; border-radius:12px; border:1px solid ${isProp ? '#86efac' : (hasResponse ? '#a7f3d0' : '#fca5a5')}; box-shadow:0 2px 8px rgba(15,23,42,0.04);">
               <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
                 <div style="display:flex; align-items:center; gap:8px;">
-                  <span style="font-size:16px;">${isProp ? '🟢' : '🔴'}</span>
-                  <span style="font-weight:800; font-size:14.5px; color:${isProp ? '#059669' : '#dc2626'};">
-                    ${isProp ? '专家立论支持' : `质询要点 ${idx}`}: ${escapeHtml(item.speaker || (isProp ? '正方委员 Agent' : '反方委员 Agent'))} - ${escapeHtml(item.title || '')}
+                  <span style="font-size:16px;">${isProp ? '🟢' : (hasResponse ? '✅' : '🔴')}</span>
+                  <span style="font-weight:800; font-size:14.5px; color:${isProp ? '#059669' : (hasResponse ? '#0f766e' : '#dc2626')};">
+                    ${isProp ? '专家立论支持' : `意见 ${idx}`}: ${escapeHtml(item.speaker || (isProp ? '正方委员 Agent' : '反方委员 Agent'))} - ${escapeHtml(item.title || '')}
                   </span>
                 </div>
                 <span style="font-size:11.5px; padding:3px 10px; border-radius:12px; font-weight:700; background:${badgeBg}; color:${badgeColor}; border:1px solid ${badgeBorder};">
@@ -3078,6 +3078,40 @@ export function renderChat(state) {
             window.app.handleS2ReviewingSummary();
           }
         });
+      }
+    } else if (curStage === 'stage3') {
+      const s3 = state.stage3 || {};
+      const feedbacks = Array.isArray(s3.feedbackItems) ? s3.feedbackItems : [];
+      const pendingInquiries = feedbacks.filter(f => f.role === 'opponent' && (!f.response || !f.response.trim()));
+      const currentInquiry = pendingInquiries[0];
+
+      if (currentInquiry) {
+        const inqIndex = feedbacks.indexOf(currentInquiry);
+        const inqLabel = inqIndex >= 1 ? `意见 ${inqIndex}` : '当前质询';
+        actionBar.style.display = 'block';
+        actionBar.innerHTML = `
+          <button id="btn-s3-inquiry-summary" style="background:linear-gradient(135deg, #d97706, #b45309); border:none; color:white; padding:7px 18px; border-radius:18px; font-weight:800; font-size:12.5px; cursor:pointer; display:inline-flex; align-items:center; gap:6px; box-shadow:0 3px 10px rgba(217,119,6,0.25); transition:all 0.2s;">
+            💡 ${inqLabel} 讨论差不多了？帮我总结并填入
+          </button>
+        `;
+        actionBar.querySelector('#btn-s3-inquiry-summary')?.addEventListener('click', () => {
+          if (window.app && typeof window.app.handleS3InquirySummary === 'function') {
+            window.app.handleS3InquirySummary(currentInquiry);
+          }
+        });
+      } else if (feedbacks.length > 0) {
+        actionBar.style.display = 'block';
+        actionBar.innerHTML = `
+          <button id="btn-s3-goto-editor" style="background:linear-gradient(135deg, #059669, #047857); border:none; color:white; padding:7px 18px; border-radius:18px; font-weight:800; font-size:12.5px; cursor:pointer; display:inline-flex; align-items:center; gap:6px; box-shadow:0 3px 10px rgba(5,150,105,0.25); transition:all 0.2s;">
+            🚀 全部意见已定案！前往【修改论文终稿】完善正文 →
+          </button>
+        `;
+        actionBar.querySelector('#btn-s3-goto-editor')?.addEventListener('click', () => {
+          document.getElementById('tab-btn-editor')?.click();
+        });
+      } else {
+        actionBar.style.display = 'none';
+        actionBar.innerHTML = '';
       }
     } else {
       actionBar.style.display = 'none';
