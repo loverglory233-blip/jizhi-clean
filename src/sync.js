@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState } from './constants.js?v=20260831_v969';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap } from './utils.js?v=20260831_v969';
+import { InitialState } from './constants.js?v=20260831_v970';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap } from './utils.js?v=20260831_v970';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -1194,10 +1194,17 @@ export class CloudSyncEngine {
 
     this.app.saveGroupState(myGroupId);
     
-    // 🛡️ 输入中焦点保护：如果用户当前正在聊天框打字或输入法合成中，绝不冲刷消息列表
+    // 🛡️ Safari / WebKit 核心保护：如果用户正在任意输入框、富文本或 Etherpad iframe 内打字，绝对禁止重绘工作区
     const activeEl = document.activeElement;
-    const isTypingInChat = activeEl && (activeEl.id === 'chat-input' || activeEl.tagName === 'TEXTAREA' || activeEl.isContentEditable);
-    if (!isTypingInChat) {
+    const isTyping = activeEl && (
+      activeEl.id === 'chat-input' ||
+      activeEl.tagName === 'INPUT' ||
+      activeEl.tagName === 'TEXTAREA' ||
+      activeEl.tagName === 'IFRAME' ||
+      activeEl.isContentEditable ||
+      window._isGlobalComposing
+    );
+    if (!isTyping) {
       if (typeof window.renderChat === 'function') window.renderChat(this.app.state);
       if (needWorkspaceRender) {
         this.app.renderStudentWorkspace();
