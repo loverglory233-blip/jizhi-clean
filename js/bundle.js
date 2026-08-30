@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260830_v911
+ * Version: 20260830_v912
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260830_v911';
+  const APP_VERSION = '20260830_v912';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -3521,12 +3521,18 @@
           // 稳健补全缺省 senderName
           const allUsers = this.app.authManager ? this.app.authManager.getUsers() : [];
           const membersList = Array.isArray(this.app.state.members) ? this.app.state.members : Object.values(this.app.state.members || {});
+          const _isSame = (typeof isSameUser === 'function') ? isSameUser : (a, b) => {
+            if (!a || !b) return false;
+            const k1 = typeof a === 'object' ? (a.studentCode || a.id || a.username || a.name) : a;
+            const k2 = typeof b === 'object' ? (b.studentCode || b.id || b.username || b.name) : b;
+            return k1 && k2 && String(k1).trim().toLowerCase() === String(k2).trim().toLowerCase();
+          };
           mergedList.forEach(m => {
             if (!m.senderName && m.sender) {
-              const matchedU = allUsers.find(u => isSameUser(u, m.sender) || u.id === m.sender || u.studentCode === m.sender || u.username === m.sender);
+              const matchedU = allUsers.find(u => _isSame(u, m.sender) || u.id === m.sender || u.studentCode === m.sender || u.username === m.sender);
               if (matchedU && matchedU.name) m.senderName = matchedU.name;
               else {
-                const matchedM = membersList.find(mem => isSameUser(mem, m.sender) || mem.id === m.sender || mem.studentCode === m.sender);
+                const matchedM = membersList.find(mem => _isSame(mem, m.sender) || mem.id === m.sender || mem.studentCode === m.sender);
                 if (matchedM && matchedM.name) m.senderName = matchedM.name;
               }
             }
