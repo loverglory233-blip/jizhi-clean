@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260830_v844
+ * Version: 20260830_v845
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260830_v844';
+  const APP_VERSION = '20260830_v845';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -14780,6 +14780,13 @@
             proposalsWrapper.innerHTML = `
               <div class="proposals-grid" style="margin-top:12px;">
                 ${s1.proposals.map(p => {
+                  // 动态聚合计算该提案的真实得票数
+                  const proposalVotesCount = membersList.filter(m => {
+                    if (!s1.votes) return false;
+                    const v = s1.votes[m.studentCode] || s1.votes[m.id] || s1.votes[m.username] || (m.name && s1.votes[m.name]);
+                    return v === p.id;
+                  }).length;
+
                   const isThisVoted = userVotedProposalId === p.id;
                   let btnText = '🗳️ 投票支持';
                   let btnClass = 'vote-btn';
@@ -14790,11 +14797,14 @@
                   const authorUser = allUsers.find(u => u.id === p.author || u.studentCode === p.author || u.username === p.author || u.name === p.author || u.name === p.authorName);
                   const authorName = (authorUser ? authorUser.name : null) || p.authorName || (this.state.members[p.author] ? this.state.members[p.author].name : p.author);
                   return `
-                    <div class="proposal-card ${isThisVoted ? 'voted' : ''}" style="display:flex; flex-direction:column;">
-                      <div class="proposal-header">
-                        <div class="proposal-title">💡 ${p.title}</div>
+                    <div class="proposal-card ${isThisVoted ? 'voted' : ''}" style="display:flex; flex-direction:column; position:relative;">
+                      <div class="proposal-header" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                        <div class="proposal-title" style="font-weight:800; font-size:14px; color:#0f172a;">💡 ${escapeHtml(p.title)}</div>
+                        <span style="font-size:11.5px; background:${proposalVotesCount > 0 ? '#eff6ff' : '#f8fafc'}; color:${proposalVotesCount > 0 ? '#2563eb' : '#64748b'}; border:1px solid ${proposalVotesCount > 0 ? '#bfdbfe' : '#e2e8f0'}; padding:2px 8px; border-radius:10px; font-weight:700; flex-shrink:0;">
+                          得票: <b>${proposalVotesCount}</b> 票
+                        </span>
                       </div>
-                      <div style="font-size:12px; color:#64748b; margin-bottom:8px;">提出人: <b style="color:#0f172a;">${authorName}</b></div>
+                      <div style="font-size:12px; color:#64748b; margin-bottom:8px;">提出人: <b style="color:#0f172a;">${escapeHtml(authorName)}</b></div>
                       <button class="${btnClass}" data-id="${p.id}" ${isContractLocked || userHasVoted ? 'disabled' : ''} style="width:100%; margin-top:auto;">${btnText}</button>
                     </div>
                   `;
