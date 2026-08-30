@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260830_v912
+ * Version: 20260830_v913
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260830_v912';
+  const APP_VERSION = '20260830_v913';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -15963,18 +15963,19 @@
       if (!isForced && this.state.currentStage === 'stage1' && existingContractCard) {
         // 局部更新提案池卡片与投票按钮
         const proposalsWrapper = document.getElementById('proposals-wrapper-container');
-        const s1 = this.state.stage1;
-        const currentUser = this.state.currentUser;
-        const userVotedProposalId = s1.votes ? s1.votes[currentUser] : null;
-        const userHasVoted = s1.hasVoted && s1.hasVoted[currentUser];
-        const isContractLocked = s1.contract.isConfirmed || this.state.isFinalSubmitted;
+        const s1 = this.state.stage1 || { proposals: [], votes: {}, hasVoted: {}, contract: {} };
+        const membersList = Array.isArray(this.state.members) ? this.state.members : Object.values(this.state.members || {});
+        const currentUserObj = this.authManager ? this.authManager.getCurrentUser() : null;
+        const myKeys = new Set([...getUserAllKeys(currentUserObj), this.state.currentUser, currentUserObj?.id, currentUserObj?.studentCode].filter(Boolean));
+        const userVotedProposalId = s1.votes ? (getUserFromMap(s1.votes, currentUserObj) || s1.votes[this.state.currentUser]) : null;
+        const userHasVoted = s1.hasVoted ? (isUserInMap(s1.hasVoted, currentUserObj) || s1.hasVoted[this.state.currentUser]) : false;
+        const isContractLocked = s1.contract?.isConfirmed || this.state.isFinalSubmitted;
 
         const allUsers = this.authManager ? this.authManager.getUsers() : [];
-        const myKeys = new Set([...getUserAllKeys(currentUser), this.state.currentUser].filter(Boolean));
-        const hasSubmittedMyProposal = s1.proposals.some(p => {
+        const hasSubmittedMyProposal = (s1.proposals || []).some(p => {
           if (!p) return false;
           if (myKeys.has(p.author) || myKeys.has(p.authorName) || myKeys.has(p.authorId)) return true;
-          if (currentUser && (isSameUser(p.author, currentUser) || isSameUser(p.authorName, currentUser) || (p.authorName && p.authorName === currentUser.name))) return true;
+          if (currentUserObj && (isSameUser(p.author, currentUserObj) || isSameUser(p.authorName, currentUserObj) || (p.authorName && p.authorName === currentUserObj.name))) return true;
           return false;
         });
 
