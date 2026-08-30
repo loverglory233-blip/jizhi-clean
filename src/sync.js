@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState } from './constants.js?v=20260830_v778';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal } from './utils.js?v=20260830_v778';
+import { InitialState } from './constants.js?v=20260830_v779';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal } from './utils.js?v=20260830_v779';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -117,19 +117,24 @@ export class CloudSyncEngine {
     const isTaskHall = !isWorkspace || this.app.state.studentViewMode === 'task_list';
 
     if (isCurrentTask) {
-      // 🎯 场景 1：学生正处于该任务工作台内部（无论此前是否截止，统一弹出中央仪式感卡片，立即解除只读）
-      document.querySelectorAll('.etherpad-readonly-shield').forEach(s => s.remove());
-      const f2 = document.getElementById('stage2-etherpad-frame');
-      if (f2 && f2.src.includes('showControls=false') && !nowExpired) {
-        f2.src = f2.src.replace('showControls=false', 'showControls=true');
-      }
-      const f3 = document.getElementById('stage3-etherpad-frame');
-      if (f3 && f3.src.includes('showControls=false') && !nowExpired) {
-        f3.src = f3.src.replace('showControls=false', 'showControls=true');
+      // 🎯 场景 1：学生正处于该任务工作台内部
+      // 🛡️ 严格保护：若小组已全员终稿提交归档（isFinalSubmitted），绝不解开只读锁定，保持只读归档状态
+      if (!this.app.state.isFinalSubmitted) {
+        if (!nowExpired) {
+          document.querySelectorAll('.etherpad-readonly-shield').forEach(s => s.remove());
+          const f2 = document.getElementById('stage2-etherpad-frame');
+          if (f2 && f2.src.includes('showControls=false') && (this.app.state.currentStage === 'stage2' && this.app.state.groupMaxStage !== 'stage3')) {
+            f2.src = f2.src.replace('showControls=false', 'showControls=true');
+          }
+          const f3 = document.getElementById('stage3-etherpad-frame');
+          if (f3 && f3.src.includes('showControls=false')) {
+            f3.src = f3.src.replace('showControls=false', 'showControls=true');
+          }
+        }
       }
       this.app.renderHeader();
-      showTaskExtendedUnlockModal(t, prevDeadline, prevExpired && !nowExpired);
-      if (prevExpired && !nowExpired) {
+      showTaskExtendedUnlockModal(t, prevDeadline, prevExpired && !nowExpired && !this.app.state.isFinalSubmitted);
+      if (prevExpired && !nowExpired && !this.app.state.isFinalSubmitted) {
         this.app.renderStudentWorkspace();
       }
     } else if (isTaskHall) {

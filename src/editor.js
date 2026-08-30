@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles } from "./constants.js?v=20260830_v778";
-import { callCozeAgentAPI } from "./agents.js?v=20260830_v778";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly } from "./utils.js?v=20260830_v778";
+import { AgentProfiles } from "./constants.js?v=20260830_v779";
+import { callCozeAgentAPI } from "./agents.js?v=20260830_v779";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly } from "./utils.js?v=20260830_v779";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -71,9 +71,9 @@ export function renderHeader(state, currentUser, announcements, onStageChange, o
   const stageOrder = { stage1: 1, stage2: 2, stage3: 3 };
   const currentMaxOrder = stageOrder[state.groupMaxStage || 'stage1'] || 1;
   const isContractSigned = !!(state.stage1?.contract?.signed || (Array.isArray(state.stage1?.contract?.confirmedMembers) && state.stage1.contract.confirmedMembers.length > 0));
-  // 🌟 截止后三个阶段全部解锁，允许学生自由切换查阅回看；未截止时必须签署公约才解锁阶段二
-  const isS2Locked = !isTaskDeadlineExpired && (!isContractSigned && currentMaxOrder < 2);
-  const isS3Locked = !isTaskDeadlineExpired && currentMaxOrder < 3;
+  // 🌟 截止后或已归档后三个阶段全部解锁，允许学生自由切换查阅回看；未截止且未归档时按协作进度阶梯式解锁
+  const isS2Locked = !isTaskDeadlineExpired && !state.isFinalSubmitted && (!isContractSigned && currentMaxOrder < 2);
+  const isS3Locked = !isTaskDeadlineExpired && !state.isFinalSubmitted && currentMaxOrder < 3;
 
   header.innerHTML = `
     <div class="brand-section">

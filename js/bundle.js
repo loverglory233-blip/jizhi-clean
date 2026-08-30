@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260830_v778
+ * Version: 20260830_v779
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260830_v778';
+  const APP_VERSION = '20260830_v779';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -2811,19 +2811,24 @@
       const isTaskHall = !isWorkspace || this.app.state.studentViewMode === 'task_list';
 
       if (isCurrentTask) {
-        // 🎯 场景 1：学生正处于该任务工作台内部（无论此前是否截止，统一弹出中央仪式感卡片，立即解除只读）
-        document.querySelectorAll('.etherpad-readonly-shield').forEach(s => s.remove());
-        const f2 = document.getElementById('stage2-etherpad-frame');
-        if (f2 && f2.src.includes('showControls=false') && !nowExpired) {
-          f2.src = f2.src.replace('showControls=false', 'showControls=true');
-        }
-        const f3 = document.getElementById('stage3-etherpad-frame');
-        if (f3 && f3.src.includes('showControls=false') && !nowExpired) {
-          f3.src = f3.src.replace('showControls=false', 'showControls=true');
+        // 🎯 场景 1：学生正处于该任务工作台内部
+        // 🛡️ 严格保护：若小组已全员终稿提交归档（isFinalSubmitted），绝不解开只读锁定，保持只读归档状态
+        if (!this.app.state.isFinalSubmitted) {
+          if (!nowExpired) {
+            document.querySelectorAll('.etherpad-readonly-shield').forEach(s => s.remove());
+            const f2 = document.getElementById('stage2-etherpad-frame');
+            if (f2 && f2.src.includes('showControls=false') && (this.app.state.currentStage === 'stage2' && this.app.state.groupMaxStage !== 'stage3')) {
+              f2.src = f2.src.replace('showControls=false', 'showControls=true');
+            }
+            const f3 = document.getElementById('stage3-etherpad-frame');
+            if (f3 && f3.src.includes('showControls=false')) {
+              f3.src = f3.src.replace('showControls=false', 'showControls=true');
+            }
+          }
         }
         this.app.renderHeader();
-        showTaskExtendedUnlockModal(t, prevDeadline, prevExpired && !nowExpired);
-        if (prevExpired && !nowExpired) {
+        showTaskExtendedUnlockModal(t, prevDeadline, prevExpired && !nowExpired && !this.app.state.isFinalSubmitted);
+        if (prevExpired && !nowExpired && !this.app.state.isFinalSubmitted) {
           this.app.renderStudentWorkspace();
         }
       } else if (isTaskHall) {
@@ -7806,7 +7811,7 @@
         } catch (e) {}
       }
       const isStudentIdle = () => document.hidden || (Date.now() - (window._lastStudentPortalActivity || Date.now()) > 60000);
-      const sInterval = isStudentIdle() ? 15000 : 3000;
+      const sInterval = isStudentIdle() ? 10000 : 1500;
       window._studentPortalSyncTimer = setTimeout(pullAndRefresh, sInterval);
     };
     if (window._studentPortalSyncTimer) clearTimeout(window._studentPortalSyncTimer);
@@ -8133,9 +8138,9 @@
     const stageOrder = { stage1: 1, stage2: 2, stage3: 3 };
     const currentMaxOrder = stageOrder[state.groupMaxStage || 'stage1'] || 1;
     const isContractSigned = !!(state.stage1?.contract?.signed || (Array.isArray(state.stage1?.contract?.confirmedMembers) && state.stage1.contract.confirmedMembers.length > 0));
-    // 🌟 截止后三个阶段全部解锁，允许学生自由切换查阅回看；未截止时必须签署公约才解锁阶段二
-    const isS2Locked = !isTaskDeadlineExpired && (!isContractSigned && currentMaxOrder < 2);
-    const isS3Locked = !isTaskDeadlineExpired && currentMaxOrder < 3;
+    // 🌟 截止后或已归档后三个阶段全部解锁，允许学生自由切换查阅回看；未截止且未归档时按协作进度阶梯式解锁
+    const isS2Locked = !isTaskDeadlineExpired && !state.isFinalSubmitted && (!isContractSigned && currentMaxOrder < 2);
+    const isS3Locked = !isTaskDeadlineExpired && !state.isFinalSubmitted && currentMaxOrder < 3;
 
     header.innerHTML = `
       <div class="brand-section">
