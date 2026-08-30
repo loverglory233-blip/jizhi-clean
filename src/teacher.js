@@ -9,8 +9,8 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260830_v755";
-import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash, filterAndDeduplicateChatLogs } from "./utils.js?v=20260830_v755";
+} from "./constants.js?v=20260830_v756";
+import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash, filterAndDeduplicateChatLogs, enforceEtherpadReadonly } from "./utils.js?v=20260830_v756";
 
 /* ==========================================================================
    7. TEACHER PORTAL RENDERER (LIVE WORKSPACE MIRROR & ANNOUNCEMENT READ MATRIX)
@@ -1717,6 +1717,12 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
   container.dataset.renderedMode = monitorStageMode;
   container.dataset.renderedS3Tab = currentS3Tab;
   container.dataset.renderedTab = activeTab;
+
+  // 🔒 确保教师端无论是阶段二还是阶段三的 Etherpad iframe，均被 DOM 内核层权威锁定为只读
+  const tFrame2 = container.querySelector('#teacher-stage2-etherpad-frame');
+  if (tFrame2) enforceEtherpadReadonly(tFrame2);
+  const tFrame3 = container.querySelector('#teacher-stage3-etherpad-frame');
+  if (tFrame3) enforceEtherpadReadonly(tFrame3);
 
   const btnLogout = container.querySelector('#btn-logout');
   if (btnLogout) btnLogout.addEventListener('click', () => onLogout());

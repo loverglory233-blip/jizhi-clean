@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260830_v755
+ * Version: 20260830_v756
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260830_v755';
+  const APP_VERSION = '20260830_v756';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -639,6 +639,65 @@
         setTimeout(() => banner.remove(), 300);
       }
     }, 6000);
+  }
+
+  /**
+   * 🔒 权威只读注入器：从 DOM 层与内核层双重锁定 Etherpad 文档
+   * - 彻底隐藏顶部编辑工具栏与底部操作栏
+   * - 强制设置 innerdocbody contenteditable="false"，彻底杜绝键盘输入、剪切与修改
+   * - 完整保留原生鼠标滚轮、触摸滑动与文字查阅能力
+   */
+  function enforceEtherpadReadonly(iframe) {
+    if (!iframe) return;
+
+    const tryLock = () => {
+      try {
+        const doc = iframe.contentDocument || iframe.contentWindow?.document;
+        if (!doc) return;
+
+        // 1. 隐藏工具栏与额外操作菜单
+        const toolbar = doc.querySelector('.toolbar') || doc.querySelector('#editbar') || doc.querySelector('#menu_left') || doc.querySelector('#menu_right');
+        if (toolbar) toolbar.style.setProperty('display', 'none', 'important');
+
+        const footer = doc.querySelector('#footer') || doc.querySelector('.bottom-bar') || doc.querySelector('#chatbox');
+        if (footer) footer.style.setProperty('display', 'none', 'important');
+
+        // 2. 锁定 Ace Inner 编辑核心区域为只读
+        const aceOuter = doc.querySelector('iframe[name="ace_outer"]');
+        if (aceOuter) {
+          const outerDoc = aceOuter.contentDocument || aceOuter.contentWindow?.document;
+          if (outerDoc) {
+            const aceInner = outerDoc.querySelector('iframe[name="ace_inner"]');
+            if (aceInner) {
+              const innerDoc = aceInner.contentDocument || aceInner.contentWindow?.document;
+              if (innerDoc) {
+                const innerBody = innerDoc.querySelector('#innerdocbody') || innerDoc.body;
+                if (innerBody) {
+                  if (innerBody.getAttribute('contenteditable') !== 'false') {
+                    innerBody.setAttribute('contenteditable', 'false');
+                  }
+                  innerBody.style.setProperty('cursor', 'default', 'important');
+                  innerBody.style.setProperty('user-select', 'text', 'important');
+                  innerBody.style.setProperty('-webkit-user-select', 'text', 'important');
+                }
+              }
+            }
+          }
+        }
+      } catch(e) {
+        // cross-origin or loading
+      }
+    };
+
+    iframe.addEventListener('load', tryLock);
+    tryLock();
+
+    let count = 0;
+    const interval = setInterval(() => {
+      tryLock();
+      count++;
+      if (count > 30) clearInterval(interval);
+    }, 350);
   }
 
   /* ==========================================================================
@@ -5358,6 +5417,12 @@
     container.dataset.renderedS3Tab = currentS3Tab;
     container.dataset.renderedTab = activeTab;
 
+    // 🔒 确保教师端无论是阶段二还是阶段三的 Etherpad iframe，均被 DOM 内核层权威锁定为只读
+    const tFrame2 = container.querySelector('#teacher-stage2-etherpad-frame');
+    if (tFrame2) enforceEtherpadReadonly(tFrame2);
+    const tFrame3 = container.querySelector('#teacher-stage3-etherpad-frame');
+    if (tFrame3) enforceEtherpadReadonly(tFrame3);
+
     const btnLogout = container.querySelector('#btn-logout');
     if (btnLogout) btnLogout.addEventListener('click', () => onLogout());
 
@@ -9920,6 +9985,12 @@
     });
     renderRemoteCursors('stage2-word-editor', state);
 
+    // 🔒 若处于只读模式，强制执行 DOM 内核级只读锁定
+    if (isEditorReadonly) {
+      const s2Frame = canvas.querySelector('#stage2-etherpad-frame');
+      if (s2Frame) enforceEtherpadReadonly(s2Frame);
+    }
+
     const btnTogglePlan = canvas.querySelector('#btn-toggle-action-plan');
     if (btnTogglePlan) {
       btnTogglePlan.addEventListener('click', (e) => {
@@ -10352,6 +10423,11 @@
           try { newElem.setSelectionRange(activeSelectionStart, activeSelectionEnd); } catch (e) {}
         }
       }
+    }
+
+    if (isFinalSubmitted) {
+      const s3Frame = canvas.querySelector('#stage3-etherpad-frame');
+      if (s3Frame) enforceEtherpadReadonly(s3Frame);
     }
 
     const tabDefense = canvas.querySelector('#tab-btn-defense');
