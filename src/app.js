@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260830_v902";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch } from "./utils.js?v=20260830_v902";
-import { callCozeAgentAPI } from "./agents.js?v=20260830_v902";
-import { AuthManager } from "./auth.js?v=20260830_v902";
-import { CloudSyncEngine } from "./sync.js?v=20260830_v902";
-import { renderLoginView } from "./login.js?v=20260830_v902";
-import { renderTeacherPortal } from "./teacher.js?v=20260830_v902";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260830_v902";
+} from "./constants.js?v=20260830_v903";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch } from "./utils.js?v=20260830_v903";
+import { callCozeAgentAPI } from "./agents.js?v=20260830_v903";
+import { AuthManager } from "./auth.js?v=20260830_v903";
+import { CloudSyncEngine } from "./sync.js?v=20260830_v903";
+import { renderLoginView } from "./login.js?v=20260830_v903";
+import { renderTeacherPortal } from "./teacher.js?v=20260830_v903";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260830_v903";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260830_v902";
+} from "./editor.js?v=20260830_v903";
 
 // Make renderChat available on window for sync callbacks
 if (typeof window !== "undefined") {
@@ -145,6 +145,15 @@ export class App {
                 this.renderHeader();
               }).catch(() => {});
             }
+          }
+
+          // 3.5 教师删除教学通知（秒级清除学生端本地通知与更新通知红点）
+          if (e.data.type === 'announcement_deleted') {
+            const delAnnId = e.data.annId;
+            let localAnns = this.authManager ? this.authManager.getAnnouncements() : [];
+            localAnns = localAnns.filter(a => a.id !== delAnnId);
+            localStorage.setItem(STORAGE_KEY_ANNOUNCEMENTS, JSON.stringify(localAnns));
+            this.renderHeader();
           }
 
           // 4. 教师更新问卷配置

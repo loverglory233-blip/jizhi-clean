@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260830_v902
+ * Version: 20260830_v903
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260830_v902';
+  const APP_VERSION = '20260830_v903';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -1105,75 +1105,51 @@
             }
             if (Array.isArray(data.announcements)) {
               const localAnns = JSON.parse(localStorage.getItem(STORAGE_KEY_ANNOUNCEMENTS) || '[]');
-              if (data.announcements.length === 0 && localAnns.length > 0) {
-                // 🛡️ 云端返回空而本地有数据时，保留本地通知，杜绝误清空
-              } else {
-                const localMap = new Map();
-                localAnns.forEach(a => { if (a && a.id) localMap.set(a.id, a); });
+              const localMap = new Map();
+              localAnns.forEach(a => { if (a && a.id) localMap.set(a.id, a); });
 
-                const mergedAnns = data.announcements.map(remoteAnn => {
-                  const localAnn = localMap.get(remoteAnn.id);
-                  if (!localAnn) return remoteAnn;
+              // 🛡️ 严格以云端权威列表为准，仅智能继承本地已读标记，绝不反向复活已删除通知！
+              const mergedAnns = data.announcements.map(remoteAnn => {
+                const localAnn = localMap.get(remoteAnn.id);
+                if (!localAnn) return remoteAnn;
 
-                  // 🛡️ 智能合并已读状态与确认成员，绝不反向冲刷本地已读标记！
-                  const mergedReadStatus = { ...(remoteAnn.readStatus || {}), ...(localAnn.readStatus || {}) };
-                  const mergedGroupStatus = { ...(remoteAnn.readGroupStatus || {}), ...(localAnn.readGroupStatus || {}) };
+                const mergedReadStatus = { ...(remoteAnn.readStatus || {}), ...(localAnn.readStatus || {}) };
+                const mergedGroupStatus = { ...(remoteAnn.readGroupStatus || {}), ...(localAnn.readGroupStatus || {}) };
 
-                  const confMembersMap = new Map();
-                  (remoteAnn.confirmedMembers || []).forEach(m => {
-                    if (m) {
-                      const k = m.id || m.studentCode || m.name;
-                      if (k) confMembersMap.set(k, m);
-                    }
-                  });
-                  (localAnn.confirmedMembers || []).forEach(m => {
-                    if (m) {
-                      const k = m.id || m.studentCode || m.name;
-                      if (k) confMembersMap.set(k, m);
-                    }
-                  });
-
-                  return {
-                    ...remoteAnn,
-                    readStatus: mergedReadStatus,
-                    readGroupStatus: mergedGroupStatus,
-                    confirmedMembers: Array.from(confMembersMap.values())
-                  };
+                const confMembersMap = new Map();
+                (remoteAnn.confirmedMembers || []).forEach(m => {
+                  if (m) {
+                    const k = m.id || m.studentCode || m.name;
+                    if (k) confMembersMap.set(k, m);
+                  }
                 });
-
-                // 🛡️ 确保本地最新创建的通知合并保留，绝不被较旧的云端列表冲刷丢弃
-                const remoteAnnIds = new Set(data.announcements.map(a => a.id));
-                localAnns.forEach(la => {
-                  if (la && la.id && !remoteAnnIds.has(la.id)) {
-                    mergedAnns.push(la);
+                (localAnn.confirmedMembers || []).forEach(m => {
+                  if (m) {
+                    const k = m.id || m.studentCode || m.name;
+                    if (k) confMembersMap.set(k, m);
                   }
                 });
 
-                localStorage.setItem(STORAGE_KEY_ANNOUNCEMENTS, JSON.stringify(mergedAnns));
+                return {
+                  ...remoteAnn,
+                  readStatus: mergedReadStatus,
+                  readGroupStatus: mergedGroupStatus,
+                  confirmedMembers: Array.from(confMembersMap.values())
+                };
+              });
 
-                // ⚡ 异步元数据到达瞬间：纯前端 DOM 局部更新通知红点与未读弹窗（0 网络请求，0 数据上传）
-                if (window.app && typeof window.app.renderHeader === 'function' && window.app.state && window.app.state.studentViewMode === 'workspace') {
-                  window.app.renderHeader();
-                }
-                if (window.app && typeof window.app.checkUnreadAnnouncements === 'function' && window.app.state && window.app.state.studentViewMode === 'workspace') {
-                  window.app.checkUnreadAnnouncements();
-                }
+              localStorage.setItem(STORAGE_KEY_ANNOUNCEMENTS, JSON.stringify(mergedAnns));
+
+              // ⚡ 异步元数据到达瞬间：纯前端 DOM 局部更新通知红点与未读弹窗（0 网络请求，0 数据上传）
+              if (window.app && typeof window.app.renderHeader === 'function' && window.app.state && window.app.state.studentViewMode === 'workspace') {
+                window.app.renderHeader();
+              }
+              if (window.app && typeof window.app.checkUnreadAnnouncements === 'function' && window.app.state && window.app.state.studentViewMode === 'workspace') {
+                window.app.checkUnreadAnnouncements();
               }
             }
             if (Array.isArray(data.referencePapers)) {
-              const localPapers = JSON.parse(localStorage.getItem('jizhi_reference_papers_db') || '[]');
-              if (data.referencePapers.length === 0 && localPapers.length > 0) {
-                // 🛡️ 保留本地文献
-              } else {
-                const remotePaperIds = new Set(data.referencePapers.map(p => p.id));
-                const mergedPapers = [...data.referencePapers];
-                localPapers.forEach(lp => {
-                  if (lp && lp.id && !remotePaperIds.has(lp.id)) {
-                    mergedPapers.push(lp);
-                  }
-                });
-                localStorage.setItem('jizhi_reference_papers_db', JSON.stringify(mergedPapers));
-              }
+              localStorage.setItem('jizhi_reference_papers_db', JSON.stringify(data.referencePapers));
             }
             if (Array.isArray(data.surveys)) {
               localStorage.setItem('jizhi_surveys_list_db', JSON.stringify(data.surveys));
@@ -11728,6 +11704,15 @@
                   this.renderHeader();
                 }).catch(() => {});
               }
+            }
+
+            // 3.5 教师删除教学通知（秒级清除学生端本地通知与更新通知红点）
+            if (e.data.type === 'announcement_deleted') {
+              const delAnnId = e.data.annId;
+              let localAnns = this.authManager ? this.authManager.getAnnouncements() : [];
+              localAnns = localAnns.filter(a => a.id !== delAnnId);
+              localStorage.setItem(STORAGE_KEY_ANNOUNCEMENTS, JSON.stringify(localAnns));
+              this.renderHeader();
             }
 
             // 4. 教师更新问卷配置
