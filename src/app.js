@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260830_v779";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash } from "./utils.js?v=20260830_v779";
-import { callCozeAgentAPI } from "./agents.js?v=20260830_v779";
-import { AuthManager } from "./auth.js?v=20260830_v779";
-import { CloudSyncEngine } from "./sync.js?v=20260830_v779";
-import { renderLoginView } from "./login.js?v=20260830_v779";
-import { renderTeacherPortal } from "./teacher.js?v=20260830_v779";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260830_v779";
+} from "./constants.js?v=20260830_v780";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash } from "./utils.js?v=20260830_v780";
+import { callCozeAgentAPI } from "./agents.js?v=20260830_v780";
+import { AuthManager } from "./auth.js?v=20260830_v780";
+import { CloudSyncEngine } from "./sync.js?v=20260830_v780";
+import { renderLoginView } from "./login.js?v=20260830_v780";
+import { renderTeacherPortal } from "./teacher.js?v=20260830_v780";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260830_v780";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260830_v779";
+} from "./editor.js?v=20260830_v780";
 
 // Make renderChat available on window for sync callbacks
 if (typeof window !== "undefined") {
@@ -3133,7 +3133,24 @@ ${propText}
   switchStage(newStage, isMilestoneAdvance = false) {
     this.lastLocalStageChangeTime = Date.now();
     const stageOrder = { stage1: 1, stage2: 2, stage3: 3 };
-    const currentGroupMax = this.state.groupMaxStage || 'stage1';
+
+    const s1 = this.state.stage1 || {};
+    const s2 = this.state.stage2 || {};
+    const s3 = this.state.stage3 || {};
+
+    const isContractSigned = !!(s1.contract?.signed || s1.contract?.isConfirmed || (Array.isArray(s1.contract?.confirmedMembers) && s1.contract.confirmedMembers.length > 0));
+    const isDraftDone = !!(s2.isDraftConfirmed || (s2.meetingSubmissions && Object.keys(s2.meetingSubmissions).length > 0) || this.state.groupMaxStage === 'stage3' || this.state.isFinalSubmitted);
+    const isStage3Active = !!(this.state.groupMaxStage === 'stage3' || this.state.isFinalSubmitted || isDraftDone || (s3.confirmedMembers && Object.keys(s3.confirmedMembers).length > 0) || (s3.finalSubmittedMembers && Object.keys(s3.finalSubmittedMembers).length > 0));
+
+    let currentGroupMax = this.state.groupMaxStage || 'stage1';
+    if (isStage3Active) {
+      currentGroupMax = 'stage3';
+      this.state.groupMaxStage = 'stage3';
+    } else if (isContractSigned || currentGroupMax === 'stage2') {
+      currentGroupMax = 'stage2';
+      this.state.groupMaxStage = 'stage2';
+    }
+
     const currentGroupOrder = stageOrder[currentGroupMax] || 1;
     const targetOrder = stageOrder[newStage] || 1;
 
@@ -3141,14 +3158,13 @@ ${propText}
     const currentTaskObj = allTasks.find(t => t.id === this.state.activeTaskId);
     const isTaskDeadlineExpired = isTaskExpired(currentTaskObj);
 
-    // 🛡️ 阶段防越权门禁：未达成里程碑解锁时，禁止学生随意点击跳级（截止只读查阅模式下全阶段自由放行浏览）
-    const isContractSigned = !!(this.state.stage1?.contract?.signed || (Array.isArray(this.state.stage1?.contract?.confirmedMembers) && this.state.stage1.contract.confirmedMembers.length > 0));
-    if (!isTaskDeadlineExpired && newStage === 'stage2' && !isMilestoneAdvance && !isContractSigned && currentGroupOrder < 2) {
+    // 🛡️ 阶段防越权门禁：未达成里程碑解锁时，禁止学生随意点击跳级（截止只读查阅模式下或已归档时全阶段自由放行浏览）
+    if (!isTaskDeadlineExpired && !this.state.isFinalSubmitted && newStage === 'stage2' && !isMilestoneAdvance && !isContractSigned && currentGroupOrder < 2) {
       alert('⚠️ 暂未解锁【阶段二：学术编辑部】！\n请先在阶段一完成学术公约的签署与分工确认，方可进入阶段二。');
       return;
     }
 
-    if (!isTaskDeadlineExpired && targetOrder > currentGroupOrder && !isMilestoneAdvance) {
+    if (!isTaskDeadlineExpired && !this.state.isFinalSubmitted && targetOrder > currentGroupOrder && !isMilestoneAdvance) {
       const stageTitles = { stage2: '【阶段二：学术编辑部】', stage3: '【阶段三：答辩擂台】' };
       alert(`⚠️ 暂未解锁 ${stageTitles[newStage] || newStage}！\n必须先在当前阶段完成公约签署与阶段任务后，系统将自动全组解锁推进。`);
       return;
