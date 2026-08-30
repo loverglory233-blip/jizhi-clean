@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState } from './constants.js?v=20260830_v879';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal } from './utils.js?v=20260830_v879';
+import { InitialState } from './constants.js?v=20260830_v880';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal } from './utils.js?v=20260830_v880';
 
 export class CloudSyncEngine {
   constructor(app) {
