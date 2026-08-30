@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260831_v943";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch } from "./utils.js?v=20260831_v943";
-import { callCozeAgentAPI } from "./agents.js?v=20260831_v943";
-import { AuthManager } from "./auth.js?v=20260831_v943";
-import { CloudSyncEngine } from "./sync.js?v=20260831_v943";
-import { renderLoginView } from "./login.js?v=20260831_v943";
-import { renderTeacherPortal } from "./teacher.js?v=20260831_v943";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260831_v943";
+} from "./constants.js?v=20260831_v944";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch } from "./utils.js?v=20260831_v944";
+import { callCozeAgentAPI } from "./agents.js?v=20260831_v944";
+import { AuthManager } from "./auth.js?v=20260831_v944";
+import { CloudSyncEngine } from "./sync.js?v=20260831_v944";
+import { renderLoginView } from "./login.js?v=20260831_v944";
+import { renderTeacherPortal } from "./teacher.js?v=20260831_v944";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260831_v944";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260831_v943";
+} from "./editor.js?v=20260831_v944";
 
 // Make renderChat available on window for sync callbacks
 if (typeof window !== "undefined") {
