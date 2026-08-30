@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260831_v962
+ * Version: 20260831_v963
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260831_v962';
+  const APP_VERSION = '20260831_v963';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -10347,20 +10347,29 @@
       let rawTotal = 0;
       membersList.forEach(m => { rawTotal += getMemberContribVal(contribs, m); });
 
-      labelsEl.innerHTML = membersList.map((m) => {
+      const newLabelsHtml = membersList.map((m) => {
         const rawVal = getMemberContribVal(contribs, m);
         const pct = rawTotal > 0 ? Math.round((rawVal / rawTotal) * 100) : 0;
         return `<span style="color:${rawVal > 0 ? (m.color || '#2563eb') : '#94a3b8'}; font-weight:700;">● ${m.name}: ${pct}% (${rawVal}字)</span>`;
       }).join('');
 
+      if (labelsEl.innerHTML !== newLabelsHtml) {
+        labelsEl.innerHTML = newLabelsHtml;
+      }
+
+      let newBarsHtml = '';
       if (rawTotal === 0) {
-        barsEl.innerHTML = `<div style="width:100%; height:8px; background:#f8fafc; border-radius:4px; display:flex; align-items:center; justify-content:center; font-size:9.5px; color:#94a3b8; font-weight:600;">⏳ 在 Etherpad 中撰写或修改正文将实时累计真实贡献</div>`;
+        newBarsHtml = `<div style="width:100%; height:8px; background:#f8fafc; border-radius:4px; display:flex; align-items:center; justify-content:center; font-size:9.5px; color:#94a3b8; font-weight:600;">⏳ 在 Etherpad 中撰写或修改正文将实时累计真实贡献</div>`;
       } else {
-        barsEl.innerHTML = membersList.map((m) => {
+        newBarsHtml = membersList.map((m) => {
           const rawVal = getMemberContribVal(contribs, m);
           const pct = rawTotal > 0 ? Math.round((rawVal / rawTotal) * 100) : 0;
           return `<div class="contrib-segment" style="width:${pct}%; background:${m.color || '#2563eb'}; transition:width 0.8s ease-in-out;" title="${m.name}: ${pct}% (${rawVal}字)"></div>`;
         }).join('');
+      }
+
+      if (barsEl.innerHTML !== newBarsHtml) {
+        barsEl.innerHTML = newBarsHtml;
       }
     };
 
@@ -11281,6 +11290,10 @@
           </span>
         `;
       }).join('');
+
+      if (presenceContainer.innerHTML !== newPresenceHtml) {
+        presenceContainer.innerHTML = newPresenceHtml;
+      }
     }
 
     const stream = document.getElementById('chat-stream');
@@ -11312,6 +11325,12 @@
     });
     allMsgs.sort((a, b) => (Number(a._timeMs || 0) - Number(b._timeMs || 0)));
     const cleanMsgs = filterAndDeduplicateChatLogs(allMsgs);
+
+    const msgSignature = cleanMsgs.map(m => (m.id || `${m.sender}_${m._timeMs || m.timestamp}`)).join('|');
+    if (stream.dataset.msgSignature === msgSignature) {
+      return; // 消息没有任何变动，绝不重绘 DOM，彻底保护打字焦点与输入法
+    }
+    stream.dataset.msgSignature = msgSignature;
 
     // 智能滚动：如果用户正在往上拉浏览历史记录，保持当前视角不被强行打断拉回底部
     const isAtBottom = (stream.scrollHeight - stream.scrollTop - stream.clientHeight) < 90;
@@ -16852,9 +16871,11 @@
       });
 
       modal.querySelector('#btn-submit-meeting').addEventListener('click', async () => {
-        const ideationConsistency = modal.querySelector('#meeting-ideation-select').value;
-        const transitionState = modal.querySelector('#meeting-transition-select').value;
-        const styleState = modal.querySelector('#meeting-style-select').value;
+        const ideationConsistency = modal.querySelector('#meeting-ideation-select')?.value || '完全符合最初构思';
+        const transitionState = modal.querySelector('#meeting-transition-select')?.value || '前后衔接非常自然';
+        const styleState = modal.querySelector('#meeting-style-select')?.value || '文风严谨术语统一';
+        const bAcademic = modal.querySelector('#meeting-bottleneck-academic')?.value || '';
+        const userText = modal.querySelector('#meeting-input-text')?.value.trim() || '';
         const ideationSections = Array.from(modal.querySelectorAll('input[name="ideation-sec"]:checked')).map(cb => cb.value);
         const transSections = Array.from(modal.querySelectorAll('input[name="trans-div-sec"]:checked')).map(cb => cb.value);
         const styleSections = Array.from(modal.querySelectorAll('input[name="style-div-sec"]:checked')).map(cb => cb.value);
@@ -16894,6 +16915,7 @@
         if (submittedCount < totalMembersCount) {
           this.syncStage2();
           if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+          closeModal();
           this.renderStudentWorkspace();
           alert(`✅ 你 (${memberName}) 已成功提交半程自查与互阅打卡！\n\n目前组内已打卡：${submittedCount}/${totalMembersCount} 人。\n需组内所有 ${totalMembersCount} 名成员全部完成打卡后，将自动为全组汇总生成【半程修正清单】！`);
           return;

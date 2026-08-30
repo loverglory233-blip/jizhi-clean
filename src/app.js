@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260831_v962";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch } from "./utils.js?v=20260831_v962";
-import { callCozeAgentAPI } from "./agents.js?v=20260831_v962";
-import { AuthManager } from "./auth.js?v=20260831_v962";
-import { CloudSyncEngine } from "./sync.js?v=20260831_v962";
-import { renderLoginView } from "./login.js?v=20260831_v962";
-import { renderTeacherPortal } from "./teacher.js?v=20260831_v962";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260831_v962";
+} from "./constants.js?v=20260831_v963";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch } from "./utils.js?v=20260831_v963";
+import { callCozeAgentAPI } from "./agents.js?v=20260831_v963";
+import { AuthManager } from "./auth.js?v=20260831_v963";
+import { CloudSyncEngine } from "./sync.js?v=20260831_v963";
+import { renderLoginView } from "./login.js?v=20260831_v963";
+import { renderTeacherPortal } from "./teacher.js?v=20260831_v963";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260831_v963";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260831_v962";
+} from "./editor.js?v=20260831_v963";
 
 // Make renderChat available on window for sync callbacks
 if (typeof window !== "undefined") {
@@ -5269,9 +5269,11 @@ ${contentSnippet}
     });
 
     modal.querySelector('#btn-submit-meeting').addEventListener('click', async () => {
-      const ideationConsistency = modal.querySelector('#meeting-ideation-select').value;
-      const transitionState = modal.querySelector('#meeting-transition-select').value;
-      const styleState = modal.querySelector('#meeting-style-select').value;
+      const ideationConsistency = modal.querySelector('#meeting-ideation-select')?.value || '完全符合最初构思';
+      const transitionState = modal.querySelector('#meeting-transition-select')?.value || '前后衔接非常自然';
+      const styleState = modal.querySelector('#meeting-style-select')?.value || '文风严谨术语统一';
+      const bAcademic = modal.querySelector('#meeting-bottleneck-academic')?.value || '';
+      const userText = modal.querySelector('#meeting-input-text')?.value.trim() || '';
       const ideationSections = Array.from(modal.querySelectorAll('input[name="ideation-sec"]:checked')).map(cb => cb.value);
       const transSections = Array.from(modal.querySelectorAll('input[name="trans-div-sec"]:checked')).map(cb => cb.value);
       const styleSections = Array.from(modal.querySelectorAll('input[name="style-div-sec"]:checked')).map(cb => cb.value);
@@ -5311,6 +5313,7 @@ ${contentSnippet}
       if (submittedCount < totalMembersCount) {
         this.syncStage2();
         if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+        closeModal();
         this.renderStudentWorkspace();
         alert(`✅ 你 (${memberName}) 已成功提交半程自查与互阅打卡！\n\n目前组内已打卡：${submittedCount}/${totalMembersCount} 人。\n需组内所有 ${totalMembersCount} 名成员全部完成打卡后，将自动为全组汇总生成【半程修正清单】！`);
         return;
