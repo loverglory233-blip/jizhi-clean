@@ -3,7 +3,7 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles, PresetMessages, STORAGE_KEY_USER } from './constants.js?v=20260830_v812';
+import { AgentProfiles, PresetMessages, STORAGE_KEY_USER } from './constants.js?v=20260830_v813';
 
 export async function callCozeAgentAPI(botKey, userQuery, currentContext = {}) {
   const profile = AgentProfiles[botKey] || { name: '智能体专家', avatar: '🤖' };
@@ -77,14 +77,14 @@ export async function callCozeAgentAPI(botKey, userQuery, currentContext = {}) {
           removeThinkingIndicator();
           return data.reply.trim();
         }
-        // 如果后端处于生成中，采用阶梯式敏捷轮询：前 15 次 200ms 极速响应，后续 500ms 平稳等待
+        // 如果后端处于生成中，采用阶梯式敏捷轮询：前 20 次 100ms 极速响应，后续 300ms 紧密等待
         if (data && data.in_progress && data.chat_id && data.conversation_id) {
           const chatId = data.chat_id;
           const convId = data.conversation_id;
           const targetBotId = data.bot_id || botId;
-          const maxRetries = 50;
+          const maxRetries = 60;
           for (let p = 0; p < maxRetries; p++) {
-            const pollInterval = p < 15 ? 200 : 500;
+            const pollInterval = p < 20 ? 100 : 300;
             await new Promise(r => setTimeout(r, pollInterval));
             try {
               const pollRes = await fetch(`sync.php?action=coze_poll&chat_id=${encodeURIComponent(chatId)}&conversation_id=${encodeURIComponent(convId)}&bot_id=${encodeURIComponent(targetBotId)}&userId=${encodeURIComponent(sessionUserId)}&token=${encodeURIComponent(sessionToken)}&nocache=${Date.now()}`);
