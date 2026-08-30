@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260830_v775
+ * Version: 20260830_v776
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260830_v775';
+  const APP_VERSION = '20260830_v776';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -1107,7 +1107,19 @@
               this.sanitizeAndDeduplicateGroups();
             }
             if (Array.isArray(data.tasks) && data.tasks.length > 0) {
-              localStorage.setItem(STORAGE_KEY_TASKS, JSON.stringify(data.tasks));
+              const localTasks = this.getTasks();
+              const mergedTasks = data.tasks.map(remoteT => {
+                const localT = localTasks.find(lt => lt.id === remoteT.id || (lt.title && lt.title === remoteT.title));
+                if (localT && localT.lastExtension) {
+                  const localExtAt = localT.lastExtension.extendedAt || 0;
+                  const remoteExtAt = remoteT.lastExtension ? (remoteT.lastExtension.extendedAt || 0) : 0;
+                  if (localExtAt >= remoteExtAt) {
+                    return { ...remoteT, deadline: localT.deadline, durationMinutes: localT.durationMinutes, lastExtension: localT.lastExtension };
+                  }
+                }
+                return remoteT;
+              });
+              localStorage.setItem(STORAGE_KEY_TASKS, JSON.stringify(mergedTasks));
             }
             if (Array.isArray(data.announcements)) {
               const localAnns = JSON.parse(localStorage.getItem(STORAGE_KEY_ANNOUNCEMENTS) || '[]');
@@ -2774,11 +2786,10 @@
     }
 
     handleTaskDeadlineChange(t, prevDeadline) {
-      const currentUser = this.app.authManager ? this.app.authManager.getCurrentUser() : null;
-      const isTeacher = currentUser && (currentUser.role === 'teacher' || currentUser.isTeacher);
+      const isTeacherPortalUI = !!document.querySelector('.app-teacher-mode') || !!document.querySelector('.teacher-portal-layout');
 
-      // 🛡️ 教师端自身延期操作绝不给自己弹窗
-      if (isTeacher) return;
+      // 🛡️ 仅当当前标签页正处于教师管理大屏时，才不给自己弹窗；学生端（及学生视角）100% 触发弹窗
+      if (isTeacherPortalUI) return;
 
       if (!this._shownDeadlineEvents) this._shownDeadlineEvents = new Set();
       const eventKey = `${t.id}_${t.deadline}`;

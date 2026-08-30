@@ -1607,8 +1607,8 @@ if ($action === 'extend_task_deadline' && $_SERVER['REQUEST_METHOD'] === 'POST')
         $stmtSaveVer->execute([':v' => $newVer, ':v2' => $newVer]);
 
         try {
-            $stmtUpdTask = $pdo->prepare("UPDATE tasks SET deadline = :dl WHERE id = :id");
-            $stmtUpdTask->execute([':dl' => $newDeadline, ':id' => $taskId]);
+            $stmtUpdTask = $pdo->prepare("UPDATE tasks SET deadline = :dl WHERE id = :id OR title = :t");
+            $stmtUpdTask->execute([':dl' => $newDeadline, ':id' => $taskId, ':t' => $reqTitle]);
         } catch (Exception $e) {}
 
         @file_put_contents(__DIR__ . '/global_db.json', $gmJson);

@@ -14,8 +14,8 @@ import {
   DefaultTasks,
   DefaultAnnouncements,
   DefaultReferencePapers
-} from './constants.js?v=20260830_v775';
-import { formatExportDateTime, formatDurationHuman } from './utils.js?v=20260830_v775';
+} from './constants.js?v=20260830_v776';
+import { formatExportDateTime, formatDurationHuman } from './utils.js?v=20260830_v776';
 
 export class AuthManager {
   constructor() {
@@ -158,7 +158,19 @@ export class AuthManager {
             this.sanitizeAndDeduplicateGroups();
           }
           if (Array.isArray(data.tasks) && data.tasks.length > 0) {
-            localStorage.setItem(STORAGE_KEY_TASKS, JSON.stringify(data.tasks));
+            const localTasks = this.getTasks();
+            const mergedTasks = data.tasks.map(remoteT => {
+              const localT = localTasks.find(lt => lt.id === remoteT.id || (lt.title && lt.title === remoteT.title));
+              if (localT && localT.lastExtension) {
+                const localExtAt = localT.lastExtension.extendedAt || 0;
+                const remoteExtAt = remoteT.lastExtension ? (remoteT.lastExtension.extendedAt || 0) : 0;
+                if (localExtAt >= remoteExtAt) {
+                  return { ...remoteT, deadline: localT.deadline, durationMinutes: localT.durationMinutes, lastExtension: localT.lastExtension };
+                }
+              }
+              return remoteT;
+            });
+            localStorage.setItem(STORAGE_KEY_TASKS, JSON.stringify(mergedTasks));
           }
           if (Array.isArray(data.announcements)) {
             const localAnns = JSON.parse(localStorage.getItem(STORAGE_KEY_ANNOUNCEMENTS) || '[]');
