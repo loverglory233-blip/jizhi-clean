@@ -802,45 +802,53 @@ if ($action === 'get_teacher_monitor_all_groups') {
         }
 
         $ONLINE_WINDOW_MS = 180000; // 180 秒 (3分钟) 心跳/发言窗口，与浏览器后台标签页节流对齐，确保在线状态稳定常绿不跳变
+        $cutoffMs = $nowMs - $ONLINE_WINDOW_MS;
 
+        // 🚀 性能革命：收集全量 ScopeKey 进行批量单次查表，消灭 N+1 查询瓶颈，教师端毫秒级秒开！
+        $allScopeKeys = [];
+        $groupScopeMap = [];
         foreach ($allGroupIds as $gid) {
             $r = $stateMap[$gid] ?? null;
             $sk = $r ? $r['scope_key'] : ($taskId . '_' . $gid);
+            $allScopeKeys[] = $sk;
+            $groupScopeMap[$gid] = $sk;
+        }
+
+        // 1. 一次性批量查出全组最新消息
+        $batchChatsMap = [];
+        $batchActiveSendersMap = [];
+        if (!empty($allScopeKeys)) {
+            $inPlaceholders = implode(',', array_fill(0, count($allScopeKeys), '?'));
+            $stmtBatchMsg = $pdo->prepare("SELECT scope_key, stage, sender, text, timestamp_str, time_ms, id FROM chat_messages WHERE scope_key IN ($inPlaceholders) ORDER BY time_ms ASC");
+            $stmtBatchMsg->execute($allScopeKeys);
+            $allBatchRows = $stmtBatchMsg->fetchAll(PDO::FETCH_ASSOC);
+            foreach ($allBatchRows as $mr) {
+                $bsk = $mr['scope_key'];
+                $stg = $mr['stage'] ?: 'stage1';
+                if (!isset($batchChatsMap[$bsk])) $batchChatsMap[$bsk] = ['stage1' => [], 'stage2' => [], 'stage3' => []];
+                if (!isset($batchChatsMap[$bsk][$stg])) $batchChatsMap[$bsk][$stg] = [];
+                $batchChatsMap[$bsk][$stg][] = [
+                    'id'        => $mr['id'] ?: ('msg_' . $mr['time_ms'] . '_' . substr(md5($mr['text']), 0, 6)),
+                    'sender'    => $mr['sender'],
+                    'text'      => $mr['text'],
+                    'timestamp' => $mr['timestamp_str'],
+                    '_timeMs'   => intval($mr['time_ms'])
+                ];
+                if (intval($mr['time_ms']) >= $cutoffMs) {
+                    if (!isset($batchActiveSendersMap[$bsk])) $batchActiveSendersMap[$bsk] = [];
+                    $batchActiveSendersMap[$bsk][(string)$mr['sender']] = true;
+                }
+            }
+        }
+
+        foreach ($allGroupIds as $gid) {
+            $r = $stateMap[$gid] ?? null;
+            $sk = $groupScopeMap[$gid];
             $offGroup = $officialGroups[$gid] ?? null;
 
-            // 🛡️ 聊天记录严格隔离：直接从 chat_messages 关系表中拉取属于本组 ($sk) 的历史消息
-            $chats = ['stage1' => [], 'stage2' => [], 'stage3' => []];
-            $stmtAllMsg = $pdo->prepare("SELECT stage, sender, text, timestamp_str, time_ms, id FROM chat_messages WHERE scope_key = :sk ORDER BY time_ms ASC");
-            $stmtAllMsg->execute([':sk' => $sk]);
-            $allMsgRows = $stmtAllMsg->fetchAll(PDO::FETCH_ASSOC);
-            if (!empty($allMsgRows)) {
-                foreach ($allMsgRows as $mr) {
-                    $stg = $mr['stage'] ?: 'stage1';
-                    if (!isset($chats[$stg])) $chats[$stg] = [];
-                    $chats[$stg][] = [
-                        'id'        => $mr['id'] ?: ('msg_' . $mr['time_ms'] . '_' . substr(md5($mr['text']), 0, 6)),
-                        'sender'    => $mr['sender'],
-                        'text'      => $mr['text'],
-                        'timestamp' => $mr['timestamp_str'],
-                        '_timeMs'   => intval($mr['time_ms'])
-                    ];
-                }
-            } else {
-                $stmtChats = $pdo->prepare("SELECT meta_value FROM global_meta WHERE meta_key = :k");
-                $stmtChats->execute([':k' => 'chats_' . $sk]);
-                $chatRow = $stmtChats->fetch();
-                $chats = ($chatRow && !empty($chatRow['meta_value'])) ? json_decode($chatRow['meta_value'], true) : ['stage1' => [], 'stage2' => [], 'stage3' => []];
-            }
-
-            // 查出该组最近发言的学生名单
-            $recentActiveSenders = [];
-            $cutoffMs = $nowMs - $ONLINE_WINDOW_MS;
-            $stmtAct = $pdo->prepare("SELECT DISTINCT sender FROM chat_messages WHERE scope_key = :sk AND time_ms >= :cutoff");
-            $stmtAct->execute([':sk' => $sk, ':cutoff' => $cutoffMs]);
-            $actRows = $stmtAct->fetchAll(PDO::FETCH_COLUMN);
-            if (is_array($actRows)) {
-                foreach ($actRows as $snd) { $recentActiveSenders[(string)$snd] = true; }
-            }
+            // 🛡️ 直接从批量内存字典中秒级提取本组聊天与活跃人，0 次多余 SQL
+            $chats = $batchChatsMap[$sk] ?? ['stage1' => [], 'stage2' => [], 'stage3' => []];
+            $recentActiveSenders = $batchActiveSendersMap[$sk] ?? [];
 
             // 组员名单优先取班级官方分配名单，并解析为完整成员信息
             $rawMembers = [];
