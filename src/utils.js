@@ -649,68 +649,38 @@ export function enforceEtherpadReadonly(iframe) {
 
   const tryLock = () => {
     try {
-      const doc = iframe.contentDocument || iframe.contentWindow?.document;
+      // 仅在同源可访问时做单次静态防护，跨域时直接静默跳过，绝不高频捕获异常
+      const doc = iframe.contentDocument;
       if (!doc) return;
 
-      // 1. 隐藏工具栏与额外操作菜单
       const toolbar = doc.querySelector('.toolbar') || doc.querySelector('#editbar') || doc.querySelector('#menu_left') || doc.querySelector('#menu_right');
       if (toolbar) toolbar.style.setProperty('display', 'none', 'important');
 
       const footer = doc.querySelector('#footer') || doc.querySelector('.bottom-bar') || doc.querySelector('#chatbox');
       if (footer) footer.style.setProperty('display', 'none', 'important');
 
-      // 2. 锁定 Ace Inner 编辑核心区域为只读，并拦截所有键盘篡改/输入事件
       const aceOuter = doc.querySelector('iframe[name="ace_outer"]');
       if (aceOuter) {
-        const outerDoc = aceOuter.contentDocument || aceOuter.contentWindow?.document;
+        const outerDoc = aceOuter.contentDocument;
         if (outerDoc) {
           const aceInner = outerDoc.querySelector('iframe[name="ace_inner"]');
           if (aceInner) {
-            const innerDoc = aceInner.contentDocument || aceInner.contentWindow?.document;
+            const innerDoc = aceInner.contentDocument;
             if (innerDoc) {
               const innerBody = innerDoc.querySelector('#innerdocbody') || innerDoc.body;
               if (innerBody) {
-                if (innerBody.getAttribute('contenteditable') !== 'false') {
-                  innerBody.setAttribute('contenteditable', 'false');
-                }
+                innerBody.setAttribute('contenteditable', 'false');
                 innerBody.style.setProperty('cursor', 'not-allowed', 'important');
-              }
-
-              if (!innerDoc._readonlyBlocked) {
-                innerDoc._readonlyBlocked = true;
-                const blockInput = (e) => {
-                  if (e.type === 'keydown' || e.type === 'keyup') {
-                    const isCopy = (e.ctrlKey || e.metaKey) && (e.key === 'c' || e.key === 'C');
-                    const isSelectAll = (e.ctrlKey || e.metaKey) && (e.key === 'a' || e.key === 'A');
-                    const isNav = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'PageUp', 'PageDown', 'Home', 'End'].includes(e.key);
-                    if (isCopy || isSelectAll || isNav) return;
-                  }
-                  e.preventDefault();
-                  e.stopPropagation();
-                  return false;
-                };
-
-                ['beforeinput', 'input', 'keydown', 'keypress', 'paste', 'cut', 'compositionstart'].forEach(evt => {
-                  innerDoc.addEventListener(evt, blockInput, true);
-                  if (innerBody) innerBody.addEventListener(evt, blockInput, true);
-                });
               }
             }
           }
         }
       }
     } catch(e) {
-      // cross-origin or loading
+      // 官方只读 ID (r.xxxx) 已由 Etherpad 服务端完全锁死编辑，跨域时安全静默跳过
     }
   };
 
-  iframe.addEventListener('load', tryLock);
+  iframe.addEventListener('load', tryLock, { once: true });
   tryLock();
-
-  let count = 0;
-  const interval = setInterval(() => {
-    tryLock();
-    count++;
-    if (count > 35) clearInterval(interval);
-  }, 300);
 }

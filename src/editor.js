@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles } from "./constants.js?v=20260830_v798";
-import { callCozeAgentAPI } from "./agents.js?v=20260830_v798";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly } from "./utils.js?v=20260830_v798";
+import { AgentProfiles } from "./constants.js?v=20260830_v799";
+import { callCozeAgentAPI } from "./agents.js?v=20260830_v799";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly } from "./utils.js?v=20260830_v799";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -2623,10 +2623,12 @@ function renderStage3Canvas(canvas, state, handlers) {
           const currUserName = (currUser && (currUser.name || currUser.username)) || '组员';
           const currUserColor = (state.members && state.members[currUserCode]?.color) || '#2563eb';
 
-          // 🛡️ 权威官方只读模式：对齐教师端成熟方案，使用 Etherpad 官方 get_readonly_pad_id (r.xxxx)
+          const isEditorReadonly = isFinalSubmitted || isTaskDeadlineExpired;
+
+          // 🛡️ 权威官方只读模式：对齐教师端与阶段二成熟方案，使用 Etherpad 官方 get_readonly_pad_id (r.xxxx)
           if (!state._readOnlyPadMap) state._readOnlyPadMap = {};
           let targetPad = rawPadName;
-          if (isFinalSubmitted) {
+          if (isEditorReadonly) {
             const readOnlyPadId = state._readOnlyPadMap[rawPadName];
             if (readOnlyPadId) {
               targetPad = readOnlyPadId;
@@ -2643,13 +2645,13 @@ function renderStage3Canvas(canvas, state, handlers) {
             }
           }
 
-          const padUrl = `/p/${encodeURIComponent(targetPad)}?userName=${encodeURIComponent(currUserName)}&userColor=${encodeURIComponent(currUserColor)}&showChat=false&showLineNumbers=true&showControls=${isFinalSubmitted ? 'false' : 'true'}&lang=zh-hans`;
+          const padUrl = `/p/${encodeURIComponent(targetPad)}?userName=${encodeURIComponent(currUserName)}&userColor=${encodeURIComponent(currUserColor)}&showChat=false&showLineNumbers=true&showControls=${isEditorReadonly ? 'false' : 'true'}&lang=zh-hans`;
 
           return `
             <div class="card-title" style="margin-bottom:10px; display:flex; justify-content:space-between; align-items:center;">
-              <span style="font-size:15px; font-weight:800; color:#0f172a;">📝 论文全篇终稿大正文 ${isFinalSubmitted ? '<span style="font-size:11.5px; color:#059669; margin-left:6px; background:#ecfdf5; padding:2px 8px; border-radius:6px; border:1px solid #a7f3d0;">🔒 终稿已全员提交归档 · 100% 只读防篡改保护</span>' : '(依据答辩意见实时协同修改终稿 · Etherpad 毫秒级引擎)'}</span>
+              <span style="font-size:15px; font-weight:800; color:#0f172a;">📝 论文全篇终稿大正文 ${isEditorReadonly ? '<span style="font-size:11.5px; color:#059669; margin-left:6px; background:#ecfdf5; padding:2px 8px; border-radius:6px; border:1px solid #a7f3d0;">🔒 终稿已归档/截止锁定 · 100% 只读防篡改保护</span>' : '(依据答辩意见实时协同修改终稿 · Etherpad 毫秒级引擎)'}</span>
               <div style="display:flex; align-items:center; gap:8px;">
-                <span style="font-size:11px; background:${isFinalSubmitted ? '#f1f5f9' : '#ecfdf5'}; color:${isFinalSubmitted ? '#64748b' : '#059669'}; border:1px solid ${isFinalSubmitted ? '#cbd5e1' : '#a7f3d0'}; padding:2px 8px; border-radius:10px; font-weight:700;">${isFinalSubmitted ? '🔒 只读归档' : '🟢 Etherpad 协同就绪'}</span>
+                <span style="font-size:11px; background:${isEditorReadonly ? '#f1f5f9' : '#ecfdf5'}; color:${isEditorReadonly ? '#64748b' : '#059669'}; border:1px solid ${isEditorReadonly ? '#cbd5e1' : '#a7f3d0'}; padding:2px 8px; border-radius:10px; font-weight:700;">${isEditorReadonly ? '🔒 只读归档' : '🟢 Etherpad 协同就绪'}</span>
                 <button onclick="const f=document.getElementById('stage3-etherpad-frame'); if(f) f.src=f.src;" style="background:transparent; color:#2563eb; border:1px solid #cbd5e1; padding:2px 8px; border-radius:4px; font-size:11px; cursor:pointer; font-weight:600;">🔄 刷新</button>
               </div>
             </div>

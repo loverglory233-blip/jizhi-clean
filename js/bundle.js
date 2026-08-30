@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260830_v798
+ * Version: 20260830_v799
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260830_v798';
+  const APP_VERSION = '20260830_v799';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -770,70 +770,40 @@
 
     const tryLock = () => {
       try {
-        const doc = iframe.contentDocument || iframe.contentWindow?.document;
+        // 仅在同源可访问时做单次静态防护，跨域时直接静默跳过，绝不高频捕获异常
+        const doc = iframe.contentDocument;
         if (!doc) return;
 
-        // 1. 隐藏工具栏与额外操作菜单
         const toolbar = doc.querySelector('.toolbar') || doc.querySelector('#editbar') || doc.querySelector('#menu_left') || doc.querySelector('#menu_right');
         if (toolbar) toolbar.style.setProperty('display', 'none', 'important');
 
         const footer = doc.querySelector('#footer') || doc.querySelector('.bottom-bar') || doc.querySelector('#chatbox');
         if (footer) footer.style.setProperty('display', 'none', 'important');
 
-        // 2. 锁定 Ace Inner 编辑核心区域为只读，并拦截所有键盘篡改/输入事件
         const aceOuter = doc.querySelector('iframe[name="ace_outer"]');
         if (aceOuter) {
-          const outerDoc = aceOuter.contentDocument || aceOuter.contentWindow?.document;
+          const outerDoc = aceOuter.contentDocument;
           if (outerDoc) {
             const aceInner = outerDoc.querySelector('iframe[name="ace_inner"]');
             if (aceInner) {
-              const innerDoc = aceInner.contentDocument || aceInner.contentWindow?.document;
+              const innerDoc = aceInner.contentDocument;
               if (innerDoc) {
                 const innerBody = innerDoc.querySelector('#innerdocbody') || innerDoc.body;
                 if (innerBody) {
-                  if (innerBody.getAttribute('contenteditable') !== 'false') {
-                    innerBody.setAttribute('contenteditable', 'false');
-                  }
+                  innerBody.setAttribute('contenteditable', 'false');
                   innerBody.style.setProperty('cursor', 'not-allowed', 'important');
-                }
-
-                if (!innerDoc._readonlyBlocked) {
-                  innerDoc._readonlyBlocked = true;
-                  const blockInput = (e) => {
-                    if (e.type === 'keydown' || e.type === 'keyup') {
-                      const isCopy = (e.ctrlKey || e.metaKey) && (e.key === 'c' || e.key === 'C');
-                      const isSelectAll = (e.ctrlKey || e.metaKey) && (e.key === 'a' || e.key === 'A');
-                      const isNav = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'PageUp', 'PageDown', 'Home', 'End'].includes(e.key);
-                      if (isCopy || isSelectAll || isNav) return;
-                    }
-                    e.preventDefault();
-                    e.stopPropagation();
-                    return false;
-                  };
-
-                  ['beforeinput', 'input', 'keydown', 'keypress', 'paste', 'cut', 'compositionstart'].forEach(evt => {
-                    innerDoc.addEventListener(evt, blockInput, true);
-                    if (innerBody) innerBody.addEventListener(evt, blockInput, true);
-                  });
                 }
               }
             }
           }
         }
       } catch(e) {
-        // cross-origin or loading
+        // 官方只读 ID (r.xxxx) 已由 Etherpad 服务端完全锁死编辑，跨域时安全静默跳过
       }
     };
 
-    iframe.addEventListener('load', tryLock);
+    iframe.addEventListener('load', tryLock, { once: true });
     tryLock();
-
-    let count = 0;
-    const interval = setInterval(() => {
-      tryLock();
-      count++;
-      if (count > 35) clearInterval(interval);
-    }, 300);
   }
 
   /* ==========================================================================
@@ -2914,13 +2884,13 @@
     initPolling() {
       this.pullFromServer();
       this.sendPresencePing(); // ⚡ 进入工作台 0ms 瞬间首发上线心跳，告别等待
-      // ⚡ 动静分级智能心跳与轮询阶梯：
-      // • 活跃态 (< 10分钟): 轮询 500ms，心跳 3s (单次20~50字节，秒级精准同步)
-      // • 静止态 (> 10分钟): 轮询 3s，心跳 10s
-      // • 息屏态 (切后台/休眠): 轮询 10s，心跳 30s
+      // ⚡ 动静分级智能心跳与轮询阶梯（平衡实时协同与服务器开销）：
+      // • 活跃态 (< 2分钟有操作): 轮询 1.5s，心跳 8s (轻量精准，彻底杜绝 PHP 进程池拥塞)
+      // • 静止态 (> 2分钟无操作): 轮询 10s，心跳 20s
+      // • 息屏态 (切后台/休眠): 轮询 20s，心跳 40s
       let lastUserActivity = Date.now();
       const markActive = () => {
-        const wasIdle = (Date.now() - lastUserActivity > 600000);
+        const wasIdle = (Date.now() - lastUserActivity > 120000);
         lastUserActivity = Date.now();
         if (wasIdle && !this.isLoggingOut) {
           this.sendPresencePing();
@@ -2932,9 +2902,9 @@
       });
 
       const isHidden = () => document.hidden || document.visibilityState === 'hidden';
-      const isIdle = () => isHidden() || (Date.now() - lastUserActivity > 600000);
-      const getPollInterval = () => (isHidden() ? 10000 : (isIdle() ? 3000 : 1000));
-      const getPingInterval = () => (isHidden() ? 30000 : (isIdle() ? 10000 : 3000));
+      const isIdle = () => isHidden() || (Date.now() - lastUserActivity > 120000);
+      const getPollInterval = () => (isHidden() ? 20000 : (isIdle() ? 10000 : 1500));
+      const getPingInterval = () => (isHidden() ? 40000 : (isIdle() ? 20000 : 8000));
 
       const runPoll = () => {
         if (this.isLoggingOut) return;
@@ -2954,13 +2924,13 @@
           lastPingTime = now;
           this.sendPresencePing().finally(() => {
             if (this.isLoggingOut) return;
-            this.pingTimer = setTimeout(runPing, 3000);
+            this.pingTimer = setTimeout(runPing, 5000);
           });
         } else {
-          this.pingTimer = setTimeout(runPing, 3000);
+          this.pingTimer = setTimeout(runPing, 5000);
         }
       };
-      this.pingTimer = setTimeout(runPing, 5000);
+      this.pingTimer = setTimeout(runPing, 8000);
 
       window.addEventListener('storage', (e) => {
         if (e.key === this.storageKey && e.newValue) {
@@ -10724,10 +10694,12 @@
             const currUserName = (currUser && (currUser.name || currUser.username)) || '组员';
             const currUserColor = (state.members && state.members[currUserCode]?.color) || '#2563eb';
 
-            // 🛡️ 权威官方只读模式：对齐教师端成熟方案，使用 Etherpad 官方 get_readonly_pad_id (r.xxxx)
+            const isEditorReadonly = isFinalSubmitted || isTaskDeadlineExpired;
+
+            // 🛡️ 权威官方只读模式：对齐教师端与阶段二成熟方案，使用 Etherpad 官方 get_readonly_pad_id (r.xxxx)
             if (!state._readOnlyPadMap) state._readOnlyPadMap = {};
             let targetPad = rawPadName;
-            if (isFinalSubmitted) {
+            if (isEditorReadonly) {
               const readOnlyPadId = state._readOnlyPadMap[rawPadName];
               if (readOnlyPadId) {
                 targetPad = readOnlyPadId;
@@ -10744,13 +10716,13 @@
               }
             }
 
-            const padUrl = `/p/${encodeURIComponent(targetPad)}?userName=${encodeURIComponent(currUserName)}&userColor=${encodeURIComponent(currUserColor)}&showChat=false&showLineNumbers=true&showControls=${isFinalSubmitted ? 'false' : 'true'}&lang=zh-hans`;
+            const padUrl = `/p/${encodeURIComponent(targetPad)}?userName=${encodeURIComponent(currUserName)}&userColor=${encodeURIComponent(currUserColor)}&showChat=false&showLineNumbers=true&showControls=${isEditorReadonly ? 'false' : 'true'}&lang=zh-hans`;
 
             return `
               <div class="card-title" style="margin-bottom:10px; display:flex; justify-content:space-between; align-items:center;">
-                <span style="font-size:15px; font-weight:800; color:#0f172a;">📝 论文全篇终稿大正文 ${isFinalSubmitted ? '<span style="font-size:11.5px; color:#059669; margin-left:6px; background:#ecfdf5; padding:2px 8px; border-radius:6px; border:1px solid #a7f3d0;">🔒 终稿已全员提交归档 · 100% 只读防篡改保护</span>' : '(依据答辩意见实时协同修改终稿 · Etherpad 毫秒级引擎)'}</span>
+                <span style="font-size:15px; font-weight:800; color:#0f172a;">📝 论文全篇终稿大正文 ${isEditorReadonly ? '<span style="font-size:11.5px; color:#059669; margin-left:6px; background:#ecfdf5; padding:2px 8px; border-radius:6px; border:1px solid #a7f3d0;">🔒 终稿已归档/截止锁定 · 100% 只读防篡改保护</span>' : '(依据答辩意见实时协同修改终稿 · Etherpad 毫秒级引擎)'}</span>
                 <div style="display:flex; align-items:center; gap:8px;">
-                  <span style="font-size:11px; background:${isFinalSubmitted ? '#f1f5f9' : '#ecfdf5'}; color:${isFinalSubmitted ? '#64748b' : '#059669'}; border:1px solid ${isFinalSubmitted ? '#cbd5e1' : '#a7f3d0'}; padding:2px 8px; border-radius:10px; font-weight:700;">${isFinalSubmitted ? '🔒 只读归档' : '🟢 Etherpad 协同就绪'}</span>
+                  <span style="font-size:11px; background:${isEditorReadonly ? '#f1f5f9' : '#ecfdf5'}; color:${isEditorReadonly ? '#64748b' : '#059669'}; border:1px solid ${isEditorReadonly ? '#cbd5e1' : '#a7f3d0'}; padding:2px 8px; border-radius:10px; font-weight:700;">${isEditorReadonly ? '🔒 只读归档' : '🟢 Etherpad 协同就绪'}</span>
                   <button onclick="const f=document.getElementById('stage3-etherpad-frame'); if(f) f.src=f.src;" style="background:transparent; color:#2563eb; border:1px solid #cbd5e1; padding:2px 8px; border-radius:4px; font-size:11px; cursor:pointer; font-weight:600;">🔄 刷新</button>
                 </div>
               </div>
