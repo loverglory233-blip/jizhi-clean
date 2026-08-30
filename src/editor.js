@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles } from "./constants.js?v=20260830_v755";
-import { callCozeAgentAPI } from "./agents.js?v=20260830_v755";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs } from "./utils.js?v=20260830_v755";
+import { AgentProfiles } from "./constants.js?v=20260830_v756";
+import { callCozeAgentAPI } from "./agents.js?v=20260830_v756";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly } from "./utils.js?v=20260830_v756";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -2202,6 +2202,12 @@ function renderStage2Canvas(canvas, state, handlers) {
   });
   renderRemoteCursors('stage2-word-editor', state);
 
+  // 🔒 若处于只读模式，强制执行 DOM 内核级只读锁定
+  if (isEditorReadonly) {
+    const s2Frame = canvas.querySelector('#stage2-etherpad-frame');
+    if (s2Frame) enforceEtherpadReadonly(s2Frame);
+  }
+
   const btnTogglePlan = canvas.querySelector('#btn-toggle-action-plan');
   if (btnTogglePlan) {
     btnTogglePlan.addEventListener('click', (e) => {
@@ -2634,6 +2640,11 @@ function renderStage3Canvas(canvas, state, handlers) {
         try { newElem.setSelectionRange(activeSelectionStart, activeSelectionEnd); } catch (e) {}
       }
     }
+  }
+
+  if (isFinalSubmitted) {
+    const s3Frame = canvas.querySelector('#stage3-etherpad-frame');
+    if (s3Frame) enforceEtherpadReadonly(s3Frame);
   }
 
   const tabDefense = canvas.querySelector('#tab-btn-defense');

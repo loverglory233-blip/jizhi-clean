@@ -519,3 +519,62 @@ export function showGlobalBannerNotice(title, message, type = 'info') {
     }
   }, 6000);
 }
+
+/**
+ * 🔒 权威只读注入器：从 DOM 层与内核层双重锁定 Etherpad 文档
+ * - 彻底隐藏顶部编辑工具栏与底部操作栏
+ * - 强制设置 innerdocbody contenteditable="false"，彻底杜绝键盘输入、剪切与修改
+ * - 完整保留原生鼠标滚轮、触摸滑动与文字查阅能力
+ */
+export function enforceEtherpadReadonly(iframe) {
+  if (!iframe) return;
+
+  const tryLock = () => {
+    try {
+      const doc = iframe.contentDocument || iframe.contentWindow?.document;
+      if (!doc) return;
+
+      // 1. 隐藏工具栏与额外操作菜单
+      const toolbar = doc.querySelector('.toolbar') || doc.querySelector('#editbar') || doc.querySelector('#menu_left') || doc.querySelector('#menu_right');
+      if (toolbar) toolbar.style.setProperty('display', 'none', 'important');
+
+      const footer = doc.querySelector('#footer') || doc.querySelector('.bottom-bar') || doc.querySelector('#chatbox');
+      if (footer) footer.style.setProperty('display', 'none', 'important');
+
+      // 2. 锁定 Ace Inner 编辑核心区域为只读
+      const aceOuter = doc.querySelector('iframe[name="ace_outer"]');
+      if (aceOuter) {
+        const outerDoc = aceOuter.contentDocument || aceOuter.contentWindow?.document;
+        if (outerDoc) {
+          const aceInner = outerDoc.querySelector('iframe[name="ace_inner"]');
+          if (aceInner) {
+            const innerDoc = aceInner.contentDocument || aceInner.contentWindow?.document;
+            if (innerDoc) {
+              const innerBody = innerDoc.querySelector('#innerdocbody') || innerDoc.body;
+              if (innerBody) {
+                if (innerBody.getAttribute('contenteditable') !== 'false') {
+                  innerBody.setAttribute('contenteditable', 'false');
+                }
+                innerBody.style.setProperty('cursor', 'default', 'important');
+                innerBody.style.setProperty('user-select', 'text', 'important');
+                innerBody.style.setProperty('-webkit-user-select', 'text', 'important');
+              }
+            }
+          }
+        }
+      }
+    } catch(e) {
+      // cross-origin or loading
+    }
+  };
+
+  iframe.addEventListener('load', tryLock);
+  tryLock();
+
+  let count = 0;
+  const interval = setInterval(() => {
+    tryLock();
+    count++;
+    if (count > 30) clearInterval(interval);
+  }, 350);
+}
