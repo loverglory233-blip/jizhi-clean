@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260831_v922
+ * Version: 20260831_v923
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260831_v922';
+  const APP_VERSION = '20260831_v923';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -10508,21 +10508,10 @@
                     }).join('')}
                   </div>
                 </div>
-                <div style="display:flex; gap:6px; align-items:center;">
+                <div>
                   <button id="btn-trigger-meeting-pills" style="background:${isCurrentUserSubmitted ? '#ecfdf5' : 'linear-gradient(135deg, #2563eb, #1d4ed8)'}; border:${isCurrentUserSubmitted ? '1px solid #a7f3d0' : 'none'}; color:${isCurrentUserSubmitted ? '#059669' : 'white'}; padding:4px 10px; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer;">
                     ${isCurrentUserSubmitted ? '✅ 查看自查记录' : '📢 参与【编辑会议】'}
                   </button>
-                  ${isMeetingFullyDone && (!s2.meetingStep || s2.meetingStep === 'initial' || s2.meetingStep === 'discussing_agreement') ? `
-                    <button id="btn-s2-managing-summary" style="background:linear-gradient(135deg, #d97706, #b45309); border:none; color:white; padding:4px 12px; border-radius:6px; font-size:11.5px; font-weight:800; cursor:pointer; box-shadow:0 2px 6px rgba(217,119,6,0.25);">
-                      🤝 讨论差不多了？让责任编辑总结
-                    </button>
-                  ` : (s2.meetingStep === 'discussing_checklist' ? `
-                    <button id="btn-s2-reviewing-summary" style="background:linear-gradient(135deg, #059669, #047857); border:none; color:white; padding:4px 12px; border-radius:6px; font-size:11.5px; font-weight:800; cursor:pointer; box-shadow:0 2px 6px rgba(5,150,105,0.25);">
-                      📝 讨论差不多了？让审稿编辑总结
-                    </button>
-                  ` : (s2.meetingStep === 'completed' ? `
-                    <span style="font-size:11px; color:#059669; font-weight:700; background:#ecfdf5; padding:3px 8px; border-radius:6px; border:1px solid #a7f3d0;">✅ 会议已闭环</span>
-                  ` : ''))}
                 </div>
               </div>
             `;
@@ -11492,14 +11481,18 @@
         return !!(map[myCode] || (currUser && (map[currUser.id] || map[currUser.studentCode] || map[currUser.username] || map[currUser.name])));
       };
 
-      if (curStage === 'stage2' && s2.meetingStep && s2.meetingStep !== 'completed') {
+      const s2Subs = s2.meetingSubmissions || {};
+      const s2SubCount = Object.keys(s2Subs).length;
+      const isS2MeetingDone = s2SubCount >= totalCount && totalCount > 0;
+
+      if (curStage === 'stage2' && isS2MeetingDone && s2.meetingStep !== 'completed') {
         actionBar.style.display = 'block';
-        if (s2.meetingStep === 'discussing_divergence') {
+        if (!s2.meetingStep || s2.meetingStep === 'discussing_divergence' || s2.meetingStep === 'initial' || s2.meetingStep === 'discussing_agreement') {
           const count = isDoneHelper(confs.s2_managing);
           const isMe = isMyDoneHelper(confs.s2_managing);
           actionBar.innerHTML = `
-            <button id="btn-s2-managing-summary" style="background:${isMe ? 'linear-gradient(135deg, #059669, #047857)' : 'linear-gradient(135deg, #2563eb, #1d4ed8)'}; border:none; color:white; padding:7px 18px; border-radius:18px; font-weight:800; font-size:12.5px; cursor:pointer; display:inline-flex; align-items:center; gap:6px; box-shadow:0 3px 10px rgba(37,99,235,0.25); transition:all 0.2s;">
-              ${isMe ? `✅ 您已确认总结分歧 (${count}/${totalCount} 等待组员)` : `💡 讨论差不多了？让责任编辑总结 (${count}/${totalCount})`}
+            <button id="btn-s2-managing-summary" style="background:${isMe ? 'linear-gradient(135deg, #059669, #047857)' : 'linear-gradient(135deg, #d97706, #b45309)'}; border:none; color:white; padding:7px 18px; border-radius:18px; font-weight:800; font-size:12.5px; cursor:pointer; display:inline-flex; align-items:center; gap:6px; box-shadow:0 3px 10px rgba(217,119,6,0.25); transition:all 0.2s;">
+              ${isMe ? `✅ 您已确认总结共识 (${count}/${totalCount} 等待组员)` : `🤝 讨论差不多了？让责任编辑总结 (${count}/${totalCount})`}
             </button>
           `;
           actionBar.querySelector('#btn-s2-managing-summary')?.addEventListener('click', () => {
@@ -11511,7 +11504,7 @@
           const count = isDoneHelper(confs.s2_reviewing);
           const isMe = isMyDoneHelper(confs.s2_reviewing);
           actionBar.innerHTML = `
-            <button id="btn-s2-reviewing-summary" style="background:${isMe ? 'linear-gradient(135deg, #059669, #047857)' : 'linear-gradient(135deg, #7c3aed, #6d28d9)'}; border:none; color:white; padding:7px 18px; border-radius:18px; font-weight:800; font-size:12.5px; cursor:pointer; display:inline-flex; align-items:center; gap:6px; box-shadow:0 3px 10px rgba(124,58,237,0.25); transition:all 0.2s;">
+            <button id="btn-s2-reviewing-summary" style="background:${isMe ? 'linear-gradient(135deg, #059669, #047857)' : 'linear-gradient(135deg, #059669, #047857)'}; border:none; color:white; padding:7px 18px; border-radius:18px; font-weight:800; font-size:12.5px; cursor:pointer; display:inline-flex; align-items:center; gap:6px; box-shadow:0 3px 10px rgba(5,150,105,0.25); transition:all 0.2s;">
               ${isMe ? `✅ 您已确认总结清单 (${count}/${totalCount} 等待组员)` : `📝 讨论差不多了？让审稿编辑总结 (${count}/${totalCount})`}
             </button>
           `;
