@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260830_v869";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap } from "./utils.js?v=20260830_v869";
-import { callCozeAgentAPI } from "./agents.js?v=20260830_v869";
-import { AuthManager } from "./auth.js?v=20260830_v869";
-import { CloudSyncEngine } from "./sync.js?v=20260830_v869";
-import { renderLoginView } from "./login.js?v=20260830_v869";
-import { renderTeacherPortal } from "./teacher.js?v=20260830_v869";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260830_v869";
+} from "./constants.js?v=20260830_v870";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap } from "./utils.js?v=20260830_v870";
+import { callCozeAgentAPI } from "./agents.js?v=20260830_v870";
+import { AuthManager } from "./auth.js?v=20260830_v870";
+import { CloudSyncEngine } from "./sync.js?v=20260830_v870";
+import { renderLoginView } from "./login.js?v=20260830_v870";
+import { renderTeacherPortal } from "./teacher.js?v=20260830_v870";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260830_v870";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260830_v869";
+} from "./editor.js?v=20260830_v870";
 
 // Make renderChat available on window for sync callbacks
 if (typeof window !== "undefined") {
@@ -1573,36 +1573,25 @@ ${recentChats}
             const remainingOppCount = feedbacks.filter(f => f.role === 'opponent' && (!f.response || f.response.trim().length === 0)).length;
 
             const evalInquiryPrompt = `小组成员已就核心课题《${topic}》针对【反方质询】在研讨区展开了辩护商议。
-【反方质询内容】: ${currentPendingInquiry.comment}
+【反方原始质询】: ${currentPendingInquiry.comment}
 【小组成员的真实辩护讨论记录】:
 ${chatContent}
 
-请作为学术答辩委员会主席（中间委员），发表 110~140 字的【答辩质询审阅与顺推裁决】：
-1. 【提炼答辩共识】：通读全组成员的研讨，精准提炼出团队针对该质询所商定出的核心辩护思路与具体操作化补救措施；
-2. 【委员会裁决与顺推】：
-   ${remainingOppCount > 1 
-     ? '① 宣布本项质询辩护有效并予以采纳，答辩陈述已自动归档入库；\n② 【单题顺推】：顺承引导全组将焦点转向下一项反方质询，就下一题展开深入辩护交流！' 
-     : '① 宣布全部质询辩护完毕且均获委员会全票认可；\n② 发表终审裁决总结，祝贺团队圆满通过学术答辩，指引全组在正文中落实最终修改并提交终稿！'}
-（纯学术语体，自然流畅，110~140字，严禁输出代码块或技术标记）`;
+请作为学术答辩委员会主席（中间委员），发表 100~130 字的【答辩研讨小结与矩阵录入提醒】：
+1. 【提炼辩护要点】：肯定并提炼全组成员在研讨中商定出的核心辩护思路与操作化措施；
+2. 【提醒录入矩阵】：明确提醒小组成员推选一位代表，将商定好的辩护共识录入到左侧【答辩裁决矩阵】对应质询下方并保存，随后系统将进行下一步评审与推进！
+（纯学术语体，亲切自然，100~130字，严禁输出代码块或技术标记）`;
 
             setTimeout(async () => {
               try {
                 const evalReply = await callCozeAgentAPI('neutral', evalInquiryPrompt, { stage: 'stage3', topic });
-                const fallbackText = remainingOppCount > 1
-                  ? `🟡 【中间委员·针对质询答辩思路顺推】：看到全组已商定好辩护要点！前序答辩已得到委员会认可。👉 接下来请全组将焦点转向下一项反方质询，继续在讨论区商定对策！`
-                  : `🟡 【中间委员·答辩终审总结与裁决】：各位研究者，答辩委员会已通读了全组针对各项质询的辩护陈述！团队展现出了扎实的学术反思与严谨的论证逻辑。答辩全票顺利通过，祝贺大家！请全组成员完善终稿并点击提交归档！`;
+                const fallbackText = `🟡 【中间委员·答辩小结与录入指引】：关注到全组已围绕当前质询商定好了清晰的辩护对策！👉 请组内推选一位代表，将商定好的辩护陈述录入到左侧【答辩交锋区】对应质询卡片下方并保存！`;
                 
                 const finalChairText = (evalReply && evalReply.trim().length > 0) ? evalReply.trim() : fallbackText;
 
-                // 自动将提炼的答辩词同步至左侧矩阵卡片（学生亦可微调）
-                if (!currentPendingInquiry.response || currentPendingInquiry.response.trim().length === 0) {
-                  currentPendingInquiry.response = msgsForInquiry.map(m => m.text).join('；').slice(0, 300);
-                  this.syncStage3();
-                }
-
                 const chairMsgObj = {
                   sender: 'neutral',
-                  text: finalChairText.startsWith('🟡') ? finalChairText : `🟡 【中间委员·答辩小结与顺推】：${finalChairText}`,
+                  text: finalChairText.startsWith('🟡') ? finalChairText : `🟡 【中间委员·答辩小结与录入指引】：${finalChairText}`,
                   timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
                   _timeMs: Date.now()
                 };
@@ -1613,7 +1602,7 @@ ${chatContent}
                 this.renderStudentWorkspace();
                 renderChat(this.state);
               } catch (e) {
-                console.warn('Inquiry auto evaluation error:', e);
+                console.warn('Inquiry evaluation error:', e);
               } finally {
                 this._isEvaluatingInquiry = false;
               }
