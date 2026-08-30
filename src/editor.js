@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles } from "./constants.js?v=20260831_v934";
-import { callCozeAgentAPI } from "./agents.js?v=20260831_v934";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap } from "./utils.js?v=20260831_v934";
+import { AgentProfiles } from "./constants.js?v=20260831_v935";
+import { callCozeAgentAPI } from "./agents.js?v=20260831_v935";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap } from "./utils.js?v=20260831_v935";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -77,7 +77,14 @@ export function renderHeader(state, currentUser, announcements, onStageChange, o
   const s1 = state.stage1 || {};
   const s2 = state.stage2 || {};
   const s3 = state.stage3 || {};
-  const isContractSigned = !!(s1.contract?.signed || s1.contract?.isConfirmed || (Array.isArray(s1.contract?.confirmedMembers) && s1.contract.confirmedMembers.length > 0));
+  const isContractSigned = !!(
+    s1.contract?.signed || 
+    s1.contract?.isConfirmed || 
+    (s1.contract?.confirmedMembers && (
+      (Array.isArray(s1.contract.confirmedMembers) && s1.contract.confirmedMembers.length > 0) ||
+      (typeof s1.contract.confirmedMembers === 'object' && Object.keys(s1.contract.confirmedMembers).length > 0)
+    ))
+  );
   const isDraftDone = !!(s2.isDraftConfirmed || (s2.meetingSubmissions && Object.keys(s2.meetingSubmissions).length > 0) || state.groupMaxStage === 'stage3' || state.isFinalSubmitted);
   const isStage3Active = !!(state.groupMaxStage === 'stage3' || state.isFinalSubmitted || isDraftDone || (s3.confirmedMembers && Object.keys(s3.confirmedMembers).length > 0) || (s3.finalSubmittedMembers && Object.keys(s3.finalSubmittedMembers).length > 0));
 

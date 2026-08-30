@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260831_v934
+ * Version: 20260831_v935
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260831_v934';
+  const APP_VERSION = '20260831_v935';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -8365,7 +8365,14 @@
     const s1 = state.stage1 || {};
     const s2 = state.stage2 || {};
     const s3 = state.stage3 || {};
-    const isContractSigned = !!(s1.contract?.signed || s1.contract?.isConfirmed || (Array.isArray(s1.contract?.confirmedMembers) && s1.contract.confirmedMembers.length > 0));
+    const isContractSigned = !!(
+      s1.contract?.signed || 
+      s1.contract?.isConfirmed || 
+      (s1.contract?.confirmedMembers && (
+        (Array.isArray(s1.contract.confirmedMembers) && s1.contract.confirmedMembers.length > 0) ||
+        (typeof s1.contract.confirmedMembers === 'object' && Object.keys(s1.contract.confirmedMembers).length > 0)
+      ))
+    );
     const isDraftDone = !!(s2.isDraftConfirmed || (s2.meetingSubmissions && Object.keys(s2.meetingSubmissions).length > 0) || state.groupMaxStage === 'stage3' || state.isFinalSubmitted);
     const isStage3Active = !!(state.groupMaxStage === 'stage3' || state.isFinalSubmitted || isDraftDone || (s3.confirmedMembers && Object.keys(s3.confirmedMembers).length > 0) || (s3.finalSubmittedMembers && Object.keys(s3.finalSubmittedMembers).length > 0));
 
