@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState } from './constants.js?v=20260830_v798';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal } from './utils.js?v=20260830_v798';
+import { InitialState } from './constants.js?v=20260830_v799';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal } from './utils.js?v=20260830_v799';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -220,13 +220,13 @@ export class CloudSyncEngine {
   initPolling() {
     this.pullFromServer();
     this.sendPresencePing(); // ⚡ 进入工作台 0ms 瞬间首发上线心跳，告别等待
-    // ⚡ 动静分级智能心跳与轮询阶梯：
-    // • 活跃态 (< 10分钟): 轮询 500ms，心跳 3s (单次20~50字节，秒级精准同步)
-    // • 静止态 (> 10分钟): 轮询 3s，心跳 10s
-    // • 息屏态 (切后台/休眠): 轮询 10s，心跳 30s
+    // ⚡ 动静分级智能心跳与轮询阶梯（平衡实时协同与服务器开销）：
+    // • 活跃态 (< 2分钟有操作): 轮询 1.5s，心跳 8s (轻量精准，彻底杜绝 PHP 进程池拥塞)
+    // • 静止态 (> 2分钟无操作): 轮询 10s，心跳 20s
+    // • 息屏态 (切后台/休眠): 轮询 20s，心跳 40s
     let lastUserActivity = Date.now();
     const markActive = () => {
-      const wasIdle = (Date.now() - lastUserActivity > 600000);
+      const wasIdle = (Date.now() - lastUserActivity > 120000);
       lastUserActivity = Date.now();
       if (wasIdle && !this.isLoggingOut) {
         this.sendPresencePing();
@@ -238,9 +238,9 @@ export class CloudSyncEngine {
     });
 
     const isHidden = () => document.hidden || document.visibilityState === 'hidden';
-    const isIdle = () => isHidden() || (Date.now() - lastUserActivity > 600000);
-    const getPollInterval = () => (isHidden() ? 10000 : (isIdle() ? 3000 : 1000));
-    const getPingInterval = () => (isHidden() ? 30000 : (isIdle() ? 10000 : 3000));
+    const isIdle = () => isHidden() || (Date.now() - lastUserActivity > 120000);
+    const getPollInterval = () => (isHidden() ? 20000 : (isIdle() ? 10000 : 1500));
+    const getPingInterval = () => (isHidden() ? 40000 : (isIdle() ? 20000 : 8000));
 
     const runPoll = () => {
       if (this.isLoggingOut) return;
@@ -260,13 +260,13 @@ export class CloudSyncEngine {
         lastPingTime = now;
         this.sendPresencePing().finally(() => {
           if (this.isLoggingOut) return;
-          this.pingTimer = setTimeout(runPing, 3000);
+          this.pingTimer = setTimeout(runPing, 5000);
         });
       } else {
-        this.pingTimer = setTimeout(runPing, 3000);
+        this.pingTimer = setTimeout(runPing, 5000);
       }
     };
-    this.pingTimer = setTimeout(runPing, 5000);
+    this.pingTimer = setTimeout(runPing, 8000);
 
     window.addEventListener('storage', (e) => {
       if (e.key === this.storageKey && e.newValue) {
