@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260831_v970
+ * Version: 20260831_v971
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260831_v970';
+  const APP_VERSION = '20260831_v971';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -12661,17 +12661,10 @@
           return p && (now - (p.updatedAt || 0) < 180000); // 放宽到 3 分钟：后台标签页心跳会被浏览器节流（约 1 分钟 1 次），60 秒窗口会误判在场同学为离线
         });
 
-        let primaryMember = (onlineMembers.length > 0)
-          ? [...onlineMembers].sort((a, b) => (a.studentCode || a.id || '').localeCompare(b.studentCode || b.id || ''))[0]
-          : (membersList.length > 0 ? [...membersList].sort((a, b) => (a.studentCode || a.id || '').localeCompare(b.studentCode || b.id || ''))[0] : null);
-
-        const isPrimaryGuardian = primaryMember && (primaryMember.studentCode === myCode || primaryMember.id === myCode);
-        if (!isPrimaryGuardian) return;
-
         const stage = this.state.currentStage;
         const totalMembersCount = membersList.length;
         const activeMembersCount = onlineMembers.length;
-        if (activeMembersCount < 1) return; // 至少 1 人在线即可触发智能体巡检守护与提示
+        if (activeMembersCount < 1 && membersList.length > 0) return; // 组内无人则跳过
 
         // ======================================================================
         // 🧠 SSRL 情绪挫败检测与社会性调节支持机制 (带 45s 同伴互助留白保护)
@@ -13016,8 +13009,17 @@
 
           const s2Chats = (this.state.chatLogs && this.state.chatLogs.stage2) ? this.state.chatLogs.stage2 : [];
           const lastStudentMsg = [...s2Chats].reverse().find(m => m.sender && m.sender !== 'managingEditor' && m.sender !== 'reviewingEditor' && m.sender !== 'system');
-          const lastStudentMsgTime = lastStudentMsg ? (lastStudentMsg._timeMs || 0) : this.stage2StartTime;
-          const silenceDurationMs = now - lastStudentMsgTime;
+          let lastMsgMs = lastStudentMsg?._timeMs;
+          if (!lastMsgMs && lastStudentMsg?.timestamp) {
+            const parts = String(lastStudentMsg.timestamp).split(':');
+            if (parts.length >= 2) {
+              const d = new Date();
+              d.setHours(parseInt(parts[0], 10), parseInt(parts[1], 10), 0, 0);
+              lastMsgMs = d.getTime();
+            }
+          }
+          const lastStudentMsgTime = lastMsgMs || this.stage2StartTime || (now - 60000);
+          const silenceDurationMs = Math.max(0, now - lastStudentMsgTime);
 
           const plainText = (s2.unifiedContent || '').replace(/<[^>]*>/g, '').trim();
           const plainTextLen = plainText.length;

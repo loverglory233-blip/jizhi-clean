@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260831_v970";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch } from "./utils.js?v=20260831_v970";
-import { callCozeAgentAPI } from "./agents.js?v=20260831_v970";
-import { AuthManager } from "./auth.js?v=20260831_v970";
-import { CloudSyncEngine } from "./sync.js?v=20260831_v970";
-import { renderLoginView } from "./login.js?v=20260831_v970";
-import { renderTeacherPortal } from "./teacher.js?v=20260831_v970";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260831_v970";
+} from "./constants.js?v=20260831_v971";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch } from "./utils.js?v=20260831_v971";
+import { callCozeAgentAPI } from "./agents.js?v=20260831_v971";
+import { AuthManager } from "./auth.js?v=20260831_v971";
+import { CloudSyncEngine } from "./sync.js?v=20260831_v971";
+import { renderLoginView } from "./login.js?v=20260831_v971";
+import { renderTeacherPortal } from "./teacher.js?v=20260831_v971";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260831_v971";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260831_v970";
+} from "./editor.js?v=20260831_v971";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -1047,17 +1047,10 @@ export class App {
         return p && (now - (p.updatedAt || 0) < 180000); // 放宽到 3 分钟：后台标签页心跳会被浏览器节流（约 1 分钟 1 次），60 秒窗口会误判在场同学为离线
       });
 
-      let primaryMember = (onlineMembers.length > 0)
-        ? [...onlineMembers].sort((a, b) => (a.studentCode || a.id || '').localeCompare(b.studentCode || b.id || ''))[0]
-        : (membersList.length > 0 ? [...membersList].sort((a, b) => (a.studentCode || a.id || '').localeCompare(b.studentCode || b.id || ''))[0] : null);
-
-      const isPrimaryGuardian = primaryMember && (primaryMember.studentCode === myCode || primaryMember.id === myCode);
-      if (!isPrimaryGuardian) return;
-
       const stage = this.state.currentStage;
       const totalMembersCount = membersList.length;
       const activeMembersCount = onlineMembers.length;
-      if (activeMembersCount < 1) return; // 至少 1 人在线即可触发智能体巡检守护与提示
+      if (activeMembersCount < 1 && membersList.length > 0) return; // 组内无人则跳过
 
       // ======================================================================
       // 🧠 SSRL 情绪挫败检测与社会性调节支持机制 (带 45s 同伴互助留白保护)
@@ -1402,8 +1395,17 @@ export class App {
 
         const s2Chats = (this.state.chatLogs && this.state.chatLogs.stage2) ? this.state.chatLogs.stage2 : [];
         const lastStudentMsg = [...s2Chats].reverse().find(m => m.sender && m.sender !== 'managingEditor' && m.sender !== 'reviewingEditor' && m.sender !== 'system');
-        const lastStudentMsgTime = lastStudentMsg ? (lastStudentMsg._timeMs || 0) : this.stage2StartTime;
-        const silenceDurationMs = now - lastStudentMsgTime;
+        let lastMsgMs = lastStudentMsg?._timeMs;
+        if (!lastMsgMs && lastStudentMsg?.timestamp) {
+          const parts = String(lastStudentMsg.timestamp).split(':');
+          if (parts.length >= 2) {
+            const d = new Date();
+            d.setHours(parseInt(parts[0], 10), parseInt(parts[1], 10), 0, 0);
+            lastMsgMs = d.getTime();
+          }
+        }
+        const lastStudentMsgTime = lastMsgMs || this.stage2StartTime || (now - 60000);
+        const silenceDurationMs = Math.max(0, now - lastStudentMsgTime);
 
         const plainText = (s2.unifiedContent || '').replace(/<[^>]*>/g, '').trim();
         const plainTextLen = plainText.length;

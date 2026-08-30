@@ -7,8 +7,8 @@ import {
   STORAGE_KEY_TASKS,
   STORAGE_KEY_ANNOUNCEMENTS,
   STORAGE_KEY_CLASSES
-} from "./constants.js?v=20260831_v970";
-import { escapeHtml, isTaskExpired, formatDurationHuman, formatStandardDateDash, showGlobalBannerNotice } from "./utils.js?v=20260831_v970";
+} from "./constants.js?v=20260831_v971";
+import { escapeHtml, isTaskExpired, formatDurationHuman, formatStandardDateDash, showGlobalBannerNotice } from "./utils.js?v=20260831_v971";
 
 /* ==========================================================================
    10. STUDENT TASK PORTAL (CENTRALIZED HUB & COLLABORATION ENTRY)
