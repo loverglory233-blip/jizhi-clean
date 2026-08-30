@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState } from './constants.js?v=20260831_v979';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap } from './utils.js?v=20260831_v979';
+import { InitialState } from './constants.js?v=20260831_v980';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap } from './utils.js?v=20260831_v980';
 
 export class CloudSyncEngine {
   constructor(app) {
