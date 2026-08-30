@@ -9,8 +9,8 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260830_v751";
-import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash, filterAndDeduplicateChatLogs } from "./utils.js?v=20260830_v751";
+} from "./constants.js?v=20260830_v752";
+import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash, filterAndDeduplicateChatLogs } from "./utils.js?v=20260830_v752";
 
 /* ==========================================================================
    7. TEACHER PORTAL RENDERER (LIVE WORKSPACE MIRROR & ANNOUNCEMENT READ MATRIX)
@@ -1036,14 +1036,17 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
                 </div>
               ` : ''}
 
-              <div class="card" style="border-top:4px solid #7c3aed; width:100%; padding:16px 20px;">
-                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; flex-wrap:wrap; gap:8px;">
-                  <span style="font-size:15px; font-weight:800; color:#0f172a;">📡 全组实时总览</span>
-                  <span style="font-size:11.5px; color:#64748b; font-weight:600;">
-                    <span style="color:#16a34a;">🟢 正常</span>　<span style="color:#d97706;">🟡 部分离线</span>　<span style="color:#dc2626;">🔴 全员离线/字段占用</span>　<span style="color:#059669;">✅ 已终稿</span>
-                  </span>
+              <div class="card" id="card-teacher-panorama" style="border-top:4px solid #7c3aed; width:100%; padding:12px 18px; flex-shrink:0;">
+                <div style="display:flex; justify-content:space-between; align-items:center; cursor:pointer;" id="btn-toggle-teacher-panorama">
+                  <div style="display:flex; align-items:center; gap:8px;">
+                    <span style="font-size:14px; font-weight:800; color:#0f172a;">📡 全组实时总览</span>
+                    <span style="font-size:11px; color:#64748b; font-weight:600;">
+                      <span style="color:#16a34a;">🟢 正常</span>　<span style="color:#d97706;">🟡 部分离线</span>　<span style="color:#dc2626;">🔴 全员离线/字段占用</span>　<span style="color:#059669;">✅ 已终稿</span>
+                    </span>
+                  </div>
+                  <span id="icon-toggle-teacher-panorama" style="font-size:11.5px; color:#7c3aed; font-weight:700;">${state._isPanoramaCollapsed ? '▼ 展开总览' : '▲ 收起'}</span>
                 </div>
-                <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(170px, 1fr)); gap:10px;">
+                <div id="body-teacher-panorama" style="display:${state._isPanoramaCollapsed ? 'none' : 'grid'}; grid-template-columns:repeat(auto-fill, minmax(170px, 1fr)); gap:10px; margin-top:10px;">
                   ${(activeClass.groups || []).map(g => {
                     const p = (state.monitorPanorama && state.monitorPanorama[g.id]) || null;
                     const total = p ? (p.totalMembers || 0) : ((g.members || []).length || 0);
@@ -3641,6 +3644,21 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
       e.stopPropagation();
       state.stage3TeacherTab = 'doc';
       renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+    });
+  }
+
+  const btnTogglePanorama = container.querySelector('#btn-toggle-teacher-panorama');
+  if (btnTogglePanorama) {
+    btnTogglePanorama.addEventListener('click', () => {
+      state._isPanoramaCollapsed = !state._isPanoramaCollapsed;
+      const bodyPano = container.querySelector('#body-teacher-panorama');
+      const iconPano = container.querySelector('#icon-toggle-teacher-panorama');
+      if (bodyPano) {
+        bodyPano.style.display = state._isPanoramaCollapsed ? 'none' : 'grid';
+      }
+      if (iconPano) {
+        iconPano.innerText = state._isPanoramaCollapsed ? '▼ 展开总览' : '▲ 收起';
+      }
     });
   }
 
