@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260831_v940
+ * Version: 20260831_v941
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260831_v940';
+  const APP_VERSION = '20260831_v941';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -15931,6 +15931,15 @@
           onExtractTasks: () => { this.handleExtractTasks(); },
           onAiGenerateContract: () => { this.handleAiGenerateContract(); },
           onConfirmContract: () => { this.handleConfirmContract(); },
+          onActionPlanToggle: (idx, isCompleted) => {
+            if (!this.state.stage2) this.state.stage2 = {};
+            if (!this.state.stage2.actionPlan) this.state.stage2.actionPlan = { items: [], completedMap: {} };
+            if (!this.state.stage2.actionPlan.completedMap) this.state.stage2.actionPlan.completedMap = {};
+            this.state.stage2.actionPlan.completedMap[idx] = !!isCompleted;
+            this.syncStage2();
+            if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+            this.renderStudentWorkspace();
+          },
         onPresenceChange: (nodeIdx, sectionTitle, charOffset) => {
           const user = this.state.currentUser;
           if (!this.state.presence) this.state.presence = {};
