@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260831_v947
+ * Version: 20260831_v948
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260831_v947';
+  const APP_VERSION = '20260831_v948';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -16405,12 +16405,19 @@
       const lastReviewingMsg = logs.slice().reverse().find(m => m.sender === 'reviewingEditor');
       const timeSinceLastReviewing = lastReviewingMsg ? (now - (lastReviewingMsg._timeMs || 0)) : 999999;
 
-      // ⏱️ 计算阶段二物理时间与字数水位线（双轨触发机制）
+      // ⏱️ 计算阶段二物理时间与字数水位线（自适应大小任务与教师自定义字数）
       const allTasks = (this.authManager) ? this.authManager.getTasks() : [];
       const curTask = allTasks.find(t => t.id === this.state.activeTaskId);
-      const targetWordCount = (curTask && curTask.targetWordCount) ? Number(curTask.targetWordCount) : 2000;
+      const isLargeTask = curTask && (curTask.scale === 'large' || curTask.type === 'large' || (curTask.targetWordCount && Number(curTask.targetWordCount) >= 5000));
+      const isSmallTask = curTask && (curTask.scale === 'small' || curTask.type === 'small' || (curTask.targetWordCount && Number(curTask.targetWordCount) <= 1500));
+
+      let defaultWordTarget = 2000;
+      if (isLargeTask) defaultWordTarget = 9000;
+      else if (isSmallTask) defaultWordTarget = 1000;
+
+      const targetWordCount = (curTask && curTask.targetWordCount) ? Number(curTask.targetWordCount) : defaultWordTarget;
       const rawDoc = newContent.replace(/<[^>]*>/g, '').trim();
-      const wordProgress = targetWordCount > 0 ? (rawDoc.length / targetWordCount) : (rawDoc.length / 2000);
+      const wordProgress = targetWordCount > 0 ? (rawDoc.length / targetWordCount) : (rawDoc.length / defaultWordTarget);
 
       const times = (this.state.stage1 && this.state.stage1.contract && this.state.stage1.contract.timeAllocations) ? this.state.stage1.contract.timeAllocations : {};
       const totalPlannedMin = (times.background || 25) + (times.literature || 30) + (times.questions || 25) + (times.method || 40) + (times.reflection || 20) + (times.references || 10);
@@ -16421,9 +16428,9 @@
       const s2ChatList = this.state.chatLogs?.stage2 || [];
 
       // ═══════════════════════════════════════════════════════════════
-      // 🛡️ 第一次学术质检（30% 字数 / 35% 时间 · 破题把脉）
+      // 🛡️ 第一次学术质检（目标字数的 30% / 35% 时间 · 破题把脉）
       // ═══════════════════════════════════════════════════════════════
-      const isReview1Due = (wordProgress >= 0.30 || timeProgress >= 0.35 || rawDoc.length >= 600);
+      const isReview1Due = (wordProgress >= 0.30 || timeProgress >= 0.35 || rawDoc.length >= (targetWordCount * 0.3));
       const hasFirstReviewInLogs = s2ChatList.some(m => m.sender === 'reviewingEditor' && (m.text.includes('初审') || m.text.includes('破题把脉') || m.text.includes('Research Gap')));
       if (hasFirstReviewInLogs && (s2.reviewMilestone === 'none' || s2.reviewMilestone === 'first_review_in_progress')) {
         s2.reviewMilestone = 'first_review_done';
@@ -16474,9 +16481,9 @@
       }
 
       // ═══════════════════════════════════════════════════════════════
-      // 🛡️ 第二次学术质检与半程会议（65%~70% 字数 / 60% 时间 · 深度研讨）
+      // 🛡️ 第二次学术质检与半程会议（目标字数的 65%~70% / 60% 时间 · 深度研讨）
       // ═══════════════════════════════════════════════════════════════
-      const isMeetingDue = (wordProgress >= 0.65 || timeProgress >= 0.60 || rawDoc.length >= 1300);
+      const isMeetingDue = (wordProgress >= 0.65 || timeProgress >= 0.60 || rawDoc.length >= (targetWordCount * 0.65));
       const hasMeetingCalledInLogs = s2ChatList.some(m => m.sender === 'managingEditor' && (m.text.includes('半程会议号召') || m.text.includes('半程研讨号召')));
       if (hasMeetingCalledInLogs && s2.reviewMilestone !== 'meeting_called' && s2.reviewMilestone !== 'action_plan_generated') {
         s2.reviewMilestone = 'meeting_called';
