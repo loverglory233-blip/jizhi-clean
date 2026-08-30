@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles } from "./constants.js?v=20260830_v871";
-import { callCozeAgentAPI } from "./agents.js?v=20260830_v871";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap } from "./utils.js?v=20260830_v871";
+import { AgentProfiles } from "./constants.js?v=20260830_v872";
+import { callCozeAgentAPI } from "./agents.js?v=20260830_v872";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap } from "./utils.js?v=20260830_v872";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -3048,6 +3048,42 @@ export function renderChat(state) {
       document.body.appendChild(box);
     };
   });
+
+  // ── 🌟 阶段二半程会议动态协同操作栏 (在表情栏正上方) ──
+  const actionBar = document.getElementById('chat-agent-action-bar');
+  if (actionBar) {
+    const s2 = state.stage2 || {};
+    const curStage = state.currentStage;
+    if (curStage === 'stage2' && s2.meetingStep && s2.meetingStep !== 'completed') {
+      actionBar.style.display = 'block';
+      if (s2.meetingStep === 'discussing_divergence') {
+        actionBar.innerHTML = `
+          <button id="btn-s2-managing-summary" style="background:linear-gradient(135deg, #2563eb, #1d4ed8); border:none; color:white; padding:7px 18px; border-radius:18px; font-weight:800; font-size:12.5px; cursor:pointer; display:inline-flex; align-items:center; gap:6px; box-shadow:0 3px 10px rgba(37,99,235,0.25); transition:all 0.2s;">
+            💡 讨论差不多了？让责任编辑总结
+          </button>
+        `;
+        actionBar.querySelector('#btn-s2-managing-summary')?.addEventListener('click', () => {
+          if (window.app && typeof window.app.handleS2ManagingSummary === 'function') {
+            window.app.handleS2ManagingSummary();
+          }
+        });
+      } else if (s2.meetingStep === 'discussing_checklist') {
+        actionBar.innerHTML = `
+          <button id="btn-s2-reviewing-summary" style="background:linear-gradient(135deg, #7c3aed, #6d28d9); border:none; color:white; padding:7px 18px; border-radius:18px; font-weight:800; font-size:12.5px; cursor:pointer; display:inline-flex; align-items:center; gap:6px; box-shadow:0 3px 10px rgba(124,58,237,0.25); transition:all 0.2s;">
+            📝 讨论差不多了？让审稿编辑总结
+          </button>
+        `;
+        actionBar.querySelector('#btn-s2-reviewing-summary')?.addEventListener('click', () => {
+          if (window.app && typeof window.app.handleS2ReviewingSummary === 'function') {
+            window.app.handleS2ReviewingSummary();
+          }
+        });
+      }
+    } else {
+      actionBar.style.display = 'none';
+      actionBar.innerHTML = '';
+    }
+  }
 }
 
 // 🛡️ Fail-safe compatibility exports
