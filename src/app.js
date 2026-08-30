@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260831_v955";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch } from "./utils.js?v=20260831_v955";
-import { callCozeAgentAPI } from "./agents.js?v=20260831_v955";
-import { AuthManager } from "./auth.js?v=20260831_v955";
-import { CloudSyncEngine } from "./sync.js?v=20260831_v955";
-import { renderLoginView } from "./login.js?v=20260831_v955";
-import { renderTeacherPortal } from "./teacher.js?v=20260831_v955";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260831_v955";
+} from "./constants.js?v=20260831_v956";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch } from "./utils.js?v=20260831_v956";
+import { callCozeAgentAPI } from "./agents.js?v=20260831_v956";
+import { AuthManager } from "./auth.js?v=20260831_v956";
+import { CloudSyncEngine } from "./sync.js?v=20260831_v956";
+import { renderLoginView } from "./login.js?v=20260831_v956";
+import { renderTeacherPortal } from "./teacher.js?v=20260831_v956";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260831_v956";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260831_v955";
+} from "./editor.js?v=20260831_v956";
 
 // Make renderChat available on window for sync callbacks
 if (typeof window !== "undefined") {
@@ -378,39 +378,39 @@ export class App {
   }
 
   updateContributionUi() {
-    const editor = document.getElementById('stage2-word-editor');
-    if (editor) {
-      // 更新字数与协同状态
-      const countBadge = document.getElementById('stage2-word-count-num');
-      const cleanText = editor.innerText.replace(/[\s\r\n]+/g, '');
-      if (countBadge) {
-        countBadge.innerText = `${cleanText.length}`;
-      }
-
-      // 动态刷新下方 SSRL 贡献度条 (纯百分比模式)
-      const contribLabelsContainer = document.getElementById('stage2-contrib-labels');
-      const contribBarsContainer = document.getElementById('stage2-contrib-bars');
-      if (contribLabelsContainer && contribBarsContainer) {
-        const membersList = Object.values(this.state.members || {});
-        const contribs = this.state.stage2.memberContributions || {};
-        let rawTotal = 0;
-        membersList.forEach(m => { rawTotal += (contribs[m.id] || contribs[m.studentCode] || 0); });
-
-        contribLabelsContainer.innerHTML = membersList.map((m) => {
-          const rawVal = (contribs[m.id] || contribs[m.studentCode] || 0);
-          const pct = rawTotal > 0 ? Math.round((rawVal / rawTotal) * 100) : 0;
-          return `<span style="color:${m.color || '#2563eb'}; font-weight:700;">● ${m.name}: ${pct}%</span>`;
-        }).join('');
-
-        if (rawTotal === 0) {
-          contribBarsContainer.innerHTML = `<div style="width:100%; height:10px; background:#f1f5f9; border-radius:5px; display:flex; align-items:center; justify-content:center; font-size:10.5px; color:#94a3b8;">暂无协作投入 (开始编辑正文或研讨后将自动呈现贡献占比)</div>`;
-        } else {
-          contribBarsContainer.innerHTML = membersList.map((m) => {
-            const rawVal = (contribs[m.id] || contribs[m.studentCode] || 0);
-            const pct = Math.round((rawVal / rawTotal) * 100);
-            return `<div class="contrib-segment" style="width:${pct}%; background:${m.color || '#2563eb'}; transition:width 0.3s ease;" title="${m.name}: ${pct}% (基于写作与修改累计工作量)"></div>`;
-          }).join('');
+    // 动态刷新下方 SSRL 贡献度条
+    const contribLabelsContainer = document.getElementById('stage2-contrib-labels');
+    const contribBarsContainer = document.getElementById('stage2-contrib-bars');
+    if (contribLabelsContainer && contribBarsContainer) {
+      const membersList = Object.values(this.state.members || {});
+      const contribs = (this.state.stage2 && this.state.stage2.memberContributions) ? this.state.stage2.memberContributions : {};
+      
+      const getVal = (m) => {
+        if (!m) return 0;
+        const keys = [m.studentCode, m.id, m.username, m.name].filter(Boolean);
+        for (const k of keys) {
+          if (contribs[k] !== undefined && Number(contribs[k]) > 0) return Number(contribs[k]);
         }
+        return 0;
+      };
+
+      let rawTotal = 0;
+      membersList.forEach(m => { rawTotal += getVal(m); });
+
+      contribLabelsContainer.innerHTML = membersList.map((m) => {
+        const rawVal = getVal(m);
+        const pct = rawTotal > 0 ? Math.round((rawVal / rawTotal) * 100) : 0;
+        return `<span style="color:${rawVal > 0 ? (m.color || '#2563eb') : '#94a3b8'}; font-weight:700;">● ${m.name}: ${pct}% (${rawVal}字)</span>`;
+      }).join('');
+
+      if (rawTotal === 0) {
+        contribBarsContainer.innerHTML = `<div style="width:100%; height:8px; background:#f8fafc; border-radius:4px; display:flex; align-items:center; justify-content:center; font-size:9.5px; color:#94a3b8; font-weight:600;">⏳ 在 Etherpad 中撰写或修改正文将实时累计真实贡献</div>`;
+      } else {
+        contribBarsContainer.innerHTML = membersList.map((m) => {
+          const rawVal = getVal(m);
+          const pct = rawTotal > 0 ? Math.round((rawVal / rawTotal) * 100) : 0;
+          return `<div class="contrib-segment" style="width:${pct}%; background:${m.color || '#2563eb'}; transition:width 0.8s ease-in-out;" title="${m.name}: ${pct}% (${rawVal}字)"></div>`;
+        }).join('');
       }
     }
     this.renderPresenceCursors();
