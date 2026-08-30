@@ -209,18 +209,9 @@ if (empty($userQuery)) {
 // 1. 获取持久自动续期的 Token
 $accessToken = getCozeAccessToken();
 if (!$accessToken) {
-    $fallbackReply = "🎪 【拍卖师·选题速评】：收到选题《{$topic}》！该构想切中教学实践痛点，切入点明确；建议组员在研讨区围绕具体的研究对象、情境与实施环节继续交流深化！";
-    if ($botKey === 'managingEditor') {
-        $fallbackReply = "🤝 【责任编辑·学伴提示】：已收到大家的讨论！建议全组成员继续聚焦核心卡壳瓶颈，把修改思路商量对齐后点击【让责任编辑总结】！";
-    } else if ($botKey === 'reviewingEditor') {
-        $fallbackReply = "📝 【审稿编辑·质检意见】：已通读大家的论文草稿！请重点检查核心假设与研究方法的对应闭环，消除口语化表述，统一规范学术语体。";
-    }
     echo json_encode([
-        'success' => true,
-        'completed' => true,
-        'reply' => $fallbackReply,
-        'bot_id' => $botId,
-        'is_fallback' => true
+        'success' => false,
+        'message' => 'OAuth token generation failed'
     ]);
     exit;
 }
@@ -324,18 +315,9 @@ if (!empty($answerText)) {
         'bot_id' => $botId
     ]);
 } else {
-    // 🛡️ 极速学术自愈：当遭遇外网连接或鉴权瞬态抖动时，按场景生成高水准学术速评，确保前端100%秒级呈现
-    $fallbackReply = "🎪 【拍卖师·选题速评】：收到选题《{$topic}》！该构想切中教学实践痛点，切入点明确；建议组员在研讨区围绕具体的研究对象、情境与实施环节继续交流深化！";
-    if ($botKey === 'managingEditor') {
-        $fallbackReply = "🤝 【责任编辑·学伴提示】：已收到大家的讨论！建议全组成员继续聚焦核心卡壳瓶颈，把修改思路商量对齐后点击【让责任编辑总结】！";
-    } else if ($botKey === 'reviewingEditor') {
-        $fallbackReply = "📝 【审稿编辑·质检意见】：已通读大家的论文草稿！请重点检查核心假设与研究方法的对应闭环，消除口语化表述，统一规范学术语体。";
-    }
     echo json_encode([
-        'success' => true,
-        'completed' => true,
-        'reply' => $fallbackReply,
-        'bot_id' => $botId,
-        'is_fallback' => true
+        'success' => false,
+        'message' => 'No answer from Coze API',
+        'raw_init' => $initData
     ]);
 }

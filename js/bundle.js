@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260830_v906
+ * Version: 20260830_v907
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260830_v906';
+  const APP_VERSION = '20260830_v907';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -9546,9 +9546,10 @@
               let evalText = await callCozeAgentAPI('auctioneer', evalPrompt, { stage: 'stage1', proposalTitle: title, author: authorName, topic: title });
 
               if (!evalText || evalText.trim().length === 0) {
-                evalText = `🎪 【拍卖师·选题速评】：收到 ${authorName} ${isModify ? '修改后的' : '提交的'}《${title}》！切入点明确，建议组员在研讨区就具体的研究对象与实施情境交流补充！`;
+                evalText = `⚠️ 【学术拍卖师提示】：大模型生成超时或网络稍有延迟，可随时在讨论区 @拍卖师 再次提问。`;
+              } else if (!evalText.startsWith('🎪')) {
+                evalText = `🎪 【拍卖师·选题速评】：${evalText}`;
               }
-              if (!evalText.startsWith('🎪')) evalText = `🎪 【拍卖师·选题速评】：${evalText}`;
 
               const finalAiMsg = {
                 id: 'eval_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6),
@@ -9584,7 +9585,7 @@
                 id: 'eval_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6),
                 sender: 'auctioneer',
                 senderName: '头脑风暴 · 学术拍卖师',
-                text: `🎪 【拍卖师·选题速评】：收到 ${authorName} 提交的《${title}》！建议组员在研讨区就具体的研究对象与实施情境交流补充！`,
+                text: `⚠️ 【学术拍卖师提示】：网络连接波动，可随时在讨论区 @拍卖师 再次提问。`,
                 timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
                 _timeMs: Date.now()
               };
