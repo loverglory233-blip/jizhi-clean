@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260831_v929";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch } from "./utils.js?v=20260831_v929";
-import { callCozeAgentAPI } from "./agents.js?v=20260831_v929";
-import { AuthManager } from "./auth.js?v=20260831_v929";
-import { CloudSyncEngine } from "./sync.js?v=20260831_v929";
-import { renderLoginView } from "./login.js?v=20260831_v929";
-import { renderTeacherPortal } from "./teacher.js?v=20260831_v929";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260831_v929";
+} from "./constants.js?v=20260831_v930";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch } from "./utils.js?v=20260831_v930";
+import { callCozeAgentAPI } from "./agents.js?v=20260831_v930";
+import { AuthManager } from "./auth.js?v=20260831_v930";
+import { CloudSyncEngine } from "./sync.js?v=20260831_v930";
+import { renderLoginView } from "./login.js?v=20260831_v930";
+import { renderTeacherPortal } from "./teacher.js?v=20260831_v930";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260831_v930";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260831_v929";
+} from "./editor.js?v=20260831_v930";
 
 // Make renderChat available on window for sync callbacks
 if (typeof window !== "undefined") {
@@ -3110,8 +3110,25 @@ ${chatSnippet}
       if (!s1.contract) s1.contract = {};
       s1.contract.topic = currentCandidate;
       s1.contractStep = 'time';
+
+      const fallbackNotice = {
+        id: 'msg_topic_done_' + Date.now(),
+        sender: 'auctioneer',
+        senderName: '头脑风暴 · 学术拍卖师',
+        text: `🏛️ 【学术拍卖师·主题与方案确立】：全组研究论题《${currentCandidate}》已成功确立并录入公约看板！👉 接下来请全组在讨论区商讨 6 大章节的时间预算分配，商定完成后点击左侧【⏱️ 时间讨论差不多了？一键提炼【时间分配】】！`,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        _timeMs: Date.now()
+      };
+      s1ChatLogs.push(fallbackNotice);
+      if (typeof this.sendSingleChatMessage === 'function') {
+        this.sendSingleChatMessage(fallbackNotice, 'stage1');
+      }
+
       this.syncStage1();
+      this.syncChatLogs();
+      if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
       this.renderStudentWorkspace();
+      renderChat(this.state);
     }
   }
 
@@ -3204,8 +3221,25 @@ ${chatSnippet}
       if (!s1.contract) s1.contract = {};
       s1.contract.timeAllocations = { background: 25, literature: 30, questions: 25, method: 40, reflection: 20, references: 10 };
       s1.contractStep = 'tasks';
+
+      const fallbackNotice = {
+        id: 'msg_time_done_' + Date.now(),
+        sender: 'auctioneer',
+        senderName: '头脑风暴 · 学术拍卖师',
+        text: `🏛️ 【学术拍卖师·时间预算确立】：全篇 6 大章节时间预算已成功配置并录入公约看板！👉 接下来请全组在讨论区商定各自负责认领的写作章节与任务分工！商定完成后点击左侧【👥 研讨差不多了？一键提炼任务分工】！`,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        _timeMs: Date.now()
+      };
+      s1ChatLogs.push(fallbackNotice);
+      if (typeof this.sendSingleChatMessage === 'function') {
+        this.sendSingleChatMessage(fallbackNotice, 'stage1');
+      }
+
       this.syncStage1();
+      this.syncChatLogs();
+      if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
       this.renderStudentWorkspace();
+      renderChat(this.state);
     }
   }
 
@@ -3314,8 +3348,25 @@ ${chatSnippet}
       if (!s1.contract) s1.contract = {};
       s1.contract.isDraftGenerated = true;
       s1.contractStep = 'completed';
+
+      const fallbackNotice = {
+        id: 'msg_tasks_done_' + Date.now(),
+        sender: 'auctioneer',
+        senderName: '头脑风暴 · 学术拍卖师',
+        text: `🏛️ 【学术拍卖师·公约草案就绪】：全组成员写作分工已成功配置，公约草案已全部生成就绪！👉 请全员在左侧下方点击【✍️ 签署确认学术公约】，全员签署后开启阶段二！`,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        _timeMs: Date.now()
+      };
+      s1ChatLogs.push(fallbackNotice);
+      if (typeof this.sendSingleChatMessage === 'function') {
+        this.sendSingleChatMessage(fallbackNotice, 'stage1');
+      }
+
       this.syncStage1();
+      this.syncChatLogs();
+      if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
       this.renderStudentWorkspace();
+      renderChat(this.state);
     }
   }
 
