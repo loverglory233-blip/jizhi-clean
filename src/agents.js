@@ -3,7 +3,7 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles, PresetMessages, STORAGE_KEY_USER } from './constants.js?v=20260830_v901';
+import { AgentProfiles, PresetMessages, STORAGE_KEY_USER } from './constants.js?v=20260830_v902';
 
 export async function callCozeAgentAPI(botKey, userQuery, currentContext = {}) {
   const profile = AgentProfiles[botKey] || { name: '智能体专家', avatar: '🤖' };
@@ -50,7 +50,6 @@ export async function callCozeAgentAPI(botKey, userQuery, currentContext = {}) {
       if (resp.ok) {
         const data = await resp.json();
         if (data && data.success && data.reply && data.reply.trim().length > 0) {
-          removeThinkingIndicator();
           return data.reply.trim();
         }
         // 如果后端处于生成中，采用阶梯式敏捷轮询：前 20 次 100ms 极速响应，后续 300ms 紧密等待
