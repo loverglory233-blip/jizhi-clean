@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260831_v973
+ * Version: 20260831_v974
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260831_v973';
+  const APP_VERSION = '20260831_v974';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -13156,7 +13156,7 @@
           const isTimeOver60Pct = stage2DurationMs >= (totalPlannedMs * 0.6);
           const hasReachedReflection = /(?:五、|第5章|第五部分|不足与反思|研究反思|反思与不足|总结与反思|研究局限)/i.test(s2.unifiedContent || '');
 
-          // 3. 【半程研讨 2.5 分钟静默守护】：半程会议号召或清单发出后，若全组超过 2.5 分钟没有任何动静，责任编辑温和提醒推进（最多连续 2 次）
+          // 3. 【半程研讨与一致性讨论 3 / 6 / 10 分钟三级阶梯静默守护】
           const lastMeetingMsg = [...s2Chats].reverse().find(m => m && m.sender === 'managingEditor' && (m.text?.includes('半程研讨号召') || m.text?.includes('半程会议号召') || m.text?.includes('半程自查')));
           const isMeetingActive = (lastMeetingMsg || s2.meetingStep) && s2.meetingStep !== 'completed' && !s2.isDraftConfirmed;
 
@@ -13175,41 +13175,29 @@
             const lastStudentMsgAfterMeeting = studentMsgAfterMeeting.length > 0 ? studentMsgAfterMeeting[studentMsgAfterMeeting.length - 1] : null;
             const silenceAfterMeeting = lastStudentMsgAfterMeeting ? (now - Number(lastStudentMsgAfterMeeting._timeMs || 0)) : meetingElapsed;
 
-            if (meetingElapsed >= 150000 && silenceAfterMeeting >= 150000) { // 2.5 分钟静默
-              if (lastStudentMsgAfterMeeting && Number(lastStudentMsgAfterMeeting._timeMs || 0) > (this._lastNudgeActivityTime?.['s2_meeting_silence'] || 0)) {
-                this._nudgeCounts['s2_meeting_silence'] = 0;
-              }
-              const count = this._nudgeCounts['s2_meeting_silence'] || 0;
-              if (count < 2 && (!this.lastS2MeetingSilenceNudgeTime || now - this.lastS2MeetingSilenceNudgeTime > 200000)) {
-                this.lastS2MeetingSilenceNudgeTime = now;
-                this._nudgeCounts['s2_meeting_silence'] = count + 1;
-                if (!this._lastNudgeActivityTime) this._lastNudgeActivityTime = {};
-                this._lastNudgeActivityTime['s2_meeting_silence'] = lastStudentMsgAfterMeeting ? Number(lastStudentMsgAfterMeeting._timeMs) : now;
+            const subs = s2.meetingSubmissions || {};
+            const unsubmittedMembers = membersList.filter(m => {
+              const uid = String(m.id || m.studentCode || m.userId || '').trim();
+              return !(subs[uid] || subs[m.name] || subs[m.studentCode] || subs[m.id]);
+            });
+            const totalCount = membersList.length || 2;
+            const submittedCount = totalCount - unsubmittedMembers.length;
+            const hasUnsubmitted = unsubmittedMembers.length > 0;
+            const unsubmittedNames = unsubmittedMembers.map(m => m.name || m.username || m.studentCode).join('、');
 
-                const subs = s2.meetingSubmissions || {};
-                const unsubmittedMembers = membersList.filter(m => {
-                  const uid = String(m.id || m.studentCode || m.userId || '').trim();
-                  return !(subs[uid] || subs[m.name] || subs[m.studentCode] || subs[m.id]);
-                });
-                const totalCount = membersList.length || 2;
-                const submittedCount = totalCount - unsubmittedMembers.length;
-                const hasUnsubmitted = unsubmittedMembers.length > 0;
-
-                let silenceText = '';
-                if (hasUnsubmitted) {
-                  // 分支 ①：半程会议号召后 2.5 分钟，仍有组员未参与打卡
-                  const unsubmittedNames = unsubmittedMembers.map(m => m.name || m.username || m.studentCode).join('、');
-                  silenceText = `🤝 【责任编辑·半程会议参与提示】：半程学术审计会议已号召发起 2.5 分钟啦！目前组内打卡进度为【${submittedCount}/${totalCount} 人】，看到 ${unsubmittedNames} 同学尚未完成打卡。请尚未打卡的同学点击上方【📢 发起会议 / 打卡】按钮通读全篇完成自查，全员打卡后系统将自动为大家汇总生成《半程修正清单》！`;
-                } else {
-                  // 分支 ②：全员已打卡（或已下发清单），研讨区超过 2.5 分钟无人发言研讨
-                  const btnName = (s2.meetingStep === 'discussing_checklist') ? '【📝 讨论差不多了？让审稿编辑总结】' : '【💡 讨论差不多了？让责任编辑总结】';
-                  silenceText = `🤝 【责任编辑·半程研讨推进提示】：大家针对刚才提出的修改方向商量得怎么样啦？研讨差不多后，请点击聊天框上方的 ${btnName} 按钮，系统将为大家一键提炼研讨要点并推进后续！`;
-                }
+            // ── ① 3 分钟（180,000ms）阶梯：破冰引导 ──
+            if (meetingElapsed >= 180000 && silenceAfterMeeting >= 180000 && silenceAfterMeeting < 360000) {
+              const nudgeKey = 's2_meeting_silence_3m';
+              if (!this._nudgeCounts[nudgeKey]) {
+                this._nudgeCounts[nudgeKey] = 1;
+                const text = hasUnsubmitted
+                  ? `🤝 【责任编辑·半程会议参与提示】：半程学术审计会议已号召发起 3 分钟啦！目前组内打卡进度为【${submittedCount}/${totalCount} 人】，看到 ${unsubmittedNames} 同学尚未完成打卡。请尚未打卡的同学点击上方【📢 发起会议 / 打卡】按钮通读全篇完成自查，全员打卡后系统将自动为大家汇总生成《半程修正清单》！`
+                  : `🤝 【责任编辑·一致性研讨点拨】：全组已顺利完成自查打卡！请大家针对清单中的修改分工（如前后逻辑衔接、术语规范与论证深度）在讨论区充分交流，商定具体修改方案哦～`;
 
                 const msg = {
                   sender: 'managingEditor',
                   senderName: '协同调度 · 责任编辑',
-                  text: silenceText,
+                  text: text,
                   timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
                   _timeMs: now
                 };
@@ -13218,6 +13206,58 @@
                 this.syncChatLogs();
                 if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
                 renderChat(this.state);
+                return;
+              }
+            }
+
+            // ── ② 6 分钟（360,000ms）阶梯：强化催促与收拢 ──
+            if (meetingElapsed >= 360000 && silenceAfterMeeting >= 360000 && silenceAfterMeeting < 600000) {
+              const nudgeKey = 's2_meeting_silence_6m';
+              if (!this._nudgeCounts[nudgeKey]) {
+                this._nudgeCounts[nudgeKey] = 1;
+                const btnName = (s2.meetingStep === 'discussing_checklist') ? '【📝 讨论差不多了？让审稿编辑总结】' : '【💡 讨论差不多了？让责任编辑总结】';
+                const text = hasUnsubmitted
+                  ? `⏳ 【责任编辑·打卡催促】：半程会议已发起 6 分钟，目前仍有 ${unsubmittedNames} 同学未完成打卡。请尽快通读全文并提交打卡，以便全组及时进入修正清单研讨！`
+                  : `⏳ 【责任编辑·研讨收拢提醒】：一致性研讨已进行 6 分钟！请全组同学抓紧商定各板块的修改方案。商量差不多后，请点击聊天框上方的 ${btnName} 按钮，系统将为大家一键提炼研讨要点并推进后续！`;
+
+                const msg = {
+                  sender: 'managingEditor',
+                  senderName: '协同调度 · 责任编辑',
+                  text: text,
+                  timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                  _timeMs: now
+                };
+                if (!this.state.chatLogs.stage2) this.state.chatLogs.stage2 = [];
+                this.state.chatLogs.stage2.push(msg);
+                this.syncChatLogs();
+                if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+                renderChat(this.state);
+                return;
+              }
+            }
+
+            // ── ③ 10 分钟（600,000ms）阶梯：强兜底智能提炼与自动顺推 ──
+            if (meetingElapsed >= 600000 && silenceAfterMeeting >= 600000 && !this._s2MeetingAutoFallbackRunning) {
+              const nudgeKey = 's2_meeting_auto_fallback_10m';
+              if (!this._nudgeCounts[nudgeKey]) {
+                this._nudgeCounts[nudgeKey] = 1;
+                this._s2MeetingAutoFallbackRunning = true;
+                s2.meetingStep = 'completed';
+
+                const autoNoticeMsg = {
+                  sender: 'managingEditor',
+                  senderName: '协同调度 · 责任编辑',
+                  text: `🤖 【责任编辑·智能生成与收拢】：半程研讨时间已满 10 分钟，为确保正文推进节奏，责任编辑已结合全组自查清单与学术规范，自动为大家提炼形成【半程修改决议】！请全组同学按照决议分工，集中精力在正文中修改落实！`,
+                  timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                  _timeMs: now
+                };
+                if (!this.state.chatLogs.stage2) this.state.chatLogs.stage2 = [];
+                this.state.chatLogs.stage2.push(autoNoticeMsg);
+                this.syncChatLogs();
+                this.syncStage2();
+                if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+                renderChat(this.state);
+                this._s2MeetingAutoFallbackRunning = false;
                 return;
               }
             }
