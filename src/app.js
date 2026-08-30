@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260830_v856";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash } from "./utils.js?v=20260830_v856";
-import { callCozeAgentAPI } from "./agents.js?v=20260830_v856";
-import { AuthManager } from "./auth.js?v=20260830_v856";
-import { CloudSyncEngine } from "./sync.js?v=20260830_v856";
-import { renderLoginView } from "./login.js?v=20260830_v856";
-import { renderTeacherPortal } from "./teacher.js?v=20260830_v856";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260830_v856";
+} from "./constants.js?v=20260830_v857";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash } from "./utils.js?v=20260830_v857";
+import { callCozeAgentAPI } from "./agents.js?v=20260830_v857";
+import { AuthManager } from "./auth.js?v=20260830_v857";
+import { CloudSyncEngine } from "./sync.js?v=20260830_v857";
+import { renderLoginView } from "./login.js?v=20260830_v857";
+import { renderTeacherPortal } from "./teacher.js?v=20260830_v857";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260830_v857";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260830_v856";
+} from "./editor.js?v=20260830_v857";
 
 // Make renderChat available on window for sync callbacks
 if (typeof window !== "undefined") {
@@ -920,6 +920,19 @@ export class App {
       } else {
         // 🛡️ 3. 工作台模式下：实时检查并弹出教师新下发的教学通知与延期弹窗
         this.checkUnreadAnnouncements();
+
+        // 🛡️ 4. 组员名单变动与换组秒级无感同步：教师在后台调整分组或移除缺勤学生时，学生端瞬间同步
+        if (effGroup) {
+          const curGroupHash = `${effGroup.id}_${(effGroup.members || []).map(m => (typeof m === 'object' ? (m.id || m.userId || m.studentCode || m.name) : m)).join(',')}`;
+          if (this._lastGroupMembersHash && this._lastGroupMembersHash !== curGroupHash) {
+            console.log('🔄 检测到教师后台调整了分组或小组名单，秒级无感同步最新成员与公约签署基数');
+            this._lastGroupMembersHash = curGroupHash;
+            if (this.cloudSyncEngine) this.cloudSyncEngine.updateScopeKeys();
+            this.renderStudentWorkspace(true);
+          } else {
+            this._lastGroupMembersHash = curGroupHash;
+          }
+        }
       }
 
       // ⚡ 单点守护主节点动态选举：优先由组长担当；若组长缺勤/掉线，自动由当前在场学号最小的在线成员接管，杜绝单点失效与并发重复！
