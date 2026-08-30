@@ -14,8 +14,8 @@ import {
   DefaultTasks,
   DefaultAnnouncements,
   DefaultReferencePapers
-} from './constants.js?v=20260830_v767';
-import { formatExportDateTime, formatDurationHuman } from './utils.js?v=20260830_v767';
+} from './constants.js?v=20260830_v768';
+import { formatExportDateTime, formatDurationHuman } from './utils.js?v=20260830_v768';
 
 export class AuthManager {
   constructor() {
@@ -1248,7 +1248,7 @@ export class AuthManager {
     return tasks[taskIndex];
   }
 
-  extendTaskDeadline(taskId, newDeadline, addedMinutes = 0) {
+  async extendTaskDeadline(taskId, newDeadline, addedMinutes = 0) {
     let tasks = this.getTasks();
     const taskIndex = tasks.findIndex(t => t.id === taskId);
     if (taskIndex === -1) throw new Error('任务不存在或已被删除！');
@@ -1267,6 +1267,7 @@ export class AuthManager {
       extendDurationStr: formatDurationHuman(addedMinutes)
     };
     localStorage.setItem(STORAGE_KEY_TASKS, JSON.stringify(tasks));
+    localStorage.setItem('jizhi_pure_v10_tasks_db', JSON.stringify(tasks));
 
     // ⚡ 本地跨标签页 0 延迟广播
     if ('BroadcastChannel' in window) {
@@ -1276,33 +1277,36 @@ export class AuthManager {
       } catch (e) {}
     }
 
-    // 🚀 调用服务端原子级专用延期 API（100% 极速直达 MySQL 与 main_meta，彻底杜绝被旧快照回滚）
     const currUser = this.getCurrentUser();
     const teacherUserId = (currUser && (currUser.studentCode || currUser.username || currUser.id)) || '1001';
     const teacherToken = currUser?.token || currUser?.activeSessionId || '';
 
-    fetch('sync.php?action=extend_task_deadline', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        taskId: taskId,
-        taskTitle: taskTitle,
-        newDeadline: newDeadline,
-        addedMinutes: addedMinutes,
-        userId: teacherUserId,
-        token: teacherToken
-      })
-    }).then(async (res) => {
+    // 🛡️ 标记推送在途，彻底阻止任何 pullGlobalMeta 抢在落库前拉回旧数据
+    this._pushInFlight = true;
+    try {
+      const res = await fetch('sync.php?action=extend_task_deadline', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          taskId: taskId,
+          taskTitle: taskTitle,
+          newDeadline: newDeadline,
+          addedMinutes: addedMinutes,
+          userId: teacherUserId,
+          token: teacherToken
+        })
+      });
       if (res.ok) {
         const data = await res.json().catch(() => ({}));
         if (data && data.version) {
           this.globalMetaVersion = parseInt(data.version, 10);
         }
       }
-    }).catch(() => {});
+    } catch (e) {
+    } finally {
+      this._pushInFlight = false;
+    }
 
-    // 同时补充常规 pushGlobalMeta
-    this.pushGlobalMeta();
     return tasks[taskIndex];
   }
 

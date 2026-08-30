@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260830_v767
+ * Version: 20260830_v768
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260830_v767';
+  const APP_VERSION = '20260830_v768';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -2201,7 +2201,7 @@
       return tasks[taskIndex];
     }
 
-    extendTaskDeadline(taskId, newDeadline, addedMinutes = 0) {
+    async extendTaskDeadline(taskId, newDeadline, addedMinutes = 0) {
       let tasks = this.getTasks();
       const taskIndex = tasks.findIndex(t => t.id === taskId);
       if (taskIndex === -1) throw new Error('任务不存在或已被删除！');
@@ -2220,6 +2220,7 @@
         extendDurationStr: formatDurationHuman(addedMinutes)
       };
       localStorage.setItem(STORAGE_KEY_TASKS, JSON.stringify(tasks));
+      localStorage.setItem('jizhi_pure_v10_tasks_db', JSON.stringify(tasks));
 
       // ⚡ 本地跨标签页 0 延迟广播
       if ('BroadcastChannel' in window) {
@@ -2229,33 +2230,36 @@
         } catch (e) {}
       }
 
-      // 🚀 调用服务端原子级专用延期 API（100% 极速直达 MySQL 与 main_meta，彻底杜绝被旧快照回滚）
       const currUser = this.getCurrentUser();
       const teacherUserId = (currUser && (currUser.studentCode || currUser.username || currUser.id)) || '1001';
       const teacherToken = currUser?.token || currUser?.activeSessionId || '';
 
-      fetch('sync.php?action=extend_task_deadline', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          taskId: taskId,
-          taskTitle: taskTitle,
-          newDeadline: newDeadline,
-          addedMinutes: addedMinutes,
-          userId: teacherUserId,
-          token: teacherToken
-        })
-      }).then(async (res) => {
+      // 🛡️ 标记推送在途，彻底阻止任何 pullGlobalMeta 抢在落库前拉回旧数据
+      this._pushInFlight = true;
+      try {
+        const res = await fetch('sync.php?action=extend_task_deadline', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            taskId: taskId,
+            taskTitle: taskTitle,
+            newDeadline: newDeadline,
+            addedMinutes: addedMinutes,
+            userId: teacherUserId,
+            token: teacherToken
+          })
+        });
         if (res.ok) {
           const data = await res.json().catch(() => ({}));
           if (data && data.version) {
             this.globalMetaVersion = parseInt(data.version, 10);
           }
         }
-      }).catch(() => {});
+      } catch (e) {
+      } finally {
+        this._pushInFlight = false;
+      }
 
-      // 同时补充常规 pushGlobalMeta
-      this.pushGlobalMeta();
       return tasks[taskIndex];
     }
 
@@ -2769,9 +2773,9 @@
 
       const prevExpired = isTaskExpired(prevDeadline);
       const nowExpired = isTaskExpired(t.deadline);
-      const isWorkspace = (this.app.state.studentViewMode === 'workspace');
-      const isCurrentTask = (isWorkspace && this.app.state.activeTaskId === t.id);
-      const isTaskHall = (this.app.state.studentViewMode === 'task_list' || !isWorkspace);
+      const isWorkspace = (this.app.state.studentViewMode === 'workspace' || !!document.getElementById('chat-stream') || !!document.querySelector('.app-layout'));
+      const isCurrentTask = isWorkspace && (this.app.state.activeTaskId === t.id || (!this.app.state.activeTaskId && (t.id === 'task_default' || t.id.includes('default'))));
+      const isTaskHall = !isWorkspace || this.app.state.studentViewMode === 'task_list';
 
       if (isCurrentTask) {
         // 🎯 场景 1：学生正处于该任务工作台内部（无论此前是否截止，统一弹出中央仪式感卡片）
@@ -6793,7 +6797,7 @@
           });
         });
 
-        modal.querySelector('#btn-save-extend').addEventListener('click', () => {
+        modal.querySelector('#btn-save-extend').addEventListener('click', async () => {
           const val = dlInput.value;
           if (!val) {
             alert('请指定新的截止时间！');
@@ -6801,7 +6805,9 @@
           }
           const newDeadlineStr = val.replace('T', ' ');
           try {
-            authManager.extendTaskDeadline(taskId, newDeadlineStr, lastAddedMins);
+            const btnSave = modal.querySelector('#btn-save-extend');
+            if (btnSave) { btnSave.disabled = true; btnSave.innerText = '正在保存并同步全班...'; }
+            await authManager.extendTaskDeadline(taskId, newDeadlineStr, lastAddedMins);
             closeModal();
             alert(`✅ 写作任务《${task.title}》截止时间已延长至 ${newDeadlineStr}！\n\n学生端工作台已自动解除只读锁定，可正常协同编辑。`);
             renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);

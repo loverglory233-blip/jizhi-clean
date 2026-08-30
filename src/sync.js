@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState } from './constants.js?v=20260830_v767';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal } from './utils.js?v=20260830_v767';
+import { InitialState } from './constants.js?v=20260830_v768';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal } from './utils.js?v=20260830_v768';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -100,9 +100,9 @@ export class CloudSyncEngine {
 
     const prevExpired = isTaskExpired(prevDeadline);
     const nowExpired = isTaskExpired(t.deadline);
-    const isWorkspace = (this.app.state.studentViewMode === 'workspace');
-    const isCurrentTask = (isWorkspace && this.app.state.activeTaskId === t.id);
-    const isTaskHall = (this.app.state.studentViewMode === 'task_list' || !isWorkspace);
+    const isWorkspace = (this.app.state.studentViewMode === 'workspace' || !!document.getElementById('chat-stream') || !!document.querySelector('.app-layout'));
+    const isCurrentTask = isWorkspace && (this.app.state.activeTaskId === t.id || (!this.app.state.activeTaskId && (t.id === 'task_default' || t.id.includes('default'))));
+    const isTaskHall = !isWorkspace || this.app.state.studentViewMode === 'task_list';
 
     if (isCurrentTask) {
       // 🎯 场景 1：学生正处于该任务工作台内部（无论此前是否截止，统一弹出中央仪式感卡片）
