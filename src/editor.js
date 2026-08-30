@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles } from "./constants.js?v=20260831_v962";
-import { callCozeAgentAPI } from "./agents.js?v=20260831_v962";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap } from "./utils.js?v=20260831_v962";
+import { AgentProfiles } from "./constants.js?v=20260831_v963";
+import { callCozeAgentAPI } from "./agents.js?v=20260831_v963";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap } from "./utils.js?v=20260831_v963";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -2053,20 +2053,29 @@ function renderStage2Canvas(canvas, state, handlers) {
     let rawTotal = 0;
     membersList.forEach(m => { rawTotal += getMemberContribVal(contribs, m); });
     
-    labelsEl.innerHTML = membersList.map((m) => {
+    const newLabelsHtml = membersList.map((m) => {
       const rawVal = getMemberContribVal(contribs, m);
       const pct = rawTotal > 0 ? Math.round((rawVal / rawTotal) * 100) : 0;
       return `<span style="color:${rawVal > 0 ? (m.color || '#2563eb') : '#94a3b8'}; font-weight:700;">● ${m.name}: ${pct}% (${rawVal}字)</span>`;
     }).join('');
 
+    if (labelsEl.innerHTML !== newLabelsHtml) {
+      labelsEl.innerHTML = newLabelsHtml;
+    }
+
+    let newBarsHtml = '';
     if (rawTotal === 0) {
-      barsEl.innerHTML = `<div style="width:100%; height:8px; background:#f8fafc; border-radius:4px; display:flex; align-items:center; justify-content:center; font-size:9.5px; color:#94a3b8; font-weight:600;">⏳ 在 Etherpad 中撰写或修改正文将实时累计真实贡献</div>`;
+      newBarsHtml = `<div style="width:100%; height:8px; background:#f8fafc; border-radius:4px; display:flex; align-items:center; justify-content:center; font-size:9.5px; color:#94a3b8; font-weight:600;">⏳ 在 Etherpad 中撰写或修改正文将实时累计真实贡献</div>`;
     } else {
-      barsEl.innerHTML = membersList.map((m) => {
+      newBarsHtml = membersList.map((m) => {
         const rawVal = getMemberContribVal(contribs, m);
         const pct = rawTotal > 0 ? Math.round((rawVal / rawTotal) * 100) : 0;
         return `<div class="contrib-segment" style="width:${pct}%; background:${m.color || '#2563eb'}; transition:width 0.8s ease-in-out;" title="${m.name}: ${pct}% (${rawVal}字)"></div>`;
       }).join('');
+    }
+
+    if (barsEl.innerHTML !== newBarsHtml) {
+      barsEl.innerHTML = newBarsHtml;
     }
   };
 
@@ -2987,6 +2996,10 @@ export function renderChat(state) {
         </span>
       `;
     }).join('');
+
+    if (presenceContainer.innerHTML !== newPresenceHtml) {
+      presenceContainer.innerHTML = newPresenceHtml;
+    }
   }
 
   const stream = document.getElementById('chat-stream');
@@ -3018,6 +3031,12 @@ export function renderChat(state) {
   });
   allMsgs.sort((a, b) => (Number(a._timeMs || 0) - Number(b._timeMs || 0)));
   const cleanMsgs = filterAndDeduplicateChatLogs(allMsgs);
+
+  const msgSignature = cleanMsgs.map(m => (m.id || `${m.sender}_${m._timeMs || m.timestamp}`)).join('|');
+  if (stream.dataset.msgSignature === msgSignature) {
+    return; // 消息没有任何变动，绝不重绘 DOM，彻底保护打字焦点与输入法
+  }
+  stream.dataset.msgSignature = msgSignature;
 
   // 智能滚动：如果用户正在往上拉浏览历史记录，保持当前视角不被强行打断拉回底部
   const isAtBottom = (stream.scrollHeight - stream.scrollTop - stream.clientHeight) < 90;
