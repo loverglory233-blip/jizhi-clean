@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260830_v751
+ * Version: 20260830_v752
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260830_v751';
+  const APP_VERSION = '20260830_v752';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -4676,14 +4676,17 @@
                   </div>
                 ` : ''}
 
-                <div class="card" style="border-top:4px solid #7c3aed; width:100%; padding:16px 20px;">
-                  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; flex-wrap:wrap; gap:8px;">
-                    <span style="font-size:15px; font-weight:800; color:#0f172a;">📡 全组实时总览</span>
-                    <span style="font-size:11.5px; color:#64748b; font-weight:600;">
-                      <span style="color:#16a34a;">🟢 正常</span>　<span style="color:#d97706;">🟡 部分离线</span>　<span style="color:#dc2626;">🔴 全员离线/字段占用</span>　<span style="color:#059669;">✅ 已终稿</span>
-                    </span>
+                <div class="card" id="card-teacher-panorama" style="border-top:4px solid #7c3aed; width:100%; padding:12px 18px; flex-shrink:0;">
+                  <div style="display:flex; justify-content:space-between; align-items:center; cursor:pointer;" id="btn-toggle-teacher-panorama">
+                    <div style="display:flex; align-items:center; gap:8px;">
+                      <span style="font-size:14px; font-weight:800; color:#0f172a;">📡 全组实时总览</span>
+                      <span style="font-size:11px; color:#64748b; font-weight:600;">
+                        <span style="color:#16a34a;">🟢 正常</span>　<span style="color:#d97706;">🟡 部分离线</span>　<span style="color:#dc2626;">🔴 全员离线/字段占用</span>　<span style="color:#059669;">✅ 已终稿</span>
+                      </span>
+                    </div>
+                    <span id="icon-toggle-teacher-panorama" style="font-size:11.5px; color:#7c3aed; font-weight:700;">${state._isPanoramaCollapsed ? '▼ 展开总览' : '▲ 收起'}</span>
                   </div>
-                  <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(170px, 1fr)); gap:10px;">
+                  <div id="body-teacher-panorama" style="display:${state._isPanoramaCollapsed ? 'none' : 'grid'}; grid-template-columns:repeat(auto-fill, minmax(170px, 1fr)); gap:10px; margin-top:10px;">
                     ${(activeClass.groups || []).map(g => {
                       const p = (state.monitorPanorama && state.monitorPanorama[g.id]) || null;
                       const total = p ? (p.totalMembers || 0) : ((g.members || []).length || 0);
@@ -7284,6 +7287,21 @@
       });
     }
 
+    const btnTogglePanorama = container.querySelector('#btn-toggle-teacher-panorama');
+    if (btnTogglePanorama) {
+      btnTogglePanorama.addEventListener('click', () => {
+        state._isPanoramaCollapsed = !state._isPanoramaCollapsed;
+        const bodyPano = container.querySelector('#body-teacher-panorama');
+        const iconPano = container.querySelector('#icon-toggle-teacher-panorama');
+        if (bodyPano) {
+          bodyPano.style.display = state._isPanoramaCollapsed ? 'none' : 'grid';
+        }
+        if (iconPano) {
+          iconPano.innerText = state._isPanoramaCollapsed ? '▼ 展开总览' : '▲ 收起';
+        }
+      });
+    }
+
     const btnToggleTPlan = container.querySelector('#btn-toggle-teacher-action-plan');
     if (btnToggleTPlan) {
       btnToggleTPlan.addEventListener('click', () => {
@@ -9800,7 +9818,7 @@
                 </div>
                 <div style="flex:1; min-height:0; position:relative; background:#ffffff;">
                   <iframe id="stage2-etherpad-frame" src="${padUrl}" style="width:100%; height:100%; border:none; display:block; background:#ffffff;" allow="clipboard-read; clipboard-write; fullscreen" onload="const el=document.getElementById('ep-status-text-s2'); if(el) el.innerText='${isEditorReadonly ? '🔒 Etherpad 协同文档已锁定 (只读模式)' : 'Etherpad 实时协同引擎已就绪 (毫秒级 OT 协同)'}';"></iframe>
-                  ${isEditorReadonly ? '<div style="position:absolute; inset:0; z-index:99; background:rgba(248,250,252,0.15); cursor:not-allowed; display:flex; align-items:center; justify-content:center;" title="🔒 正文已截止锁定为只读模式"><div style="background:rgba(15,23,42,0.8); color:#ffffff; padding:8px 16px; border-radius:8px; font-size:12.5px; font-weight:700; pointer-events:none; box-shadow:0 4px 12px rgba(0,0,0,0.2);">🔒 任务已截止/终稿已锁定 (只读查阅模式)</div></div>' : ''}
+                  ${isEditorReadonly ? '<div style="position:absolute; top:12px; right:12px; z-index:99; pointer-events:none; display:flex; align-items:center; justify-content:center;" title="🔒 正文已截止锁定为只读模式"><div style="background:rgba(15,23,42,0.8); color:#ffffff; padding:6px 14px; border-radius:6px; font-size:12px; font-weight:700; pointer-events:none; box-shadow:0 4px 12px rgba(0,0,0,0.18);">🔒 任务已截止/初稿已锁定 (只读查阅模式)</div></div>' : ''}
                 </div>
               </div>
             `;
@@ -10236,7 +10254,7 @@
               <div style="flex:1; min-height:0; position:relative; background:#f1f5f9; border-radius:8px; overflow:hidden; border:1px solid #cbd5e1;">
                 <iframe id="stage3-etherpad-frame" src="${padUrl}" style="width:100%; height:100%; min-height:540px; border:none; display:block;" allow="clipboard-read; clipboard-write"></iframe>
                 ${isFinalSubmitted ? `
-                  <div style="position:absolute; inset:0; z-index:99; background:rgba(248,250,252,0.15); cursor:not-allowed; display:flex; flex-direction:column; align-items:flex-end; justify-content:flex-start; padding:12px; pointer-events:auto;" title="🔒 论文终稿已全员提交归档锁定">
+                  <div style="position:absolute; top:12px; right:12px; z-index:99; pointer-events:none; display:flex; align-items:center; justify-content:center;" title="🔒 论文终稿已全员提交归档锁定">
                     <div style="background:rgba(15,23,42,0.85); color:#ffffff; padding:6px 14px; border-radius:6px; font-size:12px; font-weight:700; pointer-events:none; box-shadow:0 4px 12px rgba(0,0,0,0.18); display:flex; align-items:center; gap:6px;">
                       <span>🔒 论文终稿已全员提交归档 (只读查阅模式)</span>
                     </div>
