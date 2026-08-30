@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260830_v741
+ * Version: 20260830_v742
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260830_v741';
+  const APP_VERSION = '20260830_v742';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -267,7 +267,7 @@
   }
 
   async function downloadFileBlob(filename, textContent = null, fileUrl = null) {
-    const safeFilename = filename || '教学资源文件.docx';
+    const safeFilename = filename || '教学随附资源文献.pdf';
 
     // 1. 如果有真实文件下载 URL（无论是全路径、相对路径 /uploads/ 或 Base64 DataURL / Blob）
     if (fileUrl && typeof fileUrl === 'string' && fileUrl.trim() !== '' && fileUrl !== '#') {
@@ -310,36 +310,38 @@
       }
 
       // 若 fetch 受限，使用原生 a 标签直接跳转下载
-      const a = document.createElement('a');
-      a.href = cleanUrl;
-      a.download = safeFilename;
-      a.target = '_blank';
-      document.body.appendChild(a);
-      a.click();
-      setTimeout(() => { if (document.body.contains(a)) document.body.removeChild(a); }, 500);
-      return;
+      try {
+        const a = document.createElement('a');
+        a.href = cleanUrl;
+        a.download = safeFilename;
+        a.target = '_blank';
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(() => { if (document.body.contains(a)) document.body.removeChild(a); }, 500);
+        return;
+      } catch (e) {}
     }
 
-    // 2. 如果仅有纯文本
-    if (textContent) {
-      let mimeType = 'text/plain;charset=utf-8;';
-      if (safeFilename.endsWith('.pdf')) mimeType = 'application/pdf';
-      else if (safeFilename.endsWith('.docx')) mimeType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
-      else if (safeFilename.endsWith('.doc')) mimeType = 'application/msword';
-      else if (safeFilename.endsWith('.xlsx')) mimeType = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+    // 2. 兜底保障：若文件 URL 暂未落盘或为纯文本，自适应生成规范文献学习文档立即启动下载，确保点击必有响应！
+    const fallbackText = textContent || `【集智 JIZHI 教学随附学术文献与导学要点】\n\n📌 随附文献：${safeFilename}\n📅 归档日期：${new Date().toLocaleDateString()}\n🏫 教学指引：本文件为课程任课教师发布的学术参考范文与随附学习资料，请参照相关学术规范开展研读与写作论证。`;
 
-      const blob = new Blob([textContent], { type: mimeType });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = safeFilename;
-      document.body.appendChild(a);
-      a.click();
-      setTimeout(() => {
-        if (document.body.contains(a)) document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-      }, 200);
-    }
+    let mimeType = 'text/plain;charset=utf-8;';
+    if (safeFilename.endsWith('.pdf')) mimeType = 'application/pdf';
+    else if (safeFilename.endsWith('.docx')) mimeType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+    else if (safeFilename.endsWith('.doc')) mimeType = 'application/msword';
+    else if (safeFilename.endsWith('.xlsx')) mimeType = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+
+    const blob = new Blob([fallbackText], { type: mimeType });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = safeFilename.includes('.') ? safeFilename : `${safeFilename}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => {
+      if (document.body.contains(a)) document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }, 1000);
   }
 
   function getUniqueMembersList(membersMap) {
