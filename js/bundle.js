@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260830_v758
+ * Version: 20260830_v759
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260830_v758';
+  const APP_VERSION = '20260830_v759';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -661,27 +661,58 @@
         shield.title = '🔒 只读查阅模式 (已锁定禁止编辑)';
         container.style.position = 'relative';
         container.appendChild(shield);
+      }
 
-        // 🖱️ 护盾鼠标滚轮透传：直接驱动 Etherpad 内部 outerdocbody 丝滑滚动
+      // 🖱️ 护盾鼠标滚轮透传：精准拦截并驱动 Etherpad 内部各层容器丝滑上下滚动
+      if (!shield._wheelBound) {
+        shield._wheelBound = true;
         shield.addEventListener('wheel', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+
           try {
             const doc = iframe.contentDocument || iframe.contentWindow?.document;
-            if (!doc) return;
-            const aceOuter = doc.querySelector('iframe[name="ace_outer"]');
-            if (aceOuter) {
-              const outerDoc = aceOuter.contentDocument || aceOuter.contentWindow?.document;
-              if (outerDoc) {
-                const outerBody = outerDoc.querySelector('#outerdocbody') || outerDoc.documentElement || outerDoc.body;
-                if (outerBody) {
-                  outerBody.scrollTop += e.deltaY;
+            if (iframe.contentWindow) {
+              try { iframe.contentWindow.scrollBy(0, e.deltaY); } catch (e1) {}
+            }
+            if (doc) {
+              if (doc.scrollingElement) doc.scrollingElement.scrollTop += e.deltaY;
+              if (doc.documentElement) doc.documentElement.scrollTop += e.deltaY;
+              if (doc.body) doc.body.scrollTop += e.deltaY;
+
+              const aceOuter = doc.querySelector('iframe[name="ace_outer"]');
+              if (aceOuter) {
+                if (aceOuter.contentWindow) {
+                  try { aceOuter.contentWindow.scrollBy(0, e.deltaY); } catch (e2) {}
                 }
-                if (outerDoc.documentElement) {
-                  outerDoc.documentElement.scrollTop += e.deltaY;
+                const outerDoc = aceOuter.contentDocument || aceOuter.contentWindow?.document;
+                if (outerDoc) {
+                  if (outerDoc.scrollingElement) outerDoc.scrollingElement.scrollTop += e.deltaY;
+                  if (outerDoc.documentElement) outerDoc.documentElement.scrollTop += e.deltaY;
+                  const outerBody = outerDoc.querySelector('#outerdocbody') || outerDoc.body;
+                  if (outerBody) {
+                    outerBody.scrollTop += e.deltaY;
+                  }
+                  const aceInner = outerDoc.querySelector('iframe[name="ace_inner"]');
+                  if (aceInner) {
+                    if (aceInner.contentWindow) {
+                      try { aceInner.contentWindow.scrollBy(0, e.deltaY); } catch (e3) {}
+                    }
+                    const innerDoc = aceInner.contentDocument || aceInner.contentWindow?.document;
+                    if (innerDoc) {
+                      if (innerDoc.scrollingElement) innerDoc.scrollingElement.scrollTop += e.deltaY;
+                      if (innerDoc.documentElement) innerDoc.documentElement.scrollTop += e.deltaY;
+                      const innerBody = innerDoc.querySelector('#innerdocbody') || innerDoc.body;
+                      if (innerBody) {
+                        innerBody.scrollTop += e.deltaY;
+                      }
+                    }
+                  }
                 }
               }
             }
           } catch(err) {}
-        }, { passive: true });
+        }, { passive: false });
       }
     }
 
