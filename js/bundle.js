@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260830_v899
+ * Version: 20260830_v900
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260830_v899';
+  const APP_VERSION = '20260830_v900';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -4211,10 +4211,10 @@
     const allUsers = authManager.getUsers();
     const classStudents = authManager.getClassStudents(activeClass.id);
 
-    // 🛡️ 严格按当前班级隔离写作任务、通知与文献（延期仅作用于任务本身，绝不混入教学广播列表）
-    const currentClassTasks = tasks.filter(t => t.classId === activeClass.id || (t.className && t.className === activeClass.name) || (!t.classId && activeClass.id === 'class_101'));
-    const currentClassAnnouncements = announcements.filter(a => (a.classId === activeClass.id || (a.className && a.className === activeClass.name) || (!a.classId && activeClass.id === 'class_101') || (Array.isArray(a.targetClassIds) && a.targetClassIds.includes(activeClass.id))) && !a.isSystemAction && !a.isExtension && !a.title?.includes('延期') && !a.title?.includes('延长至'));
-    const currentClassPapers = refPapers.filter(p => p.classId === activeClass.id || (p.className && p.className === activeClass.name) || (!p.classId && activeClass.id === 'class_101') || (Array.isArray(p.targetClassIds) && p.targetClassIds.includes(activeClass.id)));
+    // 🛡️ 严格按当前班级隔离写作任务、通知与文献（支持全校通用广播与多班级分发）
+    const currentClassTasks = tasks.filter(t => !t.classId || t.classId === 'all' || t.classId === activeClass.id || (t.className && t.className === activeClass.name) || (Array.isArray(t.targetClassIds) && (t.targetClassIds.includes('all') || t.targetClassIds.includes(activeClass.id))));
+    const currentClassAnnouncements = announcements.filter(a => (!a.classId || a.classId === 'all' || a.classId === activeClass.id || (a.className && a.className === activeClass.name) || (Array.isArray(a.targetClassIds) && (a.targetClassIds.includes('all') || a.targetClassIds.includes(activeClass.id)))) && !a.isSystemAction && !a.isExtension && !a.title?.includes('延期') && !a.title?.includes('延长至'));
+    const currentClassPapers = refPapers.filter(p => (!p.classId || p.classId === 'all' || p.classId === activeClass.id || (p.className && p.className === activeClass.name) || (Array.isArray(p.targetClassIds) && (p.targetClassIds.includes('all') || p.targetClassIds.includes(activeClass.id)))));
 
     const classTaskExists = currentClassTasks.some(t => t.id === state.activeTaskId);
     let effectiveMonitorTaskId = (state.activeTaskId && classTaskExists)
@@ -4851,9 +4851,9 @@
           ` : ''}
 
           ${activeTab === 'view_publishing' ? (() => {
-            const currentClassTasks = tasks.filter(t => t.classId === activeClass.id || (t.className && t.className === activeClass.name) || (!t.classId && activeClass.id === 'class_101'));
-            const currentClassAnnouncements = announcements.filter(a => (a.classId === activeClass.id || (a.className && a.className === activeClass.name) || (!a.classId && activeClass.id === 'class_101') || (Array.isArray(a.targetClassIds) && a.targetClassIds.includes(activeClass.id))) && !a.isSystemAction && !a.isExtension && !a.title?.includes('延期') && !a.title?.includes('延长至'));
-            const currentClassPapers = refPapers.filter(p => p.classId === activeClass.id || (p.className && p.className === activeClass.name) || (!p.classId && activeClass.id === 'class_101') || (Array.isArray(p.targetClassIds) && p.targetClassIds.includes(activeClass.id)));
+            const currentClassTasks = tasks.filter(t => !t.classId || t.classId === 'all' || t.classId === activeClass.id || (t.className && t.className === activeClass.name) || (Array.isArray(t.targetClassIds) && (t.targetClassIds.includes('all') || t.targetClassIds.includes(activeClass.id))));
+            const currentClassAnnouncements = announcements.filter(a => (!a.classId || a.classId === 'all' || a.classId === activeClass.id || (a.className && a.className === activeClass.name) || (Array.isArray(a.targetClassIds) && (a.targetClassIds.includes('all') || a.targetClassIds.includes(activeClass.id)))) && !a.isSystemAction && !a.isExtension && !a.title?.includes('延期') && !a.title?.includes('延长至'));
+            const currentClassPapers = refPapers.filter(p => (!p.classId || p.classId === 'all' || p.classId === activeClass.id || (p.className && p.className === activeClass.name) || (Array.isArray(p.targetClassIds) && (p.targetClassIds.includes('all') || p.targetClassIds.includes(activeClass.id)))));
 
             const surveysList = authManager.getSurveysList();
             const currentSelectedSurveyUrl = authManager.getSurveyUrl(activeClass.id, currentClassTasks[0] ? currentClassTasks[0].id : 'task_default');
@@ -8081,7 +8081,11 @@
     const groupName = activeGroupObj.name || '第 1 协作小组';
 
     const relevantTasks = tasks.filter(t => {
-      return t.classId === userClass.id || (t.className && t.className === userClass.name) || (!t.classId && userClass.id === 'class_101');
+      if (!t) return false;
+      if (!t.classId || t.classId === 'all' || t.classId === 'class_all') return true;
+      return t.classId === userClass.id || 
+             (t.className && t.className === userClass.name) ||
+             (Array.isArray(t.targetClassIds) && (t.targetClassIds.includes('all') || t.targetClassIds.includes(userClass.id)));
     });
     container.innerHTML = `
       <div class="student-task-portal" style="min-height:100vh; background:#f0f4f9; display:flex; flex-direction:column;">

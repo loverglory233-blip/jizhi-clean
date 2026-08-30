@@ -7,8 +7,8 @@ import {
   STORAGE_KEY_TASKS,
   STORAGE_KEY_ANNOUNCEMENTS,
   STORAGE_KEY_CLASSES
-} from "./constants.js?v=20260830_v899";
-import { escapeHtml, isTaskExpired, formatDurationHuman, formatStandardDateDash, showGlobalBannerNotice } from "./utils.js?v=20260830_v899";
+} from "./constants.js?v=20260830_v900";
+import { escapeHtml, isTaskExpired, formatDurationHuman, formatStandardDateDash, showGlobalBannerNotice } from "./utils.js?v=20260830_v900";
 
 /* ==========================================================================
    10. STUDENT TASK PORTAL (CENTRALIZED HUB & COLLABORATION ENTRY)
@@ -164,7 +164,11 @@ export function renderStudentTaskPortal(container, authManager, state, onSelectT
   const groupName = activeGroupObj.name || '第 1 协作小组';
 
   const relevantTasks = tasks.filter(t => {
-    return t.classId === userClass.id || (t.className && t.className === userClass.name) || (!t.classId && userClass.id === 'class_101');
+    if (!t) return false;
+    if (!t.classId || t.classId === 'all' || t.classId === 'class_all') return true;
+    return t.classId === userClass.id || 
+           (t.className && t.className === userClass.name) ||
+           (Array.isArray(t.targetClassIds) && (t.targetClassIds.includes('all') || t.targetClassIds.includes(userClass.id)));
   });
   container.innerHTML = `
     <div class="student-task-portal" style="min-height:100vh; background:#f0f4f9; display:flex; flex-direction:column;">
