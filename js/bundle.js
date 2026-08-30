@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260830_v766
+ * Version: 20260830_v767
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260830_v766';
+  const APP_VERSION = '20260830_v767';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -2205,6 +2205,7 @@
       let tasks = this.getTasks();
       const taskIndex = tasks.findIndex(t => t.id === taskId);
       if (taskIndex === -1) throw new Error('任务不存在或已被删除！');
+      const oldDeadline = tasks[taskIndex].deadline || '';
       tasks[taskIndex].deadline = newDeadline;
       if (addedMinutes > 0) {
         tasks[taskIndex].durationMinutes = (parseInt(tasks[taskIndex].durationMinutes, 10) || 150) + parseInt(addedMinutes, 10);
@@ -2220,14 +2221,40 @@
       };
       localStorage.setItem(STORAGE_KEY_TASKS, JSON.stringify(tasks));
 
-      // 📢 仅向该任务所属的【本班级】发布教学延期通知（绝不跨班级广播）
-      this.publishAnnouncement(
-        taskId,
-        `⏳ 任务延期通知：截止时间已延长至 ${newDeadline}`,
-        `任课教师已将写作任务《${taskTitle}》截止时间延长至 ${newDeadline}。各小组写作工作台已自动解除只读锁定，可正常协同编辑。`,
-        null, 'all', '全班所有小组', targetClassId, targetClassName, [targetClassId], true
-      );
+      // ⚡ 本地跨标签页 0 延迟广播
+      if ('BroadcastChannel' in window) {
+        try {
+          const bc = new BroadcastChannel('jizhi_global_events');
+          bc.postMessage({ type: 'task_extended', task: tasks[taskIndex], prevDeadline: oldDeadline });
+        } catch (e) {}
+      }
 
+      // 🚀 调用服务端原子级专用延期 API（100% 极速直达 MySQL 与 main_meta，彻底杜绝被旧快照回滚）
+      const currUser = this.getCurrentUser();
+      const teacherUserId = (currUser && (currUser.studentCode || currUser.username || currUser.id)) || '1001';
+      const teacherToken = currUser?.token || currUser?.activeSessionId || '';
+
+      fetch('sync.php?action=extend_task_deadline', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          taskId: taskId,
+          taskTitle: taskTitle,
+          newDeadline: newDeadline,
+          addedMinutes: addedMinutes,
+          userId: teacherUserId,
+          token: teacherToken
+        })
+      }).then(async (res) => {
+        if (res.ok) {
+          const data = await res.json().catch(() => ({}));
+          if (data && data.version) {
+            this.globalMetaVersion = parseInt(data.version, 10);
+          }
+        }
+      }).catch(() => {});
+
+      // 同时补充常规 pushGlobalMeta
       this.pushGlobalMeta();
       return tasks[taskIndex];
     }
