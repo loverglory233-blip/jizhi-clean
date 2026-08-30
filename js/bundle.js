@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260831_v945
+ * Version: 20260831_v946
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260831_v945';
+  const APP_VERSION = '20260831_v946';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -10380,30 +10380,32 @@
             }, 1500);
           }
 
-          // 动态贡献度计算（正向增量自动累计入库）
-          const prevLen = state.stage2._prevKnownLen !== undefined ? state.stage2._prevKnownLen : wordCount;
+          // 动态贡献度计算：
+          const contribs = state.stage2.memberContributions || {};
+          let rawTotal = 0;
+          membersList.forEach(m => { rawTotal += (contribs[m.id] || 0) + (contribs[m.studentCode] || 0); });
+
+          const prevLen = state.stage2._prevKnownLen !== undefined ? state.stage2._prevKnownLen : 0;
           state.stage2._prevKnownLen = wordCount;
 
-          if (wordCount > prevLen) {
-            const delta = wordCount - prevLen;
-            if (delta > 0) {
-              fetch(`sync.php?action=report_member_contrib&groupId=${encodeURIComponent(userGroupId)}&taskId=${encodeURIComponent(activeTaskId)}&classId=${encodeURIComponent(userClassId)}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  taskId: activeTaskId,
-                  classId: userClassId,
-                  groupId: userGroupId,
-                  userCode: currUserCode,
-                  delta: delta
-                })
-              }).then(r => r.json()).then(res => {
-                if (res.success && res.contribs) {
-                  state.stage2.memberContributions = res.contribs;
-                  updateContribDom();
-                }
-              }).catch(() => {});
-            }
+          const delta = (wordCount > prevLen) ? (wordCount - prevLen) : ((wordCount > 0 && rawTotal === 0) ? wordCount : 0);
+          if (delta > 0) {
+            fetch(`sync.php?action=report_member_contrib&groupId=${encodeURIComponent(userGroupId)}&taskId=${encodeURIComponent(activeTaskId)}&classId=${encodeURIComponent(userClassId)}`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                taskId: activeTaskId,
+                classId: userClassId,
+                groupId: userGroupId,
+                userCode: currUserCode,
+                delta: delta
+              })
+            }).then(r => r.json()).then(res => {
+              if (res.success && res.contribs) {
+                state.stage2.memberContributions = res.contribs;
+                updateContribDom();
+              }
+            }).catch(() => {});
           } else {
             updateContribDom();
           }
@@ -16420,16 +16422,16 @@
       const isLeaderClient = !membersList.length || (this.state.currentUser === membersList[0]?.studentCode || this.state.currentUser === membersList[0]?.id || this.state.currentUser === membersList[0]?.username);
 
       // ═══════════════════════════════════════════════════════════════
-      // 🛡️ 第一次质检（30% 字数 / 35% 时间 · 破题把脉）
+      // 🛡️ 第一次质检（字数 >= 60 字 或 20% 时间 · 破题把脉）
       // ═══════════════════════════════════════════════════════════════
-      const isReview1Due = (wordProgress >= 0.30 || timeProgress >= 0.35 || rawDoc.length >= 600);
+      const isReview1Due = (rawDoc.length >= 60 || wordProgress >= 0.15 || timeProgress >= 0.20);
       const hasFirstReviewInLogs = s2ChatList.some(m => m.sender === 'reviewingEditor' && (m.text.includes('初审') || m.text.includes('破题把脉') || m.text.includes('Research Gap')));
       if (hasFirstReviewInLogs && (s2.reviewMilestone === 'none' || s2.reviewMilestone === 'first_review_in_progress')) {
         s2.reviewMilestone = 'first_review_done';
         this.syncStage2();
       }
 
-      if (!hasFirstReviewInLogs && s2.reviewMilestone === 'none' && isReview1Due && timeSinceLastReviewing > 30000 && !this._isTriggeringFirstReview) {
+      if (!hasFirstReviewInLogs && s2.reviewMilestone === 'none' && isReview1Due && !this._isTriggeringFirstReview) {
         if (!isLeaderClient && membersList.length > 1) return;
         this._isTriggeringFirstReview = true;
         s2.reviewMilestone = 'first_review_in_progress';
