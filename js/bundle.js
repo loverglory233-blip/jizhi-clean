@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260830_v860
+ * Version: 20260830_v861
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260830_v860';
+  const APP_VERSION = '20260830_v861';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -123,6 +123,52 @@
    * JIZHI (集智) Platform - Utility Functions
    * Standard ES Module (ESM)
    */
+
+  /**
+   * 👤 全维度用户标识提取器：提取一个用户对象的全部等价唯一标识（id, studentCode, username, name）
+   */
+  function getUserAllKeys(user) {
+    if (!user) return [];
+    if (typeof user === 'string') return [user.trim()];
+    const keys = new Set();
+    if (user.id) keys.add(String(user.id).trim());
+    if (user.userId) keys.add(String(user.userId).trim());
+    if (user.studentCode) keys.add(String(user.studentCode).trim());
+    if (user.username) keys.add(String(user.username).trim());
+    if (user.name) keys.add(String(user.name).trim());
+    return Array.from(keys);
+  }
+
+  /**
+   * 🔍 判断两个用户标识/对象是否为同一个人（任意标识命中即为同一人）
+   */
+  function isSameUser(userA, userB) {
+    if (!userA || !userB) return false;
+    const keysA = getUserAllKeys(userA);
+    const keysB = getUserAllKeys(userB);
+    return keysA.some(ka => keysB.some(kb => ka.toLowerCase() === kb.toLowerCase()));
+  }
+
+  /**
+   * 🗺️ 从状态字典（如 votes, hasVoted, confirmedMembers, presence, readStatus）中查询某用户是否存在或已确认
+   */
+  function isUserInMap(map, user) {
+    if (!map || typeof map !== 'object' || !user) return false;
+    const keys = getUserAllKeys(user);
+    return keys.some(k => Boolean(map[k]));
+  }
+
+  /**
+   * 🗺️ 从状态字典中获取某用户的值
+   */
+  function getUserFromMap(map, user) {
+    if (!map || typeof map !== 'object' || !user) return undefined;
+    const keys = getUserAllKeys(user);
+    for (const k of keys) {
+      if (map[k] !== undefined) return map[k];
+    }
+    return undefined;
+  }
 
   /**
    * ⏱️ 智能人性化时长格式化：将分钟数自动转换为 天 / 小时 / 分钟
