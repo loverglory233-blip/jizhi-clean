@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles } from "./constants.js?v=20260831_v938";
-import { callCozeAgentAPI } from "./agents.js?v=20260831_v938";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap } from "./utils.js?v=20260831_v938";
+import { AgentProfiles } from "./constants.js?v=20260831_v939";
+import { callCozeAgentAPI } from "./agents.js?v=20260831_v939";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap } from "./utils.js?v=20260831_v939";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -2075,143 +2075,65 @@ function renderStage2Canvas(canvas, state, handlers) {
             box.onclick = (e) => {
               const idx = Number(box.dataset.itemIdx);
               if (!state.stage2.actionPlan.completedMap) state.stage2.actionPlan.completedMap = {};
-              state.stage2.actionPlan.completedMap[idx] = !state.stage2.actionPlan.completedMap[idx];
-              if (handlers.onActionPlanToggle) {
-                handlers.onActionPlanToggle(idx, state.stage2.actionPlan.completedMap[idx]);
-              } else if (window.app) {
-                window.app.syncStage2();
-                if (window.app.cloudSyncEngine) window.app.cloudSyncEngine.pushSnapshot();
-                window.app.renderStudentWorkspace();
-              }
-            };
-          });
-        }
-      }
-    }
-
-    const subs = s2.meetingSubmissions || {};
-    const subCount = Object.keys(subs).length;
-    const isMeetingFullyDone = subCount >= totalCount && totalCount > 0;
-    const isCurrentUserSubmitted = isMemberDone(subs, { id: currUserCode, studentCode: currUser?.studentCode, username: currUser?.username, name: currUser?.name });
-
-    const meetingCountBadge = canvas.querySelector('#stage2-meeting-count-text');
-    if (meetingCountBadge) {
-      meetingCountBadge.innerText = isMeetingFullyDone ? '✅ 全员已打卡' : `${subCount}/${totalCount} 人已打卡`;
-      meetingCountBadge.style.color = isMeetingFullyDone ? '#059669' : '#2563eb';
-      meetingCountBadge.style.background = isMeetingFullyDone ? '#d1fae5' : '#eff6ff';
-      meetingCountBadge.style.border = isMeetingFullyDone ? '1px solid #a7f3d0' : '1px solid #bfdbfe';
-    }
-    const meetingPillsContainer = canvas.querySelector('#stage2-meeting-members-pills');
-    if (meetingPillsContainer) {
-      meetingPillsContainer.innerHTML = membersList.map(m => {
-        const isSub = isMemberDone(subs, m);
-        return `<span style="font-size:11px; padding:2px 8px; border-radius:10px; font-weight:700; background:${isSub ? '#ecfdf5' : '#f1f5f9'}; color:${isSub ? '#059669' : '#64748b'}; border:1px solid ${isSub ? '#a7f3d0' : '#e2e8f0'};">
-          ${isSub ? '✓' : '⏳'} ${escapeHtml(m.name)}: ${isSub ? '已打卡' : '待打卡'}
-        </span>`;
-      }).join('');
-    }
-    const btnMeetingPills = canvas.querySelector('#btn-trigger-meeting-pills');
-    if (btnMeetingPills) {
-      btnMeetingPills.disabled = false;
-      btnMeetingPills.innerText = isCurrentUserSubmitted ? '✅ 查看【编辑会议】记录' : '📢 发起/参与【编辑会议】';
-      btnMeetingPills.style.background = isCurrentUserSubmitted ? '#ecfdf5' : 'linear-gradient(135deg, #2563eb, #1d4ed8)';
-      btnMeetingPills.style.color = isCurrentUserSubmitted ? '#059669' : 'white';
-      btnMeetingPills.style.border = isCurrentUserSubmitted ? '1px solid #a7f3d0' : 'none';
-      btnMeetingPills.style.cursor = 'pointer';
-      btnMeetingPills.onclick = () => handlers.onOpenMeetingModal();
-    }
-
-    const draftCountBadge = canvas.querySelector('#stage2-draft-count-text');
-    if (draftCountBadge) {
-      draftCountBadge.innerText = isDraftFullyConfirmed ? '✅ 全员已确认完成初稿' : `${confirmedDraftCount}/${totalCount} 人已确认`;
-      draftCountBadge.style.color = isDraftFullyConfirmed ? '#059669' : '#2563eb';
-      draftCountBadge.style.background = isDraftFullyConfirmed ? '#d1fae5' : '#eff6ff';
-      draftCountBadge.style.border = isDraftFullyConfirmed ? '1px solid #a7f3d0' : '1px solid #bfdbfe';
-    }
-    const pillsContainer = canvas.querySelector('#stage2-confirmed-members-pills');
-    if (pillsContainer) {
-      pillsContainer.innerHTML = membersList.map(m => {
-        const isConf = isMemberDone(confirmedDraftMap, m);
-        return `<span style="font-size:11px; padding:1px 8px; border-radius:10px; font-weight:700; background:${isConf ? '#ecfdf5' : '#f1f5f9'}; color:${isConf ? '#059669' : '#94a3b8'}; border:1px solid ${isConf ? '#a7f3d0' : '#e2e8f0'};">
-          ${isConf ? '✓' : '○'} ${escapeHtml(m.name)}
-        </span>`;
-      }).join('');
-    }
-    const btnDraft = canvas.querySelector('#btn-confirm-stage2-draft');
-    if (btnDraft) {
-      const draftBtnText = isDraftFullyConfirmed
-        ? '🎉 全员已确认初稿 (已解锁阶段三)'
-        : (isUserDraftConfirmed ? `✅ 您已确认 (等待组员 ${confirmedDraftCount}/${totalCount})` : '✍️ 确认完成正文初稿');
-      btnDraft.disabled = false;
-      btnDraft.innerText = draftBtnText;
-      btnDraft.style.background = isUserDraftConfirmed ? '#ecfdf5' : 'linear-gradient(135deg, #059669, #047857)';
-      btnDraft.style.color = isUserDraftConfirmed ? '#059669' : 'white';
-      btnDraft.style.border = isUserDraftConfirmed ? '1px solid #a7f3d0' : 'none';
-      btnDraft.style.cursor = 'pointer';
-      btnDraft.onclick = () => {
-        if (isUserDraftConfirmed) {
-          alert(`✅ 您已于此前确认完成初稿！\n当前全组确认进度：${confirmedDraftCount}/${totalCount} 人。\n所有组员全部确认后将自动全组解锁阶段三。`);
-          return;
-        }
-        if (isEditorReadonly) {
-          alert('🔒 当前任务已截止或已只读锁定。');
-          return;
-        }
-        handlers.onConfirmStage2Draft();
-      };
-    }
-    return;
-  }
-
-  const isArchiveMode = (state.groupMaxStage === 'stage3' || isDraftFullyConfirmed || state.isFinalSubmitted);
-
   canvas.innerHTML = `
-    ${isArchiveMode ? `
-      <div style="background:#eff6ff; border:1px solid #bfdbfe; border-radius:8px; padding:6px 14px; margin-bottom:8px; display:flex; justify-content:space-between; align-items:center; flex-shrink:0; box-shadow:0 1px 3px rgba(37,99,235,0.04);">
-        <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
-          <span style="font-size:13px; font-weight:800; color:#1e40af;">📰 【阶段二：编辑部】正文初稿档案库 (只读查阅模式)</span>
-          <span style="font-size:11px; background:#d1fae5; color:#065f46; border:1px solid #a7f3d0; padding:1.5px 8px; border-radius:10px; font-weight:700;">✅ 全员初稿已确认归档</span>
-          <span style="font-size:11px; background:#eff6ff; color:#2563eb; border:1px solid #bfdbfe; padding:1.5px 8px; border-radius:10px; font-weight:700;">字数: <b id="stage2-word-count-num">${plainTextLen}</b> 字</span>
-        </div>
+    <div class="card" style="height:100%; flex:1; display:flex; flex-direction:column; padding:8px 12px; box-sizing:border-box; overflow:hidden;">
+      
+      <!-- 🌟 1. 顶部紧凑一体化协作控制台 (高度仅 36px，集成字数、范文、会议打卡与初稿确认) -->
+      <div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:8px; padding:6px 12px; margin-bottom:6px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; flex-shrink:0; box-shadow:0 1px 3px rgba(15,23,42,0.03);">
         <div style="display:flex; align-items:center; gap:8px;">
-          <button id="btn-show-case" style="background:#ffffff; border:1px solid #bfdbfe; color:#1d4ed8; padding:3px 10px; border-radius:6px; font-size:11.5px; cursor:pointer; font-weight:700;">${paperBtnLabel}</button>
-          <button onclick="if(window.app) window.app.switchStage('stage3');" style="background:#2563eb; color:white; border:none; padding:4px 12px; border-radius:6px; font-size:12px; cursor:pointer; font-weight:700; display:inline-flex; align-items:center; gap:4px; box-shadow:0 2px 6px rgba(37,99,235,0.2);">前往阶段三答辩/终稿 ➔</button>
+          <span style="font-size:13.5px; font-weight:800; color:#0f172a; display:inline-flex; align-items:center; gap:4px;">📝 论文正文协同起草</span>
+          <span style="font-size:11.5px; color:#2563eb; background:#eff6ff; padding:2px 8px; border-radius:10px; border:1px solid #bfdbfe; font-weight:800;">字数: <b id="stage2-word-count-num">${plainTextLen}</b> 字</span>
+          <button id="btn-show-case" style="background:#ffffff; border:1px solid #cbd5e1; color:#1d4ed8; padding:2px 8px; border-radius:6px; font-size:11px; cursor:pointer; font-weight:700;">${paperBtnLabel}</button>
+        </div>
+
+        <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+          <!-- 编辑会议打卡小药丸 -->
+          ${(() => {
+            const subs = s2.meetingSubmissions || {};
+            const subCount = Object.keys(subs).length;
+            const isMeetingFullyDone = subCount >= totalCount && totalCount > 0;
+            const isCurrentUserSubmitted = isMemberDone(subs, { id: currUserCode, studentCode: currUser?.studentCode, username: currUser?.username, name: currUser?.name });
+            return `
+              <div style="display:flex; align-items:center; gap:4px;">
+                <span id="stage2-meeting-count-text" style="font-size:11px; font-weight:800; color:${isMeetingFullyDone ? '#059669' : '#2563eb'}; background:${isMeetingFullyDone ? '#d1fae5' : '#eff6ff'}; padding:1.5px 6px; border-radius:8px; border:1px solid ${isMeetingFullyDone ? '#a7f3d0' : '#bfdbfe'};">
+                  ${isMeetingFullyDone ? '✅ 会议已全员打卡' : `📢 会议: ${subCount}/${totalCount}`}
+                </span>
+                <button id="btn-trigger-meeting-pills" style="background:${isCurrentUserSubmitted ? '#ecfdf5' : 'linear-gradient(135deg, #2563eb, #1d4ed8)'}; border:${isCurrentUserSubmitted ? '1px solid #a7f3d0' : 'none'}; color:${isCurrentUserSubmitted ? '#059669' : 'white'}; padding:2.5px 8px; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer;">
+                  ${isCurrentUserSubmitted ? '✓ 查看会议' : '📢 参与会议'}
+                </button>
+              </div>
+            `;
+          })()}
+
+          <!-- 初稿全员确认小药丸 -->
+          <div style="display:flex; align-items:center; gap:4px;">
+            <span id="stage2-draft-count-text" style="font-size:11px; font-weight:800; color:${isDraftFullyConfirmed ? '#059669' : '#d97706'}; background:${isDraftFullyConfirmed ? '#d1fae5' : '#fef3c7'}; padding:1.5px 6px; border-radius:8px; border:1px solid ${isDraftFullyConfirmed ? '#a7f3d0' : '#fde68a'};">
+              ${isDraftFullyConfirmed ? '🎉 初稿已确认' : `✍️ 初稿: ${confirmedDraftCount}/${totalCount}`}
+            </span>
+            <button id="btn-confirm-stage2-draft" style="background:${isUserDraftConfirmed ? '#ecfdf5' : 'linear-gradient(135deg, #059669, #047857)'}; border:${isUserDraftConfirmed ? '1px solid #a7f3d0' : 'none'}; color:${isUserDraftConfirmed ? '#059669' : 'white'}; padding:2.5px 8px; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer;">
+              ${isDraftFullyConfirmed ? '🎉 初稿完成' : (isUserDraftConfirmed ? '✓ 已确认' : '✍️ 确认初稿')}
+            </button>
+          </div>
         </div>
       </div>
-    ` : `
-      ${isTaskDeadlineExpired ? `
-        <div style="background:#fef2f2; border:1.5px solid #fca5a5; border-radius:8px; padding:6px 14px; margin-bottom:8px; font-size:12.5px; color:#991b1b; font-weight:600; display:flex; justify-content:space-between; align-items:center; gap:12px; height:34px; box-sizing:border-box; flex-shrink:0;">
-          <div style="display:flex; align-items:center; gap:8px; min-width:0; flex:1; overflow:hidden; white-space:nowrap; text-overflow:ellipsis;">
-            <span style="font-size:14px; flex-shrink:0;">🔒</span>
-            <span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"><b>任务已截止锁定：</b> 正文已自动转为<b>【只读模式】</b>。</span>
-          </div>
-          <span style="font-size:11px; color:#ffffff; background:#dc2626; padding:1.5px 6px; border-radius:4px; font-weight:800; flex-shrink:0;">已截止</span>
-        </div>
-      ` : ''}
-    `}
 
-    <div class="card" style="height:100%; flex:1; display:flex; flex-direction:column; padding:10px 14px; box-sizing:border-box; overflow-y:auto;">
+      <!-- 🌟 2. 可折叠半程修正清单 (极紧凑单行条，按需展开) -->
       ${actionPlan && actionPlan.isGenerated ? `
-        <div id="stage2-action-plan-card" style="background:#ecfdf5; border:1px solid #a7f3d0; border-radius:8px; padding:6px 12px; margin-bottom:8px; transition:all 0.2s ease; flex-shrink:0; box-shadow:0 1px 3px rgba(5,150,105,0.06);">
+        <div id="stage2-action-plan-card" style="background:#ecfdf5; border:1px solid #a7f3d0; border-radius:6px; padding:4px 10px; margin-bottom:6px; flex-shrink:0; box-shadow:0 1px 2px rgba(5,150,105,0.04);">
           <div style="display:flex; justify-content:space-between; align-items:center; cursor:pointer;" id="btn-toggle-action-plan">
-            <div style="font-size:12.5px; font-weight:800; color:#059669; display:flex; align-items:center; gap:6px;">
+            <div style="font-size:11.5px; font-weight:800; color:#059669; display:flex; align-items:center; gap:6px;">
               <span>📋 【半程修正清单】(审稿专家 3 项修改要求)</span>
-              <span style="font-size:10.5px; background:#d1fae5; color:#065f46; padding:1px 6px; border-radius:8px; font-weight:700;">已下发</span>
+              <span style="font-size:10px; background:#d1fae5; color:#065f46; padding:0 6px; border-radius:6px; font-weight:700;">已下发</span>
             </div>
-            <span id="icon-toggle-action-plan" style="font-size:11px; color:#059669; font-weight:700;">▲ 收起</span>
+            <span id="icon-toggle-action-plan" style="font-size:10.5px; color:#059669; font-weight:700;">▼ 展开/收起</span>
           </div>
-          <div id="body-action-plan-items" style="font-size:12px; color:#1e293b; display:flex; flex-direction:column; gap:6px; margin-top:6px;">
+          <div id="body-action-plan-items" style="font-size:11.5px; color:#1e293b; display:none; flex-direction:column; gap:4px; margin-top:6px;">
             ${actionPlan.items.map((item, idx) => {
               const isChecked = !!(actionPlan.completedMap && actionPlan.completedMap[idx]);
               let formattedItem = escapeHtml(item);
-              formattedItem = formattedItem
-                .replace(/(?:•\s*|【)?理论与综述层(?:】)?[:：]?/g, '<span style="display:inline-block; background:#eff6ff; color:#2563eb; border:1px solid #bfdbfe; padding:1px 6px; border-radius:4px; font-weight:700; font-size:11px; margin-right:4px;">📚 理论与综述层</span>')
-                .replace(/(?:•\s*|【)?假设与(?:问题|机制)层(?:】)?[:：]?/g, '<span style="display:inline-block; background:#faf5ff; color:#7c3aed; border:1px solid #e9d5ff; padding:1px 6px; border-radius:4px; font-weight:700; font-size:11px; margin-right:4px;">🔗 假设与机制层</span>')
-                .replace(/(?:•\s*|【)?方法与量表层(?:】)?[:：]?/g, '<span style="display:inline-block; background:#ecfdf5; color:#059669; border:1px solid #a7f3d0; padding:1px 6px; border-radius:4px; font-weight:700; font-size:11px; margin-right:4px;">📐 方法与量表层</span>');
-
               return `
-                <div class="action-plan-item-box" data-item-idx="${idx}" style="line-height:1.5; background:${isChecked ? '#f0fdf4' : '#ffffff'}; border:1px solid ${isChecked ? '#86efac' : '#e2e8f0'}; border-radius:6px; padding:6px 10px; display:flex; align-items:flex-start; gap:6px; cursor:pointer;">
-                  <input type="checkbox" class="action-plan-check-input" data-idx="${idx}" ${isChecked ? 'checked' : ''} style="cursor:pointer; margin-top:3px; transform:scale(1.1);">
+                <div class="action-plan-item-box" data-item-idx="${idx}" style="line-height:1.4; background:${isChecked ? '#f0fdf4' : '#ffffff'}; border:1px solid ${isChecked ? '#86efac' : '#e2e8f0'}; border-radius:4px; padding:4px 8px; display:flex; align-items:flex-start; gap:6px; cursor:pointer;">
+                  <input type="checkbox" class="action-plan-check-input" data-idx="${idx}" ${isChecked ? 'checked' : ''} style="cursor:pointer; margin-top:2px;">
                   <div style="flex:1; text-decoration:${isChecked ? 'line-through' : 'none'}; color:${isChecked ? '#166534' : '#1e293b'};">
                     <b style="color:${isChecked ? '#166534' : '#0f172a'}; margin-right:4px;">${idx + 1}.</b> ${formattedItem}
                   </div>
@@ -2220,89 +2142,10 @@ function renderStage2Canvas(canvas, state, handlers) {
             }).join('')}
           </div>
         </div>
-      ` : `
-        <div id="stage2-action-plan-card" style="background:#f8fafc; border:1px dashed #cbd5e1; border-radius:6px; padding:6px 12px; margin-bottom:8px; flex-shrink:0;">
-          <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:6px;">
-            <div style="font-size:12px; font-weight:700; color:#64748b; display:flex; align-items:center; gap:6px;">
-              <span>📋 【半程修正清单】</span>
-              <span style="font-size:10.5px; background:${isDraftFullyConfirmed ? '#ecfdf5' : '#eff6ff'}; color:${isDraftFullyConfirmed ? '#059669' : '#1d4ed8'}; padding:1px 8px; border-radius:10px; font-weight:700;">
-                ${isDraftFullyConfirmed ? '已随初稿归档' : '待解锁 (组内针对自查分歧研讨对齐后，由审稿专家质检下发)'}
-              </span>
-            </div>
-            <span style="font-size:11px; color:#94a3b8;">（完成分歧研讨后审稿专家智能质检下发）</span>
-          </div>
-        </div>
-      `}
-
-      ${!isArchiveMode ? `
-        <div class="card-title" style="margin-bottom:8px; display:flex; justify-content:space-between; align-items:center; flex-shrink:0;">
-          <div style="display:flex; align-items:center; gap:8px;">
-            <span style="font-size:14.5px; font-weight:800; color:#0f172a;">📝 学术协作富文本编辑器 (对标 Word 学术论文规范)</span>
-            <span style="font-size:11.5px; color:#2563eb; background:#eff6ff; padding:1.5px 8px; border-radius:10px; border:1px solid #bfdbfe;">字数: <b id="stage2-word-count-num">${plainTextLen}</b> 字</span>
-          </div>
-          <div style="display:flex; gap:8px;">
-            <button id="btn-show-case" style="background:#eff6ff; border:1px solid #bfdbfe; color:#1d4ed8; padding:4px 10px; border-radius:6px; font-size:11.5px; cursor:pointer; font-weight:700;">${paperBtnLabel}</button>
-          </div>
-        </div>
-
-        <!-- 📢 半程【编辑会议】自查打卡全员状态条 -->
-        ${(() => {
-          const subs = s2.meetingSubmissions || {};
-          const subCount = Object.keys(subs).length;
-          const isMeetingFullyDone = subCount >= totalCount && totalCount > 0;
-          const isCurrentUserSubmitted = isMemberDone(subs, { id: currUserCode, studentCode: currUser?.studentCode, username: currUser?.username, name: currUser?.name });
-
-          return `
-            <div style="background:#ffffff; border:1px solid ${isMeetingFullyDone ? '#a7f3d0' : '#cbd5e1'}; border-radius:6px; padding:6px 10px; margin-bottom:6px; display:flex; justify-content:space-between; align-items:center; box-shadow:0 1px 2px rgba(15,23,42,0.03); flex-wrap:wrap; gap:6px; flex-shrink:0;">
-              <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
-                <span style="font-size:12px; font-weight:800; color:#0f172a;">📢 【编辑会议】进度:</span>
-                <span id="stage2-meeting-count-text" style="font-size:11px; font-weight:800; color:${isMeetingFullyDone ? '#059669' : '#2563eb'}; background:${isMeetingFullyDone ? '#d1fae5' : '#eff6ff'}; padding:1px 8px; border-radius:10px; border:1px solid ${isMeetingFullyDone ? '#a7f3d0' : '#bfdbfe'};">
-                  ${isMeetingFullyDone ? '✅ 全员已打卡' : `${subCount}/${totalCount} 人已打卡`}
-                </span>
-                <div id="stage2-meeting-members-pills" style="display:flex; gap:4px; flex-wrap:wrap;">
-                  ${membersList.map(m => {
-                    const isSub = isMemberDone(subs, m);
-                    return `<span style="font-size:10.5px; padding:1px 6px; border-radius:8px; font-weight:700; background:${isSub ? '#ecfdf5' : '#f1f5f9'}; color:${isSub ? '#059669' : '#64748b'}; border:1px solid ${isSub ? '#a7f3d0' : '#e2e8f0'};">
-                      ${isSub ? '✓' : '⏳'} ${escapeHtml(m.name)}
-                    </span>`;
-                  }).join('')}
-                </div>
-              </div>
-              <div>
-                <button id="btn-trigger-meeting-pills" style="background:${isCurrentUserSubmitted ? '#ecfdf5' : 'linear-gradient(135deg, #2563eb, #1d4ed8)'}; border:${isCurrentUserSubmitted ? '1px solid #a7f3d0' : 'none'}; color:${isCurrentUserSubmitted ? '#059669' : 'white'}; padding:4px 10px; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer;">
-                  ${isCurrentUserSubmitted ? '✅ 查看自查记录' : '📢 参与【编辑会议】'}
-                </button>
-              </div>
-            </div>
-          `;
-        })()}
-
-        <!-- 全员确认完成初稿状态条 -->
-        <div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:6px; padding:6px 10px; margin-bottom:6px; display:flex; justify-content:space-between; align-items:center; box-shadow:0 1px 2px rgba(15,23,42,0.03); flex-wrap:wrap; gap:6px; flex-shrink:0;">
-          <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
-            <span style="font-size:12px; font-weight:800; color:#0f172a;">✍️ 正文初稿确认进度:</span>
-            <span id="stage2-draft-count-text" style="font-size:11px; font-weight:800; color:${isDraftFullyConfirmed ? '#059669' : '#2563eb'}; background:${isDraftFullyConfirmed ? '#d1fae5' : '#eff6ff'}; padding:1px 8px; border-radius:10px; border:1px solid ${isDraftFullyConfirmed ? '#a7f3d0' : '#bfdbfe'};">
-              ${isDraftFullyConfirmed ? '✅ 全员已确认' : `${confirmedDraftCount}/${totalCount} 人已确认`}
-            </span>
-            <div id="stage2-confirmed-members-pills" style="display:flex; gap:4px; flex-wrap:wrap;">
-              ${membersList.map(m => {
-                const isConf = isMemberDone(confirmedDraftMap, m);
-                return `<span style="font-size:10.5px; padding:1px 6px; border-radius:8px; font-weight:700; background:${isConf ? '#ecfdf5' : '#f1f5f9'}; color:${isConf ? '#059669' : '#94a3b8'}; border:1px solid ${isConf ? '#a7f3d0' : '#e2e8f0'};">
-                  ${isConf ? '✓' : '○'} ${escapeHtml(m.name)}
-                </span>`;
-              }).join('')}
-            </div>
-          </div>
-          <div>
-            <button id="btn-confirm-stage2-draft" style="background:${isUserDraftConfirmed ? '#ecfdf5' : 'linear-gradient(135deg, #059669, #047857)'}; border:${isUserDraftConfirmed ? '1px solid #a7f3d0' : 'none'}; color:${isUserDraftConfirmed ? '#059669' : 'white'}; padding:4px 10px; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer;">
-              ${isDraftFullyConfirmed ? '🎉 全员已确认初稿 (已解锁阶段三)' : (isUserDraftConfirmed ? `✅ 您已确认 (等待 ${confirmedDraftCount}/${totalCount})` : '✍️ 确认完成正文初稿')}
-            </button>
-          </div>
-        </div>
       ` : ''}
 
-      <!-- Word-grade Academic Collaborative Etherpad OT Engine Body -->
-      <div style="flex:1; min-height:560px; display:flex; flex-direction:column; margin-bottom:8px;">
+      <!-- 🌟 3. Etherpad 在线协同富文本编辑器主体 (撑满整个画布) -->
+      <div style="flex:1; height:100%; min-height:480px; display:flex; flex-direction:column; margin-bottom:6px;">
         ${(() => {
           const rawPadName = `jizhi_${activeTaskId}_${userGroupId}`;
           let currUserName = currUser?.name || '';
@@ -2340,19 +2183,19 @@ function renderStage2Canvas(canvas, state, handlers) {
           const padUrl = `/p/${encodeURIComponent(targetPad)}?userName=${encodeURIComponent(currUserName)}&userColor=${encodeURIComponent(currUserColor)}&showChat=false&showLineNumbers=true&showControls=${isEditorReadonly ? 'false' : 'true'}&lang=zh-hans`;
           
           return `
-            <div class="word-editor-container" style="display:flex; flex-direction:column; height:640px; min-height:600px; border-radius:10px; overflow:hidden; border:1px solid #cbd5e1; box-shadow:0 4px 16px rgba(15,23,42,0.06); background:#ffffff; position:relative;">
-              <div id="ep-loading-helper-s2" style="display:flex; align-items:center; justify-content:space-between; background:#f8fafc; border-bottom:1px solid #e2e8f0; padding:6px 14px; font-size:12px; color:#475569;">
-                <div style="display:flex; align-items:center; gap:8px;">
-                  <span id="ep-status-dot-s2" style="display:inline-block; width:8px; height:8px; border-radius:50%; background:${isEditorReadonly ? '#dc2626' : '#10b981'};"></span>
-                  <span id="ep-status-text-s2" style="font-weight:600;">${isEditorReadonly ? '🔒 Etherpad 协同文档已锁定 (只读模式)' : 'Etherpad 实时协同引擎已连接 (毫秒级 OT 协同)'}</span>
+            <div class="word-editor-container" style="display:flex; flex-direction:column; height:100%; min-height:480px; border-radius:8px; overflow:hidden; border:1px solid #cbd5e1; box-shadow:0 2px 10px rgba(15,23,42,0.05); background:#ffffff; position:relative;">
+              <div id="ep-loading-helper-s2" style="display:flex; align-items:center; justify-content:space-between; background:#f8fafc; border-bottom:1px solid #e2e8f0; padding:4px 10px; font-size:11px; color:#475569;">
+                <div style="display:flex; align-items:center; gap:6px;">
+                  <span id="ep-status-dot-s2" style="display:inline-block; width:7px; height:7px; border-radius:50%; background:${isEditorReadonly ? '#dc2626' : '#10b981'};"></span>
+                  <span id="ep-status-text-s2" style="font-weight:600;">${isEditorReadonly ? '🔒 Etherpad 协同文档已锁定 (只读模式)' : 'Etherpad 实时协同引擎已就绪 (毫秒级 OT 协同)'}</span>
                 </div>
-                <div style="display:flex; align-items:center; gap:8px;">
-                  <a href="${padUrl}" target="_blank" style="background:#ffffff; color:#334155; border:1px solid #cbd5e1; padding:3px 10px; border-radius:6px; font-size:11.5px; text-decoration:none; font-weight:600; display:inline-flex; align-items:center; gap:4px; box-shadow:0 1px 2px rgba(0,0,0,0.04);">↗️ 独立新窗口打开</a>
-                  <button onclick="const f=document.getElementById('stage2-etherpad-frame'); if(f) { f.src=f.src; document.getElementById('ep-status-text-s2').innerText='正在重新连接...'; }" style="background:#eff6ff; color:#2563eb; border:1px solid #bfdbfe; padding:3px 10px; border-radius:6px; font-size:11.5px; cursor:pointer; font-weight:700;">🔄 刷新文档连接</button>
+                <div style="display:flex; align-items:center; gap:6px;">
+                  <a href="${padUrl}" target="_blank" style="background:#ffffff; color:#334155; border:1px solid #cbd5e1; padding:2px 8px; border-radius:4px; font-size:11px; text-decoration:none; font-weight:600; display:inline-flex; align-items:center; gap:3px;">↗️ 独立窗口</a>
+                  <button onclick="const f=document.getElementById('stage2-etherpad-frame'); if(f) { f.src=f.src; document.getElementById('ep-status-text-s2').innerText='正在重新连接...'; }" style="background:#eff6ff; color:#2563eb; border:1px solid #bfdbfe; padding:2px 8px; border-radius:4px; font-size:11px; cursor:pointer; font-weight:700;">🔄 刷新连接</button>
                 </div>
               </div>
-              <div style="flex:1; height:100%; min-height:540px; position:relative; background:#ffffff;">
-                <iframe id="stage2-etherpad-frame" src="${padUrl}" style="width:100%; height:100%; min-height:540px; border:none; display:block; background:#ffffff;" allow="clipboard-read; clipboard-write; fullscreen" onload="const el=document.getElementById('ep-status-text-s2'); if(el) el.innerText='${isEditorReadonly ? '🔒 Etherpad 协同文档已锁定 (只读模式)' : 'Etherpad 实时协同引擎已就绪 (毫秒级 OT 协同)'}';"></iframe>
+              <div style="flex:1; height:100%; min-height:440px; position:relative; background:#ffffff;">
+                <iframe id="stage2-etherpad-frame" src="${padUrl}" style="width:100%; height:100%; min-height:440px; border:none; display:block; background:#ffffff;" allow="clipboard-read; clipboard-write; fullscreen" onload="const el=document.getElementById('ep-status-text-s2'); if(el) el.innerText='${isEditorReadonly ? '🔒 Etherpad 协同文档已锁定 (只读模式)' : 'Etherpad 实时协同引擎已就绪 (毫秒级 OT 协同)'}';"></iframe>
                 ${isEditorReadonly ? '<div style="position:absolute; top:12px; right:12px; z-index:99; pointer-events:none; display:flex; align-items:center; justify-content:center;" title="🔒 正文已截止锁定为只读模式"><div style="background:rgba(15,23,42,0.8); color:#ffffff; padding:6px 14px; border-radius:6px; font-size:12px; font-weight:700; pointer-events:none; box-shadow:0 4px 12px rgba(0,0,0,0.18);">🔒 任务已截止/初稿已锁定 (只读查阅模式)</div></div>' : ''}
               </div>
             </div>
@@ -2360,34 +2203,33 @@ function renderStage2Canvas(canvas, state, handlers) {
         })()}
       </div>
 
-      <div style="background:#ffffff; padding:10px 16px; border-radius:8px; border:1px solid #cbd5e1; flex-shrink:0; display:flex; flex-direction:column; gap:6px; box-shadow:0 1px 3px rgba(15,23,42,0.04); margin-bottom:12px;">
-        <div style="display:flex; justify-content:space-between; align-items:center;">
-          <span style="font-size:12px; font-weight:800; color:#1e293b;">📊 团队协作贡献度占比 (SSRL 群体过程感知):</span>
-          <div class="contrib-labels" id="stage2-contrib-labels" style="display:flex; font-size:11.5px; font-weight:700; color:#475569; gap:12px; white-space:nowrap;">
-            ${(() => {
-              const contribs = s2.memberContributions || {};
-              let rawTotal = 0;
-              membersList.forEach(m => { rawTotal += (contribs[m.id] || 0) + (contribs[m.studentCode] || 0); });
-              return membersList.map((m) => {
-                const rawVal = (contribs[m.id] || 0) + (contribs[m.studentCode] || 0);
-                const pct = rawTotal > 0 ? Math.round((rawVal / rawTotal) * 100) : 0;
-                return `<span style="color:${rawVal > 0 ? (m.color || '#2563eb') : '#94a3b8'}; font-weight:700;">● ${m.name}: ${pct}%</span>`;
-              }).join('');
-            })()}
-          </div>
-        </div>
-        <div class="contrib-bars" id="stage2-contrib-bars" style="width:100%; height:10px; border-radius:5px; display:flex; overflow:hidden; background:#e2e8f0;">
+      <!-- 🌟 4. 底部超薄一体化贡献度状态条 (高度仅 22px，彩色占比与进度条合一) -->
+      <div style="background:#ffffff; padding:4px 10px; border-radius:6px; border:1px solid #cbd5e1; flex-shrink:0; display:flex; align-items:center; justify-content:space-between; gap:12px; box-shadow:0 1px 2px rgba(15,23,42,0.03);">
+        <span style="font-size:11px; font-weight:800; color:#1e293b; white-space:nowrap;">📊 团队贡献:</span>
+        <div class="contrib-bars" id="stage2-contrib-bars" style="flex:1; height:8px; border-radius:4px; display:flex; overflow:hidden; background:#e2e8f0;">
           ${(() => {
             const contribs = s2.memberContributions || {};
             let rawTotal = 0;
             membersList.forEach(m => { rawTotal += (contribs[m.id] || 0) + (contribs[m.studentCode] || 0); });
             if (rawTotal === 0) {
-              return `<div style="width:100%; height:10px; background:#f8fafc; border-radius:5px; display:flex; align-items:center; justify-content:center; font-size:10px; color:#94a3b8; font-weight:600;">⏳ 暂无协作投入 (组员在 Etherpad 中撰写、修改正文或研讨后将平滑累计真实贡献)</div>`;
+              return `<div style="width:100%; height:8px; background:#f8fafc; border-radius:4px; display:flex; align-items:center; justify-content:center; font-size:9.5px; color:#94a3b8; font-weight:600;">⏳ 在 Etherpad 中撰写或修改正文将实时累计真实贡献</div>`;
             }
             return membersList.map((m) => {
               const rawVal = (contribs[m.id] || 0) + (contribs[m.studentCode] || 0);
               const pct = rawTotal > 0 ? Math.round((rawVal / rawTotal) * 100) : 0;
-              return `<div class="contrib-segment" style="width:${pct}%; background:${m.color || '#2563eb'}; transition:width 0.8s ease-in-out;" title="${m.name}: ${pct}% (基于正文撰写与修改累计工作量)"></div>`;
+              return `<div class="contrib-segment" style="width:${pct}%; background:${m.color || '#2563eb'}; transition:width 0.8s ease-in-out;" title="${m.name}: ${pct}%"></div>`;
+            }).join('');
+          })()}
+        </div>
+        <div class="contrib-labels" id="stage2-contrib-labels" style="display:flex; font-size:11px; font-weight:700; color:#475569; gap:8px; white-space:nowrap;">
+          ${(() => {
+            const contribs = s2.memberContributions || {};
+            let rawTotal = 0;
+            membersList.forEach(m => { rawTotal += (contribs[m.id] || 0) + (contribs[m.studentCode] || 0); });
+            return membersList.map((m) => {
+              const rawVal = (contribs[m.id] || 0) + (contribs[m.studentCode] || 0);
+              const pct = rawTotal > 0 ? Math.round((rawVal / rawTotal) * 100) : 0;
+              return `<span style="color:${rawVal > 0 ? (m.color || '#2563eb') : '#94a3b8'};">● ${m.name}: ${pct}%</span>`;
             }).join('');
           })()}
         </div>
