@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260830_v841
+ * Version: 20260830_v842
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260830_v841';
+  const APP_VERSION = '20260830_v842';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -13622,48 +13622,52 @@
               // 学生明确召唤或示意讨论完毕：0秒即刻触发交棒
               if (this._consensusDebounceTimer) clearTimeout(this._consensusDebounceTimer);
               setTimeout(doHandover, 500);
-            } else if (hasAgreementSignal && !hasAdversativeSignal) {
+            } else {
               pendingRev.hasAgreement = true;
               pendingRev.lastAgreementTime = Date.now();
               this.syncStage2();
               if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
 
-              // ⏱️ 赞同后启动 35 秒静默观察期（足够缓冲发言，又不会漫长假死）
+              // ⏱️ 核心铁律：只要有新发言不断打断重置；只有全组在该话题上完全静默满 35 秒无新发言，才大模型通读交棒！
               if (this._consensusDebounceTimer) {
                 clearTimeout(this._consensusDebounceTimer);
               }
               this._consensusDebounceTimer = setTimeout(doHandover, 35000);
-            } else if (hasAdversativeSignal && this._consensusDebounceTimer) {
-              // 若组员继续提出异议或不同意见，重置计时器，让组员继续充分商榷
-              clearTimeout(this._consensusDebounceTimer);
-              this._consensusDebounceTimer = null;
-              pendingRev.hasAgreement = false;
-              this.syncStage2();
             }
           }
 
-          // Loop 2: 清单下发后，监听学生针对具体正文修改策略与分工进行讨论
+          // Loop 2: 清单下发后，监听学生针对具体正文修改策略与分工进行讨论（35s静默无新发言才总结号召）
           if (this.state.stage2PendingRevisionDiscussion) {
-            const isRevisionStrategySignal = /(?:文献|改|加|写|段落|引言|方法|反思|我来|你来|我负责|你负责|章节|修改|补充|润色|动笔|排版|正文|表格|图|清单|开始改)/i.test(text);
-            if (isRevisionStrategySignal) {
+            if (this._s2RevisionDebounceTimer) {
+              clearTimeout(this._s2RevisionDebounceTimer);
+              this._s2RevisionDebounceTimer = null;
+            }
+
+            const isExplicitStartModify = /(?:开始改|开始动笔|动笔吧|写吧|开工|按清单改|去写正文|编辑正文|我先写)/i.test(text);
+
+            const triggerRevisionConclude = () => {
               this.state.stage2PendingRevisionDiscussion = false;
               this.state.stage2DualActivityActive = true; // 激活动笔双静默守护
 
-              // 审稿编辑出场收尾确认与号召动手
-              setTimeout(() => {
-                const concludeMsg = {
-                  sender: 'reviewingEditor',
-                  text: `📝 【审稿编辑·研讨总结与修改号召】：大家的修改思路非常清晰明确！研讨圆满结束，请大家对照上方【半程修正清单】在正文中展开针对性修改，完成对应项后可在清单逐项打勾！修改过程中若有具体学术疑问可随时在讨论区 @审稿编辑 咨询，祝大家修改顺利！`,
-                  timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                  _timeMs: Date.now(),
-                  stage: 'stage2'
-                };
-                if (!this.state.chatLogs.stage2) this.state.chatLogs.stage2 = [];
-                this.state.chatLogs.stage2.push(concludeMsg);
-                this.syncChatLogs();
-                if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
-                renderChat(this.state);
-              }, 1500);
+              const concludeMsg = {
+                sender: 'reviewingEditor',
+                text: `📝 【审稿编辑·研讨总结与修改号召】：大家的修改思路非常清晰明确！研讨圆满结束，请大家对照上方【半程修正清单】在正文中展开针对性修改，完成对应项后可在清单逐项打勾！修改过程中若有具体学术疑问可随时在讨论区 @审稿编辑 咨询，祝大家修改顺利！`,
+                timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                _timeMs: Date.now(),
+                stage: 'stage2'
+              };
+              if (!this.state.chatLogs.stage2) this.state.chatLogs.stage2 = [];
+              this.state.chatLogs.stage2.push(concludeMsg);
+              this.syncChatLogs();
+              if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+              renderChat(this.state);
+            };
+
+            if (isExplicitStartModify) {
+              setTimeout(triggerRevisionConclude, 3000);
+            } else {
+              // ⏱️ 核心铁律：只要有新发言不断打断重置；只有全组在清单商讨上完全静默满 35 秒无新发言，才出面号召动笔！
+              this._s2RevisionDebounceTimer = setTimeout(triggerRevisionConclude, 35000);
             }
           }
         }
