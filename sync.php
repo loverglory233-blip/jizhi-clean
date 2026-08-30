@@ -93,7 +93,7 @@ require_once __DIR__ . '/api/db_init.php';
 $pdo = getDbConnection();
 if ($pdo) {
     // 🛡️ 高并发性能终极保护：仅在服务冷启动/初始化时执行一次 DDL 建表与教务自愈，普通高频轮询绝对不重复全库狂写
-    $lockFile = sys_get_temp_dir() . '/jizhi_db_tables_inited.lock';
+    $lockFile = sys_get_temp_dir() . '/jizhi_db_tables_inited_v909.lock';
     if (!file_exists($lockFile)) {
         initDatabaseTables();
         ensureTeacherSeedAccount($pdo);
@@ -2028,18 +2028,32 @@ if ($action === 'send_chat' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             }
 
-            // 1. 行级插入 chat_messages 表 (包含 sender_name)
+            // 1. 行级插入 chat_messages 表 (零崩溃兼容 sender_name)
             $sndName = isset($msgItem['senderName']) ? $msgItem['senderName'] : (isset($msgItem['sender_name']) ? $msgItem['sender_name'] : '');
-            $stmtInsertMsg = $pdo->prepare("INSERT IGNORE INTO chat_messages (scope_key, stage, sender, sender_name, text, timestamp_str, time_ms) VALUES (:sk, :stg, :snd, :sndName, :txt, :tstr, :tms)");
-            $stmtInsertMsg->execute([
-                ':sk' => $scopeKey,
-                ':stg' => $stage,
-                ':snd' => $snd,
-                ':sndName' => $sndName,
-                ':txt' => $txt,
-                ':tstr' => $tstr,
-                ':tms' => $tms
-            ]);
+            try {
+                $stmtInsertMsg = $pdo->prepare("INSERT IGNORE INTO chat_messages (scope_key, stage, sender, sender_name, text, timestamp_str, time_ms) VALUES (:sk, :stg, :snd, :sndName, :txt, :tstr, :tms)");
+                $stmtInsertMsg->execute([
+                    ':sk' => $scopeKey,
+                    ':stg' => $stage,
+                    ':snd' => $snd,
+                    ':sndName' => $sndName,
+                    ':txt' => $txt,
+                    ':tstr' => $tstr,
+                    ':tms' => $tms
+                ]);
+            } catch (\Exception $e) {
+                try {
+                    $stmtInsertMsg = $pdo->prepare("INSERT IGNORE INTO chat_messages (scope_key, stage, sender, text, timestamp_str, time_ms) VALUES (:sk, :stg, :snd, :txt, :tstr, :tms)");
+                    $stmtInsertMsg->execute([
+                        ':sk' => $scopeKey,
+                        ':stg' => $stage,
+                        ':snd' => $snd,
+                        ':txt' => $txt,
+                        ':tstr' => $tstr,
+                        ':tms' => $tms
+                    ]);
+                } catch (\Exception $e2) {}
+            }
 
             // 2. 更新 chats_{scopeKey} 缓存
             $stmtGetChats = $pdo->prepare("SELECT meta_value FROM global_meta WHERE meta_key = :k");
@@ -2842,11 +2856,22 @@ if ($pdo) {
         $lastTs = intval($row['last_timestamp']);
         $lastRev = isset($row['revision_id']) ? intval($row['revision_id']) : 1;
 
-        // 🛡️ 聊天消息权威恢复：直接从 chat_messages 物理关系表拉取全部历史发言，绝不依赖易被空数组覆盖的缓存
+        // 🛡️ 聊天消息权威恢复：直接从 chat_messages 物理关系表拉取全部历史发言，零崩溃兼容字段
         $chats = ['stage1' => [], 'stage2' => [], 'stage3' => []];
-        $stmtAllMsg = $pdo->prepare("SELECT stage, sender, sender_name, text, timestamp_str, time_ms, id FROM chat_messages WHERE scope_key = :sk ORDER BY time_ms ASC");
-        $stmtAllMsg->execute([':sk' => $scopeKey]);
-        $allRows = $stmtAllMsg->fetchAll(PDO::FETCH_ASSOC);
+        $allRows = [];
+        try {
+            $stmtAllMsg = $pdo->prepare("SELECT stage, sender, sender_name, text, timestamp_str, time_ms, id FROM chat_messages WHERE scope_key = :sk ORDER BY time_ms ASC");
+            $stmtAllMsg->execute([':sk' => $scopeKey]);
+            $allRows = $stmtAllMsg->fetchAll(PDO::FETCH_ASSOC);
+        } catch (\Exception $e) {
+            try {
+                $stmtAllMsg = $pdo->prepare("SELECT stage, sender, text, timestamp_str, time_ms, id FROM chat_messages WHERE scope_key = :sk ORDER BY time_ms ASC");
+                $stmtAllMsg->execute([':sk' => $scopeKey]);
+                $allRows = $stmtAllMsg->fetchAll(PDO::FETCH_ASSOC);
+            } catch (\Exception $e2) {
+                $allRows = [];
+            }
+        }
         $maxChatMs = 0;
         foreach ($allRows as $mr) {
             $stg = $mr['stage'] ?: 'stage1';
@@ -2997,11 +3022,22 @@ if ($pdo) {
         $clientMetaVer = isset($_GET['metaVer']) ? intval($_GET['metaVer']) : 0;
         $needGlobalSync = ($clientMetaVer < $metaVer) || (isset($_GET['incGlobal']) && intval($_GET['incGlobal']) === 1);
 
-        // 🛡️ 聊天消息权威恢复：直接从 chat_messages 物理关系表拉取全部历史发言
+        // 🛡️ 聊天消息权威恢复：直接从 chat_messages 物理关系表拉取全部历史发言，零崩溃兼容字段
         $chats = ['stage1' => [], 'stage2' => [], 'stage3' => []];
-        $stmtAllMsg = $pdo->prepare("SELECT stage, sender, sender_name, text, timestamp_str, time_ms, id FROM chat_messages WHERE scope_key = :sk ORDER BY time_ms ASC");
-        $stmtAllMsg->execute([':sk' => $scopeKey]);
-        $allRows = $stmtAllMsg->fetchAll(PDO::FETCH_ASSOC);
+        $allRows = [];
+        try {
+            $stmtAllMsg = $pdo->prepare("SELECT stage, sender, sender_name, text, timestamp_str, time_ms, id FROM chat_messages WHERE scope_key = :sk ORDER BY time_ms ASC");
+            $stmtAllMsg->execute([':sk' => $scopeKey]);
+            $allRows = $stmtAllMsg->fetchAll(PDO::FETCH_ASSOC);
+        } catch (\Exception $e) {
+            try {
+                $stmtAllMsg = $pdo->prepare("SELECT stage, sender, text, timestamp_str, time_ms, id FROM chat_messages WHERE scope_key = :sk ORDER BY time_ms ASC");
+                $stmtAllMsg->execute([':sk' => $scopeKey]);
+                $allRows = $stmtAllMsg->fetchAll(PDO::FETCH_ASSOC);
+            } catch (\Exception $e2) {
+                $allRows = [];
+            }
+        }
         $maxChatMs = 0;
         foreach ($allRows as $mr) {
             $stg = $mr['stage'] ?: 'stage1';
