@@ -30,25 +30,16 @@ for gdir in "${TARGET_DIRS[@]}"; do
     echo "   🔄 检测到 Git 仓库 ($gdir)，正在拉取最新代码..."
     cd "$gdir"
     git config --global --add safe.directory "$gdir" 2>/dev/null || true
-    git remote set-url origin https://github.com/loverglory233-blip/jizhi-clean.git 2>/dev/null || true
     
-    # 强制拉取并覆盖本地
-    if git fetch origin main --depth=1 && git reset --hard origin/main; then
-      DOWNLOADED=1
-      echo "   ✅ Git 原生通道同步成功 (最新 Commit: $(git log -1 --pretty=format:'%h - %s' 2>/dev/null))"
-      break
-    fi
-
-    # 若原生网络慢，尝试国内加速镜像 remote
-    for mirror_url in \
+    for git_url in \
       "https://ghfast.top/https://github.com/loverglory233-blip/jizhi-clean.git" \
       "https://mirror.ghproxy.com/https://github.com/loverglory233-blip/jizhi-clean.git" \
-      "https://ghproxy.net/https://github.com/loverglory233-blip/jizhi-clean.git"; do
-      echo "   🔄 尝试镜像拉取: $mirror_url ..."
-      git remote set-url origin "$mirror_url" 2>/dev/null || true
-      if git fetch origin main --depth=1 && git reset --hard origin/main; then
+      "https://github.com/loverglory233-blip/jizhi-clean.git"; do
+      echo "   🔄 尝试连接: $git_url ..."
+      git remote set-url origin "$git_url" 2>/dev/null || true
+      if timeout 8 git fetch origin main --depth=1 2>/dev/null && git reset --hard origin/main 2>/dev/null; then
         DOWNLOADED=1
-        echo "   ✅ Git 镜像加速通道同步成功 ($mirror_url)"
+        echo "   ✅ Git 极速通道同步成功"
         break
       fi
     done
@@ -65,7 +56,7 @@ if [ $DOWNLOADED -eq 0 ]; then
     "https://ghproxy.net/https://github.com/loverglory233-blip/jizhi-clean/archive/refs/heads/main.tar.gz" \
     "https://github.com/loverglory233-blip/jizhi-clean/archive/refs/heads/main.tar.gz"; do
     echo "   📦 正在下载并解压: $tar_url ..."
-    if curl -s -f -L --connect-timeout 8 --max-time 30 "$tar_url" -o "$TMP/archive.tar.gz" 2>/dev/null && [ -s "$TMP/archive.tar.gz" ]; then
+    if curl -s -f -L --connect-timeout 4 --max-time 15 "$tar_url" -o "$TMP/archive.tar.gz" 2>/dev/null && [ -s "$TMP/archive.tar.gz" ]; then
       tar -xzf "$TMP/archive.tar.gz" -C "$TMP" 2>/dev/null
       SRC_DIR=$(find "$TMP" -maxdepth 1 -type d -name "jizhi-clean-*" | head -n 1)
       if [ -n "$SRC_DIR" ] && [ -f "$SRC_DIR/index.html" ]; then
