@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260831_v953
+ * Version: 20260831_v954
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260831_v953';
+  const APP_VERSION = '20260831_v954';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -16547,9 +16547,6 @@
       const plainLen = newContent.replace(/<[^>]*>/g, '').trim().length;
       const lastWarnTime = this.state.lastSSRLWarnTimeMs || 0;
       const lastWarnLen = this.state.lastSSRLWarnLen || 0;
-      const totalAllocMinutes = Object.values((this.state.stage1 && this.state.stage1.contract && this.state.stage1.contract.timeAllocations) || {}).reduce((a, b) => a + Number(b || 0), 0);
-      const taskDurMin = (curTask && curTask.durationMinutes) ? Number(curTask.durationMinutes) : (totalAllocMinutes || 150);
-      const isLargeTask = taskDurMin > 150;
       const ssrlCooldownMs = isLargeTask ? 480000 : 360000;
       const minNewProgressLen = isLargeTask ? 120 : 60;
       const minContribThreshold = isLargeTask ? 600 : 300;
