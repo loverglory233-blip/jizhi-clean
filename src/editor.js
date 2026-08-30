@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles } from "./constants.js?v=20260830_v874";
-import { callCozeAgentAPI } from "./agents.js?v=20260830_v874";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap } from "./utils.js?v=20260830_v874";
+import { AgentProfiles } from "./constants.js?v=20260830_v875";
+import { callCozeAgentAPI } from "./agents.js?v=20260830_v875";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap } from "./utils.js?v=20260830_v875";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -1022,23 +1022,49 @@ function renderStage1Canvas(canvas, state, handlers) {
         </div>
         ${!isContractLocked ? `
           <div style="margin-top:12px; display:flex; justify-content:center;">
-            ${(s1.contractStep === 'completed' || s1.contract?.isDraftGenerated) ? `
-              <div style="background:#f0fdf4; border:1.5px solid #86efac; color:#15803d; padding:7px 22px; border-radius:20px; font-weight:800; font-size:13px; display:inline-flex; align-items:center; gap:6px; box-shadow:0 2px 8px rgba(34,197,94,0.15);">
-                ✅ 公约草案已全部提炼生成（全组可微调修改，并在下方签署确认）
-              </div>
-            ` : (s1.contractStep === 'tasks') ? `
-              <button id="btn-extract-tasks" style="background:linear-gradient(135deg, #7c3aed, #6d28d9); border:none; color:white; padding:9px 24px; border-radius:20px; font-weight:800; font-size:13.5px; cursor:pointer; display:inline-flex; align-items:center; gap:6px; box-shadow:0 4px 14px rgba(124,58,237,0.3); transition:all 0.2s;">
-                👥 研讨差不多了？一键提炼【任务分工】
-              </button>
-            ` : (s1.contractStep === 'time') ? `
-              <button id="btn-extract-time" style="background:linear-gradient(135deg, #0284c7, #0369a1); border:none; color:white; padding:9px 24px; border-radius:20px; font-weight:800; font-size:13.5px; cursor:pointer; display:inline-flex; align-items:center; gap:6px; box-shadow:0 4px 14px rgba(2,132,199,0.3); transition:all 0.2s;">
-                ⏱️ 研讨差不多了？一键提炼【时间分配】
-              </button>
-            ` : `
-              <button id="btn-extract-topic" style="background:linear-gradient(135deg, #2563eb, #1d4ed8); border:none; color:white; padding:9px 24px; border-radius:20px; font-weight:800; font-size:13.5px; cursor:pointer; display:inline-flex; align-items:center; gap:6px; box-shadow:0 4px 14px rgba(37,99,235,0.3); transition:all 0.2s;">
-                💡 研讨差不多了？一键提炼【最终主题】
-              </button>
-            `}
+            ${(() => {
+              const confs = state.stepConfirmations || {};
+              const isDoneHelper = (map) => {
+                if (!map) return 0;
+                return membersList.filter(m => map[m.id] || map[m.studentCode] || map[m.username] || (m.name && map[m.name])).length;
+              };
+              const isMyDoneHelper = (map) => {
+                if (!map) return false;
+                return !!(map[currUserCode] || (currUser && (map[currUser.id] || map[currUser.studentCode] || map[currUser.username] || map[currUser.name])));
+              };
+
+              if (s1.contractStep === 'completed' || s1.contract?.isDraftGenerated) {
+                return `
+                  <div style="background:#f0fdf4; border:1.5px solid #86efac; color:#15803d; padding:7px 22px; border-radius:20px; font-weight:800; font-size:13px; display:inline-flex; align-items:center; gap:6px; box-shadow:0 2px 8px rgba(34,197,94,0.15);">
+                    ✅ 公约草案已全部提炼生成（全组可微调修改，并在下方签署确认）
+                  </div>
+                `;
+              } else if (s1.contractStep === 'tasks') {
+                const count = isDoneHelper(confs.s1_tasks);
+                const isMe = isMyDoneHelper(confs.s1_tasks);
+                return `
+                  <button id="btn-extract-tasks" style="background:${isMe ? 'linear-gradient(135deg, #059669, #047857)' : 'linear-gradient(135deg, #7c3aed, #6d28d9)'}; border:none; color:white; padding:9px 24px; border-radius:20px; font-weight:800; font-size:13.5px; cursor:pointer; display:inline-flex; align-items:center; gap:6px; box-shadow:0 4px 14px rgba(124,58,237,0.3); transition:all 0.2s;">
+                    ${isMe ? `✅ 您已确认提炼分工 (${count}/${totalMembersCount} 等待其他组员)` : `👥 研讨差不多了？一键提炼【任务分工】 (${count}/${totalMembersCount})`}
+                  </button>
+                `;
+              } else if (s1.contractStep === 'time') {
+                const count = isDoneHelper(confs.s1_time);
+                const isMe = isMyDoneHelper(confs.s1_time);
+                return `
+                  <button id="btn-extract-time" style="background:${isMe ? 'linear-gradient(135deg, #059669, #047857)' : 'linear-gradient(135deg, #0284c7, #0369a1)'}; border:none; color:white; padding:9px 24px; border-radius:20px; font-weight:800; font-size:13.5px; cursor:pointer; display:inline-flex; align-items:center; gap:6px; box-shadow:0 4px 14px rgba(2,132,199,0.3); transition:all 0.2s;">
+                    ${isMe ? `✅ 您已确认提炼时间 (${count}/${totalMembersCount} 等待其他组员)` : `⏱️ 研讨差不多了？一键提炼【时间分配】 (${count}/${totalMembersCount})`}
+                  </button>
+                `;
+              } else {
+                const count = isDoneHelper(confs.s1_topic);
+                const isMe = isMyDoneHelper(confs.s1_topic);
+                return `
+                  <button id="btn-extract-topic" style="background:${isMe ? 'linear-gradient(135deg, #059669, #047857)' : 'linear-gradient(135deg, #2563eb, #1d4ed8)'}; border:none; color:white; padding:9px 24px; border-radius:20px; font-weight:800; font-size:13.5px; cursor:pointer; display:inline-flex; align-items:center; gap:6px; box-shadow:0 4px 14px rgba(37,99,235,0.3); transition:all 0.2s;">
+                    ${isMe ? `✅ 您已确认提炼主题 (${count}/${totalMembersCount} 等待其他组员)` : `💡 研讨差不多了？一键提炼【最终主题】 (${count}/${totalMembersCount})`}
+                  </button>
+                `;
+              }
+            })()}
           </div>
         ` : ''}
       </div>
@@ -3049,17 +3075,34 @@ export function renderChat(state) {
     };
   });
 
-  // ── 🌟 阶段二半程会议动态协同操作栏 (在表情栏正上方) ──
+  // ── 🌟 阶段二/阶段三动态协同操作栏 (在表情栏正上方) ──
   const actionBar = document.getElementById('chat-agent-action-bar');
   if (actionBar) {
     const s2 = state.stage2 || {};
     const curStage = state.currentStage;
+    const membersList = Object.values(state.members || []);
+    const totalCount = membersList.length || 3;
+    const currUser = (window.app && window.app.authManager) ? window.app.authManager.getCurrentUser() : null;
+    const myCode = state.currentUser || (currUser ? currUser.studentCode : '');
+    const confs = state.stepConfirmations || {};
+
+    const isDoneHelper = (map) => {
+      if (!map) return 0;
+      return membersList.filter(m => map[m.id] || map[m.studentCode] || map[m.username] || (m.name && map[m.name])).length;
+    };
+    const isMyDoneHelper = (map) => {
+      if (!map) return false;
+      return !!(map[myCode] || (currUser && (map[currUser.id] || map[currUser.studentCode] || map[currUser.username] || map[currUser.name])));
+    };
+
     if (curStage === 'stage2' && s2.meetingStep && s2.meetingStep !== 'completed') {
       actionBar.style.display = 'block';
       if (s2.meetingStep === 'discussing_divergence') {
+        const count = isDoneHelper(confs.s2_managing);
+        const isMe = isMyDoneHelper(confs.s2_managing);
         actionBar.innerHTML = `
-          <button id="btn-s2-managing-summary" style="background:linear-gradient(135deg, #2563eb, #1d4ed8); border:none; color:white; padding:7px 18px; border-radius:18px; font-weight:800; font-size:12.5px; cursor:pointer; display:inline-flex; align-items:center; gap:6px; box-shadow:0 3px 10px rgba(37,99,235,0.25); transition:all 0.2s;">
-            💡 讨论差不多了？让责任编辑总结
+          <button id="btn-s2-managing-summary" style="background:${isMe ? 'linear-gradient(135deg, #059669, #047857)' : 'linear-gradient(135deg, #2563eb, #1d4ed8)'}; border:none; color:white; padding:7px 18px; border-radius:18px; font-weight:800; font-size:12.5px; cursor:pointer; display:inline-flex; align-items:center; gap:6px; box-shadow:0 3px 10px rgba(37,99,235,0.25); transition:all 0.2s;">
+            ${isMe ? `✅ 您已确认总结分歧 (${count}/${totalCount} 等待组员)` : `💡 讨论差不多了？让责任编辑总结 (${count}/${totalCount})`}
           </button>
         `;
         actionBar.querySelector('#btn-s2-managing-summary')?.addEventListener('click', () => {
@@ -3068,9 +3111,11 @@ export function renderChat(state) {
           }
         });
       } else if (s2.meetingStep === 'discussing_checklist') {
+        const count = isDoneHelper(confs.s2_reviewing);
+        const isMe = isMyDoneHelper(confs.s2_reviewing);
         actionBar.innerHTML = `
-          <button id="btn-s2-reviewing-summary" style="background:linear-gradient(135deg, #7c3aed, #6d28d9); border:none; color:white; padding:7px 18px; border-radius:18px; font-weight:800; font-size:12.5px; cursor:pointer; display:inline-flex; align-items:center; gap:6px; box-shadow:0 3px 10px rgba(124,58,237,0.25); transition:all 0.2s;">
-            📝 讨论差不多了？让审稿编辑总结
+          <button id="btn-s2-reviewing-summary" style="background:${isMe ? 'linear-gradient(135deg, #059669, #047857)' : 'linear-gradient(135deg, #7c3aed, #6d28d9)'}; border:none; color:white; padding:7px 18px; border-radius:18px; font-weight:800; font-size:12.5px; cursor:pointer; display:inline-flex; align-items:center; gap:6px; box-shadow:0 3px 10px rgba(124,58,237,0.25); transition:all 0.2s;">
+            ${isMe ? `✅ 您已确认总结清单 (${count}/${totalCount} 等待组员)` : `📝 讨论差不多了？让审稿编辑总结 (${count}/${totalCount})`}
           </button>
         `;
         actionBar.querySelector('#btn-s2-reviewing-summary')?.addEventListener('click', () => {
@@ -3088,10 +3133,14 @@ export function renderChat(state) {
       if (currentInquiry) {
         const inqIndex = feedbacks.indexOf(currentInquiry);
         const inqLabel = inqIndex >= 1 ? `意见 ${inqIndex}` : '当前质询';
+        const stepKey = `s3_inquiry_${inqIndex}`;
+        const count = isDoneHelper(confs[stepKey]);
+        const isMe = isMyDoneHelper(confs[stepKey]);
+
         actionBar.style.display = 'block';
         actionBar.innerHTML = `
-          <button id="btn-s3-inquiry-summary" style="background:linear-gradient(135deg, #d97706, #b45309); border:none; color:white; padding:7px 18px; border-radius:18px; font-weight:800; font-size:12.5px; cursor:pointer; display:inline-flex; align-items:center; gap:6px; box-shadow:0 3px 10px rgba(217,119,6,0.25); transition:all 0.2s;">
-            💡 ${inqLabel} 讨论差不多了？帮我总结并填入
+          <button id="btn-s3-inquiry-summary" style="background:${isMe ? 'linear-gradient(135deg, #059669, #047857)' : 'linear-gradient(135deg, #d97706, #b45309)'}; border:none; color:white; padding:7px 18px; border-radius:18px; font-weight:800; font-size:12.5px; cursor:pointer; display:inline-flex; align-items:center; gap:6px; box-shadow:0 3px 10px rgba(217,119,6,0.25); transition:all 0.2s;">
+            ${isMe ? `✅ 您已确认【${inqLabel}】(${count}/${totalCount} 等待组员)` : `💡 ${inqLabel} 讨论差不多了？帮我总结并填入 (${count}/${totalCount})`}
           </button>
         `;
         actionBar.querySelector('#btn-s3-inquiry-summary')?.addEventListener('click', () => {
@@ -3099,17 +3148,8 @@ export function renderChat(state) {
             window.app.handleS3InquirySummary(currentInquiry);
           }
         });
-      } else if (feedbacks.length > 0) {
-        actionBar.style.display = 'block';
-        actionBar.innerHTML = `
-          <button id="btn-s3-goto-editor" style="background:linear-gradient(135deg, #059669, #047857); border:none; color:white; padding:7px 18px; border-radius:18px; font-weight:800; font-size:12.5px; cursor:pointer; display:inline-flex; align-items:center; gap:6px; box-shadow:0 3px 10px rgba(5,150,105,0.25); transition:all 0.2s;">
-            🚀 全部意见已定案！前往【修改论文终稿】完善正文 →
-          </button>
-        `;
-        actionBar.querySelector('#btn-s3-goto-editor')?.addEventListener('click', () => {
-          document.getElementById('tab-btn-editor')?.click();
-        });
       } else {
+        // 全部答辩定案后直接收起隐藏
         actionBar.style.display = 'none';
         actionBar.innerHTML = '';
       }

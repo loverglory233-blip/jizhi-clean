@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260830_v874
+ * Version: 20260830_v875
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260830_v874';
+  const APP_VERSION = '20260830_v875';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -9137,23 +9137,49 @@
           </div>
           ${!isContractLocked ? `
             <div style="margin-top:12px; display:flex; justify-content:center;">
-              ${(s1.contractStep === 'completed' || s1.contract?.isDraftGenerated) ? `
-                <div style="background:#f0fdf4; border:1.5px solid #86efac; color:#15803d; padding:7px 22px; border-radius:20px; font-weight:800; font-size:13px; display:inline-flex; align-items:center; gap:6px; box-shadow:0 2px 8px rgba(34,197,94,0.15);">
-                  ✅ 公约草案已全部提炼生成（全组可微调修改，并在下方签署确认）
-                </div>
-              ` : (s1.contractStep === 'tasks') ? `
-                <button id="btn-extract-tasks" style="background:linear-gradient(135deg, #7c3aed, #6d28d9); border:none; color:white; padding:9px 24px; border-radius:20px; font-weight:800; font-size:13.5px; cursor:pointer; display:inline-flex; align-items:center; gap:6px; box-shadow:0 4px 14px rgba(124,58,237,0.3); transition:all 0.2s;">
-                  👥 研讨差不多了？一键提炼【任务分工】
-                </button>
-              ` : (s1.contractStep === 'time') ? `
-                <button id="btn-extract-time" style="background:linear-gradient(135deg, #0284c7, #0369a1); border:none; color:white; padding:9px 24px; border-radius:20px; font-weight:800; font-size:13.5px; cursor:pointer; display:inline-flex; align-items:center; gap:6px; box-shadow:0 4px 14px rgba(2,132,199,0.3); transition:all 0.2s;">
-                  ⏱️ 研讨差不多了？一键提炼【时间分配】
-                </button>
-              ` : `
-                <button id="btn-extract-topic" style="background:linear-gradient(135deg, #2563eb, #1d4ed8); border:none; color:white; padding:9px 24px; border-radius:20px; font-weight:800; font-size:13.5px; cursor:pointer; display:inline-flex; align-items:center; gap:6px; box-shadow:0 4px 14px rgba(37,99,235,0.3); transition:all 0.2s;">
-                  💡 研讨差不多了？一键提炼【最终主题】
-                </button>
-              `}
+              ${(() => {
+                const confs = state.stepConfirmations || {};
+                const isDoneHelper = (map) => {
+                  if (!map) return 0;
+                  return membersList.filter(m => map[m.id] || map[m.studentCode] || map[m.username] || (m.name && map[m.name])).length;
+                };
+                const isMyDoneHelper = (map) => {
+                  if (!map) return false;
+                  return !!(map[currUserCode] || (currUser && (map[currUser.id] || map[currUser.studentCode] || map[currUser.username] || map[currUser.name])));
+                };
+
+                if (s1.contractStep === 'completed' || s1.contract?.isDraftGenerated) {
+                  return `
+                    <div style="background:#f0fdf4; border:1.5px solid #86efac; color:#15803d; padding:7px 22px; border-radius:20px; font-weight:800; font-size:13px; display:inline-flex; align-items:center; gap:6px; box-shadow:0 2px 8px rgba(34,197,94,0.15);">
+                      ✅ 公约草案已全部提炼生成（全组可微调修改，并在下方签署确认）
+                    </div>
+                  `;
+                } else if (s1.contractStep === 'tasks') {
+                  const count = isDoneHelper(confs.s1_tasks);
+                  const isMe = isMyDoneHelper(confs.s1_tasks);
+                  return `
+                    <button id="btn-extract-tasks" style="background:${isMe ? 'linear-gradient(135deg, #059669, #047857)' : 'linear-gradient(135deg, #7c3aed, #6d28d9)'}; border:none; color:white; padding:9px 24px; border-radius:20px; font-weight:800; font-size:13.5px; cursor:pointer; display:inline-flex; align-items:center; gap:6px; box-shadow:0 4px 14px rgba(124,58,237,0.3); transition:all 0.2s;">
+                      ${isMe ? `✅ 您已确认提炼分工 (${count}/${totalMembersCount} 等待其他组员)` : `👥 研讨差不多了？一键提炼【任务分工】 (${count}/${totalMembersCount})`}
+                    </button>
+                  `;
+                } else if (s1.contractStep === 'time') {
+                  const count = isDoneHelper(confs.s1_time);
+                  const isMe = isMyDoneHelper(confs.s1_time);
+                  return `
+                    <button id="btn-extract-time" style="background:${isMe ? 'linear-gradient(135deg, #059669, #047857)' : 'linear-gradient(135deg, #0284c7, #0369a1)'}; border:none; color:white; padding:9px 24px; border-radius:20px; font-weight:800; font-size:13.5px; cursor:pointer; display:inline-flex; align-items:center; gap:6px; box-shadow:0 4px 14px rgba(2,132,199,0.3); transition:all 0.2s;">
+                      ${isMe ? `✅ 您已确认提炼时间 (${count}/${totalMembersCount} 等待其他组员)` : `⏱️ 研讨差不多了？一键提炼【时间分配】 (${count}/${totalMembersCount})`}
+                    </button>
+                  `;
+                } else {
+                  const count = isDoneHelper(confs.s1_topic);
+                  const isMe = isMyDoneHelper(confs.s1_topic);
+                  return `
+                    <button id="btn-extract-topic" style="background:${isMe ? 'linear-gradient(135deg, #059669, #047857)' : 'linear-gradient(135deg, #2563eb, #1d4ed8)'}; border:none; color:white; padding:9px 24px; border-radius:20px; font-weight:800; font-size:13.5px; cursor:pointer; display:inline-flex; align-items:center; gap:6px; box-shadow:0 4px 14px rgba(37,99,235,0.3); transition:all 0.2s;">
+                      ${isMe ? `✅ 您已确认提炼主题 (${count}/${totalMembersCount} 等待其他组员)` : `💡 研讨差不多了？一键提炼【最终主题】 (${count}/${totalMembersCount})`}
+                    </button>
+                  `;
+                }
+              })()}
             </div>
           ` : ''}
         </div>
@@ -11164,17 +11190,34 @@
       };
     });
 
-    // ── 🌟 阶段二半程会议动态协同操作栏 (在表情栏正上方) ──
+    // ── 🌟 阶段二/阶段三动态协同操作栏 (在表情栏正上方) ──
     const actionBar = document.getElementById('chat-agent-action-bar');
     if (actionBar) {
       const s2 = state.stage2 || {};
       const curStage = state.currentStage;
+      const membersList = Object.values(state.members || []);
+      const totalCount = membersList.length || 3;
+      const currUser = (window.app && window.app.authManager) ? window.app.authManager.getCurrentUser() : null;
+      const myCode = state.currentUser || (currUser ? currUser.studentCode : '');
+      const confs = state.stepConfirmations || {};
+
+      const isDoneHelper = (map) => {
+        if (!map) return 0;
+        return membersList.filter(m => map[m.id] || map[m.studentCode] || map[m.username] || (m.name && map[m.name])).length;
+      };
+      const isMyDoneHelper = (map) => {
+        if (!map) return false;
+        return !!(map[myCode] || (currUser && (map[currUser.id] || map[currUser.studentCode] || map[currUser.username] || map[currUser.name])));
+      };
+
       if (curStage === 'stage2' && s2.meetingStep && s2.meetingStep !== 'completed') {
         actionBar.style.display = 'block';
         if (s2.meetingStep === 'discussing_divergence') {
+          const count = isDoneHelper(confs.s2_managing);
+          const isMe = isMyDoneHelper(confs.s2_managing);
           actionBar.innerHTML = `
-            <button id="btn-s2-managing-summary" style="background:linear-gradient(135deg, #2563eb, #1d4ed8); border:none; color:white; padding:7px 18px; border-radius:18px; font-weight:800; font-size:12.5px; cursor:pointer; display:inline-flex; align-items:center; gap:6px; box-shadow:0 3px 10px rgba(37,99,235,0.25); transition:all 0.2s;">
-              💡 讨论差不多了？让责任编辑总结
+            <button id="btn-s2-managing-summary" style="background:${isMe ? 'linear-gradient(135deg, #059669, #047857)' : 'linear-gradient(135deg, #2563eb, #1d4ed8)'}; border:none; color:white; padding:7px 18px; border-radius:18px; font-weight:800; font-size:12.5px; cursor:pointer; display:inline-flex; align-items:center; gap:6px; box-shadow:0 3px 10px rgba(37,99,235,0.25); transition:all 0.2s;">
+              ${isMe ? `✅ 您已确认总结分歧 (${count}/${totalCount} 等待组员)` : `💡 讨论差不多了？让责任编辑总结 (${count}/${totalCount})`}
             </button>
           `;
           actionBar.querySelector('#btn-s2-managing-summary')?.addEventListener('click', () => {
@@ -11183,9 +11226,11 @@
             }
           });
         } else if (s2.meetingStep === 'discussing_checklist') {
+          const count = isDoneHelper(confs.s2_reviewing);
+          const isMe = isMyDoneHelper(confs.s2_reviewing);
           actionBar.innerHTML = `
-            <button id="btn-s2-reviewing-summary" style="background:linear-gradient(135deg, #7c3aed, #6d28d9); border:none; color:white; padding:7px 18px; border-radius:18px; font-weight:800; font-size:12.5px; cursor:pointer; display:inline-flex; align-items:center; gap:6px; box-shadow:0 3px 10px rgba(124,58,237,0.25); transition:all 0.2s;">
-              📝 讨论差不多了？让审稿编辑总结
+            <button id="btn-s2-reviewing-summary" style="background:${isMe ? 'linear-gradient(135deg, #059669, #047857)' : 'linear-gradient(135deg, #7c3aed, #6d28d9)'}; border:none; color:white; padding:7px 18px; border-radius:18px; font-weight:800; font-size:12.5px; cursor:pointer; display:inline-flex; align-items:center; gap:6px; box-shadow:0 3px 10px rgba(124,58,237,0.25); transition:all 0.2s;">
+              ${isMe ? `✅ 您已确认总结清单 (${count}/${totalCount} 等待组员)` : `📝 讨论差不多了？让审稿编辑总结 (${count}/${totalCount})`}
             </button>
           `;
           actionBar.querySelector('#btn-s2-reviewing-summary')?.addEventListener('click', () => {
@@ -11203,10 +11248,14 @@
         if (currentInquiry) {
           const inqIndex = feedbacks.indexOf(currentInquiry);
           const inqLabel = inqIndex >= 1 ? `意见 ${inqIndex}` : '当前质询';
+          const stepKey = `s3_inquiry_${inqIndex}`;
+          const count = isDoneHelper(confs[stepKey]);
+          const isMe = isMyDoneHelper(confs[stepKey]);
+
           actionBar.style.display = 'block';
           actionBar.innerHTML = `
-            <button id="btn-s3-inquiry-summary" style="background:linear-gradient(135deg, #d97706, #b45309); border:none; color:white; padding:7px 18px; border-radius:18px; font-weight:800; font-size:12.5px; cursor:pointer; display:inline-flex; align-items:center; gap:6px; box-shadow:0 3px 10px rgba(217,119,6,0.25); transition:all 0.2s;">
-              💡 ${inqLabel} 讨论差不多了？帮我总结并填入
+            <button id="btn-s3-inquiry-summary" style="background:${isMe ? 'linear-gradient(135deg, #059669, #047857)' : 'linear-gradient(135deg, #d97706, #b45309)'}; border:none; color:white; padding:7px 18px; border-radius:18px; font-weight:800; font-size:12.5px; cursor:pointer; display:inline-flex; align-items:center; gap:6px; box-shadow:0 3px 10px rgba(217,119,6,0.25); transition:all 0.2s;">
+              ${isMe ? `✅ 您已确认【${inqLabel}】(${count}/${totalCount} 等待组员)` : `💡 ${inqLabel} 讨论差不多了？帮我总结并填入 (${count}/${totalCount})`}
             </button>
           `;
           actionBar.querySelector('#btn-s3-inquiry-summary')?.addEventListener('click', () => {
@@ -11214,17 +11263,8 @@
               window.app.handleS3InquirySummary(currentInquiry);
             }
           });
-        } else if (feedbacks.length > 0) {
-          actionBar.style.display = 'block';
-          actionBar.innerHTML = `
-            <button id="btn-s3-goto-editor" style="background:linear-gradient(135deg, #059669, #047857); border:none; color:white; padding:7px 18px; border-radius:18px; font-weight:800; font-size:12.5px; cursor:pointer; display:inline-flex; align-items:center; gap:6px; box-shadow:0 3px 10px rgba(5,150,105,0.25); transition:all 0.2s;">
-              🚀 全部意见已定案！前往【修改论文终稿】完善正文 →
-            </button>
-          `;
-          actionBar.querySelector('#btn-s3-goto-editor')?.addEventListener('click', () => {
-            document.getElementById('tab-btn-editor')?.click();
-          });
         } else {
+          // 全部答辩定案后直接收起隐藏
           actionBar.style.display = 'none';
           actionBar.innerHTML = '';
         }
@@ -12661,7 +12701,7 @@
             }
           }
 
-          // ── 🛡️ 阶段二第三次质检（85% 时间 OR 90% 字数 · 责任编辑倒计时与终审定稿扫描，全场仅 1 次） ──
+          // ── 🛡️ 阶段二第三次质检（字数 >= 90% OR 时间 >= 85% OR 确认初稿 · 审稿编辑终审定稿总评，全场严格仅 1 次） ──
           const targetWordCount = (curTask && curTask.targetWordCount) ? Number(curTask.targetWordCount) : 2000;
           const wordProgress = targetWordCount > 0 ? (plainTextLen / targetWordCount) : (plainTextLen / 2000);
           const timeProgress = totalPlannedMs > 0 ? (stage2DurationMs / totalPlannedMs) : 0;
@@ -12673,37 +12713,52 @@
             this.syncStage2();
           }
 
+          const membersList = Object.values(this.state.members || {});
+          const isLeaderClient = !membersList.length || (this.state.currentUser === membersList[0]?.studentCode || this.state.currentUser === membersList[0]?.id || this.state.currentUser === membersList[0]?.username);
+
+          // 1. 审稿编辑【第三次质检·终审定稿扫描】（全场严格仅 1 次）
           if (!hasFinalReviewInLogs && s2.reviewMilestone !== 'final_review_done' && isFinalReviewDue && !this._isTriggeringFinalReview) {
-            const membersList = Object.values(this.state.members || {});
-            const isLeaderClient = !membersList.length || (this.state.currentUser === membersList[0]?.studentCode || this.state.currentUser === membersList[0]?.id || this.state.currentUser === membersList[0]?.username);
             if (isLeaderClient || membersList.length <= 1) {
               this._isTriggeringFinalReview = true;
               s2.reviewMilestone = 'final_review_done';
-
-              const remainingStage2Min = Math.max(1, Math.ceil((totalPlannedMs - stage2DurationMs) / 60000));
-              const countdownMsg = {
-                sender: 'managingEditor',
-                senderName: '协同调度 · 责任编辑',
-                text: `🤝 【责任编辑·写作阶段倒计时提醒】：阶段二写作时间已过 85%（本阶段仅剩最后约 ${remainingStage2Min} 分钟）！请大家抓紧完成最后段落的撰写与通读。审稿编辑已为大家进行了全文终审扫描与总评，请通读核对无误后在上方逐一完成【初稿确认】，准备迎接阶段三学术答辩！`,
-                timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                _timeMs: now
-              };
 
               const refReviewMsg = {
                 sender: 'reviewingEditor',
                 senderName: '学术质量 · 审稿编辑',
                 text: `📝 【审稿编辑·终审定稿总评与行文扫描】：看到全组已进入最后成文冲刺阶段，整体框架完整！我对全文质量与学术规范进行了终审扫描：①【学术语体】：整体论述连贯，建议通读核对消除残留的口语化表述；②【术语规范】：前后核心概念表述保持高度统一；③【参考文献】：核对著录规范。请全组成员完成最终通读后，在上方逐一完成【初稿确认】，准备迎接阶段三学术答辩！`,
                 timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                _timeMs: now + 200
+                _timeMs: now
               };
 
               if (!this.state.chatLogs.stage2) this.state.chatLogs.stage2 = [];
-              this.state.chatLogs.stage2.push(countdownMsg, refReviewMsg);
+              this.state.chatLogs.stage2.push(refReviewMsg);
               this.syncChatLogs();
               this.syncStage2();
               if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
               renderChat(this.state);
               this._isTriggeringFinalReview = false;
+            }
+          }
+
+          // 2. 责任编辑【85% 时间写作倒计时提醒】（全场严格仅 1 次）
+          const hasCountdownInLogs = s2Chats.some(m => m && m.sender === 'managingEditor' && m.text?.includes('写作阶段倒计时提醒'));
+          if (timeProgress >= 0.85 && !hasCountdownInLogs && !s2.countdown85Sent) {
+            if (isLeaderClient || membersList.length <= 1) {
+              s2.countdown85Sent = true;
+              const remainingStage2Min = Math.max(1, Math.ceil((totalPlannedMs - stage2DurationMs) / 60000));
+              const countdownMsg = {
+                sender: 'managingEditor',
+                senderName: '协同调度 · 责任编辑',
+                text: `🤝 【责任编辑·写作阶段倒计时提醒】：阶段二写作时间已过 85%（本阶段仅剩最后约 ${remainingStage2Min} 分钟）！请大家抓紧完成最后段落的撰写与通读，在上方逐一完成【初稿确认】，准备迎接阶段三学术答辩！`,
+                timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                _timeMs: now
+              };
+              if (!this.state.chatLogs.stage2) this.state.chatLogs.stage2 = [];
+              this.state.chatLogs.stage2.push(countdownMsg);
+              this.syncChatLogs();
+              this.syncStage2();
+              if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+              renderChat(this.state);
             }
           }
 
@@ -14208,13 +14263,69 @@
           this.renderStudentWorkspace();
         }, 800);
       }
+    }
+
+    /**
+     * 🌟 通用全员协同确认包装器：需组内全员点击确认后才真正触发大模型生成并推进
+     */
+    handleStepConfirmation(stepKey, onCompleteCallback, stepLabel) {
+      if (!this.state.stepConfirmations) this.state.stepConfirmations = {};
+      if (!this.state.stepConfirmations[stepKey]) this.state.stepConfirmations[stepKey] = {};
+
+      const user = this.state.currentUser;
+      const currUserObj = this.authManager ? this.authManager.getCurrentUser() : null;
+      const userKeys = [user, currUserObj?.id, currUserObj?.studentCode, currUserObj?.username, currUserObj?.name].filter(Boolean);
+
+      let members = [];
+      if (Array.isArray(this.state.members)) members = this.state.members;
+      else if (this.state.members && typeof this.state.members === 'object') members = Object.values(this.state.members);
+      const totalCount = members.length || 3;
+
+      const isMemberDone = (map, m) => {
+        if (!map || !m) return false;
+        return !!(map[m.id] || map[m.studentCode] || map[m.username] || (m.name && map[m.name]));
+      };
+
+      const isAlreadyDone = userKeys.some(k => this.state.stepConfirmations[stepKey][k]);
+      if (isAlreadyDone) {
+        const currentCount = members.filter(m => isMemberDone(this.state.stepConfirmations[stepKey], m)).length;
+        alert(`💡 您已经确认过【${stepLabel}】啦！\n当前全组确认进度：${currentCount}/${totalCount} 人。\n请提醒组内其他同学点击确认，全员确认后将自动提炼并推进！`);
+        return;
+      }
+
+      userKeys.forEach(k => { this.state.stepConfirmations[stepKey][k] = true; });
+      const currentCount = members.filter(m => isMemberDone(this.state.stepConfirmations[stepKey], m)).length;
+
+      const notifyMsg = {
+        sender: user,
+        text: `📢 [研讨对齐]: 我已确认【${stepLabel}】研讨就绪！（当前全组已集齐 ${currentCount}/${totalCount} 人）`,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        _timeMs: Date.now()
+      };
+      const curStage = this.state.currentStage || 'stage1';
+      if (!this.state.chatLogs[curStage]) this.state.chatLogs[curStage] = [];
+      this.state.chatLogs[curStage].push(notifyMsg);
+      this.syncChatLogs();
+      if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
       this.renderStudentWorkspace();
+      if (typeof window.renderChat === 'function') window.renderChat(this.state);
+
+      if (currentCount >= totalCount) {
+        delete this.state.stepConfirmations[stepKey];
+        if (typeof onCompleteCallback === 'function') {
+          onCompleteCallback();
+        }
+      }
     }
 
     /**
      * 💡 阶段一公约第一步：一键提炼【最终主题】
      */
     async handleExtractTopic() {
+      this.handleStepConfirmation('s1_topic', () => this._doExtractTopic(), '最终主题');
+    }
+
+    async _doExtractTopic() {
       const s1 = this.state.stage1 || {};
       const s1ChatLogs = (this.state.chatLogs && this.state.chatLogs.stage1) ? this.state.chatLogs.stage1 : [];
       const voteNoticeIdx = s1ChatLogs.findIndex(m => m && m.text && (m.text.includes('计票结果') || m.text.includes('落槌') || m.text.includes('选题确定') || m.text.includes('投票')));
@@ -14291,6 +14402,10 @@
      * ⏱️ 阶段一公约第二步：一键提炼【时间分配】
      */
     async handleExtractTime() {
+      this.handleStepConfirmation('s1_time', () => this._doExtractTime(), '时间分配');
+    }
+
+    async _doExtractTime() {
       const s1 = this.state.stage1 || {};
       const s1ChatLogs = (this.state.chatLogs && this.state.chatLogs.stage1) ? this.state.chatLogs.stage1 : [];
       const topicNoticeIdx = s1ChatLogs.findIndex(m => m && m.text && (m.text.includes('主题确立') || m.text.includes('时间分配') || m.text.includes('时间规划')));
@@ -14375,6 +14490,10 @@
      * 👥 阶段一公约第三步：一键提炼【任务分工】并生成完整草案
      */
     async handleExtractTasks() {
+      this.handleStepConfirmation('s1_tasks', () => this._doExtractTasks(), '任务分工');
+    }
+
+    async _doExtractTasks() {
       const s1 = this.state.stage1 || {};
       let members = [];
       if (Array.isArray(this.state.members)) members = this.state.members;
@@ -15898,24 +16017,15 @@
         if (!isLeaderClient && membersList.length > 1) return;
         s2.reviewMilestone = 'final_review_done';
 
-        const remainingStage2Min = Math.max(1, Math.ceil((totalPlannedMs - stage2DurationMs) / 60000));
-        const countdownMsg = {
-          sender: 'managingEditor',
-          senderName: '协同调度 · 责任编辑',
-          text: `🤝 【责任编辑·写作阶段倒计时提醒】：阶段二写作时间已过 85%（本阶段仅剩最后约 ${remainingStage2Min} 分钟）！请大家抓紧完成最后段落的撰写与通读。审稿编辑已为大家进行了全文终审扫描与总评，请通读核对无误后在上方逐一完成【初稿确认】，准备迎接阶段三学术答辩！`,
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          _timeMs: now
-        };
-
         const refReviewMsg = {
           sender: 'reviewingEditor',
           senderName: '学术质量 · 审稿编辑',
           text: `📝 【审稿编辑·终审定稿总评与行文扫描】：看到全组已进入最后成文冲刺阶段，整体框架完整！我对全文质量与学术规范进行了终审扫描：①【学术语体】：整体论述连贯，建议通读核对消除残留的口语化表述；②【术语规范】：前后核心概念表述保持高度统一；③【参考文献】：核对著录规范。请全组成员完成最终核对后，在上方逐一完成【初稿确认】，准备迎接阶段三学术答辩！`,
           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          _timeMs: now + 200
+          _timeMs: now
         };
         if (!this.state.chatLogs.stage2) this.state.chatLogs.stage2 = [];
-        this.state.chatLogs.stage2.push(countdownMsg, refReviewMsg);
+        this.state.chatLogs.stage2.push(refReviewMsg);
         this.syncChatLogs();
         this.syncStage2();
         if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
