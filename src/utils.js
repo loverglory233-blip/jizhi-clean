@@ -643,7 +643,7 @@ export function enforceEtherpadReadonly(iframe) {
     }
 
     // 🖱️ 护盾鼠标滚轮与触控透传：精准拦截并驱动 Etherpad 内部各层容器丝滑上下滚动
-    const performScroll = (deltaY) => {
+    const performScroll = (deltaY, rawEvent = null) => {
       try {
         const doc = iframe.contentDocument || iframe.contentWindow?.document;
         if (iframe.contentWindow) {
@@ -664,7 +664,19 @@ export function enforceEtherpadReadonly(iframe) {
           const outerDoc = aceOuter.contentDocument || outerWin?.document;
           if (outerDoc) {
             const outerBody = outerDoc.querySelector('#outerdocbody') || outerDoc.body || outerDoc.documentElement;
-            if (outerBody) outerBody.scrollTop += deltaY;
+            if (outerBody) {
+              outerBody.scrollTop += deltaY;
+              try {
+                const syntheticEvt = new WheelEvent('wheel', {
+                  deltaY: deltaY,
+                  deltaMode: 0,
+                  bubbles: true,
+                  cancelable: true,
+                  view: outerWin || window
+                });
+                outerBody.dispatchEvent(syntheticEvt);
+              } catch(e) {}
+            }
             if (outerDoc.scrollingElement) outerDoc.scrollingElement.scrollTop += deltaY;
 
             const aceInner = outerDoc.querySelector('iframe[name="ace_inner"]') || outerDoc.querySelector('#ace_inner');
@@ -690,7 +702,8 @@ export function enforceEtherpadReadonly(iframe) {
       shield.addEventListener('wheel', (e) => {
         e.preventDefault();
         e.stopPropagation();
-        performScroll(e.deltaY);
+        const delta = (e.deltaMode === 1) ? e.deltaY * 33 : ((e.deltaMode === 2) ? e.deltaY * 600 : e.deltaY);
+        performScroll(delta, e);
       }, { passive: false });
     }
 
