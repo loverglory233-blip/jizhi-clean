@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260831_v983";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch } from "./utils.js?v=20260831_v983";
-import { callCozeAgentAPI } from "./agents.js?v=20260831_v983";
-import { AuthManager } from "./auth.js?v=20260831_v983";
-import { CloudSyncEngine } from "./sync.js?v=20260831_v983";
-import { renderLoginView } from "./login.js?v=20260831_v983";
-import { renderTeacherPortal } from "./teacher.js?v=20260831_v983";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260831_v983";
+} from "./constants.js?v=20260831_v984";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch } from "./utils.js?v=20260831_v984";
+import { callCozeAgentAPI } from "./agents.js?v=20260831_v984";
+import { AuthManager } from "./auth.js?v=20260831_v984";
+import { CloudSyncEngine } from "./sync.js?v=20260831_v984";
+import { renderLoginView } from "./login.js?v=20260831_v984";
+import { renderTeacherPortal } from "./teacher.js?v=20260831_v984";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260831_v984";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260831_v983";
+} from "./editor.js?v=20260831_v984";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -1433,31 +1433,7 @@ export class App {
           }
         }
 
-        // 1.5 【阶段二日常研讨互动提示】：正文已起步但全组讨论区冷场满 3 分钟（不交流），温和点拨破冰（与阶段一完全对齐，学生说话自动重置）
-        if (plainTextLen >= 50 && !s2.meetingStep && !s2.isDraftConfirmed && silenceDurationMs >= s2SilenceThresholdMs) {
-          if (lastStudentMsgTime > (this._lastNudgeActivityTime?.['s2_discussion'] || 0)) {
-            this._nudgeCounts['s2_discussion'] = 0;
-          }
-          const count = this._nudgeCounts['s2_discussion'] || 0;
-          if (count < 2 && (!this.lastS2DiscussionNudgeTime || now - this.lastS2DiscussionNudgeTime > (s2SilenceThresholdMs + 60000))) {
-            this.lastS2DiscussionNudgeTime = now;
-            this._nudgeCounts['s2_discussion'] = count + 1;
-            if (!this._lastNudgeActivityTime) this._lastNudgeActivityTime = {};
-            this._lastNudgeActivityTime['s2_discussion'] = lastStudentMsgTime;
-            const msg = {
-              sender: 'managingEditor',
-              text: `💡 【责任编辑·研讨互动提示】：大家正在按公约分工撰写各自板块！可以在讨论区同步当前撰写进度与遇到的难点，彼此参考衔接，协同推进正文成型～`,
-              timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-              _timeMs: now
-            };
-            if (!this.state.chatLogs.stage2) this.state.chatLogs.stage2 = [];
-            this.state.chatLogs.stage2.push(msg);
-            this.syncChatLogs();
-            if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
-            renderChat(this.state);
-            return;
-          }
-        }
+
 
         // 2. 责任编辑过程守护：周期性读取【实际贡献百分比】与【研讨发言投入】（最多2次）
         const minContribThreshold = isLargeTask ? 600 : 300;
