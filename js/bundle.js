@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260830_v739
+ * Version: 20260830_v740
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260830_v739';
+  const APP_VERSION = '20260830_v740';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -271,14 +271,20 @@
 
     // 1. 如果有真实文件下载 URL（无论是全路径、相对路径 /uploads/ 或 Base64 DataURL / Blob）
     if (fileUrl && typeof fileUrl === 'string' && fileUrl.trim() !== '' && fileUrl !== '#') {
-      const cleanUrl = fileUrl.trim();
+      let cleanUrl = fileUrl.trim();
+
+      // 🛡️ 智能同源相对路径标准化：提取 /uploads/ 后的路径，规避跨协议/跨域/SSL Mixed Content 拦截
+      if (cleanUrl.includes('/uploads/')) {
+        cleanUrl = cleanUrl.substring(cleanUrl.indexOf('/uploads/'));
+      }
+
       if (cleanUrl.startsWith('data:')) {
         const a = document.createElement('a');
         a.href = cleanUrl;
         a.download = safeFilename;
         document.body.appendChild(a);
         a.click();
-        setTimeout(() => { if (document.body.contains(a)) document.body.removeChild(a); }, 200);
+        setTimeout(() => { if (document.body.contains(a)) document.body.removeChild(a); }, 300);
         return;
       }
 
@@ -296,21 +302,21 @@
           setTimeout(() => {
             if (document.body.contains(a)) document.body.removeChild(a);
             URL.revokeObjectURL(blobUrl);
-          }, 600);
+          }, 1000);
           return;
         }
       } catch (err) {
         console.warn('Fetch blob download fallback:', err);
       }
 
-      // 若 fetch 受限，使用 window.open 或原生 a 标签直接跳转下载
+      // 若 fetch 受限，使用原生 a 标签直接跳转下载
       const a = document.createElement('a');
       a.href = cleanUrl;
       a.download = safeFilename;
       a.target = '_blank';
       document.body.appendChild(a);
       a.click();
-      setTimeout(() => { if (document.body.contains(a)) document.body.removeChild(a); }, 200);
+      setTimeout(() => { if (document.body.contains(a)) document.body.removeChild(a); }, 500);
       return;
     }
 
@@ -7148,25 +7154,8 @@
         const paperId = btn.dataset.id;
         const paper = refPapers.find(p => p.id === paperId);
         if (paper) {
-          if (paper.fileUrl) {
-            const a = document.createElement('a');
-            a.href = paper.fileUrl;
-            a.download = paper.fileName || '学术参考范文.pdf';
-            a.target = '_blank';
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-          } else if (paper.fileData || (window._paperMemoryBlobMap && window._paperMemoryBlobMap.get(paperId))) {
-            const fData = paper.fileData || window._paperMemoryBlobMap.get(paperId);
-            const a = document.createElement('a');
-            a.href = fData;
-            a.download = paper.fileName || '学术参考范文.pdf';
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-          } else {
-            downloadFileBlob(paper.fileName);
-          }
+          const fData = paper.fileUrl || paper.fileData || (window._paperMemoryBlobMap && window._paperMemoryBlobMap.get(paperId));
+          downloadFileBlob(paper.fileName || '学术参考范文.pdf', null, fData);
         }
       });
     });
@@ -9587,6 +9576,19 @@
     }
 
     canvas.innerHTML = `
+      ${(state.groupMaxStage === 'stage3' || isDraftFullyConfirmed || state.isFinalSubmitted) ? `
+        <div style="background:#eff6ff; border:1px solid #bfdbfe; border-radius:8px; padding:10px 16px; margin-bottom:12px; display:flex; justify-content:space-between; align-items:center; flex-shrink:0; box-shadow:0 2px 6px rgba(37,99,235,0.06);">
+          <div style="display:flex; align-items:center; gap:8px;">
+            <span style="font-size:18px;">📰</span>
+            <div>
+              <div style="font-size:13.5px; font-weight:800; color:#1e40af;">【阶段二：学术编辑部】正文初稿档案库 (只读查阅模式)</div>
+              <div style="font-size:11.5px; color:#3b82f6; margin-top:2px;">本组已全员确认完成初稿并推进至阶段三，初稿已归档锁定以确保学术规范。</div>
+            </div>
+          </div>
+          <button onclick="if(window.app) window.app.switchStage('stage3');" style="background:#2563eb; color:white; border:none; padding:6px 14px; border-radius:6px; font-size:12px; cursor:pointer; font-weight:700; display:inline-flex; align-items:center; gap:4px; box-shadow:0 2px 6px rgba(37,99,235,0.25);">前往【阶段三：答辩与终稿】➔</button>
+        </div>
+      ` : ''}
+
       ${isTaskDeadlineExpired ? `
         <div style="background:#fef2f2; border:1.5px solid #fca5a5; border-radius:8px; padding:6px 14px; margin-bottom:12px; font-size:12.5px; color:#991b1b; font-weight:600; display:flex; justify-content:space-between; align-items:center; gap:12px; box-shadow:0 2px 6px rgba(239,68,68,0.08); height:38px; box-sizing:border-box; flex-shrink:0;">
           <div style="display:flex; align-items:center; gap:8px; min-width:0; flex:1; overflow:hidden; white-space:nowrap; text-overflow:ellipsis;">
@@ -10177,14 +10179,21 @@
           return `
             <div class="card" style="flex:1; display:flex; flex-direction:column; padding:16px; min-height:600px; overscroll-behavior-y:contain; -webkit-overflow-scrolling:touch;">
               <div class="card-title" style="margin-bottom:10px; display:flex; justify-content:space-between; align-items:center;">
-                <span style="font-size:15px; font-weight:800; color:#0f172a;">📝 论文全篇大正文 ${isFinalSubmitted ? '<span style="font-size:11px; color:#059669; margin-left:6px;">(🔒 终稿已提交 · 归档只读查阅)</span>' : '(依据答辩意见实时协同修改终稿 · Etherpad 毫秒级引擎)'}</span>
+                <span style="font-size:15px; font-weight:800; color:#0f172a;">📝 论文全篇终稿大正文 ${isFinalSubmitted ? '<span style="font-size:11.5px; color:#059669; margin-left:6px; background:#ecfdf5; padding:2px 8px; border-radius:6px; border:1px solid #a7f3d0;">🔒 终稿已全员提交归档 · 100% 只读防篡改保护</span>' : '(依据答辩意见实时协同修改终稿 · Etherpad 毫秒级引擎)'}</span>
                 <div style="display:flex; align-items:center; gap:8px;">
-                  <span style="font-size:11px; background:#ecfdf5; color:#059669; border:1px solid #a7f3d0; padding:2px 8px; border-radius:10px; font-weight:700;">🟢 Etherpad 协同就绪</span>
+                  <span style="font-size:11px; background:${isFinalSubmitted ? '#f1f5f9' : '#ecfdf5'}; color:${isFinalSubmitted ? '#64748b' : '#059669'}; border:1px solid ${isFinalSubmitted ? '#cbd5e1' : '#a7f3d0'}; padding:2px 8px; border-radius:10px; font-weight:700;">${isFinalSubmitted ? '🔒 只读归档' : '🟢 Etherpad 协同就绪'}</span>
                   <button onclick="const f=document.getElementById('stage3-etherpad-frame'); if(f) f.src=f.src;" style="background:transparent; color:#2563eb; border:1px solid #cbd5e1; padding:2px 8px; border-radius:4px; font-size:11px; cursor:pointer; font-weight:600;">🔄 刷新</button>
                 </div>
               </div>
               <div style="flex:1; min-height:0; position:relative; background:#f1f5f9; border-radius:8px; overflow:hidden; border:1px solid #cbd5e1;">
                 <iframe id="stage3-etherpad-frame" src="${padUrl}" style="width:100%; height:100%; min-height:540px; border:none; display:block;" allow="clipboard-read; clipboard-write"></iframe>
+                ${isFinalSubmitted ? `
+                  <div style="position:absolute; inset:0; z-index:99; background:rgba(248,250,252,0.15); cursor:not-allowed; display:flex; flex-direction:column; align-items:flex-end; justify-content:flex-start; padding:12px; pointer-events:auto;" title="🔒 论文终稿已全员提交归档锁定">
+                    <div style="background:rgba(15,23,42,0.85); color:#ffffff; padding:6px 14px; border-radius:6px; font-size:12px; font-weight:700; pointer-events:none; box-shadow:0 4px 12px rgba(0,0,0,0.18); display:flex; align-items:center; gap:6px;">
+                      <span>🔒 论文终稿已全员提交归档 (只读查阅模式)</span>
+                    </div>
+                  </div>
+                ` : ''}
               </div>
             </div>
           `;
@@ -12435,25 +12444,8 @@
           const paperId = btn.dataset.id;
           const paper = papers.find(p => p.id === paperId);
           if (paper) {
-            if (paper.fileUrl) {
-              const a = document.createElement('a');
-              a.href = paper.fileUrl;
-              a.download = paper.fileName || '学术参考范文.pdf';
-              a.target = '_blank';
-              document.body.appendChild(a);
-              a.click();
-              document.body.removeChild(a);
-            } else if (paper.fileData || (window._paperMemoryBlobMap && window._paperMemoryBlobMap.get(paperId))) {
-              const fileData = paper.fileData || window._paperMemoryBlobMap.get(paperId);
-              const a = document.createElement('a');
-              a.href = fileData;
-              a.download = paper.fileName || '学术参考范文.pdf';
-              document.body.appendChild(a);
-              a.click();
-              document.body.removeChild(a);
-            } else {
-              downloadFileBlob(paper.fileName, null, paper.fileUrl || paper.fileData);
-            }
+            const fileData = paper.fileUrl || paper.fileData || (window._paperMemoryBlobMap && window._paperMemoryBlobMap.get(paperId));
+            downloadFileBlob(paper.fileName || '学术参考范文.pdf', null, fileData);
           }
         });
       });
