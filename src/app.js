@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260830_v873";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap } from "./utils.js?v=20260830_v873";
-import { callCozeAgentAPI } from "./agents.js?v=20260830_v873";
-import { AuthManager } from "./auth.js?v=20260830_v873";
-import { CloudSyncEngine } from "./sync.js?v=20260830_v873";
-import { renderLoginView } from "./login.js?v=20260830_v873";
-import { renderTeacherPortal } from "./teacher.js?v=20260830_v873";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260830_v873";
+} from "./constants.js?v=20260830_v874";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap } from "./utils.js?v=20260830_v874";
+import { callCozeAgentAPI } from "./agents.js?v=20260830_v874";
+import { AuthManager } from "./auth.js?v=20260830_v874";
+import { CloudSyncEngine } from "./sync.js?v=20260830_v874";
+import { renderLoginView } from "./login.js?v=20260830_v874";
+import { renderTeacherPortal } from "./teacher.js?v=20260830_v874";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260830_v874";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260830_v873";
+} from "./editor.js?v=20260830_v874";
 
 // Make renderChat available on window for sync callbacks
 if (typeof window !== "undefined") {
@@ -1390,35 +1390,49 @@ export class App {
           }
         }
 
-        // ── 阶段二修改期静默守护：审稿编辑保持后台严肃倾听，绝不随意发无意义跟进打扰学生专注写作 ──
-        // （仅在学生主动 @审稿编辑 时或到达三大官方质检里程碑时出面指导）
+        // ── 🛡️ 阶段二第三次质检（85% 时间 OR 90% 字数 · 责任编辑倒计时与终审定稿扫描，全场仅 1 次） ──
+        const targetWordCount = (curTask && curTask.targetWordCount) ? Number(curTask.targetWordCount) : 2000;
+        const wordProgress = targetWordCount > 0 ? (plainTextLen / targetWordCount) : (plainTextLen / 2000);
+        const timeProgress = totalPlannedMs > 0 ? (stage2DurationMs / totalPlannedMs) : 0;
+        const isFinalReviewDue = (wordProgress >= 0.90 || timeProgress >= 0.85 || s2.isDraftConfirmed || plainTextLen >= 1800);
+        
+        const hasFinalReviewInLogs = s2Chats.some(m => m && m.sender === 'reviewingEditor' && (m.text?.includes('终稿行文扫描') || m.text?.includes('终审定稿总评')));
+        if (hasFinalReviewInLogs && s2.reviewMilestone !== 'final_review_done') {
+          s2.reviewMilestone = 'final_review_done';
+          this.syncStage2();
+        }
 
-        // 4) 二审修正清单下发后的静默跟进提示 (独家全包给审稿编辑，最多2次)
-        if (this.state.stage2ReviewingFinishedTime && silenceDurationMs >= s2NudgeCooldownMs) {
-          if (lastStudentMsgTime > (this._lastNudgeActivityTime?.['s2_post_meeting'] || 0)) {
-            this._nudgeCounts['s2_post_meeting'] = 0;
-          }
-          const count = this._nudgeCounts['s2_post_meeting'] || 0;
-          if (count < 2 && (!this.lastS2PostMeetingSilenceNudgeTime || now - this.lastS2PostMeetingSilenceNudgeTime >= s2NudgeCooldownMs)) {
-            this.lastS2PostMeetingSilenceNudgeTime = now;
-            this._nudgeCounts['s2_post_meeting'] = count + 1;
-            if (!this._lastNudgeActivityTime) this._lastNudgeActivityTime = {};
-            this._lastNudgeActivityTime['s2_post_meeting'] = lastStudentMsgTime;
-            const msg = {
-              sender: 'reviewingEditor',
-              text: `📝 【审稿编辑·修改交流提示】：修正清单已挂在上方！大家若对清单中的量表题目设计、方法闭环或文风润色有任何疑问，随时在讨论区 @审稿编辑 咨询，也可以在群里交流商定对策！`,
+        if (!hasFinalReviewInLogs && s2.reviewMilestone !== 'final_review_done' && isFinalReviewDue && !this._isTriggeringFinalReview) {
+          const membersList = Object.values(this.state.members || {});
+          const isLeaderClient = !membersList.length || (this.state.currentUser === membersList[0]?.studentCode || this.state.currentUser === membersList[0]?.id || this.state.currentUser === membersList[0]?.username);
+          if (isLeaderClient || membersList.length <= 1) {
+            this._isTriggeringFinalReview = true;
+            s2.reviewMilestone = 'final_review_done';
+            
+            const remainingStage2Min = Math.max(1, Math.ceil((totalPlannedMs - stage2DurationMs) / 60000));
+            const countdownMsg = {
+              sender: 'managingEditor',
+              senderName: '协同调度 · 责任编辑',
+              text: `🤝 【责任编辑·写作阶段倒计时提醒】：阶段二写作时间已过 85%（本阶段仅剩最后约 ${remainingStage2Min} 分钟）！请大家抓紧完成最后段落的撰写与通读。审稿编辑已为大家进行了全文终审扫描与总评，请通读核对无误后在上方逐一完成【初稿确认】，准备迎接阶段三学术答辩！`,
               timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-              _timeMs: now,
-              stage: 'stage2'
+              _timeMs: now
             };
-            if (!this.state.chatLogs.stage2) {
-              this.state.chatLogs.stage2 = [];
-            }
-            this.state.chatLogs.stage2.push(msg);
+
+            const refReviewMsg = {
+              sender: 'reviewingEditor',
+              senderName: '学术质量 · 审稿编辑',
+              text: `📝 【审稿编辑·终审定稿总评与行文扫描】：看到全组已进入最后成文冲刺阶段，整体框架完整！我对全文质量与学术规范进行了终审扫描：①【学术语体】：整体论述连贯，建议通读核对消除残留的口语化表述；②【术语规范】：前后核心概念表述保持高度统一；③【参考文献】：核对著录规范。请全组成员完成最终通读后，在上方逐一完成【初稿确认】，准备迎接阶段三学术答辩！`,
+              timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+              _timeMs: now + 200
+            };
+
+            if (!this.state.chatLogs.stage2) this.state.chatLogs.stage2 = [];
+            this.state.chatLogs.stage2.push(countdownMsg, refReviewMsg);
             this.syncChatLogs();
+            this.syncStage2();
             if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
             renderChat(this.state);
-            return;
+            this._isTriggeringFinalReview = false;
           }
         }
 
@@ -4600,7 +4614,7 @@ ${propText}
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // 🛡️ 第三次质检（90% 字数 / 85% 时间 / 确认初稿 · 终审定稿）
+    // 🛡️ 第三次质检（90% 字数 / 85% 时间 / 确认初稿 · 责任编辑倒计时与审稿编辑终审定稿）
     // ═══════════════════════════════════════════════════════════════
     const isFinalReviewDue = (wordProgress >= 0.90 || timeProgress >= 0.85 || s2.isDraftConfirmed || rawDoc.length >= 1800);
     const hasFinalReviewInLogs = s2ChatList.some(m => m.sender === 'reviewingEditor' && (m.text.includes('终稿行文扫描') || m.text.includes('终审定稿总评')));
@@ -4613,15 +4627,24 @@ ${propText}
       if (!isLeaderClient && membersList.length > 1) return;
       s2.reviewMilestone = 'final_review_done';
 
+      const remainingStage2Min = Math.max(1, Math.ceil((totalPlannedMs - stage2DurationMs) / 60000));
+      const countdownMsg = {
+        sender: 'managingEditor',
+        senderName: '协同调度 · 责任编辑',
+        text: `🤝 【责任编辑·写作阶段倒计时提醒】：阶段二写作时间已过 85%（本阶段仅剩最后约 ${remainingStage2Min} 分钟）！请大家抓紧完成最后段落的撰写与通读。审稿编辑已为大家进行了全文终审扫描与总评，请通读核对无误后在上方逐一完成【初稿确认】，准备迎接阶段三学术答辩！`,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        _timeMs: now
+      };
+
       const refReviewMsg = {
         sender: 'reviewingEditor',
         senderName: '学术质量 · 审稿编辑',
         text: `📝 【审稿编辑·终审定稿总评与行文扫描】：看到全组已进入最后成文冲刺阶段，整体框架完整！我对全文质量与学术规范进行了终审扫描：①【学术语体】：整体论述连贯，建议通读核对消除残留的口语化表述；②【术语规范】：前后核心概念表述保持高度统一；③【参考文献】：核对著录规范。请全组成员完成最终核对后，在上方逐一完成【初稿确认】，准备迎接阶段三学术答辩！`,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        _timeMs: now
+        _timeMs: now + 200
       };
       if (!this.state.chatLogs.stage2) this.state.chatLogs.stage2 = [];
-      this.state.chatLogs.stage2.push(refReviewMsg);
+      this.state.chatLogs.stage2.push(countdownMsg, refReviewMsg);
       this.syncChatLogs();
       this.syncStage2();
       if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
