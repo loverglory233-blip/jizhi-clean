@@ -6,6 +6,11 @@
 
 class CozePromptFactory {
     public static function buildPrompt($stage, $topic, $userQuery, $actualDoc = '', $botKey = '', $priorReview = '') {
+        // ⚡ 若指令本身已高度结构化（包含 JSON 约束或研讨记录上下文），直接透传，确保大模型零干扰极速响应
+        if (mb_strpos($userQuery, 'JSON') !== false || mb_strpos($userQuery, '小组成员已') !== false || mb_strpos($userQuery, '【组内') !== false) {
+            return $userQuery;
+        }
+
         $stageNames = [
             'stage1' => '阶段一 (课题协商与分工公约)',
             'stage2' => '阶段二 (富文本正文协同撰写)',

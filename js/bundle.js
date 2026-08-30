@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260831_v931
+ * Version: 20260831_v932
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260831_v931';
+  const APP_VERSION = '20260831_v932';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -857,11 +857,8 @@
     const profile = AgentProfiles[botKey] || { name: '智能体专家', avatar: '🤖' };
     const botId = profile && profile.cozeBotId ? profile.cozeBotId : '7673571806476828713';
 
-    // 构建针对当前写作阶段的提示词上下文
+    // ⚡ 直接透传结构化指令，避免与服务端 PromptFactory 二次套娃
     let enrichedQuery = userQuery;
-    if (currentContext.stage) {
-      enrichedQuery = `【协作写作阶段: ${currentContext.stage === 'stage1' ? '阶段一 (选题与公约)' : currentContext.stage === 'stage2' ? '阶段二 (正文撰写)' : '阶段三 (答辩与质询)'}】\n【课题: ${currentContext.topic || '未定'}】\n【用户对话/审阅指令】: ${userQuery}`;
-    }
 
     // 🛡️ 会话凭证：从当前登录态读取 userId + session token，供服务端鉴权扣子代理
     let sessionUserId = currentContext.userId || '';
@@ -14785,15 +14782,20 @@
       const curTask = allTasks.find(t => t.id === this.state.activeTaskId);
       const totalDurationMin = (curTask && curTask.durationMinutes) ? Number(curTask.durationMinutes) : 150;
 
-      const timePrompt = `小组成员已就 6 大章节的时间预算规划在讨论区展开了研讨。
-  【组内关于时间分配的真实研讨记录】:
+      const timePrompt = `小组成员已就学术论文 6 大章节的时间预算规划在讨论区展开了充分研讨。
+  【组内关于时间规划与各章节侧重的真实研讨记录】:
   ${chatSnippet}
-  【参考总时长】: ${totalDurationMin} 分钟（包含：一·引言背景、二·文献综述、三·问题假设、四·设计方法、五·不足反思、六·参考文献）
+  【参考论文写作总时长】: ${totalDurationMin} 分钟
 
-  请通读研讨，作为资深学术拍卖师：
-  1. 提取或智能计算 6 大章节的具体分钟数（若学生提到平均分/平分，则将总时长平分；若提到具体章节，按学生意愿分配；未明确部分按黄金学术比例智能补齐，总和约为任务时长）；
-  2. 给出 1 句简明点拨，顺承引导全组在讨论区商定各自负责的章节与任务分工！
-  输出格式必须为合法 JSON（严禁代码块以外的多余废话）：
+  请通读上述真实讨论记录，作为资深学术拍卖师：
+  1. 深度分析小组成员的研讨意向与侧重：
+     - 若组员明确提到了某章节分配多少分钟，严格按照组员商定的时间分配；
+     - 若组员提到各章节“平分”或“均分”，则将总时长平分给各章；
+     - 若组员提到“重点在方法/重点在综述”，则显著增加对应章节的时间权重；
+     - 若组员未明确提及某章节具体数值，依据学术论文标准黄金比例（重点强化研究设计与方法）智能补齐，使 6 大章节总和约为 ${totalDurationMin} 分钟；
+  2. 给出 1 句专业且亲切的学术点拨（结合组员的研讨侧重点），宣布时间分配已录入公约，并顺承引导全组在讨论区商定各自负责的写作章节与任务分工！
+
+  输出格式必须为合法 JSON（严禁代码块以外的多余文字）：
   {
     "background": 25,
     "literature": 30,
@@ -14801,28 +14803,30 @@
     "method": 40,
     "reflection": 20,
     "references": 10,
-    "guideText": "6 大章节时间预算已成功配置！接下来请全组在讨论区商定各自负责认领的章节与任务分工！商定完成后点击左侧【👥 一键提炼任务分工】！"
+    "guideText": "全篇 6 大章节时间预算已成功配置并录入公约看板！接下来请全组在讨论区商定各自负责认领的写作章节与任务分工！商定完成后点击左侧【👥 一键提炼任务分工】！"
   }`;
 
       try {
         const resp = await callCozeAgentAPI('auctioneer', timePrompt, { stage: 'stage1', topic: s1.mergedTitle || '论文' });
         let timeAlloc = { background: 25, literature: 30, questions: 25, method: 40, reflection: 20, references: 10 };
-        let guideSpeech = `🎪 【拍卖师·时间预算确立】：全篇 6 大章节时间预算已成功配置！👉 接下来请全组在讨论区商定各自负责认领的写作章节与任务分工！商定完成后点击左侧【👥 研讨差不多了？一键提炼任务分工】！`;
+        let guideSpeech = `全篇 6 大章节时间预算已成功配置并录入公约看板！👉 接下来请全组在讨论区商定各自负责认领的写作章节与任务分工！商定完成后点击左侧【👥 研讨差不多了？一键提炼任务分工】！`;
 
         if (resp && resp.trim().length > 0) {
           try {
             const jsonMatch = resp.match(/\{[\s\S]*\}/);
             if (jsonMatch) {
               const parsed = JSON.parse(jsonMatch[0]);
-              if (parsed.background !== undefined) timeAlloc.background = Number(parsed.background);
-              if (parsed.literature !== undefined) timeAlloc.literature = Number(parsed.literature);
-              if (parsed.questions !== undefined) timeAlloc.questions = Number(parsed.questions);
-              if (parsed.method !== undefined) timeAlloc.method = Number(parsed.method);
-              if (parsed.reflection !== undefined) timeAlloc.reflection = Number(parsed.reflection);
-              if (parsed.references !== undefined) timeAlloc.references = Number(parsed.references);
-              if (parsed.guideText) guideSpeech = parsed.guideText;
+              if (parsed.background !== undefined && !isNaN(Number(parsed.background))) timeAlloc.background = Math.max(5, Math.round(Number(parsed.background)));
+              if (parsed.literature !== undefined && !isNaN(Number(parsed.literature))) timeAlloc.literature = Math.max(5, Math.round(Number(parsed.literature)));
+              if (parsed.questions !== undefined && !isNaN(Number(parsed.questions))) timeAlloc.questions = Math.max(5, Math.round(Number(parsed.questions)));
+              if (parsed.method !== undefined && !isNaN(Number(parsed.method))) timeAlloc.method = Math.max(5, Math.round(Number(parsed.method)));
+              if (parsed.reflection !== undefined && !isNaN(Number(parsed.reflection))) timeAlloc.reflection = Math.max(5, Math.round(Number(parsed.reflection)));
+              if (parsed.references !== undefined && !isNaN(Number(parsed.references))) timeAlloc.references = Math.max(5, Math.round(Number(parsed.references)));
+              if (parsed.guideText && parsed.guideText.trim().length > 0) guideSpeech = parsed.guideText.trim();
             }
-          } catch (e) {}
+          } catch (e) {
+            console.warn('Parse time allocation JSON fail, keep default', e);
+          }
         }
 
         if (!s1.contract) s1.contract = {};
@@ -14830,7 +14834,7 @@
         s1.contractStep = 'tasks'; // 推进至第三步：任务分工
 
         guideSpeech = guideSpeech.replace(/^(?:🎪|🏛️)?\s*【(?:学术拍卖师|拍卖师)[·\s]*(?:时间预算确立|时间分配)?】[：:]\s*/g, '');
-        const noticeText = `🏛️ 【学术拍卖师·时间预算确立】：全篇 6 大章节时间预算已成功配置并录入公约看板！👉 接下来请全组在讨论区商定各自负责认领的写作章节与任务分工！商定完成后点击左侧【👥 研讨差不多了？一键提炼任务分工】！`;
+        const noticeText = `🏛️ 【学术拍卖师·时间预算确立】：${guideSpeech}`;
 
         const noticeMsg = {
           id: 'msg_time_done_' + Date.now(),
