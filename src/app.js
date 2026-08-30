@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260830_v912";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch } from "./utils.js?v=20260830_v912";
-import { callCozeAgentAPI } from "./agents.js?v=20260830_v912";
-import { AuthManager } from "./auth.js?v=20260830_v912";
-import { CloudSyncEngine } from "./sync.js?v=20260830_v912";
-import { renderLoginView } from "./login.js?v=20260830_v912";
-import { renderTeacherPortal } from "./teacher.js?v=20260830_v912";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260830_v912";
+} from "./constants.js?v=20260830_v913";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch } from "./utils.js?v=20260830_v913";
+import { callCozeAgentAPI } from "./agents.js?v=20260830_v913";
+import { AuthManager } from "./auth.js?v=20260830_v913";
+import { CloudSyncEngine } from "./sync.js?v=20260830_v913";
+import { renderLoginView } from "./login.js?v=20260830_v913";
+import { renderTeacherPortal } from "./teacher.js?v=20260830_v913";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260830_v913";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260830_v912";
+} from "./editor.js?v=20260830_v913";
 
 // Make renderChat available on window for sync callbacks
 if (typeof window !== "undefined") {
@@ -4343,18 +4343,19 @@ ${propText}
     if (!isForced && this.state.currentStage === 'stage1' && existingContractCard) {
       // 局部更新提案池卡片与投票按钮
       const proposalsWrapper = document.getElementById('proposals-wrapper-container');
-      const s1 = this.state.stage1;
-      const currentUser = this.state.currentUser;
-      const userVotedProposalId = s1.votes ? s1.votes[currentUser] : null;
-      const userHasVoted = s1.hasVoted && s1.hasVoted[currentUser];
-      const isContractLocked = s1.contract.isConfirmed || this.state.isFinalSubmitted;
+      const s1 = this.state.stage1 || { proposals: [], votes: {}, hasVoted: {}, contract: {} };
+      const membersList = Array.isArray(this.state.members) ? this.state.members : Object.values(this.state.members || {});
+      const currentUserObj = this.authManager ? this.authManager.getCurrentUser() : null;
+      const myKeys = new Set([...getUserAllKeys(currentUserObj), this.state.currentUser, currentUserObj?.id, currentUserObj?.studentCode].filter(Boolean));
+      const userVotedProposalId = s1.votes ? (getUserFromMap(s1.votes, currentUserObj) || s1.votes[this.state.currentUser]) : null;
+      const userHasVoted = s1.hasVoted ? (isUserInMap(s1.hasVoted, currentUserObj) || s1.hasVoted[this.state.currentUser]) : false;
+      const isContractLocked = s1.contract?.isConfirmed || this.state.isFinalSubmitted;
 
       const allUsers = this.authManager ? this.authManager.getUsers() : [];
-      const myKeys = new Set([...getUserAllKeys(currentUser), this.state.currentUser].filter(Boolean));
-      const hasSubmittedMyProposal = s1.proposals.some(p => {
+      const hasSubmittedMyProposal = (s1.proposals || []).some(p => {
         if (!p) return false;
         if (myKeys.has(p.author) || myKeys.has(p.authorName) || myKeys.has(p.authorId)) return true;
-        if (currentUser && (isSameUser(p.author, currentUser) || isSameUser(p.authorName, currentUser) || (p.authorName && p.authorName === currentUser.name))) return true;
+        if (currentUserObj && (isSameUser(p.author, currentUserObj) || isSameUser(p.authorName, currentUserObj) || (p.authorName && p.authorName === currentUserObj.name))) return true;
         return false;
       });
 
