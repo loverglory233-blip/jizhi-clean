@@ -9,8 +9,8 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260830_v897";
-import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, showGlobalBannerNotice } from "./utils.js?v=20260830_v897";
+} from "./constants.js?v=20260830_v898";
+import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, showGlobalBannerNotice } from "./utils.js?v=20260830_v898";
 
 /* ==========================================================================
    7. TEACHER PORTAL RENDERER (LIVE WORKSPACE MIRROR & ANNOUNCEMENT READ MATRIX)
@@ -3275,19 +3275,9 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
           finalAttachment = {
             name: selectedAttachment.name,
             size: selectedAttachment.size,
-            url: '',
-            fileData: ''
+            url: ''
           };
           if (selectedAttachment.fileObj) {
-            try {
-              finalAttachment.fileData = await new Promise((resolve) => {
-                const reader = new FileReader();
-                reader.onload = () => resolve(reader.result);
-                reader.onerror = () => resolve('');
-                reader.readAsDataURL(selectedAttachment.fileObj);
-              });
-            } catch (e) {}
-
             try {
               const currT = authManager.getCurrentUser();
               const tId = (currT && (currT.studentCode || currT.username || currT.id)) || '';
@@ -3308,7 +3298,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
                 }
               }
             } catch (upErr) {
-              console.warn('Attachment upload failed, fallback:', upErr);
+              console.warn('Server upload attachment warning:', upErr);
             }
           }
         }
@@ -3567,7 +3557,6 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
             keyHighlights: '研究设计与学术论证规范',
             fileName: selectedFile.name || `${title}.pdf`,
             fileUrl: serverFileUrl,
-            fileData: clientDataUrl,
             fileSize: selectedFile.size || '3.5 MB',
             targetGroupId: targetGId,
             targetGroupIds: selectedGroupIds,
