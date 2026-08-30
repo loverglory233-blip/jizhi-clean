@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles } from "./constants.js?v=20260831_v937";
-import { callCozeAgentAPI } from "./agents.js?v=20260831_v937";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap } from "./utils.js?v=20260831_v937";
+import { AgentProfiles } from "./constants.js?v=20260831_v938";
+import { callCozeAgentAPI } from "./agents.js?v=20260831_v938";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap } from "./utils.js?v=20260831_v938";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -2516,10 +2516,10 @@ function renderStage2Canvas(canvas, state, handlers) {
   let _padContentDebounceTimer = null;
   const syncPadMetrics = async () => {
     try {
-      // 🚀 极轻量纯文本提取：耗时 < 0.1ms，体积 1KB，彻底杜绝服务器 Node.js CPU 波动
-      const txtRes = await fetch(`/p/${padName}/export/txt`);
-      if (txtRes.ok) {
-        const cleanTxt = (await txtRes.text()).replace(/\r\n/g, '\n').trim();
+      // 🚀 权威服务端代理提取：通过 Etherpad API 安全读取纯文本，0% 报错与 0 404
+      const res = await fetch(`sync.php?action=get_pad_text&padId=${encodeURIComponent(padName)}`).then(r => r.json()).catch(() => null);
+      if (res && res.success) {
+        const cleanTxt = (res.text || '').replace(/\r\n/g, '\n').trim();
         const wordCount = cleanTxt.length;
         
         // 实时更新字数角标

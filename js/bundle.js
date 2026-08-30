@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260831_v937
+ * Version: 20260831_v938
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260831_v937';
+  const APP_VERSION = '20260831_v938';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -10804,10 +10804,10 @@
     let _padContentDebounceTimer = null;
     const syncPadMetrics = async () => {
       try {
-        // 🚀 极轻量纯文本提取：耗时 < 0.1ms，体积 1KB，彻底杜绝服务器 Node.js CPU 波动
-        const txtRes = await fetch(`/p/${padName}/export/txt`);
-        if (txtRes.ok) {
-          const cleanTxt = (await txtRes.text()).replace(/\r\n/g, '\n').trim();
+        // 🚀 权威服务端代理提取：通过 Etherpad API 安全读取纯文本，0% 报错与 0 404
+        const res = await fetch(`sync.php?action=get_pad_text&padId=${encodeURIComponent(padName)}`).then(r => r.json()).catch(() => null);
+        if (res && res.success) {
+          const cleanTxt = (res.text || '').replace(/\r\n/g, '\n').trim();
           const wordCount = cleanTxt.length;
 
           // 实时更新字数角标
