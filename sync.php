@@ -12,6 +12,13 @@ if (!ob_start('ob_gzhandler')) {
 }
 header('Content-Type: application/json; charset=utf-8');
 
+// 🛡️ 全局异常与致命错误自愈兜底保护（零 500 崩溃）
+set_exception_handler(function($e) {
+    http_response_code(200);
+    echo json_encode(['success' => false, 'error' => 'fail_safe_caught', 'detail' => $e->getMessage()]);
+    exit;
+});
+
 // 🛠️ 智能 Base64 图片文件化清洗迁移器（无损提取为物理文件并回写极短 URL，彻底杜绝内存撑爆与数据截断）
 function migrateBase64StringToUrl($rawContent, $pdo = null, $scopeKey = '', $colName = '') {
     if (empty($rawContent) || !is_string($rawContent) || strpos($rawContent, 'data:image/') === false) {
@@ -93,12 +100,12 @@ require_once __DIR__ . '/api/db_init.php';
 $pdo = getDbConnection();
 if ($pdo) {
     // 🛡️ 高并发性能终极保护：仅在服务冷启动/初始化时执行一次 DDL 建表与教务自愈，普通高频轮询绝对不重复全库狂写
-    $lockFile = sys_get_temp_dir() . '/jizhi_db_tables_inited_v909.lock';
+    $lockFile = sys_get_temp_dir() . '/jizhi_db_tables_inited_v911.lock';
     if (!file_exists($lockFile)) {
-        initDatabaseTables();
-        ensureTeacherSeedAccount($pdo);
-        autoSyncAllUsersFromMeta($pdo);
         @touch($lockFile);
+        try { initDatabaseTables(); } catch (\Throwable $e) { error_log('initDatabaseTables: ' . $e->getMessage()); }
+        try { ensureTeacherSeedAccount($pdo); } catch (\Throwable $e) { error_log('ensureTeacherSeedAccount: ' . $e->getMessage()); }
+        try { autoSyncAllUsersFromMeta($pdo); } catch (\Throwable $e) { error_log('autoSyncAllUsersFromMeta: ' . $e->getMessage()); }
     }
 }
 
