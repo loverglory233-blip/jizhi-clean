@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260830_v785";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash } from "./utils.js?v=20260830_v785";
-import { callCozeAgentAPI } from "./agents.js?v=20260830_v785";
-import { AuthManager } from "./auth.js?v=20260830_v785";
-import { CloudSyncEngine } from "./sync.js?v=20260830_v785";
-import { renderLoginView } from "./login.js?v=20260830_v785";
-import { renderTeacherPortal } from "./teacher.js?v=20260830_v785";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260830_v785";
+} from "./constants.js?v=20260830_v786";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash } from "./utils.js?v=20260830_v786";
+import { callCozeAgentAPI } from "./agents.js?v=20260830_v786";
+import { AuthManager } from "./auth.js?v=20260830_v786";
+import { CloudSyncEngine } from "./sync.js?v=20260830_v786";
+import { renderLoginView } from "./login.js?v=20260830_v786";
+import { renderTeacherPortal } from "./teacher.js?v=20260830_v786";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260830_v786";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260830_v785";
+} from "./editor.js?v=20260830_v786";
 
 // Make renderChat available on window for sync callbacks
 if (typeof window !== "undefined") {
@@ -48,8 +48,7 @@ export class App {
     const storedClassId = sessionStorage.getItem('jizhi_active_student_class_id') || localStorage.getItem('jizhi_active_student_class_id');
     if (storedClassId) this.state.activeStudentClassId = storedClassId;
 
-    localStorage.removeItem('jizhi_student_view_mode');
-    const storedViewMode = sessionStorage.getItem('jizhi_student_view_mode');
+    const storedViewMode = sessionStorage.getItem('jizhi_student_view_mode') || localStorage.getItem('jizhi_student_view_mode');
     this.state.studentViewMode = (storedViewMode === 'workspace') ? 'workspace' : 'task_list';
 
     const user = this.authManager.getCurrentUser();
@@ -1913,7 +1912,7 @@ ${recentChats}
     this.state.studentViewMode = 'task_list';
     sessionStorage.setItem('jizhi_student_view_mode', 'task_list');
     sessionStorage.removeItem('jizhi_active_task_id');
-    localStorage.removeItem('jizhi_student_view_mode');
+    localStorage.setItem('jizhi_student_view_mode', 'task_list');
     localStorage.removeItem('jizhi_active_task_id');
     if (this.cloudSyncEngine) this.cloudSyncEngine.stopPolling();
     this.renderMain();
