@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState } from './constants.js?v=20260831_v924';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap } from './utils.js?v=20260831_v924';
+import { InitialState } from './constants.js?v=20260831_v925';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap } from './utils.js?v=20260831_v925';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -635,7 +635,7 @@ export class CloudSyncEngine {
     if (remoteData.chatLogs) {
       if (!this.app.state.chatLogs) this.app.state.chatLogs = { stage1: [], stage2: [], stage3: [] };
       ['stage1', 'stage2', 'stage3'].forEach(stg => {
-        const remoteLogs = Array.isArray(remoteData.chatLogs[stg]) ? remoteData.chatLogs[stg] : [];
+        let remoteLogs = Array.isArray(remoteData.chatLogs[stg]) ? remoteData.chatLogs[stg] : [];
         const localLogs = Array.isArray(this.app.state.chatLogs[stg]) ? this.app.state.chatLogs[stg] : [];
         
         // 🛡️ 智能保留本地未决思考气泡与 10 秒内未落库临时消息（防吞防闪烁）
