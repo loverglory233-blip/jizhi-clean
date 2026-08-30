@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState } from './constants.js?v=20260830_v789';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal } from './utils.js?v=20260830_v789';
+import { InitialState } from './constants.js?v=20260830_v790';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal } from './utils.js?v=20260830_v790';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -147,7 +147,7 @@ export class CloudSyncEngine {
       );
     } else if (isTaskHall) {
       // 📋 场景 2：学生在任务大厅（就地刷新大厅任务卡片，滑出顶部通知横幅）
-      this.app.renderStudentWorkspace();
+      this.app.renderMain();
       showGlobalBannerNotice(
         '⏳ 任务延期提醒',
         `班级写作任务《${t.title || '协作任务'}》截止时间已延长至 ${t.deadline} ${extDurationStr}！`,
