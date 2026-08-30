@@ -925,6 +925,34 @@ if ($action === 'get_teacher_monitor_all_groups') {
     exit;
 }
 
+if ($action === 'get_readonly_pad_id') {
+    header('Content-Type: application/json; charset=utf-8');
+    $padId = isset($_GET['padId']) ? preg_replace('/[^a-zA-Z0-9_-]/', '', $_GET['padId']) : 'jizhi_' . $scopeKey;
+    $apiKey = 'c46d86a306a7bba99b4b3e260922245a461918236ffa47aab2d8f54dd18fa0eb';
+    $apiKeyFile = '/www/wwwroot/etherpad-lite/APIKEY.txt';
+    if (is_readable($apiKeyFile)) {
+        $k = trim(@file_get_contents($apiKeyFile));
+        if (!empty($k)) $apiKey = $k;
+    }
+
+    $epUrl = "http://127.0.0.1:9001/api/1.2.14/getReadOnlyID?apikey=" . urlencode($apiKey) . "&padID=" . urlencode($padId);
+    $ch = curl_init($epUrl);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 2);
+    $res = curl_exec($ch);
+    curl_close($ch);
+
+    $readOnlyId = '';
+    if (!empty($res)) {
+        $json = json_decode($res, true);
+        if (isset($json['code']) && $json['code'] === 0 && isset($json['data']['readOnlyID'])) {
+            $readOnlyId = $json['data']['readOnlyID'];
+        }
+    }
+    echo json_encode(['success' => !empty($readOnlyId), 'readOnlyID' => $readOnlyId], JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
 if ($action === 'get_pad_text' || $action === 'get_pad_html') {
     header('Content-Type: application/json; charset=utf-8');
     $padId = isset($_GET['padId']) ? preg_replace('/[^a-zA-Z0-9_-]/', '', $_GET['padId']) : 'jizhi_' . $scopeKey;

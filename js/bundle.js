@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260830_v738
+ * Version: 20260830_v739
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260830_v738';
+  const APP_VERSION = '20260830_v739';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -3971,6 +3971,23 @@
             if (!state.stage2) state.stage2 = {};
             state.stage2.unifiedContent = epRes.html || epRes.text;
           }
+          if (!state._readOnlyPadMap) state._readOnlyPadMap = {};
+          if (!state._readOnlyPadMap[padName]) {
+            fetch(`sync.php?action=get_readonly_pad_id&padId=${padName}`).then(r => r.json()).then(res => {
+              if (res && res.success && res.readOnlyID) {
+                state._readOnlyPadMap[padName] = res.readOnlyID;
+                const f2 = document.querySelector('#teacher-stage2-etherpad-frame');
+                if (f2 && !f2.src.includes(res.readOnlyID)) {
+                  f2.src = `/p/${res.readOnlyID}?userName=${encodeURIComponent('教师监控')}&userColor=%237c3aed&showControls=false&showChat=false&showLineNumbers=true&lang=zh-hans`;
+                }
+                const f3 = document.querySelector('#teacher-stage3-etherpad-frame');
+                if (f3 && !f3.src.includes(res.readOnlyID)) {
+                  f3.src = `/p/${res.readOnlyID}?userName=${encodeURIComponent('教师监控')}&userColor=%237c3aed&showControls=false&showChat=false&showLineNumbers=true&lang=zh-hans`;
+                }
+              }
+            }).catch(() => {});
+          }
+
           const curT = authManager.getCurrentUser();
           const tToken = (curT && (curT.activeSessionId || curT.token)) || '';
           const tId = (curT && (curT.id || curT.username)) || '';
@@ -5061,11 +5078,22 @@
                               <span style="font-size:14px; font-weight:700; color:#334155;">小组当前处于阶段一（学术公约拟定），尚未进入阶段二编辑部正文协作</span>
                               <span style="font-size:12px; color:#94a3b8;">待组员全员签署公约进入阶段二后，此处将自动实时同步正文协作画面</span>
                             </div>
-                          ` : `
-                            <div style="flex:1; min-height:420px; border-radius:8px; overflow:hidden; border:1.5px solid #cbd5e1; box-shadow:0 2px 8px rgba(15,23,42,0.04); background:#ffffff; position:relative;">
-                              <iframe id="teacher-stage2-etherpad-frame" src="/p/jizhi_${encodeURIComponent(activeTaskId)}_${encodeURIComponent(activeMonitorGId)}?userName=${encodeURIComponent('教师监控')}&userColor=%237c3aed&showControls=false&showChat=false&showLineNumbers=true&lang=zh-hans" style="width:100%; height:100%; border:none; display:block; background:#ffffff;" title="教师端实时写作同屏镜像"></iframe>
-                            </div>
-                          `}
+                          ` : (() => {
+                            const rawPadName = `jizhi_${activeTaskId}_${activeMonitorGId}`;
+                            const effectivePadName = (state._readOnlyPadMap && state._readOnlyPadMap[rawPadName]) ? state._readOnlyPadMap[rawPadName] : rawPadName;
+                            return `
+                              <div class="teacher-etherpad-container" style="flex:1; min-height:420px; border-radius:8px; overflow:hidden; border:1.5px solid #cbd5e1; box-shadow:0 2px 8px rgba(15,23,42,0.04); background:#ffffff; position:relative; display:flex; flex-direction:column;">
+                                <div style="display:flex; justify-content:space-between; align-items:center; background:#f8fafc; border-bottom:1px solid #e2e8f0; padding:6px 12px; font-size:12px; color:#475569; flex-shrink:0;">
+                                  <div style="display:flex; align-items:center; gap:8px;">
+                                    <span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:#10b981;"></span>
+                                    <span style="font-weight:700; color:#1e293b;">🔒 教师端同屏镜像 (纯净只读阅卷 · 实时协同直连)</span>
+                                  </div>
+                                  <span style="font-size:11px; background:#ecfdf5; color:#059669; border:1px solid #a7f3d0; padding:1px 8px; border-radius:4px; font-weight:700;">只读监控</span>
+                                </div>
+                                <iframe id="teacher-stage2-etherpad-frame" src="/p/${encodeURIComponent(effectivePadName)}?userName=${encodeURIComponent('教师监控')}&userColor=%237c3aed&showControls=false&showChat=false&showLineNumbers=true&lang=zh-hans" style="flex:1; width:100%; height:100%; min-height:380px; border:none; display:block; background:#ffffff;" title="教师端实时写作同屏镜像 (只读)"></iframe>
+                              </div>
+                            `;
+                          })()}
 
                           <!-- 5. 📊 团队协作贡献度占比 (SSRL 群体过程感知) - 真实计算，无数据为 0% -->
                           <div style="background:#ffffff; padding:10px 14px; border-radius:8px; border:1px solid #cbd5e1; flex-shrink:0; display:flex; flex-direction:column; gap:6px; box-shadow:0 1px 3px rgba(15,23,42,0.04);">
@@ -5134,11 +5162,22 @@
                                 <span style="font-size:14px; font-weight:700; color:#334155;">小组尚未进入阶段三论文终稿与答辩阶段</span>
                                 <span style="font-size:12px; color:#94a3b8;">待小组进入阶段三后，此处将自动实时呈现论文终稿镜像</span>
                               </div>
-                            ` : `
-                              <div style="flex:1; min-height:420px; border-radius:8px; overflow:hidden; border:1.5px solid #cbd5e1; box-shadow:0 2px 8px rgba(15,23,42,0.04); background:#ffffff; position:relative;">
-                                <iframe id="teacher-stage3-etherpad-frame" src="/p/jizhi_${encodeURIComponent(activeTaskId)}_${encodeURIComponent(activeMonitorGId)}?userName=${encodeURIComponent('教师监控')}&userColor=%237c3aed&showControls=false&showChat=false&showLineNumbers=true&lang=zh-hans" style="width:100%; height:100%; border:none; display:block; background:#ffffff;" title="教师端论文终稿同屏镜像"></iframe>
-                              </div>
-                            `}
+                            ` : (() => {
+                              const rawPadName = `jizhi_${activeTaskId}_${activeMonitorGId}`;
+                              const effectivePadName = (state._readOnlyPadMap && state._readOnlyPadMap[rawPadName]) ? state._readOnlyPadMap[rawPadName] : rawPadName;
+                              return `
+                                <div class="teacher-etherpad-container" style="flex:1; min-height:420px; border-radius:8px; overflow:hidden; border:1.5px solid #cbd5e1; box-shadow:0 2px 8px rgba(15,23,42,0.04); background:#ffffff; position:relative; display:flex; flex-direction:column;">
+                                  <div style="display:flex; justify-content:space-between; align-items:center; background:#f8fafc; border-bottom:1px solid #e2e8f0; padding:6px 12px; font-size:12px; color:#475569; flex-shrink:0;">
+                                    <div style="display:flex; align-items:center; gap:8px;">
+                                      <span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:#10b981;"></span>
+                                      <span style="font-weight:700; color:#1e293b;">🔒 教师端终稿镜像 (纯净只读阅卷 · 实时协同直连)</span>
+                                    </div>
+                                    <span style="font-size:11px; background:#ecfdf5; color:#059669; border:1px solid #a7f3d0; padding:1px 8px; border-radius:4px; font-weight:700;">只读监控</span>
+                                  </div>
+                                  <iframe id="teacher-stage3-etherpad-frame" src="/p/${encodeURIComponent(effectivePadName)}?userName=${encodeURIComponent('教师监控')}&userColor=%237c3aed&showControls=false&showChat=false&showLineNumbers=true&lang=zh-hans" style="flex:1; width:100%; height:100%; min-height:380px; border:none; display:block; background:#ffffff;" title="教师端论文终稿同屏镜像 (只读)"></iframe>
+                                </div>
+                              `;
+                            })()}
                             <div style="background:#ffffff; padding:10px 14px; border-radius:8px; border:1px solid #cbd5e1; flex-shrink:0; display:flex; flex-direction:column; gap:6px; box-shadow:0 1px 3px rgba(15,23,42,0.04);">
                               <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:6px;">
                                 <span style="font-size:12px; font-weight:800; color:#1e293b;">📊 终稿协作贡献度占比 (SSRL 群体过程感知):</span>
