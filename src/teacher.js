@@ -9,8 +9,8 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260830_v749";
-import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash, filterAndDeduplicateChatLogs } from "./utils.js?v=20260830_v749";
+} from "./constants.js?v=20260830_v750";
+import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash, filterAndDeduplicateChatLogs } from "./utils.js?v=20260830_v750";
 
 /* ==========================================================================
    7. TEACHER PORTAL RENDERER (LIVE WORKSPACE MIRROR & ANNOUNCEMENT READ MATRIX)
@@ -332,15 +332,20 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
       });
 
       try {
-        // 📝 针对阶段二，同时从 Etherpad 提取最新正文镜像（支持 Hash 增量早退）
+        // 📝 针对阶段二/三，从 Etherpad 提取最新正文镜像（实时单源真值，支持 Hash 增量早退）
         const padName = `jizhi_${activeTaskId}_${currentGId}`;
         const lastEpHash = state._lastEpHash || '';
         const epRes = await fetch(`sync.php?action=get_pad_html&padId=${padName}&clientHash=${encodeURIComponent(lastEpHash)}`).then(r => r.json()).catch(() => null);
         if (epRes && epRes.hash) state._lastEpHash = epRes.hash;
+        let latestPadText = '';
         if (epRes && epRes.success && !epRes.unchanged && (epRes.html || epRes.text)) {
+          latestPadText = epRes.html || epRes.text;
           if (!state.stage2) state.stage2 = {};
-          state.stage2.unifiedContent = epRes.html || epRes.text;
+          state.stage2.unifiedContent = latestPadText;
+        } else if (state.stage2?.unifiedContent) {
+          latestPadText = state.stage2.unifiedContent;
         }
+
         if (!state._readOnlyPadMap) state._readOnlyPadMap = {};
         if (!state._readOnlyPadMap[padName]) {
           fetch(`sync.php?action=get_readonly_pad_id&padId=${padName}`).then(r => r.json()).then(res => {
@@ -367,14 +372,15 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
           state.monitorPanorama = panRes.groups;
           if (panRes.hash) state._lastMonitorHash = panRes.hash;
 
-          // 🎯 核心修复：将当前正在同屏监控的小组真实数据精准同步到 state
+          // 🎯 核心修复：以 Etherpad 权威最新正文为主，杜绝被旧版全量快照覆盖导致字数在 5000 与 8000 间反复跳动！
           const currentGroupData = panRes.groups[currentGId];
           if (currentGroupData) {
             state.stage1 = currentGroupData.stage1 || { proposals: [], votes: {}, hasVoted: {}, contract: {} };
+            const finalUnifiedText = latestPadText || state.stage2?.unifiedContent || currentGroupData.stage2?.unifiedContent || '';
             state.stage2 = {
-              ...(state.stage2 || {}),
               ...(currentGroupData.stage2 || {}),
-              unifiedContent: (state.stage2 && state.stage2.unifiedContent) ? state.stage2.unifiedContent : (currentGroupData.stage2?.unifiedContent || '')
+              ...(state.stage2 || {}),
+              unifiedContent: finalUnifiedText
             };
             state.stage3 = currentGroupData.stage3 || { feedbackItems: [] };
             state.chatLogs = currentGroupData.chatLogs || { stage1: [], stage2: [], stage3: [] };
@@ -1204,8 +1210,8 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
                 })();
 
                 const renderUnifiedRightChatCard = () => `
-                  <!-- 右侧卡片：高度统一为 680px，与左侧绝对平齐，内部聊天流全高滚动 -->
-                  <div class="card" style="padding:16px 18px; display:flex; flex-direction:column; min-width:0; box-sizing:border-box; height:680px; max-height:680px; border:1px solid #e2e8f0; box-shadow:0 2px 8px rgba(15,23,42,0.04);">
+                  <!-- 右侧卡片：高度统一为 820px，与左侧绝对平齐，内部聊天流全高滚动 -->
+                  <div class="card" style="padding:16px 18px; display:flex; flex-direction:column; min-width:0; box-sizing:border-box; height:820px; max-height:820px; border:1px solid #e2e8f0; box-shadow:0 2px 8px rgba(15,23,42,0.04);">
                     <div style="flex-shrink:0; font-size:14.5px; font-weight:800; color:#0f172a; margin-bottom:8px; display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #e2e8f0; padding-bottom:8px;">
                       <span>💬 团队全程研讨对话流 (${activeMonitorGroup.name})</span>
                       <span style="font-size:11px; background:#eff6ff; color:#2563eb; padding:2px 8px; border-radius:6px; font-weight:700;">全阶段汇总 (${combinedGroupChatLogs.length}条)</span>
@@ -1235,9 +1241,9 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
 
                 if (effectiveMonitorStage === 'stage1') {
                   return `
-                    <div style="display:grid; grid-template-columns: minmax(0, 1fr) 380px; gap:16px; width:100%; box-sizing:border-box; height:680px; max-height:680px; align-items:stretch;">
-                      <!-- 左侧卡片：以阶段一左侧为主，高度统一为 680px，内部自适应滚动 -->
-                      <div class="card" style="padding:18px 20px; display:flex; flex-direction:column; border:1px solid #bfdbfe; gap:12px; min-width:0; box-sizing:border-box; height:680px; max-height:680px; overflow-y:auto; -webkit-overflow-scrolling:touch; overscroll-behavior-y:contain;">
+                    <div style="display:grid; grid-template-columns: minmax(0, 1fr) 300px; gap:16px; width:100%; box-sizing:border-box; height:820px; max-height:820px; align-items:stretch;">
+                      <!-- 左侧卡片：以阶段一左侧为主，高度统一为 820px，内部自适应滚动 -->
+                      <div class="card" style="padding:18px 20px; display:flex; flex-direction:column; border:1px solid #bfdbfe; gap:12px; min-width:0; box-sizing:border-box; height:820px; max-height:820px; overflow-y:auto; -webkit-overflow-scrolling:touch; overscroll-behavior-y:contain;">
                         <div style="flex-shrink:0; font-size:16px; font-weight:800; color:#1e40af; display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #e2e8f0; padding-bottom:10px;">
                           <span>🎪 阶段一实操同屏: 初始提案与学术合作公约 (${activeMonitorGroup.name})</span>
                           <span style="background:#eff6ff; color:#1d4ed8; padding:3px 10px; border-radius:8px; font-size:12px; font-weight:700;">阶段一实况</span>
@@ -1384,9 +1390,9 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
                   const confirmedDraftCount = monitorMembersList.filter(m => state.stage2?.confirmedMembers && (state.stage2.confirmedMembers[m.id] || state.stage2.confirmedMembers[m.studentCode] || state.stage2.confirmedMembers[m.username] || (m.name && state.stage2.confirmedMembers[m.name]))).length;
 
                   return `
-                    <div style="display:grid; grid-template-columns: minmax(0, 1fr) 380px; gap:16px; width:100%; box-sizing:border-box; height:680px; max-height:680px; align-items:stretch;">
-                      <!-- 左侧卡片：1:1 镜像学生端阶段二全部结构，高度统一为 680px -->
-                      <div class="card" style="padding:16px 18px; display:flex; flex-direction:column; border:1px solid #bfdbfe; min-width:0; box-sizing:border-box; height:680px; max-height:680px; gap:8px; overflow:hidden;">
+                    <div style="display:grid; grid-template-columns: minmax(0, 1fr) 300px; gap:16px; width:100%; box-sizing:border-box; height:840px; max-height:840px; align-items:stretch;">
+                      <!-- 左侧卡片：1:1 镜像学生端阶段二全部结构，高度统一为 840px 纵横开阔 -->
+                      <div class="card" style="padding:16px 18px; display:flex; flex-direction:column; border:1px solid #bfdbfe; min-width:0; box-sizing:border-box; height:840px; max-height:840px; gap:8px; overflow:hidden;">
                         <!-- 1. 顶部标题与字数 -->
                         <div style="flex-shrink:0; display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #e2e8f0; padding-bottom:8px;">
                           <div style="display:flex; align-items:center; gap:8px;">
@@ -1454,7 +1460,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
 
                         <!-- 4. 协同文档视口 (未进入该阶段时显示优雅待命占位，不消耗任何带宽/CPU/内存；进入后自动实时同步) -->
                         ${state.currentStage === 'stage1' ? `
-                          <div style="flex:1; min-height:420px; display:flex; flex-direction:column; align-items:center; justify-content:center; border-radius:8px; border:1.5px dashed #cbd5e1; background:#ffffff; color:#64748b; padding:24px; text-align:center; gap:8px;">
+                          <div style="flex:1; min-height:560px; display:flex; flex-direction:column; align-items:center; justify-content:center; border-radius:8px; border:1.5px dashed #cbd5e1; background:#ffffff; color:#64748b; padding:24px; text-align:center; gap:8px;">
                             <span style="font-size:32px;">⏳</span>
                             <span style="font-size:14px; font-weight:700; color:#334155;">小组当前处于阶段一（学术公约拟定），尚未进入阶段二编辑部正文协作</span>
                             <span style="font-size:12px; color:#94a3b8;">待组员全员签署公约进入阶段二后，此处将自动实时同步正文协作画面</span>
@@ -1463,7 +1469,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
                           const rawPadName = `jizhi_${activeTaskId}_${activeMonitorGId}`;
                           const effectivePadName = (state._readOnlyPadMap && state._readOnlyPadMap[rawPadName]) ? state._readOnlyPadMap[rawPadName] : rawPadName;
                           return `
-                            <div class="teacher-etherpad-container" style="flex:1; min-height:420px; border-radius:8px; overflow:hidden; border:1.5px solid #cbd5e1; box-shadow:0 2px 8px rgba(15,23,42,0.04); background:#ffffff; position:relative; display:flex; flex-direction:column;">
+                            <div class="teacher-etherpad-container" style="flex:1; min-height:560px; border-radius:8px; overflow:hidden; border:1.5px solid #cbd5e1; box-shadow:0 2px 8px rgba(15,23,42,0.04); background:#ffffff; position:relative; display:flex; flex-direction:column;">
                               <div style="display:flex; justify-content:space-between; align-items:center; background:#f8fafc; border-bottom:1px solid #e2e8f0; padding:6px 12px; font-size:12px; color:#475569; flex-shrink:0;">
                                 <div style="display:flex; align-items:center; gap:8px;">
                                   <span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:#10b981;"></span>
@@ -1471,7 +1477,11 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
                                 </div>
                                 <span style="font-size:11px; background:#ecfdf5; color:#059669; border:1px solid #a7f3d0; padding:1px 8px; border-radius:4px; font-weight:700;">只读监控</span>
                               </div>
-                              <iframe id="teacher-stage2-etherpad-frame" src="/p/${encodeURIComponent(effectivePadName)}?userName=${encodeURIComponent('教师监控')}&userColor=%237c3aed&showControls=false&showChat=false&showLineNumbers=true&lang=zh-hans" style="flex:1; width:100%; height:100%; min-height:380px; border:none; display:block; background:#ffffff;" title="教师端实时写作同屏镜像 (只读)"></iframe>
+                              <div style="position:relative; flex:1; width:100%; height:100%; min-height:520px; display:flex;">
+                                <!-- 🛡️ 教师端只读工具栏点击阻断遮罩（防止教师误触工具按钮） -->
+                                <div style="position:absolute; top:0; left:0; width:100%; height:44px; z-index:15; pointer-events:auto; cursor:not-allowed;" title="只读阅卷监控模式 (工具栏已锁定，仅供教师阅览)"></div>
+                                <iframe id="teacher-stage2-etherpad-frame" src="/p/${encodeURIComponent(effectivePadName)}?userName=${encodeURIComponent('教师监控')}&userColor=%237c3aed&showControls=false&showChat=false&showLineNumbers=true&lang=zh-hans" style="flex:1; width:100%; height:100%; min-height:520px; border:none; display:block; background:#ffffff;" title="教师端实时写作同屏镜像 (只读)"></iframe>
+                              </div>
                             </div>
                           `;
                         })()}
@@ -1520,9 +1530,9 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
                 if (effectiveMonitorStage === 'stage3') {
                   const isStage3DocTab = state.stage3TeacherTab === 'doc';
                   return `
-                    <div style="display:grid; grid-template-columns: minmax(0, 1fr) 380px; gap:16px; width:100%; box-sizing:border-box; height:680px; max-height:680px; align-items:stretch;">
-                      <!-- 阶段三左侧卡片：高度统一为 680px；答辩页自适应内部滚动，终稿页与阶段二一样带贡献度 -->
-                      <div class="card" style="padding:16px 18px; display:flex; flex-direction:column; border:1px solid #bfdbfe; min-width:0; box-sizing:border-box; height:680px; max-height:680px; gap:8px; overflow:hidden;">
+                    <div style="display:grid; grid-template-columns: minmax(0, 1fr) 300px; gap:16px; width:100%; box-sizing:border-box; height:840px; max-height:840px; align-items:stretch;">
+                      <!-- 阶段三左侧卡片：高度统一为 840px；答辩页自适应内部滚动，终稿页与阶段二一样带贡献度 -->
+                      <div class="card" style="padding:16px 18px; display:flex; flex-direction:column; border:1px solid #bfdbfe; min-width:0; box-sizing:border-box; height:840px; max-height:840px; gap:8px; overflow:hidden;">
                         <div style="flex-shrink:0; font-size:15.5px; font-weight:800; color:#1e40af; display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #e2e8f0; padding-bottom:8px;">
                           <span>🎓 阶段三实操同屏: 答辩擂台与终稿 (${activeMonitorGroup.name})</span>
                           <div style="display:flex; gap:6px;">
@@ -1538,7 +1548,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
                             <span style="font-size:12px; color:#64748b;">终稿字数: <b id="teacher-stage3-word-count-num" style="color:#2563eb; font-size:14px;">${((state.stage3?.finalDraft || state.stage2?.unifiedContent || '').replace(/<[^>]*>/g, '').trim()).length}</b> 字</span>
                           </div>
                           ${(state.currentStage === 'stage1' || state.currentStage === 'stage2') ? `
-                            <div style="flex:1; min-height:420px; display:flex; flex-direction:column; align-items:center; justify-content:center; border-radius:8px; border:1.5px dashed #cbd5e1; background:#ffffff; color:#64748b; padding:24px; text-align:center; gap:8px;">
+                            <div style="flex:1; min-height:560px; display:flex; flex-direction:column; align-items:center; justify-content:center; border-radius:8px; border:1.5px dashed #cbd5e1; background:#ffffff; color:#64748b; padding:24px; text-align:center; gap:8px;">
                               <span style="font-size:32px;">⏳</span>
                               <span style="font-size:14px; font-weight:700; color:#334155;">小组尚未进入阶段三论文终稿与答辩阶段</span>
                               <span style="font-size:12px; color:#94a3b8;">待小组进入阶段三后，此处将自动实时呈现论文终稿镜像</span>
@@ -1547,7 +1557,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
                             const rawPadName = `jizhi_${activeTaskId}_${activeMonitorGId}`;
                             const effectivePadName = (state._readOnlyPadMap && state._readOnlyPadMap[rawPadName]) ? state._readOnlyPadMap[rawPadName] : rawPadName;
                             return `
-                              <div class="teacher-etherpad-container" style="flex:1; min-height:420px; border-radius:8px; overflow:hidden; border:1.5px solid #cbd5e1; box-shadow:0 2px 8px rgba(15,23,42,0.04); background:#ffffff; position:relative; display:flex; flex-direction:column;">
+                              <div class="teacher-etherpad-container" style="flex:1; min-height:560px; border-radius:8px; overflow:hidden; border:1.5px solid #cbd5e1; box-shadow:0 2px 8px rgba(15,23,42,0.04); background:#ffffff; position:relative; display:flex; flex-direction:column;">
                                 <div style="display:flex; justify-content:space-between; align-items:center; background:#f8fafc; border-bottom:1px solid #e2e8f0; padding:6px 12px; font-size:12px; color:#475569; flex-shrink:0;">
                                   <div style="display:flex; align-items:center; gap:8px;">
                                     <span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:#10b981;"></span>
@@ -1555,7 +1565,11 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
                                   </div>
                                   <span style="font-size:11px; background:#ecfdf5; color:#059669; border:1px solid #a7f3d0; padding:1px 8px; border-radius:4px; font-weight:700;">只读监控</span>
                                 </div>
-                                <iframe id="teacher-stage3-etherpad-frame" src="/p/${encodeURIComponent(effectivePadName)}?userName=${encodeURIComponent('教师监控')}&userColor=%237c3aed&showControls=false&showChat=false&showLineNumbers=true&lang=zh-hans" style="flex:1; width:100%; height:100%; min-height:380px; border:none; display:block; background:#ffffff;" title="教师端论文终稿同屏镜像 (只读)"></iframe>
+                                <div style="position:relative; flex:1; width:100%; height:100%; min-height:520px; display:flex;">
+                                  <!-- 🛡️ 教师端只读工具栏点击阻断遮罩（防止教师误触工具按钮） -->
+                                  <div style="position:absolute; top:0; left:0; width:100%; height:44px; z-index:15; pointer-events:auto; cursor:not-allowed;" title="只读阅卷监控模式 (工具栏已锁定，仅供教师阅览)"></div>
+                                  <iframe id="teacher-stage3-etherpad-frame" src="/p/${encodeURIComponent(effectivePadName)}?userName=${encodeURIComponent('教师监控')}&userColor=%237c3aed&showControls=false&showChat=false&showLineNumbers=true&lang=zh-hans" style="flex:1; width:100%; height:100%; min-height:520px; border:none; display:block; background:#ffffff;" title="教师端论文终稿同屏镜像 (只读)"></iframe>
+                                </div>
                               </div>
                             `;
                           })()}
