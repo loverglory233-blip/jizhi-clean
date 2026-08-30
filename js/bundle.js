@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260830_v764
+ * Version: 20260830_v765
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260830_v764';
+  const APP_VERSION = '20260830_v765';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -7861,10 +7861,6 @@
             </div>
           </div>
           <div class="header-controls" style="display:flex; align-items:center; gap:10px;">
-            <button id="btn-portal-ann-bell" style="position:relative; background:#eff6ff; color:#1d4ed8; border:1.5px solid #bfdbfe; padding:6px 14px; border-radius:18px; font-size:12px; font-weight:700; cursor:pointer; display:flex; align-items:center; gap:4px;" title="查看本班教学通知与延期通知">
-              <span>📢 教学通知</span>
-              ${unreadAnnCount > 0 ? `<span style="background:#ef4444; color:#ffffff; font-size:10.5px; font-weight:800; padding:1px 6px; border-radius:10px; box-shadow:0 1px 4px rgba(239,68,68,0.4);">${unreadAnnCount}</span>` : ''}
-            </button>
             <button id="btn-portal-change-pwd" style="background:#f0fdf4; color:#16a34a; border:1px solid #bbf7d0; padding:6px 14px; border-radius:18px; font-size:12px; font-weight:700; cursor:pointer;" title="修改登录密码">🔑 修改密码</button>
             <button id="btn-portal-logout" style="background:#fef2f2; color:#dc2626; border:1px solid #fecaca; padding:6px 14px; border-radius:18px; font-size:12px; font-weight:700; cursor:pointer;">🚪 退出登录</button>
           </div>
@@ -8019,9 +8015,6 @@
       authManager.openChangePasswordModal();
     });
     container.querySelector('#btn-portal-switch-teacher')?.addEventListener('click', () => onSwitchTeacher());
-    container.querySelector('#btn-portal-ann-bell')?.addEventListener('click', () => {
-      if (onOpenAnnModal) onOpenAnnModal();
-    });
     container.querySelector('#btn-enter-default-workspace')?.addEventListener('click', () => onSelectTask(null));
     container.querySelectorAll('.btn-enter-task-workspace').forEach(btn => {
       btn.addEventListener('click', () => onSelectTask(btn.dataset.taskId));
