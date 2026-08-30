@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles } from "./constants.js?v=20260830_v745";
-import { callCozeAgentAPI } from "./agents.js?v=20260830_v745";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs } from "./utils.js?v=20260830_v745";
+import { AgentProfiles } from "./constants.js?v=20260830_v746";
+import { callCozeAgentAPI } from "./agents.js?v=20260830_v746";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs } from "./utils.js?v=20260830_v746";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -123,6 +123,7 @@ export function renderHeader(state, currentUser, announcements, onStageChange, o
 
 export function renderCanvas(state, handlers) {
   const canvas = document.getElementById('canvas-panel');
+  if (!canvas) return;
   if (state.currentStage === 'stage1') renderStage1Canvas(canvas, state, handlers);
   else if (state.currentStage === 'stage2') renderStage2Canvas(canvas, state, handlers);
   else if (state.currentStage === 'stage3') renderStage3Canvas(canvas, state, handlers);
@@ -859,6 +860,7 @@ export function renderRemoteCursors(editorId, state) {
 }
 
 function renderStage1Canvas(canvas, state, handlers) {
+  if (!canvas) return;
   // 🛡️ 焦点保护：记录当前正在打字的输入框与光标位置，防止短轮询重绘导致失焦与吞字
   const activeEl = canvas.querySelector('input:focus, textarea:focus');
   const activeKey = activeEl ? (activeEl.id || activeEl.dataset.key || activeEl.dataset.mkey) : null;
@@ -1779,6 +1781,7 @@ function renderStage1Canvas(canvas, state, handlers) {
 }
 
 function renderStage2Canvas(canvas, state, handlers) {
+  if (!canvas) return;
   const s2 = state.stage2;
   // 🧹 自动清理旧版本残留的预设提纲模版，确保初始纯净 0 字
   if (s2.unifiedContent && (s2.unifiedContent.includes('一、研究背景与意义') || s2.unifiedContent.includes('请在此处撰写正文'))) {
