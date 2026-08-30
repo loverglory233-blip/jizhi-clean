@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260830_v769
+ * Version: 20260830_v770
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260830_v769';
+  const APP_VERSION = '20260830_v770';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -2878,7 +2878,7 @@
 
       const isHidden = () => document.hidden || document.visibilityState === 'hidden';
       const isIdle = () => isHidden() || (Date.now() - lastUserActivity > 600000);
-      const getPollInterval = () => (isHidden() ? 10000 : (isIdle() ? 3000 : 500));
+      const getPollInterval = () => (isHidden() ? 10000 : (isIdle() ? 3000 : 1000));
       const getPingInterval = () => (isHidden() ? 30000 : (isIdle() ? 10000 : 3000));
 
       const runPoll = () => {

@@ -1553,8 +1553,14 @@ if ($action === 'extend_task_deadline' && $_SERVER['REQUEST_METHOD'] === 'POST')
 
         $taskFound = false;
         $updatedTask = null;
+        $reqTitle = trim($req['taskTitle'] ?? '');
+
         foreach ($gm['tasks'] as &$tsk) {
-            if (isset($tsk['id']) && $tsk['id'] === $taskId) {
+            $isIdMatch = isset($tsk['id']) && ($tsk['id'] === $taskId || 
+                (strpos($taskId, 'default') !== false && strpos($tsk['id'], 'default') !== false));
+            $isTitleMatch = (!empty($reqTitle) && isset($tsk['title']) && $tsk['title'] === $reqTitle);
+
+            if ($isIdMatch || $isTitleMatch) {
                 $tsk['deadline'] = $newDeadline;
                 if ($addedMinutes > 0) {
                     $tsk['durationMinutes'] = (intval($tsk['durationMinutes'] ?? 150)) + $addedMinutes;
@@ -1566,7 +1572,6 @@ if ($action === 'extend_task_deadline' && $_SERVER['REQUEST_METHOD'] === 'POST')
                 ];
                 $updatedTask = $tsk;
                 $taskFound = true;
-                break;
             }
         }
         unset($tsk);
