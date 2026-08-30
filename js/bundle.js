@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260830_v748
+ * Version: 20260830_v749
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260830_v748';
+  const APP_VERSION = '20260830_v749';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -3718,18 +3718,20 @@
     const effectiveMonitorStage = monitorStageMode === 'auto' ? (state.currentStage || 'stage1') : monitorStageMode;
     const currentS3Tab = state.stage3TeacherTab || 'defense';
 
-    // 🛡️ 教师端单例保护：若当前已经在 view_monitoring 标签下且监控同一个班级/小组/任务/阶段/子页，优先执行增量就地更新，杜绝 innerHTML 重写导致 Etherpad iframe 重新加载与滚动回弹！
+    // 🛡️ 教师端单例保护：若当前已经在 view_monitoring 标签下且监控同一个班级/小组/任务/阶段/模式/子页，优先执行增量就地更新
     const existingLayout = container.querySelector('.teacher-portal-layout');
     const renderedCId = container.dataset.renderedClassId;
     const renderedGId = container.dataset.renderedGroupId;
     const renderedTaskId = container.dataset.renderedTaskId;
     const renderedStage = container.dataset.renderedStage;
+    const renderedMode = container.dataset.renderedMode;
     const renderedS3Tab = container.dataset.renderedS3Tab;
     const renderedTab = container.dataset.renderedTab;
 
     if (existingLayout && activeTab === 'view_monitoring' && renderedTab === 'view_monitoring' &&
         renderedCId === activeClassId && renderedGId === activeMonitorGId &&
         renderedTaskId === effectiveMonitorTaskId && renderedStage === effectiveMonitorStage &&
+        renderedMode === monitorStageMode &&
         (effectiveMonitorStage !== 'stage3' || renderedS3Tab === currentS3Tab)) {
 
       // 1. Stage 2 in-place update
@@ -4800,16 +4802,16 @@
                   </div>
                   <div style="display:flex; align-items:center; gap:8px;">
                     <span style="font-size:12px; color:#64748b; font-weight:600;">🔀 切换同屏切页:</span>
-                    <button class="btn-monitor-stage-tab ${monitorStageMode === 'auto' ? 'active' : ''}" data-stg="auto" style="background:${monitorStageMode === 'auto' ? '#ecfdf5' : '#f8fafc'}; border:1px solid ${monitorStageMode === 'auto' ? '#a7f3d0' : '#e2e8f0'}; color:${monitorStageMode === 'auto' ? '#059669' : '#475569'}; padding:6px 12px; border-radius:8px; font-size:12px; font-weight:700; cursor:pointer;">
+                    <button class="btn-monitor-stage-tab ${monitorStageMode === 'auto' ? 'active' : ''}" data-stg="auto" style="background:${monitorStageMode === 'auto' ? '#ecfdf5' : '#ffffff'}; border:${monitorStageMode === 'auto' ? '1.5px solid #10b981' : '1px solid #cbd5e1'}; color:${monitorStageMode === 'auto' ? '#059669' : '#64748b'}; padding:6px 14px; border-radius:8px; font-size:12px; font-weight:${monitorStageMode === 'auto' ? '800' : '600'}; cursor:pointer; box-shadow:${monitorStageMode === 'auto' ? '0 1px 4px rgba(16,185,129,0.2)' : 'none'};">
                       ⚡ 自动跟随 (${actualStage === 'stage1' ? '阶段一' : actualStage === 'stage2' ? '阶段二' : '阶段三'}) 🟢
                     </button>
-                    <button class="btn-monitor-stage-tab ${monitorStageMode === 'stage1' ? 'active' : ''}" data-stg="stage1" style="background:${monitorStageMode === 'stage1' ? '#eff6ff' : '#f8fafc'}; border:1px solid ${monitorStageMode === 'stage1' ? '#bfdbfe' : '#e2e8f0'}; color:${monitorStageMode === 'stage1' ? '#1d4ed8' : '#475569'}; padding:6px 12px; border-radius:8px; font-size:12px; font-weight:700; cursor:pointer;">
+                    <button class="btn-monitor-stage-tab ${monitorStageMode === 'stage1' ? 'active' : ''}" data-stg="stage1" style="background:${monitorStageMode === 'stage1' ? '#eff6ff' : '#ffffff'}; border:${monitorStageMode === 'stage1' ? '1.5px solid #2563eb' : '1px solid #cbd5e1'}; color:${monitorStageMode === 'stage1' ? '#1d4ed8' : '#64748b'}; padding:6px 14px; border-radius:8px; font-size:12px; font-weight:${monitorStageMode === 'stage1' ? '800' : '600'}; cursor:pointer; box-shadow:${monitorStageMode === 'stage1' ? '0 1px 4px rgba(37,99,235,0.2)' : 'none'};">
                       🎪 查看阶段一
                     </button>
-                    <button class="btn-monitor-stage-tab ${monitorStageMode === 'stage2' ? 'active' : ''}" data-stg="stage2" style="background:${monitorStageMode === 'stage2' ? '#eff6ff' : '#f8fafc'}; border:1px solid ${monitorStageMode === 'stage2' ? '#bfdbfe' : '#e2e8f0'}; color:${monitorStageMode === 'stage2' ? '#1d4ed8' : '#475569'}; padding:6px 12px; border-radius:8px; font-size:12px; font-weight:700; cursor:pointer;">
+                    <button class="btn-monitor-stage-tab ${monitorStageMode === 'stage2' ? 'active' : ''}" data-stg="stage2" style="background:${monitorStageMode === 'stage2' ? '#eff6ff' : '#ffffff'}; border:${monitorStageMode === 'stage2' ? '1.5px solid #2563eb' : '1px solid #cbd5e1'}; color:${monitorStageMode === 'stage2' ? '#1d4ed8' : '#64748b'}; padding:6px 14px; border-radius:8px; font-size:12px; font-weight:${monitorStageMode === 'stage2' ? '800' : '600'}; cursor:pointer; box-shadow:${monitorStageMode === 'stage2' ? '0 1px 4px rgba(37,99,235,0.2)' : 'none'};">
                       📰 查看阶段二
                     </button>
-                    <button class="btn-monitor-stage-tab ${monitorStageMode === 'stage3' ? 'active' : ''}" data-stg="stage3" style="background:${monitorStageMode === 'stage3' ? '#eff6ff' : '#f8fafc'}; border:1px solid ${monitorStageMode === 'stage3' ? '#bfdbfe' : '#e2e8f0'}; color:${monitorStageMode === 'stage3' ? '#1d4ed8' : '#475569'}; padding:6px 12px; border-radius:8px; font-size:12px; font-weight:700; cursor:pointer;">
+                    <button class="btn-monitor-stage-tab ${monitorStageMode === 'stage3' ? 'active' : ''}" data-stg="stage3" style="background:${monitorStageMode === 'stage3' ? '#eff6ff' : '#ffffff'}; border:${monitorStageMode === 'stage3' ? '1.5px solid #2563eb' : '1px solid #cbd5e1'}; color:${monitorStageMode === 'stage3' ? '#1d4ed8' : '#64748b'}; padding:6px 14px; border-radius:8px; font-size:12px; font-weight:${monitorStageMode === 'stage3' ? '800' : '600'}; cursor:pointer; box-shadow:${monitorStageMode === 'stage3' ? '0 1px 4px rgba(37,99,235,0.2)' : 'none'};">
                       🎓 查看阶段三
                     </button>
                   </div>
@@ -5297,6 +5299,7 @@
     container.dataset.renderedGroupId = activeMonitorGId;
     container.dataset.renderedTaskId = effectiveMonitorTaskId;
     container.dataset.renderedStage = effectiveMonitorStage;
+    container.dataset.renderedMode = monitorStageMode;
     container.dataset.renderedS3Tab = currentS3Tab;
     container.dataset.renderedTab = activeTab;
 
