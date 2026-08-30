@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState } from './constants.js?v=20260830_v762';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal } from './utils.js?v=20260830_v762';
+import { InitialState } from './constants.js?v=20260830_v763';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal } from './utils.js?v=20260830_v763';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -15,8 +15,10 @@ export class CloudSyncEngine {
     this.isInitialPullDone = false;
     this.isLoggingOut = false;
     this.pollTimer = null;
+    this._knownTaskDeadlines = {};
     this.updateScopeKeys();
     this.initPolling();
+    this.initGlobalBroadcast();
   }
 
   getEffectiveGroupId() {
@@ -70,6 +72,62 @@ export class CloudSyncEngine {
           }
         };
       } catch (e) {}
+    }
+  }
+
+  initGlobalBroadcast() {
+    if ('BroadcastChannel' in window) {
+      try {
+        if (this.globalBc) { try { this.globalBc.close(); } catch (e) {} }
+        this.globalBc = new BroadcastChannel('jizhi_global_events');
+        this.globalBc.onmessage = (e) => {
+          if (e.data && e.data.type === 'task_extended' && e.data.task) {
+            const t = e.data.task;
+            this._knownTaskDeadlines[t.id] = t.deadline;
+            this.handleTaskDeadlineChange(t, e.data.prevDeadline);
+          }
+        };
+      } catch (e) {}
+    }
+  }
+
+  handleTaskDeadlineChange(t, prevDeadline) {
+    const currentUser = this.app.authManager ? this.app.authManager.getCurrentUser() : null;
+    const isTeacher = currentUser && (currentUser.role === 'teacher' || currentUser.isTeacher);
+    
+    // 🛡️ 教师端自身延期操作绝不给自己弹窗
+    if (isTeacher) return;
+
+    const prevExpired = isTaskExpired(prevDeadline);
+    const nowExpired = isTaskExpired(t.deadline);
+    const isWorkspace = (this.app.state.studentViewMode === 'workspace');
+    const isCurrentTask = (isWorkspace && this.app.state.activeTaskId === t.id);
+    const isTaskHall = (this.app.state.studentViewMode === 'task_list' || !isWorkspace);
+
+    if (isCurrentTask) {
+      // 🎯 场景 1：学生正处于该任务工作台内部（无论此前是否截止，统一弹出中央仪式感卡片）
+      document.querySelectorAll('.etherpad-readonly-shield').forEach(s => s.remove());
+      const f2 = document.getElementById('stage2-etherpad-frame');
+      if (f2 && f2.src.includes('showControls=false') && !nowExpired) {
+        f2.src = f2.src.replace('showControls=false', 'showControls=true');
+      }
+      const f3 = document.getElementById('stage3-etherpad-frame');
+      if (f3 && f3.src.includes('showControls=false') && !nowExpired) {
+        f3.src = f3.src.replace('showControls=false', 'showControls=true');
+      }
+      this.app.renderHeader();
+      showTaskExtendedUnlockModal(t, prevDeadline, prevExpired && !nowExpired);
+      if (prevExpired && !nowExpired) {
+        this.app.renderStudentWorkspace();
+      }
+    } else if (isTaskHall) {
+      // 📋 场景 2：学生在任务大厅
+      this.app.renderStudentWorkspace();
+      showGlobalBannerNotice('🔔 任务延期通知', `写作任务《${t.title || '协作任务'}》截止时间已延长至 ${t.deadline}！`, 'info');
+    } else {
+      // ✍️ 场景 3：学生在另一个不同的任务内
+      showGlobalBannerNotice('🔔 课程任务延期提醒', `您的另一项写作任务《${t.title || '协作任务'}》截止时间已延长至 ${t.deadline}。`, 'info');
+      this.app.renderHeader();
     }
   }
 
@@ -372,52 +430,19 @@ export class CloudSyncEngine {
     if (this.app.authManager) {
       if (Array.isArray(remoteData.tasks) && remoteData.tasks.length > 0) {
         const key = 'jizhi_pure_v10_tasks_db';
-        const localStr = localStorage.getItem(key) || '[]';
         const remoteStr = JSON.stringify(remoteData.tasks);
-        if (localStr !== remoteStr) {
-          let prevTasks = [];
-          try { prevTasks = JSON.parse(localStr); } catch (e) {}
-          localStorage.setItem(key, remoteStr);
+        localStorage.setItem(key, remoteStr);
 
-          // ⚡ 检测任务延期并根据三大场景智能响应
-          if (Array.isArray(prevTasks) && prevTasks.length > 0) {
-            remoteData.tasks.forEach(t => {
-              const prev = prevTasks.find(p => p.id === t.id);
-              if (prev && t.deadline && prev.deadline && t.deadline !== prev.deadline) {
-                const prevExpired = isTaskExpired(prev.deadline);
-                const nowExpired = isTaskExpired(t.deadline);
-                const isCurrentTask = (this.app.state.activeTaskId === t.id && this.app.state.currentView !== 'student_portal' && !this.app.state.isTeacherPortal);
-                const isTaskHall = (this.app.state.currentView === 'student_portal' || !this.app.state.activeTaskId);
-
-                if (isCurrentTask) {
-                  // 🎯 场景 1：学生正处于该任务工作台内部（无论此前是否截止，统一弹出中央仪式感卡片）
-                  document.querySelectorAll('.etherpad-readonly-shield').forEach(s => s.remove());
-                  const f2 = document.getElementById('stage2-etherpad-frame');
-                  if (f2 && f2.src.includes('showControls=false') && !nowExpired) {
-                    f2.src = f2.src.replace('showControls=false', 'showControls=true');
-                  }
-                  const f3 = document.getElementById('stage3-etherpad-frame');
-                  if (f3 && f3.src.includes('showControls=false') && !nowExpired) {
-                    f3.src = f3.src.replace('showControls=false', 'showControls=true');
-                  }
-                  this.app.renderHeader();
-                  showTaskExtendedUnlockModal(t, prev.deadline, prevExpired && !nowExpired);
-                  if (prevExpired && !nowExpired) {
-                    this.app.renderStudentWorkspace();
-                  }
-                } else if (isTaskHall) {
-                  // 📋 场景 2：学生在任务大厅
-                  this.app.renderStudentWorkspace();
-                  showGlobalBannerNotice('🔔 任务延期通知', `写作任务《${t.title || '协作任务'}》截止时间已延长至 ${t.deadline}，协作通道已重新开启！`, 'info');
-                } else {
-                  // ✍️ 场景 3：学生在另一个不同的任务内
-                  showGlobalBannerNotice('🔔 课程任务延期提醒', `您的另一项写作任务《${t.title || '协作任务'}》截止时间已延长至 ${t.deadline}。`, 'info');
-                  this.app.renderHeader();
-                }
-              }
-            });
+        remoteData.tasks.forEach(t => {
+          if (!t || !t.id) return;
+          const oldDeadline = this._knownTaskDeadlines[t.id];
+          if (oldDeadline !== undefined && t.deadline && oldDeadline !== t.deadline) {
+            this._knownTaskDeadlines[t.id] = t.deadline;
+            this.handleTaskDeadlineChange(t, oldDeadline);
+          } else if (t.deadline) {
+            this._knownTaskDeadlines[t.id] = t.deadline;
           }
-        }
+        });
       }
       if (Array.isArray(remoteData.users) && remoteData.users.length > 0) {
         const key = 'jizhi_pure_v10_users_db';
