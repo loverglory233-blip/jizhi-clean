@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260830_v849
+ * Version: 20260830_v850
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260830_v849';
+  const APP_VERSION = '20260830_v850';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -11968,18 +11968,36 @@
             setTimeout(() => { this._isExitingDeletedTask = false; }, 3000);
             return;
           }
-        } else {
-          // 🛡️ 2. 任务大厅实时感知：如果当前停留在任务大厅，感知教师端新建任务或删除任务，自动更新大厅卡片
-          const effClassId = this.state.activeStudentClassId || currUserObj.classId || 'class_101';
-          const effGroup = this.authManager ? this.authManager.getStudentActiveGroup(currUserObj, effClassId) : null;
-          const visibleTasks = allTasks.filter(t => {
-            if (t.classId && t.classId !== effClassId) return false;
-            if (t.targetGroupId && effGroup && t.targetGroupId !== effGroup.id) return false;
-            return true;
-          });
+        }
+
+        // 🛡️ 2. 全局新任务发布感知与顶部横幅通知：无论在工作台内还是大厅，新任务发布均有横幅提示
+        const effClassId = this.state.activeStudentClassId || currUserObj.classId || 'class_101';
+        const effGroup = this.authManager ? this.authManager.getStudentActiveGroup(currUserObj, effClassId) : null;
+        const visibleTasks = allTasks.filter(t => {
+          if (t.classId && t.classId !== effClassId) return false;
+          if (t.targetGroupId && effGroup && t.targetGroupId !== effGroup.id) return false;
+          return true;
+        });
+
+        const currentTaskIds = new Set(visibleTasks.map(t => t.id));
+        if (this._knownTaskIdsSet) {
+          const newlyAddedTasks = visibleTasks.filter(t => !this._knownTaskIdsSet.has(t.id));
+          if (newlyAddedTasks.length > 0) {
+            const newestTask = newlyAddedTasks[0];
+            console.log('📢 教师端发布了新任务:', newestTask.title);
+            showGlobalAnnouncementBanner({
+              title: '📢 教师发布了新协作任务',
+              content: `任课教师刚刚发布了新任务：《<b>${escapeHtml(newestTask.title || '新协作任务')}</b>》！可随时在任务大厅进入协作。`
+            }, 8000);
+          }
+        }
+        this._knownTaskIdsSet = currentTaskIds;
+
+        // 若处于任务大厅，感知任务变动后自动刷新大厅卡片
+        if (!this.state.activeTaskId) {
           const currentTaskHash = visibleTasks.map(t => `${t.id}_${t.updatedAt || t.createdAt || ''}`).join('|');
           if (this._lastVisibleTaskHash && this._lastVisibleTaskHash !== currentTaskHash) {
-            console.log('🔄 任务大厅检测到教师端发布了新任务或更新了任务，自动刷新大厅');
+            console.log('🔄 任务大厅检测到任务列表变动，自动刷新大厅呈现');
             this._lastVisibleTaskHash = currentTaskHash;
             this.renderStudentWorkspace();
           } else {
