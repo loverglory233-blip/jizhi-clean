@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles } from "./constants.js?v=20260830_v779";
-import { callCozeAgentAPI } from "./agents.js?v=20260830_v779";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly } from "./utils.js?v=20260830_v779";
+import { AgentProfiles } from "./constants.js?v=20260830_v780";
+import { callCozeAgentAPI } from "./agents.js?v=20260830_v780";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly } from "./utils.js?v=20260830_v780";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -1810,8 +1810,7 @@ function renderStage2Canvas(canvas, state, handlers) {
   const confirmedDraftCount = membersList.filter(m => isMemberDone(confirmedDraftMap, m)).length;
   const totalCount = membersList.length || 3;
   const currUserCode = state.currentUser || (currUser ? currUser.studentCode : 'A');
-  const isUserDraftConfirmed = isMemberDone(confirmedDraftMap, { id: currUserCode, studentCode: currUser?.studentCode, username: currUser?.username, name: currUser?.name });
-  const isDraftFullyConfirmed = s2.isDraftConfirmed || (confirmedDraftCount >= totalCount && totalCount > 0) || (state.groupMaxStage === 'stage3');
+  const isDraftFullyConfirmed = s2.isDraftConfirmed || (confirmedDraftCount >= totalCount && totalCount > 0) || (state.groupMaxStage === 'stage3') || state.isFinalSubmitted;
   const meetingSubs = s2.meetingSubmissions || {};
   const isStage2MeetingLocked = s2.isMeetingLocked || (Object.keys(meetingSubs).length >= totalCount && totalCount > 0) || isDraftFullyConfirmed;
   const isEditorReadonly = state.isFinalSubmitted || isTaskDeadlineExpired || (state.groupMaxStage === 'stage3') || isDraftFullyConfirmed;
