@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260831_v967
+ * Version: 20260831_v968
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260831_v967';
+  const APP_VERSION = '20260831_v968';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -10350,10 +10350,12 @@
       let rawTotal = 0;
       membersList.forEach(m => { rawTotal += getMemberContribVal(contribs, m); });
 
+      const docLen = (state.stage2 && state.stage2.unifiedContent) ? state.stage2.unifiedContent.length : 0;
       const newLabelsHtml = membersList.map((m) => {
         const rawVal = getMemberContribVal(contribs, m);
         const pct = rawTotal > 0 ? Math.round((rawVal / rawTotal) * 100) : 0;
-        return `<span style="color:${rawVal > 0 ? (m.color || '#2563eb') : '#94a3b8'}; font-weight:700;">● ${m.name}: ${pct}% (${rawVal}字)</span>`;
+        const displayWords = (docLen > 0 && rawTotal > 0) ? Math.round((rawVal / rawTotal) * docLen) : rawVal;
+        return `<span style="color:${rawVal > 0 ? (m.color || '#2563eb') : '#94a3b8'}; font-weight:700;">● ${m.name}: ${pct}% (${displayWords}字)</span>`;
       }).join('');
 
       if (labelsEl.innerHTML !== newLabelsHtml) {
@@ -12007,10 +12009,12 @@
         let rawTotal = 0;
         membersList.forEach(m => { rawTotal += getVal(m); });
 
+        const docLen = (this.state.stage2 && this.state.stage2.unifiedContent) ? this.state.stage2.unifiedContent.length : 0;
         contribLabelsContainer.innerHTML = membersList.map((m) => {
           const rawVal = getVal(m);
           const pct = rawTotal > 0 ? Math.round((rawVal / rawTotal) * 100) : 0;
-          return `<span style="color:${rawVal > 0 ? (m.color || '#2563eb') : '#94a3b8'}; font-weight:700;">● ${m.name}: ${pct}% (${rawVal}字)</span>`;
+          const displayWords = (docLen > 0 && rawTotal > 0) ? Math.round((rawVal / rawTotal) * docLen) : rawVal;
+          return `<span style="color:${rawVal > 0 ? (m.color || '#2563eb') : '#94a3b8'}; font-weight:700;">● ${m.name}: ${pct}% (${displayWords}字)</span>`;
         }).join('');
 
         if (rawTotal === 0) {
@@ -16657,50 +16661,58 @@
       }
 
       // 3. 🤝 责任编辑 Agent: 字数贡献比严重偏斜提醒 (SSRL 共享调节)
-      // 智能全维度过滤：
-      // ① 必须至少有 2 名及以上组员【当前真实在线活跃】（30秒内有心跳/操作），如果人都不在线则绝不自言自语汇报！
-      // ② 每次提醒后至少间隔 15 分钟 (900秒) 冷却期；
-      // ③ 正文相比上次提醒至少新增推进了 150 字；
-      const presence = this.state.presence || {};
-      const activeOnlineCount = membersList.filter(m => {
-        const p = presence[m.studentCode] || presence[m.id];
-        return p && (now - (p.updatedAt || 0) < 30000); // 30秒内有活跃操作判定为在线
-      }).length;
-
       const plainLen = newContent.replace(/<[^>]*>/g, '').trim().length;
       const lastWarnTime = this.state.lastSSRLWarnTimeMs || 0;
       const lastWarnLen = this.state.lastSSRLWarnLen || 0;
-      const ssrlCooldownMs = isLargeTask ? 480000 : 360000;
-      const minNewProgressLen = isLargeTask ? 120 : 60;
-      const minContribThreshold = isLargeTask ? 600 : 300;
+      const ssrlCooldownMs = isLargeTask ? 600000 : 480000;
+      const minNewProgressLen = isLargeTask ? 200 : 100;
+      const minContribThreshold = isLargeTask ? 800 : 500;
       const cooldownPassed = (now - lastWarnTime) >= ssrlCooldownMs;
-      const hasMeaningfulProgress = (plainLen - lastWarnLen) >= minNewProgressLen; // 且写了新内容
+      const hasMeaningfulProgress = (plainLen - lastWarnLen) >= minNewProgressLen;
 
-      if (plainLen >= minContribThreshold && membersList.length >= 2 && cooldownPassed && (lastWarnTime === 0 || hasMeaningfulProgress)) {
+      // 🛡️ 严格聊天流去重：若最近 8 分钟内已有协同关怀记录，绝对禁止重复下发！
+      const recentSsrlMsg = [...logs].reverse().find(m => m && m.sender === 'managingEditor' && m.text?.includes('协同关怀'));
+      const isRecentSsrlSent = recentSsrlMsg && (now - Number(recentSsrlMsg._timeMs || 0) < ssrlCooldownMs);
+
+      if (!isRecentSsrlSent && plainLen >= minContribThreshold && membersList.length >= 2 && cooldownPassed && (lastWarnTime === 0 || hasMeaningfulProgress)) {
         const contribs = this.state.stage2.memberContributions || {};
+        const getVal = (m) => {
+          if (!m) return 0;
+          const keys = [m.studentCode, m.id, m.username, m.name].filter(Boolean);
+          let maxVal = 0;
+          for (const k of keys) {
+            if (contribs[k] !== undefined && Number(contribs[k]) > maxVal) {
+              maxVal = Number(contribs[k]);
+            }
+          }
+          return maxVal;
+        };
+
         let totalContrib = 0;
-        membersList.forEach(m => { totalContrib += (contribs[m.id] || contribs[m.studentCode] || 0); });
+        membersList.forEach(m => { totalContrib += getVal(m); });
 
         if (totalContrib >= minContribThreshold || plainLen >= minContribThreshold) {
-          // 方案 A 规则：检查是否存在显著失衡：某位成员占比 >= 55%，且有成员贡献率 <= 15%
+          // 规则：仅当组内出现极端失衡（某位成员独揽 >= 75% 且有在场成员 <= 10%）时才介入
           const pcts = membersList.map(m => {
-            const val = (contribs[m.id] || contribs[m.studentCode] || 0);
+            const val = getVal(m);
             return (totalContrib > 0) ? Math.round((val / totalContrib) * 100) : 0;
           });
-          const hasMaxSkew = Math.max(...pcts) >= 55;
-          const hasZeroMember = Math.min(...pcts) <= 15;
+          const hasMaxSkew = Math.max(...pcts) >= 75;
+          const hasZeroMember = Math.min(...pcts) <= 10;
 
           if (hasMaxSkew && hasZeroMember) {
-            this.state.lastSSRLWarnTimeMs = now; // 记录本次提醒时间，开启自适应静默期
+            this.state.lastSSRLWarnTimeMs = now;
             this.state.lastSSRLWarnLen = plainLen;
             const ssrlWarningMsg = {
               sender: 'managingEditor',
+              senderName: '协同调度 · 责任编辑',
               text: `🤝 【责任编辑·协同关怀】：关注到当前正文撰写推进中，各成员的投入占比出现了一定程度的分化。建议全组同学在讨论区适度协调分工，鼓励尚未充分动笔的同学认领后续章节，共同推进高质量学术成稿哦~`,
               timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
               _timeMs: now
             };
             logs.push(ssrlWarningMsg);
             this.syncChatLogs();
+            if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
             renderChat(this.state);
           }
         }
