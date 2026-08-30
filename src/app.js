@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260830_v898";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch } from "./utils.js?v=20260830_v898";
-import { callCozeAgentAPI } from "./agents.js?v=20260830_v898";
-import { AuthManager } from "./auth.js?v=20260830_v898";
-import { CloudSyncEngine } from "./sync.js?v=20260830_v898";
-import { renderLoginView } from "./login.js?v=20260830_v898";
-import { renderTeacherPortal } from "./teacher.js?v=20260830_v898";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260830_v898";
+} from "./constants.js?v=20260830_v899";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch } from "./utils.js?v=20260830_v899";
+import { callCozeAgentAPI } from "./agents.js?v=20260830_v899";
+import { AuthManager } from "./auth.js?v=20260830_v899";
+import { CloudSyncEngine } from "./sync.js?v=20260830_v899";
+import { renderLoginView } from "./login.js?v=20260830_v899";
+import { renderTeacherPortal } from "./teacher.js?v=20260830_v899";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260830_v899";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260830_v898";
+} from "./editor.js?v=20260830_v899";
 
 // Make renderChat available on window for sync callbacks
 if (typeof window !== "undefined") {
@@ -950,15 +950,10 @@ export class App {
 
       // 🛡️ 1. 任务存在性检测：如果当前正在某个任务中，但该任务已被教师在后台删除/重置
       const allTasks = this.authManager ? this.authManager.getTasks() : [];
-      if (this.state.activeTaskId) {
+      if (this.state.studentViewMode === 'workspace' && this.state.activeTaskId) {
         const isCurrentTaskAlive = allTasks.some(t => t.id === this.state.activeTaskId);
-        if (!isCurrentTaskAlive && !this._isExitingDeletedTask) {
-          this._isExitingDeletedTask = true;
-          console.warn('⚠️ 当前任务已被教师在后台删除或重置，自动退回至任务大厅');
-          alert('ℹ️ 提示：教师已删除或重置当前任务，系统正在为你返回任务大厅！');
-          this.state.activeTaskId = null;
-          this.renderStudentWorkspace();
-          setTimeout(() => { this._isExitingDeletedTask = false; }, 3000);
+        if (!isCurrentTaskAlive && !this._isHandlingTaskRevoked) {
+          this.showTaskRevokedModal(this.state.activeTaskTitle || '当前写作任务');
           return;
         }
       }

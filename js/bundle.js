@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260830_v898
+ * Version: 20260830_v899
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260830_v898';
+  const APP_VERSION = '20260830_v899';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -7674,17 +7674,7 @@
             submitBtn.innerText = '⏳ 正在上传文献到服务器...';
 
             let serverFileUrl = '';
-            let clientDataUrl = '';
             if (selectedFile.fileObj) {
-              try {
-                clientDataUrl = await new Promise((resolve) => {
-                  const reader = new FileReader();
-                  reader.onload = () => resolve(reader.result);
-                  reader.onerror = () => resolve('');
-                  reader.readAsDataURL(selectedFile.fileObj);
-                });
-              } catch (e) {}
-
               try {
                 const currT = authManager.getCurrentUser();
                 const tId = (currT && (currT.studentCode || currT.username || currT.id)) || '';
@@ -12522,15 +12512,10 @@
 
         // 🛡️ 1. 任务存在性检测：如果当前正在某个任务中，但该任务已被教师在后台删除/重置
         const allTasks = this.authManager ? this.authManager.getTasks() : [];
-        if (this.state.activeTaskId) {
+        if (this.state.studentViewMode === 'workspace' && this.state.activeTaskId) {
           const isCurrentTaskAlive = allTasks.some(t => t.id === this.state.activeTaskId);
-          if (!isCurrentTaskAlive && !this._isExitingDeletedTask) {
-            this._isExitingDeletedTask = true;
-            console.warn('⚠️ 当前任务已被教师在后台删除或重置，自动退回至任务大厅');
-            alert('ℹ️ 提示：教师已删除或重置当前任务，系统正在为你返回任务大厅！');
-            this.state.activeTaskId = null;
-            this.renderStudentWorkspace();
-            setTimeout(() => { this._isExitingDeletedTask = false; }, 3000);
+          if (!isCurrentTaskAlive && !this._isHandlingTaskRevoked) {
+            this.showTaskRevokedModal(this.state.activeTaskTitle || '当前写作任务');
             return;
           }
         }
