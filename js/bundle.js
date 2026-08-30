@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260830_v820
+ * Version: 20260830_v821
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260830_v820';
+  const APP_VERSION = '20260830_v821';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -13288,7 +13288,7 @@
           // 2. 若处于【方案细化】状态，识别组员是否讨论了具体方案细节并准备商议分工与时间 (支持多端同步与聊天推导)
           else if (s1.flowStep === 'refining' || this.state.stage1PendingRefinement || (hasTopicEstablished && !hasTaskPromptSent)) {
             const isRefineDoneSignal = /(?:内容|方向|要点|维度|思路|结合|重点|案例|章节|结构|模块|模式|视角|主题|设计|方案|确定|定好|想好|差不多|可以了|赞同|分工|怎么分|谁来写|谁负责|背景|文献|综述|方法|步骤|对象|问卷|分析|实证)/i.test(text);
-            if (isRefineDoneSignal || hasValidConsensusPair || text.length >= 6) {
+            if (isRefineDoneSignal || hasValidConsensusPair) {
               s1.flowStep = 'tasks';
               this.state.stage1PendingRefinement = false;
               this.state.stage1PendingTasks = true;
