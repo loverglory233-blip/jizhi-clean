@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260830_v915
+ * Version: 20260830_v916
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260830_v915';
+  const APP_VERSION = '20260830_v916';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -9606,9 +9606,10 @@
           setTimeout(async () => {
             try {
               const evalPrompt = `小组成员【${authorName}】在选题池${isModify ? '修改完善了' : '提出了新'}研究提案《${title}》。
-  请作为资深学术拍卖师，发表 60~80 字的【选题学术亮点速评与启发】：
+  请作为资深学术拍卖师，仅发表 60~80 字的【选题学术亮点速评与启发】：
   ① 精准肯定该选题的研究切入点或实践价值；
-  ② 给出 1 点前瞻性探究启发，鼓励全组在研讨区就此交流！纯自然语言，60~80字，严禁代码块。`;
+  ② 给出 1 点前瞻性探究启发，鼓励全组在研讨区就此交流！
+  【严格限制】：纯自然语言，60~80字；严禁代码块；严禁提及任何界面按钮、操作引导、下一步流程说明；严禁要求点击任何按钮；仅聚焦对该提案的学术评价本身。`;
 
               let evalText = await callCozeAgentAPI('auctioneer', evalPrompt, { stage: 'stage1', proposalTitle: title, author: authorName, topic: title });
 
@@ -9648,19 +9649,26 @@
               renderChat(state);
             } catch (aiErr) {
               console.warn('[Proposal AI Feedback] Error:', aiErr);
+              const fallbackId = 'eval_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6);
               const fallbackAiMsg = {
-                id: 'eval_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6),
+                id: fallbackId,
                 sender: 'auctioneer',
                 senderName: '头脑风暴 · 学术拍卖师',
-                text: `⚠️ 【学术拍卖师提示】：网络连接波动，可随时在讨论区 @拍卖师 再次提问。`,
+                text: `⚠️ 【学术拍卖师提示】：网络波动，AI 速评未能完成。`,
+                _retryTitle: title,
+                _retryAuthor: authorName,
                 timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
                 _timeMs: Date.now()
               };
               const foundThinking = state.chatLogs[currentStage]?.find(m => m && m.id === tempThinkingId);
               if (foundThinking) {
-                foundThinking.id = fallbackAiMsg.id;
+                foundThinking.id = fallbackId;
                 foundThinking.text = fallbackAiMsg.text;
+                foundThinking._retryTitle = title;
+                foundThinking._retryAuthor = authorName;
                 delete foundThinking.isThinking;
+              } else {
+                state.chatLogs[currentStage].push(fallbackAiMsg);
               }
               if (window.app && typeof window.app.sendSingleChatMessage === 'function') {
                 window.app.sendSingleChatMessage(fallbackAiMsg, currentStage);
@@ -16013,6 +16021,9 @@
                     if (authorMem && authorMem.name) authorName = authorMem.name;
                   }
                   if (!authorName) authorName = p.authorName || p.author || '组员';
+                  // 判断是否为当前用户自己的提案
+                  const isMyProposal = myKeys.has(p.author) || myKeys.has(p.authorName) || myKeys.has(p.authorId) ||
+                    (currentUserObj && (isSameUser(p.author, currentUserObj) || isSameUser(p.authorName, currentUserObj)));
                   return `
                     <div class="proposal-card ${isThisVoted ? 'voted' : ''}" style="display:flex; flex-direction:column; position:relative;">
                       <div class="proposal-header" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
@@ -16022,6 +16033,7 @@
                         </span>
                       </div>
                       <div style="font-size:12px; color:#64748b; margin-bottom:8px;">提出人: <b style="color:#0f172a;">${escapeHtml(authorName)}</b></div>
+                      ${isMyProposal ? `<button class="btn-retry-eval" data-title="${escapeHtml(p.title)}" data-author="${escapeHtml(authorName)}" style="width:100%; margin-bottom:6px; padding:5px 0; font-size:12px; background:#f0fdf4; color:#16a34a; border:1px solid #86efac; border-radius:6px; cursor:pointer;">🔄 重新请求速评</button>` : ''}
                       <button class="${btnClass}" data-id="${p.id}" ${isContractLocked || userHasVoted ? 'disabled' : ''} style="width:100%; margin-top:auto;">${btnText}</button>
                     </div>
                   `;
@@ -16030,6 +16042,17 @@
             `;
             proposalsWrapper.querySelectorAll('.vote-btn:not([disabled])').forEach(btn => {
               btn.addEventListener('click', () => this.handleVoteCast(btn.dataset.id));
+            });
+            proposalsWrapper.querySelectorAll('.btn-retry-eval').forEach(btn => {
+              btn.addEventListener('click', async () => {
+                btn.disabled = true;
+                btn.textContent = '⏳ 请求中...';
+                try {
+                  await this.handleProposalSubmittedAIFeedback(btn.dataset.title, btn.dataset.author, false);
+                } catch(e) {}
+                btn.disabled = false;
+                btn.textContent = '🔄 重新请求速评';
+              });
             });
           } else {
             proposalsWrapper.innerHTML = `
