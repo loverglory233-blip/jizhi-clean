@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260830_v838
+ * Version: 20260830_v839
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260830_v838';
+  const APP_VERSION = '20260830_v839';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -12157,6 +12157,125 @@
             }
           }
 
+          // 4.5 【方案细化 & 分工商议 40s 静默心跳双保险】：不管学生说了什么，只要停止发言超过 40 秒，大模型自动出面总结与推进！
+          const s1AllLogs = this.state.chatLogs?.stage1 || [];
+          let topicEstIdx = -1;
+          for (let i = s1AllLogs.length - 1; i >= 0; i--) {
+            const m = s1AllLogs[i];
+            if (m && m.sender === 'auctioneer' && (m.text.includes('课题确立') || m.text.includes('全票') || m.text.includes('落槌') || m.text.includes('融合课题确立') || m.text.includes('细化探究指引') || m.text.includes('课题细化建议'))) {
+              topicEstIdx = i;
+              break;
+            }
+          }
+          let taskGuidanceIdx = -1;
+          for (let i = s1AllLogs.length - 1; i >= 0; i--) {
+            const m = s1AllLogs[i];
+            if (m && m.sender === 'auctioneer' && (m.text.includes('分工与时间规划') || m.text.includes('分工引导') || m.text.includes('方案细化学术总结') || m.text.includes('方案细化小结'))) {
+              taskGuidanceIdx = i;
+              break;
+            }
+          }
+
+          // A. 方案细化 40s 静默托底 (题目已定，尚未发分工指引)
+          if (topicEstIdx >= 0 && taskGuidanceIdx < 0 && !this._isS1TaskGuidanceInProgress) {
+            const msgsAfterTopic = s1AllLogs.slice(topicEstIdx + 1).filter(m => m && m.sender && !AgentProfiles[m.sender] && m.sender !== 'system');
+            if (msgsAfterTopic.length > 0) {
+              const lastRefineMsg = msgsAfterTopic[msgsAfterTopic.length - 1];
+              const lastRefineTime = lastRefineMsg._timeMs || lastStudentMsgTime;
+              if (now - lastRefineTime >= 40000) {
+                this._isS1TaskGuidanceInProgress = true;
+                s1.flowStep = 'tasks';
+                this.state.stage1PendingRefinement = false;
+                this.state.stage1PendingTasks = true;
+                this.syncStage1();
+                const topic = s1.mergedTitle || '本组研究论题';
+                const userRefineChat = msgsAfterTopic.map(m => `${m.senderName || m.sender}: ${m.text}`).join('\n');
+                const refineSummaryPrompt = `小组成员已就核心课题《${topic}》在讨论区展开了方案细化研讨。
+  【组内关于方案细化的真实研讨记录】:
+  ${userRefineChat}
+
+  请通读上述学生的真实研讨发言，作为资深学术拍卖师，发表 100~130 字的【方案细化学术总结与分工时间引导】：
+  ① 【学术提炼与亮点肯定】：深入通读学生的真实想法，精准提炼并肯定大家商定出的研究设计核心亮点（如明确的学段情境、具体研究方法、实验组对照、核心变量或问卷量表；若学生发言内容较少或无实质，温和鼓励大家继续在讨论区深化）；
+  ② 【分工与时间规划承接】：自然顺承引导全组开始在讨论区商定：1）规划 6 大章节的时间预算（支持平均分配或按黄金比例灵活规划）；2）商定各自的任务分工（可按具体内容模块分工，亦可按章节分工，先定时间还是先定分工由全组自主决定）！
+  （要求：用词学术规范、亲切且富有启发性；纯自然语言输出，100~130字，严禁输出代码块或技术标记）`;
+
+                callCozeAgentAPI('auctioneer', refineSummaryPrompt, { stage: 'stage1', topic }).then(refineSummaryText => {
+                  let finalTaskText = (refineSummaryText && refineSummaryText.trim().length > 0)
+                    ? refineSummaryText.trim()
+                    : `🎪 【拍卖师·分工与时间规划引导】：具体研究内容已基本明晰！👉 接下来请大家在讨论区商定：① 规划 6 大章节的时间预算；② 确定各自的任务分工（大家可以按具体内容模块分工，也可以按章节分工；先定时间还是先定分工由全组自主决定）！`;
+                  if (!finalTaskText.includes('【拍卖师')) {
+                    finalTaskText = `🎪 【拍卖师·方案细化小结与分工引导】：${finalTaskText}`;
+                  }
+                  const taskPromptMsg = {
+                    sender: 'auctioneer',
+                    senderName: '头脑风暴 · 学术拍卖师',
+                    text: finalTaskText,
+                    timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                    _timeMs: Date.now()
+                  };
+                  if (!this.state.chatLogs.stage1) this.state.chatLogs.stage1 = [];
+                  this.state.chatLogs.stage1.push(taskPromptMsg);
+                  this.syncChatLogs();
+                  this.syncStage1();
+                  if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+                  renderChat(this.state);
+                  this._isS1TaskGuidanceInProgress = false;
+                }).catch(() => { this._isS1TaskGuidanceInProgress = false; });
+                return;
+              }
+            }
+          }
+
+          // B. 分工商议 40s 静默托底 (分工已引导，尚未生成公约草案)
+          if (taskGuidanceIdx >= 0 && (!s1.contract || !s1.contract.isDraftGenerated) && !this._isS1DraftReminderInProgress) {
+            const msgsAfterTask = s1AllLogs.slice(taskGuidanceIdx + 1).filter(m => m && m.sender && !AgentProfiles[m.sender] && m.sender !== 'system');
+            if (msgsAfterTask.length > 0) {
+              const lastTaskMsg = msgsAfterTask[msgsAfterTask.length - 1];
+              const lastTaskTime = lastTaskMsg._timeMs || lastStudentMsgTime;
+              if (now - lastTaskTime >= 40000) {
+                this._isS1DraftReminderInProgress = true;
+                s1.flowStep = 'ready_draft';
+                this.state.stage1PendingTasks = false;
+                this.state.stage1PendingDraftClick = true;
+                this.syncStage1();
+                const topic = s1.mergedTitle || '本组研究论题';
+                const userTaskChat = msgsAfterTask.map(m => `${m.senderName || m.sender}: ${m.text}`).join('\n');
+                const taskSummaryPrompt = `小组成员已在讨论区就 6 大章节的时间预算规划与各自的任务分工展开了商议。
+  【组内关于分工与时间的真实研讨记录】:
+  ${userTaskChat}
+
+  请通读上述发言，作为资深学术拍卖师，发表 80~100 字的【分工规划确认与公约草案生成提醒】：
+  ① 【分工意向确认】：概括并肯定大家商定出的分工意向与时间规划构想（兼容平均分配、按默认推荐或具体章节模块分工）；
+  ② 【公约草案生成提醒】：隆重提醒组员点击左侧【生成公约草案】卡片，系统将根据大家的真实研讨记录自动生成公约草案，生成后可在卡片上继续核对与微调修改！
+  （要求：干练有力、亲切鼓舞；纯自然语言输出，80~100字，严禁输出代码块或技术标记）`;
+
+                callCozeAgentAPI('auctioneer', taskSummaryPrompt, { stage: 'stage1', topic }).then(draftSummaryText => {
+                  let finalDraftText = (draftSummaryText && draftSummaryText.trim().length > 0)
+                    ? draftSummaryText.trim()
+                    : `📜 【拍卖师·公约草案生成提醒】：分工与时间规划已商定就绪！👉 请组员点击左侧【生成公约草案】卡片，系统将根据大家的研讨记录自动生成草案，生成后可继续微调修改！`;
+                  if (!finalDraftText.includes('【拍卖师')) {
+                    finalDraftText = `📜 【拍卖师·公约草案生成提醒】：${finalDraftText}`;
+                  }
+                  const draftPromptMsg = {
+                    sender: 'auctioneer',
+                    senderName: '头脑风暴 · 学术拍卖师',
+                    text: finalDraftText,
+                    timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                    _timeMs: Date.now()
+                  };
+                  if (!this.state.chatLogs.stage1) this.state.chatLogs.stage1 = [];
+                  this.state.chatLogs.stage1.push(draftPromptMsg);
+                  this.syncChatLogs();
+                  this.syncStage1();
+                  if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+                  renderChat(this.state);
+                  this._isS1DraftReminderInProgress = false;
+                }).catch(() => { this._isS1DraftReminderInProgress = false; });
+                return;
+              }
+            }
+          }
+
           // 5. 投票已完成且合约草案已生成 ➔ 催签守护（投票后已有大模型专属引导，此处专注催签，最多2次）
           const signedMap = (s1.contract && s1.contract.confirmedMembers) ? s1.contract.confirmedMembers : {};
           const signedCount = Object.values(signedMap).filter(Boolean).length;
@@ -13354,8 +13473,8 @@
 
             if (isExplicitFinalizeOrTaskSignal) {
               setTimeout(triggerTaskGuidance, 5000);
-            } else if (hasValidConsensusPair || hasAgreement) {
-              // 组员发表方案并表达赞同后，进入 40 秒静默观察期；期间有新发言自动重置，40秒完全静默后大模型通读发言自然切入
+            } else {
+              // 只要在细化阶段有任何发言，都启动 40 秒静默倒计时；期间有新发言自动顺延，40 秒完全无人发言则大模型出面总结！
               this._s1RefineTimer = setTimeout(triggerTaskGuidance, 40000);
             }
           }
@@ -13426,8 +13545,8 @@
 
             if (isExplicitDraftSignal) {
               setTimeout(triggerDraftReminder, 5000);
-            } else if (hasValidConsensusPair || hasAgreement) {
-              // 组员发表分工时间并达成一致后，进入 40 秒静默观察期；期间有新发言自动重置，40秒完全静默后大模型通读发言自然切入
+            } else {
+              // 只要在分工阶段有任何发言，都启动 40 秒静默倒计时；期间有新发言自动顺延，40 秒完全无人发言则大模型出面提醒生成草案！
               this._s1TasksTimer = setTimeout(triggerDraftReminder, 40000);
             }
           }
