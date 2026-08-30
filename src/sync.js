@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState } from './constants.js?v=20260831_v925';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap } from './utils.js?v=20260831_v925';
+import { InitialState } from './constants.js?v=20260831_v926';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap } from './utils.js?v=20260831_v926';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -382,6 +382,7 @@ export class CloudSyncEngine {
       stage1: this.app.state.stage1,
       stage2: this.app.state.stage2,
       stage3: this.app.state.stage3,
+      stepConfirmations: this.app.state.stepConfirmations || {},
       timer: this.app.state.timer,
       currentStage: this.app.state.groupMaxStage || this.app.state.currentStage,
       isFinalSubmitted: this.app.state.isFinalSubmitted
@@ -1140,6 +1141,19 @@ export class CloudSyncEngine {
           const anyCardInDom = document.querySelector('.feedback-direct-input');
           if (!anyCardInDom && this.app.state.currentStage === 'stage3') needWorkspaceRender = true;
         }
+      }
+    }
+
+    if (remoteData.stepConfirmations !== undefined) {
+      if (!this.app.state.stepConfirmations) this.app.state.stepConfirmations = {};
+      const localStr = JSON.stringify(this.app.state.stepConfirmations);
+      const remoteConfs = remoteData.stepConfirmations || {};
+      for (const [stepKey, userMap] of Object.entries(remoteConfs)) {
+        if (!this.app.state.stepConfirmations[stepKey]) this.app.state.stepConfirmations[stepKey] = {};
+        Object.assign(this.app.state.stepConfirmations[stepKey], userMap || {});
+      }
+      if (JSON.stringify(this.app.state.stepConfirmations) !== localStr) {
+        needWorkspaceRender = true;
       }
     }
 
