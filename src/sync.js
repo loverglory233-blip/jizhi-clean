@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState } from './constants.js?v=20260830_v917';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap } from './utils.js?v=20260830_v917';
+import { InitialState } from './constants.js?v=20260831_v918';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap } from './utils.js?v=20260831_v918';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -649,8 +649,24 @@ export class CloudSyncEngine {
           return !existsInRemote;
         });
 
+        // 🛡️ 全局过滤掉临时占位思考气泡，杜绝残留
+        remoteLogs = remoteLogs.filter(m => !m || (!String(m.id).startsWith('thinking_eval') && !m.isThinking));
+
         let baseLogs = remoteLogs;
-        if (stg === 'stage2') {
+        if (stg === 'stage1') {
+          // 🛡️ 阶段一清洗重复套娃前缀
+          baseLogs = baseLogs.map(m => {
+            if (!m || typeof m.text !== 'string') return m;
+            let t = m.text;
+            if (t.includes('【拍卖师·选题速评】') && t.includes('【学术拍卖师·提案')) {
+              t = t.replace(/^(?:🎪|🏛️)?\s*【(?:学术拍卖师|拍卖师)[·\s]*(?:选题速评|提案速评|提案评估|落槌与方案研讨)?】[：:]\s*/g, '');
+              t = t.replace(/^(?:🎪|🏛️)?\s*【(?:学术拍卖师|拍卖师)[·\s]*(?:选题速评|提案速评|提案评估|落槌与方案研讨)?】[：:]\s*/g, '');
+              t = `🏛️ 【学术拍卖师·提案评估】：${t.trim()}`;
+              return { ...m, text: t };
+            }
+            return m;
+          });
+        } else if (stg === 'stage2') {
           const deduped = [];
           let seenFirstReview = false;
           let seenMeetingCall = false;
