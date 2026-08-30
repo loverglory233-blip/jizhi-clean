@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260830_v828";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash } from "./utils.js?v=20260830_v828";
-import { callCozeAgentAPI } from "./agents.js?v=20260830_v828";
-import { AuthManager } from "./auth.js?v=20260830_v828";
-import { CloudSyncEngine } from "./sync.js?v=20260830_v828";
-import { renderLoginView } from "./login.js?v=20260830_v828";
-import { renderTeacherPortal } from "./teacher.js?v=20260830_v828";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260830_v828";
+} from "./constants.js?v=20260830_v829";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash } from "./utils.js?v=20260830_v829";
+import { callCozeAgentAPI } from "./agents.js?v=20260830_v829";
+import { AuthManager } from "./auth.js?v=20260830_v829";
+import { CloudSyncEngine } from "./sync.js?v=20260830_v829";
+import { renderLoginView } from "./login.js?v=20260830_v829";
+import { renderTeacherPortal } from "./teacher.js?v=20260830_v829";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260830_v829";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260830_v828";
+} from "./editor.js?v=20260830_v829";
 
 // Make renderChat available on window for sync callbacks
 if (typeof window !== "undefined") {
@@ -2129,7 +2129,7 @@ ${recentChats}
       // ── 🧠 【研讨语义认知与共识判定引擎】：0 带宽、0 内存、0 额外 Token ──
       const studentChats = (this.state.chatLogs[currentStage] || []).filter(m => m.sender && !AgentProfiles[m.sender] && m.sender !== 'system');
       const hasAdversative = /(?:但是|不过|可是|然而|但|不过我建议|不如|还要再)/i.test(text || '');
-      const hasAgreement = /(?:好|行|可以|同意|赞成|支持|没问题|没意见|就这个|按你说的|听你的|就这么办|就这么定|那就这样|妥了|ok|OK|okk|收到|\+1|没毛病|不错|好啊|行啊|没异议|赞同)/i.test(text || '');
+      const hasAgreement = /(?:^1+$|\+1|加1|加一|附议|同上|同感|我也觉得|好|行|可以|同意|赞成|支持|没问题|没意见|就这个|按你说的|听你的|就这么办|就这么定|那就这样|妥了|ok|OK|okk|收到|没毛病|不错|好啊|行啊|没异议|赞同)/i.test(text || '');
       const hasValidConsensusPair = !hasAdversative && hasAgreement && studentChats.length >= 2;
       
       // 🎪 阶段一（学术拍卖会）多轮共识流转
@@ -2297,7 +2297,7 @@ ${recentChats}
         // Loop 1: 半程自查播报后，监听组员表达赞同/达成一致 -> 静默 25 秒后判定研讨充分并交棒（或 @智能体 立即交棒）
         const pendingRev = this.state.stage2?.pendingReviewing || this.state.stage2PendingReviewing;
         if (pendingRev) {
-          const hasAgreementSignal = /(?:好|行|可以|同意|赞成|支持|没问题|没意见|就这个|按你说的|听你的|就这么办|就这么定|那就这样|妥了|ok|OK|okk|收到|\+1|没毛病|不错|好啊|行啊|没异议|赞同|开始吧|开搞|就这么改|ke yi|好的|写吧|那开始吧|改吧|改一下|按这个|就按|商量好了)/i.test(text || '');
+          const hasAgreementSignal = /(?:^1+$|\+1|加1|加一|附议|同上|同感|我也觉得|好|行|可以|同意|赞成|支持|没问题|没意见|就这个|按你说的|听你的|就这么办|就这么定|那就这样|妥了|ok|OK|okk|收到|没毛病|不错|好啊|行啊|没异议|赞同|开始吧|开搞|就这么改|ke yi|好的|写吧|那开始吧|改吧|改一下|按这个|就按|商量好了)/i.test(text || '');
           const hasAdversativeSignal = /(?:但是|不过|可是|然而|但|不过我建议|不如|还要再|不同意|不妥)/i.test(text || '');
           const isExplicitTrigger = /(?:@审稿编辑|@责任编辑|下发清单|修正清单|清单|请审稿|请责任|讨论结束|开始修改)/i.test(text || '');
 
