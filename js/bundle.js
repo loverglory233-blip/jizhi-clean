@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260830_v816
+ * Version: 20260830_v817
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260830_v816';
+  const APP_VERSION = '20260830_v817';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -13261,28 +13261,54 @@
               this.state.stage1PendingDivergence = false;
               this.state.stage1PendingRefinement = true;
               setTimeout(async () => {
-                const refinePrompt = `小组成员已在讨论区就融合研究论题达成初步共识。
-  请作为资深学术拍卖师，发表 130~150 字的【课题深度细化建议】：
-  ① 肯定该融合选题的学术价值与实践创新点；
-  ② 给出 2~3 个具体的研究落脚点建议（如核心内容界定、实践情境或研究视角），启发组员深度推敲；
-  ③ 鼓励组员就细化方案继续交流，暂时不要急于填表！`;
+                const allPropsTitles = (s1.proposals || []).map(p => `《${p.title}》`).join(' 与 ');
+                const refinePrompt = `小组成员已在讨论区就融合研究论题达成初步共识（涉及候选提案: ${allPropsTitles || '多方构想'}）。
+  请作为资深学术拍卖师，用 90~110 字给出【融合题目学术定名与细化指引】：
+  ① 【核心任务】：将各方构想提炼为一个规范严谨、高水准的学术论文题目（必须用《...》标出，如《基于...与...的融合研究设计》）；
+  ② 针对该融合题目给出 2 个具体细化方向，引导大家继续在讨论区交流深化，暂不急于填表。纯自然语言，90~110字。`;
 
                 let refineText = await callCozeAgentAPI('auctioneer', refinePrompt, { stage: 'stage1', topic: s1.mergedTitle || '本组融合课题' });
-                if (!refineText || refineText.trim().length === 0) {
-                  refineText = `🤖 【拍卖师·课题细化建议】：小组成员已就论题构想达成共识！为了让方案更加扎实，建议大家围绕以下几点进一步推敲：① 明确核心研究内容与实施路径；② 细化具体应用对象与实施情境；③ 初步构想核心环节与设计方案。请大家在讨论区继续交流细化！`;
+
+                let mergedTitleText = '本组融合研究课题';
+                let guideText = '';
+
+                if (refineText && refineText.trim().length > 0) {
+                  const matchTitle = refineText.match(/《([^》]{4,50})》/);
+                  if (matchTitle && matchTitle[1]) {
+                    mergedTitleText = matchTitle[1].trim();
+                    s1.mergedTitle = mergedTitleText;
+                    s1._optimizedTitle = mergedTitleText;
+                  }
+                  guideText = refineText;
+                } else {
+                  mergedTitleText = (s1.proposals && s1.proposals[0]) ? `基于${s1.proposals[0].title}的融合深化研究` : '多维协同教学创新设计';
+                  s1.mergedTitle = mergedTitleText;
+                  s1._optimizedTitle = mergedTitleText;
+                  guideText = `💡 【学术拍卖师·课题细化建议】：恭喜大家达成共识！为了让方案更加扎实，建议大家重点围绕核心变量界定、实施情境与具体环节继续深化，暂不急于填表哦！`;
                 }
-                const promptMsg = {
+
+                // ── 分两句清晰呈现：① 说明确立的融合题目  ② 细化指引 ──
+                const msg1 = {
                   sender: 'auctioneer',
-                  text: refineText,
+                  senderName: '头脑风暴 · 学术拍卖师',
+                  text: `🎉 【学术拍卖师·融合课题确立】：恭喜大家达成共识！全组融合研究论题正式确立为：《${mergedTitleText}》！`,
                   timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
                   _timeMs: Date.now()
                 };
+                const msg2 = {
+                  sender: 'auctioneer',
+                  senderName: '头脑风暴 · 学术拍卖师',
+                  text: guideText.includes('【学术拍卖师') ? guideText : `💡 【学术拍卖师·细化探究指引】：${guideText}`,
+                  timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                  _timeMs: Date.now() + 100
+                };
+
                 if (!this.state.chatLogs.stage1) this.state.chatLogs.stage1 = [];
-                this.state.chatLogs.stage1.push(promptMsg);
+                this.state.chatLogs.stage1.push(msg1, msg2);
                 this.syncChatLogs();
                 if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
                 renderChat(this.state);
-              }, 1200);
+              }, 800);
             }
           }
           // 2. 若处于【方案细化】状态，识别组员是否讨论了具体方案细节并准备商议分工与时间
@@ -13721,93 +13747,65 @@
             s1.contract.timeAllocations = { background: 25, literature: 30, questions: 25, method: 40, reflection: 20, references: 10 };
           }
 
-          // ── 🌟 第 1 条：系统官方计票模板播报 ──
-          const tallySystemMsg = {
-            sender: 'system',
-            text: `📊 【选题竞拍·计票结果】：全组投票已全部完成！计票统计：${proposalSummaryList}。${isUnanimous ? '🎉 全票一致通过！' : '⚖️ 组内对选题持有不同视角（未达成全票一致）。'}`,
-            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-            _timeMs: Date.now()
-          };
-          this.state.chatLogs.stage1.push(tallySystemMsg);
-          this.syncChatLogs();
-          if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
-          renderChat(this.state);
-
-          // ── 🌟 智能体拍卖师（Coze 豆包 2.0 Pro）分两条独立播报：① 题目优化确立  ② 细化探究指引 ──
+          // ── 🌟 拍卖师分两步清晰呈现：① 明确说明题目/计票  ② 引导细化/协商融合 (秒级极速直出) ──
           if (isUnanimous) {
-            const titleOptimizePrompt = `全组投票已全部完成！全组成员 ${totalMembersCount}/${totalMembersCount} 全票一致推选《${winningProposal.title}》（作者: ${winningProposal.authorName || winningProposal.author}）！
-  请作为资深学术拍卖师发表 70~90 字的【课题敲定与题目学术优化】：
-  ① 隆重宣布《${winningProposal.title}》获得全票一致推选，正式确立为全组研究课题；
-  ② 【核心任务】：基于该提案构想，将其提炼优化为一个规范严谨、高水准的学术研究论文题目（在回复中必须用《...》标出，如《基于...的...研究设计与实证分析》）。纯自然语言输出，70~90字。`;
+            // 1. 第一句：0毫秒即刻宣布全票确立的课题
+            const titleNoticeMsg = {
+              sender: 'auctioneer',
+              senderName: '头脑风暴 · 学术拍卖师',
+              text: `🎉 【学术拍卖师·课题确立】：恭喜全组！经全员一致推选，《${winningProposal.title}》正式确立为本组核心研究课题！`,
+              timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+              _timeMs: Date.now()
+            };
+            this.state.chatLogs.stage1.push(titleNoticeMsg);
+            this.syncChatLogs();
+            if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+            renderChat(this.state);
 
+            // 2. 第二句：给出细化探究指引
             const guidancePrompt = `全组已全票确立研究课题《${winningProposal.title}》。
-  请作为资深学术拍卖师发表 70~90 字的【细化探究方向指引】：
-  ① 针对该选题给出 2~3 条具体的细化深化探究方向建议（【严格铁律】：此时绝对不提及任务分工与时间分配！）；
-  ② 明确引导组长带头在讨论区发起细化交流，全组共同商议完善具体实施方案。纯自然语言输出，70~90字。`;
+  请作为资深学术拍卖师，用 90~110 字给出【细化探究指引】：
+  ① 针对该选题给出 2 个具体的细化深化探究方向建议（严禁提任务分工与时间）；
+  ② 明确引导组长带头在讨论区发起细化交流，共同商议完善具体实施方案。纯自然语言，90~110字。`;
 
-            let msg1Text = await callCozeAgentAPI('auctioneer', titleOptimizePrompt, {
+            let guideText = await callCozeAgentAPI('auctioneer', guidancePrompt, {
               stage: 'stage1',
               isUnanimous: true,
               winningTopic: winningProposal ? winningProposal.title : ''
             });
 
-            let msg2Text = await callCozeAgentAPI('auctioneer', guidancePrompt, {
-              stage: 'stage1',
-              isUnanimous: true,
-              winningTopic: winningProposal ? winningProposal.title : ''
-            });
-
-            if (!msg1Text || msg1Text.trim().length === 0) {
-              msg1Text = `🎉 【学术拍卖师·课题敲定与学术定名】：恭喜全组！经全员一致推选，《${winningProposal.title}》正式确立为全组研究课题。建议本组学术论文题目正式确立为：《基于${winningProposal.title}的实证研究与方案设计》！`;
-            }
-            if (!msg2Text || msg2Text.trim().length === 0) {
-              msg2Text = `💡 【学术拍卖师·细化探究指引】：针对该选题，建议重点围绕核心变量界定、理论框架支撑与研究方法路径深化探究。👉 请组长在讨论区带头组织大家展开细化交流！`;
+            if (!guideText || guideText.trim().length === 0) {
+              guideText = `💡 【学术拍卖师·细化探究指引】：针对《${winningProposal.title}》，建议大家重点围绕核心变量界定、理论框架支撑与研究方法路径展开深化探究。👉 请组长在讨论区带头组织大家展开细化交流！`;
             }
 
-            // 提取优化后的题目暂存内存中（此时先不填入左侧公约，待组员点击生成公约时才填入）
-            const matchTitle = msg1Text.match(/《([^》]{4,50})》/);
-            if (matchTitle && matchTitle[1]) {
-              s1._optimizedTitle = matchTitle[1].trim();
-            } else {
-              s1._optimizedTitle = winningProposal.title;
-            }
-
-            const msg1 = { sender: 'auctioneer', text: msg1Text, timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), _timeMs: Date.now() };
-            const msg2 = { sender: 'auctioneer', text: msg2Text, timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), _timeMs: Date.now() + 100 };
-            this.state.chatLogs.stage1.push(msg1, msg2);
+            s1._optimizedTitle = winningProposal.title;
+            const guideMsg = {
+              sender: 'auctioneer',
+              senderName: '头脑风暴 · 学术拍卖师',
+              text: guideText,
+              timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+              _timeMs: Date.now() + 100
+            };
+            this.state.chatLogs.stage1.push(guideMsg);
           } else {
-            // ── 分歧分支：分两条播报（① 破冰播报 ② 协商融合指引） ──
-            const divergencePrompt1 = `全组投票已全部完成！计票结果清单：${proposalSummaryList}。投票存在分歧（未达成全票一致）！
-  请作为资深学术拍卖师发表 60~80 字的【分歧破冰播报】：
-  ① 客观播报票数分布，指出组内对选题持有不同视角（【严格铁律】：对事不对人，严禁指名道姓批评，严禁提及谁投了谁）；
-  ② 鼓励大家这是碰撞创新、求同存异的最佳契机。纯自然语言输出，60~80字。`;
-
-            const divergencePrompt2 = `全组投票存在分歧，准备进入选题协商融合阶段。
-  请作为资深学术拍卖师发表 60~80 字的【协商融合指引】：
-  ① 引导各提案作者在讨论区简要阐述各自构想的核心亮点；
-  ② 引导全组在讨论区深入协商，融合各方亮点确定一个最终统一主题。纯自然语言输出，60~80字。`;
-
-            let dMsg1 = await callCozeAgentAPI('auctioneer', divergencePrompt1, {
-              stage: 'stage1',
-              isUnanimous: false,
-              tallySummary: proposalSummaryList
-            });
-            let dMsg2 = await callCozeAgentAPI('auctioneer', divergencePrompt2, {
-              stage: 'stage1',
-              isUnanimous: false,
-              tallySummary: proposalSummaryList
-            });
-
-            if (!dMsg1 || dMsg1.trim().length === 0) {
-              dMsg1 = `⚖️ 【学术拍卖师·分歧协商破冰】：计票已落槌，计票结果为：${proposalSummaryList}。注意到组内存在不同视角，这正是团队碰撞创新、求同存异的最佳契机！`;
-            }
-            if (!dMsg2 || dMsg2.trim().length === 0) {
-              dMsg2 = `💡 【学术拍卖师·协商融合指引】：建议各提案作者在讨论区简要阐明自己的设计亮点，大家共同商讨如何取长补短，确定一个兼具理论深度与实践可行性的最终统一融合课题！`;
-            }
-
-            const msg1 = { sender: 'auctioneer', text: dMsg1, timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), _timeMs: Date.now() };
-            const msg2 = { sender: 'auctioneer', text: dMsg2, timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), _timeMs: Date.now() + 100 };
-            this.state.chatLogs.stage1.push(msg1, msg2);
+            // ── 分歧分支：两句式清晰呈现（① 计票分布说明 ② 协商融合指引，0系统重复，极速响应） ──
+            // 1. 第一句：0毫秒即刻客观说明计票分布与分歧
+            const tallyNoticeMsg = {
+              sender: 'auctioneer',
+              senderName: '头脑风暴 · 学术拍卖师',
+              text: `📊 【学术拍卖师·计票结果】：全组投票已全部完成！计票统计：${proposalSummaryList}。组内对选题持有不同视角，这恰恰是思路碰撞、求同存异的最佳契机！`,
+              timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+              _timeMs: Date.now()
+            };
+            // 2. 第二句：即刻引导协商融合
+            const guideMsg = {
+              sender: 'auctioneer',
+              senderName: '头脑风暴 · 学术拍卖师',
+              text: `💡 【学术拍卖师·协商融合指引】：请各位提案提出者先在讨论区简要分享自身方案的核心亮点；大家围绕不同方案的优势互补性展开充分协商，共同融合成一个全组成员都认可的最终统一主题！`,
+              timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+              _timeMs: Date.now() + 100
+            };
+            this.state.chatLogs.stage1.push(tallyNoticeMsg, guideMsg);
           }
 
           this.syncStage1();
