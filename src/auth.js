@@ -14,8 +14,8 @@ import {
   DefaultTasks,
   DefaultAnnouncements,
   DefaultReferencePapers
-} from './constants.js?v=20260831_v928';
-import { formatExportDateTime, formatDurationHuman, isScopeMatch } from './utils.js?v=20260831_v928';
+} from './constants.js?v=20260831_v929';
+import { formatExportDateTime, formatDurationHuman, isScopeMatch } from './utils.js?v=20260831_v929';
 
 export class AuthManager {
   constructor() {

@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState } from './constants.js?v=20260831_v928';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap } from './utils.js?v=20260831_v928';
+import { InitialState } from './constants.js?v=20260831_v929';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap } from './utils.js?v=20260831_v929';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -873,8 +873,19 @@ export class CloudSyncEngine {
         document.activeElement.id === 'contract-topic-input'
       );
 
+      if (remoteS1.contractStep !== undefined && remoteS1.contractStep !== this.app.state.stage1.contractStep) {
+        this.app.state.stage1.contractStep = remoteS1.contractStep;
+        needWorkspaceRender = true;
+      }
+      if (remoteS1.researchOverview !== undefined) {
+        this.app.state.stage1.researchOverview = remoteS1.researchOverview;
+      }
+
       if (remoteS1.contract) {
         if (!this.app.state.stage1.contract) this.app.state.stage1.contract = {};
+        if (remoteS1.contract.topic) this.app.state.stage1.contract.topic = remoteS1.contract.topic;
+        if (remoteS1.contract.overview) this.app.state.stage1.contract.overview = remoteS1.contract.overview;
+        if (remoteS1.contract.isDraftGenerated !== undefined) this.app.state.stage1.contract.isDraftGenerated = remoteS1.contract.isDraftGenerated;
         if (remoteS1.contract.taskAssignments) {
           this.app.state.stage1.contract.taskAssignments = {
             ...(this.app.state.stage1.contract.taskAssignments || {}),
