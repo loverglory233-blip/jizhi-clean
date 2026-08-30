@@ -541,7 +541,7 @@ export function enforceEtherpadReadonly(iframe) {
       const footer = doc.querySelector('#footer') || doc.querySelector('.bottom-bar') || doc.querySelector('#chatbox');
       if (footer) footer.style.setProperty('display', 'none', 'important');
 
-      // 2. 锁定 Ace Inner 编辑核心区域为只读
+      // 2. 锁定 Ace Inner 编辑核心区域为只读，并拦截所有键盘篡改/输入事件
       const aceOuter = doc.querySelector('iframe[name="ace_outer"]');
       if (aceOuter) {
         const outerDoc = aceOuter.contentDocument || aceOuter.contentWindow?.document;
@@ -559,6 +559,27 @@ export function enforceEtherpadReadonly(iframe) {
                 innerBody.style.setProperty('user-select', 'text', 'important');
                 innerBody.style.setProperty('-webkit-user-select', 'text', 'important');
               }
+
+              // 🛡️ 捕获阶段拦截所有可能造成文字篡改的键盘输入与粘贴事件（允许复制与滚动键）
+              if (!innerDoc._readonlyBlocked) {
+                innerDoc._readonlyBlocked = true;
+                const blockInput = (e) => {
+                  if (e.type === 'keydown' || e.type === 'keyup') {
+                    const isCopy = (e.ctrlKey || e.metaKey) && (e.key === 'c' || e.key === 'C');
+                    const isSelectAll = (e.ctrlKey || e.metaKey) && (e.key === 'a' || e.key === 'A');
+                    const isNav = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'PageUp', 'PageDown', 'Home', 'End'].includes(e.key);
+                    if (isCopy || isSelectAll || isNav) return;
+                  }
+                  e.preventDefault();
+                  e.stopPropagation();
+                  return false;
+                };
+
+                ['beforeinput', 'input', 'keydown', 'keypress', 'paste', 'cut', 'compositionstart'].forEach(evt => {
+                  innerDoc.addEventListener(evt, blockInput, true);
+                  if (innerBody) innerBody.addEventListener(evt, blockInput, true);
+                });
+              }
             }
           }
         }
@@ -575,6 +596,6 @@ export function enforceEtherpadReadonly(iframe) {
   const interval = setInterval(() => {
     tryLock();
     count++;
-    if (count > 30) clearInterval(interval);
-  }, 350);
+    if (count > 35) clearInterval(interval);
+  }, 300);
 }
