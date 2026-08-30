@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState } from './constants.js?v=20260830_v775';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal } from './utils.js?v=20260830_v775';
+import { InitialState } from './constants.js?v=20260830_v776';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal } from './utils.js?v=20260830_v776';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -92,11 +92,10 @@ export class CloudSyncEngine {
   }
 
   handleTaskDeadlineChange(t, prevDeadline) {
-    const currentUser = this.app.authManager ? this.app.authManager.getCurrentUser() : null;
-    const isTeacher = currentUser && (currentUser.role === 'teacher' || currentUser.isTeacher);
+    const isTeacherPortalUI = !!document.querySelector('.app-teacher-mode') || !!document.querySelector('.teacher-portal-layout');
     
-    // 🛡️ 教师端自身延期操作绝不给自己弹窗
-    if (isTeacher) return;
+    // 🛡️ 仅当当前标签页正处于教师管理大屏时，才不给自己弹窗；学生端（及学生视角）100% 触发弹窗
+    if (isTeacherPortalUI) return;
 
     if (!this._shownDeadlineEvents) this._shownDeadlineEvents = new Set();
     const eventKey = `${t.id}_${t.deadline}`;
