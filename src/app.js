@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260831_v964";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch } from "./utils.js?v=20260831_v964";
-import { callCozeAgentAPI } from "./agents.js?v=20260831_v964";
-import { AuthManager } from "./auth.js?v=20260831_v964";
-import { CloudSyncEngine } from "./sync.js?v=20260831_v964";
-import { renderLoginView } from "./login.js?v=20260831_v964";
-import { renderTeacherPortal } from "./teacher.js?v=20260831_v964";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260831_v964";
+} from "./constants.js?v=20260831_v965";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch } from "./utils.js?v=20260831_v965";
+import { callCozeAgentAPI } from "./agents.js?v=20260831_v965";
+import { AuthManager } from "./auth.js?v=20260831_v965";
+import { CloudSyncEngine } from "./sync.js?v=20260831_v965";
+import { renderLoginView } from "./login.js?v=20260831_v965";
+import { renderTeacherPortal } from "./teacher.js?v=20260831_v965";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260831_v965";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,11 +26,13 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260831_v964";
+} from "./editor.js?v=20260831_v965";
 
-// Make renderChat available on window for sync callbacks
+// Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
   window.renderChat = renderChat;
+  window.addEventListener('compositionstart', () => { window._isGlobalComposing = true; }, true);
+  window.addEventListener('compositionend', () => { window._isGlobalComposing = false; }, true);
 }
 
 /* ==========================================================================
@@ -4218,18 +4220,13 @@ ${propText}
     // 默认自动触发当前阶段对应智能体的开场白（如果尚未发送）
     this.triggerStageWelcomeSpeech(this.state.currentStage || 'stage1');
 
-    // ── 核心保护：智能局部 Patch 与非冲突渲染 ──
-    const stage2Editor = document.getElementById('stage2-word-editor');
-    const stage3Editor = document.getElementById('stage3-word-editor');
+    // ── 核心保护：全场景输入法与活动输入框智能保护 ──
     const activeEl = document.activeElement;
-    const isEditorTyping = !isForced && activeEl && (
-      activeEl === stage2Editor ||
-      activeEl === stage3Editor ||
-      (stage2Editor && stage2Editor.contains(activeEl)) ||
-      (stage3Editor && stage3Editor.contains(activeEl)) ||
-      (stage2Editor && stage2Editor.dataset.isComposing === 'true') ||
-      (stage3Editor && stage3Editor.dataset.isComposing === 'true')
-    );
+    const isTagInput = activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA' || activeEl.isContentEditable);
+    const isComposingActive = !!(window._isGlobalComposing || activeEl?.dataset?.isComposing === 'true');
+    const isInputFocused = isTagInput || isComposingActive;
+
+    const isEditorTyping = !isForced && isInputFocused;
 
     // 如果用户在阶段一且画布已存在，且非强制重置，做局部精准 Patch
     const existingContractCard = document.querySelector('.contract-card');

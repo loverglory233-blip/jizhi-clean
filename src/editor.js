@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles } from "./constants.js?v=20260831_v964";
-import { callCozeAgentAPI } from "./agents.js?v=20260831_v964";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap } from "./utils.js?v=20260831_v964";
+import { AgentProfiles } from "./constants.js?v=20260831_v965";
+import { callCozeAgentAPI } from "./agents.js?v=20260831_v965";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap } from "./utils.js?v=20260831_v965";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -98,7 +98,7 @@ export function renderHeader(state, currentUser, announcements, onStageChange, o
   const isS2Locked = !isTaskDeadlineExpired && !state.isFinalSubmitted && (!isContractSigned && currentMaxOrder < 2);
   const isS3Locked = !isTaskDeadlineExpired && !state.isFinalSubmitted && currentMaxOrder < 3;
 
-  header.innerHTML = `
+  const newHeaderHtml = `
     <div class="brand-section">
       <div class="brand-logo">集智 JIZHI</div>
       <div class="brand-badge" style="background:#eff6ff; color:#1d4ed8; padding:3px 12px; border-radius:20px; font-size:12px; font-weight:700; border:1px solid #bfdbfe; display:inline-flex; align-items:center; gap:6px;">
@@ -132,17 +132,20 @@ export function renderHeader(state, currentUser, announcements, onStageChange, o
     </div>
   `;
 
-  header.querySelectorAll('.stage-btn').forEach(btn => {
-    btn.addEventListener('click', () => onStageChange(btn.dataset.stage));
-  });
-  header.querySelector('#btn-user-logout').addEventListener('click', () => onLogout());
-  header.querySelector('#btn-header-ann-bell').addEventListener('click', () => onOpenAnnModal());
-  const btnBackTasks = header.querySelector('#btn-header-back-tasks');
-  if (btnBackTasks && onBackToTaskList) {
-    btnBackTasks.addEventListener('click', () => onBackToTaskList());
+  if (header.innerHTML !== newHeaderHtml) {
+    header.innerHTML = newHeaderHtml;
+    header.querySelectorAll('.stage-btn').forEach(btn => {
+      btn.addEventListener('click', () => onStageChange(btn.dataset.stage));
+    });
+    header.querySelector('#btn-user-logout').addEventListener('click', () => onLogout());
+    header.querySelector('#btn-header-ann-bell').addEventListener('click', () => onOpenAnnModal());
+    const btnBackTasks = header.querySelector('#btn-header-back-tasks');
+    if (btnBackTasks && onBackToTaskList) {
+      btnBackTasks.addEventListener('click', () => onBackToTaskList());
+    }
+    const surveyHeaderBtn = header.querySelector('#btn-header-survey-link');
+    if (surveyHeaderBtn) surveyHeaderBtn.addEventListener('click', () => onOpenSurveyModal());
   }
-  const surveyHeaderBtn = header.querySelector('#btn-header-survey-link');
-  if (surveyHeaderBtn) surveyHeaderBtn.addEventListener('click', () => onOpenSurveyModal());
 }
 
 export function renderCanvas(state, handlers) {
