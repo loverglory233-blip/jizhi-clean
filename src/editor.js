@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles } from "./constants.js?v=20260831_v945";
-import { callCozeAgentAPI } from "./agents.js?v=20260831_v945";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap } from "./utils.js?v=20260831_v945";
+import { AgentProfiles } from "./constants.js?v=20260831_v946";
+import { callCozeAgentAPI } from "./agents.js?v=20260831_v946";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap } from "./utils.js?v=20260831_v946";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -2092,30 +2092,32 @@ function renderStage2Canvas(canvas, state, handlers) {
           }, 1500);
         }
 
-        // 动态贡献度计算（正向增量自动累计入库）
-        const prevLen = state.stage2._prevKnownLen !== undefined ? state.stage2._prevKnownLen : wordCount;
+        // 动态贡献度计算：
+        const contribs = state.stage2.memberContributions || {};
+        let rawTotal = 0;
+        membersList.forEach(m => { rawTotal += (contribs[m.id] || 0) + (contribs[m.studentCode] || 0); });
+
+        const prevLen = state.stage2._prevKnownLen !== undefined ? state.stage2._prevKnownLen : 0;
         state.stage2._prevKnownLen = wordCount;
 
-        if (wordCount > prevLen) {
-          const delta = wordCount - prevLen;
-          if (delta > 0) {
-            fetch(`sync.php?action=report_member_contrib&groupId=${encodeURIComponent(userGroupId)}&taskId=${encodeURIComponent(activeTaskId)}&classId=${encodeURIComponent(userClassId)}`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                taskId: activeTaskId,
-                classId: userClassId,
-                groupId: userGroupId,
-                userCode: currUserCode,
-                delta: delta
-              })
-            }).then(r => r.json()).then(res => {
-              if (res.success && res.contribs) {
-                state.stage2.memberContributions = res.contribs;
-                updateContribDom();
-              }
-            }).catch(() => {});
-          }
+        const delta = (wordCount > prevLen) ? (wordCount - prevLen) : ((wordCount > 0 && rawTotal === 0) ? wordCount : 0);
+        if (delta > 0) {
+          fetch(`sync.php?action=report_member_contrib&groupId=${encodeURIComponent(userGroupId)}&taskId=${encodeURIComponent(activeTaskId)}&classId=${encodeURIComponent(userClassId)}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              taskId: activeTaskId,
+              classId: userClassId,
+              groupId: userGroupId,
+              userCode: currUserCode,
+              delta: delta
+            })
+          }).then(r => r.json()).then(res => {
+            if (res.success && res.contribs) {
+              state.stage2.memberContributions = res.contribs;
+              updateContribDom();
+            }
+          }).catch(() => {});
         } else {
           updateContribDom();
         }

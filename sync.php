@@ -678,6 +678,7 @@ if ($action === 'report_member_contrib') {
     $groupId = $input['groupId'] ?? ($queryGroupId ?: 'group_1');
     $userCode = $input['userCode'] ?? '';
     $delta = intval($input['delta'] ?? 0);
+    $nowMs = round(microtime(true) * 1000);
 
     if ($pdo && !empty($userCode) && $delta > 0) {
         $stmt = $pdo->prepare("SELECT snapshot_data FROM room_snapshots WHERE task_id = :tid AND group_id = :gid LIMIT 1");
@@ -688,7 +689,7 @@ if ($action === 'report_member_contrib') {
         if (!isset($snapshot['stage2']['memberContributions'])) $snapshot['stage2']['memberContributions'] = [];
 
         $snapshot['stage2']['memberContributions'][$userCode] = intval($snapshot['stage2']['memberContributions'][$userCode] ?? 0) + $delta;
-        $snapshot['updatedAt'] = round(microtime(true) * 1000);
+        $snapshot['updatedAt'] = $nowMs;
 
         $upStmt = $pdo->prepare("INSERT INTO room_snapshots (task_id, group_id, snapshot_data, updated_at) VALUES (:tid, :gid, :data, NOW()) ON DUPLICATE KEY UPDATE snapshot_data = VALUES(snapshot_data), updated_at = NOW()");
         $upStmt->execute([
@@ -696,6 +697,19 @@ if ($action === 'report_member_contrib') {
             ':gid' => $groupId,
             ':data' => json_encode($snapshot, JSON_UNESCAPED_UNICODE)
         ]);
+
+        // 🛡️ 同步写入 group_states，确保长轮询 pull 不会覆写贡献度
+        $sk = $taskId . '_' . $groupId;
+        $gStmt = $pdo->prepare("SELECT stage2_data FROM group_states WHERE scope_key = :sk LIMIT 1");
+        $gStmt->execute([':sk' => $sk]);
+        $gRow = $gStmt->fetch(PDO::FETCH_ASSOC);
+        if ($gRow) {
+            $s2Data = json_decode($gRow['stage2_data'], true) ?: [];
+            if (!isset($s2Data['memberContributions'])) $s2Data['memberContributions'] = [];
+            $s2Data['memberContributions'][$userCode] = $snapshot['stage2']['memberContributions'][$userCode];
+            $upG = $pdo->prepare("UPDATE group_states SET stage2_data = :s2, last_timestamp = :ts, revision_id = IFNULL(revision_id, 0) + 1 WHERE scope_key = :sk");
+            $upG->execute([':s2' => json_encode($s2Data, JSON_UNESCAPED_UNICODE), ':ts' => $nowMs, ':sk' => $sk]);
+        }
 
         echo json_encode(['success' => true, 'contribs' => $snapshot['stage2']['memberContributions']]);
         exit;
