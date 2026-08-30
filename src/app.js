@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260831_v946";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch } from "./utils.js?v=20260831_v946";
-import { callCozeAgentAPI } from "./agents.js?v=20260831_v946";
-import { AuthManager } from "./auth.js?v=20260831_v946";
-import { CloudSyncEngine } from "./sync.js?v=20260831_v946";
-import { renderLoginView } from "./login.js?v=20260831_v946";
-import { renderTeacherPortal } from "./teacher.js?v=20260831_v946";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260831_v946";
+} from "./constants.js?v=20260831_v947";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch } from "./utils.js?v=20260831_v947";
+import { callCozeAgentAPI } from "./agents.js?v=20260831_v947";
+import { AuthManager } from "./auth.js?v=20260831_v947";
+import { CloudSyncEngine } from "./sync.js?v=20260831_v947";
+import { renderLoginView } from "./login.js?v=20260831_v947";
+import { renderTeacherPortal } from "./teacher.js?v=20260831_v947";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260831_v947";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260831_v946";
+} from "./editor.js?v=20260831_v947";
 
 // Make renderChat available on window for sync callbacks
 if (typeof window !== "undefined") {
@@ -4878,21 +4878,18 @@ ${propText}
     const timeProgress = totalPlannedMs > 0 ? (stage2DurationMs / totalPlannedMs) : 0;
 
     const s2ChatList = this.state.chatLogs?.stage2 || [];
-    const membersList = Object.values(this.state.members || {});
-    const isLeaderClient = !membersList.length || (this.state.currentUser === membersList[0]?.studentCode || this.state.currentUser === membersList[0]?.id || this.state.currentUser === membersList[0]?.username);
 
     // ═══════════════════════════════════════════════════════════════
-    // 🛡️ 第一次质检（字数 >= 60 字 或 20% 时间 · 破题把脉）
+    // 🛡️ 第一次学术质检（30% 字数 / 35% 时间 · 破题把脉）
     // ═══════════════════════════════════════════════════════════════
-    const isReview1Due = (rawDoc.length >= 60 || wordProgress >= 0.15 || timeProgress >= 0.20);
+    const isReview1Due = (wordProgress >= 0.30 || timeProgress >= 0.35 || rawDoc.length >= 600);
     const hasFirstReviewInLogs = s2ChatList.some(m => m.sender === 'reviewingEditor' && (m.text.includes('初审') || m.text.includes('破题把脉') || m.text.includes('Research Gap')));
     if (hasFirstReviewInLogs && (s2.reviewMilestone === 'none' || s2.reviewMilestone === 'first_review_in_progress')) {
       s2.reviewMilestone = 'first_review_done';
       this.syncStage2();
     }
 
-    if (!hasFirstReviewInLogs && s2.reviewMilestone === 'none' && isReview1Due && !this._isTriggeringFirstReview) {
-      if (!isLeaderClient && membersList.length > 1) return;
+    if (!hasFirstReviewInLogs && (s2.reviewMilestone === 'none' || s2.reviewMilestone === undefined) && isReview1Due && !this._isTriggeringFirstReview) {
       this._isTriggeringFirstReview = true;
       s2.reviewMilestone = 'first_review_in_progress';
       this.syncStage2();
@@ -4931,30 +4928,30 @@ ${contentSnippet}
         } finally {
           this._isTriggeringFirstReview = false;
         }
-      }, 600);
+      }, 500);
       return;
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // 🛡️ 第二次质检与半程会议（70% 字数 / 65% 时间 · 深度研讨）
+    // 🛡️ 第二次学术质检与半程会议（65%~70% 字数 / 60% 时间 · 深度研讨）
     // ═══════════════════════════════════════════════════════════════
-    const isMeetingDue = (wordProgress >= 0.70 || timeProgress >= 0.65 || rawDoc.length >= 1400);
+    const isMeetingDue = (wordProgress >= 0.65 || timeProgress >= 0.60 || rawDoc.length >= 1300);
     const hasMeetingCalledInLogs = s2ChatList.some(m => m.sender === 'managingEditor' && (m.text.includes('半程会议号召') || m.text.includes('半程研讨号召')));
-    if (hasMeetingCalledInLogs && s2.reviewMilestone === 'first_review_done') {
+    if (hasMeetingCalledInLogs && s2.reviewMilestone !== 'meeting_called' && s2.reviewMilestone !== 'action_plan_generated') {
       s2.reviewMilestone = 'meeting_called';
       this.syncStage2();
     }
 
-    if (!hasMeetingCalledInLogs && s2.reviewMilestone === 'first_review_done' && isMeetingDue) {
-      if (!isLeaderClient && membersList.length > 1) return;
+    if (!hasMeetingCalledInLogs && isMeetingDue && !this._isTriggeringMeetingCall) {
+      this._isTriggeringMeetingCall = true;
       s2.reviewMilestone = 'meeting_called';
-      s2.meetingStep = 'discussing_divergence'; // 激活表情栏上方第一态按钮
+      s2.meetingStep = 'discussing_divergence';
       s2.meetingCalledTime = Date.now();
 
       const meetingCallMsg = {
         sender: 'managingEditor',
         senderName: '协同调度 · 责任编辑',
-        text: `🤝 【责任编辑·半程研讨号召】：关注到全组论文撰写已推进过半！请大家先暂停打字，花 1~2 分钟通读当前全篇草稿。重点审查：各章节逻辑是否连贯？前后构思是否存在脱节或分歧？\n👉 请大家在讨论区充分交流修改思路；商定差不多后，点击聊天框上方【💡 讨论差不多了？让责任编辑总结】按钮，我们将为大家提炼共识并下发《二审修正清单》！`,
+        text: `🤝 【责任编辑·半程研讨号召】：关注到全组论文撰写已推进过半！请大家先暂停打字，花 1~2 分钟通读当前全篇草稿。重点审查：各章节逻辑是否连贯？前后构思是否存在脱节或分歧？\n👉 请大家在讨论区充分交流修改思路；商定差不多后，点击聊天框上方【💡 讨论差不多了？让责任编辑总结】按钮，我们将为大家提炼共识并下发《半程修正清单》！`,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         _timeMs: now
       };
@@ -4964,6 +4961,7 @@ ${contentSnippet}
       this.syncStage2();
       if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
       renderChat(this.state);
+      this._isTriggeringMeetingCall = false;
       return;
     }
 
