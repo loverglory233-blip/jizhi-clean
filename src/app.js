@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260830_v740";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash } from "./utils.js?v=20260830_v740";
-import { callCozeAgentAPI } from "./agents.js?v=20260830_v740";
-import { AuthManager } from "./auth.js?v=20260830_v740";
-import { CloudSyncEngine } from "./sync.js?v=20260830_v740";
-import { renderLoginView } from "./login.js?v=20260830_v740";
-import { renderTeacherPortal } from "./teacher.js?v=20260830_v740";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260830_v740";
+} from "./constants.js?v=20260830_v741";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash } from "./utils.js?v=20260830_v741";
+import { callCozeAgentAPI } from "./agents.js?v=20260830_v741";
+import { AuthManager } from "./auth.js?v=20260830_v741";
+import { CloudSyncEngine } from "./sync.js?v=20260830_v741";
+import { renderLoginView } from "./login.js?v=20260830_v741";
+import { renderTeacherPortal } from "./teacher.js?v=20260830_v741";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260830_v741";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260830_v740";
+} from "./editor.js?v=20260830_v741";
 
 // Make renderChat available on window for sync callbacks
 if (typeof window !== "undefined") {
@@ -1677,10 +1677,14 @@ ${recentChats}
 
       const downloadBtn = modal.querySelector('#btn-download-ann-file');
       if (downloadBtn && ann.attachment) {
-        downloadBtn.addEventListener('click', (e) => {
-          e.stopPropagation();
-          downloadFileBlob(ann.attachment.name, null, ann.attachment.url || ann.attachment.fileData);
-        });
+        downloadBtn.onclick = (e) => {
+          if (e) { e.preventDefault(); e.stopPropagation(); }
+          const att = ann.attachment;
+          const attObj = typeof att === 'string' ? (JSON.parse(att) || { url: att, name: '随附教学文献.pdf' }) : att;
+          const attName = attObj.name || attObj.fileName || `${ann.title || '教学随附文献'}.pdf`;
+          const attUrl = attObj.url || attObj.fileUrl || attObj.fileData || attObj.path;
+          downloadFileBlob(attName, null, attUrl);
+        };
       }
     };
 
@@ -1851,7 +1855,7 @@ ${recentChats}
                       <span>上传人: <b style="color:#334155;">${p.author || '任课教师'}</b></span>
                       ${p.fileSize ? `<span style="color:#cbd5e1;">|</span><span>文件大小: <b>${p.fileSize}</b></span>` : ''}
                     </div>
-                    ${p.fileName ? `
+                    ${(p.fileName || p.fileUrl || p.fileData || p.title) ? `
                       <button class="btn-download-ref-item" data-id="${p.id}" style="background:linear-gradient(135deg, #1d4ed8, #2563eb); border:none; color:white; padding:7px 18px; border-radius:8px; font-size:12.5px; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; gap:6px; box-shadow:0 2px 6px rgba(37,99,235,0.2);">
                         📥 下载并查阅随附文献
                       </button>
@@ -1878,14 +1882,16 @@ ${recentChats}
     modal.addEventListener('click', (e) => { if (e.target === modal) closeModal(); });
 
     modal.querySelectorAll('.btn-download-ref-item').forEach(btn => {
-      btn.addEventListener('click', () => {
+      btn.onclick = (e) => {
+        if (e) { e.preventDefault(); e.stopPropagation(); }
         const paperId = btn.dataset.id;
         const paper = papers.find(p => p.id === paperId);
         if (paper) {
+          const fileName = paper.fileName || `${paper.title || '学术参考范文'}.pdf`;
           const fileData = paper.fileUrl || paper.fileData || (window._paperMemoryBlobMap && window._paperMemoryBlobMap.get(paperId));
-          downloadFileBlob(paper.fileName || '学术参考范文.pdf', null, fileData);
+          downloadFileBlob(fileName, null, fileData);
         }
-      });
+      };
     });
   }
 
@@ -3219,7 +3225,7 @@ ${propText}
     }
     this.syncStageChange(newStage);
     this.triggerStageWelcomeSpeech(newStage);
-    this.renderStudentWorkspace();
+    this.renderStudentWorkspace(true);
   }
 
   setSpeed(newSpeed) {
@@ -3241,6 +3247,10 @@ ${propText}
   }
 
   renderStudentWorkspace(isForced = false) {
+    const isStageTransition = (this._lastRenderedStage !== this.state.currentStage);
+    this._lastRenderedStage = this.state.currentStage;
+    if (isStageTransition) isForced = true;
+
     const currentUser = this.authManager.getCurrentUser();
     const effectiveClassId = this.state.activeStudentClassId || (currentUser?.classId || 'class_101');
     const activeGroupObj = this.authManager.getStudentActiveGroup(currentUser, effectiveClassId);
