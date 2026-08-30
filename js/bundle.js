@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260831_v929
+ * Version: 20260831_v930
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260831_v929';
+  const APP_VERSION = '20260831_v930';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -14744,8 +14744,25 @@
         if (!s1.contract) s1.contract = {};
         s1.contract.topic = currentCandidate;
         s1.contractStep = 'time';
+
+        const fallbackNotice = {
+          id: 'msg_topic_done_' + Date.now(),
+          sender: 'auctioneer',
+          senderName: '头脑风暴 · 学术拍卖师',
+          text: `🏛️ 【学术拍卖师·主题与方案确立】：全组研究论题《${currentCandidate}》已成功确立并录入公约看板！👉 接下来请全组在讨论区商讨 6 大章节的时间预算分配，商定完成后点击左侧【⏱️ 时间讨论差不多了？一键提炼【时间分配】】！`,
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          _timeMs: Date.now()
+        };
+        s1ChatLogs.push(fallbackNotice);
+        if (typeof this.sendSingleChatMessage === 'function') {
+          this.sendSingleChatMessage(fallbackNotice, 'stage1');
+        }
+
         this.syncStage1();
+        this.syncChatLogs();
+        if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
         this.renderStudentWorkspace();
+        renderChat(this.state);
       }
     }
 
@@ -14838,8 +14855,25 @@
         if (!s1.contract) s1.contract = {};
         s1.contract.timeAllocations = { background: 25, literature: 30, questions: 25, method: 40, reflection: 20, references: 10 };
         s1.contractStep = 'tasks';
+
+        const fallbackNotice = {
+          id: 'msg_time_done_' + Date.now(),
+          sender: 'auctioneer',
+          senderName: '头脑风暴 · 学术拍卖师',
+          text: `🏛️ 【学术拍卖师·时间预算确立】：全篇 6 大章节时间预算已成功配置并录入公约看板！👉 接下来请全组在讨论区商定各自负责认领的写作章节与任务分工！商定完成后点击左侧【👥 研讨差不多了？一键提炼任务分工】！`,
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          _timeMs: Date.now()
+        };
+        s1ChatLogs.push(fallbackNotice);
+        if (typeof this.sendSingleChatMessage === 'function') {
+          this.sendSingleChatMessage(fallbackNotice, 'stage1');
+        }
+
         this.syncStage1();
+        this.syncChatLogs();
+        if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
         this.renderStudentWorkspace();
+        renderChat(this.state);
       }
     }
 
@@ -14948,8 +14982,25 @@
         if (!s1.contract) s1.contract = {};
         s1.contract.isDraftGenerated = true;
         s1.contractStep = 'completed';
+
+        const fallbackNotice = {
+          id: 'msg_tasks_done_' + Date.now(),
+          sender: 'auctioneer',
+          senderName: '头脑风暴 · 学术拍卖师',
+          text: `🏛️ 【学术拍卖师·公约草案就绪】：全组成员写作分工已成功配置，公约草案已全部生成就绪！👉 请全员在左侧下方点击【✍️ 签署确认学术公约】，全员签署后开启阶段二！`,
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          _timeMs: Date.now()
+        };
+        s1ChatLogs.push(fallbackNotice);
+        if (typeof this.sendSingleChatMessage === 'function') {
+          this.sendSingleChatMessage(fallbackNotice, 'stage1');
+        }
+
         this.syncStage1();
+        this.syncChatLogs();
+        if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
         this.renderStudentWorkspace();
+        renderChat(this.state);
       }
     }
 
