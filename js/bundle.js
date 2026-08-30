@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260830_v837
+ * Version: 20260830_v838
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260830_v837';
+  const APP_VERSION = '20260830_v838';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -13224,8 +13224,12 @@
         const hasValidConsensusPair = !hasAdversative && hasAgreement && studentChats.length >= 2;
 
         // 🎪 阶段一（学术拍卖会）多轮共识流转
-        if (currentStage === 'stage1' && !this.state.stage1.contract.isDraftGenerated && !this.state.stage1.contract.isConfirmed) {
-          const s1 = this.state.stage1;
+        if (currentStage === 'stage1' && (!this.state.stage1?.contract?.isConfirmed)) {
+          const s1 = this.state.stage1 || {};
+          const s1Logs = this.state.chatLogs?.stage1 || [];
+          const hasTopicEstablished = s1Logs.some(m => m && m.sender === 'auctioneer' && (m.text.includes('课题确立') || m.text.includes('全票') || m.text.includes('落槌') || m.text.includes('融合课题确立') || m.text.includes('细化探究指引') || m.text.includes('课题细化建议') || m.text.includes('细化指引')));
+          const hasTaskPromptSent = s1Logs.some(m => m && m.sender === 'auctioneer' && (m.text.includes('分工与时间规划') || m.text.includes('分工引导')));
+
           // 1. 若处于【分歧协商】状态，识别组员是否讨论并收敛出了融合选题
           if (this.state.stage1PendingDivergence) {
             const isTopicConsensusSignal = /(?:结合|融合|就定|赞成|同意|按照|定这个|选题|题目|基于|好主意|没问题|支持|统一|听大家的)/i.test(text);
@@ -13302,7 +13306,14 @@
 
               const topic = s1.mergedTitle || '本组研究论题';
               const s1Logs = (this.state.chatLogs && this.state.chatLogs.stage1) ? this.state.chatLogs.stage1 : [];
-              const topicNoticeIdx = s1Logs.findLastIndex(m => m && m.sender === 'auctioneer' && (m.text.includes('课题确立') || m.text.includes('全票') || m.text.includes('落槌')));
+              let topicNoticeIdx = -1;
+              for (let i = s1Logs.length - 1; i >= 0; i--) {
+                const m = s1Logs[i];
+                if (m && m.sender === 'auctioneer' && (m.text.includes('课题确立') || m.text.includes('全票') || m.text.includes('落槌') || m.text.includes('融合课题确立') || m.text.includes('细化探究指引') || m.text.includes('课题细化建议'))) {
+                  topicNoticeIdx = i;
+                  break;
+                }
+              }
               const relevantRefineLogs = (topicNoticeIdx >= 0) ? s1Logs.slice(topicNoticeIdx + 1) : s1Logs;
               const userRefineChat = relevantRefineLogs.filter(m => m && m.sender && !AgentProfiles[m.sender] && m.sender !== 'system')
                 .map(m => `${m.senderName || m.sender}: ${m.text}`).join('\n') || text;
@@ -13367,7 +13378,14 @@
 
               const topic = s1.mergedTitle || '本组研究论题';
               const s1Logs = (this.state.chatLogs && this.state.chatLogs.stage1) ? this.state.chatLogs.stage1 : [];
-              const taskNoticeIdx = s1Logs.findLastIndex(m => m && m.sender === 'auctioneer' && (m.text.includes('分工与时间规划') || m.text.includes('分工引导')));
+              let taskNoticeIdx = -1;
+              for (let i = s1Logs.length - 1; i >= 0; i--) {
+                const m = s1Logs[i];
+                if (m && m.sender === 'auctioneer' && (m.text.includes('分工与时间规划') || m.text.includes('分工引导') || m.text.includes('方案细化学术总结') || m.text.includes('方案细化小结'))) {
+                  taskNoticeIdx = i;
+                  break;
+                }
+              }
               const relevantTaskLogs = (taskNoticeIdx >= 0) ? s1Logs.slice(taskNoticeIdx + 1) : s1Logs;
               const userTaskChat = relevantTaskLogs.filter(m => m && m.sender && !AgentProfiles[m.sender] && m.sender !== 'system')
                 .map(m => `${m.senderName || m.sender}: ${m.text}`).join('\n') || text;
