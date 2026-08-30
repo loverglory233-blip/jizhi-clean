@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260830_v824
+ * Version: 20260830_v825
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260830_v824';
+  const APP_VERSION = '20260830_v825';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -13285,37 +13285,42 @@
               }, 800);
             }
           }
-          // 2. 若处于【方案细化】状态，支持学生就学段、方法、理论、变量等多轮深入研讨，绝不因单次发言过早打断
+          // 2. 若处于【方案细化】状态：40秒静默观察窗口（Debounce），学生持续发言自动打断重置，完全讨论完毕且40秒无新发言才自然切入分工
           else if (s1.flowStep === 'refining' || this.state.stage1PendingRefinement || (hasTopicEstablished && !hasTaskPromptSent)) {
-            if (!s1._refineMsgCount) s1._refineMsgCount = 0;
-            s1._refineMsgCount += 1;
+            // 每次发言先打断之前的 40 秒等待定时器，确保学生继续讨论时不被打扰
+            if (this._refineDebounceTimer) {
+              clearTimeout(this._refineDebounceTimer);
+              this._refineDebounceTimer = null;
+            }
 
-            // 判定是否是明确的方案定型/分工意向信号
+            // 判定是否是主动发出的明确收敛/分工信号 (无需等40秒，直接秒级推进)
             const isExplicitFinalizeOrTaskSignal = /(?:定好|定了吧|想好|差不多了|可以了|没问题了|就按这个|就这么定|就这么办|妥了|开始分工|怎么分工|谁负责|谁来写|分配任务|商量分工|准备分工)/i.test(text);
 
-            // 判定是否经过多轮充分研讨（3条以上方案交流）并且当前组内达成最终确认
-            const isDeepDiscussionWithConsensus = (s1._refineMsgCount >= 3) && hasValidConsensusPair;
-
-            if (isExplicitFinalizeOrTaskSignal || isDeepDiscussionWithConsensus) {
+            const triggerTaskGuidance = () => {
               s1.flowStep = 'tasks';
               this.state.stage1PendingRefinement = false;
               this.state.stage1PendingTasks = true;
               this.syncStage1();
-              setTimeout(async () => {
-                const taskPromptMsg = {
-                  sender: 'auctioneer',
-                  senderName: '头脑风暴 · 学术拍卖师',
-                  text: `🎪 【拍卖师·分工与时间规划引导】：具体研究内容已基本明晰！👉 接下来请大家在讨论区商定：① 规划 6 大章节的时间预算；② 确定各自的任务分工（大家可以按具体内容模块分工，也可以按章节分工；先定时间还是先定分工由全组自主决定）！`,
-                  timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                  _timeMs: Date.now()
-                };
-                if (!this.state.chatLogs.stage1) this.state.chatLogs.stage1 = [];
-                this.state.chatLogs.stage1.push(taskPromptMsg);
-                this.syncChatLogs();
-                this.syncStage1();
-                if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
-                renderChat(this.state);
-              }, 800);
+              const taskPromptMsg = {
+                sender: 'auctioneer',
+                senderName: '头脑风暴 · 学术拍卖师',
+                text: `🎪 【拍卖师·分工与时间规划引导】：具体研究内容已基本明晰！👉 接下来请大家在讨论区商定：① 规划 6 大章节的时间预算；② 确定各自的任务分工（大家可以按具体内容模块分工，也可以按章节分工；先定时间还是先定分工由全组自主决定）！`,
+                timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                _timeMs: Date.now()
+              };
+              if (!this.state.chatLogs.stage1) this.state.chatLogs.stage1 = [];
+              this.state.chatLogs.stage1.push(taskPromptMsg);
+              this.syncChatLogs();
+              this.syncStage1();
+              if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+              renderChat(this.state);
+            };
+
+            if (isExplicitFinalizeOrTaskSignal) {
+              setTimeout(triggerTaskGuidance, 800);
+            } else if (hasValidConsensusPair) {
+              // 组内达成共识后，启动 40 秒观察窗口；40 秒内若有任何同学继续提出新补充则自动顺延，40秒完全静默才判定方案充分定型！
+              this._refineDebounceTimer = setTimeout(triggerTaskGuidance, 40000);
             }
           }
           // 3. 若处于【分工与时间商议】状态，识别组员是否已完成分工与时间讨论 ➔ 提醒点击【生成公约草案】
