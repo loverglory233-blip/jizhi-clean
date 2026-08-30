@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260830_v809";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash } from "./utils.js?v=20260830_v809";
-import { callCozeAgentAPI } from "./agents.js?v=20260830_v809";
-import { AuthManager } from "./auth.js?v=20260830_v809";
-import { CloudSyncEngine } from "./sync.js?v=20260830_v809";
-import { renderLoginView } from "./login.js?v=20260830_v809";
-import { renderTeacherPortal } from "./teacher.js?v=20260830_v809";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260830_v809";
+} from "./constants.js?v=20260830_v810";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash } from "./utils.js?v=20260830_v810";
+import { callCozeAgentAPI } from "./agents.js?v=20260830_v810";
+import { AuthManager } from "./auth.js?v=20260830_v810";
+import { CloudSyncEngine } from "./sync.js?v=20260830_v810";
+import { renderLoginView } from "./login.js?v=20260830_v810";
+import { renderTeacherPortal } from "./teacher.js?v=20260830_v810";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260830_v810";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260830_v809";
+} from "./editor.js?v=20260830_v810";
 
 // Make renderChat available on window for sync callbacks
 if (typeof window !== "undefined") {
@@ -789,22 +789,54 @@ export class App {
     }
   }
 
-  // 🌐 通用智能体静默/情绪提示发射器：真 AI 生成，超时/失败自动降级为写死兜底文案
-  async queueAgentNudge(botKey, prompt, fallbackText, stage) {
-    let text = null;
-    try { text = await callCozeAgentAPI(botKey, prompt, { stage }); } catch (e) {}
-    const finalText = (text && text.trim().length > 0) ? text.trim() : fallbackText;
-    const msg = {
+  // 🌐 通用智能体静默/情绪提示发射器：真 AI 生成，调用期间显示 Loading 动画，失败优雅静默，严禁假套话兜底
+  async queueAgentNudge(botKey, prompt, fallbackText = '', stage = 'stage2') {
+    if (this._isHandlingAgentNudge) return; // 🛡️ 严格单飞并发锁，杜绝大模型双发
+    this._isHandlingAgentNudge = true;
+
+    // 1. 在聊天框推入【正在输入/思考中...】的 Loading 状态气泡
+    const loadingMsgId = 'loading_' + Date.now();
+    const loadingMsg = {
+      id: loadingMsgId,
       sender: botKey,
-      text: finalText,
+      text: '🤖 正在结合当前研讨语境生成专属学术建议...',
+      isLoading: true,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       _timeMs: Date.now()
     };
     if (!this.state.chatLogs[stage]) this.state.chatLogs[stage] = [];
-    this.state.chatLogs[stage].push(msg);
-    this.syncChatLogs();
-    if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
-    renderChat(this.state);
+    this.state.chatLogs[stage].push(loadingMsg);
+    if (typeof window.renderChat === 'function') window.renderChat(this.state);
+
+    try {
+      let text = await callCozeAgentAPI(botKey, prompt, { stage });
+      // 2. 移除 loading 气泡
+      this.state.chatLogs[stage] = this.state.chatLogs[stage].filter(m => m.id !== loadingMsgId);
+      
+      if (text && text.trim().length > 0) {
+        const msg = {
+          sender: botKey,
+          text: text.trim(),
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          _timeMs: Date.now()
+        };
+        this.state.chatLogs[stage].push(msg);
+        this.syncChatLogs();
+        if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+        renderChat(this.state);
+      } else {
+        // 大模型未返回内容时直接安静移除 loading，绝不吐写死假套话
+        this.syncChatLogs();
+        renderChat(this.state);
+      }
+    } catch (e) {
+      console.warn('Agent nudge error:', e);
+      this.state.chatLogs[stage] = this.state.chatLogs[stage].filter(m => m.id !== loadingMsgId);
+      this.syncChatLogs();
+      renderChat(this.state);
+    } finally {
+      this._isHandlingAgentNudge = false;
+    }
   }
 
   initCrossStageInactivityChecker() {
@@ -836,7 +868,7 @@ export class App {
       if (activeMembersCount < 1) return; // 至少 1 人在线即可触发智能体巡检守护与提示
 
       // ======================================================================
-      // 🌟 全阶段 SSRL 情绪与挫败感智能守护（同伴优先调节 45~60 秒观察窗）
+      // 🧠 SSRL 情绪挫败检测与社会性调节支持机制 (带 45s 同伴互助留白保护)
       // ======================================================================
       const currentStageChats = (this.state.chatLogs && this.state.chatLogs[stage]) ? this.state.chatLogs[stage] : [];
       const recentStudentChats = currentStageChats.filter(m => m.sender && !AgentProfiles[m.sender] && m.sender !== 'system');
@@ -845,7 +877,7 @@ export class App {
         return /(?:太难了|写不出来|改不动了|不知道怎么写|全废了|搞不定|来不及了|头大|想放弃|否定我们|怎么改啊)/i.test(t);
       });
 
-      if (lastNegativeChat && (!this.lastEmotionHandledId || this.lastEmotionHandledId !== lastNegativeChat._timeMs)) {
+      if (lastNegativeChat && (!this.lastEmotionHandledId || this.lastEmotionHandledId !== lastNegativeChat._timeMs) && !this._isHandlingEmotion) {
         const negTime = lastNegativeChat._timeMs || (now - 60000);
         const timeSinceNeg = now - negTime;
         // 观察窗口：45 秒内给同伴留出互助安慰空间
@@ -856,28 +888,29 @@ export class App {
 
           if (!hasPeerComforted) {
             this.lastEmotionHandledId = lastNegativeChat._timeMs;
+            this._isHandlingEmotion = true;
             let agentSender = 'managingEditor';
-            let comfortText = '';
-            if (stage === 'stage1') {
-              agentSender = 'auctioneer';
-              comfortText = `🎪 【拍卖师·选题启发】：遇到构思瓶颈是非常正常的学术探索过程！\n💡 建议可以从大家熟悉的真实教学场景切入，先列出 1~2 个最想解决的具体痛点，再逐步完善理论框架，全组一起出谋划策！`;
-            } else if (stage === 'stage2') {
-              agentSender = 'managingEditor';
-              comfortText = `🤝 【责任编辑·暖心护航】：感到写作卡顿或疲惫时，不妨先暂停打字深呼吸！\n💡 可以先在研讨区把卡点或困惑抛给组员，大家头脑风暴互相提供思路支架，一步一步拆解难点！`;
-            } else if (stage === 'stage3') {
-              agentSender = 'neutral';
-              comfortText = `🟡 【中间委员·答辩启发】：学术答辩中的尖锐质询正是让方案更加严谨的宝贵契机！\n💡 反方的质询指出了可以进一步补强的空间，建议结合正方刚才提到的实践应用优势，从操作化补救的角度从容辩护！`;
-            }
+            if (stage === 'stage1') agentSender = 'auctioneer';
+            else if (stage === 'stage2') agentSender = 'managingEditor';
+            else if (stage === 'stage3') agentSender = 'neutral';
 
-            // 情绪托底转真 AI：基于学生真实情绪原话 + 当前阶段生成个性化安抚与破局建议（写死文案降级为超时兜底）
             const negativeRaw = (lastNegativeChat.text || '').trim();
             const comfortPrompt = `有同学在协作中流露出了挫败/疲惫情绪，原话为：「${negativeRaw}」。请以${stage === 'stage1' ? '学术拍卖师' : stage === 'stage2' ? '责任编辑' : '中间委员'}的身份，先用 2~3 句真诚安抚这份情绪（共情但不肉麻、不说教），再结合当前写作阶段给出 1 个具体、可立即照做的小建议，帮助全组重新找回节奏。80~120 字，语气温暖自然。`;
-            this.queueAgentNudge(agentSender, comfortPrompt, comfortText, stage);
+            
+            setTimeout(async () => {
+              try {
+                await this.queueAgentNudge(agentSender, comfortPrompt, '', stage);
+              } finally {
+                this._isHandlingEmotion = false;
+              }
+            }, 50);
             return;
           } else {
             // 同伴已成功出面调节，AI 默默记录并全程保持静默
             this.lastEmotionHandledId = lastNegativeChat._timeMs;
           }
+        }
+      }
       if (stage === 'stage1') {
         const s1 = this.state.stage1;
         if (!s1 || s1.contract?.isConfirmed) return;
