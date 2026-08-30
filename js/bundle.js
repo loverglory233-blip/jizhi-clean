@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260830_v807
+ * Version: 20260830_v808
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260830_v807';
+  const APP_VERSION = '20260830_v808';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -11994,12 +11994,17 @@
           const taskDurMin = (curTask && curTask.durationMinutes) ? Number(curTask.durationMinutes) : 60;
           const silenceThresholdMs = taskDurMin < 60 ? 120000 : (taskDurMin <= 180 ? 180000 : 270000);
 
-          // 1. 【提案阶段研讨静默守护】：研讨区持续无人发言达到阈值（标准3分钟）准时破冰提示（最多2次）！
+          // 1. 【提案阶段研讨静默守护】：研讨区持续无人发言达到阈值准时破冰（最多连续2次，有新发言自动重置）！
           if (submittedCount < totalMembersCount && silenceDurationMs >= silenceThresholdMs) {
+            if (lastStudentMsgTime > (this._lastNudgeActivityTime?.['s1_discussion'] || 0)) {
+              this._nudgeCounts['s1_discussion'] = 0;
+            }
             const count = this._nudgeCounts['s1_discussion'] || 0;
             if (count < 2 && (!this.lastDiscussionNudgeTime || now - this.lastDiscussionNudgeTime > (silenceThresholdMs + 60000))) {
               this.lastDiscussionNudgeTime = now;
               this._nudgeCounts['s1_discussion'] = count + 1;
+              if (!this._lastNudgeActivityTime) this._lastNudgeActivityTime = {};
+              this._lastNudgeActivityTime['s1_discussion'] = lastStudentMsgTime;
               const msg = {
                 sender: 'auctioneer',
                 text: `💡 【拍卖师·研讨互动提示】：关注到大家正在构思选题！可以在讨论区交流灵感与研究想法，构思成熟后点击左侧【提交我的选题】卡片进行提交～`,
@@ -12309,12 +12314,17 @@
           // ── 阶段二修改期静默守护：审稿编辑保持后台严肃倾听，绝不随意发无意义跟进打扰学生专注写作 ──
           // （仅在学生主动 @审稿编辑 时或到达三大官方质检里程碑时出面指导）
 
-          // 4) 修改期后续周期性提醒 (动态自适应任务时长，最多2次)
+          // 4) 修改期后续周期性提醒 (动态自适应任务时长，最多连续2次，有新发言自动重置)
           if (this.state.stage2ReviewingFinishedTime && this.state.stage2FirstPostReviewNudgeSent && silenceDurationMs >= s2NudgeCooldownMs) {
+            if (lastStudentMsgTime > (this._lastNudgeActivityTime?.['s2_post_meeting'] || 0)) {
+              this._nudgeCounts['s2_post_meeting'] = 0;
+            }
             const count = this._nudgeCounts['s2_post_meeting'] || 0;
             if (count < 2 && (!this.lastS2PostMeetingSilenceNudgeTime || now - this.lastS2PostMeetingSilenceNudgeTime >= s2NudgeCooldownMs)) {
               this.lastS2PostMeetingSilenceNudgeTime = now;
               this._nudgeCounts['s2_post_meeting'] = count + 1;
+              if (!this._lastNudgeActivityTime) this._lastNudgeActivityTime = {};
+              this._lastNudgeActivityTime['s2_post_meeting'] = lastStudentMsgTime;
               const msg = {
                 sender: 'managingEditor',
                 text: `💡 【责任编辑·协同修改推进跟进】：全组正文修改正在稳步推进！\n👉 建议大家继续在讨论区同步各章节的修改进度与段落衔接，保持全篇逻辑的一体化！`,
@@ -12361,12 +12371,17 @@
           const feedbacks = Array.isArray(s3.feedbackItems) ? s3.feedbackItems : [];
           const pendingFeedbacks = feedbacks.filter(f => !f.response || f.response.trim().length === 0);
 
-          // 1. 阶段三开场引导下发后，若全组静默超过 3.5 分钟且仍有未完成质询：才温和提示展开答辩（最多2次）
+          // 1. 阶段三开场引导下发后，若全组静默超过 3.5 分钟且仍有未完成质询：才温和提示展开答辩（最多连续2次，有新发言自动重置）
           if (silenceDurationMs > 210000 && pendingFeedbacks.length > 0) {
+            if (lastStudentMsg && (lastStudentMsg._timeMs || 0) > (this._lastNudgeActivityTime?.['s3_silence'] || 0)) {
+              this._nudgeCounts['s3_silence'] = 0;
+            }
             const count = this._nudgeCounts['s3_silence'] || 0;
             if (count < 2 && (!this.lastS3SilenceNudgeTime || now - this.lastS3SilenceNudgeTime > 240000)) {
               this.lastS3SilenceNudgeTime = now;
               this._nudgeCounts['s3_silence'] = count + 1;
+              if (!this._lastNudgeActivityTime) this._lastNudgeActivityTime = {};
+              this._lastNudgeActivityTime['s3_silence'] = lastStudentMsg ? (lastStudentMsg._timeMs || now) : now;
               const s3SilenceFallback = `🟡 【中间委员·答辩研讨提示】：请大家回顾左侧矩阵中的正反方质询点展开辩护讨论；商定好共识后，由一位组员代表录入裁决矩阵，其余成员同步在正文中落实修改！`;
               this.queueAgentNudge('neutral', `正反两方评审意见已送达，但讨论区已静默一段时间。请以中间委员身份，引导大家先回看你此前在聊天框给出的引导建议，再就反方质询点展开辩护讨论，并给 1 条具体建议。80~120 字。`, s3SilenceFallback, 'stage3');
               return;
