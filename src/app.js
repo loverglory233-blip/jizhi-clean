@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260831_v959";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch } from "./utils.js?v=20260831_v959";
-import { callCozeAgentAPI } from "./agents.js?v=20260831_v959";
-import { AuthManager } from "./auth.js?v=20260831_v959";
-import { CloudSyncEngine } from "./sync.js?v=20260831_v959";
-import { renderLoginView } from "./login.js?v=20260831_v959";
-import { renderTeacherPortal } from "./teacher.js?v=20260831_v959";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260831_v959";
+} from "./constants.js?v=20260831_v960";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch } from "./utils.js?v=20260831_v960";
+import { callCozeAgentAPI } from "./agents.js?v=20260831_v960";
+import { AuthManager } from "./auth.js?v=20260831_v960";
+import { CloudSyncEngine } from "./sync.js?v=20260831_v960";
+import { renderLoginView } from "./login.js?v=20260831_v960";
+import { renderTeacherPortal } from "./teacher.js?v=20260831_v960";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260831_v960";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260831_v959";
+} from "./editor.js?v=20260831_v960";
 
 // Make renderChat available on window for sync callbacks
 if (typeof window !== "undefined") {
@@ -4880,6 +4880,7 @@ ${propText}
     const s2 = this.state.stage2;
     if (!s2.reviewMilestone) s2.reviewMilestone = 'none';
 
+    const membersList = Object.values(this.state.members || {});
     const logs = this.state.chatLogs[currentStage] || [];
     const now = Date.now();
     const lastReviewingMsg = logs.slice().reverse().find(m => m.sender === 'reviewingEditor');
