@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260830_v785
+ * Version: 20260830_v786
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260830_v785';
+  const APP_VERSION = '20260830_v786';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -11132,8 +11132,7 @@
       const storedClassId = sessionStorage.getItem('jizhi_active_student_class_id') || localStorage.getItem('jizhi_active_student_class_id');
       if (storedClassId) this.state.activeStudentClassId = storedClassId;
 
-      localStorage.removeItem('jizhi_student_view_mode');
-      const storedViewMode = sessionStorage.getItem('jizhi_student_view_mode');
+      const storedViewMode = sessionStorage.getItem('jizhi_student_view_mode') || localStorage.getItem('jizhi_student_view_mode');
       this.state.studentViewMode = (storedViewMode === 'workspace') ? 'workspace' : 'task_list';
 
       const user = this.authManager.getCurrentUser();
@@ -12997,7 +12996,7 @@
       this.state.studentViewMode = 'task_list';
       sessionStorage.setItem('jizhi_student_view_mode', 'task_list');
       sessionStorage.removeItem('jizhi_active_task_id');
-      localStorage.removeItem('jizhi_student_view_mode');
+      localStorage.setItem('jizhi_student_view_mode', 'task_list');
       localStorage.removeItem('jizhi_active_task_id');
       if (this.cloudSyncEngine) this.cloudSyncEngine.stopPolling();
       this.renderMain();
