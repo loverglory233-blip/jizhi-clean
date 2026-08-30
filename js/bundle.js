@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260830_v883
+ * Version: 20260830_v884
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260830_v883';
+  const APP_VERSION = '20260830_v884';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -12841,11 +12841,13 @@
             }
           }
 
-          // ── 🛡️ 阶段二第三次质检（字数 >= 90% OR 时间 >= 85% OR 确认初稿 · 审稿编辑终审定稿总评，全场严格仅 1 次） ──
-          const targetWordCount = (curTask && curTask.targetWordCount) ? Number(curTask.targetWordCount) : 2000;
-          const wordProgress = targetWordCount > 0 ? (plainTextLen / targetWordCount) : (plainTextLen / 2000);
+          // ── 🛡️ 阶段二三次质检水位线标准（中任务默认4300字，大任务默认9000字） ──
+          const isLargeTask = taskDurMin > 180;
+          const defaultWordTarget = isLargeTask ? 9000 : 4300;
+          const targetWordCount = (curTask && curTask.targetWordCount) ? Number(curTask.targetWordCount) : defaultWordTarget;
+          const wordProgress = targetWordCount > 0 ? (plainTextLen / targetWordCount) : (plainTextLen / 4300);
           const timeProgress = totalPlannedMs > 0 ? (stage2DurationMs / totalPlannedMs) : 0;
-          const isFinalReviewDue = (wordProgress >= 0.90 || timeProgress >= 0.85 || s2.isDraftConfirmed || plainTextLen >= 1800);
+          const isFinalReviewDue = (wordProgress >= 0.90 || timeProgress >= 0.85 || s2.isDraftConfirmed || plainTextLen >= (targetWordCount * 0.9));
 
           const hasFinalReviewInLogs = s2Chats.some(m => m && m.sender === 'reviewingEditor' && (m.text?.includes('终稿行文扫描') || m.text?.includes('终审定稿总评')));
           if (hasFinalReviewInLogs && s2.reviewMilestone !== 'final_review_done') {
@@ -15129,7 +15131,7 @@
             id: `msg_welcome_${taskId}_${groupId}_stage2_managing`,
             sender: 'managingEditor',
             senderName: '责任编辑 · 过程学伴',
-            text: `🤝 【责任编辑开场】：欢迎来到【阶段二：学术编辑部】！全组已锁定研究主题《${topic}》。【公约分工与协同提醒】：${assignSummary.join(' | ') || '全员协作'}。各部分虽有分工侧重，更要主动研读同伴写下的段落、打通前后逻辑！请大家进入左侧富文本编辑器开启深度协作！`,
+            text: `🤝 【责任编辑·开场欢迎】：各位研究者，欢迎来到【阶段二：学术编辑部】！全组已锁定研究主题《${topic}》。请大家根据公约设想展开协同起草，主动研读同伴起草的段落，共同打通前后逻辑！请进入左侧富文本编辑器开启深度协作！`,
             timestamp: now,
             _timeMs: Date.now()
           };
@@ -15142,14 +15144,14 @@
               id: `msg_welcome_${taskId}_${groupId}_stage2_reviewing`,
               sender: 'reviewingEditor',
               senderName: '审稿编辑 · 质量把关',
-              text: `📝 【审稿编辑规范推送】：各位作者，为了方便大家自查，我已在界面顶部呈递了《课程学术参考范文库》，大家随时可以查阅学习标准的章节逻辑架构与学术行文规范哦！`,
+              text: `📝 【审稿编辑·开场寄语】：大家好！我是本阶段的审稿编辑。在大家的写作过程中，我将分别在开篇破题、半程研讨与终审定稿三个关键节点为大家提供质检把脉与修改清单，护航全篇学术质量！👉 写作遇到瓶颈时，建议大家参考顶部【学术范文】与参考文献支架，学习规范的学术行文与章节论述架构！`,
               timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
               _timeMs: Date.now()
             };
             logs.push(reviewingWelcome);
             this.sendSingleChatMessage(reviewingWelcome, 'stage2');
             if (typeof window.renderChat === 'function') window.renderChat(this.state);
-          }, 3200);
+          }, 1800);
         }
       }
 
