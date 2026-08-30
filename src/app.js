@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260830_v888";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap } from "./utils.js?v=20260830_v888";
-import { callCozeAgentAPI } from "./agents.js?v=20260830_v888";
-import { AuthManager } from "./auth.js?v=20260830_v888";
-import { CloudSyncEngine } from "./sync.js?v=20260830_v888";
-import { renderLoginView } from "./login.js?v=20260830_v888";
-import { renderTeacherPortal } from "./teacher.js?v=20260830_v888";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260830_v888";
+} from "./constants.js?v=20260830_v889";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap } from "./utils.js?v=20260830_v889";
+import { callCozeAgentAPI } from "./agents.js?v=20260830_v889";
+import { AuthManager } from "./auth.js?v=20260830_v889";
+import { CloudSyncEngine } from "./sync.js?v=20260830_v889";
+import { renderLoginView } from "./login.js?v=20260830_v889";
+import { renderTeacherPortal } from "./teacher.js?v=20260830_v889";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260830_v889";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260830_v888";
+} from "./editor.js?v=20260830_v889";
 
 // Make renderChat available on window for sync callbacks
 if (typeof window !== "undefined") {
@@ -66,6 +66,7 @@ export class App {
     this.loadGroupState(currentGroupId);
 
     this.cloudSyncEngine = new CloudSyncEngine(this);
+    this.initGlobalBroadcastListener();
     this.initTimer();
     this.renderMain();
 
@@ -100,6 +101,42 @@ export class App {
         }
       } catch (e) {}
     })();
+  }
+
+  initGlobalBroadcastListener() {
+    if ('BroadcastChannel' in window) {
+      try {
+        if (window._appGlobalBc) { try { window._appGlobalBc.close(); } catch (e) {} }
+        window._appGlobalBc = new BroadcastChannel('jizhi_global_events');
+        window._appGlobalBc.onmessage = (e) => {
+          if (!e.data) return;
+          const user = this.authManager ? this.authManager.getCurrentUser() : null;
+          const isStudent = user && (user.role === 'student' || user.isStudent);
+          if (!isStudent) return;
+
+          // 1. 教师发布全新任务
+          if (e.data.type === 'task_created' && e.data.task) {
+            const t = e.data.task;
+            showGlobalBannerNotice('📢 教师发布新任务', `任课教师刚刚发布了全新写作任务《${escapeHtml(t.title || '新任务')}》！`, 'info', 8000);
+            if (this.state.studentViewMode === 'task_list') {
+              this.renderMain();
+            }
+          }
+
+          // 2. 教师删除/撤销任务
+          if (e.data.type === 'task_deleted') {
+            const delTaskId = e.data.taskId;
+            const delTaskTitle = e.data.title || '写作任务';
+            // 若学生刚好在被删除的任务工作台中
+            if (this.state.studentViewMode === 'workspace' && this.state.activeTaskId === delTaskId) {
+              this.showTaskRevokedModal(delTaskTitle);
+            } else if (this.state.studentViewMode === 'task_list') {
+              this.renderMain();
+            }
+          }
+        };
+      } catch (e) {}
+    }
   }
 
   loadGroupState(groupId = 'group_1') {
@@ -901,6 +938,16 @@ export class App {
         }
       }
       this._knownTaskIdsSet = currentTaskIds;
+
+      // 🛡️ 2.5 工作台任务存活检测：若当前正在写作的任务已被教师在后台删除/撤销，弹窗提醒并安全返回大厅
+      if (this.state.studentViewMode === 'workspace' && this.state.activeTaskId) {
+        const isCurrentTaskAlive = allTasks.some(t => t.id === this.state.activeTaskId);
+        if (!isCurrentTaskAlive && !this._isHandlingTaskRevoked) {
+          this._isHandlingTaskRevoked = true;
+          this.showTaskRevokedModal(this.state.activeTaskTitle || '当前写作任务');
+          return;
+        }
+      }
 
       // 若处于任务大厅，感知任务变动后自动刷新大厅卡片
       if (!this.state.activeTaskId) {
@@ -2248,13 +2295,48 @@ export class App {
   }
 
   backToTaskList() {
+    this._isHandlingTaskRevoked = false;
     this.state.studentViewMode = 'task_list';
+    this.state.activeTaskId = null;
+    this.state.activeTaskTitle = null;
     sessionStorage.setItem('jizhi_student_view_mode', 'task_list');
     sessionStorage.removeItem('jizhi_active_task_id');
     localStorage.setItem('jizhi_student_view_mode', 'task_list');
     localStorage.removeItem('jizhi_active_task_id');
     if (this.cloudSyncEngine) this.cloudSyncEngine.stopPolling();
     this.renderMain();
+  }
+
+  showTaskRevokedModal(taskTitle = '写作任务') {
+    document.querySelectorAll('.modal-overlay').forEach(el => el.remove());
+    const modal = document.createElement('div');
+    modal.className = 'modal-overlay modal-task-deleted-overlay';
+    modal.style.cssText = 'z-index:999999; display:flex; align-items:center; justify-content:center; position:fixed; inset:0; background:rgba(15,23,42,0.65); backdrop-filter:blur(4px);';
+    modal.innerHTML = `
+      <div class="modal-card" style="background:#fff; border-radius:14px; max-width:440px; width:90%; padding:28px 24px; box-shadow:0 25px 50px -12px rgba(0,0,0,0.25); text-align:center; animation:modalPop 0.25s cubic-bezier(0.16,1,0.3,1);">
+        <div style="width:54px; height:54px; border-radius:50%; background:#fee2e2; color:#ef4444; display:flex; align-items:center; justify-content:center; margin:0 auto 16px; font-size:26px;">⚠️</div>
+        <h3 style="margin:0 0 10px; font-size:19px; color:#0f172a; font-weight:700;">任务已被教师撤销</h3>
+        <p style="margin:0 0 24px; font-size:14px; color:#475569; line-height:1.65;">
+          当前协作任务《<b>${escapeHtml(taskTitle)}</b>》已被任课教师从系统撤销或删除。<br/>
+          系统将自动为你安全返回任务大厅。
+        </p>
+        <button id="btn-return-portal-revoked" class="btn btn-primary" style="width:100%; padding:12px 18px; font-size:15px; font-weight:600; border-radius:8px; background:#2563eb; color:#fff; border:none; cursor:pointer;">返回任务大厅</button>
+      </div>
+    `;
+    document.body.appendChild(modal);
+
+    const handleBack = () => {
+      modal.remove();
+      this.backToTaskList();
+    };
+
+    modal.querySelector('#btn-return-portal-revoked')?.addEventListener('click', handleBack);
+    // 5 秒自动平滑重定向回大厅
+    setTimeout(() => {
+      if (document.body.contains(modal)) {
+        handleBack();
+      }
+    }, 5000);
   }
 
   renderHeader() {
