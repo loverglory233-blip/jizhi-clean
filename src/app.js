@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260830_v865";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap } from "./utils.js?v=20260830_v865";
-import { callCozeAgentAPI } from "./agents.js?v=20260830_v865";
-import { AuthManager } from "./auth.js?v=20260830_v865";
-import { CloudSyncEngine } from "./sync.js?v=20260830_v865";
-import { renderLoginView } from "./login.js?v=20260830_v865";
-import { renderTeacherPortal } from "./teacher.js?v=20260830_v865";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260830_v865";
+} from "./constants.js?v=20260830_v866";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap } from "./utils.js?v=20260830_v866";
+import { callCozeAgentAPI } from "./agents.js?v=20260830_v866";
+import { AuthManager } from "./auth.js?v=20260830_v866";
+import { CloudSyncEngine } from "./sync.js?v=20260830_v866";
+import { renderLoginView } from "./login.js?v=20260830_v866";
+import { renderTeacherPortal } from "./teacher.js?v=20260830_v866";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260830_v866";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260830_v865";
+} from "./editor.js?v=20260830_v866";
 
 // Make renderChat available on window for sync callbacks
 if (typeof window !== "undefined") {
@@ -977,8 +977,15 @@ export class App {
           const peerResponsesAfterNeg = recentStudentChats.filter(m => (m._timeMs || 0) > negTime && m.sender !== lastNegativeChat.sender);
           const hasPeerComforted = peerResponsesAfterNeg.some(m => /(?:没事|别慌|我们可以|一起|你看|先写|参考|我来|赞同|我觉得可以)/i.test(m.text || ''));
 
+          // 🛡️ 情绪安抚严格执行 5 分钟 (300,000ms) 冷却期：同一次情绪安抚后 5 分钟内不重复轰炸；5 分钟后若学生再次流露挫败情绪，重新触发温暖共情！
+          const timeSinceLastNegative = now - (this._lastNegativeHandledTime || 0);
+          if (timeSinceLastNegative < 300000) {
+            return;
+          }
+
           if (!hasPeerComforted) {
             this.lastEmotionHandledId = lastNegativeChat._timeMs;
+            this._lastNegativeHandledTime = now;
             this._isHandlingEmotion = true;
             let agentSender = 'managingEditor';
             let comfortText = '';

@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260830_v865
+ * Version: 20260830_v866
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260830_v865';
+  const APP_VERSION = '20260830_v866';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -12149,8 +12149,15 @@
             const peerResponsesAfterNeg = recentStudentChats.filter(m => (m._timeMs || 0) > negTime && m.sender !== lastNegativeChat.sender);
             const hasPeerComforted = peerResponsesAfterNeg.some(m => /(?:没事|别慌|我们可以|一起|你看|先写|参考|我来|赞同|我觉得可以)/i.test(m.text || ''));
 
+            // 🛡️ 情绪安抚严格执行 5 分钟 (300,000ms) 冷却期：同一次情绪安抚后 5 分钟内不重复轰炸；5 分钟后若学生再次流露挫败情绪，重新触发温暖共情！
+            const timeSinceLastNegative = now - (this._lastNegativeHandledTime || 0);
+            if (timeSinceLastNegative < 300000) {
+              return;
+            }
+
             if (!hasPeerComforted) {
               this.lastEmotionHandledId = lastNegativeChat._timeMs;
+              this._lastNegativeHandledTime = now;
               this._isHandlingEmotion = true;
               let agentSender = 'managingEditor';
               let comfortText = '';
