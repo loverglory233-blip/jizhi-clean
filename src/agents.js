@@ -3,35 +3,11 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles, PresetMessages, STORAGE_KEY_USER } from './constants.js?v=20260830_v817';
+import { AgentProfiles, PresetMessages, STORAGE_KEY_USER } from './constants.js?v=20260830_v818';
 
 export async function callCozeAgentAPI(botKey, userQuery, currentContext = {}) {
   const profile = AgentProfiles[botKey] || { name: '智能体专家', avatar: '🤖' };
   const botId = profile && profile.cozeBotId ? profile.cozeBotId : '7673571806476828713';
-  
-  // 💡 自动在聊天流底部呈现温和优雅的【智能体正在思考分析中】动态提示
-  const showThinkingIndicator = () => {
-    if (typeof document === 'undefined') return;
-    const stream = document.getElementById('chat-stream');
-    if (!stream) return;
-    let indicator = document.getElementById('agent-thinking-indicator');
-    if (!indicator) {
-      indicator = document.createElement('div');
-      indicator.id = 'agent-thinking-indicator';
-      indicator.style.cssText = 'padding:8px 14px; margin:8px 0; background:#f0fdf4; border:1px solid #bbf7d0; border-radius:10px; font-size:12px; color:#166534; display:flex; align-items:center; gap:8px; box-shadow:0 2px 6px rgba(22,101,52,0.06);';
-      stream.appendChild(indicator);
-    }
-    indicator.innerHTML = `<span style="font-size:14px; animation:pulse 1.2s infinite ease-in-out;">⏳</span> <span><b>${profile.avatar || '🤖'} ${profile.name}</b> 正在审阅分析中，请稍候...</span>`;
-    stream.scrollTop = stream.scrollHeight;
-  };
-
-  const removeThinkingIndicator = () => {
-    if (typeof document === 'undefined') return;
-    const indicator = document.getElementById('agent-thinking-indicator');
-    if (indicator) indicator.remove();
-  };
-
-  showThinkingIndicator();
 
   // 构建针对当前写作阶段的提示词上下文
   let enrichedQuery = userQuery;
@@ -92,7 +68,6 @@ export async function callCozeAgentAPI(botKey, userQuery, currentContext = {}) {
                 const pollData = await pollRes.json();
                 if (pollData && pollData.completed) {
                   if (pollData.reply && pollData.reply.trim().length > 0) {
-                    removeThinkingIndicator();
                     return pollData.reply.trim();
                   }
                   break;
@@ -114,7 +89,6 @@ export async function callCozeAgentAPI(botKey, userQuery, currentContext = {}) {
     }
   }
 
-  removeThinkingIndicator();
   return null;
 }
 
