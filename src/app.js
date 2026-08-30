@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260830_v835";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash } from "./utils.js?v=20260830_v835";
-import { callCozeAgentAPI } from "./agents.js?v=20260830_v835";
-import { AuthManager } from "./auth.js?v=20260830_v835";
-import { CloudSyncEngine } from "./sync.js?v=20260830_v835";
-import { renderLoginView } from "./login.js?v=20260830_v835";
-import { renderTeacherPortal } from "./teacher.js?v=20260830_v835";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260830_v835";
+} from "./constants.js?v=20260830_v836";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash } from "./utils.js?v=20260830_v836";
+import { callCozeAgentAPI } from "./agents.js?v=20260830_v836";
+import { AuthManager } from "./auth.js?v=20260830_v836";
+import { CloudSyncEngine } from "./sync.js?v=20260830_v836";
+import { renderLoginView } from "./login.js?v=20260830_v836";
+import { renderTeacherPortal } from "./teacher.js?v=20260830_v836";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260830_v836";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260830_v835";
+} from "./editor.js?v=20260830_v836";
 
 // Make renderChat available on window for sync callbacks
 if (typeof window !== "undefined") {
@@ -2216,13 +2216,14 @@ ${recentChats}
             const userRefineChat = relevantRefineLogs.filter(m => m && m.sender && !AgentProfiles[m.sender] && m.sender !== 'system')
               .map(m => `${m.senderName || m.sender}: ${m.text}`).join('\n') || text;
 
-            const refineSummaryPrompt = `请通读小组成员关于选题《${topic}》方案细化的研讨发言：
-【研讨发言记录】:
+            const refineSummaryPrompt = `小组成员已就核心课题《${topic}》在讨论区展开了方案细化研讨。
+【组内关于方案细化的真实研讨记录】:
 ${userRefineChat}
 
-请作为学术拍卖师用 90~110 字给出方案总结与分工指引：
-① 简要提炼并肯定大家商定出的具体方案亮点（如学段、方法或变量设计）；
-② 引导全组开始在讨论区商定 6 大章节时间预算与任务分工（纯自然语言，90~110字）。`;
+请通读上述学生的真实研讨发言，作为资深学术拍卖师，发表 100~130 字的【方案细化学术总结与分工时间引导】：
+① 【学术提炼与亮点肯定】：深入通读学生的真实想法，精准提炼并肯定大家商定出的研究设计核心亮点（如明确的学段情境、具体研究方法、实验组对照、核心变量或问卷量表；若学生发言内容较少或无实质，温和鼓励大家继续在讨论区深化）；
+② 【分工与时间规划承接】：自然顺承引导全组开始在讨论区商定：1）规划 6 大章节的时间预算（支持平均分配或按黄金比例灵活规划）；2）商定各自的任务分工（可按具体内容模块分工，亦可按章节分工，先定时间还是先定分工由全组自主决定）！
+（要求：用词学术规范、亲切且富有启发性；纯自然语言输出，100~130字，严禁输出代码块或技术标记）`;
 
             let refineSummaryText = await callCozeAgentAPI('auctioneer', refineSummaryPrompt, { stage: 'stage1', topic });
             let finalTaskText = (refineSummaryText && refineSummaryText.trim().length > 0)
@@ -2280,13 +2281,14 @@ ${userRefineChat}
             const userTaskChat = relevantTaskLogs.filter(m => m && m.sender && !AgentProfiles[m.sender] && m.sender !== 'system')
               .map(m => `${m.senderName || m.sender}: ${m.text}`).join('\n') || text;
 
-            const taskSummaryPrompt = `请通读小组成员关于 6 大章节时间规划与任务分工的研讨发言：
-【分工发言记录】:
+            const taskSummaryPrompt = `小组成员已在讨论区就 6 大章节的时间预算规划与各自的任务分工展开了商议。
+【组内关于分工与时间的真实研讨记录】:
 ${userTaskChat}
 
-请作为学术拍卖师用 70~90 字给出分工确认与草案提醒：
-① 简要概括并肯定大家商定的分工构想与时间预算；
-② 提醒组员点击左侧【生成公约草案】卡片自动生成草案（纯自然语言，70~90字）。`;
+请通读上述发言，作为资深学术拍卖师，发表 80~100 字的【分工规划确认与公约草案生成提醒】：
+① 【分工意向确认】：概括并肯定大家商定出的分工意向与时间规划构想（兼容平均分配、按默认推荐或具体章节模块分工）；
+② 【公约草案生成提醒】：隆重提醒组员点击左侧【生成公约草案】卡片，系统将根据大家的真实研讨记录自动生成公约草案，生成后可在卡片上继续核对与微调修改！
+（要求：干练有力、亲切鼓舞；纯自然语言输出，80~100字，严禁输出代码块或技术标记）`;
 
             let draftSummaryText = await callCozeAgentAPI('auctioneer', taskSummaryPrompt, { stage: 'stage1', topic });
             let finalDraftText = (draftSummaryText && draftSummaryText.trim().length > 0)
