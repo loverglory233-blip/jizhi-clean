@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260831_v977";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch } from "./utils.js?v=20260831_v977";
-import { callCozeAgentAPI } from "./agents.js?v=20260831_v977";
-import { AuthManager } from "./auth.js?v=20260831_v977";
-import { CloudSyncEngine } from "./sync.js?v=20260831_v977";
-import { renderLoginView } from "./login.js?v=20260831_v977";
-import { renderTeacherPortal } from "./teacher.js?v=20260831_v977";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260831_v977";
+} from "./constants.js?v=20260831_v978";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch } from "./utils.js?v=20260831_v978";
+import { callCozeAgentAPI } from "./agents.js?v=20260831_v978";
+import { AuthManager } from "./auth.js?v=20260831_v978";
+import { CloudSyncEngine } from "./sync.js?v=20260831_v978";
+import { renderLoginView } from "./login.js?v=20260831_v978";
+import { renderTeacherPortal } from "./teacher.js?v=20260831_v978";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260831_v978";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260831_v977";
+} from "./editor.js?v=20260831_v978";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -1567,15 +1567,17 @@ export class App {
             }
           }
 
-          // ── ③ 10 分钟全组挂机没讨论：强兜底智能推进 ──
-          if (silenceAfterReview >= 600000) {
-            const nudgeKey = 's2_review_silence_10m';
+          // ── ③ 强兜底进度推进：讨论持续满 10 分钟（长任务 20 分钟）自动推进 ──
+          const reviewFallbackMs = isLargeTask ? 1200000 : 600000;
+          const reviewFallbackMinText = isLargeTask ? '20' : '10';
+          if (reviewElapsed >= reviewFallbackMs) {
+            const nudgeKey = 's2_review_silence_fallback';
             if (!this._nudgeCounts[nudgeKey]) {
               this._nudgeCounts[nudgeKey] = 1;
               const followMsg = {
                 sender: 'managingEditor',
                 senderName: '协同调度 · 责任编辑',
-                text: `🤖 【责任编辑·阶段进度推进】：评审建议研讨时间已达 10 分钟，请全组同学加快在 Etherpad 正文中的拟写进度，向半程成稿目标稳步推进！`,
+                text: `🤖 【责任编辑·阶段进度推进】：评审建议研讨时间已达 ${reviewFallbackMinText} 分钟，请全组同学加快在 Etherpad 正文中的拟写进度，向半程成稿目标稳步推进！`,
                 timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
                 _timeMs: now
               };
@@ -1708,9 +1710,11 @@ export class App {
               }
             }
 
-            // ── ③ 10 分钟一致性讨论持续超时：强兜底智能提炼回填并顺推 ──
-            if (checklistElapsed >= 600000 && !this._s2MeetingAutoFallbackRunning) {
-              const nudgeKey = 's2_consistency_auto_fallback_10m';
+            // ── ③ 强兜底智能提炼回填并顺推：讨论持续满 10 分钟（长任务 20 分钟）自动触发 ──
+            const consistencyFallbackMs = isLargeTask ? 1200000 : 600000;
+            const consistencyFallbackMinText = isLargeTask ? '20' : '10';
+            if (checklistElapsed >= consistencyFallbackMs && !this._s2MeetingAutoFallbackRunning) {
+              const nudgeKey = 's2_consistency_auto_fallback';
               if (!this._nudgeCounts[nudgeKey]) {
                 this._nudgeCounts[nudgeKey] = 1;
                 this._s2MeetingAutoFallbackRunning = true;
@@ -1719,7 +1723,7 @@ export class App {
                 const autoNoticeMsg = {
                   sender: 'managingEditor',
                   senderName: '协同调度 · 责任编辑',
-                  text: `🤖 【责任编辑·智能生成与收拢】：半程研讨时间已满 10 分钟，为确保正文推进节奏，责任编辑已结合全组自查清单与学术规范，自动为大家提炼形成【半程修改决议】！请全组同学按照决议分工，集中精力在正文中修改落实！`,
+                  text: `🤖 【责任编辑·智能生成与收拢】：半程研讨时间已满 ${consistencyFallbackMinText} 分钟，为确保正文推进节奏，责任编辑已结合全组自查清单与学术规范，自动为大家提炼形成【半程修改决议】！请全组同学按照决议分工，集中精力在正文中修改落实！`,
                   timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
                   _timeMs: now
                 };

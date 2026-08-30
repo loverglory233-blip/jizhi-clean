@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260831_v977
+ * Version: 20260831_v978
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260831_v977';
+  const APP_VERSION = '20260831_v978';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -13181,15 +13181,17 @@
               }
             }
 
-            // ── ③ 10 分钟全组挂机没讨论：强兜底智能推进 ──
-            if (silenceAfterReview >= 600000) {
-              const nudgeKey = 's2_review_silence_10m';
+            // ── ③ 强兜底进度推进：讨论持续满 10 分钟（长任务 20 分钟）自动推进 ──
+            const reviewFallbackMs = isLargeTask ? 1200000 : 600000;
+            const reviewFallbackMinText = isLargeTask ? '20' : '10';
+            if (reviewElapsed >= reviewFallbackMs) {
+              const nudgeKey = 's2_review_silence_fallback';
               if (!this._nudgeCounts[nudgeKey]) {
                 this._nudgeCounts[nudgeKey] = 1;
                 const followMsg = {
                   sender: 'managingEditor',
                   senderName: '协同调度 · 责任编辑',
-                  text: `🤖 【责任编辑·阶段进度推进】：评审建议研讨时间已达 10 分钟，请全组同学加快在 Etherpad 正文中的拟写进度，向半程成稿目标稳步推进！`,
+                  text: `🤖 【责任编辑·阶段进度推进】：评审建议研讨时间已达 ${reviewFallbackMinText} 分钟，请全组同学加快在 Etherpad 正文中的拟写进度，向半程成稿目标稳步推进！`,
                   timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
                   _timeMs: now
                 };
@@ -13322,9 +13324,11 @@
                 }
               }
 
-              // ── ③ 10 分钟一致性讨论持续超时：强兜底智能提炼回填并顺推 ──
-              if (checklistElapsed >= 600000 && !this._s2MeetingAutoFallbackRunning) {
-                const nudgeKey = 's2_consistency_auto_fallback_10m';
+              // ── ③ 强兜底智能提炼回填并顺推：讨论持续满 10 分钟（长任务 20 分钟）自动触发 ──
+              const consistencyFallbackMs = isLargeTask ? 1200000 : 600000;
+              const consistencyFallbackMinText = isLargeTask ? '20' : '10';
+              if (checklistElapsed >= consistencyFallbackMs && !this._s2MeetingAutoFallbackRunning) {
+                const nudgeKey = 's2_consistency_auto_fallback';
                 if (!this._nudgeCounts[nudgeKey]) {
                   this._nudgeCounts[nudgeKey] = 1;
                   this._s2MeetingAutoFallbackRunning = true;
@@ -13333,7 +13337,7 @@
                   const autoNoticeMsg = {
                     sender: 'managingEditor',
                     senderName: '协同调度 · 责任编辑',
-                    text: `🤖 【责任编辑·智能生成与收拢】：半程研讨时间已满 10 分钟，为确保正文推进节奏，责任编辑已结合全组自查清单与学术规范，自动为大家提炼形成【半程修改决议】！请全组同学按照决议分工，集中精力在正文中修改落实！`,
+                    text: `🤖 【责任编辑·智能生成与收拢】：半程研讨时间已满 ${consistencyFallbackMinText} 分钟，为确保正文推进节奏，责任编辑已结合全组自查清单与学术规范，自动为大家提炼形成【半程修改决议】！请全组同学按照决议分工，集中精力在正文中修改落实！`,
                     timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
                     _timeMs: now
                   };
