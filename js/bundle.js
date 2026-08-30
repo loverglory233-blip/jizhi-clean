@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260831_v957
+ * Version: 20260831_v958
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260831_v957';
+  const APP_VERSION = '20260831_v958';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -13034,15 +13034,14 @@
               return;
             }
           }
-          // 2.5 【一审后静默跟进】：一审发出后若讨论区冷场超 2~3 分钟，温和提示随时 @ 咨询（全场严格仅 1 次）
-          const hasFirstReviewMsg = s2Chats.some(m => m && m.sender === 'reviewingEditor' && (m.text?.includes('审稿编辑') || m.text?.includes('初审') || m.text?.includes('把脉') || m.text?.includes('Gap')));
+          // 2.5 【一审后静默跟进】：一审发出后若讨论区冷场超 3 分钟，温和提示随时 @ 咨询（全场严格仅 1 次）
+          const hasFirstReviewMsg = s2Chats.some(m => m && m.sender === 'reviewingEditor' && (m.text?.includes('一审破题把脉') || m.text?.includes('Research Gap') || m.text?.includes('审稿编辑·一审')));
           const hasFirstReviewSilenceFollowed = s2Chats.some(m => m && m.sender === 'reviewingEditor' && (m.text?.includes('初审跟进提示') || m.text?.includes('初审微调建议已送达')));
 
           if (hasFirstReviewMsg && !hasFirstReviewSilenceFollowed && !s2.firstReviewSilenceSent) {
-            const firstReviewMsgObj = [...s2Chats].reverse().find(m => m && m.sender === 'reviewingEditor' && (m.text?.includes('审稿编辑') || m.text?.includes('初审') || m.text?.includes('把脉') || m.text?.includes('Gap')));
+            const firstReviewMsgObj = [...s2Chats].reverse().find(m => m && m.sender === 'reviewingEditor' && (m.text?.includes('一审破题把脉') || m.text?.includes('Research Gap') || m.text?.includes('审稿编辑·一审')));
             let msgTime = firstReviewMsgObj?._timeMs;
             if (!msgTime && firstReviewMsgObj?.timestamp) {
-              // 尝试解析 01:27 格式
               const parts = firstReviewMsgObj.timestamp.split(':');
               if (parts.length >= 2) {
                 const d = new Date();
@@ -13050,9 +13049,9 @@
                 msgTime = d.getTime();
               }
             }
-            const reviewElapsed = msgTime ? (now - msgTime) : 180000;
+            const reviewElapsed = msgTime ? (now - msgTime) : silenceDurationMs;
 
-            if (reviewElapsed >= 120000) { // 一审发出已超过 2 分钟
+            if (reviewElapsed >= 180000 && silenceDurationMs >= 180000) { // 严格 3 分钟静默
               s2.firstReviewSilenceSent = true;
               const followMsg = {
                 sender: 'reviewingEditor',
@@ -13167,12 +13166,12 @@
             renderChat(this.state);
           }
 
-          // 3. 【三审后静默跟进】：三审发出后若讨论区冷场超 2~3 分钟且尚未全员初稿确认，提示通读润色与初稿打卡（全场严格仅 1 次）
-          const hasFinalReviewMsgInChat = s2Chats.some(m => m && m.sender === 'reviewingEditor' && (m.text?.includes('终审') || m.text?.includes('终稿行文扫描') || m.text?.includes('终稿润色') || m.text?.includes('学术语体')));
+          // 3. 【三审后静默跟进】：三审发出后若讨论区冷场超 3 分钟且尚未全员初稿确认，提示通读润色与初稿打卡（全场严格仅 1 次）
+          const hasFinalReviewMsgInChat = s2Chats.some(m => m && m.sender === 'reviewingEditor' && (m.text?.includes('终审定稿总评') || m.text?.includes('终稿行文扫描') || m.text?.includes('审稿编辑·终审')));
           const hasFinalSilenceFollowed = s2Chats.some(m => m && m.sender === 'reviewingEditor' && m.text?.includes('终稿润色提示'));
 
           if (hasFinalReviewMsgInChat && !hasFinalSilenceFollowed && !s2.finalReviewSilenceSent && !s2.isDraftConfirmed) {
-            const finalReviewMsgObj = [...s2Chats].reverse().find(m => m && m.sender === 'reviewingEditor' && (m.text?.includes('终审') || m.text?.includes('终稿行文扫描') || m.text?.includes('学术语体')));
+            const finalReviewMsgObj = [...s2Chats].reverse().find(m => m && m.sender === 'reviewingEditor' && (m.text?.includes('终审定稿总评') || m.text?.includes('终稿行文扫描') || m.text?.includes('审稿编辑·终审')));
             let fMsgTime = finalReviewMsgObj?._timeMs;
             if (!fMsgTime && finalReviewMsgObj?.timestamp) {
               const parts = finalReviewMsgObj.timestamp.split(':');
@@ -13182,9 +13181,9 @@
                 fMsgTime = d.getTime();
               }
             }
-            const fReviewElapsed = fMsgTime ? (now - fMsgTime) : 180000;
+            const fReviewElapsed = fMsgTime ? (now - fMsgTime) : silenceDurationMs;
 
-            if (fReviewElapsed >= 120000) {
+            if (fReviewElapsed >= 180000 && silenceDurationMs >= 180000) { // 严格 3 分钟静默
               s2.finalReviewSilenceSent = true;
               const followMsg3 = {
                 sender: 'reviewingEditor',
