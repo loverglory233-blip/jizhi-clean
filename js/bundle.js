@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260830_v877
+ * Version: 20260830_v878
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260830_v877';
+  const APP_VERSION = '20260830_v878';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -9167,7 +9167,7 @@
                   const isMe = isMyDoneHelper(confs.s1_time);
                   return `
                     <button id="btn-extract-time" style="background:${isMe ? 'linear-gradient(135deg, #059669, #047857)' : 'linear-gradient(135deg, #0284c7, #0369a1)'}; border:none; color:white; padding:9px 24px; border-radius:20px; font-weight:800; font-size:13.5px; cursor:pointer; display:inline-flex; align-items:center; gap:6px; box-shadow:0 4px 14px rgba(2,132,199,0.3); transition:all 0.2s;">
-                      ${isMe ? `✅ 您已确认提炼时间 (${count}/${totalMembersCount} 等待其他组员)` : `⏱️ 研讨差不多了？一键提炼【时间分配】 (${count}/${totalMembersCount})`}
+                      ${isMe ? `✅ 您已确认提炼时间 (${count}/${totalMembersCount} 等待其他组员)` : `⏱️ 时间讨论差不多了？一键提炼【时间分配】 (${count}/${totalMembersCount})`}
                     </button>
                   `;
                 } else {
@@ -9175,7 +9175,7 @@
                   const isMe = isMyDoneHelper(confs.s1_topic);
                   return `
                     <button id="btn-extract-topic" style="background:${isMe ? 'linear-gradient(135deg, #059669, #047857)' : 'linear-gradient(135deg, #2563eb, #1d4ed8)'}; border:none; color:white; padding:9px 24px; border-radius:20px; font-weight:800; font-size:13.5px; cursor:pointer; display:inline-flex; align-items:center; gap:6px; box-shadow:0 4px 14px rgba(37,99,235,0.3); transition:all 0.2s;">
-                      ${isMe ? `✅ 您已确认提炼主题 (${count}/${totalMembersCount} 等待其他组员)` : `💡 研讨差不多了？一键提炼【最终主题】 (${count}/${totalMembersCount})`}
+                      ${isMe ? `✅ 您已确认提炼主题与方案 (${count}/${totalMembersCount} 等待其他组员)` : `💡 讨论差不多了？一键提炼【主题与研究方案】 (${count}/${totalMembersCount})`}
                     </button>
                   `;
                 }
@@ -9184,9 +9184,20 @@
           ` : ''}
         </div>
 
-        <div style="display:flex; flex-direction:column; gap:8px; width:100%; margin-bottom:20px; background:#eff6ff; padding:16px; border-radius:12px; border:1px solid #bfdbfe; box-sizing:border-box;">
-          <label style="font-size:14px; font-weight:800; color:#1e40af;">📌 确认融合论文研究主题:</label>
-          <input type="text" id="contract-topic-input" class="large-contract-input" data-lock-key="topic_title" value="${s1.mergedTitle || ''}" placeholder="在此处输入研究方案最终主题..." ${isContractLocked ? 'disabled readonly style="opacity:0.8; cursor:not-allowed;"' : ''} style="width:100%; box-sizing:border-box; background:#ffffff; color:#0f172a; border:1px solid #cbd5e1; border-radius:8px; padding:12px 14px; font-size:14px; font-weight:700; font-family:sans-serif;">
+        <!-- 槽位 1：论文主题 / 题目 -->
+        <div style="display:flex; flex-direction:column; gap:8px; width:100%; margin-bottom:14px; background:#eff6ff; padding:16px; border-radius:12px; border:1px solid #bfdbfe; box-sizing:border-box;">
+          <label style="font-size:14px; font-weight:800; color:#1e40af; display:flex; align-items:center; gap:6px;">
+            📌 【槽位 1】确认论文主题 / 题目:
+          </label>
+          <input type="text" id="contract-topic-input" class="large-contract-input" data-lock-key="topic_title" value="${s1.mergedTitle || s1.contract?.topic || ''}" placeholder="${s1.mergedTitle ? '在此处输入论文规范题名...' : '投票有分歧或待定，请在讨论区商定后点击上方一键提炼生成...'}" ${isContractLocked ? 'disabled readonly style="opacity:0.8; cursor:not-allowed;"' : ''} style="width:100%; box-sizing:border-box; background:#ffffff; color:#0f172a; border:1px solid #cbd5e1; border-radius:8px; padding:12px 14px; font-size:14.5px; font-weight:700; font-family:sans-serif;">
+        </div>
+
+        <!-- 槽位 2：研究方案概述 (容纳具体情境、案例、聚焦点与方法) -->
+        <div style="display:flex; flex-direction:column; gap:8px; width:100%; margin-bottom:20px; background:#f0f9ff; padding:16px; border-radius:12px; border:1px solid #bae6fd; box-sizing:border-box;">
+          <label style="font-size:14px; font-weight:800; color:#0369a1; display:flex; align-items:center; gap:6px;">
+            📝 【槽位 2】研究方案概述 (具体情境、案例、聚焦点与方法):
+          </label>
+          <textarea id="contract-overview-input" class="contract-overview-textarea" data-lock-key="research_overview" placeholder="请在讨论区围绕具体情境/案例、核心聚焦问题与拟采用方法展开研讨，点击上方按钮一键提炼生成（生成后可自由微调）..." ${isContractLocked ? 'disabled readonly style="opacity:0.8; cursor:not-allowed;"' : ''} style="width:100%; min-height:88px; box-sizing:border-box; background:#ffffff; color:#0f172a; border:1px solid #cbd5e1; border-radius:8px; padding:10px 12px; font-size:13px; line-height:1.6; font-family:sans-serif; resize:vertical;">${s1.contract?.overview || s1.researchOverview || ''}</textarea>
         </div>
 
         <div style="display:flex; flex-direction:column; gap:16px; width:100%;">
@@ -9671,6 +9682,30 @@
         if (e.isComposing || e.keyCode === 229) return;
         if (e.key === 'Enter') { topicInput.blur(); }
       });
+    }
+
+    const overviewInput = canvas.querySelector('#contract-overview-input');
+    if (overviewInput && !isContractLocked) {
+      let overviewTimer = null;
+      const flushOverview = () => {
+        if (!s1.contract) s1.contract = {};
+        s1.contract.overview = overviewInput.value;
+        s1.researchOverview = overviewInput.value;
+        if (window.app) {
+          window.app.syncStage1();
+          if (window.app.cloudSyncEngine) window.app.cloudSyncEngine.pushSnapshot();
+        }
+      };
+
+      overviewInput.addEventListener('input', (e) => {
+        if (!s1.contract) s1.contract = {};
+        s1.contract.overview = e.target.value;
+        s1.researchOverview = e.target.value;
+        if (overviewTimer) clearTimeout(overviewTimer);
+        overviewTimer = setTimeout(flushOverview, 400);
+      });
+      overviewInput.addEventListener('change', flushOverview);
+      overviewInput.addEventListener('blur', flushOverview);
     }
 
     canvas.querySelectorAll('.contract-time-input').forEach(input => {
@@ -14219,66 +14254,49 @@
             s1.contract.timeAllocations = { background: 25, literature: 30, questions: 25, method: 40, reflection: 20, references: 10 };
           }
 
-          // ── 🌟 拍卖师分两步呈现：① 说明题目/计票 ② 引导细化/协商融合并提示点击左侧按键 ──
-          s1.contractStep = 'topic'; // 初始锁定第一步：最终主题提炼
+          // ── 🌟 拍卖师引导逻辑与槽位初始状态 ──
+          s1.contractStep = 'topic'; // 初始锁定第一步：主题与研究方案提炼
 
-          if (isUnanimous) {
-            // 1. 调用大模型优化润色论题表达
-            const optimizePrompt = `全组全票推选了研究课题《${winningProposal.title}》。
-  请作为资深学术拍卖师：
-  1. 对该论题进行学术规范化润色表达（保持核心原意，更具学术规范性，20字以内）；
-  2. 给出 1 句简明点拨，鼓励全组展开方案细化研讨，并明确提示：“在讨论区研讨差不多后，请点击左侧【💡 研讨差不多了？一键提炼最终主题】！”
-  输出格式：
-  润色论题：[润色后的论题]
-  引导发言：[拍卖师点评与引导]`;
+          if (isUnanimous && winningProposal) {
+            // 情境 A：投票全票一致（N 票一致）
+            // 左侧槽位表现：系统预填选出的主题名称至【论文主题】框（暂不锁定），【研究方案概述】框为空。
+            s1.mergedTitle = winningProposal.title;
+            if (!s1.contract) s1.contract = {};
+            s1.contract.topic = winningProposal.title;
+            s1.contract.overview = '';
+            s1.researchOverview = '';
 
-            let optimizedTitle = winningProposal.title;
-            let guideText = `💡 【学术拍卖师·课题确立与研讨指引】：针对《${winningProposal.title}》，建议大家重点围绕核心变量界定、理论框架支撑与研究方法路径展开深化交流。👉 组内研讨成熟后，请点击左侧【💡 研讨差不多了？一键提炼最终主题】！`;
-
-            try {
-              const optResp = await callCozeAgentAPI('auctioneer', optimizePrompt, { stage: 'stage1', topic: winningProposal.title });
-              if (optResp && optResp.trim().length > 0) {
-                const lines = optResp.trim().split('\n');
-                const tLine = lines.find(l => l.includes('润色论题：') || l.includes('润色论题:'));
-                const gLine = lines.find(l => l.includes('引导发言：') || l.includes('引导发言:'));
-                if (tLine) optimizedTitle = tLine.replace(/^.*润色论题[：:]\s*/, '').replace(/^[《"']|[》"']$/g, '').trim() || optimizedTitle;
-                if (gLine) guideText = gLine.replace(/^.*引导发言[：:]\s*/, '').trim();
-              }
-            } catch (e) {}
-
-            s1.mergedTitle = optimizedTitle;
-            const titleNoticeMsg = {
-              sender: 'auctioneer',
-              senderName: '头脑风暴 · 学术拍卖师',
-              text: `🎉 【学术拍卖师·课题确立】：恭喜全组！经全员一致推选，《${optimizedTitle}》正式确立为本组核心研究课题！`,
-              timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-              _timeMs: Date.now()
-            };
             const guideMsg = {
               sender: 'auctioneer',
               senderName: '头脑风暴 · 学术拍卖师',
-              text: guideText.startsWith('💡') ? guideText : `💡 【学术拍卖师·细化研讨指引】：${guideText}`,
+              text: `🤖 【学术拍卖师·全票通过】：太棒了！全员一致通过选题《${winningProposal.title}》（${totalMembersCount} 票）！请大家在群里进一步商量具体的研究设计与切入角度（如结合什么具体情境/案例、聚焦什么核心问题、采用什么方法等）。聊得差不多后随时点击上方按钮生成完整方案~`,
               timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-              _timeMs: Date.now() + 100
+              _timeMs: Date.now()
             };
-            this.state.chatLogs.stage1.push(titleNoticeMsg, guideMsg);
+            this.state.chatLogs.stage1.push(guideMsg);
           } else {
-            // ── 分歧分支：引导协商并提示商定后点击左侧按钮 ──
-            const tallyNoticeMsg = {
-              sender: 'auctioneer',
-              senderName: '头脑风暴 · 学术拍卖师',
-              text: `📊 【学术拍卖师·计票结果】：全组投票已全部完成！计票统计：${proposalSummaryList}。组内对选题持有不同视角，这恰恰是思路碰撞、求同存异的最佳契机！`,
-              timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-              _timeMs: Date.now()
-            };
+            // 情境 B：投票存在分歧（有不同票数）
+            // 左侧槽位表现：【论文主题】与【研究方案概述】两个框均保持空白待定。
+            s1.mergedTitle = '';
+            if (!s1.contract) s1.contract = {};
+            s1.contract.topic = '';
+            s1.contract.overview = '';
+            s1.researchOverview = '';
+
+            // 结构化整理各方向票数（严禁点名，只报票数与方向）
+            const directionSummaries = (s1.proposals || []).map((p, idx) => {
+              const vCount = tally[p.id] || 0;
+              return `【方向${idx + 1}：《${p.title}》】获得 ${vCount} 票`;
+            }).join('；');
+
             const guideMsg = {
               sender: 'auctioneer',
               senderName: '头脑风暴 · 学术拍卖师',
-              text: `💡 【学术拍卖师·协商融合指引】：请各位提案提出者先在讨论区简要分享自身方案的核心亮点；大家围绕方案的互补性展开充分协商，商定出统一的最终主题！👉 研讨差不多后，请点击左侧【💡 研讨差不多了？一键提炼最终主题】！`,
+              text: `🤖 【学术拍卖师·分歧指引】：投票结果出炉：${directionSummaries}。请大家商量确定一个统一或融合的方向，并进一步细化具体的研究情境与方案。聊得差不多后随时点击上方按钮生成完整方案~`,
               timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-              _timeMs: Date.now() + 100
+              _timeMs: Date.now()
             };
-            this.state.chatLogs.stage1.push(tallyNoticeMsg, guideMsg);
+            this.state.chatLogs.stage1.push(guideMsg);
           }
 
           this.syncStage1();
@@ -14334,60 +14352,67 @@
     }
 
     /**
-     * 💡 阶段一公约第一步：一键提炼【最终主题】
+     * 💡 阶段一公约第一步：一键提炼【主题与研究方案】
      */
     async handleExtractTopic() {
-      this.handleStepConfirmation('s1_topic', () => this._doExtractTopic(), '最终主题');
+      this.handleStepConfirmation('s1_topic', () => this._doExtractTopic(), '主题与研究方案');
     }
 
     async _doExtractTopic() {
       const s1 = this.state.stage1 || {};
       const s1ChatLogs = (this.state.chatLogs && this.state.chatLogs.stage1) ? this.state.chatLogs.stage1 : [];
-      const voteNoticeIdx = s1ChatLogs.findIndex(m => m && m.text && (m.text.includes('计票结果') || m.text.includes('落槌') || m.text.includes('选题确定') || m.text.includes('投票')));
+      const voteNoticeIdx = s1ChatLogs.findIndex(m => m && m.text && (m.text.includes('投票结果出炉') || m.text.includes('全票通过') || m.text.includes('计票结果') || m.text.includes('落槌')));
       const relevantLogs = (voteNoticeIdx >= 0) ? s1ChatLogs.slice(voteNoticeIdx) : s1ChatLogs;
       const userLogs = relevantLogs.filter(m => m && m.sender && !AgentProfiles[m.sender] && m.sender !== 'system');
-      const chatSnippet = userLogs.map(m => `${m.senderName || m.sender}: ${m.text}`).join('\n') || '组员正在围绕论题研讨';
+      const chatSnippet = userLogs.map(m => `${m.senderName || m.sender}: ${m.text}`).join('\n') || '组员正在商讨具体情境、案例与研究方法';
 
-      const currentCandidate = s1.mergedTitle || s1.proposals?.[0]?.title || '学术研究论题';
+      const currentCandidate = s1.mergedTitle || s1.contract?.topic || s1.proposals?.[0]?.title || '学术协同研究课题';
+      const allPropTitles = (s1.proposals || []).map(p => `《${p.title}》`).join('、');
 
-      const topicPrompt = `小组成员已就核心研究论题在讨论区展开了深入研讨。
-  【组内研讨对话记录】:
+      const extractPrompt = `小组成员已在讨论区就论文研究主题及具体的研究方案展开了研讨。
+  【候选提案参考】: ${allPropTitles || '多方提案'}
+  【组内关于主题与方案的真实讨论记录】:
   ${chatSnippet}
-  【当前候选或初拟论题】: 《${currentCandidate}》
 
-  请通读研讨，作为资深学术拍卖师，进行【最终研究论题提炼与时间规划顺承引导】：
-  1. 提炼出最终确立的【规范学术论文题目】（20字以内，精准规范，无书名号和多余符号）；
-  2. 给出 1 句简明亲切的点拨，顺承引导全组在讨论区商定 6 大章节的时间预算分配（可自主选择平均分配或灵活定制）！
-  请按以下格式输出：
-  论题：[提炼后的最终论题]
-  引导：[给全组的时间规划顺承发言]`;
+  请通读研讨，作为资深学术拍卖师：
+  1. 【规范论文题目】：提炼或规范化润色全组最终商定的严谨学术论文题名（20~35字，极具学术规范性，无书名号）；
+  2. 【研究方案概述】：根据学生讨论的具体情境、案例载体、核心科学问题与拟采用的方法，结构化生成 120~200 字的【研究方案概述】；
+  3. 【顺承引导】：给出 1 句简明点拨，顺承引导全组在讨论区商讨 6 大章节的时间预算分配！
+  输出格式必须为合法 JSON（严禁代码块以外的多余废话）：
+  {
+    "topic": "提炼后的规范论文题目",
+    "overview": "提炼后的研究方案概述，涵盖情境案例、核心问题与方法",
+    "guideText": "论文主题与研究方案概述已成功生成并录入公约！接下来请全组在讨论区商讨 6 大章节的时间预算分配，商定后点击【⏱️ 时间讨论差不多了？一键提炼【时间分配】】！"
+  }`;
 
       try {
-        const resp = await callCozeAgentAPI('auctioneer', topicPrompt, { stage: 'stage1', topic: currentCandidate });
-        let extractedTitle = currentCandidate;
-        let guideSpeech = `🎪 【拍卖师·主题确立与时间引导】：恭喜全组！经充分研讨，本组核心研究论题已确立为《${extractedTitle}》！👉 接下来请全组在讨论区商定 6 大章节的时间预算分配（可自主选择平均分配或灵活定制）！商定完成后点击左侧【⏱️ 研讨差不多了？一键提炼时间分配】！`;
+        const resp = await callCozeAgentAPI('auctioneer', extractPrompt, { stage: 'stage1', topic: currentCandidate });
+        let finalTopic = currentCandidate;
+        let finalOverview = '本研究围绕具体实践情境展开，聚焦核心问题，采用定性与定量相结合的研究方法进行深入探讨。';
+        let guideSpeech = `🎪 【拍卖师·方案确立】：主题《${finalTopic}》与研究方案概述已成功确立并录入公约！👉 接下来请全组在讨论区商讨 6 大章节的时间预算分配，商定完成后点击【⏱️ 时间讨论差不多了？一键提炼【时间分配】】！`;
 
         if (resp && resp.trim().length > 0) {
-          const lines = resp.trim().split('\n');
-          const titleLine = lines.find(l => l.includes('论题：') || l.includes('论题:'));
-          const guideLine = lines.find(l => l.includes('引导：') || l.includes('引导:'));
-          if (titleLine) {
-            extractedTitle = titleLine.replace(/^.*论题[：:]\s*/, '').replace(/^[《"']|[》"']$/g, '').trim() || extractedTitle;
-          } else {
-            extractedTitle = lines[0].replace(/^[《"']|[》"']$/g, '').trim() || extractedTitle;
-          }
-          if (guideLine) {
-            guideSpeech = guideLine.replace(/^.*引导[：:]\s*/, '').trim();
-            if (!guideSpeech.startsWith('🎪')) guideSpeech = `🎪 【拍卖师·主题确立与时间引导】：${guideSpeech}`;
+          try {
+            const jsonMatch = resp.match(/\{[\s\S]*\}/);
+            if (jsonMatch) {
+              const parsed = JSON.parse(jsonMatch[0]);
+              if (parsed.topic) finalTopic = parsed.topic;
+              if (parsed.overview) finalOverview = parsed.overview;
+              if (parsed.guideText) guideSpeech = parsed.guideText;
+            }
+          } catch (je) {
+            console.warn('Parse topic & overview JSON fail, fallback', je);
           }
         }
 
-        s1.mergedTitle = extractedTitle;
+        s1.mergedTitle = finalTopic;
         if (!s1.contract) s1.contract = {};
-        s1.contract.topic = extractedTitle;
-        s1.contractStep = 'time'; // 推进至第二步：时间分配
-        s1.flowStep = 'tasks';
+        s1.contract.topic = finalTopic;
+        s1.contract.overview = finalOverview;
+        s1.researchOverview = finalOverview;
+        s1.contractStep = 'time'; // 顺推至时间分配阶段
 
+        if (!guideSpeech.startsWith('🎪')) guideSpeech = `🎪 【拍卖师·方案确立】：${guideSpeech}`;
         const noticeMsg = {
           sender: 'auctioneer',
           senderName: '头脑风暴 · 学术拍卖师',
@@ -14403,7 +14428,7 @@
         this.renderStudentWorkspace();
         renderChat(this.state);
       } catch (e) {
-        console.warn('Extract topic error:', e);
+        console.warn('Extract topic & overview error:', e);
         s1.mergedTitle = currentCandidate;
         if (!s1.contract) s1.contract = {};
         s1.contract.topic = currentCandidate;
@@ -15159,6 +15184,13 @@
         if (topicInp) {
           if (!this.state.stage1) this.state.stage1 = {};
           this.state.stage1.mergedTitle = topicInp.value;
+        }
+        const overviewInp = document.getElementById('contract-overview-input');
+        if (overviewInp) {
+          if (!this.state.stage1) this.state.stage1 = {};
+          if (!this.state.stage1.contract) this.state.stage1.contract = {};
+          this.state.stage1.contract.overview = overviewInp.value;
+          this.state.stage1.researchOverview = overviewInp.value;
         }
         const timeInps = document.querySelectorAll('.contract-time-input');
         if (timeInps.length > 0) {
