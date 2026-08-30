@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260830_v797
+ * Version: 20260830_v798
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260830_v797';
+  const APP_VERSION = '20260830_v798';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -5520,7 +5520,7 @@
                                   <span style="font-size:11px; background:#ecfdf5; color:#059669; border:1px solid #a7f3d0; padding:1px 8px; border-radius:4px; font-weight:700;">只读监控</span>
                                 </div>
                                 <div style="position:relative; flex:1; width:100%; height:100%; min-height:520px; display:flex;">
-                                  <div class="etherpad-readonly-shield" style="position:absolute; inset:0; z-index:25; background:transparent; cursor:not-allowed;" title="🔒 只读查阅模式 (已锁定禁止编辑)"></div>
+                                  <div class="etherpad-readonly-shield" style="position:absolute; inset:0; z-index:25; background:transparent; cursor:not-allowed; pointer-events:none;" title="🔒 只读查阅模式 (已锁定禁止编辑)"></div>
                                   <iframe id="teacher-stage2-etherpad-frame" src="/p/${encodeURIComponent(targetPad)}?userName=${encodeURIComponent('教师监控')}&userColor=%237c3aed&showControls=false&showChat=false&showLineNumbers=true&lang=zh-hans" style="flex:1; width:100%; height:100%; min-height:520px; border:none; display:block; background:#ffffff;" title="教师端实时写作同屏镜像 (只读)"></iframe>
                                 </div>
                               </div>
@@ -5620,7 +5620,7 @@
                                     <span style="font-size:11px; background:#ecfdf5; color:#059669; border:1px solid #a7f3d0; padding:1px 8px; border-radius:4px; font-weight:700;">只读监控</span>
                                   </div>
                                   <div style="position:relative; flex:1; width:100%; height:100%; min-height:520px; display:flex;">
-                                    <div class="etherpad-readonly-shield" style="position:absolute; inset:0; z-index:25; background:transparent; cursor:not-allowed;" title="🔒 只读查阅模式 (已锁定禁止编辑)"></div>
+                                    <div class="etherpad-readonly-shield" style="position:absolute; inset:0; z-index:25; background:transparent; cursor:not-allowed; pointer-events:none;" title="🔒 只读查阅模式 (已锁定禁止编辑)"></div>
                                     <iframe id="teacher-stage3-etherpad-frame" src="/p/${encodeURIComponent(targetPad)}?userName=${encodeURIComponent('教师监控')}&userColor=%237c3aed&showControls=false&showChat=false&showLineNumbers=true&lang=zh-hans" style="flex:1; width:100%; height:100%; min-height:520px; border:none; display:block; background:#ffffff;" title="教师端论文终稿同屏镜像 (只读)"></iframe>
                                   </div>
                                 </div>
