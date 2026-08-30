@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260831_v951";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch } from "./utils.js?v=20260831_v951";
-import { callCozeAgentAPI } from "./agents.js?v=20260831_v951";
-import { AuthManager } from "./auth.js?v=20260831_v951";
-import { CloudSyncEngine } from "./sync.js?v=20260831_v951";
-import { renderLoginView } from "./login.js?v=20260831_v951";
-import { renderTeacherPortal } from "./teacher.js?v=20260831_v951";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260831_v951";
+} from "./constants.js?v=20260831_v952";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch } from "./utils.js?v=20260831_v952";
+import { callCozeAgentAPI } from "./agents.js?v=20260831_v952";
+import { AuthManager } from "./auth.js?v=20260831_v952";
+import { CloudSyncEngine } from "./sync.js?v=20260831_v952";
+import { renderLoginView } from "./login.js?v=20260831_v952";
+import { renderTeacherPortal } from "./teacher.js?v=20260831_v952";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260831_v952";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260831_v951";
+} from "./editor.js?v=20260831_v952";
 
 // Make renderChat available on window for sync callbacks
 if (typeof window !== "undefined") {
@@ -4858,10 +4858,13 @@ ${propText}
     const lastReviewingMsg = logs.slice().reverse().find(m => m.sender === 'reviewingEditor');
     const timeSinceLastReviewing = lastReviewingMsg ? (now - (lastReviewingMsg._timeMs || 0)) : 999999;
 
-    // ⏱️ 计算阶段二物理时间与字数水位线（中任务 4300 字，大任务 9000 字）
+    // ⏱️ 计算阶段二物理时间与字数水位线（中任务 0~150 分钟 / 4300 字，大任务 >150 分钟 / 9000 字）
     const allTasks = (this.authManager) ? this.authManager.getTasks() : [];
     const curTask = allTasks.find(t => t.id === this.state.activeTaskId);
-    const isLargeTask = curTask && (curTask.scale === 'large' || curTask.type === 'large' || (curTask.targetWordCount && Number(curTask.targetWordCount) >= 6000));
+    const times = (this.state.stage1 && this.state.stage1.contract && this.state.stage1.contract.timeAllocations) ? this.state.stage1.contract.timeAllocations : {};
+    const totalPlannedMin = (times.background || 25) + (times.literature || 30) + (times.questions || 25) + (times.method || 40) + (times.reflection || 20) + (times.references || 10);
+    const taskDurMin = (curTask && curTask.duration) ? Number(curTask.duration) : totalPlannedMin;
+    const isLargeTask = curTask && (curTask.scale === 'large' || curTask.type === 'large' || taskDurMin > 150 || (curTask.targetWordCount && Number(curTask.targetWordCount) >= 6000));
     const defaultWordTarget = isLargeTask ? 9000 : 4300;
 
     const targetWordCount = (curTask && curTask.targetWordCount) ? Number(curTask.targetWordCount) : defaultWordTarget;
