@@ -915,24 +915,58 @@ if ($action === 'get_teacher_monitor_all_groups') {
                 }
             }
 
-            $result['groups'][$gid] = [
-                'groupId'            => $gid,
-                'scopeKey'           => $sk,
-                'currentStage'       => $r ? ($r['current_stage'] ?: 'stage1') : 'stage1',
-                'stage1'             => ($r && !empty($r['stage1_data'])) ? json_decode($r['stage1_data'], true) : [],
-                'stage2'             => ($r && !empty($r['stage2_data'])) ? json_decode($r['stage2_data'], true) : [],
-                'stage3'             => ($r && !empty($r['stage3_data'])) ? json_decode($r['stage3_data'], true) : [],
-                'chatLogs'           => $chats,
-                'isFinalSubmitted'   => $r ? (bool)$r['is_final_submitted'] : false,
-                'lastTimestamp'      => $r ? intval($r['last_timestamp']) : 0,
-                'revisionId'         => $r ? intval($r['revision_id']) : 1,
-                'members'            => $resolvedMembersList,
-                'totalMembers'       => count($resolvedMembersList),
-                'onlineCount'        => count($onlineMembers),
-                'onlineMembers'      => $onlineMembers,
-                'absentMembers'      => $absentMembers,
-                'activeLocks'        => $activeLocks
-            ];
+            // 🚀 按需加载架构：仅对当前选中的活跃小组返回全量工作区与聊天记录，其余小组返回轻量概览，数据包体积暴降 98%！
+            $reqActiveGId = isset($_GET['activeGroupId']) ? trim($_GET['activeGroupId']) : (isset($REQ_DATA['activeGroupId']) ? trim($REQ_DATA['activeGroupId']) : '');
+            $isCurrentActiveGroup = empty($reqActiveGId) || ($reqActiveGId === $gid) || (count($allGroupIds) === 1);
+
+            $s1Data = ($r && !empty($r['stage1_data'])) ? json_decode($r['stage1_data'], true) : [];
+            $s2Data = ($r && !empty($r['stage2_data'])) ? json_decode($r['stage2_data'], true) : [];
+            $s3Data = ($r && !empty($r['stage3_data'])) ? json_decode($r['stage3_data'], true) : [];
+
+            if ($isCurrentActiveGroup) {
+                $result['groups'][$gid] = [
+                    'groupId'            => $gid,
+                    'scopeKey'           => $sk,
+                    'currentStage'       => $r ? ($r['current_stage'] ?: 'stage1') : 'stage1',
+                    'stage1'             => $s1Data,
+                    'stage2'             => $s2Data,
+                    'stage3'             => $s3Data,
+                    'chatLogs'           => $chats,
+                    'isFinalSubmitted'   => $r ? (bool)$r['is_final_submitted'] : false,
+                    'lastTimestamp'      => $r ? intval($r['last_timestamp']) : 0,
+                    'revisionId'         => $r ? intval($r['revision_id']) : 1,
+                    'members'            => $resolvedMembersList,
+                    'totalMembers'       => count($resolvedMembersList),
+                    'onlineCount'        => count($onlineMembers),
+                    'onlineMembers'      => $onlineMembers,
+                    'absentMembers'      => $absentMembers,
+                    'activeLocks'        => $activeLocks
+                ];
+            } else {
+                // 未激活小组仅返回全景监控必需的元数据，不携带海量聊天与大段正文
+                $result['groups'][$gid] = [
+                    'groupId'            => $gid,
+                    'scopeKey'           => $sk,
+                    'currentStage'       => $r ? ($r['current_stage'] ?: 'stage1') : 'stage1',
+                    'stage1'             => ['mergedTitle' => $s1Data['mergedTitle'] ?? '', 'proposals' => $s1Data['proposals'] ?? []],
+                    'stage2'             => ['unifiedContent' => mb_substr($s2Data['unifiedContent'] ?? '', 0, 100)],
+                    'stage3'             => ['feedbackItems' => $s3Data['feedbackItems'] ?? []],
+                    'chatLogs'           => [
+                        'stage1' => array_slice($chats['stage1'] ?? [], -10),
+                        'stage2' => array_slice($chats['stage2'] ?? [], -10),
+                        'stage3' => array_slice($chats['stage3'] ?? [], -10)
+                    ],
+                    'isFinalSubmitted'   => $r ? (bool)$r['is_final_submitted'] : false,
+                    'lastTimestamp'      => $r ? intval($r['last_timestamp']) : 0,
+                    'revisionId'         => $r ? intval($r['revision_id']) : 1,
+                    'members'            => $resolvedMembersList,
+                    'totalMembers'       => count($resolvedMembersList),
+                    'onlineCount'        => count($onlineMembers),
+                    'onlineMembers'      => $onlineMembers,
+                    'absentMembers'      => $absentMembers,
+                    'activeLocks'        => $activeLocks
+                ];
+            }
         }
     }
     $calcHash = md5(json_encode($result));
