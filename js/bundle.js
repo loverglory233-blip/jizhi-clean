@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260831_v963
+ * Version: 20260831_v964
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260831_v963';
+  const APP_VERSION = '20260831_v964';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -13129,9 +13129,22 @@
           const hasReachedReflection = /(?:五、|第5章|第五部分|不足与反思|研究反思|反思与不足|总结与反思|研究局限)/i.test(s2.unifiedContent || '');
 
           // 3. 【半程研讨 2.5 分钟静默守护】：半程会议或修正清单发出后，若全组超过 2.5 分钟没有任何动静，责任编辑温和提醒推进研讨（最多连续 2 次，有新动静自动重置）
-          if (s2.meetingStep && s2.meetingStep !== 'completed') {
-            const lastActivityTime = Math.max(lastStudentMsgTime, s2.lastActionTime || 0, s2.meetingCalledTime || 0, s2.meetingChecklistTime || 0);
+          const lastMeetingMsg = [...s2Chats].reverse().find(m => m && m.sender === 'managingEditor' && (m.text?.includes('半程研讨号召') || m.text?.includes('半程会议号召') || m.text?.includes('半程自查')));
+          const isMeetingActive = (lastMeetingMsg || s2.meetingStep) && s2.meetingStep !== 'completed' && !s2.isDraftConfirmed;
+
+          if (isMeetingActive) {
+            let meetingMsgTime = lastMeetingMsg?._timeMs;
+            if (!meetingMsgTime && lastMeetingMsg?.timestamp) {
+              const parts = lastMeetingMsg.timestamp.split(':');
+              if (parts.length >= 2) {
+                const d = new Date();
+                d.setHours(parseInt(parts[0], 10), parseInt(parts[1], 10), 0, 0);
+                meetingMsgTime = d.getTime();
+              }
+            }
+            const lastActivityTime = Math.max(lastStudentMsgTime, meetingMsgTime || 0, s2.lastActionTime || 0);
             const silenceMs = now - lastActivityTime;
+
             if (silenceMs > 150000) { // 2.5 分钟静默
               if (lastStudentMsgTime > (this._lastNudgeActivityTime?.['s2_meeting_silence'] || 0)) {
                 this._nudgeCounts['s2_meeting_silence'] = 0;
