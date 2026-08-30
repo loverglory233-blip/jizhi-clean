@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260831_v976";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch } from "./utils.js?v=20260831_v976";
-import { callCozeAgentAPI } from "./agents.js?v=20260831_v976";
-import { AuthManager } from "./auth.js?v=20260831_v976";
-import { CloudSyncEngine } from "./sync.js?v=20260831_v976";
-import { renderLoginView } from "./login.js?v=20260831_v976";
-import { renderTeacherPortal } from "./teacher.js?v=20260831_v976";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260831_v976";
+} from "./constants.js?v=20260831_v977";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch } from "./utils.js?v=20260831_v977";
+import { callCozeAgentAPI } from "./agents.js?v=20260831_v977";
+import { AuthManager } from "./auth.js?v=20260831_v977";
+import { CloudSyncEngine } from "./sync.js?v=20260831_v977";
+import { renderLoginView } from "./login.js?v=20260831_v977";
+import { renderTeacherPortal } from "./teacher.js?v=20260831_v977";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260831_v977";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260831_v976";
+} from "./editor.js?v=20260831_v977";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -1708,8 +1708,8 @@ export class App {
               }
             }
 
-            // ── ③ 10 分钟全组挂机没讨论：强兜底智能提炼回填 ──
-            if (silenceAfterChecklist >= 600000 && !this._s2MeetingAutoFallbackRunning) {
+            // ── ③ 10 分钟一致性讨论持续超时：强兜底智能提炼回填并顺推 ──
+            if (checklistElapsed >= 600000 && !this._s2MeetingAutoFallbackRunning) {
               const nudgeKey = 's2_consistency_auto_fallback_10m';
               if (!this._nudgeCounts[nudgeKey]) {
                 this._nudgeCounts[nudgeKey] = 1;
