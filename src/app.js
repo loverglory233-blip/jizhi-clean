@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260830_v889";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap } from "./utils.js?v=20260830_v889";
-import { callCozeAgentAPI } from "./agents.js?v=20260830_v889";
-import { AuthManager } from "./auth.js?v=20260830_v889";
-import { CloudSyncEngine } from "./sync.js?v=20260830_v889";
-import { renderLoginView } from "./login.js?v=20260830_v889";
-import { renderTeacherPortal } from "./teacher.js?v=20260830_v889";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260830_v889";
+} from "./constants.js?v=20260830_v890";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap } from "./utils.js?v=20260830_v890";
+import { callCozeAgentAPI } from "./agents.js?v=20260830_v890";
+import { AuthManager } from "./auth.js?v=20260830_v890";
+import { CloudSyncEngine } from "./sync.js?v=20260830_v890";
+import { renderLoginView } from "./login.js?v=20260830_v890";
+import { renderTeacherPortal } from "./teacher.js?v=20260830_v890";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260830_v890";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260830_v889";
+} from "./editor.js?v=20260830_v890";
 
 // Make renderChat available on window for sync callbacks
 if (typeof window !== "undefined") {
@@ -916,7 +916,7 @@ export class App {
         }
       }
 
-      // 🛡️ 2. 全局新任务发布感知与顶部横幅通知：无论在工作台内还是大厅，新任务发布均有横幅提示
+      // 🛡️ 2. 全局新任务发布感知与顶部横幅通知（严格仅限实时在线期间感知的新增任务，初次登录/离线重新进入绝不弹历史提示）
       const effClassId = this.state.activeStudentClassId || currUserObj.classId || null;
       const effGroup = this.authManager ? this.authManager.getStudentActiveGroup(currUserObj, effClassId) : null;
       const visibleTasks = allTasks.filter(t => {
@@ -927,19 +927,20 @@ export class App {
 
       const currentTaskIds = new Set(visibleTasks.map(t => t.id));
       if (this._knownTaskIdsSet) {
+        // 仅在页面已在线运行期间检测到增量新任务时才弹横幅
         const newlyAddedTasks = visibleTasks.filter(t => !this._knownTaskIdsSet.has(t.id));
         if (newlyAddedTasks.length > 0) {
           const newestTask = newlyAddedTasks[0];
-          console.log('📢 教师端发布了新任务:', newestTask.title);
-          showGlobalAnnouncementBanner({
-            title: '📢 教师发布了新协作任务',
-            content: `任课教师刚刚发布了新任务：《<b>${escapeHtml(newestTask.title || '新协作任务')}</b>》！可随时在任务大厅进入协作。`
-          }, 8000);
+          console.log('📢 实时在线感知到教师端发布了新任务:', newestTask.title);
+          showGlobalBannerNotice('📢 教师发布新任务', `任课教师刚刚发布了全新写作任务《${escapeHtml(newestTask.title || '新任务')}》！`, 'info', 8000);
         }
+      } else {
+        // 首次加载/刚登录：直接建立基线，绝对不弹任何旧任务横幅
+        this._knownTaskIdsSet = currentTaskIds;
       }
       this._knownTaskIdsSet = currentTaskIds;
 
-      // 🛡️ 2.5 工作台任务存活检测：若当前正在写作的任务已被教师在后台删除/撤销，弹窗提醒并安全返回大厅
+      // 🛡️ 2.5 工作台任务存活检测：仅当学生当前正在该工作台内写作时，若任务被教师实时删除才弹窗引导返回
       if (this.state.studentViewMode === 'workspace' && this.state.activeTaskId) {
         const isCurrentTaskAlive = allTasks.some(t => t.id === this.state.activeTaskId);
         if (!isCurrentTaskAlive && !this._isHandlingTaskRevoked) {
