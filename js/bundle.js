@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260830_v811
+ * Version: 20260830_v812
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260830_v811';
+  const APP_VERSION = '20260830_v812';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -828,60 +828,70 @@
       }
     } catch (e) {}
 
-    try {
-      const resp = await fetch('sync.php?action=coze_chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          bot_key: botKey,
-          bot_id: botId,
-          user_id: sessionUserId || 'student_user',
-          userId: sessionUserId,
-          token: sessionToken,
-          query: enrichedQuery,
-          stage: currentContext.stage || '',
-          topic: currentContext.topic || '',
-          actual_doc: currentContext.actualDoc || ''
-        })
-      });
-      if (resp.ok) {
-        const data = await resp.json();
-        if (data && data.success && data.reply && data.reply.trim().length > 0) {
-          removeThinkingIndicator();
-          return data.reply.trim();
-        }
-        // 如果后端处于生成中，采用阶梯式敏捷轮询：前 10 次 300ms 极速响应，后续 600ms 平稳等待
-        if (data && data.in_progress && data.chat_id && data.conversation_id) {
-          const chatId = data.chat_id;
-          const convId = data.conversation_id;
-          const targetBotId = data.bot_id || botId;
-          const maxRetries = 45;
-          for (let p = 0; p < maxRetries; p++) {
-            const pollInterval = p < 15 ? 200 : 500;
-            await new Promise(r => setTimeout(r, pollInterval));
-            try {
-              const pollRes = await fetch(`sync.php?action=coze_poll&chat_id=${encodeURIComponent(chatId)}&conversation_id=${encodeURIComponent(convId)}&bot_id=${encodeURIComponent(targetBotId)}&userId=${encodeURIComponent(sessionUserId)}&token=${encodeURIComponent(sessionToken)}&nocache=${Date.now()}`);
-              if (pollRes.ok) {
-                const pollData = await pollRes.json();
-                if (pollData && pollData.completed) {
-                  if (pollData.reply && pollData.reply.trim().length > 0) {
-                    removeThinkingIndicator();
-                    return pollData.reply.trim();
+    // 🛡️ 高可用调度核心：最多自动重试 3 次，化解偶发网络丢包与服务端瞬态抖动
+    const maxAttempts = 3;
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        const resp = await fetch('sync.php?action=coze_chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            bot_key: botKey,
+            bot_id: botId,
+            user_id: sessionUserId || 'student_user',
+            userId: sessionUserId,
+            token: sessionToken,
+            query: enrichedQuery,
+            stage: currentContext.stage || '',
+            topic: currentContext.topic || '',
+            actual_doc: currentContext.actualDoc || ''
+          })
+        });
+
+        if (resp.ok) {
+          const data = await resp.json();
+          if (data && data.success && data.reply && data.reply.trim().length > 0) {
+            removeThinkingIndicator();
+            return data.reply.trim();
+          }
+          // 如果后端处于生成中，采用阶梯式敏捷轮询：前 15 次 200ms 极速响应，后续 500ms 平稳等待
+          if (data && data.in_progress && data.chat_id && data.conversation_id) {
+            const chatId = data.chat_id;
+            const convId = data.conversation_id;
+            const targetBotId = data.bot_id || botId;
+            const maxRetries = 50;
+            for (let p = 0; p < maxRetries; p++) {
+              const pollInterval = p < 15 ? 200 : 500;
+              await new Promise(r => setTimeout(r, pollInterval));
+              try {
+                const pollRes = await fetch(`sync.php?action=coze_poll&chat_id=${encodeURIComponent(chatId)}&conversation_id=${encodeURIComponent(convId)}&bot_id=${encodeURIComponent(targetBotId)}&userId=${encodeURIComponent(sessionUserId)}&token=${encodeURIComponent(sessionToken)}&nocache=${Date.now()}`);
+                if (pollRes.ok) {
+                  const pollData = await pollRes.json();
+                  if (pollData && pollData.completed) {
+                    if (pollData.reply && pollData.reply.trim().length > 0) {
+                      removeThinkingIndicator();
+                      return pollData.reply.trim();
+                    }
+                    break;
                   }
-                  break;
                 }
+              } catch (err) {
+                console.warn('[Coze Poll] 轮询偶发抖动 (可自愈):', err.message);
               }
-            } catch (err) {
-              console.warn('[Coze Poll] 轮询请求异常:', err.message);
             }
           }
         }
+      } catch (e) {
+        console.warn(`[Coze API] 第 ${attempt}/${maxAttempts} 次请求偶发异常:`, e.message);
       }
-    } catch (e) {
-      console.warn('Coze API fallback:', e);
-    } finally {
-      removeThinkingIndicator();
+
+      // 若当前重试未成功且还有剩余次数，做指数退避等待后自动进行下一次重试 (600ms, 1200ms)
+      if (attempt < maxAttempts) {
+        await new Promise(r => setTimeout(r, attempt * 600));
+      }
     }
+
+    removeThinkingIndicator();
     return null;
   }
 
