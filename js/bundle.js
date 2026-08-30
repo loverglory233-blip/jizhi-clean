@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260830_v871
+ * Version: 20260830_v872
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260830_v871';
+  const APP_VERSION = '20260830_v872';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -11163,6 +11163,42 @@
         document.body.appendChild(box);
       };
     });
+
+    // ── 🌟 阶段二半程会议动态协同操作栏 (在表情栏正上方) ──
+    const actionBar = document.getElementById('chat-agent-action-bar');
+    if (actionBar) {
+      const s2 = state.stage2 || {};
+      const curStage = state.currentStage;
+      if (curStage === 'stage2' && s2.meetingStep && s2.meetingStep !== 'completed') {
+        actionBar.style.display = 'block';
+        if (s2.meetingStep === 'discussing_divergence') {
+          actionBar.innerHTML = `
+            <button id="btn-s2-managing-summary" style="background:linear-gradient(135deg, #2563eb, #1d4ed8); border:none; color:white; padding:7px 18px; border-radius:18px; font-weight:800; font-size:12.5px; cursor:pointer; display:inline-flex; align-items:center; gap:6px; box-shadow:0 3px 10px rgba(37,99,235,0.25); transition:all 0.2s;">
+              💡 讨论差不多了？让责任编辑总结
+            </button>
+          `;
+          actionBar.querySelector('#btn-s2-managing-summary')?.addEventListener('click', () => {
+            if (window.app && typeof window.app.handleS2ManagingSummary === 'function') {
+              window.app.handleS2ManagingSummary();
+            }
+          });
+        } else if (s2.meetingStep === 'discussing_checklist') {
+          actionBar.innerHTML = `
+            <button id="btn-s2-reviewing-summary" style="background:linear-gradient(135deg, #7c3aed, #6d28d9); border:none; color:white; padding:7px 18px; border-radius:18px; font-weight:800; font-size:12.5px; cursor:pointer; display:inline-flex; align-items:center; gap:6px; box-shadow:0 3px 10px rgba(124,58,237,0.25); transition:all 0.2s;">
+              📝 讨论差不多了？让审稿编辑总结
+            </button>
+          `;
+          actionBar.querySelector('#btn-s2-reviewing-summary')?.addEventListener('click', () => {
+            if (window.app && typeof window.app.handleS2ReviewingSummary === 'function') {
+              window.app.handleS2ReviewingSummary();
+            }
+          });
+        }
+      } else {
+        actionBar.style.display = 'none';
+        actionBar.innerHTML = '';
+      }
+    }
   }
 
   // 🛡️ Fail-safe compatibility exports
@@ -11951,6 +11987,7 @@
                   <div class="at-item agent" data-mention="@反方委员">🔴 @反方委员 (阶段三 答辩质询)</div>
                 </div>
               </div>
+              <div id="chat-agent-action-bar" style="display:none; padding:8px 12px; background:#f8fafc; border-top:1px solid #e2e8f0; border-bottom:1px solid #e2e8f0; text-align:center; box-sizing:border-box;"></div>
               <div class="emoji-bar" id="emoji-bar">
                 <span class="emoji-btn" data-emoji="😊">😊</span><span class="emoji-btn" data-emoji="😂">😂</span>
                 <span class="emoji-btn" data-emoji="👍">👍</span><span class="emoji-btn" data-emoji="👏">👏</span>
@@ -12557,51 +12594,36 @@
           const isTimeOver60Pct = stage2DurationMs >= (totalPlannedMs * 0.6);
           const hasReachedReflection = /(?:五、|第5章|第五部分|不足与反思|研究反思|反思与不足|总结与反思|研究局限)/i.test(s2.unifiedContent || '');
 
-          if ((hasReachedReflection || isTimeOver60Pct) && !s2.actionPlan && !this.state.stage2MeetingPrompted) {
-            if (!this.lastS2MeetingNudgeTime || now - this.lastS2MeetingNudgeTime > 300000) {
-              this.lastS2MeetingNudgeTime = now;
-              this.state.stage2MeetingPrompted = true;
-              const msg = {
-                sender: 'managingEditor',
-                text: `📢 【责任编辑·半程自查与互阅倡议】：关注到阶段二写作已推进过半！💡 请全组同学先暂停各自起草，花 1~2 分钟通读一下目前全组已写出的所有段落（尤其是其他组员撰写的部分）！仔细感知对比一下：目前大家写的内容，是否与我们最初商定的主题方向保持一致？各部分衔接是否存在偏差？通读感知完毕后，请点击左上角【📢 发起编辑会议】完成半程自查打卡！`,
-                timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                _timeMs: now
-              };
-              if (!this.state.chatLogs.stage2) this.state.chatLogs.stage2 = [];
-              this.state.chatLogs.stage2.push(msg);
-              this.syncChatLogs();
-              if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
-              renderChat(this.state);
-            }
-          }
+          // 3. 【半程研讨 2.5 分钟静默守护】：半程会议或修正清单发出后，若全组超过 2.5 分钟没有任何动静，责任编辑温和提醒推进研讨（最多连续 2 次，有新动静自动重置）
+          if (s2.meetingStep && s2.meetingStep !== 'completed') {
+            const lastActivityTime = Math.max(lastStudentMsgTime, s2.lastActionTime || 0, s2.meetingCalledTime || 0, s2.meetingChecklistTime || 0);
+            const silenceMs = now - lastActivityTime;
+            if (silenceMs > 150000) { // 2.5 分钟静默
+              if (lastStudentMsgTime > (this._lastNudgeActivityTime?.['s2_meeting_silence'] || 0)) {
+                this._nudgeCounts['s2_meeting_silence'] = 0;
+              }
+              const count = this._nudgeCounts['s2_meeting_silence'] || 0;
+              if (count < 2 && (!this.lastS2MeetingSilenceNudgeTime || now - this.lastS2MeetingSilenceNudgeTime > 200000)) {
+                this.lastS2MeetingSilenceNudgeTime = now;
+                this._nudgeCounts['s2_meeting_silence'] = count + 1;
+                if (!this._lastNudgeActivityTime) this._lastNudgeActivityTime = {};
+                this._lastNudgeActivityTime['s2_meeting_silence'] = lastStudentMsgTime;
 
-          // ── 阶段二双研讨闭环守护 ──
-          // 0) 半程自查分歧发出后（第 1 次讨论）：若全组达成赞同共识且静默期满（35秒），责任编辑出面小结并交棒
-          const pendingRev = this.state.stage2?.pendingReviewing || this.state.stage2PendingReviewing;
-          if (pendingRev && pendingRev.hasAgreement && !this._isExecutingConsensusHandover) {
-            const timeSinceAgreement = now - (pendingRev.lastAgreementTime || 0);
-            if (timeSinceAgreement >= 35000) { // 赞同后 35 秒无后续争执，判定研讨圆满收敛
-              this._isExecutingConsensusHandover = true;
-              setTimeout(async () => {
-                try {
-                  const s2Chats = (this.state.chatLogs.stage2 || []).filter(m => m.sender && !AgentProfiles[m.sender] && m.sender !== 'system');
-                  const recentChats = s2Chats.slice(-8).map(m => `${m.senderName || m.sender}: ${m.text}`).join('\n');
-
-                  const evalPrompt = `小组成员已在讨论区就修改方向达成一致并表达了赞同。
-  【全组自查核心脱节焦点】: ${pendingRev.transFocus}，${pendingRev.styleFocus}
-  【小组最新研讨对话记录】:
-  ${recentChats}
-
-  请通读以上小组成员的真实研讨发言，作为学术编辑部责任编辑发表一段 100~130 字的【一致性研讨小结与交棒】：简明肯定大家对齐的修改思路，并隆重引出审稿专家通读草稿下发 3 项修正清单！（纯自然语言，严禁输出代码块）`;
-
-                  let evalResult = await callCozeAgentAPI('managingEditor', evalPrompt, { stage: 'stage2', topic: pendingRev.topic });
-                  await this.triggerReviewingEditorAfterDiscussion(evalResult?.trim() || '');
-                } catch (err) {
-                  console.warn('Consensus handover error:', err);
-                } finally {
-                  this._isExecutingConsensusHandover = false;
-                }
-              }, 100);
+                const btnName = (s2.meetingStep === 'discussing_checklist') ? '【📝 讨论差不多了？让审稿编辑总结】' : '【💡 讨论差不多了？让责任编辑总结】';
+                const msg = {
+                  sender: 'managingEditor',
+                  senderName: '协同调度 · 责任编辑',
+                  text: `🤝 【责任编辑·半程研讨推进提示】：大家针对刚才提出的修改方向商量得怎么样啦？研讨差不多后，请点击聊天框上方的 ${btnName} 按钮，系统将为大家一键提炼研讨要点并推进后续！`,
+                  timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                  _timeMs: now
+                };
+                if (!this.state.chatLogs.stage2) this.state.chatLogs.stage2 = [];
+                this.state.chatLogs.stage2.push(msg);
+                this.syncChatLogs();
+                if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+                renderChat(this.state);
+                return;
+              }
             }
           }
 
@@ -14452,6 +14474,135 @@
       }
     }
 
+    /**
+     * 💡 阶段二半程会议第一步：责任编辑提炼分歧并引出审稿专家修正清单
+     */
+    async handleS2ManagingSummary() {
+      const s2 = this.state.stage2 || {};
+      const s2ChatLogs = (this.state.chatLogs && this.state.chatLogs.stage2) ? this.state.chatLogs.stage2 : [];
+      const meetingNoticeIdx = s2ChatLogs.findIndex(m => m && m.text && (m.text.includes('半程会议') || m.text.includes('自查') || m.text.includes('修改思路')));
+      const relevantLogs = (meetingNoticeIdx >= 0) ? s2ChatLogs.slice(meetingNoticeIdx) : s2ChatLogs;
+      const userLogs = relevantLogs.filter(m => m && m.sender && !AgentProfiles[m.sender] && m.sender !== 'system');
+      const chatSnippet = userLogs.map(m => `${m.senderName || m.sender}: ${m.text}`).join('\n') || '组员正在讨论修改方向';
+
+      const topic = (this.state.stage1 && this.state.stage1.mergedTitle) ? this.state.stage1.mergedTitle : '本组课题';
+      const rawDoc = (s2.unifiedContent || '').replace(/<[^>]*>/g, '').trim();
+
+      // 1. 责任编辑发言提炼研讨共识并交棒
+      const managingPrompt = `小组成员已在讨论区就论文《${topic}》的前序修改方向展开了半程研讨。
+  【组内关于修改思路的真实讨论记录】:
+  ${chatSnippet}
+
+  请作为责任编辑，发表 90~120 字的【半程研讨共识小结与交棒】：
+  ① 肯定大家围绕方案提出的修改思考与共识亮点；
+  ② 隆重引出审稿专家下发《二审修正清单》，指导全组对齐落实！
+  （纯自然语言，90~120字，严禁输出代码块）`;
+
+      try {
+        const respManaging = await callCozeAgentAPI('managingEditor', managingPrompt, { stage: 'stage2', topic });
+        let managingText = (respManaging && respManaging.trim().length > 0) 
+          ? respManaging.trim() 
+          : `🤝 【责任编辑·研讨小结与交棒】：看到大家在讨论区围绕方案衔接与论证细节展开了充分探讨！全组对修改方向已形成良好共识。👉 接下来请审稿编辑为大家下发针对性的《二审修正清单》！`;
+        if (!managingText.startsWith('🤝')) managingText = `🤝 【责任编辑·研讨小结与交棒】：${managingText}`;
+
+        const msgManaging = {
+          sender: 'managingEditor',
+          senderName: '协同调度 · 责任编辑',
+          text: managingText,
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          _timeMs: Date.now()
+        };
+        s2ChatLogs.push(msgManaging);
+
+        // 2. 审稿专家结合半程会议讨论与正文下发《二审修正清单》
+        const reviewingPrompt = `针对课题《${topic}》，结合小组成员刚才商定的修改思路，通读下方正文草稿，作为资深审稿编辑给出【二审修正清单】（120~150字）：
+  【正文草稿参考】:
+  ${rawDoc.slice(0, 1500)}
+  【小组成员商定的修改思路】:
+  ${chatSnippet}
+
+  请下发包含 3 项具体可执行的《二审修正清单》：
+  ① 核心概念与问题对齐；
+  ② 研究方法与工具操作化细节补全；
+  ③ 行文衔接与学术语体规范。
+  并在末尾明确提示全组：“请大家围绕清单简要商定分工与修改计划，讨论差不多后点击下方【📝 讨论差不多了？让审稿编辑总结】！”（纯自然语言，120~150字）`;
+
+        const respReviewing = await callCozeAgentAPI('reviewingEditor', reviewingPrompt, { stage: 'stage2', topic, actualDoc: rawDoc });
+        let reviewingText = (respReviewing && respReviewing.trim().length > 0)
+          ? respReviewing.trim()
+          : `📝 【审稿编辑·二审修正清单】：结合全组研讨，为正文提出以下 3 项重点修正建议：\n①【概念与问题】：统领各章节核心术语表述，使前文文献综述直接支撑核心假设；\n②【方法设计】：细化样本抽样与工具设计步骤，增强操作化严密性；\n③【行文衔接】：优化段落间逻辑过渡，消除口语化表述。\n👉 请全组围绕清单商定落实计划，讨论差不多后点击下方【📝 讨论差不多了？让审稿编辑总结】！`;
+        if (!reviewingText.startsWith('📝')) reviewingText = `📝 【审稿编辑·二审修正清单】：${reviewingText}`;
+
+        const msgReviewing = {
+          sender: 'reviewingEditor',
+          senderName: '学术质量 · 审稿编辑',
+          text: reviewingText,
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          _timeMs: Date.now() + 100
+        };
+        s2ChatLogs.push(msgReviewing);
+
+        s2.meetingStep = 'discussing_checklist'; // 变形为第二态按钮
+        s2.meetingChecklistTime = Date.now();
+
+        this.syncStage2();
+        this.syncChatLogs();
+        if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+        renderChat(this.state);
+      } catch (e) {
+        console.warn('handleS2ManagingSummary error:', e);
+      }
+    }
+
+    /**
+     * 📝 阶段二半程会议第二步：审稿专家提炼终版要点并指导回到正文继续撰写
+     */
+    async handleS2ReviewingSummary() {
+      const s2 = this.state.stage2 || {};
+      const s2ChatLogs = (this.state.chatLogs && this.state.chatLogs.stage2) ? this.state.chatLogs.stage2 : [];
+      const checklistIdx = s2ChatLogs.findIndex(m => m && m.text && m.text.includes('二审修正清单'));
+      const relevantLogs = (checklistIdx >= 0) ? s2ChatLogs.slice(checklistIdx) : s2ChatLogs;
+      const userLogs = relevantLogs.filter(m => m && m.sender && !AgentProfiles[m.sender] && m.sender !== 'system');
+      const chatSnippet = userLogs.map(m => `${m.senderName || m.sender}: ${m.text}`).join('\n') || '组员已商定修改落实对策';
+
+      const topic = (this.state.stage1 && this.state.stage1.mergedTitle) ? this.state.stage1.mergedTitle : '本组课题';
+
+      const summaryPrompt = `小组成员已就《二审修正清单》在讨论区明确了各自的修改落实分工与计划。
+  【组内关于清单落实的讨论记录】:
+  ${chatSnippet}
+
+  请作为审稿编辑，发表 90~120 字的【修改落实确认与终审冲刺寄语】：
+  ① 肯定大家清晰务实的修改分工与严谨态度；
+  ② 鼓励全组回到左侧正文继续高效撰写与修改，冲刺最终高质量学术成文！（纯自然语言，90~120字）`;
+
+      try {
+        const respSummary = await callCozeAgentAPI('reviewingEditor', summaryPrompt, { stage: 'stage2', topic });
+        let summaryText = (respSummary && respSummary.trim().length > 0)
+          ? respSummary.trim()
+          : `📝 【审稿编辑·修改确认与写作冲刺】：太棒了！看到全组已明确了针对各项修正清单的具体落实分工！修改思路非常清晰。👉 请大家回到左侧正文写作区，将商定好的修改对策落实到位，继续推进后续章节，冲刺终审定稿！`;
+        if (!summaryText.startsWith('📝')) summaryText = `📝 【审稿编辑·修改确认与写作冲刺】：${summaryText}`;
+
+        const msgSummary = {
+          sender: 'reviewingEditor',
+          senderName: '学术质量 · 审稿编辑',
+          text: summaryText,
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          _timeMs: Date.now()
+        };
+        s2ChatLogs.push(msgSummary);
+
+        s2.meetingStep = 'completed'; // 完成半程会议，收起按钮
+        s2.reviewMilestone = 'second_review_done';
+
+        this.syncStage2();
+        this.syncChatLogs();
+        if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+        renderChat(this.state);
+      } catch (e) {
+        console.warn('handleS2ReviewingSummary error:', e);
+      }
+    }
+
     async handleAiGenerateContract() {
       await this.handleExtractTasks();
     }
@@ -15541,64 +15692,61 @@
       const lastReviewingMsg = logs.slice().reverse().find(m => m.sender === 'reviewingEditor');
       const timeSinceLastReviewing = lastReviewingMsg ? (now - (lastReviewingMsg._timeMs || 0)) : 999999;
 
-      // ⏱️ 计算阶段二物理时间进度比例（双轨保底）
+      // ⏱️ 计算阶段二物理时间与字数水位线（双轨触发机制）
+      const allTasks = (this.authManager) ? this.authManager.getTasks() : [];
+      const curTask = allTasks.find(t => t.id === this.state.activeTaskId);
+      const targetWordCount = (curTask && curTask.targetWordCount) ? Number(curTask.targetWordCount) : 2000;
+      const rawDoc = newContent.replace(/<[^>]*>/g, '').trim();
+      const wordProgress = targetWordCount > 0 ? (rawDoc.length / targetWordCount) : (rawDoc.length / 2000);
+
       const times = (this.state.stage1 && this.state.stage1.contract && this.state.stage1.contract.timeAllocations) ? this.state.stage1.contract.timeAllocations : {};
       const totalPlannedMin = (times.background || 25) + (times.literature || 30) + (times.questions || 25) + (times.method || 40) + (times.reflection || 20) + (times.references || 10);
       const totalPlannedMs = totalPlannedMin * 60 * 1000;
       const stage2DurationMs = s2.startTime ? (now - s2.startTime) : 0;
-      const isTimeOver35Pct = totalPlannedMs > 0 && stage2DurationMs >= (totalPlannedMs * 0.35);
-      const isTimeOver85Pct = totalPlannedMs > 0 && stage2DurationMs >= (totalPlannedMs * 0.85);
+      const timeProgress = totalPlannedMs > 0 ? (stage2DurationMs / totalPlannedMs) : 0;
 
-      const rawDoc = newContent.replace(/<[^>]*>/g, '').trim();
-
-      // ═══════════════════════════════════════════════════════════════
-      // 🛡️ 严格阶梯时序门禁 1: 审稿编辑【一审】（初审微调质检）
-      // 仅在初始态 'none' 时由单端触发一次，严禁多端并发重复触发
-      // ═══════════════════════════════════════════════════════════════
       const s2ChatList = this.state.chatLogs?.stage2 || [];
-      const hasFirstReviewInLogs = s2ChatList.some(m => m.sender === 'reviewingEditor' && (m.text.includes('初审') || m.text.includes('Research Gap')));
+      const membersList = Object.values(this.state.members || {});
+      const isLeaderClient = !membersList.length || (this.state.currentUser === membersList[0]?.studentCode || this.state.currentUser === membersList[0]?.id || this.state.currentUser === membersList[0]?.username);
+
+      // ═══════════════════════════════════════════════════════════════
+      // 🛡️ 第一次质检（30% 字数 / 35% 时间 · 破题把脉）
+      // ═══════════════════════════════════════════════════════════════
+      const isReview1Due = (wordProgress >= 0.30 || timeProgress >= 0.35 || rawDoc.length >= 600);
+      const hasFirstReviewInLogs = s2ChatList.some(m => m.sender === 'reviewingEditor' && (m.text.includes('初审') || m.text.includes('破题把脉') || m.text.includes('Research Gap')));
       if (hasFirstReviewInLogs && (s2.reviewMilestone === 'none' || s2.reviewMilestone === 'first_review_in_progress')) {
         s2.reviewMilestone = 'first_review_done';
         this.syncStage2();
       }
 
-      const hasLayer2MethodSection = /(?:二、|三、|四、|第2章|第3章|第4章|设计|方法|路径|方案|实证|模型|过程|实施|框架|量表|样本|实验|调研|问卷|干预)/i.test(newContent);
-      const isReview1MilestoneReached = (rawDoc.length >= 800) || (hasLayer2MethodSection && rawDoc.length >= 500) || (isTimeOver35Pct && rawDoc.length >= 300);
-
-      // 单端触发仲裁：由组内排序第一位成员作为代表发起大模型请求，避免组员双端同时调起产生重复消息
-      const membersList = Object.values(this.state.members || {});
-      const isLeaderClient = !membersList.length || (this.state.currentUser === membersList[0]?.studentCode || this.state.currentUser === membersList[0]?.id || this.state.currentUser === membersList[0]?.username);
-
-      if (!hasFirstReviewInLogs && s2.reviewMilestone === 'none' && isReview1MilestoneReached && timeSinceLastReviewing > 30000 && !this._isTriggeringFirstReview) {
-        if (!isLeaderClient && membersList.length > 1) {
-          return; // 非领头客户端等待领头客户端触发并同步
-        }
+      if (!hasFirstReviewInLogs && s2.reviewMilestone === 'none' && isReview1Due && timeSinceLastReviewing > 30000 && !this._isTriggeringFirstReview) {
+        if (!isLeaderClient && membersList.length > 1) return;
         this._isTriggeringFirstReview = true;
         s2.reviewMilestone = 'first_review_in_progress';
         this.syncStage2();
         if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
 
         const topic = (this.state.stage1 && this.state.stage1.mergedTitle) ? this.state.stage1.mergedTitle : '本组课题';
-        const methodIndex = rawDoc.search(/(?:四、|第4章|第四部分|研究方法|研究设计)/i);
-        const contentSnippet = (methodIndex > 200) ? rawDoc.slice(0, methodIndex).trim() : rawDoc;
+        const contentSnippet = rawDoc.slice(0, 1000);
 
         setTimeout(async () => {
           try {
-            const firstReviewPrompt = `团队正在协同撰写课题《${topic}》，目前已完成立意与前序章节起草。
-  请通读下方【小组当前真实正文草稿】，作为国家级教育期刊资深审稿编辑，进行实质性学术初审质检（【全局红线】：顺应尊重已有构思框架，做局部微调，严禁推翻大改！严禁预设具体统计工具，定量/定性/方案均适用）：
-  ① 肯定当前已写章节的立意、现实价值与文献梳理脉络；
-  ② 审查研究述评（Research Gap）是否找准，启发将前文综述的理论概念与后续核心研究问题/待测变量清晰对齐；
-  ③ 指出 1~2 处可深化的具体细节（如核心概念界定或近三年权威文献论据）。严禁空泛套话，纯自然语言输出，130~150字。`;
+            const firstReviewPrompt = `团队正在协同撰写课题《${topic}》，目前已进入破题阶段（达到初审节点）。
+  请通读下方【小组当前真实正文草稿】，作为资深审稿编辑，给出轻量【初审破题把脉建议】（不打断写作，指导后续）：
+  ① 肯定当前立意与文献梳理脉络；
+  ② 审查研究述评（Gap）是否找准，启发将文献与后续研究问题清晰对齐；
+  ③ 指出 1~2 处细节微调建议（如核心概念界定）。纯自然语言，120~140字。`;
             let firstReviewText = await callCozeAgentAPI('reviewingEditor', firstReviewPrompt, { stage: 'stage2', topic, actualDoc: contentSnippet });
             if (!firstReviewText || firstReviewText.trim().length === 0) {
-              firstReviewText = `📝 【审稿编辑·初审学术质检】：审阅了大家目前撰写的正文草稿，背景立意非常扎实，文献综述的脉络梳理清晰！建议重点优化以下两点：① 进一步凝练研究述评（Gap），将前文文献直接引向核心研究问题与假设；② 统一各组员在背景与综述中使用的核心概念界定。请全组继续稳步推进！`;
+              firstReviewText = `📝 【审稿编辑·一审破题把脉】：审阅了大家目前撰写的正文草稿，背景立意扎实，文献综述脉络清晰！建议重点优化两点：① 进一步凝练研究述评（Gap），将前文文献直接引向核心研究问题；② 统一前后使用的核心概念界定。请全组参考后继续稳步撰写！`;
             }
             s2.firstReviewText = firstReviewText;
             s2.reviewMilestone = 'first_review_done';
 
             const firstReviewMsg = {
               sender: 'reviewingEditor',
-              text: firstReviewText,
+              senderName: '学术质量 · 审稿编辑',
+              text: firstReviewText.startsWith('📝') ? firstReviewText : `📝 【审稿编辑·一审破题把脉】：${firstReviewText}`,
               timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
               _timeMs: Date.now()
             };
@@ -15616,28 +15764,25 @@
       }
 
       // ═══════════════════════════════════════════════════════════════
-      // 🛡️ 严格阶梯时序门禁 2: 责任编辑【半程会议号召】
-      // 必须在【一审完成后】(first_review_done)，且写到反思或字数达标才触发
+      // 🛡️ 第二次质检与半程会议（70% 字数 / 65% 时间 · 深度研讨）
       // ═══════════════════════════════════════════════════════════════
-      const hasMeetingCalledInLogs = s2ChatList.some(m => m.sender === 'managingEditor' && m.text.includes('半程会议号召'));
+      const isMeetingDue = (wordProgress >= 0.70 || timeProgress >= 0.65 || rawDoc.length >= 1400);
+      const hasMeetingCalledInLogs = s2ChatList.some(m => m.sender === 'managingEditor' && (m.text.includes('半程会议号召') || m.text.includes('半程研讨号召')));
       if (hasMeetingCalledInLogs && s2.reviewMilestone === 'first_review_done') {
         s2.reviewMilestone = 'meeting_called';
         this.syncStage2();
       }
 
-      const hasLayer3ReflectionSection = /(?:五、|六、|第5章|第6章|讨论|反思|不足|局限|展望|结论|总结|对策|建议)/i.test(newContent);
-      const isMeetingMilestoneReached = (rawDoc.length >= 2200) || (hasLayer3ReflectionSection && rawDoc.length >= 1500);
-      const lastManagingMsg = logs.slice().reverse().find(m => m.sender === 'managingEditor');
-      const timeSinceLastManaging = lastManagingMsg ? (now - (lastManagingMsg._timeMs || 0)) : 999999;
-
-      if (!hasMeetingCalledInLogs && s2.reviewMilestone === 'first_review_done' && isMeetingMilestoneReached && timeSinceLastManaging > 30000) {
-        if (!isLeaderClient && membersList.length > 1) {
-          return;
-        }
+      if (!hasMeetingCalledInLogs && s2.reviewMilestone === 'first_review_done' && isMeetingDue) {
+        if (!isLeaderClient && membersList.length > 1) return;
         s2.reviewMilestone = 'meeting_called';
+        s2.meetingStep = 'discussing_divergence'; // 激活表情栏上方第一态按钮
+        s2.meetingCalledTime = Date.now();
+
         const meetingCallMsg = {
           sender: 'managingEditor',
-          text: `🤝 【责任编辑·半程会议号召】：关注到全组方案与方法设计已基本成型，并逐步推进至反思讨论阶段！请大家停下各自打字，通读搭档负责的模块，点击上方【📢 发起编辑会议】完成全篇综合学术审计打卡。稍后审稿专家将结合全组情况为大家进行深度内容质检并下发【半程修正清单】！`,
+          senderName: '协同调度 · 责任编辑',
+          text: `🤝 【责任编辑·半程研讨号召】：关注到全组论文撰写已推进过半！请大家先暂停打字，花 1~2 分钟通读当前全篇草稿。重点审查：各章节逻辑是否连贯？前后构思是否存在脱节或分歧？\n👉 请大家在讨论区充分交流修改思路；商定差不多后，点击聊天框上方【💡 讨论差不多了？让责任编辑总结】按钮，我们将为大家提炼共识并下发《二审修正清单》！`,
           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
           _timeMs: now
         };
@@ -15651,25 +15796,23 @@
       }
 
       // ═══════════════════════════════════════════════════════════════
-      // 🛡️ 严格阶梯时序门禁 3: 审稿编辑【三审·终审行文扫描】
-      // 必须在【半程会议清单下发修改之后】(checklist_issued)，且【检测到撰写参考文献章节】时即刻触发！
+      // 🛡️ 第三次质检（90% 字数 / 85% 时间 / 确认初稿 · 终审定稿）
       // ═══════════════════════════════════════════════════════════════
-      const hasFinalReviewInLogs = s2ChatList.some(m => m.sender === 'reviewingEditor' && m.text.includes('终稿行文扫描'));
-      if (hasFinalReviewInLogs && s2.reviewMilestone === 'checklist_issued') {
+      const isFinalReviewDue = (wordProgress >= 0.90 || timeProgress >= 0.85 || s2.isDraftConfirmed || rawDoc.length >= 1800);
+      const hasFinalReviewInLogs = s2ChatList.some(m => m.sender === 'reviewingEditor' && (m.text.includes('终稿行文扫描') || m.text.includes('终审定稿总评')));
+      if (hasFinalReviewInLogs && (s2.reviewMilestone === 'second_review_done' || s2.reviewMilestone === 'meeting_called')) {
         s2.reviewMilestone = 'final_review_done';
         this.syncStage2();
       }
 
-      const hasReferencesSection = /(?:六、|第6章|第六部分)?\s*(?:参考文献|References)/i.test(newContent);
-
-      if (!hasFinalReviewInLogs && s2.reviewMilestone === 'checklist_issued' && hasReferencesSection && timeSinceLastReviewing > 30000) {
-        if (!isLeaderClient && membersList.length > 1) {
-          return;
-        }
+      if (!hasFinalReviewInLogs && (s2.reviewMilestone === 'second_review_done' || s2.reviewMilestone === 'meeting_called' || s2.meetingStep === 'completed') && isFinalReviewDue && timeSinceLastReviewing > 30000) {
+        if (!isLeaderClient && membersList.length > 1) return;
         s2.reviewMilestone = 'final_review_done';
+
         const refReviewMsg = {
           sender: 'reviewingEditor',
-          text: `📝 【审稿编辑·终稿行文扫描诊断】：看到全组已进入最后【参考文献】的收尾阶段，整体方案非常完整！在最后定稿阶段，我对全文语言表达进行了全维度扫描：①【行文与学术语体】：部分章节中存在个别口语化表述与长句语病，建议润色为客观规范的第三人称学术语体；②【术语与概念】：前后核心概念表述需统一，建议全组通读逐一订正；③【参考文献】：核对基本著录规范。请全组成员完成通读润色后，在上方逐一完成【初稿确认】，准备迎接终审答辩！`,
+          senderName: '学术质量 · 审稿编辑',
+          text: `📝 【审稿编辑·终审定稿总评与行文扫描】：看到全组已进入最后成文冲刺阶段，整体框架完整！我对全文质量与学术规范进行了终审扫描：①【学术语体】：整体论述连贯，建议通读核对消除残留的口语化表述；②【术语规范】：前后核心概念表述保持高度统一；③【参考文献】：核对著录规范。请全组成员完成最终核对后，在上方逐一完成【初稿确认】，准备迎接阶段三学术答辩！`,
           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
           _timeMs: now
         };
@@ -15695,8 +15838,6 @@
       const plainLen = newContent.replace(/<[^>]*>/g, '').trim().length;
       const lastWarnTime = this.state.lastSSRLWarnTimeMs || 0;
       const lastWarnLen = this.state.lastSSRLWarnLen || 0;
-      const allTasks = (this.authManager) ? this.authManager.getTasks() : [];
-      const curTask = allTasks.find(t => t.id === this.state.activeTaskId);
       const totalAllocMinutes = Object.values((this.state.stage1 && this.state.stage1.contract && this.state.stage1.contract.timeAllocations) || {}).reduce((a, b) => a + Number(b || 0), 0);
       const taskDurMin = (curTask && curTask.durationMinutes) ? Number(curTask.durationMinutes) : (totalAllocMinutes || 60);
       const ssrlCooldownMs = taskDurMin < 60 ? 210000 : (taskDurMin <= 180 ? 360000 : 600000);
