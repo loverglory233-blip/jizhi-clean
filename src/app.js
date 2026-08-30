@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260830_v886";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap } from "./utils.js?v=20260830_v886";
-import { callCozeAgentAPI } from "./agents.js?v=20260830_v886";
-import { AuthManager } from "./auth.js?v=20260830_v886";
-import { CloudSyncEngine } from "./sync.js?v=20260830_v886";
-import { renderLoginView } from "./login.js?v=20260830_v886";
-import { renderTeacherPortal } from "./teacher.js?v=20260830_v886";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260830_v886";
+} from "./constants.js?v=20260830_v887";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap } from "./utils.js?v=20260830_v887";
+import { callCozeAgentAPI } from "./agents.js?v=20260830_v887";
+import { AuthManager } from "./auth.js?v=20260830_v887";
+import { CloudSyncEngine } from "./sync.js?v=20260830_v887";
+import { renderLoginView } from "./login.js?v=20260830_v887";
+import { renderTeacherPortal } from "./teacher.js?v=20260830_v887";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260830_v887";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260830_v886";
+} from "./editor.js?v=20260830_v887";
 
 // Make renderChat available on window for sync callbacks
 if (typeof window !== "undefined") {
@@ -4723,14 +4723,14 @@ ${propText}
 
       setTimeout(async () => {
         try {
-          const firstReviewPrompt = `团队正在协同撰写课题《${topic}》，目前已进入破题阶段（达到初审节点）。
-请通读下方【小组当前真实正文草稿】，作为资深审稿编辑，给出轻量【初审破题把脉建议】（不打断写作，指导后续）：
-① 肯定当前立意与文献梳理脉络；
-② 审查研究述评（Gap）是否找准，启发将文献与后续研究问题清晰对齐；
-③ 指出 1~2 处细节微调建议（如核心概念界定）。纯自然语言，120~140字。`;
+          const firstReviewPrompt = `【课题】：《${topic}》
+【当前正文草稿（写到哪审到哪）】：
+${contentSnippet}
+
+请发表 100~130 字一审破题把脉意见（肯定立意与文献脉络，审查Gap是否找准，指出1~2处具体微调建议，不打断写作，纯自然语言，严禁代码块）。`;
           let firstReviewText = await callCozeAgentAPI('reviewingEditor', firstReviewPrompt, { stage: 'stage2', topic, actualDoc: contentSnippet });
           if (!firstReviewText || firstReviewText.trim().length === 0) {
-            firstReviewText = `📝 【审稿编辑·一审破题把脉】：审阅了大家目前撰写的正文草稿，背景立意扎实，文献综述脉络清晰！建议重点优化两点：① 进一步凝练研究述评（Gap），将前文文献直接引向核心研究问题；② 统一前后使用的核心概念界定。请全组参考后继续稳步撰写！`;
+            firstReviewText = `📝 【审稿编辑·一审破题把脉】：通读了大家目前起草的正文切片，背景政策依据充分，国内外关于学习分析的文献梳理脉络很清晰！建议在继续撰写时关注两点：① 把文献述评最后一句收拢，更明确地指出已有研究在“初中数学具体课例操作化”上的不足（Research Gap），直接引出你们的核心研究问题；② 各自起草的段落里，把“精准教学”和“个性化辅导”的术语口径统一一下。请全组参考后继续稳步撰写！`;
           }
           s2.firstReviewText = firstReviewText;
           s2.reviewMilestone = 'first_review_done';
@@ -5149,29 +5149,22 @@ ${propText}
 
       // 2. 异步调用扣子【责任编辑】Coze API: 匿名化宏观总结与分歧引导
       const avgOverallRating = (allSubs.reduce((sum, s) => sum + (s.overallRating || 5), 0) / (allSubs.length || 1)).toFixed(1);
-      const managingPrompt = `全组成员已全部完成半程全篇综合自查打卡（共 ${totalMembersCount} 人）：
-• 课题: 《${topic}》
-• 个人构思契合度: ${hasIdeationDev ? `部分成员反馈方案局部偏离最初设想（涉及: ${ideationFocusText}）` : '全员高度符合最初设想'}
-• 全篇前后连贯度: ${hasTransDev ? `多数成员明确指出存在前后脱节（涉及: ${transFocusText}）` : '全篇前后衔接自然'}
-• 文风语体与术语: ${hasStyleDev ? `组内反馈存在口语化与术语不统一（涉及: ${styleFocusText}）` : '全篇文风严谨术语统一'}
-• 核心学术瓶颈: ${primaryAcademicB}
-• 整体质量自评打星: 均分 ${avgOverallRating} 星 / 5 星
-• 组内补充建议与提问: ${questionsList}
+      const managingPrompt = `【全员自查打卡汇总数据】：
+- 构思偏离章节：${hasIdeationDev ? ideationFocusText : '无'}
+- 前后脱节章节：${hasTransDev ? transFocusText : '无'}
+- 口语化/文风章节：${hasStyleDev ? styleFocusText : '无'}
+- 核心瓶颈：${primaryAcademicB}
+- 质量自评均分：${avgOverallRating} 星
 
-请作为学术编辑部责任编辑（协同主持人与学伴）发表一段客观、充实、富有启发性的发言（字数控制在 130~150 字，严禁敷衍，严禁点具体学生人名，用“部分成员反馈/多数同学指出”）：
-1. 肯定全组认真通读了全篇已有内容，宏观呈现诊断共识：
-   ① 列出构思偏差与多处脱节焦点（如 ${transFocusText}）；
-   ② 点出文风语体需统一的章节（如 ${styleFocusText}），若质量打分较高则顺带肯定整体质量；
-2. 给出实用的 1 句话研讨切入指引（建议大家先别急于单干改字，先在讨论区围绕核心脱节商讨 2 分钟，把思路对齐后再动手）；
-3. 预告审稿专家正在通读全篇草稿，稍后将针对大家的瓶颈与脱节下发深度质检与【半程修正清单】！`;
+请依据责任编辑自查研判分流规则（A1/A2/B/C分支），发表 120~150 字自查研判与对齐引导（纯自然语言，严禁学术结论，严禁点名指责；有分歧末尾提示点击【💡 讨论差不多了？让责任编辑总结】，无分歧直接交棒@审稿编辑）。`;
 
       let managingText = await callCozeAgentAPI('managingEditor', managingPrompt, { stage: 'stage2', topic, bottleneck: primaryAcademicB });
       if (!managingText || managingText.trim().length === 0) {
-        managingText = `🤝 【责任编辑·自查研判与对齐引导】：全员半程综合打卡已完成！首先肯定大家认真通读了全篇已有内容。汇总全组自查，梳理出以下核心焦点：
+        managingText = `🤝 【责任编辑·自查研判与对齐引导】：全员自查打卡已完成！汇总全组反馈，提炼出核心焦点：
   1. 🎯 构思与脱节焦点：${hasIdeationDev ? `部分成员反馈 ${ideationFocusText} 偏离了最初设想；` : ''}${hasTransDev ? `多数成员明确指出了前后脱节（重点涉及 ${transFocusText}）；` : '全篇前后衔接顺畅；'}
   2. 🎨 文风与术语规范：${hasStyleDev ? `组内指出 ${styleFocusText} 存在口语化表述与术语混用；` : '全篇文风严谨规范，'}整体质量自评给出了 ${avgOverallRating} 星的高分！
   3. 💡 核心瓶颈：全组聚焦在『${primaryAcademicB}』。
-💡 【研讨切入建议】：建议大家先别急于单干改字，先在讨论区围绕『如何把假设与方法接合起来、统一学术术语』交流 2 分钟，把思路对齐后再动手！审稿专家正在通读全篇，稍后给出学术处方！`;
+💡 请小组成员先在讨论区围绕上述脱节章节商量对齐修改思路。商量差不多后，请点击【💡 讨论差不多了？让责任编辑总结】按钮！`;
       }
 
       const managingMsg = {
@@ -5229,28 +5222,23 @@ ${propText}
     const fullDoc = (this.state.stage2 && this.state.stage2.unifiedContent) ? this.state.stage2.unifiedContent.replace(/<[^>]*>/g, '').trim() : '论文初稿方案';
     const priorFirstReview = this.state.stage2FirstReviewText || (this.state.chatLogs.stage2 || []).find(m => m.sender === 'reviewingEditor')?.text || '前期初审已肯定研究背景立意与文献归纳';
 
-    const reviewingPrompt = `小组已针对责任编辑提出的自查分歧在讨论区达成了初步对齐共识。
-【课题】: 《${ctx.topic}》
-【全组自查核心瓶颈】: “${ctx.bAcademic}”
-【前后脱节重点章节】: ${ctx.transFocus}
-【文风偏口语化章节】: ${ctx.styleFocus}
-【手填开放提问/修改建议】: “${ctx.userText || '无手填提问'}”
+    const reviewingPrompt = `【全篇正文草稿】：
+${fullDoc.slice(0, 2000)}
 
-【审稿编辑一审记录】:
-"${priorFirstReview}"
+【半程会议研讨与暴露的瓶颈】：
+- 核心卡壳瓶颈：『${ctx.bAcademic}』
+- 前后脱节焦点：${ctx.transFocus}
+- 口语化/文风章节：${ctx.styleFocus}
 
-请通读下方【小组当前真实正文草稿】全文，作为国家级教育类期刊资深审稿编辑，发表 130~150 字的深度学术质检（【全局红线】：讲人话、出实招！顺应已有框架微调，严禁推翻重写，有数据看数据，没数据看设计，绝不强求跑真实数据）：
-① 直击脱节与瓶颈：通读学生真实草稿，针对学生卡壳的『${ctx.bAcademic}』与脱节处（${ctx.transFocus}），给出切中其具体课题的通俗化解思路；
-② 文风与术语润色示范：指出口语化章节（${ctx.styleFocus}）中的典型口语问题，给出规范学术第三人称改写示范；
-③ 反思与定稿冲刺：对后续反思与定稿提出明确要求，提示学生若对修改有疑问可随时 @审稿编辑 咨询！纯自然语言输出，130~150字。`;
+请依据审稿编辑角色与审查红线（顺应已有框架、绝不推翻大改、方案形态绝不索要数据图表），发表 120~150 字【二审修正清单】（必须包含 3 项具体可执行要点，纯自然语言，末尾提示商定后点击下方【📝 讨论差不多了？让审稿编辑总结】）。`;
 
     let reviewingText = await callCozeAgentAPI('reviewingEditor', reviewingPrompt, { stage: 'stage2', topic: ctx.topic, bottleneck: ctx.bAcademic, actualDoc: fullDoc, priorReview: priorFirstReview });
     if (!reviewingText || reviewingText.trim().length === 0) {
-      reviewingText = `📝 【审稿编辑·学术质检与答疑】：通读了全组目前撰写的正文草稿，针对大家卡壳的【${ctx.bAcademic}】与衔接脱节问题：
-① 假设与方法闭环：通读正文，第三章提出的核心假设与第四章测量设计存在局部脱节，建议在方法中补齐对应的测量题目或实施指标，别让假设悬空；
-② 文风统一示范：通读 ${ctx.styleFocus}，消除“我们觉得”等第一人称口语，润色为规范客观的第三人称学术语体；
-③ 局限预判：在接下来的第五章深入剖析方案在样本抽样与实施工具上的潜在局限。
-👉 我已为大家下发了 3 项可打勾的【半程修正清单】，若对具体修改有疑问可随时 @审稿编辑 咨询，请全组分工落实！`;
+      reviewingText = `📝 【审稿编辑·二审修正清单】：通读了大家的方案草稿，结合大家在半程会议中汇报的核心瓶颈与攻克点：
+①【前后闭环】：第三章提出的核心假设，在第四章测量工具中缺少对应题目，请补齐对应的测量题目或实施指标，别让假设悬空；
+②【润色文风】：通读 ${ctx.styleFocus}，消除“我们觉得”等口语，统一润色为规范客观的第三人称学术语体；
+③【预判不足】：在第五章实事求是地反思方案在样本抽样与实施工具上的潜在局限。
+👉 3 项【修正清单】已在正文上方就位！请全组商定落实策略，讨论差不多后点击下方【📝 讨论差不多了？让审稿编辑总结】！`;
     }
     this.state.stage2SecondReviewText = reviewingText;
     this.state.stage2.reviewMilestone = 'checklist_issued';
