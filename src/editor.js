@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles } from "./constants.js?v=20260831_v942";
-import { callCozeAgentAPI } from "./agents.js?v=20260831_v942";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap } from "./utils.js?v=20260831_v942";
+import { AgentProfiles } from "./constants.js?v=20260831_v943";
+import { callCozeAgentAPI } from "./agents.js?v=20260831_v943";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap } from "./utils.js?v=20260831_v943";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -1889,126 +1889,126 @@ function renderStage1Canvas(canvas, state, handlers) {
     }
   });
 
-  if (!isContractLocked) {
-    canvas.querySelectorAll('.vote-btn:not([disabled])').forEach(btn => {
-      btn.addEventListener('click', () => handlers.onVote(btn.dataset.id));
-    });
-    const btnExtractTopic = canvas.querySelector('#btn-extract-topic');
-    if (btnExtractTopic) {
-      btnExtractTopic.addEventListener('click', () => {
-        if (!isVotingComplete) {
-          alert(`🔒 请先完成全员提案提交与投票推选！\n\n当前全组投票进度：${totalVotesCast}/${totalMembersCount} 人已投票。\n投票结束后拍卖师将落槌揭晓结果，随后方可开启主题与方案提炼。`);
-          return;
+  const padName = `jizhi_${activeTaskId}_${userGroupId}`;
+
+  // 🚀 核心黑科技：同源 Etherpad iframe 内部 DOM 毫秒级直读函数
+  const getEtherpadTextDirect = () => {
+    try {
+      const f = document.getElementById('stage2-etherpad-frame');
+      if (f && f.contentDocument) {
+        const aceOuter = f.contentDocument.querySelector('iframe[name="ace_outer"]');
+        if (aceOuter && aceOuter.contentDocument) {
+          const aceInner = aceOuter.contentDocument.querySelector('iframe[name="ace_inner"]');
+          if (aceInner && aceInner.contentDocument) {
+            const innerBody = aceInner.contentDocument.querySelector('.innerdocbody') || aceInner.contentDocument.body;
+            if (innerBody) {
+              return (innerBody.innerText || '').replace(/\r\n/g, '\n').trim();
+            }
+          }
         }
-        if (handlers.onExtractTopic) handlers.onExtractTopic();
-      });
-    }
-
-    const btnExtractTime = canvas.querySelector('#btn-extract-time');
-    if (btnExtractTime) {
-      btnExtractTime.addEventListener('click', () => {
-        if (handlers.onExtractTime) handlers.onExtractTime();
-      });
-    }
-
-    const btnExtractTasks = canvas.querySelector('#btn-extract-tasks');
-    if (btnExtractTasks) {
-      btnExtractTasks.addEventListener('click', () => {
-        if (handlers.onExtractTasks) handlers.onExtractTasks();
-      });
-    }
-
-    const btnGenDraft = canvas.querySelector('#btn-generate-contract-draft');
-    if (btnGenDraft) {
-      btnGenDraft.addEventListener('click', () => {
-        if (handlers.onAiGenerateContract) handlers.onAiGenerateContract();
-      });
-    }
-
-    const btnConfirm = canvas.querySelector('#btn-confirm-contract');
-    if (btnConfirm) {
-      btnConfirm.addEventListener('click', () => {
-        s1.contract._lastSignTime = Date.now();
-        const currUser = (window.app && window.app.authManager) ? window.app.authManager.getCurrentUser() : null;
-        const myCode = state.currentUser || (currUser ? currUser.studentCode : 'A');
-        const effectiveClassId = window.app.state.activeStudentClassId || (currUser?.classId || null);
-        const activeGroupObj = window.app.authManager ? window.app.authManager.getStudentActiveGroup(currUser, effectiveClassId) : null;
-        const curGid = activeGroupObj?.id || (currUser?.groupId || state.activeGroupId || null);
-        
-        fetch('sync.php?action=patch_contract_field', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            taskId: state.activeTaskId || null,
-            groupId: curGid,
-            field: 'sign_member',
-            subKey: myCode,
-            value: true
-          })
-        }).catch(() => {});
-
-        handlers.onConfirmContract();
-      });
-    }
-
-    const btnGotoS2 = canvas.querySelector('#btn-goto-stage2');
-    if (btnGotoS2) {
-      btnGotoS2.addEventListener('click', () => {
-        if (window.app && typeof window.app.switchStage === 'function') {
-          window.app.switchStage('stage2', true);
-        }
-      });
-    }
-  }
-
-  // 🛡️ 恢复之前正在打字的输入框焦点与光标，平滑无感
-  if (activeKey) {
-    const restoreInput = canvas.querySelector(`#${activeKey}, [data-key="${activeKey}"], [data-mkey="${activeKey}"]`);
-    if (restoreInput) {
-      restoreInput.value = activeVal;
-      restoreInput.focus();
-      try { restoreInput.setSelectionRange(activeCursor, activeCursor); } catch (e) {}
-    }
-  }
-
-  renderPresencePills('stage1-canvas', state);
-}
-
-function renderStage2Canvas(canvas, state, handlers) {
-  if (!canvas) return;
-  const s2 = state.stage2;
-  // 🧹 自动清理旧版本残留的预设提纲模版，确保初始纯净 0 字
-  if (s2.unifiedContent && (s2.unifiedContent.includes('一、研究背景与意义') || s2.unifiedContent.includes('请在此处撰写正文'))) {
-    s2.unifiedContent = '';
-  }
-  const actionPlan = s2.actionPlan;
-  const currUser = (window.app && window.app.authManager) ? window.app.authManager.getCurrentUser() : null;
-  const userClassId = state.activeStudentClassId || (currUser ? currUser.classId : null) || null;
-  const activeGroupObj = (window.app && window.app.authManager) ? window.app.authManager.getStudentActiveGroup(currUser, userClassId) : null;
-  const userGroupId = activeGroupObj?.id || (window.app?.cloudSyncEngine?.groupId) || (currUser?.groupId) || state.activeGroupId || 'group_1';
-  let activeTaskId = state.activeTaskId || (window.app?.cloudSyncEngine?.taskId) || (`task_${userClassId || 'default'}_default`);
-  if (!activeTaskId || activeTaskId === 'task_default') activeTaskId = `task_${userClassId || 'default'}_default`;
-  const availablePapers = (window.app && window.app.authManager) ? window.app.authManager.getReferencePapers(userGroupId, userClassId, activeTaskId) : [];
-  const paperBtnLabel = availablePapers.length > 0 ? `📚 查阅参考范文 (${availablePapers.length}篇)` : '📚 查阅参考范文库';
-
-  const allTasks = (window.app && window.app.authManager) ? window.app.authManager.getTasks() : [];
-  const currentTask = allTasks.find(t => t.id === state.activeTaskId);
-  const isTaskDeadlineExpired = isTaskExpired(currentTask);
-  const confirmedDraftMap = s2.confirmedMembers || {};
-  const isMemberDone = (map, m) => {
-    if (!map || !m) return false;
-    return !!(map[m.id] || map[m.studentCode] || map[m.username] || (m.name && map[m.name]));
+      }
+    } catch (e) {}
+    return null;
   };
-  const membersList = Object.values(state.members || {});
-  const confirmedDraftCount = membersList.filter(m => isMemberDone(confirmedDraftMap, m)).length;
-  const totalCount = membersList.length || 3;
-  const currUserCode = state.currentUser || (currUser ? currUser.studentCode : 'A');
-  const isUserDraftConfirmed = isMemberDone(confirmedDraftMap, { id: currUserCode, studentCode: currUser?.studentCode, username: currUser?.username, name: currUser?.name });
-  const isDraftFullyConfirmed = s2.isDraftConfirmed || (confirmedDraftCount >= totalCount && totalCount > 0) || (state.groupMaxStage === 'stage3') || state.isFinalSubmitted;
-  const meetingSubs = s2.meetingSubmissions || {};
-  const isStage2MeetingLocked = s2.isMeetingLocked || (Object.keys(meetingSubs).length >= totalCount && totalCount > 0) || isDraftFullyConfirmed;
-  const isEditorReadonly = state.isFinalSubmitted || isTaskDeadlineExpired || (state.groupMaxStage === 'stage3') || isDraftFullyConfirmed;
-  const plainTextLen = (s2.unifiedContent || '').replace(/<[^>]*>/g, '').trim().length;
+
+  const updateContribDom = () => {
+    const labelsEl = document.getElementById('stage2-contrib-labels');
+    const barsEl = document.getElementById('stage2-contrib-bars');
+    if (!labelsEl || !barsEl) return;
+    
+    const contribs = s2.memberContributions || {};
+    let rawTotal = 0;
+    membersList.forEach(m => { rawTotal += (contribs[m.id] || 0) + (contribs[m.studentCode] || 0); });
+    
+    labelsEl.innerHTML = membersList.map((m) => {
+      const rawVal = (contribs[m.id] || 0) + (contribs[m.studentCode] || 0);
+      const pct = rawTotal > 0 ? Math.round((rawVal / rawTotal) * 100) : 0;
+      return `<span style="color:${rawVal > 0 ? (m.color || '#2563eb') : '#94a3b8'}; font-weight:700;">● ${m.name}: ${pct}%</span>`;
+    }).join('');
+
+    if (rawTotal === 0) {
+      barsEl.innerHTML = `<div style="width:100%; height:8px; background:#f8fafc; border-radius:4px; display:flex; align-items:center; justify-content:center; font-size:9.5px; color:#94a3b8; font-weight:600;">⏳ 在 Etherpad 中撰写或修改正文将实时累计真实贡献</div>`;
+    } else {
+      barsEl.innerHTML = membersList.map((m) => {
+        const rawVal = (contribs[m.id] || 0) + (contribs[m.studentCode] || 0);
+        const pct = rawTotal > 0 ? Math.round((rawVal / rawTotal) * 100) : 0;
+        return `<div class="contrib-segment" style="width:${pct}%; background:${m.color || '#2563eb'}; transition:width 0.8s ease-in-out;" title="${m.name}: ${pct}%"></div>`;
+      }).join('');
+    }
+  };
+
+  let _padContentDebounceTimer = null;
+  const syncPadMetrics = async () => {
+    try {
+      // 1. 优先尝试同源 DOM 直读（0 延迟、0 网络开销、100% 毫秒级捕获）
+      let cleanTxt = getEtherpadTextDirect();
+      
+      // 2. 若直读暂未就绪（如 iframe 仍在握手），降级为服务端代理接口
+      if (cleanTxt === null) {
+        const res = await fetch(`sync.php?action=get_pad_text&padId=${encodeURIComponent(padName)}`).then(r => r.json()).catch(() => null);
+        if (res && res.success && typeof res.text === 'string') {
+          cleanTxt = res.text.replace(/\r\n/g, '\n').trim();
+        }
+      }
+
+      if (cleanTxt !== null) {
+        const wordCount = cleanTxt.length;
+        
+        // 实时更新字数角标
+        const countBadge = document.getElementById('stage2-word-count-num');
+        if (countBadge) countBadge.innerText = String(wordCount);
+
+        const prevContent = state.stage2.unifiedContent || '';
+        const hasContentChanged = (cleanTxt !== prevContent);
+
+        if (hasContentChanged) {
+          state.stage2.unifiedContent = cleanTxt;
+          if (_padContentDebounceTimer) clearTimeout(_padContentDebounceTimer);
+          _padContentDebounceTimer = setTimeout(() => {
+            if (window.app && typeof window.app.syncStage2 === 'function') {
+              window.app.syncStage2();
+            }
+            if (window.app && typeof window.app.checkAgentTriggersOnContent === 'function') {
+              window.app.checkAgentTriggersOnContent(cleanTxt);
+            }
+          }, 1500);
+        }
+
+        // 动态贡献度计算（正向增量自动累计入库）
+        const prevLen = state.stage2._prevKnownLen !== undefined ? state.stage2._prevKnownLen : wordCount;
+        state.stage2._prevKnownLen = wordCount;
+
+        if (wordCount > prevLen) {
+          const delta = wordCount - prevLen;
+          if (delta > 0) {
+            fetch(`sync.php?action=report_member_contrib&groupId=${encodeURIComponent(userGroupId)}&taskId=${encodeURIComponent(activeTaskId)}&classId=${encodeURIComponent(userClassId)}`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                taskId: activeTaskId,
+                classId: userClassId,
+                groupId: userGroupId,
+                userCode: currUserCode,
+                delta: delta
+              })
+            }).then(r => r.json()).then(res => {
+              if (res.success && res.contribs) {
+                state.stage2.memberContributions = res.contribs;
+                updateContribDom();
+              }
+            }).catch(() => {});
+          }
+        } else {
+          updateContribDom();
+        }
+      }
+    } catch (e) {}
+  };
+
+  // 立即启动/重置高频轮询器
+  if (window._stage2WordCountTimer) clearInterval(window._stage2WordCountTimer);
+  window._stage2WordCountTimer = setInterval(syncPadMetrics, 1500);
+  setTimeout(syncPadMetrics, 300);
 
   // 🛡️ 极致单例保护：若 Etherpad 协同编辑器或富文本编辑器已经在当前画布上活跃运行，严禁 innerHTML 销毁重绘！
   const existingFrame = canvas.querySelector('#stage2-etherpad-frame') || canvas.querySelector('#stage2-word-editor.ql-container');
@@ -2024,8 +2024,84 @@ function renderStage2Canvas(canvas, state, handlers) {
         handlers.onOpenCaseModal();
       };
     }
+
+    // 增量就地刷新【半程修正清单】
+    const planCardContainer = canvas.querySelector('#stage2-action-plan-card');
+    if (planCardContainer) {
+      if (actionPlan && actionPlan.isGenerated && Array.isArray(actionPlan.items) && actionPlan.items.length > 0) {
+        const completedCount = Object.values(actionPlan.completedMap || {}).filter(Boolean).length;
+        const totalItems = (actionPlan.items || []).length;
+        const isAllDone = completedCount >= totalItems && totalItems > 0;
+        planCardContainer.outerHTML = `
+          <div id="stage2-action-plan-card" style="background:#ecfdf5; border:1px solid #a7f3d0; border-radius:6px; padding:6px 12px; margin-bottom:6px; flex-shrink:0; box-shadow:0 1px 3px rgba(5,150,105,0.06);">
+            <div style="display:flex; justify-content:space-between; align-items:center; cursor:pointer;" id="btn-toggle-action-plan">
+              <div style="font-size:12px; font-weight:800; color:#059669; display:flex; align-items:center; gap:8px;">
+                <span>📋 【半程修正清单】(审稿专家 3 项修改要求)</span>
+                <span style="font-size:11px; background:${isAllDone ? '#d1fae5' : '#fef3c7'}; color:${isAllDone ? '#065f46' : '#b45309'}; border:1px solid ${isAllDone ? '#a7f3d0' : '#fde68a'}; padding:1px 8px; border-radius:10px; font-weight:800;">
+                  ${isAllDone ? '🎉 3 项要求已全部落实' : `⏳ 已落实 ${completedCount}/${totalItems} 项`}
+                </span>
+              </div>
+              <span id="icon-toggle-action-plan" style="font-size:11px; color:#059669; font-weight:700; background:#ffffff; border:1px solid #a7f3d0; padding:1.5px 8px; border-radius:4px;">▲ 收起清单</span>
+            </div>
+            <div id="body-action-plan-items" style="font-size:11.5px; color:#1e293b; display:flex; flex-direction:column; gap:5px; margin-top:6px;">
+              ${actionPlan.items.map((item, idx) => {
+                const isChecked = !!(actionPlan.completedMap && actionPlan.completedMap[idx]);
+                let formattedItem = escapeHtml(item);
+                return `
+                  <div class="action-plan-item-box" data-item-idx="${idx}" style="line-height:1.4; background:${isChecked ? '#f0fdf4' : '#ffffff'}; border:1px solid ${isChecked ? '#86efac' : '#cbd5e1'}; border-radius:4px; padding:5px 8px; display:flex; align-items:flex-start; gap:6px; cursor:pointer; transition:all 0.15s ease;">
+                    <input type="checkbox" class="action-plan-check-input" data-idx="${idx}" ${isChecked ? 'checked' : ''} style="cursor:pointer; margin-top:2px; transform:scale(1.1);">
+                    <div style="flex:1; text-decoration:${isChecked ? 'line-through' : 'none'}; color:${isChecked ? '#166534' : '#1e293b'};">
+                      <b style="color:${isChecked ? '#166534' : '#0f172a'}; margin-right:4px;">${idx + 1}.</b> ${formattedItem}
+                    </div>
+                  </div>
+                `;
+              }).join('')}
+            </div>
+          </div>
+        `;
+        
+        const newPlanCard = canvas.querySelector('#stage2-action-plan-card');
+        if (newPlanCard) {
+          const btnToggle = newPlanCard.querySelector('#btn-toggle-action-plan');
+          if (btnToggle) {
+            btnToggle.onclick = (e) => {
+              if (e.target.closest('.action-plan-item-box') || e.target.classList.contains('action-plan-check-input')) return;
+              const bodyItems = newPlanCard.querySelector('#body-action-plan-items');
+              const iconToggle = newPlanCard.querySelector('#icon-toggle-action-plan');
+              if (bodyItems) {
+                const isHidden = bodyItems.style.display === 'none';
+                bodyItems.style.display = isHidden ? 'flex' : 'none';
+                if (iconToggle) iconToggle.innerText = isHidden ? '▲ 收起清单' : '▼ 展开清单';
+              }
+            };
+          }
+          newPlanCard.querySelectorAll('.action-plan-item-box').forEach(box => {
+            box.onclick = (e) => {
+              const idx = Number(box.dataset.itemIdx);
+              if (!state.stage2.actionPlan.completedMap) state.stage2.actionPlan.completedMap = {};
+              state.stage2.actionPlan.completedMap[idx] = !state.stage2.actionPlan.completedMap[idx];
+              if (handlers.onActionPlanToggle) {
+                handlers.onActionPlanToggle(idx, state.stage2.actionPlan.completedMap[idx]);
+              }
+            };
+          });
+        }
+      } else {
+        planCardContainer.outerHTML = `
+          <div id="stage2-action-plan-card" style="background:#f8fafc; border:1px dashed #cbd5e1; border-radius:6px; padding:5px 12px; margin-bottom:6px; flex-shrink:0; display:flex; justify-content:space-between; align-items:center;">
+            <div style="font-size:11.5px; font-weight:700; color:#64748b; display:flex; align-items:center; gap:6px;">
+              <span>📋 【半程修正清单】</span>
+              <span style="font-size:10.5px; background:#eff6ff; color:#2563eb; padding:1px 6px; border-radius:6px;">待解锁 (组内编辑会议自查对齐后，由审稿专家质检下发)</span>
+            </div>
+            <button onclick="if(window.app) window.app.showMeetingModal();" style="background:#ffffff; border:1px solid #cbd5e1; color:#334155; padding:1.5px 8px; border-radius:4px; font-size:11px; font-weight:600; cursor:pointer;">📢 发起会议</button>
+          </div>
+        `;
+      }
+    }
+
     return;
   }
+
   canvas.innerHTML = `
     <div class="card" style="height:100%; flex:1; display:flex; flex-direction:column; padding:8px 12px; box-sizing:border-box; overflow:hidden;">
       
@@ -2068,7 +2144,7 @@ function renderStage2Canvas(canvas, state, handlers) {
         </div>
       </div>
 
-      <!-- 🌟 2. 半程修正清单 (下发后自动展开呈现 3 项具体修改要求，支持实时打勾与一键折叠) -->
+      <!-- 🌟 2. 半程修正清单 (未下发时展示待解锁提示，下发后展示展开卡片) -->
       ${actionPlan && actionPlan.isGenerated ? (() => {
         const completedCount = Object.values(actionPlan.completedMap || {}).filter(Boolean).length;
         const totalItems = (actionPlan.items || []).length;
@@ -2100,7 +2176,15 @@ function renderStage2Canvas(canvas, state, handlers) {
             </div>
           </div>
         `;
-      })() : ''}
+      })() : `
+        <div id="stage2-action-plan-card" style="background:#f8fafc; border:1px dashed #cbd5e1; border-radius:6px; padding:5px 12px; margin-bottom:6px; flex-shrink:0; display:flex; justify-content:space-between; align-items:center;">
+          <div style="font-size:11.5px; font-weight:700; color:#64748b; display:flex; align-items:center; gap:6px;">
+            <span>📋 【半程修正清单】</span>
+            <span style="font-size:10.5px; background:#eff6ff; color:#2563eb; padding:1px 6px; border-radius:6px;">待解锁 (组内编辑会议自查对齐后，由审稿专家质检下发)</span>
+          </div>
+          <button onclick="if(window.app) window.app.showMeetingModal();" style="background:#ffffff; border:1px solid #cbd5e1; color:#334155; padding:1.5px 8px; border-radius:4px; font-size:11px; font-weight:600; cursor:pointer;">📢 发起会议</button>
+        </div>
+      `}
 
       <!-- 🌟 3. Etherpad 在线协同富文本编辑器主体 (撑满整个画布) -->
       <div style="flex:1; height:100%; min-height:480px; display:flex; flex-direction:column; margin-bottom:6px;">
@@ -2118,7 +2202,6 @@ function renderStage2Canvas(canvas, state, handlers) {
 
           const currUserColor = (state.members && state.members[currUserCode]?.color) || '#2563eb';
           
-          // 🛡️ 权威官方只读模式：对齐教师端成熟方案，使用 Etherpad 官方 get_readonly_pad_id (r.xxxx)
           if (!state._readOnlyPadMap) state._readOnlyPadMap = {};
           let targetPad = rawPadName;
           if (isEditorReadonly) {
@@ -2200,7 +2283,6 @@ function renderStage2Canvas(canvas, state, handlers) {
   });
   renderRemoteCursors('stage2-word-editor', state);
 
-  // 🔒 若处于只读模式，强制执行 DOM 内核级只读锁定
   if (isEditorReadonly) {
     const s2Frame = canvas.querySelector('#stage2-etherpad-frame');
     if (s2Frame) enforceEtherpadReadonly(s2Frame);
