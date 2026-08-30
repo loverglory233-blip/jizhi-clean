@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260830_v840
+ * Version: 20260830_v841
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260830_v840';
+  const APP_VERSION = '20260830_v841';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -12194,10 +12194,13 @@
   【组内关于方案细化的真实研讨记录】:
   ${userRefineChat}
 
-  请通读上述学生的真实研讨发言，作为资深学术拍卖师，发表 100~130 字的【方案细化学术总结与分工时间引导】：
-  ① 【学术提炼与亮点肯定】：深入通读学生的真实想法，精准提炼并肯定大家商定出的研究设计核心亮点（如明确的学段情境、具体研究方法、实验组对照、核心变量或问卷量表；若学生发言内容较少或无实质，温和鼓励大家继续在讨论区深化）；
-  ② 【分工与时间规划承接】：自然顺承引导全组开始在讨论区商定：1）规划 6 大章节的时间预算（支持平均分配或按黄金比例灵活规划）；2）商定各自的任务分工（可按具体内容模块分工，亦可按章节分工，先定时间还是先定分工由全组自主决定）！
-  （要求：用词学术规范、亲切且富有启发性；纯自然语言输出，100~130字，严禁输出代码块或技术标记）`;
+  请通读上述发言，作为资深学术拍卖师，进行【方案细化研判与自适应引导】（100~130字）：
+  【研判与输出准则（宽进原则）】：
+  1. 若发言已具备方案雏形（涉及学段对象、研究方法、情境、变量或表达了定好/分工意愿）：
+     ① 提炼亮点：精准提炼并肯定大家商定出的研究设计核心亮点（如学段或方法）；
+     ② 分工承接：自然顺承引导全组在讨论区商定 6 大章节时间预算（支持平均或灵活分配）与任务分工！
+  2. 仅当发言完全无实质（纯乱码、纯闲聊无任何学术词汇）时：给出 1 个启发性方向点拨，鼓励继续交流。
+  （纯自然语言输出，100~130字，严禁输出代码块或技术标记）`;
 
                 callCozeAgentAPI('auctioneer', refineSummaryPrompt, { stage: 'stage1', topic }).then(refineSummaryText => {
                   let finalTaskText = (refineSummaryText && refineSummaryText.trim().length > 0)
