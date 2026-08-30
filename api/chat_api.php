@@ -279,9 +279,9 @@ if (!$chatId && isset($initData['code']) && in_array(intval($initData['code']), 
 
 $answerText = '';
 if ($chatId && $convId) {
-    // 4. 极速阶梯探测 25 轮 (前 10 轮 80ms 极速捕捉，后 15 轮 150ms 守候)，90% 请求直接单次秒级返回
-    for ($i = 0; $i < 25; $i++) {
-        usleep($i < 10 ? 80000 : 150000); // 80ms / 150ms
+    // 4. 极速阶梯探测 40 轮 (前 10 轮 100ms 快速捕获，后 30 轮 200ms 紧密等待)，95% 请求在单次秒级内完成直出
+    for ($i = 0; $i < 40; $i++) {
+        usleep($i < 10 ? 100000 : 200000); // 100ms / 200ms
         $pollUrl = $COZE_API_BASE_URL . "/chat/retrieve?chat_id={$chatId}&conversation_id={$convId}";
         $ch2 = curl_init($pollUrl);
         curl_setopt($ch2, CURLOPT_HTTPHEADER, $headers);

@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles } from "./constants.js?v=20260830_v917";
-import { callCozeAgentAPI } from "./agents.js?v=20260830_v917";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap } from "./utils.js?v=20260830_v917";
+import { AgentProfiles } from "./constants.js?v=20260831_v918";
+import { callCozeAgentAPI } from "./agents.js?v=20260831_v918";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap } from "./utils.js?v=20260831_v918";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -1340,124 +1340,40 @@ function renderStage1Canvas(canvas, state, handlers) {
             window.app.sendSingleChatMessage(submitNoticeMsg, currentStage);
           }
           window.app.renderStudentWorkspace();
+          // 💡 统一异步触发学术拍卖师即时学术速评（无缝生成单条纯净速评气泡）
+          if (typeof window.app.handleProposalSubmittedAIFeedback === 'function') {
+            window.app.handleProposalSubmittedAIFeedback(title, authorName, isModify);
+          }
         }
 
-        // 💡 0毫秒即时反馈：立即插入拍卖师思考气泡，让学生感知到 AI 已收到提案正在评审
-        const tempThinkingId = 'thinking_eval_' + Date.now();
-        const evalThinkingMsg = {
-          id: tempThinkingId,
-          sender: 'auctioneer',
-          senderName: '头脑风暴 · 学术拍卖师',
-          text: `⏳ 【学术拍卖师】：已收到《${title}》，正在通读研究构想并起草即时学术可行性评估...`,
-          isThinking: true,
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          _timeMs: Date.now()
+        // 检查全员提案集齐提醒
+        const isSubstantive = (t) => {
+          const str = (t || '').trim();
+          if (str.length < 4) return false;
+          if (/^\d+$/.test(str)) return false; 
+          if (/^([a-zA-Z0-9\u4e00-\u9fa5])\1+$/.test(str)) return false; 
+          return true;
         };
-        if (!state.chatLogs[currentStage]) state.chatLogs[currentStage] = [];
-        state.chatLogs[currentStage].push(evalThinkingMsg);
-        renderChat(state);
+        const currentProps = s1.proposals || [];
+        const validProps = currentProps.filter(p => isSubstantive(p.title));
+        const validAuthors = new Set(validProps.map(p => p.author || p.authorName));
 
-        setTimeout(async () => {
-          try {
-            const evalPrompt = `小组成员【${authorName}】在选题池${isModify ? '修改完善了' : '提出了新'}研究提案《${title}》。
-请作为资深学术拍卖师，仅发表 60~80 字的【选题学术亮点速评与启发】：
-① 精准肯定该选题的研究切入点或实践价值；
-② 给出 1 点前瞻性探究启发，鼓励全组在研讨区就此交流！
-【格式要求】：纯自然语言，60~80字，严禁代码块。`;
-            
-            let evalText = await callCozeAgentAPI('auctioneer', evalPrompt, { stage: 'stage1', proposalTitle: title, author: authorName, topic: title });
-
-            if (!evalText || evalText.trim().length === 0) {
-              evalText = `⚠️ 【学术拍卖师提示】：大模型生成超时或网络稍有延迟，可随时在讨论区 @拍卖师 再次提问。`;
-            } else if (!evalText.startsWith('🎪')) {
-              evalText = `🎪 【拍卖师·选题速评】：${evalText}`;
-            }
-
-            const finalAiMsg = {
-              id: 'eval_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6),
-              sender: 'auctioneer',
-              senderName: '头脑风暴 · 学术拍卖师',
-              text: evalText,
-              timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-              _timeMs: Date.now()
-            };
-
-            // 🛡️ 找到思考气泡直接优雅替换，消除多余残留
-            const foundThinking = state.chatLogs[currentStage].find(m => m && m.id === tempThinkingId);
-            if (foundThinking) {
-              foundThinking.id = finalAiMsg.id;
-              foundThinking.text = evalText;
-              delete foundThinking.isThinking;
-              foundThinking.timestamp = finalAiMsg.timestamp;
-              foundThinking._timeMs = finalAiMsg._timeMs;
-            } else {
-              state.chatLogs[currentStage].push(finalAiMsg);
-            }
-
-            if (window.app) {
-              if (typeof window.app.sendSingleChatMessage === 'function') {
-                window.app.sendSingleChatMessage(finalAiMsg, currentStage);
-              }
-              if (window.app.cloudSyncEngine) window.app.cloudSyncEngine.pushSnapshot();
-            }
-            renderChat(state);
-          } catch (aiErr) {
-            console.warn('[Proposal AI Feedback] Error:', aiErr);
-            const fallbackId = 'eval_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6);
-            const fallbackAiMsg = {
-              id: fallbackId,
-              sender: 'auctioneer',
-              senderName: '头脑风暴 · 学术拍卖师',
-              text: `⚠️ 【学术拍卖师提示】：网络波动，AI 速评未能完成。`,
-              _retryTitle: title,
-              _retryAuthor: authorName,
-              timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-              _timeMs: Date.now()
-            };
-            const foundThinking = state.chatLogs[currentStage]?.find(m => m && m.id === tempThinkingId);
-            if (foundThinking) {
-              foundThinking.id = fallbackId;
-              foundThinking.text = fallbackAiMsg.text;
-              foundThinking._retryTitle = title;
-              foundThinking._retryAuthor = authorName;
-              delete foundThinking.isThinking;
-            } else {
-              state.chatLogs[currentStage].push(fallbackAiMsg);
-            }
-            if (window.app && typeof window.app.sendSingleChatMessage === 'function') {
-              window.app.sendSingleChatMessage(fallbackAiMsg, currentStage);
-            }
-            renderChat(state);
-          } finally {
-            const isSubstantive = (t) => {
-              const str = (t || '').trim();
-              if (str.length < 4) return false;
-              if (/^\d+$/.test(str)) return false; 
-              if (/^([a-zA-Z0-9\u4e00-\u9fa5])\1+$/.test(str)) return false; 
-              return true;
-            };
-            const currentProps = s1.proposals || [];
-            const validProps = currentProps.filter(p => isSubstantive(p.title));
-            const validAuthors = new Set(validProps.map(p => p.author || p.authorName));
-
-            if (totalMembersCount >= 2 && validAuthors.size >= totalMembersCount && !s1._allProposalsPrompted) {
-              s1._allProposalsPrompted = true;
-              const allCollectedMsg = {
-                id: 'all_prop_' + Date.now(),
-                sender: 'auctioneer',
-                senderName: '头脑风暴 · 学术拍卖师',
-                text: `🎪 【拍卖师·全员提案已集齐】：🎉 小组成员的选题提案已悉数亮相！👉 请大家先不要急于投票，先在右侧讨论区充分交流各个方案的研究看点与实施可行性；💬 研讨达成初步共识后，再在上方为最终认可的方案进行投票！`,
-                timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                _timeMs: Date.now() + 100
-              };
-              state.chatLogs[currentStage].push(allCollectedMsg);
-              if (window.app && typeof window.app.sendSingleChatMessage === 'function') {
-                window.app.sendSingleChatMessage(allCollectedMsg, currentStage);
-              }
-              renderChat(state);
-            }
+        if (totalMembersCount >= 2 && validAuthors.size >= totalMembersCount && !s1._allProposalsPrompted) {
+          s1._allProposalsPrompted = true;
+          const allCollectedMsg = {
+            id: 'all_prop_' + Date.now(),
+            sender: 'auctioneer',
+            senderName: '头脑风暴 · 学术拍卖师',
+            text: `🎪 【拍卖师·全员提案已集齐】：🎉 小组成员的选题提案已悉数亮相！👉 请大家先不要急于投票，先在右侧讨论区充分交流各个方案的研究看点与实施可行性；💬 研讨达成初步共识后，再在上方为最终认可的方案进行投票！`,
+            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            _timeMs: Date.now() + 100
+          };
+          state.chatLogs[currentStage].push(allCollectedMsg);
+          if (window.app && typeof window.app.sendSingleChatMessage === 'function') {
+            window.app.sendSingleChatMessage(allCollectedMsg, currentStage);
           }
-        }, 100);
+          renderChat(state);
+        }
       });
     });
   }

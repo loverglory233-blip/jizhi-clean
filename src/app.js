@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260830_v917";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch } from "./utils.js?v=20260830_v917";
-import { callCozeAgentAPI } from "./agents.js?v=20260830_v917";
-import { AuthManager } from "./auth.js?v=20260830_v917";
-import { CloudSyncEngine } from "./sync.js?v=20260830_v917";
-import { renderLoginView } from "./login.js?v=20260830_v917";
-import { renderTeacherPortal } from "./teacher.js?v=20260830_v917";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260830_v917";
+} from "./constants.js?v=20260831_v918";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch } from "./utils.js?v=20260831_v918";
+import { callCozeAgentAPI } from "./agents.js?v=20260831_v918";
+import { AuthManager } from "./auth.js?v=20260831_v918";
+import { CloudSyncEngine } from "./sync.js?v=20260831_v918";
+import { renderLoginView } from "./login.js?v=20260831_v918";
+import { renderTeacherPortal } from "./teacher.js?v=20260831_v918";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260831_v918";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260830_v917";
+} from "./editor.js?v=20260831_v918";
 
 // Make renderChat available on window for sync callbacks
 if (typeof window !== "undefined") {
@@ -3067,25 +3067,8 @@ ${recentDefenseChat}
    * 💡 阶段一：学生提交/修改提案时，拍卖师调用大模型给出学术亮点速评与探究启发
    */
   async handleProposalSubmittedAIFeedback(title, authorName, isModify = false) {
-    // 💡 1. 查找或插入拍卖师思考中气泡
     const currentStage = this.state.currentStage || 'stage1';
     if (!this.state.chatLogs[currentStage]) this.state.chatLogs[currentStage] = [];
-    
-    let thinkingMsg = [...this.state.chatLogs[currentStage]].reverse().find(m => m && m.sender === 'auctioneer' && m.isThinking);
-    if (!thinkingMsg) {
-      thinkingMsg = {
-        id: 'thinking_eval_' + Date.now(),
-        sender: 'auctioneer',
-        senderName: '头脑风暴 · 学术拍卖师',
-        text: `⏳ 【学术拍卖师】：已收到《${title}》，正在通读研究构想并起草即时学术可行性评估...`,
-        isThinking: true,
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        _timeMs: Date.now()
-      };
-      this.state.chatLogs[currentStage].push(thinkingMsg);
-      this.syncChatLogs();
-      renderChat(this.state);
-    }
 
     const taskPrompt = `小组成员【${authorName}】在选题池${isModify ? '修改完善了' : '提出了新'}研究提案《${title}》。
 请作为资深学术拍卖师，发表 60~80 字的【选题学术亮点速评与启发】：
@@ -3094,22 +3077,48 @@ ${recentDefenseChat}
 
     try {
       const resp = await callCozeAgentAPI('auctioneer', taskPrompt, { stage: 'stage1', topic: title });
-      let speech = (resp && resp.trim().length > 0) ? resp.trim() : `🎪 【拍卖师·选题速评】：收到 ${authorName} ${isModify ? '修改后的' : '提交的'}《${title}》！切入点明确，建议组员在研讨区就具体的研究对象与实施情境交流补充！`;
-      if (!speech.startsWith('🎪')) speech = `🎪 【拍卖师·选题速评】：${speech}`;
+      let speech = (resp && resp.trim().length > 0) ? resp.trim() : `收到 ${authorName} ${isModify ? '修改后的' : '提交的'}《${title}》！切入点明确，建议组员在研讨区就具体的研究对象与实施情境交流补充！`;
+      
+      // 🛡️ 智能清洗并统一前缀，彻底杜绝重复套娃（如 🎪 【拍卖师·选题速评】：🏛️ 【学术拍卖师·提案速评】）
+      speech = speech.replace(/^(?:🎪|🏛️)?\s*【(?:学术拍卖师|拍卖师)[·\s]*(?:选题速评|提案速评|提案评估|落槌与方案研讨)?】[：:]\s*/g, '');
+      speech = speech.replace(/^(?:🎪|🏛️)?\s*【(?:学术拍卖师|拍卖师)[·\s]*(?:选题速评|提案速评|提案评估|落槌与方案研讨)?】[：:]\s*/g, '');
+      speech = `🏛️ 【学术拍卖师·提案评估】：${speech.trim()}`;
 
-      thinkingMsg.text = speech;
-      delete thinkingMsg.isThinking;
-      thinkingMsg._timeMs = Date.now();
-      thinkingMsg.timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      const finalAiMsg = {
+        id: 'eval_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6),
+        sender: 'auctioneer',
+        senderName: '头脑风暴 · 学术拍卖师',
+        text: speech,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        _timeMs: Date.now()
+      };
 
+      // 🛡️ 彻底清除历史残留的 thinking_eval 占位气泡
+      this.state.chatLogs[currentStage] = (this.state.chatLogs[currentStage] || []).filter(m => !m || (!String(m.id).startsWith('thinking_eval') && !m.isThinking));
+      this.state.chatLogs[currentStage].push(finalAiMsg);
+
+      if (typeof this.sendSingleChatMessage === 'function') {
+        this.sendSingleChatMessage(finalAiMsg, currentStage);
+      }
       this.syncChatLogs();
       if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
       renderChat(this.state);
       this.renderStudentWorkspace();
     } catch (e) {
       console.warn('handleProposalSubmittedAIFeedback error:', e);
-      thinkingMsg.text = `🎪 【拍卖师·选题速评】：收到 ${authorName} 提交的《${title}》！建议组员在研讨区就具体的研究对象与实施情境交流补充！`;
-      delete thinkingMsg.isThinking;
+      const fallbackAiMsg = {
+        id: 'eval_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6),
+        sender: 'auctioneer',
+        senderName: '头脑风暴 · 学术拍卖师',
+        text: `🏛️ 【学术拍卖师·提案评估】：收到 ${authorName} ${isModify ? '修改后的' : '提交的'}《${title}》！建议组员在研讨区就具体的研究对象与实施情境交流补充！`,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        _timeMs: Date.now()
+      };
+      this.state.chatLogs[currentStage] = (this.state.chatLogs[currentStage] || []).filter(m => !m || (!String(m.id).startsWith('thinking_eval') && !m.isThinking));
+      this.state.chatLogs[currentStage].push(fallbackAiMsg);
+      if (typeof this.sendSingleChatMessage === 'function') {
+        this.sendSingleChatMessage(fallbackAiMsg, currentStage);
+      }
       this.syncChatLogs();
       renderChat(this.state);
       this.renderStudentWorkspace();
