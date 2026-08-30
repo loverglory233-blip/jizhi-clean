@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260830_v832
+ * Version: 20260830_v833
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260830_v832';
+  const APP_VERSION = '20260830_v833';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -13311,9 +13311,10 @@
   【组内关于方案细化的真实讨论切片】:
   ${userRefineChat}
 
-  请通读上述发言，作为资深学术拍卖师，发表 90~110 字的【方案细化学术小结与分工引导】：
-  ① 简要肯定并提炼大家商定出的具体研究方案核心亮点（如确定的学段、方法、情境或核心变量）；
-  ② 自然承接，引导全组开始在讨论区商定：规划 6 大章节的时间预算以及各自的任务分工（纯自然语言，90~110字）！`;
+  请通读上述发言，作为资深学术拍卖师，发表 100~130 字的【方案细化学术总结与分工时间引导】：
+  ① 【精准总结】：提炼并肯定全组商定出的研究设计核心亮点（如确定的学段对象、研究方法、实验情境、核心变量或测量工具）；
+  ② 【分工与时间承接】：自然引出全组在讨论区商定：① 规划 6 大章节的时间预算（支持黄金比例或平均分配）；② 确定各自的任务分工（按模块或按章节均可）！
+  （纯自然语言输出，100~130字，学术规范，干练有力）`;
 
               let refineSummaryText = await callCozeAgentAPI('auctioneer', refineSummaryPrompt, { stage: 'stage1', topic });
               let finalTaskText = (refineSummaryText && refineSummaryText.trim().length > 0)
@@ -13375,9 +13376,10 @@
   【组内关于分工与时间的真实讨论切片】:
   ${userTaskChat}
 
-  请通读上述发言，作为资深学术拍卖师，发表 70~90 字的【分工规划确认与公约草案生成提醒】：
-  ① 简要肯定大家商定出的分工意向与时间规划构想（如章节分工或平均时间）；
-  ② 提醒组员点击左侧【生成公约草案】卡片，系统将根据大家的研讨记录自动生成草案！（纯自然语言，70~90字）`;
+  请通读上述发言，作为资深学术拍卖师，发表 80~100 字的【分工规划确认与公约草案生成提醒】：
+  ① 【分工确认】：简要概括并肯定全组商定出的分工意向与时间规划构想（如章节分工或平均时间分配）；
+  ② 【公约草案生成】：隆重提醒组员点击左侧【生成公约草案】卡片，系统将根据大家的研讨记录自动生成草案，生成后可继续微调修改！
+  （纯自然语言输出，80~100字，亲切鼓舞）`;
 
               let draftSummaryText = await callCozeAgentAPI('auctioneer', taskSummaryPrompt, { stage: 'stage1', topic });
               let finalDraftText = (draftSummaryText && draftSummaryText.trim().length > 0)
