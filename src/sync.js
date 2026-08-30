@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState } from './constants.js?v=20260830_v769';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal } from './utils.js?v=20260830_v769';
+import { InitialState } from './constants.js?v=20260830_v770';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal } from './utils.js?v=20260830_v770';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -205,7 +205,7 @@ export class CloudSyncEngine {
 
     const isHidden = () => document.hidden || document.visibilityState === 'hidden';
     const isIdle = () => isHidden() || (Date.now() - lastUserActivity > 600000);
-    const getPollInterval = () => (isHidden() ? 10000 : (isIdle() ? 3000 : 500));
+    const getPollInterval = () => (isHidden() ? 10000 : (isIdle() ? 3000 : 1000));
     const getPingInterval = () => (isHidden() ? 30000 : (isIdle() ? 10000 : 3000));
 
     const runPoll = () => {
