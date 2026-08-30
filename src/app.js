@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260830_v853";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash } from "./utils.js?v=20260830_v853";
-import { callCozeAgentAPI } from "./agents.js?v=20260830_v853";
-import { AuthManager } from "./auth.js?v=20260830_v853";
-import { CloudSyncEngine } from "./sync.js?v=20260830_v853";
-import { renderLoginView } from "./login.js?v=20260830_v853";
-import { renderTeacherPortal } from "./teacher.js?v=20260830_v853";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260830_v853";
+} from "./constants.js?v=20260830_v854";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash } from "./utils.js?v=20260830_v854";
+import { callCozeAgentAPI } from "./agents.js?v=20260830_v854";
+import { AuthManager } from "./auth.js?v=20260830_v854";
+import { CloudSyncEngine } from "./sync.js?v=20260830_v854";
+import { renderLoginView } from "./login.js?v=20260830_v854";
+import { renderTeacherPortal } from "./teacher.js?v=20260830_v854";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260830_v854";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260830_v853";
+} from "./editor.js?v=20260830_v854";
 
 // Make renderChat available on window for sync callbacks
 if (typeof window !== "undefined") {
@@ -1575,7 +1575,7 @@ ${recentChats}
     const currentClassObj = classes.find(c => c.id === effectiveClassId);
     const effectiveClassName = currentClassObj ? currentClassObj.name : '';
     const activeGroupObj = this.authManager.getStudentActiveGroup(currentUser, effectiveClassId);
-    const groupId = activeGroupObj.id || (currentUser && currentUser.groupId ? currentUser.groupId : 'group_1');
+    const groupId = this.state.activeGroupId || this.cloudSyncEngine?.groupId || activeGroupObj.id || (currentUser && currentUser.groupId ? currentUser.groupId : 'group_1');
     const allTasks = this.authManager.getTasks();
 
     const isAnnRead = (a) => {
@@ -1633,7 +1633,7 @@ ${recentChats}
     const currentClassObj = classes.find(c => c.id === effectiveClassId);
     const effectiveClassName = currentClassObj ? currentClassObj.name : '';
     const activeGroupObj = this.authManager.getStudentActiveGroup(currentUser, effectiveClassId);
-    const groupId = activeGroupObj.id || (currentUser && currentUser.groupId ? currentUser.groupId : 'group_1');
+    const groupId = this.state.activeGroupId || this.cloudSyncEngine?.groupId || activeGroupObj.id || (currentUser && currentUser.groupId ? currentUser.groupId : 'group_1');
     const isTaskListMode = (this.state && this.state.studentViewMode === 'task_list');
     const activeTaskId = this.state.activeTaskId || 'task_default';
     const allAnns = this.authManager.getAnnouncements();

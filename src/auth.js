@@ -14,8 +14,8 @@ import {
   DefaultTasks,
   DefaultAnnouncements,
   DefaultReferencePapers
-} from './constants.js?v=20260830_v853';
-import { formatExportDateTime, formatDurationHuman } from './utils.js?v=20260830_v853';
+} from './constants.js?v=20260830_v854';
+import { formatExportDateTime, formatDurationHuman } from './utils.js?v=20260830_v854';
 
 export class AuthManager {
   constructor() {
@@ -789,69 +789,44 @@ export class AuthManager {
     const uUsername = user.username;
     const safeUserKey = uCode || uId || uUsername || 'temp';
 
-    // 1. 若指定了班级 ID，严格在该班级内检索小组，未分组绝不跨班级误串
+    const checkMemberMatch = (m) => {
+      if (!m) return false;
+      if (typeof m === 'string') {
+        const sm = m.trim().toLowerCase();
+        return (uId && sm === String(uId).trim().toLowerCase()) ||
+               (uCode && sm === String(uCode).trim().toLowerCase()) ||
+               (uUsername && sm === String(uUsername).trim().toLowerCase()) ||
+               (uName && m.trim() === String(uName).trim());
+      }
+      if (typeof m === 'object') {
+        const mId = m.id || m.userId;
+        const mCode = m.studentCode;
+        const mUser = m.username;
+        const mName = m.name;
+        return (mId && uId && String(mId).trim().toLowerCase() === String(uId).trim().toLowerCase()) ||
+               (mCode && uCode && String(mCode).trim().toLowerCase() === String(uCode).trim().toLowerCase()) ||
+               (mUser && uUsername && String(mUser).trim().toLowerCase() === String(uUsername).trim().toLowerCase()) ||
+               (mName && uName && String(mName).trim() === String(uName).trim());
+      }
+      return false;
+    };
+
+    // 1. 若指定了班级 ID，优先在该班级内检索小组
     if (classId) {
       const targetClass = classes.find(c => c.id === classId);
       if (targetClass && Array.isArray(targetClass.groups)) {
         for (let i = 0; i < targetClass.groups.length; i++) {
           const g = targetClass.groups[i];
-          const hasMember = (g.members || []).some(m => {
-            if (!m) return false;
-            if (typeof m === 'string') return m.trim().toLowerCase() === String(uId).trim().toLowerCase() || m.trim().toLowerCase() === String(uCode).trim().toLowerCase() || m.trim().toLowerCase() === String(uUsername).trim().toLowerCase() || m.trim() === String(uName).trim();
-            if (typeof m === 'object') {
-              const mId = m.id || m.userId;
-              const mCode = m.studentCode;
-              const mUser = m.username;
-              const mName = m.name;
-              return (mId && String(mId).trim().toLowerCase() === String(uId).trim().toLowerCase()) ||
-                     (mCode && String(mCode).trim().toLowerCase() === String(uCode).trim().toLowerCase()) ||
-                     (mUser && String(mUser).trim().toLowerCase() === String(uUsername).trim().toLowerCase()) ||
-                     (mName && String(mName).trim() === String(uName).trim());
-            }
-            return false;
-          });
-          if (hasMember) return g;
+          if ((g.members || []).some(checkMemberMatch)) return g;
         }
       }
-      // 🛡️ 指定班级下若未分配小组，直接返回专属隔离态，严禁跨班级回退
-      return { id: `group_unassigned_${safeUserKey}`, name: '未分组（待教师分配）' };
     }
 
-    // 2. 未指定班级时的自适应检索
-    const targetClass = classes.find(c => (Array.isArray(user.classIds) && user.classIds.includes(c.id)) || c.id === user.classId) || classes[0];
-
-    if (targetClass && Array.isArray(targetClass.groups)) {
-      for (let i = 0; i < targetClass.groups.length; i++) {
-        const g = targetClass.groups[i];
-        const hasMember = (g.members || []).some(m => {
-          if (!m) return false;
-          if (typeof m === 'string') return m.trim().toLowerCase() === String(uId).trim().toLowerCase() || m.trim().toLowerCase() === String(uCode).trim().toLowerCase() || m.trim().toLowerCase() === String(uUsername).trim().toLowerCase() || m.trim() === String(uName).trim();
-          if (typeof m === 'object') {
-            const mId = m.id || m.userId;
-            const mCode = m.studentCode;
-            const mUser = m.username;
-            const mName = m.name;
-            return (mId && String(mId).trim().toLowerCase() === String(uId).trim().toLowerCase()) ||
-                   (mCode && String(mCode).trim().toLowerCase() === String(uCode).trim().toLowerCase()) ||
-                   (mUser && String(mUser).trim().toLowerCase() === String(uUsername).trim().toLowerCase()) ||
-                   (mName && String(mName).trim() === String(uName).trim());
-          }
-          return false;
-        });
-        if (hasMember) return g;
-      }
-    }
-
+    // 2. 智能全局容错检索：若指定班级未找到（或未指定班级），在学生关联的班级或全部班级中检索真实小组
     for (const c of classes) {
       if (!Array.isArray(c.groups)) continue;
       for (const g of c.groups) {
-        const hasMember = (g.members || []).some(m => {
-          if (!m) return false;
-          if (typeof m === 'string') return m === uId || m === uCode || m === uUsername || m === uName;
-          if (typeof m === 'object') return m.id === uId || m.userId === uId || m.studentCode === uCode || m.username === uUsername || m.name === uName;
-          return false;
-        });
-        if (hasMember) return g;
+        if ((g.members || []).some(checkMemberMatch)) return g;
       }
     }
 
@@ -862,7 +837,7 @@ export class AuthManager {
       }
     }
 
-    // 🛡️ 严格隔离：未被分配到具体小组的学生，赋予独立的隔离空间，绝不默认塞进第 1 小组造成跨组串味
+    // 3. 确实未被分配到任何具体小组
     return { id: `group_unassigned_${safeUserKey}`, name: '未分组（待教师分配）' };
   }
 
