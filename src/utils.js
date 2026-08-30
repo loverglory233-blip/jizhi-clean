@@ -629,6 +629,97 @@ export function showTaskExtendedUnlockModal(task, prevDeadline, isUnlockedNow = 
 export function enforceEtherpadReadonly(iframe) {
   if (!iframe) return;
 
+  // 🛡️ 1. 挂载物理只读透明护盾：光标显示 🚫 (not-allowed)，完全物理阻断点击、双击与输入
+  const container = iframe.parentElement;
+  if (container) {
+    let shield = container.querySelector('.etherpad-readonly-shield');
+    if (!shield) {
+      shield = document.createElement('div');
+      shield.className = 'etherpad-readonly-shield';
+      shield.style.cssText = 'position:absolute; inset:0; z-index:25; background:transparent; cursor:not-allowed;';
+      shield.title = '🔒 只读查阅模式 (已锁定禁止编辑)';
+      container.style.position = 'relative';
+      container.appendChild(shield);
+    }
+
+    // 🖱️ 护盾鼠标滚轮透传：精准拦截并驱动 Etherpad 内部各层容器丝滑上下滚动
+    if (!shield._wheelBound) {
+      shield._wheelBound = true;
+      shield.addEventListener('wheel', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+
+        try {
+          const doc = iframe.contentDocument || iframe.contentWindow?.document;
+          if (iframe.contentWindow) {
+            try { iframe.contentWindow.scrollBy(0, e.deltaY); } catch (e1) {}
+          }
+          if (doc) {
+            if (doc.scrollingElement) doc.scrollingElement.scrollTop += e.deltaY;
+            if (doc.documentElement) doc.documentElement.scrollTop += e.deltaY;
+            if (doc.body) doc.body.scrollTop += e.deltaY;
+
+            const aceOuter = doc.querySelector('iframe[name="ace_outer"]');
+            if (aceOuter) {
+              if (aceOuter.contentWindow) {
+                try { aceOuter.contentWindow.scrollBy(0, e.deltaY); } catch (e2) {}
+              }
+              const outerDoc = aceOuter.contentDocument || aceOuter.contentWindow?.document;
+              if (outerDoc) {
+                if (outerDoc.scrollingElement) outerDoc.scrollingElement.scrollTop += e.deltaY;
+                if (outerDoc.documentElement) outerDoc.documentElement.scrollTop += e.deltaY;
+                const outerBody = outerDoc.querySelector('#outerdocbody') || outerDoc.body;
+                if (outerBody) {
+                  outerBody.scrollTop += e.deltaY;
+                }
+                const aceInner = outerDoc.querySelector('iframe[name="ace_inner"]');
+                if (aceInner) {
+                  if (aceInner.contentWindow) {
+                    try { aceInner.contentWindow.scrollBy(0, e.deltaY); } catch (e3) {}
+                  }
+                  const innerDoc = aceInner.contentDocument || aceInner.contentWindow?.document;
+                  if (innerDoc) {
+                    if (innerDoc.scrollingElement) innerDoc.scrollingElement.scrollTop += e.deltaY;
+                    if (innerDoc.documentElement) innerDoc.documentElement.scrollTop += e.deltaY;
+                    const innerBody = innerDoc.querySelector('#innerdocbody') || innerDoc.body;
+                    if (innerBody) {
+                      innerBody.scrollTop += e.deltaY;
+                    }
+                  }
+                }
+              }
+            }
+          }
+        } catch(err) {}
+      }, { passive: false });
+    }
+
+    if (!shield._touchBound) {
+      shield._touchBound = true;
+      let startY = 0;
+      shield.addEventListener('touchstart', (e) => {
+        if (e.touches && e.touches[0]) startY = e.touches[0].clientY;
+      }, { passive: true });
+      shield.addEventListener('touchmove', (e) => {
+        if (!e.touches || !e.touches[0]) return;
+        const currentY = e.touches[0].clientY;
+        const deltaY = (startY - currentY) * 1.5;
+        startY = currentY;
+        try {
+          const doc = iframe.contentDocument || iframe.contentWindow?.document;
+          if (iframe.contentWindow) {
+            try { iframe.contentWindow.scrollBy(0, deltaY); } catch (e1) {}
+          }
+          if (doc) {
+            if (doc.scrollingElement) doc.scrollingElement.scrollTop += deltaY;
+            if (doc.documentElement) doc.documentElement.scrollTop += deltaY;
+            if (doc.body) doc.body.scrollTop += deltaY;
+          }
+        } catch(err) {}
+      }, { passive: true });
+    }
+  }
+
   const tryLock = () => {
     try {
       const doc = iframe.contentDocument || iframe.contentWindow?.document;
