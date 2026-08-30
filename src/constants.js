@@ -4,7 +4,7 @@
  * Version: 2.1.0 (2026-08-23)
  */
 
-export const APP_VERSION = '20260830_v855';
+export const APP_VERSION = '20260830_v856';
 export const APP_BUILD_DATE = '2026-08-26';
 
 export const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -42,7 +42,7 @@ export const PresetMessages = {
 export const InitialState = {
   currentStage: 'stage1',
   groupMaxStage: 'stage1',
-  currentUser: 'A',
+  currentUser: null,
   isFinalSubmitted: false,
   studentViewMode: 'task_list', // 默认强制进入任务大厅，点击后再进入协作工作台
   activeTaskId: null,
@@ -53,8 +53,8 @@ export const InitialState = {
     startTimestamp: null
   },
   teacherActiveTab: 'view_architecture', // 'view_architecture', 'view_publishing', 'view_monitoring'
-  activeClassId: 'class_101',
-  activeMonitorGroupId: 'group_1',
+  activeClassId: null,
+  activeMonitorGroupId: null,
   members: {},
 
   stage1: {

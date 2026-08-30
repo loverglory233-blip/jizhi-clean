@@ -9,8 +9,8 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260830_v855";
-import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, showGlobalBannerNotice } from "./utils.js?v=20260830_v855";
+} from "./constants.js?v=20260830_v856";
+import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, showGlobalBannerNotice } from "./utils.js?v=20260830_v856";
 
 /* ==========================================================================
    7. TEACHER PORTAL RENDERER (LIVE WORKSPACE MIRROR & ANNOUNCEMENT READ MATRIX)
@@ -24,7 +24,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
   container.querySelectorAll('.teacher-chat-stream').forEach(st => {
     if (st.id) {
       const isAtBottom = (st.scrollHeight - st.scrollTop - st.clientHeight) < 40;
-      const streamKey = `${st.id}_${state.activeMonitorGroupId || 'group_1'}`;
+      const streamKey = `${st.id}_${state.activeMonitorGroupId || (activeClass?.groups?.[0]?.id) || null}`;
       chatScrollPositions[streamKey] = {
         scrollTop: st.scrollTop,
         isAtBottom: isAtBottom
@@ -42,8 +42,8 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
   const refPapers = authManager.getReferencePapers();
   const classes = authManager.getClasses();
   const activeTab = state.teacherActiveTab || 'view_architecture';
-  const activeClassId = state.activeClassId || (classes[0] ? classes[0].id : 'class_101');
-  const activeClass = classes.find(c => c.id === activeClassId) || classes[0] || { id: 'class_101', name: '默认班级', groups: [] };
+  const activeClassId = state.activeClassId || (classes[0] ? classes[0].id : null);
+  const activeClass = classes.find(c => c.id === activeClassId) || classes[0] || null;
 
   const allUsers = authManager.getUsers();
   const classStudents = authManager.getClassStudents(activeClass.id);
@@ -301,7 +301,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
     }
 
     if (state.teacherActiveTab === 'view_monitoring' && window.app && window.app.cloudSyncEngine) {
-      const currentCId = state.activeClassId || activeClass.id || 'class_101';
+      const currentCId = state.activeClassId || activeClass.id || null;
       let activeTaskId = state.activeTaskId || (currentClassTasks[0] ? currentClassTasks[0].id : `task_${currentCId}_default`);
       if (!activeTaskId || activeTaskId === 'task_default') {
         activeTaskId = `task_${currentCId}_default`;
@@ -1107,7 +1107,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
                     <span style="font-size:13px; font-weight:700; color:#475569;">监控任务:</span>
                     <select id="sel-switch-monitor-task" class="teacher-input fancy" style="font-size:13px; font-weight:700; color:#1e40af; background:#eff6ff; border:1.5px solid #3b82f6; padding:7px 14px; border-radius:8px; cursor:pointer; min-width:180px;">
                       ${currentClassTasks.length === 0 ? '<option value="task_default">📌 默认测试写作任务</option>' : currentClassTasks.map(t => {
-                        const isSel = (state.activeTaskId || 'task_default') === t.id;
+                        const isSel = (state.activeTaskId || null) === t.id;
                         return `<option value="${t.id}" ${isSel ? 'selected' : ''}>📌 ${t.title}${isTaskExpired(t) ? ' (🛑已截止)' : ''}</option>`;
                       }).join('')}
                     </select>
@@ -1758,7 +1758,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
 
       if (btn.dataset.tab === 'view_monitoring' && window.app) {
         try {
-          window.app.loadGroupState(state.activeMonitorGroupId || 'group_1');
+          window.app.loadGroupState(state.activeMonitorGroupId || (activeClass?.groups?.[0]?.id) || null);
           if (window.app.cloudSyncEngine) {
             window.app.cloudSyncEngine.updateScopeKeys();
             window.app.cloudSyncEngine.pullFromServer().catch(() => {});
@@ -3631,7 +3631,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
       state.activeTaskId = targetTId;
       if (window.app) {
         window.app.state.activeTaskId = targetTId;
-        window.app.loadGroupState(state.activeMonitorGroupId || 'group_1');
+        window.app.loadGroupState(state.activeMonitorGroupId || (activeClass?.groups?.[0]?.id) || null);
       }
       renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
     });

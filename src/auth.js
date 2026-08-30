@@ -14,8 +14,8 @@ import {
   DefaultTasks,
   DefaultAnnouncements,
   DefaultReferencePapers
-} from './constants.js?v=20260830_v855';
-import { formatExportDateTime, formatDurationHuman } from './utils.js?v=20260830_v855';
+} from './constants.js?v=20260830_v856';
+import { formatExportDateTime, formatDurationHuman } from './utils.js?v=20260830_v856';
 
 export class AuthManager {
   constructor() {
@@ -282,9 +282,9 @@ export class AuthManager {
     } else {
       const newSurvey = {
         id: 'survey_' + Date.now(),
-        classId: classId || 'class_101',
+        classId: classId || null,
         className: cObj ? cObj.name : '《现代教育技术》2026春01班',
-        taskId: taskId || 'task_default',
+        taskId: taskId || null,
         taskTitle: tObj ? tObj.title : (taskId === 'task_default' ? '期末协作写作 (默认测试任务)' : '写作任务'),
         url: cleanUrl,
         createdAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
@@ -664,11 +664,11 @@ export class AuthManager {
     const avatar = avatars[users.length % avatars.length];
 
     if (existingUser) {
-      if (!existingUser.classIds) existingUser.classIds = [existingUser.classId || 'class_101'];
+      if (!existingUser.classIds) existingUser.classIds = [existingUser.classId || null];
       if (classId && !existingUser.classIds.includes(classId)) existingUser.classIds.push(classId);
       if (classId) existingUser.classId = classId;
       
-      const targetClass = classes.find(c => c.id === (classId || 'class_101')) || classes[0];
+      const targetClass = classes.find(c => c.id === (classId || null)) || classes[0];
       if (targetClass && targetClass.studentIds && !targetClass.studentIds.includes(existingUser.id)) {
         targetClass.studentIds.push(existingUser.id);
         localStorage.setItem(STORAGE_KEY_CLASSES, JSON.stringify(classes));
@@ -687,7 +687,7 @@ export class AuthManager {
       name: name.trim(),
       role: 'student',
       avatar: avatar,
-      classId: classId || 'class_101',
+      classId: classId || null,
       classIds: classId ? [classId] : ['class_101'],
       groupId: null
     };
@@ -695,7 +695,7 @@ export class AuthManager {
 
     localStorage.setItem(STORAGE_KEY_USERS_DB, JSON.stringify(users));
 
-    const targetClass = classes.find(c => c.id === (classId || 'class_101')) || classes[0];
+    const targetClass = classes.find(c => c.id === (classId || null)) || classes[0];
     if (targetClass) {
       if (!targetClass.studentIds) targetClass.studentIds = [];
       if (!targetClass.studentIds.includes(targetUser.id)) targetClass.studentIds.push(targetUser.id);
@@ -712,7 +712,7 @@ export class AuthManager {
     const linkedList = [];
     const users = this.getUsers();
     const classes = this.getClasses();
-    const targetClass = classes.find(c => c.id === (classId || 'class_101')) || classes[0];
+    const targetClass = classes.find(c => c.id === (classId || null)) || classes[0];
     if (!targetClass.studentIds) targetClass.studentIds = [];
 
     const avatars = ['👨‍🎓', '👩‍🎓', '🧑‍🎓', '🎓', '📚', '🌟'];
@@ -831,7 +831,7 @@ export class AuthManager {
     const uCode = user.studentCode;
     const uName = user.name;
     const uUsername = user.username;
-    const safeUserKey = uCode || uId || uUsername || 'temp';
+    const safeUserKey = uCode || uId || uUsername || 'unassigned';
 
     const checkMemberMatch = (m) => {
       if (!m) return false;

@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles } from "./constants.js?v=20260830_v855";
-import { callCozeAgentAPI } from "./agents.js?v=20260830_v855";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly } from "./utils.js?v=20260830_v855";
+import { AgentProfiles } from "./constants.js?v=20260830_v856";
+import { callCozeAgentAPI } from "./agents.js?v=20260830_v856";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly } from "./utils.js?v=20260830_v856";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -36,8 +36,8 @@ export function renderHeader(state, currentUser, announcements, onStageChange, o
     }
   }
 
-  const activeClassId = (window.app?.authManager ? window.app.authManager.getEffectiveStudentClassId(currentUser, state.activeTaskId) : (state.activeStudentClassId || currentUser?.classId || 'class_101'));
-  const activeGroupObj = (window.app && window.app.authManager) ? window.app.authManager.getStudentActiveGroup(currentUser, activeClassId) : { id: 'group_1', name: '第 1 协作小组' };
+  const activeClassId = (window.app?.authManager ? window.app.authManager.getEffectiveStudentClassId(currentUser, state.activeTaskId) : (state.activeStudentClassId || currentUser?.classId || null));
+  const activeGroupObj = (window.app && window.app.authManager) ? window.app.authManager.getStudentActiveGroup(currentUser, activeClassId) : null;
   const groupId = state.activeGroupId || (window.app && window.app.cloudSyncEngine?.groupId) || activeGroupObj.id || (currentUser && currentUser.groupId ? currentUser.groupId : 'group_1');
   const groupName = activeGroupObj.name || '第 1 协作小组';
   const currentTaskTitle = currentTask ? currentTask.title : (activeTaskId === 'task_default' ? '默认写作任务' : '协作写作任务');
@@ -527,7 +527,7 @@ export function attachWordEditorEvents(container, editorId, isReadonly, onChange
           if (e.target.files && e.target.files[0]) {
             const file = e.target.files[0];
             const currentUser = window.app?.authManager ? window.app.authManager.getCurrentUser() : null;
-            const studentCode = currentUser ? (currentUser.studentCode || currentUser.id || 'A') : 'A';
+            const studentCode = currentUser ? (currentUser?.name || currentUser?.studentCode || currentUser?.id) : 'A';
             const caption = prompt('请输入学术图题说明 (例如: 图 1: 研究模型与变量关系架构图):', '图 1: 研究模型与变量关系架构图');
 
             const fd = new FormData();
@@ -806,7 +806,7 @@ export function renderPresencePills(editorId, state) {
   if (!membersObj || (Array.isArray(membersObj) ? membersObj.length === 0 : Object.keys(membersObj).length === 0)) {
     if (window.app && window.app.authManager) {
       const activeGroup = window.app.authManager.getStudentActiveGroup(window.app.authManager.getCurrentUser(), state.activeStudentClassId);
-      const gid = activeGroup?.id || state.activeMonitorGroupId || 'group_1';
+      const gid = activeGroup?.id || state.activeMonitorGroupId || state.activeGroupId || null;
       membersObj = window.app.authManager.getGroupMembersForWorkspace(gid);
       state.members = membersObj;
     }
@@ -1236,9 +1236,9 @@ function renderStage1Canvas(canvas, state, handlers) {
         }
         if (memberArr.length === 0 && window.app?.authManager) {
           const u = window.app.authManager.getCurrentUser();
-          const effClassId = (window.app?.authManager ? window.app.authManager.getEffectiveStudentClassId(u, window.app?.state?.activeTaskId) : (window.app?.state?.activeStudentClassId || u?.classId || 'class_101'));
+          const effClassId = (window.app?.authManager ? window.app.authManager.getEffectiveStudentClassId(u, window.app?.state?.activeTaskId) : (window.app?.state?.activeStudentClassId || u?.classId || null));
           const effGroup = window.app.authManager.getStudentActiveGroup(u, effClassId);
-          memberArr = window.app.authManager.getGroupMembersForWorkspace(effGroup?.id || 'group_1');
+          memberArr = window.app.authManager.getGroupMembersForWorkspace(effGroup?.id || state.activeGroupId || null);
         }
 
         const memObj = memberArr.find(m => m && (m.id === currentUser || m.studentCode === currentUser || m.realStudentCode === currentUser || m.username === currentUser || m.name === currentUser));
@@ -1358,9 +1358,9 @@ function renderStage1Canvas(canvas, state, handlers) {
   const getLockPayload = (fieldKey, value = null) => {
     const currUser = (window.app && window.app.authManager) ? window.app.authManager.getCurrentUser() : null;
     const isTeacher = currUser && (currUser.role === 'teacher' || currUser.isTeacher);
-    const effectiveClassId = (isTeacher ? window.app?.state.activeClassId : window.app?.state.activeStudentClassId) || (currUser?.classId || 'class_101');
+    const effectiveClassId = (isTeacher ? window.app?.state.activeClassId : window.app?.state.activeStudentClassId) || (currUser?.classId || null);
     const activeGroupObj = window.app?.authManager ? window.app.authManager.getStudentActiveGroup(currUser, effectiveClassId) : null;
-    const curGid = activeGroupObj?.id || (currUser?.groupId || 'group_1');
+    const curGid = activeGroupObj?.id || (currUser?.groupId || state.activeGroupId || null);
     let curTaskId = window.app?.state.activeTaskId || (window.app?.cloudSyncEngine?.taskId || `task_${effectiveClassId}_default`);
     if (!curTaskId || curTaskId === 'task_default') {
       curTaskId = `task_${effectiveClassId}_default`;
@@ -1394,7 +1394,7 @@ function renderStage1Canvas(canvas, state, handlers) {
       }
     } catch (e) {}
 
-    fetch(`sync.php?action=lock_field&groupId=${encodeURIComponent(p.groupId)}&taskId=${encodeURIComponent(p.taskId)}&classId=${encodeURIComponent(p.classId || 'class_101')}`, {
+    fetch(`sync.php?action=lock_field&groupId=${encodeURIComponent(p.groupId)}&taskId=${encodeURIComponent(p.taskId)}&classId=${encodeURIComponent(p.classId || null)}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(p)
@@ -1411,7 +1411,7 @@ function renderStage1Canvas(canvas, state, handlers) {
       }
     } catch (e) {}
 
-    fetch(`sync.php?action=unlock_field&groupId=${encodeURIComponent(p.groupId)}&taskId=${encodeURIComponent(p.taskId)}&classId=${encodeURIComponent(p.classId || 'class_101')}`, {
+    fetch(`sync.php?action=unlock_field&groupId=${encodeURIComponent(p.groupId)}&taskId=${encodeURIComponent(p.taskId)}&classId=${encodeURIComponent(p.classId || null)}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(p)
@@ -1537,14 +1537,14 @@ function renderStage1Canvas(canvas, state, handlers) {
           if (window.app) {
             window.app.syncStage1();
             const currUser = window.app.authManager ? window.app.authManager.getCurrentUser() : null;
-            const effectiveClassId = window.app.state.activeStudentClassId || (currUser?.classId || 'class_101');
+            const effectiveClassId = window.app.state.activeStudentClassId || (currUser?.classId || null);
             const activeGroupObj = window.app.authManager ? window.app.authManager.getStudentActiveGroup(currUser, effectiveClassId) : null;
-            const curGid = activeGroupObj?.id || (currUser?.groupId || 'group_1');
+            const curGid = activeGroupObj?.id || (currUser?.groupId || state.activeGroupId || null);
             fetch('sync.php?action=patch_contract_field', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
-                taskId: window.app.state.activeTaskId || 'task_default',
+                taskId: window.app.state.activeTaskId || null,
                 groupId: curGid,
                 field: 'timeAllocations',
                 subKey: key,
@@ -1643,14 +1643,14 @@ function renderStage1Canvas(canvas, state, handlers) {
         if (window.app) {
           window.app.syncStage1();
           const currUser = window.app.authManager ? window.app.authManager.getCurrentUser() : null;
-          const effectiveClassId = window.app.state.activeStudentClassId || (currUser?.classId || 'class_101');
+          const effectiveClassId = window.app.state.activeStudentClassId || (currUser?.classId || null);
           const activeGroupObj = window.app.authManager ? window.app.authManager.getStudentActiveGroup(currUser, effectiveClassId) : null;
-          const curGid = activeGroupObj?.id || (currUser?.groupId || 'group_1');
+          const curGid = activeGroupObj?.id || (currUser?.groupId || state.activeGroupId || null);
           fetch('sync.php?action=patch_contract_field', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              taskId: window.app.state.activeTaskId || 'task_default',
+              taskId: window.app.state.activeTaskId || null,
               groupId: curGid,
               field: 'taskAssignments',
               subKey: mKey,
@@ -1769,15 +1769,15 @@ function renderStage1Canvas(canvas, state, handlers) {
         s1.contract._lastSignTime = Date.now();
         const currUser = (window.app && window.app.authManager) ? window.app.authManager.getCurrentUser() : null;
         const myCode = state.currentUser || (currUser ? currUser.studentCode : 'A');
-        const effectiveClassId = window.app.state.activeStudentClassId || (currUser?.classId || 'class_101');
+        const effectiveClassId = window.app.state.activeStudentClassId || (currUser?.classId || null);
         const activeGroupObj = window.app.authManager ? window.app.authManager.getStudentActiveGroup(currUser, effectiveClassId) : null;
-        const curGid = activeGroupObj?.id || (currUser?.groupId || 'group_1');
+        const curGid = activeGroupObj?.id || (currUser?.groupId || state.activeGroupId || null);
         
         fetch('sync.php?action=patch_contract_field', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            taskId: state.activeTaskId || 'task_default',
+            taskId: state.activeTaskId || null,
             groupId: curGid,
             field: 'sign_member',
             subKey: myCode,
@@ -1821,9 +1821,9 @@ function renderStage2Canvas(canvas, state, handlers) {
   }
   const actionPlan = s2.actionPlan;
   const currUser = (window.app && window.app.authManager) ? window.app.authManager.getCurrentUser() : null;
-  const userClassId = state.activeStudentClassId || (currUser ? currUser.classId : null) || 'class_101';
+  const userClassId = state.activeStudentClassId || (currUser ? currUser.classId : null) || null;
   const activeGroupObj = (window.app && window.app.authManager) ? window.app.authManager.getStudentActiveGroup(currUser, userClassId) : null;
-  const userGroupId = activeGroupObj?.id || (window.app?.cloudSyncEngine?.groupId) || (currUser?.groupId) || 'group_1';
+  const userGroupId = activeGroupObj?.id || (window.app?.cloudSyncEngine?.groupId) || (currUser?.groupId) || state.activeGroupId || null;
   let activeTaskId = state.activeTaskId || (window.app?.cloudSyncEngine?.taskId) || (`task_${userClassId}_default`);
   if (!activeTaskId || activeTaskId === 'task_default') activeTaskId = `task_${userClassId}_default`;
   const availablePapers = (window.app && window.app.authManager) ? window.app.authManager.getReferencePapers(userGroupId, userClassId, activeTaskId) : [];
@@ -2635,9 +2635,9 @@ function renderStage3Canvas(canvas, state, handlers) {
       <div class="card" id="stage3-editor-card" style="display:${activeTab === 'editor' ? 'flex' : 'none'}; flex:1; flex-direction:column; padding:16px; min-height:600px; overscroll-behavior-y:contain; -webkit-overflow-scrolling:touch;">
         ${(() => {
           const currUser = (window.app && window.app.authManager) ? window.app.authManager.getCurrentUser() : null;
-          const userClassId = state.activeStudentClassId || (currUser ? currUser.classId : null) || 'class_101';
+          const userClassId = state.activeStudentClassId || (currUser ? currUser.classId : null) || null;
           const activeGroupObj = (window.app && window.app.authManager) ? window.app.authManager.getStudentActiveGroup(currUser, userClassId) : null;
-          const userGroupId = activeGroupObj?.id || (window.app?.cloudSyncEngine?.groupId) || (currUser?.groupId) || 'group_1';
+          const userGroupId = activeGroupObj?.id || (window.app?.cloudSyncEngine?.groupId) || (currUser?.groupId) || state.activeGroupId || null;
           let activeTaskId = state.activeTaskId || (window.app?.cloudSyncEngine?.taskId) || (`task_${userClassId}_default`);
           if (!activeTaskId || activeTaskId === 'task_default') activeTaskId = `task_${userClassId}_default`;
           const rawPadName = `jizhi_${activeTaskId}_${userGroupId}`;
@@ -2813,9 +2813,9 @@ export function renderChat(state) {
     else if (state.members && typeof state.members === 'object') memberList = Object.values(state.members);
     if (memberList.length === 0 && window.app?.authManager) {
       const u = window.app.authManager.getCurrentUser();
-      const effClassId = (window.app?.authManager ? window.app.authManager.getEffectiveStudentClassId(u, window.app?.state?.activeTaskId) : (window.app?.state?.activeStudentClassId || u?.classId || 'class_101'));
+      const effClassId = (window.app?.authManager ? window.app.authManager.getEffectiveStudentClassId(u, window.app?.state?.activeTaskId) : (window.app?.state?.activeStudentClassId || u?.classId || null));
       const effGroup = window.app.authManager.getStudentActiveGroup(u, effClassId);
-      memberList = window.app.authManager.getGroupMembersForWorkspace(effGroup?.id || 'group_1');
+      memberList = window.app.authManager.getGroupMembersForWorkspace(effGroup?.id || state.activeGroupId || null);
     }
 
     presenceContainer.innerHTML = memberList.map(m => {
