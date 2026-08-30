@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles } from "./constants.js?v=20260830_v876";
-import { callCozeAgentAPI } from "./agents.js?v=20260830_v876";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap } from "./utils.js?v=20260830_v876";
+import { AgentProfiles } from "./constants.js?v=20260830_v877";
+import { callCozeAgentAPI } from "./agents.js?v=20260830_v877";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap } from "./utils.js?v=20260830_v877";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -1296,6 +1296,9 @@ function renderStage1Canvas(canvas, state, handlers) {
           window.app.syncStage1();
           if (window.app.cloudSyncEngine) {
             window.app.cloudSyncEngine.pushSnapshot();
+          }
+          if (typeof window.app.handleProposalSubmittedAIFeedback === 'function') {
+            window.app.handleProposalSubmittedAIFeedback(title, authorName, existingIdx >= 0);
           }
         }
 

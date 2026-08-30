@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260830_v876";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap } from "./utils.js?v=20260830_v876";
-import { callCozeAgentAPI } from "./agents.js?v=20260830_v876";
-import { AuthManager } from "./auth.js?v=20260830_v876";
-import { CloudSyncEngine } from "./sync.js?v=20260830_v876";
-import { renderLoginView } from "./login.js?v=20260830_v876";
-import { renderTeacherPortal } from "./teacher.js?v=20260830_v876";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260830_v876";
+} from "./constants.js?v=20260830_v877";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap } from "./utils.js?v=20260830_v877";
+import { callCozeAgentAPI } from "./agents.js?v=20260830_v877";
+import { AuthManager } from "./auth.js?v=20260830_v877";
+import { CloudSyncEngine } from "./sync.js?v=20260830_v877";
+import { renderLoginView } from "./login.js?v=20260830_v877";
+import { renderTeacherPortal } from "./teacher.js?v=20260830_v877";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260830_v877";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260830_v876";
+} from "./editor.js?v=20260830_v877";
 
 // Make renderChat available on window for sync callbacks
 if (typeof window !== "undefined") {
@@ -2791,6 +2791,37 @@ ${recentDefenseChat}
     }
   }
 
+  /**
+   * 💡 阶段一：学生提交/修改提案时，拍卖师调用大模型给出学术亮点速评与探究启发
+   */
+  async handleProposalSubmittedAIFeedback(title, authorName, isModify = false) {
+    const taskPrompt = `小组成员【${authorName}】在选题池${isModify ? '修改完善了' : '提出了新'}研究提案《${title}》。
+请作为资深学术拍卖师，发表 60~80 字的【选题学术亮点速评与启发】：
+① 精准肯定该选题的研究切入点或实践价值；
+② 给出 1 点前瞻性探究启发，鼓励全组在研讨区就此交流！纯自然语言，60~80字，严禁代码块。`;
+
+    try {
+      const resp = await callCozeAgentAPI('auctioneer', taskPrompt, { stage: 'stage1', topic: title });
+      let speech = (resp && resp.trim().length > 0) ? resp.trim() : `🎪 【拍卖师·选题速评】：收到 ${authorName} ${isModify ? '修改后的' : '提交的'}《${title}》！切入点明确，建议组员在研讨区就具体的研究对象与实施情境交流补充！`;
+      if (!speech.startsWith('🎪')) speech = `🎪 【拍卖师·选题速评】：${speech}`;
+
+      const aiMsg = {
+        sender: 'auctioneer',
+        senderName: '头脑风暴 · 学术拍卖师',
+        text: speech,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        _timeMs: Date.now()
+      };
+      if (!this.state.chatLogs.stage1) this.state.chatLogs.stage1 = [];
+      this.state.chatLogs.stage1.push(aiMsg);
+      this.syncChatLogs();
+      if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+      if (typeof window.renderChat === 'function') window.renderChat(this.state);
+    } catch (e) {
+      console.warn('handleProposalSubmittedAIFeedback error:', e);
+    }
+  }
+
   handleVoteCast(proposalId) {
     if (this.state.stage1.contract.isConfirmed || this.state.isFinalSubmitted) {
       alert('🔒 学术合作合约已签署锁定，不可再更改投票。');
@@ -2830,16 +2861,7 @@ ${recentDefenseChat}
     const votesCastCount = membersList.filter(m => isMemberDone(s1.hasVoted, m)).length;
     const proposalTitle = proposal ? proposal.title : proposalId;
 
-    const voteMsg = { 
-      sender: user, 
-      text: `📢 [投票告知]: 我已确认投票支持提案《${proposalTitle}》！（当前全组已集齐 ${votesCastCount}/${totalMembersCount} 票）`, 
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      _timeMs: Date.now()
-    };
-    if (!this.state.chatLogs.stage1) this.state.chatLogs.stage1 = [];
-    this.state.chatLogs.stage1.push(voteMsg);
     this.syncStage1();
-    this.syncChatLogs();
     if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
 
     // 🌟 弹出温和、清晰、带有进度告知的友好弹窗
@@ -4099,16 +4121,6 @@ ${propText}
 
           const confirmedCount = memberArr.filter(m => m && (s1.contract.confirmedMembers[m.id] || s1.contract.confirmedMembers[m.studentCode] || (m.name && s1.contract.confirmedMembers[m.name]))).length;
 
-          const confirmMsg = {
-            sender: user,
-            senderName: memberName,
-            text: `📢 [公约签署告知]: 我 (${memberName}) 已按键确认签署合作学术公约！（全组确认进度: ${confirmedCount}/${totalMembersCount} 人）`,
-            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-            _timeMs: Date.now()
-          };
-          if (!this.state.chatLogs.stage1) this.state.chatLogs.stage1 = [];
-          this.state.chatLogs.stage1.push(confirmMsg);
-
           if (confirmedCount >= totalMembersCount) {
             s1.contract.isConfirmed = true;
             this.state.groupMaxStage = 'stage2';
@@ -4249,27 +4261,6 @@ ${propText}
 
         const confirmedCount = memberArr.filter(m => isMemDone(s2.confirmedMembers, m)).length;
         const memberName = currMemObj ? currMemObj.name : user;
-        const confirmMsg = {
-          sender: user,
-          senderName: memberName,
-          text: `📢 [初稿确认告知]: 我 (${memberName}) 已确认完成正文初稿！（全组初稿确认进度: ${confirmedCount}/${totalMembersCount} 人）`,
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          _timeMs: Date.now()
-        };
-        if (!this.state.chatLogs.stage2) this.state.chatLogs.stage2 = [];
-        this.state.chatLogs.stage2.push(confirmMsg);
-
-        // 📝 审稿编辑终审把关兜底触发：只要有组员开始确认初稿，立刻自动送达审稿编辑终审质检反馈
-        if (!this.state.stage2RefFormatReviewed) {
-          this.state.stage2RefFormatReviewed = true;
-          const refReviewMsg = {
-            sender: 'reviewingEditor',
-            text: `📝 【审稿编辑·终稿行文扫描诊断】：小组成员已开始发起初稿定稿确认！在最后收尾阶段，我重点对全文语言表达与行文规范进行了全维度扫描：①【行文与语体】：整体论述连贯，建议再次通读检查是否有口语化表达；②【错别字与标点】：重点核对前后术语与标点规范。请大家完成最后通读后，在上方逐一完成初稿确认，准备迎接终审答辩！`,
-            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-            _timeMs: Date.now() + 100
-          };
-          this.state.chatLogs.stage2.push(refReviewMsg);
-        }
 
         this.syncStage2();
         this.syncChatLogs();
@@ -4336,15 +4327,6 @@ ${propText}
 
         const confirmedCount = memberArr.filter(m => m && (s3.confirmedMembers[m.id] || s3.confirmedMembers[m.studentCode] || s3.confirmedMembers[m.username] || (m.name && s3.confirmedMembers[m.name]))).length;
         const memberName = currMemObj ? currMemObj.name : user;
-        const confirmMsg = {
-          sender: user,
-          senderName: memberName,
-          text: `📢 [答辩确认]: 我 (${memberName}) 已确认完成答辩，准备进入终稿修改！（全组确认进度: ${confirmedCount}/${totalMembersCount} 人）`,
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          _timeMs: Date.now()
-        };
-        if (!this.state.chatLogs.stage3) this.state.chatLogs.stage3 = [];
-        this.state.chatLogs.stage3.push(confirmMsg);
 
         if (confirmedCount >= totalMembersCount) {
           s3.isRevisionConfirmed = true;
