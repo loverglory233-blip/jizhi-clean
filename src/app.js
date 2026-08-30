@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260830_v890";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap } from "./utils.js?v=20260830_v890";
-import { callCozeAgentAPI } from "./agents.js?v=20260830_v890";
-import { AuthManager } from "./auth.js?v=20260830_v890";
-import { CloudSyncEngine } from "./sync.js?v=20260830_v890";
-import { renderLoginView } from "./login.js?v=20260830_v890";
-import { renderTeacherPortal } from "./teacher.js?v=20260830_v890";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260830_v890";
+} from "./constants.js?v=20260830_v891";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap } from "./utils.js?v=20260830_v891";
+import { callCozeAgentAPI } from "./agents.js?v=20260830_v891";
+import { AuthManager } from "./auth.js?v=20260830_v891";
+import { CloudSyncEngine } from "./sync.js?v=20260830_v891";
+import { renderLoginView } from "./login.js?v=20260830_v891";
+import { renderTeacherPortal } from "./teacher.js?v=20260830_v891";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260830_v891";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260830_v890";
+} from "./editor.js?v=20260830_v891";
 
 // Make renderChat available on window for sync callbacks
 if (typeof window !== "undefined") {
@@ -239,6 +239,26 @@ export class App {
   // 💬 精准单条发信入库方法（确保任何来源的消息 100% 毫秒级写入 MySQL chat_messages 实体表）
   sendSingleChatMessage(msg, stage = null) {
     if (!msg) return;
+    const targetStage = stage || this.state.currentStage || 'stage1';
+
+    // 🛡️ 智能体阶段物理隔离铁律：
+    // 阶段一仅允许 auctioneer；阶段二仅允许 managingEditor/reviewingEditor；阶段三仅允许 proponent/opponent/neutral
+    const sender = msg.sender;
+    if (['auctioneer', 'managingEditor', 'reviewingEditor', 'proponent', 'opponent', 'neutral'].includes(sender)) {
+      if (targetStage === 'stage1' && sender !== 'auctioneer') {
+        console.warn(`[Stage Guard] 拦截非阶段一智能体 ${sender} 试图在 stage1 发言`);
+        return;
+      }
+      if (targetStage === 'stage2' && !['managingEditor', 'reviewingEditor'].includes(sender)) {
+        console.warn(`[Stage Guard] 拦截非阶段二智能体 ${sender} 试图在 stage2 发言`);
+        return;
+      }
+      if (targetStage === 'stage3' && !['proponent', 'opponent', 'neutral'].includes(sender)) {
+        console.warn(`[Stage Guard] 拦截非阶段三智能体 ${sender} 试图在 stage3 发言`);
+        return;
+      }
+    }
+
     const user = this.authManager ? this.authManager.getCurrentUser() : null;
     const isTeacher = user && (user.isTeacher || user.role === 'teacher');
     const effectiveClassId = (isTeacher ? this.state.activeClassId : this.state.activeStudentClassId) || user?.classId || null;
@@ -247,7 +267,6 @@ export class App {
     if (!taskId || taskId === 'task_default') {
       taskId = `task_${effectiveClassId}_default`;
     }
-    const targetStage = stage || this.state.currentStage || 'stage1';
 
     const payload = {
       id: msg.id || ('msg_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6)),
@@ -1187,26 +1206,6 @@ export class App {
               renderChat(this.state);
               return;
             }
-          }
-        }
-
-        // 5. 【阶段一进度时间规划提示】：研讨时间超过 35 分钟且公约未签署（该类型全场仅发 1 次，绝不发第 2 次）
-        if (stage1DurationMs > 2100000 && !s1.contract?.isConfirmed) {
-          const count = this._nudgeCounts['s1_progress'] || 0;
-          if (count < 1) {
-            this._nudgeCounts['s1_progress'] = 1;
-            const progressMsg = {
-              sender: 'auctioneer',
-              text: `🎪 【拍卖师·进度提示】：选题研讨的时间已经走过约 35 分钟啦，大家的想法也越来越清晰了～\n👉 如果研究方向已经基本确定，可以在公约卡片点击【签署确认】，随时进入【阶段二：学术编辑部】开始动笔；如果还有想补充的点子，也欢迎在后续撰写中继续深化！`,
-              timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-              _timeMs: now
-            };
-            if (!this.state.chatLogs.stage1) this.state.chatLogs.stage1 = [];
-            this.state.chatLogs.stage1.push(progressMsg);
-            this.syncChatLogs();
-            if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
-            renderChat(this.state);
-            return;
           }
         }
 
