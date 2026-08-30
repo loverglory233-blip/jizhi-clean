@@ -102,16 +102,25 @@ if ($pdo) {
     }
 }
 
-$groupId = isset($_GET['groupId']) ? preg_replace('/[^a-zA-Z0-9_-]/', '', $_GET['groupId']) : (isset($REQ_DATA['groupId']) ? preg_replace('/[^a-zA-Z0-9_-]/', '', $REQ_DATA['groupId']) : 'group_1');
-if (empty($groupId)) $groupId = 'group_1';
-
 $RAW_INPUT = ($_SERVER['REQUEST_METHOD'] === 'POST') ? @file_get_contents('php://input') : '';
 $REQ_DATA = !empty($RAW_INPUT) ? (@json_decode($RAW_INPUT, true) ?: []) : [];
 
 $classId = isset($_GET['classId']) ? preg_replace('/[^a-zA-Z0-9_-]/', '', $_GET['classId']) : (isset($REQ_DATA['classId']) ? preg_replace('/[^a-zA-Z0-9_-]/', '', $REQ_DATA['classId']) : '');
+if (empty($classId) && isset($REQ_DATA['message']['classId'])) {
+    $classId = preg_replace('/[^a-zA-Z0-9_-]/', '', $REQ_DATA['message']['classId']);
+}
 if (empty($classId)) $classId = 'class_101';
 
+$groupId = isset($_GET['groupId']) ? preg_replace('/[^a-zA-Z0-9_-]/', '', $_GET['groupId']) : (isset($REQ_DATA['groupId']) ? preg_replace('/[^a-zA-Z0-9_-]/', '', $REQ_DATA['groupId']) : '');
+if (empty($groupId) && isset($REQ_DATA['message']['groupId'])) {
+    $groupId = preg_replace('/[^a-zA-Z0-9_-]/', '', $REQ_DATA['message']['groupId']);
+}
+if (empty($groupId)) $groupId = 'group_1';
+
 $taskId = isset($_GET['taskId']) ? preg_replace('/[^a-zA-Z0-9_-]/', '', $_GET['taskId']) : (isset($REQ_DATA['taskId']) ? preg_replace('/[^a-zA-Z0-9_-]/', '', $REQ_DATA['taskId']) : '');
+if (empty($taskId) && isset($REQ_DATA['message']['taskId'])) {
+    $taskId = preg_replace('/[^a-zA-Z0-9_-]/', '', $REQ_DATA['message']['taskId']);
+}
 if (empty($taskId) || $taskId === 'task_default') {
     $taskId = 'task_' . $classId . '_default';
 }
