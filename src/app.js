@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260830_v808";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash } from "./utils.js?v=20260830_v808";
-import { callCozeAgentAPI } from "./agents.js?v=20260830_v808";
-import { AuthManager } from "./auth.js?v=20260830_v808";
-import { CloudSyncEngine } from "./sync.js?v=20260830_v808";
-import { renderLoginView } from "./login.js?v=20260830_v808";
-import { renderTeacherPortal } from "./teacher.js?v=20260830_v808";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260830_v808";
+} from "./constants.js?v=20260830_v809";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash } from "./utils.js?v=20260830_v809";
+import { callCozeAgentAPI } from "./agents.js?v=20260830_v809";
+import { AuthManager } from "./auth.js?v=20260830_v809";
+import { CloudSyncEngine } from "./sync.js?v=20260830_v809";
+import { renderLoginView } from "./login.js?v=20260830_v809";
+import { renderTeacherPortal } from "./teacher.js?v=20260830_v809";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260830_v809";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260830_v808";
+} from "./editor.js?v=20260830_v809";
 
 // Make renderChat available on window for sync callbacks
 if (typeof window !== "undefined") {
@@ -1220,8 +1220,8 @@ ${recentChats}
         // ── 阶段二修改期静默守护：审稿编辑保持后台严肃倾听，绝不随意发无意义跟进打扰学生专注写作 ──
         // （仅在学生主动 @审稿编辑 时或到达三大官方质检里程碑时出面指导）
 
-        // 4) 修改期后续周期性提醒 (动态自适应任务时长，最多连续2次，有新发言自动重置)
-        if (this.state.stage2ReviewingFinishedTime && this.state.stage2FirstPostReviewNudgeSent && silenceDurationMs >= s2NudgeCooldownMs) {
+        // 4) 修改期后续周期性提醒 (动态自适应任务时长，最多2次)
+        if (this.state.stage2ReviewingFinishedTime && silenceDurationMs >= s2NudgeCooldownMs) {
           if (lastStudentMsgTime > (this._lastNudgeActivityTime?.['s2_post_meeting'] || 0)) {
             this._nudgeCounts['s2_post_meeting'] = 0;
           }
@@ -1233,7 +1233,7 @@ ${recentChats}
             this._lastNudgeActivityTime['s2_post_meeting'] = lastStudentMsgTime;
             const msg = {
               sender: 'managingEditor',
-              text: `💡 【责任编辑·协同修改推进跟进】：全组正文修改正在稳步推进！\n👉 建议大家继续在讨论区同步各章节的修改进度与段落衔接，保持全篇逻辑的一体化！`,
+              text: `💡 【责任编辑·审稿意见落实提示】：审稿专家已为全组下发了针对性的修改建议与修正清单！\n👉 建议大家在讨论区对照专家意见充分商讨修改思路，并在左侧富文本编辑器中针对性完善各章节内容，协同打磨高质量论文！`,
               timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
               _timeMs: now,
               stage: 'stage2'
