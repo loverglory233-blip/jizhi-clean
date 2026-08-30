@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260830_v879
+ * Version: 20260830_v880
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260830_v879';
+  const APP_VERSION = '20260830_v880';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -11788,9 +11788,7 @@
           const physicalElapsedSec = Math.floor((nowMs - this.state.timer.startTimestamp) / 1000);
           this.state.timer.elapsedSeconds = Math.max(0, Math.floor(physicalElapsedSec * speed));
 
-          const min = this.state.timer.elapsedSeconds / 60;
           const currentStage = this.state.currentStage || 'stage1';
-          const logs = (this.state.chatLogs && this.state.chatLogs[currentStage]) || [];
 
           // ⏰ 全局进度与阶段间转场催促 + 阶段二智能体保底机制 (由在场学号最小的在线成员单点触发，杜绝多人并发 AI 消息风暴)
           const myCode = this.state.currentUser || (currentUser ? (currentUser.studentCode || currentUser.id) : 'A');
@@ -11800,7 +11798,10 @@
           const curTask = allTasks.find(t => t.id === activeTaskId);
           const totalDurationMin = (curTask && curTask.durationMinutes) ? Number(curTask.durationMinutes) : 150;
           const totalDurationSec = totalDurationMin * 60;
-          const totalProgress = (totalDurationSec > 0) ? (this.state.timer.elapsedSeconds / totalDurationSec) : 0;
+          const elapsedSec = (this.state.timer && this.state.timer.elapsedSeconds) ? this.state.timer.elapsedSeconds : 0;
+          const remainingSec = Math.max(0, totalDurationSec - elapsedSec);
+          const remainingMin = remainingSec / 60;
+          const totalProgress = (totalDurationSec > 0) ? (elapsedSec / totalDurationSec) : 0;
 
           const membersList = Object.values(this.state.members || {});
           const presenceMap = this.state.presence || {};
@@ -11814,33 +11815,23 @@
           const isPrimaryGuardian = primaryMember && (primaryMember.studentCode === myCode || primaryMember.id === myCode);
 
           if (isPrimaryGuardian) {
-            // 1. 【阶段一 ➔ 阶段二转场提示】(大中小任务自适应 + 防教师延时二次触发) - 归属【拍卖师 (Auctioneer)】
+            const allChatLogsList = Object.values(this.state.chatLogs || {}).flat();
+
+            // ── 1. 【20% 时间节点：阶段一选题研讨进度提示】(归属拍卖师 · 严格已发去重，延时不重复) ──
             if (!this.state.gate20TriggeredMap) this.state.gate20TriggeredMap = {};
             const isContractConfirmed = !!(this.state.stage1 && this.state.stage1.contract && this.state.stage1.contract.isConfirmed);
             const s1GateMsgId = `msg_gate_s1_${activeTaskId}_${currentGroupId}_transfer`;
-            const allChatLogsListS1 = Object.values(this.state.chatLogs || {}).flat();
             const s1AlreadySent = !!this.state.gate20TriggeredMap[activeTaskId] ||
-              allChatLogsListS1.some(m => m && (m.id === s1GateMsgId || (m.text && (m.text.includes('选题研讨的时间') || m.text.includes('签署确认')))));
+              allChatLogsList.some(m => m && (m.id === s1GateMsgId || (m.text && (m.text.includes('选题研讨的时间') || m.text.includes('【拍卖师·进度提示】')))));
 
-            const elapsedMinS1 = (this.state.timer ? (this.state.timer.elapsedSeconds || 0) : 0) / 60;
-            let isS1Due = false;
-            if (totalDurationMin < 100) {
-              // 小任务(<100m)：耗时达到 10 分钟触发，严格控制选题时间，提醒签署公约进入阶段二
-              isS1Due = (elapsedMinS1 >= 10.0);
-            } else if (totalDurationMin <= 240) {
-              // 中任务(100~240m)：进度达到 20% 节点触发
-              isS1Due = (totalProgress >= 0.20);
-            } else {
-              // 大任务(>240m)：进度达到 20%(上限耗时 35 分钟)触发
-              isS1Due = (totalProgress >= 0.20) || (elapsedMinS1 >= 35.0);
-            }
+            const isS1Due = (totalProgress >= 0.20 && elapsedSec >= 120); // 进度达 20% 且至少进行 2 分钟
 
             if (isS1Due && currentStage === 'stage1' && !isContractConfirmed && !s1AlreadySent) {
               this.state.gate20TriggeredMap[activeTaskId] = true;
               const msgStage1 = {
                 id: s1GateMsgId,
                 sender: 'auctioneer',
-                text: `🎪 【拍卖师·进度提示】：选题研讨的时间已经走过约 ${Math.ceil(elapsedMinS1)} 分钟啦，大家的想法也越来越清晰了～\n👉 如果研究方向已经基本确定，可以在公约卡片点击【签署确认】，随时进入【阶段二：学术编辑部】开始动笔；如果还有想补充的点子，也欢迎在后续撰写中继续深化！`,
+                text: `🎪 【拍卖师·进度提示】：选题研讨的时间已经走过约 20%（已用约 ${Math.ceil(elapsedSec / 60)} 分钟）啦，大家的想法也越来越清晰了～\n👉 如果研究方向已经基本确定，可以在公约卡片点击【签署确认】，随时进入【阶段二：学术编辑部】开始动笔；如果还有想补充的点子，也欢迎在后续撰写中继续深化！`,
                 timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
                 _timeMs: nowMs
               };
@@ -11850,139 +11841,85 @@
               renderChat(this.state);
             }
 
-          // 2. 【阶段二智能体保底机制】(S2 经历 60% 正常轨 + 全局 75% 极端保底轨)
-          if (currentStage === 'stage2') {
-            const s2MeetingMsgId = `msg_s2_meeting_${activeTaskId}_${currentGroupId}`;
-            const isMeetingDone = !!(this.state.stage2 && this.state.stage2.actionPlan && this.state.stage2.actionPlan.isGenerated) ||
-                                  (this.state.chatLogs.stage2 || []).some(m => m.id === s2MeetingMsgId || (m.text && m.text.includes('半程会议号召')));
+            // ── 2. 【90% 时间节点：紧急转场与通牒提醒】(全场仅剩 10% 时间 · 归属拍卖师/责任编辑) ──
+            if (!this.state.gate90TriggeredMap) this.state.gate90TriggeredMap = {};
+            const gate90MsgId = `msg_gate_transfer_${activeTaskId}_${currentGroupId}`;
+            const gate90AlreadySent = !!this.state.gate90TriggeredMap[activeTaskId] ||
+              allChatLogsList.some(m => m && (m.id === gate90MsgId || (m.text && (m.text.includes('紧急通牒') || m.text.includes('正文起草时间已达建议上限')))));
 
-            if (!isMeetingDone) {
-              const s2StartTime = (this.state.stage2 && this.state.stage2.stageStartTime) ? this.state.stage2.stageStartTime : null;
-              const s2ElapsedMin = s2StartTime ? Math.max(0, (nowMs - s2StartTime) / 60000) : Math.max(0, min - (totalDurationMin * 0.10));
-              const s2TargetMin = totalDurationMin * 0.70;
+            const isTransferDue = (totalProgress >= 0.90 || remainingMin <= 10.0);
 
-              const isNormalDue = (s2TargetMin > 0) && (s2ElapsedMin >= (s2TargetMin * 0.60));
-              const isEmergencyDue = (totalProgress >= 0.75);
-
-              if (isNormalDue || isEmergencyDue) {
-                this.state.stage2MeetingTimeTriggered = true;
-                const meetingCallMsg = {
-                  id: s2MeetingMsgId,
-                  sender: 'managingEditor',
-                  text: `🤝 【责任编辑·半程会议号召】：阶段二协作时间已达到 60%（正文骨架已搭建）！请全体小组成员点击上方【📢 发起编辑会议】完成 4 维自查打卡，稍后审稿编辑将结合全组情况进行深度学术质检与清单生成！`,
+            if (isTransferDue && !gate90AlreadySent && currentStage !== 'stage3') {
+              this.state.gate90TriggeredMap[activeTaskId] = true;
+              let sender90 = null;
+              let text90 = '';
+              if (currentStage === 'stage1') {
+                sender90 = 'auctioneer';
+                text90 = `🎪 【拍卖师·紧急通牒】：全场剩余时间仅剩约 ${Math.ceil(remainingMin)} 分钟（已达 90% 节点）！本组选题严重滞后，请全员立刻在公约卡片点击【签署确认】，随时进入正文起草！`;
+              } else if (currentStage === 'stage2') {
+                sender90 = 'managingEditor';
+                text90 = `🤝 【责任编辑·转场提示】：正文起草时间已达 90% 节点（全场仅剩最后约 ${Math.ceil(remainingMin)} 分钟）！建议小组成员点击上方导航栏进入【🎓 阶段三：答辩擂台】，留足时间完成答辩质询与终稿完善！`;
+              }
+              if (sender90) {
+                const msg90 = {
+                  id: gate90MsgId,
+                  sender: sender90,
+                  text: text90,
                   timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
                   _timeMs: nowMs
                 };
-                if (!this.state.chatLogs.stage2) this.state.chatLogs.stage2 = [];
-                this.state.chatLogs.stage2.push(meetingCallMsg);
+                if (!this.state.chatLogs[currentStage]) this.state.chatLogs[currentStage] = [];
+                this.state.chatLogs[currentStage].push(msg90);
                 this.syncChatLogs();
                 renderChat(this.state);
               }
             }
-          }
 
-          // 3. 【最晚转场指令节点】阶段二 ➔ 阶段三防卡关 (大中小任务自适应 + 纯提示非强制锁死 + 防教师延时二次触发)
-          if (!this.state.gate90TriggeredMap) this.state.gate90TriggeredMap = {};
-          const gate90MsgId = `msg_gate_transfer_${activeTaskId}_${currentGroupId}`;
-          const allChatLogsList = Object.values(this.state.chatLogs || {}).flat();
-          const gate90AlreadySent = !!this.state.gate90TriggeredMap[activeTaskId] ||
-            allChatLogsList.some(m => m && (m.id === gate90MsgId || (m.text && (m.text.includes('转场指令') || m.text.includes('正文起草时间已达上限') || m.text.includes('紧急通牒')))));
+            // ── 3. 【95% 时间节点：阶段三提醒进入终稿修改】(全场仅剩 5% 时间 · 归属中间委员) ──
+            if (!this.state.gateFinalPolishTriggeredMap) this.state.gateFinalPolishTriggeredMap = {};
+            const gatePolishMsgId = `msg_gate_final_polish_${activeTaskId}_${currentGroupId}`;
+            const gatePolishAlreadySent = !!this.state.gateFinalPolishTriggeredMap[activeTaskId] ||
+              allChatLogsList.some(m => m && (m.id === gatePolishMsgId || (m.text && (m.text.includes('终稿修改提示') || m.text.includes('终稿润色与收尾提示')))));
 
-          // 自适应触发条件：小任务(<100m)在最后10分钟(剩余<=10m)提示转入答辩；中任务(100~240m)在进度>=90%或剩余<=15m触发；大任务(>240m)在进度>=90%触发
-          const elapsedSec = this.state.timer ? (this.state.timer.elapsedSeconds || 0) : 0;
-          const remainingMin = Math.max(0, (totalDurationSec - elapsedSec) / 60);
-          let isTransferDue = false;
-          if (totalDurationMin < 100) {
-            isTransferDue = (remainingMin <= 10.0);
-          } else if (totalDurationMin <= 240) {
-            isTransferDue = (totalProgress >= 0.90) || (remainingMin <= 15.0);
-          } else {
-            isTransferDue = (totalProgress >= 0.90) || (remainingMin <= 25.0);
-          }
+            const isPolishDue = (totalProgress >= 0.95 || remainingMin <= 5.0);
 
-          if (isTransferDue && !gate90AlreadySent && currentStage !== 'stage3') {
-            this.state.gate90TriggeredMap[activeTaskId] = true;
-            let sender90 = null;
-            let text90 = '';
-            if (currentStage === 'stage1') {
-              sender90 = 'auctioneer';
-              text90 = `🎪 【拍卖师·紧急通牒】：全场剩余时间仅剩约 ${Math.ceil(remainingMin)} 分钟！本组选题严重滞后，请全员立刻在公约卡片点击【签署确认】，随时进入正文起草！`;
-            } else if (currentStage === 'stage2') {
-              sender90 = 'managingEditor';
-              text90 = `🤝 【责任编辑·转场提示】：正文起草时间已达建议上限（最后 10 分钟已到）！建议小组成员点击上方导航栏进入【🎓 阶段三：答辩擂台】，留足时间完成答辩质询与终稿完善！`;
+            if (isPolishDue && currentStage === 'stage3' && !this.state.isFinalSubmitted && !gatePolishAlreadySent) {
+              this.state.gateFinalPolishTriggeredMap[activeTaskId] = true;
+              const msgPolish = {
+                id: gatePolishMsgId,
+                sender: 'neutral',
+                text: `🟡 【中间委员·终稿修改提示】：全场时间已达 95%（剩余最后约 ${Math.ceil(remainingMin)} 分钟）！\n👉 请小组成员抓紧收尾答辩，把答辩中的修改结论落实到【修改论文终稿】正文中，做好最后的通读核对与润色！`,
+                timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                _timeMs: nowMs
+              };
+              if (!this.state.chatLogs.stage3) this.state.chatLogs.stage3 = [];
+              this.state.chatLogs.stage3.push(msgPolish);
+              this.syncChatLogs();
+              renderChat(this.state);
             }
-            if (sender90) {
-              const msg90 = {
-                id: gate90MsgId,
-                sender: sender90,
-                text: text90,
+
+            // ── 4. 【最后 3 分钟节点：防漏交终稿紧急警报】(全场剩余 <= 3 分钟 · 归属中间委员) ──
+            if (!this.state.gate95TriggeredMap) this.state.gate95TriggeredMap = {};
+            const gate95MsgId = `msg_gate_final_submit_${activeTaskId}_${currentGroupId}`;
+            const gate95AlreadySent = !!this.state.gate95TriggeredMap[activeTaskId] ||
+              allChatLogsList.some(m => m && (m.id === gate95MsgId || (m.text && (m.text.includes('终稿警报') || m.text.includes('距离全盘任务锁定仅剩最后')))));
+
+            const isFinalSubmitDue = (remainingSec <= 180 || remainingMin <= 3.0);
+
+            if (isFinalSubmitDue && !this.state.isFinalSubmitted && !gate95AlreadySent) {
+              this.state.gate95TriggeredMap[activeTaskId] = true;
+              const msg95 = {
+                id: gate95MsgId,
+                sender: 'neutral',
+                text: `🟡 【中间委员·终稿警报】：距离全盘任务锁定仅剩最后约 ${Math.max(1, Math.ceil(remainingMin))} 分钟！请组内确认答辩修改无误，立即点击左侧【🚀 提交论文终稿】完成归档！`,
                 timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
                 _timeMs: nowMs
               };
               if (!this.state.chatLogs[currentStage]) this.state.chatLogs[currentStage] = [];
-              this.state.chatLogs[currentStage].push(msg90);
+              this.state.chatLogs[currentStage].push(msg95);
               this.syncChatLogs();
               renderChat(this.state);
             }
-          }
-
-          // 3.5. 【阶段三：答辩收尾 ➔ 提醒进入终稿润色节点】(大中小任务自适应 + 防教师延时二次触发) - 归属【中间委员 (Neutral)】
-          if (!this.state.gateFinalPolishTriggeredMap) this.state.gateFinalPolishTriggeredMap = {};
-          const gatePolishMsgId = `msg_gate_final_polish_${activeTaskId}_${currentGroupId}`;
-          const gatePolishAlreadySent = !!this.state.gateFinalPolishTriggeredMap[activeTaskId] ||
-            allChatLogsList.some(m => m && (m.id === gatePolishMsgId || (m.text && (m.text.includes('终稿润色与收尾提示') || m.text.includes('终稿润色与前后校对')))));
-
-          // 自适应触发条件：小任务(<100m)在最后5分钟(剩余<=5.0m)触发；中大任务(>=100m)在进度>=95%触发
-          let isPolishDue = false;
-          if (totalDurationMin < 100) {
-            isPolishDue = (remainingMin <= 5.0);
-          } else {
-            isPolishDue = (totalProgress >= 0.95);
-          }
-
-          if (isPolishDue && currentStage === 'stage3' && !this.state.isFinalSubmitted && !gatePolishAlreadySent) {
-            this.state.gateFinalPolishTriggeredMap[activeTaskId] = true;
-            const msgPolish = {
-              id: gatePolishMsgId,
-              sender: 'neutral',
-              text: `🟡 【中间委员·终稿修改提示】：答辩研讨时间已过半（全场剩余约 ${Math.ceil(remainingMin)} 分钟）！\n👉 请小组成员抓紧收尾答辩，把答辩中的修改结论落实到大正文终稿中，做好最后的通读核对与润色！`,
-              timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-              _timeMs: nowMs
-            };
-            if (!this.state.chatLogs.stage3) this.state.chatLogs.stage3 = [];
-            this.state.chatLogs.stage3.push(msgPolish);
-            this.syncChatLogs();
-            renderChat(this.state);
-          }
-
-          // 4. 【最晚终稿提交防漏交节点】阶段三 ➔ 终稿提交防漏交 (大中小任务自适应 + 防教师延时二次触发) - 统一归属【中间委员 (Neutral)】
-          if (!this.state.gate95TriggeredMap) this.state.gate95TriggeredMap = {};
-          const gate95MsgId = `msg_gate_final_submit_${activeTaskId}_${currentGroupId}`;
-          const gate95AlreadySent = !!this.state.gate95TriggeredMap[activeTaskId] ||
-            allChatLogsList.some(m => m && (m.id === gate95MsgId || (m.text && (m.text.includes('终稿警报') || m.text.includes('最后提交') || m.text.includes('距离全盘任务锁定')))));
-
-          // 自适应触发条件：小任务(<100m)在最后 2.5 分钟(剩余<=2.5m)触发；中大任务(>=100m)在最后 3 分钟(剩余<=3.0m)触发
-          let isFinalSubmitDue = false;
-          if (totalDurationMin < 100) {
-            isFinalSubmitDue = (remainingMin <= 2.5);
-          } else {
-            isFinalSubmitDue = (remainingMin <= 3.0);
-          }
-
-          if (isFinalSubmitDue && !this.state.isFinalSubmitted && !gate95AlreadySent) {
-            this.state.gate95TriggeredMap[activeTaskId] = true;
-            const msg95 = {
-              id: gate95MsgId,
-              sender: 'neutral',
-              text: `🟡 【中间委员·终稿警报】：距离全盘任务锁定仅剩最后约 ${Math.ceil(remainingMin)} 分钟！请组内确认答辩修改无误，立即点击左侧【🚀 提交论文终稿】完成归档！`,
-              timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-              _timeMs: nowMs
-            };
-            if (!this.state.chatLogs[currentStage]) this.state.chatLogs[currentStage] = [];
-            this.state.chatLogs[currentStage].push(msg95);
-            this.syncChatLogs();
-            renderChat(this.state);
-          }
           }
 
           if (this.state.studentViewMode === 'workspace') {
