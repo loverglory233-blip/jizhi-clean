@@ -3,17 +3,14 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles, PresetMessages, STORAGE_KEY_USER } from './constants.js?v=20260831_v931';
+import { AgentProfiles, PresetMessages, STORAGE_KEY_USER } from './constants.js?v=20260831_v932';
 
 export async function callCozeAgentAPI(botKey, userQuery, currentContext = {}) {
   const profile = AgentProfiles[botKey] || { name: '智能体专家', avatar: '🤖' };
   const botId = profile && profile.cozeBotId ? profile.cozeBotId : '7673571806476828713';
 
-  // 构建针对当前写作阶段的提示词上下文
+  // ⚡ 直接透传结构化指令，避免与服务端 PromptFactory 二次套娃
   let enrichedQuery = userQuery;
-  if (currentContext.stage) {
-    enrichedQuery = `【协作写作阶段: ${currentContext.stage === 'stage1' ? '阶段一 (选题与公约)' : currentContext.stage === 'stage2' ? '阶段二 (正文撰写)' : '阶段三 (答辩与质询)'}】\n【课题: ${currentContext.topic || '未定'}】\n【用户对话/审阅指令】: ${userQuery}`;
-  }
 
   // 🛡️ 会话凭证：从当前登录态读取 userId + session token，供服务端鉴权扣子代理
   let sessionUserId = currentContext.userId || '';
