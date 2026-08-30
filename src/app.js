@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260830_v893";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap } from "./utils.js?v=20260830_v893";
-import { callCozeAgentAPI } from "./agents.js?v=20260830_v893";
-import { AuthManager } from "./auth.js?v=20260830_v893";
-import { CloudSyncEngine } from "./sync.js?v=20260830_v893";
-import { renderLoginView } from "./login.js?v=20260830_v893";
-import { renderTeacherPortal } from "./teacher.js?v=20260830_v893";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260830_v893";
+} from "./constants.js?v=20260830_v894";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap } from "./utils.js?v=20260830_v894";
+import { callCozeAgentAPI } from "./agents.js?v=20260830_v894";
+import { AuthManager } from "./auth.js?v=20260830_v894";
+import { CloudSyncEngine } from "./sync.js?v=20260830_v894";
+import { renderLoginView } from "./login.js?v=20260830_v894";
+import { renderTeacherPortal } from "./teacher.js?v=20260830_v894";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260830_v894";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260830_v893";
+} from "./editor.js?v=20260830_v894";
 
 // Make renderChat available on window for sync callbacks
 if (typeof window !== "undefined") {
@@ -509,20 +509,21 @@ export class App {
             }
           }
 
-          // ── 1. 【20% 时间节点：阶段一选题研讨进度提示】(归属拍卖师 · 严格已发去重，延时不重复) ──
+          // ── 1. 【20% 时间节点：阶段一到期转场提示】(总时间 20% 节点 · 归属拍卖师 · 严格全场仅 1 次) ──
           if (!this.state.gate20TriggeredMap) this.state.gate20TriggeredMap = {};
           const s1GateMsgId = `msg_gate_s1_${activeTaskId}_${currentGroupId}_transfer`;
           const s1AlreadySent = !!this.state.gate20TriggeredMap[activeTaskId] ||
-            allChatLogsList.some(m => m && (m.id === s1GateMsgId || (m.text && (m.text.includes('选题研讨的时间') || m.text.includes('【拍卖师·进度提示】')))));
+            allChatLogsList.some(m => m && (m.id === s1GateMsgId || (m.text && (m.text.includes('阶段一转场提示') || m.text.includes('阶段一分配的时间已用完') || m.text.includes('选题研讨的时间已经走过约 20%')))));
 
-          const isS1Due = (totalProgress >= 0.20 && elapsedSec >= 120); // 进度达 20% 且至少进行 2 分钟
+          const isS1Due = (totalProgress >= 0.20 && elapsedSec >= 120);
 
           if (isS1Due && currentStage === 'stage1' && !isContractConfirmed && !s1AlreadySent) {
             this.state.gate20TriggeredMap[activeTaskId] = true;
             const msgStage1 = {
               id: s1GateMsgId,
               sender: 'auctioneer',
-              text: `🎪 【拍卖师·进度提示】：选题研讨的时间已经走过约 20%（已用约 ${Math.ceil(elapsedSec / 60)} 分钟）啦，大家的想法也越来越清晰了～\n👉 如果研究方向已经基本确定，可以在公约卡片点击【签署确认】，随时进入【阶段二：学术编辑部】开始动笔；如果还有想补充的点子，也欢迎在后续撰写中继续深化！`,
+              senderName: '学术选题 · 拍卖师',
+              text: `🎪 【拍卖师·转场提示】：阶段一选题研讨时间已达 20% 节点（已分配时间已用完）！\n👉 如果研究方向已经基本确定，请全员在左侧公约卡片点击【签署确认】，全员签署后立即进入【阶段二：学术编辑部】开始动笔写作！`,
               timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
               _timeMs: nowMs
             };
@@ -532,45 +533,40 @@ export class App {
             renderChat(this.state);
           }
 
-          // ── 2. 【90% 时间节点：紧急转场与通牒提醒】(全场仅剩 10% 时间 · 归属拍卖师/责任编辑) ──
+          // ── 2. 【90% 时间节点：阶段二到期转场答辩提示】(总时间 90% 节点 · 归属责任编辑 · 严格全场仅 1 次) ──
           if (!this.state.gate90TriggeredMap) this.state.gate90TriggeredMap = {};
           const gate90MsgId = `msg_gate_transfer_${activeTaskId}_${currentGroupId}`;
           const gate90AlreadySent = !!this.state.gate90TriggeredMap[activeTaskId] ||
-            allChatLogsList.some(m => m && (m.id === gate90MsgId || (m.text && (m.text.includes('紧急通牒') || m.text.includes('正文起草时间已达建议上限')))));
+            allChatLogsList.some(m => m && (m.id === gate90MsgId || (m.text && (m.text.includes('责任编辑·转场提示') || m.text.includes('正文起草时间已达 90% 节点')))));
 
           const isTransferDue = (totalProgress >= 0.90 || remainingMin <= 10.0);
 
           if (isTransferDue && !gate90AlreadySent && currentStage !== 'stage3') {
             this.state.gate90TriggeredMap[activeTaskId] = true;
-            let sender90 = null;
-            let text90 = '';
-            if (currentStage === 'stage1') {
-              sender90 = 'auctioneer';
-              text90 = `🎪 【拍卖师·紧急通牒】：全场剩余时间仅剩约 ${Math.ceil(remainingMin)} 分钟（已达 90% 节点）！本组选题严重滞后，请全员立刻在公约卡片点击【签署确认】，随时进入正文起草！`;
-            } else if (currentStage === 'stage2') {
-              sender90 = 'managingEditor';
-              text90 = `🤝 【责任编辑·转场提示】：正文起草时间已达 90% 节点（全场仅剩最后约 ${Math.ceil(remainingMin)} 分钟）！建议小组成员点击上方导航栏进入【🎓 阶段三：答辩擂台】，留足时间完成答辩质询与终稿完善！`;
-            }
-            if (sender90) {
-              const msg90 = {
-                id: gate90MsgId,
-                sender: sender90,
-                text: text90,
-                timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                _timeMs: nowMs
-              };
-              if (!this.state.chatLogs[currentStage]) this.state.chatLogs[currentStage] = [];
-              this.state.chatLogs[currentStage].push(msg90);
-              this.syncChatLogs();
-              renderChat(this.state);
-            }
+            let sender90 = (currentStage === 'stage1') ? 'auctioneer' : 'managingEditor';
+            let text90 = (currentStage === 'stage1')
+              ? `🎪 【拍卖师·紧急转场通牒】：全场时间已达 90%（剩余最后约 ${Math.ceil(remainingMin)} 分钟）！请全员立刻在公约卡片点击【签署确认】，直接进入写作与答辩！`
+              : `🤝 【责任编辑·转场提示】：阶段二正文起草时间已达 90% 节点（写作预定时间已用完，全场仅剩最后约 ${Math.ceil(remainingMin)} 分钟）！请小组成员抓紧完成【初稿确认】，进入【🎓 阶段三：答辩擂台】，留足时间完成学术答辩与终稿完善！`;
+
+            const msg90 = {
+              id: gate90MsgId,
+              sender: sender90,
+              senderName: (sender90 === 'auctioneer') ? '学术选题 · 拍卖师' : '协同调度 · 责任编辑',
+              text: text90,
+              timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+              _timeMs: nowMs
+            };
+            if (!this.state.chatLogs[currentStage]) this.state.chatLogs[currentStage] = [];
+            this.state.chatLogs[currentStage].push(msg90);
+            this.syncChatLogs();
+            renderChat(this.state);
           }
 
-          // ── 3. 【95% 时间节点：阶段三提醒进入终稿修改】(全场仅剩 5% 时间 · 归属中间委员) ──
+          // ── 3. 【95% 时间节点：阶段三答辩收尾与进入终稿修改提示】(总时间 95% 节点 · 归属中间委员 · 严格全场仅 1 次) ──
           if (!this.state.gateFinalPolishTriggeredMap) this.state.gateFinalPolishTriggeredMap = {};
           const gatePolishMsgId = `msg_gate_final_polish_${activeTaskId}_${currentGroupId}`;
           const gatePolishAlreadySent = !!this.state.gateFinalPolishTriggeredMap[activeTaskId] ||
-            allChatLogsList.some(m => m && (m.id === gatePolishMsgId || (m.text && (m.text.includes('终稿修改提示') || m.text.includes('终稿润色与收尾提示')))));
+            allChatLogsList.some(m => m && (m.id === gatePolishMsgId || (m.text && (m.text.includes('终稿修改提示') || m.text.includes('全场时间已达 95%')))));
 
           const isPolishDue = (totalProgress >= 0.95 || remainingMin <= 5.0);
 
@@ -579,7 +575,8 @@ export class App {
             const msgPolish = {
               id: gatePolishMsgId,
               sender: 'neutral',
-              text: `🟡 【中间委员·终稿修改提示】：全场时间已达 95%（剩余最后约 ${Math.ceil(remainingMin)} 分钟）！\n👉 请小组成员抓紧收尾答辩，把答辩中的修改结论落实到【修改论文终稿】正文中，做好最后的通读核对与润色！`,
+              senderName: '答辩委员会主席 · 中间委员',
+              text: `🟡 【中间委员·终稿修改提示】：全场时间已达 95%（剩余最后约 ${Math.ceil(remainingMin)} 分钟）！\n👉 请小组成员抓紧收尾答辩，把答辩商定出的修改结论落实到【修改论文终稿】正文中，做好最后的通读核对与细节润色！`,
               timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
               _timeMs: nowMs
             };
@@ -589,11 +586,11 @@ export class App {
             renderChat(this.state);
           }
 
-          // ── 4. 【最后 3 分钟节点：防漏交终稿紧急警报】(全场剩余 <= 3 分钟 · 归属中间委员) ──
+          // ── 4. 【最后 3 分钟节点：防漏交终稿紧急警报】(全场剩余 <= 3 分钟 · 归属中间委员 · 严格全场仅 1 次) ──
           if (!this.state.gate95TriggeredMap) this.state.gate95TriggeredMap = {};
           const gate95MsgId = `msg_gate_final_submit_${activeTaskId}_${currentGroupId}`;
           const gate95AlreadySent = !!this.state.gate95TriggeredMap[activeTaskId] ||
-            allChatLogsList.some(m => m && (m.id === gate95MsgId || (m.text && (m.text.includes('终稿警报') || m.text.includes('距离全盘任务锁定仅剩最后')))));
+            allChatLogsList.some(m => m && (m.id === gate95MsgId || (m.text && (m.text.includes('最后提交警报') || m.text.includes('仅剩最后 3 分钟') || m.text.includes('终稿警报')))));
 
           const isFinalSubmitDue = (remainingSec <= 180 || remainingMin <= 3.0);
 
@@ -602,12 +599,14 @@ export class App {
             const msg95 = {
               id: gate95MsgId,
               sender: 'neutral',
-              text: `🟡 【中间委员·终稿警报】：距离全盘任务锁定仅剩最后约 ${Math.max(1, Math.ceil(remainingMin))} 分钟！请组内确认答辩修改无误，立即点击左侧【🚀 提交论文终稿】完成归档！`,
+              senderName: '答辩委员会主席 · 中间委员',
+              text: `🚨 【中间委员·最后提交警报】：距任务总截止时间仅剩最后 3 分钟！请全组立即在上方点击【📤 提交论文终稿】按钮完成最终大作业交付，防止超时漏交！`,
               timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
               _timeMs: nowMs
             };
-            if (!this.state.chatLogs[currentStage]) this.state.chatLogs[currentStage] = [];
-            this.state.chatLogs[currentStage].push(msg95);
+            const currentStageKey = this.state.currentStage || 'stage3';
+            if (!this.state.chatLogs[currentStageKey]) this.state.chatLogs[currentStageKey] = [];
+            this.state.chatLogs[currentStageKey].push(msg95);
             this.syncChatLogs();
             renderChat(this.state);
           }
