@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260831_v964
+ * Version: 20260831_v965
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260831_v964';
+  const APP_VERSION = '20260831_v965';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -8392,7 +8392,7 @@
     const isS2Locked = !isTaskDeadlineExpired && !state.isFinalSubmitted && (!isContractSigned && currentMaxOrder < 2);
     const isS3Locked = !isTaskDeadlineExpired && !state.isFinalSubmitted && currentMaxOrder < 3;
 
-    header.innerHTML = `
+    const newHeaderHtml = `
       <div class="brand-section">
         <div class="brand-logo">集智 JIZHI</div>
         <div class="brand-badge" style="background:#eff6ff; color:#1d4ed8; padding:3px 12px; border-radius:20px; font-size:12px; font-weight:700; border:1px solid #bfdbfe; display:inline-flex; align-items:center; gap:6px;">
@@ -8426,17 +8426,20 @@
       </div>
     `;
 
-    header.querySelectorAll('.stage-btn').forEach(btn => {
-      btn.addEventListener('click', () => onStageChange(btn.dataset.stage));
-    });
-    header.querySelector('#btn-user-logout').addEventListener('click', () => onLogout());
-    header.querySelector('#btn-header-ann-bell').addEventListener('click', () => onOpenAnnModal());
-    const btnBackTasks = header.querySelector('#btn-header-back-tasks');
-    if (btnBackTasks && onBackToTaskList) {
-      btnBackTasks.addEventListener('click', () => onBackToTaskList());
+    if (header.innerHTML !== newHeaderHtml) {
+      header.innerHTML = newHeaderHtml;
+      header.querySelectorAll('.stage-btn').forEach(btn => {
+        btn.addEventListener('click', () => onStageChange(btn.dataset.stage));
+      });
+      header.querySelector('#btn-user-logout').addEventListener('click', () => onLogout());
+      header.querySelector('#btn-header-ann-bell').addEventListener('click', () => onOpenAnnModal());
+      const btnBackTasks = header.querySelector('#btn-header-back-tasks');
+      if (btnBackTasks && onBackToTaskList) {
+        btnBackTasks.addEventListener('click', () => onBackToTaskList());
+      }
+      const surveyHeaderBtn = header.querySelector('#btn-header-survey-link');
+      if (surveyHeaderBtn) surveyHeaderBtn.addEventListener('click', () => onOpenSurveyModal());
     }
-    const surveyHeaderBtn = header.querySelector('#btn-header-survey-link');
-    if (surveyHeaderBtn) surveyHeaderBtn.addEventListener('click', () => onOpenSurveyModal());
   }
 
   function renderCanvas(state, handlers) {
@@ -11630,9 +11633,11 @@
    */
 
 
-  // Make renderChat available on window for sync callbacks
+  // Make renderChat available on window for sync callbacks and listen to global IME composition
   if (typeof window !== "undefined") {
     window.renderChat = renderChat;
+    window.addEventListener('compositionstart', () => { window._isGlobalComposing = true; }, true);
+    window.addEventListener('compositionend', () => { window._isGlobalComposing = false; }, true);
   }
 
   /* ==========================================================================
@@ -15820,18 +15825,13 @@
       // 默认自动触发当前阶段对应智能体的开场白（如果尚未发送）
       this.triggerStageWelcomeSpeech(this.state.currentStage || 'stage1');
 
-      // ── 核心保护：智能局部 Patch 与非冲突渲染 ──
-      const stage2Editor = document.getElementById('stage2-word-editor');
-      const stage3Editor = document.getElementById('stage3-word-editor');
+      // ── 核心保护：全场景输入法与活动输入框智能保护 ──
       const activeEl = document.activeElement;
-      const isEditorTyping = !isForced && activeEl && (
-        activeEl === stage2Editor ||
-        activeEl === stage3Editor ||
-        (stage2Editor && stage2Editor.contains(activeEl)) ||
-        (stage3Editor && stage3Editor.contains(activeEl)) ||
-        (stage2Editor && stage2Editor.dataset.isComposing === 'true') ||
-        (stage3Editor && stage3Editor.dataset.isComposing === 'true')
-      );
+      const isTagInput = activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA' || activeEl.isContentEditable);
+      const isComposingActive = !!(window._isGlobalComposing || activeEl?.dataset?.isComposing === 'true');
+      const isInputFocused = isTagInput || isComposingActive;
+
+      const isEditorTyping = !isForced && isInputFocused;
 
       // 如果用户在阶段一且画布已存在，且非强制重置，做局部精准 Patch
       const existingContractCard = document.querySelector('.contract-card');
