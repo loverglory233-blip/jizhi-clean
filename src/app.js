@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260830_v839";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash } from "./utils.js?v=20260830_v839";
-import { callCozeAgentAPI } from "./agents.js?v=20260830_v839";
-import { AuthManager } from "./auth.js?v=20260830_v839";
-import { CloudSyncEngine } from "./sync.js?v=20260830_v839";
-import { renderLoginView } from "./login.js?v=20260830_v839";
-import { renderTeacherPortal } from "./teacher.js?v=20260830_v839";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260830_v839";
+} from "./constants.js?v=20260830_v840";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash } from "./utils.js?v=20260830_v840";
+import { callCozeAgentAPI } from "./agents.js?v=20260830_v840";
+import { AuthManager } from "./auth.js?v=20260830_v840";
+import { CloudSyncEngine } from "./sync.js?v=20260830_v840";
+import { renderLoginView } from "./login.js?v=20260830_v840";
+import { renderTeacherPortal } from "./teacher.js?v=20260830_v840";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260830_v840";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260830_v839";
+} from "./editor.js?v=20260830_v840";
 
 // Make renderChat available on window for sync callbacks
 if (typeof window !== "undefined") {
@@ -2264,6 +2264,8 @@ ${recentChats}
           if (isTopicConsensusSignal || hasValidConsensusPair) {
             this.state.stage1PendingDivergence = false;
             this.state.stage1PendingRefinement = true;
+            s1.flowStep = 'refining';
+            this.syncStage1();
             setTimeout(async () => {
               const allPropsTitles = (s1.proposals || []).map(p => `《${p.title}》`).join(' 与 ');
               const refinePrompt = `小组成员已在讨论区就融合研究论题达成初步共识（涉及候选提案: ${allPropsTitles || '多方构想'}）。
@@ -2844,10 +2846,13 @@ ${recentDefenseChat}
         // 🛡️ 严格学术铁律：只有【全票一致】才自动确立课题；只要不是全票一致（无论 2:1 还是平票），一律算【存在分歧】，留由组员在讨论区协商确定！
         if (isUnanimous && winningProposal) {
           s1.mergedTitle = winningProposal.title;
+          s1.flowStep = 'refining';
           this.state.stage1PendingRefinement = true;
         } else {
+          s1.flowStep = 'divergence';
           this.state.stage1PendingDivergence = true;
         }
+        this.syncStage1();
 
         if (!s1.contract.timeAllocations) {
           s1.contract.timeAllocations = { background: 25, literature: 30, questions: 25, method: 40, reflection: 20, references: 10 };

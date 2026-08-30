@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260830_v839
+ * Version: 20260830_v840
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260830_v839';
+  const APP_VERSION = '20260830_v840';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -13355,6 +13355,8 @@
             if (isTopicConsensusSignal || hasValidConsensusPair) {
               this.state.stage1PendingDivergence = false;
               this.state.stage1PendingRefinement = true;
+              s1.flowStep = 'refining';
+              this.syncStage1();
               setTimeout(async () => {
                 const allPropsTitles = (s1.proposals || []).map(p => `《${p.title}》`).join(' 与 ');
                 const refinePrompt = `小组成员已在讨论区就融合研究论题达成初步共识（涉及候选提案: ${allPropsTitles || '多方构想'}）。
@@ -13935,10 +13937,13 @@
           // 🛡️ 严格学术铁律：只有【全票一致】才自动确立课题；只要不是全票一致（无论 2:1 还是平票），一律算【存在分歧】，留由组员在讨论区协商确定！
           if (isUnanimous && winningProposal) {
             s1.mergedTitle = winningProposal.title;
+            s1.flowStep = 'refining';
             this.state.stage1PendingRefinement = true;
           } else {
+            s1.flowStep = 'divergence';
             this.state.stage1PendingDivergence = true;
           }
+          this.syncStage1();
 
           if (!s1.contract.timeAllocations) {
             s1.contract.timeAllocations = { background: 25, literature: 30, questions: 25, method: 40, reflection: 20, references: 10 };
