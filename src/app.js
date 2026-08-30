@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260830_v810";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash } from "./utils.js?v=20260830_v810";
-import { callCozeAgentAPI } from "./agents.js?v=20260830_v810";
-import { AuthManager } from "./auth.js?v=20260830_v810";
-import { CloudSyncEngine } from "./sync.js?v=20260830_v810";
-import { renderLoginView } from "./login.js?v=20260830_v810";
-import { renderTeacherPortal } from "./teacher.js?v=20260830_v810";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260830_v810";
+} from "./constants.js?v=20260830_v811";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash } from "./utils.js?v=20260830_v811";
+import { callCozeAgentAPI } from "./agents.js?v=20260830_v811";
+import { AuthManager } from "./auth.js?v=20260830_v811";
+import { CloudSyncEngine } from "./sync.js?v=20260830_v811";
+import { renderLoginView } from "./login.js?v=20260830_v811";
+import { renderTeacherPortal } from "./teacher.js?v=20260830_v811";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260830_v811";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260830_v810";
+} from "./editor.js?v=20260830_v811";
 
 // Make renderChat available on window for sync callbacks
 if (typeof window !== "undefined") {
@@ -789,7 +789,7 @@ export class App {
     }
   }
 
-  // 🌐 通用智能体静默/情绪提示发射器：真 AI 生成，调用期间显示 Loading 动画，失败优雅静默，严禁假套话兜底
+  // 🌐 通用智能体静默/情绪提示发射器：真 AI 生成，调用期间显示 Loading 动画，失败时采用温暖兜底或提示 @智能体 重新召唤
   async queueAgentNudge(botKey, prompt, fallbackText = '', stage = 'stage2') {
     if (this._isHandlingAgentNudge) return; // 🛡️ 严格单飞并发锁，杜绝大模型双发
     this._isHandlingAgentNudge = true;
@@ -813,26 +813,44 @@ export class App {
       // 2. 移除 loading 气泡
       this.state.chatLogs[stage] = this.state.chatLogs[stage].filter(m => m.id !== loadingMsgId);
       
-      if (text && text.trim().length > 0) {
-        const msg = {
-          sender: botKey,
-          text: text.trim(),
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          _timeMs: Date.now()
-        };
-        this.state.chatLogs[stage].push(msg);
-        this.syncChatLogs();
-        if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
-        renderChat(this.state);
-      } else {
-        // 大模型未返回内容时直接安静移除 loading，绝不吐写死假套话
-        this.syncChatLogs();
-        renderChat(this.state);
+      let finalText = (text && text.trim().length > 0) ? text.trim() : '';
+      if (!finalText) {
+        if (fallbackText && fallbackText.trim().length > 0) {
+          finalText = fallbackText.trim();
+        } else {
+          const roleName = botKey === 'auctioneer' ? '拍卖师' : (botKey === 'reviewingEditor' ? '审稿编辑' : (botKey === 'neutral' ? '中间委员' : '责任编辑'));
+          finalText = `💡 【${roleName}】：网络响应稍微慢了一步～如果大家需要我的针对性指导，可以在讨论区输入 @${roleName} 重新召唤我！`;
+        }
       }
+
+      const msg = {
+        sender: botKey,
+        text: finalText,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        _timeMs: Date.now()
+      };
+      this.state.chatLogs[stage].push(msg);
+      this.syncChatLogs();
+      if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+      renderChat(this.state);
     } catch (e) {
       console.warn('Agent nudge error:', e);
       this.state.chatLogs[stage] = this.state.chatLogs[stage].filter(m => m.id !== loadingMsgId);
+      
+      let finalText = (fallbackText && fallbackText.trim().length > 0) ? fallbackText.trim() : '';
+      if (!finalText) {
+        const roleName = botKey === 'auctioneer' ? '拍卖师' : (botKey === 'reviewingEditor' ? '审稿编辑' : (botKey === 'neutral' ? '中间委员' : '责任编辑'));
+        finalText = `💡 【${roleName}】：网络响应稍微慢了一步～如果大家需要我的针对性指导，可以在讨论区输入 @${roleName} 重新召唤我！`;
+      }
+      const msg = {
+        sender: botKey,
+        text: finalText,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        _timeMs: Date.now()
+      };
+      this.state.chatLogs[stage].push(msg);
       this.syncChatLogs();
+      if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
       renderChat(this.state);
     } finally {
       this._isHandlingAgentNudge = false;
@@ -890,16 +908,24 @@ export class App {
             this.lastEmotionHandledId = lastNegativeChat._timeMs;
             this._isHandlingEmotion = true;
             let agentSender = 'managingEditor';
-            if (stage === 'stage1') agentSender = 'auctioneer';
-            else if (stage === 'stage2') agentSender = 'managingEditor';
-            else if (stage === 'stage3') agentSender = 'neutral';
+            let comfortText = '';
+            if (stage === 'stage1') {
+              agentSender = 'auctioneer';
+              comfortText = `🎪 【拍卖师·选题启发】：遇到构思瓶颈是非常正常的学术探索过程！\n💡 建议可以从大家熟悉的真实教学场景切入，先列出 1~2 个最想解决的具体痛点，再逐步完善理论框架，全组一起出谋划策！`;
+            } else if (stage === 'stage2') {
+              agentSender = 'managingEditor';
+              comfortText = `🤝 【责任编辑·暖心护航】：感到写作卡顿或疲惫时，不妨先暂停打字深呼吸！\n💡 可以先在研讨区把卡点或困惑抛给组员，大家头脑风暴互相提供思路支架，一步一步拆解难点！`;
+            } else if (stage === 'stage3') {
+              agentSender = 'neutral';
+              comfortText = `🟡 【中间委员·答辩启发】：学术答辩中的尖锐质询正是让方案更加严谨的宝贵契机！\n💡 反方的质询指出了可以进一步补强的空间，建议结合正方刚才提到的实践应用优势，从操作化补救的角度从容辩护！`;
+            }
 
             const negativeRaw = (lastNegativeChat.text || '').trim();
             const comfortPrompt = `有同学在协作中流露出了挫败/疲惫情绪，原话为：「${negativeRaw}」。请以${stage === 'stage1' ? '学术拍卖师' : stage === 'stage2' ? '责任编辑' : '中间委员'}的身份，先用 2~3 句真诚安抚这份情绪（共情但不肉麻、不说教），再结合当前写作阶段给出 1 个具体、可立即照做的小建议，帮助全组重新找回节奏。80~120 字，语气温暖自然。`;
             
             setTimeout(async () => {
               try {
-                await this.queueAgentNudge(agentSender, comfortPrompt, '', stage);
+                await this.queueAgentNudge(agentSender, comfortPrompt, comfortText, stage);
               } finally {
                 this._isHandlingEmotion = false;
               }
