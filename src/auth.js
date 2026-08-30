@@ -14,8 +14,8 @@ import {
   DefaultTasks,
   DefaultAnnouncements,
   DefaultReferencePapers
-} from './constants.js?v=20260830_v799';
-import { formatExportDateTime, formatDurationHuman } from './utils.js?v=20260830_v799';
+} from './constants.js?v=20260830_v800';
+import { formatExportDateTime, formatDurationHuman } from './utils.js?v=20260830_v800';
 
 export class AuthManager {
   constructor() {
@@ -1418,7 +1418,15 @@ export class AuthManager {
     const ann = announcements.find(a => a.id === annId);
     const currUser = this.getCurrentUser();
 
-    // 1. 优先以最高优先级向服务端轻量回传已读标记（0 依赖本地 localStorage，绝不受 Quota 影响）
+    // ⚡ 1. 立即持久化本地已读记录（杜绝任何时序差导致的二次弹出）
+    try {
+      const localMap = JSON.parse(localStorage.getItem('jizhi_locally_read_announcements') || '{}');
+      localMap[annId] = true;
+      localStorage.setItem('jizhi_locally_read_announcements', JSON.stringify(localMap));
+      sessionStorage.setItem('jizhi_locally_read_announcements', JSON.stringify(localMap));
+    } catch (e) {}
+
+    // 2. 优先以最高优先级向服务端轻量回传已读标记（单条极速写入，绝不全量推流阻塞）
     try {
       fetch('sync.php?action=update_read_status', {
         method: 'POST',
@@ -1433,7 +1441,7 @@ export class AuthManager {
       }).catch(() => {});
     } catch (e) {}
 
-    // 2. 本地内存与缓存安全更新 (带 QuotaExceeded 自动熔断与大对象修剪保护)
+    // 3. 本地内存与缓存安全更新
     if (ann) {
       if (!ann.readStatus) ann.readStatus = {};
       if (!ann.readGroupStatus) ann.readGroupStatus = {};
@@ -1465,15 +1473,11 @@ export class AuthManager {
       try {
         localStorage.setItem(STORAGE_KEY_ANNOUNCEMENTS, JSON.stringify(announcements));
       } catch (err) {
-        console.warn('[Storage] QuotaExceeded on save announcements, cleaning legacy heavy items...', err);
         this._pruneStorageQuota();
         try {
           localStorage.setItem(STORAGE_KEY_ANNOUNCEMENTS, JSON.stringify(announcements));
         } catch (e2) {}
       }
-
-      // 3. 及时推送至全局教务元数据，让教师端实时看到已读学生与小组名单
-      this.pushGlobalMeta();
     }
   }
 

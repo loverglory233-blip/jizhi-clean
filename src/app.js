@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260830_v799";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash } from "./utils.js?v=20260830_v799";
-import { callCozeAgentAPI } from "./agents.js?v=20260830_v799";
-import { AuthManager } from "./auth.js?v=20260830_v799";
-import { CloudSyncEngine } from "./sync.js?v=20260830_v799";
-import { renderLoginView } from "./login.js?v=20260830_v799";
-import { renderTeacherPortal } from "./teacher.js?v=20260830_v799";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260830_v799";
+} from "./constants.js?v=20260830_v800";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash } from "./utils.js?v=20260830_v800";
+import { callCozeAgentAPI } from "./agents.js?v=20260830_v800";
+import { AuthManager } from "./auth.js?v=20260830_v800";
+import { CloudSyncEngine } from "./sync.js?v=20260830_v800";
+import { renderLoginView } from "./login.js?v=20260830_v800";
+import { renderTeacherPortal } from "./teacher.js?v=20260830_v800";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260830_v800";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260830_v799";
+} from "./editor.js?v=20260830_v800";
 
 // Make renderChat available on window for sync callbacks
 if (typeof window !== "undefined") {
@@ -1338,6 +1338,10 @@ ${recentChats}
 
     const isAnnRead = (a) => {
       if (!a) return false;
+      try {
+        const localReadMap = JSON.parse(localStorage.getItem('jizhi_locally_read_announcements') || '{}');
+        if (localReadMap[a.id]) return true;
+      } catch (e) {}
       if (currentUser) {
         if (currentUser.id && a.readStatus && a.readStatus[currentUser.id]) return true;
         if (currentUser.studentCode && a.readStatus && a.readStatus[currentUser.studentCode]) return true;
@@ -1394,6 +1398,10 @@ ${recentChats}
 
     const isAnnRead = (a) => {
       if (!a) return false;
+      try {
+        const localReadMap = JSON.parse(localStorage.getItem('jizhi_locally_read_announcements') || '{}');
+        if (localReadMap[a.id]) return true;
+      } catch (e) {}
       if (currentUser) {
         if (currentUser.id && a.readStatus && a.readStatus[currentUser.id]) return true;
         if (currentUser.studentCode && a.readStatus && a.readStatus[currentUser.studentCode]) return true;

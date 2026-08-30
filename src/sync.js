@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState } from './constants.js?v=20260830_v799';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal } from './utils.js?v=20260830_v799';
+import { InitialState } from './constants.js?v=20260830_v800';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal } from './utils.js?v=20260830_v800';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -97,10 +97,12 @@ export class CloudSyncEngine {
     // 🛡️ 仅当当前标签页正处于教师管理大屏时，才不给自己弹窗；学生端（及学生视角）100% 触发弹窗
     if (isTeacherPortalUI) return;
 
-    if (!this._shownDeadlineEvents) this._shownDeadlineEvents = new Set();
+    let shownEvents = {};
+    try { shownEvents = JSON.parse(sessionStorage.getItem('jizhi_shown_deadline_events') || '{}'); } catch (e) {}
     const eventKey = `${t.id}_${t.deadline}`;
-    if (this._shownDeadlineEvents.has(eventKey)) return;
-    this._shownDeadlineEvents.add(eventKey);
+    if (shownEvents[eventKey]) return;
+    shownEvents[eventKey] = true;
+    try { sessionStorage.setItem('jizhi_shown_deadline_events', JSON.stringify(shownEvents)); } catch (e) {}
 
     const prevExpired = isTaskExpired(prevDeadline);
     const nowExpired = isTaskExpired(t.deadline);

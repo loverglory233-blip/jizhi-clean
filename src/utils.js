@@ -157,48 +157,15 @@ export async function downloadFileBlob(filename, textContent = null, fileUrl = n
       cleanUrl = cleanUrl.substring(cleanUrl.indexOf('/uploads/'));
     }
 
-    if (cleanUrl.startsWith('data:')) {
-      const a = document.createElement('a');
-      a.href = cleanUrl;
-      a.download = safeFilename;
-      document.body.appendChild(a);
-      a.click();
-      setTimeout(() => { if (document.body.contains(a)) document.body.removeChild(a); }, 300);
-      return;
-    }
-
-    try {
-      // 🚀 通过 fetch 转化为真实二进制 Blob，强制以真实文件名触发原生下载，绝不损坏文件！
-      const res = await fetch(cleanUrl);
-      if (res.ok) {
-        const blob = await res.blob();
-        const blobUrl = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = blobUrl;
-        a.download = safeFilename;
-        document.body.appendChild(a);
-        a.click();
-        setTimeout(() => {
-          if (document.body.contains(a)) document.body.removeChild(a);
-          URL.revokeObjectURL(blobUrl);
-        }, 1000);
-        return;
-      }
-    } catch (err) {
-      console.warn('Fetch blob download fallback:', err);
-    }
-
-    // 若 fetch 受限，使用原生 a 标签直接跳转下载
-    try {
-      const a = document.createElement('a');
-      a.href = cleanUrl;
-      a.download = safeFilename;
-      a.target = '_blank';
-      document.body.appendChild(a);
-      a.click();
-      setTimeout(() => { if (document.body.contains(a)) document.body.removeChild(a); }, 500);
-      return;
-    } catch (e) {}
+    // ⚡ 0 毫秒即时唤起原生下载：绝不用 fetch 阻塞等待全文件下载到内存
+    const a = document.createElement('a');
+    a.href = cleanUrl;
+    a.download = safeFilename;
+    a.target = '_blank';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => { if (document.body.contains(a)) document.body.removeChild(a); }, 500);
+    return;
   }
 
   // 2. 兜底保障：若文件 URL 暂未落盘或为纯文本，自适应生成规范文献学习文档立即启动下载，确保点击必有响应！

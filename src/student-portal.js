@@ -7,8 +7,8 @@ import {
   STORAGE_KEY_TASKS,
   STORAGE_KEY_ANNOUNCEMENTS,
   STORAGE_KEY_CLASSES
-} from "./constants.js?v=20260830_v799";
-import { escapeHtml, isTaskExpired, formatDurationHuman, formatStandardDateDash, showGlobalBannerNotice } from "./utils.js?v=20260830_v799";
+} from "./constants.js?v=20260830_v800";
+import { escapeHtml, isTaskExpired, formatDurationHuman, formatStandardDateDash, showGlobalBannerNotice } from "./utils.js?v=20260830_v800";
 
 /* ==========================================================================
    10. STUDENT TASK PORTAL (CENTRALIZED HUB & COLLABORATION ENTRY)
@@ -24,8 +24,16 @@ export function renderStudentTaskPortal(container, authManager, state, onSelectT
         if (e.data && e.data.type === 'task_extended' && e.data.task) {
           const t = e.data.task;
           renderStudentTaskPortal(container, authManager, state, onSelectTask, onLogout, onSwitchTeacher, onOpenAnnModal, onOpenSurveyModal);
-          const extDurationStr = t.lastExtension?.extendDurationStr || (t.lastExtension?.addedMinutes ? `（增加了 ${t.lastExtension.addedMinutes} 分钟）` : '');
-          showGlobalBannerNotice('⏳ 任务延期提醒', `班级写作任务《${t.title || '协作任务'}》截止时间已延长至 ${t.deadline} ${extDurationStr}！`, 'info', 8000);
+          
+          let shownEvents = {};
+          try { shownEvents = JSON.parse(sessionStorage.getItem('jizhi_shown_deadline_events') || '{}'); } catch (err) {}
+          const eventKey = `${t.id}_${t.deadline}`;
+          if (!shownEvents[eventKey]) {
+            shownEvents[eventKey] = true;
+            try { sessionStorage.setItem('jizhi_shown_deadline_events', JSON.stringify(shownEvents)); } catch (err) {}
+            const extDurationStr = t.lastExtension?.extendDurationStr || (t.lastExtension?.addedMinutes ? `（增加了 ${t.lastExtension.addedMinutes} 分钟）` : '');
+            showGlobalBannerNotice('⏳ 任务延期提醒', `班级写作任务《${t.title || '协作任务'}》截止时间已延长至 ${t.deadline} ${extDurationStr}！`, 'info', 8000);
+          }
         }
       };
     } catch (e) {}
@@ -44,19 +52,6 @@ export function renderStudentTaskPortal(container, authManager, state, onSelectT
         const newAnnsJson = localStorage.getItem(STORAGE_KEY_ANNOUNCEMENTS) || '[]';
         const newClassesJson = localStorage.getItem(STORAGE_KEY_CLASSES) || '[]';
         if (oldTasksJson !== newTasksJson || oldAnnsJson !== newAnnsJson || oldClassesJson !== newClassesJson) {
-          if (oldTasksJson !== newTasksJson) {
-            try {
-              const oldT = JSON.parse(oldTasksJson);
-              const newT = JSON.parse(newTasksJson);
-              newT.forEach(nt => {
-                const ot = oldT.find(o => o.id === nt.id);
-                if (ot && nt.deadline && ot.deadline && ot.deadline !== nt.deadline) {
-                  const extDurationStr = nt.lastExtension?.extendDurationStr || (nt.lastExtension?.addedMinutes ? `（增加了 ${nt.lastExtension.addedMinutes} 分钟）` : '');
-                  showGlobalBannerNotice('⏳ 任务延期提醒', `班级写作任务《${nt.title || '协作任务'}》截止时间已延长至 ${nt.deadline} ${extDurationStr}！`, 'info', 8000);
-                }
-              });
-            } catch (err) {}
-          }
           if (document.activeElement?.id !== 'sel-student-class-switch') {
             renderStudentTaskPortal(container, authManager, state, onSelectTask, onLogout, onSwitchTeacher, onOpenAnnModal, onOpenSurveyModal);
             return; // 重渲染会重建整套循环，此处无需再自行调度
