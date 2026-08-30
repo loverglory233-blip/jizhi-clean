@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260830_v806
+ * Version: 20260830_v807
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260830_v806';
+  const APP_VERSION = '20260830_v807';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -11902,6 +11902,7 @@
     }
 
     initCrossStageInactivityChecker() {
+      this._nudgeCounts = this._nudgeCounts || {};
       if (this.stageInactivityTimer) clearInterval(this.stageInactivityTimer);
       this.stageInactivityTimer = setInterval(() => {
         // ⚡ 单点守护主节点动态选举：优先由组长担当；若组长缺勤/掉线，自动由当前在场学号最小的在线成员接管，杜绝单点失效与并发重复！
@@ -11993,10 +11994,12 @@
           const taskDurMin = (curTask && curTask.durationMinutes) ? Number(curTask.durationMinutes) : 60;
           const silenceThresholdMs = taskDurMin < 60 ? 120000 : (taskDurMin <= 180 ? 180000 : 270000);
 
-          // 1. 【提案阶段研讨静默守护】：研讨区持续无人发言达到阈值（标准3分钟）准时破冰提示！
+          // 1. 【提案阶段研讨静默守护】：研讨区持续无人发言达到阈值（标准3分钟）准时破冰提示（最多2次）！
           if (submittedCount < totalMembersCount && silenceDurationMs >= silenceThresholdMs) {
-            if (!this.lastDiscussionNudgeTime || now - this.lastDiscussionNudgeTime > (silenceThresholdMs + 60000)) {
+            const count = this._nudgeCounts['s1_discussion'] || 0;
+            if (count < 2 && (!this.lastDiscussionNudgeTime || now - this.lastDiscussionNudgeTime > (silenceThresholdMs + 60000))) {
               this.lastDiscussionNudgeTime = now;
+              this._nudgeCounts['s1_discussion'] = count + 1;
               const msg = {
                 sender: 'auctioneer',
                 text: `💡 【拍卖师·研讨互动提示】：关注到大家正在构思选题！可以在讨论区交流灵感与研究想法，构思成熟后点击左侧【提交我的选题】卡片进行提交～`,
@@ -12012,10 +12015,12 @@
             }
           }
 
-          // 2. 【零提案超时引导】：开场 > 6 分钟仍 0 人提交提案，引导尽快动笔
+          // 2. 【零提案超时引导】：开场 > 6 分钟仍 0 人提交提案，引导尽快动笔（最多2次）
           if (submittedCount === 0 && stage1DurationMs > 360000) {
-            if (!this.lastZeroProposalNudgeTime || now - this.lastZeroProposalNudgeTime > 300000) {
+            const count = this._nudgeCounts['s1_zero_prop'] || 0;
+            if (count < 2 && (!this.lastZeroProposalNudgeTime || now - this.lastZeroProposalNudgeTime > 300000)) {
               this.lastZeroProposalNudgeTime = now;
+              this._nudgeCounts['s1_zero_prop'] = count + 1;
               const msg = {
                 sender: 'auctioneer',
                 text: `⏳ 【拍卖师·选题提交引导】：研讨已经展开一段时间啦！\n👉 请各位组员将脑海中构思成熟的研究题目，点击左侧【提交我的选题】卡片正式提交到提案池，开启学术竞拍！`,
@@ -12031,13 +12036,15 @@
             }
           }
 
-          // 3. 【个别落后跟进】：有人已提交，但超过 3 分钟仍有个别人未交，跟进提醒未交同学
+          // 3. 【个别落后跟进】：有人已提交，但超过 3 分钟仍有个别人未交，跟进提醒未交同学（最多2次）
           if (submittedCount > 0 && submittedCount < totalMembersCount) {
             const lastProposal = proposals[proposals.length - 1];
             const lastProposalTime = lastProposal ? (lastProposal.updatedAt || this.stage1StartTime) : this.stage1StartTime;
             if (now - lastProposalTime > 180000) {
-              if (!this.lastPartialProposalNudgeTime || now - this.lastPartialProposalNudgeTime > 180000) {
+              const count = this._nudgeCounts['s1_partial_prop'] || 0;
+              if (count < 2 && (!this.lastPartialProposalNudgeTime || now - this.lastPartialProposalNudgeTime > 180000)) {
                 this.lastPartialProposalNudgeTime = now;
+                this._nudgeCounts['s1_partial_prop'] = count + 1;
                 const unsubmitted = membersList.filter(m => !submittedAuthors.has(m.studentCode) && !submittedAuthors.has(m.id));
                 if (unsubmitted.length > 0) {
                   const names = unsubmitted.map(m => m.name).join('、');
@@ -12058,14 +12065,16 @@
             }
           }
 
-          // 4. 提案集齐但投票守护（0人投 3min，部分人投 2min）
+          // 4. 提案集齐但投票守护（0人投 3min，部分人投 2min，最多2次）
           if (submittedCount >= totalMembersCount && votesCastCount < totalMembersCount) {
             const lastVoteTime = s1._lastVoteTime || this.stage1StartTime;
             const voteSilenceMs = now - lastVoteTime;
             const shouldVoteNudge = (votesCastCount === 0 && voteSilenceMs > 180000) || (votesCastCount > 0 && voteSilenceMs > 120000);
             if (shouldVoteNudge) {
-              if (!this.lastVoteNudgeTime || now - this.lastVoteNudgeTime > 180000) {
+              const count = this._nudgeCounts['s1_vote'] || 0;
+              if (count < 2 && (!this.lastVoteNudgeTime || now - this.lastVoteNudgeTime > 180000)) {
                 this.lastVoteNudgeTime = now;
+                this._nudgeCounts['s1_vote'] = count + 1;
                 const unvoted = membersList.filter(m => !s1.hasVoted || (!s1.hasVoted[m.studentCode] && !s1.hasVoted[m.id]));
                 const names = unvoted.map(m => m.name).join('、');
                 const text = (votesCastCount === 0)
@@ -12087,7 +12096,7 @@
             }
           }
 
-          // 5. 投票已完成且合约草案已生成 ➔ 公约协商与催签精密三层守护
+          // 5. 投票已完成且合约草案已生成 ➔ 催签守护（投票后已有大模型专属引导，此处专注催签，最多2次）
           const signedMap = (s1.contract && s1.contract.confirmedMembers) ? s1.contract.confirmedMembers : {};
           const signedCount = Object.values(signedMap).filter(Boolean).length;
           const isContractDrafted = votesCastCount >= totalMembersCount;
@@ -12097,29 +12106,12 @@
             const timeSinceContractEdit = now - lastContractActionTime;
             const contractDraftTime = s1.contract._draftedTime || this.stage1StartTime;
 
-            // 规则 A（双静默）：左侧分工/时间无修改 > 3min，且右侧讨论区静默 > 3min ➔ 提示协商分工与时间
-            if (timeSinceContractEdit > 180000 && silenceDurationMs > 180000) {
-              if (!this.lastContractSilenceNudgeTime || now - this.lastContractSilenceNudgeTime > 240000) {
-                this.lastContractSilenceNudgeTime = now;
-                const msg = {
-                  sender: 'auctioneer',
-                  text: `💡 【拍卖师·分工与时间协商提示】：全组已完成选题竞拍！\n👉 如果对左侧各成员的章节分工或时间预算有想法，大家可以在讨论区充分交流，达成共识后在卡片中直接修改确认！`,
-                  timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                  _timeMs: now
-                };
-                if (!this.state.chatLogs.stage1) this.state.chatLogs.stage1 = [];
-                this.state.chatLogs.stage1.push(msg);
-                this.syncChatLogs();
-                if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
-                renderChat(this.state);
-                return;
-              }
-            }
-
-            // 规则 B（全员未签）：在没有修改的情况下，没有任何人签署超过 3 分钟 ➔ 拍卖师提示开始签署
+            // 规则 A（全员未签）：在没有修改的情况下，没有任何人签署超过 3 分钟 ➔ 拍卖师提示开始签署（最多2次）
             if (signedCount === 0 && (now - contractDraftTime > 180000) && timeSinceContractEdit > 180000) {
-              if (!this.lastZeroSignNudgeTime || now - this.lastZeroSignNudgeTime > 240000) {
+              const count = this._nudgeCounts['s1_zero_sign'] || 0;
+              if (count < 2 && (!this.lastZeroSignNudgeTime || now - this.lastZeroSignNudgeTime > 240000)) {
                 this.lastZeroSignNudgeTime = now;
+                this._nudgeCounts['s1_zero_sign'] = count + 1;
                 const msg = {
                   sender: 'auctioneer',
                   text: `📜 【拍卖师·公约签署提示】：公约草案已生成一段时间啦！\n👉 请组员核对左侧《学术合作公约》上的章节分工与时间规划，确认无误后点击【确认签署】，开启团队学术合作！`,
@@ -12135,12 +12127,14 @@
               }
             }
 
-            // 规则 C（部分已签）：有人已签署，但仍有成员未签超过 2 分钟 ➔ 拍卖师催签未签组员
+            // 规则 B（部分已签）：有人已签署，但仍有成员未签超过 2 分钟 ➔ 拍卖师催签未签组员（最多2次）
             if (signedCount > 0 && signedCount < totalMembersCount) {
               const lastSignTime = s1.contract._lastSignTime || contractDraftTime;
               if (now - lastSignTime > 120000) {
-                if (!this.lastSignContractNudgeTime || now - this.lastSignContractNudgeTime > 180000) {
+                const count = this._nudgeCounts['s1_partial_sign'] || 0;
+                if (count < 2 && (!this.lastSignContractNudgeTime || now - this.lastSignContractNudgeTime > 180000)) {
                   this.lastSignContractNudgeTime = now;
+                  this._nudgeCounts['s1_partial_sign'] = count + 1;
                   const unsignedMembers = membersList.filter(m => !signedMap[m.studentCode] && !signedMap[m.id]);
                   const unsignedNames = unsignedMembers.map(m => m.name).join('、');
                   const msg = {
@@ -12186,10 +12180,12 @@
           const s2NudgeCooldownMs = taskDurMin < 60 ? 210000 : (taskDurMin <= 180 ? 360000 : 600000);
           const s2SilenceThresholdMs = taskDurMin < 60 ? 120000 : (taskDurMin <= 180 ? 180000 : 270000);
 
-          // 1. 阶段二开场静默提示 (纯系统模板)：开场达到阈值完全静默且正文字数 < 50 字
+          // 1. 阶段二开场静默提示 (纯系统模板)：开场达到阈值完全静默且正文字数 < 50 字（最多2次）
           if (silenceDurationMs > s2SilenceThresholdMs && plainTextLen < 50) {
-            if (!this.lastS2SilenceNudgeTime || now - this.lastS2SilenceNudgeTime > (s2SilenceThresholdMs + 60000)) {
+            const count = this._nudgeCounts['s2_silence'] || 0;
+            if (count < 2 && (!this.lastS2SilenceNudgeTime || now - this.lastS2SilenceNudgeTime > (s2SilenceThresholdMs + 60000))) {
               this.lastS2SilenceNudgeTime = now;
+              this._nudgeCounts['s2_silence'] = count + 1;
               const msg = {
                 sender: 'managingEditor',
                 text: `🤝 【责任编辑·起草提示】：大家已进入阶段二正文协作！\n👉 请组员按照阶段一公约分工开始撰写各自负责的内容；撰写同时多阅读同伴段落，在研讨区互相交流衔接，协同推进！`,
@@ -12205,9 +12201,10 @@
             }
           }
 
-          // 2. 责任编辑过程守护：周期性读取【实际贡献百分比】与【研讨发言投入】
+          // 2. 责任编辑过程守护：周期性读取【实际贡献百分比】与【研讨发言投入】（最多2次）
           const minContribThreshold = taskDurMin < 60 ? 150 : (taskDurMin <= 180 ? 300 : 600);
-          if (!this.lastS2ContribNudgeTime || now - this.lastS2ContribNudgeTime > s2NudgeCooldownMs) {
+          const s2ContribCount = this._nudgeCounts['s2_contrib'] || 0;
+          if (s2ContribCount < 2 && (!this.lastS2ContribNudgeTime || now - this.lastS2ContribNudgeTime > s2NudgeCooldownMs)) {
             // 1. 计算总投入与每位成员的实际贡献百分比（100% 依据 Etherpad 真实写作字数贡献）
             let totalContrib = 0;
             membersList.forEach(m => {
@@ -12229,6 +12226,7 @@
 
             if (severeInactiveMembers.length > 0) {
               this.lastS2ContribNudgeTime = now;
+              this._nudgeCounts['s2_contrib'] = s2ContribCount + 1;
               const targetName = severeInactiveMembers[0];
               const tasks = (this.state.stage1 && this.state.stage1.contract && this.state.stage1.contract.taskAssignments) ? this.state.stage1.contract.taskAssignments : {};
               let targetChapter = '负责的章节';
@@ -12311,10 +12309,12 @@
           // ── 阶段二修改期静默守护：审稿编辑保持后台严肃倾听，绝不随意发无意义跟进打扰学生专注写作 ──
           // （仅在学生主动 @审稿编辑 时或到达三大官方质检里程碑时出面指导）
 
-          // 4) 修改期后续周期性提醒 (每隔一个巡检周期做一次跟进提示)
+          // 4) 修改期后续周期性提醒 (动态自适应任务时长，最多2次)
           if (this.state.stage2ReviewingFinishedTime && this.state.stage2FirstPostReviewNudgeSent && silenceDurationMs >= s2NudgeCooldownMs) {
-            if (!this.lastS2PostMeetingSilenceNudgeTime || now - this.lastS2PostMeetingSilenceNudgeTime >= s2NudgeCooldownMs) {
+            const count = this._nudgeCounts['s2_post_meeting'] || 0;
+            if (count < 2 && (!this.lastS2PostMeetingSilenceNudgeTime || now - this.lastS2PostMeetingSilenceNudgeTime >= s2NudgeCooldownMs)) {
               this.lastS2PostMeetingSilenceNudgeTime = now;
+              this._nudgeCounts['s2_post_meeting'] = count + 1;
               const msg = {
                 sender: 'managingEditor',
                 text: `💡 【责任编辑·协同修改推进跟进】：全组正文修改正在稳步推进！\n👉 建议大家继续在讨论区同步各章节的修改进度与段落衔接，保持全篇逻辑的一体化！`,
@@ -12361,20 +12361,24 @@
           const feedbacks = Array.isArray(s3.feedbackItems) ? s3.feedbackItems : [];
           const pendingFeedbacks = feedbacks.filter(f => !f.response || f.response.trim().length === 0);
 
-          // 1. 阶段三开场引导下发后，若全组静默超过 3.5 分钟且仍有未完成质询：才温和提示展开答辩
+          // 1. 阶段三开场引导下发后，若全组静默超过 3.5 分钟且仍有未完成质询：才温和提示展开答辩（最多2次）
           if (silenceDurationMs > 210000 && pendingFeedbacks.length > 0) {
-            if (!this.lastS3SilenceNudgeTime || now - this.lastS3SilenceNudgeTime > 240000) {
+            const count = this._nudgeCounts['s3_silence'] || 0;
+            if (count < 2 && (!this.lastS3SilenceNudgeTime || now - this.lastS3SilenceNudgeTime > 240000)) {
               this.lastS3SilenceNudgeTime = now;
+              this._nudgeCounts['s3_silence'] = count + 1;
               const s3SilenceFallback = `🟡 【中间委员·答辩研讨提示】：请大家回顾左侧矩阵中的正反方质询点展开辩护讨论；商定好共识后，由一位组员代表录入裁决矩阵，其余成员同步在正文中落实修改！`;
               this.queueAgentNudge('neutral', `正反两方评审意见已送达，但讨论区已静默一段时间。请以中间委员身份，引导大家先回看你此前在聊天框给出的引导建议，再就反方质询点展开辩护讨论，并给 1 条具体建议。80~120 字。`, s3SilenceFallback, 'stage3');
               return;
             }
           }
 
-          // 2. 学生讨论活跃但左侧裁决矩阵答辩仍有未填写项：适时提示将答辩共识录入矩阵并修改终稿
+          // 2. 学生讨论活跃但左侧裁决矩阵答辩仍有未填写项：适时提示将答辩共识录入矩阵并修改终稿（最多2次）
           if (stage3DurationMs > 240000 && pendingFeedbacks.length > 0) {
-            if (!this.lastS3MatrixNudgeTime || now - this.lastS3MatrixNudgeTime > 240000) {
+            const count = this._nudgeCounts['s3_matrix'] || 0;
+            if (count < 2 && (!this.lastS3MatrixNudgeTime || now - this.lastS3MatrixNudgeTime > 240000)) {
               this.lastS3MatrixNudgeTime = now;
+              this._nudgeCounts['s3_matrix'] = count + 1;
               const msg = {
                 sender: 'neutral',
                 text: `💡 【中间委员·矩阵录入与终稿落实提醒】：看到大家在讨论区已展开充分辩护交流！\n👉 请组员将商定好的辩护共识，**推选一位同学录入**到左侧【答辩裁决矩阵】对应质询下方并保存，同时点击【返回富文本协作大正文】将修改落实到论文终稿中！`,
