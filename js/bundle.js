@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260830_v896
+ * Version: 20260830_v897
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260830_v896';
+  const APP_VERSION = '20260830_v897';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -1199,20 +1199,52 @@
       }
       localStorage.setItem('jizhi_surveys_list_db', JSON.stringify(list));
       this.pushGlobalMeta();
+
+      if ('BroadcastChannel' in window) {
+        try {
+          const bc = new BroadcastChannel('jizhi_global_events');
+          bc.postMessage({ type: 'survey_updated', classId, taskId, url: cleanUrl });
+          bc.close();
+        } catch (e) {}
+      }
     }
     deleteSurvey(surveyId) {
       let list = this.getSurveysList();
       list = list.filter(s => s.id !== surveyId);
       localStorage.setItem('jizhi_surveys_list_db', JSON.stringify(list));
       this.pushGlobalMeta();
+
+      if ('BroadcastChannel' in window) {
+        try {
+          const bc = new BroadcastChannel('jizhi_global_events');
+          bc.postMessage({ type: 'survey_deleted', surveyId });
+          bc.close();
+        } catch (e) {}
+      }
     }
     getSurveyUrl(classId, taskId) {
       const list = this.getSurveysList();
-      if (!classId) return '';
-      const exactMatch = list.find(s => s.classId === classId && s.taskId === taskId);
+      if (!Array.isArray(list) || list.length === 0) return '';
+
+      // 1. 最高优先级：精准匹配 班级 + 任务
+      const exactMatch = list.find(s => {
+        const matchCls = !s.classId || s.classId === 'all' || s.classId === classId;
+        const matchTsk = s.taskId === taskId;
+        return matchCls && matchTsk && s.url && s.url.startsWith('http');
+      });
       if (exactMatch) return exactMatch.url;
-      const classDefaultMatch = list.find(s => s.classId === classId && (s.taskId === 'task_default' || s.taskId === 'task_all'));
-      return classDefaultMatch ? classDefaultMatch.url : '';
+
+      // 2. 第二优先级：匹配班级全局问卷 (taskId 为 all / task_all / task_default 或为空)
+      const classGlobalMatch = list.find(s => {
+        const matchCls = !s.classId || s.classId === 'all' || s.classId === classId;
+        const matchTsk = !s.taskId || s.taskId === 'all' || s.taskId === 'task_all' || s.taskId === 'task_default';
+        return matchCls && matchTsk && s.url && s.url.startsWith('http');
+      });
+      if (classGlobalMatch) return classGlobalMatch.url;
+
+      // 3. 第三优先级：全校通用兜底问卷
+      const universalMatch = list.find(s => s.url && s.url.startsWith('http'));
+      return universalMatch ? universalMatch.url : '';
     }
     pushGlobalMeta() {
       const currUser = this.getCurrentUser();
@@ -1225,6 +1257,13 @@
 
       const teacherUserId = (currUser && (currUser.studentCode || currUser.username || currUser.id)) || '';
       const teacherToken = currUser?.token || currUser?.activeSessionId || '';
+
+      // ⚡ 极速轻量化打包：剥离 referencePapers 中的大 Base64 Blob（仅传元数据与物理 URL，数据包从几兆骤降至 2KB，秒级保存！）
+      const cleanPapers = this.getAllReferencePapers().map(p => {
+        const { fileData, ...metaOnly } = p;
+        return metaOnly;
+      });
+
       const payload = {
         userId: teacherUserId,
         token: teacherToken,
@@ -1233,7 +1272,7 @@
         classes: this.getClasses(),
         tasks: this.getTasks(),
         announcements: this.getAnnouncements(),
-        referencePapers: this.getAllReferencePapers(),
+        referencePapers: cleanPapers,
         surveys: this.getSurveysList()
       };
 
@@ -2363,6 +2402,14 @@
 
       localStorage.setItem(STORAGE_KEY_ANNOUNCEMENTS, JSON.stringify(announcements));
       this.pushGlobalMeta();
+
+      if ('BroadcastChannel' in window) {
+        try {
+          const bc = new BroadcastChannel('jizhi_global_events');
+          bc.postMessage({ type: 'announcement_created', announcement: newAnn });
+          bc.close();
+        } catch (e) {}
+      }
       return newAnn;
     }
 
@@ -2371,6 +2418,14 @@
       announcements = announcements.filter(a => a.id !== annId);
       localStorage.setItem(STORAGE_KEY_ANNOUNCEMENTS, JSON.stringify(announcements));
       this.pushGlobalMeta();
+
+      if ('BroadcastChannel' in window) {
+        try {
+          const bc = new BroadcastChannel('jizhi_global_events');
+          bc.postMessage({ type: 'announcement_deleted', annId: annId });
+          bc.close();
+        } catch (e) {}
+      }
     }
 
     markAnnouncementRead(annId, groupId = 'group_1') {
@@ -11616,6 +11671,25 @@
                 this.renderMain();
               }
             }
+
+            // 3. 教师发布教学通知（秒级拉取并在工作台即时弹出）
+            if (e.data.type === 'announcement_created') {
+              if (this.authManager && this.authManager.pullGlobalMeta) {
+                this.authManager.pullGlobalMeta().then(() => {
+                  if (this.state.studentViewMode === 'workspace') {
+                    this.checkUnreadAnnouncements();
+                  }
+                  this.renderHeader();
+                }).catch(() => {});
+              }
+            }
+
+            // 4. 教师更新问卷配置
+            if (e.data.type === 'survey_updated') {
+              if (this.authManager && this.authManager.pullGlobalMeta) {
+                this.authManager.pullGlobalMeta().catch(() => {});
+              }
+            }
           };
         } catch (e) {}
       }
@@ -13227,12 +13301,16 @@
             const tObj = allTasks.find(t => t.id === a.taskId);
             if (tObj && isTaskExpired(tObj)) return false;
           }
-          const matchClass = !a.classId || a.classId === 'all' || (a.classId === effectiveClassId) || 
+          const matchClass = !a.classId || a.classId === 'all' || 
+                             (effectiveClassId && a.classId === effectiveClassId) || 
+                             (currentUser?.classId && a.classId === currentUser.classId) ||
                              (effectiveClassName && a.className === effectiveClassName) ||
-                             (Array.isArray(a.targetClassIds) && (a.targetClassIds.includes('all') || a.targetClassIds.includes(effectiveClassId)));
-          const matchGroup = !a.targetGroupId || a.targetGroupId === 'all' || a.targetGroupId === groupId ||
-            (Array.isArray(a.targetGroupIds) && (a.targetGroupIds.includes('all') || a.targetGroupIds.includes(groupId)));
-          const matchTask = !a.taskId || a.taskId === 'task_all' || a.taskId === activeTaskId || (!a.taskId && activeTaskId === 'task_default');
+                             (Array.isArray(a.targetClassIds) && (a.targetClassIds.includes('all') || (effectiveClassId && a.targetClassIds.includes(effectiveClassId)) || (currentUser?.classId && a.targetClassIds.includes(currentUser.classId))));
+
+          const matchGroup = !a.targetGroupId || a.targetGroupId === 'all' || a.targetGroupId === groupId || a.targetGroupId === (currentUser && currentUser.groupId) ||
+            (Array.isArray(a.targetGroupIds) && (a.targetGroupIds.includes('all') || a.targetGroupIds.includes(groupId) || (currentUser?.groupId && a.targetGroupIds.includes(currentUser.groupId))));
+
+          const matchTask = !a.taskId || a.taskId === 'task_all' || a.taskId === 'all' || a.taskId === activeTaskId || (!a.taskId && activeTaskId === 'task_default');
           return matchClass && matchGroup && matchTask && !isAnnRead(a);
         })
         .sort((a, b) => (b.id > a.id ? 1 : -1));
@@ -13281,12 +13359,16 @@
         .filter(a => {
           if (!a) return false;
           if (isExtensionNotice(a)) return false; // 🚫 彻底屏蔽延期通知混入通知中心
-          const matchClass = !a.classId || a.classId === 'all' || (a.classId === effectiveClassId) || 
+          const matchClass = !a.classId || a.classId === 'all' || 
+                             (effectiveClassId && a.classId === effectiveClassId) || 
+                             (currentUser?.classId && a.classId === currentUser.classId) ||
                              (effectiveClassName && a.className === effectiveClassName) ||
-                             (Array.isArray(a.targetClassIds) && (a.targetClassIds.includes('all') || a.targetClassIds.includes(effectiveClassId)));
-          const matchGroup = !a.targetGroupId || a.targetGroupId === 'all' || a.targetGroupId === groupId ||
-            (Array.isArray(a.targetGroupIds) && (a.targetGroupIds.includes('all') || a.targetGroupIds.includes(groupId)));
-          const matchTask = !a.taskId || a.taskId === 'task_all' || a.taskId === activeTaskId || (!a.taskId && activeTaskId === 'task_default');
+                             (Array.isArray(a.targetClassIds) && (a.targetClassIds.includes('all') || (effectiveClassId && a.targetClassIds.includes(effectiveClassId)) || (currentUser?.classId && a.targetClassIds.includes(currentUser.classId))));
+
+          const matchGroup = !a.targetGroupId || a.targetGroupId === 'all' || a.targetGroupId === groupId || a.targetGroupId === (currentUser && currentUser.groupId) ||
+            (Array.isArray(a.targetGroupIds) && (a.targetGroupIds.includes('all') || a.targetGroupIds.includes(groupId) || (currentUser?.groupId && a.targetGroupIds.includes(currentUser.groupId))));
+
+          const matchTask = !a.taskId || a.taskId === 'task_all' || a.taskId === 'all' || a.taskId === activeTaskId || (!a.taskId && activeTaskId === 'task_default');
           return matchClass && matchGroup && matchTask;
         })
         .sort((a, b) => (b.id > a.id ? 1 : -1));

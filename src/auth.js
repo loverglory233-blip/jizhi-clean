@@ -14,8 +14,8 @@ import {
   DefaultTasks,
   DefaultAnnouncements,
   DefaultReferencePapers
-} from './constants.js?v=20260830_v896';
-import { formatExportDateTime, formatDurationHuman } from './utils.js?v=20260830_v896';
+} from './constants.js?v=20260830_v897';
+import { formatExportDateTime, formatDurationHuman } from './utils.js?v=20260830_v897';
 
 export class AuthManager {
   constructor() {
@@ -293,20 +293,52 @@ export class AuthManager {
     }
     localStorage.setItem('jizhi_surveys_list_db', JSON.stringify(list));
     this.pushGlobalMeta();
+
+    if ('BroadcastChannel' in window) {
+      try {
+        const bc = new BroadcastChannel('jizhi_global_events');
+        bc.postMessage({ type: 'survey_updated', classId, taskId, url: cleanUrl });
+        bc.close();
+      } catch (e) {}
+    }
   }
   deleteSurvey(surveyId) {
     let list = this.getSurveysList();
     list = list.filter(s => s.id !== surveyId);
     localStorage.setItem('jizhi_surveys_list_db', JSON.stringify(list));
     this.pushGlobalMeta();
+
+    if ('BroadcastChannel' in window) {
+      try {
+        const bc = new BroadcastChannel('jizhi_global_events');
+        bc.postMessage({ type: 'survey_deleted', surveyId });
+        bc.close();
+      } catch (e) {}
+    }
   }
   getSurveyUrl(classId, taskId) {
     const list = this.getSurveysList();
-    if (!classId) return '';
-    const exactMatch = list.find(s => s.classId === classId && s.taskId === taskId);
+    if (!Array.isArray(list) || list.length === 0) return '';
+    
+    // 1. 最高优先级：精准匹配 班级 + 任务
+    const exactMatch = list.find(s => {
+      const matchCls = !s.classId || s.classId === 'all' || s.classId === classId;
+      const matchTsk = s.taskId === taskId;
+      return matchCls && matchTsk && s.url && s.url.startsWith('http');
+    });
     if (exactMatch) return exactMatch.url;
-    const classDefaultMatch = list.find(s => s.classId === classId && (s.taskId === 'task_default' || s.taskId === 'task_all'));
-    return classDefaultMatch ? classDefaultMatch.url : '';
+
+    // 2. 第二优先级：匹配班级全局问卷 (taskId 为 all / task_all / task_default 或为空)
+    const classGlobalMatch = list.find(s => {
+      const matchCls = !s.classId || s.classId === 'all' || s.classId === classId;
+      const matchTsk = !s.taskId || s.taskId === 'all' || s.taskId === 'task_all' || s.taskId === 'task_default';
+      return matchCls && matchTsk && s.url && s.url.startsWith('http');
+    });
+    if (classGlobalMatch) return classGlobalMatch.url;
+
+    // 3. 第三优先级：全校通用兜底问卷
+    const universalMatch = list.find(s => s.url && s.url.startsWith('http'));
+    return universalMatch ? universalMatch.url : '';
   }
   pushGlobalMeta() {
     const currUser = this.getCurrentUser();
@@ -319,6 +351,13 @@ export class AuthManager {
 
     const teacherUserId = (currUser && (currUser.studentCode || currUser.username || currUser.id)) || '';
     const teacherToken = currUser?.token || currUser?.activeSessionId || '';
+    
+    // ⚡ 极速轻量化打包：剥离 referencePapers 中的大 Base64 Blob（仅传元数据与物理 URL，数据包从几兆骤降至 2KB，秒级保存！）
+    const cleanPapers = this.getAllReferencePapers().map(p => {
+      const { fileData, ...metaOnly } = p;
+      return metaOnly;
+    });
+
     const payload = {
       userId: teacherUserId,
       token: teacherToken,
@@ -327,7 +366,7 @@ export class AuthManager {
       classes: this.getClasses(),
       tasks: this.getTasks(),
       announcements: this.getAnnouncements(),
-      referencePapers: this.getAllReferencePapers(),
+      referencePapers: cleanPapers,
       surveys: this.getSurveysList()
     };
 
@@ -1457,6 +1496,14 @@ export class AuthManager {
 
     localStorage.setItem(STORAGE_KEY_ANNOUNCEMENTS, JSON.stringify(announcements));
     this.pushGlobalMeta();
+
+    if ('BroadcastChannel' in window) {
+      try {
+        const bc = new BroadcastChannel('jizhi_global_events');
+        bc.postMessage({ type: 'announcement_created', announcement: newAnn });
+        bc.close();
+      } catch (e) {}
+    }
     return newAnn;
   }
 
@@ -1465,6 +1512,14 @@ export class AuthManager {
     announcements = announcements.filter(a => a.id !== annId);
     localStorage.setItem(STORAGE_KEY_ANNOUNCEMENTS, JSON.stringify(announcements));
     this.pushGlobalMeta();
+
+    if ('BroadcastChannel' in window) {
+      try {
+        const bc = new BroadcastChannel('jizhi_global_events');
+        bc.postMessage({ type: 'announcement_deleted', annId: annId });
+        bc.close();
+      } catch (e) {}
+    }
   }
 
   markAnnouncementRead(annId, groupId = 'group_1') {
