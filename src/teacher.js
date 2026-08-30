@@ -9,8 +9,8 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260830_v898";
-import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, showGlobalBannerNotice } from "./utils.js?v=20260830_v898";
+} from "./constants.js?v=20260830_v899";
+import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, showGlobalBannerNotice } from "./utils.js?v=20260830_v899";
 
 /* ==========================================================================
    7. TEACHER PORTAL RENDERER (LIVE WORKSPACE MIRROR & ANNOUNCEMENT READ MATRIX)
@@ -3511,17 +3511,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
           submitBtn.innerText = '⏳ 正在上传文献到服务器...';
 
           let serverFileUrl = '';
-          let clientDataUrl = '';
           if (selectedFile.fileObj) {
-            try {
-              clientDataUrl = await new Promise((resolve) => {
-                const reader = new FileReader();
-                reader.onload = () => resolve(reader.result);
-                reader.onerror = () => resolve('');
-                reader.readAsDataURL(selectedFile.fileObj);
-              });
-            } catch (e) {}
-
             try {
               const currT = authManager.getCurrentUser();
               const tId = (currT && (currT.studentCode || currT.username || currT.id)) || '';
