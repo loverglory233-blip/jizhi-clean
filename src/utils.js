@@ -414,15 +414,15 @@ export function filterAndDeduplicateChatLogs(messages) {
     const sender = String(m.sender || '');
     const isAgent = (sender.startsWith('agent_') || ['auctioneer', 'architect', 'analyst', 'editor', 'challenger', 'chair'].includes(sender));
 
-    // 1. 智能体重复开场白去重：相同开场白如果重复，只保留最新 1 条
+    // 1. 智能体连发防重：智能体若因网络重试/定时器连发了完全相同的引导提示，自动去重仅保留 1 条
     if (isAgent) {
-      if (txt.includes('【拍卖师开场】') || txt.includes('【架构师开场】') || txt.includes('【主笔人开场】') || txt.includes('【辩论主席开场】')) {
-        const opKey = `${sender}_${txt}`;
-        if (seenAgentOpenings.has(opKey)) {
-          continue;
-        }
-        seenAgentOpenings.add(opKey);
+      const normTxt = txt.replace(/[\s
+]+/g, ' ').trim();
+      const opKey = `${sender}_${normTxt}`;
+      if (seenAgentOpenings.has(opKey)) {
+        continue;
       }
+      seenAgentOpenings.add(opKey);
     }
 
     // 2. 严格按数据库主键/唯一标识防重，绝不按文本做模糊误杀
