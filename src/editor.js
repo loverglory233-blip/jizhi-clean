@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles } from "./constants.js?v=20260831_v954";
-import { callCozeAgentAPI } from "./agents.js?v=20260831_v954";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap } from "./utils.js?v=20260831_v954";
+import { AgentProfiles } from "./constants.js?v=20260831_v955";
+import { callCozeAgentAPI } from "./agents.js?v=20260831_v955";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap } from "./utils.js?v=20260831_v955";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -2030,28 +2030,33 @@ function renderStage2Canvas(canvas, state, handlers) {
     return null;
   };
 
+  const getMemberContribVal = (contribs, m) => {
+    if (!contribs || !m) return 0;
+    return Number(contribs[m.studentCode] || contribs[m.id] || contribs[m.username] || (m.name ? contribs[m.name] : 0) || 0);
+  };
+
   const updateContribDom = () => {
     const labelsEl = document.getElementById('stage2-contrib-labels');
     const barsEl = document.getElementById('stage2-contrib-bars');
     if (!labelsEl || !barsEl) return;
     
-    const contribs = s2.memberContributions || {};
+    const contribs = (state.stage2 && state.stage2.memberContributions) ? state.stage2.memberContributions : {};
     let rawTotal = 0;
-    membersList.forEach(m => { rawTotal += (contribs[m.id] || 0) + (contribs[m.studentCode] || 0); });
+    membersList.forEach(m => { rawTotal += getMemberContribVal(contribs, m); });
     
     labelsEl.innerHTML = membersList.map((m) => {
-      const rawVal = (contribs[m.id] || 0) + (contribs[m.studentCode] || 0);
+      const rawVal = getMemberContribVal(contribs, m);
       const pct = rawTotal > 0 ? Math.round((rawVal / rawTotal) * 100) : 0;
-      return `<span style="color:${rawVal > 0 ? (m.color || '#2563eb') : '#94a3b8'}; font-weight:700;">● ${m.name}: ${pct}%</span>`;
+      return `<span style="color:${rawVal > 0 ? (m.color || '#2563eb') : '#94a3b8'}; font-weight:700;">● ${m.name}: ${pct}% (${rawVal}字)</span>`;
     }).join('');
 
     if (rawTotal === 0) {
       barsEl.innerHTML = `<div style="width:100%; height:8px; background:#f8fafc; border-radius:4px; display:flex; align-items:center; justify-content:center; font-size:9.5px; color:#94a3b8; font-weight:600;">⏳ 在 Etherpad 中撰写或修改正文将实时累计真实贡献</div>`;
     } else {
       barsEl.innerHTML = membersList.map((m) => {
-        const rawVal = (contribs[m.id] || 0) + (contribs[m.studentCode] || 0);
+        const rawVal = getMemberContribVal(contribs, m);
         const pct = rawTotal > 0 ? Math.round((rawVal / rawTotal) * 100) : 0;
-        return `<div class="contrib-segment" style="width:${pct}%; background:${m.color || '#2563eb'}; transition:width 0.8s ease-in-out;" title="${m.name}: ${pct}%"></div>`;
+        return `<div class="contrib-segment" style="width:${pct}%; background:${m.color || '#2563eb'}; transition:width 0.8s ease-in-out;" title="${m.name}: ${pct}% (${rawVal}字)"></div>`;
       }).join('');
     }
   };
@@ -2094,16 +2099,23 @@ function renderStage2Canvas(canvas, state, handlers) {
           window.app.checkAgentTriggersOnContent(cleanTxt);
         }
 
-        // 动态贡献度计算：
-        const contribs = state.stage2.memberContributions || {};
+        // 动态贡献度计算（支持乐观立即更新与服务端持久化）：
+        if (!state.stage2.memberContributions) state.stage2.memberContributions = {};
+        const contribs = state.stage2.memberContributions;
         let rawTotal = 0;
-        membersList.forEach(m => { rawTotal += (contribs[m.id] || 0) + (contribs[m.studentCode] || 0); });
+        membersList.forEach(m => { rawTotal += getMemberContribVal(contribs, m); });
 
         const prevLen = state.stage2._prevKnownLen !== undefined ? state.stage2._prevKnownLen : 0;
         state.stage2._prevKnownLen = wordCount;
 
         const delta = (wordCount > prevLen) ? (wordCount - prevLen) : ((wordCount > 0 && rawTotal === 0) ? wordCount : 0);
         if (delta > 0) {
+          // 🚀 乐观即时更新前端内存并重绘 DOM
+          const effectiveCode = currUserObj?.studentCode || currUserObj?.id || currUserCode;
+          contribs[effectiveCode] = (contribs[effectiveCode] || 0) + delta;
+          updateContribDom();
+
+          // 📡 异步持久化到服务端双表
           fetch(`sync.php?action=report_member_contrib&groupId=${encodeURIComponent(userGroupId)}&taskId=${encodeURIComponent(activeTaskId)}&classId=${encodeURIComponent(userClassId)}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -2111,7 +2123,7 @@ function renderStage2Canvas(canvas, state, handlers) {
               taskId: activeTaskId,
               classId: userClassId,
               groupId: userGroupId,
-              userCode: currUserCode,
+              userCode: effectiveCode,
               delta: delta
             })
           }).then(r => r.json()).then(res => {
