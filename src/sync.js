@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState } from './constants.js?v=20260831_v932';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap } from './utils.js?v=20260831_v932';
+import { InitialState } from './constants.js?v=20260831_v933';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap } from './utils.js?v=20260831_v933';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -903,9 +903,13 @@ export class CloudSyncEngine {
             ...(this.app.state.stage1.contract.confirmedMembers || {}),
             ...remoteS1.contract.confirmedMembers
           };
+          needWorkspaceRender = true;
         }
         if (remoteS1.contract.isConfirmed !== undefined) {
-          this.app.state.stage1.contract.isConfirmed = remoteS1.contract.isConfirmed;
+          if (remoteS1.contract.isConfirmed !== this.app.state.stage1.contract.isConfirmed) {
+            this.app.state.stage1.contract.isConfirmed = remoteS1.contract.isConfirmed;
+            needWorkspaceRender = true;
+          }
         }
       }
       if (remoteS1.mergedTitle !== undefined) {
