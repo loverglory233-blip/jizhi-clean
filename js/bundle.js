@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260830_v882
+ * Version: 20260830_v883
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260830_v882';
+  const APP_VERSION = '20260830_v883';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -12583,22 +12583,23 @@
             }
           }
 
-          // 4.5 【引导后静默守护】：智能体发出引导后，若全组超过 3 分钟未发言（挂机），温和提示推进研讨（最多连续 2 次，有新发言自动重置）
+          // 4.5 【引导后静默守护与 6 分钟大模型强兜底】：智能体发出引导后，3 分钟破冰，6 分钟大模型自动提炼回填并顺推
           const s1AllLogs = this.state.chatLogs?.stage1 || [];
           const lastAgentMsg = [...s1AllLogs].reverse().find(m => m && m.sender === 'auctioneer');
           if (lastAgentMsg && (!lastStudentMsgTime || lastStudentMsgTime < (lastAgentMsg._timeMs || 0))) {
             const silenceAfterGuideMs = now - (lastAgentMsg._timeMs || now);
-            if (silenceAfterGuideMs > 180000) {
+
+            // ① 挂机 3 分钟破冰提醒
+            if (silenceAfterGuideMs > 180000 && silenceAfterGuideMs <= 360000) {
               const count = this._nudgeCounts['s1_guide_silence'] || 0;
-              if (count < 2 && (!this.lastS1GuideSilenceTime || now - this.lastS1GuideSilenceTime > 240000)) {
-                this.lastS1GuideSilenceTime = now;
-                this._nudgeCounts['s1_guide_silence'] = count + 1;
-                const stepName = (s1.contractStep === 'tasks') ? '任务分工' : ((s1.contractStep === 'time') ? '时间分配' : '研究主题');
-                const buttonText = (s1.contractStep === 'tasks') ? '一键提炼【任务分工】' : ((s1.contractStep === 'time') ? '一键提炼【时间分配】' : '一键提炼【最终主题】');
+              if (count < 1) {
+                this._nudgeCounts['s1_guide_silence'] = 1;
+                const stepName = (s1.contractStep === 'tasks') ? '任务分工' : ((s1.contractStep === 'time') ? '时间分配' : '研究主题与方案');
+                const buttonText = (s1.contractStep === 'tasks') ? '一键提炼【任务分工】' : ((s1.contractStep === 'time') ? '一键提炼【时间分配】' : '一键提炼【主题与研究方案】');
                 const nudgeMsg = {
                   sender: 'auctioneer',
                   senderName: '头脑风暴 · 学术拍卖师',
-                  text: `💡 【拍卖师·研讨推进提示】：大家可以围绕【${stepName}】在讨论区积极交流观点～商定成熟后，请点击左侧【${buttonText}】按钮，系统将为大家一键提炼研讨共识！`,
+                  text: `💡 【拍卖师·研讨推进提示】：大家可以围绕【${stepName}】在讨论区积极交流观点～商定成熟后，请点击上方【${buttonText}】按钮，系统将为大家一键提炼研讨共识！`,
                   timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
                   _timeMs: now
                 };
@@ -12606,6 +12607,40 @@
                 this.syncChatLogs();
                 if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
                 renderChat(this.state);
+                return;
+              }
+            }
+
+            // ② 挂机 6 分钟强兜底：大模型自动提炼生成并回填顺推，彻底杜绝流程卡死
+            if (silenceAfterGuideMs > 360000 && !this._s1AutoFallbackRunning) {
+              const fallbackKey = `s1_auto_fallback_${s1.contractStep || 'topic'}`;
+              if (!this._nudgeCounts[fallbackKey]) {
+                this._nudgeCounts[fallbackKey] = 1;
+                this._s1AutoFallbackRunning = true;
+                const stepName = (s1.contractStep === 'tasks') ? '任务分工' : ((s1.contractStep === 'time') ? '时间分配' : '研究主题与方案');
+                const autoNoticeMsg = {
+                  sender: 'auctioneer',
+                  senderName: '头脑风暴 · 学术拍卖师',
+                  text: `🎪 【拍卖师·研讨收拢与智能生成】：研讨时间已到，为确保选题进度，拍卖师已结合当前构想与学术规范，自动为大家生成并录入【${stepName}】！`,
+                  timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                  _timeMs: now
+                };
+                this.state.chatLogs.stage1.push(autoNoticeMsg);
+                this.syncChatLogs();
+
+                setTimeout(async () => {
+                  try {
+                    if (s1.contractStep === 'tasks') {
+                      await this._doExtractTasks();
+                    } else if (s1.contractStep === 'time') {
+                      await this._doExtractTime();
+                    } else {
+                      await this._doExtractTopic();
+                    }
+                  } finally {
+                    this._s1AutoFallbackRunning = false;
+                  }
+                }, 1000);
                 return;
               }
             }
@@ -12895,25 +12930,62 @@
           const feedbacks = Array.isArray(s3.feedbackItems) ? s3.feedbackItems : [];
           const pendingFeedbacks = feedbacks.filter(f => !f.response || f.response.trim().length === 0);
 
-          // ── 🎓 阶段三静默守护：中间委员引导后，若全组静默超过 2.5 分钟且仍有待研讨质询，温和提示展开讨论（最多连续 2 次，有新发言自动重置）
-          if (silenceDurationMs > 150000 && pendingFeedbacks.length > 0) {
-            if (lastStudentMsg && (lastStudentMsg._timeMs || 0) > (this._lastNudgeActivityTime?.['s3_silence'] || 0)) {
-              this._nudgeCounts['s3_silence'] = 0;
+          // ── 🎓 阶段三静默守护与 6 分钟强兜底：中间委员引导后，3 分钟破冰，6 分钟自动提炼定案顺推
+          if (pendingFeedbacks.length > 0) {
+            const currentPending = pendingFeedbacks[0];
+            const inqIndex = feedbacks.indexOf(currentPending);
+            const inqLabel = inqIndex >= 1 ? `意见 ${inqIndex}` : '当前质询';
+
+            // ① 挂机 3 分钟破冰启发
+            if (silenceDurationMs > 180000 && silenceDurationMs <= 360000) {
+              const count = this._nudgeCounts[`s3_silence_${currentPending.id}`] || 0;
+              if (count < 1) {
+                this._nudgeCounts[`s3_silence_${currentPending.id}`] = 1;
+                const s3SilenceMsg = {
+                  sender: 'neutral',
+                  senderName: '答辩委员会主席 · 中间委员',
+                  text: `🟡 【中间委员·答辩思考启发】：关于【${inqLabel}】，大家可以从研究情境限制、样本选取的现实考量或操作化补救措施切入辩护；商定好思路后，随时点击上方按钮帮大家一键提炼定案！`,
+                  timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                  _timeMs: now
+                };
+                if (!this.state.chatLogs.stage3) this.state.chatLogs.stage3 = [];
+                this.state.chatLogs.stage3.push(s3SilenceMsg);
+                this.syncChatLogs();
+                if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+                renderChat(this.state);
+                return;
+              }
             }
-            const count = this._nudgeCounts['s3_silence'] || 0;
-            if (count < 2 && (!this.lastS3SilenceNudgeTime || now - this.lastS3SilenceNudgeTime > 200000)) {
-              this.lastS3SilenceNudgeTime = now;
-              this._nudgeCounts['s3_silence'] = count + 1;
-              if (!this._lastNudgeActivityTime) this._lastNudgeActivityTime = {};
-              this._lastNudgeActivityTime['s3_silence'] = lastStudentMsg ? (lastStudentMsg._timeMs || now) : now;
 
-              const currentPending = pendingFeedbacks[0];
-              const inqIndex = feedbacks.indexOf(currentPending);
-              const inqLabel = inqIndex >= 1 ? `意见 ${inqIndex}` : '当前质询';
+            // ② 挂机 6 分钟强兜底：大模型自动提炼基础答辩词回填定案并顺推下一项
+            if (silenceDurationMs > 360000 && !this._s3AutoFallbackRunning) {
+              const fallbackKey = `s3_auto_fallback_${currentPending.id}`;
+              if (!this._nudgeCounts[fallbackKey]) {
+                this._nudgeCounts[fallbackKey] = 1;
+                this._s3AutoFallbackRunning = true;
 
-              const s3SilenceFallback = `🟡 【中间委员·答辩研讨提示】：请大家结合左侧【${inqLabel}】在研讨区展开辩护商议；研讨差不多后，点击上方【💡 ${inqLabel} 讨论差不多了？帮我总结并填入】按钮，我将为大家提炼答辩词并自动回填定案！`;
-              this.queueAgentNudge('neutral', `反方质询【${inqLabel}】已下发，但讨论区已静默超过 2.5 分钟。请以答辩委员会主席（中间委员）身份，启发全组结合该质询展开辩护商讨，并说明商定后点击上方按钮即可一键总结填入。80~110 字。`, s3SilenceFallback, 'stage3');
-              return;
+                const autoNoticeMsg = {
+                  sender: 'neutral',
+                  senderName: '答辩委员会主席 · 中间委员',
+                  text: `🟡 【中间委员·答辩收拢与自动定案】：本题研讨时间已到，为推进答辩进度，委员会已结合正文优势为【${inqLabel}】生成基础辩护方案并定案！`,
+                  timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                  _timeMs: now
+                };
+                if (!this.state.chatLogs.stage3) this.state.chatLogs.stage3 = [];
+                this.state.chatLogs.stage3.push(autoNoticeMsg);
+                this.syncChatLogs();
+
+                setTimeout(async () => {
+                  try {
+                    if (typeof this._doExtractDefenseStep === 'function') {
+                      await this._doExtractDefenseStep(currentPending.id, inqIndex);
+                    }
+                  } finally {
+                    this._s3AutoFallbackRunning = false;
+                  }
+                }, 1000);
+                return;
+              }
             }
           }
         }
