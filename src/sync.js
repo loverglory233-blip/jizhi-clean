@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState } from './constants.js?v=20260830_v800';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal } from './utils.js?v=20260830_v800';
+import { InitialState } from './constants.js?v=20260830_v805';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal } from './utils.js?v=20260830_v805';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -1158,6 +1158,16 @@ export class CloudSyncEngine {
       if (!isTypingInWorkspace) {
         this._hasRenderedInitialWorkspace = true;
         this.app.renderStudentWorkspace();
+      }
+    }
+
+    // ⚡ 首次拉取就绪：纯前端局部更新右侧聊天与未读通知检查（0 数据上传）
+    if (isFirstPull && user?.role === 'student' && this.app.state.studentViewMode === 'workspace') {
+      if (typeof this.app.triggerStageWelcomeSpeech === 'function') {
+        this.app.triggerStageWelcomeSpeech(this.app.state.currentStage || 'stage1');
+      }
+      if (typeof this.app.checkUnreadAnnouncements === 'function') {
+        setTimeout(() => this.app.checkUnreadAnnouncements(), 300);
       }
     }
   }
