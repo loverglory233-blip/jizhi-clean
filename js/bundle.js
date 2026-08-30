@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260830_v880
+ * Version: 20260830_v881
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260830_v880';
+  const APP_VERSION = '20260830_v881';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -14684,17 +14684,18 @@
         s2ChatLogs.push(msgManaging);
 
         // 2. 审稿专家结合半程会议讨论与正文下发《二审修正清单》
-        const reviewingPrompt = `针对课题《${topic}》，结合小组成员刚才商定的修改思路，通读下方正文草稿，作为资深审稿编辑给出【二审修正清单】（120~150字）：
+        const reviewingPrompt = `【角色与红线】：你是一位极具教学同理心的资深期刊审稿编辑。严格顺应学生已有构思，坚决不推翻大改，若学生写的是研究方案设计，严禁强求跑真实数据或补SPSS统计图表，不苛求排版格式！
+  针对课题《${topic}》，结合小组成员刚才商定的修改思路，通读下方正文草稿，给出 120~150 字的【二审修正清单】：
   【正文草稿参考】:
   ${rawDoc.slice(0, 1500)}
   【小组成员商定的修改思路】:
   ${chatSnippet}
 
   请下发包含 3 项具体可执行的《二审修正清单》：
-  ① 核心概念与问题对齐；
-  ② 研究方法与工具操作化细节补全；
-  ③ 行文衔接与学术语体规范。
-  并在末尾明确提示全组：“请大家围绕清单简要商定分工与修改计划，讨论差不多后点击下方【📝 讨论差不多了？让审稿编辑总结】！”（纯自然语言，120~150字）`;
+  ① 核心概念与研究问题对齐；
+  ② 研究方法、量表或实施步骤细节补全（紧扣问题与假设）；
+  ③ 行文衔接与学术语体润色。
+  并在末尾明确提示全组：“请大家围绕清单商定落实分工，讨论差不多后点击下方【📝 讨论差不多了？让审稿编辑总结】！”（纯自然语言，120~150字，严禁代码块）`;
 
         const respReviewing = await callCozeAgentAPI('reviewingEditor', reviewingPrompt, { stage: 'stage2', topic, actualDoc: rawDoc });
         let reviewingText = (respReviewing && respReviewing.trim().length > 0)
@@ -14736,13 +14737,13 @@
 
       const topic = (this.state.stage1 && this.state.stage1.mergedTitle) ? this.state.stage1.mergedTitle : '本组课题';
 
-      const summaryPrompt = `小组成员已就《二审修正清单》在讨论区明确了各自的修改落实分工与计划。
+      const summaryPrompt = `【角色与定位】：你是资深期刊审稿编辑。小组成员已就《二审修正清单》在讨论区明确了各自的修改落实分工与计划。
   【组内关于清单落实的讨论记录】:
   ${chatSnippet}
 
   请作为审稿编辑，发表 90~120 字的【修改落实确认与终审冲刺寄语】：
   ① 肯定大家清晰务实的修改分工与严谨态度；
-  ② 鼓励全组回到左侧正文继续高效撰写与修改，冲刺最终高质量学术成文！（纯自然语言，90~120字）`;
+  ② 鼓励全组回到左侧正文写作区，将商定好的修改对策落实到位，继续推进后续章节，冲刺终审定稿！（纯自然语言，90~120字，严禁代码块）`;
 
       try {
         const respSummary = await callCozeAgentAPI('reviewingEditor', summaryPrompt, { stage: 'stage2', topic });
