@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260830_v763
+ * Version: 20260830_v764
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260830_v763';
+  const APP_VERSION = '20260830_v764';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -7685,6 +7685,22 @@
      7.5 STUDENT TASK PORTAL / DASHBOARD (我的写作任务大厅)
      ========================================================================== */
   function renderStudentTaskPortal(container, authManager, state, onSelectTask, onLogout, onSwitchTeacher, onOpenAnnModal, onOpenSurveyModal) {
+    // ⚡ 监听全局广播（跨标签页秒级无感热同步大厅任务卡片与下发延期通知）
+    if ('BroadcastChannel' in window) {
+      try {
+        if (window._studentPortalBc) { try { window._studentPortalBc.close(); } catch (e) {} }
+        window._studentPortalBc = new BroadcastChannel('jizhi_global_events');
+        window._studentPortalBc.onmessage = (e) => {
+          if (state.studentViewMode !== 'task_list') return;
+          if (e.data && e.data.type === 'task_extended' && e.data.task) {
+            const t = e.data.task;
+            renderStudentTaskPortal(container, authManager, state, onSelectTask, onLogout, onSwitchTeacher, onOpenAnnModal, onOpenSurveyModal);
+            showGlobalBannerNotice('🔔 任务延期通知', `写作任务《${t.title || '协作任务'}》截止时间已延长至 ${t.deadline}，协作通道已重新开启！`, 'info');
+          }
+        };
+      } catch (e) {}
+    }
+
     // ⚡ 单一自调度轮询循环：杜绝“一次性 pull + interval”并行导致的并发拉取与递归重渲染
     const pullAndRefresh = async () => {
       if (state.studentViewMode !== 'task_list') return; // 离开大厅即停止轮询
@@ -7698,6 +7714,18 @@
           const newAnnsJson = localStorage.getItem(STORAGE_KEY_ANNOUNCEMENTS) || '[]';
           const newClassesJson = localStorage.getItem(STORAGE_KEY_CLASSES) || '[]';
           if (oldTasksJson !== newTasksJson || oldAnnsJson !== newAnnsJson || oldClassesJson !== newClassesJson) {
+            if (oldTasksJson !== newTasksJson) {
+              try {
+                const oldT = JSON.parse(oldTasksJson);
+                const newT = JSON.parse(newTasksJson);
+                newT.forEach(nt => {
+                  const ot = oldT.find(o => o.id === nt.id);
+                  if (ot && nt.deadline && ot.deadline && ot.deadline !== nt.deadline) {
+                    showGlobalBannerNotice('🔔 任务延期通知', `写作任务《${nt.title || '协作任务'}》截止时间已延长至 ${nt.deadline}，协作通道已重新开启！`, 'info');
+                  }
+                });
+              } catch (err) {}
+            }
             if (document.activeElement?.id !== 'sel-student-class-switch') {
               renderStudentTaskPortal(container, authManager, state, onSelectTask, onLogout, onSwitchTeacher, onOpenAnnModal, onOpenSurveyModal);
               return; // 重渲染会重建整套循环，此处无需再自行调度
@@ -14244,6 +14272,10 @@
     }
 
     renderStudentWorkspace(isForced = false) {
+      if (this.state.studentViewMode === 'task_list') {
+        this.renderMain();
+        return;
+      }
       const isStageTransition = (this._lastRenderedStage !== this.state.currentStage);
       this._lastRenderedStage = this.state.currentStage;
       if (isStageTransition) isForced = true;
