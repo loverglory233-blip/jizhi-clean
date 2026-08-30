@@ -187,23 +187,19 @@ EOT;
         }
 
         $prompt = "";
-        $prompt .= "【全局绝对红线 · 绝无排版格式要求】：在全流程评审与指导中，严禁对排版格式（如字体、字号、行距、页边距、首行缩进等排版样式）提任何要求！所有关注点严格聚焦在研究选题、方法设计、论述逻辑与语言通顺度！\n\n";
-        if (!empty($roleSystemPrompt)) {
-            $prompt .= $roleSystemPrompt . "\n";
-        }
-        $prompt .= "【当前协作阶段】: {$stageText}\n";
-        $prompt .= "【小组研究课题】: 《{$topicText}》\n";
+        $prompt .= "【协作阶段】: {$stageText} | 【课题】: 《{$topicText}》\n";
+        $prompt .= "【全局红线】: 严禁对排版格式提要求，严格聚焦学术内容、方法逻辑与论述；遇到无实质乱码空洞内容时简短提醒补充，有实质内容时给出针对性具体建议。\n";
 
         if (!empty($priorReview)) {
-            $prompt .= "【审稿编辑上一轮历史诊断记忆（多轮质检严格继承）】:\n{$priorReview}\n";
+            $prompt .= "【前序审查记录】:\n{$priorReview}\n";
         }
 
         if (!empty($actualDoc)) {
             $docLen = mb_strlen($actualDoc, 'UTF-8');
-            $prompt .= "【小组当前真实正文草稿（全文，共 {$docLen} 字）】:\n{$actualDoc}\n";
+            $prompt .= "【正文草稿(共{$docLen}字)】:\n{$actualDoc}\n";
         }
 
-        $prompt .= "【审阅/对话指令】: {$userQuery}";
+        $prompt .= "【本次指令】: {$userQuery}";
         return $prompt;
     }
 }
