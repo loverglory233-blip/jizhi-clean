@@ -9,8 +9,8 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260830_v819";
-import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, showGlobalBannerNotice } from "./utils.js?v=20260830_v819";
+} from "./constants.js?v=20260830_v820";
+import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, showGlobalBannerNotice } from "./utils.js?v=20260830_v820";
 
 /* ==========================================================================
    7. TEACHER PORTAL RENDERER (LIVE WORKSPACE MIRROR & ANNOUNCEMENT READ MATRIX)
@@ -367,7 +367,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
         const tToken = (curT && (curT.activeSessionId || curT.token)) || '';
         const tId = (curT && (curT.id || curT.username)) || '';
         const lastHash = state._lastMonitorHash || '';
-        const panRes = await fetch(`sync.php?action=get_teacher_monitor_all_groups&taskId=${encodeURIComponent(activeTaskId)}&classId=${encodeURIComponent(currentCId)}&userId=${encodeURIComponent(tId)}&token=${encodeURIComponent(tToken)}&clientHash=${encodeURIComponent(lastHash)}`).then(r => r.json()).catch(() => null);
+        const panRes = await fetch(`sync.php?action=get_teacher_monitor_all_groups&activeGroupId=${encodeURIComponent(currentGId)}&taskId=${encodeURIComponent(activeTaskId)}&classId=${encodeURIComponent(currentCId)}&userId=${encodeURIComponent(tId)}&token=${encodeURIComponent(tToken)}&clientHash=${encodeURIComponent(lastHash)}`).then(r => r.json()).catch(() => null);
         if (panRes && panRes.success && panRes.groups) {
           state.monitorPanorama = panRes.groups;
           if (panRes.hash) state._lastMonitorHash = panRes.hash;
