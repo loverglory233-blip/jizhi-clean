@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260830_v853
+ * Version: 20260830_v854
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260830_v853';
+  const APP_VERSION = '20260830_v854';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -1649,69 +1649,44 @@
       const uUsername = user.username;
       const safeUserKey = uCode || uId || uUsername || 'temp';
 
-      // 1. 若指定了班级 ID，严格在该班级内检索小组，未分组绝不跨班级误串
+      const checkMemberMatch = (m) => {
+        if (!m) return false;
+        if (typeof m === 'string') {
+          const sm = m.trim().toLowerCase();
+          return (uId && sm === String(uId).trim().toLowerCase()) ||
+                 (uCode && sm === String(uCode).trim().toLowerCase()) ||
+                 (uUsername && sm === String(uUsername).trim().toLowerCase()) ||
+                 (uName && m.trim() === String(uName).trim());
+        }
+        if (typeof m === 'object') {
+          const mId = m.id || m.userId;
+          const mCode = m.studentCode;
+          const mUser = m.username;
+          const mName = m.name;
+          return (mId && uId && String(mId).trim().toLowerCase() === String(uId).trim().toLowerCase()) ||
+                 (mCode && uCode && String(mCode).trim().toLowerCase() === String(uCode).trim().toLowerCase()) ||
+                 (mUser && uUsername && String(mUser).trim().toLowerCase() === String(uUsername).trim().toLowerCase()) ||
+                 (mName && uName && String(mName).trim() === String(uName).trim());
+        }
+        return false;
+      };
+
+      // 1. 若指定了班级 ID，优先在该班级内检索小组
       if (classId) {
         const targetClass = classes.find(c => c.id === classId);
         if (targetClass && Array.isArray(targetClass.groups)) {
           for (let i = 0; i < targetClass.groups.length; i++) {
             const g = targetClass.groups[i];
-            const hasMember = (g.members || []).some(m => {
-              if (!m) return false;
-              if (typeof m === 'string') return m.trim().toLowerCase() === String(uId).trim().toLowerCase() || m.trim().toLowerCase() === String(uCode).trim().toLowerCase() || m.trim().toLowerCase() === String(uUsername).trim().toLowerCase() || m.trim() === String(uName).trim();
-              if (typeof m === 'object') {
-                const mId = m.id || m.userId;
-                const mCode = m.studentCode;
-                const mUser = m.username;
-                const mName = m.name;
-                return (mId && String(mId).trim().toLowerCase() === String(uId).trim().toLowerCase()) ||
-                       (mCode && String(mCode).trim().toLowerCase() === String(uCode).trim().toLowerCase()) ||
-                       (mUser && String(mUser).trim().toLowerCase() === String(uUsername).trim().toLowerCase()) ||
-                       (mName && String(mName).trim() === String(uName).trim());
-              }
-              return false;
-            });
-            if (hasMember) return g;
+            if ((g.members || []).some(checkMemberMatch)) return g;
           }
         }
-        // 🛡️ 指定班级下若未分配小组，直接返回专属隔离态，严禁跨班级回退
-        return { id: `group_unassigned_${safeUserKey}`, name: '未分组（待教师分配）' };
       }
 
-      // 2. 未指定班级时的自适应检索
-      const targetClass = classes.find(c => (Array.isArray(user.classIds) && user.classIds.includes(c.id)) || c.id === user.classId) || classes[0];
-
-      if (targetClass && Array.isArray(targetClass.groups)) {
-        for (let i = 0; i < targetClass.groups.length; i++) {
-          const g = targetClass.groups[i];
-          const hasMember = (g.members || []).some(m => {
-            if (!m) return false;
-            if (typeof m === 'string') return m.trim().toLowerCase() === String(uId).trim().toLowerCase() || m.trim().toLowerCase() === String(uCode).trim().toLowerCase() || m.trim().toLowerCase() === String(uUsername).trim().toLowerCase() || m.trim() === String(uName).trim();
-            if (typeof m === 'object') {
-              const mId = m.id || m.userId;
-              const mCode = m.studentCode;
-              const mUser = m.username;
-              const mName = m.name;
-              return (mId && String(mId).trim().toLowerCase() === String(uId).trim().toLowerCase()) ||
-                     (mCode && String(mCode).trim().toLowerCase() === String(uCode).trim().toLowerCase()) ||
-                     (mUser && String(mUser).trim().toLowerCase() === String(uUsername).trim().toLowerCase()) ||
-                     (mName && String(mName).trim() === String(uName).trim());
-            }
-            return false;
-          });
-          if (hasMember) return g;
-        }
-      }
-
+      // 2. 智能全局容错检索：若指定班级未找到（或未指定班级），在学生关联的班级或全部班级中检索真实小组
       for (const c of classes) {
         if (!Array.isArray(c.groups)) continue;
         for (const g of c.groups) {
-          const hasMember = (g.members || []).some(m => {
-            if (!m) return false;
-            if (typeof m === 'string') return m === uId || m === uCode || m === uUsername || m === uName;
-            if (typeof m === 'object') return m.id === uId || m.userId === uId || m.studentCode === uCode || m.username === uUsername || m.name === uName;
-            return false;
-          });
-          if (hasMember) return g;
+          if ((g.members || []).some(checkMemberMatch)) return g;
         }
       }
 
@@ -1722,7 +1697,7 @@
         }
       }
 
-      // 🛡️ 严格隔离：未被分配到具体小组的学生，赋予独立的隔离空间，绝不默认塞进第 1 小组造成跨组串味
+      // 3. 确实未被分配到任何具体小组
       return { id: `group_unassigned_${safeUserKey}`, name: '未分组（待教师分配）' };
     }
 
@@ -8078,7 +8053,7 @@
 
     const activeClassId = state.activeStudentClassId || currentUser?.classId || 'class_101';
     const activeGroupObj = (window.app && window.app.authManager) ? window.app.authManager.getStudentActiveGroup(currentUser, activeClassId) : { id: 'group_1', name: '第 1 协作小组' };
-    const groupId = activeGroupObj.id || (currentUser && currentUser.groupId ? currentUser.groupId : 'group_1');
+    const groupId = state.activeGroupId || (window.app && window.app.cloudSyncEngine?.groupId) || activeGroupObj.id || (currentUser && currentUser.groupId ? currentUser.groupId : 'group_1');
     const groupName = activeGroupObj.name || '第 1 协作小组';
     const currentTaskTitle = currentTask ? currentTask.title : (activeTaskId === 'task_default' ? '默认写作任务' : '协作写作任务');
 
@@ -12672,7 +12647,7 @@
       const currentClassObj = classes.find(c => c.id === effectiveClassId);
       const effectiveClassName = currentClassObj ? currentClassObj.name : '';
       const activeGroupObj = this.authManager.getStudentActiveGroup(currentUser, effectiveClassId);
-      const groupId = activeGroupObj.id || (currentUser && currentUser.groupId ? currentUser.groupId : 'group_1');
+      const groupId = this.state.activeGroupId || this.cloudSyncEngine?.groupId || activeGroupObj.id || (currentUser && currentUser.groupId ? currentUser.groupId : 'group_1');
       const allTasks = this.authManager.getTasks();
 
       const isAnnRead = (a) => {
@@ -12730,7 +12705,7 @@
       const currentClassObj = classes.find(c => c.id === effectiveClassId);
       const effectiveClassName = currentClassObj ? currentClassObj.name : '';
       const activeGroupObj = this.authManager.getStudentActiveGroup(currentUser, effectiveClassId);
-      const groupId = activeGroupObj.id || (currentUser && currentUser.groupId ? currentUser.groupId : 'group_1');
+      const groupId = this.state.activeGroupId || this.cloudSyncEngine?.groupId || activeGroupObj.id || (currentUser && currentUser.groupId ? currentUser.groupId : 'group_1');
       const isTaskListMode = (this.state && this.state.studentViewMode === 'task_list');
       const activeTaskId = this.state.activeTaskId || 'task_default';
       const allAnns = this.authManager.getAnnouncements();
