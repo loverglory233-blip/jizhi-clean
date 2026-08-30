@@ -2028,12 +2028,14 @@ if ($action === 'send_chat' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             }
 
-            // 1. 行级插入 chat_messages 表
-            $stmtInsertMsg = $pdo->prepare("INSERT IGNORE INTO chat_messages (scope_key, stage, sender, text, timestamp_str, time_ms) VALUES (:sk, :stg, :snd, :txt, :tstr, :tms)");
+            // 1. 行级插入 chat_messages 表 (包含 sender_name)
+            $sndName = isset($msgItem['senderName']) ? $msgItem['senderName'] : (isset($msgItem['sender_name']) ? $msgItem['sender_name'] : '');
+            $stmtInsertMsg = $pdo->prepare("INSERT IGNORE INTO chat_messages (scope_key, stage, sender, sender_name, text, timestamp_str, time_ms) VALUES (:sk, :stg, :snd, :sndName, :txt, :tstr, :tms)");
             $stmtInsertMsg->execute([
                 ':sk' => $scopeKey,
                 ':stg' => $stage,
                 ':snd' => $snd,
+                ':sndName' => $sndName,
                 ':txt' => $txt,
                 ':tstr' => $tstr,
                 ':tms' => $tms
@@ -2361,16 +2363,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $exProps = isset($existingS1['proposals']) && is_array($existingS1['proposals']) ? $existingS1['proposals'] : [];
                 $inProps = isset($incomingS1['proposals']) && is_array($incomingS1['proposals']) ? $incomingS1['proposals'] : [];
                 $propMap = [];
-                foreach ($exProps as $p) { if (isset($p['author'])) $propMap[$p['author']] = $p; }
+                // 优先以提案唯一 ID 或唯一 author 标识为主键
+                foreach ($exProps as $p) {
+                    $key = !empty($p['id']) ? $p['id'] : (!empty($p['author']) ? $p['author'] : (!empty($p['authorName']) ? $p['authorName'] : ''));
+                    if (!empty($key)) $propMap[$key] = $p;
+                }
                 foreach ($inProps as $p) {
-                    if (isset($p['author'])) {
-                        $author = $p['author'];
-                        if (!isset($propMap[$author]) || (isset($p['updatedAt']) && $p['updatedAt'] >= (isset($propMap[$author]['updatedAt']) ? $propMap[$author]['updatedAt'] : 0))) {
-                            $propMap[$author] = $p;
+                    $key = !empty($p['id']) ? $p['id'] : (!empty($p['author']) ? $p['author'] : (!empty($p['authorName']) ? $p['authorName'] : ''));
+                    if (!empty($key)) {
+                        $pTime = isset($p['updatedAt']) ? intval($p['updatedAt']) : 0;
+                        $exTime = isset($propMap[$key]['updatedAt']) ? intval($propMap[$key]['updatedAt']) : 0;
+                        if (!isset($propMap[$key]) || $pTime >= $exTime) {
+                            $propMap[$key] = $p;
                         }
                     }
                 }
-                // 🛡️ 严格小组白名单过滤：仅保留属于本组成员的提案，剔除历史跨组串入的脏提案
+                // 🛡️ 稳健白名单校验：多维度匹配 id / studentCode / username / name / author / authorName / authorId
                 $allowedKeys = [];
                 if (!empty($mbJson)) {
                     $mbs = json_decode($mbJson, true);
@@ -2378,20 +2386,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         foreach ($mbs as $mb) {
                             if (is_array($mb)) {
                                 foreach (['id', 'studentCode', 'userId', 'username', 'name'] as $f) {
-                                    if (!empty($mb[$f])) $allowedKeys[(string)$mb[$f]] = true;
+                                    if (!empty($mb[$f])) $allowedKeys[mb_strtolower(trim((string)$mb[$f]))] = true;
                                 }
                             } elseif (is_string($mb) || is_numeric($mb)) {
-                                $allowedKeys[(string)$mb] = true;
+                                $allowedKeys[mb_strtolower(trim((string)$mb))] = true;
                             }
                         }
                     }
                 }
                 if (!empty($allowedKeys)) {
                     $cleanPropList = [];
-                    foreach ($propMap as $author => $p) {
-                        $aStr = (string)$author;
-                        $anStr = isset($p['authorName']) ? (string)$p['authorName'] : '';
-                        if (isset($allowedKeys[$aStr]) || (!empty($anStr) && isset($allowedKeys[$anStr]))) {
+                    foreach ($propMap as $k => $p) {
+                        $matchKeys = [
+                            isset($p['author']) ? mb_strtolower(trim((string)$p['author'])) : '',
+                            isset($p['authorName']) ? mb_strtolower(trim((string)$p['authorName'])) : '',
+                            isset($p['authorId']) ? mb_strtolower(trim((string)$p['authorId'])) : ''
+                        ];
+                        $isAllowed = false;
+                        foreach ($matchKeys as $mk) {
+                            if (!empty($mk) && isset($allowedKeys[$mk])) {
+                                $isAllowed = true;
+                                break;
+                            }
+                        }
+                        // 兼容保护：若提案结构完整有效（包含title与id），即便作者名稍有偏差也不随意丢弃
+                        if ($isAllowed || (!empty($p['title']) && !empty($p['id']))) {
                             $cleanPropList[] = $p;
                         }
                     }
@@ -2825,7 +2844,7 @@ if ($pdo) {
 
         // 🛡️ 聊天消息权威恢复：直接从 chat_messages 物理关系表拉取全部历史发言，绝不依赖易被空数组覆盖的缓存
         $chats = ['stage1' => [], 'stage2' => [], 'stage3' => []];
-        $stmtAllMsg = $pdo->prepare("SELECT stage, sender, text, timestamp_str, time_ms, id FROM chat_messages WHERE scope_key = :sk ORDER BY time_ms ASC");
+        $stmtAllMsg = $pdo->prepare("SELECT stage, sender, sender_name, text, timestamp_str, time_ms, id FROM chat_messages WHERE scope_key = :sk ORDER BY time_ms ASC");
         $stmtAllMsg->execute([':sk' => $scopeKey]);
         $allRows = $stmtAllMsg->fetchAll(PDO::FETCH_ASSOC);
         $maxChatMs = 0;
@@ -2835,11 +2854,12 @@ if ($pdo) {
             $cMs = intval($mr['time_ms']);
             if ($cMs > $maxChatMs) $maxChatMs = $cMs;
             $chats[$stg][] = [
-                'id'        => $mr['id'] ?: ('msg_' . $mr['time_ms'] . '_' . substr(md5($mr['text']), 0, 6)),
-                'sender'    => $mr['sender'],
-                'text'      => $mr['text'],
-                'timestamp' => $mr['timestamp_str'],
-                '_timeMs'   => $cMs
+                'id'         => $mr['id'] ?: ('msg_' . $mr['time_ms'] . '_' . substr(md5($mr['text']), 0, 6)),
+                'sender'     => $mr['sender'],
+                'senderName' => $mr['sender_name'] ?? '',
+                'text'       => $mr['text'],
+                'timestamp'  => $mr['timestamp_str'],
+                '_timeMs'    => $cMs
             ];
         }
 
@@ -2979,7 +2999,7 @@ if ($pdo) {
 
         // 🛡️ 聊天消息权威恢复：直接从 chat_messages 物理关系表拉取全部历史发言
         $chats = ['stage1' => [], 'stage2' => [], 'stage3' => []];
-        $stmtAllMsg = $pdo->prepare("SELECT stage, sender, text, timestamp_str, time_ms, id FROM chat_messages WHERE scope_key = :sk ORDER BY time_ms ASC");
+        $stmtAllMsg = $pdo->prepare("SELECT stage, sender, sender_name, text, timestamp_str, time_ms, id FROM chat_messages WHERE scope_key = :sk ORDER BY time_ms ASC");
         $stmtAllMsg->execute([':sk' => $scopeKey]);
         $allRows = $stmtAllMsg->fetchAll(PDO::FETCH_ASSOC);
         $maxChatMs = 0;
@@ -2989,11 +3009,12 @@ if ($pdo) {
             $cMs = intval($mr['time_ms']);
             if ($cMs > $maxChatMs) $maxChatMs = $cMs;
             $chats[$stg][] = [
-                'id'        => $mr['id'] ?: ('msg_' . $mr['time_ms'] . '_' . substr(md5($mr['text']), 0, 6)),
-                'sender'    => $mr['sender'],
-                'text'      => $mr['text'],
-                'timestamp' => $mr['timestamp_str'],
-                '_timeMs'   => $cMs
+                'id'         => $mr['id'] ?: ('msg_' . $mr['time_ms'] . '_' . substr(md5($mr['text']), 0, 6)),
+                'sender'     => $mr['sender'],
+                'senderName' => $mr['sender_name'] ?? '',
+                'text'       => $mr['text'],
+                'timestamp'  => $mr['timestamp_str'],
+                '_timeMs'    => $cMs
             ];
         }
 
