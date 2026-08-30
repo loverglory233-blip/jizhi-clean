@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260830_v784";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash } from "./utils.js?v=20260830_v784";
-import { callCozeAgentAPI } from "./agents.js?v=20260830_v784";
-import { AuthManager } from "./auth.js?v=20260830_v784";
-import { CloudSyncEngine } from "./sync.js?v=20260830_v784";
-import { renderLoginView } from "./login.js?v=20260830_v784";
-import { renderTeacherPortal } from "./teacher.js?v=20260830_v784";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260830_v784";
+} from "./constants.js?v=20260830_v785";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash } from "./utils.js?v=20260830_v785";
+import { callCozeAgentAPI } from "./agents.js?v=20260830_v785";
+import { AuthManager } from "./auth.js?v=20260830_v785";
+import { CloudSyncEngine } from "./sync.js?v=20260830_v785";
+import { renderLoginView } from "./login.js?v=20260830_v785";
+import { renderTeacherPortal } from "./teacher.js?v=20260830_v785";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260830_v785";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260830_v784";
+} from "./editor.js?v=20260830_v785";
 
 // Make renderChat available on window for sync callbacks
 if (typeof window !== "undefined") {
@@ -48,8 +48,9 @@ export class App {
     const storedClassId = sessionStorage.getItem('jizhi_active_student_class_id') || localStorage.getItem('jizhi_active_student_class_id');
     if (storedClassId) this.state.activeStudentClassId = storedClassId;
 
-    const storedViewMode = sessionStorage.getItem('jizhi_student_view_mode') || localStorage.getItem('jizhi_student_view_mode');
-    if (storedViewMode) this.state.studentViewMode = storedViewMode;
+    localStorage.removeItem('jizhi_student_view_mode');
+    const storedViewMode = sessionStorage.getItem('jizhi_student_view_mode');
+    this.state.studentViewMode = (storedViewMode === 'workspace') ? 'workspace' : 'task_list';
 
     const user = this.authManager.getCurrentUser();
     const effectiveClassId = this.state.activeStudentClassId || user?.classId || 'class_101';
@@ -1911,7 +1912,9 @@ ${recentChats}
   backToTaskList() {
     this.state.studentViewMode = 'task_list';
     sessionStorage.setItem('jizhi_student_view_mode', 'task_list');
-    localStorage.setItem('jizhi_student_view_mode', 'task_list');
+    sessionStorage.removeItem('jizhi_active_task_id');
+    localStorage.removeItem('jizhi_student_view_mode');
+    localStorage.removeItem('jizhi_active_task_id');
     if (this.cloudSyncEngine) this.cloudSyncEngine.stopPolling();
     this.renderMain();
   }
@@ -3268,13 +3271,7 @@ ${propText}
       (s) => this.switchStage(s), (sp) => this.setSpeed(sp),
       () => this.handleLogout(), () => this.switchToTeacherView(),
       () => this.showAnnouncementModal(), () => this.showQuestionnaireModal(),
-      () => {
-        this.state.studentViewMode = 'task_list';
-        sessionStorage.setItem('jizhi_student_view_mode', 'task_list');
-        localStorage.setItem('jizhi_student_view_mode', 'task_list');
-        if (this.cloudSyncEngine) this.cloudSyncEngine.stopPolling();
-        this.renderMain();
-      }
+      () => this.backToTaskList()
     );
   }
 
@@ -3300,13 +3297,7 @@ ${propText}
       (s) => this.switchStage(s), (sp) => this.setSpeed(sp),
       () => this.handleLogout(), () => this.switchToTeacherView(),
       () => this.showAnnouncementModal(), () => this.showQuestionnaireModal(),
-      () => {
-        this.state.studentViewMode = 'task_list';
-        sessionStorage.setItem('jizhi_student_view_mode', 'task_list');
-        localStorage.setItem('jizhi_student_view_mode', 'task_list');
-        if (this.cloudSyncEngine) this.cloudSyncEngine.stopPolling();
-        this.renderMain();
-      }
+      () => this.backToTaskList()
     );
 
     // 🔔 检查并通知当前任务的延期
