@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles } from "./constants.js?v=20260831_v944";
-import { callCozeAgentAPI } from "./agents.js?v=20260831_v944";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap } from "./utils.js?v=20260831_v944";
+import { AgentProfiles } from "./constants.js?v=20260831_v945";
+import { callCozeAgentAPI } from "./agents.js?v=20260831_v945";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap } from "./utils.js?v=20260831_v945";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -1896,7 +1896,7 @@ function renderStage1Canvas(canvas, state, handlers) {
     if (btnExtractTopic) {
       btnExtractTopic.addEventListener('click', () => {
         if (!isVotingComplete) {
-          alert();
+          alert(`🔒 请先完成全员提案提交与投票推选！\n\n当前全组投票进度：${totalVotesCast}/${totalMembersCount} 人已投票。\n投票结束后拍卖师将落槌揭晓结果，随后方可开启主题与方案提炼。`);
           return;
         }
         if (handlers.onExtractTopic) handlers.onExtractTopic();
@@ -1961,7 +1961,7 @@ function renderStage1Canvas(canvas, state, handlers) {
   }
 
   if (activeKey) {
-    const restoreInput = canvas.querySelector();
+    const restoreInput = canvas.querySelector(`#${activeKey}, [data-key="${activeKey}"], [data-mkey="${activeKey}"]`);
     if (restoreInput) {
       restoreInput.value = activeVal;
       restoreInput.focus();
@@ -1983,10 +1983,10 @@ function renderStage2Canvas(canvas, state, handlers) {
   const userClassId = state.activeStudentClassId || (currUser ? currUser.classId : null) || null;
   const activeGroupObj = (window.app && window.app.authManager) ? window.app.authManager.getStudentActiveGroup(currUser, userClassId) : null;
   const userGroupId = activeGroupObj?.id || (window.app?.cloudSyncEngine?.groupId) || (currUser?.groupId) || state.activeGroupId || 'group_1';
-  let activeTaskId = state.activeTaskId || (window.app?.cloudSyncEngine?.taskId) || ();
-  if (!activeTaskId || activeTaskId === 'task_default') activeTaskId = ;
+  let activeTaskId = state.activeTaskId || (window.app?.cloudSyncEngine?.taskId) || (`task_${userClassId || 'default'}_default`);
+  if (!activeTaskId || activeTaskId === 'task_default') activeTaskId = `task_${userClassId || 'default'}_default`;
   const availablePapers = (window.app && window.app.authManager) ? window.app.authManager.getReferencePapers(userGroupId, userClassId, activeTaskId) : [];
-  const paperBtnLabel = availablePapers.length > 0 ?  : '📚 查阅参考范文库';
+  const paperBtnLabel = availablePapers.length > 0 ? `📚 查阅参考范文 (${availablePapers.length}篇)` : '📚 查阅参考范文库';
 
   const allTasks = (window.app && window.app.authManager) ? window.app.authManager.getTasks() : [];
   const currentTask = allTasks.find(t => t.id === state.activeTaskId);
