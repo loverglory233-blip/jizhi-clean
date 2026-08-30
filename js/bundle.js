@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260830_v826
+ * Version: 20260830_v827
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260830_v826';
+  const APP_VERSION = '20260830_v827';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -10921,15 +10921,12 @@
           const txt = msg.text || '';
           if (txt.includes('已连续') || txt.includes('互动督促') || txt.includes('秒未研讨') || txt.includes('秒没有发言')) return;
 
-          // 🛡️ 严格去重守护：同一阶段同一发送者同一文本内容（或相同 msg.id）绝不重复渲染
-          const rawTxtNormalized = txt.replace(/[\s\r\n]+/g, ' ').trim();
-          const contentKey = `${msg.sender}_${stg}_${rawTxtNormalized}`;
-          const idKey = msg.id ? `id_${msg.id}` : null;
-          if (seenMsgKeys.has(contentKey) || (idKey && seenMsgKeys.has(idKey))) {
+          // 🛡️ 严格去重守护：依据唯一 msg.id 去重，100% 保护人类多次发送相同词汇（如连续发好/收到/同意）绝不误杀吞掉！
+          const idKey = msg.id ? `id_${msg.id}` : `fallback_${msg.sender}_${stg}_${msg._timeMs || msg.timestamp}`;
+          if (seenMsgKeys.has(idKey)) {
             return;
           }
-          seenMsgKeys.add(contentKey);
-          if (idKey) seenMsgKeys.add(idKey);
+          seenMsgKeys.add(idKey);
 
           allMsgs.push(msg);
         });
@@ -11004,7 +11001,9 @@
       `;
     }).join('');
 
-    if (isAtBottom) {
+    const lastMsgIsMine = cleanMsgs.length > 0 && (cleanMsgs[cleanMsgs.length - 1].sender === currentUser || (window.app?.authManager?.getCurrentUser() && (cleanMsgs[cleanMsgs.length - 1].sender === window.app.authManager.getCurrentUser().id || cleanMsgs[cleanMsgs.length - 1].sender === window.app.authManager.getCurrentUser().studentCode)));
+
+    if (isAtBottom || lastMsgIsMine) {
       stream.scrollTop = stream.scrollHeight;
     } else {
       stream.scrollTop = prevScrollTop;
@@ -13171,9 +13170,9 @@
       let isComposing = false;
       input.addEventListener('compositionstart', () => { isComposing = true; });
       input.addEventListener('compositionend', () => { isComposing = false; });
+      input.addEventListener('blur', () => { isComposing = false; });
 
       input.addEventListener('input', (e) => {
-        if (isComposing || e.isComposing) return;
         const val = input.value;
         const lastChar = val.slice(-1);
         if (lastChar === '@' || (val.includes('@') && !val.includes(' '))) atMentionMenu.style.display = 'block';

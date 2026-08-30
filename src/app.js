@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260830_v826";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash } from "./utils.js?v=20260830_v826";
-import { callCozeAgentAPI } from "./agents.js?v=20260830_v826";
-import { AuthManager } from "./auth.js?v=20260830_v826";
-import { CloudSyncEngine } from "./sync.js?v=20260830_v826";
-import { renderLoginView } from "./login.js?v=20260830_v826";
-import { renderTeacherPortal } from "./teacher.js?v=20260830_v826";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260830_v826";
+} from "./constants.js?v=20260830_v827";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash } from "./utils.js?v=20260830_v827";
+import { callCozeAgentAPI } from "./agents.js?v=20260830_v827";
+import { AuthManager } from "./auth.js?v=20260830_v827";
+import { CloudSyncEngine } from "./sync.js?v=20260830_v827";
+import { renderLoginView } from "./login.js?v=20260830_v827";
+import { renderTeacherPortal } from "./teacher.js?v=20260830_v827";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260830_v827";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260830_v826";
+} from "./editor.js?v=20260830_v827";
 
 // Make renderChat available on window for sync callbacks
 if (typeof window !== "undefined") {
@@ -2078,9 +2078,9 @@ ${recentChats}
     let isComposing = false;
     input.addEventListener('compositionstart', () => { isComposing = true; });
     input.addEventListener('compositionend', () => { isComposing = false; });
+    input.addEventListener('blur', () => { isComposing = false; });
 
     input.addEventListener('input', (e) => {
-      if (isComposing || e.isComposing) return;
       const val = input.value;
       const lastChar = val.slice(-1);
       if (lastChar === '@' || (val.includes('@') && !val.includes(' '))) atMentionMenu.style.display = 'block';
