@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260831_v972
+ * Version: 20260831_v973
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260831_v972';
+  const APP_VERSION = '20260831_v973';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -13103,11 +13103,19 @@
               return;
             }
           }
-          // 2.5 【一审后静默跟进】：一审发出后若讨论区冷场超 3 分钟，温和提示随时 @ 咨询（全场严格仅 1 次）
+          // 2.5 【一审后静默跟进】：一审发出后若讨论区冷场超 3 分钟，温和提示随时 @ 咨询（全场严格仅 1 次，仅在未进入半程会议及后续阶段前生效）
           const firstReviewMsgObj = [...s2Chats].reverse().find(m => m && m.sender === 'reviewingEditor' && (m.text?.includes('一审破题把脉') || m.text?.includes('Research Gap') || m.text?.includes('审稿编辑·一审')));
           const hasFirstReviewSilenceFollowed = s2Chats.some(m => m && m.sender === 'reviewingEditor' && (m.text?.includes('初审跟进提示') || m.text?.includes('初审微调建议已送达')));
+          const hasPassedToSubsequentStages = s2Chats.some(m => m && (
+            m.text?.includes('半程研讨号召') || 
+            m.text?.includes('半程会议号召') || 
+            m.text?.includes('半程自查') || 
+            m.text?.includes('半程修正清单') || 
+            m.text?.includes('终稿行文扫描') || 
+            m.text?.includes('终审定稿总评')
+          )) || !!s2.meetingStep || !!s2.isDraftConfirmed || (plainTextLen >= (isLargeTask ? 4500 : 2150));
 
-          if (firstReviewMsgObj && !hasFirstReviewSilenceFollowed) {
+          if (firstReviewMsgObj && !hasFirstReviewSilenceFollowed && !hasPassedToSubsequentStages) {
             let reviewTime = firstReviewMsgObj._timeMs;
             if (!reviewTime && firstReviewMsgObj.timestamp) {
               const parts = String(firstReviewMsgObj.timestamp).split(':');
