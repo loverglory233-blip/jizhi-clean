@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260831_v984
+ * Version: 20260831_v985
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260831_v984';
+  const APP_VERSION = '20260831_v985';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -13287,6 +13287,39 @@
             }
           }
 
+          // ======================================================================
+          // 📝 审稿编辑二审后静默跟进（半程会议后冷场满 3 分钟提示随时 @ 咨询）
+          // ======================================================================
+          const secondReviewMsgObj = [...s2Chats].reverse().find(m => m && m.sender === 'reviewingEditor' && (m.text?.includes('二审') || m.text?.includes('深度把脉') || m.text?.includes('半程审稿') || m.text?.includes('审稿编辑·二审')));
+          const hasFinalReviewOrConfirmed = s2Chats.some(m => m && (m.text?.includes('终稿行文扫描') || m.text?.includes('终审定稿总评'))) || !!s2.isDraftConfirmed;
+
+          if (secondReviewMsgObj && !hasFinalReviewOrConfirmed) {
+            const secondReviewTime = parseMsgTime(secondReviewMsgObj) || (now - 60000);
+            const secondReviewElapsed = Math.max(0, now - secondReviewTime);
+            const studentMsgAfterSecondReview = s2Chats.filter(m => m && m.sender && m.sender !== 'managingEditor' && m.sender !== 'reviewingEditor' && m.sender !== 'system' && parseMsgTime(m) > secondReviewTime);
+            const lastStudentMsgAfterSecondReview = studentMsgAfterSecondReview.length > 0 ? studentMsgAfterSecondReview[studentMsgAfterSecondReview.length - 1] : null;
+            const lastStudentMsgAfterSecondReviewTime = parseMsgTime(lastStudentMsgAfterSecondReview);
+            const silenceAfterSecondReview = lastStudentMsgAfterSecondReviewTime ? Math.max(0, now - lastStudentMsgAfterSecondReviewTime) : secondReviewElapsed;
+
+            // ── 二审后冷场满 3 分钟：二审跟进提示（全场严格仅 1 次） ──
+            if (silenceAfterSecondReview >= 180000 && !this._nudgeCounts['s2_second_review_silence']) {
+              this._nudgeCounts['s2_second_review_silence'] = 1;
+              const followMsg2 = {
+                sender: 'reviewingEditor',
+                senderName: '学术质量 · 审稿编辑',
+                text: `📝 【审稿编辑·二审跟进提示】：二审深度把脉建议已送达！大家针对决议落实或章节深化若有疑问，随时在讨论区 @审稿编辑 咨询，继续全力推进正文完善！`,
+                timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                _timeMs: now
+              };
+              if (!this.state.chatLogs.stage2) this.state.chatLogs.stage2 = [];
+              this.state.chatLogs.stage2.push(followMsg2);
+              this.syncChatLogs();
+              if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+              renderChat(this.state);
+              return;
+            }
+          }
+
           // ── 🛡️ 阶段二三次质检水位线标准（中任务默认4300字，大任务默认9000字） ──
           const defaultWordTarget = isLargeTask ? 9000 : 4300;
           const targetWordCount = (curTask && curTask.targetWordCount) ? Number(curTask.targetWordCount) : defaultWordTarget;
@@ -13349,18 +13382,14 @@
 
           if (hasFinalReviewMsgInChat && !hasFinalSilenceFollowed && !s2.finalReviewSilenceSent && !s2.isDraftConfirmed) {
             const finalReviewMsgObj = [...s2Chats].reverse().find(m => m && m.sender === 'reviewingEditor' && (m.text?.includes('终审定稿总评') || m.text?.includes('终稿行文扫描') || m.text?.includes('审稿编辑·终审')));
-            let fMsgTime = finalReviewMsgObj?._timeMs;
-            if (!fMsgTime && finalReviewMsgObj?.timestamp) {
-              const parts = finalReviewMsgObj.timestamp.split(':');
-              if (parts.length >= 2) {
-                const d = new Date();
-                d.setHours(parseInt(parts[0], 10), parseInt(parts[1], 10), 0, 0);
-                fMsgTime = d.getTime();
-              }
-            }
-            const fReviewElapsed = fMsgTime ? (now - fMsgTime) : silenceDurationMs;
+            const fMsgTime = parseMsgTime(finalReviewMsgObj) || (now - 60000);
+            const fReviewElapsed = Math.max(0, now - fMsgTime);
+            const studentMsgAfterFinal = s2Chats.filter(m => m && m.sender && m.sender !== 'managingEditor' && m.sender !== 'reviewingEditor' && m.sender !== 'system' && parseMsgTime(m) > fMsgTime);
+            const lastStudentMsgAfterFinal = studentMsgAfterFinal.length > 0 ? studentMsgAfterFinal[studentMsgAfterFinal.length - 1] : null;
+            const lastStudentMsgAfterFinalTime = parseMsgTime(lastStudentMsgAfterFinal);
+            const silenceAfterFinal = lastStudentMsgAfterFinalTime ? Math.max(0, now - lastStudentMsgAfterFinalTime) : fReviewElapsed;
 
-            if (fReviewElapsed >= 180000 && silenceDurationMs >= 180000) { // 严格 3 分钟静默
+            if (silenceAfterFinal >= 180000) { // 严格 3 分钟静默
               s2.finalReviewSilenceSent = true;
               const followMsg3 = {
                 sender: 'reviewingEditor',
