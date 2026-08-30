@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260830_v894
+ * Version: 20260830_v895
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260830_v894';
+  const APP_VERSION = '20260830_v895';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -11980,11 +11980,11 @@
               }
             }
 
-            // ── 1. 【20% 时间节点：阶段一到期转场提示】(总时间 20% 节点 · 归属拍卖师 · 严格全场仅 1 次) ──
+            // ── 1. 【20% 时间节点：阶段一超时转场强通牒】(阶段一标准规划占 10%，到 20% 属于严重超时转场通牒 · 归属拍卖师 · 严格全场仅 1 次) ──
             if (!this.state.gate20TriggeredMap) this.state.gate20TriggeredMap = {};
             const s1GateMsgId = `msg_gate_s1_${activeTaskId}_${currentGroupId}_transfer`;
             const s1AlreadySent = !!this.state.gate20TriggeredMap[activeTaskId] ||
-              allChatLogsList.some(m => m && (m.id === s1GateMsgId || (m.text && (m.text.includes('阶段一转场提示') || m.text.includes('阶段一分配的时间已用完') || m.text.includes('选题研讨的时间已经走过约 20%')))));
+              allChatLogsList.some(m => m && (m.id === s1GateMsgId || (m.text && (m.text.includes('转场通牒') || m.text.includes('阶段一转场提示') || m.text.includes('阶段一选题研讨已达 20% 极限门限')))));
 
             const isS1Due = (totalProgress >= 0.20 && elapsedSec >= 120);
 
@@ -11994,7 +11994,7 @@
                 id: s1GateMsgId,
                 sender: 'auctioneer',
                 senderName: '学术选题 · 拍卖师',
-                text: `🎪 【拍卖师·转场提示】：阶段一选题研讨时间已达 20% 节点（已分配时间已用完）！\n👉 如果研究方向已经基本确定，请全员在左侧公约卡片点击【签署确认】，全员签署后立即进入【阶段二：学术编辑部】开始动笔写作！`,
+                text: `🎪 【拍卖师·转场通牒】：全场时间已达 20% 极限节点（阶段一标准规划为 10%，当前已超时）！\n👉 请全员立刻在左侧公约卡片点击【签署确认】，全员签署后立即进入【阶段二：学术编辑部】开始动笔写作，留足写作与质检时间！`,
                 timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
                 _timeMs: nowMs
               };
@@ -12679,15 +12679,15 @@
             }
           }
 
-          // 5. 【阶段一 20% 总时间到期转场提醒】：阶段一时间已耗尽（达到总时间 20%）但尚未全员签署公约（全场严格仅发 1 次）
-          const stage1TotalBudgetMs = (totalDurationSec * 1000) * 0.20;
-          const hasS1TransitionNudge = s1AllLogs.some(m => m && m.sender === 'auctioneer' && (m.text?.includes('阶段一转场提醒') || m.text?.includes('阶段一分配的时间已用完')));
-          if (stage1DurationMs >= stage1TotalBudgetMs && !s1.contract?.isConfirmed && !hasS1TransitionNudge && !s1.transitionNudgeSent) {
+          // 5. 【阶段一 20% 超时转场强通牒】：阶段一规划占 10%，进行达 20% 属于严重超时转场门限（全场严格仅发 1 次）
+          const stage1MaxBudgetMs = (totalDurationSec * 1000) * 0.20;
+          const hasS1TransitionNudge = s1AllLogs.some(m => m && m.sender === 'auctioneer' && (m.text?.includes('转场通牒') || m.text?.includes('阶段一转场提醒') || m.text?.includes('已达 20% 极限节点')));
+          if (stage1DurationMs >= stage1MaxBudgetMs && !s1.contract?.isConfirmed && !hasS1TransitionNudge && !s1.transitionNudgeSent) {
             s1.transitionNudgeSent = true;
             const transMsg = {
               sender: 'auctioneer',
               senderName: '学术选题 · 拍卖师',
-              text: `🎪 【拍卖师·转场提醒】：阶段一分配的时间已用完（已达总时间 20%）！\n👉 请大家抓紧在左侧公约卡片点击【签署确认】，全员签署后立即进入【阶段二：学术编辑部】开始动笔写作！`,
+              text: `🎪 【拍卖师·转场通牒】：全场时间已达 20% 极限节点（阶段一标准规划为 10%，当前已超时）！\n👉 请全员立刻在左侧公约卡片点击【签署确认】，全员签署后立即进入【阶段二：学术编辑部】开始动笔写作，留足写作与质检时间！`,
               timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
               _timeMs: now
             };
