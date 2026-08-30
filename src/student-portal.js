@@ -7,20 +7,42 @@ import {
   STORAGE_KEY_TASKS,
   STORAGE_KEY_ANNOUNCEMENTS,
   STORAGE_KEY_CLASSES
-} from "./constants.js?v=20260830_v888";
-import { escapeHtml, isTaskExpired, formatDurationHuman, formatStandardDateDash, showGlobalBannerNotice } from "./utils.js?v=20260830_v888";
+} from "./constants.js?v=20260830_v889";
+import { escapeHtml, isTaskExpired, formatDurationHuman, formatStandardDateDash, showGlobalBannerNotice } from "./utils.js?v=20260830_v889";
 
 /* ==========================================================================
    10. STUDENT TASK PORTAL (CENTRALIZED HUB & COLLABORATION ENTRY)
    ========================================================================== */
 export function renderStudentTaskPortal(container, authManager, state, onSelectTask, onLogout, onSwitchTeacher, onOpenAnnModal, onOpenSurveyModal) {
-  // ⚡ 监听全局广播（跨标签页秒级无感热同步大厅任务卡片与下发延期通知）
+  // ⚡ 监听全局广播（跨标签页秒级无感热同步大厅任务卡片、新任务发布与延期通知）
   if ('BroadcastChannel' in window) {
     try {
       if (window._studentPortalBc) { try { window._studentPortalBc.close(); } catch (e) {} }
       window._studentPortalBc = new BroadcastChannel('jizhi_global_events');
       window._studentPortalBc.onmessage = (e) => {
         if (state.studentViewMode !== 'task_list') return;
+        
+        // 1. 新任务发布广播
+        if (e.data && e.data.type === 'task_created' && e.data.task) {
+          const t = e.data.task;
+          renderStudentTaskPortal(container, authManager, state, onSelectTask, onLogout, onSwitchTeacher, onOpenAnnModal, onOpenSurveyModal);
+          showGlobalBannerNotice('📢 教师发布新任务', `任课教师刚刚发布了全新写作任务《${t.title || '新协作任务'}》！`, 'info', 8000);
+          return;
+        }
+
+        // 2. 任务被删除广播
+        if (e.data && e.data.type === 'task_deleted') {
+          renderStudentTaskPortal(container, authManager, state, onSelectTask, onLogout, onSwitchTeacher, onOpenAnnModal, onOpenSurveyModal);
+          return;
+        }
+
+        // 3. 任务更新广播
+        if (e.data && e.data.type === 'task_updated') {
+          renderStudentTaskPortal(container, authManager, state, onSelectTask, onLogout, onSwitchTeacher, onOpenAnnModal, onOpenSurveyModal);
+          return;
+        }
+
+        // 4. 任务延期广播
         if (e.data && e.data.type === 'task_extended' && e.data.task) {
           const t = e.data.task;
           renderStudentTaskPortal(container, authManager, state, onSelectTask, onLogout, onSwitchTeacher, onOpenAnnModal, onOpenSurveyModal);

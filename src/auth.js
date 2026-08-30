@@ -14,8 +14,8 @@ import {
   DefaultTasks,
   DefaultAnnouncements,
   DefaultReferencePapers
-} from './constants.js?v=20260830_v888';
-import { formatExportDateTime, formatDurationHuman } from './utils.js?v=20260830_v888';
+} from './constants.js?v=20260830_v889';
+import { formatExportDateTime, formatDurationHuman } from './utils.js?v=20260830_v889';
 
 export class AuthManager {
   constructor() {
@@ -1281,6 +1281,14 @@ export class AuthManager {
     tasks.unshift(newTask);
     localStorage.setItem(STORAGE_KEY_TASKS, JSON.stringify(tasks));
     this.pushGlobalMeta();
+
+    if ('BroadcastChannel' in window) {
+      try {
+        const bc = new BroadcastChannel('jizhi_global_events');
+        bc.postMessage({ type: 'task_created', task: newTask });
+        bc.close();
+      } catch (e) {}
+    }
     return newTask;
   }
 
@@ -1300,6 +1308,14 @@ export class AuthManager {
 
     localStorage.setItem(STORAGE_KEY_TASKS, JSON.stringify(tasks));
     this.pushGlobalMeta();
+    
+    if ('BroadcastChannel' in window) {
+      try {
+        const bc = new BroadcastChannel('jizhi_global_events');
+        bc.postMessage({ type: 'task_updated', task: tasks[taskIndex] });
+        bc.close();
+      } catch (e) {}
+    }
     return tasks[taskIndex];
   }
 
@@ -1373,6 +1389,9 @@ export class AuthManager {
 
   deleteTask(taskId) {
     let tasks = this.getTasks();
+    const deletedTask = tasks.find(t => t.id === taskId);
+    const deletedTaskTitle = deletedTask ? deletedTask.title : '写作任务';
+
     tasks = tasks.filter(t => t.id !== taskId);
     localStorage.setItem(STORAGE_KEY_TASKS, JSON.stringify(tasks));
 
@@ -1392,6 +1411,14 @@ export class AuthManager {
     }
 
     this.pushGlobalMeta();
+
+    if ('BroadcastChannel' in window) {
+      try {
+        const bc = new BroadcastChannel('jizhi_global_events');
+        bc.postMessage({ type: 'task_deleted', taskId: taskId, title: deletedTaskTitle });
+        bc.close();
+      } catch (e) {}
+    }
   }
 
   publishAnnouncement(taskId, title, content, attachment = null, targetGroupId = 'all', targetGroupName = '全班所有小组', classId = 'all', className = '全校班级', targetGroupIds = ['all'], isSystemAction = false) {
