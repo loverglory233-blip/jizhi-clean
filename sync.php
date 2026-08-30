@@ -928,11 +928,18 @@ if ($action === 'get_teacher_monitor_all_groups') {
 if ($action === 'get_readonly_pad_id') {
     header('Content-Type: application/json; charset=utf-8');
     $padId = isset($_GET['padId']) ? preg_replace('/[^a-zA-Z0-9_-]/', '', $_GET['padId']) : 'jizhi_' . $scopeKey;
-    $apiKey = 'c46d86a306a7bba99b4b3e260922245a461918236ffa47aab2d8f54dd18fa0eb';
-    $apiKeyFile = '/www/wwwroot/etherpad-lite/APIKEY.txt';
-    if (is_readable($apiKeyFile)) {
-        $k = trim(@file_get_contents($apiKeyFile));
-        if (!empty($k)) $apiKey = $k;
+    $apiKey = 'jizhi_academic_secret_key_2026';
+    $possibleKeyFiles = [
+        '/www/wwwroot/etherpad-lite/APIKEY.txt',
+        dirname(__DIR__) . '/etherpad-lite/APIKEY.txt',
+        __DIR__ . '/APIKEY.txt',
+        '/root/etherpad-lite/APIKEY.txt'
+    ];
+    foreach ($possibleKeyFiles as $kf) {
+        if (is_readable($kf)) {
+            $k = trim(@file_get_contents($kf));
+            if (!empty($k)) { $apiKey = $k; break; }
+        }
     }
 
     // 🛡️ 先确保 pad 已在 Etherpad 引擎中创建，防止 getReadOnlyID 抛出 padID does not exist
@@ -964,11 +971,18 @@ if ($action === 'get_readonly_pad_id') {
 if ($action === 'get_pad_text' || $action === 'get_pad_html') {
     header('Content-Type: application/json; charset=utf-8');
     $padId = isset($_GET['padId']) ? preg_replace('/[^a-zA-Z0-9_-]/', '', $_GET['padId']) : 'jizhi_' . $scopeKey;
-    $apiKey = 'c46d86a306a7bba99b4b3e260922245a461918236ffa47aab2d8f54dd18fa0eb';
-    $apiKeyFile = '/www/wwwroot/etherpad-lite/APIKEY.txt';
-    if (is_readable($apiKeyFile)) {
-        $k = trim(@file_get_contents($apiKeyFile));
-        if (!empty($k)) $apiKey = $k;
+    $apiKey = 'jizhi_academic_secret_key_2026';
+    $possibleKeyFiles = [
+        '/www/wwwroot/etherpad-lite/APIKEY.txt',
+        dirname(__DIR__) . '/etherpad-lite/APIKEY.txt',
+        __DIR__ . '/APIKEY.txt',
+        '/root/etherpad-lite/APIKEY.txt'
+    ];
+    foreach ($possibleKeyFiles as $kf) {
+        if (is_readable($kf)) {
+            $k = trim(@file_get_contents($kf));
+            if (!empty($k)) { $apiKey = $k; break; }
+        }
     }
 
     $retText = '';
