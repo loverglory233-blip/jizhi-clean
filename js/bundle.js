@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260830_v747
+ * Version: 20260830_v748
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260830_v747';
+  const APP_VERSION = '20260830_v748';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -5034,20 +5034,31 @@
                             <span style="font-size:12px; color:#475569;">总字数: <b id="teacher-stage2-word-count-num" style="color:#2563eb; font-size:14px;">${(state.stage2?.unifiedContent || '').replace(/<[^>]*>/g, '').trim().length}</b> 字</span>
                           </div>
 
-                          <!-- 2. 半程修正清单 (1:1 镜像学生端：已生成显示绿色卡片，未生成显示虚线占位卡片) -->
+                          <!-- 2. 半程修正清单 (1:1 镜像学生端：支持折叠展开与完成状态感知) -->
                           <div id="teacher-stage2-action-plan-container">
                             ${(s2ActionPlan && s2ActionPlan.isGenerated) ? `
-                              <div style="background:#ecfdf5; border:1px solid #a7f3d0; border-radius:8px; padding:8px 12px; flex-shrink:0;">
-                                <div style="font-size:12px; font-weight:800; color:#059669; display:flex; justify-content:space-between; align-items:center;">
-                                  <span>📋 【半程修正清单】(3项修改要求)</span>
-                                  <span style="font-size:10.5px; background:#d1fae5; color:#065f46; padding:1px 6px; border-radius:10px;">已生成</span>
+                              <div style="background:#ecfdf5; border:1px solid #a7f3d0; border-radius:8px; padding:6px 12px; flex-shrink:0;">
+                                <div style="font-size:12px; font-weight:800; color:#059669; display:flex; justify-content:space-between; align-items:center; cursor:pointer;" id="btn-toggle-teacher-action-plan">
+                                  <div style="display:flex; align-items:center; gap:6px;">
+                                    <span>📋 【半程修正清单】(审稿专家 3 项修改要求)</span>
+                                    <span style="font-size:10.5px; background:#d1fae5; color:#065f46; padding:1px 6px; border-radius:8px; font-weight:700;">已生成</span>
+                                  </div>
+                                  <span id="icon-toggle-teacher-plan" style="font-size:11px; color:#059669; font-weight:700;">▲ 收起</span>
                                 </div>
-                                <div style="font-size:11.5px; color:#334155; display:flex; flex-direction:column; gap:2px; margin-top:4px;">
-                                  ${(s2ActionPlan.items || []).map(item => `<div style="line-height:1.4;">• ${escapeHtml(item)}</div>`).join('')}
+                                <div id="body-teacher-action-plan" style="font-size:11.5px; color:#334155; display:flex; flex-direction:column; gap:4px; margin-top:6px;">
+                                  ${(s2ActionPlan.items || []).map((item, idx) => {
+                                    const isChecked = !!(s2ActionPlan.completedMap && s2ActionPlan.completedMap[idx]);
+                                    return `
+                                      <div style="line-height:1.4; display:flex; align-items:flex-start; gap:6px; color:${isChecked ? '#166534' : '#1e293b'};">
+                                        <span>${isChecked ? '✅' : '⏳'}</span>
+                                        <span style="text-decoration:${isChecked ? 'line-through' : 'none'};"><b>${idx + 1}.</b> ${escapeHtml(item)}</span>
+                                      </div>
+                                    `;
+                                  }).join('')}
                                 </div>
                               </div>
                             ` : `
-                              <div style="background:#f8fafc; border:1px dashed #cbd5e1; border-radius:8px; padding:8px 12px; flex-shrink:0;">
+                              <div style="background:#f8fafc; border:1px dashed #cbd5e1; border-radius:8px; padding:6px 12px; flex-shrink:0;">
                                 <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:6px;">
                                   <div style="font-size:12px; font-weight:700; color:#64748b; display:flex; align-items:center; gap:6px;">
                                     <span>📋 【半程修正清单】</span>
@@ -7253,6 +7264,19 @@
         e.stopPropagation();
         state.stage3TeacherTab = 'doc';
         renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+      });
+    }
+
+    const btnToggleTPlan = container.querySelector('#btn-toggle-teacher-action-plan');
+    if (btnToggleTPlan) {
+      btnToggleTPlan.addEventListener('click', () => {
+        const bodyPlan = container.querySelector('#body-teacher-action-plan');
+        const iconToggle = container.querySelector('#icon-toggle-teacher-plan');
+        if (bodyPlan) {
+          const isHidden = bodyPlan.style.display === 'none';
+          bodyPlan.style.display = isHidden ? 'flex' : 'none';
+          if (iconToggle) iconToggle.innerText = isHidden ? '▲ 收起' : '▼ 展开';
+        }
       });
     }
 
