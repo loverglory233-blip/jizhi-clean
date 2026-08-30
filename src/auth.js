@@ -14,8 +14,8 @@ import {
   DefaultTasks,
   DefaultAnnouncements,
   DefaultReferencePapers
-} from './constants.js?v=20260830_v793';
-import { formatExportDateTime, formatDurationHuman } from './utils.js?v=20260830_v793';
+} from './constants.js?v=20260830_v794';
+import { formatExportDateTime, formatDurationHuman } from './utils.js?v=20260830_v794';
 
 export class AuthManager {
   constructor() {
@@ -472,9 +472,13 @@ export class AuthManager {
         user.token = data.token;
         user.activeSessionId = data.token;
         sessionStorage.setItem(STORAGE_KEY_USER, JSON.stringify(user));
-        localStorage.setItem(STORAGE_KEY_USER, JSON.stringify(user));
+        sessionStorage.setItem('jizhi_student_view_mode', 'task_list');
+        localStorage.setItem('jizhi_student_view_mode', 'task_list');
+        sessionStorage.removeItem('jizhi_active_task_id');
+        localStorage.removeItem('jizhi_active_task_id');
         if (window.app && window.app.state) {
           window.app.state.studentViewMode = 'task_list';
+          window.app.state.activeTaskId = null;
         }
         return { success: true, user };
       } else if (data && data.message) {
@@ -555,8 +559,13 @@ export class AuthManager {
       }).catch(() => {});
     } catch (e) {}
 
+    sessionStorage.setItem('jizhi_student_view_mode', 'task_list');
+    localStorage.setItem('jizhi_student_view_mode', 'task_list');
+    sessionStorage.removeItem('jizhi_active_task_id');
+    localStorage.removeItem('jizhi_active_task_id');
     if (window.app && window.app.state) {
       window.app.state.studentViewMode = 'task_list';
+      window.app.state.activeTaskId = null;
       if (window.app.cloudSyncEngine) window.app.cloudSyncEngine.pushSnapshot();
     }
 
