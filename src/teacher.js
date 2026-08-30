@@ -9,8 +9,8 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260830_v754";
-import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash, filterAndDeduplicateChatLogs } from "./utils.js?v=20260830_v754";
+} from "./constants.js?v=20260830_v755";
+import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash, filterAndDeduplicateChatLogs } from "./utils.js?v=20260830_v755";
 
 /* ==========================================================================
    7. TEACHER PORTAL RENDERER (LIVE WORKSPACE MIRROR & ANNOUNCEMENT READ MATRIX)
@@ -1493,15 +1493,13 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
                               if (res && res.success && res.readOnlyID) {
                                 state._readOnlyPadMap[rawPadName] = res.readOnlyID;
                                 const f2 = document.querySelector('#teacher-stage2-etherpad-frame');
-                                if (f2) {
+                                if (f2 && !f2.src.includes(res.readOnlyID)) {
                                   f2.src = `/p/${res.readOnlyID}?userName=${encodeURIComponent('教师监控')}&userColor=%237c3aed&showControls=false&showChat=false&showLineNumbers=true&lang=zh-hans`;
-                                  f2.style.display = 'block';
-                                  const loadBox = document.querySelector('#teacher-stage2-ep-loading');
-                                  if (loadBox) loadBox.style.display = 'none';
                                 }
                               }
                             }).catch(() => {});
                           }
+                          const targetPad = readOnlyPadId || rawPadName;
                           return `
                             <div class="teacher-etherpad-container" style="flex:1; min-height:560px; border-radius:8px; overflow:hidden; border:1.5px solid #cbd5e1; box-shadow:0 2px 8px rgba(15,23,42,0.04); background:#ffffff; position:relative; display:flex; flex-direction:column;">
                               <div style="display:flex; justify-content:space-between; align-items:center; background:#f8fafc; border-bottom:1px solid #e2e8f0; padding:6px 12px; font-size:12px; color:#475569; flex-shrink:0;">
@@ -1512,10 +1510,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
                                 <span style="font-size:11px; background:#ecfdf5; color:#059669; border:1px solid #a7f3d0; padding:1px 8px; border-radius:4px; font-weight:700;">只读监控</span>
                               </div>
                               <div style="position:relative; flex:1; width:100%; height:100%; min-height:520px; display:flex;">
-                                <iframe id="teacher-stage2-etherpad-frame" src="${readOnlyPadId ? `/p/${encodeURIComponent(readOnlyPadId)}?userName=${encodeURIComponent('教师监控')}&userColor=%237c3aed&showControls=false&showChat=false&showLineNumbers=true&lang=zh-hans` : ''}" style="flex:1; width:100%; height:100%; min-height:520px; border:none; display:${readOnlyPadId ? 'block' : 'none'}; background:#ffffff;" title="教师端实时写作同屏镜像 (只读)"></iframe>
-                                <div id="teacher-stage2-ep-loading" style="flex:1; width:100%; min-height:520px; display:${readOnlyPadId ? 'none' : 'flex'}; align-items:center; justify-content:center; background:#ffffff; color:#64748b; font-size:13px; font-weight:700; gap:8px;">
-                                  <span style="font-size:20px;">🔒</span> 正在安全直连只读防篡改文档镜像...
-                                </div>
+                                <iframe id="teacher-stage2-etherpad-frame" src="/p/${encodeURIComponent(targetPad)}?userName=${encodeURIComponent('教师监控')}&userColor=%237c3aed&showControls=false&showChat=false&showLineNumbers=true&lang=zh-hans" style="flex:1; width:100%; height:100%; min-height:520px; border:none; display:block; background:#ffffff;" title="教师端实时写作同屏镜像 (只读)"></iframe>
                               </div>
                             </div>
                           `;
@@ -1597,15 +1592,13 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
                                 if (res && res.success && res.readOnlyID) {
                                   state._readOnlyPadMap[rawPadName] = res.readOnlyID;
                                   const f3 = document.querySelector('#teacher-stage3-etherpad-frame');
-                                  if (f3) {
+                                  if (f3 && !f3.src.includes(res.readOnlyID)) {
                                     f3.src = `/p/${res.readOnlyID}?userName=${encodeURIComponent('教师监控')}&userColor=%237c3aed&showControls=false&showChat=false&showLineNumbers=true&lang=zh-hans`;
-                                    f3.style.display = 'block';
-                                    const loadBox = document.querySelector('#teacher-stage3-ep-loading');
-                                    if (loadBox) loadBox.style.display = 'none';
                                   }
                                 }
                               }).catch(() => {});
                             }
+                            const targetPad = readOnlyPadId || rawPadName;
                             return `
                               <div class="teacher-etherpad-container" style="flex:1; min-height:560px; border-radius:8px; overflow:hidden; border:1.5px solid #cbd5e1; box-shadow:0 2px 8px rgba(15,23,42,0.04); background:#ffffff; position:relative; display:flex; flex-direction:column;">
                                 <div style="display:flex; justify-content:space-between; align-items:center; background:#f8fafc; border-bottom:1px solid #e2e8f0; padding:6px 12px; font-size:12px; color:#475569; flex-shrink:0;">
@@ -1616,10 +1609,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
                                   <span style="font-size:11px; background:#ecfdf5; color:#059669; border:1px solid #a7f3d0; padding:1px 8px; border-radius:4px; font-weight:700;">只读监控</span>
                                 </div>
                                 <div style="position:relative; flex:1; width:100%; height:100%; min-height:520px; display:flex;">
-                                  <iframe id="teacher-stage3-etherpad-frame" src="${readOnlyPadId ? `/p/${encodeURIComponent(readOnlyPadId)}?userName=${encodeURIComponent('教师监控')}&userColor=%237c3aed&showControls=false&showChat=false&showLineNumbers=true&lang=zh-hans` : ''}" style="flex:1; width:100%; height:100%; min-height:520px; border:none; display:${readOnlyPadId ? 'block' : 'none'}; background:#ffffff;" title="教师端论文终稿同屏镜像 (只读)"></iframe>
-                                  <div id="teacher-stage3-ep-loading" style="flex:1; width:100%; min-height:520px; display:${readOnlyPadId ? 'none' : 'flex'}; align-items:center; justify-content:center; background:#ffffff; color:#64748b; font-size:13px; font-weight:700; gap:8px;">
-                                    <span style="font-size:20px;">🔒</span> 正在安全直连只读防篡改终稿镜像...
-                                  </div>
+                                  <iframe id="teacher-stage3-etherpad-frame" src="/p/${encodeURIComponent(targetPad)}?userName=${encodeURIComponent('教师监控')}&userColor=%237c3aed&showControls=false&showChat=false&showLineNumbers=true&lang=zh-hans" style="flex:1; width:100%; height:100%; min-height:520px; border:none; display:block; background:#ffffff;" title="教师端论文终稿同屏镜像 (只读)"></iframe>
                                 </div>
                               </div>
                             `;
