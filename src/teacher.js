@@ -9,8 +9,8 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260830_v768";
-import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash, filterAndDeduplicateChatLogs, enforceEtherpadReadonly } from "./utils.js?v=20260830_v768";
+} from "./constants.js?v=20260830_v769";
+import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash, filterAndDeduplicateChatLogs, enforceEtherpadReadonly } from "./utils.js?v=20260830_v769";
 
 /* ==========================================================================
    7. TEACHER PORTAL RENDERER (LIVE WORKSPACE MIRROR & ANNOUNCEMENT READ MATRIX)
@@ -424,13 +424,18 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
         await authManager.pullGlobalMeta();
         const newAnnsJson = localStorage.getItem(STORAGE_KEY_ANNOUNCEMENTS) || '[]';
         if (oldAnnsJson !== newAnnsJson) {
-          const layout = container.querySelector('.teacher-portal-layout');
-          const curScroll = layout ? layout.scrollTop : 0;
-          state._teacherScrollTop = curScroll;
-          renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
-          const nextLayout = container.querySelector('.teacher-portal-layout');
-          if (nextLayout) nextLayout.scrollTop = curScroll;
-          return; // 重渲染会重建循环
+          // 🛡️ 若教师正打开弹窗或编辑中，绝不全量重刷页面造成闪烁与输入回退
+          if (document.querySelector('.modal-overlay') || document.querySelector('#modal-extend-deadline')) {
+            // 延缓至弹窗关闭后再刷
+          } else {
+            const layout = container.querySelector('.teacher-portal-layout');
+            const curScroll = layout ? layout.scrollTop : 0;
+            state._teacherScrollTop = curScroll;
+            renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+            const nextLayout = container.querySelector('.teacher-portal-layout');
+            if (nextLayout) nextLayout.scrollTop = curScroll;
+            return; // 重渲染会重建循环
+          }
         }
       } catch (e) {}
     }

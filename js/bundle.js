@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260830_v768
+ * Version: 20260830_v769
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260830_v768';
+  const APP_VERSION = '20260830_v769';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -2860,12 +2860,12 @@
       this.pullFromServer();
       this.sendPresencePing(); // ⚡ 进入工作台 0ms 瞬间首发上线心跳，告别等待
       // ⚡ 动静分级智能心跳与轮询阶梯：
-      // • 活跃态 (< 2分钟有操作): 轮询 800ms，心跳 5s (单次50字节，秒亮在线绿点)
-      // • 静止态 (> 2分钟无操作): 轮询 15s，心跳 30s
-      // • 息屏态 (切后台/休眠): 轮询 30s，心跳 60s
+      // • 活跃态 (< 10分钟): 轮询 500ms，心跳 3s (单次20~50字节，秒级精准同步)
+      // • 静止态 (> 10分钟): 轮询 3s，心跳 10s
+      // • 息屏态 (切后台/休眠): 轮询 10s，心跳 30s
       let lastUserActivity = Date.now();
       const markActive = () => {
-        const wasIdle = (Date.now() - lastUserActivity > 120000);
+        const wasIdle = (Date.now() - lastUserActivity > 600000);
         lastUserActivity = Date.now();
         if (wasIdle && !this.isLoggingOut) {
           this.sendPresencePing();
@@ -2877,9 +2877,9 @@
       });
 
       const isHidden = () => document.hidden || document.visibilityState === 'hidden';
-      const isIdle = () => isHidden() || (Date.now() - lastUserActivity > 120000);
-      const getPollInterval = () => (isHidden() ? 30000 : (isIdle() ? 15000 : 800));
-      const getPingInterval = () => (isHidden() ? 60000 : (isIdle() ? 30000 : 5000));
+      const isIdle = () => isHidden() || (Date.now() - lastUserActivity > 600000);
+      const getPollInterval = () => (isHidden() ? 10000 : (isIdle() ? 3000 : 500));
+      const getPingInterval = () => (isHidden() ? 30000 : (isIdle() ? 10000 : 3000));
 
       const runPoll = () => {
         if (this.isLoggingOut) return;
@@ -2888,7 +2888,7 @@
           this.pollTimer = setTimeout(runPoll, getPollInterval());
         });
       };
-      this.pollTimer = setTimeout(runPoll, 1000);
+      this.pollTimer = setTimeout(runPoll, 100);
 
       let lastPingTime = Date.now();
       const runPing = () => {
@@ -4371,13 +4371,18 @@
           await authManager.pullGlobalMeta();
           const newAnnsJson = localStorage.getItem(STORAGE_KEY_ANNOUNCEMENTS) || '[]';
           if (oldAnnsJson !== newAnnsJson) {
-            const layout = container.querySelector('.teacher-portal-layout');
-            const curScroll = layout ? layout.scrollTop : 0;
-            state._teacherScrollTop = curScroll;
-            renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
-            const nextLayout = container.querySelector('.teacher-portal-layout');
-            if (nextLayout) nextLayout.scrollTop = curScroll;
-            return; // 重渲染会重建循环
+            // 🛡️ 若教师正打开弹窗或编辑中，绝不全量重刷页面造成闪烁与输入回退
+            if (document.querySelector('.modal-overlay') || document.querySelector('#modal-extend-deadline')) {
+              // 延缓至弹窗关闭后再刷
+            } else {
+              const layout = container.querySelector('.teacher-portal-layout');
+              const curScroll = layout ? layout.scrollTop : 0;
+              state._teacherScrollTop = curScroll;
+              renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+              const nextLayout = container.querySelector('.teacher-portal-layout');
+              if (nextLayout) nextLayout.scrollTop = curScroll;
+              return; // 重渲染会重建循环
+            }
           }
         } catch (e) {}
       }
