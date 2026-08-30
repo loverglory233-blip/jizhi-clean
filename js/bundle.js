@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260830_v901
+ * Version: 20260830_v902
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260830_v901';
+  const APP_VERSION = '20260830_v902';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -898,7 +898,6 @@
         if (resp.ok) {
           const data = await resp.json();
           if (data && data.success && data.reply && data.reply.trim().length > 0) {
-            removeThinkingIndicator();
             return data.reply.trim();
           }
           // 如果后端处于生成中，采用阶梯式敏捷轮询：前 20 次 100ms 极速响应，后续 300ms 紧密等待
@@ -9573,9 +9572,7 @@
             if (window.app.cloudSyncEngine) {
               window.app.cloudSyncEngine.pushSnapshot();
             }
-            if (typeof window.app.handleProposalSubmittedAIFeedback === 'function') {
-              window.app.handleProposalSubmittedAIFeedback(title, authorName, existingIdx >= 0);
-            }
+            window.app.renderStudentWorkspace();
           }
 
           // 💡 0毫秒即时反馈：立即插入拍卖师思考气泡，让学生感知到 AI 已收到提案正在评审
@@ -9593,77 +9590,80 @@
           state.chatLogs[currentStage].push(evalThinkingMsg);
           if (window.app) {
             window.app.syncChatLogs();
-            renderChat(state);
           }
+          renderChat(state);
 
           setTimeout(async () => {
-            const isModify = existingIdx >= 0;
-            const evalPrompt = isModify
-              ? `小组成员【${authorName}】在学术拍卖会上修改了选题提案，最新题目为《${title}》。
-  请作为资深学术拍卖师，通读其学科场景与研究构想，给出 130~150 字充实针对性的学术点评：
-  【无意义内容红线审查】：先审查提案是否包含无意义乱码、重复堆砌或过于空泛到无法提取论点。若命中，严禁虚构亮点，应如实简短提醒「当前内容尚未形成可评审的实质文本」并引导补充具体问题或方法设想；
-  【正常实质评价】：若内容充实，必须先明确肯定该提案最出彩的 1~2 个具体优点（抓准了什么核心痛点/打破了什么教学局限），再顺势结合该方案提出 1 个具体的启发性落地建议（严禁空泛套话，纯自然语言输出，130~150字）！`
-              : `小组成员【${authorName}】在学术拍卖会上提交了新选题提案《${title}》。
-  请作为资深学术拍卖师，通读其学科场景与研究构想，给出 130~150 字充实针对性的学术点评：
-  【无意义内容红线审查】：先审查提案是否包含无意义乱码、重复堆砌或过于空泛到无法提取论点。若命中，严禁虚构亮点，应如实简短提醒「当前内容尚未形成可评审的实质文本」并引导补充具体问题或方法设想；
-  【正常实质评价】：若内容充实，必须先明确肯定该提案最出彩的 1~2 个具体优点（抓准了什么核心痛点/打破了什么教学局限），再顺势结合该方案提出 1 个具体的启发性落地建议（严禁空泛套话，纯自然语言输出，130~150字）！`;
+            try {
+              const isModify = existingIdx >= 0;
+              const evalPrompt = `小组成员【${authorName}】在选题池${isModify ? '修改完善了' : '提出了新'}研究提案《${title}》。
+  请作为资深学术拍卖师，发表 60~80 字的【选题学术亮点速评与启发】：
+  ① 精准肯定该选题的研究切入点或实践价值；
+  ② 给出 1 点前瞻性探究启发，鼓励全组在研讨区就此交流！纯自然语言，60~80字，严禁代码块。`;
 
-            let evalText = await callCozeAgentAPI('auctioneer', evalPrompt, { stage: 'stage1', proposalTitle: title, author: authorName, topic: title });
+              let evalText = await callCozeAgentAPI('auctioneer', evalPrompt, { stage: 'stage1', proposalTitle: title, author: authorName, topic: title });
 
-            if (!evalText || evalText.trim().length === 0) {
-              evalText = `🎪 【拍卖师·提案评估】：收到 ${authorName} 提出的选题《${title}》！该构想切中实践痛点，通过明确的研究设计打破了传统教学局限！建议后续在研究设计中进一步细化具体的实证环节与实施步骤，这样在接下来的竞拍研讨中会更具说服力！`;
-            }
+              if (!evalText || evalText.trim().length === 0) {
+                evalText = `🎪 【拍卖师·选题速评】：收到 ${authorName} ${isModify ? '修改后的' : '提交的'}《${title}》！切入点明确，建议组员在研讨区就具体的研究对象与实施情境交流补充！`;
+              }
+              if (!evalText.startsWith('🎪')) evalText = `🎪 【拍卖师·选题速评】：${evalText}`;
 
-            // 🛡️ 100% 彻底清除“正在通读/起草”的临时占位气泡，确保只留下唯一 1 条真正的学术点评
-            if (!state.chatLogs[currentStage]) state.chatLogs[currentStage] = [];
-            state.chatLogs[currentStage] = state.chatLogs[currentStage].filter(m => 
-              m && m.id !== tempThinkingId && !m.isThinking && !(m.text && m.text.includes('正在通读研究构想'))
-            );
+              // 🛡️ 找到思考气泡直接优雅替换，消除多余残留
+              const foundThinking = state.chatLogs[currentStage].find(m => m && m.id === tempThinkingId);
+              if (foundThinking) {
+                foundThinking.text = evalText;
+                delete foundThinking.isThinking;
+                foundThinking.timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                foundThinking._timeMs = Date.now();
+              } else {
+                state.chatLogs[currentStage].push({
+                  id: 'eval_' + Date.now(),
+                  sender: 'auctioneer',
+                  senderName: '头脑风暴 · 学术拍卖师',
+                  text: evalText,
+                  timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                  _timeMs: Date.now()
+                });
+              }
 
-            state.chatLogs[currentStage].push({
-              id: 'eval_' + Date.now(),
-              sender: 'auctioneer',
-              senderName: '头脑风暴 · 学术拍卖师',
-              text: evalText,
-              timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-              _timeMs: Date.now()
-            });
-
-            if (window.app) {
-              window.app.syncChatLogs();
-              if (window.app.cloudSyncEngine) window.app.cloudSyncEngine.pushSnapshot();
-              renderChat(state);
-            }
-
-            const isSubstantive = (t) => {
-              const str = (t || '').trim();
-              if (str.length < 4) return false;
-              if (/^\d+$/.test(str)) return false; 
-              if (/^([a-zA-Z0-9\u4e00-\u9fa5])\1+$/.test(str)) return false; 
-              return true;
-            };
-            const currentProps = s1.proposals || [];
-            const validProps = currentProps.filter(p => isSubstantive(p.title));
-            const validAuthors = new Set(validProps.map(p => p.author || p.authorName));
-
-            if (totalMembersCount >= 2 && validAuthors.size >= totalMembersCount && !s1._allProposalsPrompted) {
-              s1._allProposalsPrompted = true;
-              const allCollectedMsg = {
-                sender: 'auctioneer',
-                senderName: '头脑风暴 · 学术拍卖师',
-                text: `🎪 【拍卖师·全员提案已集齐】：🎉 小组成员的选题提案已悉数亮相！👉 请大家先不要急于投票，先在右侧讨论区充分交流各个方案的研究看点与实施可行性；💬 研讨达成初步共识后，再在上方为最终认可的方案进行投票！`,
-                timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                _timeMs: Date.now() + 100
+              const isSubstantive = (t) => {
+                const str = (t || '').trim();
+                if (str.length < 4) return false;
+                if (/^\d+$/.test(str)) return false; 
+                if (/^([a-zA-Z0-9\u4e00-\u9fa5])\1+$/.test(str)) return false; 
+                return true;
               };
-              state.chatLogs[currentStage].push(allCollectedMsg);
-            }
+              const currentProps = s1.proposals || [];
+              const validProps = currentProps.filter(p => isSubstantive(p.title));
+              const validAuthors = new Set(validProps.map(p => p.author || p.authorName));
 
-            if (window.app) {
-              window.app.syncChatLogs();
-              if (window.app.cloudSyncEngine) window.app.cloudSyncEngine.pushSnapshot();
+              if (totalMembersCount >= 2 && validAuthors.size >= totalMembersCount && !s1._allProposalsPrompted) {
+                s1._allProposalsPrompted = true;
+                const allCollectedMsg = {
+                  sender: 'auctioneer',
+                  senderName: '头脑风暴 · 学术拍卖师',
+                  text: `🎪 【拍卖师·全员提案已集齐】：🎉 小组成员的选题提案已悉数亮相！👉 请大家先不要急于投票，先在右侧讨论区充分交流各个方案的研究看点与实施可行性；💬 研讨达成初步共识后，再在上方为最终认可的方案进行投票！`,
+                  timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                  _timeMs: Date.now() + 100
+                };
+                state.chatLogs[currentStage].push(allCollectedMsg);
+              }
+
+              if (window.app) {
+                window.app.syncChatLogs();
+                if (window.app.cloudSyncEngine) window.app.cloudSyncEngine.pushSnapshot();
+              }
               renderChat(state);
+            } catch (aiErr) {
+              console.warn('[Proposal AI Feedback] Error:', aiErr);
+              const foundThinking = state.chatLogs[currentStage]?.find(m => m && m.id === tempThinkingId);
+              if (foundThinking) {
+                foundThinking.text = `🎪 【拍卖师·选题速评】：收到 ${authorName} 提交的《${title}》！建议组员在研讨区就具体的研究对象与实施情境交流补充！`;
+                delete foundThinking.isThinking;
+                renderChat(state);
+              }
             }
-          }, 500);
+          }, 100);
         });
       });
     }
@@ -11367,7 +11367,18 @@
       }
 
       let formattedContent = '';
-      if ((msg.text || '').startsWith('[IMG_DATA]:')) {
+      if (msg.isThinking) {
+        formattedContent = `
+          <div class="msg-bubble thinking-bubble" style="background:#f8fafc; border:1.5px dashed ${color}88; display:inline-flex; align-items:center; gap:8px; padding:9px 15px; border-radius:12px; color:${color};">
+            <span style="font-size:13px; font-weight:700;">${escapeHtml(msg.text || '正在研读并起草学术意见...')}</span>
+            <span class="thinking-dots-anim" style="display:inline-flex; gap:3.5px; align-items:center; margin-left:4px;">
+              <span style="width:5px; height:5px; background:${color}; border-radius:50%; display:inline-block; animation:dotPulse 1.4s infinite ease-in-out both;"></span>
+              <span style="width:5px; height:5px; background:${color}; border-radius:50%; display:inline-block; animation:dotPulse 1.4s infinite ease-in-out both; animation-delay:0.2s;"></span>
+              <span style="width:5px; height:5px; background:${color}; border-radius:50%; display:inline-block; animation:dotPulse 1.4s infinite ease-in-out both; animation-delay:0.4s;"></span>
+            </span>
+          </div>
+        `;
+      } else if ((msg.text || '').startsWith('[IMG_DATA]:')) {
         const imgSrc = sanitizeUrl(msg.text.replace('[IMG_DATA]:', ''));
         formattedContent = `
           <div style="margin-top:2px;">
@@ -14630,6 +14641,26 @@
      * 💡 阶段一：学生提交/修改提案时，拍卖师调用大模型给出学术亮点速评与探究启发
      */
     async handleProposalSubmittedAIFeedback(title, authorName, isModify = false) {
+      // 💡 1. 查找或插入拍卖师思考中气泡
+      const currentStage = this.state.currentStage || 'stage1';
+      if (!this.state.chatLogs[currentStage]) this.state.chatLogs[currentStage] = [];
+
+      let thinkingMsg = [...this.state.chatLogs[currentStage]].reverse().find(m => m && m.sender === 'auctioneer' && m.isThinking);
+      if (!thinkingMsg) {
+        thinkingMsg = {
+          id: 'thinking_eval_' + Date.now(),
+          sender: 'auctioneer',
+          senderName: '头脑风暴 · 学术拍卖师',
+          text: `⏳ 【学术拍卖师】：已收到《${title}》，正在通读研究构想并起草即时学术可行性评估...`,
+          isThinking: true,
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          _timeMs: Date.now()
+        };
+        this.state.chatLogs[currentStage].push(thinkingMsg);
+        this.syncChatLogs();
+        renderChat(this.state);
+      }
+
       const taskPrompt = `小组成员【${authorName}】在选题池${isModify ? '修改完善了' : '提出了新'}研究提案《${title}》。
   请作为资深学术拍卖师，发表 60~80 字的【选题学术亮点速评与启发】：
   ① 精准肯定该选题的研究切入点或实践价值；
@@ -14640,20 +14671,22 @@
         let speech = (resp && resp.trim().length > 0) ? resp.trim() : `🎪 【拍卖师·选题速评】：收到 ${authorName} ${isModify ? '修改后的' : '提交的'}《${title}》！切入点明确，建议组员在研讨区就具体的研究对象与实施情境交流补充！`;
         if (!speech.startsWith('🎪')) speech = `🎪 【拍卖师·选题速评】：${speech}`;
 
-        const aiMsg = {
-          sender: 'auctioneer',
-          senderName: '头脑风暴 · 学术拍卖师',
-          text: speech,
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          _timeMs: Date.now()
-        };
-        if (!this.state.chatLogs.stage1) this.state.chatLogs.stage1 = [];
-        this.state.chatLogs.stage1.push(aiMsg);
+        thinkingMsg.text = speech;
+        delete thinkingMsg.isThinking;
+        thinkingMsg._timeMs = Date.now();
+        thinkingMsg.timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
         this.syncChatLogs();
         if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
-        if (typeof window.renderChat === 'function') window.renderChat(this.state);
+        renderChat(this.state);
+        this.renderStudentWorkspace();
       } catch (e) {
         console.warn('handleProposalSubmittedAIFeedback error:', e);
+        thinkingMsg.text = `🎪 【拍卖师·选题速评】：收到 ${authorName} 提交的《${title}》！建议组员在研讨区就具体的研究对象与实施情境交流补充！`;
+        delete thinkingMsg.isThinking;
+        this.syncChatLogs();
+        renderChat(this.state);
+        this.renderStudentWorkspace();
       }
     }
 
