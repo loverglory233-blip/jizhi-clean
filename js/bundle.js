@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260830_v887
+ * Version: 20260830_v888
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260830_v887';
+  const APP_VERSION = '20260830_v888';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -12802,6 +12802,28 @@
               return;
             }
           }
+          // 2.5 【一审后静默跟进】：一审发出后若讨论区冷场超 3 分钟，温和提示随时 @ 咨询（全场严格仅 1 次）
+          if (s2.reviewMilestone === 'first_review_done' && !s2.firstReviewSilenceSent) {
+            const firstReviewMsgObj = [...s2Chats].reverse().find(m => m && m.sender === 'reviewingEditor' && (m.text?.includes('一审破题把脉') || m.text?.includes('Research Gap')));
+            const firstReviewTime = firstReviewMsgObj ? (firstReviewMsgObj._timeMs || this.stage2StartTime) : this.stage2StartTime;
+            if (now - firstReviewTime > 180000 && silenceDurationMs > 180000) {
+              s2.firstReviewSilenceSent = true;
+              const followMsg = {
+                sender: 'reviewingEditor',
+                senderName: '学术质量 · 审稿编辑',
+                text: `📝 【审稿编辑·初审跟进提示】：初审微调建议已送达！大家若对概念界定、文献引向或后续章节衔接有疑问，随时在讨论区 @审稿编辑 咨询，全组继续稳步协同推进！`,
+                timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                _timeMs: now
+              };
+              if (!this.state.chatLogs.stage2) this.state.chatLogs.stage2 = [];
+              this.state.chatLogs.stage2.push(followMsg);
+              this.syncChatLogs();
+              this.syncStage2();
+              if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+              renderChat(this.state);
+              return;
+            }
+          }
 
           // 3. 🎯 半程自查与互阅倡议（推进至【不足/反思】或阶段二时间已达 60%）
           const times = (this.state.stage1 && this.state.stage1.contract && this.state.stage1.contract.timeAllocations) ? this.state.stage1.contract.timeAllocations : {};
@@ -12898,6 +12920,28 @@
               };
               if (!this.state.chatLogs.stage2) this.state.chatLogs.stage2 = [];
               this.state.chatLogs.stage2.push(countdownMsg);
+              this.syncChatLogs();
+              this.syncStage2();
+              if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+              renderChat(this.state);
+            }
+          }
+
+          // 3. 【三审后静默跟进】：三审发出后若讨论区冷场超 3 分钟且尚未全员初稿确认，提示通读润色与初稿打卡（全场严格仅 1 次）
+          if (s2.reviewMilestone === 'final_review_done' && !s2.finalReviewSilenceSent && !s2.isDraftConfirmed) {
+            const finalReviewMsgObj = [...s2Chats].reverse().find(m => m && m.sender === 'reviewingEditor' && (m.text?.includes('终审定稿总评') || m.text?.includes('终稿行文扫描')));
+            const finalReviewTime = finalReviewMsgObj ? (finalReviewMsgObj._timeMs || this.stage2StartTime) : this.stage2StartTime;
+            if (now - finalReviewTime > 180000 && silenceDurationMs > 180000) {
+              s2.finalReviewSilenceSent = true;
+              const followMsg3 = {
+                sender: 'reviewingEditor',
+                senderName: '学术质量 · 审稿编辑',
+                text: `📝 【审稿编辑·终稿润色提示】：终稿语言与规范扫描诊断已下发！请大家对照指出的细节逐一润色订正，通读确认无误后在上方完成【初稿确认】，准备迎接答辩！`,
+                timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                _timeMs: now
+              };
+              if (!this.state.chatLogs.stage2) this.state.chatLogs.stage2 = [];
+              this.state.chatLogs.stage2.push(followMsg3);
               this.syncChatLogs();
               this.syncStage2();
               if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
