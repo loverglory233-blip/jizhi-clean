@@ -472,10 +472,15 @@ export function filterAndDeduplicateChatLogs(messages) {
     if (isAgent) {
       const normTxt = txt.replace(/\s+/g, " ").trim();
       const opKey = `${sender}_${normTxt}`;
+      const isSecondChecklist = txt.includes('二审修正清单') || txt.includes('二审修改落实要点');
+      if (isSecondChecklist && seenAgentOpenings.has(`${sender}_second_checklist`)) {
+        continue;
+      }
       if (seenAgentOpenings.has(opKey)) {
         continue;
       }
       seenAgentOpenings.add(opKey);
+      if (isSecondChecklist) seenAgentOpenings.add(`${sender}_second_checklist`);
     }
 
     // 2. 严格按数据库主键/唯一标识防重，绝不按文本做模糊误杀

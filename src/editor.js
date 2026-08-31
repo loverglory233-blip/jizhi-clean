@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles } from "./constants.js?v=20260831_v1001";
-import { callCozeAgentAPI } from "./agents.js?v=20260831_v1001";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, showResolutionBlock } from "./utils.js?v=20260831_v1001";
+import { AgentProfiles } from "./constants.js?v=20260831_v1002";
+import { callCozeAgentAPI } from "./agents.js?v=20260831_v1002";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, showResolutionBlock } from "./utils.js?v=20260831_v1002";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -2357,9 +2357,51 @@ function renderStage2Canvas(canvas, state, handlers) {
       </div>
 
       <!-- 🌟 2. 半程修正清单 (未下发时展示待解锁提示，下发后展示展开卡片) -->
-      ${actionPlan && actionPlan.isGenerated ? (() => {
-        const completedCount = Object.values(actionPlan.completedMap || {}).filter(Boolean).length;
-        const totalItems = (actionPlan.items || []).length;
+      ${(() => {
+        let effActionPlan = actionPlan;
+        const hasChecklistInChat = s2ChatLogs && s2ChatLogs.some(m => m && m.text && m.text.includes('二审修正清单'));
+        if ((!effActionPlan || !effActionPlan.isGenerated) && (s2.meetingStep === 'discussing_checklist' || s2.meetingStep === 'completed' || hasChecklistInChat)) {
+          const revMsg = [...(s2ChatLogs || [])].reverse().find(m => m && m.text && m.text.includes('二审修正清单'));
+          let parsedItems = [];
+          if (revMsg && revMsg.text) {
+            const lines = revMsg.text.split('\n').map(l => l.trim()).filter(Boolean);
+            lines.forEach(l => {
+              if (/^([①②③12345]|\d+\.|\(?[123]\)?)/.test(l) || l.includes('【')) {
+                parsedItems.push(l.replace(/^[①②③\d\.\s\(\)]+/, '').trim());
+              }
+            });
+          }
+          if (parsedItems.length < 3) {
+            parsedItems = [
+              `🎯【核心概念与问题对齐】: 统领各章节核心概念表述，使引言文献综述与核心研究问题精准呼应，消除脱节。`,
+              `✍️【研究方法与工具深化】: 细化数据分析的具体实施步骤与测量工具，确保分析维度与研究假设严格对应。`,
+              `💡【行文衔接与学术规范】: 通读全篇优化段落逻辑过渡，补全未完成章节，消除口语化表达，冲刺定稿！`
+            ];
+          }
+          effActionPlan = {
+            isGenerated: true,
+            completedMap: (effActionPlan && effActionPlan.completedMap) || {},
+            items: parsedItems.slice(0, 3)
+          };
+          if (!state.stage2.actionPlan) state.stage2.actionPlan = effActionPlan;
+          state.stage2.actionPlan.isGenerated = true;
+          state.stage2.actionPlan.items = effActionPlan.items;
+        }
+
+        if (!effActionPlan || !effActionPlan.isGenerated) {
+          return `
+            <div id="stage2-action-plan-card" style="background:#f8fafc; border:1px dashed #cbd5e1; border-radius:6px; padding:5px 12px; margin-bottom:6px; flex-shrink:0; display:flex; justify-content:space-between; align-items:center;">
+              <div style="font-size:11.5px; font-weight:700; color:#64748b; display:flex; align-items:center; gap:6px;">
+                <span>📋 【半程修正清单】</span>
+                <span style="font-size:10.5px; background:#eff6ff; color:#2563eb; padding:1px 6px; border-radius:6px;">待解锁 (组内编辑会议自查对齐后，由审稿专家质检下发)</span>
+              </div>
+              <button onclick="if(window.app) window.app.showMeetingModal();" style="background:#ffffff; border:1px solid #cbd5e1; color:#334155; padding:1.5px 8px; border-radius:4px; font-size:11px; font-weight:600; cursor:pointer;">📢 发起会议</button>
+            </div>
+          `;
+        }
+
+        const completedCount = Object.values(effActionPlan.completedMap || {}).filter(Boolean).length;
+        const totalItems = (effActionPlan.items || []).length;
         const isAllDone = completedCount >= totalItems && totalItems > 0;
         return `
           <div id="stage2-action-plan-card" style="background:#ecfdf5; border:1px solid #a7f3d0; border-radius:6px; padding:6px 12px; margin-bottom:6px; flex-shrink:0; box-shadow:0 1px 3px rgba(5,150,105,0.06);">
@@ -2373,8 +2415,8 @@ function renderStage2Canvas(canvas, state, handlers) {
               <span id="icon-toggle-action-plan" style="font-size:11px; color:#059669; font-weight:700; background:#ffffff; border:1px solid #a7f3d0; padding:1.5px 8px; border-radius:4px;">▲ 收起清单</span>
             </div>
             <div id="body-action-plan-items" style="font-size:11.5px; color:#1e293b; display:flex; flex-direction:column; gap:5px; margin-top:6px;">
-              ${actionPlan.items.map((item, idx) => {
-                const isChecked = !!(actionPlan.completedMap && actionPlan.completedMap[idx]);
+              ${effActionPlan.items.map((item, idx) => {
+                const isChecked = !!(effActionPlan.completedMap && effActionPlan.completedMap[idx]);
                 let formattedItem = escapeHtml(item);
                 return `
                   <div class="action-plan-item-box" data-item-idx="${idx}" style="line-height:1.4; background:${isChecked ? '#f0fdf4' : '#ffffff'}; border:1px solid ${isChecked ? '#86efac' : '#cbd5e1'}; border-radius:4px; padding:5px 8px; display:flex; align-items:flex-start; gap:6px; cursor:pointer; transition:all 0.15s ease;">
@@ -2388,15 +2430,7 @@ function renderStage2Canvas(canvas, state, handlers) {
             </div>
           </div>
         `;
-      })() : `
-        <div id="stage2-action-plan-card" style="background:#f8fafc; border:1px dashed #cbd5e1; border-radius:6px; padding:5px 12px; margin-bottom:6px; flex-shrink:0; display:flex; justify-content:space-between; align-items:center;">
-          <div style="font-size:11.5px; font-weight:700; color:#64748b; display:flex; align-items:center; gap:6px;">
-            <span>📋 【半程修正清单】</span>
-            <span style="font-size:10.5px; background:#eff6ff; color:#2563eb; padding:1px 6px; border-radius:6px;">待解锁 (组内编辑会议自查对齐后，由审稿专家质检下发)</span>
-          </div>
-          <button onclick="if(window.app) window.app.showMeetingModal();" style="background:#ffffff; border:1px solid #cbd5e1; color:#334155; padding:1.5px 8px; border-radius:4px; font-size:11px; font-weight:600; cursor:pointer;">📢 发起会议</button>
-        </div>
-      `}
+      })()}
 
       <!-- 🌟 3. Etherpad 在线协同富文本编辑器主体 (撑满整个画布) -->
       <div style="flex:1; height:100%; min-height:480px; display:flex; flex-direction:column; margin-bottom:6px;">
