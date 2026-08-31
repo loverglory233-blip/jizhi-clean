@@ -13,14 +13,14 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260901_v1121";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260901_v1121";
-import { callCozeAgentAPI } from "./agents.js?v=20260901_v1121";
-import { AuthManager } from "./auth.js?v=20260901_v1121";
-import { CloudSyncEngine } from "./sync.js?v=20260901_v1121";
-import { renderLoginView } from "./login.js?v=20260901_v1121";
-import { renderTeacherPortal } from "./teacher.js?v=20260901_v1121";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260901_v1121";
+} from "./constants.js?v=20260901_v1122";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260901_v1122";
+import { callCozeAgentAPI } from "./agents.js?v=20260901_v1122";
+import { AuthManager } from "./auth.js?v=20260901_v1122";
+import { CloudSyncEngine } from "./sync.js?v=20260901_v1122";
+import { renderLoginView } from "./login.js?v=20260901_v1122";
+import { renderTeacherPortal } from "./teacher.js?v=20260901_v1122";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260901_v1122";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -29,7 +29,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260901_v1121";
+} from "./editor.js?v=20260901_v1122";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -5625,10 +5625,15 @@ ${contentSnippet}
       s2.meetingStep = 'discussing_divergence';
       s2.meetingCalledTime = Date.now();
 
+      const taskType = this.getCurrentTaskType();
+      const isInst = (taskType === 'instructional');
+      const managingName = isInst ? '备课组长' : '责任编辑';
+      const docTypeNoun = isInst ? '教案' : '论文';
+
       const meetingCallMsg = {
         sender: 'managingEditor',
-        senderName: '协同调度 · 责任编辑',
-        text: `🤝 【责任编辑·半程研讨号召】：关注到全组论文撰写已推进过半！请大家先暂停打字，花 1~2 分钟通读当前全篇草稿。重点审查：各章节逻辑是否连贯？前后构思是否存在脱节或分歧？\n👉 请大家在讨论区充分交流修改思路；商定差不多后，点击聊天框上方【💡 讨论差不多了？让责任编辑总结】按钮，我们将为大家提炼共识并下发《半程修正清单》！`,
+        senderName: managingName,
+        text: `🤝 【${managingName}·半程研讨号召】：关注到全组${docTypeNoun}撰写已推进过半！请大家先暂停各自起草，花 1~2 分钟通读当前全篇草稿。重点审查：各章节逻辑是否连贯？前后构思是否存在脱节或分歧？\n👉 请大家在讨论区充分交流修改思路；商定差不多后，点击聊天框上方【💡 讨论差不多了？让${managingName}总结】按钮，我们将为大家提炼共识并下发《二审修正清单》！`,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         _timeMs: now
       };
@@ -6260,18 +6265,23 @@ ${contentSnippet}
       await new Promise(r => setTimeout(r, 1500));
 
       const avgOverallRating = (allSubs.reduce((sum, s) => sum + (s.overallRating || 5), 0) / (allSubs.length || 1)).toFixed(1);
+      const taskType = this.getCurrentTaskType();
+      const isInst = (taskType === 'instructional');
+      const managingName = isInst ? '备课组长' : '责任编辑';
+      const reviewingName = isInst ? '教研专家' : '审稿编辑';
+
       const managingPrompt = `【全员自查打卡汇总数据】：
 - 构思偏离章节：${hasIdeationDev ? ideationFocusText : '无'}
 - 前后脱节章节：${hasTransDev ? transFocusText : '无'}
-- 口语化/文风章节：${hasStyleDev ? styleFocusText : '无'}
+- 语言规范/术语章节：${hasStyleDev ? styleFocusText : '无'}
 - 核心瓶颈：${primaryAcademicB}
 - 质量自评均分：${avgOverallRating} 星
 
-请依据责任编辑自查研判分流规则（A1/A2/B/C分支），发表 120~150 字自查研判与对齐引导（纯自然语言，严禁学术结论，严禁点名指责；有分歧末尾提示点击【💡 讨论差不多了？让责任编辑总结】，无分歧直接交棒@审稿编辑）。`;
+请依据${managingName}自查研判分流规则（A1/A2/B/C分支），发表 120~150 字自查研判与对齐引导（纯自然语言，严禁定性结论，严禁点名指责；有分歧末尾提示点击【💡 讨论差不多了？让${managingName}总结】，无分歧直接交棒@${reviewingName}）。`;
 
       let managingText = '';
       try {
-        managingText = await callCozeAgentAPI('managingEditor', managingPrompt, { stage: 'stage2', topic, bottleneck: primaryAcademicB });
+        managingText = await callCozeAgentAPI('managingEditor', managingPrompt, { stage: 'stage2', topic, bottleneck: primaryAcademicB, taskType });
       } catch (e) {
         console.warn('managingEditor divergence analysis error:', e);
       } finally {
@@ -6279,11 +6289,11 @@ ${contentSnippet}
         renderChat(this.state);
       }
       if (!managingText || managingText.trim().length === 0) {
-        managingText = `🤝 【责任编辑·自查研判与对齐引导】：全员自查打卡已完成！汇总全组反馈，提炼出核心焦点：
+        managingText = `🤝 【${managingName}·自查研判与对齐引导】：全员自查打卡已完成！汇总全组反馈，提炼出核心焦点：
   1. 🎯 构思与脱节焦点：${hasIdeationDev ? `部分成员反馈 ${ideationFocusText} 偏离了最初设想；` : ''}${hasTransDev ? `多数成员明确指出了前后脱节（重点涉及 ${transFocusText}）；` : '全篇前后衔接顺畅；'}
-  2. 🎨 文风与术语规范：${hasStyleDev ? `组内指出 ${styleFocusText} 存在口语化表述与术语混用；` : '全篇文风严谨规范，'}整体质量自评给出了 ${avgOverallRating} 星的高分！
+  2. 🎨 语言规范与术语口径：${hasStyleDev ? `组内指出 ${styleFocusText} 存在口语化表述与术语混用；` : '全篇语言严谨规范，'}整体质量自评给出了 ${avgOverallRating} 星的高分！
   3. 💡 核心瓶颈：全组聚焦在『${primaryAcademicB}』。
-💡 请小组成员先在讨论区围绕上述脱节章节商量对齐修改思路。商量差不多后，请点击【💡 讨论差不多了？让责任编辑总结】按钮！`;
+💡 请小组成员先在讨论区围绕上述脱节章节商量对齐修改思路。商量差不多后，请点击【💡 讨论差不多了？让${managingName}总结】按钮！`;
       }
 
       const managingMsg = {

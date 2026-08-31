@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName } from "./constants.js?v=20260901_v1121";
-import { callCozeAgentAPI } from "./agents.js?v=20260901_v1121";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, showResolutionBlock } from "./utils.js?v=20260901_v1121";
+import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName } from "./constants.js?v=20260901_v1122";
+import { callCozeAgentAPI } from "./agents.js?v=20260901_v1122";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, showResolutionBlock } from "./utils.js?v=20260901_v1122";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -3639,21 +3639,29 @@ export function renderChat(state) {
         actionBar.innerHTML = '';
       } else {
         actionBar.style.display = 'block';
+        const allTasks = (window.app && window.app.authManager) ? window.app.authManager.getTasks() : [];
+        const currentTask = allTasks.find(t => t.id === state.activeTaskId);
+        const taskGenreKey = currentTask?.taskType || 'experiment';
+        const isInst = (taskGenreKey === 'instructional');
+        const managingTitle = isInst ? '备课组长' : '责任编辑';
+        const reviewingTitle = isInst ? '教研专家' : '审稿编辑';
+        const meetingName = isInst ? '磨课会议' : '编辑会议';
+
         if (!isS2MeetingDone) {
           actionBar.innerHTML = `
             <button id="btn-s2-locked-notice" style="background:#f1f5f9; border:1px solid #cbd5e1; color:#94a3b8; padding:7px 18px; border-radius:18px; font-weight:800; font-size:12.5px; cursor:not-allowed; display:inline-flex; align-items:center; gap:6px; box-shadow:none;">
-              🔒 请先全员参与【编辑会议】打卡 (${s2SubCount}/${totalCount} 人已打卡)
+              🔒 请先全员参与【${meetingName}】打卡 (${s2SubCount}/${totalCount} 人已打卡)
             </button>
           `;
           actionBar.querySelector('#btn-s2-locked-notice')?.addEventListener('click', () => {
-            alert(`🔒 请先在正文上方点击【📢 参与【编辑会议】】完成半程自查打卡！\n\n当前打卡进度：${s2SubCount}/${totalCount} 人。\n全员打卡完成后，责任编辑将主持会议，届时方可点击总结。`);
+            alert(`🔒 请先在正文上方点击【📢 参与【${meetingName}】】完成半程自查打卡！\n\n当前打卡进度：${s2SubCount}/${totalCount} 人。\n全员打卡完成后，${managingTitle}将主持会议，届时方可点击总结。`);
           });
         } else if (!s2.meetingStep || s2.meetingStep === 'discussing_divergence' || s2.meetingStep === 'initial' || s2.meetingStep === 'discussing_agreement') {
           const count = isDoneHelper(confs.s2_managing);
           const isMe = isMyDoneHelper(confs.s2_managing);
           actionBar.innerHTML = `
             <button id="btn-s2-managing-summary" style="background:${isMe ? 'linear-gradient(135deg, #059669, #047857)' : 'linear-gradient(135deg, #d97706, #b45309)'}; border:none; color:white; padding:7px 18px; border-radius:18px; font-weight:800; font-size:12.5px; cursor:pointer; display:inline-flex; align-items:center; gap:6px; box-shadow:0 3px 10px rgba(217,119,6,0.25); transition:all 0.2s;">
-              ${isMe ? `✅ 您已确认总结共识 (${count}/${totalCount} 等待组员)` : `🤝 讨论差不多了？让责任编辑总结 (${count}/${totalCount})`}
+              ${isMe ? `✅ 您已确认总结共识 (${count}/${totalCount} 等待组员)` : `🤝 讨论差不多了？让${managingTitle}总结 (${count}/${totalCount})`}
             </button>
           `;
           actionBar.querySelector('#btn-s2-managing-summary')?.addEventListener('click', () => {
@@ -3666,7 +3674,7 @@ export function renderChat(state) {
           const isMe = isMyDoneHelper(confs.s2_reviewing);
           actionBar.innerHTML = `
             <button id="btn-s2-reviewing-summary" style="background:${isMe ? 'linear-gradient(135deg, #059669, #047857)' : 'linear-gradient(135deg, #059669, #047857)'}; border:none; color:white; padding:7px 18px; border-radius:18px; font-weight:800; font-size:12.5px; cursor:pointer; display:inline-flex; align-items:center; gap:6px; box-shadow:0 3px 10px rgba(5,150,105,0.25); transition:all 0.2s;">
-              ${isMe ? `✅ 您已确认总结清单 (${count}/${totalCount} 等待组员)` : `📝 讨论差不多了？让审稿编辑总结 (${count}/${totalCount})`}
+              ${isMe ? `✅ 您已确认总结清单 (${count}/${totalCount} 等待组员)` : `📝 讨论差不多了？让${reviewingTitle}总结 (${count}/${totalCount})`}
             </button>
           `;
           actionBar.querySelector('#btn-s2-reviewing-summary')?.addEventListener('click', () => {
