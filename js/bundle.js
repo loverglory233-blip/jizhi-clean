@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260901_v1112
+ * Version: 20260901_v1113
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260901_v1112';
+  const APP_VERSION = '20260901_v1113';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -17511,10 +17511,10 @@
             this.renderStudentWorkspace();
             renderChat(this.state);
 
-            alert(`🎉 恭喜！组内全员 (${totalMembersCount}/${totalMembersCount} 人) 已全部确认提交论文终稿！\n\n本组期末论文与答辩成果已正式归档提交至教师端！请每位同学填写课程体验评估问卷。`);
+            showGlobalBannerNotice('🏆 论文终稿已全员提交归档', `热烈祝贺组内全员 (${totalMembersCount}/${totalMembersCount} 人) 已全部完成论文终稿提交！请全组成员填写课程体验与 SSRL 评估问卷。`, 'success', 10000);
             setTimeout(() => {
               this.showQuestionnaireModal();
-            }, 500);
+            }, 300);
           } else {
             this.syncStage3();
             this.syncChatLogs();
@@ -17869,6 +17869,8 @@
       const modal = document.createElement('div');
       modal.className = 'modal-mask modal-stage-milestone';
       modal.style.cssText = 'position:fixed; inset:0; background:rgba(15,23,42,0.72); z-index:999999; display:flex; align-items:center; justify-content:center; backdrop-filter:blur(6px); animation:fadeIn 0.25s ease-out;';
+
+      let remainingSec = 5;
       modal.innerHTML = `
         <div style="background:#ffffff; width:92%; max-width:500px; border-radius:16px; box-shadow:0 24px 48px rgba(15,23,42,0.3); border:1px solid #cbd5e1; overflow:hidden; display:flex; flex-direction:column; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; text-align:center;">
           <div style="background:linear-gradient(135deg, #1e40af, #1e293b); padding:24px 20px 20px; color:#ffffff; display:flex; flex-direction:column; align-items:center;">
@@ -17886,6 +17888,7 @@
           <div style="padding:14px 24px 20px; background:#f8fafc; border-top:1px solid #e2e8f0; display:flex; justify-content:center;">
             <button id="btn-milestone-proceed" style="background:linear-gradient(135deg, #059669, #047857); border:none; color:#ffffff; padding:10px 28px; border-radius:10px; font-size:14px; font-weight:800; cursor:pointer; box-shadow:0 3px 12px rgba(5,150,105,0.3); display:flex; align-items:center; gap:8px;">
               <span>🚀 立即进入【${targetName}】</span>
+              <span id="milestone-timer-badge" style="background:rgba(255,255,255,0.25); padding:2px 7px; border-radius:10px; font-size:12px;">${remainingSec}s</span>
             </button>
           </div>
         </div>
@@ -17893,10 +17896,25 @@
 
       document.body.appendChild(modal);
 
+      let isDone = false;
+      let timerId = null;
+
       const proceed = () => {
+        if (isDone) return;
+        isDone = true;
+        if (timerId) clearInterval(timerId);
         modal.remove();
         if (typeof onProceed === 'function') onProceed();
       };
+
+      timerId = setInterval(() => {
+        remainingSec--;
+        const badge = modal.querySelector('#milestone-timer-badge');
+        if (badge) badge.innerText = `${remainingSec}s`;
+        if (remainingSec <= 0) {
+          proceed();
+        }
+      }, 1000);
 
       modal.querySelector('#btn-milestone-proceed')?.addEventListener('click', proceed);
     }
