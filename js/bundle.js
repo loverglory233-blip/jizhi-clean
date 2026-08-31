@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260831_v1033
+ * Version: 20260831_v1034
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260831_v1033';
+  const APP_VERSION = '20260831_v1034';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -11075,6 +11075,12 @@
       const s2Frame = canvas.querySelector('#stage2-etherpad-frame');
       if (s2Frame) enforceEtherpadReadonly(s2Frame);
     }
+    setTimeout(() => {
+      const s2f = canvas.querySelector('#stage2-etherpad-frame');
+      if (s2f && !s2f.getAttribute('src')) {
+        s2f.src = padUrl;
+      }
+    }, 50);
 
     const btnTogglePlan = canvas.querySelector('#btn-toggle-action-plan');
     if (btnTogglePlan) {
@@ -17533,7 +17539,14 @@
   - 改进建议：给出答辩准备要求。
   👉 末尾必须提示：“请全组成员通读终审建议并做最后润色，修改完成后请点击上方导航进入【阶段三：答辩擂台】！”`;
 
-        const resp = await callCozeAgentAPI('reviewingEditor', finalPrompt, { stage: 'stage2', topic });
+        let resp = null;
+        try {
+          const apiPromise = callCozeAgentAPI('reviewingEditor', finalPrompt, { stage: 'stage2', topic });
+          const timeoutPromise = new Promise(r => setTimeout(() => r(null), 3500));
+          resp = await Promise.race([apiPromise, timeoutPromise]);
+        } catch (err) {
+          resp = null;
+        }
         let finalReviewText = (resp && resp.trim().length > 0)
           ? resp.trim()
           : `📝 【审稿编辑·终审定稿总评与行文扫描】：看到全组已进入最后成文冲刺阶段，整体框架完整！终审质检意见如下：\n①【学术语体与逻辑】\n· 诊断问题：全篇论证逻辑基本闭环，局部段落仍有少量口语化过渡词；\n· 改进建议：通读全篇统一学术语言基调，消除口语化表达。\n②【规范与答辩准备】\n· 诊断问题：注意核对核心概念与专业术语口径前后一致；\n· 改进建议：补充完整文献著录与格式规范，做好阶段三答辩准备。\n👉 请全组成员通读终审建议并做最后润色，修改完成后请点击上方导航进入【阶段三：答辩擂台】！`;

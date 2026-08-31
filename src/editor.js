@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles } from "./constants.js?v=20260831_v1033";
-import { callCozeAgentAPI } from "./agents.js?v=20260831_v1033";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, showResolutionBlock } from "./utils.js?v=20260831_v1033";
+import { AgentProfiles } from "./constants.js?v=20260831_v1034";
+import { callCozeAgentAPI } from "./agents.js?v=20260831_v1034";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, showResolutionBlock } from "./utils.js?v=20260831_v1034";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -2675,6 +2675,12 @@ function renderStage2Canvas(canvas, state, handlers) {
     const s2Frame = canvas.querySelector('#stage2-etherpad-frame');
     if (s2Frame) enforceEtherpadReadonly(s2Frame);
   }
+  setTimeout(() => {
+    const s2f = canvas.querySelector('#stage2-etherpad-frame');
+    if (s2f && !s2f.getAttribute('src')) {
+      s2f.src = padUrl;
+    }
+  }, 50);
 
   const btnTogglePlan = canvas.querySelector('#btn-toggle-action-plan');
   if (btnTogglePlan) {
