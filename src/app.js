@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260831_v1023";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260831_v1023";
-import { callCozeAgentAPI } from "./agents.js?v=20260831_v1023";
-import { AuthManager } from "./auth.js?v=20260831_v1023";
-import { CloudSyncEngine } from "./sync.js?v=20260831_v1023";
-import { renderLoginView } from "./login.js?v=20260831_v1023";
-import { renderTeacherPortal } from "./teacher.js?v=20260831_v1023";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260831_v1023";
+} from "./constants.js?v=20260831_v1024";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260831_v1024";
+import { callCozeAgentAPI } from "./agents.js?v=20260831_v1024";
+import { AuthManager } from "./auth.js?v=20260831_v1024";
+import { CloudSyncEngine } from "./sync.js?v=20260831_v1024";
+import { renderLoginView } from "./login.js?v=20260831_v1024";
+import { renderTeacherPortal } from "./teacher.js?v=20260831_v1024";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260831_v1024";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260831_v1023";
+} from "./editor.js?v=20260831_v1024";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -1752,10 +1752,10 @@ export class App {
         const postSecondReviewElapsedMs = secondReviewTime > 0 ? Math.max(0, now - secondReviewTime) : 0;
         const minPostReviewModCooldownMs = isLargeTask ? 900000 : 600000; // 统一 10 分钟（大任务 15 分钟）修改沉淀期
 
-        // 2. 判定三审触发条件：必须已过二审，且（经过 10 分钟修改期且达到字数/时间水位，或者组员主动点击初稿确认）
-        const isUserConfirmingDraft = s2.isDraftConfirmed || (s2.confirmedMembers && Object.keys(s2.confirmedMembers).length > 0);
+        // 2. 判定三审触发条件：只要组员点击了初稿确认，或者经过 10 分钟修改期且字数达到成文标准
+        const isUserConfirmingDraft = !!s2.isDraftConfirmed || (s2.confirmedMembers && Object.keys(s2.confirmedMembers).length > 0);
         const isTimeAndWordMature = postSecondReviewElapsedMs >= minPostReviewModCooldownMs && (wordProgress >= 0.85 || timeProgress >= 0.80 || plainTextLen >= 3000);
-        const isFinalReviewDue = hasPassedSecondReview && (isUserConfirmingDraft || isTimeAndWordMature);
+        const isFinalReviewDue = isUserConfirmingDraft || (hasPassedSecondReview && isTimeAndWordMature);
         
         const hasFinalReviewInLogs = s2Chats.some(m => m && m.sender === 'reviewingEditor' && (m.text?.includes('终稿行文扫描') || m.text?.includes('终审定稿总评') || m.text?.includes('审稿编辑·终审')));
 
@@ -1773,6 +1773,7 @@ export class App {
             title: '【审稿编辑】正在进行终审定稿与学术规范扫描...',
             detail: '正在对终稿全文进行学术语体、论述逻辑与文献规范终审质检...'
           };
+          renderChat(this.state);
           this.renderStudentWorkspace();
 
           setTimeout(async () => {
@@ -1788,12 +1789,12 @@ ${contentSnippet}
 ②【学术规范与参考文献】
 - 诊断问题：核对术语一致性与文献著录；
 - 改进建议：给出答辩准备要求。
-👉 末尾必须提示：“请全组成员通读终稿后，在正文上方点击【✍️ 确认初稿】，全员确认后将自动解锁阶段三答辩擂台！”`;
+👉 末尾必须提示：“请全组成员通读终审建议并做最后润色，修改完成后请点击上方导航进入【阶段三：答辩擂台】！”`;
 
               const resp = await callCozeAgentAPI('reviewingEditor', finalPrompt, { stage: 'stage2', topic });
               let finalTxt = (resp && resp.trim().length > 0)
                 ? resp.trim()
-                : `📝 【审稿编辑·终审定稿总评与行文扫描】：看到全组已进入最后成文冲刺阶段，整体框架完整！我对全文质量与学术规范进行了终审扫描：\\n①【学术语体与逻辑完整性】\\n· 诊断问题：整体论述连贯，需核对消除残留的口语化表述；\\n· 改进建议：通读全篇统一学术语言基调。\\n②【学术规范与参考文献】\\n· 诊断问题：前后核心概念表述保持高度统一；\\n· 改进建议：核对著录规范。\\n👉 请全组成员完成最终通读后，在上方逐一点击【✍️ 确认初稿】，全员确认后将自动解锁阶段三学术答辩！`;
+                : `📝 【审稿编辑·终审定稿总评与行文扫描】：看到全组已进入最后成文冲刺阶段，整体框架完整！我对全文质量与学术规范进行了终审扫描：\n①【学术语体与逻辑完整性】\n· 诊断问题：整体论述连贯，需核对消除残留的口语化表述；\n· 改进建议：通读全篇统一学术语言基调。\n②【学术规范与参考文献】\n· 诊断问题：前后核心概念表述保持高度统一；\n· 改进建议：核对著录规范。\n👉 请全组成员通读终审建议并做最后润色，修改完成后请点击上方导航进入【阶段三：答辩擂台】！`;
               if (!finalTxt.startsWith('📝')) finalTxt = `📝 【审稿编辑·终审定稿总评与行文扫描】：${finalTxt}`;
 
               const refReviewMsg = {
