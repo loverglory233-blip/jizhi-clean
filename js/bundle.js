@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260831_v1003
+ * Version: 20260831_v1004
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260831_v1003';
+  const APP_VERSION = '20260831_v1004';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -10788,9 +10788,10 @@
         <!-- 🌟 2. 半程修正清单 (未下发时展示待解锁提示，下发后展示展开卡片) -->
         ${(() => {
           let effActionPlan = actionPlan;
-          const hasChecklistInChat = s2ChatLogs && s2ChatLogs.some(m => m && m.text && m.text.includes('二审修正清单'));
+          const stage2Logs = (state.chatLogs && state.chatLogs.stage2) || [];
+          const hasChecklistInChat = stage2Logs.some(m => m && m.text && m.text.includes('二审修正清单'));
           if ((!effActionPlan || !effActionPlan.isGenerated) && (s2.meetingStep === 'discussing_checklist' || s2.meetingStep === 'completed' || hasChecklistInChat)) {
-            const revMsg = [...(s2ChatLogs || [])].reverse().find(m => m && m.text && m.text.includes('二审修正清单'));
+            const revMsg = [...stage2Logs].reverse().find(m => m && m.text && m.text.includes('二审修正清单'));
             let parsedItems = [];
             if (revMsg && revMsg.text) {
               const lines = revMsg.text.split('\n').map(l => l.trim()).filter(Boolean);
