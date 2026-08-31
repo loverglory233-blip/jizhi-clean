@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260831_v1015";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260831_v1015";
-import { callCozeAgentAPI } from "./agents.js?v=20260831_v1015";
-import { AuthManager } from "./auth.js?v=20260831_v1015";
-import { CloudSyncEngine } from "./sync.js?v=20260831_v1015";
-import { renderLoginView } from "./login.js?v=20260831_v1015";
-import { renderTeacherPortal } from "./teacher.js?v=20260831_v1015";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260831_v1015";
+} from "./constants.js?v=20260831_v1016";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260831_v1016";
+import { callCozeAgentAPI } from "./agents.js?v=20260831_v1016";
+import { AuthManager } from "./auth.js?v=20260831_v1016";
+import { CloudSyncEngine } from "./sync.js?v=20260831_v1016";
+import { renderLoginView } from "./login.js?v=20260831_v1016";
+import { renderTeacherPortal } from "./teacher.js?v=20260831_v1016";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260831_v1016";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260831_v1015";
+} from "./editor.js?v=20260831_v1016";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -1841,13 +1841,9 @@ export class App {
         const isFinalReviewDue = (wordProgress >= 0.70 || timeProgress >= 0.80 || s2.isDraftConfirmed || plainTextLen >= 2500 || plainTextLen >= (targetWordCount * 0.8) || (s2.confirmedMembers && Object.keys(s2.confirmedMembers).length > 0));
         
         const hasFinalReviewInLogs = s2Chats.some(m => m && m.sender === 'reviewingEditor' && (m.text?.includes('终稿行文扫描') || m.text?.includes('终审定稿总评') || m.text?.includes('审稿编辑·终审')));
-        if (hasFinalReviewInLogs && s2.reviewMilestone !== 'final_review_done') {
-          s2.reviewMilestone = 'final_review_done';
-          this.syncStage2();
-        }
 
         // 1. 审稿编辑【第三次质检·终审定稿扫描】（大模型深度质检，全场严格仅 1 次）
-        if (!hasFinalReviewInLogs && s2.reviewMilestone !== 'final_review_done' && isFinalReviewDue && !this._isTriggeringFinalReview) {
+        if (!hasFinalReviewInLogs && isFinalReviewDue && !this._isTriggeringFinalReview) {
           this._isTriggeringFinalReview = true;
           s2.reviewMilestone = 'final_review_done';
           

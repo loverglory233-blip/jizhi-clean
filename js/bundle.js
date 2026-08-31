@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260831_v1015
+ * Version: 20260831_v1016
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260831_v1015';
+  const APP_VERSION = '20260831_v1016';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -13743,13 +13743,9 @@
           const isFinalReviewDue = (wordProgress >= 0.70 || timeProgress >= 0.80 || s2.isDraftConfirmed || plainTextLen >= 2500 || plainTextLen >= (targetWordCount * 0.8) || (s2.confirmedMembers && Object.keys(s2.confirmedMembers).length > 0));
 
           const hasFinalReviewInLogs = s2Chats.some(m => m && m.sender === 'reviewingEditor' && (m.text?.includes('终稿行文扫描') || m.text?.includes('终审定稿总评') || m.text?.includes('审稿编辑·终审')));
-          if (hasFinalReviewInLogs && s2.reviewMilestone !== 'final_review_done') {
-            s2.reviewMilestone = 'final_review_done';
-            this.syncStage2();
-          }
 
           // 1. 审稿编辑【第三次质检·终审定稿扫描】（大模型深度质检，全场严格仅 1 次）
-          if (!hasFinalReviewInLogs && s2.reviewMilestone !== 'final_review_done' && isFinalReviewDue && !this._isTriggeringFinalReview) {
+          if (!hasFinalReviewInLogs && isFinalReviewDue && !this._isTriggeringFinalReview) {
             this._isTriggeringFinalReview = true;
             s2.reviewMilestone = 'final_review_done';
 
