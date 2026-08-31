@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles } from "./constants.js?v=20260831_v1010";
-import { callCozeAgentAPI } from "./agents.js?v=20260831_v1010";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, showResolutionBlock } from "./utils.js?v=20260831_v1010";
+import { AgentProfiles } from "./constants.js?v=20260831_v1011";
+import { callCozeAgentAPI } from "./agents.js?v=20260831_v1011";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, showResolutionBlock } from "./utils.js?v=20260831_v1011";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -2248,33 +2248,38 @@ function renderStage2Canvas(canvas, state, handlers) {
       ];
       const revMsg = [...allChatLogs].reverse().find(m => m && m.text && (m.text.includes('二审修正清单') || m.text.includes('二审修改') || m.text.includes('修正清单')));
       
-      if ((!effActionPlan || !effActionPlan.isGenerated) && (s2.meetingStep === 'discussing_checklist' || s2.meetingStep === 'completed' || !!revMsg)) {
+      if (s2.meetingStep === 'discussing_checklist' || s2.meetingStep === 'completed' || !!revMsg) {
         let parsedItems = [];
         if (revMsg && revMsg.text) {
-          const rawTxt = revMsg.text.replace(/^.*?二审修正清单[】:]*/s, '').trim();
-          const chunks = rawTxt.split(/(?=[①②③]|\b[123]\.)/g).map(c => c.trim()).filter(Boolean);
+          let body = revMsg.text;
+          const headerMatch = body.match(/二审修正清单[】:：\s]*/);
+          if (headerMatch) {
+            body = body.slice(headerMatch.index + headerMatch[0].length);
+          }
+          body = body.replace(/[👉\s]*请大家围绕.*$/s, '')
+                     .replace(/[👉\s]*请全组围绕.*$/s, '')
+                     .replace(/[👉\s]*讨论差不多.*$/s, '')
+                     .replace(/[👉\s]*点击下方.*$/s, '')
+                     .trim();
+
+          const chunks = body.split(/(?=[①②③]|\b[123]\.)/g).map(c => c.trim()).filter(Boolean);
           chunks.forEach(c => {
-            const cleanChunk = c.replace(/^[①②③\d\.\s\(\)]+/, '').replace(/[；;。]\s*$/, '').trim();
-            if (cleanChunk.length > 3 && !cleanChunk.includes('讨论差不多') && !cleanChunk.includes('请大家围绕') && !cleanChunk.includes('让审稿编辑总结')) {
-              parsedItems.push(cleanChunk);
+            let clean = c.replace(/^[①②③\d\.\s\(\)]+/, '').replace(/[；;。]\s*$/, '').trim();
+            if (clean.length > 5) {
+              parsedItems.push(clean);
             }
           });
         }
-        if (parsedItems.length < 3) {
-          parsedItems = [
-            `🎯【核心概念与问题对齐】: 统领各章节核心概念表述，使引言文献综述与核心研究问题精准呼应，消除脱节。`,
-            `✍️【研究方法与工具深化】: 细化数据分析的具体实施步骤与测量工具，确保分析维度与研究假设严格对应。`,
-            `💡【行文衔接与学术规范】: 通读全篇优化段落逻辑过渡，补全未完成章节，消除口语化表达，冲刺定稿！`
-          ];
+        if (parsedItems.length > 0) {
+          effActionPlan = {
+            isGenerated: true,
+            completedMap: (effActionPlan && effActionPlan.completedMap) || {},
+            items: parsedItems.slice(0, 3)
+          };
+          if (!state.stage2.actionPlan) state.stage2.actionPlan = effActionPlan;
+          state.stage2.actionPlan.isGenerated = true;
+          state.stage2.actionPlan.items = effActionPlan.items;
         }
-        effActionPlan = {
-          isGenerated: true,
-          completedMap: (effActionPlan && effActionPlan.completedMap) || {},
-          items: parsedItems.slice(0, 3)
-        };
-        if (!state.stage2.actionPlan) state.stage2.actionPlan = effActionPlan;
-        state.stage2.actionPlan.isGenerated = true;
-        state.stage2.actionPlan.items = effActionPlan.items;
       }
 
       if (effActionPlan && effActionPlan.isGenerated && Array.isArray(effActionPlan.items) && effActionPlan.items.length > 0) {
@@ -2425,33 +2430,38 @@ function renderStage2Canvas(canvas, state, handlers) {
         ];
         const revMsg = [...allChatLogs].reverse().find(m => m && m.text && (m.text.includes('二审修正清单') || m.text.includes('二审修改') || m.text.includes('修正清单')));
         
-        if ((!effActionPlan || !effActionPlan.isGenerated) && (s2.meetingStep === 'discussing_checklist' || s2.meetingStep === 'completed' || !!revMsg)) {
+        if (s2.meetingStep === 'discussing_checklist' || s2.meetingStep === 'completed' || !!revMsg) {
           let parsedItems = [];
           if (revMsg && revMsg.text) {
-            const rawTxt = revMsg.text.replace(/^.*?二审修正清单[】:]*/s, '').trim();
-            const chunks = rawTxt.split(/(?=[①②③]|\b[123]\.)/g).map(c => c.trim()).filter(Boolean);
+            let body = revMsg.text;
+            const headerMatch = body.match(/二审修正清单[】:：\s]*/);
+            if (headerMatch) {
+              body = body.slice(headerMatch.index + headerMatch[0].length);
+            }
+            body = body.replace(/[👉\s]*请大家围绕.*$/s, '')
+                       .replace(/[👉\s]*请全组围绕.*$/s, '')
+                       .replace(/[👉\s]*讨论差不多.*$/s, '')
+                       .replace(/[👉\s]*点击下方.*$/s, '')
+                       .trim();
+
+            const chunks = body.split(/(?=[①②③]|\b[123]\.)/g).map(c => c.trim()).filter(Boolean);
             chunks.forEach(c => {
-              const cleanChunk = c.replace(/^[①②③\d\.\s\(\)]+/, '').replace(/[；;。]\s*$/, '').trim();
-              if (cleanChunk.length > 3 && !cleanChunk.includes('讨论差不多') && !cleanChunk.includes('请大家围绕') && !cleanChunk.includes('让审稿编辑总结')) {
-                parsedItems.push(cleanChunk);
+              let clean = c.replace(/^[①②③\d\.\s\(\)]+/, '').replace(/[；;。]\s*$/, '').trim();
+              if (clean.length > 5) {
+                parsedItems.push(clean);
               }
             });
           }
-          if (parsedItems.length < 3) {
-            parsedItems = [
-              `🎯【核心概念与问题对齐】: 统领各章节核心概念表述，使引言文献综述与核心研究问题精准呼应，消除脱节。`,
-              `✍️【研究方法与工具深化】: 细化数据分析的具体实施步骤与测量工具，确保分析维度与研究假设严格对应。`,
-              `💡【行文衔接与学术规范】: 通读全篇优化段落逻辑过渡，补全未完成章节，消除口语化表达，冲刺定稿！`
-            ];
+          if (parsedItems.length > 0) {
+            effActionPlan = {
+              isGenerated: true,
+              completedMap: (effActionPlan && effActionPlan.completedMap) || {},
+              items: parsedItems.slice(0, 3)
+            };
+            if (!state.stage2.actionPlan) state.stage2.actionPlan = effActionPlan;
+            state.stage2.actionPlan.isGenerated = true;
+            state.stage2.actionPlan.items = effActionPlan.items;
           }
-          effActionPlan = {
-            isGenerated: true,
-            completedMap: (effActionPlan && effActionPlan.completedMap) || {},
-            items: parsedItems.slice(0, 3)
-          };
-          if (!state.stage2.actionPlan) state.stage2.actionPlan = effActionPlan;
-          state.stage2.actionPlan.isGenerated = true;
-          state.stage2.actionPlan.items = effActionPlan.items;
         }
 
         if (!effActionPlan || !effActionPlan.isGenerated) {
