@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260831_v1006";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260831_v1006";
-import { callCozeAgentAPI } from "./agents.js?v=20260831_v1006";
-import { AuthManager } from "./auth.js?v=20260831_v1006";
-import { CloudSyncEngine } from "./sync.js?v=20260831_v1006";
-import { renderLoginView } from "./login.js?v=20260831_v1006";
-import { renderTeacherPortal } from "./teacher.js?v=20260831_v1006";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260831_v1006";
+} from "./constants.js?v=20260831_v1007";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260831_v1007";
+import { callCozeAgentAPI } from "./agents.js?v=20260831_v1007";
+import { AuthManager } from "./auth.js?v=20260831_v1007";
+import { CloudSyncEngine } from "./sync.js?v=20260831_v1007";
+import { renderLoginView } from "./login.js?v=20260831_v1007";
+import { renderTeacherPortal } from "./teacher.js?v=20260831_v1007";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260831_v1007";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260831_v1006";
+} from "./editor.js?v=20260831_v1007";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -4929,17 +4929,17 @@ ${propText}
           if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
           this.renderStudentWorkspace();
         },
-      onPresenceChange: (nodeIdx, sectionTitle, charOffset) => {
-        const user = this.state.currentUser;
-        if (!this.state.presence) this.state.presence = {};
-        this.state.presence[user] = {
-          nodeIndex: nodeIdx,
-          activeSection: sectionTitle || '正文',
-          charOffset: typeof charOffset === 'number' ? charOffset : null,
-          updatedAt: Date.now()
-        };
-        if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
-      },
+        onPresenceChange: (nodeIdx, sectionTitle, charOffset) => {
+          const user = this.state.currentUser;
+          if (!this.state.presence) this.state.presence = {};
+          this.state.presence[user] = {
+            nodeIndex: nodeIdx,
+            activeSection: sectionTitle || '正文',
+            charOffset: typeof charOffset === 'number' ? charOffset : null,
+            updatedAt: Date.now()
+          };
+          if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+        },
       onUnifiedContentChange: (newContent) => {
         if (this.state.isFinalSubmitted) return;
         const cleanHtml = (newContent || '').replace(/<span class="remote-cursor-widget"[\s\S]*?<\/span>/gi, '');
@@ -6000,6 +6000,48 @@ ${fullDoc.slice(0, 2000)}
     renderChat(this.state);
     this.renderStudentWorkspace();
     this._isTriggeringSecondReview = false;
+  }
+
+  /**
+   * 🔄 强制刷新并即时解锁【半程修正清单】卡片 (从全量聊天记录智能提取 3 项清单)
+   */
+  forceRefreshActionPlan() {
+    if (!this.state.stage2) this.state.stage2 = {};
+    const s2 = this.state.stage2;
+    const allChatLogs = [
+      ...(this.state.chatLogs?.stage1 || []),
+      ...(this.state.chatLogs?.stage2 || []),
+      ...(this.state.chatLogs?.stage3 || [])
+    ];
+    const revMsg = [...allChatLogs].reverse().find(m => m && m.text && (m.text.includes('二审修正清单') || m.text.includes('二审修改') || m.text.includes('修正清单')));
+    
+    let parsedItems = [];
+    if (revMsg && revMsg.text) {
+      const rawTxt = revMsg.text.replace(/^.*?二审修正清单[】:]*/s, '').trim();
+      const chunks = rawTxt.split(/(?=[①②③]|\b[123]\.)/g).map(c => c.trim()).filter(Boolean);
+      chunks.forEach(c => {
+        const cleanChunk = c.replace(/^[①②③\d\.\s\(\)]+/, '').replace(/[；;。]\s*$/, '').trim();
+        if (cleanChunk.length > 3 && !cleanChunk.includes('讨论差不多') && !cleanChunk.includes('请大家围绕') && !cleanChunk.includes('让审稿编辑总结')) {
+          parsedItems.push(cleanChunk);
+        }
+      });
+    }
+    if (parsedItems.length < 3) {
+      parsedItems = [
+        `🎯【核心概念与问题对齐】: 统领各章节核心概念表述，使引言文献综述与核心研究问题精准呼应，消除脱节。`,
+        `✍️【研究方法与工具深化】: 细化数据分析的具体实施步骤与测量工具，确保分析维度与研究假设严格对应。`,
+        `💡【行文衔接与学术规范】: 通读全篇优化段落逻辑过渡，补全未完成章节，消除口语化表达，冲刺定稿！`
+      ];
+    }
+    s2.actionPlan = {
+      isGenerated: true,
+      completedMap: (s2.actionPlan && s2.actionPlan.completedMap) || {},
+      items: parsedItems.slice(0, 3)
+    };
+    s2.meetingStep = 'discussing_checklist';
+    this.syncStage2();
+    if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+    this.renderStudentWorkspace();
   }
 
   // handleLogout() 已在 L1648 定义（含 presence 清理与云端推送），此处不再重复
