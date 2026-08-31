@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260831_v1023
+ * Version: 20260831_v1024
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260831_v1023';
+  const APP_VERSION = '20260831_v1024';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -5818,32 +5818,18 @@
                             </div>
                           ` : (() => {
                             const rawPadName = `jizhi_${activeTaskId}_${activeMonitorGId}`;
-                            if (!state._readOnlyPadMap) state._readOnlyPadMap = {};
-                            const readOnlyPadId = state._readOnlyPadMap[rawPadName];
-                            if (!readOnlyPadId) {
-                              fetch(`sync.php?action=get_readonly_pad_id&padId=${rawPadName}`).then(r => r.json()).then(res => {
-                                if (res && res.success && res.readOnlyID) {
-                                  state._readOnlyPadMap[rawPadName] = res.readOnlyID;
-                                  const f2 = document.querySelector('#teacher-stage2-etherpad-frame');
-                                  if (f2 && !f2.src.includes(res.readOnlyID)) {
-                                    f2.src = `/p/${res.readOnlyID}?userName=${encodeURIComponent('教师监控')}&userColor=%237c3aed&showControls=false&showChat=false&showLineNumbers=true&lang=zh-hans`;
-                                  }
-                                }
-                              }).catch(() => {});
-                            }
-                            const targetPad = readOnlyPadId || rawPadName;
                             return `
                               <div class="teacher-etherpad-container" style="flex:1; min-height:560px; border-radius:8px; overflow:hidden; border:1.5px solid #cbd5e1; box-shadow:0 2px 8px rgba(15,23,42,0.04); background:#ffffff; position:relative; display:flex; flex-direction:column;">
                                 <div style="display:flex; justify-content:space-between; align-items:center; background:#f8fafc; border-bottom:1px solid #e2e8f0; padding:6px 12px; font-size:12px; color:#475569; flex-shrink:0;">
                                   <div style="display:flex; align-items:center; gap:8px;">
                                     <span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:#10b981;"></span>
-                                    <span style="font-weight:700; color:#1e293b;">🔒 教师端同屏镜像 (纯净只读阅卷 · 实时协同直连)</span>
+                                    <span style="font-weight:700; color:#1e293b;">🔒 教师端同屏镜像 (实时协同直连)</span>
                                   </div>
-                                  <span style="font-size:11px; background:#ecfdf5; color:#059669; border:1px solid #a7f3d0; padding:1px 8px; border-radius:4px; font-weight:700;">只读监控</span>
+                                  <span style="font-size:11px; background:#ecfdf5; color:#059669; border:1px solid #a7f3d0; padding:1px 8px; border-radius:4px; font-weight:700;">实时监控</span>
                                 </div>
                                 <div style="position:relative; flex:1; width:100%; height:100%; min-height:520px; display:flex;">
                                   <div class="etherpad-readonly-shield" style="position:absolute; inset:0; z-index:25; background:transparent; cursor:not-allowed; pointer-events:none;" title="🔒 只读查阅模式 (已锁定禁止编辑)"></div>
-                                  <iframe id="teacher-stage2-etherpad-frame" src="/p/${encodeURIComponent(targetPad)}?userName=${encodeURIComponent('教师监控')}&userColor=%237c3aed&showControls=false&showChat=false&showLineNumbers=true&lang=zh-hans" style="flex:1; width:100%; height:100%; min-height:520px; border:none; display:block; background:#ffffff;" title="教师端实时写作同屏镜像 (只读)"></iframe>
+                                  <iframe id="teacher-stage2-etherpad-frame" src="/p/${encodeURIComponent(rawPadName)}?userName=${encodeURIComponent('教师监控')}&userColor=%237c3aed&showControls=false&showChat=false&showLineNumbers=true&lang=zh-hans" style="flex:1; width:100%; height:100%; min-height:520px; border:none; display:block; background:#ffffff;" title="教师端实时写作同屏镜像 (只读)"></iframe>
                                 </div>
                               </div>
                             `;
@@ -10807,23 +10793,54 @@
               };
             });
           }
-        } else {
-          planCardContainer.outerHTML = `
-            <div id="stage2-action-plan-card" onclick="if(window.app && window.app.forceRefreshActionPlan){ window.app.forceRefreshActionPlan(); }" title="点击可重新核对并展开最新清单" style="background:#f8fafc; border:1px dashed #cbd5e1; border-radius:6px; padding:5px 12px; margin-bottom:6px; flex-shrink:0; display:flex; justify-content:space-between; align-items:center; cursor:pointer; transition:all 0.15s ease;" onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='#f8fafc'">
-              <div style="font-size:11.5px; font-weight:700; color:#64748b; display:flex; align-items:center; gap:6px;">
-                <span>📋 【半程修正清单】</span>
-                <span style="font-size:10.5px; background:#eff6ff; color:#2563eb; padding:1px 6px; border-radius:6px;">待解锁 (组内编辑会议自查对齐后，由审稿专家质检下发)</span>
-              </div>
-              <span style="font-size:10.5px; color:#64748b; background:#ffffff; border:1px solid #e2e8f0; padding:1.5px 6px; border-radius:4px; display:inline-flex; align-items:center; gap:3px;">
-                🔄 点击核对
-              </span>
-            </div>
-          `;
         }
-      }
 
-      return;
-    }
+        // 🌟 增量就地刷新右上角【会议打卡】与【初稿确认】小药丸
+        const totalCount = membersList.length || 2;
+        const subs = s2.meetingSubmissions || {};
+        const subCount = Object.keys(subs).length;
+        const isMeetingFullyDone = subCount >= totalCount && totalCount > 0;
+        const isCurrentUserSubmitted = isMemberDone(subs, { id: currUserCode, studentCode: currUser?.studentCode, username: currUser?.username, name: currUser?.name });
+
+        const meetingTextEl = canvas.querySelector('#stage2-meeting-count-text');
+        if (meetingTextEl) {
+          meetingTextEl.innerText = isMeetingFullyDone ? '✅ 会议已全员打卡' : `📢 会议: ${subCount}/${totalCount}`;
+          meetingTextEl.style.color = isMeetingFullyDone ? '#059669' : '#2563eb';
+          meetingTextEl.style.background = isMeetingFullyDone ? '#d1fae5' : '#eff6ff';
+          meetingTextEl.style.borderColor = isMeetingFullyDone ? '#a7f3d0' : '#bfdbfe';
+        }
+
+        const meetingBtnEl = canvas.querySelector('#btn-trigger-meeting-pills');
+        if (meetingBtnEl) {
+          meetingBtnEl.innerText = isCurrentUserSubmitted ? '✓ 查看会议' : '📢 参与会议';
+          meetingBtnEl.style.background = isCurrentUserSubmitted ? '#ecfdf5' : 'linear-gradient(135deg, #2563eb, #1d4ed8)';
+          meetingBtnEl.style.color = isCurrentUserSubmitted ? '#059669' : 'white';
+          meetingBtnEl.style.border = isCurrentUserSubmitted ? '1px solid #a7f3d0' : 'none';
+        }
+
+        const confMembers = s2.confirmedMembers || {};
+        const confirmedDraftCount = membersList.filter(m => isMemberDone(confMembers, m)).length;
+        const isDraftFullyConfirmed = s2.isDraftConfirmed || (confirmedDraftCount >= totalCount && totalCount > 0);
+        const isUserDraftConfirmed = isMemberDone(confMembers, { id: currUserCode, studentCode: currUser?.studentCode, username: currUser?.username, name: currUser?.name });
+
+        const draftTextEl = canvas.querySelector('#stage2-draft-count-text');
+        if (draftTextEl) {
+          draftTextEl.innerText = isDraftFullyConfirmed ? '🎉 初稿已确认' : `✍️ 初稿: ${confirmedDraftCount}/${totalCount}`;
+          draftTextEl.style.color = isDraftFullyConfirmed ? '#059669' : '#d97706';
+          draftTextEl.style.background = isDraftFullyConfirmed ? '#d1fae5' : '#fef3c7';
+          draftTextEl.style.borderColor = isDraftFullyConfirmed ? '#a7f3d0' : '#fde68a';
+        }
+
+        const draftBtnEl = canvas.querySelector('#btn-confirm-stage2-draft');
+        if (draftBtnEl) {
+          draftBtnEl.innerText = isDraftFullyConfirmed ? '🎉 初稿完成' : (isUserDraftConfirmed ? '✓ 已确认' : '✍️ 确认初稿');
+          draftBtnEl.style.background = isUserDraftConfirmed ? '#ecfdf5' : 'linear-gradient(135deg, #059669, #047857)';
+          draftBtnEl.style.color = isUserDraftConfirmed ? '#059669' : 'white';
+          draftBtnEl.style.border = isUserDraftConfirmed ? '1px solid #a7f3d0' : 'none';
+        }
+
+        return;
+      }
 
     canvas.innerHTML = `
       <div class="card" style="height:100%; flex:1; display:flex; flex-direction:column; padding:8px 12px; box-sizing:border-box; overflow:hidden;">
@@ -13719,10 +13736,10 @@
           const postSecondReviewElapsedMs = secondReviewTime > 0 ? Math.max(0, now - secondReviewTime) : 0;
           const minPostReviewModCooldownMs = isLargeTask ? 900000 : 600000; // 统一 10 分钟（大任务 15 分钟）修改沉淀期
 
-          // 2. 判定三审触发条件：必须已过二审，且（经过 10 分钟修改期且达到字数/时间水位，或者组员主动点击初稿确认）
-          const isUserConfirmingDraft = s2.isDraftConfirmed || (s2.confirmedMembers && Object.keys(s2.confirmedMembers).length > 0);
+          // 2. 判定三审触发条件：只要组员点击了初稿确认，或者经过 10 分钟修改期且字数达到成文标准
+          const isUserConfirmingDraft = !!s2.isDraftConfirmed || (s2.confirmedMembers && Object.keys(s2.confirmedMembers).length > 0);
           const isTimeAndWordMature = postSecondReviewElapsedMs >= minPostReviewModCooldownMs && (wordProgress >= 0.85 || timeProgress >= 0.80 || plainTextLen >= 3000);
-          const isFinalReviewDue = hasPassedSecondReview && (isUserConfirmingDraft || isTimeAndWordMature);
+          const isFinalReviewDue = isUserConfirmingDraft || (hasPassedSecondReview && isTimeAndWordMature);
 
           const hasFinalReviewInLogs = s2Chats.some(m => m && m.sender === 'reviewingEditor' && (m.text?.includes('终稿行文扫描') || m.text?.includes('终审定稿总评') || m.text?.includes('审稿编辑·终审')));
 
@@ -13740,6 +13757,7 @@
               title: '【审稿编辑】正在进行终审定稿与学术规范扫描...',
               detail: '正在对终稿全文进行学术语体、论述逻辑与文献规范终审质检...'
             };
+            renderChat(this.state);
             this.renderStudentWorkspace();
 
             setTimeout(async () => {
@@ -13755,12 +13773,12 @@
   ②【学术规范与参考文献】
   - 诊断问题：核对术语一致性与文献著录；
   - 改进建议：给出答辩准备要求。
-  👉 末尾必须提示：“请全组成员通读终稿后，在正文上方点击【✍️ 确认初稿】，全员确认后将自动解锁阶段三答辩擂台！”`;
+  👉 末尾必须提示：“请全组成员通读终审建议并做最后润色，修改完成后请点击上方导航进入【阶段三：答辩擂台】！”`;
 
                 const resp = await callCozeAgentAPI('reviewingEditor', finalPrompt, { stage: 'stage2', topic });
                 let finalTxt = (resp && resp.trim().length > 0)
                   ? resp.trim()
-                  : `📝 【审稿编辑·终审定稿总评与行文扫描】：看到全组已进入最后成文冲刺阶段，整体框架完整！我对全文质量与学术规范进行了终审扫描：\\n①【学术语体与逻辑完整性】\\n· 诊断问题：整体论述连贯，需核对消除残留的口语化表述；\\n· 改进建议：通读全篇统一学术语言基调。\\n②【学术规范与参考文献】\\n· 诊断问题：前后核心概念表述保持高度统一；\\n· 改进建议：核对著录规范。\\n👉 请全组成员完成最终通读后，在上方逐一点击【✍️ 确认初稿】，全员确认后将自动解锁阶段三学术答辩！`;
+                  : `📝 【审稿编辑·终审定稿总评与行文扫描】：看到全组已进入最后成文冲刺阶段，整体框架完整！我对全文质量与学术规范进行了终审扫描：\n①【学术语体与逻辑完整性】\n· 诊断问题：整体论述连贯，需核对消除残留的口语化表述；\n· 改进建议：通读全篇统一学术语言基调。\n②【学术规范与参考文献】\n· 诊断问题：前后核心概念表述保持高度统一；\n· 改进建议：核对著录规范。\n👉 请全组成员通读终审建议并做最后润色，修改完成后请点击上方导航进入【阶段三：答辩擂台】！`;
                 if (!finalTxt.startsWith('📝')) finalTxt = `📝 【审稿编辑·终审定稿总评与行文扫描】：${finalTxt}`;
 
                 const refReviewMsg = {

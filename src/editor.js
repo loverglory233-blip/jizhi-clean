@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles } from "./constants.js?v=20260831_v1023";
-import { callCozeAgentAPI } from "./agents.js?v=20260831_v1023";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, showResolutionBlock } from "./utils.js?v=20260831_v1023";
+import { AgentProfiles } from "./constants.js?v=20260831_v1024";
+import { callCozeAgentAPI } from "./agents.js?v=20260831_v1024";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, showResolutionBlock } from "./utils.js?v=20260831_v1024";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -2378,23 +2378,54 @@ function renderStage2Canvas(canvas, state, handlers) {
             };
           });
         }
-      } else {
-        planCardContainer.outerHTML = `
-          <div id="stage2-action-plan-card" onclick="if(window.app && window.app.forceRefreshActionPlan){ window.app.forceRefreshActionPlan(); }" title="点击可重新核对并展开最新清单" style="background:#f8fafc; border:1px dashed #cbd5e1; border-radius:6px; padding:5px 12px; margin-bottom:6px; flex-shrink:0; display:flex; justify-content:space-between; align-items:center; cursor:pointer; transition:all 0.15s ease;" onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='#f8fafc'">
-            <div style="font-size:11.5px; font-weight:700; color:#64748b; display:flex; align-items:center; gap:6px;">
-              <span>📋 【半程修正清单】</span>
-              <span style="font-size:10.5px; background:#eff6ff; color:#2563eb; padding:1px 6px; border-radius:6px;">待解锁 (组内编辑会议自查对齐后，由审稿专家质检下发)</span>
-            </div>
-            <span style="font-size:10.5px; color:#64748b; background:#ffffff; border:1px solid #e2e8f0; padding:1.5px 6px; border-radius:4px; display:inline-flex; align-items:center; gap:3px;">
-              🔄 点击核对
-            </span>
-          </div>
-        `;
       }
-    }
 
-    return;
-  }
+      // 🌟 增量就地刷新右上角【会议打卡】与【初稿确认】小药丸
+      const totalCount = membersList.length || 2;
+      const subs = s2.meetingSubmissions || {};
+      const subCount = Object.keys(subs).length;
+      const isMeetingFullyDone = subCount >= totalCount && totalCount > 0;
+      const isCurrentUserSubmitted = isMemberDone(subs, { id: currUserCode, studentCode: currUser?.studentCode, username: currUser?.username, name: currUser?.name });
+
+      const meetingTextEl = canvas.querySelector('#stage2-meeting-count-text');
+      if (meetingTextEl) {
+        meetingTextEl.innerText = isMeetingFullyDone ? '✅ 会议已全员打卡' : `📢 会议: ${subCount}/${totalCount}`;
+        meetingTextEl.style.color = isMeetingFullyDone ? '#059669' : '#2563eb';
+        meetingTextEl.style.background = isMeetingFullyDone ? '#d1fae5' : '#eff6ff';
+        meetingTextEl.style.borderColor = isMeetingFullyDone ? '#a7f3d0' : '#bfdbfe';
+      }
+
+      const meetingBtnEl = canvas.querySelector('#btn-trigger-meeting-pills');
+      if (meetingBtnEl) {
+        meetingBtnEl.innerText = isCurrentUserSubmitted ? '✓ 查看会议' : '📢 参与会议';
+        meetingBtnEl.style.background = isCurrentUserSubmitted ? '#ecfdf5' : 'linear-gradient(135deg, #2563eb, #1d4ed8)';
+        meetingBtnEl.style.color = isCurrentUserSubmitted ? '#059669' : 'white';
+        meetingBtnEl.style.border = isCurrentUserSubmitted ? '1px solid #a7f3d0' : 'none';
+      }
+
+      const confMembers = s2.confirmedMembers || {};
+      const confirmedDraftCount = membersList.filter(m => isMemberDone(confMembers, m)).length;
+      const isDraftFullyConfirmed = s2.isDraftConfirmed || (confirmedDraftCount >= totalCount && totalCount > 0);
+      const isUserDraftConfirmed = isMemberDone(confMembers, { id: currUserCode, studentCode: currUser?.studentCode, username: currUser?.username, name: currUser?.name });
+
+      const draftTextEl = canvas.querySelector('#stage2-draft-count-text');
+      if (draftTextEl) {
+        draftTextEl.innerText = isDraftFullyConfirmed ? '🎉 初稿已确认' : `✍️ 初稿: ${confirmedDraftCount}/${totalCount}`;
+        draftTextEl.style.color = isDraftFullyConfirmed ? '#059669' : '#d97706';
+        draftTextEl.style.background = isDraftFullyConfirmed ? '#d1fae5' : '#fef3c7';
+        draftTextEl.style.borderColor = isDraftFullyConfirmed ? '#a7f3d0' : '#fde68a';
+      }
+
+      const draftBtnEl = canvas.querySelector('#btn-confirm-stage2-draft');
+      if (draftBtnEl) {
+        draftBtnEl.innerText = isDraftFullyConfirmed ? '🎉 初稿完成' : (isUserDraftConfirmed ? '✓ 已确认' : '✍️ 确认初稿');
+        draftBtnEl.style.background = isUserDraftConfirmed ? '#ecfdf5' : 'linear-gradient(135deg, #059669, #047857)';
+        draftBtnEl.style.color = isUserDraftConfirmed ? '#059669' : 'white';
+        draftBtnEl.style.border = isUserDraftConfirmed ? '1px solid #a7f3d0' : 'none';
+      }
+
+      return;
+    }
 
   canvas.innerHTML = `
     <div class="card" style="height:100%; flex:1; display:flex; flex-direction:column; padding:8px 12px; box-sizing:border-box; overflow:hidden;">
