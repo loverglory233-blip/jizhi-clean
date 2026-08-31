@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260831_v1021
+ * Version: 20260831_v1022
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260831_v1021';
+  const APP_VERSION = '20260831_v1022';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -17802,9 +17802,16 @@
         if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
         this.renderStudentWorkspace();
 
-        alert(`✅ 你 (${memberName}) 已成功提交半程自查与互阅打卡！\n\n目前组内已打卡：${submittedCount}/${totalMembersCount} 人。\n全组成员已集齐！责任编辑已在右侧研讨区梳理出本组自查认知分歧，请组员先在讨论区针对分歧商讨对齐，稍后审稿专家将为大家深度质检并下发【半程修正清单】！`);
+        alert(`✅ 你 (${memberName}) 已成功提交半程自查与互阅打卡！\n\n目前组内已打卡：${submittedCount}/${totalMembersCount} 人。\n全组成员已集齐！责任编辑正在右侧研讨区梳理全组自查认知分歧，请稍候...`);
 
-        // 2. 异步调用扣子【责任编辑】Coze API: 匿名化宏观总结与分歧引导
+        // 2. 异步调用扣子【责任编辑】Coze API: 挂载聊天区思考气泡
+        this.state.activeAgentAnalyzing = {
+          icon: '🤝',
+          title: '【责任编辑】正在分析全组自查打卡与一致性分歧...',
+          detail: '正在深度整合全组自查反馈、偏离脱节章节与瓶颈诉求，梳理研讨对齐焦点...'
+        };
+        renderChat(this.state);
+
         const avgOverallRating = (allSubs.reduce((sum, s) => sum + (s.overallRating || 5), 0) / (allSubs.length || 1)).toFixed(1);
         const managingPrompt = `【全员自查打卡汇总数据】：
   - 构思偏离章节：${hasIdeationDev ? ideationFocusText : '无'}
@@ -17815,7 +17822,15 @@
 
   请依据责任编辑自查研判分流规则（A1/A2/B/C分支），发表 120~150 字自查研判与对齐引导（纯自然语言，严禁学术结论，严禁点名指责；有分歧末尾提示点击【💡 讨论差不多了？让责任编辑总结】，无分歧直接交棒@审稿编辑）。`;
 
-        let managingText = await callCozeAgentAPI('managingEditor', managingPrompt, { stage: 'stage2', topic, bottleneck: primaryAcademicB });
+        let managingText = '';
+        try {
+          managingText = await callCozeAgentAPI('managingEditor', managingPrompt, { stage: 'stage2', topic, bottleneck: primaryAcademicB });
+        } catch (e) {
+          console.warn('managingEditor divergence analysis error:', e);
+        } finally {
+          this.state.activeAgentAnalyzing = null;
+          renderChat(this.state);
+        }
         if (!managingText || managingText.trim().length === 0) {
           managingText = `🤝 【责任编辑·自查研判与对齐引导】：全员自查打卡已完成！汇总全组反馈，提炼出核心焦点：
     1. 🎯 构思与脱节焦点：${hasIdeationDev ? `部分成员反馈 ${ideationFocusText} 偏离了最初设想；` : ''}${hasTransDev ? `多数成员明确指出了前后脱节（重点涉及 ${transFocusText}）；` : '全篇前后衔接顺畅；'}
