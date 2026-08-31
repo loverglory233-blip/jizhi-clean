@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260831_v1025
+ * Version: 20260831_v1026
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260831_v1025';
+  const APP_VERSION = '20260831_v1026';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -13746,65 +13746,7 @@
 
           // 1. 审稿编辑【第三次质检·终审定稿扫描】（大模型深度质检，全场严格仅 1 次）
           if (!hasFinalReviewInLogs && isFinalReviewDue && !this._isTriggeringFinalReview) {
-            this._isTriggeringFinalReview = true;
-            s2.reviewMilestone = 'final_review_done';
-
-            const topic = (this.state.stage1 && this.state.stage1.mergedTitle) ? this.state.stage1.mergedTitle : '本组课题';
-            const contentSnippet = plainText.slice(0, 2500);
-
-            // 🌟 挂载审稿编辑三审正在分析动态状态框
-            this.state.activeAgentAnalyzing = {
-              icon: '📝',
-              title: '【审稿编辑】正在进行终审定稿与学术规范扫描...',
-              detail: '正在对终稿全文进行学术语体、论述逻辑与文献规范终审质检...'
-            };
-            renderChat(this.state);
-            this.renderStudentWorkspace();
-
-            setTimeout(async () => {
-              try {
-                const finalPrompt = `【课题】：《${topic}》
-  【终稿草稿全文节选】：
-  ${contentSnippet}
-
-  请发表 120~150 字终审定稿学术总评与行文扫描意见（包含【诊断问题 + 改进建议】双结构，严禁代码块，严禁出现“分工”字眼）：
-  ①【学术语体与逻辑完整性】
-  - 诊断问题：指出全篇逻辑闭环与语体严谨度；
-  - 改进建议：给出具体优化建议。
-  ②【学术规范与参考文献】
-  - 诊断问题：核对术语一致性与文献著录；
-  - 改进建议：给出答辩准备要求。
-  👉 末尾必须提示：“请全组成员通读终审建议并做最后润色，修改完成后请点击上方导航进入【阶段三：答辩擂台】！”`;
-
-                const resp = await callCozeAgentAPI('reviewingEditor', finalPrompt, { stage: 'stage2', topic });
-                let finalTxt = (resp && resp.trim().length > 0)
-                  ? resp.trim()
-                  : `📝 【审稿编辑·终审定稿总评与行文扫描】：看到全组已进入最后成文冲刺阶段，整体框架完整！我对全文质量与学术规范进行了终审扫描：\n①【学术语体与逻辑完整性】\n· 诊断问题：整体论述连贯，需核对消除残留的口语化表述；\n· 改进建议：通读全篇统一学术语言基调。\n②【学术规范与参考文献】\n· 诊断问题：前后核心概念表述保持高度统一；\n· 改进建议：核对著录规范。\n👉 请全组成员通读终审建议并做最后润色，修改完成后请点击上方导航进入【阶段三：答辩擂台】！`;
-                if (!finalTxt.startsWith('📝')) finalTxt = `📝 【审稿编辑·终审定稿总评与行文扫描】：${finalTxt}`;
-
-                const refReviewMsg = {
-                  sender: 'reviewingEditor',
-                  senderName: '学术质量 · 审稿编辑',
-                  text: finalTxt,
-                  timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                  _timeMs: Date.now()
-                };
-
-                if (!this.state.chatLogs.stage2) this.state.chatLogs.stage2 = [];
-                this.state.chatLogs.stage2.push(refReviewMsg);
-                this.syncChatLogs();
-                this.syncStage2();
-                if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
-                renderChat(this.state);
-              } catch (e) {
-                console.warn('final review error:', e);
-              } finally {
-                this.state.activeAgentAnalyzing = null;
-                this._isTriggeringFinalReview = false;
-                this.renderStudentWorkspace();
-              }
-            }, 300);
-            return;
+            this.triggerStage2FinalReview();
           }
 
           // 2. 责任编辑【85% 时间写作倒计时提醒】（全场严格仅 1 次）
@@ -17003,7 +16945,9 @@
           if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
           renderChat(this.state);
           this.renderStudentWorkspace();
-          this.checkStage2Milestones();
+
+          // 🌟 核心升级：只要触发了初稿确认，审稿编辑立即进行三审终审定稿扫描！
+          this.triggerStage2FinalReview();
 
           // 🛡️ 严格要求：必须全组成员每一个人都点击确认初稿后，才解锁推进至阶段三
           if (confirmedCount < totalMembersCount) {
@@ -17018,16 +16962,6 @@
               this.authManager.markAllTaskAnnouncementsRead(activeTaskId, userGroupId);
             }
 
-            // 责任编辑立即在阶段二聊天记录中正式宣布全员确认完毕
-            const finalMsg = {
-              sender: 'managingEditor',
-              senderName: '责任编辑 · 过程学伴',
-              text: `🎉 【责任编辑宣布】：恭喜！组内全员 ${totalMembersCount}/${totalMembersCount} 名成员已全部确认正文初稿定稿！阶段二圆满结束，系统已全员解锁【阶段三：答辩擂台】！请大家点击顶部导航进入阶段三开始答辩！`,
-              timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-              _timeMs: Date.now() + 50
-            };
-            if (!this.state.chatLogs.stage2) this.state.chatLogs.stage2 = [];
-            this.state.chatLogs.stage2.push(finalMsg);
             this.syncStage2();
             this.syncChatLogs();
             if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
@@ -17438,53 +17372,75 @@
         const topic = (this.state.stage1 && this.state.stage1.mergedTitle) ? this.state.stage1.mergedTitle : '本组课题';
         const contentSnippet = rawDoc.slice(0, 2500);
 
-        // 🌟 挂载审稿编辑三审正在分析动态状态框
-        this.state.activeAgentAnalyzing = {
-          icon: '📝',
-          title: '【审稿编辑】正在进行终审定稿与学术规范扫描...',
-          detail: '正在对终稿全文进行学术语体、论述逻辑与文献规范终审质检...'
-        };
-        this.renderStudentWorkspace();
+    }
 
-        setTimeout(async () => {
-          try {
-            const finalPrompt = `【课题】：《${topic}》
+    /**
+     * 📝 阶段二审稿编辑【第三次学术质检·终审定稿扫描】（大模型深度质检，全场严格仅 1 次）
+     */
+    async triggerStage2FinalReview() {
+      const s2 = this.state.stage2 || {};
+      if (!this.state.stage2) this.state.stage2 = s2;
+      const s2Chats = (this.state.chatLogs && this.state.chatLogs.stage2) ? this.state.chatLogs.stage2 : [];
+      const hasFinalReview = s2Chats.some(m => m && m.sender === 'reviewingEditor' && (m.text?.includes('终稿行文扫描') || m.text?.includes('终审定稿总评') || m.text?.includes('审稿编辑·终审')));
+      if (hasFinalReview || this._isTriggeringFinalReview) return;
+
+      this._isTriggeringFinalReview = true;
+      s2.reviewMilestone = 'final_review_done';
+
+      const topic = (this.state.stage1 && this.state.stage1.mergedTitle) ? this.state.stage1.mergedTitle : '本组课题';
+      const rawDoc = (s2.unifiedContent || '').replace(/<[^>]*>/g, '').trim();
+      const contentSnippet = rawDoc.slice(0, 2500);
+
+      // 🌟 挂载审稿编辑三审正在分析动态思考气泡
+      this.state.activeAgentAnalyzing = {
+        icon: '📝',
+        title: '【审稿编辑】正在进行终审定稿与学术规范扫描...',
+        detail: '正在对终稿全文进行学术语体、论述逻辑与文献规范终审质检...'
+      };
+      renderChat(this.state);
+      this.renderStudentWorkspace();
+
+      try {
+        const finalPrompt = `【课题】：《${topic}》
   【终稿草稿全文节选】：
   ${contentSnippet}
 
   请发表 120~150 字终审定稿学术总评与行文扫描意见（包含【诊断问题 + 改进建议】双结构，严禁代码块，严禁出现“分工”字眼）：
   ①【学术语体与逻辑完整性】
   - 诊断问题：指出全篇逻辑闭环与语体严谨度；
-  - 改进建议：给出定稿润色建议；
-  ②【规范与答辩准备】
-  - 诊断问题：核对参考文献著录与图表命名规范；
-  - 改进建议：提示完成初稿确认，准备答辩冲刺。`;
-            let finalReviewText = await callCozeAgentAPI('reviewingEditor', finalPrompt, { stage: 'stage2', topic, actualDoc: contentSnippet });
-            if (!finalReviewText || finalReviewText.trim().length === 0) {
-              finalReviewText = `📝 【审稿编辑·终审定稿总评与行文扫描】：看到全组已进入最后成文冲刺阶段，整体框架完整！终审质检意见如下：\n①【学术语体与逻辑】\n· 诊断问题：全篇论证逻辑基本闭环，局部段落仍有少量口语化过渡词；\n· 改进建议：进行最后一次通读润色，确保学术第三人称严谨性。\n②【规范与答辩准备】\n· 诊断问题：需仔细核对参考文献著录格式与图表编号对应；\n· 改进建议：请全组成员完成最终核对后，在上方逐一完成【初稿确认】，准备迎接阶段三学术答辩！`;
-            }
+  - 改进建议：给出具体优化建议。
+  ②【学术规范与参考文献】
+  - 诊断问题：核对术语一致性与文献著录；
+  - 改进建议：给出答辩准备要求。
+  👉 末尾必须提示：“请全组成员通读终审建议并做最后润色，修改完成后请点击上方导航进入【阶段三：答辩擂台】！”`;
 
-            const refReviewMsg = {
-              sender: 'reviewingEditor',
-              senderName: '学术质量 · 审稿编辑',
-              text: finalReviewText.startsWith('📝') ? finalReviewText : `📝 【审稿编辑·终审定稿总评与行文扫描】：${finalReviewText}`,
-              timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-              _timeMs: Date.now()
-            };
-            if (!this.state.chatLogs.stage2) this.state.chatLogs.stage2 = [];
-            this.state.chatLogs.stage2.push(refReviewMsg);
-            this.syncChatLogs();
-            this.syncStage2();
-            if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
-          } finally {
-            this.state.activeAgentAnalyzing = null;
-            this._isTriggeringFinalReview = false;
-            renderChat(this.state);
-            this.renderStudentWorkspace();
-          }
-        }, 500);
-        return;
+        const resp = await callCozeAgentAPI('reviewingEditor', finalPrompt, { stage: 'stage2', topic });
+        let finalReviewText = (resp && resp.trim().length > 0)
+          ? resp.trim()
+          : `📝 【审稿编辑·终审定稿总评与行文扫描】：看到全组已进入最后成文冲刺阶段，整体框架完整！终审质检意见如下：\n①【学术语体与逻辑】\n· 诊断问题：全篇论证逻辑基本闭环，局部段落仍有少量口语化过渡词；\n· 改进建议：通读全篇统一学术语言基调，消除口语化表达。\n②【规范与答辩准备】\n· 诊断问题：注意核对核心概念与专业术语口径前后一致；\n· 改进建议：补充完整文献著录与格式规范，做好阶段三答辩准备。\n👉 请全组成员通读终审建议并做最后润色，修改完成后请点击上方导航进入【阶段三：答辩擂台】！`;
+        if (!finalReviewText.startsWith('📝')) finalReviewText = `📝 【审稿编辑·终审定稿总评与行文扫描】：${finalReviewText}`;
+
+        const refReviewMsg = {
+          sender: 'reviewingEditor',
+          senderName: '学术质量 · 审稿编辑',
+          text: finalReviewText,
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          _timeMs: Date.now()
+        };
+        if (!this.state.chatLogs.stage2) this.state.chatLogs.stage2 = [];
+        this.state.chatLogs.stage2.push(refReviewMsg);
+        this.syncChatLogs();
+        this.syncStage2();
+        if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+      } catch (e) {
+        console.warn('triggerStage2FinalReview error:', e);
+      } finally {
+        this.state.activeAgentAnalyzing = null;
+        this._isTriggeringFinalReview = false;
+        renderChat(this.state);
+        this.renderStudentWorkspace();
       }
+    }
 
       // 3. 🤝 责任编辑 Agent: 字数贡献比严重偏斜提醒 (SSRL 共享调节)
       const plainLen = newContent.replace(/<[^>]*>/g, '').trim().length;
