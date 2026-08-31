@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260901_v1110";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260901_v1110";
-import { callCozeAgentAPI } from "./agents.js?v=20260901_v1110";
-import { AuthManager } from "./auth.js?v=20260901_v1110";
-import { CloudSyncEngine } from "./sync.js?v=20260901_v1110";
-import { renderLoginView } from "./login.js?v=20260901_v1110";
-import { renderTeacherPortal } from "./teacher.js?v=20260901_v1110";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260901_v1110";
+} from "./constants.js?v=20260901_v1111";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260901_v1111";
+import { callCozeAgentAPI } from "./agents.js?v=20260901_v1111";
+import { AuthManager } from "./auth.js?v=20260901_v1111";
+import { CloudSyncEngine } from "./sync.js?v=20260901_v1111";
+import { renderLoginView } from "./login.js?v=20260901_v1111";
+import { renderTeacherPortal } from "./teacher.js?v=20260901_v1111";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260901_v1111";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260901_v1110";
+} from "./editor.js?v=20260901_v1111";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -5086,10 +5086,18 @@ ${chatSnippet}
         }
         this.showMeetingModal(); 
       },
-      onConfirmStage2Draft: () => {
+      onConfirmStage2Draft: (skipReviewCheck = false) => {
         if (!this.state.stage2) this.state.stage2 = {};
         const s2 = this.state.stage2;
         const user = this.state.currentUser;
+
+        // 🛡️ 方案二核心：若尚未出三审且未明确跳过，弹出温和提示弹窗，引导学生先三审
+        const s2Chats = (this.state.chatLogs && this.state.chatLogs.stage2) ? this.state.chatLogs.stage2 : [];
+        const hasFinalReview = s2Chats.some(m => m && m.sender === 'reviewingEditor' && (m.text?.includes('终稿行文扫描') || m.text?.includes('终审定稿总评') || m.text?.includes('审稿编辑·终审')));
+        if (!hasFinalReview && !skipReviewCheck && !s2.isDraftConfirmed) {
+          this.showStage2FinalReviewPromptModal();
+          return;
+        }
 
         let memberArr = [];
         if (Array.isArray(this.state.members)) memberArr = this.state.members;
@@ -5103,7 +5111,6 @@ ${chatSnippet}
         const totalMembersCount = memberArr.length > 0 ? memberArr.length : 3;
 
         if (s2.isDraftConfirmed) {
-          this.triggerStage2FinalReview(true);
           this.switchStage('stage3', true);
           return;
         }
@@ -5144,9 +5151,6 @@ ${chatSnippet}
         renderChat(this.state);
         this.renderStudentWorkspace();
 
-        // 🌟 核心升级：只要触发了初稿确认，审稿编辑立即进行三审终审定稿扫描！
-        this.triggerStage2FinalReview();
-
         // 🛡️ 严格要求：必须全组成员每一个人都点击确认初稿后，才解锁推进至阶段三
         if (confirmedCount < totalMembersCount) {
           showGlobalBannerNotice('✍️ 初稿确认成功', `您 (${memberName}) 已确认初稿！当前组内进度：${confirmedCount}/${totalMembersCount} 人已确认。全员完成后将解锁【阶段三：答辩擂台】。`, 'info', 6000);
@@ -5166,7 +5170,7 @@ ${chatSnippet}
           renderChat(this.state);
           this.renderStudentWorkspace();
 
-          showGlobalBannerNotice('🎉 组内初稿全员确认完成', `组内全员 (${totalMembersCount}/${totalMembersCount} 人) 已全部完成初稿确认！审稿专家正在进行终审扫描与总评，请通读建议后点击上方导航进入【阶段三：答辩擂台】！`, 'success', 10000);
+          showGlobalBannerNotice('🎉 组内初稿全员确认完成', `组内全员 (${totalMembersCount}/${totalMembersCount} 人) 已全部完成初稿确认！请点击上方导航进入【阶段三：答辩擂台】开启答辩！`, 'success', 10000);
         }
         this.renderStudentWorkspace();
       },
@@ -5729,6 +5733,64 @@ ${contentSnippet}
       renderChat(this.state);
       this.renderStudentWorkspace();
     }
+  }
+
+  showStage2FinalReviewPromptModal() {
+    const existingModal = document.querySelector('.modal-final-review-prompt');
+    if (existingModal) existingModal.remove();
+
+    const modal = document.createElement('div');
+    modal.className = 'modal-mask modal-final-review-prompt';
+    modal.style.cssText = 'position:fixed; inset:0; background:rgba(15,23,42,0.65); z-index:99999; display:flex; align-items:center; justify-content:center; backdrop-filter:blur(4px); animation:fadeIn 0.2s ease-out;';
+    modal.innerHTML = `
+      <div style="background:#ffffff; width:92%; max-width:480px; border-radius:14px; box-shadow:0 20px 40px rgba(15,23,42,0.25); border:1px solid #cbd5e1; overflow:hidden; display:flex; flex-direction:column; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+        <div style="background:linear-gradient(135deg, #1e293b, #0f172a); padding:16px 20px; display:flex; justify-content:space-between; align-items:center; color:#ffffff;">
+          <div style="display:flex; align-items:center; gap:8px;">
+            <span style="font-size:20px;">📝</span>
+            <span style="font-size:16px; font-weight:800; letter-spacing:0.3px;">审稿编辑·终审定稿扫描提醒</span>
+          </div>
+          <button id="btn-close-fr-modal" style="background:transparent; border:none; color:#94a3b8; font-size:18px; cursor:pointer; padding:2px 6px; border-radius:4px; line-height:1;">✕</button>
+        </div>
+        <div style="padding:22px 24px; font-size:13.5px; color:#334155; line-height:1.65;">
+          <div style="background:#eff6ff; border:1px solid #bfdbfe; border-radius:8px; padding:12px 16px; margin-bottom:16px; color:#1e40af; font-size:13px; font-weight:600;">
+            💡 本组尚未获取审稿编辑的【第三次质检·终审定稿总评】。
+          </div>
+          <p style="margin:0 0 10px 0;">在正式提交初稿并进入答辩前，强烈建议先由<b>审稿专家</b>对全篇草稿进行学术语体、论证闭环与文献规范扫描。</p>
+          <p style="margin:0; color:#64748b; font-size:12.5px;">专家将为全组生成针对性的【诊断问题 + 改进建议】，帮助大家在最后成文与答辩立论中规避薄弱点！</p>
+        </div>
+        <div style="padding:14px 24px 18px 24px; background:#f8fafc; border-top:1px solid #e2e8f0; display:flex; justify-content:flex-end; gap:10px; align-items:center;">
+          <button id="btn-skip-fr" style="background:transparent; border:1px solid #cbd5e1; color:#64748b; padding:8px 14px; border-radius:8px; font-size:12.5px; font-weight:600; cursor:pointer;">
+            跳过三审，直接确认初稿
+          </button>
+          <button id="btn-trigger-fr" style="background:linear-gradient(135deg, #2563eb, #1d4ed8); border:none; color:#ffffff; padding:8px 18px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer; box-shadow:0 2px 8px rgba(37,99,235,0.25);">
+            ✨ 立即进行终审扫描 (推荐)
+          </button>
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(modal);
+
+    const closeModal = () => modal.remove();
+    modal.querySelector('#btn-close-fr-modal')?.addEventListener('click', closeModal);
+    modal.addEventListener('click', (e) => { if (e.target === modal) closeModal(); });
+
+    modal.querySelector('#btn-trigger-fr')?.addEventListener('click', () => {
+      closeModal();
+      this.triggerStage2FinalReview(true);
+      if (typeof showGlobalBannerNotice === 'function') {
+        showGlobalBannerNotice('📝 终审定稿扫描已启动', '审稿专家正在右侧研讨区为您扫描终稿学术规范与论述逻辑，请通读质检建议！', 'info', 6000);
+      }
+    });
+
+    modal.querySelector('#btn-skip-fr')?.addEventListener('click', () => {
+      closeModal();
+      if (this.handlers && typeof this.handlers.onConfirmStage2Draft === 'function') {
+        this.handlers.onConfirmStage2Draft(true);
+      } else if (typeof this.onConfirmStage2Draft === 'function') {
+        this.onConfirmStage2Draft(true);
+      }
+    });
   }
 
   showMeetingModal() {
