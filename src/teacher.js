@@ -10,8 +10,8 @@ import {
   STORAGE_KEY_USERS_DB,
   TASK_GENRE_CONFIGS,
   AgentProfiles
-} from "./constants.js?v=20260901_v1131";
-import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, showGlobalBannerNotice } from "./utils.js?v=20260901_v1131";
+} from "./constants.js?v=20260901_v1132";
+import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, showGlobalBannerNotice } from "./utils.js?v=20260901_v1132";
 
 /* ==========================================================================
    7. TEACHER PORTAL RENDERER (LIVE WORKSPACE MIRROR & ANNOUNCEMENT READ MATRIX)
@@ -733,6 +733,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
                       <span>📅 <b>开始时间:</b> <span style="color:#2563eb; font-weight:700;">${formatStandardDateDash(t.startTime) || '即时开启'}</span></span>
                       <span>⌛ <b>截止时间:</b> <span style="color:#dc2626; font-weight:800;">${formatStandardDateDash(t.deadline) || '无硬性限制'}</span> ${isExpired ? '<b style="color:#dc2626;">(已过截止时间)</b>' : ''}</span>
                       <span>⏱️ <b>任务时长:</b> ${formatDurationHuman(t.durationMinutes)}</span>
+                      <span>🎯 <b>目标字数:</b> <span style="color:#059669; font-weight:800;">${t.targetWordCount || 3000} 字</span></span>
                     </div>
                   </div>
                   `;
@@ -2561,6 +2562,14 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
               <input type="text" id="modal-edit-task-title" class="teacher-input fancy" value="${task.title || ''}" placeholder="输入写作任务名称" style="width:100%; font-size:13.5px; padding:9px 12px; border:1.5px solid #cbd5e1; border-radius:8px;">
             </div>
 
+            <div class="teacher-form-group">
+              <label style="font-size:12.5px; font-weight:700; color:#334155; margin-bottom:4px; display:block;">🎯 目标字数要求 (供智能体 30%/60%/90% 质检计算进度)</label>
+              <div style="display:flex; align-items:center; gap:8px;">
+                <input type="number" id="modal-edit-task-words" class="teacher-input fancy" value="${task.targetWordCount || 3000}" min="500" step="100" style="width:120px; font-size:13.5px; font-weight:700; padding:8px 12px; border:1.5px solid #cbd5e1; border-radius:8px; text-align:center;">
+                <span style="font-size:13px; font-weight:700; color:#475569;">字</span>
+              </div>
+            </div>
+
             <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
               <div class="teacher-form-group">
                 <label style="font-size:12.5px; font-weight:700; color:#334155; margin-bottom:4px; display:block;"><span class="req" style="color:#dc2626;">*</span> 📅 开始时间</label>
@@ -2683,6 +2692,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
         const newStart = modal.querySelector('#modal-edit-task-start').value;
         const newDeadline = modal.querySelector('#modal-edit-task-deadline').value;
         const newDesc = modal.querySelector('#modal-edit-task-desc').value.trim();
+        const newWords = parseInt(modal.querySelector('#modal-edit-task-words')?.value, 10) || 3000;
 
         if (!newTitle) { alert('⚠️ 写作任务名称不能为空！'); return; }
         if (!newStart || !newDeadline) { alert('⚠️ 开始时间与截止时间均不能为空！'); return; }
@@ -2699,7 +2709,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
         const fmtTimeStr = (v) => v ? v.replace('T', ' ') : '';
 
         try {
-          authManager.updateTask(taskId, newTitle, newDesc, fmtTimeStr(newStart), fmtTimeStr(newDeadline), calculatedDuration);
+          authManager.updateTask(taskId, newTitle, newDesc, fmtTimeStr(newStart), fmtTimeStr(newDeadline), calculatedDuration, newWords);
           closeModal();
           alert(`✅ 写作任务《${newTitle}》已成功修改，时间与内容已全网即时同步！`);
           renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
@@ -2972,6 +2982,19 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
               <input type="text" id="modal-task-title" class="teacher-input fancy" value="" placeholder="输入写作任务名称">
             </div>
             <div class="teacher-form-group">
+              <label style="font-size:12.5px; font-weight:700; color:#334155; margin-bottom:4px; display:block;">🎯 目标字数要求 (供智能体 30%/60%/90% 质检计算进度)</label>
+              <div style="display:flex; align-items:center; gap:8px;">
+                <input type="number" id="modal-task-words" class="teacher-input fancy" value="3000" min="500" step="100" style="width:120px; font-size:13.5px; font-weight:700; padding:8px 12px; border:1.5px solid #cbd5e1; border-radius:8px; text-align:center;">
+                <span style="font-size:13px; font-weight:700; color:#475569;">字</span>
+                <div style="display:flex; gap:6px; margin-left:10px;">
+                  <button type="button" class="btn-create-quick-words" data-words="2000" style="background:#ffffff; border:1px solid #cbd5e1; color:#1e293b; padding:3px 8px; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer;">2000字</button>
+                  <button type="button" class="btn-create-quick-words" data-words="3000" style="background:#eff6ff; border:1px solid #bfdbfe; color:#2563eb; padding:3px 8px; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer;">3000字</button>
+                  <button type="button" class="btn-create-quick-words" data-words="5000" style="background:#ffffff; border:1px solid #cbd5e1; color:#1e293b; padding:3px 8px; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer;">5000字</button>
+                  <button type="button" class="btn-create-quick-words" data-words="8000" style="background:#ffffff; border:1px solid #cbd5e1; color:#1e293b; padding:3px 8px; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer;">8000字</button>
+                </div>
+              </div>
+            </div>
+            <div class="teacher-form-group">
               <label>任务详细说明与要求 (选填)</label>
               <textarea id="modal-task-desc" class="teacher-textarea fancy" style="min-height:90px;" placeholder="请输入任务详细说明与指导要求 (可选)..."></textarea>
             </div>
@@ -3062,6 +3085,27 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
         });
       });
 
+      // 🎯 快速选择字数胶囊
+      modal.querySelectorAll('.btn-create-quick-words').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const w = btn.dataset.words;
+          const wordsInput = modal.querySelector('#modal-task-words');
+          if (wordsInput) {
+            wordsInput.value = w;
+            wordsInput.style.borderColor = '#2563eb';
+            setTimeout(() => { if (wordsInput) wordsInput.style.borderColor = '#cbd5e1'; }, 400);
+          }
+          modal.querySelectorAll('.btn-create-quick-words').forEach(b => {
+            b.style.background = '#ffffff';
+            b.style.borderColor = '#cbd5e1';
+            b.style.color = '#1e293b';
+          });
+          btn.style.background = '#eff6ff';
+          btn.style.borderColor = '#bfdbfe';
+          btn.style.color = '#2563eb';
+        });
+      });
+
       modal.querySelector('#btn-submit-new-task').addEventListener('click', () => {
         const classId = modal.querySelector('#modal-task-class').value;
         const taskType = modal.querySelector('#modal-task-type')?.value || 'experiment';
@@ -3069,6 +3113,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
         const desc = modal.querySelector('#modal-task-desc').value.trim();
         const startTime = modal.querySelector('#modal-task-start') ? modal.querySelector('#modal-task-start').value : '';
         const deadline = modal.querySelector('#modal-task-deadline') ? modal.querySelector('#modal-task-deadline').value : '';
+        const words = parseInt(modal.querySelector('#modal-task-words')?.value, 10) || 3000;
 
         if (!title) { alert('⚠️ 请输入写作任务名称！'); return; }
         if (!startTime || !deadline) { alert('⚠️ 请指定任务的开始时间与截止时间！'); return; }
@@ -3084,7 +3129,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
         calculatedDuration = Math.round((dDate.getTime() - sDate.getTime()) / (60 * 1000));
 
         try {
-          authManager.createTask(title, classId, desc, [], startTime, deadline, calculatedDuration, taskType);
+          authManager.createTask(title, classId, desc, [], startTime, deadline, calculatedDuration, taskType, words);
           closeModal();
           renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
         } catch (err) {
