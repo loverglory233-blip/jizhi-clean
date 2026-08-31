@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260831_v1031
+ * Version: 20260831_v1032
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260831_v1031';
+  const APP_VERSION = '20260831_v1032';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -13729,10 +13729,10 @@
           const postSecondReviewElapsedMs = secondReviewTime > 0 ? Math.max(0, now - secondReviewTime) : 0;
           const minPostReviewModCooldownMs = isLargeTask ? 900000 : 600000; // 统一 10 分钟（大任务 15 分钟）修改沉淀期
 
-          // 2. 判定三审触发条件：必须【全组成员全部完成初稿确认】，或者（经过 10 分钟修改期且字数达到成文标准）
+          // 2. 判定三审触发条件：字数达到 85%（或成文 3000 字以上），或者组内全员完成初稿确认
           const isFullDraftConfirmed = !!s2.isDraftConfirmed;
-          const isTimeAndWordMature = postSecondReviewElapsedMs >= minPostReviewModCooldownMs && (wordProgress >= 0.85 || plainTextLen >= (targetWordCount * 0.85) || plainTextLen >= 3500);
-          const isFinalReviewDue = isFullDraftConfirmed || (hasPassedSecondReview && isTimeAndWordMature);
+          const isWordMature = wordProgress >= 0.85 || plainTextLen >= (targetWordCount * 0.85) || plainTextLen >= 3000;
+          const isFinalReviewDue = isFullDraftConfirmed || isWordMature;
 
           const hasFinalReviewInLogs = s2Chats.some(m => m && m.sender === 'reviewingEditor' && (m.text?.includes('终稿行文扫描') || m.text?.includes('终审定稿总评') || m.text?.includes('审稿编辑·终审')));
 
@@ -16507,9 +16507,15 @@
           this.triggerStage2FinalReview();
         }
       }
-      if (newStage === 'stage3' && (!this.state.stage3 || !this.state.stage3.stageStartTime)) {
+      if (newStage === 'stage3') {
         if (!this.state.stage3) this.state.stage3 = {};
-        this.state.stage3.stageStartTime = Date.now();
+        if (!this.state.stage3.stageStartTime) this.state.stage3.stageStartTime = Date.now();
+        const s3Logs = (this.state.chatLogs && this.state.chatLogs.stage3) ? this.state.chatLogs.stage3 : [];
+        const hasProp = s3Logs.some(m => m && m.sender === 'proponent');
+        const hasOpp = s3Logs.some(m => m && m.sender === 'opponent');
+        if ((!hasProp || !hasOpp || !this.state.stage3.feedbackItems || this.state.stage3.feedbackItems.length === 0) && !this._isStage3PipelineRunning) {
+          this.runStage3CommitteePipeline();
+        }
       }
       this.syncStageChange(newStage);
       this.triggerStageWelcomeSpeech(newStage);
@@ -17540,6 +17546,7 @@
         };
         if (!this.state.chatLogs.stage2) this.state.chatLogs.stage2 = [];
         this.state.chatLogs.stage2.push(refReviewMsg);
+        this.sendSingleChatMessage(refReviewMsg, 'stage2');
         this.syncChatLogs();
         this.syncStage2();
         if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
