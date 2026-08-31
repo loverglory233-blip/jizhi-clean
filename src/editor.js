@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles } from "./constants.js?v=20260901_v1117";
-import { callCozeAgentAPI } from "./agents.js?v=20260901_v1117";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, showResolutionBlock } from "./utils.js?v=20260901_v1117";
+import { AgentProfiles, TASK_GENRE_CONFIGS } from "./constants.js?v=20260901_v1118";
+import { callCozeAgentAPI } from "./agents.js?v=20260901_v1118";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, showResolutionBlock } from "./utils.js?v=20260901_v1118";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -929,7 +929,8 @@ function renderStage1Canvas(canvas, state, handlers) {
   const allTasks = (window.app && window.app.authManager) ? window.app.authManager.getTasks() : [];
   const currentTask = allTasks.find(t => t.id === state.activeTaskId);
   const isTaskDeadlineExpired = isTaskExpired(currentTask);
-  const taskDurMin = (currentTask && currentTask.duration) ? Number(currentTask.duration) : 150;
+  const taskGenreKey = currentTask?.taskType || 'experiment';
+  const genreCfg = TASK_GENRE_CONFIGS[taskGenreKey] || TASK_GENRE_CONFIGS.experiment;
   const isLargeTask = currentTask && (currentTask.scale === 'large' || currentTask.type === 'large' || taskDurMin > 150 || (currentTask.targetWordCount && Number(currentTask.targetWordCount) >= 6000));
 
   // 🛡️ 稳健解析当前用户的真实姓名与标识
@@ -1154,61 +1155,28 @@ function renderStage1Canvas(canvas, state, handlers) {
       </div>
 
       <div style="display:flex; flex-direction:column; gap:16px; width:100%;">
-        <!-- 6大研究设计方案模块与时间规划 -->
+        <!-- 6大研究设计方案模块与时间规划 (文体自适应) -->
         <div style="background:#f8fafc; padding:18px; border-radius:12px; border:1px solid #bfdbfe; width:100%; box-sizing:border-box;">
           <div style="font-weight:800; color:#1e40af; margin-bottom:14px; font-size:14px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
-            <span>📚 研究方案核心模块与时间规划 (6 大模块起草):</span>
+            <div style="display:flex; align-items:center; gap:8px;">
+              <span>📚 方案核心模块与时间规划 (6 大模块起草):</span>
+              <span style="font-size:11.5px; background:#eff6ff; color:#1d4ed8; padding:2px 8px; border-radius:8px; border:1px solid #bfdbfe; font-weight:700;">${genreCfg.icon} ${genreCfg.label}</span>
+            </div>
             <span style="font-size:12px; background:#eff6ff; color:#1d4ed8; padding:2px 10px; border-radius:12px; border:1px solid #bfdbfe; font-weight:800;">⏱️ ${isLargeTask ? '大任务 (8k~1w字 · 总规划时长 300 分钟)' : '中任务 (3k~5k字 · 总规划时长 150 分钟)'}</span>
           </div>
           
           <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
-            <!-- 模块 1 -->
-            <div style="background:#ffffff; border:1px solid #e2e8f0; border-left:3.5px solid #2563eb; border-radius:8px; padding:12px 14px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap;">
-              <span style="font-weight:800; color:#1e40af; font-size:13.5px;">一、研究背景与意义</span>
-              <label style="font-size:12px; color:#475569; display:flex; align-items:center; gap:4px;">
-                用时: <input type="number" class="contract-time-input" data-key="background" data-lock-key="time_background" value="${s1.contract.timeAllocations.background !== undefined ? s1.contract.timeAllocations.background : 25}" ${isContractLocked ? 'disabled readonly style="opacity:0.8; cursor:not-allowed;"' : ''} style="width:48px; padding:3px 4px; border:1px solid #cbd5e1; border-radius:4px; text-align:center; font-weight:700;"> 分钟
-              </label>
-            </div>
-
-            <!-- 模块 2 -->
-            <div style="background:#ffffff; border:1px solid #e2e8f0; border-left:3.5px solid #0284c7; border-radius:8px; padding:12px 14px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap;">
-              <span style="font-weight:800; color:#0369a1; font-size:13.5px;">二、文献综述</span>
-              <label style="font-size:12px; color:#475569; display:flex; align-items:center; gap:4px;">
-                用时: <input type="number" class="contract-time-input" data-key="literature" data-lock-key="time_literature" value="${s1.contract.timeAllocations.literature !== undefined ? s1.contract.timeAllocations.literature : 30}" ${isContractLocked ? 'disabled readonly style="opacity:0.8; cursor:not-allowed;"' : ''} style="width:48px; padding:3px 4px; border:1px solid #cbd5e1; border-radius:4px; text-align:center; font-weight:700;"> 分钟
-              </label>
-            </div>
-
-            <!-- 模块 3 -->
-            <div style="background:#ffffff; border:1px solid #e2e8f0; border-left:3.5px solid #059669; border-radius:8px; padding:12px 14px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap;">
-              <span style="font-weight:800; color:#065f46; font-size:13.5px;">三、研究问题与假设</span>
-              <label style="font-size:12px; color:#475569; display:flex; align-items:center; gap:4px;">
-                用时: <input type="number" class="contract-time-input" data-key="questions" data-lock-key="time_questions" value="${s1.contract.timeAllocations.questions !== undefined ? s1.contract.timeAllocations.questions : 25}" ${isContractLocked ? 'disabled readonly style="opacity:0.8; cursor:not-allowed;"' : ''} style="width:48px; padding:3px 4px; border:1px solid #cbd5e1; border-radius:4px; text-align:center; font-weight:700;"> 分钟
-              </label>
-            </div>
-
-            <!-- 模块 4 -->
-            <div style="background:#ffffff; border:1px solid #e2e8f0; border-left:3.5px solid #7c3aed; border-radius:8px; padding:12px 14px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap;">
-              <span style="font-weight:800; color:#6d28d9; font-size:13.5px;">四、研究设计与方法</span>
-              <label style="font-size:12px; color:#475569; display:flex; align-items:center; gap:4px;">
-                用时: <input type="number" class="contract-time-input" data-key="method" data-lock-key="time_method" value="${s1.contract.timeAllocations.method !== undefined ? s1.contract.timeAllocations.method : 40}" ${isContractLocked ? 'disabled readonly style="opacity:0.8; cursor:not-allowed;"' : ''} style="width:48px; padding:3px 4px; border:1px solid #cbd5e1; border-radius:4px; text-align:center; font-weight:700;"> 分钟
-              </label>
-            </div>
-
-            <!-- 模块 5 -->
-            <div style="background:#ffffff; border:1px solid #e2e8f0; border-left:3.5px solid #d97706; border-radius:8px; padding:12px 14px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap;">
-              <span style="font-weight:800; color:#b45309; font-size:13.5px;">五、研究设计的不足与反思</span>
-              <label style="font-size:12px; color:#475569; display:flex; align-items:center; gap:4px;">
-                用时: <input type="number" class="contract-time-input" data-key="reflection" data-lock-key="time_reflection" value="${s1.contract.timeAllocations.reflection !== undefined ? s1.contract.timeAllocations.reflection : 20}" ${isContractLocked ? 'disabled readonly style="opacity:0.8; cursor:not-allowed;"' : ''} style="width:48px; padding:3px 4px; border:1px solid #cbd5e1; border-radius:4px; text-align:center; font-weight:700;"> 分钟
-              </label>
-            </div>
-
-            <!-- 模块 6 -->
-            <div style="background:#ffffff; border:1px solid #e2e8f0; border-left:3.5px solid #475569; border-radius:8px; padding:12px 14px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap;">
-              <span style="font-weight:800; color:#334155; font-size:13.5px;">六、参考文献</span>
-              <label style="font-size:12px; color:#475569; display:flex; align-items:center; gap:4px;">
-                用时: <input type="number" class="contract-time-input" data-key="references" data-lock-key="time_references" value="${s1.contract.timeAllocations.references !== undefined ? s1.contract.timeAllocations.references : 10}" ${isContractLocked ? 'disabled readonly style="opacity:0.8; cursor:not-allowed;"' : ''} style="width:48px; padding:3px 4px; border:1px solid #cbd5e1; border-radius:4px; text-align:center; font-weight:700;"> 分钟
-              </label>
-            </div>
+            ${genreCfg.modules.map((mod) => {
+              const currentVal = s1.contract.timeAllocations[mod.key] !== undefined ? s1.contract.timeAllocations[mod.key] : mod.defaultMinutes;
+              return `
+                <div style="background:#ffffff; border:1px solid #e2e8f0; border-left:3.5px solid ${mod.color || '#2563eb'}; border-radius:8px; padding:12px 14px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap;">
+                  <span style="font-weight:800; color:#1e40af; font-size:13.5px;">${escapeHtml(mod.title)}</span>
+                  <label style="font-size:12px; color:#475569; display:flex; align-items:center; gap:4px;">
+                    用时: <input type="number" class="contract-time-input" data-key="${mod.key}" data-lock-key="time_${mod.key}" value="${currentVal}" ${isContractLocked ? 'disabled readonly style="opacity:0.8; cursor:not-allowed;"' : ''} style="width:48px; padding:3px 4px; border:1px solid #cbd5e1; border-radius:4px; text-align:center; font-weight:700;"> 分钟
+                  </label>
+                </div>
+              `;
+            }).join('')}
           </div>
         </div>
 

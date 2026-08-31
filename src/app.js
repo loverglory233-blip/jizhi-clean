@@ -9,15 +9,17 @@ import {
   STORAGE_KEY_TASKS,
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
+  TASK_GENRE_CONFIGS,
+  getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260901_v1117";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260901_v1117";
-import { callCozeAgentAPI } from "./agents.js?v=20260901_v1117";
-import { AuthManager } from "./auth.js?v=20260901_v1117";
-import { CloudSyncEngine } from "./sync.js?v=20260901_v1117";
-import { renderLoginView } from "./login.js?v=20260901_v1117";
-import { renderTeacherPortal } from "./teacher.js?v=20260901_v1117";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260901_v1117";
+} from "./constants.js?v=20260901_v1118";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260901_v1118";
+import { callCozeAgentAPI } from "./agents.js?v=20260901_v1118";
+import { AuthManager } from "./auth.js?v=20260901_v1118";
+import { CloudSyncEngine } from "./sync.js?v=20260901_v1118";
+import { renderLoginView } from "./login.js?v=20260901_v1118";
+import { renderTeacherPortal } from "./teacher.js?v=20260901_v1118";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260901_v1118";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +28,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260901_v1117";
+} from "./editor.js?v=20260901_v1118";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -3788,6 +3790,9 @@ ${rawDoc.slice(0, 1000)}
 （纯自然语言，90~120字，严禁输出代码块）`;
 
     try {
+      const taskType = this.getCurrentTaskType();
+      const genreDesc = getGenrePromptDescriptor(taskType);
+
       // 🌟 1. 挂载责任编辑正在分析中动态状态框
       this.state.activeAgentAnalyzing = {
         icon: '🤝',
@@ -3798,7 +3803,7 @@ ${rawDoc.slice(0, 1000)}
       renderChat(this.state);
       await new Promise(r => setTimeout(r, 1500));
 
-      const respManaging = await callCozeAgentAPI('managingEditor', managingPrompt, { stage: 'stage2', topic, chatSnippet, bottlenecks, focusIssues });
+      const respManaging = await callCozeAgentAPI('managingEditor', managingPrompt, { stage: 'stage2', topic, chatSnippet, bottlenecks, focusIssues, taskType });
       let managingText = (respManaging && respManaging.trim().length > 0) 
         ? respManaging.trim() 
         : `🤝 【责任编辑·研讨共识小结】：结合大家在自查打卡与讨论区指出的【${focusIssues.slice(0, 30)}】等核心诉求，全组已在研究问题聚焦与方法设计细化上形成了明确共识。👉 接下来正式有请 @审稿编辑 结合全篇草稿为大家下发具体的《二审修正清单》，指导全组深入修改与对齐落实！`;
@@ -3826,25 +3831,27 @@ ${rawDoc.slice(0, 1000)}
       await new Promise(r => setTimeout(r, 1500));
 
       // 审稿专家结合自查瓶颈、讨论与正文下发【诊断问题 + 改进建议】双结构《二审修正清单》
-      const reviewingPrompt = `针对课题《${topic}》，结合小组成员自查瓶颈【${bottlenecks}】、聚焦关注点【${focusIssues}】及下方正文草稿，作为资深审稿编辑给出包含【诊断问题 + 改进建议】双结构的学术质检《二审修正清单》（150~180字）：
+      const reviewingPrompt = `${genreDesc}
+
+针对课题《${topic}》，结合小组成员自查瓶颈【${bottlenecks}】、聚焦关注点【${focusIssues}】及下方正文草稿，作为资深审稿编辑给出包含【诊断问题 + 改进建议】双结构的学术质检《二审修正清单》（150~180字）：
 【正文草稿参考】:
 ${rawDoc.slice(0, 2000)}
 【小组成员商定的修改思路】:
 ${chatSnippet}
 
-请严格按以下 3 个维度下发《二审修正清单》（每项必须同时包含“诊断问题”与“改进建议”，严禁出现“分工”字眼）：
-①【核心概念对齐】
-- 诊断问题：结合引言与文献综述，指出具体概念界定不清或脱节之处；
+请紧扣上述文体考查维度，严格按以下 3 个维度下发《二审修正清单》（每项必须同时包含“诊断问题”与“改进建议”，严禁出现“分工”字眼）：
+①【核心概念对齐 / 目标立论】
+- 诊断问题：结合引言与核心论述，指出具体概念界定不清、目标脱节或史料脉络不清之处；
 - 改进建议：给出具体的学术概念统领与问题锚定要求；
-②【研究方法深化】
-- 诊断问题：结合组员自查瓶颈（${bottlenecks}），指出正文中具体缺失的操作化步骤、样本抽样或测量工具；
+②【主体方法 / 活动设计深化】
+- 诊断问题：结合组员自查瓶颈（${bottlenecks}），指出正文中具体缺失的操作化步骤、活动设计闭环或理论演变逻辑；
 - 改进建议：给出具体的补全与深化建议；
 ③【行文衔接规范】
 - 诊断问题：结合自查脱节章节（${transIssues}），指出具体逻辑生硬或口语化表达；
 - 改进建议：给出具体的润色与过渡规范要求。
 末尾必须明确提示：“请大家围绕清单协同商定修改对策与落实方案，讨论差不多后点击下方【📝 讨论差不多了？让审稿编辑总结】！”（纯自然语言，150~180字）`;
 
-      const respReviewing = await callCozeAgentAPI('reviewingEditor', reviewingPrompt, { stage: 'stage2', topic, actualDoc: rawDoc, bottlenecks, focusIssues });
+      const respReviewing = await callCozeAgentAPI('reviewingEditor', reviewingPrompt, { stage: 'stage2', topic, actualDoc: rawDoc, bottlenecks, focusIssues, taskType });
       let reviewingText = (respReviewing && respReviewing.trim().length > 0)
         ? respReviewing.trim()
         : `📝 【审稿编辑·二审修正清单】：结合全组自查打卡反映的痛点与正文审阅，提出以下 3 项【诊断问题与改进建议】：\n①【核心概念对齐】\n· 诊断问题：引言中“有效社会共享调节”缺乏操作性界定，文献述评未充分支撑核心研究问题；\n· 改进建议：补充明确的操作性定义，使文献综述直接呼应研究假设。\n②【研究方法深化】\n· 诊断问题：认知网络分析（ENA）缺乏具体实施步骤与编码维度对应逻辑，操作化论证单薄；\n· 改进建议：细化编码维度与测量工具的具体操作步骤，增强方法严密性。\n③【行文衔接规范】\n· 诊断问题：部分章节存在口语化表述，引言末尾与方法开头过渡较为生硬；\n· 改进建议：统一全篇学术术语命名，补全逻辑过渡句。\n👉 请大家围绕清单协同商定修改对策与落实方案，讨论差不多后点击下方【📝 讨论差不多了？让审稿编辑总结】！`;
@@ -4343,6 +4350,8 @@ ${chatSnippet}
 
       let propText = '';
       let oppText = '';
+      const taskType = this.getCurrentTaskType();
+      const genreDesc = getGenrePromptDescriptor(taskType);
 
       if (!hasProp || !hasOpp) {
         // 🌟 挂载答辩委员会并行审阅动态思考气泡
@@ -4354,12 +4363,16 @@ ${chatSnippet}
         renderChat(this.state);
         this.renderStudentWorkspace();
 
-        const propPrompt = `针对小组论文《${topic}》，请通读下方【小组当前真实正文草稿】全文，作为答辩委员会正方评审教授发表 130~150 字的肯定支持评审意见：
-【基于真实正文的动态赞赏原则】：通读正文草稿全文，从 5 大赞赏维度（①行文风格与语言通顺、②选题与立意创新、③设计与方法严密、④实践落地与推广价值、⑤规范与术语统一）中，根据本篇论文的真实闪光点，动态灵活挑选 2~3 个最契合的核心亮点（必须至少 2 个，最多 3 个，严禁死板固化在某两个固定维度），紧扣具体学科与章节展开具体赞赏，为全组提供充实的正面论据支架！纯自然语言输出，130~150字。`;
+        const propPrompt = `${genreDesc}
 
-        const oppPrompt = `针对小组论文《${topic}》，请通读下方【小组当前真实正文草稿】全文，作为答辩委员会反方评审教授发表 130~150 字的温和学术商榷质询意见：
-【全局学术博弈红线与动态质询原则】：
-1. 从 5 大质询维度（①具体设计落地的可行性与实施挑战、②行文风格割裂与语言表达通顺度、③变量操作化与测量工具严密性、④实验对照与变量控制逻辑、⑤行文与术语规范）中，根据本篇论文的真实薄弱处，动态挑选 2~3 个最切中要害的质询点；
+针对小组论文《${topic}》，请通读下方【小组当前真实正文草稿】全文，作为答辩委员会正方评审教授发表 130~150 字的肯定支持评审意见：
+【基于真实正文与文体特征的动态赞赏原则】：通读正文草稿全文，结合上述文体核心维度，根据本篇论文的真实闪光点，动态灵活挑选 2~3 个最契合的核心亮点，紧扣具体学科与章节展开具体赞赏，为全组提供充实的正面论据支架！纯自然语言输出，130~150字。`;
+
+        const oppPrompt = `${genreDesc}
+
+针对小组论文《${topic}》，请通读下方【小组当前真实正文草稿】全文，作为答辩委员会反方评审教授发表 130~150 字的温和学术商榷质询意见：
+【全局学术博弈红线与文体质询原则】：
+1. 紧密结合上述文体考查维度，根据本篇论文在设计/论证/落地中的真实薄弱处，动态挑选 2~3 个最切中要害的质询点；
 2. 必须以清晰的序号 ① ② 分条呈现质询焦点；
 3. 态度务必温和客气、极具建设性（多用“商讨/请教/小细节/落地可行性”）。纯自然语言输出，130~150字。`;
 
@@ -4368,7 +4381,7 @@ ${chatSnippet}
           const promises = [];
           if (!hasProp) {
             promises.push(Promise.race([
-              callCozeAgentAPI('proponent', propPrompt, { stage: 'stage3', topic, actualDoc: rawContent }),
+              callCozeAgentAPI('proponent', propPrompt, { stage: 'stage3', topic, actualDoc: rawContent, taskType }),
               timeoutPromise
             ]));
           } else {
@@ -4378,7 +4391,7 @@ ${chatSnippet}
 
           if (!hasOpp) {
             promises.push(Promise.race([
-              callCozeAgentAPI('opponent', oppPrompt, { stage: 'stage3', topic, actualDoc: rawContent }),
+              callCozeAgentAPI('opponent', oppPrompt, { stage: 'stage3', topic, actualDoc: rawContent, taskType }),
               timeoutPromise
             ]));
           } else {
@@ -4476,20 +4489,22 @@ ${chatSnippet}
         renderChat(this.state);
         this.renderStudentWorkspace();
 
-        const chairPrompt = `答辩正反两方评审意见已入驻左侧矩阵。
+        const chairPrompt = `${genreDesc}
+
+答辩正反两方评审意见已入驻左侧矩阵。
 【正方意见】: ${propText}
 【反方质询】: ${oppText}
 
 请作为答辩委员会主席（中间委员），发表 130~150 字的【针对质询 ① 独立答辩思路引导】：
 ① 宣布正反方评审已正式送达并生成【答辩与终稿修改清单】，肯定正方的创新与实践价值，明确指出反方提出了针对实质询；
-② 【单题独立引导·核心铁律】：本次只聚焦【意见 1 / 质询 ①】，结合反方质询①的具体内容给出清晰的答辩破局/操作化补救思路支架（严禁提及或剧透后续质询！）；
+② 【单题独立引导·核心铁律】：本次只聚焦【意见 1 / 质询 ①】，结合上述文体特征与反方质询①的具体内容给出清晰的答辩破局/操作化补救思路支架（严禁提及或剧透后续质询！）；
 ③ 引导全组在讨论区充分商讨，商定差不多后点击聊天框上方【💡 意见 1 讨论差不多了？帮我总结并填入】按钮！纯自然语言输出，130~150字。`;
 
         let chairText = '';
         try {
           const timeoutPromise = new Promise(r => setTimeout(() => r(null), 12000));
           chairText = await Promise.race([
-            callCozeAgentAPI('neutral', chairPrompt, { stage: 'stage3', topic, prop: propText, opp: oppText, queryPoint: 1 }),
+            callCozeAgentAPI('neutral', chairPrompt, { stage: 'stage3', topic, prop: propText, opp: oppText, queryPoint: 1, taskType }),
             timeoutPromise
           ]);
         } finally {
@@ -4677,6 +4692,12 @@ ${chatSnippet}
       () => this.showAnnouncementModal(), () => this.showQuestionnaireModal(),
       () => this.backToTaskList()
     );
+  }
+
+  getCurrentTaskType() {
+    const allTasks = (this.authManager) ? this.authManager.getTasks() : [];
+    const currentTask = allTasks.find(t => t.id === this.state.activeTaskId);
+    return currentTask?.taskType || 'experiment';
   }
 
   renderStudentWorkspace(isForced = false) {
@@ -5538,19 +5559,23 @@ ${chatSnippet}
       setTimeout(async () => {
         try {
           await new Promise(r => setTimeout(r, 1500));
-          const firstReviewPrompt = `【课题】：《${topic}》
+          const taskType = this.getCurrentTaskType();
+          const genreDesc = getGenrePromptDescriptor(taskType);
+          const firstReviewPrompt = `${genreDesc}
+
+【课题】：《${topic}》
 【当前正文草稿（写到哪审到哪）】：
 ${contentSnippet}
 
-请发表 120~150 字一审破题把脉学术质检意见（严格遵循【诊断问题 + 改进建议】双结构，严禁代码块，严禁出现“分工”字眼）：
+请结合上述文体考查维度，发表 120~150 字一审破题把脉学术质检意见（严格遵循【诊断问题 + 改进建议】双结构，严禁代码块，严禁出现“分工”字眼）：
 ①【立意与问题聚焦】
-- 诊断问题：审查引言与文献综述，指出 Research Gap 是否找准、研究问题是否明确；
-- 改进建议：给出具体的破题聚焦与微调对策；
-②【学术语体与术语口径】
+- 诊断问题：审查已起草内容，结合该文体特性指出核心切入点与关键问题是否找准；
+- 改进建议：给出具体的聚焦与深化对策；
+②【学术语体与术语规范】
 - 诊断问题：指出草稿中口语化表述或术语不一致之处；
 - 改进建议：给出统一规范建议。
 （纯自然语言，120~150字）`;
-          let firstReviewText = await callCozeAgentAPI('reviewingEditor', firstReviewPrompt, { stage: 'stage2', topic, actualDoc: contentSnippet });
+          let firstReviewText = await callCozeAgentAPI('reviewingEditor', firstReviewPrompt, { stage: 'stage2', topic, actualDoc: contentSnippet, taskType });
           if (!firstReviewText || firstReviewText.trim().length === 0) {
             firstReviewText = `📝 【审稿编辑·一审破题把脉】：通读了全组目前起草的正文草稿，提出以下初审质检意见：\n①【立意与问题聚焦】\n· 诊断问题：文献综述梳理充分，但末尾未精准聚焦初中数学课例操作化的核心缺口（Research Gap）；\n· 改进建议：收拢综述结论，直接引出核心研究问题与假设。\n②【学术语体与术语口径】\n· 诊断问题：部分段落出现第一人称口语化表述，术语叫法略有出入；\n· 改进建议：统一全篇学术术语口径，采用规范学术第三人称。请全组参考后继续稳步撰写！`;
           }
@@ -5739,13 +5764,17 @@ ${contentSnippet}
 
     try {
       const topic = (this.state.stage1 && this.state.stage1.mergedTitle) ? this.state.stage1.mergedTitle : '本组课题';
-      const finalPrompt = `【课题】：《${topic}》
+      const taskType = this.getCurrentTaskType();
+      const genreDesc = getGenrePromptDescriptor(taskType);
+      const finalPrompt = `${genreDesc}
+
+【课题】：《${topic}》
 【终稿草稿全文节选】：
 ${contentSnippet}
 
-请发表 120~150 字终审定稿学术总评与行文扫描意见（包含【诊断问题 + 改进建议】双结构，严禁代码块，严禁出现“分工”字眼）：
+请结合上述文体考查维度，发表 120~150 字终审定稿学术总评与行文扫描意见（包含【诊断问题 + 改进建议】双结构，严禁代码块，严禁出现“分工”字眼）：
 ①【学术语体与逻辑完整性】
-- 诊断问题：指出全篇逻辑闭环与语体严谨度；
+- 诊断问题：结合该文体特性，指出全篇逻辑闭环与语体严谨度；
 - 改进建议：给出具体优化建议。
 ②【学术规范与参考文献】
 - 诊断问题：核对术语一致性与文献著录；
@@ -5754,7 +5783,7 @@ ${contentSnippet}
 
       let resp = null;
       try {
-        const apiPromise = callCozeAgentAPI('reviewingEditor', finalPrompt, { stage: 'stage2', topic });
+        const apiPromise = callCozeAgentAPI('reviewingEditor', finalPrompt, { stage: 'stage2', topic, taskType });
         const timeoutPromise = new Promise(r => setTimeout(() => r(null), 15000));
         resp = await Promise.race([apiPromise, timeoutPromise]);
       } catch (err) {

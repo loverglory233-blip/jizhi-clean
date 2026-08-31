@@ -8,9 +8,10 @@ import {
   STORAGE_KEY_TASKS,
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
+  TASK_GENRE_CONFIGS,
   AgentProfiles
-} from "./constants.js?v=20260901_v1117";
-import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, showGlobalBannerNotice } from "./utils.js?v=20260901_v1117";
+} from "./constants.js?v=20260901_v1118";
+import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, showGlobalBannerNotice } from "./utils.js?v=20260901_v1118";
 
 /* ==========================================================================
    7. TEACHER PORTAL RENDERER (LIVE WORKSPACE MIRROR & ANNOUNCEMENT READ MATRIX)
@@ -700,12 +701,14 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
                   const isLatest = tIdx === 0;
                   const taskSeqNum = currentClassTasks.length - tIdx;
                   const isExpired = isTaskExpired(t);
+                  const genreCfg = TASK_GENRE_CONFIGS[t.taskType || 'experiment'] || TASK_GENRE_CONFIGS.experiment;
                   return `
                   <div style="background:#ffffff; border:1.5px solid ${isExpired ? '#fca5a5' : '#e2e8f0'}; padding:18px; border-radius:12px; box-shadow:0 1px 3px rgba(15,23,42,0.03);">
                     <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
                       <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
                         <span style="background:${isExpired ? 'linear-gradient(135deg, #ef4444, #dc2626)' : 'linear-gradient(135deg, #1d4ed8, #2563eb)'}; color:#ffffff; padding:3px 10px; border-radius:8px; font-size:12px; font-weight:800;">任务 ${taskSeqNum}${isLatest ? ' (最新)' : ''}</span>
                         <span style="font-size:16px; font-weight:800; color:#1e40af;">📌 ${t.title}</span>
+                        <span style="background:#f0fdf4; color:#15803d; border:1px solid #bbf7d0; padding:2px 8px; border-radius:8px; font-size:11.5px; font-weight:700;">${genreCfg.icon} ${genreCfg.label}</span>
                         <span style="background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe; padding:2px 8px; border-radius:8px; font-size:11.5px; font-weight:700;">受众班级: ${t.className}</span>
                         ${isExpired ? `
                           <span style="background:#fef2f2; color:#dc2626; border:1px solid #fecaca; padding:2px 8px; border-radius:8px; font-size:11.5px; font-weight:800;">🛑 已截止 · 正文只读</span>
@@ -2954,6 +2957,18 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
             </div>
 
             <div class="teacher-form-group" style="margin-top:8px;">
+              <label><span class="req">*</span> 📝 任务写作文体类型 (决定智能体诊断口径与公约模块)</label>
+              <select id="modal-task-type" class="teacher-input fancy" style="font-weight:700; background:#ffffff; cursor:pointer;">
+                <option value="experiment" selected>🧪 实证实验方案 (研究假设、变量控制、实验设计、数据工具)</option>
+                <option value="instructional">📐 教学设计方案 (学情分析、教学目标、活动设计、技术融合、评价)</option>
+                <option value="history">📜 教育技术发展史与理论综述 (历史分期、范式流变、案例分析、未来启示)</option>
+              </select>
+              <div id="modal-task-type-tip" style="font-size:11.5px; color:#2563eb; margin-top:4px; line-height:1.4; background:#eff6ff; padding:6px 10px; border-radius:6px; border:1px solid #bfdbfe;">
+                💡 智能体将采用【实证研究方法与实验设计】学术口径，重点质询变量操作化、对照严密性与测量信效度。
+              </div>
+            </div>
+
+            <div class="teacher-form-group" style="margin-top:8px;">
               <label><span class="req">*</span> 写作任务名称</label>
               <input type="text" id="modal-task-title" class="teacher-input fancy" value="" placeholder="输入写作任务名称">
             </div>
@@ -2984,6 +2999,21 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
         }
       };
       document.addEventListener('keydown', onEscKey);
+
+      const typeSelect = modal.querySelector('#modal-task-type');
+      const typeTip = modal.querySelector('#modal-task-type-tip');
+      if (typeSelect && typeTip) {
+        typeSelect.addEventListener('change', () => {
+          const v = typeSelect.value;
+          if (v === 'instructional') {
+            typeTip.innerHTML = '💡 智能体将采用【教学设计与课程教学论】学术口径，重点质询教学目标-活动一致性、TPACK技术融合度与认知负荷。';
+          } else if (v === 'history') {
+            typeTip.innerHTML = '💡 智能体将采用【教育技术史与学术史】学术口径，重点质询历史分期标准、理论范式更迭深度与当下AI启示。';
+          } else {
+            typeTip.innerHTML = '💡 智能体将采用【实证研究方法与实验设计】学术口径，重点质询变量操作化、对照严密性与测量信效度。';
+          }
+        });
+      }
 
       const deadlineInput = modal.querySelector('#modal-task-deadline');
       const startInput = modal.querySelector('#modal-task-start');
@@ -3037,6 +3067,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
 
       modal.querySelector('#btn-submit-new-task').addEventListener('click', () => {
         const classId = modal.querySelector('#modal-task-class').value;
+        const taskType = modal.querySelector('#modal-task-type')?.value || 'experiment';
         const title = modal.querySelector('#modal-task-title').value.trim();
         const desc = modal.querySelector('#modal-task-desc').value.trim();
         const startTime = modal.querySelector('#modal-task-start') ? modal.querySelector('#modal-task-start').value : '';
@@ -3056,7 +3087,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
         calculatedDuration = Math.round((dDate.getTime() - sDate.getTime()) / (60 * 1000));
 
         try {
-          authManager.createTask(title, classId, desc, [], startTime, deadline, calculatedDuration);
+          authManager.createTask(title, classId, desc, [], startTime, deadline, calculatedDuration, taskType);
           closeModal();
           renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
         } catch (err) {
