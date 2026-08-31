@@ -426,8 +426,8 @@ for dir in "${TARGET_DIRS[@]}"; do
 done
 
 echo "🚀 [4/4] 启动高可用同步服务端..."
-kill -9 $(lsof -t -i:8088 2>/dev/null) 2>/dev/null || true
-pkill -9 -f "server.py" 2>/dev/null || true
+kill -9 $(lsof -t -i:8088 2>/dev/null) >/dev/null 2>&1 || true
+pkill -9 -f "server.py" >/dev/null 2>&1 || true
 sleep 1
 
 if [ -n "$MAIN_DIR" ] && [ -d "$MAIN_DIR" ]; then
