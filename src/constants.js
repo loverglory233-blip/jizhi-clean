@@ -4,7 +4,7 @@
  * Version: 2.1.0 (2026-08-23)
  */
 
-export const APP_VERSION = '20260831_v1106';
+export const APP_VERSION = '20260901_v1107';
 export const APP_BUILD_DATE = '2026-08-26';
 
 export const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
