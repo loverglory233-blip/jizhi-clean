@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260901_v1130
+ * Version: 20260901_v1131
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260901_v1130';
+  const APP_VERSION = '20260901_v1131';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -14125,28 +14125,6 @@
               renderChat(this.state);
               return;
             }
-          }
-
-          // 4. 责任编辑【100% 时间规划届满温和提示】（全场严格仅 1 次，绝不强制跳转）
-          const hasTime100MsgInChat = s2Chats.some(m => m && m.sender === 'managingEditor' && (m.text?.includes('阶段二规划时间已届满') || m.text?.includes('规划时间已届满')));
-          if (timeProgress >= 1.0 && !hasTime100MsgInChat && !s2.time100Sent && !s2.isDraftConfirmed) {
-            s2.time100Sent = true;
-            const taskType = this.getCurrentTaskType();
-            const isInst = (taskType === 'instructional');
-            const managingName = isInst ? '备课组长' : '责任编辑';
-            const time100Msg = {
-              sender: 'managingEditor',
-              senderName: managingName,
-              text: `🤝 【${managingName}·时间届满提示】：阶段二规划时间已届满，大家辛苦了！请全组成员进行最后的通读润色与错别字订正。修改满意后，请在正文上方点击【✍️ 确认初稿并提交阶段三】，开启答辩评审！`,
-              timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-              _timeMs: now
-            };
-            if (!this.state.chatLogs.stage2) this.state.chatLogs.stage2 = [];
-            this.state.chatLogs.stage2.push(time100Msg);
-            this.syncChatLogs();
-            this.syncStage2();
-            if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
-            renderChat(this.state);
           }
 
           // ── 阶段二终审行文扫描已严格统归由 checkStage2Milestones() 权威单向状态机统一仲裁 ──
