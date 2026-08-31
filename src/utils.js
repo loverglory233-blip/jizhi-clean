@@ -458,9 +458,17 @@ export function filterAndDeduplicateChatLogs(messages) {
     if (!txt) continue;
 
     const sender = String(m.sender || '');
-    const isAgent = (sender.startsWith('agent_') || ['auctioneer', 'architect', 'analyst', 'editor', 'challenger', 'chair'].includes(sender));
+    const isAgent = (
+      sender.startsWith('agent_') || 
+      ['managingEditor', 'reviewingEditor', 'auctioneer', 'architect', 'analyst', 'editor', 'challenger', 'chair', 'system'].includes(sender) ||
+      txt.includes('【责任编辑') ||
+      txt.includes('【审稿编辑') ||
+      txt.includes('【学术拍卖师') ||
+      txt.includes('【结构架构师') ||
+      txt.includes('【论证分析师')
+    );
 
-    // 1. 智能体连发防重：智能体若因网络重试/定时器连发了完全相同的引导提示，自动去重仅保留 1 条
+    // 1. 智能体连发防重：智能体若因网络重试/定时器/刷新连发了完全相同或同类型的引导提示，自动去重仅保留 1 条
     if (isAgent) {
       const normTxt = txt.replace(/\s+/g, " ").trim();
       const opKey = `${sender}_${normTxt}`;
