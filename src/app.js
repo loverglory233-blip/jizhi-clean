@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260901_v1111";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260901_v1111";
-import { callCozeAgentAPI } from "./agents.js?v=20260901_v1111";
-import { AuthManager } from "./auth.js?v=20260901_v1111";
-import { CloudSyncEngine } from "./sync.js?v=20260901_v1111";
-import { renderLoginView } from "./login.js?v=20260901_v1111";
-import { renderTeacherPortal } from "./teacher.js?v=20260901_v1111";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260901_v1111";
+} from "./constants.js?v=20260901_v1112";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260901_v1112";
+import { callCozeAgentAPI } from "./agents.js?v=20260901_v1112";
+import { AuthManager } from "./auth.js?v=20260901_v1112";
+import { CloudSyncEngine } from "./sync.js?v=20260901_v1112";
+import { renderLoginView } from "./login.js?v=20260901_v1112";
+import { renderTeacherPortal } from "./teacher.js?v=20260901_v1112";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260901_v1112";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260901_v1111";
+} from "./editor.js?v=20260901_v1112";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -3672,11 +3672,22 @@ ${chatSnippet}
       this.syncChatLogs();
       this.syncStageChange('stage2');
       if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
-      if (typeof showGlobalBannerNotice === 'function') {
-        showGlobalBannerNotice(`🎉 全员公约签署完毕 (${totalMembersCount}/${totalMembersCount})`, `学术公约正式锁定生效！正在为您无缝进入【阶段二：学术编辑部】开启 Etherpad 实时协同写作！`);
+
+      const autoKey = `jizhi_autoadvanced_${this.state.activeTaskId}_stage2`;
+      if (!sessionStorage.getItem(autoKey)) {
+        sessionStorage.setItem(autoKey, '1');
+        this.showStageMilestoneModal({
+          icon: '🎉',
+          title: '全组成员已全部签署《学术合作公约》！',
+          subtitle: `组内全员 (${totalMembersCount}/${totalMembersCount} 人) 已全部完成公约签署确认！学术合作公约正式生效锁定，阶段一圆满结束！`,
+          targetName: '阶段二：学术编辑部',
+          onProceed: () => {
+            this.switchStage('stage2', true);
+          }
+        });
+      } else {
+        this.switchStage('stage2', true);
       }
-      // 🚀 直接无缝切换到阶段二，Etherpad 立即呈现！
-      this.switchStage('stage2');
     } else {
       this.syncStage1();
       this.syncChatLogs();
@@ -5170,7 +5181,21 @@ ${chatSnippet}
           renderChat(this.state);
           this.renderStudentWorkspace();
 
-          showGlobalBannerNotice('🎉 组内初稿全员确认完成', `组内全员 (${totalMembersCount}/${totalMembersCount} 人) 已全部完成初稿确认！请点击上方导航进入【阶段三：答辩擂台】开启答辩！`, 'success', 10000);
+          const autoKey = `jizhi_autoadvanced_${activeTaskId}_stage3`;
+          if (!sessionStorage.getItem(autoKey)) {
+            sessionStorage.setItem(autoKey, '1');
+            this.showStageMilestoneModal({
+              icon: '🎓',
+              title: '全组成员已全部完成初稿确认！',
+              subtitle: `组内全员 (${totalMembersCount}/${totalMembersCount} 人) 已全部完成初稿确认！初稿已锁定归档，现在开启【阶段三：答辩擂台】！`,
+              targetName: '阶段三：答辩擂台',
+              onProceed: () => {
+                this.switchStage('stage3', true);
+              }
+            });
+          } else {
+            this.switchStage('stage3', true);
+          }
         }
         this.renderStudentWorkspace();
       },
@@ -5215,14 +5240,36 @@ ${chatSnippet}
           if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
           this.renderStudentWorkspace();
           renderChat(this.state);
-          alert(`🎉 恭喜！组内全员 (${totalMembersCount}/${totalMembersCount} 人) 已全部完成答辩确认！\n\n【修改论文终稿】面板已正式解锁！请切换至终稿面板协同修改并提交。`);
+
+          const autoKey = `jizhi_autoadvanced_${this.state.activeTaskId}_stage3_editor`;
+          if (!sessionStorage.getItem(autoKey)) {
+            sessionStorage.setItem(autoKey, '1');
+            this.showStageMilestoneModal({
+              icon: '📝',
+              title: '全组成员已全部确认答辩与修改清单！',
+              subtitle: `组内全员 (${totalMembersCount}/${totalMembersCount} 人) 已全部完成答辩辩护与裁决矩阵确认！答辩清单已定案归档，【修改论文终稿】面板已正式解锁！`,
+              targetName: '修改论文终稿',
+              onProceed: () => {
+                if (this.handlers && typeof this.handlers.onSwitchStage3Tab === 'function') {
+                  this.handlers.onSwitchStage3Tab('editor');
+                } else {
+                  this.state.stage3.activeTab = 'editor';
+                  this.renderStudentWorkspace();
+                }
+              }
+            });
+          } else {
+            if (this.handlers && typeof this.handlers.onSwitchStage3Tab === 'function') {
+              this.handlers.onSwitchStage3Tab('editor');
+            }
+          }
         } else {
           this.syncStage3();
           this.syncChatLogs();
           if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
           this.renderStudentWorkspace();
           renderChat(this.state);
-          alert(`✅ 您 (${memberName}) 已成功确认完成答辩！\n\n当前组内答辩确认进度：${confirmedCount}/${totalMembersCount} 人已确认。\n⚠️ 必须全组所有成员均完成确认后，系统才会正式解锁【修改论文终稿】面板！请提醒组内其他同学尽快确认。`);
+          showGlobalBannerNotice('✅ 答辩确认成功', `您 (${memberName}) 已成功确认完成答辩！当前组内进度：${confirmedCount}/${totalMembersCount} 人已确认。全员确认后将自动解锁【修改论文终稿】。`, 'info', 6000);
         }
       },
       onSwitchStage3Tab: (tabKey) => {
@@ -5735,6 +5782,45 @@ ${contentSnippet}
     }
   }
 
+  showStageMilestoneModal({ icon = '🎉', title, subtitle, targetName, onProceed }) {
+    const existingModal = document.querySelector('.modal-stage-milestone');
+    if (existingModal) existingModal.remove();
+
+    const modal = document.createElement('div');
+    modal.className = 'modal-mask modal-stage-milestone';
+    modal.style.cssText = 'position:fixed; inset:0; background:rgba(15,23,42,0.72); z-index:999999; display:flex; align-items:center; justify-content:center; backdrop-filter:blur(6px); animation:fadeIn 0.25s ease-out;';
+    modal.innerHTML = `
+      <div style="background:#ffffff; width:92%; max-width:500px; border-radius:16px; box-shadow:0 24px 48px rgba(15,23,42,0.3); border:1px solid #cbd5e1; overflow:hidden; display:flex; flex-direction:column; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; text-align:center;">
+        <div style="background:linear-gradient(135deg, #1e40af, #1e293b); padding:24px 20px 20px; color:#ffffff; display:flex; flex-direction:column; align-items:center;">
+          <div style="width:56px; height:56px; border-radius:50%; background:rgba(255,255,255,0.15); display:flex; align-items:center; justify-content:center; font-size:28px; margin-bottom:12px; box-shadow:0 4px 12px rgba(0,0,0,0.15);">
+            ${icon}
+          </div>
+          <div style="font-size:18px; font-weight:800; letter-spacing:0.3px; line-height:1.4;">${title}</div>
+        </div>
+        <div style="padding:22px 28px; font-size:14px; color:#334155; line-height:1.7;">
+          <p style="margin:0 0 10px 0; font-weight:600; color:#0f172a;">${subtitle}</p>
+          <div style="background:#f0fdf4; border:1px solid #bbf7d0; border-radius:10px; padding:10px 14px; font-size:12.5px; color:#166534; display:flex; align-items:center; justify-content:center; gap:6px;">
+            <span>🔒 前序阶段内容已自动锁定为只读归档</span>
+          </div>
+        </div>
+        <div style="padding:14px 24px 20px; background:#f8fafc; border-top:1px solid #e2e8f0; display:flex; justify-content:center;">
+          <button id="btn-milestone-proceed" style="background:linear-gradient(135deg, #059669, #047857); border:none; color:#ffffff; padding:10px 28px; border-radius:10px; font-size:14px; font-weight:800; cursor:pointer; box-shadow:0 3px 12px rgba(5,150,105,0.3); display:flex; align-items:center; gap:8px;">
+            <span>🚀 立即进入【${targetName}】</span>
+          </button>
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(modal);
+
+    const proceed = () => {
+      modal.remove();
+      if (typeof onProceed === 'function') onProceed();
+    };
+
+    modal.querySelector('#btn-milestone-proceed')?.addEventListener('click', proceed);
+  }
+
   showStage2FinalReviewPromptModal() {
     const existingModal = document.querySelector('.modal-final-review-prompt');
     if (existingModal) existingModal.remove();
@@ -5759,11 +5845,8 @@ ${contentSnippet}
           <p style="margin:0; color:#64748b; font-size:12.5px;">专家将为全组生成针对性的【诊断问题 + 改进建议】，帮助大家在最后成文与答辩立论中规避薄弱点！</p>
         </div>
         <div style="padding:14px 24px 18px 24px; background:#f8fafc; border-top:1px solid #e2e8f0; display:flex; justify-content:flex-end; gap:10px; align-items:center;">
-          <button id="btn-skip-fr" style="background:transparent; border:1px solid #cbd5e1; color:#64748b; padding:8px 14px; border-radius:8px; font-size:12.5px; font-weight:600; cursor:pointer;">
-            跳过三审，直接确认初稿
-          </button>
-          <button id="btn-trigger-fr" style="background:linear-gradient(135deg, #2563eb, #1d4ed8); border:none; color:#ffffff; padding:8px 18px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer; box-shadow:0 2px 8px rgba(37,99,235,0.25);">
-            ✨ 立即进行终审扫描 (推荐)
+          <button id="btn-trigger-fr" style="background:linear-gradient(135deg, #2563eb, #1d4ed8); border:none; color:#ffffff; padding:9px 22px; border-radius:8px; font-size:13.5px; font-weight:700; cursor:pointer; box-shadow:0 3px 10px rgba(37,99,235,0.25); display:flex; align-items:center; gap:6px;">
+            <span>✨ 立即进行终审定稿扫描</span>
           </button>
         </div>
       </div>
@@ -5780,15 +5863,6 @@ ${contentSnippet}
       this.triggerStage2FinalReview(true);
       if (typeof showGlobalBannerNotice === 'function') {
         showGlobalBannerNotice('📝 终审定稿扫描已启动', '审稿专家正在右侧研讨区为您扫描终稿学术规范与论述逻辑，请通读质检建议！', 'info', 6000);
-      }
-    });
-
-    modal.querySelector('#btn-skip-fr')?.addEventListener('click', () => {
-      closeModal();
-      if (this.handlers && typeof this.handlers.onConfirmStage2Draft === 'function') {
-        this.handlers.onConfirmStage2Draft(true);
-      } else if (typeof this.onConfirmStage2Draft === 'function') {
-        this.onConfirmStage2Draft(true);
       }
     });
   }

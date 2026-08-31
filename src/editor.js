@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles } from "./constants.js?v=20260901_v1111";
-import { callCozeAgentAPI } from "./agents.js?v=20260901_v1111";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, showResolutionBlock } from "./utils.js?v=20260901_v1111";
+import { AgentProfiles } from "./constants.js?v=20260901_v1112";
+import { callCozeAgentAPI } from "./agents.js?v=20260901_v1112";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, showResolutionBlock } from "./utils.js?v=20260901_v1112";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -2085,8 +2085,8 @@ function renderStage2Canvas(canvas, state, handlers) {
   const isDraftFullyConfirmed = !!s2.isDraftConfirmed && (confirmedDraftCount >= actualTotalCount && actualTotalCount > 0);
   const meetingSubs = s2.meetingSubmissions || {};
   const isStage2MeetingLocked = s2.isMeetingLocked || (Object.keys(meetingSubs).length >= actualTotalCount && actualTotalCount > 0);
-  // 🛡️ 阶段二只读严格判定：仅在任务截止过期、全组最终提交答辩终稿、或当前处于回看历史阶段时才锁定为只读；阶段二进行中全员始终可正常协同编辑！
-  const isEditorReadonly = state.isFinalSubmitted || isTaskDeadlineExpired || (state.isViewingPastStage && state.groupMaxStage === 'stage3');
+  // 🛡️ 阶段二只读严格判定：任务截止过期、全组最终提交终稿、已推进到阶段三、或初稿全员确认完成时锁定为只读归档
+  const isEditorReadonly = state.isFinalSubmitted || isTaskDeadlineExpired || (state.groupMaxStage === 'stage3') || isDraftFullyConfirmed;
   const plainTextLen = (s2.unifiedContent || '').replace(/<[^>]*>/g, '').trim().length;
 
   const padName = `jizhi_${activeTaskId}_${userGroupId}`;
