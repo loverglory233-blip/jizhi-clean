@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260831_v1028
+ * Version: 20260831_v1029
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260831_v1028';
+  const APP_VERSION = '20260831_v1029';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -16007,6 +16007,15 @@
   答辩陈述：[提取的 60~90 字精准答辩词，用于回填左侧矩阵]
   主席发言：[100~130 字自然语言点评与顺推裁决]`;
 
+      // 🌟 挂载中间委员正在提炼共识思考气泡
+      this.state.activeAgentAnalyzing = {
+        icon: '🟡',
+        title: `【中间委员】正在研读全组讨论并提炼【${inqLabel}】答辩共识...`,
+        detail: '正在整合组员辩护要点，自动定案回填矩阵并推导下一阶段裁决...'
+      };
+      renderChat(this.state);
+      this.renderStudentWorkspace();
+
       try {
         const resp = await callCozeAgentAPI('neutral', evalInquiryPrompt, { stage: 'stage3', topic });
         let extractedResponse = chatSnippet.slice(0, 150);
@@ -16044,13 +16053,13 @@
         this.syncStage3();
         this.syncChatLogs();
         if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
-        this.renderStudentWorkspace();
-        renderChat(this.state);
       } catch (e) {
         console.warn('handleS3InquirySummary error:', e);
         currentInquiry.response = msgsForInquiry.map(m => m.text).join('；').slice(0, 150) || '全组已达成辩护共识并落实修改。';
         currentInquiry.isFinalized = true;
         this.syncStage3();
+      } finally {
+        this.state.activeAgentAnalyzing = null;
         this.renderStudentWorkspace();
         renderChat(this.state);
       }
@@ -16216,10 +16225,24 @@
         const hasProp = logs.some(m => m && m.sender === 'proponent');
         let propText = '';
         if (!hasProp) {
+          // 🌟 挂载正方委员动态思考气泡
+          this.state.activeAgentAnalyzing = {
+            icon: '🟢',
+            title: '【正方委员】正在通读草稿并提取立论肯定亮点...',
+            detail: '正在研读论文草稿的创新选题、研究设计与实践价值亮点...'
+          };
+          renderChat(this.state);
+          this.renderStudentWorkspace();
+
           const propPrompt = `针对小组论文《${topic}》，请通读下方【小组当前真实正文草稿】全文，作为答辩委员会正方评审教授发表 130~150 字的肯定支持评审意见：
   【基于真实正文的动态赞赏原则】：通读正文草稿全文，从 5 大赞赏维度（①行文风格与语言通顺、②选题与立意创新、③设计与方法严密、④实践落地与推广价值、⑤规范与术语统一）中，根据本篇论文的真实闪光点，动态灵活挑选 2~3 个最契合的核心亮点（必须至少 2 个，最多 3 个，严禁死板固化在某两个固定维度），紧扣具体学科与章节展开具体赞赏，为全组提供充实的正面论据支架！纯自然语言输出，130~150字。`;
 
-          propText = await callCozeAgentAPI('proponent', propPrompt, { stage: 'stage3', topic, actualDoc: rawContent });
+          try {
+            propText = await callCozeAgentAPI('proponent', propPrompt, { stage: 'stage3', topic, actualDoc: rawContent });
+          } finally {
+            this.state.activeAgentAnalyzing = null;
+          }
+
           if (!propText || propText.trim().length === 0) {
             propText = `🟢 【正方委员评审意见】：通读全篇，该研究展现出了极高的学术价值与实践意义！最出彩的地方体现在两点：①【选题与立意创新】：针对教学痛点提出的干预切口非常新颖独特；②【实践落地与推广价值】：方案在真实课堂中的教学活动设计可操作性极强，论据充分，为全组的深度协同点赞！`;
           }
@@ -16233,6 +16256,7 @@
           this.sendSingleChatMessage(propMsg, 'stage3');
           this.syncChatLogs();
           if (typeof window.renderChat === 'function') window.renderChat(this.state);
+          this.renderStudentWorkspace();
           // ⏱️ 预留 5.5 秒通读时间，让组员充分领会正方的肯定亮点
           await new Promise(r => setTimeout(r, 5500));
         } else {
@@ -16244,6 +16268,15 @@
         const hasOpp = logs.some(m => m && m.sender === 'opponent');
         let oppText = '';
         if (!hasOpp) {
+          // 🌟 挂载反方委员动态思考气泡
+          this.state.activeAgentAnalyzing = {
+            icon: '🔴',
+            title: '【反方委员】正在深度审视正文并研拟针对实质询焦点...',
+            detail: '正在结合正方肯定意见，从设计落地挑战与行文严谨性提炼商榷焦点...'
+          };
+          renderChat(this.state);
+          this.renderStudentWorkspace();
+
           const oppPrompt = `针对小组论文《${topic}》，请通读下方【小组当前真实正文草稿】全文，结合正方委员刚才的肯定意见，作为答辩委员会反方评审教授发表 130~150 字的温和学术商榷质询意见：
 
   【正方委员刚才的肯定意见参考】:
@@ -16255,7 +16288,12 @@
   3. 必须以清晰的序号 ① ② 分条呈现质询焦点；
   4. 态度务必温和客气、极具建设性（多用“商讨/请教/小细节/落地可行性”）。纯自然语言输出，130~150字。`;
 
-          oppText = await callCozeAgentAPI('opponent', oppPrompt, { stage: 'stage3', topic, actualDoc: rawContent });
+          try {
+            oppText = await callCozeAgentAPI('opponent', oppPrompt, { stage: 'stage3', topic, actualDoc: rawContent });
+          } finally {
+            this.state.activeAgentAnalyzing = null;
+          }
+
           if (!oppText || oppText.trim().length === 0) {
             oppText = `🔴 【反方委员·商讨质询】：仔细研读了大家的成果，正方对该选题创新价值的肯定我非常赞同！在此基础上，我想从实证落地与行文严谨性的角度请教团队两个具体细节：①【具体设计/实施挑战】：在相关章节中，常态化教学中具体干预周期的落地性与认知负荷如何防范？②【行文风格/方法严密性】：在后续论述中，部分测量工具的信效度检验与前后行文风格需进一步规范。期待听听大家的从容思考与答辩~`;
           }
@@ -16269,6 +16307,7 @@
           this.sendSingleChatMessage(oppMsg, 'stage3');
           this.syncChatLogs();
           if (typeof window.renderChat === 'function') window.renderChat(this.state);
+          this.renderStudentWorkspace();
           // ⏱️ 反方发言后微留 2 秒让组员看一眼反方要点
           await new Promise(r => setTimeout(r, 2000));
         } else {
@@ -16308,6 +16347,15 @@
         // 5. 中间委员独立调用 Coze API，引导第 1 题辩护
         const hasChairGuide = logs.some(m => m && m.sender === 'neutral' && (m.text?.includes('答辩思路引导') || m.text?.includes('质询 ①')));
         if (!hasChairGuide) {
+          // 🌟 挂载中间委员思路引导思考气泡
+          this.state.activeAgentAnalyzing = {
+            icon: '🟡',
+            title: '【中间委员】正在审阅答辩清单并生成第一题破局思路支架...',
+            detail: '正在梳理正反两方专家焦点，为全组定制第一题答辩思路引导...'
+          };
+          renderChat(this.state);
+          this.renderStudentWorkspace();
+
           const chairPrompt = `答辩正反两方评审意见已入驻左侧矩阵。
   【正方意见】: ${propText}
   【反方质询】: ${oppText}
@@ -16317,7 +16365,13 @@
   ② 【单题独立引导·核心铁律】：本次只聚焦【意见 1 / 质询 ①】，结合反方质询①的具体内容给出清晰的答辩破局/操作化补救思路支架（严禁提及或剧透后续质询！）；
   ③ 引导全组在讨论区充分商讨，商定差不多后点击聊天框上方【💡 意见 1 讨论差不多了？帮我总结并填入】按钮！纯自然语言输出，130~150字。`;
 
-          let chairText = await callCozeAgentAPI('neutral', chairPrompt, { stage: 'stage3', topic, prop: propText, opp: oppText, queryPoint: 1 });
+          let chairText = '';
+          try {
+            chairText = await callCozeAgentAPI('neutral', chairPrompt, { stage: 'stage3', topic, prop: propText, opp: oppText, queryPoint: 1 });
+          } finally {
+            this.state.activeAgentAnalyzing = null;
+          }
+
           if (!chairText || chairText.trim().length === 0) {
             chairText = `🟡 【中间委员·针对意见 1 答辩思路引导】：正反方评审已正式送达并生成修改清单！请大家通读意见，首先聚焦【意见 1】：建议结合正方提到的优势，在答辩中阐明针对意见1的具体破局与操作化补救思路！请全组在讨论区商定对策，商定后点击上方【💡 意见 1 讨论差不多了？帮我总结并填入】按钮！`;
           }
@@ -16334,6 +16388,7 @@
           this.syncChatLogs();
           if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
           if (typeof window.renderChat === 'function') window.renderChat(this.state);
+          this.renderStudentWorkspace();
         }
       } catch (err) {
         console.error('Stage 3 committee pipeline error:', err);
