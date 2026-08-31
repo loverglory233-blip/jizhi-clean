@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260831_v997
+ * Version: 20260831_v998
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260831_v997';
+  const APP_VERSION = '20260831_v998';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -579,9 +579,17 @@
       if (!txt) continue;
 
       const sender = String(m.sender || '');
-      const isAgent = (sender.startsWith('agent_') || ['auctioneer', 'architect', 'analyst', 'editor', 'challenger', 'chair'].includes(sender));
+      const isAgent = (
+        sender.startsWith('agent_') || 
+        ['managingEditor', 'reviewingEditor', 'auctioneer', 'architect', 'analyst', 'editor', 'challenger', 'chair', 'system'].includes(sender) ||
+        txt.includes('【责任编辑') ||
+        txt.includes('【审稿编辑') ||
+        txt.includes('【学术拍卖师') ||
+        txt.includes('【结构架构师') ||
+        txt.includes('【论证分析师')
+      );
 
-      // 1. 智能体连发防重：智能体若因网络重试/定时器连发了完全相同的引导提示，自动去重仅保留 1 条
+      // 1. 智能体连发防重：智能体若因网络重试/定时器/刷新连发了完全相同或同类型的引导提示，自动去重仅保留 1 条
       if (isAgent) {
         const normTxt = txt.replace(/\s+/g, " ").trim();
         const opKey = `${sender}_${normTxt}`;
@@ -13125,10 +13133,14 @@
 
 
 
-          // 2. 责任编辑过程守护：周期性读取【实际贡献百分比】与【研讨发言投入】（最多2次）
+          // 2. 责任编辑过程守护：周期性读取【实际贡献百分比】与【研讨发言投入】（全场严格最多 2 次，两次间隔 >= 6分钟）
           const minContribThreshold = isLargeTask ? 600 : 300;
-          const s2ContribCount = this._nudgeCounts['s2_contrib'] || 0;
-          if (s2ContribCount < 2 && (!this.lastS2ContribNudgeTime || now - this.lastS2ContribNudgeTime > s2NudgeCooldownMs)) {
+          const existContribNudges = s2Chats.filter(m => m && (m.text?.includes('进度关怀') || m.text?.includes('协同关怀')));
+          const lastContribMsg = existContribNudges.length > 0 ? existContribNudges[existContribNudges.length - 1] : null;
+          const lastContribTime = parseMsgTime(lastContribMsg) || this.lastS2ContribNudgeTime || 0;
+          const isContribCooldownPassed = (now - lastContribTime) >= s2NudgeCooldownMs;
+
+          if (existContribNudges.length < 2 && isContribCooldownPassed) {
             // 1. 计算总投入与每位成员的实际贡献百分比（100% 依据 Etherpad 真实写作字数贡献）
             let totalContrib = 0;
             membersList.forEach(m => {
@@ -13150,7 +13162,7 @@
 
             if (severeInactiveMembers.length > 0) {
               this.lastS2ContribNudgeTime = now;
-              this._nudgeCounts['s2_contrib'] = s2ContribCount + 1;
+              this._nudgeCounts['s2_contrib'] = existContribNudges.length + 1;
               const targetName = severeInactiveMembers[0];
               const tasks = (this.state.stage1 && this.state.stage1.contract && this.state.stage1.contract.taskAssignments) ? this.state.stage1.contract.taskAssignments : {};
               let targetChapter = '负责的章节';
@@ -13190,8 +13202,9 @@
           };
 
           // ======================================================================
-          // 📝 审稿编辑一审后静默跟进（严格 3 分钟冷场静默提示）
+          // 📝 审稿编辑一审后静默跟进（严格 3 分钟冷场静默提示，全场严格仅 1 次）
           // ======================================================================
+          const existReviewFollow = s2Chats.some(m => m && m.text?.includes('初审跟进提示'));
           const lastReviewMsgObj = [...s2Chats].reverse().find(m => m && m.sender === 'reviewingEditor' && !m.text?.includes('初审跟进提示') && !m.text?.includes('终稿') && !m.text?.includes('终审'));
           const isFirstReviewIssued = !!lastReviewMsgObj || s2.reviewMilestone === 'first_review_done' || !!s2.firstReviewText;
           const hasPassedToSubsequentStages = s2Chats.some(m => m && (
@@ -13203,7 +13216,7 @@
             m.text?.includes('终审定稿总评')
           )) || !!s2.meetingStep || !!s2.isDraftConfirmed;
 
-          if (isFirstReviewIssued && !hasPassedToSubsequentStages) {
+          if (!existReviewFollow && isFirstReviewIssued && !hasPassedToSubsequentStages) {
             const reviewTime = parseMsgTime(lastReviewMsgObj) || this.stage2StartTime || (now - 60000);
             const reviewElapsed = Math.max(0, now - reviewTime);
             const studentMsgAfterReview = s2Chats.filter(m => m && m.sender && m.sender !== 'managingEditor' && m.sender !== 'reviewingEditor' && m.sender !== 'system' && parseMsgTime(m) > reviewTime);
@@ -13212,7 +13225,7 @@
             const silenceAfterReview = lastStudentMsgAfterReviewTime ? Math.max(0, now - lastStudentMsgAfterReviewTime) : reviewElapsed;
 
             // ── 一审后冷场满 3 分钟：初审跟进提示（全场严格仅 1 次） ──
-            if (silenceAfterReview >= 180000 && !this._nudgeCounts['s2_first_review_silence']) {
+            if (silenceAfterReview >= 180000) {
               this._nudgeCounts['s2_first_review_silence'] = 1;
               const followMsg = {
                 sender: 'reviewingEditor',
@@ -13231,8 +13244,9 @@
           }
 
           // ======================================================================
-          // 📌 质检/讨论梯度 B：半程会议自查打卡（3 分钟未打卡静默提醒）
+          // 📌 质检/讨论梯度 B：半程会议自查打卡（3 分钟未打卡静默提醒，全场严格仅 1 次）
           // ======================================================================
+          const existMeetingCheckinNudge = s2Chats.some(m => m && m.text?.includes('半程会议参与提示'));
           const lastMeetingMsg = [...s2Chats].reverse().find(m => m && m.sender === 'managingEditor' && (m.text?.includes('半程研讨号召') || m.text?.includes('半程会议号召') || m.text?.includes('半程自查') || m.text?.includes('半程会议')));
           const isMeetingActive = (lastMeetingMsg || s2.meetingStep) && s2.meetingStep !== 'completed' && !s2.isDraftConfirmed;
 
@@ -13281,25 +13295,22 @@
               return fullUser?.name || m?.name || m?.username || m?.studentCode || m;
             }).join('、');
 
-            // ── 半程打卡：仅 3 分钟（180,000ms）单次点名催促（仅在真有人未打卡时触发）──
-            if (hasUnsubmitted && meetingElapsed >= 180000) {
-              const nudgeKey = 's2_meeting_checkin_3m';
-              if (!this._nudgeCounts[nudgeKey]) {
-                this._nudgeCounts[nudgeKey] = 1;
-                const msg = {
-                  sender: 'managingEditor',
-                  senderName: '协同调度 · 责任编辑',
-                  text: `🤝 【责任编辑·半程会议参与提示】：半程学术审计会议已号召发起 3 分钟啦！目前组内打卡进度为【${submittedCount}/${totalCount} 人】，看到 ${unsubmittedNames} 同学尚未完成打卡。请尚未打卡的同学点击上方【📢 发起会议 / 打卡】按钮通读全篇完成自查，全员打卡后系统将自动为大家汇总生成《半程修正清单》！`,
-                  timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                  _timeMs: now
-                };
-                if (!this.state.chatLogs.stage2) this.state.chatLogs.stage2 = [];
-                this.state.chatLogs.stage2.push(msg);
-                this.syncChatLogs();
-                if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
-                renderChat(this.state);
-                return;
-              }
+            // ── 半程打卡：仅 3 分钟（180,000ms）单次点名催促（全场严格仅发 1 次，且仅在真有人未打卡时触发）──
+            if (!existMeetingCheckinNudge && hasUnsubmitted && meetingElapsed >= 180000) {
+              this._nudgeCounts['s2_meeting_checkin_3m'] = 1;
+              const msg = {
+                sender: 'managingEditor',
+                senderName: '协同调度 · 责任编辑',
+                text: `🤝 【责任编辑·半程会议参与提示】：半程学术审计会议已号召发起 3 分钟啦！目前组内打卡进度为【${submittedCount}/${totalCount} 人】，看到 ${unsubmittedNames} 同学尚未完成打卡。请尚未打卡的同学点击上方【📢 发起会议 / 打卡】按钮通读全篇完成自查，全员打卡后系统将自动为大家汇总生成《半程修正清单》！`,
+                timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                _timeMs: now
+              };
+              if (!this.state.chatLogs.stage2) this.state.chatLogs.stage2 = [];
+              this.state.chatLogs.stage2.push(msg);
+              this.syncChatLogs();
+              if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+              renderChat(this.state);
+              return;
             }
 
             // ======================================================================
@@ -13323,7 +13334,8 @@
               }
 
               // ── ① 3 分钟没讨论：破冰点拨 ──
-              if (silenceAfterChecklist >= 180000 && !this._nudgeCounts['s2_consistency_silence_3m']) {
+              const exist3mNudge = s2Chats.some(m => m && m.text?.includes('一致性研讨点拨'));
+              if (!exist3mNudge && silenceAfterChecklist >= 180000) {
                 this._nudgeCounts['s2_consistency_silence_3m'] = 1;
                 const msg = {
                   sender: 'managingEditor',
@@ -13341,7 +13353,8 @@
               }
 
               // ── ② 6 分钟仍没讨论：强化收拢催促 ──
-              if (silenceAfterChecklist >= 360000 && !this._nudgeCounts['s2_consistency_silence_6m']) {
+              const exist6mNudge = s2Chats.some(m => m && m.text?.includes('研讨收拢提醒'));
+              if (!exist6mNudge && silenceAfterChecklist >= 360000) {
                 this._nudgeCounts['s2_consistency_silence_6m'] = 1;
                 const btnName = (s2.meetingStep === 'discussing_checklist') ? '【📝 讨论差不多了？让审稿编辑总结】' : '【💡 讨论差不多了？让责任编辑总结】';
                 const msg = {
@@ -13360,9 +13373,10 @@
               }
 
               // ── ③ 强兜底智能提炼回填并顺推：讨论持续满 10 分钟（长任务 20 分钟）自动触发 ──
+              const existFallback = s2Chats.some(m => m && (m.text?.includes('半程修改决议') || m.text?.includes('二审修改落实要点')));
               const consistencyFallbackMs = isLargeTask ? 1200000 : 600000;
               const consistencyFallbackMinText = isLargeTask ? '20' : '10';
-              if (checklistElapsed >= consistencyFallbackMs && !this._s2MeetingAutoFallbackRunning) {
+              if (!existFallback && checklistElapsed >= consistencyFallbackMs && !this._s2MeetingAutoFallbackRunning) {
                 const nudgeKey = 's2_consistency_auto_fallback';
                 if (!this._nudgeCounts[nudgeKey]) {
                   this._nudgeCounts[nudgeKey] = 1;
