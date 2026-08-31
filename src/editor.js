@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles } from "./constants.js?v=20260831_v1027";
-import { callCozeAgentAPI } from "./agents.js?v=20260831_v1027";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, showResolutionBlock } from "./utils.js?v=20260831_v1027";
+import { AgentProfiles } from "./constants.js?v=20260831_v1028";
+import { callCozeAgentAPI } from "./agents.js?v=20260831_v1028";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, showResolutionBlock } from "./utils.js?v=20260831_v1028";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -2423,6 +2423,13 @@ function renderStage2Canvas(canvas, state, handlers) {
         draftBtnEl.style.background = isUserDraftConfirmed ? '#ecfdf5' : 'linear-gradient(135deg, #059669, #047857)';
         draftBtnEl.style.color = isUserDraftConfirmed ? '#059669' : 'white';
         draftBtnEl.style.border = isUserDraftConfirmed ? '1px solid #a7f3d0' : 'none';
+        draftBtnEl.onclick = () => {
+          if (window.app && window.app.handlers && typeof window.app.handlers.onConfirmStage2Draft === 'function') {
+            window.app.handlers.onConfirmStage2Draft();
+          } else if (window.app && typeof window.app.triggerStage2FinalReview === 'function') {
+            window.app.triggerStage2FinalReview();
+          }
+        };
       }
 
       return;

@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260831_v1027
+ * Version: 20260831_v1028
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260831_v1027';
+  const APP_VERSION = '20260831_v1028';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -10838,6 +10838,13 @@
           draftBtnEl.style.background = isUserDraftConfirmed ? '#ecfdf5' : 'linear-gradient(135deg, #059669, #047857)';
           draftBtnEl.style.color = isUserDraftConfirmed ? '#059669' : 'white';
           draftBtnEl.style.border = isUserDraftConfirmed ? '1px solid #a7f3d0' : 'none';
+          draftBtnEl.onclick = () => {
+            if (window.app && window.app.handlers && typeof window.app.handlers.onConfirmStage2Draft === 'function') {
+              window.app.handlers.onConfirmStage2Draft();
+            } else if (window.app && typeof window.app.triggerStage2FinalReview === 'function') {
+              window.app.triggerStage2FinalReview();
+            }
+          };
         }
 
         return;
@@ -16894,6 +16901,12 @@
           if (!this.state.stage2) this.state.stage2 = {};
           const s2 = this.state.stage2;
           if (s2.isDraftConfirmed) {
+            const s2Chats = (this.state.chatLogs && this.state.chatLogs.stage2) ? this.state.chatLogs.stage2 : [];
+            const hasFinalReview = s2Chats.some(m => m && m.sender === 'reviewingEditor' && (m.text?.includes('终稿行文扫描') || m.text?.includes('终审定稿总评') || m.text?.includes('审稿编辑·终审')));
+            if (!hasFinalReview) {
+              this.triggerStage2FinalReview();
+              return;
+            }
             alert('🔒 正文初稿已被组内全员确认！已解锁阶段三。');
             return;
           }

@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260831_v1027";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260831_v1027";
-import { callCozeAgentAPI } from "./agents.js?v=20260831_v1027";
-import { AuthManager } from "./auth.js?v=20260831_v1027";
-import { CloudSyncEngine } from "./sync.js?v=20260831_v1027";
-import { renderLoginView } from "./login.js?v=20260831_v1027";
-import { renderTeacherPortal } from "./teacher.js?v=20260831_v1027";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260831_v1027";
+} from "./constants.js?v=20260831_v1028";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260831_v1028";
+import { callCozeAgentAPI } from "./agents.js?v=20260831_v1028";
+import { AuthManager } from "./auth.js?v=20260831_v1028";
+import { CloudSyncEngine } from "./sync.js?v=20260831_v1028";
+import { renderLoginView } from "./login.js?v=20260831_v1028";
+import { renderTeacherPortal } from "./teacher.js?v=20260831_v1028";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260831_v1028";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260831_v1027";
+} from "./editor.js?v=20260831_v1028";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -4909,6 +4909,12 @@ ${propText}
         if (!this.state.stage2) this.state.stage2 = {};
         const s2 = this.state.stage2;
         if (s2.isDraftConfirmed) {
+          const s2Chats = (this.state.chatLogs && this.state.chatLogs.stage2) ? this.state.chatLogs.stage2 : [];
+          const hasFinalReview = s2Chats.some(m => m && m.sender === 'reviewingEditor' && (m.text?.includes('终稿行文扫描') || m.text?.includes('终审定稿总评') || m.text?.includes('审稿编辑·终审')));
+          if (!hasFinalReview) {
+            this.triggerStage2FinalReview();
+            return;
+          }
           alert('🔒 正文初稿已被组内全员确认！已解锁阶段三。');
           return;
         }
