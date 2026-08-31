@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260831_v1002";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260831_v1002";
-import { callCozeAgentAPI } from "./agents.js?v=20260831_v1002";
-import { AuthManager } from "./auth.js?v=20260831_v1002";
-import { CloudSyncEngine } from "./sync.js?v=20260831_v1002";
-import { renderLoginView } from "./login.js?v=20260831_v1002";
-import { renderTeacherPortal } from "./teacher.js?v=20260831_v1002";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260831_v1002";
+} from "./constants.js?v=20260831_v1003";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260831_v1003";
+import { callCozeAgentAPI } from "./agents.js?v=20260831_v1003";
+import { AuthManager } from "./auth.js?v=20260831_v1003";
+import { CloudSyncEngine } from "./sync.js?v=20260831_v1003";
+import { renderLoginView } from "./login.js?v=20260831_v1003";
+import { renderTeacherPortal } from "./teacher.js?v=20260831_v1003";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260831_v1003";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260831_v1002";
+} from "./editor.js?v=20260831_v1003";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -3827,26 +3827,36 @@ ${chatSnippet}
     const userLogs = relevantLogs.filter(m => m && m.sender && !AgentProfiles[m.sender] && m.sender !== 'system' && !m.sender.includes('Editor'));
     const chatSnippet = userLogs.map(m => `${m.senderName || m.sender}: ${m.text}`).join('\n') || '组员正在围绕论文前后脱节与论证方法深化讨论修改思路';
 
+    // 🌟 提取全组在【编辑会议自查打卡】中填写的真实瓶颈与聚焦痛点
+    const subs = s2.meetingSubmissions || {};
+    const subValues = Object.values(subs);
+    const bottlenecks = [...new Set(subValues.map(v => v.bAcademic).filter(Boolean))].join('；') || '方法设计操作化不足与理论文献支撑单薄';
+    const focusIssues = [...new Set(subValues.map(v => v.userText).filter(Boolean))].join('；') || '核心概念统领与章节逻辑过渡';
+    const transIssues = [...new Set(subValues.flatMap(v => v.transSections || []).filter(Boolean))].join('、') || '第一至二章、第三至四章';
+    const styleIssues = [...new Set(subValues.flatMap(v => v.styleSections || []).filter(Boolean))].join('、') || '文献综述与方法章节';
+
     const topic = (this.state.stage1 && this.state.stage1.mergedTitle) ? this.state.stage1.mergedTitle : '本组课题';
     const rawDoc = (s2.unifiedContent || '').replace(/<[^>]*>/g, '').trim();
 
-    // 责任编辑发言提炼研讨共识并交棒（严禁套话，紧扣研讨与正文实质）
+    // 责任编辑发言提炼研讨共识并交棒（严禁套话，紧扣自查瓶颈、研讨与正文实质）
     const managingPrompt = `小组成员已在讨论区就论文《${topic}》的前序修改方向展开了半程研讨。
-【组内关于修改思路的真实讨论记录】:
+【组员自查打卡反映的自查瓶颈】: ${bottlenecks}
+【组员一句话修改聚焦】: ${focusIssues}
+【组内关于修改思路的讨论记录】:
 ${chatSnippet}
 【正文草稿节选】:
 ${rawDoc.slice(0, 1000)}
 
 请作为责任编辑，发表 90~120 字的【半程研讨共识小结与交棒】：
-① 结合小组成员在研讨中提出的具体论点或正文核心段落（如概念界定、方法操作化或行文衔接），提炼出 1~2 个实质性的修改共识点（严禁假大空套话，严禁出现“分工”字眼）；
+① 明确呼应小组成员在自查与研讨中聚焦的痛点（如：${focusIssues.slice(0, 50)}），提炼出 1~2 个实质性的修改共识点（严禁假大空套话，严禁出现“分工”字眼）；
 ② 隆重引出审稿专家下发《二审修正清单》，指导全组对齐落实！
 （纯自然语言，90~120字，严禁输出代码块）`;
 
     try {
-      const respManaging = await callCozeAgentAPI('managingEditor', managingPrompt, { stage: 'stage2', topic, chatSnippet });
+      const respManaging = await callCozeAgentAPI('managingEditor', managingPrompt, { stage: 'stage2', topic, chatSnippet, bottlenecks, focusIssues });
       let managingText = (respManaging && respManaging.trim().length > 0) 
         ? respManaging.trim() 
-        : `🤝 【责任编辑·研讨共识小结】：结合大家在讨论区针对正文逻辑衔接与方法细化的深入探讨，全组已在研究问题聚焦与分析维度统一上形成了明确共识。👉 接下来正式有请 @审稿编辑 为大家下发具体的《二审修正清单》，指导全组深入修改与对齐落实！`;
+        : `🤝 【责任编辑·研讨共识小结】：结合大家在自查打卡与讨论区指出的【${focusIssues.slice(0, 30)}】等核心诉求，全组已在研究问题聚焦与方法设计细化上形成了明确共识。👉 接下来正式有请 @审稿编辑 结合全篇草稿为大家下发具体的《二审修正清单》，指导全组深入修改与对齐落实！`;
       if (!managingText.startsWith('🤝')) managingText = `🤝 【责任编辑·研讨共识小结】：${managingText}`;
 
       const msgManaging = {
@@ -3858,23 +3868,29 @@ ${rawDoc.slice(0, 1000)}
       };
       s2ChatLogs.push(msgManaging);
 
-      // 审稿专家结合半程会议讨论与正文下发《二审修正清单》（严禁套话与分工字眼）
-      const reviewingPrompt = `针对课题《${topic}》，结合小组成员研讨与正文草稿，作为资深审稿编辑给出具体学术质检《二审修正清单》（120~150字）：
+      // 审稿专家结合自查瓶颈、讨论与正文下发【诊断问题 + 改进建议】双结构《二审修正清单》
+      const reviewingPrompt = `针对课题《${topic}》，结合小组成员自查瓶颈【${bottlenecks}】、聚焦关注点【${focusIssues}】及下方正文草稿，作为资深审稿编辑给出包含【诊断问题 + 改进建议】双结构的学术质检《二审修正清单》（150~180字）：
 【正文草稿参考】:
-${rawDoc.slice(0, 1500)}
+${rawDoc.slice(0, 2000)}
 【小组成员商定的修改思路】:
 ${chatSnippet}
 
-请下发包含 3 项具体可执行的《二审修正清单》（严禁出现“分工”字眼）：
-①【核心概念对齐】：指出具体需要统领或界定的术语与假设；
-②【研究方法深化】：指出具体需要补全的实施步骤或测量工具；
-③【行文衔接规范】：指出具体需要打磨的逻辑过渡与学术语体。
-并在末尾明确提示全组：“请大家围绕清单协同商定修改对策与落实方案，讨论差不多后点击下方【📝 讨论差不多了？让审稿编辑总结】！”（纯自然语言，120~150字）`;
+请严格按以下 3 个维度下发《二审修正清单》（每项必须同时包含“诊断问题”与“改进建议”，严禁出现“分工”字眼）：
+①【核心概念对齐】
+- 诊断问题：结合引言与文献综述，指出具体概念界定不清或脱节之处；
+- 改进建议：给出具体的学术概念统领与问题锚定要求；
+②【研究方法深化】
+- 诊断问题：结合组员自查瓶颈（${bottlenecks}），指出正文中具体缺失的操作化步骤、样本抽样或测量工具；
+- 改进建议：给出具体的补全与深化建议；
+③【行文衔接规范】
+- 诊断问题：结合自查脱节章节（${transIssues}），指出具体逻辑生硬或口语化表达；
+- 改进建议：给出具体的润色与过渡规范要求。
+末尾必须明确提示：“请大家围绕清单协同商定修改对策与落实方案，讨论差不多后点击下方【📝 讨论差不多了？让审稿编辑总结】！”（纯自然语言，150~180字）`;
 
-      const respReviewing = await callCozeAgentAPI('reviewingEditor', reviewingPrompt, { stage: 'stage2', topic, actualDoc: rawDoc });
+      const respReviewing = await callCozeAgentAPI('reviewingEditor', reviewingPrompt, { stage: 'stage2', topic, actualDoc: rawDoc, bottlenecks, focusIssues });
       let reviewingText = (respReviewing && respReviewing.trim().length > 0)
         ? respReviewing.trim()
-        : `📝 【审稿编辑·二审修正清单】：结合全组研讨与正文审阅，提出以下 3 项重点修正要求：\n①【核心概念对齐】：统领各章节核心术语表述，使引言文献综述与核心研究问题精准呼应；\n②【研究方法深化】：细化数据分析的具体实施步骤与测量工具，增强操作化严密性；\n③【行文衔接规范】：补全未完成的章节过渡段落，消除口语化表达。\n👉 请大家围绕清单协同商定修改对策与落实方案，讨论差不多后点击下方【📝 讨论差不多了？让审稿编辑总结】！`;
+        : `📝 【审稿编辑·二审修正清单】：结合全组自查打卡反映的痛点与正文审阅，提出以下 3 项【诊断问题与改进建议】：\n①【核心概念对齐】\n· 诊断问题：引言中“有效社会共享调节”缺乏操作性界定，文献述评未充分支撑核心研究问题；\n· 改进建议：补充明确的操作性定义，使文献综述直接呼应研究假设。\n②【研究方法深化】\n· 诊断问题：认知网络分析（ENA）缺乏具体实施步骤与编码维度对应逻辑，操作化论证单薄；\n· 改进建议：细化编码维度与测量工具的具体操作步骤，增强方法严密性。\n③【行文衔接规范】\n· 诊断问题：部分章节存在口语化表述，引言末尾与方法开头过渡较为生硬；\n· 改进建议：统一全篇学术术语命名，补全逻辑过渡句。\n👉 请大家围绕清单协同商定修改对策与落实方案，讨论差不多后点击下方【📝 讨论差不多了？让审稿编辑总结】！`;
       if (!reviewingText.startsWith('📝')) reviewingText = `📝 【审稿编辑·二审修正清单】：${reviewingText}`;
 
       const msgReviewing = {
