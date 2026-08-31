@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles } from "./constants.js?v=20260901_v1109";
-import { callCozeAgentAPI } from "./agents.js?v=20260901_v1109";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, showResolutionBlock } from "./utils.js?v=20260901_v1109";
+import { AgentProfiles } from "./constants.js?v=20260901_v1110";
+import { callCozeAgentAPI } from "./agents.js?v=20260901_v1110";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, showResolutionBlock } from "./utils.js?v=20260901_v1110";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -151,9 +151,31 @@ export function renderHeader(state, currentUser, announcements, onStageChange, o
 export function renderCanvas(state, handlers) {
   const canvas = document.getElementById('canvas-panel');
   if (!canvas) return;
-  if (state.currentStage === 'stage1') renderStage1Canvas(canvas, state, handlers);
-  else if (state.currentStage === 'stage2') renderStage2Canvas(canvas, state, handlers);
-  else if (state.currentStage === 'stage3') renderStage3Canvas(canvas, state, handlers);
+
+  // 🛡️ 极致架构升级：采用多阶段独立持久化容器，切换阶段时保留 DOM 与 iframe，彻底根治 Etherpad 闪烁白屏与状态丢失问题
+  let s1Container = canvas.querySelector('#stage-canvas-s1');
+  let s2Container = canvas.querySelector('#stage-canvas-s2');
+  let s3Container = canvas.querySelector('#stage-canvas-s3');
+
+  if (!s1Container || !s2Container || !s3Container) {
+    canvas.innerHTML = `
+      <div id="stage-canvas-s1" style="display:none; flex-direction:column; height:100%; width:100%; overflow:hidden;"></div>
+      <div id="stage-canvas-s2" style="display:none; flex-direction:column; height:100%; width:100%; overflow:hidden;"></div>
+      <div id="stage-canvas-s3" style="display:none; flex-direction:column; height:100%; width:100%; overflow:hidden;"></div>
+    `;
+    s1Container = canvas.querySelector('#stage-canvas-s1');
+    s2Container = canvas.querySelector('#stage-canvas-s2');
+    s3Container = canvas.querySelector('#stage-canvas-s3');
+  }
+
+  const curStage = state.currentStage || 'stage1';
+  s1Container.style.display = (curStage === 'stage1') ? 'flex' : 'none';
+  s2Container.style.display = (curStage === 'stage2') ? 'flex' : 'none';
+  s3Container.style.display = (curStage === 'stage3') ? 'flex' : 'none';
+
+  if (curStage === 'stage1') renderStage1Canvas(s1Container, state, handlers);
+  else if (curStage === 'stage2') renderStage2Canvas(s2Container, state, handlers);
+  else if (curStage === 'stage3') renderStage3Canvas(s3Container, state, handlers);
 }
 
 export function buildWordEditorHtml(editorId, initialHtml, isReadonly) {

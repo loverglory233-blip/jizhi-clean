@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260901_v1109
+ * Version: 20260901_v1110
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260901_v1109';
+  const APP_VERSION = '20260901_v1110';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -8553,9 +8553,31 @@
   function renderCanvas(state, handlers) {
     const canvas = document.getElementById('canvas-panel');
     if (!canvas) return;
-    if (state.currentStage === 'stage1') renderStage1Canvas(canvas, state, handlers);
-    else if (state.currentStage === 'stage2') renderStage2Canvas(canvas, state, handlers);
-    else if (state.currentStage === 'stage3') renderStage3Canvas(canvas, state, handlers);
+
+    // 🛡️ 极致架构升级：采用多阶段独立持久化容器，切换阶段时保留 DOM 与 iframe，彻底根治 Etherpad 闪烁白屏与状态丢失问题
+    let s1Container = canvas.querySelector('#stage-canvas-s1');
+    let s2Container = canvas.querySelector('#stage-canvas-s2');
+    let s3Container = canvas.querySelector('#stage-canvas-s3');
+
+    if (!s1Container || !s2Container || !s3Container) {
+      canvas.innerHTML = `
+        <div id="stage-canvas-s1" style="display:none; flex-direction:column; height:100%; width:100%; overflow:hidden;"></div>
+        <div id="stage-canvas-s2" style="display:none; flex-direction:column; height:100%; width:100%; overflow:hidden;"></div>
+        <div id="stage-canvas-s3" style="display:none; flex-direction:column; height:100%; width:100%; overflow:hidden;"></div>
+      `;
+      s1Container = canvas.querySelector('#stage-canvas-s1');
+      s2Container = canvas.querySelector('#stage-canvas-s2');
+      s3Container = canvas.querySelector('#stage-canvas-s3');
+    }
+
+    const curStage = state.currentStage || 'stage1';
+    s1Container.style.display = (curStage === 'stage1') ? 'flex' : 'none';
+    s2Container.style.display = (curStage === 'stage2') ? 'flex' : 'none';
+    s3Container.style.display = (curStage === 'stage3') ? 'flex' : 'none';
+
+    if (curStage === 'stage1') renderStage1Canvas(s1Container, state, handlers);
+    else if (curStage === 'stage2') renderStage2Canvas(s2Container, state, handlers);
+    else if (curStage === 'stage3') renderStage3Canvas(s3Container, state, handlers);
   }
 
   function buildWordEditorHtml(editorId, initialHtml, isReadonly) {
@@ -13813,17 +13835,19 @@
             m.text?.includes('二审修改要点提炼') || 
             m.text?.includes('修改确认与写作冲刺')
           ));
-          const secondReviewTime = parseMsgTime(secondReviewMsg);
-          const hasPassedSecondReview = !!secondReviewMsg || s2.meetingStep === 'completed';
+          const secondReviewTime = parseMsgTime(secondReviewMsg) || s2.meetingCompletedTime || s2.meetingCalledTime || 0;
+          const hasPassedSecondReview = !!secondReviewMsg || s2.meetingStep === 'completed' || s2.reviewMilestone === 'second_review_done' || s2.reviewMilestone === 'action_plan_generated';
           const postSecondReviewElapsedMs = secondReviewTime > 0 ? Math.max(0, now - secondReviewTime) : 0;
-          const minPostReviewModCooldownMs = isLargeTask ? 900000 : 600000; // 统一 10 分钟（大任务 15 分钟）修改沉淀期
+          const minPostReviewModCooldownMs = isLargeTask ? 900000 : 600000; // 10 分钟（大任务 15 分钟）
 
           // 2. 判定三审触发条件：
-          // 路径 A：组内成员全员完成【✍️ 确认初稿】（立即触发）；
-          // 路径 B：半程会议审稿编辑总结（二审决议）发出 10 分钟后，且正文字数达到 85%（或成文字数达标）。
-          const isFullDraftConfirmed = !!s2.isDraftConfirmed;
-          const isTimeAndWordMature = postSecondReviewElapsedMs >= minPostReviewModCooldownMs && (wordProgress >= 0.85 || plainTextLen >= (targetWordCount * 0.85) || plainTextLen >= 3000);
-          const isFinalReviewDue = isFullDraftConfirmed || (hasPassedSecondReview && isTimeAndWordMature);
+          // ① 组内成员完成【✍️ 确认初稿】；
+          // ② 半程会议总结后 10 分钟 且 字数达 85% 或 时间达 85%；
+          // ③ 字数达 85% 或 时间达 85% 且已通过二审。
+          const isDraftConfirmed = !!s2.isDraftConfirmed || (s2.confirmedMembers && Object.keys(s2.confirmedMembers).length > 0);
+          const is85Reached = (wordProgress >= 0.85 || timeProgress >= 0.85 || plainTextLen >= (targetWordCount * 0.85));
+          const isTenMinAfterMeetingAnd85 = hasPassedSecondReview && postSecondReviewElapsedMs >= minPostReviewModCooldownMs && is85Reached;
+          const isFinalReviewDue = isDraftConfirmed || isTenMinAfterMeetingAnd85 || (hasPassedSecondReview && is85Reached) || is85Reached;
 
           const hasFinalReviewInLogs = s2Chats.some(m => m && m.sender === 'reviewingEditor' && (m.text?.includes('终稿行文扫描') || m.text?.includes('终审定稿总评') || m.text?.includes('审稿编辑·终审')));
 
@@ -16406,16 +16430,23 @@
   3. 态度务必温和客气、极具建设性（多用“商讨/请教/小细节/落地可行性”）。纯自然语言输出，130~150字。`;
 
           try {
+            const timeoutPromise = new Promise(r => setTimeout(() => r(null), 12000));
             const promises = [];
             if (!hasProp) {
-              promises.push(callCozeAgentAPI('proponent', propPrompt, { stage: 'stage3', topic, actualDoc: rawContent }));
+              promises.push(Promise.race([
+                callCozeAgentAPI('proponent', propPrompt, { stage: 'stage3', topic, actualDoc: rawContent }),
+                timeoutPromise
+              ]));
             } else {
               const existingProp = logs.find(m => m && m.sender === 'proponent');
               promises.push(Promise.resolve(existingProp ? existingProp.text : ''));
             }
 
             if (!hasOpp) {
-              promises.push(callCozeAgentAPI('opponent', oppPrompt, { stage: 'stage3', topic, actualDoc: rawContent }));
+              promises.push(Promise.race([
+                callCozeAgentAPI('opponent', oppPrompt, { stage: 'stage3', topic, actualDoc: rawContent }),
+                timeoutPromise
+              ]));
             } else {
               const existingOpp = logs.find(m => m && m.sender === 'opponent');
               promises.push(Promise.resolve(existingOpp ? existingOpp.text : ''));
@@ -16497,7 +16528,7 @@
         if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
         renderChat(this.state);
         this.renderStudentWorkspace();
-        await new Promise(r => setTimeout(r, 1500));
+        await new Promise(r => setTimeout(r, 1000));
 
         // 4. 中间委员独立调用 Coze API，引导第 1 题辩护
         const hasChairGuide = logs.some(m => m && m.sender === 'neutral' && (m.text?.includes('答辩思路引导') || m.text?.includes('质询 ①') || m.text?.includes('意见 1')));
@@ -16522,7 +16553,11 @@
 
           let chairText = '';
           try {
-            chairText = await callCozeAgentAPI('neutral', chairPrompt, { stage: 'stage3', topic, prop: propText, opp: oppText, queryPoint: 1 });
+            const timeoutPromise = new Promise(r => setTimeout(() => r(null), 12000));
+            chairText = await Promise.race([
+              callCozeAgentAPI('neutral', chairPrompt, { stage: 'stage3', topic, prop: propText, opp: oppText, queryPoint: 1 }),
+              timeoutPromise
+            ]);
           } finally {
             this.state.activeAgentAnalyzing = null;
           }
@@ -17605,11 +17640,12 @@
       // ═══════════════════════════════════════════════════════════════
       const isMeetingFinished = (s2.meetingStep === 'completed' || s2.reviewMilestone === 'action_plan_generated' || s2.reviewMilestone === 'second_review_done' || s2.reviewMilestone === 'meeting_called');
       const meetingEndTime = s2.meetingCompletedTime || s2.meetingCalledTime || 0;
-      const isTenMinAfterMeeting = isMeetingFinished && meetingEndTime > 0 && ((now - meetingEndTime) >= 600000); // 半程会议总结后10分钟
+      const isTenMinAfterMeeting = isMeetingFinished && meetingEndTime > 0 && ((now - meetingEndTime) >= 600000);
       const isWordCount85 = (wordProgress >= 0.85 || rawDoc.length >= (targetWordCount * 0.85));
 
       const isFinalReviewDue = (
         s2.isDraftConfirmed ||
+        (s2.confirmedMembers && Object.keys(s2.confirmedMembers).length > 0) ||
         (isMeetingFinished && (isTenMinAfterMeeting || isWordCount85)) ||
         isWordCount85
       );
@@ -17620,7 +17656,7 @@
         this.syncStage2();
       }
 
-      if (!hasFinalReviewInLogs && isFinalReviewDue && timeSinceLastReviewing > 15000 && !this._isTriggeringFinalReview) {
+      if (!hasFinalReviewInLogs && isFinalReviewDue && !this._isTriggeringFinalReview) {
         this.triggerStage2FinalReview();
       }
 
@@ -17742,7 +17778,7 @@
         let resp = null;
         try {
           const apiPromise = callCozeAgentAPI('reviewingEditor', finalPrompt, { stage: 'stage2', topic });
-          const timeoutPromise = new Promise(r => setTimeout(() => r(null), 35000));
+          const timeoutPromise = new Promise(r => setTimeout(() => r(null), 15000));
           resp = await Promise.race([apiPromise, timeoutPromise]);
         } catch (err) {
           resp = null;
