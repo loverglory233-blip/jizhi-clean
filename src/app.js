@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260831_v1017";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260831_v1017";
-import { callCozeAgentAPI } from "./agents.js?v=20260831_v1017";
-import { AuthManager } from "./auth.js?v=20260831_v1017";
-import { CloudSyncEngine } from "./sync.js?v=20260831_v1017";
-import { renderLoginView } from "./login.js?v=20260831_v1017";
-import { renderTeacherPortal } from "./teacher.js?v=20260831_v1017";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260831_v1017";
+} from "./constants.js?v=20260831_v1018";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260831_v1018";
+import { callCozeAgentAPI } from "./agents.js?v=20260831_v1018";
+import { AuthManager } from "./auth.js?v=20260831_v1018";
+import { CloudSyncEngine } from "./sync.js?v=20260831_v1018";
+import { renderLoginView } from "./login.js?v=20260831_v1018";
+import { renderTeacherPortal } from "./teacher.js?v=20260831_v1018";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260831_v1018";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260831_v1017";
+} from "./editor.js?v=20260831_v1018";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -1729,106 +1729,6 @@ export class App {
                 }
                 return;
               }
-            }
-          }
-        }
-
-        // ======================================================================
-        // 📝 审稿编辑二审后静默跟进（半程会议后冷场满 3 分钟提示随时 @ 咨询）
-        // ======================================================================
-        const secondReviewMsgObj = [...s2Chats].reverse().find(m => m && m.sender === 'reviewingEditor' && (m.text?.includes('二审') || m.text?.includes('深度把脉') || m.text?.includes('半程审稿') || m.text?.includes('审稿编辑·二审')));
-        const hasFinalReviewOrConfirmed = s2Chats.some(m => m && (m.text?.includes('终稿行文扫描') || m.text?.includes('终审定稿总评'))) || !!s2.isDraftConfirmed;
-
-        if (secondReviewMsgObj && !hasFinalReviewOrConfirmed) {
-          const secondReviewTime = parseMsgTime(secondReviewMsgObj) || (now - 60000);
-          const secondReviewElapsed = Math.max(0, now - secondReviewTime);
-          const studentMsgAfterSecondReview = s2Chats.filter(m => m && m.sender && m.sender !== 'managingEditor' && m.sender !== 'reviewingEditor' && m.sender !== 'system' && parseMsgTime(m) > secondReviewTime);
-          const lastStudentMsgAfterSecondReview = studentMsgAfterSecondReview.length > 0 ? studentMsgAfterSecondReview[studentMsgAfterSecondReview.length - 1] : null;
-          const lastStudentMsgAfterSecondReviewTime = parseMsgTime(lastStudentMsgAfterSecondReview);
-          const silenceAfterSecondReview = lastStudentMsgAfterSecondReviewTime ? Math.max(0, now - lastStudentMsgAfterSecondReviewTime) : secondReviewElapsed;
-
-          // ── 二审后冷场满 3 分钟：二审跟进提示（全场严格仅 1 次） ──
-          if (silenceAfterSecondReview >= 180000 && !this._nudgeCounts['s2_second_review_silence']) {
-            this._nudgeCounts['s2_second_review_silence'] = 1;
-            const followMsg2 = {
-              sender: 'reviewingEditor',
-              senderName: '学术质量 · 审稿编辑',
-              text: `📝 【审稿编辑·二审跟进提示】：二审深度把脉建议已送达！大家针对决议落实或章节深化若有疑问，随时在讨论区 @审稿编辑 咨询，继续全力推进正文完善！`,
-              timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-              _timeMs: now
-            };
-            if (!this.state.chatLogs.stage2) this.state.chatLogs.stage2 = [];
-            this.state.chatLogs.stage2.push(followMsg2);
-            this.syncChatLogs();
-            if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
-            renderChat(this.state);
-            return;
-          }
-
-          // ── 二审后冷场满 6 分钟：强化收拢催促（全场严格仅 1 次） ──
-          if (silenceAfterSecondReview >= 360000 && !this._nudgeCounts['s2_second_review_silence_6m']) {
-            this._nudgeCounts['s2_second_review_silence_6m'] = 1;
-            const followMsg6 = {
-              sender: 'reviewingEditor',
-              senderName: '学术质量 · 审稿编辑',
-              text: `⏳ 【审稿编辑·二审研讨收拢】：二审深度把脉建议已送达 6 分钟啦！请大家围绕「概念对齐、方法补全、语体规范」尽快商定落实分工与修改计划，若有疑义随时在讨论区 @审稿编辑 咨询！`,
-              timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-              _timeMs: now
-            };
-            if (!this.state.chatLogs.stage2) this.state.chatLogs.stage2 = [];
-            this.state.chatLogs.stage2.push(followMsg6);
-            this.syncChatLogs();
-            if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
-            renderChat(this.state);
-            return;
-          }
-
-          // ── 二审后冷场满 10 分钟（长任务 20 分钟）：审稿编辑 LLM 智能兜底提炼修改要点并顺推 ──
-          const secondReviewFallbackMs = isLargeTask ? 1200000 : 600000;
-          const secondReviewFallbackMinText = isLargeTask ? '20' : '10';
-          if (silenceAfterSecondReview >= secondReviewFallbackMs && !this._s2SecondReviewAutoFallbackRunning) {
-            const nudgeKey2 = 's2_second_review_auto_fallback';
-            if (!this._nudgeCounts[nudgeKey2]) {
-              this._nudgeCounts[nudgeKey2] = 1;
-              this._s2SecondReviewAutoFallbackRunning = true;
-              try {
-                const topic = (this.state.stage1 && this.state.stage1.mergedTitle) ? this.state.stage1.mergedTitle : '本组课题';
-                const userLogs = [...s2Chats].filter(m => m && m.sender && !AgentProfiles[m.sender] && m.sender !== 'system');
-                const chatSnippet = userLogs.map(m => `${m.senderName || m.sender}: ${m.text}`).join('\n') || '组员已收到二审建议，尚未充分讨论落实方案';
-                const fallbackPrompt2 = `全组在收到《二审修正清单》后，围绕修改落实的讨论已持续 ${secondReviewFallbackMinText} 分钟仍未形成明确结论。
-【论文题目】: ${topic}
-【正文草稿参考】: ${plainText.slice(0, 1500)}
-【组内讨论记录】: ${chatSnippet}
-
-请作为审稿编辑，结合二审建议与正文现状，代为提炼【二审修改落实要点】（150~200字）：
-① 明确当前最需优先落实的修改项与分工建议；
-② 提示研究方法与术语细节的补全方向；
-③ 末句鼓励全组回到正文集中修改，冲刺终稿！（纯自然语言，150~200字，严禁输出代码块）`;
-
-                const resp2 = await callCozeAgentAPI('reviewingEditor', fallbackPrompt2, { stage: 'stage2', topic, actualDoc: plainText });
-                let fallbackText2 = (resp2 && resp2.trim().length > 0)
-                  ? resp2.trim()
-                  : `📝 【审稿编辑·二审修改要点提炼】：二审研讨时间已满 ${secondReviewFallbackMinText} 分钟，为确保正文推进节奏，审稿编辑已结合二审建议与学术规范，自动为大家提炼【修改落实要点】：①优先对齐核心概念与问题表述；②补全研究方法与工具操作细节；③统一行文衔接与学术语体。请全组回到正文集中修改，冲刺终稿！`;
-                if (!fallbackText2.startsWith('📝')) fallbackText2 = `📝 【审稿编辑·二审修改要点提炼】：${fallbackText2}`;
-
-                const autoFollowMsg2 = {
-                  sender: 'reviewingEditor',
-                  senderName: '学术质量 · 审稿编辑',
-                  text: fallbackText2,
-                  timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                  _timeMs: now
-                };
-                if (!this.state.chatLogs.stage2) this.state.chatLogs.stage2 = [];
-                this.state.chatLogs.stage2.push(autoFollowMsg2);
-                this.syncChatLogs();
-                if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
-                renderChat(this.state);
-              } catch (e) {
-                console.warn('s2_second_review_auto_fallback error:', e);
-              } finally {
-                this._s2SecondReviewAutoFallbackRunning = false;
-              }
-              return;
             }
           }
         }
