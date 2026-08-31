@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260831_v1011
+ * Version: 20260831_v1012
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260831_v1011';
+  const APP_VERSION = '20260831_v1012';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -13491,10 +13491,10 @@
             }
 
             // ======================================================================
-            // 📌 质检/讨论梯度 C：一致性讨论（连续冷场 3 / 6 / 10 分钟静默守护）
+            // 📌 质检/讨论梯度 C：针对《二审修正清单》的修改方案商定（审稿编辑负责学术研讨引导与静默守护）
             // ======================================================================
             if (!hasUnsubmitted) {
-              const checklistMsg = [...s2Chats].reverse().find(m => m && (m.text?.includes('半程修正清单') || m.text?.includes('半程编辑修正清单')));
+              const checklistMsg = [...s2Chats].reverse().find(m => m && (m.text?.includes('二审修正清单') || m.text?.includes('半程修正清单') || m.text?.includes('半程编辑修正清单')));
               const checklistTime = parseMsgTime(checklistMsg) || meetingMsgTime || this.stage2StartTime || (now - 60000);
               const checklistElapsed = Math.max(0, now - checklistTime);
               const studentMsgAfterChecklist = s2Chats.filter(m => m && m.sender && m.sender !== 'managingEditor' && m.sender !== 'reviewingEditor' && m.sender !== 'system' && parseMsgTime(m) > checklistTime);
@@ -13502,7 +13502,7 @@
               const lastStudentMsgAfterChecklistTime = parseMsgTime(lastStudentMsgAfterChecklist);
               const silenceAfterChecklist = lastStudentMsgAfterChecklistTime ? Math.max(0, now - lastStudentMsgAfterChecklistTime) : checklistElapsed;
 
-              // 🛡️ 学生有发言即解除静默，重置一致性讨论计数
+              // 🛡️ 学生有发言即解除静默，重置讨论计数
               if (lastStudentMsgAfterChecklistTime > (this._lastNudgeActivityTime?.['s2_consistency'] || 0)) {
                 this._nudgeCounts['s2_consistency_silence_3m'] = 0;
                 this._nudgeCounts['s2_consistency_silence_6m'] = 0;
@@ -13510,50 +13510,51 @@
                 this._lastNudgeActivityTime['s2_consistency'] = lastStudentMsgAfterChecklistTime;
               }
 
-              // ── ① 3 分钟没讨论：破冰点拨 ──
-              const exist3mNudge = s2Chats.some(m => m && m.text?.includes('一致性研讨点拨'));
-              if (!exist3mNudge && silenceAfterChecklist >= 180000) {
+              // ── ① 3 分钟没讨论：审稿编辑学术破冰点拨 ──
+              const exist3mNudge = s2Chats.some(m => m && (m.text?.includes('清单修改研讨点拨') || m.text?.includes('一致性研讨点拨')));
+              if (!exist3mNudge && silenceAfterChecklist >= 180000 && s2.meetingStep === 'discussing_checklist') {
                 this._nudgeCounts['s2_consistency_silence_3m'] = 1;
                 const msg = {
-                  sender: 'managingEditor',
-                  senderName: '协同调度 · 责任编辑',
-                  text: `🤝 【责任编辑·一致性研讨点拨】：全组已顺利完成自查打卡！请大家针对清单中的修改分工（如前后逻辑衔接、术语规范与论证深度）在讨论区充分交流，商定具体修改方案哦～`,
+                  sender: 'reviewingEditor',
+                  senderName: '学术质量 · 审稿编辑',
+                  text: `📝 【审稿编辑·清单修改研讨点拨】：二审修正清单已下发！请大家对照清单中指出的学术诊断要点，在讨论区充分商定具体的修改对策与落实方案哦～`,
                   timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
                   _timeMs: now
                 };
                 if (!this.state.chatLogs.stage2) this.state.chatLogs.stage2 = [];
                 this.state.chatLogs.stage2.push(msg);
                 this.syncChatLogs();
+                this.syncStage2();
                 if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
                 renderChat(this.state);
                 return;
               }
 
-              // ── ② 6 分钟仍没讨论：强化收拢催促 ──
-              const exist6mNudge = s2Chats.some(m => m && m.text?.includes('研讨收拢提醒'));
-              if (!exist6mNudge && silenceAfterChecklist >= 360000) {
+              // ── ② 6 分钟仍没讨论：审稿编辑强化收拢催促 ──
+              const exist6mNudge = s2Chats.some(m => m && (m.text?.includes('修改对策收拢提醒') || m.text?.includes('研讨收拢提醒')));
+              if (!exist6mNudge && silenceAfterChecklist >= 360000 && s2.meetingStep === 'discussing_checklist') {
                 this._nudgeCounts['s2_consistency_silence_6m'] = 1;
-                const btnName = (s2.meetingStep === 'discussing_checklist') ? '【📝 讨论差不多了？让审稿编辑总结】' : '【💡 讨论差不多了？让责任编辑总结】';
                 const msg = {
-                  sender: 'managingEditor',
-                  senderName: '协同调度 · 责任编辑',
-                  text: `⏳ 【责任编辑·研讨收拢提醒】：一致性研讨已进行 6 分钟！请全组同学抓紧商定各板块的修改方案。商量差不多后，请点击聊天框上方的 ${btnName} 按钮，系统将为大家一键提炼研讨要点并推进后续！`,
+                  sender: 'reviewingEditor',
+                  senderName: '学术质量 · 审稿编辑',
+                  text: `⏳ 【审稿编辑·修改对策收拢提醒】：针对清单的修改研讨已进行 6 分钟！请全组同学抓紧对齐修改落实方案。商量差不多后，请点击聊天框上方的【📝 讨论差不多了？让审稿编辑总结】按钮，我将为大家提炼修改要点并指导回到正文继续撰写！`,
                   timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
                   _timeMs: now
                 };
                 if (!this.state.chatLogs.stage2) this.state.chatLogs.stage2 = [];
                 this.state.chatLogs.stage2.push(msg);
                 this.syncChatLogs();
+                this.syncStage2();
                 if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
                 renderChat(this.state);
                 return;
               }
 
               // ── ③ 强兜底智能提炼回填并顺推：讨论持续满 10 分钟（长任务 20 分钟）自动触发 ──
-              const existFallback = s2Chats.some(m => m && (m.text?.includes('半程修改决议') || m.text?.includes('二审修改落实要点')));
+              const existFallback = s2Chats.some(m => m && (m.text?.includes('二审修改决议') || m.text?.includes('二审修改落实要点')));
               const consistencyFallbackMs = isLargeTask ? 1200000 : 600000;
               const consistencyFallbackMinText = isLargeTask ? '20' : '10';
-              if (!existFallback && checklistElapsed >= consistencyFallbackMs && !this._s2MeetingAutoFallbackRunning) {
+              if (!existFallback && checklistElapsed >= consistencyFallbackMs && s2.meetingStep === 'discussing_checklist' && !this._s2MeetingAutoFallbackRunning) {
                 const nudgeKey = 's2_consistency_auto_fallback';
                 if (!this._nudgeCounts[nudgeKey]) {
                   this._nudgeCounts[nudgeKey] = 1;
@@ -13564,26 +13565,25 @@
                   try {
                     const topic = (this.state.stage1 && this.state.stage1.mergedTitle) ? this.state.stage1.mergedTitle : '本组课题';
                     const userLogs = [...s2Chats].filter(m => m && m.sender && !AgentProfiles[m.sender] && m.sender !== 'system');
-                    const chatSnippet = userLogs.map(m => `${m.senderName || m.sender}: ${m.text}`).join('\n') || '全组已完成半程自查打卡，尚未充分讨论修改方案';
-                    const fallbackPrompt = `全组已完成半程学术审计会议自查打卡，但针对《半程修正清单》的修改方案讨论已持续 ${consistencyFallbackMinText} 分钟仍未形成结论。
+                    const chatSnippet = userLogs.map(m => `${m.senderName || m.sender}: ${m.text}`).join('\n') || '全组已针对修正清单展开讨论';
+                    const fallbackPrompt = `全组已收到《二审修正清单》，针对清单的修改方案讨论已持续 ${consistencyFallbackMinText} 分钟。
   【论文题目】: ${topic}
   【正文草稿参考】: ${plainText.slice(0, 1500)}
   【组内讨论记录】: ${chatSnippet}
 
-  请作为责任编辑，结合全组自查结论与学术规范，代为提炼形成【半程修改决议】（150~200字）：
-  ① 明确各章节优先修改重点与分工建议；
-  ② 给出前后衔接与术语统一的落实要求；
-  ③ 末句提示全组按决议回到正文集中修改落实！（纯自然语言，150~200字，严禁输出代码块）`;
+  请作为审稿编辑，结合学术规范代为提炼形成【二审修改落实决议】（120~150字，严禁出现“分工”字眼）：
+  ① 明确全篇修改要点与章节对齐要求；
+  ② 提示全组回到正文集中修改落实，冲刺定稿！（纯自然语言，120~150字，严禁输出代码块）`;
 
-                    const resp = await callCozeAgentAPI('managingEditor', fallbackPrompt, { stage: 'stage2', topic });
+                    const resp = await callCozeAgentAPI('reviewingEditor', fallbackPrompt, { stage: 'stage2', topic });
                     let fallbackText = (resp && resp.trim().length > 0)
                       ? resp.trim()
-                      : `🤝 【责任编辑·智能提炼决议】：半程研讨时间已满 ${consistencyFallbackMinText} 分钟，为确保正文推进节奏，责任编辑已结合全组自查清单与学术规范，自动为大家提炼形成【半程修改决议】：①优先对齐前后章节衔接与核心术语；②按分工集中补全研究方法细节；③统一学术语体。请全组同学按照决议分工，集中精力在正文中修改落实！`;
-                    if (!fallbackText.startsWith('🤝')) fallbackText = `🤝 【责任编辑·智能提炼决议】：${fallbackText}`;
+                      : `📝 【审稿编辑·二审修改落实决议】：讨论时间已满 ${consistencyFallbackMinText} 分钟，为确保正文推进节奏，审稿编辑已为大家自动提炼【二审修改落实决议】：① 统领各章节核心术语，消除口语化表述；② 集中细化研究方法操作化步骤与测量工具；③ 补全未完成章节。请全组成员回到左侧正文集中修改落实，冲刺终审定稿！`;
+                    if (!fallbackText.startsWith('📝')) fallbackText = `📝 【审稿编辑·二审修改落实决议】：${fallbackText}`;
 
                     const autoNoticeMsg = {
-                      sender: 'managingEditor',
-                      senderName: '协同调度 · 责任编辑',
+                      sender: 'reviewingEditor',
+                      senderName: '学术质量 · 审稿编辑',
                       text: fallbackText,
                       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
                       _timeMs: now
@@ -13591,6 +13591,7 @@
                     if (!this.state.chatLogs.stage2) this.state.chatLogs.stage2 = [];
                     this.state.chatLogs.stage2.push(autoNoticeMsg);
                     this.syncChatLogs();
+                    this.syncStage2();
                     if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
                     renderChat(this.state);
                   } catch (e) {
