@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260901_v1120
+ * Version: 20260901_v1121
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260901_v1120';
+  const APP_VERSION = '20260901_v1121';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -137,11 +137,11 @@
       },
       modules: [
         { key: 'background', title: '一、研究背景与意义', color: '#2563eb', defaultMinutes: 25 },
-        { key: 'literature', title: '二、文献综述与理论基础', color: '#0284c7', defaultMinutes: 30 },
+        { key: 'literature', title: '二、文献综述', color: '#0284c7', defaultMinutes: 30 },
         { key: 'questions', title: '三、研究问题与假设', color: '#059669', defaultMinutes: 25 },
-        { key: 'method', title: '四、实验设计与研究方法', color: '#7c3aed', defaultMinutes: 40 },
-        { key: 'reflection', title: '五、预期效果与局限反思', color: '#d97706', defaultMinutes: 20 },
-        { key: 'references', title: '六、参考文献著录', color: '#475569', defaultMinutes: 10 }
+        { key: 'method', title: '四、研究设计与方法', color: '#7c3aed', defaultMinutes: 40 },
+        { key: 'reflection', title: '五、研究设计的不足与反思', color: '#d97706', defaultMinutes: 20 },
+        { key: 'references', title: '六、参考文献', color: '#475569', defaultMinutes: 10 }
       ]
     },
     instructional: {
@@ -165,10 +165,10 @@
       modules: [
         { key: 'background', title: '一、教材与学情分析', color: '#2563eb', defaultMinutes: 25 },
         { key: 'literature', title: '二、教学目标与重难点', color: '#0284c7', defaultMinutes: 25 },
-        { key: 'questions', title: '三、教学过程：情境创设与导入', color: '#059669', defaultMinutes: 25 },
-        { key: 'method', title: '四、教学过程：任务驱动与新知探究', color: '#7c3aed', defaultMinutes: 45 },
-        { key: 'reflection', title: '五、教学过程：巩固迁移与展示评价', color: '#d97706', defaultMinutes: 30 },
-        { key: 'references', title: '六、板书设计、作业与教学反思', color: '#475569', defaultMinutes: 20 }
+        { key: 'questions', title: '三、情境创设与导入', color: '#059669', defaultMinutes: 25 },
+        { key: 'method', title: '四、新知探究与建构', color: '#7c3aed', defaultMinutes: 45 },
+        { key: 'reflection', title: '五、巩固练习与评价', color: '#d97706', defaultMinutes: 30 },
+        { key: 'references', title: '六、板书设计与反思', color: '#475569', defaultMinutes: 20 }
       ]
     }
   };
@@ -9641,9 +9641,10 @@
                       </button>
                     `;
                   }
+                  const extractName = (taskGenreKey === 'instructional') ? '课题与教学构想' : '主题与研究方案';
                   return `
                     <button id="btn-extract-topic" style="background:${isFull ? 'linear-gradient(135deg, #d97706, #b45309)' : (isMe ? 'linear-gradient(135deg, #059669, #047857)' : 'linear-gradient(135deg, #2563eb, #1d4ed8)')}; border:none; color:white; padding:9px 24px; border-radius:20px; font-weight:800; font-size:13.5px; cursor:${isFull ? 'wait' : 'pointer'}; display:inline-flex; align-items:center; gap:6px; box-shadow:0 4px 14px rgba(37,99,235,0.3); transition:all 0.2s;" ${isFull ? 'disabled' : ''}>
-                      ${isFull ? `⏳ 全员已确认 (${count}/${totalMembersCount}) · 正在提炼【主题与研究方案】...` : (isMe ? `✅ 您已确认提炼主题与方案 (${count}/${totalMembersCount} 等待其他组员)` : `💡 讨论差不多了？一键提炼【主题与研究方案】 (${count}/${totalMembersCount})`)}
+                      ${isFull ? `⏳ 全员已确认 (${count}/${totalMembersCount}) · 正在提炼【${extractName}】...` : (isMe ? `✅ 您已确认提炼${extractName} (${count}/${totalMembersCount} 等待其他组员)` : `💡 讨论差不多了？一键提炼【${extractName}】 (${count}/${totalMembersCount})`)}
                     </button>
                   `;
                 }
@@ -9652,20 +9653,20 @@
           ` : ''}
         </div>
 
-        <!-- 槽位 1：论文主题 / 题目 -->
+        <!-- 槽位 1：论文主题 / 教学设计课题 -->
         <div style="display:flex; flex-direction:column; gap:8px; width:100%; margin-bottom:14px; background:#eff6ff; padding:16px; border-radius:12px; border:1px solid #bfdbfe; box-sizing:border-box;">
           <label style="font-size:14px; font-weight:800; color:#1e40af; display:flex; align-items:center; gap:6px;">
-            📌 【槽位 1】确认论文主题 / 题目:
+            📌 【槽位 1】确认${(taskGenreKey === 'instructional') ? '教学设计课题 / 主题' : '研究方案课题 / 题目'}:
           </label>
-          <input type="text" id="contract-topic-input" class="large-contract-input" data-lock-key="topic_title" value="${s1.mergedTitle || s1.contract?.topic || ''}" placeholder="${s1.mergedTitle ? '在此处输入论文规范题名...' : '投票有分歧或待定，请在讨论区商定后点击上方一键提炼生成...'}" ${isContractLocked ? 'disabled readonly style="opacity:0.8; cursor:not-allowed;"' : ''} style="width:100%; box-sizing:border-box; background:#ffffff; color:#0f172a; border:1px solid #cbd5e1; border-radius:8px; padding:12px 14px; font-size:14.5px; font-weight:700; font-family:sans-serif;">
+          <input type="text" id="contract-topic-input" class="large-contract-input" data-lock-key="topic_title" value="${s1.mergedTitle || s1.contract?.topic || ''}" placeholder="${s1.mergedTitle ? '在此处输入定案课题规范名称...' : '投票有分歧或待定，请在讨论区商定后点击上方一键提炼生成...'}" ${isContractLocked ? 'disabled readonly style="opacity:0.8; cursor:not-allowed;"' : ''} style="width:100%; box-sizing:border-box; background:#ffffff; color:#0f172a; border:1px solid #cbd5e1; border-radius:8px; padding:12px 14px; font-size:14.5px; font-weight:700; font-family:sans-serif;">
         </div>
 
-        <!-- 槽位 2：研究方案概述 (容纳具体情境、案例、聚焦点与方法) -->
+        <!-- 槽位 2：方案概述 / 教学构思与主线 -->
         <div style="display:flex; flex-direction:column; gap:8px; width:100%; margin-bottom:20px; background:#f0f9ff; padding:16px; border-radius:12px; border:1px solid #bae6fd; box-sizing:border-box;">
           <label style="font-size:14px; font-weight:800; color:#0369a1; display:flex; align-items:center; gap:6px;">
-            📝 【槽位 2】研究方案概述 (具体情境、案例、聚焦点与方法):
+            📝 【槽位 2】${(taskGenreKey === 'instructional') ? '教学设计整体构想与主线 (核心情境、活动主线与重难点突破)' : '研究方案概述 (具体情境、案例、聚焦点与方法)'}:
           </label>
-          <textarea id="contract-overview-input" class="contract-overview-textarea" data-lock-key="research_overview" placeholder="请在讨论区围绕具体情境/案例、核心聚焦问题与拟采用方法展开研讨，点击上方按钮一键提炼生成（生成后可自由微调）..." ${isContractLocked ? 'disabled readonly style="opacity:0.8; cursor:not-allowed;"' : ''} style="width:100%; min-height:88px; box-sizing:border-box; background:#ffffff; color:#0f172a; border:1px solid #cbd5e1; border-radius:8px; padding:10px 12px; font-size:13px; line-height:1.6; font-family:sans-serif; resize:vertical;">${s1.contract?.overview || s1.researchOverview || ''}</textarea>
+          <textarea id="contract-overview-input" class="contract-overview-textarea" data-lock-key="research_overview" placeholder="请在讨论区围绕核心主线、关键活动/方法展开研讨，点击上方按钮一键提炼生成（生成后可自由微调）..." ${isContractLocked ? 'disabled readonly style="opacity:0.8; cursor:not-allowed;"' : ''} style="width:100%; min-height:88px; box-sizing:border-box; background:#ffffff; color:#0f172a; border:1px solid #cbd5e1; border-radius:8px; padding:10px 12px; font-size:13px; line-height:1.6; font-family:sans-serif; resize:vertical;">${s1.contract?.overview || s1.researchOverview || ''}</textarea>
         </div>
 
         <div style="display:flex; flex-direction:column; gap:16px; width:100%;">
@@ -18244,15 +18245,15 @@
                     ${isInst ? `
                       <label style="font-size:11.5px; color:#451a03; display:flex; align-items:center; gap:4px;"><input type="checkbox" name="ideation-sec" value="一、教材与学情分析"> 【一、教材学情】</label>
                       <label style="font-size:11.5px; color:#451a03; display:flex; align-items:center; gap:4px;"><input type="checkbox" name="ideation-sec" value="二、教学目标与重难点"> 【二、目标重难点】</label>
-                      <label style="font-size:11.5px; color:#451a03; display:flex; align-items:center; gap:4px;"><input type="checkbox" name="ideation-sec" value="三、教学过程：情境创设与导入"> 【三、情境导入】</label>
-                      <label style="font-size:11.5px; color:#451a03; display:flex; align-items:center; gap:4px;"><input type="checkbox" name="ideation-sec" value="四、教学过程：任务驱动与新知探究"> 【四、核心探究】</label>
-                      <label style="font-size:11.5px; color:#451a03; display:flex; align-items:center; gap:4px;"><input type="checkbox" name="ideation-sec" value="五、教学过程：巩固迁移与展示评价"> 【五、巩固评价】</label>
+                      <label style="font-size:11.5px; color:#451a03; display:flex; align-items:center; gap:4px;"><input type="checkbox" name="ideation-sec" value="三、情境创设与导入"> 【三、情境导入】</label>
+                      <label style="font-size:11.5px; color:#451a03; display:flex; align-items:center; gap:4px;"><input type="checkbox" name="ideation-sec" value="四、新知探究与建构"> 【四、新知探究】</label>
+                      <label style="font-size:11.5px; color:#451a03; display:flex; align-items:center; gap:4px;"><input type="checkbox" name="ideation-sec" value="五、巩固练习与评价"> 【五、巩固评价】</label>
                     ` : `
-                      <label style="font-size:11.5px; color:#451a03; display:flex; align-items:center; gap:4px;"><input type="checkbox" name="ideation-sec" value="一、背景与意义"> 【一、背景意义】</label>
+                      <label style="font-size:11.5px; color:#451a03; display:flex; align-items:center; gap:4px;"><input type="checkbox" name="ideation-sec" value="一、研究背景与意义"> 【一、背景意义】</label>
                       <label style="font-size:11.5px; color:#451a03; display:flex; align-items:center; gap:4px;"><input type="checkbox" name="ideation-sec" value="二、文献综述"> 【二、文献综述】</label>
                       <label style="font-size:11.5px; color:#451a03; display:flex; align-items:center; gap:4px;"><input type="checkbox" name="ideation-sec" value="三、研究问题与假设"> 【三、问题假设】</label>
                       <label style="font-size:11.5px; color:#451a03; display:flex; align-items:center; gap:4px;"><input type="checkbox" name="ideation-sec" value="四、研究设计与方法"> 【四、设计方法】</label>
-                      <label style="font-size:11.5px; color:#451a03; display:flex; align-items:center; gap:4px;"><input type="checkbox" name="ideation-sec" value="五、不足与反思"> 【五、不足反思】</label>
+                      <label style="font-size:11.5px; color:#451a03; display:flex; align-items:center; gap:4px;"><input type="checkbox" name="ideation-sec" value="五、研究设计的不足与反思"> 【五、不足反思】</label>
                     `}
                   </div>
                 </div>
@@ -18272,8 +18273,8 @@
                     ${isInst ? `
                       <label style="font-size:11.5px; color:#1e3a8a; display:flex; align-items:center; gap:4px;"><input type="checkbox" name="trans-div-sec" value="学情到目标 (第一至二章)"> 【第一至二章 (学情➔目标)】</label>
                       <label style="font-size:11.5px; color:#1e3a8a; display:flex; align-items:center; gap:4px;"><input type="checkbox" name="trans-div-sec" value="目标到导入 (第二至三章)"> 【第二至三章 (目标➔导入)】</label>
-                      <label style="font-size:11.5px; color:#1e3a8a; display:flex; align-items:center; gap:4px;"><input type="checkbox" name="trans-div-sec" value="导入到探究 (第三至四章)"> 【第三至四章 (导入➔核心探究)】</label>
-                      <label style="font-size:11.5px; color:#1e3a8a; display:flex; align-items:center; gap:4px;"><input type="checkbox" name="trans-div-sec" value="探究到评价 (第四至五章)"> 【第四至五章 (探究➔巩固评价)】</label>
+                      <label style="font-size:11.5px; color:#1e3a8a; display:flex; align-items:center; gap:4px;"><input type="checkbox" name="trans-div-sec" value="导入到探究 (第三至四章)"> 【第三至四章 (导入➔探究)】</label>
+                      <label style="font-size:11.5px; color:#1e3a8a; display:flex; align-items:center; gap:4px;"><input type="checkbox" name="trans-div-sec" value="探究到评价 (第四至五章)"> 【第四至五章 (探究➔评价)】</label>
                     ` : `
                       <label style="font-size:11.5px; color:#1e3a8a; display:flex; align-items:center; gap:4px;"><input type="checkbox" name="trans-div-sec" value="背景到综述 (第一至二章)"> 【第一至二章 (背景➔综述)】</label>
                       <label style="font-size:11.5px; color:#1e3a8a; display:flex; align-items:center; gap:4px;"><input type="checkbox" name="trans-div-sec" value="综述到假设 (第二至三章)"> 【第二至三章 (综述➔假设)】</label>
@@ -18298,15 +18299,15 @@
                     ${isInst ? `
                       <label style="font-size:11.5px; color:#4c1d95; display:flex; align-items:center; gap:4px;"><input type="checkbox" name="style-div-sec" value="一、教材与学情分析"> 【一、教材学情】</label>
                       <label style="font-size:11.5px; color:#4c1d95; display:flex; align-items:center; gap:4px;"><input type="checkbox" name="style-div-sec" value="二、教学目标与重难点"> 【二、目标重难点】</label>
-                      <label style="font-size:11.5px; color:#4c1d95; display:flex; align-items:center; gap:4px;"><input type="checkbox" name="style-div-sec" value="三、教学过程：情境创设与导入"> 【三、情境导入】</label>
-                      <label style="font-size:11.5px; color:#4c1d95; display:flex; align-items:center; gap:4px;"><input type="checkbox" name="style-div-sec" value="四、教学过程：任务驱动与新知探究"> 【四、核心探究】</label>
-                      <label style="font-size:11.5px; color:#4c1d95; display:flex; align-items:center; gap:4px;"><input type="checkbox" name="style-div-sec" value="五、教学过程：巩固迁移与展示评价"> 【五、巩固评价】</label>
+                      <label style="font-size:11.5px; color:#4c1d95; display:flex; align-items:center; gap:4px;"><input type="checkbox" name="style-div-sec" value="三、情境创设与导入"> 【三、情境导入】</label>
+                      <label style="font-size:11.5px; color:#4c1d95; display:flex; align-items:center; gap:4px;"><input type="checkbox" name="style-div-sec" value="四、新知探究与建构"> 【四、新知探究】</label>
+                      <label style="font-size:11.5px; color:#4c1d95; display:flex; align-items:center; gap:4px;"><input type="checkbox" name="style-div-sec" value="五、巩固练习与评价"> 【五、巩固评价】</label>
                     ` : `
-                      <label style="font-size:11.5px; color:#4c1d95; display:flex; align-items:center; gap:4px;"><input type="checkbox" name="style-div-sec" value="一、背景与意义"> 【一、背景意义】</label>
+                      <label style="font-size:11.5px; color:#4c1d95; display:flex; align-items:center; gap:4px;"><input type="checkbox" name="style-div-sec" value="一、研究背景与意义"> 【一、背景意义】</label>
                       <label style="font-size:11.5px; color:#4c1d95; display:flex; align-items:center; gap:4px;"><input type="checkbox" name="style-div-sec" value="二、文献综述"> 【二、文献综述】</label>
                       <label style="font-size:11.5px; color:#4c1d95; display:flex; align-items:center; gap:4px;"><input type="checkbox" name="style-div-sec" value="三、研究问题与假设"> 【三、问题假设】</label>
                       <label style="font-size:11.5px; color:#4c1d95; display:flex; align-items:center; gap:4px;"><input type="checkbox" name="style-div-sec" value="四、研究设计与方法"> 【四、设计方法】</label>
-                      <label style="font-size:11.5px; color:#4c1d95; display:flex; align-items:center; gap:4px;"><input type="checkbox" name="style-div-sec" value="五、不足与反思"> 【五、不足反思】</label>
+                      <label style="font-size:11.5px; color:#4c1d95; display:flex; align-items:center; gap:4px;"><input type="checkbox" name="style-div-sec" value="五、研究设计的不足与反思"> 【五、不足反思】</label>
                     `}
                   </div>
                 </div>

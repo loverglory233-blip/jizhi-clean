@@ -4,7 +4,7 @@
  * Version: 2.1.0 (2026-08-23)
  */
 
-export const APP_VERSION = '20260901_v1120';
+export const APP_VERSION = '20260901_v1121';
 export const APP_BUILD_DATE = '2026-08-26';
 
 export const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -125,11 +125,11 @@ export const TASK_GENRE_CONFIGS = {
     },
     modules: [
       { key: 'background', title: '一、研究背景与意义', color: '#2563eb', defaultMinutes: 25 },
-      { key: 'literature', title: '二、文献综述与理论基础', color: '#0284c7', defaultMinutes: 30 },
+      { key: 'literature', title: '二、文献综述', color: '#0284c7', defaultMinutes: 30 },
       { key: 'questions', title: '三、研究问题与假设', color: '#059669', defaultMinutes: 25 },
-      { key: 'method', title: '四、实验设计与研究方法', color: '#7c3aed', defaultMinutes: 40 },
-      { key: 'reflection', title: '五、预期效果与局限反思', color: '#d97706', defaultMinutes: 20 },
-      { key: 'references', title: '六、参考文献著录', color: '#475569', defaultMinutes: 10 }
+      { key: 'method', title: '四、研究设计与方法', color: '#7c3aed', defaultMinutes: 40 },
+      { key: 'reflection', title: '五、研究设计的不足与反思', color: '#d97706', defaultMinutes: 20 },
+      { key: 'references', title: '六、参考文献', color: '#475569', defaultMinutes: 10 }
     ]
   },
   instructional: {
@@ -153,10 +153,10 @@ export const TASK_GENRE_CONFIGS = {
     modules: [
       { key: 'background', title: '一、教材与学情分析', color: '#2563eb', defaultMinutes: 25 },
       { key: 'literature', title: '二、教学目标与重难点', color: '#0284c7', defaultMinutes: 25 },
-      { key: 'questions', title: '三、教学过程：情境创设与导入', color: '#059669', defaultMinutes: 25 },
-      { key: 'method', title: '四、教学过程：任务驱动与新知探究', color: '#7c3aed', defaultMinutes: 45 },
-      { key: 'reflection', title: '五、教学过程：巩固迁移与展示评价', color: '#d97706', defaultMinutes: 30 },
-      { key: 'references', title: '六、板书设计、作业与教学反思', color: '#475569', defaultMinutes: 20 }
+      { key: 'questions', title: '三、情境创设与导入', color: '#059669', defaultMinutes: 25 },
+      { key: 'method', title: '四、新知探究与建构', color: '#7c3aed', defaultMinutes: 45 },
+      { key: 'reflection', title: '五、巩固练习与评价', color: '#d97706', defaultMinutes: 30 },
+      { key: 'references', title: '六、板书设计与反思', color: '#475569', defaultMinutes: 20 }
     ]
   }
 };
