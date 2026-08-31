@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260831_v1100
+ * Version: 20260831_v1101
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260831_v1100';
+  const APP_VERSION = '20260831_v1101';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -10410,7 +10410,7 @@
       if (strictCtx.taskId) activeTaskId = strictCtx.taskId;
     }
 
-    const currUserCode = currUser?.studentCode || currUser?.id || currUser?.username || '';
+    const currUserCode = state.currentUser || currUser?.studentCode || currUser?.id || currUser?.username || 'A';
     let currUserName = currUser?.name || '';
     if (!currUserName && state.members && state.members[currUserCode]?.name) {
       currUserName = state.members[currUserCode].name;
@@ -10461,7 +10461,6 @@
     const actualTotalCount = allGroupMembers.length > 0 ? allGroupMembers.length : (membersList.length || 2);
     const totalCount = actualTotalCount;
     const confirmedDraftCount = allGroupMembers.filter(m => isMemberDone(confirmedDraftMap, m)).length;
-    const currUserCode = state.currentUser || (currUser ? currUser.studentCode : 'A');
     const isUserDraftConfirmed = isMemberDone(confirmedDraftMap, { id: currUserCode, studentCode: currUser?.studentCode, username: currUser?.username, name: currUser?.name });
     const isDraftFullyConfirmed = !!s2.isDraftConfirmed && (confirmedDraftCount >= actualTotalCount && actualTotalCount > 0);
     const meetingSubs = s2.meetingSubmissions || {};

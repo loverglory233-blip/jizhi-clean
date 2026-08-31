@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles } from "./constants.js?v=20260831_v1100";
-import { callCozeAgentAPI } from "./agents.js?v=20260831_v1100";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, showResolutionBlock } from "./utils.js?v=20260831_v1100";
+import { AgentProfiles } from "./constants.js?v=20260831_v1101";
+import { callCozeAgentAPI } from "./agents.js?v=20260831_v1101";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, showResolutionBlock } from "./utils.js?v=20260831_v1101";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -2008,7 +2008,7 @@ function renderStage2Canvas(canvas, state, handlers) {
     if (strictCtx.taskId) activeTaskId = strictCtx.taskId;
   }
 
-  const currUserCode = currUser?.studentCode || currUser?.id || currUser?.username || '';
+  const currUserCode = state.currentUser || currUser?.studentCode || currUser?.id || currUser?.username || 'A';
   let currUserName = currUser?.name || '';
   if (!currUserName && state.members && state.members[currUserCode]?.name) {
     currUserName = state.members[currUserCode].name;
@@ -2059,7 +2059,6 @@ function renderStage2Canvas(canvas, state, handlers) {
   const actualTotalCount = allGroupMembers.length > 0 ? allGroupMembers.length : (membersList.length || 2);
   const totalCount = actualTotalCount;
   const confirmedDraftCount = allGroupMembers.filter(m => isMemberDone(confirmedDraftMap, m)).length;
-  const currUserCode = state.currentUser || (currUser ? currUser.studentCode : 'A');
   const isUserDraftConfirmed = isMemberDone(confirmedDraftMap, { id: currUserCode, studentCode: currUser?.studentCode, username: currUser?.username, name: currUser?.name });
   const isDraftFullyConfirmed = !!s2.isDraftConfirmed && (confirmedDraftCount >= actualTotalCount && actualTotalCount > 0);
   const meetingSubs = s2.meetingSubmissions || {};
