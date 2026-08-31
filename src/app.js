@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260831_v1004";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260831_v1004";
-import { callCozeAgentAPI } from "./agents.js?v=20260831_v1004";
-import { AuthManager } from "./auth.js?v=20260831_v1004";
-import { CloudSyncEngine } from "./sync.js?v=20260831_v1004";
-import { renderLoginView } from "./login.js?v=20260831_v1004";
-import { renderTeacherPortal } from "./teacher.js?v=20260831_v1004";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260831_v1004";
+} from "./constants.js?v=20260831_v1005";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260831_v1005";
+import { callCozeAgentAPI } from "./agents.js?v=20260831_v1005";
+import { AuthManager } from "./auth.js?v=20260831_v1005";
+import { CloudSyncEngine } from "./sync.js?v=20260831_v1005";
+import { renderLoginView } from "./login.js?v=20260831_v1005";
+import { renderTeacherPortal } from "./teacher.js?v=20260831_v1005";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260831_v1005";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260831_v1004";
+} from "./editor.js?v=20260831_v1005";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -3853,6 +3853,14 @@ ${rawDoc.slice(0, 1000)}
 （纯自然语言，90~120字，严禁输出代码块）`;
 
     try {
+      // 🌟 1. 挂载责任编辑正在分析中动态状态框
+      this.state.activeAgentAnalyzing = {
+        icon: '🤝',
+        title: '【责任编辑】正在提炼半程研讨共识...',
+        detail: '正在深度整合全组自查痛点与研讨记录，提炼修改共识要点并交棒审稿专家...'
+      };
+      this.renderStudentWorkspace();
+
       const respManaging = await callCozeAgentAPI('managingEditor', managingPrompt, { stage: 'stage2', topic, chatSnippet, bottlenecks, focusIssues });
       let managingText = (respManaging && respManaging.trim().length > 0) 
         ? respManaging.trim() 
@@ -3867,6 +3875,16 @@ ${rawDoc.slice(0, 1000)}
         _timeMs: Date.now()
       };
       s2ChatLogs.push(msgManaging);
+      this.syncChatLogs();
+      renderChat(this.state);
+
+      // 🌟 2. 切换为审稿编辑二审质检正在分析中动态状态框
+      this.state.activeAgentAnalyzing = {
+        icon: '📝',
+        title: '【审稿编辑】正在下发《二审修正清单》...',
+        detail: '正在深度审阅正文草稿并结合自查瓶颈，生成包含【诊断问题+改进建议】的双结构清单...'
+      };
+      this.renderStudentWorkspace();
 
       // 审稿专家结合自查瓶颈、讨论与正文下发【诊断问题 + 改进建议】双结构《二审修正清单》
       const reviewingPrompt = `针对课题《${topic}》，结合小组成员自查瓶颈【${bottlenecks}】、聚焦关注点【${focusIssues}】及下方正文草稿，作为资深审稿编辑给出包含【诊断问题 + 改进建议】双结构的学术质检《二审修正清单》（150~180字）：
@@ -3930,12 +3948,13 @@ ${chatSnippet}
       this.syncStage2();
       this.syncChatLogs();
       if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
-      renderChat(this.state);
-      this.renderStudentWorkspace(); // 🌟 立即解锁并展开左侧正文上方的【半程修正清单】卡片！
     } catch (e) {
       console.warn('handleS2ManagingSummary error:', e);
     } finally {
+      this.state.activeAgentAnalyzing = null; // 🌟 研判完毕，清除动态分析框
       this._isGeneratingManagingSummary = false;
+      renderChat(this.state);
+      this.renderStudentWorkspace(); // 🌟 立即解锁并展开左侧正文上方的【半程修正清单】卡片！
     }
   }
 
@@ -4010,6 +4029,14 @@ ${chatSnippet}
 ② 鼓励全组回到左侧正文继续高效撰写与修改，冲刺最终高质量学术成文！（纯自然语言，90~120字）`;
 
     try {
+      // 🌟 挂载审稿编辑三审正在分析中动态状态框
+      this.state.activeAgentAnalyzing = {
+        icon: '📝',
+        title: '【审稿编辑】正在审查清单落实与定稿冲刺...',
+        detail: '正在评估全组修改对策与落实方案，起草学术成稿与答辩冲刺寄语...'
+      };
+      this.renderStudentWorkspace();
+
       const respSummary = await callCozeAgentAPI('reviewingEditor', summaryPrompt, { stage: 'stage2', topic });
       let summaryText = (respSummary && respSummary.trim().length > 0)
         ? respSummary.trim()
@@ -4031,9 +4058,12 @@ ${chatSnippet}
       this.syncStage2();
       this.syncChatLogs();
       if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
-      renderChat(this.state);
     } catch (e) {
       console.warn('handleS2ReviewingSummary error:', e);
+    } finally {
+      this.state.activeAgentAnalyzing = null; // 🌟 研判完毕，清除动态分析框
+      renderChat(this.state);
+      this.renderStudentWorkspace();
     }
   }
 

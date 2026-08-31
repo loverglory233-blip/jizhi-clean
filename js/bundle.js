@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260831_v1004
+ * Version: 20260831_v1005
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260831_v1004';
+  const APP_VERSION = '20260831_v1005';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -10785,6 +10785,26 @@
           </div>
         </div>
 
+        <!-- 🚀 智能体正在深度研判/质检状态横幅 (非对话气泡专用动效框) -->
+        ${state.activeAgentAnalyzing ? `
+          <div id="agent-analyzing-live-banner" style="background:linear-gradient(135deg, #eff6ff 0%, #f0fdf4 100%); border:1.5px solid #93c5fd; border-radius:8px; padding:10px 16px; margin-bottom:6px; display:flex; align-items:center; justify-content:space-between; box-shadow:0 3px 12px rgba(37,99,235,0.12); flex-shrink:0;">
+            <div style="display:flex; align-items:center; gap:12px;">
+              <div style="width:20px; height:20px; border:2.5px solid #bfdbfe; border-top-color:#2563eb; border-radius:50%; animation:spin 0.9s linear infinite; flex-shrink:0;"></div>
+              <div>
+                <div style="font-size:12.5px; font-weight:800; color:#1e3a8a; display:flex; align-items:center; gap:6px;">
+                  <span>${state.activeAgentAnalyzing.icon || '🤖'} ${state.activeAgentAnalyzing.title || '智能体专家正在研读中...'}</span>
+                </div>
+                <div style="font-size:11.5px; color:#2563eb; margin-top:2px; font-weight:600;">
+                  ${state.activeAgentAnalyzing.detail || '正在通读全篇草稿并进行学术质量诊断，请稍候...'}
+                </div>
+              </div>
+            </div>
+            <span style="font-size:11px; font-weight:800; color:#1d4ed8; background:#ffffff; border:1px solid #bfdbfe; padding:3px 10px; border-radius:12px; box-shadow:0 1px 3px rgba(0,0,0,0.05); display:inline-flex; align-items:center; gap:4px;">
+              ⏳ 深度质检中
+            </span>
+          </div>
+        ` : ''}
+
         <!-- 🌟 2. 半程修正清单 (未下发时展示待解锁提示，下发后展示展开卡片) -->
         ${(() => {
           let effActionPlan = actionPlan;
@@ -15648,6 +15668,14 @@
   （纯自然语言，90~120字，严禁输出代码块）`;
 
       try {
+        // 🌟 1. 挂载责任编辑正在分析中动态状态框
+        this.state.activeAgentAnalyzing = {
+          icon: '🤝',
+          title: '【责任编辑】正在提炼半程研讨共识...',
+          detail: '正在深度整合全组自查痛点与研讨记录，提炼修改共识要点并交棒审稿专家...'
+        };
+        this.renderStudentWorkspace();
+
         const respManaging = await callCozeAgentAPI('managingEditor', managingPrompt, { stage: 'stage2', topic, chatSnippet, bottlenecks, focusIssues });
         let managingText = (respManaging && respManaging.trim().length > 0) 
           ? respManaging.trim() 
@@ -15662,6 +15690,16 @@
           _timeMs: Date.now()
         };
         s2ChatLogs.push(msgManaging);
+        this.syncChatLogs();
+        renderChat(this.state);
+
+        // 🌟 2. 切换为审稿编辑二审质检正在分析中动态状态框
+        this.state.activeAgentAnalyzing = {
+          icon: '📝',
+          title: '【审稿编辑】正在下发《二审修正清单》...',
+          detail: '正在深度审阅正文草稿并结合自查瓶颈，生成包含【诊断问题+改进建议】的双结构清单...'
+        };
+        this.renderStudentWorkspace();
 
         // 审稿专家结合自查瓶颈、讨论与正文下发【诊断问题 + 改进建议】双结构《二审修正清单》
         const reviewingPrompt = `针对课题《${topic}》，结合小组成员自查瓶颈【${bottlenecks}】、聚焦关注点【${focusIssues}】及下方正文草稿，作为资深审稿编辑给出包含【诊断问题 + 改进建议】双结构的学术质检《二审修正清单》（150~180字）：
@@ -15725,12 +15763,13 @@
         this.syncStage2();
         this.syncChatLogs();
         if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
-        renderChat(this.state);
-        this.renderStudentWorkspace(); // 🌟 立即解锁并展开左侧正文上方的【半程修正清单】卡片！
       } catch (e) {
         console.warn('handleS2ManagingSummary error:', e);
       } finally {
+        this.state.activeAgentAnalyzing = null; // 🌟 研判完毕，清除动态分析框
         this._isGeneratingManagingSummary = false;
+        renderChat(this.state);
+        this.renderStudentWorkspace(); // 🌟 立即解锁并展开左侧正文上方的【半程修正清单】卡片！
       }
     }
 
@@ -15805,6 +15844,14 @@
   ② 鼓励全组回到左侧正文继续高效撰写与修改，冲刺最终高质量学术成文！（纯自然语言，90~120字）`;
 
       try {
+        // 🌟 挂载审稿编辑三审正在分析中动态状态框
+        this.state.activeAgentAnalyzing = {
+          icon: '📝',
+          title: '【审稿编辑】正在审查清单落实与定稿冲刺...',
+          detail: '正在评估全组修改对策与落实方案，起草学术成稿与答辩冲刺寄语...'
+        };
+        this.renderStudentWorkspace();
+
         const respSummary = await callCozeAgentAPI('reviewingEditor', summaryPrompt, { stage: 'stage2', topic });
         let summaryText = (respSummary && respSummary.trim().length > 0)
           ? respSummary.trim()
@@ -15826,9 +15873,12 @@
         this.syncStage2();
         this.syncChatLogs();
         if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
-        renderChat(this.state);
       } catch (e) {
         console.warn('handleS2ReviewingSummary error:', e);
+      } finally {
+        this.state.activeAgentAnalyzing = null; // 🌟 研判完毕，清除动态分析框
+        renderChat(this.state);
+        this.renderStudentWorkspace();
       }
     }
 
