@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260831_v1009
+ * Version: 20260831_v1010
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260831_v1009';
+  const APP_VERSION = '20260831_v1010';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -10669,9 +10669,46 @@
       // 增量就地刷新【半程修正清单】
       const planCardContainer = canvas.querySelector('#stage2-action-plan-card');
       if (planCardContainer) {
-        if (actionPlan && actionPlan.isGenerated && Array.isArray(actionPlan.items) && actionPlan.items.length > 0) {
-          const completedCount = Object.values(actionPlan.completedMap || {}).filter(Boolean).length;
-          const totalItems = (actionPlan.items || []).length;
+        let effActionPlan = actionPlan;
+        const allChatLogs = [
+          ...(state.chatLogs?.stage1 || []),
+          ...(state.chatLogs?.stage2 || []),
+          ...(state.chatLogs?.stage3 || [])
+        ];
+        const revMsg = [...allChatLogs].reverse().find(m => m && m.text && (m.text.includes('二审修正清单') || m.text.includes('二审修改') || m.text.includes('修正清单')));
+
+        if ((!effActionPlan || !effActionPlan.isGenerated) && (s2.meetingStep === 'discussing_checklist' || s2.meetingStep === 'completed' || !!revMsg)) {
+          let parsedItems = [];
+          if (revMsg && revMsg.text) {
+            const rawTxt = revMsg.text.replace(/^.*?二审修正清单[】:]*/s, '').trim();
+            const chunks = rawTxt.split(/(?=[①②③]|\b[123]\.)/g).map(c => c.trim()).filter(Boolean);
+            chunks.forEach(c => {
+              const cleanChunk = c.replace(/^[①②③\d\.\s\(\)]+/, '').replace(/[；;。]\s*$/, '').trim();
+              if (cleanChunk.length > 3 && !cleanChunk.includes('讨论差不多') && !cleanChunk.includes('请大家围绕') && !cleanChunk.includes('让审稿编辑总结')) {
+                parsedItems.push(cleanChunk);
+              }
+            });
+          }
+          if (parsedItems.length < 3) {
+            parsedItems = [
+              `🎯【核心概念与问题对齐】: 统领各章节核心概念表述，使引言文献综述与核心研究问题精准呼应，消除脱节。`,
+              `✍️【研究方法与工具深化】: 细化数据分析的具体实施步骤与测量工具，确保分析维度与研究假设严格对应。`,
+              `💡【行文衔接与学术规范】: 通读全篇优化段落逻辑过渡，补全未完成章节，消除口语化表达，冲刺定稿！`
+            ];
+          }
+          effActionPlan = {
+            isGenerated: true,
+            completedMap: (effActionPlan && effActionPlan.completedMap) || {},
+            items: parsedItems.slice(0, 3)
+          };
+          if (!state.stage2.actionPlan) state.stage2.actionPlan = effActionPlan;
+          state.stage2.actionPlan.isGenerated = true;
+          state.stage2.actionPlan.items = effActionPlan.items;
+        }
+
+        if (effActionPlan && effActionPlan.isGenerated && Array.isArray(effActionPlan.items) && effActionPlan.items.length > 0) {
+          const completedCount = Object.values(effActionPlan.completedMap || {}).filter(Boolean).length;
+          const totalItems = (effActionPlan.items || []).length;
           const isAllDone = completedCount >= totalItems && totalItems > 0;
           planCardContainer.outerHTML = `
             <div id="stage2-action-plan-card" style="background:#ecfdf5; border:1px solid #a7f3d0; border-radius:6px; padding:6px 12px; margin-bottom:6px; flex-shrink:0; box-shadow:0 1px 3px rgba(5,150,105,0.06);">
@@ -10685,8 +10722,8 @@
                 <span id="icon-toggle-action-plan" style="font-size:11px; color:#059669; font-weight:700; background:#ffffff; border:1px solid #a7f3d0; padding:1.5px 8px; border-radius:4px;">▲ 收起清单</span>
               </div>
               <div id="body-action-plan-items" style="font-size:11.5px; color:#1e293b; display:flex; flex-direction:column; gap:5px; margin-top:6px;">
-                ${actionPlan.items.map((item, idx) => {
-                  const isChecked = !!(actionPlan.completedMap && actionPlan.completedMap[idx]);
+                ${effActionPlan.items.map((item, idx) => {
+                  const isChecked = !!(effActionPlan.completedMap && effActionPlan.completedMap[idx]);
                   let formattedItem = escapeHtml(item);
                   return `
                     <div class="action-plan-item-box" data-item-idx="${idx}" style="line-height:1.4; background:${isChecked ? '#f0fdf4' : '#ffffff'}; border:1px solid ${isChecked ? '#86efac' : '#cbd5e1'}; border-radius:4px; padding:5px 8px; display:flex; align-items:flex-start; gap:6px; cursor:pointer; transition:all 0.15s ease;">
@@ -10729,12 +10766,14 @@
           }
         } else {
           planCardContainer.outerHTML = `
-            <div id="stage2-action-plan-card" style="background:#f8fafc; border:1px dashed #cbd5e1; border-radius:6px; padding:5px 12px; margin-bottom:6px; flex-shrink:0; display:flex; justify-content:space-between; align-items:center;">
+            <div id="stage2-action-plan-card" onclick="if(window.app && window.app.forceRefreshActionPlan){ window.app.forceRefreshActionPlan(); }" title="点击可重新核对并展开最新清单" style="background:#f8fafc; border:1px dashed #cbd5e1; border-radius:6px; padding:5px 12px; margin-bottom:6px; flex-shrink:0; display:flex; justify-content:space-between; align-items:center; cursor:pointer; transition:all 0.15s ease;" onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='#f8fafc'">
               <div style="font-size:11.5px; font-weight:700; color:#64748b; display:flex; align-items:center; gap:6px;">
                 <span>📋 【半程修正清单】</span>
                 <span style="font-size:10.5px; background:#eff6ff; color:#2563eb; padding:1px 6px; border-radius:6px;">待解锁 (组内编辑会议自查对齐后，由审稿专家质检下发)</span>
               </div>
-              <button onclick="if(window.app) window.app.showMeetingModal();" style="background:#ffffff; border:1px solid #cbd5e1; color:#334155; padding:1.5px 8px; border-radius:4px; font-size:11px; font-weight:600; cursor:pointer;">📢 发起会议</button>
+              <span style="font-size:10.5px; color:#64748b; background:#ffffff; border:1px solid #e2e8f0; padding:1.5px 6px; border-radius:4px; display:inline-flex; align-items:center; gap:3px;">
+                🔄 点击核对
+              </span>
             </div>
           `;
         }
