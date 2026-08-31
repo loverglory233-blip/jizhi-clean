@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260901_v1122
+ * Version: 20260901_v1123
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260901_v1122';
+  const APP_VERSION = '20260901_v1123';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -14035,9 +14035,9 @@
           // ② 半程会议总结后 10 分钟 且 字数达 85% 或 时间达 85%；
           // ③ 字数达 85% 或 时间达 85% 且已通过二审。
           const isDraftConfirmed = !!s2.isDraftConfirmed || (s2.confirmedMembers && Object.keys(s2.confirmedMembers).length > 0);
-          const is85Reached = (wordProgress >= 0.85 || timeProgress >= 0.85 || plainTextLen >= (targetWordCount * 0.85));
-          const isTenMinAfterMeetingAnd85 = hasPassedSecondReview && postSecondReviewElapsedMs >= minPostReviewModCooldownMs && is85Reached;
-          const isFinalReviewDue = isDraftConfirmed || isTenMinAfterMeetingAnd85 || (hasPassedSecondReview && is85Reached) || is85Reached;
+          const isFinalReviewDueTimeOrWord = (wordProgress >= 0.90 || timeProgress >= 0.85 || plainTextLen >= (targetWordCount * 0.90));
+          const isTenMinAfterMeetingAndDue = hasPassedSecondReview && postSecondReviewElapsedMs >= minPostReviewModCooldownMs && isFinalReviewDueTimeOrWord;
+          const isFinalReviewDue = isDraftConfirmed || isTenMinAfterMeetingAndDue || (hasPassedSecondReview && isFinalReviewDueTimeOrWord) || isFinalReviewDueTimeOrWord;
 
           const hasFinalReviewInLogs = s2Chats.some(m => m && m.sender === 'reviewingEditor' && (m.text?.includes('终稿行文扫描') || m.text?.includes('终审定稿总评') || m.text?.includes('审稿编辑·终审')));
 
@@ -17877,9 +17877,9 @@
       }
 
       // ═══════════════════════════════════════════════════════════════
-      // 🛡️ 第二次学术质检与半程会议（目标字数的 70% / 65% 时间 · 深度研讨）
+      // 🛡️ 第二次学术质检与半程会议（目标字数的 60% / 65% 时间 · 深度研讨）
       // ═══════════════════════════════════════════════════════════════
-      const isMeetingDue = (wordProgress >= 0.70 || timeProgress >= 0.65 || rawDoc.length >= (targetWordCount * 0.70));
+      const isMeetingDue = (wordProgress >= 0.60 || timeProgress >= 0.65 || rawDoc.length >= (targetWordCount * 0.60));
       const hasMeetingCalledInLogs = s2ChatList.some(m => m.sender === 'managingEditor' && (m.text.includes('半程会议号召') || m.text.includes('半程研讨号召')));
       if (hasMeetingCalledInLogs && s2.reviewMilestone !== 'meeting_called' && s2.reviewMilestone !== 'action_plan_generated') {
         s2.reviewMilestone = 'meeting_called';
