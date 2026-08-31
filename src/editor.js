@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles } from "./constants.js?v=20260831_v1022";
-import { callCozeAgentAPI } from "./agents.js?v=20260831_v1022";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, showResolutionBlock } from "./utils.js?v=20260831_v1022";
+import { AgentProfiles } from "./constants.js?v=20260831_v1023";
+import { callCozeAgentAPI } from "./agents.js?v=20260831_v1023";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, showResolutionBlock } from "./utils.js?v=20260831_v1023";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -2235,6 +2235,8 @@ function renderStage2Canvas(canvas, state, handlers) {
         if (e) { e.preventDefault(); e.stopPropagation(); }
         handlers.onOpenCaseModal();
       };
+    }
+
     // 增量就地刷新【智能体正在分析动态横幅】
     let analyzingBanner = canvas.querySelector('#agent-analyzing-live-banner');
     if (state.activeAgentAnalyzing) {
