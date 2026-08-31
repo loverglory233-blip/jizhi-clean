@@ -13,14 +13,14 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260901_v1124";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260901_v1124";
-import { callCozeAgentAPI } from "./agents.js?v=20260901_v1124";
-import { AuthManager } from "./auth.js?v=20260901_v1124";
-import { CloudSyncEngine } from "./sync.js?v=20260901_v1124";
-import { renderLoginView } from "./login.js?v=20260901_v1124";
-import { renderTeacherPortal } from "./teacher.js?v=20260901_v1124";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260901_v1124";
+} from "./constants.js?v=20260901_v1125";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260901_v1125";
+import { callCozeAgentAPI } from "./agents.js?v=20260901_v1125";
+import { AuthManager } from "./auth.js?v=20260901_v1125";
+import { CloudSyncEngine } from "./sync.js?v=20260901_v1125";
+import { renderLoginView } from "./login.js?v=20260901_v1125";
+import { renderTeacherPortal } from "./teacher.js?v=20260901_v1125";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260901_v1125";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -29,7 +29,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260901_v1124";
+} from "./editor.js?v=20260901_v1125";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -5655,19 +5655,35 @@ ${contentSnippet}
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // 🛡️ 第三次质检（半程会议总结后10分钟 且/或 字数达到 85% / 确认初稿 · 审稿编辑终审自动触发）
+    // 🛡️ 80% 时间强行直通二审（若达到 80% 时间仍未完成二审总结，自动收敛下发清单，防止阻碍 85% 三审）
     // ═══════════════════════════════════════════════════════════════
-    const isMeetingFinished = (s2.meetingStep === 'completed' || s2.reviewMilestone === 'action_plan_generated' || s2.reviewMilestone === 'second_review_done' || s2.reviewMilestone === 'meeting_called');
-    const meetingEndTime = s2.meetingCompletedTime || s2.meetingCalledTime || 0;
-    const isTenMinAfterMeeting = isMeetingFinished && meetingEndTime > 0 && ((now - meetingEndTime) >= 600000);
-    const isWordCount85 = (wordProgress >= 0.85 || rawDoc.length >= (targetWordCount * 0.85));
+    const isSecondReviewDone = (s2.reviewMilestone === 'second_review_done' || s2.reviewMilestone === 'action_plan_generated' || s2.meetingStep === 'completed');
+    if (!isSecondReviewDone && timeProgress >= 0.80 && !this._isTriggeringManagingSummary) {
+      this._isTriggeringManagingSummary = true;
+      console.log('⏰ [Stage2 Milestone] 达到 80% 时间上限，自动收敛半程研讨并直通下发二审清单！');
+      if (typeof this.handleS2ManagingSummary === 'function') {
+        this.handleS2ManagingSummary().finally(() => {
+          this._isTriggeringManagingSummary = false;
+        });
+      } else {
+        this._isTriggeringManagingSummary = false;
+      }
+    }
 
-    const isFinalReviewDue = (
-      s2.isDraftConfirmed ||
-      (s2.confirmedMembers && Object.keys(s2.confirmedMembers).length > 0) ||
-      (isMeetingFinished && (isTenMinAfterMeeting || isWordCount85)) ||
-      isWordCount85
-    );
+    // ═══════════════════════════════════════════════════════════════
+    // 🛡️ 第三次质检（二审完成后且字数达 90% 并满 10 分钟修改缓冲 / 或 时间达 85% / 或 确认初稿 · 审稿编辑终审自动触发）
+    // ═══════════════════════════════════════════════════════════════
+    const meetingEndTime = s2.meetingCompletedTime || s2.meetingCalledTime || 0;
+    const postSecondReviewElapsedMs = meetingEndTime > 0 ? Math.max(0, now - meetingEndTime) : 0;
+    const minPostReviewModCooldownMs = isLargeTask ? 900000 : 600000; // 10 分钟（大任务 15 分钟）
+    const is90WordReached = (wordProgress >= 0.90 || rawDoc.length >= (targetWordCount * 0.90));
+    const is85TimeReached = (timeProgress >= 0.85);
+
+    const isTenMinAfterMeetingAndWord90 = isSecondReviewDone && postSecondReviewElapsedMs >= minPostReviewModCooldownMs && is90WordReached;
+    const isTime85AndSecondReviewDone = isSecondReviewDone && is85TimeReached;
+    const isDraftConfirmed = !!s2.isDraftConfirmed || (s2.confirmedMembers && Object.keys(s2.confirmedMembers).length > 0);
+
+    const isFinalReviewDue = isDraftConfirmed || isTenMinAfterMeetingAndWord90 || isTime85AndSecondReviewDone;
 
     const hasFinalReviewInLogs = s2ChatList.some(m => m && m.sender === 'reviewingEditor' && (m.text?.includes('终稿行文扫描') || m.text?.includes('终审定稿总评') || m.text?.includes('审稿编辑·终审')));
     if (hasFinalReviewInLogs && (s2.reviewMilestone === 'second_review_done' || s2.reviewMilestone === 'meeting_called')) {
