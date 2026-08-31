@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260831_v1106
+ * Version: 20260901_v1107
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260831_v1106';
+  const APP_VERSION = '20260901_v1107';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -10924,7 +10924,7 @@
           const revMsg = allChatLogs.find(m => m && m.text && (m.text.includes('二审修正清单') || m.text.includes('半程编辑修正清单') || m.text.includes('半程修正清单')) && !m.text.includes('修改落实决议') && !m.text.includes('修改落实要点'));
 
           if ((!effActionPlan || !effActionPlan.isGenerated || !effActionPlan.items || effActionPlan.items.length < 3) && (s2.meetingStep === 'discussing_checklist' || s2.meetingStep === 'completed' || !!revMsg)) {
-            let parsedItems = [];
+            let reviewChunks = [];
             if (revMsg && revMsg.text) {
               let body = revMsg.text;
               const headerMatch = body.match(/(?:二审修正清单|半程编辑修正清单|半程修正清单)[】:：\s]*/);
@@ -10938,27 +10938,86 @@
                          .replace(/^本次修改需对齐三项要求[：:]*/s, '')
                          .trim();
 
-              let chunks = body.split(/(?=[①②③]|\b[123]\.|(?=[一二三]是))/g).map(c => c.trim()).filter(Boolean);
+              let chunks = body.split(/(?=[①②③]|\b[123]\.|(?=[一二三]是)|(?=【核心概念对齐】|【研究方法深化】|【行文衔接规范】|【学术规范】))/g).map(c => c.trim()).filter(Boolean);
               if (chunks.length < 3) {
                 chunks = body.split(/[\n；;]+/g).map(c => c.trim()).filter(Boolean);
               }
               chunks.forEach(c => {
                 let clean = c.replace(/^[①②③\d\.\s\(\)一二三是：:]+/, '').replace(/[；;。]\s*$/, '').trim();
                 if (clean.length > 5 && !clean.includes('请全组协同') && !clean.includes('冲刺终审定稿')) {
-                  parsedItems.push(clean);
+                  reviewChunks.push(clean);
                 }
               });
             }
-            if (parsedItems.length > 0) {
-              effActionPlan = {
-                isGenerated: true,
-                completedMap: (effActionPlan && effActionPlan.completedMap) || {},
-                items: parsedItems.slice(0, 3)
-              };
-              if (!state.stage2.actionPlan) state.stage2.actionPlan = effActionPlan;
-              state.stage2.actionPlan.isGenerated = true;
-              state.stage2.actionPlan.items = effActionPlan.items;
+
+            const subs = s2.meetingSubmissions || {};
+            const allSubs = Object.values(subs);
+            const hasIdeationDev = allSubs.some(s => (s.ideationConsistency || '').includes('偏离'));
+            const hasTransDev = allSubs.some(s => (s.transitionState || '').includes('脱节'));
+            const hasStyleDev = allSubs.some(s => (s.styleState || '').includes('割裂') || (s.styleState || '').includes('混乱') || (s.styleState || '').includes('口语'));
+            const hasDivergence = hasIdeationDev || hasTransDev || hasStyleDev || !!s2.hasMeetingDivergence;
+
+            let finalActionItems = [];
+            if (hasDivergence) {
+              const allIdeationSecs = Array.from(new Set(allSubs.flatMap(s => s.ideationSections || [])));
+              const allTransSecs = Array.from(new Set(allSubs.flatMap(s => s.transSections || [])));
+              let focusText = [...allTransSecs, ...allIdeationSecs].filter(Boolean).map(s => `【${s}】`).join('与');
+              if (!focusText) focusText = '前后核心章节';
+
+              let managingItem = '';
+              if (hasTransDev && hasIdeationDev) {
+                managingItem = `【内容与构思对齐】重点对齐${focusText}，消除前后构思偏差，理顺章节论述衔接。`;
+              } else if (hasTransDev) {
+                managingItem = `【章节逻辑衔接】重点理顺${focusText}的逻辑过渡，消除前后脱节，保持论述连贯。`;
+              } else if (hasIdeationDev) {
+                managingItem = `【核心构思对齐】重点针对${focusText}重新对齐全篇主旨构思，确保立意一致。`;
+              } else {
+                managingItem = `【语体与术语对齐】统一全篇学术术语口径与规范语体，消除口语化与风格割裂。`;
+              }
+              finalActionItems.push(managingItem);
+
+              if (reviewChunks.length >= 2) {
+                finalActionItems.push(reviewChunks[0]);
+                finalActionItems.push(reviewChunks[1]);
+              } else if (reviewChunks.length === 1) {
+                finalActionItems.push(reviewChunks[0]);
+                finalActionItems.push('【研究方法深化】细化核心方法实施步骤与测量工具，增强论证严密性。');
+              } else {
+                finalActionItems.push('【研究方法深化】细化核心方法实施步骤与测量工具，增强论证严密性。');
+                finalActionItems.push('【学术规范与衔接】统一专业术语口径，补全段落间逻辑过渡与学术规范。');
+              }
+            } else {
+              if (reviewChunks.length >= 3) {
+                finalActionItems = reviewChunks.slice(0, 3);
+              } else if (reviewChunks.length === 2) {
+                finalActionItems = [
+                  reviewChunks[0],
+                  reviewChunks[1],
+                  '【学术规范与衔接】统一全篇学术术语口径，规范文献著录与行文基调。'
+                ];
+              } else if (reviewChunks.length === 1) {
+                finalActionItems = [
+                  reviewChunks[0],
+                  '【研究方法深化】细化核心方法实施步骤与测量工具，增强论证严密性。',
+                  '【学术规范与衔接】统一全篇学术术语口径，规范文献著录与行文基调。'
+                ];
+              } else {
+                finalActionItems = [
+                  '【核心概念对齐】补充明确的操作性定义，使文献综述直接呼应研究问题与假设。',
+                  '【研究方法深化】细化核心方法与测量工具的具体操作步骤，增强方法论严密性。',
+                  '【行文衔接规范】统一全篇学术专业术语命名，补全段落间逻辑过渡衔接。'
+                ];
+              }
             }
+
+            effActionPlan = {
+              isGenerated: true,
+              completedMap: (effActionPlan && effActionPlan.completedMap) || {},
+              items: finalActionItems.slice(0, 3)
+            };
+            if (!state.stage2.actionPlan) state.stage2.actionPlan = effActionPlan;
+            state.stage2.actionPlan.isGenerated = true;
+            state.stage2.actionPlan.items = effActionPlan.items;
           }
 
           if (!effActionPlan || !effActionPlan.isGenerated) {
@@ -15841,10 +15900,13 @@
         };
         s2ChatLogs.push(msgReviewing);
 
-        // 🌟 核心突破：立即解析并动态生成左侧【半程修正清单】卡片 (全面解锁)
-        let parsedItems = [];
+        // 🌟 核心突破：根据责任编辑与审稿编辑的内容动态生成左侧【半程修正清单】
+        // 规则：
+        // - 若存在不一致/分歧：第 1 条为【内容与构思对齐】（来自责任编辑提炼），剩下第 2、3 条看审稿编辑的质检拆分；
+        // - 若不存在不一致：全部 3 条直接来自审稿编辑二审修正清单的 3 条拆分。
+        let reviewChunks = [];
         let bodyText = reviewingText;
-        const headerMatch = bodyText.match(/二审修正清单[】:：\s]*/);
+        const headerMatch = bodyText.match(/(?:二审修正清单|半程编辑修正清单|半程修正清单)[】:：\s]*/);
         if (headerMatch) {
           bodyText = bodyText.slice(headerMatch.index + headerMatch[0].length);
         }
@@ -15852,28 +15914,85 @@
                            .replace(/[👉\s]*请全组围绕.*$/s, '')
                            .replace(/[👉\s]*讨论差不多.*$/s, '')
                            .replace(/[👉\s]*点击下方.*$/s, '')
+                           .replace(/^本次修改需对齐三项要求[：:]*/s, '')
                            .trim();
 
-        const chunks = bodyText.split(/(?=[①②③]|\b[123]\.)/g).map(c => c.trim()).filter(Boolean);
+        const chunks = bodyText.split(/(?=[①②③]|\b[123]\.|(?=[一二三]是)|(?=【核心概念对齐】|【研究方法深化】|【行文衔接规范】|【学术规范】))/g).map(c => c.trim()).filter(Boolean);
         chunks.forEach(c => {
-          let clean = c.replace(/^[①②③\d\.\s\(\)]+/, '').replace(/[；;。]\s*$/, '').trim();
-          if (clean.length > 5) {
-            parsedItems.push(clean);
+          let clean = c.replace(/^[①②③\d\.\s\(\)一二三是：:]+/, '').replace(/[；;。]\s*$/, '').trim();
+          if (clean.length > 5 && !clean.includes('请全组协同') && !clean.includes('冲刺终审定稿')) {
+            reviewChunks.push(clean);
           }
         });
 
-        if (parsedItems.length === 0) {
-          parsedItems = [
-            '【核心概念对齐】补充明确的操作性定义，使文献综述直接呼应研究问题与假设。',
-            '【研究方法深化】细化核心方法与测量工具的具体操作步骤，增强方法论严密性。',
-            '【行文衔接规范】统一全篇学术专业术语命名，补全段落间逻辑过渡衔接。'
-          ];
+        // 判断是否存在自查不一致
+        const subs = s2.meetingSubmissions || {};
+        const allSubs = Object.values(subs);
+        const hasIdeationDev = allSubs.some(s => (s.ideationConsistency || '').includes('偏离'));
+        const hasTransDev = allSubs.some(s => (s.transitionState || '').includes('脱节'));
+        const hasStyleDev = allSubs.some(s => (s.styleState || '').includes('割裂') || (s.styleState || '').includes('混乱') || (s.styleState || '').includes('口语'));
+        const hasDivergence = hasIdeationDev || hasTransDev || hasStyleDev || !!s2.hasMeetingDivergence;
+
+        let finalActionItems = [];
+        if (hasDivergence) {
+          // 🌟 存在不一致：第 1 条为责任编辑梳理的内容/构思对齐
+          const allIdeationSecs = Array.from(new Set(allSubs.flatMap(s => s.ideationSections || [])));
+          const allTransSecs = Array.from(new Set(allSubs.flatMap(s => s.transSections || [])));
+          let focusText = [...allTransSecs, ...allIdeationSecs].filter(Boolean).map(s => `【${s}】`).join('与');
+          if (!focusText) focusText = '前后核心章节';
+
+          let managingItem = '';
+          if (hasTransDev && hasIdeationDev) {
+            managingItem = `【内容与构思对齐】重点对齐${focusText}，消除前后构思偏差，理顺章节论述衔接。`;
+          } else if (hasTransDev) {
+            managingItem = `【章节逻辑衔接】重点理顺${focusText}的逻辑过渡，消除前后脱节，保持论述连贯。`;
+          } else if (hasIdeationDev) {
+            managingItem = `【核心构思对齐】重点针对${focusText}重新对齐全篇主旨构思，确保立意一致。`;
+          } else {
+            managingItem = `【语体与术语对齐】统一全篇学术术语口径与规范语体，消除口语化与风格割裂。`;
+          }
+          finalActionItems.push(managingItem);
+
+          // 剩下两条看审稿编辑
+          if (reviewChunks.length >= 2) {
+            finalActionItems.push(reviewChunks[0]);
+            finalActionItems.push(reviewChunks[1]);
+          } else if (reviewChunks.length === 1) {
+            finalActionItems.push(reviewChunks[0]);
+            finalActionItems.push('【研究方法深化】细化核心方法实施步骤与测量工具，增强论证严密性。');
+          } else {
+            finalActionItems.push('【研究方法深化】细化核心方法实施步骤与测量工具，增强论证严密性。');
+            finalActionItems.push('【学术规范与衔接】统一专业术语口径，补全段落间逻辑过渡与学术规范。');
+          }
+        } else {
+          // 🌟 不存在不一致：全部 3 条看审稿编辑
+          if (reviewChunks.length >= 3) {
+            finalActionItems = reviewChunks.slice(0, 3);
+          } else if (reviewChunks.length === 2) {
+            finalActionItems = [
+              reviewChunks[0],
+              reviewChunks[1],
+              '【学术规范与衔接】统一全篇学术术语口径，规范文献著录与行文基调。'
+            ];
+          } else if (reviewChunks.length === 1) {
+            finalActionItems = [
+              reviewChunks[0],
+              '【研究方法深化】细化核心方法实施步骤与测量工具，增强论证严密性。',
+              '【学术规范与衔接】统一全篇学术术语口径，规范文献著录与行文基调。'
+            ];
+          } else {
+            finalActionItems = [
+              '【核心概念对齐】补充明确的操作性定义，使文献综述直接呼应研究问题与假设。',
+              '【研究方法深化】细化核心方法与测量工具的具体操作步骤，增强方法论严密性。',
+              '【行文衔接规范】统一全篇学术专业术语命名，补全段落间逻辑过渡衔接。'
+            ];
+          }
         }
 
         s2.actionPlan = {
           isGenerated: true,
           completedMap: (s2.actionPlan && s2.actionPlan.completedMap) || {},
-          items: parsedItems.slice(0, 3)
+          items: finalActionItems.slice(0, 3)
         };
 
         s2.meetingStep = 'discussing_checklist'; // 变形为第二态按钮
@@ -17917,6 +18036,7 @@
         const hasIdeationDev = allSubs.some(s => (s.ideationConsistency || '').includes('偏离'));
         const hasTransDev = allSubs.some(s => (s.transitionState || '').includes('脱节'));
         const hasStyleDev = allSubs.some(s => (s.styleState || '').includes('割裂') || (s.styleState || '').includes('混乱') || (s.styleState || '').includes('口语'));
+        const hasDivergence = hasIdeationDev || hasTransDev || hasStyleDev;
 
         const primaryAcademicB = allSubs[0].bAcademic || '方法与问题对齐与实施设计';
         const questionsList = allSubs.filter(s => s.userText).map(s => `“${s.userText}”`).join('；') || '暂无补充提问';
@@ -17924,6 +18044,17 @@
         let transFocusText = allTransSecs.length > 0 ? allTransSecs.map(s => `【${s}】`).join('、') : '【假设 ↔ 方法】';
         let ideationFocusText = allIdeationSecs.length > 0 ? allIdeationSecs.map(s => `【${s}】`).join('、') : '部分核心章节';
         let styleFocusText = allStyleSecs.length > 0 ? allStyleSecs.map(s => `【${s}】`).join('、') : '【一、背景与意义】与【三、研究问题与假设】';
+
+        this.state.stage2.hasMeetingDivergence = hasDivergence;
+        this.state.stage2.divergenceDetails = {
+          hasIdeationDev,
+          hasTransDev,
+          hasStyleDev,
+          ideationFocusText,
+          transFocusText,
+          styleFocusText,
+          primaryAcademicB
+        };
 
         this.syncStage2();
         if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
