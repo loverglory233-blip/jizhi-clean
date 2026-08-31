@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260831_v1038";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260831_v1038";
-import { callCozeAgentAPI } from "./agents.js?v=20260831_v1038";
-import { AuthManager } from "./auth.js?v=20260831_v1038";
-import { CloudSyncEngine } from "./sync.js?v=20260831_v1038";
-import { renderLoginView } from "./login.js?v=20260831_v1038";
-import { renderTeacherPortal } from "./teacher.js?v=20260831_v1038";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260831_v1038";
+} from "./constants.js?v=20260831_v1039";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260831_v1039";
+import { callCozeAgentAPI } from "./agents.js?v=20260831_v1039";
+import { AuthManager } from "./auth.js?v=20260831_v1039";
+import { CloudSyncEngine } from "./sync.js?v=20260831_v1039";
+import { renderLoginView } from "./login.js?v=20260831_v1039";
+import { renderTeacherPortal } from "./teacher.js?v=20260831_v1039";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260831_v1039";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260831_v1038";
+} from "./editor.js?v=20260831_v1039";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -2848,7 +2848,7 @@ export class App {
           actualDoc: actualDocContent,
           userId: currentUser ? (currentUser.id || currentUser.username) : 'student_user'
         });
-        const timeoutPromise = new Promise(r => setTimeout(() => r(null), 3500));
+        const timeoutPromise = new Promise(r => setTimeout(() => r(null), 20000));
         replyText = await Promise.race([apiPromise, timeoutPromise]);
       } catch (err) {
         replyText = null;
@@ -5590,7 +5590,7 @@ ${contentSnippet}
       let resp = null;
       try {
         const apiPromise = callCozeAgentAPI('reviewingEditor', finalPrompt, { stage: 'stage2', topic });
-        const timeoutPromise = new Promise(r => setTimeout(() => r(null), 3500));
+        const timeoutPromise = new Promise(r => setTimeout(() => r(null), 20000));
         resp = await Promise.race([apiPromise, timeoutPromise]);
       } catch (err) {
         resp = null;
