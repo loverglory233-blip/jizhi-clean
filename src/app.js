@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260831_v1030";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260831_v1030";
-import { callCozeAgentAPI } from "./agents.js?v=20260831_v1030";
-import { AuthManager } from "./auth.js?v=20260831_v1030";
-import { CloudSyncEngine } from "./sync.js?v=20260831_v1030";
-import { renderLoginView } from "./login.js?v=20260831_v1030";
-import { renderTeacherPortal } from "./teacher.js?v=20260831_v1030";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260831_v1030";
+} from "./constants.js?v=20260831_v1031";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260831_v1031";
+import { callCozeAgentAPI } from "./agents.js?v=20260831_v1031";
+import { AuthManager } from "./auth.js?v=20260831_v1031";
+import { CloudSyncEngine } from "./sync.js?v=20260831_v1031";
+import { renderLoginView } from "./login.js?v=20260831_v1031";
+import { renderTeacherPortal } from "./teacher.js?v=20260831_v1031";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260831_v1031";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260831_v1030";
+} from "./editor.js?v=20260831_v1031";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -4182,14 +4182,11 @@ ${chatSnippet}
 
     // 🎓 阶段三：严格按时序：① 中间委员开场 ➔ ② 正方肯定 ➔ ③ 反方质询 ➔ ④ 平台写入矩阵 ➔ ⑤ 中间委员抛题引导
     else if (stage === 'stage3') {
-      const membersList = Object.values(this.state.members || {});
-      const isLeaderClient = !membersList.length || (this.state.currentUser === membersList[0]?.studentCode || this.state.currentUser === membersList[0]?.id || this.state.currentUser === membersList[0]?.username);
-
       const hasProp = logs.some(m => m && m.sender === 'proponent');
       const hasOpp = logs.some(m => m && m.sender === 'opponent');
       const needsCommitteeReview = !hasProp || !hasOpp || !this.state.stage3.feedbackItems || this.state.stage3.feedbackItems.length === 0;
 
-      if (needsCommitteeReview && isLeaderClient && !this._isStage3PipelineRunning) {
+      if (needsCommitteeReview && !this._isStage3PipelineRunning) {
         this.runStage3CommitteePipeline();
       }
     }
@@ -4517,14 +4514,21 @@ ${propText}
     }
 
     this.isViewingPastStage = (targetOrder < currentGroupOrder);
+    this.state.isViewingPastStage = (targetOrder < currentGroupOrder);
     this.state.currentStage = newStage;
     if (isMilestoneAdvance && targetOrder > currentGroupOrder) {
       this.state.groupMaxStage = newStage;
       this.isViewingPastStage = false;
+      this.state.isViewingPastStage = false;
     }
-    if (newStage === 'stage2' && (!this.state.stage2 || !this.state.stage2.stageStartTime)) {
+    if (newStage === 'stage2') {
       if (!this.state.stage2) this.state.stage2 = {};
-      this.state.stage2.stageStartTime = Date.now();
+      if (!this.state.stage2.stageStartTime) this.state.stage2.stageStartTime = Date.now();
+      const s2Chats = (this.state.chatLogs && this.state.chatLogs.stage2) ? this.state.chatLogs.stage2 : [];
+      const hasFinalRev = s2Chats.some(m => m && m.sender === 'reviewingEditor' && (m.text?.includes('终稿行文扫描') || m.text?.includes('终审定稿总评') || m.text?.includes('审稿编辑·终审')));
+      if (this.state.stage2.isDraftConfirmed && !hasFinalRev) {
+        this.triggerStage2FinalReview();
+      }
     }
     if (newStage === 'stage3' && (!this.state.stage3 || !this.state.stage3.stageStartTime)) {
       if (!this.state.stage3) this.state.stage3 = {};
