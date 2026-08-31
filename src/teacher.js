@@ -9,8 +9,8 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260831_v1030";
-import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, showGlobalBannerNotice } from "./utils.js?v=20260831_v1030";
+} from "./constants.js?v=20260831_v1031";
+import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, showGlobalBannerNotice } from "./utils.js?v=20260831_v1031";
 
 /* ==========================================================================
    7. TEACHER PORTAL RENDERER (LIVE WORKSPACE MIRROR & ANNOUNCEMENT READ MATRIX)
@@ -346,22 +346,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
           latestPadText = state.stage2.unifiedContent;
         }
 
-        if (!state._readOnlyPadMap) state._readOnlyPadMap = {};
-        if (!state._readOnlyPadMap[padName]) {
-          fetch(`sync.php?action=get_readonly_pad_id&padId=${padName}`).then(r => r.json()).then(res => {
-            if (res && res.success && res.readOnlyID) {
-              state._readOnlyPadMap[padName] = res.readOnlyID;
-              const f2 = document.querySelector('#teacher-stage2-etherpad-frame');
-              if (f2 && !f2.src.includes(res.readOnlyID)) {
-                f2.src = `/p/${res.readOnlyID}?userName=${encodeURIComponent('教师监控')}&userColor=%237c3aed&showControls=false&showChat=false&showLineNumbers=true&lang=zh-hans`;
-              }
-              const f3 = document.querySelector('#teacher-stage3-etherpad-frame');
-              if (f3 && !f3.src.includes(res.readOnlyID)) {
-                f3.src = `/p/${res.readOnlyID}?userName=${encodeURIComponent('教师监控')}&userColor=%237c3aed&showControls=false&showChat=false&showLineNumbers=true&lang=zh-hans`;
-              }
-            }
-          }).catch(() => {});
-        }
+
 
         const curT = authManager.getCurrentUser();
         const tToken = (curT && (curT.activeSessionId || curT.token)) || '';

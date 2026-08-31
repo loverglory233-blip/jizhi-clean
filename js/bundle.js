@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260831_v1030
+ * Version: 20260831_v1031
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260831_v1030';
+  const APP_VERSION = '20260831_v1031';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -4673,22 +4673,7 @@
             latestPadText = state.stage2.unifiedContent;
           }
 
-          if (!state._readOnlyPadMap) state._readOnlyPadMap = {};
-          if (!state._readOnlyPadMap[padName]) {
-            fetch(`sync.php?action=get_readonly_pad_id&padId=${padName}`).then(r => r.json()).then(res => {
-              if (res && res.success && res.readOnlyID) {
-                state._readOnlyPadMap[padName] = res.readOnlyID;
-                const f2 = document.querySelector('#teacher-stage2-etherpad-frame');
-                if (f2 && !f2.src.includes(res.readOnlyID)) {
-                  f2.src = `/p/${res.readOnlyID}?userName=${encodeURIComponent('教师监控')}&userColor=%237c3aed&showControls=false&showChat=false&showLineNumbers=true&lang=zh-hans`;
-                }
-                const f3 = document.querySelector('#teacher-stage3-etherpad-frame');
-                if (f3 && !f3.src.includes(res.readOnlyID)) {
-                  f3.src = `/p/${res.readOnlyID}?userName=${encodeURIComponent('教师监控')}&userColor=%237c3aed&showControls=false&showChat=false&showLineNumbers=true&lang=zh-hans`;
-                }
-              }
-            }).catch(() => {});
-          }
+
 
           const curT = authManager.getCurrentUser();
           const tToken = (curT && (curT.activeSessionId || curT.token)) || '';
@@ -16174,14 +16159,11 @@
 
       // 🎓 阶段三：严格按时序：① 中间委员开场 ➔ ② 正方肯定 ➔ ③ 反方质询 ➔ ④ 平台写入矩阵 ➔ ⑤ 中间委员抛题引导
       else if (stage === 'stage3') {
-        const membersList = Object.values(this.state.members || {});
-        const isLeaderClient = !membersList.length || (this.state.currentUser === membersList[0]?.studentCode || this.state.currentUser === membersList[0]?.id || this.state.currentUser === membersList[0]?.username);
-
         const hasProp = logs.some(m => m && m.sender === 'proponent');
         const hasOpp = logs.some(m => m && m.sender === 'opponent');
         const needsCommitteeReview = !hasProp || !hasOpp || !this.state.stage3.feedbackItems || this.state.stage3.feedbackItems.length === 0;
 
-        if (needsCommitteeReview && isLeaderClient && !this._isStage3PipelineRunning) {
+        if (needsCommitteeReview && !this._isStage3PipelineRunning) {
           this.runStage3CommitteePipeline();
         }
       }
@@ -16509,14 +16491,21 @@
       }
 
       this.isViewingPastStage = (targetOrder < currentGroupOrder);
+      this.state.isViewingPastStage = (targetOrder < currentGroupOrder);
       this.state.currentStage = newStage;
       if (isMilestoneAdvance && targetOrder > currentGroupOrder) {
         this.state.groupMaxStage = newStage;
         this.isViewingPastStage = false;
+        this.state.isViewingPastStage = false;
       }
-      if (newStage === 'stage2' && (!this.state.stage2 || !this.state.stage2.stageStartTime)) {
+      if (newStage === 'stage2') {
         if (!this.state.stage2) this.state.stage2 = {};
-        this.state.stage2.stageStartTime = Date.now();
+        if (!this.state.stage2.stageStartTime) this.state.stage2.stageStartTime = Date.now();
+        const s2Chats = (this.state.chatLogs && this.state.chatLogs.stage2) ? this.state.chatLogs.stage2 : [];
+        const hasFinalRev = s2Chats.some(m => m && m.sender === 'reviewingEditor' && (m.text?.includes('终稿行文扫描') || m.text?.includes('终审定稿总评') || m.text?.includes('审稿编辑·终审')));
+        if (this.state.stage2.isDraftConfirmed && !hasFinalRev) {
+          this.triggerStage2FinalReview();
+        }
       }
       if (newStage === 'stage3' && (!this.state.stage3 || !this.state.stage3.stageStartTime)) {
         if (!this.state.stage3) this.state.stage3 = {};
