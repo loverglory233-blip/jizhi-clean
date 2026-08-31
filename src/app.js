@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260831_v1013";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260831_v1013";
-import { callCozeAgentAPI } from "./agents.js?v=20260831_v1013";
-import { AuthManager } from "./auth.js?v=20260831_v1013";
-import { CloudSyncEngine } from "./sync.js?v=20260831_v1013";
-import { renderLoginView } from "./login.js?v=20260831_v1013";
-import { renderTeacherPortal } from "./teacher.js?v=20260831_v1013";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260831_v1013";
+} from "./constants.js?v=20260831_v1014";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260831_v1014";
+import { callCozeAgentAPI } from "./agents.js?v=20260831_v1014";
+import { AuthManager } from "./auth.js?v=20260831_v1014";
+import { CloudSyncEngine } from "./sync.js?v=20260831_v1014";
+import { renderLoginView } from "./login.js?v=20260831_v1014";
+import { renderTeacherPortal } from "./teacher.js?v=20260831_v1014";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260831_v1014";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260831_v1013";
+} from "./editor.js?v=20260831_v1014";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -1838,34 +1838,74 @@ export class App {
         const targetWordCount = (curTask && curTask.targetWordCount) ? Number(curTask.targetWordCount) : defaultWordTarget;
         const wordProgress = targetWordCount > 0 ? (plainTextLen / targetWordCount) : (plainTextLen / 4300);
         const timeProgress = totalPlannedMs > 0 ? (stage2DurationMs / totalPlannedMs) : 0;
-        const isFinalReviewDue = (wordProgress >= 0.90 || timeProgress >= 0.85 || s2.isDraftConfirmed || plainTextLen >= (targetWordCount * 0.9));
+        const isFinalReviewDue = (wordProgress >= 0.70 || timeProgress >= 0.80 || s2.isDraftConfirmed || plainTextLen >= 2500 || plainTextLen >= (targetWordCount * 0.8) || (s2.confirmedMembers && Object.keys(s2.confirmedMembers).length > 0));
         
-        const hasFinalReviewInLogs = s2Chats.some(m => m && m.sender === 'reviewingEditor' && (m.text?.includes('终稿行文扫描') || m.text?.includes('终审定稿总评')));
+        const hasFinalReviewInLogs = s2Chats.some(m => m && m.sender === 'reviewingEditor' && (m.text?.includes('终稿行文扫描') || m.text?.includes('终审定稿总评') || m.text?.includes('审稿编辑·终审')));
         if (hasFinalReviewInLogs && s2.reviewMilestone !== 'final_review_done') {
           s2.reviewMilestone = 'final_review_done';
           this.syncStage2();
         }
 
-        // 1. 审稿编辑【第三次质检·终审定稿扫描】（全场严格仅 1 次）
+        // 1. 审稿编辑【第三次质检·终审定稿扫描】（大模型深度质检，全场严格仅 1 次）
         if (!hasFinalReviewInLogs && s2.reviewMilestone !== 'final_review_done' && isFinalReviewDue && !this._isTriggeringFinalReview) {
           this._isTriggeringFinalReview = true;
           s2.reviewMilestone = 'final_review_done';
           
-          const refReviewMsg = {
-            sender: 'reviewingEditor',
-            senderName: '学术质量 · 审稿编辑',
-            text: `📝 【审稿编辑·终审定稿总评与行文扫描】：看到全组已进入最后成文冲刺阶段，整体框架完整！我对全文质量与学术规范进行了终审扫描：①【学术语体】：整体论述连贯，建议通读核对消除残留的口语化表述；②【术语规范】：前后核心概念表述保持高度统一；③【参考文献】：核对著录规范。请全组成员完成最终通读后，在上方逐一完成【初稿确认】，准备迎接阶段三学术答辩！`,
-            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-            _timeMs: now
-          };
+          const topic = (this.state.stage1 && this.state.stage1.mergedTitle) ? this.state.stage1.mergedTitle : '本组课题';
+          const contentSnippet = plainText.slice(0, 2500);
 
-          if (!this.state.chatLogs.stage2) this.state.chatLogs.stage2 = [];
-          this.state.chatLogs.stage2.push(refReviewMsg);
-          this.syncChatLogs();
-          this.syncStage2();
-          if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
-          renderChat(this.state);
-          this._isTriggeringFinalReview = false;
+          // 🌟 挂载审稿编辑三审正在分析动态状态框
+          this.state.activeAgentAnalyzing = {
+            icon: '📝',
+            title: '【审稿编辑】正在进行终审定稿与学术规范扫描...',
+            detail: '正在对终稿全文进行学术语体、论述逻辑与文献规范终审质检...'
+          };
+          this.renderStudentWorkspace();
+
+          setTimeout(async () => {
+            try {
+              const finalPrompt = `【课题】：《${topic}》
+【终稿草稿全文节选】：
+${contentSnippet}
+
+请发表 120~150 字终审定稿学术总评与行文扫描意见（包含【诊断问题 + 改进建议】双结构，严禁代码块，严禁出现“分工”字眼）：
+①【学术语体与逻辑完整性】
+- 诊断问题：指出全篇逻辑闭环与语体严谨度；
+- 改进建议：给出具体优化建议。
+②【学术规范与参考文献】
+- 诊断问题：核对术语一致性与文献著录；
+- 改进建议：给出答辩准备要求。
+👉 末尾必须提示：“请全组成员通读终稿后，在正文上方点击【✍️ 确认初稿】，全员确认后将自动解锁阶段三答辩擂台！”`;
+
+              const resp = await callCozeAgentAPI('reviewingEditor', finalPrompt, { stage: 'stage2', topic });
+              let finalTxt = (resp && resp.trim().length > 0)
+                ? resp.trim()
+                : `📝 【审稿编辑·终审定稿总评与行文扫描】：看到全组已进入最后成文冲刺阶段，整体框架完整！我对全文质量与学术规范进行了终审扫描：\\n①【学术语体与逻辑完整性】\\n· 诊断问题：整体论述连贯，需核对消除残留的口语化表述；\\n· 改进建议：通读全篇统一学术语言基调。\\n②【学术规范与参考文献】\\n· 诊断问题：前后核心概念表述保持高度统一；\\n· 改进建议：核对著录规范。\\n👉 请全组成员完成最终通读后，在上方逐一点击【✍️ 确认初稿】，全员确认后将自动解锁阶段三学术答辩！`;
+              if (!finalTxt.startsWith('📝')) finalTxt = `📝 【审稿编辑·终审定稿总评与行文扫描】：${finalTxt}`;
+
+              const refReviewMsg = {
+                sender: 'reviewingEditor',
+                senderName: '学术质量 · 审稿编辑',
+                text: finalTxt,
+                timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                _timeMs: Date.now()
+              };
+
+              if (!this.state.chatLogs.stage2) this.state.chatLogs.stage2 = [];
+              this.state.chatLogs.stage2.push(refReviewMsg);
+              this.syncChatLogs();
+              this.syncStage2();
+              if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+              renderChat(this.state);
+            } catch (e) {
+              console.warn('final review error:', e);
+            } finally {
+              this.state.activeAgentAnalyzing = null;
+              this._isTriggeringFinalReview = false;
+              this.renderStudentWorkspace();
+            }
+          }, 300);
+          return;
         }
 
         // 2. 责任编辑【85% 时间写作倒计时提醒】（全场严格仅 1 次）
@@ -5057,6 +5097,7 @@ ${propText}
         if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
         renderChat(this.state);
         this.renderStudentWorkspace();
+        this.checkStage2Milestones();
 
         // 🛡️ 严格要求：必须全组成员每一个人都点击确认初稿后，才解锁推进至阶段三
         if (confirmedCount < totalMembersCount) {
