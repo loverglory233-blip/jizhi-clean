@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles } from "./constants.js?v=20260901_v1108";
-import { callCozeAgentAPI } from "./agents.js?v=20260901_v1108";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, showResolutionBlock } from "./utils.js?v=20260901_v1108";
+import { AgentProfiles } from "./constants.js?v=20260901_v1109";
+import { callCozeAgentAPI } from "./agents.js?v=20260901_v1109";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, showResolutionBlock } from "./utils.js?v=20260901_v1109";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -3430,6 +3430,8 @@ export function renderChat(state) {
         </div>
       </div>
     </div>
+  ` : '');
+
   const lastMsg = cleanMsgs.length > 0 ? cleanMsgs[cleanMsgs.length - 1] : null;
   const lastMsgKeys = lastMsg ? [lastMsg.sender, lastMsg.senderName, lastMsg.author, lastMsg.authorName].filter(Boolean).map(k => String(k).trim().toLowerCase()) : [];
   const lastMsgIsMine = lastMsg && !AgentProfiles[lastMsg.sender] && (
