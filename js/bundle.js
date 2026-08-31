@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260831_v1000
+ * Version: 20260831_v1001
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260831_v1000';
+  const APP_VERSION = '20260831_v1001';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -15653,6 +15653,55 @@
      */
     async handleS2ReviewingSummary() {
       const s2 = this.state.stage2 || {};
+      if (!this.state.stage2) this.state.stage2 = s2;
+      if (!s2.confirmations) s2.confirmations = {};
+      if (!s2.confirmations.s2_reviewing) s2.confirmations.s2_reviewing = {};
+
+      const currUser = this.authManager ? this.authManager.getCurrentUser() : null;
+      const currUserCode = this.state.currentUser || currUser?.studentCode || currUser?.name || 'A';
+
+      // 1. 记录当前用户的确认
+      s2.confirmations.s2_reviewing[currUserCode] = true;
+      if (currUser?.studentCode) s2.confirmations.s2_reviewing[currUser.studentCode] = true;
+      if (currUser?.name) s2.confirmations.s2_reviewing[currUser.name] = true;
+
+      // 计算总组员人数
+      const effClassId = this.state.activeStudentClassId || currUser?.classId || null;
+      const effGroup = this.authManager ? this.authManager.getStudentActiveGroup(currUser, effClassId) : null;
+      const membersList = (effGroup && Array.isArray(effGroup.members) && effGroup.members.length > 0) 
+        ? effGroup.members 
+        : Object.values(this.state.members || {});
+      const totalCount = membersList.length || 2;
+
+      const isDoneHelper = (map) => {
+        if (!map) return 0;
+        return membersList.filter(m => {
+          let fullUser = (typeof m === 'object') ? m : null;
+          if (!fullUser && this.authManager && this.authManager.findUserByKey) {
+            fullUser = this.authManager.findUserByKey(m);
+          }
+          const keys = [
+            typeof m === 'string' ? m : null,
+            m?.id, m?.studentCode, m?.username, m?.name,
+            fullUser?.id, fullUser?.studentCode, fullUser?.username, fullUser?.name
+          ].filter(Boolean).map(k => String(k).trim().toLowerCase());
+          return keys.some(k => map[k] || map[String(k)]);
+        }).length;
+      };
+
+      const confirmedCount = isDoneHelper(s2.confirmations.s2_reviewing);
+
+      // 立即同步并更新聊天框底栏按钮展示
+      this.syncStage2();
+      if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+      renderChat(this.state);
+
+      // 若尚未全员确认，提示等待其他组员
+      if (confirmedCount < totalCount) {
+        return;
+      }
+
+      // 2. 全员已确认：开始让审稿编辑提炼终版要点并指导回到正文冲刺
       const s2ChatLogs = (this.state.chatLogs && this.state.chatLogs.stage2) ? this.state.chatLogs.stage2 : [];
       const checklistIdx = s2ChatLogs.findIndex(m => m && m.text && m.text.includes('二审修正清单'));
       const relevantLogs = (checklistIdx >= 0) ? s2ChatLogs.slice(checklistIdx) : s2ChatLogs;
