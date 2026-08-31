@@ -572,19 +572,31 @@ export function showGlobalBannerNotice(title, message, type = 'info', duration =
 }
 
 /**
- * 🛡️ 解析失败阻断提示：弹出醒目全局横幅 + 返回一块占位 HTML（用于替换画布，阻止学生继续编辑）。
- * 用于「班级/小组/成员/任务」任一解析不到时明确提示并阻止，替代此前的静默兜底。
+ * 🛡️ 解析失败阻断提示：弹出醒目全局横幅 + 返回富交互占位 HTML（用于替换画布/容器，阻止学生非法编辑并提供多种一键恢复手段）。
  * @param {string} reason 阻断原因文案
  * @returns {string} 用于渲染进画布容器的阻断占位 HTML
  */
 export function showResolutionBlock(reason) {
-  const safe = escapeHtml(reason || '无法解析当前协作上下文，请刷新页面或联系教师');
+  const safe = escapeHtml(reason || '无法解析当前协作上下文，请刷新重试或重新登录');
   showGlobalBannerNotice('⚠️ 无法继续', safe, 'error', 0);
   return `
-    <div style="min-height:260px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:14px; padding:32px 24px; background:#fef2f2; border:1.5px dashed #fca5a5; border-radius:14px; text-align:center;">
-      <div style="font-size:44px; line-height:1;">🛑</div>
-      <div style="font-size:16px; font-weight:800; color:#b91c1c;">${safe}</div>
-      <div style="font-size:12.5px; color:#9ca3af;">请勿刷新重试无效时联系教师核对分班/分组/任务分配</div>
+    <div style="min-height:300px; width:100%; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:16px; padding:36px 24px; background:linear-gradient(180deg, #fef2f2 0%, #fff5f5 100%); border:1.5px dashed #fca5a5; border-radius:14px; text-align:center; box-sizing:border-box;">
+      <div style="font-size:46px; line-height:1; animation:pulse 2s infinite;">🛑</div>
+      <div style="font-size:16.5px; font-weight:800; color:#b91c1c; max-width:600px; line-height:1.5;">${safe}</div>
+      <div style="font-size:12.5px; color:#64748b; max-width:540px; line-height:1.6;">
+        系统已自动保护您的工作区。您可以尝试下方操作进行恢复；若多次重试仍无效，请联系任课教师核对分班、分组或任务状态。
+      </div>
+      <div style="display:flex; align-items:center; justify-content:center; gap:12px; flex-wrap:wrap; margin-top:8px;">
+        <button onclick="window.location.reload();" style="background:#2563eb; color:#ffffff; border:none; padding:8px 18px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; gap:6px; box-shadow:0 2px 6px rgba(37,99,235,0.25); transition:all 0.2s ease;">
+          <span>🔄 刷新重试</span>
+        </button>
+        <button onclick="if(window.app && typeof window.app.renderMain === 'function') { window.app.state.studentViewMode='task_list'; try { sessionStorage.setItem('jizhi_student_view_mode','task_list'); localStorage.setItem('jizhi_student_view_mode','task_list'); } catch(e){} window.app.renderMain(); } else { window.location.reload(); }" style="background:#ffffff; color:#334155; border:1px solid #cbd5e1; padding:8px 16px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; gap:6px; transition:all 0.2s ease;">
+          <span>📋 返回任务大厅</span>
+        </button>
+        <button onclick="if(window.app && typeof window.app.handleLogout === 'function') { window.app.handleLogout(); } else { try { localStorage.removeItem('jizhi_current_user'); sessionStorage.clear(); } catch(e){} window.location.reload(); }" style="background:#fee2e2; color:#b91c1c; border:1px solid #fecaca; padding:8px 16px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; gap:6px; transition:all 0.2s ease;">
+          <span>🚪 重新登录</span>
+        </button>
+      </div>
     </div>`;
 }
 
