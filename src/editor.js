@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles } from "./constants.js?v=20260831_v1020";
-import { callCozeAgentAPI } from "./agents.js?v=20260831_v1020";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, showResolutionBlock } from "./utils.js?v=20260831_v1020";
+import { AgentProfiles } from "./constants.js?v=20260831_v1021";
+import { callCozeAgentAPI } from "./agents.js?v=20260831_v1021";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, showResolutionBlock } from "./utils.js?v=20260831_v1021";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -3294,7 +3294,31 @@ export function renderChat(state) {
         </div>
       </div>
     `;
-  }).join('');
+  }).join('') + (state.activeAgentAnalyzing ? `
+    <div class="chat-message other agent-typing-message" id="agent-chat-typing-indicator" style="animation:modalFadeIn 0.2s ease;">
+      <div class="msg-avatar" style="background:#eff6ff; border:1.5px solid #2563eb; color:#2563eb; font-size:16px;">
+        ${state.activeAgentAnalyzing.icon || '🤖'}
+      </div>
+      <div class="msg-body">
+        <div class="msg-meta">
+          <span class="msg-sender" style="color:#2563eb; font-weight:800;">
+            ${escapeHtml((state.activeAgentAnalyzing.title || '智能体专家').replace(/[【】]/g, ''))}
+          </span>
+          <span style="font-size:10px; color:#2563eb; background:#eff6ff; border:1px solid #bfdbfe; padding:1px 6px; border-radius:10px; margin-left:6px; font-weight:700;">
+            ⏳ 正在深度研读与质检中...
+          </span>
+        </div>
+        <div class="msg-bubble thinking-bubble" style="background:#f8fafc; border:1.5px dashed #3b82f6; display:inline-flex; align-items:center; gap:8px; padding:8px 14px; border-radius:12px; color:#1e40af; box-shadow:0 1px 3px rgba(37,99,235,0.06);">
+          <span style="font-size:12.5px; font-weight:700;">${escapeHtml(state.activeAgentAnalyzing.detail || '正在通读全篇草稿并提炼学术意见...')}</span>
+          <span class="thinking-dots-anim" style="display:inline-flex; gap:3.5px; align-items:center; margin-left:4px;">
+            <span style="width:5px; height:5px; background:#2563eb; border-radius:50%; display:inline-block; animation:dotPulse 1.4s infinite ease-in-out both;"></span>
+            <span style="width:5px; height:5px; background:#2563eb; border-radius:50%; display:inline-block; animation:dotPulse 1.4s infinite ease-in-out both; animation-delay:0.2s;"></span>
+            <span style="width:5px; height:5px; background:#2563eb; border-radius:50%; display:inline-block; animation:dotPulse 1.4s infinite ease-in-out both; animation-delay:0.4s;"></span>
+          </span>
+        </div>
+      </div>
+    </div>
+  ` : '');
 
   const lastMsgIsMine = cleanMsgs.length > 0 && (cleanMsgs[cleanMsgs.length - 1].sender === currentUser || (window.app?.authManager?.getCurrentUser() && (cleanMsgs[cleanMsgs.length - 1].sender === window.app.authManager.getCurrentUser().id || cleanMsgs[cleanMsgs.length - 1].sender === window.app.authManager.getCurrentUser().studentCode)));
 

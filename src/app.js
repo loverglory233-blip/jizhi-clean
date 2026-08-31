@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260831_v1020";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260831_v1020";
-import { callCozeAgentAPI } from "./agents.js?v=20260831_v1020";
-import { AuthManager } from "./auth.js?v=20260831_v1020";
-import { CloudSyncEngine } from "./sync.js?v=20260831_v1020";
-import { renderLoginView } from "./login.js?v=20260831_v1020";
-import { renderTeacherPortal } from "./teacher.js?v=20260831_v1020";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260831_v1020";
+} from "./constants.js?v=20260831_v1021";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260831_v1021";
+import { callCozeAgentAPI } from "./agents.js?v=20260831_v1021";
+import { AuthManager } from "./auth.js?v=20260831_v1021";
+import { CloudSyncEngine } from "./sync.js?v=20260831_v1021";
+import { renderLoginView } from "./login.js?v=20260831_v1021";
+import { renderTeacherPortal } from "./teacher.js?v=20260831_v1021";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260831_v1021";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260831_v1020";
+} from "./editor.js?v=20260831_v1021";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -2787,8 +2787,9 @@ ${contentSnippet}
 
       // ── 智能体答疑：仅当学生在聊天中显式 @智能体 时才触发大模型定向即时答疑 ──
       this.triggerAgentReplyIfNeeded(text);
-      // 防抖重置
+      // 记录发送历史供极速双击防重
       input._lastSendTime = Date.now();
+      input._lastSendText = text;
     };
 
     sendBtn.onclick = handleSend;
@@ -2796,7 +2797,10 @@ ${contentSnippet}
       if (e.key === 'Enter' && !e.shiftKey) {
         // 🛡️ Safari / WebKit 中文输入法合成防吞字：若处于输入法选词状态或 keyCode 229，绝对禁止触发发送与清空
         if (isComposing || e.isComposing || e.keyCode === 229 || window._isGlobalComposing || (e.nativeEvent && e.nativeEvent.isComposing)) return;
-        if (input._lastSendTime && Date.now() - input._lastSendTime < 300) return;
+        const now = Date.now();
+        if (input._lastSendTime && (now - input._lastSendTime < 80) && input._lastSendText === input.value.trim()) {
+          return;
+        }
         e.preventDefault();
         handleSend();
       }
