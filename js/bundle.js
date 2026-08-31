@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260901_v1107
+ * Version: 20260901_v1108
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260901_v1107';
+  const APP_VERSION = '20260901_v1108';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -13750,6 +13750,8 @@
                   this._nudgeCounts[nudgeKey] = 1;
                   this._s2MeetingAutoFallbackRunning = true;
                   s2.meetingStep = 'completed';
+                  s2.meetingCompletedTime = Date.now();
+                  s2.reviewMilestone = 'second_review_done';
                   this.syncStage2();
 
                   try {
@@ -17721,6 +17723,7 @@
       await new Promise(r => setTimeout(r, 1500));
 
       try {
+        const topic = (this.state.stage1 && this.state.stage1.mergedTitle) ? this.state.stage1.mergedTitle : '本组课题';
         const finalPrompt = `【课题】：《${topic}》
   【终稿草稿全文节选】：
   ${contentSnippet}
