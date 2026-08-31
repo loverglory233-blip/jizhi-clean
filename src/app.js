@@ -13,14 +13,14 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260901_v1129";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260901_v1129";
-import { callCozeAgentAPI } from "./agents.js?v=20260901_v1129";
-import { AuthManager } from "./auth.js?v=20260901_v1129";
-import { CloudSyncEngine } from "./sync.js?v=20260901_v1129";
-import { renderLoginView } from "./login.js?v=20260901_v1129";
-import { renderTeacherPortal } from "./teacher.js?v=20260901_v1129";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260901_v1129";
+} from "./constants.js?v=20260901_v1130";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260901_v1130";
+import { callCozeAgentAPI } from "./agents.js?v=20260901_v1130";
+import { AuthManager } from "./auth.js?v=20260901_v1130";
+import { CloudSyncEngine } from "./sync.js?v=20260901_v1130";
+import { renderLoginView } from "./login.js?v=20260901_v1130";
+import { renderTeacherPortal } from "./teacher.js?v=20260901_v1130";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260901_v1130";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -29,7 +29,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260901_v1129";
+} from "./editor.js?v=20260901_v1130";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -568,11 +568,14 @@ export class App {
 
           if (isS1Due && currentStage === 'stage1' && !isContractConfirmed && !s1AlreadySent) {
             this.state.gate20TriggeredMap[activeTaskId] = true;
+            const taskType = this.getCurrentTaskType();
+            const isInst = (taskType === 'instructional');
+            const auctioneerName = isInst ? '备课引导师' : '学术拍卖师';
             const msgStage1 = {
               id: s1GateMsgId,
               sender: 'auctioneer',
-              senderName: '学术选题 · 拍卖师',
-              text: `🎪 【拍卖师·转场通牒】：全场时间已达 20% 极限节点（阶段一标准规划为 10%，当前已超时）！\n👉 请全员立刻在左侧公约卡片点击【签署确认】，全员签署后立即进入【阶段二：学术编辑部】开始动笔写作，留足写作与质检时间！`,
+              senderName: `选题协商 · ${auctioneerName}`,
+              text: `🎪 【${auctioneerName}·推进提醒】：全场时间已达 20% 节点（阶段一标准规划为 10%）！\n👉 请全员抓紧在左侧公约卡片点击【签署确认】，全员签署后立即进入【阶段二：集体备课/写作】开始动笔，留足正文起草与质检时间！`,
               timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
               _timeMs: nowMs
             };
@@ -598,15 +601,19 @@ export class App {
 
           if (isTransferDue && !gate90AlreadySent && currentStage !== 'stage3') {
             this.state.gate90TriggeredMap[activeTaskId] = true;
+            const taskType = this.getCurrentTaskType();
+            const isInst = (taskType === 'instructional');
+            const auctioneerName = isInst ? '备课引导师' : '学术拍卖师';
+            const managingName = isInst ? '备课组长' : '责任编辑';
             let sender90 = (currentStage === 'stage1') ? 'auctioneer' : 'managingEditor';
             let text90 = (currentStage === 'stage1')
-              ? `🎪 【拍卖师·紧急转场通牒】：全场时间已达 90%（剩余最后约 ${Math.ceil(remainingMin)} 分钟）！请全员立刻在公约卡片点击【签署确认】，直接进入写作与答辩！`
-              : `🤝 【责任编辑·转场提示】：阶段二正文起草时间已达 90% 节点（写作预定时间已用完，全场仅剩最后约 ${Math.ceil(remainingMin)} 分钟）！请小组成员抓紧完成【初稿确认】，进入【🎓 阶段三：答辩擂台】，留足时间完成学术答辩与终稿完善！`;
+              ? `🎪 【${auctioneerName}·紧急推进提示】：全场时间已达 90%（剩余最后约 ${Math.ceil(remainingMin)} 分钟）！请全员立刻在公约卡片点击【签署确认】，直接进入写作与答辩！`
+              : `🤝 【${managingName}·全局转场提示】：阶段二正文起草时间已达 90% 节点（全场仅剩最后约 ${Math.ceil(remainingMin)} 分钟）！请小组成员抓紧完成【初稿确认】，进入【🎓 阶段三：答辩评审】，留足时间完成答辩与终稿完善！`;
 
             const msg90 = {
               id: gate90MsgId,
               sender: sender90,
-              senderName: (sender90 === 'auctioneer') ? '学术选题 · 拍卖师' : '协同调度 · 责任编辑',
+              senderName: (sender90 === 'auctioneer') ? `学术选题 · ${auctioneerName}` : `协同调度 · ${managingName}`,
               text: text90,
               timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
               _timeMs: nowMs
@@ -627,11 +634,15 @@ export class App {
 
           if (isPolishDue && currentStage === 'stage3' && !this.state.isFinalSubmitted && !gatePolishAlreadySent) {
             this.state.gateFinalPolishTriggeredMap[activeTaskId] = true;
+            const taskType = this.getCurrentTaskType();
+            const isInst = (taskType === 'instructional');
+            const chairName = isInst ? '答辩委员会主席' : '中间委员';
+            const docNoun = isInst ? '教案' : '论文';
             const msgPolish = {
               id: gatePolishMsgId,
               sender: 'neutral',
-              senderName: '答辩委员会主席 · 中间委员',
-              text: `🟡 【中间委员·终稿修改提示】：全场时间已达 95%（剩余最后约 ${Math.ceil(remainingMin)} 分钟）！\n👉 请小组成员抓紧收尾答辩，把答辩商定出的修改结论落实到【修改论文终稿】正文中，做好最后的通读核对与细节润色！`,
+              senderName: `答辩评审 · ${chairName}`,
+              text: `🟡 【${chairName}·终稿修改提示】：全场时间已达 95%（剩余最后约 ${Math.ceil(remainingMin)} 分钟）！\n👉 请小组成员抓紧收尾答辩，把答辩商定出的修改结论落实到【修改${docNoun}终稿】正文中，做好最后的通读核对与细节润色！`,
               timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
               _timeMs: nowMs
             };
@@ -651,11 +662,15 @@ export class App {
 
           if (isFinalSubmitDue && !this.state.isFinalSubmitted && !gate95AlreadySent) {
             this.state.gate95TriggeredMap[activeTaskId] = true;
+            const taskType = this.getCurrentTaskType();
+            const isInst = (taskType === 'instructional');
+            const chairName = isInst ? '答辩委员会主席' : '中间委员';
+            const docNoun = isInst ? '教案' : '论文';
             const msg95 = {
               id: gate95MsgId,
               sender: 'neutral',
-              senderName: '答辩委员会主席 · 中间委员',
-              text: `🚨 【中间委员·最后提交警报】：距任务总截止时间仅剩最后 3 分钟！请全组立即在上方点击【📤 提交论文终稿】按钮完成最终大作业交付，防止超时漏交！`,
+              senderName: `答辩评审 · ${chairName}`,
+              text: `🚨 【${chairName}·最后提交警报】：距任务总截止时间仅剩最后 3 分钟！请全组立即在上方点击【📤 提交${docNoun}终稿】按钮完成最终大作业交付，防止超时漏交！`,
               timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
               _timeMs: nowMs
             };
