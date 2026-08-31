@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260901_v1107";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260901_v1107";
-import { callCozeAgentAPI } from "./agents.js?v=20260901_v1107";
-import { AuthManager } from "./auth.js?v=20260901_v1107";
-import { CloudSyncEngine } from "./sync.js?v=20260901_v1107";
-import { renderLoginView } from "./login.js?v=20260901_v1107";
-import { renderTeacherPortal } from "./teacher.js?v=20260901_v1107";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260901_v1107";
+} from "./constants.js?v=20260901_v1108";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260901_v1108";
+import { callCozeAgentAPI } from "./agents.js?v=20260901_v1108";
+import { AuthManager } from "./auth.js?v=20260901_v1108";
+import { CloudSyncEngine } from "./sync.js?v=20260901_v1108";
+import { renderLoginView } from "./login.js?v=20260901_v1108";
+import { renderTeacherPortal } from "./teacher.js?v=20260901_v1108";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260901_v1108";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260901_v1107";
+} from "./editor.js?v=20260901_v1108";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -1694,6 +1694,8 @@ export class App {
                 this._nudgeCounts[nudgeKey] = 1;
                 this._s2MeetingAutoFallbackRunning = true;
                 s2.meetingStep = 'completed';
+                s2.meetingCompletedTime = Date.now();
+                s2.reviewMilestone = 'second_review_done';
                 this.syncStage2();
 
                 try {
@@ -5665,6 +5667,7 @@ ${contentSnippet}
     await new Promise(r => setTimeout(r, 1500));
 
     try {
+      const topic = (this.state.stage1 && this.state.stage1.mergedTitle) ? this.state.stage1.mergedTitle : '本组课题';
       const finalPrompt = `【课题】：《${topic}》
 【终稿草稿全文节选】：
 ${contentSnippet}
