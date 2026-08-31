@@ -14,8 +14,8 @@ import {
   DefaultTasks,
   DefaultAnnouncements,
   DefaultReferencePapers
-} from './constants.js?v=20260831_v985';
-import { formatExportDateTime, formatDurationHuman, isScopeMatch } from './utils.js?v=20260831_v985';
+} from './constants.js?v=20260831_v987';
+import { formatExportDateTime, formatDurationHuman, isScopeMatch } from './utils.js?v=20260831_v987';
 
 export class AuthManager {
   constructor() {
@@ -917,6 +917,53 @@ export class AuthManager {
 
     // 3. 确实未被分配到任何具体小组
     return { id: `group_unassigned_${safeUserKey}`, name: '未分组（待教师分配）' };
+  }
+
+  // 🛡️ 严格解析学生当前上下文（班级/小组/成员/任务）。
+  // 任何一项解析不到，都返回 { ok:false, reason } 明确阻断，绝不静默兜底到 class_101 / group_1 / classes[0] / tasks[0]。
+  resolveStudentActiveContext(user, { classId = null, taskId = null } = {}) {
+    if (!user) {
+      return { ok: false, reason: '当前会话未登录或已过期，请重新登录后再操作' };
+    }
+
+    // 1) 班级
+    const classes = this.getClasses();
+    if (!Array.isArray(classes) || classes.length === 0) {
+      return { ok: false, reason: '当前没有可用教学班级，请联系教师创建班级后再进入' };
+    }
+    const effectiveClassId = this.getEffectiveStudentClassId(user, taskId);
+    const activeClass = classes.find(c => c.id === effectiveClassId);
+    if (!activeClass || effectiveClassId === 'class_101') {
+      return { ok: false, reason: '无法解析你所在的班级，请联系教师确认分班后刷新重试' };
+    }
+
+    // 2) 小组
+    const group = this.getStudentActiveGroup(user, activeClass.id);
+    if (!group || !group.id || group.id === 'group_1' || group.id.startsWith('group_unassigned_')) {
+      return { ok: false, reason: '你尚未被分配到协作小组，请联系教师分配后再进入正文写作' };
+    }
+
+    // 3) 任务
+    let activeTask = null;
+    if (taskId) {
+      const tasks = this.getTasks();
+      activeTask = tasks.find(t => t.id === taskId) || null;
+      if (!activeTask) {
+        return { ok: false, reason: '无法解析当前写作任务，请返回任务列表重新进入' };
+      }
+    }
+
+    // 4) 成员 = 当前登录用户本身
+    return {
+      ok: true,
+      class: activeClass,
+      group,
+      member: user,
+      task: activeTask,
+      classId: activeClass.id,
+      groupId: group.id,
+      taskId: activeTask ? activeTask.id : null
+    };
   }
 
   getAvailableStudentsForGroup(classId, editingGroupId = null) {

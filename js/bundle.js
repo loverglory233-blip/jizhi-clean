@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260831_v985
+ * Version: 20260831_v987
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260831_v985';
+  const APP_VERSION = '20260831_v987';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -690,6 +690,23 @@
         setTimeout(() => { if (banner && banner.parentElement) banner.remove(); }, 150);
       });
     }
+  }
+
+  /**
+   * 🛡️ 解析失败阻断提示：弹出醒目全局横幅 + 返回一块占位 HTML（用于替换画布，阻止学生继续编辑）。
+   * 用于「班级/小组/成员/任务」任一解析不到时明确提示并阻止，替代此前的静默兜底。
+   * @param {string} reason 阻断原因文案
+   * @returns {string} 用于渲染进画布容器的阻断占位 HTML
+   */
+  function showResolutionBlock(reason) {
+    const safe = escapeHtml(reason || '无法解析当前协作上下文，请刷新页面或联系教师');
+    showGlobalBannerNotice('⚠️ 无法继续', safe, 'error', 0);
+    return `
+      <div style="min-height:260px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:14px; padding:32px 24px; background:#fef2f2; border:1.5px dashed #fca5a5; border-radius:14px; text-align:center;">
+        <div style="font-size:44px; line-height:1;">🛑</div>
+        <div style="font-size:16px; font-weight:800; color:#b91c1c;">${safe}</div>
+        <div style="font-size:12.5px; color:#9ca3af;">请勿刷新重试无效时联系教师核对分班/分组/任务分配</div>
+      </div>`;
   }
 
   /**
@@ -1845,6 +1862,53 @@
 
       // 3. 确实未被分配到任何具体小组
       return { id: `group_unassigned_${safeUserKey}`, name: '未分组（待教师分配）' };
+    }
+
+    // 🛡️ 严格解析学生当前上下文（班级/小组/成员/任务）。
+    // 任何一项解析不到，都返回 { ok:false, reason } 明确阻断，绝不静默兜底到 class_101 / group_1 / classes[0] / tasks[0]。
+    resolveStudentActiveContext(user, { classId = null, taskId = null } = {}) {
+      if (!user) {
+        return { ok: false, reason: '当前会话未登录或已过期，请重新登录后再操作' };
+      }
+
+      // 1) 班级
+      const classes = this.getClasses();
+      if (!Array.isArray(classes) || classes.length === 0) {
+        return { ok: false, reason: '当前没有可用教学班级，请联系教师创建班级后再进入' };
+      }
+      const effectiveClassId = this.getEffectiveStudentClassId(user, taskId);
+      const activeClass = classes.find(c => c.id === effectiveClassId);
+      if (!activeClass || effectiveClassId === 'class_101') {
+        return { ok: false, reason: '无法解析你所在的班级，请联系教师确认分班后刷新重试' };
+      }
+
+      // 2) 小组
+      const group = this.getStudentActiveGroup(user, activeClass.id);
+      if (!group || !group.id || group.id === 'group_1' || group.id.startsWith('group_unassigned_')) {
+        return { ok: false, reason: '你尚未被分配到协作小组，请联系教师分配后再进入正文写作' };
+      }
+
+      // 3) 任务
+      let activeTask = null;
+      if (taskId) {
+        const tasks = this.getTasks();
+        activeTask = tasks.find(t => t.id === taskId) || null;
+        if (!activeTask) {
+          return { ok: false, reason: '无法解析当前写作任务，请返回任务列表重新进入' };
+        }
+      }
+
+      // 4) 成员 = 当前登录用户本身
+      return {
+        ok: true,
+        class: activeClass,
+        group,
+        member: user,
+        task: activeTask,
+        classId: activeClass.id,
+        groupId: group.id,
+        taskId: activeTask ? activeTask.id : null
+      };
     }
 
     getAvailableStudentsForGroup(classId, editingGroupId = null) {
@@ -10287,11 +10351,28 @@
     }
     const actionPlan = s2.actionPlan;
     const currUser = (window.app && window.app.authManager) ? window.app.authManager.getCurrentUser() : null;
-    const userClassId = state.activeStudentClassId || (currUser ? currUser.classId : null) || null;
+    let userClassId = state.activeStudentClassId || (currUser ? currUser.classId : null) || null;
     const activeGroupObj = (window.app && window.app.authManager) ? window.app.authManager.getStudentActiveGroup(currUser, userClassId) : null;
-    const userGroupId = activeGroupObj?.id || (window.app?.cloudSyncEngine?.groupId) || (currUser?.groupId) || state.activeGroupId || 'group_1';
+    let userGroupId = activeGroupObj?.id || (window.app?.cloudSyncEngine?.groupId) || (currUser?.groupId) || state.activeGroupId || 'group_1';
     let activeTaskId = state.activeTaskId || (window.app?.cloudSyncEngine?.taskId) || (`task_${userClassId || 'default'}_default`);
     if (!activeTaskId || activeTaskId === 'task_default') activeTaskId = `task_${userClassId || 'default'}_default`;
+
+    // 🛡️ 班级/小组/成员/任务严格解析：任一解析不到 → 明确提示并阻止渲染正文画布（不再静默兜底 group_1 / task_default / null）
+    const authMgr = (window.app && window.app.authManager) ? window.app.authManager : null;
+    if (authMgr && typeof authMgr.resolveStudentActiveContext === 'function') {
+      const strictCtx = authMgr.resolveStudentActiveContext(currUser, {
+        classId: state.activeStudentClassId || null,
+        taskId: state.activeTaskId || null
+      });
+      if (!strictCtx.ok) {
+        canvas.innerHTML = showResolutionBlock(strictCtx.reason);
+        return;
+      }
+      userClassId = strictCtx.classId;
+      userGroupId = strictCtx.groupId;
+      if (strictCtx.taskId) activeTaskId = strictCtx.taskId;
+    }
+
     const availablePapers = (window.app && window.app.authManager) ? window.app.authManager.getReferencePapers(userGroupId, userClassId, activeTaskId) : [];
     const paperBtnLabel = availablePapers.length > 0 ? `📚 查阅参考范文 (${availablePapers.length}篇)` : '📚 查阅参考范文库';
 
@@ -11069,11 +11150,25 @@
         <div class="card" id="stage3-editor-card" style="display:${activeTab === 'editor' ? 'flex' : 'none'}; flex:1; flex-direction:column; padding:16px; min-height:600px; overscroll-behavior-y:contain; -webkit-overflow-scrolling:touch;">
           ${(() => {
             const currUser = (window.app && window.app.authManager) ? window.app.authManager.getCurrentUser() : null;
-            const userClassId = state.activeStudentClassId || (currUser ? currUser.classId : null) || null;
+            let userClassId = state.activeStudentClassId || (currUser ? currUser.classId : null) || null;
             const activeGroupObj = (window.app && window.app.authManager) ? window.app.authManager.getStudentActiveGroup(currUser, userClassId) : null;
-            const userGroupId = activeGroupObj?.id || (window.app?.cloudSyncEngine?.groupId) || (currUser?.groupId) || state.activeGroupId || 'group_1';
+            let userGroupId = activeGroupObj?.id || (window.app?.cloudSyncEngine?.groupId) || (currUser?.groupId) || state.activeGroupId || 'group_1';
             let activeTaskId = state.activeTaskId || (window.app?.cloudSyncEngine?.taskId) || (`task_${userClassId || 'default'}_default`);
             if (!activeTaskId || activeTaskId === 'task_default') activeTaskId = `task_${userClassId || 'default'}_default`;
+
+            // 🛡️ 班级/小组/成员/任务严格解析：任一解析不到 → 明确提示并阻止渲染终稿编辑器（不再静默兜底）
+            const authMgr3 = (window.app && window.app.authManager) ? window.app.authManager : null;
+            if (authMgr3 && typeof authMgr3.resolveStudentActiveContext === 'function') {
+              const strictCtx3 = authMgr3.resolveStudentActiveContext(currUser, {
+                classId: state.activeStudentClassId || null,
+                taskId: state.activeTaskId || null
+              });
+              if (!strictCtx3.ok) return showResolutionBlock(strictCtx3.reason);
+              userClassId = strictCtx3.classId;
+              userGroupId = strictCtx3.groupId;
+              if (strictCtx3.taskId) activeTaskId = strictCtx3.taskId;
+            }
+
             const rawPadName = `jizhi_${activeTaskId}_${userGroupId}`;
             const currUserName = (currUser && (currUser.name || currUser.username)) || '组员';
             const currUserColor = (state.members && state.members[currUserCode]?.color) || '#2563eb';
@@ -11647,6 +11742,8 @@
     window.renderChat = renderChat;
     window.addEventListener('compositionstart', () => { window._isGlobalComposing = true; }, true);
     window.addEventListener('compositionend', () => { window._isGlobalComposing = false; }, true);
+    // 🛡️ Safari 兜底：合成被 blur/Esc 打断时 compositionend 可能不触发，导致标志永久卡 true（进而跳过重渲染）
+    window.addEventListener('blur', () => { window._isGlobalComposing = false; }, true);
   }
 
   /* ==========================================================================
@@ -13023,6 +13120,7 @@
           const curTask = allTasks.find(t => t.id === this.state.activeTaskId);
           const taskDurMin = (curTask && curTask.durationMinutes) ? Number(curTask.durationMinutes) : 150;
           const isLargeTask = taskDurMin > 150;
+          const totalPlannedMs = taskDurMin * 60 * 1000; // 阶段二总计划时长(ms)，供 85% 时间水位线与倒计时使用
           const s2NudgeCooldownMs = isLargeTask ? 480000 : 360000;
           const s2SilenceThresholdMs = 180000; // 统一 3 分钟破冰
 
@@ -13266,21 +13364,45 @@
                   this._nudgeCounts[nudgeKey] = 1;
                   this._s2MeetingAutoFallbackRunning = true;
                   s2.meetingStep = 'completed';
-
-                  const autoNoticeMsg = {
-                    sender: 'managingEditor',
-                    senderName: '协同调度 · 责任编辑',
-                    text: `🤖 【责任编辑·智能生成与收拢】：半程研讨时间已满 ${consistencyFallbackMinText} 分钟，为确保正文推进节奏，责任编辑已结合全组自查清单与学术规范，自动为大家提炼形成【半程修改决议】！请全组同学按照决议分工，集中精力在正文中修改落实！`,
-                    timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                    _timeMs: now
-                  };
-                  if (!this.state.chatLogs.stage2) this.state.chatLogs.stage2 = [];
-                  this.state.chatLogs.stage2.push(autoNoticeMsg);
-                  this.syncChatLogs();
                   this.syncStage2();
-                  if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
-                  renderChat(this.state);
-                  this._s2MeetingAutoFallbackRunning = false;
+
+                  try {
+                    const topic = (this.state.stage1 && this.state.stage1.mergedTitle) ? this.state.stage1.mergedTitle : '本组课题';
+                    const userLogs = [...s2Chats].filter(m => m && m.sender && !AgentProfiles[m.sender] && m.sender !== 'system');
+                    const chatSnippet = userLogs.map(m => `${m.senderName || m.sender}: ${m.text}`).join('\n') || '全组已完成半程自查打卡，尚未充分讨论修改方案';
+                    const fallbackPrompt = `全组已完成半程学术审计会议自查打卡，但针对《半程修正清单》的修改方案讨论已持续 ${consistencyFallbackMinText} 分钟仍未形成结论。
+  【论文题目】: ${topic}
+  【正文草稿参考】: ${plainText.slice(0, 1500)}
+  【组内讨论记录】: ${chatSnippet}
+
+  请作为责任编辑，结合全组自查结论与学术规范，代为提炼形成【半程修改决议】（150~200字）：
+  ① 明确各章节优先修改重点与分工建议；
+  ② 给出前后衔接与术语统一的落实要求；
+  ③ 末句提示全组按决议回到正文集中修改落实！（纯自然语言，150~200字，严禁输出代码块）`;
+
+                    const resp = await callCozeAgentAPI('managingEditor', fallbackPrompt, { stage: 'stage2', topic });
+                    let fallbackText = (resp && resp.trim().length > 0)
+                      ? resp.trim()
+                      : `🤝 【责任编辑·智能提炼决议】：半程研讨时间已满 ${consistencyFallbackMinText} 分钟，为确保正文推进节奏，责任编辑已结合全组自查清单与学术规范，自动为大家提炼形成【半程修改决议】：①优先对齐前后章节衔接与核心术语；②按分工集中补全研究方法细节；③统一学术语体。请全组同学按照决议分工，集中精力在正文中修改落实！`;
+                    if (!fallbackText.startsWith('🤝')) fallbackText = `🤝 【责任编辑·智能提炼决议】：${fallbackText}`;
+
+                    const autoNoticeMsg = {
+                      sender: 'managingEditor',
+                      senderName: '协同调度 · 责任编辑',
+                      text: fallbackText,
+                      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                      _timeMs: now
+                    };
+                    if (!this.state.chatLogs.stage2) this.state.chatLogs.stage2 = [];
+                    this.state.chatLogs.stage2.push(autoNoticeMsg);
+                    this.syncChatLogs();
+                    if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+                    renderChat(this.state);
+                  } catch (e) {
+                    console.warn('s2_consistency_auto_fallback error:', e);
+                  } finally {
+                    this._s2MeetingAutoFallbackRunning = false;
+                  }
                   return;
                 }
               }
@@ -13318,6 +13440,73 @@
               renderChat(this.state);
               return;
             }
+
+            // ── 二审后冷场满 6 分钟：强化收拢催促（全场严格仅 1 次） ──
+            if (silenceAfterSecondReview >= 360000 && !this._nudgeCounts['s2_second_review_silence_6m']) {
+              this._nudgeCounts['s2_second_review_silence_6m'] = 1;
+              const followMsg6 = {
+                sender: 'reviewingEditor',
+                senderName: '学术质量 · 审稿编辑',
+                text: `⏳ 【审稿编辑·二审研讨收拢】：二审深度把脉建议已送达 6 分钟啦！请大家围绕「概念对齐、方法补全、语体规范」尽快商定落实分工与修改计划，若有疑义随时在讨论区 @审稿编辑 咨询！`,
+                timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                _timeMs: now
+              };
+              if (!this.state.chatLogs.stage2) this.state.chatLogs.stage2 = [];
+              this.state.chatLogs.stage2.push(followMsg6);
+              this.syncChatLogs();
+              if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+              renderChat(this.state);
+              return;
+            }
+
+            // ── 二审后冷场满 10 分钟（长任务 20 分钟）：审稿编辑 LLM 智能兜底提炼修改要点并顺推 ──
+            const secondReviewFallbackMs = isLargeTask ? 1200000 : 600000;
+            const secondReviewFallbackMinText = isLargeTask ? '20' : '10';
+            if (silenceAfterSecondReview >= secondReviewFallbackMs && !this._s2SecondReviewAutoFallbackRunning) {
+              const nudgeKey2 = 's2_second_review_auto_fallback';
+              if (!this._nudgeCounts[nudgeKey2]) {
+                this._nudgeCounts[nudgeKey2] = 1;
+                this._s2SecondReviewAutoFallbackRunning = true;
+                try {
+                  const topic = (this.state.stage1 && this.state.stage1.mergedTitle) ? this.state.stage1.mergedTitle : '本组课题';
+                  const userLogs = [...s2Chats].filter(m => m && m.sender && !AgentProfiles[m.sender] && m.sender !== 'system');
+                  const chatSnippet = userLogs.map(m => `${m.senderName || m.sender}: ${m.text}`).join('\n') || '组员已收到二审建议，尚未充分讨论落实方案';
+                  const fallbackPrompt2 = `全组在收到《二审修正清单》后，围绕修改落实的讨论已持续 ${secondReviewFallbackMinText} 分钟仍未形成明确结论。
+  【论文题目】: ${topic}
+  【正文草稿参考】: ${plainText.slice(0, 1500)}
+  【组内讨论记录】: ${chatSnippet}
+
+  请作为审稿编辑，结合二审建议与正文现状，代为提炼【二审修改落实要点】（150~200字）：
+  ① 明确当前最需优先落实的修改项与分工建议；
+  ② 提示研究方法与术语细节的补全方向；
+  ③ 末句鼓励全组回到正文集中修改，冲刺终稿！（纯自然语言，150~200字，严禁输出代码块）`;
+
+                  const resp2 = await callCozeAgentAPI('reviewingEditor', fallbackPrompt2, { stage: 'stage2', topic, actualDoc: plainText });
+                  let fallbackText2 = (resp2 && resp2.trim().length > 0)
+                    ? resp2.trim()
+                    : `📝 【审稿编辑·二审修改要点提炼】：二审研讨时间已满 ${secondReviewFallbackMinText} 分钟，为确保正文推进节奏，审稿编辑已结合二审建议与学术规范，自动为大家提炼【修改落实要点】：①优先对齐核心概念与问题表述；②补全研究方法与工具操作细节；③统一行文衔接与学术语体。请全组回到正文集中修改，冲刺终稿！`;
+                  if (!fallbackText2.startsWith('📝')) fallbackText2 = `📝 【审稿编辑·二审修改要点提炼】：${fallbackText2}`;
+
+                  const autoFollowMsg2 = {
+                    sender: 'reviewingEditor',
+                    senderName: '学术质量 · 审稿编辑',
+                    text: fallbackText2,
+                    timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                    _timeMs: now
+                  };
+                  if (!this.state.chatLogs.stage2) this.state.chatLogs.stage2 = [];
+                  this.state.chatLogs.stage2.push(autoFollowMsg2);
+                  this.syncChatLogs();
+                  if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+                  renderChat(this.state);
+                } catch (e) {
+                  console.warn('s2_second_review_auto_fallback error:', e);
+                } finally {
+                  this._s2SecondReviewAutoFallbackRunning = false;
+                }
+                return;
+              }
+            }
           }
 
           // ── 🛡️ 阶段二三次质检水位线标准（中任务默认4300字，大任务默认9000字） ──
@@ -13333,7 +13522,6 @@
             this.syncStage2();
           }
 
-          const membersList = Object.values(this.state.members || {});
           // 1. 审稿编辑【第三次质检·终审定稿扫描】（全场严格仅 1 次）
           if (!hasFinalReviewInLogs && s2.reviewMilestone !== 'final_review_done' && isFinalReviewDue && !this._isTriggeringFinalReview) {
             this._isTriggeringFinalReview = true;
@@ -14328,7 +14516,7 @@
       input.addEventListener('keydown', (e) => {
         if (e.key === 'Enter' && !e.shiftKey) {
           // 🛡️ Safari / WebKit 中文输入法合成防吞字：若处于输入法选词状态或 keyCode 229，绝对禁止触发发送与清空
-          if (isComposing || e.isComposing || e.keyCode === 229) return;
+          if (isComposing || e.isComposing || e.keyCode === 229 || window._isGlobalComposing || (e.nativeEvent && e.nativeEvent.isComposing)) return;
           e.preventDefault();
           handleSend();
         }
@@ -15843,23 +16031,28 @@
 
       // 🛡️ 正文草稿锁存：切换前从 Etherpad 实时提取最新全文存入内存与快照，绝不丢字，并供阶段三智能体深度分析
       if (this.state.currentStage === 'stage2') {
-        const activeTaskId = this.state.activeTaskId || null;
         const currentUser = this.authManager ? this.authManager.getCurrentUser() : null;
-        const effectiveClassId = this.state.activeStudentClassId || (currentUser?.classId || null);
-        const activeGroupObj = this.authManager ? this.authManager.getStudentActiveGroup(currentUser, effectiveClassId) : null;
-        const currentGroupId = activeGroupObj?.id || (currentUser?.groupId || this.state.activeGroupId || null);
-        const padName = `jizhi_${activeTaskId}_${currentGroupId}`;
-        try {
-          fetch(`sync.php?action=get_pad_text&padId=${padName}`)
-            .then(res => res.json())
-            .then(data => {
-              if (data && data.success && data.text) {
-                if (!this.state.stage2) this.state.stage2 = {};
-                this.state.stage2.unifiedContent = data.text;
-              }
+        const strictCtx = (this.authManager && typeof this.authManager.resolveStudentActiveContext === 'function')
+          ? this.authManager.resolveStudentActiveContext(currentUser, {
+              classId: this.state.activeStudentClassId || null,
+              taskId: this.state.activeTaskId || null
             })
-            .catch(() => {});
-        } catch (e) {}
+          : null;
+        // 解析不到时不构建 pad 名、不发起任何请求（彻底消除 jizhi_..._null 这类空 pad）
+        if (strictCtx && strictCtx.ok) {
+          const padName = `jizhi_${strictCtx.taskId}_${strictCtx.groupId}`;
+          try {
+            fetch(`sync.php?action=get_pad_text&padId=${padName}`)
+              .then(res => res.json())
+              .then(data => {
+                if (data && data.success && data.text) {
+                  if (!this.state.stage2) this.state.stage2 = {};
+                  this.state.stage2.unifiedContent = data.text;
+                }
+              })
+              .catch(() => {});
+          } catch (e) {}
+        }
       }
 
       this.isViewingPastStage = (targetOrder < currentGroupOrder);
@@ -15905,7 +16098,22 @@
       const currentUser = this.authManager.getCurrentUser();
       const effectiveClassId = this.state.activeStudentClassId || (currentUser?.classId || null);
       const activeGroupObj = this.authManager.getStudentActiveGroup(currentUser, effectiveClassId);
-      const currentGroupId = activeGroupObj.id || (currentUser && currentUser.groupId ? currentUser.groupId : 'group_1');
+      let currentGroupId = activeGroupObj.id || (currentUser && currentUser.groupId ? currentUser.groupId : 'group_1');
+
+      // 🛡️ 班级/小组/成员/任务严格解析：任一解析不到 → 明确提示并阻止进入学生工作区（不再静默兜底）
+      if (this.authManager && typeof this.authManager.resolveStudentActiveContext === 'function') {
+        const strictCtx = this.authManager.resolveStudentActiveContext(currentUser, {
+          classId: this.state.activeStudentClassId || null,
+          taskId: this.state.activeTaskId || null
+        });
+        if (!strictCtx.ok) {
+          const appEl = document.getElementById('app');
+          if (appEl) appEl.innerHTML = showResolutionBlock(strictCtx.reason);
+          return;
+        }
+        currentGroupId = strictCtx.groupId;
+        this.state.activeStudentClassId = strictCtx.classId;
+      }
 
       this.state.members = this.authManager.getGroupMembersForWorkspace(currentGroupId);
       this.state.currentUser = currentUser ? (currentUser.name || currentUser.studentCode || currentUser.id) : null;
@@ -17018,10 +17226,10 @@
       });
 
       let overallRating = 4;
-      modal.querySelectorAll('#star-rating-overall .star').forEach(s => {
+      modal.querySelectorAll('#star-rating-logic .star').forEach(s => {
         s.addEventListener('click', (e) => {
           overallRating = Number(e.target.dataset.val);
-          modal.querySelectorAll('#star-rating-overall .star').forEach(st => {
+          modal.querySelectorAll('#star-rating-logic .star').forEach(st => {
             const v = Number(st.dataset.val);
             st.style.color = v <= overallRating ? '#f59e0b' : '#475569';
           });

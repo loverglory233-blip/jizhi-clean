@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles } from "./constants.js?v=20260831_v985";
-import { callCozeAgentAPI } from "./agents.js?v=20260831_v985";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap } from "./utils.js?v=20260831_v985";
+import { AgentProfiles } from "./constants.js?v=20260831_v987";
+import { callCozeAgentAPI } from "./agents.js?v=20260831_v987";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, showResolutionBlock } from "./utils.js?v=20260831_v987";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -1986,11 +1986,28 @@ function renderStage2Canvas(canvas, state, handlers) {
   }
   const actionPlan = s2.actionPlan;
   const currUser = (window.app && window.app.authManager) ? window.app.authManager.getCurrentUser() : null;
-  const userClassId = state.activeStudentClassId || (currUser ? currUser.classId : null) || null;
+  let userClassId = state.activeStudentClassId || (currUser ? currUser.classId : null) || null;
   const activeGroupObj = (window.app && window.app.authManager) ? window.app.authManager.getStudentActiveGroup(currUser, userClassId) : null;
-  const userGroupId = activeGroupObj?.id || (window.app?.cloudSyncEngine?.groupId) || (currUser?.groupId) || state.activeGroupId || 'group_1';
+  let userGroupId = activeGroupObj?.id || (window.app?.cloudSyncEngine?.groupId) || (currUser?.groupId) || state.activeGroupId || 'group_1';
   let activeTaskId = state.activeTaskId || (window.app?.cloudSyncEngine?.taskId) || (`task_${userClassId || 'default'}_default`);
   if (!activeTaskId || activeTaskId === 'task_default') activeTaskId = `task_${userClassId || 'default'}_default`;
+
+  // 🛡️ 班级/小组/成员/任务严格解析：任一解析不到 → 明确提示并阻止渲染正文画布（不再静默兜底 group_1 / task_default / null）
+  const authMgr = (window.app && window.app.authManager) ? window.app.authManager : null;
+  if (authMgr && typeof authMgr.resolveStudentActiveContext === 'function') {
+    const strictCtx = authMgr.resolveStudentActiveContext(currUser, {
+      classId: state.activeStudentClassId || null,
+      taskId: state.activeTaskId || null
+    });
+    if (!strictCtx.ok) {
+      canvas.innerHTML = showResolutionBlock(strictCtx.reason);
+      return;
+    }
+    userClassId = strictCtx.classId;
+    userGroupId = strictCtx.groupId;
+    if (strictCtx.taskId) activeTaskId = strictCtx.taskId;
+  }
+
   const availablePapers = (window.app && window.app.authManager) ? window.app.authManager.getReferencePapers(userGroupId, userClassId, activeTaskId) : [];
   const paperBtnLabel = availablePapers.length > 0 ? `📚 查阅参考范文 (${availablePapers.length}篇)` : '📚 查阅参考范文库';
 
@@ -2768,11 +2785,25 @@ function renderStage3Canvas(canvas, state, handlers) {
       <div class="card" id="stage3-editor-card" style="display:${activeTab === 'editor' ? 'flex' : 'none'}; flex:1; flex-direction:column; padding:16px; min-height:600px; overscroll-behavior-y:contain; -webkit-overflow-scrolling:touch;">
         ${(() => {
           const currUser = (window.app && window.app.authManager) ? window.app.authManager.getCurrentUser() : null;
-          const userClassId = state.activeStudentClassId || (currUser ? currUser.classId : null) || null;
+          let userClassId = state.activeStudentClassId || (currUser ? currUser.classId : null) || null;
           const activeGroupObj = (window.app && window.app.authManager) ? window.app.authManager.getStudentActiveGroup(currUser, userClassId) : null;
-          const userGroupId = activeGroupObj?.id || (window.app?.cloudSyncEngine?.groupId) || (currUser?.groupId) || state.activeGroupId || 'group_1';
+          let userGroupId = activeGroupObj?.id || (window.app?.cloudSyncEngine?.groupId) || (currUser?.groupId) || state.activeGroupId || 'group_1';
           let activeTaskId = state.activeTaskId || (window.app?.cloudSyncEngine?.taskId) || (`task_${userClassId || 'default'}_default`);
           if (!activeTaskId || activeTaskId === 'task_default') activeTaskId = `task_${userClassId || 'default'}_default`;
+
+          // 🛡️ 班级/小组/成员/任务严格解析：任一解析不到 → 明确提示并阻止渲染终稿编辑器（不再静默兜底）
+          const authMgr3 = (window.app && window.app.authManager) ? window.app.authManager : null;
+          if (authMgr3 && typeof authMgr3.resolveStudentActiveContext === 'function') {
+            const strictCtx3 = authMgr3.resolveStudentActiveContext(currUser, {
+              classId: state.activeStudentClassId || null,
+              taskId: state.activeTaskId || null
+            });
+            if (!strictCtx3.ok) return showResolutionBlock(strictCtx3.reason);
+            userClassId = strictCtx3.classId;
+            userGroupId = strictCtx3.groupId;
+            if (strictCtx3.taskId) activeTaskId = strictCtx3.taskId;
+          }
+
           const rawPadName = `jizhi_${activeTaskId}_${userGroupId}`;
           const currUserName = (currUser && (currUser.name || currUser.username)) || '组员';
           const currUserColor = (state.members && state.members[currUserCode]?.color) || '#2563eb';

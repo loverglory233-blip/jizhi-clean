@@ -572,6 +572,23 @@ export function showGlobalBannerNotice(title, message, type = 'info', duration =
 }
 
 /**
+ * 🛡️ 解析失败阻断提示：弹出醒目全局横幅 + 返回一块占位 HTML（用于替换画布，阻止学生继续编辑）。
+ * 用于「班级/小组/成员/任务」任一解析不到时明确提示并阻止，替代此前的静默兜底。
+ * @param {string} reason 阻断原因文案
+ * @returns {string} 用于渲染进画布容器的阻断占位 HTML
+ */
+export function showResolutionBlock(reason) {
+  const safe = escapeHtml(reason || '无法解析当前协作上下文，请刷新页面或联系教师');
+  showGlobalBannerNotice('⚠️ 无法继续', safe, 'error', 0);
+  return `
+    <div style="min-height:260px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:14px; padding:32px 24px; background:#fef2f2; border:1.5px dashed #fca5a5; border-radius:14px; text-align:center;">
+      <div style="font-size:44px; line-height:1;">🛑</div>
+      <div style="font-size:16px; font-weight:800; color:#b91c1c;">${safe}</div>
+      <div style="font-size:12.5px; color:#9ca3af;">请勿刷新重试无效时联系教师核对分班/分组/任务分配</div>
+    </div>`;
+}
+
+/**
  * ⏳ 任务截止时间延长弹窗（场景 1：学生正处于该任务内）
  */
 export function showTaskExtendedUnlockModal(task, prevDeadline, isUnlockedNow = false) {

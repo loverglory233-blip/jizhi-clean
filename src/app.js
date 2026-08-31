@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260831_v985";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch } from "./utils.js?v=20260831_v985";
-import { callCozeAgentAPI } from "./agents.js?v=20260831_v985";
-import { AuthManager } from "./auth.js?v=20260831_v985";
-import { CloudSyncEngine } from "./sync.js?v=20260831_v985";
-import { renderLoginView } from "./login.js?v=20260831_v985";
-import { renderTeacherPortal } from "./teacher.js?v=20260831_v985";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260831_v985";
+} from "./constants.js?v=20260831_v987";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260831_v987";
+import { callCozeAgentAPI } from "./agents.js?v=20260831_v987";
+import { AuthManager } from "./auth.js?v=20260831_v987";
+import { CloudSyncEngine } from "./sync.js?v=20260831_v987";
+import { renderLoginView } from "./login.js?v=20260831_v987";
+import { renderTeacherPortal } from "./teacher.js?v=20260831_v987";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260831_v987";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,13 +26,15 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260831_v985";
+} from "./editor.js?v=20260831_v987";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
   window.renderChat = renderChat;
   window.addEventListener('compositionstart', () => { window._isGlobalComposing = true; }, true);
   window.addEventListener('compositionend', () => { window._isGlobalComposing = false; }, true);
+  // 🛡️ Safari 兜底：合成被 blur/Esc 打断时 compositionend 可能不触发，导致标志永久卡 true（进而跳过重渲染）
+  window.addEventListener('blur', () => { window._isGlobalComposing = false; }, true);
 }
 
 /* ==========================================================================
@@ -1409,6 +1411,7 @@ export class App {
         const curTask = allTasks.find(t => t.id === this.state.activeTaskId);
         const taskDurMin = (curTask && curTask.durationMinutes) ? Number(curTask.durationMinutes) : 150;
         const isLargeTask = taskDurMin > 150;
+        const totalPlannedMs = taskDurMin * 60 * 1000; // 阶段二总计划时长(ms)，供 85% 时间水位线与倒计时使用
         const s2NudgeCooldownMs = isLargeTask ? 480000 : 360000;
         const s2SilenceThresholdMs = 180000; // 统一 3 分钟破冰
 
@@ -1652,21 +1655,45 @@ export class App {
                 this._nudgeCounts[nudgeKey] = 1;
                 this._s2MeetingAutoFallbackRunning = true;
                 s2.meetingStep = 'completed';
-                
-                const autoNoticeMsg = {
-                  sender: 'managingEditor',
-                  senderName: '协同调度 · 责任编辑',
-                  text: `🤖 【责任编辑·智能生成与收拢】：半程研讨时间已满 ${consistencyFallbackMinText} 分钟，为确保正文推进节奏，责任编辑已结合全组自查清单与学术规范，自动为大家提炼形成【半程修改决议】！请全组同学按照决议分工，集中精力在正文中修改落实！`,
-                  timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                  _timeMs: now
-                };
-                if (!this.state.chatLogs.stage2) this.state.chatLogs.stage2 = [];
-                this.state.chatLogs.stage2.push(autoNoticeMsg);
-                this.syncChatLogs();
                 this.syncStage2();
-                if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
-                renderChat(this.state);
-                this._s2MeetingAutoFallbackRunning = false;
+
+                try {
+                  const topic = (this.state.stage1 && this.state.stage1.mergedTitle) ? this.state.stage1.mergedTitle : '本组课题';
+                  const userLogs = [...s2Chats].filter(m => m && m.sender && !AgentProfiles[m.sender] && m.sender !== 'system');
+                  const chatSnippet = userLogs.map(m => `${m.senderName || m.sender}: ${m.text}`).join('\n') || '全组已完成半程自查打卡，尚未充分讨论修改方案';
+                  const fallbackPrompt = `全组已完成半程学术审计会议自查打卡，但针对《半程修正清单》的修改方案讨论已持续 ${consistencyFallbackMinText} 分钟仍未形成结论。
+【论文题目】: ${topic}
+【正文草稿参考】: ${plainText.slice(0, 1500)}
+【组内讨论记录】: ${chatSnippet}
+
+请作为责任编辑，结合全组自查结论与学术规范，代为提炼形成【半程修改决议】（150~200字）：
+① 明确各章节优先修改重点与分工建议；
+② 给出前后衔接与术语统一的落实要求；
+③ 末句提示全组按决议回到正文集中修改落实！（纯自然语言，150~200字，严禁输出代码块）`;
+
+                  const resp = await callCozeAgentAPI('managingEditor', fallbackPrompt, { stage: 'stage2', topic });
+                  let fallbackText = (resp && resp.trim().length > 0)
+                    ? resp.trim()
+                    : `🤝 【责任编辑·智能提炼决议】：半程研讨时间已满 ${consistencyFallbackMinText} 分钟，为确保正文推进节奏，责任编辑已结合全组自查清单与学术规范，自动为大家提炼形成【半程修改决议】：①优先对齐前后章节衔接与核心术语；②按分工集中补全研究方法细节；③统一学术语体。请全组同学按照决议分工，集中精力在正文中修改落实！`;
+                  if (!fallbackText.startsWith('🤝')) fallbackText = `🤝 【责任编辑·智能提炼决议】：${fallbackText}`;
+
+                  const autoNoticeMsg = {
+                    sender: 'managingEditor',
+                    senderName: '协同调度 · 责任编辑',
+                    text: fallbackText,
+                    timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                    _timeMs: now
+                  };
+                  if (!this.state.chatLogs.stage2) this.state.chatLogs.stage2 = [];
+                  this.state.chatLogs.stage2.push(autoNoticeMsg);
+                  this.syncChatLogs();
+                  if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+                  renderChat(this.state);
+                } catch (e) {
+                  console.warn('s2_consistency_auto_fallback error:', e);
+                } finally {
+                  this._s2MeetingAutoFallbackRunning = false;
+                }
                 return;
               }
             }
@@ -1704,6 +1731,73 @@ export class App {
             renderChat(this.state);
             return;
           }
+
+          // ── 二审后冷场满 6 分钟：强化收拢催促（全场严格仅 1 次） ──
+          if (silenceAfterSecondReview >= 360000 && !this._nudgeCounts['s2_second_review_silence_6m']) {
+            this._nudgeCounts['s2_second_review_silence_6m'] = 1;
+            const followMsg6 = {
+              sender: 'reviewingEditor',
+              senderName: '学术质量 · 审稿编辑',
+              text: `⏳ 【审稿编辑·二审研讨收拢】：二审深度把脉建议已送达 6 分钟啦！请大家围绕「概念对齐、方法补全、语体规范」尽快商定落实分工与修改计划，若有疑义随时在讨论区 @审稿编辑 咨询！`,
+              timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+              _timeMs: now
+            };
+            if (!this.state.chatLogs.stage2) this.state.chatLogs.stage2 = [];
+            this.state.chatLogs.stage2.push(followMsg6);
+            this.syncChatLogs();
+            if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+            renderChat(this.state);
+            return;
+          }
+
+          // ── 二审后冷场满 10 分钟（长任务 20 分钟）：审稿编辑 LLM 智能兜底提炼修改要点并顺推 ──
+          const secondReviewFallbackMs = isLargeTask ? 1200000 : 600000;
+          const secondReviewFallbackMinText = isLargeTask ? '20' : '10';
+          if (silenceAfterSecondReview >= secondReviewFallbackMs && !this._s2SecondReviewAutoFallbackRunning) {
+            const nudgeKey2 = 's2_second_review_auto_fallback';
+            if (!this._nudgeCounts[nudgeKey2]) {
+              this._nudgeCounts[nudgeKey2] = 1;
+              this._s2SecondReviewAutoFallbackRunning = true;
+              try {
+                const topic = (this.state.stage1 && this.state.stage1.mergedTitle) ? this.state.stage1.mergedTitle : '本组课题';
+                const userLogs = [...s2Chats].filter(m => m && m.sender && !AgentProfiles[m.sender] && m.sender !== 'system');
+                const chatSnippet = userLogs.map(m => `${m.senderName || m.sender}: ${m.text}`).join('\n') || '组员已收到二审建议，尚未充分讨论落实方案';
+                const fallbackPrompt2 = `全组在收到《二审修正清单》后，围绕修改落实的讨论已持续 ${secondReviewFallbackMinText} 分钟仍未形成明确结论。
+【论文题目】: ${topic}
+【正文草稿参考】: ${plainText.slice(0, 1500)}
+【组内讨论记录】: ${chatSnippet}
+
+请作为审稿编辑，结合二审建议与正文现状，代为提炼【二审修改落实要点】（150~200字）：
+① 明确当前最需优先落实的修改项与分工建议；
+② 提示研究方法与术语细节的补全方向；
+③ 末句鼓励全组回到正文集中修改，冲刺终稿！（纯自然语言，150~200字，严禁输出代码块）`;
+
+                const resp2 = await callCozeAgentAPI('reviewingEditor', fallbackPrompt2, { stage: 'stage2', topic, actualDoc: plainText });
+                let fallbackText2 = (resp2 && resp2.trim().length > 0)
+                  ? resp2.trim()
+                  : `📝 【审稿编辑·二审修改要点提炼】：二审研讨时间已满 ${secondReviewFallbackMinText} 分钟，为确保正文推进节奏，审稿编辑已结合二审建议与学术规范，自动为大家提炼【修改落实要点】：①优先对齐核心概念与问题表述；②补全研究方法与工具操作细节；③统一行文衔接与学术语体。请全组回到正文集中修改，冲刺终稿！`;
+                if (!fallbackText2.startsWith('📝')) fallbackText2 = `📝 【审稿编辑·二审修改要点提炼】：${fallbackText2}`;
+
+                const autoFollowMsg2 = {
+                  sender: 'reviewingEditor',
+                  senderName: '学术质量 · 审稿编辑',
+                  text: fallbackText2,
+                  timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                  _timeMs: now
+                };
+                if (!this.state.chatLogs.stage2) this.state.chatLogs.stage2 = [];
+                this.state.chatLogs.stage2.push(autoFollowMsg2);
+                this.syncChatLogs();
+                if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+                renderChat(this.state);
+              } catch (e) {
+                console.warn('s2_second_review_auto_fallback error:', e);
+              } finally {
+                this._s2SecondReviewAutoFallbackRunning = false;
+              }
+              return;
+            }
+          }
         }
 
         // ── 🛡️ 阶段二三次质检水位线标准（中任务默认4300字，大任务默认9000字） ──
@@ -1719,7 +1813,6 @@ export class App {
           this.syncStage2();
         }
 
-        const membersList = Object.values(this.state.members || {});
         // 1. 审稿编辑【第三次质检·终审定稿扫描】（全场严格仅 1 次）
         if (!hasFinalReviewInLogs && s2.reviewMilestone !== 'final_review_done' && isFinalReviewDue && !this._isTriggeringFinalReview) {
           this._isTriggeringFinalReview = true;
@@ -2714,7 +2807,7 @@ export class App {
     input.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' && !e.shiftKey) {
         // 🛡️ Safari / WebKit 中文输入法合成防吞字：若处于输入法选词状态或 keyCode 229，绝对禁止触发发送与清空
-        if (isComposing || e.isComposing || e.keyCode === 229) return;
+        if (isComposing || e.isComposing || e.keyCode === 229 || window._isGlobalComposing || (e.nativeEvent && e.nativeEvent.isComposing)) return;
         e.preventDefault();
         handleSend();
       }
@@ -4229,23 +4322,28 @@ ${propText}
 
     // 🛡️ 正文草稿锁存：切换前从 Etherpad 实时提取最新全文存入内存与快照，绝不丢字，并供阶段三智能体深度分析
     if (this.state.currentStage === 'stage2') {
-      const activeTaskId = this.state.activeTaskId || null;
       const currentUser = this.authManager ? this.authManager.getCurrentUser() : null;
-      const effectiveClassId = this.state.activeStudentClassId || (currentUser?.classId || null);
-      const activeGroupObj = this.authManager ? this.authManager.getStudentActiveGroup(currentUser, effectiveClassId) : null;
-      const currentGroupId = activeGroupObj?.id || (currentUser?.groupId || this.state.activeGroupId || null);
-      const padName = `jizhi_${activeTaskId}_${currentGroupId}`;
-      try {
-        fetch(`sync.php?action=get_pad_text&padId=${padName}`)
-          .then(res => res.json())
-          .then(data => {
-            if (data && data.success && data.text) {
-              if (!this.state.stage2) this.state.stage2 = {};
-              this.state.stage2.unifiedContent = data.text;
-            }
+      const strictCtx = (this.authManager && typeof this.authManager.resolveStudentActiveContext === 'function')
+        ? this.authManager.resolveStudentActiveContext(currentUser, {
+            classId: this.state.activeStudentClassId || null,
+            taskId: this.state.activeTaskId || null
           })
-          .catch(() => {});
-      } catch (e) {}
+        : null;
+      // 解析不到时不构建 pad 名、不发起任何请求（彻底消除 jizhi_..._null 这类空 pad）
+      if (strictCtx && strictCtx.ok) {
+        const padName = `jizhi_${strictCtx.taskId}_${strictCtx.groupId}`;
+        try {
+          fetch(`sync.php?action=get_pad_text&padId=${padName}`)
+            .then(res => res.json())
+            .then(data => {
+              if (data && data.success && data.text) {
+                if (!this.state.stage2) this.state.stage2 = {};
+                this.state.stage2.unifiedContent = data.text;
+              }
+            })
+            .catch(() => {});
+        } catch (e) {}
+      }
     }
 
     this.isViewingPastStage = (targetOrder < currentGroupOrder);
@@ -4291,7 +4389,22 @@ ${propText}
     const currentUser = this.authManager.getCurrentUser();
     const effectiveClassId = this.state.activeStudentClassId || (currentUser?.classId || null);
     const activeGroupObj = this.authManager.getStudentActiveGroup(currentUser, effectiveClassId);
-    const currentGroupId = activeGroupObj.id || (currentUser && currentUser.groupId ? currentUser.groupId : 'group_1');
+    let currentGroupId = activeGroupObj.id || (currentUser && currentUser.groupId ? currentUser.groupId : 'group_1');
+
+    // 🛡️ 班级/小组/成员/任务严格解析：任一解析不到 → 明确提示并阻止进入学生工作区（不再静默兜底）
+    if (this.authManager && typeof this.authManager.resolveStudentActiveContext === 'function') {
+      const strictCtx = this.authManager.resolveStudentActiveContext(currentUser, {
+        classId: this.state.activeStudentClassId || null,
+        taskId: this.state.activeTaskId || null
+      });
+      if (!strictCtx.ok) {
+        const appEl = document.getElementById('app');
+        if (appEl) appEl.innerHTML = showResolutionBlock(strictCtx.reason);
+        return;
+      }
+      currentGroupId = strictCtx.groupId;
+      this.state.activeStudentClassId = strictCtx.classId;
+    }
 
     this.state.members = this.authManager.getGroupMembersForWorkspace(currentGroupId);
     this.state.currentUser = currentUser ? (currentUser.name || currentUser.studentCode || currentUser.id) : null;
@@ -5404,10 +5517,10 @@ ${contentSnippet}
     });
 
     let overallRating = 4;
-    modal.querySelectorAll('#star-rating-overall .star').forEach(s => {
+    modal.querySelectorAll('#star-rating-logic .star').forEach(s => {
       s.addEventListener('click', (e) => {
         overallRating = Number(e.target.dataset.val);
-        modal.querySelectorAll('#star-rating-overall .star').forEach(st => {
+        modal.querySelectorAll('#star-rating-logic .star').forEach(st => {
           const v = Number(st.dataset.val);
           st.style.color = v <= overallRating ? '#f59e0b' : '#475569';
         });
