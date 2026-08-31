@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260831_v1034";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260831_v1034";
-import { callCozeAgentAPI } from "./agents.js?v=20260831_v1034";
-import { AuthManager } from "./auth.js?v=20260831_v1034";
-import { CloudSyncEngine } from "./sync.js?v=20260831_v1034";
-import { renderLoginView } from "./login.js?v=20260831_v1034";
-import { renderTeacherPortal } from "./teacher.js?v=20260831_v1034";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260831_v1034";
+} from "./constants.js?v=20260831_v1035";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260831_v1035";
+import { callCozeAgentAPI } from "./agents.js?v=20260831_v1035";
+import { AuthManager } from "./auth.js?v=20260831_v1035";
+import { CloudSyncEngine } from "./sync.js?v=20260831_v1035";
+import { renderLoginView } from "./login.js?v=20260831_v1035";
+import { renderTeacherPortal } from "./teacher.js?v=20260831_v1035";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260831_v1035";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260831_v1034";
+} from "./editor.js?v=20260831_v1035";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -4642,6 +4642,17 @@ ${propText}
 
     // 默认自动触发当前阶段对应智能体的开场白（如果尚未发送）
     this.triggerStageWelcomeSpeech(this.state.currentStage || 'stage1');
+
+    // 🎓 阶段三自愈守护：只要处于阶段三且答辩矩阵为空，立即自动拉起答辩委员会流水线
+    if (this.state.currentStage === 'stage3') {
+      const s3 = this.state.stage3 || {};
+      const s3Logs = (this.state.chatLogs && this.state.chatLogs.stage3) ? this.state.chatLogs.stage3 : [];
+      const hasProp = s3Logs.some(m => m && m.sender === 'proponent');
+      const hasOpp = s3Logs.some(m => m && m.sender === 'opponent');
+      if ((!hasProp || !hasOpp || !s3.feedbackItems || s3.feedbackItems.length === 0) && !this._isStage3PipelineRunning) {
+        this.runStage3CommitteePipeline();
+      }
+    }
 
     // ── 核心保护：全场景输入法与活动输入框智能保护 ──
     const activeEl = document.activeElement;
