@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260831_v1001";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260831_v1001";
-import { callCozeAgentAPI } from "./agents.js?v=20260831_v1001";
-import { AuthManager } from "./auth.js?v=20260831_v1001";
-import { CloudSyncEngine } from "./sync.js?v=20260831_v1001";
-import { renderLoginView } from "./login.js?v=20260831_v1001";
-import { renderTeacherPortal } from "./teacher.js?v=20260831_v1001";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260831_v1001";
+} from "./constants.js?v=20260831_v1002";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260831_v1002";
+import { callCozeAgentAPI } from "./agents.js?v=20260831_v1002";
+import { AuthManager } from "./auth.js?v=20260831_v1002";
+import { CloudSyncEngine } from "./sync.js?v=20260831_v1002";
+import { renderLoginView } from "./login.js?v=20260831_v1002";
+import { renderTeacherPortal } from "./teacher.js?v=20260831_v1002";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260831_v1002";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260831_v1001";
+} from "./editor.js?v=20260831_v1002";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -3818,31 +3818,36 @@ ${chatSnippet}
     }
 
     // 2. 全员已确认：开始让责任编辑与审稿编辑提炼共识并下发《二审修正清单》
+    if (this._isGeneratingManagingSummary) return;
+    this._isGeneratingManagingSummary = true;
+
     const s2ChatLogs = (this.state.chatLogs && this.state.chatLogs.stage2) ? this.state.chatLogs.stage2 : [];
     const meetingNoticeIdx = s2ChatLogs.findIndex(m => m && m.text && (m.text.includes('半程会议') || m.text.includes('自查') || m.text.includes('修改思路')));
     const relevantLogs = (meetingNoticeIdx >= 0) ? s2ChatLogs.slice(meetingNoticeIdx) : s2ChatLogs;
-    const userLogs = relevantLogs.filter(m => m && m.sender && !AgentProfiles[m.sender] && m.sender !== 'system');
-    const chatSnippet = userLogs.map(m => `${m.senderName || m.sender}: ${m.text}`).join('\n') || '组员正在讨论修改方向';
+    const userLogs = relevantLogs.filter(m => m && m.sender && !AgentProfiles[m.sender] && m.sender !== 'system' && !m.sender.includes('Editor'));
+    const chatSnippet = userLogs.map(m => `${m.senderName || m.sender}: ${m.text}`).join('\n') || '组员正在围绕论文前后脱节与论证方法深化讨论修改思路';
 
     const topic = (this.state.stage1 && this.state.stage1.mergedTitle) ? this.state.stage1.mergedTitle : '本组课题';
     const rawDoc = (s2.unifiedContent || '').replace(/<[^>]*>/g, '').trim();
 
-    // 责任编辑发言提炼研讨共识并交棒
+    // 责任编辑发言提炼研讨共识并交棒（严禁套话，紧扣研讨与正文实质）
     const managingPrompt = `小组成员已在讨论区就论文《${topic}》的前序修改方向展开了半程研讨。
 【组内关于修改思路的真实讨论记录】:
 ${chatSnippet}
+【正文草稿节选】:
+${rawDoc.slice(0, 1000)}
 
 请作为责任编辑，发表 90~120 字的【半程研讨共识小结与交棒】：
-① 肯定大家围绕方案提出的修改思考与共识亮点；
+① 结合小组成员在研讨中提出的具体论点或正文核心段落（如概念界定、方法操作化或行文衔接），提炼出 1~2 个实质性的修改共识点（严禁假大空套话，严禁出现“分工”字眼）；
 ② 隆重引出审稿专家下发《二审修正清单》，指导全组对齐落实！
 （纯自然语言，90~120字，严禁输出代码块）`;
 
     try {
-      const respManaging = await callCozeAgentAPI('managingEditor', managingPrompt, { stage: 'stage2', topic });
+      const respManaging = await callCozeAgentAPI('managingEditor', managingPrompt, { stage: 'stage2', topic, chatSnippet });
       let managingText = (respManaging && respManaging.trim().length > 0) 
         ? respManaging.trim() 
-        : `🤝 【责任编辑·研讨小结与交棒】：看到大家在讨论区围绕方案衔接与论证细节展开了充分探讨！全组对修改方向已形成良好共识。👉 接下来请审稿编辑为大家下发针对性的《二审修正清单》！`;
-      if (!managingText.startsWith('🤝')) managingText = `🤝 【责任编辑·研讨小结与交棒】：${managingText}`;
+        : `🤝 【责任编辑·研讨共识小结】：结合大家在讨论区针对正文逻辑衔接与方法细化的深入探讨，全组已在研究问题聚焦与分析维度统一上形成了明确共识。👉 接下来正式有请 @审稿编辑 为大家下发具体的《二审修正清单》，指导全组深入修改与对齐落实！`;
+      if (!managingText.startsWith('🤝')) managingText = `🤝 【责任编辑·研讨共识小结】：${managingText}`;
 
       const msgManaging = {
         sender: 'managingEditor',
@@ -3853,23 +3858,23 @@ ${chatSnippet}
       };
       s2ChatLogs.push(msgManaging);
 
-      // 审稿专家结合半程会议讨论与正文下发《二审修正清单》
-      const reviewingPrompt = `针对课题《${topic}》，结合小组成员刚才商定的修改思路，通读下方正文草稿，作为资深审稿编辑给出【二审修正清单】（120~150字）：
+      // 审稿专家结合半程会议讨论与正文下发《二审修正清单》（严禁套话与分工字眼）
+      const reviewingPrompt = `针对课题《${topic}》，结合小组成员研讨与正文草稿，作为资深审稿编辑给出具体学术质检《二审修正清单》（120~150字）：
 【正文草稿参考】:
 ${rawDoc.slice(0, 1500)}
 【小组成员商定的修改思路】:
 ${chatSnippet}
 
-请下发包含 3 项具体可执行的《二审修正清单》：
-① 核心概念与问题对齐；
-② 研究方法与工具操作化细节补全；
-③ 行文衔接与学术语体规范。
-并在末尾明确提示全组：“请大家围绕清单简要商定分工与修改计划，讨论差不多后点击下方【📝 讨论差不多了？让审稿编辑总结】！”（纯自然语言，120~150字）`;
+请下发包含 3 项具体可执行的《二审修正清单》（严禁出现“分工”字眼）：
+①【核心概念对齐】：指出具体需要统领或界定的术语与假设；
+②【研究方法深化】：指出具体需要补全的实施步骤或测量工具；
+③【行文衔接规范】：指出具体需要打磨的逻辑过渡与学术语体。
+并在末尾明确提示全组：“请大家围绕清单协同商定修改对策与落实方案，讨论差不多后点击下方【📝 讨论差不多了？让审稿编辑总结】！”（纯自然语言，120~150字）`;
 
       const respReviewing = await callCozeAgentAPI('reviewingEditor', reviewingPrompt, { stage: 'stage2', topic, actualDoc: rawDoc });
       let reviewingText = (respReviewing && respReviewing.trim().length > 0)
         ? respReviewing.trim()
-        : `📝 【审稿编辑·二审修正清单】：结合全组研讨，为正文提出以下 3 项重点修正建议：\n①【概念与问题】：统领各章节核心术语表述，使前文文献综述直接支撑核心假设；\n②【方法设计】：细化样本抽样与工具设计步骤，增强操作化严密性；\n③【行文衔接】：优化段落间逻辑过渡，消除口语化表述。\n👉 请全组围绕清单商定落实计划，讨论差不多后点击下方【📝 讨论差不多了？让审稿编辑总结】！`;
+        : `📝 【审稿编辑·二审修正清单】：结合全组研讨与正文审阅，提出以下 3 项重点修正要求：\n①【核心概念对齐】：统领各章节核心术语表述，使引言文献综述与核心研究问题精准呼应；\n②【研究方法深化】：细化数据分析的具体实施步骤与测量工具，增强操作化严密性；\n③【行文衔接规范】：补全未完成的章节过渡段落，消除口语化表达。\n👉 请大家围绕清单协同商定修改对策与落实方案，讨论差不多后点击下方【📝 讨论差不多了？让审稿编辑总结】！`;
       if (!reviewingText.startsWith('📝')) reviewingText = `📝 【审稿编辑·二审修正清单】：${reviewingText}`;
 
       const msgReviewing = {
@@ -3881,6 +3886,28 @@ ${chatSnippet}
       };
       s2ChatLogs.push(msgReviewing);
 
+      // 🌟 核心突破：立即解析并动态生成左侧【半程修正清单】卡片 (全面解锁)
+      let parsedItems = [];
+      const lines = reviewingText.split('\n').map(l => l.trim()).filter(Boolean);
+      lines.forEach(l => {
+        if (/^([①②③12345]|\d+\.|\(?[123]\)?)/.test(l) || l.includes('【')) {
+          parsedItems.push(l.replace(/^[①②③\d\.\s\(\)]+/, '').trim());
+        }
+      });
+      if (parsedItems.length < 3) {
+        parsedItems = [
+          `🎯【核心概念与问题对齐】: 统领各章节核心概念表述，使引言文献综述与核心研究问题精准呼应，消除脱节。`,
+          `✍️【研究方法与工具深化】: 细化数据分析的具体实施步骤与测量工具，确保分析维度与研究假设严格对应。`,
+          `💡【行文衔接与学术规范】: 通读全篇优化段落逻辑过渡，补全未完成章节，消除口语化表达，冲刺定稿！`
+        ];
+      }
+
+      s2.actionPlan = {
+        isGenerated: true,
+        completedMap: {},
+        items: parsedItems.slice(0, 3)
+      };
+
       s2.meetingStep = 'discussing_checklist'; // 变形为第二态按钮
       s2.meetingChecklistTime = Date.now();
 
@@ -3888,8 +3915,11 @@ ${chatSnippet}
       this.syncChatLogs();
       if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
       renderChat(this.state);
+      this.renderStudentWorkspace(); // 🌟 立即解锁并展开左侧正文上方的【半程修正清单】卡片！
     } catch (e) {
       console.warn('handleS2ManagingSummary error:', e);
+    } finally {
+      this._isGeneratingManagingSummary = false;
     }
   }
 
