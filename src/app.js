@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260831_v1101";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260831_v1101";
-import { callCozeAgentAPI } from "./agents.js?v=20260831_v1101";
-import { AuthManager } from "./auth.js?v=20260831_v1101";
-import { CloudSyncEngine } from "./sync.js?v=20260831_v1101";
-import { renderLoginView } from "./login.js?v=20260831_v1101";
-import { renderTeacherPortal } from "./teacher.js?v=20260831_v1101";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260831_v1101";
+} from "./constants.js?v=20260831_v1102";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260831_v1102";
+import { callCozeAgentAPI } from "./agents.js?v=20260831_v1102";
+import { AuthManager } from "./auth.js?v=20260831_v1102";
+import { CloudSyncEngine } from "./sync.js?v=20260831_v1102";
+import { renderLoginView } from "./login.js?v=20260831_v1102";
+import { renderTeacherPortal } from "./teacher.js?v=20260831_v1102";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260831_v1102";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260831_v1101";
+} from "./editor.js?v=20260831_v1102";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -5550,9 +5550,23 @@ ${contentSnippet}
     this._isTriggeringFinalReview = true;
     s2.reviewMilestone = 'final_review_done';
 
-    const topic = (this.state.stage1 && this.state.stage1.mergedTitle) ? this.state.stage1.mergedTitle : '本组课题';
-    const rawDoc = (s2.unifiedContent || '').replace(/<[^>]*>/g, '').trim();
-    const contentSnippet = rawDoc.slice(0, 2500);
+    let rawDoc = (s2.unifiedContent || '').replace(/<[^>]*>/g, '').trim();
+    if (!rawDoc) {
+      try {
+        const f = document.getElementById('stage2-etherpad-frame');
+        if (f && f.contentDocument) {
+          const aceOuter = f.contentDocument.querySelector('iframe[name="ace_outer"]');
+          if (aceOuter && aceOuter.contentDocument) {
+            const aceInner = aceOuter.contentDocument.querySelector('iframe[name="ace_inner"]');
+            if (aceInner && aceInner.contentDocument) {
+              const innerBody = aceInner.contentDocument.querySelector('.innerdocbody') || aceInner.contentDocument.body;
+              if (innerBody) rawDoc = (innerBody.innerText || '').replace(/\r\n/g, '\n').trim();
+            }
+          }
+        }
+      } catch (e) {}
+    }
+    const contentSnippet = rawDoc ? rawDoc.slice(0, 2500) : '论文草稿已完成主体框架与各章节撰写';
 
     // 🌟 挂载审稿编辑三审正在分析动态思考气泡
     this.state.activeAgentAnalyzing = {
