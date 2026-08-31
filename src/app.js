@@ -13,14 +13,14 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260901_v1123";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260901_v1123";
-import { callCozeAgentAPI } from "./agents.js?v=20260901_v1123";
-import { AuthManager } from "./auth.js?v=20260901_v1123";
-import { CloudSyncEngine } from "./sync.js?v=20260901_v1123";
-import { renderLoginView } from "./login.js?v=20260901_v1123";
-import { renderTeacherPortal } from "./teacher.js?v=20260901_v1123";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260901_v1123";
+} from "./constants.js?v=20260901_v1124";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260901_v1124";
+import { callCozeAgentAPI } from "./agents.js?v=20260901_v1124";
+import { AuthManager } from "./auth.js?v=20260901_v1124";
+import { CloudSyncEngine } from "./sync.js?v=20260901_v1124";
+import { renderLoginView } from "./login.js?v=20260901_v1124";
+import { renderTeacherPortal } from "./teacher.js?v=20260901_v1124";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260901_v1124";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -29,7 +29,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260901_v1123";
+} from "./editor.js?v=20260901_v1124";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -1768,9 +1768,16 @@ export class App {
         // ② 半程会议总结后 10 分钟 且 字数达 85% 或 时间达 85%；
         // ③ 字数达 85% 或 时间达 85% 且已通过二审。
         const isDraftConfirmed = !!s2.isDraftConfirmed || (s2.confirmedMembers && Object.keys(s2.confirmedMembers).length > 0);
-        const isFinalReviewDueTimeOrWord = (wordProgress >= 0.90 || timeProgress >= 0.85 || plainTextLen >= (targetWordCount * 0.90));
-        const isTenMinAfterMeetingAndDue = hasPassedSecondReview && postSecondReviewElapsedMs >= minPostReviewModCooldownMs && isFinalReviewDueTimeOrWord;
-        const isFinalReviewDue = isDraftConfirmed || isTenMinAfterMeetingAndDue || (hasPassedSecondReview && isFinalReviewDueTimeOrWord) || isFinalReviewDueTimeOrWord;
+        const is90WordReached = (wordProgress >= 0.90 || plainTextLen >= (targetWordCount * 0.90));
+        const is85TimeReached = (timeProgress >= 0.85);
+        
+        // 🛡️ 三审触发铁律：
+        // 1. 组员主动点击初稿确认（已在弹窗确认）；
+        // 2. 二审已结束 + 至少修改了 10 分钟 + 字数达到 90%；
+        // 3. 二审已结束 + 时间已达到 85%（时间快截止，即使未满 10 分钟也必须保底出三审）。
+        const isTenMinAfterMeetingAndWord90 = hasPassedSecondReview && postSecondReviewElapsedMs >= minPostReviewModCooldownMs && is90WordReached;
+        const isTime85AndSecondReviewDone = hasPassedSecondReview && is85TimeReached;
+        const isFinalReviewDue = isDraftConfirmed || isTenMinAfterMeetingAndWord90 || isTime85AndSecondReviewDone;
         
         const hasFinalReviewInLogs = s2Chats.some(m => m && m.sender === 'reviewingEditor' && (m.text?.includes('终稿行文扫描') || m.text?.includes('终审定稿总评') || m.text?.includes('审稿编辑·终审')));
 

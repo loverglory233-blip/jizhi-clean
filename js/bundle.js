@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260901_v1123
+ * Version: 20260901_v1124
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260901_v1123';
+  const APP_VERSION = '20260901_v1124';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -14035,9 +14035,16 @@
           // ② 半程会议总结后 10 分钟 且 字数达 85% 或 时间达 85%；
           // ③ 字数达 85% 或 时间达 85% 且已通过二审。
           const isDraftConfirmed = !!s2.isDraftConfirmed || (s2.confirmedMembers && Object.keys(s2.confirmedMembers).length > 0);
-          const isFinalReviewDueTimeOrWord = (wordProgress >= 0.90 || timeProgress >= 0.85 || plainTextLen >= (targetWordCount * 0.90));
-          const isTenMinAfterMeetingAndDue = hasPassedSecondReview && postSecondReviewElapsedMs >= minPostReviewModCooldownMs && isFinalReviewDueTimeOrWord;
-          const isFinalReviewDue = isDraftConfirmed || isTenMinAfterMeetingAndDue || (hasPassedSecondReview && isFinalReviewDueTimeOrWord) || isFinalReviewDueTimeOrWord;
+          const is90WordReached = (wordProgress >= 0.90 || plainTextLen >= (targetWordCount * 0.90));
+          const is85TimeReached = (timeProgress >= 0.85);
+
+          // 🛡️ 三审触发铁律：
+          // 1. 组员主动点击初稿确认（已在弹窗确认）；
+          // 2. 二审已结束 + 至少修改了 10 分钟 + 字数达到 90%；
+          // 3. 二审已结束 + 时间已达到 85%（时间快截止，即使未满 10 分钟也必须保底出三审）。
+          const isTenMinAfterMeetingAndWord90 = hasPassedSecondReview && postSecondReviewElapsedMs >= minPostReviewModCooldownMs && is90WordReached;
+          const isTime85AndSecondReviewDone = hasPassedSecondReview && is85TimeReached;
+          const isFinalReviewDue = isDraftConfirmed || isTenMinAfterMeetingAndWord90 || isTime85AndSecondReviewDone;
 
           const hasFinalReviewInLogs = s2Chats.some(m => m && m.sender === 'reviewingEditor' && (m.text?.includes('终稿行文扫描') || m.text?.includes('终审定稿总评') || m.text?.includes('审稿编辑·终审')));
 
