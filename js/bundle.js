@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260831_v1032
+ * Version: 20260831_v1033
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260831_v1032';
+  const APP_VERSION = '20260831_v1033';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -11009,7 +11009,7 @@
             const currUserColor = (state.members && state.members[currUserCode]?.color) || '#2563eb';
 
             const targetPad = rawPadName;
-            const padUrl = `/p/${encodeURIComponent(targetPad)}?userName=${encodeURIComponent(currUserName)}&userColor=${encodeURIComponent(currUserColor)}&showChat=false&showLineNumbers=true&lang=zh-hans`;
+            const padUrl = `/p/${encodeURIComponent(targetPad)}?userName=${encodeURIComponent(currUserName)}&userColor=${encodeURIComponent(currUserColor)}&showChat=false&showLineNumbers=true&lang=zh-hans&_sn=${Date.now()}`;
 
             return `
               <div class="word-editor-container" style="display:flex; flex-direction:column; height:100%; min-height:480px; border-radius:8px; overflow:hidden; border:1px solid #cbd5e1; box-shadow:0 2px 10px rgba(15,23,42,0.05); background:#ffffff; position:relative;">
@@ -11411,7 +11411,7 @@
             const isEditorReadonly = isFinalSubmitted || isTaskDeadlineExpired;
 
             const targetPad = rawPadName;
-            const padUrl = `/p/${encodeURIComponent(targetPad)}?userName=${encodeURIComponent(currUserName)}&userColor=${encodeURIComponent(currUserColor)}&showChat=false&showLineNumbers=true&lang=zh-hans`;
+            const padUrl = `/p/${encodeURIComponent(targetPad)}?userName=${encodeURIComponent(currUserName)}&userColor=${encodeURIComponent(currUserColor)}&showChat=false&showLineNumbers=true&lang=zh-hans&_sn=${Date.now()}`;
 
             return `
               <div class="card-title" style="margin-bottom:10px; display:flex; justify-content:space-between; align-items:center;">
@@ -13729,10 +13729,12 @@
           const postSecondReviewElapsedMs = secondReviewTime > 0 ? Math.max(0, now - secondReviewTime) : 0;
           const minPostReviewModCooldownMs = isLargeTask ? 900000 : 600000; // 统一 10 分钟（大任务 15 分钟）修改沉淀期
 
-          // 2. 判定三审触发条件：字数达到 85%（或成文 3000 字以上），或者组内全员完成初稿确认
+          // 2. 判定三审触发条件：
+          // 路径 A：组内成员全员完成【✍️ 确认初稿】（立即触发）；
+          // 路径 B：半程会议审稿编辑总结（二审决议）发出 10 分钟后，且正文字数达到 85%（或成文字数达标）。
           const isFullDraftConfirmed = !!s2.isDraftConfirmed;
-          const isWordMature = wordProgress >= 0.85 || plainTextLen >= (targetWordCount * 0.85) || plainTextLen >= 3000;
-          const isFinalReviewDue = isFullDraftConfirmed || isWordMature;
+          const isTimeAndWordMature = postSecondReviewElapsedMs >= minPostReviewModCooldownMs && (wordProgress >= 0.85 || plainTextLen >= (targetWordCount * 0.85) || plainTextLen >= 3000);
+          const isFinalReviewDue = isFullDraftConfirmed || (hasPassedSecondReview && isTimeAndWordMature);
 
           const hasFinalReviewInLogs = s2Chats.some(m => m && m.sender === 'reviewingEditor' && (m.text?.includes('终稿行文扫描') || m.text?.includes('终审定稿总评') || m.text?.includes('审稿编辑·终审')));
 
