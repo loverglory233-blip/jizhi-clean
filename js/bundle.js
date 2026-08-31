@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260831_v1012
+ * Version: 20260831_v1013
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260831_v1012';
+  const APP_VERSION = '20260831_v1013';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -11747,58 +11747,86 @@
       const totalCount = membersList.length || 3;
       const currUser = (window.app && window.app.authManager) ? window.app.authManager.getCurrentUser() : null;
       const myCode = state.currentUser || (currUser ? currUser.studentCode : '');
-      const confs = state.stepConfirmations || {};
+      const confs = Object.assign({}, state.stepConfirmations || {}, s2.confirmations || {});
 
       const isDoneHelper = (map) => {
         if (!map) return 0;
-        return membersList.filter(m => map[m.id] || map[m.studentCode] || map[m.username] || (m.name && map[m.name])).length;
+        return membersList.filter(m => {
+          let fullUser = (typeof m === 'object') ? m : null;
+          if (!fullUser && window.app && window.app.authManager && window.app.authManager.findUserByKey) {
+            fullUser = window.app.authManager.findUserByKey(m);
+          }
+          const keys = [
+            typeof m === 'string' ? m : null,
+            m?.id, m?.studentCode, m?.username, m?.name,
+            fullUser?.id, fullUser?.studentCode, fullUser?.username, fullUser?.name
+          ].filter(Boolean).map(k => String(k).trim().toLowerCase());
+          return keys.some(k => map[k] || map[String(k)]);
+        }).length;
       };
+
       const isMyDoneHelper = (map) => {
         if (!map) return false;
-        return !!(map[myCode] || (currUser && (map[currUser.id] || map[currUser.studentCode] || map[currUser.username] || map[currUser.name])));
+        let fullUser = currUser;
+        if (!fullUser && window.app && window.app.authManager && window.app.authManager.findUserByKey) {
+          fullUser = window.app.authManager.findUserByKey(myCode);
+        }
+        const keys = [
+          myCode, currUser?.id, currUser?.studentCode, currUser?.username, currUser?.name,
+          fullUser?.id, fullUser?.studentCode, fullUser?.username, fullUser?.name
+        ].filter(Boolean).map(k => String(k).trim().toLowerCase());
+        return keys.some(k => map[k] || map[String(k)]);
       };
 
       const s2Subs = s2.meetingSubmissions || {};
       const s2SubCount = Object.keys(s2Subs).length;
       const isS2MeetingDone = s2SubCount >= totalCount && totalCount > 0;
 
-      if (curStage === 'stage2' && s2.meetingStep !== 'completed') {
-        actionBar.style.display = 'block';
-        if (!isS2MeetingDone) {
-          actionBar.innerHTML = `
-            <button id="btn-s2-locked-notice" style="background:#f1f5f9; border:1px solid #cbd5e1; color:#94a3b8; padding:7px 18px; border-radius:18px; font-weight:800; font-size:12.5px; cursor:not-allowed; display:inline-flex; align-items:center; gap:6px; box-shadow:none;">
-              🔒 请先全员参与【编辑会议】打卡 (${s2SubCount}/${totalCount} 人已打卡)
-            </button>
-          `;
-          actionBar.querySelector('#btn-s2-locked-notice')?.addEventListener('click', () => {
-            alert(`🔒 请先在正文上方点击【📢 参与【编辑会议】】完成半程自查打卡！\n\n当前打卡进度：${s2SubCount}/${totalCount} 人。\n全员打卡完成后，责任编辑将主持会议，届时方可点击总结。`);
-          });
-        } else if (!s2.meetingStep || s2.meetingStep === 'discussing_divergence' || s2.meetingStep === 'initial' || s2.meetingStep === 'discussing_agreement') {
-          const count = isDoneHelper(confs.s2_managing);
-          const isMe = isMyDoneHelper(confs.s2_managing);
-          actionBar.innerHTML = `
-            <button id="btn-s2-managing-summary" style="background:${isMe ? 'linear-gradient(135deg, #059669, #047857)' : 'linear-gradient(135deg, #d97706, #b45309)'}; border:none; color:white; padding:7px 18px; border-radius:18px; font-weight:800; font-size:12.5px; cursor:pointer; display:inline-flex; align-items:center; gap:6px; box-shadow:0 3px 10px rgba(217,119,6,0.25); transition:all 0.2s;">
-              ${isMe ? `✅ 您已确认总结共识 (${count}/${totalCount} 等待组员)` : `🤝 讨论差不多了？让责任编辑总结 (${count}/${totalCount})`}
-            </button>
-          `;
-          actionBar.querySelector('#btn-s2-managing-summary')?.addEventListener('click', () => {
-            if (window.app && typeof window.app.handleS2ManagingSummary === 'function') {
-              window.app.handleS2ManagingSummary();
-            }
-          });
-        } else if (s2.meetingStep === 'discussing_checklist') {
-          const count = isDoneHelper(confs.s2_reviewing);
-          const isMe = isMyDoneHelper(confs.s2_reviewing);
-          actionBar.innerHTML = `
-            <button id="btn-s2-reviewing-summary" style="background:${isMe ? 'linear-gradient(135deg, #059669, #047857)' : 'linear-gradient(135deg, #059669, #047857)'}; border:none; color:white; padding:7px 18px; border-radius:18px; font-weight:800; font-size:12.5px; cursor:pointer; display:inline-flex; align-items:center; gap:6px; box-shadow:0 3px 10px rgba(5,150,105,0.25); transition:all 0.2s;">
-              ${isMe ? `✅ 您已确认总结清单 (${count}/${totalCount} 等待组员)` : `📝 讨论差不多了？让审稿编辑总结 (${count}/${totalCount})`}
-            </button>
-          `;
-          actionBar.querySelector('#btn-s2-reviewing-summary')?.addEventListener('click', () => {
-            if (window.app && typeof window.app.handleS2ReviewingSummary === 'function') {
-              window.app.handleS2ReviewingSummary();
-            }
-          });
+      const s2Chats = state.chatLogs?.stage2 || [];
+      const hasFinalChecklistSummary = s2Chats.some(m => m && m.text && (m.text.includes('二审修改落实决议') || m.text.includes('修改确认与写作冲刺') || m.text.includes('修改落实确认')));
+
+      if (curStage === 'stage2') {
+        if (s2.meetingStep === 'completed' || hasFinalChecklistSummary) {
+          actionBar.style.display = 'none';
+          actionBar.innerHTML = '';
+        } else {
+          actionBar.style.display = 'block';
+          if (!isS2MeetingDone) {
+            actionBar.innerHTML = `
+              <button id="btn-s2-locked-notice" style="background:#f1f5f9; border:1px solid #cbd5e1; color:#94a3b8; padding:7px 18px; border-radius:18px; font-weight:800; font-size:12.5px; cursor:not-allowed; display:inline-flex; align-items:center; gap:6px; box-shadow:none;">
+                🔒 请先全员参与【编辑会议】打卡 (${s2SubCount}/${totalCount} 人已打卡)
+              </button>
+            `;
+            actionBar.querySelector('#btn-s2-locked-notice')?.addEventListener('click', () => {
+              alert(`🔒 请先在正文上方点击【📢 参与【编辑会议】】完成半程自查打卡！\n\n当前打卡进度：${s2SubCount}/${totalCount} 人。\n全员打卡完成后，责任编辑将主持会议，届时方可点击总结。`);
+            });
+          } else if (!s2.meetingStep || s2.meetingStep === 'discussing_divergence' || s2.meetingStep === 'initial' || s2.meetingStep === 'discussing_agreement') {
+            const count = isDoneHelper(confs.s2_managing);
+            const isMe = isMyDoneHelper(confs.s2_managing);
+            actionBar.innerHTML = `
+              <button id="btn-s2-managing-summary" style="background:${isMe ? 'linear-gradient(135deg, #059669, #047857)' : 'linear-gradient(135deg, #d97706, #b45309)'}; border:none; color:white; padding:7px 18px; border-radius:18px; font-weight:800; font-size:12.5px; cursor:pointer; display:inline-flex; align-items:center; gap:6px; box-shadow:0 3px 10px rgba(217,119,6,0.25); transition:all 0.2s;">
+                ${isMe ? `✅ 您已确认总结共识 (${count}/${totalCount} 等待组员)` : `🤝 讨论差不多了？让责任编辑总结 (${count}/${totalCount})`}
+              </button>
+            `;
+            actionBar.querySelector('#btn-s2-managing-summary')?.addEventListener('click', () => {
+              if (window.app && typeof window.app.handleS2ManagingSummary === 'function') {
+                window.app.handleS2ManagingSummary();
+              }
+            });
+          } else if (s2.meetingStep === 'discussing_checklist') {
+            const count = isDoneHelper(confs.s2_reviewing);
+            const isMe = isMyDoneHelper(confs.s2_reviewing);
+            actionBar.innerHTML = `
+              <button id="btn-s2-reviewing-summary" style="background:${isMe ? 'linear-gradient(135deg, #059669, #047857)' : 'linear-gradient(135deg, #059669, #047857)'}; border:none; color:white; padding:7px 18px; border-radius:18px; font-weight:800; font-size:12.5px; cursor:pointer; display:inline-flex; align-items:center; gap:6px; box-shadow:0 3px 10px rgba(5,150,105,0.25); transition:all 0.2s;">
+                ${isMe ? `✅ 您已确认总结清单 (${count}/${totalCount} 等待组员)` : `📝 讨论差不多了？让审稿编辑总结 (${count}/${totalCount})`}
+              </button>
+            `;
+            actionBar.querySelector('#btn-s2-reviewing-summary')?.addEventListener('click', () => {
+              if (window.app && typeof window.app.handleS2ReviewingSummary === 'function') {
+                window.app.handleS2ReviewingSummary();
+              }
+            });
+          }
         }
       } else if (curStage === 'stage3') {
         const s3 = state.stage3 || {};
