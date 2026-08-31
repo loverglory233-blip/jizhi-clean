@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles } from "./constants.js?v=20260831_v990";
-import { callCozeAgentAPI } from "./agents.js?v=20260831_v990";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, showResolutionBlock } from "./utils.js?v=20260831_v990";
+import { AgentProfiles } from "./constants.js?v=20260831_v991";
+import { callCozeAgentAPI } from "./agents.js?v=20260831_v991";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, showResolutionBlock } from "./utils.js?v=20260831_v991";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -2392,25 +2392,7 @@ function renderStage2Canvas(canvas, state, handlers) {
 
           const currUserColor = (state.members && state.members[currUserCode]?.color) || '#2563eb';
           
-          if (!state._readOnlyPadMap) state._readOnlyPadMap = {};
-          let targetPad = rawPadName;
-          if (isEditorReadonly) {
-            const readOnlyPadId = state._readOnlyPadMap[rawPadName];
-            if (readOnlyPadId) {
-              targetPad = readOnlyPadId;
-            } else {
-              fetch(`sync.php?action=get_readonly_pad_id&padId=${encodeURIComponent(rawPadName)}`).then(r => r.json()).then(res => {
-                if (res && res.success && res.readOnlyID) {
-                  state._readOnlyPadMap[rawPadName] = res.readOnlyID;
-                  const f2 = document.querySelector('#stage2-etherpad-frame');
-                  if (f2 && !f2.src.includes(res.readOnlyID)) {
-                    f2.src = `/p/${encodeURIComponent(res.readOnlyID)}?userName=${encodeURIComponent(currUserName)}&userColor=${encodeURIComponent(currUserColor)}&showChat=false&showLineNumbers=true&showControls=false&lang=zh-hans`;
-                  }
-                }
-              }).catch(() => {});
-            }
-          }
-          
+          const targetPad = rawPadName;
           const padUrl = `/p/${encodeURIComponent(targetPad)}?userName=${encodeURIComponent(currUserName)}&userColor=${encodeURIComponent(currUserColor)}&showChat=false&showLineNumbers=true&showControls=${isEditorReadonly ? 'false' : 'true'}&lang=zh-hans`;
           
           return `
@@ -2812,26 +2794,7 @@ function renderStage3Canvas(canvas, state, handlers) {
 
           const isEditorReadonly = isFinalSubmitted || isTaskDeadlineExpired;
 
-          // 🛡️ 权威官方只读模式：对齐教师端与阶段二成熟方案，使用 Etherpad 官方 get_readonly_pad_id (r.xxxx)
-          if (!state._readOnlyPadMap) state._readOnlyPadMap = {};
-          let targetPad = rawPadName;
-          if (isEditorReadonly) {
-            const readOnlyPadId = state._readOnlyPadMap[rawPadName];
-            if (readOnlyPadId) {
-              targetPad = readOnlyPadId;
-            } else {
-              fetch(`sync.php?action=get_readonly_pad_id&padId=${encodeURIComponent(rawPadName)}`).then(r => r.json()).then(res => {
-                if (res && res.success && res.readOnlyID) {
-                  state._readOnlyPadMap[rawPadName] = res.readOnlyID;
-                  const f3 = document.querySelector('#stage3-etherpad-frame');
-                  if (f3 && !f3.src.includes(res.readOnlyID)) {
-                    f3.src = `/p/${encodeURIComponent(res.readOnlyID)}?userName=${encodeURIComponent(currUserName)}&userColor=${encodeURIComponent(currUserColor)}&showChat=false&showLineNumbers=true&showControls=false&lang=zh-hans`;
-                  }
-                }
-              }).catch(() => {});
-            }
-          }
-
+          const targetPad = rawPadName;
           const padUrl = `/p/${encodeURIComponent(targetPad)}?userName=${encodeURIComponent(currUserName)}&userColor=${encodeURIComponent(currUserColor)}&showChat=false&showLineNumbers=true&showControls=${isEditorReadonly ? 'false' : 'true'}&lang=zh-hans`;
 
           return `
