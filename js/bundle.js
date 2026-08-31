@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260831_v1101
+ * Version: 20260831_v1102
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260831_v1101';
+  const APP_VERSION = '20260831_v1102';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -11654,10 +11654,30 @@
     const prevScrollTop = stream.scrollTop;
 
     const allUsers = (window.app && window.app.authManager) ? window.app.authManager.getUsers() : [];
+    const authUser = (window.app && window.app.authManager) ? window.app.authManager.getCurrentUser() : null;
+    const myKeys = [
+      currentUser,
+      state.currentUser,
+      authUser?.id,
+      authUser?.studentCode,
+      authUser?.username,
+      authUser?.name
+    ].filter(Boolean).map(k => String(k).trim().toLowerCase());
 
     stream.innerHTML = cleanMsgs.map(msg => {
-      const isMe = msg.sender === currentUser || (window.app?.authManager?.getCurrentUser() && (msg.sender === window.app.authManager.getCurrentUser().id || msg.sender === window.app.authManager.getCurrentUser().studentCode));
       const isAgent = AgentProfiles[msg.sender] !== undefined;
+      const msgKeys = [
+        msg.sender,
+        msg.senderName,
+        msg.author,
+        msg.authorName
+      ].filter(Boolean).map(k => String(k).trim().toLowerCase());
+
+      const isMe = !isAgent && (
+        isSameUser(authUser, msg.sender) ||
+        isSameUser(authUser, msg.senderName) ||
+        msgKeys.some(k => myKeys.includes(k))
+      );
 
       let name = msg.senderName || msg.sender;
       let avatar = '👤';
@@ -11753,9 +11773,13 @@
           </div>
         </div>
       </div>
-    ` : '');
-
-    const lastMsgIsMine = cleanMsgs.length > 0 && (cleanMsgs[cleanMsgs.length - 1].sender === currentUser || (window.app?.authManager?.getCurrentUser() && (cleanMsgs[cleanMsgs.length - 1].sender === window.app.authManager.getCurrentUser().id || cleanMsgs[cleanMsgs.length - 1].sender === window.app.authManager.getCurrentUser().studentCode)));
+    const lastMsg = cleanMsgs.length > 0 ? cleanMsgs[cleanMsgs.length - 1] : null;
+    const lastMsgKeys = lastMsg ? [lastMsg.sender, lastMsg.senderName, lastMsg.author, lastMsg.authorName].filter(Boolean).map(k => String(k).trim().toLowerCase()) : [];
+    const lastMsgIsMine = lastMsg && !AgentProfiles[lastMsg.sender] && (
+      isSameUser(authUser, lastMsg.sender) ||
+      isSameUser(authUser, lastMsg.senderName) ||
+      lastMsgKeys.some(k => myKeys.includes(k))
+    );
 
     if (isAtBottom || lastMsgIsMine) {
       stream.scrollTop = stream.scrollHeight;
@@ -11856,10 +11880,24 @@
       const s2Chats = state.chatLogs?.stage2 || [];
       const hasFinalChecklistSummary = s2Chats.some(m => m && m.text && (m.text.includes('二审修改落实决议') || m.text.includes('修改确认与写作冲刺') || m.text.includes('修改落实确认')));
 
+      const hasFinalReviewInLogs = s2Chats.some(m => m && m.sender === 'reviewingEditor' && (m.text?.includes('终稿行文扫描') || m.text?.includes('终审定稿总评') || m.text?.includes('审稿编辑·终审')));
+
       if (curStage === 'stage2') {
-        if (s2.meetingStep === 'completed' || hasFinalChecklistSummary) {
+        if (hasFinalReviewInLogs) {
           actionBar.style.display = 'none';
           actionBar.innerHTML = '';
+        } else if (s2.meetingStep === 'completed' || hasFinalChecklistSummary) {
+          actionBar.style.display = 'block';
+          actionBar.innerHTML = `
+            <button id="btn-s2-trigger-final-review" style="background:linear-gradient(135deg, #2563eb, #1d4ed8); border:none; color:white; padding:7px 18px; border-radius:18px; font-weight:800; font-size:12.5px; cursor:pointer; display:inline-flex; align-items:center; gap:6px; box-shadow:0 3px 10px rgba(37,99,235,0.25); transition:all 0.2s;">
+              📝 写作差不多了？让审稿编辑进行终审定稿扫描 (三审)
+            </button>
+          `;
+          actionBar.querySelector('#btn-s2-trigger-final-review')?.addEventListener('click', () => {
+            if (window.app && typeof window.app.triggerStage2FinalReview === 'function') {
+              window.app.triggerStage2FinalReview(true);
+            }
+          });
         } else {
           actionBar.style.display = 'block';
           if (!isS2MeetingDone) {
@@ -17521,9 +17559,23 @@
       this._isTriggeringFinalReview = true;
       s2.reviewMilestone = 'final_review_done';
 
-      const topic = (this.state.stage1 && this.state.stage1.mergedTitle) ? this.state.stage1.mergedTitle : '本组课题';
-      const rawDoc = (s2.unifiedContent || '').replace(/<[^>]*>/g, '').trim();
-      const contentSnippet = rawDoc.slice(0, 2500);
+      let rawDoc = (s2.unifiedContent || '').replace(/<[^>]*>/g, '').trim();
+      if (!rawDoc) {
+        try {
+          const f = document.getElementById('stage2-etherpad-frame');
+          if (f && f.contentDocument) {
+            const aceOuter = f.contentDocument.querySelector('iframe[name="ace_outer"]');
+            if (aceOuter && aceOuter.contentDocument) {
+              const aceInner = aceOuter.contentDocument.querySelector('iframe[name="ace_inner"]');
+              if (aceInner && aceInner.contentDocument) {
+                const innerBody = aceInner.contentDocument.querySelector('.innerdocbody') || aceInner.contentDocument.body;
+                if (innerBody) rawDoc = (innerBody.innerText || '').replace(/\r\n/g, '\n').trim();
+              }
+            }
+          }
+        } catch (e) {}
+      }
+      const contentSnippet = rawDoc ? rawDoc.slice(0, 2500) : '论文草稿已完成主体框架与各章节撰写';
 
       // 🌟 挂载审稿编辑三审正在分析动态思考气泡
       this.state.activeAgentAnalyzing = {
