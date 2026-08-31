@@ -14,8 +14,8 @@ import {
   DefaultTasks,
   DefaultAnnouncements,
   DefaultReferencePapers
-} from './constants.js?v=20260901_v1117';
-import { formatExportDateTime, formatDurationHuman, isScopeMatch } from './utils.js?v=20260901_v1117';
+} from './constants.js?v=20260901_v1118';
+import { formatExportDateTime, formatDurationHuman, isScopeMatch } from './utils.js?v=20260901_v1118';
 
 export class AuthManager {
   constructor() {
@@ -1358,7 +1358,7 @@ export class AuthManager {
     return membersObj;
   }
 
-  createTask(title, classId, instructions, resources = [], startTime = null, deadline = null, durationMinutes = 150) {
+  createTask(title, classId, instructions, resources = [], startTime = null, deadline = null, durationMinutes = 150, taskType = 'experiment') {
     const tasks = this.getTasks();
     const cleanTitle = (title || '').trim();
     if (!cleanTitle) throw new Error('任务名称不能为空！');
@@ -1391,6 +1391,7 @@ export class AuthManager {
     const newTask = {
       id: 'task_' + Date.now(),
       title, classId, className: targetClass ? targetClass.name : '教学班',
+      taskType: taskType || 'experiment',
       durationMinutes: parseInt(durationMinutes) || 150,
       startTime: defaultStart,
       deadline: defaultDeadline,

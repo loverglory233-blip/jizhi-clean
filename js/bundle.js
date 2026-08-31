@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260901_v1117
+ * Version: 20260901_v1118
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260901_v1117';
+  const APP_VERSION = '20260901_v1118';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -115,6 +115,70 @@
       stage3: []
     }
   };
+
+  const TASK_GENRE_CONFIGS = {
+    experiment: {
+      key: 'experiment',
+      label: '实证实验方案',
+      icon: '🧪',
+      badge: '实证研究 / 实验设计',
+      summary: '涵盖研究假设、自变量/因变量操作化、对照实验控制与测量工具',
+      modules: [
+        { key: 'background', title: '一、研究背景与意义', color: '#2563eb', defaultMinutes: 25 },
+        { key: 'literature', title: '二、文献综述与理论基础', color: '#0284c7', defaultMinutes: 30 },
+        { key: 'questions', title: '三、研究问题与假设', color: '#059669', defaultMinutes: 25 },
+        { key: 'method', title: '四、实验设计与研究方法', color: '#7c3aed', defaultMinutes: 40 },
+        { key: 'reflection', title: '五、预期效果与局限反思', color: '#d97706', defaultMinutes: 20 },
+        { key: 'references', title: '六、参考文献著录', color: '#475569', defaultMinutes: 10 }
+      ]
+    },
+    instructional: {
+      key: 'instructional',
+      label: '教学设计方案',
+      icon: '📐',
+      badge: '教学设计 / 课程方案',
+      summary: '涵盖学情分析、教学目标(布鲁姆层级)、活动设计、技术融合与教学评价',
+      modules: [
+        { key: 'background', title: '一、学情分析与教学背景', color: '#2563eb', defaultMinutes: 25 },
+        { key: 'literature', title: '二、教学目标与重难点设定', color: '#0284c7', defaultMinutes: 25 },
+        { key: 'questions', title: '三、教学策略与技术工具融合', color: '#059669', defaultMinutes: 30 },
+        { key: 'method', title: '四、教学过程与活动设计', color: '#7c3aed', defaultMinutes: 40 },
+        { key: 'reflection', title: '五、教学评价与反思改进', color: '#d97706', defaultMinutes: 20 },
+        { key: 'references', title: '六、教案资源与参考文献', color: '#475569', defaultMinutes: 10 }
+      ]
+    },
+    history: {
+      key: 'history',
+      label: '教育技术发展史与综述',
+      icon: '📜',
+      badge: '学术发展史 / 理论综述',
+      summary: '涵盖历史分期脉络、理论范式更迭(行为-认知-建构)、技术演变与AI启示',
+      modules: [
+        { key: 'background', title: '一、引言与历史脉络分期', color: '#2563eb', defaultMinutes: 25 },
+        { key: 'literature', title: '二、核心理论范式流变分析', color: '#0284c7', defaultMinutes: 35 },
+        { key: 'questions', title: '三、关键技术与媒体演变案例', color: '#059669', defaultMinutes: 30 },
+        { key: 'method', title: '四、学术争鸣与成败反思', color: '#7c3aed', defaultMinutes: 30 },
+        { key: 'reflection', title: '五、对当下AI时代的启示与展望', color: '#d97706', defaultMinutes: 20 },
+        { key: 'references', title: '六、经典文献与史料著录', color: '#475569', defaultMinutes: 10 }
+      ]
+    }
+  };
+
+  function getGenrePromptDescriptor(taskType = 'experiment') {
+    if (taskType === 'instructional') {
+      return `【当前任务写作文体：📐 教学设计方案】
+  - 核心考查维度：①学情分析与教学目标(布鲁姆认知层级)一致性；②教学活动与技术工具融合度(TPACK)；③教学过程闭环与形成性/总结性评价设计；④学生课堂认知负荷控制。
+  - 专家身份口吻：请以【教学设计与课程教学论资深专家】口吻展开指导、质检与答辩质询，重点切入教学策略的课堂落地可行性与技术赋能实效。`;
+    }
+    if (taskType === 'history') {
+      return `【当前任务写作文体：📜 教育技术发展史与理论综述】
+  - 核心考查维度：①历史分期脉络清晰度与划分依据；②核心理论范式演进深度(行为主义-认知主义-建构主义-连接主义)；③典型教育技术/媒体演变案例论据充分性；④学术争鸣与对当下生成式AI时代的深刻启示。
+  - 专家身份口吻：请以【教育技术史与学术史资深教授】口吻展开指导、质检与答辩质询，重点切入史料论据客观性、理论流变严密性与现实启示价值。`;
+    }
+    return `【当前任务写作文体：🧪 实证实验方案 / 研究设计】
+  - 核心考查维度：①核心概念与研究假设逻辑对齐；②自变量/因变量操作化界定与实验组对照控制；③测量工具信效度检验与数据收集严密性；④真实教学环境下的实施可行性与预期局限。
+  - 专家身份口吻：请以【实证研究方法与实验设计资深教授】口吻展开指导、质检与答辩质询，重点切入实验变量控制的严密性与学术规范。`;
+  }
 
   /* ==========================================================================
      MODULE: utils.js
@@ -2328,7 +2392,7 @@
       return membersObj;
     }
 
-    createTask(title, classId, instructions, resources = [], startTime = null, deadline = null, durationMinutes = 150) {
+    createTask(title, classId, instructions, resources = [], startTime = null, deadline = null, durationMinutes = 150, taskType = 'experiment') {
       const tasks = this.getTasks();
       const cleanTitle = (title || '').trim();
       if (!cleanTitle) throw new Error('任务名称不能为空！');
@@ -2361,6 +2425,7 @@
       const newTask = {
         id: 'task_' + Date.now(),
         title, classId, className: targetClass ? targetClass.name : '教学班',
+        taskType: taskType || 'experiment',
         durationMinutes: parseInt(durationMinutes) || 150,
         startTime: defaultStart,
         deadline: defaultDeadline,
@@ -5038,12 +5103,14 @@
                     const isLatest = tIdx === 0;
                     const taskSeqNum = currentClassTasks.length - tIdx;
                     const isExpired = isTaskExpired(t);
+                    const genreCfg = TASK_GENRE_CONFIGS[t.taskType || 'experiment'] || TASK_GENRE_CONFIGS.experiment;
                     return `
                     <div style="background:#ffffff; border:1.5px solid ${isExpired ? '#fca5a5' : '#e2e8f0'}; padding:18px; border-radius:12px; box-shadow:0 1px 3px rgba(15,23,42,0.03);">
                       <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
                         <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
                           <span style="background:${isExpired ? 'linear-gradient(135deg, #ef4444, #dc2626)' : 'linear-gradient(135deg, #1d4ed8, #2563eb)'}; color:#ffffff; padding:3px 10px; border-radius:8px; font-size:12px; font-weight:800;">任务 ${taskSeqNum}${isLatest ? ' (最新)' : ''}</span>
                           <span style="font-size:16px; font-weight:800; color:#1e40af;">📌 ${t.title}</span>
+                          <span style="background:#f0fdf4; color:#15803d; border:1px solid #bbf7d0; padding:2px 8px; border-radius:8px; font-size:11.5px; font-weight:700;">${genreCfg.icon} ${genreCfg.label}</span>
                           <span style="background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe; padding:2px 8px; border-radius:8px; font-size:11.5px; font-weight:700;">受众班级: ${t.className}</span>
                           ${isExpired ? `
                             <span style="background:#fef2f2; color:#dc2626; border:1px solid #fecaca; padding:2px 8px; border-radius:8px; font-size:11.5px; font-weight:800;">🛑 已截止 · 正文只读</span>
@@ -7292,6 +7359,18 @@
               </div>
 
               <div class="teacher-form-group" style="margin-top:8px;">
+                <label><span class="req">*</span> 📝 任务写作文体类型 (决定智能体诊断口径与公约模块)</label>
+                <select id="modal-task-type" class="teacher-input fancy" style="font-weight:700; background:#ffffff; cursor:pointer;">
+                  <option value="experiment" selected>🧪 实证实验方案 (研究假设、变量控制、实验设计、数据工具)</option>
+                  <option value="instructional">📐 教学设计方案 (学情分析、教学目标、活动设计、技术融合、评价)</option>
+                  <option value="history">📜 教育技术发展史与理论综述 (历史分期、范式流变、案例分析、未来启示)</option>
+                </select>
+                <div id="modal-task-type-tip" style="font-size:11.5px; color:#2563eb; margin-top:4px; line-height:1.4; background:#eff6ff; padding:6px 10px; border-radius:6px; border:1px solid #bfdbfe;">
+                  💡 智能体将采用【实证研究方法与实验设计】学术口径，重点质询变量操作化、对照严密性与测量信效度。
+                </div>
+              </div>
+
+              <div class="teacher-form-group" style="margin-top:8px;">
                 <label><span class="req">*</span> 写作任务名称</label>
                 <input type="text" id="modal-task-title" class="teacher-input fancy" value="" placeholder="输入写作任务名称">
               </div>
@@ -7322,6 +7401,21 @@
           }
         };
         document.addEventListener('keydown', onEscKey);
+
+        const typeSelect = modal.querySelector('#modal-task-type');
+        const typeTip = modal.querySelector('#modal-task-type-tip');
+        if (typeSelect && typeTip) {
+          typeSelect.addEventListener('change', () => {
+            const v = typeSelect.value;
+            if (v === 'instructional') {
+              typeTip.innerHTML = '💡 智能体将采用【教学设计与课程教学论】学术口径，重点质询教学目标-活动一致性、TPACK技术融合度与认知负荷。';
+            } else if (v === 'history') {
+              typeTip.innerHTML = '💡 智能体将采用【教育技术史与学术史】学术口径，重点质询历史分期标准、理论范式更迭深度与当下AI启示。';
+            } else {
+              typeTip.innerHTML = '💡 智能体将采用【实证研究方法与实验设计】学术口径，重点质询变量操作化、对照严密性与测量信效度。';
+            }
+          });
+        }
 
         const deadlineInput = modal.querySelector('#modal-task-deadline');
         const startInput = modal.querySelector('#modal-task-start');
@@ -7375,6 +7469,7 @@
 
         modal.querySelector('#btn-submit-new-task').addEventListener('click', () => {
           const classId = modal.querySelector('#modal-task-class').value;
+          const taskType = modal.querySelector('#modal-task-type')?.value || 'experiment';
           const title = modal.querySelector('#modal-task-title').value.trim();
           const desc = modal.querySelector('#modal-task-desc').value.trim();
           const startTime = modal.querySelector('#modal-task-start') ? modal.querySelector('#modal-task-start').value : '';
@@ -7394,7 +7489,7 @@
           calculatedDuration = Math.round((dDate.getTime() - sDate.getTime()) / (60 * 1000));
 
           try {
-            authManager.createTask(title, classId, desc, [], startTime, deadline, calculatedDuration);
+            authManager.createTask(title, classId, desc, [], startTime, deadline, calculatedDuration, taskType);
             closeModal();
             renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
           } catch (err) {
@@ -9342,7 +9437,8 @@
     const allTasks = (window.app && window.app.authManager) ? window.app.authManager.getTasks() : [];
     const currentTask = allTasks.find(t => t.id === state.activeTaskId);
     const isTaskDeadlineExpired = isTaskExpired(currentTask);
-    const taskDurMin = (currentTask && currentTask.duration) ? Number(currentTask.duration) : 150;
+    const taskGenreKey = currentTask?.taskType || 'experiment';
+    const genreCfg = TASK_GENRE_CONFIGS[taskGenreKey] || TASK_GENRE_CONFIGS.experiment;
     const isLargeTask = currentTask && (currentTask.scale === 'large' || currentTask.type === 'large' || taskDurMin > 150 || (currentTask.targetWordCount && Number(currentTask.targetWordCount) >= 6000));
 
     // 🛡️ 稳健解析当前用户的真实姓名与标识
@@ -9567,61 +9663,28 @@
         </div>
 
         <div style="display:flex; flex-direction:column; gap:16px; width:100%;">
-          <!-- 6大研究设计方案模块与时间规划 -->
+          <!-- 6大研究设计方案模块与时间规划 (文体自适应) -->
           <div style="background:#f8fafc; padding:18px; border-radius:12px; border:1px solid #bfdbfe; width:100%; box-sizing:border-box;">
             <div style="font-weight:800; color:#1e40af; margin-bottom:14px; font-size:14px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
-              <span>📚 研究方案核心模块与时间规划 (6 大模块起草):</span>
+              <div style="display:flex; align-items:center; gap:8px;">
+                <span>📚 方案核心模块与时间规划 (6 大模块起草):</span>
+                <span style="font-size:11.5px; background:#eff6ff; color:#1d4ed8; padding:2px 8px; border-radius:8px; border:1px solid #bfdbfe; font-weight:700;">${genreCfg.icon} ${genreCfg.label}</span>
+              </div>
               <span style="font-size:12px; background:#eff6ff; color:#1d4ed8; padding:2px 10px; border-radius:12px; border:1px solid #bfdbfe; font-weight:800;">⏱️ ${isLargeTask ? '大任务 (8k~1w字 · 总规划时长 300 分钟)' : '中任务 (3k~5k字 · 总规划时长 150 分钟)'}</span>
             </div>
 
             <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
-              <!-- 模块 1 -->
-              <div style="background:#ffffff; border:1px solid #e2e8f0; border-left:3.5px solid #2563eb; border-radius:8px; padding:12px 14px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap;">
-                <span style="font-weight:800; color:#1e40af; font-size:13.5px;">一、研究背景与意义</span>
-                <label style="font-size:12px; color:#475569; display:flex; align-items:center; gap:4px;">
-                  用时: <input type="number" class="contract-time-input" data-key="background" data-lock-key="time_background" value="${s1.contract.timeAllocations.background !== undefined ? s1.contract.timeAllocations.background : 25}" ${isContractLocked ? 'disabled readonly style="opacity:0.8; cursor:not-allowed;"' : ''} style="width:48px; padding:3px 4px; border:1px solid #cbd5e1; border-radius:4px; text-align:center; font-weight:700;"> 分钟
-                </label>
-              </div>
-
-              <!-- 模块 2 -->
-              <div style="background:#ffffff; border:1px solid #e2e8f0; border-left:3.5px solid #0284c7; border-radius:8px; padding:12px 14px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap;">
-                <span style="font-weight:800; color:#0369a1; font-size:13.5px;">二、文献综述</span>
-                <label style="font-size:12px; color:#475569; display:flex; align-items:center; gap:4px;">
-                  用时: <input type="number" class="contract-time-input" data-key="literature" data-lock-key="time_literature" value="${s1.contract.timeAllocations.literature !== undefined ? s1.contract.timeAllocations.literature : 30}" ${isContractLocked ? 'disabled readonly style="opacity:0.8; cursor:not-allowed;"' : ''} style="width:48px; padding:3px 4px; border:1px solid #cbd5e1; border-radius:4px; text-align:center; font-weight:700;"> 分钟
-                </label>
-              </div>
-
-              <!-- 模块 3 -->
-              <div style="background:#ffffff; border:1px solid #e2e8f0; border-left:3.5px solid #059669; border-radius:8px; padding:12px 14px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap;">
-                <span style="font-weight:800; color:#065f46; font-size:13.5px;">三、研究问题与假设</span>
-                <label style="font-size:12px; color:#475569; display:flex; align-items:center; gap:4px;">
-                  用时: <input type="number" class="contract-time-input" data-key="questions" data-lock-key="time_questions" value="${s1.contract.timeAllocations.questions !== undefined ? s1.contract.timeAllocations.questions : 25}" ${isContractLocked ? 'disabled readonly style="opacity:0.8; cursor:not-allowed;"' : ''} style="width:48px; padding:3px 4px; border:1px solid #cbd5e1; border-radius:4px; text-align:center; font-weight:700;"> 分钟
-                </label>
-              </div>
-
-              <!-- 模块 4 -->
-              <div style="background:#ffffff; border:1px solid #e2e8f0; border-left:3.5px solid #7c3aed; border-radius:8px; padding:12px 14px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap;">
-                <span style="font-weight:800; color:#6d28d9; font-size:13.5px;">四、研究设计与方法</span>
-                <label style="font-size:12px; color:#475569; display:flex; align-items:center; gap:4px;">
-                  用时: <input type="number" class="contract-time-input" data-key="method" data-lock-key="time_method" value="${s1.contract.timeAllocations.method !== undefined ? s1.contract.timeAllocations.method : 40}" ${isContractLocked ? 'disabled readonly style="opacity:0.8; cursor:not-allowed;"' : ''} style="width:48px; padding:3px 4px; border:1px solid #cbd5e1; border-radius:4px; text-align:center; font-weight:700;"> 分钟
-                </label>
-              </div>
-
-              <!-- 模块 5 -->
-              <div style="background:#ffffff; border:1px solid #e2e8f0; border-left:3.5px solid #d97706; border-radius:8px; padding:12px 14px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap;">
-                <span style="font-weight:800; color:#b45309; font-size:13.5px;">五、研究设计的不足与反思</span>
-                <label style="font-size:12px; color:#475569; display:flex; align-items:center; gap:4px;">
-                  用时: <input type="number" class="contract-time-input" data-key="reflection" data-lock-key="time_reflection" value="${s1.contract.timeAllocations.reflection !== undefined ? s1.contract.timeAllocations.reflection : 20}" ${isContractLocked ? 'disabled readonly style="opacity:0.8; cursor:not-allowed;"' : ''} style="width:48px; padding:3px 4px; border:1px solid #cbd5e1; border-radius:4px; text-align:center; font-weight:700;"> 分钟
-                </label>
-              </div>
-
-              <!-- 模块 6 -->
-              <div style="background:#ffffff; border:1px solid #e2e8f0; border-left:3.5px solid #475569; border-radius:8px; padding:12px 14px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap;">
-                <span style="font-weight:800; color:#334155; font-size:13.5px;">六、参考文献</span>
-                <label style="font-size:12px; color:#475569; display:flex; align-items:center; gap:4px;">
-                  用时: <input type="number" class="contract-time-input" data-key="references" data-lock-key="time_references" value="${s1.contract.timeAllocations.references !== undefined ? s1.contract.timeAllocations.references : 10}" ${isContractLocked ? 'disabled readonly style="opacity:0.8; cursor:not-allowed;"' : ''} style="width:48px; padding:3px 4px; border:1px solid #cbd5e1; border-radius:4px; text-align:center; font-weight:700;"> 分钟
-                </label>
-              </div>
+              ${genreCfg.modules.map((mod) => {
+                const currentVal = s1.contract.timeAllocations[mod.key] !== undefined ? s1.contract.timeAllocations[mod.key] : mod.defaultMinutes;
+                return `
+                  <div style="background:#ffffff; border:1px solid #e2e8f0; border-left:3.5px solid ${mod.color || '#2563eb'}; border-radius:8px; padding:12px 14px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap;">
+                    <span style="font-weight:800; color:#1e40af; font-size:13.5px;">${escapeHtml(mod.title)}</span>
+                    <label style="font-size:12px; color:#475569; display:flex; align-items:center; gap:4px;">
+                      用时: <input type="number" class="contract-time-input" data-key="${mod.key}" data-lock-key="time_${mod.key}" value="${currentVal}" ${isContractLocked ? 'disabled readonly style="opacity:0.8; cursor:not-allowed;"' : ''} style="width:48px; padding:3px 4px; border:1px solid #cbd5e1; border-radius:4px; text-align:center; font-weight:700;"> 分钟
+                    </label>
+                  </div>
+                `;
+              }).join('')}
             </div>
           </div>
 
@@ -15977,6 +16040,9 @@
   （纯自然语言，90~120字，严禁输出代码块）`;
 
       try {
+        const taskType = this.getCurrentTaskType();
+        const genreDesc = getGenrePromptDescriptor(taskType);
+
         // 🌟 1. 挂载责任编辑正在分析中动态状态框
         this.state.activeAgentAnalyzing = {
           icon: '🤝',
@@ -15987,7 +16053,7 @@
         renderChat(this.state);
         await new Promise(r => setTimeout(r, 1500));
 
-        const respManaging = await callCozeAgentAPI('managingEditor', managingPrompt, { stage: 'stage2', topic, chatSnippet, bottlenecks, focusIssues });
+        const respManaging = await callCozeAgentAPI('managingEditor', managingPrompt, { stage: 'stage2', topic, chatSnippet, bottlenecks, focusIssues, taskType });
         let managingText = (respManaging && respManaging.trim().length > 0) 
           ? respManaging.trim() 
           : `🤝 【责任编辑·研讨共识小结】：结合大家在自查打卡与讨论区指出的【${focusIssues.slice(0, 30)}】等核心诉求，全组已在研究问题聚焦与方法设计细化上形成了明确共识。👉 接下来正式有请 @审稿编辑 结合全篇草稿为大家下发具体的《二审修正清单》，指导全组深入修改与对齐落实！`;
@@ -16015,25 +16081,27 @@
         await new Promise(r => setTimeout(r, 1500));
 
         // 审稿专家结合自查瓶颈、讨论与正文下发【诊断问题 + 改进建议】双结构《二审修正清单》
-        const reviewingPrompt = `针对课题《${topic}》，结合小组成员自查瓶颈【${bottlenecks}】、聚焦关注点【${focusIssues}】及下方正文草稿，作为资深审稿编辑给出包含【诊断问题 + 改进建议】双结构的学术质检《二审修正清单》（150~180字）：
+        const reviewingPrompt = `${genreDesc}
+
+  针对课题《${topic}》，结合小组成员自查瓶颈【${bottlenecks}】、聚焦关注点【${focusIssues}】及下方正文草稿，作为资深审稿编辑给出包含【诊断问题 + 改进建议】双结构的学术质检《二审修正清单》（150~180字）：
   【正文草稿参考】:
   ${rawDoc.slice(0, 2000)}
   【小组成员商定的修改思路】:
   ${chatSnippet}
 
-  请严格按以下 3 个维度下发《二审修正清单》（每项必须同时包含“诊断问题”与“改进建议”，严禁出现“分工”字眼）：
-  ①【核心概念对齐】
-  - 诊断问题：结合引言与文献综述，指出具体概念界定不清或脱节之处；
+  请紧扣上述文体考查维度，严格按以下 3 个维度下发《二审修正清单》（每项必须同时包含“诊断问题”与“改进建议”，严禁出现“分工”字眼）：
+  ①【核心概念对齐 / 目标立论】
+  - 诊断问题：结合引言与核心论述，指出具体概念界定不清、目标脱节或史料脉络不清之处；
   - 改进建议：给出具体的学术概念统领与问题锚定要求；
-  ②【研究方法深化】
-  - 诊断问题：结合组员自查瓶颈（${bottlenecks}），指出正文中具体缺失的操作化步骤、样本抽样或测量工具；
+  ②【主体方法 / 活动设计深化】
+  - 诊断问题：结合组员自查瓶颈（${bottlenecks}），指出正文中具体缺失的操作化步骤、活动设计闭环或理论演变逻辑；
   - 改进建议：给出具体的补全与深化建议；
   ③【行文衔接规范】
   - 诊断问题：结合自查脱节章节（${transIssues}），指出具体逻辑生硬或口语化表达；
   - 改进建议：给出具体的润色与过渡规范要求。
   末尾必须明确提示：“请大家围绕清单协同商定修改对策与落实方案，讨论差不多后点击下方【📝 讨论差不多了？让审稿编辑总结】！”（纯自然语言，150~180字）`;
 
-        const respReviewing = await callCozeAgentAPI('reviewingEditor', reviewingPrompt, { stage: 'stage2', topic, actualDoc: rawDoc, bottlenecks, focusIssues });
+        const respReviewing = await callCozeAgentAPI('reviewingEditor', reviewingPrompt, { stage: 'stage2', topic, actualDoc: rawDoc, bottlenecks, focusIssues, taskType });
         let reviewingText = (respReviewing && respReviewing.trim().length > 0)
           ? respReviewing.trim()
           : `📝 【审稿编辑·二审修正清单】：结合全组自查打卡反映的痛点与正文审阅，提出以下 3 项【诊断问题与改进建议】：\n①【核心概念对齐】\n· 诊断问题：引言中“有效社会共享调节”缺乏操作性界定，文献述评未充分支撑核心研究问题；\n· 改进建议：补充明确的操作性定义，使文献综述直接呼应研究假设。\n②【研究方法深化】\n· 诊断问题：认知网络分析（ENA）缺乏具体实施步骤与编码维度对应逻辑，操作化论证单薄；\n· 改进建议：细化编码维度与测量工具的具体操作步骤，增强方法严密性。\n③【行文衔接规范】\n· 诊断问题：部分章节存在口语化表述，引言末尾与方法开头过渡较为生硬；\n· 改进建议：统一全篇学术术语命名，补全逻辑过渡句。\n👉 请大家围绕清单协同商定修改对策与落实方案，讨论差不多后点击下方【📝 讨论差不多了？让审稿编辑总结】！`;
@@ -16532,6 +16600,8 @@
 
         let propText = '';
         let oppText = '';
+        const taskType = this.getCurrentTaskType();
+        const genreDesc = getGenrePromptDescriptor(taskType);
 
         if (!hasProp || !hasOpp) {
           // 🌟 挂载答辩委员会并行审阅动态思考气泡
@@ -16543,12 +16613,16 @@
           renderChat(this.state);
           this.renderStudentWorkspace();
 
-          const propPrompt = `针对小组论文《${topic}》，请通读下方【小组当前真实正文草稿】全文，作为答辩委员会正方评审教授发表 130~150 字的肯定支持评审意见：
-  【基于真实正文的动态赞赏原则】：通读正文草稿全文，从 5 大赞赏维度（①行文风格与语言通顺、②选题与立意创新、③设计与方法严密、④实践落地与推广价值、⑤规范与术语统一）中，根据本篇论文的真实闪光点，动态灵活挑选 2~3 个最契合的核心亮点（必须至少 2 个，最多 3 个，严禁死板固化在某两个固定维度），紧扣具体学科与章节展开具体赞赏，为全组提供充实的正面论据支架！纯自然语言输出，130~150字。`;
+          const propPrompt = `${genreDesc}
 
-          const oppPrompt = `针对小组论文《${topic}》，请通读下方【小组当前真实正文草稿】全文，作为答辩委员会反方评审教授发表 130~150 字的温和学术商榷质询意见：
-  【全局学术博弈红线与动态质询原则】：
-  1. 从 5 大质询维度（①具体设计落地的可行性与实施挑战、②行文风格割裂与语言表达通顺度、③变量操作化与测量工具严密性、④实验对照与变量控制逻辑、⑤行文与术语规范）中，根据本篇论文的真实薄弱处，动态挑选 2~3 个最切中要害的质询点；
+  针对小组论文《${topic}》，请通读下方【小组当前真实正文草稿】全文，作为答辩委员会正方评审教授发表 130~150 字的肯定支持评审意见：
+  【基于真实正文与文体特征的动态赞赏原则】：通读正文草稿全文，结合上述文体核心维度，根据本篇论文的真实闪光点，动态灵活挑选 2~3 个最契合的核心亮点，紧扣具体学科与章节展开具体赞赏，为全组提供充实的正面论据支架！纯自然语言输出，130~150字。`;
+
+          const oppPrompt = `${genreDesc}
+
+  针对小组论文《${topic}》，请通读下方【小组当前真实正文草稿】全文，作为答辩委员会反方评审教授发表 130~150 字的温和学术商榷质询意见：
+  【全局学术博弈红线与文体质询原则】：
+  1. 紧密结合上述文体考查维度，根据本篇论文在设计/论证/落地中的真实薄弱处，动态挑选 2~3 个最切中要害的质询点；
   2. 必须以清晰的序号 ① ② 分条呈现质询焦点；
   3. 态度务必温和客气、极具建设性（多用“商讨/请教/小细节/落地可行性”）。纯自然语言输出，130~150字。`;
 
@@ -16557,7 +16631,7 @@
             const promises = [];
             if (!hasProp) {
               promises.push(Promise.race([
-                callCozeAgentAPI('proponent', propPrompt, { stage: 'stage3', topic, actualDoc: rawContent }),
+                callCozeAgentAPI('proponent', propPrompt, { stage: 'stage3', topic, actualDoc: rawContent, taskType }),
                 timeoutPromise
               ]));
             } else {
@@ -16567,7 +16641,7 @@
 
             if (!hasOpp) {
               promises.push(Promise.race([
-                callCozeAgentAPI('opponent', oppPrompt, { stage: 'stage3', topic, actualDoc: rawContent }),
+                callCozeAgentAPI('opponent', oppPrompt, { stage: 'stage3', topic, actualDoc: rawContent, taskType }),
                 timeoutPromise
               ]));
             } else {
@@ -16665,20 +16739,22 @@
           renderChat(this.state);
           this.renderStudentWorkspace();
 
-          const chairPrompt = `答辩正反两方评审意见已入驻左侧矩阵。
+          const chairPrompt = `${genreDesc}
+
+  答辩正反两方评审意见已入驻左侧矩阵。
   【正方意见】: ${propText}
   【反方质询】: ${oppText}
 
   请作为答辩委员会主席（中间委员），发表 130~150 字的【针对质询 ① 独立答辩思路引导】：
   ① 宣布正反方评审已正式送达并生成【答辩与终稿修改清单】，肯定正方的创新与实践价值，明确指出反方提出了针对实质询；
-  ② 【单题独立引导·核心铁律】：本次只聚焦【意见 1 / 质询 ①】，结合反方质询①的具体内容给出清晰的答辩破局/操作化补救思路支架（严禁提及或剧透后续质询！）；
+  ② 【单题独立引导·核心铁律】：本次只聚焦【意见 1 / 质询 ①】，结合上述文体特征与反方质询①的具体内容给出清晰的答辩破局/操作化补救思路支架（严禁提及或剧透后续质询！）；
   ③ 引导全组在讨论区充分商讨，商定差不多后点击聊天框上方【💡 意见 1 讨论差不多了？帮我总结并填入】按钮！纯自然语言输出，130~150字。`;
 
           let chairText = '';
           try {
             const timeoutPromise = new Promise(r => setTimeout(() => r(null), 12000));
             chairText = await Promise.race([
-              callCozeAgentAPI('neutral', chairPrompt, { stage: 'stage3', topic, prop: propText, opp: oppText, queryPoint: 1 }),
+              callCozeAgentAPI('neutral', chairPrompt, { stage: 'stage3', topic, prop: propText, opp: oppText, queryPoint: 1, taskType }),
               timeoutPromise
             ]);
           } finally {
@@ -16866,6 +16942,12 @@
         () => this.showAnnouncementModal(), () => this.showQuestionnaireModal(),
         () => this.backToTaskList()
       );
+    }
+
+    getCurrentTaskType() {
+      const allTasks = (this.authManager) ? this.authManager.getTasks() : [];
+      const currentTask = allTasks.find(t => t.id === this.state.activeTaskId);
+      return currentTask?.taskType || 'experiment';
     }
 
     renderStudentWorkspace(isForced = false) {
@@ -17727,19 +17809,23 @@
         setTimeout(async () => {
           try {
             await new Promise(r => setTimeout(r, 1500));
-            const firstReviewPrompt = `【课题】：《${topic}》
+            const taskType = this.getCurrentTaskType();
+            const genreDesc = getGenrePromptDescriptor(taskType);
+            const firstReviewPrompt = `${genreDesc}
+
+  【课题】：《${topic}》
   【当前正文草稿（写到哪审到哪）】：
   ${contentSnippet}
 
-  请发表 120~150 字一审破题把脉学术质检意见（严格遵循【诊断问题 + 改进建议】双结构，严禁代码块，严禁出现“分工”字眼）：
+  请结合上述文体考查维度，发表 120~150 字一审破题把脉学术质检意见（严格遵循【诊断问题 + 改进建议】双结构，严禁代码块，严禁出现“分工”字眼）：
   ①【立意与问题聚焦】
-  - 诊断问题：审查引言与文献综述，指出 Research Gap 是否找准、研究问题是否明确；
-  - 改进建议：给出具体的破题聚焦与微调对策；
-  ②【学术语体与术语口径】
+  - 诊断问题：审查已起草内容，结合该文体特性指出核心切入点与关键问题是否找准；
+  - 改进建议：给出具体的聚焦与深化对策；
+  ②【学术语体与术语规范】
   - 诊断问题：指出草稿中口语化表述或术语不一致之处；
   - 改进建议：给出统一规范建议。
   （纯自然语言，120~150字）`;
-            let firstReviewText = await callCozeAgentAPI('reviewingEditor', firstReviewPrompt, { stage: 'stage2', topic, actualDoc: contentSnippet });
+            let firstReviewText = await callCozeAgentAPI('reviewingEditor', firstReviewPrompt, { stage: 'stage2', topic, actualDoc: contentSnippet, taskType });
             if (!firstReviewText || firstReviewText.trim().length === 0) {
               firstReviewText = `📝 【审稿编辑·一审破题把脉】：通读了全组目前起草的正文草稿，提出以下初审质检意见：\n①【立意与问题聚焦】\n· 诊断问题：文献综述梳理充分，但末尾未精准聚焦初中数学课例操作化的核心缺口（Research Gap）；\n· 改进建议：收拢综述结论，直接引出核心研究问题与假设。\n②【学术语体与术语口径】\n· 诊断问题：部分段落出现第一人称口语化表述，术语叫法略有出入；\n· 改进建议：统一全篇学术术语口径，采用规范学术第三人称。请全组参考后继续稳步撰写！`;
             }
@@ -17928,13 +18014,17 @@
 
       try {
         const topic = (this.state.stage1 && this.state.stage1.mergedTitle) ? this.state.stage1.mergedTitle : '本组课题';
-        const finalPrompt = `【课题】：《${topic}》
+        const taskType = this.getCurrentTaskType();
+        const genreDesc = getGenrePromptDescriptor(taskType);
+        const finalPrompt = `${genreDesc}
+
+  【课题】：《${topic}》
   【终稿草稿全文节选】：
   ${contentSnippet}
 
-  请发表 120~150 字终审定稿学术总评与行文扫描意见（包含【诊断问题 + 改进建议】双结构，严禁代码块，严禁出现“分工”字眼）：
+  请结合上述文体考查维度，发表 120~150 字终审定稿学术总评与行文扫描意见（包含【诊断问题 + 改进建议】双结构，严禁代码块，严禁出现“分工”字眼）：
   ①【学术语体与逻辑完整性】
-  - 诊断问题：指出全篇逻辑闭环与语体严谨度；
+  - 诊断问题：结合该文体特性，指出全篇逻辑闭环与语体严谨度；
   - 改进建议：给出具体优化建议。
   ②【学术规范与参考文献】
   - 诊断问题：核对术语一致性与文献著录；
@@ -17943,7 +18033,7 @@
 
         let resp = null;
         try {
-          const apiPromise = callCozeAgentAPI('reviewingEditor', finalPrompt, { stage: 'stage2', topic });
+          const apiPromise = callCozeAgentAPI('reviewingEditor', finalPrompt, { stage: 'stage2', topic, taskType });
           const timeoutPromise = new Promise(r => setTimeout(() => r(null), 15000));
           resp = await Promise.race([apiPromise, timeoutPromise]);
         } catch (err) {
