@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260831_v992
+ * Version: 20260831_v993
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260831_v992';
+  const APP_VERSION = '20260831_v993';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -10769,7 +10769,23 @@
 
             const currUserColor = (state.members && state.members[currUserCode]?.color) || '#2563eb';
 
-            const targetPad = rawPadName;
+            if (!state._readOnlyPadMap) state._readOnlyPadMap = {};
+            let targetPad = rawPadName;
+            if (isEditorReadonly && state._readOnlyPadMap[rawPadName]) {
+              targetPad = state._readOnlyPadMap[rawPadName];
+            } else if (isEditorReadonly) {
+              // 🛡️ 静默预热官方只读 ID：首屏安全直开秒显，后台异步拉取 r.xxxx 供独立窗口与后续加载使用，绝不打断当前渲染
+              fetch(`sync.php?action=get_readonly_pad_id&padId=${encodeURIComponent(rawPadName)}`).then(r => r.json()).then(res => {
+                if (res && res.success && res.readOnlyID) {
+                  state._readOnlyPadMap[rawPadName] = res.readOnlyID;
+                  const popoutLink = document.getElementById('s2-pad-popout-link');
+                  if (popoutLink) {
+                    popoutLink.href = `/p/${encodeURIComponent(res.readOnlyID)}?userName=${encodeURIComponent(currUserName)}&userColor=${encodeURIComponent(currUserColor)}&showChat=false&showLineNumbers=true&showControls=false&lang=zh-hans`;
+                  }
+                }
+              }).catch(() => {});
+            }
+
             const padUrl = `/p/${encodeURIComponent(targetPad)}?userName=${encodeURIComponent(currUserName)}&userColor=${encodeURIComponent(currUserColor)}&showChat=false&showLineNumbers=true&showControls=${isEditorReadonly ? 'false' : 'true'}&lang=zh-hans`;
 
             return `
@@ -10780,7 +10796,7 @@
                     <span id="ep-status-text-s2" style="font-weight:600;">${isEditorReadonly ? '🔒 Etherpad 协同文档已锁定 (只读模式)' : 'Etherpad 实时协同引擎已就绪 (毫秒级 OT 协同)'}</span>
                   </div>
                   <div style="display:flex; align-items:center; gap:6px;">
-                    <a href="${padUrl}" target="_blank" style="background:#ffffff; color:#334155; border:1px solid #cbd5e1; padding:2px 8px; border-radius:4px; font-size:11px; text-decoration:none; font-weight:600; display:inline-flex; align-items:center; gap:3px;">↗️ 独立窗口</a>
+                    <a id="s2-pad-popout-link" href="${padUrl}" target="_blank" style="background:#ffffff; color:#334155; border:1px solid #cbd5e1; padding:2px 8px; border-radius:4px; font-size:11px; text-decoration:none; font-weight:600; display:inline-flex; align-items:center; gap:3px;">↗️ 独立窗口</a>
                     <button onclick="const f=document.getElementById('stage2-etherpad-frame'); if(f) { f.src=f.src; document.getElementById('ep-status-text-s2').innerText='正在重新连接...'; }" style="background:#eff6ff; color:#2563eb; border:1px solid #bfdbfe; padding:2px 8px; border-radius:4px; font-size:11px; cursor:pointer; font-weight:700;">🔄 刷新连接</button>
                   </div>
                 </div>
@@ -11171,7 +11187,19 @@
 
             const isEditorReadonly = isFinalSubmitted || isTaskDeadlineExpired;
 
-            const targetPad = rawPadName;
+            if (!state._readOnlyPadMap) state._readOnlyPadMap = {};
+            let targetPad = rawPadName;
+            if (isEditorReadonly && state._readOnlyPadMap[rawPadName]) {
+              targetPad = state._readOnlyPadMap[rawPadName];
+            } else if (isEditorReadonly) {
+              // 🛡️ 静默预热官方只读 ID：首屏安全直开秒显，后台异步拉取 r.xxxx 供独立窗口与后续加载使用
+              fetch(`sync.php?action=get_readonly_pad_id&padId=${encodeURIComponent(rawPadName)}`).then(r => r.json()).then(res => {
+                if (res && res.success && res.readOnlyID) {
+                  state._readOnlyPadMap[rawPadName] = res.readOnlyID;
+                }
+              }).catch(() => {});
+            }
+
             const padUrl = `/p/${encodeURIComponent(targetPad)}?userName=${encodeURIComponent(currUserName)}&userColor=${encodeURIComponent(currUserColor)}&showChat=false&showLineNumbers=true&showControls=${isEditorReadonly ? 'false' : 'true'}&lang=zh-hans`;
 
             return `

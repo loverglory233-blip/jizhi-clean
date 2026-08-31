@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles } from "./constants.js?v=20260831_v992";
-import { callCozeAgentAPI } from "./agents.js?v=20260831_v992";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, showResolutionBlock } from "./utils.js?v=20260831_v992";
+import { AgentProfiles } from "./constants.js?v=20260831_v993";
+import { callCozeAgentAPI } from "./agents.js?v=20260831_v993";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, showResolutionBlock } from "./utils.js?v=20260831_v993";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -2392,7 +2392,23 @@ function renderStage2Canvas(canvas, state, handlers) {
 
           const currUserColor = (state.members && state.members[currUserCode]?.color) || '#2563eb';
           
-          const targetPad = rawPadName;
+          if (!state._readOnlyPadMap) state._readOnlyPadMap = {};
+          let targetPad = rawPadName;
+          if (isEditorReadonly && state._readOnlyPadMap[rawPadName]) {
+            targetPad = state._readOnlyPadMap[rawPadName];
+          } else if (isEditorReadonly) {
+            // 🛡️ 静默预热官方只读 ID：首屏安全直开秒显，后台异步拉取 r.xxxx 供独立窗口与后续加载使用，绝不打断当前渲染
+            fetch(`sync.php?action=get_readonly_pad_id&padId=${encodeURIComponent(rawPadName)}`).then(r => r.json()).then(res => {
+              if (res && res.success && res.readOnlyID) {
+                state._readOnlyPadMap[rawPadName] = res.readOnlyID;
+                const popoutLink = document.getElementById('s2-pad-popout-link');
+                if (popoutLink) {
+                  popoutLink.href = `/p/${encodeURIComponent(res.readOnlyID)}?userName=${encodeURIComponent(currUserName)}&userColor=${encodeURIComponent(currUserColor)}&showChat=false&showLineNumbers=true&showControls=false&lang=zh-hans`;
+                }
+              }
+            }).catch(() => {});
+          }
+
           const padUrl = `/p/${encodeURIComponent(targetPad)}?userName=${encodeURIComponent(currUserName)}&userColor=${encodeURIComponent(currUserColor)}&showChat=false&showLineNumbers=true&showControls=${isEditorReadonly ? 'false' : 'true'}&lang=zh-hans`;
           
           return `
@@ -2403,7 +2419,7 @@ function renderStage2Canvas(canvas, state, handlers) {
                   <span id="ep-status-text-s2" style="font-weight:600;">${isEditorReadonly ? '🔒 Etherpad 协同文档已锁定 (只读模式)' : 'Etherpad 实时协同引擎已就绪 (毫秒级 OT 协同)'}</span>
                 </div>
                 <div style="display:flex; align-items:center; gap:6px;">
-                  <a href="${padUrl}" target="_blank" style="background:#ffffff; color:#334155; border:1px solid #cbd5e1; padding:2px 8px; border-radius:4px; font-size:11px; text-decoration:none; font-weight:600; display:inline-flex; align-items:center; gap:3px;">↗️ 独立窗口</a>
+                  <a id="s2-pad-popout-link" href="${padUrl}" target="_blank" style="background:#ffffff; color:#334155; border:1px solid #cbd5e1; padding:2px 8px; border-radius:4px; font-size:11px; text-decoration:none; font-weight:600; display:inline-flex; align-items:center; gap:3px;">↗️ 独立窗口</a>
                   <button onclick="const f=document.getElementById('stage2-etherpad-frame'); if(f) { f.src=f.src; document.getElementById('ep-status-text-s2').innerText='正在重新连接...'; }" style="background:#eff6ff; color:#2563eb; border:1px solid #bfdbfe; padding:2px 8px; border-radius:4px; font-size:11px; cursor:pointer; font-weight:700;">🔄 刷新连接</button>
                 </div>
               </div>
@@ -2794,7 +2810,19 @@ function renderStage3Canvas(canvas, state, handlers) {
 
           const isEditorReadonly = isFinalSubmitted || isTaskDeadlineExpired;
 
-          const targetPad = rawPadName;
+          if (!state._readOnlyPadMap) state._readOnlyPadMap = {};
+          let targetPad = rawPadName;
+          if (isEditorReadonly && state._readOnlyPadMap[rawPadName]) {
+            targetPad = state._readOnlyPadMap[rawPadName];
+          } else if (isEditorReadonly) {
+            // 🛡️ 静默预热官方只读 ID：首屏安全直开秒显，后台异步拉取 r.xxxx 供独立窗口与后续加载使用
+            fetch(`sync.php?action=get_readonly_pad_id&padId=${encodeURIComponent(rawPadName)}`).then(r => r.json()).then(res => {
+              if (res && res.success && res.readOnlyID) {
+                state._readOnlyPadMap[rawPadName] = res.readOnlyID;
+              }
+            }).catch(() => {});
+          }
+
           const padUrl = `/p/${encodeURIComponent(targetPad)}?userName=${encodeURIComponent(currUserName)}&userColor=${encodeURIComponent(currUserColor)}&showChat=false&showLineNumbers=true&showControls=${isEditorReadonly ? 'false' : 'true'}&lang=zh-hans`;
 
           return `
