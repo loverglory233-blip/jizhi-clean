@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260831_v999
+ * Version: 20260831_v1000
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260831_v999';
+  const APP_VERSION = '20260831_v1000';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -15524,6 +15524,55 @@
      */
     async handleS2ManagingSummary() {
       const s2 = this.state.stage2 || {};
+      if (!this.state.stage2) this.state.stage2 = s2;
+      if (!s2.confirmations) s2.confirmations = {};
+      if (!s2.confirmations.s2_managing) s2.confirmations.s2_managing = {};
+
+      const currUser = this.authManager ? this.authManager.getCurrentUser() : null;
+      const currUserCode = this.state.currentUser || currUser?.studentCode || currUser?.name || 'A';
+
+      // 1. 记录当前用户的确认
+      s2.confirmations.s2_managing[currUserCode] = true;
+      if (currUser?.studentCode) s2.confirmations.s2_managing[currUser.studentCode] = true;
+      if (currUser?.name) s2.confirmations.s2_managing[currUser.name] = true;
+
+      // 计算总组员人数
+      const effClassId = this.state.activeStudentClassId || currUser?.classId || null;
+      const effGroup = this.authManager ? this.authManager.getStudentActiveGroup(currUser, effClassId) : null;
+      const membersList = (effGroup && Array.isArray(effGroup.members) && effGroup.members.length > 0) 
+        ? effGroup.members 
+        : Object.values(this.state.members || {});
+      const totalCount = membersList.length || 2;
+
+      const isDoneHelper = (map) => {
+        if (!map) return 0;
+        return membersList.filter(m => {
+          let fullUser = (typeof m === 'object') ? m : null;
+          if (!fullUser && this.authManager && this.authManager.findUserByKey) {
+            fullUser = this.authManager.findUserByKey(m);
+          }
+          const keys = [
+            typeof m === 'string' ? m : null,
+            m?.id, m?.studentCode, m?.username, m?.name,
+            fullUser?.id, fullUser?.studentCode, fullUser?.username, fullUser?.name
+          ].filter(Boolean).map(k => String(k).trim().toLowerCase());
+          return keys.some(k => map[k] || map[String(k)]);
+        }).length;
+      };
+
+      const confirmedCount = isDoneHelper(s2.confirmations.s2_managing);
+
+      // 立即同步并更新聊天框底栏按钮展示
+      this.syncStage2();
+      if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+      renderChat(this.state);
+
+      // 若尚未全员确认，提示等待其他组员
+      if (confirmedCount < totalCount) {
+        return;
+      }
+
+      // 2. 全员已确认：开始让责任编辑与审稿编辑提炼共识并下发《二审修正清单》
       const s2ChatLogs = (this.state.chatLogs && this.state.chatLogs.stage2) ? this.state.chatLogs.stage2 : [];
       const meetingNoticeIdx = s2ChatLogs.findIndex(m => m && m.text && (m.text.includes('半程会议') || m.text.includes('自查') || m.text.includes('修改思路')));
       const relevantLogs = (meetingNoticeIdx >= 0) ? s2ChatLogs.slice(meetingNoticeIdx) : s2ChatLogs;
@@ -15533,7 +15582,7 @@
       const topic = (this.state.stage1 && this.state.stage1.mergedTitle) ? this.state.stage1.mergedTitle : '本组课题';
       const rawDoc = (s2.unifiedContent || '').replace(/<[^>]*>/g, '').trim();
 
-      // 1. 责任编辑发言提炼研讨共识并交棒
+      // 责任编辑发言提炼研讨共识并交棒
       const managingPrompt = `小组成员已在讨论区就论文《${topic}》的前序修改方向展开了半程研讨。
   【组内关于修改思路的真实讨论记录】:
   ${chatSnippet}
@@ -15559,7 +15608,7 @@
         };
         s2ChatLogs.push(msgManaging);
 
-        // 2. 审稿专家结合半程会议讨论与正文下发《二审修正清单》
+        // 审稿专家结合半程会议讨论与正文下发《二审修正清单》
         const reviewingPrompt = `针对课题《${topic}》，结合小组成员刚才商定的修改思路，通读下方正文草稿，作为资深审稿编辑给出【二审修正清单】（120~150字）：
   【正文草稿参考】:
   ${rawDoc.slice(0, 1500)}
