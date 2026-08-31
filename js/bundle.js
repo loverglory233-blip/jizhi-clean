@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260831_v1035
+ * Version: 20260831_v1036
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260831_v1035';
+  const APP_VERSION = '20260831_v1036';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -11647,9 +11647,10 @@
     allMsgs.sort((a, b) => (Number(a._timeMs || 0) - Number(b._timeMs || 0)));
     const cleanMsgs = filterAndDeduplicateChatLogs(allMsgs);
 
-    const msgSignature = cleanMsgs.map(m => (m.id || `${m.sender}_${m._timeMs || m.timestamp}`)).join('|');
+    const analyzingSig = state.activeAgentAnalyzing ? `${state.activeAgentAnalyzing.title}_${state.activeAgentAnalyzing.detail}` : 'none';
+    const msgSignature = cleanMsgs.map(m => (m.id || `${m.sender}_${m._timeMs || m.timestamp}`)).join('|') + `__analyzing_${analyzingSig}`;
     if (stream.dataset.msgSignature === msgSignature) {
-      return; // 消息没有任何变动，绝不重绘 DOM，彻底保护打字焦点与输入法
+      return; // 消息与分析状态没有任何变动，绝不重绘 DOM，彻底保护打字焦点与输入法
     }
     stream.dataset.msgSignature = msgSignature;
 
@@ -16215,6 +16216,7 @@
           };
           renderChat(this.state);
           this.renderStudentWorkspace();
+          await new Promise(r => setTimeout(r, 1500));
 
           const propPrompt = `针对小组论文《${topic}》，请通读下方【小组当前真实正文草稿】全文，作为答辩委员会正方评审教授发表 130~150 字的肯定支持评审意见：
   【基于真实正文的动态赞赏原则】：通读正文草稿全文，从 5 大赞赏维度（①行文风格与语言通顺、②选题与立意创新、③设计与方法严密、④实践落地与推广价值、⑤规范与术语统一）中，根据本篇论文的真实闪光点，动态灵活挑选 2~3 个最契合的核心亮点（必须至少 2 个，最多 3 个，严禁死板固化在某两个固定维度），紧扣具体学科与章节展开具体赞赏，为全组提供充实的正面论据支架！纯自然语言输出，130~150字。`;
@@ -16258,6 +16260,7 @@
           };
           renderChat(this.state);
           this.renderStudentWorkspace();
+          await new Promise(r => setTimeout(r, 1500));
 
           const oppPrompt = `针对小组论文《${topic}》，请通读下方【小组当前真实正文草稿】全文，结合正方委员刚才的肯定意见，作为答辩委员会反方评审教授发表 130~150 字的温和学术商榷质询意见：
 
@@ -16337,6 +16340,7 @@
           };
           renderChat(this.state);
           this.renderStudentWorkspace();
+          await new Promise(r => setTimeout(r, 1500));
 
           const chairPrompt = `答辩正反两方评审意见已入驻左侧矩阵。
   【正方意见】: ${propText}
@@ -17527,6 +17531,7 @@
       };
       renderChat(this.state);
       this.renderStudentWorkspace();
+      await new Promise(r => setTimeout(r, 1500));
 
       try {
         const finalPrompt = `【课题】：《${topic}》

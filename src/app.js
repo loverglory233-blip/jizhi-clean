@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260831_v1035";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260831_v1035";
-import { callCozeAgentAPI } from "./agents.js?v=20260831_v1035";
-import { AuthManager } from "./auth.js?v=20260831_v1035";
-import { CloudSyncEngine } from "./sync.js?v=20260831_v1035";
-import { renderLoginView } from "./login.js?v=20260831_v1035";
-import { renderTeacherPortal } from "./teacher.js?v=20260831_v1035";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260831_v1035";
+} from "./constants.js?v=20260831_v1036";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260831_v1036";
+import { callCozeAgentAPI } from "./agents.js?v=20260831_v1036";
+import { AuthManager } from "./auth.js?v=20260831_v1036";
+import { CloudSyncEngine } from "./sync.js?v=20260831_v1036";
+import { renderLoginView } from "./login.js?v=20260831_v1036";
+import { renderTeacherPortal } from "./teacher.js?v=20260831_v1036";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260831_v1036";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260831_v1035";
+} from "./editor.js?v=20260831_v1036";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -4240,6 +4240,7 @@ ${chatSnippet}
         };
         renderChat(this.state);
         this.renderStudentWorkspace();
+        await new Promise(r => setTimeout(r, 1500));
 
         const propPrompt = `针对小组论文《${topic}》，请通读下方【小组当前真实正文草稿】全文，作为答辩委员会正方评审教授发表 130~150 字的肯定支持评审意见：
 【基于真实正文的动态赞赏原则】：通读正文草稿全文，从 5 大赞赏维度（①行文风格与语言通顺、②选题与立意创新、③设计与方法严密、④实践落地与推广价值、⑤规范与术语统一）中，根据本篇论文的真实闪光点，动态灵活挑选 2~3 个最契合的核心亮点（必须至少 2 个，最多 3 个，严禁死板固化在某两个固定维度），紧扣具体学科与章节展开具体赞赏，为全组提供充实的正面论据支架！纯自然语言输出，130~150字。`;
@@ -4283,6 +4284,7 @@ ${chatSnippet}
         };
         renderChat(this.state);
         this.renderStudentWorkspace();
+        await new Promise(r => setTimeout(r, 1500));
 
         const oppPrompt = `针对小组论文《${topic}》，请通读下方【小组当前真实正文草稿】全文，结合正方委员刚才的肯定意见，作为答辩委员会反方评审教授发表 130~150 字的温和学术商榷质询意见：
 
@@ -4362,6 +4364,7 @@ ${propText}
         };
         renderChat(this.state);
         this.renderStudentWorkspace();
+        await new Promise(r => setTimeout(r, 1500));
 
         const chairPrompt = `答辩正反两方评审意见已入驻左侧矩阵。
 【正方意见】: ${propText}
@@ -5552,6 +5555,7 @@ ${contentSnippet}
     };
     renderChat(this.state);
     this.renderStudentWorkspace();
+    await new Promise(r => setTimeout(r, 1500));
 
     try {
       const finalPrompt = `【课题】：《${topic}》
