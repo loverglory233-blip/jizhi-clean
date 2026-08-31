@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260901_v1114";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260901_v1114";
-import { callCozeAgentAPI } from "./agents.js?v=20260901_v1114";
-import { AuthManager } from "./auth.js?v=20260901_v1114";
-import { CloudSyncEngine } from "./sync.js?v=20260901_v1114";
-import { renderLoginView } from "./login.js?v=20260901_v1114";
-import { renderTeacherPortal } from "./teacher.js?v=20260901_v1114";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260901_v1114";
+} from "./constants.js?v=20260901_v1115";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260901_v1115";
+import { callCozeAgentAPI } from "./agents.js?v=20260901_v1115";
+import { AuthManager } from "./auth.js?v=20260901_v1115";
+import { CloudSyncEngine } from "./sync.js?v=20260901_v1115";
+import { renderLoginView } from "./login.js?v=20260901_v1115";
+import { renderTeacherPortal } from "./teacher.js?v=20260901_v1115";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260901_v1115";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260901_v1114";
+} from "./editor.js?v=20260901_v1115";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -4304,8 +4304,6 @@ ${chatSnippet}
   async runStage3CommitteePipeline() {
     if (this._isStage3PipelineRunning) return;
     this._isStage3PipelineRunning = true;
-    this.state.stage3CommitteeLoading = true;
-    this.renderStudentWorkspace();
 
     try {
       if (!this.state.chatLogs.stage3) this.state.chatLogs.stage3 = [];
@@ -4316,22 +4314,33 @@ ${chatSnippet}
         rawContent = `课题名称: ${topic}。正文涵盖背景意义、文献综述、问题与假设、研究设计与方法、反思等完整初稿。`;
       }
 
+      // 🛡️ 自愈守护：若当前反馈矩阵为空，立即装载高质量学术预置矩阵，确保绝不白屏卡死
+      if (!this.state.stage3.feedbackItems || this.state.stage3.feedbackItems.length === 0) {
+        this.state.stage3.feedbackItems = [
+          { id: 'fb_prop', role: 'proponent', speaker: '正方委员 Agent (肯定支持)', title: '立论支持', content: `针对小组研究《${topic}》，正方高度肯定其学术创新切口与课堂实践落地价值，论证结构完整，立论扎实！`, response: '', status: 'pending' },
+          { id: 'fb_opp_1', role: 'opponent', speaker: '反方委员 Agent (尖锐质询)', title: '质询 1', content: `①【具体设计与实施挑战】：在相关章节中，常态化教学中具体干预周期的落地性与学生认知负荷如何防范？`, response: '', status: 'pending' },
+          { id: 'fb_opp_2', role: 'opponent', speaker: '反方委员 Agent (尖锐质询)', title: '质询 2', content: `②【行文风格与方法严密性】：在后续论述中，部分测量工具的信效度检验与前后学术行文风格需进一步规范。`, response: '', status: 'pending' }
+        ];
+      }
+
+      this.state.stage3CommitteeLoading = false;
+      this.renderStudentWorkspace();
+
       // 1. 中间委员开场（如果尚未开场）
       const hasNeutralIntro = logs.some(m => m && m.sender === 'neutral' && (m.text?.includes('欢迎来到【阶段三') || m.text?.includes('中间委员开场')));
       if (!hasNeutralIntro) {
         const neutralWelcome = {
-          id: `msg_welcome_${this.state.activeTaskId}_${this.state.currentUser}_stage3_neutral`,
+          id: `msg_s3_neutral_welcome_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
           sender: 'neutral',
           senderName: '中间委员 · 裁决引导',
           text: `🟡 【中间委员开场】：各位研究者，欢迎来到【阶段三：答辩擂台】！初稿撰写完毕，答辩委员会已就位。正反两方评审专家正在通读审阅全篇论文，请大家稍候！`,
           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
           _timeMs: Date.now()
         };
-        logs.push(neutralWelcome);
+        logs.unshift(neutralWelcome);
         this.sendSingleChatMessage(neutralWelcome, 'stage3');
         this.syncChatLogs();
         if (typeof window.renderChat === 'function') window.renderChat(this.state);
-        await new Promise(r => setTimeout(r, 1200));
       }
 
       // 2. 正方与反方委员并行调用 Coze API（极速提效，总耗时从 40s 压缩至 10s 左右）
