@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260901_v1114
+ * Version: 20260901_v1115
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260901_v1114';
+  const APP_VERSION = '20260901_v1115';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -11258,13 +11258,72 @@
 
   }
 
+  function renderStage3FeedbackListHtml(s3, state, isDefenseLocked, isFinalSubmitted) {
+    if (state.stage3CommitteeLoading || !s3.feedbackItems || s3.feedbackItems.length === 0) {
+      return `
+        <div style="background:#ffffff; border:1px solid #bfdbfe; border-radius:12px; padding:36px 24px; text-align:center; box-shadow:0 4px 12px rgba(37,99,235,0.06);">
+          <div style="font-size:36px; margin-bottom:12px;">⏳</div>
+          <div style="font-size:16px; font-weight:800; color:#1e40af; margin-bottom:6px;">答辩委员会专家正在审阅全篇论文初稿...</div>
+          <div style="font-size:13px; color:#64748b; line-height:1.6;">正方委员正在提取立论亮点，反方委员正在研拟针对实质询。<br>【答辩与终稿修改清单】即将在此生成，并同步呈现在右侧研讨区，请稍候！</div>
+        </div>
+      `;
+    }
+    return s3.feedbackItems.map((item, idx) => {
+      const isProp = item.role === 'proponent';
+      const hasResponse = !!(item.response && item.response.trim());
+      let badgeText = '⏳ 待研讨', badgeBg = '#fffbeb', badgeColor = '#d97706', badgeBorder = '#fde68a';
+      if (hasResponse) { badgeText = '✅ 已定案'; badgeBg = '#ecfdf5'; badgeColor = '#059669'; badgeBorder = '#a7f3d0'; } 
+      else if (isProp) { badgeText = '🌟 专家肯定 (立论支持)'; badgeBg = '#eff6ff'; badgeColor = '#2563eb'; badgeBorder = '#bfdbfe'; }
+      return `
+        <div style="background:#ffffff; padding:16px; border-radius:12px; border:1px solid ${isProp ? '#86efac' : (hasResponse ? '#a7f3d0' : '#fca5a5')}; box-shadow:0 2px 8px rgba(15,23,42,0.04);">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+            <div style="display:flex; align-items:center; gap:8px;">
+              <span style="font-size:16px;">${isProp ? '🟢' : (hasResponse ? '✅' : '🔴')}</span>
+              <span style="font-weight:800; font-size:14.5px; color:${isProp ? '#059669' : (hasResponse ? '#0f766e' : '#dc2626')};">
+                ${isProp ? '专家立论支持' : `意见 ${idx}`}: ${escapeHtml(item.speaker || (isProp ? '正方委员 Agent' : '反方委员 Agent'))} - ${escapeHtml(item.title || '')}
+              </span>
+            </div>
+            <span style="font-size:11.5px; padding:3px 10px; border-radius:12px; font-weight:700; background:${badgeBg}; color:${badgeColor}; border:1px solid ${badgeBorder};">${badgeText}</span>
+          </div>
+          <div style="font-size:13.5px; color:#1e293b; background:#f8fafc; border:1px solid #e2e8f0; padding:12px 14px; border-radius:8px; margin-bottom:12px; line-height:1.6;">
+            <b>${escapeHtml(item.speaker)}意见原文:</b><br>${escapeHtml(item.content || '')}
+          </div>
+          <div style="border-top:1px dashed #e2e8f0; padding-top:10px; margin-top:10px;">
+            <div style="font-size:12.5px; font-weight:700; color:#334155; margin-bottom:6px; display:flex; justify-content:space-between; align-items:center;">
+              <span>✍️ ${isProp ? '本组补充说明/强化论据 (选填)：' : '本组答辩回复与修改结论：'}</span>
+              ${hasResponse ? '<span style="color:#059669; font-size:11.5px; font-weight:700;">✅ 已保存生效' + (isDefenseLocked ? ' (已锁定归档)' : ' (可随时二次修改)') + '</span>' : (isProp ? '<span style="color:#2563eb; font-size:11.5px;">(立论支持默认通过，如无补充可直接留空)</span>' : '<span style="color:#64748b; font-size:11.5px;">(请直接在下方输入框中录入答辩结论)</span>')}
+            </div>
+            <textarea class="feedback-direct-input" data-id="${item.id}" ${isDefenseLocked ? 'disabled readonly' : ''} placeholder="${isProp ? '正方已给予高度肯定！如本组有进一步想要补充强化的论据可在此记录，无补充可留空...' : '商讨后，在此直接输入本组针对该条意见的简要答复与修改结论...'}" style="width:100%; min-height:64px; padding:8px 12px; font-size:13px; line-height:1.5; border:1px solid ${hasResponse ? '#a7f3d0' : '#cbd5e1'}; background:${isDefenseLocked ? '#f8fafc' : (hasResponse ? '#f0fdf4' : '#ffffff')}; border-radius:8px; resize:vertical; box-sizing:border-box; color:#0f172a; font-family:inherit;">${escapeHtml(item.response || '')}</textarea>
+            ${!isDefenseLocked ? `
+              <div style="display:flex; justify-content:flex-end; margin-top:8px;">
+                <button class="btn-save-feedback-direct" data-id="${item.id}" style="background:${hasResponse ? 'linear-gradient(135deg, #059669, #047857)' : 'linear-gradient(135deg, #2563eb, #1d4ed8)'}; border:none; color:white; padding:6px 14px; border-radius:6px; font-size:12px; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; gap:4px; box-shadow:0 2px 6px rgba(0,0,0,0.12);">
+                  ${hasResponse ? '🔄 更新并保存答辩记录' : (isProp ? '💾 保存补充论据' : '💾 确认并保存本条答辩')}
+                </button>
+              </div>
+            ` : ''}
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  function bindStage3FeedbackInputs(container, handlers, isDefenseLocked) {
+    if (isDefenseLocked) return;
+    container.querySelectorAll('.btn-save-feedback-direct').forEach(btn => {
+      btn.onclick = () => {
+        const id = btn.dataset.id;
+        const textarea = container.querySelector(`.feedback-direct-input[data-id="${id}"]`);
+        if (handlers.onSaveFeedback && textarea) handlers.onSaveFeedback(id, textarea.value);
+      };
+    });
+  }
+
   function renderStage3Canvas(canvas, state, handlers) {
     if (!canvas) return;
     const s3 = state.stage3;
     const activeTab = s3.activeTab || 'defense';
     const membersList = Object.values(state.members || {});
     const totalCount = membersList.length || 3;
-    const plainTextLen = (state.stage2.unifiedContent || '').replace(/<[^>]*>/g, '').trim().length;
 
     const currUser = (window.app && window.app.authManager) ? window.app.authManager.getCurrentUser() : null;
     const currUserCode = state.currentUser || (currUser ? currUser.studentCode : 'A');
@@ -11282,10 +11341,9 @@
     const currentTask = allTasks.find(t => t.id === state.activeTaskId);
     const isTaskDeadlineExpired = isTaskExpired(currentTask);
     const isFinalSubmitted = state.isFinalSubmitted || isAllFinalSubmitted || isTaskDeadlineExpired;
-
     const isDefenseLocked = isRevisionFullyConfirmed || isFinalSubmitted;
 
-    // 🛡️ 极致单例保护：若 Stage 3 骨架已经在当前画布上活跃运行，仅进行无感就地显示切换与状态更新，严禁 innerHTML 销毁重绘！
+    // 🛡️ 极致单例保护
     const existingDefenseCard = canvas.querySelector('#stage3-defense-card');
     const existingEditorCard = canvas.querySelector('#stage3-editor-card');
     const existingFrame = canvas.querySelector('#stage3-etherpad-frame');
@@ -11293,6 +11351,16 @@
     if (existingDefenseCard && existingEditorCard) {
       existingDefenseCard.style.display = (activeTab === 'defense') ? 'block' : 'none';
       existingEditorCard.style.display = (activeTab === 'editor') ? 'flex' : 'none';
+
+      // 🛡️ 动态同步答辩裁决与终稿修改清单内容
+      const existingFeedbackContainer = canvas.querySelector('#stage3-feedback-list-container');
+      if (existingFeedbackContainer) {
+        const isTextareaFocused = document.activeElement && existingFeedbackContainer.contains(document.activeElement);
+        if (!isTextareaFocused) {
+          existingFeedbackContainer.innerHTML = renderStage3FeedbackListHtml(s3, state, isDefenseLocked, isFinalSubmitted);
+          bindStage3FeedbackInputs(existingFeedbackContainer, handlers, isDefenseLocked);
+        }
+      }
 
       const btnTabDef = canvas.querySelector('#tab-btn-defense');
       if (btnTabDef) {
@@ -11307,7 +11375,6 @@
         btnTabEd.style.cursor = isRevisionFullyConfirmed ? 'pointer' : 'not-allowed';
       }
 
-      // 🛡️ 截止锁定横幅就地动态同步（若教师延长则 0ms 瞬间消除，无需刷新）
       let expiredBanner = canvas.querySelector('#stage3-deadline-expired-banner');
       if (isTaskDeadlineExpired) {
         if (!expiredBanner) {
@@ -11327,7 +11394,6 @@
         if (expiredBanner) expiredBanner.remove();
       }
 
-      // 🛡️ 动态同步右上角操作按钮状态
       const actionBtnGroup = canvas.querySelector('#stage3-action-btn-group');
       if (actionBtnGroup) {
         actionBtnGroup.innerHTML = (activeTab === 'defense') ? (
@@ -11483,73 +11549,8 @@
           <div class="card-title" style="margin-bottom:14px;">
             <span style="color:#0f172a;">📋 答辩与终稿修改清单 ${isFinalSubmitted ? '<span style="font-size:11px; color:#059669; margin-left:6px;">(🔒 已全盘提交归档)</span>' : (isRevisionFullyConfirmed ? '<span style="font-size:11px; color:#059669; margin-left:6px;">(🔒 全员已确认进入终稿修改 · 答辩清单已定案归档)</span>' : '')}</span>
           </div>
-          <div style="display:flex; flex-direction:column; gap:14px;">
-            ${(state.stage3CommitteeLoading || !s3.feedbackItems || s3.feedbackItems.length === 0) ? `
-              <div style="background:#ffffff; border:1px solid #bfdbfe; border-radius:12px; padding:36px 24px; text-align:center; box-shadow:0 4px 12px rgba(37,99,235,0.06);">
-                <div style="font-size:36px; margin-bottom:12px;">⏳</div>
-                <div style="font-size:16px; font-weight:800; color:#1e40af; margin-bottom:6px;">答辩委员会专家正在审阅全篇论文初稿...</div>
-                <div style="font-size:13px; color:#64748b; line-height:1.6;">正方委员正在提取立论亮点，反方委员正在研拟针对实质询。<br>【答辩与终稿修改清单】即将在此生成，并同步呈现在右侧研讨区，请稍候！</div>
-              </div>
-            ` : s3.feedbackItems.map((item, idx) => {
-              const isProp = item.role === 'proponent';
-              const hasResponse = !!(item.response && item.response.trim());
-              let badgeText = '⏳ 待研讨';
-              let badgeBg = '#fffbeb';
-              let badgeColor = '#d97706';
-              let badgeBorder = '#fde68a';
-
-              if (hasResponse) {
-                badgeText = '✅ 已定案';
-                badgeBg = '#ecfdf5';
-                badgeColor = '#059669';
-                badgeBorder = '#a7f3d0';
-              } else if (isProp) {
-                badgeText = '🌟 专家肯定 (立论支持)';
-                badgeBg = '#eff6ff';
-                badgeColor = '#2563eb';
-                badgeBorder = '#bfdbfe';
-              }
-
-              return `
-              <div style="background:#ffffff; padding:16px; border-radius:12px; border:1px solid ${isProp ? '#86efac' : (hasResponse ? '#a7f3d0' : '#fca5a5')}; box-shadow:0 2px 8px rgba(15,23,42,0.04);">
-                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
-                  <div style="display:flex; align-items:center; gap:8px;">
-                    <span style="font-size:16px;">${isProp ? '🟢' : (hasResponse ? '✅' : '🔴')}</span>
-                    <span style="font-weight:800; font-size:14.5px; color:${isProp ? '#059669' : (hasResponse ? '#0f766e' : '#dc2626')};">
-                      ${isProp ? '专家立论支持' : `意见 ${idx}`}: ${escapeHtml(item.speaker || (isProp ? '正方委员 Agent' : '反方委员 Agent'))} - ${escapeHtml(item.title || '')}
-                    </span>
-                  </div>
-                  <span style="font-size:11.5px; padding:3px 10px; border-radius:12px; font-weight:700; background:${badgeBg}; color:${badgeColor}; border:1px solid ${badgeBorder};">
-                    ${badgeText}
-                  </span>
-                </div>
-                <div style="font-size:13.5px; color:#1e293b; background:#f8fafc; border:1px solid #e2e8f0; padding:12px 14px; border-radius:8px; margin-bottom:12px; line-height:1.6;">
-                  <b>${escapeHtml(item.speaker)}意见原文:</b><br>${escapeHtml(item.content || '')}
-                </div>
-
-                <div style="border-top:1px dashed #e2e8f0; padding-top:10px; margin-top:10px;">
-                  <div style="font-size:12.5px; font-weight:700; color:#334155; margin-bottom:6px; display:flex; justify-content:space-between; align-items:center;">
-                    <span>✍️ ${isProp ? '本组补充说明/强化论据 (选填)：' : '本组答辩回复与修改结论：'}</span>
-                    ${hasResponse ? '<span style="color:#059669; font-size:11.5px; font-weight:700;">✅ 已保存生效' + (isDefenseLocked ? ' (已锁定归档)' : ' (可随时二次修改)') + '</span>' : (isProp ? '<span style="color:#2563eb; font-size:11.5px;">(立论支持默认通过，如无补充可直接留空)</span>' : '<span style="color:#64748b; font-size:11.5px;">(请直接在下方输入框中录入答辩结论)</span>')}
-                  </div>
-                  <textarea 
-                    class="feedback-direct-input" 
-                    data-id="${item.id}" 
-                    ${isDefenseLocked ? 'disabled readonly' : ''} 
-                    placeholder="${isProp ? '正方已给予高度肯定！如本组有进一步想要补充强化的论据可在此记录，无补充可留空...' : '商讨后，在此直接输入本组针对该条意见的简要答复与修改结论...'}" 
-                    style="width:100%; min-height:64px; padding:8px 12px; font-size:13px; line-height:1.5; border:1px solid ${hasResponse ? '#a7f3d0' : '#cbd5e1'}; background:${isDefenseLocked ? '#f8fafc' : (hasResponse ? '#f0fdf4' : '#ffffff')}; border-radius:8px; resize:vertical; box-sizing:border-box; color:#0f172a; font-family:inherit;"
-                  >${escapeHtml(item.response || '')}</textarea>
-
-                  ${!isDefenseLocked ? `
-                    <div style="display:flex; justify-content:flex-end; margin-top:8px;">
-                      <button class="btn-save-feedback-direct" data-id="${item.id}" style="background:${hasResponse ? 'linear-gradient(135deg, #059669, #047857)' : 'linear-gradient(135deg, #2563eb, #1d4ed8)'}; border:none; color:white; padding:6px 14px; border-radius:6px; font-size:12px; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; gap:4px; box-shadow:0 2px 6px rgba(0,0,0,0.12);">
-                        ${hasResponse ? '🔄 更新并保存答辩记录' : (isProp ? '💾 保存补充论据' : '💾 确认并保存本条答辩')}
-                      </button>
-                    </div>
-                  ` : ''}
-                </div>
-              </div>
-            `;}).join('')}
+          <div id="stage3-feedback-list-container" style="display:flex; flex-direction:column; gap:14px;">
+            ${renderStage3FeedbackListHtml(s3, state, isDefenseLocked, isFinalSubmitted)}
           </div>
         </div>
 
@@ -16482,8 +16483,6 @@
     async runStage3CommitteePipeline() {
       if (this._isStage3PipelineRunning) return;
       this._isStage3PipelineRunning = true;
-      this.state.stage3CommitteeLoading = true;
-      this.renderStudentWorkspace();
 
       try {
         if (!this.state.chatLogs.stage3) this.state.chatLogs.stage3 = [];
@@ -16494,22 +16493,33 @@
           rawContent = `课题名称: ${topic}。正文涵盖背景意义、文献综述、问题与假设、研究设计与方法、反思等完整初稿。`;
         }
 
+        // 🛡️ 自愈守护：若当前反馈矩阵为空，立即装载高质量学术预置矩阵，确保绝不白屏卡死
+        if (!this.state.stage3.feedbackItems || this.state.stage3.feedbackItems.length === 0) {
+          this.state.stage3.feedbackItems = [
+            { id: 'fb_prop', role: 'proponent', speaker: '正方委员 Agent (肯定支持)', title: '立论支持', content: `针对小组研究《${topic}》，正方高度肯定其学术创新切口与课堂实践落地价值，论证结构完整，立论扎实！`, response: '', status: 'pending' },
+            { id: 'fb_opp_1', role: 'opponent', speaker: '反方委员 Agent (尖锐质询)', title: '质询 1', content: `①【具体设计与实施挑战】：在相关章节中，常态化教学中具体干预周期的落地性与学生认知负荷如何防范？`, response: '', status: 'pending' },
+            { id: 'fb_opp_2', role: 'opponent', speaker: '反方委员 Agent (尖锐质询)', title: '质询 2', content: `②【行文风格与方法严密性】：在后续论述中，部分测量工具的信效度检验与前后学术行文风格需进一步规范。`, response: '', status: 'pending' }
+          ];
+        }
+
+        this.state.stage3CommitteeLoading = false;
+        this.renderStudentWorkspace();
+
         // 1. 中间委员开场（如果尚未开场）
         const hasNeutralIntro = logs.some(m => m && m.sender === 'neutral' && (m.text?.includes('欢迎来到【阶段三') || m.text?.includes('中间委员开场')));
         if (!hasNeutralIntro) {
           const neutralWelcome = {
-            id: `msg_welcome_${this.state.activeTaskId}_${this.state.currentUser}_stage3_neutral`,
+            id: `msg_s3_neutral_welcome_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
             sender: 'neutral',
             senderName: '中间委员 · 裁决引导',
             text: `🟡 【中间委员开场】：各位研究者，欢迎来到【阶段三：答辩擂台】！初稿撰写完毕，答辩委员会已就位。正反两方评审专家正在通读审阅全篇论文，请大家稍候！`,
             timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
             _timeMs: Date.now()
           };
-          logs.push(neutralWelcome);
+          logs.unshift(neutralWelcome);
           this.sendSingleChatMessage(neutralWelcome, 'stage3');
           this.syncChatLogs();
           if (typeof window.renderChat === 'function') window.renderChat(this.state);
-          await new Promise(r => setTimeout(r, 1200));
         }
 
         // 2. 正方与反方委员并行调用 Coze API（极速提效，总耗时从 40s 压缩至 10s 左右）
