@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260831_v1104
+ * Version: 20260831_v1105
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260831_v1104';
+  const APP_VERSION = '20260831_v1105';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -13441,7 +13441,7 @@
               this._nudgeCounts['s2_silence'] = count + 1;
               const msg = {
                 sender: 'managingEditor',
-                text: `🤝 【责任编辑·起草提示】：大家已进入阶段二正文协作！\n👉 请组员按照阶段一公约分工开始撰写各自负责的内容；撰写同时多阅读同伴段落，在研讨区互相交流衔接，协同推进！`,
+                text: `🤝 【责任编辑·起草提示】：大家已进入阶段二正文协作！\n👉 请大家在左侧协同文档中积极起草与研读，撰写同时多阅读同伴段落，在研讨区互相交流衔接，群策群力协同推进！`,
                 timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
                 _timeMs: now
               };
@@ -15946,13 +15946,13 @@
 
       const topic = (this.state.stage1 && this.state.stage1.mergedTitle) ? this.state.stage1.mergedTitle : '本组课题';
 
-      const summaryPrompt = `小组成员已就《二审修正清单》在讨论区明确了各自的修改落实分工与计划。
+      const summaryPrompt = `小组成员已就《二审修正清单》在讨论区明确了具体的修改对策与协同落实方案。
   【组内关于清单落实的讨论记录】:
   ${chatSnippet}
 
   请作为审稿编辑，发表 90~120 字的【修改落实确认与终审冲刺寄语】：
-  ① 肯定大家清晰务实的修改分工与严谨态度；
-  ② 鼓励全组回到左侧正文继续高效撰写与修改，冲刺最终高质量学术成文！（纯自然语言，90~120字）`;
+  ① 肯定大家清晰务实的修改对策与严谨协作态度（严禁出现“分工”字眼）；
+  ② 鼓励全组回到左侧正文继续高效协同与修改，冲刺最终高质量学术成文！（纯自然语言，90~120字，严禁输出代码块）`;
 
       try {
         // 🌟 挂载审稿编辑三审正在分析中动态状态框
@@ -15968,7 +15968,7 @@
         const respSummary = await callCozeAgentAPI('reviewingEditor', summaryPrompt, { stage: 'stage2', topic });
         let summaryText = (respSummary && respSummary.trim().length > 0)
           ? respSummary.trim()
-          : `📝 【审稿编辑·修改确认与写作冲刺】：太棒了！看到全组已明确了针对各项修正清单的具体落实分工！修改思路非常清晰。👉 请大家回到左侧正文写作区，将商定好的修改对策落实到位，继续推进后续章节，冲刺终审定稿！`;
+          : `📝 【审稿编辑·修改确认与写作冲刺】：太棒了！看到全组已明确了针对各项修正清单的具体修改对策与落实方案！协同修改思路非常清晰。👉 请大家回到左侧正文写作区，将商定好的修改对策协同落实到位，继续推进后续章节，冲刺终审定稿！`;
         if (!summaryText.startsWith('📝')) summaryText = `📝 【审稿编辑·修改确认与写作冲刺】：${summaryText}`;
 
         const msgSummary = {
@@ -17539,7 +17539,7 @@
             const ssrlWarningMsg = {
               sender: 'managingEditor',
               senderName: '协同调度 · 责任编辑',
-              text: `🤝 【责任编辑·协同关怀】：关注到当前正文撰写推进中，各成员的投入占比出现了一定程度的分化。建议全组同学在讨论区适度协调分工，鼓励尚未充分动笔的同学认领后续章节，共同推进高质量学术成稿哦~`,
+              text: `🤝 【责任编辑·协同关怀】：关注到当前正文撰写推进中，各成员的投入占比出现了一定程度的分化。建议全组同学在讨论区加强沟通与协作，互相补位并共同推进后续章节，群策群力完成高质量学术成稿哦~`,
               timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
               _timeMs: now
             };
@@ -17685,7 +17685,7 @@
 
             <!-- 1. 全篇综合自查审计 -->
             <div style="background:#f8fafc; border:1px solid #cbd5e1; border-radius:10px; padding:14px 16px; display:flex; flex-direction:column; gap:12px;">
-              <div style="font-size:13px; font-weight:800; color:#1e40af;">📋 一、全篇跨作者交叉审视自查（请跳出单一分工，通读全篇后打卡）</div>
+              <div style="font-size:13px; font-weight:800; color:#1e40af;">📋 一、全篇跨作者交叉审视自查（请通读全篇草稿并从整体协同视角打卡）</div>
 
               <!-- Q1: 个人构思契合度 (3档) -->
               <div style="background:#ffffff; padding:10px 14px; border-radius:8px; border:1px solid #e2e8f0; display:flex; flex-direction:column; gap:6px;">
