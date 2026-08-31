@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260831_v996";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260831_v996";
-import { callCozeAgentAPI } from "./agents.js?v=20260831_v996";
-import { AuthManager } from "./auth.js?v=20260831_v996";
-import { CloudSyncEngine } from "./sync.js?v=20260831_v996";
-import { renderLoginView } from "./login.js?v=20260831_v996";
-import { renderTeacherPortal } from "./teacher.js?v=20260831_v996";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260831_v996";
+} from "./constants.js?v=20260831_v997";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260831_v997";
+import { callCozeAgentAPI } from "./agents.js?v=20260831_v997";
+import { AuthManager } from "./auth.js?v=20260831_v997";
+import { CloudSyncEngine } from "./sync.js?v=20260831_v997";
+import { renderLoginView } from "./login.js?v=20260831_v997";
+import { renderTeacherPortal } from "./teacher.js?v=20260831_v997";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260831_v997";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260831_v996";
+} from "./editor.js?v=20260831_v997";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -1556,19 +1556,45 @@ export class App {
           const subs = s2.meetingSubmissions || {};
           const effClassId = this.state.activeStudentClassId || currUserObj.classId || null;
           const effGroup = this.authManager ? this.authManager.getStudentActiveGroup(currUserObj, effClassId) : null;
-          const allGroupMembers = (effGroup && Array.isArray(effGroup.members)) ? effGroup.members : membersList;
-
-          const unsubmittedMembers = allGroupMembers.filter(m => {
-            const uid = typeof m === 'object' ? String(m.id || m.studentCode || m.userId || '').trim() : String(m).trim();
-            const uname = typeof m === 'object' ? String(m.name || m.username || '').trim() : '';
-            return !(subs[uid] || (uname && subs[uname]) || subs[m.studentCode] || subs[m.id]);
-          });
+          const allGroupMembers = (effGroup && Array.isArray(effGroup.members) && effGroup.members.length > 0) ? effGroup.members : membersList;
           const totalCount = allGroupMembers.length || 2;
+
+          const isMemberSubmitted = (m) => {
+            if (!m) return false;
+            let fullUser = (typeof m === 'object') ? m : null;
+            if (!fullUser && this.authManager) {
+              fullUser = this.authManager.findUserByKey ? this.authManager.findUserByKey(m) : null;
+            }
+            const keys = [
+              typeof m === 'string' ? m : null,
+              m?.id, m?.studentCode, m?.username, m?.name,
+              fullUser?.id, fullUser?.studentCode, fullUser?.username, fullUser?.name
+            ].filter(Boolean).map(k => String(k).trim().toLowerCase());
+
+            // 1. 直接按 key 索引检索
+            if (keys.some(k => subs[k] || subs[String(k)])) return true;
+            // 2. 遍历 submissions 内部对象的 user / name 属性检索
+            const subList = Object.values(subs);
+            return subList.some(item => {
+              if (!item) return false;
+              const subKeys = [item.user, item.name, item.id, item.studentCode].filter(Boolean).map(k => String(k).trim().toLowerCase());
+              return keys.some(k => subKeys.includes(k));
+            });
+          };
+
+          const unsubmittedMembers = (Object.keys(subs).length >= totalCount) ? [] : allGroupMembers.filter(m => !isMemberSubmitted(m));
           const submittedCount = totalCount - unsubmittedMembers.length;
           const hasUnsubmitted = unsubmittedMembers.length > 0;
-          const unsubmittedNames = unsubmittedMembers.map(m => (typeof m === 'object' ? (m.name || m.username || m.studentCode) : m)).join('、');
+          
+          const unsubmittedNames = unsubmittedMembers.map(m => {
+            let fullUser = (typeof m === 'object') ? m : null;
+            if (!fullUser && this.authManager && this.authManager.findUserByKey) {
+              fullUser = this.authManager.findUserByKey(m);
+            }
+            return fullUser?.name || m?.name || m?.username || m?.studentCode || m;
+          }).join('、');
 
-          // ── 半程打卡：仅 3 分钟（180,000ms）单次点名催促 ──
+          // ── 半程打卡：仅 3 分钟（180,000ms）单次点名催促（仅在真有人未打卡时触发）──
           if (hasUnsubmitted && meetingElapsed >= 180000) {
             const nudgeKey = 's2_meeting_checkin_3m';
             if (!this._nudgeCounts[nudgeKey]) {
