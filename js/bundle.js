@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260831_v1019
+ * Version: 20260831_v1020
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260831_v1019';
+  const APP_VERSION = '20260831_v1020';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -10664,6 +10664,37 @@
           if (e) { e.preventDefault(); e.stopPropagation(); }
           handlers.onOpenCaseModal();
         };
+      // 增量就地刷新【智能体正在分析动态横幅】
+      let analyzingBanner = canvas.querySelector('#agent-analyzing-live-banner');
+      if (state.activeAgentAnalyzing) {
+        const bannerHtml = `
+          <div id="agent-analyzing-live-banner" style="background:linear-gradient(135deg, #eff6ff 0%, #f0fdf4 100%); border:1.5px solid #93c5fd; border-radius:8px; padding:10px 16px; margin-bottom:6px; display:flex; align-items:center; justify-content:space-between; box-shadow:0 3px 12px rgba(37,99,235,0.12); flex-shrink:0;">
+            <div style="display:flex; align-items:center; gap:12px;">
+              <div style="width:20px; height:20px; border:2.5px solid #bfdbfe; border-top-color:#2563eb; border-radius:50%; animation:spin 0.9s linear infinite; flex-shrink:0;"></div>
+              <div>
+                <div style="font-size:12.5px; font-weight:800; color:#1e3a8a; display:flex; align-items:center; gap:6px;">
+                  <span>${state.activeAgentAnalyzing.icon || '🤖'} ${state.activeAgentAnalyzing.title || '智能体专家正在研读中...'}</span>
+                </div>
+                <div style="font-size:11.5px; color:#2563eb; margin-top:2px; font-weight:600;">
+                  ${state.activeAgentAnalyzing.detail || '正在通读全篇草稿并进行学术质量诊断，请稍候...'}
+                </div>
+              </div>
+            </div>
+            <span style="font-size:11px; font-weight:800; color:#1d4ed8; background:#ffffff; border:1px solid #bfdbfe; padding:3px 10px; border-radius:12px; box-shadow:0 1px 3px rgba(0,0,0,0.05); display:inline-flex; align-items:center; gap:4px;">
+              ⏳ 深度质检中
+            </span>
+          </div>
+        `;
+        if (analyzingBanner) {
+          analyzingBanner.outerHTML = bannerHtml;
+        } else {
+          const topControl = canvas.querySelector('.card > div:first-child');
+          if (topControl) {
+            topControl.insertAdjacentHTML('afterend', bannerHtml);
+          }
+        }
+      } else if (analyzingBanner) {
+        analyzingBanner.remove();
       }
 
       // 增量就地刷新【半程修正清单】
@@ -10827,7 +10858,7 @@
               <span id="stage2-draft-count-text" style="font-size:11px; font-weight:800; color:${isDraftFullyConfirmed ? '#059669' : '#d97706'}; background:${isDraftFullyConfirmed ? '#d1fae5' : '#fef3c7'}; padding:1.5px 6px; border-radius:8px; border:1px solid ${isDraftFullyConfirmed ? '#a7f3d0' : '#fde68a'};">
                 ${isDraftFullyConfirmed ? '🎉 初稿已确认' : `✍️ 初稿: ${confirmedDraftCount}/${totalCount}`}
               </span>
-              <button id="btn-confirm-stage2-draft" style="background:${isUserDraftConfirmed ? '#ecfdf5' : 'linear-gradient(135deg, #059669, #047857)'}; border:${isUserDraftConfirmed ? '1px solid #a7f3d0' : 'none'}; color:${isUserDraftConfirmed ? '#059669' : 'white'}; padding:2.5px 8px; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer;">
+              <button id="btn-confirm-stage2-draft" onclick="if(window.app && window.app.handlers && typeof window.app.handlers.onConfirmStage2Draft === 'function'){ window.app.handlers.onConfirmStage2Draft(); } else if (window.app && typeof window.app.onConfirmStage2Draft === 'function'){ window.app.onConfirmStage2Draft(); }" style="background:${isUserDraftConfirmed ? '#ecfdf5' : 'linear-gradient(135deg, #059669, #047857)'}; border:${isUserDraftConfirmed ? '1px solid #a7f3d0' : 'none'}; color:${isUserDraftConfirmed ? '#059669' : 'white'}; padding:2.5px 8px; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer;">
                 ${isDraftFullyConfirmed ? '🎉 初稿完成' : (isUserDraftConfirmed ? '✓ 已确认' : '✍️ 确认初稿')}
               </button>
             </div>
@@ -14697,17 +14728,20 @@
 
         // ── 智能体答疑：仅当学生在聊天中显式 @智能体 时才触发大模型定向即时答疑 ──
         this.triggerAgentReplyIfNeeded(text);
+        // 防抖重置
+        input._lastSendTime = Date.now();
       };
 
-      sendBtn.addEventListener('click', handleSend);
-      input.addEventListener('keydown', (e) => {
+      sendBtn.onclick = handleSend;
+      input.onkeydown = (e) => {
         if (e.key === 'Enter' && !e.shiftKey) {
           // 🛡️ Safari / WebKit 中文输入法合成防吞字：若处于输入法选词状态或 keyCode 229，绝对禁止触发发送与清空
           if (isComposing || e.isComposing || e.keyCode === 229 || window._isGlobalComposing || (e.nativeEvent && e.nativeEvent.isComposing)) return;
+          if (input._lastSendTime && Date.now() - input._lastSendTime < 300) return;
           e.preventDefault();
           handleSend();
         }
-      });
+      };
     }
 
     // updateContributionUi() 已在 L258 定义（含 getElementById 精确选择器），此处不再重复覆盖
