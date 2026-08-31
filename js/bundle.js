@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260901_v1116
+ * Version: 20260901_v1117
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260901_v1116';
+  const APP_VERSION = '20260901_v1117';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -16503,17 +16503,11 @@
           rawContent = `课题名称: ${topic}。正文涵盖背景意义、文献综述、问题与假设、研究设计与方法、反思等完整初稿。`;
         }
 
-        // 🛡️ 自愈守护：若当前反馈矩阵为空，立即装载高质量学术预置矩阵，确保绝不白屏卡死
-        if (!this.state.stage3.feedbackItems || this.state.stage3.feedbackItems.length === 0) {
-          this.state.stage3.feedbackItems = [
-            { id: 'fb_prop', role: 'proponent', speaker: '正方委员 Agent (肯定支持)', title: '立论支持', content: `针对小组研究《${topic}》，正方高度肯定其学术创新切口与课堂实践落地价值，论证结构完整，立论扎实！`, response: '', status: 'pending' },
-            { id: 'fb_opp_1', role: 'opponent', speaker: '反方委员 Agent (尖锐质询)', title: '质询 1', content: `①【具体设计与实施挑战】：在相关章节中，常态化教学中具体干预周期的落地性与学生认知负荷如何防范？`, response: '', status: 'pending' },
-            { id: 'fb_opp_2', role: 'opponent', speaker: '反方委员 Agent (尖锐质询)', title: '质询 2', content: `②【行文风格与方法严密性】：在后续论述中，部分测量工具的信效度检验与前后学术行文风格需进一步规范。`, response: '', status: 'pending' }
-          ];
+        const hasFeedbackItems = this.state.stage3.feedbackItems && this.state.stage3.feedbackItems.length > 0;
+        if (!hasFeedbackItems) {
+          this.state.stage3CommitteeLoading = true;
+          this.renderStudentWorkspace();
         }
-
-        this.state.stage3CommitteeLoading = false;
-        this.renderStudentWorkspace();
 
         // 1. 中间委员开场（如果尚未开场）
         const hasNeutralIntro = logs.some(m => m && m.sender === 'neutral' && (m.text?.includes('欢迎来到【阶段三') || m.text?.includes('中间委员开场')));
@@ -16850,6 +16844,9 @@
         const s3Logs = (this.state.chatLogs && this.state.chatLogs.stage3) ? this.state.chatLogs.stage3 : [];
         const hasProp = s3Logs.some(m => m && m.sender === 'proponent');
         const hasOpp = s3Logs.some(m => m && m.sender === 'opponent');
+        if (!this.state.stage3.feedbackItems || this.state.stage3.feedbackItems.length === 0) {
+          this.state.stage3CommitteeLoading = true;
+        }
         if ((!hasProp || !hasOpp || !this.state.stage3.feedbackItems || this.state.stage3.feedbackItems.length === 0) && !this._isStage3PipelineRunning) {
           this.runStage3CommitteePipeline();
         }
