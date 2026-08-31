@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260831_v1037";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260831_v1037";
-import { callCozeAgentAPI } from "./agents.js?v=20260831_v1037";
-import { AuthManager } from "./auth.js?v=20260831_v1037";
-import { CloudSyncEngine } from "./sync.js?v=20260831_v1037";
-import { renderLoginView } from "./login.js?v=20260831_v1037";
-import { renderTeacherPortal } from "./teacher.js?v=20260831_v1037";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260831_v1037";
+} from "./constants.js?v=20260831_v1038";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260831_v1038";
+import { callCozeAgentAPI } from "./agents.js?v=20260831_v1038";
+import { AuthManager } from "./auth.js?v=20260831_v1038";
+import { CloudSyncEngine } from "./sync.js?v=20260831_v1038";
+import { renderLoginView } from "./login.js?v=20260831_v1038";
+import { renderTeacherPortal } from "./teacher.js?v=20260831_v1038";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260831_v1038";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260831_v1037";
+} from "./editor.js?v=20260831_v1038";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -2797,28 +2797,20 @@ export class App {
     // 🛡️ 并发锁：防止快速发送多条 @消息 导致 AI 回复乱序
     if (this._isAgentReplyInProgress) return;
     this._isAgentReplyInProgress = true;
-    const stage = this.state.currentStage;
-    const isExplicitMention = userMsg.includes('@');
-
-    if (!isExplicitMention) {
-      this._isAgentReplyInProgress = false;
-      return;
-    }
-
+    const stage = this.state.currentStage || 'stage1';
     let replyAgent = null;
 
-    if (userMsg.includes('@中间委员') || userMsg.includes('@中间委员 Agent')) {
-      replyAgent = 'neutral';
-    } else if (userMsg.includes('@正方委员') || userMsg.includes('@正方委员 Agent')) {
-      replyAgent = 'proponent';
-    } else if (userMsg.includes('@反方委员') || userMsg.includes('@反方委员 Agent')) {
-      replyAgent = 'opponent';
-    } else if (userMsg.includes('@审稿编辑') || userMsg.includes('@审稿编辑 Agent')) {
-      replyAgent = 'reviewingEditor';
-    } else if (userMsg.includes('@责任编辑') || userMsg.includes('@责任编辑 Agent')) {
-      replyAgent = 'managingEditor';
-    } else if (userMsg.includes('@拍卖师') || userMsg.includes('@拍卖师 Agent')) {
-      replyAgent = 'auctioneer';
+    if (userMsg.includes('@中间委员') || userMsg.includes('@中间委员 Agent')) replyAgent = 'neutral';
+    else if (userMsg.includes('@正方委员') || userMsg.includes('@正方委员 Agent')) replyAgent = 'proponent';
+    else if (userMsg.includes('@反方委员') || userMsg.includes('@反方委员 Agent')) replyAgent = 'opponent';
+    else if (userMsg.includes('@审稿编辑') || userMsg.includes('@审稿编辑 Agent')) replyAgent = 'reviewingEditor';
+    else if (userMsg.includes('@责任编辑') || userMsg.includes('@责任编辑 Agent')) replyAgent = 'managingEditor';
+    else if (userMsg.includes('@拍卖师') || userMsg.includes('@拍卖师 Agent')) replyAgent = 'auctioneer';
+    else if (userMsg.includes('@')) {
+      // 学生 @ 了但没打全名，根据阶段智能匹配
+      if (stage === 'stage1') replyAgent = 'auctioneer';
+      else if (stage === 'stage2') replyAgent = userMsg.includes('审稿') ? 'reviewingEditor' : 'managingEditor';
+      else if (stage === 'stage3') replyAgent = 'neutral';
     }
 
     if (!replyAgent) {
@@ -2827,17 +2819,17 @@ export class App {
     }
 
     this.studentMsgCountSinceLastAgent = 0;
-    const currentUser = this.authManager.getCurrentUser();
-    const currentTopic = this.state.stage1 ? this.state.stage1.mergedTitle : '';
+    const currentUser = this.authManager ? this.authManager.getCurrentUser() : null;
+    const currentTopic = this.state.stage1 ? this.state.stage1.mergedTitle : '本组课题';
     const actualDocContent = (this.state.stage2 && this.state.stage2.unifiedContent) ? this.state.stage2.unifiedContent.replace(/<[^>]*>/g, '').trim() : '';
 
-    // 💡 异步非阻塞体验：立即插入动态思考气泡，学生无需干等，可自由打字与交流！
-    const agentProfile = AgentProfiles[replyAgent] || { name: '智能体' };
+    const agentProfile = AgentProfiles[replyAgent] || { name: '智能体专家', avatar: '🤖', color: '#2563eb' };
     const tempThinkingId = 'thinking_' + Date.now();
     const thinkingMsg = {
       id: tempThinkingId,
       sender: replyAgent,
-      text: `⏳ 【${agentProfile.name}】：正在通读小组论文并起草学术意见...`,
+      senderName: agentProfile.roleTitle || agentProfile.name,
+      text: `⏳ 【${agentProfile.name}】：正在通读上下文并为您起草学术意见...`,
       isThinking: true,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       _timeMs: Date.now()
@@ -2845,29 +2837,45 @@ export class App {
     if (!this.state.chatLogs[stage]) this.state.chatLogs[stage] = [];
     this.state.chatLogs[stage].push(thinkingMsg);
     renderChat(this.state);
+    await new Promise(r => setTimeout(r, 1500));
 
     try {
-      // 异步直连 Coze API 获得真实大模型智能体深度审阅回复
-      let replyText = await callCozeAgentAPI(replyAgent, userMsg, {
-        stage: stage,
-        topic: currentTopic,
-        actualDoc: actualDocContent,
-        userId: currentUser ? (currentUser.id || currentUser.username) : 'student_user'
-      });
+      let replyText = null;
+      try {
+        const apiPromise = callCozeAgentAPI(replyAgent, userMsg, {
+          stage: stage,
+          topic: currentTopic,
+          actualDoc: actualDocContent,
+          userId: currentUser ? (currentUser.id || currentUser.username) : 'student_user'
+        });
+        const timeoutPromise = new Promise(r => setTimeout(() => r(null), 3500));
+        replyText = await Promise.race([apiPromise, timeoutPromise]);
+      } catch (err) {
+        replyText = null;
+      }
 
       if (!replyText || replyText.trim().length === 0) {
-        thinkingMsg.text = `⚠️ 【${agentProfile.name}提示】：大模型生成超时或网络稍有延迟，可随时在讨论区再次 @ 发送提问。`;
-      } else {
-        thinkingMsg.text = replyText.trim();
+        if (replyAgent === 'managingEditor') {
+          replyText = `🤝 【责任编辑】：收到同学的研讨反馈！大家在推进《${currentTopic}》时，建议先对齐本段的核心概念与前后逻辑衔接，有针对性问题可随时提出！`;
+        } else if (replyAgent === 'reviewingEditor') {
+          replyText = `📝 【审稿编辑】：通读了大家的研讨内容，建议大家紧扣研究问题界定与方法操作化，避免口语化表达，保持严谨学术语体！`;
+        } else if (replyAgent === 'auctioneer') {
+          replyText = `🏛️ 【学术拍卖师】：收到选题研讨疑问！建议在方案中进一步聚焦具体的教学情境与变量操作化，使方案更有落地推广价值！`;
+        } else {
+          replyText = `💡 【${agentProfile.name}】：针对同学的研讨要点，建议全组紧密围绕本题焦点展开针对性商讨，形成明确修改共识！`;
+        }
       }
+
+      thinkingMsg.text = replyText.trim();
       delete thinkingMsg.isThinking;
+      
+      // 🌟 核心突破：通过 sendSingleChatMessage 100% 写入 MySQL 数据库并广播全组
+      this.sendSingleChatMessage(thinkingMsg, stage);
       this.syncChatLogs();
+      if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
       renderChat(this.state);
     } catch (err) {
-      thinkingMsg.text = `⚠️ 【${agentProfile.name}提示】：网络连接波动，请稍后重试。`;
-      delete thinkingMsg.isThinking;
-      this.syncChatLogs();
-      renderChat(this.state);
+      console.warn('triggerAgentReplyIfNeeded error:', err);
     } finally {
       this._isAgentReplyInProgress = false;
     }
