@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles } from "./constants.js?v=20260831_v1035";
-import { callCozeAgentAPI } from "./agents.js?v=20260831_v1035";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, showResolutionBlock } from "./utils.js?v=20260831_v1035";
+import { AgentProfiles } from "./constants.js?v=20260831_v1036";
+import { callCozeAgentAPI } from "./agents.js?v=20260831_v1036";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, showResolutionBlock } from "./utils.js?v=20260831_v1036";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -3247,9 +3247,10 @@ export function renderChat(state) {
   allMsgs.sort((a, b) => (Number(a._timeMs || 0) - Number(b._timeMs || 0)));
   const cleanMsgs = filterAndDeduplicateChatLogs(allMsgs);
 
-  const msgSignature = cleanMsgs.map(m => (m.id || `${m.sender}_${m._timeMs || m.timestamp}`)).join('|');
+  const analyzingSig = state.activeAgentAnalyzing ? `${state.activeAgentAnalyzing.title}_${state.activeAgentAnalyzing.detail}` : 'none';
+  const msgSignature = cleanMsgs.map(m => (m.id || `${m.sender}_${m._timeMs || m.timestamp}`)).join('|') + `__analyzing_${analyzingSig}`;
   if (stream.dataset.msgSignature === msgSignature) {
-    return; // 消息没有任何变动，绝不重绘 DOM，彻底保护打字焦点与输入法
+    return; // 消息与分析状态没有任何变动，绝不重绘 DOM，彻底保护打字焦点与输入法
   }
   stream.dataset.msgSignature = msgSignature;
 
