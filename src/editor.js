@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles } from "./constants.js?v=20260831_v994";
-import { callCozeAgentAPI } from "./agents.js?v=20260831_v994";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, showResolutionBlock } from "./utils.js?v=20260831_v994";
+import { AgentProfiles } from "./constants.js?v=20260831_v995";
+import { callCozeAgentAPI } from "./agents.js?v=20260831_v995";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, showResolutionBlock } from "./utils.js?v=20260831_v995";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -2393,24 +2393,8 @@ function renderStage2Canvas(canvas, state, handlers) {
 
           const currUserColor = (state.members && state.members[currUserCode]?.color) || '#2563eb';
           
-          if (!state._readOnlyPadMap) state._readOnlyPadMap = {};
-          let targetPad = rawPadName;
-          if (isEditorReadonly && state._readOnlyPadMap[rawPadName]) {
-            targetPad = state._readOnlyPadMap[rawPadName];
-          } else if (isEditorReadonly) {
-            // 🛡️ 静默预热官方只读 ID：首屏安全直开秒显，后台异步拉取 r.xxxx 供独立窗口与后续加载使用，绝不打断当前渲染
-            fetch(`sync.php?action=get_readonly_pad_id&padId=${encodeURIComponent(rawPadName)}`).then(r => r.json()).then(res => {
-              if (res && res.success && res.readOnlyID) {
-                state._readOnlyPadMap[rawPadName] = res.readOnlyID;
-                const popoutLink = document.getElementById('s2-pad-popout-link');
-                if (popoutLink) {
-                  popoutLink.href = `/p/${encodeURIComponent(res.readOnlyID)}?userName=${encodeURIComponent(currUserName)}&userColor=${encodeURIComponent(currUserColor)}&showChat=false&showLineNumbers=true&showControls=false&lang=zh-hans`;
-                }
-              }
-            }).catch(() => {});
-          }
-
-          const padUrl = `/p/${encodeURIComponent(targetPad)}?userName=${encodeURIComponent(currUserName)}&userColor=${encodeURIComponent(currUserColor)}&showChat=false&showLineNumbers=true&showControls=${isEditorReadonly ? 'false' : 'true'}&lang=zh-hans`;
+          const targetPad = rawPadName;
+          const padUrl = `/p/${encodeURIComponent(targetPad)}?userName=${encodeURIComponent(currUserName)}&userColor=${encodeURIComponent(currUserColor)}&showChat=false&showLineNumbers=true`;
           
           return `
             <div class="word-editor-container" style="display:flex; flex-direction:column; height:100%; min-height:480px; border-radius:8px; overflow:hidden; border:1px solid #cbd5e1; box-shadow:0 2px 10px rgba(15,23,42,0.05); background:#ffffff; position:relative;">
@@ -2811,20 +2795,8 @@ function renderStage3Canvas(canvas, state, handlers) {
 
           const isEditorReadonly = isFinalSubmitted || isTaskDeadlineExpired;
 
-          if (!state._readOnlyPadMap) state._readOnlyPadMap = {};
-          let targetPad = rawPadName;
-          if (isEditorReadonly && state._readOnlyPadMap[rawPadName]) {
-            targetPad = state._readOnlyPadMap[rawPadName];
-          } else if (isEditorReadonly) {
-            // 🛡️ 静默预热官方只读 ID：首屏安全直开秒显，后台异步拉取 r.xxxx 供独立窗口与后续加载使用
-            fetch(`sync.php?action=get_readonly_pad_id&padId=${encodeURIComponent(rawPadName)}`).then(r => r.json()).then(res => {
-              if (res && res.success && res.readOnlyID) {
-                state._readOnlyPadMap[rawPadName] = res.readOnlyID;
-              }
-            }).catch(() => {});
-          }
-
-          const padUrl = `/p/${encodeURIComponent(targetPad)}?userName=${encodeURIComponent(currUserName)}&userColor=${encodeURIComponent(currUserColor)}&showChat=false&showLineNumbers=true&showControls=${isEditorReadonly ? 'false' : 'true'}&lang=zh-hans`;
+          const targetPad = rawPadName;
+          const padUrl = `/p/${encodeURIComponent(targetPad)}?userName=${encodeURIComponent(currUserName)}&userColor=${encodeURIComponent(currUserColor)}&showChat=false&showLineNumbers=true`;
 
           return `
             <div class="card-title" style="margin-bottom:10px; display:flex; justify-content:space-between; align-items:center;">
