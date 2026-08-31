@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260901_v1109";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260901_v1109";
-import { callCozeAgentAPI } from "./agents.js?v=20260901_v1109";
-import { AuthManager } from "./auth.js?v=20260901_v1109";
-import { CloudSyncEngine } from "./sync.js?v=20260901_v1109";
-import { renderLoginView } from "./login.js?v=20260901_v1109";
-import { renderTeacherPortal } from "./teacher.js?v=20260901_v1109";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260901_v1109";
+} from "./constants.js?v=20260901_v1110";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260901_v1110";
+import { callCozeAgentAPI } from "./agents.js?v=20260901_v1110";
+import { AuthManager } from "./auth.js?v=20260901_v1110";
+import { CloudSyncEngine } from "./sync.js?v=20260901_v1110";
+import { renderLoginView } from "./login.js?v=20260901_v1110";
+import { renderTeacherPortal } from "./teacher.js?v=20260901_v1110";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260901_v1110";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260901_v1109";
+} from "./editor.js?v=20260901_v1110";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -1755,17 +1755,19 @@ export class App {
           m.text?.includes('二审修改要点提炼') || 
           m.text?.includes('修改确认与写作冲刺')
         ));
-        const secondReviewTime = parseMsgTime(secondReviewMsg);
-        const hasPassedSecondReview = !!secondReviewMsg || s2.meetingStep === 'completed';
+        const secondReviewTime = parseMsgTime(secondReviewMsg) || s2.meetingCompletedTime || s2.meetingCalledTime || 0;
+        const hasPassedSecondReview = !!secondReviewMsg || s2.meetingStep === 'completed' || s2.reviewMilestone === 'second_review_done' || s2.reviewMilestone === 'action_plan_generated';
         const postSecondReviewElapsedMs = secondReviewTime > 0 ? Math.max(0, now - secondReviewTime) : 0;
-        const minPostReviewModCooldownMs = isLargeTask ? 900000 : 600000; // 统一 10 分钟（大任务 15 分钟）修改沉淀期
+        const minPostReviewModCooldownMs = isLargeTask ? 900000 : 600000; // 10 分钟（大任务 15 分钟）
 
         // 2. 判定三审触发条件：
-        // 路径 A：组内成员全员完成【✍️ 确认初稿】（立即触发）；
-        // 路径 B：半程会议审稿编辑总结（二审决议）发出 10 分钟后，且正文字数达到 85%（或成文字数达标）。
-        const isFullDraftConfirmed = !!s2.isDraftConfirmed;
-        const isTimeAndWordMature = postSecondReviewElapsedMs >= minPostReviewModCooldownMs && (wordProgress >= 0.85 || plainTextLen >= (targetWordCount * 0.85) || plainTextLen >= 3000);
-        const isFinalReviewDue = isFullDraftConfirmed || (hasPassedSecondReview && isTimeAndWordMature);
+        // ① 组内成员完成【✍️ 确认初稿】；
+        // ② 半程会议总结后 10 分钟 且 字数达 85% 或 时间达 85%；
+        // ③ 字数达 85% 或 时间达 85% 且已通过二审。
+        const isDraftConfirmed = !!s2.isDraftConfirmed || (s2.confirmedMembers && Object.keys(s2.confirmedMembers).length > 0);
+        const is85Reached = (wordProgress >= 0.85 || timeProgress >= 0.85 || plainTextLen >= (targetWordCount * 0.85));
+        const isTenMinAfterMeetingAnd85 = hasPassedSecondReview && postSecondReviewElapsedMs >= minPostReviewModCooldownMs && is85Reached;
+        const isFinalReviewDue = isDraftConfirmed || isTenMinAfterMeetingAnd85 || (hasPassedSecondReview && is85Reached) || is85Reached;
         
         const hasFinalReviewInLogs = s2Chats.some(m => m && m.sender === 'reviewingEditor' && (m.text?.includes('终稿行文扫描') || m.text?.includes('终审定稿总评') || m.text?.includes('审稿编辑·终审')));
 
@@ -4348,16 +4350,23 @@ ${chatSnippet}
 3. 态度务必温和客气、极具建设性（多用“商讨/请教/小细节/落地可行性”）。纯自然语言输出，130~150字。`;
 
         try {
+          const timeoutPromise = new Promise(r => setTimeout(() => r(null), 12000));
           const promises = [];
           if (!hasProp) {
-            promises.push(callCozeAgentAPI('proponent', propPrompt, { stage: 'stage3', topic, actualDoc: rawContent }));
+            promises.push(Promise.race([
+              callCozeAgentAPI('proponent', propPrompt, { stage: 'stage3', topic, actualDoc: rawContent }),
+              timeoutPromise
+            ]));
           } else {
             const existingProp = logs.find(m => m && m.sender === 'proponent');
             promises.push(Promise.resolve(existingProp ? existingProp.text : ''));
           }
 
           if (!hasOpp) {
-            promises.push(callCozeAgentAPI('opponent', oppPrompt, { stage: 'stage3', topic, actualDoc: rawContent }));
+            promises.push(Promise.race([
+              callCozeAgentAPI('opponent', oppPrompt, { stage: 'stage3', topic, actualDoc: rawContent }),
+              timeoutPromise
+            ]));
           } else {
             const existingOpp = logs.find(m => m && m.sender === 'opponent');
             promises.push(Promise.resolve(existingOpp ? existingOpp.text : ''));
@@ -4439,7 +4448,7 @@ ${chatSnippet}
       if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
       renderChat(this.state);
       this.renderStudentWorkspace();
-      await new Promise(r => setTimeout(r, 1500));
+      await new Promise(r => setTimeout(r, 1000));
 
       // 4. 中间委员独立调用 Coze API，引导第 1 题辩护
       const hasChairGuide = logs.some(m => m && m.sender === 'neutral' && (m.text?.includes('答辩思路引导') || m.text?.includes('质询 ①') || m.text?.includes('意见 1')));
@@ -4464,7 +4473,11 @@ ${chatSnippet}
 
         let chairText = '';
         try {
-          chairText = await callCozeAgentAPI('neutral', chairPrompt, { stage: 'stage3', topic, prop: propText, opp: oppText, queryPoint: 1 });
+          const timeoutPromise = new Promise(r => setTimeout(() => r(null), 12000));
+          chairText = await Promise.race([
+            callCozeAgentAPI('neutral', chairPrompt, { stage: 'stage3', topic, prop: propText, opp: oppText, queryPoint: 1 }),
+            timeoutPromise
+          ]);
         } finally {
           this.state.activeAgentAnalyzing = null;
         }
@@ -5547,11 +5560,12 @@ ${contentSnippet}
     // ═══════════════════════════════════════════════════════════════
     const isMeetingFinished = (s2.meetingStep === 'completed' || s2.reviewMilestone === 'action_plan_generated' || s2.reviewMilestone === 'second_review_done' || s2.reviewMilestone === 'meeting_called');
     const meetingEndTime = s2.meetingCompletedTime || s2.meetingCalledTime || 0;
-    const isTenMinAfterMeeting = isMeetingFinished && meetingEndTime > 0 && ((now - meetingEndTime) >= 600000); // 半程会议总结后10分钟
+    const isTenMinAfterMeeting = isMeetingFinished && meetingEndTime > 0 && ((now - meetingEndTime) >= 600000);
     const isWordCount85 = (wordProgress >= 0.85 || rawDoc.length >= (targetWordCount * 0.85));
 
     const isFinalReviewDue = (
       s2.isDraftConfirmed ||
+      (s2.confirmedMembers && Object.keys(s2.confirmedMembers).length > 0) ||
       (isMeetingFinished && (isTenMinAfterMeeting || isWordCount85)) ||
       isWordCount85
     );
@@ -5562,7 +5576,7 @@ ${contentSnippet}
       this.syncStage2();
     }
 
-    if (!hasFinalReviewInLogs && isFinalReviewDue && timeSinceLastReviewing > 15000 && !this._isTriggeringFinalReview) {
+    if (!hasFinalReviewInLogs && isFinalReviewDue && !this._isTriggeringFinalReview) {
       this.triggerStage2FinalReview();
     }
 
@@ -5684,7 +5698,7 @@ ${contentSnippet}
       let resp = null;
       try {
         const apiPromise = callCozeAgentAPI('reviewingEditor', finalPrompt, { stage: 'stage2', topic });
-        const timeoutPromise = new Promise(r => setTimeout(() => r(null), 35000));
+        const timeoutPromise = new Promise(r => setTimeout(() => r(null), 15000));
         resp = await Promise.race([apiPromise, timeoutPromise]);
       } catch (err) {
         resp = null;
