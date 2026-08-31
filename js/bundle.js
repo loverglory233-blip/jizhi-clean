@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260831_v1016
+ * Version: 20260831_v1017
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260831_v1016';
+  const APP_VERSION = '20260831_v1017';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -13735,12 +13735,29 @@
             }
           }
 
-          // ── 🛡️ 阶段二三次质检水位线标准（中任务默认4300字，大任务默认9000字） ──
+          // ── 🛡️ 阶段二三次质检水位线标准与教学时序守卫 ──
+          // 核心规则：三审绝不能在半程会议刚结束就秒弹！必须在审稿编辑二审总结后，至少经过 10 分钟（大任务 15 分钟）的集中修改，或者组员主动点击【✍️ 确认初稿】时方可触发！
           const defaultWordTarget = isLargeTask ? 9000 : 4300;
           const targetWordCount = (curTask && curTask.targetWordCount) ? Number(curTask.targetWordCount) : defaultWordTarget;
           const wordProgress = targetWordCount > 0 ? (plainTextLen / targetWordCount) : (plainTextLen / 4300);
           const timeProgress = totalPlannedMs > 0 ? (stage2DurationMs / totalPlannedMs) : 0;
-          const isFinalReviewDue = (wordProgress >= 0.70 || timeProgress >= 0.80 || s2.isDraftConfirmed || plainTextLen >= 2500 || plainTextLen >= (targetWordCount * 0.8) || (s2.confirmedMembers && Object.keys(s2.confirmedMembers).length > 0));
+
+          // 1. 寻找审稿编辑二审清单或决议发言时间
+          const secondReviewMsg = [...s2Chats].reverse().find(m => m && m.sender === 'reviewingEditor' && (
+            m.text?.includes('二审修正清单') || 
+            m.text?.includes('二审修改落实决议') || 
+            m.text?.includes('二审修改要点提炼') || 
+            m.text?.includes('修改确认与写作冲刺')
+          ));
+          const secondReviewTime = parseMsgTime(secondReviewMsg);
+          const hasPassedSecondReview = !!secondReviewMsg || s2.meetingStep === 'completed';
+          const postSecondReviewElapsedMs = secondReviewTime > 0 ? Math.max(0, now - secondReviewTime) : 0;
+          const minPostReviewModCooldownMs = isLargeTask ? 900000 : 600000; // 统一 10 分钟（大任务 15 分钟）修改沉淀期
+
+          // 2. 判定三审触发条件：必须已过二审，且（经过 10 分钟修改期且达到字数/时间水位，或者组员主动点击初稿确认）
+          const isUserConfirmingDraft = s2.isDraftConfirmed || (s2.confirmedMembers && Object.keys(s2.confirmedMembers).length > 0);
+          const isTimeAndWordMature = postSecondReviewElapsedMs >= minPostReviewModCooldownMs && (wordProgress >= 0.85 || timeProgress >= 0.80 || plainTextLen >= 3000);
+          const isFinalReviewDue = hasPassedSecondReview && (isUserConfirmingDraft || isTimeAndWordMature);
 
           const hasFinalReviewInLogs = s2Chats.some(m => m && m.sender === 'reviewingEditor' && (m.text?.includes('终稿行文扫描') || m.text?.includes('终审定稿总评') || m.text?.includes('审稿编辑·终审')));
 
