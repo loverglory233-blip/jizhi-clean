@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260831_v1020
+ * Version: 20260831_v1021
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260831_v1020';
+  const APP_VERSION = '20260831_v1021';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -11723,7 +11723,31 @@
           </div>
         </div>
       `;
-    }).join('');
+    }).join('') + (state.activeAgentAnalyzing ? `
+      <div class="chat-message other agent-typing-message" id="agent-chat-typing-indicator" style="animation:modalFadeIn 0.2s ease;">
+        <div class="msg-avatar" style="background:#eff6ff; border:1.5px solid #2563eb; color:#2563eb; font-size:16px;">
+          ${state.activeAgentAnalyzing.icon || '🤖'}
+        </div>
+        <div class="msg-body">
+          <div class="msg-meta">
+            <span class="msg-sender" style="color:#2563eb; font-weight:800;">
+              ${escapeHtml((state.activeAgentAnalyzing.title || '智能体专家').replace(/[【】]/g, ''))}
+            </span>
+            <span style="font-size:10px; color:#2563eb; background:#eff6ff; border:1px solid #bfdbfe; padding:1px 6px; border-radius:10px; margin-left:6px; font-weight:700;">
+              ⏳ 正在深度研读与质检中...
+            </span>
+          </div>
+          <div class="msg-bubble thinking-bubble" style="background:#f8fafc; border:1.5px dashed #3b82f6; display:inline-flex; align-items:center; gap:8px; padding:8px 14px; border-radius:12px; color:#1e40af; box-shadow:0 1px 3px rgba(37,99,235,0.06);">
+            <span style="font-size:12.5px; font-weight:700;">${escapeHtml(state.activeAgentAnalyzing.detail || '正在通读全篇草稿并提炼学术意见...')}</span>
+            <span class="thinking-dots-anim" style="display:inline-flex; gap:3.5px; align-items:center; margin-left:4px;">
+              <span style="width:5px; height:5px; background:#2563eb; border-radius:50%; display:inline-block; animation:dotPulse 1.4s infinite ease-in-out both;"></span>
+              <span style="width:5px; height:5px; background:#2563eb; border-radius:50%; display:inline-block; animation:dotPulse 1.4s infinite ease-in-out both; animation-delay:0.2s;"></span>
+              <span style="width:5px; height:5px; background:#2563eb; border-radius:50%; display:inline-block; animation:dotPulse 1.4s infinite ease-in-out both; animation-delay:0.4s;"></span>
+            </span>
+          </div>
+        </div>
+      </div>
+    ` : '');
 
     const lastMsgIsMine = cleanMsgs.length > 0 && (cleanMsgs[cleanMsgs.length - 1].sender === currentUser || (window.app?.authManager?.getCurrentUser() && (cleanMsgs[cleanMsgs.length - 1].sender === window.app.authManager.getCurrentUser().id || cleanMsgs[cleanMsgs.length - 1].sender === window.app.authManager.getCurrentUser().studentCode)));
 
@@ -14728,8 +14752,9 @@
 
         // ── 智能体答疑：仅当学生在聊天中显式 @智能体 时才触发大模型定向即时答疑 ──
         this.triggerAgentReplyIfNeeded(text);
-        // 防抖重置
+        // 记录发送历史供极速双击防重
         input._lastSendTime = Date.now();
+        input._lastSendText = text;
       };
 
       sendBtn.onclick = handleSend;
@@ -14737,7 +14762,10 @@
         if (e.key === 'Enter' && !e.shiftKey) {
           // 🛡️ Safari / WebKit 中文输入法合成防吞字：若处于输入法选词状态或 keyCode 229，绝对禁止触发发送与清空
           if (isComposing || e.isComposing || e.keyCode === 229 || window._isGlobalComposing || (e.nativeEvent && e.nativeEvent.isComposing)) return;
-          if (input._lastSendTime && Date.now() - input._lastSendTime < 300) return;
+          const now = Date.now();
+          if (input._lastSendTime && (now - input._lastSendTime < 80) && input._lastSendText === input.value.trim()) {
+            return;
+          }
           e.preventDefault();
           handleSend();
         }
