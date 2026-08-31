@@ -14,8 +14,8 @@ import {
   DefaultTasks,
   DefaultAnnouncements,
   DefaultReferencePapers
-} from './constants.js?v=20260901_v1131';
-import { formatExportDateTime, formatDurationHuman, isScopeMatch } from './utils.js?v=20260901_v1131';
+} from './constants.js?v=20260901_v1132';
+import { formatExportDateTime, formatDurationHuman, isScopeMatch } from './utils.js?v=20260901_v1132';
 
 export class AuthManager {
   constructor() {
@@ -1358,7 +1358,7 @@ export class AuthManager {
     return membersObj;
   }
 
-  createTask(title, classId, instructions, resources = [], startTime = null, deadline = null, durationMinutes = 150, taskType = 'experiment') {
+  createTask(title, classId, instructions, resources = [], startTime = null, deadline = null, durationMinutes = 150, taskType = 'experiment', targetWordCount = 3000) {
     const tasks = this.getTasks();
     const cleanTitle = (title || '').trim();
     if (!cleanTitle) throw new Error('任务名称不能为空！');
@@ -1393,6 +1393,7 @@ export class AuthManager {
       title, classId, className: targetClass ? targetClass.name : '教学班',
       taskType: taskType || 'experiment',
       durationMinutes: parseInt(durationMinutes) || 150,
+      targetWordCount: parseInt(targetWordCount) || 3000,
       startTime: defaultStart,
       deadline: defaultDeadline,
       status: 'in_progress',
@@ -1413,7 +1414,7 @@ export class AuthManager {
     return newTask;
   }
 
-  updateTask(taskId, newTitle, newInstructions, newStartTime, newDeadline, newDurationMinutes) {
+  updateTask(taskId, newTitle, newInstructions, newStartTime, newDeadline, newDurationMinutes, newTargetWordCount) {
     let tasks = this.getTasks();
     const taskIndex = tasks.findIndex(t => t.id === taskId);
     if (taskIndex === -1) throw new Error('任务不存在或已被删除！');
@@ -1426,6 +1427,7 @@ export class AuthManager {
     if (newStartTime !== undefined) tasks[taskIndex].startTime = newStartTime;
     if (newDeadline !== undefined) tasks[taskIndex].deadline = newDeadline;
     if (newDurationMinutes !== undefined) tasks[taskIndex].durationMinutes = parseInt(newDurationMinutes) || 150;
+    if (newTargetWordCount !== undefined) tasks[taskIndex].targetWordCount = parseInt(newTargetWordCount) || 3000;
 
     localStorage.setItem(STORAGE_KEY_TASKS, JSON.stringify(tasks));
     this.pushGlobalMeta();
