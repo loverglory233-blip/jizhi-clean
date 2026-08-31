@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260831_v1036
+ * Version: 20260831_v1037
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260831_v1036';
+  const APP_VERSION = '20260831_v1037';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -15742,6 +15742,8 @@
           detail: '正在深度整合全组自查痛点与研讨记录，提炼修改共识要点并交棒审稿专家...'
         };
         this.renderStudentWorkspace();
+        renderChat(this.state);
+        await new Promise(r => setTimeout(r, 1500));
 
         const respManaging = await callCozeAgentAPI('managingEditor', managingPrompt, { stage: 'stage2', topic, chatSnippet, bottlenecks, focusIssues });
         let managingText = (respManaging && respManaging.trim().length > 0) 
@@ -15767,6 +15769,8 @@
           detail: '正在深度审阅正文草稿并结合自查瓶颈，生成包含【诊断问题+改进建议】的双结构清单...'
         };
         this.renderStudentWorkspace();
+        renderChat(this.state);
+        await new Promise(r => setTimeout(r, 1500));
 
         // 审稿专家结合自查瓶颈、讨论与正文下发【诊断问题 + 改进建议】双结构《二审修正清单》
         const reviewingPrompt = `针对课题《${topic}》，结合小组成员自查瓶颈【${bottlenecks}】、聚焦关注点【${focusIssues}】及下方正文草稿，作为资深审稿编辑给出包含【诊断问题 + 改进建议】双结构的学术质检《二审修正清单》（150~180字）：
@@ -15923,6 +15927,8 @@
           detail: '正在评估全组修改对策与落实方案，起草学术成稿与答辩冲刺寄语...'
         };
         this.renderStudentWorkspace();
+        renderChat(this.state);
+        await new Promise(r => setTimeout(r, 1500));
 
         const respSummary = await callCozeAgentAPI('reviewingEditor', summaryPrompt, { stage: 'stage2', topic });
         let summaryText = (respSummary && respSummary.trim().length > 0)
@@ -17356,9 +17362,11 @@
           detail: '正在通读已起草的引言与文献综述正文切片，审查研究问题界定与学术规范...'
         };
         this.renderStudentWorkspace();
+        renderChat(this.state);
 
         setTimeout(async () => {
           try {
+            await new Promise(r => setTimeout(r, 1500));
             const firstReviewPrompt = `【课题】：《${topic}》
   【当前正文草稿（写到哪审到哪）】：
   ${contentSnippet}
@@ -17863,13 +17871,14 @@
 
         alert(`✅ 你 (${memberName}) 已成功提交半程自查与互阅打卡！\n\n目前组内已打卡：${submittedCount}/${totalMembersCount} 人。\n全组成员已集齐！责任编辑正在右侧研讨区梳理全组自查认知分歧，请稍候...`);
 
-        // 2. 异步调用扣子【责任编辑】Coze API: 挂载聊天区思考气泡
         this.state.activeAgentAnalyzing = {
           icon: '🤝',
           title: '【责任编辑】正在分析全组自查打卡与一致性分歧...',
           detail: '正在深度整合全组自查反馈、偏离脱节章节与瓶颈诉求，梳理研讨对齐焦点...'
         };
         renderChat(this.state);
+        this.renderStudentWorkspace();
+        await new Promise(r => setTimeout(r, 1500));
 
         const avgOverallRating = (allSubs.reduce((sum, s) => sum + (s.overallRating || 5), 0) / (allSubs.length || 1)).toFixed(1);
         const managingPrompt = `【全员自查打卡汇总数据】：
