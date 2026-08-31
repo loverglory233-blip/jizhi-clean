@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles } from "./constants.js?v=20260831_v1003";
-import { callCozeAgentAPI } from "./agents.js?v=20260831_v1003";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, showResolutionBlock } from "./utils.js?v=20260831_v1003";
+import { AgentProfiles } from "./constants.js?v=20260831_v1004";
+import { callCozeAgentAPI } from "./agents.js?v=20260831_v1004";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, showResolutionBlock } from "./utils.js?v=20260831_v1004";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -2359,9 +2359,10 @@ function renderStage2Canvas(canvas, state, handlers) {
       <!-- 🌟 2. 半程修正清单 (未下发时展示待解锁提示，下发后展示展开卡片) -->
       ${(() => {
         let effActionPlan = actionPlan;
-        const hasChecklistInChat = s2ChatLogs && s2ChatLogs.some(m => m && m.text && m.text.includes('二审修正清单'));
+        const stage2Logs = (state.chatLogs && state.chatLogs.stage2) || [];
+        const hasChecklistInChat = stage2Logs.some(m => m && m.text && m.text.includes('二审修正清单'));
         if ((!effActionPlan || !effActionPlan.isGenerated) && (s2.meetingStep === 'discussing_checklist' || s2.meetingStep === 'completed' || hasChecklistInChat)) {
-          const revMsg = [...(s2ChatLogs || [])].reverse().find(m => m && m.text && m.text.includes('二审修正清单'));
+          const revMsg = [...stage2Logs].reverse().find(m => m && m.text && m.text.includes('二审修正清单'));
           let parsedItems = [];
           if (revMsg && revMsg.text) {
             const lines = revMsg.text.split('\n').map(l => l.trim()).filter(Boolean);
