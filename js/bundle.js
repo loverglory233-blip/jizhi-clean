@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260831_v1038
+ * Version: 20260831_v1039
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260831_v1038';
+  const APP_VERSION = '20260831_v1039';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -14824,7 +14824,7 @@
             actualDoc: actualDocContent,
             userId: currentUser ? (currentUser.id || currentUser.username) : 'student_user'
           });
-          const timeoutPromise = new Promise(r => setTimeout(() => r(null), 3500));
+          const timeoutPromise = new Promise(r => setTimeout(() => r(null), 20000));
           replyText = await Promise.race([apiPromise, timeoutPromise]);
         } catch (err) {
           replyText = null;
@@ -17566,7 +17566,7 @@
         let resp = null;
         try {
           const apiPromise = callCozeAgentAPI('reviewingEditor', finalPrompt, { stage: 'stage2', topic });
-          const timeoutPromise = new Promise(r => setTimeout(() => r(null), 3500));
+          const timeoutPromise = new Promise(r => setTimeout(() => r(null), 20000));
           resp = await Promise.race([apiPromise, timeoutPromise]);
         } catch (err) {
           resp = null;
