@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260831_v1105
+ * Version: 20260831_v1106
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260831_v1105';
+  const APP_VERSION = '20260831_v1106';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -15861,6 +15861,14 @@
             parsedItems.push(clean);
           }
         });
+
+        if (parsedItems.length === 0) {
+          parsedItems = [
+            '【核心概念对齐】补充明确的操作性定义，使文献综述直接呼应研究问题与假设。',
+            '【研究方法深化】细化核心方法与测量工具的具体操作步骤，增强方法论严密性。',
+            '【行文衔接规范】统一全篇学术专业术语命名，补全段落间逻辑过渡衔接。'
+          ];
+        }
 
         s2.actionPlan = {
           isGenerated: true,

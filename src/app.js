@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260831_v1105";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260831_v1105";
-import { callCozeAgentAPI } from "./agents.js?v=20260831_v1105";
-import { AuthManager } from "./auth.js?v=20260831_v1105";
-import { CloudSyncEngine } from "./sync.js?v=20260831_v1105";
-import { renderLoginView } from "./login.js?v=20260831_v1105";
-import { renderTeacherPortal } from "./teacher.js?v=20260831_v1105";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260831_v1105";
+} from "./constants.js?v=20260831_v1106";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260831_v1106";
+import { callCozeAgentAPI } from "./agents.js?v=20260831_v1106";
+import { AuthManager } from "./auth.js?v=20260831_v1106";
+import { CloudSyncEngine } from "./sync.js?v=20260831_v1106";
+import { renderLoginView } from "./login.js?v=20260831_v1106";
+import { renderTeacherPortal } from "./teacher.js?v=20260831_v1106";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260831_v1106";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260831_v1105";
+} from "./editor.js?v=20260831_v1106";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -3864,6 +3864,14 @@ ${chatSnippet}
           parsedItems.push(clean);
         }
       });
+
+      if (parsedItems.length === 0) {
+        parsedItems = [
+          '【核心概念对齐】补充明确的操作性定义，使文献综述直接呼应研究问题与假设。',
+          '【研究方法深化】细化核心方法与测量工具的具体操作步骤，增强方法论严密性。',
+          '【行文衔接规范】统一全篇学术专业术语命名，补全段落间逻辑过渡衔接。'
+        ];
+      }
 
       s2.actionPlan = {
         isGenerated: true,
