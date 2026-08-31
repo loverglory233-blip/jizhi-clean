@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles } from "./constants.js?v=20260831_v998";
-import { callCozeAgentAPI } from "./agents.js?v=20260831_v998";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, showResolutionBlock } from "./utils.js?v=20260831_v998";
+import { AgentProfiles } from "./constants.js?v=20260831_v999";
+import { callCozeAgentAPI } from "./agents.js?v=20260831_v999";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, showResolutionBlock } from "./utils.js?v=20260831_v999";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -2017,7 +2017,28 @@ function renderStage2Canvas(canvas, state, handlers) {
   const confirmedDraftMap = s2.confirmedMembers || {};
   const isMemberDone = (map, m) => {
     if (!map || !m) return false;
-    return !!(map[m.id] || map[m.studentCode] || map[m.username] || (m.name && map[m.name]));
+    let fullUser = (typeof m === 'object') ? m : null;
+    if (!fullUser && window.app && window.app.authManager && window.app.authManager.findUserByKey) {
+      fullUser = window.app.authManager.findUserByKey(m);
+    }
+    const keys = [
+      typeof m === 'string' ? m : null,
+      m?.id, m?.studentCode, m?.username, m?.name,
+      fullUser?.id, fullUser?.studentCode, fullUser?.username, fullUser?.name
+    ].filter(Boolean).map(k => String(k).trim().toLowerCase());
+
+    // 1. 直接通过 key 匹配
+    if (keys.some(k => map[k] || map[String(k)])) return true;
+    // 2. 遍历 map 对象的所有 value 进行交叉属性匹配
+    const values = Object.values(map);
+    return values.some(item => {
+      if (!item) return false;
+      const itemKeys = [
+        item.user, item.name, item.id, item.studentCode, item.username,
+        typeof item === 'string' ? item : null
+      ].filter(Boolean).map(k => String(k).trim().toLowerCase());
+      return keys.some(k => itemKeys.includes(k));
+    });
   };
   const membersList = Object.values(state.members || {});
   const allGroupMembers = (activeGroupObj && Array.isArray(activeGroupObj.members) && activeGroupObj.members.length > 0) ? activeGroupObj.members : membersList;

@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260831_v998
+ * Version: 20260831_v999
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260831_v998';
+  const APP_VERSION = '20260831_v999';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -1085,6 +1085,45 @@
           localStorage.setItem(STORAGE_KEY_CLASSES, JSON.stringify(classes));
         }
       } catch (e) {}
+    }
+
+    findUserByKey(key) {
+      if (!key) return null;
+      if (typeof key === 'object') {
+        if (key.name && (key.studentCode || key.id)) return key;
+        key = key.id || key.studentCode || key.username || key.name || '';
+      }
+      const cleanKey = String(key).trim().toLowerCase();
+      if (!cleanKey) return null;
+
+      const users = this.getUsers();
+      // 1. 在 users 列表中全字段精准比对
+      let found = users.find(u => {
+        if (!u) return false;
+        const uid = String(u.id || '').trim().toLowerCase();
+        const code = String(u.studentCode || '').trim().toLowerCase();
+        const uname = String(u.username || '').trim().toLowerCase();
+        const name = String(u.name || '').trim().toLowerCase();
+        return uid === cleanKey || code === cleanKey || uname === cleanKey || name === cleanKey;
+      });
+      if (found) return found;
+
+      // 2. 在 classes 名册中的 student 列表中查找
+      const classes = this.getClasses();
+      for (const cls of classes) {
+        if (cls && Array.isArray(cls.students)) {
+          found = cls.students.find(s => {
+            if (!s) return false;
+            const sid = String(s.id || '').trim().toLowerCase();
+            const scode = String(s.studentCode || '').trim().toLowerCase();
+            const sname = String(s.name || '').trim().toLowerCase();
+            const suname = String(s.username || '').trim().toLowerCase();
+            return sid === cleanKey || scode === cleanKey || sname === cleanKey || suname === cleanKey;
+          });
+          if (found) return found;
+        }
+      }
+      return null;
     }
 
     async pullGlobalMeta() {
@@ -10402,7 +10441,28 @@
     const confirmedDraftMap = s2.confirmedMembers || {};
     const isMemberDone = (map, m) => {
       if (!map || !m) return false;
-      return !!(map[m.id] || map[m.studentCode] || map[m.username] || (m.name && map[m.name]));
+      let fullUser = (typeof m === 'object') ? m : null;
+      if (!fullUser && window.app && window.app.authManager && window.app.authManager.findUserByKey) {
+        fullUser = window.app.authManager.findUserByKey(m);
+      }
+      const keys = [
+        typeof m === 'string' ? m : null,
+        m?.id, m?.studentCode, m?.username, m?.name,
+        fullUser?.id, fullUser?.studentCode, fullUser?.username, fullUser?.name
+      ].filter(Boolean).map(k => String(k).trim().toLowerCase());
+
+      // 1. 直接通过 key 匹配
+      if (keys.some(k => map[k] || map[String(k)])) return true;
+      // 2. 遍历 map 对象的所有 value 进行交叉属性匹配
+      const values = Object.values(map);
+      return values.some(item => {
+        if (!item) return false;
+        const itemKeys = [
+          item.user, item.name, item.id, item.studentCode, item.username,
+          typeof item === 'string' ? item : null
+        ].filter(Boolean).map(k => String(k).trim().toLowerCase());
+        return keys.some(k => itemKeys.includes(k));
+      });
     };
     const membersList = Object.values(state.members || {});
     const allGroupMembers = (activeGroupObj && Array.isArray(activeGroupObj.members) && activeGroupObj.members.length > 0) ? activeGroupObj.members : membersList;
