@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260831_v1014
+ * Version: 20260831_v1015
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260831_v1014';
+  const APP_VERSION = '20260831_v1015';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -10675,13 +10675,14 @@
           ...(state.chatLogs?.stage2 || []),
           ...(state.chatLogs?.stage3 || [])
         ];
-        const revMsg = [...allChatLogs].reverse().find(m => m && m.text && (m.text.includes('二审修正清单') || m.text.includes('二审修改') || m.text.includes('修正清单')));
+        // 严格仅匹配审稿编辑下发的【二审修正清单】，坚决排除修改决议与讨论总结
+        const revMsg = allChatLogs.find(m => m && m.text && (m.text.includes('二审修正清单') || m.text.includes('半程编辑修正清单') || m.text.includes('半程修正清单')) && !m.text.includes('修改落实决议') && !m.text.includes('修改落实要点'));
 
         if (s2.meetingStep === 'discussing_checklist' || s2.meetingStep === 'completed' || !!revMsg) {
           let parsedItems = [];
           if (revMsg && revMsg.text) {
             let body = revMsg.text;
-            const headerMatch = body.match(/二审修正清单[】:：\s]*/);
+            const headerMatch = body.match(/(?:二审修正清单|半程编辑修正清单|半程修正清单)[】:：\s]*/);
             if (headerMatch) {
               body = body.slice(headerMatch.index + headerMatch[0].length);
             }
@@ -10691,9 +10692,9 @@
                        .replace(/[👉\s]*点击下方.*$/s, '')
                        .trim();
 
-            const chunks = body.split(/(?=[①②③]|\b[123]\.)/g).map(c => c.trim()).filter(Boolean);
+            const chunks = body.split(/(?=[①②③]|\b[123]\.|(?=[一二三]是))/g).map(c => c.trim()).filter(Boolean);
             chunks.forEach(c => {
-              let clean = c.replace(/^[①②③\d\.\s\(\)]+/, '').replace(/[；;。]\s*$/, '').trim();
+              let clean = c.replace(/^[①②③\d\.\s\(\)一二三是]+/, '').replace(/[；;。]\s*$/, '').trim();
               if (clean.length > 5) {
                 parsedItems.push(clean);
               }
@@ -10857,13 +10858,14 @@
             ...(state.chatLogs?.stage2 || []),
             ...(state.chatLogs?.stage3 || [])
           ];
-          const revMsg = [...allChatLogs].reverse().find(m => m && m.text && (m.text.includes('二审修正清单') || m.text.includes('二审修改') || m.text.includes('修正清单')));
+          // 严格仅匹配审稿编辑下发的【二审修正清单】，坚决排除修改决议与讨论总结
+          const revMsg = allChatLogs.find(m => m && m.text && (m.text.includes('二审修正清单') || m.text.includes('半程编辑修正清单') || m.text.includes('半程修正清单')) && !m.text.includes('修改落实决议') && !m.text.includes('修改落实要点'));
 
           if (s2.meetingStep === 'discussing_checklist' || s2.meetingStep === 'completed' || !!revMsg) {
             let parsedItems = [];
             if (revMsg && revMsg.text) {
               let body = revMsg.text;
-              const headerMatch = body.match(/二审修正清单[】:：\s]*/);
+              const headerMatch = body.match(/(?:二审修正清单|半程编辑修正清单|半程修正清单)[】:：\s]*/);
               if (headerMatch) {
                 body = body.slice(headerMatch.index + headerMatch[0].length);
               }
@@ -10873,9 +10875,9 @@
                          .replace(/[👉\s]*点击下方.*$/s, '')
                          .trim();
 
-              const chunks = body.split(/(?=[①②③]|\b[123]\.)/g).map(c => c.trim()).filter(Boolean);
+              const chunks = body.split(/(?=[①②③]|\b[123]\.|(?=[一二三]是))/g).map(c => c.trim()).filter(Boolean);
               chunks.forEach(c => {
-                let clean = c.replace(/^[①②③\d\.\s\(\)]+/, '').replace(/[；;。]\s*$/, '').trim();
+                let clean = c.replace(/^[①②③\d\.\s\(\)一二三是]+/, '').replace(/[；;。]\s*$/, '').trim();
                 if (clean.length > 5) {
                   parsedItems.push(clean);
                 }
@@ -17960,12 +17962,13 @@
         ...(this.state.chatLogs?.stage2 || []),
         ...(this.state.chatLogs?.stage3 || [])
       ];
-      const revMsg = [...allChatLogs].reverse().find(m => m && m.text && (m.text.includes('二审修正清单') || m.text.includes('二审修改') || m.text.includes('修正清单')));
+      // 严格仅匹配审稿编辑下发的【二审修正清单】，坚决排除修改决议与讨论总结
+      const revMsg = allChatLogs.find(m => m && m.text && (m.text.includes('二审修正清单') || m.text.includes('半程编辑修正清单') || m.text.includes('半程修正清单')) && !m.text.includes('修改落实决议') && !m.text.includes('修改落实要点'));
 
       let parsedItems = [];
       if (revMsg && revMsg.text) {
         let bodyText = revMsg.text;
-        const headerMatch = bodyText.match(/二审修正清单[】:：\s]*/);
+        const headerMatch = bodyText.match(/(?:二审修正清单|半程编辑修正清单|半程修正清单)[】:：\s]*/);
         if (headerMatch) {
           bodyText = bodyText.slice(headerMatch.index + headerMatch[0].length);
         }
@@ -17975,9 +17978,9 @@
                            .replace(/[👉\s]*点击下方.*$/s, '')
                            .trim();
 
-        const chunks = bodyText.split(/(?=[①②③]|\b[123]\.)/g).map(c => c.trim()).filter(Boolean);
+        const chunks = bodyText.split(/(?=[①②③]|\b[123]\.|(?=[一二三]是))/g).map(c => c.trim()).filter(Boolean);
         chunks.forEach(c => {
-          let clean = c.replace(/^[①②③\d\.\s\(\)]+/, '').replace(/[；;。]\s*$/, '').trim();
+          let clean = c.replace(/^[①②③\d\.\s\(\)一二三是]+/, '').replace(/[；;。]\s*$/, '').trim();
           if (clean.length > 5) {
             parsedItems.push(clean);
           }

@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260831_v1014";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260831_v1014";
-import { callCozeAgentAPI } from "./agents.js?v=20260831_v1014";
-import { AuthManager } from "./auth.js?v=20260831_v1014";
-import { CloudSyncEngine } from "./sync.js?v=20260831_v1014";
-import { renderLoginView } from "./login.js?v=20260831_v1014";
-import { renderTeacherPortal } from "./teacher.js?v=20260831_v1014";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260831_v1014";
+} from "./constants.js?v=20260831_v1015";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260831_v1015";
+import { callCozeAgentAPI } from "./agents.js?v=20260831_v1015";
+import { AuthManager } from "./auth.js?v=20260831_v1015";
+import { CloudSyncEngine } from "./sync.js?v=20260831_v1015";
+import { renderLoginView } from "./login.js?v=20260831_v1015";
+import { renderTeacherPortal } from "./teacher.js?v=20260831_v1015";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260831_v1015";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260831_v1014";
+} from "./editor.js?v=20260831_v1015";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -6060,12 +6060,13 @@ ${fullDoc.slice(0, 2000)}
       ...(this.state.chatLogs?.stage2 || []),
       ...(this.state.chatLogs?.stage3 || [])
     ];
-    const revMsg = [...allChatLogs].reverse().find(m => m && m.text && (m.text.includes('二审修正清单') || m.text.includes('二审修改') || m.text.includes('修正清单')));
+    // 严格仅匹配审稿编辑下发的【二审修正清单】，坚决排除修改决议与讨论总结
+    const revMsg = allChatLogs.find(m => m && m.text && (m.text.includes('二审修正清单') || m.text.includes('半程编辑修正清单') || m.text.includes('半程修正清单')) && !m.text.includes('修改落实决议') && !m.text.includes('修改落实要点'));
     
     let parsedItems = [];
     if (revMsg && revMsg.text) {
       let bodyText = revMsg.text;
-      const headerMatch = bodyText.match(/二审修正清单[】:：\s]*/);
+      const headerMatch = bodyText.match(/(?:二审修正清单|半程编辑修正清单|半程修正清单)[】:：\s]*/);
       if (headerMatch) {
         bodyText = bodyText.slice(headerMatch.index + headerMatch[0].length);
       }
@@ -6075,9 +6076,9 @@ ${fullDoc.slice(0, 2000)}
                          .replace(/[👉\s]*点击下方.*$/s, '')
                          .trim();
 
-      const chunks = bodyText.split(/(?=[①②③]|\b[123]\.)/g).map(c => c.trim()).filter(Boolean);
+      const chunks = bodyText.split(/(?=[①②③]|\b[123]\.|(?=[一二三]是))/g).map(c => c.trim()).filter(Boolean);
       chunks.forEach(c => {
-        let clean = c.replace(/^[①②③\d\.\s\(\)]+/, '').replace(/[；;。]\s*$/, '').trim();
+        let clean = c.replace(/^[①②③\d\.\s\(\)一二三是]+/, '').replace(/[；;。]\s*$/, '').trim();
         if (clean.length > 5) {
           parsedItems.push(clean);
         }
