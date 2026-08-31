@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260831_v1039";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260831_v1039";
-import { callCozeAgentAPI } from "./agents.js?v=20260831_v1039";
-import { AuthManager } from "./auth.js?v=20260831_v1039";
-import { CloudSyncEngine } from "./sync.js?v=20260831_v1039";
-import { renderLoginView } from "./login.js?v=20260831_v1039";
-import { renderTeacherPortal } from "./teacher.js?v=20260831_v1039";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260831_v1039";
+} from "./constants.js?v=20260831_v1040";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260831_v1040";
+import { callCozeAgentAPI } from "./agents.js?v=20260831_v1040";
+import { AuthManager } from "./auth.js?v=20260831_v1040";
+import { CloudSyncEngine } from "./sync.js?v=20260831_v1040";
+import { renderLoginView } from "./login.js?v=20260831_v1040";
+import { renderTeacherPortal } from "./teacher.js?v=20260831_v1040";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260831_v1040";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260831_v1039";
+} from "./editor.js?v=20260831_v1040";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -5003,16 +5003,6 @@ ${propText}
       onConfirmStage2Draft: () => {
         if (!this.state.stage2) this.state.stage2 = {};
         const s2 = this.state.stage2;
-        if (s2.isDraftConfirmed) {
-          const s2Chats = (this.state.chatLogs && this.state.chatLogs.stage2) ? this.state.chatLogs.stage2 : [];
-          const hasFinalReview = s2Chats.some(m => m && m.sender === 'reviewingEditor' && (m.text?.includes('终稿行文扫描') || m.text?.includes('终审定稿总评') || m.text?.includes('审稿编辑·终审')));
-          if (!hasFinalReview) {
-            this.triggerStage2FinalReview();
-            return;
-          }
-          alert('🔒 正文初稿已被组内全员确认！已解锁阶段三。');
-          return;
-        }
         const user = this.state.currentUser;
 
         let memberArr = [];
@@ -5025,6 +5015,12 @@ ${propText}
           memberArr = this.authManager.getGroupMembersForWorkspace(effGroup?.id || this.state.activeGroupId || null);
         }
         const totalMembersCount = memberArr.length > 0 ? memberArr.length : 3;
+
+        if (s2.isDraftConfirmed) {
+          this.triggerStage2FinalReview(true);
+          this.switchStage('stage3', true);
+          return;
+        }
 
         // 🛡️ 极速状态合并：提取本地持久化与内存中已有所有确认记录，防止并发冲刷
         const groupId = (typeof this.getEffectiveGroupId === 'function') ? this.getEffectiveGroupId() : (this.state.activeGroupId || this.state.activeGroupId || null);
@@ -5084,7 +5080,8 @@ ${propText}
           renderChat(this.state);
           this.renderStudentWorkspace();
 
-          alert(`🎉 恭喜！组内全员 (${totalMembersCount}/${totalMembersCount} 人) 已全部完成初稿确认！\n\n系统已全组解锁【阶段三：答辩擂台】！请随时点击顶部导航栏中的【阶段三：答辩擂台】进入答辩。`);
+          alert(`🎉 恭喜！组内全员 (${totalMembersCount}/${totalMembersCount} 人) 已全部完成初稿确认！\n\n审稿专家已下发终审总评，系统正在为您自动载入【阶段三：答辩擂台】！`);
+          this.switchStage('stage3', true);
         }
         this.renderStudentWorkspace();
       },
@@ -5549,12 +5546,12 @@ ${contentSnippet}
   /**
    * 📝 阶段二审稿编辑【第三次学术质检·终审定稿扫描】（大模型深度质检，全场严格仅 1 次）
    */
-  async triggerStage2FinalReview() {
+  async triggerStage2FinalReview(force = false) {
     const s2 = this.state.stage2 || {};
     if (!this.state.stage2) this.state.stage2 = s2;
     const s2Chats = (this.state.chatLogs && this.state.chatLogs.stage2) ? this.state.chatLogs.stage2 : [];
     const hasFinalReview = s2Chats.some(m => m && m.sender === 'reviewingEditor' && (m.text?.includes('终稿行文扫描') || m.text?.includes('终审定稿总评') || m.text?.includes('审稿编辑·终审')));
-    if (hasFinalReview || this._isTriggeringFinalReview) return;
+    if (!force && (hasFinalReview || this._isTriggeringFinalReview)) return;
 
     this._isTriggeringFinalReview = true;
     s2.reviewMilestone = 'final_review_done';
