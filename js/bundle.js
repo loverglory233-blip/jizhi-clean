@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260901_v1115
+ * Version: 20260901_v1116
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260901_v1115';
+  const APP_VERSION = '20260901_v1116';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -3047,17 +3047,27 @@
 
       if (isCurrentTask) {
         // 🎯 场景 1：学生正处于该任务工作台内部
-        // 🛡️ 严格保护：若小组未归档，0ms 就地解除只读锁（绝不销毁重载 iframe，0 闪烁 0 白屏）
-        if (!this.app.state.isFinalSubmitted) {
-          if (!nowExpired) {
-            document.querySelectorAll('.etherpad-readonly-shield').forEach(s => s.remove());
+        // 🛡️ 严格保护：仅解除当前未完成阶段的只读锁（已完成的历史阶段如阶段一公约、阶段二初稿始终保持只读锁定）
+        if (!nowExpired) {
+          const isS2Done = this.app.state.groupMaxStage === 'stage3' || this.app.state.stage2?.isDraftConfirmed;
+          const isS3FinalDone = this.app.state.isFinalSubmitted;
+
+          if (!isS2Done) {
             const f2 = document.getElementById('stage2-etherpad-frame');
-            if (f2 && f2.src.includes('showControls=false') && (this.app.state.currentStage === 'stage2' && this.app.state.groupMaxStage !== 'stage3')) {
-              f2.src = f2.src.replace('showControls=false', 'showControls=true');
+            if (f2) {
+              f2.parentElement?.querySelectorAll('.etherpad-readonly-shield').forEach(s => s.remove());
+              if (f2.src.includes('showControls=false')) {
+                f2.src = f2.src.replace('showControls=false', 'showControls=true');
+              }
             }
+          }
+          if (!isS3FinalDone) {
             const f3 = document.getElementById('stage3-etherpad-frame');
-            if (f3 && f3.src.includes('showControls=false')) {
-              f3.src = f3.src.replace('showControls=false', 'showControls=true');
+            if (f3) {
+              f3.parentElement?.querySelectorAll('.etherpad-readonly-shield').forEach(s => s.remove());
+              if (f3.src.includes('showControls=false')) {
+                f3.src = f3.src.replace('showControls=false', 'showControls=true');
+              }
             }
           }
         }
