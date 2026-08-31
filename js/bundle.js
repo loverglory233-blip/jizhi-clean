@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260901_v1127
+ * Version: 20260901_v1128
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260901_v1127';
+  const APP_VERSION = '20260901_v1128';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -13687,6 +13687,7 @@
           const curTask = allTasks.find(t => t.id === this.state.activeTaskId);
           const taskDurMin = (curTask && curTask.durationMinutes) ? Number(curTask.durationMinutes) : 150;
           const isLargeTask = taskDurMin > 150;
+          const isShortTask = taskDurMin <= 60; // 🛡️ 短时间任务 (<= 60 分钟) 彻底关闭 3 分钟静默破冰提示，不碎嘴催促
           const totalPlannedMs = taskDurMin * 60 * 1000; // 阶段二总计划时长(ms)，供 85% 时间水位线与倒计时使用
           const s2NudgeCooldownMs = isLargeTask ? 480000 : 360000;
           const s2SilenceThresholdMs = 180000; // 统一 3 分钟破冰
@@ -13706,8 +13707,8 @@
             return 0;
           }
 
-          // 1. 阶段二开场起草提示：开场达到 3 分钟完全静默且正文字数 < 50 字（最多2次）
-          if (silenceDurationMs >= s2SilenceThresholdMs && plainTextLen < 50) {
+          // 1. 阶段二开场起草提示：开场达到 3 分钟完全静默且正文字数 < 50 字（短任务 <= 60 分钟关闭静默提示）
+          if (!isShortTask && silenceDurationMs >= s2SilenceThresholdMs && plainTextLen < 50) {
             const count = this._nudgeCounts['s2_silence'] || 0;
             if (count < 2 && (!this.lastS2SilenceNudgeTime || now - this.lastS2SilenceNudgeTime > (s2SilenceThresholdMs + 60000))) {
               this.lastS2SilenceNudgeTime = now;
@@ -13805,8 +13806,8 @@
             const lastStudentMsgAfterReviewTime = parseMsgTime(lastStudentMsgAfterReview);
             const silenceAfterReview = lastStudentMsgAfterReviewTime ? Math.max(0, now - lastStudentMsgAfterReviewTime) : reviewElapsed;
 
-            // ── 一审后冷场满 3 分钟：初审跟进提示（全场严格仅 1 次） ──
-            if (silenceAfterReview >= 180000) {
+            // ── 一审后冷场满 3 分钟：初审跟进提示（短任务 <= 60m 关闭，全场严格仅 1 次） ──
+            if (!isShortTask && silenceAfterReview >= 180000) {
               this._nudgeCounts['s2_first_review_silence'] = 1;
               const followMsg = {
                 sender: 'reviewingEditor',
@@ -14093,7 +14094,7 @@
             const lastStudentMsgAfterFinalTime = parseMsgTime(lastStudentMsgAfterFinal);
             const silenceAfterFinal = lastStudentMsgAfterFinalTime ? Math.max(0, now - lastStudentMsgAfterFinalTime) : fReviewElapsed;
 
-            if (silenceAfterFinal >= 180000) { // 严格 3 分钟静默
+            if (!isShortTask && silenceAfterFinal >= 180000) { // 严格 3 分钟静默（短任务 <= 60m 关闭）
               s2.finalReviewSilenceSent = true;
               const followMsg3 = {
                 sender: 'reviewingEditor',
