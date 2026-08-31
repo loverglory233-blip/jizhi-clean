@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260831_v1103
+ * Version: 20260831_v1104
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260831_v1103';
+  const APP_VERSION = '20260831_v1104';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -17437,9 +17437,9 @@
       }
 
       // ═══════════════════════════════════════════════════════════════
-      // 🛡️ 第二次学术质检与半程会议（目标字数的 65%~70% / 60% 时间 · 深度研讨）
+      // 🛡️ 第二次学术质检与半程会议（目标字数的 70% / 65% 时间 · 深度研讨）
       // ═══════════════════════════════════════════════════════════════
-      const isMeetingDue = (wordProgress >= 0.65 || timeProgress >= 0.60 || rawDoc.length >= (targetWordCount * 0.65));
+      const isMeetingDue = (wordProgress >= 0.70 || timeProgress >= 0.65 || rawDoc.length >= (targetWordCount * 0.70));
       const hasMeetingCalledInLogs = s2ChatList.some(m => m.sender === 'managingEditor' && (m.text.includes('半程会议号召') || m.text.includes('半程研讨号召')));
       if (hasMeetingCalledInLogs && s2.reviewMilestone !== 'meeting_called' && s2.reviewMilestone !== 'action_plan_generated') {
         s2.reviewMilestone = 'meeting_called';

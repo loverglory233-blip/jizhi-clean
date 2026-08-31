@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260831_v1103";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260831_v1103";
-import { callCozeAgentAPI } from "./agents.js?v=20260831_v1103";
-import { AuthManager } from "./auth.js?v=20260831_v1103";
-import { CloudSyncEngine } from "./sync.js?v=20260831_v1103";
-import { renderLoginView } from "./login.js?v=20260831_v1103";
-import { renderTeacherPortal } from "./teacher.js?v=20260831_v1103";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260831_v1103";
+} from "./constants.js?v=20260831_v1104";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260831_v1104";
+import { callCozeAgentAPI } from "./agents.js?v=20260831_v1104";
+import { AuthManager } from "./auth.js?v=20260831_v1104";
+import { CloudSyncEngine } from "./sync.js?v=20260831_v1104";
+import { renderLoginView } from "./login.js?v=20260831_v1104";
+import { renderTeacherPortal } from "./teacher.js?v=20260831_v1104";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260831_v1104";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260831_v1103";
+} from "./editor.js?v=20260831_v1104";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -5440,9 +5440,9 @@ ${contentSnippet}
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // 🛡️ 第二次学术质检与半程会议（目标字数的 65%~70% / 60% 时间 · 深度研讨）
+    // 🛡️ 第二次学术质检与半程会议（目标字数的 70% / 65% 时间 · 深度研讨）
     // ═══════════════════════════════════════════════════════════════
-    const isMeetingDue = (wordProgress >= 0.65 || timeProgress >= 0.60 || rawDoc.length >= (targetWordCount * 0.65));
+    const isMeetingDue = (wordProgress >= 0.70 || timeProgress >= 0.65 || rawDoc.length >= (targetWordCount * 0.70));
     const hasMeetingCalledInLogs = s2ChatList.some(m => m.sender === 'managingEditor' && (m.text.includes('半程会议号召') || m.text.includes('半程研讨号召')));
     if (hasMeetingCalledInLogs && s2.reviewMilestone !== 'meeting_called' && s2.reviewMilestone !== 'action_plan_generated') {
       s2.reviewMilestone = 'meeting_called';
