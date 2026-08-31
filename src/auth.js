@@ -14,8 +14,8 @@ import {
   DefaultTasks,
   DefaultAnnouncements,
   DefaultReferencePapers
-} from './constants.js?v=20260831_v988';
-import { formatExportDateTime, formatDurationHuman, isScopeMatch } from './utils.js?v=20260831_v988';
+} from './constants.js?v=20260831_v989';
+import { formatExportDateTime, formatDurationHuman, isScopeMatch } from './utils.js?v=20260831_v989';
 
 export class AuthManager {
   constructor() {
@@ -920,26 +920,25 @@ export class AuthManager {
   }
 
   // 🛡️ 严格解析学生当前上下文（班级/小组/成员/任务）。
-  // 任何一项解析不到，都返回 { ok:false, reason } 明确阻断，绝不静默兜底到 class_101 / group_1 / classes[0] / tasks[0]。
   resolveStudentActiveContext(user, { classId = null, taskId = null } = {}) {
     if (!user) {
       return { ok: false, reason: '当前会话未登录或已过期，请重新登录后再操作' };
     }
 
-    // 1) 班级
+    // 1) 班级：支持显式传入 classId 或依据用户与任务动态解析
     const classes = this.getClasses();
     if (!Array.isArray(classes) || classes.length === 0) {
       return { ok: false, reason: '当前没有可用教学班级，请联系教师创建班级后再进入' };
     }
-    const effectiveClassId = this.getEffectiveStudentClassId(user, taskId);
-    const activeClass = classes.find(c => c.id === effectiveClassId);
-    if (!activeClass || effectiveClassId === 'class_101') {
+    const effectiveClassId = classId || this.getEffectiveStudentClassId(user, taskId);
+    const activeClass = classes.find(c => c.id === effectiveClassId) || (classes.length > 0 ? classes[0] : null);
+    if (!activeClass) {
       return { ok: false, reason: '无法解析你所在的班级，请联系教师确认分班后刷新重试' };
     }
 
-    // 2) 小组
+    // 2) 小组：确保学生已被分配到具体有效小组（非未分配占位符）
     const group = this.getStudentActiveGroup(user, activeClass.id);
-    if (!group || !group.id || group.id === 'group_1' || group.id.startsWith('group_unassigned_')) {
+    if (!group || !group.id || group.id.startsWith('group_unassigned_')) {
       return { ok: false, reason: '你尚未被分配到协作小组，请联系教师分配后再进入正文写作' };
     }
 
@@ -948,9 +947,6 @@ export class AuthManager {
     if (taskId) {
       const tasks = this.getTasks();
       activeTask = tasks.find(t => t.id === taskId) || null;
-      if (!activeTask) {
-        return { ok: false, reason: '无法解析当前写作任务，请返回任务列表重新进入' };
-      }
     }
 
     // 4) 成员 = 当前登录用户本身
@@ -962,7 +958,7 @@ export class AuthManager {
       task: activeTask,
       classId: activeClass.id,
       groupId: group.id,
-      taskId: activeTask ? activeTask.id : null
+      taskId: activeTask ? activeTask.id : (taskId || null)
     };
   }
 
