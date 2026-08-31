@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260831_v993
+ * Version: 20260831_v994
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260831_v993';
+  const APP_VERSION = '20260831_v994';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -10399,6 +10399,7 @@
     const membersList = Object.values(state.members || {});
     const allGroupMembers = (activeGroupObj && Array.isArray(activeGroupObj.members) && activeGroupObj.members.length > 0) ? activeGroupObj.members : membersList;
     const actualTotalCount = allGroupMembers.length > 0 ? allGroupMembers.length : (membersList.length || 2);
+    const totalCount = actualTotalCount;
     const confirmedDraftCount = allGroupMembers.filter(m => isMemberDone(confirmedDraftMap, m)).length;
     const currUserCode = state.currentUser || (currUser ? currUser.studentCode : 'A');
     const isUserDraftConfirmed = isMemberDone(confirmedDraftMap, { id: currUserCode, studentCode: currUser?.studentCode, username: currUser?.username, name: currUser?.name });
