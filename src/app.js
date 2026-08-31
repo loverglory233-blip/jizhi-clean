@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260831_v1102";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260831_v1102";
-import { callCozeAgentAPI } from "./agents.js?v=20260831_v1102";
-import { AuthManager } from "./auth.js?v=20260831_v1102";
-import { CloudSyncEngine } from "./sync.js?v=20260831_v1102";
-import { renderLoginView } from "./login.js?v=20260831_v1102";
-import { renderTeacherPortal } from "./teacher.js?v=20260831_v1102";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260831_v1102";
+} from "./constants.js?v=20260831_v1103";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260831_v1103";
+import { callCozeAgentAPI } from "./agents.js?v=20260831_v1103";
+import { AuthManager } from "./auth.js?v=20260831_v1103";
+import { CloudSyncEngine } from "./sync.js?v=20260831_v1103";
+import { renderLoginView } from "./login.js?v=20260831_v1103";
+import { renderTeacherPortal } from "./teacher.js?v=20260831_v1103";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260831_v1103";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260831_v1102";
+} from "./editor.js?v=20260831_v1103";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -577,6 +577,12 @@ export class App {
             this.state.chatLogs.stage1.push(msgStage1);
             this.syncChatLogs();
             renderChat(this.state);
+          }
+
+          // ── 1.5 【阶段二智能体全自动巡检：一审自动把脉、二审半程研讨、三审终审自动扫描】 ──
+          if (currentStage === 'stage2') {
+            const rawContent = (this.state.stage2 && this.state.stage2.unifiedContent) ? this.state.stage2.unifiedContent : '';
+            this.checkAgentTriggersOnContent(rawContent);
           }
 
           // ── 2. 【90% 时间节点：阶段二到期转场答辩提示】(总时间 90% 节点 · 归属责任编辑 · 严格全场仅 1 次) ──
@@ -3975,9 +3981,11 @@ ${chatSnippet}
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         _timeMs: Date.now()
       };
-      s2ChatLogs.push(msgSummary);
-
+      if (!this.state.chatLogs.stage2) this.state.chatLogs.stage2 = [];
+      this.state.chatLogs.stage2.push(msgSummary);
+      this.sendSingleChatMessage(msgSummary, 'stage2');
       s2.meetingStep = 'completed'; // 完成半程会议，收起按钮
+      s2.meetingCompletedTime = Date.now();
       s2.reviewMilestone = 'second_review_done';
 
       this.syncStage2();
@@ -5465,16 +5473,26 @@ ${contentSnippet}
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // 🛡️ 第三次质检（90% 字数 / 85% 时间 / 确认初稿 · 审稿编辑终审定稿）
+    // 🛡️ 第三次质检（半程会议总结后10分钟 且/或 字数达到 85% / 确认初稿 · 审稿编辑终审自动触发）
     // ═══════════════════════════════════════════════════════════════
-    const isFinalReviewDue = (wordProgress >= 0.90 || timeProgress >= 0.85 || s2.isDraftConfirmed || rawDoc.length >= (targetWordCount * 0.9));
-    const hasFinalReviewInLogs = s2ChatList.some(m => m.sender === 'reviewingEditor' && (m.text.includes('终稿行文扫描') || m.text.includes('终审定稿总评')));
+    const isMeetingFinished = (s2.meetingStep === 'completed' || s2.reviewMilestone === 'action_plan_generated' || s2.reviewMilestone === 'second_review_done' || s2.reviewMilestone === 'meeting_called');
+    const meetingEndTime = s2.meetingCompletedTime || s2.meetingCalledTime || 0;
+    const isTenMinAfterMeeting = isMeetingFinished && meetingEndTime > 0 && ((now - meetingEndTime) >= 600000); // 半程会议总结后10分钟
+    const isWordCount85 = (wordProgress >= 0.85 || rawDoc.length >= (targetWordCount * 0.85));
+
+    const isFinalReviewDue = (
+      s2.isDraftConfirmed ||
+      (isMeetingFinished && (isTenMinAfterMeeting || isWordCount85)) ||
+      isWordCount85
+    );
+
+    const hasFinalReviewInLogs = s2ChatList.some(m => m && m.sender === 'reviewingEditor' && (m.text?.includes('终稿行文扫描') || m.text?.includes('终审定稿总评') || m.text?.includes('审稿编辑·终审')));
     if (hasFinalReviewInLogs && (s2.reviewMilestone === 'second_review_done' || s2.reviewMilestone === 'meeting_called')) {
       s2.reviewMilestone = 'final_review_done';
       this.syncStage2();
     }
 
-    if (!hasFinalReviewInLogs && (s2.reviewMilestone === 'second_review_done' || s2.reviewMilestone === 'meeting_called' || s2.meetingStep === 'completed') && isFinalReviewDue && timeSinceLastReviewing > 30000 && !this._isTriggeringFinalReview) {
+    if (!hasFinalReviewInLogs && isFinalReviewDue && timeSinceLastReviewing > 15000 && !this._isTriggeringFinalReview) {
       this.triggerStage2FinalReview();
     }
 

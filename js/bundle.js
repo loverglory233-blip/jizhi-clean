@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260831_v1102
+ * Version: 20260831_v1103
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260831_v1102';
+  const APP_VERSION = '20260831_v1103';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -11883,21 +11883,9 @@
       const hasFinalReviewInLogs = s2Chats.some(m => m && m.sender === 'reviewingEditor' && (m.text?.includes('终稿行文扫描') || m.text?.includes('终审定稿总评') || m.text?.includes('审稿编辑·终审')));
 
       if (curStage === 'stage2') {
-        if (hasFinalReviewInLogs) {
+        if (s2.meetingStep === 'completed' || hasFinalChecklistSummary || hasFinalReviewInLogs) {
           actionBar.style.display = 'none';
           actionBar.innerHTML = '';
-        } else if (s2.meetingStep === 'completed' || hasFinalChecklistSummary) {
-          actionBar.style.display = 'block';
-          actionBar.innerHTML = `
-            <button id="btn-s2-trigger-final-review" style="background:linear-gradient(135deg, #2563eb, #1d4ed8); border:none; color:white; padding:7px 18px; border-radius:18px; font-weight:800; font-size:12.5px; cursor:pointer; display:inline-flex; align-items:center; gap:6px; box-shadow:0 3px 10px rgba(37,99,235,0.25); transition:all 0.2s;">
-              📝 写作差不多了？让审稿编辑进行终审定稿扫描 (三审)
-            </button>
-          `;
-          actionBar.querySelector('#btn-s2-trigger-final-review')?.addEventListener('click', () => {
-            if (window.app && typeof window.app.triggerStage2FinalReview === 'function') {
-              window.app.triggerStage2FinalReview(true);
-            }
-          });
         } else {
           actionBar.style.display = 'block';
           if (!isS2MeetingDone) {
@@ -12586,6 +12574,12 @@
               this.state.chatLogs.stage1.push(msgStage1);
               this.syncChatLogs();
               renderChat(this.state);
+            }
+
+            // ── 1.5 【阶段二智能体全自动巡检：一审自动把脉、二审半程研讨、三审终审自动扫描】 ──
+            if (currentStage === 'stage2') {
+              const rawContent = (this.state.stage2 && this.state.stage2.unifiedContent) ? this.state.stage2.unifiedContent : '';
+              this.checkAgentTriggersOnContent(rawContent);
             }
 
             // ── 2. 【90% 时间节点：阶段二到期转场答辩提示】(总时间 90% 节点 · 归属责任编辑 · 严格全场仅 1 次) ──
@@ -15984,9 +15978,11 @@
           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
           _timeMs: Date.now()
         };
-        s2ChatLogs.push(msgSummary);
-
+        if (!this.state.chatLogs.stage2) this.state.chatLogs.stage2 = [];
+        this.state.chatLogs.stage2.push(msgSummary);
+        this.sendSingleChatMessage(msgSummary, 'stage2');
         s2.meetingStep = 'completed'; // 完成半程会议，收起按钮
+        s2.meetingCompletedTime = Date.now();
         s2.reviewMilestone = 'second_review_done';
 
         this.syncStage2();
@@ -17474,16 +17470,26 @@
       }
 
       // ═══════════════════════════════════════════════════════════════
-      // 🛡️ 第三次质检（90% 字数 / 85% 时间 / 确认初稿 · 审稿编辑终审定稿）
+      // 🛡️ 第三次质检（半程会议总结后10分钟 且/或 字数达到 85% / 确认初稿 · 审稿编辑终审自动触发）
       // ═══════════════════════════════════════════════════════════════
-      const isFinalReviewDue = (wordProgress >= 0.90 || timeProgress >= 0.85 || s2.isDraftConfirmed || rawDoc.length >= (targetWordCount * 0.9));
-      const hasFinalReviewInLogs = s2ChatList.some(m => m.sender === 'reviewingEditor' && (m.text.includes('终稿行文扫描') || m.text.includes('终审定稿总评')));
+      const isMeetingFinished = (s2.meetingStep === 'completed' || s2.reviewMilestone === 'action_plan_generated' || s2.reviewMilestone === 'second_review_done' || s2.reviewMilestone === 'meeting_called');
+      const meetingEndTime = s2.meetingCompletedTime || s2.meetingCalledTime || 0;
+      const isTenMinAfterMeeting = isMeetingFinished && meetingEndTime > 0 && ((now - meetingEndTime) >= 600000); // 半程会议总结后10分钟
+      const isWordCount85 = (wordProgress >= 0.85 || rawDoc.length >= (targetWordCount * 0.85));
+
+      const isFinalReviewDue = (
+        s2.isDraftConfirmed ||
+        (isMeetingFinished && (isTenMinAfterMeeting || isWordCount85)) ||
+        isWordCount85
+      );
+
+      const hasFinalReviewInLogs = s2ChatList.some(m => m && m.sender === 'reviewingEditor' && (m.text?.includes('终稿行文扫描') || m.text?.includes('终审定稿总评') || m.text?.includes('审稿编辑·终审')));
       if (hasFinalReviewInLogs && (s2.reviewMilestone === 'second_review_done' || s2.reviewMilestone === 'meeting_called')) {
         s2.reviewMilestone = 'final_review_done';
         this.syncStage2();
       }
 
-      if (!hasFinalReviewInLogs && (s2.reviewMilestone === 'second_review_done' || s2.reviewMilestone === 'meeting_called' || s2.meetingStep === 'completed') && isFinalReviewDue && timeSinceLastReviewing > 30000 && !this._isTriggeringFinalReview) {
+      if (!hasFinalReviewInLogs && isFinalReviewDue && timeSinceLastReviewing > 15000 && !this._isTriggeringFinalReview) {
         this.triggerStage2FinalReview();
       }
 
