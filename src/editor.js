@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles, TASK_GENRE_CONFIGS } from "./constants.js?v=20260901_v1118";
-import { callCozeAgentAPI } from "./agents.js?v=20260901_v1118";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, showResolutionBlock } from "./utils.js?v=20260901_v1118";
+import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName } from "./constants.js?v=20260901_v1119";
+import { callCozeAgentAPI } from "./agents.js?v=20260901_v1119";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, showResolutionBlock } from "./utils.js?v=20260901_v1119";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -3429,10 +3429,13 @@ export function renderChat(state) {
     let color = '#2563eb';
 
     if (isAgent) {
+      const allTasks = (window.app && window.app.authManager) ? window.app.authManager.getTasks() : [];
+      const currentTask = allTasks.find(t => t.id === state.activeTaskId);
+      const taskGenreKey = currentTask?.taskType || 'experiment';
+      name = getAgentDisplayName(msg.sender, taskGenreKey);
       const profile = AgentProfiles[msg.sender];
-      name = profile.roleTitle || profile.name;
-      avatar = profile.avatar;
-      color = profile.color || '#7c3aed';
+      avatar = profile?.avatar || '🤖';
+      color = profile?.color || '#7c3aed';
     } else {
       if (msg.senderName && msg.senderName !== '组员') {
         name = msg.senderName;
