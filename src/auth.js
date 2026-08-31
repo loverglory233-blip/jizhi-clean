@@ -14,8 +14,8 @@ import {
   DefaultTasks,
   DefaultAnnouncements,
   DefaultReferencePapers
-} from './constants.js?v=20260831_v998';
-import { formatExportDateTime, formatDurationHuman, isScopeMatch } from './utils.js?v=20260831_v998';
+} from './constants.js?v=20260831_v999';
+import { formatExportDateTime, formatDurationHuman, isScopeMatch } from './utils.js?v=20260831_v999';
 
 export class AuthManager {
   constructor() {
@@ -120,6 +120,45 @@ export class AuthManager {
         localStorage.setItem(STORAGE_KEY_CLASSES, JSON.stringify(classes));
       }
     } catch (e) {}
+  }
+
+  findUserByKey(key) {
+    if (!key) return null;
+    if (typeof key === 'object') {
+      if (key.name && (key.studentCode || key.id)) return key;
+      key = key.id || key.studentCode || key.username || key.name || '';
+    }
+    const cleanKey = String(key).trim().toLowerCase();
+    if (!cleanKey) return null;
+
+    const users = this.getUsers();
+    // 1. 在 users 列表中全字段精准比对
+    let found = users.find(u => {
+      if (!u) return false;
+      const uid = String(u.id || '').trim().toLowerCase();
+      const code = String(u.studentCode || '').trim().toLowerCase();
+      const uname = String(u.username || '').trim().toLowerCase();
+      const name = String(u.name || '').trim().toLowerCase();
+      return uid === cleanKey || code === cleanKey || uname === cleanKey || name === cleanKey;
+    });
+    if (found) return found;
+
+    // 2. 在 classes 名册中的 student 列表中查找
+    const classes = this.getClasses();
+    for (const cls of classes) {
+      if (cls && Array.isArray(cls.students)) {
+        found = cls.students.find(s => {
+          if (!s) return false;
+          const sid = String(s.id || '').trim().toLowerCase();
+          const scode = String(s.studentCode || '').trim().toLowerCase();
+          const sname = String(s.name || '').trim().toLowerCase();
+          const suname = String(s.username || '').trim().toLowerCase();
+          return sid === cleanKey || scode === cleanKey || sname === cleanKey || suname === cleanKey;
+        });
+        if (found) return found;
+      }
+    }
+    return null;
   }
 
   async pullGlobalMeta() {
