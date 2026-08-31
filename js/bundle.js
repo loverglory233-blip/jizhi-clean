@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260831_v1034
+ * Version: 20260831_v1035
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260831_v1034';
+  const APP_VERSION = '20260831_v1035';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -11009,7 +11009,7 @@
             const currUserColor = (state.members && state.members[currUserCode]?.color) || '#2563eb';
 
             const targetPad = rawPadName;
-            const padUrl = `/p/${encodeURIComponent(targetPad)}?userName=${encodeURIComponent(currUserName)}&userColor=${encodeURIComponent(currUserColor)}&showChat=false&showLineNumbers=true&lang=zh-hans&_sn=${Date.now()}`;
+            const padUrl = `/p/${encodeURIComponent(targetPad)}?userName=${encodeURIComponent(currUserName)}&userColor=${encodeURIComponent(currUserColor)}&showChat=false&showLineNumbers=true&lang=zh-hans`;
 
             return `
               <div class="word-editor-container" style="display:flex; flex-direction:column; height:100%; min-height:480px; border-radius:8px; overflow:hidden; border:1px solid #cbd5e1; box-shadow:0 2px 10px rgba(15,23,42,0.05); background:#ffffff; position:relative;">
@@ -11147,14 +11147,6 @@
     const btnConfirmDraft = canvas.querySelector('#btn-confirm-stage2-draft');
     if (btnConfirmDraft) {
       btnConfirmDraft.addEventListener('click', () => {
-        if (isUserDraftConfirmed) {
-          alert(`✅ 您已于此前确认完成初稿！\n当前全组确认进度：${confirmedDraftCount}/${totalCount} 人。\n所有组员全部确认后将自动全组解锁阶段三。`);
-          return;
-        }
-        if (isEditorReadonly) {
-          alert('🔒 当前任务已截止或已只读锁定。');
-          return;
-        }
         handlers.onConfirmStage2Draft();
       });
     }
@@ -11417,7 +11409,7 @@
             const isEditorReadonly = isFinalSubmitted || isTaskDeadlineExpired;
 
             const targetPad = rawPadName;
-            const padUrl = `/p/${encodeURIComponent(targetPad)}?userName=${encodeURIComponent(currUserName)}&userColor=${encodeURIComponent(currUserColor)}&showChat=false&showLineNumbers=true&lang=zh-hans&_sn=${Date.now()}`;
+            const padUrl = `/p/${encodeURIComponent(targetPad)}?userName=${encodeURIComponent(currUserName)}&userColor=${encodeURIComponent(currUserColor)}&showChat=false&showLineNumbers=true&lang=zh-hans`;
 
             return `
               <div class="card-title" style="margin-bottom:10px; display:flex; justify-content:space-between; align-items:center;">
@@ -16625,6 +16617,17 @@
 
       // 默认自动触发当前阶段对应智能体的开场白（如果尚未发送）
       this.triggerStageWelcomeSpeech(this.state.currentStage || 'stage1');
+
+      // 🎓 阶段三自愈守护：只要处于阶段三且答辩矩阵为空，立即自动拉起答辩委员会流水线
+      if (this.state.currentStage === 'stage3') {
+        const s3 = this.state.stage3 || {};
+        const s3Logs = (this.state.chatLogs && this.state.chatLogs.stage3) ? this.state.chatLogs.stage3 : [];
+        const hasProp = s3Logs.some(m => m && m.sender === 'proponent');
+        const hasOpp = s3Logs.some(m => m && m.sender === 'opponent');
+        if ((!hasProp || !hasOpp || !s3.feedbackItems || s3.feedbackItems.length === 0) && !this._isStage3PipelineRunning) {
+          this.runStage3CommitteePipeline();
+        }
+      }
 
       // ── 核心保护：全场景输入法与活动输入框智能保护 ──
       const activeEl = document.activeElement;

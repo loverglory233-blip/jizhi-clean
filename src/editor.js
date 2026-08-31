@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles } from "./constants.js?v=20260831_v1034";
-import { callCozeAgentAPI } from "./agents.js?v=20260831_v1034";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, showResolutionBlock } from "./utils.js?v=20260831_v1034";
+import { AgentProfiles } from "./constants.js?v=20260831_v1035";
+import { callCozeAgentAPI } from "./agents.js?v=20260831_v1035";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, showResolutionBlock } from "./utils.js?v=20260831_v1035";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -2609,7 +2609,7 @@ function renderStage2Canvas(canvas, state, handlers) {
           const currUserColor = (state.members && state.members[currUserCode]?.color) || '#2563eb';
           
           const targetPad = rawPadName;
-          const padUrl = `/p/${encodeURIComponent(targetPad)}?userName=${encodeURIComponent(currUserName)}&userColor=${encodeURIComponent(currUserColor)}&showChat=false&showLineNumbers=true&lang=zh-hans&_sn=${Date.now()}`;
+          const padUrl = `/p/${encodeURIComponent(targetPad)}?userName=${encodeURIComponent(currUserName)}&userColor=${encodeURIComponent(currUserColor)}&showChat=false&showLineNumbers=true&lang=zh-hans`;
           
           return `
             <div class="word-editor-container" style="display:flex; flex-direction:column; height:100%; min-height:480px; border-radius:8px; overflow:hidden; border:1px solid #cbd5e1; box-shadow:0 2px 10px rgba(15,23,42,0.05); background:#ffffff; position:relative;">
@@ -2747,14 +2747,6 @@ function renderStage2Canvas(canvas, state, handlers) {
   const btnConfirmDraft = canvas.querySelector('#btn-confirm-stage2-draft');
   if (btnConfirmDraft) {
     btnConfirmDraft.addEventListener('click', () => {
-      if (isUserDraftConfirmed) {
-        alert(`✅ 您已于此前确认完成初稿！\n当前全组确认进度：${confirmedDraftCount}/${totalCount} 人。\n所有组员全部确认后将自动全组解锁阶段三。`);
-        return;
-      }
-      if (isEditorReadonly) {
-        alert('🔒 当前任务已截止或已只读锁定。');
-        return;
-      }
       handlers.onConfirmStage2Draft();
     });
   }
@@ -3017,7 +3009,7 @@ function renderStage3Canvas(canvas, state, handlers) {
           const isEditorReadonly = isFinalSubmitted || isTaskDeadlineExpired;
 
           const targetPad = rawPadName;
-          const padUrl = `/p/${encodeURIComponent(targetPad)}?userName=${encodeURIComponent(currUserName)}&userColor=${encodeURIComponent(currUserColor)}&showChat=false&showLineNumbers=true&lang=zh-hans&_sn=${Date.now()}`;
+          const padUrl = `/p/${encodeURIComponent(targetPad)}?userName=${encodeURIComponent(currUserName)}&userColor=${encodeURIComponent(currUserColor)}&showChat=false&showLineNumbers=true&lang=zh-hans`;
 
           return `
             <div class="card-title" style="margin-bottom:10px; display:flex; justify-content:space-between; align-items:center;">
