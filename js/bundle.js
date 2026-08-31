@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260901_v1125
+ * Version: 20260901_v1126
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260901_v1125';
+  const APP_VERSION = '20260901_v1126';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -14048,20 +14048,18 @@
 
           const hasFinalReviewInLogs = s2Chats.some(m => m && m.sender === 'reviewingEditor' && (m.text?.includes('终稿行文扫描') || m.text?.includes('终审定稿总评') || m.text?.includes('审稿编辑·终审')));
 
-          // 1. 审稿编辑【第三次质检·终审定稿扫描】（大模型深度质检，全场严格仅 1 次）
-          if (!hasFinalReviewInLogs && isFinalReviewDue && !this._isTriggeringFinalReview) {
-            this.triggerStage2FinalReview();
-          }
-
-          // 2. 责任编辑【85% 时间写作倒计时提醒】（全场严格仅 1 次）
-          const hasCountdownInLogs = s2Chats.some(m => m && m.sender === 'managingEditor' && m.text?.includes('写作阶段倒计时提醒'));
+          // 1. 责任编辑【85% 时间写作倒计时提醒】（先出场提醒全组时间过半进入最后 15% 冲刺）
+          const hasCountdownInLogs = s2Chats.some(m => m && m.sender === 'managingEditor' && (m.text?.includes('写作阶段倒计时提醒') || m.text?.includes('冲刺倒计时')));
           if (timeProgress >= 0.85 && !hasCountdownInLogs && !s2.countdown85Sent) {
             s2.countdown85Sent = true;
             const remainingStage2Min = Math.max(1, Math.ceil((totalPlannedMs - stage2DurationMs) / 60000));
+            const taskType = this.getCurrentTaskType();
+            const isInst = (taskType === 'instructional');
+            const managingName = isInst ? '备课组长' : '责任编辑';
             const countdownMsg = {
               sender: 'managingEditor',
-              senderName: '协同调度 · 责任编辑',
-              text: `🤝 【责任编辑·写作阶段倒计时提醒】：阶段二写作时间已过 85%（本阶段仅剩最后约 ${remainingStage2Min} 分钟）！请大家抓紧完成最后段落的撰写与通读，在上方逐一完成【初稿确认】，准备迎接阶段三学术答辩！`,
+              senderName: managingName,
+              text: `🤝 【${managingName}·冲刺倒计时】：阶段二正文起草已进入最后 15% 倒计时（剩余约 ${remainingStage2Min} 分钟）！请小组成员抓紧收尾当前段落，全篇交叉通读、优化前后衔接，准备迎接答辩评审！`,
               timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
               _timeMs: now
             };
@@ -14071,6 +14069,15 @@
             this.syncStage2();
             if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
             renderChat(this.state);
+          }
+
+          // 2. 审稿编辑【第三次质检·终审定稿扫描】（紧随其后或初稿确认/字数达标时出场，全场严格仅 1 次）
+          if (!hasFinalReviewInLogs && isFinalReviewDue && !this._isTriggeringFinalReview) {
+            setTimeout(() => {
+              if (!this._isTriggeringFinalReview) {
+                this.triggerStage2FinalReview();
+              }
+            }, 600);
           }
 
           // 3. 【三审后静默跟进】：三审发出后若讨论区冷场超 3 分钟且尚未全员初稿确认，提示通读润色与初稿打卡（全场严格仅 1 次）
