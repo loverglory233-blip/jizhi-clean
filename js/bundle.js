@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260831_v1018
+ * Version: 20260831_v1019
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260831_v1018';
+  const APP_VERSION = '20260831_v1019';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -10678,7 +10678,7 @@
         // 严格仅匹配审稿编辑下发的【二审修正清单】，坚决排除修改决议与讨论总结
         const revMsg = allChatLogs.find(m => m && m.text && (m.text.includes('二审修正清单') || m.text.includes('半程编辑修正清单') || m.text.includes('半程修正清单')) && !m.text.includes('修改落实决议') && !m.text.includes('修改落实要点'));
 
-        if (s2.meetingStep === 'discussing_checklist' || s2.meetingStep === 'completed' || !!revMsg) {
+        if ((!effActionPlan || !effActionPlan.isGenerated || !effActionPlan.items || effActionPlan.items.length < 3) && (s2.meetingStep === 'discussing_checklist' || s2.meetingStep === 'completed' || !!revMsg)) {
           let parsedItems = [];
           if (revMsg && revMsg.text) {
             let body = revMsg.text;
@@ -10690,12 +10690,16 @@
                        .replace(/[👉\s]*请全组围绕.*$/s, '')
                        .replace(/[👉\s]*讨论差不多.*$/s, '')
                        .replace(/[👉\s]*点击下方.*$/s, '')
+                       .replace(/^本次修改需对齐三项要求[：:]*/s, '')
                        .trim();
 
-            const chunks = body.split(/(?=[①②③]|\b[123]\.|(?=[一二三]是))/g).map(c => c.trim()).filter(Boolean);
+            let chunks = body.split(/(?=[①②③]|\b[123]\.|(?=[一二三]是))/g).map(c => c.trim()).filter(Boolean);
+            if (chunks.length < 3) {
+              chunks = body.split(/[\n；;]+/g).map(c => c.trim()).filter(Boolean);
+            }
             chunks.forEach(c => {
-              let clean = c.replace(/^[①②③\d\.\s\(\)一二三是]+/, '').replace(/[；;。]\s*$/, '').trim();
-              if (clean.length > 5) {
+              let clean = c.replace(/^[①②③\d\.\s\(\)一二三是：:]+/, '').replace(/[；;。]\s*$/, '').trim();
+              if (clean.length > 5 && !clean.includes('请全组协同') && !clean.includes('冲刺终审定稿')) {
                 parsedItems.push(clean);
               }
             });
@@ -10861,7 +10865,7 @@
           // 严格仅匹配审稿编辑下发的【二审修正清单】，坚决排除修改决议与讨论总结
           const revMsg = allChatLogs.find(m => m && m.text && (m.text.includes('二审修正清单') || m.text.includes('半程编辑修正清单') || m.text.includes('半程修正清单')) && !m.text.includes('修改落实决议') && !m.text.includes('修改落实要点'));
 
-          if (s2.meetingStep === 'discussing_checklist' || s2.meetingStep === 'completed' || !!revMsg) {
+          if ((!effActionPlan || !effActionPlan.isGenerated || !effActionPlan.items || effActionPlan.items.length < 3) && (s2.meetingStep === 'discussing_checklist' || s2.meetingStep === 'completed' || !!revMsg)) {
             let parsedItems = [];
             if (revMsg && revMsg.text) {
               let body = revMsg.text;
@@ -10873,12 +10877,16 @@
                          .replace(/[👉\s]*请全组围绕.*$/s, '')
                          .replace(/[👉\s]*讨论差不多.*$/s, '')
                          .replace(/[👉\s]*点击下方.*$/s, '')
+                         .replace(/^本次修改需对齐三项要求[：:]*/s, '')
                          .trim();
 
-              const chunks = body.split(/(?=[①②③]|\b[123]\.|(?=[一二三]是))/g).map(c => c.trim()).filter(Boolean);
+              let chunks = body.split(/(?=[①②③]|\b[123]\.|(?=[一二三]是))/g).map(c => c.trim()).filter(Boolean);
+              if (chunks.length < 3) {
+                chunks = body.split(/[\n；;]+/g).map(c => c.trim()).filter(Boolean);
+              }
               chunks.forEach(c => {
-                let clean = c.replace(/^[①②③\d\.\s\(\)一二三是]+/, '').replace(/[；;。]\s*$/, '').trim();
-                if (clean.length > 5) {
+                let clean = c.replace(/^[①②③\d\.\s\(\)一二三是：:]+/, '').replace(/[；;。]\s*$/, '').trim();
+                if (clean.length > 5 && !clean.includes('请全组协同') && !clean.includes('冲刺终审定稿')) {
                   parsedItems.push(clean);
                 }
               });
