@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState } from './constants.js?v=20260901_v1113';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap } from './utils.js?v=20260901_v1113';
+import { InitialState } from './constants.js?v=20260901_v1114';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap } from './utils.js?v=20260901_v1114';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -135,11 +135,12 @@ export class CloudSyncEngine {
           }
         }
       }
-      // ⏱️ 仅就地刷新顶部倒计时与状态（变绿），绝不调用全页重绘
+      // ⏱️ 立即就地刷新顶部倒计时与工作台画布状态（移除过期横幅与只读锁，恢复可操作按钮）
       if (typeof this.app.renderHeader === 'function') {
         this.app.renderHeader();
-      } else if (typeof this.app.renderStudentWorkspace === 'function') {
-        this.app.renderStudentWorkspace();
+      }
+      if (typeof this.app.renderStudentWorkspace === 'function') {
+        this.app.renderStudentWorkspace(true);
       }
       showGlobalBannerNotice(
         '⏳ 任务截止时间已延长',

@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles } from "./constants.js?v=20260901_v1113";
-import { callCozeAgentAPI } from "./agents.js?v=20260901_v1113";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, showResolutionBlock } from "./utils.js?v=20260901_v1113";
+import { AgentProfiles } from "./constants.js?v=20260901_v1114";
+import { callCozeAgentAPI } from "./agents.js?v=20260901_v1114";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, showResolutionBlock } from "./utils.js?v=20260901_v1114";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -2467,6 +2467,34 @@ function renderStage2Canvas(canvas, state, handlers) {
         };
       }
 
+      // 🛡️ 截止锁定横幅就地动态同步（若教师延长则 0ms 瞬间消除，无需刷新）
+      let expiredBanner = canvas.querySelector('#stage2-deadline-expired-banner');
+      if (isTaskDeadlineExpired) {
+        if (!expiredBanner) {
+          const b = document.createElement('div');
+          b.id = 'stage2-deadline-expired-banner';
+          b.style.cssText = 'background:#fef2f2; border:1.5px solid #fca5a5; border-radius:8px; padding:6px 14px; margin-bottom:4px; font-size:12.5px; color:#991b1b; font-weight:600; display:flex; justify-content:space-between; align-items:center; gap:12px; box-shadow:0 2px 6px rgba(239,68,68,0.08); height:38px; box-sizing:border-box; flex-shrink:0;';
+          b.innerHTML = `
+            <div style="display:flex; align-items:center; gap:8px; min-width:0; flex:1; overflow:hidden; white-space:nowrap; text-overflow:ellipsis;">
+              <span style="font-size:15px; flex-shrink:0;">🔒</span>
+              <span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"><b>任务已截止锁定：</b> 本任务已于 <b>${currentTask?.deadline || '截止时间'}</b> 截止，阶段二【学术编辑部】已自动转为<b>【只读查阅模式】</b>。如需修改请联系教师延长时间。</span>
+            </div>
+            <span style="font-size:11.5px; color:#ffffff; background:#dc2626; padding:2px 8px; border-radius:4px; font-weight:800; flex-shrink:0; letter-spacing:0.5px;">已截止</span>
+          `;
+          canvas.querySelector('.card')?.prepend(b);
+        }
+      } else {
+        if (expiredBanner) expiredBanner.remove();
+      }
+
+      if (existingFrame) {
+        if (isEditorReadonly) {
+          enforceEtherpadReadonly(existingFrame);
+        } else {
+          canvas.querySelectorAll('.etherpad-readonly-shield').forEach(s => s.remove());
+        }
+      }
+
       return;
     }
 
@@ -2872,10 +2900,79 @@ function renderStage3Canvas(canvas, state, handlers) {
     if (btnTabEd) {
       btnTabEd.style.background = activeTab === 'editor' ? 'linear-gradient(135deg, #059669, #047857)' : (isRevisionFullyConfirmed ? '#f1f5f9' : '#f8fafc');
       btnTabEd.style.color = activeTab === 'editor' ? 'white' : (isRevisionFullyConfirmed ? '#475569' : '#94a3b8');
+      btnTabEd.title = isRevisionFullyConfirmed ? '切换至终稿协同修改' : '需组内全员确认进入终稿修改后解锁';
+      btnTabEd.style.cursor = isRevisionFullyConfirmed ? 'pointer' : 'not-allowed';
     }
 
-    if (existingFrame && isFinalSubmitted) {
-      enforceEtherpadReadonly(existingFrame);
+    // 🛡️ 截止锁定横幅就地动态同步（若教师延长则 0ms 瞬间消除，无需刷新）
+    let expiredBanner = canvas.querySelector('#stage3-deadline-expired-banner');
+    if (isTaskDeadlineExpired) {
+      if (!expiredBanner) {
+        const b = document.createElement('div');
+        b.id = 'stage3-deadline-expired-banner';
+        b.style.cssText = 'background:#fef2f2; border:1.5px solid #fca5a5; border-radius:8px; padding:6px 14px; margin-bottom:4px; font-size:12.5px; color:#991b1b; font-weight:600; display:flex; justify-content:space-between; align-items:center; gap:12px; box-shadow:0 2px 6px rgba(239,68,68,0.08); height:38px; box-sizing:border-box; flex-shrink:0;';
+        b.innerHTML = `
+          <div style="display:flex; align-items:center; gap:8px; min-width:0; flex:1; overflow:hidden; white-space:nowrap; text-overflow:ellipsis;">
+            <span style="font-size:15px; flex-shrink:0;">🔒</span>
+            <span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"><b>任务已截止锁定：</b> 本任务已于 <b>${currentTask?.deadline || '截止时间'}</b> 截止，阶段三【答辩擂台】已自动转为<b>【只读查阅模式】</b>。如需修改请联系教师延长时间。</span>
+          </div>
+          <span style="font-size:11.5px; color:#ffffff; background:#dc2626; padding:2px 8px; border-radius:4px; font-weight:800; flex-shrink:0; letter-spacing:0.5px;">已截止</span>
+        `;
+        canvas.firstElementChild?.prepend(b);
+      }
+    } else {
+      if (expiredBanner) expiredBanner.remove();
+    }
+
+    // 🛡️ 动态同步右上角操作按钮状态
+    const actionBtnGroup = canvas.querySelector('#stage3-action-btn-group');
+    if (actionBtnGroup) {
+      actionBtnGroup.innerHTML = (activeTab === 'defense') ? (
+        isDefenseLocked ? `
+          <button disabled style="background:#f1f5f9; border:1px solid #cbd5e1; color:${isFinalSubmitted ? '#94a3b8' : '#059669'}; padding:8px 16px; border-radius:8px; font-weight:700; font-size:12.5px; cursor:default;">
+            ${isFinalSubmitted ? '🔒 论文终稿已归档 (只读)' : '✅ 全员已确认进入终稿修改 (答辩已锁定)'}
+          </button>
+        ` : `
+          <button id="btn-confirm-stage3-revision" ${isUserRevisionConfirmed ? 'disabled' : ''} style="background:${isUserRevisionConfirmed ? '#f1f5f9' : 'linear-gradient(135deg, #2563eb, #1d4ed8)'}; border:${isUserRevisionConfirmed ? '1px solid #cbd5e1' : 'none'}; color:${isUserRevisionConfirmed ? '#2563eb' : 'white'}; padding:8px 16px; border-radius:8px; font-weight:700; font-size:12.5px; cursor:${isUserRevisionConfirmed ? 'default' : 'pointer'}; box-shadow:${isUserRevisionConfirmed ? 'none' : '0 2px 8px rgba(37,99,235,0.2)'};">
+            ${isUserRevisionConfirmed ? '✅ 您已确认进入终稿修改' : '✍️ 确认进入终稿修改'}
+          </button>
+        `
+      ) : (
+        state.isFinalSubmitted ? `
+          <button disabled style="background:#ecfdf5; border:1px solid #a7f3d0; color:#059669; padding:8px 18px; border-radius:8px; font-weight:700; cursor:default; font-size:13px;">
+            🔒 论文终稿已全员提交归档
+          </button>
+        ` : (isUserFinalSubmitted ? `
+          <button disabled style="background:#f1f5f9; border:1px solid #cbd5e1; color:#059669; padding:8px 16px; border-radius:8px; font-weight:700; font-size:12.5px; cursor:default;">
+            ✅ 您已确认提交终稿 (等待组员 ${finalSubmittedCount}/${totalCount})
+          </button>
+        ` : `
+          <button id="btn-final-submit" style="background:linear-gradient(135deg, #059669, #047857); border:none; color:white; padding:8px 18px; border-radius:8px; font-weight:700; cursor:pointer; font-size:13px; box-shadow:0 3px 10px rgba(5,150,105,0.25);">
+            🚀 确认提交论文终稿
+          </button>
+        `)
+      );
+
+      const newConfirmRevBtn = actionBtnGroup.querySelector('#btn-confirm-stage3-revision');
+      if (newConfirmRevBtn && !isUserRevisionConfirmed && !isDefenseLocked) {
+        newConfirmRevBtn.onclick = () => {
+          if (handlers.onConfirmStage3Revision) handlers.onConfirmStage3Revision();
+        };
+      }
+      const newFinalSubmitBtn = actionBtnGroup.querySelector('#btn-final-submit');
+      if (newFinalSubmitBtn && !isFinalSubmitted) {
+        newFinalSubmitBtn.onclick = () => {
+          if (handlers.onFinalSubmit) handlers.onFinalSubmit();
+        };
+      }
+    }
+
+    if (existingFrame) {
+      if (isFinalSubmitted) {
+        enforceEtherpadReadonly(existingFrame);
+      } else {
+        canvas.querySelectorAll('.etherpad-readonly-shield').forEach(s => s.remove());
+      }
     }
     return;
   }
@@ -2883,7 +2980,7 @@ function renderStage3Canvas(canvas, state, handlers) {
   canvas.innerHTML = `
     <div style="height:100%; display:flex; flex-direction:column; gap:12px; overscroll-behavior-y:contain;">
       ${isTaskDeadlineExpired ? `
-        <div style="background:#fef2f2; border:1.5px solid #fca5a5; border-radius:8px; padding:6px 14px; margin-bottom:4px; font-size:12.5px; color:#991b1b; font-weight:600; display:flex; justify-content:space-between; align-items:center; gap:12px; box-shadow:0 2px 6px rgba(239,68,68,0.08); height:38px; box-sizing:border-box; flex-shrink:0;">
+        <div id="stage3-deadline-expired-banner" style="background:#fef2f2; border:1.5px solid #fca5a5; border-radius:8px; padding:6px 14px; margin-bottom:4px; font-size:12.5px; color:#991b1b; font-weight:600; display:flex; justify-content:space-between; align-items:center; gap:12px; box-shadow:0 2px 6px rgba(239,68,68,0.08); height:38px; box-sizing:border-box; flex-shrink:0;">
           <div style="display:flex; align-items:center; gap:8px; min-width:0; flex:1; overflow:hidden; white-space:nowrap; text-overflow:ellipsis;">
             <span style="font-size:15px; flex-shrink:0;">🔒</span>
             <span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"><b>任务已截止锁定：</b> 本任务已于 <b>${currentTask?.deadline || '截止时间'}</b> 截止，阶段三【答辩擂台】已自动转为<b>【只读查阅模式】</b>。如需修改请联系教师延长时间。</span>
@@ -2913,7 +3010,7 @@ function renderStage3Canvas(canvas, state, handlers) {
             ${isRevisionFullyConfirmed ? '📝 修改论文终稿 (依据答辩意见完善正文)' : '📝 修改论文终稿 (🔒 需全员确认进入终稿修改后解锁)'}
           </button>
         </div>
-        <div style="display:flex; gap:8px; align-items:center;">
+        <div id="stage3-action-btn-group" style="display:flex; gap:8px; align-items:center;">
           ${activeTab === 'defense' ? (
             isDefenseLocked ? `
               <button disabled style="background:#f1f5f9; border:1px solid #cbd5e1; color:${isFinalSubmitted ? '#94a3b8' : '#059669'}; padding:8px 16px; border-radius:8px; font-weight:700; font-size:12.5px; cursor:default;">
