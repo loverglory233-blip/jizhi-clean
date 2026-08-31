@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles } from "./constants.js?v=20260831_v1024";
-import { callCozeAgentAPI } from "./agents.js?v=20260831_v1024";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, showResolutionBlock } from "./utils.js?v=20260831_v1024";
+import { AgentProfiles } from "./constants.js?v=20260831_v1025";
+import { callCozeAgentAPI } from "./agents.js?v=20260831_v1025";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, showResolutionBlock } from "./utils.js?v=20260831_v1025";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -2379,8 +2379,9 @@ function renderStage2Canvas(canvas, state, handlers) {
           });
         }
       }
+    }
 
-      // 🌟 增量就地刷新右上角【会议打卡】与【初稿确认】小药丸
+    // 🌟 增量就地刷新右上角【会议打卡】与【初稿确认】小药丸
       const totalCount = membersList.length || 2;
       const subs = s2.meetingSubmissions || {};
       const subCount = Object.keys(subs).length;
