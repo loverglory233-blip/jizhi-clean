@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles } from "./constants.js?v=20260831_v1006";
-import { callCozeAgentAPI } from "./agents.js?v=20260831_v1006";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, showResolutionBlock } from "./utils.js?v=20260831_v1006";
+import { AgentProfiles } from "./constants.js?v=20260831_v1007";
+import { callCozeAgentAPI } from "./agents.js?v=20260831_v1007";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, showResolutionBlock } from "./utils.js?v=20260831_v1007";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -2379,16 +2379,22 @@ function renderStage2Canvas(canvas, state, handlers) {
       <!-- 🌟 2. 半程修正清单 (未下发时展示待解锁提示，下发后展示展开卡片) -->
       ${(() => {
         let effActionPlan = actionPlan;
-        const stage2Logs = (state.chatLogs && state.chatLogs.stage2) || [];
-        const hasChecklistInChat = stage2Logs.some(m => m && m.text && m.text.includes('二审修正清单'));
-        if ((!effActionPlan || !effActionPlan.isGenerated) && (s2.meetingStep === 'discussing_checklist' || s2.meetingStep === 'completed' || hasChecklistInChat)) {
-          const revMsg = [...stage2Logs].reverse().find(m => m && m.text && m.text.includes('二审修正清单'));
+        const allChatLogs = [
+          ...(state.chatLogs?.stage1 || []),
+          ...(state.chatLogs?.stage2 || []),
+          ...(state.chatLogs?.stage3 || [])
+        ];
+        const revMsg = [...allChatLogs].reverse().find(m => m && m.text && (m.text.includes('二审修正清单') || m.text.includes('二审修改') || m.text.includes('修正清单')));
+        
+        if ((!effActionPlan || !effActionPlan.isGenerated) && (s2.meetingStep === 'discussing_checklist' || s2.meetingStep === 'completed' || !!revMsg)) {
           let parsedItems = [];
           if (revMsg && revMsg.text) {
-            const lines = revMsg.text.split('\n').map(l => l.trim()).filter(Boolean);
-            lines.forEach(l => {
-              if (/^([①②③12345]|\d+\.|\(?[123]\)?)/.test(l) || l.includes('【')) {
-                parsedItems.push(l.replace(/^[①②③\d\.\s\(\)]+/, '').trim());
+            const rawTxt = revMsg.text.replace(/^.*?二审修正清单[】:]*/s, '').trim();
+            const chunks = rawTxt.split(/(?=[①②③]|\b[123]\.)/g).map(c => c.trim()).filter(Boolean);
+            chunks.forEach(c => {
+              const cleanChunk = c.replace(/^[①②③\d\.\s\(\)]+/, '').replace(/[；;。]\s*$/, '').trim();
+              if (cleanChunk.length > 3 && !cleanChunk.includes('讨论差不多') && !cleanChunk.includes('请大家围绕') && !cleanChunk.includes('让审稿编辑总结')) {
+                parsedItems.push(cleanChunk);
               }
             });
           }
@@ -2416,7 +2422,9 @@ function renderStage2Canvas(canvas, state, handlers) {
                 <span>📋 【半程修正清单】</span>
                 <span style="font-size:10.5px; background:#eff6ff; color:#2563eb; padding:1px 6px; border-radius:6px;">待解锁 (组内编辑会议自查对齐后，由审稿专家质检下发)</span>
               </div>
-              <button onclick="if(window.app) window.app.showMeetingModal();" style="background:#ffffff; border:1px solid #cbd5e1; color:#334155; padding:1.5px 8px; border-radius:4px; font-size:11px; font-weight:600; cursor:pointer;">📢 发起会议</button>
+              <button onclick="if(window.app && window.app.forceRefreshActionPlan){ window.app.forceRefreshActionPlan(); } else { location.reload(); }" style="background:#ffffff; border:1px solid #cbd5e1; color:#2563eb; padding:2px 8px; border-radius:4px; font-size:11px; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; gap:4px; box-shadow:0 1px 2px rgba(0,0,0,0.05);">
+                🔄 刷新清单
+              </button>
             </div>
           `;
         }
