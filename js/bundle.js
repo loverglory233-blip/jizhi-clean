@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260831_v989
+ * Version: 20260831_v990
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260831_v989';
+  const APP_VERSION = '20260831_v990';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -10397,14 +10397,16 @@
       return !!(map[m.id] || map[m.studentCode] || map[m.username] || (m.name && map[m.name]));
     };
     const membersList = Object.values(state.members || {});
-    const confirmedDraftCount = membersList.filter(m => isMemberDone(confirmedDraftMap, m)).length;
-    const totalCount = membersList.length || 3;
+    const allGroupMembers = (activeGroupObj && Array.isArray(activeGroupObj.members) && activeGroupObj.members.length > 0) ? activeGroupObj.members : membersList;
+    const actualTotalCount = allGroupMembers.length > 0 ? allGroupMembers.length : (membersList.length || 2);
+    const confirmedDraftCount = allGroupMembers.filter(m => isMemberDone(confirmedDraftMap, m)).length;
     const currUserCode = state.currentUser || (currUser ? currUser.studentCode : 'A');
     const isUserDraftConfirmed = isMemberDone(confirmedDraftMap, { id: currUserCode, studentCode: currUser?.studentCode, username: currUser?.username, name: currUser?.name });
-    const isDraftFullyConfirmed = s2.isDraftConfirmed || (confirmedDraftCount >= totalCount && totalCount > 0) || (state.groupMaxStage === 'stage3') || state.isFinalSubmitted;
+    const isDraftFullyConfirmed = !!s2.isDraftConfirmed && (confirmedDraftCount >= actualTotalCount && actualTotalCount > 0);
     const meetingSubs = s2.meetingSubmissions || {};
-    const isStage2MeetingLocked = s2.isMeetingLocked || (Object.keys(meetingSubs).length >= totalCount && totalCount > 0) || isDraftFullyConfirmed;
-    const isEditorReadonly = state.isFinalSubmitted || isTaskDeadlineExpired || (state.groupMaxStage === 'stage3') || isDraftFullyConfirmed;
+    const isStage2MeetingLocked = s2.isMeetingLocked || (Object.keys(meetingSubs).length >= actualTotalCount && actualTotalCount > 0);
+    // 🛡️ 阶段二只读严格判定：仅在任务截止过期、全组最终提交答辩终稿、或当前处于回看历史阶段时才锁定为只读；阶段二进行中全员始终可正常协同编辑！
+    const isEditorReadonly = state.isFinalSubmitted || isTaskDeadlineExpired || (state.isViewingPastStage && state.groupMaxStage === 'stage3');
     const plainTextLen = (s2.unifiedContent || '').replace(/<[^>]*>/g, '').trim().length;
 
     const padName = `jizhi_${activeTaskId}_${userGroupId}`;
