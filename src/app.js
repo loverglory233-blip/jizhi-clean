@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260831_v1032";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260831_v1032";
-import { callCozeAgentAPI } from "./agents.js?v=20260831_v1032";
-import { AuthManager } from "./auth.js?v=20260831_v1032";
-import { CloudSyncEngine } from "./sync.js?v=20260831_v1032";
-import { renderLoginView } from "./login.js?v=20260831_v1032";
-import { renderTeacherPortal } from "./teacher.js?v=20260831_v1032";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260831_v1032";
+} from "./constants.js?v=20260831_v1033";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260831_v1033";
+import { callCozeAgentAPI } from "./agents.js?v=20260831_v1033";
+import { AuthManager } from "./auth.js?v=20260831_v1033";
+import { CloudSyncEngine } from "./sync.js?v=20260831_v1033";
+import { renderLoginView } from "./login.js?v=20260831_v1033";
+import { renderTeacherPortal } from "./teacher.js?v=20260831_v1033";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260831_v1033";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260831_v1032";
+} from "./editor.js?v=20260831_v1033";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -1752,10 +1752,12 @@ export class App {
         const postSecondReviewElapsedMs = secondReviewTime > 0 ? Math.max(0, now - secondReviewTime) : 0;
         const minPostReviewModCooldownMs = isLargeTask ? 900000 : 600000; // 统一 10 分钟（大任务 15 分钟）修改沉淀期
 
-        // 2. 判定三审触发条件：字数达到 85%（或成文 3000 字以上），或者组内全员完成初稿确认
+        // 2. 判定三审触发条件：
+        // 路径 A：组内成员全员完成【✍️ 确认初稿】（立即触发）；
+        // 路径 B：半程会议审稿编辑总结（二审决议）发出 10 分钟后，且正文字数达到 85%（或成文字数达标）。
         const isFullDraftConfirmed = !!s2.isDraftConfirmed;
-        const isWordMature = wordProgress >= 0.85 || plainTextLen >= (targetWordCount * 0.85) || plainTextLen >= 3000;
-        const isFinalReviewDue = isFullDraftConfirmed || isWordMature;
+        const isTimeAndWordMature = postSecondReviewElapsedMs >= minPostReviewModCooldownMs && (wordProgress >= 0.85 || plainTextLen >= (targetWordCount * 0.85) || plainTextLen >= 3000);
+        const isFinalReviewDue = isFullDraftConfirmed || (hasPassedSecondReview && isTimeAndWordMature);
         
         const hasFinalReviewInLogs = s2Chats.some(m => m && m.sender === 'reviewingEditor' && (m.text?.includes('终稿行文扫描') || m.text?.includes('终审定稿总评') || m.text?.includes('审稿编辑·终审')));
 
