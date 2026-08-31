@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260831_v1007
+ * Version: 20260831_v1008
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260831_v1007';
+  const APP_VERSION = '20260831_v1008';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -13238,6 +13238,21 @@
           const s2NudgeCooldownMs = isLargeTask ? 480000 : 360000;
           const s2SilenceThresholdMs = 180000; // 统一 3 分钟破冰
 
+          // 🛡️ 通用消息毫秒时间戳解析工具（函数提升，全局安全访问）
+          function parseMsgTime(m) {
+            if (!m) return 0;
+            if (m._timeMs && Number(m._timeMs) > 0) return Number(m._timeMs);
+            if (m.timestamp) {
+              const parts = String(m.timestamp).split(':');
+              if (parts.length >= 2) {
+                const d = new Date();
+                d.setHours(parseInt(parts[0], 10), parseInt(parts[1], 10), parseInt(parts[2] || '0', 10), 0);
+                return d.getTime();
+              }
+            }
+            return 0;
+          }
+
           // 1. 阶段二开场起草提示：开场达到 3 分钟完全静默且正文字数 < 50 字（最多2次）
           if (silenceDurationMs >= s2SilenceThresholdMs && plainTextLen < 50) {
             const count = this._nudgeCounts['s2_silence'] || 0;
@@ -13253,13 +13268,12 @@
               if (!this.state.chatLogs.stage2) this.state.chatLogs.stage2 = [];
               this.state.chatLogs.stage2.push(msg);
               this.syncChatLogs();
+              this.syncStage2();
               if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
               renderChat(this.state);
               return;
             }
           }
-
-
 
           // 2. 责任编辑过程守护：周期性读取【实际贡献百分比】与【研讨发言投入】（全场严格最多 2 次，两次间隔 >= 6分钟）
           const minContribThreshold = isLargeTask ? 600 : 300;
@@ -13314,20 +13328,6 @@
               return;
             }
           }
-          // 通用消息毫秒时间戳解析工具
-          const parseMsgTime = (m) => {
-            if (!m) return 0;
-            if (m._timeMs && Number(m._timeMs) > 0) return Number(m._timeMs);
-            if (m.timestamp) {
-              const parts = String(m.timestamp).split(':');
-              if (parts.length >= 2) {
-                const d = new Date();
-                d.setHours(parseInt(parts[0], 10), parseInt(parts[1], 10), parseInt(parts[2] || '0', 10), 0);
-                return d.getTime();
-              }
-            }
-            return 0;
-          };
 
           // ======================================================================
           // 📝 审稿编辑一审后静默跟进（严格 3 分钟冷场静默提示，全场严格仅 1 次）
