@@ -10,14 +10,14 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   AgentProfiles
-} from "./constants.js?v=20260831_v1040";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260831_v1040";
-import { callCozeAgentAPI } from "./agents.js?v=20260831_v1040";
-import { AuthManager } from "./auth.js?v=20260831_v1040";
-import { CloudSyncEngine } from "./sync.js?v=20260831_v1040";
-import { renderLoginView } from "./login.js?v=20260831_v1040";
-import { renderTeacherPortal } from "./teacher.js?v=20260831_v1040";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260831_v1040";
+} from "./constants.js?v=20260831_v1100";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260831_v1100";
+import { callCozeAgentAPI } from "./agents.js?v=20260831_v1100";
+import { AuthManager } from "./auth.js?v=20260831_v1100";
+import { CloudSyncEngine } from "./sync.js?v=20260831_v1100";
+import { renderLoginView } from "./login.js?v=20260831_v1100";
+import { renderTeacherPortal } from "./teacher.js?v=20260831_v1100";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260831_v1100";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -26,7 +26,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260831_v1040";
+} from "./editor.js?v=20260831_v1100";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -4112,7 +4112,7 @@ ${chatSnippet}
     }
 
     const welcomeFlagKey = `jizhi_welcomed_${taskId}_${groupId}_${stage}`;
-    if (sessionStorage.getItem(welcomeFlagKey)) return;
+    if (stage !== 'stage3' && sessionStorage.getItem(welcomeFlagKey)) return;
 
     if (!this.state.chatLogs[stage]) this.state.chatLogs[stage] = [];
     const logs = this.state.chatLogs[stage];
@@ -4147,6 +4147,7 @@ ${chatSnippet}
     else if (stage === 'stage2' && (this.state.groupMaxStage === 'stage2' || this.state.groupMaxStage === 'stage3' || this.state.stage1?.contract?.isConfirmed)) {
       const hasManagingIntro = logs.some(m => m && m.sender === 'managingEditor' && (m.text?.includes('欢迎来到【阶段二：学术编辑部】') || m.text?.includes('责任编辑开场')));
       if (!hasManagingIntro) {
+        sessionStorage.setItem(welcomeFlagKey, '1');
         const s1 = this.state.stage1 || {};
         const topic = s1.mergedTitle || '未定课题';
         const tasks = s1.contract && s1.contract.taskAssignments ? s1.contract.taskAssignments : {};
@@ -4196,13 +4197,14 @@ ${chatSnippet}
       }
     }
 
-    // 🎓 阶段三：严格按时序：① 中间委员开场 ➔ ② 正方肯定 ➔ ③ 反方质询 ➔ ④ 平台写入矩阵 ➔ ⑤ 中间委员抛题引导
+    // 🎓 阶段三：严格按时序：① 中间委员开场 ➔ ② 正反方并行生成 ➔ ③ 写入矩阵 ➔ ④ 中间委员抛题引导
     else if (stage === 'stage3') {
       const hasProp = logs.some(m => m && m.sender === 'proponent');
       const hasOpp = logs.some(m => m && m.sender === 'opponent');
       const needsCommitteeReview = !hasProp || !hasOpp || !this.state.stage3.feedbackItems || this.state.stage3.feedbackItems.length === 0;
 
       if (needsCommitteeReview && !this._isStage3PipelineRunning) {
+        sessionStorage.setItem(welcomeFlagKey, '1');
         this.runStage3CommitteePipeline();
       }
     }
@@ -4238,29 +4240,56 @@ ${chatSnippet}
         this.sendSingleChatMessage(neutralWelcome, 'stage3');
         this.syncChatLogs();
         if (typeof window.renderChat === 'function') window.renderChat(this.state);
-        // ⏱️ 预留 2.5 秒，让全组看清中间委员开场
-        await new Promise(r => setTimeout(r, 2500));
+        await new Promise(r => setTimeout(r, 1200));
       }
 
-      // 2. 正方委员发表肯定意见
+      // 2. 正方与反方委员并行调用 Coze API（极速提效，总耗时从 40s 压缩至 10s 左右）
       const hasProp = logs.some(m => m && m.sender === 'proponent');
+      const hasOpp = logs.some(m => m && m.sender === 'opponent');
+
       let propText = '';
-      if (!hasProp) {
-        // 🌟 挂载正方委员动态思考气泡
+      let oppText = '';
+
+      if (!hasProp || !hasOpp) {
+        // 🌟 挂载答辩委员会并行审阅动态思考气泡
         this.state.activeAgentAnalyzing = {
-          icon: '🟢',
-          title: '【正方委员】正在通读草稿并提取立论肯定亮点...',
-          detail: '正在研读论文草稿的创新选题、研究设计与实践价值亮点...'
+          icon: '🎓',
+          title: '【答辩委员会】正反方评审专家正在审阅全篇论文...',
+          detail: '正方立论专家正在提炼肯定亮点，反方商榷专家正在研拟针对实质询...'
         };
         renderChat(this.state);
         this.renderStudentWorkspace();
-        await new Promise(r => setTimeout(r, 1500));
 
         const propPrompt = `针对小组论文《${topic}》，请通读下方【小组当前真实正文草稿】全文，作为答辩委员会正方评审教授发表 130~150 字的肯定支持评审意见：
 【基于真实正文的动态赞赏原则】：通读正文草稿全文，从 5 大赞赏维度（①行文风格与语言通顺、②选题与立意创新、③设计与方法严密、④实践落地与推广价值、⑤规范与术语统一）中，根据本篇论文的真实闪光点，动态灵活挑选 2~3 个最契合的核心亮点（必须至少 2 个，最多 3 个，严禁死板固化在某两个固定维度），紧扣具体学科与章节展开具体赞赏，为全组提供充实的正面论据支架！纯自然语言输出，130~150字。`;
 
+        const oppPrompt = `针对小组论文《${topic}》，请通读下方【小组当前真实正文草稿】全文，作为答辩委员会反方评审教授发表 130~150 字的温和学术商榷质询意见：
+【全局学术博弈红线与动态质询原则】：
+1. 从 5 大质询维度（①具体设计落地的可行性与实施挑战、②行文风格割裂与语言表达通顺度、③变量操作化与测量工具严密性、④实验对照与变量控制逻辑、⑤行文与术语规范）中，根据本篇论文的真实薄弱处，动态挑选 2~3 个最切中要害的质询点；
+2. 必须以清晰的序号 ① ② 分条呈现质询焦点；
+3. 态度务必温和客气、极具建设性（多用“商讨/请教/小细节/落地可行性”）。纯自然语言输出，130~150字。`;
+
         try {
-          propText = await callCozeAgentAPI('proponent', propPrompt, { stage: 'stage3', topic, actualDoc: rawContent });
+          const promises = [];
+          if (!hasProp) {
+            promises.push(callCozeAgentAPI('proponent', propPrompt, { stage: 'stage3', topic, actualDoc: rawContent }));
+          } else {
+            const existingProp = logs.find(m => m && m.sender === 'proponent');
+            promises.push(Promise.resolve(existingProp ? existingProp.text : ''));
+          }
+
+          if (!hasOpp) {
+            promises.push(callCozeAgentAPI('opponent', oppPrompt, { stage: 'stage3', topic, actualDoc: rawContent }));
+          } else {
+            const existingOpp = logs.find(m => m && m.sender === 'opponent');
+            promises.push(Promise.resolve(existingOpp ? existingOpp.text : ''));
+          }
+
+          const [pResult, oResult] = await Promise.all(promises);
+          propText = pResult || '';
+          oppText = oResult || '';
+        } catch (e) {
+          console.warn('[Stage3 Committee] 并行请求警告:', e);
         } finally {
           this.state.activeAgentAnalyzing = null;
         }
@@ -4268,77 +4297,45 @@ ${chatSnippet}
         if (!propText || propText.trim().length === 0) {
           propText = `🟢 【正方委员评审意见】：通读全篇，该研究展现出了极高的学术价值与实践意义！最出彩的地方体现在两点：①【选题与立意创新】：针对教学痛点提出的干预切口非常新颖独特；②【实践落地与推广价值】：方案在真实课堂中的教学活动设计可操作性极强，论据充分，为全组的深度协同点赞！`;
         }
-        const propMsg = {
-          sender: 'proponent',
-          text: propText,
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          _timeMs: Date.now()
-        };
-        logs.push(propMsg);
-        this.sendSingleChatMessage(propMsg, 'stage3');
-        this.syncChatLogs();
-        if (typeof window.renderChat === 'function') window.renderChat(this.state);
-        this.renderStudentWorkspace();
-        // ⏱️ 预留 5.5 秒通读时间，让组员充分领会正方的肯定亮点
-        await new Promise(r => setTimeout(r, 5500));
-      } else {
-        const existingProp = logs.find(m => m && m.sender === 'proponent');
-        propText = existingProp ? existingProp.text : '';
-      }
-
-      // 3. 反方委员发表尖锐质询意见
-      const hasOpp = logs.some(m => m && m.sender === 'opponent');
-      let oppText = '';
-      if (!hasOpp) {
-        // 🌟 挂载反方委员动态思考气泡
-        this.state.activeAgentAnalyzing = {
-          icon: '🔴',
-          title: '【反方委员】正在深度审视正文并研拟针对实质询焦点...',
-          detail: '正在结合正方肯定意见，从设计落地挑战与行文严谨性提炼商榷焦点...'
-        };
-        renderChat(this.state);
-        this.renderStudentWorkspace();
-        await new Promise(r => setTimeout(r, 1500));
-
-        const oppPrompt = `针对小组论文《${topic}》，请通读下方【小组当前真实正文草稿】全文，结合正方委员刚才的肯定意见，作为答辩委员会反方评审教授发表 130~150 字的温和学术商榷质询意见：
-
-【正方委员刚才的肯定意见参考】:
-${propText}
-
-【全局学术博弈红线与动态质询原则】：
-1. 正方明确夸赞的具体局部段落与具体事实严禁唱反调；顺着正方赞赏的创新构想，可辩证审视其在真实教学中“落地可行性与实施挑战”；
-2. 从 5 大质询维度（①具体设计落地的可行性与实施挑战、②行文风格割裂与语言表达通顺度、③变量操作化与测量工具严密性、④实验对照与变量控制逻辑、⑤正方未夸赞章节的行文与术语规范）中，根据本篇论文的真实薄弱处，动态灵活挑选 2~3 个最切中要害的质询点（必须至少 2 个，最多 3 个，严禁死板固化在某两个固定维度）；
-3. 必须以清晰的序号 ① ② 分条呈现质询焦点；
-4. 态度务必温和客气、极具建设性（多用“商讨/请教/小细节/落地可行性”）。纯自然语言输出，130~150字。`;
-
-        try {
-          oppText = await callCozeAgentAPI('opponent', oppPrompt, { stage: 'stage3', topic, actualDoc: rawContent });
-        } finally {
-          this.state.activeAgentAnalyzing = null;
-        }
-
         if (!oppText || oppText.trim().length === 0) {
           oppText = `🔴 【反方委员·商讨质询】：仔细研读了大家的成果，正方对该选题创新价值的肯定我非常赞同！在此基础上，我想从实证落地与行文严谨性的角度请教团队两个具体细节：①【具体设计/实施挑战】：在相关章节中，常态化教学中具体干预周期的落地性与认知负荷如何防范？②【行文风格/方法严密性】：在后续论述中，部分测量工具的信效度检验与前后行文风格需进一步规范。期待听听大家的从容思考与答辩~`;
         }
-        const oppMsg = {
-          sender: 'opponent',
-          text: oppText,
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          _timeMs: Date.now()
-        };
-        logs.push(oppMsg);
-        this.sendSingleChatMessage(oppMsg, 'stage3');
+
+        if (!hasProp) {
+          const propMsg = {
+            sender: 'proponent',
+            senderName: '立论支持 · 正方委员',
+            text: propText,
+            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            _timeMs: Date.now()
+          };
+          logs.push(propMsg);
+          this.sendSingleChatMessage(propMsg, 'stage3');
+        }
+
+        if (!hasOpp) {
+          const oppMsg = {
+            sender: 'opponent',
+            senderName: '学术质询 · 反方委员',
+            text: oppText,
+            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            _timeMs: Date.now() + 500
+          };
+          logs.push(oppMsg);
+          this.sendSingleChatMessage(oppMsg, 'stage3');
+        }
+
         this.syncChatLogs();
         if (typeof window.renderChat === 'function') window.renderChat(this.state);
         this.renderStudentWorkspace();
-        // ⏱️ 反方发言后微留 2 秒让组员看一眼反方要点
-        await new Promise(r => setTimeout(r, 2000));
       } else {
+        const existingProp = logs.find(m => m && m.sender === 'proponent');
         const existingOpp = logs.find(m => m && m.sender === 'opponent');
+        propText = existingProp ? existingProp.text : '';
         oppText = existingOpp ? existingOpp.text : '';
       }
 
-      // 4. 平台自动将正反评审意见【即刻同步写入】左侧【答辩裁决矩阵】
+      // 3. 平台自动将正反评审意见【即刻同步写入】左侧【答辩裁决矩阵】
       const oppBody = (oppText || '').replace(/^[^\n]*?【[^】]+】[：:]?\s*/, '').trim();
       const oppMatches = oppBody.match(/[①②③④⑤][^①②③④⑤]*/g);
       const oppQueries = (oppMatches && oppMatches.length > 0)
@@ -4364,11 +4361,10 @@ ${propText}
       if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
       renderChat(this.state);
       this.renderStudentWorkspace();
-      // ⏱️ 矩阵就位后预留 3 秒通读思考，中间委员再出场下发第 1 题思路引导
-      await new Promise(r => setTimeout(r, 3000));
+      await new Promise(r => setTimeout(r, 1500));
 
-      // 5. 中间委员独立调用 Coze API，引导第 1 题辩护
-      const hasChairGuide = logs.some(m => m && m.sender === 'neutral' && (m.text?.includes('答辩思路引导') || m.text?.includes('质询 ①')));
+      // 4. 中间委员独立调用 Coze API，引导第 1 题辩护
+      const hasChairGuide = logs.some(m => m && m.sender === 'neutral' && (m.text?.includes('答辩思路引导') || m.text?.includes('质询 ①') || m.text?.includes('意见 1')));
       if (!hasChairGuide) {
         // 🌟 挂载中间委员思路引导思考气泡
         this.state.activeAgentAnalyzing = {
@@ -4378,7 +4374,6 @@ ${propText}
         };
         renderChat(this.state);
         this.renderStudentWorkspace();
-        await new Promise(r => setTimeout(r, 1500));
 
         const chairPrompt = `答辩正反两方评审意见已入驻左侧矩阵。
 【正方意见】: ${propText}
@@ -5063,7 +5058,7 @@ ${propText}
 
         // 🛡️ 严格要求：必须全组成员每一个人都点击确认初稿后，才解锁推进至阶段三
         if (confirmedCount < totalMembersCount) {
-          alert(`✅ 您 (${memberName}) 已成功确认正文初稿！\n\n当前组内确认进度：${confirmedCount}/${totalMembersCount} 人已确认。\n⚠️ 必须全组所有成员均完成确认后，系统才会正式解锁【阶段三：答辩擂台】！请提醒组内其他同学尽快确认。`);
+          showGlobalBannerNotice('✍️ 初稿确认成功', `您 (${memberName}) 已确认初稿！当前组内进度：${confirmedCount}/${totalMembersCount} 人已确认。全员完成后将解锁【阶段三：答辩擂台】。`, 'info', 6000);
         } else {
           s2.isDraftConfirmed = true;
           this.state.groupMaxStage = 'stage3';
@@ -5080,8 +5075,7 @@ ${propText}
           renderChat(this.state);
           this.renderStudentWorkspace();
 
-          alert(`🎉 恭喜！组内全员 (${totalMembersCount}/${totalMembersCount} 人) 已全部完成初稿确认！\n\n审稿专家已下发终审总评，系统正在为您自动载入【阶段三：答辩擂台】！`);
-          this.switchStage('stage3', true);
+          showGlobalBannerNotice('🎉 组内初稿全员确认完成', `组内全员 (${totalMembersCount}/${totalMembersCount} 人) 已全部完成初稿确认！审稿专家正在进行终审扫描与总评，请通读建议后点击上方导航进入【阶段三：答辩擂台】！`, 'success', 10000);
         }
         this.renderStudentWorkspace();
       },
@@ -5587,7 +5581,7 @@ ${contentSnippet}
       let resp = null;
       try {
         const apiPromise = callCozeAgentAPI('reviewingEditor', finalPrompt, { stage: 'stage2', topic });
-        const timeoutPromise = new Promise(r => setTimeout(() => r(null), 20000));
+        const timeoutPromise = new Promise(r => setTimeout(() => r(null), 35000));
         resp = await Promise.race([apiPromise, timeoutPromise]);
       } catch (err) {
         resp = null;

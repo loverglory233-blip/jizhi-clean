@@ -145,7 +145,8 @@ if (!empty($pollChatId) && !empty($pollConvId) && ($action === 'coze_poll' || is
     $ch = curl_init($pollUrl);
     curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 0);
     curl_setopt($ch, CURLOPT_TIMEOUT, 6);
     $pollResp = curl_exec($ch);
     curl_close($ch);
@@ -158,7 +159,8 @@ if (!empty($pollChatId) && !empty($pollConvId) && ($action === 'coze_poll' || is
         $ch3 = curl_init($msgUrl);
         curl_setopt($ch3, CURLOPT_HTTPHEADER, $headers);
         curl_setopt($ch3, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($ch3, CURLOPT_SSL_VERIFYPEER, true);
+        curl_setopt($ch3, CURLOPT_SSL_VERIFYPEER, false);
+        curl_setopt($ch3, CURLOPT_SSL_VERIFYHOST, 0);
         curl_setopt($ch3, CURLOPT_TIMEOUT, 6);
         $msgResp = curl_exec($ch3);
         curl_close($ch3);

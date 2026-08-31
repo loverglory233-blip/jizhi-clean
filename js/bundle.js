@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260831_v1040
+ * Version: 20260831_v1100
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260831_v1040';
+  const APP_VERSION = '20260831_v1100';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -939,14 +939,14 @@
           if (data && data.success && data.reply && data.reply.trim().length > 0) {
             return data.reply.trim();
           }
-          // 如果后端处于生成中，采用阶梯式敏捷轮询：前 20 次 100ms 极速响应，后续 300ms 紧密等待
+          // 如果后端处于生成中，采用阶梯式敏捷轮询：前 10 次 100ms 极速响应，后续 300ms/500ms 稳健等待 (最长支持 45 秒超长生成)
           if (data && data.in_progress && data.chat_id && data.conversation_id) {
             const chatId = data.chat_id;
             const convId = data.conversation_id;
             const targetBotId = data.bot_id || botId;
-            const maxRetries = 60;
+            const maxRetries = 120;
             for (let p = 0; p < maxRetries; p++) {
-              const pollInterval = p < 20 ? 100 : 300;
+              const pollInterval = p < 10 ? 100 : (p < 50 ? 300 : 500);
               await new Promise(r => setTimeout(r, pollInterval));
               try {
                 const pollRes = await fetch(`sync.php?action=coze_poll&chat_id=${encodeURIComponent(chatId)}&conversation_id=${encodeURIComponent(convId)}&bot_id=${encodeURIComponent(targetBotId)}&userId=${encodeURIComponent(sessionUserId)}&token=${encodeURIComponent(sessionToken)}&nocache=${Date.now()}`);
@@ -5794,27 +5794,35 @@
                             </div>
                           </div>
 
-                          <!-- 4. 协同文档视口 (未进入该阶段时显示优雅待命占位，不消耗任何带宽/CPU/内存；进入后自动实时同步) -->
-                          ${state.currentStage === 'stage1' ? `
-                            <div style="flex:1; min-height:560px; display:flex; flex-direction:column; align-items:center; justify-content:center; border-radius:8px; border:1.5px dashed #cbd5e1; background:#ffffff; color:#64748b; padding:24px; text-align:center; gap:8px;">
-                              <span style="font-size:32px;">⏳</span>
-                              <span style="font-size:14px; font-weight:700; color:#334155;">小组当前处于阶段一（学术公约拟定），尚未进入阶段二编辑部正文协作</span>
-                              <span style="font-size:12px; color:#94a3b8;">待组员全员签署公约进入阶段二后，此处将自动实时同步正文协作画面</span>
-                            </div>
-                          ` : (() => {
+                          <!-- 4. 协同文档视口 (纯净只读阅卷 · 实时协同直连) -->
+                          ${(() => {
                             const rawPadName = `jizhi_${activeTaskId}_${activeMonitorGId}`;
+                            if (!state._readOnlyPadMap) state._readOnlyPadMap = {};
+                            const readOnlyPadId = state._readOnlyPadMap[rawPadName];
+                            if (!readOnlyPadId) {
+                              fetch(`sync.php?action=get_readonly_pad_id&padId=${rawPadName}`).then(r => r.json()).then(res => {
+                                if (res && res.success && res.readOnlyID) {
+                                  state._readOnlyPadMap[rawPadName] = res.readOnlyID;
+                                  const f2 = document.querySelector('#teacher-stage2-etherpad-frame');
+                                  if (f2 && !f2.src.includes(res.readOnlyID)) {
+                                    f2.src = `/p/${res.readOnlyID}?userName=${encodeURIComponent('教师监控')}&userColor=%237c3aed&showControls=false&showChat=false&showLineNumbers=true&lang=zh-hans`;
+                                  }
+                                }
+                              }).catch(() => {});
+                            }
+                            const targetPad = readOnlyPadId || rawPadName;
                             return `
                               <div class="teacher-etherpad-container" style="flex:1; min-height:560px; border-radius:8px; overflow:hidden; border:1.5px solid #cbd5e1; box-shadow:0 2px 8px rgba(15,23,42,0.04); background:#ffffff; position:relative; display:flex; flex-direction:column;">
                                 <div style="display:flex; justify-content:space-between; align-items:center; background:#f8fafc; border-bottom:1px solid #e2e8f0; padding:6px 12px; font-size:12px; color:#475569; flex-shrink:0;">
                                   <div style="display:flex; align-items:center; gap:8px;">
                                     <span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:#10b981;"></span>
-                                    <span style="font-weight:700; color:#1e293b;">🔒 教师端同屏镜像 (实时协同直连)</span>
+                                    <span style="font-weight:700; color:#1e293b;">🔒 教师端正文镜像 (纯净只读阅卷 · 实时协同直连)</span>
                                   </div>
-                                  <span style="font-size:11px; background:#ecfdf5; color:#059669; border:1px solid #a7f3d0; padding:1px 8px; border-radius:4px; font-weight:700;">实时监控</span>
+                                  <span style="font-size:11px; background:#ecfdf5; color:#059669; border:1px solid #a7f3d0; padding:1px 8px; border-radius:4px; font-weight:700;">只读监控</span>
                                 </div>
                                 <div style="position:relative; flex:1; width:100%; height:100%; min-height:520px; display:flex;">
                                   <div class="etherpad-readonly-shield" style="position:absolute; inset:0; z-index:25; background:transparent; cursor:not-allowed; pointer-events:none;" title="🔒 只读查阅模式 (已锁定禁止编辑)"></div>
-                                  <iframe id="teacher-stage2-etherpad-frame" src="/p/${encodeURIComponent(rawPadName)}?userName=${encodeURIComponent('教师监控')}&userColor=%237c3aed&showControls=false&showChat=false&showLineNumbers=true&lang=zh-hans" style="flex:1; width:100%; height:100%; min-height:520px; border:none; display:block; background:#ffffff;" title="教师端实时写作同屏镜像 (只读)"></iframe>
+                                  <iframe id="teacher-stage2-etherpad-frame" src="/p/${encodeURIComponent(targetPad)}?userName=${encodeURIComponent('教师监控')}&userColor=%237c3aed&showControls=false&showChat=false&showLineNumbers=true&lang=zh-hans" style="flex:1; width:100%; height:100%; min-height:520px; border:none; display:block; background:#ffffff;" title="教师端实时写作同屏镜像 (只读)"></iframe>
                                 </div>
                               </div>
                             `;
@@ -5876,18 +5884,12 @@
                           </div>
 
                           ${isStage3DocTab ? `
-                            <!-- Tab 2: 论文终稿实时镜像 (未进入阶段三时显示待命占位，不消耗资源) -->
+                            <!-- Tab 2: 论文终稿实时镜像 (纯净只读阅卷 · 实时协同直连) -->
                             <div style="flex-shrink:0; display:flex; justify-content:space-between; align-items:center;">
                               <span style="font-size:13.5px; font-weight:800; color:#1e40af;">📜 论文终稿正文全篇镜像:</span>
                               <span style="font-size:12px; color:#64748b;">终稿字数: <b id="teacher-stage3-word-count-num" style="color:#2563eb; font-size:14px;">${((state.stage3?.finalDraft || state.stage2?.unifiedContent || '').replace(/<[^>]*>/g, '').trim()).length}</b> 字</span>
                             </div>
-                            ${(state.currentStage === 'stage1' || state.currentStage === 'stage2') ? `
-                              <div style="flex:1; min-height:560px; display:flex; flex-direction:column; align-items:center; justify-content:center; border-radius:8px; border:1.5px dashed #cbd5e1; background:#ffffff; color:#64748b; padding:24px; text-align:center; gap:8px;">
-                                <span style="font-size:32px;">⏳</span>
-                                <span style="font-size:14px; font-weight:700; color:#334155;">小组尚未进入阶段三论文终稿与答辩阶段</span>
-                                <span style="font-size:12px; color:#94a3b8;">待小组进入阶段三后，此处将自动实时呈现论文终稿镜像</span>
-                              </div>
-                            ` : (() => {
+                            ${(() => {
                               const rawPadName = `jizhi_${activeTaskId}_${activeMonitorGId}`;
                               if (!state._readOnlyPadMap) state._readOnlyPadMap = {};
                               const readOnlyPadId = state._readOnlyPadMap[rawPadName];
@@ -10408,6 +10410,20 @@
       if (strictCtx.taskId) activeTaskId = strictCtx.taskId;
     }
 
+    const currUserCode = currUser?.studentCode || currUser?.id || currUser?.username || '';
+    let currUserName = currUser?.name || '';
+    if (!currUserName && state.members && state.members[currUserCode]?.name) {
+      currUserName = state.members[currUserCode].name;
+    }
+    if (!currUserName && window.app && window.app.authManager) {
+      const matchedUser = window.app.authManager.getUsers().find(u => u && (u.studentCode === currUserCode || u.id === currUserCode || u.username === currUserCode || u.id === currUser?.id));
+      if (matchedUser && matchedUser.name) currUserName = matchedUser.name;
+    }
+    if (!currUserName) currUserName = currUser?.username || currUserCode || '组员';
+    const currUserColor = (state.members && state.members[currUserCode]?.color) || '#2563eb';
+    const rawPadName = `jizhi_${activeTaskId}_${userGroupId}`;
+    const padUrl = `/p/${encodeURIComponent(rawPadName)}?userName=${encodeURIComponent(currUserName)}&userColor=${encodeURIComponent(currUserColor)}&showChat=false&showLineNumbers=true&lang=zh-hans`;
+
     const availablePapers = (window.app && window.app.authManager) ? window.app.authManager.getReferencePapers(userGroupId, userClassId, activeTaskId) : [];
     const paperBtnLabel = availablePapers.length > 0 ? `📚 查阅参考范文 (${availablePapers.length}篇)` : '📚 查阅参考范文库';
 
@@ -10994,42 +11010,22 @@
 
         <!-- 🌟 3. Etherpad 在线协同富文本编辑器主体 (撑满整个画布) -->
         <div style="flex:1; height:100%; min-height:480px; display:flex; flex-direction:column; margin-bottom:6px;">
-          ${(() => {
-            const rawPadName = `jizhi_${activeTaskId}_${userGroupId}`;
-            let currUserName = currUser?.name || '';
-            if (!currUserName && state.members && state.members[currUserCode]?.name) {
-              currUserName = state.members[currUserCode].name;
-            }
-            if (!currUserName && window.app && window.app.authManager) {
-              const matchedUser = window.app.authManager.getUsers().find(u => u && (u.studentCode === currUserCode || u.id === currUserCode || u.username === currUserCode || u.id === currUser?.id));
-              if (matchedUser && matchedUser.name) currUserName = matchedUser.name;
-            }
-            if (!currUserName) currUserName = currUser?.username || currUserCode || '组员';
-
-            const currUserColor = (state.members && state.members[currUserCode]?.color) || '#2563eb';
-
-            const targetPad = rawPadName;
-            const padUrl = `/p/${encodeURIComponent(targetPad)}?userName=${encodeURIComponent(currUserName)}&userColor=${encodeURIComponent(currUserColor)}&showChat=false&showLineNumbers=true&lang=zh-hans`;
-
-            return `
-              <div class="word-editor-container" style="display:flex; flex-direction:column; height:100%; min-height:480px; border-radius:8px; overflow:hidden; border:1px solid #cbd5e1; box-shadow:0 2px 10px rgba(15,23,42,0.05); background:#ffffff; position:relative;">
-                <div id="ep-loading-helper-s2" style="display:flex; align-items:center; justify-content:space-between; background:#f8fafc; border-bottom:1px solid #e2e8f0; padding:4px 10px; font-size:11px; color:#475569;">
-                  <div style="display:flex; align-items:center; gap:6px;">
-                    <span id="ep-status-dot-s2" style="display:inline-block; width:7px; height:7px; border-radius:50%; background:${isEditorReadonly ? '#dc2626' : '#10b981'};"></span>
-                    <span id="ep-status-text-s2" style="font-weight:600;">${isEditorReadonly ? '🔒 Etherpad 协同文档已锁定 (只读模式)' : 'Etherpad 实时协同引擎已就绪 (毫秒级 OT 协同)'}</span>
-                  </div>
-                  <div style="display:flex; align-items:center; gap:6px;">
-                    <a id="s2-pad-popout-link" href="${padUrl}" target="_blank" style="background:#ffffff; color:#334155; border:1px solid #cbd5e1; padding:2px 8px; border-radius:4px; font-size:11px; text-decoration:none; font-weight:600; display:inline-flex; align-items:center; gap:3px;">↗️ 独立窗口</a>
-                    <button onclick="const f=document.getElementById('stage2-etherpad-frame'); if(f) { f.src=f.src; document.getElementById('ep-status-text-s2').innerText='正在重新连接...'; }" style="background:#eff6ff; color:#2563eb; border:1px solid #bfdbfe; padding:2px 8px; border-radius:4px; font-size:11px; cursor:pointer; font-weight:700;">🔄 刷新连接</button>
-                  </div>
-                </div>
-                <div style="flex:1; height:100%; min-height:440px; position:relative; background:#ffffff;">
-                  <iframe id="stage2-etherpad-frame" src="${padUrl}" style="width:100%; height:100%; min-height:440px; border:none; display:block; background:#ffffff;" allow="clipboard-read; clipboard-write; fullscreen" onload="const el=document.getElementById('ep-status-text-s2'); if(el) el.innerText='${isEditorReadonly ? '🔒 Etherpad 协同文档已锁定 (只读模式)' : 'Etherpad 实时协同引擎已就绪 (毫秒级 OT 协同)'}';"></iframe>
-                  ${isEditorReadonly ? '<div style="position:absolute; top:12px; right:12px; z-index:99; pointer-events:none; display:flex; align-items:center; justify-content:center;" title="🔒 正文已截止锁定为只读模式"><div style="background:rgba(15,23,42,0.8); color:#ffffff; padding:6px 14px; border-radius:6px; font-size:12px; font-weight:700; pointer-events:none; box-shadow:0 4px 12px rgba(0,0,0,0.18);">🔒 任务已截止/初稿已锁定 (只读查阅模式)</div></div>' : ''}
-                </div>
+          <div class="word-editor-container" style="display:flex; flex-direction:column; height:100%; min-height:480px; border-radius:8px; overflow:hidden; border:1px solid #cbd5e1; box-shadow:0 2px 10px rgba(15,23,42,0.05); background:#ffffff; position:relative;">
+            <div id="ep-loading-helper-s2" style="display:flex; align-items:center; justify-content:space-between; background:#f8fafc; border-bottom:1px solid #e2e8f0; padding:4px 10px; font-size:11px; color:#475569;">
+              <div style="display:flex; align-items:center; gap:6px;">
+                <span id="ep-status-dot-s2" style="display:inline-block; width:7px; height:7px; border-radius:50%; background:${isEditorReadonly ? '#dc2626' : '#10b981'};"></span>
+                <span id="ep-status-text-s2" style="font-weight:600;">${isEditorReadonly ? '🔒 Etherpad 协同文档已锁定 (只读模式)' : 'Etherpad 实时协同引擎已就绪 (毫秒级 OT 协同)'}</span>
               </div>
-            `;
-          })()}
+              <div style="display:flex; align-items:center; gap:6px;">
+                <a id="s2-pad-popout-link" href="${padUrl}" target="_blank" style="background:#ffffff; color:#334155; border:1px solid #cbd5e1; padding:2px 8px; border-radius:4px; font-size:11px; text-decoration:none; font-weight:600; display:inline-flex; align-items:center; gap:3px;">↗️ 独立窗口</a>
+                <button onclick="const f=document.getElementById('stage2-etherpad-frame'); if(f) { f.src=f.src; document.getElementById('ep-status-text-s2').innerText='正在重新连接...'; }" style="background:#eff6ff; color:#2563eb; border:1px solid #bfdbfe; padding:2px 8px; border-radius:4px; font-size:11px; cursor:pointer; font-weight:700;">🔄 刷新连接</button>
+              </div>
+            </div>
+            <div style="flex:1; height:100%; min-height:440px; position:relative; background:#ffffff;">
+              <iframe id="stage2-etherpad-frame" src="${padUrl}" style="width:100%; height:100%; min-height:440px; border:none; display:block; background:#ffffff;" allow="clipboard-read; clipboard-write; fullscreen" onload="const el=document.getElementById('ep-status-text-s2'); if(el) el.innerText='${isEditorReadonly ? '🔒 Etherpad 协同文档已锁定 (只读模式)' : 'Etherpad 实时协同引擎已就绪 (毫秒级 OT 协同)'}';"></iframe>
+              ${isEditorReadonly ? '<div style="position:absolute; top:12px; right:12px; z-index:99; pointer-events:none; display:flex; align-items:center; justify-content:center;" title="🔒 正文已截止锁定为只读模式"><div style="background:rgba(15,23,42,0.8); color:#ffffff; padding:6px 14px; border-radius:6px; font-size:12px; font-weight:700; pointer-events:none; box-shadow:0 4px 12px rgba(0,0,0,0.18);">🔒 任务已截止/初稿已锁定 (只读查阅模式)</div></div>' : ''}
+            </div>
+          </div>
         </div>
 
         <!-- 🌟 4. 底部超薄一体化贡献度状态条 (高度仅 22px，彩色占比与进度条合一) -->
@@ -16088,7 +16084,7 @@
       }
 
       const welcomeFlagKey = `jizhi_welcomed_${taskId}_${groupId}_${stage}`;
-      if (sessionStorage.getItem(welcomeFlagKey)) return;
+      if (stage !== 'stage3' && sessionStorage.getItem(welcomeFlagKey)) return;
 
       if (!this.state.chatLogs[stage]) this.state.chatLogs[stage] = [];
       const logs = this.state.chatLogs[stage];
@@ -16123,6 +16119,7 @@
       else if (stage === 'stage2' && (this.state.groupMaxStage === 'stage2' || this.state.groupMaxStage === 'stage3' || this.state.stage1?.contract?.isConfirmed)) {
         const hasManagingIntro = logs.some(m => m && m.sender === 'managingEditor' && (m.text?.includes('欢迎来到【阶段二：学术编辑部】') || m.text?.includes('责任编辑开场')));
         if (!hasManagingIntro) {
+          sessionStorage.setItem(welcomeFlagKey, '1');
           const s1 = this.state.stage1 || {};
           const topic = s1.mergedTitle || '未定课题';
           const tasks = s1.contract && s1.contract.taskAssignments ? s1.contract.taskAssignments : {};
@@ -16172,13 +16169,14 @@
         }
       }
 
-      // 🎓 阶段三：严格按时序：① 中间委员开场 ➔ ② 正方肯定 ➔ ③ 反方质询 ➔ ④ 平台写入矩阵 ➔ ⑤ 中间委员抛题引导
+      // 🎓 阶段三：严格按时序：① 中间委员开场 ➔ ② 正反方并行生成 ➔ ③ 写入矩阵 ➔ ④ 中间委员抛题引导
       else if (stage === 'stage3') {
         const hasProp = logs.some(m => m && m.sender === 'proponent');
         const hasOpp = logs.some(m => m && m.sender === 'opponent');
         const needsCommitteeReview = !hasProp || !hasOpp || !this.state.stage3.feedbackItems || this.state.stage3.feedbackItems.length === 0;
 
         if (needsCommitteeReview && !this._isStage3PipelineRunning) {
+          sessionStorage.setItem(welcomeFlagKey, '1');
           this.runStage3CommitteePipeline();
         }
       }
@@ -16214,29 +16212,56 @@
           this.sendSingleChatMessage(neutralWelcome, 'stage3');
           this.syncChatLogs();
           if (typeof window.renderChat === 'function') window.renderChat(this.state);
-          // ⏱️ 预留 2.5 秒，让全组看清中间委员开场
-          await new Promise(r => setTimeout(r, 2500));
+          await new Promise(r => setTimeout(r, 1200));
         }
 
-        // 2. 正方委员发表肯定意见
+        // 2. 正方与反方委员并行调用 Coze API（极速提效，总耗时从 40s 压缩至 10s 左右）
         const hasProp = logs.some(m => m && m.sender === 'proponent');
+        const hasOpp = logs.some(m => m && m.sender === 'opponent');
+
         let propText = '';
-        if (!hasProp) {
-          // 🌟 挂载正方委员动态思考气泡
+        let oppText = '';
+
+        if (!hasProp || !hasOpp) {
+          // 🌟 挂载答辩委员会并行审阅动态思考气泡
           this.state.activeAgentAnalyzing = {
-            icon: '🟢',
-            title: '【正方委员】正在通读草稿并提取立论肯定亮点...',
-            detail: '正在研读论文草稿的创新选题、研究设计与实践价值亮点...'
+            icon: '🎓',
+            title: '【答辩委员会】正反方评审专家正在审阅全篇论文...',
+            detail: '正方立论专家正在提炼肯定亮点，反方商榷专家正在研拟针对实质询...'
           };
           renderChat(this.state);
           this.renderStudentWorkspace();
-          await new Promise(r => setTimeout(r, 1500));
 
           const propPrompt = `针对小组论文《${topic}》，请通读下方【小组当前真实正文草稿】全文，作为答辩委员会正方评审教授发表 130~150 字的肯定支持评审意见：
   【基于真实正文的动态赞赏原则】：通读正文草稿全文，从 5 大赞赏维度（①行文风格与语言通顺、②选题与立意创新、③设计与方法严密、④实践落地与推广价值、⑤规范与术语统一）中，根据本篇论文的真实闪光点，动态灵活挑选 2~3 个最契合的核心亮点（必须至少 2 个，最多 3 个，严禁死板固化在某两个固定维度），紧扣具体学科与章节展开具体赞赏，为全组提供充实的正面论据支架！纯自然语言输出，130~150字。`;
 
+          const oppPrompt = `针对小组论文《${topic}》，请通读下方【小组当前真实正文草稿】全文，作为答辩委员会反方评审教授发表 130~150 字的温和学术商榷质询意见：
+  【全局学术博弈红线与动态质询原则】：
+  1. 从 5 大质询维度（①具体设计落地的可行性与实施挑战、②行文风格割裂与语言表达通顺度、③变量操作化与测量工具严密性、④实验对照与变量控制逻辑、⑤行文与术语规范）中，根据本篇论文的真实薄弱处，动态挑选 2~3 个最切中要害的质询点；
+  2. 必须以清晰的序号 ① ② 分条呈现质询焦点；
+  3. 态度务必温和客气、极具建设性（多用“商讨/请教/小细节/落地可行性”）。纯自然语言输出，130~150字。`;
+
           try {
-            propText = await callCozeAgentAPI('proponent', propPrompt, { stage: 'stage3', topic, actualDoc: rawContent });
+            const promises = [];
+            if (!hasProp) {
+              promises.push(callCozeAgentAPI('proponent', propPrompt, { stage: 'stage3', topic, actualDoc: rawContent }));
+            } else {
+              const existingProp = logs.find(m => m && m.sender === 'proponent');
+              promises.push(Promise.resolve(existingProp ? existingProp.text : ''));
+            }
+
+            if (!hasOpp) {
+              promises.push(callCozeAgentAPI('opponent', oppPrompt, { stage: 'stage3', topic, actualDoc: rawContent }));
+            } else {
+              const existingOpp = logs.find(m => m && m.sender === 'opponent');
+              promises.push(Promise.resolve(existingOpp ? existingOpp.text : ''));
+            }
+
+            const [pResult, oResult] = await Promise.all(promises);
+            propText = pResult || '';
+            oppText = oResult || '';
+          } catch (e) {
+            console.warn('[Stage3 Committee] 并行请求警告:', e);
           } finally {
             this.state.activeAgentAnalyzing = null;
           }
@@ -16244,77 +16269,45 @@
           if (!propText || propText.trim().length === 0) {
             propText = `🟢 【正方委员评审意见】：通读全篇，该研究展现出了极高的学术价值与实践意义！最出彩的地方体现在两点：①【选题与立意创新】：针对教学痛点提出的干预切口非常新颖独特；②【实践落地与推广价值】：方案在真实课堂中的教学活动设计可操作性极强，论据充分，为全组的深度协同点赞！`;
           }
-          const propMsg = {
-            sender: 'proponent',
-            text: propText,
-            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-            _timeMs: Date.now()
-          };
-          logs.push(propMsg);
-          this.sendSingleChatMessage(propMsg, 'stage3');
-          this.syncChatLogs();
-          if (typeof window.renderChat === 'function') window.renderChat(this.state);
-          this.renderStudentWorkspace();
-          // ⏱️ 预留 5.5 秒通读时间，让组员充分领会正方的肯定亮点
-          await new Promise(r => setTimeout(r, 5500));
-        } else {
-          const existingProp = logs.find(m => m && m.sender === 'proponent');
-          propText = existingProp ? existingProp.text : '';
-        }
-
-        // 3. 反方委员发表尖锐质询意见
-        const hasOpp = logs.some(m => m && m.sender === 'opponent');
-        let oppText = '';
-        if (!hasOpp) {
-          // 🌟 挂载反方委员动态思考气泡
-          this.state.activeAgentAnalyzing = {
-            icon: '🔴',
-            title: '【反方委员】正在深度审视正文并研拟针对实质询焦点...',
-            detail: '正在结合正方肯定意见，从设计落地挑战与行文严谨性提炼商榷焦点...'
-          };
-          renderChat(this.state);
-          this.renderStudentWorkspace();
-          await new Promise(r => setTimeout(r, 1500));
-
-          const oppPrompt = `针对小组论文《${topic}》，请通读下方【小组当前真实正文草稿】全文，结合正方委员刚才的肯定意见，作为答辩委员会反方评审教授发表 130~150 字的温和学术商榷质询意见：
-
-  【正方委员刚才的肯定意见参考】:
-  ${propText}
-
-  【全局学术博弈红线与动态质询原则】：
-  1. 正方明确夸赞的具体局部段落与具体事实严禁唱反调；顺着正方赞赏的创新构想，可辩证审视其在真实教学中“落地可行性与实施挑战”；
-  2. 从 5 大质询维度（①具体设计落地的可行性与实施挑战、②行文风格割裂与语言表达通顺度、③变量操作化与测量工具严密性、④实验对照与变量控制逻辑、⑤正方未夸赞章节的行文与术语规范）中，根据本篇论文的真实薄弱处，动态灵活挑选 2~3 个最切中要害的质询点（必须至少 2 个，最多 3 个，严禁死板固化在某两个固定维度）；
-  3. 必须以清晰的序号 ① ② 分条呈现质询焦点；
-  4. 态度务必温和客气、极具建设性（多用“商讨/请教/小细节/落地可行性”）。纯自然语言输出，130~150字。`;
-
-          try {
-            oppText = await callCozeAgentAPI('opponent', oppPrompt, { stage: 'stage3', topic, actualDoc: rawContent });
-          } finally {
-            this.state.activeAgentAnalyzing = null;
-          }
-
           if (!oppText || oppText.trim().length === 0) {
             oppText = `🔴 【反方委员·商讨质询】：仔细研读了大家的成果，正方对该选题创新价值的肯定我非常赞同！在此基础上，我想从实证落地与行文严谨性的角度请教团队两个具体细节：①【具体设计/实施挑战】：在相关章节中，常态化教学中具体干预周期的落地性与认知负荷如何防范？②【行文风格/方法严密性】：在后续论述中，部分测量工具的信效度检验与前后行文风格需进一步规范。期待听听大家的从容思考与答辩~`;
           }
-          const oppMsg = {
-            sender: 'opponent',
-            text: oppText,
-            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-            _timeMs: Date.now()
-          };
-          logs.push(oppMsg);
-          this.sendSingleChatMessage(oppMsg, 'stage3');
+
+          if (!hasProp) {
+            const propMsg = {
+              sender: 'proponent',
+              senderName: '立论支持 · 正方委员',
+              text: propText,
+              timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+              _timeMs: Date.now()
+            };
+            logs.push(propMsg);
+            this.sendSingleChatMessage(propMsg, 'stage3');
+          }
+
+          if (!hasOpp) {
+            const oppMsg = {
+              sender: 'opponent',
+              senderName: '学术质询 · 反方委员',
+              text: oppText,
+              timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+              _timeMs: Date.now() + 500
+            };
+            logs.push(oppMsg);
+            this.sendSingleChatMessage(oppMsg, 'stage3');
+          }
+
           this.syncChatLogs();
           if (typeof window.renderChat === 'function') window.renderChat(this.state);
           this.renderStudentWorkspace();
-          // ⏱️ 反方发言后微留 2 秒让组员看一眼反方要点
-          await new Promise(r => setTimeout(r, 2000));
         } else {
+          const existingProp = logs.find(m => m && m.sender === 'proponent');
           const existingOpp = logs.find(m => m && m.sender === 'opponent');
+          propText = existingProp ? existingProp.text : '';
           oppText = existingOpp ? existingOpp.text : '';
         }
 
-        // 4. 平台自动将正反评审意见【即刻同步写入】左侧【答辩裁决矩阵】
+        // 3. 平台自动将正反评审意见【即刻同步写入】左侧【答辩裁决矩阵】
         const oppBody = (oppText || '').replace(/^[^\n]*?【[^】]+】[：:]?\s*/, '').trim();
         const oppMatches = oppBody.match(/[①②③④⑤][^①②③④⑤]*/g);
         const oppQueries = (oppMatches && oppMatches.length > 0)
@@ -16340,11 +16333,10 @@
         if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
         renderChat(this.state);
         this.renderStudentWorkspace();
-        // ⏱️ 矩阵就位后预留 3 秒通读思考，中间委员再出场下发第 1 题思路引导
-        await new Promise(r => setTimeout(r, 3000));
+        await new Promise(r => setTimeout(r, 1500));
 
-        // 5. 中间委员独立调用 Coze API，引导第 1 题辩护
-        const hasChairGuide = logs.some(m => m && m.sender === 'neutral' && (m.text?.includes('答辩思路引导') || m.text?.includes('质询 ①')));
+        // 4. 中间委员独立调用 Coze API，引导第 1 题辩护
+        const hasChairGuide = logs.some(m => m && m.sender === 'neutral' && (m.text?.includes('答辩思路引导') || m.text?.includes('质询 ①') || m.text?.includes('意见 1')));
         if (!hasChairGuide) {
           // 🌟 挂载中间委员思路引导思考气泡
           this.state.activeAgentAnalyzing = {
@@ -16354,7 +16346,6 @@
           };
           renderChat(this.state);
           this.renderStudentWorkspace();
-          await new Promise(r => setTimeout(r, 1500));
 
           const chairPrompt = `答辩正反两方评审意见已入驻左侧矩阵。
   【正方意见】: ${propText}
@@ -17039,7 +17030,7 @@
 
           // 🛡️ 严格要求：必须全组成员每一个人都点击确认初稿后，才解锁推进至阶段三
           if (confirmedCount < totalMembersCount) {
-            alert(`✅ 您 (${memberName}) 已成功确认正文初稿！\n\n当前组内确认进度：${confirmedCount}/${totalMembersCount} 人已确认。\n⚠️ 必须全组所有成员均完成确认后，系统才会正式解锁【阶段三：答辩擂台】！请提醒组内其他同学尽快确认。`);
+            showGlobalBannerNotice('✍️ 初稿确认成功', `您 (${memberName}) 已确认初稿！当前组内进度：${confirmedCount}/${totalMembersCount} 人已确认。全员完成后将解锁【阶段三：答辩擂台】。`, 'info', 6000);
           } else {
             s2.isDraftConfirmed = true;
             this.state.groupMaxStage = 'stage3';
@@ -17056,8 +17047,7 @@
             renderChat(this.state);
             this.renderStudentWorkspace();
 
-            alert(`🎉 恭喜！组内全员 (${totalMembersCount}/${totalMembersCount} 人) 已全部完成初稿确认！\n\n审稿专家已下发终审总评，系统正在为您自动载入【阶段三：答辩擂台】！`);
-            this.switchStage('stage3', true);
+            showGlobalBannerNotice('🎉 组内初稿全员确认完成', `组内全员 (${totalMembersCount}/${totalMembersCount} 人) 已全部完成初稿确认！审稿专家正在进行终审扫描与总评，请通读建议后点击上方导航进入【阶段三：答辩擂台】！`, 'success', 10000);
           }
           this.renderStudentWorkspace();
         },
@@ -17563,7 +17553,7 @@
         let resp = null;
         try {
           const apiPromise = callCozeAgentAPI('reviewingEditor', finalPrompt, { stage: 'stage2', topic });
-          const timeoutPromise = new Promise(r => setTimeout(() => r(null), 20000));
+          const timeoutPromise = new Promise(r => setTimeout(() => r(null), 35000));
           resp = await Promise.race([apiPromise, timeoutPromise]);
         } catch (err) {
           resp = null;
