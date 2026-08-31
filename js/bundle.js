@@ -1876,34 +1876,38 @@
       return { id: `group_unassigned_${safeUserKey}`, name: '未分组（待教师分配）' };
     }
 
-    // 🛡️ 严格解析学生当前上下文（班级/小组/成员/任务）。
+    // 🛡️ 智能且严谨的学生当前上下文解析器（班级/小组/成员/任务）。
+    // 确保真实存在的班级（含默认班级如 class_101）与真实分配的小组（含 group_1）正常通行；仅在真正未登录或未分配小组时才阻断。
     resolveStudentActiveContext(user, { classId = null, taskId = null } = {}) {
       if (!user) {
         return { ok: false, reason: '当前会话未登录或已过期，请重新登录后再操作' };
       }
 
-      // 1) 班级：支持显式传入 classId 或依据用户与任务动态解析
+      // 1) 班级解析
       const classes = this.getClasses();
       if (!Array.isArray(classes) || classes.length === 0) {
         return { ok: false, reason: '当前没有可用教学班级，请联系教师创建班级后再进入' };
       }
       const effectiveClassId = classId || this.getEffectiveStudentClassId(user, taskId);
-      const activeClass = classes.find(c => c.id === effectiveClassId) || (classes.length > 0 ? classes[0] : null);
+      const activeClass = classes.find(c => c.id === effectiveClassId) || classes[0];
       if (!activeClass) {
         return { ok: false, reason: '无法解析你所在的班级，请联系教师确认分班后刷新重试' };
       }
 
-      // 2) 小组：确保学生已被分配到具体有效小组（非未分配占位符）
+      // 2) 小组解析
       const group = this.getStudentActiveGroup(user, activeClass.id);
       if (!group || !group.id || group.id.startsWith('group_unassigned_')) {
         return { ok: false, reason: '你尚未被分配到协作小组，请联系教师分配后再进入正文写作' };
       }
 
-      // 3) 任务
+      // 3) 任务解析
       let activeTask = null;
+      const tasks = this.getTasks();
       if (taskId) {
-        const tasks = this.getTasks();
         activeTask = tasks.find(t => t.id === taskId) || null;
+      }
+      if (!activeTask && tasks.length > 0) {
+        activeTask = tasks[0];
       }
 
       // 4) 成员 = 当前登录用户本身
@@ -1915,7 +1919,7 @@
         task: activeTask,
         classId: activeClass.id,
         groupId: group.id,
-        taskId: activeTask ? activeTask.id : (taskId || null)
+        taskId: activeTask ? activeTask.id : null
       };
     }
 
