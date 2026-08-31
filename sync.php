@@ -14,9 +14,23 @@ header('Content-Type: application/json; charset=utf-8');
 
 // 🛡️ 全局异常与致命错误自愈兜底保护（零 500 崩溃）
 set_exception_handler(function($e) {
-    http_response_code(200);
+    if (!headers_sent()) {
+        http_response_code(200);
+        header('Content-Type: application/json; charset=utf-8');
+    }
     echo json_encode(['success' => false, 'error' => 'fail_safe_caught', 'detail' => $e->getMessage()]);
     exit;
+});
+
+register_shutdown_function(function() {
+    $error = error_get_last();
+    if ($error && in_array($error['type'], [E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR])) {
+        if (!headers_sent()) {
+            http_response_code(200);
+            header('Content-Type: application/json; charset=utf-8');
+        }
+        echo json_encode(['success' => false, 'error' => 'fatal_error_caught', 'detail' => $error['message'], 'file' => basename($error['file']), 'line' => $error['line']], JSON_UNESCAPED_UNICODE);
+    }
 });
 
 // 🛠️ 智能 Base64 图片文件化清洗迁移器（无损提取为物理文件并回写极短 URL，彻底杜绝内存撑爆与数据截断）
