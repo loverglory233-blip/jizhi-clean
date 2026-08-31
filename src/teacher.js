@@ -10,8 +10,8 @@ import {
   STORAGE_KEY_USERS_DB,
   TASK_GENRE_CONFIGS,
   AgentProfiles
-} from "./constants.js?v=20260901_v1118";
-import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, showGlobalBannerNotice } from "./utils.js?v=20260901_v1118";
+} from "./constants.js?v=20260901_v1119";
+import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, showGlobalBannerNotice } from "./utils.js?v=20260901_v1119";
 
 /* ==========================================================================
    7. TEACHER PORTAL RENDERER (LIVE WORKSPACE MIRROR & ANNOUNCEMENT READ MATRIX)
@@ -2957,14 +2957,13 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
             </div>
 
             <div class="teacher-form-group" style="margin-top:8px;">
-              <label><span class="req">*</span> 📝 任务写作文体类型 (决定智能体诊断口径与公约模块)</label>
+              <label><span class="req">*</span> 📝 任务写作文体类型 (决定智能体质检标准与公约章节)</label>
               <select id="modal-task-type" class="teacher-input fancy" style="font-weight:700; background:#ffffff; cursor:pointer;">
-                <option value="experiment" selected>🧪 实证实验方案 (研究假设、变量控制、实验设计、数据工具)</option>
-                <option value="instructional">📐 教学设计方案 (学情分析、教学目标、活动设计、技术融合、评价)</option>
-                <option value="history">📜 教育技术发展史与理论综述 (历史分期、范式流变、案例分析、未来启示)</option>
+                <option value="experiment" selected>🧪 实证研究方案 (研究假设、变量控制、实验设计、数据测量)</option>
+                <option value="instructional">📐 教学设计方案 (教材学情、教学目标重难点、探究过程、评价反思)</option>
               </select>
               <div id="modal-task-type-tip" style="font-size:11.5px; color:#2563eb; margin-top:4px; line-height:1.4; background:#eff6ff; padding:6px 10px; border-radius:6px; border:1px solid #bfdbfe;">
-                💡 智能体将采用【实证研究方法与实验设计】学术口径，重点质询变量操作化、对照严密性与测量信效度。
+                💡 智能体将采用【实证研究方法与实验设计】学术口径，由责任编辑与审稿编辑展开破题、半程质检与答辩质询。
               </div>
             </div>
 
@@ -3006,11 +3005,9 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
         typeSelect.addEventListener('change', () => {
           const v = typeSelect.value;
           if (v === 'instructional') {
-            typeTip.innerHTML = '💡 智能体将采用【教学设计与课程教学论】学术口径，重点质询教学目标-活动一致性、TPACK技术融合度与认知负荷。';
-          } else if (v === 'history') {
-            typeTip.innerHTML = '💡 智能体将采用【教育技术史与学术史】学术口径，重点质询历史分期标准、理论范式更迭深度与当下AI启示。';
+            typeTip.innerHTML = '💡 智能体将采用【特级教师与教研专家】教学设计口径，由备课组长与教研专家展开备课磨课、半程质检与答辩评审。';
           } else {
-            typeTip.innerHTML = '💡 智能体将采用【实证研究方法与实验设计】学术口径，重点质询变量操作化、对照严密性与测量信效度。';
+            typeTip.innerHTML = '💡 智能体将采用【实证研究方法与实验设计】学术口径，由责任编辑与审稿编辑展开破题、半程质检与答辩质询。';
           }
         });
       }

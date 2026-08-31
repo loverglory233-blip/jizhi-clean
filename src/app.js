@@ -10,16 +10,17 @@ import {
   STORAGE_KEY_CLASSES,
   STORAGE_KEY_USERS_DB,
   TASK_GENRE_CONFIGS,
+  getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260901_v1118";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260901_v1118";
-import { callCozeAgentAPI } from "./agents.js?v=20260901_v1118";
-import { AuthManager } from "./auth.js?v=20260901_v1118";
-import { CloudSyncEngine } from "./sync.js?v=20260901_v1118";
-import { renderLoginView } from "./login.js?v=20260901_v1118";
-import { renderTeacherPortal } from "./teacher.js?v=20260901_v1118";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260901_v1118";
+} from "./constants.js?v=20260901_v1119";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260901_v1119";
+import { callCozeAgentAPI } from "./agents.js?v=20260901_v1119";
+import { AuthManager } from "./auth.js?v=20260901_v1119";
+import { CloudSyncEngine } from "./sync.js?v=20260901_v1119";
+import { renderLoginView } from "./login.js?v=20260901_v1119";
+import { renderTeacherPortal } from "./teacher.js?v=20260901_v1119";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260901_v1119";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -28,7 +29,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260901_v1118";
+} from "./editor.js?v=20260901_v1119";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -4698,6 +4699,10 @@ ${chatSnippet}
     const allTasks = (this.authManager) ? this.authManager.getTasks() : [];
     const currentTask = allTasks.find(t => t.id === this.state.activeTaskId);
     return currentTask?.taskType || 'experiment';
+  }
+
+  getAgentSenderName(key) {
+    return getAgentDisplayName(key, this.getCurrentTaskType());
   }
 
   renderStudentWorkspace(isForced = false) {
