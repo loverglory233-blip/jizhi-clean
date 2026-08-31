@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260831_v1029
+ * Version: 20260831_v1030
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260831_v1029';
+  const APP_VERSION = '20260831_v1030';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -17434,12 +17434,66 @@
       }
 
       if (!hasFinalReviewInLogs && (s2.reviewMilestone === 'second_review_done' || s2.reviewMilestone === 'meeting_called' || s2.meetingStep === 'completed') && isFinalReviewDue && timeSinceLastReviewing > 30000 && !this._isTriggeringFinalReview) {
-        this._isTriggeringFinalReview = true;
-        s2.reviewMilestone = 'final_review_done';
+        this.triggerStage2FinalReview();
+      }
 
-        const topic = (this.state.stage1 && this.state.stage1.mergedTitle) ? this.state.stage1.mergedTitle : '本组课题';
-        const contentSnippet = rawDoc.slice(0, 2500);
+      // 3. 🤝 责任编辑 Agent: 字数贡献比严重偏斜提醒 (SSRL 共享调节)
+      const plainLen = newContent.replace(/<[^>]*>/g, '').trim().length;
+      const lastWarnTime = this.state.lastSSRLWarnTimeMs || 0;
+      const lastWarnLen = this.state.lastSSRLWarnLen || 0;
+      const ssrlCooldownMs = isLargeTask ? 600000 : 480000;
+      const minNewProgressLen = isLargeTask ? 200 : 100;
+      const minContribThreshold = isLargeTask ? 800 : 500;
+      const cooldownPassed = (now - lastWarnTime) >= ssrlCooldownMs;
+      const hasMeaningfulProgress = (plainLen - lastWarnLen) >= minNewProgressLen;
 
+      // 🛡️ 严格聊天流去重：若最近 8 分钟内已有协同关怀记录，绝对禁止重复下发！
+      const recentSsrlMsg = [...logs].reverse().find(m => m && m.sender === 'managingEditor' && m.text?.includes('协同关怀'));
+      const isRecentSsrlSent = recentSsrlMsg && (now - Number(recentSsrlMsg._timeMs || 0) < ssrlCooldownMs);
+
+      if (!isRecentSsrlSent && plainLen >= minContribThreshold && membersList.length >= 2 && cooldownPassed && (lastWarnTime === 0 || hasMeaningfulProgress)) {
+        const contribs = this.state.stage2.memberContributions || {};
+        const getVal = (m) => {
+          if (!m) return 0;
+          const keys = [m.studentCode, m.id, m.username, m.name].filter(Boolean);
+          let maxVal = 0;
+          for (const k of keys) {
+            if (contribs[k] !== undefined && Number(contribs[k]) > maxVal) {
+              maxVal = Number(contribs[k]);
+            }
+          }
+          return maxVal;
+        };
+
+        let totalContrib = 0;
+        membersList.forEach(m => { totalContrib += getVal(m); });
+
+        if (totalContrib >= minContribThreshold || plainLen >= minContribThreshold) {
+          // 严格原定规则：仅当组内出现失衡（某位成员占比 >= 55% 且有成员 <= 15%）时才介入
+          const pcts = membersList.map(m => {
+            const val = getVal(m);
+            return (totalContrib > 0) ? Math.round((val / totalContrib) * 100) : 0;
+          });
+          const hasMaxSkew = Math.max(...pcts) >= 55;
+          const hasZeroMember = Math.min(...pcts) <= 15;
+
+          if (hasMaxSkew && hasZeroMember) {
+            this.state.lastSSRLWarnTimeMs = now;
+            this.state.lastSSRLWarnLen = plainLen;
+            const ssrlWarningMsg = {
+              sender: 'managingEditor',
+              senderName: '协同调度 · 责任编辑',
+              text: `🤝 【责任编辑·协同关怀】：关注到当前正文撰写推进中，各成员的投入占比出现了一定程度的分化。建议全组同学在讨论区适度协调分工，鼓励尚未充分动笔的同学认领后续章节，共同推进高质量学术成稿哦~`,
+              timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+              _timeMs: now
+            };
+            logs.push(ssrlWarningMsg);
+            this.syncChatLogs();
+            if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+            renderChat(this.state);
+          }
+        }
+      }
     }
 
     /**
@@ -17507,65 +17561,6 @@
         this._isTriggeringFinalReview = false;
         renderChat(this.state);
         this.renderStudentWorkspace();
-      }
-    }
-
-      // 3. 🤝 责任编辑 Agent: 字数贡献比严重偏斜提醒 (SSRL 共享调节)
-      const plainLen = newContent.replace(/<[^>]*>/g, '').trim().length;
-      const lastWarnTime = this.state.lastSSRLWarnTimeMs || 0;
-      const lastWarnLen = this.state.lastSSRLWarnLen || 0;
-      const ssrlCooldownMs = isLargeTask ? 600000 : 480000;
-      const minNewProgressLen = isLargeTask ? 200 : 100;
-      const minContribThreshold = isLargeTask ? 800 : 500;
-      const cooldownPassed = (now - lastWarnTime) >= ssrlCooldownMs;
-      const hasMeaningfulProgress = (plainLen - lastWarnLen) >= minNewProgressLen;
-
-      // 🛡️ 严格聊天流去重：若最近 8 分钟内已有协同关怀记录，绝对禁止重复下发！
-      const recentSsrlMsg = [...logs].reverse().find(m => m && m.sender === 'managingEditor' && m.text?.includes('协同关怀'));
-      const isRecentSsrlSent = recentSsrlMsg && (now - Number(recentSsrlMsg._timeMs || 0) < ssrlCooldownMs);
-
-      if (!isRecentSsrlSent && plainLen >= minContribThreshold && membersList.length >= 2 && cooldownPassed && (lastWarnTime === 0 || hasMeaningfulProgress)) {
-        const contribs = this.state.stage2.memberContributions || {};
-        const getVal = (m) => {
-          if (!m) return 0;
-          const keys = [m.studentCode, m.id, m.username, m.name].filter(Boolean);
-          let maxVal = 0;
-          for (const k of keys) {
-            if (contribs[k] !== undefined && Number(contribs[k]) > maxVal) {
-              maxVal = Number(contribs[k]);
-            }
-          }
-          return maxVal;
-        };
-
-        let totalContrib = 0;
-        membersList.forEach(m => { totalContrib += getVal(m); });
-
-        if (totalContrib >= minContribThreshold || plainLen >= minContribThreshold) {
-          // 严格原定规则：仅当组内出现失衡（某位成员占比 >= 55% 且有成员 <= 15%）时才介入
-          const pcts = membersList.map(m => {
-            const val = getVal(m);
-            return (totalContrib > 0) ? Math.round((val / totalContrib) * 100) : 0;
-          });
-          const hasMaxSkew = Math.max(...pcts) >= 55;
-          const hasZeroMember = Math.min(...pcts) <= 15;
-
-          if (hasMaxSkew && hasZeroMember) {
-            this.state.lastSSRLWarnTimeMs = now;
-            this.state.lastSSRLWarnLen = plainLen;
-            const ssrlWarningMsg = {
-              sender: 'managingEditor',
-              senderName: '协同调度 · 责任编辑',
-              text: `🤝 【责任编辑·协同关怀】：关注到当前正文撰写推进中，各成员的投入占比出现了一定程度的分化。建议全组同学在讨论区适度协调分工，鼓励尚未充分动笔的同学认领后续章节，共同推进高质量学术成稿哦~`,
-              timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-              _timeMs: now
-            };
-            logs.push(ssrlWarningMsg);
-            this.syncChatLogs();
-            if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
-            renderChat(this.state);
-          }
-        }
       }
     }
 
