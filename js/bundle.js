@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260831_v990
+ * Version: 20260831_v991
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260831_v990';
+  const APP_VERSION = '20260831_v991';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -10769,25 +10769,7 @@
 
             const currUserColor = (state.members && state.members[currUserCode]?.color) || '#2563eb';
 
-            if (!state._readOnlyPadMap) state._readOnlyPadMap = {};
-            let targetPad = rawPadName;
-            if (isEditorReadonly) {
-              const readOnlyPadId = state._readOnlyPadMap[rawPadName];
-              if (readOnlyPadId) {
-                targetPad = readOnlyPadId;
-              } else {
-                fetch(`sync.php?action=get_readonly_pad_id&padId=${encodeURIComponent(rawPadName)}`).then(r => r.json()).then(res => {
-                  if (res && res.success && res.readOnlyID) {
-                    state._readOnlyPadMap[rawPadName] = res.readOnlyID;
-                    const f2 = document.querySelector('#stage2-etherpad-frame');
-                    if (f2 && !f2.src.includes(res.readOnlyID)) {
-                      f2.src = `/p/${encodeURIComponent(res.readOnlyID)}?userName=${encodeURIComponent(currUserName)}&userColor=${encodeURIComponent(currUserColor)}&showChat=false&showLineNumbers=true&showControls=false&lang=zh-hans`;
-                    }
-                  }
-                }).catch(() => {});
-              }
-            }
-
+            const targetPad = rawPadName;
             const padUrl = `/p/${encodeURIComponent(targetPad)}?userName=${encodeURIComponent(currUserName)}&userColor=${encodeURIComponent(currUserColor)}&showChat=false&showLineNumbers=true&showControls=${isEditorReadonly ? 'false' : 'true'}&lang=zh-hans`;
 
             return `
@@ -11189,26 +11171,7 @@
 
             const isEditorReadonly = isFinalSubmitted || isTaskDeadlineExpired;
 
-            // 🛡️ 权威官方只读模式：对齐教师端与阶段二成熟方案，使用 Etherpad 官方 get_readonly_pad_id (r.xxxx)
-            if (!state._readOnlyPadMap) state._readOnlyPadMap = {};
-            let targetPad = rawPadName;
-            if (isEditorReadonly) {
-              const readOnlyPadId = state._readOnlyPadMap[rawPadName];
-              if (readOnlyPadId) {
-                targetPad = readOnlyPadId;
-              } else {
-                fetch(`sync.php?action=get_readonly_pad_id&padId=${encodeURIComponent(rawPadName)}`).then(r => r.json()).then(res => {
-                  if (res && res.success && res.readOnlyID) {
-                    state._readOnlyPadMap[rawPadName] = res.readOnlyID;
-                    const f3 = document.querySelector('#stage3-etherpad-frame');
-                    if (f3 && !f3.src.includes(res.readOnlyID)) {
-                      f3.src = `/p/${encodeURIComponent(res.readOnlyID)}?userName=${encodeURIComponent(currUserName)}&userColor=${encodeURIComponent(currUserColor)}&showChat=false&showLineNumbers=true&showControls=false&lang=zh-hans`;
-                    }
-                  }
-                }).catch(() => {});
-              }
-            }
-
+            const targetPad = rawPadName;
             const padUrl = `/p/${encodeURIComponent(targetPad)}?userName=${encodeURIComponent(currUserName)}&userColor=${encodeURIComponent(currUserColor)}&showChat=false&showLineNumbers=true&showControls=${isEditorReadonly ? 'false' : 'true'}&lang=zh-hans`;
 
             return `
