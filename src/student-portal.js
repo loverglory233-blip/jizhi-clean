@@ -7,8 +7,8 @@ import {
   STORAGE_KEY_TASKS,
   STORAGE_KEY_ANNOUNCEMENTS,
   STORAGE_KEY_CLASSES
-} from "./constants.js?v=20260901_v1132";
-import { escapeHtml, isTaskExpired, formatDurationHuman, formatStandardDateDash, showGlobalBannerNotice } from "./utils.js?v=20260901_v1132";
+} from "./constants.js?v=20260902_v1133";
+import { escapeHtml, isTaskExpired, formatDurationHuman, formatStandardDateDash, showGlobalBannerNotice } from "./utils.js?v=20260902_v1133";
 
 /* ==========================================================================
    10. STUDENT TASK PORTAL (CENTRALIZED HUB & COLLABORATION ENTRY)
@@ -123,11 +123,9 @@ export function renderStudentTaskPortal(container, authManager, state, onSelectT
       for (const g of c.groups) {
         if (Array.isArray(g.members)) {
           const found = g.members.some(m => {
-            const mId = typeof m === 'object' ? (m.id || m.studentCode || m.username || m.name) : m;
-            const mCode = typeof m === 'object' ? (m.studentCode || m.code) : '';
+            const mId = typeof m === 'object' ? (m.id || m.name) : m;
             const mName = typeof m === 'object' ? m.name : '';
-            return mId === currentUser?.id || mId === currentUser?.studentCode || mId === currentUser?.username ||
-                   mCode === currentUser?.studentCode || (mName && mName === currentUser?.name);
+            return mId === currentUser?.id || (mName && mName === currentUser?.name);
           });
           if (found) return true;
         }
@@ -135,11 +133,9 @@ export function renderStudentTaskPortal(container, authManager, state, onSelectT
     }
     if (Array.isArray(c.students)) {
       const inStudents = c.students.some(s => {
-        const sId = typeof s === 'object' ? (s.id || s.studentCode || s.username || s.name) : s;
-        const sCode = typeof s === 'object' ? (s.studentCode || s.code) : '';
+        const sId = typeof s === 'object' ? (s.id || s.name) : s;
         const sName = typeof s === 'object' ? s.name : '';
-        return sId === currentUser?.id || sId === currentUser?.studentCode || sId === currentUser?.username ||
-               sCode === currentUser?.studentCode || (sName && sName === currentUser?.name);
+        return sId === currentUser?.id || (sName && sName === currentUser?.name);
       });
       if (inStudents) return true;
     }
@@ -152,9 +148,61 @@ export function renderStudentTaskPortal(container, authManager, state, onSelectT
       : (classes || [])
   );
 
+  if (displayClasses.length === 0) {
+    container.innerHTML = `
+      <div class="student-task-portal" style="min-height:100vh; background:#f0f4f9; display:flex; flex-direction:column;">
+        <header class="app-header" style="height:60px; background:#ffffff; border-bottom:1px solid #e2e8f0; display:flex; align-items:center; justify-content:space-between; padding:0 24px; box-shadow:0 1px 3px rgba(15,23,42,0.04);">
+          <div class="brand-section" style="display:flex; align-items:center; gap:12px;">
+            <div class="brand-logo" style="font-size:20px; font-weight:800; background:linear-gradient(135deg, #1e40af, #2563eb); -webkit-background-clip:text; -webkit-text-fill-color:transparent;">集智 JIZHI</div>
+            <div class="brand-badge" style="background:#eff6ff; color:#2563eb; padding:4px 12px; border-radius:20px; font-size:12px; font-weight:700; border:1px solid #bfdbfe;">
+              🎓 ${currentUser ? currentUser.name : '学生'} · 暂未加入班级
+            </div>
+          </div>
+          <div class="header-controls" style="display:flex; align-items:center; gap:10px;">
+            <button id="btn-portal-change-pwd" style="background:#f0fdf4; color:#16a34a; border:1px solid #bbf7d0; padding:6px 14px; border-radius:18px; font-size:12px; font-weight:700; cursor:pointer;" title="修改登录密码">🔑 修改密码</button>
+            <button id="btn-portal-logout" style="background:#fef2f2; color:#dc2626; border:1px solid #fecaca; padding:6px 14px; border-radius:18px; font-size:12px; font-weight:700; cursor:pointer;">🚪 退出登录</button>
+          </div>
+        </header>
+
+        <main style="flex:1; padding:48px 32px; max-width:800px; width:100%; margin:0 auto; display:flex; flex-direction:column; align-items:center; justify-content:center; box-sizing:border-box;">
+          <div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:16px; padding:48px 32px; text-align:center; width:100%; box-shadow:0 4px 20px rgba(15,23,42,0.06);">
+            <div style="font-size:52px; margin-bottom:16px;">👋</div>
+            <h2 style="margin:0 0 12px 0; font-size:20px; font-weight:800; color:#0f172a;">您好，${currentUser ? currentUser.name : '同学'}！</h2>
+            <p style="font-size:14px; color:#64748b; line-height:1.7; margin:0 auto 24px; max-width:480px;">
+              您目前尚未被分配至任何教学班级中。<br/>请联系任课教师，由教师在教师端将您加入至对应的教学班级及协作小组后，刷新本页面即可参与协作写作任务。
+            </p>
+            <div style="display:inline-flex; gap:12px;">
+              <button onclick="window.location.reload()" style="background:linear-gradient(135deg, #1d4ed8, #2563eb); border:none; color:white; padding:10px 24px; border-radius:10px; font-size:14px; font-weight:800; cursor:pointer; box-shadow:0 4px 12px rgba(37,99,235,0.25);">
+                🔄 刷新状态
+              </button>
+            </div>
+          </div>
+        </main>
+      </div>
+    `;
+    const btnLogout = container.querySelector('#btn-portal-logout');
+    if (btnLogout && onLogout) btnLogout.addEventListener('click', onLogout);
+    const btnPwd = container.querySelector('#btn-portal-change-pwd');
+    if (btnPwd) {
+      btnPwd.addEventListener('click', () => {
+        const oldP = prompt('请输入当前登录密码:');
+        if (!oldP) return;
+        const newP = prompt('请输入新密码 (至少1位):');
+        if (!newP) return;
+        try {
+          authManager.changePassword(currentUser.id, oldP, newP);
+          alert('✅ 密码修改成功！请妥善保管您的新密码。');
+        } catch (e) {
+          alert('❌ ' + e.message);
+        }
+      });
+    }
+    return;
+  }
+
   const activeUserClassId = state.activeStudentClassId && displayClasses.some(c => c.id === state.activeStudentClassId)
     ? state.activeStudentClassId
-    : (displayClasses.find(c => c.id === currentUser?.classId)?.id || displayClasses[0].id);
+    : (displayClasses.find(c => c.id === currentUser?.classId)?.id || (displayClasses[0] ? displayClasses[0].id : null));
   const userClass = displayClasses.find(c => c.id === activeUserClassId) || displayClasses[0];
   state.activeStudentClassId = userClass.id;
 

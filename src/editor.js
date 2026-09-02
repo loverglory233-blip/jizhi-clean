@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName } from "./constants.js?v=20260901_v1132";
-import { callCozeAgentAPI } from "./agents.js?v=20260901_v1132";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, showResolutionBlock } from "./utils.js?v=20260901_v1132";
+import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName } from "./constants.js?v=20260902_v1133";
+import { callCozeAgentAPI } from "./agents.js?v=20260902_v1133";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, showResolutionBlock } from "./utils.js?v=20260902_v1133";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -13,7 +13,7 @@ import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin
 export function renderHeader(state, currentUser, announcements, onStageChange, onSpeedChange, onLogout, onSwitchTeacher, onOpenAnnModal, onOpenSurveyModal, onBackToTaskList) {
   const header = document.getElementById('app-header');
   if (!header) return;
-  const activeTaskId = (state && state.activeTaskId) ? state.activeTaskId : 'task_default';
+  const activeTaskId = (state && state.activeTaskId) ? state.activeTaskId : null;
   const allTasks = (window.app && window.app.authManager) ? window.app.authManager.getTasks() : [];
   const currentTask = allTasks.find(t => t.id === activeTaskId);
   
@@ -845,24 +845,20 @@ export function renderPresencePills(editorId, state) {
   }
   const membersList = Array.isArray(membersObj) ? membersObj : Object.values(membersObj || {});
   const currUserObj = (window.app && window.app.authManager) ? window.app.authManager.getCurrentUser() : null;
-  const currentUid = currUserObj ? String(currUserObj.id || currUserObj.studentCode || '').trim() : (state.currentUser || '');
+  const currentUid = currUserObj ? String(currUserObj.id || '').trim() : (state.currentUser || '');
   const presence = state.presence || {};
   const serverNow = (state && state.serverTimestamp) ? Number(state.serverTimestamp) : Date.now();
   const allUsers = (window.app && window.app.authManager) ? window.app.authManager.getUsers() : [];
 
   const newHtml = membersList.map(m => {
-    const uid = String(m.id || m.studentCode || m.userId || '').trim();
+    const uid = String(m.id || m.userId || '').trim();
     const candidateKeys = [
       String(m.id || '').trim(),
-      String(m.studentCode || '').trim(),
-      String(m.username || '').trim(),
       String(m.name || '').trim()
     ].filter(Boolean);
 
     const isSelf = (currUserObj && (
       (currUserObj.id && (m.id === currUserObj.id || uid === String(currUserObj.id))) ||
-      (currUserObj.studentCode && (m.studentCode === currUserObj.studentCode || uid === String(currUserObj.studentCode))) ||
-      (currUserObj.username && (m.username === currUserObj.username || uid === String(currUserObj.username))) ||
       (currUserObj.name && m.name === currUserObj.name)
     )) || (uid && uid === currentUid);
     
@@ -882,8 +878,8 @@ export function renderPresencePills(editorId, state) {
 
     const sectionText = isSelf ? ' (我)' : (isOnline ? ' (在线)' : ' (离线)');
     const color = m.color || '#2563eb';
-    let displayName = m.name || m.studentCode || uid;
-    const matchedUser = allUsers.find(u => (u.id && u.id === uid) || (u.studentCode && u.studentCode === uid) || (u.username && u.username === uid));
+    let displayName = m.name || uid;
+    const matchedUser = allUsers.find(u => u && u.id === uid);
     if (matchedUser && matchedUser.name) displayName = matchedUser.name;
 
     return `
@@ -931,49 +927,51 @@ function renderStage1Canvas(canvas, state, handlers) {
   const isTaskDeadlineExpired = isTaskExpired(currentTask);
   const taskGenreKey = currentTask?.taskType || 'experiment';
   const genreCfg = TASK_GENRE_CONFIGS[taskGenreKey] || TASK_GENRE_CONFIGS.experiment;
+  const taskDurMin = Number(currentTask?.durationMinutes) || 150;
   const isLargeTask = currentTask && (currentTask.scale === 'large' || currentTask.type === 'large' || taskDurMin > 150 || (currentTask.targetWordCount && Number(currentTask.targetWordCount) >= 6000));
 
   // 🛡️ 稳健解析当前用户的真实姓名与标识
   let currentUserName = currUserObj?.name || '';
   if (!currentUserName && currentUser) {
-    const matchedM = membersList.find(m => isSameUser(m, currentUser) || m.id === currentUser || m.studentCode === currentUser || m.name === currentUser);
+    const matchedM = membersList.find(m => m.id === currentUser || m.name === currentUser);
     if (matchedM && matchedM.name) currentUserName = matchedM.name;
     else {
-      const matchedU = allUsers.find(u => isSameUser(u, currentUser) || u.id === currentUser || u.studentCode === currentUser || u.name === currentUser);
+      const matchedU = allUsers.find(u => u.id === currentUser || u.name === currentUser);
       if (matchedU && matchedU.name) currentUserName = matchedU.name;
     }
   }
-  if (!currentUserName) currentUserName = (typeof currentUser === 'string' && currentUser) ? currentUser : '组员';
+  if (!currentUserName || currentUserName === currentUser) currentUserName = '我';
 
-  // 🛡️ 稳健的多标识判定辅助函数（零破坏底层存储结构，仅在名单比对时精准去重）
+  // 🛡️ 稳健的单标识判定辅助函数
   const isMemberDone = (map, m) => {
     if (!map || !m) return false;
-    return isUserInMap(map, m) || !!(map[m.id] || map[m.studentCode] || map[m.username] || (m.name && map[m.name]));
+    const id = typeof m === 'object' ? (m.id || m.name) : m;
+    return !!(map[id] || (typeof m === 'object' && m.name && map[m.name]));
   };
 
   const confirmedMembers = s1.contract.confirmedMembers || {};
   const confirmedCount = membersList.filter(m => isMemberDone(confirmedMembers, m)).length;
-  const userHasConfirmed = isMemberDone(confirmedMembers, currUserObj || { id: currentUser, studentCode: currUserObj?.studentCode, username: currUserObj?.username, name: currentUserName });
+  const userHasConfirmed = isMemberDone(confirmedMembers, currUserObj || { id: currentUser, name: currentUserName });
   
   // 🛡️ 真正的公约生效锁定判定：服务端公约已标记生效、或全员已签、或小组已进入阶段二/三、或全盘已提交/任务已截止
   const isAllConfirmed = (totalMembersCount > 0 && confirmedCount >= totalMembersCount);
   const isContractLocked = !!(s1.contract && s1.contract.isConfirmed) || isAllConfirmed || (state.groupMaxStage === 'stage2' || state.groupMaxStage === 'stage3') || state.isFinalSubmitted || isTaskDeadlineExpired;
   if (s1.contract && isAllConfirmed) s1.contract.isConfirmed = true;
 
-  const userHasVoted = isMemberDone(s1.hasVoted, currUserObj || { id: currentUser, studentCode: currUserObj?.studentCode, username: currUserObj?.username, name: currentUserName });
-  const userVotedProposalId = s1.votes ? (getUserFromMap(s1.votes, currUserObj) || s1.votes[currentUser] || (currUserObj && (s1.votes[currUserObj.id] || s1.votes[currUserObj.studentCode] || (currUserObj.name && s1.votes[currUserObj.name])))) : null;
+  const userHasVoted = isMemberDone(s1.hasVoted, currUserObj || { id: currentUser, name: currentUserName });
+  const userVotedProposalId = s1.votes ? (getUserFromMap(s1.votes, currUserObj) || s1.votes[currentUser] || (currUserObj && (s1.votes[currUserObj.id] || (currUserObj.name && s1.votes[currUserObj.name])))) : null;
   
   // 严格统计全组实际已投票人数
   const totalVotesCast = membersList.filter(m => isMemberDone(s1.hasVoted, m)).length;
   const isVotingComplete = (totalMembersCount > 0 && totalVotesCast >= totalMembersCount);
 
-  // 严密判断当前登录学生是否已提交提案 (支持 id, studentCode, username, 姓名多重比对)
-  const myKeys = new Set([...getUserAllKeys(currUserObj), ...getUserAllKeys(currentUser), currentUserName, currentUser].filter(Boolean));
+  // 严密判断当前登录学生是否已提交提案
   const hasSubmittedMyProposal = s1.proposals.some(p => {
     if (!p) return false;
-    if (myKeys.has(p.author) || myKeys.has(p.authorName) || myKeys.has(p.authorId)) return true;
-    if (currUserObj && (isSameUser(p.author, currUserObj) || isSameUser(p.authorName, currUserObj) || (p.authorName && p.authorName === currentUserName))) return true;
-    return false;
+    const authorId = p.author || p.authorId;
+    const authorName = p.authorName;
+    return (currUserObj && (authorId === currUserObj.id || (authorName && authorName === currUserObj.name))) ||
+           (authorId === currentUser || (authorName && authorName === currentUserName));
   });
 
   canvas.innerHTML = `
@@ -1041,16 +1039,16 @@ function renderStage1Canvas(canvas, state, handlers) {
                 else { btnText = '未选择'; btnClass = 'vote-btn disabled'; }
                 btnDisabled = true;
               }
-              let authorName = (p.authorName && p.authorName !== '组员') ? p.authorName : null;
+              let authorName = (p.authorName && p.authorName !== '组员' && p.authorName !== p.author) ? p.authorName : null;
               if (!authorName) {
-                const authorUser = allUsers.find(u => isSameUser(u, p.author) || isSameUser(u, p.authorName) || u.id === p.author || u.studentCode === p.author || u.username === p.author || u.name === p.author || u.name === p.authorName);
+                const authorUser = allUsers.find(u => u && (u.id === p.author || u.id === p.authorId || u.name === p.author || u.name === p.authorName));
                 if (authorUser && authorUser.name) authorName = authorUser.name;
               }
               if (!authorName) {
-                const authorMem = membersList.find(m => isSameUser(m, p.author) || isSameUser(m, p.authorName) || m.id === p.author || m.studentCode === p.author || m.name === p.author);
+                const authorMem = membersList.find(m => m && (m.id === p.author || m.id === p.authorId || m.name === p.author));
                 if (authorMem && authorMem.name) authorName = authorMem.name;
               }
-              if (!authorName) authorName = p.authorName || p.author || '组员';
+              if (!authorName) authorName = (p.authorName && p.authorName !== p.author) ? p.authorName : '组员';
               return `
                 <div class="proposal-card ${isThisVoted ? 'voted' : ''}" style="display:flex; flex-direction:column; position:relative;">
                   <div class="proposal-header" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
@@ -1979,7 +1977,7 @@ function renderStage2Canvas(canvas, state, handlers) {
   const currUser = (window.app && window.app.authManager) ? window.app.authManager.getCurrentUser() : null;
   let userClassId = state.activeStudentClassId || (currUser ? currUser.classId : null) || null;
   const activeGroupObj = (window.app && window.app.authManager) ? window.app.authManager.getStudentActiveGroup(currUser, userClassId) : null;
-  let userGroupId = activeGroupObj?.id || (window.app?.cloudSyncEngine?.groupId) || (currUser?.groupId) || state.activeGroupId || 'group_1';
+  let userGroupId = activeGroupObj?.id || (window.app?.cloudSyncEngine?.groupId) || (currUser?.groupId) || state.activeGroupId || null;
   let activeTaskId = state.activeTaskId || (window.app?.cloudSyncEngine?.taskId) || (`task_${userClassId || 'default'}_default`);
   if (!activeTaskId || activeTaskId === 'task_default') activeTaskId = `task_${userClassId || 'default'}_default`;
 
@@ -1999,16 +1997,16 @@ function renderStage2Canvas(canvas, state, handlers) {
     if (strictCtx.taskId) activeTaskId = strictCtx.taskId;
   }
 
-  const currUserCode = state.currentUser || currUser?.studentCode || currUser?.id || currUser?.username || 'A';
+  const currUserCode = currUser?.id || state.currentUser || '';
   let currUserName = currUser?.name || '';
   if (!currUserName && state.members && state.members[currUserCode]?.name) {
     currUserName = state.members[currUserCode].name;
   }
   if (!currUserName && window.app && window.app.authManager) {
-    const matchedUser = window.app.authManager.getUsers().find(u => u && (u.studentCode === currUserCode || u.id === currUserCode || u.username === currUserCode || u.id === currUser?.id));
+    const matchedUser = window.app.authManager.getUsers().find(u => u && u.id === currUserCode);
     if (matchedUser && matchedUser.name) currUserName = matchedUser.name;
   }
-  if (!currUserName) currUserName = currUser?.username || currUserCode || '组员';
+  if (!currUserName || currUserName === currUserCode) currUserName = '组员';
   const currUserColor = (state.members && state.members[currUserCode]?.color) || '#2563eb';
   const rawPadName = `jizhi_${activeTaskId}_${userGroupId}`;
   const padUrl = `/p/${encodeURIComponent(rawPadName)}?userName=${encodeURIComponent(currUserName)}&userColor=${encodeURIComponent(currUserColor)}&showChat=false&showLineNumbers=true&lang=zh-hans`;
@@ -2022,35 +2020,15 @@ function renderStage2Canvas(canvas, state, handlers) {
   const confirmedDraftMap = s2.confirmedMembers || {};
   const isMemberDone = (map, m) => {
     if (!map || !m) return false;
-    let fullUser = (typeof m === 'object') ? m : null;
-    if (!fullUser && window.app && window.app.authManager && window.app.authManager.findUserByKey) {
-      fullUser = window.app.authManager.findUserByKey(m);
-    }
-    const keys = [
-      typeof m === 'string' ? m : null,
-      m?.id, m?.studentCode, m?.username, m?.name,
-      fullUser?.id, fullUser?.studentCode, fullUser?.username, fullUser?.name
-    ].filter(Boolean).map(k => String(k).trim().toLowerCase());
-
-    // 1. 直接通过 key 匹配
-    if (keys.some(k => map[k] || map[String(k)])) return true;
-    // 2. 遍历 map 对象的所有 value 进行交叉属性匹配
-    const values = Object.values(map);
-    return values.some(item => {
-      if (!item) return false;
-      const itemKeys = [
-        item.user, item.name, item.id, item.studentCode, item.username,
-        typeof item === 'string' ? item : null
-      ].filter(Boolean).map(k => String(k).trim().toLowerCase());
-      return keys.some(k => itemKeys.includes(k));
-    });
+    const id = typeof m === 'object' ? (m.id || m.name) : m;
+    return !!(map[id] || (typeof m === 'object' && m.name && map[m.name]));
   };
   const membersList = Object.values(state.members || {});
   const allGroupMembers = (activeGroupObj && Array.isArray(activeGroupObj.members) && activeGroupObj.members.length > 0) ? activeGroupObj.members : membersList;
   const actualTotalCount = allGroupMembers.length > 0 ? allGroupMembers.length : (membersList.length || 2);
   const totalCount = actualTotalCount;
   const confirmedDraftCount = allGroupMembers.filter(m => isMemberDone(confirmedDraftMap, m)).length;
-  const isUserDraftConfirmed = isMemberDone(confirmedDraftMap, { id: currUserCode, studentCode: currUser?.studentCode, username: currUser?.username, name: currUser?.name });
+  const isUserDraftConfirmed = isMemberDone(confirmedDraftMap, currUser || { id: currUserCode, name: currUserName });
   const isDraftFullyConfirmed = !!s2.isDraftConfirmed && (confirmedDraftCount >= actualTotalCount && actualTotalCount > 0);
   const meetingSubs = s2.meetingSubmissions || {};
   const isStage2MeetingLocked = s2.isMeetingLocked || (Object.keys(meetingSubs).length >= actualTotalCount && actualTotalCount > 0);
@@ -2892,15 +2870,15 @@ function renderStage3Canvas(canvas, state, handlers) {
   const totalCount = membersList.length || 3;
   
   const currUser = (window.app && window.app.authManager) ? window.app.authManager.getCurrentUser() : null;
-  const currUserCode = state.currentUser || (currUser ? currUser.studentCode : 'A');
+  const currUserCode = currUser?.id || state.currentUser || 'A';
   const confirmedRevMap = s3.confirmedMembers || {};
-  const confirmedRevCount = membersList.filter(m => confirmedRevMap[m.id] || confirmedRevMap[m.studentCode] || confirmedRevMap[m.username] || (m.name && confirmedRevMap[m.name])).length;
-  const isUserRevisionConfirmed = !!(confirmedRevMap[currUserCode] || (currUser && (confirmedRevMap[currUser.id] || confirmedRevMap[currUser.studentCode])));
+  const confirmedRevCount = membersList.filter(m => !!(confirmedRevMap[m.id] || (m.name && confirmedRevMap[m.name]))).length;
+  const isUserRevisionConfirmed = !!(confirmedRevMap[currUserCode] || (currUser && confirmedRevMap[currUser.id]));
   const isRevisionFullyConfirmed = confirmedRevCount >= totalCount && totalCount > 0;
   
   const finalSubmittedMap = s3.finalSubmittedMembers || {};
-  const finalSubmittedCount = membersList.filter(m => finalSubmittedMap[m.id] || finalSubmittedMap[m.studentCode] || finalSubmittedMap[m.username] || (m.name && finalSubmittedMap[m.name])).length;
-  const isUserFinalSubmitted = !!(finalSubmittedMap[currUserCode] || (currUser && (finalSubmittedMap[currUser.id] || finalSubmittedMap[currUser.studentCode])));
+  const finalSubmittedCount = membersList.filter(m => !!(finalSubmittedMap[m.id] || (m.name && finalSubmittedMap[m.name]))).length;
+  const isUserFinalSubmitted = !!(finalSubmittedMap[currUserCode] || (currUser && finalSubmittedMap[currUser.id]));
   const isAllFinalSubmitted = state.isFinalSubmitted || (finalSubmittedCount >= totalCount && totalCount > 0);
 
   const allTasks = (window.app && window.app.authManager) ? window.app.authManager.getTasks() : [];
@@ -3126,7 +3104,7 @@ function renderStage3Canvas(canvas, state, handlers) {
           const currUser = (window.app && window.app.authManager) ? window.app.authManager.getCurrentUser() : null;
           let userClassId = state.activeStudentClassId || (currUser ? currUser.classId : null) || null;
           const activeGroupObj = (window.app && window.app.authManager) ? window.app.authManager.getStudentActiveGroup(currUser, userClassId) : null;
-          let userGroupId = activeGroupObj?.id || (window.app?.cloudSyncEngine?.groupId) || (currUser?.groupId) || state.activeGroupId || 'group_1';
+          let userGroupId = activeGroupObj?.id || (window.app?.cloudSyncEngine?.groupId) || (currUser?.groupId) || state.activeGroupId || null;
           let activeTaskId = state.activeTaskId || (window.app?.cloudSyncEngine?.taskId) || (`task_${userClassId || 'default'}_default`);
           if (!activeTaskId || activeTaskId === 'task_default') activeTaskId = `task_${userClassId || 'default'}_default`;
 
@@ -3144,7 +3122,11 @@ function renderStage3Canvas(canvas, state, handlers) {
           }
 
           const rawPadName = `jizhi_${activeTaskId}_${userGroupId}`;
-          const currUserName = (currUser && (currUser.name || currUser.username)) || '组员';
+          let currUserName = currUser?.name || '';
+          if (!currUserName && state.members && state.members[currUserCode]?.name) {
+            currUserName = state.members[currUserCode].name;
+          }
+          if (!currUserName || currUserName === currUserCode) currUserName = '组员';
           const currUserColor = (state.members && state.members[currUserCode]?.color) || '#2563eb';
 
           const isEditorReadonly = isFinalSubmitted || isTaskDeadlineExpired;
@@ -3299,7 +3281,11 @@ export function renderChat(state) {
       const u = window.app.authManager.getCurrentUser();
       const effClassId = (window.app?.authManager ? window.app.authManager.getEffectiveStudentClassId(u, window.app?.state?.activeTaskId) : (window.app?.state?.activeStudentClassId || u?.classId || null));
       const effGroup = window.app.authManager.getStudentActiveGroup(u, effClassId);
-      memberList = window.app.authManager.getGroupMembersForWorkspace(effGroup?.id || state.activeGroupId || null);
+      const grpMap = window.app.authManager.getGroupMembersForWorkspace(effGroup?.id || state.activeGroupId || null);
+      memberList = Object.values(grpMap || {});
+    }
+    if (!Array.isArray(memberList)) {
+      memberList = Object.values(memberList || {});
     }
 
     const newPresenceHtml = memberList.map(m => {
@@ -3441,13 +3427,18 @@ export function renderChat(state) {
       if (msg.senderName && msg.senderName !== '组员') {
         name = msg.senderName;
       }
-      const u = allUsers.find(x => isSameUser(x, msg.sender) || isSameUser(x, msg.senderName) || x.id === msg.sender || x.studentCode === msg.sender || x.username === msg.sender || x.name === msg.sender || (name && x.name === name));
+      const u = allUsers.find(x => x && (x.id === msg.sender || x.id === msg.senderName || x.name === msg.sender || x.name === msg.senderName || (name && x.name === name)));
       if (u && u.name) {
         name = u.name;
       } else if (state.members) {
         const memList = Array.isArray(state.members) ? state.members : Object.values(state.members);
-        const mem = memList.find(m => isSameUser(m, msg.sender) || isSameUser(m, msg.senderName) || m.id === msg.sender || m.studentCode === msg.sender || m.username === msg.sender || m.name === msg.sender);
+        const mem = memList.find(m => m && (m.id === msg.sender || m.id === msg.senderName || m.name === msg.sender || m.name === msg.senderName));
         if (mem && mem.name) name = mem.name;
+      }
+      if (!name || name === msg.sender) {
+        const memList = Array.isArray(state.members) ? state.members : Object.values(state.members || {});
+        const mem = memList.find(m => m && (m.id === msg.sender || m.studentCode === msg.sender));
+        name = mem?.name || (msg.senderName && msg.senderName !== msg.sender ? msg.senderName : '组员');
       }
 
       const memList = Array.isArray(state.members) ? state.members : Object.values(state.members || {});
@@ -3633,7 +3624,59 @@ export function renderChat(state) {
 
     const hasFinalReviewInLogs = s2Chats.some(m => m && m.sender === 'reviewingEditor' && (m.text?.includes('终稿行文扫描') || m.text?.includes('终审定稿总评') || m.text?.includes('审稿编辑·终审')));
 
-    if (curStage === 'stage2') {
+    if (curStage === 'stage1') {
+      const s1 = state.stage1 || {};
+      const elapsedSec = (state.timer && state.timer.elapsedSeconds) ? state.timer.elapsedSeconds : 0;
+      const isDraftDone = !!(s1.contractStep === 'completed' || s1.contract?.isDraftGenerated);
+      const isContractConfirmed = !!(s1.contract?.isConfirmed || state.groupMaxStage === 'stage2' || state.groupMaxStage === 'stage3');
+      const confirmedMembers = s1.contract?.confirmedMembers || {};
+      const confirmedCount = membersList.filter(m => isDoneHelper({ [m.id]: confirmedMembers[m.id] || (m.name && confirmedMembers[m.name]) })).length;
+
+      if (isContractConfirmed) {
+        actionBar.style.display = 'none';
+        actionBar.innerHTML = '';
+      } else if (isDraftDone) {
+        actionBar.style.display = 'block';
+        actionBar.innerHTML = `
+          <div style="background:#f0fdf4; border:1px solid #bbf7d0; color:#166534; padding:6px 14px; border-radius:16px; font-weight:700; font-size:12px; display:inline-flex; align-items:center; gap:6px;">
+            📜 公约草案已全部生成！👉 请全员在左侧公约下方核对并签署 (${confirmedCount}/${totalCount} 人已签)
+          </div>
+        `;
+      } else if (elapsedSec >= 13 * 60) {
+        actionBar.style.display = 'block';
+        const isGenerating = !!(window.app && window.app._isGeneratingContract);
+        const isFailed = !!(window.app && window.app._contractGenerateFailed);
+
+        if (isGenerating) {
+          actionBar.innerHTML = `
+            <button id="btn-s1-auto-generate-contract" disabled style="background:#94a3b8; border:none; color:white; padding:7px 18px; border-radius:18px; font-weight:800; font-size:12.5px; cursor:not-allowed; display:inline-flex; align-items:center; gap:6px;">
+              ⏳ 拍卖师正在通读研讨并提炼公约草案...
+            </button>
+          `;
+        } else if (isFailed) {
+          actionBar.innerHTML = `
+            <button id="btn-s1-auto-generate-contract" style="background:linear-gradient(135deg, #ea580c, #c2410c); border:none; color:white; padding:7px 18px; border-radius:18px; font-weight:800; font-size:12.5px; cursor:pointer; display:inline-flex; align-items:center; gap:6px; box-shadow:0 3px 10px rgba(234,88,12,0.3); transition:all 0.2s;">
+              🔄 提炼遇阻，点此重新提炼生成公约草案
+            </button>
+          `;
+        } else {
+          actionBar.innerHTML = `
+            <button id="btn-s1-auto-generate-contract" style="background:linear-gradient(135deg, #7c3aed, #6d28d9); border:none; color:white; padding:7px 18px; border-radius:18px; font-weight:800; font-size:12.5px; cursor:pointer; display:inline-flex; align-items:center; gap:6px; box-shadow:0 3px 10px rgba(124,58,237,0.25); transition:all 0.2s;">
+              💡 [ 📋 研讨差不多了？一键提炼生成公约草案 ]
+            </button>
+          `;
+        }
+
+        actionBar.querySelector('#btn-s1-auto-generate-contract')?.addEventListener('click', () => {
+          if (!isGenerating && window.app && typeof window.app.handleOneClickGenerateContract === 'function') {
+            window.app.handleOneClickGenerateContract();
+          }
+        });
+      } else {
+        actionBar.style.display = 'none';
+        actionBar.innerHTML = '';
+      }
+    } else if (curStage === 'stage2') {
       if (s2.meetingStep === 'completed' || hasFinalChecklistSummary || hasFinalReviewInLogs) {
         actionBar.style.display = 'none';
         actionBar.innerHTML = '';

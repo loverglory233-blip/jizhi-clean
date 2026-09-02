@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState } from './constants.js?v=20260901_v1132';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap } from './utils.js?v=20260901_v1132';
+import { InitialState } from './constants.js?v=20260902_v1133';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap } from './utils.js?v=20260902_v1133';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -189,7 +189,7 @@ export class CloudSyncEngine {
     this.updateScopeKeys();
     const currentUser = userObj || (this.app.authManager ? this.app.authManager.getCurrentUser() : null);
     if (!currentUser) return;
-    const userKey = String(currentUser.studentCode || currentUser.username || currentUser.id || '').trim();
+    const userKey = String(currentUser.id || '').trim();
     if (!userKey) return;
 
     try {
@@ -199,7 +199,7 @@ export class CloudSyncEngine {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           userId: userKey,
-          studentCode: currentUser.studentCode || userKey,
+          studentCode: userKey,
           name: currentUser.name || userKey,
           role: currentUser.role || 'student',
           timestamp: Date.now()
@@ -310,7 +310,7 @@ export class CloudSyncEngine {
       try {
         const currentUser = this.app.authManager ? this.app.authManager.getCurrentUser() : null;
         if (currentUser) {
-          const userKey = String(currentUser.studentCode || currentUser.username || currentUser.id || '').trim();
+          const userKey = String(currentUser.id || '').trim();
           const effectiveClassId = this.effectiveClassId || currentUser.classId || null;
           const beaconUrl = `sync.php?action=presence_leave&taskId=${encodeURIComponent(this.taskId)}&groupId=${encodeURIComponent(this.groupId)}&classId=${encodeURIComponent(effectiveClassId)}`;
           if (navigator.sendBeacon) {
@@ -334,7 +334,7 @@ export class CloudSyncEngine {
     this.updateScopeKeys();
 
     const currentUser = this.app.authManager ? this.app.authManager.getCurrentUser() : null;
-    const userKey = currentUser ? (currentUser.studentCode || currentUser.username || currentUser.id) : '';
+    const userKey = currentUser ? currentUser.id : '';
     const sessToken = currentUser ? (currentUser.activeSessionId || currentUser.token || currentUser.sessionToken || '') : '';
     const lastRev = this._lastKnownRevisionId || 0;
     const lastChatMs = this._getLastChatTimeMs();
@@ -776,7 +776,7 @@ export class CloudSyncEngine {
       this.app.state.fieldLocks = remoteData.locks || {};
       const locks = this.app.state.fieldLocks;
       const currentUser = this.app.authManager ? this.app.authManager.getCurrentUser() : null;
-      const currentUserId = currentUser ? (currentUser.studentCode || currentUser.username || currentUser.id) : '';
+      const currentUserId = currentUser ? currentUser.id : '';
 
       // 阶段一公约与阶段三答辩矩阵字段锁更新
       document.querySelectorAll('.task-assignment-input, .contract-time-input, #contract-topic-input, .feedback-direct-input').forEach(el => {
@@ -1088,7 +1088,7 @@ export class CloudSyncEngine {
         if (Array.isArray(this.app.state.members)) memberArr = this.app.state.members;
         else if (this.app.state.members && typeof this.app.state.members === 'object') memberArr = Object.values(this.app.state.members);
         if (memberArr.length > 0) {
-          const isMemDone = (map, m) => !!(map && (map[m.id] || map[m.studentCode] || map[m.username] || (m.name && map[m.name])));
+          const isMemDone = (map, m) => !!(map && (map[m.id] || (m.name && map[m.name])));
           const cCount = memberArr.filter(m => isMemDone(mergedConf, m)).length;
           if (cCount >= memberArr.length && memberArr.length > 0) {
             this.app.state.stage2.isDraftConfirmed = true;

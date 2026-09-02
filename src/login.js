@@ -1,4 +1,4 @@
-import { escapeHtml } from "./utils.js?v=20260901_v1132";
+import { escapeHtml } from "./utils.js?v=20260902_v1133";
 
 export function renderLoginView(container, authManager, onLoginSuccess) {
   if (authManager && authManager.pullGlobalMeta) {
@@ -88,12 +88,7 @@ export function renderLoginView(container, authManager, onLoginSuccess) {
     if (!val) return;
     const allUsers = (authManager && authManager.getUsers) ? authManager.getUsers() : [];
     const isTeacher = val === 'teacher' || val === 'admin' || allUsers.some(u => 
-      (u.role === 'teacher' || u.isTeacher) && (
-        (u.username && u.username.toLowerCase() === val) ||
-        (u.studentCode && u.studentCode.toLowerCase() === val) ||
-        (u.id && u.id.toLowerCase() === val) ||
-        (u.name && u.name.toLowerCase() === val)
-      )
+      (u.role === 'teacher' || u.isTeacher) && u.id && u.id.toLowerCase() === val
     );
     if (isTeacher) {
       const teacherRadio = container.querySelector('input[name="login-role"][value="teacher"]');

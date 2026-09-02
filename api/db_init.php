@@ -49,17 +49,7 @@ function initDatabaseTables() {
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;";
         @$pdo->exec($sql3);
 
-        // 仅在 classes 表完全为空时写入初始空班级
-        try {
-            $chkClassCount = $pdo->query("SELECT COUNT(*) FROM `classes`")->fetchColumn();
-            if (intval($chkClassCount) === 0) {
-                $seedClassGroups = json_encode([], JSON_UNESCAPED_UNICODE);
-                $seedClassStudents = json_encode([], JSON_UNESCAPED_UNICODE);
-                $stmtClass = $pdo->prepare("INSERT INTO `classes` (`id`, `name`, `code`, `student_ids`, `groups_data`) 
-                    VALUES ('class_101', '《现代教育技术》2026春01班', 'ET2026-01', :sids, :gdata)");
-                $stmtClass->execute([':sids' => $seedClassStudents, ':gdata' => $seedClassGroups]);
-            }
-        } catch (\Throwable $e) {}
+        // classes 表初始化完成，初始为 0 班级，由任课教师在管理界面自主创建与配置
 
         // 4. 发布的教学任务表 (tasks)
         $sql4 = "CREATE TABLE IF NOT EXISTS `tasks` (
