@@ -29,7 +29,7 @@
 
   // 🧹 唯一种子：教师端管理账号（1001/老师）。测试学生一律不写入，教师可在教务界面自行增删学生
   const DefaultUsers = [
-    { id: '1001', name: '老师', role: 'teacher', password: '123', avatar: '👩‍🏫', studentCode: '1001', username: '1001' }
+    { id: '1001', name: '老师', role: 'teacher', password: '123', avatar: '👩‍🏫' }
   ];
 
   const DefaultTasks = [];
@@ -983,7 +983,7 @@
       const rawUser = sessionStorage.getItem(STORAGE_KEY_USER);
       if (rawUser) {
         const u = JSON.parse(rawUser);
-        sessionUserId = sessionUserId || u.id || u.username || u.studentCode || 'student_user';
+        sessionUserId = sessionUserId || u.id || 'student_user';
         sessionToken = u.activeSessionId || u.token || '';
       }
     } catch (e) {}
@@ -1084,7 +1084,7 @@
         const users = this.getUsers();
         let isModified = false;
 
-        const getMemberId = (m) => (typeof m === 'object' && m !== null) ? (m.id || m.userId || m.studentCode) : m;
+        const getMemberId = (m) => (typeof m === 'object' && m !== null) ? m.id : m;
 
         classes.forEach(cls => {
           if (!cls.groups) { cls.groups = []; isModified = true; }
@@ -1153,7 +1153,7 @@
             if (g.members && Array.isArray(g.members)) {
               const before = g.members.length;
               g.members = g.members.filter(m => {
-                const mid = (typeof m === 'object' && m !== null) ? (m.id || m.userId || m.studentCode) : m;
+                const mid = (typeof m === 'object' && m !== null) ? m.id : m;
                 return !removedKeys.has(mid);
               });
               if (g.members.length !== before) classesChanged = true;
@@ -1191,8 +1191,8 @@
     findUserByKey(key) {
       if (!key) return null;
       if (typeof key === 'object') {
-        if (key.name && (key.id || key.studentCode)) return this._normalizeUser(key);
-        key = key.id || key.studentCode || key.username || key.name || '';
+        if (key.name && key.id) return this._normalizeUser(key);
+        key = key.id || key.name || '';
       }
       const cleanKey = String(key).trim().toLowerCase();
       if (!cleanKey) return null;
@@ -1213,7 +1213,7 @@
         if (cls && Array.isArray(cls.students)) {
           found = cls.students.find(s => {
             if (!s) return false;
-            const sid = String(s.id || s.studentCode || '').trim().toLowerCase();
+            const sid = String(s.id || '').trim().toLowerCase();
             const sname = String(s.name || '').trim().toLowerCase();
             return sid === cleanKey || sname === cleanKey;
           });
@@ -1324,13 +1324,13 @@
                 const confMembersMap = new Map();
                 (remoteAnn.confirmedMembers || []).forEach(m => {
                   if (m) {
-                    const k = m.id || m.studentCode || m.name;
+                    const k = m.id || m.name;
                     if (k) confMembersMap.set(k, m);
                   }
                 });
                 (localAnn.confirmedMembers || []).forEach(m => {
                   if (m) {
-                    const k = m.id || m.studentCode || m.name;
+                    const k = m.id || m.name;
                     if (k) confMembersMap.set(k, m);
                   }
                 });
@@ -1626,7 +1626,7 @@
       if (!cached) return null;
 
       const allUsers = this.getUsers();
-      const cleanId = String(cached.id || cached.studentCode || cached.username || '').trim().toLowerCase();
+      const cleanId = String(cached.id || '').trim().toLowerCase();
       const freshUser = allUsers.find(u => u && u.id.toLowerCase() === cleanId);
       if (freshUser) {
         return { ...cached, ...freshUser, activeSessionId: cached.activeSessionId };
@@ -1881,7 +1881,7 @@
       const avatars = ['👨‍🎓', '👩‍🎓', '🧑‍🎓', '🎓', '📚', '🌟'];
 
       studentList.forEach(st => {
-        const code = (st.id || st.studentCode || st.username || '').trim();
+        const code = String(st.id || '').trim();
         const name = (st.name || '').trim();
         if (!code || !name) return;
 
@@ -1988,7 +1988,7 @@
 
       const checkMemberMatch = (m) => {
         if (!m) return false;
-        const mId = typeof m === 'object' ? (m.id || m.studentCode) : m;
+        const mId = typeof m === 'object' ? m.id : m;
         return mId && String(mId).trim().toLowerCase() === uId;
       };
 
@@ -2075,7 +2075,7 @@
       const cls = classes.find(c => c.id === classId) || classes[0];
       if (!cls || !cls.groups) return allClassStudents;
 
-      const getMemberId = (m) => (typeof m === 'object' && m !== null) ? (m.id || m.userId || m.studentCode) : m;
+      const getMemberId = (m) => (typeof m === 'object' && m !== null) ? m.id : m;
 
       const occupiedStudentIds = new Set();
       cls.groups.forEach(g => {
@@ -2087,7 +2087,7 @@
         }
       });
 
-      return allClassStudents.filter(s => !occupiedStudentIds.has(s.id) && !occupiedStudentIds.has(s.studentCode));
+      return allClassStudents.filter(s => !occupiedStudentIds.has(s.id));
     }
 
     updateGroupMembers(classId, groupId, groupName, selectedUserIds = [], leaderUserId = null) {
@@ -2272,7 +2272,7 @@
         const assignedIds = new Set();
         cls.groups.forEach(g => {
           (g.members || []).forEach(m => {
-            const mId = (typeof m === 'object' && m !== null) ? (m.id || m.userId || m.studentCode) : m;
+            const mId = (typeof m === 'object' && m !== null) ? m.id : m;
             if (mId) assignedIds.add(mId);
           });
         });
@@ -2374,7 +2374,7 @@
       if (targetGrp && Array.isArray(targetGrp.members) && targetGrp.members.length > 0) {
         targetGrp.members.forEach(m => {
           if (!m) return;
-          const mKey = (typeof m === 'object') ? (m.id || m.studentCode || m.username || m.name) : String(m);
+          const mKey = (typeof m === 'object') ? (m.id || m.name) : String(m);
           const cleanKey = String(mKey || '').trim().toLowerCase();
           const matchedU = users.find(u => {
             if (!u) return false;
@@ -2413,11 +2413,7 @@
             avatar: u.avatar || avatars[(seen.size - 1) % avatars.length],
             color: colors[(seen.size - 1) % colors.length],
             groupId: groupId,
-            classId: u.classId || (targetGrp ? targetGrp.classId : null),
-            // 🛡️ 兼容性字段别名
-            studentCode: studentId,
-            username: studentId,
-            userId: studentId
+            classId: u.classId || (targetGrp ? targetGrp.classId : null)
           };
         });
       }
@@ -2851,7 +2847,7 @@
             else if (msg.sender === 'proponent') senderDisplayName = '正方委员 Agent';
             else if (msg.sender === 'neutral') senderDisplayName = '中间委员 Agent';
             else {
-              const foundUser = users.find(u => u.studentCode === msg.sender || u.id === msg.sender || u.username === msg.sender || u.name === msg.sender);
+              const foundUser = users.find(u => u.id === msg.sender || u.name === msg.sender);
               if (foundUser && foundUser.name) senderDisplayName = foundUser.name;
               else senderDisplayName = `小组成员 (${msg.sender})`;
             }
@@ -2874,7 +2870,7 @@
     openChangePasswordModal(presetAccount = null) {
       const currentUser = this.getCurrentUser();
       const isTeacher = currentUser && (currentUser.role === 'teacher' || currentUser.isTeacher);
-      const account = isTeacher ? '1001' : (presetAccount || currentUser?.studentCode || currentUser?.username || currentUser?.id || '');
+      const account = isTeacher ? '1001' : (presetAccount || currentUser?.id || '');
 
       const oldModal = document.getElementById('modal-change-password');
       if (oldModal) oldModal.remove();
@@ -2955,8 +2951,6 @@
               body: JSON.stringify({
                 account: acc,
                 userId: currentUser ? currentUser.id : '',
-                studentCode: currentUser ? (currentUser.studentCode || currentUser.teacherCode || currentUser.code) : '',
-                username: currentUser ? currentUser.username : '',
                 name: currentUser ? currentUser.name : '',
                 role: currentUser ? (currentUser.role || (currentUser.isTeacher ? 'teacher' : 'student')) : '',
                 oldPassword: oldP,
@@ -2976,7 +2970,7 @@
               }
               const users = this.getUsers();
               users.forEach(u => {
-                if (u.id === (currentUser?.id) || u.studentCode === acc || u.username === acc) {
+                if (u.id === (currentUser?.id) || u.id === acc) {
                   u.password = newP;
                 }
               });
@@ -3220,7 +3214,6 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             userId: userKey,
-            studentCode: userKey,
             name: currentUser.name || userKey,
             role: currentUser.role || 'student',
             timestamp: Date.now()
@@ -3583,7 +3576,7 @@
         } else if (Array.isArray(remoteData.presence)) {
           remoteData.presence.forEach((item, idx) => {
             if (item) {
-              const k = item.studentCode || item.userId || item.id || idx;
+              const k = item.id || item.userId || idx;
               incomingPr[k] = item;
             }
           });
@@ -3771,16 +3764,16 @@
           const membersList = Array.isArray(this.app.state.members) ? this.app.state.members : Object.values(this.app.state.members || {});
           const _isSame = (typeof isSameUser === 'function') ? isSameUser : (a, b) => {
             if (!a || !b) return false;
-            const k1 = typeof a === 'object' ? (a.studentCode || a.id || a.username || a.name) : a;
-            const k2 = typeof b === 'object' ? (b.studentCode || b.id || b.username || b.name) : b;
+            const k1 = typeof a === 'object' ? (a.id || a.name) : a;
+            const k2 = typeof b === 'object' ? (b.id || b.name) : b;
             return k1 && k2 && String(k1).trim().toLowerCase() === String(k2).trim().toLowerCase();
           };
           mergedList.forEach(m => {
             if (!m.senderName && m.sender) {
-              const matchedU = allUsers.find(u => _isSame(u, m.sender) || u.id === m.sender || u.studentCode === m.sender || u.username === m.sender);
+              const matchedU = allUsers.find(u => _isSame(u, m.sender) || u.id === m.sender);
               if (matchedU && matchedU.name) m.senderName = matchedU.name;
               else {
-                const matchedM = membersList.find(mem => _isSame(mem, m.sender) || mem.id === m.sender || mem.studentCode === m.sender);
+                const matchedM = membersList.find(mem => _isSame(mem, m.sender) || mem.id === m.sender);
                 if (matchedM && matchedM.name) m.senderName = matchedM.name;
               }
             }
@@ -6393,7 +6386,7 @@
           if (!name || !code) { alert('⚠️ 请填齐学生姓名和学号！'); return; }
           try {
             const users = authManager.getUsers();
-            const isAlreadyExist = users.some(u => (u.studentCode && u.studentCode.trim().toLowerCase() === code.toLowerCase()) || (u.username && u.username.trim().toLowerCase() === code.toLowerCase()));
+            const isAlreadyExist = users.some(u => (u.id && u.id.trim().toLowerCase() === code.toLowerCase()));
             const targetUser = authManager.addStudentToClass(name, code, activeClass.id, pwd || '123');
             if (isAlreadyExist) {
               alert(`💡 学号【${code}】对应的学生【${targetUser.name}】已存在于系统中，已跳过重复创建并自动关联至本班级【${activeClass.name}】！`);
@@ -9224,7 +9217,7 @@
             if (e.target.files && e.target.files[0]) {
               const file = e.target.files[0];
               const currentUser = window.app?.authManager ? window.app.authManager.getCurrentUser() : null;
-              const studentCode = currentUser ? (currentUser?.name || currentUser?.studentCode || currentUser?.id) : 'A';
+              const studentCode = currentUser?.id || 'anonymous';
               const caption = prompt('请输入学术图题说明 (例如: 图 1: 研究模型与变量关系架构图):', '图 1: 研究模型与变量关系架构图');
 
               const fd = new FormData();
@@ -10589,7 +10582,7 @@
         btnConfirm.addEventListener('click', () => {
           s1.contract._lastSignTime = Date.now();
           const currUser = (window.app && window.app.authManager) ? window.app.authManager.getCurrentUser() : null;
-          const myCode = state.currentUser || (currUser ? currUser.studentCode : 'A');
+          const myCode = currUser?.id || state.currentUser || '';
           const effectiveClassId = window.app.state.activeStudentClassId || (currUser?.classId || null);
           const activeGroupObj = window.app.authManager ? window.app.authManager.getStudentActiveGroup(currUser, effectiveClassId) : null;
           const curGid = activeGroupObj?.id || (currUser?.groupId || state.activeGroupId || null);
@@ -11922,7 +11915,7 @@
       const members = Object.values(state.members || {});
       const presence = state.presence || {};
       const currUser = (window.app && window.app.authManager) ? window.app.authManager.getCurrentUser() : null;
-      const myCode = state.currentUser || (currUser ? currUser.studentCode : '');
+      const myCode = currUser?.id || state.currentUser || '';
       const nowMs = Date.now();
 
       // 收集近期 180 秒内发言或操作的所有成员
@@ -12248,7 +12241,7 @@
       const membersList = Object.values(state.members || []);
       const totalCount = membersList.length || 3;
       const currUser = (window.app && window.app.authManager) ? window.app.authManager.getCurrentUser() : null;
-      const myCode = state.currentUser || (currUser ? currUser.studentCode : '');
+      const myCode = currUser?.id || state.currentUser || '';
       const confs = Object.assign({}, state.stepConfirmations || {}, s2.confirmations || {});
 
       const isDoneHelper = (map) => {
@@ -12935,7 +12928,7 @@
           const currentStage = this.state.currentStage || 'stage1';
 
           // ⏰ 全局进度与阶段间转场催促 + 阶段二智能体保底机制 (由在场学号最小的在线成员单点触发，杜绝多人并发 AI 消息风暴)
-          const myCode = this.state.currentUser || (currentUser ? (currentUser.studentCode || currentUser.id) : 'A');
+          const myCode = currentUser?.id || this.state.currentUser || 'A';
           const activeTaskId = this.state.activeTaskId || null;
           const currentGroupId = (currentUser && currentUser.groupId) ? currentUser.groupId : (this.state.activeMonitorGroupId || this.state.activeGroupId || null);
           const allTasks = (this.authManager) ? this.authManager.getTasks() : [];
@@ -13526,7 +13519,7 @@
         }
 
         // ⚡ 单点守护主节点动态选举：优先由组长担当；若组长缺勤/掉线，自动由当前在场学号最小的在线成员接管，杜绝单点失效与并发重复！
-        const myCode = this.state.currentUser || (currUserObj ? (currUserObj.studentCode || currUserObj.id) : 'A');
+        const myCode = currUserObj?.id || this.state.currentUser || 'A';
         const now = Date.now();
         const membersList = Object.values(this.state.members || {});
         const presenceMap = this.state.presence || {};
@@ -15141,14 +15134,13 @@
         fileInputImg.addEventListener('change', (e) => {
           if (e.target.files && e.target.files[0]) {
             const file = e.target.files[0];
-            const currentUser = this.authManager.getCurrentUser();
-            const studentCode = currentUser ? (currentUser?.name || currentUser?.studentCode || currentUser?.id) : 'A';
+            const studentId = currentUser?.id || 'anonymous';
             const currentStage = this.state.currentStage || 'stage1';
 
             // 🛡️ 纯正文件上传：直传服务端 uploads/ 目录获取物理 HTTP URL，彻底杜绝 Base64 膨胀
             const fd = new FormData();
             fd.append('file', file);
-            fd.append('userId', studentCode);
+            fd.append('userId', studentId);
 
             fetch('sync.php?action=upload_file', {
               method: 'POST',
@@ -15163,8 +15155,8 @@
               }
               const msgObj = {
                 id: 'msg_img_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6),
-                sender: studentCode,
-                senderName: currentUser ? currentUser.name : studentCode,
+                sender: studentId,
+                senderName: currentUser ? currentUser.name : studentId,
                 text: `[IMG_DATA]:${finalUrl}`,
                 timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
                 _timeMs: Date.now()
@@ -15211,12 +15203,12 @@
         const text = input.value.trim();
         if (!text) return;
         const currentUser = this.authManager.getCurrentUser();
-        const studentCode = currentUser ? (currentUser.studentCode || currentUser.id || 'student') : 'student';
+        const studentId = currentUser?.id || 'student';
         const studentName = currentUser ? currentUser.name : '组员';
         const currentStage = this.state.currentStage;
         const msgObj = { 
           id: 'msg_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6),
-          sender: studentCode, 
+          sender: studentId, 
           senderName: studentName,
           text, 
           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
@@ -15230,7 +15222,7 @@
 
         // 仅在后台记录发言条数供智能体认知使用，绝对不混入页面写作字数贡献比中
         if (!this.state.studentChatCounts) this.state.studentChatCounts = {};
-        this.state.studentChatCounts[studentCode] = (this.state.studentChatCounts[studentCode] || 0) + 1;
+        this.state.studentChatCounts[studentId] = (this.state.studentChatCounts[studentId] || 0) + 1;
 
         this.syncChatLogs();
         renderChat(this.state);
@@ -15657,8 +15649,8 @@
 
       const user = this.state.currentUser;
       const currUserObj = this.authManager ? this.authManager.getCurrentUser() : null;
-      const primaryKey = String(currUserObj?.studentCode || currUserObj?.id || user || 'A').trim();
-      const userKeys = [primaryKey, user, currUserObj?.id, currUserObj?.studentCode, currUserObj?.username, currUserObj?.name].filter(Boolean);
+      const primaryKey = String(currUserObj?.id || user || 'A').trim();
+      const userKeys = [primaryKey, user, currUserObj?.id, currUserObj?.name].filter(Boolean);
 
       let members = [];
       if (Array.isArray(this.state.members)) members = this.state.members;
@@ -15667,7 +15659,7 @@
 
       const isMemberDone = (map, m) => {
         if (!map || !m) return false;
-        return !!(map[m.id] || map[m.studentCode] || map[m.username] || (m.name && map[m.name]));
+        return !!(map[m.id] || (m.name && map[m.name]));
       };
 
       const isAlreadyDone = userKeys.some(k => this.state.stepConfirmations[stepKey][k]);

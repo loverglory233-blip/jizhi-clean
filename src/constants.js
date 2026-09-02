@@ -17,7 +17,7 @@ export const DefaultClasses = [];
 
 // 🧹 唯一种子：教师端管理账号（1001/老师）。测试学生一律不写入，教师可在教务界面自行增删学生
 export const DefaultUsers = [
-  { id: '1001', name: '老师', role: 'teacher', password: '123', avatar: '👩‍🏫', studentCode: '1001', username: '1001' }
+  { id: '1001', name: '老师', role: 'teacher', password: '123', avatar: '👩‍🏫' }
 ];
 
 export const DefaultTasks = [];
