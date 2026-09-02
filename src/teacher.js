@@ -1966,7 +1966,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
         if (!name || !code) { alert('⚠️ 请填齐学生姓名和学号！'); return; }
         try {
           const users = authManager.getUsers();
-          const isAlreadyExist = users.some(u => (u.studentCode && u.studentCode.trim().toLowerCase() === code.toLowerCase()) || (u.username && u.username.trim().toLowerCase() === code.toLowerCase()));
+          const isAlreadyExist = users.some(u => (u.id && u.id.trim().toLowerCase() === code.toLowerCase()));
           const targetUser = authManager.addStudentToClass(name, code, activeClass.id, pwd || '123');
           if (isAlreadyExist) {
             alert(`💡 学号【${code}】对应的学生【${targetUser.name}】已存在于系统中，已跳过重复创建并自动关联至本班级【${activeClass.name}】！`);

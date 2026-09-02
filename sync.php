@@ -352,11 +352,9 @@ if ($action === 'login' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 $gm = json_decode($metaRow['meta_value'], true) ?: [];
                 $gUsers = $gm['users'] ?? [];
                 foreach ($gUsers as $gu) {
-                    $uAcc = strtolower(trim($gu['username'] ?? ($gu['studentCode'] ?? ($gu['id'] ?? ''))));
-                    $uCode = strtolower(trim($gu['studentCode'] ?? ($gu['code'] ?? '')));
-                    $uName = strtolower(trim($gu['name'] ?? ''));
+                    $uId = strtolower(trim($gu['id'] ?? ($gu['studentCode'] ?? ($gu['username'] ?? ''))));
                     $queryAcc = strtolower($account);
-                    if ($uAcc === $queryAcc || $uCode === $queryAcc || ($uName && $uName === $queryAcc)) {
+                    if ($uId === $queryAcc) {
                         $userExists = true;
                         $dbPwd = $gu['password'] ?? '123';
                         $uId = $gu['id'] ?? ('u_student_' . round(microtime(true) * 1000));
@@ -415,10 +413,9 @@ if ($action === 'login' && $_SERVER['REQUEST_METHOD'] === 'POST') {
             $dbData = json_decode(file_get_contents($globalDbFile), true) ?: [];
             $userList = $dbData['users'] ?? [];
             foreach ($userList as $u) {
-                $uAcc = strtolower(trim($u['username'] ?? ($u['studentCode'] ?? ($u['id'] ?? ''))));
-                $uCode = strtolower(trim($u['studentCode'] ?? ($u['code'] ?? '')));
+                $uId = strtolower(trim($u['id'] ?? ($u['studentCode'] ?? ($u['username'] ?? ''))));
                 $queryAcc = strtolower($account);
-                if ($uAcc === $queryAcc || $uCode === $queryAcc) {
+                if ($uId === $queryAcc) {
                     $userExists = true;
                     $dbPwd = $u['password'] ?? '123';
                     if ($password === $dbPwd || (empty($dbPwd) && $password === '123')) {
@@ -2246,15 +2243,6 @@ if ($action === 'presence_ping' && $_SERVER['REQUEST_METHOD'] === 'POST') {
             'name'      => isset($req['name']) ? $req['name'] : $userKey
         ];
         $cleanPresence[strval($userKey)] = $pingPayload;
-        if (isset($req['studentCode']) && !empty($req['studentCode'])) {
-            $cleanPresence[strval($req['studentCode'])] = $pingPayload;
-        }
-        if (isset($req['userId']) && !empty($req['userId'])) {
-            $cleanPresence[strval($req['userId'])] = $pingPayload;
-        }
-        if (isset($req['name']) && !empty($req['name'])) {
-            $cleanPresence[strval($req['name'])] = $pingPayload;
-        }
 
         $prJson = json_encode($cleanPresence, JSON_UNESCAPED_UNICODE);
         

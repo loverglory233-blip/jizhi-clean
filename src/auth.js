@@ -39,7 +39,7 @@ export class AuthManager {
       const users = this.getUsers();
       let isModified = false;
 
-      const getMemberId = (m) => (typeof m === 'object' && m !== null) ? (m.id || m.userId || m.studentCode) : m;
+      const getMemberId = (m) => (typeof m === 'object' && m !== null) ? m.id : m;
 
       classes.forEach(cls => {
         if (!cls.groups) { cls.groups = []; isModified = true; }
@@ -108,7 +108,7 @@ export class AuthManager {
           if (g.members && Array.isArray(g.members)) {
             const before = g.members.length;
             g.members = g.members.filter(m => {
-              const mid = (typeof m === 'object' && m !== null) ? (m.id || m.userId || m.studentCode) : m;
+              const mid = (typeof m === 'object' && m !== null) ? m.id : m;
               return !removedKeys.has(mid);
             });
             if (g.members.length !== before) classesChanged = true;
@@ -146,8 +146,8 @@ export class AuthManager {
   findUserByKey(key) {
     if (!key) return null;
     if (typeof key === 'object') {
-      if (key.name && (key.id || key.studentCode)) return this._normalizeUser(key);
-      key = key.id || key.studentCode || key.username || key.name || '';
+      if (key.name && key.id) return this._normalizeUser(key);
+      key = key.id || key.name || '';
     }
     const cleanKey = String(key).trim().toLowerCase();
     if (!cleanKey) return null;
@@ -168,7 +168,7 @@ export class AuthManager {
       if (cls && Array.isArray(cls.students)) {
         found = cls.students.find(s => {
           if (!s) return false;
-          const sid = String(s.id || s.studentCode || '').trim().toLowerCase();
+          const sid = String(s.id || '').trim().toLowerCase();
           const sname = String(s.name || '').trim().toLowerCase();
           return sid === cleanKey || sname === cleanKey;
         });
@@ -279,13 +279,13 @@ export class AuthManager {
               const confMembersMap = new Map();
               (remoteAnn.confirmedMembers || []).forEach(m => {
                 if (m) {
-                  const k = m.id || m.studentCode || m.name;
+                  const k = m.id || m.name;
                   if (k) confMembersMap.set(k, m);
                 }
               });
               (localAnn.confirmedMembers || []).forEach(m => {
                 if (m) {
-                  const k = m.id || m.studentCode || m.name;
+                  const k = m.id || m.name;
                   if (k) confMembersMap.set(k, m);
                 }
               });
@@ -581,7 +581,7 @@ export class AuthManager {
     if (!cached) return null;
 
     const allUsers = this.getUsers();
-    const cleanId = String(cached.id || cached.studentCode || cached.username || '').trim().toLowerCase();
+    const cleanId = String(cached.id || '').trim().toLowerCase();
     const freshUser = allUsers.find(u => u && u.id.toLowerCase() === cleanId);
     if (freshUser) {
       return { ...cached, ...freshUser, activeSessionId: cached.activeSessionId };
@@ -836,7 +836,7 @@ export class AuthManager {
     const avatars = ['👨‍🎓', '👩‍🎓', '🧑‍🎓', '🎓', '📚', '🌟'];
 
     studentList.forEach(st => {
-      const code = (st.id || st.studentCode || st.username || '').trim();
+      const code = String(st.id || '').trim();
       const name = (st.name || '').trim();
       if (!code || !name) return;
 
@@ -943,7 +943,7 @@ export class AuthManager {
 
     const checkMemberMatch = (m) => {
       if (!m) return false;
-      const mId = typeof m === 'object' ? (m.id || m.studentCode) : m;
+      const mId = typeof m === 'object' ? m.id : m;
       return mId && String(mId).trim().toLowerCase() === uId;
     };
 
@@ -1030,7 +1030,7 @@ export class AuthManager {
     const cls = classes.find(c => c.id === classId) || classes[0];
     if (!cls || !cls.groups) return allClassStudents;
 
-    const getMemberId = (m) => (typeof m === 'object' && m !== null) ? (m.id || m.userId || m.studentCode) : m;
+    const getMemberId = (m) => (typeof m === 'object' && m !== null) ? m.id : m;
 
     const occupiedStudentIds = new Set();
     cls.groups.forEach(g => {
@@ -1042,7 +1042,7 @@ export class AuthManager {
       }
     });
 
-    return allClassStudents.filter(s => !occupiedStudentIds.has(s.id) && !occupiedStudentIds.has(s.studentCode));
+    return allClassStudents.filter(s => !occupiedStudentIds.has(s.id));
   }
 
   updateGroupMembers(classId, groupId, groupName, selectedUserIds = [], leaderUserId = null) {
@@ -1227,7 +1227,7 @@ export class AuthManager {
       const assignedIds = new Set();
       cls.groups.forEach(g => {
         (g.members || []).forEach(m => {
-          const mId = (typeof m === 'object' && m !== null) ? (m.id || m.userId || m.studentCode) : m;
+          const mId = (typeof m === 'object' && m !== null) ? m.id : m;
           if (mId) assignedIds.add(mId);
         });
       });
@@ -1329,7 +1329,7 @@ export class AuthManager {
     if (targetGrp && Array.isArray(targetGrp.members) && targetGrp.members.length > 0) {
       targetGrp.members.forEach(m => {
         if (!m) return;
-        const mKey = (typeof m === 'object') ? (m.id || m.studentCode || m.username || m.name) : String(m);
+        const mKey = (typeof m === 'object') ? (m.id || m.name) : String(m);
         const cleanKey = String(mKey || '').trim().toLowerCase();
         const matchedU = users.find(u => {
           if (!u) return false;
@@ -1368,11 +1368,7 @@ export class AuthManager {
           avatar: u.avatar || avatars[(seen.size - 1) % avatars.length],
           color: colors[(seen.size - 1) % colors.length],
           groupId: groupId,
-          classId: u.classId || (targetGrp ? targetGrp.classId : null),
-          // 🛡️ 兼容性字段别名
-          studentCode: studentId,
-          username: studentId,
-          userId: studentId
+          classId: u.classId || (targetGrp ? targetGrp.classId : null)
         };
       });
     }
@@ -1806,7 +1802,7 @@ export class AuthManager {
           else if (msg.sender === 'proponent') senderDisplayName = '正方委员 Agent';
           else if (msg.sender === 'neutral') senderDisplayName = '中间委员 Agent';
           else {
-            const foundUser = users.find(u => u.studentCode === msg.sender || u.id === msg.sender || u.username === msg.sender || u.name === msg.sender);
+            const foundUser = users.find(u => u.id === msg.sender || u.name === msg.sender);
             if (foundUser && foundUser.name) senderDisplayName = foundUser.name;
             else senderDisplayName = `小组成员 (${msg.sender})`;
           }
@@ -1829,7 +1825,7 @@ export class AuthManager {
   openChangePasswordModal(presetAccount = null) {
     const currentUser = this.getCurrentUser();
     const isTeacher = currentUser && (currentUser.role === 'teacher' || currentUser.isTeacher);
-    const account = isTeacher ? '1001' : (presetAccount || currentUser?.studentCode || currentUser?.username || currentUser?.id || '');
+    const account = isTeacher ? '1001' : (presetAccount || currentUser?.id || '');
 
     const oldModal = document.getElementById('modal-change-password');
     if (oldModal) oldModal.remove();
@@ -1910,8 +1906,6 @@ export class AuthManager {
             body: JSON.stringify({
               account: acc,
               userId: currentUser ? currentUser.id : '',
-              studentCode: currentUser ? (currentUser.studentCode || currentUser.teacherCode || currentUser.code) : '',
-              username: currentUser ? currentUser.username : '',
               name: currentUser ? currentUser.name : '',
               role: currentUser ? (currentUser.role || (currentUser.isTeacher ? 'teacher' : 'student')) : '',
               oldPassword: oldP,
@@ -1931,7 +1925,7 @@ export class AuthManager {
             }
             const users = this.getUsers();
             users.forEach(u => {
-              if (u.id === (currentUser?.id) || u.studentCode === acc || u.username === acc) {
+              if (u.id === (currentUser?.id) || u.id === acc) {
                 u.password = newP;
               }
             });

@@ -474,7 +474,7 @@ export class App {
         const currentStage = this.state.currentStage || 'stage1';
         
         // ⏰ 全局进度与阶段间转场催促 + 阶段二智能体保底机制 (由在场学号最小的在线成员单点触发，杜绝多人并发 AI 消息风暴)
-        const myCode = this.state.currentUser || (currentUser ? (currentUser.studentCode || currentUser.id) : 'A');
+        const myCode = currentUser?.id || this.state.currentUser || 'A';
         const activeTaskId = this.state.activeTaskId || null;
         const currentGroupId = (currentUser && currentUser.groupId) ? currentUser.groupId : (this.state.activeMonitorGroupId || this.state.activeGroupId || null);
         const allTasks = (this.authManager) ? this.authManager.getTasks() : [];
@@ -1065,7 +1065,7 @@ export class App {
       }
 
       // ⚡ 单点守护主节点动态选举：优先由组长担当；若组长缺勤/掉线，自动由当前在场学号最小的在线成员接管，杜绝单点失效与并发重复！
-      const myCode = this.state.currentUser || (currUserObj ? (currUserObj.studentCode || currUserObj.id) : 'A');
+      const myCode = currUserObj?.id || this.state.currentUser || 'A';
       const now = Date.now();
       const membersList = Object.values(this.state.members || {});
       const presenceMap = this.state.presence || {};
@@ -2680,14 +2680,13 @@ export class App {
       fileInputImg.addEventListener('change', (e) => {
         if (e.target.files && e.target.files[0]) {
           const file = e.target.files[0];
-          const currentUser = this.authManager.getCurrentUser();
-          const studentCode = currentUser ? (currentUser?.name || currentUser?.studentCode || currentUser?.id) : 'A';
+          const studentId = currentUser?.id || 'anonymous';
           const currentStage = this.state.currentStage || 'stage1';
 
           // 🛡️ 纯正文件上传：直传服务端 uploads/ 目录获取物理 HTTP URL，彻底杜绝 Base64 膨胀
           const fd = new FormData();
           fd.append('file', file);
-          fd.append('userId', studentCode);
+          fd.append('userId', studentId);
 
           fetch('sync.php?action=upload_file', {
             method: 'POST',
@@ -2702,8 +2701,8 @@ export class App {
             }
             const msgObj = {
               id: 'msg_img_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6),
-              sender: studentCode,
-              senderName: currentUser ? currentUser.name : studentCode,
+              sender: studentId,
+              senderName: currentUser ? currentUser.name : studentId,
               text: `[IMG_DATA]:${finalUrl}`,
               timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
               _timeMs: Date.now()
@@ -2750,12 +2749,12 @@ export class App {
       const text = input.value.trim();
       if (!text) return;
       const currentUser = this.authManager.getCurrentUser();
-      const studentCode = currentUser ? (currentUser.studentCode || currentUser.id || 'student') : 'student';
+      const studentId = currentUser?.id || 'student';
       const studentName = currentUser ? currentUser.name : '组员';
       const currentStage = this.state.currentStage;
       const msgObj = { 
         id: 'msg_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6),
-        sender: studentCode, 
+        sender: studentId, 
         senderName: studentName,
         text, 
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
@@ -2769,7 +2768,7 @@ export class App {
 
       // 仅在后台记录发言条数供智能体认知使用，绝对不混入页面写作字数贡献比中
       if (!this.state.studentChatCounts) this.state.studentChatCounts = {};
-      this.state.studentChatCounts[studentCode] = (this.state.studentChatCounts[studentCode] || 0) + 1;
+      this.state.studentChatCounts[studentId] = (this.state.studentChatCounts[studentId] || 0) + 1;
 
       this.syncChatLogs();
       renderChat(this.state);
@@ -3196,8 +3195,8 @@ export class App {
 
     const user = this.state.currentUser;
     const currUserObj = this.authManager ? this.authManager.getCurrentUser() : null;
-    const primaryKey = String(currUserObj?.studentCode || currUserObj?.id || user || 'A').trim();
-    const userKeys = [primaryKey, user, currUserObj?.id, currUserObj?.studentCode, currUserObj?.username, currUserObj?.name].filter(Boolean);
+    const primaryKey = String(currUserObj?.id || user || 'A').trim();
+    const userKeys = [primaryKey, user, currUserObj?.id, currUserObj?.name].filter(Boolean);
 
     let members = [];
     if (Array.isArray(this.state.members)) members = this.state.members;
@@ -3206,7 +3205,7 @@ export class App {
 
     const isMemberDone = (map, m) => {
       if (!map || !m) return false;
-      return !!(map[m.id] || map[m.studentCode] || map[m.username] || (m.name && map[m.name]));
+      return !!(map[m.id] || (m.name && map[m.name]));
     };
 
     const isAlreadyDone = userKeys.some(k => this.state.stepConfirmations[stepKey][k]);

@@ -559,7 +559,7 @@ export function attachWordEditorEvents(container, editorId, isReadonly, onChange
           if (e.target.files && e.target.files[0]) {
             const file = e.target.files[0];
             const currentUser = window.app?.authManager ? window.app.authManager.getCurrentUser() : null;
-            const studentCode = currentUser ? (currentUser?.name || currentUser?.studentCode || currentUser?.id) : 'A';
+            const studentCode = currentUser?.id || 'anonymous';
             const caption = prompt('请输入学术图题说明 (例如: 图 1: 研究模型与变量关系架构图):', '图 1: 研究模型与变量关系架构图');
 
             const fd = new FormData();
@@ -1924,7 +1924,7 @@ function renderStage1Canvas(canvas, state, handlers) {
       btnConfirm.addEventListener('click', () => {
         s1.contract._lastSignTime = Date.now();
         const currUser = (window.app && window.app.authManager) ? window.app.authManager.getCurrentUser() : null;
-        const myCode = state.currentUser || (currUser ? currUser.studentCode : 'A');
+        const myCode = currUser?.id || state.currentUser || '';
         const effectiveClassId = window.app.state.activeStudentClassId || (currUser?.classId || null);
         const activeGroupObj = window.app.authManager ? window.app.authManager.getStudentActiveGroup(currUser, effectiveClassId) : null;
         const curGid = activeGroupObj?.id || (currUser?.groupId || state.activeGroupId || null);
@@ -3257,7 +3257,7 @@ export function renderChat(state) {
     const members = Object.values(state.members || {});
     const presence = state.presence || {};
     const currUser = (window.app && window.app.authManager) ? window.app.authManager.getCurrentUser() : null;
-    const myCode = state.currentUser || (currUser ? currUser.studentCode : '');
+    const myCode = currUser?.id || state.currentUser || '';
     const nowMs = Date.now();
 
     // 收集近期 180 秒内发言或操作的所有成员
@@ -3583,7 +3583,7 @@ export function renderChat(state) {
     const membersList = Object.values(state.members || []);
     const totalCount = membersList.length || 3;
     const currUser = (window.app && window.app.authManager) ? window.app.authManager.getCurrentUser() : null;
-    const myCode = state.currentUser || (currUser ? currUser.studentCode : '');
+    const myCode = currUser?.id || state.currentUser || '';
     const confs = Object.assign({}, state.stepConfirmations || {}, s2.confirmations || {});
 
     const isDoneHelper = (map) => {

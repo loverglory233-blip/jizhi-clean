@@ -19,7 +19,7 @@ export async function callCozeAgentAPI(botKey, userQuery, currentContext = {}) {
     const rawUser = sessionStorage.getItem(STORAGE_KEY_USER);
     if (rawUser) {
       const u = JSON.parse(rawUser);
-      sessionUserId = sessionUserId || u.id || u.username || u.studentCode || 'student_user';
+      sessionUserId = sessionUserId || u.id || 'student_user';
       sessionToken = u.activeSessionId || u.token || '';
     }
   } catch (e) {}

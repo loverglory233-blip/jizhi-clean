@@ -199,7 +199,6 @@ export class CloudSyncEngine {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           userId: userKey,
-          studentCode: userKey,
           name: currentUser.name || userKey,
           role: currentUser.role || 'student',
           timestamp: Date.now()
@@ -562,7 +561,7 @@ export class CloudSyncEngine {
       } else if (Array.isArray(remoteData.presence)) {
         remoteData.presence.forEach((item, idx) => {
           if (item) {
-            const k = item.studentCode || item.userId || item.id || idx;
+            const k = item.id || item.userId || idx;
             incomingPr[k] = item;
           }
         });
@@ -750,16 +749,16 @@ export class CloudSyncEngine {
         const membersList = Array.isArray(this.app.state.members) ? this.app.state.members : Object.values(this.app.state.members || {});
         const _isSame = (typeof isSameUser === 'function') ? isSameUser : (a, b) => {
           if (!a || !b) return false;
-          const k1 = typeof a === 'object' ? (a.studentCode || a.id || a.username || a.name) : a;
-          const k2 = typeof b === 'object' ? (b.studentCode || b.id || b.username || b.name) : b;
+          const k1 = typeof a === 'object' ? (a.id || a.name) : a;
+          const k2 = typeof b === 'object' ? (b.id || b.name) : b;
           return k1 && k2 && String(k1).trim().toLowerCase() === String(k2).trim().toLowerCase();
         };
         mergedList.forEach(m => {
           if (!m.senderName && m.sender) {
-            const matchedU = allUsers.find(u => _isSame(u, m.sender) || u.id === m.sender || u.studentCode === m.sender || u.username === m.sender);
+            const matchedU = allUsers.find(u => _isSame(u, m.sender) || u.id === m.sender);
             if (matchedU && matchedU.name) m.senderName = matchedU.name;
             else {
-              const matchedM = membersList.find(mem => _isSame(mem, m.sender) || mem.id === m.sender || mem.studentCode === m.sender);
+              const matchedM = membersList.find(mem => _isSame(mem, m.sender) || mem.id === m.sender);
               if (matchedM && matchedM.name) m.senderName = matchedM.name;
             }
           }
