@@ -6470,7 +6470,7 @@
             <div class="teacher-modal-body" style="padding:22px 24px;">
               <div class="teacher-form-group" style="margin-bottom:14px;">
                 <label style="font-size:13px; font-weight:700; color:#334155; margin-bottom:6px; display:block;"><span class="req" style="color:#dc2626;">*</span> 学生姓名</label>
-                <input type="text" id="modal-std-name" class="teacher-input fancy" placeholder="输入学生姓名 (如: 张三)" value="" style="background:#ffffff; border:1.5px solid #cbd5e1; color:#0f172a; padding:10px 14px; border-radius:8px; width:100%; font-size:13.5px;">
+                <input type="text" id="modal-std-name" class="teacher-input fancy" placeholder="请输入学生姓名" value="" style="background:#ffffff; border:1.5px solid #cbd5e1; color:#0f172a; padding:10px 14px; border-radius:8px; width:100%; font-size:13.5px;">
               </div>
               <div class="teacher-form-group" style="margin-bottom:14px;">
                 <label style="font-size:13px; font-weight:700; color:#334155; margin-bottom:6px; display:block;"><span class="req" style="color:#dc2626;">*</span> 学生学号 (登录账号)</label>
