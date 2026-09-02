@@ -1306,6 +1306,23 @@
                 return remoteT;
               });
               localStorage.setItem(STORAGE_KEY_TASKS, JSON.stringify(mergedTasks));
+
+              // ⏰ 检查任务截止时间是否延长并实时通知工作台
+              if (window.app && window.app.cloudSyncEngine) {
+                mergedTasks.forEach(t => {
+                  if (!t || !t.id) return;
+                  const oldDeadline = window.app.cloudSyncEngine._knownTaskDeadlines[t.id];
+                  if (oldDeadline !== undefined && t.deadline && oldDeadline !== t.deadline) {
+                    window.app.cloudSyncEngine._knownTaskDeadlines[t.id] = t.deadline;
+                    window.app.cloudSyncEngine.handleTaskDeadlineChange(t, oldDeadline);
+                  } else if (oldDeadline === undefined && t.lastExtension && (Date.now() - (t.lastExtension.extendedAt || 0) < 180000)) {
+                    window.app.cloudSyncEngine._knownTaskDeadlines[t.id] = t.deadline;
+                    window.app.cloudSyncEngine.handleTaskDeadlineChange(t, '');
+                  } else if (t.deadline) {
+                    window.app.cloudSyncEngine._knownTaskDeadlines[t.id] = t.deadline;
+                  }
+                });
+              }
             }
 
             // 4. 课堂通知：严格以云端权威列表为准，仅智能继承本地已读标记，绝不反向复活已删除通知！
@@ -1356,7 +1373,26 @@
 
             // 5. 学术文献与范文：直接以云端权威数据库为准
             if (Array.isArray(data.referencePapers)) {
+              const oldPapers = JSON.parse(localStorage.getItem('jizhi_reference_papers_db') || '[]');
+              const oldIds = new Set(oldPapers.map(p => p && p.id));
               localStorage.setItem('jizhi_reference_papers_db', JSON.stringify(data.referencePapers));
+              localStorage.setItem('jizhi_pure_v10_ref_papers_db', JSON.stringify(data.referencePapers));
+
+              // ⚡ 实时检查是否有新文献下发并提醒
+              const newPapers = data.referencePapers.filter(p => p && p.id && !oldIds.has(p.id));
+              if (newPapers.length > 0 && window.app && window.app.state && window.app.state.studentViewMode === 'workspace') {
+                const newest = newPapers[0];
+                showGlobalBannerNotice(
+                  '📚 收到新参考范文',
+                  `任课教师刚刚发布了学术示范文献《${newest.title || '参考范文'}》，已存入范文库！可随时点击【📚 查阅参考范文】研读。`,
+                  'info',
+                  8000
+                );
+                const refBtn = document.getElementById('btn-view-reference-papers') || document.querySelector('.btn-view-ref-papers');
+                if (refBtn) {
+                  refBtn.innerText = `📚 查阅参考范文 (${data.referencePapers.length}篇)`;
+                }
+              }
             }
 
             // 6. 课程问卷配置：直接以云端权威数据库为准
@@ -2829,6 +2865,59 @@
       this.pushGlobalMeta();
     }
 
+    // 📚 教师端向受众小组研讨区即时推送学术范文导学卡片
+    pushReferencePaperToGroupChat(paperId, targetGroupId = 'all') {
+      const papers = this.getAllReferencePapers();
+      const paper = papers.find(p => p.id === paperId);
+      if (!paper) return;
+
+      const classes = this.getClasses();
+      const targetClass = classes.find(c => c.id === paper.classId) || classes[0];
+      if (!targetClass) return;
+
+      const groups = (targetClass.groups || []).filter(g => {
+        if (!targetGroupId || targetGroupId === 'all') return true;
+        if (paper.targetGroupIds && Array.isArray(paper.targetGroupIds)) {
+          return paper.targetGroupIds.includes('all') || paper.targetGroupIds.includes(g.id);
+        }
+        return g.id === targetGroupId;
+      });
+
+      const taskId = paper.taskId || 'task_all';
+      const paperTitle = paper.title || '学术参考范文';
+      const highlights = paper.keyHighlights || '研究设计与学术论证规范';
+
+      groups.forEach(g => {
+        const msgObj = {
+          id: 'msg_paper_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6),
+          sender: 'reviewingEditor',
+          senderName: '审稿编辑 Agent',
+          text: `📚【任课教师学术范文推荐】\n老师刚刚为本组下发了最新示范文献《${paperTitle}》！\n💡 核心导读与论证要点：${highlights}\n同学们可以点击正文上方的【📚 查阅参考范文】按钮随时打开阅读，吸取其论述逻辑与学术规范！`,
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          _timeMs: Date.now()
+        };
+
+        try {
+          fetch(`sync.php?action=send_chat&groupId=${encodeURIComponent(g.id)}&taskId=${encodeURIComponent(taskId)}&classId=${encodeURIComponent(targetClass.id)}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              id: msgObj.id,
+              classId: targetClass.id,
+              groupId: g.id,
+              taskId: taskId,
+              stage: 'stage2',
+              sender: msgObj.sender,
+              senderName: msgObj.senderName,
+              text: msgObj.text,
+              timestamp: msgObj.timestamp,
+              _timeMs: msgObj._timeMs
+            })
+          }).catch(() => {});
+        } catch (e) {}
+      });
+    }
+
     exportGroupChatLogsToExcel(groupId = null, chatLogsState = null) {
       const currentChatLogs = chatLogsState || (window.app && window.app.state && window.app.state.chatLogs) || {};
       let csvContent = '\uFEFF名字,时间,内容\n';
@@ -3542,16 +3631,42 @@
             // 最多保留最新 15 条轻量通知，杜绝 Base64 塞满配额
             const trimmed = merged.slice(0, 15);
             localStorage.setItem(key, JSON.stringify(trimmed));
+            localStorage.setItem('jizhi_pure_v10_announcements', JSON.stringify(trimmed));
+
+            // ⚡ 实时无感刷新顶部红点与未读通知弹窗
+            if (this.app && typeof this.app.renderHeader === 'function') {
+              this.app.renderHeader();
+            }
+            if (this.app && typeof this.app.checkUnreadAnnouncements === 'function') {
+              this.app.checkUnreadAnnouncements();
+            }
           }
           if (Array.isArray(remoteData.referencePapers) && remoteData.referencePapers.length > 0) {
             const key = 'jizhi_reference_papers_db';
             const local = JSON.parse(localStorage.getItem(key) || '[]');
+            const localIds = new Set(local.map(p => p && p.id));
             const remoteIds = new Set(remoteData.referencePapers.map(p => p.id));
             const merged = [...remoteData.referencePapers];
             local.forEach(l => { if (l && l.id && !remoteIds.has(l.id)) merged.push(l); });
             const trimmed = merged.slice(0, 20);
             localStorage.setItem(key, JSON.stringify(trimmed));
             localStorage.setItem('jizhi_pure_v10_ref_papers_db', JSON.stringify(trimmed));
+
+            // ⚡ 实时检查是否有新文献下发并提醒
+            const newPapers = remoteData.referencePapers.filter(p => p && p.id && !localIds.has(p.id));
+            if (newPapers.length > 0 && this.app && this.app.state && this.app.state.studentViewMode === 'workspace') {
+              const newest = newPapers[0];
+              showGlobalBannerNotice(
+                '📚 收到新参考范文',
+                `任课教师刚刚发布了学术示范文献《${newest.title || '参考范文'}》，已存入范文库！可随时点击【📚 查阅参考范文】研读。`,
+                'info',
+                8000
+              );
+              const refBtn = document.getElementById('btn-view-reference-papers') || document.querySelector('.btn-view-ref-papers');
+              if (refBtn) {
+                refBtn.innerText = `📚 查阅参考范文 (${trimmed.length}篇)`;
+              }
+            }
           }
         } catch (err) {
           // 存储超限时自动修剪历史旧快照与冗余缓存
@@ -8718,12 +8833,10 @@
       } catch (e) {}
       if (currentUser) {
         if (currentUser.id && a.readStatus && a.readStatus[currentUser.id]) return true;
-        if (currentUser.studentCode && a.readStatus && a.readStatus[currentUser.studentCode]) return true;
-        if (currentUser.username && a.readStatus && a.readStatus[currentUser.username]) return true;
         if (currentUser.name && a.readStatus && a.readStatus[currentUser.name]) return true;
         if (groupId && a.readGroupStatus && a.readGroupStatus[groupId]) return true;
         if (Array.isArray(a.confirmedMembers)) {
-          if (a.confirmedMembers.some(m => m && (m.id === currentUser.id || m.studentCode === currentUser.studentCode || (currentUser.name && m.name === currentUser.name)))) return true;
+          if (a.confirmedMembers.some(m => m && (m.id === currentUser.id || (currentUser.name && m.name === currentUser.name)))) return true;
         }
       }
       return false;
@@ -14434,11 +14547,9 @@
         } catch (e) {}
         if (currentUser) {
           if (currentUser.id && a.readStatus && a.readStatus[currentUser.id]) return true;
-          if (currentUser.studentCode && a.readStatus && a.readStatus[currentUser.studentCode]) return true;
-          if (currentUser.username && a.readStatus && a.readStatus[currentUser.username]) return true;
           if (currentUser.name && a.readStatus && a.readStatus[currentUser.name]) return true;
           if (Array.isArray(a.confirmedMembers)) {
-            if (a.confirmedMembers.some(m => m && (m.id === currentUser.id || m.studentCode === currentUser.studentCode || (currentUser.name && m.name === currentUser.name)))) return true;
+            if (a.confirmedMembers.some(m => m && (m.id === currentUser.id || (currentUser.name && m.name === currentUser.name)))) return true;
           }
         }
         return false;
@@ -14496,11 +14607,9 @@
         } catch (e) {}
         if (currentUser) {
           if (currentUser.id && a.readStatus && a.readStatus[currentUser.id]) return true;
-          if (currentUser.studentCode && a.readStatus && a.readStatus[currentUser.studentCode]) return true;
-          if (currentUser.username && a.readStatus && a.readStatus[currentUser.username]) return true;
           if (currentUser.name && a.readStatus && a.readStatus[currentUser.name]) return true;
           if (Array.isArray(a.confirmedMembers)) {
-            if (a.confirmedMembers.some(m => m && (m.id === currentUser.id || m.studentCode === currentUser.studentCode || (currentUser.name && m.name === currentUser.name)))) return true;
+            if (a.confirmedMembers.some(m => m && (m.id === currentUser.id || (currentUser.name && m.name === currentUser.name)))) return true;
           }
         }
         return false;

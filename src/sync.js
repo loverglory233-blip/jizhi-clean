@@ -527,16 +527,42 @@ export class CloudSyncEngine {
           // 最多保留最新 15 条轻量通知，杜绝 Base64 塞满配额
           const trimmed = merged.slice(0, 15);
           localStorage.setItem(key, JSON.stringify(trimmed));
+          localStorage.setItem('jizhi_pure_v10_announcements', JSON.stringify(trimmed));
+
+          // ⚡ 实时无感刷新顶部红点与未读通知弹窗
+          if (this.app && typeof this.app.renderHeader === 'function') {
+            this.app.renderHeader();
+          }
+          if (this.app && typeof this.app.checkUnreadAnnouncements === 'function') {
+            this.app.checkUnreadAnnouncements();
+          }
         }
         if (Array.isArray(remoteData.referencePapers) && remoteData.referencePapers.length > 0) {
           const key = 'jizhi_reference_papers_db';
           const local = JSON.parse(localStorage.getItem(key) || '[]');
+          const localIds = new Set(local.map(p => p && p.id));
           const remoteIds = new Set(remoteData.referencePapers.map(p => p.id));
           const merged = [...remoteData.referencePapers];
           local.forEach(l => { if (l && l.id && !remoteIds.has(l.id)) merged.push(l); });
           const trimmed = merged.slice(0, 20);
           localStorage.setItem(key, JSON.stringify(trimmed));
           localStorage.setItem('jizhi_pure_v10_ref_papers_db', JSON.stringify(trimmed));
+
+          // ⚡ 实时检查是否有新文献下发并提醒
+          const newPapers = remoteData.referencePapers.filter(p => p && p.id && !localIds.has(p.id));
+          if (newPapers.length > 0 && this.app && this.app.state && this.app.state.studentViewMode === 'workspace') {
+            const newest = newPapers[0];
+            showGlobalBannerNotice(
+              '📚 收到新参考范文',
+              `任课教师刚刚发布了学术示范文献《${newest.title || '参考范文'}》，已存入范文库！可随时点击【📚 查阅参考范文】研读。`,
+              'info',
+              8000
+            );
+            const refBtn = document.getElementById('btn-view-reference-papers') || document.querySelector('.btn-view-ref-papers');
+            if (refBtn) {
+              refBtn.innerText = `📚 查阅参考范文 (${trimmed.length}篇)`;
+            }
+          }
         }
       } catch (err) {
         // 存储超限时自动修剪历史旧快照与冗余缓存
