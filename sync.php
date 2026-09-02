@@ -1689,6 +1689,11 @@ if ($action === 'extend_task_deadline' && $_SERVER['REQUEST_METHOD'] === 'POST')
         $stmtSaveVer = $pdo->prepare("INSERT INTO global_meta (meta_key, meta_value) VALUES ('main_meta_version', :v) ON DUPLICATE KEY UPDATE meta_value = :v2");
         $stmtSaveVer->execute([':v' => $newVer, ':v2' => $newVer]);
 
+        // 写入变更信号时间戳，让所有轮询设备的 pullFromServer 立刻感知到全局数据已变
+        $nowMs = round(microtime(true) * 1000);
+        $stmtMetaUp = $pdo->prepare("INSERT INTO global_meta (meta_key, meta_value) VALUES ('meta_updated_at', :v) ON DUPLICATE KEY UPDATE meta_value = :v2");
+        $stmtMetaUp->execute([':v' => $nowMs, ':v2' => $nowMs]);
+
         try {
             $stmtUpdTask = $pdo->prepare("UPDATE tasks SET deadline = :dl WHERE id = :id OR title = :t");
             $stmtUpdTask->execute([':dl' => $newDeadline, ':id' => $taskId, ':t' => $reqTitle]);

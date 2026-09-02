@@ -60,12 +60,10 @@ export function renderHeader(state, currentUser, announcements, onStageChange, o
     } catch (e) {}
     if (currentUser) {
       if (currentUser.id && a.readStatus && a.readStatus[currentUser.id]) return true;
-      if (currentUser.studentCode && a.readStatus && a.readStatus[currentUser.studentCode]) return true;
-      if (currentUser.username && a.readStatus && a.readStatus[currentUser.username]) return true;
       if (currentUser.name && a.readStatus && a.readStatus[currentUser.name]) return true;
       if (groupId && a.readGroupStatus && a.readGroupStatus[groupId]) return true;
       if (Array.isArray(a.confirmedMembers)) {
-        if (a.confirmedMembers.some(m => m && (m.id === currentUser.id || m.studentCode === currentUser.studentCode || (currentUser.name && m.name === currentUser.name)))) return true;
+        if (a.confirmedMembers.some(m => m && (m.id === currentUser.id || (currentUser.name && m.name === currentUser.name)))) return true;
       }
     }
     return false;
