@@ -10,8 +10,8 @@ import {
   STORAGE_KEY_USERS_DB,
   TASK_GENRE_CONFIGS,
   AgentProfiles
-} from "./constants.js?v=20260901_v1132";
-import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, showGlobalBannerNotice } from "./utils.js?v=20260901_v1132";
+} from "./constants.js?v=20260902_v1133";
+import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, showGlobalBannerNotice } from "./utils.js?v=20260902_v1133";
 
 /* ==========================================================================
    7. TEACHER PORTAL RENDERER (LIVE WORKSPACE MIRROR & ANNOUNCEMENT READ MATRIX)
@@ -47,32 +47,32 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
   const activeClass = classes.find(c => c.id === activeClassId) || classes[0] || null;
 
   const allUsers = authManager.getUsers();
-  const classStudents = authManager.getClassStudents(activeClass.id);
+  const classStudents = activeClass ? authManager.getClassStudents(activeClass.id) : [];
 
   // 🛡️ 严格按当前班级隔离写作任务、通知与文献（支持全校通用广播与多班级分发）
-  const currentClassTasks = tasks.filter(t => !t.classId || t.classId === 'all' || t.classId === activeClass.id || (t.className && t.className === activeClass.name) || (Array.isArray(t.targetClassIds) && (t.targetClassIds.includes('all') || t.targetClassIds.includes(activeClass.id))));
-  const currentClassAnnouncements = announcements.filter(a => (!a.classId || a.classId === 'all' || a.classId === activeClass.id || (a.className && a.className === activeClass.name) || (Array.isArray(a.targetClassIds) && (a.targetClassIds.includes('all') || a.targetClassIds.includes(activeClass.id)))) && !a.isSystemAction && !a.isExtension && !a.title?.includes('延期') && !a.title?.includes('延长至'));
-  const currentClassPapers = refPapers.filter(p => (!p.classId || p.classId === 'all' || p.classId === activeClass.id || (p.className && p.className === activeClass.name) || (Array.isArray(p.targetClassIds) && (p.targetClassIds.includes('all') || p.targetClassIds.includes(activeClass.id)))));
+  const currentClassTasks = activeClass ? tasks.filter(t => !t.classId || t.classId === 'all' || t.classId === activeClass.id || (t.className && t.className === activeClass.name) || (Array.isArray(t.targetClassIds) && (t.targetClassIds.includes('all') || t.targetClassIds.includes(activeClass.id)))) : [];
+  const currentClassAnnouncements = activeClass ? announcements.filter(a => (!a.classId || a.classId === 'all' || a.classId === activeClass.id || (a.className && a.className === activeClass.name) || (Array.isArray(a.targetClassIds) && (a.targetClassIds.includes('all') || a.targetClassIds.includes(activeClass.id)))) && !a.isSystemAction && !a.isExtension && !a.title?.includes('延期') && !a.title?.includes('延长至')) : [];
+  const currentClassPapers = activeClass ? refPapers.filter(p => (!p.classId || p.classId === 'all' || p.classId === activeClass.id || (p.className && p.className === activeClass.name) || (Array.isArray(p.targetClassIds) && (p.targetClassIds.includes('all') || p.targetClassIds.includes(activeClass.id))))) : [];
 
   const classTaskExists = currentClassTasks.some(t => t.id === state.activeTaskId);
   let effectiveMonitorTaskId = (state.activeTaskId && classTaskExists)
     ? state.activeTaskId
-    : (currentClassTasks[0] ? currentClassTasks[0].id : `task_${activeClass.id}_default`);
+    : (currentClassTasks[0] ? currentClassTasks[0].id : (activeClass ? `task_${activeClass.id}_default` : 'task_default'));
   if (!effectiveMonitorTaskId || effectiveMonitorTaskId === 'task_default') {
-    effectiveMonitorTaskId = `task_${activeClass.id}_default`;
+    effectiveMonitorTaskId = activeClass ? `task_${activeClass.id}_default` : 'task_default';
   }
   state.activeTaskId = effectiveMonitorTaskId;
   if (window.app && window.app.state) window.app.state.activeTaskId = effectiveMonitorTaskId;
 
-  const classGroupExists = (activeClass.groups || []).some(g => g.id === state.activeMonitorGroupId);
+  const classGroupExists = (activeClass?.groups || []).some(g => g.id === state.activeMonitorGroupId);
   const activeMonitorGId = (state.activeMonitorGroupId && classGroupExists)
     ? state.activeMonitorGroupId
-    : (activeClass.groups && activeClass.groups[0] ? activeClass.groups[0].id : 'group_1');
+    : (activeClass?.groups && activeClass.groups[0] ? activeClass.groups[0].id : null);
   state.activeMonitorGroupId = activeMonitorGId;
   if (window.app && window.app.state) window.app.state.activeMonitorGroupId = activeMonitorGId;
 
-  const activeMonitorGroup = (activeClass.groups || []).find(g => g.id === activeMonitorGId) || (activeClass.groups && activeClass.groups[0]) || { id: 'group_1', name: '第1小组' };
-  const monitorMembersObj = authManager.getGroupMembersForWorkspace(activeMonitorGId, activeClass.id);
+  const activeMonitorGroup = (activeClass?.groups || []).find(g => g.id === activeMonitorGId) || (activeClass?.groups && activeClass.groups[0]) || null;
+  const monitorMembersObj = (activeClass && activeMonitorGId) ? authManager.getGroupMembersForWorkspace(activeMonitorGId, activeClass.id) : {};
   const monitorMembersList = Object.values(monitorMembersObj);
 
   const monitorStageMode = state.teacherMonitorStageMode || state.monitorStageTab || 'auto';
@@ -140,7 +140,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
         const pills = container.querySelector('#teacher-stage2-confirmed-pills');
         if (pills) {
           pills.innerHTML = monitorMembersList.map(m => {
-            const isConf = state.stage2?.confirmedMembers && (state.stage2.confirmedMembers[m.id] || state.stage2.confirmedMembers[m.studentCode] || (m.name && state.stage2.confirmedMembers[m.name]));
+            const isConf = state.stage2?.confirmedMembers && !!state.stage2.confirmedMembers[m.id];
             return `<span style="font-size:11px; padding:1px 8px; border-radius:10px; font-weight:700; background:${isConf ? '#ecfdf5' : '#f8fafc'}; color:${isConf ? '#059669' : '#94a3b8'}; border:1px solid ${isConf ? '#a7f3d0' : '#e2e8f0'};">
               ${isConf ? '✓' : '○'} ${escapeHtml(m.name)}
             </span>`;
@@ -149,11 +149,11 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
 
         const contribs = state.stage2?.memberContributions || {};
         let rawTotal = 0;
-        monitorMembersList.forEach(m => { rawTotal += (contribs[m.id] || 0) + (contribs[m.studentCode] || 0); });
+        monitorMembersList.forEach(m => { rawTotal += (contribs[m.id] || 0); });
         const cl = container.querySelector('#teacher-stage2-contrib-labels');
         if (cl) {
           cl.innerHTML = monitorMembersList.map((m) => {
-            const rawVal = (contribs[m.id] || 0) + (contribs[m.studentCode] || 0);
+            const rawVal = contribs[m.id] || 0;
             const pct = rawTotal > 0 ? Math.round((rawVal / rawTotal) * 100) : 0;
             return `<span style="color:${rawVal > 0 ? (m.color || '#2563eb') : '#94a3b8'}; font-weight:700;">● ${escapeHtml(m.name)}: ${pct}%</span>`;
           }).join('');
@@ -161,7 +161,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
         const cb = container.querySelector('#teacher-stage2-contrib-bars');
         if (cb) {
           cb.innerHTML = rawTotal === 0 ? `<div style="width:100%; height:10px; background:#f8fafc; border-radius:5px; display:flex; align-items:center; justify-content:center; font-size:10px; color:#94a3b8; font-weight:600;">⏳ 暂无协作投入 (组员在 Etherpad 中撰写、修改正文或研讨后将平滑累计真实贡献)</div>` : monitorMembersList.map((m) => {
-            const rawVal = (contribs[m.id] || 0) + (contribs[m.studentCode] || 0);
+            const rawVal = contribs[m.id] || 0;
             if (rawVal === 0) return '';
             const pct = Math.round((rawVal / rawTotal) * 100);
             return `<div style="width:${pct}%; background:${m.color || '#2563eb'}; transition:width 0.3s ease;" title="${escapeHtml(m.name)}: ${pct}% (${rawVal}字)"></div>`;
@@ -180,11 +180,11 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
 
           const contribs = state.stage2?.memberContributions || {};
           let rawTotal = 0;
-          monitorMembersList.forEach(m => { rawTotal += (contribs[m.id] || 0) + (contribs[m.studentCode] || 0); });
+          monitorMembersList.forEach(m => { rawTotal += (contribs[m.id] || 0); });
           const cl = container.querySelector('#teacher-stage3-contrib-labels');
           if (cl) {
             cl.innerHTML = monitorMembersList.map((m) => {
-              const rawVal = (contribs[m.id] || 0) + (contribs[m.studentCode] || 0);
+              const rawVal = contribs[m.id] || 0;
               const pct = rawTotal > 0 ? Math.round((rawVal / rawTotal) * 100) : 0;
               return `<span style="color:${rawVal > 0 ? (m.color || '#2563eb') : '#94a3b8'}; font-weight:700;">● ${escapeHtml(m.name)}: ${pct}%</span>`;
             }).join('');
@@ -192,7 +192,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
           const cb = container.querySelector('#teacher-stage3-contrib-bars');
           if (cb) {
             cb.innerHTML = rawTotal === 0 ? `<div style="width:100%; height:10px; background:#f8fafc; border-radius:5px; display:flex; align-items:center; justify-content:center; font-size:10px; color:#94a3b8; font-weight:600;">⏳ 暂无协作投入</div>` : monitorMembersList.map((m) => {
-              const rawVal = (contribs[m.id] || 0) + (contribs[m.studentCode] || 0);
+              const rawVal = contribs[m.id] || 0;
               if (rawVal === 0) return '';
               const pct = Math.round((rawVal / rawTotal) * 100);
               return `<div style="width:${pct}%; background:${m.color || '#2563eb'}; transition:width 0.3s ease;" title="${escapeHtml(m.name)}: ${pct}% (${rawVal}字)"></div>`;
@@ -471,8 +471,8 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
           <div class="brand-logo" style="font-size:22px; font-weight:800; background:linear-gradient(135deg, #1e40af, #2563eb); -webkit-background-clip:text; -webkit-text-fill-color:transparent;">集智 JIZHI 教师端</div>
         </div>
         <div class="teacher-info" style="display:flex; align-items:center; gap:14px;">
-          <span style="font-size:13.5px; color:#334155;">当前班级: <b style="color:#2563eb;">${activeClass.name}</b></span>
-          <span style="font-size:13.5px; color:#334155;">教师: <b>${currentUser.name}</b></span>
+          <span style="font-size:13.5px; color:#334155;">当前班级: ${activeClass ? `<b style="color:#2563eb;">${escapeHtml(activeClass.name)}</b>` : '<b style="color:#94a3b8;">⏳ 暂未创建/选择班级</b>'}</span>
+          <span style="font-size:13.5px; color:#334155;">教师: <b>${currentUser ? escapeHtml(currentUser.name) : '老师'}</b></span>
           <button id="btn-teacher-change-pwd" style="background:#f0fdf4; border:1px solid #bbf7d0; color:#16a34a; padding:6px 14px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer; display:flex; align-items:center; gap:6px;" title="修改登录密码">
             <span>🔑 修改密码</span>
           </button>
@@ -503,177 +503,206 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
             <div class="card" style="border-top:4px solid #2563eb; width:100%; padding:24px;">
               <div class="card-title" style="margin-bottom:16px;">
                 <span style="font-size:17px; font-weight:800; color:#0f172a;">🎓 教学班级管理 (${classes.length} 个班级)</span>
-                <button id="btn-v1-create-class" class="teacher-action-btn" style="background:linear-gradient(135deg, #1d4ed8, #2563eb); border:none; color:white; padding:8px 18px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer; box-shadow:0 2px 8px rgba(37,99,235,0.25);">+ 创建全新教学班</button>
+                <button id="btn-v1-create-class" class="teacher-action-btn btn-trigger-create-class" style="background:linear-gradient(135deg, #1d4ed8, #2563eb); border:none; color:white; padding:8px 18px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer; box-shadow:0 2px 8px rgba(37,99,235,0.25);">+ 创建全新教学班</button>
               </div>
-              <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(360px, 1fr)); gap:16px;">
-                ${classes.map(c => {
-                  const isSelected = c.id === activeClass.id;
-                  const cStds = authManager.getClassStudents(c.id);
-                  return `
-                    <div style="background:${isSelected ? '#eff6ff' : '#ffffff'}; border:1.5px solid ${isSelected ? '#3b82f6' : '#e2e8f0'}; border-radius:12px; padding:18px 20px; display:flex; justify-content:space-between; align-items:center; box-shadow:0 1px 3px rgba(15,23,42,0.03);">
-                      <div style="min-width:0; padding-right:12px;">
-                        <div style="font-size:16px; font-weight:800; color:${isSelected ? '#1d4ed8' : '#0f172a'}; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">🏫 ${c.name}</div>
-                        <div style="font-size:12.5px; color:#64748b; margin-top:5px;">学生: <b>${cStds.length}</b> 人 | 小组: <b>${(c.groups || []).length}</b> 个</div>
-                      </div>
-                      <div style="display:flex; gap:8px; align-items:center; flex-shrink:0;">
-                        <button class="btn-select-class" data-id="${c.id}" style="background:${isSelected ? '#ecfdf5' : '#2563eb'}; border:1px solid ${isSelected ? '#a7f3d0' : 'transparent'}; color:${isSelected ? '#059669' : 'white'}; padding:7px 14px; border-radius:8px; font-size:12.5px; font-weight:700; cursor:pointer; white-space:nowrap; display:inline-flex; align-items:center; gap:4px;">
-                          ${isSelected ? '✅ 当前主班' : '切换'}
-                        </button>
-                        ${classes.length > 1 ? `
+
+              ${classes.length === 0 ? `
+                <div style="background:#ffffff; border:2px dashed #cbd5e1; border-radius:16px; padding:36px 24px; text-align:center; box-shadow:0 1px 3px rgba(15,23,42,0.02);">
+                  <div style="font-size:42px; margin-bottom:10px;">🏫</div>
+                  <h3 style="margin:0 0 8px 0; font-size:17px; font-weight:800; color:#0f172a;">欢迎使用集智协作教学平台！您当前尚未创建任何教学班级</h3>
+                  <p style="font-size:13px; color:#64748b; margin:0 auto 18px; max-width:480px; line-height:1.6;">
+                    请点击下方按钮创建您的第一个教学班级（例如：<b>《现代教育技术》2026春01班</b>），创建后即可为该班级导入学生名册、划分协作小组与发布写作任务。
+                  </p>
+                  <button id="btn-v1-create-class-zero" class="teacher-action-btn btn-trigger-create-class" style="background:linear-gradient(135deg, #1d4ed8, #2563eb); border:none; color:white; padding:10px 24px; border-radius:8px; font-size:13.5px; font-weight:800; cursor:pointer; box-shadow:0 4px 12px rgba(37,99,235,0.25);">
+                    ➕ 立即创建第一个教学班级
+                  </button>
+                </div>
+              ` : `
+                <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(360px, 1fr)); gap:16px;">
+                  ${classes.map(c => {
+                    const isSelected = activeClass && c.id === activeClass.id;
+                    const cStds = authManager.getClassStudents(c.id);
+                    return `
+                      <div style="background:${isSelected ? '#eff6ff' : '#ffffff'}; border:1.5px solid ${isSelected ? '#3b82f6' : '#e2e8f0'}; border-radius:12px; padding:18px 20px; display:flex; justify-content:space-between; align-items:center; box-shadow:0 1px 3px rgba(15,23,42,0.03);">
+                        <div style="min-width:0; padding-right:12px;">
+                          <div style="font-size:16px; font-weight:800; color:${isSelected ? '#1d4ed8' : '#0f172a'}; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">🏫 ${c.name}</div>
+                          <div style="font-size:12.5px; color:#64748b; margin-top:5px;">学生: <b>${cStds.length}</b> 人 | 小组: <b>${(c.groups || []).length}</b> 个</div>
+                        </div>
+                        <div style="display:flex; gap:8px; align-items:center; flex-shrink:0;">
+                          <button class="btn-select-class" data-id="${c.id}" style="background:${isSelected ? '#ecfdf5' : '#2563eb'}; border:1px solid ${isSelected ? '#a7f3d0' : 'transparent'}; color:${isSelected ? '#059669' : 'white'}; padding:7px 14px; border-radius:8px; font-size:12.5px; font-weight:700; cursor:pointer; white-space:nowrap; display:inline-flex; align-items:center; gap:4px;">
+                            ${isSelected ? '✅ 当前主班' : '切换'}
+                          </button>
                           <button class="btn-delete-class" data-id="${c.id}" data-name="${c.name}" style="background:#fef2f2; border:1px solid #fecaca; color:#dc2626; padding:7px 10px; border-radius:8px; font-size:12px; font-weight:700; cursor:pointer; flex-shrink:0;" title="删除此教学班级">
                             🗑️
                           </button>
-                        ` : ''}
-                      </div>
-                    </div>
-                  `;
-                }).join('')}
-              </div>
-            </div>
-
-            <div class="card" style="border-top:4px solid #2563eb; width:100%; padding:24px;">
-              <div class="card-title" style="margin-bottom:16px;">
-                <span style="font-size:17px; font-weight:800; color:#0f172a;">👨‍🎓 学生账号管理 (当前班级: ${activeClass.name})</span>
-                <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
-                  <button id="btn-v1-add-student" class="teacher-action-btn" style="background:linear-gradient(135deg, #1d4ed8, #2563eb); border:none; color:white; padding:8px 16px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer; box-shadow:0 2px 8px rgba(37,99,235,0.25);">+ 单条创建学生账号</button>
-                  <button id="btn-v1-enroll-existing-student" class="teacher-action-btn" style="background:#eff6ff; border:1.5px solid #bfdbfe; color:#1d4ed8; padding:8px 16px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer;">👥 加入已有学生到班级</button>
-                  <button id="btn-v1-import-file" class="teacher-action-btn" style="background:linear-gradient(135deg, #1d4ed8, #2563eb); border:none; color:white; padding:8px 16px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer; box-shadow:0 2px 8px rgba(37,99,235,0.25);">
-                    📥 上传 XLSX / CSV 文件导入
-                  </button>
-                  ${classStudents.length > 0 ? `
-                    <button id="btn-clear-class-students" style="background:#fef2f2; border:1px solid #fecaca; color:#dc2626; padding:8px 14px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer;">
-                      🗑️ 一键清空本班学生
-                    </button>
-                  ` : ''}
-                </div>
-              </div>
-              <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:12px 16px; margin-bottom:14px; font-size:13px; color:#334155; display:flex; justify-content:space-between; align-items:center;">
-                <div>💡 <b>密码说明：</b> 创建学生时可指定自定义密码（留空统一定为 <code style="color:#059669; font-weight:700;">123</code>）。建立后直接放入班级学生池。</div>
-                <span style="color:#2563eb; font-weight:800; font-size:13.5px;">池内学生: ${classStudents.length} 人</span>
-              </div>
-              <div style="border:1px solid #e2e8f0; border-radius:10px; overflow:hidden; background:#ffffff;">
-                <table class="monitor-table" style="font-size:13px;">
-                  <thead><tr><th>序号</th><th>姓名</th><th>学号</th><th>当前归属小组</th><th>密码状态</th><th>操作</th></tr></thead>
-                  <tbody>
-                    ${classStudents.length === 0 ? '<tr><td colspan="6" style="text-align:center; color:#64748b; padding:24px;">当前班级暂无学生账号，请点击右上角按钮创建或导入！</td></tr>' : ''}
-                    ${(() => {
-                      // 同名提示：本班级内姓名重复的学生加一个视觉标记，方便老师区分，绝不自动合并
-                      const _nameBuckets = {};
-                      classStudents.forEach(s => { const _n = (s.name || '').trim(); if (!_n) return; (_nameBuckets[_n] = _nameBuckets[_n] || []).push(s); });
-                      const _escAttr = (v) => String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-                      return classStudents.map((s, idx) => {
-                      const grp = (activeClass.groups || []).find(g => g.members && (g.members.includes(s.id) || g.members.includes(s.studentCode) || (typeof g.members[0] === 'object' && g.members.some(m => m.id === s.id || m.studentCode === s.studentCode))));
-                      const stdAcc = s.studentCode || s.username || s.id;
-                      const _dupPeers = (_nameBuckets[(s.name || '').trim()] || []).filter(x => x !== s);
-                      const _dupBadge = _dupPeers.length > 0 ? `<span title="${_escAttr('⚠️ 有同名同学：' + _dupPeers.map(x => x.name + '（' + (x.studentCode || x.username || x.id) + '）').join(' / '))}" style="margin-left:6px; background:#fef3c7; border:1px solid #fcd34d; color:#b45309; padding:1px 7px; border-radius:999px; font-size:11px; font-weight:700; cursor:help;">⚠️ 同名 ${_dupPeers.length + 1} 人</span>` : '';
-                      return `
-                        <tr>
-                          <td style="color:#94a3b8; font-weight:700;">${idx + 1}</td>
-                          <td><b>${s.avatar || '👤'} ${s.name}</b>${_dupBadge}</td>
-                          <td><span style="color:#2563eb; font-family:monospace; font-weight:700;">${stdAcc}</span></td>
-                          <td>${grp ? `<span style="background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe; padding:2px 8px; border-radius:8px; font-size:12px; font-weight:700;">${grp.name}</span>` : '<span style="color:#94a3b8;">⏳ 待划分小组</span>'}</td>
-                          <td>${(!s.password || s.password === '123') ? '<span style="color:#059669; font-family:monospace; font-weight:700;">初始 123</span>' : '<span style="color:#7c3aed; font-family:monospace; font-weight:700;">已修改密码</span>'}</td>
-                          <td>
-                            <div style="display:flex; gap:6px; align-items:center;">
-                              <button class="reset-student-pwd-btn" data-account="${stdAcc}" data-name="${s.name}" style="background:#eff6ff; border:1px solid #bfdbfe; color:#2563eb; padding:4px 10px; border-radius:6px; font-size:12px; cursor:pointer; font-weight:700;" title="将此学生登录密码重置为 123">
-                                🔑 重置为123
-                              </button>
-                              <button class="delete-student-btn" data-id="${s.id}" style="background:#fef2f2; border:1px solid #fecaca; color:#dc2626; padding:4px 10px; border-radius:6px; font-size:12px; cursor:pointer; font-weight:700;" title="从本班移除">
-                                移除
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      `;
-                    }).join('');})()}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
-            <div class="card" style="border-top:4px solid #2563eb; width:100%; padding:24px;">
-              <div class="card-title" style="margin-bottom:16px;">
-                <span style="font-size:17px; font-weight:800; color:#0f172a;">👥 小组划分 (当前班级: ${activeClass.name})</span>
-                <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
-                  <button id="btn-v1-create-group" class="teacher-action-btn" style="background:linear-gradient(135deg, #1d4ed8, #2563eb); border:none; color:white; padding:8px 16px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer; box-shadow:0 2px 8px rgba(37,99,235,0.25);">+ 新建小组</button>
-                  
-                  <div style="display:flex; align-items:center; gap:6px; background:#f0fdf4; border:1px solid #bbf7d0; padding:4px 10px; border-radius:8px;">
-                    <span style="font-size:12.5px; font-weight:700; color:#166534;">每组</span>
-                    <select id="sel-random-group-size" style="padding:4px 8px; border:1px solid #86efac; border-radius:6px; font-size:13px; font-weight:800; color:#15803d; background:#ffffff; cursor:pointer;">
-                      <option value="2">2 人</option>
-                      <option value="3" selected>3 人</option>
-                      <option value="4">4 人</option>
-                      <option value="5">5 人</option>
-                      <option value="6">6 人</option>
-                    </select>
-                    <button id="btn-v1-random-groups" class="teacher-action-btn" style="background:linear-gradient(135deg, #059669, #10b981); border:none; color:white; padding:6px 14px; border-radius:6px; font-size:12.5px; font-weight:700; cursor:pointer; box-shadow:0 2px 6px rgba(16,185,129,0.25);" title="按所选人数自动随机划分班级内全部学生">🎲 一键随机分组</button>
-                  </div>
-
-                  <button id="btn-v1-dissolve-all-groups" class="teacher-action-btn" style="background:linear-gradient(135deg, #dc2626, #b91c1c); border:none; color:white; padding:8px 16px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer; box-shadow:0 2px 8px rgba(220,38,38,0.25);">💥 一键解散所有小组</button>
-                </div>
-              </div>
-              <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:12px 16px; margin-bottom:14px; font-size:13px; color:#334155;">
-                💡 <b>班级互斥划分规则：</b>已归属于本班级其他小组的学生会自动隐藏，避免重复挂组。跨班级独立计算。
-              </div>
-              <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(360px, 1fr)); gap:16px;">
-                ${(() => {
-                  const validGroups = (activeClass.groups || []).filter(grp => {
-                    const groupMembers = classStudents.filter(s => (grp.members || []).some(m => {
-                      const mId = (typeof m === 'object' && m !== null) ? (m.id || m.userId || m.studentCode) : m;
-                      return mId === s.id || (mId && s.studentCode && mId.toString() === s.studentCode.toString());
-                    }));
-                    return groupMembers.length > 0;
-                  });
-
-                  // 自动规整命名：按顺序编号
-                  validGroups.forEach((g, idx) => {
-                    g.name = `第 ${idx + 1} 协作小组`;
-                  });
-
-                  if (validGroups.length !== (activeClass.groups || []).length) {
-                    activeClass.groups = validGroups;
-                    localStorage.setItem(STORAGE_KEY_CLASSES, JSON.stringify(classes));
-                    // 🛡️ 延迟推送，避免渲染期间触发网络写操作
-                    setTimeout(() => authManager.pushGlobalMeta(), 100);
-                  }
-
-                  if (validGroups.length === 0) {
-                    return '<div style="color:#64748b; padding:20px; font-size:14px;">当前班级暂无小组。</div>';
-                  }
-
-                  return validGroups.map(grp => {
-                    const groupMembers = classStudents.filter(s => (grp.members || []).some(m => {
-                      const mId = (typeof m === 'object' && m !== null) ? (m.id || m.userId || m.studentCode) : m;
-                      return mId === s.id || (mId && s.studentCode && mId.toString() === s.studentCode.toString());
-                    }));
-                    return `
-                      <div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:12px; padding:18px; box-shadow:0 1px 3px rgba(15,23,42,0.03);">
-                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
-                          <span style="font-size:15.5px; font-weight:800; color:#1d4ed8;">👥 ${grp.name} (${groupMembers.length}人)</span>
-                          <div style="display:flex; gap:8px;">
-                            <button class="btn-edit-group-members" data-gid="${grp.id}" style="background:#eff6ff; border:1px solid #bfdbfe; color:#1d4ed8; padding:6px 12px; border-radius:6px; font-size:12px; font-weight:700; cursor:pointer;">⚙️ 勾选组员</button>
-                            <button class="btn-delete-group" data-gid="${grp.id}" style="background:#fef2f2; border:1px solid #fecaca; color:#dc2626; padding:6px 10px; border-radius:6px; font-size:12px; cursor:pointer; font-weight:700;">✕ 解散</button>
-                          </div>
-                        </div>
-                        <div style="display:flex; flex-wrap:wrap; gap:8px; font-size:13px;">
-                          ${groupMembers.length === 0 ? '<span style="color:#94a3b8; font-size:12px;">⚠️ 暂未勾选成员</span>' : ''}
-                          ${groupMembers.map(m => `
-                            <span style="background:#eff6ff; border:1px solid #bfdbfe; color:#1d4ed8; padding:4px 10px; border-radius:6px; font-weight:600;">
-                              ${m.avatar || '👤'} ${m.name}
-                            </span>
-                          `).join('')}
                         </div>
                       </div>
                     `;
-                  }).join('');
-                })()}
-              </div>
+                  }).join('')}
+                </div>
+              `}
             </div>
+
+            ${!activeClass ? `
+              <div class="card" style="border:1.5px dashed #e2e8f0; background:#f8fafc; border-radius:12px; padding:32px 24px; text-align:center; color:#64748b; font-size:13.5px;">
+                💡 请先在上方创建教学班级，创建后将自动激活该班级的【学生名册池管理】与【协作小组划分】。
+              </div>
+            ` : `
+              <div class="card" style="border-top:4px solid #2563eb; width:100%; padding:24px;">
+                <div class="card-title" style="margin-bottom:16px;">
+                  <span style="font-size:17px; font-weight:800; color:#0f172a;">👨‍🎓 学生账号管理 (当前班级: ${activeClass.name})</span>
+                  <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+                    <button id="btn-v1-add-student" class="teacher-action-btn" style="background:linear-gradient(135deg, #1d4ed8, #2563eb); border:none; color:white; padding:8px 16px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer; box-shadow:0 2px 8px rgba(37,99,235,0.25);">+ 单条创建学生账号</button>
+                    <button id="btn-v1-enroll-existing-student" class="teacher-action-btn" style="background:#eff6ff; border:1.5px solid #bfdbfe; color:#1d4ed8; padding:8px 16px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer;">👥 加入已有学生到班级</button>
+                    <button id="btn-v1-import-file" class="teacher-action-btn" style="background:linear-gradient(135deg, #1d4ed8, #2563eb); border:none; color:white; padding:8px 16px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer; box-shadow:0 2px 8px rgba(37,99,235,0.25);">
+                      📥 上传 XLSX / CSV 文件导入
+                    </button>
+                    ${classStudents.length > 0 ? `
+                      <button id="btn-clear-class-students" style="background:#fef2f2; border:1px solid #fecaca; color:#dc2626; padding:8px 14px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer;">
+                        🗑️ 一键清空本班学生
+                      </button>
+                    ` : ''}
+                  </div>
+                </div>
+                <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:12px 16px; margin-bottom:14px; font-size:13px; color:#334155; display:flex; justify-content:space-between; align-items:center;">
+                  <div>💡 <b>密码说明：</b> 创建学生时可指定自定义密码（留空统一定为 <code style="color:#059669; font-weight:700;">123</code>）。建立后直接放入班级学生池。</div>
+                  <span style="color:#2563eb; font-weight:800; font-size:13.5px;">池内学生: ${classStudents.length} 人</span>
+                </div>
+                <div style="border:1px solid #e2e8f0; border-radius:10px; overflow:hidden; background:#ffffff;">
+                  <table class="monitor-table" style="font-size:13px;">
+                    <thead><tr><th>序号</th><th>姓名</th><th>学号</th><th>当前归属小组</th><th>密码状态</th><th>操作</th></tr></thead>
+                    <tbody>
+                      ${classStudents.length === 0 ? '<tr><td colspan="6" style="text-align:center; color:#64748b; padding:24px;">当前班级暂无学生账号，请点击右上角按钮创建或导入！</td></tr>' : ''}
+                      ${(() => {
+                        // 同名提示：本班级内姓名重复的学生加一个视觉标记，方便老师区分，绝不自动合并
+                        const _nameBuckets = {};
+                        classStudents.forEach(s => { const _n = (s.name || '').trim(); if (!_n) return; (_nameBuckets[_n] = _nameBuckets[_n] || []).push(s); });
+                        const _escAttr = (v) => String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+                        return classStudents.map((s, idx) => {
+                        const grp = (activeClass.groups || []).find(g => g.members && (g.members.includes(s.id) || (typeof g.members[0] === 'object' && g.members.some(m => m && (m.id === s.id || m.studentCode === s.id)))));
+                        const stdAcc = s.id;
+                        const _dupPeers = (_nameBuckets[(s.name || '').trim()] || []).filter(x => x !== s);
+                        const _dupBadge = _dupPeers.length > 0 ? `<span title="${_escAttr('⚠️ 有同名同学：' + _dupPeers.map(x => x.name + '（' + x.id + '）').join(' / '))}" style="margin-left:6px; background:#fef3c7; border:1px solid #fcd34d; color:#b45309; padding:1px 7px; border-radius:999px; font-size:11px; font-weight:700; cursor:help;">⚠️ 同名 ${_dupPeers.length + 1} 人</span>` : '';
+                        return `
+                          <tr>
+                            <td style="color:#94a3b8; font-weight:700;">${idx + 1}</td>
+                            <td><b>${s.avatar || '👤'} ${s.name}</b>${_dupBadge}</td>
+                            <td><span style="color:#2563eb; font-family:monospace; font-weight:700;">${stdAcc}</span></td>
+                            <td>${grp ? `<span style="background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe; padding:2px 8px; border-radius:8px; font-size:12px; font-weight:700;">${grp.name}</span>` : '<span style="color:#94a3b8;">⏳ 待划分小组</span>'}</td>
+                            <td>${(!s.password || s.password === '123') ? '<span style="color:#059669; font-family:monospace; font-weight:700;">初始 123</span>' : '<span style="color:#7c3aed; font-family:monospace; font-weight:700;">已修改密码</span>'}</td>
+                            <td>
+                              <div style="display:flex; gap:6px; align-items:center;">
+                                <button class="reset-student-pwd-btn" data-account="${stdAcc}" data-name="${s.name}" style="background:#eff6ff; border:1px solid #bfdbfe; color:#2563eb; padding:4px 10px; border-radius:6px; font-size:12px; cursor:pointer; font-weight:700;" title="将此学生登录密码重置为 123">
+                                  🔑 重置为123
+                                </button>
+                                <button class="delete-student-btn" data-id="${s.id}" style="background:#fef2f2; border:1px solid #fecaca; color:#dc2626; padding:4px 10px; border-radius:6px; font-size:12px; cursor:pointer; font-weight:700;" title="从本班移除">
+                                  移除
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        `;
+                      }).join('');})()}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              <div class="card" style="border-top:4px solid #2563eb; width:100%; padding:24px;">
+                <div class="card-title" style="margin-bottom:16px;">
+                  <span style="font-size:17px; font-weight:800; color:#0f172a;">👥 小组划分 (当前班级: ${activeClass.name})</span>
+                  <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+                    <button id="btn-v1-create-group" class="teacher-action-btn" style="background:linear-gradient(135deg, #1d4ed8, #2563eb); border:none; color:white; padding:8px 16px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer; box-shadow:0 2px 8px rgba(37,99,235,0.25);">+ 新建小组</button>
+                    
+                    <div style="display:flex; align-items:center; gap:6px; background:#f0fdf4; border:1px solid #bbf7d0; padding:4px 10px; border-radius:8px;">
+                      <span style="font-size:12.5px; font-weight:700; color:#166534;">每组</span>
+                      <select id="sel-random-group-size" style="padding:4px 8px; border:1px solid #86efac; border-radius:6px; font-size:13px; font-weight:800; color:#15803d; background:#ffffff; cursor:pointer;">
+                        <option value="2">2 人</option>
+                        <option value="3" selected>3 人</option>
+                        <option value="4">4 人</option>
+                        <option value="5">5 人</option>
+                        <option value="6">6 人</option>
+                      </select>
+                      <button id="btn-v1-random-groups" class="teacher-action-btn" style="background:linear-gradient(135deg, #059669, #10b981); border:none; color:white; padding:6px 14px; border-radius:6px; font-size:12.5px; font-weight:700; cursor:pointer; box-shadow:0 2px 6px rgba(16,185,129,0.25);" title="按所选人数自动随机划分班级内全部学生">🎲 一键随机分组</button>
+                    </div>
+
+                    <button id="btn-v1-dissolve-all-groups" class="teacher-action-btn" style="background:linear-gradient(135deg, #dc2626, #b91c1c); border:none; color:white; padding:8px 16px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer; box-shadow:0 2px 8px rgba(220,38,38,0.25);">💥 一键解散所有小组</button>
+                  </div>
+                </div>
+                <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:12px 16px; margin-bottom:14px; font-size:13px; color:#334155;">
+                  💡 <b>班级互斥划分规则：</b>已归属于本班级其他小组的学生会自动隐藏，避免重复挂组。跨班级独立计算。
+                </div>
+                <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(360px, 1fr)); gap:16px;">
+                  ${(() => {
+                    const validGroups = (activeClass.groups || []).filter(grp => {
+                      const groupMembers = classStudents.filter(s => (grp.members || []).some(m => {
+                        const mId = (typeof m === 'object' && m !== null) ? (m.id || m.userId || m.studentCode) : m;
+                        return mId === s.id;
+                      }));
+                      return groupMembers.length > 0;
+                    });
+
+                    // 自动规整命名：按顺序编号
+                    validGroups.forEach((g, idx) => {
+                      g.name = `第 ${idx + 1} 协作小组`;
+                    });
+
+                    if (validGroups.length !== (activeClass.groups || []).length) {
+                      activeClass.groups = validGroups;
+                      localStorage.setItem(STORAGE_KEY_CLASSES, JSON.stringify(classes));
+                      // 🛡️ 延迟推送，避免渲染期间触发网络写操作
+                      setTimeout(() => authManager.pushGlobalMeta(), 100);
+                    }
+
+                    if (validGroups.length === 0) {
+                      return '<div style="color:#64748b; padding:20px; font-size:14px;">当前班级暂无小组。</div>';
+                    }
+
+                    return validGroups.map(grp => {
+                      const groupMembers = classStudents.filter(s => (grp.members || []).some(m => {
+                        const mId = (typeof m === 'object' && m !== null) ? (m.id || m.userId || m.studentCode) : m;
+                        return mId === s.id;
+                      }));
+                      return `
+                        <div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:12px; padding:18px; box-shadow:0 1px 3px rgba(15,23,42,0.03);">
+                          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+                            <span style="font-size:15.5px; font-weight:800; color:#1d4ed8;">👥 ${grp.name} (${groupMembers.length}人)</span>
+                            <div style="display:flex; gap:8px;">
+                              <button class="btn-edit-group-members" data-gid="${grp.id}" style="background:#eff6ff; border:1px solid #bfdbfe; color:#1d4ed8; padding:6px 12px; border-radius:6px; font-size:12px; font-weight:700; cursor:pointer;">⚙️ 勾选组员</button>
+                              <button class="btn-delete-group" data-gid="${grp.id}" style="background:#fef2f2; border:1px solid #fecaca; color:#dc2626; padding:6px 10px; border-radius:6px; font-size:12px; cursor:pointer; font-weight:700;">✕ 解散</button>
+                            </div>
+                          </div>
+                          <div style="display:flex; flex-wrap:wrap; gap:8px; font-size:13px;">
+                            ${groupMembers.length === 0 ? '<span style="color:#94a3b8; font-size:12px;">⚠️ 暂未勾选成员</span>' : ''}
+                            ${groupMembers.map(m => `
+                              <span style="background:#eff6ff; border:1px solid #bfdbfe; color:#1d4ed8; padding:4px 10px; border-radius:6px; font-weight:600;">
+                                ${m.avatar || '👤'} ${m.name}
+                              </span>
+                            `).join('')}
+                          </div>
+                        </div>
+                      `;
+                    }).join('');
+                  })()}
+                </div>
+              </div>
+            `}
 
           </div>
         ` : ''}
 
         ${activeTab === 'view_publishing' ? (() => {
+          if (!activeClass) {
+            return `
+              <div class="card" style="border:1.5px dashed #cbd5e1; background:#ffffff; border-radius:16px; padding:48px 24px; text-align:center; box-shadow:0 1px 3px rgba(15,23,42,0.02);">
+                <div style="font-size:42px; margin-bottom:10px;">📢</div>
+                <h3 style="margin:0 0 8px 0; font-size:17px; font-weight:800; color:#0f172a;">暂无可用教学班级</h3>
+                <p style="font-size:13px; color:#64748b; margin:0 auto 18px; max-width:420px; line-height:1.6;">
+                  请先前往【🛠️ 基础架构管理】创建您的教学班级，随后即可在此为班级发布协作任务、配置问卷链接与发布即时广播通知。
+                </p>
+              </div>
+            `;
+          }
           const currentClassTasks = tasks.filter(t => !t.classId || t.classId === 'all' || t.classId === activeClass.id || (t.className && t.className === activeClass.name) || (Array.isArray(t.targetClassIds) && (t.targetClassIds.includes('all') || t.targetClassIds.includes(activeClass.id))));
           const currentClassAnnouncements = announcements.filter(a => (!a.classId || a.classId === 'all' || a.classId === activeClass.id || (a.className && a.className === activeClass.name) || (Array.isArray(a.targetClassIds) && (a.targetClassIds.includes('all') || a.targetClassIds.includes(activeClass.id)))) && !a.isSystemAction && !a.isExtension && !a.title?.includes('延期') && !a.title?.includes('延长至'));
           const currentClassPapers = refPapers.filter(p => (!p.classId || p.classId === 'all' || p.classId === activeClass.id || (p.className && p.className === activeClass.name) || (Array.isArray(p.targetClassIds) && (p.targetClassIds.includes('all') || p.targetClassIds.includes(activeClass.id)))));
@@ -894,9 +923,9 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
                     <div style="font-size:12.5px; color:#64748b; margin-top:4px;">点击右上角【+ 发布新通知】向本班学生发布即时指令！</div>
                   </div>
                 ` : currentClassAnnouncements.map((a, idx) => {
-                  const allClassGroups = (activeClass.groups && activeClass.groups.length > 0)
+                  const allClassGroups = (activeClass && activeClass.groups && activeClass.groups.length > 0)
                     ? activeClass.groups
-                    : [{ id: 'group_1', name: '第 1 协作小组' }];
+                    : [];
 
                   const seenGIds = new Set();
                   let targetGroups = [];
@@ -963,21 +992,19 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
 
                             // 1. 遍历小组名册中的所有学生
                             gMembers.forEach(m => {
-                              const mId = (typeof m === 'object' && m !== null) ? (m.id || m.userId || m.studentCode) : m;
+                              const mId = (typeof m === 'object' && m !== null) ? m.id : m;
                               const mName = (typeof m === 'object' && m !== null) ? m.name : null;
-                              const uObj = mId ? allUsers.find(u => u.id === mId || u.studentCode === mId || u.username === mId || u.name === mId) : null;
+                              const uObj = mId ? allUsers.find(u => u.id === mId || u.name === mId) : null;
                               const uName = (uObj ? uObj.name : null) || mName || (typeof mId === 'string' && !mId.startsWith('u_') ? mId : null);
 
                               const hasRead = a.readStatus && (
                                 (mId && a.readStatus[mId]) ||
                                 (uObj && uObj.id && a.readStatus[uObj.id]) ||
-                                (uObj && uObj.studentCode && a.readStatus[uObj.studentCode]) ||
-                                (uObj && uObj.username && a.readStatus[uObj.username]) ||
                                 (uObj && uObj.name && a.readStatus[uObj.name])
                               );
                               const inConfirmedList = (a.confirmedMembers || []).some(cm => cm && (
                                 (mId && cm.id === mId) ||
-                                (uObj && (cm.id === uObj.id || cm.studentCode === uObj.studentCode || cm.name === uObj.name)) ||
+                                (uObj && (cm.id === uObj.id || cm.name === uObj.name)) ||
                                 (uName && cm.name === uName)
                               ));
 
@@ -989,7 +1016,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
                             // 2. 遍历 confirmedMembers 中明确属于该组的学生
                             (a.confirmedMembers || []).forEach(m => {
                               if (m && (m.groupId === g.id || m.groupId === g.name || m.groupId === g.groupId)) {
-                                const showName = m.name || m.studentCode || '学生';
+                                const showName = m.name || '学生';
                                 if (!memberConfirmedNames.includes(showName)) {
                                   memberConfirmedNames.push(showName);
                                 }
@@ -1020,11 +1047,22 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
         })() : ''}
 
         ${activeTab === 'view_monitoring' ? (() => {
+          if (!activeClass) {
+            return `
+              <div class="card" style="border:1.5px dashed #cbd5e1; background:#ffffff; border-radius:16px; padding:48px 24px; text-align:center; box-shadow:0 1px 3px rgba(15,23,42,0.02);">
+                <div style="font-size:42px; margin-bottom:10px;">🖥️</div>
+                <h3 style="margin:0 0 8px 0; font-size:17px; font-weight:800; color:#0f172a;">暂无可用教学班级</h3>
+                <p style="font-size:13px; color:#64748b; margin:0 auto 18px; max-width:420px; line-height:1.6;">
+                  请先前往【🛠️ 基础架构管理】创建教学班级并划分协作小组，随后即可在此进行全组实操大屏与进程实时监控。
+                </p>
+              </div>
+            `;
+          }
           const monitorStageMode = state.teacherMonitorStageMode || 'auto';
           const actualStage = state.currentStage || 'stage1';
           const effectiveMonitorStage = monitorStageMode === 'auto' ? actualStage : monitorStageMode;
 
-          const currentClassId = state.activeClassId || (authManager.getClasses()[0] ? authManager.getClasses()[0].id : 'class_101');
+          const currentClassId = activeClass.id;
           const activeTaskId = state.activeTaskId || (currentClassTasks[0] ? currentClassTasks[0].id : `task_${currentClassId}_default`);
           const currentMonitorTaskId = activeTaskId;
           const monitorTaskObj = currentClassTasks.find(t => t.id === currentMonitorTaskId);
@@ -1267,19 +1305,19 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
                           <div style="font-size:13.5px; font-weight:800; color:#1e40af; margin-bottom:10px; display:flex; justify-content:space-between; align-items:center;">
                             <span>💡 组员初始学术提案展台 (${(state.stage1?.proposals || []).length}/${monitorMembersList.length || 3} 人已提交):</span>
                             <span style="font-size:11.5px; background:#eff6ff; color:#2563eb; padding:2px 8px; border-radius:6px; font-weight:700;">
-                              共投 ${monitorMembersList.filter(m => state.stage1?.hasVoted && (state.stage1.hasVoted[m.id] || state.stage1.hasVoted[m.studentCode] || (m.name && state.stage1.hasVoted[m.name]))).length} 票
+                              共投 ${monitorMembersList.filter(m => state.stage1?.hasVoted && (state.stage1.hasVoted[m.id] || (m.name && state.stage1.hasVoted[m.name]))).length} 票
                             </span>
                           </div>
                           ${(state.stage1?.proposals && state.stage1.proposals.length > 0) ? `
                             <div class="proposals-grid" style="display:grid; grid-template-columns:repeat(auto-fill, minmax(200px, 1fr)); gap:10px;">
                               ${state.stage1.proposals.map((p, idx) => {
                                 const allGlobalUsers = (authManager) ? authManager.getUsers() : [];
-                                const authorObj = monitorMembersList.find(m => m.id === p.author || m.studentCode === p.author || m.name === p.authorName || m.name === p.author);
-                                const authorUser = allGlobalUsers.find(u => u.id === p.author || u.studentCode === p.author || u.username === p.author || u.name === p.authorName);
+                                const authorObj = monitorMembersList.find(m => m.id === p.author || m.name === p.authorName || m.name === p.author);
+                                const authorUser = allGlobalUsers.find(u => u.id === p.author || u.name === p.authorName);
                                 const authorName = authorObj ? authorObj.name : (authorUser ? authorUser.name : (p.authorName || p.author || `组员${idx+1}`));
                                 const votes = monitorMembersList.filter(m => {
                                   if (!state.stage1?.votes) return false;
-                                  const v = state.stage1.votes[m.studentCode] || state.stage1.votes[m.id] || (m.name && state.stage1.votes[m.name]);
+                                  const v = state.stage1.votes[m.id] || (m.name && state.stage1.votes[m.name]);
                                   return v === p.id;
                                 }).length;
                                 return `
@@ -1751,9 +1789,9 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
       const newCId = btn.dataset.id;
       state.activeClassId = newCId;
       const targetC = (authManager.getClasses() || []).find(c => c.id === newCId);
-      const cTasks = (authManager.getTasks() || []).filter(t => t.classId === newCId || (targetC && t.className === targetC.name) || (!t.classId && newCId === 'class_101'));
-      state.activeTaskId = cTasks[0] ? cTasks[0].id : 'task_default';
-      state.activeMonitorGroupId = (targetC && targetC.groups && targetC.groups[0]) ? targetC.groups[0].id : 'group_1';
+      const cTasks = (authManager.getTasks() || []).filter(t => t.classId === newCId || (targetC && t.className === targetC.name));
+      state.activeTaskId = cTasks[0] ? cTasks[0].id : (targetC ? `task_${targetC.id}_default` : 'task_default');
+      state.activeMonitorGroupId = (targetC && targetC.groups && targetC.groups[0]) ? targetC.groups[0].id : null;
       // 🛡️ 彻底清空旧班级全景与视图缓存
       state.monitorPanorama = null;
       state._lastMonitorHash = '';
@@ -1787,11 +1825,11 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
         try {
           authManager.deleteClass(cId);
           const remainingClasses = authManager.getClasses();
-          const nextC = remainingClasses[0] || { id: 'class_101', groups: [] };
-          state.activeClassId = nextC.id;
-          const cTasks = (authManager.getTasks() || []).filter(t => t.classId === nextC.id || (!t.classId && nextC.id === 'class_101'));
-          state.activeTaskId = cTasks[0] ? cTasks[0].id : 'task_default';
-          state.activeMonitorGroupId = (nextC.groups && nextC.groups[0]) ? nextC.groups[0].id : 'group_1';
+          const nextC = remainingClasses[0] || null;
+          state.activeClassId = nextC ? nextC.id : null;
+          const cTasks = nextC ? (authManager.getTasks() || []).filter(t => t.classId === nextC.id) : [];
+          state.activeTaskId = cTasks[0] ? cTasks[0].id : (nextC ? `task_${nextC.id}_default` : 'task_default');
+          state.activeMonitorGroupId = (nextC && nextC.groups && nextC.groups[0]) ? nextC.groups[0].id : null;
           state.monitorPanorama = null;
           state._lastMonitorHash = '';
           state._lastEpHash = '';
@@ -1800,7 +1838,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
           state.stage3 = null;
           state.chatLogs = null;
           if (window.app && window.app.state) {
-            window.app.state.activeClassId = nextC.id;
+            window.app.state.activeClassId = state.activeClassId;
             window.app.state.activeTaskId = state.activeTaskId;
             window.app.state.activeMonitorGroupId = state.activeMonitorGroupId;
           }
@@ -1815,7 +1853,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
 
   // 🗑️ 一键清空当前班级学生（带弹窗二次确认）
   const btnClearStudents = container.querySelector('#btn-clear-class-students');
-  if (btnClearStudents) {
+  if (btnClearStudents && activeClass) {
     btnClearStudents.addEventListener('click', () => {
       if (confirm(`🗑️【清空名册确认】\n\n您确定要一键清空【${activeClass.name}】下的所有学生吗？\n\n⚠️ 注：清空后将重置本班学生名册与未划分的小组成员绑定！`)) {
         // 清空当前班级的学生关联，并重置小组
@@ -1847,31 +1885,35 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
     });
   }
 
-  const btnCreateClass = container.querySelector('#btn-v1-create-class');
-  if (btnCreateClass) {
-    btnCreateClass.addEventListener('click', () => {
-      const name = prompt('请输入新教学班级名称 (例如: 《现代教育技术》2026春02班):', '《现代教育技术》2026春02班');
-      if (name) {
-        const newC = authManager.createClass(name);
-        state.activeClassId = newC.id;
-        state.activeTaskId = 'task_default';
-        state.activeMonitorGroupId = (newC.groups && newC.groups[0]) ? newC.groups[0].id : 'group_1';
-        state.monitorPanorama = null;
-        state._lastMonitorHash = '';
-        state._lastEpHash = '';
-        state.stage1 = null;
-        state.stage2 = null;
-        state.stage3 = null;
-        state.chatLogs = null;
-        if (window.app && window.app.state) {
-          window.app.state.activeClassId = newC.id;
-          window.app.state.activeTaskId = state.activeTaskId;
-          window.app.state.activeMonitorGroupId = state.activeMonitorGroupId;
+  // ➕ 创建班级事件绑定 (支持顶部按钮与零状态引导大按钮)
+  container.querySelectorAll('.btn-trigger-create-class, #btn-v1-create-class, #btn-v1-create-class-zero').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const name = prompt('请输入新教学班级名称 (例如: 《现代教育技术》2026春01班):', '《现代教育技术》2026春01班');
+      if (name && name.trim()) {
+        try {
+          const newC = authManager.createClass(name.trim());
+          state.activeClassId = newC.id;
+          state.activeTaskId = `task_${newC.id}_default`;
+          state.activeMonitorGroupId = (newC.groups && newC.groups[0]) ? newC.groups[0].id : null;
+          state.monitorPanorama = null;
+          state._lastMonitorHash = '';
+          state._lastEpHash = '';
+          state.stage1 = null;
+          state.stage2 = null;
+          state.stage3 = null;
+          state.chatLogs = null;
+          if (window.app && window.app.state) {
+            window.app.state.activeClassId = newC.id;
+            window.app.state.activeTaskId = state.activeTaskId;
+            window.app.state.activeMonitorGroupId = state.activeMonitorGroupId;
+          }
+          renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+        } catch (err) {
+          alert('❌ ' + err.message);
         }
-        renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
       }
     });
-  }
+  });
 
   // 👨‍🎓 1. 单条创建学生账号（纯粹创建面板）
   const btnAddStd = container.querySelector('#btn-v1-add-student');
@@ -1980,10 +2022,10 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
                   (s.classIds || [s.classId]).includes(c.id) && c.id !== activeClass.id
                 );
                 return `
-                  <label class="enroll-std-card-item" data-search="${(s.name + ' ' + (s.studentCode || '') + ' ' + (s.username || '')).toLowerCase()}" style="display:flex; align-items:center; gap:12px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:10px 14px; cursor:pointer; transition:all 0.15s;">
+                  <label class="enroll-std-card-item" data-search="${(s.name + ' ' + (s.id || '')).toLowerCase()}" style="display:flex; align-items:center; gap:12px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:10px 14px; cursor:pointer; transition:all 0.15s;">
                     <input type="checkbox" class="enroll-chk" data-uid="${s.id}" style="width:17px; height:17px; cursor:pointer; accent-color:#2563eb;">
                     <div>
-                      <div style="font-size:14px; font-weight:800; color:#0f172a;">${s.avatar || '👤'} ${s.name} <code style="color:#2563eb; font-family:monospace; margin-left:6px;">${s.studentCode || s.username}</code></div>
+                      <div style="font-size:14px; font-weight:800; color:#0f172a;">${s.avatar || '👤'} ${s.name} <code style="color:#2563eb; font-family:monospace; margin-left:6px;">${s.id}</code></div>
                       <div style="font-size:12px; color:#64748b; margin-top:2px;">
                         ${otherClasses.length > 0 ? `现归属班级: <b>${otherClasses.map(c => c.name).join(', ')}</b>` : '已入库学生'}
                       </div>
@@ -2084,7 +2126,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
             </div>
             <div class="teacher-form-group" style="margin-top:16px;">
               <label style="font-size:13px; font-weight:700; color:#334155; margin-bottom:6px; display:block;">或 直接粘贴名册文本 (每行一人)</label>
-              <textarea id="modal-paste-textarea" class="teacher-textarea fancy" style="min-height:90px; font-family:monospace; font-size:13px; width:100%; box-sizing:border-box; padding:10px 12px; border:1.5px solid #cbd5e1; border-radius:8px; outline:none;" placeholder="每行一位学生，逗号或空格分隔：&#10;姓名, 登录账号, 学号, 初始密码(可选)"></textarea>
+              <textarea id="modal-paste-textarea" class="teacher-textarea fancy" style="min-height:90px; font-family:monospace; font-size:13px; width:100%; box-sizing:border-box; padding:10px 12px; border:1.5px solid #cbd5e1; border-radius:8px; outline:none;" placeholder="每行一位学生，逗号或空格分隔：&#10;姓名, 学号, 初始密码(可选)"></textarea>
             </div>
           </div>
           <div class="teacher-modal-footer" style="background:#f8fafc; border-top:1px solid #e2e8f0; padding:14px 24px; display:flex; justify-content:flex-end; gap:10px;">
@@ -2189,10 +2231,10 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
                 const isChecked = currentMembers.includes(s.id);
                 const otherGroup = (cls.groups || []).find(g => g.id !== editingGroupId && g.members && g.members.includes(s.id));
                 return `
-                  <div class="grp-student-item" data-search="${(s.name + ' ' + (s.studentCode || '') + ' ' + (s.username || '')).toLowerCase()}" style="display:flex; justify-content:space-between; align-items:center; background:#ffffff; border:1px solid #e2e8f0; padding:10px 14px; border-radius:8px; transition:all 0.15s;">
+                  <div class="grp-student-item" data-search="${(s.name + ' ' + (s.id || '')).toLowerCase()}" style="display:flex; justify-content:space-between; align-items:center; background:#ffffff; border:1px solid #e2e8f0; padding:10px 14px; border-radius:8px; transition:all 0.15s;">
                     <label style="display:flex; align-items:center; gap:10px; cursor:pointer; font-size:13.5px; color:#0f172a; font-weight:600; width:100%;">
                       <input type="checkbox" class="chk-grp-member" value="${s.id}" ${isChecked ? 'checked' : ''} style="width:17px; height:17px; cursor:pointer; accent-color:#2563eb;">
-                      <span>${s.avatar || '👤'} <b>${s.name}</b> <code style="color:#2563eb; font-family:monospace; margin-left:4px;">${s.studentCode || s.username}</code></span>
+                      <span>${s.avatar || '👤'} <b>${s.name}</b> <code style="color:#2563eb; font-family:monospace; margin-left:4px;">${s.id}</code></span>
                       ${otherGroup ? `<span style="background:#fef3c7; color:#b45309; border:1px solid #fde68a; font-size:11.5px; padding:1px 8px; border-radius:6px; font-weight:700; margin-left:auto;">(现归属: ${otherGroup.name})</span>` : ''}
                     </label>
                   </div>
@@ -2271,7 +2313,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
       if (confirm(`🔑【教师密码重置确认】\n\n您确定要将学生【${name}】(账号: ${account}) 的登录密码重置为初始密码 123 吗？`)) {
         try {
           const currT = authManager.getCurrentUser();
-          const tId = (currT && (currT.studentCode || currT.username || currT.id)) || '';
+          const tId = currT?.id || '';
           const tToken = (currT && (currT.token || currT.activeSessionId)) || '';
 
           const res = await fetch('sync.php?action=reset_student_password', {
@@ -3305,10 +3347,10 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
         }
         const allGroups = (selClassObj && selClassObj.groups) ? selClassObj.groups : [];
         const isAllSelected = checkedGroupCbs.length === allGroups.length;
-        const selectedGroupIds = checkedGroupCbs.map(cb => cb.value);
-        const selectedGroupNames = selectedGroupIds.map(gid => {
-          const gObj = allGroups.find(g => g.id === gid);
-          return gObj ? gObj.name : gid;
+        const selectedGroupIds = isAllSelected ? ['all'] : checkedGroupCbs.map(cb => cb.value);
+        const selectedGroupNames = checkedGroupCbs.map(cb => {
+          const gObj = allGroups.find(g => g.id === cb.value);
+          return gObj ? gObj.name : cb.value;
         });
         const targetGId = isAllSelected ? 'all' : selectedGroupIds[0];
         const targetGName = isAllSelected ? '全班所有小组' : selectedGroupNames.join('、');

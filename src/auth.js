@@ -14,8 +14,8 @@ import {
   DefaultTasks,
   DefaultAnnouncements,
   DefaultReferencePapers
-} from './constants.js?v=20260901_v1132';
-import { formatExportDateTime, formatDurationHuman, isScopeMatch } from './utils.js?v=20260901_v1132';
+} from './constants.js?v=20260902_v1133';
+import { formatExportDateTime, formatDurationHuman, isScopeMatch } from './utils.js?v=20260902_v1133';
 
 export class AuthManager {
   constructor() {
@@ -61,7 +61,7 @@ export class AuthManager {
   removeLegacyTestAccounts() {
     try {
       const LEGACY_IDS = new Set(['u_studentA', 'u_studentB', 'u_studentC']);
-      const LEGACY_CODES = new Set(['202601', '202602', '202603']);
+      const LEGACY_CODES = new Set();
       const LEGACY_NAMES = new Set(['李明', '王芳', '陈强', '李明 (组长)', '王芳 (组员)', '陈强 (组员)']);
 
       let users = [];
@@ -122,24 +122,43 @@ export class AuthManager {
     } catch (e) {}
   }
 
+  _normalizeUser(u) {
+    if (!u || typeof u !== 'object') return null;
+    const id = String(u.id || u.studentCode || u.username || u.userId || '').trim();
+    if (!id) return null;
+    const name = String(u.name || id || (u.role === 'teacher' ? '老师' : '学生')).trim();
+    const classId = u.classId || (Array.isArray(u.classIds) && u.classIds[0]) || null;
+    const classIds = Array.isArray(u.classIds) ? u.classIds : (classId ? [classId] : []);
+    return {
+      id: id,
+      name: name,
+      role: u.role || 'student',
+      classId: classId,
+      classIds: classIds,
+      className: u.className || '',
+      groupId: u.groupId || null,
+      password: (u.password !== undefined && u.password !== null && String(u.password).trim() !== '') ? String(u.password).trim() : '123',
+      avatar: u.avatar || (u.role === 'teacher' ? '👩‍🏫' : '👨‍🎓'),
+      email: u.email || `${id.toLowerCase()}@jizhi.edu`
+    };
+  }
+
   findUserByKey(key) {
     if (!key) return null;
     if (typeof key === 'object') {
-      if (key.name && (key.studentCode || key.id)) return key;
+      if (key.name && (key.id || key.studentCode)) return this._normalizeUser(key);
       key = key.id || key.studentCode || key.username || key.name || '';
     }
     const cleanKey = String(key).trim().toLowerCase();
     if (!cleanKey) return null;
 
     const users = this.getUsers();
-    // 1. 在 users 列表中全字段精准比对
+    // 1. 在 users 列表中按 id(学号) 或 name(姓名) 比对
     let found = users.find(u => {
       if (!u) return false;
       const uid = String(u.id || '').trim().toLowerCase();
-      const code = String(u.studentCode || '').trim().toLowerCase();
-      const uname = String(u.username || '').trim().toLowerCase();
       const name = String(u.name || '').trim().toLowerCase();
-      return uid === cleanKey || code === cleanKey || uname === cleanKey || name === cleanKey;
+      return uid === cleanKey || name === cleanKey;
     });
     if (found) return found;
 
@@ -149,13 +168,11 @@ export class AuthManager {
       if (cls && Array.isArray(cls.students)) {
         found = cls.students.find(s => {
           if (!s) return false;
-          const sid = String(s.id || '').trim().toLowerCase();
-          const scode = String(s.studentCode || '').trim().toLowerCase();
+          const sid = String(s.id || s.studentCode || '').trim().toLowerCase();
           const sname = String(s.name || '').trim().toLowerCase();
-          const suname = String(s.username || '').trim().toLowerCase();
-          return sid === cleanKey || scode === cleanKey || sname === cleanKey || suname === cleanKey;
+          return sid === cleanKey || sname === cleanKey;
         });
-        if (found) return found;
+        if (found) return this._normalizeUser(found);
       }
     }
     return null;
@@ -186,14 +203,46 @@ export class AuthManager {
           if (data.unchanged) {
             return; // ⚡ 极速早退：服务端版本未变，0 开销
           }
-          // 1. 账号池：直接以云端权威数据库为准
+          // 1. 账号池：合并云端与本地，保证教师刚导入/创建的学生绝不会被旧云端数据反向冲刷清空
           if (Array.isArray(data.users)) {
-            localStorage.setItem(STORAGE_KEY_USERS_DB, JSON.stringify(data.users));
+            const localUsers = this.getUsers();
+            const userMap = new Map();
+            data.users.forEach(u => { if (u && u.id) userMap.set(String(u.id).trim().toLowerCase(), u); });
+            localUsers.forEach(u => {
+              if (u && u.id) {
+                const k = String(u.id).trim().toLowerCase();
+                if (!userMap.has(k)) {
+                  userMap.set(k, u);
+                } else {
+                  const rUser = userMap.get(k);
+                  const mergedClassIds = Array.from(new Set([...(rUser.classIds || [rUser.classId].filter(Boolean)), ...(u.classIds || [u.classId].filter(Boolean))]));
+                  userMap.set(k, { ...rUser, ...u, classIds: mergedClassIds });
+                }
+              }
+            });
+            localStorage.setItem(STORAGE_KEY_USERS_DB, JSON.stringify(Array.from(userMap.values())));
           }
 
-          // 2. 班级与小组：直接以云端权威数据库为准 (杜绝已删除班级/学生死灰复燃)
+          // 2. 班级与小组：合并云端与本地班级信息，确保新导入/创建的小组完好保留
           if (Array.isArray(data.classes)) {
-            localStorage.setItem(STORAGE_KEY_CLASSES, JSON.stringify(data.classes));
+            const localClasses = this.getClasses();
+            const classMap = new Map();
+            data.classes.forEach(c => { if (c && c.id) classMap.set(c.id, c); });
+            localClasses.forEach(c => {
+              if (c && c.id) {
+                if (!classMap.has(c.id)) {
+                  classMap.set(c.id, c);
+                } else {
+                  const rClass = classMap.get(c.id);
+                  const mergedStudentIds = Array.from(new Set([...(rClass.studentIds || []), ...(c.studentIds || [])]));
+                  const grpMap = new Map();
+                  (rClass.groups || []).forEach(g => { if (g && g.id) grpMap.set(g.id, g); });
+                  (c.groups || []).forEach(g => { if (g && g.id) grpMap.set(g.id, g); });
+                  classMap.set(c.id, { ...rClass, ...c, studentIds: mergedStudentIds, groups: Array.from(grpMap.values()) });
+                }
+              }
+            });
+            localStorage.setItem(STORAGE_KEY_CLASSES, JSON.stringify(Array.from(classMap.values())));
             this.sanitizeAndDeduplicateGroups();
           }
 
@@ -364,14 +413,14 @@ export class AuthManager {
   }
   pushGlobalMeta() {
     const currUser = this.getCurrentUser();
-    const isTeacher = currUser && (currUser.role === 'teacher' || currUser.isTeacher);
+    const isTeacher = currUser && (currUser.role === 'teacher' || currUser.isTeacher || currUser.id === '1001');
     
-    // 🛡️ 铁律：只有已登录的教师且已完成云端元数据拉取后，才允许向服务器推送配置，杜绝冷启动默认数据覆盖云端
-    if (!isTeacher || !this.isGlobalMetaLoaded) {
+    if (!isTeacher) {
       return Promise.resolve();
     }
+    this.isGlobalMetaLoaded = true;
 
-    const teacherUserId = (currUser && (currUser.studentCode || currUser.username || currUser.id)) || '';
+    const teacherUserId = currUser?.id || '';
     const teacherToken = currUser?.token || currUser?.activeSessionId || '';
     
     // ⚡ 极速轻量化打包：剥离 referencePapers 中的大 Base64 Blob（仅传元数据与物理 URL，数据包从几兆骤降至 2KB，秒级保存！）
@@ -438,20 +487,22 @@ export class AuthManager {
       users = JSON.parse(JSON.stringify(DefaultUsers));
       localStorage.setItem(STORAGE_KEY_USERS_DB, JSON.stringify(users));
     } else {
-      const seenCodes = new Set();
+      const seenIds = new Set();
       const uniqueUsers = [];
       let changed = false;
 
       users.forEach(u => {
-        if (u.role === 'teacher') {
-          // 🛡️ 仅在字段缺失时补默认值，不再强制覆盖已有教师名/工号（支持多教师）
-          if (!u.name) { u.name = '老师'; changed = true; }
+        const norm = this._normalizeUser(u);
+        if (!norm || !norm.id) return;
+        if (norm.role === 'teacher' && !norm.name) {
+          norm.name = '老师';
+          changed = true;
         }
 
-        const codeKey = (u.studentCode || u.username || u.id).trim().toLowerCase();
-        if (!seenCodes.has(codeKey)) {
-          seenCodes.add(codeKey);
-          uniqueUsers.push(u);
+        const idKey = norm.id.toLowerCase();
+        if (!seenIds.has(idKey)) {
+          seenIds.add(idKey);
+          uniqueUsers.push(norm);
         } else {
           changed = true;
         }
@@ -462,9 +513,16 @@ export class AuthManager {
         localStorage.setItem(STORAGE_KEY_USERS_DB, JSON.stringify(users));
       }
     }
-    return users;
+    return users.map(u => this._normalizeUser(u));
   }
-  getClasses() { return JSON.parse(localStorage.getItem(STORAGE_KEY_CLASSES)) || DefaultClasses; }
+  getClasses() {
+    let classes = [];
+    try {
+      const stored = localStorage.getItem(STORAGE_KEY_CLASSES);
+      if (stored) classes = JSON.parse(stored);
+    } catch (e) { classes = []; }
+    return Array.isArray(classes) ? classes : [];
+  }
   getTasks() {
     let tasks = [];
     try {
@@ -523,11 +581,12 @@ export class AuthManager {
     if (!cached) return null;
 
     const allUsers = this.getUsers();
-    const freshUser = allUsers.find(u => (cached.id && u.id === cached.id) || (cached.username && u.username === cached.username) || (cached.studentCode && u.studentCode === cached.studentCode));
+    const cleanId = String(cached.id || cached.studentCode || cached.username || '').trim().toLowerCase();
+    const freshUser = allUsers.find(u => u && u.id.toLowerCase() === cleanId);
     if (freshUser) {
       return { ...cached, ...freshUser, activeSessionId: cached.activeSessionId };
     }
-    return cached;
+    return this._normalizeUser(cached);
   }
   async loginAsync(accountInput, password, role) {
     const query = (accountInput || '').trim();
@@ -549,7 +608,7 @@ export class AuthManager {
       } catch (parseErr) {}
 
       if (response.ok && data && data.success && data.user) {
-        const user = data.user;
+        const user = this._normalizeUser(data.user);
         user.token = data.token;
         user.activeSessionId = data.token;
         sessionStorage.setItem(STORAGE_KEY_USER, JSON.stringify(user));
@@ -592,14 +651,9 @@ export class AuthManager {
     }
 
     const userIndex = users.findIndex(u => {
-      const uCode = (u.studentCode || '').toLowerCase();
-      const uName = (u.username || '').toLowerCase();
-      const uNick = (u.name || '').toLowerCase();
-      const uEmail = (u.email || '').toLowerCase();
-      
-      const isDirectMatch = (uCode === query || uName === query || uEmail === query || uNick === query);
-
-      return isDirectMatch;
+      const uId = (u.id || '').toLowerCase();
+      // 🛡️ 严格单标识登录：仅认唯一工号/学号（u.id），坚决拒绝姓名与邮箱匹配，杜绝重名串号
+      return uId === query;
     });
 
     if (userIndex === -1) {
@@ -690,9 +744,6 @@ export class AuthManager {
 
   deleteClass(classId) {
     let classes = this.getClasses();
-    if (classes.length <= 1) {
-      throw new Error('系统至少需要保留一个教学班级，无法删除最后一个班级！');
-    }
     classes = classes.filter(c => c.id !== classId);
     localStorage.setItem(STORAGE_KEY_CLASSES, JSON.stringify(classes));
 
@@ -721,16 +772,13 @@ export class AuthManager {
     ));
   }
 
-  addStudentToClass(name, studentCode, classId, customPassword = null, isStrictUnique = true) {
+  addStudentToClass(name, studentId, classId, customPassword = null, isStrictUnique = true) {
     const users = this.getUsers();
     const classes = this.getClasses();
-    const cleanCode = (studentCode || '').trim();
-    const cleanUsername = cleanCode.toLowerCase();
+    const cleanId = (studentId || '').trim();
     
     const existingUser = users.find(u =>
-      u.role !== 'teacher' &&
-      ((u.studentCode && u.studentCode.trim().toLowerCase() === cleanCode.toLowerCase()) ||
-      (u.username && u.username.trim().toLowerCase() === cleanUsername))
+      u.role !== 'teacher' && u.id && u.id.trim().toLowerCase() === cleanId.toLowerCase()
     );
 
     const avatars = ['👨‍🎓', '👩‍🎓', '🧑‍🎓', '🎓', '📚', '🌟'];
@@ -751,19 +799,16 @@ export class AuthManager {
       return existingUser;
     }
 
-    const targetUser = {
-      id: cleanCode,
-      username: cleanCode,
-      studentCode: cleanCode,
-      email: `${cleanUsername}@jizhi.edu`,
-      password: (customPassword && customPassword.trim()) ? customPassword.trim() : '123',
+    const targetUser = this._normalizeUser({
+      id: cleanId,
       name: name.trim(),
       role: 'student',
       avatar: avatar,
       classId: classId || null,
-      classIds: classId ? [classId] : ['class_101'],
-      groupId: null
-    };
+      classIds: classId ? [classId] : [],
+      groupId: null,
+      password: (customPassword && customPassword.trim()) ? customPassword.trim() : '123'
+    });
     users.push(targetUser);
 
     localStorage.setItem(STORAGE_KEY_USERS_DB, JSON.stringify(users));
@@ -786,46 +831,43 @@ export class AuthManager {
     const users = this.getUsers();
     const classes = this.getClasses();
     const targetClass = classes.find(c => c.id === (classId || null)) || classes[0];
-    if (!targetClass.studentIds) targetClass.studentIds = [];
+    if (targetClass && !targetClass.studentIds) targetClass.studentIds = [];
 
     const avatars = ['👨‍🎓', '👩‍🎓', '🧑‍🎓', '🎓', '📚', '🌟'];
 
     studentList.forEach(st => {
-      const code = (st.studentCode || st.username || '').trim();
+      const code = (st.id || st.studentCode || st.username || '').trim();
       const name = (st.name || '').trim();
       if (!code || !name) return;
 
-      const existing = users.find(u => (u.studentCode && u.studentCode.trim().toLowerCase() === code.toLowerCase()) || (u.username && u.username.trim().toLowerCase() === code.toLowerCase()));
+      const existing = users.find(u => u && u.id.trim().toLowerCase() === code.toLowerCase());
       if (existing) {
         existing.id = code;
         existing.name = name;
         if (!existing.classIds || !Array.isArray(existing.classIds)) {
-          existing.classIds = existing.classId ? [existing.classId] : ['class_101'];
+          existing.classIds = existing.classId ? [existing.classId] : [];
         }
-        if (!existing.classIds.includes(targetClass.id)) {
+        if (targetClass && !existing.classIds.includes(targetClass.id)) {
           existing.classIds.push(targetClass.id);
         }
-        if (!targetClass.studentIds.includes(existing.id)) {
+        if (targetClass && !targetClass.studentIds.includes(existing.id)) {
           targetClass.studentIds.push(existing.id);
         }
         linkedList.push({ name: existing.name || name, code });
         linkedCount++;
       } else {
-        const newUser = {
+        const newUser = this._normalizeUser({
           id: code,
-          username: code,
-          studentCode: code,
-          email: `${code.toLowerCase()}@jizhi.edu`,
-          password: (st.customPassword && st.customPassword.trim()) ? st.customPassword.trim() : '123',
           name: name,
           role: 'student',
           avatar: avatars[users.length % avatars.length],
-          classId: targetClass.id,
-          classIds: [targetClass.id],
-          groupId: null
-        };
+          classId: targetClass ? targetClass.id : null,
+          classIds: targetClass ? [targetClass.id] : [],
+          groupId: null,
+          password: (st.customPassword && st.customPassword.trim()) ? st.customPassword.trim() : '123'
+        });
         users.push(newUser);
-        targetClass.studentIds.push(code);
+        if (targetClass) targetClass.studentIds.push(code);
         createdCount++;
       }
     });
@@ -855,7 +897,7 @@ export class AuthManager {
 
   getEffectiveStudentClassId(user, activeTaskId = null) {
     const classes = this.getClasses();
-    if (!Array.isArray(classes) || classes.length === 0) return 'class_101';
+    if (!Array.isArray(classes) || classes.length === 0) return null;
 
     // 1. 若有指定任务，以该任务绑定的班级为最高准则
     if (activeTaskId) {
@@ -875,57 +917,34 @@ export class AuthManager {
       }
 
       // 3. 全局扫描学生真正加入的小组所属班级
-      const uId = user.id;
-      const uCode = user.studentCode;
-      const uUsername = user.username;
-      const uName = user.name;
+      const uId = String(user.id || '').trim().toLowerCase();
       for (const c of classes) {
         if (!Array.isArray(c.groups)) continue;
         for (const g of c.groups) {
           const hasMember = (g.members || []).some(m => {
             if (!m) return false;
-            if (typeof m === 'string') return m === uId || m === uCode || m === uUsername || m === uName;
-            if (typeof m === 'object') return (m.id && m.id === uId) || (m.studentCode && m.studentCode === uCode) || (m.username && m.username === uUsername) || (m.name && m.name === uName);
-            return false;
+            const mId = String(typeof m === 'object' ? (m.id || '') : m).trim().toLowerCase();
+            return mId === uId;
           });
           if (hasMember) return c.id;
         }
       }
     }
 
-    // 4. 回退到第一个真实班级
-    return classes[0].id;
+    // 4. 未能关联到任何有效班级时返回 null，杜绝静默借调其它班级
+    return null;
   }
 
   getStudentActiveGroup(user, classId = null) {
-    if (!user) return { id: 'group_1', name: '第 1 协作小组' };
+    if (!user) return { id: 'group_unassigned', name: '未分配小组' };
     const classes = this.getClasses();
-    const uId = user.id;
-    const uCode = user.studentCode;
-    const uName = user.name;
-    const uUsername = user.username;
-    const safeUserKey = uCode || uId || uUsername || 'unassigned';
+    const uId = String(user.id || '').trim().toLowerCase();
+    const safeUserKey = user.id || 'unassigned';
 
     const checkMemberMatch = (m) => {
       if (!m) return false;
-      if (typeof m === 'string') {
-        const sm = m.trim().toLowerCase();
-        return (uId && sm === String(uId).trim().toLowerCase()) ||
-               (uCode && sm === String(uCode).trim().toLowerCase()) ||
-               (uUsername && sm === String(uUsername).trim().toLowerCase()) ||
-               (uName && m.trim() === String(uName).trim());
-      }
-      if (typeof m === 'object') {
-        const mId = m.id || m.userId;
-        const mCode = m.studentCode;
-        const mUser = m.username;
-        const mName = m.name;
-        return (mId && uId && String(mId).trim().toLowerCase() === String(uId).trim().toLowerCase()) ||
-               (mCode && uCode && String(mCode).trim().toLowerCase() === String(uCode).trim().toLowerCase()) ||
-               (mUser && uUsername && String(mUser).trim().toLowerCase() === String(uUsername).trim().toLowerCase()) ||
-               (mName && uName && String(mName).trim() === String(uName).trim());
-      }
-      return false;
+      const mId = typeof m === 'object' ? (m.id || m.studentCode) : m;
+      return mId && String(mId).trim().toLowerCase() === uId;
     };
 
     // 1. 若指定了班级 ID，优先在该班级内检索小组
@@ -971,9 +990,9 @@ export class AuthManager {
       return { ok: false, reason: '当前没有可用教学班级，请联系教师创建班级后再进入' };
     }
     const effectiveClassId = classId || this.getEffectiveStudentClassId(user, taskId);
-    const activeClass = classes.find(c => c.id === effectiveClassId) || classes[0];
+    const activeClass = effectiveClassId ? classes.find(c => c.id === effectiveClassId) : null;
     if (!activeClass) {
-      return { ok: false, reason: '无法解析你所在的班级，请联系教师确认分班后刷新重试' };
+      return { ok: false, reason: '无法解析你所在的教学班级，请联系任课教师完成分班后再进入' };
     }
 
     // 2) 小组解析
@@ -1282,7 +1301,8 @@ export class AuthManager {
     this.pushGlobalMeta();
   }
 
-  getGroupMembersForWorkspace(groupId = 'group_1', classId = null) {
+  getGroupMembersForWorkspace(groupId = null, classId = null) {
+    if (!groupId) return {};
     const users = this.getUsers();
     const classes = this.getClasses();
     const colors = ['#818cf8', '#22d3ee', '#fbbf24', '#ec4899', '#34d399', '#f97316', '#a78bfa'];
@@ -1309,21 +1329,19 @@ export class AuthManager {
     if (targetGrp && Array.isArray(targetGrp.members) && targetGrp.members.length > 0) {
       targetGrp.members.forEach(m => {
         if (!m) return;
-        const mKey = (typeof m === 'object') ? (m.studentCode || m.id || m.userId || m.username || m.name) : String(m);
+        const mKey = (typeof m === 'object') ? (m.id || m.studentCode || m.username || m.name) : String(m);
         const cleanKey = String(mKey || '').trim().toLowerCase();
         const matchedU = users.find(u => {
           if (!u) return false;
-          return String(u.studentCode || '').trim().toLowerCase() === cleanKey ||
-                 String(u.id || '').trim().toLowerCase() === cleanKey ||
-                 String(u.username || '').trim().toLowerCase() === cleanKey ||
+          return String(u.id || '').trim().toLowerCase() === cleanKey ||
                  String(u.name || '').trim().toLowerCase() === cleanKey;
         });
         if (matchedU) {
           groupUsers.push(matchedU);
         } else if (typeof m === 'object') {
-          groupUsers.push(m);
+          groupUsers.push(this._normalizeUser(m));
         } else {
-          groupUsers.push({ id: mKey, studentCode: mKey, name: mKey, role: 'student' });
+          groupUsers.push(this._normalizeUser({ id: mKey, name: mKey, role: 'student' }));
         }
       });
     } else {
@@ -1335,23 +1353,26 @@ export class AuthManager {
 
     const membersObj = {};
     if (groupUsers.length > 0) {
-      // 按 studentCode/id 去重
+      // 按 id 去重
       const seen = new Set();
       groupUsers.forEach((u, idx) => {
-        const studentCode = String(u.studentCode || u.username || u.id || `S${idx + 1}`).trim();
-        if (seen.has(studentCode)) return;
-        seen.add(studentCode);
+        const studentId = String(u.id || '').trim();
+        if (!studentId) return;
+        if (seen.has(studentId)) return;
+        seen.add(studentId);
 
-        membersObj[studentCode] = {
-          id: studentCode,
-          userId: u.id || studentCode,
-          name: u.name || `学生${seen.size}`,
+        membersObj[studentId] = {
+          id: studentId,
+          name: u.name || studentId,
           roleTitle: '组员 · 合作撰写',
           avatar: u.avatar || avatars[(seen.size - 1) % avatars.length],
           color: colors[(seen.size - 1) % colors.length],
-          studentCode: studentCode,
           groupId: groupId,
-          classId: u.classId || (targetGrp ? targetGrp.classId : 'class_101')
+          classId: u.classId || (targetGrp ? targetGrp.classId : null),
+          // 🛡️ 兼容性字段别名
+          studentCode: studentId,
+          username: studentId,
+          userId: studentId
         };
       });
     }
@@ -1480,7 +1501,7 @@ export class AuthManager {
     }
 
     const currUser = this.getCurrentUser();
-    const teacherUserId = (currUser && (currUser.studentCode || currUser.username || currUser.id)) || '1001';
+    const teacherUserId = currUser?.id || '1001';
     const teacherToken = currUser?.token || currUser?.activeSessionId || '';
 
     // 🛡️ 后台极速落库，绝不阻塞前端按钮
@@ -1606,7 +1627,7 @@ export class AuthManager {
     }
   }
 
-  markAnnouncementRead(annId, groupId = 'group_1') {
+  markAnnouncementRead(annId, groupId = null) {
     const announcements = this.getAnnouncements();
     const ann = announcements.find(a => a.id === annId);
     const currUser = this.getCurrentUser();
@@ -1627,9 +1648,9 @@ export class AuthManager {
         body: JSON.stringify({
           annId,
           groupId,
-          userId: currUser ? (currUser.id || currUser.username || currUser.studentCode) : '',
-          userCode: currUser ? (currUser.studentCode || currUser.username || '') : '',
-          userName: currUser ? (currUser.name || currUser.studentCode || '学生') : ''
+          userId: currUser ? currUser.id : '',
+          userCode: currUser ? currUser.id : '',
+          userName: currUser ? currUser.name : '学生'
         })
       }).catch(() => {});
     } catch (e) {}
@@ -1642,16 +1663,12 @@ export class AuthManager {
 
       if (currUser) {
         if (currUser.id) ann.readStatus[currUser.id] = true;
-        if (currUser.studentCode) ann.readStatus[currUser.studentCode] = true;
-        if (currUser.username) ann.readStatus[currUser.username] = true;
-        if (currUser.name) ann.readStatus[currUser.name] = true;
 
-        const alreadyIn = ann.confirmedMembers.some(m => m.id === currUser.id || m.studentCode === currUser.studentCode || (currUser.name && m.name === currUser.name));
+        const alreadyIn = ann.confirmedMembers.some(m => m.id === currUser.id || (currUser.name && m.name === currUser.name));
         if (!alreadyIn) {
           ann.confirmedMembers.push({
-            id: currUser.id || currUser.studentCode || ('u_' + Date.now()),
-            name: currUser.name || currUser.studentCode || '学生',
-            studentCode: currUser.studentCode || '',
+            id: currUser.id || ('u_' + Date.now()),
+            name: currUser.name || '学生',
             groupId: groupId,
             time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
           });
@@ -1674,7 +1691,7 @@ export class AuthManager {
     }
   }
 
-  markAnnouncementConfirmed(annId, userId, userName, groupId = 'group_1') {
+  markAnnouncementConfirmed(annId, userId, userName, groupId = null) {
     return this.markAnnouncementRead(annId, groupId);
   }
 
@@ -1690,7 +1707,7 @@ export class AuthManager {
     } catch (e) {}
   }
 
-  markAllTaskAnnouncementsRead(taskId, groupId = 'group_1') {
+  markAllTaskAnnouncementsRead(taskId, groupId = null) {
     const announcements = this.getAnnouncements();
     const relevant = announcements.filter(a => !a.taskId || a.taskId === 'task_all' || a.taskId === taskId);
     relevant.forEach(a => {
@@ -1771,7 +1788,7 @@ export class AuthManager {
     this.pushGlobalMeta();
   }
 
-  exportGroupChatLogsToExcel(groupId = 'group_1', chatLogsState = null) {
+  exportGroupChatLogsToExcel(groupId = null, chatLogsState = null) {
     const currentChatLogs = chatLogsState || (window.app && window.app.state && window.app.state.chatLogs) || {};
     let csvContent = '\uFEFF名字,时间,内容\n';
     const stageNames = { stage1: '阶段一：学术拍卖会', stage2: '阶段二：学术编辑部', stage3: '阶段三：答辩擂台' };

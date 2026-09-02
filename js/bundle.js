@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260901_v1132
+ * Version: 20260902_v1133
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260901_v1132';
+  const APP_VERSION = '20260902_v1133';
   const APP_BUILD_DATE = '2026-08-26';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -29,7 +29,7 @@
 
   // 🧹 唯一种子：教师端管理账号（1001/老师）。测试学生一律不写入，教师可在教务界面自行增删学生
   const DefaultUsers = [
-    { id: '1001', username: '1001', studentCode: '1001', password: '123', name: '老师', role: 'teacher', avatar: '👩‍🏫' }
+    { id: '1001', name: '老师', role: 'teacher', password: '123', avatar: '👩‍🏫', studentCode: '1001', username: '1001' }
   ];
 
   const DefaultTasks = [];
@@ -941,11 +941,12 @@
     const { classId: tClassId, targetGroupId: tGroupId, taskId: tTaskId, targetClassIds: tClassIds, targetGroupIds: tGroupIds, className: tClassName } = target;
     const { userClassId, userGroupId, currentTaskId, userClassName } = context;
 
-    // 1. 班级范围匹配 (支持 all / 空值 / 班级ID一致 / 班级名称一致 / 班级ID数组包含)
-    const matchClass = !tClassId || tClassId === 'all' || tClassId === 'class_all' ||
-                       (userClassId && tClassId === userClassId) ||
-                       (userClassName && tClassName && tClassName === userClassName) ||
-                       (Array.isArray(tClassIds) && (tClassIds.includes('all') || tClassIds.includes('class_all') || (userClassId && tClassIds.includes(userClassId))));
+    // 1. 班级范围匹配：必须严格锁定在学生所在的当前班级（严禁跨班级泄漏）
+    const matchClass = !!(userClassId && (
+      tClassId === userClassId ||
+      (Array.isArray(tClassIds) && tClassIds.includes(userClassId)) ||
+      (userClassName && tClassName && tClassName === userClassName)
+    ));
 
     // 2. 小组范围匹配 (支持 all / 空值 / 小组ID一致 / 小组ID数组包含)
     const matchGroup = !tGroupId || tGroupId === 'all' || tGroupId === 'group_all' ||
@@ -1017,7 +1018,8 @@
             const chatId = data.chat_id;
             const convId = data.conversation_id;
             const targetBotId = data.bot_id || botId;
-            const maxRetries = 120;
+            const isLongDoc = (options.stage === 'stage2' || options.stage === 'stage3' || (options.actual_doc && options.actual_doc.length > 500) || (userQuery && userQuery.length > 1000));
+            const maxRetries = isLongDoc ? 150 : 85; // 5000字全文质检支持长达 65 秒；阶段一公约提炼支持 30 秒，绝不提前掐断
             for (let p = 0; p < maxRetries; p++) {
               const pollInterval = p < 10 ? 100 : (p < 50 ? 300 : 500);
               await new Promise(r => setTimeout(r, pollInterval));
@@ -1104,7 +1106,7 @@
     removeLegacyTestAccounts() {
       try {
         const LEGACY_IDS = new Set(['u_studentA', 'u_studentB', 'u_studentC']);
-        const LEGACY_CODES = new Set(['202601', '202602', '202603']);
+        const LEGACY_CODES = new Set();
         const LEGACY_NAMES = new Set(['李明', '王芳', '陈强', '李明 (组长)', '王芳 (组员)', '陈强 (组员)']);
 
         let users = [];
@@ -1165,24 +1167,43 @@
       } catch (e) {}
     }
 
+    _normalizeUser(u) {
+      if (!u || typeof u !== 'object') return null;
+      const id = String(u.id || u.studentCode || u.username || u.userId || '').trim();
+      if (!id) return null;
+      const name = String(u.name || id || (u.role === 'teacher' ? '老师' : '学生')).trim();
+      const classId = u.classId || (Array.isArray(u.classIds) && u.classIds[0]) || null;
+      const classIds = Array.isArray(u.classIds) ? u.classIds : (classId ? [classId] : []);
+      return {
+        id: id,
+        name: name,
+        role: u.role || 'student',
+        classId: classId,
+        classIds: classIds,
+        className: u.className || '',
+        groupId: u.groupId || null,
+        password: (u.password !== undefined && u.password !== null && String(u.password).trim() !== '') ? String(u.password).trim() : '123',
+        avatar: u.avatar || (u.role === 'teacher' ? '👩‍🏫' : '👨‍🎓'),
+        email: u.email || `${id.toLowerCase()}@jizhi.edu`
+      };
+    }
+
     findUserByKey(key) {
       if (!key) return null;
       if (typeof key === 'object') {
-        if (key.name && (key.studentCode || key.id)) return key;
+        if (key.name && (key.id || key.studentCode)) return this._normalizeUser(key);
         key = key.id || key.studentCode || key.username || key.name || '';
       }
       const cleanKey = String(key).trim().toLowerCase();
       if (!cleanKey) return null;
 
       const users = this.getUsers();
-      // 1. 在 users 列表中全字段精准比对
+      // 1. 在 users 列表中按 id(学号) 或 name(姓名) 比对
       let found = users.find(u => {
         if (!u) return false;
         const uid = String(u.id || '').trim().toLowerCase();
-        const code = String(u.studentCode || '').trim().toLowerCase();
-        const uname = String(u.username || '').trim().toLowerCase();
         const name = String(u.name || '').trim().toLowerCase();
-        return uid === cleanKey || code === cleanKey || uname === cleanKey || name === cleanKey;
+        return uid === cleanKey || name === cleanKey;
       });
       if (found) return found;
 
@@ -1192,13 +1213,11 @@
         if (cls && Array.isArray(cls.students)) {
           found = cls.students.find(s => {
             if (!s) return false;
-            const sid = String(s.id || '').trim().toLowerCase();
-            const scode = String(s.studentCode || '').trim().toLowerCase();
+            const sid = String(s.id || s.studentCode || '').trim().toLowerCase();
             const sname = String(s.name || '').trim().toLowerCase();
-            const suname = String(s.username || '').trim().toLowerCase();
-            return sid === cleanKey || scode === cleanKey || sname === cleanKey || suname === cleanKey;
+            return sid === cleanKey || sname === cleanKey;
           });
-          if (found) return found;
+          if (found) return this._normalizeUser(found);
         }
       }
       return null;
@@ -1229,14 +1248,46 @@
             if (data.unchanged) {
               return; // ⚡ 极速早退：服务端版本未变，0 开销
             }
-            // 1. 账号池：直接以云端权威数据库为准
+            // 1. 账号池：合并云端与本地，保证教师刚导入/创建的学生绝不会被旧云端数据反向冲刷清空
             if (Array.isArray(data.users)) {
-              localStorage.setItem(STORAGE_KEY_USERS_DB, JSON.stringify(data.users));
+              const localUsers = this.getUsers();
+              const userMap = new Map();
+              data.users.forEach(u => { if (u && u.id) userMap.set(String(u.id).trim().toLowerCase(), u); });
+              localUsers.forEach(u => {
+                if (u && u.id) {
+                  const k = String(u.id).trim().toLowerCase();
+                  if (!userMap.has(k)) {
+                    userMap.set(k, u);
+                  } else {
+                    const rUser = userMap.get(k);
+                    const mergedClassIds = Array.from(new Set([...(rUser.classIds || [rUser.classId].filter(Boolean)), ...(u.classIds || [u.classId].filter(Boolean))]));
+                    userMap.set(k, { ...rUser, ...u, classIds: mergedClassIds });
+                  }
+                }
+              });
+              localStorage.setItem(STORAGE_KEY_USERS_DB, JSON.stringify(Array.from(userMap.values())));
             }
 
-            // 2. 班级与小组：直接以云端权威数据库为准 (杜绝已删除班级/学生死灰复燃)
+            // 2. 班级与小组：合并云端与本地班级信息，确保新导入/创建的小组完好保留
             if (Array.isArray(data.classes)) {
-              localStorage.setItem(STORAGE_KEY_CLASSES, JSON.stringify(data.classes));
+              const localClasses = this.getClasses();
+              const classMap = new Map();
+              data.classes.forEach(c => { if (c && c.id) classMap.set(c.id, c); });
+              localClasses.forEach(c => {
+                if (c && c.id) {
+                  if (!classMap.has(c.id)) {
+                    classMap.set(c.id, c);
+                  } else {
+                    const rClass = classMap.get(c.id);
+                    const mergedStudentIds = Array.from(new Set([...(rClass.studentIds || []), ...(c.studentIds || [])]));
+                    const grpMap = new Map();
+                    (rClass.groups || []).forEach(g => { if (g && g.id) grpMap.set(g.id, g); });
+                    (c.groups || []).forEach(g => { if (g && g.id) grpMap.set(g.id, g); });
+                    classMap.set(c.id, { ...rClass, ...c, studentIds: mergedStudentIds, groups: Array.from(grpMap.values()) });
+                  }
+                }
+              });
+              localStorage.setItem(STORAGE_KEY_CLASSES, JSON.stringify(Array.from(classMap.values())));
               this.sanitizeAndDeduplicateGroups();
             }
 
@@ -1407,14 +1458,14 @@
     }
     pushGlobalMeta() {
       const currUser = this.getCurrentUser();
-      const isTeacher = currUser && (currUser.role === 'teacher' || currUser.isTeacher);
+      const isTeacher = currUser && (currUser.role === 'teacher' || currUser.isTeacher || currUser.id === '1001');
 
-      // 🛡️ 铁律：只有已登录的教师且已完成云端元数据拉取后，才允许向服务器推送配置，杜绝冷启动默认数据覆盖云端
-      if (!isTeacher || !this.isGlobalMetaLoaded) {
+      if (!isTeacher) {
         return Promise.resolve();
       }
+      this.isGlobalMetaLoaded = true;
 
-      const teacherUserId = (currUser && (currUser.studentCode || currUser.username || currUser.id)) || '';
+      const teacherUserId = currUser?.id || '';
       const teacherToken = currUser?.token || currUser?.activeSessionId || '';
 
       // ⚡ 极速轻量化打包：剥离 referencePapers 中的大 Base64 Blob（仅传元数据与物理 URL，数据包从几兆骤降至 2KB，秒级保存！）
@@ -1481,20 +1532,22 @@
         users = JSON.parse(JSON.stringify(DefaultUsers));
         localStorage.setItem(STORAGE_KEY_USERS_DB, JSON.stringify(users));
       } else {
-        const seenCodes = new Set();
+        const seenIds = new Set();
         const uniqueUsers = [];
         let changed = false;
 
         users.forEach(u => {
-          if (u.role === 'teacher') {
-            // 🛡️ 仅在字段缺失时补默认值，不再强制覆盖已有教师名/工号（支持多教师）
-            if (!u.name) { u.name = '老师'; changed = true; }
+          const norm = this._normalizeUser(u);
+          if (!norm || !norm.id) return;
+          if (norm.role === 'teacher' && !norm.name) {
+            norm.name = '老师';
+            changed = true;
           }
 
-          const codeKey = (u.studentCode || u.username || u.id).trim().toLowerCase();
-          if (!seenCodes.has(codeKey)) {
-            seenCodes.add(codeKey);
-            uniqueUsers.push(u);
+          const idKey = norm.id.toLowerCase();
+          if (!seenIds.has(idKey)) {
+            seenIds.add(idKey);
+            uniqueUsers.push(norm);
           } else {
             changed = true;
           }
@@ -1505,9 +1558,16 @@
           localStorage.setItem(STORAGE_KEY_USERS_DB, JSON.stringify(users));
         }
       }
-      return users;
+      return users.map(u => this._normalizeUser(u));
     }
-    getClasses() { return JSON.parse(localStorage.getItem(STORAGE_KEY_CLASSES)) || DefaultClasses; }
+    getClasses() {
+      let classes = [];
+      try {
+        const stored = localStorage.getItem(STORAGE_KEY_CLASSES);
+        if (stored) classes = JSON.parse(stored);
+      } catch (e) { classes = []; }
+      return Array.isArray(classes) ? classes : [];
+    }
     getTasks() {
       let tasks = [];
       try {
@@ -1566,11 +1626,12 @@
       if (!cached) return null;
 
       const allUsers = this.getUsers();
-      const freshUser = allUsers.find(u => (cached.id && u.id === cached.id) || (cached.username && u.username === cached.username) || (cached.studentCode && u.studentCode === cached.studentCode));
+      const cleanId = String(cached.id || cached.studentCode || cached.username || '').trim().toLowerCase();
+      const freshUser = allUsers.find(u => u && u.id.toLowerCase() === cleanId);
       if (freshUser) {
         return { ...cached, ...freshUser, activeSessionId: cached.activeSessionId };
       }
-      return cached;
+      return this._normalizeUser(cached);
     }
     async loginAsync(accountInput, password, role) {
       const query = (accountInput || '').trim();
@@ -1592,7 +1653,7 @@
         } catch (parseErr) {}
 
         if (response.ok && data && data.success && data.user) {
-          const user = data.user;
+          const user = this._normalizeUser(data.user);
           user.token = data.token;
           user.activeSessionId = data.token;
           sessionStorage.setItem(STORAGE_KEY_USER, JSON.stringify(user));
@@ -1635,14 +1696,9 @@
       }
 
       const userIndex = users.findIndex(u => {
-        const uCode = (u.studentCode || '').toLowerCase();
-        const uName = (u.username || '').toLowerCase();
-        const uNick = (u.name || '').toLowerCase();
-        const uEmail = (u.email || '').toLowerCase();
-
-        const isDirectMatch = (uCode === query || uName === query || uEmail === query || uNick === query);
-
-        return isDirectMatch;
+        const uId = (u.id || '').toLowerCase();
+        // 🛡️ 严格单标识登录：仅认唯一工号/学号（u.id），坚决拒绝姓名与邮箱匹配，杜绝重名串号
+        return uId === query;
       });
 
       if (userIndex === -1) {
@@ -1733,9 +1789,6 @@
 
     deleteClass(classId) {
       let classes = this.getClasses();
-      if (classes.length <= 1) {
-        throw new Error('系统至少需要保留一个教学班级，无法删除最后一个班级！');
-      }
       classes = classes.filter(c => c.id !== classId);
       localStorage.setItem(STORAGE_KEY_CLASSES, JSON.stringify(classes));
 
@@ -1764,16 +1817,13 @@
       ));
     }
 
-    addStudentToClass(name, studentCode, classId, customPassword = null, isStrictUnique = true) {
+    addStudentToClass(name, studentId, classId, customPassword = null, isStrictUnique = true) {
       const users = this.getUsers();
       const classes = this.getClasses();
-      const cleanCode = (studentCode || '').trim();
-      const cleanUsername = cleanCode.toLowerCase();
+      const cleanId = (studentId || '').trim();
 
       const existingUser = users.find(u =>
-        u.role !== 'teacher' &&
-        ((u.studentCode && u.studentCode.trim().toLowerCase() === cleanCode.toLowerCase()) ||
-        (u.username && u.username.trim().toLowerCase() === cleanUsername))
+        u.role !== 'teacher' && u.id && u.id.trim().toLowerCase() === cleanId.toLowerCase()
       );
 
       const avatars = ['👨‍🎓', '👩‍🎓', '🧑‍🎓', '🎓', '📚', '🌟'];
@@ -1794,19 +1844,16 @@
         return existingUser;
       }
 
-      const targetUser = {
-        id: cleanCode,
-        username: cleanCode,
-        studentCode: cleanCode,
-        email: `${cleanUsername}@jizhi.edu`,
-        password: (customPassword && customPassword.trim()) ? customPassword.trim() : '123',
+      const targetUser = this._normalizeUser({
+        id: cleanId,
         name: name.trim(),
         role: 'student',
         avatar: avatar,
         classId: classId || null,
-        classIds: classId ? [classId] : ['class_101'],
-        groupId: null
-      };
+        classIds: classId ? [classId] : [],
+        groupId: null,
+        password: (customPassword && customPassword.trim()) ? customPassword.trim() : '123'
+      });
       users.push(targetUser);
 
       localStorage.setItem(STORAGE_KEY_USERS_DB, JSON.stringify(users));
@@ -1829,46 +1876,43 @@
       const users = this.getUsers();
       const classes = this.getClasses();
       const targetClass = classes.find(c => c.id === (classId || null)) || classes[0];
-      if (!targetClass.studentIds) targetClass.studentIds = [];
+      if (targetClass && !targetClass.studentIds) targetClass.studentIds = [];
 
       const avatars = ['👨‍🎓', '👩‍🎓', '🧑‍🎓', '🎓', '📚', '🌟'];
 
       studentList.forEach(st => {
-        const code = (st.studentCode || st.username || '').trim();
+        const code = (st.id || st.studentCode || st.username || '').trim();
         const name = (st.name || '').trim();
         if (!code || !name) return;
 
-        const existing = users.find(u => (u.studentCode && u.studentCode.trim().toLowerCase() === code.toLowerCase()) || (u.username && u.username.trim().toLowerCase() === code.toLowerCase()));
+        const existing = users.find(u => u && u.id.trim().toLowerCase() === code.toLowerCase());
         if (existing) {
           existing.id = code;
           existing.name = name;
           if (!existing.classIds || !Array.isArray(existing.classIds)) {
-            existing.classIds = existing.classId ? [existing.classId] : ['class_101'];
+            existing.classIds = existing.classId ? [existing.classId] : [];
           }
-          if (!existing.classIds.includes(targetClass.id)) {
+          if (targetClass && !existing.classIds.includes(targetClass.id)) {
             existing.classIds.push(targetClass.id);
           }
-          if (!targetClass.studentIds.includes(existing.id)) {
+          if (targetClass && !targetClass.studentIds.includes(existing.id)) {
             targetClass.studentIds.push(existing.id);
           }
           linkedList.push({ name: existing.name || name, code });
           linkedCount++;
         } else {
-          const newUser = {
+          const newUser = this._normalizeUser({
             id: code,
-            username: code,
-            studentCode: code,
-            email: `${code.toLowerCase()}@jizhi.edu`,
-            password: (st.customPassword && st.customPassword.trim()) ? st.customPassword.trim() : '123',
             name: name,
             role: 'student',
             avatar: avatars[users.length % avatars.length],
-            classId: targetClass.id,
-            classIds: [targetClass.id],
-            groupId: null
-          };
+            classId: targetClass ? targetClass.id : null,
+            classIds: targetClass ? [targetClass.id] : [],
+            groupId: null,
+            password: (st.customPassword && st.customPassword.trim()) ? st.customPassword.trim() : '123'
+          });
           users.push(newUser);
-          targetClass.studentIds.push(code);
+          if (targetClass) targetClass.studentIds.push(code);
           createdCount++;
         }
       });
@@ -1898,7 +1942,7 @@
 
     getEffectiveStudentClassId(user, activeTaskId = null) {
       const classes = this.getClasses();
-      if (!Array.isArray(classes) || classes.length === 0) return 'class_101';
+      if (!Array.isArray(classes) || classes.length === 0) return null;
 
       // 1. 若有指定任务，以该任务绑定的班级为最高准则
       if (activeTaskId) {
@@ -1918,57 +1962,34 @@
         }
 
         // 3. 全局扫描学生真正加入的小组所属班级
-        const uId = user.id;
-        const uCode = user.studentCode;
-        const uUsername = user.username;
-        const uName = user.name;
+        const uId = String(user.id || '').trim().toLowerCase();
         for (const c of classes) {
           if (!Array.isArray(c.groups)) continue;
           for (const g of c.groups) {
             const hasMember = (g.members || []).some(m => {
               if (!m) return false;
-              if (typeof m === 'string') return m === uId || m === uCode || m === uUsername || m === uName;
-              if (typeof m === 'object') return (m.id && m.id === uId) || (m.studentCode && m.studentCode === uCode) || (m.username && m.username === uUsername) || (m.name && m.name === uName);
-              return false;
+              const mId = String(typeof m === 'object' ? (m.id || '') : m).trim().toLowerCase();
+              return mId === uId;
             });
             if (hasMember) return c.id;
           }
         }
       }
 
-      // 4. 回退到第一个真实班级
-      return classes[0].id;
+      // 4. 未能关联到任何有效班级时返回 null，杜绝静默借调其它班级
+      return null;
     }
 
     getStudentActiveGroup(user, classId = null) {
-      if (!user) return { id: 'group_1', name: '第 1 协作小组' };
+      if (!user) return { id: 'group_unassigned', name: '未分配小组' };
       const classes = this.getClasses();
-      const uId = user.id;
-      const uCode = user.studentCode;
-      const uName = user.name;
-      const uUsername = user.username;
-      const safeUserKey = uCode || uId || uUsername || 'unassigned';
+      const uId = String(user.id || '').trim().toLowerCase();
+      const safeUserKey = user.id || 'unassigned';
 
       const checkMemberMatch = (m) => {
         if (!m) return false;
-        if (typeof m === 'string') {
-          const sm = m.trim().toLowerCase();
-          return (uId && sm === String(uId).trim().toLowerCase()) ||
-                 (uCode && sm === String(uCode).trim().toLowerCase()) ||
-                 (uUsername && sm === String(uUsername).trim().toLowerCase()) ||
-                 (uName && m.trim() === String(uName).trim());
-        }
-        if (typeof m === 'object') {
-          const mId = m.id || m.userId;
-          const mCode = m.studentCode;
-          const mUser = m.username;
-          const mName = m.name;
-          return (mId && uId && String(mId).trim().toLowerCase() === String(uId).trim().toLowerCase()) ||
-                 (mCode && uCode && String(mCode).trim().toLowerCase() === String(uCode).trim().toLowerCase()) ||
-                 (mUser && uUsername && String(mUser).trim().toLowerCase() === String(uUsername).trim().toLowerCase()) ||
-                 (mName && uName && String(mName).trim() === String(uName).trim());
-        }
-        return false;
+        const mId = typeof m === 'object' ? (m.id || m.studentCode) : m;
+        return mId && String(mId).trim().toLowerCase() === uId;
       };
 
       // 1. 若指定了班级 ID，优先在该班级内检索小组
@@ -2014,9 +2035,9 @@
         return { ok: false, reason: '当前没有可用教学班级，请联系教师创建班级后再进入' };
       }
       const effectiveClassId = classId || this.getEffectiveStudentClassId(user, taskId);
-      const activeClass = classes.find(c => c.id === effectiveClassId) || classes[0];
+      const activeClass = effectiveClassId ? classes.find(c => c.id === effectiveClassId) : null;
       if (!activeClass) {
-        return { ok: false, reason: '无法解析你所在的班级，请联系教师确认分班后刷新重试' };
+        return { ok: false, reason: '无法解析你所在的教学班级，请联系任课教师完成分班后再进入' };
       }
 
       // 2) 小组解析
@@ -2325,7 +2346,8 @@
       this.pushGlobalMeta();
     }
 
-    getGroupMembersForWorkspace(groupId = 'group_1', classId = null) {
+    getGroupMembersForWorkspace(groupId = null, classId = null) {
+      if (!groupId) return {};
       const users = this.getUsers();
       const classes = this.getClasses();
       const colors = ['#818cf8', '#22d3ee', '#fbbf24', '#ec4899', '#34d399', '#f97316', '#a78bfa'];
@@ -2352,21 +2374,19 @@
       if (targetGrp && Array.isArray(targetGrp.members) && targetGrp.members.length > 0) {
         targetGrp.members.forEach(m => {
           if (!m) return;
-          const mKey = (typeof m === 'object') ? (m.studentCode || m.id || m.userId || m.username || m.name) : String(m);
+          const mKey = (typeof m === 'object') ? (m.id || m.studentCode || m.username || m.name) : String(m);
           const cleanKey = String(mKey || '').trim().toLowerCase();
           const matchedU = users.find(u => {
             if (!u) return false;
-            return String(u.studentCode || '').trim().toLowerCase() === cleanKey ||
-                   String(u.id || '').trim().toLowerCase() === cleanKey ||
-                   String(u.username || '').trim().toLowerCase() === cleanKey ||
+            return String(u.id || '').trim().toLowerCase() === cleanKey ||
                    String(u.name || '').trim().toLowerCase() === cleanKey;
           });
           if (matchedU) {
             groupUsers.push(matchedU);
           } else if (typeof m === 'object') {
-            groupUsers.push(m);
+            groupUsers.push(this._normalizeUser(m));
           } else {
-            groupUsers.push({ id: mKey, studentCode: mKey, name: mKey, role: 'student' });
+            groupUsers.push(this._normalizeUser({ id: mKey, name: mKey, role: 'student' }));
           }
         });
       } else {
@@ -2378,23 +2398,26 @@
 
       const membersObj = {};
       if (groupUsers.length > 0) {
-        // 按 studentCode/id 去重
+        // 按 id 去重
         const seen = new Set();
         groupUsers.forEach((u, idx) => {
-          const studentCode = String(u.studentCode || u.username || u.id || `S${idx + 1}`).trim();
-          if (seen.has(studentCode)) return;
-          seen.add(studentCode);
+          const studentId = String(u.id || '').trim();
+          if (!studentId) return;
+          if (seen.has(studentId)) return;
+          seen.add(studentId);
 
-          membersObj[studentCode] = {
-            id: studentCode,
-            userId: u.id || studentCode,
-            name: u.name || `学生${seen.size}`,
+          membersObj[studentId] = {
+            id: studentId,
+            name: u.name || studentId,
             roleTitle: '组员 · 合作撰写',
             avatar: u.avatar || avatars[(seen.size - 1) % avatars.length],
             color: colors[(seen.size - 1) % colors.length],
-            studentCode: studentCode,
             groupId: groupId,
-            classId: u.classId || (targetGrp ? targetGrp.classId : 'class_101')
+            classId: u.classId || (targetGrp ? targetGrp.classId : null),
+            // 🛡️ 兼容性字段别名
+            studentCode: studentId,
+            username: studentId,
+            userId: studentId
           };
         });
       }
@@ -2523,7 +2546,7 @@
       }
 
       const currUser = this.getCurrentUser();
-      const teacherUserId = (currUser && (currUser.studentCode || currUser.username || currUser.id)) || '1001';
+      const teacherUserId = currUser?.id || '1001';
       const teacherToken = currUser?.token || currUser?.activeSessionId || '';
 
       // 🛡️ 后台极速落库，绝不阻塞前端按钮
@@ -2649,7 +2672,7 @@
       }
     }
 
-    markAnnouncementRead(annId, groupId = 'group_1') {
+    markAnnouncementRead(annId, groupId = null) {
       const announcements = this.getAnnouncements();
       const ann = announcements.find(a => a.id === annId);
       const currUser = this.getCurrentUser();
@@ -2670,9 +2693,9 @@
           body: JSON.stringify({
             annId,
             groupId,
-            userId: currUser ? (currUser.id || currUser.username || currUser.studentCode) : '',
-            userCode: currUser ? (currUser.studentCode || currUser.username || '') : '',
-            userName: currUser ? (currUser.name || currUser.studentCode || '学生') : ''
+            userId: currUser ? currUser.id : '',
+            userCode: currUser ? currUser.id : '',
+            userName: currUser ? currUser.name : '学生'
           })
         }).catch(() => {});
       } catch (e) {}
@@ -2685,16 +2708,12 @@
 
         if (currUser) {
           if (currUser.id) ann.readStatus[currUser.id] = true;
-          if (currUser.studentCode) ann.readStatus[currUser.studentCode] = true;
-          if (currUser.username) ann.readStatus[currUser.username] = true;
-          if (currUser.name) ann.readStatus[currUser.name] = true;
 
-          const alreadyIn = ann.confirmedMembers.some(m => m.id === currUser.id || m.studentCode === currUser.studentCode || (currUser.name && m.name === currUser.name));
+          const alreadyIn = ann.confirmedMembers.some(m => m.id === currUser.id || (currUser.name && m.name === currUser.name));
           if (!alreadyIn) {
             ann.confirmedMembers.push({
-              id: currUser.id || currUser.studentCode || ('u_' + Date.now()),
-              name: currUser.name || currUser.studentCode || '学生',
-              studentCode: currUser.studentCode || '',
+              id: currUser.id || ('u_' + Date.now()),
+              name: currUser.name || '学生',
               groupId: groupId,
               time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
             });
@@ -2717,7 +2736,7 @@
       }
     }
 
-    markAnnouncementConfirmed(annId, userId, userName, groupId = 'group_1') {
+    markAnnouncementConfirmed(annId, userId, userName, groupId = null) {
       return this.markAnnouncementRead(annId, groupId);
     }
 
@@ -2733,7 +2752,7 @@
       } catch (e) {}
     }
 
-    markAllTaskAnnouncementsRead(taskId, groupId = 'group_1') {
+    markAllTaskAnnouncementsRead(taskId, groupId = null) {
       const announcements = this.getAnnouncements();
       const relevant = announcements.filter(a => !a.taskId || a.taskId === 'task_all' || a.taskId === taskId);
       relevant.forEach(a => {
@@ -2814,7 +2833,7 @@
       this.pushGlobalMeta();
     }
 
-    exportGroupChatLogsToExcel(groupId = 'group_1', chatLogsState = null) {
+    exportGroupChatLogsToExcel(groupId = null, chatLogsState = null) {
       const currentChatLogs = chatLogsState || (window.app && window.app.state && window.app.state.chatLogs) || {};
       let csvContent = '\uFEFF名字,时间,内容\n';
       const stageNames = { stage1: '阶段一：学术拍卖会', stage2: '阶段二：学术编辑部', stage3: '阶段三：答辩擂台' };
@@ -3191,7 +3210,7 @@
       this.updateScopeKeys();
       const currentUser = userObj || (this.app.authManager ? this.app.authManager.getCurrentUser() : null);
       if (!currentUser) return;
-      const userKey = String(currentUser.studentCode || currentUser.username || currentUser.id || '').trim();
+      const userKey = String(currentUser.id || '').trim();
       if (!userKey) return;
 
       try {
@@ -3201,7 +3220,7 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             userId: userKey,
-            studentCode: currentUser.studentCode || userKey,
+            studentCode: userKey,
             name: currentUser.name || userKey,
             role: currentUser.role || 'student',
             timestamp: Date.now()
@@ -3312,7 +3331,7 @@
         try {
           const currentUser = this.app.authManager ? this.app.authManager.getCurrentUser() : null;
           if (currentUser) {
-            const userKey = String(currentUser.studentCode || currentUser.username || currentUser.id || '').trim();
+            const userKey = String(currentUser.id || '').trim();
             const effectiveClassId = this.effectiveClassId || currentUser.classId || null;
             const beaconUrl = `sync.php?action=presence_leave&taskId=${encodeURIComponent(this.taskId)}&groupId=${encodeURIComponent(this.groupId)}&classId=${encodeURIComponent(effectiveClassId)}`;
             if (navigator.sendBeacon) {
@@ -3336,7 +3355,7 @@
       this.updateScopeKeys();
 
       const currentUser = this.app.authManager ? this.app.authManager.getCurrentUser() : null;
-      const userKey = currentUser ? (currentUser.studentCode || currentUser.username || currentUser.id) : '';
+      const userKey = currentUser ? currentUser.id : '';
       const sessToken = currentUser ? (currentUser.activeSessionId || currentUser.token || currentUser.sessionToken || '') : '';
       const lastRev = this._lastKnownRevisionId || 0;
       const lastChatMs = this._getLastChatTimeMs();
@@ -3778,7 +3797,7 @@
         this.app.state.fieldLocks = remoteData.locks || {};
         const locks = this.app.state.fieldLocks;
         const currentUser = this.app.authManager ? this.app.authManager.getCurrentUser() : null;
-        const currentUserId = currentUser ? (currentUser.studentCode || currentUser.username || currentUser.id) : '';
+        const currentUserId = currentUser ? currentUser.id : '';
 
         // 阶段一公约与阶段三答辩矩阵字段锁更新
         document.querySelectorAll('.task-assignment-input, .contract-time-input, #contract-topic-input, .feedback-direct-input').forEach(el => {
@@ -4090,7 +4109,7 @@
           if (Array.isArray(this.app.state.members)) memberArr = this.app.state.members;
           else if (this.app.state.members && typeof this.app.state.members === 'object') memberArr = Object.values(this.app.state.members);
           if (memberArr.length > 0) {
-            const isMemDone = (map, m) => !!(map && (map[m.id] || map[m.studentCode] || map[m.username] || (m.name && map[m.name])));
+            const isMemDone = (map, m) => !!(map && (map[m.id] || (m.name && map[m.name])));
             const cCount = memberArr.filter(m => isMemDone(mergedConf, m)).length;
             if (cCount >= memberArr.length && memberArr.length > 0) {
               this.app.state.stage2.isDraftConfirmed = true;
@@ -4355,12 +4374,7 @@
       if (!val) return;
       const allUsers = (authManager && authManager.getUsers) ? authManager.getUsers() : [];
       const isTeacher = val === 'teacher' || val === 'admin' || allUsers.some(u => 
-        (u.role === 'teacher' || u.isTeacher) && (
-          (u.username && u.username.toLowerCase() === val) ||
-          (u.studentCode && u.studentCode.toLowerCase() === val) ||
-          (u.id && u.id.toLowerCase() === val) ||
-          (u.name && u.name.toLowerCase() === val)
-        )
+        (u.role === 'teacher' || u.isTeacher) && u.id && u.id.toLowerCase() === val
       );
       if (isTeacher) {
         const teacherRadio = container.querySelector('input[name="login-role"][value="teacher"]');
@@ -4460,32 +4474,32 @@
     const activeClass = classes.find(c => c.id === activeClassId) || classes[0] || null;
 
     const allUsers = authManager.getUsers();
-    const classStudents = authManager.getClassStudents(activeClass.id);
+    const classStudents = activeClass ? authManager.getClassStudents(activeClass.id) : [];
 
     // 🛡️ 严格按当前班级隔离写作任务、通知与文献（支持全校通用广播与多班级分发）
-    const currentClassTasks = tasks.filter(t => !t.classId || t.classId === 'all' || t.classId === activeClass.id || (t.className && t.className === activeClass.name) || (Array.isArray(t.targetClassIds) && (t.targetClassIds.includes('all') || t.targetClassIds.includes(activeClass.id))));
-    const currentClassAnnouncements = announcements.filter(a => (!a.classId || a.classId === 'all' || a.classId === activeClass.id || (a.className && a.className === activeClass.name) || (Array.isArray(a.targetClassIds) && (a.targetClassIds.includes('all') || a.targetClassIds.includes(activeClass.id)))) && !a.isSystemAction && !a.isExtension && !a.title?.includes('延期') && !a.title?.includes('延长至'));
-    const currentClassPapers = refPapers.filter(p => (!p.classId || p.classId === 'all' || p.classId === activeClass.id || (p.className && p.className === activeClass.name) || (Array.isArray(p.targetClassIds) && (p.targetClassIds.includes('all') || p.targetClassIds.includes(activeClass.id)))));
+    const currentClassTasks = activeClass ? tasks.filter(t => !t.classId || t.classId === 'all' || t.classId === activeClass.id || (t.className && t.className === activeClass.name) || (Array.isArray(t.targetClassIds) && (t.targetClassIds.includes('all') || t.targetClassIds.includes(activeClass.id)))) : [];
+    const currentClassAnnouncements = activeClass ? announcements.filter(a => (!a.classId || a.classId === 'all' || a.classId === activeClass.id || (a.className && a.className === activeClass.name) || (Array.isArray(a.targetClassIds) && (a.targetClassIds.includes('all') || a.targetClassIds.includes(activeClass.id)))) && !a.isSystemAction && !a.isExtension && !a.title?.includes('延期') && !a.title?.includes('延长至')) : [];
+    const currentClassPapers = activeClass ? refPapers.filter(p => (!p.classId || p.classId === 'all' || p.classId === activeClass.id || (p.className && p.className === activeClass.name) || (Array.isArray(p.targetClassIds) && (p.targetClassIds.includes('all') || p.targetClassIds.includes(activeClass.id))))) : [];
 
     const classTaskExists = currentClassTasks.some(t => t.id === state.activeTaskId);
     let effectiveMonitorTaskId = (state.activeTaskId && classTaskExists)
       ? state.activeTaskId
-      : (currentClassTasks[0] ? currentClassTasks[0].id : `task_${activeClass.id}_default`);
+      : (currentClassTasks[0] ? currentClassTasks[0].id : (activeClass ? `task_${activeClass.id}_default` : 'task_default'));
     if (!effectiveMonitorTaskId || effectiveMonitorTaskId === 'task_default') {
-      effectiveMonitorTaskId = `task_${activeClass.id}_default`;
+      effectiveMonitorTaskId = activeClass ? `task_${activeClass.id}_default` : 'task_default';
     }
     state.activeTaskId = effectiveMonitorTaskId;
     if (window.app && window.app.state) window.app.state.activeTaskId = effectiveMonitorTaskId;
 
-    const classGroupExists = (activeClass.groups || []).some(g => g.id === state.activeMonitorGroupId);
+    const classGroupExists = (activeClass?.groups || []).some(g => g.id === state.activeMonitorGroupId);
     const activeMonitorGId = (state.activeMonitorGroupId && classGroupExists)
       ? state.activeMonitorGroupId
-      : (activeClass.groups && activeClass.groups[0] ? activeClass.groups[0].id : 'group_1');
+      : (activeClass?.groups && activeClass.groups[0] ? activeClass.groups[0].id : null);
     state.activeMonitorGroupId = activeMonitorGId;
     if (window.app && window.app.state) window.app.state.activeMonitorGroupId = activeMonitorGId;
 
-    const activeMonitorGroup = (activeClass.groups || []).find(g => g.id === activeMonitorGId) || (activeClass.groups && activeClass.groups[0]) || { id: 'group_1', name: '第1小组' };
-    const monitorMembersObj = authManager.getGroupMembersForWorkspace(activeMonitorGId, activeClass.id);
+    const activeMonitorGroup = (activeClass?.groups || []).find(g => g.id === activeMonitorGId) || (activeClass?.groups && activeClass.groups[0]) || null;
+    const monitorMembersObj = (activeClass && activeMonitorGId) ? authManager.getGroupMembersForWorkspace(activeMonitorGId, activeClass.id) : {};
     const monitorMembersList = Object.values(monitorMembersObj);
 
     const monitorStageMode = state.teacherMonitorStageMode || state.monitorStageTab || 'auto';
@@ -4553,7 +4567,7 @@
           const pills = container.querySelector('#teacher-stage2-confirmed-pills');
           if (pills) {
             pills.innerHTML = monitorMembersList.map(m => {
-              const isConf = state.stage2?.confirmedMembers && (state.stage2.confirmedMembers[m.id] || state.stage2.confirmedMembers[m.studentCode] || (m.name && state.stage2.confirmedMembers[m.name]));
+              const isConf = state.stage2?.confirmedMembers && !!state.stage2.confirmedMembers[m.id];
               return `<span style="font-size:11px; padding:1px 8px; border-radius:10px; font-weight:700; background:${isConf ? '#ecfdf5' : '#f8fafc'}; color:${isConf ? '#059669' : '#94a3b8'}; border:1px solid ${isConf ? '#a7f3d0' : '#e2e8f0'};">
                 ${isConf ? '✓' : '○'} ${escapeHtml(m.name)}
               </span>`;
@@ -4562,11 +4576,11 @@
 
           const contribs = state.stage2?.memberContributions || {};
           let rawTotal = 0;
-          monitorMembersList.forEach(m => { rawTotal += (contribs[m.id] || 0) + (contribs[m.studentCode] || 0); });
+          monitorMembersList.forEach(m => { rawTotal += (contribs[m.id] || 0); });
           const cl = container.querySelector('#teacher-stage2-contrib-labels');
           if (cl) {
             cl.innerHTML = monitorMembersList.map((m) => {
-              const rawVal = (contribs[m.id] || 0) + (contribs[m.studentCode] || 0);
+              const rawVal = contribs[m.id] || 0;
               const pct = rawTotal > 0 ? Math.round((rawVal / rawTotal) * 100) : 0;
               return `<span style="color:${rawVal > 0 ? (m.color || '#2563eb') : '#94a3b8'}; font-weight:700;">● ${escapeHtml(m.name)}: ${pct}%</span>`;
             }).join('');
@@ -4574,7 +4588,7 @@
           const cb = container.querySelector('#teacher-stage2-contrib-bars');
           if (cb) {
             cb.innerHTML = rawTotal === 0 ? `<div style="width:100%; height:10px; background:#f8fafc; border-radius:5px; display:flex; align-items:center; justify-content:center; font-size:10px; color:#94a3b8; font-weight:600;">⏳ 暂无协作投入 (组员在 Etherpad 中撰写、修改正文或研讨后将平滑累计真实贡献)</div>` : monitorMembersList.map((m) => {
-              const rawVal = (contribs[m.id] || 0) + (contribs[m.studentCode] || 0);
+              const rawVal = contribs[m.id] || 0;
               if (rawVal === 0) return '';
               const pct = Math.round((rawVal / rawTotal) * 100);
               return `<div style="width:${pct}%; background:${m.color || '#2563eb'}; transition:width 0.3s ease;" title="${escapeHtml(m.name)}: ${pct}% (${rawVal}字)"></div>`;
@@ -4593,11 +4607,11 @@
 
             const contribs = state.stage2?.memberContributions || {};
             let rawTotal = 0;
-            monitorMembersList.forEach(m => { rawTotal += (contribs[m.id] || 0) + (contribs[m.studentCode] || 0); });
+            monitorMembersList.forEach(m => { rawTotal += (contribs[m.id] || 0); });
             const cl = container.querySelector('#teacher-stage3-contrib-labels');
             if (cl) {
               cl.innerHTML = monitorMembersList.map((m) => {
-                const rawVal = (contribs[m.id] || 0) + (contribs[m.studentCode] || 0);
+                const rawVal = contribs[m.id] || 0;
                 const pct = rawTotal > 0 ? Math.round((rawVal / rawTotal) * 100) : 0;
                 return `<span style="color:${rawVal > 0 ? (m.color || '#2563eb') : '#94a3b8'}; font-weight:700;">● ${escapeHtml(m.name)}: ${pct}%</span>`;
               }).join('');
@@ -4605,7 +4619,7 @@
             const cb = container.querySelector('#teacher-stage3-contrib-bars');
             if (cb) {
               cb.innerHTML = rawTotal === 0 ? `<div style="width:100%; height:10px; background:#f8fafc; border-radius:5px; display:flex; align-items:center; justify-content:center; font-size:10px; color:#94a3b8; font-weight:600;">⏳ 暂无协作投入</div>` : monitorMembersList.map((m) => {
-                const rawVal = (contribs[m.id] || 0) + (contribs[m.studentCode] || 0);
+                const rawVal = contribs[m.id] || 0;
                 if (rawVal === 0) return '';
                 const pct = Math.round((rawVal / rawTotal) * 100);
                 return `<div style="width:${pct}%; background:${m.color || '#2563eb'}; transition:width 0.3s ease;" title="${escapeHtml(m.name)}: ${pct}% (${rawVal}字)"></div>`;
@@ -4884,8 +4898,8 @@
             <div class="brand-logo" style="font-size:22px; font-weight:800; background:linear-gradient(135deg, #1e40af, #2563eb); -webkit-background-clip:text; -webkit-text-fill-color:transparent;">集智 JIZHI 教师端</div>
           </div>
           <div class="teacher-info" style="display:flex; align-items:center; gap:14px;">
-            <span style="font-size:13.5px; color:#334155;">当前班级: <b style="color:#2563eb;">${activeClass.name}</b></span>
-            <span style="font-size:13.5px; color:#334155;">教师: <b>${currentUser.name}</b></span>
+            <span style="font-size:13.5px; color:#334155;">当前班级: ${activeClass ? `<b style="color:#2563eb;">${escapeHtml(activeClass.name)}</b>` : '<b style="color:#94a3b8;">⏳ 暂未创建/选择班级</b>'}</span>
+            <span style="font-size:13.5px; color:#334155;">教师: <b>${currentUser ? escapeHtml(currentUser.name) : '老师'}</b></span>
             <button id="btn-teacher-change-pwd" style="background:#f0fdf4; border:1px solid #bbf7d0; color:#16a34a; padding:6px 14px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer; display:flex; align-items:center; gap:6px;" title="修改登录密码">
               <span>🔑 修改密码</span>
             </button>
@@ -4916,177 +4930,206 @@
               <div class="card" style="border-top:4px solid #2563eb; width:100%; padding:24px;">
                 <div class="card-title" style="margin-bottom:16px;">
                   <span style="font-size:17px; font-weight:800; color:#0f172a;">🎓 教学班级管理 (${classes.length} 个班级)</span>
-                  <button id="btn-v1-create-class" class="teacher-action-btn" style="background:linear-gradient(135deg, #1d4ed8, #2563eb); border:none; color:white; padding:8px 18px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer; box-shadow:0 2px 8px rgba(37,99,235,0.25);">+ 创建全新教学班</button>
+                  <button id="btn-v1-create-class" class="teacher-action-btn btn-trigger-create-class" style="background:linear-gradient(135deg, #1d4ed8, #2563eb); border:none; color:white; padding:8px 18px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer; box-shadow:0 2px 8px rgba(37,99,235,0.25);">+ 创建全新教学班</button>
                 </div>
-                <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(360px, 1fr)); gap:16px;">
-                  ${classes.map(c => {
-                    const isSelected = c.id === activeClass.id;
-                    const cStds = authManager.getClassStudents(c.id);
-                    return `
-                      <div style="background:${isSelected ? '#eff6ff' : '#ffffff'}; border:1.5px solid ${isSelected ? '#3b82f6' : '#e2e8f0'}; border-radius:12px; padding:18px 20px; display:flex; justify-content:space-between; align-items:center; box-shadow:0 1px 3px rgba(15,23,42,0.03);">
-                        <div style="min-width:0; padding-right:12px;">
-                          <div style="font-size:16px; font-weight:800; color:${isSelected ? '#1d4ed8' : '#0f172a'}; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">🏫 ${c.name}</div>
-                          <div style="font-size:12.5px; color:#64748b; margin-top:5px;">学生: <b>${cStds.length}</b> 人 | 小组: <b>${(c.groups || []).length}</b> 个</div>
-                        </div>
-                        <div style="display:flex; gap:8px; align-items:center; flex-shrink:0;">
-                          <button class="btn-select-class" data-id="${c.id}" style="background:${isSelected ? '#ecfdf5' : '#2563eb'}; border:1px solid ${isSelected ? '#a7f3d0' : 'transparent'}; color:${isSelected ? '#059669' : 'white'}; padding:7px 14px; border-radius:8px; font-size:12.5px; font-weight:700; cursor:pointer; white-space:nowrap; display:inline-flex; align-items:center; gap:4px;">
-                            ${isSelected ? '✅ 当前主班' : '切换'}
-                          </button>
-                          ${classes.length > 1 ? `
+
+                ${classes.length === 0 ? `
+                  <div style="background:#ffffff; border:2px dashed #cbd5e1; border-radius:16px; padding:36px 24px; text-align:center; box-shadow:0 1px 3px rgba(15,23,42,0.02);">
+                    <div style="font-size:42px; margin-bottom:10px;">🏫</div>
+                    <h3 style="margin:0 0 8px 0; font-size:17px; font-weight:800; color:#0f172a;">欢迎使用集智协作教学平台！您当前尚未创建任何教学班级</h3>
+                    <p style="font-size:13px; color:#64748b; margin:0 auto 18px; max-width:480px; line-height:1.6;">
+                      请点击下方按钮创建您的第一个教学班级（例如：<b>《现代教育技术》2026春01班</b>），创建后即可为该班级导入学生名册、划分协作小组与发布写作任务。
+                    </p>
+                    <button id="btn-v1-create-class-zero" class="teacher-action-btn btn-trigger-create-class" style="background:linear-gradient(135deg, #1d4ed8, #2563eb); border:none; color:white; padding:10px 24px; border-radius:8px; font-size:13.5px; font-weight:800; cursor:pointer; box-shadow:0 4px 12px rgba(37,99,235,0.25);">
+                      ➕ 立即创建第一个教学班级
+                    </button>
+                  </div>
+                ` : `
+                  <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(360px, 1fr)); gap:16px;">
+                    ${classes.map(c => {
+                      const isSelected = activeClass && c.id === activeClass.id;
+                      const cStds = authManager.getClassStudents(c.id);
+                      return `
+                        <div style="background:${isSelected ? '#eff6ff' : '#ffffff'}; border:1.5px solid ${isSelected ? '#3b82f6' : '#e2e8f0'}; border-radius:12px; padding:18px 20px; display:flex; justify-content:space-between; align-items:center; box-shadow:0 1px 3px rgba(15,23,42,0.03);">
+                          <div style="min-width:0; padding-right:12px;">
+                            <div style="font-size:16px; font-weight:800; color:${isSelected ? '#1d4ed8' : '#0f172a'}; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">🏫 ${c.name}</div>
+                            <div style="font-size:12.5px; color:#64748b; margin-top:5px;">学生: <b>${cStds.length}</b> 人 | 小组: <b>${(c.groups || []).length}</b> 个</div>
+                          </div>
+                          <div style="display:flex; gap:8px; align-items:center; flex-shrink:0;">
+                            <button class="btn-select-class" data-id="${c.id}" style="background:${isSelected ? '#ecfdf5' : '#2563eb'}; border:1px solid ${isSelected ? '#a7f3d0' : 'transparent'}; color:${isSelected ? '#059669' : 'white'}; padding:7px 14px; border-radius:8px; font-size:12.5px; font-weight:700; cursor:pointer; white-space:nowrap; display:inline-flex; align-items:center; gap:4px;">
+                              ${isSelected ? '✅ 当前主班' : '切换'}
+                            </button>
                             <button class="btn-delete-class" data-id="${c.id}" data-name="${c.name}" style="background:#fef2f2; border:1px solid #fecaca; color:#dc2626; padding:7px 10px; border-radius:8px; font-size:12px; font-weight:700; cursor:pointer; flex-shrink:0;" title="删除此教学班级">
                               🗑️
                             </button>
-                          ` : ''}
-                        </div>
-                      </div>
-                    `;
-                  }).join('')}
-                </div>
-              </div>
-
-              <div class="card" style="border-top:4px solid #2563eb; width:100%; padding:24px;">
-                <div class="card-title" style="margin-bottom:16px;">
-                  <span style="font-size:17px; font-weight:800; color:#0f172a;">👨‍🎓 学生账号管理 (当前班级: ${activeClass.name})</span>
-                  <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
-                    <button id="btn-v1-add-student" class="teacher-action-btn" style="background:linear-gradient(135deg, #1d4ed8, #2563eb); border:none; color:white; padding:8px 16px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer; box-shadow:0 2px 8px rgba(37,99,235,0.25);">+ 单条创建学生账号</button>
-                    <button id="btn-v1-enroll-existing-student" class="teacher-action-btn" style="background:#eff6ff; border:1.5px solid #bfdbfe; color:#1d4ed8; padding:8px 16px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer;">👥 加入已有学生到班级</button>
-                    <button id="btn-v1-import-file" class="teacher-action-btn" style="background:linear-gradient(135deg, #1d4ed8, #2563eb); border:none; color:white; padding:8px 16px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer; box-shadow:0 2px 8px rgba(37,99,235,0.25);">
-                      📥 上传 XLSX / CSV 文件导入
-                    </button>
-                    ${classStudents.length > 0 ? `
-                      <button id="btn-clear-class-students" style="background:#fef2f2; border:1px solid #fecaca; color:#dc2626; padding:8px 14px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer;">
-                        🗑️ 一键清空本班学生
-                      </button>
-                    ` : ''}
-                  </div>
-                </div>
-                <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:12px 16px; margin-bottom:14px; font-size:13px; color:#334155; display:flex; justify-content:space-between; align-items:center;">
-                  <div>💡 <b>密码说明：</b> 创建学生时可指定自定义密码（留空统一定为 <code style="color:#059669; font-weight:700;">123</code>）。建立后直接放入班级学生池。</div>
-                  <span style="color:#2563eb; font-weight:800; font-size:13.5px;">池内学生: ${classStudents.length} 人</span>
-                </div>
-                <div style="border:1px solid #e2e8f0; border-radius:10px; overflow:hidden; background:#ffffff;">
-                  <table class="monitor-table" style="font-size:13px;">
-                    <thead><tr><th>序号</th><th>姓名</th><th>学号</th><th>当前归属小组</th><th>密码状态</th><th>操作</th></tr></thead>
-                    <tbody>
-                      ${classStudents.length === 0 ? '<tr><td colspan="6" style="text-align:center; color:#64748b; padding:24px;">当前班级暂无学生账号，请点击右上角按钮创建或导入！</td></tr>' : ''}
-                      ${(() => {
-                        // 同名提示：本班级内姓名重复的学生加一个视觉标记，方便老师区分，绝不自动合并
-                        const _nameBuckets = {};
-                        classStudents.forEach(s => { const _n = (s.name || '').trim(); if (!_n) return; (_nameBuckets[_n] = _nameBuckets[_n] || []).push(s); });
-                        const _escAttr = (v) => String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-                        return classStudents.map((s, idx) => {
-                        const grp = (activeClass.groups || []).find(g => g.members && (g.members.includes(s.id) || g.members.includes(s.studentCode) || (typeof g.members[0] === 'object' && g.members.some(m => m.id === s.id || m.studentCode === s.studentCode))));
-                        const stdAcc = s.studentCode || s.username || s.id;
-                        const _dupPeers = (_nameBuckets[(s.name || '').trim()] || []).filter(x => x !== s);
-                        const _dupBadge = _dupPeers.length > 0 ? `<span title="${_escAttr('⚠️ 有同名同学：' + _dupPeers.map(x => x.name + '（' + (x.studentCode || x.username || x.id) + '）').join(' / '))}" style="margin-left:6px; background:#fef3c7; border:1px solid #fcd34d; color:#b45309; padding:1px 7px; border-radius:999px; font-size:11px; font-weight:700; cursor:help;">⚠️ 同名 ${_dupPeers.length + 1} 人</span>` : '';
-                        return `
-                          <tr>
-                            <td style="color:#94a3b8; font-weight:700;">${idx + 1}</td>
-                            <td><b>${s.avatar || '👤'} ${s.name}</b>${_dupBadge}</td>
-                            <td><span style="color:#2563eb; font-family:monospace; font-weight:700;">${stdAcc}</span></td>
-                            <td>${grp ? `<span style="background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe; padding:2px 8px; border-radius:8px; font-size:12px; font-weight:700;">${grp.name}</span>` : '<span style="color:#94a3b8;">⏳ 待划分小组</span>'}</td>
-                            <td>${(!s.password || s.password === '123') ? '<span style="color:#059669; font-family:monospace; font-weight:700;">初始 123</span>' : '<span style="color:#7c3aed; font-family:monospace; font-weight:700;">已修改密码</span>'}</td>
-                            <td>
-                              <div style="display:flex; gap:6px; align-items:center;">
-                                <button class="reset-student-pwd-btn" data-account="${stdAcc}" data-name="${s.name}" style="background:#eff6ff; border:1px solid #bfdbfe; color:#2563eb; padding:4px 10px; border-radius:6px; font-size:12px; cursor:pointer; font-weight:700;" title="将此学生登录密码重置为 123">
-                                  🔑 重置为123
-                                </button>
-                                <button class="delete-student-btn" data-id="${s.id}" style="background:#fef2f2; border:1px solid #fecaca; color:#dc2626; padding:4px 10px; border-radius:6px; font-size:12px; cursor:pointer; font-weight:700;" title="从本班移除">
-                                  移除
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-                        `;
-                      }).join('');})()}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-
-              <div class="card" style="border-top:4px solid #2563eb; width:100%; padding:24px;">
-                <div class="card-title" style="margin-bottom:16px;">
-                  <span style="font-size:17px; font-weight:800; color:#0f172a;">👥 小组划分 (当前班级: ${activeClass.name})</span>
-                  <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
-                    <button id="btn-v1-create-group" class="teacher-action-btn" style="background:linear-gradient(135deg, #1d4ed8, #2563eb); border:none; color:white; padding:8px 16px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer; box-shadow:0 2px 8px rgba(37,99,235,0.25);">+ 新建小组</button>
-
-                    <div style="display:flex; align-items:center; gap:6px; background:#f0fdf4; border:1px solid #bbf7d0; padding:4px 10px; border-radius:8px;">
-                      <span style="font-size:12.5px; font-weight:700; color:#166534;">每组</span>
-                      <select id="sel-random-group-size" style="padding:4px 8px; border:1px solid #86efac; border-radius:6px; font-size:13px; font-weight:800; color:#15803d; background:#ffffff; cursor:pointer;">
-                        <option value="2">2 人</option>
-                        <option value="3" selected>3 人</option>
-                        <option value="4">4 人</option>
-                        <option value="5">5 人</option>
-                        <option value="6">6 人</option>
-                      </select>
-                      <button id="btn-v1-random-groups" class="teacher-action-btn" style="background:linear-gradient(135deg, #059669, #10b981); border:none; color:white; padding:6px 14px; border-radius:6px; font-size:12.5px; font-weight:700; cursor:pointer; box-shadow:0 2px 6px rgba(16,185,129,0.25);" title="按所选人数自动随机划分班级内全部学生">🎲 一键随机分组</button>
-                    </div>
-
-                    <button id="btn-v1-dissolve-all-groups" class="teacher-action-btn" style="background:linear-gradient(135deg, #dc2626, #b91c1c); border:none; color:white; padding:8px 16px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer; box-shadow:0 2px 8px rgba(220,38,38,0.25);">💥 一键解散所有小组</button>
-                  </div>
-                </div>
-                <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:12px 16px; margin-bottom:14px; font-size:13px; color:#334155;">
-                  💡 <b>班级互斥划分规则：</b>已归属于本班级其他小组的学生会自动隐藏，避免重复挂组。跨班级独立计算。
-                </div>
-                <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(360px, 1fr)); gap:16px;">
-                  ${(() => {
-                    const validGroups = (activeClass.groups || []).filter(grp => {
-                      const groupMembers = classStudents.filter(s => (grp.members || []).some(m => {
-                        const mId = (typeof m === 'object' && m !== null) ? (m.id || m.userId || m.studentCode) : m;
-                        return mId === s.id || (mId && s.studentCode && mId.toString() === s.studentCode.toString());
-                      }));
-                      return groupMembers.length > 0;
-                    });
-
-                    // 自动规整命名：按顺序编号
-                    validGroups.forEach((g, idx) => {
-                      g.name = `第 ${idx + 1} 协作小组`;
-                    });
-
-                    if (validGroups.length !== (activeClass.groups || []).length) {
-                      activeClass.groups = validGroups;
-                      localStorage.setItem(STORAGE_KEY_CLASSES, JSON.stringify(classes));
-                      // 🛡️ 延迟推送，避免渲染期间触发网络写操作
-                      setTimeout(() => authManager.pushGlobalMeta(), 100);
-                    }
-
-                    if (validGroups.length === 0) {
-                      return '<div style="color:#64748b; padding:20px; font-size:14px;">当前班级暂无小组。</div>';
-                    }
-
-                    return validGroups.map(grp => {
-                      const groupMembers = classStudents.filter(s => (grp.members || []).some(m => {
-                        const mId = (typeof m === 'object' && m !== null) ? (m.id || m.userId || m.studentCode) : m;
-                        return mId === s.id || (mId && s.studentCode && mId.toString() === s.studentCode.toString());
-                      }));
-                      return `
-                        <div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:12px; padding:18px; box-shadow:0 1px 3px rgba(15,23,42,0.03);">
-                          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
-                            <span style="font-size:15.5px; font-weight:800; color:#1d4ed8;">👥 ${grp.name} (${groupMembers.length}人)</span>
-                            <div style="display:flex; gap:8px;">
-                              <button class="btn-edit-group-members" data-gid="${grp.id}" style="background:#eff6ff; border:1px solid #bfdbfe; color:#1d4ed8; padding:6px 12px; border-radius:6px; font-size:12px; font-weight:700; cursor:pointer;">⚙️ 勾选组员</button>
-                              <button class="btn-delete-group" data-gid="${grp.id}" style="background:#fef2f2; border:1px solid #fecaca; color:#dc2626; padding:6px 10px; border-radius:6px; font-size:12px; cursor:pointer; font-weight:700;">✕ 解散</button>
-                            </div>
-                          </div>
-                          <div style="display:flex; flex-wrap:wrap; gap:8px; font-size:13px;">
-                            ${groupMembers.length === 0 ? '<span style="color:#94a3b8; font-size:12px;">⚠️ 暂未勾选成员</span>' : ''}
-                            ${groupMembers.map(m => `
-                              <span style="background:#eff6ff; border:1px solid #bfdbfe; color:#1d4ed8; padding:4px 10px; border-radius:6px; font-weight:600;">
-                                ${m.avatar || '👤'} ${m.name}
-                              </span>
-                            `).join('')}
                           </div>
                         </div>
                       `;
-                    }).join('');
-                  })()}
-                </div>
+                    }).join('')}
+                  </div>
+                `}
               </div>
+
+              ${!activeClass ? `
+                <div class="card" style="border:1.5px dashed #e2e8f0; background:#f8fafc; border-radius:12px; padding:32px 24px; text-align:center; color:#64748b; font-size:13.5px;">
+                  💡 请先在上方创建教学班级，创建后将自动激活该班级的【学生名册池管理】与【协作小组划分】。
+                </div>
+              ` : `
+                <div class="card" style="border-top:4px solid #2563eb; width:100%; padding:24px;">
+                  <div class="card-title" style="margin-bottom:16px;">
+                    <span style="font-size:17px; font-weight:800; color:#0f172a;">👨‍🎓 学生账号管理 (当前班级: ${activeClass.name})</span>
+                    <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+                      <button id="btn-v1-add-student" class="teacher-action-btn" style="background:linear-gradient(135deg, #1d4ed8, #2563eb); border:none; color:white; padding:8px 16px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer; box-shadow:0 2px 8px rgba(37,99,235,0.25);">+ 单条创建学生账号</button>
+                      <button id="btn-v1-enroll-existing-student" class="teacher-action-btn" style="background:#eff6ff; border:1.5px solid #bfdbfe; color:#1d4ed8; padding:8px 16px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer;">👥 加入已有学生到班级</button>
+                      <button id="btn-v1-import-file" class="teacher-action-btn" style="background:linear-gradient(135deg, #1d4ed8, #2563eb); border:none; color:white; padding:8px 16px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer; box-shadow:0 2px 8px rgba(37,99,235,0.25);">
+                        📥 上传 XLSX / CSV 文件导入
+                      </button>
+                      ${classStudents.length > 0 ? `
+                        <button id="btn-clear-class-students" style="background:#fef2f2; border:1px solid #fecaca; color:#dc2626; padding:8px 14px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer;">
+                          🗑️ 一键清空本班学生
+                        </button>
+                      ` : ''}
+                    </div>
+                  </div>
+                  <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:12px 16px; margin-bottom:14px; font-size:13px; color:#334155; display:flex; justify-content:space-between; align-items:center;">
+                    <div>💡 <b>密码说明：</b> 创建学生时可指定自定义密码（留空统一定为 <code style="color:#059669; font-weight:700;">123</code>）。建立后直接放入班级学生池。</div>
+                    <span style="color:#2563eb; font-weight:800; font-size:13.5px;">池内学生: ${classStudents.length} 人</span>
+                  </div>
+                  <div style="border:1px solid #e2e8f0; border-radius:10px; overflow:hidden; background:#ffffff;">
+                    <table class="monitor-table" style="font-size:13px;">
+                      <thead><tr><th>序号</th><th>姓名</th><th>学号</th><th>当前归属小组</th><th>密码状态</th><th>操作</th></tr></thead>
+                      <tbody>
+                        ${classStudents.length === 0 ? '<tr><td colspan="6" style="text-align:center; color:#64748b; padding:24px;">当前班级暂无学生账号，请点击右上角按钮创建或导入！</td></tr>' : ''}
+                        ${(() => {
+                          // 同名提示：本班级内姓名重复的学生加一个视觉标记，方便老师区分，绝不自动合并
+                          const _nameBuckets = {};
+                          classStudents.forEach(s => { const _n = (s.name || '').trim(); if (!_n) return; (_nameBuckets[_n] = _nameBuckets[_n] || []).push(s); });
+                          const _escAttr = (v) => String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+                          return classStudents.map((s, idx) => {
+                          const grp = (activeClass.groups || []).find(g => g.members && (g.members.includes(s.id) || (typeof g.members[0] === 'object' && g.members.some(m => m && (m.id === s.id || m.studentCode === s.id)))));
+                          const stdAcc = s.id;
+                          const _dupPeers = (_nameBuckets[(s.name || '').trim()] || []).filter(x => x !== s);
+                          const _dupBadge = _dupPeers.length > 0 ? `<span title="${_escAttr('⚠️ 有同名同学：' + _dupPeers.map(x => x.name + '（' + x.id + '）').join(' / '))}" style="margin-left:6px; background:#fef3c7; border:1px solid #fcd34d; color:#b45309; padding:1px 7px; border-radius:999px; font-size:11px; font-weight:700; cursor:help;">⚠️ 同名 ${_dupPeers.length + 1} 人</span>` : '';
+                          return `
+                            <tr>
+                              <td style="color:#94a3b8; font-weight:700;">${idx + 1}</td>
+                              <td><b>${s.avatar || '👤'} ${s.name}</b>${_dupBadge}</td>
+                              <td><span style="color:#2563eb; font-family:monospace; font-weight:700;">${stdAcc}</span></td>
+                              <td>${grp ? `<span style="background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe; padding:2px 8px; border-radius:8px; font-size:12px; font-weight:700;">${grp.name}</span>` : '<span style="color:#94a3b8;">⏳ 待划分小组</span>'}</td>
+                              <td>${(!s.password || s.password === '123') ? '<span style="color:#059669; font-family:monospace; font-weight:700;">初始 123</span>' : '<span style="color:#7c3aed; font-family:monospace; font-weight:700;">已修改密码</span>'}</td>
+                              <td>
+                                <div style="display:flex; gap:6px; align-items:center;">
+                                  <button class="reset-student-pwd-btn" data-account="${stdAcc}" data-name="${s.name}" style="background:#eff6ff; border:1px solid #bfdbfe; color:#2563eb; padding:4px 10px; border-radius:6px; font-size:12px; cursor:pointer; font-weight:700;" title="将此学生登录密码重置为 123">
+                                    🔑 重置为123
+                                  </button>
+                                  <button class="delete-student-btn" data-id="${s.id}" style="background:#fef2f2; border:1px solid #fecaca; color:#dc2626; padding:4px 10px; border-radius:6px; font-size:12px; cursor:pointer; font-weight:700;" title="从本班移除">
+                                    移除
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          `;
+                        }).join('');})()}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                <div class="card" style="border-top:4px solid #2563eb; width:100%; padding:24px;">
+                  <div class="card-title" style="margin-bottom:16px;">
+                    <span style="font-size:17px; font-weight:800; color:#0f172a;">👥 小组划分 (当前班级: ${activeClass.name})</span>
+                    <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+                      <button id="btn-v1-create-group" class="teacher-action-btn" style="background:linear-gradient(135deg, #1d4ed8, #2563eb); border:none; color:white; padding:8px 16px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer; box-shadow:0 2px 8px rgba(37,99,235,0.25);">+ 新建小组</button>
+
+                      <div style="display:flex; align-items:center; gap:6px; background:#f0fdf4; border:1px solid #bbf7d0; padding:4px 10px; border-radius:8px;">
+                        <span style="font-size:12.5px; font-weight:700; color:#166534;">每组</span>
+                        <select id="sel-random-group-size" style="padding:4px 8px; border:1px solid #86efac; border-radius:6px; font-size:13px; font-weight:800; color:#15803d; background:#ffffff; cursor:pointer;">
+                          <option value="2">2 人</option>
+                          <option value="3" selected>3 人</option>
+                          <option value="4">4 人</option>
+                          <option value="5">5 人</option>
+                          <option value="6">6 人</option>
+                        </select>
+                        <button id="btn-v1-random-groups" class="teacher-action-btn" style="background:linear-gradient(135deg, #059669, #10b981); border:none; color:white; padding:6px 14px; border-radius:6px; font-size:12.5px; font-weight:700; cursor:pointer; box-shadow:0 2px 6px rgba(16,185,129,0.25);" title="按所选人数自动随机划分班级内全部学生">🎲 一键随机分组</button>
+                      </div>
+
+                      <button id="btn-v1-dissolve-all-groups" class="teacher-action-btn" style="background:linear-gradient(135deg, #dc2626, #b91c1c); border:none; color:white; padding:8px 16px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer; box-shadow:0 2px 8px rgba(220,38,38,0.25);">💥 一键解散所有小组</button>
+                    </div>
+                  </div>
+                  <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:12px 16px; margin-bottom:14px; font-size:13px; color:#334155;">
+                    💡 <b>班级互斥划分规则：</b>已归属于本班级其他小组的学生会自动隐藏，避免重复挂组。跨班级独立计算。
+                  </div>
+                  <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(360px, 1fr)); gap:16px;">
+                    ${(() => {
+                      const validGroups = (activeClass.groups || []).filter(grp => {
+                        const groupMembers = classStudents.filter(s => (grp.members || []).some(m => {
+                          const mId = (typeof m === 'object' && m !== null) ? (m.id || m.userId || m.studentCode) : m;
+                          return mId === s.id;
+                        }));
+                        return groupMembers.length > 0;
+                      });
+
+                      // 自动规整命名：按顺序编号
+                      validGroups.forEach((g, idx) => {
+                        g.name = `第 ${idx + 1} 协作小组`;
+                      });
+
+                      if (validGroups.length !== (activeClass.groups || []).length) {
+                        activeClass.groups = validGroups;
+                        localStorage.setItem(STORAGE_KEY_CLASSES, JSON.stringify(classes));
+                        // 🛡️ 延迟推送，避免渲染期间触发网络写操作
+                        setTimeout(() => authManager.pushGlobalMeta(), 100);
+                      }
+
+                      if (validGroups.length === 0) {
+                        return '<div style="color:#64748b; padding:20px; font-size:14px;">当前班级暂无小组。</div>';
+                      }
+
+                      return validGroups.map(grp => {
+                        const groupMembers = classStudents.filter(s => (grp.members || []).some(m => {
+                          const mId = (typeof m === 'object' && m !== null) ? (m.id || m.userId || m.studentCode) : m;
+                          return mId === s.id;
+                        }));
+                        return `
+                          <div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:12px; padding:18px; box-shadow:0 1px 3px rgba(15,23,42,0.03);">
+                            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+                              <span style="font-size:15.5px; font-weight:800; color:#1d4ed8;">👥 ${grp.name} (${groupMembers.length}人)</span>
+                              <div style="display:flex; gap:8px;">
+                                <button class="btn-edit-group-members" data-gid="${grp.id}" style="background:#eff6ff; border:1px solid #bfdbfe; color:#1d4ed8; padding:6px 12px; border-radius:6px; font-size:12px; font-weight:700; cursor:pointer;">⚙️ 勾选组员</button>
+                                <button class="btn-delete-group" data-gid="${grp.id}" style="background:#fef2f2; border:1px solid #fecaca; color:#dc2626; padding:6px 10px; border-radius:6px; font-size:12px; cursor:pointer; font-weight:700;">✕ 解散</button>
+                              </div>
+                            </div>
+                            <div style="display:flex; flex-wrap:wrap; gap:8px; font-size:13px;">
+                              ${groupMembers.length === 0 ? '<span style="color:#94a3b8; font-size:12px;">⚠️ 暂未勾选成员</span>' : ''}
+                              ${groupMembers.map(m => `
+                                <span style="background:#eff6ff; border:1px solid #bfdbfe; color:#1d4ed8; padding:4px 10px; border-radius:6px; font-weight:600;">
+                                  ${m.avatar || '👤'} ${m.name}
+                                </span>
+                              `).join('')}
+                            </div>
+                          </div>
+                        `;
+                      }).join('');
+                    })()}
+                  </div>
+                </div>
+              `}
 
             </div>
           ` : ''}
 
           ${activeTab === 'view_publishing' ? (() => {
+            if (!activeClass) {
+              return `
+                <div class="card" style="border:1.5px dashed #cbd5e1; background:#ffffff; border-radius:16px; padding:48px 24px; text-align:center; box-shadow:0 1px 3px rgba(15,23,42,0.02);">
+                  <div style="font-size:42px; margin-bottom:10px;">📢</div>
+                  <h3 style="margin:0 0 8px 0; font-size:17px; font-weight:800; color:#0f172a;">暂无可用教学班级</h3>
+                  <p style="font-size:13px; color:#64748b; margin:0 auto 18px; max-width:420px; line-height:1.6;">
+                    请先前往【🛠️ 基础架构管理】创建您的教学班级，随后即可在此为班级发布协作任务、配置问卷链接与发布即时广播通知。
+                  </p>
+                </div>
+              `;
+            }
             const currentClassTasks = tasks.filter(t => !t.classId || t.classId === 'all' || t.classId === activeClass.id || (t.className && t.className === activeClass.name) || (Array.isArray(t.targetClassIds) && (t.targetClassIds.includes('all') || t.targetClassIds.includes(activeClass.id))));
             const currentClassAnnouncements = announcements.filter(a => (!a.classId || a.classId === 'all' || a.classId === activeClass.id || (a.className && a.className === activeClass.name) || (Array.isArray(a.targetClassIds) && (a.targetClassIds.includes('all') || a.targetClassIds.includes(activeClass.id)))) && !a.isSystemAction && !a.isExtension && !a.title?.includes('延期') && !a.title?.includes('延长至'));
             const currentClassPapers = refPapers.filter(p => (!p.classId || p.classId === 'all' || p.classId === activeClass.id || (p.className && p.className === activeClass.name) || (Array.isArray(p.targetClassIds) && (p.targetClassIds.includes('all') || p.targetClassIds.includes(activeClass.id)))));
@@ -5307,9 +5350,9 @@
                       <div style="font-size:12.5px; color:#64748b; margin-top:4px;">点击右上角【+ 发布新通知】向本班学生发布即时指令！</div>
                     </div>
                   ` : currentClassAnnouncements.map((a, idx) => {
-                    const allClassGroups = (activeClass.groups && activeClass.groups.length > 0)
+                    const allClassGroups = (activeClass && activeClass.groups && activeClass.groups.length > 0)
                       ? activeClass.groups
-                      : [{ id: 'group_1', name: '第 1 协作小组' }];
+                      : [];
 
                     const seenGIds = new Set();
                     let targetGroups = [];
@@ -5376,21 +5419,19 @@
 
                               // 1. 遍历小组名册中的所有学生
                               gMembers.forEach(m => {
-                                const mId = (typeof m === 'object' && m !== null) ? (m.id || m.userId || m.studentCode) : m;
+                                const mId = (typeof m === 'object' && m !== null) ? m.id : m;
                                 const mName = (typeof m === 'object' && m !== null) ? m.name : null;
-                                const uObj = mId ? allUsers.find(u => u.id === mId || u.studentCode === mId || u.username === mId || u.name === mId) : null;
+                                const uObj = mId ? allUsers.find(u => u.id === mId || u.name === mId) : null;
                                 const uName = (uObj ? uObj.name : null) || mName || (typeof mId === 'string' && !mId.startsWith('u_') ? mId : null);
 
                                 const hasRead = a.readStatus && (
                                   (mId && a.readStatus[mId]) ||
                                   (uObj && uObj.id && a.readStatus[uObj.id]) ||
-                                  (uObj && uObj.studentCode && a.readStatus[uObj.studentCode]) ||
-                                  (uObj && uObj.username && a.readStatus[uObj.username]) ||
                                   (uObj && uObj.name && a.readStatus[uObj.name])
                                 );
                                 const inConfirmedList = (a.confirmedMembers || []).some(cm => cm && (
                                   (mId && cm.id === mId) ||
-                                  (uObj && (cm.id === uObj.id || cm.studentCode === uObj.studentCode || cm.name === uObj.name)) ||
+                                  (uObj && (cm.id === uObj.id || cm.name === uObj.name)) ||
                                   (uName && cm.name === uName)
                                 ));
 
@@ -5402,7 +5443,7 @@
                               // 2. 遍历 confirmedMembers 中明确属于该组的学生
                               (a.confirmedMembers || []).forEach(m => {
                                 if (m && (m.groupId === g.id || m.groupId === g.name || m.groupId === g.groupId)) {
-                                  const showName = m.name || m.studentCode || '学生';
+                                  const showName = m.name || '学生';
                                   if (!memberConfirmedNames.includes(showName)) {
                                     memberConfirmedNames.push(showName);
                                   }
@@ -5433,11 +5474,22 @@
           })() : ''}
 
           ${activeTab === 'view_monitoring' ? (() => {
+            if (!activeClass) {
+              return `
+                <div class="card" style="border:1.5px dashed #cbd5e1; background:#ffffff; border-radius:16px; padding:48px 24px; text-align:center; box-shadow:0 1px 3px rgba(15,23,42,0.02);">
+                  <div style="font-size:42px; margin-bottom:10px;">🖥️</div>
+                  <h3 style="margin:0 0 8px 0; font-size:17px; font-weight:800; color:#0f172a;">暂无可用教学班级</h3>
+                  <p style="font-size:13px; color:#64748b; margin:0 auto 18px; max-width:420px; line-height:1.6;">
+                    请先前往【🛠️ 基础架构管理】创建教学班级并划分协作小组，随后即可在此进行全组实操大屏与进程实时监控。
+                  </p>
+                </div>
+              `;
+            }
             const monitorStageMode = state.teacherMonitorStageMode || 'auto';
             const actualStage = state.currentStage || 'stage1';
             const effectiveMonitorStage = monitorStageMode === 'auto' ? actualStage : monitorStageMode;
 
-            const currentClassId = state.activeClassId || (authManager.getClasses()[0] ? authManager.getClasses()[0].id : 'class_101');
+            const currentClassId = activeClass.id;
             const activeTaskId = state.activeTaskId || (currentClassTasks[0] ? currentClassTasks[0].id : `task_${currentClassId}_default`);
             const currentMonitorTaskId = activeTaskId;
             const monitorTaskObj = currentClassTasks.find(t => t.id === currentMonitorTaskId);
@@ -5680,19 +5732,19 @@
                             <div style="font-size:13.5px; font-weight:800; color:#1e40af; margin-bottom:10px; display:flex; justify-content:space-between; align-items:center;">
                               <span>💡 组员初始学术提案展台 (${(state.stage1?.proposals || []).length}/${monitorMembersList.length || 3} 人已提交):</span>
                               <span style="font-size:11.5px; background:#eff6ff; color:#2563eb; padding:2px 8px; border-radius:6px; font-weight:700;">
-                                共投 ${monitorMembersList.filter(m => state.stage1?.hasVoted && (state.stage1.hasVoted[m.id] || state.stage1.hasVoted[m.studentCode] || (m.name && state.stage1.hasVoted[m.name]))).length} 票
+                                共投 ${monitorMembersList.filter(m => state.stage1?.hasVoted && (state.stage1.hasVoted[m.id] || (m.name && state.stage1.hasVoted[m.name]))).length} 票
                               </span>
                             </div>
                             ${(state.stage1?.proposals && state.stage1.proposals.length > 0) ? `
                               <div class="proposals-grid" style="display:grid; grid-template-columns:repeat(auto-fill, minmax(200px, 1fr)); gap:10px;">
                                 ${state.stage1.proposals.map((p, idx) => {
                                   const allGlobalUsers = (authManager) ? authManager.getUsers() : [];
-                                  const authorObj = monitorMembersList.find(m => m.id === p.author || m.studentCode === p.author || m.name === p.authorName || m.name === p.author);
-                                  const authorUser = allGlobalUsers.find(u => u.id === p.author || u.studentCode === p.author || u.username === p.author || u.name === p.authorName);
+                                  const authorObj = monitorMembersList.find(m => m.id === p.author || m.name === p.authorName || m.name === p.author);
+                                  const authorUser = allGlobalUsers.find(u => u.id === p.author || u.name === p.authorName);
                                   const authorName = authorObj ? authorObj.name : (authorUser ? authorUser.name : (p.authorName || p.author || `组员${idx+1}`));
                                   const votes = monitorMembersList.filter(m => {
                                     if (!state.stage1?.votes) return false;
-                                    const v = state.stage1.votes[m.studentCode] || state.stage1.votes[m.id] || (m.name && state.stage1.votes[m.name]);
+                                    const v = state.stage1.votes[m.id] || (m.name && state.stage1.votes[m.name]);
                                     return v === p.id;
                                   }).length;
                                   return `
@@ -6164,9 +6216,9 @@
         const newCId = btn.dataset.id;
         state.activeClassId = newCId;
         const targetC = (authManager.getClasses() || []).find(c => c.id === newCId);
-        const cTasks = (authManager.getTasks() || []).filter(t => t.classId === newCId || (targetC && t.className === targetC.name) || (!t.classId && newCId === 'class_101'));
-        state.activeTaskId = cTasks[0] ? cTasks[0].id : 'task_default';
-        state.activeMonitorGroupId = (targetC && targetC.groups && targetC.groups[0]) ? targetC.groups[0].id : 'group_1';
+        const cTasks = (authManager.getTasks() || []).filter(t => t.classId === newCId || (targetC && t.className === targetC.name));
+        state.activeTaskId = cTasks[0] ? cTasks[0].id : (targetC ? `task_${targetC.id}_default` : 'task_default');
+        state.activeMonitorGroupId = (targetC && targetC.groups && targetC.groups[0]) ? targetC.groups[0].id : null;
         // 🛡️ 彻底清空旧班级全景与视图缓存
         state.monitorPanorama = null;
         state._lastMonitorHash = '';
@@ -6200,11 +6252,11 @@
           try {
             authManager.deleteClass(cId);
             const remainingClasses = authManager.getClasses();
-            const nextC = remainingClasses[0] || { id: 'class_101', groups: [] };
-            state.activeClassId = nextC.id;
-            const cTasks = (authManager.getTasks() || []).filter(t => t.classId === nextC.id || (!t.classId && nextC.id === 'class_101'));
-            state.activeTaskId = cTasks[0] ? cTasks[0].id : 'task_default';
-            state.activeMonitorGroupId = (nextC.groups && nextC.groups[0]) ? nextC.groups[0].id : 'group_1';
+            const nextC = remainingClasses[0] || null;
+            state.activeClassId = nextC ? nextC.id : null;
+            const cTasks = nextC ? (authManager.getTasks() || []).filter(t => t.classId === nextC.id) : [];
+            state.activeTaskId = cTasks[0] ? cTasks[0].id : (nextC ? `task_${nextC.id}_default` : 'task_default');
+            state.activeMonitorGroupId = (nextC && nextC.groups && nextC.groups[0]) ? nextC.groups[0].id : null;
             state.monitorPanorama = null;
             state._lastMonitorHash = '';
             state._lastEpHash = '';
@@ -6213,7 +6265,7 @@
             state.stage3 = null;
             state.chatLogs = null;
             if (window.app && window.app.state) {
-              window.app.state.activeClassId = nextC.id;
+              window.app.state.activeClassId = state.activeClassId;
               window.app.state.activeTaskId = state.activeTaskId;
               window.app.state.activeMonitorGroupId = state.activeMonitorGroupId;
             }
@@ -6228,7 +6280,7 @@
 
     // 🗑️ 一键清空当前班级学生（带弹窗二次确认）
     const btnClearStudents = container.querySelector('#btn-clear-class-students');
-    if (btnClearStudents) {
+    if (btnClearStudents && activeClass) {
       btnClearStudents.addEventListener('click', () => {
         if (confirm(`🗑️【清空名册确认】\n\n您确定要一键清空【${activeClass.name}】下的所有学生吗？\n\n⚠️ 注：清空后将重置本班学生名册与未划分的小组成员绑定！`)) {
           // 清空当前班级的学生关联，并重置小组
@@ -6260,31 +6312,35 @@
       });
     }
 
-    const btnCreateClass = container.querySelector('#btn-v1-create-class');
-    if (btnCreateClass) {
-      btnCreateClass.addEventListener('click', () => {
-        const name = prompt('请输入新教学班级名称 (例如: 《现代教育技术》2026春02班):', '《现代教育技术》2026春02班');
-        if (name) {
-          const newC = authManager.createClass(name);
-          state.activeClassId = newC.id;
-          state.activeTaskId = 'task_default';
-          state.activeMonitorGroupId = (newC.groups && newC.groups[0]) ? newC.groups[0].id : 'group_1';
-          state.monitorPanorama = null;
-          state._lastMonitorHash = '';
-          state._lastEpHash = '';
-          state.stage1 = null;
-          state.stage2 = null;
-          state.stage3 = null;
-          state.chatLogs = null;
-          if (window.app && window.app.state) {
-            window.app.state.activeClassId = newC.id;
-            window.app.state.activeTaskId = state.activeTaskId;
-            window.app.state.activeMonitorGroupId = state.activeMonitorGroupId;
+    // ➕ 创建班级事件绑定 (支持顶部按钮与零状态引导大按钮)
+    container.querySelectorAll('.btn-trigger-create-class, #btn-v1-create-class, #btn-v1-create-class-zero').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const name = prompt('请输入新教学班级名称 (例如: 《现代教育技术》2026春01班):', '《现代教育技术》2026春01班');
+        if (name && name.trim()) {
+          try {
+            const newC = authManager.createClass(name.trim());
+            state.activeClassId = newC.id;
+            state.activeTaskId = `task_${newC.id}_default`;
+            state.activeMonitorGroupId = (newC.groups && newC.groups[0]) ? newC.groups[0].id : null;
+            state.monitorPanorama = null;
+            state._lastMonitorHash = '';
+            state._lastEpHash = '';
+            state.stage1 = null;
+            state.stage2 = null;
+            state.stage3 = null;
+            state.chatLogs = null;
+            if (window.app && window.app.state) {
+              window.app.state.activeClassId = newC.id;
+              window.app.state.activeTaskId = state.activeTaskId;
+              window.app.state.activeMonitorGroupId = state.activeMonitorGroupId;
+            }
+            renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+          } catch (err) {
+            alert('❌ ' + err.message);
           }
-          renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
         }
       });
-    }
+    });
 
     // 👨‍🎓 1. 单条创建学生账号（纯粹创建面板）
     const btnAddStd = container.querySelector('#btn-v1-add-student');
@@ -6393,10 +6449,10 @@
                     (s.classIds || [s.classId]).includes(c.id) && c.id !== activeClass.id
                   );
                   return `
-                    <label class="enroll-std-card-item" data-search="${(s.name + ' ' + (s.studentCode || '') + ' ' + (s.username || '')).toLowerCase()}" style="display:flex; align-items:center; gap:12px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:10px 14px; cursor:pointer; transition:all 0.15s;">
+                    <label class="enroll-std-card-item" data-search="${(s.name + ' ' + (s.id || '')).toLowerCase()}" style="display:flex; align-items:center; gap:12px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:10px 14px; cursor:pointer; transition:all 0.15s;">
                       <input type="checkbox" class="enroll-chk" data-uid="${s.id}" style="width:17px; height:17px; cursor:pointer; accent-color:#2563eb;">
                       <div>
-                        <div style="font-size:14px; font-weight:800; color:#0f172a;">${s.avatar || '👤'} ${s.name} <code style="color:#2563eb; font-family:monospace; margin-left:6px;">${s.studentCode || s.username}</code></div>
+                        <div style="font-size:14px; font-weight:800; color:#0f172a;">${s.avatar || '👤'} ${s.name} <code style="color:#2563eb; font-family:monospace; margin-left:6px;">${s.id}</code></div>
                         <div style="font-size:12px; color:#64748b; margin-top:2px;">
                           ${otherClasses.length > 0 ? `现归属班级: <b>${otherClasses.map(c => c.name).join(', ')}</b>` : '已入库学生'}
                         </div>
@@ -6497,7 +6553,7 @@
               </div>
               <div class="teacher-form-group" style="margin-top:16px;">
                 <label style="font-size:13px; font-weight:700; color:#334155; margin-bottom:6px; display:block;">或 直接粘贴名册文本 (每行一人)</label>
-                <textarea id="modal-paste-textarea" class="teacher-textarea fancy" style="min-height:90px; font-family:monospace; font-size:13px; width:100%; box-sizing:border-box; padding:10px 12px; border:1.5px solid #cbd5e1; border-radius:8px; outline:none;" placeholder="每行一位学生，逗号或空格分隔：&#10;姓名, 登录账号, 学号, 初始密码(可选)"></textarea>
+                <textarea id="modal-paste-textarea" class="teacher-textarea fancy" style="min-height:90px; font-family:monospace; font-size:13px; width:100%; box-sizing:border-box; padding:10px 12px; border:1.5px solid #cbd5e1; border-radius:8px; outline:none;" placeholder="每行一位学生，逗号或空格分隔：&#10;姓名, 学号, 初始密码(可选)"></textarea>
               </div>
             </div>
             <div class="teacher-modal-footer" style="background:#f8fafc; border-top:1px solid #e2e8f0; padding:14px 24px; display:flex; justify-content:flex-end; gap:10px;">
@@ -6602,10 +6658,10 @@
                   const isChecked = currentMembers.includes(s.id);
                   const otherGroup = (cls.groups || []).find(g => g.id !== editingGroupId && g.members && g.members.includes(s.id));
                   return `
-                    <div class="grp-student-item" data-search="${(s.name + ' ' + (s.studentCode || '') + ' ' + (s.username || '')).toLowerCase()}" style="display:flex; justify-content:space-between; align-items:center; background:#ffffff; border:1px solid #e2e8f0; padding:10px 14px; border-radius:8px; transition:all 0.15s;">
+                    <div class="grp-student-item" data-search="${(s.name + ' ' + (s.id || '')).toLowerCase()}" style="display:flex; justify-content:space-between; align-items:center; background:#ffffff; border:1px solid #e2e8f0; padding:10px 14px; border-radius:8px; transition:all 0.15s;">
                       <label style="display:flex; align-items:center; gap:10px; cursor:pointer; font-size:13.5px; color:#0f172a; font-weight:600; width:100%;">
                         <input type="checkbox" class="chk-grp-member" value="${s.id}" ${isChecked ? 'checked' : ''} style="width:17px; height:17px; cursor:pointer; accent-color:#2563eb;">
-                        <span>${s.avatar || '👤'} <b>${s.name}</b> <code style="color:#2563eb; font-family:monospace; margin-left:4px;">${s.studentCode || s.username}</code></span>
+                        <span>${s.avatar || '👤'} <b>${s.name}</b> <code style="color:#2563eb; font-family:monospace; margin-left:4px;">${s.id}</code></span>
                         ${otherGroup ? `<span style="background:#fef3c7; color:#b45309; border:1px solid #fde68a; font-size:11.5px; padding:1px 8px; border-radius:6px; font-weight:700; margin-left:auto;">(现归属: ${otherGroup.name})</span>` : ''}
                       </label>
                     </div>
@@ -6684,7 +6740,7 @@
         if (confirm(`🔑【教师密码重置确认】\n\n您确定要将学生【${name}】(账号: ${account}) 的登录密码重置为初始密码 123 吗？`)) {
           try {
             const currT = authManager.getCurrentUser();
-            const tId = (currT && (currT.studentCode || currT.username || currT.id)) || '';
+            const tId = currT?.id || '';
             const tToken = (currT && (currT.token || currT.activeSessionId)) || '';
 
             const res = await fetch('sync.php?action=reset_student_password', {
@@ -7718,10 +7774,10 @@
           }
           const allGroups = (selClassObj && selClassObj.groups) ? selClassObj.groups : [];
           const isAllSelected = checkedGroupCbs.length === allGroups.length;
-          const selectedGroupIds = checkedGroupCbs.map(cb => cb.value);
-          const selectedGroupNames = selectedGroupIds.map(gid => {
-            const gObj = allGroups.find(g => g.id === gid);
-            return gObj ? gObj.name : gid;
+          const selectedGroupIds = isAllSelected ? ['all'] : checkedGroupCbs.map(cb => cb.value);
+          const selectedGroupNames = checkedGroupCbs.map(cb => {
+            const gObj = allGroups.find(g => g.id === cb.value);
+            return gObj ? gObj.name : cb.value;
           });
           const targetGId = isAllSelected ? 'all' : selectedGroupIds[0];
           const targetGName = isAllSelected ? '全班所有小组' : selectedGroupNames.join('、');
@@ -8342,11 +8398,9 @@
         for (const g of c.groups) {
           if (Array.isArray(g.members)) {
             const found = g.members.some(m => {
-              const mId = typeof m === 'object' ? (m.id || m.studentCode || m.username || m.name) : m;
-              const mCode = typeof m === 'object' ? (m.studentCode || m.code) : '';
+              const mId = typeof m === 'object' ? (m.id || m.name) : m;
               const mName = typeof m === 'object' ? m.name : '';
-              return mId === currentUser?.id || mId === currentUser?.studentCode || mId === currentUser?.username ||
-                     mCode === currentUser?.studentCode || (mName && mName === currentUser?.name);
+              return mId === currentUser?.id || (mName && mName === currentUser?.name);
             });
             if (found) return true;
           }
@@ -8354,11 +8408,9 @@
       }
       if (Array.isArray(c.students)) {
         const inStudents = c.students.some(s => {
-          const sId = typeof s === 'object' ? (s.id || s.studentCode || s.username || s.name) : s;
-          const sCode = typeof s === 'object' ? (s.studentCode || s.code) : '';
+          const sId = typeof s === 'object' ? (s.id || s.name) : s;
           const sName = typeof s === 'object' ? s.name : '';
-          return sId === currentUser?.id || sId === currentUser?.studentCode || sId === currentUser?.username ||
-                 sCode === currentUser?.studentCode || (sName && sName === currentUser?.name);
+          return sId === currentUser?.id || (sName && sName === currentUser?.name);
         });
         if (inStudents) return true;
       }
@@ -8371,9 +8423,61 @@
         : (classes || [])
     );
 
+    if (displayClasses.length === 0) {
+      container.innerHTML = `
+        <div class="student-task-portal" style="min-height:100vh; background:#f0f4f9; display:flex; flex-direction:column;">
+          <header class="app-header" style="height:60px; background:#ffffff; border-bottom:1px solid #e2e8f0; display:flex; align-items:center; justify-content:space-between; padding:0 24px; box-shadow:0 1px 3px rgba(15,23,42,0.04);">
+            <div class="brand-section" style="display:flex; align-items:center; gap:12px;">
+              <div class="brand-logo" style="font-size:20px; font-weight:800; background:linear-gradient(135deg, #1e40af, #2563eb); -webkit-background-clip:text; -webkit-text-fill-color:transparent;">集智 JIZHI</div>
+              <div class="brand-badge" style="background:#eff6ff; color:#2563eb; padding:4px 12px; border-radius:20px; font-size:12px; font-weight:700; border:1px solid #bfdbfe;">
+                🎓 ${currentUser ? currentUser.name : '学生'} · 暂未加入班级
+              </div>
+            </div>
+            <div class="header-controls" style="display:flex; align-items:center; gap:10px;">
+              <button id="btn-portal-change-pwd" style="background:#f0fdf4; color:#16a34a; border:1px solid #bbf7d0; padding:6px 14px; border-radius:18px; font-size:12px; font-weight:700; cursor:pointer;" title="修改登录密码">🔑 修改密码</button>
+              <button id="btn-portal-logout" style="background:#fef2f2; color:#dc2626; border:1px solid #fecaca; padding:6px 14px; border-radius:18px; font-size:12px; font-weight:700; cursor:pointer;">🚪 退出登录</button>
+            </div>
+          </header>
+
+          <main style="flex:1; padding:48px 32px; max-width:800px; width:100%; margin:0 auto; display:flex; flex-direction:column; align-items:center; justify-content:center; box-sizing:border-box;">
+            <div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:16px; padding:48px 32px; text-align:center; width:100%; box-shadow:0 4px 20px rgba(15,23,42,0.06);">
+              <div style="font-size:52px; margin-bottom:16px;">👋</div>
+              <h2 style="margin:0 0 12px 0; font-size:20px; font-weight:800; color:#0f172a;">您好，${currentUser ? currentUser.name : '同学'}！</h2>
+              <p style="font-size:14px; color:#64748b; line-height:1.7; margin:0 auto 24px; max-width:480px;">
+                您目前尚未被分配至任何教学班级中。<br/>请联系任课教师，由教师在教师端将您加入至对应的教学班级及协作小组后，刷新本页面即可参与协作写作任务。
+              </p>
+              <div style="display:inline-flex; gap:12px;">
+                <button onclick="window.location.reload()" style="background:linear-gradient(135deg, #1d4ed8, #2563eb); border:none; color:white; padding:10px 24px; border-radius:10px; font-size:14px; font-weight:800; cursor:pointer; box-shadow:0 4px 12px rgba(37,99,235,0.25);">
+                  🔄 刷新状态
+                </button>
+              </div>
+            </div>
+          </main>
+        </div>
+      `;
+      const btnLogout = container.querySelector('#btn-portal-logout');
+      if (btnLogout && onLogout) btnLogout.addEventListener('click', onLogout);
+      const btnPwd = container.querySelector('#btn-portal-change-pwd');
+      if (btnPwd) {
+        btnPwd.addEventListener('click', () => {
+          const oldP = prompt('请输入当前登录密码:');
+          if (!oldP) return;
+          const newP = prompt('请输入新密码 (至少1位):');
+          if (!newP) return;
+          try {
+            authManager.changePassword(currentUser.id, oldP, newP);
+            alert('✅ 密码修改成功！请妥善保管您的新密码。');
+          } catch (e) {
+            alert('❌ ' + e.message);
+          }
+        });
+      }
+      return;
+    }
+
     const activeUserClassId = state.activeStudentClassId && displayClasses.some(c => c.id === state.activeStudentClassId)
       ? state.activeStudentClassId
-      : (displayClasses.find(c => c.id === currentUser?.classId)?.id || displayClasses[0].id);
+      : (displayClasses.find(c => c.id === currentUser?.classId)?.id || (displayClasses[0] ? displayClasses[0].id : null));
     const userClass = displayClasses.find(c => c.id === activeUserClassId) || displayClasses[0];
     state.activeStudentClassId = userClass.id;
 
@@ -8574,7 +8678,7 @@
   function renderHeader(state, currentUser, announcements, onStageChange, onSpeedChange, onLogout, onSwitchTeacher, onOpenAnnModal, onOpenSurveyModal, onBackToTaskList) {
     const header = document.getElementById('app-header');
     if (!header) return;
-    const activeTaskId = (state && state.activeTaskId) ? state.activeTaskId : 'task_default';
+    const activeTaskId = (state && state.activeTaskId) ? state.activeTaskId : null;
     const allTasks = (window.app && window.app.authManager) ? window.app.authManager.getTasks() : [];
     const currentTask = allTasks.find(t => t.id === activeTaskId);
 
@@ -9406,24 +9510,20 @@
     }
     const membersList = Array.isArray(membersObj) ? membersObj : Object.values(membersObj || {});
     const currUserObj = (window.app && window.app.authManager) ? window.app.authManager.getCurrentUser() : null;
-    const currentUid = currUserObj ? String(currUserObj.id || currUserObj.studentCode || '').trim() : (state.currentUser || '');
+    const currentUid = currUserObj ? String(currUserObj.id || '').trim() : (state.currentUser || '');
     const presence = state.presence || {};
     const serverNow = (state && state.serverTimestamp) ? Number(state.serverTimestamp) : Date.now();
     const allUsers = (window.app && window.app.authManager) ? window.app.authManager.getUsers() : [];
 
     const newHtml = membersList.map(m => {
-      const uid = String(m.id || m.studentCode || m.userId || '').trim();
+      const uid = String(m.id || m.userId || '').trim();
       const candidateKeys = [
         String(m.id || '').trim(),
-        String(m.studentCode || '').trim(),
-        String(m.username || '').trim(),
         String(m.name || '').trim()
       ].filter(Boolean);
 
       const isSelf = (currUserObj && (
         (currUserObj.id && (m.id === currUserObj.id || uid === String(currUserObj.id))) ||
-        (currUserObj.studentCode && (m.studentCode === currUserObj.studentCode || uid === String(currUserObj.studentCode))) ||
-        (currUserObj.username && (m.username === currUserObj.username || uid === String(currUserObj.username))) ||
         (currUserObj.name && m.name === currUserObj.name)
       )) || (uid && uid === currentUid);
 
@@ -9443,8 +9543,8 @@
 
       const sectionText = isSelf ? ' (我)' : (isOnline ? ' (在线)' : ' (离线)');
       const color = m.color || '#2563eb';
-      let displayName = m.name || m.studentCode || uid;
-      const matchedUser = allUsers.find(u => (u.id && u.id === uid) || (u.studentCode && u.studentCode === uid) || (u.username && u.username === uid));
+      let displayName = m.name || uid;
+      const matchedUser = allUsers.find(u => u && u.id === uid);
       if (matchedUser && matchedUser.name) displayName = matchedUser.name;
 
       return `
@@ -9492,49 +9592,51 @@
     const isTaskDeadlineExpired = isTaskExpired(currentTask);
     const taskGenreKey = currentTask?.taskType || 'experiment';
     const genreCfg = TASK_GENRE_CONFIGS[taskGenreKey] || TASK_GENRE_CONFIGS.experiment;
+    const taskDurMin = Number(currentTask?.durationMinutes) || 150;
     const isLargeTask = currentTask && (currentTask.scale === 'large' || currentTask.type === 'large' || taskDurMin > 150 || (currentTask.targetWordCount && Number(currentTask.targetWordCount) >= 6000));
 
     // 🛡️ 稳健解析当前用户的真实姓名与标识
     let currentUserName = currUserObj?.name || '';
     if (!currentUserName && currentUser) {
-      const matchedM = membersList.find(m => isSameUser(m, currentUser) || m.id === currentUser || m.studentCode === currentUser || m.name === currentUser);
+      const matchedM = membersList.find(m => m.id === currentUser || m.name === currentUser);
       if (matchedM && matchedM.name) currentUserName = matchedM.name;
       else {
-        const matchedU = allUsers.find(u => isSameUser(u, currentUser) || u.id === currentUser || u.studentCode === currentUser || u.name === currentUser);
+        const matchedU = allUsers.find(u => u.id === currentUser || u.name === currentUser);
         if (matchedU && matchedU.name) currentUserName = matchedU.name;
       }
     }
-    if (!currentUserName) currentUserName = (typeof currentUser === 'string' && currentUser) ? currentUser : '组员';
+    if (!currentUserName || currentUserName === currentUser) currentUserName = '我';
 
-    // 🛡️ 稳健的多标识判定辅助函数（零破坏底层存储结构，仅在名单比对时精准去重）
+    // 🛡️ 稳健的单标识判定辅助函数
     const isMemberDone = (map, m) => {
       if (!map || !m) return false;
-      return isUserInMap(map, m) || !!(map[m.id] || map[m.studentCode] || map[m.username] || (m.name && map[m.name]));
+      const id = typeof m === 'object' ? (m.id || m.name) : m;
+      return !!(map[id] || (typeof m === 'object' && m.name && map[m.name]));
     };
 
     const confirmedMembers = s1.contract.confirmedMembers || {};
     const confirmedCount = membersList.filter(m => isMemberDone(confirmedMembers, m)).length;
-    const userHasConfirmed = isMemberDone(confirmedMembers, currUserObj || { id: currentUser, studentCode: currUserObj?.studentCode, username: currUserObj?.username, name: currentUserName });
+    const userHasConfirmed = isMemberDone(confirmedMembers, currUserObj || { id: currentUser, name: currentUserName });
 
     // 🛡️ 真正的公约生效锁定判定：服务端公约已标记生效、或全员已签、或小组已进入阶段二/三、或全盘已提交/任务已截止
     const isAllConfirmed = (totalMembersCount > 0 && confirmedCount >= totalMembersCount);
     const isContractLocked = !!(s1.contract && s1.contract.isConfirmed) || isAllConfirmed || (state.groupMaxStage === 'stage2' || state.groupMaxStage === 'stage3') || state.isFinalSubmitted || isTaskDeadlineExpired;
     if (s1.contract && isAllConfirmed) s1.contract.isConfirmed = true;
 
-    const userHasVoted = isMemberDone(s1.hasVoted, currUserObj || { id: currentUser, studentCode: currUserObj?.studentCode, username: currUserObj?.username, name: currentUserName });
-    const userVotedProposalId = s1.votes ? (getUserFromMap(s1.votes, currUserObj) || s1.votes[currentUser] || (currUserObj && (s1.votes[currUserObj.id] || s1.votes[currUserObj.studentCode] || (currUserObj.name && s1.votes[currUserObj.name])))) : null;
+    const userHasVoted = isMemberDone(s1.hasVoted, currUserObj || { id: currentUser, name: currentUserName });
+    const userVotedProposalId = s1.votes ? (getUserFromMap(s1.votes, currUserObj) || s1.votes[currentUser] || (currUserObj && (s1.votes[currUserObj.id] || (currUserObj.name && s1.votes[currUserObj.name])))) : null;
 
     // 严格统计全组实际已投票人数
     const totalVotesCast = membersList.filter(m => isMemberDone(s1.hasVoted, m)).length;
     const isVotingComplete = (totalMembersCount > 0 && totalVotesCast >= totalMembersCount);
 
-    // 严密判断当前登录学生是否已提交提案 (支持 id, studentCode, username, 姓名多重比对)
-    const myKeys = new Set([...getUserAllKeys(currUserObj), ...getUserAllKeys(currentUser), currentUserName, currentUser].filter(Boolean));
+    // 严密判断当前登录学生是否已提交提案
     const hasSubmittedMyProposal = s1.proposals.some(p => {
       if (!p) return false;
-      if (myKeys.has(p.author) || myKeys.has(p.authorName) || myKeys.has(p.authorId)) return true;
-      if (currUserObj && (isSameUser(p.author, currUserObj) || isSameUser(p.authorName, currUserObj) || (p.authorName && p.authorName === currentUserName))) return true;
-      return false;
+      const authorId = p.author || p.authorId;
+      const authorName = p.authorName;
+      return (currUserObj && (authorId === currUserObj.id || (authorName && authorName === currUserObj.name))) ||
+             (authorId === currentUser || (authorName && authorName === currentUserName));
     });
 
     canvas.innerHTML = `
@@ -9602,16 +9704,16 @@
                   else { btnText = '未选择'; btnClass = 'vote-btn disabled'; }
                   btnDisabled = true;
                 }
-                let authorName = (p.authorName && p.authorName !== '组员') ? p.authorName : null;
+                let authorName = (p.authorName && p.authorName !== '组员' && p.authorName !== p.author) ? p.authorName : null;
                 if (!authorName) {
-                  const authorUser = allUsers.find(u => isSameUser(u, p.author) || isSameUser(u, p.authorName) || u.id === p.author || u.studentCode === p.author || u.username === p.author || u.name === p.author || u.name === p.authorName);
+                  const authorUser = allUsers.find(u => u && (u.id === p.author || u.id === p.authorId || u.name === p.author || u.name === p.authorName));
                   if (authorUser && authorUser.name) authorName = authorUser.name;
                 }
                 if (!authorName) {
-                  const authorMem = membersList.find(m => isSameUser(m, p.author) || isSameUser(m, p.authorName) || m.id === p.author || m.studentCode === p.author || m.name === p.author);
+                  const authorMem = membersList.find(m => m && (m.id === p.author || m.id === p.authorId || m.name === p.author));
                   if (authorMem && authorMem.name) authorName = authorMem.name;
                 }
-                if (!authorName) authorName = p.authorName || p.author || '组员';
+                if (!authorName) authorName = (p.authorName && p.authorName !== p.author) ? p.authorName : '组员';
                 return `
                   <div class="proposal-card ${isThisVoted ? 'voted' : ''}" style="display:flex; flex-direction:column; position:relative;">
                     <div class="proposal-header" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
@@ -10540,7 +10642,7 @@
     const currUser = (window.app && window.app.authManager) ? window.app.authManager.getCurrentUser() : null;
     let userClassId = state.activeStudentClassId || (currUser ? currUser.classId : null) || null;
     const activeGroupObj = (window.app && window.app.authManager) ? window.app.authManager.getStudentActiveGroup(currUser, userClassId) : null;
-    let userGroupId = activeGroupObj?.id || (window.app?.cloudSyncEngine?.groupId) || (currUser?.groupId) || state.activeGroupId || 'group_1';
+    let userGroupId = activeGroupObj?.id || (window.app?.cloudSyncEngine?.groupId) || (currUser?.groupId) || state.activeGroupId || null;
     let activeTaskId = state.activeTaskId || (window.app?.cloudSyncEngine?.taskId) || (`task_${userClassId || 'default'}_default`);
     if (!activeTaskId || activeTaskId === 'task_default') activeTaskId = `task_${userClassId || 'default'}_default`;
 
@@ -10560,16 +10662,16 @@
       if (strictCtx.taskId) activeTaskId = strictCtx.taskId;
     }
 
-    const currUserCode = state.currentUser || currUser?.studentCode || currUser?.id || currUser?.username || 'A';
+    const currUserCode = currUser?.id || state.currentUser || '';
     let currUserName = currUser?.name || '';
     if (!currUserName && state.members && state.members[currUserCode]?.name) {
       currUserName = state.members[currUserCode].name;
     }
     if (!currUserName && window.app && window.app.authManager) {
-      const matchedUser = window.app.authManager.getUsers().find(u => u && (u.studentCode === currUserCode || u.id === currUserCode || u.username === currUserCode || u.id === currUser?.id));
+      const matchedUser = window.app.authManager.getUsers().find(u => u && u.id === currUserCode);
       if (matchedUser && matchedUser.name) currUserName = matchedUser.name;
     }
-    if (!currUserName) currUserName = currUser?.username || currUserCode || '组员';
+    if (!currUserName || currUserName === currUserCode) currUserName = '组员';
     const currUserColor = (state.members && state.members[currUserCode]?.color) || '#2563eb';
     const rawPadName = `jizhi_${activeTaskId}_${userGroupId}`;
     const padUrl = `/p/${encodeURIComponent(rawPadName)}?userName=${encodeURIComponent(currUserName)}&userColor=${encodeURIComponent(currUserColor)}&showChat=false&showLineNumbers=true&lang=zh-hans`;
@@ -10583,35 +10685,15 @@
     const confirmedDraftMap = s2.confirmedMembers || {};
     const isMemberDone = (map, m) => {
       if (!map || !m) return false;
-      let fullUser = (typeof m === 'object') ? m : null;
-      if (!fullUser && window.app && window.app.authManager && window.app.authManager.findUserByKey) {
-        fullUser = window.app.authManager.findUserByKey(m);
-      }
-      const keys = [
-        typeof m === 'string' ? m : null,
-        m?.id, m?.studentCode, m?.username, m?.name,
-        fullUser?.id, fullUser?.studentCode, fullUser?.username, fullUser?.name
-      ].filter(Boolean).map(k => String(k).trim().toLowerCase());
-
-      // 1. 直接通过 key 匹配
-      if (keys.some(k => map[k] || map[String(k)])) return true;
-      // 2. 遍历 map 对象的所有 value 进行交叉属性匹配
-      const values = Object.values(map);
-      return values.some(item => {
-        if (!item) return false;
-        const itemKeys = [
-          item.user, item.name, item.id, item.studentCode, item.username,
-          typeof item === 'string' ? item : null
-        ].filter(Boolean).map(k => String(k).trim().toLowerCase());
-        return keys.some(k => itemKeys.includes(k));
-      });
+      const id = typeof m === 'object' ? (m.id || m.name) : m;
+      return !!(map[id] || (typeof m === 'object' && m.name && map[m.name]));
     };
     const membersList = Object.values(state.members || {});
     const allGroupMembers = (activeGroupObj && Array.isArray(activeGroupObj.members) && activeGroupObj.members.length > 0) ? activeGroupObj.members : membersList;
     const actualTotalCount = allGroupMembers.length > 0 ? allGroupMembers.length : (membersList.length || 2);
     const totalCount = actualTotalCount;
     const confirmedDraftCount = allGroupMembers.filter(m => isMemberDone(confirmedDraftMap, m)).length;
-    const isUserDraftConfirmed = isMemberDone(confirmedDraftMap, { id: currUserCode, studentCode: currUser?.studentCode, username: currUser?.username, name: currUser?.name });
+    const isUserDraftConfirmed = isMemberDone(confirmedDraftMap, currUser || { id: currUserCode, name: currUserName });
     const isDraftFullyConfirmed = !!s2.isDraftConfirmed && (confirmedDraftCount >= actualTotalCount && actualTotalCount > 0);
     const meetingSubs = s2.meetingSubmissions || {};
     const isStage2MeetingLocked = s2.isMeetingLocked || (Object.keys(meetingSubs).length >= actualTotalCount && actualTotalCount > 0);
@@ -11453,15 +11535,15 @@
     const totalCount = membersList.length || 3;
 
     const currUser = (window.app && window.app.authManager) ? window.app.authManager.getCurrentUser() : null;
-    const currUserCode = state.currentUser || (currUser ? currUser.studentCode : 'A');
+    const currUserCode = currUser?.id || state.currentUser || 'A';
     const confirmedRevMap = s3.confirmedMembers || {};
-    const confirmedRevCount = membersList.filter(m => confirmedRevMap[m.id] || confirmedRevMap[m.studentCode] || confirmedRevMap[m.username] || (m.name && confirmedRevMap[m.name])).length;
-    const isUserRevisionConfirmed = !!(confirmedRevMap[currUserCode] || (currUser && (confirmedRevMap[currUser.id] || confirmedRevMap[currUser.studentCode])));
+    const confirmedRevCount = membersList.filter(m => !!(confirmedRevMap[m.id] || (m.name && confirmedRevMap[m.name]))).length;
+    const isUserRevisionConfirmed = !!(confirmedRevMap[currUserCode] || (currUser && confirmedRevMap[currUser.id]));
     const isRevisionFullyConfirmed = confirmedRevCount >= totalCount && totalCount > 0;
 
     const finalSubmittedMap = s3.finalSubmittedMembers || {};
-    const finalSubmittedCount = membersList.filter(m => finalSubmittedMap[m.id] || finalSubmittedMap[m.studentCode] || finalSubmittedMap[m.username] || (m.name && finalSubmittedMap[m.name])).length;
-    const isUserFinalSubmitted = !!(finalSubmittedMap[currUserCode] || (currUser && (finalSubmittedMap[currUser.id] || finalSubmittedMap[currUser.studentCode])));
+    const finalSubmittedCount = membersList.filter(m => !!(finalSubmittedMap[m.id] || (m.name && finalSubmittedMap[m.name]))).length;
+    const isUserFinalSubmitted = !!(finalSubmittedMap[currUserCode] || (currUser && finalSubmittedMap[currUser.id]));
     const isAllFinalSubmitted = state.isFinalSubmitted || (finalSubmittedCount >= totalCount && totalCount > 0);
 
     const allTasks = (window.app && window.app.authManager) ? window.app.authManager.getTasks() : [];
@@ -11687,7 +11769,7 @@
             const currUser = (window.app && window.app.authManager) ? window.app.authManager.getCurrentUser() : null;
             let userClassId = state.activeStudentClassId || (currUser ? currUser.classId : null) || null;
             const activeGroupObj = (window.app && window.app.authManager) ? window.app.authManager.getStudentActiveGroup(currUser, userClassId) : null;
-            let userGroupId = activeGroupObj?.id || (window.app?.cloudSyncEngine?.groupId) || (currUser?.groupId) || state.activeGroupId || 'group_1';
+            let userGroupId = activeGroupObj?.id || (window.app?.cloudSyncEngine?.groupId) || (currUser?.groupId) || state.activeGroupId || null;
             let activeTaskId = state.activeTaskId || (window.app?.cloudSyncEngine?.taskId) || (`task_${userClassId || 'default'}_default`);
             if (!activeTaskId || activeTaskId === 'task_default') activeTaskId = `task_${userClassId || 'default'}_default`;
 
@@ -11705,7 +11787,11 @@
             }
 
             const rawPadName = `jizhi_${activeTaskId}_${userGroupId}`;
-            const currUserName = (currUser && (currUser.name || currUser.username)) || '组员';
+            let currUserName = currUser?.name || '';
+            if (!currUserName && state.members && state.members[currUserCode]?.name) {
+              currUserName = state.members[currUserCode].name;
+            }
+            if (!currUserName || currUserName === currUserCode) currUserName = '组员';
             const currUserColor = (state.members && state.members[currUserCode]?.color) || '#2563eb';
 
             const isEditorReadonly = isFinalSubmitted || isTaskDeadlineExpired;
@@ -11860,7 +11946,11 @@
         const u = window.app.authManager.getCurrentUser();
         const effClassId = (window.app?.authManager ? window.app.authManager.getEffectiveStudentClassId(u, window.app?.state?.activeTaskId) : (window.app?.state?.activeStudentClassId || u?.classId || null));
         const effGroup = window.app.authManager.getStudentActiveGroup(u, effClassId);
-        memberList = window.app.authManager.getGroupMembersForWorkspace(effGroup?.id || state.activeGroupId || null);
+        const grpMap = window.app.authManager.getGroupMembersForWorkspace(effGroup?.id || state.activeGroupId || null);
+        memberList = Object.values(grpMap || {});
+      }
+      if (!Array.isArray(memberList)) {
+        memberList = Object.values(memberList || {});
       }
 
       const newPresenceHtml = memberList.map(m => {
@@ -12002,13 +12092,18 @@
         if (msg.senderName && msg.senderName !== '组员') {
           name = msg.senderName;
         }
-        const u = allUsers.find(x => isSameUser(x, msg.sender) || isSameUser(x, msg.senderName) || x.id === msg.sender || x.studentCode === msg.sender || x.username === msg.sender || x.name === msg.sender || (name && x.name === name));
+        const u = allUsers.find(x => x && (x.id === msg.sender || x.id === msg.senderName || x.name === msg.sender || x.name === msg.senderName || (name && x.name === name)));
         if (u && u.name) {
           name = u.name;
         } else if (state.members) {
           const memList = Array.isArray(state.members) ? state.members : Object.values(state.members);
-          const mem = memList.find(m => isSameUser(m, msg.sender) || isSameUser(m, msg.senderName) || m.id === msg.sender || m.studentCode === msg.sender || m.username === msg.sender || m.name === msg.sender);
+          const mem = memList.find(m => m && (m.id === msg.sender || m.id === msg.senderName || m.name === msg.sender || m.name === msg.senderName));
           if (mem && mem.name) name = mem.name;
+        }
+        if (!name || name === msg.sender) {
+          const memList = Array.isArray(state.members) ? state.members : Object.values(state.members || {});
+          const mem = memList.find(m => m && (m.id === msg.sender || m.studentCode === msg.sender));
+          name = mem?.name || (msg.senderName && msg.senderName !== msg.sender ? msg.senderName : '组员');
         }
 
         const memList = Array.isArray(state.members) ? state.members : Object.values(state.members || {});
@@ -12194,7 +12289,59 @@
 
       const hasFinalReviewInLogs = s2Chats.some(m => m && m.sender === 'reviewingEditor' && (m.text?.includes('终稿行文扫描') || m.text?.includes('终审定稿总评') || m.text?.includes('审稿编辑·终审')));
 
-      if (curStage === 'stage2') {
+      if (curStage === 'stage1') {
+        const s1 = state.stage1 || {};
+        const elapsedSec = (state.timer && state.timer.elapsedSeconds) ? state.timer.elapsedSeconds : 0;
+        const isDraftDone = !!(s1.contractStep === 'completed' || s1.contract?.isDraftGenerated);
+        const isContractConfirmed = !!(s1.contract?.isConfirmed || state.groupMaxStage === 'stage2' || state.groupMaxStage === 'stage3');
+        const confirmedMembers = s1.contract?.confirmedMembers || {};
+        const confirmedCount = membersList.filter(m => isDoneHelper({ [m.id]: confirmedMembers[m.id] || (m.name && confirmedMembers[m.name]) })).length;
+
+        if (isContractConfirmed) {
+          actionBar.style.display = 'none';
+          actionBar.innerHTML = '';
+        } else if (isDraftDone) {
+          actionBar.style.display = 'block';
+          actionBar.innerHTML = `
+            <div style="background:#f0fdf4; border:1px solid #bbf7d0; color:#166534; padding:6px 14px; border-radius:16px; font-weight:700; font-size:12px; display:inline-flex; align-items:center; gap:6px;">
+              📜 公约草案已全部生成！👉 请全员在左侧公约下方核对并签署 (${confirmedCount}/${totalCount} 人已签)
+            </div>
+          `;
+        } else if (elapsedSec >= 13 * 60) {
+          actionBar.style.display = 'block';
+          const isGenerating = !!(window.app && window.app._isGeneratingContract);
+          const isFailed = !!(window.app && window.app._contractGenerateFailed);
+
+          if (isGenerating) {
+            actionBar.innerHTML = `
+              <button id="btn-s1-auto-generate-contract" disabled style="background:#94a3b8; border:none; color:white; padding:7px 18px; border-radius:18px; font-weight:800; font-size:12.5px; cursor:not-allowed; display:inline-flex; align-items:center; gap:6px;">
+                ⏳ 拍卖师正在通读研讨并提炼公约草案...
+              </button>
+            `;
+          } else if (isFailed) {
+            actionBar.innerHTML = `
+              <button id="btn-s1-auto-generate-contract" style="background:linear-gradient(135deg, #ea580c, #c2410c); border:none; color:white; padding:7px 18px; border-radius:18px; font-weight:800; font-size:12.5px; cursor:pointer; display:inline-flex; align-items:center; gap:6px; box-shadow:0 3px 10px rgba(234,88,12,0.3); transition:all 0.2s;">
+                🔄 提炼遇阻，点此重新提炼生成公约草案
+              </button>
+            `;
+          } else {
+            actionBar.innerHTML = `
+              <button id="btn-s1-auto-generate-contract" style="background:linear-gradient(135deg, #7c3aed, #6d28d9); border:none; color:white; padding:7px 18px; border-radius:18px; font-weight:800; font-size:12.5px; cursor:pointer; display:inline-flex; align-items:center; gap:6px; box-shadow:0 3px 10px rgba(124,58,237,0.25); transition:all 0.2s;">
+                💡 [ 📋 研讨差不多了？一键提炼生成公约草案 ]
+              </button>
+            `;
+          }
+
+          actionBar.querySelector('#btn-s1-auto-generate-contract')?.addEventListener('click', () => {
+            if (!isGenerating && window.app && typeof window.app.handleOneClickGenerateContract === 'function') {
+              window.app.handleOneClickGenerateContract();
+            }
+          });
+        } else {
+          actionBar.style.display = 'none';
+          actionBar.innerHTML = '';
+        }
+      } else if (curStage === 'stage2') {
         if (s2.meetingStep === 'completed' || hasFinalChecklistSummary || hasFinalReviewInLogs) {
           actionBar.style.display = 'none';
           actionBar.innerHTML = '';
@@ -12488,7 +12635,7 @@
       }
     }
 
-    loadGroupState(groupId = 'group_1') {
+    loadGroupState(groupId = null) {
       const defaultState = JSON.parse(JSON.stringify(InitialState));
       const user = this.authManager ? this.authManager.getCurrentUser() : null;
       const isTeacher = user && (user.isTeacher || user.role === 'teacher');
@@ -13041,7 +13188,9 @@
         appEl.className = 'app-login-mode';
         renderLoginView(appEl, this.authManager, async () => {
           const u = this.authManager.getCurrentUser();
-          const gId = u && u.groupId ? u.groupId : 'group_1';
+          const effectiveClassId = this.authManager ? this.authManager.getEffectiveStudentClassId(u) : u?.classId;
+          const activeGroup = this.authManager ? this.authManager.getStudentActiveGroup(u, effectiveClassId) : null;
+          const gId = activeGroup?.id || u?.groupId || null;
           this.loadGroupState(gId);
           try {
             await this.authManager.pullGlobalMeta();
@@ -13073,7 +13222,7 @@
       } else {
         const effectiveClassId = this.authManager ? this.authManager.getEffectiveStudentClassId(currentUser, this.state.activeTaskId) : (this.state.activeStudentClassId || currentUser?.classId || null);
         const activeGroupObj = this.authManager.getStudentActiveGroup(currentUser, effectiveClassId);
-        const currentGroupId = activeGroupObj.id || (currentUser && currentUser.groupId ? currentUser.groupId : 'group_1');
+        const currentGroupId = activeGroupObj?.id || currentUser?.groupId || null;
 
         if (this.state.studentViewMode === 'task_list') {
           appEl.className = 'app-student-portal-mode';
@@ -13098,7 +13247,7 @@
               localStorage.setItem('jizhi_student_view_mode', 'workspace');
 
               const latestGroupObj = this.authManager.getStudentActiveGroup(currentUser, taskClassId);
-              const targetGroupId = latestGroupObj.id || (currentUser && currentUser.groupId ? currentUser.groupId : 'group_1');
+              const targetGroupId = latestGroupObj?.id || currentUser?.groupId || null;
               this.loadGroupState(targetGroupId);
 
               // 🎯 保持本组推进到的真实阶段，确保历史消息与当前工作台阶段 100% 对应
@@ -13697,7 +13846,7 @@
                 if (count < 2 && (!this.lastSignContractNudgeTime || now - this.lastSignContractNudgeTime > 180000)) {
                   this.lastSignContractNudgeTime = now;
                   this._nudgeCounts['s1_partial_sign'] = count + 1;
-                  const unsignedMembers = membersList.filter(m => !signedMap[m.studentCode] && !signedMap[m.id]);
+                  const unsignedMembers = membersList.filter(m => !signedMap[m.id]);
                   const unsignedNames = unsignedMembers.map(m => m.name).join('、');
                   const msg = {
                     sender: 'auctioneer',
@@ -14281,7 +14430,7 @@
       const currentClassObj = classes.find(c => c.id === effectiveClassId);
       const effectiveClassName = currentClassObj ? currentClassObj.name : '';
       const activeGroupObj = this.authManager.getStudentActiveGroup(currentUser, effectiveClassId);
-      const groupId = this.state.activeGroupId || this.cloudSyncEngine?.groupId || activeGroupObj.id || (currentUser && currentUser.groupId ? currentUser.groupId : 'group_1');
+      const groupId = this.state.activeGroupId || this.cloudSyncEngine?.groupId || activeGroupObj?.id || currentUser?.groupId || null;
       const allTasks = this.authManager.getTasks();
 
       const isAnnRead = (a) => {
@@ -14341,7 +14490,7 @@
       const currentClassObj = classes.find(c => c.id === effectiveClassId);
       const effectiveClassName = currentClassObj ? currentClassObj.name : '';
       const activeGroupObj = this.authManager.getStudentActiveGroup(currentUser, effectiveClassId);
-      const groupId = this.state.activeGroupId || this.cloudSyncEngine?.groupId || activeGroupObj.id || (currentUser && currentUser.groupId ? currentUser.groupId : 'group_1');
+      const groupId = this.state.activeGroupId || this.cloudSyncEngine?.groupId || activeGroupObj?.id || currentUser?.groupId || null;
       const isTaskListMode = (this.state && this.state.studentViewMode === 'task_list');
       const activeTaskId = this.state.activeTaskId || null;
       const allAnns = this.authManager.getAnnouncements();
@@ -14685,7 +14834,7 @@
     showQuestionnaireModal() {
       document.querySelectorAll('.modal-overlay').forEach(el => el.remove());
       const currentUser = this.authManager.getCurrentUser();
-      const currentClassId = currentUser && currentUser.classId ? currentUser.classId : 'class_101';
+      const currentClassId = this.authManager.getEffectiveStudentClassId(currentUser, this.state.activeTaskId) || currentUser?.classId || null;
       const currentTaskId = this.state.activeTaskId || null;
       const tasks = this.authManager.getTasks();
       const currTaskObj = tasks.find(t => t.id === currentTaskId);
@@ -14774,7 +14923,7 @@
       const user = this.authManager.getCurrentUser();
       const groupId = user && user.groupId ? user.groupId : (this.state.activeMonitorGroupId || this.state.activeGroupId || null);
       const classId = user ? user.classId : null;
-      const activeTaskId = (this.state && this.state.activeTaskId) ? this.state.activeTaskId : 'task_default';
+      const activeTaskId = (this.state && this.state.activeTaskId) ? this.state.activeTaskId : null;
       const papers = this.authManager.getReferencePapers(groupId, classId, activeTaskId);
 
       const modal = document.createElement('div');
@@ -15308,13 +15457,13 @@
       const s1 = this.state.stage1;
       const currUserObj = this.authManager.getCurrentUser();
 
-      // 🛡️ 稳健的多标识判定辅助函数
       const isMemberDone = (map, m) => {
         if (!map || !m) return false;
-        return !!(map[m.id] || map[m.studentCode] || map[m.username] || (m.name && map[m.name]));
+        const id = typeof m === 'object' ? (m.id || m.name) : m;
+        return !!(map[id] || (typeof m === 'object' && m.name && map[m.name]));
       };
 
-      const isAlreadyVoted = isMemberDone(s1.hasVoted, { id: user, studentCode: currUserObj?.studentCode, username: currUserObj?.username, name: currUserObj?.name });
+      const isAlreadyVoted = isMemberDone(s1.hasVoted, currUserObj || { id: user });
       if (isAlreadyVoted) {
         alert('💡 您已经完成投票啦！每位成员仅有一次投票机会，请耐心等待其他组员完成投票。');
         return;
@@ -15322,13 +15471,12 @@
       if (!s1.hasVoted) s1.hasVoted = {};
       if (!s1.votes) s1.votes = {};
 
-      // 兼容写入多键，保证底层依赖绝对不破坏
-      s1.votes[user] = proposalId;
-      s1.hasVoted[user] = true;
-      if (currUserObj) {
-        if (currUserObj.id) { s1.votes[currUserObj.id] = proposalId; s1.hasVoted[currUserObj.id] = true; }
-        if (currUserObj.studentCode) { s1.votes[currUserObj.studentCode] = proposalId; s1.hasVoted[currUserObj.studentCode] = true; }
-        if (currUserObj.name) { s1.votes[currUserObj.name] = proposalId; s1.hasVoted[currUserObj.name] = true; }
+      const userKey = currUserObj ? currUserObj.id : user;
+      s1.votes[userKey] = proposalId;
+      s1.hasVoted[userKey] = true;
+      if (currUserObj && currUserObj.name) {
+        s1.votes[currUserObj.name] = proposalId;
+        s1.hasVoted[currUserObj.name] = true;
       }
 
       s1._lastVoteTime = Date.now();
@@ -15357,7 +15505,7 @@
           s1._voteCompletedTime = Date.now();
           const tally = {};
           membersList.forEach(m => {
-            const pId = s1.votes[m.studentCode] || s1.votes[m.id] || s1.votes[m.username] || (m.name && s1.votes[m.name]);
+            const pId = s1.votes[m.id] || (m.name && s1.votes[m.name]);
             if (pId) tally[pId] = (tally[pId] || 0) + 1;
           });
           const proposalSummaryList = (s1.proposals || []).map(p => `《${p.title}》(${tally[p.id] || 0}票)`).join('，');
@@ -15540,7 +15688,7 @@
       const activeTaskId = this.state.activeTaskId || null;
       const effectiveClassId = this.state.activeStudentClassId || (currUserObj?.classId || null);
       const activeGroupObj = this.authManager ? this.authManager.getStudentActiveGroup(currUserObj, effectiveClassId) : null;
-      const currentGroupId = activeGroupObj?.id || (currUserObj && currUserObj.groupId ? currUserObj.groupId : (this.state.activeGroupId || 'group_1'));
+      const currentGroupId = activeGroupObj?.id || currUserObj?.groupId || this.state.activeGroupId || null;
 
       try {
         const res = await fetch('sync.php?action=confirm_step', {
@@ -15940,6 +16088,175 @@
     }
 
     /**
+     * 📜 阶段一公约终极一键补齐/生成：通读投票后全量研讨，一次性补齐主题、时间与全员1对1分工（支持冷场/空白讨论安全兜底）
+     */
+    async handleOneClickGenerateContract() {
+      const s1 = this.state.stage1 || {};
+      if (s1.contractStep === 'completed' || s1.contract?.isDraftGenerated) {
+        if (typeof showGlobalBannerNotice === 'function') {
+          showGlobalBannerNotice('📜 公约草案已生成', '公约草案已全部就绪，请直接在左侧公约下方核对并签署！');
+        }
+        return;
+      }
+
+      if (typeof showGlobalBannerNotice === 'function') {
+        showGlobalBannerNotice('⏳ 正在一键智能生成全套公约草案...', '拍卖师正在分析全组投票后的全部讨论，一一对应提炼课题方案、时间规划与成员分工...', 'info', 4000);
+      }
+
+      let members = [];
+      if (Array.isArray(this.state.members)) members = this.state.members;
+      else if (this.state.members && typeof this.state.members === 'object') members = Object.values(this.state.members);
+      const membersList = members.filter(Boolean);
+
+      // 1. 抓取投票完成后的全部真实研讨记录
+      const s1ChatLogs = (this.state.chatLogs && this.state.chatLogs.stage1) ? this.state.chatLogs.stage1 : [];
+      const voteNoticeIdx = s1ChatLogs.findIndex(m => m && m.text && (
+        m.text.includes('落槌') || m.text.includes('全票通过') || m.text.includes('投票揭晓') || m.text.includes('方案研讨') || m.text.includes('投票已完成')
+      ));
+      const relevantLogs = (voteNoticeIdx >= 0) ? s1ChatLogs.slice(voteNoticeIdx) : s1ChatLogs;
+      const userLogs = relevantLogs.filter(m => m && m.sender && !AgentProfiles[m.sender] && m.sender !== 'system');
+      const chatSnippet = userLogs.map(m => `${m.senderName || m.sender}: ${m.text}`).join('\n');
+
+      // 2. 确定候选题目与任务信息
+      const allTasks = (this.authManager) ? this.authManager.getTasks() : [];
+      const curTask = allTasks.find(t => t.id === this.state.activeTaskId);
+      const defaultTopic = s1.mergedTitle || s1.contract?.topic || (s1.proposals && s1.proposals[0] ? s1.proposals[0].title : (curTask?.title || '基于深度协作的学术探究与实践'));
+      const membersInfo = membersList.map(m => `- 姓名: ${m.name || '组员'} (学号: ${m.id || m.studentCode || '无'})`).join('\n');
+
+      const defaultTasks = [
+        '负责“一、研究背景与意义”及“二、文献综述”起草',
+        '负责“三、研究问题与假设”及“四、研究设计与方法”方案制定',
+        '负责“五、不足与反思”撰写及全篇“六、参考文献”引文校对',
+        '负责数据分析模型构建与研究工具问卷设计'
+      ];
+      const defaultTimes = s1.contract?.timeAllocations && Object.keys(s1.contract.timeAllocations).length >= 6
+        ? s1.contract.timeAllocations
+        : { background: 25, literature: 30, questions: 25, method: 40, reflection: 20, references: 10 };
+
+      const fallbackAssignments = {};
+      membersList.forEach((m, idx) => {
+        const mKey = m.id || m.studentCode || m.username || m.name;
+        fallbackAssignments[mKey] = defaultTasks[idx % defaultTasks.length];
+      });
+
+      const fullContractPrompt = `小组成员已完成了选题投票，并在讨论区就论文主题深化、时间规划与各章节分工展开了研讨。
+  【确定课题/候选方向】: 《${defaultTopic}》
+  【小组成员名单】:
+  ${membersInfo}
+  【投票完成后的组内真实研讨记录】:
+  ${chatSnippet || '（小组成员已达成基本共识，准备进入正文写作）'}
+
+  请作为资深学术拍卖师：
+  1. 确定最终精炼的研究主题名称 (topic) 与 80~120 字的研究方案概述 (overview，涵盖背景、核心问题与方法)；
+  2. 给出 6 大章节的合理时间分配分钟数 (timeAllocations: background, literature, questions, method, reflection, references，总计约 150 分钟)；
+  3. 将全篇写作章节一一对应合理分配给每位组员 (assignments: 以每位组员的真实姓名或学号为键，给出具体负责的章节与职责描述，如“负责研究背景与意义、文献综述撰写”)。若研讨较简短或未明确，请结合学术论文规范合理统筹分工；
+  4. 给出 1 句简短小结提示，提醒全组在左侧公约卡片下方核对并签署确认 (guideText)。
+
+  输出格式必须为合法 JSON（严禁代码块以外的多余文字）：
+  {
+    "topic": "最终确定的论文题目",
+    "overview": "提炼后的研究方案概述，涵盖具体情境、核心问题与研究方法",
+    "timeAllocations": {
+      "background": 25,
+      "literature": 30,
+      "questions": 25,
+      "method": 40,
+      "reflection": 20,
+      "references": 10
+    },
+    "assignments": {
+      "组员姓名1": "负责章节与职责描述",
+      "组员姓名2": "负责章节与职责描述"
+    },
+    "guideText": "太棒了！全盘公约草案已全部生成就绪！请全组成员核对左侧公约并在下方点击【✍️ 签署确认学术公约】！"
+  }`;
+
+      let finalTopic = defaultTopic;
+      let finalOverview = s1.contract?.overview || s1.researchOverview || `本研究围绕《${defaultTopic}》展开系统性学术探究，聚焦核心问题，采用定性与定量相结合的研究方法进行深入探讨。`;
+      let finalTimes = defaultTimes;
+      let finalAssignments = Object.assign({}, s1.contract?.taskAssignments || {}, fallbackAssignments);
+      let isSuccess = false;
+
+      this._isGeneratingContract = true;
+      if (typeof renderChat === 'function') renderChat(this.state);
+
+      try {
+        const resp = await callCozeAgentAPI('auctioneer', fullContractPrompt, { stage: 'stage1', topic: defaultTopic });
+        if (resp && resp.trim().length > 0) {
+          const jsonMatch = resp.match(/\{[\s\S]*\}/);
+          if (jsonMatch) {
+            const parsed = JSON.parse(jsonMatch[0]);
+            if (parsed.topic && parsed.topic.trim()) {
+              finalTopic = parsed.topic.trim();
+              isSuccess = true;
+            }
+            if (parsed.overview && parsed.overview.trim()) finalOverview = parsed.overview.trim();
+            if (parsed.timeAllocations && typeof parsed.timeAllocations === 'object') {
+              finalTimes = Object.assign({}, defaultTimes, parsed.timeAllocations);
+            }
+            if (parsed.assignments && typeof parsed.assignments === 'object') {
+              membersList.forEach((m, idx) => {
+                const mKey = m.id || m.studentCode || m.username || m.name;
+                const matchedVal = parsed.assignments[m.name] || parsed.assignments[m.id] || parsed.assignments[m.studentCode] || parsed.assignments[m.username];
+                if (matchedVal) finalAssignments[mKey] = matchedVal;
+              });
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('One-click generate contract AI call error:', err);
+      } finally {
+        this._isGeneratingContract = false;
+      }
+
+      if (!isSuccess) {
+        this._contractGenerateFailed = true;
+        if (typeof renderChat === 'function') renderChat(this.state);
+        alert('⚠️ 智能体通信超时或网络连接异常，未能成功提炼生成公约草案！\n\n请检查网络连接后，再次点击【🔄 重新提炼生成公约草案】即可重新调用！\n（您也可以在左侧公约卡片通过分步按钮手动完成拟定）');
+        return;
+      }
+
+      this._contractGenerateFailed = false;
+
+      // 写入状态并单向锁定公约草案
+      if (!s1.contract) s1.contract = {};
+      s1.mergedTitle = finalTopic;
+      s1.contract.topic = finalTopic;
+      s1.contract.overview = finalOverview;
+      s1.researchOverview = finalOverview;
+      s1.contract.timeAllocations = finalTimes;
+      s1.contract.taskAssignments = finalAssignments;
+      s1.contract.isDraftGenerated = true;
+      s1.contract._draftedTime = Date.now();
+      s1.contractStep = 'completed'; // 提炼全部完成，左侧3个分步按钮全部退场
+      s1.flowStep = 'refining';
+
+      const noticeText = `🏛️ 【学术拍卖师·全盘公约就绪】：全篇研究主题《${finalTopic}》、时间规划与组员分工已全部提炼生成并录入左侧公约看板！👉 请全组成员在左侧公约卡片仔细核对自己的分工与时间，并在公约下方点击【✍️ 签署确认学术公约】！全员签署后将正式解锁【阶段二：学术编辑部】！`;
+      const noticeMsg = {
+        id: 'msg_full_contract_done_' + Date.now(),
+        sender: 'auctioneer',
+        senderName: '头脑风暴 · 学术拍卖师',
+        text: noticeText,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        _timeMs: Date.now()
+      };
+      s1ChatLogs.push(noticeMsg);
+      if (typeof this.sendSingleChatMessage === 'function') {
+        this.sendSingleChatMessage(noticeMsg, 'stage1');
+      }
+
+      this.syncStage1();
+      this.syncChatLogs();
+      if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+      this.renderStudentWorkspace();
+      renderChat(this.state);
+
+      if (typeof showGlobalBannerNotice === 'function') {
+        showGlobalBannerNotice('🎉 公约草案已全部生成就绪！', '请各位组员在左侧公约看板核对分工与时间规划，并在下方签署确认！', 'success', 6000);
+      }
+    }
+
+    /**
      * ✍️ 阶段一：小组成员点击签署确认学术合作公约
      */
     handleConfirmContract() {
@@ -15955,7 +16272,11 @@
         const u = this.authManager.getCurrentUser();
         const effClassId = (this.authManager ? this.authManager.getEffectiveStudentClassId(u, this.state.activeTaskId) : (this.state.activeStudentClassId || u?.classId || null));
         const effGroup = this.authManager.getStudentActiveGroup(u, effClassId);
-        memberArr = this.authManager.getGroupMembersForWorkspace(effGroup?.id || this.state.activeGroupId || null, effClassId);
+        const rawG = this.authManager.getGroupMembersForWorkspace(effGroup?.id || this.state.activeGroupId || null, effClassId);
+        memberArr = Array.isArray(rawG) ? rawG : Object.values(rawG || {});
+      }
+      if (!Array.isArray(memberArr)) {
+        memberArr = Object.values(memberArr || {});
       }
       const currMemObj = memberArr.find(m => m && (m.id === user || m.studentCode === user || m.username === user || m.name === user));
       const memberName = currMemObj ? currMemObj.name : user;
@@ -16125,8 +16446,8 @@
   【组员一句话修改聚焦】: ${focusIssues}
   【组内关于修改思路的讨论记录】:
   ${chatSnippet}
-  【正文草稿节选】:
-  ${rawDoc.slice(0, 1000)}
+  【正文草稿】:
+  ${rawDoc || '（小组成员正在协作起草正文草稿）'}
 
   请作为责任编辑，发表 90~120 字的【半程研讨共识小结与交棒】：
   ① 明确呼应小组成员在自查与研讨中聚焦的痛点（如：${focusIssues.slice(0, 50)}），提炼出 1~2 个实质性的修改共识点（严禁假大空套话，严禁出现“分工”字眼）；
@@ -16179,7 +16500,7 @@
 
   针对课题《${topic}》，结合小组成员自查瓶颈【${bottlenecks}】、聚焦关注点【${focusIssues}】及下方正文草稿，作为资深审稿编辑给出包含【诊断问题 + 改进建议】双结构的学术质检《二审修正清单》（150~180字）：
   【正文草稿参考】:
-  ${rawDoc.slice(0, 2000)}
+  ${rawDoc || '（小组成员已完成初版主体框架起草）'}
   【小组成员商定的修改思路】:
   ${chatSnippet}
 
@@ -16721,7 +17042,7 @@
   3. 态度务必温和客气、极具建设性（多用“商讨/请教/小细节/落地可行性”）。纯自然语言输出，130~150字。`;
 
           try {
-            const timeoutPromise = new Promise(r => setTimeout(() => r(null), 12000));
+            const timeoutPromise = new Promise(r => setTimeout(() => r(null), 45000));
             const promises = [];
             if (!hasProp) {
               promises.push(Promise.race([
@@ -17060,7 +17381,7 @@
       const currentUser = this.authManager.getCurrentUser();
       const effectiveClassId = this.state.activeStudentClassId || (currentUser?.classId || null);
       const activeGroupObj = this.authManager.getStudentActiveGroup(currentUser, effectiveClassId);
-      let currentGroupId = activeGroupObj.id || (currentUser && currentUser.groupId ? currentUser.groupId : 'group_1');
+      let currentGroupId = activeGroupObj?.id || currentUser?.groupId || null;
 
       // 🛡️ 班级/小组/成员/任务严格解析：任一解析不到 → 明确提示并阻止进入学生工作区（不再静默兜底）
       if (this.authManager && typeof this.authManager.resolveStudentActiveContext === 'function') {
@@ -17341,6 +17662,8 @@
         if (signMatrixMount || signActionMount) {
           const totalMembersCount = membersList.length || 2;
           const currUserCode = this.state.currentUser;
+          const matchedMem = membersList.find(m => m && (m.id === currUserCode || m.studentCode === currUserCode || m.username === currUserCode || m.name === currUserCode));
+          const currentUserName = matchedMem?.name || currentUserObj?.name || currUserCode || '组员';
           const confirmedMembers = s1.contract?.confirmedMembers || {};
           const confirmedCount = membersList.filter(m => (confirmedMembers[m.id] || confirmedMembers[m.studentCode] || confirmedMembers[m.username] || (m.name && confirmedMembers[m.name]))).length;
           const userHasConfirmed = !!(confirmedMembers[currUserCode] || (currentUserObj && (confirmedMembers[currentUserObj.id] || confirmedMembers[currentUserObj.studentCode] || confirmedMembers[currentUserObj.username] || confirmedMembers[currentUserObj.name])));
@@ -17492,7 +17815,11 @@
             const u = this.authManager.getCurrentUser();
             const effClassId = (this.authManager ? this.authManager.getEffectiveStudentClassId(u, this.state.activeTaskId) : (this.state.activeStudentClassId || u?.classId || null));
             const effGroup = this.authManager.getStudentActiveGroup(u, effClassId);
-            memberArr = this.authManager.getGroupMembersForWorkspace(effGroup?.id || this.state.activeGroupId || null);
+            const rawG = this.authManager.getGroupMembersForWorkspace(effGroup?.id || this.state.activeGroupId || null);
+            memberArr = Array.isArray(rawG) ? rawG : Object.values(rawG || {});
+          }
+          if (!Array.isArray(memberArr)) {
+            memberArr = Object.values(memberArr || {});
           }
           const totalMembersCount = memberArr.length > 0 ? memberArr.length : 3;
 
@@ -17516,20 +17843,17 @@
 
           const isMemDone = (map, m) => {
             if (!map || !m) return false;
-            return !!(map[m.id] || map[m.studentCode] || map[m.username] || (m.name && map[m.name]));
+            const id = typeof m === 'object' ? (m.id || m.name) : m;
+            return !!(map[id] || (typeof m === 'object' && m.name && map[m.name]));
           };
-          const currMemObj = memberArr.find(m => m && (m.id === user || m.studentCode === user || m.username === user || m.name === user));
-          if (currMemObj) {
-            if (currMemObj.id) s2.confirmedMembers[currMemObj.id] = true;
-            if (currMemObj.studentCode) s2.confirmedMembers[currMemObj.studentCode] = true;
-            if (currMemObj.username) s2.confirmedMembers[currMemObj.username] = true;
-            if (currMemObj.name) s2.confirmedMembers[currMemObj.name] = true;
-          } else {
-            s2.confirmedMembers[user] = true;
-          }
+          const currMemObj = memberArr.find(m => m && (m.id === user || m.name === user));
+          const userKey = currMemObj ? currMemObj.id : user;
+          s2.confirmedMembers[userKey] = true;
+          if (currMemObj && currMemObj.name) s2.confirmedMembers[currMemObj.name] = true;
 
           const confirmedCount = memberArr.filter(m => isMemDone(s2.confirmedMembers, m)).length;
-          const memberName = currMemObj ? currMemObj.name : user;
+          const currUserObj = (this.authManager) ? this.authManager.getCurrentUser() : null;
+          const memberName = currMemObj?.name || currUserObj?.name || '组员';
 
           this.syncStage2();
           this.syncChatLogs();
@@ -17545,7 +17869,7 @@
             this.state.groupMaxStage = 'stage3';
             const currentUserObj = this.authManager ? this.authManager.getCurrentUser() : null;
             const activeTaskId = this.state.activeTaskId || null;
-            const userGroupId = (currentUserObj && currentUserObj.groupId) ? currentUserObj.groupId : 'group_1';
+            const userGroupId = currentUserObj?.groupId || this.state.activeGroupId || this.cloudSyncEngine?.groupId || null;
             if (this.authManager && this.authManager.markAllTaskAnnouncementsRead) {
               this.authManager.markAllTaskAnnouncementsRead(activeTaskId, userGroupId);
             }
@@ -17584,7 +17908,11 @@
             const u = this.authManager.getCurrentUser();
             const effClassId = (this.authManager ? this.authManager.getEffectiveStudentClassId(u, this.state.activeTaskId) : (this.state.activeStudentClassId || u?.classId || null));
             const effGroup = this.authManager.getStudentActiveGroup(u, effClassId);
-            memberArr = this.authManager.getGroupMembersForWorkspace(effGroup?.id || this.state.activeGroupId || null);
+            const rawG = this.authManager.getGroupMembersForWorkspace(effGroup?.id || this.state.activeGroupId || null);
+            memberArr = Array.isArray(rawG) ? rawG : Object.values(rawG || {});
+          }
+          if (!Array.isArray(memberArr)) {
+            memberArr = Object.values(memberArr || {});
           }
           const totalMembersCount = memberArr.length > 0 ? memberArr.length : 3;
 
@@ -17599,7 +17927,8 @@
           }
 
           const confirmedCount = memberArr.filter(m => m && (s3.confirmedMembers[m.id] || s3.confirmedMembers[m.studentCode] || s3.confirmedMembers[m.username] || (m.name && s3.confirmedMembers[m.name]))).length;
-          const memberName = currMemObj ? currMemObj.name : user;
+          const currUserObj = (this.authManager) ? this.authManager.getCurrentUser() : null;
+          const memberName = currMemObj?.name || currUserObj?.name || '组员';
 
           if (confirmedCount >= totalMembersCount) {
             s3.isRevisionConfirmed = true;
@@ -17753,7 +18082,11 @@
             const u = this.authManager.getCurrentUser();
             const effClassId = (this.authManager ? this.authManager.getEffectiveStudentClassId(u, this.state.activeTaskId) : (this.state.activeStudentClassId || u?.classId || null));
             const effGroup = this.authManager.getStudentActiveGroup(u, effClassId);
-            memberArr = this.authManager.getGroupMembersForWorkspace(effGroup?.id || this.state.activeGroupId || null);
+            const rawG = this.authManager.getGroupMembersForWorkspace(effGroup?.id || this.state.activeGroupId || null);
+            memberArr = Array.isArray(rawG) ? rawG : Object.values(rawG || {});
+          }
+          if (!Array.isArray(memberArr)) {
+            memberArr = Object.values(memberArr || {});
           }
           const totalMembersCount = memberArr.length > 0 ? memberArr.length : 3;
 
@@ -17768,7 +18101,8 @@
           }
 
           const finalSubmittedCount = memberArr.filter(m => m && (s3.finalSubmittedMembers[m.id] || s3.finalSubmittedMembers[m.studentCode] || s3.finalSubmittedMembers[m.username] || (m.name && s3.finalSubmittedMembers[m.name]))).length;
-          const memberName = currMemObj ? currMemObj.name : user;
+          const currUserObj = (this.authManager) ? this.authManager.getCurrentUser() : null;
+          const memberName = currMemObj?.name || currUserObj?.name || '组员';
           const currentStage = this.state.currentStage || 'stage3';
 
           const submitMsg = {
@@ -17786,7 +18120,7 @@
             s3.isRevisionConfirmed = true;
             const currentUserObj = this.authManager ? this.authManager.getCurrentUser() : null;
             const activeTaskId = this.state.activeTaskId || null;
-            const userGroupId = (currentUserObj && currentUserObj.groupId) ? currentUserObj.groupId : 'group_1';
+            const userGroupId = currentUserObj?.groupId || this.state.activeGroupId || this.cloudSyncEngine?.groupId || null;
 
             if (this.authManager && this.authManager.markAllTaskAnnouncementsRead) {
               this.authManager.markAllTaskAnnouncementsRead(activeTaskId, userGroupId);
@@ -17893,7 +18227,7 @@
         if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
 
         const topic = (this.state.stage1 && this.state.stage1.mergedTitle) ? this.state.stage1.mergedTitle : '本组课题';
-        const contentSnippet = rawDoc.slice(0, 1500);
+        const contentSnippet = rawDoc || '论文草稿已起草引言与文献综述';
 
         // 🌟 1. 立即挂载审稿编辑一审正在质检中动态状态框
         this.state.activeAgentAnalyzing = {
@@ -18119,13 +18453,13 @@
           }
         } catch (e) {}
       }
-      const contentSnippet = rawDoc ? rawDoc.slice(0, 2500) : '论文草稿已完成主体框架与各章节撰写';
+      const contentSnippet = rawDoc || '论文草稿已完成主体框架与各章节撰写';
 
       // 🌟 挂载审稿编辑三审正在分析动态思考气泡
       this.state.activeAgentAnalyzing = {
         icon: '📝',
-        title: '【审稿编辑】正在进行终审定稿与学术规范扫描...',
-        detail: '正在对终稿全文进行学术语体、论述逻辑与文献规范终审质检...'
+        title: '【审稿编辑】正在进行终审定稿与全篇行文扫描...',
+        detail: '正在对论文全文进行地毯式错别字排查、语病诊疗与文字润色终审质检...'
       };
       renderChat(this.state);
       this.renderStudentWorkspace();
@@ -18138,22 +18472,26 @@
         const finalPrompt = `${genreDesc}
 
   【课题】：《${topic}》
-  【终稿草稿全文节选】：
+  【终稿草稿正文全文】：
   ${contentSnippet}
 
-  请结合上述文体考查维度，发表 120~150 字终审定稿学术总评与行文扫描意见（包含【诊断问题 + 改进建议】双结构，严禁代码块，严禁出现“分工”字眼）：
-  ①【学术语体与逻辑完整性】
-  - 诊断问题：结合该文体特性，指出全篇逻辑闭环与语体严谨度；
-  - 改进建议：给出具体优化建议。
-  ②【学术规范与参考文献】
-  - 诊断问题：核对术语一致性与文献著录；
-  - 改进建议：给出答辩准备要求。
-  👉 末尾必须提示：“请全组成员通读终审建议并做最后润色，修改完成后请点击上方导航进入【阶段三：答辩擂台】！”`;
+  请作为权威严谨的学术期刊审稿专家，对正文进行点对点文字精修（严禁代码块，字少精炼，直截了当，严禁出现“分工”字眼）：
+
+  【审稿编辑·终审文字精修清单】：
+  通读正文，挑出最需要修正的错别字、语病倒装、口语化与术语不一处，【必须明确注明具体章节或段落位置】，总条数严格控制在【最多不超过 10 条】！
+  字少但是清楚，严格采用以下点对点极简格式（指出位置、原词句、直接改成什么）：
+  • 【具体位置（如：引言第2段/方法部分）· 错字】“原错词句” -> 改为：“正确词句”
+  • 【具体位置 · 病句】“原不通顺长句” -> 改为：“理顺后的学术表达”
+  • 【具体位置 · 口语】“原口语用词” -> 改为：“客观学术表述”
+  • 【具体位置 · 术语】“前后不一致称呼” -> 建议全文统一为：“规范术语”
+  • 【文末参考文献】[核查基本要素：作者、篇名、年份、刊名/出版社；若暂缺或缺项简短提醒补齐]
+
+  末尾附一句简短提示：“请大家对照上述清单在正文中直接订正，确认无误后在上方完成【初稿确认】，准备迎接答辩！”`;
 
         let resp = null;
         try {
-          const apiPromise = callCozeAgentAPI('reviewingEditor', finalPrompt, { stage: 'stage2', topic, taskType });
-          const timeoutPromise = new Promise(r => setTimeout(() => r(null), 15000));
+          const apiPromise = callCozeAgentAPI('reviewingEditor', finalPrompt, { stage: 'stage2', topic, taskType, actual_doc: currentDoc });
+          const timeoutPromise = new Promise(r => setTimeout(() => r(null), 65000));
           resp = await Promise.race([apiPromise, timeoutPromise]);
         } catch (err) {
           resp = null;

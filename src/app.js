@@ -13,14 +13,14 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260901_v1132";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260901_v1132";
-import { callCozeAgentAPI } from "./agents.js?v=20260901_v1132";
-import { AuthManager } from "./auth.js?v=20260901_v1132";
-import { CloudSyncEngine } from "./sync.js?v=20260901_v1132";
-import { renderLoginView } from "./login.js?v=20260901_v1132";
-import { renderTeacherPortal } from "./teacher.js?v=20260901_v1132";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260901_v1132";
+} from "./constants.js?v=20260902_v1133";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260902_v1133";
+import { callCozeAgentAPI } from "./agents.js?v=20260902_v1133";
+import { AuthManager } from "./auth.js?v=20260902_v1133";
+import { CloudSyncEngine } from "./sync.js?v=20260902_v1133";
+import { renderLoginView } from "./login.js?v=20260902_v1133";
+import { renderTeacherPortal } from "./teacher.js?v=20260902_v1133";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260902_v1133";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -29,7 +29,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260901_v1132";
+} from "./editor.js?v=20260902_v1133";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -174,7 +174,7 @@ export class App {
     }
   }
 
-  loadGroupState(groupId = 'group_1') {
+  loadGroupState(groupId = null) {
     const defaultState = JSON.parse(JSON.stringify(InitialState));
     const user = this.authManager ? this.authManager.getCurrentUser() : null;
     const isTeacher = user && (user.isTeacher || user.role === 'teacher');
@@ -727,7 +727,9 @@ export class App {
       appEl.className = 'app-login-mode';
       renderLoginView(appEl, this.authManager, async () => {
         const u = this.authManager.getCurrentUser();
-        const gId = u && u.groupId ? u.groupId : 'group_1';
+        const effectiveClassId = this.authManager ? this.authManager.getEffectiveStudentClassId(u) : u?.classId;
+        const activeGroup = this.authManager ? this.authManager.getStudentActiveGroup(u, effectiveClassId) : null;
+        const gId = activeGroup?.id || u?.groupId || null;
         this.loadGroupState(gId);
         try {
           await this.authManager.pullGlobalMeta();
@@ -759,7 +761,7 @@ export class App {
     } else {
       const effectiveClassId = this.authManager ? this.authManager.getEffectiveStudentClassId(currentUser, this.state.activeTaskId) : (this.state.activeStudentClassId || currentUser?.classId || null);
       const activeGroupObj = this.authManager.getStudentActiveGroup(currentUser, effectiveClassId);
-      const currentGroupId = activeGroupObj.id || (currentUser && currentUser.groupId ? currentUser.groupId : 'group_1');
+      const currentGroupId = activeGroupObj?.id || currentUser?.groupId || null;
 
       if (this.state.studentViewMode === 'task_list') {
         appEl.className = 'app-student-portal-mode';
@@ -784,7 +786,7 @@ export class App {
             localStorage.setItem('jizhi_student_view_mode', 'workspace');
 
             const latestGroupObj = this.authManager.getStudentActiveGroup(currentUser, taskClassId);
-            const targetGroupId = latestGroupObj.id || (currentUser && currentUser.groupId ? currentUser.groupId : 'group_1');
+            const targetGroupId = latestGroupObj?.id || currentUser?.groupId || null;
             this.loadGroupState(targetGroupId);
 
             // 🎯 保持本组推进到的真实阶段，确保历史消息与当前工作台阶段 100% 对应
@@ -1383,7 +1385,7 @@ export class App {
               if (count < 2 && (!this.lastSignContractNudgeTime || now - this.lastSignContractNudgeTime > 180000)) {
                 this.lastSignContractNudgeTime = now;
                 this._nudgeCounts['s1_partial_sign'] = count + 1;
-                const unsignedMembers = membersList.filter(m => !signedMap[m.studentCode] && !signedMap[m.id]);
+                const unsignedMembers = membersList.filter(m => !signedMap[m.id]);
                 const unsignedNames = unsignedMembers.map(m => m.name).join('、');
                 const msg = {
                   sender: 'auctioneer',
@@ -1967,7 +1969,7 @@ export class App {
     const currentClassObj = classes.find(c => c.id === effectiveClassId);
     const effectiveClassName = currentClassObj ? currentClassObj.name : '';
     const activeGroupObj = this.authManager.getStudentActiveGroup(currentUser, effectiveClassId);
-    const groupId = this.state.activeGroupId || this.cloudSyncEngine?.groupId || activeGroupObj.id || (currentUser && currentUser.groupId ? currentUser.groupId : 'group_1');
+    const groupId = this.state.activeGroupId || this.cloudSyncEngine?.groupId || activeGroupObj?.id || currentUser?.groupId || null;
     const allTasks = this.authManager.getTasks();
 
     const isAnnRead = (a) => {
@@ -2027,7 +2029,7 @@ export class App {
     const currentClassObj = classes.find(c => c.id === effectiveClassId);
     const effectiveClassName = currentClassObj ? currentClassObj.name : '';
     const activeGroupObj = this.authManager.getStudentActiveGroup(currentUser, effectiveClassId);
-    const groupId = this.state.activeGroupId || this.cloudSyncEngine?.groupId || activeGroupObj.id || (currentUser && currentUser.groupId ? currentUser.groupId : 'group_1');
+    const groupId = this.state.activeGroupId || this.cloudSyncEngine?.groupId || activeGroupObj?.id || currentUser?.groupId || null;
     const isTaskListMode = (this.state && this.state.studentViewMode === 'task_list');
     const activeTaskId = this.state.activeTaskId || null;
     const allAnns = this.authManager.getAnnouncements();
@@ -2371,7 +2373,7 @@ export class App {
   showQuestionnaireModal() {
     document.querySelectorAll('.modal-overlay').forEach(el => el.remove());
     const currentUser = this.authManager.getCurrentUser();
-    const currentClassId = currentUser && currentUser.classId ? currentUser.classId : 'class_101';
+    const currentClassId = this.authManager.getEffectiveStudentClassId(currentUser, this.state.activeTaskId) || currentUser?.classId || null;
     const currentTaskId = this.state.activeTaskId || null;
     const tasks = this.authManager.getTasks();
     const currTaskObj = tasks.find(t => t.id === currentTaskId);
@@ -2460,7 +2462,7 @@ export class App {
     const user = this.authManager.getCurrentUser();
     const groupId = user && user.groupId ? user.groupId : (this.state.activeMonitorGroupId || this.state.activeGroupId || null);
     const classId = user ? user.classId : null;
-    const activeTaskId = (this.state && this.state.activeTaskId) ? this.state.activeTaskId : 'task_default';
+    const activeTaskId = (this.state && this.state.activeTaskId) ? this.state.activeTaskId : null;
     const papers = this.authManager.getReferencePapers(groupId, classId, activeTaskId);
 
     const modal = document.createElement('div');
@@ -2994,13 +2996,13 @@ export class App {
     const s1 = this.state.stage1;
     const currUserObj = this.authManager.getCurrentUser();
     
-    // 🛡️ 稳健的多标识判定辅助函数
     const isMemberDone = (map, m) => {
       if (!map || !m) return false;
-      return !!(map[m.id] || map[m.studentCode] || map[m.username] || (m.name && map[m.name]));
+      const id = typeof m === 'object' ? (m.id || m.name) : m;
+      return !!(map[id] || (typeof m === 'object' && m.name && map[m.name]));
     };
 
-    const isAlreadyVoted = isMemberDone(s1.hasVoted, { id: user, studentCode: currUserObj?.studentCode, username: currUserObj?.username, name: currUserObj?.name });
+    const isAlreadyVoted = isMemberDone(s1.hasVoted, currUserObj || { id: user });
     if (isAlreadyVoted) {
       alert('💡 您已经完成投票啦！每位成员仅有一次投票机会，请耐心等待其他组员完成投票。');
       return;
@@ -3008,13 +3010,12 @@ export class App {
     if (!s1.hasVoted) s1.hasVoted = {};
     if (!s1.votes) s1.votes = {};
 
-    // 兼容写入多键，保证底层依赖绝对不破坏
-    s1.votes[user] = proposalId;
-    s1.hasVoted[user] = true;
-    if (currUserObj) {
-      if (currUserObj.id) { s1.votes[currUserObj.id] = proposalId; s1.hasVoted[currUserObj.id] = true; }
-      if (currUserObj.studentCode) { s1.votes[currUserObj.studentCode] = proposalId; s1.hasVoted[currUserObj.studentCode] = true; }
-      if (currUserObj.name) { s1.votes[currUserObj.name] = proposalId; s1.hasVoted[currUserObj.name] = true; }
+    const userKey = currUserObj ? currUserObj.id : user;
+    s1.votes[userKey] = proposalId;
+    s1.hasVoted[userKey] = true;
+    if (currUserObj && currUserObj.name) {
+      s1.votes[currUserObj.name] = proposalId;
+      s1.hasVoted[currUserObj.name] = true;
     }
 
     s1._lastVoteTime = Date.now();
@@ -3043,7 +3044,7 @@ export class App {
         s1._voteCompletedTime = Date.now();
         const tally = {};
         membersList.forEach(m => {
-          const pId = s1.votes[m.studentCode] || s1.votes[m.id] || s1.votes[m.username] || (m.name && s1.votes[m.name]);
+          const pId = s1.votes[m.id] || (m.name && s1.votes[m.name]);
           if (pId) tally[pId] = (tally[pId] || 0) + 1;
         });
         const proposalSummaryList = (s1.proposals || []).map(p => `《${p.title}》(${tally[p.id] || 0}票)`).join('，');
@@ -3226,7 +3227,7 @@ export class App {
     const activeTaskId = this.state.activeTaskId || null;
     const effectiveClassId = this.state.activeStudentClassId || (currUserObj?.classId || null);
     const activeGroupObj = this.authManager ? this.authManager.getStudentActiveGroup(currUserObj, effectiveClassId) : null;
-    const currentGroupId = activeGroupObj?.id || (currUserObj && currUserObj.groupId ? currUserObj.groupId : (this.state.activeGroupId || 'group_1'));
+    const currentGroupId = activeGroupObj?.id || currUserObj?.groupId || this.state.activeGroupId || null;
 
     try {
       const res = await fetch('sync.php?action=confirm_step', {
@@ -3626,6 +3627,175 @@ ${chatSnippet}
   }
 
   /**
+   * 📜 阶段一公约终极一键补齐/生成：通读投票后全量研讨，一次性补齐主题、时间与全员1对1分工（支持冷场/空白讨论安全兜底）
+   */
+  async handleOneClickGenerateContract() {
+    const s1 = this.state.stage1 || {};
+    if (s1.contractStep === 'completed' || s1.contract?.isDraftGenerated) {
+      if (typeof showGlobalBannerNotice === 'function') {
+        showGlobalBannerNotice('📜 公约草案已生成', '公约草案已全部就绪，请直接在左侧公约下方核对并签署！');
+      }
+      return;
+    }
+
+    if (typeof showGlobalBannerNotice === 'function') {
+      showGlobalBannerNotice('⏳ 正在一键智能生成全套公约草案...', '拍卖师正在分析全组投票后的全部讨论，一一对应提炼课题方案、时间规划与成员分工...', 'info', 4000);
+    }
+
+    let members = [];
+    if (Array.isArray(this.state.members)) members = this.state.members;
+    else if (this.state.members && typeof this.state.members === 'object') members = Object.values(this.state.members);
+    const membersList = members.filter(Boolean);
+
+    // 1. 抓取投票完成后的全部真实研讨记录
+    const s1ChatLogs = (this.state.chatLogs && this.state.chatLogs.stage1) ? this.state.chatLogs.stage1 : [];
+    const voteNoticeIdx = s1ChatLogs.findIndex(m => m && m.text && (
+      m.text.includes('落槌') || m.text.includes('全票通过') || m.text.includes('投票揭晓') || m.text.includes('方案研讨') || m.text.includes('投票已完成')
+    ));
+    const relevantLogs = (voteNoticeIdx >= 0) ? s1ChatLogs.slice(voteNoticeIdx) : s1ChatLogs;
+    const userLogs = relevantLogs.filter(m => m && m.sender && !AgentProfiles[m.sender] && m.sender !== 'system');
+    const chatSnippet = userLogs.map(m => `${m.senderName || m.sender}: ${m.text}`).join('\n');
+
+    // 2. 确定候选题目与任务信息
+    const allTasks = (this.authManager) ? this.authManager.getTasks() : [];
+    const curTask = allTasks.find(t => t.id === this.state.activeTaskId);
+    const defaultTopic = s1.mergedTitle || s1.contract?.topic || (s1.proposals && s1.proposals[0] ? s1.proposals[0].title : (curTask?.title || '基于深度协作的学术探究与实践'));
+    const membersInfo = membersList.map(m => `- 姓名: ${m.name || '组员'} (学号: ${m.id || m.studentCode || '无'})`).join('\n');
+
+    const defaultTasks = [
+      '负责“一、研究背景与意义”及“二、文献综述”起草',
+      '负责“三、研究问题与假设”及“四、研究设计与方法”方案制定',
+      '负责“五、不足与反思”撰写及全篇“六、参考文献”引文校对',
+      '负责数据分析模型构建与研究工具问卷设计'
+    ];
+    const defaultTimes = s1.contract?.timeAllocations && Object.keys(s1.contract.timeAllocations).length >= 6
+      ? s1.contract.timeAllocations
+      : { background: 25, literature: 30, questions: 25, method: 40, reflection: 20, references: 10 };
+
+    const fallbackAssignments = {};
+    membersList.forEach((m, idx) => {
+      const mKey = m.id || m.studentCode || m.username || m.name;
+      fallbackAssignments[mKey] = defaultTasks[idx % defaultTasks.length];
+    });
+
+    const fullContractPrompt = `小组成员已完成了选题投票，并在讨论区就论文主题深化、时间规划与各章节分工展开了研讨。
+【确定课题/候选方向】: 《${defaultTopic}》
+【小组成员名单】:
+${membersInfo}
+【投票完成后的组内真实研讨记录】:
+${chatSnippet || '（小组成员已达成基本共识，准备进入正文写作）'}
+
+请作为资深学术拍卖师：
+1. 确定最终精炼的研究主题名称 (topic) 与 80~120 字的研究方案概述 (overview，涵盖背景、核心问题与方法)；
+2. 给出 6 大章节的合理时间分配分钟数 (timeAllocations: background, literature, questions, method, reflection, references，总计约 150 分钟)；
+3. 将全篇写作章节一一对应合理分配给每位组员 (assignments: 以每位组员的真实姓名或学号为键，给出具体负责的章节与职责描述，如“负责研究背景与意义、文献综述撰写”)。若研讨较简短或未明确，请结合学术论文规范合理统筹分工；
+4. 给出 1 句简短小结提示，提醒全组在左侧公约卡片下方核对并签署确认 (guideText)。
+
+输出格式必须为合法 JSON（严禁代码块以外的多余文字）：
+{
+  "topic": "最终确定的论文题目",
+  "overview": "提炼后的研究方案概述，涵盖具体情境、核心问题与研究方法",
+  "timeAllocations": {
+    "background": 25,
+    "literature": 30,
+    "questions": 25,
+    "method": 40,
+    "reflection": 20,
+    "references": 10
+  },
+  "assignments": {
+    "组员姓名1": "负责章节与职责描述",
+    "组员姓名2": "负责章节与职责描述"
+  },
+  "guideText": "太棒了！全盘公约草案已全部生成就绪！请全组成员核对左侧公约并在下方点击【✍️ 签署确认学术公约】！"
+}`;
+
+    let finalTopic = defaultTopic;
+    let finalOverview = s1.contract?.overview || s1.researchOverview || `本研究围绕《${defaultTopic}》展开系统性学术探究，聚焦核心问题，采用定性与定量相结合的研究方法进行深入探讨。`;
+    let finalTimes = defaultTimes;
+    let finalAssignments = Object.assign({}, s1.contract?.taskAssignments || {}, fallbackAssignments);
+    let isSuccess = false;
+
+    this._isGeneratingContract = true;
+    if (typeof renderChat === 'function') renderChat(this.state);
+
+    try {
+      const resp = await callCozeAgentAPI('auctioneer', fullContractPrompt, { stage: 'stage1', topic: defaultTopic });
+      if (resp && resp.trim().length > 0) {
+        const jsonMatch = resp.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          const parsed = JSON.parse(jsonMatch[0]);
+          if (parsed.topic && parsed.topic.trim()) {
+            finalTopic = parsed.topic.trim();
+            isSuccess = true;
+          }
+          if (parsed.overview && parsed.overview.trim()) finalOverview = parsed.overview.trim();
+          if (parsed.timeAllocations && typeof parsed.timeAllocations === 'object') {
+            finalTimes = Object.assign({}, defaultTimes, parsed.timeAllocations);
+          }
+          if (parsed.assignments && typeof parsed.assignments === 'object') {
+            membersList.forEach((m, idx) => {
+              const mKey = m.id || m.studentCode || m.username || m.name;
+              const matchedVal = parsed.assignments[m.name] || parsed.assignments[m.id] || parsed.assignments[m.studentCode] || parsed.assignments[m.username];
+              if (matchedVal) finalAssignments[mKey] = matchedVal;
+            });
+          }
+        }
+      }
+    } catch (err) {
+      console.warn('One-click generate contract AI call error:', err);
+    } finally {
+      this._isGeneratingContract = false;
+    }
+
+    if (!isSuccess) {
+      this._contractGenerateFailed = true;
+      if (typeof renderChat === 'function') renderChat(this.state);
+      alert('⚠️ 智能体通信超时或网络连接异常，未能成功提炼生成公约草案！\n\n请检查网络连接后，再次点击【🔄 重新提炼生成公约草案】即可重新调用！\n（您也可以在左侧公约卡片通过分步按钮手动完成拟定）');
+      return;
+    }
+
+    this._contractGenerateFailed = false;
+
+    // 写入状态并单向锁定公约草案
+    if (!s1.contract) s1.contract = {};
+    s1.mergedTitle = finalTopic;
+    s1.contract.topic = finalTopic;
+    s1.contract.overview = finalOverview;
+    s1.researchOverview = finalOverview;
+    s1.contract.timeAllocations = finalTimes;
+    s1.contract.taskAssignments = finalAssignments;
+    s1.contract.isDraftGenerated = true;
+    s1.contract._draftedTime = Date.now();
+    s1.contractStep = 'completed'; // 提炼全部完成，左侧3个分步按钮全部退场
+    s1.flowStep = 'refining';
+
+    const noticeText = `🏛️ 【学术拍卖师·全盘公约就绪】：全篇研究主题《${finalTopic}》、时间规划与组员分工已全部提炼生成并录入左侧公约看板！👉 请全组成员在左侧公约卡片仔细核对自己的分工与时间，并在公约下方点击【✍️ 签署确认学术公约】！全员签署后将正式解锁【阶段二：学术编辑部】！`;
+    const noticeMsg = {
+      id: 'msg_full_contract_done_' + Date.now(),
+      sender: 'auctioneer',
+      senderName: '头脑风暴 · 学术拍卖师',
+      text: noticeText,
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      _timeMs: Date.now()
+    };
+    s1ChatLogs.push(noticeMsg);
+    if (typeof this.sendSingleChatMessage === 'function') {
+      this.sendSingleChatMessage(noticeMsg, 'stage1');
+    }
+
+    this.syncStage1();
+    this.syncChatLogs();
+    if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+    this.renderStudentWorkspace();
+    renderChat(this.state);
+
+    if (typeof showGlobalBannerNotice === 'function') {
+      showGlobalBannerNotice('🎉 公约草案已全部生成就绪！', '请各位组员在左侧公约看板核对分工与时间规划，并在下方签署确认！', 'success', 6000);
+    }
+  }
+
+  /**
    * ✍️ 阶段一：小组成员点击签署确认学术合作公约
    */
   handleConfirmContract() {
@@ -3641,7 +3811,11 @@ ${chatSnippet}
       const u = this.authManager.getCurrentUser();
       const effClassId = (this.authManager ? this.authManager.getEffectiveStudentClassId(u, this.state.activeTaskId) : (this.state.activeStudentClassId || u?.classId || null));
       const effGroup = this.authManager.getStudentActiveGroup(u, effClassId);
-      memberArr = this.authManager.getGroupMembersForWorkspace(effGroup?.id || this.state.activeGroupId || null, effClassId);
+      const rawG = this.authManager.getGroupMembersForWorkspace(effGroup?.id || this.state.activeGroupId || null, effClassId);
+      memberArr = Array.isArray(rawG) ? rawG : Object.values(rawG || {});
+    }
+    if (!Array.isArray(memberArr)) {
+      memberArr = Object.values(memberArr || {});
     }
     const currMemObj = memberArr.find(m => m && (m.id === user || m.studentCode === user || m.username === user || m.name === user));
     const memberName = currMemObj ? currMemObj.name : user;
@@ -3811,8 +3985,8 @@ ${chatSnippet}
 【组员一句话修改聚焦】: ${focusIssues}
 【组内关于修改思路的讨论记录】:
 ${chatSnippet}
-【正文草稿节选】:
-${rawDoc.slice(0, 1000)}
+【正文草稿】:
+${rawDoc || '（小组成员正在协作起草正文草稿）'}
 
 请作为责任编辑，发表 90~120 字的【半程研讨共识小结与交棒】：
 ① 明确呼应小组成员在自查与研讨中聚焦的痛点（如：${focusIssues.slice(0, 50)}），提炼出 1~2 个实质性的修改共识点（严禁假大空套话，严禁出现“分工”字眼）；
@@ -3865,7 +4039,7 @@ ${rawDoc.slice(0, 1000)}
 
 针对课题《${topic}》，结合小组成员自查瓶颈【${bottlenecks}】、聚焦关注点【${focusIssues}】及下方正文草稿，作为资深审稿编辑给出包含【诊断问题 + 改进建议】双结构的学术质检《二审修正清单》（150~180字）：
 【正文草稿参考】:
-${rawDoc.slice(0, 2000)}
+${rawDoc || '（小组成员已完成初版主体框架起草）'}
 【小组成员商定的修改思路】:
 ${chatSnippet}
 
@@ -4407,7 +4581,7 @@ ${chatSnippet}
 3. 态度务必温和客气、极具建设性（多用“商讨/请教/小细节/落地可行性”）。纯自然语言输出，130~150字。`;
 
         try {
-          const timeoutPromise = new Promise(r => setTimeout(() => r(null), 12000));
+          const timeoutPromise = new Promise(r => setTimeout(() => r(null), 45000));
           const promises = [];
           if (!hasProp) {
             promises.push(Promise.race([
@@ -4746,7 +4920,7 @@ ${chatSnippet}
     const currentUser = this.authManager.getCurrentUser();
     const effectiveClassId = this.state.activeStudentClassId || (currentUser?.classId || null);
     const activeGroupObj = this.authManager.getStudentActiveGroup(currentUser, effectiveClassId);
-    let currentGroupId = activeGroupObj.id || (currentUser && currentUser.groupId ? currentUser.groupId : 'group_1');
+    let currentGroupId = activeGroupObj?.id || currentUser?.groupId || null;
 
     // 🛡️ 班级/小组/成员/任务严格解析：任一解析不到 → 明确提示并阻止进入学生工作区（不再静默兜底）
     if (this.authManager && typeof this.authManager.resolveStudentActiveContext === 'function') {
@@ -5027,6 +5201,8 @@ ${chatSnippet}
       if (signMatrixMount || signActionMount) {
         const totalMembersCount = membersList.length || 2;
         const currUserCode = this.state.currentUser;
+        const matchedMem = membersList.find(m => m && (m.id === currUserCode || m.studentCode === currUserCode || m.username === currUserCode || m.name === currUserCode));
+        const currentUserName = matchedMem?.name || currentUserObj?.name || currUserCode || '组员';
         const confirmedMembers = s1.contract?.confirmedMembers || {};
         const confirmedCount = membersList.filter(m => (confirmedMembers[m.id] || confirmedMembers[m.studentCode] || confirmedMembers[m.username] || (m.name && confirmedMembers[m.name]))).length;
         const userHasConfirmed = !!(confirmedMembers[currUserCode] || (currentUserObj && (confirmedMembers[currentUserObj.id] || confirmedMembers[currentUserObj.studentCode] || confirmedMembers[currentUserObj.username] || confirmedMembers[currentUserObj.name])));
@@ -5178,7 +5354,11 @@ ${chatSnippet}
           const u = this.authManager.getCurrentUser();
           const effClassId = (this.authManager ? this.authManager.getEffectiveStudentClassId(u, this.state.activeTaskId) : (this.state.activeStudentClassId || u?.classId || null));
           const effGroup = this.authManager.getStudentActiveGroup(u, effClassId);
-          memberArr = this.authManager.getGroupMembersForWorkspace(effGroup?.id || this.state.activeGroupId || null);
+          const rawG = this.authManager.getGroupMembersForWorkspace(effGroup?.id || this.state.activeGroupId || null);
+          memberArr = Array.isArray(rawG) ? rawG : Object.values(rawG || {});
+        }
+        if (!Array.isArray(memberArr)) {
+          memberArr = Object.values(memberArr || {});
         }
         const totalMembersCount = memberArr.length > 0 ? memberArr.length : 3;
 
@@ -5202,20 +5382,17 @@ ${chatSnippet}
 
         const isMemDone = (map, m) => {
           if (!map || !m) return false;
-          return !!(map[m.id] || map[m.studentCode] || map[m.username] || (m.name && map[m.name]));
+          const id = typeof m === 'object' ? (m.id || m.name) : m;
+          return !!(map[id] || (typeof m === 'object' && m.name && map[m.name]));
         };
-        const currMemObj = memberArr.find(m => m && (m.id === user || m.studentCode === user || m.username === user || m.name === user));
-        if (currMemObj) {
-          if (currMemObj.id) s2.confirmedMembers[currMemObj.id] = true;
-          if (currMemObj.studentCode) s2.confirmedMembers[currMemObj.studentCode] = true;
-          if (currMemObj.username) s2.confirmedMembers[currMemObj.username] = true;
-          if (currMemObj.name) s2.confirmedMembers[currMemObj.name] = true;
-        } else {
-          s2.confirmedMembers[user] = true;
-        }
+        const currMemObj = memberArr.find(m => m && (m.id === user || m.name === user));
+        const userKey = currMemObj ? currMemObj.id : user;
+        s2.confirmedMembers[userKey] = true;
+        if (currMemObj && currMemObj.name) s2.confirmedMembers[currMemObj.name] = true;
 
         const confirmedCount = memberArr.filter(m => isMemDone(s2.confirmedMembers, m)).length;
-        const memberName = currMemObj ? currMemObj.name : user;
+        const currUserObj = (this.authManager) ? this.authManager.getCurrentUser() : null;
+        const memberName = currMemObj?.name || currUserObj?.name || '组员';
 
         this.syncStage2();
         this.syncChatLogs();
@@ -5231,7 +5408,7 @@ ${chatSnippet}
           this.state.groupMaxStage = 'stage3';
           const currentUserObj = this.authManager ? this.authManager.getCurrentUser() : null;
           const activeTaskId = this.state.activeTaskId || null;
-          const userGroupId = (currentUserObj && currentUserObj.groupId) ? currentUserObj.groupId : 'group_1';
+          const userGroupId = currentUserObj?.groupId || this.state.activeGroupId || this.cloudSyncEngine?.groupId || null;
           if (this.authManager && this.authManager.markAllTaskAnnouncementsRead) {
             this.authManager.markAllTaskAnnouncementsRead(activeTaskId, userGroupId);
           }
@@ -5270,7 +5447,11 @@ ${chatSnippet}
           const u = this.authManager.getCurrentUser();
           const effClassId = (this.authManager ? this.authManager.getEffectiveStudentClassId(u, this.state.activeTaskId) : (this.state.activeStudentClassId || u?.classId || null));
           const effGroup = this.authManager.getStudentActiveGroup(u, effClassId);
-          memberArr = this.authManager.getGroupMembersForWorkspace(effGroup?.id || this.state.activeGroupId || null);
+          const rawG = this.authManager.getGroupMembersForWorkspace(effGroup?.id || this.state.activeGroupId || null);
+          memberArr = Array.isArray(rawG) ? rawG : Object.values(rawG || {});
+        }
+        if (!Array.isArray(memberArr)) {
+          memberArr = Object.values(memberArr || {});
         }
         const totalMembersCount = memberArr.length > 0 ? memberArr.length : 3;
 
@@ -5285,7 +5466,8 @@ ${chatSnippet}
         }
 
         const confirmedCount = memberArr.filter(m => m && (s3.confirmedMembers[m.id] || s3.confirmedMembers[m.studentCode] || s3.confirmedMembers[m.username] || (m.name && s3.confirmedMembers[m.name]))).length;
-        const memberName = currMemObj ? currMemObj.name : user;
+        const currUserObj = (this.authManager) ? this.authManager.getCurrentUser() : null;
+        const memberName = currMemObj?.name || currUserObj?.name || '组员';
 
         if (confirmedCount >= totalMembersCount) {
           s3.isRevisionConfirmed = true;
@@ -5439,7 +5621,11 @@ ${chatSnippet}
           const u = this.authManager.getCurrentUser();
           const effClassId = (this.authManager ? this.authManager.getEffectiveStudentClassId(u, this.state.activeTaskId) : (this.state.activeStudentClassId || u?.classId || null));
           const effGroup = this.authManager.getStudentActiveGroup(u, effClassId);
-          memberArr = this.authManager.getGroupMembersForWorkspace(effGroup?.id || this.state.activeGroupId || null);
+          const rawG = this.authManager.getGroupMembersForWorkspace(effGroup?.id || this.state.activeGroupId || null);
+          memberArr = Array.isArray(rawG) ? rawG : Object.values(rawG || {});
+        }
+        if (!Array.isArray(memberArr)) {
+          memberArr = Object.values(memberArr || {});
         }
         const totalMembersCount = memberArr.length > 0 ? memberArr.length : 3;
 
@@ -5454,7 +5640,8 @@ ${chatSnippet}
         }
 
         const finalSubmittedCount = memberArr.filter(m => m && (s3.finalSubmittedMembers[m.id] || s3.finalSubmittedMembers[m.studentCode] || s3.finalSubmittedMembers[m.username] || (m.name && s3.finalSubmittedMembers[m.name]))).length;
-        const memberName = currMemObj ? currMemObj.name : user;
+        const currUserObj = (this.authManager) ? this.authManager.getCurrentUser() : null;
+        const memberName = currMemObj?.name || currUserObj?.name || '组员';
         const currentStage = this.state.currentStage || 'stage3';
 
         const submitMsg = {
@@ -5472,7 +5659,7 @@ ${chatSnippet}
           s3.isRevisionConfirmed = true;
           const currentUserObj = this.authManager ? this.authManager.getCurrentUser() : null;
           const activeTaskId = this.state.activeTaskId || null;
-          const userGroupId = (currentUserObj && currentUserObj.groupId) ? currentUserObj.groupId : 'group_1';
+          const userGroupId = currentUserObj?.groupId || this.state.activeGroupId || this.cloudSyncEngine?.groupId || null;
 
           if (this.authManager && this.authManager.markAllTaskAnnouncementsRead) {
             this.authManager.markAllTaskAnnouncementsRead(activeTaskId, userGroupId);
@@ -5579,7 +5766,7 @@ ${chatSnippet}
       if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
 
       const topic = (this.state.stage1 && this.state.stage1.mergedTitle) ? this.state.stage1.mergedTitle : '本组课题';
-      const contentSnippet = rawDoc.slice(0, 1500);
+      const contentSnippet = rawDoc || '论文草稿已起草引言与文献综述';
 
       // 🌟 1. 立即挂载审稿编辑一审正在质检中动态状态框
       this.state.activeAgentAnalyzing = {
@@ -5805,13 +5992,13 @@ ${contentSnippet}
         }
       } catch (e) {}
     }
-    const contentSnippet = rawDoc ? rawDoc.slice(0, 2500) : '论文草稿已完成主体框架与各章节撰写';
+    const contentSnippet = rawDoc || '论文草稿已完成主体框架与各章节撰写';
 
     // 🌟 挂载审稿编辑三审正在分析动态思考气泡
     this.state.activeAgentAnalyzing = {
       icon: '📝',
-      title: '【审稿编辑】正在进行终审定稿与学术规范扫描...',
-      detail: '正在对终稿全文进行学术语体、论述逻辑与文献规范终审质检...'
+      title: '【审稿编辑】正在进行终审定稿与全篇行文扫描...',
+      detail: '正在对论文全文进行地毯式错别字排查、语病诊疗与文字润色终审质检...'
     };
     renderChat(this.state);
     this.renderStudentWorkspace();
@@ -5824,22 +6011,26 @@ ${contentSnippet}
       const finalPrompt = `${genreDesc}
 
 【课题】：《${topic}》
-【终稿草稿全文节选】：
+【终稿草稿正文全文】：
 ${contentSnippet}
 
-请结合上述文体考查维度，发表 120~150 字终审定稿学术总评与行文扫描意见（包含【诊断问题 + 改进建议】双结构，严禁代码块，严禁出现“分工”字眼）：
-①【学术语体与逻辑完整性】
-- 诊断问题：结合该文体特性，指出全篇逻辑闭环与语体严谨度；
-- 改进建议：给出具体优化建议。
-②【学术规范与参考文献】
-- 诊断问题：核对术语一致性与文献著录；
-- 改进建议：给出答辩准备要求。
-👉 末尾必须提示：“请全组成员通读终审建议并做最后润色，修改完成后请点击上方导航进入【阶段三：答辩擂台】！”`;
+请作为权威严谨的学术期刊审稿专家，对正文进行点对点文字精修（严禁代码块，字少精炼，直截了当，严禁出现“分工”字眼）：
+
+【审稿编辑·终审文字精修清单】：
+通读正文，挑出最需要修正的错别字、语病倒装、口语化与术语不一处，【必须明确注明具体章节或段落位置】，总条数严格控制在【最多不超过 10 条】！
+字少但是清楚，严格采用以下点对点极简格式（指出位置、原词句、直接改成什么）：
+• 【具体位置（如：引言第2段/方法部分）· 错字】“原错词句” -> 改为：“正确词句”
+• 【具体位置 · 病句】“原不通顺长句” -> 改为：“理顺后的学术表达”
+• 【具体位置 · 口语】“原口语用词” -> 改为：“客观学术表述”
+• 【具体位置 · 术语】“前后不一致称呼” -> 建议全文统一为：“规范术语”
+• 【文末参考文献】[核查基本要素：作者、篇名、年份、刊名/出版社；若暂缺或缺项简短提醒补齐]
+
+末尾附一句简短提示：“请大家对照上述清单在正文中直接订正，确认无误后在上方完成【初稿确认】，准备迎接答辩！”`;
 
       let resp = null;
       try {
-        const apiPromise = callCozeAgentAPI('reviewingEditor', finalPrompt, { stage: 'stage2', topic, taskType });
-        const timeoutPromise = new Promise(r => setTimeout(() => r(null), 15000));
+        const apiPromise = callCozeAgentAPI('reviewingEditor', finalPrompt, { stage: 'stage2', topic, taskType, actual_doc: currentDoc });
+        const timeoutPromise = new Promise(r => setTimeout(() => r(null), 65000));
         resp = await Promise.race([apiPromise, timeoutPromise]);
       } catch (err) {
         resp = null;

@@ -4,7 +4,7 @@
  * Version: 2.1.0 (2026-08-23)
  */
 
-export const APP_VERSION = '20260901_v1132';
+export const APP_VERSION = '20260902_v1133';
 export const APP_BUILD_DATE = '2026-08-26';
 
 export const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -17,7 +17,7 @@ export const DefaultClasses = [];
 
 // 🧹 唯一种子：教师端管理账号（1001/老师）。测试学生一律不写入，教师可在教务界面自行增删学生
 export const DefaultUsers = [
-  { id: '1001', username: '1001', studentCode: '1001', password: '123', name: '老师', role: 'teacher', avatar: '👩‍🏫' }
+  { id: '1001', name: '老师', role: 'teacher', password: '123', avatar: '👩‍🏫', studentCode: '1001', username: '1001' }
 ];
 
 export const DefaultTasks = [];

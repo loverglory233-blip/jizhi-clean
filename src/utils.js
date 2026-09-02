@@ -747,11 +747,12 @@ export function isScopeMatch(target = {}, context = {}) {
   const { classId: tClassId, targetGroupId: tGroupId, taskId: tTaskId, targetClassIds: tClassIds, targetGroupIds: tGroupIds, className: tClassName } = target;
   const { userClassId, userGroupId, currentTaskId, userClassName } = context;
 
-  // 1. 班级范围匹配 (支持 all / 空值 / 班级ID一致 / 班级名称一致 / 班级ID数组包含)
-  const matchClass = !tClassId || tClassId === 'all' || tClassId === 'class_all' ||
-                     (userClassId && tClassId === userClassId) ||
-                     (userClassName && tClassName && tClassName === userClassName) ||
-                     (Array.isArray(tClassIds) && (tClassIds.includes('all') || tClassIds.includes('class_all') || (userClassId && tClassIds.includes(userClassId))));
+  // 1. 班级范围匹配：必须严格锁定在学生所在的当前班级（严禁跨班级泄漏）
+  const matchClass = !!(userClassId && (
+    tClassId === userClassId ||
+    (Array.isArray(tClassIds) && tClassIds.includes(userClassId)) ||
+    (userClassName && tClassName && tClassName === userClassName)
+  ));
 
   // 2. 小组范围匹配 (支持 all / 空值 / 小组ID一致 / 小组ID数组包含)
   const matchGroup = !tGroupId || tGroupId === 'all' || tGroupId === 'group_all' ||

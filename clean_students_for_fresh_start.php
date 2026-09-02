@@ -27,8 +27,6 @@ $stmtT->execute([':p' => $hash123, ':p2' => $hash123]);
 
 // 3. 清理历史测试班级与分组
 $pdo->exec("DELETE FROM classes");
-$stmtC = $pdo->prepare("INSERT INTO classes (id, name, code, student_ids, groups_data) VALUES ('class_101', '《现代教育技术》2026春01班', 'ET2026-01', '[]', '[]')");
-$stmtC->execute();
 
 // 4. 清理历史任务、通知、范文与聊天记录
 $pdo->exec("DELETE FROM tasks");
@@ -49,15 +47,7 @@ $freshMeta = [
             'avatar' => '👩‍🏫'
         ]
     ],
-    'classes' => [
-        [
-            'id' => 'class_101',
-            'name' => '《现代教育技术》2026春01班',
-            'code' => 'ET2026-01',
-            'studentIds' => [],
-            'groups' => []
-        ]
-    ],
+    'classes' => [],
     'tasks' => [],
     'announcements' => [],
     'referencePapers' => [],
