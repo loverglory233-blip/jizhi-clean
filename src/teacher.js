@@ -10,8 +10,8 @@ import {
   STORAGE_KEY_USERS_DB,
   TASK_GENRE_CONFIGS,
   AgentProfiles
-} from "./constants.js?v=20260904_v2192";
-import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, showGlobalBannerNotice } from "./utils.js?v=20260904_v2192";
+} from "./constants.js?v=20260904_v2193";
+import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, showGlobalBannerNotice } from "./utils.js?v=20260904_v2193";
 
 /* ==========================================================================
    7. TEACHER PORTAL RENDERER (LIVE WORKSPACE MIRROR & ANNOUNCEMENT READ MATRIX)
@@ -958,8 +958,9 @@ export function renderTeacherPortal(container, authManager, state, onLogout) {
           const currentClassId = activeClass.id;
           const activeTaskId = state.activeTaskId || (currentClassTasks[0] ? currentClassTasks[0].id : `task_${currentClassId}_default`);
           const currentMonitorTaskId = activeTaskId;
-          const monitorTaskObj = currentClassTasks.find(t => t.id === currentMonitorTaskId);
+          const monitorTaskObj = currentClassTasks.find(t => t.id === currentMonitorTaskId) || (currentClassTasks[0] || null);
           const isMonitorTaskExpired = isTaskExpired(monitorTaskObj);
+          const genreCfg = TASK_GENRE_CONFIGS[monitorTaskObj?.taskType || 'experiment'] || TASK_GENRE_CONFIGS.experiment;
 
           return `
             <div style="display:flex; flex-direction:column; gap:16px; width:100%;">
@@ -1095,6 +1096,35 @@ export function renderTeacherPortal(container, authManager, state, onLogout) {
                     📊 导出本组研讨 Excel
                   </button>
                 </div>
+              </div>
+
+              <!-- 📋 任务指标与文体要求胶囊栏 -->
+              <div style="background:#ffffff; border:1px solid #bfdbfe; border-left:4px solid #2563eb; border-radius:12px; padding:12px 18px; width:100%; box-shadow:0 1px 3px rgba(15,23,42,0.03); display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
+                <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+                  <span style="font-size:13.5px; font-weight:800; color:#1e40af; display:flex; align-items:center; gap:6px;">
+                    <span>📋 任务要求:</span>
+                    <span style="color:#0f172a;">《${escapeHtml(monitorTaskObj?.title || '当前协作写作任务')}》</span>
+                  </span>
+                  <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                    <span style="background:#ecfdf5; color:#059669; border:1.5px solid #a7f3d0; padding:3px 10px; border-radius:6px; font-size:12px; font-weight:800; display:inline-flex; align-items:center; gap:4px; box-shadow:0 1px 2px rgba(16,185,129,0.08);">
+                      🎯 目标字数: <b style="font-size:13px; color:#047857;">${monitorTaskObj?.targetWordCount || 3000} 字</b>
+                    </span>
+                    <span style="background:#f5f3ff; color:#7c3aed; border:1.5px solid #ddd6fe; padding:3px 10px; border-radius:6px; font-size:12px; font-weight:800; display:inline-flex; align-items:center; gap:4px; box-shadow:0 1px 2px rgba(124,58,237,0.08);">
+                      ${genreCfg.icon} 任务类型: <b>${genreCfg.label}</b>
+                    </span>
+                    <span style="background:#eff6ff; color:#2563eb; border:1px solid #bfdbfe; padding:3px 10px; border-radius:6px; font-size:12px; font-weight:700; display:inline-flex; align-items:center; gap:4px;">
+                      ⏱️ 任务时长: <b>${formatDurationHuman(monitorTaskObj?.durationMinutes || 150)}</b>
+                    </span>
+                    <span style="background:#f8fafc; color:#475569; border:1px solid #e2e8f0; padding:3px 10px; border-radius:6px; font-size:12px; font-weight:600; display:inline-flex; align-items:center; gap:4px;">
+                      ⌛ 截止时间: <b>${formatStandardDateDash(monitorTaskObj?.deadline) || '无硬性限制'}</b>
+                    </span>
+                  </div>
+                </div>
+                ${monitorTaskObj?.instructions ? `
+                  <div style="font-size:12px; color:#475569; background:#f8fafc; border:1px dashed #cbd5e1; padding:4px 12px; border-radius:6px; max-width:460px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="任务说明: ${escapeHtml(monitorTaskObj.instructions)}">
+                    📝 <b>说明:</b> ${escapeHtml(monitorTaskObj.instructions)}
+                  </div>
+                ` : ''}
               </div>
 
               <!-- 📍 实时跟随指示条（清爽标准版） -->
