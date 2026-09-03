@@ -66,21 +66,20 @@ try {
         if (!empty($gClasses) && is_array($gClasses)) {
             // 获取 main_meta 中所有真实存在的 class ID
             $validCids = [];
-            $stmtClsUpsert = $pdo->prepare("INSERT INTO `classes` (`id`, `name`, `code`, `student_ids`, `groups_data`)
-                VALUES (:id, :nm, :code, :sids, :gdata)
-                ON DUPLICATE KEY UPDATE `name`=VALUES(`name`), `code`=VALUES(`code`), `student_ids`=VALUES(`student_ids`), `groups_data`=VALUES(`groups_data`)");
+            $stmtClsUpsert = $pdo->prepare("INSERT INTO `classes` (`id`, `name`, `student_ids`, `groups_data`)
+                VALUES (:id, :nm, :sids, :gdata)
+                ON DUPLICATE KEY UPDATE `name`=VALUES(`name`), `student_ids`=VALUES(`student_ids`), `groups_data`=VALUES(`groups_data`)");
             foreach ($gClasses as $cls) {
                 if (empty($cls['id'])) continue;
                 $cid = $cls['id'];
                 $validCids[] = $cid;
                 $cname = $cls['name'] ?? '教学班';
-                $ccode = $cls['code'] ?? $cid;
                 $sids = is_array($cls['studentIds'] ?? null) ? $cls['studentIds'] : [];
                 $gdata = is_array($cls['groups'] ?? null) ? $cls['groups'] : [];
                 
                 $sidsJson = json_encode($sids, JSON_UNESCAPED_UNICODE);
                 $gdataJson = json_encode($gdata, JSON_UNESCAPED_UNICODE);
-                $stmtClsUpsert->execute([':id' => $cid, ':nm' => $cname, ':code' => $ccode, ':sids' => $sidsJson, ':gdata' => $gdataJson]);
+                $stmtClsUpsert->execute([':id' => $cid, ':nm' => $cname, ':sids' => $sidsJson, ':gdata' => $gdataJson]);
             }
             // 清理不在 main_meta 里的初始占位班级
             if (!empty($validCids)) {
