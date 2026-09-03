@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName } from "./constants.js?v=20260903_v2040";
-import { callCozeAgentAPI } from "./agents.js?v=20260903_v2040";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, showResolutionBlock } from "./utils.js?v=20260903_v2040";
+import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName } from "./constants.js?v=20260903_v2045";
+import { callCozeAgentAPI } from "./agents.js?v=20260903_v2045";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, showResolutionBlock } from "./utils.js?v=20260903_v2045";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -2159,7 +2159,7 @@ function renderStage3FeedbackListHtml(s3, state, isDefenseLocked, isFinalSubmitt
     const hasResponse = !!(item.response && item.response.trim());
     let badgeText = '⏳ 待研讨', badgeBg = '#fffbeb', badgeColor = '#d97706', badgeBorder = '#fde68a';
     if (hasResponse) { badgeText = '✅ 已定案'; badgeBg = '#ecfdf5'; badgeColor = '#059669'; badgeBorder = '#a7f3d0'; } 
-    else if (isProp) { badgeText = '🌟 专家肯定 (立论支持)'; badgeBg = '#eff6ff'; badgeColor = '#2563eb'; badgeBorder = '#bfdbfe'; }
+    else if (isProp) { badgeText = '🌟 专家肯定 (立论支持 · 免答辩)'; badgeBg = '#eff6ff'; badgeColor = '#2563eb'; badgeBorder = '#bfdbfe'; }
     return `
       <div style="background:#ffffff; padding:16px; border-radius:12px; border:1px solid ${isProp ? '#86efac' : (hasResponse ? '#a7f3d0' : '#fca5a5')}; box-shadow:0 2px 8px rgba(15,23,42,0.04);">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
@@ -2171,23 +2171,29 @@ function renderStage3FeedbackListHtml(s3, state, isDefenseLocked, isFinalSubmitt
           </div>
           <span style="font-size:11.5px; padding:3px 10px; border-radius:12px; font-weight:700; background:${badgeBg}; color:${badgeColor}; border:1px solid ${badgeBorder};">${badgeText}</span>
         </div>
-        <div style="font-size:13.5px; color:#1e293b; background:#f8fafc; border:1px solid #e2e8f0; padding:12px 14px; border-radius:8px; margin-bottom:12px; line-height:1.6;">
+        <div style="font-size:13.5px; color:#1e293b; background:${isProp ? '#f0fdf4' : '#f8fafc'}; border:1px solid ${isProp ? '#bbf7d0' : '#e2e8f0'}; padding:12px 14px; border-radius:8px; line-height:1.6;">
           <b>${escapeHtml(item.speaker)}意见原文:</b><br>${escapeHtml(item.content || '')}
         </div>
-        <div style="border-top:1px dashed #e2e8f0; padding-top:10px; margin-top:10px;">
-          <div style="font-size:12.5px; font-weight:700; color:#334155; margin-bottom:6px; display:flex; justify-content:space-between; align-items:center;">
-            <span>✍️ ${isProp ? '本组补充说明/强化论据 (选填)：' : '本组答辩回复与修改结论：'}</span>
-            ${hasResponse ? '<span style="color:#059669; font-size:11.5px; font-weight:700;">✅ 已保存生效' + (isDefenseLocked ? ' (已锁定归档)' : ' (可随时二次修改)') + '</span>' : (isProp ? '<span style="color:#2563eb; font-size:11.5px;">(立论支持默认通过，如无补充可直接留空)</span>' : '<span style="color:#64748b; font-size:11.5px;">(请直接在下方输入框中录入答辩结论)</span>')}
+        ${isProp ? `
+          <div style="display:flex; align-items:center; gap:6px; margin-top:10px; font-size:12px; color:#059669; font-weight:700; background:#ecfdf5; padding:7px 12px; border-radius:6px; border:1px solid #a7f3d0;">
+            <span>🛡️ 正方立论支持已直接采纳，作为全组答辩的核心优势论据（无需回复，请集中力量答辩反方质询）</span>
           </div>
-          <textarea class="feedback-direct-input" data-id="${item.id}" ${isDefenseLocked ? 'disabled readonly' : ''} placeholder="${isProp ? '正方已给予高度肯定！如本组有进一步想要补充强化的论据可在此记录，无补充可留空...' : '商讨后，在此直接输入本组针对该条意见的简要答复与修改结论...'}" style="width:100%; min-height:64px; padding:8px 12px; font-size:13px; line-height:1.5; border:1px solid ${hasResponse ? '#a7f3d0' : '#cbd5e1'}; background:${isDefenseLocked ? '#f8fafc' : (hasResponse ? '#f0fdf4' : '#ffffff')}; border-radius:8px; resize:vertical; box-sizing:border-box; color:#0f172a; font-family:inherit;">${escapeHtml(item.response || '')}</textarea>
-          ${!isDefenseLocked ? `
-            <div style="display:flex; justify-content:flex-end; margin-top:8px;">
-              <button class="btn-save-feedback-direct" data-id="${item.id}" style="background:${hasResponse ? 'linear-gradient(135deg, #059669, #047857)' : 'linear-gradient(135deg, #2563eb, #1d4ed8)'}; border:none; color:white; padding:6px 14px; border-radius:6px; font-size:12px; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; gap:4px; box-shadow:0 2px 6px rgba(0,0,0,0.12);">
-                ${hasResponse ? '🔄 更新并保存答辩记录' : (isProp ? '💾 保存补充论据' : '💾 确认并保存本条答辩')}
-              </button>
+        ` : `
+          <div style="border-top:1px dashed #e2e8f0; padding-top:10px; margin-top:10px;">
+            <div style="font-size:12.5px; font-weight:700; color:#334155; margin-bottom:6px; display:flex; justify-content:space-between; align-items:center;">
+              <span>✍️ 本组答辩回复与修改结论：</span>
+              ${hasResponse ? '<span style="color:#059669; font-size:11.5px; font-weight:700;">✅ 已保存生效' + (isDefenseLocked ? ' (已锁定归档)' : ' (可随时二次修改)') + '</span>' : '<span style="color:#64748b; font-size:11.5px;">(商定后点击上方按钮提炼定案，或直接在下方输入)</span>'}
             </div>
-          ` : ''}
-        </div>
+            <textarea class="feedback-direct-input" data-id="${item.id}" ${isDefenseLocked ? 'disabled readonly' : ''} placeholder="商讨后，在此直接输入本组针对该条意见的简要答复与修改结论..." style="width:100%; min-height:64px; padding:8px 12px; font-size:13px; line-height:1.5; border:1px solid ${hasResponse ? '#a7f3d0' : '#cbd5e1'}; background:${isDefenseLocked ? '#f8fafc' : (hasResponse ? '#f0fdf4' : '#ffffff')}; border-radius:8px; resize:vertical; box-sizing:border-box; color:#0f172a; font-family:inherit;">${escapeHtml(item.response || '')}</textarea>
+            ${!isDefenseLocked ? `
+              <div style="display:flex; justify-content:flex-end; margin-top:8px;">
+                <button class="btn-save-feedback-direct" data-id="${item.id}" style="background:${hasResponse ? 'linear-gradient(135deg, #059669, #047857)' : 'linear-gradient(135deg, #2563eb, #1d4ed8)'}; border:none; color:white; padding:6px 14px; border-radius:6px; font-size:12px; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; gap:4px; box-shadow:0 2px 6px rgba(0,0,0,0.12);">
+                  ${hasResponse ? '🔄 更新并保存答辩记录' : '💾 确认并保存本条答辩'}
+                </button>
+              </div>
+            ` : ''}
+          </div>
+        `}
       </div>
     `;
   }).join('');
