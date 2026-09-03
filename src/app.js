@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260903_v2045";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260903_v2045";
-import { callCozeAgentAPI } from "./agents.js?v=20260903_v2045";
-import { AuthManager } from "./auth.js?v=20260903_v2045";
-import { CloudSyncEngine } from "./sync.js?v=20260903_v2045";
-import { renderLoginView } from "./login.js?v=20260903_v2045";
-import { renderTeacherPortal } from "./teacher.js?v=20260903_v2045";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260903_v2045";
+} from "./constants.js?v=20260903_v2050";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260903_v2050";
+import { callCozeAgentAPI } from "./agents.js?v=20260903_v2050";
+import { AuthManager } from "./auth.js?v=20260903_v2050";
+import { CloudSyncEngine } from "./sync.js?v=20260903_v2050";
+import { renderLoginView } from "./login.js?v=20260903_v2050";
+import { renderTeacherPortal } from "./teacher.js?v=20260903_v2050";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260903_v2050";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260903_v2045";
+} from "./editor.js?v=20260903_v2050";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -1568,6 +1568,40 @@ export class App {
               return;
             }
           }
+        }
+
+        // ── ⏳ 阶段三：总时间仅剩 5 分钟终稿冲刺提醒（全场严格仅发 1 次）──
+        const allTasks = (this.authManager) ? this.authManager.getTasks() : [];
+        const curTask = allTasks.find(t => t.id === this.state.activeTaskId);
+        let remainingMs = Infinity;
+        if (curTask && curTask.deadline) {
+          const raw = String(curTask.deadline).trim();
+          if (raw && !raw.includes('无') && !raw.includes('随时') && !raw.includes('结课前') && !raw.includes('不限')) {
+            const dlTime = new Date(raw.replace(/-/g, '/')).getTime();
+            if (!isNaN(dlTime)) remainingMs = dlTime - now;
+          }
+        }
+        if (remainingMs === Infinity && curTask && (curTask.durationMinutes || curTask.duration)) {
+          const totalDurMs = Number(curTask.durationMinutes || curTask.duration) * 60 * 1000;
+          const taskStart = this.state.taskStartTime || this.state.stage1StartTime || (now - stage3DurationMs);
+          remainingMs = (taskStart + totalDurMs) - now;
+        }
+
+        const exist5mReminder = s3Chats.some(m => m && m.sender === 'neutral' && (m.text?.includes('仅剩最后 5 分钟') || m.text?.includes('5 分钟终稿') || m.text?.includes('5分钟终稿')));
+        if (!exist5mReminder && remainingMs <= 300000 && remainingMs > 0 && !this.state.isFinalSubmitted) {
+          this._nudgeCounts['s3_5m_deadline_reminder'] = 1;
+          const msg5m = {
+            sender: 'neutral',
+            senderName: '答辩委员会主席 · 中间委员',
+            text: `⏳ 【中间委员·5分钟终稿归档冲刺】：关注到本次学术任务总时间仅剩最后 5 分钟！请全组成员加快节奏，在左侧【修改论文终稿】面板将答辩共识快速落实到正文中，并点击【🎓 确认提交终稿】完成归档！`,
+            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            _timeMs: now
+          };
+          if (!this.state.chatLogs.stage3) this.state.chatLogs.stage3 = [];
+          this.state.chatLogs.stage3.push(msg5m);
+          this.syncChatLogs();
+          if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+          renderChat(this.state);
         }
       }
     }, 10000);
