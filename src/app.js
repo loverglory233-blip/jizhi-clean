@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260903_v2040";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260903_v2040";
-import { callCozeAgentAPI } from "./agents.js?v=20260903_v2040";
-import { AuthManager } from "./auth.js?v=20260903_v2040";
-import { CloudSyncEngine } from "./sync.js?v=20260903_v2040";
-import { renderLoginView } from "./login.js?v=20260903_v2040";
-import { renderTeacherPortal } from "./teacher.js?v=20260903_v2040";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260903_v2040";
+} from "./constants.js?v=20260903_v2045";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260903_v2045";
+import { callCozeAgentAPI } from "./agents.js?v=20260903_v2045";
+import { AuthManager } from "./auth.js?v=20260903_v2045";
+import { CloudSyncEngine } from "./sync.js?v=20260903_v2045";
+import { renderLoginView } from "./login.js?v=20260903_v2045";
+import { renderTeacherPortal } from "./teacher.js?v=20260903_v2045";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260903_v2045";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260903_v2040";
+} from "./editor.js?v=20260903_v2045";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -1540,7 +1540,7 @@ export class App {
         const silenceDurationMs = now - baselineTime;
 
         const feedbacks = Array.isArray(s3.feedbackItems) ? s3.feedbackItems : [];
-        const pendingFeedbacks = feedbacks.filter(f => !f.response || f.response.trim().length === 0);
+        const pendingFeedbacks = feedbacks.filter(f => f.role !== 'proponent' && (!f.response || f.response.trim().length === 0));
 
         // ── 🎓 阶段三静默守护与 6 分钟强兜底：中间委员引导后，3 分钟破冰，6 分钟自动提炼定案顺推
         if (pendingFeedbacks.length > 0) {
