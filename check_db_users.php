@@ -24,7 +24,7 @@ try {
         }
     }
 
-    // 2. 从 global_meta main_meta 补齐所有尚未入库的学生
+    // 2. 从 global_meta main_meta 补齐所有尚未入库的学生与班级
     $stmtMeta = $pdo->prepare("SELECT meta_value FROM global_meta WHERE meta_key = 'main_meta'");
     $stmtMeta->execute();
     $mRow = $stmtMeta->fetch();
@@ -59,12 +59,10 @@ try {
                 ]);
             }
         }
-    }
 
-    // 2. 深度自愈 classes 班级表（100% 严格依照 main_meta 真实班级与真实名单落库）
+        // 3. 深度自愈 classes 班级表
         $gClasses = $gm['classes'] ?? [];
         if (!empty($gClasses) && is_array($gClasses)) {
-            // 获取 main_meta 中所有真实存在的 class ID
             $validCids = [];
             $stmtClsUpsert = $pdo->prepare("INSERT INTO `classes` (`id`, `name`, `student_ids`, `groups_data`)
                 VALUES (:id, :nm, :sids, :gdata)
@@ -81,7 +79,6 @@ try {
                 $gdataJson = json_encode($gdata, JSON_UNESCAPED_UNICODE);
                 $stmtClsUpsert->execute([':id' => $cid, ':nm' => $cname, ':sids' => $sidsJson, ':gdata' => $gdataJson]);
             }
-            // 清理不在 main_meta 里的初始占位班级
             if (!empty($validCids)) {
                 $inClause = implode(',', array_fill(0, count($validCids), '?'));
                 $stmtCleanCls = $pdo->prepare("DELETE FROM `classes` WHERE `id` NOT IN ($inClause)");
@@ -89,7 +86,7 @@ try {
             }
         }
 
-        // 3. 深度自愈 tasks 任务表
+        // 4. 深度自愈 tasks 任务表
         $gTasks = $gm['tasks'] ?? [];
         if (!empty($gTasks) && is_array($gTasks)) {
             $stmtTaskUpsert = $pdo->prepare("INSERT INTO `tasks` (`id`, `title`, `desc`, `created_at_str`, `deadline`, `duration_minutes`, `target_class_ids`, `attachments`, `status`)
@@ -114,6 +111,44 @@ try {
     }
 } catch (Exception $e) {}
 
+$isCli = (php_sapi_name() === 'cli');
+
+if ($isCli) {
+    echo "========================================================\n";
+    echo "🔍 集智平台 - MySQL 数据库用户与班级查询诊断\n";
+    echo "========================================================\n\n";
+
+    // 1. users 表
+    echo "① users 表数据 (物理持久化账号):\n";
+    $stmt = $pdo->query("SELECT id, name, role, password FROM users ORDER BY role DESC, id ASC");
+    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    if ($rows) {
+        printf("%-15s | %-12s | %-10s | %-10s\n", "ID (学号/工号)", "姓名", "角色", "密码");
+        echo str_repeat("-", 55) . "\n";
+        foreach ($rows as $r) {
+            printf("%-15s | %-12s | %-10s | %-10s\n", $r['id'], $r['name'], $r['role'], $r['password']);
+        }
+        echo "\n✅ users 表共 " . count($rows) . " 条记录\n\n";
+    } else {
+        echo "⚠️ users 表中暂无记录\n\n";
+    }
+
+    // 2. classes 表
+    echo "② classes 班级表:\n";
+    $stmtC = $pdo->query("SELECT id, name, student_ids FROM classes");
+    $cRows = $stmtC->fetchAll(PDO::FETCH_ASSOC);
+    if ($cRows) {
+        foreach ($cRows as $c) {
+            $sids = json_decode($c['student_ids'] ?: '[]', true) ?: [];
+            echo "  • 班级 [{$c['name']}] (ID: {$c['id']}) - 本班学生: " . count($sids) . " 人\n";
+        }
+    } else {
+        echo "  暂无班级\n";
+    }
+    echo "\n========================================================\n";
+    exit(0);
+}
+
 echo "<meta charset='utf-8'><style>body{font-family:monospace;padding:20px;} table{border-collapse:collapse;width:100%;} td,th{border:1px solid #ccc;padding:8px 12px;text-align:left;} tr:nth-child(even){background:#f9f9f9;} .ok{color:green;font-weight:bold;} .err{color:red;font-weight:bold;}</style>";
 echo "<h2>🔍 集智平台 - 数据库全景诊断与实时自愈结果</h2>";
 
@@ -128,19 +163,19 @@ if ($rows) {
     }
     echo "</table><p class='ok'>✅ users 表共 " . count($rows) . " 条记录</p>";
 } else {
-    echo "<p class='err'>❌ users 表为空！学生账号没有写入实体表！</p>";
+    echo "<p class='err'>⚠️ users 表中暂无任何学生账号记录（只有种子账号或为空）！</p>";
 }
 
 // 2. classes 班级与分组表
 echo "<h3>② classes 班级表（各教学班与小组成员分组实时落库）</h3>";
-$stmtClasses = $pdo->query("SELECT id, name, code, student_ids, groups_data FROM classes ORDER BY id ASC");
+$stmtClasses = $pdo->query("SELECT id, name, student_ids, groups_data FROM classes ORDER BY id ASC");
 $cRows = $stmtClasses ? $stmtClasses->fetchAll(PDO::FETCH_ASSOC) : [];
 if ($cRows) {
-    echo "<table><tr><th>class_id</th><th>班级名称</th><th>班级邀请码</th><th>学生人数</th><th>小组数</th></tr>";
+    echo "<table><tr><th>class_id</th><th>班级名称</th><th>学生人数</th><th>小组数</th></tr>";
     foreach ($cRows as $c) {
         $sidsArr = json_decode($c['student_ids'] ?? '[]', true) ?: [];
         $grpArr = json_decode($c['groups_data'] ?? '[]', true) ?: [];
-        echo "<tr><td>{$c['id']}</td><td><b>" . htmlspecialchars($c['name']) . "</b></td><td>{$c['code']}</td><td>" . count($sidsArr) . " 人</td><td class='ok'>" . count($grpArr) . " 个组</td></tr>";
+        echo "<tr><td>{$c['id']}</td><td><b>" . htmlspecialchars($c['name']) . "</b></td><td>" . count($sidsArr) . " 人</td><td class='ok'>" . count($grpArr) . " 个组</td></tr>";
     }
     echo "</table><p class='ok'>✅ classes 表共 " . count($cRows) . " 个班级</p>";
 } else {
