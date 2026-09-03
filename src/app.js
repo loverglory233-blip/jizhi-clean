@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260903_v2000";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260903_v2000";
-import { callCozeAgentAPI } from "./agents.js?v=20260903_v2000";
-import { AuthManager } from "./auth.js?v=20260903_v2000";
-import { CloudSyncEngine } from "./sync.js?v=20260903_v2000";
-import { renderLoginView } from "./login.js?v=20260903_v2000";
-import { renderTeacherPortal } from "./teacher.js?v=20260903_v2000";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260903_v2000";
+} from "./constants.js?v=20260903_v2005";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260903_v2005";
+import { callCozeAgentAPI } from "./agents.js?v=20260903_v2005";
+import { AuthManager } from "./auth.js?v=20260903_v2005";
+import { CloudSyncEngine } from "./sync.js?v=20260903_v2005";
+import { renderLoginView } from "./login.js?v=20260903_v2005";
+import { renderTeacherPortal } from "./teacher.js?v=20260903_v2005";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260903_v2005";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260903_v2000";
+} from "./editor.js?v=20260903_v2005";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -1332,47 +1332,7 @@ export class App {
           }
         }
 
-        // ======================================================================
-        // 📝 审稿编辑一审后静默跟进（严格 3 分钟冷场静默提示，全场严格仅 1 次）
-        // ======================================================================
-        const existReviewFollow = s2Chats.some(m => m && m.text?.includes('初审跟进提示'));
-        const lastReviewMsgObj = [...s2Chats].reverse().find(m => m && m.sender === 'reviewingEditor' && !m.text?.includes('初审跟进提示') && !m.text?.includes('终稿') && !m.text?.includes('终审'));
-        const isFirstReviewIssued = !!lastReviewMsgObj || s2.reviewMilestone === 'first_review_done' || !!s2.firstReviewText;
-        const hasPassedToSubsequentStages = s2Chats.some(m => m && (
-          m.text?.includes('半程研讨号召') || 
-          m.text?.includes('半程会议号召') || 
-          m.text?.includes('半程自查') || 
-          m.text?.includes('半程修正清单') || 
-          m.text?.includes('终稿行文扫描') || 
-          m.text?.includes('终审定稿总评')
-        )) || !!s2.meetingStep || !!s2.isDraftConfirmed;
-        
-        if (!existReviewFollow && isFirstReviewIssued && !hasPassedToSubsequentStages) {
-          const reviewTime = parseMsgTime(lastReviewMsgObj) || this.stage2StartTime || (now - 60000);
-          const reviewElapsed = Math.max(0, now - reviewTime);
-          const studentMsgAfterReview = s2Chats.filter(m => m && m.sender && m.sender !== 'managingEditor' && m.sender !== 'reviewingEditor' && m.sender !== 'system' && parseMsgTime(m) > reviewTime);
-          const lastStudentMsgAfterReview = studentMsgAfterReview.length > 0 ? studentMsgAfterReview[studentMsgAfterReview.length - 1] : null;
-          const lastStudentMsgAfterReviewTime = parseMsgTime(lastStudentMsgAfterReview);
-          const silenceAfterReview = lastStudentMsgAfterReviewTime ? Math.max(0, now - lastStudentMsgAfterReviewTime) : reviewElapsed;
 
-          // ── 一审后冷场满 3 分钟：初审跟进提示（全场严格仅 1 次） ──
-          if (silenceAfterReview >= 180000) {
-            this._nudgeCounts['s2_first_review_silence'] = 1;
-            const followMsg = {
-              sender: 'reviewingEditor',
-              senderName: '学术质量 · 审稿编辑',
-              text: `📝 【审稿编辑·初审跟进提示】：初审微调建议已送达！大家若对概念界定、文献引向或后续章节衔接有疑问，随时在讨论区 @审稿编辑 咨询，全组继续稳步协同推进！`,
-              timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-              _timeMs: now
-            };
-            if (!this.state.chatLogs.stage2) this.state.chatLogs.stage2 = [];
-            this.state.chatLogs.stage2.push(followMsg);
-            this.syncChatLogs();
-            if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
-            renderChat(this.state);
-            return;
-          }
-        }
 
         // ======================================================================
         // 📌 质检/讨论梯度 B：半程会议自查打卡（3 分钟未打卡静默提醒，全场严格仅 1 次）
@@ -1555,39 +1515,7 @@ export class App {
           }, 600);
         }
 
-        // 3. 【三审后静默跟进】：三审发出后若讨论区冷场超 3 分钟且尚未全员初稿确认，提示通读润色与初稿打卡（全场严格仅 1 次）
-        const hasFinalReviewMsgInChat = s2Chats.some(m => m && m.sender === 'reviewingEditor' && (m.text?.includes('终审定稿总评') || m.text?.includes('终稿行文扫描') || m.text?.includes('审稿编辑·终审')));
-        const hasFinalSilenceFollowed = s2Chats.some(m => m && m.sender === 'reviewingEditor' && m.text?.includes('终稿润色提示'));
 
-        if (hasFinalReviewMsgInChat && !hasFinalSilenceFollowed && !s2.finalReviewSilenceSent && !s2.isDraftConfirmed) {
-          const finalReviewMsgObj = [...s2Chats].reverse().find(m => m && m.sender === 'reviewingEditor' && (m.text?.includes('终审定稿总评') || m.text?.includes('终稿行文扫描') || m.text?.includes('审稿编辑·终审')));
-          const fMsgTime = parseMsgTime(finalReviewMsgObj) || (now - 60000);
-          const fReviewElapsed = Math.max(0, now - fMsgTime);
-          const studentMsgAfterFinal = s2Chats.filter(m => m && m.sender && m.sender !== 'managingEditor' && m.sender !== 'reviewingEditor' && m.sender !== 'system' && parseMsgTime(m) > fMsgTime);
-          const lastStudentMsgAfterFinal = studentMsgAfterFinal.length > 0 ? studentMsgAfterFinal[studentMsgAfterFinal.length - 1] : null;
-          const lastStudentMsgAfterFinalTime = parseMsgTime(lastStudentMsgAfterFinal);
-          const silenceAfterFinal = lastStudentMsgAfterFinalTime ? Math.max(0, now - lastStudentMsgAfterFinalTime) : fReviewElapsed;
-
-          if (silenceAfterFinal >= 180000) { // 严格 3 分钟静默
-            s2.finalReviewSilenceSent = true;
-            const followMsg3 = {
-              sender: 'reviewingEditor',
-              senderName: '学术质量 · 审稿编辑',
-              text: `📝 【审稿编辑·终稿润色提示】：终稿语言与规范扫描诊断已下发！请大家对照指出的细节逐一润色订正，通读确认无误后在上方完成【初稿确认】，准备迎接答辩！`,
-              timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-              _timeMs: now
-            };
-            if (!this.state.chatLogs.stage2) this.state.chatLogs.stage2 = [];
-            this.state.chatLogs.stage2.push(followMsg3);
-            this.syncChatLogs();
-            this.syncStage2();
-            if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
-            renderChat(this.state);
-            return;
-          }
-        }
-
-        // ── 阶段二终审行文扫描已严格统归由 checkStage2Milestones() 权威单向状态机统一仲裁 ──
       }
 
       // ======================================================================
@@ -5040,18 +4968,10 @@ ${chatSnippet}
         }
         this.showMeetingModal(); 
       },
-      onConfirmStage2Draft: (skipReviewCheck = false) => {
+      onConfirmStage2Draft: () => {
         if (!this.state.stage2) this.state.stage2 = {};
         const s2 = this.state.stage2;
         const user = this.state.currentUser;
-
-        // 🛡️ 方案二核心：若尚未出三审且未明确跳过，弹出温和提示弹窗，引导学生先三审
-        const s2Chats = (this.state.chatLogs && this.state.chatLogs.stage2) ? this.state.chatLogs.stage2 : [];
-        const hasFinalReview = s2Chats.some(m => m && m.sender === 'reviewingEditor' && (m.text?.includes('终稿行文扫描') || m.text?.includes('终审定稿总评') || m.text?.includes('审稿编辑·终审')));
-        if (!hasFinalReview && !skipReviewCheck && !s2.isDraftConfirmed) {
-          this.showStage2FinalReviewPromptModal();
-          return;
-        }
 
         let memberArr = [];
         if (Array.isArray(this.state.members)) memberArr = this.state.members;
@@ -5452,9 +5372,9 @@ ${chatSnippet}
     const s2ChatList = this.state.chatLogs?.stage2 || [];
 
     // ═══════════════════════════════════════════════════════════════
-    // 🛡️ 第一次学术质检（目标字数的 30% / 35% 时间 · 破题把脉）
+    // 🛡️ 第一次学术质检（目标字数的 35% / 35% 时间 · 破题把脉）
     // ═══════════════════════════════════════════════════════════════
-    const isReview1Due = (wordProgress >= 0.30 || timeProgress >= 0.35 || rawDoc.length >= (targetWordCount * 0.3));
+    const isReview1Due = (wordProgress >= 0.35 || timeProgress >= 0.35 || rawDoc.length >= (targetWordCount * 0.35));
     const hasFirstReviewInLogs = s2ChatList.some(m => m.sender === 'reviewingEditor' && (m.text.includes('初审') || m.text.includes('破题把脉') || m.text.includes('Research Gap')));
     if (hasFirstReviewInLogs && (s2.reviewMilestone === 'none' || s2.reviewMilestone === 'first_review_in_progress')) {
       s2.reviewMilestone = 'first_review_done';
@@ -5518,7 +5438,7 @@ ${contentSnippet}
           this.syncStage2();
           if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
         } finally {
-          this.state.activeAgentAnalyzing = null; // 🌟 研判完毕，清除动态分析框
+          this.state.activeAgentAnalyzing = null;
           this._isTriggeringFirstReview = false;
           renderChat(this.state);
           this.renderStudentWorkspace();
@@ -5528,9 +5448,9 @@ ${contentSnippet}
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // 🛡️ 第二次学术质检与半程会议（目标字数的 60% / 65% 时间 · 深度研讨）
+    // 🛡️ 第二次学术质检与编辑会议（目标字数的 70% / 70% 时间 · 深度研讨）
     // ═══════════════════════════════════════════════════════════════
-    const isMeetingDue = (wordProgress >= 0.60 || timeProgress >= 0.65 || rawDoc.length >= (targetWordCount * 0.60));
+    const isMeetingDue = (wordProgress >= 0.70 || timeProgress >= 0.70 || rawDoc.length >= (targetWordCount * 0.70));
     const hasMeetingCalledInLogs = s2ChatList.some(m => m.sender === 'managingEditor' && (m.text.includes('半程会议号召') || m.text.includes('半程研讨号召')));
     if (hasMeetingCalledInLogs && s2.reviewMilestone !== 'meeting_called' && s2.reviewMilestone !== 'action_plan_generated') {
       s2.reviewMilestone = 'meeting_called';
@@ -5566,29 +5486,26 @@ ${contentSnippet}
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // 🛡️ 第三次质检（二审完成后且字数达 90% 并满 10 分钟修改缓冲 / 或 确认初稿 · 审稿编辑终审自动触发）
+    // 🤝 责任编辑 90% 节点推进提醒（全场严格仅 1 次）
     // ═══════════════════════════════════════════════════════════════
-    const isSecondReviewDone = (s2.reviewMilestone === 'second_review_done' || s2.reviewMilestone === 'action_plan_generated' || s2.meetingStep === 'completed');
-    const meetingEndTime = s2.meetingCompletedTime || s2.meetingCalledTime || 0;
-    const postSecondReviewElapsedMs = meetingEndTime > 0 ? Math.max(0, now - meetingEndTime) : 0;
-    const minPostReviewModCooldownMs = isLargeTask ? 900000 : 600000; // 10 分钟（大任务 15 分钟）
-    const is90WordReached = (wordProgress >= 0.90 || rawDoc.length >= (targetWordCount * 0.90));
-    const is85TimeReached = (timeProgress >= 0.85);
-
-    const isTenMinAfterMeetingAndWord90 = isSecondReviewDone && postSecondReviewElapsedMs >= minPostReviewModCooldownMs && is90WordReached;
-    const isTime85AndSecondReviewDone = isSecondReviewDone && is85TimeReached;
-    const isDraftConfirmed = !!s2.isDraftConfirmed || (s2.confirmedMembers && Object.keys(s2.confirmedMembers).length > 0);
-
-    const isFinalReviewDue = isDraftConfirmed || isTenMinAfterMeetingAndWord90 || isTime85AndSecondReviewDone;
-
-    const hasFinalReviewInLogs = s2ChatList.some(m => m && m.sender === 'reviewingEditor' && (m.text?.includes('终稿行文扫描') || m.text?.includes('终审定稿总评') || m.text?.includes('审稿编辑·终审')));
-    if (hasFinalReviewInLogs && (s2.reviewMilestone === 'second_review_done' || s2.reviewMilestone === 'meeting_called')) {
-      s2.reviewMilestone = 'final_review_done';
-      this.syncStage2();
-    }
-
-    if (!hasFinalReviewInLogs && isFinalReviewDue && !this._isTriggeringFinalReview) {
-      this.triggerStage2FinalReview();
+    const is90TimeDue = (timeProgress >= 0.90);
+    const has90ReminderInLogs = s2ChatList.some(m => m && m.sender === 'managingEditor' && (m.text?.includes('阶段二推进提示') || m.text?.includes('90% 节点')));
+    if (!has90ReminderInLogs && is90TimeDue && !s2.isDraftConfirmed && !this.state.s2_90ReminderSent) {
+      this.state.s2_90ReminderSent = true;
+      const taskType = this.getCurrentTaskType();
+      const isInst = (taskType === 'instructional');
+      const managingName = isInst ? '备课组长' : '责任编辑';
+      const msg90 = {
+        sender: 'managingEditor',
+        senderName: `协同调度 · ${managingName}`,
+        text: `🤝 【${managingName}·阶段二推进提示】：阶段二协作时间已达 90% 节点！请全组抓紧将修改对策落实到正文中，核对无误后在上方点击【✍️ 确认初稿】，进入【🎓 阶段三：答辩评审】！`,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        _timeMs: now
+      };
+      if (!this.state.chatLogs.stage2) this.state.chatLogs.stage2 = [];
+      this.state.chatLogs.stage2.push(msg90);
+      this.syncChatLogs();
+      renderChat(this.state);
     }
 
     // 3. 🤝 责任编辑 Agent: 字数贡献比严重偏斜提醒 (SSRL 共享调节)
