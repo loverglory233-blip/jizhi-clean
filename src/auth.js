@@ -14,8 +14,8 @@ import {
   DefaultTasks,
   DefaultAnnouncements,
   DefaultReferencePapers
-} from './constants.js?v=20260903_v1548';
-import { formatExportDateTime, formatDurationHuman, isScopeMatch } from './utils.js?v=20260903_v1548';
+} from './constants.js?v=20260903_v1600';
+import { formatExportDateTime, formatDurationHuman, isScopeMatch } from './utils.js?v=20260903_v1600';
 
 export class AuthManager {
   constructor() {
@@ -802,10 +802,11 @@ export class AuthManager {
     ));
   }
 
-  addStudentToClass(name, studentId, classId, customPassword = null, isStrictUnique = true) {
+  addStudentToClass(name, studentId, classId = null, customPassword = null, isStrictUnique = true) {
     const users = this.getUsers();
     const classes = this.getClasses();
     const cleanId = (studentId || '').trim();
+    const targetClass = classId ? (classes.find(c => c.id === classId) || null) : null;
     
     const existingUser = users.find(u =>
       u.role !== 'teacher' && u.id && u.id.trim().toLowerCase() === cleanId.toLowerCase()
@@ -815,11 +816,14 @@ export class AuthManager {
     const avatar = avatars[users.length % avatars.length];
 
     if (existingUser) {
-      if (!existingUser.classIds) existingUser.classIds = [existingUser.classId || null];
-      if (classId && !existingUser.classIds.includes(classId)) existingUser.classIds.push(classId);
-      if (classId) existingUser.classId = classId;
+      if (classId) {
+        if (!existingUser.classIds) existingUser.classIds = [existingUser.classId || null].filter(Boolean);
+        if (!existingUser.classIds.includes(classId)) existingUser.classIds.push(classId);
+        existingUser.classId = classId;
+      }
+      if (customPassword && customPassword.trim()) existingUser.password = customPassword.trim();
+      if (name && name.trim()) existingUser.name = name.trim();
       
-      const targetClass = classes.find(c => c.id === (classId || null)) || classes[0];
       if (targetClass && targetClass.studentIds && !targetClass.studentIds.includes(existingUser.id)) {
         targetClass.studentIds.push(existingUser.id);
         localStorage.setItem(STORAGE_KEY_CLASSES, JSON.stringify(classes));
@@ -834,8 +838,8 @@ export class AuthManager {
       name: name.trim(),
       role: 'student',
       avatar: avatar,
-      classId: classId || null,
-      classIds: classId ? [classId] : [],
+      classId: targetClass ? targetClass.id : null,
+      classIds: targetClass ? [targetClass.id] : [],
       groupId: null,
       password: (customPassword && customPassword.trim()) ? customPassword.trim() : '123'
     });
@@ -843,7 +847,6 @@ export class AuthManager {
 
     localStorage.setItem(STORAGE_KEY_USERS_DB, JSON.stringify(users));
 
-    const targetClass = classes.find(c => c.id === (classId || null)) || classes[0];
     if (targetClass) {
       if (!targetClass.studentIds) targetClass.studentIds = [];
       if (!targetClass.studentIds.includes(targetUser.id)) targetClass.studentIds.push(targetUser.id);
@@ -854,19 +857,19 @@ export class AuthManager {
     return targetUser;
   }
 
-  batchAddStudentsToClass(studentList, classId) {
+  batchAddStudentsToClass(studentList, classId = null) {
     let createdCount = 0;
     let linkedCount = 0;
     const linkedList = [];
     const users = this.getUsers();
     const classes = this.getClasses();
-    const targetClass = classes.find(c => c.id === (classId || null)) || classes[0];
+    const targetClass = classId ? (classes.find(c => c.id === classId) || null) : null;
     if (targetClass && !targetClass.studentIds) targetClass.studentIds = [];
 
     const avatars = ['👨‍🎓', '👩‍🎓', '🧑‍🎓', '🎓', '📚', '🌟'];
 
     studentList.forEach(st => {
-      const code = String(st.id || ((st.code || ('')))).trim();
+      const code = String(st.id || '').trim();
       const name = (st.name || '').trim();
       if (!code || !name) return;
 
@@ -874,17 +877,22 @@ export class AuthManager {
       if (existing) {
         existing.id = code;
         existing.name = name;
-        if (!existing.classIds || !Array.isArray(existing.classIds)) {
-          existing.classIds = existing.classId ? [existing.classId] : [];
+        if (st.password || st.customPassword) {
+          existing.password = String(st.password || st.customPassword).trim();
         }
-        if (targetClass && !existing.classIds.includes(targetClass.id)) {
-          existing.classIds.push(targetClass.id);
+        if (targetClass) {
+          if (!existing.classIds || !Array.isArray(existing.classIds)) {
+            existing.classIds = existing.classId ? [existing.classId] : [];
+          }
+          if (!existing.classIds.includes(targetClass.id)) {
+            existing.classIds.push(targetClass.id);
+          }
+          if (!targetClass.studentIds.includes(existing.id)) {
+            targetClass.studentIds.push(existing.id);
+          }
+          linkedList.push({ name: existing.name || name, code });
+          linkedCount++;
         }
-        if (targetClass && !targetClass.studentIds.includes(existing.id)) {
-          targetClass.studentIds.push(existing.id);
-        }
-        linkedList.push({ name: existing.name || name, code });
-        linkedCount++;
       } else {
         const newUser = this._normalizeUser({
           id: code,
@@ -894,7 +902,7 @@ export class AuthManager {
           classId: targetClass ? targetClass.id : null,
           classIds: targetClass ? [targetClass.id] : [],
           groupId: null,
-          password: (st.customPassword && st.customPassword.trim()) ? st.customPassword.trim() : '123'
+          password: String(st.password || st.customPassword || '123').trim() || '123'
         });
         users.push(newUser);
         if (targetClass) targetClass.studentIds.push(code);
@@ -903,7 +911,7 @@ export class AuthManager {
     });
 
     localStorage.setItem(STORAGE_KEY_USERS_DB, JSON.stringify(users));
-    localStorage.setItem(STORAGE_KEY_CLASSES, JSON.stringify(classes));
+    if (targetClass) localStorage.setItem(STORAGE_KEY_CLASSES, JSON.stringify(classes));
     this.pushGlobalMeta();
     return { createdCount, linkedCount, totalProcessed: createdCount + linkedCount, linkedList };
   }

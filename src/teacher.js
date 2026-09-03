@@ -10,8 +10,8 @@ import {
   STORAGE_KEY_USERS_DB,
   TASK_GENRE_CONFIGS,
   AgentProfiles
-} from "./constants.js?v=20260903_v1548";
-import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, showGlobalBannerNotice } from "./utils.js?v=20260903_v1548";
+} from "./constants.js?v=20260903_v1600";
+import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, showGlobalBannerNotice } from "./utils.js?v=20260903_v1600";
 
 /* ==========================================================================
    7. TEACHER PORTAL RENDERER (LIVE WORKSPACE MIRROR & ANNOUNCEMENT READ MATRIX)
@@ -558,12 +558,14 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
           ` : `
             <!-- 👥 全平台学生总库看板 -->
             <div class="card" style="border-top:4px solid #2563eb; width:100%; padding:24px;">
-              <div class="card-title" style="margin-bottom:16px; display:flex; justify-content:space-between; align-items:center;">
+              <div class="card-title" style="margin-bottom:16px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
                 <div>
                   <span style="font-size:17px; font-weight:800; color:#0f172a;">👥 全平台学生账号总库 (${allStudents.length} 名学生)</span>
                   <div style="font-size:12.5px; color:#64748b; margin-top:2px;">管理系统全量学生、跨班归属查询、密码重置与批量注销</div>
                 </div>
-                <div style="display:flex; gap:10px;">
+                <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+                  <button id="btn-global-add-student" class="teacher-action-btn" style="background:linear-gradient(135deg, #1d4ed8, #2563eb); border:none; color:white; padding:8px 16px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer; box-shadow:0 2px 8px rgba(37,99,235,0.25);">+ 单条添加学生</button>
+                  <button id="btn-global-import-file" class="teacher-action-btn" style="background:linear-gradient(135deg, #1d4ed8, #2563eb); border:none; color:white; padding:8px 16px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer; box-shadow:0 2px 8px rgba(37,99,235,0.25);">📥 批量导入学生 (Excel/CSV/粘贴)</button>
                   <button id="btn-batch-purge-global" style="background:#fef2f2; border:1.5px solid #fecaca; color:#dc2626; padding:8px 16px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer;">🗑️ 批量彻底删除所选</button>
                 </div>
               </div>
@@ -1935,6 +1937,23 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
     });
   }
 
+  // 重置学生密码
+  container.querySelectorAll('.reset-student-pwd-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const acc = btn.dataset.account;
+      const uname = btn.dataset.name;
+      if (confirm(`🔑 确认将学生【${uname} (${acc})】的登录密码重置为默认初始密码【123】吗？`)) {
+        try {
+          authManager.resetStudentPassword(acc);
+          alert(`✅ 已成功将学生【${uname}】的密码重置为 123！`);
+          renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+        } catch (err) {
+          alert('❌ ' + err.message);
+        }
+      }
+    });
+  });
+
   // 单条彻底销毁
   container.querySelectorAll('.purge-student-btn').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -2062,76 +2081,95 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
     });
   });
 
-  // 👨‍🎓 1. 单条创建学生账号（纯粹创建面板）
-  const btnAddStd = container.querySelector('#btn-v1-add-student');
-  if (btnAddStd) {
-    btnAddStd.addEventListener('click', () => {
-      document.querySelectorAll('.modal-overlay').forEach(el => el.remove());
-      const modal = document.createElement('div');
-      modal.className = 'modal-overlay';
-      modal.innerHTML = `
-        <div class="teacher-modal-card fancy-task-modal" style="width:480px; background:#ffffff; border:1px solid #e2e8f0; box-shadow:0 20px 45px rgba(15,23,42,0.12);">
-          <div class="teacher-modal-header" style="background:linear-gradient(135deg, #eff6ff, #f8fafc); border-bottom:1px solid #e2e8f0; padding:18px 24px; display:flex; justify-content:space-between; align-items:center;">
-            <div class="modal-header-title" style="display:flex; align-items:center; gap:10px;">
-              <div class="modal-icon-badge" style="background:#dbeafe; color:#2563eb; font-size:20px; padding:6px 10px; border-radius:10px;">✏️</div>
-              <div><h3 style="margin:0; font-size:17px; font-weight:800; color:#0f172a;">单条创建学生账号 (${activeClass.name})</h3></div>
+  // 👨‍🎓 1. 单条创建学生账号弹窗（通用：支持班级名册与总库独立创建）
+  const openSingleStudentCreateModal = (targetCls = null) => {
+    document.querySelectorAll('.modal-overlay').forEach(el => el.remove());
+    const modal = document.createElement('div');
+    modal.className = 'modal-overlay';
+    const classTitle = targetCls ? `加入班级: ${targetCls.name}` : `存入全平台学生总库`;
+    const btnTitle = targetCls ? `👨‍🎓 确认创建并加入本班` : `👨‍🎓 确认创建并录入总库`;
+    modal.innerHTML = `
+      <div class="teacher-modal-card fancy-task-modal" style="width:480px; background:#ffffff; border:1px solid #e2e8f0; box-shadow:0 20px 45px rgba(15,23,42,0.12);">
+        <div class="teacher-modal-header" style="background:linear-gradient(135deg, #eff6ff, #f8fafc); border-bottom:1px solid #e2e8f0; padding:18px 24px; display:flex; justify-content:space-between; align-items:center;">
+          <div class="modal-header-title" style="display:flex; align-items:center; gap:10px;">
+            <div class="modal-icon-badge" style="background:#dbeafe; color:#2563eb; font-size:20px; padding:6px 10px; border-radius:10px;">✏️</div>
+            <div>
+              <h3 style="margin:0; font-size:17px; font-weight:800; color:#0f172a;">单条创建学生账号</h3>
+              <div style="font-size:12px; color:#64748b; margin-top:2px;">${classTitle}</div>
             </div>
-            <button class="modal-close-btn" id="btn-close-single-student" style="background:#f1f5f9; border:none; color:#64748b; font-size:16px; border-radius:8px; width:30px; height:30px; cursor:pointer;">✕</button>
           </div>
+          <button class="modal-close-btn" id="btn-close-single-student" style="background:#f1f5f9; border:none; color:#64748b; font-size:16px; border-radius:8px; width:30px; height:30px; cursor:pointer;">✕</button>
+        </div>
 
-          <div class="teacher-modal-body" style="padding:22px 24px;">
-            <div class="teacher-form-group" style="margin-bottom:14px;">
-              <label style="font-size:13px; font-weight:700; color:#334155; margin-bottom:6px; display:block;"><span class="req" style="color:#dc2626;">*</span> 学生姓名</label>
-              <input type="text" id="modal-std-name" class="teacher-input fancy" placeholder="请输入学生姓名" value="" style="background:#ffffff; border:1.5px solid #cbd5e1; color:#0f172a; padding:10px 14px; border-radius:8px; width:100%; font-size:13.5px;">
-            </div>
-            <div class="teacher-form-group" style="margin-bottom:14px;">
-              <label style="font-size:13px; font-weight:700; color:#334155; margin-bottom:6px; display:block;"><span class="req" style="color:#dc2626;">*</span> 学生学号 (登录账号)</label>
-              <input type="text" id="modal-std-code" class="teacher-input fancy" placeholder="请输入学生学号或账号" value="" style="background:#ffffff; border:1.5px solid #cbd5e1; color:#0f172a; padding:10px 14px; border-radius:8px; width:100%; font-size:13.5px;">
-            </div>
-            <div class="teacher-form-group">
-              <label style="font-size:13px; font-weight:700; color:#334155; margin-bottom:6px; display:block;">设置初始密码 (留空统一定为 123)</label>
-              <input type="password" id="modal-std-password" class="teacher-input fancy" placeholder="留空默认为 123" style="background:#ffffff; border:1.5px solid #cbd5e1; color:#0f172a; padding:10px 14px; border-radius:8px; width:100%; font-size:13.5px;">
-            </div>
+        <div class="teacher-modal-body" style="padding:22px 24px;">
+          <div class="teacher-form-group" style="margin-bottom:14px;">
+            <label style="font-size:13px; font-weight:700; color:#334155; margin-bottom:6px; display:block;"><span class="req" style="color:#dc2626;">*</span> 学生姓名</label>
+            <input type="text" id="modal-std-name" class="teacher-input fancy" placeholder="请输入学生姓名" value="" style="background:#ffffff; border:1.5px solid #cbd5e1; color:#0f172a; padding:10px 14px; border-radius:8px; width:100%; font-size:13.5px;">
           </div>
-          <div class="teacher-modal-footer" style="background:#f8fafc; border-top:1px solid #e2e8f0; padding:14px 24px; display:flex; justify-content:flex-end; gap:10px;">
-            <button class="modal-btn cancel" id="btn-cancel-single-std" style="background:#ffffff; border:1px solid #cbd5e1; color:#475569; padding:8px 18px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer;">取消</button>
-            <button class="modal-btn submit task-theme" id="btn-submit-single-std" style="background:linear-gradient(135deg, #1d4ed8, #2563eb); border:none; color:white; padding:8px 20px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer;">👨‍🎓 确认创建并加入本班</button>
+          <div class="teacher-form-group" style="margin-bottom:14px;">
+            <label style="font-size:13px; font-weight:700; color:#334155; margin-bottom:6px; display:block;"><span class="req" style="color:#dc2626;">*</span> 学生学号 (登录账号)</label>
+            <input type="text" id="modal-std-code" class="teacher-input fancy" placeholder="请输入学生学号或账号" value="" style="background:#ffffff; border:1.5px solid #cbd5e1; color:#0f172a; padding:10px 14px; border-radius:8px; width:100%; font-size:13.5px;">
+          </div>
+          <div class="teacher-form-group">
+            <label style="font-size:13px; font-weight:700; color:#334155; margin-bottom:6px; display:block;">设置初始密码 (留空统一定为 123)</label>
+            <input type="password" id="modal-std-password" class="teacher-input fancy" placeholder="留空默认为 123" style="background:#ffffff; border:1.5px solid #cbd5e1; color:#0f172a; padding:10px 14px; border-radius:8px; width:100%; font-size:13.5px;">
           </div>
         </div>
-      `;
-      document.body.appendChild(modal);
+        <div class="teacher-modal-footer" style="background:#f8fafc; border-top:1px solid #e2e8f0; padding:14px 24px; display:flex; justify-content:flex-end; gap:10px;">
+          <button class="modal-btn cancel" id="btn-cancel-single-std" style="background:#ffffff; border:1px solid #cbd5e1; color:#475569; padding:8px 18px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer;">取消</button>
+          <button class="modal-btn submit task-theme" id="btn-submit-single-std" style="background:linear-gradient(135deg, #1d4ed8, #2563eb); border:none; color:white; padding:8px 20px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer;">${btnTitle}</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(modal);
 
-      const closeModal = () => { modal.remove(); };
-      modal.querySelector('#btn-close-single-student').addEventListener('click', closeModal);
-      modal.querySelector('#btn-cancel-single-std').addEventListener('click', closeModal);
-      modal.addEventListener('click', (e) => { if (e.target === modal) closeModal(); });
+    const closeModal = () => { modal.remove(); };
+    modal.querySelector('#btn-close-single-student').addEventListener('click', closeModal);
+    modal.querySelector('#btn-cancel-single-std').addEventListener('click', closeModal);
+    modal.addEventListener('click', (e) => { if (e.target === modal) closeModal(); });
 
-      modal.querySelector('#btn-submit-single-std').addEventListener('click', () => {
-        const name = modal.querySelector('#modal-std-name').value.trim();
-        const code = modal.querySelector('#modal-std-code').value.trim();
-        const pwd = modal.querySelector('#modal-std-password').value.trim();
-        if (!name || !code) { alert('⚠️ 请填齐学生姓名和学号！'); return; }
-        try {
-          const users = authManager.getUsers();
-          const isAlreadyExist = users.some(u => (u.id && u.id.trim().toLowerCase() === code.toLowerCase()));
-          const targetUser = authManager.addStudentToClass(name, code, activeClass.id, pwd || '123');
+    modal.querySelector('#btn-submit-single-std').addEventListener('click', () => {
+      const name = modal.querySelector('#modal-std-name').value.trim();
+      const code = modal.querySelector('#modal-std-code').value.trim();
+      const pwd = modal.querySelector('#modal-std-password').value.trim();
+      if (!name || !code) { alert('⚠️ 请填齐学生姓名和学号！'); return; }
+      try {
+        const users = authManager.getUsers();
+        const isAlreadyExist = users.some(u => (u.id && u.id.trim().toLowerCase() === code.toLowerCase()));
+        const targetUser = authManager.addStudentToClass(name, code, targetCls ? targetCls.id : null, pwd || '123');
+        if (targetCls) {
           if (isAlreadyExist) {
-            alert(`💡 学号【${code}】对应的学生【${targetUser.name}】已存在于系统中，已跳过重复创建并自动关联至本班级【${activeClass.name}】！`);
+            alert(`💡 学号【${code}】对应的学生【${targetUser.name}】已存在于系统中，已跳过重复创建并自动关联至本班级【${targetCls.name}】！`);
           } else {
             alert(`🎉 成功创建并添加新学生【${targetUser.name} (学号: ${code})】至当前班级！`);
           }
-          closeModal();
-          renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
-        } catch (err) {
-          alert('❌ ' + err.message);
+        } else {
+          if (isAlreadyExist) {
+            alert(`💡 学号【${code}】对应的学生【${targetUser.name}】已存在于平台总库中，已更新基本信息！`);
+          } else {
+            alert(`🎉 成功录入新学生【${targetUser.name} (学号: ${code})】至全平台总库！`);
+          }
         }
-      });
+        closeModal();
+        renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+      } catch (err) {
+        alert('❌ ' + err.message);
+      }
     });
+  };
+
+  const btnAddStd = container.querySelector('#btn-v1-add-student');
+  if (btnAddStd && activeClass) {
+    btnAddStd.addEventListener('click', () => openSingleStudentCreateModal(activeClass));
+  }
+  const btnGlobalAddStd = container.querySelector('#btn-global-add-student');
+  if (btnGlobalAddStd) {
+    btnGlobalAddStd.addEventListener('click', () => openSingleStudentCreateModal(null));
   }
 
   // 👥 2. 从总库挑选学生加入本班（只展示待入本班的学生）
   const btnEnrollExisting = container.querySelector('#btn-v1-enroll-existing-student');
-  if (btnEnrollExisting) {
+  if (btnEnrollExisting && activeClass) {
     btnEnrollExisting.addEventListener('click', () => {
       document.querySelectorAll('.modal-overlay').forEach(el => el.remove());
       const allUsers = authManager.getUsers();
@@ -2146,8 +2184,8 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
             <div class="modal-header-title" style="display:flex; align-items:center; gap:10px;">
               <div class="modal-icon-badge" style="background:#dbeafe; color:#2563eb; font-size:20px; padding:6px 10px; border-radius:10px;">👥</div>
               <div>
-                <h3 style="margin:0; font-size:17px; font-weight:800; color:#0f172a;">从总库挑选学生加入本班 (${activeClass.name})</h3>
-                <div style="font-size:12px; color:#64748b; margin-top:2px;">勾选待分班学生直接拉入本班，账号与密码保持不变（共 ${unenrolledStudents.length} 人待入班）</div>
+                <h3 style="margin:0; font-size:17px; font-weight:800; color:#0f172a;">从总库添加已有学生至当前班级</h3>
+                <div style="font-size:12px; color:#64748b; margin-top:2px;">目标班级: <b>${activeClass.name}</b> (从全校已有学生账号池中勾选拉入本班)</div>
               </div>
             </div>
             <button class="modal-close-btn" id="btn-close-enroll-modal" style="background:#f1f5f9; border:none; color:#64748b; font-size:16px; border-radius:8px; width:30px; height:30px; cursor:pointer;">✕</button>
@@ -2155,44 +2193,44 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
 
           <div class="teacher-modal-body" style="padding:20px 24px;">
             <div style="margin-bottom:12px;">
-              <input type="text" id="input-search-enroll-std" placeholder="🔍 输入姓名或学号快速搜索学生..." style="background:#ffffff; border:1.5px solid #cbd5e1; color:#0f172a; padding:9px 12px; border-radius:8px; width:100%; font-size:13px; outline:none;">
+              <input type="text" id="modal-search-enroll-student" placeholder="🔍 搜索待入本班学生姓名或学号..." style="width:100%; box-sizing:border-box; background:#ffffff; border:1.5px solid #cbd5e1; padding:8px 12px; border-radius:8px; font-size:13px; outline:none;">
             </div>
-            <div style="display:flex; justify-content:space-between; align-items:center; padding:4px 4px 10px 4px; font-size:12.5px; color:#64748b;">
-              <label style="display:flex; align-items:center; gap:6px; cursor:pointer; font-weight:700; color:#334155;">
-                <input type="checkbox" id="chk-enroll-select-all" style="width:16px; height:16px; accent-color:#2563eb; cursor:pointer;">
-                全选当前待入班学生
-              </label>
-              <span id="enroll-selected-count-tip">已勾选 0 人</span>
+
+            <div style="border:1px solid #e2e8f0; border-radius:8px; overflow:hidden; background:#ffffff; max-height:280px; overflow-y:auto;">
+              <table class="monitor-table" style="font-size:13px; margin:0;">
+                <thead style="position:sticky; top:0; background:#f8fafc; z-index:2;">
+                  <tr>
+                    <th style="width:40px; text-align:center;"><input type="checkbox" id="modal-enroll-select-all" style="accent-color:#2563eb; cursor:pointer;"></th>
+                    <th>姓名</th>
+                    <th>学号</th>
+                    <th>当前归属班级</th>
+                  </tr>
+                </thead>
+                <tbody id="modal-tbody-enroll-students">
+                  ${unenrolledStudents.length === 0 ? '<tr><td colspan="4" style="text-align:center; color:#64748b; padding:24px;">全校学生总库中暂无待入本班学生（所有学生已在本班，或总库为空）</td></tr>' : ''}
+                  ${unenrolledStudents.map(s => {
+                    const studentClasses = classes.filter(c => (s.classIds || [s.classId]).includes(c.id));
+                    return `
+                      <tr class="modal-enroll-tr" data-search="${(s.name + ' ' + s.id).toLowerCase()}">
+                        <td style="text-align:center;"><input type="checkbox" class="enroll-chk" data-uid="${s.id}" style="accent-color:#2563eb; cursor:pointer;"></td>
+                        <td><b>${s.avatar || '👤'} ${escapeHtml(s.name)}</b></td>
+                        <td><code style="color:#2563eb; font-family:monospace; font-weight:700;">${escapeHtml(s.id)}</code></td>
+                        <td>
+                          ${studentClasses.length > 0 ? studentClasses.map(c => `<span style="background:#f1f5f9; color:#475569; padding:2px 6px; border-radius:4px; font-size:11px; margin-right:4px;">${escapeHtml(c.name)}</span>`).join('') : '<span style="color:#94a3b8; font-size:12px;">待分班学生</span>'}
+                        </td>
+                      </tr>
+                    `;
+                  }).join('')}
+                </tbody>
+              </table>
             </div>
-            <div id="enroll-std-list-box" style="max-height:300px; overflow-y:auto; display:flex; flex-direction:column; gap:8px;">
-              ${unenrolledStudents.length === 0 ? `
-                <div style="text-align:center; color:#64748b; padding:36px 16px; font-size:13.5px; background:#f8fafc; border-radius:10px; border:1px dashed #cbd5e1;">
-                  <div style="font-size:28px; margin-bottom:8px;">🎉</div>
-                  <div style="font-weight:700; color:#0f172a;">暂无待入本班学生</div>
-                  <div style="font-size:12.5px; color:#64748b; margin-top:4px;">平台总库中的所有学生均已在本班（或平台当前暂无学生记录）</div>
-                </div>
-              ` : unenrolledStudents.map(s => {
-                const otherClasses = authManager.getClasses().filter(c =>
-                  (s.classIds || [s.classId]).includes(c.id) && c.id !== activeClass.id
-                );
-                return `
-                  <div class="enroll-std-card-item" data-search="${(s.name + ' ' + (s.id || '')).toLowerCase()}" style="display:flex; align-items:center; justify-content:space-between; gap:12px; background:#ffffff; border:1px solid #e2e8f0; border-radius:10px; padding:10px 14px; transition:all 0.15s;">
-                    <label style="display:flex; align-items:center; gap:12px; cursor:pointer; flex:1;">
-                      <input type="checkbox" class="enroll-chk" data-uid="${s.id}" style="width:17px; height:17px; cursor:pointer; accent-color:#2563eb;">
-                      <div>
-                        <div style="font-size:14px; font-weight:800; color:#0f172a; display:flex; align-items:center; gap:6px;">
-                          ${s.avatar || '👤'} ${escapeHtml(s.name)} <code style="color:#2563eb; font-family:monospace;">${escapeHtml(s.id)}</code>
-                        </div>
-                        <div style="font-size:12px; color:#64748b; margin-top:2px;">
-                          ${otherClasses.length > 0 ? `跨班归属: <b>${otherClasses.map(c => escapeHtml(c.name)).join(', ')}</b>` : '⏳ 待分班学生'}
-                        </div>
-                      </div>
-                    </label>
-                  </div>
-                `;
-              }).join('')}
+
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-top:12px; font-size:12.5px; color:#64748b;">
+              <span id="enroll-selected-count-tip">已选中 0 名学生</span>
+              <span>💡 勾选后将自动为当前班级建立名册关联，支持跨班修读</span>
             </div>
           </div>
+
           <div class="teacher-modal-footer" style="background:#f8fafc; border-top:1px solid #e2e8f0; padding:14px 24px; display:flex; justify-content:flex-end; gap:10px;">
             <button class="modal-btn cancel" id="btn-cancel-enroll" style="background:#ffffff; border:1px solid #cbd5e1; color:#475569; padding:8px 18px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer;">取消</button>
             <button class="modal-btn submit task-theme" id="btn-submit-enroll" style="background:linear-gradient(135deg, #1d4ed8, #2563eb); border:none; color:white; padding:8px 20px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer;">👥 确认拉入本班</button>
@@ -2206,20 +2244,19 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
       modal.querySelector('#btn-cancel-enroll').addEventListener('click', closeModal);
       modal.addEventListener('click', (e) => { if (e.target === modal) closeModal(); });
 
-      // 计数与全选
-      const chkAll = modal.querySelector('#chk-enroll-select-all');
       const updateCountTip = () => {
-        const cnt = modal.querySelectorAll('.enroll-chk:checked').length;
-        const tip = modal.querySelector('#enroll-selected-count-tip');
-        if (tip) tip.textContent = `已勾选 ${cnt} 人`;
+        const checkedCount = modal.querySelectorAll('.enroll-chk:checked').length;
+        const countTip = modal.querySelector('#enroll-selected-count-tip');
+        if (countTip) countTip.innerText = `已选中 ${checkedCount} 名学生`;
       };
       updateCountTip();
 
+      const chkAll = modal.querySelector('#modal-enroll-select-all');
       if (chkAll) {
         chkAll.addEventListener('change', () => {
-          modal.querySelectorAll('.enroll-std-card-item').forEach(item => {
-            if (item.style.display !== 'none') {
-              const chk = item.querySelector('.enroll-chk');
+          modal.querySelectorAll('.modal-enroll-tr').forEach(tr => {
+            if (tr.style.display !== 'none') {
+              const chk = tr.querySelector('.enroll-chk');
               if (chk) chk.checked = chkAll.checked;
             }
           });
@@ -2229,13 +2266,13 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
       modal.querySelectorAll('.enroll-chk').forEach(c => c.addEventListener('change', updateCountTip));
 
       // 🔍 模糊搜索过滤
-      const searchEnrollInput = modal.querySelector('#input-search-enroll-std');
+      const searchEnrollInput = modal.querySelector('#modal-search-enroll-student');
       if (searchEnrollInput) {
         searchEnrollInput.addEventListener('input', (e) => {
           const q = (e.target.value || '').trim().toLowerCase();
-          modal.querySelectorAll('.enroll-std-card-item').forEach(el => {
+          modal.querySelectorAll('.modal-enroll-tr').forEach(el => {
             const str = el.dataset.search || '';
-            el.style.display = (!q || str.includes(q)) ? 'flex' : 'none';
+            el.style.display = (!q || str.includes(q)) ? '' : 'none';
           });
         });
       }
@@ -2277,104 +2314,114 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
     });
   }
 
-  const btnImportFile = container.querySelector('#btn-v1-import-file');
-  if (btnImportFile) {
-    btnImportFile.addEventListener('click', () => {
-      document.querySelectorAll('.modal-overlay').forEach(el => el.remove());
-      const modal = document.createElement('div');
-      modal.className = 'modal-overlay';
-      modal.innerHTML = `
-        <div class="teacher-modal-card fancy-task-modal" style="width:620px; background:#ffffff; border:1px solid #e2e8f0; box-shadow:0 20px 45px rgba(15,23,42,0.15); border-radius:16px; overflow:hidden;">
-          <div class="teacher-modal-header" style="background:linear-gradient(135deg, #1d4ed8, #2563eb); color:#ffffff; padding:18px 24px; display:flex; justify-content:space-between; align-items:center;">
-            <div class="modal-header-title" style="display:flex; align-items:center; gap:10px;">
-              <div class="modal-icon-badge" style="background:rgba(255,255,255,0.2); color:#ffffff; font-size:20px; padding:6px 10px; border-radius:10px;">📥</div>
-              <div>
-                <h3 style="margin:0; font-size:17px; font-weight:800; color:#ffffff;">上传 XLSX / CSV 文件导入学生账号 (${activeClass.name})</h3>
-                <div style="font-size:11.5px; opacity:0.9; margin-top:2px;">支持智能识别学生姓名与学号，未填密码将默认设为 123</div>
-              </div>
-            </div>
-            <button class="modal-close-btn" id="btn-close-file-modal" style="background:rgba(255,255,255,0.2); border:none; color:#ffffff; font-size:16px; border-radius:8px; width:30px; height:30px; cursor:pointer; display:flex; align-items:center; justify-content:center;">✕</button>
-          </div>
-          <div class="teacher-modal-body" style="padding:22px 24px; background:#ffffff;">
-            <div class="teacher-form-group">
-              <label style="font-size:13px; font-weight:700; color:#334155; margin-bottom:6px; display:block;"><span class="req" style="color:#dc2626;">*</span> 选择本地 .xlsx 或 .csv 文件上传</label>
-              <div id="file-dropzone" style="border:2px dashed #93c5fd; border-radius:12px; padding:22px; text-align:center; background:#eff6ff; cursor:pointer; transition:all 0.2s ease;">
-                <input type="file" id="modal-file-input" accept=".xlsx, .xls, .csv" style="display:none;">
-                <div id="dropzone-text">
-                  <span style="font-size:32px;">📄</span>
-                  <div style="font-size:14px; font-weight:700; color:#1d4ed8; margin-top:6px;">点击选择或拖拽本地 .xlsx / .csv 文件到此处</div>
-                  <div style="font-size:11.5px; color:#3b82f6; margin-top:2px;">支持包含【姓名】、【学号】列的标准表格</div>
-                </div>
-              </div>
-            </div>
-            <div class="teacher-form-group" style="margin-top:16px;">
-              <label style="font-size:13px; font-weight:700; color:#334155; margin-bottom:6px; display:block;">或 直接粘贴名册文本 (每行一人)</label>
-              <textarea id="modal-paste-textarea" class="teacher-textarea fancy" style="min-height:90px; font-family:monospace; font-size:13px; width:100%; box-sizing:border-box; padding:10px 12px; border:1.5px solid #cbd5e1; border-radius:8px; outline:none;" placeholder="每行一位学生，逗号或空格分隔：&#10;姓名, 学号, 初始密码(可选)"></textarea>
+  // 📥 3. 上传 XLSX/CSV 文件或粘贴名册批量导入学生（通用：支持班级空间与总库空间）
+  const openBatchImportModal = (targetCls = null) => {
+    document.querySelectorAll('.modal-overlay').forEach(el => el.remove());
+    const modal = document.createElement('div');
+    modal.className = 'modal-overlay';
+    const classSub = targetCls ? `（导入至班级: ${targetCls.name}）` : `（导入至全平台学生总库）`;
+    modal.innerHTML = `
+      <div class="teacher-modal-card fancy-task-modal" style="width:620px; background:#ffffff; border:1px solid #e2e8f0; box-shadow:0 20px 45px rgba(15,23,42,0.15); border-radius:16px; overflow:hidden;">
+        <div class="teacher-modal-header" style="background:linear-gradient(135deg, #1d4ed8, #2563eb); color:#ffffff; padding:18px 24px; display:flex; justify-content:space-between; align-items:center;">
+          <div class="modal-header-title" style="display:flex; align-items:center; gap:10px;">
+            <div class="modal-icon-badge" style="background:rgba(255,255,255,0.2); color:#ffffff; font-size:20px; padding:6px 10px; border-radius:10px;">📥</div>
+            <div>
+              <h3 style="margin:0; font-size:17px; font-weight:800; color:#ffffff;">批量导入学生账号 ${classSub}</h3>
+              <div style="font-size:11.5px; opacity:0.9; margin-top:2px;">支持智能识别学生姓名与学号，未填密码将默认设为 123</div>
             </div>
           </div>
-          <div class="teacher-modal-footer" style="background:#f8fafc; border-top:1px solid #e2e8f0; padding:14px 24px; display:flex; justify-content:flex-end; gap:10px;">
-            <button class="modal-btn cancel" id="btn-cancel-file-modal" style="background:#ffffff; border:1px solid #cbd5e1; color:#475569; padding:8px 18px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer;">取消</button>
-            <button class="modal-btn submit task-theme" id="btn-submit-file-import" style="background:linear-gradient(135deg, #1d4ed8, #2563eb); border:none; color:#ffffff; padding:8px 22px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer; box-shadow:0 3px 8px rgba(37,99,235,0.25);">
-              🚀 确认解析并导入学生池 (未填密码默认为 123)
-            </button>
+          <button class="modal-close-btn" id="btn-close-file-modal" style="background:rgba(255,255,255,0.2); border:none; color:#ffffff; font-size:16px; border-radius:8px; width:30px; height:30px; cursor:pointer; display:flex; align-items:center; justify-content:center;">✕</button>
+        </div>
+        <div class="teacher-modal-body" style="padding:22px 24px; background:#ffffff;">
+          <div class="teacher-form-group">
+            <label style="font-size:13px; font-weight:700; color:#334155; margin-bottom:6px; display:block;"><span class="req" style="color:#dc2626;">*</span> 选择本地 .xlsx 或 .csv 文件上传</label>
+            <div id="file-dropzone" style="border:2px dashed #93c5fd; border-radius:12px; padding:22px; text-align:center; background:#eff6ff; cursor:pointer; transition:all 0.2s ease;">
+              <input type="file" id="modal-file-input" accept=".xlsx, .xls, .csv" style="display:none;">
+              <div id="dropzone-text">
+                <span style="font-size:32px;">📄</span>
+                <div style="font-size:14px; font-weight:700; color:#1d4ed8; margin-top:6px;">点击选择或拖拽本地 .xlsx / .csv 文件到此处</div>
+                <div style="font-size:11.5px; color:#3b82f6; margin-top:2px;">支持包含【姓名】、【学号】列的标准表格</div>
+              </div>
+            </div>
+          </div>
+          <div class="teacher-form-group" style="margin-top:16px;">
+            <label style="font-size:13px; font-weight:700; color:#334155; margin-bottom:6px; display:block;">或 直接粘贴名册文本 (每行一人)</label>
+            <textarea id="modal-paste-textarea" class="teacher-textarea fancy" style="min-height:90px; font-family:monospace; font-size:13px; width:100%; box-sizing:border-box; padding:10px 12px; border:1.5px solid #cbd5e1; border-radius:8px; outline:none;" placeholder="每行一位学生，逗号或空格分隔：&#10;姓名, 学号, 初始密码(可选)"></textarea>
           </div>
         </div>
-      `;
-      document.body.appendChild(modal);
+        <div class="teacher-modal-footer" style="background:#f8fafc; border-top:1px solid #e2e8f0; padding:14px 24px; display:flex; justify-content:flex-end; gap:10px;">
+          <button class="modal-btn cancel" id="btn-cancel-file-modal" style="background:#ffffff; border:1px solid #cbd5e1; color:#475569; padding:8px 18px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer;">取消</button>
+          <button class="modal-btn submit task-theme" id="btn-submit-file-import" style="background:linear-gradient(135deg, #1d4ed8, #2563eb); border:none; color:#ffffff; padding:8px 22px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer; box-shadow:0 3px 8px rgba(37,99,235,0.25);">
+            🚀 确认解析并导入学生池 (未填密码默认为 123)
+          </button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(modal);
 
-      const closeModal = () => { modal.remove(); if (typeof onEscKey !== 'undefined') document.removeEventListener('keydown', onEscKey); };
-      modal.querySelector('#btn-close-file-modal').addEventListener('click', closeModal);
-      modal.querySelector('#btn-cancel-file-modal').addEventListener('click', closeModal);
+    const closeModal = () => { modal.remove(); if (typeof onEscKey !== 'undefined') document.removeEventListener('keydown', onEscKey); };
+    modal.querySelector('#btn-close-file-modal').addEventListener('click', closeModal);
+    modal.querySelector('#btn-cancel-file-modal').addEventListener('click', closeModal);
 
-      modal.addEventListener('click', (e) => {
-        if (e.target === modal) closeModal();
-      });
-      const onEscKey = (e) => {
-        if (e.key === 'Escape') {
-          closeModal();
-          document.removeEventListener('keydown', onEscKey);
-        }
-      };
-      document.addEventListener('keydown', onEscKey);
-
-      const fileInput = modal.querySelector('#modal-file-input');
-      const dropzone = modal.querySelector('#file-dropzone');
-      const dropText = modal.querySelector('#dropzone-text');
-      const textarea = modal.querySelector('#modal-paste-textarea');
-      let loadedParsedStudents = null;
-
-      dropzone.addEventListener('click', () => fileInput.click());
-      fileInput.addEventListener('change', (e) => {
-        if (e.target.files && e.target.files[0]) {
-          const f = e.target.files[0];
-          dropText.innerHTML = `<span style="font-size:28px;">✅</span><div style="font-size:13px; color:#34d399; font-weight:700;">已读取文件: ${f.name}</div>`;
-          parseXLSXOrCSVFile(f, (parsedList) => {
-            loadedParsedStudents = parsedList;
-            dropText.innerHTML = `<span style="font-size:28px;">🎉</span><div style="font-size:14px; color:#34d399; font-weight:700;">成功解析 ${parsedList.length} 名学生记录！</div>`;
-          });
-        }
-      });
-
-      modal.querySelector('#btn-submit-file-import').addEventListener('click', () => {
-        let listToImport = loadedParsedStudents;
-        if (!listToImport && textarea.value.trim()) {
-          listToImport = parseCSVText(textarea.value.trim());
-        }
-        if (!listToImport || listToImport.length === 0) {
-          alert('⚠️ 请上传 XLSX/CSV 文件或粘贴名册文本！');
-          return;
-        }
-        const { createdCount, linkedCount, totalProcessed, linkedList } = authManager.batchAddStudentsToClass(listToImport, activeClass.id);
-        let tipMsg = `🎉 名册导入完成！\n\n✅ 当前班级【${activeClass.name}】共计导入/就绪学生: ${totalProcessed} 人\n• 🆕 全新创建入库: ${createdCount} 人\n• 🔗 关联已有账号 (如跨班学生): ${linkedCount} 人`;
-        if (linkedList && linkedList.length > 0) {
-          tipMsg += `\n\n💡 以下 ${linkedList.length} 位学生已存在于系统数据库（同一账号数据），已直接关联至本班展示：\n` + 
-            linkedList.map((s, idx) => `${idx + 1}. ${s.name} (学号: ${s.code})`).join('\n');
-        }
-        alert(tipMsg);
-        closeModal();
-        renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
-      });
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) closeModal();
     });
+    const onEscKey = (e) => {
+      if (e.key === 'Escape') {
+        closeModal();
+        document.removeEventListener('keydown', onEscKey);
+      }
+    };
+    document.addEventListener('keydown', onEscKey);
+
+    const fileInput = modal.querySelector('#modal-file-input');
+    const dropzone = modal.querySelector('#file-dropzone');
+    const dropText = modal.querySelector('#dropzone-text');
+    const textarea = modal.querySelector('#modal-paste-textarea');
+    let loadedParsedStudents = null;
+
+    dropzone.addEventListener('click', () => fileInput.click());
+    fileInput.addEventListener('change', (e) => {
+      if (e.target.files && e.target.files[0]) {
+        const f = e.target.files[0];
+        dropText.innerHTML = `<span style="font-size:28px;">✅</span><div style="font-size:13px; color:#34d399; font-weight:700;">已读取文件: ${f.name}</div>`;
+        parseXLSXOrCSVFile(f, (parsedList) => {
+          loadedParsedStudents = parsedList;
+          dropText.innerHTML = `<span style="font-size:28px;">🎉</span><div style="font-size:14px; color:#34d399; font-weight:700;">成功解析 ${parsedList.length} 名学生记录！</div>`;
+        });
+      }
+    });
+
+    modal.querySelector('#btn-submit-file-import').addEventListener('click', () => {
+      let listToImport = loadedParsedStudents;
+      if (!listToImport && textarea.value.trim()) {
+        listToImport = parseCSVText(textarea.value.trim());
+      }
+      if (!listToImport || listToImport.length === 0) {
+        alert('⚠️ 请上传 XLSX/CSV 文件或粘贴名册文本！');
+        return;
+      }
+      const { createdCount, linkedCount, totalProcessed, linkedList } = authManager.batchAddStudentsToClass(listToImport, targetCls ? targetCls.id : null);
+      let tipMsg = targetCls
+        ? `🎉 名册导入完成！\n\n✅ 当前班级【${targetCls.name}】共计导入/就绪学生: ${totalProcessed} 人\n• 🆕 全新创建入库: ${createdCount} 人\n• 🔗 关联已有账号: ${linkedCount} 人`
+        : `🎉 学生总库导入完成！\n\n✅ 全平台总库共计导入学生: ${totalProcessed} 人\n• 🆕 全新创建入库: ${createdCount} 人\n• 🔄 更新已有账号: ${linkedCount} 人`;
+      if (linkedList && linkedList.length > 0) {
+        tipMsg += `\n\n💡 以下 ${linkedList.length} 位学生已存在于系统数据库：\n` + 
+          linkedList.map((s, idx) => `${idx + 1}. ${s.name} (学号: ${s.code})`).join('\n');
+      }
+      alert(tipMsg);
+      closeModal();
+      renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+    });
+  };
+
+  const btnImportFile = container.querySelector('#btn-v1-import-file');
+  if (btnImportFile && activeClass) {
+    btnImportFile.addEventListener('click', () => openBatchImportModal(activeClass));
+  }
+  const btnGlobalImportFile = container.querySelector('#btn-global-import-file');
+  if (btnGlobalImportFile) {
+    btnGlobalImportFile.addEventListener('click', () => openBatchImportModal(null));
   }
 
   const setupGroupModal = (editingGroupId = null) => {
