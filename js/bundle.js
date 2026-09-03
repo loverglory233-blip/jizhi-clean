@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260903_v1985
+ * Version: 20260903_v1990
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260903_v1985';
+  const APP_VERSION = '20260903_v1990';
   const APP_BUILD_DATE = '2026-09-03';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -14981,10 +14981,13 @@
       const currentStage = this.state.currentStage || 'stage1';
       if (!this.state.chatLogs[currentStage]) this.state.chatLogs[currentStage] = [];
 
-      const taskPrompt = `小组成员【${authorName}】在选题池${isModify ? '修改完善了' : '提出了新'}研究提案《${title}》。
-  请作为资深学术拍卖师，发表 60~80 字的【选题学术亮点速评与启发】：
-  ① 精准肯定该选题的研究切入点或实践价值；
-  ② 给出 1 点前瞻性探究启发，鼓励全组在研讨区就此交流！纯自然语言，60~80字，严禁代码块。`;
+      const taskPrompt = `小组成员【${authorName}】在选题池${isModify ? '修改完善了' : '提出了新'}提案《${title}》。
+  请作为资深学术拍卖师/备课引导师：
+  【最高审查红线】：先审查文本是否为乱码、无意义字符或空洞套话。若是，严禁虚构亮点，直接回复：“当前提交内容尚未形成可研讨的实质提案”，引导其交流思路或@拍卖师；
+  若内容真实有效，请给出 100~130 字专业点评：
+  ① 肯定其最出彩的 1~2 个具体优点（如研究切口/方法构想，或情境导入/学情破局点）；
+  ② 提出 1 个启发性落地建议。
+  严禁在末尾添加任何按钮指引，纯自然语言，100~130字。`;
 
       try {
         const resp = await callCozeAgentAPI('auctioneer', taskPrompt, { stage: 'stage1', topic: title });
