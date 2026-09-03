@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260903_v1920";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260903_v1920";
-import { callCozeAgentAPI } from "./agents.js?v=20260903_v1920";
-import { AuthManager } from "./auth.js?v=20260903_v1920";
-import { CloudSyncEngine } from "./sync.js?v=20260903_v1920";
-import { renderLoginView } from "./login.js?v=20260903_v1920";
-import { renderTeacherPortal } from "./teacher.js?v=20260903_v1920";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260903_v1920";
+} from "./constants.js?v=20260903_v1930";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260903_v1930";
+import { callCozeAgentAPI } from "./agents.js?v=20260903_v1930";
+import { AuthManager } from "./auth.js?v=20260903_v1930";
+import { CloudSyncEngine } from "./sync.js?v=20260903_v1930";
+import { renderLoginView } from "./login.js?v=20260903_v1930";
+import { renderTeacherPortal } from "./teacher.js?v=20260903_v1930";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260903_v1930";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260903_v1920";
+} from "./editor.js?v=20260903_v1930";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -511,13 +511,11 @@ export class App {
             const unsubmittedMembers = membersList.filter(m => !propList.some(p => isSameUser(m, p.author) || isSameUser(m, p.authorName) || p.author === m.id || (m.name && p.authorName === m.name)));
             const unsubmittedNames = unsubmittedMembers.map(m => m.name  ).join('、');
 
-            // ① 开场 3 分钟未动笔静默破冰（紧扣研究方向与任务要求）
-            // 🛡️ 智能感知：若最近 45 秒内学生在研讨区已有发言交流，适当顺延破冰提示，避免与学生即时发言撞车
+            // ① 开场 3 分钟【左侧无提案 且 右侧无讨论交流】双静默破冰启发
             const s1Chats = (this.state.chatLogs && this.state.chatLogs.stage1) ? this.state.chatLogs.stage1 : [];
-            const lastStudentMsg = [...s1Chats].reverse().find(m => m && m.sender && !AgentProfiles[m.sender] && m.sender !== 'system');
-            const hasRecentChat = lastStudentMsg && (nowMs - (lastStudentMsg._timeMs || 0) < 45000);
+            const studentChatsCount = s1Chats.filter(m => m && m.sender && !AgentProfiles[m.sender] && m.sender !== 'system').length;
 
-            if (!this.state.s1_3minBreakSent && elapsedSec >= 180 && propCount === 0 && !hasRecentChat) {
+            if (!this.state.s1_3minBreakSent && elapsedSec >= 180 && propCount === 0 && studentChatsCount === 0) {
               this.state.s1_3minBreakSent = true;
               const msg3Min = {
                 sender: 'auctioneer',
