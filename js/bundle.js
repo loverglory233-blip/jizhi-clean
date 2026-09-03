@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260903_v1855
+ * Version: 20260903_v1900
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260903_v1855';
+  const APP_VERSION = '20260903_v1900';
   const APP_BUILD_DATE = '2026-09-03';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -2198,15 +2198,17 @@
       if (!user) return { id: 'group_unassigned', name: '未分配小组' };
       const classes = this.getClasses();
       const uId = String(user.id || '').trim().toLowerCase();
+      const uName = String(user.name || '').trim().toLowerCase();
       const safeUserKey = user.id || 'unassigned';
 
       const checkMemberMatch = (m) => {
         if (!m) return false;
-        const mId = typeof m === 'object' ? m.id : m;
-        return mId && String(mId).trim().toLowerCase() === uId;
+        const mId = String(typeof m === 'object' ? (m.id || m.name || '') : m).trim().toLowerCase();
+        const mName = String(typeof m === 'object' ? (m.name || '') : '').trim().toLowerCase();
+        return (uId && mId === uId) || (uName && mName === uName);
       };
 
-      // 1. 若指定了班级 ID，优先在该班级内检索小组
+      // 1. 若指定了班级 ID，仅在指定班级内检索小组
       if (classId) {
         const targetClass = classes.find(c => c.id === classId);
         if (targetClass && Array.isArray(targetClass.groups)) {
@@ -2215,9 +2217,20 @@
             if ((g.members || []).some(checkMemberMatch)) return g;
           }
         }
+        return { id: `group_unassigned_${safeUserKey}`, name: '未分组（待教师分配）' };
       }
 
-      // 2. 智能全局容错检索：若指定班级未找到（或未指定班级），在学生关联的班级或全部班级中检索真实小组
+      // 2. 若未指定班级，优先在学生主班级中检索，其次在全部班级中检索
+      const primaryClassId = user.classId || (Array.isArray(user.classIds) && user.classIds[0]) || null;
+      if (primaryClassId) {
+        const pClass = classes.find(c => c.id === primaryClassId);
+        if (pClass && Array.isArray(pClass.groups)) {
+          for (const g of pClass.groups) {
+            if ((g.members || []).some(checkMemberMatch)) return g;
+          }
+        }
+      }
+
       for (const c of classes) {
         if (!Array.isArray(c.groups)) continue;
         for (const g of c.groups) {
@@ -8924,30 +8937,52 @@
       localStorage.setItem(dlKey, String(newDlMs));
     });
 
-    // 🏫 1. 严格按学生实际所属/修读的班级进行过滤（不在2班的学生绝不显示2班）
+    // 🏫 1. 严格且全方位解析当前学生所属/修读的所有班级（支持跨班级修读与无缝选班）
+    const curUserId = String(currentUser?.id || '').trim().toLowerCase();
+    const curUserName = String(currentUser?.name || '').trim().toLowerCase();
+    const userClassIdSet = new Set(
+      [
+        currentUser?.classId,
+        ...(Array.isArray(currentUser?.classIds) ? currentUser.classIds : [])
+      ].filter(Boolean)
+    );
+
     const myClasses = (classes || []).filter(c => {
-      if (currentUser?.classId && c.id === currentUser.classId) return true;
-      if (Array.isArray(currentUser?.classIds) && currentUser.classIds.includes(c.id)) return true;
+      if (!c || !c.id) return false;
+
+      // A. 用户对象自身绑定的 classId / classIds
+      if (userClassIdSet.has(c.id)) return true;
+
+      // B. 班级学生名册匹配 (studentIds) - 解决跨班级导入/添加时选班缺失的核心通道！
+      if (Array.isArray(c.studentIds) && curUserId) {
+        const inStudentIds = c.studentIds.some(sid => String(sid || '').trim().toLowerCase() === curUserId);
+        if (inStudentIds) return true;
+      }
+
+      // C. 班级学生对象列表匹配 (students)
+      if (Array.isArray(c.students)) {
+        const inStudents = c.students.some(s => {
+          const sId = String(typeof s === 'object' ? (s.id || s.name || '') : s).trim().toLowerCase();
+          const sName = String(typeof s === 'object' ? (s.name || '') : '').trim().toLowerCase();
+          return (curUserId && sId === curUserId) || (curUserName && sName === curUserName);
+        });
+        if (inStudents) return true;
+      }
+
+      // D. 班级协作小组组员匹配 (groups.members)
       if (Array.isArray(c.groups)) {
         for (const g of c.groups) {
           if (Array.isArray(g.members)) {
             const found = g.members.some(m => {
-              const mId = typeof m === 'object' ? (m.id || m.name) : m;
-              const mName = typeof m === 'object' ? m.name : '';
-              return mId === currentUser?.id || (mName && mName === currentUser?.name);
+              const mId = String(typeof m === 'object' ? (m.id || m.name || '') : m).trim().toLowerCase();
+              const mName = String(typeof m === 'object' ? (m.name || '') : '').trim().toLowerCase();
+              return (curUserId && mId === curUserId) || (curUserName && mName === curUserName);
             });
             if (found) return true;
           }
         }
       }
-      if (Array.isArray(c.students)) {
-        const inStudents = c.students.some(s => {
-          const sId = typeof s === 'object' ? (s.id || s.name) : s;
-          const sName = typeof s === 'object' ? s.name : '';
-          return sId === currentUser?.id || (sName && sName === currentUser?.name);
-        });
-        if (inStudents) return true;
-      }
+
       return false;
     });
 
