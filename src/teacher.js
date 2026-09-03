@@ -10,8 +10,8 @@ import {
   STORAGE_KEY_USERS_DB,
   TASK_GENRE_CONFIGS,
   AgentProfiles
-} from "./constants.js?v=20260903_v2175";
-import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, showGlobalBannerNotice } from "./utils.js?v=20260903_v2175";
+} from "./constants.js?v=20260904_v2176";
+import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, showGlobalBannerNotice } from "./utils.js?v=20260904_v2176";
 
 /* ==========================================================================
    7. TEACHER PORTAL RENDERER (LIVE WORKSPACE MIRROR & ANNOUNCEMENT READ MATRIX)
@@ -94,7 +94,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout) {
       return;
     }
 
-    if (!isDashboard && classTab === 'live_monitoring' && window.app && window.app.cloudSyncEngine) {
+    if (!isDashboard && (classTab === 'live_monitor' || classTab === 'live_monitoring') && window.app && window.app.cloudSyncEngine) {
       const currentCId = state.activeClassId || activeClass.id || null;
       let activeTaskId = state.activeTaskId || (currentClassTasks[0] ? currentClassTasks[0].id : `task_${currentCId}_default`);
       if (!activeTaskId || activeTaskId === 'task_default') {
@@ -130,17 +130,22 @@ export function renderTeacherPortal(container, authManager, state, onLogout) {
         const padName = `jizhi_${activeTaskId}_${currentGId}`;
         const lastEpHash = state._lastEpHash || '';
         const epRes = await fetch(`sync.php?action=get_pad_html&padId=${padName}&clientHash=${encodeURIComponent(lastEpHash)}`).then(r => r.json()).catch(() => null);
-        if (epRes && epRes.hash) state._lastEpHash = epRes.hash;
+        let padTextChanged = false;
+        if (epRes && epRes.hash) {
+          if (state._lastEpHash !== epRes.hash) {
+            state._lastEpHash = epRes.hash;
+            padTextChanged = true;
+          }
+        }
         let latestPadText = '';
         if (epRes && epRes.success && !epRes.unchanged && (epRes.html || epRes.text)) {
           latestPadText = epRes.html || epRes.text;
           if (!state.stage2) state.stage2 = {};
           state.stage2.unifiedContent = latestPadText;
+          padTextChanged = true;
         } else if (state.stage2?.unifiedContent) {
           latestPadText = state.stage2.unifiedContent;
         }
-
-
 
         const curT = authManager.getCurrentUser();
         const tToken = (curT && (curT.activeSessionId || curT.token)) || '';
@@ -168,6 +173,14 @@ export function renderTeacherPortal(container, authManager, state, onLogout) {
           }
 
           // ⚡ 只要服务端返回了最新组态数据，立即刷新教师监控视图，毫秒级呈现学生输入与状态！
+          const layout = container.querySelector('.teacher-portal-layout');
+          const curScroll = layout ? layout.scrollTop : 0;
+          state._teacherScrollTop = curScroll;
+          renderTeacherPortal(container, authManager, state, onLogout);
+          const nextLayout = container.querySelector('.teacher-portal-layout');
+          if (nextLayout) nextLayout.scrollTop = curScroll;
+          return;
+        } else if (padTextChanged) {
           const layout = container.querySelector('.teacher-portal-layout');
           const curScroll = layout ? layout.scrollTop : 0;
           state._teacherScrollTop = curScroll;
@@ -212,7 +225,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout) {
   const markTeacherActive = () => {
     const wasIdle = (Date.now() - window._lastTeacherActivity > 60000);
     window._lastTeacherActivity = Date.now();
-    if (wasIdle && !isDashboard && classTab === 'live_monitoring') {
+    if (wasIdle && !isDashboard && (classTab === 'live_monitor' || classTab === 'live_monitoring')) {
       teacherPullAndRefresh();
     }
   };

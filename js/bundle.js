@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260903_v2175
+ * Version: 20260904_v2176
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,8 +16,8 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260903_v2175';
-  const APP_BUILD_DATE = '2026-09-03';
+  const APP_VERSION = '20260904_v2176';
+  const APP_BUILD_DATE = '2026-09-04';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
   const STORAGE_KEY_USERS_DB = 'jizhi_pure_v10_users_db';
@@ -66,7 +66,7 @@
     },
     teacherLevel: 'dashboard', // 'dashboard' or 'class_workspace'
     teacherDashboardTab: 'classes', // 'classes' or 'global_students'
-    teacherClassTab: 'students_groups', // 'students_groups', 'tasks_resources', 'live_monitoring'
+    teacherClassTab: 'students_groups', // 'students_groups', 'tasks_resources', 'live_monitor'
     activeClassId: null,
     activeMonitorGroupId: null,
     members: {},
@@ -4872,7 +4872,7 @@
         return;
       }
 
-      if (!isDashboard && classTab === 'live_monitoring' && window.app && window.app.cloudSyncEngine) {
+      if (!isDashboard && (classTab === 'live_monitor' || classTab === 'live_monitoring') && window.app && window.app.cloudSyncEngine) {
         const currentCId = state.activeClassId || activeClass.id || null;
         let activeTaskId = state.activeTaskId || (currentClassTasks[0] ? currentClassTasks[0].id : `task_${currentCId}_default`);
         if (!activeTaskId || activeTaskId === 'task_default') {
@@ -4908,17 +4908,22 @@
           const padName = `jizhi_${activeTaskId}_${currentGId}`;
           const lastEpHash = state._lastEpHash || '';
           const epRes = await fetch(`sync.php?action=get_pad_html&padId=${padName}&clientHash=${encodeURIComponent(lastEpHash)}`).then(r => r.json()).catch(() => null);
-          if (epRes && epRes.hash) state._lastEpHash = epRes.hash;
+          let padTextChanged = false;
+          if (epRes && epRes.hash) {
+            if (state._lastEpHash !== epRes.hash) {
+              state._lastEpHash = epRes.hash;
+              padTextChanged = true;
+            }
+          }
           let latestPadText = '';
           if (epRes && epRes.success && !epRes.unchanged && (epRes.html || epRes.text)) {
             latestPadText = epRes.html || epRes.text;
             if (!state.stage2) state.stage2 = {};
             state.stage2.unifiedContent = latestPadText;
+            padTextChanged = true;
           } else if (state.stage2?.unifiedContent) {
             latestPadText = state.stage2.unifiedContent;
           }
-
-
 
           const curT = authManager.getCurrentUser();
           const tToken = (curT && (curT.activeSessionId || curT.token)) || '';
@@ -4946,6 +4951,14 @@
             }
 
             // ⚡ 只要服务端返回了最新组态数据，立即刷新教师监控视图，毫秒级呈现学生输入与状态！
+            const layout = container.querySelector('.teacher-portal-layout');
+            const curScroll = layout ? layout.scrollTop : 0;
+            state._teacherScrollTop = curScroll;
+            renderTeacherPortal(container, authManager, state, onLogout);
+            const nextLayout = container.querySelector('.teacher-portal-layout');
+            if (nextLayout) nextLayout.scrollTop = curScroll;
+            return;
+          } else if (padTextChanged) {
             const layout = container.querySelector('.teacher-portal-layout');
             const curScroll = layout ? layout.scrollTop : 0;
             state._teacherScrollTop = curScroll;
@@ -4990,7 +5003,7 @@
     const markTeacherActive = () => {
       const wasIdle = (Date.now() - window._lastTeacherActivity > 60000);
       window._lastTeacherActivity = Date.now();
-      if (wasIdle && !isDashboard && classTab === 'live_monitoring') {
+      if (wasIdle && !isDashboard && (classTab === 'live_monitor' || classTab === 'live_monitoring')) {
         teacherPullAndRefresh();
       }
     };
@@ -8726,7 +8739,7 @@
           const newClassesJson = localStorage.getItem(STORAGE_KEY_CLASSES) || '[]';
           if (oldTasksJson !== newTasksJson || oldAnnsJson !== newAnnsJson || oldClassesJson !== newClassesJson) {
             if (document.activeElement?.id !== 'sel-student-class-switch') {
-              renderStudentTaskPortal(container, authManager, state, onSelectTask, onLogout, onSwitchTeacher, onOpenAnnModal, onOpenSurveyModal);
+              renderStudentTaskPortal(container, authManager, state, onSelectTask, onLogout, onOpenAnnModal, onOpenSurveyModal);
               return; // 重渲染会重建整套循环，此处无需再自行调度
             }
           }
