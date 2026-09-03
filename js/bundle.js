@@ -1803,7 +1803,7 @@
       localStorage.removeItem(STORAGE_KEY_USER);
     }
 
-    createClass(className, classCode = null) {
+    createClass(className) {
       const classes = this.getClasses();
       const cleanName = (className || '').trim() || '新教学班';
       if (classes.some(c => (c.name || '').trim().toLowerCase() === cleanName.toLowerCase())) {
@@ -1812,7 +1812,6 @@
       const newClass = {
         id: 'class_' + Date.now(),
         name: cleanName,
-        code: classCode || ('MET-2026-' + (classes.length + 1).toString().padStart(2, '0')),
         studentIds: [],
         groups: []
       };

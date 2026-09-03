@@ -46,12 +46,15 @@ function initDatabaseTables() {
         $sql3 = "CREATE TABLE IF NOT EXISTS `classes` (
             `id` VARCHAR(64) PRIMARY KEY,
             `name` VARCHAR(128) NOT NULL,
-            `code` VARCHAR(64) UNIQUE NOT NULL,
             `student_ids` LONGTEXT,
             `groups_data` LONGTEXT,
             `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;";
         @$pdo->exec($sql3);
+
+        // 🛡️ 自动执行 classes 物理清理：若存在历史遗留的 code 列与唯一索引，自动物理剔除
+        try { @$pdo->exec("ALTER TABLE `classes` DROP INDEX `code`"); } catch (\Throwable $e) {}
+        try { @$pdo->exec("ALTER TABLE `classes` DROP COLUMN `code`"); } catch (\Throwable $e) {}
 
         // classes 表初始化完成，初始为 0 班级，由任课教师在管理界面自主创建与配置
 
@@ -83,8 +86,8 @@ function initDatabaseTables() {
             `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;";
         @$pdo->exec($sql5);
-        @$pdo->exec("ALTER TABLE `announcements` ADD COLUMN `attachment` LONGTEXT NULL");
-        @$pdo->exec("ALTER TABLE `announcements` ADD COLUMN `confirmed_members` LONGTEXT NULL");
+        try { @$pdo->exec("ALTER TABLE `announcements` ADD COLUMN `attachment` LONGTEXT NULL"); } catch (\Throwable $e) {}
+        try { @$pdo->exec("ALTER TABLE `announcements` ADD COLUMN `confirmed_members` LONGTEXT NULL"); } catch (\Throwable $e) {}
 
         // 6. 学术参考范文库表 (reference_papers)
         $sql6 = "CREATE TABLE IF NOT EXISTS `reference_papers` (

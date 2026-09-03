@@ -1485,7 +1485,6 @@ if ($action === 'get_global_meta') {
                         $aggregatedClasses[] = [
                             'id' => $cr['id'],
                             'name' => $cr['name'],
-                            'code' => $cr['code'],
                             'studentIds' => json_decode($cr['student_ids'] ?? '[]', true) ?: [],
                             'groups' => json_decode($cr['groups_data'] ?? '[]', true) ?: []
                         ];
@@ -1794,16 +1793,15 @@ if ($action === 'save_global_meta' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
                 // 🛡️ 实体表实时入库：将所有班级 classes 100% 同步 upsert 至 classes 实体表
                 if (isset($decoded['classes']) && is_array($decoded['classes'])) {
-                    $stmtClsUpsert = $pdo->prepare("INSERT INTO `classes` (`id`, `name`, `code`, `student_ids`, `groups_data`)
-                        VALUES (:id, :nm, :code, :sids, :gdata)
-                        ON DUPLICATE KEY UPDATE `name`=VALUES(`name`), `code`=VALUES(`code`), `student_ids`=VALUES(`student_ids`), `groups_data`=VALUES(`groups_data`)");
+                    $stmtClsUpsert = $pdo->prepare("INSERT INTO `classes` (`id`, `name`, `student_ids`, `groups_data`)
+                        VALUES (:id, :nm, :sids, :gdata)
+                        ON DUPLICATE KEY UPDATE `name`=VALUES(`name`), `student_ids`=VALUES(`student_ids`), `groups_data`=VALUES(`groups_data`)");
                     foreach ($decoded['classes'] as $cls) {
                         $cid = $cls['id'] ?? ('class_' . uniqid());
                         $cname = $cls['name'] ?? '教学班';
-                        $ccode = $cls['code'] ?? $cid;
                         $sids = json_encode($cls['studentIds'] ?? [], JSON_UNESCAPED_UNICODE);
                         $gdata = json_encode($cls['groups'] ?? [], JSON_UNESCAPED_UNICODE);
-                        $stmtClsUpsert->execute([':id' => $cid, ':nm' => $cname, ':code' => $ccode, ':sids' => $sids, ':gdata' => $gdata]);
+                        $stmtClsUpsert->execute([':id' => $cid, ':nm' => $cname, ':sids' => $sids, ':gdata' => $gdata]);
                     }
                 }
 
