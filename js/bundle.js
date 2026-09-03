@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260903_v2125
+ * Version: 20260903_v2130
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260903_v2125';
+  const APP_VERSION = '20260903_v2130';
   const APP_BUILD_DATE = '2026-09-03';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -11429,6 +11429,7 @@
           <div style="font-size:13px; color:#64748b; line-height:1.6;">正方委员正在提取立论亮点，反方委员正在研拟针对实质询。<br>【答辩与终稿修改清单】即将在此生成，并同步呈现在右侧研讨区，请稍候！</div>
         </div>
       `;
+    }
     return s3.feedbackItems.map((item, idx) => {
       const isProp = item.role === 'proponent';
       const hasResponse = !!(item.response && item.response.trim());
@@ -12269,6 +12270,8 @@
           actionBar.innerHTML = `
             <div style="background:#f0fdf4; border:1px solid #bbf7d0; color:#166534; padding:6px 14px; border-radius:16px; font-weight:700; font-size:12px; display:inline-flex; align-items:center; gap:6px;">
               📜 公约草案已全部生成！👉 请全员在左侧公约下方核对并签署 (${confirmedCount}/${totalCount} 人已签)
+            </div>
+          `;
         } else if (elapsedSec >= 13 * 60 && s1.contractStep !== 'completed' && !s1.contract?.isDraftGenerated && !s1.contract?.isConfirmed) {
           actionBar.style.display = 'block';
           const isGenerating = !!(window.app && window.app._isGeneratingContract);
