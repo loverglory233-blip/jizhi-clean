@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260903_v1945
+ * Version: 20260903_v1950
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260903_v1945';
+  const APP_VERSION = '20260903_v1950';
   const APP_BUILD_DATE = '2026-09-03';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -14045,14 +14045,14 @@
                 this._lastNudgeActivityTime['s2_consistency'] = lastStudentMsgAfterChecklistTime;
               }
 
-              // ── ① 3 分钟没讨论：审稿编辑学术破冰点拨 ──
-              const exist3mNudge = s2Chats.some(m => m && (m.text?.includes('清单修改研讨点拨') || m.text?.includes('一致性研讨点拨')));
-              if (!exist3mNudge && silenceAfterChecklist >= 180000 && s2.meetingStep === 'discussing_checklist') {
+              // ── ① 3 分钟没讨论：责任编辑一致性研讨破冰点拨 ──
+              const exist3mNudge = s2Chats.some(m => m && (m.text?.includes('一致性研讨点拨') || m.text?.includes('自查研讨点拨')));
+              if (!exist3mNudge && silenceAfterChecklist >= 180000 && !s2.isDraftConfirmed && (s2.pendingReviewing || this.state.stage2PendingReviewing)) {
                 this._nudgeCounts['s2_consistency_silence_3m'] = 1;
                 const msg = {
-                  sender: 'reviewingEditor',
-                  senderName: '学术质量 · 审稿编辑',
-                  text: `📝 【审稿编辑·清单修改研讨点拨】：二审修正清单已下发！请大家对照清单中指出的学术诊断要点，在讨论区充分商定具体的修改对策与落实方案哦～`,
+                  sender: 'managingEditor',
+                  senderName: '协同调度 · 责任编辑',
+                  text: `🤝 【责任编辑·一致性研讨点拨】：自查研判已下发！请大家对照刚才自查暴露的前后脱节与章节偏离，在讨论区充分商定修改对策与对齐思路哦～`,
                   timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
                   _timeMs: now
                 };
@@ -14065,14 +14065,14 @@
                 return;
               }
 
-              // ── ② 6 分钟仍没讨论：审稿编辑强化收拢催促 ──
-              const exist6mNudge = s2Chats.some(m => m && (m.text?.includes('修改对策收拢提醒') || m.text?.includes('研讨收拢提醒')));
-              if (!exist6mNudge && silenceAfterChecklist >= 360000 && s2.meetingStep === 'discussing_checklist') {
+              // ── ② 6 分钟仍没讨论/未收拢：责任编辑催促收拢并交棒 ──
+              const exist6mNudge = s2Chats.some(m => m && (m.text?.includes('一致性研讨收拢提醒') || m.text?.includes('研讨收拢提醒')));
+              if (!exist6mNudge && silenceAfterChecklist >= 360000 && !s2.isDraftConfirmed && (s2.pendingReviewing || this.state.stage2PendingReviewing)) {
                 this._nudgeCounts['s2_consistency_silence_6m'] = 1;
                 const msg = {
-                  sender: 'reviewingEditor',
-                  senderName: '学术质量 · 审稿编辑',
-                  text: `⏳ 【审稿编辑·修改对策收拢提醒】：针对清单的修改研讨已进行 6 分钟！请全组同学抓紧对齐修改落实方案。商量差不多后，请点击聊天框上方的【📝 讨论差不多了？让审稿编辑总结】按钮，我将为大家提炼修改要点并指导回到正文继续撰写！`,
+                  sender: 'managingEditor',
+                  senderName: '协同调度 · 责任编辑',
+                  text: `⏳ 【责任编辑·一致性研讨收拢提醒】：全组针对脱节问题的研讨已进行 6 分钟！请抓紧对齐修改思路。商量差不多后，请点击聊天框上方的【💡 讨论差不多了？让责任编辑总结】按钮，我将为大家提炼小结并请审稿编辑下发《修正清单》！`,
                   timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
                   _timeMs: now
                 };
@@ -14085,52 +14085,18 @@
                 return;
               }
 
-              // ── ③ 强兜底智能提炼回填并顺推：讨论持续满 10 分钟（长任务 20 分钟）自动触发 ──
-              const existFallback = s2Chats.some(m => m && (m.text?.includes('二审修改决议') || m.text?.includes('二审修改落实要点')));
+              // ── ③ 强兜底智能提炼回填并交棒审稿编辑：讨论持续满 10 分钟（长任务 20 分钟）自动触发 ──
+              const existFallback = s2Chats.some(m => m && (m.text?.includes('一致性研讨小结') || m.text?.includes('二审修正清单')));
               const consistencyFallbackMs = isLargeTask ? 1200000 : 600000;
               const consistencyFallbackMinText = isLargeTask ? '20' : '10';
-              if (!existFallback && checklistElapsed >= consistencyFallbackMs && s2.meetingStep === 'discussing_checklist' && !this._s2MeetingAutoFallbackRunning) {
+              if (!existFallback && checklistElapsed >= consistencyFallbackMs && (s2.pendingReviewing || this.state.stage2PendingReviewing) && !this._s2MeetingAutoFallbackRunning) {
                 const nudgeKey = 's2_consistency_auto_fallback';
                 if (!this._nudgeCounts[nudgeKey]) {
                   this._nudgeCounts[nudgeKey] = 1;
                   this._s2MeetingAutoFallbackRunning = true;
-                  s2.meetingStep = 'completed';
-                  s2.meetingCompletedTime = Date.now();
-                  s2.reviewMilestone = 'second_review_done';
-                  this.syncStage2();
-
                   try {
-                    const topic = (this.state.stage1 && this.state.stage1.mergedTitle) ? this.state.stage1.mergedTitle : '本组课题';
-                    const userLogs = [...s2Chats].filter(m => m && m.sender && !AgentProfiles[m.sender] && m.sender !== 'system');
-                    const chatSnippet = userLogs.map(m => `${m.senderName || m.sender}: ${m.text}`).join('\n') || '全组已针对修正清单展开讨论';
-                    const fallbackPrompt = `全组已收到《二审修正清单》，针对清单的修改方案讨论已持续 ${consistencyFallbackMinText} 分钟。
-  【论文题目】: ${topic}
-  【正文草稿参考】: ${plainText.slice(0, 1500)}
-  【组内讨论记录】: ${chatSnippet}
-
-  请作为审稿编辑，结合学术规范代为提炼形成【二审修改落实决议】（120~150字，严禁出现“分工”字眼）：
-  ① 明确全篇修改要点与章节对齐要求；
-  ② 提示全组回到正文集中修改落实，冲刺定稿！（纯自然语言，120~150字，严禁输出代码块）`;
-
-                    const resp = await callCozeAgentAPI('reviewingEditor', fallbackPrompt, { stage: 'stage2', topic });
-                    let fallbackText = (resp && resp.trim().length > 0)
-                      ? resp.trim()
-                      : `📝 【审稿编辑·二审修改落实决议】：讨论时间已满 ${consistencyFallbackMinText} 分钟，为确保正文推进节奏，审稿编辑已为大家自动提炼【二审修改落实决议】：① 统领各章节核心术语，消除口语化表述；② 集中细化研究方法操作化步骤与测量工具；③ 补全未完成章节。请全组成员回到左侧正文集中修改落实，冲刺终审定稿！`;
-                    if (!fallbackText.startsWith('📝')) fallbackText = `📝 【审稿编辑·二审修改落实决议】：${fallbackText}`;
-
-                    const autoNoticeMsg = {
-                      sender: 'reviewingEditor',
-                      senderName: '学术质量 · 审稿编辑',
-                      text: fallbackText,
-                      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                      _timeMs: now
-                    };
-                    if (!this.state.chatLogs.stage2) this.state.chatLogs.stage2 = [];
-                    this.state.chatLogs.stage2.push(autoNoticeMsg);
-                    this.syncChatLogs();
-                    this.syncStage2();
-                    if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
-                    renderChat(this.state);
+                    const autoSummary = `🤝 【责任编辑·一致性研讨小结】：研讨时间已满 ${consistencyFallbackMinText} 分钟，为确保正文推进节奏，责任编辑已为大家自动提炼对齐共识并收拢研讨！下面有请审稿编辑通读全文草稿，为大家进行深度学术质检并下发《二审修正清单》！`;
+                    await this.triggerReviewingEditorAfterDiscussion(autoSummary);
                   } catch (e) {
                     console.warn('s2_consistency_auto_fallback error:', e);
                   } finally {
