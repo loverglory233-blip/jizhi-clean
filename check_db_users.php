@@ -58,6 +58,18 @@ try {
                     ':r' => $urole
                 ]);
             }
+        // 🛡️ 彻底物理清除已从 main_meta 注销删除的学生账号
+        $validUids = ['1001'];
+        foreach ($gUsers as $gu) {
+            $uid = trim($gu['id'] ?? ($gu['studentCode'] ?? ($gu['username'] ?? '')));
+            if (!empty($uid)) $validUids[] = $uid;
+        }
+        if (!empty($validUids)) {
+            $inClause = implode(',', array_fill(0, count($validUids), '?'));
+            $stmtCleanUsers = $pdo->prepare("DELETE FROM `users` WHERE `role` != 'teacher' AND `id` NOT IN ($inClause)");
+            $stmtCleanUsers->execute($validUids);
+        } else {
+            $pdo->exec("DELETE FROM `users` WHERE `role` != 'teacher'");
         }
 
         // 3. 深度自愈 classes 班级表
