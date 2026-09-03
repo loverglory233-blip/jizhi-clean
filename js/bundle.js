@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260903_v1508
+ * Version: 20260903_v1510
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260903_v1508';
+  const APP_VERSION = '20260903_v1510';
   const APP_BUILD_DATE = '2026-09-03';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -454,7 +454,7 @@
       const code = colIndexMap.codeIdx !== undefined && rowItems[colIndexMap.codeIdx] ? String(rowItems[colIndexMap.codeIdx]).trim() : '';
       const pwd = colIndexMap.pwdIdx !== undefined && rowItems[colIndexMap.pwdIdx] ? String(rowItems[colIndexMap.pwdIdx]).trim() : '123';
       if (name && code) {
-        return { id: code, name, studentCode: code, username: code, customPassword: pwd || '123' };
+        return { id: code, name, password: pwd || '123' };
       }
     }
 
@@ -480,7 +480,7 @@
     }
 
     if (name && studentCode) {
-      return { id: studentCode, name, studentCode, username: studentCode, customPassword: password || '123' };
+      return { id: studentCode, name, password: password || '123' };
     }
     return null;
   }
