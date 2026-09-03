@@ -13,14 +13,14 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260903_v1705";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260903_v1705";
-import { callCozeAgentAPI } from "./agents.js?v=20260903_v1705";
-import { AuthManager } from "./auth.js?v=20260903_v1705";
-import { CloudSyncEngine } from "./sync.js?v=20260903_v1705";
-import { renderLoginView } from "./login.js?v=20260903_v1705";
-import { renderTeacherPortal } from "./teacher.js?v=20260903_v1705";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260903_v1705";
+} from "./constants.js?v=20260903_v1710";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260903_v1710";
+import { callCozeAgentAPI } from "./agents.js?v=20260903_v1710";
+import { AuthManager } from "./auth.js?v=20260903_v1710";
+import { CloudSyncEngine } from "./sync.js?v=20260903_v1710";
+import { renderLoginView } from "./login.js?v=20260903_v1710";
+import { renderTeacherPortal } from "./teacher.js?v=20260903_v1710";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260903_v1710";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -29,7 +29,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260903_v1705";
+} from "./editor.js?v=20260903_v1710";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -728,6 +728,7 @@ export class App {
     const appEl = document.getElementById('app');
 
     if (!currentUser) {
+      document.body.className = 'app-login-mode';
       appEl.className = 'app-login-mode';
       renderLoginView(appEl, this.authManager, async () => {
         const u = this.authManager.getCurrentUser();
@@ -748,6 +749,7 @@ export class App {
     }
 
     if (currentUser.role === 'teacher') {
+      document.body.className = 'app-teacher-mode';
       appEl.className = 'app-teacher-mode';
       renderTeacherPortal(
         appEl, this.authManager, this.state,
@@ -768,6 +770,7 @@ export class App {
       const currentGroupId = activeGroupObj?.id || currentUser?.groupId || null;
 
       if (this.state.studentViewMode === 'task_list') {
+        document.body.className = 'app-student-portal-mode';
         appEl.className = 'app-student-portal-mode';
         renderStudentTaskPortal(
           appEl, this.authManager, this.state,
@@ -837,6 +840,7 @@ export class App {
 
       const membersList = Object.values(this.state.members || {});
 
+      document.body.className = 'app-student-workspace-mode';
       appEl.className = 'app-student-mode';
       appEl.innerHTML = `
         <header class="app-header" id="app-header"></header>
