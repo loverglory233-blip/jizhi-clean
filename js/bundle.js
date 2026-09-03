@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260903_v2065
+ * Version: 20260903_v2070
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260903_v2065';
+  const APP_VERSION = '20260903_v2070';
   const APP_BUILD_DATE = '2026-09-03';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -17911,7 +17911,7 @@
         this.state.activeAgentAnalyzing = {
           icon: '📝',
           title: '【审稿编辑】正在进行初审破题把脉质检...',
-          detail: '正在通读已起草的引言与文献综述正文切片，审查研究问题界定与学术规范...'
+          detail: '正在全量通读当前已起草的全部正文段落，以开篇破题为主线进行通盘学术把脉...'
         };
         this.renderStudentWorkspace();
         renderChat(this.state);
@@ -17924,17 +17924,18 @@
             const firstReviewPrompt = `${genreDesc}
 
   【课题】：《${topic}》
-  【当前正文草稿（写到哪审到哪）】：
+  【当前正文已起草的全部草稿内容（全量通读）】：
   ${contentSnippet}
 
-  请结合上述文体考查维度，发表 120~150 字一审破题把脉学术质检意见（严格遵循【诊断问题 + 改进建议】双结构，严禁代码块，严禁出现“分工”字眼）：
-  ①【立意与问题聚焦】
-  - 诊断问题：审查已起草内容，结合该文体特性指出核心切入点与关键问题是否找准；
-  - 改进建议：给出具体的聚焦与深化对策；
-  ②【学术语体与术语规范】
-  - 诊断问题：指出草稿中口语化表述或术语不一致之处；
-  - 改进建议：给出统一规范建议。
-  （纯自然语言，120~150字）`;
+  请作为审稿编辑，全面通读当前学生已起草的【全部段落与章节】（写到哪审到哪，既以开篇破题立论为主线，又必须通盘审阅已写出的后续方法/设计/反思等所有内容），发表 130~160 字的一审破题把脉学术质检意见：
+  严格遵循【诊断问题 + 改进建议】双结构（严禁代码块，【绝对严禁出现“分工”字眼】）：
+  ①【开篇破题、立意聚焦与全文衔接】
+  - 诊断问题：通读全篇已写内容，审查开头核心研究问题是否找准、概念界定是否清晰，并指出其与后续已写章节之间是否存在脱节或偏离；
+  - 改进建议：给出针对开篇立论与前后章节衔接的具体聚焦与深化对策；
+  ②【学术语体、术语规范与论证严密性】
+  - 诊断问题：通盘指出当前草稿中所有已写段落存在的口语化表述、术语不统一或论证缺乏实证支撑之处；
+  - 改进建议：给出全篇通用的学术规范化与修改建议。
+  （纯自然语言输出，130~160字）`;
             let firstReviewText = await callCozeAgentAPI('reviewingEditor', firstReviewPrompt, { stage: 'stage2', topic, actualDoc: contentSnippet, taskType });
             if (!firstReviewText || firstReviewText.trim().length === 0) {
               firstReviewText = `📝 【审稿编辑·一审破题把脉】：通读了全组目前起草的正文草稿，提出以下初审质检意见：\n①【立意与问题聚焦】\n· 诊断问题：文献综述梳理充分，但末尾未精准聚焦初中数学课例操作化的核心缺口（Research Gap）；\n· 改进建议：收拢综述结论，直接引出核心研究问题与假设。\n②【学术语体与术语口径】\n· 诊断问题：部分段落出现第一人称口语化表述，术语叫法略有出入；\n· 改进建议：统一全篇学术术语口径，采用规范学术第三人称。请全组参考后继续稳步撰写！`;
