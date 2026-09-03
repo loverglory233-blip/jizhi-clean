@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260903_v2090";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260903_v2090";
-import { callCozeAgentAPI } from "./agents.js?v=20260903_v2090";
-import { AuthManager } from "./auth.js?v=20260903_v2090";
-import { CloudSyncEngine } from "./sync.js?v=20260903_v2090";
-import { renderLoginView } from "./login.js?v=20260903_v2090";
-import { renderTeacherPortal } from "./teacher.js?v=20260903_v2090";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260903_v2090";
+} from "./constants.js?v=20260903_v2095";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260903_v2095";
+import { callCozeAgentAPI } from "./agents.js?v=20260903_v2095";
+import { AuthManager } from "./auth.js?v=20260903_v2095";
+import { CloudSyncEngine } from "./sync.js?v=20260903_v2095";
+import { renderLoginView } from "./login.js?v=20260903_v2095";
+import { renderTeacherPortal } from "./teacher.js?v=20260903_v2095";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260903_v2095";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260903_v2090";
+} from "./editor.js?v=20260903_v2095";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -6243,14 +6243,22 @@ ${contentSnippet}
       const managingName = isInst ? '备课组长' : '责任编辑';
       const reviewingName = isInst ? '教研专家' : '审稿编辑';
 
-      const managingPrompt = `【全员自查打卡汇总数据】：
-- 构思偏离章节：${hasIdeationDev ? ideationFocusText : '无'}
-- 前后脱节章节：${hasTransDev ? transFocusText : '无'}
-- 语言规范/术语章节：${hasStyleDev ? styleFocusText : '无'}
-- 核心瓶颈：${primaryAcademicB}
+      const genreDesc = getGenrePromptDescriptor(taskType);
+      const managingPrompt = `${genreDesc}
+
+【全组半程自查打卡真实汇报数据】：
+- 构思偏离/目标脱节环节：${hasIdeationDev ? ideationFocusText : '无'}
+- 前后逻辑脱节环节：${hasTransDev ? transFocusText : '无'}
+- 语言语体/术语规范问题环节：${hasStyleDev ? styleFocusText : '无'}
+- 组员反馈的核心瓶颈：${primaryAcademicB}
+- 组员自查填写的具体聚焦诉求：${questionsList}
 - 质量自评均分：${avgOverallRating} 星
 
-请依据${managingName}自查研判分流规则（A1/A2/B/C分支），发表 120~150 字自查研判与对齐引导（纯自然语言，严禁定性结论，严禁点名指责；有分歧末尾提示点击【💡 讨论差不多了？让${managingName}总结】，无分歧直接交棒@${reviewingName}）。`;
+请作为责任编辑（过程学伴），发表 120~150 字的【自查研判与一致性研讨号召】：
+① 肯定全组成员已完成自查互阅打卡；
+② 【全部如实说明·绝不隐瞒】：全面、客观梳理组员在自查中汇报的各项脱节痛点（凡是学生汇报的脱节痛点如：${transFocusText}、${primaryAcademicB} 等，均须全部逐一说明，绝不遗漏）；
+③ 【号召一致性研讨】：号召全组成员在讨论区围绕上述脱节环节展开深度对齐研讨，商定统一的衔接方案；商定差不多后点击下方【💡 讨论差不多了？让责任编辑总结】！
+（纯自然语言输出，120~150字，【绝对严禁出现“分工”字眼】）`;
 
       let managingText = '';
       try {
