@@ -3,7 +3,7 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles, PresetMessages, STORAGE_KEY_USER } from './constants.js?v=20260903_v1955';
+import { AgentProfiles, PresetMessages, STORAGE_KEY_USER } from './constants.js?v=20260903_v1960';
 
 export async function callCozeAgentAPI(botKey, userQuery, currentContext = {}) {
   const profile = AgentProfiles[botKey] || { name: '智能体专家', avatar: '🤖' };
@@ -40,7 +40,7 @@ export async function callCozeAgentAPI(botKey, userQuery, currentContext = {}) {
           query: enrichedQuery,
           stage: currentContext.stage || '',
           topic: currentContext.topic || '',
-          actual_doc: currentContext.actualDoc || ''
+          actual_doc: currentContext.actualDoc || currentContext.actual_doc || ''
         })
       });
 
