@@ -1163,11 +1163,7 @@ export class AuthManager {
           });
         }
       }
-
-      // 如果该学生已不属于任何其他班级，自动彻底从用户库注销
-      if (student.classIds.length === 0) {
-        users = users.filter(u => u.id !== userId);
-      }
+      // 从班级移出后，学生账号依然保留在平台总库中，可在【加入已有学生】中重新分配或彻底注销
     }
 
     localStorage.setItem(STORAGE_KEY_USERS_DB, JSON.stringify(users));
