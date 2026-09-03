@@ -10,8 +10,8 @@ import {
   STORAGE_KEY_USERS_DB,
   TASK_GENRE_CONFIGS,
   AgentProfiles
-} from "./constants.js?v=20260903_v2155";
-import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, showGlobalBannerNotice } from "./utils.js?v=20260903_v2155";
+} from "./constants.js?v=20260903_v2160";
+import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, showGlobalBannerNotice } from "./utils.js?v=20260903_v2160";
 
 /* ==========================================================================
    7. TEACHER PORTAL RENDERER (LIVE WORKSPACE MIRROR & ANNOUNCEMENT READ MATRIX)
@@ -362,7 +362,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout) {
           state.monitorPanorama = panRes.groups;
           if (panRes.hash) state._lastMonitorHash = panRes.hash;
 
-          // 🎯 核心修复：以 Etherpad 权威最新正文为主，杜绝被旧版全量快照覆盖导致字数在 5000 与 8000 间反复跳动！
+          // 🎯 核心修复：以 Etherpad 权威最新正文为主，杜绝被旧版全量快照覆盖
           const currentGroupData = panRes.groups[currentGId];
           if (currentGroupData) {
             state.stage1 = currentGroupData.stage1 || { proposals: [], votes: {}, hasVoted: {}, contract: {} };
@@ -377,34 +377,18 @@ export function renderTeacherPortal(container, authManager, state, onLogout) {
             state.currentStage = currentGroupData.currentStage || 'stage1';
             state.isFinalSubmitted = !!currentGroupData.isFinalSubmitted;
           }
+
+          // ⚡ 只要服务端返回了最新组态数据，立即刷新教师监控视图，毫秒级呈现学生输入与状态！
+          const layout = container.querySelector('.teacher-portal-layout');
+          const curScroll = layout ? layout.scrollTop : 0;
+          state._teacherScrollTop = curScroll;
+          renderTeacherPortal(container, authManager, state, onLogout);
+          const nextLayout = container.querySelector('.teacher-portal-layout');
+          if (nextLayout) nextLayout.scrollTop = curScroll;
+          return;
         }
       } catch (e) {
         console.warn('[TeacherMonitor] 监控拉取警告:', e);
-      }
-
-      const newFingerprint = JSON.stringify({
-        cStage: state.currentStage,
-        s1Len: (state.stage1?.proposals || []).length,
-        s1Title: state.stage1?.mergedTitle,
-        s1Votes: Object.keys(state.stage1?.votes || {}).length,
-        s1Conf: Object.keys(state.stage1?.contract?.confirmedMembers || {}).length,
-        s2Conf: Object.keys(state.stage2?.confirmedMembers || {}).length,
-        s2DraftConf: !!state.stage2?.isDraftConfirmed,
-        s3Len: (state.stage3?.feedbackItems || []).length,
-        chat1: (state.chatLogs?.stage1 || []).length,
-        chat2: (state.chatLogs?.stage2 || []).length,
-        chat3: (state.chatLogs?.stage3 || []).length,
-        panorama: getPanoDigest(state.monitorPanorama)
-      });
-
-      if (oldFingerprint !== newFingerprint) {
-        const layout = container.querySelector('.teacher-portal-layout');
-        const curScroll = layout ? layout.scrollTop : 0;
-        state._teacherScrollTop = curScroll;
-        renderTeacherPortal(container, authManager, state, onLogout);
-        const nextLayout = container.querySelector('.teacher-portal-layout');
-        if (nextLayout) nextLayout.scrollTop = curScroll;
-        return; // 重绘后自动重新调度
       }
     }
 
@@ -414,7 +398,6 @@ export function renderTeacherPortal(container, authManager, state, onLogout) {
         await authManager.pullGlobalMeta();
         const newAnnsJson = localStorage.getItem(STORAGE_KEY_ANNOUNCEMENTS) || '[]';
         if (oldAnnsJson !== newAnnsJson) {
-          // 🛡️ 若教师正打开弹窗或编辑中，绝不全量重刷页面造成闪烁与输入回退
           if (document.querySelector('.modal-overlay') || document.querySelector('#modal-extend-deadline')) {
             // 延缓至弹窗关闭后再刷
           } else {
@@ -424,14 +407,14 @@ export function renderTeacherPortal(container, authManager, state, onLogout) {
             renderTeacherPortal(container, authManager, state, onLogout);
             const nextLayout = container.querySelector('.teacher-portal-layout');
             if (nextLayout) nextLayout.scrollTop = curScroll;
-            return; // 重渲染会重建循环
+            return;
           }
         }
       } catch (e) {}
     }
 
-    const isTeacherIdle = () => document.hidden || (Date.now() - (window._lastTeacherActivity || Date.now()) > 60000);
-    const tInterval = isTeacherIdle() ? 15000 : 1800;
+    // ⚡ 教师同屏实时监控模式下，只要标签页在前台，保持 1.5 秒极速实时刷新
+    const tInterval = document.hidden ? 10000 : 1500;
     window._teacherPortalSyncTimer = setTimeout(teacherPullAndRefresh, tInterval);
   };
   if (window._teacherPortalSyncTimer) clearTimeout(window._teacherPortalSyncTimer);
