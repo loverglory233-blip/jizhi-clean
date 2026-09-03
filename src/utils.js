@@ -728,7 +728,7 @@ export function enforceEtherpadReadonly(iframe) {
       const doc = iframe.contentDocument;
       if (!doc) return;
 
-      const toolbar = doc.querySelector('.toolbar') || doc.querySelector('#editbar') || doc.querySelector('#menu_left') || doc.querySelector('#menu_right');
+      const toolbar = doc.querySelector('.toolbar') || doc.querySelector('#editbar') || doc.querySelector('#menu_left') || doc.querySelector('#menu_right') || doc.querySelector('.menu');
       if (toolbar) toolbar.style.setProperty('display', 'none', 'important');
 
       const footer = doc.querySelector('#footer') || doc.querySelector('.bottom-bar') || doc.querySelector('#chatbox');
@@ -756,7 +756,15 @@ export function enforceEtherpadReadonly(iframe) {
     }
   };
 
-  iframe.addEventListener('load', tryLock, { once: true });
+  iframe.addEventListener('load', () => {
+    tryLock();
+    let attempts = 0;
+    const iv = setInterval(() => {
+      attempts++;
+      tryLock();
+      if (attempts >= 10) clearInterval(iv);
+    }, 200);
+  });
   tryLock();
 }
 
