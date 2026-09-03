@@ -7,8 +7,8 @@ import {
   STORAGE_KEY_TASKS,
   STORAGE_KEY_ANNOUNCEMENTS,
   STORAGE_KEY_CLASSES
-} from "./constants.js?v=20260903_v2175";
-import { escapeHtml, isTaskExpired, formatDurationHuman, formatStandardDateDash, showGlobalBannerNotice } from "./utils.js?v=20260903_v2175";
+} from "./constants.js?v=20260904_v2176";
+import { escapeHtml, isTaskExpired, formatDurationHuman, formatStandardDateDash, showGlobalBannerNotice } from "./utils.js?v=20260904_v2176";
 
 /* ==========================================================================
    10. STUDENT TASK PORTAL (CENTRALIZED HUB & COLLABORATION ENTRY)
@@ -77,7 +77,7 @@ export function renderStudentTaskPortal(container, authManager, state, onSelectT
         const newClassesJson = localStorage.getItem(STORAGE_KEY_CLASSES) || '[]';
         if (oldTasksJson !== newTasksJson || oldAnnsJson !== newAnnsJson || oldClassesJson !== newClassesJson) {
           if (document.activeElement?.id !== 'sel-student-class-switch') {
-            renderStudentTaskPortal(container, authManager, state, onSelectTask, onLogout, onSwitchTeacher, onOpenAnnModal, onOpenSurveyModal);
+            renderStudentTaskPortal(container, authManager, state, onSelectTask, onLogout, onOpenAnnModal, onOpenSurveyModal);
             return; // 重渲染会重建整套循环，此处无需再自行调度
           }
         }

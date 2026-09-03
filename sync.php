@@ -882,7 +882,7 @@ if ($action === 'get_teacher_monitor_all_groups') {
             }
         }
 
-        $ONLINE_WINDOW_MS = 43200000; // 12 小时（全场会话常青）：学生只要今日进入了该任务工作台，全程稳定保持在线，只有主动点击【退出登录】才标记离线
+        $ONLINE_WINDOW_MS = 30000; // 30 秒（精准实时感知：与学生端 4~8 秒轻量心跳完美配合，保留网络抖动容错）
         $cutoffMs = $nowMs - $ONLINE_WINDOW_MS;
 
         // 🚀 性能革命：收集全量 ScopeKey 进行批量单次查表，消灭 N+1 查询瓶颈，教师端毫秒级秒开！
@@ -895,15 +895,20 @@ if ($action === 'get_teacher_monitor_all_groups') {
             $groupScopeMap[$gid] = $sk;
         }
 
-        // 1. 一次性批量查出相关最新消息（按 ScopeKey 与 GroupId 双向索引）
+        // 1. 一次性批量查出相关最新消息（按 ScopeKey 与 GroupId 双向索引，仅查询当前班级小组）
         $batchChatsMap = [];
         $batchChatsByGid = [];
         $batchActiveSendersMap = [];
         $batchActiveSendersByGid = [];
 
-        $stmtBatchMsg = $pdo->prepare("SELECT scope_key, stage, sender, text, timestamp_str, time_ms, id FROM chat_messages ORDER BY time_ms ASC");
-        $stmtBatchMsg->execute();
-        $allBatchRows = $stmtBatchMsg->fetchAll(PDO::FETCH_ASSOC);
+        if (!empty($allScopeKeys)) {
+            $inSk = implode(',', array_fill(0, count($allScopeKeys), '?'));
+            $stmtBatchMsg = $pdo->prepare("SELECT scope_key, stage, sender, text, timestamp_str, time_ms, id FROM chat_messages WHERE scope_key IN ($inSk) ORDER BY time_ms ASC");
+            $stmtBatchMsg->execute($allScopeKeys);
+            $allBatchRows = $stmtBatchMsg->fetchAll(PDO::FETCH_ASSOC);
+        } else {
+            $allBatchRows = [];
+        }
         foreach ($allBatchRows as $mr) {
             $bsk = $mr['scope_key'];
             $stg = $mr['stage'] ?: 'stage1';
@@ -1004,7 +1009,7 @@ if ($action === 'get_teacher_monitor_all_groups') {
                 }
             }
 
-            // 🌟 核心升级：全方位收集本组在任务中的一切真实活动痕迹（心跳、发言、提案、投票、签署、打字、打卡），只要在任务中一律算在线！
+            // 🌟 实时在线精准判定：仅依据实时心跳（presence_data）和近期发言时间窗口（30秒内），杜绝历史静态动作污染
             $inTaskActiveKeyMap = [];
             foreach ($presenceByKey as $pk => $pts) {
                 if (($nowMs - $pts) <= $ONLINE_WINDOW_MS) {
@@ -1015,38 +1020,6 @@ if ($action === 'get_teacher_monitor_all_groups') {
             foreach ($recentActiveSenders as $sk => $sbool) {
                 $inTaskActiveKeyMap[$sk] = true;
                 $inTaskActiveKeyMap[strtolower(trim($sk))] = true;
-            }
-            if (isset($s1Data['proposals']) && is_array($s1Data['proposals'])) {
-                foreach ($s1Data['proposals'] as $prop) {
-                    if (!empty($prop['author'])) { $inTaskActiveKeyMap[(string)$prop['author']] = true; $inTaskActiveKeyMap[strtolower(trim((string)$prop['author']))] = true; }
-                    if (!empty($prop['authorName'])) { $inTaskActiveKeyMap[(string)$prop['authorName']] = true; $inTaskActiveKeyMap[strtolower(trim((string)$prop['authorName']))] = true; }
-                }
-            }
-            if (isset($s1Data['hasVoted']) && is_array($s1Data['hasVoted'])) {
-                foreach ($s1Data['hasVoted'] as $vk => $vv) {
-                    if ($vv) { $inTaskActiveKeyMap[(string)$vk] = true; $inTaskActiveKeyMap[strtolower(trim((string)$vk))] = true; }
-                }
-            }
-            if (isset($s1Data['contract']['confirmedMembers']) && is_array($s1Data['contract']['confirmedMembers'])) {
-                foreach ($s1Data['contract']['confirmedMembers'] as $ck => $cv) {
-                    if ($cv) { $inTaskActiveKeyMap[(string)$ck] = true; $inTaskActiveKeyMap[strtolower(trim((string)$ck))] = true; }
-                }
-            }
-            if (isset($s2Data['memberContributions']) && is_array($s2Data['memberContributions'])) {
-                foreach ($s2Data['memberContributions'] as $mk => $mv) {
-                    if ($mv > 0) { $inTaskActiveKeyMap[(string)$mk] = true; $inTaskActiveKeyMap[strtolower(trim((string)$mk))] = true; }
-                }
-            }
-            if (isset($s2Data['confirmedMembers']) && is_array($s2Data['confirmedMembers'])) {
-                foreach ($s2Data['confirmedMembers'] as $ck => $cv) {
-                    if ($cv) { $inTaskActiveKeyMap[(string)$ck] = true; $inTaskActiveKeyMap[strtolower(trim((string)$ck))] = true; }
-                }
-            }
-            if (isset($s2Data['meetingSubmissions']) && is_array($s2Data['meetingSubmissions'])) {
-                foreach ($s2Data['meetingSubmissions'] as $sk => $sv) {
-                    $inTaskActiveKeyMap[(string)$sk] = true;
-                    $inTaskActiveKeyMap[strtolower(trim((string)$sk))] = true;
-                }
             }
 
             $onlineMembers = [];

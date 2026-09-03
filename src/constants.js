@@ -4,8 +4,8 @@
  * Version: 2.1.0 (2026-08-23)
  */
 
-export const APP_VERSION = '20260903_v2175';
-export const APP_BUILD_DATE = '2026-09-03';
+export const APP_VERSION = '20260904_v2176';
+export const APP_BUILD_DATE = '2026-09-04';
 
 export const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
 export const STORAGE_KEY_USERS_DB = 'jizhi_pure_v10_users_db';
@@ -54,7 +54,7 @@ export const InitialState = {
   },
   teacherLevel: 'dashboard', // 'dashboard' or 'class_workspace'
   teacherDashboardTab: 'classes', // 'classes' or 'global_students'
-  teacherClassTab: 'students_groups', // 'students_groups', 'tasks_resources', 'live_monitoring'
+  teacherClassTab: 'students_groups', // 'students_groups', 'tasks_resources', 'live_monitor'
   activeClassId: null,
   activeMonitorGroupId: null,
   members: {},
