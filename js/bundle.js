@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260903_v1980
+ * Version: 20260903_v1985
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260903_v1980';
+  const APP_VERSION = '20260903_v1985';
   const APP_BUILD_DATE = '2026-09-03';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -12913,25 +12913,7 @@
                 this.state.chatLogs.stage1.push(msg3Min);
                 this.syncChatLogs();
                 renderChat(this.state);
-              }
-
-              // ② 6 分钟全组无提案强催促（精准点名）
-              if (!this.state.s1_6minUrgeSent && elapsedSec >= 360 && propCount === 0 && unsubmittedNames) {
-                this.state.s1_6minUrgeSent = true;
-                const msg6Min = {
-                  sender: 'auctioneer',
-                  senderName: '头脑风暴 · 学术拍卖师',
-                  text: `🎪 【学术拍卖师·提案催促】：头脑风暴时间已进行 6 分钟，当前组内尚未产生任何提案！请【${unsubmittedNames}】同学抓紧结合任务要求，在左侧卡片提交各自的初拟方案，集齐后我们将开启全组研讨！`,
-                  timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                  _timeMs: nowMs
-                };
-                if (!this.state.chatLogs.stage1) this.state.chatLogs.stage1 = [];
-                this.state.chatLogs.stage1.push(msg6Min);
-                this.syncChatLogs();
-                renderChat(this.state);
-              }
-
-              // ③ 提案全齐但尚未投票：提示先交流 1~2 分钟再投票
+              // ② 提案全齐但尚未投票：提示先交流 1~2 分钟再投票
               if (!this.state.s1_allPropsGatheredSent && propCount >= membersList.length && propCount > 0) {
                 this.state.s1_allPropsGatheredSent = true;
                 const msgPropsAll = {
@@ -13551,56 +13533,6 @@
             }
           }
 
-          // 5. 【阶段一 20% 超时转场强通牒】：阶段一规划占 10%，进行达 20% 属于严重超时转场门限（全场严格仅发 1 次）
-          const stage1MaxBudgetMs = (totalDurationSec * 1000) * 0.20;
-          const hasS1TransitionNudge = s1AllLogs.some(m => m && m.sender === 'auctioneer' && (m.text?.includes('转场通牒') || m.text?.includes('阶段一转场提醒') || m.text?.includes('已达 20% 极限节点')));
-          if (stage1DurationMs >= stage1MaxBudgetMs && !s1.contract?.isConfirmed && !hasS1TransitionNudge && !s1.transitionNudgeSent) {
-            s1.transitionNudgeSent = true;
-            const transMsg = {
-              sender: 'auctioneer',
-              senderName: '学术选题 · 拍卖师',
-              text: `🎪 【拍卖师·转场通牒】：全场时间已达 20% 极限节点（阶段一标准规划为 10%，当前已超时）！\n👉 请全员立刻在左侧公约卡片点击【签署确认】，全员签署后立即进入【阶段二：学术编辑部】开始动笔写作，留足写作与质检时间！`,
-              timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-              _timeMs: now
-            };
-            if (!this.state.chatLogs.stage1) this.state.chatLogs.stage1 = [];
-            this.state.chatLogs.stage1.push(transMsg);
-            this.syncChatLogs();
-            this.syncStage1();
-            if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
-            renderChat(this.state);
-            return;
-          }
-
-          // 4.5 【引导后静默守护与 6 分钟大模型强兜底】：智能体发出引导后，3 分钟破冰，6 分钟大模型自动提炼回填并顺推
-          const s1AllLogs = this.state.chatLogs?.stage1 || [];
-          const lastAgentMsg = [...s1AllLogs].reverse().find(m => m && m.sender === 'auctioneer');
-          if (lastAgentMsg && (!lastStudentMsgTime || lastStudentMsgTime < (lastAgentMsg._timeMs || 0))) {
-            const silenceAfterGuideMs = now - (lastAgentMsg._timeMs || now);
-
-            // ① 挂机 3 分钟破冰提醒
-            if (silenceAfterGuideMs > 180000 && silenceAfterGuideMs <= 360000) {
-              const count = this._nudgeCounts['s1_guide_silence'] || 0;
-              if (count < 1) {
-                this._nudgeCounts['s1_guide_silence'] = 1;
-                const stepName = (s1.contractStep === 'tasks') ? '任务分工' : ((s1.contractStep === 'time') ? '时间分配' : '研究主题与方案');
-                const buttonText = (s1.contractStep === 'tasks') ? '一键提炼【任务分工】' : ((s1.contractStep === 'time') ? '一键提炼【时间分配】' : '一键提炼【主题与研究方案】');
-                const nudgeMsg = {
-                  sender: 'auctioneer',
-                  senderName: '头脑风暴 · 学术拍卖师',
-                  text: `💡 【拍卖师·研讨推进提示】：大家可以围绕【${stepName}】在讨论区积极交流观点～商定成熟后，请点击上方【${buttonText}】按钮，系统将为大家一键提炼研讨共识！`,
-                  timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                  _timeMs: now
-                };
-                this.state.chatLogs.stage1.push(nudgeMsg);
-                this.syncChatLogs();
-                if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
-                renderChat(this.state);
-                return;
-              }
-            }
-          }
-
           // 5. 投票已完成且合约草案已生成 ➔ 公约催签守护（有人已签署但仍有成员未签超过 2 分钟时点名催促）
           const signedMap = (s1.contract && s1.contract.confirmedMembers) ? s1.contract.confirmedMembers : {};
           const signedCount = Object.values(signedMap).filter(Boolean).length;
@@ -13902,26 +13834,6 @@
                   sender: 'managingEditor',
                   senderName: '协同调度 · 责任编辑',
                   text: `🤝 【责任编辑·一致性研讨点拨】：自查研判已下发！请大家对照刚才自查暴露的前后脱节与章节偏离，在讨论区充分商定修改对策与对齐思路哦～`,
-                  timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                  _timeMs: now
-                };
-                if (!this.state.chatLogs.stage2) this.state.chatLogs.stage2 = [];
-                this.state.chatLogs.stage2.push(msg);
-                this.syncChatLogs();
-                this.syncStage2();
-                if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
-                renderChat(this.state);
-                return;
-              }
-
-              // ── ② 6 分钟仍没讨论/未收拢：责任编辑催促收拢并交棒 ──
-              const exist6mNudge = s2Chats.some(m => m && (m.text?.includes('一致性研讨收拢提醒') || m.text?.includes('研讨收拢提醒')));
-              if (!exist6mNudge && silenceAfterChecklist >= 360000 && !s2.isDraftConfirmed && (s2.pendingReviewing || this.state.stage2PendingReviewing)) {
-                this._nudgeCounts['s2_consistency_silence_6m'] = 1;
-                const msg = {
-                  sender: 'managingEditor',
-                  senderName: '协同调度 · 责任编辑',
-                  text: `⏳ 【责任编辑·一致性研讨收拢提醒】：全组针对脱节问题的研讨已进行 6 分钟！请抓紧对齐修改思路。商量差不多后，请点击聊天框上方的【💡 讨论差不多了？让责任编辑总结】按钮，我将为大家提炼小结并请审稿编辑下发《修正清单》！`,
                   timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
                   _timeMs: now
                 };
