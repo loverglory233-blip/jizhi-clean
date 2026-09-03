@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260903_v2060";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260903_v2060";
-import { callCozeAgentAPI } from "./agents.js?v=20260903_v2060";
-import { AuthManager } from "./auth.js?v=20260903_v2060";
-import { CloudSyncEngine } from "./sync.js?v=20260903_v2060";
-import { renderLoginView } from "./login.js?v=20260903_v2060";
-import { renderTeacherPortal } from "./teacher.js?v=20260903_v2060";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260903_v2060";
+} from "./constants.js?v=20260903_v2065";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260903_v2065";
+import { callCozeAgentAPI } from "./agents.js?v=20260903_v2065";
+import { AuthManager } from "./auth.js?v=20260903_v2065";
+import { CloudSyncEngine } from "./sync.js?v=20260903_v2065";
+import { renderLoginView } from "./login.js?v=20260903_v2065";
+import { renderTeacherPortal } from "./teacher.js?v=20260903_v2065";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260903_v2065";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260903_v2060";
+} from "./editor.js?v=20260903_v2065";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -3333,41 +3333,74 @@ ${chatSnippet}
       fallbackAssignments[mKey] = defaultTasks[idx % defaultTasks.length];
     });
 
-    const fullContractPrompt = `小组成员已完成了选题投票，并在讨论区就论文主题深化、时间规划与各章节分工展开了研讨。
-【确定课题/候选方向】: 《${defaultTopic}》
+    // 🛡️ 增量保护：检查左侧已有的分步成果，已完成的绝对保留，绝不覆盖！
+    const hasExistingTopic = (s1.contractStep === 'time' || s1.contractStep === 'tasks' || s1.contractStep === 'completed') && (s1.contract?.topic || s1.mergedTitle);
+    const hasExistingTime = (s1.contractStep === 'tasks' || s1.contractStep === 'completed') && s1.contract?.timeAllocations && Object.keys(s1.contract.timeAllocations).length >= 6;
+
+    let existingContextSection = '';
+    let instructionSection = '';
+
+    if (hasExistingTopic && hasExistingTime) {
+      existingContextSection = `
+【已确认锁定的研究课题（严格沿用，绝不修改）】: 《${s1.contract?.topic || s1.mergedTitle}》
+【已确认锁定的方案概述（严格沿用，绝不修改）】: ${s1.contract?.overview || s1.researchOverview || ''}
+【已确认锁定的时间预算（严格沿用，绝不修改）】: 背景:${s1.contract.timeAllocations.background}分, 综述:${s1.contract.timeAllocations.literature}分, 问题:${s1.contract.timeAllocations.questions}分, 方法:${s1.contract.timeAllocations.method}分, 反思:${s1.contract.timeAllocations.reflection}分, 参考文献:${s1.contract.timeAllocations.references}分`;
+      instructionSection = `
+【当前增量提炼任务】：
+由于课题方案与时间分配已由小组在左侧看板确认锁定，本次你只需重点提炼补齐尚未完成的【组员任务分工】！
+1. 严格沿用上述已确定的题目与时间预算；
+2. 通读研讨记录，将全篇写作章节一一对应合理分配给每位组员 (assignments: 以每位组员的真实姓名或学号为键，给出具体负责的章节与职责描述)；
+3. 给出 1 句恭喜小结提示，提醒全员核对并在下方签署公约 (guideText)。`;
+    } else if (hasExistingTopic) {
+      existingContextSection = `
+【已确认锁定的研究课题（严格沿用，绝不修改）】: 《${s1.contract?.topic || s1.mergedTitle}》
+【已确认锁定的方案概述（严格沿用，绝不修改）】: ${s1.contract?.overview || s1.researchOverview || ''}`;
+      instructionSection = `
+【当前增量提炼任务】：
+课题方案已由小组在左侧看板确认锁定（严格沿用，绝不修改），本次你只需重点提炼补齐【时间分配】与【组员任务分工】！
+1. 严格沿用上述已确定的题目与方案概述；
+2. 给出 6 大章节的合理时间分配分钟数 (timeAllocations: background, literature, questions, method, reflection, references，总计约 150 分钟)；
+3. 将全篇写作章节一一对应合理分配给每位组员 (assignments)；
+4. 给出 1 句简短小结提示，提醒全员核对并签署公约 (guideText)。`;
+    } else {
+      existingContextSection = `
+【确定课题/候选方向】: 《${defaultTopic}》`;
+      instructionSection = `
+【当前全量提炼任务】：
+1. 确定最终精炼的研究主题名称 (topic) 与 80~120 字的研究方案概述 (overview，涵盖背景、核心问题与方法)；
+2. 给出 6 大章节的合理时间分配分钟数 (timeAllocations: background, literature, questions, method, reflection, references，总计约 150 分钟)；
+3. 将全篇写作章节一一对应合理分配给每位组员 (assignments: 以每位组员的真实姓名或学号为键，给出具体负责的章节与职责描述)；
+4. 给出 1 句简短小结提示，提醒全组在左侧公约卡片下方核对并签署确认 (guideText)。`;
+    }
+
+    const fullContractPrompt = `小组成员已完成了选题投票，并在讨论区就公约内容展开了研讨。
+${existingContextSection}
 【小组成员名单】:
 ${membersInfo}
 【投票完成后的组内真实研讨记录】:
 ${chatSnippet || '（小组成员已达成基本共识，准备进入正文写作）'}
 
 请作为资深学术拍卖师：
-1. 确定最终精炼的研究主题名称 (topic) 与 80~120 字的研究方案概述 (overview，涵盖背景、核心问题与方法)；
-2. 给出 6 大章节的合理时间分配分钟数 (timeAllocations: background, literature, questions, method, reflection, references，总计约 150 分钟)；
-3. 将全篇写作章节一一对应合理分配给每位组员 (assignments: 以每位组员的真实姓名或学号为键，给出具体负责的章节与职责描述，如“负责研究背景与意义、文献综述撰写”)。若研讨较简短或未明确，请结合学术论文规范合理统筹分工；
-4. 给出 1 句简短小结提示，提醒全组在左侧公约卡片下方核对并签署确认 (guideText)。
+${instructionSection}
 
 输出格式必须为合法 JSON（严禁代码块以外的多余文字）：
 {
-  "topic": "最终确定的论文题目",
-  "overview": "提炼后的研究方案概述，涵盖具体情境、核心问题与研究方法",
+  "topic": "${hasExistingTopic ? (s1.contract?.topic || s1.mergedTitle) : '最终确定的论文题目'}",
+  "overview": "${hasExistingTopic ? (s1.contract?.overview || s1.researchOverview || '研究方案概述') : '提炼后的研究方案概述，涵盖具体情境、核心问题与研究方法'}",
   "timeAllocations": {
-    "background": 25,
-    "literature": 30,
-    "questions": 25,
-    "method": 40,
-    "reflection": 20,
-    "references": 10
+    "background": ${hasExistingTime ? s1.contract.timeAllocations.background : 25},
+    "literature": ${hasExistingTime ? s1.contract.timeAllocations.literature : 30},
+    "questions": ${hasExistingTime ? s1.contract.timeAllocations.questions : 25},
+    "method": ${hasExistingTime ? s1.contract.timeAllocations.method : 40},
+    "reflection": ${hasExistingTime ? s1.contract.timeAllocations.reflection : 20},
+    "references": ${hasExistingTime ? s1.contract.timeAllocations.references : 10}
   },
   "assignments": {
     "组员姓名1": "负责章节与职责描述",
     "组员姓名2": "负责章节与职责描述"
   },
-  "guideText": "太棒了！全盘公约草案已全部生成就绪！请全组成员核对左侧公约并在下方点击【✍️ 签署确认学术公约】！"
+  "guideText": "太棒了！公约草案已全部生成就绪！请全组成员核对左侧公约并在下方点击【✍️ 签署确认学术公约】！"
 }`;
-
-    // 🛡️ 增量保护：检查左侧已有的分步成果，已完成的绝对保留，绝不覆盖！
-    const hasExistingTopic = (s1.contractStep === 'time' || s1.contractStep === 'tasks' || s1.contractStep === 'completed') && (s1.contract?.topic || s1.mergedTitle);
-    const hasExistingTime = (s1.contractStep === 'tasks' || s1.contractStep === 'completed') && s1.contract?.timeAllocations && Object.keys(s1.contract.timeAllocations).length >= 6;
 
     if (hasExistingTopic) {
       finalTopic = s1.contract?.topic || s1.mergedTitle;
