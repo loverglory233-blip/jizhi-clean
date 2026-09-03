@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260903_v1705
+ * Version: 20260903_v1710
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260903_v1705';
+  const APP_VERSION = '20260903_v1710';
   const APP_BUILD_DATE = '2026-09-03';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -13556,6 +13556,7 @@
       const appEl = document.getElementById('app');
 
       if (!currentUser) {
+        document.body.className = 'app-login-mode';
         appEl.className = 'app-login-mode';
         renderLoginView(appEl, this.authManager, async () => {
           const u = this.authManager.getCurrentUser();
@@ -13576,6 +13577,7 @@
       }
 
       if (currentUser.role === 'teacher') {
+        document.body.className = 'app-teacher-mode';
         appEl.className = 'app-teacher-mode';
         renderTeacherPortal(
           appEl, this.authManager, this.state,
@@ -13596,6 +13598,7 @@
         const currentGroupId = activeGroupObj?.id || currentUser?.groupId || null;
 
         if (this.state.studentViewMode === 'task_list') {
+          document.body.className = 'app-student-portal-mode';
           appEl.className = 'app-student-portal-mode';
           renderStudentTaskPortal(
             appEl, this.authManager, this.state,
@@ -13665,6 +13668,7 @@
 
         const membersList = Object.values(this.state.members || {});
 
+        document.body.className = 'app-student-workspace-mode';
         appEl.className = 'app-student-mode';
         appEl.innerHTML = `
           <header class="app-header" id="app-header"></header>
