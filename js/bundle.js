@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260903_v1940
+ * Version: 20260903_v1945
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260903_v1940';
+  const APP_VERSION = '20260903_v1945';
   const APP_BUILD_DATE = '2026-09-03';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -18310,15 +18310,14 @@
         membersList.forEach(m => { totalContrib += getVal(m); });
 
         if (totalContrib >= minContribThreshold || plainLen >= minContribThreshold) {
-          // 严格原定规则：仅当组内出现失衡（某位成员占比 >= 55% 且有成员 <= 15%）时才介入
+          // 纯粹判定：只要组内有成员写作占比 <= 15%（且总字数达标），责任编辑即出场关怀
           const pcts = membersList.map(m => {
             const val = getVal(m);
             return (totalContrib > 0) ? Math.round((val / totalContrib) * 100) : 0;
           });
-          const hasMaxSkew = Math.max(...pcts) >= 55;
-          const hasZeroMember = Math.min(...pcts) <= 15;
+          const hasLowMember = Math.min(...pcts) <= 15;
 
-          if (hasMaxSkew && hasZeroMember) {
+          if (hasLowMember) {
             this.state.lastSSRLWarnTimeMs = now;
             this.state.lastSSRLWarnLen = plainLen;
             const ssrlWarningMsg = {
