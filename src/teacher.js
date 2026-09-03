@@ -10,8 +10,8 @@ import {
   STORAGE_KEY_USERS_DB,
   TASK_GENRE_CONFIGS,
   AgentProfiles
-} from "./constants.js?v=20260903_v1600";
-import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, showGlobalBannerNotice } from "./utils.js?v=20260903_v1600";
+} from "./constants.js?v=20260903_v1635";
+import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, showGlobalBannerNotice } from "./utils.js?v=20260903_v1635";
 
 /* ==========================================================================
    7. TEACHER PORTAL RENDERER (LIVE WORKSPACE MIRROR & ANNOUNCEMENT READ MATRIX)
@@ -19,6 +19,21 @@ import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskE
 export function renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView) {
   const oldLayout = container.querySelector('.teacher-portal-layout') || document.querySelector('.teacher-portal-layout');
   const savedScrollTop = oldLayout ? oldLayout.scrollTop : (state._teacherScrollTop || 0);
+
+  if (authManager && authManager.sanitizeAndDeduplicateGroups) {
+    authManager.sanitizeAndDeduplicateGroups();
+  }
+  const currentUser = authManager ? authManager.getCurrentUser() : null;
+  const tasks = authManager ? authManager.getTasks() : [];
+  const announcements = authManager ? authManager.getAnnouncements() : [];
+  const refPapers = authManager ? authManager.getReferencePapers() : [];
+  const classes = authManager ? authManager.getClasses() : [];
+  const activeClassId = state.activeClassId || (classes[0] ? classes[0].id : null);
+  const activeClass = classes.find(c => c.id === activeClassId) || classes[0] || null;
+  const isDashboard = (state.teacherLevel === 'dashboard' || !activeClass);
+  const dashboardTab = state.teacherDashboardTab || 'classes';
+  const classTab = state.teacherClassTab || 'students_groups';
+  const activeTab = isDashboard ? dashboardTab : classTab;
 
   // 💬 保存当前研讨流的滚动状态与贴底标志
   const chatScrollPositions = state._chatScrollPositions || {};
@@ -33,21 +48,6 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
     }
   });
   state._chatScrollPositions = chatScrollPositions;
-
-  if (authManager && authManager.sanitizeAndDeduplicateGroups) {
-    authManager.sanitizeAndDeduplicateGroups();
-  }
-  const currentUser = authManager.getCurrentUser();
-  const tasks = authManager.getTasks();
-  const announcements = authManager.getAnnouncements();
-  const refPapers = authManager.getReferencePapers();
-  const classes = authManager.getClasses();
-  const isDashboard = (state.teacherLevel === 'dashboard' || !activeClass);
-  const dashboardTab = state.teacherDashboardTab || 'classes';
-  const classTab = state.teacherClassTab || 'students_groups';
-  const activeTab = isDashboard ? dashboardTab : classTab;
-  const activeClassId = state.activeClassId || (classes[0] ? classes[0].id : null);
-  const activeClass = classes.find(c => c.id === activeClassId) || classes[0] || null;
 
   const allUsers = authManager.getUsers();
   const classStudents = activeClass ? authManager.getClassStudents(activeClass.id) : [];
@@ -1852,6 +1852,12 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
     btnBackDashboard.addEventListener('click', () => {
       state.teacherLevel = 'dashboard';
       state.teacherDashboardTab = 'classes';
+      try {
+        sessionStorage.setItem('jizhi_teacher_level', 'dashboard');
+        localStorage.setItem('jizhi_teacher_level', 'dashboard');
+        sessionStorage.setItem('jizhi_teacher_dtab', 'classes');
+        localStorage.setItem('jizhi_teacher_dtab', 'classes');
+      } catch (e) {}
       renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
     });
   }
@@ -1859,6 +1865,10 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
   container.querySelectorAll('.teacher-dtab-nav').forEach(btn => {
     btn.addEventListener('click', () => {
       state.teacherDashboardTab = btn.dataset.dtab;
+      try {
+        sessionStorage.setItem('jizhi_teacher_dtab', btn.dataset.dtab);
+        localStorage.setItem('jizhi_teacher_dtab', btn.dataset.dtab);
+      } catch (e) {}
       renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
     });
   });
@@ -1866,6 +1876,10 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
   container.querySelectorAll('.teacher-ctab-nav').forEach(btn => {
     btn.addEventListener('click', () => {
       state.teacherClassTab = btn.dataset.ctab;
+      try {
+        sessionStorage.setItem('jizhi_teacher_ctab', btn.dataset.ctab);
+        localStorage.setItem('jizhi_teacher_ctab', btn.dataset.ctab);
+      } catch (e) {}
       if (btn.dataset.ctab === 'live_monitor' && window.app) {
         try {
           window.app.loadGroupState(state.activeMonitorGroupId || (activeClass?.groups?.[0]?.id) || null);
@@ -1883,7 +1897,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
     btn.addEventListener('click', () => {
       const newCId = btn.dataset.id;
       state.activeClassId = newCId;
-      state.teacherLevel = 'class_space';
+      state.teacherLevel = 'class_workspace';
       state.teacherClassTab = 'students_groups';
       const targetC = (authManager.getClasses() || []).find(c => c.id === newCId);
       const cTasks = (authManager.getTasks() || []).filter(t => t.classId === newCId || (targetC && t.className === targetC.name));
@@ -1903,6 +1917,10 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
         window.app.state.activeMonitorGroupId = state.activeMonitorGroupId;
       }
       try {
+        sessionStorage.setItem('jizhi_teacher_level', 'class_workspace');
+        localStorage.setItem('jizhi_teacher_level', 'class_workspace');
+        sessionStorage.setItem('jizhi_teacher_ctab', 'students_groups');
+        localStorage.setItem('jizhi_teacher_ctab', 'students_groups');
         sessionStorage.setItem('jizhi_teacher_active_class_id', newCId);
         localStorage.setItem('jizhi_teacher_active_class_id', newCId);
         sessionStorage.setItem('jizhi_teacher_active_group_id', state.activeMonitorGroupId);
