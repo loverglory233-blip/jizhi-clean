@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260903_v1940";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260903_v1940";
-import { callCozeAgentAPI } from "./agents.js?v=20260903_v1940";
-import { AuthManager } from "./auth.js?v=20260903_v1940";
-import { CloudSyncEngine } from "./sync.js?v=20260903_v1940";
-import { renderLoginView } from "./login.js?v=20260903_v1940";
-import { renderTeacherPortal } from "./teacher.js?v=20260903_v1940";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260903_v1940";
+} from "./constants.js?v=20260903_v1945";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260903_v1945";
+import { callCozeAgentAPI } from "./agents.js?v=20260903_v1945";
+import { AuthManager } from "./auth.js?v=20260903_v1945";
+import { CloudSyncEngine } from "./sync.js?v=20260903_v1945";
+import { renderLoginView } from "./login.js?v=20260903_v1945";
+import { renderTeacherPortal } from "./teacher.js?v=20260903_v1945";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260903_v1945";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260903_v1940";
+} from "./editor.js?v=20260903_v1945";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -5925,15 +5925,14 @@ ${contentSnippet}
       membersList.forEach(m => { totalContrib += getVal(m); });
 
       if (totalContrib >= minContribThreshold || plainLen >= minContribThreshold) {
-        // 严格原定规则：仅当组内出现失衡（某位成员占比 >= 55% 且有成员 <= 15%）时才介入
+        // 纯粹判定：只要组内有成员写作占比 <= 15%（且总字数达标），责任编辑即出场关怀
         const pcts = membersList.map(m => {
           const val = getVal(m);
           return (totalContrib > 0) ? Math.round((val / totalContrib) * 100) : 0;
         });
-        const hasMaxSkew = Math.max(...pcts) >= 55;
-        const hasZeroMember = Math.min(...pcts) <= 15;
+        const hasLowMember = Math.min(...pcts) <= 15;
 
-        if (hasMaxSkew && hasZeroMember) {
+        if (hasLowMember) {
           this.state.lastSSRLWarnTimeMs = now;
           this.state.lastSSRLWarnLen = plainLen;
           const ssrlWarningMsg = {
