@@ -10,8 +10,8 @@ import {
   STORAGE_KEY_USERS_DB,
   TASK_GENRE_CONFIGS,
   AgentProfiles
-} from "./constants.js?v=20260903_v1459";
-import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, showGlobalBannerNotice } from "./utils.js?v=20260903_v1459";
+} from "./constants.js?v=20260903_v1506";
+import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, showGlobalBannerNotice } from "./utils.js?v=20260903_v1506";
 
 /* ==========================================================================
    7. TEACHER PORTAL RENDERER (LIVE WORKSPACE MIRROR & ANNOUNCEMENT READ MATRIX)
@@ -2130,16 +2130,14 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
     });
   }
 
-  // 👥 2. 平台学生账号总库与分班调度中心（独立面板，可查阅全平台所有学生）
+  // 👥 2. 从总库挑选学生加入本班（只展示待入本班的学生）
   const btnEnrollExisting = container.querySelector('#btn-v1-enroll-existing-student');
   if (btnEnrollExisting) {
     btnEnrollExisting.addEventListener('click', () => {
       document.querySelectorAll('.modal-overlay').forEach(el => el.remove());
       const allUsers = authManager.getUsers();
       const currentClassStudentIds = new Set(authManager.getClassStudents(activeClass.id).map(s => s.id));
-      const allStudents = allUsers.filter(u => u.role !== 'teacher');
-      const unenrolledStudents = allStudents.filter(u => !currentClassStudentIds.has(u.id));
-      const enrolledStudents = allStudents.filter(u => currentClassStudentIds.has(u.id));
+      const unenrolledStudents = allUsers.filter(u => u.role !== 'teacher' && !currentClassStudentIds.has(u.id));
 
       const modal = document.createElement('div');
       modal.className = 'modal-overlay';
@@ -2150,50 +2148,44 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
               <div class="modal-icon-badge" style="background:#dbeafe; color:#2563eb; font-size:20px; padding:6px 10px; border-radius:10px;">👥</div>
               <div>
                 <h3 style="margin:0; font-size:17px; font-weight:800; color:#0f172a;">从总库挑选学生加入本班 (${activeClass.name})</h3>
-                <div style="font-size:12px; color:#64748b; margin-top:2px;">勾选已有学生账号加入本班名册，账号和密码保持不变</div>
+                <div style="font-size:12px; color:#64748b; margin-top:2px;">勾选待分班学生直接拉入本班，账号与密码保持不变（共 ${unenrolledStudents.length} 人待入班）</div>
               </div>
             </div>
             <button class="modal-close-btn" id="btn-close-enroll-modal" style="background:#f1f5f9; border:none; color:#64748b; font-size:16px; border-radius:8px; width:30px; height:30px; cursor:pointer;">✕</button>
           </div>
 
           <div class="teacher-modal-body" style="padding:20px 24px;">
-            <div style="display:flex; gap:8px; margin-bottom:12px;">
-              <button class="tab-filter-std active" data-filter="all" style="flex:1; padding:7px 10px; border-radius:8px; border:1.5px solid #2563eb; background:#eff6ff; color:#1d4ed8; font-size:12.5px; font-weight:700; cursor:pointer;">全部学生 (${allStudents.length})</button>
-              <button class="tab-filter-std" data-filter="unenrolled" style="flex:1; padding:7px 10px; border-radius:8px; border:1.5px solid #e2e8f0; background:#f8fafc; color:#64748b; font-size:12.5px; font-weight:700; cursor:pointer;">待入本班 (${unenrolledStudents.length})</button>
-              <button class="tab-filter-std" data-filter="enrolled" style="flex:1; padding:7px 10px; border-radius:8px; border:1.5px solid #e2e8f0; background:#f8fafc; color:#64748b; font-size:12.5px; font-weight:700; cursor:pointer;">已在本班 (${enrolledStudents.length})</button>
+            <div style="margin-bottom:12px;">
+              <input type="text" id="input-search-enroll-std" placeholder="🔍 输入姓名或学号快速搜索学生..." style="background:#ffffff; border:1.5px solid #cbd5e1; color:#0f172a; padding:9px 12px; border-radius:8px; width:100%; font-size:13px; outline:none;">
             </div>
-
-            <div style="margin-bottom:10px;">
-              <input type="text" id="input-search-enroll-std" placeholder="🔍 输入姓名或学号快速搜索学生..." style="background:#ffffff; border:1.5px solid #cbd5e1; color:#0f172a; padding:8px 12px; border-radius:8px; width:100%; font-size:13px; outline:none;">
-            </div>
-            <div style="display:flex; justify-content:space-between; align-items:center; padding:4px 4px 8px 4px; font-size:12.5px; color:#64748b;">
+            <div style="display:flex; justify-content:space-between; align-items:center; padding:4px 4px 10px 4px; font-size:12.5px; color:#64748b;">
               <label style="display:flex; align-items:center; gap:6px; cursor:pointer; font-weight:700; color:#334155;">
                 <input type="checkbox" id="chk-enroll-select-all" style="width:16px; height:16px; accent-color:#2563eb; cursor:pointer;">
-                全选当前筛选列表
+                全选当前待入班学生
               </label>
               <span id="enroll-selected-count-tip">已勾选 0 人</span>
             </div>
-            <div id="enroll-std-list-box" style="max-height:280px; overflow-y:auto; display:flex; flex-direction:column; gap:8px;">
-              ${allStudents.length === 0 ? `
-                <div style="text-align:center; color:#64748b; padding:32px; font-size:13.5px;">
-                  ⚠️ 平台当前暂无任何已入库学生账号，请先录入或导入学生
+            <div id="enroll-std-list-box" style="max-height:300px; overflow-y:auto; display:flex; flex-direction:column; gap:8px;">
+              ${unenrolledStudents.length === 0 ? `
+                <div style="text-align:center; color:#64748b; padding:36px 16px; font-size:13.5px; background:#f8fafc; border-radius:10px; border:1px dashed #cbd5e1;">
+                  <div style="font-size:28px; margin-bottom:8px;">🎉</div>
+                  <div style="font-weight:700; color:#0f172a;">暂无待入本班学生</div>
+                  <div style="font-size:12.5px; color:#64748b; margin-top:4px;">平台总库中的所有学生均已在本班（或平台当前暂无学生记录）</div>
                 </div>
-              ` : allStudents.map(s => {
-                const isCurrentClass = currentClassStudentIds.has(s.id);
+              ` : unenrolledStudents.map(s => {
                 const otherClasses = authManager.getClasses().filter(c =>
                   (s.classIds || [s.classId]).includes(c.id) && c.id !== activeClass.id
                 );
                 return `
-                  <div class="enroll-std-card-item" data-type="${isCurrentClass ? 'enrolled' : 'unenrolled'}" data-search="${(s.name + ' ' + (s.id || '')).toLowerCase()}" style="display:flex; align-items:center; justify-content:space-between; gap:12px; background:${isCurrentClass ? '#f0fdf4' : '#f8fafc'}; border:1px solid ${isCurrentClass ? '#bbf7d0' : '#e2e8f0'}; border-radius:10px; padding:10px 14px; transition:all 0.15s;">
+                  <div class="enroll-std-card-item" data-search="${(s.name + ' ' + (s.id || '')).toLowerCase()}" style="display:flex; align-items:center; justify-content:space-between; gap:12px; background:#ffffff; border:1px solid #e2e8f0; border-radius:10px; padding:10px 14px; transition:all 0.15s;">
                     <label style="display:flex; align-items:center; gap:12px; cursor:pointer; flex:1;">
-                      <input type="checkbox" class="enroll-chk" data-uid="${s.id}" ${isCurrentClass ? 'checked' : ''} style="width:17px; height:17px; cursor:pointer; accent-color:#2563eb;">
+                      <input type="checkbox" class="enroll-chk" data-uid="${s.id}" style="width:17px; height:17px; cursor:pointer; accent-color:#2563eb;">
                       <div>
                         <div style="font-size:14px; font-weight:800; color:#0f172a; display:flex; align-items:center; gap:6px;">
                           ${s.avatar || '👤'} ${escapeHtml(s.name)} <code style="color:#2563eb; font-family:monospace;">${escapeHtml(s.id)}</code>
-                          ${isCurrentClass ? '<span style="background:#dcfce7; color:#15803d; border:1px solid #bbf7d0; padding:1px 6px; border-radius:6px; font-size:11px; font-weight:700;">已在本班</span>' : ''}
                         </div>
                         <div style="font-size:12px; color:#64748b; margin-top:2px;">
-                          ${otherClasses.length > 0 ? `跨班归属: <b>${otherClasses.map(c => escapeHtml(c.name)).join(', ')}</b>` : (isCurrentClass ? '本班学生' : '⏳ 待分班学生')}
+                          ${otherClasses.length > 0 ? `跨班归属: <b>${otherClasses.map(c => escapeHtml(c.name)).join(', ')}</b>` : '⏳ 待分班学生'}
                         </div>
                       </div>
                     </label>
@@ -2204,7 +2196,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
           </div>
           <div class="teacher-modal-footer" style="background:#f8fafc; border-top:1px solid #e2e8f0; padding:14px 24px; display:flex; justify-content:flex-end; gap:10px;">
             <button class="modal-btn cancel" id="btn-cancel-enroll" style="background:#ffffff; border:1px solid #cbd5e1; color:#475569; padding:8px 18px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer;">取消</button>
-            <button class="modal-btn submit task-theme" id="btn-submit-enroll" style="background:linear-gradient(135deg, #1d4ed8, #2563eb); border:none; color:white; padding:8px 20px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer;">👥 保存本班名单分配</button>
+            <button class="modal-btn submit task-theme" id="btn-submit-enroll" style="background:linear-gradient(135deg, #1d4ed8, #2563eb); border:none; color:white; padding:8px 20px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer;">👥 确认拉入本班</button>
           </div>
         </div>
       `;
@@ -2237,74 +2229,49 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
       }
       modal.querySelectorAll('.enroll-chk').forEach(c => c.addEventListener('change', updateCountTip));
 
-      // 🏷️ 筛选 Tab 切换
-      let curFilter = 'all';
-      const applyFilterAndSearch = () => {
-        const q = (modal.querySelector('#input-search-enroll-std')?.value || '').trim().toLowerCase();
-        modal.querySelectorAll('.enroll-std-card-item').forEach(el => {
-          const type = el.dataset.type;
-          const str = el.dataset.search || '';
-          const matchTab = (curFilter === 'all') || (curFilter === type);
-          const matchQuery = !q || str.includes(q);
-          if (matchTab && matchQuery) el.style.display = 'flex';
-          else el.style.display = 'none';
-        });
-      };
-
-      modal.querySelectorAll('.tab-filter-std').forEach(tab => {
-        tab.addEventListener('click', () => {
-          modal.querySelectorAll('.tab-filter-std').forEach(t => {
-            t.style.background = '#f8fafc';
-            t.style.color = '#64748b';
-            t.style.borderColor = '#e2e8f0';
-          });
-          tab.style.background = '#eff6ff';
-          tab.style.color = '#1d4ed8';
-          tab.style.borderColor = '#2563eb';
-          curFilter = tab.dataset.filter;
-          applyFilterAndSearch();
-        });
-      });
-
       // 🔍 模糊搜索过滤
       const searchEnrollInput = modal.querySelector('#input-search-enroll-std');
       if (searchEnrollInput) {
-        searchEnrollInput.addEventListener('input', applyFilterAndSearch);
+        searchEnrollInput.addEventListener('input', (e) => {
+          const q = (e.target.value || '').trim().toLowerCase();
+          modal.querySelectorAll('.enroll-std-card-item').forEach(el => {
+            const str = el.dataset.search || '';
+            el.style.display = (!q || str.includes(q)) ? 'flex' : 'none';
+          });
+        });
       }
 
-      // 👥 提交保存本班名单分配
+      // 👥 提交保存拉入本班
       modal.querySelector('#btn-submit-enroll').addEventListener('click', () => {
-        const checkedUids = new Set(Array.from(modal.querySelectorAll('.enroll-chk:checked')).map(c => c.dataset.uid));
+        const checkedUids = Array.from(modal.querySelectorAll('.enroll-chk:checked')).map(c => c.dataset.uid);
+        if (checkedUids.length === 0) {
+          alert('⚠️ 请先勾选要拉入本班的学生！');
+          return;
+        }
         const users = authManager.getUsers();
         const classes = authManager.getClasses();
         const curCls = classes.find(c => c.id === activeClass.id);
         if (!curCls) return;
 
-        // 同步分配勾选的学生进本班
-        users.forEach(u => {
-          if (u.role === 'teacher') return;
-          if (!u.classIds || !Array.isArray(u.classIds)) u.classIds = u.classId ? [u.classId] : [];
-          if (checkedUids.has(u.id)) {
+        // 为选中的学生追加当前班级
+        checkedUids.forEach(uid => {
+          const u = users.find(x => x.id === uid);
+          if (u) {
+            if (!u.classIds || !Array.isArray(u.classIds)) u.classIds = u.classId ? [u.classId] : [];
             if (!u.classIds.includes(activeClass.id)) u.classIds.push(activeClass.id);
             if (!u.classId) u.classId = activeClass.id;
-          } else {
-            // 取消勾选则移出本班
-            u.classIds = u.classIds.filter(cid => cid !== activeClass.id);
-            if (u.classId === activeClass.id) u.classId = u.classIds[0] || null;
           }
         });
 
-        curCls.studentIds = Array.from(checkedUids);
-        if (curCls.groups) {
-          curCls.groups.forEach(g => {
-            if (g.members) g.members = g.members.filter(uid => checkedUids.has(uid));
-          });
-        }
+        if (!curCls.studentIds) curCls.studentIds = [];
+        checkedUids.forEach(uid => {
+          if (!curCls.studentIds.includes(uid)) curCls.studentIds.push(uid);
+        });
 
         localStorage.setItem(STORAGE_KEY_USERS_DB, JSON.stringify(users));
         localStorage.setItem(STORAGE_KEY_CLASSES, JSON.stringify(classes));
         authManager.pushGlobalMeta();
-        alert(`🎉 成功同步更新本班学生名单（当前班级共 ${checkedUids.size} 人）！`);
+        alert(`🎉 成功将选中的 ${checkedUids.length} 名学生加入班级【${activeClass.name}】！`);
         closeModal();
         renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
       });
