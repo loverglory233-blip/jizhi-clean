@@ -10,8 +10,8 @@ import {
   STORAGE_KEY_USERS_DB,
   TASK_GENRE_CONFIGS,
   AgentProfiles
-} from "./constants.js?v=20260903_v1539";
-import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, showGlobalBannerNotice } from "./utils.js?v=20260903_v1539";
+} from "./constants.js?v=20260903_v1545";
+import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, showGlobalBannerNotice } from "./utils.js?v=20260903_v1545";
 
 /* ==========================================================================
    7. TEACHER PORTAL RENDERER (LIVE WORKSPACE MIRROR & ANNOUNCEMENT READ MATRIX)
@@ -42,7 +42,10 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
   const announcements = authManager.getAnnouncements();
   const refPapers = authManager.getReferencePapers();
   const classes = authManager.getClasses();
-  const activeTab = state.teacherActiveTab || 'view_architecture';
+  const isDashboard = (state.teacherLevel === 'dashboard' || !activeClass);
+  const dashboardTab = state.teacherDashboardTab || 'classes';
+  const classTab = state.teacherClassTab || 'students_groups';
+  const activeTab = isDashboard ? dashboardTab : classTab;
   const activeClassId = state.activeClassId || (classes[0] ? classes[0].id : null);
   const activeClass = classes.find(c => c.id === activeClassId) || classes[0] || null;
 
@@ -79,7 +82,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
   const effectiveMonitorStage = monitorStageMode === 'auto' ? (state.currentStage || 'stage1') : monitorStageMode;
   const currentS3Tab = state.stage3TeacherTab || 'defense';
 
-  // 🛡️ 教师端单例保护：若当前已经在 view_monitoring 标签下且监控同一个班级/小组/任务/阶段/模式/子页，优先执行增量就地更新
+  // 🛡️ 教师端单例保护：若当前已经在 live_monitoring 标签下且监控同一个班级/小组/任务/阶段/模式/子页，优先执行增量就地更新
   const existingLayout = container.querySelector('.teacher-portal-layout');
   const renderedCId = container.dataset.renderedClassId;
   const renderedGId = container.dataset.renderedGroupId;
@@ -89,7 +92,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
   const renderedS3Tab = container.dataset.renderedS3Tab;
   const renderedTab = container.dataset.renderedTab;
 
-  if (existingLayout && activeTab === 'view_monitoring' && renderedTab === 'view_monitoring' &&
+  if (existingLayout && !isDashboard && classTab === 'live_monitoring' && renderedTab === 'live_monitoring' &&
       renderedCId === activeClassId && renderedGId === activeMonitorGId &&
       renderedTaskId === effectiveMonitorTaskId && renderedStage === effectiveMonitorStage &&
       renderedMode === monitorStageMode &&
@@ -301,7 +304,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
       return;
     }
 
-    if (state.teacherActiveTab === 'view_monitoring' && window.app && window.app.cloudSyncEngine) {
+    if (!isDashboard && classTab === 'live_monitoring' && window.app && window.app.cloudSyncEngine) {
       const currentCId = state.activeClassId || activeClass.id || null;
       let activeTaskId = state.activeTaskId || (currentClassTasks[0] ? currentClassTasks[0].id : `task_${currentCId}_default`);
       if (!activeTaskId || activeTaskId === 'task_default') {
@@ -436,7 +439,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
   const markTeacherActive = () => {
     const wasIdle = (Date.now() - window._lastTeacherActivity > 60000);
     window._lastTeacherActivity = Date.now();
-    if (wasIdle && state.teacherActiveTab === 'view_monitoring') {
+    if (wasIdle && !isDashboard && classTab === 'live_monitoring') {
       teacherPullAndRefresh();
     }
   };
@@ -463,10 +466,6 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
   const tInitInterval = (document.hidden ? 15000 : 1800);
   window._teacherPortalSyncTimer = setTimeout(teacherPullAndRefresh, tInitInterval);
 
-  // 🏛️ 两级架构视图状态管控
-  const isDashboard = (state.teacherLevel === 'dashboard' || !activeClass);
-  const dashboardTab = state.teacherDashboardTab || 'classes';
-  const classTab = state.teacherClassTab || 'students_groups';
   const allStudents = allUsers.filter(u => u.role !== 'teacher');
 
   container.innerHTML = `
