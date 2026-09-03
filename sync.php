@@ -944,7 +944,22 @@ if ($action === 'get_teacher_monitor_all_groups') {
             if (!is_array($presence)) $presence = [];
             $presenceByKey = [];
             foreach ($presence as $pk => $pv) {
-                $presenceByKey[(string)$pk] = (is_array($pv) && isset($pv['updatedAt'])) ? intval($pv['updatedAt']) : 0;
+                $ts = (is_array($pv) && isset($pv['updatedAt'])) ? intval($pv['updatedAt']) : ((is_array($pv) && isset($pv['lastSeen'])) ? intval($pv['lastSeen']) : ((is_array($pv) && isset($pv['timestamp'])) ? intval($pv['timestamp']) : 0));
+                $rawK = (string)$pk;
+                $lowK = strtolower(trim($rawK));
+                $presenceByKey[$rawK] = $ts;
+                $presenceByKey[$lowK] = $ts;
+                
+                // 智能联动全校用户字典，将学号的心跳自动拓展至姓名、昵称等全字段
+                $matchedU = $userMap[$rawK] ?? ($userMap[$lowK] ?? null);
+                if ($matchedU && is_array($matchedU)) {
+                    foreach (['id', 'userId', 'name', 'studentCode', 'username'] as $uf) {
+                        if (isset($matchedU[$uf]) && $matchedU[$uf] !== '') {
+                            $presenceByKey[(string)$matchedU[$uf]] = $ts;
+                            $presenceByKey[strtolower(trim((string)$matchedU[$uf]))] = $ts;
+                        }
+                    }
+                }
             }
 
             $onlineMembers = [];
@@ -955,18 +970,24 @@ if ($action === 'get_teacher_monitor_all_groups') {
                 $memberObj = null;
                 $mKey = '';
                 if (is_array($m)) {
-                    $mKey = $m['id'] ?? ($m['userId'] ?? ($m['studentCode'] ?? ''));
-                    $memberObj = $userMap[(string)$mKey] ?? $m;
+                    $mKey = $m['id'] ?? ($m['userId'] ?? ($m['studentCode'] ?? ($m['name'] ?? '')));
+                    $memberObj = $userMap[(string)$mKey] ?? ($userMap[strtolower(trim((string)$mKey))] ?? $m);
                 } else {
                     $mKey = (string)$m;
-                    $memberObj = $userMap[$mKey] ?? ['id' => $mKey, 'name' => $mKey];
+                    $memberObj = $userMap[$mKey] ?? ($userMap[strtolower(trim($mKey))] ?? ['id' => $mKey, 'name' => $mKey]);
                 }
 
                 $candidateKeys = [];
-                foreach (['id', 'userId', 'name', 'realStudentCode'] as $f) {
-                    if (isset($memberObj[$f]) && $memberObj[$f] !== '') $candidateKeys[] = (string)$memberObj[$f];
+                foreach (['id', 'userId', 'name', 'studentCode', 'username', 'realStudentCode'] as $f) {
+                    if (isset($memberObj[$f]) && $memberObj[$f] !== '') {
+                        $candidateKeys[] = (string)$memberObj[$f];
+                        $candidateKeys[] = strtolower(trim((string)$memberObj[$f]));
+                    }
                 }
-                if ($mKey !== '') $candidateKeys[] = (string)$mKey;
+                if ($mKey !== '') {
+                    $candidateKeys[] = (string)$mKey;
+                    $candidateKeys[] = strtolower(trim((string)$mKey));
+                }
                 $candidateKeys = array_unique($candidateKeys);
 
                 $isFresh = false;
@@ -2951,7 +2972,7 @@ if ($pdo) {
             }
         }
 
-        // ⚡ 顺风车自动心跳续期（Piggyback）：每次客户端发送 pull 时，自动更新当前用户在当前组的在线时间戳 (15s 窗口)
+        // ⚡ 顺风车自动心跳续期（Piggyback）：每次客户端发送 pull 时，自动更新当前用户在当前组的在线时间戳 (180s 稳定窗口)
         $currPr = (!empty($row['presence_data']) && strlen($row['presence_data']) < 50000) ? json_decode($row['presence_data'], true) : [];
         if (!is_array($currPr)) $currPr = [];
         $prChanged = false;
@@ -2965,7 +2986,7 @@ if ($pdo) {
         }
         foreach ($currPr as $pk => $pv) {
             $t = is_array($pv) ? intval($pv['updatedAt'] ?? $pv['timestamp'] ?? 0) : 0;
-            if ($nowMs - $t > 15000) {
+            if ($nowMs - $t > 180000) {
                 unset($currPr[$pk]);
                 $prChanged = true;
             }
