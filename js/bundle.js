@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260903_v1930
+ * Version: 20260903_v1935
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260903_v1930';
+  const APP_VERSION = '20260903_v1935';
   const APP_BUILD_DATE = '2026-09-03';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -13757,45 +13757,20 @@
             }
           }
 
-          // 5. 投票已完成且合约草案已生成 ➔ 催签守护（投票后已有大模型专属引导，此处专注催签，最多2次）
+          // 5. 投票已完成且合约草案已生成 ➔ 公约催签守护（有人已签署但仍有成员未签超过 2 分钟时点名催促）
           const signedMap = (s1.contract && s1.contract.confirmedMembers) ? s1.contract.confirmedMembers : {};
           const signedCount = Object.values(signedMap).filter(Boolean).length;
           const isContractDrafted = votesCastCount >= totalMembersCount;
 
           if (isContractDrafted && signedCount < totalMembersCount) {
-            const lastContractActionTime = Math.max(s1.contract._lastEditTime || 0, this.stage1LastActionTime || 0);
-            const timeSinceContractEdit = now - lastContractActionTime;
             const contractDraftTime = s1.contract._draftedTime || this.stage1StartTime;
 
-            // 规则 A（全员未签）：在没有修改的情况下，没有任何人签署超过 3 分钟 ➔ 拍卖师提示开始签署（最多2次）
-            if (signedCount === 0 && (now - contractDraftTime > 180000) && timeSinceContractEdit > 180000) {
-              const count = this._nudgeCounts['s1_zero_sign'] || 0;
-              if (count < 2 && (!this.lastZeroSignNudgeTime || now - this.lastZeroSignNudgeTime > 240000)) {
-                this.lastZeroSignNudgeTime = now;
-                this._nudgeCounts['s1_zero_sign'] = count + 1;
-                const msg = {
-                  sender: 'auctioneer',
-                  text: `📜 【拍卖师·公约签署提示】：公约草案已生成一段时间啦！\n👉 请组员核对左侧《学术合作公约》上的章节分工与时间规划，确认无误后点击【确认签署】，开启团队学术合作！`,
-                  timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                  _timeMs: now
-                };
-                if (!this.state.chatLogs.stage1) this.state.chatLogs.stage1 = [];
-                this.state.chatLogs.stage1.push(msg);
-                this.syncChatLogs();
-                if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
-                renderChat(this.state);
-                return;
-              }
-            }
-
-            // 规则 B（部分已签）：有人已签署，但仍有成员未签超过 2 分钟 ➔ 拍卖师催签未签组员（最多2次）
+            // 规则（部分已签）：有人已签署，但仍有成员未签超过 2 分钟 ➔ 拍卖师催签未签组员（间隔 >= 3分钟）
             if (signedCount > 0 && signedCount < totalMembersCount) {
               const lastSignTime = s1.contract._lastSignTime || contractDraftTime;
               if (now - lastSignTime > 120000) {
-                const count = this._nudgeCounts['s1_partial_sign'] || 0;
-                if (count < 2 && (!this.lastSignContractNudgeTime || now - this.lastSignContractNudgeTime > 180000)) {
+                if (!this.lastSignContractNudgeTime || now - this.lastSignContractNudgeTime > 180000) {
                   this.lastSignContractNudgeTime = now;
-                  this._nudgeCounts['s1_partial_sign'] = count + 1;
                   const unsignedMembers = membersList.filter(m => !signedMap[m.id]);
                   const unsignedNames = unsignedMembers.map(m => m.name).join('、');
                   const msg = {
@@ -13889,14 +13864,14 @@
             }
           }
 
-          // 2. 责任编辑过程守护：周期性读取【实际贡献百分比】与【研讨发言投入】（全场严格最多 2 次，两次间隔 >= 6分钟）
+          // 2. 责任编辑过程守护：周期性读取【实际贡献百分比】与【研讨发言投入】（冷却间隔 >= 6分钟，杜绝连续打扰，随写作进程动态再次关怀）
           const minContribThreshold = isLargeTask ? 600 : 300;
           const existContribNudges = s2Chats.filter(m => m && (m.text?.includes('进度关怀') || m.text?.includes('协同关怀')));
           const lastContribMsg = existContribNudges.length > 0 ? existContribNudges[existContribNudges.length - 1] : null;
           const lastContribTime = parseMsgTime(lastContribMsg) || this.lastS2ContribNudgeTime || 0;
           const isContribCooldownPassed = (now - lastContribTime) >= s2NudgeCooldownMs;
 
-          if (existContribNudges.length < 2 && isContribCooldownPassed) {
+          if (isContribCooldownPassed) {
             // 1. 计算总投入与每位成员的实际贡献百分比（100% 依据 Etherpad 真实写作字数贡献）
             let totalContrib = 0;
             membersList.forEach(m => {
