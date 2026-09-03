@@ -882,14 +882,14 @@ if ($action === 'get_teacher_monitor_all_groups') {
             }
         }
 
-        $ONLINE_WINDOW_MS = 180000; // 180 秒 (3分钟) 心跳/发言窗口，与浏览器后台标签页节流对齐，确保在线状态稳定常绿不跳变
+        $ONLINE_WINDOW_MS = 600000; // 600 秒 (10分钟) 稳健心跳/活跃窗口，与移动端/后台标签页休眠深度对齐
         $cutoffMs = $nowMs - $ONLINE_WINDOW_MS;
 
         // 🚀 性能革命：收集全量 ScopeKey 进行批量单次查表，消灭 N+1 查询瓶颈，教师端毫秒级秒开！
         $allScopeKeys = [];
         $groupScopeMap = [];
         foreach ($allGroupIds as $gid) {
-            $r = $stateMap[$gid] ?? null;
+            $r = $stateMap[$gid] ?? ($fallbackMap[$gid] ?? null);
             $sk = $r ? $r['scope_key'] : ($taskId . '_' . $gid);
             $allScopeKeys[] = $sk;
             $groupScopeMap[$gid] = $sk;
@@ -918,12 +918,13 @@ if ($action === 'get_teacher_monitor_all_groups') {
                 if (intval($mr['time_ms']) >= $cutoffMs) {
                     if (!isset($batchActiveSendersMap[$bsk])) $batchActiveSendersMap[$bsk] = [];
                     $batchActiveSendersMap[$bsk][(string)$mr['sender']] = true;
+                    $batchActiveSendersMap[$bsk][strtolower(trim((string)$mr['sender']))] = true;
                 }
             }
         }
 
         foreach ($allGroupIds as $gid) {
-            $r = $stateMap[$gid] ?? null;
+            $r = $stateMap[$gid] ?? ($fallbackMap[$gid] ?? null);
             $sk = $groupScopeMap[$gid];
             $offGroup = $officialGroups[$gid] ?? null;
 

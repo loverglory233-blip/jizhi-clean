@@ -704,27 +704,41 @@ export function showTaskExtendedUnlockModal(task, prevDeadline, isUnlockedNow = 
 export function enforceEtherpadReadonly(iframe) {
   if (!iframe) return;
 
-  // 🛡️ 1. 仅保留视觉提示遮罩：pointer-events:none 确保鼠标滚轮与触控滑动 100% 穿透到 iframe，原生滚动完全不受干扰
+  // 🛡️ 1. 物理级点击拦截遮罩：pointer-events:auto 彻底阻断任何鼠标点击、聚焦与键盘光标进入 iframe
   const container = iframe.parentElement;
   if (container) {
     let shield = container.querySelector('.etherpad-readonly-shield');
     if (!shield) {
       shield = document.createElement('div');
       shield.className = 'etherpad-readonly-shield';
-      // pointer-events:none 是关键：遮罩只做视觉提示，一切鼠标/触控/滚轮事件完全穿透给 iframe
-      shield.style.cssText = 'position:absolute; inset:0; z-index:25; background:transparent; cursor:not-allowed; pointer-events:none;';
+      shield.style.cssText = 'position:absolute; inset:0; z-index:99; background:transparent; cursor:default; pointer-events:auto;';
       shield.title = '🔒 只读查阅模式 (已锁定禁止编辑)';
       container.style.position = 'relative';
       container.appendChild(shield);
     } else {
-      // 兼容已存在的 shield：强制覆盖为 pointer-events:none，修复旧版遮罩阻塞滚动的问题
-      shield.style.pointerEvents = 'none';
+      shield.style.cssText = 'position:absolute; inset:0; z-index:99; background:transparent; cursor:default; pointer-events:auto;';
     }
+
+    // 滚轮穿透：将 shield 上的滚轮事件转发到 iframe 内部文档滚动，保留流畅阅读体验
+    shield.onwheel = (e) => {
+      try {
+        const doc = iframe.contentDocument;
+        if (doc) {
+          const aceOuter = doc.querySelector('iframe[name="ace_outer"]');
+          if (aceOuter && aceOuter.contentDocument) {
+            const outerDoc = aceOuter.contentDocument;
+            const outerScroller = outerDoc.querySelector('#outerdocbody') || outerDoc.documentElement || outerDoc.body;
+            if (outerScroller) {
+              outerScroller.scrollTop += e.deltaY;
+            }
+          }
+        }
+      } catch(err) {}
+    };
   }
 
   const tryLock = () => {
     try {
-      // 仅在同源可访问时做单次静态防护，跨域时直接静默跳过，绝不高频捕获异常
       const doc = iframe.contentDocument;
       if (!doc) return;
 
@@ -735,25 +749,19 @@ export function enforceEtherpadReadonly(iframe) {
       if (footer) footer.style.setProperty('display', 'none', 'important');
 
       const aceOuter = doc.querySelector('iframe[name="ace_outer"]');
-      if (aceOuter) {
+      if (aceOuter && aceOuter.contentDocument) {
         const outerDoc = aceOuter.contentDocument;
-        if (outerDoc) {
-          const aceInner = outerDoc.querySelector('iframe[name="ace_inner"]');
-          if (aceInner) {
-            const innerDoc = aceInner.contentDocument;
-            if (innerDoc) {
-              const innerBody = innerDoc.querySelector('#innerdocbody') || innerDoc.body;
-              if (innerBody) {
-                innerBody.setAttribute('contenteditable', 'false');
-                innerBody.style.setProperty('cursor', 'not-allowed', 'important');
-              }
-            }
+        const aceInner = outerDoc.querySelector('iframe[name="ace_inner"]');
+        if (aceInner && aceInner.contentDocument) {
+          const innerDoc = aceInner.contentDocument;
+          const innerBody = innerDoc.querySelector('#innerdocbody') || innerDoc.body;
+          if (innerBody) {
+            innerBody.setAttribute('contenteditable', 'false');
+            innerBody.style.setProperty('cursor', 'default', 'important');
           }
         }
       }
-    } catch(e) {
-      // 官方只读 ID (r.xxxx) 已由 Etherpad 服务端完全锁死编辑，跨域时安全静默跳过
-    }
+    } catch(e) {}
   };
 
   iframe.addEventListener('load', () => {
