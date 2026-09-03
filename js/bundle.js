@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260904_v2195
+ * Version: 20260904_v2196
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260904_v2195';
+  const APP_VERSION = '20260904_v2196';
   const APP_BUILD_DATE = '2026-09-04';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -5859,6 +5859,40 @@
                       </select>
                     </div>
 
+                    <!-- 🎯 紧跟在监控小组后的字数、任务类型与剩余时间胶囊 (单行紧凑) -->
+                    <span style="background:#ecfdf5; color:#059669; border:1.5px solid #a7f3d0; padding:4px 10px; border-radius:8px; font-size:12px; font-weight:800; display:inline-flex; align-items:center; gap:4px; box-shadow:0 1px 2px rgba(16,185,129,0.06);">
+                      🎯 <b>${monitorTaskObj?.targetWordCount || 3000} 字</b>
+                    </span>
+                    <span style="background:#f5f3ff; color:#7c3aed; border:1.5px solid #ddd6fe; padding:4px 10px; border-radius:8px; font-size:12px; font-weight:800; display:inline-flex; align-items:center; gap:4px; box-shadow:0 1px 2px rgba(124,58,237,0.06);">
+                      ${genreCfg.icon} <b>${genreCfg.label}</b>
+                    </span>
+                    ${(() => {
+                      const calcRemain = (deadlineStr) => {
+                        if (!deadlineStr || deadlineStr.includes('无') || deadlineStr.includes('结课前')) return '⌛ 结课前';
+                        try {
+                          const dMs = new Date(deadlineStr.replace(/-/g, '/')).getTime();
+                          if (isNaN(dMs)) return deadlineStr;
+                          const diff = dMs - Date.now();
+                          if (diff <= 0) return '🛑 已截止';
+                          const totalM = Math.floor(diff / 60000);
+                          const h = Math.floor(totalM / 60);
+                          const m = totalM % 60;
+                          if (h >= 24) {
+                            const days = Math.floor(h / 24);
+                            return `⏰ 剩余 ${days}天${h % 24}小时`;
+                          }
+                          return `⏰ 剩余 ${h}小时${m}分`;
+                        } catch(e) { return deadlineStr; }
+                      };
+                      const remainText = calcRemain(monitorTaskObj?.deadline);
+                      const isExp = remainText.includes('已截止');
+                      return `
+                        <span style="background:${isExp ? '#fef2f2' : '#eff6ff'}; color:${isExp ? '#dc2626' : '#1d4ed8'}; border:1px solid ${isExp ? '#fecaca' : '#bfdbfe'}; padding:4px 10px; border-radius:8px; font-size:12px; font-weight:700; display:inline-flex; align-items:center; gap:4px;">
+                          ${remainText}
+                        </span>
+                      `;
+                    })()}
+
                     <!-- 🌟 方案 A：本组在线/离线成员状态标签 (单行优雅流线胶囊) -->
                     ${(() => {
                       const panoData = (state.monitorPanorama && state.monitorPanorama[activeMonitorGId]) || null;
@@ -5907,30 +5941,6 @@
                     <button id="btn-export-all-excel" style="background:linear-gradient(135deg, #2563eb, #1d4ed8); border:none; color:white; padding:8px 16px; border-radius:8px; font-size:12.5px; font-weight:800; cursor:pointer; box-shadow:0 3px 10px rgba(37,99,235,0.3);">
                       📊 导出本组研讨 Excel
                     </button>
-                  </div>
-                </div>
-
-                <!-- 📋 任务指标与文体要求胶囊栏 -->
-                <div style="background:#ffffff; border:1px solid #bfdbfe; border-left:4px solid #2563eb; border-radius:12px; padding:12px 18px; width:100%; box-shadow:0 1px 3px rgba(15,23,42,0.03); display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
-                  <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
-                    <span style="font-size:13.5px; font-weight:800; color:#1e40af; display:flex; align-items:center; gap:6px;">
-                      <span>📋 任务要求:</span>
-                      <span style="color:#0f172a;">《${escapeHtml(monitorTaskObj?.title || '当前协作写作任务')}》</span>
-                    </span>
-                    <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
-                      <span style="background:#ecfdf5; color:#059669; border:1.5px solid #a7f3d0; padding:3px 10px; border-radius:6px; font-size:12px; font-weight:800; display:inline-flex; align-items:center; gap:4px; box-shadow:0 1px 2px rgba(16,185,129,0.08);">
-                        🎯 目标字数: <b style="font-size:13px; color:#047857;">${monitorTaskObj?.targetWordCount || 3000} 字</b>
-                      </span>
-                      <span style="background:#f5f3ff; color:#7c3aed; border:1.5px solid #ddd6fe; padding:3px 10px; border-radius:6px; font-size:12px; font-weight:800; display:inline-flex; align-items:center; gap:4px; box-shadow:0 1px 2px rgba(124,58,237,0.08);">
-                        ${genreCfg.icon} 任务类型: <b>${genreCfg.label}</b>
-                      </span>
-                      <span style="background:#eff6ff; color:#2563eb; border:1px solid #bfdbfe; padding:3px 10px; border-radius:6px; font-size:12px; font-weight:700; display:inline-flex; align-items:center; gap:4px;">
-                        ⏱️ 任务时长: <b>${formatDurationHuman(monitorTaskObj?.durationMinutes || 150)}</b>
-                      </span>
-                      <span style="background:#f8fafc; color:#475569; border:1px solid #e2e8f0; padding:3px 10px; border-radius:6px; font-size:12px; font-weight:600; display:inline-flex; align-items:center; gap:4px;">
-                        ⌛ 截止时间: <b>${formatStandardDateDash(monitorTaskObj?.deadline) || '无硬性限制'}</b>
-                      </span>
-                    </div>
                   </div>
                 </div>
 
@@ -9070,9 +9080,9 @@
 
                         <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px 12px; font-size:11.5px; color:#475569; margin-bottom:12px; background:${isExpired ? '#fef2f2' : '#f8fafc'}; padding:10px 14px; border-radius:10px; border:1px solid ${isExpired ? '#fee2e2' : '#f1f5f9'};">
                           <div>🕒 发布时间: <b style="color:#0f172a;">${formatStandardDateDash(t.createdAt || t.startTime) || '刚刚'}</b></div>
+                          <div>⏱️ 任务时长: <b style="color:#2563eb; font-weight:700;">${formatDurationHuman(duration)}</b></div>
                           <div>📅 开始时间: <b style="color:#0f172a;">${formatStandardDateDash(t.startTime) || '随时'}</b></div>
                           <div>⌛ 截止时间: <b style="color:#dc2626; font-weight:800;">${formatStandardDateDash(t.deadline) || '结课前'}</b></div>
-                          <div>📌 要求文体: <b style="color:#7c3aed;">${genreCfg.badge}</b></div>
                         </div>
 
                         <div style="font-size:12.5px; color:#334155; line-height:1.6; margin-bottom:12px; background:#f8fafc; border-left:3.5px solid ${isExpired ? '#dc2626' : '#2563eb'}; padding:8px 12px; border-radius:0 8px 8px 0;">
