@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260904_v2189";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch, showResolutionBlock, safeJsonParse } from "./utils.js?v=20260904_v2189";
-import { callCozeAgentAPI } from "./agents.js?v=20260904_v2189";
-import { AuthManager } from "./auth.js?v=20260904_v2189";
-import { CloudSyncEngine } from "./sync.js?v=20260904_v2189";
-import { renderLoginView } from "./login.js?v=20260904_v2189";
-import { renderTeacherPortal } from "./teacher.js?v=20260904_v2189";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260904_v2189";
+} from "./constants.js?v=20260904_v2190";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch, showResolutionBlock, safeJsonParse } from "./utils.js?v=20260904_v2190";
+import { callCozeAgentAPI } from "./agents.js?v=20260904_v2190";
+import { AuthManager } from "./auth.js?v=20260904_v2190";
+import { CloudSyncEngine } from "./sync.js?v=20260904_v2190";
+import { renderLoginView } from "./login.js?v=20260904_v2190";
+import { renderTeacherPortal } from "./teacher.js?v=20260904_v2190";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260904_v2190";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260904_v2189";
+} from "./editor.js?v=20260904_v2190";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -314,6 +314,11 @@ export class App {
       taskId = `task_${effectiveClassId}_default`;
     }
 
+    const currentUser = this.authManager ? this.authManager.getCurrentUser() : null;
+    if (this.cloudSyncEngine && typeof this.cloudSyncEngine.sendPresencePing === 'function') {
+      this.cloudSyncEngine.sendPresencePing(currentUser);
+    }
+
     const payload = {
       id: msg.id || ('msg_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6)),
       classId: effectiveClassId,
@@ -333,13 +338,18 @@ export class App {
       }
     } catch (e) {}
 
-    try {
+    const sendWithRetry = (retries = 3) => {
       fetch(`sync.php?action=send_chat&groupId=${encodeURIComponent(groupId)}&taskId=${encodeURIComponent(taskId)}&classId=${encodeURIComponent(effectiveClassId)}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
-      }).catch(() => {});
-    } catch (e) {}
+      }).catch(() => {
+        if (retries > 0) {
+          setTimeout(() => sendWithRetry(retries - 1), 1000);
+        }
+      });
+    };
+    sendWithRetry();
   }
 
   syncChatLogs(specifiedMsg = null, stage = null) {

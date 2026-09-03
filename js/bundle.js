@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260904_v2189
+ * Version: 20260904_v2190
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260904_v2189';
+  const APP_VERSION = '20260904_v2190';
   const APP_BUILD_DATE = '2026-09-04';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -12577,6 +12577,11 @@
         taskId = `task_${effectiveClassId}_default`;
       }
 
+      const currentUser = this.authManager ? this.authManager.getCurrentUser() : null;
+      if (this.cloudSyncEngine && typeof this.cloudSyncEngine.sendPresencePing === 'function') {
+        this.cloudSyncEngine.sendPresencePing(currentUser);
+      }
+
       const payload = {
         id: msg.id || ('msg_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6)),
         classId: effectiveClassId,
@@ -12596,13 +12601,18 @@
         }
       } catch (e) {}
 
-      try {
+      const sendWithRetry = (retries = 3) => {
         fetch(`sync.php?action=send_chat&groupId=${encodeURIComponent(groupId)}&taskId=${encodeURIComponent(taskId)}&classId=${encodeURIComponent(effectiveClassId)}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
-        }).catch(() => {});
-      } catch (e) {}
+        }).catch(() => {
+          if (retries > 0) {
+            setTimeout(() => sendWithRetry(retries - 1), 1000);
+          }
+        });
+      };
+      sendWithRetry();
     }
 
     syncChatLogs(specifiedMsg = null, stage = null) {
