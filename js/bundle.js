@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260903_v1820
+ * Version: 20260903_v1850
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260903_v1820';
+  const APP_VERSION = '20260903_v1850';
   const APP_BUILD_DATE = '2026-09-03';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -4727,6 +4727,7 @@
   function renderTeacherPortal(container, authManager, state, onLogout) {
     const oldLayout = container.querySelector('.teacher-portal-layout') || document.querySelector('.teacher-portal-layout');
     const savedScrollTop = oldLayout ? oldLayout.scrollTop : (state._teacherScrollTop || 0);
+    const savedWinY = window.scrollY || window.pageYOffset || (document.documentElement && document.documentElement.scrollTop) || (state._teacherWinY || 0);
 
     if (authManager && authManager.sanitizeAndDeduplicateGroups) {
       authManager.sanitizeAndDeduplicateGroups();
@@ -8789,8 +8790,13 @@
       }
     });
 
-    // 🎯 精准保持滚动条位置（恢复原容器滚动条位置，绝不跳回最顶部）
+    // 🎯 精准保持滚动条位置（同时恢复 window 视口与容器滚动条位置，彻底杜绝跳回最顶部）
     const newLayout = container.querySelector('.teacher-portal-layout') || document.querySelector('.teacher-portal-layout');
+    if (savedWinY > 0) {
+      window.scrollTo(0, savedWinY);
+      requestAnimationFrame(() => window.scrollTo(0, savedWinY));
+      setTimeout(() => window.scrollTo(0, savedWinY), 30);
+    }
     if (newLayout && savedScrollTop > 0) {
       newLayout.scrollTop = savedScrollTop;
       requestAnimationFrame(() => {
@@ -8798,7 +8804,7 @@
       });
       setTimeout(() => {
         if (newLayout) newLayout.scrollTop = savedScrollTop;
-      }, 40);
+      }, 30);
     }
   }
 
@@ -8815,7 +8821,9 @@
      10. STUDENT TASK PORTAL (CENTRALIZED HUB & COLLABORATION ENTRY)
      ========================================================================== */
   function renderStudentTaskPortal(container, authManager, state, onSelectTask, onLogout, onOpenAnnModal, onOpenSurveyModal) {
-    // ⚡ 监听全局广播（跨标签页秒级无感热同步大厅任务卡片、新任务发布与延期通知）
+    const savedWinY = window.scrollY || window.pageYOffset || (document.documentElement && document.documentElement.scrollTop) || 0;
+    const oldPortal = container.querySelector('.student-task-portal') || document.querySelector('.student-task-portal');
+    const savedPortalY = oldPortal ? oldPortal.scrollTop : 0;
     if ('BroadcastChannel' in window) {
       try {
         if (window._studentPortalBc) { try { window._studentPortalBc.close(); } catch (e) {} }
@@ -9186,6 +9194,23 @@
     container.querySelectorAll('.btn-enter-task-workspace').forEach(btn => {
       btn.addEventListener('click', () => onSelectTask(btn.dataset.taskId));
     });
+
+    // 🎯 精准保持滚动条位置（恢复 window 与容器滚动条位置，彻底杜绝跳回最顶部）
+    if (savedWinY > 0) {
+      window.scrollTo(0, savedWinY);
+      requestAnimationFrame(() => window.scrollTo(0, savedWinY));
+      setTimeout(() => window.scrollTo(0, savedWinY), 30);
+    }
+    const newPortal = container.querySelector('.student-task-portal') || document.querySelector('.student-task-portal');
+    if (newPortal && savedPortalY > 0) {
+      newPortal.scrollTop = savedPortalY;
+      requestAnimationFrame(() => {
+        if (newPortal) newPortal.scrollTop = savedPortalY;
+      });
+      setTimeout(() => {
+        if (newPortal) newPortal.scrollTop = savedPortalY;
+      }, 30);
+    }
   }
 
   /* ==========================================================================

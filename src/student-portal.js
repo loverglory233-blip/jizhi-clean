@@ -7,14 +7,16 @@ import {
   STORAGE_KEY_TASKS,
   STORAGE_KEY_ANNOUNCEMENTS,
   STORAGE_KEY_CLASSES
-} from "./constants.js?v=20260903_v1820";
-import { escapeHtml, isTaskExpired, formatDurationHuman, formatStandardDateDash, showGlobalBannerNotice } from "./utils.js?v=20260903_v1820";
+} from "./constants.js?v=20260903_v1850";
+import { escapeHtml, isTaskExpired, formatDurationHuman, formatStandardDateDash, showGlobalBannerNotice } from "./utils.js?v=20260903_v1850";
 
 /* ==========================================================================
    10. STUDENT TASK PORTAL (CENTRALIZED HUB & COLLABORATION ENTRY)
    ========================================================================== */
 export function renderStudentTaskPortal(container, authManager, state, onSelectTask, onLogout, onOpenAnnModal, onOpenSurveyModal) {
-  // ⚡ 监听全局广播（跨标签页秒级无感热同步大厅任务卡片、新任务发布与延期通知）
+  const savedWinY = window.scrollY || window.pageYOffset || (document.documentElement && document.documentElement.scrollTop) || 0;
+  const oldPortal = container.querySelector('.student-task-portal') || document.querySelector('.student-task-portal');
+  const savedPortalY = oldPortal ? oldPortal.scrollTop : 0;
   if ('BroadcastChannel' in window) {
     try {
       if (window._studentPortalBc) { try { window._studentPortalBc.close(); } catch (e) {} }
@@ -385,5 +387,22 @@ export function renderStudentTaskPortal(container, authManager, state, onSelectT
   container.querySelectorAll('.btn-enter-task-workspace').forEach(btn => {
     btn.addEventListener('click', () => onSelectTask(btn.dataset.taskId));
   });
+
+  // 🎯 精准保持滚动条位置（恢复 window 与容器滚动条位置，彻底杜绝跳回最顶部）
+  if (savedWinY > 0) {
+    window.scrollTo(0, savedWinY);
+    requestAnimationFrame(() => window.scrollTo(0, savedWinY));
+    setTimeout(() => window.scrollTo(0, savedWinY), 30);
+  }
+  const newPortal = container.querySelector('.student-task-portal') || document.querySelector('.student-task-portal');
+  if (newPortal && savedPortalY > 0) {
+    newPortal.scrollTop = savedPortalY;
+    requestAnimationFrame(() => {
+      if (newPortal) newPortal.scrollTop = savedPortalY;
+    });
+    setTimeout(() => {
+      if (newPortal) newPortal.scrollTop = savedPortalY;
+    }, 30);
+  }
 }
 
