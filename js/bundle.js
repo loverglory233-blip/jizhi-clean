@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260903_v1900
+ * Version: 20260903_v1905
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260903_v1900';
+  const APP_VERSION = '20260903_v1905';
   const APP_BUILD_DATE = '2026-09-03';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -14397,11 +14397,17 @@
 
       // 📢 教师发布的教学指示/课堂通知在工作台自动弹窗提示学生阅读并确认
       if (unreadList.length > 0) {
+        if (document.querySelector('.modal-announcement-popup') || document.querySelector('.modal-overlay')) {
+          return; // 🛡️ 屏幕上已存在弹窗时，绝不重复销毁与重建，彻底杜绝闪烁
+        }
         this.showAnnouncementModal(unreadList[0], true);
       }
     }
 
     showAnnouncementModal(targetAnn = null, isSequentialFlow = false) {
+      if (isSequentialFlow && document.querySelector('.modal-announcement-popup')) {
+        return;
+      }
       document.querySelectorAll('.modal-overlay').forEach(el => el.remove());
       const currentUser = this.authManager.getCurrentUser();
       const effectiveClassId = this.authManager ? this.authManager.getEffectiveStudentClassId(currentUser, this.state.activeTaskId) : (this.state.activeStudentClassId || currentUser?.classId || null);
