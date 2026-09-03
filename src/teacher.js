@@ -10,8 +10,8 @@ import {
   STORAGE_KEY_USERS_DB,
   TASK_GENRE_CONFIGS,
   AgentProfiles
-} from "./constants.js?v=20260904_v2196";
-import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, showGlobalBannerNotice } from "./utils.js?v=20260904_v2196";
+} from "./constants.js?v=20260904_v2197";
+import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, showGlobalBannerNotice } from "./utils.js?v=20260904_v2197";
 
 /* ==========================================================================
    7. TEACHER PORTAL RENDERER (LIVE WORKSPACE MIRROR & ANNOUNCEMENT READ MATRIX)
@@ -1021,145 +1021,148 @@ export function renderTeacherPortal(container, authManager, state, onLogout) {
                 </div>
               </div>
 
-              <div class="card" style="border-top:4px solid #059669; width:100%; padding:16px 20px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
-                <div style="display:flex; align-items:center; gap:14px; flex-wrap:wrap;">
-                  <span style="font-size:15px; font-weight:800; color:#0f172a;">🖥️ 实际操作实时监控终端:</span>
-                  <div style="display:flex; align-items:center; gap:8px;">
-                    <span style="font-size:13px; font-weight:700; color:#475569;">监控任务:</span>
-                    <select id="sel-switch-monitor-task" class="teacher-input fancy" style="font-size:13px; font-weight:700; color:#1e40af; background:#eff6ff; border:1.5px solid #3b82f6; padding:7px 14px; border-radius:8px; cursor:pointer; min-width:180px;">
-                      ${currentClassTasks.length === 0 ? '<option value="task_default">📌 默认测试写作任务</option>' : currentClassTasks.map(t => {
-                        const isSel = (state.activeTaskId || null) === t.id;
-                        return `<option value="${t.id}" ${isSel ? 'selected' : ''}>📌 ${t.title}${isTaskExpired(t) ? ' (🛑已截止)' : ''}</option>`;
-                      }).join('')}
-                    </select>
+              <div class="card" style="border-top:4px solid #059669; width:100%; padding:14px 20px; display:flex; flex-direction:column; gap:12px; box-shadow:0 2px 8px rgba(15,23,42,0.04);">
+                
+                <!-- 🌟 顶行：监控任务/小组选择 + 任务指标 + 状态与导出 -->
+                <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+                  <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+                    <span style="font-size:14px; font-weight:800; color:#0f172a; white-space:nowrap;">🖥️ 实时监控:</span>
+                    <div style="display:flex; align-items:center; gap:6px;">
+                      <span style="font-size:12.5px; font-weight:700; color:#475569; white-space:nowrap;">任务:</span>
+                      <select id="sel-switch-monitor-task" class="teacher-input fancy" style="font-size:12.5px; font-weight:700; color:#1e40af; background:#eff6ff; border:1.5px solid #3b82f6; padding:5px 10px; border-radius:8px; cursor:pointer; min-width:140px; max-width:190px;">
+                        ${currentClassTasks.length === 0 ? '<option value="task_default">📌 默认测试写作任务</option>' : currentClassTasks.map(t => {
+                          const isSel = (state.activeTaskId || null) === t.id;
+                          return `<option value="${t.id}" ${isSel ? 'selected' : ''}>📌 ${t.title}${isTaskExpired(t) ? ' (🛑已截止)' : ''}</option>`;
+                        }).join('')}
+                      </select>
+                    </div>
+                    <div style="display:flex; align-items:center; gap:6px;">
+                      <span style="font-size:12.5px; font-weight:700; color:#475569; white-space:nowrap;">小组:</span>
+                      <select id="sel-switch-monitor-group" class="teacher-input fancy" style="font-size:12.5px; font-weight:700; color:#1e40af; background:#eff6ff; border:1.5px solid #3b82f6; padding:5px 10px; border-radius:8px; cursor:pointer; min-width:150px; max-width:210px;">
+                        ${(activeClass.groups || []).map(g => {
+                          const isSel = g.id === activeMonitorGId;
+                          return `
+                            <option value="${g.id}" ${isSel ? 'selected' : ''}>
+                              👥 ${g.name} ${isSel ? '(同屏中🟢)' : ''}
+                            </option>
+                          `;
+                        }).join('')}
+                      </select>
+                    </div>
+
+                    <!-- 🎯 任务核心指标胶囊 -->
+                    <span style="background:#ecfdf5; color:#059669; border:1px solid #a7f3d0; padding:3px 9px; border-radius:6px; font-size:12px; font-weight:800; display:inline-flex; align-items:center; gap:4px; box-shadow:0 1px 2px rgba(16,185,129,0.06);">
+                      🎯 <b>${monitorTaskObj?.targetWordCount || 3000} 字</b>
+                    </span>
+                    <span style="background:#f5f3ff; color:#7c3aed; border:1px solid #ddd6fe; padding:3px 9px; border-radius:6px; font-size:12px; font-weight:800; display:inline-flex; align-items:center; gap:4px; box-shadow:0 1px 2px rgba(124,58,237,0.06);">
+                      ${genreCfg.icon} <b>${genreCfg.label}</b>
+                    </span>
+                    ${(() => {
+                      const calcRemain = (deadlineStr) => {
+                        if (!deadlineStr || deadlineStr.includes('无') || deadlineStr.includes('结课前')) return '⌛ 结课前';
+                        try {
+                          const dMs = new Date(deadlineStr.replace(/-/g, '/')).getTime();
+                          if (isNaN(dMs)) return deadlineStr;
+                          const diff = dMs - Date.now();
+                          if (diff <= 0) return '🛑 已截止';
+                          const totalM = Math.floor(diff / 60000);
+                          const h = Math.floor(totalM / 60);
+                          const m = totalM % 60;
+                          if (h >= 24) {
+                            const days = Math.floor(h / 24);
+                            return `⏰ 剩余 ${days}天${h % 24}小时`;
+                          }
+                          return `⏰ 剩余 ${h}小时${m}分`;
+                        } catch(e) { return deadlineStr; }
+                      };
+                      const remainText = calcRemain(monitorTaskObj?.deadline);
+                      const isExp = remainText.includes('已截止');
+                      return `
+                        <span style="background:${isExp ? '#fef2f2' : '#eff6ff'}; color:${isExp ? '#dc2626' : '#1d4ed8'}; border:1px solid ${isExp ? '#fecaca' : '#bfdbfe'}; padding:3px 9px; border-radius:6px; font-size:11.5px; font-weight:700; display:inline-flex; align-items:center; gap:4px;">
+                          ${remainText}
+                        </span>
+                      `;
+                    })()}
                   </div>
+
+                  <!-- 状态与 Excel 导出 -->
                   <div style="display:flex; align-items:center; gap:8px;">
-                    <span style="font-size:13px; font-weight:700; color:#475569;">监控小组:</span>
-                    <select id="sel-switch-monitor-group" class="teacher-input fancy" style="font-size:13px; font-weight:700; color:#1e40af; background:#eff6ff; border:1.5px solid #3b82f6; padding:7px 14px; border-radius:8px; cursor:pointer; min-width:180px;">
-                      ${(activeClass.groups || []).map(g => {
-                        const isSel = g.id === activeMonitorGId;
+                    <span style="font-size:11.5px; font-weight:700; padding:4px 10px; border-radius:6px; background:${isMonitorTaskExpired || state.isFinalSubmitted ? '#fef2f2' : '#ecfdf5'}; color:${isMonitorTaskExpired || state.isFinalSubmitted ? '#dc2626' : '#059669'}; border:1px solid ${isMonitorTaskExpired || state.isFinalSubmitted ? '#fecaca' : '#a7f3d0'};">
+                      ${isMonitorTaskExpired ? '🛑 已截止' : (state.isFinalSubmitted ? '🔒 已归档' : '🟢 进行中')}
+                    </span>
+                    <button id="btn-export-all-excel" style="background:linear-gradient(135deg, #2563eb, #1d4ed8); border:none; color:white; padding:6px 13px; border-radius:7px; font-size:12px; font-weight:800; cursor:pointer; box-shadow:0 2px 6px rgba(37,99,235,0.25); display:inline-flex; align-items:center; gap:4px;">
+                      📊 导出本组研讨 Excel
+                    </button>
+                  </div>
+                </div>
+
+                <div style="height:1px; background:#f1f5f9; width:100%;"></div>
+
+                <!-- 🌟 底行：阶段跟随指示 + 成员在线状态 + 阶段同屏切换 Tab -->
+                <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+                  <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+                    <span style="font-size:12.5px; font-weight:700; color:#334155;">
+                      📍 实时跟随: 当前【${activeMonitorGroup.name}】实际处于: <b style="color:#2563eb;">${actualStage === 'stage1' ? '🎪 阶段一：学术拍卖会' : actualStage === 'stage2' ? '📰 阶段二：学术编辑部' : '🎓 阶段三：答辩擂台'}</b>
+                    </span>
+
+                    <!-- 在线/离线成员状态流线胶囊 -->
+                    ${(() => {
+                      const panoData = (state.monitorPanorama && state.monitorPanorama[activeMonitorGId]) || null;
+                      const total = panoData ? (panoData.totalMembers || 0) : (monitorMembersList.length || 0);
+                      const online = panoData ? (panoData.onlineCount || 0) : 0;
+                      const absentList = (panoData && panoData.absentMembers) || [];
+                      const absentCount = Math.max(0, total - online);
+
+                      if (total > 0 && online === 0) {
                         return `
-                          <option value="${g.id}" ${isSel ? 'selected' : ''}>
-                            👥 ${g.name} ${isSel ? '(当前正在同屏实时监控 🟢)' : ''}
-                          </option>
+                          <span style="font-size:11.5px; font-weight:700; padding:3px 9px; border-radius:6px; background:#fef2f2; color:#dc2626; border:1px solid #fecaca; display:inline-flex; align-items:center; gap:4px;">
+                            <span style="width:6px; height:6px; border-radius:50%; background:#dc2626;"></span>
+                            🔴 全员离线 (0/${total})
+                          </span>
                         `;
-                      }).join('')}
-                    </select>
+                      } else if (absentCount > 0 && absentList.length > 0) {
+                        return `
+                          <span style="font-size:11.5px; font-weight:700; padding:3px 8px; border-radius:6px; background:#fffbeb; color:#b45309; border:1px solid #fde68a; display:inline-flex; align-items:center; gap:5px; flex-wrap:wrap;">
+                            <span style="display:inline-flex; align-items:center; gap:3px;">
+                              <span style="width:6px; height:6px; border-radius:50%; background:#f59e0b;"></span>
+                              🟡 离线 (${absentCount}人):
+                            </span>
+                            ${absentList.map(name => `
+                              <span style="background:#ffffff; color:#92400e; border:1px solid #fcd34d; padding:1px 5px; border-radius:4px; font-size:11px; font-weight:700;">
+                                👤 ${escapeHtml(name)}
+                              </span>
+                            `).join('')}
+                          </span>
+                        `;
+                      } else {
+                        return `
+                          <span style="font-size:11.5px; font-weight:700; padding:3px 9px; border-radius:6px; background:#ecfdf5; color:#059669; border:1px solid #a7f3d0; display:inline-flex; align-items:center; gap:4px;">
+                            <span style="width:6px; height:6px; border-radius:50%; background:#10b981;"></span>
+                            🟢 全员在线 (${online}/${total || online})
+                          </span>
+                        `;
+                      }
+                    })()}
                   </div>
 
-                  <!-- 🎯 紧跟在监控小组后的字数、任务类型与剩余时间胶囊 (单行紧凑) -->
-                  <span style="background:#ecfdf5; color:#059669; border:1.5px solid #a7f3d0; padding:4px 10px; border-radius:8px; font-size:12px; font-weight:800; display:inline-flex; align-items:center; gap:4px; box-shadow:0 1px 2px rgba(16,185,129,0.06);">
-                    🎯 <b>${monitorTaskObj?.targetWordCount || 3000} 字</b>
-                  </span>
-                  <span style="background:#f5f3ff; color:#7c3aed; border:1.5px solid #ddd6fe; padding:4px 10px; border-radius:8px; font-size:12px; font-weight:800; display:inline-flex; align-items:center; gap:4px; box-shadow:0 1px 2px rgba(124,58,237,0.06);">
-                    ${genreCfg.icon} <b>${genreCfg.label}</b>
-                  </span>
-                  ${(() => {
-                    const calcRemain = (deadlineStr) => {
-                      if (!deadlineStr || deadlineStr.includes('无') || deadlineStr.includes('结课前')) return '⌛ 结课前';
-                      try {
-                        const dMs = new Date(deadlineStr.replace(/-/g, '/')).getTime();
-                        if (isNaN(dMs)) return deadlineStr;
-                        const diff = dMs - Date.now();
-                        if (diff <= 0) return '🛑 已截止';
-                        const totalM = Math.floor(diff / 60000);
-                        const h = Math.floor(totalM / 60);
-                        const m = totalM % 60;
-                        if (h >= 24) {
-                          const days = Math.floor(h / 24);
-                          return `⏰ 剩余 ${days}天${h % 24}小时`;
-                        }
-                        return `⏰ 剩余 ${h}小时${m}分`;
-                      } catch(e) { return deadlineStr; }
-                    };
-                    const remainText = calcRemain(monitorTaskObj?.deadline);
-                    const isExp = remainText.includes('已截止');
-                    return `
-                      <span style="background:${isExp ? '#fef2f2' : '#eff6ff'}; color:${isExp ? '#dc2626' : '#1d4ed8'}; border:1px solid ${isExp ? '#fecaca' : '#bfdbfe'}; padding:4px 10px; border-radius:8px; font-size:12px; font-weight:700; display:inline-flex; align-items:center; gap:4px;">
-                        ${remainText}
-                      </span>
-                    `;
-                  })()}
-
-                  <!-- 🌟 方案 A：本组在线/离线成员状态标签 (单行优雅流线胶囊) -->
-                  ${(() => {
-                    const panoData = (state.monitorPanorama && state.monitorPanorama[activeMonitorGId]) || null;
-                    const total = panoData ? (panoData.totalMembers || 0) : (monitorMembersList.length || 0);
-                    const online = panoData ? (panoData.onlineCount || 0) : 0;
-                    const absentList = (panoData && panoData.absentMembers) || [];
-                    const absentCount = Math.max(0, total - online);
-
-                    if (total > 0 && online === 0) {
-                      return `
-                        <span style="font-size:12px; font-weight:700; padding:5px 12px; border-radius:8px; background:#fef2f2; color:#dc2626; border:1px solid #fecaca; display:inline-flex; align-items:center; gap:5px;">
-                          <span style="width:7px; height:7px; border-radius:50%; background:#dc2626;"></span>
-                          🔴 全员离线 (0/${total})
-                        </span>
-                      `;
-                    } else if (absentCount > 0 && absentList.length > 0) {
-                      return `
-                        <span style="font-size:12px; font-weight:700; padding:4px 10px; border-radius:8px; background:#fffbeb; color:#b45309; border:1px solid #fde68a; display:inline-flex; align-items:center; gap:6px; flex-wrap:wrap;">
-                          <span style="display:inline-flex; align-items:center; gap:4px;">
-                            <span style="width:7px; height:7px; border-radius:50%; background:#f59e0b;"></span>
-                            🟡 离线 (${absentCount}人):
-                          </span>
-                          ${absentList.map(name => `
-                            <span style="background:#ffffff; color:#92400e; border:1px solid #fcd34d; padding:1px 6px; border-radius:6px; font-size:11px; font-weight:700;">
-                              👤 ${escapeHtml(name)}
-                            </span>
-                          `).join('')}
-                        </span>
-                      `;
-                    } else {
-                      return `
-                        <span style="font-size:12px; font-weight:700; padding:5px 12px; border-radius:8px; background:#ecfdf5; color:#059669; border:1px solid #a7f3d0; display:inline-flex; align-items:center; gap:5px;">
-                          <span style="width:7px; height:7px; border-radius:50%; background:#10b981;"></span>
-                          🟢 全员在线 (${online}/${total || online})
-                        </span>
-                      `;
-                    }
-                  })()}
+                  <!-- 阶段同屏切换 Tab -->
+                  <div style="display:flex; align-items:center; gap:6px;">
+                    <span style="font-size:11.5px; color:#64748b; font-weight:600;">🔀 切换同屏切页:</span>
+                    <button class="btn-monitor-stage-tab ${monitorStageMode === 'auto' ? 'active' : ''}" data-stg="auto" style="background:${monitorStageMode === 'auto' ? '#ecfdf5' : '#ffffff'}; border:${monitorStageMode === 'auto' ? '1.5px solid #10b981' : '1px solid #cbd5e1'}; color:${monitorStageMode === 'auto' ? '#059669' : '#64748b'}; padding:4px 11px; border-radius:6px; font-size:11.5px; font-weight:${monitorStageMode === 'auto' ? '800' : '600'}; cursor:pointer; box-shadow:${monitorStageMode === 'auto' ? '0 1px 3px rgba(16,185,129,0.2)' : 'none'};">
+                      ⚡ 自动跟随 (${actualStage === 'stage1' ? '阶段一' : actualStage === 'stage2' ? '阶段二' : '阶段三'}) 🟢
+                    </button>
+                    <button class="btn-monitor-stage-tab ${monitorStageMode === 'stage1' ? 'active' : ''}" data-stg="stage1" style="background:${monitorStageMode === 'stage1' ? '#eff6ff' : '#ffffff'}; border:${monitorStageMode === 'stage1' ? '1.5px solid #2563eb' : '1px solid #cbd5e1'}; color:${monitorStageMode === 'stage1' ? '#1d4ed8' : '#64748b'}; padding:4px 11px; border-radius:6px; font-size:11.5px; font-weight:${monitorStageMode === 'stage1' ? '800' : '600'}; cursor:pointer; box-shadow:${monitorStageMode === 'stage1' ? '0 1px 3px rgba(37,99,235,0.2)' : 'none'};">
+                      🎪 阶段一
+                    </button>
+                    <button class="btn-monitor-stage-tab ${monitorStageMode === 'stage2' ? 'active' : ''}" data-stg="stage2" style="background:${monitorStageMode === 'stage2' ? '#eff6ff' : '#ffffff'}; border:${monitorStageMode === 'stage2' ? '1.5px solid #2563eb' : '1px solid #cbd5e1'}; color:${monitorStageMode === 'stage2' ? '#1d4ed8' : '#64748b'}; padding:4px 11px; border-radius:6px; font-size:11.5px; font-weight:${monitorStageMode === 'stage2' ? '800' : '600'}; cursor:pointer; box-shadow:${monitorStageMode === 'stage2' ? '0 1px 3px rgba(37,99,235,0.2)' : 'none'};">
+                      📰 阶段二
+                    </button>
+                    <button class="btn-monitor-stage-tab ${monitorStageMode === 'stage3' ? 'active' : ''}" data-stg="stage3" style="background:${monitorStageMode === 'stage3' ? '#eff6ff' : '#ffffff'}; border:${monitorStageMode === 'stage3' ? '1.5px solid #2563eb' : '1px solid #cbd5e1'}; color:${monitorStageMode === 'stage3' ? '#1d4ed8' : '#64748b'}; padding:4px 11px; border-radius:6px; font-size:11.5px; font-weight:${monitorStageMode === 'stage3' ? '800' : '600'}; cursor:pointer; box-shadow:${monitorStageMode === 'stage3' ? '0 1px 3px rgba(37,99,235,0.2)' : 'none'};">
+                      🎓 阶段三
+                    </button>
+                  </div>
                 </div>
 
-                <!-- 任务状态感知与 Excel 导出 -->
-                <div style="display:flex; align-items:center; gap:10px;">
-                  <span style="font-size:12px; font-weight:700; padding:6px 12px; border-radius:8px; background:${isMonitorTaskExpired || state.isFinalSubmitted ? '#fef2f2' : '#ecfdf5'}; color:${isMonitorTaskExpired || state.isFinalSubmitted ? '#dc2626' : '#059669'}; border:1px solid ${isMonitorTaskExpired || state.isFinalSubmitted ? '#fecaca' : '#a7f3d0'};">
-                    ${isMonitorTaskExpired ? '🛑 任务已截止 (只读模式)' : (state.isFinalSubmitted ? '🔒 论文终稿已提交 (已归档)' : '🟢 任务进行中 (组员协作撰写中)')}
-                  </span>
-                  <button id="btn-export-all-excel" style="background:linear-gradient(135deg, #2563eb, #1d4ed8); border:none; color:white; padding:8px 16px; border-radius:8px; font-size:12.5px; font-weight:800; cursor:pointer; box-shadow:0 3px 10px rgba(37,99,235,0.3);">
-                    📊 导出本组研讨 Excel
-                  </button>
-                </div>
-              </div>
-
-              <!-- 📍 实时跟随指示条（清爽标准版） -->
-              <div style="display:flex; justify-content:space-between; align-items:center; background:#ffffff; border:1px solid #e2e8f0; border-radius:12px; padding:12px 18px; width:100%; box-shadow:0 1px 3px rgba(15,23,42,0.03);">
-                <div style="display:flex; align-items:center; gap:12px;">
-                  ${(() => {
-                    const mNames = monitorMembersList.map(m => m.name).filter(Boolean);
-                    const mStr = mNames.length > 0 ? `(${mNames.join('、')})` : '';
-                    return `
-                      <span style="font-size:13px; font-weight:700; color:#334155;">
-                        📍 实时跟随指示: 当前【${activeMonitorGroup.name}】<span style="color:#2563eb; font-weight:700; margin-left:4px;">${mStr}</span> 实际处于: <b style="color:#2563eb;">${actualStage === 'stage1' ? '🎪 阶段一：学术拍卖会' : actualStage === 'stage2' ? '📰 阶段二：学术编辑部' : '🎓 阶段三：答辩擂台'}</b>
-                      </span>
-                    `;
-                  })()}
-                </div>
-                <div style="display:flex; align-items:center; gap:8px;">
-                  <span style="font-size:12px; color:#64748b; font-weight:600;">🔀 切换同屏切页:</span>
-                  <button class="btn-monitor-stage-tab ${monitorStageMode === 'auto' ? 'active' : ''}" data-stg="auto" style="background:${monitorStageMode === 'auto' ? '#ecfdf5' : '#ffffff'}; border:${monitorStageMode === 'auto' ? '1.5px solid #10b981' : '1px solid #cbd5e1'}; color:${monitorStageMode === 'auto' ? '#059669' : '#64748b'}; padding:6px 14px; border-radius:8px; font-size:12px; font-weight:${monitorStageMode === 'auto' ? '800' : '600'}; cursor:pointer; box-shadow:${monitorStageMode === 'auto' ? '0 1px 4px rgba(16,185,129,0.2)' : 'none'};">
-                    ⚡ 自动跟随 (${actualStage === 'stage1' ? '阶段一' : actualStage === 'stage2' ? '阶段二' : '阶段三'}) 🟢
-                  </button>
-                  <button class="btn-monitor-stage-tab ${monitorStageMode === 'stage1' ? 'active' : ''}" data-stg="stage1" style="background:${monitorStageMode === 'stage1' ? '#eff6ff' : '#ffffff'}; border:${monitorStageMode === 'stage1' ? '1.5px solid #2563eb' : '1px solid #cbd5e1'}; color:${monitorStageMode === 'stage1' ? '#1d4ed8' : '#64748b'}; padding:6px 14px; border-radius:8px; font-size:12px; font-weight:${monitorStageMode === 'stage1' ? '800' : '600'}; cursor:pointer; box-shadow:${monitorStageMode === 'stage1' ? '0 1px 4px rgba(37,99,235,0.2)' : 'none'};">
-                    🎪 查看阶段一
-                  </button>
-                  <button class="btn-monitor-stage-tab ${monitorStageMode === 'stage2' ? 'active' : ''}" data-stg="stage2" style="background:${monitorStageMode === 'stage2' ? '#eff6ff' : '#ffffff'}; border:${monitorStageMode === 'stage2' ? '1.5px solid #2563eb' : '1px solid #cbd5e1'}; color:${monitorStageMode === 'stage2' ? '#1d4ed8' : '#64748b'}; padding:6px 14px; border-radius:8px; font-size:12px; font-weight:${monitorStageMode === 'stage2' ? '800' : '600'}; cursor:pointer; box-shadow:${monitorStageMode === 'stage2' ? '0 1px 4px rgba(37,99,235,0.2)' : 'none'};">
-                    📰 查看阶段二
-                  </button>
-                  <button class="btn-monitor-stage-tab ${monitorStageMode === 'stage3' ? 'active' : ''}" data-stg="stage3" style="background:${monitorStageMode === 'stage3' ? '#eff6ff' : '#ffffff'}; border:${monitorStageMode === 'stage3' ? '1.5px solid #2563eb' : '1px solid #cbd5e1'}; color:${monitorStageMode === 'stage3' ? '#1d4ed8' : '#64748b'}; padding:6px 14px; border-radius:8px; font-size:12px; font-weight:${monitorStageMode === 'stage3' ? '800' : '600'}; cursor:pointer; box-shadow:${monitorStageMode === 'stage3' ? '0 1px 4px rgba(37,99,235,0.2)' : 'none'};">
-                    🎓 查看阶段三
-                  </button>
-                </div>
               </div>
 
               ${(() => {
