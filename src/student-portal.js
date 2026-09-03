@@ -7,8 +7,8 @@ import {
   STORAGE_KEY_TASKS,
   STORAGE_KEY_ANNOUNCEMENTS,
   STORAGE_KEY_CLASSES
-} from "./constants.js?v=20260903_v1855";
-import { escapeHtml, isTaskExpired, formatDurationHuman, formatStandardDateDash, showGlobalBannerNotice } from "./utils.js?v=20260903_v1855";
+} from "./constants.js?v=20260903_v1900";
+import { escapeHtml, isTaskExpired, formatDurationHuman, formatStandardDateDash, showGlobalBannerNotice } from "./utils.js?v=20260903_v1900";
 
 /* ==========================================================================
    10. STUDENT TASK PORTAL (CENTRALIZED HUB & COLLABORATION ENTRY)
@@ -117,30 +117,52 @@ export function renderStudentTaskPortal(container, authManager, state, onSelectT
     localStorage.setItem(dlKey, String(newDlMs));
   });
 
-  // 🏫 1. 严格按学生实际所属/修读的班级进行过滤（不在2班的学生绝不显示2班）
+  // 🏫 1. 严格且全方位解析当前学生所属/修读的所有班级（支持跨班级修读与无缝选班）
+  const curUserId = String(currentUser?.id || '').trim().toLowerCase();
+  const curUserName = String(currentUser?.name || '').trim().toLowerCase();
+  const userClassIdSet = new Set(
+    [
+      currentUser?.classId,
+      ...(Array.isArray(currentUser?.classIds) ? currentUser.classIds : [])
+    ].filter(Boolean)
+  );
+
   const myClasses = (classes || []).filter(c => {
-    if (currentUser?.classId && c.id === currentUser.classId) return true;
-    if (Array.isArray(currentUser?.classIds) && currentUser.classIds.includes(c.id)) return true;
+    if (!c || !c.id) return false;
+
+    // A. 用户对象自身绑定的 classId / classIds
+    if (userClassIdSet.has(c.id)) return true;
+
+    // B. 班级学生名册匹配 (studentIds) - 解决跨班级导入/添加时选班缺失的核心通道！
+    if (Array.isArray(c.studentIds) && curUserId) {
+      const inStudentIds = c.studentIds.some(sid => String(sid || '').trim().toLowerCase() === curUserId);
+      if (inStudentIds) return true;
+    }
+
+    // C. 班级学生对象列表匹配 (students)
+    if (Array.isArray(c.students)) {
+      const inStudents = c.students.some(s => {
+        const sId = String(typeof s === 'object' ? (s.id || s.name || '') : s).trim().toLowerCase();
+        const sName = String(typeof s === 'object' ? (s.name || '') : '').trim().toLowerCase();
+        return (curUserId && sId === curUserId) || (curUserName && sName === curUserName);
+      });
+      if (inStudents) return true;
+    }
+
+    // D. 班级协作小组组员匹配 (groups.members)
     if (Array.isArray(c.groups)) {
       for (const g of c.groups) {
         if (Array.isArray(g.members)) {
           const found = g.members.some(m => {
-            const mId = typeof m === 'object' ? (m.id || m.name) : m;
-            const mName = typeof m === 'object' ? m.name : '';
-            return mId === currentUser?.id || (mName && mName === currentUser?.name);
+            const mId = String(typeof m === 'object' ? (m.id || m.name || '') : m).trim().toLowerCase();
+            const mName = String(typeof m === 'object' ? (m.name || '') : '').trim().toLowerCase();
+            return (curUserId && mId === curUserId) || (curUserName && mName === curUserName);
           });
           if (found) return true;
         }
       }
     }
-    if (Array.isArray(c.students)) {
-      const inStudents = c.students.some(s => {
-        const sId = typeof s === 'object' ? (s.id || s.name) : s;
-        const sName = typeof s === 'object' ? s.name : '';
-        return sId === currentUser?.id || (sName && sName === currentUser?.name);
-      });
-      if (inStudents) return true;
-    }
+
     return false;
   });
 

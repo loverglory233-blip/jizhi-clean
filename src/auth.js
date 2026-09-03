@@ -14,8 +14,8 @@ import {
   DefaultTasks,
   DefaultAnnouncements,
   DefaultReferencePapers
-} from './constants.js?v=20260903_v1855';
-import { formatExportDateTime, formatDurationHuman, isScopeMatch } from './utils.js?v=20260903_v1855';
+} from './constants.js?v=20260903_v1900';
+import { formatExportDateTime, formatDurationHuman, isScopeMatch } from './utils.js?v=20260903_v1900';
 
 export class AuthManager {
   constructor() {
@@ -987,15 +987,17 @@ export class AuthManager {
     if (!user) return { id: 'group_unassigned', name: '未分配小组' };
     const classes = this.getClasses();
     const uId = String(user.id || '').trim().toLowerCase();
+    const uName = String(user.name || '').trim().toLowerCase();
     const safeUserKey = user.id || 'unassigned';
 
     const checkMemberMatch = (m) => {
       if (!m) return false;
-      const mId = typeof m === 'object' ? m.id : m;
-      return mId && String(mId).trim().toLowerCase() === uId;
+      const mId = String(typeof m === 'object' ? (m.id || m.name || '') : m).trim().toLowerCase();
+      const mName = String(typeof m === 'object' ? (m.name || '') : '').trim().toLowerCase();
+      return (uId && mId === uId) || (uName && mName === uName);
     };
 
-    // 1. 若指定了班级 ID，优先在该班级内检索小组
+    // 1. 若指定了班级 ID，仅在指定班级内检索小组
     if (classId) {
       const targetClass = classes.find(c => c.id === classId);
       if (targetClass && Array.isArray(targetClass.groups)) {
@@ -1004,9 +1006,20 @@ export class AuthManager {
           if ((g.members || []).some(checkMemberMatch)) return g;
         }
       }
+      return { id: `group_unassigned_${safeUserKey}`, name: '未分组（待教师分配）' };
     }
 
-    // 2. 智能全局容错检索：若指定班级未找到（或未指定班级），在学生关联的班级或全部班级中检索真实小组
+    // 2. 若未指定班级，优先在学生主班级中检索，其次在全部班级中检索
+    const primaryClassId = user.classId || (Array.isArray(user.classIds) && user.classIds[0]) || null;
+    if (primaryClassId) {
+      const pClass = classes.find(c => c.id === primaryClassId);
+      if (pClass && Array.isArray(pClass.groups)) {
+        for (const g of pClass.groups) {
+          if ((g.members || []).some(checkMemberMatch)) return g;
+        }
+      }
+    }
+
     for (const c of classes) {
       if (!Array.isArray(c.groups)) continue;
       for (const g of c.groups) {
