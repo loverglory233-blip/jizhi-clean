@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState } from './constants.js?v=20260903_v2170';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap } from './utils.js?v=20260903_v2170';
+import { InitialState } from './constants.js?v=20260903_v2175';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap } from './utils.js?v=20260903_v2175';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -96,6 +96,15 @@ export class CloudSyncEngine {
     
     // 🛡️ 仅当当前标签页正处于教师管理大屏时，才不给自己弹窗；学生端（及学生视角）100% 触发弹窗
     if (isTeacherPortalUI) return;
+
+    const currUser = this.app.authManager ? this.app.authManager.getCurrentUser() : null;
+    if (!currUser || currUser.role === 'teacher') return;
+
+    // 🛡️ 严格班级隔离校验：校验该学生是否真正属于被延期任务所在的班级（多班级归属自动穿透，非本班学生绝对不弹窗）
+    const userClassIds = Array.isArray(currUser.classIds) ? currUser.classIds : (currUser.classId ? [currUser.classId] : []);
+    const taskClassIds = Array.isArray(t.targetClassIds) ? t.targetClassIds : (t.classId ? [t.classId] : ['all']);
+    const isStudentInTargetClass = taskClassIds.includes('all') || userClassIds.some(cid => taskClassIds.includes(cid));
+    if (!isStudentInTargetClass) return;
 
     let shownEvents = {};
     try { shownEvents = JSON.parse(sessionStorage.getItem('jizhi_shown_deadline_events') || '{}'); } catch (e) {}
