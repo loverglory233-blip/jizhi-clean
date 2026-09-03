@@ -944,20 +944,34 @@ if ($action === 'get_teacher_monitor_all_groups') {
             $presence = ($r && !empty($r['presence_data'])) ? json_decode($r['presence_data'], true) : [];
             if (!is_array($presence)) $presence = [];
             $presenceByKey = [];
+            $explicitOfflineMap = [];
             foreach ($presence as $pk => $pv) {
+                $isOff = (is_array($pv) && !empty($pv['offline']));
                 $ts = (is_array($pv) && isset($pv['updatedAt'])) ? intval($pv['updatedAt']) : ((is_array($pv) && isset($pv['lastSeen'])) ? intval($pv['lastSeen']) : ((is_array($pv) && isset($pv['timestamp'])) ? intval($pv['timestamp']) : 0));
                 $rawK = (string)$pk;
                 $lowK = strtolower(trim($rawK));
-                $presenceByKey[$rawK] = $ts;
-                $presenceByKey[$lowK] = $ts;
+                if ($isOff) {
+                    $explicitOfflineMap[$rawK] = true;
+                    $explicitOfflineMap[$lowK] = true;
+                } else {
+                    $presenceByKey[$rawK] = $ts;
+                    $presenceByKey[$lowK] = $ts;
+                }
                 
                 // 智能联动全校用户字典，将学号的心跳自动拓展至姓名、昵称等全字段
                 $matchedU = $userMap[$rawK] ?? ($userMap[$lowK] ?? null);
                 if ($matchedU && is_array($matchedU)) {
                     foreach (['id', 'userId', 'name', 'studentCode', 'username'] as $uf) {
                         if (isset($matchedU[$uf]) && $matchedU[$uf] !== '') {
-                            $presenceByKey[(string)$matchedU[$uf]] = $ts;
-                            $presenceByKey[strtolower(trim((string)$matchedU[$uf]))] = $ts;
+                            $kVal = (string)$matchedU[$uf];
+                            $kLow = strtolower(trim($kVal));
+                            if ($isOff) {
+                                $explicitOfflineMap[$kVal] = true;
+                                $explicitOfflineMap[$kLow] = true;
+                            } else {
+                                $presenceByKey[$kVal] = $ts;
+                                $presenceByKey[$kLow] = $ts;
+                            }
                         }
                     }
                 }
@@ -1036,11 +1050,21 @@ if ($action === 'get_teacher_monitor_all_groups') {
                 }
                 $candidateKeys = array_unique($candidateKeys);
 
-                $isFresh = false;
+                $isExplicitOffline = false;
                 foreach ($candidateKeys as $k) {
-                    if (isset($inTaskActiveKeyMap[$k]) || isset($inTaskActiveKeyMap[strtolower(trim($k))])) {
-                        $isFresh = true;
+                    if (isset($explicitOfflineMap[$k])) {
+                        $isExplicitOffline = true;
                         break;
+                    }
+                }
+
+                $isFresh = false;
+                if (!$isExplicitOffline) {
+                    foreach ($candidateKeys as $k) {
+                        if (isset($inTaskActiveKeyMap[$k]) || isset($inTaskActiveKeyMap[strtolower(trim($k))])) {
+                            $isFresh = true;
+                            break;
+                        }
                     }
                 }
 
@@ -2363,12 +2387,11 @@ if ($action === 'presence_leave' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmtGet->execute([':sk' => $scopeKey]);
         $stRow = $stmtGet->fetch();
         $currPresence = ($stRow && !empty($stRow['presence_data'])) ? json_decode($stRow['presence_data'], true) : [];
-        if (is_array($currPresence) && isset($currPresence[strval($userKey)])) {
-            unset($currPresence[strval($userKey)]);
-            $prJson = json_encode($currPresence, JSON_UNESCAPED_UNICODE);
-            $stmtUp = $pdo->prepare("UPDATE group_states SET presence_data = :pr, last_timestamp = :ts WHERE scope_key = :sk");
-            $stmtUp->execute([':pr' => $prJson, ':ts' => $nowMs, ':sk' => $scopeKey]);
-        }
+        if (!is_array($currPresence)) $currPresence = [];
+        $currPresence[strval($userKey)] = ['offline' => true, 'leftAt' => $nowMs, 'lastSeen' => 0];
+        $prJson = json_encode($currPresence, JSON_UNESCAPED_UNICODE);
+        $stmtUp = $pdo->prepare("UPDATE group_states SET presence_data = :pr, last_timestamp = :ts WHERE scope_key = :sk");
+        $stmtUp->execute([':pr' => $prJson, ':ts' => $nowMs, ':sk' => $scopeKey]);
     }
     echo json_encode(['success' => true]);
     exit;
