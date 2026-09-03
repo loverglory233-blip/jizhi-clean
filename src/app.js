@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260903_v2130";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch, showResolutionBlock, safeJsonParse } from "./utils.js?v=20260903_v2130";
-import { callCozeAgentAPI } from "./agents.js?v=20260903_v2130";
-import { AuthManager } from "./auth.js?v=20260903_v2130";
-import { CloudSyncEngine } from "./sync.js?v=20260903_v2130";
-import { renderLoginView } from "./login.js?v=20260903_v2130";
-import { renderTeacherPortal } from "./teacher.js?v=20260903_v2130";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260903_v2130";
+} from "./constants.js?v=20260903_v2135";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch, showResolutionBlock, safeJsonParse } from "./utils.js?v=20260903_v2135";
+import { callCozeAgentAPI } from "./agents.js?v=20260903_v2135";
+import { AuthManager } from "./auth.js?v=20260903_v2135";
+import { CloudSyncEngine } from "./sync.js?v=20260903_v2135";
+import { renderLoginView } from "./login.js?v=20260903_v2135";
+import { renderTeacherPortal } from "./teacher.js?v=20260903_v2135";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260903_v2135";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260903_v2130";
+} from "./editor.js?v=20260903_v2135";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -444,7 +444,7 @@ export class App {
       const currentUser = this.authManager ? this.authManager.getCurrentUser() : null;
       if (currentUser && currentUser.role === 'student' && this.state.studentViewMode === 'workspace') {
         if (!this.state.presence) this.state.presence = {};
-        const myKeys = [currentUser.id, id, currentUser.name].filter(Boolean);
+        const myKeys = getUserAllKeys(currentUser);
         const now = Date.now();
 
         myKeys.forEach(k => {
