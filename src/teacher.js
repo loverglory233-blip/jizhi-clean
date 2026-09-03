@@ -10,8 +10,8 @@ import {
   STORAGE_KEY_USERS_DB,
   TASK_GENRE_CONFIGS,
   AgentProfiles
-} from "./constants.js?v=20260903_v1820";
-import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, showGlobalBannerNotice } from "./utils.js?v=20260903_v1820";
+} from "./constants.js?v=20260903_v1850";
+import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, showGlobalBannerNotice } from "./utils.js?v=20260903_v1850";
 
 /* ==========================================================================
    7. TEACHER PORTAL RENDERER (LIVE WORKSPACE MIRROR & ANNOUNCEMENT READ MATRIX)
@@ -19,6 +19,7 @@ import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskE
 export function renderTeacherPortal(container, authManager, state, onLogout) {
   const oldLayout = container.querySelector('.teacher-portal-layout') || document.querySelector('.teacher-portal-layout');
   const savedScrollTop = oldLayout ? oldLayout.scrollTop : (state._teacherScrollTop || 0);
+  const savedWinY = window.scrollY || window.pageYOffset || (document.documentElement && document.documentElement.scrollTop) || (state._teacherWinY || 0);
 
   if (authManager && authManager.sanitizeAndDeduplicateGroups) {
     authManager.sanitizeAndDeduplicateGroups();
@@ -4081,8 +4082,13 @@ export function renderTeacherPortal(container, authManager, state, onLogout) {
     }
   });
 
-  // 🎯 精准保持滚动条位置（恢复原容器滚动条位置，绝不跳回最顶部）
+  // 🎯 精准保持滚动条位置（同时恢复 window 视口与容器滚动条位置，彻底杜绝跳回最顶部）
   const newLayout = container.querySelector('.teacher-portal-layout') || document.querySelector('.teacher-portal-layout');
+  if (savedWinY > 0) {
+    window.scrollTo(0, savedWinY);
+    requestAnimationFrame(() => window.scrollTo(0, savedWinY));
+    setTimeout(() => window.scrollTo(0, savedWinY), 30);
+  }
   if (newLayout && savedScrollTop > 0) {
     newLayout.scrollTop = savedScrollTop;
     requestAnimationFrame(() => {
@@ -4090,7 +4096,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout) {
     });
     setTimeout(() => {
       if (newLayout) newLayout.scrollTop = savedScrollTop;
-    }, 40);
+    }, 30);
   }
 }
 
