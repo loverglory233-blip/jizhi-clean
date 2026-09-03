@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260903_v1510
+ * Version: 20260903_v1515
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260903_v1510';
+  const APP_VERSION = '20260903_v1515';
   const APP_BUILD_DATE = '2026-09-03';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -198,7 +198,7 @@
    */
 
   /**
-   * 👤 全维度用户标识提取器：提取一个用户对象的全部等价唯一标识（id, studentCode, username, name）
+   * 👤 全维度用户标识提取器：提取一个用户对象的全部等价唯一标识（id, id, username, name）
    */
   function getUserAllKeys(user) {
     if (!user) return [];
@@ -206,7 +206,7 @@
     const keys = new Set();
     if (user.id) keys.add(String(user.id).trim());
     if (user.userId) keys.add(String(user.userId).trim());
-    if (user.studentCode) keys.add(String(user.studentCode).trim());
+    if (user.id) keys.add(String(user.id).trim());
     if (user.username) keys.add(String(user.username).trim());
     if (user.name) keys.add(String(user.name).trim());
     return Array.from(keys);
@@ -460,7 +460,7 @@
 
     // 2. 启发式内容特征识别（无表头或格式不规则）
     let name = '';
-    let studentCode = '';
+    let id = '';
     let password = '123';
 
     // 优先寻找纯数字或典型学号 (长度 >= 3 的数字或字母数字组合)
@@ -470,17 +470,17 @@
 
     if (nameCandidates.length > 0 && codeCandidates.length > 0) {
       name = nameCandidates[0];
-      studentCode = codeCandidates.find(c => c !== name) || codeCandidates[0];
-      const remaining = cleanItems.filter(c => c !== name && c !== studentCode);
+      id = codeCandidates.find(c => c !== name) || codeCandidates[0];
+      const remaining = cleanItems.filter(c => c !== name && c !== id);
       if (remaining.length > 0) password = remaining[0];
     } else if (cleanItems.length >= 2) {
       name = cleanItems[0];
-      studentCode = cleanItems[1];
+      id = cleanItems[1];
       if (cleanItems.length >= 3) password = cleanItems[2];
     }
 
-    if (name && studentCode) {
-      return { id: studentCode, name, password: password || '123' };
+    if (name && id) {
+      return { id: id, name, password: password || '123' };
     }
     return null;
   }
@@ -1119,14 +1119,10 @@
         users.forEach(u => {
           const isLegacy = u && (
             LEGACY_IDS.has(u.id) ||
-            LEGACY_CODES.has(u.username) ||
-            LEGACY_CODES.has(u.studentCode) ||
             LEGACY_NAMES.has(u.name)
           );
           if (isLegacy) {
             if (u.id) removedKeys.add(u.id);
-            if (u.username) removedKeys.add(u.username);
-            if (u.studentCode) removedKeys.add(u.studentCode);
             usersChanged = true;
           } else {
             filteredUsers.push(u);
@@ -1169,7 +1165,7 @@
 
     _normalizeUser(u) {
       if (!u || typeof u !== 'object') return null;
-      const id = String(u.id || u.studentCode || u.username || u.userId || '').trim();
+      const id = String(u.id || '').trim();
       if (!id) return null;
       const name = String(u.name || id || (u.role === 'teacher' ? '老师' : '学生')).trim();
       const classId = u.classId || (Array.isArray(u.classIds) && u.classIds[0]) || null;
@@ -1916,7 +1912,7 @@
       const avatars = ['👨‍🎓', '👩‍🎓', '🧑‍🎓', '🎓', '📚', '🌟'];
 
       studentList.forEach(st => {
-        const code = String(st.id || (st.studentCode || (st.code || (st.username || '')))).trim();
+        const code = String(st.id || ((st.code || (st.username || '')))).trim();
         const name = (st.name || '').trim();
         if (!code || !name) return;
 
@@ -4798,7 +4794,7 @@
         chatStream.innerHTML = combinedGroupChatLogs.length > 0 ? combinedGroupChatLogs.map(m => {
           const allGlobalUsers = (authManager) ? authManager.getUsers() : [];
           const isAgent = AgentProfiles[m.sender] !== undefined;
-          const matchedUser = isAgent ? null : allGlobalUsers.find(u => u.id === m.sender || u.studentCode === m.sender || u.username === m.sender || u.name === m.sender);
+          const matchedUser = isAgent ? null : allGlobalUsers.find(u => u.id === m.sender || u.name === m.sender);
           const senderName = isAgent ? AgentProfiles[m.sender].name : (matchedUser ? matchedUser.name : (m.senderName || (monitorMembersObj[m.sender] ? monitorMembersObj[m.sender].name : m.sender)));
           const color = isAgent ? AgentProfiles[m.sender].color : (matchedUser ? (matchedUser.color || '#2563eb') : (monitorMembersObj[m.sender] ? monitorMembersObj[m.sender].color : '#2563eb'));
           return `
@@ -5197,7 +5193,7 @@
                           classStudents.forEach(s => { const _n = (s.name || '').trim(); if (!_n) return; (_nameBuckets[_n] = _nameBuckets[_n] || []).push(s); });
                           const _escAttr = (v) => String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
                           return classStudents.map((s, idx) => {
-                            const grp = (activeClass.groups || []).find(g => g.members && (g.members.includes(s.id) || (typeof g.members[0] === 'object' && g.members.some(m => m && (m.id === s.id || m.studentCode === s.id)))));
+                            const grp = (activeClass.groups || []).find(g => g.members && (g.members.includes(s.id) || (typeof g.members[0] === 'object' && g.members.some(m => m && (m.id === s.id)))));
                             const stdAcc = s.id;
                             const _dupPeers = (_nameBuckets[(s.name || '').trim()] || []).filter(x => x !== s);
                             const _dupBadge = _dupPeers.length > 0 ? `<span title="${_escAttr('⚠️ 有同名同学：' + _dupPeers.map(x => x.name + '（' + x.id + '）').join(' / '))}" style="margin-left:6px; background:#fef3c7; border:1px solid #fcd34d; color:#b45309; padding:1px 7px; border-radius:999px; font-size:11px; font-weight:700; cursor:help;">⚠️ 同名 ${_dupPeers.length + 1} 人</span>` : '';
@@ -5256,7 +5252,7 @@
                     ${(() => {
                       const validGroups = (activeClass.groups || []).filter(grp => {
                         const groupMembers = classStudents.filter(s => (grp.members || []).some(m => {
-                          const mId = (typeof m === 'object' && m !== null) ? (m.id || m.userId || m.studentCode) : m;
+                          const mId = (typeof m === 'object' && m !== null) ? (m.id || m.userId ) : m;
                           return mId === s.id;
                         }));
                         return groupMembers.length > 0;
@@ -5276,7 +5272,7 @@
 
                       return validGroups.map(grp => {
                         const groupMembers = classStudents.filter(s => (grp.members || []).some(m => {
-                          const mId = (typeof m === 'object' && m !== null) ? (m.id || m.userId || m.studentCode) : m;
+                          const mId = (typeof m === 'object' && m !== null) ? (m.id || m.userId ) : m;
                           return mId === s.id;
                         }));
                         return `
@@ -5885,7 +5881,7 @@
                         ${combinedGroupChatLogs.length > 0 ? combinedGroupChatLogs.map(m => {
                           const allGlobalUsers = (authManager) ? authManager.getUsers() : [];
                           const isAgent = AgentProfiles[m.sender] !== undefined;
-                          const matchedUser = isAgent ? null : allGlobalUsers.find(u => u.id === m.sender || u.studentCode === m.sender || u.username === m.sender || u.name === m.sender);
+                          const matchedUser = isAgent ? null : allGlobalUsers.find(u => u.id === m.sender  === m.sender || u.username === m.sender || u.name === m.sender);
                           const senderName = isAgent ? AgentProfiles[m.sender].name : (matchedUser ? matchedUser.name : (m.senderName || (monitorMembersObj[m.sender] ? monitorMembersObj[m.sender].name : m.sender)));
                           const color = isAgent ? AgentProfiles[m.sender].color : (matchedUser ? (matchedUser.color || '#2563eb') : (monitorMembersObj[m.sender] ? monitorMembersObj[m.sender].color : '#2563eb'));
                           return `
@@ -6000,11 +5996,11 @@
                               </div>
                               <div style="display:flex; flex-direction:column; gap:6px;">
                                 ${monitorMembersList.map((m, idx) => {
-                                  const mKey = m.id || m.studentCode || m.username || m.name || (`mem_${idx}`);
+                                  const mKey = m.id  || m.username || m.name || (`mem_${idx}`);
                                   const tasks = state.stage1?.contract?.taskAssignments || {};
                                   const taskVal = tasks[mKey] !== undefined ? tasks[mKey] :
                                     (m.id && tasks[m.id] !== undefined ? tasks[m.id] :
-                                    (m.studentCode && tasks[m.studentCode] !== undefined ? tasks[m.studentCode] :
+                                    (m.id && tasks[m.id] !== undefined ? tasks[m.id] :
                                     (m.name && tasks[m.name] !== undefined ? tasks[m.name] : '')));
                                   return `
                                     <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px; padding:6px 10px; display:flex; flex-direction:column; gap:3px;">
@@ -6025,12 +6021,12 @@
                               <div style="font-size:12px; font-weight:700; color:#334155; margin-bottom:6px; display:flex; justify-content:space-between; align-items:center;">
                                 <span>✍️ 组员签署确认状态:</span>
                                 <span style="font-size:11.5px; color:#2563eb; font-weight:700;">
-                                  签署进度: ${monitorMembersList.filter(m => { const c = state.stage1?.contract?.confirmedMembers || {}; return c[m.id] || c[m.studentCode] || (m.name && c[m.name]); }).length}/${monitorMembersList.length}
+                                  签署进度: ${monitorMembersList.filter(m => { const c = state.stage1?.contract?.confirmedMembers || {}; return c[m.id] || c[m.id] || (m.name && c[m.name]); }).length}/${monitorMembersList.length}
                                 </span>
                               </div>
                               <div style="display:flex; gap:6px; flex-wrap:wrap;">
                                 ${monitorMembersList.map(m => {
-                                  const isConf = state.stage1?.contract?.confirmedMembers && (state.stage1.contract.confirmedMembers[m.id] || state.stage1.contract.confirmedMembers[m.studentCode] || (m.name && state.stage1.contract.confirmedMembers[m.name]));
+                                  const isConf = state.stage1?.contract?.confirmedMembers && (state.stage1.contract.confirmedMembers[m.id] || state.stage1.contract.confirmedMembers[m.id] || (m.name && state.stage1.contract.confirmedMembers[m.name]));
                                   return `
                                     <span style="color:${isConf ? '#059669' : '#64748b'}; border:1px solid ${isConf ? '#a7f3d0' : '#e2e8f0'}; background:${isConf ? '#ecfdf5' : '#f8fafc'}; padding:3px 8px; border-radius:6px; font-size:11.5px; font-weight:700; display:inline-flex; align-items:center; gap:4px;">
                                       ${m.avatar || '👤'} ${escapeHtml(m.name)}: <b>${isConf ? '✅ 已签署' : '⏳ 未签署'}</b>
@@ -6052,7 +6048,7 @@
                     const s2Subs = state.stage2?.meetingSubmissions || {};
                     const s2SubCount = Object.keys(s2Subs).length;
                     const totalMemberCount = monitorMembersList.length || 3;
-                    const confirmedDraftCount = monitorMembersList.filter(m => state.stage2?.confirmedMembers && (state.stage2.confirmedMembers[m.id] || state.stage2.confirmedMembers[m.studentCode] || state.stage2.confirmedMembers[m.username] || (m.name && state.stage2.confirmedMembers[m.name]))).length;
+                    const confirmedDraftCount = monitorMembersList.filter(m => state.stage2?.confirmedMembers && (state.stage2.confirmedMembers[m.id] || state.stage2.confirmedMembers[m.id] || state.stage2.confirmedMembers[m.username] || (m.name && state.stage2.confirmedMembers[m.name]))).length;
 
                     return `
                       <div style="display:grid; grid-template-columns: minmax(0, 1fr) 300px; gap:16px; width:100%; box-sizing:border-box; height:840px; max-height:840px; align-items:stretch;">
@@ -6114,7 +6110,7 @@
                               </span>
                               <div id="teacher-stage2-confirmed-pills" style="display:flex; gap:6px; flex-wrap:wrap;">
                                 ${monitorMembersList.map(m => {
-                                  const isConf = state.stage2?.confirmedMembers && (state.stage2.confirmedMembers[m.id] || state.stage2.confirmedMembers[m.studentCode] || (m.name && state.stage2.confirmedMembers[m.name]));
+                                  const isConf = state.stage2?.confirmedMembers && (state.stage2.confirmedMembers[m.id] || state.stage2.confirmedMembers[m.id] || (m.name && state.stage2.confirmedMembers[m.name]));
                                   return `<span style="font-size:11px; padding:1px 8px; border-radius:10px; font-weight:700; background:${isConf ? '#ecfdf5' : '#f8fafc'}; color:${isConf ? '#059669' : '#94a3b8'}; border:1px solid ${isConf ? '#a7f3d0' : '#e2e8f0'};">
                                     ${isConf ? '✓' : '○'} ${escapeHtml(m.name)}
                                   </span>`;
@@ -6165,9 +6161,9 @@
                                 ${(() => {
                                   const contribs = state.stage2?.memberContributions || {};
                                   let rawTotal = 0;
-                                  monitorMembersList.forEach(m => { rawTotal += (contribs[m.id] || 0) + (contribs[m.studentCode] || 0); });
+                                  monitorMembersList.forEach(m => { rawTotal += (contribs[m.id] || 0) + (contribs[m.id] || 0); });
                                   return monitorMembersList.map((m) => {
-                                    const rawVal = (contribs[m.id] || 0) + (contribs[m.studentCode] || 0);
+                                    const rawVal = (contribs[m.id] || 0) + (contribs[m.id] || 0);
                                     const pct = rawTotal > 0 ? Math.round((rawVal / rawTotal) * 100) : 0;
                                     return `<span style="color:${rawVal > 0 ? (m.color || '#2563eb') : '#94a3b8'}; font-weight:700;">● ${escapeHtml(m.name)}: ${pct}%</span>`;
                                   }).join('');
@@ -6178,12 +6174,12 @@
                               ${(() => {
                                 const contribs = state.stage2?.memberContributions || {};
                                 let rawTotal = 0;
-                                monitorMembersList.forEach(m => { rawTotal += (contribs[m.id] || 0) + (contribs[m.studentCode] || 0); });
+                                monitorMembersList.forEach(m => { rawTotal += (contribs[m.id] || 0) + (contribs[m.id] || 0); });
                                 if (rawTotal === 0) {
                                   return `<div style="width:100%; height:10px; background:#f8fafc; border-radius:5px; display:flex; align-items:center; justify-content:center; font-size:10px; color:#94a3b8; font-weight:600;">⏳ 暂无协作投入 (组员在 Etherpad 中撰写、修改正文或研讨后将平滑累计真实贡献)</div>`;
                                 }
                                 return monitorMembersList.map((m) => {
-                                  const rawVal = (contribs[m.id] || 0) + (contribs[m.studentCode] || 0);
+                                  const rawVal = (contribs[m.id] || 0) + (contribs[m.id] || 0);
                                   if (rawVal === 0) return '';
                                   const pct = Math.round((rawVal / rawTotal) * 100);
                                   return `<div style="width:${pct}%; background:${m.color || '#2563eb'}; transition:width 0.3s ease;" title="${escapeHtml(m.name)}: ${pct}% (${rawVal}字)"></div>`;
@@ -6257,9 +6253,9 @@
                                   ${(() => {
                                     const contribs = state.stage2?.memberContributions || {};
                                     let rawTotal = 0;
-                                    monitorMembersList.forEach(m => { rawTotal += (contribs[m.id] || 0) + (contribs[m.studentCode] || 0); });
+                                    monitorMembersList.forEach(m => { rawTotal += (contribs[m.id] || 0) + (contribs[m.id] || 0); });
                                     return monitorMembersList.map((m) => {
-                                      const rawVal = (contribs[m.id] || 0) + (contribs[m.studentCode] || 0);
+                                      const rawVal = (contribs[m.id] || 0) + (contribs[m.id] || 0);
                                       const pct = rawTotal > 0 ? Math.round((rawVal / rawTotal) * 100) : 0;
                                       return `<span style="color:${rawVal > 0 ? (m.color || '#2563eb') : '#94a3b8'}; font-weight:700;">● ${escapeHtml(m.name)}: ${pct}%</span>`;
                                     }).join('');
@@ -6270,12 +6266,12 @@
                                 ${(() => {
                                   const contribs = state.stage2?.memberContributions || {};
                                   let rawTotal = 0;
-                                  monitorMembersList.forEach(m => { rawTotal += (contribs[m.id] || 0) + (contribs[m.studentCode] || 0); });
+                                  monitorMembersList.forEach(m => { rawTotal += (contribs[m.id] || 0) + (contribs[m.id] || 0); });
                                   if (rawTotal === 0) {
                                     return `<div style="width:100%; height:10px; background:#f8fafc; border-radius:5px; display:flex; align-items:center; justify-content:center; font-size:10px; color:#94a3b8; font-weight:600;">⏳ 暂无协作投入</div>`;
                                   }
                                   return monitorMembersList.map((m) => {
-                                    const rawVal = (contribs[m.id] || 0) + (contribs[m.studentCode] || 0);
+                                    const rawVal = (contribs[m.id] || 0) + (contribs[m.id] || 0);
                                     if (rawVal === 0) return '';
                                     const pct = Math.round((rawVal / rawTotal) * 100);
                                     return `<div style="width:${pct}%; background:${m.color || '#2563eb'}; transition:width 0.3s ease;" title="${escapeHtml(m.name)}: ${pct}% (${rawVal}字)"></div>`;
@@ -8084,7 +8080,7 @@
             if (selectedAttachment.fileObj) {
               try {
                 const currT = authManager.getCurrentUser();
-                const tId = (currT && (currT.studentCode || currT.username || currT.id)) || '';
+                const tId = (currT && (currT.username || currT.id)) || '';
                 const tToken = (currT && (currT.token || currT.activeSessionId)) || '';
 
                 const formData = new FormData();
@@ -8320,7 +8316,7 @@
             if (selectedFile.fileObj) {
               try {
                 const currT = authManager.getCurrentUser();
-                const tId = (currT && (currT.studentCode || currT.username || currT.id)) || '';
+                const tId = (currT && (currT.username || currT.id)) || '';
                 const tToken = (currT && (currT.token || currT.activeSessionId)) || '';
 
                 const formData = new FormData();
@@ -9507,12 +9503,12 @@
             if (e.target.files && e.target.files[0]) {
               const file = e.target.files[0];
               const currentUser = window.app?.authManager ? window.app.authManager.getCurrentUser() : null;
-              const studentCode = currentUser?.id || 'anonymous';
+              const id = currentUser?.id || 'anonymous';
               const caption = prompt('请输入学术图题说明 (例如: 图 1: 研究模型与变量关系架构图):', '图 1: 研究模型与变量关系架构图');
 
               const fd = new FormData();
               fd.append('file', file);
-              fd.append('userId', studentCode);
+              fd.append('userId', id);
 
               fetch('sync.php?action=upload_file', {
                 method: 'POST',
@@ -9966,7 +9962,7 @@
                 // 动态聚合计算该提案的真实得票数
                 const proposalVotesCount = membersList.filter(m => {
                   if (!s1.votes) return false;
-                  const v = getUserFromMap(s1.votes, m) || s1.votes[m.studentCode] || s1.votes[m.id] || s1.votes[m.username] || (m.name && s1.votes[m.name]);
+                  const v = getUserFromMap(s1.votes, m) || s1.votes[m.id] || s1.votes[m.id] || s1.votes[m.username] || (m.name && s1.votes[m.name]);
                   return v === p.id;
                 }).length;
 
@@ -10031,11 +10027,11 @@
                 const confs = state.stepConfirmations || {};
                 const isDoneHelper = (map) => {
                   if (!map) return 0;
-                  return membersList.filter(m => map[m.id] || map[m.studentCode] || map[m.username] || (m.name && map[m.name])).length;
+                  return membersList.filter(m => map[m.id] || map[m.id] || map[m.username] || (m.name && map[m.name])).length;
                 };
                 const isMyDoneHelper = (map) => {
                   if (!map) return false;
-                  return !!(map[currUserCode] || (currUser && (map[currUser.id] || map[currUser.studentCode] || map[currUser.username] || map[currUser.name])));
+                  return !!(map[currUserCode] || (currUser && (map[currUser.id] || map[currUser.id] || map[currUser.username] || map[currUser.name])));
                 };
 
                 if (s1.contractStep === 'completed' || s1.contract?.isDraftGenerated) {
@@ -10133,11 +10129,11 @@
             </div>
             <div style="display:flex; flex-direction:column; gap:10px; width:100%;">
               ${membersList.map((m, idx) => {
-                const mKey = m.id || m.studentCode || m.username || m.name || (`mem_${idx}`);
+                const mKey = m.id  || m.username || m.name || (`mem_${idx}`);
                 const taskVal = (s1.contract.taskAssignments && (
                   s1.contract.taskAssignments[mKey] !== undefined ? s1.contract.taskAssignments[mKey] :
                   (m.id && s1.contract.taskAssignments[m.id] !== undefined ? s1.contract.taskAssignments[m.id] :
-                  (m.studentCode && s1.contract.taskAssignments[m.studentCode] !== undefined ? s1.contract.taskAssignments[m.studentCode] :
+                  (m.id && s1.contract.taskAssignments[m.id] !== undefined ? s1.contract.taskAssignments[m.id] :
                   (m.name && s1.contract.taskAssignments[m.name] !== undefined ? s1.contract.taskAssignments[m.name] : '')))
                 )) || '';
                 return `
@@ -10251,7 +10247,7 @@
             return false;
           });
           const nowMs = Date.now();
-          const effectiveAuthorKey = currUserObj?.studentCode || currUserObj?.id || (typeof currentUser === 'string' ? currentUser : '') || currentUserName;
+          const effectiveAuthorKey = currUserObj?.id || currUserObj?.id || (typeof currentUser === 'string' ? currentUser : '') || currentUserName;
           const effectiveAuthorName = currUserObj?.name || currentUserName;
           const effectiveAuthorId = currUserObj?.id || effectiveAuthorKey;
 
@@ -10348,7 +10344,7 @@
       if (!curTaskId || curTaskId === 'task_default') {
         curTaskId = `task_${effectiveClassId}_default`;
       }
-      const uId = currUser ? (currUser.studentCode || currUser.username || currUser.id) : 'u';
+      const uId = currUser ? (currUser.username || currUser.id) : 'u';
       const uName = currUser ? (currUser.name || currUser.username) : '组员';
       const payload = { fieldKey, userId: uId, userName: uName, groupId: curGid, taskId: curTaskId, classId: effectiveClassId };
       if (value !== null) payload.value = value;
@@ -10357,7 +10353,7 @@
 
     const isFieldLockedByOther = (fieldKey) => {
       const currUser = (window.app && window.app.authManager) ? window.app.authManager.getCurrentUser() : null;
-      const myId = currUser ? String(currUser.studentCode || currUser.username || currUser.id || '') : '';
+      const myId = currUser ? String(currUser.username || currUser.id || '') : '';
       const myName = currUser ? String(currUser.name || currUser.username || '') : '';
       const lock = (window.app?.state?.fieldLocks || {})[fieldKey];
       if (!lock) return false;
@@ -11008,7 +11004,7 @@
 
     const getMemberContribVal = (contribs, m) => {
       if (!contribs || !m) return 0;
-      const keys = [m.studentCode, m.id, m.username, m.name].filter(Boolean);
+      const keys = [m.id, m.id, m.username, m.name].filter(Boolean);
       let maxVal = 0;
       for (const k of keys) {
         if (contribs[k] !== undefined && Number(contribs[k]) > maxVal) {
@@ -11105,22 +11101,22 @@
           if (delta > 0) {
             const matchedMember = membersList.find(m => {
               if (!m) return false;
-              if (currUser && (m.id === currUser.id || m.studentCode === currUser.studentCode || m.username === currUser.username || (m.name && m.name === currUser.name))) return true;
-              if (state.currentUser && (m.id === state.currentUser || m.studentCode === state.currentUser || m.username === state.currentUser || m.name === state.currentUser)) return true;
+              if (currUser && (m.id === currUser.id  === m.username === currUser.username || (m.name && m.name === currUser.name))) return true;
+              if (state.currentUser && (m.id === state.currentUser  === state.currentUser || m.username === state.currentUser || m.name === state.currentUser)) return true;
               return false;
             }) || membersList[0];
 
             const curVal = getMemberContribVal(contribs, matchedMember);
             const newVal = curVal + delta;
 
-            const keysToUpdate = [matchedMember?.studentCode, matchedMember?.id, matchedMember?.username, matchedMember?.name, currUser?.studentCode, currUser?.id, currUserCode].filter(Boolean);
+            const keysToUpdate = [matchedMember?.id, matchedMember?.id, matchedMember?.username, matchedMember?.name, currUser?.id, currUser?.id, currUserCode].filter(Boolean);
             keysToUpdate.forEach(k => {
               contribs[k] = newVal;
             });
             updateContribDom();
 
             // 📡 异步持久化到服务端双表
-            const reportCode = matchedMember?.studentCode || matchedMember?.id || currUser?.studentCode || currUserCode;
+            const reportCode = matchedMember?.id || matchedMember?.id || currUser?.id || currUserCode;
             fetch(`sync.php?action=report_member_contrib&groupId=${encodeURIComponent(userGroupId)}&taskId=${encodeURIComponent(activeTaskId)}&classId=${encodeURIComponent(userClassId)}`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
@@ -11316,7 +11312,7 @@
         const subs = s2.meetingSubmissions || {};
         const subCount = Object.keys(subs).length;
         const isMeetingFullyDone = subCount >= totalCount && totalCount > 0;
-        const isCurrentUserSubmitted = isMemberDone(subs, { id: currUserCode, studentCode: currUser?.studentCode, username: currUser?.username, name: currUser?.name });
+        const isCurrentUserSubmitted = isMemberDone(subs, { id: currUserCode, id: currUser?.id, username: currUser?.username, name: currUser?.name });
 
         const meetingTextEl = canvas.querySelector('#stage2-meeting-count-text');
         if (meetingTextEl) {
@@ -11337,7 +11333,7 @@
         const confMembers = s2.confirmedMembers || {};
         const confirmedDraftCount = membersList.filter(m => isMemberDone(confMembers, m)).length;
         const isDraftFullyConfirmed = s2.isDraftConfirmed || (confirmedDraftCount >= totalCount && totalCount > 0);
-        const isUserDraftConfirmed = isMemberDone(confMembers, { id: currUserCode, studentCode: currUser?.studentCode, username: currUser?.username, name: currUser?.name });
+        const isUserDraftConfirmed = isMemberDone(confMembers, { id: currUserCode, id: currUser?.id, username: currUser?.username, name: currUser?.name });
 
         const draftTextEl = canvas.querySelector('#stage2-draft-count-text');
         if (draftTextEl) {
@@ -11410,7 +11406,7 @@
               const subs = s2.meetingSubmissions || {};
               const subCount = Object.keys(subs).length;
               const isMeetingFullyDone = subCount >= totalCount && totalCount > 0;
-              const isCurrentUserSubmitted = isMemberDone(subs, { id: currUserCode, studentCode: currUser?.studentCode, username: currUser?.username, name: currUser?.name });
+              const isCurrentUserSubmitted = isMemberDone(subs, { id: currUserCode, id: currUser?.id, username: currUser?.username, name: currUser?.name });
               return `
                 <div style="display:flex; align-items:center; gap:4px;">
                   <span id="stage2-meeting-count-text" style="font-size:11px; font-weight:800; color:${isMeetingFullyDone ? '#059669' : '#2563eb'}; background:${isMeetingFullyDone ? '#d1fae5' : '#eff6ff'}; padding:1.5px 6px; border-radius:8px; border:1px solid ${isMeetingFullyDone ? '#a7f3d0' : '#bfdbfe'};">
@@ -11636,12 +11632,12 @@
             ${(() => {
               const contribs = s2.memberContributions || {};
               let rawTotal = 0;
-              membersList.forEach(m => { rawTotal += (contribs[m.id] || 0) + (contribs[m.studentCode] || 0); });
+              membersList.forEach(m => { rawTotal += (contribs[m.id] || 0) + (contribs[m.id] || 0); });
               if (rawTotal === 0) {
                 return `<div style="width:100%; height:8px; background:#f8fafc; border-radius:4px; display:flex; align-items:center; justify-content:center; font-size:9.5px; color:#94a3b8; font-weight:600;">⏳ 在 Etherpad 中撰写或修改正文将实时累计真实贡献</div>`;
               }
               return membersList.map((m) => {
-                const rawVal = (contribs[m.id] || 0) + (contribs[m.studentCode] || 0);
+                const rawVal = (contribs[m.id] || 0) + (contribs[m.id] || 0);
                 const pct = rawTotal > 0 ? Math.round((rawVal / rawTotal) * 100) : 0;
                 return `<div class="contrib-segment" style="width:${pct}%; background:${m.color || '#2563eb'}; transition:width 0.8s ease-in-out;" title="${m.name}: ${pct}%"></div>`;
               }).join('');
@@ -11651,9 +11647,9 @@
             ${(() => {
               const contribs = s2.memberContributions || {};
               let rawTotal = 0;
-              membersList.forEach(m => { rawTotal += (contribs[m.id] || 0) + (contribs[m.studentCode] || 0); });
+              membersList.forEach(m => { rawTotal += (contribs[m.id] || 0) + (contribs[m.id] || 0); });
               return membersList.map((m) => {
-                const rawVal = (contribs[m.id] || 0) + (contribs[m.studentCode] || 0);
+                const rawVal = (contribs[m.id] || 0) + (contribs[m.id] || 0);
                 const pct = rawTotal > 0 ? Math.round((rawVal / rawTotal) * 100) : 0;
                 return `<span style="color:${rawVal > 0 ? (m.color || '#2563eb') : '#94a3b8'};">● ${m.name}: ${pct}%</span>`;
               }).join('');
@@ -12006,7 +12002,7 @@
             <span style="color:#475569; font-weight:700;">📝 终稿修改确认进度: <b style="color:${isRevisionFullyConfirmed ? '#059669' : '#2563eb'};">${confirmedRevCount}/${totalCount}</b> 人已确认进入终稿修改 ${isRevisionFullyConfirmed ? '<span style="color:#059669; margin-left:6px;">(🎉 全员已确认，终稿修改已解锁，答辩已锁定)</span>' : '<span style="color:#d97706; margin-left:6px;">(全员确认后自动解锁终稿修改)</span>'}</span>
             <div style="display:flex; gap:6px;">
               ${membersList.map(m => {
-                const isConf = confirmedRevMap[m.id] || confirmedRevMap[m.studentCode] || confirmedRevMap[m.username] || (m.name && confirmedRevMap[m.name]);
+                const isConf = confirmedRevMap[m.id] || confirmedRevMap[m.id] || confirmedRevMap[m.username] || (m.name && confirmedRevMap[m.name]);
                 return `<span style="font-size:11px; padding:1px 8px; border-radius:10px; font-weight:700; background:${isConf ? '#ecfdf5' : '#ffffff'}; color:${isConf ? '#059669' : '#94a3b8'}; border:1px solid ${isConf ? '#a7f3d0' : '#e2e8f0'};">
                   ${isConf ? '✓' : '○'} ${m.name}
                 </span>`;
@@ -12021,7 +12017,7 @@
             <span style="color:#475569; font-weight:700;">🚀 终稿提交确认进度: <b style="color:${isAllFinalSubmitted ? '#059669' : '#059669'};">${finalSubmittedCount}/${totalCount}</b> 人已确认提交 ${isAllFinalSubmitted ? '<span style="color:#059669; margin-left:6px;">(🎉 全员已确认提交)</span>' : '<span style="color:#d97706; margin-left:6px;">(需全组所有成员均确认提交后正式归档入库)</span>'}</span>
             <div style="display:flex; gap:6px;">
               ${membersList.map(m => {
-                const isSub = finalSubmittedMap[m.id] || finalSubmittedMap[m.studentCode] || finalSubmittedMap[m.username] || (m.name && finalSubmittedMap[m.name]);
+                const isSub = finalSubmittedMap[m.id] || finalSubmittedMap[m.id] || finalSubmittedMap[m.username] || (m.name && finalSubmittedMap[m.name]);
                 return `<span style="font-size:11px; padding:1px 8px; border-radius:10px; font-weight:700; background:${isSub ? '#ecfdf5' : '#ffffff'}; color:${isSub ? '#059669' : '#94a3b8'}; border:1px solid ${isSub ? '#a7f3d0' : '#e2e8f0'};">
                   ${isSub ? '✓' : '○'} ${m.name}
                 </span>`;
@@ -12237,17 +12233,17 @@
       }
 
       const newPresenceHtml = memberList.map(m => {
-        const uid = String(m.id || m.studentCode || m.userId || '').trim();
+        const uid = String(m.id  || m.userId || '').trim();
         const candidateKeys = [
           String(m.id || '').trim(),
-          String(m.studentCode || '').trim(),
+          String('').trim(),
           String(m.username || '').trim(),
           String(m.name || '').trim()
         ].filter(Boolean);
 
         const isMe = (currUser && (
           (currUser.id && (m.id === currUser.id || uid === String(currUser.id))) ||
-          (currUser.studentCode && (m.studentCode === currUser.studentCode || uid === String(currUser.studentCode))) ||
+          (currUser.id && (m.id === uid === String(currUser.id))) ||
           (currUser.username && (m.username === currUser.username || uid === String(currUser.username))) ||
           (currUser.name && m.name === currUser.name)
         )) || (uid && uid === myCode);
@@ -12339,7 +12335,7 @@
       currentUser,
       state.currentUser,
       authUser?.id,
-      authUser?.studentCode,
+      authUser?.id,
       authUser?.username,
       authUser?.name
     ].filter(Boolean).map(k => String(k).trim().toLowerCase());
@@ -12385,12 +12381,12 @@
         }
         if (!name || name === msg.sender) {
           const memList = Array.isArray(state.members) ? state.members : Object.values(state.members || {});
-          const mem = memList.find(m => m && (m.id === msg.sender || m.studentCode === msg.sender));
+          const mem = memList.find(m => m && (m.id === msg.sender  === msg.sender));
           name = mem?.name || (msg.senderName && msg.senderName !== msg.sender ? msg.senderName : '组员');
         }
 
         const memList = Array.isArray(state.members) ? state.members : Object.values(state.members || {});
-        const memObj = memList.find(m => isSameUser(m, msg.sender) || m.id === msg.sender || m.studentCode === msg.sender || m.name === name) || null;
+        const memObj = memList.find(m => isSameUser(m, msg.sender) || m.id === msg.sender  === msg.sender || m.name === name) || null;
         if (memObj) {
           avatar = memObj.avatar || '👨‍🎓';
           color = memObj.color || '#2563eb';
@@ -12543,8 +12539,8 @@
           }
           const keys = [
             typeof m === 'string' ? m : null,
-            m?.id, m?.studentCode, m?.username, m?.name,
-            fullUser?.id, fullUser?.studentCode, fullUser?.username, fullUser?.name
+            m?.id, m?.id, m?.username, m?.name,
+            fullUser?.id, fullUser?.id, fullUser?.username, fullUser?.name
           ].filter(Boolean).map(k => String(k).trim().toLowerCase());
           return keys.some(k => map[k] || map[String(k)]);
         }).length;
@@ -12557,8 +12553,8 @@
           fullUser = window.app.authManager.findUserByKey(myCode);
         }
         const keys = [
-          myCode, currUser?.id, currUser?.studentCode, currUser?.username, currUser?.name,
-          fullUser?.id, fullUser?.studentCode, fullUser?.username, fullUser?.name
+          myCode, currUser?.id, currUser?.id, currUser?.username, currUser?.name,
+          fullUser?.id, fullUser?.id, fullUser?.username, fullUser?.name
         ].filter(Boolean).map(k => String(k).trim().toLowerCase());
         return keys.some(k => map[k] || map[String(k)]);
       };
@@ -13138,7 +13134,7 @@
 
         const getVal = (m) => {
           if (!m) return 0;
-          const keys = [m.studentCode, m.id, m.username, m.name].filter(Boolean);
+          const keys = [m.id, m.id, m.username, m.name].filter(Boolean);
           let maxVal = 0;
           for (const k of keys) {
             if (contribs[k] !== undefined && Number(contribs[k]) > maxVal) {
@@ -13186,7 +13182,7 @@
         const currentUser = this.authManager ? this.authManager.getCurrentUser() : null;
         if (currentUser && currentUser.role === 'student' && this.state.studentViewMode === 'workspace') {
           if (!this.state.presence) this.state.presence = {};
-          const myKeys = [currentUser.id, currentUser.studentCode, currentUser.username, currentUser.name].filter(Boolean);
+          const myKeys = [currentUser.id, currentUser.id, currentUser.username, currentUser.name].filter(Boolean);
           const now = Date.now();
 
           myKeys.forEach(k => {
@@ -13233,13 +13229,13 @@
           const membersList = Object.values(this.state.members || {});
           const presenceMap = this.state.presence || {};
           const onlineMembers = membersList.filter(m => {
-            const p = presenceMap[m.studentCode] || presenceMap[m.id];
+            const p = presenceMap[m.id] || presenceMap[m.id];
             return p && (nowMs - (p.updatedAt || 0) < 180000);
           });
           const primaryMember = (onlineMembers.length > 0)
-            ? [...onlineMembers].sort((a, b) => (a.studentCode || a.id || '').localeCompare(b.studentCode || b.id || ''))[0]
-            : (membersList.length > 0 ? [...membersList].sort((a, b) => (a.studentCode || a.id || '').localeCompare(b.studentCode || b.id || ''))[0] : null);
-          const isPrimaryGuardian = primaryMember && (primaryMember.studentCode === myCode || primaryMember.id === myCode);
+            ? [...onlineMembers].sort((a, b) => (a.id || a.id || '').localeCompare(b.id || b.id || ''))[0]
+            : (membersList.length > 0 ? [...membersList].sort((a, b) => (a.id || a.id || '').localeCompare(b.id || b.id || ''))[0] : null);
+          const isPrimaryGuardian = primaryMember && (primaryMember.id === myCode || primaryMember.id === myCode);
 
           if (isPrimaryGuardian) {
             const allChatLogsList = Object.values(this.state.chatLogs || {}).flat();
@@ -13250,8 +13246,8 @@
               const s1 = this.state.stage1 || {};
               const propList = s1.proposals || [];
               const propCount = propList.length;
-              const unsubmittedMembers = membersList.filter(m => !propList.some(p => p.author === m.id || p.author === m.studentCode || p.author === m.username || (m.name && p.authorName === m.name)));
-              const unsubmittedNames = unsubmittedMembers.map(m => m.name || m.username || m.studentCode).join('、');
+              const unsubmittedMembers = membersList.filter(m => !propList.some(p => p.author === m.id || p.author === p.author === m.username || (m.name && p.authorName === m.name)));
+              const unsubmittedNames = unsubmittedMembers.map(m => m.name || m.username ).join('、');
 
               // ① 开场 3 分钟未动笔静默破冰（紧扣研究方向与任务要求）
               if (!this.state.s1_3minBreakSent && elapsedSec >= 180 && propCount === 0) {
@@ -13494,7 +13490,7 @@
           () => this.handleLogout(),
           () => {
             const users = this.authManager.getUsers();
-            const studentA = users.find(u => (u.role === 'student' || u.isStudent) && u.studentCode);
+            const studentA = users.find(u => (u.role === 'student' || u.isStudent) && u.id);
             if (studentA) {
               sessionStorage.setItem('jizhi_current_user', JSON.stringify(studentA));
               localStorage.setItem('jizhi_current_user', JSON.stringify(studentA));
@@ -13539,7 +13535,7 @@
               this.isViewingPastStage = false;
 
               if (!this.state.presence) this.state.presence = {};
-              const myKeys = [currentUser?.id, currentUser?.studentCode, currentUser?.username, currentUser?.name].filter(Boolean);
+              const myKeys = [currentUser?.id, currentUser?.id, currentUser?.username, currentUser?.name].filter(Boolean);
               const now = Date.now();
               myKeys.forEach(k => {
                 this.state.presence[k] = { nodeIndex: 0, activeSection: '在线协作', updatedAt: now };
@@ -13796,7 +13792,7 @@
 
           // 🛡️ 4. 组员名单变动与换组秒级无感同步：教师在后台调整分组或移除缺勤学生时，学生端瞬间同步
           if (effGroup) {
-            const curGroupHash = `${effGroup.id}_${(effGroup.members || []).map(m => (typeof m === 'object' ? (m.id || m.userId || m.studentCode || m.name) : m)).join(',')}`;
+            const curGroupHash = `${effGroup.id}_${(effGroup.members || []).map(m => (typeof m === 'object' ? (m.id || m.userId  || m.name) : m)).join(',')}`;
             if (this._lastGroupMembersHash && this._lastGroupMembersHash !== curGroupHash) {
               console.log('🔄 检测到教师后台调整了分组或小组名单，秒级无感同步最新成员与公约签署基数');
               this._lastGroupMembersHash = curGroupHash;
@@ -13955,7 +13951,7 @@
               if (count < 2 && (!this.lastPartialProposalNudgeTime || now - this.lastPartialProposalNudgeTime > 240000)) {
                 this.lastPartialProposalNudgeTime = now;
                 this._nudgeCounts['s1_partial_prop'] = count + 1;
-                const unsubmitted = membersList.filter(m => !submittedAuthors.has(m.studentCode) && !submittedAuthors.has(m.id));
+                const unsubmitted = membersList.filter(m => !submittedAuthors.has(m.id) && !submittedAuthors.has(m.id));
                 if (unsubmitted.length > 0) {
                   const names = unsubmitted.map(m => m.name).join('、');
                   const msg = {
@@ -13985,7 +13981,7 @@
               if (count < 2 && (!this.lastVoteNudgeTime || now - this.lastVoteNudgeTime > 240000)) {
                 this.lastVoteNudgeTime = now;
                 this._nudgeCounts['s1_vote'] = count + 1;
-                const unvoted = membersList.filter(m => !s1.hasVoted || (!s1.hasVoted[m.studentCode] && !s1.hasVoted[m.id]));
+                const unvoted = membersList.filter(m => !s1.hasVoted || (!s1.hasVoted[m.id] && !s1.hasVoted[m.id]));
                 const names = unvoted.map(m => m.name).join('、');
                 const text = (votesCastCount === 0)
                   ? `⏳ 【拍卖师·竞拍投票提醒】：全员选题已陈列在左侧提案池中！\n👉 请全组成员浏览提案，点击【🗳️ 投这篇】投出支持的一票！`
@@ -14233,14 +14229,14 @@
             // 1. 计算总投入与每位成员的实际贡献百分比（100% 依据 Etherpad 真实写作字数贡献）
             let totalContrib = 0;
             membersList.forEach(m => {
-              totalContrib += (contribs[m.id] || contribs[m.studentCode] || 0);
+              totalContrib += (contribs[m.id] || contribs[m.id] || 0);
             });
 
             // 2. 找出“写作贡献百分比显著滞后（<= 15%）”的同学
             const severeInactiveMembers = [];
             if (totalContrib >= minContribThreshold) {
               membersList.forEach(m => {
-                const memContrib = (contribs[m.id] || contribs[m.studentCode] || 0);
+                const memContrib = (contribs[m.id] || contribs[m.id] || 0);
                 const pct = totalContrib > 0 ? Math.round((memContrib / totalContrib) * 100) : 33;
 
                 if (pct <= 15) {
@@ -14257,7 +14253,7 @@
               let targetChapter = '负责的章节';
               membersList.forEach(m => {
                 if (m.name === targetName) {
-                  targetChapter = tasks[m.id] || tasks[m.studentCode] || tasks[m.name] || '负责的章节';
+                  targetChapter = tasks[m.id] || tasks[m.id] || tasks[m.name] || '负责的章节';
                 }
               });
 
@@ -14343,8 +14339,8 @@
               }
               const keys = [
                 typeof m === 'string' ? m : null,
-                m?.id, m?.studentCode, m?.username, m?.name,
-                fullUser?.id, fullUser?.studentCode, fullUser?.username, fullUser?.name
+                m?.id, m?.id, m?.username, m?.name,
+                fullUser?.id, fullUser?.id, fullUser?.username, fullUser?.name
               ].filter(Boolean).map(k => String(k).trim().toLowerCase());
 
               // 1. 直接按 key 索引检索
@@ -14353,7 +14349,7 @@
               const subList = Object.values(subs);
               return subList.some(item => {
                 if (!item) return false;
-                const subKeys = [item.user, item.name, item.id, item.studentCode].filter(Boolean).map(k => String(k).trim().toLowerCase());
+                const subKeys = [item.user, item.name, item.id, item.id].filter(Boolean).map(k => String(k).trim().toLowerCase());
                 return keys.some(k => subKeys.includes(k));
               });
             };
@@ -14367,7 +14363,7 @@
               if (!fullUser && this.authManager && this.authManager.findUserByKey) {
                 fullUser = this.authManager.findUserByKey(m);
               }
-              return fullUser?.name || m?.name || m?.username || m?.studentCode || m;
+              return fullUser?.name || m?.name || m?.username || m?.id || m;
             }).join('、');
 
             // ── 半程打卡：仅 3 分钟（180,000ms）单次点名催促（全场严格仅发 1 次，且仅在真有人未打卡时触发）──
@@ -15075,7 +15071,7 @@
         modal.querySelector('#btn-read-confirm')?.addEventListener('click', () => {
           this.authManager.markAnnouncementRead(ann.id, groupId);
           const myName = currentUser ? currentUser.name : '学生';
-          this.authManager.markAnnouncementConfirmed(ann.id, currentUser ? (currentUser.id || currentUser.studentCode || currentUser.name) : (currentUser?.studentCode || currentUser?.id || ''), myName, groupId);
+          this.authManager.markAnnouncementConfirmed(ann.id, currentUser ? (currentUser.id || currentUser.id || currentUser.name) : (currentUser?.id || currentUser?.id || ''), myName, groupId);
 
           const remainingUnread = unreadList.filter(a => a.id !== ann.id && !a.isExtension && !a.title?.includes('延期通知'));
           if (remainingUnread.length > 0) {
@@ -15308,11 +15304,11 @@
     handleLogout() { 
       const user = this.authManager.getCurrentUser();
       if (user) {
-        const uCode = user.studentCode || user.id || user.username;
+        const uCode = user.id || user.id || user.username;
         if (this.state.presence) {
           delete this.state.presence[uCode];
           if (user.id) delete this.state.presence[user.id];
-          if (user.studentCode) delete this.state.presence[user.studentCode];
+          if (user.id) delete this.state.presence[user.id];
         }
         if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
       }
@@ -16257,7 +16253,7 @@
       const userLogs = relevantLogs.filter(m => m && m.sender && !AgentProfiles[m.sender] && m.sender !== 'system');
       const chatSnippet = userLogs.map(m => `${m.senderName || m.sender}: ${m.text}`).join('\n') || '组员正在商定分工';
 
-      const membersInfo = members.map(m => `- ${m.name || m.studentCode || m.id}`).join('\n');
+      const membersInfo = members.map(m => `- ${m.name  || m.id}`).join('\n');
 
       const taskPrompt = `小组成员已在讨论区就 6 大章节的分工认领展开了商议。
   【小组成员名单】:
@@ -16290,7 +16286,7 @@
         ];
 
         members.forEach((m, idx) => {
-          const mKey = m.id || m.studentCode || m.username || m.name;
+          const mKey = m.id  || m.username || m.name;
           taskAssignments[mKey] = defaultTasks[idx % defaultTasks.length];
         });
 
@@ -16301,8 +16297,8 @@
               const parsed = JSON.parse(jsonMatch[0]);
               if (parsed.assignments && typeof parsed.assignments === 'object') {
                 members.forEach((m, idx) => {
-                  const mKey = m.id || m.studentCode || m.username || m.name;
-                  const matchedVal = parsed.assignments[m.name] || parsed.assignments[m.studentCode] || parsed.assignments[m.id];
+                  const mKey = m.id  || m.username || m.name;
+                  const matchedVal = parsed.assignments[m.name] || parsed.assignments[m.id] || parsed.assignments[m.id];
                   if (matchedVal) taskAssignments[mKey] = matchedVal;
                 });
               }
@@ -16399,7 +16395,7 @@
       const allTasks = (this.authManager) ? this.authManager.getTasks() : [];
       const curTask = allTasks.find(t => t.id === this.state.activeTaskId);
       const defaultTopic = s1.mergedTitle || s1.contract?.topic || (s1.proposals && s1.proposals[0] ? s1.proposals[0].title : (curTask?.title || '基于深度协作的学术探究与实践'));
-      const membersInfo = membersList.map(m => `- 姓名: ${m.name || '组员'} (学号: ${m.id || m.studentCode || '无'})`).join('\n');
+      const membersInfo = membersList.map(m => `- 姓名: ${m.name || '组员'} (学号: ${m.id  || '无'})`).join('\n');
 
       const defaultTasks = [
         '负责“一、研究背景与意义”及“二、文献综述”起草',
@@ -16413,7 +16409,7 @@
 
       const fallbackAssignments = {};
       membersList.forEach((m, idx) => {
-        const mKey = m.id || m.studentCode || m.username || m.name;
+        const mKey = m.id  || m.username || m.name;
         fallbackAssignments[mKey] = defaultTasks[idx % defaultTasks.length];
       });
 
@@ -16474,8 +16470,8 @@
             }
             if (parsed.assignments && typeof parsed.assignments === 'object') {
               membersList.forEach((m, idx) => {
-                const mKey = m.id || m.studentCode || m.username || m.name;
-                const matchedVal = parsed.assignments[m.name] || parsed.assignments[m.id] || parsed.assignments[m.studentCode] || parsed.assignments[m.username];
+                const mKey = m.id  || m.username || m.name;
+                const matchedVal = parsed.assignments[m.name] || parsed.assignments[m.id] || parsed.assignments[m.id] || parsed.assignments[m.username];
                 if (matchedVal) finalAssignments[mKey] = matchedVal;
               });
             }
@@ -16556,11 +16552,11 @@
       if (!Array.isArray(memberArr)) {
         memberArr = Object.values(memberArr || {});
       }
-      const currMemObj = memberArr.find(m => m && (m.id === user || m.studentCode === user || m.username === user || m.name === user));
+      const currMemObj = memberArr.find(m => m && (m.id === user  === user || m.username === user || m.name === user));
       const memberName = currMemObj ? currMemObj.name : user;
       const totalMembersCount = Math.max(memberArr.length, 2);
 
-      const userAlreadySigned = !!(s1.contract.confirmedMembers[user] || (currMemObj && (s1.contract.confirmedMembers[currMemObj.id] || s1.contract.confirmedMembers[currMemObj.studentCode] || (currMemObj.name && s1.contract.confirmedMembers[currMemObj.name]))));
+      const userAlreadySigned = !!(s1.contract.confirmedMembers[user] || (currMemObj && (s1.contract.confirmedMembers[currMemObj.id] || s1.contract.confirmedMembers[currMemObj.id] || (currMemObj.name && s1.contract.confirmedMembers[currMemObj.name]))));
 
       if (userAlreadySigned && s1.contract.isConfirmed) {
         this.switchStage('stage2');
@@ -16575,7 +16571,7 @@
       s1.contract.confirmedMembers[user] = true;
       if (currMemObj) {
         if (currMemObj.id) s1.contract.confirmedMembers[currMemObj.id] = true;
-        if (currMemObj.studentCode) s1.contract.confirmedMembers[currMemObj.studentCode] = true;
+        if (currMemObj.id) s1.contract.confirmedMembers[currMemObj.id] = true;
         if (currMemObj.name) s1.contract.confirmedMembers[currMemObj.name] = true;
         if (currMemObj.username) s1.contract.confirmedMembers[currMemObj.username] = true;
       }
@@ -16590,12 +16586,12 @@
           taskId: this.state.activeTaskId || null,
           groupId: curGid,
           field: 'sign_member',
-          subKey: currMemObj?.studentCode || currMemObj?.id || user,
+          subKey: currMemObj?.id || currMemObj?.id || user,
           value: true
         })
       }).catch(() => {});
 
-      const confirmedCount = memberArr.filter(m => m && (s1.contract.confirmedMembers[m.id] || s1.contract.confirmedMembers[m.studentCode] || (m.name && s1.contract.confirmedMembers[m.name]))).length;
+      const confirmedCount = memberArr.filter(m => m && (s1.contract.confirmedMembers[m.id] || s1.contract.confirmedMembers[m.id] || (m.name && s1.contract.confirmedMembers[m.name]))).length;
 
       if (confirmedCount >= totalMembersCount) {
         s1.contract.isConfirmed = true;
@@ -16654,11 +16650,11 @@
       if (!s2.confirmations.s2_managing) s2.confirmations.s2_managing = {};
 
       const currUser = this.authManager ? this.authManager.getCurrentUser() : null;
-      const currUserCode = this.state.currentUser || currUser?.studentCode || currUser?.name || 'A';
+      const currUserCode = this.state.currentUser || currUser?.id || currUser?.name || 'A';
 
       // 1. 记录当前用户的确认
       s2.confirmations.s2_managing[currUserCode] = true;
-      if (currUser?.studentCode) s2.confirmations.s2_managing[currUser.studentCode] = true;
+      if (currUser?.id) s2.confirmations.s2_managing[currUser.id] = true;
       if (currUser?.name) s2.confirmations.s2_managing[currUser.name] = true;
 
       // 计算总组员人数
@@ -16678,8 +16674,8 @@
           }
           const keys = [
             typeof m === 'string' ? m : null,
-            m?.id, m?.studentCode, m?.username, m?.name,
-            fullUser?.id, fullUser?.studentCode, fullUser?.username, fullUser?.name
+            m?.id, m?.id, m?.username, m?.name,
+            fullUser?.id, fullUser?.id, fullUser?.username, fullUser?.name
           ].filter(Boolean).map(k => String(k).trim().toLowerCase());
           return keys.some(k => map[k] || map[String(k)]);
         }).length;
@@ -16930,11 +16926,11 @@
       if (!s2.confirmations.s2_reviewing) s2.confirmations.s2_reviewing = {};
 
       const currUser = this.authManager ? this.authManager.getCurrentUser() : null;
-      const currUserCode = this.state.currentUser || currUser?.studentCode || currUser?.name || 'A';
+      const currUserCode = this.state.currentUser || currUser?.id || currUser?.name || 'A';
 
       // 1. 记录当前用户的确认
       s2.confirmations.s2_reviewing[currUserCode] = true;
-      if (currUser?.studentCode) s2.confirmations.s2_reviewing[currUser.studentCode] = true;
+      if (currUser?.id) s2.confirmations.s2_reviewing[currUser.id] = true;
       if (currUser?.name) s2.confirmations.s2_reviewing[currUser.name] = true;
 
       // 计算总组员人数
@@ -16954,8 +16950,8 @@
           }
           const keys = [
             typeof m === 'string' ? m : null,
-            m?.id, m?.studentCode, m?.username, m?.name,
-            fullUser?.id, fullUser?.studentCode, fullUser?.username, fullUser?.name
+            m?.id, m?.id, m?.username, m?.name,
+            fullUser?.id, fullUser?.id, fullUser?.username, fullUser?.name
           ].filter(Boolean).map(k => String(k).trim().toLowerCase());
           return keys.some(k => map[k] || map[String(k)]);
         }).length;
@@ -17198,7 +17194,7 @@
           let memberArr = Array.isArray(this.state.members) ? this.state.members : Object.values(this.state.members || {});
           memberArr.forEach(m => {
             if (!m) return;
-            const t = tasks[m.id] || tasks[m.studentCode] || tasks[m.name] || '待认领';
+            const t = tasks[m.id] || tasks[m.id] || tasks[m.name] || '待认领';
             assignSummary.push(`${m.name}: ${t}`);
           });
 
@@ -17677,7 +17673,7 @@
       }
 
       this.state.members = this.authManager.getGroupMembersForWorkspace(currentGroupId);
-      this.state.currentUser = currentUser ? (currentUser.name || currentUser.studentCode || currentUser.id) : null;
+      this.state.currentUser = currentUser ? (currentUser.name || currentUser.id || currentUser.id) : null;
 
       renderHeader(
         this.state, currentUser, this.authManager.getAnnouncements(),
@@ -17758,7 +17754,7 @@
         const s1 = this.state.stage1 || { proposals: [], votes: {}, hasVoted: {}, contract: {} };
         const membersList = Array.isArray(this.state.members) ? this.state.members : Object.values(this.state.members || {});
         const currentUserObj = this.authManager ? this.authManager.getCurrentUser() : null;
-        const myKeys = new Set([...getUserAllKeys(currentUserObj), this.state.currentUser, currentUserObj?.id, currentUserObj?.studentCode].filter(Boolean));
+        const myKeys = new Set([...getUserAllKeys(currentUserObj), this.state.currentUser, currentUserObj?.id, currentUserObj?.id].filter(Boolean));
         const userVotedProposalId = s1.votes ? (getUserFromMap(s1.votes, currentUserObj) || s1.votes[this.state.currentUser]) : null;
         const userHasVoted = s1.hasVoted ? (isUserInMap(s1.hasVoted, currentUserObj) || s1.hasVoted[this.state.currentUser]) : false;
         const isContractLocked = s1.contract?.isConfirmed || this.state.isFinalSubmitted;
@@ -17779,7 +17775,7 @@
         // 🛡️ 实时动态更新顶部投票进度条 Badge (解决多端投票进度滞后未同步问题)
         const progressBadge = document.getElementById('proposal-vote-progress-badge');
         if (progressBadge) {
-          const totalVotesCast = membersList.filter(m => (isUserInMap(s1.hasVoted, m) || (m && (s1.hasVoted[m.id] || s1.hasVoted[m.studentCode] || s1.hasVoted[m.username] || (m.name && s1.hasVoted[m.name]))))).length;
+          const totalVotesCast = membersList.filter(m => (isUserInMap(s1.hasVoted, m) || (m && (s1.hasVoted[m.id] || s1.hasVoted[m.id] || s1.hasVoted[m.username] || (m.name && s1.hasVoted[m.name]))))).length;
           const totalMembersCount = membersList.length || 2;
           const isVotingComplete = (totalMembersCount > 0 && totalVotesCast >= totalMembersCount);
           progressBadge.innerHTML = isVotingComplete
@@ -17795,7 +17791,7 @@
                   // 动态聚合计算该提案的真实得票数
                   const proposalVotesCount = membersList.filter(m => {
                     if (!s1.votes) return false;
-                    const v = getUserFromMap(s1.votes, m) || s1.votes[m.studentCode] || s1.votes[m.id] || s1.votes[m.username] || (m.name && s1.votes[m.name]);
+                    const v = getUserFromMap(s1.votes, m) || s1.votes[m.id] || s1.votes[m.id] || s1.votes[m.username] || (m.name && s1.votes[m.name]);
                     return v === p.id;
                   }).length;
 
@@ -17808,11 +17804,11 @@
                   }
                   let authorName = (p.authorName && p.authorName !== '组员') ? p.authorName : null;
                   if (!authorName) {
-                    const authorUser = allUsers.find(u => isSameUser(u, p.author) || isSameUser(u, p.authorName) || u.id === p.author || u.studentCode === p.author || u.username === p.author || u.name === p.author || u.name === p.authorName);
+                    const authorUser = allUsers.find(u => isSameUser(u, p.author) || isSameUser(u, p.authorName) || u.id === p.author  === p.author || u.username === p.author || u.name === p.author || u.name === p.authorName);
                     if (authorUser && authorUser.name) authorName = authorUser.name;
                   }
                   if (!authorName) {
-                    const authorMem = membersList.find(m => isSameUser(m, p.author) || isSameUser(m, p.authorName) || m.id === p.author || m.studentCode === p.author || m.name === p.author);
+                    const authorMem = membersList.find(m => isSameUser(m, p.author) || isSameUser(m, p.authorName) || m.id === p.author  === p.author || m.name === p.author);
                     if (authorMem && authorMem.name) authorName = authorMem.name;
                   }
                   if (!authorName) authorName = p.authorName || p.author || '组员';
@@ -17865,17 +17861,17 @@
         if (contractActionBarMount && !isContractLocked) {
           const confs = this.state.stepConfirmations || {};
           const totalMembersCount = membersList.length || 2;
-          const totalVotesCast = membersList.filter(m => (isUserInMap(s1.hasVoted, m) || (m && (s1.hasVoted[m.id] || s1.hasVoted[m.studentCode] || s1.hasVoted[m.username] || (m.name && s1.hasVoted[m.name]))))).length;
+          const totalVotesCast = membersList.filter(m => (isUserInMap(s1.hasVoted, m) || (m && (s1.hasVoted[m.id] || s1.hasVoted[m.id] || s1.hasVoted[m.username] || (m.name && s1.hasVoted[m.name]))))).length;
           const isVotingComplete = (totalMembersCount > 0 && totalVotesCast >= totalMembersCount);
           const currUserCode = this.state.currentUser;
 
           const isDoneHelper = (map) => {
             if (!map) return 0;
-            return membersList.filter(m => map[m.id] || map[m.studentCode] || map[m.username] || (m.name && map[m.name])).length;
+            return membersList.filter(m => map[m.id] || map[m.id] || map[m.username] || (m.name && map[m.name])).length;
           };
           const isMyDoneHelper = (map) => {
             if (!map) return false;
-            return !!(map[currUserCode] || (currentUserObj && (map[currentUserObj.id] || map[currentUserObj.studentCode] || map[currentUserObj.username] || map[currentUserObj.name])));
+            return !!(map[currUserCode] || (currentUserObj && (map[currentUserObj.id] || map[currentUserObj.id] || map[currentUserObj.username] || map[currentUserObj.name])));
           };
 
           if (s1.contractStep === 'completed' || s1.contract?.isDraftGenerated) {
@@ -17940,11 +17936,11 @@
         if (signMatrixMount || signActionMount) {
           const totalMembersCount = membersList.length || 2;
           const currUserCode = this.state.currentUser;
-          const matchedMem = membersList.find(m => m && (m.id === currUserCode || m.studentCode === currUserCode || m.username === currUserCode || m.name === currUserCode));
+          const matchedMem = membersList.find(m => m && (m.id === currUserCode  === currUserCode || m.username === currUserCode || m.name === currUserCode));
           const currentUserName = matchedMem?.name || currentUserObj?.name || currUserCode || '组员';
           const confirmedMembers = s1.contract?.confirmedMembers || {};
-          const confirmedCount = membersList.filter(m => (confirmedMembers[m.id] || confirmedMembers[m.studentCode] || confirmedMembers[m.username] || (m.name && confirmedMembers[m.name]))).length;
-          const userHasConfirmed = !!(confirmedMembers[currUserCode] || (currentUserObj && (confirmedMembers[currentUserObj.id] || confirmedMembers[currentUserObj.studentCode] || confirmedMembers[currentUserObj.username] || confirmedMembers[currentUserObj.name])));
+          const confirmedCount = membersList.filter(m => (confirmedMembers[m.id] || confirmedMembers[m.id] || confirmedMembers[m.username] || (m.name && confirmedMembers[m.name]))).length;
+          const userHasConfirmed = !!(confirmedMembers[currUserCode] || (currentUserObj && (confirmedMembers[currentUserObj.id] || confirmedMembers[currentUserObj.id] || confirmedMembers[currentUserObj.username] || confirmedMembers[currentUserObj.name])));
 
           if (signMatrixMount) {
             signMatrixMount.innerHTML = `
@@ -17954,7 +17950,7 @@
               </div>
               <div style="display:flex; flex-wrap:wrap; gap:10px; font-size:13px;">
                 ${membersList.map(m => {
-                  const isConf = !!(confirmedMembers[m.id] || confirmedMembers[m.studentCode] || confirmedMembers[m.username] || (m.name && confirmedMembers[m.name]));
+                  const isConf = !!(confirmedMembers[m.id] || confirmedMembers[m.id] || confirmedMembers[m.username] || (m.name && confirmedMembers[m.name]));
                   return `
                     <span style="color:${isConf ? '#059669' : '#64748b'}; border:1px solid ${isConf ? '#a7f3d0' : '#e2e8f0'}; background:${isConf ? '#ecfdf5' : '#ffffff'}; padding:6px 12px; border-radius:8px; font-weight:600;">
                       ${m.avatar || '👤'} ${m.name}: <b>${isConf ? '✅ 已确认签署' : '⏳ 未确认'}</b>
@@ -18042,7 +18038,7 @@
 
           const currUserObj = (this.authManager) ? this.authManager.getCurrentUser() : null;
           if (!this.state.presence) this.state.presence = {};
-          const myKeys = [user, currUserObj?.id, currUserObj?.studentCode, currUserObj?.username, currUserObj?.name].filter(Boolean);
+          const myKeys = [user, currUserObj?.id, currUserObj?.id, currUserObj?.username, currUserObj?.name].filter(Boolean);
           const nowMs = Date.now();
           myKeys.forEach(k => {
             this.state.presence[k] = {
@@ -18196,15 +18192,15 @@
 
           if (!s3.confirmedMembers) s3.confirmedMembers = {};
           s3.confirmedMembers[user] = true;
-          const currMemObj = memberArr.find(m => m && (m.id === user || m.studentCode === user || m.username === user || m.name === user));
+          const currMemObj = memberArr.find(m => m && (m.id === user  === user || m.username === user || m.name === user));
           if (currMemObj) {
             if (currMemObj.id) s3.confirmedMembers[currMemObj.id] = true;
-            if (currMemObj.studentCode) s3.confirmedMembers[currMemObj.studentCode] = true;
+            if (currMemObj.id) s3.confirmedMembers[currMemObj.id] = true;
             if (currMemObj.username) s3.confirmedMembers[currMemObj.username] = true;
             if (currMemObj.name) s3.confirmedMembers[currMemObj.name] = true;
           }
 
-          const confirmedCount = memberArr.filter(m => m && (s3.confirmedMembers[m.id] || s3.confirmedMembers[m.studentCode] || s3.confirmedMembers[m.username] || (m.name && s3.confirmedMembers[m.name]))).length;
+          const confirmedCount = memberArr.filter(m => m && (s3.confirmedMembers[m.id] || s3.confirmedMembers[m.id] || s3.confirmedMembers[m.username] || (m.name && s3.confirmedMembers[m.name]))).length;
           const currUserObj = (this.authManager) ? this.authManager.getCurrentUser() : null;
           const memberName = currMemObj?.name || currUserObj?.name || '组员';
 
@@ -18370,15 +18366,15 @@
 
           if (!s3.finalSubmittedMembers) s3.finalSubmittedMembers = {};
           s3.finalSubmittedMembers[user] = true;
-          const currMemObj = memberArr.find(m => m && (m.id === user || m.studentCode === user || m.username === user || m.name === user));
+          const currMemObj = memberArr.find(m => m && (m.id === user  === user || m.username === user || m.name === user));
           if (currMemObj) {
             if (currMemObj.id) s3.finalSubmittedMembers[currMemObj.id] = true;
-            if (currMemObj.studentCode) s3.finalSubmittedMembers[currMemObj.studentCode] = true;
+            if (currMemObj.id) s3.finalSubmittedMembers[currMemObj.id] = true;
             if (currMemObj.username) s3.finalSubmittedMembers[currMemObj.username] = true;
             if (currMemObj.name) s3.finalSubmittedMembers[currMemObj.name] = true;
           }
 
-          const finalSubmittedCount = memberArr.filter(m => m && (s3.finalSubmittedMembers[m.id] || s3.finalSubmittedMembers[m.studentCode] || s3.finalSubmittedMembers[m.username] || (m.name && s3.finalSubmittedMembers[m.name]))).length;
+          const finalSubmittedCount = memberArr.filter(m => m && (s3.finalSubmittedMembers[m.id] || s3.finalSubmittedMembers[m.id] || s3.finalSubmittedMembers[m.username] || (m.name && s3.finalSubmittedMembers[m.name]))).length;
           const currUserObj = (this.authManager) ? this.authManager.getCurrentUser() : null;
           const memberName = currMemObj?.name || currUserObj?.name || '组员';
           const currentStage = this.state.currentStage || 'stage3';
@@ -18661,7 +18657,7 @@
         const contribs = this.state.stage2.memberContributions || {};
         const getVal = (m) => {
           if (!m) return 0;
-          const keys = [m.studentCode, m.id, m.username, m.name].filter(Boolean);
+          const keys = [m.id, m.id, m.username, m.name].filter(Boolean);
           let maxVal = 0;
           for (const k of keys) {
             if (contribs[k] !== undefined && Number(contribs[k]) > maxVal) {
@@ -18907,7 +18903,7 @@
 
     showMeetingModal() {
       const currUser = this.authManager ? this.authManager.getCurrentUser() : null;
-      const userKey = currUser ? (currUser.name || currUser.studentCode || currUser.id) : this.state.currentUser;
+      const userKey = currUser ? (currUser.name  || currUser.id) : this.state.currentUser;
       let actualGroupMembers = [];
       if (this.authManager) {
         const effClassId = this.state.activeStudentClassId || currUser?.classId || null;
@@ -18919,7 +18915,7 @@
       const subCount = Object.keys(subs).length;
       const totalCount = membersList.length || 2;
 
-      const existingSub = subs[userKey] || (currUser?.name && subs[currUser.name]) || (currUser?.studentCode && subs[currUser.studentCode]) || (currUser?.id && subs[currUser.id]) || (this.state.currentUser && subs[this.state.currentUser]);
+      const existingSub = subs[userKey] || (currUser?.name && subs[currUser.name]) || (currUser?.id && subs[currUser.id]) || (currUser?.id && subs[currUser.id]) || (this.state.currentUser && subs[this.state.currentUser]);
       const isCurrentUserSubmitted = !!existingSub;
 
       const taskType = this.getCurrentTaskType();
@@ -18939,8 +18935,8 @@
               <span style="font-size:12px; font-weight:800; color:#1e40af;">👥 全组打卡进度 (${subCount}/${totalCount}人):</span>
               <div style="display:flex; gap:6px; flex-wrap:wrap;">
                 ${membersList.map(m => {
-                  const uid = String(m.id || m.studentCode || m.userId || '').trim();
-                  const isSub = !!(subs[uid] || subs[m.name] || subs[m.studentCode] || subs[m.id]);
+                  const uid = String(m.id  || m.userId || '').trim();
+                  const isSub = !!(subs[uid] || subs[m.name] || subs[m.id] || subs[m.id]);
                   return `<span style="font-size:11px; padding:2px 8px; border-radius:10px; font-weight:700; background:${isSub ? '#ecfdf5' : '#ffffff'}; color:${isSub ? '#059669' : '#64748b'}; border:1px solid ${isSub ? '#a7f3d0' : '#cbd5e1'};">
                     ${isSub ? '✅' : '⏳'} ${escapeHtml(m.name)}: ${isSub ? '已打卡' : '待打卡'}
                   </span>`;
@@ -19143,7 +19139,7 @@
         const transSections = Array.from(modal.querySelectorAll('input[name="trans-div-sec"]:checked')).map(cb => cb.value);
         const styleSections = Array.from(modal.querySelectorAll('input[name="style-div-sec"]:checked')).map(cb => cb.value);
         const currUser = this.authManager ? this.authManager.getCurrentUser() : null;
-        const userKey = currUser ? (currUser.name || currUser.studentCode || currUser.id) : this.state.currentUser;
+        const userKey = currUser ? (currUser.name  || currUser.id) : this.state.currentUser;
         const memberName = currUser ? currUser.name : (this.state.members[userKey]?.name || userKey);
 
         // 🛡️ 真实组员人数：从 authManager 严格获取当前工作区绑定的组内真实学生列表

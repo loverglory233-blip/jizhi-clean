@@ -14,8 +14,8 @@ import {
   DefaultTasks,
   DefaultAnnouncements,
   DefaultReferencePapers
-} from './constants.js?v=20260903_v1510';
-import { formatExportDateTime, formatDurationHuman, isScopeMatch } from './utils.js?v=20260903_v1510';
+} from './constants.js?v=20260903_v1515';
+import { formatExportDateTime, formatDurationHuman, isScopeMatch } from './utils.js?v=20260903_v1515';
 
 export class AuthManager {
   constructor() {
@@ -74,14 +74,10 @@ export class AuthManager {
       users.forEach(u => {
         const isLegacy = u && (
           LEGACY_IDS.has(u.id) ||
-          LEGACY_CODES.has(u.username) ||
-          LEGACY_CODES.has(u.studentCode) ||
           LEGACY_NAMES.has(u.name)
         );
         if (isLegacy) {
           if (u.id) removedKeys.add(u.id);
-          if (u.username) removedKeys.add(u.username);
-          if (u.studentCode) removedKeys.add(u.studentCode);
           usersChanged = true;
         } else {
           filteredUsers.push(u);
@@ -124,7 +120,7 @@ export class AuthManager {
 
   _normalizeUser(u) {
     if (!u || typeof u !== 'object') return null;
-    const id = String(u.id || u.studentCode || u.username || u.userId || '').trim();
+    const id = String(u.id || '').trim();
     if (!id) return null;
     const name = String(u.name || id || (u.role === 'teacher' ? '老师' : '学生')).trim();
     const classId = u.classId || (Array.isArray(u.classIds) && u.classIds[0]) || null;
@@ -871,7 +867,7 @@ export class AuthManager {
     const avatars = ['👨‍🎓', '👩‍🎓', '🧑‍🎓', '🎓', '📚', '🌟'];
 
     studentList.forEach(st => {
-      const code = String(st.id || (st.studentCode || (st.code || (st.username || '')))).trim();
+      const code = String(st.id || ((st.code || (st.username || '')))).trim();
       const name = (st.name || '').trim();
       if (!code || !name) return;
 

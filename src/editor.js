@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName } from "./constants.js?v=20260903_v1510";
-import { callCozeAgentAPI } from "./agents.js?v=20260903_v1510";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, showResolutionBlock } from "./utils.js?v=20260903_v1510";
+import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName } from "./constants.js?v=20260903_v1515";
+import { callCozeAgentAPI } from "./agents.js?v=20260903_v1515";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, showResolutionBlock } from "./utils.js?v=20260903_v1515";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -557,12 +557,12 @@ export function attachWordEditorEvents(container, editorId, isReadonly, onChange
           if (e.target.files && e.target.files[0]) {
             const file = e.target.files[0];
             const currentUser = window.app?.authManager ? window.app.authManager.getCurrentUser() : null;
-            const studentCode = currentUser?.id || 'anonymous';
+            const id = currentUser?.id || 'anonymous';
             const caption = prompt('请输入学术图题说明 (例如: 图 1: 研究模型与变量关系架构图):', '图 1: 研究模型与变量关系架构图');
 
             const fd = new FormData();
             fd.append('file', file);
-            fd.append('userId', studentCode);
+            fd.append('userId', id);
 
             fetch('sync.php?action=upload_file', {
               method: 'POST',
@@ -1016,7 +1016,7 @@ function renderStage1Canvas(canvas, state, handlers) {
               // 动态聚合计算该提案的真实得票数
               const proposalVotesCount = membersList.filter(m => {
                 if (!s1.votes) return false;
-                const v = getUserFromMap(s1.votes, m) || s1.votes[m.studentCode] || s1.votes[m.id] || s1.votes[m.username] || (m.name && s1.votes[m.name]);
+                const v = getUserFromMap(s1.votes, m) || s1.votes[m.id] || s1.votes[m.id] || s1.votes[m.username] || (m.name && s1.votes[m.name]);
                 return v === p.id;
               }).length;
 
@@ -1081,11 +1081,11 @@ function renderStage1Canvas(canvas, state, handlers) {
               const confs = state.stepConfirmations || {};
               const isDoneHelper = (map) => {
                 if (!map) return 0;
-                return membersList.filter(m => map[m.id] || map[m.studentCode] || map[m.username] || (m.name && map[m.name])).length;
+                return membersList.filter(m => map[m.id] || map[m.id] || map[m.username] || (m.name && map[m.name])).length;
               };
               const isMyDoneHelper = (map) => {
                 if (!map) return false;
-                return !!(map[currUserCode] || (currUser && (map[currUser.id] || map[currUser.studentCode] || map[currUser.username] || map[currUser.name])));
+                return !!(map[currUserCode] || (currUser && (map[currUser.id] || map[currUser.id] || map[currUser.username] || map[currUser.name])));
               };
 
               if (s1.contractStep === 'completed' || s1.contract?.isDraftGenerated) {
@@ -1183,11 +1183,11 @@ function renderStage1Canvas(canvas, state, handlers) {
           </div>
           <div style="display:flex; flex-direction:column; gap:10px; width:100%;">
             ${membersList.map((m, idx) => {
-              const mKey = m.id || m.studentCode || m.username || m.name || (`mem_${idx}`);
+              const mKey = m.id  || m.username || m.name || (`mem_${idx}`);
               const taskVal = (s1.contract.taskAssignments && (
                 s1.contract.taskAssignments[mKey] !== undefined ? s1.contract.taskAssignments[mKey] :
                 (m.id && s1.contract.taskAssignments[m.id] !== undefined ? s1.contract.taskAssignments[m.id] :
-                (m.studentCode && s1.contract.taskAssignments[m.studentCode] !== undefined ? s1.contract.taskAssignments[m.studentCode] :
+                (m.id && s1.contract.taskAssignments[m.id] !== undefined ? s1.contract.taskAssignments[m.id] :
                 (m.name && s1.contract.taskAssignments[m.name] !== undefined ? s1.contract.taskAssignments[m.name] : '')))
               )) || '';
               return `
@@ -1301,7 +1301,7 @@ function renderStage1Canvas(canvas, state, handlers) {
           return false;
         });
         const nowMs = Date.now();
-        const effectiveAuthorKey = currUserObj?.studentCode || currUserObj?.id || (typeof currentUser === 'string' ? currentUser : '') || currentUserName;
+        const effectiveAuthorKey = currUserObj?.id || currUserObj?.id || (typeof currentUser === 'string' ? currentUser : '') || currentUserName;
         const effectiveAuthorName = currUserObj?.name || currentUserName;
         const effectiveAuthorId = currUserObj?.id || effectiveAuthorKey;
 
@@ -1398,7 +1398,7 @@ function renderStage1Canvas(canvas, state, handlers) {
     if (!curTaskId || curTaskId === 'task_default') {
       curTaskId = `task_${effectiveClassId}_default`;
     }
-    const uId = currUser ? (currUser.studentCode || currUser.username || currUser.id) : 'u';
+    const uId = currUser ? (currUser.username || currUser.id) : 'u';
     const uName = currUser ? (currUser.name || currUser.username) : '组员';
     const payload = { fieldKey, userId: uId, userName: uName, groupId: curGid, taskId: curTaskId, classId: effectiveClassId };
     if (value !== null) payload.value = value;
@@ -1407,7 +1407,7 @@ function renderStage1Canvas(canvas, state, handlers) {
 
   const isFieldLockedByOther = (fieldKey) => {
     const currUser = (window.app && window.app.authManager) ? window.app.authManager.getCurrentUser() : null;
-    const myId = currUser ? String(currUser.studentCode || currUser.username || currUser.id || '') : '';
+    const myId = currUser ? String(currUser.username || currUser.id || '') : '';
     const myName = currUser ? String(currUser.name || currUser.username || '') : '';
     const lock = (window.app?.state?.fieldLocks || {})[fieldKey];
     if (!lock) return false;
@@ -2058,7 +2058,7 @@ function renderStage2Canvas(canvas, state, handlers) {
 
   const getMemberContribVal = (contribs, m) => {
     if (!contribs || !m) return 0;
-    const keys = [m.studentCode, m.id, m.username, m.name].filter(Boolean);
+    const keys = [m.id, m.id, m.username, m.name].filter(Boolean);
     let maxVal = 0;
     for (const k of keys) {
       if (contribs[k] !== undefined && Number(contribs[k]) > maxVal) {
@@ -2155,22 +2155,22 @@ function renderStage2Canvas(canvas, state, handlers) {
         if (delta > 0) {
           const matchedMember = membersList.find(m => {
             if (!m) return false;
-            if (currUser && (m.id === currUser.id || m.studentCode === currUser.studentCode || m.username === currUser.username || (m.name && m.name === currUser.name))) return true;
-            if (state.currentUser && (m.id === state.currentUser || m.studentCode === state.currentUser || m.username === state.currentUser || m.name === state.currentUser)) return true;
+            if (currUser && (m.id === currUser.id  === m.username === currUser.username || (m.name && m.name === currUser.name))) return true;
+            if (state.currentUser && (m.id === state.currentUser  === state.currentUser || m.username === state.currentUser || m.name === state.currentUser)) return true;
             return false;
           }) || membersList[0];
 
           const curVal = getMemberContribVal(contribs, matchedMember);
           const newVal = curVal + delta;
 
-          const keysToUpdate = [matchedMember?.studentCode, matchedMember?.id, matchedMember?.username, matchedMember?.name, currUser?.studentCode, currUser?.id, currUserCode].filter(Boolean);
+          const keysToUpdate = [matchedMember?.id, matchedMember?.id, matchedMember?.username, matchedMember?.name, currUser?.id, currUser?.id, currUserCode].filter(Boolean);
           keysToUpdate.forEach(k => {
             contribs[k] = newVal;
           });
           updateContribDom();
 
           // 📡 异步持久化到服务端双表
-          const reportCode = matchedMember?.studentCode || matchedMember?.id || currUser?.studentCode || currUserCode;
+          const reportCode = matchedMember?.id || matchedMember?.id || currUser?.id || currUserCode;
           fetch(`sync.php?action=report_member_contrib&groupId=${encodeURIComponent(userGroupId)}&taskId=${encodeURIComponent(activeTaskId)}&classId=${encodeURIComponent(userClassId)}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -2366,7 +2366,7 @@ function renderStage2Canvas(canvas, state, handlers) {
       const subs = s2.meetingSubmissions || {};
       const subCount = Object.keys(subs).length;
       const isMeetingFullyDone = subCount >= totalCount && totalCount > 0;
-      const isCurrentUserSubmitted = isMemberDone(subs, { id: currUserCode, studentCode: currUser?.studentCode, username: currUser?.username, name: currUser?.name });
+      const isCurrentUserSubmitted = isMemberDone(subs, { id: currUserCode, id: currUser?.id, username: currUser?.username, name: currUser?.name });
 
       const meetingTextEl = canvas.querySelector('#stage2-meeting-count-text');
       if (meetingTextEl) {
@@ -2387,7 +2387,7 @@ function renderStage2Canvas(canvas, state, handlers) {
       const confMembers = s2.confirmedMembers || {};
       const confirmedDraftCount = membersList.filter(m => isMemberDone(confMembers, m)).length;
       const isDraftFullyConfirmed = s2.isDraftConfirmed || (confirmedDraftCount >= totalCount && totalCount > 0);
-      const isUserDraftConfirmed = isMemberDone(confMembers, { id: currUserCode, studentCode: currUser?.studentCode, username: currUser?.username, name: currUser?.name });
+      const isUserDraftConfirmed = isMemberDone(confMembers, { id: currUserCode, id: currUser?.id, username: currUser?.username, name: currUser?.name });
 
       const draftTextEl = canvas.querySelector('#stage2-draft-count-text');
       if (draftTextEl) {
@@ -2460,7 +2460,7 @@ function renderStage2Canvas(canvas, state, handlers) {
             const subs = s2.meetingSubmissions || {};
             const subCount = Object.keys(subs).length;
             const isMeetingFullyDone = subCount >= totalCount && totalCount > 0;
-            const isCurrentUserSubmitted = isMemberDone(subs, { id: currUserCode, studentCode: currUser?.studentCode, username: currUser?.username, name: currUser?.name });
+            const isCurrentUserSubmitted = isMemberDone(subs, { id: currUserCode, id: currUser?.id, username: currUser?.username, name: currUser?.name });
             return `
               <div style="display:flex; align-items:center; gap:4px;">
                 <span id="stage2-meeting-count-text" style="font-size:11px; font-weight:800; color:${isMeetingFullyDone ? '#059669' : '#2563eb'}; background:${isMeetingFullyDone ? '#d1fae5' : '#eff6ff'}; padding:1.5px 6px; border-radius:8px; border:1px solid ${isMeetingFullyDone ? '#a7f3d0' : '#bfdbfe'};">
@@ -2686,12 +2686,12 @@ function renderStage2Canvas(canvas, state, handlers) {
           ${(() => {
             const contribs = s2.memberContributions || {};
             let rawTotal = 0;
-            membersList.forEach(m => { rawTotal += (contribs[m.id] || 0) + (contribs[m.studentCode] || 0); });
+            membersList.forEach(m => { rawTotal += (contribs[m.id] || 0) + (contribs[m.id] || 0); });
             if (rawTotal === 0) {
               return `<div style="width:100%; height:8px; background:#f8fafc; border-radius:4px; display:flex; align-items:center; justify-content:center; font-size:9.5px; color:#94a3b8; font-weight:600;">⏳ 在 Etherpad 中撰写或修改正文将实时累计真实贡献</div>`;
             }
             return membersList.map((m) => {
-              const rawVal = (contribs[m.id] || 0) + (contribs[m.studentCode] || 0);
+              const rawVal = (contribs[m.id] || 0) + (contribs[m.id] || 0);
               const pct = rawTotal > 0 ? Math.round((rawVal / rawTotal) * 100) : 0;
               return `<div class="contrib-segment" style="width:${pct}%; background:${m.color || '#2563eb'}; transition:width 0.8s ease-in-out;" title="${m.name}: ${pct}%"></div>`;
             }).join('');
@@ -2701,9 +2701,9 @@ function renderStage2Canvas(canvas, state, handlers) {
           ${(() => {
             const contribs = s2.memberContributions || {};
             let rawTotal = 0;
-            membersList.forEach(m => { rawTotal += (contribs[m.id] || 0) + (contribs[m.studentCode] || 0); });
+            membersList.forEach(m => { rawTotal += (contribs[m.id] || 0) + (contribs[m.id] || 0); });
             return membersList.map((m) => {
-              const rawVal = (contribs[m.id] || 0) + (contribs[m.studentCode] || 0);
+              const rawVal = (contribs[m.id] || 0) + (contribs[m.id] || 0);
               const pct = rawTotal > 0 ? Math.round((rawVal / rawTotal) * 100) : 0;
               return `<span style="color:${rawVal > 0 ? (m.color || '#2563eb') : '#94a3b8'};">● ${m.name}: ${pct}%</span>`;
             }).join('');
@@ -3056,7 +3056,7 @@ function renderStage3Canvas(canvas, state, handlers) {
           <span style="color:#475569; font-weight:700;">📝 终稿修改确认进度: <b style="color:${isRevisionFullyConfirmed ? '#059669' : '#2563eb'};">${confirmedRevCount}/${totalCount}</b> 人已确认进入终稿修改 ${isRevisionFullyConfirmed ? '<span style="color:#059669; margin-left:6px;">(🎉 全员已确认，终稿修改已解锁，答辩已锁定)</span>' : '<span style="color:#d97706; margin-left:6px;">(全员确认后自动解锁终稿修改)</span>'}</span>
           <div style="display:flex; gap:6px;">
             ${membersList.map(m => {
-              const isConf = confirmedRevMap[m.id] || confirmedRevMap[m.studentCode] || confirmedRevMap[m.username] || (m.name && confirmedRevMap[m.name]);
+              const isConf = confirmedRevMap[m.id] || confirmedRevMap[m.id] || confirmedRevMap[m.username] || (m.name && confirmedRevMap[m.name]);
               return `<span style="font-size:11px; padding:1px 8px; border-radius:10px; font-weight:700; background:${isConf ? '#ecfdf5' : '#ffffff'}; color:${isConf ? '#059669' : '#94a3b8'}; border:1px solid ${isConf ? '#a7f3d0' : '#e2e8f0'};">
                 ${isConf ? '✓' : '○'} ${m.name}
               </span>`;
@@ -3071,7 +3071,7 @@ function renderStage3Canvas(canvas, state, handlers) {
           <span style="color:#475569; font-weight:700;">🚀 终稿提交确认进度: <b style="color:${isAllFinalSubmitted ? '#059669' : '#059669'};">${finalSubmittedCount}/${totalCount}</b> 人已确认提交 ${isAllFinalSubmitted ? '<span style="color:#059669; margin-left:6px;">(🎉 全员已确认提交)</span>' : '<span style="color:#d97706; margin-left:6px;">(需全组所有成员均确认提交后正式归档入库)</span>'}</span>
           <div style="display:flex; gap:6px;">
             ${membersList.map(m => {
-              const isSub = finalSubmittedMap[m.id] || finalSubmittedMap[m.studentCode] || finalSubmittedMap[m.username] || (m.name && finalSubmittedMap[m.name]);
+              const isSub = finalSubmittedMap[m.id] || finalSubmittedMap[m.id] || finalSubmittedMap[m.username] || (m.name && finalSubmittedMap[m.name]);
               return `<span style="font-size:11px; padding:1px 8px; border-radius:10px; font-weight:700; background:${isSub ? '#ecfdf5' : '#ffffff'}; color:${isSub ? '#059669' : '#94a3b8'}; border:1px solid ${isSub ? '#a7f3d0' : '#e2e8f0'};">
                 ${isSub ? '✓' : '○'} ${m.name}
               </span>`;
@@ -3287,17 +3287,17 @@ export function renderChat(state) {
     }
 
     const newPresenceHtml = memberList.map(m => {
-      const uid = String(m.id || m.studentCode || m.userId || '').trim();
+      const uid = String(m.id  || m.userId || '').trim();
       const candidateKeys = [
         String(m.id || '').trim(),
-        String(m.studentCode || '').trim(),
+        String('').trim(),
         String(m.username || '').trim(),
         String(m.name || '').trim()
       ].filter(Boolean);
 
       const isMe = (currUser && (
         (currUser.id && (m.id === currUser.id || uid === String(currUser.id))) ||
-        (currUser.studentCode && (m.studentCode === currUser.studentCode || uid === String(currUser.studentCode))) ||
+        (currUser.id && (m.id === uid === String(currUser.id))) ||
         (currUser.username && (m.username === currUser.username || uid === String(currUser.username))) ||
         (currUser.name && m.name === currUser.name)
       )) || (uid && uid === myCode);
@@ -3389,7 +3389,7 @@ export function renderChat(state) {
     currentUser,
     state.currentUser,
     authUser?.id,
-    authUser?.studentCode,
+    authUser?.id,
     authUser?.username,
     authUser?.name
   ].filter(Boolean).map(k => String(k).trim().toLowerCase());
@@ -3435,12 +3435,12 @@ export function renderChat(state) {
       }
       if (!name || name === msg.sender) {
         const memList = Array.isArray(state.members) ? state.members : Object.values(state.members || {});
-        const mem = memList.find(m => m && (m.id === msg.sender || m.studentCode === msg.sender));
+        const mem = memList.find(m => m && (m.id === msg.sender  === msg.sender));
         name = mem?.name || (msg.senderName && msg.senderName !== msg.sender ? msg.senderName : '组员');
       }
 
       const memList = Array.isArray(state.members) ? state.members : Object.values(state.members || {});
-      const memObj = memList.find(m => isSameUser(m, msg.sender) || m.id === msg.sender || m.studentCode === msg.sender || m.name === name) || null;
+      const memObj = memList.find(m => isSameUser(m, msg.sender) || m.id === msg.sender  === msg.sender || m.name === name) || null;
       if (memObj) {
         avatar = memObj.avatar || '👨‍🎓';
         color = memObj.color || '#2563eb';
@@ -3593,8 +3593,8 @@ export function renderChat(state) {
         }
         const keys = [
           typeof m === 'string' ? m : null,
-          m?.id, m?.studentCode, m?.username, m?.name,
-          fullUser?.id, fullUser?.studentCode, fullUser?.username, fullUser?.name
+          m?.id, m?.id, m?.username, m?.name,
+          fullUser?.id, fullUser?.id, fullUser?.username, fullUser?.name
         ].filter(Boolean).map(k => String(k).trim().toLowerCase());
         return keys.some(k => map[k] || map[String(k)]);
       }).length;
@@ -3607,8 +3607,8 @@ export function renderChat(state) {
         fullUser = window.app.authManager.findUserByKey(myCode);
       }
       const keys = [
-        myCode, currUser?.id, currUser?.studentCode, currUser?.username, currUser?.name,
-        fullUser?.id, fullUser?.studentCode, fullUser?.username, fullUser?.name
+        myCode, currUser?.id, currUser?.id, currUser?.username, currUser?.name,
+        fullUser?.id, fullUser?.id, fullUser?.username, fullUser?.name
       ].filter(Boolean).map(k => String(k).trim().toLowerCase());
       return keys.some(k => map[k] || map[String(k)]);
     };
