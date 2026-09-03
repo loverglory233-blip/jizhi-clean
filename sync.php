@@ -882,7 +882,7 @@ if ($action === 'get_teacher_monitor_all_groups') {
             }
         }
 
-        $ONLINE_WINDOW_MS = 600000; // 600 秒 (10分钟) 稳健心跳/活跃窗口，与移动端/后台标签页休眠深度对齐
+        $ONLINE_WINDOW_MS = 300000; // 300 秒 (5分钟) 心跳判定窗口：挂后台/离座超过 5 分钟自动判定为离线，切回页面即时恢复在线
         $cutoffMs = $nowMs - $ONLINE_WINDOW_MS;
 
         // 🚀 性能革命：收集全量 ScopeKey 进行批量单次查表，消灭 N+1 查询瓶颈，教师端毫秒级秒开！
