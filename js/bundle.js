@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260904_v2190
+ * Version: 20260904_v2191
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260904_v2190';
+  const APP_VERSION = '20260904_v2191';
   const APP_BUILD_DATE = '2026-09-04';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -12606,9 +12606,14 @@
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
-        }).catch(() => {
+        }).then(r => {
+          if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        }).catch((err) => {
           if (retries > 0) {
+            console.warn(`[ChatSync] 消息「${payload.text?.substring(0, 10)}」发送偶发抖动 (${err.message})，1秒后自动重试 (剩余${retries}次)...`);
             setTimeout(() => sendWithRetry(retries - 1), 1000);
+          } else {
+            console.error(`[ChatSync] 消息「${payload.text?.substring(0, 10)}」重试 3 次后仍未送达:`, err);
           }
         });
       };
