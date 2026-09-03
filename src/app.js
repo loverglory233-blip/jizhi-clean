@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260903_v2100";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260903_v2100";
-import { callCozeAgentAPI } from "./agents.js?v=20260903_v2100";
-import { AuthManager } from "./auth.js?v=20260903_v2100";
-import { CloudSyncEngine } from "./sync.js?v=20260903_v2100";
-import { renderLoginView } from "./login.js?v=20260903_v2100";
-import { renderTeacherPortal } from "./teacher.js?v=20260903_v2100";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260903_v2100";
+} from "./constants.js?v=20260903_v2105";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260903_v2105";
+import { callCozeAgentAPI } from "./agents.js?v=20260903_v2105";
+import { AuthManager } from "./auth.js?v=20260903_v2105";
+import { CloudSyncEngine } from "./sync.js?v=20260903_v2105";
+import { renderLoginView } from "./login.js?v=20260903_v2105";
+import { renderTeacherPortal } from "./teacher.js?v=20260903_v2105";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260903_v2105";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260903_v2100";
+} from "./editor.js?v=20260903_v2105";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -714,7 +714,7 @@ export class App {
           <span class="agent-pill" style="font-size:11px; padding:2px 8px; border-radius:12px; font-weight:700; white-space:nowrap; background:#eff6ff; color:#2563eb; border:1px solid #bfdbfe;">📝 审稿编辑 Agent</span>
         `;
         stageAgentMentions = `
-          <div class="at-item agent" data-mention="@责任编辑">🤝 @责任编辑 (阶段二 分工协同)</div>
+          <div class="at-item agent" data-mention="@责任编辑">🤝 @责任编辑 (阶段二 过程伴学与共识协同)</div>
           <div class="at-item agent" data-mention="@审稿编辑">📝 @审稿编辑 (阶段二 论文质检)</div>
         `;
       } else if (curStage === 'stage3') {
