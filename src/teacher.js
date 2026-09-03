@@ -2009,9 +2009,8 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
             <div style="font-size:12.5px; color:#1e40af; background:#eff6ff; border:1px solid #bfdbfe; border-radius:8px; padding:10px 14px; margin-bottom:12px;">
               💡 以下学生已在平台账号库中。勾选后可将其同时分配进本班级，<b>账号和密码保持不变，绝不重复生成</b>。
             </div>
-            <div style="margin-bottom:10px; display:flex; gap:10px; align-items:center;">
-              <input type="text" id="input-search-enroll-std" placeholder="🔍 输入姓名或学号快速搜索已有学生..." style="background:#ffffff; border:1.5px solid #cbd5e1; color:#0f172a; padding:8px 12px; border-radius:8px; flex:1; font-size:13px; outline:none;">
-              <button id="btn-purge-all-unenrolled" style="background:#fef2f2; border:1.5px solid #fecaca; color:#dc2626; padding:8px 14px; border-radius:8px; font-size:12.5px; font-weight:700; cursor:pointer; white-space:nowrap;" title="一键彻底清空删除列表中的所有未分班学生账号">🗑️ 一键清空所有未分班学生</button>
+            <div style="margin-bottom:10px;">
+              <input type="text" id="input-search-enroll-std" placeholder="🔍 输入姓名或学号快速搜索已有学生..." style="background:#ffffff; border:1.5px solid #cbd5e1; color:#0f172a; padding:8px 12px; border-radius:8px; width:100%; font-size:13px; outline:none;">
             </div>
             <div style="display:flex; justify-content:space-between; align-items:center; padding:4px 4px 8px 4px; font-size:12.5px; color:#64748b;">
               <label style="display:flex; align-items:center; gap:6px; cursor:pointer; font-weight:700; color:#334155;">
@@ -2107,21 +2106,6 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
           if (confirm(`⚠️ 确认彻底从系统中注销并删除勾选的 ${checked.length} 名学生账号吗？删除后不可恢复！`)) {
             checked.forEach(uid => authManager.deleteStudent(uid, null, true));
             alert(`🎉 已成功彻底删除 ${checked.length} 名学生账号！`);
-            closeModal();
-            renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
-          }
-        });
-      }
-
-      // 🗑️ 一键清空所有未分班学生
-      const btnPurgeAll = modal.querySelector('#btn-purge-all-unenrolled');
-      if (btnPurgeAll) {
-        btnPurgeAll.addEventListener('click', () => {
-          const uids = unenrolledStudents.map(s => s.id);
-          if (uids.length === 0) { alert('当前没有待清理的学生账号！'); return; }
-          if (confirm(`⚠️ 确认彻底清空并删除这 ${uids.length} 名学生账号吗？操作后数据将从数据库彻底抹除且不可恢复！`)) {
-            uids.forEach(uid => authManager.deleteStudent(uid, null, true));
-            alert(`🎉 已成功彻底清空 ${uids.length} 名学生账号！`);
             closeModal();
             renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
           }
