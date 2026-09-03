@@ -283,13 +283,15 @@ function autoSyncAllUsersFromMeta($pdo) {
                 }
             }
 
-            // 3. 自动同步 tasks 任务实体表
+            // 3. 自动同步 tasks 任务实体表（物理删除已移除的任务）
             if (isset($gm['tasks']) && is_array($gm['tasks'])) {
+                $validTids = [];
                 $stmtTaskUpsert = $pdo->prepare("INSERT INTO `tasks` (`id`, `title`, `desc`, `created_at_str`, `deadline`, `duration_minutes`, `target_class_ids`, `attachments`, `status`)
                     VALUES (:id, :title, :desc, :created_at, :deadline, :duration, :cids, :att, :status)
                     ON DUPLICATE KEY UPDATE `title`=VALUES(`title`), `desc`=VALUES(`desc`), `created_at_str`=VALUES(`created_at_str`), `deadline`=VALUES(`deadline`), `duration_minutes`=VALUES(`duration_minutes`), `target_class_ids`=VALUES(`target_class_ids`), `attachments`=VALUES(`attachments`), `status`=VALUES(`status`)");
                 foreach ($gm['tasks'] as $tsk) {
                     $tid = $tsk['id'] ?? ('task_' . uniqid());
+                    $validTids[] = $tid;
                     $ttitle = $tsk['title'] ?? '写作任务';
                     $tdesc = $tsk['instructions'] ?? ($tsk['desc'] ?? '');
                     $tcreated = $tsk['createdAt'] ?? date('Y-m-d H:i:s');
@@ -303,21 +305,66 @@ function autoSyncAllUsersFromMeta($pdo) {
                         ':deadline' => $tdeadline, ':duration' => $tduration, ':cids' => $tcids, ':att' => $tatt, ':status' => $tstatus
                     ]);
                 }
+                if (!empty($validTids)) {
+                    $inClause = implode(',', array_fill(0, count($validTids), '?'));
+                    $stmtCleanTasks = $pdo->prepare("DELETE FROM `tasks` WHERE `id` NOT IN ($inClause)");
+                    $stmtCleanTasks->execute($validTids);
+                } else {
+                    $pdo->exec("DELETE FROM `tasks`");
+                }
             }
 
-            // 4. 自动同步 announcements 通知实体表
+            // 4. 自动同步 announcements 通知实体表（物理删除已撤回的通知）
             if (isset($gm['announcements']) && is_array($gm['announcements'])) {
+                $validAids = [];
                 $stmtAnnUpsert = $pdo->prepare("INSERT INTO `announcements` (`id`, `title`, `content`, `created_at_str`, `target_class_ids`, `is_pinned`)
                     VALUES (:id, :title, :content, :created_at, :cids, :pinned)
                     ON DUPLICATE KEY UPDATE `title`=VALUES(`title`), `content`=VALUES(`content`), `created_at_str`=VALUES(`created_at_str`), `target_class_ids`=VALUES(`target_class_ids`), `is_pinned`=VALUES(`is_pinned`)");
                 foreach ($gm['announcements'] as $ann) {
                     $aid = $ann['id'] ?? ('ann_' . uniqid());
+                    $validAids[] = $aid;
                     $atitle = $ann['title'] ?? '通知';
                     $acontent = $ann['content'] ?? '';
                     $acreated = $ann['createdAt'] ?? date('Y-m-d H:i:s');
                     $acids = json_encode($ann['targetClassIds'] ?? [], JSON_UNESCAPED_UNICODE);
                     $apinned = !empty($ann['isPinned']) ? 1 : 0;
                     $stmtAnnUpsert->execute([':id' => $aid, ':title' => $atitle, ':content' => $acontent, ':created_at' => $acreated, ':cids' => $acids, ':pinned' => $apinned]);
+                }
+                if (!empty($validAids)) {
+                    $inClause = implode(',', array_fill(0, count($validAids), '?'));
+                    $stmtCleanAnn = $pdo->prepare("DELETE FROM `announcements` WHERE `id` NOT IN ($inClause)");
+                    $stmtCleanAnn->execute($validAids);
+                } else {
+                    $pdo->exec("DELETE FROM `announcements`");
+                }
+            }
+
+            // 5. 自动同步 reference_papers 示范文献实体表
+            if (isset($gm['referencePapers']) && is_array($gm['referencePapers'])) {
+                $validPids = [];
+                $stmtPaperUpsert = $pdo->prepare("INSERT INTO `reference_papers` (`id`, `title`, `abstract`, `highlights`, `target_group`, `file_name`, `file_size`, `upload_time`)
+                    VALUES (:id, :title, :abstract, :highlights, :target_group, :file_name, :file_size, :upload_time)
+                    ON DUPLICATE KEY UPDATE `title`=VALUES(`title`), `abstract`=VALUES(`abstract`), `highlights`=VALUES(`highlights`), `target_group`=VALUES(`target_group`), `file_name`=VALUES(`file_name`), `file_size`=VALUES(`file_size`), `upload_time`=VALUES(`upload_time`)");
+                foreach ($gm['referencePapers'] as $paper) {
+                    $pid = $paper['id'] ?? ('paper_' . uniqid());
+                    $validPids[] = $pid;
+                    $stmtPaperUpsert->execute([
+                        ':id' => $pid,
+                        ':title' => $paper['title'] ?? '文献',
+                        ':abstract' => $paper['abstract'] ?? '',
+                        ':highlights' => $paper['keyHighlights'] ?? ($paper['highlights'] ?? ''),
+                        ':target_group' => $paper['targetGroupId'] ?? 'all',
+                        ':file_name' => $paper['fileName'] ?? '',
+                        ':file_size' => $paper['fileSize'] ?? '',
+                        ':upload_time' => $paper['uploadTime'] ?? date('Y-m-d H:i:s')
+                    ]);
+                }
+                if (!empty($validPids)) {
+                    $inClause = implode(',', array_fill(0, count($validPids), '?'));
+                    $stmtCleanPapers = $pdo->prepare("DELETE FROM `reference_papers` WHERE `id` NOT IN ($inClause)");
+                    $stmtCleanPapers->execute($validPids);
+                } else {
+                    $pdo->exec("DELETE FROM `reference_papers`");
                 }
             }
         } catch (Exception $e) {}
