@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260903_v1985";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260903_v1985";
-import { callCozeAgentAPI } from "./agents.js?v=20260903_v1985";
-import { AuthManager } from "./auth.js?v=20260903_v1985";
-import { CloudSyncEngine } from "./sync.js?v=20260903_v1985";
-import { renderLoginView } from "./login.js?v=20260903_v1985";
-import { renderTeacherPortal } from "./teacher.js?v=20260903_v1985";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260903_v1985";
+} from "./constants.js?v=20260903_v1990";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260903_v1990";
+import { callCozeAgentAPI } from "./agents.js?v=20260903_v1990";
+import { AuthManager } from "./auth.js?v=20260903_v1990";
+import { CloudSyncEngine } from "./sync.js?v=20260903_v1990";
+import { renderLoginView } from "./login.js?v=20260903_v1990";
+import { renderTeacherPortal } from "./teacher.js?v=20260903_v1990";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260903_v1990";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260903_v1985";
+} from "./editor.js?v=20260903_v1990";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -2596,10 +2596,13 @@ export class App {
     const currentStage = this.state.currentStage || 'stage1';
     if (!this.state.chatLogs[currentStage]) this.state.chatLogs[currentStage] = [];
 
-    const taskPrompt = `小组成员【${authorName}】在选题池${isModify ? '修改完善了' : '提出了新'}研究提案《${title}》。
-请作为资深学术拍卖师，发表 60~80 字的【选题学术亮点速评与启发】：
-① 精准肯定该选题的研究切入点或实践价值；
-② 给出 1 点前瞻性探究启发，鼓励全组在研讨区就此交流！纯自然语言，60~80字，严禁代码块。`;
+    const taskPrompt = `小组成员【${authorName}】在选题池${isModify ? '修改完善了' : '提出了新'}提案《${title}》。
+请作为资深学术拍卖师/备课引导师：
+【最高审查红线】：先审查文本是否为乱码、无意义字符或空洞套话。若是，严禁虚构亮点，直接回复：“当前提交内容尚未形成可研讨的实质提案”，引导其交流思路或@拍卖师；
+若内容真实有效，请给出 100~130 字专业点评：
+① 肯定其最出彩的 1~2 个具体优点（如研究切口/方法构想，或情境导入/学情破局点）；
+② 提出 1 个启发性落地建议。
+严禁在末尾添加任何按钮指引，纯自然语言，100~130字。`;
 
     try {
       const resp = await callCozeAgentAPI('auctioneer', taskPrompt, { stage: 'stage1', topic: title });
