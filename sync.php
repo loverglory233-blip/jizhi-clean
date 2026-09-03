@@ -226,13 +226,15 @@ function autoSyncAllUsersFromMeta($pdo) {
                 VALUES (:id, :nm, :p, :r)
                 ON DUPLICATE KEY UPDATE name = VALUES(name), role = VALUES(role)");
 
+            $validUids = ['1001'];
             foreach ($gUsers as $gu) {
                 $uid = trim($gu['id'] ?? ($gu['studentCode'] ?? ($gu['username'] ?? '')));
                 if (empty($uid)) continue;
+                $validUids[] = $uid;
                 $unick = trim($gu['name'] ?? $uid);
                 $urole = trim($gu['role'] ?? 'student');
                 $rawPwd = trim($gu['password'] ?? '');
-                $upwd = !empty($rawPwd) ? $rawPwd : password_hash('123', PASSWORD_DEFAULT);
+                $upwd = !empty($rawPwd) ? $rawPwd : '123';
 
                 $stmtCheck = $pdo->prepare("SELECT id, password FROM users WHERE id = :id LIMIT 1");
                 $stmtCheck->execute([':id' => $uid]);
@@ -244,8 +246,6 @@ function autoSyncAllUsersFromMeta($pdo) {
                 } else {
                     $stmtUpsert->execute([
                         ':id' => $uid,
-                        ':u' => $uname,
-                        ':sc' => $ucode,
                         ':nm' => $unick,
                         ':p' => $upwd,
                         ':r' => $urole
@@ -253,20 +253,28 @@ function autoSyncAllUsersFromMeta($pdo) {
                 }
             }
 
+            // 🛡️ 彻底物理清除已从 main_meta 注销删除的学生账号
+            if (!empty($validUids)) {
+                $inClause = implode(',', array_fill(0, count($validUids), '?'));
+                $stmtCleanUsers = $pdo->prepare("DELETE FROM `users` WHERE `role` != 'teacher' AND `id` NOT IN ($inClause)");
+                $stmtCleanUsers->execute($validUids);
+            } else {
+                $pdo->exec("DELETE FROM `users` WHERE `role` != 'teacher'");
+            }
+
             // 2. 自动同步 classes 班级实体表
             if (isset($gm['classes']) && is_array($gm['classes'])) {
                 $validCids = [];
-                $stmtClsUpsert = $pdo->prepare("INSERT INTO `classes` (`id`, `name`, `code`, `student_ids`, `groups_data`)
-                    VALUES (:id, :nm, :code, :sids, :gdata)
-                    ON DUPLICATE KEY UPDATE `name`=VALUES(`name`), `code`=VALUES(`code`), `student_ids`=VALUES(`student_ids`), `groups_data`=VALUES(`groups_data`)");
+                $stmtClsUpsert = $pdo->prepare("INSERT INTO `classes` (`id`, `name`, `student_ids`, `groups_data`)
+                    VALUES (:id, :nm, :sids, :gdata)
+                    ON DUPLICATE KEY UPDATE `name`=VALUES(`name`), `student_ids`=VALUES(`student_ids`), `groups_data`=VALUES(`groups_data`)");
                 foreach ($gm['classes'] as $cls) {
                     $cid = $cls['id'] ?? ('class_' . uniqid());
                     $cname = $cls['name'] ?? '教学班';
-                    $ccode = $cls['code'] ?? $cid;
                     $sids = json_encode($cls['studentIds'] ?? [], JSON_UNESCAPED_UNICODE);
                     $gdata = json_encode($cls['groups'] ?? [], JSON_UNESCAPED_UNICODE);
                     $validCids[] = $cid;
-                    $stmtClsUpsert->execute([':id' => $cid, ':nm' => $cname, ':code' => $ccode, ':sids' => $sids, ':gdata' => $gdata]);
+                    $stmtClsUpsert->execute([':id' => $cid, ':nm' => $cname, ':sids' => $sids, ':gdata' => $gdata]);
                 }
                 if (!empty($validCids)) {
                     $inClause = implode(',', array_fill(0, count($validCids), '?'));
