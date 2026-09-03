@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260903_v1645
+ * Version: 20260903_v1653
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260903_v1645';
+  const APP_VERSION = '20260903_v1653';
   const APP_BUILD_DATE = '2026-09-03';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -17286,19 +17286,25 @@
           this.sendSingleChatMessage(managingWelcome, 'stage2');
           if (typeof window.renderChat === 'function') window.renderChat(this.state);
 
-          setTimeout(() => {
-            const reviewingWelcome = {
-              id: `msg_welcome_${taskId}_${groupId}_stage2_reviewing`,
-              sender: 'reviewingEditor',
-              senderName: '审稿编辑 · 质量把关',
-              text: `📝 【审稿编辑·开场寄语】：大家好！我是本阶段的审稿编辑。在大家的写作过程中，我将分别在开篇破题、半程研讨与终审定稿三个关键节点为大家提供质检把脉与修改清单，护航全篇学术质量！👉 写作遇到瓶颈时，建议大家参考顶部【学术范文】与参考文献支架，学习规范的学术行文与章节论述架构！`,
-              timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-              _timeMs: Date.now()
-            };
-            logs.push(reviewingWelcome);
-            this.sendSingleChatMessage(reviewingWelcome, 'stage2');
-            if (typeof window.renderChat === 'function') window.renderChat(this.state);
-          }, 1800);
+          const curClassId = this.state.activeClassId || this.state.activeStudentClassId || null;
+          const availablePapers = (this.authManager) ? this.authManager.getReferencePapers(groupId, curClassId, taskId) : [];
+
+          // 🛡️ 规则：仅当任课教师在当前任务中下发了参考范文/文献时，审稿编辑才触发开场寄语
+          if (availablePapers && availablePapers.length > 0) {
+            setTimeout(() => {
+              const reviewingWelcome = {
+                id: `msg_welcome_${taskId}_${groupId}_stage2_reviewing`,
+                sender: 'reviewingEditor',
+                senderName: '审稿编辑 · 质量把关',
+                text: `📝 【审稿编辑·开场寄语】：大家好！我是本阶段的审稿编辑。在大家的写作过程中，我将分别在开篇破题、半程研讨与终审定稿三个关键节点为大家提供质检把脉与修改清单，护航全篇学术质量！👉 写作遇到瓶颈时，建议大家参考顶部【学术范文】与参考文献支架，学习规范的学术行文与章节论述架构！`,
+                timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                _timeMs: Date.now()
+              };
+              logs.push(reviewingWelcome);
+              this.sendSingleChatMessage(reviewingWelcome, 'stage2');
+              if (typeof window.renderChat === 'function') window.renderChat(this.state);
+            }, 1800);
+          }
         }
       }
 
