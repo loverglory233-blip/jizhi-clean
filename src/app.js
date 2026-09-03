@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260904_v2176";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch, showResolutionBlock, safeJsonParse } from "./utils.js?v=20260904_v2176";
-import { callCozeAgentAPI } from "./agents.js?v=20260904_v2176";
-import { AuthManager } from "./auth.js?v=20260904_v2176";
-import { CloudSyncEngine } from "./sync.js?v=20260904_v2176";
-import { renderLoginView } from "./login.js?v=20260904_v2176";
-import { renderTeacherPortal } from "./teacher.js?v=20260904_v2176";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260904_v2176";
+} from "./constants.js?v=20260904_v2188";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch, showResolutionBlock, safeJsonParse } from "./utils.js?v=20260904_v2188";
+import { callCozeAgentAPI } from "./agents.js?v=20260904_v2188";
+import { AuthManager } from "./auth.js?v=20260904_v2188";
+import { CloudSyncEngine } from "./sync.js?v=20260904_v2188";
+import { renderLoginView } from "./login.js?v=20260904_v2188";
+import { renderTeacherPortal } from "./teacher.js?v=20260904_v2188";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260904_v2188";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260904_v2176";
+} from "./editor.js?v=20260904_v2188";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -501,7 +501,7 @@ export class App {
         const primaryMember = (onlineMembers.length > 0)
           ? [...onlineMembers].sort((a, b) => (a.id || a.id || '').localeCompare(b.id || b.id || ''))[0]
           : (membersList.length > 0 ? [...membersList].sort((a, b) => (a.id || a.id || '').localeCompare(b.id || b.id || ''))[0] : null);
-        const isPrimaryGuardian = primaryMember && (primaryMember.id === myCode || primaryMember.id === myCode);
+        const isPrimaryGuardian = primaryMember && (isSameUser(primaryMember, myCode) || primaryMember.id === myCode || primaryMember.name === myCode);
 
         if (isPrimaryGuardian) {
           const allChatLogsList = Object.values(this.state.chatLogs || {}).flat();
@@ -3365,7 +3365,7 @@ ${instructionSection}
     if (!Array.isArray(memberArr)) {
       memberArr = Object.values(memberArr || {});
     }
-    const currMemObj = memberArr.find(m => m && (m.id === user  === user  === user || m.name === user));
+    const currMemObj = memberArr.find(m => m && (isSameUser(m, user) || m.id === user || m.name === user));
     const memberName = currMemObj ? currMemObj.name : user;
     const totalMembersCount = Math.max(memberArr.length, 2);
 

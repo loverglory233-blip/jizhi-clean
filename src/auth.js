@@ -14,8 +14,8 @@ import {
   DefaultTasks,
   DefaultAnnouncements,
   DefaultReferencePapers
-} from './constants.js?v=20260904_v2176';
-import { formatExportDateTime, formatDurationHuman, isScopeMatch } from './utils.js?v=20260904_v2176';
+} from './constants.js?v=20260904_v2188';
+import { formatExportDateTime, formatDurationHuman, isScopeMatch } from './utils.js?v=20260904_v2188';
 
 export class AuthManager {
   constructor() {
@@ -932,7 +932,7 @@ export class AuthManager {
     if (cls) {
       if (!cls.groups) cls.groups = [];
       const newGroup = {
-        id: 'group_' + Date.now(),
+        id: 'group_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7),
         name: groupName || `第 ${cls.groups.length + 1} 协作小组`,
         members: []
       };
@@ -1121,7 +1121,7 @@ export class AuthManager {
 
     let group = cls.groups.find(g => g.id === groupId);
     if (!group) {
-      group = { id: groupId || ('group_' + Date.now()), name: cleanGroupName, members: [] };
+      group = { id: groupId || ('group_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7)), name: cleanGroupName, members: [] };
       cls.groups.push(group);
     } else {
       group.name = cleanGroupName;
@@ -1258,7 +1258,7 @@ export class AuthManager {
 
       chunks.forEach((chunk, groupIdx) => {
         const groupIndex = groupIdx + 1;
-        const gId = 'group_' + Date.now() + '_' + groupIndex;
+        const gId = 'group_' + Date.now() + '_' + groupIndex + '_' + Math.random().toString(36).substring(2, 7);
         const gName = `第 ${groupIndex} 协作小组`;
         const memberIds = chunk.map(s => s.id);
 
@@ -1296,7 +1296,7 @@ export class AuthManager {
       const startIndex = cls.groups.length;
       chunks.forEach((chunk, groupIdx) => {
         const groupIndex = startIndex + groupIdx + 1;
-        const gId = 'group_' + Date.now() + '_' + groupIndex;
+        const gId = 'group_' + Date.now() + '_' + groupIndex + '_' + Math.random().toString(36).substring(2, 7);
         const gName = `第 ${groupIndex} 协作小组`;
         const memberIds = chunk.map(s => s.id);
 
@@ -1928,6 +1928,42 @@ export class AuthManager {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+  }
+
+  async resetStudentPassword(studentAccount, newPassword = '123') {
+    const acc = String(studentAccount || '').trim();
+    if (!acc) throw new Error('学生账号不能为空');
+    const currentUser = this.getCurrentUser();
+    const isTeacher = currentUser && (currentUser.role === 'teacher' || currentUser.isTeacher);
+    if (!isTeacher) throw new Error('仅允许教师重置学生密码');
+
+    // 1. 本地立即更新
+    const users = this.getUsers();
+    const target = users.find(u => u && u.id && u.id.toLowerCase() === acc.toLowerCase());
+    if (target) {
+      target.password = newPassword;
+      localStorage.setItem(STORAGE_KEY_USERS_DB, JSON.stringify(users));
+    }
+
+    // 2. 远端数据库持久化重置
+    try {
+      const res = await fetch('sync.php?action=reset_student_password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          account: acc,
+          newPassword: newPassword,
+          userId: currentUser.id,
+          token: currentUser.token || currentUser.activeSessionId || ''
+        })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (data && data.success === false) {
+        throw new Error(data.message || '重置失败');
+      }
+    } catch (e) {
+      console.warn('[resetStudentPassword] 远端同步异常:', e);
+    }
   }
 
   openChangePasswordModal(presetAccount = null) {

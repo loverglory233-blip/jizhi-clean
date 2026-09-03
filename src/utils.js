@@ -169,9 +169,9 @@ export function formatStandardDateDash(val) {
  * 🛡️ 任务截止状态判定：如果当前本地时间已超过截止时间，判定为已截止 (过期)
  */
 export function isTaskExpired(task) {
-  if (!task || !task.deadline) return false;
+  if (!task) return false;
   try {
-    const raw = String(task.deadline).trim();
+    const raw = String(typeof task === 'object' && task !== null ? (task.deadline || '') : task).trim();
     if (!raw || raw.includes('无') || raw.includes('随时') || raw.includes('结课前') || raw.includes('不限')) return false;
     const deadlineStr = raw.replace(/-/g, '/');
     const deadlineTime = new Date(deadlineStr).getTime();
@@ -453,8 +453,6 @@ export function setCaretPositionWithin(element, offset) {
   }
 }
 
-/**
- * 🛡️ 聊天数据智能清洗与名单白名单过滤器（方案 A）
 /**
  * 🛡️ 聊天数据安全清洗与智能体开场白去重
  * 1. 消除智能体重复开场白

@@ -7,8 +7,8 @@ import {
   STORAGE_KEY_TASKS,
   STORAGE_KEY_ANNOUNCEMENTS,
   STORAGE_KEY_CLASSES
-} from "./constants.js?v=20260904_v2176";
-import { escapeHtml, isTaskExpired, formatDurationHuman, formatStandardDateDash, showGlobalBannerNotice } from "./utils.js?v=20260904_v2176";
+} from "./constants.js?v=20260904_v2188";
+import { escapeHtml, isTaskExpired, formatDurationHuman, formatStandardDateDash, showGlobalBannerNotice } from "./utils.js?v=20260904_v2188";
 
 /* ==========================================================================
    10. STUDENT TASK PORTAL (CENTRALIZED HUB & COLLABORATION ENTRY)
@@ -209,16 +209,7 @@ export function renderStudentTaskPortal(container, authManager, state, onSelectT
     const btnPwd = container.querySelector('#btn-portal-change-pwd');
     if (btnPwd) {
       btnPwd.addEventListener('click', () => {
-        const oldP = prompt('请输入当前登录密码:');
-        if (!oldP) return;
-        const newP = prompt('请输入新密码 (至少1位):');
-        if (!newP) return;
-        try {
-          authManager.changePassword(currentUser.id, oldP, newP);
-          alert('✅ 密码修改成功！请妥善保管您的新密码。');
-        } catch (e) {
-          alert('❌ ' + e.message);
-        }
+        authManager.openChangePasswordModal();
       });
     }
     return;

@@ -414,7 +414,7 @@ if ($action === 'login' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                             'role' => $gu['role'] ?? 'student'
                         ];
                         try {
-                            $stmtIns = $pdo->prepare("INSERT INTO users (id, name, password, role) VALUES (:id, :nm, :p, :r) ON DUPLICATE KEY UPDATE name=VALUES(name), password=VALUES(password), role=VALUES(role)");
+                            $stmtIns = $pdo->prepare("INSERT INTO users (id, name, password, role) VALUES (:id, :nm, :p, :r) ON DUPLICATE KEY UPDATE name=VALUES(name), role=VALUES(role)");
                             $stmtIns->execute([
                                 ':id' => $row['id'],
                                 ':nm' => $row['name'],
@@ -1944,7 +1944,7 @@ if ($action === 'save_global_meta' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 if (isset($decoded['users']) && is_array($decoded['users'])) {
                     $stmtUserUpsert = $pdo->prepare("INSERT INTO `users` (`id`, `name`, `password`, `role`)
                         VALUES (:id, :nm, :p, :r)
-                        ON DUPLICATE KEY UPDATE `name`=VALUES(`name`), `password`=VALUES(`password`), `role`=VALUES(`role`)");
+                        ON DUPLICATE KEY UPDATE `name`=VALUES(`name`), `role`=VALUES(`role`)");
                     foreach ($decoded['users'] as $usr) {
                         $uid = isset($usr['id']) ? $usr['id'] : (isset($usr['studentCode']) ? $usr['studentCode'] : ('u_student_' . uniqid()));
                         $unick = isset($usr['name']) ? $usr['name'] : $uid;

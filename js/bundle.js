@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260904_v2176
+ * Version: 20260904_v2188
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260904_v2176';
+  const APP_VERSION = '20260904_v2188';
   const APP_BUILD_DATE = '2026-09-04';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -375,9 +375,9 @@
    * 🛡️ 任务截止状态判定：如果当前本地时间已超过截止时间，判定为已截止 (过期)
    */
   function isTaskExpired(task) {
-    if (!task || !task.deadline) return false;
+    if (!task) return false;
     try {
-      const raw = String(task.deadline).trim();
+      const raw = String(typeof task === 'object' && task !== null ? (task.deadline || '') : task).trim();
       if (!raw || raw.includes('无') || raw.includes('随时') || raw.includes('结课前') || raw.includes('不限')) return false;
       const deadlineStr = raw.replace(/-/g, '/');
       const deadlineTime = new Date(deadlineStr).getTime();
@@ -659,8 +659,6 @@
     }
   }
 
-  /**
-   * 🛡️ 聊天数据智能清洗与名单白名单过滤器（方案 A）
   /**
    * 🛡️ 聊天数据安全清洗与智能体开场白去重
    * 1. 消除智能体重复开场白
@@ -2191,7 +2189,7 @@
       if (cls) {
         if (!cls.groups) cls.groups = [];
         const newGroup = {
-          id: 'group_' + Date.now(),
+          id: 'group_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7),
           name: groupName || `第 ${cls.groups.length + 1} 协作小组`,
           members: []
         };
@@ -2380,7 +2378,7 @@
 
       let group = cls.groups.find(g => g.id === groupId);
       if (!group) {
-        group = { id: groupId || ('group_' + Date.now()), name: cleanGroupName, members: [] };
+        group = { id: groupId || ('group_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7)), name: cleanGroupName, members: [] };
         cls.groups.push(group);
       } else {
         group.name = cleanGroupName;
@@ -2517,7 +2515,7 @@
 
         chunks.forEach((chunk, groupIdx) => {
           const groupIndex = groupIdx + 1;
-          const gId = 'group_' + Date.now() + '_' + groupIndex;
+          const gId = 'group_' + Date.now() + '_' + groupIndex + '_' + Math.random().toString(36).substring(2, 7);
           const gName = `第 ${groupIndex} 协作小组`;
           const memberIds = chunk.map(s => s.id);
 
@@ -2555,7 +2553,7 @@
         const startIndex = cls.groups.length;
         chunks.forEach((chunk, groupIdx) => {
           const groupIndex = startIndex + groupIdx + 1;
-          const gId = 'group_' + Date.now() + '_' + groupIndex;
+          const gId = 'group_' + Date.now() + '_' + groupIndex + '_' + Math.random().toString(36).substring(2, 7);
           const gName = `第 ${groupIndex} 协作小组`;
           const memberIds = chunk.map(s => s.id);
 
@@ -3187,6 +3185,42 @@
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
+    }
+
+    async resetStudentPassword(studentAccount, newPassword = '123') {
+      const acc = String(studentAccount || '').trim();
+      if (!acc) throw new Error('学生账号不能为空');
+      const currentUser = this.getCurrentUser();
+      const isTeacher = currentUser && (currentUser.role === 'teacher' || currentUser.isTeacher);
+      if (!isTeacher) throw new Error('仅允许教师重置学生密码');
+
+      // 1. 本地立即更新
+      const users = this.getUsers();
+      const target = users.find(u => u && u.id && u.id.toLowerCase() === acc.toLowerCase());
+      if (target) {
+        target.password = newPassword;
+        localStorage.setItem(STORAGE_KEY_USERS_DB, JSON.stringify(users));
+      }
+
+      // 2. 远端数据库持久化重置
+      try {
+        const res = await fetch('sync.php?action=reset_student_password', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            account: acc,
+            newPassword: newPassword,
+            userId: currentUser.id,
+            token: currentUser.token || currentUser.activeSessionId || ''
+          })
+        });
+        const data = await res.json().catch(() => ({}));
+        if (data && data.success === false) {
+          throw new Error(data.message || '重置失败');
+        }
+      } catch (e) {
+        console.warn('[resetStudentPassword] 远端同步异常:', e);
+      }
     }
 
     openChangePasswordModal(presetAccount = null) {
@@ -6518,12 +6552,12 @@
 
     // 重置学生密码
     container.querySelectorAll('.reset-student-pwd-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
+      btn.addEventListener('click', async () => {
         const acc = btn.dataset.account;
         const uname = btn.dataset.name;
         if (confirm(`🔑 确认将学生【${uname} (${acc})】的登录密码重置为默认初始密码【123】吗？`)) {
           try {
-            authManager.resetStudentPassword(acc);
+            await authManager.resetStudentPassword(acc);
             alert(`✅ 已成功将学生【${uname}】的密码重置为 123！`);
             renderTeacherPortal(container, authManager, state, onLogout);
           } catch (err) {
@@ -7115,37 +7149,6 @@
       btn.addEventListener('click', () => setupGroupModal(btn.dataset.gid));
     });
 
-    container.querySelectorAll('.reset-student-pwd-btn').forEach(btn => {
-      btn.addEventListener('click', async () => {
-        const account = btn.dataset.account;
-        const name = btn.dataset.name || account;
-        if (confirm(`🔑【教师密码重置确认】\n\n您确定要将学生【${name}】(账号: ${account}) 的登录密码重置为初始密码 123 吗？`)) {
-          try {
-            const currT = authManager.getCurrentUser();
-            const tId = currT?.id || '';
-            const tToken = (currT && (currT.token || currT.activeSessionId)) || '';
-
-            const res = await fetch('sync.php?action=reset_student_password', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ account, newPassword: '123', userId: tId, token: tToken })
-            });
-            const data = await res.json();
-            if (data && data.success) {
-              alert(`✅ ${data.message || `学生【${name}】密码已成功重置为 123！`}`);
-              authManager.pullGlobalMeta().then(() => {
-                renderTeacherPortal(container, authManager, state, onLogout);
-              });
-            } else {
-              alert('❌ ' + (data.message || '重置失败'));
-            }
-          } catch (e) {
-            alert('❌ 网络请求失败，请稍后重试');
-          }
-        }
-      });
-    });
-
     container.querySelectorAll('.delete-student-btn').forEach(btn => {
       btn.addEventListener('click', () => {
         authManager.deleteStudent(btn.dataset.id, activeClass.id);
@@ -7325,21 +7328,6 @@
           if (window.app && window.app.cloudSyncEngine) window.app.cloudSyncEngine.pushSnapshot();
           alert('✅ 问卷配置已成功删除！');
           renderTeacherPortal(container, authManager, state, onLogout);
-        }
-      });
-    });
-
-    // 📝 载入问卷修改
-    container.querySelectorAll('.btn-quick-fill-survey').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const cId = btn.dataset.cid;
-        const tId = btn.dataset.tid;
-        const url = decodeURIComponent(btn.dataset.url || '');
-        if (selSurveyClass) selSurveyClass.value = cId;
-        if (selSurveyTask) selSurveyTask.value = tId;
-        if (surveyUrlInput) {
-          surveyUrlInput.value = url;
-          surveyUrlInput.focus();
         }
       });
     });
@@ -8358,7 +8346,7 @@
             const f = e.target.files[0];
             const sizeKB = (f.size / 1024).toFixed(1) + ' KB';
             // 自动将文件名（去掉扩展名）填入标题输入框
-            const cleanTitle = f.name.replace(/\.[^/.]+$/, '');
+            const cleanTitle = f.name.replace(/\.[^\/.]+$/, '');
             if (!titleInput.value || titleInput.value.trim() === '') {
               titleInput.value = cleanTitle;
             }
@@ -8407,7 +8395,7 @@
               return;
             }
             if (!title) {
-              title = selectedFile.name ? selectedFile.name.replace(/\.[^/.]+$/, '') : '学术参考范文';
+              title = selectedFile.name ? selectedFile.name.replace(/\.[^\/.]+$/, '') : '学术参考范文';
             }
 
             submitBtn.disabled = true;
@@ -8871,16 +8859,7 @@
       const btnPwd = container.querySelector('#btn-portal-change-pwd');
       if (btnPwd) {
         btnPwd.addEventListener('click', () => {
-          const oldP = prompt('请输入当前登录密码:');
-          if (!oldP) return;
-          const newP = prompt('请输入新密码 (至少1位):');
-          if (!newP) return;
-          try {
-            authManager.changePassword(currentUser.id, oldP, newP);
-            alert('✅ 密码修改成功！请妥善保管您的新密码。');
-          } catch (e) {
-            alert('❌ ' + e.message);
-          }
+          authManager.openChangePasswordModal();
         });
       }
       return;
@@ -9526,7 +9505,7 @@
                 };
                 const isMyDoneHelper = (map) => {
                   if (!map) return false;
-                  return !!(map[currUserCode] || (currUser && (map[currUser.id]  || map[currUser.name])));
+                  return isMemberDone(map, currUserObj || { id: currentUser, name: currentUserName });
                 };
 
                 if (s1.contractStep === 'completed' || s1.contract?.isDraftGenerated) {
@@ -9679,6 +9658,7 @@
     if (btnOpenProp) {
       btnOpenProp.addEventListener('click', () => {
         document.querySelectorAll('.modal-overlay').forEach(el => el.remove());
+        const myKeys = new Set(getUserAllKeys(currUserObj || { id: currentUser, name: currentUserName }));
         const existingProp = s1.proposals.find(p => {
           if (!p) return false;
           if (myKeys.has(p.author) || myKeys.has(p.authorName) || myKeys.has(p.authorId)) return true;
@@ -10596,8 +10576,8 @@
           if (delta > 0) {
             const matchedMember = membersList.find(m => {
               if (!m) return false;
-              if (currUser && (m.id === currUser.id  === id === (m.name && m.name === currUser.name))) return true;
-              if (state.currentUser && (m.id   === state.currentUser || m.name === state.currentUser)) return true;
+              if (currUser && (m.id === currUser.id || (m.name && m.name === currUser.name))) return true;
+              if (state.currentUser && (m.id === state.currentUser || m.name === state.currentUser)) return true;
               return false;
             }) || membersList[0];
 
@@ -10611,7 +10591,7 @@
             updateContribDom();
 
             // 📡 异步持久化到服务端双表
-            const reportCode = matchedMember?.id || matchedMember?.id || currUser?.id || currUserCode;
+            const reportCode = matchedMember?.id || matchedMember?.studentCode || matchedMember?.name || currUser?.id || currUserCode;
             fetch(`sync.php?action=report_member_contrib&groupId=${encodeURIComponent(userGroupId)}&taskId=${encodeURIComponent(activeTaskId)}&classId=${encodeURIComponent(userClassId)}`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
@@ -10807,7 +10787,7 @@
         const subs = s2.meetingSubmissions || {};
         const subCount = Object.keys(subs).length;
         const isMeetingFullyDone = subCount >= totalCount && totalCount > 0;
-        const isCurrentUserSubmitted = isMemberDone(subs, { id: currUserCode, id: currUser?.id, name: currUser?.name });
+        const isCurrentUserSubmitted = isMemberDone(subs, { id: currUser?.id || currUserCode, name: currUser?.name });
 
         const meetingTextEl = canvas.querySelector('#stage2-meeting-count-text');
         if (meetingTextEl) {
@@ -10828,7 +10808,7 @@
         const confMembers = s2.confirmedMembers || {};
         const confirmedDraftCount = membersList.filter(m => isMemberDone(confMembers, m)).length;
         const isDraftFullyConfirmed = s2.isDraftConfirmed || (confirmedDraftCount >= totalCount && totalCount > 0);
-        const isUserDraftConfirmed = isMemberDone(confMembers, { id: currUserCode, id: currUser?.id, name: currUser?.name });
+        const isUserDraftConfirmed = isMemberDone(confMembers, { id: currUser?.id || currUserCode, name: currUser?.name });
 
         const draftTextEl = canvas.querySelector('#stage2-draft-count-text');
         if (draftTextEl) {
@@ -10899,7 +10879,7 @@
               const subs = s2.meetingSubmissions || {};
               const subCount = Object.keys(subs).length;
               const isMeetingFullyDone = subCount >= totalCount && totalCount > 0;
-              const isCurrentUserSubmitted = isMemberDone(subs, { id: currUserCode, id: currUser?.id, name: currUser?.name });
+              const isCurrentUserSubmitted = isMemberDone(subs, { id: currUser?.id || currUserCode, name: currUser?.name });
               return `
                 <div style="display:flex; align-items:center; gap:4px;">
                   <span id="stage2-meeting-count-text" style="font-size:11px; font-weight:800; color:${isMeetingFullyDone ? '#059669' : '#2563eb'}; background:${isMeetingFullyDone ? '#d1fae5' : '#eff6ff'}; padding:1.5px 6px; border-radius:8px; border:1px solid ${isMeetingFullyDone ? '#a7f3d0' : '#bfdbfe'};">
@@ -11335,6 +11315,14 @@
     const isTaskDeadlineExpired = isTaskExpired(currentTask);
     const isFinalSubmitted = state.isFinalSubmitted || isAllFinalSubmitted || isTaskDeadlineExpired;
     const isDefenseLocked = isRevisionFullyConfirmed || isFinalSubmitted;
+
+    // 🛡️ Safari 滚动记忆防回弹：预先记录用户此前的滚动高度与聚焦输入状态
+    const oldDefenseCard = canvas.querySelector('#stage3-defense-card');
+    const oldScrollTop = oldDefenseCard ? oldDefenseCard.scrollTop : 0;
+    const activeElem = document.activeElement;
+    const activeElemDataId = (activeElem && activeElem.classList.contains('feedback-direct-input')) ? activeElem.dataset.id : null;
+    const activeSelectionStart = activeElem ? activeElem.selectionStart : undefined;
+    const activeSelectionEnd = activeElem ? activeElem.selectionEnd : undefined;
 
     // 🛡️ 极致单例保护
     const existingDefenseCard = canvas.querySelector('#stage3-defense-card');
@@ -11881,12 +11869,12 @@
         }
         if (!name || name === msg.sender) {
           const memList = Array.isArray(state.members) ? state.members : Object.values(state.members || {});
-          const mem = memList.find(m => m && (m.id === msg.sender  === msg.sender));
+          const mem = memList.find(m => m && (m.id === msg.sender || m.name === msg.sender));
           name = mem?.name || (msg.senderName && msg.senderName !== msg.sender ? msg.senderName : '组员');
         }
 
         const memList = Array.isArray(state.members) ? state.members : Object.values(state.members || {});
-        const memObj = memList.find(m => isSameUser(m, msg.sender) || m.id === msg.sender  === msg.sender || m.name === name) || null;
+        const memObj = memList.find(m => isSameUser(m, msg.sender) || m.id === msg.sender || m.name === msg.sender || m.name === name) || null;
         if (memObj) {
           avatar = memObj.avatar || '👨‍🎓';
           color = memObj.color || '#2563eb';
@@ -12743,7 +12731,7 @@
           const primaryMember = (onlineMembers.length > 0)
             ? [...onlineMembers].sort((a, b) => (a.id || a.id || '').localeCompare(b.id || b.id || ''))[0]
             : (membersList.length > 0 ? [...membersList].sort((a, b) => (a.id || a.id || '').localeCompare(b.id || b.id || ''))[0] : null);
-          const isPrimaryGuardian = primaryMember && (primaryMember.id === myCode || primaryMember.id === myCode);
+          const isPrimaryGuardian = primaryMember && (isSameUser(primaryMember, myCode) || primaryMember.id === myCode || primaryMember.name === myCode);
 
           if (isPrimaryGuardian) {
             const allChatLogsList = Object.values(this.state.chatLogs || {}).flat();
@@ -15607,7 +15595,7 @@
       if (!Array.isArray(memberArr)) {
         memberArr = Object.values(memberArr || {});
       }
-      const currMemObj = memberArr.find(m => m && (m.id === user  === user  === user || m.name === user));
+      const currMemObj = memberArr.find(m => m && (isSameUser(m, user) || m.id === user || m.name === user));
       const memberName = currMemObj ? currMemObj.name : user;
       const totalMembersCount = Math.max(memberArr.length, 2);
 
