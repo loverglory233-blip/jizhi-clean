@@ -58,6 +58,7 @@ try {
                     ':r' => $urole
                 ]);
             }
+        }
         // 🛡️ 彻底物理清除已从 main_meta 注销删除的学生账号
         $validUids = ['1001'];
         foreach ($gUsers as $gu) {
