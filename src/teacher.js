@@ -10,8 +10,8 @@ import {
   STORAGE_KEY_USERS_DB,
   TASK_GENRE_CONFIGS,
   AgentProfiles
-} from "./constants.js?v=20260904_v2194";
-import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, showGlobalBannerNotice } from "./utils.js?v=20260904_v2194";
+} from "./constants.js?v=20260904_v2195";
+import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, showGlobalBannerNotice } from "./utils.js?v=20260904_v2195";
 
 /* ==========================================================================
    7. TEACHER PORTAL RENDERER (LIVE WORKSPACE MIRROR & ANNOUNCEMENT READ MATRIX)
@@ -1120,11 +1120,6 @@ export function renderTeacherPortal(container, authManager, state, onLogout) {
                     </span>
                   </div>
                 </div>
-                ${monitorTaskObj?.instructions ? `
-                  <div style="font-size:12px; color:#475569; background:#f8fafc; border:1px dashed #cbd5e1; padding:4px 12px; border-radius:6px; max-width:460px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="任务说明: ${escapeHtml(monitorTaskObj.instructions)}">
-                    📝 <b>说明:</b> ${escapeHtml(monitorTaskObj.instructions)}
-                  </div>
-                ` : ''}
               </div>
 
               <!-- 📍 实时跟随指示条（清爽标准版） -->
