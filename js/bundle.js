@@ -2208,11 +2208,7 @@
             });
           }
         }
-
-        // 如果该学生已不属于任何其他班级，自动彻底从用户库注销
-        if (student.classIds.length === 0) {
-          users = users.filter(u => u.id !== userId);
-        }
+        // 从班级移出后，学生账号依然保留在平台总库中，可在【加入已有学生】中重新分配或彻底注销
       }
 
       localStorage.setItem(STORAGE_KEY_USERS_DB, JSON.stringify(users));
@@ -5127,8 +5123,8 @@
                                   <button class="reset-student-pwd-btn" data-account="${stdAcc}" data-name="${s.name}" style="background:#eff6ff; border:1px solid #bfdbfe; color:#2563eb; padding:4px 10px; border-radius:6px; font-size:12px; cursor:pointer; font-weight:700;" title="将此学生登录密码重置为 123">
                                     🔑 重置为123
                                   </button>
-                                  <button class="delete-student-btn" data-id="${s.id}" style="background:#fef2f2; border:1px solid #fecaca; color:#dc2626; padding:4px 10px; border-radius:6px; font-size:12px; cursor:pointer; font-weight:700;" title="从本班移除">
-                                    移除
+                                  <button class="delete-student-btn" data-id="${s.id}" style="background:#fef2f2; border:1px solid #fecaca; color:#dc2626; padding:4px 10px; border-radius:6px; font-size:12px; cursor:pointer; font-weight:700;" title="从本班移出 (账号仍保留在平台总库，可在已有学生库彻底注销)">
+                                    移出本班
                                   </button>
                                 </div>
                               </td>
