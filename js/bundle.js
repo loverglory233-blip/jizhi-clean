@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260903_v1701
+ * Version: 20260903_v1703
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260903_v1701';
+  const APP_VERSION = '20260903_v1703';
   const APP_BUILD_DATE = '2026-09-03';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -999,12 +999,28 @@
       }
     }, { passive: false });
 
-    // 🛡️ 观察 DOM 弹窗生命周期，自动为 body 与 html 注入/移除 modal-open 类名
+    // 🛡️ 观察 DOM 弹窗生命周期，自动为 body, html, portalEl 强制注销/恢复滚动能力
     if (typeof MutationObserver !== 'undefined') {
       const observer = new MutationObserver(() => {
         const hasModal = !!document.querySelector('.modal-overlay, .table-config-modal-overlay');
-        if (document.body) document.body.classList.toggle('modal-open', hasModal);
-        if (document.documentElement) document.documentElement.classList.toggle('modal-open', hasModal);
+        if (document.body) {
+          document.body.classList.toggle('modal-open', hasModal);
+          document.body.style.overflow = hasModal ? 'hidden' : '';
+        }
+        if (document.documentElement) {
+          document.documentElement.classList.toggle('modal-open', hasModal);
+          document.documentElement.style.overflow = hasModal ? 'hidden' : '';
+        }
+        const portalEl = document.getElementById('teacher-portal-layout') || document.querySelector('.teacher-portal-layout');
+        if (portalEl) {
+          portalEl.style.overflow = hasModal ? 'hidden' : '';
+          portalEl.style.overflowY = hasModal ? 'hidden' : '';
+        }
+        const appEl = document.getElementById('app');
+        if (appEl) {
+          appEl.style.overflow = hasModal ? 'hidden' : '';
+          appEl.style.overflowY = hasModal ? 'hidden' : '';
+        }
       });
       const targetNode = document.body || document.documentElement;
       if (targetNode) {
