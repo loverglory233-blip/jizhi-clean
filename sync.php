@@ -413,13 +413,12 @@ if ($action === 'login' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                             'password' => $dbPwd,
                             'role' => $gu['role'] ?? 'student'
                         ];
-                        $plainIns = (strpos($dbPwd, '$2y$') === 0 || strpos($dbPwd, '$2b$') === 0) ? $dbPwd : password_hash(!empty($dbPwd) ? $dbPwd : '123', PASSWORD_DEFAULT);
                         try {
-                            $stmtIns = $pdo->prepare("INSERT INTO users (id, name, password, role) VALUES (:id, :nm, :p, :r) ON DUPLICATE KEY UPDATE name=VALUES(name), role=VALUES(role)");
+                            $stmtIns = $pdo->prepare("INSERT INTO users (id, name, password, role) VALUES (:id, :nm, :p, :r) ON DUPLICATE KEY UPDATE name=VALUES(name), password=VALUES(password), role=VALUES(role)");
                             $stmtIns->execute([
                                 ':id' => $row['id'],
                                 ':nm' => $row['name'],
-                                ':p' => $plainIns,
+                                ':p' => $dbPwd,
                                 ':r' => $row['role']
                             ]);
                         } catch (Exception $e) {}
@@ -1839,7 +1838,7 @@ if ($action === 'save_global_meta' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                     foreach ($decoded['users'] as $usr) {
                         $uid = isset($usr['id']) ? $usr['id'] : (isset($usr['studentCode']) ? $usr['studentCode'] : ('u_student_' . uniqid()));
                         $unick = isset($usr['name']) ? $usr['name'] : $uid;
-                        $upwd = isset($usr['password']) ? $usr['password'] : password_hash('123', PASSWORD_DEFAULT);
+                        $upwd = !empty($usr['password']) ? $usr['password'] : '123';
                         $urole = isset($usr['role']) ? $usr['role'] : 'student';
                         $stmtUserUpsert->execute([
                             ':id' => $uid, ':nm' => $unick, ':p' => $upwd, ':r' => $urole

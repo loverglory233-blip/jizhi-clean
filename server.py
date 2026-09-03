@@ -892,10 +892,10 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                 for u in user_list:
                     if not isinstance(u, dict):
                         continue
-                    u_acc = u.get('username') or u.get('studentCode') or u.get('id') or ''
-                    if u_acc == account:
+                    u_acc = str(u.get('id') or u.get('studentCode') or u.get('username') or '').strip().lower()
+                    if u_acc == account.strip().lower():
                         user_exists = True
-                        db_pwd = u.get('password') or ''
+                        db_pwd = str(u.get('password') or '').strip()
                         if password == db_pwd or (not db_pwd and password == '123'):
                             found_user = u
                         break
