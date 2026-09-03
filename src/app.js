@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260903_v2080";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260903_v2080";
-import { callCozeAgentAPI } from "./agents.js?v=20260903_v2080";
-import { AuthManager } from "./auth.js?v=20260903_v2080";
-import { CloudSyncEngine } from "./sync.js?v=20260903_v2080";
-import { renderLoginView } from "./login.js?v=20260903_v2080";
-import { renderTeacherPortal } from "./teacher.js?v=20260903_v2080";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260903_v2080";
+} from "./constants.js?v=20260903_v2085";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260903_v2085";
+import { callCozeAgentAPI } from "./agents.js?v=20260903_v2085";
+import { AuthManager } from "./auth.js?v=20260903_v2085";
+import { CloudSyncEngine } from "./sync.js?v=20260903_v2085";
+import { renderLoginView } from "./login.js?v=20260903_v2085";
+import { renderTeacherPortal } from "./teacher.js?v=20260903_v2085";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260903_v2085";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260903_v2080";
+} from "./editor.js?v=20260903_v2085";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -3733,27 +3733,20 @@ ${rawDoc || '（小组成员正在协作起草正文草稿）'}
       // 审稿专家结合自查瓶颈、讨论与正文下发【诊断问题 + 改进建议】双结构《二审修正清单》
       const reviewingPrompt = `${genreDesc}
 
-针对课题《${topic}》，结合小组成员自查瓶颈【${bottlenecks}】、聚焦关注点【${focusIssues}】及下方正文草稿，作为资深审稿编辑给出包含【诊断问题 + 改进建议】双结构的学术质检《二审修正清单》（240~320字）：
+针对课题《${topic}》，结合小组成员自查瓶颈【${bottlenecks}】、聚焦关注点【${focusIssues}】及下方正文草稿，作为资深审稿编辑给出包含【诊断问题 + 改进建议】双结构的学术质检《二审修正清单》（150~200字）：
 【正文草稿参考】:
 ${rawDoc || '（小组成员已完成初版主体框架起草）'}
 【小组成员商定的修改思路】:
 ${chatSnippet}
 
-请紧扣上述文体考查维度，严格按以下 4 个维度全面下发《二审修正清单》（每项必须同时包含“诊断问题”与“改进建议”，【绝对严禁出现“分工”字眼】）：
-①【核心概念统领与问题链闭环】
-- 诊断问题：指出开头提出的核心问题是否在全文被贯彻，是否存在概念界定不清或逻辑链脱节；
-- 改进建议：给出具体的概念统领与问题锚定要求；
-②【主体方法 / 活动设计操作化与论据深度】
-- 诊断问题：结合自查瓶颈（${bottlenecks}），指出正文中具体缺失的操作化步骤、实证支撑薄弱或活动设计闭环问题；
-- 改进建议：给出具体的补全与深化对策；
-③【章节衔接与全篇逻辑贯通】
-- 诊断问题：结合自查脱节章节（${transIssues}），指出具体章节过渡生硬、前后论据割裂之处；
-- 改进建议：给出具体的承上启下与衔接过渡要求；
-④【学术语体口径与学术规范】
-- 诊断问题：指出正文中的口语化表达、术语不统一或引文格式不规范之处；
-- 改进建议：给出全篇学术语体统一规范要求。
+【二审考查维度参考】：
+1. 核心概念统领与目标/问题链闭环（立论是否贯穿全文）；
+2. 主体方法 / 教学活动操作化与论据深度（探究是否真实发生、操作细节是否充分）；
+3. 章节过渡衔接与逻辑贯通（前后是否存在脱节割裂）；
+4. 学术语体口径与表达规范（术语是否统一、是否规范）。
 
-末尾必须明确提示：“请大家围绕清单在讨论区协同商定修改对策与落实方案，商定差不多后点击下方【📝 讨论差不多了？让审稿编辑总结】！”（纯自然语言输出，240~320字）`;
+【核心指令】：请根据学生草稿的真实撰写情况，具体情况具体分析，从上述维度中动态挑选 2~3 个最切中要害的核心维度进行诊断（不必机械罗列全部 4 项，每项必须同时包含“诊断问题”与“改进建议”，【绝对严禁出现“分工”字眼】）。
+末尾必须明确提示：“请大家围绕清单在讨论区协同商定修改对策与落实方案，商定差不多后点击下方【📝 讨论差不多了？让审稿编辑总结】！”（纯自然语言输出，150~200字）`;
 
       const respReviewing = await callCozeAgentAPI('reviewingEditor', reviewingPrompt, { stage: 'stage2', topic, actualDoc: rawDoc, bottlenecks, focusIssues, taskType });
       let reviewingText = '';
@@ -4036,8 +4029,8 @@ ${chatSnippet}
      ? `① 宣布【${inqLabel}】辩护有效并予以采纳，答辩陈述已定案回填入库；\n② 【单题顺推】：顺承引导全组将焦点转向【${nextLabel}】展开深入研讨，并给出 1 条启发性思路点拨！`
      : `① 宣布全部质询辩护完毕且均获委员会全票认可，已全部定案；\n② 发表答辩终审裁决总结，祝贺团队圆满通过学术答辩，提醒全组点击左侧【修改论文终稿】面板，将答辩修改落实到正文中准备最终归档！`}
 请按以下格式输出：
-答辩陈述：[提取 120~180 字逻辑严密、论据充分的正式答辩词与终稿修改对策，用于回填左侧矩阵]
-主席发言：[120~160 字自然语言点评与顺推裁决]`;
+答辩陈述：[提取 80~100 字逻辑严密、论据充分的正式答辩词与终稿修改对策，用于回填左侧矩阵]
+主席发言：[100~130 字自然语言点评与顺推裁决]`;
 
     // 🌟 挂载中间委员正在提炼共识思考气泡
     this.state.activeAgentAnalyzing = {
@@ -5546,14 +5539,14 @@ ${chatSnippet}
 【当前正文已起草的全部草稿内容（全量通读）】：
 ${contentSnippet}
 
-请作为审稿编辑，全面通读当前学生已起草的【全部段落与章节】（写到哪审到哪，既以开篇破题立论为主线，又必须通盘审阅已写出的后续方法/设计/反思等所有内容），发表 130~160 字的一审破题把脉学术质检意见：
-严格遵循【诊断问题 + 改进建议】双结构（严禁代码块，【绝对严禁出现“分工”字眼】）：
-①【开篇破题、立意聚焦与全文衔接】
-- 诊断问题：通读全篇已写内容，审查开头核心研究问题是否找准、概念界定是否清晰，并指出其与后续已写章节之间是否存在脱节或偏离；
-- 改进建议：给出针对开篇立论与前后章节衔接的具体聚焦与深化对策；
-②【学术语体、术语规范与论证严密性】
-- 诊断问题：通盘指出当前草稿中所有已写段落存在的口语化表述、术语不统一或论证缺乏实证支撑之处；
-- 改进建议：给出全篇通用的学术规范化与修改建议。
+请作为审稿编辑，全面通读当前学生已起草的【全部段落与章节】（写到哪审到哪，以开篇立意/教学目标为主线，结合具体起草情况具体分析），发表 130~160 字的一审破题把脉学术质检意见：
+严格遵循【诊断问题 + 改进建议】双结构，动态挑选 1~2 个最关键的问题进行诊断（【绝对严禁出现“分工”字眼】）：
+①【开篇破题/目标定位与全文衔接】
+- 诊断问题：审查开头核心问题或教学目标是否找准、概念是否清晰，并指出其与后续已写段落之间是否存在脱节；
+- 改进建议：给出针对开篇立论与前后衔接的具体聚焦与深化对策；
+②【语体规范与论证/活动严密性】（若有明显问题则指出）
+- 诊断问题：指出当前草稿中存在的口语化表述、术语不统一或活动设计含糊之处；
+- 改进建议：给出规范化修改建议。
 （纯自然语言输出，130~160字）`;
           let firstReviewText = await callCozeAgentAPI('reviewingEditor', firstReviewPrompt, { stage: 'stage2', topic, actualDoc: contentSnippet, taskType });
           if (!firstReviewText || firstReviewText.trim().length === 0) {
