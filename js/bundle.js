@@ -6537,8 +6537,16 @@
               <div style="font-size:12.5px; color:#1e40af; background:#eff6ff; border:1px solid #bfdbfe; border-radius:8px; padding:10px 14px; margin-bottom:12px;">
                 💡 以下学生已在平台账号库中。勾选后可将其同时分配进本班级，<b>账号和密码保持不变，绝不重复生成</b>。
               </div>
-              <div style="margin-bottom:10px;">
-                <input type="text" id="input-search-enroll-std" placeholder="🔍 输入姓名或学号快速搜索已有学生..." style="background:#ffffff; border:1.5px solid #cbd5e1; color:#0f172a; padding:8px 12px; border-radius:8px; width:100%; font-size:13px; outline:none;">
+              <div style="margin-bottom:10px; display:flex; gap:10px; align-items:center;">
+                <input type="text" id="input-search-enroll-std" placeholder="🔍 输入姓名或学号快速搜索已有学生..." style="background:#ffffff; border:1.5px solid #cbd5e1; color:#0f172a; padding:8px 12px; border-radius:8px; flex:1; font-size:13px; outline:none;">
+                <button id="btn-purge-all-unenrolled" style="background:#fef2f2; border:1.5px solid #fecaca; color:#dc2626; padding:8px 14px; border-radius:8px; font-size:12.5px; font-weight:700; cursor:pointer; white-space:nowrap;" title="一键彻底清空删除列表中的所有未分班学生账号">🗑️ 一键清空所有未分班学生</button>
+              </div>
+              <div style="display:flex; justify-content:space-between; align-items:center; padding:4px 4px 8px 4px; font-size:12.5px; color:#64748b;">
+                <label style="display:flex; align-items:center; gap:6px; cursor:pointer; font-weight:700; color:#334155;">
+                  <input type="checkbox" id="chk-enroll-select-all" style="width:16px; height:16px; accent-color:#2563eb; cursor:pointer;">
+                  全选 / 全不选
+                </label>
+                <span id="enroll-selected-count-tip">已选 0 人</span>
               </div>
               <div id="enroll-std-list-box" style="max-height:280px; overflow-y:auto; display:flex; flex-direction:column; gap:8px;">
                 ${unenrolledStudents.length === 0 ? `
@@ -6566,9 +6574,12 @@
                 }).join('')}
               </div>
             </div>
-            <div class="teacher-modal-footer" style="background:#f8fafc; border-top:1px solid #e2e8f0; padding:14px 24px; display:flex; justify-content:flex-end; gap:10px;">
-              <button class="modal-btn cancel" id="btn-cancel-enroll" style="background:#ffffff; border:1px solid #cbd5e1; color:#475569; padding:8px 18px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer;">取消</button>
-              <button class="modal-btn submit task-theme" id="btn-submit-enroll" style="background:linear-gradient(135deg, #1d4ed8, #2563eb); border:none; color:white; padding:8px 20px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer;">👥 确认加入本班</button>
+            <div class="teacher-modal-footer" style="background:#f8fafc; border-top:1px solid #e2e8f0; padding:14px 24px; display:flex; justify-content:space-between; align-items:center;">
+              <button class="modal-btn" id="btn-batch-purge-selected" style="background:#fef2f2; border:1px solid #fecaca; color:#dc2626; padding:8px 16px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer;">🗑️ 批量彻底删除所选</button>
+              <div style="display:flex; gap:10px;">
+                <button class="modal-btn cancel" id="btn-cancel-enroll" style="background:#ffffff; border:1px solid #cbd5e1; color:#475569; padding:8px 18px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer;">取消</button>
+                <button class="modal-btn submit task-theme" id="btn-submit-enroll" style="background:linear-gradient(135deg, #1d4ed8, #2563eb); border:none; color:white; padding:8px 20px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer;">👥 确认加入本班</button>
+              </div>
             </div>
           </div>
         `;
@@ -6579,7 +6590,27 @@
         modal.querySelector('#btn-cancel-enroll').addEventListener('click', closeModal);
         modal.addEventListener('click', (e) => { if (e.target === modal) closeModal(); });
 
-        // 🗑️ 彻底从系统删除注销账号
+        // 计数与全选
+        const chkAll = modal.querySelector('#chk-enroll-select-all');
+        const updateCountTip = () => {
+          const cnt = modal.querySelectorAll('.enroll-chk:checked').length;
+          const tip = modal.querySelector('#enroll-selected-count-tip');
+          if (tip) tip.textContent = `已选 ${cnt} 人`;
+        };
+        if (chkAll) {
+          chkAll.addEventListener('change', () => {
+            modal.querySelectorAll('.enroll-std-card-item').forEach(item => {
+              if (item.style.display !== 'none') {
+                const chk = item.querySelector('.enroll-chk');
+                if (chk) chk.checked = chkAll.checked;
+              }
+            });
+            updateCountTip();
+          });
+        }
+        modal.querySelectorAll('.enroll-chk').forEach(c => c.addEventListener('change', updateCountTip));
+
+        // 🗑️ 单个彻底从系统删除注销账号
         modal.querySelectorAll('.btn-purge-std').forEach(btn => {
           btn.addEventListener('click', (e) => {
             e.stopPropagation();
@@ -6589,10 +6620,41 @@
               authManager.deleteStudent(uid, null, true);
               const item = btn.closest('.enroll-std-card-item');
               if (item) item.remove();
+              updateCountTip();
               renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
             }
           });
         });
+
+        // 🗑️ 批量彻底删除所选
+        const btnBatchPurge = modal.querySelector('#btn-batch-purge-selected');
+        if (btnBatchPurge) {
+          btnBatchPurge.addEventListener('click', () => {
+            const checked = Array.from(modal.querySelectorAll('.enroll-chk:checked')).map(c => c.dataset.uid);
+            if (checked.length === 0) { alert('⚠️ 请先勾选要彻底删除的学生！'); return; }
+            if (confirm(`⚠️ 确认彻底从系统中注销并删除勾选的 ${checked.length} 名学生账号吗？删除后不可恢复！`)) {
+              checked.forEach(uid => authManager.deleteStudent(uid, null, true));
+              alert(`🎉 已成功彻底删除 ${checked.length} 名学生账号！`);
+              closeModal();
+              renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+            }
+          });
+        }
+
+        // 🗑️ 一键清空所有未分班学生
+        const btnPurgeAll = modal.querySelector('#btn-purge-all-unenrolled');
+        if (btnPurgeAll) {
+          btnPurgeAll.addEventListener('click', () => {
+            const uids = unenrolledStudents.map(s => s.id);
+            if (uids.length === 0) { alert('当前没有待清理的学生账号！'); return; }
+            if (confirm(`⚠️ 确认彻底清空并删除这 ${uids.length} 名学生账号吗？操作后数据将从数据库彻底抹除且不可恢复！`)) {
+              uids.forEach(uid => authManager.deleteStudent(uid, null, true));
+              alert(`🎉 已成功彻底清空 ${uids.length} 名学生账号！`);
+              closeModal();
+              renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+            }
+          });
+        }
 
         // 🔍 模糊搜索过滤
         const searchEnrollInput = modal.querySelector('#input-search-enroll-std');
