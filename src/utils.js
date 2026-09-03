@@ -763,3 +763,43 @@ export function isScopeMatch(target = {}, context = {}) {
 
   return !!(matchClass && matchGroup && matchTask);
 }
+
+/**
+ * 🛡️ 全局弹窗滚动穿透与背景链式联动防御（双保险：拦截所有浏览器与移动端的 wheel/touchmove 冒泡）
+ */
+if (typeof document !== 'undefined') {
+  document.addEventListener('wheel', (e) => {
+    const overlay = e.target.closest('.modal-overlay, .table-config-modal-overlay');
+    if (!overlay) return;
+
+    // 检查滚动的具体目标元素
+    const scrollableChild = e.target.closest('.teacher-modal-body, .modal-body, .modal-content, [style*="overflow-y:auto"], [style*="overflow-y: auto"], [style*="overflow-y:scroll"]');
+    if (!scrollableChild || scrollableChild === overlay) {
+      e.preventDefault();
+      return;
+    }
+
+    const { scrollTop, scrollHeight, clientHeight } = scrollableChild;
+    const isScrollable = scrollHeight > clientHeight;
+    if (!isScrollable) {
+      e.preventDefault();
+      return;
+    }
+
+    const atTop = scrollTop <= 0 && e.deltaY < 0;
+    const atBottom = scrollTop + clientHeight >= scrollHeight - 1 && e.deltaY > 0;
+    if (atTop || atBottom) {
+      e.preventDefault();
+    }
+  }, { passive: false });
+
+  document.addEventListener('touchmove', (e) => {
+    const overlay = e.target.closest('.modal-overlay, .table-config-modal-overlay');
+    if (!overlay) return;
+
+    const scrollableChild = e.target.closest('.teacher-modal-body, .modal-body, .modal-content, [style*="overflow-y:auto"], [style*="overflow-y: auto"]');
+    if (!scrollableChild || scrollableChild === overlay) {
+      e.preventDefault();
+    }
+  }, { passive: false });
+}
