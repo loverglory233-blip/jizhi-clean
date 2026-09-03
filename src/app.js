@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260903_v1950";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260903_v1950";
-import { callCozeAgentAPI } from "./agents.js?v=20260903_v1950";
-import { AuthManager } from "./auth.js?v=20260903_v1950";
-import { CloudSyncEngine } from "./sync.js?v=20260903_v1950";
-import { renderLoginView } from "./login.js?v=20260903_v1950";
-import { renderTeacherPortal } from "./teacher.js?v=20260903_v1950";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260903_v1950";
+} from "./constants.js?v=20260903_v1955";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260903_v1955";
+import { callCozeAgentAPI } from "./agents.js?v=20260903_v1955";
+import { AuthManager } from "./auth.js?v=20260903_v1955";
+import { CloudSyncEngine } from "./sync.js?v=20260903_v1955";
+import { renderLoginView } from "./login.js?v=20260903_v1955";
+import { renderTeacherPortal } from "./teacher.js?v=20260903_v1955";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260903_v1955";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260903_v1950";
+} from "./editor.js?v=20260903_v1955";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -5819,24 +5819,9 @@ ${contentSnippet}
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // 🛡️ 80% 时间强行直通二审（若达到 80% 时间仍未完成二审总结，自动收敛下发清单，防止阻碍 85% 三审）
+    // 🛡️ 第三次质检（二审完成后且字数达 90% 并满 10 分钟修改缓冲 / 或 确认初稿 · 审稿编辑终审自动触发）
     // ═══════════════════════════════════════════════════════════════
     const isSecondReviewDone = (s2.reviewMilestone === 'second_review_done' || s2.reviewMilestone === 'action_plan_generated' || s2.meetingStep === 'completed');
-    if (!isSecondReviewDone && timeProgress >= 0.80 && !this._isTriggeringManagingSummary) {
-      this._isTriggeringManagingSummary = true;
-      console.log('⏰ [Stage2 Milestone] 达到 80% 时间上限，自动收敛半程研讨并直通下发二审清单！');
-      if (typeof this.handleS2ManagingSummary === 'function') {
-        this.handleS2ManagingSummary().finally(() => {
-          this._isTriggeringManagingSummary = false;
-        });
-      } else {
-        this._isTriggeringManagingSummary = false;
-      }
-    }
-
-    // ═══════════════════════════════════════════════════════════════
-    // 🛡️ 第三次质检（二审完成后且字数达 90% 并满 10 分钟修改缓冲 / 或 时间达 85% / 或 确认初稿 · 审稿编辑终审自动触发）
-    // ═══════════════════════════════════════════════════════════════
     const meetingEndTime = s2.meetingCompletedTime || s2.meetingCalledTime || 0;
     const postSecondReviewElapsedMs = meetingEndTime > 0 ? Math.max(0, now - meetingEndTime) : 0;
     const minPostReviewModCooldownMs = isLargeTask ? 900000 : 600000; // 10 分钟（大任务 15 分钟）
@@ -6542,7 +6527,7 @@ ${contentSnippet}
     const priorFirstReview = this.state.stage2FirstReviewText || (this.state.chatLogs.stage2 || []).find(m => m.sender === 'reviewingEditor')?.text || '前期初审已肯定研究背景立意与文献归纳';
 
     const reviewingPrompt = `【全篇正文草稿】：
-${fullDoc.slice(0, 2000)}
+${fullDoc}
 
 【半程会议研讨与暴露的瓶颈】：
 - 核心卡壳瓶颈：『${ctx.bAcademic}』

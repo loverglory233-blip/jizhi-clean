@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260903_v1950
+ * Version: 20260903_v1955
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260903_v1950';
+  const APP_VERSION = '20260903_v1955';
   const APP_BUILD_DATE = '2026-09-03';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -18204,24 +18204,9 @@
       }
 
       // ═══════════════════════════════════════════════════════════════
-      // 🛡️ 80% 时间强行直通二审（若达到 80% 时间仍未完成二审总结，自动收敛下发清单，防止阻碍 85% 三审）
+      // 🛡️ 第三次质检（二审完成后且字数达 90% 并满 10 分钟修改缓冲 / 或 确认初稿 · 审稿编辑终审自动触发）
       // ═══════════════════════════════════════════════════════════════
       const isSecondReviewDone = (s2.reviewMilestone === 'second_review_done' || s2.reviewMilestone === 'action_plan_generated' || s2.meetingStep === 'completed');
-      if (!isSecondReviewDone && timeProgress >= 0.80 && !this._isTriggeringManagingSummary) {
-        this._isTriggeringManagingSummary = true;
-        console.log('⏰ [Stage2 Milestone] 达到 80% 时间上限，自动收敛半程研讨并直通下发二审清单！');
-        if (typeof this.handleS2ManagingSummary === 'function') {
-          this.handleS2ManagingSummary().finally(() => {
-            this._isTriggeringManagingSummary = false;
-          });
-        } else {
-          this._isTriggeringManagingSummary = false;
-        }
-      }
-
-      // ═══════════════════════════════════════════════════════════════
-      // 🛡️ 第三次质检（二审完成后且字数达 90% 并满 10 分钟修改缓冲 / 或 时间达 85% / 或 确认初稿 · 审稿编辑终审自动触发）
-      // ═══════════════════════════════════════════════════════════════
       const meetingEndTime = s2.meetingCompletedTime || s2.meetingCalledTime || 0;
       const postSecondReviewElapsedMs = meetingEndTime > 0 ? Math.max(0, now - meetingEndTime) : 0;
       const minPostReviewModCooldownMs = isLargeTask ? 900000 : 600000; // 10 分钟（大任务 15 分钟）
@@ -18927,7 +18912,7 @@
       const priorFirstReview = this.state.stage2FirstReviewText || (this.state.chatLogs.stage2 || []).find(m => m.sender === 'reviewingEditor')?.text || '前期初审已肯定研究背景立意与文献归纳';
 
       const reviewingPrompt = `【全篇正文草稿】：
-  ${fullDoc.slice(0, 2000)}
+  ${fullDoc}
 
   【半程会议研讨与暴露的瓶颈】：
   - 核心卡壳瓶颈：『${ctx.bAcademic}』
