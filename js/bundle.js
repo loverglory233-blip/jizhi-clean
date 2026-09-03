@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260903_v1995
+ * Version: 20260903_v2000
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260903_v1995';
+  const APP_VERSION = '20260903_v2000';
   const APP_BUILD_DATE = '2026-09-03';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -15014,12 +15014,16 @@
 
       try {
         const resp = await callCozeAgentAPI('auctioneer', taskPrompt, { stage: 'stage1', topic: title });
-        let speech = (resp && resp.trim().length > 0) ? resp.trim() : `收到 ${authorName} ${isModify ? '修改后的' : '提交的'}《${title}》！切入点明确，建议组员在研讨区就具体的研究对象与实施情境交流补充！`;
-
-        // 🛡️ 智能清洗并统一前缀，彻底杜绝重复套娃（如 🎪 【拍卖师·选题速评】：🏛️ 【学术拍卖师·提案速评】）
-        speech = speech.replace(/^(?:🎪|🏛️)?\s*【(?:学术拍卖师|拍卖师)[·\s]*(?:选题速评|提案速评|提案评估|落槌与方案研讨)?】[：:]\s*/g, '');
-        speech = speech.replace(/^(?:🎪|🏛️)?\s*【(?:学术拍卖师|拍卖师)[·\s]*(?:选题速评|提案速评|提案评估|落槌与方案研讨)?】[：:]\s*/g, '');
-        speech = `🏛️ 【学术拍卖师·提案评估】：${speech.trim()}`;
+        let speech = '';
+        if (resp && resp.trim().length > 0) {
+          speech = resp.trim();
+          speech = speech.replace(/^(?:🎪|🏛️)?\s*【(?:学术拍卖师|拍卖师)[·\s]*(?:选题速评|提案速评|提案评估|落槌与方案研讨)?】[：:]\s*/g, '');
+          speech = `🏛️ 【学术拍卖师·提案评估】：${speech.trim()}`;
+        } else {
+          const safeTitle = (title || '').replace(/'/g, "\\'");
+          const safeAuthor = (authorName || '').replace(/'/g, "\\'");
+          speech = `🏛️ 【学术拍卖师·网络提醒】：📡 智能体网络连接稍有延迟，未获取到即时评估。<br><button class="btn-retry-ai" onclick="window.app.handleProposalSubmittedAIFeedback('${safeTitle}', '${safeAuthor}', ${isModify})" style="margin-top:6px; background:#2563eb; color:#fff; border:none; padding:4px 12px; border-radius:12px; font-size:12px; cursor:pointer; font-weight:700;">🔄 重新生成评估</button>`;
+        }
 
         const finalAiMsg = {
           id: 'eval_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6),
@@ -16129,10 +16133,13 @@
   末尾必须明确提示：“请大家围绕清单协同商定修改对策与落实方案，讨论差不多后点击下方【📝 讨论差不多了？让审稿编辑总结】！”（纯自然语言，150~180字）`;
 
         const respReviewing = await callCozeAgentAPI('reviewingEditor', reviewingPrompt, { stage: 'stage2', topic, actualDoc: rawDoc, bottlenecks, focusIssues, taskType });
-        let reviewingText = (respReviewing && respReviewing.trim().length > 0)
-          ? respReviewing.trim()
-          : `📝 【审稿编辑·二审修正清单】：结合全组自查打卡反映的痛点与正文审阅，提出以下 3 项【诊断问题与改进建议】：\n①【核心概念对齐】\n· 诊断问题：引言中“有效社会共享调节”缺乏操作性界定，文献述评未充分支撑核心研究问题；\n· 改进建议：补充明确的操作性定义，使文献综述直接呼应研究假设。\n②【研究方法深化】\n· 诊断问题：认知网络分析（ENA）缺乏具体实施步骤与编码维度对应逻辑，操作化论证单薄；\n· 改进建议：细化编码维度与测量工具的具体操作步骤，增强方法严密性。\n③【行文衔接规范】\n· 诊断问题：部分章节存在口语化表述，引言末尾与方法开头过渡较为生硬；\n· 改进建议：统一全篇学术术语命名，补全逻辑过渡句。\n👉 请大家围绕清单协同商定修改对策与落实方案，讨论差不多后点击下方【📝 讨论差不多了？让审稿编辑总结】！`;
-        if (!reviewingText.startsWith('📝')) reviewingText = `📝 【审稿编辑·二审修正清单】：${reviewingText}`;
+        let reviewingText = '';
+        if (respReviewing && respReviewing.trim().length > 0) {
+          reviewingText = respReviewing.trim();
+          if (!reviewingText.startsWith('📝')) reviewingText = `📝 【审稿编辑·二审修正清单】：${reviewingText.replace(/^[^\n]*?【[^】]+】[：:]?\s*/, '')}`;
+        } else {
+          reviewingText = `📝 【审稿编辑·网络提醒】：📡 正在深度审阅正文草稿，网络连接稍有延迟未获取到清单。<br><button class="btn-retry-ai" onclick="window.app.handleS2ManagingSummary()" style="margin-top:6px; background:#059669; color:#fff; border:none; padding:4px 12px; border-radius:12px; font-size:12px; cursor:pointer; font-weight:700;">🔄 重新下发《二审修正清单》</button>`;
+        }
 
         const msgReviewing = {
           sender: 'reviewingEditor',
@@ -16336,10 +16343,13 @@
         await new Promise(r => setTimeout(r, 1500));
 
         const respSummary = await callCozeAgentAPI('reviewingEditor', summaryPrompt, { stage: 'stage2', topic });
-        let summaryText = (respSummary && respSummary.trim().length > 0)
-          ? respSummary.trim()
-          : `📝 【审稿编辑·修改确认与写作冲刺】：太棒了！看到全组已明确了针对各项修正清单的具体修改对策与落实方案！协同修改思路非常清晰。👉 请大家回到左侧正文写作区，将商定好的修改对策协同落实到位，继续推进后续章节，冲刺终审定稿！`;
-        if (!summaryText.startsWith('📝')) summaryText = `📝 【审稿编辑·修改确认与写作冲刺】：${summaryText}`;
+        let summaryText = '';
+        if (respSummary && respSummary.trim().length > 0) {
+          summaryText = respSummary.trim();
+          if (!summaryText.startsWith('📝')) summaryText = `📝 【审稿编辑·修改确认与写作冲刺】：${summaryText.replace(/^[^\n]*?【[^】]+】[：:]?\s*/, '')}`;
+        } else {
+          summaryText = `📝 【审稿编辑·网络提醒】：📡 网络连接稍有延迟，未获取到即时决议。<br><button class="btn-retry-ai" onclick="window.app.handleS2ReviewingSummary()" style="margin-top:6px; background:#059669; color:#fff; border:none; padding:4px 12px; border-radius:12px; font-size:12px; cursor:pointer; font-weight:700;">🔄 重新生成修改落实决议</button>`;
+        }
 
         const msgSummary = {
           sender: 'reviewingEditor',
@@ -16429,12 +16439,14 @@
           if (respLine) extractedResponse = respLine.replace(/^.*答辩陈述[：:]\s*/, '').trim() || extractedResponse;
           if (speechLine) chairSpeech = speechLine.replace(/^.*主席发言[：:]\s*/, '').trim() || chairSpeech;
           else if (!respLine && lines.length > 0) chairSpeech = resp.trim();
-        }
 
-        // 自动回填至左侧当前卡片并标记定案
-        currentInquiry.response = extractedResponse;
-        currentInquiry.isFinalized = true;
-        currentInquiry.status = 'finalized';
+          // 自动回填至左侧当前卡片并标记定案
+          currentInquiry.response = extractedResponse;
+          currentInquiry.isFinalized = true;
+          currentInquiry.status = 'finalized';
+        } else {
+          chairSpeech = `🟡 【中间委员·网络提醒】：📡 答辩审阅网络连接稍有延迟，未获取到定案。<br><button class="btn-retry-ai" onclick="window.app.handleS3InquirySummary()" style="margin-top:6px; background:#d97706; color:#fff; border:none; padding:4px 12px; border-radius:12px; font-size:12px; cursor:pointer; font-weight:700;">🔄 重新生成答辩定案</button>`;
+        }
 
         if (!chairSpeech.startsWith('🟡')) {
           chairSpeech = `🟡 【中间委员·答辩定案与顺推】：${chairSpeech}`;
