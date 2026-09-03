@@ -816,7 +816,7 @@ if ($action === 'get_teacher_monitor_all_groups') {
 
     $result = ['success' => true, 'groups' => []];
     $nowMs = round(microtime(true) * 1000);
-    $ONLINE_WINDOW_MS = 25000; // 25 秒心跳/发言窗口判定在线 (秒级精准感知，0 误判)
+    $ONLINE_WINDOW_MS = 60000; // 60 秒心跳/发言窗口判定在线 (兼顾弱网与思考间歇容错，0 误判)
 
     if ($pdo) {
         // 1. 优先加载官方班级分组名册与全校学生信息字典
@@ -882,7 +882,7 @@ if ($action === 'get_teacher_monitor_all_groups') {
             }
         }
 
-        $ONLINE_WINDOW_MS = 30000; // 30 秒（精准实时感知：与学生端 4~8 秒轻量心跳完美配合，保留网络抖动容错）
+        $ONLINE_WINDOW_MS = 60000; // 60 秒（精准实时感知：与学生端心跳及打字即时更新配合，杜绝离线抖动）
         $cutoffMs = $nowMs - $ONLINE_WINDOW_MS;
 
         // 🚀 性能革命：收集全量 ScopeKey 进行批量单次查表，消灭 N+1 查询瓶颈，教师端毫秒级秒开！
