@@ -1488,6 +1488,31 @@ if ($action === 'get_global_meta') {
     $foundMeta = null;
 
     if ($pdo) {
+        // 🛡️ 全局单点登录会话互踢校验（支持教师与学生全局顶号秒级踢下线）
+        $reqUserId = isset($_GET['userId']) ? trim($_GET['userId']) : '';
+        $reqSessToken = isset($_GET['sessToken']) ? trim($_GET['sessToken']) : '';
+        if (!empty($reqUserId) && !empty($reqSessToken)) {
+            $stmtUserSess = $pdo->prepare("SELECT active_session_id FROM users WHERE id = :u1 LIMIT 1");
+            $stmtUserSess->execute([':u1' => $reqUserId]);
+            $uSessRow = $stmtUserSess->fetch(PDO::FETCH_ASSOC);
+            if ($uSessRow && !empty($uSessRow['active_session_id'])) {
+                if ($uSessRow['active_session_id'] !== $reqSessToken) {
+                    echo json_encode(['kicked' => true], JSON_UNESCAPED_UNICODE);
+                    exit;
+                }
+            } else {
+                $stmtSessChk = $pdo->prepare("SELECT meta_value FROM global_meta WHERE meta_key = :k");
+                $stmtSessChk->execute([':k' => 'sess_' . $reqUserId]);
+                $sessRow = $stmtSessChk->fetch();
+                if ($sessRow && !empty($sessRow['meta_value'])) {
+                    if ($sessRow['meta_value'] !== $reqSessToken) {
+                        echo json_encode(['kicked' => true], JSON_UNESCAPED_UNICODE);
+                        exit;
+                    }
+                }
+            }
+        }
+
         // ⚡ 极速版本探测：若客户端当前版本等于数据库最新版本，直接 20 字节返回 unchanged
         $clientVer = isset($_GET['ver']) ? intval($_GET['ver']) : 0;
         $stmtVer = $pdo->prepare("SELECT meta_value FROM global_meta WHERE meta_key = 'main_meta_version'");

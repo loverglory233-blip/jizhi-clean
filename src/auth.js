@@ -183,13 +183,22 @@ export class AuthManager {
     this._isPullingMeta = true;
     try {
       const currUser = this.getCurrentUser();
-      const isStudent = currUser && (currUser.role === 'student' || currUser.isStudent);
-      const isTeacher = currUser && (currUser.role === 'teacher' || currUser.isTeacher);
-
+      const userKey = currUser ? currUser.id : '';
+      const sessToken = currUser ? (currUser.activeSessionId || currUser.token || '') : '';
       const clientVer = this.globalMetaVersion || 0;
-      const res = await fetch(`sync.php?action=get_global_meta&ver=${clientVer}&nocache=${Date.now()}`);
+      const res = await fetch(`sync.php?action=get_global_meta&ver=${clientVer}&userId=${encodeURIComponent(userKey)}&sessToken=${encodeURIComponent(sessToken)}&nocache=${Date.now()}`);
       if (res.ok) {
         const data = await res.json();
+        if (data && data.kicked) {
+          this.logout();
+          alert('⚠️ 您的账号已在另一台设备登录，当前页面已自动下线。');
+          if (window.app && typeof window.app.renderMain === 'function') {
+            window.app.renderMain();
+          } else {
+            window.location.reload();
+          }
+          return;
+        }
         if (data) {
           this.isGlobalMetaLoaded = true;
           if (data.version !== undefined) {
