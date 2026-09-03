@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260903_v2145";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch, showResolutionBlock, safeJsonParse } from "./utils.js?v=20260903_v2145";
-import { callCozeAgentAPI } from "./agents.js?v=20260903_v2145";
-import { AuthManager } from "./auth.js?v=20260903_v2145";
-import { CloudSyncEngine } from "./sync.js?v=20260903_v2145";
-import { renderLoginView } from "./login.js?v=20260903_v2145";
-import { renderTeacherPortal } from "./teacher.js?v=20260903_v2145";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260903_v2145";
+} from "./constants.js?v=20260903_v2150";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch, showResolutionBlock, safeJsonParse } from "./utils.js?v=20260903_v2150";
+import { callCozeAgentAPI } from "./agents.js?v=20260903_v2150";
+import { AuthManager } from "./auth.js?v=20260903_v2150";
+import { CloudSyncEngine } from "./sync.js?v=20260903_v2150";
+import { renderLoginView } from "./login.js?v=20260903_v2150";
+import { renderTeacherPortal } from "./teacher.js?v=20260903_v2150";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260903_v2150";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260903_v2145";
+} from "./editor.js?v=20260903_v2150";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -1030,163 +1030,10 @@ export class App {
         }
       }
       if (stage === 'stage1') {
-        const s1 = this.state.stage1;
-        if (!s1 || s1.contract?.isConfirmed) return;
-        if (!this.stage1StartTime) this.stage1StartTime = now;
-        const stage1DurationMs = now - this.stage1StartTime;
-
-        const s1Chats = (this.state.chatLogs && this.state.chatLogs.stage1) ? this.state.chatLogs.stage1 : [];
-        const lastStudentMsg = [...s1Chats].reverse().find(m => m.sender && m.sender !== 'auctioneer' && m.sender !== 'system');
-        const lastStudentMsgTime = lastStudentMsg ? (lastStudentMsg._timeMs || 0) : this.stage1StartTime;
-        const silenceDurationMs = now - lastStudentMsgTime;
-
-        const proposals = Array.isArray(s1.proposals) ? s1.proposals : [];
-        const submittedCount = proposals.length;
-        const submittedAuthors = new Set(proposals.map(p => p.author));
-        const votesCastCount = Object.values(s1.hasVoted || {}).filter(Boolean).length;
-
-        // 动态自适应冷场阈值（全系统统一：3 分钟破冰，6 分钟强兜底）
-        const allTasks = (this.authManager) ? this.authManager.getTasks() : [];
-        const curTask = allTasks.find(t => t.id === this.state.activeTaskId);
-        const taskDurMin = (curTask && curTask.durationMinutes) ? Number(curTask.durationMinutes) : 150;
-        const isLargeTask = taskDurMin > 150;
-        const silenceThresholdMs = 180000; // 统一 3 分钟破冰
-
-        // 1. 【研讨互动提示】：全组长时间静默无人发言（不干活）时，温和点拨破冰（严格最多 1 次）！
-        if (submittedCount < totalMembersCount && silenceDurationMs >= silenceThresholdMs) {
-          const count = this._nudgeCounts['s1_discussion'] || 0;
-          if (count < 1) {
-            this.lastDiscussionNudgeTime = now;
-            this._nudgeCounts['s1_discussion'] = 1;
-            const msg = {
-              sender: 'auctioneer',
-              text: `💡 【拍卖师·研讨互动提示】：关注到大家正在构思选题！可以在讨论区交流灵感与研究想法，构思成熟后点击左侧【提交我的选题】卡片进行提交～`,
-              timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-              _timeMs: now
-            };
-            if (!this.state.chatLogs.stage1) this.state.chatLogs.stage1 = [];
-            this.state.chatLogs.stage1.push(msg);
-            this.syncChatLogs();
-            if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
-            renderChat(this.state);
-            return;
-          }
-        }
-
-        // 2. 【选题提交引导】：开场 > 6 分钟仍 0 人提交提案（全员不干活），引导尽快动笔（严格最多 1 次）
-        if (submittedCount === 0 && stage1DurationMs > 360000 && (!this.lastDiscussionNudgeTime || now - this.lastDiscussionNudgeTime > 180000)) {
-          const count = this._nudgeCounts['s1_zero_prop'] || 0;
-          if (count < 1) {
-            this.lastZeroProposalNudgeTime = now;
-            this._nudgeCounts['s1_zero_prop'] = 1;
-            const msg = {
-              sender: 'auctioneer',
-              text: `⏳ 【拍卖师·选题提交引导】：研讨已经展开一段时间啦！\n👉 请各位组员将脑海中构思成熟的研究题目，点击左侧【提交我的选题】卡片正式提交到提案池，开启学术竞拍！`,
-              timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-              _timeMs: now
-            };
-            if (!this.state.chatLogs.stage1) this.state.chatLogs.stage1 = [];
-            this.state.chatLogs.stage1.push(msg);
-            this.syncChatLogs();
-            if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
-            renderChat(this.state);
-            return;
-          }
-        }
-
-        // 3. 【个别落后跟进】：有人已提交，但超过 3.5 分钟仍有个别人未交，跟进提醒未交同学（严格最多 1 次）
-        if (submittedCount > 0 && submittedCount < totalMembersCount) {
-          const lastProposal = proposals[proposals.length - 1];
-          const lastProposalTime = lastProposal ? (lastProposal.updatedAt || this.stage1StartTime) : this.stage1StartTime;
-          if (now - lastProposalTime > 210000) {
-            const count = this._nudgeCounts['s1_partial_prop'] || 0;
-            if (count < 1) {
-              this.lastPartialProposalNudgeTime = now;
-              this._nudgeCounts['s1_partial_prop'] = 1;
-              const unsubmitted = membersList.filter(m => !submittedAuthors.has(m.id) && !submittedAuthors.has(m.id));
-              if (unsubmitted.length > 0) {
-                const names = unsubmitted.map(m => m.name).join('、');
-                const msg = {
-                  sender: 'auctioneer',
-                  text: `📢 【拍卖师·提案跟进通知】：组内已有 ${submittedCount}/${totalMembersCount} 位组员完成选题提交！\n👉 请尚未提交的同学（**${names}**）抓紧点击左侧【提交我的选题】，全员集齐后即可正式进入竞拍投票！`,
-                  timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                  _timeMs: now
-                };
-                if (!this.state.chatLogs.stage1) this.state.chatLogs.stage1 = [];
-                this.state.chatLogs.stage1.push(msg);
-                this.syncChatLogs();
-                if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
-                renderChat(this.state);
-                return;
-              }
-            }
-          }
-        }
-
-        // 4. 【提案集齐但投票守护】：全员交齐后迟迟不投票，独立计算投票冷场并引导（严格最多 1 次）
-        if (submittedCount >= totalMembersCount && votesCastCount < totalMembersCount) {
-          const lastVoteTime = s1._lastVoteTime || this.stage1StartTime;
-          const voteSilenceMs = now - lastVoteTime;
-          const shouldVoteNudge = (votesCastCount === 0 && voteSilenceMs > 180000) || (votesCastCount > 0 && voteSilenceMs > 120000);
-          if (shouldVoteNudge) {
-            const count = this._nudgeCounts['s1_vote'] || 0;
-            if (count < 1) {
-              this.lastVoteNudgeTime = now;
-              this._nudgeCounts['s1_vote'] = 1;
-              const unvoted = membersList.filter(m => !s1.hasVoted || (!s1.hasVoted[m.id] && !s1.hasVoted[m.id]));
-              const names = unvoted.map(m => m.name).join('、');
-              const text = (votesCastCount === 0)
-                ? `⏳ 【拍卖师·竞拍投票提醒】：全员选题已陈列在左侧提案池中！\n👉 请全组成员浏览提案，点击【🗳️ 投这篇】投出支持的一票！`
-                : `⏳ 【拍卖师·投票进度提醒】：目前全组已投票 ${votesCastCount}/${totalMembersCount} 人。\n👉 请尚未投票的成员（**${names || '未投票组员'}**）尽快在左侧提案卡片下方点击【🗳️ 投这篇】！`;
-              const msg = {
-                sender: 'auctioneer',
-                text: text,
-                timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                _timeMs: now
-              };
-              if (!this.state.chatLogs.stage1) this.state.chatLogs.stage1 = [];
-              this.state.chatLogs.stage1.push(msg);
-              this.syncChatLogs();
-              if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
-              renderChat(this.state);
-              return;
-            }
-          }
-        }
-
-        // 5. 投票已完成且合约草案已生成 ➔ 公约催签守护（有人已签署但仍有成员未签超过 2 分钟时点名催促）
-        const signedMap = (s1.contract && s1.contract.confirmedMembers) ? s1.contract.confirmedMembers : {};
-        const signedCount = Object.values(signedMap).filter(Boolean).length;
-        const isContractDrafted = votesCastCount >= totalMembersCount;
-
-        if (isContractDrafted && signedCount < totalMembersCount) {
-          const contractDraftTime = s1.contract._draftedTime || this.stage1StartTime;
-
-          // 规则（部分已签）：有人已签署，但仍有成员未签超过 2 分钟 ➔ 拍卖师催签未签组员（间隔 >= 3分钟）
-          if (signedCount > 0 && signedCount < totalMembersCount) {
-            const lastSignTime = s1.contract._lastSignTime || contractDraftTime;
-            if (now - lastSignTime > 120000) {
-              if (!this.lastSignContractNudgeTime || now - this.lastSignContractNudgeTime > 180000) {
-                this.lastSignContractNudgeTime = now;
-                const unsignedMembers = membersList.filter(m => !signedMap[m.id]);
-                const unsignedNames = unsignedMembers.map(m => m.name).join('、');
-                const msg = {
-                  sender: 'auctioneer',
-                  text: `📜 【拍卖师·公约签署跟进】：目前全组合约已签署 ${signedCount}/${totalMembersCount} 人。\n👉 请尚未签署的同学（**${unsignedNames || '未签署组员'}**）抓紧核对并点击左侧【确认签署】，全员完成即可正式解锁阶段二！`,
-                  timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                  _timeMs: now
-                };
-                if (!this.state.chatLogs.stage1) this.state.chatLogs.stage1 = [];
-                this.state.chatLogs.stage1.push(msg);
-                this.syncChatLogs();
-                if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
-                renderChat(this.state);
-                return;
-              }
-            }
-          }
-        }
+        // 阶段一所有的破冰、集齐提示与公约流转已由统一状态机与单次互锁时钟管辖，此处无需冗余轮询
+        return;
       }
+
 
       // ======================================================================
       // 🤝 阶段二：责任编辑 (Managing Editor) 过程学伴守护机制
