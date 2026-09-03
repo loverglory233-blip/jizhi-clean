@@ -963,6 +963,51 @@ if ($action === 'get_teacher_monitor_all_groups') {
                 }
             }
 
+            // 🌟 核心升级：全方位收集本组在任务中的一切真实活动痕迹（心跳、发言、提案、投票、签署、打字、打卡），只要在任务中一律算在线！
+            $inTaskActiveKeyMap = [];
+            foreach ($presenceByKey as $pk => $pts) {
+                if (($nowMs - $pts) <= $ONLINE_WINDOW_MS) {
+                    $inTaskActiveKeyMap[$pk] = true;
+                    $inTaskActiveKeyMap[strtolower(trim($pk))] = true;
+                }
+            }
+            foreach ($recentActiveSenders as $sk => $sbool) {
+                $inTaskActiveKeyMap[$sk] = true;
+                $inTaskActiveKeyMap[strtolower(trim($sk))] = true;
+            }
+            if (isset($s1Data['proposals']) && is_array($s1Data['proposals'])) {
+                foreach ($s1Data['proposals'] as $prop) {
+                    if (!empty($prop['author'])) { $inTaskActiveKeyMap[(string)$prop['author']] = true; $inTaskActiveKeyMap[strtolower(trim((string)$prop['author']))] = true; }
+                    if (!empty($prop['authorName'])) { $inTaskActiveKeyMap[(string)$prop['authorName']] = true; $inTaskActiveKeyMap[strtolower(trim((string)$prop['authorName']))] = true; }
+                }
+            }
+            if (isset($s1Data['hasVoted']) && is_array($s1Data['hasVoted'])) {
+                foreach ($s1Data['hasVoted'] as $vk => $vv) {
+                    if ($vv) { $inTaskActiveKeyMap[(string)$vk] = true; $inTaskActiveKeyMap[strtolower(trim((string)$vk))] = true; }
+                }
+            }
+            if (isset($s1Data['contract']['confirmedMembers']) && is_array($s1Data['contract']['confirmedMembers'])) {
+                foreach ($s1Data['contract']['confirmedMembers'] as $ck => $cv) {
+                    if ($cv) { $inTaskActiveKeyMap[(string)$ck] = true; $inTaskActiveKeyMap[strtolower(trim((string)$ck))] = true; }
+                }
+            }
+            if (isset($s2Data['memberContributions']) && is_array($s2Data['memberContributions'])) {
+                foreach ($s2Data['memberContributions'] as $mk => $mv) {
+                    if ($mv > 0) { $inTaskActiveKeyMap[(string)$mk] = true; $inTaskActiveKeyMap[strtolower(trim((string)$mk))] = true; }
+                }
+            }
+            if (isset($s2Data['confirmedMembers']) && is_array($s2Data['confirmedMembers'])) {
+                foreach ($s2Data['confirmedMembers'] as $ck => $cv) {
+                    if ($cv) { $inTaskActiveKeyMap[(string)$ck] = true; $inTaskActiveKeyMap[strtolower(trim((string)$ck))] = true; }
+                }
+            }
+            if (isset($s2Data['meetingSubmissions']) && is_array($s2Data['meetingSubmissions'])) {
+                foreach ($s2Data['meetingSubmissions'] as $sk => $sv) {
+                    $inTaskActiveKeyMap[(string)$sk] = true;
+                    $inTaskActiveKeyMap[strtolower(trim((string)$sk))] = true;
+                }
+            }
+
             $onlineMembers = [];
             $absentMembers = [];
             $resolvedMembersList = [];
@@ -993,8 +1038,10 @@ if ($action === 'get_teacher_monitor_all_groups') {
 
                 $isFresh = false;
                 foreach ($candidateKeys as $k) {
-                    if (isset($presenceByKey[$k]) && ($nowMs - $presenceByKey[$k]) <= $ONLINE_WINDOW_MS) { $isFresh = true; break; }
-                    if (isset($recentActiveSenders[$k])) { $isFresh = true; break; }
+                    if (isset($inTaskActiveKeyMap[$k]) || isset($inTaskActiveKeyMap[strtolower(trim($k))])) {
+                        $isFresh = true;
+                        break;
+                    }
                 }
 
                 $label = !empty($memberObj['name']) ? $memberObj['name'] : (!empty($memberObj['studentCode']) ? $memberObj['studentCode'] : (string)$mKey);
