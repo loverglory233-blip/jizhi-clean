@@ -14,8 +14,8 @@ import {
   DefaultTasks,
   DefaultAnnouncements,
   DefaultReferencePapers
-} from './constants.js?v=20260903_v1506';
-import { formatExportDateTime, formatDurationHuman, isScopeMatch } from './utils.js?v=20260903_v1506';
+} from './constants.js?v=20260903_v1508';
+import { formatExportDateTime, formatDurationHuman, isScopeMatch } from './utils.js?v=20260903_v1508';
 
 export class AuthManager {
   constructor() {
@@ -871,7 +871,7 @@ export class AuthManager {
     const avatars = ['👨‍🎓', '👩‍🎓', '🧑‍🎓', '🎓', '📚', '🌟'];
 
     studentList.forEach(st => {
-      const code = String(st.id || '').trim();
+      const code = String(st.id || (st.studentCode || (st.code || (st.username || '')))).trim();
       const name = (st.name || '').trim();
       if (!code || !name) return;
 
