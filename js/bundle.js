@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260903_v2095
+ * Version: 20260903_v2100
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260903_v2095';
+  const APP_VERSION = '20260903_v2100';
   const APP_BUILD_DATE = '2026-09-03';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -11015,8 +11015,6 @@
           draftBtnEl.onclick = () => {
             if (window.app && window.app.handlers && typeof window.app.handlers.onConfirmStage2Draft === 'function') {
               window.app.handlers.onConfirmStage2Draft();
-            } else if (window.app && typeof window.app.triggerStage2FinalReview === 'function') {
-              window.app.triggerStage2FinalReview();
             }
           };
         }
@@ -17030,11 +17028,6 @@
       if (newStage === 'stage2') {
         if (!this.state.stage2) this.state.stage2 = {};
         if (!this.state.stage2.stageStartTime) this.state.stage2.stageStartTime = Date.now();
-        const s2Chats = (this.state.chatLogs && this.state.chatLogs.stage2) ? this.state.chatLogs.stage2 : [];
-        const hasFinalRev = s2Chats.some(m => m && m.sender === 'reviewingEditor' && (m.text?.includes('终稿行文扫描') || m.text?.includes('终审定稿总评') || m.text?.includes('审稿编辑·终审')));
-        if (this.state.stage2.isDraftConfirmed && !hasFinalRev) {
-          this.triggerStage2FinalReview();
-        }
       }
       if (newStage === 'stage3') {
         if (!this.state.stage3) this.state.stage3 = {};
@@ -18109,105 +18102,7 @@
       }
     }
 
-    /**
-     * 📝 阶段二审稿编辑【第三次学术质检·终审定稿扫描】（大模型深度质检，全场严格仅 1 次）
-     */
-    async triggerStage2FinalReview(force = false) {
-      const s2 = this.state.stage2 || {};
-      if (!this.state.stage2) this.state.stage2 = s2;
-      const s2Chats = (this.state.chatLogs && this.state.chatLogs.stage2) ? this.state.chatLogs.stage2 : [];
-      const hasFinalReview = s2Chats.some(m => m && m.sender === 'reviewingEditor' && (m.text?.includes('终稿行文扫描') || m.text?.includes('终审定稿总评') || m.text?.includes('审稿编辑·终审')));
-      if (!force && (hasFinalReview || this._isTriggeringFinalReview)) return;
 
-      this._isTriggeringFinalReview = true;
-      s2.reviewMilestone = 'final_review_done';
-
-      let rawDoc = (s2.unifiedContent || '').replace(/<[^>]*>/g, '').trim();
-      if (!rawDoc) {
-        try {
-          const f = document.getElementById('stage2-etherpad-frame');
-          if (f && f.contentDocument) {
-            const aceOuter = f.contentDocument.querySelector('iframe[name="ace_outer"]');
-            if (aceOuter && aceOuter.contentDocument) {
-              const aceInner = aceOuter.contentDocument.querySelector('iframe[name="ace_inner"]');
-              if (aceInner && aceInner.contentDocument) {
-                const innerBody = aceInner.contentDocument.querySelector('.innerdocbody') || aceInner.contentDocument.body;
-                if (innerBody) rawDoc = (innerBody.innerText || '').replace(/\r\n/g, '\n').trim();
-              }
-            }
-          }
-        } catch (e) {}
-      }
-      const contentSnippet = rawDoc || '论文草稿已完成主体框架与各章节撰写';
-
-      // 🌟 挂载审稿编辑三审正在分析动态思考气泡
-      this.state.activeAgentAnalyzing = {
-        icon: '📝',
-        title: '【审稿编辑】正在进行终审定稿与全篇行文扫描...',
-        detail: '正在对论文全文进行地毯式错别字排查、语病诊疗与文字润色终审质检...'
-      };
-      renderChat(this.state);
-      this.renderStudentWorkspace();
-      await new Promise(r => setTimeout(r, 1500));
-
-      try {
-        const topic = (this.state.stage1 && this.state.stage1.mergedTitle) ? this.state.stage1.mergedTitle : '本组课题';
-        const taskType = this.getCurrentTaskType();
-        const genreDesc = getGenrePromptDescriptor(taskType);
-        const finalPrompt = `${genreDesc}
-
-  【课题】：《${topic}》
-  【终稿草稿正文全文】：
-  ${contentSnippet}
-
-  请作为权威严谨的学术期刊审稿专家，对正文进行点对点文字精修（严禁代码块，字少精炼，直截了当，严禁出现“分工”字眼）：
-
-  【审稿编辑·终审文字精修清单】：
-  通读正文，挑出最需要修正的错别字、语病倒装、口语化与术语不一处，【必须明确注明具体章节或段落位置】，总条数严格控制在【最多不超过 10 条】！
-  字少但是清楚，严格采用以下点对点极简格式（指出位置、原词句、直接改成什么）：
-  • 【具体位置（如：引言第2段/方法部分）· 错字】“原错词句” -> 改为：“正确词句”
-  • 【具体位置 · 病句】“原不通顺长句” -> 改为：“理顺后的学术表达”
-  • 【具体位置 · 口语】“原口语用词” -> 改为：“客观学术表述”
-  • 【具体位置 · 术语】“前后不一致称呼” -> 建议全文统一为：“规范术语”
-  • 【文末参考文献】[核查基本要素：作者、篇名、年份、刊名/出版社；若暂缺或缺项简短提醒补齐]
-
-  末尾附一句简短提示：“请大家对照上述清单在正文中直接订正，确认无误后在上方完成【初稿确认】，准备迎接答辩！”`;
-
-        let resp = null;
-        try {
-          const apiPromise = callCozeAgentAPI('reviewingEditor', finalPrompt, { stage: 'stage2', topic, taskType, actual_doc: currentDoc });
-          const timeoutPromise = new Promise(r => setTimeout(() => r(null), 65000));
-          resp = await Promise.race([apiPromise, timeoutPromise]);
-        } catch (err) {
-          resp = null;
-        }
-        let finalReviewText = (resp && resp.trim().length > 0)
-          ? resp.trim()
-          : `📝 【审稿编辑·终审定稿总评与行文扫描】：看到全组已进入最后成文冲刺阶段，整体框架完整！终审质检意见如下：\n①【学术语体与逻辑】\n· 诊断问题：全篇论证逻辑基本闭环，局部段落仍有少量口语化过渡词；\n· 改进建议：通读全篇统一学术语言基调，消除口语化表达。\n②【规范与答辩准备】\n· 诊断问题：注意核对核心概念与专业术语口径前后一致；\n· 改进建议：补充完整文献著录与格式规范，做好阶段三答辩准备。\n👉 请全组成员通读终审建议并做最后润色，修改完成后请点击上方导航进入【阶段三：答辩擂台】！`;
-        if (!finalReviewText.startsWith('📝')) finalReviewText = `📝 【审稿编辑·终审定稿总评与行文扫描】：${finalReviewText}`;
-
-        const refReviewMsg = {
-          sender: 'reviewingEditor',
-          senderName: '学术质量 · 审稿编辑',
-          text: finalReviewText,
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          _timeMs: Date.now()
-        };
-        if (!this.state.chatLogs.stage2) this.state.chatLogs.stage2 = [];
-        this.state.chatLogs.stage2.push(refReviewMsg);
-        this.sendSingleChatMessage(refReviewMsg, 'stage2');
-        this.syncChatLogs();
-        this.syncStage2();
-        if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
-      } catch (e) {
-        console.warn('triggerStage2FinalReview error:', e);
-      } finally {
-        this.state.activeAgentAnalyzing = null;
-        this._isTriggeringFinalReview = false;
-        renderChat(this.state);
-        this.renderStudentWorkspace();
-      }
-    }
 
     showStageMilestoneModal({ icon = '🎉', title, subtitle, targetName, onProceed }) {
       const existingModal = document.querySelector('.modal-stage-milestone');
@@ -18266,51 +18161,7 @@
       modal.querySelector('#btn-milestone-proceed')?.addEventListener('click', proceed);
     }
 
-    showStage2FinalReviewPromptModal() {
-      const existingModal = document.querySelector('.modal-final-review-prompt');
-      if (existingModal) existingModal.remove();
 
-      const modal = document.createElement('div');
-      modal.className = 'modal-overlay modal-mask modal-final-review-prompt';
-      modal.style.cssText = 'position:fixed; inset:0; background:rgba(15,23,42,0.65); z-index:99999; display:flex; align-items:center; justify-content:center; backdrop-filter:blur(4px); animation:fadeIn 0.2s ease-out; overscroll-behavior:contain;';
-      modal.innerHTML = `
-        <div style="background:#ffffff; width:92%; max-width:480px; border-radius:14px; box-shadow:0 20px 40px rgba(15,23,42,0.25); border:1px solid #cbd5e1; overflow:hidden; display:flex; flex-direction:column; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; overscroll-behavior:contain;">
-          <div style="background:linear-gradient(135deg, #1e293b, #0f172a); padding:16px 20px; display:flex; justify-content:space-between; align-items:center; color:#ffffff;">
-            <div style="display:flex; align-items:center; gap:8px;">
-              <span style="font-size:20px;">📝</span>
-              <span style="font-size:16px; font-weight:800; letter-spacing:0.3px;">审稿编辑·终审定稿扫描提醒</span>
-            </div>
-            <button id="btn-close-fr-modal" style="background:transparent; border:none; color:#94a3b8; font-size:18px; cursor:pointer; padding:2px 6px; border-radius:4px; line-height:1;">✕</button>
-          </div>
-          <div style="padding:22px 24px; font-size:13.5px; color:#334155; line-height:1.65;">
-            <div style="background:#eff6ff; border:1px solid #bfdbfe; border-radius:8px; padding:12px 16px; margin-bottom:16px; color:#1e40af; font-size:13px; font-weight:600;">
-              💡 本组尚未获取审稿编辑的【第三次质检·终审定稿总评】。
-            </div>
-            <p style="margin:0 0 10px 0;">在正式提交初稿并进入答辩前，强烈建议先由<b>审稿专家</b>对全篇草稿进行学术语体、论证闭环与文献规范扫描。</p>
-            <p style="margin:0; color:#64748b; font-size:12.5px;">专家将为全组生成针对性的【诊断问题 + 改进建议】，帮助大家在最后成文与答辩立论中规避薄弱点！</p>
-          </div>
-          <div style="padding:14px 24px 18px 24px; background:#f8fafc; border-top:1px solid #e2e8f0; display:flex; justify-content:flex-end; gap:10px; align-items:center;">
-            <button id="btn-trigger-fr" style="background:linear-gradient(135deg, #2563eb, #1d4ed8); border:none; color:#ffffff; padding:9px 22px; border-radius:8px; font-size:13.5px; font-weight:700; cursor:pointer; box-shadow:0 3px 10px rgba(37,99,235,0.25); display:flex; align-items:center; gap:6px;">
-              <span>✨ 立即进行终审定稿扫描</span>
-            </button>
-          </div>
-        </div>
-      `;
-
-      document.body.appendChild(modal);
-
-      const closeModal = () => modal.remove();
-      modal.querySelector('#btn-close-fr-modal')?.addEventListener('click', closeModal);
-      modal.addEventListener('click', (e) => { if (e.target === modal) closeModal(); });
-
-      modal.querySelector('#btn-trigger-fr')?.addEventListener('click', () => {
-        closeModal();
-        this.triggerStage2FinalReview(true);
-        if (typeof showGlobalBannerNotice === 'function') {
-          showGlobalBannerNotice('📝 终审定稿扫描已启动', '审稿专家正在右侧研讨区为您扫描终稿学术规范与论述逻辑，请通读质检建议！', 'info', 6000);
-        }
-      });
-    }
 
     showMeetingModal() {
       const currUser = this.authManager ? this.authManager.getCurrentUser() : null;
