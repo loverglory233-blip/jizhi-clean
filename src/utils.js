@@ -260,7 +260,7 @@ export function smartParseStudentRow(rowItems, colIndexMap = null) {
     const code = colIndexMap.codeIdx !== undefined && rowItems[colIndexMap.codeIdx] ? String(rowItems[colIndexMap.codeIdx]).trim() : '';
     const pwd = colIndexMap.pwdIdx !== undefined && rowItems[colIndexMap.pwdIdx] ? String(rowItems[colIndexMap.pwdIdx]).trim() : '123';
     if (name && code) {
-      return { id: code, name, studentCode: code, username: code, customPassword: pwd || '123' };
+      return { id: code, name, password: pwd || '123' };
     }
   }
 
@@ -286,7 +286,7 @@ export function smartParseStudentRow(rowItems, colIndexMap = null) {
   }
 
   if (name && studentCode) {
-    return { id: studentCode, name, studentCode, username: studentCode, customPassword: password || '123' };
+    return { id: studentCode, name, password: password || '123' };
   }
   return null;
 }
