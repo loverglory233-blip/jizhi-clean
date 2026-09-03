@@ -882,7 +882,7 @@ if ($action === 'get_teacher_monitor_all_groups') {
             }
         }
 
-        $ONLINE_WINDOW_MS = 600000; // 600 秒 (10分钟) 黄金窗口：读文献/线下讨论 10 分钟内稳稳在线，离席超时才标记离线，切回即刻秒级复活
+        $ONLINE_WINDOW_MS = 43200000; // 12 小时（全场会话常青）：学生只要今日进入了该任务工作台，全程稳定保持在线，只有主动点击【退出登录】才标记离线
         $cutoffMs = $nowMs - $ONLINE_WINDOW_MS;
 
         // 🚀 性能革命：收集全量 ScopeKey 进行批量单次查表，消灭 N+1 查询瓶颈，教师端毫秒级秒开！
