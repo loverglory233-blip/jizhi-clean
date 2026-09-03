@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260903_v1800
+ * Version: 20260903_v1815
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260903_v1800';
+  const APP_VERSION = '20260903_v1815';
   const APP_BUILD_DATE = '2026-09-03';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -962,54 +962,101 @@
   }
 
   /**
-   * 🌐 业界黄金标准：全局弹窗背景滚动冻结器 (Universal Body Scroll Lock)
-   * 采用 position:fixed + scrollY 锚定算法，100% 兼容 iOS Safari / Mac Trackpad / 全桌面浏览器
+   * 🌐 业界黄金标准：全局弹窗物理事件捕获隔离与防穿透引擎 (Universal Wheel & Touch Barrier)
+   * 彻底消除 position:fixed 引起的背景跳转、滑到底部与回弹问题，实现 0 穿透、0 晃动、0 错位
    */
-  let _savedScrollY = 0;
   let _isBodyLocked = false;
+  let _modalBarrierInitialized = false;
 
   function lockBodyScroll() {
     if (_isBodyLocked) return;
-    _savedScrollY = window.scrollY || window.pageYOffset || (document.documentElement && document.documentElement.scrollTop) || 0;
     _isBodyLocked = true;
-    if (document.body) {
-      document.body.classList.add('modal-open');
-      document.body.style.position = 'fixed';
-      document.body.style.top = `-${_savedScrollY}px`;
-      document.body.style.left = '0';
-      document.body.style.right = '0';
-      document.body.style.width = '100%';
-      document.body.style.overflow = 'hidden';
-    }
+    if (document.body) document.body.classList.add('modal-open');
+    if (document.documentElement) document.documentElement.classList.add('modal-open');
   }
 
   function unlockBodyScroll() {
     if (!_isBodyLocked) return;
     _isBodyLocked = false;
-    if (document.body) {
-      document.body.classList.remove('modal-open');
-      document.body.style.position = '';
-      document.body.style.top = '';
-      document.body.style.left = '';
-      document.body.style.right = '';
-      document.body.style.width = '';
-      document.body.style.overflow = '';
-    }
-    window.scrollTo(0, _savedScrollY);
+    if (document.body) document.body.classList.remove('modal-open');
+    if (document.documentElement) document.documentElement.classList.remove('modal-open');
   }
 
-  if (typeof document !== 'undefined' && typeof MutationObserver !== 'undefined') {
-    const observer = new MutationObserver(() => {
-      const hasModal = !!document.querySelector('.modal-overlay, .modal-mask, .table-config-modal-overlay, #modal-change-password, #modal-task-extended-unlock');
-      if (hasModal) {
-        lockBodyScroll();
-      } else {
-        unlockBodyScroll();
+  function initModalScrollBarrier() {
+    if (typeof window === 'undefined' || _modalBarrierInitialized) return;
+    _modalBarrierInitialized = true;
+
+    const getActiveModal = () => document.querySelector('.modal-overlay, .modal-mask, .table-config-modal-overlay, #modal-change-password, #modal-task-extended-unlock');
+
+    const handleWheel = (e) => {
+      const modal = getActiveModal();
+      if (!modal) return;
+
+      // 1. 若滚轮事件发生在弹窗之外（背景遮罩外），直接阻断
+      if (!modal.contains(e.target)) {
+        e.preventDefault();
+        return;
       }
-    });
-    const targetNode = document.body || document.documentElement;
-    if (targetNode) {
-      observer.observe(targetNode, { childList: true, subtree: true });
+
+      // 2. 向上寻找最近的可滚动内部容器
+      let el = e.target;
+      let scrollable = null;
+      while (el && el !== modal && el !== document.body && el !== document.documentElement) {
+        const style = window.getComputedStyle(el);
+        const overflowY = style.overflowY;
+        if ((overflowY === 'auto' || overflowY === 'scroll') && el.scrollHeight > el.clientHeight) {
+          scrollable = el;
+          break;
+        }
+        el = el.parentElement;
+      }
+
+      // 3. 若滚轮发生在弹窗背景遮罩或不可滚动的卡片区域，直接阻断
+      if (!scrollable) {
+        e.preventDefault();
+        return;
+      }
+
+      // 4. 边界检测：滑到最顶部往上滚，或滑到最底部往下滚时，阻断向背景穿透
+      const { scrollTop, scrollHeight, clientHeight } = scrollable;
+      const isScrollingUp = e.deltaY < 0;
+      const isScrollingDown = e.deltaY > 0;
+
+      if (isScrollingUp && scrollTop <= 0) {
+        e.preventDefault();
+      } else if (isScrollingDown && scrollTop + clientHeight >= scrollHeight - 1) {
+        e.preventDefault();
+      }
+    };
+
+    const handleTouch = (e) => {
+      const modal = getActiveModal();
+      if (!modal) return;
+      if (!modal.contains(e.target)) {
+        e.preventDefault();
+      }
+    };
+
+    window.addEventListener('wheel', handleWheel, { passive: false, capture: true });
+    window.addEventListener('touchmove', handleTouch, { passive: false, capture: true });
+  }
+
+  if (typeof document !== 'undefined') {
+    initModalScrollBarrier();
+
+    if (typeof MutationObserver !== 'undefined') {
+      const observer = new MutationObserver(() => {
+        const hasModal = !!document.querySelector('.modal-overlay, .modal-mask, .table-config-modal-overlay, #modal-change-password, #modal-task-extended-unlock');
+        if (hasModal) {
+          lockBodyScroll();
+        } else {
+          unlockBodyScroll();
+        }
+      });
+      const targetNode = document.body || document.documentElement;
+      if (targetNode) {
+        observer.observe(targetNode, { childList: true, subtree: true });
+      }
     }
   }
 
