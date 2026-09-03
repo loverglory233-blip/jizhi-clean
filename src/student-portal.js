@@ -6,9 +6,10 @@
 import {
   STORAGE_KEY_TASKS,
   STORAGE_KEY_ANNOUNCEMENTS,
-  STORAGE_KEY_CLASSES
-} from "./constants.js?v=20260904_v2193";
-import { escapeHtml, isTaskExpired, formatDurationHuman, formatStandardDateDash, showGlobalBannerNotice } from "./utils.js?v=20260904_v2193";
+  STORAGE_KEY_CLASSES,
+  TASK_GENRE_CONFIGS
+} from "./constants.js?v=20260904_v2194";
+import { escapeHtml, isTaskExpired, formatDurationHuman, formatStandardDateDash, showGlobalBannerNotice } from "./utils.js?v=20260904_v2194";
 
 /* ==========================================================================
    10. STUDENT TASK PORTAL (CENTRALIZED HUB & COLLABORATION ENTRY)
@@ -297,6 +298,8 @@ export function renderStudentTaskPortal(container, authManager, state, onSelectT
                 const taskSeqNum = relevantTasks.length - idx;
                 const isLatest = idx === 0;
                 const isExpired = isTaskExpired(t);
+                const genreCfg = TASK_GENRE_CONFIGS[t.taskType || 'experiment'] || TASK_GENRE_CONFIGS.experiment;
+                const wordTarget = t.targetWordCount || 3000;
                 // 仅当前进入的任务展示真实协作进度，其余任务展示中立“已发布”状态（避免全局阶段串入各卡片）
                 const isActiveTask = (t.id === state.activeTaskId);
                 const progressLabel = isExpired
@@ -326,7 +329,7 @@ export function renderStudentTaskPortal(container, authManager, state, onSelectT
                 return `
                   <div class="student-task-card" style="background:#ffffff; border:1.5px solid ${isExpired ? '#fca5a5' : '#e2e8f0'}; border-radius:16px; padding:22px; box-shadow:0 4px 16px -2px rgba(15,23,42,0.04); display:flex; flex-direction:column; justify-content:space-between; transition:all 0.2s ease;">
                     <div>
-                      <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:12px; margin-bottom:14px;">
+                      <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:12px; margin-bottom:12px;">
                         <div style="font-size:17px; font-weight:800; color:#0f172a; line-height:1.4; display:flex; align-items:center; gap:8px;">
                           <span style="background:${isExpired ? 'linear-gradient(135deg, #ef4444, #dc2626)' : 'linear-gradient(135deg, #1e40af, #3b82f6)'}; color:#ffffff; padding:2.5px 9px; border-radius:6px; font-size:12px; font-weight:800; white-space:nowrap; box-shadow:0 2px 6px rgba(30,64,175,0.25);">
                             任务 ${taskSeqNum}${isLatest ? ' (最新)' : ''}
@@ -345,11 +348,24 @@ export function renderStudentTaskPortal(container, authManager, state, onSelectT
                         </div>
                       </div>
 
+                      <!-- 🎯 任务核心指标胶囊 (目标字数与文体) -->
+                      <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:10px;">
+                        <span style="background:#ecfdf5; color:#059669; border:1.5px solid #a7f3d0; padding:3px 10px; border-radius:6px; font-size:12px; font-weight:800; display:inline-flex; align-items:center; gap:4px; box-shadow:0 1px 2px rgba(16,185,129,0.08);">
+                          🎯 目标字数: <b style="font-size:13px; color:#047857;">${wordTarget} 字</b>
+                        </span>
+                        <span style="background:#f5f3ff; color:#7c3aed; border:1.5px solid #ddd6fe; padding:3px 10px; border-radius:6px; font-size:12px; font-weight:800; display:inline-flex; align-items:center; gap:4px; box-shadow:0 1px 2px rgba(124,58,237,0.08);">
+                          ${genreCfg.icon} 任务文体: <b>${genreCfg.label}</b>
+                        </span>
+                        <span style="background:#eff6ff; color:#2563eb; border:1px solid #bfdbfe; padding:3px 10px; border-radius:6px; font-size:11.5px; font-weight:700; display:inline-flex; align-items:center; gap:4px;">
+                          ⏱️ 任务时长: <b>${formatDurationHuman(duration)}</b>
+                        </span>
+                      </div>
+
                       <div style="display:grid; grid-template-columns:1fr 1fr; gap:6px 12px; font-size:11.5px; color:#475569; margin-bottom:12px; background:${isExpired ? '#fef2f2' : '#f8fafc'}; padding:10px 14px; border-radius:10px; border:1px solid ${isExpired ? '#fee2e2' : '#f1f5f9'};">
                         <div>🕒 发布时间: <b style="color:#0f172a;">${formatStandardDateDash(t.createdAt || t.startTime) || '刚刚'}</b></div>
-                        <div>⏱️ 任务时长: <b style="color:#2563eb;">${formatDurationHuman(duration)}</b></div>
                         <div>📅 开始时间: <b style="color:#0f172a;">${formatStandardDateDash(t.startTime) || '随时'}</b></div>
                         <div>⌛ 截止时间: <b style="color:#dc2626; font-weight:800;">${formatStandardDateDash(t.deadline) || '结课前'}</b></div>
+                        <div>📌 要求文体: <b style="color:#7c3aed;">${genreCfg.badge}</b></div>
                       </div>
 
                       <div style="font-size:12.5px; color:#334155; line-height:1.6; margin-bottom:12px; background:#f8fafc; border-left:3.5px solid ${isExpired ? '#dc2626' : '#2563eb'}; padding:8px 12px; border-radius:0 8px 8px 0;">
