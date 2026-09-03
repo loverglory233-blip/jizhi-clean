@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260903_v2055";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260903_v2055";
-import { callCozeAgentAPI } from "./agents.js?v=20260903_v2055";
-import { AuthManager } from "./auth.js?v=20260903_v2055";
-import { CloudSyncEngine } from "./sync.js?v=20260903_v2055";
-import { renderLoginView } from "./login.js?v=20260903_v2055";
-import { renderTeacherPortal } from "./teacher.js?v=20260903_v2055";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260903_v2055";
+} from "./constants.js?v=20260903_v2060";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260903_v2060";
+import { callCozeAgentAPI } from "./agents.js?v=20260903_v2060";
+import { AuthManager } from "./auth.js?v=20260903_v2060";
+import { CloudSyncEngine } from "./sync.js?v=20260903_v2060";
+import { renderLoginView } from "./login.js?v=20260903_v2060";
+import { renderTeacherPortal } from "./teacher.js?v=20260903_v2060";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260903_v2060";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260903_v2055";
+} from "./editor.js?v=20260903_v2060";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -5421,7 +5421,28 @@ ${chatSnippet}
     const curTask = allTasks.find(t => t.id === this.state.activeTaskId);
     const times = (this.state.stage1 && this.state.stage1.contract && this.state.stage1.contract.timeAllocations) ? this.state.stage1.contract.timeAllocations : {};
     const totalPlannedMin = (times.background || 25) + (times.literature || 30) + (times.questions || 25) + (times.method || 40) + (times.reflection || 20) + (times.references || 10);
-    const taskDurMin = (curTask && curTask.duration) ? Number(curTask.duration) : totalPlannedMin;
+    const totalTaskMinutes = (curTask && (curTask.durationMinutes || curTask.duration)) ? Number(curTask.durationMinutes || curTask.duration) : (totalPlannedMin > 0 ? (totalPlannedMin / 0.70) : 150);
+    
+    // ⏱️ 严格三阶段基准比例：阶段一 10% | 阶段二 70% | 阶段三 20%
+    const s1BudgetMin = totalTaskMinutes * 0.10;
+    const s2BaseBudgetMin = totalTaskMinutes * 0.70;
+    
+    // 计算阶段一实际耗时与时间转移
+    const s1StartTime = this.state.stage1StartTime || (this.state.stage1 && this.state.stage1.startTime) || (s2.startTime ? (s2.startTime - (s1BudgetMin * 60 * 1000)) : (now - 60000));
+    const s1EndTime = s2.startTime || (this.state.stage1 && this.state.stage1._confirmedTime) || now;
+    const s1ActualMin = Math.max(0, (s1EndTime - s1StartTime) / 60000);
+
+    let stage2BudgetMin = s2BaseBudgetMin;
+    if (s1ActualMin < s1BudgetMin) {
+      // 💡 阶段一提前结束：多余的时间按 7:3 分配给阶段二和阶段三（阶段二分得 70%）
+      const savedMin = s1BudgetMin - s1ActualMin;
+      stage2BudgetMin = s2BaseBudgetMin + (savedMin * 0.70);
+    } else {
+      // ⚠️ 阶段一超时延迟：阶段二依然严格按照既定 70% 预算基准推进（后面时间没了就没了）
+      stage2BudgetMin = s2BaseBudgetMin;
+    }
+
+    const taskDurMin = totalTaskMinutes;
     const isLargeTask = curTask && (curTask.scale === 'large' || curTask.type === 'large' || taskDurMin > 150 || (curTask.targetWordCount && Number(curTask.targetWordCount) >= 6000));
     const defaultWordTarget = isLargeTask ? 9000 : 4300;
 
@@ -5429,8 +5450,8 @@ ${chatSnippet}
     const rawDoc = newContent.replace(/<[^>]*>/g, '').trim();
     const wordProgress = targetWordCount > 0 ? (rawDoc.length / targetWordCount) : (rawDoc.length / 4300);
 
-    const totalPlannedMs = totalPlannedMin * 60 * 1000;
-    const stage2DurationMs = s2.startTime ? (now - s2.startTime) : 0;
+    const totalPlannedMs = Math.max(totalPlannedMin * 60 * 1000, stage2BudgetMin * 60 * 1000);
+    const stage2DurationMs = s2.startTime ? (now - s2.startTime) : (this.stage2StartTime ? (now - this.stage2StartTime) : 0);
     const timeProgress = totalPlannedMs > 0 ? (stage2DurationMs / totalPlannedMs) : 0;
 
     const s2ChatList = this.state.chatLogs?.stage2 || [];
