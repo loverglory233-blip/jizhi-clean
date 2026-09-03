@@ -1129,12 +1129,23 @@ export class AuthManager {
     return group;
   }
 
-  deleteStudent(userId, classId = null) {
-    const users = this.getUsers();
+  deleteStudent(userId, classId = null, permanent = false) {
+    let users = this.getUsers();
     const student = users.find(u => u.id === userId);
     const classes = this.getClasses();
 
-    if (student && classId) {
+    if (permanent || !classId) {
+      // 彻底从全平台注销删除
+      users = users.filter(u => u.id !== userId);
+      classes.forEach(c => {
+        if (c.studentIds) c.studentIds = c.studentIds.filter(id => id !== userId);
+        if (c.groups) {
+          c.groups.forEach(g => {
+            if (g.members) g.members = g.members.filter(id => id !== userId);
+          });
+        }
+      });
+    } else if (student && classId) {
       if (!student.classIds || !Array.isArray(student.classIds)) {
         student.classIds = student.classId ? [student.classId] : [];
       }
@@ -1153,23 +1164,10 @@ export class AuthManager {
         }
       }
 
+      // 如果该学生已不属于任何其他班级，自动彻底从用户库注销
       if (student.classIds.length === 0) {
-        const idx = users.findIndex(u => u.id === userId);
-        if (idx !== -1) users.splice(idx, 1);
+        users = users.filter(u => u.id !== userId);
       }
-    } else {
-      const newUsers = users.filter(u => u.id !== userId);
-      users.length = 0;
-      newUsers.forEach(u => users.push(u));
-
-      classes.forEach(c => {
-        if (c.studentIds) c.studentIds = c.studentIds.filter(id => id !== userId);
-        if (c.groups) {
-          c.groups.forEach(g => {
-            if (g.members) g.members = g.members.filter(id => id !== userId);
-          });
-        }
-      });
     }
 
     localStorage.setItem(STORAGE_KEY_USERS_DB, JSON.stringify(users));

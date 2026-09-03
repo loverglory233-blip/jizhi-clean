@@ -2174,12 +2174,23 @@
       return group;
     }
 
-    deleteStudent(userId, classId = null) {
-      const users = this.getUsers();
+    deleteStudent(userId, classId = null, permanent = false) {
+      let users = this.getUsers();
       const student = users.find(u => u.id === userId);
       const classes = this.getClasses();
 
-      if (student && classId) {
+      if (permanent || !classId) {
+        // 彻底从全平台注销删除
+        users = users.filter(u => u.id !== userId);
+        classes.forEach(c => {
+          if (c.studentIds) c.studentIds = c.studentIds.filter(id => id !== userId);
+          if (c.groups) {
+            c.groups.forEach(g => {
+              if (g.members) g.members = g.members.filter(id => id !== userId);
+            });
+          }
+        });
+      } else if (student && classId) {
         if (!student.classIds || !Array.isArray(student.classIds)) {
           student.classIds = student.classId ? [student.classId] : [];
         }
@@ -2198,23 +2209,10 @@
           }
         }
 
+        // 如果该学生已不属于任何其他班级，自动彻底从用户库注销
         if (student.classIds.length === 0) {
-          const idx = users.findIndex(u => u.id === userId);
-          if (idx !== -1) users.splice(idx, 1);
+          users = users.filter(u => u.id !== userId);
         }
-      } else {
-        const newUsers = users.filter(u => u.id !== userId);
-        users.length = 0;
-        newUsers.forEach(u => users.push(u));
-
-        classes.forEach(c => {
-          if (c.studentIds) c.studentIds = c.studentIds.filter(id => id !== userId);
-          if (c.groups) {
-            c.groups.forEach(g => {
-              if (g.members) g.members = g.members.filter(id => id !== userId);
-            });
-          }
-        });
       }
 
       localStorage.setItem(STORAGE_KEY_USERS_DB, JSON.stringify(users));
@@ -6556,15 +6554,18 @@
                     (s.classIds || [s.classId]).includes(c.id) && c.id !== activeClass.id
                   );
                   return `
-                    <label class="enroll-std-card-item" data-search="${(s.name + ' ' + (s.id || '')).toLowerCase()}" style="display:flex; align-items:center; gap:12px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:10px 14px; cursor:pointer; transition:all 0.15s;">
-                      <input type="checkbox" class="enroll-chk" data-uid="${s.id}" style="width:17px; height:17px; cursor:pointer; accent-color:#2563eb;">
-                      <div>
-                        <div style="font-size:14px; font-weight:800; color:#0f172a;">${s.avatar || '👤'} ${s.name} <code style="color:#2563eb; font-family:monospace; margin-left:6px;">${s.id}</code></div>
-                        <div style="font-size:12px; color:#64748b; margin-top:2px;">
-                          ${otherClasses.length > 0 ? `现归属班级: <b>${otherClasses.map(c => c.name).join(', ')}</b>` : '已入库学生'}
+                    <div class="enroll-std-card-item" data-search="${(s.name + ' ' + (s.id || '')).toLowerCase()}" style="display:flex; align-items:center; justify-content:space-between; gap:12px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:10px 14px; transition:all 0.15s;">
+                      <label style="display:flex; align-items:center; gap:12px; cursor:pointer; flex:1;">
+                        <input type="checkbox" class="enroll-chk" data-uid="${s.id}" style="width:17px; height:17px; cursor:pointer; accent-color:#2563eb;">
+                        <div>
+                          <div style="font-size:14px; font-weight:800; color:#0f172a;">${s.avatar || '👤'} ${s.name} <code style="color:#2563eb; font-family:monospace; margin-left:6px;">${s.id}</code></div>
+                          <div style="font-size:12px; color:#64748b; margin-top:2px;">
+                            ${otherClasses.length > 0 ? `现归属班级: <b>${otherClasses.map(c => c.name).join(', ')}</b>` : '已入库学生'}
+                          </div>
                         </div>
-                      </div>
-                    </label>
+                      </label>
+                      <button class="btn-purge-std" data-uid="${s.id}" data-name="${s.name}" style="background:#fef2f2; border:1px solid #fecaca; color:#dc2626; padding:5px 10px; border-radius:6px; font-size:12px; font-weight:700; cursor:pointer; white-space:nowrap;" title="彻底从平台注销删除此学生账号">🗑️ 彻底删除</button>
+                    </div>
                   `;
                 }).join('')}
               </div>
@@ -6581,6 +6582,21 @@
         modal.querySelector('#btn-close-enroll-modal').addEventListener('click', closeModal);
         modal.querySelector('#btn-cancel-enroll').addEventListener('click', closeModal);
         modal.addEventListener('click', (e) => { if (e.target === modal) closeModal(); });
+
+        // 🗑️ 彻底从系统删除注销账号
+        modal.querySelectorAll('.btn-purge-std').forEach(btn => {
+          btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const uid = btn.dataset.uid;
+            const uname = btn.dataset.name;
+            if (confirm(`⚠️ 确认彻底从系统中删除学生【${uname} (${uid})】的账号吗？删除后不可恢复！`)) {
+              authManager.deleteStudent(uid, null, true);
+              const item = btn.closest('.enroll-std-card-item');
+              if (item) item.remove();
+              renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+            }
+          });
+        });
 
         // 🔍 模糊搜索过滤
         const searchEnrollInput = modal.querySelector('#input-search-enroll-std');
