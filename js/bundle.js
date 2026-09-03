@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260903_v1658
+ * Version: 20260903_v1701
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260903_v1658';
+  const APP_VERSION = '20260903_v1701';
   const APP_BUILD_DATE = '2026-09-03';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -998,6 +998,19 @@
         e.preventDefault();
       }
     }, { passive: false });
+
+    // 🛡️ 观察 DOM 弹窗生命周期，自动为 body 与 html 注入/移除 modal-open 类名
+    if (typeof MutationObserver !== 'undefined') {
+      const observer = new MutationObserver(() => {
+        const hasModal = !!document.querySelector('.modal-overlay, .table-config-modal-overlay');
+        if (document.body) document.body.classList.toggle('modal-open', hasModal);
+        if (document.documentElement) document.documentElement.classList.toggle('modal-open', hasModal);
+      });
+      const targetNode = document.body || document.documentElement;
+      if (targetNode) {
+        observer.observe(targetNode, { childList: true, subtree: true });
+      }
+    }
   }
 
   /* ==========================================================================
@@ -5040,7 +5053,7 @@
     const allStudents = allUsers.filter(u => u.role !== 'teacher');
 
     container.innerHTML = `
-      <div class="teacher-portal-layout" id="teacher-portal-layout" style="height:100vh; overflow-y:auto !important; -webkit-overflow-scrolling:touch; background:#f0f4f9; padding:0; display:flex; flex-direction:column;">
+      <div class="teacher-portal-layout" id="teacher-portal-layout" style="height:100vh; background:#f0f4f9; padding:0; display:flex; flex-direction:column;">
 
         <!-- 🏛️ 1. 全局顶部导航栏 -->
         <header class="teacher-header" style="padding:16px 32px; background:#ffffff; border-bottom:1px solid #e2e8f0; width:100%; flex-shrink:0; box-shadow:0 1px 3px rgba(15,23,42,0.04); display:flex; justify-content:space-between; align-items:center;">

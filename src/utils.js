@@ -802,4 +802,17 @@ if (typeof document !== 'undefined') {
       e.preventDefault();
     }
   }, { passive: false });
+
+  // 🛡️ 观察 DOM 弹窗生命周期，自动为 body 与 html 注入/移除 modal-open 类名
+  if (typeof MutationObserver !== 'undefined') {
+    const observer = new MutationObserver(() => {
+      const hasModal = !!document.querySelector('.modal-overlay, .table-config-modal-overlay');
+      if (document.body) document.body.classList.toggle('modal-open', hasModal);
+      if (document.documentElement) document.documentElement.classList.toggle('modal-open', hasModal);
+    });
+    const targetNode = document.body || document.documentElement;
+    if (targetNode) {
+      observer.observe(targetNode, { childList: true, subtree: true });
+    }
+  }
 }

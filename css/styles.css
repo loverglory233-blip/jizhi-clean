@@ -73,7 +73,7 @@ html, body {
 .teacher-portal-layout {
   height: 100vh;
   min-height: 100vh;
-  overflow-y: auto !important;
+  overflow-y: auto;
   overflow-x: hidden;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior-y: auto;
@@ -1085,16 +1085,28 @@ html, body {
    7. MODALS (WHITE & SAPPHIRE THEME)
    ========================================================================== */
 html:has(.modal-overlay),
-body:has(.modal-overlay) {
+body:has(.modal-overlay),
+html.modal-open,
+body.modal-open {
   overflow: hidden !important;
+  overflow-y: hidden !important;
 }
 
 body:has(.modal-overlay) .teacher-portal-layout,
 body:has(.modal-overlay) #teacher-portal-layout,
+body:has(.modal-overlay) #app.app-teacher-mode,
 body:has(.modal-overlay) .app-container,
 body:has(.modal-overlay) .portal-container,
 body:has(.modal-overlay) .editor-workspace-layout,
-body:has(.modal-overlay) #app {
+body:has(.modal-overlay) #app,
+body.modal-open .teacher-portal-layout,
+body.modal-open #teacher-portal-layout,
+body.modal-open #app.app-teacher-mode,
+body.modal-open .app-container,
+body.modal-open .portal-container,
+body.modal-open .editor-workspace-layout,
+body.modal-open #app {
+  overflow-y: hidden !important;
   overflow: hidden !important;
   overscroll-behavior: contain !important;
 }
