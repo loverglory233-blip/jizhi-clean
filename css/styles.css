@@ -1084,8 +1084,19 @@ html, body {
 /* ==========================================================================
    7. MODALS (WHITE & SAPPHIRE THEME)
    ========================================================================== */
+html:has(.modal-overlay),
 body:has(.modal-overlay) {
   overflow: hidden !important;
+}
+
+body:has(.modal-overlay) .teacher-portal-layout,
+body:has(.modal-overlay) #teacher-portal-layout,
+body:has(.modal-overlay) .app-container,
+body:has(.modal-overlay) .portal-container,
+body:has(.modal-overlay) .editor-workspace-layout,
+body:has(.modal-overlay) #app {
+  overflow: hidden !important;
+  overscroll-behavior: contain !important;
 }
 
 .modal-overlay {
