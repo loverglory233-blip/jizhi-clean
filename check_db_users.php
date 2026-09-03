@@ -13,7 +13,7 @@ if (!$pdo) {
 // 🛡️ 立即执行全量自愈入库与密码明文化修复
 try {
     // 1. 将 users 表中所有旧的 Bcrypt 哈希密码平铺恢复为纯明文 '123' (教师密码如果是 123456 则保留)
-    $stmtUsers = $pdo->query("SELECT id, username, student_code, role, password FROM users");
+    $stmtUsers = $pdo->query("SELECT id, name, role, password FROM users");
     $existingList = $stmtUsers->fetchAll(PDO::FETCH_ASSOC);
     foreach ($existingList as $eu) {
         $curP = $eu['password'] ?? '';
@@ -31,42 +31,37 @@ try {
     if ($mRow && !empty($mRow['meta_value'])) {
         $gm = json_decode($mRow['meta_value'], true) ?: [];
         $gUsers = $gm['users'] ?? [];
-        $stmtUpsert = $pdo->prepare("INSERT INTO users (id, username, student_code, name, password, role)
-            VALUES (:id, :u, :sc, :nm, :p, :r)
-            ON DUPLICATE KEY UPDATE name = VALUES(name), student_code = VALUES(student_code), username = VALUES(username), role = VALUES(role)");
+        $stmtUpsert = $pdo->prepare("INSERT INTO users (id, name, password, role)
+            VALUES (:id, :nm, :p, :r)
+            ON DUPLICATE KEY UPDATE name = VALUES(name), role = VALUES(role)");
         foreach ($gUsers as $gu) {
-            $code = trim($gu['studentCode'] ?? ($gu['username'] ?? ($gu['id'] ?? '')));
-            if (empty($code)) continue;
-            $uid = trim($gu['id'] ?? $code);
-            $uname = trim($gu['username'] ?? $code);
-            $ucode = trim($gu['studentCode'] ?? $code);
-            $unick = trim($gu['name'] ?? $code);
+            $uid = trim($gu['id'] ?? ($gu['studentCode'] ?? ($gu['username'] ?? '')));
+            if (empty($uid)) continue;
+            $unick = trim($gu['name'] ?? $uid);
             $urole = trim($gu['role'] ?? 'student');
             $rawP = trim($gu['password'] ?? '');
             $upwd = (!empty($rawP) && !str_starts_with($rawP, '$2y$')) ? $rawP : '123';
 
-            $stmtCheck = $pdo->prepare("SELECT id, password FROM users WHERE student_code = :c1 OR username = :c2 OR id = :c3 LIMIT 1");
-            $stmtCheck->execute([':c1' => $code, ':c2' => $code, ':c3' => $uid]);
+            $stmtCheck = $pdo->prepare("SELECT id, password FROM users WHERE id = :id LIMIT 1");
+            $stmtCheck->execute([':id' => $uid]);
             $existRow = $stmtCheck->fetch();
             if ($existRow) {
                 $curP = $existRow['password'];
                 $finalP = (str_starts_with($curP, '$2y$') || empty($curP)) ? '123' : $curP;
-                $stmtUpdate = $pdo->prepare("UPDATE users SET name = :nm, student_code = :sc, username = :u, role = :r, password = :p WHERE id = :id");
-                $stmtUpdate->execute([':nm' => $unick, ':sc' => $ucode, ':u' => $uname, ':r' => $urole, ':p' => $finalP, ':id' => $existRow['id']]);
-                } else {
-                    $stmtUpsert->execute([
-                        ':id' => $uid,
-                        ':u' => $uname,
-                        ':sc' => $ucode,
-                        ':nm' => $unick,
-                        ':p' => $upwd,
-                        ':r' => $urole
-                    ]);
-                }
+                $stmtUpdate = $pdo->prepare("UPDATE users SET name = :nm, role = :r, password = :p WHERE id = :id");
+                $stmtUpdate->execute([':nm' => $unick, ':r' => $urole, ':p' => $finalP, ':id' => $existRow['id']]);
+            } else {
+                $stmtUpsert->execute([
+                    ':id' => $uid,
+                    ':nm' => $unick,
+                    ':p' => $upwd,
+                    ':r' => $urole
+                ]);
             }
         }
+    }
 
-        // 2. 深度自愈 classes 班级表（100% 严格依照 main_meta 真实班级与真实名单落库）
+    // 2. 深度自愈 classes 班级表（100% 严格依照 main_meta 真实班级与真实名单落库）
         $gClasses = $gm['classes'] ?? [];
         if (!empty($gClasses) && is_array($gClasses)) {
             // 获取 main_meta 中所有真实存在的 class ID
@@ -125,12 +120,12 @@ echo "<h2>🔍 集智平台 - 数据库全景诊断与实时自愈结果</h2>";
 
 // 1. users 实体表
 echo "<h3>① users 实体表（登录时直接查这里）</h3>";
-$stmt = $pdo->query("SELECT id, username, student_code, name, role, password FROM users ORDER BY role DESC, student_code ASC");
+$stmt = $pdo->query("SELECT id, name, role, password FROM users ORDER BY role DESC, id ASC");
 $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 if ($rows) {
-    echo "<table><tr><th>id</th><th>username</th><th>student_code</th><th>name</th><th>role</th><th>密码(纯明文)</th></tr>";
+    echo "<table><tr><th>id (学号/工号)</th><th>name (姓名)</th><th>role (角色)</th><th>密码(纯明文)</th></tr>";
     foreach ($rows as $r) {
-        echo "<tr><td>{$r['id']}</td><td>{$r['username']}</td><td>{$r['student_code']}</td><td>{$r['name']}</td><td class='ok'>{$r['role']}</td><td style='color:#2563eb;font-weight:bold;'>{$r['password']}</td></tr>";
+        echo "<tr><td>{$r['id']}</td><td>{$r['name']}</td><td class='ok'>{$r['role']}</td><td style='color:#2563eb;font-weight:bold;'>{$r['password']}</td></tr>";
     }
     echo "</table><p class='ok'>✅ users 表共 " . count($rows) . " 条记录</p>";
 } else {

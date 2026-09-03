@@ -97,7 +97,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'peek_db_users') {
         echo json_encode(['dbConnected' => false, 'error' => '❌ 数据库连接失败']);
         exit;
     }
-    $stmt = $tempPdo->query("SELECT id, username, student_code, name, role, password, updated_at FROM users");
+    $stmt = $tempPdo->query("SELECT id, name, role, password, updated_at FROM users");
     $allUsers = $stmt->fetchAll(PDO::FETCH_ASSOC);
     echo json_encode([
         'dbConnected' => true,
@@ -156,18 +156,15 @@ function verifyTeacherSession($userId, $token, $pdo) {
     if (empty($userId)) return false;
     if (!$pdo) return false;
     // 1. 验证用户在数据库中的角色是否为 teacher
-    $stmtAuth = $pdo->prepare("SELECT id, username, student_code, role FROM `users` WHERE (`id` = :u1 OR `username` = :u2 OR `student_code` = :u3) AND `role` = 'teacher' LIMIT 1");
-    $stmtAuth->execute([':u1' => $userId, ':u2' => $userId, ':u3' => $userId]);
+    $stmtAuth = $pdo->prepare("SELECT id, role FROM `users` WHERE `id` = :u1 AND `role` = 'teacher' LIMIT 1");
+    $stmtAuth->execute([':u1' => $userId]);
     $teacherRow = $stmtAuth->fetch();
     if (!$teacherRow) {
         return false;
     }
     // 2. 检查会话 Token
     $uId = $teacherRow['id'];
-    $uCode = $teacherRow['student_code'];
-    $uName = $teacherRow['username'];
-    
-    $checkKeys = array_unique(array_filter(['sess_' . $userId, 'sess_' . $uId, 'sess_' . $uCode, 'sess_' . $uName]));
+    $checkKeys = array_unique(array_filter(['sess_' . $userId, 'sess_' . $uId]));
     if (!empty($checkKeys)) {
         $placeholders = implode(',', array_fill(0, count($checkKeys), '?'));
         $stmtSess = $pdo->prepare("SELECT meta_value FROM global_meta WHERE meta_key IN ($placeholders)");
@@ -194,18 +191,18 @@ if (!function_exists('ensureTeacherSeedAccount')) {
     function ensureTeacherSeedAccount($pdo) {
         if (!$pdo) return;
         try {
-            $stmt = $pdo->prepare("SELECT id, password, role FROM users WHERE id = '1001' OR username = '1001' OR student_code = '1001' LIMIT 1");
+            $stmt = $pdo->prepare("SELECT id, password, role FROM users WHERE id = '1001' LIMIT 1");
             $stmt->execute();
             $tRow = $stmt->fetch(PDO::FETCH_ASSOC);
             if (!$tRow) {
                 $seedHash = password_hash('123', PASSWORD_DEFAULT);
-                $stmtIns = $pdo->prepare("INSERT INTO users (id, username, student_code, name, password, role) VALUES ('1001', '1001', '1001', '指导教师', :pwd, 'teacher')");
+                $stmtIns = $pdo->prepare("INSERT INTO users (id, name, password, role) VALUES ('1001', '指导教师', :pwd, 'teacher')");
                 $stmtIns->bindValue(':pwd', $seedHash);
                 $stmtIns->execute();
             } else {
                 // 仅确保角色为 teacher，绝对不覆盖教师已修改的自定义密码！
                 if ($tRow['role'] !== 'teacher') {
-                    $pdo->exec("UPDATE users SET role = 'teacher' WHERE id = '1001' OR username = '1001'");
+                    $pdo->exec("UPDATE users SET role = 'teacher' WHERE id = '1001'");
                 }
             }
         } catch (Exception $e) {}
@@ -225,28 +222,25 @@ function autoSyncAllUsersFromMeta($pdo) {
             $gUsers = $gm['users'] ?? [];
             if (!is_array($gUsers) || empty($gUsers)) return;
 
-            $stmtUpsert = $pdo->prepare("INSERT INTO users (id, username, student_code, name, password, role)
-                VALUES (:id, :u, :sc, :nm, :p, :r)
-                ON DUPLICATE KEY UPDATE name = VALUES(name), student_code = VALUES(student_code), username = VALUES(username), role = VALUES(role)");
+            $stmtUpsert = $pdo->prepare("INSERT INTO users (id, name, password, role)
+                VALUES (:id, :nm, :p, :r)
+                ON DUPLICATE KEY UPDATE name = VALUES(name), role = VALUES(role)");
 
             foreach ($gUsers as $gu) {
-                $code = trim($gu['studentCode'] ?? ($gu['username'] ?? ($gu['id'] ?? '')));
-                if (empty($code)) continue;
-                $uid = trim($gu['id'] ?? $code);
-                $uname = trim($gu['username'] ?? $code);
-                $ucode = trim($gu['studentCode'] ?? $code);
-                $unick = trim($gu['name'] ?? $code);
+                $uid = trim($gu['id'] ?? ($gu['studentCode'] ?? ($gu['username'] ?? '')));
+                if (empty($uid)) continue;
+                $unick = trim($gu['name'] ?? $uid);
                 $urole = trim($gu['role'] ?? 'student');
                 $rawPwd = trim($gu['password'] ?? '');
                 $upwd = !empty($rawPwd) ? $rawPwd : password_hash('123', PASSWORD_DEFAULT);
 
-                $stmtCheck = $pdo->prepare("SELECT id, password FROM users WHERE student_code = :c1 OR username = :c2 OR id = :c3 LIMIT 1");
-                $stmtCheck->execute([':c1' => $code, ':c2' => $code, ':c3' => $uid]);
+                $stmtCheck = $pdo->prepare("SELECT id, password FROM users WHERE id = :id LIMIT 1");
+                $stmtCheck->execute([':id' => $uid]);
                 $existRow = $stmtCheck->fetch();
 
                 if ($existRow) {
-                    $stmtUpdate = $pdo->prepare("UPDATE users SET name = :nm, student_code = :sc, username = :u, role = :r WHERE id = :id");
-                    $stmtUpdate->execute([':nm' => $unick, ':sc' => $ucode, ':u' => $uname, ':r' => $urole, ':id' => $existRow['id']]);
+                    $stmtUpdate = $pdo->prepare("UPDATE users SET name = :nm, role = :r WHERE id = :id");
+                    $stmtUpdate->execute([':nm' => $unick, ':r' => $urole, ':id' => $existRow['id']]);
                 } else {
                     $stmtUpsert->execute([
                         ':id' => $uid,
@@ -340,8 +334,8 @@ if ($action === 'login' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $dbPwd = '';
 
     if ($pdo) {
-        $stmt = $pdo->prepare("SELECT * FROM users WHERE username = :acc1 OR student_code = :acc2 OR id = :acc3 LIMIT 1");
-        $stmt->execute([':acc1' => $account, ':acc2' => $account, ':acc3' => $account]);
+        $stmt = $pdo->prepare("SELECT * FROM users WHERE id = :acc LIMIT 1");
+        $stmt->execute([':acc' => $account]);
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
         if (!$row) {
             // 🛡️ 自愈回退：如果 users 表中尚未包含该学生，自动从 main_meta 检索并就地同步入库
@@ -357,22 +351,18 @@ if ($action === 'login' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                     if ($uId === $queryAcc) {
                         $userExists = true;
                         $dbPwd = $gu['password'] ?? '123';
-                        $uId = $gu['id'] ?? ('u_student_' . round(microtime(true) * 1000));
+                        $uId = $gu['id'] ?? $account;
                         $row = [
                             'id' => $uId,
-                            'username' => $gu['username'] ?? $account,
-                            'student_code' => $gu['studentCode'] ?? ($gu['username'] ?? $account),
                             'name' => $gu['name'] ?? $account,
                             'password' => $dbPwd,
                             'role' => $gu['role'] ?? 'student'
                         ];
                         $plainIns = (strpos($dbPwd, '$2y$') === 0 || strpos($dbPwd, '$2b$') === 0) ? $dbPwd : password_hash(!empty($dbPwd) ? $dbPwd : '123', PASSWORD_DEFAULT);
                         try {
-                            $stmtIns = $pdo->prepare("INSERT INTO users (id, username, student_code, name, password, role) VALUES (:id, :u, :sc, :nm, :p, :r) ON DUPLICATE KEY UPDATE name=VALUES(name), student_code=VALUES(student_code), role=VALUES(role)");
+                            $stmtIns = $pdo->prepare("INSERT INTO users (id, name, password, role) VALUES (:id, :nm, :p, :r) ON DUPLICATE KEY UPDATE name=VALUES(name), role=VALUES(role)");
                             $stmtIns->execute([
                                 ':id' => $row['id'],
-                                ':u' => $row['username'],
-                                ':sc' => $row['student_code'],
                                 ':nm' => $row['name'],
                                 ':p' => $plainIns,
                                 ':r' => $row['role']
@@ -444,16 +434,12 @@ if ($action === 'login' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         $token = 'jwt_jizhi_' . bin2hex(random_bytes(16)) . '_' . time();
         if ($pdo) {
             $uId = $foundUser['id'] ?? '';
-            $uName = $foundUser['username'] ?? '';
-            $uCode = $foundUser['student_code'] ?? '';
             try {
-                $stmtUpUserSess = $pdo->prepare("UPDATE users SET active_session_id = :tok WHERE id = :uid OR student_code = :sc OR username = :un");
-                $stmtUpUserSess->execute([':tok' => $token, ':uid' => $uId, ':sc' => $uCode ?: $uId, ':un' => $uName ?: $uId]);
+                $stmtUpUserSess = $pdo->prepare("UPDATE users SET active_session_id = :tok WHERE id = :uid");
+                $stmtUpUserSess->execute([':tok' => $token, ':uid' => $uId]);
             } catch (Exception $e) {}
             $stmtSess = $pdo->prepare("INSERT INTO global_meta (meta_key, meta_value) VALUES (:k, :v) ON DUPLICATE KEY UPDATE meta_value = :v2");
             if ($uId) $stmtSess->execute([':k' => 'sess_' . $uId, ':v' => $token, ':v2' => $token]);
-            if ($uName && $uName !== $uId) $stmtSess->execute([':k' => 'sess_' . $uName, ':v' => $token, ':v2' => $token]);
-            if ($uCode && $uCode !== $uId && $uCode !== $uName) $stmtSess->execute([':k' => 'sess_' . $uCode, ':v' => $token, ':v2' => $token]);
         }
         unset($foundUser['password']); // 安全铁律：绝不向前端返回密码
         echo json_encode([
@@ -1180,14 +1166,14 @@ if ($action === 'change_password' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($pdo) {
             $code = trim($account ?: $userId);
 
-            // 统一以工号/学号作为唯一辨认标志查询用户
-            $stmt = $pdo->prepare("SELECT * FROM users WHERE student_code = :c1 OR username = :c2 OR id = :c3 LIMIT 1");
-            $stmt->execute([':c1' => $code, ':c2' => $code, ':c3' => $code]);
+            // 统一以账号 ID（学号/工号）作为唯一标识查询用户
+            $stmt = $pdo->prepare("SELECT * FROM users WHERE id = :id LIMIT 1");
+            $stmt->execute([':id' => $code]);
             $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
             // 种子保障（仅在完全无记录时初始写入，绝不覆盖已有记录与密码）
             if (!$user && $code === '1001') {
-                $stmtInsT = $pdo->prepare("INSERT IGNORE INTO users (id, username, student_code, name, password, role) VALUES ('1001', '1001', '1001', '老师', '123', 'teacher')");
+                $stmtInsT = $pdo->prepare("INSERT IGNORE INTO users (id, name, password, role) VALUES ('1001', '老师', '123', 'teacher')");
                 $stmtInsT->execute();
                 $stmtRe = $pdo->prepare("SELECT * FROM users WHERE id = '1001' LIMIT 1");
                 $stmtRe->execute();
@@ -1203,13 +1189,11 @@ if ($action === 'change_password' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                     $gm = json_decode($metaRow['meta_value'], true) ?: [];
                     $gUsers = $gm['users'] ?? [];
                     foreach ($gUsers as $gu) {
-                        $uAcc = strtolower(trim($gu['studentCode'] ?? ($gu['username'] ?? ($gu['id'] ?? ''))));
+                        $uAcc = strtolower(trim($gu['id'] ?? ($gu['studentCode'] ?? ($gu['username'] ?? ''))));
                         $qAcc = strtolower($code);
                         if ($uAcc === $qAcc) {
                             $user = [
-                                'id' => $gu['studentCode'] ?? ($gu['username'] ?? ($gu['id'] ?? $code)),
-                                'username' => $gu['username'] ?? $code,
-                                'student_code' => $gu['studentCode'] ?? ($gu['username'] ?? $code),
+                                'id' => $gu['id'] ?? $code,
                                 'name' => $gu['name'] ?? $code,
                                 'password' => $gu['password'] ?? '123',
                                 'role' => $gu['role'] ?? 'student'
@@ -1251,12 +1235,10 @@ if ($action === 'change_password' && $_SERVER['REQUEST_METHOD'] === 'POST') {
             
             // 统一以工号/学号存盘更新 users 表中所有记录（密码存 bcrypt 哈希）
             $hashNew = password_hash($cleanNew, PASSWORD_DEFAULT);
-            $stmtUpdate = $pdo->prepare("UPDATE users SET password = :p WHERE student_code = :c1 OR username = :c2 OR id = :c3");
+            $stmtUpdate = $pdo->prepare("UPDATE users SET password = :p WHERE id = :id");
             $stmtUpdate->execute([
                 ':p' => $hashNew,
-                ':c1' => $code,
-                ':c2' => $code,
-                ':c3' => $code
+                ':id' => $code
             ]);
 
             // 同步更新 global_meta 的 main_meta
@@ -1268,7 +1250,7 @@ if ($action === 'change_password' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                     $gm = json_decode($metaRow2['meta_value'], true) ?: [];
                     if (isset($gm['users']) && is_array($gm['users'])) {
                         foreach ($gm['users'] as &$gu) {
-                            $gSc = $gu['studentCode'] ?? ($gu['username'] ?? ($gu['id'] ?? ''));
+                            $gSc = $gu['id'] ?? ($gu['studentCode'] ?? ($gu['username'] ?? ''));
                             if (strtolower(trim($gSc)) === strtolower(trim($code))) {
                                 $gu['password'] = $hashNew;
                             }
@@ -1313,8 +1295,8 @@ if ($action === 'reset_student_password' && $_SERVER['REQUEST_METHOD'] === 'POST
     }
 
     if ($pdo) {
-        $stmt = $pdo->prepare("SELECT * FROM users WHERE username = :acc1 OR student_code = :acc2 OR id = :acc3 LIMIT 1");
-        $stmt->execute([':acc1' => $account, ':acc2' => $account, ':acc3' => $account]);
+        $stmt = $pdo->prepare("SELECT * FROM users WHERE id = :acc LIMIT 1");
+        $stmt->execute([':acc' => $account]);
         $user = $stmt->fetch(PDO::FETCH_ASSOC);
         if (!$user) {
             echo json_encode(['success' => false, 'message' => '未找到该学生账号']);
@@ -1334,7 +1316,7 @@ if ($action === 'reset_student_password' && $_SERVER['REQUEST_METHOD'] === 'POST
             $gm = json_decode($metaRow['meta_value'], true) ?: [];
             if (isset($gm['users']) && is_array($gm['users'])) {
                 foreach ($gm['users'] as &$gu) {
-                    if (($gu['studentCode'] ?? ($gu['username'] ?? ($gu['id'] ?? ''))) === $account) {
+                    if (($gu['id'] ?? ($gu['studentCode'] ?? ($gu['username'] ?? ''))) === $account) {
                         $gu['password'] = $hashReset;
                     }
                 }
@@ -1511,15 +1493,13 @@ if ($action === 'get_global_meta') {
                 }
 
                 $aggregatedUsers = [];
-                $stmtU = $pdo->query("SELECT id, username, name, role, student_code, avatar, class_id, group_id FROM users");
+                $stmtU = $pdo->query("SELECT id, name, role, avatar, class_id, group_id FROM users");
                 if ($stmtU) {
                     while ($ur = $stmtU->fetch(PDO::FETCH_ASSOC)) {
                         $aggregatedUsers[] = [
                             'id' => $ur['id'],
-                            'username' => $ur['username'],
                             'name' => $ur['name'],
                             'role' => $ur['role'],
-                            'studentCode' => $ur['student_code'] ?: $ur['username'],
                             'avatar' => $ur['avatar'] ?: '👤',
                             'classId' => $ur['class_id'] ?? '',
                             'groupId' => $ur['group_id'] ?? ''
@@ -1797,19 +1777,18 @@ if ($action === 'save_global_meta' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 $stmt->execute([':val' => $cleanJson, ':val2' => $cleanJson]);
 
                 // 🛡️ 实体表实时入库：将所有用户/学生 100% 同步 upsert 至 users 实体表，确保异地设备登录 0 延迟秒级识别
+                // 🛡️ 实体表实时入库：将所有用户/学生 100% 同步 upsert 至 users 实体表，确保异地设备登录 0 延迟秒级识别
                 if (isset($decoded['users']) && is_array($decoded['users'])) {
-                    $stmtUserUpsert = $pdo->prepare("INSERT INTO `users` (`id`, `username`, `student_code`, `name`, `password`, `role`)
-                        VALUES (:id, :u, :sc, :nm, :p, :r)
-                        ON DUPLICATE KEY UPDATE `name`=VALUES(`name`), `student_code`=VALUES(`student_code`), `username`=VALUES(`username`), `role`=VALUES(`role`)");
+                    $stmtUserUpsert = $pdo->prepare("INSERT INTO `users` (`id`, `name`, `password`, `role`)
+                        VALUES (:id, :nm, :p, :r)
+                        ON DUPLICATE KEY UPDATE `name`=VALUES(`name`), `password`=VALUES(`password`), `role`=VALUES(`role`)");
                     foreach ($decoded['users'] as $usr) {
-                        $uid = isset($usr['id']) ? $usr['id'] : ('u_student_' . uniqid());
-                        $uname = isset($usr['username']) ? $usr['username'] : (isset($usr['studentCode']) ? $usr['studentCode'] : $uid);
-                        $ucode = isset($usr['studentCode']) ? $usr['studentCode'] : (isset($usr['username']) ? $usr['username'] : $uid);
-                        $unick = isset($usr['name']) ? $usr['name'] : $uname;
+                        $uid = isset($usr['id']) ? $usr['id'] : (isset($usr['studentCode']) ? $usr['studentCode'] : ('u_student_' . uniqid()));
+                        $unick = isset($usr['name']) ? $usr['name'] : $uid;
                         $upwd = isset($usr['password']) ? $usr['password'] : password_hash('123', PASSWORD_DEFAULT);
                         $urole = isset($usr['role']) ? $usr['role'] : 'student';
                         $stmtUserUpsert->execute([
-                            ':id' => $uid, ':u' => $uname, ':sc' => $ucode, ':nm' => $unick, ':p' => $upwd, ':r' => $urole
+                            ':id' => $uid, ':nm' => $unick, ':p' => $upwd, ':r' => $urole
                         ]);
                     }
                 }
@@ -2922,8 +2901,8 @@ if ($pdo) {
     $reqSessToken = isset($_GET['sessToken']) ? trim($_GET['sessToken']) : '';
     if (!empty($reqUserId) && !empty($reqSessToken)) {
         // 1. 优先比对 users 表活跃会话
-        $stmtUserSess = $pdo->prepare("SELECT active_session_id FROM users WHERE id = :u1 OR student_code = :u2 OR username = :u3 LIMIT 1");
-        $stmtUserSess->execute([':u1' => $reqUserId, ':u2' => $reqUserId, ':u3' => $reqUserId]);
+        $stmtUserSess = $pdo->prepare("SELECT active_session_id FROM users WHERE id = :u1 LIMIT 1");
+        $stmtUserSess->execute([':u1' => $reqUserId]);
         $uSessRow = $stmtUserSess->fetch(PDO::FETCH_ASSOC);
         if ($uSessRow && !empty($uSessRow['active_session_id'])) {
             if ($uSessRow['active_session_id'] !== $reqSessToken) {
