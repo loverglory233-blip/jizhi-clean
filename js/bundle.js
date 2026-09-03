@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260904_v2188
+ * Version: 20260904_v2189
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260904_v2188';
+  const APP_VERSION = '20260904_v2189';
   const APP_BUILD_DATE = '2026-09-04';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -4984,14 +4984,30 @@
               state.isFinalSubmitted = !!currentGroupData.isFinalSubmitted;
             }
 
-            // ⚡ 只要服务端返回了最新组态数据，立即刷新教师监控视图，毫秒级呈现学生输入与状态！
-            const layout = container.querySelector('.teacher-portal-layout');
-            const curScroll = layout ? layout.scrollTop : 0;
-            state._teacherScrollTop = curScroll;
-            renderTeacherPortal(container, authManager, state, onLogout);
-            const nextLayout = container.querySelector('.teacher-portal-layout');
-            if (nextLayout) nextLayout.scrollTop = curScroll;
-            return;
+            // ⚡ 仅当数据指纹真实发生变化时，才刷新监控视图
+            const newFingerprint = JSON.stringify({
+              cStage: state.currentStage,
+              s1Len: (state.stage1?.proposals || []).length,
+              s1Title: state.stage1?.mergedTitle,
+              s1Votes: Object.keys(state.stage1?.votes || {}).length,
+              s1Conf: Object.keys(state.stage1?.contract?.confirmedMembers || {}).length,
+              s2Len: (state.stage2?.unifiedContent || '').length,
+              s3Len: (state.stage3?.feedbackItems || []).length,
+              chat1: (state.chatLogs?.stage1 || []).length,
+              chat2: (state.chatLogs?.stage2 || []).length,
+              chat3: (state.chatLogs?.stage3 || []).length,
+              panorama: getPanoDigest(state.monitorPanorama)
+            });
+
+            if (newFingerprint !== oldFingerprint || padTextChanged) {
+              const layout = container.querySelector('.teacher-portal-layout');
+              const curScroll = layout ? layout.scrollTop : 0;
+              state._teacherScrollTop = curScroll;
+              renderTeacherPortal(container, authManager, state, onLogout);
+              const nextLayout = container.querySelector('.teacher-portal-layout');
+              if (nextLayout) nextLayout.scrollTop = curScroll;
+              return;
+            }
           } else if (padTextChanged) {
             const layout = container.querySelector('.teacher-portal-layout');
             const curScroll = layout ? layout.scrollTop : 0;
@@ -5065,6 +5081,10 @@
     window._teacherPortalSyncTimer = setTimeout(teacherPullAndRefresh, tInitInterval);
 
     const allStudents = allUsers.filter(u => u.role !== 'teacher');
+
+    // 🛡️ 深度单例保持：提取并保留当前已就绪的 Etherpad iframe，严禁重绘导致反复重载
+    const prevFrame2 = container.querySelector('#teacher-stage2-etherpad-frame');
+    const prevFrame3 = container.querySelector('#teacher-stage3-etherpad-frame');
 
     container.innerHTML = `
       <div class="teacher-portal-layout" id="teacher-portal-layout" style="height:100vh; background:#f0f4f9; padding:0; display:flex; flex-direction:column;">
@@ -6222,7 +6242,7 @@
                                 </div>
                                 <div style="position:relative; flex:1; width:100%; height:100%; min-height:520px; display:flex;">
                                   <div class="etherpad-readonly-shield" style="position:absolute; inset:0; z-index:99; background:transparent; cursor:default; pointer-events:auto;" title="🔒 只读查阅模式 (已锁定禁止编辑)"></div>
-                                  <iframe id="teacher-stage2-etherpad-frame" src="/p/${encodeURIComponent(targetPad)}?userName=${encodeURIComponent('教师监控')}&userColor=%237c3aed&showControls=false&showChat=false&showLineNumbers=true&lang=zh-hans&readOnly=true" style="flex:1; width:100%; height:100%; min-height:520px; border:none; display:block; background:#ffffff;" title="教师端实时写作同屏镜像 (只读)"></iframe>
+                                  <iframe id="teacher-stage2-etherpad-frame" data-pad="${targetPad}" src="/p/${encodeURIComponent(targetPad)}?userName=${encodeURIComponent('教师监控')}&userColor=%237c3aed&showControls=false&showChat=false&showLineNumbers=true&lang=zh-hans&readOnly=true" style="flex:1; width:100%; height:100%; min-height:520px; border:none; display:block; background:#ffffff;" title="教师端实时写作同屏镜像 (只读)"></iframe>
                                 </div>
                               </div>
                             `;
@@ -6316,7 +6336,7 @@
                                   </div>
                                   <div style="position:relative; flex:1; width:100%; height:100%; min-height:520px; display:flex;">
                                     <div class="etherpad-readonly-shield" style="position:absolute; inset:0; z-index:99; background:transparent; cursor:default; pointer-events:auto;" title="🔒 只读查阅模式 (已锁定禁止编辑)"></div>
-                                    <iframe id="teacher-stage3-etherpad-frame" src="/p/${encodeURIComponent(targetPad)}?userName=${encodeURIComponent('教师监控')}&userColor=%237c3aed&showControls=false&showChat=false&showLineNumbers=true&lang=zh-hans&readOnly=true" style="flex:1; width:100%; height:100%; min-height:520px; border:none; display:block; background:#ffffff;" title="教师端论文终稿同屏镜像 (只读)"></iframe>
+                                    <iframe id="teacher-stage3-etherpad-frame" data-pad="${targetPad}" src="/p/${encodeURIComponent(targetPad)}?userName=${encodeURIComponent('教师监控')}&userColor=%237c3aed&showControls=false&showChat=false&showLineNumbers=true&lang=zh-hans&readOnly=true" style="flex:1; width:100%; height:100%; min-height:520px; border:none; display:block; background:#ffffff;" title="教师端论文终稿同屏镜像 (只读)"></iframe>
                                   </div>
                                 </div>
                               `;
@@ -6426,11 +6446,24 @@
     container.dataset.renderedS3Tab = currentS3Tab;
     container.dataset.renderedTab = activeTab;
 
-    // 🔒 确保教师端无论是阶段二还是阶段三的 Etherpad iframe，均被 DOM 内核层权威锁定为只读
+    // 🔒 确保教师端无论是阶段二还是阶段三的 Etherpad iframe 保持单例无缝复用与权威只读锁定
     const tFrame2 = container.querySelector('#teacher-stage2-etherpad-frame');
-    if (tFrame2) enforceEtherpadReadonly(tFrame2);
+    if (tFrame2) {
+      if (prevFrame2 && prevFrame2.dataset.pad && prevFrame2.dataset.pad === tFrame2.dataset.pad) {
+        tFrame2.replaceWith(prevFrame2);
+      } else {
+        enforceEtherpadReadonly(tFrame2);
+      }
+    }
+
     const tFrame3 = container.querySelector('#teacher-stage3-etherpad-frame');
-    if (tFrame3) enforceEtherpadReadonly(tFrame3);
+    if (tFrame3) {
+      if (prevFrame3 && prevFrame3.dataset.pad && prevFrame3.dataset.pad === tFrame3.dataset.pad) {
+        tFrame3.replaceWith(prevFrame3);
+      } else {
+        enforceEtherpadReadonly(tFrame3);
+      }
+    }
 
     const btnLogout = container.querySelector('#btn-logout');
     if (btnLogout) btnLogout.addEventListener('click', () => onLogout());
