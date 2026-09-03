@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260903_v2070";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260903_v2070";
-import { callCozeAgentAPI } from "./agents.js?v=20260903_v2070";
-import { AuthManager } from "./auth.js?v=20260903_v2070";
-import { CloudSyncEngine } from "./sync.js?v=20260903_v2070";
-import { renderLoginView } from "./login.js?v=20260903_v2070";
-import { renderTeacherPortal } from "./teacher.js?v=20260903_v2070";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260903_v2070";
+} from "./constants.js?v=20260903_v2075";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260903_v2075";
+import { callCozeAgentAPI } from "./agents.js?v=20260903_v2075";
+import { AuthManager } from "./auth.js?v=20260903_v2075";
+import { CloudSyncEngine } from "./sync.js?v=20260903_v2075";
+import { renderLoginView } from "./login.js?v=20260903_v2075";
+import { renderTeacherPortal } from "./teacher.js?v=20260903_v2075";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260903_v2075";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260903_v2070";
+} from "./editor.js?v=20260903_v2075";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -3673,19 +3673,21 @@ ${instructionSection}
     const topic = (this.state.stage1 && this.state.stage1.mergedTitle) ? this.state.stage1.mergedTitle : '本组课题';
     const rawDoc = (s2.unifiedContent || '').replace(/<[^>]*>/g, '').trim();
 
-    // 责任编辑发言提炼研讨共识并交棒（严禁套话，紧扣自查瓶颈、研讨与正文实质）
+    // 责任编辑发言提炼研讨共识并交棒（严禁套话，紧扣自查瓶颈、研讨与正文实质，凡学生自查痛点全部点出）
     const managingPrompt = `小组成员已在讨论区就论文《${topic}》的前序修改方向展开了半程研讨。
-【组员自查打卡反映的自查瓶颈】: ${bottlenecks}
-【组员一句话修改聚焦】: ${focusIssues}
+【组员自查打卡反映的全部瓶颈与脱节痛点】: ${bottlenecks}
+【组员自查聚焦关注点】: ${focusIssues}
+【组员指出的脱节章节】: ${transIssues}
 【组内关于修改思路的讨论记录】:
 ${chatSnippet}
 【正文草稿】:
 ${rawDoc || '（小组成员正在协作起草正文草稿）'}
 
-请作为责任编辑，发表 90~120 字的【半程研讨共识小结与交棒】：
-① 明确呼应小组成员在自查与研讨中聚焦的痛点（如：${focusIssues.slice(0, 50)}），提炼出 1~2 个实质性的修改共识点（严禁假大空套话，严禁出现“分工”字眼）；
-② 隆重引出审稿专家下发《二审修正清单》，指导全组对齐落实！
-（纯自然语言，90~120字，严禁输出代码块）`;
+请作为责任编辑，发表 120~160 字的【半程研讨共识小结与交棒】：
+① 全面、客观梳理并点明小组成员在自查中汇报的各项脱节痛点（凡是学生汇报的痛点如：${focusIssues}，均须逐一说明，绝不遗漏隐瞒）；
+② 提炼总结全组在讨论区商定达成的具体修改共识要点（严禁假大空套话，【绝对严禁出现“分工”字眼】）；
+③ 隆重引出审稿专家通读全篇下发《二审修正清单》，指导全组对齐落实！
+（纯自然语言输出，120~160字，严禁输出代码块）`;
 
     try {
       const taskType = this.getCurrentTaskType();
@@ -3704,7 +3706,7 @@ ${rawDoc || '（小组成员正在协作起草正文草稿）'}
       const respManaging = await callCozeAgentAPI('managingEditor', managingPrompt, { stage: 'stage2', topic, chatSnippet, bottlenecks, focusIssues, taskType });
       let managingText = (respManaging && respManaging.trim().length > 0) 
         ? respManaging.trim() 
-        : `🤝 【责任编辑·研讨共识小结】：结合大家在自查打卡与讨论区指出的【${focusIssues.slice(0, 30)}】等核心诉求，全组已在研究问题聚焦与方法设计细化上形成了明确共识。👉 接下来正式有请 @审稿编辑 结合全篇草稿为大家下发具体的《二审修正清单》，指导全组深入修改与对齐落实！`;
+        : `🤝 【责任编辑·研讨共识小结】：结合大家在自查打卡与讨论区指出的【${focusIssues.slice(0, 40)}】等全部核心诉求，全组已在研究问题聚焦与方法设计细化上形成了明确共识。👉 接下来正式有请 @审稿编辑 结合全篇草稿为大家下发具体的《二审修正清单》，指导全组深入修改与对齐落实！`;
       if (!managingText.startsWith('🤝')) managingText = `🤝 【责任编辑·研讨共识小结】：${managingText}`;
 
       const msgManaging = {
@@ -3731,23 +3733,27 @@ ${rawDoc || '（小组成员正在协作起草正文草稿）'}
       // 审稿专家结合自查瓶颈、讨论与正文下发【诊断问题 + 改进建议】双结构《二审修正清单》
       const reviewingPrompt = `${genreDesc}
 
-针对课题《${topic}》，结合小组成员自查瓶颈【${bottlenecks}】、聚焦关注点【${focusIssues}】及下方正文草稿，作为资深审稿编辑给出包含【诊断问题 + 改进建议】双结构的学术质检《二审修正清单》（150~180字）：
+针对课题《${topic}》，结合小组成员自查瓶颈【${bottlenecks}】、聚焦关注点【${focusIssues}】及下方正文草稿，作为资深审稿编辑给出包含【诊断问题 + 改进建议】双结构的学术质检《二审修正清单》（240~320字）：
 【正文草稿参考】:
 ${rawDoc || '（小组成员已完成初版主体框架起草）'}
 【小组成员商定的修改思路】:
 ${chatSnippet}
 
-请紧扣上述文体考查维度，严格按以下 3 个维度下发《二审修正清单》（每项必须同时包含“诊断问题”与“改进建议”，严禁出现“分工”字眼）：
-①【核心概念对齐 / 目标立论】
-- 诊断问题：结合引言与核心论述，指出具体概念界定不清、目标脱节或史料脉络不清之处；
-- 改进建议：给出具体的学术概念统领与问题锚定要求；
-②【主体方法 / 活动设计深化】
-- 诊断问题：结合组员自查瓶颈（${bottlenecks}），指出正文中具体缺失的操作化步骤、活动设计闭环或理论演变逻辑；
-- 改进建议：给出具体的补全与深化建议；
-③【行文衔接规范】
-- 诊断问题：结合自查脱节章节（${transIssues}），指出具体逻辑生硬或口语化表达；
-- 改进建议：给出具体的润色与过渡规范要求。
-末尾必须明确提示：“请大家围绕清单协同商定修改对策与落实方案，讨论差不多后点击下方【📝 讨论差不多了？让审稿编辑总结】！”（纯自然语言，150~180字）`;
+请紧扣上述文体考查维度，严格按以下 4 个维度全面下发《二审修正清单》（每项必须同时包含“诊断问题”与“改进建议”，【绝对严禁出现“分工”字眼】）：
+①【核心概念统领与问题链闭环】
+- 诊断问题：指出开头提出的核心问题是否在全文被贯彻，是否存在概念界定不清或逻辑链脱节；
+- 改进建议：给出具体的概念统领与问题锚定要求；
+②【主体方法 / 活动设计操作化与论据深度】
+- 诊断问题：结合自查瓶颈（${bottlenecks}），指出正文中具体缺失的操作化步骤、实证支撑薄弱或活动设计闭环问题；
+- 改进建议：给出具体的补全与深化对策；
+③【章节衔接与全篇逻辑贯通】
+- 诊断问题：结合自查脱节章节（${transIssues}），指出具体章节过渡生硬、前后论据割裂之处；
+- 改进建议：给出具体的承上启下与衔接过渡要求；
+④【学术语体口径与学术规范】
+- 诊断问题：指出正文中的口语化表达、术语不统一或引文格式不规范之处；
+- 改进建议：给出全篇学术语体统一规范要求。
+
+末尾必须明确提示：“请大家围绕清单在讨论区协同商定修改对策与落实方案，商定差不多后点击下方【📝 讨论差不多了？让审稿编辑总结】！”（纯自然语言输出，240~320字）`;
 
       const respReviewing = await callCozeAgentAPI('reviewingEditor', reviewingPrompt, { stage: 'stage2', topic, actualDoc: rawDoc, bottlenecks, focusIssues, taskType });
       let reviewingText = '';
@@ -4024,14 +4030,14 @@ ${chatSnippet}
 ${chatSnippet}
 
 请作为答辩委员会主席（中间委员），发表【答辩审阅定案与顺推裁决】：
-1. 【提炼答辩共识】：精准提炼全组成员达成的核心辩护陈述与修改方案要点（用于回填归档）；
+1. 【提炼答辩共识与修改承诺】：精准提炼全组成员达成的核心辩护陈述、理论/实证论据与终稿具体修改对策（用于回填归档，120~180字）；
 2. 【委员会定案与推进】：
    ${remainingOppCount > 0
      ? `① 宣布【${inqLabel}】辩护有效并予以采纳，答辩陈述已定案回填入库；\n② 【单题顺推】：顺承引导全组将焦点转向【${nextLabel}】展开深入研讨，并给出 1 条启发性思路点拨！`
      : `① 宣布全部质询辩护完毕且均获委员会全票认可，已全部定案；\n② 发表答辩终审裁决总结，祝贺团队圆满通过学术答辩，提醒全组点击左侧【修改论文终稿】面板，将答辩修改落实到正文中准备最终归档！`}
 请按以下格式输出：
-答辩陈述：[提取的 60~90 字精准答辩词，用于回填左侧矩阵]
-主席发言：[100~130 字自然语言点评与顺推裁决]`;
+答辩陈述：[提取 120~180 字逻辑严密、论据充分的正式答辩词与终稿修改对策，用于回填左侧矩阵]
+主席发言：[120~160 字自然语言点评与顺推裁决]`;
 
     // 🌟 挂载中间委员正在提炼共识思考气泡
     this.state.activeAgentAnalyzing = {
@@ -4289,16 +4295,28 @@ ${chatSnippet}
 
         const propPrompt = `${genreDesc}
 
-针对小组论文《${topic}》，请通读下方【小组当前真实正文草稿】全文，作为答辩委员会正方评审教授发表 130~150 字的肯定支持评审意见：
-【基于真实正文与文体特征的动态赞赏原则】：通读正文草稿全文，结合上述文体核心维度，根据本篇论文的真实闪光点，动态灵活挑选 2~3 个最契合的核心亮点，紧扣具体学科与章节展开具体赞赏，为全组提供充实的正面论据支架！纯自然语言输出，130~150字。`;
+针对小组论文《${topic}》，请通读下方【小组当前真实正文草稿】全文，作为答辩委员会正方评审教授发表 180~220 字的肯定支持评审意见：
+必须清晰列出 3 大维度的肯定与立论支撑：
+①【选题立意与问题切口创新】：高度肯定本课题针对真实教学痛点提出的新颖切入点与研究价值；
+②【教学设计与实践落地价值】：高度肯定正文在教学活动、课例设计或操作化步骤中的实践推广价值；
+③【研究方法科学性与论据充分性】：高度肯定本研究所采用的方法论框架与数据/理论论据支撑。
+为全组提供充实坚定的正面辩护论据支架！纯自然语言输出，180~220字。`;
 
         const oppPrompt = `${genreDesc}
 
-针对小组论文《${topic}》，请通读下方【小组当前真实正文草稿】全文，作为答辩委员会反方评审教授发表 130~150 字的温和学术商榷质询意见：
-【全局学术博弈红线与文体质询原则】：
-1. 紧密结合上述文体考查维度，根据本篇论文在设计/论证/落地中的真实薄弱处，动态挑选 2~3 个最切中要害的质询点；
-2. 必须以清晰的序号 ① ② 分条呈现质询焦点；
-3. 态度务必温和客气、极具建设性（多用“商讨/请教/小细节/落地可行性”）。纯自然语言输出，130~150字。`;
+针对小组论文《${topic}》，请通读下方【小组当前真实正文草稿】全文，作为答辩委员会反方评审教授发表 200~260 字的针对实质询意见：
+【5 大学术质询考查维度】：
+1. 核心概念界定与论点一致性
+2. 研究设计操作化与方法严密性
+3. 教学干预在真实课堂中的落地挑战与认知负荷防范
+4. 数据/测量工具信效度与论据支撑充分性
+5. 研究局限反思与结论外推推广边界
+
+【核心指令】：请通读当前正文草稿，从上述 5 大学术维度中，精准挑选出最切中本篇草稿真实薄弱处的【3 项质询】，使用序号 ① ② ③ 分条明确列出：
+①【质询焦点 1】：指出具体章节存在的设计缺陷或论据不足，提出商榷质询；
+②【质询焦点 2】：指出具体的方法论或实践落地挑战，提出针对性质询；
+③【质询焦点 3】：指出反思局限或推广边界问题，提出深度质询。
+态度客观严谨、温和建设，纯自然语言输出，200~260字。`;
 
         try {
           const timeoutPromise = new Promise(r => setTimeout(() => r(null), 45000));
