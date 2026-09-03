@@ -14,8 +14,8 @@ import {
   DefaultTasks,
   DefaultAnnouncements,
   DefaultReferencePapers
-} from './constants.js?v=20260903_v1515';
-import { formatExportDateTime, formatDurationHuman, isScopeMatch } from './utils.js?v=20260903_v1515';
+} from './constants.js?v=20260903_v1539';
+import { formatExportDateTime, formatDurationHuman, isScopeMatch } from './utils.js?v=20260903_v1539';
 
 export class AuthManager {
   constructor() {
@@ -722,7 +722,7 @@ export class AuthManager {
       fetch('sync.php?action=session_login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: user.id || user.username, token: newSessionId, password: pwd })
+        body: JSON.stringify({ userId: user.id , token: newSessionId, password: pwd })
       }).catch(() => {});
     } catch (e) {}
 
@@ -743,7 +743,7 @@ export class AuthManager {
     if (user) {
       try {
         const token = user.activeSessionId || '';
-        fetch(`sync.php?action=session_logout&userId=${encodeURIComponent(user.id || user.username)}&token=${encodeURIComponent(token)}`).catch(() => {});
+        fetch(`sync.php?action=session_logout&userId=${encodeURIComponent(user.id )}&token=${encodeURIComponent(token)}`).catch(() => {});
       } catch (e) {}
     }
     // 🛡️ 登出时同步停止云端短轮询，杜绝登出后轮询循环继续打服务器
@@ -867,7 +867,7 @@ export class AuthManager {
     const avatars = ['👨‍🎓', '👩‍🎓', '🧑‍🎓', '🎓', '📚', '🌟'];
 
     studentList.forEach(st => {
-      const code = String(st.id || ((st.code || (st.username || '')))).trim();
+      const code = String(st.id || ((st.code || ('')))).trim();
       const name = (st.name || '').trim();
       if (!code || !name) return;
 

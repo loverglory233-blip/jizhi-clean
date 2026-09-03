@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState } from './constants.js?v=20260903_v1515';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap } from './utils.js?v=20260903_v1515';
+import { InitialState } from './constants.js?v=20260903_v1539';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap } from './utils.js?v=20260903_v1539';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -810,7 +810,7 @@ export class CloudSyncEngine {
         el.dataset.lockKey = fieldKey;
 
         const lockInfo = locks[fieldKey];
-        const currentUserName = currentUser ? String(currentUser.name || currentUser.username || '') : '';
+        const currentUserName = currentUser ? String(currentUser.name  || '') : '';
         const nowMs = Date.now();
         const lockTime = lockInfo ? Number(lockInfo.timestamp || lockInfo.time || 0) : 0;
         const isLockFresh = lockInfo && (nowMs - lockTime <= 8500);
