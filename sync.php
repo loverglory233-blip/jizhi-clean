@@ -895,30 +895,49 @@ if ($action === 'get_teacher_monitor_all_groups') {
             $groupScopeMap[$gid] = $sk;
         }
 
-        // 1. 一次性批量查出全组最新消息
+        // 1. 一次性批量查出相关最新消息（按 ScopeKey 与 GroupId 双向索引）
         $batchChatsMap = [];
+        $batchChatsByGid = [];
         $batchActiveSendersMap = [];
-        if (!empty($allScopeKeys)) {
-            $inPlaceholders = implode(',', array_fill(0, count($allScopeKeys), '?'));
-            $stmtBatchMsg = $pdo->prepare("SELECT scope_key, stage, sender, text, timestamp_str, time_ms, id FROM chat_messages WHERE scope_key IN ($inPlaceholders) ORDER BY time_ms ASC");
-            $stmtBatchMsg->execute($allScopeKeys);
-            $allBatchRows = $stmtBatchMsg->fetchAll(PDO::FETCH_ASSOC);
-            foreach ($allBatchRows as $mr) {
-                $bsk = $mr['scope_key'];
-                $stg = $mr['stage'] ?: 'stage1';
-                if (!isset($batchChatsMap[$bsk])) $batchChatsMap[$bsk] = ['stage1' => [], 'stage2' => [], 'stage3' => []];
-                if (!isset($batchChatsMap[$bsk][$stg])) $batchChatsMap[$bsk][$stg] = [];
-                $batchChatsMap[$bsk][$stg][] = [
-                    'id'        => $mr['id'] ?: ('msg_' . $mr['time_ms'] . '_' . substr(md5($mr['text']), 0, 6)),
-                    'sender'    => $mr['sender'],
-                    'text'      => $mr['text'],
-                    'timestamp' => $mr['timestamp_str'],
-                    '_timeMs'   => intval($mr['time_ms'])
-                ];
-                if (intval($mr['time_ms']) >= $cutoffMs) {
-                    if (!isset($batchActiveSendersMap[$bsk])) $batchActiveSendersMap[$bsk] = [];
-                    $batchActiveSendersMap[$bsk][(string)$mr['sender']] = true;
-                    $batchActiveSendersMap[$bsk][strtolower(trim((string)$mr['sender']))] = true;
+        $batchActiveSendersByGid = [];
+
+        $stmtBatchMsg = $pdo->prepare("SELECT scope_key, stage, sender, text, timestamp_str, time_ms, id FROM chat_messages ORDER BY time_ms ASC");
+        $stmtBatchMsg->execute();
+        $allBatchRows = $stmtBatchMsg->fetchAll(PDO::FETCH_ASSOC);
+        foreach ($allBatchRows as $mr) {
+            $bsk = $mr['scope_key'];
+            $stg = $mr['stage'] ?: 'stage1';
+            
+            // 提取消息归属的小组 ID（如 group_10）
+            $msgGid = '';
+            if (preg_match('/(group_\d+|group_[a-zA-Z0-9_-]+)$/', $bsk, $mGid)) {
+                $msgGid = $mGid[1];
+            }
+
+            if (!isset($batchChatsMap[$bsk])) $batchChatsMap[$bsk] = ['stage1' => [], 'stage2' => [], 'stage3' => []];
+            if (!isset($batchChatsMap[$bsk][$stg])) $batchChatsMap[$bsk][$stg] = [];
+            $msgObj = [
+                'id'        => $mr['id'] ?: ('msg_' . $mr['time_ms'] . '_' . substr(md5($mr['text']), 0, 6)),
+                'sender'    => $mr['sender'],
+                'text'      => $mr['text'],
+                'timestamp' => $mr['timestamp_str'],
+                '_timeMs'   => intval($mr['time_ms'])
+            ];
+            $batchChatsMap[$bsk][$stg][] = $msgObj;
+            if ($msgGid !== '') {
+                if (!isset($batchChatsByGid[$msgGid])) $batchChatsByGid[$msgGid] = ['stage1' => [], 'stage2' => [], 'stage3' => []];
+                if (!isset($batchChatsByGid[$msgGid][$stg])) $batchChatsByGid[$msgGid][$stg] = [];
+                $batchChatsByGid[$msgGid][$stg][] = $msgObj;
+            }
+
+            if (intval($mr['time_ms']) >= $cutoffMs) {
+                if (!isset($batchActiveSendersMap[$bsk])) $batchActiveSendersMap[$bsk] = [];
+                $batchActiveSendersMap[$bsk][(string)$mr['sender']] = true;
+                $batchActiveSendersMap[$bsk][strtolower(trim((string)$mr['sender']))] = true;
+                if ($msgGid !== '') {
+                    if (!isset($batchActiveSendersByGid[$msgGid])) $batchActiveSendersByGid[$msgGid] = [];
+                    $batchActiveSendersByGid[$msgGid][(string)$mr['sender']] = true;
+                    $batchActiveSendersByGid[$msgGid][strtolower(trim((string)$mr['sender']))] = true;
                 }
             }
         }
@@ -929,8 +948,16 @@ if ($action === 'get_teacher_monitor_all_groups') {
             $offGroup = $officialGroups[$gid] ?? null;
 
             // 🛡️ 直接从批量内存字典中秒级提取本组聊天与活跃人，0 次多余 SQL
-            $chats = $batchChatsMap[$sk] ?? ['stage1' => [], 'stage2' => [], 'stage3' => []];
-            $recentActiveSenders = $batchActiveSendersMap[$sk] ?? [];
+            $chats = $batchChatsMap[$sk] ?? ($batchChatsByGid[$gid] ?? ['stage1' => [], 'stage2' => [], 'stage3' => []]);
+            $recentActiveSenders = array_merge($batchActiveSendersMap[$sk] ?? [], $batchActiveSendersByGid[$gid] ?? []);
+
+            // 提前解码三大阶段工作区数据，供在线判定与监控渲染统一使用
+            $s1Data = ($r && !empty($r['stage1_data'])) ? json_decode($r['stage1_data'], true) : [];
+            $s2Data = ($r && !empty($r['stage2_data'])) ? json_decode($r['stage2_data'], true) : [];
+            $s3Data = ($r && !empty($r['stage3_data'])) ? json_decode($r['stage3_data'], true) : [];
+            if (!is_array($s1Data)) $s1Data = [];
+            if (!is_array($s2Data)) $s2Data = [];
+            if (!is_array($s3Data)) $s3Data = [];
 
             // 组员名单优先取班级官方分配名单，并解析为完整成员信息
             $rawMembers = [];
@@ -1092,10 +1119,6 @@ if ($action === 'get_teacher_monitor_all_groups') {
             // 🚀 按需加载架构：仅对当前选中的活跃小组返回全量工作区与聊天记录，其余小组返回轻量概览，数据包体积暴降 98%！
             $reqActiveGId = isset($_GET['activeGroupId']) ? trim($_GET['activeGroupId']) : (isset($REQ_DATA['activeGroupId']) ? trim($REQ_DATA['activeGroupId']) : '');
             $isCurrentActiveGroup = empty($reqActiveGId) || ($reqActiveGId === $gid) || (count($allGroupIds) === 1);
-
-            $s1Data = ($r && !empty($r['stage1_data'])) ? json_decode($r['stage1_data'], true) : [];
-            $s2Data = ($r && !empty($r['stage2_data'])) ? json_decode($r['stage2_data'], true) : [];
-            $s3Data = ($r && !empty($r['stage3_data'])) ? json_decode($r['stage3_data'], true) : [];
 
             if ($isCurrentActiveGroup) {
                 $result['groups'][$gid] = [
@@ -2900,9 +2923,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 }
                             }
 
-                            // 检查避免重复插入完全相同的历史记录
-                            $chkStmt = $pdo->prepare("SELECT id FROM chat_messages WHERE scope_key = :sk AND stage = :stg AND sender = :snd AND (time_ms = :tms OR text = :txt) LIMIT 1");
-                            $chkStmt->execute([':sk' => $scopeKey, ':stg' => $stg, ':snd' => $snd, ':tms' => $tms, ':txt' => $txt]);
+                            // 仅在毫秒级时间戳完全重合时去重，绝不按文本内容误杀学生的连续发言（如连续发“1”、“赞同”、“收到”）
+                            $chkStmt = $pdo->prepare("SELECT id FROM chat_messages WHERE scope_key = :sk AND stage = :stg AND sender = :snd AND time_ms = :tms LIMIT 1");
+                            $chkStmt->execute([':sk' => $scopeKey, ':stg' => $stg, ':snd' => $snd, ':tms' => $tms]);
                             if (!$chkStmt->fetch()) {
                                 $stmtInsertMsg->execute([
                                     ':sk' => $scopeKey,
