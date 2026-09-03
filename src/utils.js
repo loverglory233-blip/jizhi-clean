@@ -621,10 +621,11 @@ export function showTaskExtendedUnlockModal(task, prevDeadline, isUnlockedNow = 
 
   const modal = document.createElement('div');
   modal.id = 'modal-task-extended-unlock';
-  modal.style.cssText = 'position:fixed; inset:0; z-index:9999999; background:rgba(15,23,42,0.68); backdrop-filter:blur(4px); display:flex; align-items:center; justify-content:center; animation:fadeIn 0.25s ease;';
+  modal.className = 'modal-overlay';
+  modal.style.cssText = 'position:fixed; inset:0; z-index:9999999; background:rgba(15,23,42,0.68); backdrop-filter:blur(4px); display:flex; align-items:center; justify-content:center; animation:fadeIn 0.25s ease; overscroll-behavior:contain;';
 
   modal.innerHTML = `
-    <div style="background:#ffffff; border-radius:16px; width:90%; max-width:440px; padding:28px 24px; box-shadow:0 20px 40px rgba(15,23,42,0.25); text-align:center; border:2px solid #3b82f6; display:flex; flex-direction:column; gap:16px; animation:scaleUp 0.25s ease; font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; position:relative;">
+    <div style="background:#ffffff; border-radius:16px; width:90%; max-width:440px; padding:28px 24px; box-shadow:0 20px 40px rgba(15,23,42,0.25); text-align:center; border:2px solid #3b82f6; display:flex; flex-direction:column; gap:16px; animation:scaleUp 0.25s ease; font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; position:relative; overscroll-behavior:contain;">
       <button id="btn-close-task-unlock-x" style="position:absolute; top:12px; right:12px; border:none; background:#f1f5f9; color:#64748b; font-size:18px; width:28px; height:28px; border-radius:50%; cursor:pointer; display:flex; align-items:center; justify-content:center; font-weight:800;" title="关闭">✕</button>
       <div style="width:60px; height:60px; border-radius:50%; background:#eff6ff; border:2px solid #bfdbfe; display:flex; align-items:center; justify-content:center; font-size:30px; margin:0 auto;">
         ⏳
@@ -803,7 +804,7 @@ export function unlockBodyScroll() {
 
 if (typeof document !== 'undefined' && typeof MutationObserver !== 'undefined') {
   const observer = new MutationObserver(() => {
-    const hasModal = !!document.querySelector('.modal-overlay, .table-config-modal-overlay');
+    const hasModal = !!document.querySelector('.modal-overlay, .modal-mask, .table-config-modal-overlay, #modal-change-password, #modal-task-extended-unlock');
     if (hasModal) {
       lockBodyScroll();
     } else {

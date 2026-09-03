@@ -13,23 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260903_v1712";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260903_v1712";
-import { callCozeAgentAPI } from "./agents.js?v=20260903_v1712";
-import { AuthManager } from "./auth.js?v=20260903_v1712";
-import { CloudSyncEngine } from "./sync.js?v=20260903_v1712";
-import { renderLoginView } from "./login.js?v=20260903_v1712";
-import { renderTeacherPortal } from "./teacher.js?v=20260903_v1712";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260903_v1712";
+} from "./constants.js?v=20260903_v1740";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260903_v1740";
+import { callCozeAgentAPI } from "./agents.js?v=20260903_v1740";
+import { AuthManager } from "./auth.js?v=20260903_v1740";
+import { CloudSyncEngine } from "./sync.js?v=20260903_v1740";
+import { renderLoginView } from "./login.js?v=20260903_v1740";
+import { renderTeacherPortal } from "./teacher.js?v=20260903_v1740";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260903_v1740";
 import {
-  buildWordEditorHtml,
-  attachWordEditorEvents,
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260903_v1712";
+} from "./editor.js?v=20260903_v1740";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -398,7 +396,7 @@ export class App {
       
       const getVal = (m) => {
         if (!m) return 0;
-        const keys = [m.id, id, m.name].filter(Boolean);
+        const keys = getUserAllKeys(m);
         let maxVal = 0;
         for (const k of keys) {
           if (contribs[k] !== undefined && Number(contribs[k]) > maxVal) {
@@ -510,7 +508,7 @@ export class App {
             const s1 = this.state.stage1 || {};
             const propList = s1.proposals || [];
             const propCount = propList.length;
-            const unsubmittedMembers = membersList.filter(m => !propList.some(p => p.author === m.id || p.author === p.author === (m.name && p.authorName === m.name)));
+            const unsubmittedMembers = membersList.filter(m => !propList.some(p => isSameUser(m, p.author) || isSameUser(m, p.authorName) || p.author === m.id || (m.name && p.authorName === m.name)));
             const unsubmittedNames = unsubmittedMembers.map(m => m.name  ).join('、');
 
             // ① 开场 3 分钟未动笔静默破冰（紧扣研究方向与任务要求）
@@ -713,8 +711,8 @@ export class App {
 
           renderHeader(
             this.state, currentUser, this.authManager.getAnnouncements(),
-            (s) => this.switchStage(s), (sp) => this.setSpeed(sp),
-            () => this.handleLogout(), () => this.switchToTeacherView(),
+            (s) => this.switchStage(s),
+            () => this.handleLogout(),
             () => this.showAnnouncementModal(), () => this.showQuestionnaireModal(),
             () => this.backToTaskList()
           );
@@ -753,16 +751,7 @@ export class App {
       appEl.className = 'app-teacher-mode';
       renderTeacherPortal(
         appEl, this.authManager, this.state,
-        () => this.handleLogout(),
-        () => {
-          const users = this.authManager.getUsers();
-          const studentA = users.find(u => (u.role === 'student' || u.isStudent) && u.id);
-          if (studentA) {
-            sessionStorage.setItem('jizhi_current_user', JSON.stringify(studentA));
-            localStorage.setItem('jizhi_current_user', JSON.stringify(studentA));
-            this.renderMain();
-          }
-        }
+        () => this.handleLogout()
       );
     } else {
       const effectiveClassId = this.authManager ? this.authManager.getEffectiveStudentClassId(currentUser, this.state.activeTaskId) : (this.state.activeStudentClassId || currentUser?.classId || null);
@@ -832,8 +821,8 @@ export class App {
             }, 50);
           },
           () => this.handleLogout(),
-          () => this.switchToTeacherView(),
-          () => this.showAnnouncementModal()
+          () => this.showAnnouncementModal(),
+          () => this.showQuestionnaireModal()
         );
         return;
       }
@@ -2114,7 +2103,7 @@ export class App {
         </div>
 
         <!-- 竖排通知卡片列表 -->
-        <div style="padding:20px 24px; max-height:62vh; overflow-y:auto; display:flex; flex-direction:column; gap:12px; background:#f8fafc;">
+        <div style="padding:20px 24px; max-height:62vh; overflow-y:auto; overscroll-behavior:contain; display:flex; flex-direction:column; gap:12px; background:#f8fafc;">
           ${myAnns.map((a, idx) => {
             const read = isAnnRead(a);
             const ext = isExtensionNotice(a);
@@ -2180,7 +2169,7 @@ export class App {
           </div>
 
           <!-- 通知内容主体 -->
-          <div style="padding:20px 24px; max-height:60vh; overflow-y:auto; display:flex; flex-direction:column; gap:16px;">
+          <div style="padding:20px 24px; max-height:60vh; overflow-y:auto; overscroll-behavior:contain; display:flex; flex-direction:column; gap:16px;">
             <div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:14px; padding:18px; box-shadow:0 2px 8px rgba(15,23,42,0.03);">
               <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px; margin-bottom:12px;">
                 <h4 style="margin:0; font-size:16.5px; font-weight:800; color:#0f172a; line-height:1.4;">
@@ -2488,7 +2477,7 @@ export class App {
           <button id="btn-close-ref-modal" style="background:rgba(255,255,255,0.15); border:1px solid rgba(255,255,255,0.3); width:32px; height:32px; border-radius:8px; display:flex; align-items:center; justify-content:center; cursor:pointer; color:#ffffff; font-size:14px; transition:all 0.15s ease;">✕</button>
         </div>
 
-        <div style="padding:20px 24px; max-height:62vh; overflow-y:auto;">
+        <div style="padding:20px 24px; max-height:62vh; overflow-y:auto; overscroll-behavior:contain;">
           ${papers.length === 0 ? `
             <div style="text-align:center; padding:36px; background:#f8fafc; border-radius:12px; border:2px dashed #cbd5e1;">
               <div style="font-size:36px; margin-bottom:8px;">📚</div>
@@ -2649,19 +2638,11 @@ export class App {
     if (!headerEl) return;
     renderHeader(
       this.state, currentUser, this.authManager.getAnnouncements(),
-      (s) => this.switchStage(s), (sp) => this.setSpeed(sp),
-      () => this.handleLogout(), () => this.switchToTeacherView(),
+      (s) => this.switchStage(s),
+      () => this.handleLogout(),
       () => this.showAnnouncementModal(), () => this.showQuestionnaireModal(),
       () => this.backToTaskList()
     );
-  }
-
-  switchToTeacherView() {
-    const users = this.authManager.getUsers();
-    const teacher = users.find(u => u.role === 'teacher') || users[0];
-    sessionStorage.setItem('jizhi_current_user', JSON.stringify(teacher));
-    localStorage.setItem('jizhi_current_user', JSON.stringify(teacher));
-    this.renderMain();
   }
 
   initStudentEvents() {
@@ -4893,18 +4874,6 @@ ${chatSnippet}
     this.renderStudentWorkspace(true);
   }
 
-  setSpeed(newSpeed) {
-    this.state.timer.speed = newSpeed;
-    const currentUser = this.authManager.getCurrentUser();
-    renderHeader(
-      this.state, currentUser, this.authManager.getAnnouncements(),
-      (s) => this.switchStage(s), (sp) => this.setSpeed(sp),
-      () => this.handleLogout(), () => this.switchToTeacherView(),
-      () => this.showAnnouncementModal(), () => this.showQuestionnaireModal(),
-      () => this.backToTaskList()
-    );
-  }
-
   getCurrentTaskType() {
     const allTasks = (this.authManager) ? this.authManager.getTasks() : [];
     const currentTask = allTasks.find(t => t.id === this.state.activeTaskId);
@@ -4949,8 +4918,8 @@ ${chatSnippet}
 
     renderHeader(
       this.state, currentUser, this.authManager.getAnnouncements(),
-      (s) => this.switchStage(s), (sp) => this.setSpeed(sp),
-      () => this.handleLogout(), () => this.switchToTeacherView(),
+      (s) => this.switchStage(s),
+      () => this.handleLogout(),
       () => this.showAnnouncementModal(), () => this.showQuestionnaireModal(),
       () => this.backToTaskList()
     );
@@ -5076,11 +5045,11 @@ ${chatSnippet}
                 }
                 let authorName = (p.authorName && p.authorName !== '组员') ? p.authorName : null;
                 if (!authorName) {
-                  const authorUser = allUsers.find(u => isSameUser(u, p.author) || isSameUser(u, p.authorName) || u.id === p.author  === p.author  === p.author || u.name === p.author || u.name === p.authorName);
+                  const authorUser = allUsers.find(u => isSameUser(u, p.author) || isSameUser(u, p.authorName) || u.id === p.author || u.name === p.author || u.name === p.authorName);
                   if (authorUser && authorUser.name) authorName = authorUser.name;
                 }
                 if (!authorName) {
-                  const authorMem = membersList.find(m => isSameUser(m, p.author) || isSameUser(m, p.authorName) || m.id === p.author  === p.author || m.name === p.author);
+                  const authorMem = membersList.find(m => isSameUser(m, p.author) || isSameUser(m, p.authorName) || m.id === p.author || m.name === p.author);
                   if (authorMem && authorMem.name) authorName = authorMem.name;
                 }
                 if (!authorName) authorName = p.authorName || p.author || '组员';
@@ -5925,7 +5894,7 @@ ${contentSnippet}
       const contribs = this.state.stage2.memberContributions || {};
       const getVal = (m) => {
         if (!m) return 0;
-        const keys = [m.id, id, m.name].filter(Boolean);
+        const keys = getUserAllKeys(m);
         let maxVal = 0;
         for (const k of keys) {
           if (contribs[k] !== undefined && Number(contribs[k]) > maxVal) {
@@ -6071,12 +6040,12 @@ ${contentSnippet}
     if (existingModal) existingModal.remove();
 
     const modal = document.createElement('div');
-    modal.className = 'modal-mask modal-stage-milestone';
-    modal.style.cssText = 'position:fixed; inset:0; background:rgba(15,23,42,0.72); z-index:999999; display:flex; align-items:center; justify-content:center; backdrop-filter:blur(6px); animation:fadeIn 0.25s ease-out;';
+    modal.className = 'modal-overlay modal-mask modal-stage-milestone';
+    modal.style.cssText = 'position:fixed; inset:0; background:rgba(15,23,42,0.72); z-index:999999; display:flex; align-items:center; justify-content:center; backdrop-filter:blur(6px); animation:fadeIn 0.25s ease-out; overscroll-behavior:contain;';
     
     let remainingSec = 5;
     modal.innerHTML = `
-      <div style="background:#ffffff; width:92%; max-width:500px; border-radius:16px; box-shadow:0 24px 48px rgba(15,23,42,0.3); border:1px solid #cbd5e1; overflow:hidden; display:flex; flex-direction:column; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; text-align:center;">
+      <div style="background:#ffffff; width:92%; max-width:500px; border-radius:16px; box-shadow:0 24px 48px rgba(15,23,42,0.3); border:1px solid #cbd5e1; overflow:hidden; display:flex; flex-direction:column; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; text-align:center; overscroll-behavior:contain;">
         <div style="background:linear-gradient(135deg, #1e40af, #1e293b); padding:24px 20px 20px; color:#ffffff; display:flex; flex-direction:column; align-items:center;">
           <div style="width:56px; height:56px; border-radius:50%; background:rgba(255,255,255,0.15); display:flex; align-items:center; justify-content:center; font-size:28px; margin-bottom:12px; box-shadow:0 4px 12px rgba(0,0,0,0.15);">
             ${icon}
@@ -6128,10 +6097,10 @@ ${contentSnippet}
     if (existingModal) existingModal.remove();
 
     const modal = document.createElement('div');
-    modal.className = 'modal-mask modal-final-review-prompt';
-    modal.style.cssText = 'position:fixed; inset:0; background:rgba(15,23,42,0.65); z-index:99999; display:flex; align-items:center; justify-content:center; backdrop-filter:blur(4px); animation:fadeIn 0.2s ease-out;';
+    modal.className = 'modal-overlay modal-mask modal-final-review-prompt';
+    modal.style.cssText = 'position:fixed; inset:0; background:rgba(15,23,42,0.65); z-index:99999; display:flex; align-items:center; justify-content:center; backdrop-filter:blur(4px); animation:fadeIn 0.2s ease-out; overscroll-behavior:contain;';
     modal.innerHTML = `
-      <div style="background:#ffffff; width:92%; max-width:480px; border-radius:14px; box-shadow:0 20px 40px rgba(15,23,42,0.25); border:1px solid #cbd5e1; overflow:hidden; display:flex; flex-direction:column; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+      <div style="background:#ffffff; width:92%; max-width:480px; border-radius:14px; box-shadow:0 20px 40px rgba(15,23,42,0.25); border:1px solid #cbd5e1; overflow:hidden; display:flex; flex-direction:column; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; overscroll-behavior:contain;">
         <div style="background:linear-gradient(135deg, #1e293b, #0f172a); padding:16px 20px; display:flex; justify-content:space-between; align-items:center; color:#ffffff;">
           <div style="display:flex; align-items:center; gap:8px;">
             <span style="font-size:20px;">📝</span>

@@ -18,7 +18,7 @@ $taskId   = isset($_GET['task_id'])  ? preg_replace('/[^a-zA-Z0-9_\-]/', '', $_G
 $groupId  = isset($_GET['group_id']) ? preg_replace('/[^a-zA-Z0-9_\-]/', '', $_GET['group_id']) : '';
 $scopeKey = isset($_GET['scope_key']) ? preg_replace('/[^a-zA-Z0-9_\-:]/', '', $_GET['scope_key']) : '';
 if ($scopeKey === '' && $taskId !== '' && $groupId !== '') {
-    $scopeKey = $taskId . ':' . $groupId;
+    $scopeKey = $taskId . '_' . $groupId;
 }
 if ($scopeKey === '') {
     echo "event: error\ndata: {\"error\":\"missing scope\"}\n\n";

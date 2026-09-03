@@ -555,25 +555,6 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             self.wfile.flush()
             return
 
-        # ⚡ 教师端协同动态与代签提醒查询路由
-        if 'action=get_teacher_alerts' in self.path:
-            alerts_file = os.path.join(DIR, 'teacher_alerts.json')
-            content = b'[]'
-            if os.path.exists(alerts_file):
-                try:
-                    with open(alerts_file, 'rb') as f:
-                        content = f.read()
-                except Exception:
-                    content = b'[]'
-            self.send_response(200)
-            self.send_header('Content-Type', 'application/json; charset=utf-8')
-            self.send_header('Cache-Control', 'no-store, no-cache, must-revalidate')
-            self.send_header('Content-Length', str(len(content)))
-            self.end_headers()
-            self.wfile.write(content)
-            self.wfile.flush()
-            return
-
         # Security protection: prevent direct downloading of sensitive source/config/data files
         clean_path = self.path.split('?')[0].lower()
         blocked_ext = ('.pem', '.key', '.env', '.php', '.py', '.json')
@@ -875,52 +856,6 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                 self.wfile.flush()
             except Exception as e:
                 self.send_response(200)
-                self.end_headers()
-                self.wfile.write(b'{"success":false}')
-            return
-
-        # ⚡ 教师端协同动态与代签提醒上报路由
-        if 'action=record_teacher_alert' in self.path:
-            length = int(self.headers.get('Content-Length', 0))
-            body = self.rfile.read(length)
-            try:
-                alertItem = json.loads(body.decode('utf-8'))
-                alerts_file = os.path.join(DIR, 'teacher_alerts.json')
-                with JSON_FILE_LOCK:
-                    alerts = []
-                    if os.path.exists(alerts_file):
-                        try:
-                            with open(alerts_file, 'r', encoding='utf-8') as f:
-                                alerts = json.load(f)
-                        except Exception:
-                            alerts = []
-                    if not isinstance(alerts, list):
-                        alerts = []
-                    tId = alertItem.get('taskId', 'task_default')
-                    gId = alertItem.get('groupId', 'group_1')
-                    ex_idx = -1
-                    for idx, a in enumerate(alerts):
-                        if (a.get('taskId') == tId or not a.get('taskId')) and a.get('groupId') == gId:
-                            ex_idx = idx
-                            break
-                    if ex_idx >= 0:
-                        alerts[ex_idx] = alertItem
-                    else:
-                        alerts.insert(0, alertItem)
-                    if len(alerts) > 100:
-                        alerts = alerts[:100]
-                    with open(alerts_file, 'w', encoding='utf-8') as f:
-                        json.dump(alerts, f, ensure_ascii=False, indent=2)
-                res_body = json.dumps({'success': True, 'alert': alertItem}).encode('utf-8')
-                self.send_response(200)
-                self.send_header('Content-Type', 'application/json; charset=utf-8')
-                self.send_header('Content-Length', str(len(res_body)))
-                self.end_headers()
-                self.wfile.write(res_body)
-                self.wfile.flush()
-            except Exception as e:
-                self.send_response(200)
-                self.send_header('Content-Type', 'application/json; charset=utf-8')
                 self.end_headers()
                 self.wfile.write(b'{"success":false}')
             return

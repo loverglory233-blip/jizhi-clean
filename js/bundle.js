@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260903_v1712
+ * Version: 20260903_v1740
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260903_v1712';
+  const APP_VERSION = '20260903_v1740';
   const APP_BUILD_DATE = '2026-09-03';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -817,10 +817,11 @@
 
     const modal = document.createElement('div');
     modal.id = 'modal-task-extended-unlock';
-    modal.style.cssText = 'position:fixed; inset:0; z-index:9999999; background:rgba(15,23,42,0.68); backdrop-filter:blur(4px); display:flex; align-items:center; justify-content:center; animation:fadeIn 0.25s ease;';
+    modal.className = 'modal-overlay';
+    modal.style.cssText = 'position:fixed; inset:0; z-index:9999999; background:rgba(15,23,42,0.68); backdrop-filter:blur(4px); display:flex; align-items:center; justify-content:center; animation:fadeIn 0.25s ease; overscroll-behavior:contain;';
 
     modal.innerHTML = `
-      <div style="background:#ffffff; border-radius:16px; width:90%; max-width:440px; padding:28px 24px; box-shadow:0 20px 40px rgba(15,23,42,0.25); text-align:center; border:2px solid #3b82f6; display:flex; flex-direction:column; gap:16px; animation:scaleUp 0.25s ease; font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; position:relative;">
+      <div style="background:#ffffff; border-radius:16px; width:90%; max-width:440px; padding:28px 24px; box-shadow:0 20px 40px rgba(15,23,42,0.25); text-align:center; border:2px solid #3b82f6; display:flex; flex-direction:column; gap:16px; animation:scaleUp 0.25s ease; font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; position:relative; overscroll-behavior:contain;">
         <button id="btn-close-task-unlock-x" style="position:absolute; top:12px; right:12px; border:none; background:#f1f5f9; color:#64748b; font-size:18px; width:28px; height:28px; border-radius:50%; cursor:pointer; display:flex; align-items:center; justify-content:center; font-weight:800;" title="关闭">✕</button>
         <div style="width:60px; height:60px; border-radius:50%; background:#eff6ff; border:2px solid #bfdbfe; display:flex; align-items:center; justify-content:center; font-size:30px; margin:0 auto;">
           ⏳
@@ -999,7 +1000,7 @@
 
   if (typeof document !== 'undefined' && typeof MutationObserver !== 'undefined') {
     const observer = new MutationObserver(() => {
-      const hasModal = !!document.querySelector('.modal-overlay, .table-config-modal-overlay');
+      const hasModal = !!document.querySelector('.modal-overlay, .modal-mask, .table-config-modal-overlay, #modal-change-password, #modal-task-extended-unlock');
       if (hasModal) {
         lockBodyScroll();
       } else {
@@ -1070,7 +1071,7 @@
             const chatId = data.chat_id;
             const convId = data.conversation_id;
             const targetBotId = data.bot_id || botId;
-            const isLongDoc = (options.stage === 'stage2' || options.stage === 'stage3' || (options.actual_doc && options.actual_doc.length > 500) || (userQuery && userQuery.length > 1000));
+            const isLongDoc = (currentContext.stage === 'stage2' || currentContext.stage === 'stage3' || (currentContext.actualDoc && currentContext.actualDoc.length > 500) || (currentContext.actual_doc && currentContext.actual_doc.length > 500) || (userQuery && userQuery.length > 1000));
             const maxRetries = isLongDoc ? 150 : 85; // 5000字全文质检支持长达 65 秒；阶段一公约提炼支持 30 秒，绝不提前掐断
             for (let p = 0; p < maxRetries; p++) {
               const pollInterval = p < 10 ? 100 : (p < 50 ? 300 : 500);
@@ -3014,9 +3015,10 @@
 
       const modal = document.createElement('div');
       modal.id = 'modal-change-password';
-      modal.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,0.7);backdrop-filter:blur(4px);z-index:999999;display:flex;align-items:center;justify-content:center;padding:20px;';
+      modal.className = 'modal-overlay';
+      modal.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,0.7);backdrop-filter:blur(4px);z-index:999999;display:flex;align-items:center;justify-content:center;padding:20px;overscroll-behavior:contain;';
       modal.innerHTML = `
-        <div style="background:#fff;border-radius:16px;box-shadow:0 20px 25px -5px rgba(0,0,0,0.2);width:100%;max-width:400px;overflow:hidden;animation:fadeIn 0.2s ease;">
+        <div style="background:#fff;border-radius:16px;box-shadow:0 20px 25px -5px rgba(0,0,0,0.2);width:100%;max-width:400px;overflow:hidden;overscroll-behavior:contain;animation:fadeIn 0.2s ease;">
           <div style="background:linear-gradient(135deg,#4f46e5,#6366f1);padding:18px 24px;color:#fff;display:flex;justify-content:space-between;align-items:center;">
             <div style="font-size:16px;font-weight:700;display:flex;align-items:center;gap:8px;">🔑 修改个人登录密码</div>
             <button id="btn-close-pwd-modal" style="background:none;border:none;color:#fff;font-size:22px;cursor:pointer;line-height:1;">&times;</button>
@@ -4599,7 +4601,7 @@
   /* ==========================================================================
      7. TEACHER PORTAL RENDERER (LIVE WORKSPACE MIRROR & ANNOUNCEMENT READ MATRIX)
      ========================================================================== */
-  function renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView) {
+  function renderTeacherPortal(container, authManager, state, onLogout) {
     const oldLayout = container.querySelector('.teacher-portal-layout') || document.querySelector('.teacher-portal-layout');
     const savedScrollTop = oldLayout ? oldLayout.scrollTop : (state._teacherScrollTop || 0);
 
@@ -4983,7 +4985,7 @@
           const layout = container.querySelector('.teacher-portal-layout');
           const curScroll = layout ? layout.scrollTop : 0;
           state._teacherScrollTop = curScroll;
-          renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+          renderTeacherPortal(container, authManager, state, onLogout);
           const nextLayout = container.querySelector('.teacher-portal-layout');
           if (nextLayout) nextLayout.scrollTop = curScroll;
           return; // 重绘后自动重新调度
@@ -5003,7 +5005,7 @@
               const layout = container.querySelector('.teacher-portal-layout');
               const curScroll = layout ? layout.scrollTop : 0;
               state._teacherScrollTop = curScroll;
-              renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+              renderTeacherPortal(container, authManager, state, onLogout);
               const nextLayout = container.querySelector('.teacher-portal-layout');
               if (nextLayout) nextLayout.scrollTop = curScroll;
               return; // 重渲染会重建循环
@@ -5941,7 +5943,7 @@
                         ${combinedGroupChatLogs.length > 0 ? combinedGroupChatLogs.map(m => {
                           const allGlobalUsers = (authManager) ? authManager.getUsers() : [];
                           const isAgent = AgentProfiles[m.sender] !== undefined;
-                          const matchedUser = isAgent ? null : allGlobalUsers.find(u => u.id === m.sender  === m.sender || u.name === m.sender);
+                          const matchedUser = isAgent ? null : allGlobalUsers.find(u => u.id === m.sender || u.name === m.sender);
                           const senderName = isAgent ? AgentProfiles[m.sender].name : (matchedUser ? matchedUser.name : (m.senderName || (monitorMembersObj[m.sender] ? monitorMembersObj[m.sender].name : m.sender)));
                           const color = isAgent ? AgentProfiles[m.sender].color : (matchedUser ? (matchedUser.color || '#2563eb') : (monitorMembersObj[m.sender] ? monitorMembersObj[m.sender].color : '#2563eb'));
                           return `
@@ -6221,9 +6223,9 @@
                                 ${(() => {
                                   const contribs = state.stage2?.memberContributions || {};
                                   let rawTotal = 0;
-                                  monitorMembersList.forEach(m => { rawTotal += (contribs[m.id] || 0) + (contribs[m.id] || 0); });
+                                  monitorMembersList.forEach(m => { rawTotal += Number(contribs[m.id] || 0); });
                                   return monitorMembersList.map((m) => {
-                                    const rawVal = (contribs[m.id] || 0) + (contribs[m.id] || 0);
+                                    const rawVal = Number(contribs[m.id] || 0);
                                     const pct = rawTotal > 0 ? Math.round((rawVal / rawTotal) * 100) : 0;
                                     return `<span style="color:${rawVal > 0 ? (m.color || '#2563eb') : '#94a3b8'}; font-weight:700;">● ${escapeHtml(m.name)}: ${pct}%</span>`;
                                   }).join('');
@@ -6234,12 +6236,12 @@
                               ${(() => {
                                 const contribs = state.stage2?.memberContributions || {};
                                 let rawTotal = 0;
-                                monitorMembersList.forEach(m => { rawTotal += (contribs[m.id] || 0) + (contribs[m.id] || 0); });
+                                monitorMembersList.forEach(m => { rawTotal += Number(contribs[m.id] || 0); });
                                 if (rawTotal === 0) {
                                   return `<div style="width:100%; height:10px; background:#f8fafc; border-radius:5px; display:flex; align-items:center; justify-content:center; font-size:10px; color:#94a3b8; font-weight:600;">⏳ 暂无协作投入 (组员在 Etherpad 中撰写、修改正文或研讨后将平滑累计真实贡献)</div>`;
                                 }
                                 return monitorMembersList.map((m) => {
-                                  const rawVal = (contribs[m.id] || 0) + (contribs[m.id] || 0);
+                                  const rawVal = Number(contribs[m.id] || 0);
                                   if (rawVal === 0) return '';
                                   const pct = Math.round((rawVal / rawTotal) * 100);
                                   return `<div style="width:${pct}%; background:${m.color || '#2563eb'}; transition:width 0.3s ease;" title="${escapeHtml(m.name)}: ${pct}% (${rawVal}字)"></div>`;
@@ -6313,9 +6315,9 @@
                                   ${(() => {
                                     const contribs = state.stage2?.memberContributions || {};
                                     let rawTotal = 0;
-                                    monitorMembersList.forEach(m => { rawTotal += (contribs[m.id] || 0) + (contribs[m.id] || 0); });
+                                    monitorMembersList.forEach(m => { rawTotal += Number(contribs[m.id] || 0); });
                                     return monitorMembersList.map((m) => {
-                                      const rawVal = (contribs[m.id] || 0) + (contribs[m.id] || 0);
+                                      const rawVal = Number(contribs[m.id] || 0);
                                       const pct = rawTotal > 0 ? Math.round((rawVal / rawTotal) * 100) : 0;
                                       return `<span style="color:${rawVal > 0 ? (m.color || '#2563eb') : '#94a3b8'}; font-weight:700;">● ${escapeHtml(m.name)}: ${pct}%</span>`;
                                     }).join('');
@@ -6326,12 +6328,12 @@
                                 ${(() => {
                                   const contribs = state.stage2?.memberContributions || {};
                                   let rawTotal = 0;
-                                  monitorMembersList.forEach(m => { rawTotal += (contribs[m.id] || 0) + (contribs[m.id] || 0); });
+                                  monitorMembersList.forEach(m => { rawTotal += Number(contribs[m.id] || 0); });
                                   if (rawTotal === 0) {
                                     return `<div style="width:100%; height:10px; background:#f8fafc; border-radius:5px; display:flex; align-items:center; justify-content:center; font-size:10px; color:#94a3b8; font-weight:600;">⏳ 暂无协作投入</div>`;
                                   }
                                   return monitorMembersList.map((m) => {
-                                    const rawVal = (contribs[m.id] || 0) + (contribs[m.id] || 0);
+                                    const rawVal = Number(contribs[m.id] || 0);
                                     if (rawVal === 0) return '';
                                     const pct = Math.round((rawVal / rawTotal) * 100);
                                     return `<div style="width:${pct}%; background:${m.color || '#2563eb'}; transition:width 0.3s ease;" title="${escapeHtml(m.name)}: ${pct}% (${rawVal}字)"></div>`;
@@ -6427,9 +6429,6 @@
       });
     }
 
-    const btnSwitchStudent = container.querySelector('#btn-switch-student-preview');
-    if (btnSwitchStudent) btnSwitchStudent.addEventListener('click', () => onSwitchToStudentView());
-
     const btnBackDashboard = container.querySelector('#btn-back-to-dashboard');
     if (btnBackDashboard) {
       btnBackDashboard.addEventListener('click', () => {
@@ -6441,7 +6440,7 @@
           sessionStorage.setItem('jizhi_teacher_dtab', 'classes');
           localStorage.setItem('jizhi_teacher_dtab', 'classes');
         } catch (e) {}
-        renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+        renderTeacherPortal(container, authManager, state, onLogout);
       });
     }
 
@@ -6452,7 +6451,7 @@
           sessionStorage.setItem('jizhi_teacher_dtab', btn.dataset.dtab);
           localStorage.setItem('jizhi_teacher_dtab', btn.dataset.dtab);
         } catch (e) {}
-        renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+        renderTeacherPortal(container, authManager, state, onLogout);
       });
     });
 
@@ -6472,7 +6471,7 @@
             }
           } catch (e) {}
         }
-        renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+        renderTeacherPortal(container, authManager, state, onLogout);
       });
     });
 
@@ -6509,7 +6508,7 @@
           sessionStorage.setItem('jizhi_teacher_active_group_id', state.activeMonitorGroupId);
           localStorage.setItem('jizhi_teacher_active_group_id', state.activeMonitorGroupId);
         } catch (e) {}
-        renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+        renderTeacherPortal(container, authManager, state, onLogout);
       });
     });
 
@@ -6547,7 +6546,7 @@
           try {
             authManager.resetStudentPassword(acc);
             alert(`✅ 已成功将学生【${uname}】的密码重置为 123！`);
-            renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+            renderTeacherPortal(container, authManager, state, onLogout);
           } catch (err) {
             alert('❌ ' + err.message);
           }
@@ -6563,7 +6562,7 @@
         if (confirm(`⚠️ 确认彻底从系统中删除学生【${uname} (${uid})】的账号吗？删除后不可恢复！`)) {
           authManager.deleteStudent(uid, null, true);
           alert(`🎉 已成功彻底删除学生【${uname}】！`);
-          renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+          renderTeacherPortal(container, authManager, state, onLogout);
         }
       });
     });
@@ -6577,7 +6576,7 @@
         if (confirm(`⚠️ 确认彻底从系统中注销并删除勾选的 ${checked.length} 名学生账号吗？删除后不可恢复！`)) {
           checked.forEach(uid => authManager.deleteStudent(uid, null, true));
           alert(`🎉 已成功彻底删除 ${checked.length} 名学生账号！`);
-          renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+          renderTeacherPortal(container, authManager, state, onLogout);
         }
       });
     }
@@ -6610,7 +6609,7 @@
               window.app.state.activeMonitorGroupId = state.activeMonitorGroupId;
             }
             alert(`✅ 教学班级【${cName}】已成功删除！`);
-            renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+            renderTeacherPortal(container, authManager, state, onLogout);
           } catch (err) {
             alert('❌ ' + err.message);
           }
@@ -6647,7 +6646,7 @@
           }
           authManager.pushGlobalMeta();
           alert(`✅ 已成功清空【${activeClass.name}】的全部学生名册！`);
-          renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+          renderTeacherPortal(container, authManager, state, onLogout);
         }
       });
     }
@@ -6674,7 +6673,7 @@
               window.app.state.activeTaskId = state.activeTaskId;
               window.app.state.activeMonitorGroupId = state.activeMonitorGroupId;
             }
-            renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+            renderTeacherPortal(container, authManager, state, onLogout);
           } catch (err) {
             alert('❌ ' + err.message);
           }
@@ -6752,7 +6751,7 @@
             }
           }
           closeModal();
-          renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+          renderTeacherPortal(container, authManager, state, onLogout);
         } catch (err) {
           alert('❌ ' + err.message);
         }
@@ -6910,7 +6909,7 @@
           authManager.pushGlobalMeta();
           alert(`🎉 成功将选中的 ${checkedUids.length} 名学生加入班级【${activeClass.name}】！`);
           closeModal();
-          renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+          renderTeacherPortal(container, authManager, state, onLogout);
         });
       });
     }
@@ -7012,7 +7011,7 @@
         }
         alert(tipMsg);
         closeModal();
-        renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+        renderTeacherPortal(container, authManager, state, onLogout);
       });
     };
 
@@ -7123,7 +7122,7 @@
         try {
           authManager.updateGroupMembers(cls.id, editingGroupId || ('group_' + Date.now()), name, selectedUserIds);
           closeModal();
-          renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+          renderTeacherPortal(container, authManager, state, onLogout);
         } catch (err) {
           alert('❌ ' + err.message);
         }
@@ -7156,7 +7155,7 @@
             if (data && data.success) {
               alert(`✅ ${data.message || `学生【${name}】密码已成功重置为 123！`}`);
               authManager.pullGlobalMeta().then(() => {
-                renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+                renderTeacherPortal(container, authManager, state, onLogout);
               });
             } else {
               alert('❌ ' + (data.message || '重置失败'));
@@ -7171,14 +7170,14 @@
     container.querySelectorAll('.delete-student-btn').forEach(btn => {
       btn.addEventListener('click', () => {
         authManager.deleteStudent(btn.dataset.id, activeClass.id);
-        renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+        renderTeacherPortal(container, authManager, state, onLogout);
       });
     });
 
     container.querySelectorAll('.btn-delete-group').forEach(btn => {
       btn.addEventListener('click', () => {
         authManager.deleteGroup(activeClass.id, btn.dataset.gid);
-        renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+        renderTeacherPortal(container, authManager, state, onLogout);
       });
     });
 
@@ -7238,7 +7237,7 @@
           modal.querySelector('#btn-rand-mode-append').addEventListener('click', () => {
             closeModal();
             authManager.autoRandomGrouping(activeClass.id, groupSize, 'append_unassigned');
-            renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+            renderTeacherPortal(container, authManager, state, onLogout);
             alert(`✅ 已成功将未进组学生随机分配完成！`);
           });
 
@@ -7246,14 +7245,14 @@
             if (confirm(`⚠️ 确认将全班 ${classStudents.length} 名学生全员打散重新分组？`)) {
               closeModal();
               authManager.autoRandomGrouping(activeClass.id, groupSize, 'reset_all');
-              renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+              renderTeacherPortal(container, authManager, state, onLogout);
               alert(`✅ 已完成全员打散重组！`);
             }
           });
         } else {
           // 当前没有小组，直接执行随机分组
           const totalGroups = authManager.autoRandomGrouping(activeClass.id, groupSize, 'reset_all');
-          renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+          renderTeacherPortal(container, authManager, state, onLogout);
           alert(`✅ 已完成随机分组！按每组约 ${groupSize} 人，共自动划分 ${totalGroups} 个协作小组（每组至少 2 人）。`);
         }
       });
@@ -7269,7 +7268,7 @@
         }
         if (confirm(`💥 危险操作：确认一键解散【${activeClass.name}】下的所有小组？\n\n解散后全部学生将恢复为【待划分】状态。`)) {
           authManager.deleteAllGroups(activeClass.id);
-          renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+          renderTeacherPortal(container, authManager, state, onLogout);
           alert('✅ 已成功解散当前班级的所有小组！');
         }
       });
@@ -7318,7 +7317,7 @@
         }
 
         alert('✅ 问卷链接已成功保存并永久同步！');
-        renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+        renderTeacherPortal(container, authManager, state, onLogout);
       });
     }
 
@@ -7346,7 +7345,7 @@
           authManager.deleteSurvey(sId);
           if (window.app && window.app.cloudSyncEngine) window.app.cloudSyncEngine.pushSnapshot();
           alert('✅ 问卷配置已成功删除！');
-          renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+          renderTeacherPortal(container, authManager, state, onLogout);
         }
       });
     });
@@ -7585,7 +7584,7 @@
             authManager.updateTask(taskId, newTitle, newDesc, fmtTimeStr(newStart), fmtTimeStr(newDeadline), calculatedDuration, newWords);
             closeModal();
             alert(`✅ 写作任务《${newTitle}》已成功修改，时间与内容已全网即时同步！`);
-            renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+            renderTeacherPortal(container, authManager, state, onLogout);
           } catch (err) {
             alert('❌ ' + err.message);
           }
@@ -7735,7 +7734,7 @@
             authManager.extendTaskDeadline(taskId, newDeadlineStr, lastAddedMins);
             closeModal();
             showGlobalBannerNotice('✅ 延期成功', `写作任务《${task.title}》截止时间已延长至 ${newDeadlineStr}！学生端已自动解除只读锁定。`, 'success');
-            renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+            renderTeacherPortal(container, authManager, state, onLogout);
           } catch (err) {
             alert('❌ ' + err.message);
           }
@@ -7751,7 +7750,7 @@
         if (confirm(`🗑️ 确认删除写作任务《${taskTitle}》？\n\n删除后该任务将从所有教师与学生端移除。`)) {
           authManager.deleteTask(taskId);
           alert(`✅ 已成功删除写作任务《${taskTitle}》！`);
-          renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+          renderTeacherPortal(container, authManager, state, onLogout);
         }
       });
     });
@@ -7764,7 +7763,7 @@
         if (confirm(`🗑️ 确认删除课堂通知《${annTitle}》？\n\n删除后该通知将从所有学生端的弹窗和通知中心中撤销。`)) {
           authManager.deleteAnnouncement(annId);
           alert(`✅ 已成功删除课堂通知《${annTitle}》！`);
-          renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+          renderTeacherPortal(container, authManager, state, onLogout);
         }
       });
     });
@@ -8004,7 +8003,7 @@
           try {
             authManager.createTask(title, classId, desc, [], startTime, deadline, calculatedDuration, taskType, words);
             closeModal();
-            renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+            renderTeacherPortal(container, authManager, state, onLogout);
           } catch (err) {
             alert('❌ ' + err.message);
           }
@@ -8228,7 +8227,7 @@
 
           authManager.publishAnnouncement(taskId, title, content, finalAttachment, targetGId, targetGName, selClassId, selClassName, selectedGroupIds);
           closeModal();
-          renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+          renderTeacherPortal(container, authManager, state, onLogout);
         });
       });
     }
@@ -8486,7 +8485,7 @@
 
             alert(`🎉 参考范文《${title}》已成功存入范文库！${autoPush ? '\n审稿编辑 Agent 已同步向受众小组推送！' : ''}`);
             closeModal();
-            renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+            renderTeacherPortal(container, authManager, state, onLogout);
           } catch (err) {
             alert('❌ 上传失败: ' + err.message);
             submitBtn.disabled = false;
@@ -8523,7 +8522,7 @@
       btn.addEventListener('click', () => {
         if (confirm('确认从参考范文库中删除此篇文献？')) {
           authManager.deleteReferencePaper(btn.dataset.id);
-          renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+          renderTeacherPortal(container, authManager, state, onLogout);
         }
       });
     });
@@ -8537,7 +8536,7 @@
           window.app.state.activeTaskId = targetTId;
           window.app.loadGroupState(state.activeMonitorGroupId || (activeClass?.groups?.[0]?.id) || null);
         }
-        renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+        renderTeacherPortal(container, authManager, state, onLogout);
       });
     }
 
@@ -8569,21 +8568,21 @@
     if (selSwitchGroup) {
       selSwitchGroup.addEventListener('change', (e) => {
         syncGroupDataFromMemory(e.target.value);
-        renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+        renderTeacherPortal(container, authManager, state, onLogout);
       });
     }
 
     container.querySelectorAll('.btn-monitor-panorama-card').forEach(card => {
       card.addEventListener('click', () => {
         syncGroupDataFromMemory(card.dataset.gid);
-        renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+        renderTeacherPortal(container, authManager, state, onLogout);
       });
     });
 
     container.querySelectorAll('.btn-switch-monitor-group').forEach(btn => {
       btn.addEventListener('click', () => {
         syncGroupDataFromMemory(btn.dataset.gid);
-        renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+        renderTeacherPortal(container, authManager, state, onLogout);
       });
     });
 
@@ -8594,7 +8593,7 @@
         const stg = btn.dataset.stg;
         state.teacherMonitorStageMode = stg;
         state.monitorStageTab = stg;
-        renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+        renderTeacherPortal(container, authManager, state, onLogout);
       });
     });
 
@@ -8604,7 +8603,7 @@
         e.preventDefault();
         e.stopPropagation();
         state.stage3TeacherTab = 'defense';
-        renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+        renderTeacherPortal(container, authManager, state, onLogout);
       });
     }
     const btnStage3Doc = container.querySelector('#btn-tab-teacher-stage3-doc');
@@ -8613,7 +8612,7 @@
         e.preventDefault();
         e.stopPropagation();
         state.stage3TeacherTab = 'doc';
-        renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+        renderTeacherPortal(container, authManager, state, onLogout);
       });
     }
 
@@ -8692,7 +8691,7 @@
   /* ==========================================================================
      10. STUDENT TASK PORTAL (CENTRALIZED HUB & COLLABORATION ENTRY)
      ========================================================================== */
-  function renderStudentTaskPortal(container, authManager, state, onSelectTask, onLogout, onSwitchTeacher, onOpenAnnModal, onOpenSurveyModal) {
+  function renderStudentTaskPortal(container, authManager, state, onSelectTask, onLogout, onOpenAnnModal, onOpenSurveyModal) {
     // ⚡ 监听全局广播（跨标签页秒级无感热同步大厅任务卡片、新任务发布与延期通知）
     if ('BroadcastChannel' in window) {
       try {
@@ -8704,27 +8703,27 @@
           // 1. 新任务发布广播
           if (e.data && e.data.type === 'task_created' && e.data.task) {
             const t = e.data.task;
-            renderStudentTaskPortal(container, authManager, state, onSelectTask, onLogout, onSwitchTeacher, onOpenAnnModal, onOpenSurveyModal);
+            renderStudentTaskPortal(container, authManager, state, onSelectTask, onLogout, onOpenAnnModal, onOpenSurveyModal);
             showGlobalBannerNotice('📢 教师发布新任务', `任课教师刚刚发布了全新写作任务《${t.title || '新协作任务'}》！`, 'info', 8000);
             return;
           }
 
           // 2. 任务被删除广播
           if (e.data && e.data.type === 'task_deleted') {
-            renderStudentTaskPortal(container, authManager, state, onSelectTask, onLogout, onSwitchTeacher, onOpenAnnModal, onOpenSurveyModal);
+            renderStudentTaskPortal(container, authManager, state, onSelectTask, onLogout, onOpenAnnModal, onOpenSurveyModal);
             return;
           }
 
           // 3. 任务更新广播
           if (e.data && e.data.type === 'task_updated') {
-            renderStudentTaskPortal(container, authManager, state, onSelectTask, onLogout, onSwitchTeacher, onOpenAnnModal, onOpenSurveyModal);
+            renderStudentTaskPortal(container, authManager, state, onSelectTask, onLogout, onOpenAnnModal, onOpenSurveyModal);
             return;
           }
 
           // 4. 任务延期广播
           if (e.data && e.data.type === 'task_extended' && e.data.task) {
             const t = e.data.task;
-            renderStudentTaskPortal(container, authManager, state, onSelectTask, onLogout, onSwitchTeacher, onOpenAnnModal, onOpenSurveyModal);
+            renderStudentTaskPortal(container, authManager, state, onSelectTask, onLogout, onOpenAnnModal, onOpenSurveyModal);
 
             let shownEvents = {};
             try { shownEvents = JSON.parse(sessionStorage.getItem('jizhi_shown_deadline_events') || '{}'); } catch (err) {}
@@ -9052,7 +9051,7 @@
         if (window.app && newGroupObj && newGroupObj.id) {
           window.app.loadGroupState(newGroupObj.id);
         }
-        renderStudentTaskPortal(container, authManager, state, onSelectTask, onLogout, onSwitchTeacher, onOpenAnnModal, onOpenSurveyModal);
+        renderStudentTaskPortal(container, authManager, state, onSelectTask, onLogout, onOpenAnnModal, onOpenSurveyModal);
       });
     }
 
@@ -9060,7 +9059,6 @@
     container.querySelector('#btn-portal-change-pwd')?.addEventListener('click', () => {
       authManager.openChangePasswordModal();
     });
-    container.querySelector('#btn-portal-switch-teacher')?.addEventListener('click', () => onSwitchTeacher());
     container.querySelector('#btn-enter-default-workspace')?.addEventListener('click', () => onSelectTask(null));
     container.querySelectorAll('.btn-enter-task-workspace').forEach(btn => {
       btn.addEventListener('click', () => onSelectTask(btn.dataset.taskId));
@@ -9079,7 +9077,7 @@
   /* ==========================================================================
      8. UI RENDERER (STUDENT CANVAS & HEADER)
      ========================================================================== */
-  function renderHeader(state, currentUser, announcements, onStageChange, onSpeedChange, onLogout, onSwitchTeacher, onOpenAnnModal, onOpenSurveyModal, onBackToTaskList) {
+  function renderHeader(state, currentUser, announcements, onStageChange, onLogout, onOpenAnnModal, onOpenSurveyModal, onBackToTaskList) {
     const header = document.getElementById('app-header');
     if (!header) return;
     const activeTaskId = (state && state.activeTaskId) ? state.activeTaskId : null;
@@ -9243,657 +9241,6 @@
     if (curStage === 'stage1') renderStage1Canvas(s1Container, state, handlers);
     else if (curStage === 'stage2') renderStage2Canvas(s2Container, state, handlers);
     else if (curStage === 'stage3') renderStage3Canvas(s3Container, state, handlers);
-  }
-
-  function buildWordEditorHtml(editorId, initialHtml, isReadonly) {
-    return `
-      <div class="word-editor-container" id="${editorId}-wrapper">
-        ${!isReadonly ? `
-          <div class="word-toolbar">
-            <!-- 1. 历史操作与格式刷 -->
-            <div class="word-toolbar-group">
-              <button class="word-btn" id="${editorId}-btn-undo" title="撤销 (Ctrl+Z)">↩️ 撤销</button>
-              <button class="word-btn" id="${editorId}-btn-redo" title="重做 (Ctrl+Y)">↪️ 重做</button>
-              <button class="word-btn" id="${editorId}-btn-format-painter" title="格式刷 (复制选中文字格式并应用到下一段文字)">🖌️ 格式刷</button>
-            </div>
-
-            <!-- 2. 论文大纲与章节层级 (结构化标签) -->
-            <div class="word-toolbar-group" title="设置当前段落的论文大纲层级">
-              <span style="font-size:11px; font-weight:700; color:#64748b; margin-right:2px;">📑 层级:</span>
-              <select class="word-select" id="${editorId}-sel-format" title="段落与大纲层级" style="width:130px; font-weight:600; color:#1e40af;">
-                <option value="p">正文段落 (Body)</option>
-                <option value="h1">论文总题目 (H1)</option>
-                <option value="h2">一级章标题 (H2)</option>
-                <option value="h3">二级节标题 (H3)</option>
-                <option value="h4">三级小节 (H4)</option>
-                <option value="blockquote">引文与摘要块</option>
-              </select>
-            </div>
-
-            <!-- 3. 字体与字号设置 (丰富学术与通用字体库) -->
-            <div class="word-toolbar-group" title="设置选中文字的字体与字号">
-              <span style="font-size:11px; font-weight:700; color:#64748b; margin-right:2px;">🔤 字体字号:</span>
-              <select class="word-select" id="${editorId}-sel-font" title="学术中英文字体" style="width:130px;">
-                <option value="SimSun, 'Songti SC', serif">宋体 (学术标准)</option>
-                <option value="SimHei, 'Heiti SC', sans-serif">黑体 (大标题)</option>
-                <option value="FangSong, 'FangSong SC', serif">仿宋 (公文标准)</option>
-                <option value="KaiTi, 'Kaiti SC', serif">楷体 (引文/致谢)</option>
-                <option value="'Microsoft YaHei', 'PingFang SC', sans-serif">微软雅黑 / 苹方</option>
-                <option value="'Times New Roman', serif">Times New Roman</option>
-                <option value="Arial, sans-serif">Arial</option>
-                <option value="Calibri, sans-serif">Calibri</option>
-                <option value="'Courier New', monospace">Courier New (代码)</option>
-                <option value="Georgia, serif">Georgia (英文期刊)</option>
-              </select>
-              <select class="word-select" id="${editorId}-sel-size" title="标准论文中英文字号" style="width:115px;">
-                <option value="42px">初号 (42pt)</option>
-                <option value="36px">小初 (36pt)</option>
-                <option value="26px">一号 (26pt)</option>
-                <option value="24px">小一 (24pt)</option>
-                <option value="22px">二号 (22pt)</option>
-                <option value="18px">小二 (18pt)</option>
-                <option value="16px">三号 (16pt)</option>
-                <option value="15px">小三 (15pt)</option>
-                <option value="14px">四号 (14pt)</option>
-                <option value="12px" selected>小四 (12pt / 正文)</option>
-                <option value="10.5px">五号 (10.5pt)</option>
-                <option value="9px">小五 (9pt)</option>
-                <option value="7.5px">六号 (7.5pt)</option>
-              </select>
-            </div>
-
-            <!-- 4. 文字修饰 -->
-            <div class="word-toolbar-group">
-              <button class="word-btn" id="${editorId}-btn-bold" title="粗体 (Ctrl+B)"><b>B</b></button>
-              <button class="word-btn" id="${editorId}-btn-italic" title="斜体 (Ctrl+I)"><i>I</i></button>
-              <button class="word-btn" id="${editorId}-btn-underline" title="下划线 (Ctrl+U)"><u>U</u></button>
-              <button class="word-btn" id="${editorId}-btn-strike" title="删除线"><s>S</s></button>
-              <button class="word-btn" id="${editorId}-btn-sup" title="上标 (文献角标 [1])">X²</button>
-              <button class="word-btn" id="${editorId}-btn-sub" title="下标 (变量角标 H₁)">X₂</button>
-            </div>
-
-            <!-- 5. 排版、对齐、缩进设置与行间距 -->
-            <div class="word-toolbar-group">
-              <select class="word-select" id="${editorId}-sel-line-height" title="行间距 (行高)" style="width:96px;">
-                <option value="1.5" selected>1.5倍 (标准)</option>
-                <option value="1.0">单倍行距</option>
-                <option value="1.25">1.25倍行距</option>
-                <option value="1.75">1.75倍行距</option>
-                <option value="2.0">双倍 (2.0倍)</option>
-              </select>
-              <!-- 首行缩进 (支持小数自定义填入) -->
-              <div style="display:inline-flex; align-items:center; background:#f8fafc; border:1px solid #cbd5e1; border-radius:4px; padding:1px 6px; gap:2px;" title="首行缩进字符数 (可直接输入任意小数，如 2 或 1.5)">
-                <span style="font-size:11px; font-weight:700; color:#475569;">首行:</span>
-                <input type="number" id="${editorId}-num-indent" value="2" min="0" max="20" step="0.5" style="width:36px; padding:2px 2px; border:1px solid #cbd5e1; border-radius:3px; font-size:11.5px; font-weight:700; text-align:center; background:#ffffff;">
-                <span style="font-size:11px; color:#64748b;">字符</span>
-              </div>
-
-              <!-- 悬挂缩进 (支持小数自定义填入) -->
-              <div style="display:inline-flex; align-items:center; background:#f8fafc; border:1px solid #cbd5e1; border-radius:4px; padding:1px 6px; gap:2px;" title="悬挂缩进字符数 (参考文献格式，可输入任意小数，如 2 或 1.5，填 0 取消)">
-                <span style="font-size:11px; font-weight:700; color:#475569;">⇤ 悬挂:</span>
-                <input type="number" id="${editorId}-num-hanging-indent" value="2" min="0" max="20" step="0.5" style="width:36px; padding:2px 2px; border:1px solid #cbd5e1; border-radius:3px; font-size:11.5px; font-weight:700; text-align:center; background:#ffffff;">
-                <span style="font-size:11px; color:#64748b;">字符</span>
-                <button class="word-btn" id="${editorId}-btn-apply-hanging" style="padding:1px 5px; font-size:11px; margin-left:2px; background:#2563eb; color:white;" title="应用悬挂缩进">应用</button>
-              </div>
-
-              <button class="word-btn" id="${editorId}-btn-align-left" title="左对齐">⇤</button>
-              <button class="word-btn" id="${editorId}-btn-align-center" title="居中对齐">☰</button>
-              <button class="word-btn" id="${editorId}-btn-align-right" title="右对齐">⇥</button>
-              <button class="word-btn" id="${editorId}-btn-align-justify" title="两端对齐 (学术正文标准)">☲</button>
-              <button class="word-btn" id="${editorId}-btn-list-ul" title="项目符号">• 列表</button>
-              <button class="word-btn" id="${editorId}-btn-list-ol" title="编号列表">1. 编号</button>
-              <button class="word-btn" id="${editorId}-btn-hr" title="插入水平分隔线">― 分隔线</button>
-            </div>
-
-            <!-- 6. 颜色、荧光笔与清格式 -->
-            <div class="word-toolbar-group">
-              <label style="display:flex; align-items:center; gap:3px; font-size:11px; color:#94a3b8; cursor:pointer;" title="文字颜色">
-                <span>🎨</span>
-                <input type="color" id="${editorId}-color-text" value="#0f172a" style="width:18px; height:18px; border:none; background:transparent; cursor:pointer;">
-              </label>
-              <button class="word-btn" id="${editorId}-btn-hilite-yellow" title="黄色批注高亮" style="color:#facc15;">🖍️ 黄</button>
-              <button class="word-btn" id="${editorId}-btn-hilite-green" title="绿色建议高亮" style="color:#4ade80;">🖍️ 绿</button>
-              <button class="word-btn" id="${editorId}-btn-clear-format" title="清除格式">🧹 清格式</button>
-            </div>
-
-            <!-- 7. 学术论文插件套件 -->
-            <div class="word-toolbar-group">
-              <button class="word-btn plugin-btn" id="${editorId}-btn-insert-image" title="插入学术图表与图题说明">🖼️ 图表</button>
-              <button class="word-btn plugin-btn" id="${editorId}-btn-insert-table" title="插入标准学术三线表">📊 三线表</button>
-              <button class="word-btn plugin-btn" id="${editorId}-btn-insert-symbol" title="高阶学术公式与统计符号库">🔣 符号</button>
-              <button class="word-btn plugin-btn" id="${editorId}-btn-insert-citation" title="插入文献引用角标 [n]">📑 [n]</button>
-              <button class="word-btn plugin-btn" id="${editorId}-btn-insert-abstract" title="插入【摘要与关键词】学术前置卡片">📌 摘要</button>
-              <button class="word-btn plugin-btn" id="${editorId}-btn-insert-ref-template" title="在文末插入标准参考文献模版">📚 文献</button>
-              <button class="word-btn plugin-btn" id="${editorId}-btn-find-replace" title="文档内查找与替换">🔍 查找替换</button>
-            </div>
-          </div>
-
-          <div class="search-replace-bar" id="${editorId}-search-bar" style="display:none; align-items:center; gap:8px; padding:8px 14px; background:#f8fafc; border-bottom:1px solid #e2e8f0; font-size:12px;">
-            <span style="font-weight:700; color:#334155;">🔍 查找:</span>
-            <input type="text" id="${editorId}-search-input" placeholder="输入要查找的关键词..." style="padding:4px 8px; border:1px solid #cbd5e1; border-radius:4px; font-size:12px; width:150px;">
-            <button class="word-btn" id="${editorId}-btn-find-next" style="background:#2563eb; color:white; font-size:11.5px; padding:3px 10px;">下一个</button>
-            <span id="${editorId}-find-count-tip" style="color:#64748b; font-size:11px;"></span>
-            <span style="font-weight:700; color:#334155; margin-left:8px;">替换为:</span>
-            <input type="text" id="${editorId}-replace-input" placeholder="替换内容..." style="padding:4px 8px; border:1px solid #cbd5e1; border-radius:4px; font-size:12px; width:130px;">
-            <button class="word-btn" id="${editorId}-btn-do-replace" style="background:#0284c7; color:white; font-size:11.5px; padding:3px 10px;">替换当前</button>
-            <button class="word-btn" id="${editorId}-btn-do-replace-all" style="background:#059669; color:white; font-size:11.5px; padding:3px 10px;">全部替换</button>
-            <button class="word-btn" id="${editorId}-btn-close-search" style="background:none; border:none; color:#94a3b8; cursor:pointer; font-weight:700; margin-left:auto;">✕ 关闭</button>
-          </div>
-        ` : `
-          <div class="word-toolbar" style="background:rgba(30,41,59,0.9); justify-content:space-between;">
-            <div style="font-size:13px; font-weight:700; color:#34d399;">🔒 论文终稿已提交归档 · 只读查阅模式</div>
-          </div>
-        `}
-
-        <div class="collab-presence-header" id="${editorId}-presence-header" style="display:flex; justify-content:space-between; align-items:center;">
-          <div style="display:flex; align-items:center; gap:8px;">
-            <div class="collab-presence-title">
-              <span>👥 组员协同在线感知:</span>
-            </div>
-            <div class="collab-member-pills" id="${editorId}-presence-pills"></div>
-          </div>
-          <div style="font-size:11px; font-weight:700; padding:2px 8px; border-radius:12px; border:1px solid #a7f3d0; background:#ecfdf5; color:#059669; white-space:nowrap;">
-            🟢 高可靠实时同步已就绪
-          </div>
-        </div>
-
-        <div class="word-page-scroll">
-          <div class="word-page" id="${editorId}">
-            ${initialHtml}
-          </div>
-        </div>
-      </div>
-    `;
-  }
-
-  function attachWordEditorEvents(container, editorId, isReadonly, onChangeCallback, onPresenceCallback) {
-    const editor = container.querySelector(`#${editorId}`);
-    if (!editor) return;
-
-    if (isReadonly) {
-      editor.setAttribute('contenteditable', 'false');
-      editor.contentEditable = 'false';
-      editor.style.userSelect = 'text';
-      editor.style.cursor = 'default';
-      editor.querySelectorAll('[contenteditable]').forEach(el => {
-        el.setAttribute('contenteditable', 'false');
-        el.contentEditable = 'false';
-      });
-
-      const blockEdit = (e) => {
-        if ((e.ctrlKey || e.metaKey) && (e.key === 'c' || e.key === 'C' || e.key === 'a' || e.key === 'A')) {
-          return true;
-        }
-        e.preventDefault();
-        e.stopPropagation();
-        return false;
-      };
-      editor.addEventListener('keydown', blockEdit, true);
-      editor.addEventListener('keypress', blockEdit, true);
-      editor.addEventListener('paste', blockEdit, true);
-      editor.addEventListener('cut', blockEdit, true);
-      editor.addEventListener('drop', blockEdit, true);
-    }
-
-    if (!isReadonly) {
-      // 🛡️ 核心保障：阻止工具栏按钮点击时的默认失焦事件，完美锁定用户选区
-      container.querySelectorAll('.word-toolbar button').forEach(btn => {
-        btn.addEventListener('mousedown', (e) => {
-          e.preventDefault();
-        });
-      });
-
-      const exec = (cmd, val = null) => {
-        document.execCommand(cmd, false, val);
-        editor.focus();
-        if (onChangeCallback) onChangeCallback(editor.innerHTML);
-      };
-
-      const btnUndo = container.querySelector(`#${editorId}-btn-undo`);
-      if (btnUndo) btnUndo.addEventListener('click', () => exec('undo'));
-      const btnRedo = container.querySelector(`#${editorId}-btn-redo`);
-      if (btnRedo) btnRedo.addEventListener('click', () => exec('redo'));
-
-      const btnFullscreen = container.querySelector(`#${editorId}-btn-fullscreen`);
-      if (btnFullscreen) {
-        btnFullscreen.addEventListener('click', () => {
-          const wrapper = container.querySelector(`#${editorId}-wrapper`);
-          if (wrapper) {
-            wrapper.classList.toggle('fullscreen');
-            btnFullscreen.innerText = wrapper.classList.contains('fullscreen') ? '✖ 退出全屏' : '🔲 全屏';
-          }
-        });
-      }
-
-      const selFormat = container.querySelector(`#${editorId}-sel-format`);
-      if (selFormat) selFormat.addEventListener('change', (e) => exec('formatBlock', e.target.value));
-
-      const selFont = container.querySelector(`#${editorId}-sel-font`);
-      if (selFont) selFont.addEventListener('change', (e) => exec('fontName', e.target.value));
-
-      const selSize = container.querySelector(`#${editorId}-sel-size`);
-      if (selSize) selSize.addEventListener('change', (e) => exec('fontSize', e.target.value));
-
-      const btnBold = container.querySelector(`#${editorId}-btn-bold`);
-      if (btnBold) btnBold.addEventListener('click', () => exec('bold'));
-      const btnItalic = container.querySelector(`#${editorId}-btn-italic`);
-      if (btnItalic) btnItalic.addEventListener('click', () => exec('italic'));
-      const btnUnderline = container.querySelector(`#${editorId}-btn-underline`);
-      if (btnUnderline) btnUnderline.addEventListener('click', () => exec('underline'));
-      const btnStrike = container.querySelector(`#${editorId}-btn-strike`);
-      if (btnStrike) btnStrike.addEventListener('click', () => exec('strikeThrough'));
-      const btnSup = container.querySelector(`#${editorId}-btn-sup`);
-      if (btnSup) btnSup.addEventListener('click', () => exec('superscript'));
-      const selLineHeight = container.querySelector(`#${editorId}-sel-line-height`);
-      if (selLineHeight) {
-        selLineHeight.addEventListener('change', (e) => {
-          editor.style.lineHeight = e.target.value;
-          // 🛡️ 同步写入每个段落，使行间距持久化到 innerHTML 并同步给协同用户
-          editor.querySelectorAll('p, div, h1, h2, h3, h4, li, blockquote').forEach(el => {
-            el.style.lineHeight = e.target.value;
-          });
-          if (onChangeCallback) onChangeCallback(editor.innerHTML);
-        });
-      }
-
-      const selParaMargin = container.querySelector(`#${editorId}-sel-para-margin`);
-      if (selParaMargin) {
-        selParaMargin.addEventListener('change', (e) => {
-          const val = e.target.value;
-          editor.querySelectorAll('p').forEach(p => { p.style.marginBottom = val; });
-          if (onChangeCallback) onChangeCallback(editor.innerHTML);
-        });
-      }
-
-      const btnAlignLeft = container.querySelector(`#${editorId}-btn-align-left`);
-      if (btnAlignLeft) btnAlignLeft.addEventListener('click', () => exec('justifyLeft'));
-      const btnAlignCenter = container.querySelector(`#${editorId}-btn-align-center`);
-      if (btnAlignCenter) btnAlignCenter.addEventListener('click', () => exec('justifyCenter'));
-      const btnAlignRight = container.querySelector(`#${editorId}-btn-align-right`);
-      if (btnAlignRight) btnAlignRight.addEventListener('click', () => exec('justifyRight'));
-      const btnAlignJustify = container.querySelector(`#${editorId}-btn-align-justify`);
-      if (btnAlignJustify) btnAlignJustify.addEventListener('click', () => exec('justifyFull'));
-
-      const btnIndentInc = container.querySelector(`#${editorId}-btn-indent-inc`);
-      if (btnIndentInc) btnIndentInc.addEventListener('click', () => exec('indent'));
-      const btnIndentDec = container.querySelector(`#${editorId}-btn-indent-dec`);
-      if (btnIndentDec) btnIndentDec.addEventListener('click', () => exec('outdent'));
-
-      // 首行缩进自定义数值（支持小数，如 1.5, 2, 2.5 字符）
-      const numIndent = container.querySelector(`#${editorId}-num-indent`);
-      if (numIndent) {
-        const applyIndent = () => {
-          const rawVal = parseFloat(numIndent.value);
-          const indentVal = isNaN(rawVal) ? '2em' : `${rawVal}em`;
-          const selection = window.getSelection();
-          let targetP = null;
-          if (selection && selection.rangeCount > 0) {
-            let node = selection.anchorNode ? (selection.anchorNode.nodeType === 1 ? selection.anchorNode : selection.anchorNode.parentElement) : null;
-            while (node && node !== editor && !['P', 'DIV', 'H1', 'H2', 'H3', 'H4', 'BLOCKQUOTE'].includes(node.nodeName)) {
-              node = node.parentElement;
-            }
-            if (node && node !== editor) targetP = node;
-          }
-          if (targetP) {
-            targetP.style.textIndent = indentVal;
-            targetP.style.marginLeft = '0';
-          } else {
-            editor.querySelectorAll('p, div').forEach(el => { el.style.textIndent = indentVal; });
-          }
-          if (onChangeCallback) onChangeCallback(editor.innerHTML);
-        };
-        numIndent.addEventListener('input', applyIndent);
-        numIndent.addEventListener('change', applyIndent);
-      }
-
-      // 悬挂缩进自定义数值（支持小数，如 1.5, 2, 2.5 字符，填 0 即取消）
-      const numHangingIndent = container.querySelector(`#${editorId}-num-hanging-indent`);
-      const btnApplyHanging = container.querySelector(`#${editorId}-btn-apply-hanging`);
-      const applyHanging = () => {
-        const rawVal = parseFloat(numHangingIndent ? numHangingIndent.value : '2');
-        const selection = window.getSelection();
-        let targetEl = null;
-        if (selection && selection.rangeCount > 0) {
-          let node = selection.anchorNode ? (selection.anchorNode.nodeType === 1 ? selection.anchorNode : selection.anchorNode.parentElement) : null;
-          while (node && node !== editor && !['P', 'DIV', 'LI', 'BLOCKQUOTE'].includes(node.nodeName)) {
-            node = node.parentElement;
-          }
-          if (node && node !== editor) targetEl = node;
-        }
-
-        if (isNaN(rawVal) || rawVal <= 0) {
-          if (targetEl) {
-            targetEl.style.textIndent = '0';
-            targetEl.style.marginLeft = '0';
-          } else {
-            editor.querySelectorAll('p, div').forEach(el => {
-              el.style.textIndent = '0';
-              el.style.marginLeft = '0';
-            });
-          }
-        } else {
-          const val = `${rawVal}em`;
-          if (targetEl) {
-            targetEl.style.textIndent = `-${val}`;
-            targetEl.style.marginLeft = val;
-            targetEl.style.paddingLeft = '0';
-          } else {
-            document.execCommand('formatBlock', false, 'p');
-            const newSel = window.getSelection();
-            let pNode = newSel.anchorNode ? (newSel.anchorNode.nodeType === 1 ? newSel.anchorNode : newSel.anchorNode.parentElement) : null;
-            while (pNode && pNode !== editor && pNode.nodeName !== 'P') { pNode = pNode.parentElement; }
-            if (pNode && pNode !== editor) {
-              pNode.style.textIndent = `-${val}`;
-              pNode.style.marginLeft = val;
-            }
-          }
-        }
-        if (onChangeCallback) onChangeCallback(editor.innerHTML);
-      };
-
-      if (btnApplyHanging) btnApplyHanging.addEventListener('click', applyHanging);
-      if (numHangingIndent) {
-        numHangingIndent.addEventListener('keydown', (e) => { if (e.key === 'Enter') applyHanging(); });
-        numHangingIndent.addEventListener('change', applyHanging);
-      }
-
-      const btnListUl = container.querySelector(`#${editorId}-btn-list-ul`);
-      if (btnListUl) btnListUl.addEventListener('click', () => exec('insertUnorderedList'));
-      const btnListOl = container.querySelector(`#${editorId}-btn-list-ol`);
-      if (btnListOl) btnListOl.addEventListener('click', () => exec('insertOrderedList'));
-      const btnHr = container.querySelector(`#${editorId}-btn-hr`);
-      if (btnHr) btnHr.addEventListener('click', () => exec('insertHorizontalRule'));
-
-      const colorText = container.querySelector(`#${editorId}-color-text`);
-      if (colorText) colorText.addEventListener('input', (e) => exec('foreColor', e.target.value));
-
-      const btnHiliteY = container.querySelector(`#${editorId}-btn-hilite-yellow`);
-      if (btnHiliteY) btnHiliteY.addEventListener('click', () => exec('hiliteColor', '#fef08a'));
-      const btnHiliteG = container.querySelector(`#${editorId}-btn-hilite-green`);
-      if (btnHiliteG) btnHiliteG.addEventListener('click', () => exec('hiliteColor', '#bbf7d0'));
-
-      const btnClearFormat = container.querySelector(`#${editorId}-btn-clear-format`);
-      if (btnClearFormat) btnClearFormat.addEventListener('click', () => exec('removeFormat'));
-
-      // 插件 1: 插入图表与学术图题 (纯净 HTTP 文件直传 uploads/，彻底杜绝 Base64 嵌入)
-      const btnInsertImg = container.querySelector(`#${editorId}-btn-insert-image`);
-      if (btnInsertImg) {
-        btnInsertImg.addEventListener('click', () => {
-          const fileInput = document.createElement('input');
-          fileInput.type = 'file';
-          fileInput.accept = 'image/*';
-          fileInput.onchange = (e) => {
-            if (e.target.files && e.target.files[0]) {
-              const file = e.target.files[0];
-              const currentUser = window.app?.authManager ? window.app.authManager.getCurrentUser() : null;
-              const id = currentUser?.id || 'anonymous';
-              const caption = prompt('请输入学术图题说明 (例如: 图 1: 研究模型与变量关系架构图):', '图 1: 研究模型与变量关系架构图');
-
-              const fd = new FormData();
-              fd.append('file', file);
-              fd.append('userId', id);
-
-              fetch('sync.php?action=upload_file', {
-                method: 'POST',
-                body: fd
-              })
-              .then(res => res.json())
-              .then(resData => {
-                const finalUrl = (resData && resData.url) ? resData.url : '';
-                if (!finalUrl) {
-                  alert('图片上传失败，请检查网络后重试');
-                  return;
-                }
-                const figureHtml = `
-                  <div class="academic-figure" contenteditable="false" style="text-align:center; margin:16px 0;">
-                    <img src="${finalUrl}" alt="${escapeHtml(caption || '学术图表')}" style="max-width:85%; border:1px solid #cbd5e1; border-radius:6px; box-shadow:0 2px 8px rgba(0,0,0,0.1); cursor:pointer;" onclick="window.open(this.src, '_blank')">
-                    <p class="figure-caption" style="font-weight:700; color:#334155; margin-top:6px; font-size:13px; text-indent:0;">${escapeHtml(caption || '图 1: 学术模型与实证架构图')}</p>
-                  </div>
-                  <p><br></p>
-                `;
-                exec('insertHTML', figureHtml);
-              })
-              .catch(err => {
-                alert('图表上传网络异常，请重试');
-              });
-            }
-          };
-          fileInput.click();
-        });
-      }
-
-      // 插件 2: 插入标准学术三线表 (优雅弹窗配置 + 可选 p 值备注 + 完美取消)
-      const btnInsertTable = container.querySelector(`#${editorId}-btn-insert-table`);
-      if (btnInsertTable) {
-        btnInsertTable.addEventListener('click', () => {
-          document.querySelectorAll('.table-config-modal-overlay').forEach(el => el.remove());
-          const modal = document.createElement('div');
-          modal.className = 'modal-overlay table-config-modal-overlay';
-          modal.innerHTML = `
-            <div class="teacher-modal-card" style="width:480px; background:#ffffff; color:#0f172a; border-radius:12px; box-shadow:0 20px 25px -5px rgba(0,0,0,0.2);">
-              <div class="teacher-modal-header" style="background:linear-gradient(135deg, #2563eb, #1d4ed8); color:white; padding:12px 18px; border-radius:12px 12px 0 0; display:flex; justify-content:space-between; align-items:center;">
-                <div style="font-weight:800; font-size:15px; display:flex; align-items:center; gap:6px;">📊 插入标准学术三线表</div>
-                <button id="btn-close-table-modal" style="background:none; border:none; color:white; font-size:18px; cursor:pointer;">✕</button>
-              </div>
-              <div style="padding:18px; display:flex; flex-direction:column; gap:12px;">
-                <div>
-                  <label style="font-size:12.5px; font-weight:700; color:#334155;">表格标题 (表题):</label>
-                  <input type="text" id="input-table-title" class="teacher-input" style="width:100%; margin-top:4px; padding:6px 10px; font-size:13px;" value="表 1: 研究变量与测量指标汇总表">
-                </div>
-                <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
-                  <div>
-                    <label style="font-size:12.5px; font-weight:700; color:#334155;">表格行数 (含表头):</label>
-                    <input type="number" id="input-table-rows" class="teacher-input" style="width:100%; margin-top:4px; padding:6px 10px; font-size:13px;" value="4" min="2" max="20">
-                  </div>
-                  <div>
-                    <label style="font-size:12.5px; font-weight:700; color:#334155;">表格列数:</label>
-                    <input type="number" id="input-table-cols" class="teacher-input" style="width:100%; margin-top:4px; padding:6px 10px; font-size:13px;" value="4" min="1" max="10">
-                  </div>
-                </div>
-                <div style="display:flex; align-items:center; gap:8px; background:#f8fafc; padding:10px 12px; border-radius:8px; border:1px solid #e2e8f0; margin-top:4px;">
-                  <input type="checkbox" id="chk-table-pvalue" style="width:16px; height:16px; cursor:pointer;">
-                  <label for="chk-table-pvalue" style="font-size:12.5px; color:#475569; cursor:pointer; user-select:none;">
-                    附带显著性检验标注 (<i>注：*** p < .001, ** p < .01, * p < .05</i>)
-                  </label>
-                </div>
-              </div>
-              <div class="teacher-modal-footer" style="background:#f8fafc; padding:12px 18px; border-radius:0 0 12px 12px; display:flex; justify-content:flex-end; gap:10px; border-top:1px solid #e2e8f0;">
-                <button class="modal-btn cancel" id="btn-cancel-table-insert" style="padding:6px 14px; font-size:13px;">取消</button>
-                <button class="modal-btn submit task-theme" id="btn-confirm-table-insert" style="background:#2563eb; color:white; border:none; padding:6px 16px; border-radius:6px; font-size:13px; font-weight:700; cursor:pointer;">✅ 确认插入</button>
-              </div>
-            </div>
-          `;
-          document.body.appendChild(modal);
-
-          const closeModal = () => { modal.remove(); if (typeof onEscKey !== 'undefined') document.removeEventListener('keydown', onEscKey); };
-          modal.querySelector('#btn-close-table-modal').addEventListener('click', closeModal);
-          modal.querySelector('#btn-cancel-table-insert').addEventListener('click', closeModal);
-
-          modal.querySelector('#btn-confirm-table-insert').addEventListener('click', () => {
-            const title = modal.querySelector('#input-table-title').value.trim() || '表 1: 研究变量汇总表';
-            const rows = parseInt(modal.querySelector('#input-table-rows').value) || 4;
-            const cols = parseInt(modal.querySelector('#input-table-cols').value) || 4;
-            const hasPValue = modal.querySelector('#chk-table-pvalue').checked;
-            closeModal();
-
-            let tableHtml = `
-              <p style="text-align:center; font-weight:700; color:#334155; font-size:13px; margin-bottom:4px; text-indent:0;">${escapeHtml(title)}</p>
-              <table class="academic-table" style="width:100%; border-collapse:collapse; margin:10px 0; font-size:13px;">
-                <thead style="border-top:2.5px solid #0f172a; border-bottom:1.5px solid #0f172a; background:#f8fafc;">
-                  <tr>${Array.from({length: cols}, (_, i) => `<th style="padding:8px; text-align:center;">变量 ${i + 1}</th>`).join('')}</tr>
-                </thead>
-                <tbody style="border-bottom:2.5px solid #0f172a;">
-                  ${Array.from({length: Math.max(1, rows - 1)}, () => `<tr>${Array.from({length: cols}, () => `<td style="padding:8px; border-bottom:1px solid #e2e8f0; text-align:center;">—</td>`).join('')}</tr>`).join('')}
-                </tbody>
-              </table>
-              ${hasPValue ? `<p style="font-size:11.5px; color:#64748b; margin-top:2px; text-indent:0;"><i>注：*** p < .001, ** p < .01, * p < .05</i></p>` : ''}
-              <p><br></p>
-            `;
-            exec('insertHTML', tableHtml);
-          });
-        });
-      }
-
-      // 插件 3: 插入公式符号
-      const btnInsertSymbol = container.querySelector(`#${editorId}-btn-insert-symbol`);
-      if (btnInsertSymbol) {
-        btnInsertSymbol.addEventListener('click', () => {
-          document.querySelectorAll('.modal-overlay').forEach(el => el.remove());
-          const modal = document.createElement('div');
-          modal.className = 'modal-overlay';
-          const symbols = [
-            'α', 'β', 'γ', 'δ', 'ε', 'ζ', 'η', 'θ', 'λ', 'μ', 'ν', 'ξ', 'π', 'ρ', 'σ', 'τ', 'φ', 'χ', 'ψ', 'ω',
-            'Δ', 'Σ', 'Ω', '∑', '∏', '∫', '±', '≠', '≤', '≥', '≈', '≡', '∝', '∞', '√', '∈', '⊂', '∪', '∩', '→',
-            'M', 'SD', 'SE', 'F(1, 148)', 't(148)', 'r', 'R²', 'ΔR²', 'χ²', 'df', 'p < .05', 'p < .01', 'p < .001', 'η²',
-            'Cronbach\'s α', 'AVE', 'CR', 'H₁', 'H₂', 'H₃', 'RQ₁', 'RQ₂', 'N = 150', '95% CI'
-          ];
-          modal.innerHTML = `
-            <div class="teacher-modal-card" style="width:520px; background:#1e293b; color:#f8fafc; border:1px solid rgba(255,255,255,0.15);">
-              <div class="teacher-modal-header" style="background:linear-gradient(135deg, #6366f1, #4f46e5); color:white; display:flex; justify-content:space-between; align-items:center; padding:12px 18px;">
-                <div style="font-weight:800; font-size:15px;">🔣 高阶学术统计公式与符号库</div>
-                <button class="modal-close-btn" id="btn-close-symbol-modal" style="background:none; border:none; color:white; font-size:18px; cursor:pointer;">✕</button>
-              </div>
-              <div style="padding:18px; display:grid; grid-template-columns:repeat(auto-fill, minmax(88px, 1fr)); gap:8px;">
-                ${symbols.map(s => `
-                  <button class="sym-pick-btn" data-sym="${s}" style="background:rgba(15,23,42,0.8); border:1px solid rgba(255,255,255,0.15); color:#38bdf8; font-size:13px; font-weight:700; padding:10px 4px; border-radius:6px; cursor:pointer; transition:all 0.15s;">
-                    ${s}
-                  </button>
-                `).join('')}
-              </div>
-            </div>
-          `;
-          document.body.appendChild(modal);
-          const closeModal = () => { modal.remove(); if (typeof onEscKey !== 'undefined') document.removeEventListener('keydown', onEscKey); };
-          modal.querySelector('#btn-close-symbol-modal').addEventListener('click', closeModal);
-          modal.querySelectorAll('.sym-pick-btn').forEach(btn => {
-            btn.addEventListener('click', () => {
-              exec('insertText', ' ' + btn.dataset.sym + ' ');
-              closeModal();
-            });
-          });
-        });
-      }
-
-      // 插件 4: 插入引用角标
-      const btnInsertCit = container.querySelector(`#${editorId}-btn-insert-citation`);
-      if (btnInsertCit) {
-        btnInsertCit.addEventListener('click', () => {
-          const num = prompt('请输入文献引用编号 (例如: 1 或 2, 3):', '1');
-          if (num) {
-            exec('insertHTML', `<sup class="citation-tag" style="color:#0284c7; font-weight:700; font-size:11px; vertical-align:super;">[${num}]</sup>&nbsp;`);
-          }
-        });
-      }
-
-      // 插件 5: 插入【摘要与关键词】前置卡片
-      const btnInsertAbstract = container.querySelector(`#${editorId}-btn-insert-abstract`);
-      if (btnInsertAbstract) {
-        btnInsertAbstract.addEventListener('click', () => {
-          const abstractHtml = `
-            <div class="academic-abstract-box" contenteditable="true">
-              <p class="abstract-title"><b>【摘 要】</b></p>
-              <p style="text-indent:2em; font-size:13.5px; line-height:1.75; color:#334155;">（请在此处简要概括研究目的、研究方法、主要发现与核心结论，字数建议在 200-300 字...）</p>
-              <p class="keywords-row"><b>【关键词】</b> 多智能体协同；共享调节 (SSRL)；学术写作；研究设计</p>
-            </div>
-            <p><br></p>
-          `;
-          exec('insertHTML', abstractHtml);
-        });
-      }
-
-      // 插件 6: 插入参考文献条目模版
-      const btnInsertRef = container.querySelector(`#${editorId}-btn-insert-ref-template`);
-      if (btnInsertRef) {
-        btnInsertRef.addEventListener('click', () => {
-          const refHtml = `
-            <p style="text-indent:-2em; margin-left:2em; font-size:13px; color:#334155;">[1] 作者名. 论文题名[J]. 期刊学报名称, 2026, 32(4): 102-115.</p>
-            <p style="text-indent:-2em; margin-left:2em; font-size:13px; color:#334155;">[2] 作者名. 专著专著书名[M]. 北京: 高等教育出版社, 2025: 45-68.</p>
-          `;
-          exec('insertHTML', refHtml);
-        });
-      }
-
-      // 插件 7: 查找与替换
-      const btnFindReplace = container.querySelector(`#${editorId}-btn-find-replace`);
-      const searchBar = container.querySelector(`#${editorId}-search-bar`);
-      if (btnFindReplace && searchBar) {
-        btnFindReplace.addEventListener('click', () => {
-          searchBar.style.display = searchBar.style.display === 'none' ? 'flex' : 'none';
-        });
-        container.querySelector(`#${editorId}-btn-close-search`).addEventListener('click', () => {
-          searchBar.style.display = 'none';
-        });
-        // 查找下一个
-        const btnFindNext = container.querySelector(`#${editorId}-btn-find-next`);
-        const findCountTip = container.querySelector(`#${editorId}-find-count-tip`);
-        if (btnFindNext) {
-          btnFindNext.addEventListener('click', () => {
-            const searchVal = container.querySelector(`#${editorId}-search-input`).value;
-            if (!searchVal) return;
-            const text = editor.innerText || '';
-            const matches = text.split(searchVal).length - 1;
-            if (findCountTip) findCountTip.textContent = matches > 0 ? `共 ${matches} 处` : '未找到';
-            // 使用浏览器原生查找高亮
-            if (window.find) {
-              window.find(searchVal, false, false, true);
-            }
-          });
-        }
-        // 替换当前（仅替换第一个匹配）
-        container.querySelector(`#${editorId}-btn-do-replace`).addEventListener('click', () => {
-          const searchVal = container.querySelector(`#${editorId}-search-input`).value;
-          const replaceVal = container.querySelector(`#${editorId}-replace-input`).value;
-          if (!searchVal) { alert('请输入要查找的词！'); return; }
-          const html = editor.innerHTML;
-          const idx = html.indexOf(searchVal);
-          if (idx === -1) { alert('未找到匹配内容'); return; }
-          const newHtml = html.substring(0, idx) + replaceVal + html.substring(idx + searchVal.length);
-          editor.innerHTML = newHtml;
-          if (onChangeCallback) onChangeCallback(newHtml);
-        });
-        // 全部替换
-        const btnReplaceAll = container.querySelector(`#${editorId}-btn-do-replace-all`);
-        if (btnReplaceAll) {
-          btnReplaceAll.addEventListener('click', () => {
-            const searchVal = container.querySelector(`#${editorId}-search-input`).value;
-            const replaceVal = container.querySelector(`#${editorId}-replace-input`).value;
-            if (!searchVal) { alert('请输入要查找的词！'); return; }
-            const html = editor.innerHTML;
-            const newHtml = html.split(searchVal).join(replaceVal);
-            editor.innerHTML = newHtml;
-            if (onChangeCallback) onChangeCallback(newHtml);
-            alert(`已完成对 "${searchVal}" 的批量替换！`);
-          });
-        }
-      }
-
-      if (!quillInstance) {
-        // 仅在未载入 Quill 的原生 DOM 模式下作为备用输入监听
-        let debounceTimer = null;
-        let isComposing = false;
-
-        editor.addEventListener('compositionstart', () => { isComposing = true; });
-        editor.addEventListener('compositionend', () => {
-          isComposing = false;
-          if (onChangeCallback) onChangeCallback(editor.innerHTML);
-        });
-        editor.addEventListener('input', () => {
-          window._jizhi_last_keypress_time = Date.now();
-          if (isComposing) return;
-          clearTimeout(debounceTimer);
-          debounceTimer = setTimeout(() => {
-            if (!isComposing && onChangeCallback) {
-              onChangeCallback(editor.innerHTML);
-            }
-          }, 300);
-        });
-      } else {
-        // 🚀 Quill 模式：极速记录按键时间戳，供短轮询精确对齐
-        editor.addEventListener('keydown', () => {
-          window._jizhi_last_keypress_time = Date.now();
-        }, { passive: true });
-      }
-    }
   }
 
   function renderPresencePills(editorId, state) {
@@ -11127,7 +10474,7 @@
 
     const getMemberContribVal = (contribs, m) => {
       if (!contribs || !m) return 0;
-      const keys = [m.id, id, m.name].filter(Boolean);
+      const keys = getUserAllKeys(m);
       let maxVal = 0;
       for (const k of keys) {
         if (contribs[k] !== undefined && Number(contribs[k]) > maxVal) {
@@ -11755,12 +11102,12 @@
             ${(() => {
               const contribs = s2.memberContributions || {};
               let rawTotal = 0;
-              membersList.forEach(m => { rawTotal += (contribs[m.id] || 0) + (contribs[m.id] || 0); });
+              membersList.forEach(m => { rawTotal += Number(contribs[m.id] || 0); });
               if (rawTotal === 0) {
                 return `<div style="width:100%; height:8px; background:#f8fafc; border-radius:4px; display:flex; align-items:center; justify-content:center; font-size:9.5px; color:#94a3b8; font-weight:600;">⏳ 在 Etherpad 中撰写或修改正文将实时累计真实贡献</div>`;
               }
               return membersList.map((m) => {
-                const rawVal = (contribs[m.id] || 0) + (contribs[m.id] || 0);
+                const rawVal = Number(contribs[m.id] || 0);
                 const pct = rawTotal > 0 ? Math.round((rawVal / rawTotal) * 100) : 0;
                 return `<div class="contrib-segment" style="width:${pct}%; background:${m.color || '#2563eb'}; transition:width 0.8s ease-in-out;" title="${m.name}: ${pct}%"></div>`;
               }).join('');
@@ -11770,9 +11117,9 @@
             ${(() => {
               const contribs = s2.memberContributions || {};
               let rawTotal = 0;
-              membersList.forEach(m => { rawTotal += (contribs[m.id] || 0) + (contribs[m.id] || 0); });
+              membersList.forEach(m => { rawTotal += Number(contribs[m.id] || 0); });
               return membersList.map((m) => {
-                const rawVal = (contribs[m.id] || 0) + (contribs[m.id] || 0);
+                const rawVal = Number(contribs[m.id] || 0);
                 const pct = rawTotal > 0 ? Math.round((rawVal / rawTotal) * 100) : 0;
                 return `<span style="color:${rawVal > 0 ? (m.color || '#2563eb') : '#94a3b8'};">● ${m.name}: ${pct}%</span>`;
               }).join('');
@@ -11781,11 +11128,6 @@
         </div>
       </div>
     `;
-
-    attachWordEditorEvents(canvas, 'stage2-word-editor', isEditorReadonly, (html) => handlers.onUnifiedContentChange(html), (nodeIdx, sec, charOffset) => {
-      if (handlers.onPresenceChange) handlers.onPresenceChange(nodeIdx, sec, charOffset);
-    });
-    renderRemoteCursors('stage2-word-editor', state);
 
     if (isEditorReadonly) {
       const s2Frame = canvas.querySelector('#stage2-etherpad-frame');
@@ -13256,7 +12598,7 @@
 
         const getVal = (m) => {
           if (!m) return 0;
-          const keys = [m.id, id, m.name].filter(Boolean);
+          const keys = getUserAllKeys(m);
           let maxVal = 0;
           for (const k of keys) {
             if (contribs[k] !== undefined && Number(contribs[k]) > maxVal) {
@@ -13368,7 +12710,7 @@
               const s1 = this.state.stage1 || {};
               const propList = s1.proposals || [];
               const propCount = propList.length;
-              const unsubmittedMembers = membersList.filter(m => !propList.some(p => p.author === m.id || p.author === p.author === (m.name && p.authorName === m.name)));
+              const unsubmittedMembers = membersList.filter(m => !propList.some(p => isSameUser(m, p.author) || isSameUser(m, p.authorName) || p.author === m.id || (m.name && p.authorName === m.name)));
               const unsubmittedNames = unsubmittedMembers.map(m => m.name  ).join('、');
 
               // ① 开场 3 分钟未动笔静默破冰（紧扣研究方向与任务要求）
@@ -13571,8 +12913,8 @@
 
             renderHeader(
               this.state, currentUser, this.authManager.getAnnouncements(),
-              (s) => this.switchStage(s), (sp) => this.setSpeed(sp),
-              () => this.handleLogout(), () => this.switchToTeacherView(),
+              (s) => this.switchStage(s),
+              () => this.handleLogout(),
               () => this.showAnnouncementModal(), () => this.showQuestionnaireModal(),
               () => this.backToTaskList()
             );
@@ -13611,16 +12953,7 @@
         appEl.className = 'app-teacher-mode';
         renderTeacherPortal(
           appEl, this.authManager, this.state,
-          () => this.handleLogout(),
-          () => {
-            const users = this.authManager.getUsers();
-            const studentA = users.find(u => (u.role === 'student' || u.isStudent) && u.id);
-            if (studentA) {
-              sessionStorage.setItem('jizhi_current_user', JSON.stringify(studentA));
-              localStorage.setItem('jizhi_current_user', JSON.stringify(studentA));
-              this.renderMain();
-            }
-          }
+          () => this.handleLogout()
         );
       } else {
         const effectiveClassId = this.authManager ? this.authManager.getEffectiveStudentClassId(currentUser, this.state.activeTaskId) : (this.state.activeStudentClassId || currentUser?.classId || null);
@@ -13690,8 +13023,8 @@
               }, 50);
             },
             () => this.handleLogout(),
-            () => this.switchToTeacherView(),
-            () => this.showAnnouncementModal()
+            () => this.showAnnouncementModal(),
+            () => this.showQuestionnaireModal()
           );
           return;
         }
@@ -14972,7 +14305,7 @@
           </div>
 
           <!-- 竖排通知卡片列表 -->
-          <div style="padding:20px 24px; max-height:62vh; overflow-y:auto; display:flex; flex-direction:column; gap:12px; background:#f8fafc;">
+          <div style="padding:20px 24px; max-height:62vh; overflow-y:auto; overscroll-behavior:contain; display:flex; flex-direction:column; gap:12px; background:#f8fafc;">
             ${myAnns.map((a, idx) => {
               const read = isAnnRead(a);
               const ext = isExtensionNotice(a);
@@ -15038,7 +14371,7 @@
             </div>
 
             <!-- 通知内容主体 -->
-            <div style="padding:20px 24px; max-height:60vh; overflow-y:auto; display:flex; flex-direction:column; gap:16px;">
+            <div style="padding:20px 24px; max-height:60vh; overflow-y:auto; overscroll-behavior:contain; display:flex; flex-direction:column; gap:16px;">
               <div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:14px; padding:18px; box-shadow:0 2px 8px rgba(15,23,42,0.03);">
                 <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px; margin-bottom:12px;">
                   <h4 style="margin:0; font-size:16.5px; font-weight:800; color:#0f172a; line-height:1.4;">
@@ -15346,7 +14679,7 @@
             <button id="btn-close-ref-modal" style="background:rgba(255,255,255,0.15); border:1px solid rgba(255,255,255,0.3); width:32px; height:32px; border-radius:8px; display:flex; align-items:center; justify-content:center; cursor:pointer; color:#ffffff; font-size:14px; transition:all 0.15s ease;">✕</button>
           </div>
 
-          <div style="padding:20px 24px; max-height:62vh; overflow-y:auto;">
+          <div style="padding:20px 24px; max-height:62vh; overflow-y:auto; overscroll-behavior:contain;">
             ${papers.length === 0 ? `
               <div style="text-align:center; padding:36px; background:#f8fafc; border-radius:12px; border:2px dashed #cbd5e1;">
                 <div style="font-size:36px; margin-bottom:8px;">📚</div>
@@ -15507,19 +14840,11 @@
       if (!headerEl) return;
       renderHeader(
         this.state, currentUser, this.authManager.getAnnouncements(),
-        (s) => this.switchStage(s), (sp) => this.setSpeed(sp),
-        () => this.handleLogout(), () => this.switchToTeacherView(),
+        (s) => this.switchStage(s),
+        () => this.handleLogout(),
         () => this.showAnnouncementModal(), () => this.showQuestionnaireModal(),
         () => this.backToTaskList()
       );
-    }
-
-    switchToTeacherView() {
-      const users = this.authManager.getUsers();
-      const teacher = users.find(u => u.role === 'teacher') || users[0];
-      sessionStorage.setItem('jizhi_current_user', JSON.stringify(teacher));
-      localStorage.setItem('jizhi_current_user', JSON.stringify(teacher));
-      this.renderMain();
     }
 
     initStudentEvents() {
@@ -17751,18 +17076,6 @@
       this.renderStudentWorkspace(true);
     }
 
-    setSpeed(newSpeed) {
-      this.state.timer.speed = newSpeed;
-      const currentUser = this.authManager.getCurrentUser();
-      renderHeader(
-        this.state, currentUser, this.authManager.getAnnouncements(),
-        (s) => this.switchStage(s), (sp) => this.setSpeed(sp),
-        () => this.handleLogout(), () => this.switchToTeacherView(),
-        () => this.showAnnouncementModal(), () => this.showQuestionnaireModal(),
-        () => this.backToTaskList()
-      );
-    }
-
     getCurrentTaskType() {
       const allTasks = (this.authManager) ? this.authManager.getTasks() : [];
       const currentTask = allTasks.find(t => t.id === this.state.activeTaskId);
@@ -17807,8 +17120,8 @@
 
       renderHeader(
         this.state, currentUser, this.authManager.getAnnouncements(),
-        (s) => this.switchStage(s), (sp) => this.setSpeed(sp),
-        () => this.handleLogout(), () => this.switchToTeacherView(),
+        (s) => this.switchStage(s),
+        () => this.handleLogout(),
         () => this.showAnnouncementModal(), () => this.showQuestionnaireModal(),
         () => this.backToTaskList()
       );
@@ -17934,11 +17247,11 @@
                   }
                   let authorName = (p.authorName && p.authorName !== '组员') ? p.authorName : null;
                   if (!authorName) {
-                    const authorUser = allUsers.find(u => isSameUser(u, p.author) || isSameUser(u, p.authorName) || u.id === p.author  === p.author  === p.author || u.name === p.author || u.name === p.authorName);
+                    const authorUser = allUsers.find(u => isSameUser(u, p.author) || isSameUser(u, p.authorName) || u.id === p.author || u.name === p.author || u.name === p.authorName);
                     if (authorUser && authorUser.name) authorName = authorUser.name;
                   }
                   if (!authorName) {
-                    const authorMem = membersList.find(m => isSameUser(m, p.author) || isSameUser(m, p.authorName) || m.id === p.author  === p.author || m.name === p.author);
+                    const authorMem = membersList.find(m => isSameUser(m, p.author) || isSameUser(m, p.authorName) || m.id === p.author || m.name === p.author);
                     if (authorMem && authorMem.name) authorName = authorMem.name;
                   }
                   if (!authorName) authorName = p.authorName || p.author || '组员';
@@ -18783,7 +18096,7 @@
         const contribs = this.state.stage2.memberContributions || {};
         const getVal = (m) => {
           if (!m) return 0;
-          const keys = [m.id, id, m.name].filter(Boolean);
+          const keys = getUserAllKeys(m);
           let maxVal = 0;
           for (const k of keys) {
             if (contribs[k] !== undefined && Number(contribs[k]) > maxVal) {
@@ -18929,12 +18242,12 @@
       if (existingModal) existingModal.remove();
 
       const modal = document.createElement('div');
-      modal.className = 'modal-mask modal-stage-milestone';
-      modal.style.cssText = 'position:fixed; inset:0; background:rgba(15,23,42,0.72); z-index:999999; display:flex; align-items:center; justify-content:center; backdrop-filter:blur(6px); animation:fadeIn 0.25s ease-out;';
+      modal.className = 'modal-overlay modal-mask modal-stage-milestone';
+      modal.style.cssText = 'position:fixed; inset:0; background:rgba(15,23,42,0.72); z-index:999999; display:flex; align-items:center; justify-content:center; backdrop-filter:blur(6px); animation:fadeIn 0.25s ease-out; overscroll-behavior:contain;';
 
       let remainingSec = 5;
       modal.innerHTML = `
-        <div style="background:#ffffff; width:92%; max-width:500px; border-radius:16px; box-shadow:0 24px 48px rgba(15,23,42,0.3); border:1px solid #cbd5e1; overflow:hidden; display:flex; flex-direction:column; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; text-align:center;">
+        <div style="background:#ffffff; width:92%; max-width:500px; border-radius:16px; box-shadow:0 24px 48px rgba(15,23,42,0.3); border:1px solid #cbd5e1; overflow:hidden; display:flex; flex-direction:column; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; text-align:center; overscroll-behavior:contain;">
           <div style="background:linear-gradient(135deg, #1e40af, #1e293b); padding:24px 20px 20px; color:#ffffff; display:flex; flex-direction:column; align-items:center;">
             <div style="width:56px; height:56px; border-radius:50%; background:rgba(255,255,255,0.15); display:flex; align-items:center; justify-content:center; font-size:28px; margin-bottom:12px; box-shadow:0 4px 12px rgba(0,0,0,0.15);">
               ${icon}
@@ -18986,10 +18299,10 @@
       if (existingModal) existingModal.remove();
 
       const modal = document.createElement('div');
-      modal.className = 'modal-mask modal-final-review-prompt';
-      modal.style.cssText = 'position:fixed; inset:0; background:rgba(15,23,42,0.65); z-index:99999; display:flex; align-items:center; justify-content:center; backdrop-filter:blur(4px); animation:fadeIn 0.2s ease-out;';
+      modal.className = 'modal-overlay modal-mask modal-final-review-prompt';
+      modal.style.cssText = 'position:fixed; inset:0; background:rgba(15,23,42,0.65); z-index:99999; display:flex; align-items:center; justify-content:center; backdrop-filter:blur(4px); animation:fadeIn 0.2s ease-out; overscroll-behavior:contain;';
       modal.innerHTML = `
-        <div style="background:#ffffff; width:92%; max-width:480px; border-radius:14px; box-shadow:0 20px 40px rgba(15,23,42,0.25); border:1px solid #cbd5e1; overflow:hidden; display:flex; flex-direction:column; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+        <div style="background:#ffffff; width:92%; max-width:480px; border-radius:14px; box-shadow:0 20px 40px rgba(15,23,42,0.25); border:1px solid #cbd5e1; overflow:hidden; display:flex; flex-direction:column; font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; overscroll-behavior:contain;">
           <div style="background:linear-gradient(135deg, #1e293b, #0f172a); padding:16px 20px; display:flex; justify-content:space-between; align-items:center; color:#ffffff;">
             <div style="display:flex; align-items:center; gap:8px;">
               <span style="font-size:20px;">📝</span>
