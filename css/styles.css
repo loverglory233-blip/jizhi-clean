@@ -1089,19 +1089,35 @@ body.app-student-workspace-mode #app {
 body.modal-open,
 html.modal-open {
   overflow: hidden !important;
+  overscroll-behavior: none !important;
 }
 
+body.modal-open #app,
 body.modal-open .teacher-portal-layout,
-body.modal-open #teacher-portal-layout {
+body.modal-open #teacher-portal-layout,
+body.modal-open .student-task-portal,
+body.modal-open .workspace-layout,
+body.modal-open .chat-panel,
+body.modal-open .chat-messages-container,
+body.modal-open .content-panel,
+body.modal-open .canvas-card,
+body.modal-open .teacher-content {
   overflow: hidden !important;
   pointer-events: none !important;
+  user-select: none !important;
 }
 
-body.modal-open .modal-overlay {
+body.modal-open .modal-overlay,
+body.modal-open .modal-mask,
+body.modal-open .table-config-modal-overlay,
+body.modal-open #modal-change-password,
+body.modal-open #modal-task-extended-unlock {
   pointer-events: auto !important;
+  user-select: auto !important;
 }
 
-.modal-overlay {
+.modal-overlay,
+.modal-mask {
   position: fixed;
   top: 0;
   left: 0;
@@ -1118,6 +1134,8 @@ body.modal-open .modal-overlay {
   z-index: 99999;
   padding: 20px;
   overflow: hidden; /* 🌟 遮罩层严格静止不滚动，彻底消除双重滚动条 */
+  overscroll-behavior: contain !important;
+  touch-action: none;
   animation: overlayFadeIn 0.15s ease-out;
 }
 
@@ -1137,6 +1155,8 @@ body.modal-open .modal-overlay {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  overscroll-behavior: contain !important;
+  touch-action: pan-y;
   animation: modalSlideUp 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 

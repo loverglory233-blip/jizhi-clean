@@ -2019,52 +2019,6 @@ if ($action === 'update_read_status' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     exit;
 }
 
-// 1c. 阶段三答辩质询点单条原子保存（独立通道，绝不冲掉其他成员未保存的答辩草稿）
-if ($action === 'patch_feedback' && $_SERVER['REQUEST_METHOD'] === 'POST') {
-    $rawInput = file_get_contents('php://input');
-    $req = json_decode($rawInput, true) ?: [];
-    $feedbackId = isset($req['feedbackId']) ? $req['feedbackId'] : (isset($req['id']) ? $req['id'] : '');
-    $response = isset($req['response']) ? $req['response'] : '';
-    $status = isset($req['status']) ? $req['status'] : 'adopted';
-    $nowMs = round(microtime(true) * 1000);
-    
-    if ($feedbackId && $pdo) {
-        $stmtGet = $pdo->prepare("SELECT stage3_data FROM group_states WHERE scope_key = :sk");
-        $stmtGet->execute([':sk' => $scopeKey]);
-        $row = $stmtGet->fetch();
-        $s3 = ($row && !empty($row['stage3_data'])) ? json_decode($row['stage3_data'], true) : [];
-        if (!isset($s3['feedbackItems']) || !is_array($s3['feedbackItems'])) $s3['feedbackItems'] = [];
-        
-        $found = false;
-        foreach ($s3['feedbackItems'] as &$item) {
-            if (isset($item['id']) && $item['id'] === $feedbackId) {
-                $item['response'] = $response;
-                $item['status'] = $status;
-                $item['updatedAt'] = $nowMs;
-                $found = true;
-                break;
-            }
-        }
-        unset($item);
-        if (!$found) {
-            $s3['feedbackItems'][] = [
-                'id' => $feedbackId,
-                'response' => $response,
-                'status' => $status,
-                'updatedAt' => $nowMs
-            ];
-        }
-        $s3Json = json_encode($s3, JSON_UNESCAPED_UNICODE);
-        $stmtUp = $pdo->prepare("UPDATE group_states SET stage3_data = :s3, last_timestamp = :ts, revision_id = IFNULL(revision_id, 0) + 1 WHERE scope_key = :sk");
-        $stmtUp->execute([':s3' => $s3Json, ':ts' => $nowMs, ':sk' => $scopeKey]);
-        echo json_encode(['success' => true, 'timestamp' => $nowMs]);
-        exit;
-    }
-    echo json_encode(['success' => true]);
-    exit;
-}
-
-
 // 1c-2. 全员协同确认原子接口（无竞态覆盖，秒级原子合并各成员点击确认）
 if ($action === 'confirm_step' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $req = !empty($REQ_DATA) ? $REQ_DATA : (@json_decode($RAW_INPUT, true) ?: []);
@@ -2391,73 +2345,6 @@ if (($action === 'coze_chat' || $action === 'coze_poll') && ($_SERVER['REQUEST_M
 }
 
 
-
-// ⚡ 3.5 教师端协同动态与代签提醒路由 (GET / POST)
-if ($action === 'record_teacher_alert') {
-    $rawInput = file_get_contents('php://input');
-    $alertItem = json_decode($rawInput, true);
-    // 🛡️ 服务端鉴权：记录协同动态提醒要求持有有效会话（教师或学生组长均需已登录），杜绝匿名刷告警
-    $alertUserId = isset($_GET['userId']) ? $_GET['userId'] : (is_array($alertItem) && isset($alertItem['userId']) ? $alertItem['userId'] : '');
-    $alertToken = isset($_GET['token']) ? $_GET['token'] : (is_array($alertItem) && isset($alertItem['token']) ? $alertItem['token'] : '');
-    $alertAuthed = false;
-    if ($alertUserId && $alertToken && $pdo) {
-        $stmtSess = $pdo->prepare("SELECT meta_value FROM global_meta WHERE meta_key = :k");
-        $stmtSess->execute([':k' => 'sess_' . $alertUserId]);
-        $sessRow = $stmtSess->fetch();
-        $alertAuthed = ($sessRow && !empty($sessRow['meta_value']) && $sessRow['meta_value'] === $alertToken);
-    }
-    if (!$alertAuthed) {
-        http_response_code(403);
-        echo json_encode(['success' => false, 'error' => '会话失效：请重新登录后再记录协同动态提醒']);
-        exit;
-    }
-    if ($alertItem && is_array($alertItem)) {
-        if ($pdo) {
-            $stmt = $pdo->prepare("SELECT meta_value FROM global_meta WHERE meta_key = 'teacher_alerts'");
-            $stmt->execute();
-            $row = $stmt->fetch();
-            $alerts = ($row && !empty($row['meta_value'])) ? json_decode($row['meta_value'], true) : [];
-            if (!is_array($alerts)) $alerts = [];
-
-            $tId = isset($alertItem['taskId']) ? $alertItem['taskId'] : 'task_default';
-            $gId = isset($alertItem['groupId']) ? $alertItem['groupId'] : 'group_1';
-            
-            // 聚合收拢：同一小组在同一任务下只保留 1 条汇总记录
-            $exIdx = -1;
-            foreach ($alerts as $idx => $a) {
-                if ((!isset($a['taskId']) || $a['taskId'] === $tId) && (isset($a['groupId']) && $a['groupId'] === $gId)) {
-                    $exIdx = $idx;
-                    break;
-                }
-            }
-            if ($exIdx >= 0) {
-                $alerts[$exIdx] = $alertItem;
-            } else {
-                array_unshift($alerts, $alertItem);
-            }
-            if (count($alerts) > 100) $alerts = array_slice($alerts, 0, 100);
-
-            $encoded = json_encode($alerts, JSON_UNESCAPED_UNICODE);
-            $stmtSave = $pdo->prepare("INSERT INTO global_meta (meta_key, meta_value) VALUES ('teacher_alerts', :v) ON DUPLICATE KEY UPDATE meta_value = :v2");
-            $stmtSave->execute([':v' => $encoded, ':v2' => $encoded]);
-        }
-    }
-    echo json_encode(['success' => true, 'alert' => $alertItem]);
-    exit;
-}
-
-if ($action === 'get_teacher_alerts') {
-    $alerts = [];
-    if ($pdo) {
-        $stmt = $pdo->prepare("SELECT meta_value FROM global_meta WHERE meta_key = 'teacher_alerts'");
-        $stmt->execute();
-        $row = $stmt->fetch();
-        $alerts = ($row && !empty($row['meta_value'])) ? json_decode($row['meta_value'], true) : [];
-        if (!is_array($alerts)) $alerts = [];
-    }
-    echo json_encode($alerts, JSON_UNESCAPED_UNICODE);
-    exit;
-}
 
 // 4. 数据快照持久化 (MySQL 主存储)
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {

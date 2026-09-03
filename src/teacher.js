@@ -10,13 +10,13 @@ import {
   STORAGE_KEY_USERS_DB,
   TASK_GENRE_CONFIGS,
   AgentProfiles
-} from "./constants.js?v=20260903_v1712";
-import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, showGlobalBannerNotice } from "./utils.js?v=20260903_v1712";
+} from "./constants.js?v=20260903_v1740";
+import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, showGlobalBannerNotice } from "./utils.js?v=20260903_v1740";
 
 /* ==========================================================================
    7. TEACHER PORTAL RENDERER (LIVE WORKSPACE MIRROR & ANNOUNCEMENT READ MATRIX)
    ========================================================================== */
-export function renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView) {
+export function renderTeacherPortal(container, authManager, state, onLogout) {
   const oldLayout = container.querySelector('.teacher-portal-layout') || document.querySelector('.teacher-portal-layout');
   const savedScrollTop = oldLayout ? oldLayout.scrollTop : (state._teacherScrollTop || 0);
 
@@ -400,7 +400,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
         const layout = container.querySelector('.teacher-portal-layout');
         const curScroll = layout ? layout.scrollTop : 0;
         state._teacherScrollTop = curScroll;
-        renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+        renderTeacherPortal(container, authManager, state, onLogout);
         const nextLayout = container.querySelector('.teacher-portal-layout');
         if (nextLayout) nextLayout.scrollTop = curScroll;
         return; // 重绘后自动重新调度
@@ -420,7 +420,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
             const layout = container.querySelector('.teacher-portal-layout');
             const curScroll = layout ? layout.scrollTop : 0;
             state._teacherScrollTop = curScroll;
-            renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+            renderTeacherPortal(container, authManager, state, onLogout);
             const nextLayout = container.querySelector('.teacher-portal-layout');
             if (nextLayout) nextLayout.scrollTop = curScroll;
             return; // 重渲染会重建循环
@@ -1358,7 +1358,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
                       ${combinedGroupChatLogs.length > 0 ? combinedGroupChatLogs.map(m => {
                         const allGlobalUsers = (authManager) ? authManager.getUsers() : [];
                         const isAgent = AgentProfiles[m.sender] !== undefined;
-                        const matchedUser = isAgent ? null : allGlobalUsers.find(u => u.id === m.sender  === m.sender || u.name === m.sender);
+                        const matchedUser = isAgent ? null : allGlobalUsers.find(u => u.id === m.sender || u.name === m.sender);
                         const senderName = isAgent ? AgentProfiles[m.sender].name : (matchedUser ? matchedUser.name : (m.senderName || (monitorMembersObj[m.sender] ? monitorMembersObj[m.sender].name : m.sender)));
                         const color = isAgent ? AgentProfiles[m.sender].color : (matchedUser ? (matchedUser.color || '#2563eb') : (monitorMembersObj[m.sender] ? monitorMembersObj[m.sender].color : '#2563eb'));
                         return `
@@ -1638,9 +1638,9 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
                               ${(() => {
                                 const contribs = state.stage2?.memberContributions || {};
                                 let rawTotal = 0;
-                                monitorMembersList.forEach(m => { rawTotal += (contribs[m.id] || 0) + (contribs[m.id] || 0); });
+                                monitorMembersList.forEach(m => { rawTotal += Number(contribs[m.id] || 0); });
                                 return monitorMembersList.map((m) => {
-                                  const rawVal = (contribs[m.id] || 0) + (contribs[m.id] || 0);
+                                  const rawVal = Number(contribs[m.id] || 0);
                                   const pct = rawTotal > 0 ? Math.round((rawVal / rawTotal) * 100) : 0;
                                   return `<span style="color:${rawVal > 0 ? (m.color || '#2563eb') : '#94a3b8'}; font-weight:700;">● ${escapeHtml(m.name)}: ${pct}%</span>`;
                                 }).join('');
@@ -1651,12 +1651,12 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
                             ${(() => {
                               const contribs = state.stage2?.memberContributions || {};
                               let rawTotal = 0;
-                              monitorMembersList.forEach(m => { rawTotal += (contribs[m.id] || 0) + (contribs[m.id] || 0); });
+                              monitorMembersList.forEach(m => { rawTotal += Number(contribs[m.id] || 0); });
                               if (rawTotal === 0) {
                                 return `<div style="width:100%; height:10px; background:#f8fafc; border-radius:5px; display:flex; align-items:center; justify-content:center; font-size:10px; color:#94a3b8; font-weight:600;">⏳ 暂无协作投入 (组员在 Etherpad 中撰写、修改正文或研讨后将平滑累计真实贡献)</div>`;
                               }
                               return monitorMembersList.map((m) => {
-                                const rawVal = (contribs[m.id] || 0) + (contribs[m.id] || 0);
+                                const rawVal = Number(contribs[m.id] || 0);
                                 if (rawVal === 0) return '';
                                 const pct = Math.round((rawVal / rawTotal) * 100);
                                 return `<div style="width:${pct}%; background:${m.color || '#2563eb'}; transition:width 0.3s ease;" title="${escapeHtml(m.name)}: ${pct}% (${rawVal}字)"></div>`;
@@ -1730,9 +1730,9 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
                                 ${(() => {
                                   const contribs = state.stage2?.memberContributions || {};
                                   let rawTotal = 0;
-                                  monitorMembersList.forEach(m => { rawTotal += (contribs[m.id] || 0) + (contribs[m.id] || 0); });
+                                  monitorMembersList.forEach(m => { rawTotal += Number(contribs[m.id] || 0); });
                                   return monitorMembersList.map((m) => {
-                                    const rawVal = (contribs[m.id] || 0) + (contribs[m.id] || 0);
+                                    const rawVal = Number(contribs[m.id] || 0);
                                     const pct = rawTotal > 0 ? Math.round((rawVal / rawTotal) * 100) : 0;
                                     return `<span style="color:${rawVal > 0 ? (m.color || '#2563eb') : '#94a3b8'}; font-weight:700;">● ${escapeHtml(m.name)}: ${pct}%</span>`;
                                   }).join('');
@@ -1743,12 +1743,12 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
                               ${(() => {
                                 const contribs = state.stage2?.memberContributions || {};
                                 let rawTotal = 0;
-                                monitorMembersList.forEach(m => { rawTotal += (contribs[m.id] || 0) + (contribs[m.id] || 0); });
+                                monitorMembersList.forEach(m => { rawTotal += Number(contribs[m.id] || 0); });
                                 if (rawTotal === 0) {
                                   return `<div style="width:100%; height:10px; background:#f8fafc; border-radius:5px; display:flex; align-items:center; justify-content:center; font-size:10px; color:#94a3b8; font-weight:600;">⏳ 暂无协作投入</div>`;
                                 }
                                 return monitorMembersList.map((m) => {
-                                  const rawVal = (contribs[m.id] || 0) + (contribs[m.id] || 0);
+                                  const rawVal = Number(contribs[m.id] || 0);
                                   if (rawVal === 0) return '';
                                   const pct = Math.round((rawVal / rawTotal) * 100);
                                   return `<div style="width:${pct}%; background:${m.color || '#2563eb'}; transition:width 0.3s ease;" title="${escapeHtml(m.name)}: ${pct}% (${rawVal}字)"></div>`;
@@ -1844,9 +1844,6 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
     });
   }
 
-  const btnSwitchStudent = container.querySelector('#btn-switch-student-preview');
-  if (btnSwitchStudent) btnSwitchStudent.addEventListener('click', () => onSwitchToStudentView());
-
   const btnBackDashboard = container.querySelector('#btn-back-to-dashboard');
   if (btnBackDashboard) {
     btnBackDashboard.addEventListener('click', () => {
@@ -1858,7 +1855,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
         sessionStorage.setItem('jizhi_teacher_dtab', 'classes');
         localStorage.setItem('jizhi_teacher_dtab', 'classes');
       } catch (e) {}
-      renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+      renderTeacherPortal(container, authManager, state, onLogout);
     });
   }
 
@@ -1869,7 +1866,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
         sessionStorage.setItem('jizhi_teacher_dtab', btn.dataset.dtab);
         localStorage.setItem('jizhi_teacher_dtab', btn.dataset.dtab);
       } catch (e) {}
-      renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+      renderTeacherPortal(container, authManager, state, onLogout);
     });
   });
 
@@ -1889,7 +1886,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
           }
         } catch (e) {}
       }
-      renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+      renderTeacherPortal(container, authManager, state, onLogout);
     });
   });
 
@@ -1926,7 +1923,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
         sessionStorage.setItem('jizhi_teacher_active_group_id', state.activeMonitorGroupId);
         localStorage.setItem('jizhi_teacher_active_group_id', state.activeMonitorGroupId);
       } catch (e) {}
-      renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+      renderTeacherPortal(container, authManager, state, onLogout);
     });
   });
 
@@ -1964,7 +1961,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
         try {
           authManager.resetStudentPassword(acc);
           alert(`✅ 已成功将学生【${uname}】的密码重置为 123！`);
-          renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+          renderTeacherPortal(container, authManager, state, onLogout);
         } catch (err) {
           alert('❌ ' + err.message);
         }
@@ -1980,7 +1977,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
       if (confirm(`⚠️ 确认彻底从系统中删除学生【${uname} (${uid})】的账号吗？删除后不可恢复！`)) {
         authManager.deleteStudent(uid, null, true);
         alert(`🎉 已成功彻底删除学生【${uname}】！`);
-        renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+        renderTeacherPortal(container, authManager, state, onLogout);
       }
     });
   });
@@ -1994,7 +1991,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
       if (confirm(`⚠️ 确认彻底从系统中注销并删除勾选的 ${checked.length} 名学生账号吗？删除后不可恢复！`)) {
         checked.forEach(uid => authManager.deleteStudent(uid, null, true));
         alert(`🎉 已成功彻底删除 ${checked.length} 名学生账号！`);
-        renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+        renderTeacherPortal(container, authManager, state, onLogout);
       }
     });
   }
@@ -2027,7 +2024,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
             window.app.state.activeMonitorGroupId = state.activeMonitorGroupId;
           }
           alert(`✅ 教学班级【${cName}】已成功删除！`);
-          renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+          renderTeacherPortal(container, authManager, state, onLogout);
         } catch (err) {
           alert('❌ ' + err.message);
         }
@@ -2064,7 +2061,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
         }
         authManager.pushGlobalMeta();
         alert(`✅ 已成功清空【${activeClass.name}】的全部学生名册！`);
-        renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+        renderTeacherPortal(container, authManager, state, onLogout);
       }
     });
   }
@@ -2091,7 +2088,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
             window.app.state.activeTaskId = state.activeTaskId;
             window.app.state.activeMonitorGroupId = state.activeMonitorGroupId;
           }
-          renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+          renderTeacherPortal(container, authManager, state, onLogout);
         } catch (err) {
           alert('❌ ' + err.message);
         }
@@ -2169,7 +2166,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
           }
         }
         closeModal();
-        renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+        renderTeacherPortal(container, authManager, state, onLogout);
       } catch (err) {
         alert('❌ ' + err.message);
       }
@@ -2327,7 +2324,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
         authManager.pushGlobalMeta();
         alert(`🎉 成功将选中的 ${checkedUids.length} 名学生加入班级【${activeClass.name}】！`);
         closeModal();
-        renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+        renderTeacherPortal(container, authManager, state, onLogout);
       });
     });
   }
@@ -2429,7 +2426,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
       }
       alert(tipMsg);
       closeModal();
-      renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+      renderTeacherPortal(container, authManager, state, onLogout);
     });
   };
 
@@ -2540,7 +2537,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
       try {
         authManager.updateGroupMembers(cls.id, editingGroupId || ('group_' + Date.now()), name, selectedUserIds);
         closeModal();
-        renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+        renderTeacherPortal(container, authManager, state, onLogout);
       } catch (err) {
         alert('❌ ' + err.message);
       }
@@ -2573,7 +2570,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
           if (data && data.success) {
             alert(`✅ ${data.message || `学生【${name}】密码已成功重置为 123！`}`);
             authManager.pullGlobalMeta().then(() => {
-              renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+              renderTeacherPortal(container, authManager, state, onLogout);
             });
           } else {
             alert('❌ ' + (data.message || '重置失败'));
@@ -2588,14 +2585,14 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
   container.querySelectorAll('.delete-student-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       authManager.deleteStudent(btn.dataset.id, activeClass.id);
-      renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+      renderTeacherPortal(container, authManager, state, onLogout);
     });
   });
 
   container.querySelectorAll('.btn-delete-group').forEach(btn => {
     btn.addEventListener('click', () => {
       authManager.deleteGroup(activeClass.id, btn.dataset.gid);
-      renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+      renderTeacherPortal(container, authManager, state, onLogout);
     });
   });
 
@@ -2655,7 +2652,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
         modal.querySelector('#btn-rand-mode-append').addEventListener('click', () => {
           closeModal();
           authManager.autoRandomGrouping(activeClass.id, groupSize, 'append_unassigned');
-          renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+          renderTeacherPortal(container, authManager, state, onLogout);
           alert(`✅ 已成功将未进组学生随机分配完成！`);
         });
 
@@ -2663,14 +2660,14 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
           if (confirm(`⚠️ 确认将全班 ${classStudents.length} 名学生全员打散重新分组？`)) {
             closeModal();
             authManager.autoRandomGrouping(activeClass.id, groupSize, 'reset_all');
-            renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+            renderTeacherPortal(container, authManager, state, onLogout);
             alert(`✅ 已完成全员打散重组！`);
           }
         });
       } else {
         // 当前没有小组，直接执行随机分组
         const totalGroups = authManager.autoRandomGrouping(activeClass.id, groupSize, 'reset_all');
-        renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+        renderTeacherPortal(container, authManager, state, onLogout);
         alert(`✅ 已完成随机分组！按每组约 ${groupSize} 人，共自动划分 ${totalGroups} 个协作小组（每组至少 2 人）。`);
       }
     });
@@ -2686,7 +2683,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
       }
       if (confirm(`💥 危险操作：确认一键解散【${activeClass.name}】下的所有小组？\n\n解散后全部学生将恢复为【待划分】状态。`)) {
         authManager.deleteAllGroups(activeClass.id);
-        renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+        renderTeacherPortal(container, authManager, state, onLogout);
         alert('✅ 已成功解散当前班级的所有小组！');
       }
     });
@@ -2735,7 +2732,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
       }
 
       alert('✅ 问卷链接已成功保存并永久同步！');
-      renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+      renderTeacherPortal(container, authManager, state, onLogout);
     });
   }
 
@@ -2763,7 +2760,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
         authManager.deleteSurvey(sId);
         if (window.app && window.app.cloudSyncEngine) window.app.cloudSyncEngine.pushSnapshot();
         alert('✅ 问卷配置已成功删除！');
-        renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+        renderTeacherPortal(container, authManager, state, onLogout);
       }
     });
   });
@@ -3002,7 +2999,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
           authManager.updateTask(taskId, newTitle, newDesc, fmtTimeStr(newStart), fmtTimeStr(newDeadline), calculatedDuration, newWords);
           closeModal();
           alert(`✅ 写作任务《${newTitle}》已成功修改，时间与内容已全网即时同步！`);
-          renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+          renderTeacherPortal(container, authManager, state, onLogout);
         } catch (err) {
           alert('❌ ' + err.message);
         }
@@ -3152,7 +3149,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
           authManager.extendTaskDeadline(taskId, newDeadlineStr, lastAddedMins);
           closeModal();
           showGlobalBannerNotice('✅ 延期成功', `写作任务《${task.title}》截止时间已延长至 ${newDeadlineStr}！学生端已自动解除只读锁定。`, 'success');
-          renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+          renderTeacherPortal(container, authManager, state, onLogout);
         } catch (err) {
           alert('❌ ' + err.message);
         }
@@ -3168,7 +3165,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
       if (confirm(`🗑️ 确认删除写作任务《${taskTitle}》？\n\n删除后该任务将从所有教师与学生端移除。`)) {
         authManager.deleteTask(taskId);
         alert(`✅ 已成功删除写作任务《${taskTitle}》！`);
-        renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+        renderTeacherPortal(container, authManager, state, onLogout);
       }
     });
   });
@@ -3181,7 +3178,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
       if (confirm(`🗑️ 确认删除课堂通知《${annTitle}》？\n\n删除后该通知将从所有学生端的弹窗和通知中心中撤销。`)) {
         authManager.deleteAnnouncement(annId);
         alert(`✅ 已成功删除课堂通知《${annTitle}》！`);
-        renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+        renderTeacherPortal(container, authManager, state, onLogout);
       }
     });
   });
@@ -3421,7 +3418,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
         try {
           authManager.createTask(title, classId, desc, [], startTime, deadline, calculatedDuration, taskType, words);
           closeModal();
-          renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+          renderTeacherPortal(container, authManager, state, onLogout);
         } catch (err) {
           alert('❌ ' + err.message);
         }
@@ -3645,7 +3642,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
 
         authManager.publishAnnouncement(taskId, title, content, finalAttachment, targetGId, targetGName, selClassId, selClassName, selectedGroupIds);
         closeModal();
-        renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+        renderTeacherPortal(container, authManager, state, onLogout);
       });
     });
   }
@@ -3903,7 +3900,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
 
           alert(`🎉 参考范文《${title}》已成功存入范文库！${autoPush ? '\n审稿编辑 Agent 已同步向受众小组推送！' : ''}`);
           closeModal();
-          renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+          renderTeacherPortal(container, authManager, state, onLogout);
         } catch (err) {
           alert('❌ 上传失败: ' + err.message);
           submitBtn.disabled = false;
@@ -3940,7 +3937,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
     btn.addEventListener('click', () => {
       if (confirm('确认从参考范文库中删除此篇文献？')) {
         authManager.deleteReferencePaper(btn.dataset.id);
-        renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+        renderTeacherPortal(container, authManager, state, onLogout);
       }
     });
   });
@@ -3954,7 +3951,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
         window.app.state.activeTaskId = targetTId;
         window.app.loadGroupState(state.activeMonitorGroupId || (activeClass?.groups?.[0]?.id) || null);
       }
-      renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+      renderTeacherPortal(container, authManager, state, onLogout);
     });
   }
 
@@ -3986,21 +3983,21 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
   if (selSwitchGroup) {
     selSwitchGroup.addEventListener('change', (e) => {
       syncGroupDataFromMemory(e.target.value);
-      renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+      renderTeacherPortal(container, authManager, state, onLogout);
     });
   }
 
   container.querySelectorAll('.btn-monitor-panorama-card').forEach(card => {
     card.addEventListener('click', () => {
       syncGroupDataFromMemory(card.dataset.gid);
-      renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+      renderTeacherPortal(container, authManager, state, onLogout);
     });
   });
 
   container.querySelectorAll('.btn-switch-monitor-group').forEach(btn => {
     btn.addEventListener('click', () => {
       syncGroupDataFromMemory(btn.dataset.gid);
-      renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+      renderTeacherPortal(container, authManager, state, onLogout);
     });
   });
 
@@ -4011,7 +4008,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
       const stg = btn.dataset.stg;
       state.teacherMonitorStageMode = stg;
       state.monitorStageTab = stg;
-      renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+      renderTeacherPortal(container, authManager, state, onLogout);
     });
   });
 
@@ -4021,7 +4018,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
       e.preventDefault();
       e.stopPropagation();
       state.stage3TeacherTab = 'defense';
-      renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+      renderTeacherPortal(container, authManager, state, onLogout);
     });
   }
   const btnStage3Doc = container.querySelector('#btn-tab-teacher-stage3-doc');
@@ -4030,7 +4027,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
       e.preventDefault();
       e.stopPropagation();
       state.stage3TeacherTab = 'doc';
-      renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+      renderTeacherPortal(container, authManager, state, onLogout);
     });
   }
 

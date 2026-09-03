@@ -3,7 +3,7 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles, PresetMessages, STORAGE_KEY_USER } from './constants.js?v=20260903_v1712';
+import { AgentProfiles, PresetMessages, STORAGE_KEY_USER } from './constants.js?v=20260903_v1740';
 
 export async function callCozeAgentAPI(botKey, userQuery, currentContext = {}) {
   const profile = AgentProfiles[botKey] || { name: '智能体专家', avatar: '🤖' };
@@ -54,7 +54,7 @@ export async function callCozeAgentAPI(botKey, userQuery, currentContext = {}) {
           const chatId = data.chat_id;
           const convId = data.conversation_id;
           const targetBotId = data.bot_id || botId;
-          const isLongDoc = (options.stage === 'stage2' || options.stage === 'stage3' || (options.actual_doc && options.actual_doc.length > 500) || (userQuery && userQuery.length > 1000));
+          const isLongDoc = (currentContext.stage === 'stage2' || currentContext.stage === 'stage3' || (currentContext.actualDoc && currentContext.actualDoc.length > 500) || (currentContext.actual_doc && currentContext.actual_doc.length > 500) || (userQuery && userQuery.length > 1000));
           const maxRetries = isLongDoc ? 150 : 85; // 5000字全文质检支持长达 65 秒；阶段一公约提炼支持 30 秒，绝不提前掐断
           for (let p = 0; p < maxRetries; p++) {
             const pollInterval = p < 10 ? 100 : (p < 50 ? 300 : 500);

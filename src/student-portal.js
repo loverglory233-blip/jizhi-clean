@@ -7,13 +7,13 @@ import {
   STORAGE_KEY_TASKS,
   STORAGE_KEY_ANNOUNCEMENTS,
   STORAGE_KEY_CLASSES
-} from "./constants.js?v=20260903_v1712";
-import { escapeHtml, isTaskExpired, formatDurationHuman, formatStandardDateDash, showGlobalBannerNotice } from "./utils.js?v=20260903_v1712";
+} from "./constants.js?v=20260903_v1740";
+import { escapeHtml, isTaskExpired, formatDurationHuman, formatStandardDateDash, showGlobalBannerNotice } from "./utils.js?v=20260903_v1740";
 
 /* ==========================================================================
    10. STUDENT TASK PORTAL (CENTRALIZED HUB & COLLABORATION ENTRY)
    ========================================================================== */
-export function renderStudentTaskPortal(container, authManager, state, onSelectTask, onLogout, onSwitchTeacher, onOpenAnnModal, onOpenSurveyModal) {
+export function renderStudentTaskPortal(container, authManager, state, onSelectTask, onLogout, onOpenAnnModal, onOpenSurveyModal) {
   // ⚡ 监听全局广播（跨标签页秒级无感热同步大厅任务卡片、新任务发布与延期通知）
   if ('BroadcastChannel' in window) {
     try {
@@ -25,27 +25,27 @@ export function renderStudentTaskPortal(container, authManager, state, onSelectT
         // 1. 新任务发布广播
         if (e.data && e.data.type === 'task_created' && e.data.task) {
           const t = e.data.task;
-          renderStudentTaskPortal(container, authManager, state, onSelectTask, onLogout, onSwitchTeacher, onOpenAnnModal, onOpenSurveyModal);
+          renderStudentTaskPortal(container, authManager, state, onSelectTask, onLogout, onOpenAnnModal, onOpenSurveyModal);
           showGlobalBannerNotice('📢 教师发布新任务', `任课教师刚刚发布了全新写作任务《${t.title || '新协作任务'}》！`, 'info', 8000);
           return;
         }
 
         // 2. 任务被删除广播
         if (e.data && e.data.type === 'task_deleted') {
-          renderStudentTaskPortal(container, authManager, state, onSelectTask, onLogout, onSwitchTeacher, onOpenAnnModal, onOpenSurveyModal);
+          renderStudentTaskPortal(container, authManager, state, onSelectTask, onLogout, onOpenAnnModal, onOpenSurveyModal);
           return;
         }
 
         // 3. 任务更新广播
         if (e.data && e.data.type === 'task_updated') {
-          renderStudentTaskPortal(container, authManager, state, onSelectTask, onLogout, onSwitchTeacher, onOpenAnnModal, onOpenSurveyModal);
+          renderStudentTaskPortal(container, authManager, state, onSelectTask, onLogout, onOpenAnnModal, onOpenSurveyModal);
           return;
         }
 
         // 4. 任务延期广播
         if (e.data && e.data.type === 'task_extended' && e.data.task) {
           const t = e.data.task;
-          renderStudentTaskPortal(container, authManager, state, onSelectTask, onLogout, onSwitchTeacher, onOpenAnnModal, onOpenSurveyModal);
+          renderStudentTaskPortal(container, authManager, state, onSelectTask, onLogout, onOpenAnnModal, onOpenSurveyModal);
           
           let shownEvents = {};
           try { shownEvents = JSON.parse(sessionStorage.getItem('jizhi_shown_deadline_events') || '{}'); } catch (err) {}
@@ -373,7 +373,7 @@ export function renderStudentTaskPortal(container, authManager, state, onSelectT
       if (window.app && newGroupObj && newGroupObj.id) {
         window.app.loadGroupState(newGroupObj.id);
       }
-      renderStudentTaskPortal(container, authManager, state, onSelectTask, onLogout, onSwitchTeacher, onOpenAnnModal, onOpenSurveyModal);
+      renderStudentTaskPortal(container, authManager, state, onSelectTask, onLogout, onOpenAnnModal, onOpenSurveyModal);
     });
   }
 
@@ -381,7 +381,6 @@ export function renderStudentTaskPortal(container, authManager, state, onSelectT
   container.querySelector('#btn-portal-change-pwd')?.addEventListener('click', () => {
     authManager.openChangePasswordModal();
   });
-  container.querySelector('#btn-portal-switch-teacher')?.addEventListener('click', () => onSwitchTeacher());
   container.querySelector('#btn-enter-default-workspace')?.addEventListener('click', () => onSelectTask(null));
   container.querySelectorAll('.btn-enter-task-workspace').forEach(btn => {
     btn.addEventListener('click', () => onSelectTask(btn.dataset.taskId));
