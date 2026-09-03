@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260904_v2194
+ * Version: 20260904_v2195
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260904_v2194';
+  const APP_VERSION = '20260904_v2195';
   const APP_BUILD_DATE = '2026-09-04';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -5932,11 +5932,6 @@
                       </span>
                     </div>
                   </div>
-                  ${monitorTaskObj?.instructions ? `
-                    <div style="font-size:12px; color:#475569; background:#f8fafc; border:1px dashed #cbd5e1; padding:4px 12px; border-radius:6px; max-width:460px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="任务说明: ${escapeHtml(monitorTaskObj.instructions)}">
-                      📝 <b>说明:</b> ${escapeHtml(monitorTaskObj.instructions)}
-                    </div>
-                  ` : ''}
                 </div>
 
                 <!-- 📍 实时跟随指示条（清爽标准版） -->
