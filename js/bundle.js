@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260903_v1915
+ * Version: 20260903_v1920
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260903_v1915';
+  const APP_VERSION = '20260903_v1920';
   const APP_BUILD_DATE = '2026-09-03';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -12897,7 +12897,12 @@
               const unsubmittedNames = unsubmittedMembers.map(m => m.name  ).join('、');
 
               // ① 开场 3 分钟未动笔静默破冰（紧扣研究方向与任务要求）
-              if (!this.state.s1_3minBreakSent && elapsedSec >= 180 && propCount === 0) {
+              // 🛡️ 智能感知：若最近 45 秒内学生在研讨区已有发言交流，适当顺延破冰提示，避免与学生即时发言撞车
+              const s1Chats = (this.state.chatLogs && this.state.chatLogs.stage1) ? this.state.chatLogs.stage1 : [];
+              const lastStudentMsg = [...s1Chats].reverse().find(m => m && m.sender && !AgentProfiles[m.sender] && m.sender !== 'system');
+              const hasRecentChat = lastStudentMsg && (nowMs - (lastStudentMsg._timeMs || 0) < 45000);
+
+              if (!this.state.s1_3minBreakSent && elapsedSec >= 180 && propCount === 0 && !hasRecentChat) {
                 this.state.s1_3minBreakSent = true;
                 const msg3Min = {
                   sender: 'auctioneer',
@@ -13228,11 +13233,11 @@
         } else if (curStage === 'stage2') {
           stageAgentPills = `
             <span class="agent-pill" style="font-size:11px; padding:2px 8px; border-radius:12px; font-weight:700; white-space:nowrap; background:#ecfdf5; color:#059669; border:1px solid #a7f3d0;">🤝 责任编辑 Agent</span>
-            ${hasPapers ? `<span class="agent-pill" style="font-size:11px; padding:2px 8px; border-radius:12px; font-weight:700; white-space:nowrap; background:#eff6ff; color:#2563eb; border:1px solid #bfdbfe;">📝 审稿编辑 Agent</span>` : ''}
+            <span class="agent-pill" style="font-size:11px; padding:2px 8px; border-radius:12px; font-weight:700; white-space:nowrap; background:#eff6ff; color:#2563eb; border:1px solid #bfdbfe;">📝 审稿编辑 Agent</span>
           `;
           stageAgentMentions = `
             <div class="at-item agent" data-mention="@责任编辑">🤝 @责任编辑 (阶段二 分工协同)</div>
-            ${hasPapers ? `<div class="at-item agent" data-mention="@审稿编辑">📝 @审稿编辑 (阶段二 论文质检)</div>` : ''}
+            <div class="at-item agent" data-mention="@审稿编辑">📝 @审稿编辑 (阶段二 论文质检)</div>
           `;
         } else if (curStage === 'stage3') {
           stageAgentPills = `
