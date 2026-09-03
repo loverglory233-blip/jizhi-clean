@@ -765,19 +765,49 @@ export function isScopeMatch(target = {}, context = {}) {
 }
 
 /**
- * 🌐 标准模态弹窗页面滚动锁定管理器 (Standard Modal Scroll Manager)
- * 采用现代主流 UI 库 (Element Plus / Ant Design / Bootstrap) 标准范式
+ * 🌐 业界黄金标准：全局弹窗背景滚动冻结器 (Universal Body Scroll Lock)
+ * 采用 position:fixed + scrollY 锚定算法，100% 兼容 iOS Safari / Mac Trackpad / 全桌面浏览器
  */
+let _savedScrollY = 0;
+let _isBodyLocked = false;
+
+export function lockBodyScroll() {
+  if (_isBodyLocked) return;
+  _savedScrollY = window.scrollY || window.pageYOffset || (document.documentElement && document.documentElement.scrollTop) || 0;
+  _isBodyLocked = true;
+  if (document.body) {
+    document.body.classList.add('modal-open');
+    document.body.style.position = 'fixed';
+    document.body.style.top = `-${_savedScrollY}px`;
+    document.body.style.left = '0';
+    document.body.style.right = '0';
+    document.body.style.width = '100%';
+    document.body.style.overflow = 'hidden';
+  }
+}
+
+export function unlockBodyScroll() {
+  if (!_isBodyLocked) return;
+  _isBodyLocked = false;
+  if (document.body) {
+    document.body.classList.remove('modal-open');
+    document.body.style.position = '';
+    document.body.style.top = '';
+    document.body.style.left = '';
+    document.body.style.right = '';
+    document.body.style.width = '';
+    document.body.style.overflow = '';
+  }
+  window.scrollTo(0, _savedScrollY);
+}
+
 if (typeof document !== 'undefined' && typeof MutationObserver !== 'undefined') {
   const observer = new MutationObserver(() => {
     const hasModal = !!document.querySelector('.modal-overlay, .table-config-modal-overlay');
-    if (document.body) {
-      document.body.classList.toggle('modal-open', hasModal);
-      document.body.style.overflow = hasModal ? 'hidden' : '';
-    }
-    if (document.documentElement) {
-      document.documentElement.classList.toggle('modal-open', hasModal);
-      document.documentElement.style.overflow = hasModal ? 'hidden' : '';
+    if (hasModal) {
+      lockBodyScroll();
+    } else {
+      unlockBodyScroll();
     }
   });
   const targetNode = document.body || document.documentElement;
