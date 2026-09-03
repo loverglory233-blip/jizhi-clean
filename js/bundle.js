@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260903_v2135
+ * Version: 20260903_v2140
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260903_v2135';
+  const APP_VERSION = '20260903_v2140';
   const APP_BUILD_DATE = '2026-09-03';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -724,7 +724,11 @@
   function showGlobalBannerNotice(title, message, type = 'info', duration = 8000) {
     if (typeof document === 'undefined') return;
     const existing = document.getElementById('jizhi-global-banner-notice');
-    if (existing) existing.remove();
+    if (existing && typeof existing.remove === 'function') {
+      existing.remove();
+    } else if (existing && existing.parentNode) {
+      existing.parentNode.removeChild(existing);
+    }
 
     const banner = document.createElement('div');
     banner.id = 'jizhi-global-banner-notice';

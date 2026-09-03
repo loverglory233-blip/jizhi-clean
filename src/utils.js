@@ -518,7 +518,11 @@ export function filterAndDeduplicateChatLogs(messages) {
 export function showGlobalBannerNotice(title, message, type = 'info', duration = 8000) {
   if (typeof document === 'undefined') return;
   const existing = document.getElementById('jizhi-global-banner-notice');
-  if (existing) existing.remove();
+  if (existing && typeof existing.remove === 'function') {
+    existing.remove();
+  } else if (existing && existing.parentNode) {
+    existing.parentNode.removeChild(existing);
+  }
 
   const banner = document.createElement('div');
   banner.id = 'jizhi-global-banner-notice';
