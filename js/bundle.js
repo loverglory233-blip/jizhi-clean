@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260903_v1545
+ * Version: 20260903_v1547
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260903_v1545';
+  const APP_VERSION = '20260903_v1547';
   const APP_BUILD_DATE = '2026-09-03';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -1106,7 +1106,6 @@
     removeLegacyTestAccounts() {
       try {
         const LEGACY_IDS = new Set(['u_studentA', 'u_studentB', 'u_studentC']);
-        const LEGACY_CODES = new Set();
         const LEGACY_NAMES = new Set(['李明', '王芳', '陈强', '李明 (组长)', '王芳 (组员)', '陈强 (组员)']);
 
         let users = [];
