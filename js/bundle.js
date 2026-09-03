@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260903_v2150
+ * Version: 20260903_v2155
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260903_v2150';
+  const APP_VERSION = '20260903_v2155';
   const APP_BUILD_DATE = '2026-09-03';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -910,27 +910,41 @@
   function enforceEtherpadReadonly(iframe) {
     if (!iframe) return;
 
-    // 🛡️ 1. 仅保留视觉提示遮罩：pointer-events:none 确保鼠标滚轮与触控滑动 100% 穿透到 iframe，原生滚动完全不受干扰
+    // 🛡️ 1. 物理级点击拦截遮罩：pointer-events:auto 彻底阻断任何鼠标点击、聚焦与键盘光标进入 iframe
     const container = iframe.parentElement;
     if (container) {
       let shield = container.querySelector('.etherpad-readonly-shield');
       if (!shield) {
         shield = document.createElement('div');
         shield.className = 'etherpad-readonly-shield';
-        // pointer-events:none 是关键：遮罩只做视觉提示，一切鼠标/触控/滚轮事件完全穿透给 iframe
-        shield.style.cssText = 'position:absolute; inset:0; z-index:25; background:transparent; cursor:not-allowed; pointer-events:none;';
+        shield.style.cssText = 'position:absolute; inset:0; z-index:99; background:transparent; cursor:default; pointer-events:auto;';
         shield.title = '🔒 只读查阅模式 (已锁定禁止编辑)';
         container.style.position = 'relative';
         container.appendChild(shield);
       } else {
-        // 兼容已存在的 shield：强制覆盖为 pointer-events:none，修复旧版遮罩阻塞滚动的问题
-        shield.style.pointerEvents = 'none';
+        shield.style.cssText = 'position:absolute; inset:0; z-index:99; background:transparent; cursor:default; pointer-events:auto;';
       }
+
+      // 滚轮穿透：将 shield 上的滚轮事件转发到 iframe 内部文档滚动，保留流畅阅读体验
+      shield.onwheel = (e) => {
+        try {
+          const doc = iframe.contentDocument;
+          if (doc) {
+            const aceOuter = doc.querySelector('iframe[name="ace_outer"]');
+            if (aceOuter && aceOuter.contentDocument) {
+              const outerDoc = aceOuter.contentDocument;
+              const outerScroller = outerDoc.querySelector('#outerdocbody') || outerDoc.documentElement || outerDoc.body;
+              if (outerScroller) {
+                outerScroller.scrollTop += e.deltaY;
+              }
+            }
+          }
+        } catch(err) {}
+      };
     }
 
     const tryLock = () => {
       try {
-        // 仅在同源可访问时做单次静态防护，跨域时直接静默跳过，绝不高频捕获异常
         const doc = iframe.contentDocument;
         if (!doc) return;
 
@@ -941,25 +955,19 @@
         if (footer) footer.style.setProperty('display', 'none', 'important');
 
         const aceOuter = doc.querySelector('iframe[name="ace_outer"]');
-        if (aceOuter) {
+        if (aceOuter && aceOuter.contentDocument) {
           const outerDoc = aceOuter.contentDocument;
-          if (outerDoc) {
-            const aceInner = outerDoc.querySelector('iframe[name="ace_inner"]');
-            if (aceInner) {
-              const innerDoc = aceInner.contentDocument;
-              if (innerDoc) {
-                const innerBody = innerDoc.querySelector('#innerdocbody') || innerDoc.body;
-                if (innerBody) {
-                  innerBody.setAttribute('contenteditable', 'false');
-                  innerBody.style.setProperty('cursor', 'not-allowed', 'important');
-                }
-              }
+          const aceInner = outerDoc.querySelector('iframe[name="ace_inner"]');
+          if (aceInner && aceInner.contentDocument) {
+            const innerDoc = aceInner.contentDocument;
+            const innerBody = innerDoc.querySelector('#innerdocbody') || innerDoc.body;
+            if (innerBody) {
+              innerBody.setAttribute('contenteditable', 'false');
+              innerBody.style.setProperty('cursor', 'default', 'important');
             }
           }
         }
-      } catch(e) {
-        // 官方只读 ID (r.xxxx) 已由 Etherpad 服务端完全锁死编辑，跨域时安全静默跳过
-      }
+      } catch(e) {}
     };
 
     iframe.addEventListener('load', () => {
@@ -6385,7 +6393,7 @@
                                   <span style="font-size:11px; background:#ecfdf5; color:#059669; border:1px solid #a7f3d0; padding:1px 8px; border-radius:4px; font-weight:700;">只读监控</span>
                                 </div>
                                 <div style="position:relative; flex:1; width:100%; height:100%; min-height:520px; display:flex;">
-                                  <div class="etherpad-readonly-shield" style="position:absolute; inset:0; z-index:25; background:transparent; cursor:not-allowed; pointer-events:none;" title="🔒 只读查阅模式 (已锁定禁止编辑)"></div>
+                                  <div class="etherpad-readonly-shield" style="position:absolute; inset:0; z-index:99; background:transparent; cursor:default; pointer-events:auto;" title="🔒 只读查阅模式 (已锁定禁止编辑)"></div>
                                   <iframe id="teacher-stage2-etherpad-frame" src="/p/${encodeURIComponent(targetPad)}?userName=${encodeURIComponent('教师监控')}&userColor=%237c3aed&showControls=false&showChat=false&showLineNumbers=true&lang=zh-hans&readOnly=true" style="flex:1; width:100%; height:100%; min-height:520px; border:none; display:block; background:#ffffff;" title="教师端实时写作同屏镜像 (只读)"></iframe>
                                 </div>
                               </div>
@@ -6479,7 +6487,7 @@
                                     <span style="font-size:11px; background:#ecfdf5; color:#059669; border:1px solid #a7f3d0; padding:1px 8px; border-radius:4px; font-weight:700;">只读监控</span>
                                   </div>
                                   <div style="position:relative; flex:1; width:100%; height:100%; min-height:520px; display:flex;">
-                                    <div class="etherpad-readonly-shield" style="position:absolute; inset:0; z-index:25; background:transparent; cursor:not-allowed; pointer-events:none;" title="🔒 只读查阅模式 (已锁定禁止编辑)"></div>
+                                    <div class="etherpad-readonly-shield" style="position:absolute; inset:0; z-index:99; background:transparent; cursor:default; pointer-events:auto;" title="🔒 只读查阅模式 (已锁定禁止编辑)"></div>
                                     <iframe id="teacher-stage3-etherpad-frame" src="/p/${encodeURIComponent(targetPad)}?userName=${encodeURIComponent('教师监控')}&userColor=%237c3aed&showControls=false&showChat=false&showLineNumbers=true&lang=zh-hans&readOnly=true" style="flex:1; width:100%; height:100%; min-height:520px; border:none; display:block; background:#ffffff;" title="教师端论文终稿同屏镜像 (只读)"></iframe>
                                   </div>
                                 </div>
