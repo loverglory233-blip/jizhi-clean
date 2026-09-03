@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260903_v1970
+ * Version: 20260903_v1975
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260903_v1970';
+  const APP_VERSION = '20260903_v1975';
   const APP_BUILD_DATE = '2026-09-03';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -13596,40 +13596,6 @@
                 this.syncChatLogs();
                 if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
                 renderChat(this.state);
-                return;
-              }
-            }
-
-            // ② 挂机 6 分钟强兜底：大模型自动提炼生成并回填顺推，彻底杜绝流程卡死
-            if (silenceAfterGuideMs > 360000 && !this._s1AutoFallbackRunning) {
-              const fallbackKey = `s1_auto_fallback_${s1.contractStep || 'topic'}`;
-              if (!this._nudgeCounts[fallbackKey]) {
-                this._nudgeCounts[fallbackKey] = 1;
-                this._s1AutoFallbackRunning = true;
-                const stepName = (s1.contractStep === 'tasks') ? '任务分工' : ((s1.contractStep === 'time') ? '时间分配' : '研究主题与方案');
-                const autoNoticeMsg = {
-                  sender: 'auctioneer',
-                  senderName: '头脑风暴 · 学术拍卖师',
-                  text: `🎪 【拍卖师·研讨收拢与智能生成】：研讨时间已到，为确保选题进度，拍卖师已结合当前构想与学术规范，自动为大家生成并录入【${stepName}】！`,
-                  timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                  _timeMs: now
-                };
-                this.state.chatLogs.stage1.push(autoNoticeMsg);
-                this.syncChatLogs();
-
-                setTimeout(async () => {
-                  try {
-                    if (s1.contractStep === 'tasks') {
-                      await this._doExtractTasks();
-                    } else if (s1.contractStep === 'time') {
-                      await this._doExtractTime();
-                    } else {
-                      await this._doExtractTopic();
-                    }
-                  } finally {
-                    this._s1AutoFallbackRunning = false;
-                  }
-                }, 1000);
                 return;
               }
             }
