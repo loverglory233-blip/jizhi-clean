@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260903_v2120";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch, showResolutionBlock, safeJsonParse } from "./utils.js?v=20260903_v2120";
-import { callCozeAgentAPI } from "./agents.js?v=20260903_v2120";
-import { AuthManager } from "./auth.js?v=20260903_v2120";
-import { CloudSyncEngine } from "./sync.js?v=20260903_v2120";
-import { renderLoginView } from "./login.js?v=20260903_v2120";
-import { renderTeacherPortal } from "./teacher.js?v=20260903_v2120";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260903_v2120";
+} from "./constants.js?v=20260903_v2125";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch, showResolutionBlock, safeJsonParse } from "./utils.js?v=20260903_v2125";
+import { callCozeAgentAPI } from "./agents.js?v=20260903_v2125";
+import { AuthManager } from "./auth.js?v=20260903_v2125";
+import { CloudSyncEngine } from "./sync.js?v=20260903_v2125";
+import { renderLoginView } from "./login.js?v=20260903_v2125";
+import { renderTeacherPortal } from "./teacher.js?v=20260903_v2125";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260903_v2125";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260903_v2120";
+} from "./editor.js?v=20260903_v2125";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -1514,9 +1514,6 @@ export class App {
             return;
           }
         }
-        }
-
-
       }
 
       // ======================================================================
