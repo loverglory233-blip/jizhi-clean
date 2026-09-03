@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260903_v2015
+ * Version: 20260903_v2020
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260903_v2015';
+  const APP_VERSION = '20260903_v2020';
   const APP_BUILD_DATE = '2026-09-03';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -13786,6 +13786,11 @@
               this.syncChatLogs();
               if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
               renderChat(this.state);
+
+              // 🚀 核心保障：针对尚未打卡的同学，不管他在干什么，3 分钟后直接在其屏幕上弹出自查打卡弹窗！
+              if (!isMemberSubmitted(currUserObj) && typeof this.showMeetingModal === 'function') {
+                this.showMeetingModal();
+              }
               return;
             }
 

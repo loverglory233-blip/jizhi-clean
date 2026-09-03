@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260903_v2015";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260903_v2015";
-import { callCozeAgentAPI } from "./agents.js?v=20260903_v2015";
-import { AuthManager } from "./auth.js?v=20260903_v2015";
-import { CloudSyncEngine } from "./sync.js?v=20260903_v2015";
-import { renderLoginView } from "./login.js?v=20260903_v2015";
-import { renderTeacherPortal } from "./teacher.js?v=20260903_v2015";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260903_v2015";
+} from "./constants.js?v=20260903_v2020";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260903_v2020";
+import { callCozeAgentAPI } from "./agents.js?v=20260903_v2020";
+import { AuthManager } from "./auth.js?v=20260903_v2020";
+import { CloudSyncEngine } from "./sync.js?v=20260903_v2020";
+import { renderLoginView } from "./login.js?v=20260903_v2020";
+import { renderTeacherPortal } from "./teacher.js?v=20260903_v2020";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260903_v2020";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260903_v2015";
+} from "./editor.js?v=20260903_v2020";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -1401,6 +1401,11 @@ export class App {
             this.syncChatLogs();
             if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
             renderChat(this.state);
+
+            // 🚀 核心保障：针对尚未打卡的同学，不管他在干什么，3 分钟后直接在其屏幕上弹出自查打卡弹窗！
+            if (!isMemberSubmitted(currUserObj) && typeof this.showMeetingModal === 'function') {
+              this.showMeetingModal();
+            }
             return;
           }
 
