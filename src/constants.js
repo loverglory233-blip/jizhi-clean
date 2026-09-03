@@ -4,7 +4,7 @@
  * Version: 2.1.0 (2026-08-23)
  */
 
-export const APP_VERSION = '20260903_v1539';
+export const APP_VERSION = '20260903_v1545';
 export const APP_BUILD_DATE = '2026-09-03';
 
 export const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -52,7 +52,9 @@ export const InitialState = {
     isRunning: true,
     startTimestamp: null
   },
-  teacherActiveTab: 'view_architecture', // 'view_architecture', 'view_publishing', 'view_monitoring'
+  teacherLevel: 'dashboard', // 'dashboard' or 'class_workspace'
+  teacherDashboardTab: 'classes', // 'classes' or 'global_students'
+  teacherClassTab: 'students_groups', // 'students_groups', 'tasks_resources', 'live_monitoring'
   activeClassId: null,
   activeMonitorGroupId: null,
   members: {},

@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260903_v1539
+ * Version: 20260903_v1545
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260903_v1539';
+  const APP_VERSION = '20260903_v1545';
   const APP_BUILD_DATE = '2026-09-03';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -64,7 +64,9 @@
       isRunning: true,
       startTimestamp: null
     },
-    teacherActiveTab: 'view_architecture', // 'view_architecture', 'view_publishing', 'view_monitoring'
+    teacherLevel: 'dashboard', // 'dashboard' or 'class_workspace'
+    teacherDashboardTab: 'classes', // 'classes' or 'global_students'
+    teacherClassTab: 'students_groups', // 'students_groups', 'tasks_resources', 'live_monitoring'
     activeClassId: null,
     activeMonitorGroupId: null,
     members: {},
@@ -4564,7 +4566,10 @@
     const announcements = authManager.getAnnouncements();
     const refPapers = authManager.getReferencePapers();
     const classes = authManager.getClasses();
-    const activeTab = state.teacherActiveTab || 'view_architecture';
+    const isDashboard = (state.teacherLevel === 'dashboard' || !activeClass);
+    const dashboardTab = state.teacherDashboardTab || 'classes';
+    const classTab = state.teacherClassTab || 'students_groups';
+    const activeTab = isDashboard ? dashboardTab : classTab;
     const activeClassId = state.activeClassId || (classes[0] ? classes[0].id : null);
     const activeClass = classes.find(c => c.id === activeClassId) || classes[0] || null;
 
@@ -4601,7 +4606,7 @@
     const effectiveMonitorStage = monitorStageMode === 'auto' ? (state.currentStage || 'stage1') : monitorStageMode;
     const currentS3Tab = state.stage3TeacherTab || 'defense';
 
-    // 🛡️ 教师端单例保护：若当前已经在 view_monitoring 标签下且监控同一个班级/小组/任务/阶段/模式/子页，优先执行增量就地更新
+    // 🛡️ 教师端单例保护：若当前已经在 live_monitoring 标签下且监控同一个班级/小组/任务/阶段/模式/子页，优先执行增量就地更新
     const existingLayout = container.querySelector('.teacher-portal-layout');
     const renderedCId = container.dataset.renderedClassId;
     const renderedGId = container.dataset.renderedGroupId;
@@ -4611,7 +4616,7 @@
     const renderedS3Tab = container.dataset.renderedS3Tab;
     const renderedTab = container.dataset.renderedTab;
 
-    if (existingLayout && activeTab === 'view_monitoring' && renderedTab === 'view_monitoring' &&
+    if (existingLayout && !isDashboard && classTab === 'live_monitoring' && renderedTab === 'live_monitoring' &&
         renderedCId === activeClassId && renderedGId === activeMonitorGId &&
         renderedTaskId === effectiveMonitorTaskId && renderedStage === effectiveMonitorStage &&
         renderedMode === monitorStageMode &&
@@ -4823,7 +4828,7 @@
         return;
       }
 
-      if (state.teacherActiveTab === 'view_monitoring' && window.app && window.app.cloudSyncEngine) {
+      if (!isDashboard && classTab === 'live_monitoring' && window.app && window.app.cloudSyncEngine) {
         const currentCId = state.activeClassId || activeClass.id || null;
         let activeTaskId = state.activeTaskId || (currentClassTasks[0] ? currentClassTasks[0].id : `task_${currentCId}_default`);
         if (!activeTaskId || activeTaskId === 'task_default') {
@@ -4958,7 +4963,7 @@
     const markTeacherActive = () => {
       const wasIdle = (Date.now() - window._lastTeacherActivity > 60000);
       window._lastTeacherActivity = Date.now();
-      if (wasIdle && state.teacherActiveTab === 'view_monitoring') {
+      if (wasIdle && !isDashboard && classTab === 'live_monitoring') {
         teacherPullAndRefresh();
       }
     };
@@ -4985,10 +4990,6 @@
     const tInitInterval = (document.hidden ? 15000 : 1800);
     window._teacherPortalSyncTimer = setTimeout(teacherPullAndRefresh, tInitInterval);
 
-    // 🏛️ 两级架构视图状态管控
-    const isDashboard = (state.teacherLevel === 'dashboard' || !activeClass);
-    const dashboardTab = state.teacherDashboardTab || 'classes';
-    const classTab = state.teacherClassTab || 'students_groups';
     const allStudents = allUsers.filter(u => u.role !== 'teacher');
 
     container.innerHTML = `
@@ -12796,8 +12797,12 @@
       if (storedTeacherClassId) this.state.activeClassId = storedTeacherClassId;
       const storedTeacherGroupId = sessionStorage.getItem('jizhi_teacher_active_group_id') || localStorage.getItem('jizhi_teacher_active_group_id');
       if (storedTeacherGroupId) this.state.activeMonitorGroupId = storedTeacherGroupId;
-      const storedTeacherTab = sessionStorage.getItem('jizhi_teacher_active_tab') || localStorage.getItem('jizhi_teacher_active_tab');
-      if (storedTeacherTab) this.state.teacherActiveTab = storedTeacherTab;
+      const storedTeacherLevel = sessionStorage.getItem('jizhi_teacher_level') || localStorage.getItem('jizhi_teacher_level');
+      if (storedTeacherLevel) this.state.teacherLevel = storedTeacherLevel;
+      const storedTeacherDTab = sessionStorage.getItem('jizhi_teacher_dtab') || localStorage.getItem('jizhi_teacher_dtab');
+      if (storedTeacherDTab) this.state.teacherDashboardTab = storedTeacherDTab;
+      const storedTeacherCTab = sessionStorage.getItem('jizhi_teacher_ctab') || localStorage.getItem('jizhi_teacher_ctab');
+      if (storedTeacherCTab) this.state.teacherClassTab = storedTeacherCTab;
 
       const user = this.authManager.getCurrentUser();
       const effectiveClassId = (this.authManager ? this.authManager.getEffectiveStudentClassId(user, this.state.activeTaskId) : (this.state.activeStudentClassId || user?.classId || null));

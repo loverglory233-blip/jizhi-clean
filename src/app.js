@@ -13,14 +13,14 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260903_v1539";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260903_v1539";
-import { callCozeAgentAPI } from "./agents.js?v=20260903_v1539";
-import { AuthManager } from "./auth.js?v=20260903_v1539";
-import { CloudSyncEngine } from "./sync.js?v=20260903_v1539";
-import { renderLoginView } from "./login.js?v=20260903_v1539";
-import { renderTeacherPortal } from "./teacher.js?v=20260903_v1539";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260903_v1539";
+} from "./constants.js?v=20260903_v1545";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260903_v1545";
+import { callCozeAgentAPI } from "./agents.js?v=20260903_v1545";
+import { AuthManager } from "./auth.js?v=20260903_v1545";
+import { CloudSyncEngine } from "./sync.js?v=20260903_v1545";
+import { renderLoginView } from "./login.js?v=20260903_v1545";
+import { renderTeacherPortal } from "./teacher.js?v=20260903_v1545";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260903_v1545";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -29,7 +29,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260903_v1539";
+} from "./editor.js?v=20260903_v1545";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -63,8 +63,12 @@ export class App {
     if (storedTeacherClassId) this.state.activeClassId = storedTeacherClassId;
     const storedTeacherGroupId = sessionStorage.getItem('jizhi_teacher_active_group_id') || localStorage.getItem('jizhi_teacher_active_group_id');
     if (storedTeacherGroupId) this.state.activeMonitorGroupId = storedTeacherGroupId;
-    const storedTeacherTab = sessionStorage.getItem('jizhi_teacher_active_tab') || localStorage.getItem('jizhi_teacher_active_tab');
-    if (storedTeacherTab) this.state.teacherActiveTab = storedTeacherTab;
+    const storedTeacherLevel = sessionStorage.getItem('jizhi_teacher_level') || localStorage.getItem('jizhi_teacher_level');
+    if (storedTeacherLevel) this.state.teacherLevel = storedTeacherLevel;
+    const storedTeacherDTab = sessionStorage.getItem('jizhi_teacher_dtab') || localStorage.getItem('jizhi_teacher_dtab');
+    if (storedTeacherDTab) this.state.teacherDashboardTab = storedTeacherDTab;
+    const storedTeacherCTab = sessionStorage.getItem('jizhi_teacher_ctab') || localStorage.getItem('jizhi_teacher_ctab');
+    if (storedTeacherCTab) this.state.teacherClassTab = storedTeacherCTab;
 
     const user = this.authManager.getCurrentUser();
     const effectiveClassId = (this.authManager ? this.authManager.getEffectiveStudentClassId(user, this.state.activeTaskId) : (this.state.activeStudentClassId || user?.classId || null));
