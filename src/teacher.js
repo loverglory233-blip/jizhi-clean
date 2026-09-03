@@ -2022,15 +2022,18 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
                   (s.classIds || [s.classId]).includes(c.id) && c.id !== activeClass.id
                 );
                 return `
-                  <label class="enroll-std-card-item" data-search="${(s.name + ' ' + (s.id || '')).toLowerCase()}" style="display:flex; align-items:center; gap:12px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:10px 14px; cursor:pointer; transition:all 0.15s;">
-                    <input type="checkbox" class="enroll-chk" data-uid="${s.id}" style="width:17px; height:17px; cursor:pointer; accent-color:#2563eb;">
-                    <div>
-                      <div style="font-size:14px; font-weight:800; color:#0f172a;">${s.avatar || '👤'} ${s.name} <code style="color:#2563eb; font-family:monospace; margin-left:6px;">${s.id}</code></div>
-                      <div style="font-size:12px; color:#64748b; margin-top:2px;">
-                        ${otherClasses.length > 0 ? `现归属班级: <b>${otherClasses.map(c => c.name).join(', ')}</b>` : '已入库学生'}
+                  <div class="enroll-std-card-item" data-search="${(s.name + ' ' + (s.id || '')).toLowerCase()}" style="display:flex; align-items:center; justify-content:space-between; gap:12px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:10px 14px; transition:all 0.15s;">
+                    <label style="display:flex; align-items:center; gap:12px; cursor:pointer; flex:1;">
+                      <input type="checkbox" class="enroll-chk" data-uid="${s.id}" style="width:17px; height:17px; cursor:pointer; accent-color:#2563eb;">
+                      <div>
+                        <div style="font-size:14px; font-weight:800; color:#0f172a;">${s.avatar || '👤'} ${s.name} <code style="color:#2563eb; font-family:monospace; margin-left:6px;">${s.id}</code></div>
+                        <div style="font-size:12px; color:#64748b; margin-top:2px;">
+                          ${otherClasses.length > 0 ? `现归属班级: <b>${otherClasses.map(c => c.name).join(', ')}</b>` : '已入库学生'}
+                        </div>
                       </div>
-                    </div>
-                  </label>
+                    </label>
+                    <button class="btn-purge-std" data-uid="${s.id}" data-name="${s.name}" style="background:#fef2f2; border:1px solid #fecaca; color:#dc2626; padding:5px 10px; border-radius:6px; font-size:12px; font-weight:700; cursor:pointer; white-space:nowrap;" title="彻底从平台注销删除此学生账号">🗑️ 彻底删除</button>
+                  </div>
                 `;
               }).join('')}
             </div>
@@ -2047,6 +2050,21 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
       modal.querySelector('#btn-close-enroll-modal').addEventListener('click', closeModal);
       modal.querySelector('#btn-cancel-enroll').addEventListener('click', closeModal);
       modal.addEventListener('click', (e) => { if (e.target === modal) closeModal(); });
+
+      // 🗑️ 彻底从系统删除注销账号
+      modal.querySelectorAll('.btn-purge-std').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const uid = btn.dataset.uid;
+          const uname = btn.dataset.name;
+          if (confirm(`⚠️ 确认彻底从系统中删除学生【${uname} (${uid})】的账号吗？删除后不可恢复！`)) {
+            authManager.deleteStudent(uid, null, true);
+            const item = btn.closest('.enroll-std-card-item');
+            if (item) item.remove();
+            renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
+          }
+        });
+      });
 
       // 🔍 模糊搜索过滤
       const searchEnrollInput = modal.querySelector('#input-search-enroll-std');
