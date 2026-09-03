@@ -4,7 +4,7 @@
  */
 
 /**
- * 👤 全维度用户标识提取器：提取一个用户对象的全部等价唯一标识（id, id, username, name）
+ * 👤 全维度用户标识提取器：提取一个用户对象的全部等价唯一标识（id, name）
  */
 export function getUserAllKeys(user) {
   if (!user) return [];
@@ -12,8 +12,6 @@ export function getUserAllKeys(user) {
   const keys = new Set();
   if (user.id) keys.add(String(user.id).trim());
   if (user.userId) keys.add(String(user.userId).trim());
-  if (user.id) keys.add(String(user.id).trim());
-  if (user.username) keys.add(String(user.username).trim());
   if (user.name) keys.add(String(user.name).trim());
   return Array.from(keys);
 }

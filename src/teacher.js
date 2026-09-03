@@ -10,8 +10,8 @@ import {
   STORAGE_KEY_USERS_DB,
   TASK_GENRE_CONFIGS,
   AgentProfiles
-} from "./constants.js?v=20260903_v1515";
-import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, showGlobalBannerNotice } from "./utils.js?v=20260903_v1515";
+} from "./constants.js?v=20260903_v1539";
+import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, showGlobalBannerNotice } from "./utils.js?v=20260903_v1539";
 
 /* ==========================================================================
    7. TEACHER PORTAL RENDERER (LIVE WORKSPACE MIRROR & ANNOUNCEMENT READ MATRIX)
@@ -351,7 +351,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
 
         const curT = authManager.getCurrentUser();
         const tToken = (curT && (curT.activeSessionId || curT.token)) || '';
-        const tId = (curT && (curT.id || curT.username)) || '';
+        const tId = (curT && (curT.id)) || '';
         const lastHash = state._lastMonitorHash || '';
         const panRes = await fetch(`sync.php?action=get_teacher_monitor_all_groups&activeGroupId=${encodeURIComponent(currentGId)}&taskId=${encodeURIComponent(activeTaskId)}&classId=${encodeURIComponent(currentCId)}&userId=${encodeURIComponent(tId)}&token=${encodeURIComponent(tToken)}&clientHash=${encodeURIComponent(lastHash)}`).then(r => r.json()).catch(() => null);
         if (panRes && panRes.success && panRes.groups) {
@@ -1357,7 +1357,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
                       ${combinedGroupChatLogs.length > 0 ? combinedGroupChatLogs.map(m => {
                         const allGlobalUsers = (authManager) ? authManager.getUsers() : [];
                         const isAgent = AgentProfiles[m.sender] !== undefined;
-                        const matchedUser = isAgent ? null : allGlobalUsers.find(u => u.id === m.sender  === m.sender || u.username === m.sender || u.name === m.sender);
+                        const matchedUser = isAgent ? null : allGlobalUsers.find(u => u.id === m.sender  === m.sender || u.name === m.sender);
                         const senderName = isAgent ? AgentProfiles[m.sender].name : (matchedUser ? matchedUser.name : (m.senderName || (monitorMembersObj[m.sender] ? monitorMembersObj[m.sender].name : m.sender)));
                         const color = isAgent ? AgentProfiles[m.sender].color : (matchedUser ? (matchedUser.color || '#2563eb') : (monitorMembersObj[m.sender] ? monitorMembersObj[m.sender].color : '#2563eb'));
                         return `
@@ -1472,7 +1472,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
                             </div>
                             <div style="display:flex; flex-direction:column; gap:6px;">
                               ${monitorMembersList.map((m, idx) => {
-                                const mKey = m.id  || m.username || m.name || (`mem_${idx}`);
+                                const mKey = m.id   || m.name || (`mem_${idx}`);
                                 const tasks = state.stage1?.contract?.taskAssignments || {};
                                 const taskVal = tasks[mKey] !== undefined ? tasks[mKey] :
                                   (m.id && tasks[m.id] !== undefined ? tasks[m.id] :
@@ -1524,7 +1524,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
                   const s2Subs = state.stage2?.meetingSubmissions || {};
                   const s2SubCount = Object.keys(s2Subs).length;
                   const totalMemberCount = monitorMembersList.length || 3;
-                  const confirmedDraftCount = monitorMembersList.filter(m => state.stage2?.confirmedMembers && (state.stage2.confirmedMembers[m.id] || state.stage2.confirmedMembers[m.id] || state.stage2.confirmedMembers[m.username] || (m.name && state.stage2.confirmedMembers[m.name]))).length;
+                  const confirmedDraftCount = monitorMembersList.filter(m => state.stage2?.confirmedMembers && (state.stage2.confirmedMembers[m.id]  || (m.name && state.stage2.confirmedMembers[m.name]))).length;
 
                   return `
                     <div style="display:grid; grid-template-columns: minmax(0, 1fr) 300px; gap:16px; width:100%; box-sizing:border-box; height:840px; max-height:840px; align-items:stretch;">
@@ -1586,7 +1586,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
                             </span>
                             <div id="teacher-stage2-confirmed-pills" style="display:flex; gap:6px; flex-wrap:wrap;">
                               ${monitorMembersList.map(m => {
-                                const isConf = state.stage2?.confirmedMembers && (state.stage2.confirmedMembers[m.id] || state.stage2.confirmedMembers[m.id] || (m.name && state.stage2.confirmedMembers[m.name]));
+                                const isConf = state.stage2?.confirmedMembers && (state.stage2.confirmedMembers[m.id] || (m.name && state.stage2.confirmedMembers[m.name]));
                                 return `<span style="font-size:11px; padding:1px 8px; border-radius:10px; font-weight:700; background:${isConf ? '#ecfdf5' : '#f8fafc'}; color:${isConf ? '#059669' : '#94a3b8'}; border:1px solid ${isConf ? '#a7f3d0' : '#e2e8f0'};">
                                   ${isConf ? '✓' : '○'} ${escapeHtml(m.name)}
                                 </span>`;
@@ -3556,7 +3556,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
           if (selectedAttachment.fileObj) {
             try {
               const currT = authManager.getCurrentUser();
-              const tId = (currT && (currT.username || currT.id)) || '';
+              const tId = (currT && (currT.id)) || '';
               const tToken = (currT && (currT.token || currT.activeSessionId)) || '';
 
               const formData = new FormData();
@@ -3792,7 +3792,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
           if (selectedFile.fileObj) {
             try {
               const currT = authManager.getCurrentUser();
-              const tId = (currT && (currT.username || currT.id)) || '';
+              const tId = (currT && (currT.id)) || '';
               const tToken = (currT && (currT.token || currT.activeSessionId)) || '';
 
               const formData = new FormData();

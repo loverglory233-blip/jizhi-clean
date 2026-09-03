@@ -960,11 +960,11 @@ if ($action === 'get_teacher_monitor_all_groups') {
                     $memberObj = $userMap[(string)$mKey] ?? $m;
                 } else {
                     $mKey = (string)$m;
-                    $memberObj = $userMap[$mKey] ?? ['id' => $mKey, 'studentCode' => $mKey, 'name' => $mKey];
+                    $memberObj = $userMap[$mKey] ?? ['id' => $mKey, 'name' => $mKey];
                 }
 
                 $candidateKeys = [];
-                foreach (['studentCode', 'id', 'userId', 'name', 'username', 'realStudentCode'] as $f) {
+                foreach (['id', 'userId', 'name', 'realStudentCode'] as $f) {
                     if (isset($memberObj[$f]) && $memberObj[$f] !== '') $candidateKeys[] = (string)$memberObj[$f];
                 }
                 if ($mKey !== '') $candidateKeys[] = (string)$mKey;
@@ -1989,7 +1989,6 @@ if ($action === 'update_read_status' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                             $ann['confirmedMembers'][] = [
                                 'id' => $userId ?: ($userCode ?: 'u_' . round(microtime(true) * 1000)),
                                 'name' => $userName ?: ($userCode ?: '学生'),
-                                'studentCode' => $userCode ?: '',
                                 'groupId' => $groupId ?: '',
                                 'time' => date('H:i')
                             ];
@@ -2531,7 +2530,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     if (is_array($mbs)) {
                         foreach ($mbs as $mb) {
                             if (is_array($mb)) {
-                                foreach (['id', 'studentCode', 'userId', 'username', 'name'] as $f) {
+                                foreach (['id', 'userId', 'name'] as $f) {
                                     if (!empty($mb[$f])) $allowedKeys[mb_strtolower(trim((string)$mb[$f]))] = true;
                                 }
                             } elseif (is_string($mb) || is_numeric($mb)) {
@@ -3048,7 +3047,6 @@ if ($pdo) {
         if (!empty($reqUserId)) {
             $currPr[strval($reqUserId)] = [
                 'userId'      => $reqUserId,
-                'studentCode' => $reqUserId,
                 'updatedAt'   => $nowMs,
                 'timestamp'   => $nowMs
             ];
