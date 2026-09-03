@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260903_v1900";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260903_v1900";
-import { callCozeAgentAPI } from "./agents.js?v=20260903_v1900";
-import { AuthManager } from "./auth.js?v=20260903_v1900";
-import { CloudSyncEngine } from "./sync.js?v=20260903_v1900";
-import { renderLoginView } from "./login.js?v=20260903_v1900";
-import { renderTeacherPortal } from "./teacher.js?v=20260903_v1900";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260903_v1900";
+} from "./constants.js?v=20260903_v1905";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260903_v1905";
+import { callCozeAgentAPI } from "./agents.js?v=20260903_v1905";
+import { AuthManager } from "./auth.js?v=20260903_v1905";
+import { CloudSyncEngine } from "./sync.js?v=20260903_v1905";
+import { renderLoginView } from "./login.js?v=20260903_v1905";
+import { renderTeacherPortal } from "./teacher.js?v=20260903_v1905";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260903_v1905";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260903_v1900";
+} from "./editor.js?v=20260903_v1905";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -2012,11 +2012,17 @@ export class App {
 
     // 📢 教师发布的教学指示/课堂通知在工作台自动弹窗提示学生阅读并确认
     if (unreadList.length > 0) {
+      if (document.querySelector('.modal-announcement-popup') || document.querySelector('.modal-overlay')) {
+        return; // 🛡️ 屏幕上已存在弹窗时，绝不重复销毁与重建，彻底杜绝闪烁
+      }
       this.showAnnouncementModal(unreadList[0], true);
     }
   }
 
   showAnnouncementModal(targetAnn = null, isSequentialFlow = false) {
+    if (isSequentialFlow && document.querySelector('.modal-announcement-popup')) {
+      return;
+    }
     document.querySelectorAll('.modal-overlay').forEach(el => el.remove());
     const currentUser = this.authManager.getCurrentUser();
     const effectiveClassId = this.authManager ? this.authManager.getEffectiveStudentClassId(currentUser, this.state.activeTaskId) : (this.state.activeStudentClassId || currentUser?.classId || null);
