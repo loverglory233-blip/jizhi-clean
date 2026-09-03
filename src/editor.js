@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName } from "./constants.js?v=20260904_v2176";
-import { callCozeAgentAPI } from "./agents.js?v=20260904_v2176";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, showResolutionBlock } from "./utils.js?v=20260904_v2176";
+import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName } from "./constants.js?v=20260904_v2188";
+import { callCozeAgentAPI } from "./agents.js?v=20260904_v2188";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, showResolutionBlock } from "./utils.js?v=20260904_v2188";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -434,7 +434,7 @@ function renderStage1Canvas(canvas, state, handlers) {
               };
               const isMyDoneHelper = (map) => {
                 if (!map) return false;
-                return !!(map[currUserCode] || (currUser && (map[currUser.id]  || map[currUser.name])));
+                return isMemberDone(map, currUserObj || { id: currentUser, name: currentUserName });
               };
 
               if (s1.contractStep === 'completed' || s1.contract?.isDraftGenerated) {
@@ -587,6 +587,7 @@ function renderStage1Canvas(canvas, state, handlers) {
   if (btnOpenProp) {
     btnOpenProp.addEventListener('click', () => {
       document.querySelectorAll('.modal-overlay').forEach(el => el.remove());
+      const myKeys = new Set(getUserAllKeys(currUserObj || { id: currentUser, name: currentUserName }));
       const existingProp = s1.proposals.find(p => {
         if (!p) return false;
         if (myKeys.has(p.author) || myKeys.has(p.authorName) || myKeys.has(p.authorId)) return true;
@@ -1504,8 +1505,8 @@ function renderStage2Canvas(canvas, state, handlers) {
         if (delta > 0) {
           const matchedMember = membersList.find(m => {
             if (!m) return false;
-            if (currUser && (m.id === currUser.id  === id === (m.name && m.name === currUser.name))) return true;
-            if (state.currentUser && (m.id   === state.currentUser || m.name === state.currentUser)) return true;
+            if (currUser && (m.id === currUser.id || (m.name && m.name === currUser.name))) return true;
+            if (state.currentUser && (m.id === state.currentUser || m.name === state.currentUser)) return true;
             return false;
           }) || membersList[0];
 
@@ -1519,7 +1520,7 @@ function renderStage2Canvas(canvas, state, handlers) {
           updateContribDom();
 
           // 📡 异步持久化到服务端双表
-          const reportCode = matchedMember?.id || matchedMember?.id || currUser?.id || currUserCode;
+          const reportCode = matchedMember?.id || matchedMember?.studentCode || matchedMember?.name || currUser?.id || currUserCode;
           fetch(`sync.php?action=report_member_contrib&groupId=${encodeURIComponent(userGroupId)}&taskId=${encodeURIComponent(activeTaskId)}&classId=${encodeURIComponent(userClassId)}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -1715,7 +1716,7 @@ function renderStage2Canvas(canvas, state, handlers) {
       const subs = s2.meetingSubmissions || {};
       const subCount = Object.keys(subs).length;
       const isMeetingFullyDone = subCount >= totalCount && totalCount > 0;
-      const isCurrentUserSubmitted = isMemberDone(subs, { id: currUserCode, id: currUser?.id, name: currUser?.name });
+      const isCurrentUserSubmitted = isMemberDone(subs, { id: currUser?.id || currUserCode, name: currUser?.name });
 
       const meetingTextEl = canvas.querySelector('#stage2-meeting-count-text');
       if (meetingTextEl) {
@@ -1736,7 +1737,7 @@ function renderStage2Canvas(canvas, state, handlers) {
       const confMembers = s2.confirmedMembers || {};
       const confirmedDraftCount = membersList.filter(m => isMemberDone(confMembers, m)).length;
       const isDraftFullyConfirmed = s2.isDraftConfirmed || (confirmedDraftCount >= totalCount && totalCount > 0);
-      const isUserDraftConfirmed = isMemberDone(confMembers, { id: currUserCode, id: currUser?.id, name: currUser?.name });
+      const isUserDraftConfirmed = isMemberDone(confMembers, { id: currUser?.id || currUserCode, name: currUser?.name });
 
       const draftTextEl = canvas.querySelector('#stage2-draft-count-text');
       if (draftTextEl) {
@@ -1807,7 +1808,7 @@ function renderStage2Canvas(canvas, state, handlers) {
             const subs = s2.meetingSubmissions || {};
             const subCount = Object.keys(subs).length;
             const isMeetingFullyDone = subCount >= totalCount && totalCount > 0;
-            const isCurrentUserSubmitted = isMemberDone(subs, { id: currUserCode, id: currUser?.id, name: currUser?.name });
+            const isCurrentUserSubmitted = isMemberDone(subs, { id: currUser?.id || currUserCode, name: currUser?.name });
             return `
               <div style="display:flex; align-items:center; gap:4px;">
                 <span id="stage2-meeting-count-text" style="font-size:11px; font-weight:800; color:${isMeetingFullyDone ? '#059669' : '#2563eb'}; background:${isMeetingFullyDone ? '#d1fae5' : '#eff6ff'}; padding:1.5px 6px; border-radius:8px; border:1px solid ${isMeetingFullyDone ? '#a7f3d0' : '#bfdbfe'};">
@@ -2243,6 +2244,14 @@ function renderStage3Canvas(canvas, state, handlers) {
   const isTaskDeadlineExpired = isTaskExpired(currentTask);
   const isFinalSubmitted = state.isFinalSubmitted || isAllFinalSubmitted || isTaskDeadlineExpired;
   const isDefenseLocked = isRevisionFullyConfirmed || isFinalSubmitted;
+
+  // 🛡️ Safari 滚动记忆防回弹：预先记录用户此前的滚动高度与聚焦输入状态
+  const oldDefenseCard = canvas.querySelector('#stage3-defense-card');
+  const oldScrollTop = oldDefenseCard ? oldDefenseCard.scrollTop : 0;
+  const activeElem = document.activeElement;
+  const activeElemDataId = (activeElem && activeElem.classList.contains('feedback-direct-input')) ? activeElem.dataset.id : null;
+  const activeSelectionStart = activeElem ? activeElem.selectionStart : undefined;
+  const activeSelectionEnd = activeElem ? activeElem.selectionEnd : undefined;
 
   // 🛡️ 极致单例保护
   const existingDefenseCard = canvas.querySelector('#stage3-defense-card');
@@ -2789,12 +2798,12 @@ export function renderChat(state) {
       }
       if (!name || name === msg.sender) {
         const memList = Array.isArray(state.members) ? state.members : Object.values(state.members || {});
-        const mem = memList.find(m => m && (m.id === msg.sender  === msg.sender));
+        const mem = memList.find(m => m && (m.id === msg.sender || m.name === msg.sender));
         name = mem?.name || (msg.senderName && msg.senderName !== msg.sender ? msg.senderName : '组员');
       }
 
       const memList = Array.isArray(state.members) ? state.members : Object.values(state.members || {});
-      const memObj = memList.find(m => isSameUser(m, msg.sender) || m.id === msg.sender  === msg.sender || m.name === name) || null;
+      const memObj = memList.find(m => isSameUser(m, msg.sender) || m.id === msg.sender || m.name === msg.sender || m.name === name) || null;
       if (memObj) {
         avatar = memObj.avatar || '👨‍🎓';
         color = memObj.color || '#2563eb';

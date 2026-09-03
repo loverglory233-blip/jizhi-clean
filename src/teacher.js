@@ -10,8 +10,8 @@ import {
   STORAGE_KEY_USERS_DB,
   TASK_GENRE_CONFIGS,
   AgentProfiles
-} from "./constants.js?v=20260904_v2176";
-import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, showGlobalBannerNotice } from "./utils.js?v=20260904_v2176";
+} from "./constants.js?v=20260904_v2188";
+import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, showGlobalBannerNotice } from "./utils.js?v=20260904_v2188";
 
 /* ==========================================================================
    7. TEACHER PORTAL RENDERER (LIVE WORKSPACE MIRROR & ANNOUNCEMENT READ MATRIX)
@@ -1740,12 +1740,12 @@ export function renderTeacherPortal(container, authManager, state, onLogout) {
 
   // 重置学生密码
   container.querySelectorAll('.reset-student-pwd-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
+    btn.addEventListener('click', async () => {
       const acc = btn.dataset.account;
       const uname = btn.dataset.name;
       if (confirm(`🔑 确认将学生【${uname} (${acc})】的登录密码重置为默认初始密码【123】吗？`)) {
         try {
-          authManager.resetStudentPassword(acc);
+          await authManager.resetStudentPassword(acc);
           alert(`✅ 已成功将学生【${uname}】的密码重置为 123！`);
           renderTeacherPortal(container, authManager, state, onLogout);
         } catch (err) {
@@ -2337,37 +2337,6 @@ export function renderTeacherPortal(container, authManager, state, onLogout) {
     btn.addEventListener('click', () => setupGroupModal(btn.dataset.gid));
   });
 
-  container.querySelectorAll('.reset-student-pwd-btn').forEach(btn => {
-    btn.addEventListener('click', async () => {
-      const account = btn.dataset.account;
-      const name = btn.dataset.name || account;
-      if (confirm(`🔑【教师密码重置确认】\n\n您确定要将学生【${name}】(账号: ${account}) 的登录密码重置为初始密码 123 吗？`)) {
-        try {
-          const currT = authManager.getCurrentUser();
-          const tId = currT?.id || '';
-          const tToken = (currT && (currT.token || currT.activeSessionId)) || '';
-
-          const res = await fetch('sync.php?action=reset_student_password', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ account, newPassword: '123', userId: tId, token: tToken })
-          });
-          const data = await res.json();
-          if (data && data.success) {
-            alert(`✅ ${data.message || `学生【${name}】密码已成功重置为 123！`}`);
-            authManager.pullGlobalMeta().then(() => {
-              renderTeacherPortal(container, authManager, state, onLogout);
-            });
-          } else {
-            alert('❌ ' + (data.message || '重置失败'));
-          }
-        } catch (e) {
-          alert('❌ 网络请求失败，请稍后重试');
-        }
-      }
-    });
-  });
-
   container.querySelectorAll('.delete-student-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       authManager.deleteStudent(btn.dataset.id, activeClass.id);
@@ -2547,21 +2516,6 @@ export function renderTeacherPortal(container, authManager, state, onLogout) {
         if (window.app && window.app.cloudSyncEngine) window.app.cloudSyncEngine.pushSnapshot();
         alert('✅ 问卷配置已成功删除！');
         renderTeacherPortal(container, authManager, state, onLogout);
-      }
-    });
-  });
-
-  // 📝 载入问卷修改
-  container.querySelectorAll('.btn-quick-fill-survey').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const cId = btn.dataset.cid;
-      const tId = btn.dataset.tid;
-      const url = decodeURIComponent(btn.dataset.url || '');
-      if (selSurveyClass) selSurveyClass.value = cId;
-      if (selSurveyTask) selSurveyTask.value = tId;
-      if (surveyUrlInput) {
-        surveyUrlInput.value = url;
-        surveyUrlInput.focus();
       }
     });
   });
@@ -3580,7 +3534,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout) {
           const f = e.target.files[0];
           const sizeKB = (f.size / 1024).toFixed(1) + ' KB';
           // 自动将文件名（去掉扩展名）填入标题输入框
-          const cleanTitle = f.name.replace(/\.[^/.]+$/, '');
+          const cleanTitle = f.name.replace(/\.[^\/.]+$/, '');
           if (!titleInput.value || titleInput.value.trim() === '') {
             titleInput.value = cleanTitle;
           }
@@ -3629,7 +3583,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout) {
             return;
           }
           if (!title) {
-            title = selectedFile.name ? selectedFile.name.replace(/\.[^/.]+$/, '') : '学术参考范文';
+            title = selectedFile.name ? selectedFile.name.replace(/\.[^\/.]+$/, '') : '学术参考范文';
           }
 
           submitBtn.disabled = true;
