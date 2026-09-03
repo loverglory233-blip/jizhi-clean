@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260903_v2110
+ * Version: 20260903_v2115
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260903_v2110';
+  const APP_VERSION = '20260903_v2115';
   const APP_BUILD_DATE = '2026-09-03';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -208,6 +208,24 @@
    * JIZHI (集智) Platform - Utility Functions
    * Standard ES Module (ESM)
    */
+
+  /**
+   * 🛡️ 鲁棒性 JSON 解析器：自动清洗末尾逗号、容错解析，避免 Uncaught SyntaxError
+   */
+  function safeJsonParse(raw, fallback = null) {
+    if (!raw || typeof raw !== 'string') return fallback;
+    try {
+      return JSON.parse(raw);
+    } catch (e) {
+      try {
+        // 自动清洗末尾冗余逗号：如 { "a": 1, } 或 [ 1, 2, ]
+        const cleaned = raw.replace(/,\s*([}\]])/g, '$1');
+        return JSON.parse(cleaned);
+      } catch (e2) {
+        return fallback;
+      }
+    }
+  }
 
   /**
    * 👤 全维度用户标识提取器：提取一个用户对象的全部等价唯一标识（id, name）
@@ -14414,7 +14432,7 @@
           downloadBtn.onclick = (e) => {
             if (e) { e.preventDefault(); e.stopPropagation(); }
             const att = ann.attachment;
-            const attObj = typeof att === 'string' ? (JSON.parse(att) || { url: att, name: '随附教学文献.pdf' }) : att;
+            const attObj = typeof att === 'string' ? (safeJsonParse(att, { url: att, name: '随附教学文献.pdf' })) : att;
             const attName = attObj.name || attObj.fileName || `${ann.title || '教学随附文献'}.pdf`;
             const attUrl = attObj.url || attObj.fileUrl || attObj.fileData || attObj.path;
             downloadFileBlob(attName, null, attUrl);
@@ -15377,10 +15395,10 @@
           try {
             const jsonMatch = resp.match(/\{[\s\S]*\}/);
             if (jsonMatch) {
-              const parsed = JSON.parse(jsonMatch[0]);
-              if (parsed.topic) finalTopic = parsed.topic;
-              if (parsed.overview) finalOverview = parsed.overview;
-              if (parsed.guideText) guideSpeech = parsed.guideText;
+              const parsed = safeJsonParse(jsonMatch[0]);
+              if (parsed && parsed.topic) finalTopic = parsed.topic;
+              if (parsed && parsed.overview) finalOverview = parsed.overview;
+              if (parsed && parsed.guideText) guideSpeech = parsed.guideText;
             }
           } catch (je) {
             console.warn('Parse topic & overview JSON fail, fallback', je);
@@ -15495,14 +15513,14 @@
           try {
             const jsonMatch = resp.match(/\{[\s\S]*\}/);
             if (jsonMatch) {
-              const parsed = JSON.parse(jsonMatch[0]);
-              if (parsed.background !== undefined && !isNaN(Number(parsed.background))) timeAlloc.background = Math.max(5, Math.round(Number(parsed.background)));
-              if (parsed.literature !== undefined && !isNaN(Number(parsed.literature))) timeAlloc.literature = Math.max(5, Math.round(Number(parsed.literature)));
-              if (parsed.questions !== undefined && !isNaN(Number(parsed.questions))) timeAlloc.questions = Math.max(5, Math.round(Number(parsed.questions)));
-              if (parsed.method !== undefined && !isNaN(Number(parsed.method))) timeAlloc.method = Math.max(5, Math.round(Number(parsed.method)));
-              if (parsed.reflection !== undefined && !isNaN(Number(parsed.reflection))) timeAlloc.reflection = Math.max(5, Math.round(Number(parsed.reflection)));
-              if (parsed.references !== undefined && !isNaN(Number(parsed.references))) timeAlloc.references = Math.max(5, Math.round(Number(parsed.references)));
-              if (parsed.guideText && parsed.guideText.trim().length > 0) guideSpeech = parsed.guideText.trim();
+              const parsed = safeJsonParse(jsonMatch[0]);
+              if (parsed && parsed.background !== undefined && !isNaN(Number(parsed.background))) timeAlloc.background = Math.max(5, Math.round(Number(parsed.background)));
+              if (parsed && parsed.literature !== undefined && !isNaN(Number(parsed.literature))) timeAlloc.literature = Math.max(5, Math.round(Number(parsed.literature)));
+              if (parsed && parsed.questions !== undefined && !isNaN(Number(parsed.questions))) timeAlloc.questions = Math.max(5, Math.round(Number(parsed.questions)));
+              if (parsed && parsed.method !== undefined && !isNaN(Number(parsed.method))) timeAlloc.method = Math.max(5, Math.round(Number(parsed.method)));
+              if (parsed && parsed.reflection !== undefined && !isNaN(Number(parsed.reflection))) timeAlloc.reflection = Math.max(5, Math.round(Number(parsed.reflection)));
+              if (parsed && parsed.references !== undefined && !isNaN(Number(parsed.references))) timeAlloc.references = Math.max(5, Math.round(Number(parsed.references)));
+              if (parsed && parsed.guideText && parsed.guideText.trim().length > 0) guideSpeech = parsed.guideText.trim();
             }
           } catch (e) {
             console.warn('Parse time allocation JSON fail, keep default', e);
@@ -15621,15 +15639,15 @@
           try {
             const jsonMatch = resp.match(/\{[\s\S]*\}/);
             if (jsonMatch) {
-              const parsed = JSON.parse(jsonMatch[0]);
-              if (parsed.assignments && typeof parsed.assignments === 'object') {
+              const parsed = safeJsonParse(jsonMatch[0]);
+              if (parsed && parsed.assignments && typeof parsed.assignments === 'object') {
                 members.forEach((m, idx) => {
                   const mKey = m.id   || m.name;
                   const matchedVal = parsed.assignments[m.name] || parsed.assignments[m.id] || parsed.assignments[m.id];
                   if (matchedVal) taskAssignments[mKey] = matchedVal;
                 });
               }
-              if (parsed.guideText) guideSpeech = parsed.guideText;
+              if (parsed && parsed.guideText) guideSpeech = parsed.guideText;
             }
           } catch (e) {}
         }
@@ -15825,24 +15843,26 @@
         if (resp && resp.trim().length > 0) {
           const jsonMatch = resp.match(/\{[\s\S]*\}/);
           if (jsonMatch) {
-            const parsed = JSON.parse(jsonMatch[0]);
-            if (!hasExistingTopic && parsed.topic && parsed.topic.trim()) {
-              finalTopic = parsed.topic.trim();
+            const parsed = safeJsonParse(jsonMatch[0]);
+            if (parsed) {
+              if (!hasExistingTopic && parsed.topic && parsed.topic.trim()) {
+                finalTopic = parsed.topic.trim();
+              }
+              if (!hasExistingTopic && parsed.overview && parsed.overview.trim()) {
+                finalOverview = parsed.overview.trim();
+              }
+              if (!hasExistingTime && parsed.timeAllocations && typeof parsed.timeAllocations === 'object') {
+                finalTimes = Object.assign({}, defaultTimes, parsed.timeAllocations);
+              }
+              if (parsed.assignments && typeof parsed.assignments === 'object') {
+                membersList.forEach((m, idx) => {
+                  const mKey = m.id   || m.name;
+                  const matchedVal = parsed.assignments[m.name] || parsed.assignments[m.id] || parsed.assignments[m.id];
+                  if (matchedVal) finalAssignments[mKey] = matchedVal;
+                });
+              }
+              isSuccess = true;
             }
-            if (!hasExistingTopic && parsed.overview && parsed.overview.trim()) {
-              finalOverview = parsed.overview.trim();
-            }
-            if (!hasExistingTime && parsed.timeAllocations && typeof parsed.timeAllocations === 'object') {
-              finalTimes = Object.assign({}, defaultTimes, parsed.timeAllocations);
-            }
-            if (parsed.assignments && typeof parsed.assignments === 'object') {
-              membersList.forEach((m, idx) => {
-                const mKey = m.id   || m.name;
-                const matchedVal = parsed.assignments[m.name] || parsed.assignments[m.id] || parsed.assignments[m.id] ;
-                if (matchedVal) finalAssignments[mKey] = matchedVal;
-              });
-            }
-            isSuccess = true;
           }
         }
       } catch (err) {

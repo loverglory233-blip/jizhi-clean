@@ -4,6 +4,24 @@
  */
 
 /**
+ * 🛡️ 鲁棒性 JSON 解析器：自动清洗末尾逗号、容错解析，避免 Uncaught SyntaxError
+ */
+export function safeJsonParse(raw, fallback = null) {
+  if (!raw || typeof raw !== 'string') return fallback;
+  try {
+    return JSON.parse(raw);
+  } catch (e) {
+    try {
+      // 自动清洗末尾冗余逗号：如 { "a": 1, } 或 [ 1, 2, ]
+      const cleaned = raw.replace(/,\s*([}\]])/g, '$1');
+      return JSON.parse(cleaned);
+    } catch (e2) {
+      return fallback;
+    }
+  }
+}
+
+/**
  * 👤 全维度用户标识提取器：提取一个用户对象的全部等价唯一标识（id, name）
  */
 export function getUserAllKeys(user) {
