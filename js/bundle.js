@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260903_v1975
+ * Version: 20260903_v1980
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260903_v1975';
+  const APP_VERSION = '20260903_v1980';
   const APP_BUILD_DATE = '2026-09-03';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -13933,27 +13933,6 @@
                 renderChat(this.state);
                 return;
               }
-
-              // ── ③ 强兜底智能提炼回填并交棒审稿编辑：讨论持续满 10 分钟（长任务 20 分钟）自动触发 ──
-              const existFallback = s2Chats.some(m => m && (m.text?.includes('一致性研讨小结') || m.text?.includes('二审修正清单')));
-              const consistencyFallbackMs = isLargeTask ? 1200000 : 600000;
-              const consistencyFallbackMinText = isLargeTask ? '20' : '10';
-              if (!existFallback && checklistElapsed >= consistencyFallbackMs && (s2.pendingReviewing || this.state.stage2PendingReviewing) && !this._s2MeetingAutoFallbackRunning) {
-                const nudgeKey = 's2_consistency_auto_fallback';
-                if (!this._nudgeCounts[nudgeKey]) {
-                  this._nudgeCounts[nudgeKey] = 1;
-                  this._s2MeetingAutoFallbackRunning = true;
-                  try {
-                    const autoSummary = `🤝 【责任编辑·一致性研讨小结】：研讨时间已满 ${consistencyFallbackMinText} 分钟，为确保正文推进节奏，责任编辑已为大家自动提炼对齐共识并收拢研讨！下面有请审稿编辑通读全文草稿，为大家进行深度学术质检并下发《二审修正清单》！`;
-                    await this.triggerReviewingEditorAfterDiscussion(autoSummary);
-                  } catch (e) {
-                    console.warn('s2_consistency_auto_fallback error:', e);
-                  } finally {
-                    this._s2MeetingAutoFallbackRunning = false;
-                  }
-                  return;
-                }
-              }
             }
           }
 
@@ -14109,37 +14088,6 @@
                 this.syncChatLogs();
                 if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
                 renderChat(this.state);
-                return;
-              }
-            }
-
-            // ② 挂机 6 分钟强兜底：大模型自动提炼基础答辩词回填定案并顺推下一项
-            if (silenceDurationMs > 360000 && !this._s3AutoFallbackRunning) {
-              const fallbackKey = `s3_auto_fallback_${currentPending.id}`;
-              if (!this._nudgeCounts[fallbackKey]) {
-                this._nudgeCounts[fallbackKey] = 1;
-                this._s3AutoFallbackRunning = true;
-
-                const autoNoticeMsg = {
-                  sender: 'neutral',
-                  senderName: '答辩委员会主席 · 中间委员',
-                  text: `🟡 【中间委员·答辩收拢与自动定案】：本题研讨时间已到，为推进答辩进度，委员会已结合正文优势为【${inqLabel}】生成基础辩护方案并定案！`,
-                  timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                  _timeMs: now
-                };
-                if (!this.state.chatLogs.stage3) this.state.chatLogs.stage3 = [];
-                this.state.chatLogs.stage3.push(autoNoticeMsg);
-                this.syncChatLogs();
-
-                setTimeout(async () => {
-                  try {
-                    if (typeof this._doExtractDefenseStep === 'function') {
-                      await this._doExtractDefenseStep(currentPending.id, inqIndex);
-                    }
-                  } finally {
-                    this._s3AutoFallbackRunning = false;
-                  }
-                }, 1000);
                 return;
               }
             }
