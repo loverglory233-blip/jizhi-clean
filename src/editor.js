@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName } from "./constants.js?v=20260903_v2030";
-import { callCozeAgentAPI } from "./agents.js?v=20260903_v2030";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, showResolutionBlock } from "./utils.js?v=20260903_v2030";
+import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName } from "./constants.js?v=20260903_v2035";
+import { callCozeAgentAPI } from "./agents.js?v=20260903_v2035";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, showResolutionBlock } from "./utils.js?v=20260903_v2035";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -2977,9 +2977,7 @@ export function renderChat(state) {
         actionBar.innerHTML = `
           <div style="background:#f0fdf4; border:1px solid #bbf7d0; color:#166534; padding:6px 14px; border-radius:16px; font-weight:700; font-size:12px; display:inline-flex; align-items:center; gap:6px;">
             📜 公约草案已全部生成！👉 请全员在左侧公约下方核对并签署 (${confirmedCount}/${totalCount} 人已签)
-          </div>
-        `;
-      } else if (elapsedSec >= 13 * 60) {
+      } else if (elapsedSec >= 13 * 60 && s1.contractStep !== 'completed' && !s1.contract?.isDraftGenerated && !s1.contract?.isConfirmed) {
         actionBar.style.display = 'block';
         const isGenerating = !!(window.app && window.app._isGeneratingContract);
         const isFailed = !!(window.app && window.app._contractGenerateFailed);

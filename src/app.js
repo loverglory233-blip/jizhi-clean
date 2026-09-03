@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260903_v2030";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260903_v2030";
-import { callCozeAgentAPI } from "./agents.js?v=20260903_v2030";
-import { AuthManager } from "./auth.js?v=20260903_v2030";
-import { CloudSyncEngine } from "./sync.js?v=20260903_v2030";
-import { renderLoginView } from "./login.js?v=20260903_v2030";
-import { renderTeacherPortal } from "./teacher.js?v=20260903_v2030";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260903_v2030";
+} from "./constants.js?v=20260903_v2035";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260903_v2035";
+import { callCozeAgentAPI } from "./agents.js?v=20260903_v2035";
+import { AuthManager } from "./auth.js?v=20260903_v2035";
+import { CloudSyncEngine } from "./sync.js?v=20260903_v2035";
+import { renderLoginView } from "./login.js?v=20260903_v2035";
+import { renderTeacherPortal } from "./teacher.js?v=20260903_v2035";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260903_v2035";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260903_v2030";
+} from "./editor.js?v=20260903_v2035";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -3331,11 +3331,17 @@ ${chatSnippet || '（小组成员已达成基本共识，准备进入正文写�
   "guideText": "太棒了！全盘公约草案已全部生成就绪！请全组成员核对左侧公约并在下方点击【✍️ 签署确认学术公约】！"
 }`;
 
-    let finalTopic = defaultTopic;
-    let finalOverview = s1.contract?.overview || s1.researchOverview || `本研究围绕《${defaultTopic}》展开系统性学术探究，聚焦核心问题，采用定性与定量相结合的研究方法进行深入探讨。`;
-    let finalTimes = defaultTimes;
-    let finalAssignments = Object.assign({}, s1.contract?.taskAssignments || {}, fallbackAssignments);
-    let isSuccess = false;
+    // 🛡️ 增量保护：检查左侧已有的分步成果，已完成的绝对保留，绝不覆盖！
+    const hasExistingTopic = (s1.contractStep === 'time' || s1.contractStep === 'tasks' || s1.contractStep === 'completed') && (s1.contract?.topic || s1.mergedTitle);
+    const hasExistingTime = (s1.contractStep === 'tasks' || s1.contractStep === 'completed') && s1.contract?.timeAllocations && Object.keys(s1.contract.timeAllocations).length >= 6;
+
+    if (hasExistingTopic) {
+      finalTopic = s1.contract?.topic || s1.mergedTitle;
+      finalOverview = s1.contract?.overview || s1.researchOverview || finalOverview;
+    }
+    if (hasExistingTime) {
+      finalTimes = s1.contract.timeAllocations;
+    }
 
     this._isGeneratingContract = true;
     if (typeof renderChat === 'function') renderChat(this.state);
@@ -3346,12 +3352,13 @@ ${chatSnippet || '（小组成员已达成基本共识，准备进入正文写�
         const jsonMatch = resp.match(/\{[\s\S]*\}/);
         if (jsonMatch) {
           const parsed = JSON.parse(jsonMatch[0]);
-          if (parsed.topic && parsed.topic.trim()) {
+          if (!hasExistingTopic && parsed.topic && parsed.topic.trim()) {
             finalTopic = parsed.topic.trim();
-            isSuccess = true;
           }
-          if (parsed.overview && parsed.overview.trim()) finalOverview = parsed.overview.trim();
-          if (parsed.timeAllocations && typeof parsed.timeAllocations === 'object') {
+          if (!hasExistingTopic && parsed.overview && parsed.overview.trim()) {
+            finalOverview = parsed.overview.trim();
+          }
+          if (!hasExistingTime && parsed.timeAllocations && typeof parsed.timeAllocations === 'object') {
             finalTimes = Object.assign({}, defaultTimes, parsed.timeAllocations);
           }
           if (parsed.assignments && typeof parsed.assignments === 'object') {
@@ -3361,6 +3368,7 @@ ${chatSnippet || '（小组成员已达成基本共识，准备进入正文写�
               if (matchedVal) finalAssignments[mKey] = matchedVal;
             });
           }
+          isSuccess = true;
         }
       }
     } catch (err) {
@@ -4257,11 +4265,21 @@ ${chatSnippet}
           this.state.activeAgentAnalyzing = null;
         }
 
-        if (!propText || propText.trim().length === 0) {
-          propText = `🟢 【正方委员评审意见】：通读全篇，该研究展现出了极高的学术价值与实践意义！最出彩的地方体现在两点：①【选题与立意创新】：针对教学痛点提出的干预切口非常新颖独特；②【实践落地与推广价值】：方案在真实课堂中的教学活动设计可操作性极强，论据充分，为全组的深度协同点赞！`;
-        }
-        if (!oppText || oppText.trim().length === 0) {
-          oppText = `🔴 【反方委员·商讨质询】：仔细研读了大家的成果，正方对该选题创新价值的肯定我非常赞同！在此基础上，我想从实证落地与行文严谨性的角度请教团队两个具体细节：①【具体设计/实施挑战】：在相关章节中，常态化教学中具体干预周期的落地性与认知负荷如何防范？②【行文风格/方法严密性】：在后续论述中，部分测量工具的信效度检验与前后行文风格需进一步规范。期待听听大家的从容思考与答辩~`;
+        if (!propText || propText.trim().length === 0 || !oppText || oppText.trim().length === 0) {
+          const errPipelineMsg = {
+            id: 'msg_s3_pipeline_err_' + Date.now(),
+            sender: 'neutral',
+            senderName: '答辩委员会主席 · 中间委员',
+            text: `⚖️ 【答辩委员会·网络提醒】：📡 专家评审生成遇到网络波动，尚未全部就绪。<br><button class="btn-retry-ai" onclick="window.app.runStage3CommitteePipeline()" style="margin-top:6px; background:#2563eb; color:#fff; border:none; padding:4px 12px; border-radius:12px; font-size:12px; cursor:pointer; font-weight:700;">🔄 重新生成委员会评审</button>`,
+            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            _timeMs: Date.now()
+          };
+          logs.push(errPipelineMsg);
+          this.sendSingleChatMessage(errPipelineMsg, 'stage3');
+          this.syncChatLogs();
+          if (typeof window.renderChat === 'function') window.renderChat(this.state);
+          this.renderStudentWorkspace();
+          return;
         }
 
         if (!hasProp) {
@@ -4361,7 +4379,20 @@ ${chatSnippet}
         }
 
         if (!chairText || chairText.trim().length === 0) {
-          chairText = `🟡 【中间委员·针对意见 1 答辩思路引导】：正反方评审已正式送达并生成修改清单！请大家通读意见，首先聚焦【意见 1】：建议结合正方提到的优势，在答辩中阐明针对意见1的具体破局与操作化补救思路！请全组在讨论区商定对策，商定后点击上方【💡 意见 1 讨论差不多了？帮我总结并填入】按钮！`;
+          const errChairMsg = {
+            id: 'msg_s3_chair_err_' + Date.now(),
+            sender: 'neutral',
+            senderName: '答辩委员会主席 · 中间委员',
+            text: `🟡 【中间委员·网络提醒】：📡 答辩思路引导生成稍有延迟。<br><button class="btn-retry-ai" onclick="window.app.runStage3CommitteePipeline()" style="margin-top:6px; background:#d97706; color:#fff; border:none; padding:4px 12px; border-radius:12px; font-size:12px; cursor:pointer; font-weight:700;">🔄 重新生成答辩思路引导</button>`,
+            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            _timeMs: Date.now()
+          };
+          logs.push(errChairMsg);
+          this.sendSingleChatMessage(errChairMsg, 'stage3');
+          this.syncChatLogs();
+          if (typeof window.renderChat === 'function') window.renderChat(this.state);
+          this.renderStudentWorkspace();
+          return;
         }
 
         const chairMsg = {
