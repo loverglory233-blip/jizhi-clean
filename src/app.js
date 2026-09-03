@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260903_v2010";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260903_v2010";
-import { callCozeAgentAPI } from "./agents.js?v=20260903_v2010";
-import { AuthManager } from "./auth.js?v=20260903_v2010";
-import { CloudSyncEngine } from "./sync.js?v=20260903_v2010";
-import { renderLoginView } from "./login.js?v=20260903_v2010";
-import { renderTeacherPortal } from "./teacher.js?v=20260903_v2010";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260903_v2010";
+} from "./constants.js?v=20260903_v2015";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260903_v2015";
+import { callCozeAgentAPI } from "./agents.js?v=20260903_v2015";
+import { AuthManager } from "./auth.js?v=20260903_v2015";
+import { CloudSyncEngine } from "./sync.js?v=20260903_v2015";
+import { renderLoginView } from "./login.js?v=20260903_v2015";
+import { renderTeacherPortal } from "./teacher.js?v=20260903_v2015";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260903_v2015";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260903_v2010";
+} from "./editor.js?v=20260903_v2015";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -520,7 +520,7 @@ export class App {
               const msg3Min = {
                 sender: 'auctioneer',
                 senderName: '头脑风暴 · 学术拍卖师',
-                text: `🎪 【学术拍卖师·破冰启发】：头脑风暴已经开始 3 分钟啦～请大家紧扣本次任务要求与给定的研究方向，结合具体的实践情境或核心问题拟定选题；有想法了就随时在左侧【提交提案】卡片写下你的题目与设想！`,
+                text: `🎪 【学术拍卖师·头脑风暴协同破冰】：头脑风暴已经开启 3 分钟啦～建议各位研究者在讨论区交流各自的教学关切或学术灵感，相互启发、互相支架！有初步构想随时在左侧【提交提案】卡片提交，全组一起协同打磨！`,
                 timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
                 _timeMs: nowMs
               };
@@ -534,7 +534,7 @@ export class App {
               const msgPropsAll = {
                 sender: 'auctioneer',
                 senderName: '头脑风暴 · 学术拍卖师',
-                text: `🎪 【学术拍卖师·提案集齐与研讨引导】：太棒了！全组成员的提案均已全部集齐！请大家先在讨论区围绕各自提案的创新亮点与研究可行性交流讨论 1~2 分钟，充分了解彼此想法后，点击左侧卡片为你最支持的方案投出关键的一票！`,
+                text: `🎪 【学术拍卖师·提案集齐与协同研讨】：太棒了！全组成员的提案均已全部集齐！请大家先在讨论区围绕各自提案的创新亮点与互补性展开 1~2 分钟的协同交流，深入了解彼此设想，随后点击左侧卡片投出关键的一票！`,
                 timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
                 _timeMs: nowMs
               };
@@ -1392,7 +1392,7 @@ export class App {
             const msg = {
               sender: 'managingEditor',
               senderName: '协同调度 · 责任编辑',
-              text: `🤝 【责任编辑·半程会议参与提示】：半程学术审计会议已号召发起 3 分钟啦！目前组内打卡进度为【${submittedCount}/${totalCount} 人】，看到 ${unsubmittedNames} 同学尚未完成打卡。请尚未打卡的同学点击上方【📢 发起会议 / 打卡】按钮通读全篇完成自查，全员打卡后系统将自动为大家汇总生成《半程修正清单》！`,
+              text: `🤝 【责任编辑·半程会议协同号召】：半程学术审计会议已发起 3 分钟啦！目前全组自查进度为【${submittedCount}/${totalCount} 人】，看到 ${unsubmittedNames} 同学尚未完成打卡。请组员们相互提醒并通读全篇完成自查，全员打卡后系统将自动汇总全组智慧生成《半程修正清单》！`,
               timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
               _timeMs: now
             };
@@ -1425,13 +1425,13 @@ export class App {
             }
 
             // ── ① 3 分钟没讨论：责任编辑一致性研讨破冰点拨 ──
-            const exist3mNudge = s2Chats.some(m => m && (m.text?.includes('一致性研讨点拨') || m.text?.includes('自查研讨点拨')));
+            const exist3mNudge = s2Chats.some(m => m && (m.text?.includes('一致性研讨点拨') || m.text?.includes('自查研讨点拨') || m.text?.includes('一致性协同研讨')));
             if (!exist3mNudge && silenceAfterChecklist >= 180000 && !s2.isDraftConfirmed && (s2.pendingReviewing || this.state.stage2PendingReviewing)) {
               this._nudgeCounts['s2_consistency_silence_3m'] = 1;
               const msg = {
                 sender: 'managingEditor',
                 senderName: '协同调度 · 责任编辑',
-                text: `🤝 【责任编辑·一致性研讨点拨】：自查研判已下发！请大家对照刚才自查暴露的前后脱节与章节偏离，在讨论区充分商定修改对策与对齐思路哦～`,
+                text: `🤝 【责任编辑·一致性协同研讨】：自查研判已下发！请大家对照自查暴露的前后脱节与章节偏离，在讨论区展开深度协同研讨，互相听取同伴的修改设想，共同商定全组一致的对齐思路与衔接方案！`,
                 timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
                 _timeMs: now
               };
@@ -1445,14 +1445,14 @@ export class App {
             }
 
             // ── ② 3 分钟没讨论修正清单：审稿编辑二审修改研讨提示 ──
-            const existChecklistNudge = s2Chats.some(m => m && m.text?.includes('二审修改研讨提示'));
+            const existChecklistNudge = s2Chats.some(m => m && (m.text?.includes('二审修改研讨提示') || m.text?.includes('二审协同修改研讨')));
             const isReviewingSummaryPending = s2Chats.some(m => m && m.text?.includes('二审修正清单')) && !s2Chats.some(m => m && (m.text?.includes('修改确认与写作冲刺') || m.text?.includes('二审修改落实决议')));
             if (!existChecklistNudge && isReviewingSummaryPending && silenceAfterChecklist >= 180000 && !s2.isDraftConfirmed) {
               this._nudgeCounts['s2_checklist_silence_3m'] = 1;
               const msg = {
                 sender: 'reviewingEditor',
                 senderName: '学术质量 · 审稿编辑',
-                text: `📝 【审稿编辑·二审修改研讨提示】：二审修正清单已下发！请全组围绕清单中指出的诊断问题与改进建议在讨论区商定具体修改对策；商定差不多后，点击下方【📝 讨论差不多了？让审稿编辑总结】按钮！`,
+                text: `📝 【审稿编辑·二审协同修改研讨】：二审修正清单已送达！请全组成员围绕清单指出的诊断问题充分交流修改对策，大家集思广益共同打磨出具体的补全与完善方案；商定差不多后，点击下方【📝 讨论差不多了？让审稿编辑总结】！`,
                 timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
                 _timeMs: now
               };
@@ -1470,8 +1470,8 @@ export class App {
         // ======================================================================
         // 📝 审稿编辑一审后静默跟进（严格 3 分钟冷场静默提示，全场严格仅 1 次）
         // ======================================================================
-        const existReviewFollow = s2Chats.some(m => m && m.text?.includes('初审跟进提示'));
-        const lastReviewMsgObj = [...s2Chats].reverse().find(m => m && m.sender === 'reviewingEditor' && !m.text?.includes('初审跟进提示'));
+        const existReviewFollow = s2Chats.some(m => m && (m.text?.includes('初审跟进提示') || m.text?.includes('初审协同跟进')));
+        const lastReviewMsgObj = [...s2Chats].reverse().find(m => m && m.sender === 'reviewingEditor' && !m.text?.includes('初审跟进提示') && !m.text?.includes('初审协同跟进'));
         const isFirstReviewIssued = !!lastReviewMsgObj || s2.reviewMilestone === 'first_review_done' || !!s2.firstReviewText;
         const hasPassedToSubsequentStages = s2Chats.some(m => m && (
           m.text?.includes('半程研讨号召') || 
@@ -1494,7 +1494,7 @@ export class App {
             const followMsg = {
               sender: 'reviewingEditor',
               senderName: '学术质量 · 审稿编辑',
-              text: `📝 【审稿编辑·初审跟进提示】：初审破题把脉意见已送达！大家若对概念界定、研究问题聚焦或后续章节衔接有疑问，随时在讨论区交流或 @审稿编辑 咨询，全组继续稳步协同推进！`,
+              text: `📝 【审稿编辑·初审协同跟进】：初审破题把脉意见已送达！建议大家花 1 分钟互相通读同伴起草的开头段落，在研讨区共同交流核心研究问题与概念界定是否统一对齐，群策群力打牢全篇学术地基！`,
               timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
               _timeMs: now
             };
@@ -1550,7 +1550,7 @@ export class App {
               const s3SilenceMsg = {
                 sender: 'neutral',
                 senderName: '答辩委员会主席 · 中间委员',
-                text: `🟡 【中间委员·答辩思考启发】：关于【${inqLabel}】，大家可以从研究情境限制、样本选取的现实考量或操作化补救措施切入辩护；商定好思路后，随时点击上方按钮帮大家一键提炼定案！`,
+                text: `🟡 【中间委员·答辩协同启发】：关于【${inqLabel}】，建议全组成员集思广益、协同破局，在讨论区共同商讨出一条最有说服力的操作化补救与辩护思路；商定好后随时点击上方按钮帮全组一键提炼定案！`,
                 timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
                 _timeMs: now
               };
