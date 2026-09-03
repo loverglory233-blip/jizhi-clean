@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260903_v2035";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260903_v2035";
-import { callCozeAgentAPI } from "./agents.js?v=20260903_v2035";
-import { AuthManager } from "./auth.js?v=20260903_v2035";
-import { CloudSyncEngine } from "./sync.js?v=20260903_v2035";
-import { renderLoginView } from "./login.js?v=20260903_v2035";
-import { renderTeacherPortal } from "./teacher.js?v=20260903_v2035";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260903_v2035";
+} from "./constants.js?v=20260903_v2040";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260903_v2040";
+import { callCozeAgentAPI } from "./agents.js?v=20260903_v2040";
+import { AuthManager } from "./auth.js?v=20260903_v2040";
+import { CloudSyncEngine } from "./sync.js?v=20260903_v2040";
+import { renderLoginView } from "./login.js?v=20260903_v2040";
+import { renderTeacherPortal } from "./teacher.js?v=20260903_v2040";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260903_v2040";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260903_v2035";
+} from "./editor.js?v=20260903_v2040";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -5480,7 +5480,7 @@ ${contentSnippet}
     // ═══════════════════════════════════════════════════════════════
     // 🛡️ 第二次学术质检与编辑会议（目标字数的 70% / 70% 时间 · 深度研讨）
     // ═══════════════════════════════════════════════════════════════
-    const isMeetingDue = (wordProgress >= 0.70 || timeProgress >= 0.70 || rawDoc.length >= (targetWordCount * 0.70));
+    const isMeetingDue = (hasFirstReviewInLogs || s2.reviewMilestone === 'first_review_done') && (wordProgress >= 0.70 || timeProgress >= 0.70 || rawDoc.length >= (targetWordCount * 0.70));
     const hasMeetingCalledInLogs = s2ChatList.some(m => m.sender === 'managingEditor' && (m.text.includes('半程会议号召') || m.text.includes('半程研讨号召')));
     if (hasMeetingCalledInLogs && s2.reviewMilestone !== 'meeting_called' && s2.reviewMilestone !== 'action_plan_generated') {
       s2.reviewMilestone = 'meeting_called';
@@ -5518,7 +5518,7 @@ ${contentSnippet}
     // ═══════════════════════════════════════════════════════════════
     // 🤝 责任编辑 90% 节点推进提醒（全场严格仅 1 次）
     // ═══════════════════════════════════════════════════════════════
-    const is90TimeDue = (timeProgress >= 0.90);
+    const is90TimeDue = hasMeetingCalledInLogs && (timeProgress >= 0.90);
     const has90ReminderInLogs = s2ChatList.some(m => m && m.sender === 'managingEditor' && (m.text?.includes('阶段二推进提示') || m.text?.includes('90% 节点')));
     if (!has90ReminderInLogs && is90TimeDue && !s2.isDraftConfirmed && !this.state.s2_90ReminderSent) {
       this.state.s2_90ReminderSent = true;
