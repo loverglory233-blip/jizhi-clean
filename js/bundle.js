@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260903_v1990
+ * Version: 20260903_v1995
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260903_v1990';
+  const APP_VERSION = '20260903_v1995';
   const APP_BUILD_DATE = '2026-09-03';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -13679,9 +13679,32 @@
                 }
               });
 
+              const topic = (this.state.stage1 && this.state.stage1.mergedTitle) ? this.state.stage1.mergedTitle : '本组课题';
+              const contribPrompt = `小组正在协作撰写《${topic}》，目前全组总字数已达到 ${totalContrib} 字。
+  负责【${targetChapter}】的组员【${targetName}】当前写作字数贡献占比偏低（≤ 15%）。
+  请作为责任编辑（过程学伴），发表 80~110 字的【动态写作关怀与切入点点拨】：
+  ① 用温和鼓励的语气提醒 ${targetName} 同学可以逐步动笔展开起草；
+  ② 结合其负责的【${targetChapter}】，给出 1 个具体的学术起草切入建议（如先拟定核心框架/论点，或在讨论区交流衔接）；
+  ③ 纯自然语言，80~110字，严禁指责，严禁输出代码块，严禁添加按钮。`;
+
+              let careText = `🤝 【责任编辑·进度关怀】：大家都在按节奏推进，看到组员们已经起草了部分板块！负责【${targetChapter}】的 ${targetName} 同学也可以逐步动笔啦。建议可以先从该章节的核心切入点着手拟写，遇到难点随时在研讨区抛出来，全组一起协同保持良好节奏！`;
+
+              try {
+                const resp = await callCozeAgentAPI('managingEditor', contribPrompt, { stage: 'stage2', topic });
+                if (resp && resp.trim().length > 0) {
+                  careText = resp.trim();
+                  if (!careText.startsWith('🤝')) {
+                    careText = `🤝 【责任编辑·进度关怀】：${careText.replace(/^[^\n]*?【[^】]+】[：:]?\s*/, '')}`;
+                  }
+                }
+              } catch (e) {
+                console.warn('Managing editor contrib care call failed:', e);
+              }
+
               const msg = {
                 sender: 'managingEditor',
-                text: `🤝 【责任编辑·进度关怀】：大家都在按节奏推进，看到组员们已经起草了部分板块！负责【${targetChapter}】的 ${targetName} 同学也可以逐步动笔啦。建议可以先从该章节的核心切入点着手拟写，遇到难点随时在研讨区抛出来，全组一起协同保持良好节奏！`,
+                senderName: '协同调度 · 责任编辑',
+                text: careText,
                 timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
                 _timeMs: now
               };
