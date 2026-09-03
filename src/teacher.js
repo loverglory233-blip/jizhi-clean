@@ -10,8 +10,8 @@ import {
   STORAGE_KEY_USERS_DB,
   TASK_GENRE_CONFIGS,
   AgentProfiles
-} from "./constants.js?v=20260903_v1455";
-import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, showGlobalBannerNotice } from "./utils.js?v=20260903_v1455";
+} from "./constants.js?v=20260903_v1459";
+import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, showGlobalBannerNotice } from "./utils.js?v=20260903_v1459";
 
 /* ==========================================================================
    7. TEACHER PORTAL RENDERER (LIVE WORKSPACE MIRROR & ANNOUNCEMENT READ MATRIX)
@@ -2144,13 +2144,13 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
       const modal = document.createElement('div');
       modal.className = 'modal-overlay';
       modal.innerHTML = `
-        <div class="teacher-modal-card fancy-task-modal" style="width:640px; background:#ffffff; border:1px solid #e2e8f0; box-shadow:0 20px 45px rgba(15,23,42,0.12); border-radius:14px; overflow:hidden;">
+        <div class="teacher-modal-card fancy-task-modal" style="width:620px; background:#ffffff; border:1px solid #e2e8f0; box-shadow:0 20px 45px rgba(15,23,42,0.12); border-radius:14px; overflow:hidden;">
           <div class="teacher-modal-header" style="background:linear-gradient(135deg, #eff6ff, #f8fafc); border-bottom:1px solid #e2e8f0; padding:18px 24px; display:flex; justify-content:space-between; align-items:center;">
             <div class="modal-header-title" style="display:flex; align-items:center; gap:10px;">
               <div class="modal-icon-badge" style="background:#dbeafe; color:#2563eb; font-size:20px; padding:6px 10px; border-radius:10px;">👥</div>
               <div>
-                <h3 style="margin:0; font-size:17px; font-weight:800; color:#0f172a;">平台学生账号总库 (${activeClass.name})</h3>
-                <div style="font-size:12px; color:#64748b; margin-top:2px;">管理系统全量学生、查阅跨班归属、分配或彻底注销账号</div>
+                <h3 style="margin:0; font-size:17px; font-weight:800; color:#0f172a;">从总库挑选学生加入本班 (${activeClass.name})</h3>
+                <div style="font-size:12px; color:#64748b; margin-top:2px;">勾选已有学生账号加入本班名册，账号和密码保持不变</div>
               </div>
             </div>
             <button class="modal-close-btn" id="btn-close-enroll-modal" style="background:#f1f5f9; border:none; color:#64748b; font-size:16px; border-radius:8px; width:30px; height:30px; cursor:pointer;">✕</button>
@@ -2189,26 +2189,22 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
                       <input type="checkbox" class="enroll-chk" data-uid="${s.id}" ${isCurrentClass ? 'checked' : ''} style="width:17px; height:17px; cursor:pointer; accent-color:#2563eb;">
                       <div>
                         <div style="font-size:14px; font-weight:800; color:#0f172a; display:flex; align-items:center; gap:6px;">
-                          ${s.avatar || '👤'} ${s.name} <code style="color:#2563eb; font-family:monospace;">${s.id}</code>
+                          ${s.avatar || '👤'} ${escapeHtml(s.name)} <code style="color:#2563eb; font-family:monospace;">${escapeHtml(s.id)}</code>
                           ${isCurrentClass ? '<span style="background:#dcfce7; color:#15803d; border:1px solid #bbf7d0; padding:1px 6px; border-radius:6px; font-size:11px; font-weight:700;">已在本班</span>' : ''}
                         </div>
                         <div style="font-size:12px; color:#64748b; margin-top:2px;">
-                          ${otherClasses.length > 0 ? `跨班归属: <b>${otherClasses.map(c => c.name).join(', ')}</b>` : (isCurrentClass ? '本班学生' : '⏳ 待分班学生')}
+                          ${otherClasses.length > 0 ? `跨班归属: <b>${otherClasses.map(c => escapeHtml(c.name)).join(', ')}</b>` : (isCurrentClass ? '本班学生' : '⏳ 待分班学生')}
                         </div>
                       </div>
                     </label>
-                    <button class="btn-purge-std" data-uid="${s.id}" data-name="${s.name}" style="background:#fef2f2; border:1px solid #fecaca; color:#dc2626; padding:5px 10px; border-radius:6px; font-size:12px; font-weight:700; cursor:pointer; white-space:nowrap;" title="彻底从平台注销删除此学生账号">🗑️ 彻底删除</button>
                   </div>
                 `;
               }).join('')}
             </div>
           </div>
-          <div class="teacher-modal-footer" style="background:#f8fafc; border-top:1px solid #e2e8f0; padding:14px 24px; display:flex; justify-content:space-between; align-items:center;">
-            <button class="modal-btn" id="btn-batch-purge-selected" style="background:#fef2f2; border:1.5px solid #fecaca; color:#dc2626; padding:8px 16px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer;">🗑️ 批量彻底删除所选</button>
-            <div style="display:flex; gap:10px;">
-              <button class="modal-btn cancel" id="btn-cancel-enroll" style="background:#ffffff; border:1px solid #cbd5e1; color:#475569; padding:8px 18px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer;">取消</button>
-              <button class="modal-btn submit task-theme" id="btn-submit-enroll" style="background:linear-gradient(135deg, #1d4ed8, #2563eb); border:none; color:white; padding:8px 20px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer;">👥 保存本班名单分配</button>
-            </div>
+          <div class="teacher-modal-footer" style="background:#f8fafc; border-top:1px solid #e2e8f0; padding:14px 24px; display:flex; justify-content:flex-end; gap:10px;">
+            <button class="modal-btn cancel" id="btn-cancel-enroll" style="background:#ffffff; border:1px solid #cbd5e1; color:#475569; padding:8px 18px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer;">取消</button>
+            <button class="modal-btn submit task-theme" id="btn-submit-enroll" style="background:linear-gradient(135deg, #1d4ed8, #2563eb); border:none; color:white; padding:8px 20px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer;">👥 保存本班名单分配</button>
           </div>
         </div>
       `;
@@ -2274,37 +2270,6 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
       const searchEnrollInput = modal.querySelector('#input-search-enroll-std');
       if (searchEnrollInput) {
         searchEnrollInput.addEventListener('input', applyFilterAndSearch);
-      }
-
-      // 🗑️ 单个彻底从系统删除注销账号
-      modal.querySelectorAll('.btn-purge-std').forEach(btn => {
-        btn.addEventListener('click', (e) => {
-          e.stopPropagation();
-          const uid = btn.dataset.uid;
-          const uname = btn.dataset.name;
-          if (confirm(`⚠️ 确认彻底从系统中删除学生【${uname} (${uid})】的账号吗？删除后不可恢复！`)) {
-            authManager.deleteStudent(uid, null, true);
-            const item = btn.closest('.enroll-std-card-item');
-            if (item) item.remove();
-            updateCountTip();
-            renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
-          }
-        });
-      });
-
-      // 🗑️ 批量彻底删除所选
-      const btnBatchPurge = modal.querySelector('#btn-batch-purge-selected');
-      if (btnBatchPurge) {
-        btnBatchPurge.addEventListener('click', () => {
-          const checked = Array.from(modal.querySelectorAll('.enroll-chk:checked')).map(c => c.dataset.uid);
-          if (checked.length === 0) { alert('⚠️ 请先勾选要彻底删除的学生！'); return; }
-          if (confirm(`⚠️ 确认彻底从系统中注销并删除勾选的 ${checked.length} 名学生账号吗？删除后不可恢复！`)) {
-            checked.forEach(uid => authManager.deleteStudent(uid, null, true));
-            alert(`🎉 已成功彻底删除 ${checked.length} 名学生账号！`);
-            closeModal();
-            renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
-          }
-        });
       }
 
       // 👥 提交保存本班名单分配
