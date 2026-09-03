@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260903_v2140
+ * Version: 20260903_v2145
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260903_v2140';
+  const APP_VERSION = '20260903_v2145';
   const APP_BUILD_DATE = '2026-09-03';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -934,7 +934,7 @@
         const doc = iframe.contentDocument;
         if (!doc) return;
 
-        const toolbar = doc.querySelector('.toolbar') || doc.querySelector('#editbar') || doc.querySelector('#menu_left') || doc.querySelector('#menu_right');
+        const toolbar = doc.querySelector('.toolbar') || doc.querySelector('#editbar') || doc.querySelector('#menu_left') || doc.querySelector('#menu_right') || doc.querySelector('.menu');
         if (toolbar) toolbar.style.setProperty('display', 'none', 'important');
 
         const footer = doc.querySelector('#footer') || doc.querySelector('.bottom-bar') || doc.querySelector('#chatbox');
@@ -962,7 +962,15 @@
       }
     };
 
-    iframe.addEventListener('load', tryLock, { once: true });
+    iframe.addEventListener('load', () => {
+      tryLock();
+      let attempts = 0;
+      const iv = setInterval(() => {
+        attempts++;
+        tryLock();
+        if (attempts >= 10) clearInterval(iv);
+      }, 200);
+    });
     tryLock();
   }
 
@@ -6378,7 +6386,7 @@
                                 </div>
                                 <div style="position:relative; flex:1; width:100%; height:100%; min-height:520px; display:flex;">
                                   <div class="etherpad-readonly-shield" style="position:absolute; inset:0; z-index:25; background:transparent; cursor:not-allowed; pointer-events:none;" title="🔒 只读查阅模式 (已锁定禁止编辑)"></div>
-                                  <iframe id="teacher-stage2-etherpad-frame" src="/p/${encodeURIComponent(targetPad)}?userName=${encodeURIComponent('教师监控')}&userColor=%237c3aed&showControls=false&showChat=false&showLineNumbers=true&lang=zh-hans" style="flex:1; width:100%; height:100%; min-height:520px; border:none; display:block; background:#ffffff;" title="教师端实时写作同屏镜像 (只读)"></iframe>
+                                  <iframe id="teacher-stage2-etherpad-frame" src="/p/${encodeURIComponent(targetPad)}?userName=${encodeURIComponent('教师监控')}&userColor=%237c3aed&showControls=false&showChat=false&showLineNumbers=true&lang=zh-hans&readOnly=true" style="flex:1; width:100%; height:100%; min-height:520px; border:none; display:block; background:#ffffff;" title="教师端实时写作同屏镜像 (只读)"></iframe>
                                 </div>
                               </div>
                             `;
@@ -6472,7 +6480,7 @@
                                   </div>
                                   <div style="position:relative; flex:1; width:100%; height:100%; min-height:520px; display:flex;">
                                     <div class="etherpad-readonly-shield" style="position:absolute; inset:0; z-index:25; background:transparent; cursor:not-allowed; pointer-events:none;" title="🔒 只读查阅模式 (已锁定禁止编辑)"></div>
-                                    <iframe id="teacher-stage3-etherpad-frame" src="/p/${encodeURIComponent(targetPad)}?userName=${encodeURIComponent('教师监控')}&userColor=%237c3aed&showControls=false&showChat=false&showLineNumbers=true&lang=zh-hans" style="flex:1; width:100%; height:100%; min-height:520px; border:none; display:block; background:#ffffff;" title="教师端论文终稿同屏镜像 (只读)"></iframe>
+                                    <iframe id="teacher-stage3-etherpad-frame" src="/p/${encodeURIComponent(targetPad)}?userName=${encodeURIComponent('教师监控')}&userColor=%237c3aed&showControls=false&showChat=false&showLineNumbers=true&lang=zh-hans&readOnly=true" style="flex:1; width:100%; height:100%; min-height:520px; border:none; display:block; background:#ffffff;" title="教师端论文终稿同屏镜像 (只读)"></iframe>
                                   </div>
                                 </div>
                               `;
@@ -12883,10 +12891,14 @@
             this.state.presence[k] = { lastSeen: now, updatedAt: now };
           });
           this.renderPresenceCursors();
+
+          if (this.cloudSyncEngine && typeof this.cloudSyncEngine.sendPresencePing === 'function') {
+            this.cloudSyncEngine.sendPresencePing(currentUser);
+          }
         }
       };
       doPing();
-      setInterval(doPing, 10000);
+      setInterval(doPing, 8000);
     }
 
     initTimer() {
@@ -16537,8 +16549,8 @@
     async triggerStageWelcomeSpeech(stage) {
       const currUser = this.authManager ? this.authManager.getCurrentUser() : null;
       const isTeacher = currUser && (currUser.role === 'teacher' || currUser.isTeacher);
-      // 🛡️ 铁律：教师端监控或尚未完成初次云端拉取前绝不触发开场白生成（防止刷新时冷启动空内存抢跑生成假新开场白）
-      if (isTeacher || this.state.isTeacherMonitorView || this.state.isTeacherView) {
+      // 🛡️ 铁律：教师端、后台监控、未进入学生工作区（studentViewMode !== 'workspace'）或非学生身份时绝不触发开场白！
+      if (isTeacher || this.state.isTeacherMonitorView || this.state.isTeacherView || this.state.studentViewMode !== 'workspace' || !currUser || currUser.role !== 'student') {
         return;
       }
       if (this.cloudSyncEngine && !this.cloudSyncEngine.isInitialPullDone) {

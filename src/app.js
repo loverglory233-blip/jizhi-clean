@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260903_v2140";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch, showResolutionBlock, safeJsonParse } from "./utils.js?v=20260903_v2140";
-import { callCozeAgentAPI } from "./agents.js?v=20260903_v2140";
-import { AuthManager } from "./auth.js?v=20260903_v2140";
-import { CloudSyncEngine } from "./sync.js?v=20260903_v2140";
-import { renderLoginView } from "./login.js?v=20260903_v2140";
-import { renderTeacherPortal } from "./teacher.js?v=20260903_v2140";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260903_v2140";
+} from "./constants.js?v=20260903_v2145";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch, showResolutionBlock, safeJsonParse } from "./utils.js?v=20260903_v2145";
+import { callCozeAgentAPI } from "./agents.js?v=20260903_v2145";
+import { AuthManager } from "./auth.js?v=20260903_v2145";
+import { CloudSyncEngine } from "./sync.js?v=20260903_v2145";
+import { renderLoginView } from "./login.js?v=20260903_v2145";
+import { renderTeacherPortal } from "./teacher.js?v=20260903_v2145";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260903_v2145";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260903_v2140";
+} from "./editor.js?v=20260903_v2145";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -451,10 +451,14 @@ export class App {
           this.state.presence[k] = { lastSeen: now, updatedAt: now };
         });
         this.renderPresenceCursors();
+
+        if (this.cloudSyncEngine && typeof this.cloudSyncEngine.sendPresencePing === 'function') {
+          this.cloudSyncEngine.sendPresencePing(currentUser);
+        }
       }
     };
     doPing();
-    setInterval(doPing, 10000);
+    setInterval(doPing, 8000);
   }
 
   initTimer() {
@@ -4105,8 +4109,8 @@ ${chatSnippet}
   async triggerStageWelcomeSpeech(stage) {
     const currUser = this.authManager ? this.authManager.getCurrentUser() : null;
     const isTeacher = currUser && (currUser.role === 'teacher' || currUser.isTeacher);
-    // 🛡️ 铁律：教师端监控或尚未完成初次云端拉取前绝不触发开场白生成（防止刷新时冷启动空内存抢跑生成假新开场白）
-    if (isTeacher || this.state.isTeacherMonitorView || this.state.isTeacherView) {
+    // 🛡️ 铁律：教师端、后台监控、未进入学生工作区（studentViewMode !== 'workspace'）或非学生身份时绝不触发开场白！
+    if (isTeacher || this.state.isTeacherMonitorView || this.state.isTeacherView || this.state.studentViewMode !== 'workspace' || !currUser || currUser.role !== 'student') {
       return;
     }
     if (this.cloudSyncEngine && !this.cloudSyncEngine.isInitialPullDone) {
