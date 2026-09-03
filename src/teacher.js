@@ -10,8 +10,8 @@ import {
   STORAGE_KEY_USERS_DB,
   TASK_GENRE_CONFIGS,
   AgentProfiles
-} from "./constants.js?v=20260903_v1510";
-import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, showGlobalBannerNotice } from "./utils.js?v=20260903_v1510";
+} from "./constants.js?v=20260903_v1515";
+import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, showGlobalBannerNotice } from "./utils.js?v=20260903_v1515";
 
 /* ==========================================================================
    7. TEACHER PORTAL RENDERER (LIVE WORKSPACE MIRROR & ANNOUNCEMENT READ MATRIX)
@@ -270,7 +270,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
       chatStream.innerHTML = combinedGroupChatLogs.length > 0 ? combinedGroupChatLogs.map(m => {
         const allGlobalUsers = (authManager) ? authManager.getUsers() : [];
         const isAgent = AgentProfiles[m.sender] !== undefined;
-        const matchedUser = isAgent ? null : allGlobalUsers.find(u => u.id === m.sender || u.studentCode === m.sender || u.username === m.sender || u.name === m.sender);
+        const matchedUser = isAgent ? null : allGlobalUsers.find(u => u.id === m.sender || u.name === m.sender);
         const senderName = isAgent ? AgentProfiles[m.sender].name : (matchedUser ? matchedUser.name : (m.senderName || (monitorMembersObj[m.sender] ? monitorMembersObj[m.sender].name : m.sender)));
         const color = isAgent ? AgentProfiles[m.sender].color : (matchedUser ? (matchedUser.color || '#2563eb') : (monitorMembersObj[m.sender] ? monitorMembersObj[m.sender].color : '#2563eb'));
         return `
@@ -669,7 +669,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
                         classStudents.forEach(s => { const _n = (s.name || '').trim(); if (!_n) return; (_nameBuckets[_n] = _nameBuckets[_n] || []).push(s); });
                         const _escAttr = (v) => String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
                         return classStudents.map((s, idx) => {
-                          const grp = (activeClass.groups || []).find(g => g.members && (g.members.includes(s.id) || (typeof g.members[0] === 'object' && g.members.some(m => m && (m.id === s.id || m.studentCode === s.id)))));
+                          const grp = (activeClass.groups || []).find(g => g.members && (g.members.includes(s.id) || (typeof g.members[0] === 'object' && g.members.some(m => m && (m.id === s.id)))));
                           const stdAcc = s.id;
                           const _dupPeers = (_nameBuckets[(s.name || '').trim()] || []).filter(x => x !== s);
                           const _dupBadge = _dupPeers.length > 0 ? `<span title="${_escAttr('⚠️ 有同名同学：' + _dupPeers.map(x => x.name + '（' + x.id + '）').join(' / '))}" style="margin-left:6px; background:#fef3c7; border:1px solid #fcd34d; color:#b45309; padding:1px 7px; border-radius:999px; font-size:11px; font-weight:700; cursor:help;">⚠️ 同名 ${_dupPeers.length + 1} 人</span>` : '';
@@ -728,7 +728,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
                   ${(() => {
                     const validGroups = (activeClass.groups || []).filter(grp => {
                       const groupMembers = classStudents.filter(s => (grp.members || []).some(m => {
-                        const mId = (typeof m === 'object' && m !== null) ? (m.id || m.userId || m.studentCode) : m;
+                        const mId = (typeof m === 'object' && m !== null) ? (m.id || m.userId ) : m;
                         return mId === s.id;
                       }));
                       return groupMembers.length > 0;
@@ -748,7 +748,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
 
                     return validGroups.map(grp => {
                       const groupMembers = classStudents.filter(s => (grp.members || []).some(m => {
-                        const mId = (typeof m === 'object' && m !== null) ? (m.id || m.userId || m.studentCode) : m;
+                        const mId = (typeof m === 'object' && m !== null) ? (m.id || m.userId ) : m;
                         return mId === s.id;
                       }));
                       return `
@@ -1357,7 +1357,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
                       ${combinedGroupChatLogs.length > 0 ? combinedGroupChatLogs.map(m => {
                         const allGlobalUsers = (authManager) ? authManager.getUsers() : [];
                         const isAgent = AgentProfiles[m.sender] !== undefined;
-                        const matchedUser = isAgent ? null : allGlobalUsers.find(u => u.id === m.sender || u.studentCode === m.sender || u.username === m.sender || u.name === m.sender);
+                        const matchedUser = isAgent ? null : allGlobalUsers.find(u => u.id === m.sender  === m.sender || u.username === m.sender || u.name === m.sender);
                         const senderName = isAgent ? AgentProfiles[m.sender].name : (matchedUser ? matchedUser.name : (m.senderName || (monitorMembersObj[m.sender] ? monitorMembersObj[m.sender].name : m.sender)));
                         const color = isAgent ? AgentProfiles[m.sender].color : (matchedUser ? (matchedUser.color || '#2563eb') : (monitorMembersObj[m.sender] ? monitorMembersObj[m.sender].color : '#2563eb'));
                         return `
@@ -1472,11 +1472,11 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
                             </div>
                             <div style="display:flex; flex-direction:column; gap:6px;">
                               ${monitorMembersList.map((m, idx) => {
-                                const mKey = m.id || m.studentCode || m.username || m.name || (`mem_${idx}`);
+                                const mKey = m.id  || m.username || m.name || (`mem_${idx}`);
                                 const tasks = state.stage1?.contract?.taskAssignments || {};
                                 const taskVal = tasks[mKey] !== undefined ? tasks[mKey] :
                                   (m.id && tasks[m.id] !== undefined ? tasks[m.id] :
-                                  (m.studentCode && tasks[m.studentCode] !== undefined ? tasks[m.studentCode] :
+                                  (m.id && tasks[m.id] !== undefined ? tasks[m.id] :
                                   (m.name && tasks[m.name] !== undefined ? tasks[m.name] : '')));
                                 return `
                                   <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px; padding:6px 10px; display:flex; flex-direction:column; gap:3px;">
@@ -1497,12 +1497,12 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
                             <div style="font-size:12px; font-weight:700; color:#334155; margin-bottom:6px; display:flex; justify-content:space-between; align-items:center;">
                               <span>✍️ 组员签署确认状态:</span>
                               <span style="font-size:11.5px; color:#2563eb; font-weight:700;">
-                                签署进度: ${monitorMembersList.filter(m => { const c = state.stage1?.contract?.confirmedMembers || {}; return c[m.id] || c[m.studentCode] || (m.name && c[m.name]); }).length}/${monitorMembersList.length}
+                                签署进度: ${monitorMembersList.filter(m => { const c = state.stage1?.contract?.confirmedMembers || {}; return c[m.id] || c[m.id] || (m.name && c[m.name]); }).length}/${monitorMembersList.length}
                               </span>
                             </div>
                             <div style="display:flex; gap:6px; flex-wrap:wrap;">
                               ${monitorMembersList.map(m => {
-                                const isConf = state.stage1?.contract?.confirmedMembers && (state.stage1.contract.confirmedMembers[m.id] || state.stage1.contract.confirmedMembers[m.studentCode] || (m.name && state.stage1.contract.confirmedMembers[m.name]));
+                                const isConf = state.stage1?.contract?.confirmedMembers && (state.stage1.contract.confirmedMembers[m.id] || state.stage1.contract.confirmedMembers[m.id] || (m.name && state.stage1.contract.confirmedMembers[m.name]));
                                 return `
                                   <span style="color:${isConf ? '#059669' : '#64748b'}; border:1px solid ${isConf ? '#a7f3d0' : '#e2e8f0'}; background:${isConf ? '#ecfdf5' : '#f8fafc'}; padding:3px 8px; border-radius:6px; font-size:11.5px; font-weight:700; display:inline-flex; align-items:center; gap:4px;">
                                     ${m.avatar || '👤'} ${escapeHtml(m.name)}: <b>${isConf ? '✅ 已签署' : '⏳ 未签署'}</b>
@@ -1524,7 +1524,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
                   const s2Subs = state.stage2?.meetingSubmissions || {};
                   const s2SubCount = Object.keys(s2Subs).length;
                   const totalMemberCount = monitorMembersList.length || 3;
-                  const confirmedDraftCount = monitorMembersList.filter(m => state.stage2?.confirmedMembers && (state.stage2.confirmedMembers[m.id] || state.stage2.confirmedMembers[m.studentCode] || state.stage2.confirmedMembers[m.username] || (m.name && state.stage2.confirmedMembers[m.name]))).length;
+                  const confirmedDraftCount = monitorMembersList.filter(m => state.stage2?.confirmedMembers && (state.stage2.confirmedMembers[m.id] || state.stage2.confirmedMembers[m.id] || state.stage2.confirmedMembers[m.username] || (m.name && state.stage2.confirmedMembers[m.name]))).length;
 
                   return `
                     <div style="display:grid; grid-template-columns: minmax(0, 1fr) 300px; gap:16px; width:100%; box-sizing:border-box; height:840px; max-height:840px; align-items:stretch;">
@@ -1586,7 +1586,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
                             </span>
                             <div id="teacher-stage2-confirmed-pills" style="display:flex; gap:6px; flex-wrap:wrap;">
                               ${monitorMembersList.map(m => {
-                                const isConf = state.stage2?.confirmedMembers && (state.stage2.confirmedMembers[m.id] || state.stage2.confirmedMembers[m.studentCode] || (m.name && state.stage2.confirmedMembers[m.name]));
+                                const isConf = state.stage2?.confirmedMembers && (state.stage2.confirmedMembers[m.id] || state.stage2.confirmedMembers[m.id] || (m.name && state.stage2.confirmedMembers[m.name]));
                                 return `<span style="font-size:11px; padding:1px 8px; border-radius:10px; font-weight:700; background:${isConf ? '#ecfdf5' : '#f8fafc'}; color:${isConf ? '#059669' : '#94a3b8'}; border:1px solid ${isConf ? '#a7f3d0' : '#e2e8f0'};">
                                   ${isConf ? '✓' : '○'} ${escapeHtml(m.name)}
                                 </span>`;
@@ -1637,9 +1637,9 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
                               ${(() => {
                                 const contribs = state.stage2?.memberContributions || {};
                                 let rawTotal = 0;
-                                monitorMembersList.forEach(m => { rawTotal += (contribs[m.id] || 0) + (contribs[m.studentCode] || 0); });
+                                monitorMembersList.forEach(m => { rawTotal += (contribs[m.id] || 0) + (contribs[m.id] || 0); });
                                 return monitorMembersList.map((m) => {
-                                  const rawVal = (contribs[m.id] || 0) + (contribs[m.studentCode] || 0);
+                                  const rawVal = (contribs[m.id] || 0) + (contribs[m.id] || 0);
                                   const pct = rawTotal > 0 ? Math.round((rawVal / rawTotal) * 100) : 0;
                                   return `<span style="color:${rawVal > 0 ? (m.color || '#2563eb') : '#94a3b8'}; font-weight:700;">● ${escapeHtml(m.name)}: ${pct}%</span>`;
                                 }).join('');
@@ -1650,12 +1650,12 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
                             ${(() => {
                               const contribs = state.stage2?.memberContributions || {};
                               let rawTotal = 0;
-                              monitorMembersList.forEach(m => { rawTotal += (contribs[m.id] || 0) + (contribs[m.studentCode] || 0); });
+                              monitorMembersList.forEach(m => { rawTotal += (contribs[m.id] || 0) + (contribs[m.id] || 0); });
                               if (rawTotal === 0) {
                                 return `<div style="width:100%; height:10px; background:#f8fafc; border-radius:5px; display:flex; align-items:center; justify-content:center; font-size:10px; color:#94a3b8; font-weight:600;">⏳ 暂无协作投入 (组员在 Etherpad 中撰写、修改正文或研讨后将平滑累计真实贡献)</div>`;
                               }
                               return monitorMembersList.map((m) => {
-                                const rawVal = (contribs[m.id] || 0) + (contribs[m.studentCode] || 0);
+                                const rawVal = (contribs[m.id] || 0) + (contribs[m.id] || 0);
                                 if (rawVal === 0) return '';
                                 const pct = Math.round((rawVal / rawTotal) * 100);
                                 return `<div style="width:${pct}%; background:${m.color || '#2563eb'}; transition:width 0.3s ease;" title="${escapeHtml(m.name)}: ${pct}% (${rawVal}字)"></div>`;
@@ -1729,9 +1729,9 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
                                 ${(() => {
                                   const contribs = state.stage2?.memberContributions || {};
                                   let rawTotal = 0;
-                                  monitorMembersList.forEach(m => { rawTotal += (contribs[m.id] || 0) + (contribs[m.studentCode] || 0); });
+                                  monitorMembersList.forEach(m => { rawTotal += (contribs[m.id] || 0) + (contribs[m.id] || 0); });
                                   return monitorMembersList.map((m) => {
-                                    const rawVal = (contribs[m.id] || 0) + (contribs[m.studentCode] || 0);
+                                    const rawVal = (contribs[m.id] || 0) + (contribs[m.id] || 0);
                                     const pct = rawTotal > 0 ? Math.round((rawVal / rawTotal) * 100) : 0;
                                     return `<span style="color:${rawVal > 0 ? (m.color || '#2563eb') : '#94a3b8'}; font-weight:700;">● ${escapeHtml(m.name)}: ${pct}%</span>`;
                                   }).join('');
@@ -1742,12 +1742,12 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
                               ${(() => {
                                 const contribs = state.stage2?.memberContributions || {};
                                 let rawTotal = 0;
-                                monitorMembersList.forEach(m => { rawTotal += (contribs[m.id] || 0) + (contribs[m.studentCode] || 0); });
+                                monitorMembersList.forEach(m => { rawTotal += (contribs[m.id] || 0) + (contribs[m.id] || 0); });
                                 if (rawTotal === 0) {
                                   return `<div style="width:100%; height:10px; background:#f8fafc; border-radius:5px; display:flex; align-items:center; justify-content:center; font-size:10px; color:#94a3b8; font-weight:600;">⏳ 暂无协作投入</div>`;
                                 }
                                 return monitorMembersList.map((m) => {
-                                  const rawVal = (contribs[m.id] || 0) + (contribs[m.studentCode] || 0);
+                                  const rawVal = (contribs[m.id] || 0) + (contribs[m.id] || 0);
                                   if (rawVal === 0) return '';
                                   const pct = Math.round((rawVal / rawTotal) * 100);
                                   return `<div style="width:${pct}%; background:${m.color || '#2563eb'}; transition:width 0.3s ease;" title="${escapeHtml(m.name)}: ${pct}% (${rawVal}字)"></div>`;
@@ -3556,7 +3556,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
           if (selectedAttachment.fileObj) {
             try {
               const currT = authManager.getCurrentUser();
-              const tId = (currT && (currT.studentCode || currT.username || currT.id)) || '';
+              const tId = (currT && (currT.username || currT.id)) || '';
               const tToken = (currT && (currT.token || currT.activeSessionId)) || '';
 
               const formData = new FormData();
@@ -3792,7 +3792,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
           if (selectedFile.fileObj) {
             try {
               const currT = authManager.getCurrentUser();
-              const tId = (currT && (currT.studentCode || currT.username || currT.id)) || '';
+              const tId = (currT && (currT.username || currT.id)) || '';
               const tToken = (currT && (currT.token || currT.activeSessionId)) || '';
 
               const formData = new FormData();

@@ -4,7 +4,7 @@
  */
 
 /**
- * 👤 全维度用户标识提取器：提取一个用户对象的全部等价唯一标识（id, studentCode, username, name）
+ * 👤 全维度用户标识提取器：提取一个用户对象的全部等价唯一标识（id, id, username, name）
  */
 export function getUserAllKeys(user) {
   if (!user) return [];
@@ -12,7 +12,7 @@ export function getUserAllKeys(user) {
   const keys = new Set();
   if (user.id) keys.add(String(user.id).trim());
   if (user.userId) keys.add(String(user.userId).trim());
-  if (user.studentCode) keys.add(String(user.studentCode).trim());
+  if (user.id) keys.add(String(user.id).trim());
   if (user.username) keys.add(String(user.username).trim());
   if (user.name) keys.add(String(user.name).trim());
   return Array.from(keys);
@@ -266,7 +266,7 @@ export function smartParseStudentRow(rowItems, colIndexMap = null) {
 
   // 2. 启发式内容特征识别（无表头或格式不规则）
   let name = '';
-  let studentCode = '';
+  let id = '';
   let password = '123';
 
   // 优先寻找纯数字或典型学号 (长度 >= 3 的数字或字母数字组合)
@@ -276,17 +276,17 @@ export function smartParseStudentRow(rowItems, colIndexMap = null) {
 
   if (nameCandidates.length > 0 && codeCandidates.length > 0) {
     name = nameCandidates[0];
-    studentCode = codeCandidates.find(c => c !== name) || codeCandidates[0];
-    const remaining = cleanItems.filter(c => c !== name && c !== studentCode);
+    id = codeCandidates.find(c => c !== name) || codeCandidates[0];
+    const remaining = cleanItems.filter(c => c !== name && c !== id);
     if (remaining.length > 0) password = remaining[0];
   } else if (cleanItems.length >= 2) {
     name = cleanItems[0];
-    studentCode = cleanItems[1];
+    id = cleanItems[1];
     if (cleanItems.length >= 3) password = cleanItems[2];
   }
 
-  if (name && studentCode) {
-    return { id: studentCode, name, password: password || '123' };
+  if (name && id) {
+    return { id: id, name, password: password || '123' };
   }
   return null;
 }
