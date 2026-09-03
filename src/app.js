@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260903_v2110";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260903_v2110";
-import { callCozeAgentAPI } from "./agents.js?v=20260903_v2110";
-import { AuthManager } from "./auth.js?v=20260903_v2110";
-import { CloudSyncEngine } from "./sync.js?v=20260903_v2110";
-import { renderLoginView } from "./login.js?v=20260903_v2110";
-import { renderTeacherPortal } from "./teacher.js?v=20260903_v2110";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260903_v2110";
+} from "./constants.js?v=20260903_v2115";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch, showResolutionBlock, safeJsonParse } from "./utils.js?v=20260903_v2115";
+import { callCozeAgentAPI } from "./agents.js?v=20260903_v2115";
+import { AuthManager } from "./auth.js?v=20260903_v2115";
+import { CloudSyncEngine } from "./sync.js?v=20260903_v2115";
+import { renderLoginView } from "./login.js?v=20260903_v2115";
+import { renderTeacherPortal } from "./teacher.js?v=20260903_v2115";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260903_v2115";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260903_v2110";
+} from "./editor.js?v=20260903_v2115";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -2007,7 +2007,7 @@ export class App {
         downloadBtn.onclick = (e) => {
           if (e) { e.preventDefault(); e.stopPropagation(); }
           const att = ann.attachment;
-          const attObj = typeof att === 'string' ? (JSON.parse(att) || { url: att, name: '随附教学文献.pdf' }) : att;
+          const attObj = typeof att === 'string' ? (safeJsonParse(att, { url: att, name: '随附教学文献.pdf' })) : att;
           const attName = attObj.name || attObj.fileName || `${ann.title || '教学随附文献'}.pdf`;
           const attUrl = attObj.url || attObj.fileUrl || attObj.fileData || attObj.path;
           downloadFileBlob(attName, null, attUrl);
@@ -2970,10 +2970,10 @@ ${chatSnippet}
         try {
           const jsonMatch = resp.match(/\{[\s\S]*\}/);
           if (jsonMatch) {
-            const parsed = JSON.parse(jsonMatch[0]);
-            if (parsed.topic) finalTopic = parsed.topic;
-            if (parsed.overview) finalOverview = parsed.overview;
-            if (parsed.guideText) guideSpeech = parsed.guideText;
+            const parsed = safeJsonParse(jsonMatch[0]);
+            if (parsed && parsed.topic) finalTopic = parsed.topic;
+            if (parsed && parsed.overview) finalOverview = parsed.overview;
+            if (parsed && parsed.guideText) guideSpeech = parsed.guideText;
           }
         } catch (je) {
           console.warn('Parse topic & overview JSON fail, fallback', je);
@@ -3088,14 +3088,14 @@ ${chatSnippet}
         try {
           const jsonMatch = resp.match(/\{[\s\S]*\}/);
           if (jsonMatch) {
-            const parsed = JSON.parse(jsonMatch[0]);
-            if (parsed.background !== undefined && !isNaN(Number(parsed.background))) timeAlloc.background = Math.max(5, Math.round(Number(parsed.background)));
-            if (parsed.literature !== undefined && !isNaN(Number(parsed.literature))) timeAlloc.literature = Math.max(5, Math.round(Number(parsed.literature)));
-            if (parsed.questions !== undefined && !isNaN(Number(parsed.questions))) timeAlloc.questions = Math.max(5, Math.round(Number(parsed.questions)));
-            if (parsed.method !== undefined && !isNaN(Number(parsed.method))) timeAlloc.method = Math.max(5, Math.round(Number(parsed.method)));
-            if (parsed.reflection !== undefined && !isNaN(Number(parsed.reflection))) timeAlloc.reflection = Math.max(5, Math.round(Number(parsed.reflection)));
-            if (parsed.references !== undefined && !isNaN(Number(parsed.references))) timeAlloc.references = Math.max(5, Math.round(Number(parsed.references)));
-            if (parsed.guideText && parsed.guideText.trim().length > 0) guideSpeech = parsed.guideText.trim();
+            const parsed = safeJsonParse(jsonMatch[0]);
+            if (parsed && parsed.background !== undefined && !isNaN(Number(parsed.background))) timeAlloc.background = Math.max(5, Math.round(Number(parsed.background)));
+            if (parsed && parsed.literature !== undefined && !isNaN(Number(parsed.literature))) timeAlloc.literature = Math.max(5, Math.round(Number(parsed.literature)));
+            if (parsed && parsed.questions !== undefined && !isNaN(Number(parsed.questions))) timeAlloc.questions = Math.max(5, Math.round(Number(parsed.questions)));
+            if (parsed && parsed.method !== undefined && !isNaN(Number(parsed.method))) timeAlloc.method = Math.max(5, Math.round(Number(parsed.method)));
+            if (parsed && parsed.reflection !== undefined && !isNaN(Number(parsed.reflection))) timeAlloc.reflection = Math.max(5, Math.round(Number(parsed.reflection)));
+            if (parsed && parsed.references !== undefined && !isNaN(Number(parsed.references))) timeAlloc.references = Math.max(5, Math.round(Number(parsed.references)));
+            if (parsed && parsed.guideText && parsed.guideText.trim().length > 0) guideSpeech = parsed.guideText.trim();
           }
         } catch (e) {
           console.warn('Parse time allocation JSON fail, keep default', e);
@@ -3214,15 +3214,15 @@ ${chatSnippet}
         try {
           const jsonMatch = resp.match(/\{[\s\S]*\}/);
           if (jsonMatch) {
-            const parsed = JSON.parse(jsonMatch[0]);
-            if (parsed.assignments && typeof parsed.assignments === 'object') {
+            const parsed = safeJsonParse(jsonMatch[0]);
+            if (parsed && parsed.assignments && typeof parsed.assignments === 'object') {
               members.forEach((m, idx) => {
                 const mKey = m.id   || m.name;
                 const matchedVal = parsed.assignments[m.name] || parsed.assignments[m.id] || parsed.assignments[m.id];
                 if (matchedVal) taskAssignments[mKey] = matchedVal;
               });
             }
-            if (parsed.guideText) guideSpeech = parsed.guideText;
+            if (parsed && parsed.guideText) guideSpeech = parsed.guideText;
           }
         } catch (e) {}
       }
@@ -3418,24 +3418,26 @@ ${instructionSection}
       if (resp && resp.trim().length > 0) {
         const jsonMatch = resp.match(/\{[\s\S]*\}/);
         if (jsonMatch) {
-          const parsed = JSON.parse(jsonMatch[0]);
-          if (!hasExistingTopic && parsed.topic && parsed.topic.trim()) {
-            finalTopic = parsed.topic.trim();
+          const parsed = safeJsonParse(jsonMatch[0]);
+          if (parsed) {
+            if (!hasExistingTopic && parsed.topic && parsed.topic.trim()) {
+              finalTopic = parsed.topic.trim();
+            }
+            if (!hasExistingTopic && parsed.overview && parsed.overview.trim()) {
+              finalOverview = parsed.overview.trim();
+            }
+            if (!hasExistingTime && parsed.timeAllocations && typeof parsed.timeAllocations === 'object') {
+              finalTimes = Object.assign({}, defaultTimes, parsed.timeAllocations);
+            }
+            if (parsed.assignments && typeof parsed.assignments === 'object') {
+              membersList.forEach((m, idx) => {
+                const mKey = m.id   || m.name;
+                const matchedVal = parsed.assignments[m.name] || parsed.assignments[m.id] || parsed.assignments[m.id];
+                if (matchedVal) finalAssignments[mKey] = matchedVal;
+              });
+            }
+            isSuccess = true;
           }
-          if (!hasExistingTopic && parsed.overview && parsed.overview.trim()) {
-            finalOverview = parsed.overview.trim();
-          }
-          if (!hasExistingTime && parsed.timeAllocations && typeof parsed.timeAllocations === 'object') {
-            finalTimes = Object.assign({}, defaultTimes, parsed.timeAllocations);
-          }
-          if (parsed.assignments && typeof parsed.assignments === 'object') {
-            membersList.forEach((m, idx) => {
-              const mKey = m.id   || m.name;
-              const matchedVal = parsed.assignments[m.name] || parsed.assignments[m.id] || parsed.assignments[m.id] ;
-              if (matchedVal) finalAssignments[mKey] = matchedVal;
-            });
-          }
-          isSuccess = true;
         }
       }
     } catch (err) {
