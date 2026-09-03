@@ -14,8 +14,8 @@ import {
   DefaultTasks,
   DefaultAnnouncements,
   DefaultReferencePapers
-} from './constants.js?v=20260903_v1742';
-import { formatExportDateTime, formatDurationHuman, isScopeMatch } from './utils.js?v=20260903_v1742';
+} from './constants.js?v=20260903_v1755';
+import { formatExportDateTime, formatDurationHuman, isScopeMatch } from './utils.js?v=20260903_v1755';
 
 export class AuthManager {
   constructor() {
@@ -613,7 +613,7 @@ export class AuthManager {
 
     const allUsers = this.getUsers();
     const cleanId = String(cached.id || '').trim().toLowerCase();
-    const freshUser = allUsers.find(u => u && u.id.toLowerCase() === cleanId);
+    const freshUser = allUsers.find(u => u && u.id && String(u.id).trim().toLowerCase() === cleanId);
     if (freshUser) {
       return { ...cached, ...freshUser, activeSessionId: cached.activeSessionId };
     }
@@ -643,6 +643,7 @@ export class AuthManager {
         user.token = data.token;
         user.activeSessionId = data.token;
         sessionStorage.setItem(STORAGE_KEY_USER, JSON.stringify(user));
+        localStorage.setItem(STORAGE_KEY_USER, JSON.stringify(user));
         sessionStorage.setItem('jizhi_student_view_mode', 'task_list');
         localStorage.setItem('jizhi_student_view_mode', 'task_list');
         sessionStorage.removeItem('jizhi_active_task_id');
@@ -652,16 +653,16 @@ export class AuthManager {
           window.app.state.activeTaskId = null;
         }
         return { success: true, user };
-      } else if (data && data.message) {
-        // 🔐 精准展示服务端返回的真实校验结果（账号不存在/密码错误/身份不匹配）
-        return { success: false, message: data.message, suggestedRole: data.suggestedRole || null };
       } else {
         const localRes = this.login(accountInput, password, role);
         if (localRes && localRes.success) return localRes;
-        return { success: false, message: (localRes && localRes.message) ? localRes.message : '❌ 账号或密码错误，请核对后重试', suggestedRole: localRes?.suggestedRole || null };
+        return {
+          success: false,
+          message: (data && data.message) ? data.message : (localRes && localRes.message ? localRes.message : '❌ 账号或密码错误，请核对后重试'),
+          suggestedRole: data?.suggestedRole || localRes?.suggestedRole || null
+        };
       }
     } catch (err) {
-      // 仅在完全无法连通时回退
       const localRes = this.login(accountInput, password, role);
       if (localRes && localRes.success) return localRes;
       return { success: false, message: (localRes && localRes.message) ? localRes.message : '⚠️ 无法连接服务器，请检查网络连接后重试', suggestedRole: localRes?.suggestedRole || null };
@@ -682,8 +683,8 @@ export class AuthManager {
     }
 
     const userIndex = users.findIndex(u => {
-      const uId = (u.id || '').toLowerCase();
-      // 🛡️ 严格单标识登录：仅认唯一工号/学号（u.id），坚决拒绝姓名与邮箱匹配，杜绝重名串号
+      const uId = String(u?.id || '').trim().toLowerCase();
+      // 🛡️ 严格单标识登录：仅认唯一工号/学号（u.id）
       return uId === query;
     });
 

@@ -1,4 +1,4 @@
-import { escapeHtml } from "./utils.js?v=20260903_v1742";
+import { escapeHtml } from "./utils.js?v=20260903_v1755";
 
 export function renderLoginView(container, authManager, onLoginSuccess) {
   if (authManager && authManager.pullGlobalMeta) {
@@ -87,7 +87,7 @@ export function renderLoginView(container, authManager, onLoginSuccess) {
     const val = (accountInput ? accountInput.value : '').trim().toLowerCase();
     if (!val) return;
     const allUsers = (authManager && authManager.getUsers) ? authManager.getUsers() : [];
-    const isTeacher = val === 'teacher' || val === 'admin' || allUsers.some(u => 
+    const isTeacher = allUsers.some(u => 
       (u.role === 'teacher' || u.isTeacher) && u.id && u.id.toLowerCase() === val
     );
     if (isTeacher) {
