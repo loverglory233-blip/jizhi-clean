@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260903_v2105";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260903_v2105";
-import { callCozeAgentAPI } from "./agents.js?v=20260903_v2105";
-import { AuthManager } from "./auth.js?v=20260903_v2105";
-import { CloudSyncEngine } from "./sync.js?v=20260903_v2105";
-import { renderLoginView } from "./login.js?v=20260903_v2105";
-import { renderTeacherPortal } from "./teacher.js?v=20260903_v2105";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260903_v2105";
+} from "./constants.js?v=20260903_v2110";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260903_v2110";
+import { callCozeAgentAPI } from "./agents.js?v=20260903_v2110";
+import { AuthManager } from "./auth.js?v=20260903_v2110";
+import { CloudSyncEngine } from "./sync.js?v=20260903_v2110";
+import { renderLoginView } from "./login.js?v=20260903_v2110";
+import { renderTeacherPortal } from "./teacher.js?v=20260903_v2110";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260903_v2110";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260903_v2105";
+} from "./editor.js?v=20260903_v2110";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -4293,12 +4293,19 @@ ${chatSnippet}
 
         const propPrompt = `${genreDesc}
 
-针对小组论文《${topic}》，请通读下方【小组当前真实正文草稿】全文，作为答辩委员会正方评审教授发表 180~220 字的肯定支持评审意见：
-必须清晰列出 3 大维度的肯定与立论支撑：
-①【选题立意与问题切口创新】：高度肯定本课题针对真实教学痛点提出的新颖切入点与研究价值；
-②【教学设计与实践落地价值】：高度肯定正文在教学活动、课例设计或操作化步骤中的实践推广价值；
-③【研究方法科学性与论据充分性】：高度肯定本研究所采用的方法论框架与数据/理论论据支撑。
-为全组提供充实坚定的正面辩护论据支架！纯自然语言输出，180~220字。`;
+针对小组论文《${topic}》，请通读下方【小组当前真实正文草稿】全文，作为答辩委员会正方评审教授发表 150~200 字的肯定支持评审意见：
+【5 大正向肯定维度候选库】：
+1. 行文风格与语言通顺（表述流畅、学术/教学语体规范统一）
+2. 选题与立意创新（切口新颖独特、问题针对性强）
+3. 设计与主体严密（概念界定清晰、探究活动/方法设计深入）
+4. 实践落地与推广价值（真实课堂/实践中可操作性与示范价值强）
+5. 规范与术语统一（前后口径一致、要素完整）
+
+【核心指令】：通读正文草稿，从上述 5 大维度中根据草稿真实闪光点灵活挑选 2~3 个维度，使用序号清晰列出肯定与立论支撑（严禁指责瑕疵，只作正向赋能）：
+①【{动态亮点维度1}】：{结合具体章节与设计的真实闪光点深入肯定}；
+②【{动态亮点维度2}】：{结合具体设计或行文亮点的深度肯定}；
+（若有第3个突出亮点可列出 ③【{动态亮点维度3}】）。
+为全组提供充实坚定的正面辩护论据支架！纯自然语言输出，150~200字。`;
 
         const oppPrompt = `${genreDesc}
 
