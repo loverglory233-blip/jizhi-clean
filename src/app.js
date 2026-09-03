@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260903_v2115";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch, showResolutionBlock, safeJsonParse } from "./utils.js?v=20260903_v2115";
-import { callCozeAgentAPI } from "./agents.js?v=20260903_v2115";
-import { AuthManager } from "./auth.js?v=20260903_v2115";
-import { CloudSyncEngine } from "./sync.js?v=20260903_v2115";
-import { renderLoginView } from "./login.js?v=20260903_v2115";
-import { renderTeacherPortal } from "./teacher.js?v=20260903_v2115";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260903_v2115";
+} from "./constants.js?v=20260903_v2120";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch, showResolutionBlock, safeJsonParse } from "./utils.js?v=20260903_v2120";
+import { callCozeAgentAPI } from "./agents.js?v=20260903_v2120";
+import { AuthManager } from "./auth.js?v=20260903_v2120";
+import { CloudSyncEngine } from "./sync.js?v=20260903_v2120";
+import { renderLoginView } from "./login.js?v=20260903_v2120";
+import { renderTeacherPortal } from "./teacher.js?v=20260903_v2120";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260903_v2120";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260903_v2115";
+} from "./editor.js?v=20260903_v2120";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -528,6 +528,8 @@ export class App {
               this.state.chatLogs.stage1.push(msg3Min);
               this.syncChatLogs();
               renderChat(this.state);
+            }
+
             // ② 提案全齐但尚未投票：提示先交流 1~2 分钟再投票
             if (!this.state.s1_allPropsGatheredSent && propCount >= membersList.length && propCount > 0) {
               this.state.s1_allPropsGatheredSent = true;
