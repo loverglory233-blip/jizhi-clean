@@ -1982,60 +1982,70 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
     });
   }
 
-  // 👥 2. 加入已有学生到班级（独立面板）
+  // 👥 2. 平台学生账号总库与分班调度中心（独立面板，可查阅全平台所有学生）
   const btnEnrollExisting = container.querySelector('#btn-v1-enroll-existing-student');
   if (btnEnrollExisting) {
     btnEnrollExisting.addEventListener('click', () => {
       document.querySelectorAll('.modal-overlay').forEach(el => el.remove());
       const allUsers = authManager.getUsers();
       const currentClassStudentIds = new Set(authManager.getClassStudents(activeClass.id).map(s => s.id));
-      const unenrolledStudents = allUsers.filter(u =>
-        u.role !== 'teacher' && !currentClassStudentIds.has(u.id)
-      );
+      const allStudents = allUsers.filter(u => u.role !== 'teacher');
+      const unenrolledStudents = allStudents.filter(u => !currentClassStudentIds.has(u.id));
+      const enrolledStudents = allStudents.filter(u => currentClassStudentIds.has(u.id));
 
       const modal = document.createElement('div');
       modal.className = 'modal-overlay';
       modal.innerHTML = `
-        <div class="teacher-modal-card fancy-task-modal" style="width:580px; background:#ffffff; border:1px solid #e2e8f0; box-shadow:0 20px 45px rgba(15,23,42,0.12);">
+        <div class="teacher-modal-card fancy-task-modal" style="width:640px; background:#ffffff; border:1px solid #e2e8f0; box-shadow:0 20px 45px rgba(15,23,42,0.12); border-radius:14px; overflow:hidden;">
           <div class="teacher-modal-header" style="background:linear-gradient(135deg, #eff6ff, #f8fafc); border-bottom:1px solid #e2e8f0; padding:18px 24px; display:flex; justify-content:space-between; align-items:center;">
             <div class="modal-header-title" style="display:flex; align-items:center; gap:10px;">
               <div class="modal-icon-badge" style="background:#dbeafe; color:#2563eb; font-size:20px; padding:6px 10px; border-radius:10px;">👥</div>
-              <div><h3 style="margin:0; font-size:17px; font-weight:800; color:#0f172a;">加入已有学生到班级 (${activeClass.name})</h3></div>
+              <div>
+                <h3 style="margin:0; font-size:17px; font-weight:800; color:#0f172a;">平台学生账号总库 (${activeClass.name})</h3>
+                <div style="font-size:12px; color:#64748b; margin-top:2px;">管理系统全量学生、查阅跨班归属、分配或彻底注销账号</div>
+              </div>
             </div>
             <button class="modal-close-btn" id="btn-close-enroll-modal" style="background:#f1f5f9; border:none; color:#64748b; font-size:16px; border-radius:8px; width:30px; height:30px; cursor:pointer;">✕</button>
           </div>
 
           <div class="teacher-modal-body" style="padding:20px 24px;">
-            <div style="font-size:12.5px; color:#1e40af; background:#eff6ff; border:1px solid #bfdbfe; border-radius:8px; padding:10px 14px; margin-bottom:12px;">
-              💡 以下学生已在平台账号库中。勾选后可将其同时分配进本班级，<b>账号和密码保持不变，绝不重复生成</b>。
+            <div style="display:flex; gap:8px; margin-bottom:12px;">
+              <button class="tab-filter-std active" data-filter="all" style="flex:1; padding:7px 10px; border-radius:8px; border:1.5px solid #2563eb; background:#eff6ff; color:#1d4ed8; font-size:12.5px; font-weight:700; cursor:pointer;">全部学生 (${allStudents.length})</button>
+              <button class="tab-filter-std" data-filter="unenrolled" style="flex:1; padding:7px 10px; border-radius:8px; border:1.5px solid #e2e8f0; background:#f8fafc; color:#64748b; font-size:12.5px; font-weight:700; cursor:pointer;">待入本班 (${unenrolledStudents.length})</button>
+              <button class="tab-filter-std" data-filter="enrolled" style="flex:1; padding:7px 10px; border-radius:8px; border:1.5px solid #e2e8f0; background:#f8fafc; color:#64748b; font-size:12.5px; font-weight:700; cursor:pointer;">已在本班 (${enrolledStudents.length})</button>
             </div>
+
             <div style="margin-bottom:10px;">
-              <input type="text" id="input-search-enroll-std" placeholder="🔍 输入姓名或学号快速搜索已有学生..." style="background:#ffffff; border:1.5px solid #cbd5e1; color:#0f172a; padding:8px 12px; border-radius:8px; width:100%; font-size:13px; outline:none;">
+              <input type="text" id="input-search-enroll-std" placeholder="🔍 输入姓名或学号快速搜索学生..." style="background:#ffffff; border:1.5px solid #cbd5e1; color:#0f172a; padding:8px 12px; border-radius:8px; width:100%; font-size:13px; outline:none;">
             </div>
             <div style="display:flex; justify-content:space-between; align-items:center; padding:4px 4px 8px 4px; font-size:12.5px; color:#64748b;">
               <label style="display:flex; align-items:center; gap:6px; cursor:pointer; font-weight:700; color:#334155;">
                 <input type="checkbox" id="chk-enroll-select-all" style="width:16px; height:16px; accent-color:#2563eb; cursor:pointer;">
-                全选 / 全不选
+                全选当前筛选列表
               </label>
-              <span id="enroll-selected-count-tip">已选 0 人</span>
+              <span id="enroll-selected-count-tip">已勾选 0 人</span>
             </div>
             <div id="enroll-std-list-box" style="max-height:280px; overflow-y:auto; display:flex; flex-direction:column; gap:8px;">
-              ${unenrolledStudents.length === 0 ? `
+              ${allStudents.length === 0 ? `
                 <div style="text-align:center; color:#64748b; padding:32px; font-size:13.5px;">
-                  ✅ 平台内所有学生账号均已加入当前班级，无待加入学生
+                  ⚠️ 平台当前暂无任何已入库学生账号，请先录入或导入学生
                 </div>
-              ` : unenrolledStudents.map(s => {
+              ` : allStudents.map(s => {
+                const isCurrentClass = currentClassStudentIds.has(s.id);
                 const otherClasses = authManager.getClasses().filter(c =>
                   (s.classIds || [s.classId]).includes(c.id) && c.id !== activeClass.id
                 );
                 return `
-                  <div class="enroll-std-card-item" data-search="${(s.name + ' ' + (s.id || '')).toLowerCase()}" style="display:flex; align-items:center; justify-content:space-between; gap:12px; background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:10px 14px; transition:all 0.15s;">
+                  <div class="enroll-std-card-item" data-type="${isCurrentClass ? 'enrolled' : 'unenrolled'}" data-search="${(s.name + ' ' + (s.id || '')).toLowerCase()}" style="display:flex; align-items:center; justify-content:space-between; gap:12px; background:${isCurrentClass ? '#f0fdf4' : '#f8fafc'}; border:1px solid ${isCurrentClass ? '#bbf7d0' : '#e2e8f0'}; border-radius:10px; padding:10px 14px; transition:all 0.15s;">
                     <label style="display:flex; align-items:center; gap:12px; cursor:pointer; flex:1;">
-                      <input type="checkbox" class="enroll-chk" data-uid="${s.id}" style="width:17px; height:17px; cursor:pointer; accent-color:#2563eb;">
+                      <input type="checkbox" class="enroll-chk" data-uid="${s.id}" ${isCurrentClass ? 'checked' : ''} style="width:17px; height:17px; cursor:pointer; accent-color:#2563eb;">
                       <div>
-                        <div style="font-size:14px; font-weight:800; color:#0f172a;">${s.avatar || '👤'} ${s.name} <code style="color:#2563eb; font-family:monospace; margin-left:6px;">${s.id}</code></div>
+                        <div style="font-size:14px; font-weight:800; color:#0f172a; display:flex; align-items:center; gap:6px;">
+                          ${s.avatar || '👤'} ${s.name} <code style="color:#2563eb; font-family:monospace;">${s.id}</code>
+                          ${isCurrentClass ? '<span style="background:#dcfce7; color:#15803d; border:1px solid #bbf7d0; padding:1px 6px; border-radius:6px; font-size:11px; font-weight:700;">已在本班</span>' : ''}
+                        </div>
                         <div style="font-size:12px; color:#64748b; margin-top:2px;">
-                          ${otherClasses.length > 0 ? `现归属班级: <b>${otherClasses.map(c => c.name).join(', ')}</b>` : '已入库学生'}
+                          ${otherClasses.length > 0 ? `跨班归属: <b>${otherClasses.map(c => c.name).join(', ')}</b>` : (isCurrentClass ? '本班学生' : '⏳ 待分班学生')}
                         </div>
                       </div>
                     </label>
@@ -2046,10 +2056,10 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
             </div>
           </div>
           <div class="teacher-modal-footer" style="background:#f8fafc; border-top:1px solid #e2e8f0; padding:14px 24px; display:flex; justify-content:space-between; align-items:center;">
-            <button class="modal-btn" id="btn-batch-purge-selected" style="background:#fef2f2; border:1px solid #fecaca; color:#dc2626; padding:8px 16px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer;">🗑️ 批量彻底删除所选</button>
+            <button class="modal-btn" id="btn-batch-purge-selected" style="background:#fef2f2; border:1.5px solid #fecaca; color:#dc2626; padding:8px 16px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer;">🗑️ 批量彻底删除所选</button>
             <div style="display:flex; gap:10px;">
               <button class="modal-btn cancel" id="btn-cancel-enroll" style="background:#ffffff; border:1px solid #cbd5e1; color:#475569; padding:8px 18px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer;">取消</button>
-              <button class="modal-btn submit task-theme" id="btn-submit-enroll" style="background:linear-gradient(135deg, #1d4ed8, #2563eb); border:none; color:white; padding:8px 20px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer;">👥 确认加入本班</button>
+              <button class="modal-btn submit task-theme" id="btn-submit-enroll" style="background:linear-gradient(135deg, #1d4ed8, #2563eb); border:none; color:white; padding:8px 20px; border-radius:8px; font-size:13px; font-weight:700; cursor:pointer;">👥 保存本班名单分配</button>
             </div>
           </div>
         </div>
@@ -2066,8 +2076,10 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
       const updateCountTip = () => {
         const cnt = modal.querySelectorAll('.enroll-chk:checked').length;
         const tip = modal.querySelector('#enroll-selected-count-tip');
-        if (tip) tip.textContent = `已选 ${cnt} 人`;
+        if (tip) tip.textContent = `已勾选 ${cnt} 人`;
       };
+      updateCountTip();
+
       if (chkAll) {
         chkAll.addEventListener('change', () => {
           modal.querySelectorAll('.enroll-std-card-item').forEach(item => {
@@ -2080,6 +2092,41 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
         });
       }
       modal.querySelectorAll('.enroll-chk').forEach(c => c.addEventListener('change', updateCountTip));
+
+      // 🏷️ 筛选 Tab 切换
+      let curFilter = 'all';
+      const applyFilterAndSearch = () => {
+        const q = (modal.querySelector('#input-search-enroll-std')?.value || '').trim().toLowerCase();
+        modal.querySelectorAll('.enroll-std-card-item').forEach(el => {
+          const type = el.dataset.type;
+          const str = el.dataset.search || '';
+          const matchTab = (curFilter === 'all') || (curFilter === type);
+          const matchQuery = !q || str.includes(q);
+          if (matchTab && matchQuery) el.style.display = 'flex';
+          else el.style.display = 'none';
+        });
+      };
+
+      modal.querySelectorAll('.tab-filter-std').forEach(tab => {
+        tab.addEventListener('click', () => {
+          modal.querySelectorAll('.tab-filter-std').forEach(t => {
+            t.style.background = '#f8fafc';
+            t.style.color = '#64748b';
+            t.style.borderColor = '#e2e8f0';
+          });
+          tab.style.background = '#eff6ff';
+          tab.style.color = '#1d4ed8';
+          tab.style.borderColor = '#2563eb';
+          curFilter = tab.dataset.filter;
+          applyFilterAndSearch();
+        });
+      });
+
+      // 🔍 模糊搜索过滤
+      const searchEnrollInput = modal.querySelector('#input-search-enroll-std');
+      if (searchEnrollInput) {
+        searchEnrollInput.addEventListener('input', applyFilterAndSearch);
+      }
 
       // 🗑️ 单个彻底从系统删除注销账号
       modal.querySelectorAll('.btn-purge-std').forEach(btn => {
@@ -2112,47 +2159,40 @@ export function renderTeacherPortal(container, authManager, state, onLogout, onS
         });
       }
 
-      // 🔍 模糊搜索过滤
-      const searchEnrollInput = modal.querySelector('#input-search-enroll-std');
-      if (searchEnrollInput) {
-        searchEnrollInput.addEventListener('input', (e) => {
-          const q = (e.target.value || '').trim().toLowerCase();
-          modal.querySelectorAll('.enroll-std-card-item').forEach(el => {
-            const str = el.dataset.search || '';
-            if (!q || str.includes(q)) el.style.display = 'flex';
-            else el.style.display = 'none';
-          });
-        });
-      }
-
-      // 提交加入本班
+      // 👥 提交保存本班名单分配
       modal.querySelector('#btn-submit-enroll').addEventListener('click', () => {
-        const checked = modal.querySelectorAll('.enroll-chk:checked');
-        if (checked.length === 0) { alert('⚠️ 请勾选至少一位学生！'); return; }
-        checked.forEach(chk => {
-          const users = authManager.getUsers();
-          const student = users.find(u => u.id === chk.dataset.uid);
-          if (student) {
-            if (!student.classIds || !Array.isArray(student.classIds)) {
-              student.classIds = student.classId ? [student.classId] : [];
-            }
-            if (!student.classIds.includes(activeClass.id)) {
-              student.classIds.push(activeClass.id);
-            }
-          }
-          localStorage.setItem(STORAGE_KEY_USERS_DB, JSON.stringify(users));
+        const checkedUids = new Set(Array.from(modal.querySelectorAll('.enroll-chk:checked')).map(c => c.dataset.uid));
+        const users = authManager.getUsers();
+        const classes = authManager.getClasses();
+        const curCls = classes.find(c => c.id === activeClass.id);
+        if (!curCls) return;
 
-          const classes = authManager.getClasses();
-          const cls = classes.find(c => c.id === activeClass.id);
-          if (cls) {
-            if (!cls.studentIds) cls.studentIds = [];
-            if (!cls.studentIds.includes(chk.dataset.uid)) cls.studentIds.push(chk.dataset.uid);
-            localStorage.setItem(STORAGE_KEY_CLASSES, JSON.stringify(classes));
+        // 同步分配勾选的学生进本班
+        users.forEach(u => {
+          if (u.role === 'teacher') return;
+          if (!u.classIds || !Array.isArray(u.classIds)) u.classIds = u.classId ? [u.classId] : [];
+          if (checkedUids.has(u.id)) {
+            if (!u.classIds.includes(activeClass.id)) u.classIds.push(activeClass.id);
+            if (!u.classId) u.classId = activeClass.id;
+          } else {
+            // 取消勾选则移出本班
+            u.classIds = u.classIds.filter(cid => cid !== activeClass.id);
+            if (u.classId === activeClass.id) u.classId = u.classIds[0] || null;
           }
         });
+
+        curCls.studentIds = Array.from(checkedUids);
+        if (curCls.groups) {
+          curCls.groups.forEach(g => {
+            if (g.members) g.members = g.members.filter(uid => checkedUids.has(uid));
+          });
+        }
+
+        localStorage.setItem(STORAGE_KEY_USERS_DB, JSON.stringify(users));
+        localStorage.setItem(STORAGE_KEY_CLASSES, JSON.stringify(classes));
         authManager.pushGlobalMeta();
+        alert(`🎉 成功同步更新本班学生名单（当前班级共 ${checkedUids.size} 人）！`);
         closeModal();
-        alert(`🎉 成功将选中的 ${checked.length} 位学生加入当前班级【${activeClass.name}】！`);
         renderTeacherPortal(container, authManager, state, onLogout, onSwitchToStudentView);
       });
     });
