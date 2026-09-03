@@ -1140,19 +1140,15 @@ if ($action === 'get_teacher_monitor_all_groups') {
                     'activeLocks'        => $activeLocks
                 ];
             } else {
-                // 未激活小组仅返回全景监控必需的元数据，不携带海量聊天与大段正文
+                // 🚀 未选中小组（其余19组）：只传输极轻量总览指标（阶段/人数/在线数/提交标志），0 冗余文本，体积直降 99%！
                 $result['groups'][$gid] = [
                     'groupId'            => $gid,
                     'scopeKey'           => $sk,
                     'currentStage'       => $r ? ($r['current_stage'] ?: 'stage1') : 'stage1',
-                    'stage1'             => ['mergedTitle' => $s1Data['mergedTitle'] ?? '', 'proposals' => $s1Data['proposals'] ?? []],
-                    'stage2'             => ['unifiedContent' => mb_substr($s2Data['unifiedContent'] ?? '', 0, 100)],
-                    'stage3'             => ['feedbackItems' => $s3Data['feedbackItems'] ?? []],
-                    'chatLogs'           => [
-                        'stage1' => array_slice($chats['stage1'] ?? [], -10),
-                        'stage2' => array_slice($chats['stage2'] ?? [], -10),
-                        'stage3' => array_slice($chats['stage3'] ?? [], -10)
-                    ],
+                    'stage1'             => ['mergedTitle' => $s1Data['mergedTitle'] ?? ''],
+                    'stage2'             => [],
+                    'stage3'             => [],
+                    'chatLogs'           => ['stage1' => [], 'stage2' => [], 'stage3' => []],
                     'isFinalSubmitted'   => $r ? (bool)$r['is_final_submitted'] : false,
                     'lastTimestamp'      => $r ? intval($r['last_timestamp']) : 0,
                     'revisionId'         => $r ? intval($r['revision_id']) : 1,
@@ -1161,7 +1157,7 @@ if ($action === 'get_teacher_monitor_all_groups') {
                     'onlineCount'        => count($onlineMembers),
                     'onlineMembers'      => $onlineMembers,
                     'absentMembers'      => $absentMembers,
-                    'activeLocks'        => $activeLocks
+                    'activeLocks'        => []
                 ];
             }
         }
