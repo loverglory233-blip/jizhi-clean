@@ -14,8 +14,8 @@ import {
   DefaultTasks,
   DefaultAnnouncements,
   DefaultReferencePapers
-} from './constants.js?v=20260903_v1545';
-import { formatExportDateTime, formatDurationHuman, isScopeMatch } from './utils.js?v=20260903_v1545';
+} from './constants.js?v=20260903_v1547';
+import { formatExportDateTime, formatDurationHuman, isScopeMatch } from './utils.js?v=20260903_v1547';
 
 export class AuthManager {
   constructor() {
@@ -61,7 +61,6 @@ export class AuthManager {
   removeLegacyTestAccounts() {
     try {
       const LEGACY_IDS = new Set(['u_studentA', 'u_studentB', 'u_studentC']);
-      const LEGACY_CODES = new Set();
       const LEGACY_NAMES = new Set(['李明', '王芳', '陈强', '李明 (组长)', '王芳 (组员)', '陈强 (组员)']);
 
       let users = [];
