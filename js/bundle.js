@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260903_v2005
+ * Version: 20260903_v2010
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260903_v2005';
+  const APP_VERSION = '20260903_v2010';
   const APP_BUILD_DATE = '2026-09-03';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -13828,76 +13828,69 @@
                 renderChat(this.state);
                 return;
               }
+
+              // ── ② 3 分钟没讨论修正清单：审稿编辑二审修改研讨提示 ──
+              const existChecklistNudge = s2Chats.some(m => m && m.text?.includes('二审修改研讨提示'));
+              const isReviewingSummaryPending = s2Chats.some(m => m && m.text?.includes('二审修正清单')) && !s2Chats.some(m => m && (m.text?.includes('修改确认与写作冲刺') || m.text?.includes('二审修改落实决议')));
+              if (!existChecklistNudge && isReviewingSummaryPending && silenceAfterChecklist >= 180000 && !s2.isDraftConfirmed) {
+                this._nudgeCounts['s2_checklist_silence_3m'] = 1;
+                const msg = {
+                  sender: 'reviewingEditor',
+                  senderName: '学术质量 · 审稿编辑',
+                  text: `📝 【审稿编辑·二审修改研讨提示】：二审修正清单已下发！请全组围绕清单中指出的诊断问题与改进建议在讨论区商定具体修改对策；商定差不多后，点击下方【📝 讨论差不多了？让审稿编辑总结】按钮！`,
+                  timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                  _timeMs: now
+                };
+                if (!this.state.chatLogs.stage2) this.state.chatLogs.stage2 = [];
+                this.state.chatLogs.stage2.push(msg);
+                this.syncChatLogs();
+                this.syncStage2();
+                if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+                renderChat(this.state);
+                return;
+              }
             }
           }
 
-          // ── 🛡️ 阶段二三次质检水位线标准与教学时序守卫 ──
-          // 核心规则：三审绝不能在半程会议刚结束就秒弹！必须在审稿编辑二审总结后，至少经过 10 分钟（大任务 15 分钟）的集中修改，或者组员主动点击【✍️ 确认初稿】时方可触发！
-          const defaultWordTarget = isLargeTask ? 9000 : 4300;
-          const targetWordCount = (curTask && curTask.targetWordCount) ? Number(curTask.targetWordCount) : defaultWordTarget;
-          const wordProgress = targetWordCount > 0 ? (plainTextLen / targetWordCount) : (plainTextLen / 4300);
-          const timeProgress = totalPlannedMs > 0 ? (stage2DurationMs / totalPlannedMs) : 0;
+          // ======================================================================
+          // 📝 审稿编辑一审后静默跟进（严格 3 分钟冷场静默提示，全场严格仅 1 次）
+          // ======================================================================
+          const existReviewFollow = s2Chats.some(m => m && m.text?.includes('初审跟进提示'));
+          const lastReviewMsgObj = [...s2Chats].reverse().find(m => m && m.sender === 'reviewingEditor' && !m.text?.includes('初审跟进提示'));
+          const isFirstReviewIssued = !!lastReviewMsgObj || s2.reviewMilestone === 'first_review_done' || !!s2.firstReviewText;
+          const hasPassedToSubsequentStages = s2Chats.some(m => m && (
+            m.text?.includes('半程研讨号召') || 
+            m.text?.includes('半程会议号召') || 
+            m.text?.includes('半程自查') || 
+            m.text?.includes('半程修正清单')
+          )) || !!s2.meetingStep || !!s2.isDraftConfirmed;
 
-          // 1. 寻找审稿编辑二审清单或决议发言时间
-          const secondReviewMsg = [...s2Chats].reverse().find(m => m && m.sender === 'reviewingEditor' && (
-            m.text?.includes('二审修正清单') || 
-            m.text?.includes('二审修改落实决议') || 
-            m.text?.includes('二审修改要点提炼') || 
-            m.text?.includes('修改确认与写作冲刺')
-          ));
-          const secondReviewTime = parseMsgTime(secondReviewMsg) || s2.meetingCompletedTime || s2.meetingCalledTime || 0;
-          const hasPassedSecondReview = !!secondReviewMsg || s2.meetingStep === 'completed' || s2.reviewMilestone === 'second_review_done' || s2.reviewMilestone === 'action_plan_generated';
-          const postSecondReviewElapsedMs = secondReviewTime > 0 ? Math.max(0, now - secondReviewTime) : 0;
-          const minPostReviewModCooldownMs = isLargeTask ? 900000 : 600000; // 10 分钟（大任务 15 分钟）
+          if (!existReviewFollow && isFirstReviewIssued && !hasPassedToSubsequentStages) {
+            const reviewTime = parseMsgTime(lastReviewMsgObj) || this.stage2StartTime || (now - 60000);
+            const reviewElapsed = Math.max(0, now - reviewTime);
+            const studentMsgAfterReview = s2Chats.filter(m => m && m.sender && m.sender !== 'managingEditor' && m.sender !== 'reviewingEditor' && m.sender !== 'system' && parseMsgTime(m) > reviewTime);
+            const lastStudentMsgAfterReview = studentMsgAfterReview.length > 0 ? studentMsgAfterReview[studentMsgAfterReview.length - 1] : null;
+            const lastStudentMsgAfterReviewTime = parseMsgTime(lastStudentMsgAfterReview);
+            const silenceAfterReview = lastStudentMsgAfterReviewTime ? Math.max(0, now - lastStudentMsgAfterReviewTime) : reviewElapsed;
 
-          // 2. 判定三审触发条件：
-          // ① 组内成员完成【✍️ 确认初稿】；
-          // ② 半程会议总结后 10 分钟 且 字数达 85% 或 时间达 85%；
-          // ③ 字数达 85% 或 时间达 85% 且已通过二审。
-          const isDraftConfirmed = !!s2.isDraftConfirmed || (s2.confirmedMembers && Object.keys(s2.confirmedMembers).length > 0);
-          const is90WordReached = (wordProgress >= 0.90 || plainTextLen >= (targetWordCount * 0.90));
-          const is85TimeReached = (timeProgress >= 0.85);
-
-          // 🛡️ 三审触发铁律：
-          // 1. 组员主动点击初稿确认（已在弹窗确认）；
-          // 2. 二审已结束 + 至少修改了 10 分钟 + 字数达到 90%；
-          // 3. 二审已结束 + 时间已达到 85%（时间快截止，即使未满 10 分钟也必须保底出三审）。
-          const isTenMinAfterMeetingAndWord90 = hasPassedSecondReview && postSecondReviewElapsedMs >= minPostReviewModCooldownMs && is90WordReached;
-          const isTime85AndSecondReviewDone = hasPassedSecondReview && is85TimeReached;
-          const isFinalReviewDue = isDraftConfirmed || isTenMinAfterMeetingAndWord90 || isTime85AndSecondReviewDone;
-
-          const hasFinalReviewInLogs = s2Chats.some(m => m && m.sender === 'reviewingEditor' && (m.text?.includes('终稿行文扫描') || m.text?.includes('终审定稿总评') || m.text?.includes('审稿编辑·终审')));
-
-          // 1. 责任编辑【85% 时间写作倒计时提醒】（先出场提醒全组时间过半进入最后 15% 冲刺）
-          const hasCountdownInLogs = s2Chats.some(m => m && m.sender === 'managingEditor' && (m.text?.includes('写作阶段倒计时提醒') || m.text?.includes('冲刺倒计时')));
-          if (timeProgress >= 0.85 && !hasCountdownInLogs && !s2.countdown85Sent) {
-            s2.countdown85Sent = true;
-            const remainingStage2Min = Math.max(1, Math.ceil((totalPlannedMs - stage2DurationMs) / 60000));
-            const taskType = this.getCurrentTaskType();
-            const isInst = (taskType === 'instructional');
-            const managingName = isInst ? '备课组长' : '责任编辑';
-            const countdownMsg = {
-              sender: 'managingEditor',
-              senderName: managingName,
-              text: `🤝 【${managingName}·冲刺倒计时】：阶段二正文起草已进入最后 15% 倒计时（剩余约 ${remainingStage2Min} 分钟）！请小组成员抓紧收尾当前段落，全篇交叉通读、优化前后衔接，准备迎接答辩评审！`,
-              timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-              _timeMs: now
-            };
-            if (!this.state.chatLogs.stage2) this.state.chatLogs.stage2 = [];
-            this.state.chatLogs.stage2.push(countdownMsg);
-            this.syncChatLogs();
-            this.syncStage2();
-            if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
-            renderChat(this.state);
+            // ── 一审后冷场满 3 分钟：初审跟进提示（全场严格仅 1 次） ──
+            if (silenceAfterReview >= 180000) {
+              this._nudgeCounts['s2_first_review_silence'] = 1;
+              const followMsg = {
+                sender: 'reviewingEditor',
+                senderName: '学术质量 · 审稿编辑',
+                text: `📝 【审稿编辑·初审跟进提示】：初审破题把脉意见已送达！大家若对概念界定、研究问题聚焦或后续章节衔接有疑问，随时在讨论区交流或 @审稿编辑 咨询，全组继续稳步协同推进！`,
+                timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                _timeMs: now
+              };
+              if (!this.state.chatLogs.stage2) this.state.chatLogs.stage2 = [];
+              this.state.chatLogs.stage2.push(followMsg);
+              this.syncChatLogs();
+              if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+              renderChat(this.state);
+              return;
+            }
           }
-
-          // 2. 审稿编辑【第三次质检·终审定稿扫描】（紧随其后或初稿确认/字数达标时出场，全场严格仅 1 次）
-          if (!hasFinalReviewInLogs && isFinalReviewDue && !this._isTriggeringFinalReview) {
-            setTimeout(() => {
-              if (!this._isTriggeringFinalReview) {
-                this.triggerStage2FinalReview();
-              }
-            }, 600);
           }
 
 
