@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260903_v1905
+ * Version: 20260903_v1910
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260903_v1905';
+  const APP_VERSION = '20260903_v1910';
   const APP_BUILD_DATE = '2026-09-03';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -13213,6 +13213,39 @@
         }
 
         const membersList = Object.values(this.state.members || {});
+        const curStage = this.state.currentStage || 'stage1';
+        const curClassId = (this.state.activeStudentClassId || (currentUser?.classId || null));
+        const curTaskId = this.state.activeTaskId || null;
+        const availablePapers = (this.authManager) ? this.authManager.getReferencePapers(currentGroupId, curClassId, curTaskId) : [];
+        const hasPapers = (availablePapers && availablePapers.length > 0);
+
+        let stageAgentPills = '';
+        let stageAgentMentions = '';
+
+        if (curStage === 'stage1') {
+          stageAgentPills = `<span class="agent-pill" style="font-size:11px; padding:2px 8px; border-radius:12px; font-weight:700; white-space:nowrap; background:#f5f3ff; color:#7c3aed; border:1px solid #ddd6fe;">🎪 拍卖师 Agent</span>`;
+          stageAgentMentions = `<div class="at-item agent" data-mention="@拍卖师">🎪 @拍卖师 (阶段一 选题指导)</div>`;
+        } else if (curStage === 'stage2') {
+          stageAgentPills = `
+            <span class="agent-pill" style="font-size:11px; padding:2px 8px; border-radius:12px; font-weight:700; white-space:nowrap; background:#ecfdf5; color:#059669; border:1px solid #a7f3d0;">🤝 责任编辑 Agent</span>
+            ${hasPapers ? `<span class="agent-pill" style="font-size:11px; padding:2px 8px; border-radius:12px; font-weight:700; white-space:nowrap; background:#eff6ff; color:#2563eb; border:1px solid #bfdbfe;">📝 审稿编辑 Agent</span>` : ''}
+          `;
+          stageAgentMentions = `
+            <div class="at-item agent" data-mention="@责任编辑">🤝 @责任编辑 (阶段二 分工协同)</div>
+            ${hasPapers ? `<div class="at-item agent" data-mention="@审稿编辑">📝 @审稿编辑 (阶段二 论文质检)</div>` : ''}
+          `;
+        } else if (curStage === 'stage3') {
+          stageAgentPills = `
+            <span class="agent-pill" style="font-size:11px; padding:2px 8px; border-radius:12px; font-weight:700; white-space:nowrap; background:#fefce8; color:#ca8a04; border:1px solid #fef08a;">🟡 中间委员 Agent</span>
+            <span class="agent-pill" style="font-size:11px; padding:2px 8px; border-radius:12px; font-weight:700; white-space:nowrap; background:#f0fdf4; color:#16a34a; border:1px solid #bbf7d0;">🟢 正方委员 Agent</span>
+            <span class="agent-pill" style="font-size:11px; padding:2px 8px; border-radius:12px; font-weight:700; white-space:nowrap; background:#fef2f2; color:#dc2626; border:1px solid #fecaca;">🔴 反方委员 Agent</span>
+          `;
+          stageAgentMentions = `
+            <div class="at-item agent" data-mention="@中间委员">🟡 @中间委员 (阶段三 答辩裁决)</div>
+            <div class="at-item agent" data-mention="@正方委员">🟢 @正方委员 (阶段三 答辩肯定)</div>
+            <div class="at-item agent" data-mention="@反方委员">🔴 @反方委员 (阶段三 答辩质询)</div>
+          `;
+        }
 
         document.body.className = 'app-student-workspace-mode';
         appEl.className = 'app-student-mode';
@@ -13225,9 +13258,7 @@
                 <div style="display:flex; justify-content:space-between; align-items:center; width:100%; flex-wrap:wrap; gap:6px;">
                   <div class="chat-title" style="font-size:14px; font-weight:800; color:#0f172a; display:flex; align-items:center; gap:6px;"><span>💬 协同对话研讨</span></div>
                   <div class="active-agent-pills" style="display:flex; gap:6px; align-items:center;">
-                    <span class="agent-pill" style="font-size:11px; padding:2px 8px; border-radius:12px; font-weight:700; white-space:nowrap;">🎪 拍卖师</span>
-                    <span class="agent-pill" style="font-size:11px; padding:2px 8px; border-radius:12px; font-weight:700; white-space:nowrap;">🤝 责任编辑</span>
-                    <span class="agent-pill" style="font-size:11px; padding:2px 8px; border-radius:12px; font-weight:700; white-space:nowrap;">📝 审稿编辑</span>
+                    ${stageAgentPills}
                   </div>
                 </div>
                 <div class="chat-presence-bar" id="chat-presence-bar" style="padding:4px 8px; background:#f8fafc; border-radius:6px; border:1px solid #e2e8f0; display:flex; align-items:center; gap:6px; width:100%; box-sizing:border-box; overflow-x:auto; white-space:nowrap;">
@@ -13237,7 +13268,7 @@
               </div>
               <div class="chat-stream" id="chat-stream"></div>
               <div class="at-mention-menu" id="at-mention-menu" style="display:none;">
-                <div class="at-menu-header">👥 提示：选择需要 @ 的同学或 AI 智能体</div>
+                <div class="at-menu-header">👥 提示：选择需要 @ 的同学或当前阶段 AI 智能体</div>
                 <div class="at-menu-list">
                   <div class="at-group-title">👥 小组成员 (${membersList.length}人)</div>
                   ${membersList.map(m => `
@@ -13245,13 +13276,8 @@
                       ${m.avatar || '👨‍🎓'} @${m.name} (${m.roleTitle || '组员'})
                     </div>
                   `).join('')}
-                  <div class="at-group-title" style="margin-top:6px;">🤖 AI 学术智能体</div>
-                  <div class="at-item agent" data-mention="@拍卖师">🎪 @拍卖师 (阶段一 选题指导)</div>
-                  <div class="at-item agent" data-mention="@责任编辑">🤝 @责任编辑 (阶段二 分工协同)</div>
-                  <div class="at-item agent" data-mention="@审稿编辑">📝 @审稿编辑 (阶段二 论文规范)</div>
-                  <div class="at-item agent" data-mention="@中间委员">🟡 @中间委员 (阶段三 答辩裁决)</div>
-                  <div class="at-item agent" data-mention="@正方委员">🟢 @正方委员 (阶段三 答辩肯定)</div>
-                  <div class="at-item agent" data-mention="@反方委员">🔴 @反方委员 (阶段三 答辩质询)</div>
+                  <div class="at-group-title" style="margin-top:6px;">🤖 当前阶段 AI 智能体</div>
+                  ${stageAgentMentions}
                 </div>
               </div>
               <div id="chat-agent-action-bar" style="display:none; padding:8px 12px; background:#f8fafc; border-top:1px solid #e2e8f0; border-bottom:1px solid #e2e8f0; text-align:center; box-sizing:border-box;"></div>
@@ -16820,32 +16846,24 @@
 
       // 🤝 阶段二：必须小组真实已推进至阶段二（groupMaxStage 为 stage2/3 或公约已确认）时才触发
       else if (stage === 'stage2' && (this.state.groupMaxStage === 'stage2' || this.state.groupMaxStage === 'stage3' || this.state.stage1?.contract?.isConfirmed)) {
-        const hasManagingIntro = logs.some(m => m && m.sender === 'managingEditor' && (m.text?.includes('欢迎来到【阶段二：学术编辑部】') || m.text?.includes('责任编辑开场')));
+        const hasManagingIntro = logs.some(m => m && m.sender === 'managingEditor' && (m.text?.includes('欢迎来到【阶段二：学术编辑部】') || m.text?.includes('责任编辑开场') || m.text?.includes('责任编辑·开场')));
+        const hasReviewingIntro = logs.some(m => m && m.sender === 'reviewingEditor' && (m.text?.includes('审稿编辑·开场') || m.text?.includes('审稿编辑开场')));
+
+        const curClassId = this.state.activeClassId || this.state.activeStudentClassId || null;
+        const availablePapers = (this.authManager) ? this.authManager.getReferencePapers(groupId, curClassId, taskId) : [];
+        const hasPapers = (availablePapers && availablePapers.length > 0);
+
         if (!hasManagingIntro) {
           sessionStorage.setItem(welcomeFlagKey, '1');
           const s1 = this.state.stage1 || {};
           const topic = s1.mergedTitle || '未定课题';
-          const tasks = s1.contract && s1.contract.taskAssignments ? s1.contract.taskAssignments : {};
-          const times = s1.contract && s1.contract.timeAllocations ? s1.contract.timeAllocations : {};
-
-          let assignSummary = [];
-          let memberArr = Array.isArray(this.state.members) ? this.state.members : Object.values(this.state.members || {});
-          memberArr.forEach(m => {
-            if (!m) return;
-            const t = tasks[m.id] || tasks[m.id] || tasks[m.name] || '待认领';
-            assignSummary.push(`${m.name}: ${t}`);
-          });
-
-          let timeSummary = [];
-          if (times.background) timeSummary.push(`背景 ${times.background}m`);
-          if (times.questions) timeSummary.push(`问题 ${times.questions}m`);
-          if (times.literature) timeSummary.push(`文献 ${times.literature}m`);
-          if (times.method) timeSummary.push(`方法 ${times.method}m`);
-          if (times.reflection) timeSummary.push(`反思 ${times.reflection}m`);
-          if (times.references) timeSummary.push(`文献表 ${times.references}m`);
 
           const managingWelcome = {
             id: `msg_welcome_${taskId}_${groupId}_stage2_managing`,
+            classId: effectiveClassId,
+            groupId: groupId,
+            taskId: taskId,
+            stage: 'stage2',
             sender: 'managingEditor',
             senderName: '责任编辑 · 过程学伴',
             text: `🤝 【责任编辑·开场欢迎】：各位研究者，欢迎来到【阶段二：学术编辑部】！全组已锁定研究主题《${topic}》。请大家根据公约设想展开协同起草，主动研读同伴起草的段落，共同打通前后逻辑！请进入左侧富文本编辑器开启深度协作！`,
@@ -16856,14 +16874,15 @@
           this.sendSingleChatMessage(managingWelcome, 'stage2');
           if (typeof window.renderChat === 'function') window.renderChat(this.state);
 
-          const curClassId = this.state.activeClassId || this.state.activeStudentClassId || null;
-          const availablePapers = (this.authManager) ? this.authManager.getReferencePapers(groupId, curClassId, taskId) : [];
-
-          // 🛡️ 规则：仅当任课教师在当前任务中下发了参考范文/文献时，审稿编辑才触发开场寄语
-          if (availablePapers && availablePapers.length > 0) {
+          // 🛡️ 审稿编辑规则：必须在【责任编辑之后】发言，且【仅当当前任务下发了范文/文献】时才说开场白
+          if (hasPapers && !hasReviewingIntro) {
             setTimeout(() => {
               const reviewingWelcome = {
                 id: `msg_welcome_${taskId}_${groupId}_stage2_reviewing`,
+                classId: effectiveClassId,
+                groupId: groupId,
+                taskId: taskId,
+                stage: 'stage2',
                 sender: 'reviewingEditor',
                 senderName: '审稿编辑 · 质量把关',
                 text: `📝 【审稿编辑·开场寄语】：大家好！我是本阶段的审稿编辑。在大家的写作过程中，我将分别在开篇破题、半程研讨与终审定稿三个关键节点为大家提供质检把脉与修改清单，护航全篇学术质量！👉 写作遇到瓶颈时，建议大家参考顶部【学术范文】与参考文献支架，学习规范的学术行文与章节论述架构！`,
@@ -16873,8 +16892,27 @@
               logs.push(reviewingWelcome);
               this.sendSingleChatMessage(reviewingWelcome, 'stage2');
               if (typeof window.renderChat === 'function') window.renderChat(this.state);
-            }, 1800);
+            }, 2000);
           }
+        } else if (hasManagingIntro && hasPapers && !hasReviewingIntro) {
+          // 责任编辑已开场，但有文献且审稿编辑尚未开场时，紧随责任编辑之后发言
+          setTimeout(() => {
+            const reviewingWelcome = {
+              id: `msg_welcome_${taskId}_${groupId}_stage2_reviewing`,
+              classId: effectiveClassId,
+              groupId: groupId,
+              taskId: taskId,
+              stage: 'stage2',
+              sender: 'reviewingEditor',
+              senderName: '审稿编辑 · 质量把关',
+              text: `📝 【审稿编辑·开场寄语】：大家好！我是本阶段的审稿编辑。在大家的写作过程中，我将分别在开篇破题、半程研讨与终审定稿三个关键节点为大家提供质检把脉与修改清单，护航全篇学术质量！👉 写作遇到瓶颈时，建议大家参考顶部【学术范文】与参考文献支架，学习规范的学术行文与章节论述架构！`,
+              timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+              _timeMs: Date.now()
+            };
+            logs.push(reviewingWelcome);
+            this.sendSingleChatMessage(reviewingWelcome, 'stage2');
+            if (typeof window.renderChat === 'function') window.renderChat(this.state);
+          }, 1200);
         }
       }
 
