@@ -765,70 +765,23 @@ export function isScopeMatch(target = {}, context = {}) {
 }
 
 /**
- * 🛡️ 全局弹窗滚动穿透与背景链式联动防御（双保险：拦截所有浏览器与移动端的 wheel/touchmove 冒泡）
+ * 🌐 标准模态弹窗页面滚动锁定管理器 (Standard Modal Scroll Manager)
+ * 采用现代主流 UI 库 (Element Plus / Ant Design / Bootstrap) 标准范式
  */
-if (typeof document !== 'undefined') {
-  document.addEventListener('wheel', (e) => {
-    const overlay = e.target.closest('.modal-overlay, .table-config-modal-overlay');
-    if (!overlay) return;
-
-    // 检查滚动的具体目标元素
-    const scrollableChild = e.target.closest('.teacher-modal-body, .modal-body, .modal-content, [style*="overflow-y:auto"], [style*="overflow-y: auto"], [style*="overflow-y:scroll"]');
-    if (!scrollableChild || scrollableChild === overlay) {
-      e.preventDefault();
-      return;
+if (typeof document !== 'undefined' && typeof MutationObserver !== 'undefined') {
+  const observer = new MutationObserver(() => {
+    const hasModal = !!document.querySelector('.modal-overlay, .table-config-modal-overlay');
+    if (document.body) {
+      document.body.classList.toggle('modal-open', hasModal);
+      document.body.style.overflow = hasModal ? 'hidden' : '';
     }
-
-    const { scrollTop, scrollHeight, clientHeight } = scrollableChild;
-    const isScrollable = scrollHeight > clientHeight;
-    if (!isScrollable) {
-      e.preventDefault();
-      return;
+    if (document.documentElement) {
+      document.documentElement.classList.toggle('modal-open', hasModal);
+      document.documentElement.style.overflow = hasModal ? 'hidden' : '';
     }
-
-    const atTop = scrollTop <= 0 && e.deltaY < 0;
-    const atBottom = scrollTop + clientHeight >= scrollHeight - 1 && e.deltaY > 0;
-    if (atTop || atBottom) {
-      e.preventDefault();
-    }
-  }, { passive: false });
-
-  document.addEventListener('touchmove', (e) => {
-    const overlay = e.target.closest('.modal-overlay, .table-config-modal-overlay');
-    if (!overlay) return;
-
-    const scrollableChild = e.target.closest('.teacher-modal-body, .modal-body, .modal-content, [style*="overflow-y:auto"], [style*="overflow-y: auto"]');
-    if (!scrollableChild || scrollableChild === overlay) {
-      e.preventDefault();
-    }
-  }, { passive: false });
-
-  // 🛡️ 观察 DOM 弹窗生命周期，自动为 body, html, portalEl 强制注销/恢复滚动能力
-  if (typeof MutationObserver !== 'undefined') {
-    const observer = new MutationObserver(() => {
-      const hasModal = !!document.querySelector('.modal-overlay, .table-config-modal-overlay');
-      if (document.body) {
-        document.body.classList.toggle('modal-open', hasModal);
-        document.body.style.overflow = hasModal ? 'hidden' : '';
-      }
-      if (document.documentElement) {
-        document.documentElement.classList.toggle('modal-open', hasModal);
-        document.documentElement.style.overflow = hasModal ? 'hidden' : '';
-      }
-      const portalEl = document.getElementById('teacher-portal-layout') || document.querySelector('.teacher-portal-layout');
-      if (portalEl) {
-        portalEl.style.overflow = hasModal ? 'hidden' : '';
-        portalEl.style.overflowY = hasModal ? 'hidden' : '';
-      }
-      const appEl = document.getElementById('app');
-      if (appEl) {
-        appEl.style.overflow = hasModal ? 'hidden' : '';
-        appEl.style.overflowY = hasModal ? 'hidden' : '';
-      }
-    });
-    const targetNode = document.body || document.documentElement;
-    if (targetNode) {
-      observer.observe(targetNode, { childList: true, subtree: true });
-    }
+  });
+  const targetNode = document.body || document.documentElement;
+  if (targetNode) {
+    observer.observe(targetNode, { childList: true, subtree: true });
   }
 }
