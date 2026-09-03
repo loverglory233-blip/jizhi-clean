@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260903_v1935
+ * Version: 20260903_v1940
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260903_v1935';
+  const APP_VERSION = '20260903_v1940';
   const APP_BUILD_DATE = '2026-09-03';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -13566,17 +13566,12 @@
           const isLargeTask = taskDurMin > 150;
           const silenceThresholdMs = 180000; // 统一 3 分钟破冰
 
-          // 1. 【研讨互动提示】：全组长时间静默无人发言（不干活）时，温和点拨破冰（同一次连续冷场最多提醒 2 次，学生说话自动重置）！
+          // 1. 【研讨互动提示】：全组长时间静默无人发言（不干活）时，温和点拨破冰（严格最多 1 次）！
           if (submittedCount < totalMembersCount && silenceDurationMs >= silenceThresholdMs) {
-            if (lastStudentMsgTime > (this._lastNudgeActivityTime?.['s1_discussion'] || 0)) {
-              this._nudgeCounts['s1_discussion'] = 0;
-            }
             const count = this._nudgeCounts['s1_discussion'] || 0;
-            if (count < 2 && (!this.lastDiscussionNudgeTime || now - this.lastDiscussionNudgeTime > (silenceThresholdMs + 60000))) {
+            if (count < 1) {
               this.lastDiscussionNudgeTime = now;
-              this._nudgeCounts['s1_discussion'] = count + 1;
-              if (!this._lastNudgeActivityTime) this._lastNudgeActivityTime = {};
-              this._lastNudgeActivityTime['s1_discussion'] = lastStudentMsgTime;
+              this._nudgeCounts['s1_discussion'] = 1;
               const msg = {
                 sender: 'auctioneer',
                 text: `💡 【拍卖师·研讨互动提示】：关注到大家正在构思选题！可以在讨论区交流灵感与研究想法，构思成熟后点击左侧【提交我的选题】卡片进行提交～`,
@@ -13592,12 +13587,12 @@
             }
           }
 
-          // 2. 【选题提交引导】：开场 > 6 分钟仍 0 人提交提案（全员不干活），引导尽快动笔（最多连续 2 次，与研讨互动提示保持至少 3 分钟间隔）
+          // 2. 【选题提交引导】：开场 > 6 分钟仍 0 人提交提案（全员不干活），引导尽快动笔（严格最多 1 次）
           if (submittedCount === 0 && stage1DurationMs > 360000 && (!this.lastDiscussionNudgeTime || now - this.lastDiscussionNudgeTime > 180000)) {
             const count = this._nudgeCounts['s1_zero_prop'] || 0;
-            if (count < 2 && (!this.lastZeroProposalNudgeTime || now - this.lastZeroProposalNudgeTime > 300000)) {
+            if (count < 1) {
               this.lastZeroProposalNudgeTime = now;
-              this._nudgeCounts['s1_zero_prop'] = count + 1;
+              this._nudgeCounts['s1_zero_prop'] = 1;
               const msg = {
                 sender: 'auctioneer',
                 text: `⏳ 【拍卖师·选题提交引导】：研讨已经展开一段时间啦！\n👉 请各位组员将脑海中构思成熟的研究题目，点击左侧【提交我的选题】卡片正式提交到提案池，开启学术竞拍！`,
@@ -13613,15 +13608,15 @@
             }
           }
 
-          // 3. 【个别落后跟进】：有人已提交，但超过 3.5 分钟仍有个别人未交，跟进提醒未交同学（最多连续 2 次）
+          // 3. 【个别落后跟进】：有人已提交，但超过 3.5 分钟仍有个别人未交，跟进提醒未交同学（严格最多 1 次）
           if (submittedCount > 0 && submittedCount < totalMembersCount) {
             const lastProposal = proposals[proposals.length - 1];
             const lastProposalTime = lastProposal ? (lastProposal.updatedAt || this.stage1StartTime) : this.stage1StartTime;
             if (now - lastProposalTime > 210000) {
               const count = this._nudgeCounts['s1_partial_prop'] || 0;
-              if (count < 2 && (!this.lastPartialProposalNudgeTime || now - this.lastPartialProposalNudgeTime > 240000)) {
+              if (count < 1) {
                 this.lastPartialProposalNudgeTime = now;
-                this._nudgeCounts['s1_partial_prop'] = count + 1;
+                this._nudgeCounts['s1_partial_prop'] = 1;
                 const unsubmitted = membersList.filter(m => !submittedAuthors.has(m.id) && !submittedAuthors.has(m.id));
                 if (unsubmitted.length > 0) {
                   const names = unsubmitted.map(m => m.name).join('、');
@@ -13642,16 +13637,16 @@
             }
           }
 
-          // 4. 【提案集齐但投票守护】：全员交齐后迟迟不投票，独立计算投票冷场并引导（绝不被前一阶段阻碍，最多连续 2 次）
+          // 4. 【提案集齐但投票守护】：全员交齐后迟迟不投票，独立计算投票冷场并引导（严格最多 1 次）
           if (submittedCount >= totalMembersCount && votesCastCount < totalMembersCount) {
             const lastVoteTime = s1._lastVoteTime || this.stage1StartTime;
             const voteSilenceMs = now - lastVoteTime;
             const shouldVoteNudge = (votesCastCount === 0 && voteSilenceMs > 180000) || (votesCastCount > 0 && voteSilenceMs > 120000);
             if (shouldVoteNudge) {
               const count = this._nudgeCounts['s1_vote'] || 0;
-              if (count < 2 && (!this.lastVoteNudgeTime || now - this.lastVoteNudgeTime > 240000)) {
+              if (count < 1) {
                 this.lastVoteNudgeTime = now;
-                this._nudgeCounts['s1_vote'] = count + 1;
+                this._nudgeCounts['s1_vote'] = 1;
                 const unvoted = membersList.filter(m => !s1.hasVoted || (!s1.hasVoted[m.id] && !s1.hasVoted[m.id]));
                 const names = unvoted.map(m => m.name).join('、');
                 const text = (votesCastCount === 0)
@@ -13842,12 +13837,12 @@
             return 0;
           }
 
-          // 1. 阶段二开场起草提示：开场达到 3 分钟完全静默且正文字数 < 50 字（最多2次）
+          // 1. 阶段二开场起草提示：开场达到 3 分钟完全静默且正文字数 < 50 字（严格最多 1 次）
           if (silenceDurationMs >= s2SilenceThresholdMs && plainTextLen < 50) {
             const count = this._nudgeCounts['s2_silence'] || 0;
-            if (count < 2 && (!this.lastS2SilenceNudgeTime || now - this.lastS2SilenceNudgeTime > (s2SilenceThresholdMs + 60000))) {
+            if (count < 1) {
               this.lastS2SilenceNudgeTime = now;
-              this._nudgeCounts['s2_silence'] = count + 1;
+              this._nudgeCounts['s2_silence'] = 1;
               const msg = {
                 sender: 'managingEditor',
                 text: `🤝 【责任编辑·起草提示】：大家已进入阶段二正文协作！\n👉 请大家在左侧协同文档中积极起草与研读，撰写同时多阅读同伴段落，在研讨区互相交流衔接，群策群力协同推进！`,
