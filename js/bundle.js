@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260903_v1815
+ * Version: 20260903_v1820
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260903_v1815';
+  const APP_VERSION = '20260903_v1820';
   const APP_BUILD_DATE = '2026-09-03';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -962,15 +962,37 @@
   }
 
   /**
-   * 🌐 业界黄金标准：全局弹窗物理事件捕获隔离与防穿透引擎 (Universal Wheel & Touch Barrier)
-   * 彻底消除 position:fixed 引起的背景跳转、滑到底部与回弹问题，实现 0 穿透、0 晃动、0 错位
+   * 🌐 业界黄金标准：全局弹窗物理事件捕获隔离与零位移锁屏引擎 (Universal Zero-Drift Modal Barrier)
+   * 采用 360 度物理事件拦截（Wheel + Touch + Keydown + Scroll 绝对锚定），
+   * 彻底消除弹窗打开时背景滑到底部、错位与回弹问题，实现 0 穿透、0 移动、0 晃动
    */
   let _isBodyLocked = false;
   let _modalBarrierInitialized = false;
+  const _lockedScrollPositions = new Map();
 
   function lockBodyScroll() {
     if (_isBodyLocked) return;
     _isBodyLocked = true;
+    _lockedScrollPositions.clear();
+
+    const scrollElements = [
+      window,
+      document.documentElement,
+      document.body,
+      document.getElementById('app'),
+      document.querySelector('.teacher-portal-layout'),
+      document.querySelector('#teacher-portal-layout'),
+      document.querySelector('.student-task-portal'),
+      document.querySelector('.workspace-layout'),
+      document.querySelector('.teacher-content'),
+      document.querySelector('.content-panel')
+    ].filter(Boolean);
+
+    scrollElements.forEach(el => {
+      const top = (el === window) ? (window.scrollY || window.pageYOffset || 0) : el.scrollTop;
+      _lockedScrollPositions.set(el, top);
+    });
+
     if (document.body) document.body.classList.add('modal-open');
     if (document.documentElement) document.documentElement.classList.add('modal-open');
   }
@@ -978,6 +1000,7 @@
   function unlockBodyScroll() {
     if (!_isBodyLocked) return;
     _isBodyLocked = false;
+    _lockedScrollPositions.clear();
     if (document.body) document.body.classList.remove('modal-open');
     if (document.documentElement) document.documentElement.classList.remove('modal-open');
   }
@@ -986,19 +1009,18 @@
     if (typeof window === 'undefined' || _modalBarrierInitialized) return;
     _modalBarrierInitialized = true;
 
-    const getActiveModal = () => document.querySelector('.modal-overlay, .modal-mask, .table-config-modal-overlay, #modal-change-password, #modal-task-extended-unlock');
+    const getActiveModal = () => document.querySelector('.modal-overlay, .modal-mask, .table-config-modal-overlay, #modal-change-password, #modal-task-extended-unlock, .modal-task-deleted-overlay, .modal-announcement-popup, [id*="modal-"]');
 
+    // 1. 滚轮物理拦截
     const handleWheel = (e) => {
       const modal = getActiveModal();
       if (!modal) return;
 
-      // 1. 若滚轮事件发生在弹窗之外（背景遮罩外），直接阻断
       if (!modal.contains(e.target)) {
         e.preventDefault();
         return;
       }
 
-      // 2. 向上寻找最近的可滚动内部容器
       let el = e.target;
       let scrollable = null;
       while (el && el !== modal && el !== document.body && el !== document.documentElement) {
@@ -1011,13 +1033,11 @@
         el = el.parentElement;
       }
 
-      // 3. 若滚轮发生在弹窗背景遮罩或不可滚动的卡片区域，直接阻断
       if (!scrollable) {
         e.preventDefault();
         return;
       }
 
-      // 4. 边界检测：滑到最顶部往上滚，或滑到最底部往下滚时，阻断向背景穿透
       const { scrollTop, scrollHeight, clientHeight } = scrollable;
       const isScrollingUp = e.deltaY < 0;
       const isScrollingDown = e.deltaY > 0;
@@ -1029,6 +1049,7 @@
       }
     };
 
+    // 2. 触摸物理拦截
     const handleTouch = (e) => {
       const modal = getActiveModal();
       if (!modal) return;
@@ -1037,8 +1058,53 @@
       }
     };
 
+    // 3. 键盘按键（空格、PageDown、方向键）滚动拦截
+    const handleKeydown = (e) => {
+      const modal = getActiveModal();
+      if (!modal) return;
+      const isKeyNav = ['ArrowDown', 'ArrowUp', 'PageDown', 'PageUp', 'Space', 'Home', 'End'].includes(e.code || e.key);
+      if (isKeyNav) {
+        const tag = (e.target && e.target.tagName) ? e.target.tagName.toLowerCase() : '';
+        if (tag !== 'input' && tag !== 'textarea') {
+          let el = e.target;
+          let scrollable = null;
+          while (el && el !== modal && el !== document.body && el !== document.documentElement) {
+            const style = window.getComputedStyle(el);
+            if ((style.overflowY === 'auto' || style.overflowY === 'scroll') && el.scrollHeight > el.clientHeight) {
+              scrollable = el;
+              break;
+            }
+            el = el.parentElement;
+          }
+          if (!scrollable) {
+            e.preventDefault();
+          }
+        }
+      }
+    };
+
+    // 4. 背景滚动强力绝对锚定复位（即使浏览器尝试自动滚动也瞬间锁回原像素）
+    const handleScroll = (e) => {
+      if (!_isBodyLocked) return;
+      const target = e.target;
+      const modal = getActiveModal();
+      if (modal && modal.contains(target)) return;
+
+      if (_lockedScrollPositions.has(target)) {
+        const lockedTop = _lockedScrollPositions.get(target);
+        if (target === window || target === document || target === document.documentElement || target === document.body) {
+          const winTop = _lockedScrollPositions.get(window) || 0;
+          window.scrollTo(0, winTop);
+        } else if (target.scrollTop !== lockedTop) {
+          target.scrollTop = lockedTop;
+        }
+      }
+    };
+
     window.addEventListener('wheel', handleWheel, { passive: false, capture: true });
     window.addEventListener('touchmove', handleTouch, { passive: false, capture: true });
+    window.addEventListener('keydown', handleKeydown, { passive: false, capture: true });
+    window.addEventListener('scroll', handleScroll, { passive: true, capture: true });
   }
 
   if (typeof document !== 'undefined') {
@@ -1046,7 +1112,7 @@
 
     if (typeof MutationObserver !== 'undefined') {
       const observer = new MutationObserver(() => {
-        const hasModal = !!document.querySelector('.modal-overlay, .modal-mask, .table-config-modal-overlay, #modal-change-password, #modal-task-extended-unlock');
+        const hasModal = !!document.querySelector('.modal-overlay, .modal-mask, .table-config-modal-overlay, #modal-change-password, #modal-task-extended-unlock, .modal-task-deleted-overlay, .modal-announcement-popup, [id*="modal-"]');
         if (hasModal) {
           lockBodyScroll();
         } else {
