@@ -1084,6 +1084,10 @@ html, body {
 /* ==========================================================================
    7. MODALS (WHITE & SAPPHIRE THEME)
    ========================================================================== */
+body:has(.modal-overlay) {
+  overflow: hidden !important;
+}
+
 .modal-overlay {
   position: fixed;
   top: 0;
@@ -1099,11 +1103,23 @@ html, body {
   z-index: 99999;
   padding: 20px;
   animation: overlayFadeIn 0.15s ease-out;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
+  overflow-y: auto;
 }
 
 @keyframes overlayFadeIn {
   from { opacity: 0; }
   to { opacity: 1; }
+}
+
+.teacher-modal-card,
+.teacher-modal-body,
+.modal-content,
+.modal-body,
+.modal-announcement-card,
+.survey-modal-card {
+  overscroll-behavior: contain;
 }
 
 .teacher-modal-card {
