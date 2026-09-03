@@ -128,13 +128,13 @@ php -r "
 require_once '$ROOT_DIR/api/db_config.php';
 \$pdo = getDbConnection();
 if (\$pdo) {
-    \$stmt = \$pdo->query(\"SELECT id, username, student_code, name, password FROM users WHERE id='1001' OR username='1001' OR student_code='1001' LIMIT 1\");
+    \$stmt = \$pdo->query(\"SELECT id, name, password FROM users WHERE id='1001' LIMIT 1\");
     \$row = \$stmt->fetch(PDO::FETCH_ASSOC);
     if (\$row) {
-        echo '🔑 数据库记录: 工号 [' . \$row['student_code'] . '] | 姓名 [' . \$row['name'] . '] | 当前真实生效密码: [' . \$row['password'] . \"]\n\";
+        echo '🔑 数据库记录: 工号 [' . \$row['id'] . '] | 姓名 [' . \$row['name'] . '] | 当前真实生效密码: [' . \$row['password'] . \"]\n\";
     } else {
         echo '⚠️ 数据库中尚无 1001 记录，正在创建默认 123 账号...\n';
-        \$pdo->exec(\"INSERT INTO users (id, username, student_code, name, password, role) VALUES ('1001', '1001', '1001', '老师', '123', 'teacher')\");
+        \$pdo->exec(\"INSERT INTO users (id, name, password, role) VALUES ('1001', '老师', '123', 'teacher')\");
         echo '✅ 已创建初始账号 1001 (密码: 123)\n';
     }
 } else {

@@ -15,7 +15,7 @@ echo "========================================================\n";
 echo "📊 1. 正在审查 users 数据表中的所有用户记录与密码哈希：\n";
 echo "========================================================\n";
 
-$stmt = $pdo->query("SELECT id, username, student_code, name, role, password FROM users");
+$stmt = $pdo->query("SELECT id, name, role, password FROM users");
 $users = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 if (empty($users)) {
@@ -26,7 +26,7 @@ if (empty($users)) {
         $isHash = (strlen($p) >= 50 && substr($p, 0, 4) === '$2y$');
         $verify123 = password_verify('123', $p) ? '✅ 通过' : ($p === '123' ? '✅ 明文123' : '❌ 不匹配');
         
-        echo "[$idx] 工号/学号: {$u['student_code']} | 用户名: {$u['username']} | 姓名: {$u['name']} | 角色: {$u['role']}\n";
+        echo "[$idx] 账号/学号: {$u['id']} | 姓名: {$u['name']} | 角色: {$u['role']}\n";
         echo "    🔑 当前密码值: " . (strlen($p) > 20 ? substr($p, 0, 15) . '... (Bcrypt哈希)' : "'$p'") . "\n";
         echo "    🧪 用'123'校验结果: $verify123\n";
         echo "--------------------------------------------------------\n";
@@ -38,13 +38,10 @@ echo "🛠️ 2. 自动校准：将教师工号 1001 与初始用户密码全部
 echo "========================================================\n";
 
 // 确保 1001 记录存在且密码为明文 '123'
-$stmtFix = $pdo->prepare("INSERT INTO users (id, username, student_code, name, password, role) 
-    VALUES ('1001', '1001', '1001', '老师', '123', 'teacher') 
-    ON DUPLICATE KEY UPDATE password = '123', student_code = '1001', username = '1001', name = '老师', role = 'teacher'");
+$stmtFix = $pdo->prepare("INSERT INTO users (id, name, password, role) 
+    VALUES ('1001', '老师', '123', 'teacher') 
+    ON DUPLICATE KEY UPDATE password = '123', name = '老师', role = 'teacher'");
 $stmtFix->execute();
-
-// 清理历史旧别名，全库唯一
-$pdo->exec("DELETE FROM users WHERE id != '1001' AND (username = '1001' OR student_code = '1001')");
 
 // 将所有学生的密码也全部统一为明文
 $pdo->exec("UPDATE users SET password = '123' WHERE password LIKE '$2y$%' OR password = '' OR password IS NULL");

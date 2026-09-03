@@ -16,13 +16,13 @@ echo "🧹 1. 正在清空所有历史测试学生记录 (仅保留教师工号 
 echo "========================================================\n";
 
 // 1. 删除所有学生
-$pdo->exec("DELETE FROM users WHERE role != 'teacher' OR student_code != '1001'");
+$pdo->exec("DELETE FROM users WHERE role != 'teacher' OR id != '1001'");
 
 // 2. 确保唯一教师 1001 存在且密码为 123
 $hash123 = password_hash('123', PASSWORD_DEFAULT);
-$stmtT = $pdo->prepare("INSERT INTO users (id, username, student_code, name, password, role) 
-    VALUES ('1001', '1001', '1001', '老师', :p, 'teacher') 
-    ON DUPLICATE KEY UPDATE username='1001', student_code='1001', name='老师', password=:p2, role='teacher'");
+$stmtT = $pdo->prepare("INSERT INTO users (id, name, password, role) 
+    VALUES ('1001', '老师', :p, 'teacher') 
+    ON DUPLICATE KEY UPDATE name='老师', password=:p2, role='teacher'");
 $stmtT->execute([':p' => $hash123, ':p2' => $hash123]);
 
 // 3. 清理历史测试班级与分组
@@ -40,9 +40,8 @@ $freshMeta = [
     'users' => [
         [
             'id' => '1001',
-            'username' => '1001',
-            'studentCode' => '1001',
             'name' => '老师',
+            'password' => $hash123,
             'role' => 'teacher',
             'avatar' => '👩‍🏫'
         ]

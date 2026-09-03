@@ -19,14 +19,12 @@ function initDatabaseTables() {
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;";
         @$pdo->exec($sql1);
 
-        // 2. 用户账号与单点在线会话表
+        // 2. 用户账号与单点在线会话表（唯一标识严格锁定为 id / 学号，彻底移除冗余字段）
         $sql2 = "CREATE TABLE IF NOT EXISTS `users` (
             `id` VARCHAR(64) PRIMARY KEY,
-            `username` VARCHAR(64) UNIQUE NOT NULL,
             `name` VARCHAR(64) NOT NULL,
             `password` VARCHAR(255) NOT NULL,
             `role` VARCHAR(32) NOT NULL,
-            `student_code` VARCHAR(32) DEFAULT '' UNIQUE,
             `class_id` VARCHAR(64) DEFAULT '',
             `group_id` VARCHAR(64) DEFAULT '',
             `avatar` VARCHAR(16) DEFAULT '👤',
@@ -34,6 +32,12 @@ function initDatabaseTables() {
             `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;";
         @$pdo->exec($sql2);
+
+        // 🛡️ 自动执行数据库物理清理：若存在历史遗留的 student_code / username 列，自动物理剔除
+        try { @$pdo->exec("ALTER TABLE `users` DROP INDEX `student_code`"); } catch (\Throwable $e) {}
+        try { @$pdo->exec("ALTER TABLE `users` DROP INDEX `username`"); } catch (\Throwable $e) {}
+        try { @$pdo->exec("ALTER TABLE `users` DROP COLUMN `student_code`"); } catch (\Throwable $e) {}
+        try { @$pdo->exec("ALTER TABLE `users` DROP COLUMN `username`"); } catch (\Throwable $e) {}
 
         // 👩‍🏫 唯一教师种子账号
         try { ensureTeacherSeedAccount($pdo); } catch (\Throwable $e) {}
@@ -156,16 +160,13 @@ function initDatabaseTables() {
 function ensureTeacherSeedAccount($pdo) {
     if (!$pdo) return false;
     try {
-        // 清理可能存在的历史重复记录，保持全库唯一
-        $pdo->exec("DELETE FROM `users` WHERE `id` != '1001' AND (`username` = '1001' OR `student_code` = '1001')");
-        
         $stmtCheck = $pdo->prepare("SELECT `id`, `password` FROM `users` WHERE `id` = '1001' LIMIT 1");
         $stmtCheck->execute();
         $row = $stmtCheck->fetch(PDO::FETCH_ASSOC);
         if (!$row) {
             $seedHash = password_hash('123', PASSWORD_DEFAULT);
-            $stmt = $pdo->prepare("INSERT INTO `users` (`id`, `username`, `name`, `password`, `role`, `student_code`, `avatar`)
-                VALUES ('1001', '1001', '老师', :pwd, 'teacher', '1001', '👩‍🏫')");
+            $stmt = $pdo->prepare("INSERT INTO `users` (`id`, `name`, `password`, `role`, `avatar`)
+                VALUES ('1001', '老师', :pwd, 'teacher', '👩‍🏫')");
             $stmt->bindValue(':pwd', $seedHash);
             return $stmt->execute();
         }

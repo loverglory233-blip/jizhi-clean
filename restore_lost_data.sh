@@ -86,15 +86,13 @@ if (\$pdo) {
     }
 
     \$users = [];
-    \$stmtU = \$pdo->query('SELECT id, username, name, role, student_code, avatar, class_id, group_id FROM users');
+    \$stmtU = \$pdo->query('SELECT id, name, role, avatar, class_id, group_id FROM users');
     if (\$stmtU) {
         while (\$ur = \$stmtU->fetch(PDO::FETCH_ASSOC)) {
             \$users[] = [
                 'id' => \$ur['id'],
-                'username' => \$ur['username'],
                 'name' => \$ur['name'],
                 'role' => \$ur['role'],
-                'studentCode' => \$ur['student_code'] ?: \$ur['username'],
                 'avatar' => \$ur['avatar'] ?: '👤',
                 'classId' => \$ur['class_id'] ?? '',
                 'groupId' => \$ur['group_id'] ?? ''
