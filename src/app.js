@@ -13,14 +13,14 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260903_v1547";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260903_v1547";
-import { callCozeAgentAPI } from "./agents.js?v=20260903_v1547";
-import { AuthManager } from "./auth.js?v=20260903_v1547";
-import { CloudSyncEngine } from "./sync.js?v=20260903_v1547";
-import { renderLoginView } from "./login.js?v=20260903_v1547";
-import { renderTeacherPortal } from "./teacher.js?v=20260903_v1547";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260903_v1547";
+} from "./constants.js?v=20260903_v1548";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260903_v1548";
+import { callCozeAgentAPI } from "./agents.js?v=20260903_v1548";
+import { AuthManager } from "./auth.js?v=20260903_v1548";
+import { CloudSyncEngine } from "./sync.js?v=20260903_v1548";
+import { renderLoginView } from "./login.js?v=20260903_v1548";
+import { renderTeacherPortal } from "./teacher.js?v=20260903_v1548";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260903_v1548";
 import {
   buildWordEditorHtml,
   attachWordEditorEvents,
@@ -29,7 +29,7 @@ import {
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260903_v1547";
+} from "./editor.js?v=20260903_v1548";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -3820,7 +3820,7 @@ ${chatSnippet || '（小组成员已达成基本共识，准备进入正文写�
     const memberName = currMemObj ? currMemObj.name : user;
     const totalMembersCount = Math.max(memberArr.length, 2);
 
-    const userAlreadySigned = !!(s1.contract.confirmedMembers[user] || (currMemObj && (s1.contract.confirmedMembers[currMemObj.id] || s1.contract.confirmedMembers[currMemObj.id] || (currMemObj.name && s1.contract.confirmedMembers[currMemObj.name]))));
+    const userAlreadySigned = !!(s1.contract.confirmedMembers[user] || (currMemObj && (s1.contract.confirmedMembers[currMemObj.id] || (currMemObj.name && s1.contract.confirmedMembers[currMemObj.name]))));
 
     if (userAlreadySigned && s1.contract.isConfirmed) {
       this.switchStage('stage2');
@@ -3831,13 +3831,11 @@ ${chatSnippet || '（小组成员已达成基本共识，准备进入正文写�
       return;
     }
 
-    // 写入当前用户的签署记录（兼容写入多标识键）
+    // 写入当前用户的签署记录（以 id 与 name 记录）
     s1.contract.confirmedMembers[user] = true;
     if (currMemObj) {
       if (currMemObj.id) s1.contract.confirmedMembers[currMemObj.id] = true;
-      if (currMemObj.id) s1.contract.confirmedMembers[currMemObj.id] = true;
       if (currMemObj.name) s1.contract.confirmedMembers[currMemObj.name] = true;
-      
     }
 
     // 🌐 原子同步给后端数据库
@@ -3850,12 +3848,12 @@ ${chatSnippet || '（小组成员已达成基本共识，准备进入正文写�
         taskId: this.state.activeTaskId || null,
         groupId: curGid,
         field: 'sign_member',
-        subKey: currMemObj?.id || currMemObj?.id || user,
+        subKey: currMemObj?.id || user,
         value: true
       })
     }).catch(() => {});
 
-    const confirmedCount = memberArr.filter(m => m && (s1.contract.confirmedMembers[m.id] || s1.contract.confirmedMembers[m.id] || (m.name && s1.contract.confirmedMembers[m.name]))).length;
+    const confirmedCount = memberArr.filter(m => m && (s1.contract.confirmedMembers[m.id] || (m.name && s1.contract.confirmedMembers[m.name]))).length;
 
     if (confirmedCount >= totalMembersCount) {
       s1.contract.isConfirmed = true;
@@ -5203,7 +5201,7 @@ ${chatSnippet}
         const matchedMem = membersList.find(m => m && (m.id   === currUserCode || m.name === currUserCode));
         const currentUserName = matchedMem?.name || currentUserObj?.name || currUserCode || '组员';
         const confirmedMembers = s1.contract?.confirmedMembers || {};
-        const confirmedCount = membersList.filter(m => (confirmedMembers[m.id] || confirmedMembers[m.id]  || (m.name && confirmedMembers[m.name]))).length;
+        const confirmedCount = membersList.filter(m => (confirmedMembers[m.id] || (m.name && confirmedMembers[m.name]))).length;
         const userHasConfirmed = !!(confirmedMembers[currUserCode] || (currentUserObj && (confirmedMembers[currentUserObj.id] || confirmedMembers[currentUserObj.name])));
 
         if (signMatrixMount) {
@@ -5214,7 +5212,7 @@ ${chatSnippet}
             </div>
             <div style="display:flex; flex-wrap:wrap; gap:10px; font-size:13px;">
               ${membersList.map(m => {
-                const isConf = !!(confirmedMembers[m.id] || confirmedMembers[m.id]  || (m.name && confirmedMembers[m.name]));
+                const isConf = !!(confirmedMembers[m.id] || (m.name && confirmedMembers[m.name]));
                 return `
                   <span style="color:${isConf ? '#059669' : '#64748b'}; border:1px solid ${isConf ? '#a7f3d0' : '#e2e8f0'}; background:${isConf ? '#ecfdf5' : '#ffffff'}; padding:6px 12px; border-radius:8px; font-weight:600;">
                     ${m.avatar || '👤'} ${m.name}: <b>${isConf ? '✅ 已确认签署' : '⏳ 未确认'}</b>
@@ -5456,15 +5454,13 @@ ${chatSnippet}
 
         if (!s3.confirmedMembers) s3.confirmedMembers = {};
         s3.confirmedMembers[user] = true;
-        const currMemObj = memberArr.find(m => m && (m.id === user  === user  === user || m.name === user));
+        const currMemObj = memberArr.find(m => m && (m.id === user || m.name === user));
         if (currMemObj) {
           if (currMemObj.id) s3.confirmedMembers[currMemObj.id] = true;
-          if (currMemObj.id) s3.confirmedMembers[currMemObj.id] = true;
-          
           if (currMemObj.name) s3.confirmedMembers[currMemObj.name] = true;
         }
 
-        const confirmedCount = memberArr.filter(m => m && (s3.confirmedMembers[m.id] || s3.confirmedMembers[m.id]  || (m.name && s3.confirmedMembers[m.name]))).length;
+        const confirmedCount = memberArr.filter(m => m && (s3.confirmedMembers[m.id] || (m.name && s3.confirmedMembers[m.name]))).length;
         const currUserObj = (this.authManager) ? this.authManager.getCurrentUser() : null;
         const memberName = currMemObj?.name || currUserObj?.name || '组员';
 
@@ -5630,15 +5626,13 @@ ${chatSnippet}
 
         if (!s3.finalSubmittedMembers) s3.finalSubmittedMembers = {};
         s3.finalSubmittedMembers[user] = true;
-        const currMemObj = memberArr.find(m => m && (m.id === user  === user  === user || m.name === user));
+        const currMemObj = memberArr.find(m => m && (m.id === user || m.name === user));
         if (currMemObj) {
           if (currMemObj.id) s3.finalSubmittedMembers[currMemObj.id] = true;
-          if (currMemObj.id) s3.finalSubmittedMembers[currMemObj.id] = true;
-          
           if (currMemObj.name) s3.finalSubmittedMembers[currMemObj.name] = true;
         }
 
-        const finalSubmittedCount = memberArr.filter(m => m && (s3.finalSubmittedMembers[m.id] || s3.finalSubmittedMembers[m.id]  || (m.name && s3.finalSubmittedMembers[m.name]))).length;
+        const finalSubmittedCount = memberArr.filter(m => m && (s3.finalSubmittedMembers[m.id] || (m.name && s3.finalSubmittedMembers[m.name]))).length;
         const currUserObj = (this.authManager) ? this.authManager.getCurrentUser() : null;
         const memberName = currMemObj?.name || currUserObj?.name || '组员';
         const currentStage = this.state.currentStage || 'stage3';
