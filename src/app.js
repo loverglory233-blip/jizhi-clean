@@ -485,8 +485,15 @@ export class App {
       if (currentUser && currentUser.role === 'student' && this.state.timer.isRunning) {
         const nowMs = Date.now();
         // 统一物理时间戳计秒：全组成员按首次开启时间统一对齐，杜绝迟到成员或刷新页面导致的时间差
+        const activeTaskId = this.state.activeTaskId || null;
+        const allTasks = (this.authManager) ? this.authManager.getTasks() : [];
+        const curTask = allTasks.find(t => t.id === activeTaskId);
         if (!this.state.timer.startTimestamp) {
-          this.state.timer.startTimestamp = nowMs;
+          if (curTask && curTask.startTime && !isNaN(new Date(String(curTask.startTime).replace(/-/g, '/')).getTime())) {
+            this.state.timer.startTimestamp = new Date(String(curTask.startTime).replace(/-/g, '/')).getTime();
+          } else {
+            this.state.timer.startTimestamp = nowMs;
+          }
           if (this.cloudSyncEngine && typeof this.cloudSyncEngine.pushSnapshot === 'function') {
             this.cloudSyncEngine.pushSnapshot();
           }
