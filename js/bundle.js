@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260905_v2683
+ * Version: 20260905_v2684
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260905_v2683';
+  const APP_VERSION = '20260905_v2684';
   const APP_BUILD_DATE = '2026-09-05';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -1864,10 +1864,9 @@
               const mergedTasks = Array.from(taskMap.values());
               localStorage.setItem(STORAGE_KEY_TASKS, JSON.stringify(mergedTasks));
 
-              // 🛡️ 核心守卫：若学生当前处于工作台模式，但所在写作任务已被教师删除，立即弹窗通知并返回任务大厅
+              // 🛡️ 核心守卫：仅当当前任务被教师明确删除时才弹窗通知并返回任务大厅
               if (window.app && window.app.state && window.app.state.studentViewMode === 'workspace' && window.app.state.activeTaskId) {
-                const isCurrentTaskAlive = mergedTasks.some(t => t && t.id === window.app.state.activeTaskId);
-                if (!isCurrentTaskAlive && !window.app._isHandlingTaskRevoked) {
+                if (deletedTaskIds.has(window.app.state.activeTaskId) && !window.app._isHandlingTaskRevoked) {
                   window.app.showTaskRevokedModal(window.app.state.activeTaskTitle || '当前写作任务');
                   return;
                 }
@@ -4903,10 +4902,9 @@
           const mergedTasks = Array.from(taskMap.values());
           localStorage.setItem(STORAGE_KEY_TASKS, JSON.stringify(mergedTasks));
 
-          // 🛡️ 核心守卫：若学生正在该工作台内写作，而任务已被教师在后台删除，立即弹窗引导返回大厅
+          // 🛡️ 核心守卫：仅当当前任务被教师明确删除时才弹窗引导返回大厅
           if (this.app.state.studentViewMode === 'workspace' && this.app.state.activeTaskId) {
-            const isCurrentTaskAlive = mergedTasks.some(t => t && t.id === this.app.state.activeTaskId);
-            if (!isCurrentTaskAlive && !this.app._isHandlingTaskRevoked) {
+            if (deletedTaskIds.has(this.app.state.activeTaskId) && !this.app._isHandlingTaskRevoked) {
               this.app.showTaskRevokedModal(this.app.state.activeTaskTitle || '当前写作任务');
               return;
             }
@@ -15321,11 +15319,14 @@
           return;
         }
 
-        // 🛡️ 核心守卫：如果学生处于工作台模式，但当前任务已被教师删除，立即弹窗拦截并返回任务大厅
-        const allTasks = this.authManager ? this.authManager.getTasks() : [];
+        // 🛡️ 任务撤销守卫：仅当当前任务被明确加入删除黑名单时才弹窗拦截
         if (this.state.studentViewMode === 'workspace' && this.state.activeTaskId) {
-          const isCurrentTaskAlive = allTasks.some(t => t && t.id === this.state.activeTaskId);
-          if (!isCurrentTaskAlive && !this._isHandlingTaskRevoked) {
+          let deletedTaskIds = new Set();
+          try {
+            const delList = JSON.parse(localStorage.getItem('jizhi_deleted_task_ids')) || [];
+            if (Array.isArray(delList)) deletedTaskIds = new Set(delList);
+          } catch (e) {}
+          if (deletedTaskIds.has(this.state.activeTaskId) && !this._isHandlingTaskRevoked) {
             this.showTaskRevokedModal(this.state.activeTaskTitle || '当前写作任务');
             return;
           }
@@ -15525,17 +15526,7 @@
           try { await this.authManager.pullGlobalMeta(); } catch (e) {}
         }
 
-        // 🛡️ 1. 任务存在性检测：如果当前正在某个任务中，但该任务已被教师在后台删除/重置
         const allTasks = this.authManager ? this.authManager.getTasks() : [];
-        if (this.state.studentViewMode === 'workspace' && this.state.activeTaskId) {
-          const isCurrentTaskAlive = allTasks.some(t => t.id === this.state.activeTaskId);
-          if (!isCurrentTaskAlive && !this._isHandlingTaskRevoked) {
-            this.showTaskRevokedModal(this.state.activeTaskTitle || '当前写作任务');
-            return;
-          }
-        }
-
-        // 🛡️ 2. 全局新任务发布感知与顶部横幅通知（严格仅限实时在线期间感知的新增任务，初次登录/离线重新进入绝不弹历史提示）
         const effClassId = this.state.activeStudentClassId || currUserObj.classId || null;
         const effGroup = this.authManager ? this.authManager.getStudentActiveGroup(currUserObj, effClassId) : null;
         const visibleTasks = allTasks.filter(t => {
@@ -15546,16 +15537,6 @@
 
         const currentTaskIds = new Set(visibleTasks.map(t => t.id));
         this._knownTaskIdsSet = currentTaskIds;
-
-        // 🛡️ 2.5 工作台任务存活检测：仅当学生当前正在该工作台内写作时，若任务被教师实时删除才弹窗引导返回
-        if (this.state.studentViewMode === 'workspace' && this.state.activeTaskId) {
-          const isCurrentTaskAlive = allTasks.some(t => t.id === this.state.activeTaskId);
-          if (!isCurrentTaskAlive && !this._isHandlingTaskRevoked) {
-            this._isHandlingTaskRevoked = true;
-            this.showTaskRevokedModal(this.state.activeTaskTitle || '当前写作任务');
-            return;
-          }
-        }
 
         // 若处于任务大厅，感知任务变动后自动刷新大厅卡片
         if (!this.state.activeTaskId) {
