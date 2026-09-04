@@ -14,8 +14,8 @@ import {
   DefaultTasks,
   DefaultAnnouncements,
   DefaultReferencePapers
-} from './constants.js?v=20260905_v2565';
-import { formatExportDateTime, formatDurationHuman, isScopeMatch } from './utils.js?v=20260905_v2565';
+} from './constants.js?v=20260905_v2570';
+import { formatExportDateTime, formatDurationHuman, isScopeMatch } from './utils.js?v=20260905_v2570';
 
 export class AuthManager {
   constructor() {
@@ -2031,11 +2031,12 @@ export class AuthManager {
 
       const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
       const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.setAttribute('href', url);
       const safeClassName = (res.className || curCls.name).replace(/[\\/:*?"<>|]/g, '_');
       const safeGroupName = (grp.name || grp.id).replace(/[\\/:*?"<>|]/g, '_');
-      link.setAttribute('download', `【${safeClassName}】_${safeGroupName}_研讨记录表_${todayStr}.csv`);
+      const allTasks = this.getTasks();
+      const targetTask = taskId ? allTasks.find(t => t.id === taskId) : null;
+      const safeTaskTitle = targetTask && targetTask.title ? `_${targetTask.title.replace(/[\\/:*?"<>|]/g, '_')}` : '';
+      link.setAttribute('download', `【${safeClassName}】${safeTaskTitle}_${safeGroupName}_研讨记录表_${todayStr}.csv`);
       document.body.appendChild(link);
 
       // 错峰触发下载，防止浏览器多文件拦截
