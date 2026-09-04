@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260904_v2234";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse } from "./utils.js?v=20260904_v2234";
-import { callCozeAgentAPI } from "./agents.js?v=20260904_v2234";
-import { AuthManager } from "./auth.js?v=20260904_v2234";
-import { CloudSyncEngine } from "./sync.js?v=20260904_v2234";
-import { renderLoginView } from "./login.js?v=20260904_v2234";
-import { renderTeacherPortal } from "./teacher.js?v=20260904_v2234";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260904_v2234";
+} from "./constants.js?v=20260904_v2235";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse } from "./utils.js?v=20260904_v2235";
+import { callCozeAgentAPI } from "./agents.js?v=20260904_v2235";
+import { AuthManager } from "./auth.js?v=20260904_v2235";
+import { CloudSyncEngine } from "./sync.js?v=20260904_v2235";
+import { renderLoginView } from "./login.js?v=20260904_v2235";
+import { renderTeacherPortal } from "./teacher.js?v=20260904_v2235";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260904_v2235";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260904_v2234";
+} from "./editor.js?v=20260904_v2235";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -2954,32 +2954,59 @@ export class App {
           s1.contract.timeAllocations = { background: 25, literature: 30, questions: 25, method: 40, reflection: 20, references: 10 };
         }
 
-        // ── 🌟 拍卖师引导逻辑与槽位初始状态（调用大模型动态生成深度学术方案引导） ──
-        s1.contractStep = 'topic'; // 初始锁定第一步：主题与研究方案提炼
+        // ── 🌟 1. 发送单独一条系统票数播报消息 ──
+        const taskType = this.getCurrentTaskType();
+        const isInst = (taskType === 'instructional');
+        const genreDesc = getGenrePromptDescriptor(taskType);
+        const agentTitle = isInst ? '备课引导师' : '学术拍卖师';
+        const senderName = isInst ? '头脑风暴 · 备课引导师' : '头脑风暴 · 学术拍卖师';
+        const prefixTag = isInst ? '备课引导师·方案研讨' : '学术拍卖师·落槌与方案研讨';
+        const docThemeNoun = isInst ? '教学主题与备课方案' : '主题与研究方案';
+
+        const tallyText = isUnanimous 
+          ? `📊 【投票结果出炉】：全组成员已全票推选《${winningProposal.title}》（共 ${totalMembersCount} 票）！`
+          : `📊 【投票结果出炉】：全员投票已完成！各方案得票分布：${proposalSummaryList}。`;
+
+        const tallySysMsg = {
+          id: 'vote_tally_' + Date.now(),
+          sender: 'system',
+          senderName: '系统通知',
+          text: tallyText,
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          _timeMs: Date.now()
+        };
+        this.state.chatLogs.stage1.push(tallySysMsg);
+        if (typeof this.sendSingleChatMessage === 'function') {
+          this.sendSingleChatMessage(tallySysMsg, 'stage1');
+        }
+
+        // ── 🌟 2. 引导智能体发言（定性分析一致性/分歧互补，严禁报数字/票数） ──
+        s1.contractStep = 'topic'; // 初始锁定第一步：主题与方案提炼
 
         if (isUnanimous && winningProposal) {
-          // 情境 A：投票全票一致（N 票一致）
-          // 左侧槽位表现：系统预填选出的主题名称至【论文主题】框（暂不锁定），【研究方案概述】框为空。
+          // 情境 A：投票全票一致
           s1.mergedTitle = winningProposal.title;
           if (!s1.contract) s1.contract = {};
           s1.contract.topic = winningProposal.title;
           s1.contract.overview = '';
           s1.researchOverview = '';
 
-          const unanimousPrompt = `全组成员全票一致推选了研究课题《${winningProposal.title}》（共 ${totalMembersCount} 票）。
+          const unanimousPrompt = `${genreDesc}
+
+全组成员已全票一致选定${isInst ? '备课方案' : '研究课题'}《${winningProposal.title}》。
 【获胜提案内容/设想】: ${winningProposal.description || '暂无详细描述'}
 
-请作为资深学术拍卖师：
-发表 100~130 字的单条全票通过祝贺与方案细化研讨引导：
-① 宣布全员一致通过该主题《${winningProposal.title}》（${totalMembersCount} 票）；
-② 顺势引导大家在群里进一步商量具体的研究设计与切入角度（如结合什么具体情境/案例、聚焦什么核心问题、采用什么方法等）；
-③ 末尾提示：“商量好后，请点击左侧公约看板中的【💡 讨论差不多了？一键提炼【主题与研究方案】】按钮！”
-（纯自然语言输出，100~130字，严禁拆分成多条）`;
+请作为资深${agentTitle}：
+发表 90~120 字的方案细化研讨引导（【绝对严禁出现任何票数数字，如“X票”、“全票”等，系统已单独播报票数】）：
+① 肯定全组就该主题《${winningProposal.title}》达成一致，直接点出其核心切入亮点；
+② 顺势引导大家在群里进一步商量具体的设计细节（如教学情境/探究活动/研究方法等）；
+③ 末尾提示：“商量好后，请点击左侧公约看板中的【💡 讨论差不多了？一键提炼【${docThemeNoun}】】按钮！”
+（纯自然语言输出，90~120字，严禁拆分成多条，严禁提及任何票数数字）`;
 
-          let guideText = `恭喜全员一致通过选题《${winningProposal.title}》（${totalMembersCount} 票）！请大家在群里进一步商量具体的研究设计与切入角度（如结合什么具体情境/案例、聚焦什么核心问题、采用什么方法等）。商量好后，请点击左侧公约看板中的【💡 讨论差不多了？一键提炼【主题与研究方案】】按钮！`;
+          let guideText = `恭喜全员就选题《${winningProposal.title}》达成一致！该方向切口精准且具备很好的深入空间。请大家在讨论区进一步商量具体的设计细节与切入角度（如具体情境创设、核心问题与方法/活动步骤等）。商量好后，请点击左侧公约看板中的【💡 讨论差不多了？一键提炼【${docThemeNoun}】】按钮！`;
 
           try {
-            const aiResp = await callCozeAgentAPI('auctioneer', unanimousPrompt, { stage: 'stage1', topic: winningProposal.title });
+            const aiResp = await callCozeAgentAPI('auctioneer', unanimousPrompt, { stage: 'stage1', topic: winningProposal.title, taskType });
             if (aiResp && aiResp.trim().length > 0) {
               guideText = aiResp.trim();
             }
@@ -2987,50 +3014,51 @@ export class App {
             console.warn('Auctioneer unanimous prompt fallback', e);
           }
 
-          // 🛡️ 智能清洗并统一前缀为标准的单层格式
-          guideText = guideText.replace(/^(?:🤖|🎪|🏛️)?\s*【(?:学术拍卖师|拍卖师)[·\s]*(?:全票通过|落槌与方案研讨|分歧指引|定名指引)?】[：:]\s*/g, '');
-          guideText = `🏛️ 【学术拍卖师·落槌与方案研讨】：${guideText.trim()}`;
+          // 🛡️ 智能清洗并统一前缀为标准的单层格式，并过滤可能出现的票数数字
+          guideText = guideText.replace(/^(?:🤖|🎪|🏛️)?\s*【(?:学术拍卖师|备课引导师|拍卖师|引导师)[·\s]*(?:全票通过|落槌与方案研讨|方案研讨|分歧指引|定名指引)?】[：:]\s*/g, '');
+          guideText = `🏛️ 【${prefixTag}】：${guideText.trim()}`;
 
           const guideMsg = {
             id: 'vote_unanimous_' + Date.now(),
             sender: 'auctioneer',
-            senderName: '头脑风暴 · 学术拍卖师',
+            senderName: senderName,
             text: guideText,
             timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-            _timeMs: Date.now()
+            _timeMs: Date.now() + 100
           };
           this.state.chatLogs.stage1.push(guideMsg);
           if (typeof this.sendSingleChatMessage === 'function') {
             this.sendSingleChatMessage(guideMsg, 'stage1');
           }
         } else {
-          // 情境 B：投票存在分歧（有不同票数）
+          // 情境 B：投票存在分歧
           s1.mergedTitle = '';
           if (!s1.contract) s1.contract = {};
           s1.contract.topic = '';
           s1.contract.overview = '';
           s1.researchOverview = '';
 
-          // 结构化整理各方向票数与提案内容（严禁点名，只报票数与方向）
-          const directionSummaries = (s1.proposals || []).map((p, idx) => {
-            const vCount = tally[p.id] || 0;
-            return `【方案${idx + 1}：《${p.title}》】(${vCount}票)`;
-          }).join('，');
+          const votedProposals = (s1.proposals || []).filter(p => (tally[p.id] || 0) > 0);
+          const votedTitles = (votedProposals.length > 0 ? votedProposals : (s1.proposals || [])).map(p => `《${p.title}》`).join(' 与 ');
+          const votedDetails = (votedProposals.length > 0 ? votedProposals : (s1.proposals || [])).map((p, idx) => `【方向${idx + 1}：《${p.title}》】: ${p.description || '暂无详细描述'}`).join('\n');
 
-          const divergencePrompt = `小组成员完成了选题投票，投票结果出炉（存在分歧）：
-各方案得票分布: ${directionSummaries}
+          const divergencePrompt = `${genreDesc}
 
-请作为资深学术拍卖师：
-发表 100~130 字的单条投票揭晓与方案研讨引导（严禁点名任何组员）：
-① 客观播报各方案得票分布（如《方案A》(X票)，《方案B》(Y票)）；
-② 客观分析不同得票方向的侧重点与互补性，引导全组商量确定一个统一或融合的方向，并进一步细化具体的研究情境与方案；
-③ 末尾提示：“商量好后，请点击左侧公约看板中的【💡 讨论差不多了？一键提炼【主题与研究方案】】按钮！”
-（纯自然语言输出，100~130字，严禁拆分成多条）`;
+小组成员完成了选题投票，目前大家分别聚焦在不同方向：${votedTitles}（存在分歧）。
+【各提案设想内容】:
+${votedDetails}
 
-          let guideText = `投票结果已出炉：${directionSummaries}！各方案各有千秋，建议大家在讨论区交流融合，重点商定核心问题与具体实施路径。商量好后，请点击左侧公约看板中的【💡 讨论差不多了？一键提炼【主题与研究方案】】按钮！`;
+请作为资深${agentTitle}：
+发表 100~130 字的分歧融合与方案研讨引导（【绝对严禁出现任何票数数字，如“X票”、“Y票”等，系统已单独播报票数】）：
+① 说明大家目前分别聚焦在 ${votedTitles} 等不同方向；
+② 深入、客观分析不同方向的侧重点与互补优势（例如一个侧重情境载体/学情导入，一个侧重核心方法/活动建构），引导全组商量如何取长补短、融合为一个统一完善的课题与方案；
+③ 末尾提示：“商量好后，请点击左侧公约看板中的【💡 讨论差不多了？一键提炼【${docThemeNoun}】】按钮！”
+（纯自然语言输出，100~130字，严禁拆分成多条，严禁提及任何票数数字）`;
+
+          let guideText = `小组成员目前分别聚焦在 ${votedTitles} 等不同方向。各个方案各有侧重且具有很强的互补性，建议大家在讨论区充分交流，取长补短确定统一方向并细化实施方案。商量好后，请点击左侧公约看板中的【💡 讨论差不多了？一键提炼【${docThemeNoun}】】按钮！`;
 
           try {
-            const aiResp = await callCozeAgentAPI('auctioneer', divergencePrompt, { stage: 'stage1', topic: '方案分歧融合' });
+            const aiResp = await callCozeAgentAPI('auctioneer', divergencePrompt, { stage: 'stage1', topic: '方案分歧融合', taskType });
             if (aiResp && aiResp.trim().length > 0) {
               guideText = aiResp.trim();
             }
@@ -3039,16 +3067,16 @@ export class App {
           }
 
           // 🛡️ 智能清洗并统一前缀为标准的单层格式
-          guideText = guideText.replace(/^(?:🤖|🎪|🏛️)?\s*【(?:学术拍卖师|拍卖师)[·\s]*(?:全票通过|落槌与方案研讨|分歧指引|定名指引)?】[：:]\s*/g, '');
-          guideText = `🏛️ 【学术拍卖师·落槌与方案研讨】：${guideText.trim()}`;
+          guideText = guideText.replace(/^(?:🤖|🎪|🏛️)?\s*【(?:学术拍卖师|备课引导师|拍卖师|引导师)[·\s]*(?:全票通过|落槌与方案研讨|方案研讨|分歧指引|定名指引)?】[：:]\s*/g, '');
+          guideText = `🏛️ 【${prefixTag}】：${guideText.trim()}`;
 
           const guideMsg = {
             id: 'vote_divergence_' + Date.now(),
             sender: 'auctioneer',
-            senderName: '头脑风暴 · 学术拍卖师',
+            senderName: senderName,
             text: guideText,
             timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-            _timeMs: Date.now()
+            _timeMs: Date.now() + 100
           };
           this.state.chatLogs.stage1.push(guideMsg);
           if (typeof this.sendSingleChatMessage === 'function') {
