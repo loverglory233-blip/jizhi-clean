@@ -5767,12 +5767,17 @@
         try {
           // 📝 针对阶段二/三，从 Etherpad 提取最新正文镜像（实时单源真值，支持 Hash 增量早退）
           const padName = `jizhi_${activeTaskId}_${currentGId}`;
-          const lastEpHash = state._lastEpHash || '';
-          const epRes = await fetch(`sync.php?action=get_pad_html&padId=${padName}&clientHash=${encodeURIComponent(lastEpHash)}`).then(r => r.json()).catch(() => null);
-          let padTextChanged = false;
+          if (!state._lastEpHashMap) state._lastEpHashMap = {};
+          if (!state._lastMonitorHashMap) state._lastMonitorHashMap = {};
+          const isGroupSwitched = (state._lastActiveGId !== currentGId);
+          state._lastActiveGId = currentGId;
+
+          const lastEpHash = isGroupSwitched ? '' : (state._lastEpHashMap[padName] || '');
+          const epRes = await fetch(`sync.php?action=get_pad_html&padId=${encodeURIComponent(padName)}&clientHash=${encodeURIComponent(lastEpHash)}`).then(r => r.json()).catch(() => null);
+          let padTextChanged = isGroupSwitched;
           if (epRes && epRes.hash) {
-            if (state._lastEpHash !== epRes.hash) {
-              state._lastEpHash = epRes.hash;
+            if (state._lastEpHashMap[padName] !== epRes.hash) {
+              state._lastEpHashMap[padName] = epRes.hash;
               padTextChanged = true;
             }
           }
@@ -5789,11 +5794,11 @@
           const curT = authManager.getCurrentUser();
           const tToken = (curT && (curT.activeSessionId || curT.token)) || '';
           const tId = (curT && (curT.id)) || '';
-          const lastHash = state._lastMonitorHash || '';
+          const lastHash = isGroupSwitched ? '' : (state._lastMonitorHashMap[currentGId] || '');
           const panRes = await fetch(`sync.php?action=get_teacher_monitor_all_groups&activeGroupId=${encodeURIComponent(currentGId)}&taskId=${encodeURIComponent(activeTaskId)}&classId=${encodeURIComponent(currentCId)}&userId=${encodeURIComponent(tId)}&token=${encodeURIComponent(tToken)}&clientHash=${encodeURIComponent(lastHash)}`).then(r => r.json()).catch(() => null);
           if (panRes && panRes.success && panRes.groups) {
             state.monitorPanorama = panRes.groups;
-            if (panRes.hash) state._lastMonitorHash = panRes.hash;
+            if (panRes.hash) state._lastMonitorHashMap[currentGId] = panRes.hash;
 
             // 🎯 核心修复：以 Etherpad 权威最新正文为主，杜绝被旧版全量快照覆盖
             const currentGroupData = panRes.groups[currentGId];

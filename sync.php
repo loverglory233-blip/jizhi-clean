@@ -1601,11 +1601,11 @@ if ($action === 'get_pad_text' || $action === 'get_pad_html') {
     // 4. 若 Etherpad 接口未获取到，从当前小组的 group_states 数据库无缝兜底获取学生回传的正文
     if (empty($retHtml) && empty($retText) && $pdo) {
         if (!empty($extractedTid) && !empty($extractedGid)) {
-            $stmtDb = $pdo->prepare("SELECT stage2_data FROM group_states WHERE scope_key = :sk OR scope_key = :sk2 OR (task_id = :tid AND group_id = :gid) ORDER BY last_timestamp DESC LIMIT 1");
-            $stmtDb->execute([':sk' => $exactScopeKey, ':sk2' => $scopeKey, ':tid' => $extractedTid, ':gid' => $extractedGid]);
+            $stmtDb = $pdo->prepare("SELECT stage2_data FROM group_states WHERE scope_key = :sk OR (task_id = :tid AND group_id = :gid) ORDER BY last_timestamp DESC LIMIT 1");
+            $stmtDb->execute([':sk' => $exactScopeKey, ':tid' => $extractedTid, ':gid' => $extractedGid]);
         } else {
-            $stmtDb = $pdo->prepare("SELECT stage2_data FROM group_states WHERE scope_key = :sk OR scope_key = :sk2 ORDER BY last_timestamp DESC LIMIT 1");
-            $stmtDb->execute([':sk' => $exactScopeKey, ':sk2' => $scopeKey]);
+            $stmtDb = $pdo->prepare("SELECT stage2_data FROM group_states WHERE scope_key = :sk ORDER BY last_timestamp DESC LIMIT 1");
+            $stmtDb->execute([':sk' => $exactScopeKey]);
         }
         $rowDb = $stmtDb->fetch();
         if ($rowDb && !empty($rowDb['stage2_data'])) {
