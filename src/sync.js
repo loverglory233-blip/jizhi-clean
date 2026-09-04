@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState } from './constants.js?v=20260904_v2365';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap } from './utils.js?v=20260904_v2365';
+import { InitialState } from './constants.js?v=20260904_v2370';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap } from './utils.js?v=20260904_v2370';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -1137,7 +1137,11 @@ export class CloudSyncEngine {
         if (remoteHtml.includes('一、研究背景与意义') || remoteHtml.includes('请在此处撰写正文')) {
           remoteHtml = '';
         }
-        this.app.state.stage2.unifiedContent = remoteHtml;
+        const isLocalPadActive = !!document.getElementById('stage2-etherpad-frame');
+        const localLen = (this.app.state.stage2?.unifiedContent || '').length;
+        if (!isLocalPadActive || remoteHtml.length >= localLen || localLen === 0) {
+          this.app.state.stage2.unifiedContent = remoteHtml;
+        }
       }
 
       if (remoteData.stage2.memberContributions) {
