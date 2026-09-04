@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260905_v2708
+ * Version: 20260905_v2709
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260905_v2708';
+  const APP_VERSION = '20260905_v2709';
   const APP_BUILD_DATE = '2026-09-05';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -4815,13 +4815,15 @@
         let remoteLogs = Array.isArray(remoteChatLogs[stg]) ? remoteChatLogs[stg] : [];
         const localLogs = Array.isArray(this.app.state.chatLogs[stg]) ? this.app.state.chatLogs[stg] : [];
 
-        // 🛡️ 智能保留本地未决思考气泡与未落库本地发言（Union 并集防吞防闪烁）
+        // 🛡️ 智能保留本地未决思考气泡与未落库本地发言（Union 并集防吞防闪烁，仅限30秒内最新发言）
         const now = Date.now();
         const localPending = localLogs.filter(m => {
           if (!m) return false;
           if (m.isThinking || String(m.id).startsWith('thinking_eval')) {
             return (now - (m._timeMs || 0) < 30000);
           }
+          const isRecent = (now - (m._timeMs || 0) < 30000);
+          if (!isRecent) return false;
           const existsInRemote = remoteLogs.some(rm => (rm.id && rm.id === m.id) || (rm._timeMs === m._timeMs && rm.text === m.text));
           return !existsInRemote;
         });

@@ -2354,6 +2354,20 @@ if ($action === 'delete_task' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         try {
             $stmtDel = $pdo->prepare("DELETE FROM tasks WHERE id = :id");
             $stmtDel->execute([':id' => $taskId]);
+
+            $stmtDelStates = $pdo->prepare("DELETE FROM group_states WHERE task_id = :id OR scope_key LIKE :sk");
+            $stmtDelStates->execute([':id' => $taskId, ':sk' => $taskId . '_%']);
+
+            $stmtDelMsgs = $pdo->prepare("DELETE FROM chat_messages WHERE scope_key LIKE :sk");
+            $stmtDelMsgs->execute([':sk' => $taskId . '_%']);
+
+            $stmtDelGm = $pdo->prepare("DELETE FROM global_meta WHERE meta_key LIKE :k1 OR meta_key LIKE :k2 OR meta_key LIKE :k3 OR meta_key LIKE :k4");
+            $stmtDelGm->execute([
+                ':k1' => 'timer_' . $taskId . '_%',
+                ':k2' => 'chats_' . $taskId . '_%',
+                ':k3' => 'locks_' . $taskId . '_%',
+                ':k4' => 'confs_' . $taskId . '_%'
+            ]);
         } catch (Exception $e) {}
 
         @file_put_contents(__DIR__ . '/global_db.json', $gmJson);

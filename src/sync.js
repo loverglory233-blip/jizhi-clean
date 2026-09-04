@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState, STORAGE_KEY_TASKS } from './constants.js?v=20260905_v2708';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly } from './utils.js?v=20260905_v2708';
+import { InitialState, STORAGE_KEY_TASKS } from './constants.js?v=20260905_v2709';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly } from './utils.js?v=20260905_v2709';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -536,13 +536,15 @@ export class CloudSyncEngine {
       let remoteLogs = Array.isArray(remoteChatLogs[stg]) ? remoteChatLogs[stg] : [];
       const localLogs = Array.isArray(this.app.state.chatLogs[stg]) ? this.app.state.chatLogs[stg] : [];
       
-      // 🛡️ 智能保留本地未决思考气泡与未落库本地发言（Union 并集防吞防闪烁）
+      // 🛡️ 智能保留本地未决思考气泡与未落库本地发言（Union 并集防吞防闪烁，仅限30秒内最新发言）
       const now = Date.now();
       const localPending = localLogs.filter(m => {
         if (!m) return false;
         if (m.isThinking || String(m.id).startsWith('thinking_eval')) {
           return (now - (m._timeMs || 0) < 30000);
         }
+        const isRecent = (now - (m._timeMs || 0) < 30000);
+        if (!isRecent) return false;
         const existsInRemote = remoteLogs.some(rm => (rm.id && rm.id === m.id) || (rm._timeMs === m._timeMs && rm.text === m.text));
         return !existsInRemote;
       });
