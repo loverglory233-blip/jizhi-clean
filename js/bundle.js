@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260905_v2698
+ * Version: 20260905_v2699
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260905_v2698';
+  const APP_VERSION = '20260905_v2699';
   const APP_BUILD_DATE = '2026-09-05';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -6020,13 +6020,13 @@
           else if (locks > 0) { dot = '🔴'; dotColor = '#dc2626'; hint = locks + ' 字段占用'; }
           else if (absent > 0) { dot = '🟡'; dotColor = '#d97706'; hint = absent + ' 人离线'; }
 
-          const dotSpan = card.querySelector('div:first-child span:last-child');
+          const dotSpan = card.querySelector('.card-dot') || card.querySelector('div:first-child span:last-child');
           if (dotSpan) dotSpan.innerText = dot;
-          const stageEl = card.querySelector('div:nth-child(2) span:first-child');
+          const stageEl = card.querySelector('.card-stage');
           if (stageEl) stageEl.innerText = stageLabel;
-          const onlineEl = card.querySelector('div:nth-child(2) span:last-child');
+          const onlineEl = card.querySelector('.card-online');
           if (onlineEl) onlineEl.innerText = `在线 ${online}/${total}`;
-          const hintEl = card.querySelector('div:last-child');
+          const hintEl = card.querySelector('.card-hint') || card.querySelector('div:last-child');
           if (hintEl) {
             hintEl.style.color = dotColor;
             hintEl.innerText = `${hint}${locks > 0 ? ' · 锁字段' : ''}`;
@@ -7299,14 +7299,14 @@
                       return `
                         <button class="btn-monitor-panorama-card" data-gid="${g.id}" style="text-align:left; background:${isSelected ? '#f5f3ff' : '#ffffff'}; border:1.5px solid ${isSelected ? '#7c3aed' : '#e2e8f0'}; border-radius:10px; padding:10px 12px; cursor:pointer; display:flex; flex-direction:column; gap:6px; box-shadow:0 1px 3px rgba(15,23,42,0.03); transition:all 0.15s ease;">
                           <div style="display:flex; justify-content:space-between; align-items:center;">
-                            <span style="font-size:12.5px; font-weight:800; color:#0f172a;">👥 ${escapeHtml(g.name || g.id)}</span>
-                            <span style="font-size:14px;">${dot}</span>
+                            <span class="card-title" style="font-size:12.5px; font-weight:800; color:#0f172a;">👥 ${escapeHtml(g.name || g.id)}</span>
+                            <span class="card-dot" style="font-size:14px;">${dot}</span>
                           </div>
                           <div style="display:flex; justify-content:space-between; align-items:center; gap:6px;">
-                            <span style="font-size:11px; font-weight:700; color:#6d28d9; background:#ede9fe; padding:2px 6px; border-radius:6px;">${stageLabel}</span>
-                            <span style="font-size:11px; color:#64748b; font-weight:600;">在线 ${online}/${total}</span>
+                            <span class="card-stage" style="font-size:11px; font-weight:700; color:#6d28d9; background:#ede9fe; padding:2px 6px; border-radius:6px;">${stageLabel}</span>
+                            <span class="card-online" style="font-size:11px; color:#64748b; font-weight:600;">在线 ${online}/${total}</span>
                           </div>
-                          <div style="font-size:10.5px; color:${dotColor}; font-weight:700;">${hint}${locks > 0 ? ' · 锁字段' : ''}</div>
+                          <div class="card-hint" style="font-size:10.5px; color:${dotColor}; font-weight:700;">${hint}${locks > 0 ? ' · 锁字段' : ''}</div>
                         </button>
                       `;
                     }).join('')}
@@ -13775,14 +13775,20 @@
       const nowMs = Date.now();
 
       let memberList = [];
-      if (Array.isArray(state.members)) memberList = state.members;
-      else if (state.members && typeof state.members === 'object') memberList = Object.values(state.members);
-      if (memberList.length === 0 && window.app?.authManager) {
+      if (window.app?.authManager) {
         const u = window.app.authManager.getCurrentUser();
         const effClassId = (window.app?.authManager ? window.app.authManager.getEffectiveStudentClassId(u, window.app?.state?.activeTaskId) : (window.app?.state?.activeStudentClassId || u?.classId || null));
         const effGroup = window.app.authManager.getStudentActiveGroup(u, effClassId);
-        const grpMap = window.app.authManager.getGroupMembersForWorkspace(effGroup?.id || state.activeGroupId || null);
-        memberList = Object.values(grpMap || {});
+        const targetGid = effGroup?.id || state.activeGroupId || (u ? u.groupId : null);
+        if (targetGid) {
+          const grpMap = window.app.authManager.getGroupMembersForWorkspace(targetGid, effClassId);
+          const vals = Object.values(grpMap || {});
+          if (vals.length > 0) memberList = vals;
+        }
+      }
+      if (memberList.length === 0) {
+        if (Array.isArray(state.members)) memberList = state.members;
+        else if (state.members && typeof state.members === 'object') memberList = Object.values(state.members);
       }
       if (!Array.isArray(memberList)) {
         memberList = Object.values(memberList || {});
@@ -17302,16 +17308,22 @@
 
       // 1. 获取小组实际全员名单与人数
       let memberList = [];
-      if (Array.isArray(this.state.members)) memberList = this.state.members;
-      else if (this.state.members && typeof this.state.members === 'object') memberList = Object.values(this.state.members);
-      if (memberList.length === 0 && this.authManager) {
+      if (this.authManager) {
         const u = this.authManager.getCurrentUser();
-        const effClassId = this.state.activeStudentClassId || u?.classId || null;
+        const effClassId = (this.authManager ? this.authManager.getEffectiveStudentClassId(u, this.state?.activeTaskId) : (this.state.activeStudentClassId || u?.classId || null));
         const effGroup = this.authManager.getStudentActiveGroup(u, effClassId);
-        const grpMap = this.authManager.getGroupMembersForWorkspace(effGroup?.id || this.state.activeGroupId || null);
-        memberList = Object.values(grpMap || {});
+        const targetGid = effGroup?.id || this.state.activeGroupId || (u ? u.groupId : null);
+        if (targetGid) {
+          const grpMap = this.authManager.getGroupMembersForWorkspace(targetGid, effClassId);
+          const vals = Object.values(grpMap || {});
+          if (vals.length > 0) memberList = vals;
+        }
       }
-      const effMembersCount = memberList.length > 0 ? memberList.length : 2;
+      if (memberList.length === 0) {
+        if (Array.isArray(this.state.members)) memberList = this.state.members;
+        else if (this.state.members && typeof this.state.members === 'object') memberList = Object.values(this.state.members);
+      }
+      const effMembersCount = memberList.length > 0 ? memberList.length : 1;
 
       // 只要已提交提案数 >= 小组人数，或者已有提案数 >= 2
       const distinctAuthors = new Set(propList.map(p => String(p.authorName || p.author || p.authorId || '').trim()).filter(Boolean));

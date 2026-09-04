@@ -11,8 +11,8 @@ import {
   TASK_GENRE_CONFIGS,
   AgentProfiles,
   APP_VERSION
-} from "./constants.js?v=20260905_v2698";
-import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, showGlobalBannerNotice } from "./utils.js?v=20260905_v2698";
+} from "./constants.js?v=20260905_v2699";
+import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, showGlobalBannerNotice } from "./utils.js?v=20260905_v2699";
 
 /* ==========================================================================
    6.8 TEACHER MONITOR IN-PLACE INCREMENTAL UPDATER (PREVENT IFRAME THRASHING)
@@ -39,13 +39,13 @@ function updateTeacherLiveMonitorInPlace(container, state, authManager, activeCl
         else if (locks > 0) { dot = '🔴'; dotColor = '#dc2626'; hint = locks + ' 字段占用'; }
         else if (absent > 0) { dot = '🟡'; dotColor = '#d97706'; hint = absent + ' 人离线'; }
 
-        const dotSpan = card.querySelector('div:first-child span:last-child');
+        const dotSpan = card.querySelector('.card-dot') || card.querySelector('div:first-child span:last-child');
         if (dotSpan) dotSpan.innerText = dot;
-        const stageEl = card.querySelector('div:nth-child(2) span:first-child');
+        const stageEl = card.querySelector('.card-stage');
         if (stageEl) stageEl.innerText = stageLabel;
-        const onlineEl = card.querySelector('div:nth-child(2) span:last-child');
+        const onlineEl = card.querySelector('.card-online');
         if (onlineEl) onlineEl.innerText = `在线 ${online}/${total}`;
-        const hintEl = card.querySelector('div:last-child');
+        const hintEl = card.querySelector('.card-hint') || card.querySelector('div:last-child');
         if (hintEl) {
           hintEl.style.color = dotColor;
           hintEl.innerText = `${hint}${locks > 0 ? ' · 锁字段' : ''}`;
@@ -1318,14 +1318,14 @@ export function renderTeacherPortal(container, authManager, state, onLogout) {
                     return `
                       <button class="btn-monitor-panorama-card" data-gid="${g.id}" style="text-align:left; background:${isSelected ? '#f5f3ff' : '#ffffff'}; border:1.5px solid ${isSelected ? '#7c3aed' : '#e2e8f0'}; border-radius:10px; padding:10px 12px; cursor:pointer; display:flex; flex-direction:column; gap:6px; box-shadow:0 1px 3px rgba(15,23,42,0.03); transition:all 0.15s ease;">
                         <div style="display:flex; justify-content:space-between; align-items:center;">
-                          <span style="font-size:12.5px; font-weight:800; color:#0f172a;">👥 ${escapeHtml(g.name || g.id)}</span>
-                          <span style="font-size:14px;">${dot}</span>
+                          <span class="card-title" style="font-size:12.5px; font-weight:800; color:#0f172a;">👥 ${escapeHtml(g.name || g.id)}</span>
+                          <span class="card-dot" style="font-size:14px;">${dot}</span>
                         </div>
                         <div style="display:flex; justify-content:space-between; align-items:center; gap:6px;">
-                          <span style="font-size:11px; font-weight:700; color:#6d28d9; background:#ede9fe; padding:2px 6px; border-radius:6px;">${stageLabel}</span>
-                          <span style="font-size:11px; color:#64748b; font-weight:600;">在线 ${online}/${total}</span>
+                          <span class="card-stage" style="font-size:11px; font-weight:700; color:#6d28d9; background:#ede9fe; padding:2px 6px; border-radius:6px;">${stageLabel}</span>
+                          <span class="card-online" style="font-size:11px; color:#64748b; font-weight:600;">在线 ${online}/${total}</span>
                         </div>
-                        <div style="font-size:10.5px; color:${dotColor}; font-weight:700;">${hint}${locks > 0 ? ' · 锁字段' : ''}</div>
+                        <div class="card-hint" style="font-size:10.5px; color:${dotColor}; font-weight:700;">${hint}${locks > 0 ? ' · 锁字段' : ''}</div>
                       </button>
                     `;
                   }).join('')}

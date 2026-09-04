@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260905_v2698";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime } from "./utils.js?v=20260905_v2698";
-import { callCozeAgentAPI } from "./agents.js?v=20260905_v2698";
-import { AuthManager } from "./auth.js?v=20260905_v2698";
-import { CloudSyncEngine } from "./sync.js?v=20260905_v2698";
-import { renderLoginView } from "./login.js?v=20260905_v2698";
-import { renderTeacherPortal } from "./teacher.js?v=20260905_v2698";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260905_v2698";
+} from "./constants.js?v=20260905_v2699";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime } from "./utils.js?v=20260905_v2699";
+import { callCozeAgentAPI } from "./agents.js?v=20260905_v2699";
+import { AuthManager } from "./auth.js?v=20260905_v2699";
+import { CloudSyncEngine } from "./sync.js?v=20260905_v2699";
+import { renderLoginView } from "./login.js?v=20260905_v2699";
+import { renderTeacherPortal } from "./teacher.js?v=20260905_v2699";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260905_v2699";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260905_v2698";
+} from "./editor.js?v=20260905_v2699";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -2972,16 +2972,22 @@ export class App {
 
     // 1. 获取小组实际全员名单与人数
     let memberList = [];
-    if (Array.isArray(this.state.members)) memberList = this.state.members;
-    else if (this.state.members && typeof this.state.members === 'object') memberList = Object.values(this.state.members);
-    if (memberList.length === 0 && this.authManager) {
+    if (this.authManager) {
       const u = this.authManager.getCurrentUser();
-      const effClassId = this.state.activeStudentClassId || u?.classId || null;
+      const effClassId = (this.authManager ? this.authManager.getEffectiveStudentClassId(u, this.state?.activeTaskId) : (this.state.activeStudentClassId || u?.classId || null));
       const effGroup = this.authManager.getStudentActiveGroup(u, effClassId);
-      const grpMap = this.authManager.getGroupMembersForWorkspace(effGroup?.id || this.state.activeGroupId || null);
-      memberList = Object.values(grpMap || {});
+      const targetGid = effGroup?.id || this.state.activeGroupId || (u ? u.groupId : null);
+      if (targetGid) {
+        const grpMap = this.authManager.getGroupMembersForWorkspace(targetGid, effClassId);
+        const vals = Object.values(grpMap || {});
+        if (vals.length > 0) memberList = vals;
+      }
     }
-    const effMembersCount = memberList.length > 0 ? memberList.length : 2;
+    if (memberList.length === 0) {
+      if (Array.isArray(this.state.members)) memberList = this.state.members;
+      else if (this.state.members && typeof this.state.members === 'object') memberList = Object.values(this.state.members);
+    }
+    const effMembersCount = memberList.length > 0 ? memberList.length : 1;
 
     // 只要已提交提案数 >= 小组人数，或者已有提案数 >= 2
     const distinctAuthors = new Set(propList.map(p => String(p.authorName || p.author || p.authorId || '').trim()).filter(Boolean));
