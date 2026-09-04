@@ -8,8 +8,8 @@ import {
   STORAGE_KEY_ANNOUNCEMENTS,
   STORAGE_KEY_CLASSES,
   TASK_GENRE_CONFIGS
-} from "./constants.js?v=20260905_v2652";
-import { escapeHtml, isTaskExpired, formatDurationHuman, formatStandardDateDash, showGlobalBannerNotice } from "./utils.js?v=20260905_v2652";
+} from "./constants.js?v=20260905_v2653";
+import { escapeHtml, isTaskExpired, formatDurationHuman, formatStandardDateDash, showGlobalBannerNotice } from "./utils.js?v=20260905_v2653";
 
 /* ==========================================================================
    10. STUDENT TASK PORTAL (CENTRALIZED HUB & COLLABORATION ENTRY)
@@ -25,16 +25,16 @@ export function renderStudentTaskPortal(container, authManager, state, onSelectT
       window._studentPortalBc.onmessage = (e) => {
         if (state.studentViewMode !== 'task_list') return;
         
-        // 1. 新任务发布广播
+        // 1. 新任务发布广播：无需通知横幅，直接刷新大厅卡片列表实时呈现
         if (e.data && e.data.type === 'task_created' && e.data.task) {
-          const t = e.data.task;
           renderStudentTaskPortal(container, authManager, state, onSelectTask, onLogout, onOpenAnnModal, onOpenSurveyModal);
-          showGlobalBannerNotice('📢 教师发布新任务', `任课教师刚刚发布了全新写作任务《${t.title || '新协作任务'}》！`, 'info', 8000);
           return;
         }
 
-        // 2. 任务被删除广播
+        // 2. 任务被删除广播：在大厅顶部轻量提示并即时刷新大厅卡片列表
         if (e.data && e.data.type === 'task_deleted') {
+          const delTaskTitle = e.data.title || '写作任务';
+          showGlobalBannerNotice('🗑️ 任务已删除', `写作任务《${escapeHtml(delTaskTitle)}》已被任课教师删除。`, 'info', 4000);
           renderStudentTaskPortal(container, authManager, state, onSelectTask, onLogout, onOpenAnnModal, onOpenSurveyModal);
           return;
         }

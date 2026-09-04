@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260905_v2652
+ * Version: 20260905_v2653
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260905_v2652';
+  const APP_VERSION = '20260905_v2653';
   const APP_BUILD_DATE = '2026-09-05';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -9816,16 +9816,16 @@
         window._studentPortalBc.onmessage = (e) => {
           if (state.studentViewMode !== 'task_list') return;
 
-          // 1. 新任务发布广播
+          // 1. 新任务发布广播：无需通知横幅，直接刷新大厅卡片列表实时呈现
           if (e.data && e.data.type === 'task_created' && e.data.task) {
-            const t = e.data.task;
             renderStudentTaskPortal(container, authManager, state, onSelectTask, onLogout, onOpenAnnModal, onOpenSurveyModal);
-            showGlobalBannerNotice('📢 教师发布新任务', `任课教师刚刚发布了全新写作任务《${t.title || '新协作任务'}》！`, 'info', 8000);
             return;
           }
 
-          // 2. 任务被删除广播
+          // 2. 任务被删除广播：在大厅顶部轻量提示并即时刷新大厅卡片列表
           if (e.data && e.data.type === 'task_deleted') {
+            const delTaskTitle = e.data.title || '写作任务';
+            showGlobalBannerNotice('🗑️ 任务已删除', `写作任务《${escapeHtml(delTaskTitle)}》已被任课教师删除。`, 'info', 4000);
             renderStudentTaskPortal(container, authManager, state, onSelectTask, onLogout, onOpenAnnModal, onOpenSurveyModal);
             return;
           }
@@ -13811,10 +13811,8 @@
             const isStudent = user && (user.role === 'student' || user.isStudent);
             if (!isStudent) return;
 
-            // 1. 教师发布全新任务
+            // 1. 教师发布全新任务：无需横幅弹窗，若学生在大厅则直接实时刷新呈现
             if (e.data.type === 'task_created' && e.data.task) {
-              const t = e.data.task;
-              showGlobalBannerNotice('📢 教师发布新任务', `任课教师刚刚发布了全新写作任务《${escapeHtml(t.title || '新任务')}》！`, 'info', 8000);
               if (this.state.studentViewMode === 'task_list') {
                 this.renderMain();
               }
@@ -13827,13 +13825,12 @@
               // 1) 若学生刚好在被删除的任务工作台中：全屏模态弹窗强阻断，引导安全返回大厅
               if (this.state.studentViewMode === 'workspace' && this.state.activeTaskId === delTaskId) {
                 this.showTaskRevokedModal(delTaskTitle);
-              } else if (this.state.studentViewMode === 'workspace' && this.state.activeTaskId !== delTaskId) {
-                // 2) 若学生在另一个任务工作台中：弹出轻量顶部横幅提醒，当前写作空间不被强退打断
-                showGlobalBannerNotice('🗑️ 任务变更提醒', `任课教师已从系统移除班级另一项写作任务《${escapeHtml(delTaskTitle)}》。`, 'info', 6000);
               } else if (this.state.studentViewMode === 'task_list') {
-                // 3) 若学生在任务大厅中：即时刷新大厅任务卡片列表
+                // 2) 若学生在任务大厅中：大厅顶部轻量提示并即时刷新大厅卡片列表
+                showGlobalBannerNotice('🗑️ 任务已删除', `写作任务《${escapeHtml(delTaskTitle)}》已被任课教师删除。`, 'info', 4000);
                 this.renderMain();
               }
+              // 3) 若在另一个任务工作台中：做减法，静默不打扰当前写作
             }
 
             // 3. 教师发布教学通知（秒级拉取并在工作台即时弹出）
@@ -14895,18 +14892,6 @@
         });
 
         const currentTaskIds = new Set(visibleTasks.map(t => t.id));
-        if (this._knownTaskIdsSet) {
-          // 仅在页面已在线运行期间检测到增量新任务时才弹横幅
-          const newlyAddedTasks = visibleTasks.filter(t => !this._knownTaskIdsSet.has(t.id));
-          if (newlyAddedTasks.length > 0) {
-            const newestTask = newlyAddedTasks[0];
-            console.log('📢 实时在线感知到教师端发布了新任务:', newestTask.title);
-            showGlobalBannerNotice('📢 教师发布新任务', `任课教师刚刚发布了全新写作任务《${escapeHtml(newestTask.title || '新任务')}》！`, 'info', 8000);
-          }
-        } else {
-          // 首次加载/刚登录：直接建立基线，绝对不弹任何旧任务横幅
-          this._knownTaskIdsSet = currentTaskIds;
-        }
         this._knownTaskIdsSet = currentTaskIds;
 
         // 🛡️ 2.5 工作台任务存活检测：仅当学生当前正在该工作台内写作时，若任务被教师实时删除才弹窗引导返回
