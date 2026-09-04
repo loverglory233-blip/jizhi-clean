@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260904_v2518";
-import { callCozeAgentAPI } from "./agents.js?v=20260904_v2518";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, showResolutionBlock } from "./utils.js?v=20260904_v2518";
+import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260904_v2519";
+import { callCozeAgentAPI } from "./agents.js?v=20260904_v2519";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, showResolutionBlock } from "./utils.js?v=20260904_v2519";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -107,6 +107,7 @@ export function renderHeader(state, currentUser, announcements, onStageChange, o
         <span style="opacity:0.35;">·</span>
         <span style="color:#1e40af; background:#ffffff; padding:1.5px 8px; border-radius:10px; border:1px solid #bfdbfe; font-weight:800;">📌 ${escapeHtml(currentTaskTitle)}</span>
         <span style="color:${taskGenreKey === 'instructional' ? '#15803d' : '#1e40af'}; background:#ffffff; padding:1.5px 8px; border-radius:10px; border:1px solid ${taskGenreKey === 'instructional' ? '#86efac' : '#bfdbfe'}; font-weight:800;">${genreCfg.icon} ${genreCfg.label}</span>
+        <span style="color:#6366f1; background:#ffffff; padding:1.5px 8px; border-radius:10px; border:1px solid #c7d2fe; font-weight:800;" title="本任务建议目标撰写字数">🎯 目标 ${(currentTask && currentTask.targetWordCount) ? Number(currentTask.targetWordCount) : 3000}字</span>
         ${isFinalSubmitted ? '<span style="color:#059669; margin-left:3px;">(🔒已归档)</span>' : ''}
       </div>
       <button id="btn-header-back-tasks" style="background:#f8fafc; border:1px solid #cbd5e1; color:#334155; padding:3px 8px; border-radius:14px; font-size:11px; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; gap:3px;" title="返回我的写作任务大厅">
@@ -2015,8 +2016,8 @@ function renderStage2Canvas(canvas, state, handlers) {
       <div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:8px; padding:6px 12px; margin-bottom:6px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; flex-shrink:0; box-shadow:0 1px 3px rgba(15,23,42,0.03);">
         <div style="display:flex; align-items:center; gap:8px;">
           <span style="font-size:13.5px; font-weight:800; color:#0f172a; display:inline-flex; align-items:center; gap:4px;">📝 ${taskGenreKey === 'instructional' ? '教学设计' : '论文'}正文协同起草</span>
-          <span style="font-size:11.5px; color:#2563eb; background:#eff6ff; padding:2px 8px; border-radius:10px; border:1px solid #bfdbfe; font-weight:800;" title="当前正文字数 / 目标字数 (达到 35% 即约 ${Math.round(targetWordCount * 0.35)} 字时将触发审稿专家初审破题把脉)">字数: <b id="stage2-word-count-num">${plainTextLen}</b> / ${targetWordCount} 字</span>
-          <button id="btn-show-case" style="background:#ffffff; border:1px solid #cbd5e1; color:#1d4ed8; padding:2px 8px; border-radius:6px; font-size:11px; cursor:pointer; font-weight:700;">${paperBtnLabel}</button>
+          <button id="btn-show-case" style="background:#ffffff; border:1px solid #cbd5e1; color:#1d4ed8; padding:3px 10px; border-radius:6px; font-size:11px; cursor:pointer; font-weight:700; display:inline-flex; align-items:center; gap:4px;">${paperBtnLabel}</button>
+          <span style="font-size:11.5px; color:#1e40af; background:#eff6ff; padding:2px 10px; border-radius:10px; border:1px solid #bfdbfe; font-weight:800; display:inline-flex; align-items:center; gap:4px; min-width:85px; justify-content:center;" title="当前正文实时撰写字数 (达到 35% 即约 ${Math.round(targetWordCount * 0.35)} 字时将触发${taskGenreKey === 'instructional' ? '教研' : '审稿'}专家初审把脉)">✍️ 当前: <b id="stage2-word-count-num" style="color:#2563eb; font-size:12px;">${plainTextLen}</b> 字</span>
         </div>
 
         <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
@@ -2252,13 +2253,13 @@ function renderStage2Canvas(canvas, state, handlers) {
             const contribs = s2.memberContributions || {};
             let rawTotal = 0;
             if (plainTextLen > 0) {
-              membersList.forEach(m => { rawTotal += Number(contribs[m.id] || 0); });
+              membersList.forEach(m => { rawTotal += getMemberContribVal(contribs, m); });
             }
             if (plainTextLen === 0 || rawTotal === 0) {
               return `<div style="width:100%; height:8px; background:#f8fafc; border-radius:4px; display:flex; align-items:center; justify-content:center; font-size:9.5px; color:#94a3b8; font-weight:600;">⏳ 在 Etherpad 中撰写或修改正文将实时累计真实贡献</div>`;
             }
             return membersList.map((m) => {
-              const rawVal = Number(contribs[m.id] || 0);
+              const rawVal = getMemberContribVal(contribs, m);
               const pct = rawTotal > 0 ? Math.round((rawVal / rawTotal) * 100) : 0;
               return `<div class="contrib-segment" style="width:${pct}%; background:${m.color || '#2563eb'}; transition:width 0.8s ease-in-out;" title="${m.name}: ${pct}% (${rawVal}字)"></div>`;
             }).join('');
@@ -2269,13 +2270,13 @@ function renderStage2Canvas(canvas, state, handlers) {
             const contribs = s2.memberContributions || {};
             let rawTotal = 0;
             if (plainTextLen > 0) {
-              membersList.forEach(m => { rawTotal += Number(contribs[m.id] || 0); });
+              membersList.forEach(m => { rawTotal += getMemberContribVal(contribs, m); });
             }
             if (plainTextLen === 0 || rawTotal === 0) {
               return `<span style="color:#94a3b8; font-size:10.5px; font-weight:600;">⏳ 暂无撰写内容</span>`;
             }
             return membersList.map((m) => {
-              const rawVal = Number(contribs[m.id] || 0);
+              const rawVal = getMemberContribVal(contribs, m);
               const pct = rawTotal > 0 ? Math.round((rawVal / rawTotal) * 100) : 0;
               return `<span style="color:${rawVal > 0 ? (m.color || '#2563eb') : '#94a3b8'};">● ${m.name}: ${pct}% (${rawVal}字)</span>`;
             }).join('');
