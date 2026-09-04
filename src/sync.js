@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState, STORAGE_KEY_TASKS } from './constants.js?v=20260905_v2653';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly } from './utils.js?v=20260905_v2653';
+import { InitialState, STORAGE_KEY_TASKS } from './constants.js?v=20260905_v2654';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly } from './utils.js?v=20260905_v2654';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -531,18 +531,48 @@ export class CloudSyncEngine {
     // 教师一旦发布新范文或公告，学生端在任务工作台内 1~2 秒内自动无感对齐更新
     if (this.app.authManager) {
       if (Array.isArray(remoteData.tasks)) {
+        let deletedTaskIds = new Set();
+        try {
+          const delList = JSON.parse(localStorage.getItem('jizhi_deleted_task_ids')) || [];
+          if (Array.isArray(delList)) deletedTaskIds = new Set(delList);
+        } catch (e) {}
+
         const localTasks = this.app.authManager.getTasks();
-        const mergedTasks = remoteData.tasks.map(remoteT => {
-          const localT = localTasks.find(lt => lt.id === remoteT.id || (lt.title && lt.title === remoteT.title));
-          if (localT && localT.lastExtension) {
-            const localExtAt = localT.lastExtension.extendedAt || 0;
-            const remoteExtAt = remoteT.lastExtension ? (remoteT.lastExtension.extendedAt || 0) : 0;
-            if (localExtAt >= remoteExtAt) {
-              return { ...remoteT, deadline: localT.deadline, durationMinutes: localT.durationMinutes, lastExtension: localT.lastExtension };
+        const taskMap = new Map();
+
+        // 1) 装载云端任务（排除已删除任务）
+        remoteData.tasks.forEach(remoteT => {
+          if (remoteT && remoteT.id && !deletedTaskIds.has(remoteT.id)) {
+            taskMap.set(remoteT.id, remoteT);
+          }
+        });
+
+        // 2) 合成本地任务：保留本地未落库新任务，继承最新延期
+        localTasks.forEach(localT => {
+          if (!localT || !localT.id) return;
+          if (deletedTaskIds.has(localT.id)) return;
+
+          if (!taskMap.has(localT.id)) {
+            taskMap.set(localT.id, localT);
+          } else {
+            const remoteT = taskMap.get(localT.id);
+            if (localT.lastExtension) {
+              const localExtAt = localT.lastExtension.extendedAt || 0;
+              const remoteExtAt = remoteT.lastExtension ? (remoteT.lastExtension.extendedAt || 0) : 0;
+              if (localExtAt >= remoteExtAt) {
+                taskMap.set(localT.id, {
+                  ...remoteT,
+                  ...localT,
+                  deadline: localT.deadline,
+                  durationMinutes: localT.durationMinutes,
+                  lastExtension: localT.lastExtension
+                });
+              }
             }
           }
-          return remoteT;
         });
+
+        const mergedTasks = Array.from(taskMap.values());
         localStorage.setItem(STORAGE_KEY_TASKS, JSON.stringify(mergedTasks));
 
         // 🛡️ 核心守卫：若学生正在该工作台内写作，而任务已被教师在后台删除，立即弹窗引导返回大厅
