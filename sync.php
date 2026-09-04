@@ -11,6 +11,8 @@ if (!ob_start('ob_gzhandler')) {
     ob_start();
 }
 header('Content-Type: application/json; charset=utf-8');
+header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+header('Pragma: no-cache');
 
 // 🛡️ 全局异常与致命错误自愈兜底保护（零 500 崩溃）
 set_exception_handler(function($e) {

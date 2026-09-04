@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260905_v2715
+ * Version: 20260905_v2716
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260905_v2715';
+  const APP_VERSION = '20260905_v2716';
   const APP_BUILD_DATE = '2026-09-05';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -17545,6 +17545,9 @@
      */
     checkAndTriggerAllProposalsGathered() {
       if (this._isTriggeringGathered) return false;
+      // 🛡️ 守卫：若当前仍有正在生成的 AI 点评在途中，绝对不提前抢发投票通知
+      if (this._inFlightEvaluations && this._inFlightEvaluations.size > 0) return false;
+
       const s1 = this.state.stage1 || {};
       const propList = s1.proposals || [];
       if (propList.length === 0) return false;
@@ -17568,33 +17571,54 @@
       }
       const effMembersCount = memberList.length > 0 ? memberList.length : 1;
 
-      // 只要已提交提案数 >= 小组人数，或者已有提案数 >= 2
+      // 提案数必须达到有效阈值（>= 全组成员数，或多成员至少各提交一篇）
       const distinctAuthors = new Set(propList.map(p => String(p.authorName || p.author || p.authorId || '').trim()).filter(Boolean));
       const isPropsSufficient = (propList.length >= effMembersCount) || (propList.length >= 2 && distinctAuthors.size >= 2) || (propList.length >= 2);
       if (!isPropsSufficient) return false;
 
-      // 2. 检查讨论区历史中是否已生成了针对每篇提案的有效智能体速评
+      // 2. 检查讨论区历史中是否已生成了针对每篇提案的“实质有效”智能体速评
       const s1Logs = (this.state.chatLogs && Array.isArray(this.state.chatLogs.stage1)) ? this.state.chatLogs.stage1 : (Array.isArray(this.state.chatLogs) ? this.state.chatLogs : Object.values(this.state.chatLogs || {}).flat());
-      const validEvalMsgs = s1Logs.filter(m => {
+
+      // 🛡️ 严格定义“有效实质点评”：排除无实质内容、占位符、错误重试与无效拒评
+      const isValidSubstantiveEval = (m) => {
         if (!m || typeof m !== 'object') return false;
-        const txt = String(m.text || '');
+        const txt = String(m.text || '').trim();
         const sdr = String(m.sender || '');
         const sdrName = String(m.senderName || '');
         const isAuctioneerAgent = sdr === 'auctioneer' || sdr.startsWith('agent_') || sdrName.includes('拍卖师') || sdrName.includes('引导师') || txt.includes('【学术拍卖师') || txt.includes('【备课引导师') || txt.includes('【拍卖师');
-        const isEvalText = txt.includes('提案评估') || txt.includes('选题速评') || txt.includes('提案速评') || txt.includes('针对《') || txt.includes('提案亮点') || txt.includes('速评') || txt.includes('落槌与方案研讨');
-        const isErrOrThinking = m.isThinking || String(m.id || '').startsWith('thinking_') || txt.includes('网络提醒') || txt.includes('正在研读评估');
-        return isAuctioneerAgent && isEvalText && !isErrOrThinking;
-      });
+        if (!isAuctioneerAgent) return false;
 
-      // 每一篇提案必须能匹配到对应的有效速评，或有效速评总数已达到提案数
-      const allPropsHaveEvaluation = (validEvalMsgs.length >= propList.length) || (propList.length > 0 && propList.every(p => {
+        const isEvalHeader = txt.includes('提案评估') || txt.includes('选题速评') || txt.includes('提案速评') || txt.includes('针对《') || txt.includes('提案亮点') || txt.includes('落槌与方案研讨');
+        if (!isEvalHeader) return false;
+
+        // 🚫 严格排除各类无效评估、占位符与拒绝评估提示
+        const isInvalidOrThinking = m.isThinking || 
+          String(m.id || '').startsWith('thinking_') || 
+          txt.includes('网络提醒') || 
+          txt.includes('正在研读评估') ||
+          txt.includes('尚未形成可研讨的实质提案') ||
+          txt.includes('未形成可研讨') ||
+          txt.includes('无意义') ||
+          txt.includes('乱码') ||
+          txt.includes('重新生成');
+        if (isInvalidOrThinking) return false;
+
+        // 必须包含一定字数的实质点评（> 25 字）
+        return txt.length > 25;
+      };
+
+      const validEvalMsgs = s1Logs.filter(isValidSubstantiveEval);
+
+      // 🛡️ 核心规则：当前选题池中的【每一篇提案】，都必须能匹配到至少一条针对该提案标题的实质有效速评
+      const allPropsHaveEvaluation = propList.length > 0 && propList.every(p => {
         const pTitle = String(p.title || '').trim();
         const pAuthor = String(p.authorName || p.author || '').trim();
+        if (!pTitle) return false;
         return validEvalMsgs.some(m => {
           const text = String(m.text || '');
-          return (pTitle && text.includes(pTitle)) || (pAuthor && text.includes(pAuthor));
+          return text.includes(`《${pTitle}》`) || text.includes(pTitle) || (pAuthor && text.includes(pAuthor));
         });
-      }));
+      });
 
       if (!allPropsHaveEvaluation) return false;
 
@@ -17618,13 +17642,21 @@
         const agentRole = isInst ? '备课引导师' : '学术拍卖师';
         const agentSenderName = isInst ? '头脑风暴 · 备课引导师' : '头脑风暴 · 学术拍卖师';
 
+        // 🛡️ 确保时间戳严格晚于当前所有聊天记录的最大时间戳，保证始终排在最新一条【提案评估】的下方
+        let maxExistingMs = 0;
+        s1Logs.forEach(m => {
+          const t = Number(m?._timeMs || 0);
+          if (t > maxExistingMs) maxExistingMs = t;
+        });
+        const finalMsgTimeMs = Math.max(Date.now(), maxExistingMs + 300);
+
         const allCollectedMsg = {
           id: 'all_prop_' + Date.now(),
           sender: 'auctioneer',
           senderName: agentSenderName,
           text: `🎪 【${agentRole}·提案集齐与协同研讨】：太棒了！全组成员的提案与专家速评均已悉数亮相！请大家先在讨论区围绕各自提案的创新亮点与互补性展开 1~2 分钟的协同交流，深入了解彼此设想，随后点击左侧卡片投出关键的一票！`,
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          _timeMs: Date.now() + 100
+          timestamp: new Date(finalMsgTimeMs).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          _timeMs: finalMsgTimeMs
         };
 
         if (!this.state.chatLogs.stage1) this.state.chatLogs.stage1 = [];
