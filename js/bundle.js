@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260905_v2716
+ * Version: 20260905_v2717
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260905_v2716';
+  const APP_VERSION = '20260905_v2717';
   const APP_BUILD_DATE = '2026-09-05';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -4828,7 +4828,7 @@
         const now = Date.now();
         const localPending = localLogs.filter(m => {
           if (!m) return false;
-          if (m.isThinking || String(m.id).startsWith('thinking_eval')) {
+          if (m.isThinking || String(m.id || '').startsWith('thinking_')) {
             return (now - (m._timeMs || 0) < 30000);
           }
           const isRecent = (now - (m._timeMs || 0) < 30000);
@@ -4838,7 +4838,7 @@
         });
 
         // 🛡️ 全局过滤掉临时占位思考气泡，杜绝残留
-        remoteLogs = remoteLogs.filter(m => !m || (!String(m.id).startsWith('thinking_eval') && !m.isThinking));
+        remoteLogs = remoteLogs.filter(m => !m || (!String(m.id || '').startsWith('thinking_') && !m.isThinking));
 
         // 合并 baseLogs 与 localPending
         const mergedList = [...remoteLogs];
@@ -17792,8 +17792,29 @@
             this.sendSingleChatMessage(tallySysMsg, 'stage1');
           }
 
-          // ── 🌟 2. 引导智能体发言（定性分析一致性/分歧互补，严禁报数字/票数） ──
+          // ── 🌟 2. 引导智能体发言（定性分析一致性/分歧互补，提示具体可细化的维度，严禁报数字/票数） ──
           s1.contractStep = 'topic'; // 初始锁定第一步：主题与方案提炼
+
+          // 💡 增加思考中过渡气泡，避免大模型生成期间界面出现 2~3 秒空白无响应感
+          const tempThinkingId = 'thinking_vote_' + Date.now();
+          const thinkingMsg = {
+            id: tempThinkingId,
+            sender: 'auctioneer',
+            senderName: senderName,
+            text: `⏳ 【${agentTitle}】：正在分析全组投票意向与方案细化维度...`,
+            isThinking: true,
+            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            _timeMs: Date.now() + 50
+          };
+          this.state.chatLogs.stage1.push(thinkingMsg);
+          if (typeof window.renderChat === 'function') {
+            window.renderChat(this.state);
+          } else {
+            renderChat(this.state);
+          }
+
+          let guideMsgId = '';
+          let guideText = '';
 
           if (isUnanimous && winningProposal) {
             // 情境 A：投票全票一致
@@ -17802,6 +17823,7 @@
             s1.contract.topic = winningProposal.title;
             s1.contract.overview = '';
             s1.researchOverview = '';
+            guideMsgId = 'vote_unanimous_' + Date.now();
 
             const unanimousPrompt = `${genreDesc}
 
@@ -17809,13 +17831,13 @@
   【获胜提案内容/设想】: ${winningProposal.description || '暂无详细描述'}
 
   请作为资深${agentTitle}：
-  发表 90~120 字的方案细化研讨引导（【绝对严禁出现任何票数数字，如“X票”、“全票”等，系统已单独播报票数】）：
-  ① 肯定全组就该主题《${winningProposal.title}》达成一致，直接点出其核心切入亮点；
-  ② 顺势引导大家在群里进一步商量具体的设计细节（如教学情境/探究活动/研究方法等）；
+  发表 100~140 字的方案细化研讨引导（【绝对严禁出现任何票数数字，如“X票”、“全票”等，系统已单独播报票数】）：
+  ① 肯定全组就该主题《${winningProposal.title}》达成一致，点出其切入亮点；
+  ② 明确指出大家具体可以往哪些维度/方面进一步细化商讨（如具体应用情境/学情对象、核心观测指标/评价维度、实施方法与探究活动环节等，【指明细化维度即可，无需展开虚构具体实例】）；
   ③ 末尾提示：“商量好后，请点击左侧公约看板中的【💡 讨论差不多了？一键提炼【${docThemeNoun}】】按钮！”
-  （纯自然语言输出，90~120字，严禁拆分成多条，严禁提及任何票数数字）`;
+  （纯自然语言输出，100~140字，严禁拆分成多条，严禁提及任何票数数字）`;
 
-            let guideText = `恭喜全员就选题《${winningProposal.title}》达成一致！该方向切口精准且具备很好的深入空间。请大家在讨论区进一步商量具体的设计细节与切入角度（如具体情境创设、核心问题与方法/活动步骤等）。商量好后，请点击左侧公约看板中的【💡 讨论差不多了？一键提炼【${docThemeNoun}】】按钮！`;
+            guideText = `恭喜全员就选题《${winningProposal.title}》达成一致！该方向切口精准。建议大家在讨论区重点围绕应用情境（具体学情与场景）、核心评估指标（成效观测维度）以及实施方法与活动环节等维度展开细化商讨。商量好后，请点击左侧公约看板中的【💡 讨论差不多了？一键提炼【${docThemeNoun}】】按钮！`;
 
             try {
               const aiResp = await callCozeAgentAPI('auctioneer', unanimousPrompt, { stage: 'stage1', topic: winningProposal.title, taskType });
@@ -17825,23 +17847,6 @@
             } catch (e) {
               console.warn('Auctioneer unanimous prompt fallback', e);
             }
-
-            // 🛡️ 智能清洗并统一前缀为标准的单层格式，并过滤可能出现的票数数字
-            guideText = guideText.replace(/^(?:🤖|🎪|🏛️)?\s*【(?:学术拍卖师|备课引导师|拍卖师|引导师)[·\s]*(?:全票通过|落槌与方案研讨|方案研讨|分歧指引|定名指引)?】[：:]\s*/g, '');
-            guideText = `🏛️ 【${prefixTag}】：${guideText.trim()}`;
-
-            const guideMsg = {
-              id: 'vote_unanimous_' + Date.now(),
-              sender: 'auctioneer',
-              senderName: senderName,
-              text: guideText,
-              timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-              _timeMs: Date.now() + 100
-            };
-            this.state.chatLogs.stage1.push(guideMsg);
-            if (typeof this.sendSingleChatMessage === 'function') {
-              this.sendSingleChatMessage(guideMsg, 'stage1');
-            }
           } else {
             // 情境 B：投票存在分歧
             s1.mergedTitle = '';
@@ -17849,6 +17854,7 @@
             s1.contract.topic = '';
             s1.contract.overview = '';
             s1.researchOverview = '';
+            guideMsgId = 'vote_divergence_' + Date.now();
 
             const votedProposals = (s1.proposals || []).filter(p => (tally[p.id] || 0) > 0);
             const votedTitles = (votedProposals.length > 0 ? votedProposals : (s1.proposals || [])).map(p => `《${p.title}》`).join(' 与 ');
@@ -17861,13 +17867,13 @@
   ${votedDetails}
 
   请作为资深${agentTitle}：
-  发表 100~130 字的分歧融合与方案研讨引导（【绝对严禁出现任何票数数字，如“X票”、“Y票”等，系统已单独播报票数】）：
+  发表 110~150 字的分歧融合与方案研讨引导（【绝对严禁出现任何票数数字，如“X票”、“Y票”等，系统已单独播报票数】）：
   ① 说明大家目前分别聚焦在 ${votedTitles} 等不同方向；
-  ② 深入、客观分析不同方向的侧重点与互补优势（例如一个侧重情境载体/学情导入，一个侧重核心方法/活动建构），引导全组商量如何取长补短、融合为一个统一完善的课题与方案；
+  ② 简要分析不同方向的侧重点与互补优势，并明确指出大家具体可以从哪些维度/方面取长补短、展开融合细化（如结合一方的应用情境/学情载体，融入另一方的核心指标/评价维度或实施方法等，【指明细化维度即可，无需展开虚构具体实例】）；
   ③ 末尾提示：“商量好后，请点击左侧公约看板中的【💡 讨论差不多了？一键提炼【${docThemeNoun}】】按钮！”
-  （纯自然语言输出，100~130字，严禁拆分成多条，严禁提及任何票数数字）`;
+  （纯自然语言输出，110~150字，严禁拆分成多条，严禁提及任何票数数字）`;
 
-            let guideText = `小组成员目前分别聚焦在 ${votedTitles} 等不同方向。各个方案各有侧重且具有很强的互补性，建议大家在讨论区充分交流，取长补短确定统一方向并细化实施方案。商量好后，请点击左侧公约看板中的【💡 讨论差不多了？一键提炼【${docThemeNoun}】】按钮！`;
+            guideText = `小组成员目前分别聚焦在 ${votedTitles} 等不同方向。各方案各有侧重且具备很强的互补性，建议大家在讨论区围绕具体应用情境、核心评价指标及实施方法等维度取长补短进行融合细化。商量好后，请点击左侧公约看板中的【💡 讨论差不多了？一键提炼【${docThemeNoun}】】按钮！`;
 
             try {
               const aiResp = await callCozeAgentAPI('auctioneer', divergencePrompt, { stage: 'stage1', topic: '方案分歧融合', taskType });
@@ -17877,29 +17883,30 @@
             } catch (e) {
               console.warn('Auctioneer divergence prompt fallback', e);
             }
+          }
 
-            // 🛡️ 智能清洗并统一前缀为标准的单层格式
-            guideText = guideText.replace(/^(?:🤖|🎪|🏛️)?\s*【(?:学术拍卖师|备课引导师|拍卖师|引导师)[·\s]*(?:全票通过|落槌与方案研讨|方案研讨|分歧指引|定名指引)?】[：:]\s*/g, '');
-            guideText = `🏛️ 【${prefixTag}】：${guideText.trim()}`;
+          // 🛡️ 智能清洗并统一前缀为标准的单层格式，移除思考中标记并落库广播
+          guideText = guideText.replace(/^(?:🤖|🎪|🏛️)?\s*【(?:学术拍卖师|备课引导师|拍卖师|引导师)[·\s]*(?:全票通过|落槌与方案研讨|方案研讨|分歧指引|定名指引)?】[：:]\s*/g, '');
+          guideText = `🏛️ 【${prefixTag}】：${guideText.trim()}`;
 
-            const guideMsg = {
-              id: 'vote_divergence_' + Date.now(),
-              sender: 'auctioneer',
-              senderName: senderName,
-              text: guideText,
-              timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-              _timeMs: Date.now() + 100
-            };
-            this.state.chatLogs.stage1.push(guideMsg);
-            if (typeof this.sendSingleChatMessage === 'function') {
-              this.sendSingleChatMessage(guideMsg, 'stage1');
-            }
+          thinkingMsg.id = guideMsgId;
+          thinkingMsg.text = guideText;
+          delete thinkingMsg.isThinking;
+          thinkingMsg._timeMs = Date.now() + 100;
+          thinkingMsg.timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+          if (typeof this.sendSingleChatMessage === 'function') {
+            this.sendSingleChatMessage(thinkingMsg, 'stage1');
           }
 
           this.syncStage1();
           this.syncChatLogs();
           if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
-          renderChat(this.state);
+          if (typeof window.renderChat === 'function') {
+            window.renderChat(this.state);
+          } else {
+            renderChat(this.state);
+          }
           this.renderStudentWorkspace();
         }, 800);
       }

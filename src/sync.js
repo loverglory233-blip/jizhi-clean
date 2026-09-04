@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState, STORAGE_KEY_TASKS, STORAGE_KEY_ANNOUNCEMENTS } from './constants.js?v=20260905_v2716';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly } from './utils.js?v=20260905_v2716';
+import { InitialState, STORAGE_KEY_TASKS, STORAGE_KEY_ANNOUNCEMENTS } from './constants.js?v=20260905_v2717';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly } from './utils.js?v=20260905_v2717';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -573,7 +573,7 @@ export class CloudSyncEngine {
       const now = Date.now();
       const localPending = localLogs.filter(m => {
         if (!m) return false;
-        if (m.isThinking || String(m.id).startsWith('thinking_eval')) {
+        if (m.isThinking || String(m.id || '').startsWith('thinking_')) {
           return (now - (m._timeMs || 0) < 30000);
         }
         const isRecent = (now - (m._timeMs || 0) < 30000);
@@ -583,7 +583,7 @@ export class CloudSyncEngine {
       });
 
       // 🛡️ 全局过滤掉临时占位思考气泡，杜绝残留
-      remoteLogs = remoteLogs.filter(m => !m || (!String(m.id).startsWith('thinking_eval') && !m.isThinking));
+      remoteLogs = remoteLogs.filter(m => !m || (!String(m.id || '').startsWith('thinking_') && !m.isThinking));
 
       // 合并 baseLogs 与 localPending
       const mergedList = [...remoteLogs];
