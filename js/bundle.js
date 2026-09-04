@@ -9730,8 +9730,15 @@
 
                 if (s1.contractStep === 'completed' || s1.contract?.isDraftGenerated) {
                   return `
-                    <div style="background:#f0fdf4; border:1.5px solid #86efac; color:#15803d; padding:7px 22px; border-radius:20px; font-weight:800; font-size:13px; display:inline-flex; align-items:center; gap:6px; box-shadow:0 2px 8px rgba(34,197,94,0.15);">
-                      ✅ 公约草案已全部提炼生成（全组可微调修改，并在下方签署确认）
+                    <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+                      <div style="background:#f0fdf4; border:1.5px solid #86efac; color:#15803d; padding:7px 18px; border-radius:20px; font-weight:800; font-size:13px; display:inline-flex; align-items:center; gap:6px; box-shadow:0 2px 8px rgba(34,197,94,0.15);">
+                        ✅ 公约草案已全部提炼生成（全组可微调修改，并在下方签署确认）
+                      </div>
+                      ${!isContractLocked ? `
+                        <button id="btn-re-extract-full-contract" onclick="window.app && window.app._doOneClickGenerateContract(this)" style="background:#ffffff; border:1.5px solid #0284c7; color:#0284c7; padding:6px 14px; border-radius:16px; font-size:12px; font-weight:800; cursor:pointer; display:inline-flex; align-items:center; gap:4px; box-shadow:0 2px 6px rgba(2,132,199,0.15); transition:all 0.2s;" onmouseover="this.style.background='#f0f9ff'" onmouseout="this.style.background='#ffffff'">
+                          🔄 重新提炼全套公约草案
+                        </button>
+                      ` : ''}
                     </div>
                   `;
                 } else if (s1.contractStep === 'tasks') {
@@ -9785,10 +9792,17 @@
 
         <!-- 槽位 2：方案概述 / 教学构思与主线 -->
         <div style="display:flex; flex-direction:column; gap:8px; width:100%; margin-bottom:20px; background:#f0f9ff; padding:16px; border-radius:12px; border:1px solid #bae6fd; box-sizing:border-box;">
-          <label style="font-size:14px; font-weight:800; color:#0369a1; display:flex; align-items:center; gap:6px;">
-            📝 【槽位 2】${(taskGenreKey === 'instructional') ? '教学设计整体构想与主线 (核心情境、活动主线与重难点突破)' : '研究方案概述 (具体情境、案例、聚焦点与方法)'}:
-          </label>
-          <textarea id="contract-overview-input" class="contract-overview-textarea" data-lock-key="research_overview" placeholder="请在讨论区围绕核心主线、关键活动/方法展开研讨，点击上方按钮一键提炼生成（生成后可自由微调）..." ${isInputDisabled ? 'disabled readonly style="opacity:0.8; cursor:not-allowed; background:#f8fafc;"' : ''} style="width:100%; min-height:88px; box-sizing:border-box; background:#ffffff; color:#0f172a; border:1px solid #cbd5e1; border-radius:8px; padding:10px 12px; font-size:13px; line-height:1.6; font-family:sans-serif; resize:vertical;">${s1.contract?.overview || s1.researchOverview || ''}</textarea>
+          <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+            <label style="font-size:14px; font-weight:800; color:#0369a1; display:flex; align-items:center; gap:6px;">
+              📝 【槽位 2】${(taskGenreKey === 'instructional') ? '教学设计整体构想与主线 (核心情境、活动主线与重难点突破)' : '研究方案概述 (具体情境、案例、聚焦点与方法)'}:
+            </label>
+            ${!isContractLocked ? `
+              <button id="btn-re-extract-overview" onclick="window.app && window.app._doExtractTopic(this)" style="background:linear-gradient(135deg, #0284c7, #0369a1); color:#fff; border:none; padding:4px 12px; border-radius:12px; font-size:12px; font-weight:800; cursor:pointer; display:inline-flex; align-items:center; gap:4px; box-shadow:0 2px 6px rgba(2,132,199,0.3); transition:all 0.2s;" onmouseover="this.style.opacity='0.9'" onmouseout="this.style.opacity='1'">
+                🔄 重新提炼【主题与方案概述】
+              </button>
+            ` : ''}
+          </div>
+          <textarea id="contract-overview-input" class="contract-overview-textarea" data-lock-key="research_overview" placeholder="请在讨论区围绕核心主线、关键活动/方法展开研讨，点击右上角【重新提炼】一键智能提取（生成后可自由微调）..." ${isInputDisabled ? 'disabled readonly style="opacity:0.8; cursor:not-allowed; background:#f8fafc;"' : ''} style="width:100%; min-height:88px; box-sizing:border-box; background:#ffffff; color:#0f172a; border:1px solid #cbd5e1; border-radius:8px; padding:10px 12px; font-size:13px; line-height:1.6; font-family:sans-serif; resize:vertical;">${s1.contract?.overview || s1.researchOverview || ''}</textarea>
         </div>
 
         <div style="display:flex; flex-direction:column; gap:16px; width:100%;">
@@ -15808,7 +15822,9 @@
         s1.contract.topic = finalTopic;
         s1.contract.overview = finalOverview;
         s1.researchOverview = finalOverview;
-        s1.contractStep = 'time'; // 顺推至时间分配阶段
+        if (!s1.contractStep || s1.contractStep === 'topic') {
+          s1.contractStep = 'time'; // 顺推至时间分配阶段
+        }
 
         guideSpeech = guideSpeech.replace(/^(?:🎪|🏛️)?\s*【(?:学术拍卖师|拍卖师|备课引导师|引导师)[·\s]*(?:方案确立|主题与方案确立|方案提炼)?】[：:]\s*/g, '');
         const noticeText = `🏛️ 【${agentRole}·主题与方案确立】：全组${isInst ? '教学论题' : '研究论题'}《${finalTopic}》与方案概述已成功提炼并录入公约看板！👉 接下来请全组在讨论区商讨 6 大${isInst ? '模块' : '章节'}的时间预算分配，商定完成后点击左侧【⏱️ 时间讨论差不多了？一键提炼【时间分配】】！`;
