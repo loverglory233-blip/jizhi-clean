@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260904_v2200
+ * Version: 20260904_v2207
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260904_v2200';
+  const APP_VERSION = '20260904_v2207';
   const APP_BUILD_DATE = '2026-09-04';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -12928,9 +12928,28 @@
                 renderChat(this.state);
               }
 
-              // ② 提案全齐但尚未投票：提示先交流 1~2 分钟再投票
+              // ② 开场 6 分钟提案未交齐催促（点名未提交提案同学）
+              const unsubmittedProps = membersList.filter(m => !propList.some(p => isSameUser(m, p.author) || isSameUser(m, p.authorName) || p.author === m.id || (m.name && p.authorName === m.name)));
+              if (!this.state.s1_6minPropNudgeSent && elapsedSec >= 360 && unsubmittedProps.length > 0 && propCount < membersList.length) {
+                this.state.s1_6minPropNudgeSent = true;
+                const unsubmittedPropNames = unsubmittedProps.map(m => m.name || m.id).join('、');
+                const msgPropNudge = {
+                  sender: 'auctioneer',
+                  senderName: '头脑风暴 · 学术拍卖师',
+                  text: `🎪 【学术拍卖师·提案协同催促】：头脑风暴已进行 6 分钟啦！目前全组提案进度为【${propCount}/${membersList.length} 篇】，看到 ${unsubmittedPropNames} 同学尚未提交提案。请大家相互启发，尽快在左侧卡片提交初步设想，全员提交后即可开启投票推选！`,
+                  timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                  _timeMs: nowMs
+                };
+                if (!this.state.chatLogs.stage1) this.state.chatLogs.stage1 = [];
+                this.state.chatLogs.stage1.push(msgPropNudge);
+                this.syncChatLogs();
+                renderChat(this.state);
+              }
+
+              // ③ 提案全齐但尚未投票：提示先交流 1~2 分钟再投票
               if (!this.state.s1_allPropsGatheredSent && propCount >= membersList.length && propCount > 0) {
                 this.state.s1_allPropsGatheredSent = true;
+                this.state._propsGatheredTimeMs = nowMs;
                 const msgPropsAll = {
                   sender: 'auctioneer',
                   senderName: '头脑风暴 · 学术拍卖师',
@@ -12940,6 +12959,50 @@
                 };
                 if (!this.state.chatLogs.stage1) this.state.chatLogs.stage1 = [];
                 this.state.chatLogs.stage1.push(msgPropsAll);
+                this.syncChatLogs();
+                renderChat(this.state);
+              }
+
+              // ④ 投票催促：提案集齐后满 2 分钟（或整体满 8 分钟）仍有同学未投票（点名未投票同学）
+              const totalVotesCast = membersList.filter(m => isMemberDone(s1.hasVoted, m)).length;
+              const unvotedMembers = membersList.filter(m => !isMemberDone(s1.hasVoted, m));
+              const propsGatheredTime = this.state._propsGatheredTimeMs || (nowMs - 120000);
+              const timeSincePropsGathered = nowMs - propsGatheredTime;
+              if (!this.state.s1_voteNudgeSent && propCount >= membersList.length && unvotedMembers.length > 0 && totalVotesCast < membersList.length && (timeSincePropsGathered >= 120000 || elapsedSec >= 480)) {
+                this.state.s1_voteNudgeSent = true;
+                const unvotedNames = unvotedMembers.map(m => m.name || m.id).join('、');
+                const msgVoteNudge = {
+                  sender: 'auctioneer',
+                  senderName: '头脑风暴 · 学术拍卖师',
+                  text: `🎪 【学术拍卖师·投票推选提示】：全员提案已集齐研讨，目前全组投票进度为【${totalVotesCast}/${membersList.length} 人】，看到 ${unvotedNames} 同学尚未完成投票。请尽快在左侧卡片为您认同的课题方案投出关键一票！`,
+                  timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                  _timeMs: nowMs
+                };
+                if (!this.state.chatLogs.stage1) this.state.chatLogs.stage1 = [];
+                this.state.chatLogs.stage1.push(msgVoteNudge);
+                this.syncChatLogs();
+                renderChat(this.state);
+              }
+
+              // ⑤ 公约草案生成后签署催促：草案就绪满 90 秒后仍有同学未签署（点名未签署同学）
+              const isDraftDone = !!(s1.contractStep === 'completed' || s1.contract?.isDraftGenerated);
+              const confirmedMembers = s1.contract?.confirmedMembers || {};
+              const confirmedCount = membersList.filter(m => isMemberDone(confirmedMembers, m)).length;
+              const unsignedMembers = membersList.filter(m => !isMemberDone(confirmedMembers, m));
+              const draftTime = s1.contract?._draftedTime || (nowMs - 90000);
+              const timeSinceDraft = nowMs - draftTime;
+              if (!this.state.s1_signNudgeSent && isDraftDone && unsignedMembers.length > 0 && confirmedCount < membersList.length && timeSinceDraft >= 90000) {
+                this.state.s1_signNudgeSent = true;
+                const unsignedNames = unsignedMembers.map(m => m.name || m.id).join('、');
+                const msgSignNudge = {
+                  sender: 'auctioneer',
+                  senderName: '头脑风暴 · 学术拍卖师',
+                  text: `🏛️ 【学术拍卖师·公约签署提示】：公约草案已全部提炼就绪，目前全组签署进度为【${confirmedCount}/${membersList.length} 人】，看到 ${unsignedNames} 同学尚未确认签署。请尽快在左侧公约下方核对分工与时间规划并点击【✍️ 确认签署】，全员签署后将正式解锁阶段二！`,
+                  timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                  _timeMs: nowMs
+                };
+                if (!this.state.chatLogs.stage1) this.state.chatLogs.stage1 = [];
+                this.state.chatLogs.stage1.push(msgSignNudge);
                 this.syncChatLogs();
                 renderChat(this.state);
               }
@@ -17903,20 +17966,27 @@
         membersList.forEach(m => { totalContrib += getVal(m); });
 
         if (totalContrib >= minContribThreshold || plainLen >= minContribThreshold) {
-          // 纯粹判定：只要组内有成员写作占比 <= 15%（且总字数达标），责任编辑即出场关怀
-          const pcts = membersList.map(m => {
+          // 纯粹判定：只要组内有成员写作占比 <= 15%（且总字数达标），责任编辑即出场点名关怀
+          const lowMembers = [];
+          membersList.forEach(m => {
             const val = getVal(m);
-            return (totalContrib > 0) ? Math.round((val / totalContrib) * 100) : 0;
+            const pct = (totalContrib > 0) ? Math.round((val / totalContrib) * 100) : 0;
+            if (pct <= 15) {
+              lowMembers.push(m);
+            }
           });
-          const hasLowMember = Math.min(...pcts) <= 15;
 
-          if (hasLowMember) {
+          if (lowMembers.length > 0 && lowMembers.length < membersList.length) {
             this.state.lastSSRLWarnTimeMs = now;
             this.state.lastSSRLWarnLen = plainLen;
+            const lowNames = lowMembers.map(m => m.name || m.id).join('、');
+            const taskType = this.getCurrentTaskType();
+            const isInst = (taskType === 'instructional');
+            const managingName = isInst ? '备课组长' : '责任编辑';
             const ssrlWarningMsg = {
               sender: 'managingEditor',
-              senderName: '协同调度 · 责任编辑',
-              text: `🤝 【责任编辑·协同关怀】：关注到当前正文撰写推进中，各成员的投入占比出现了一定程度的分化。建议全组同学在讨论区加强沟通与协作，互相补位并共同推进后续章节，群策群力完成高质量学术成稿哦~`,
+              senderName: `协同调度 · ${managingName}`,
+              text: `🤝 【${managingName}·协同关怀】：关注到当前正文撰写推进中，${lowNames} 同学负责章节的推进略显滞后（字数投入占比偏低）。建议全组同学在讨论区主动沟通交流、提供思路支架并协助分工推进，群策群力完成高质量学术成稿哦~`,
               timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
               _timeMs: now
             };
