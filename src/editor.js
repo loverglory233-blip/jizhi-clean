@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260904_v2485";
-import { callCozeAgentAPI } from "./agents.js?v=20260904_v2485";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, showResolutionBlock } from "./utils.js?v=20260904_v2485";
+import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260904_v2490";
+import { callCozeAgentAPI } from "./agents.js?v=20260904_v2490";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, showResolutionBlock } from "./utils.js?v=20260904_v2490";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -1949,9 +1949,14 @@ function renderStage2Canvas(canvas, state, handlers) {
 
       if (existingFrame) {
         if (isEditorReadonly) {
+          existingFrame._wasPreviouslyReadonly = true;
           enforceEtherpadReadonly(existingFrame);
         } else {
           liftEtherpadReadonly(existingFrame);
+          if (existingFrame._wasPreviouslyReadonly) {
+            existingFrame._wasPreviouslyReadonly = false;
+            existingFrame.src = padUrl;
+          }
         }
       }
 
@@ -2530,9 +2535,14 @@ function renderStage3Canvas(canvas, state, handlers) {
 
     if (existingFrame) {
       if (isFinalSubmitted || isTaskDeadlineExpired) {
+        existingFrame._wasPreviouslyReadonly = true;
         enforceEtherpadReadonly(existingFrame);
       } else {
         liftEtherpadReadonly(existingFrame);
+        if (existingFrame._wasPreviouslyReadonly) {
+          existingFrame._wasPreviouslyReadonly = false;
+          existingFrame.src = padUrl;
+        }
       }
     }
     return;
