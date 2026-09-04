@@ -14,8 +14,8 @@ import {
   DefaultTasks,
   DefaultAnnouncements,
   DefaultReferencePapers
-} from './constants.js?v=20260905_v2658';
-import { formatExportDateTime, formatDurationHuman, isScopeMatch } from './utils.js?v=20260905_v2658';
+} from './constants.js?v=20260905_v2659';
+import { formatExportDateTime, formatDurationHuman, isScopeMatch } from './utils.js?v=20260905_v2659';
 
 export class AuthManager {
   constructor() {
@@ -308,8 +308,9 @@ export class AuthManager {
             this.sanitizeAndDeduplicateGroups();
           }
 
-          // 3. 写作任务：智能双向合并（保留本地新创建任务，尊重已删除黑名单，智能继承延期信息）
+          // 3. 写作任务：以教师端权威发布的云端数据为准（学生端绝不反向复活已删任务，教师端保留刚建未推任务）
           if (Array.isArray(data.tasks)) {
+            const isTeacher = currUser && (currUser.role === 'teacher' || currUser.isTeacher);
             let deletedTaskIds = new Set();
             try {
               const delList = JSON.parse(localStorage.getItem('jizhi_deleted_task_ids')) || [];
@@ -326,30 +327,35 @@ export class AuthManager {
               }
             });
 
-            // 2) 合成本地任务：如果本地有新创建但尚未完成云端持久化的任务，绝对保留，严防旧云端数据反向冲刷抹除！
-            localTasks.forEach(localT => {
-              if (!localT || !localT.id) return;
-              if (deletedTaskIds.has(localT.id)) return;
+            // 2) 仅教师端在本地有刚创建（60秒内）尚未完成云端持久化的任务时保留，严防短暂网络延迟冲刷！学生端绝不复活已删任务！
+            if (isTeacher) {
+              localTasks.forEach(localT => {
+                if (!localT || !localT.id) return;
+                if (deletedTaskIds.has(localT.id)) return;
 
-              if (!taskMap.has(localT.id)) {
-                taskMap.set(localT.id, localT);
-              } else {
-                const remoteT = taskMap.get(localT.id);
-                if (localT.lastExtension) {
-                  const localExtAt = localT.lastExtension.extendedAt || 0;
-                  const remoteExtAt = remoteT.lastExtension ? (remoteT.lastExtension.extendedAt || 0) : 0;
-                  if (localExtAt >= remoteExtAt) {
-                    taskMap.set(localT.id, {
-                      ...remoteT,
-                      ...localT,
-                      deadline: localT.deadline,
-                      durationMinutes: localT.durationMinutes,
-                      lastExtension: localT.lastExtension
-                    });
+                if (!taskMap.has(localT.id)) {
+                  const isRecent = localT.createdAt ? (Date.now() - new Date(localT.createdAt).getTime() < 60000) : false;
+                  if (isRecent) {
+                    taskMap.set(localT.id, localT);
+                  }
+                } else {
+                  const remoteT = taskMap.get(localT.id);
+                  if (localT.lastExtension) {
+                    const localExtAt = localT.lastExtension.extendedAt || 0;
+                    const remoteExtAt = remoteT.lastExtension ? (remoteT.lastExtension.extendedAt || 0) : 0;
+                    if (localExtAt >= remoteExtAt) {
+                      taskMap.set(localT.id, {
+                        ...remoteT,
+                        ...localT,
+                        deadline: localT.deadline,
+                        durationMinutes: localT.durationMinutes,
+                        lastExtension: localT.lastExtension
+                      });
+                    }
                   }
                 }
-              }
-            });
+              });
+            }
 
             const mergedTasks = Array.from(taskMap.values());
             localStorage.setItem(STORAGE_KEY_TASKS, JSON.stringify(mergedTasks));
@@ -383,6 +389,7 @@ export class AuthManager {
 
           // 4. 课堂通知：智能双向合并，保留本地新发布通知，继承已读标记，尊重删除黑名单
           if (Array.isArray(data.announcements)) {
+            const isTeacher = currUser && (currUser.role === 'teacher' || currUser.isTeacher);
             let deletedAnnIds = new Set();
             try {
               const delList = JSON.parse(localStorage.getItem('jizhi_deleted_ann_ids')) || [];
@@ -402,9 +409,9 @@ export class AuthManager {
               if (!localAnn || !localAnn.id) return;
               if (deletedAnnIds.has(localAnn.id)) return;
 
-              if (!annMap.has(localAnn.id)) {
+              if (isTeacher && !annMap.has(localAnn.id)) {
                 annMap.set(localAnn.id, localAnn);
-              } else {
+              } else if (annMap.has(localAnn.id)) {
                 const remoteAnn = annMap.get(localAnn.id);
                 const mergedReadStatus = { ...(remoteAnn.readStatus || {}), ...(localAnn.readStatus || {}) };
                 const mergedGroupStatus = { ...(remoteAnn.readGroupStatus || {}), ...(localAnn.readGroupStatus || {}) };
@@ -447,6 +454,7 @@ export class AuthManager {
 
           // 5. 学术文献与范文：智能双向合并，保留本地新上传文献，尊重删除黑名单
           if (Array.isArray(data.referencePapers)) {
+            const isTeacher = currUser && (currUser.role === 'teacher' || currUser.isTeacher);
             let deletedPaperIds = new Set();
             try {
               const delList = JSON.parse(localStorage.getItem('jizhi_deleted_paper_ids')) || [];
@@ -463,14 +471,16 @@ export class AuthManager {
               }
             });
 
-            oldPapers.forEach(localP => {
-              if (localP && localP.id) {
-                if (deletedPaperIds.has(localP.id)) return;
-                if (!paperMap.has(localP.id)) {
-                  paperMap.set(localP.id, localP);
+            if (isTeacher) {
+              oldPapers.forEach(localP => {
+                if (localP && localP.id) {
+                  if (deletedPaperIds.has(localP.id)) return;
+                  if (!paperMap.has(localP.id)) {
+                    paperMap.set(localP.id, localP);
+                  }
                 }
-              }
-            });
+              });
+            }
 
             const mergedPapers = Array.from(paperMap.values());
             localStorage.setItem('jizhi_reference_papers_db', JSON.stringify(mergedPapers));
@@ -495,6 +505,7 @@ export class AuthManager {
 
           // 6. 课程问卷配置：智能双向合并，保留本地新配置问卷，尊重删除黑名单
           if (Array.isArray(data.surveys)) {
+            const isTeacher = currUser && (currUser.role === 'teacher' || currUser.isTeacher);
             let deletedSurveyIds = new Set();
             try {
               const delList = JSON.parse(localStorage.getItem('jizhi_deleted_survey_ids')) || [];
@@ -510,14 +521,16 @@ export class AuthManager {
               }
             });
 
-            localSurveys.forEach(localS => {
-              if (localS && localS.id) {
-                if (deletedSurveyIds.has(localS.id)) return;
-                if (!surveyMap.has(localS.id)) {
-                  surveyMap.set(localS.id, localS);
+            if (isTeacher) {
+              localSurveys.forEach(localS => {
+                if (localS && localS.id) {
+                  if (deletedSurveyIds.has(localS.id)) return;
+                  if (!surveyMap.has(localS.id)) {
+                    surveyMap.set(localS.id, localS);
+                  }
                 }
-              }
-            });
+              });
+            }
 
             localStorage.setItem('jizhi_surveys_list_db', JSON.stringify(Array.from(surveyMap.values())));
           }
