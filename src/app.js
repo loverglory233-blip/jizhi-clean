@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260905_v2709";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime } from "./utils.js?v=20260905_v2709";
-import { callCozeAgentAPI } from "./agents.js?v=20260905_v2709";
-import { AuthManager } from "./auth.js?v=20260905_v2709";
-import { CloudSyncEngine } from "./sync.js?v=20260905_v2709";
-import { renderLoginView } from "./login.js?v=20260905_v2709";
-import { renderTeacherPortal } from "./teacher.js?v=20260905_v2709";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260905_v2709";
+} from "./constants.js?v=20260905_v2710";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime } from "./utils.js?v=20260905_v2710";
+import { callCozeAgentAPI } from "./agents.js?v=20260905_v2710";
+import { AuthManager } from "./auth.js?v=20260905_v2710";
+import { CloudSyncEngine } from "./sync.js?v=20260905_v2710";
+import { renderLoginView } from "./login.js?v=20260905_v2710";
+import { renderTeacherPortal } from "./teacher.js?v=20260905_v2710";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260905_v2710";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260905_v2709";
+} from "./editor.js?v=20260905_v2710";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -740,6 +740,7 @@ export class App {
         const isPrimaryGuardian = primaryMember && (isSameUser(primaryMember, myCode) || primaryMember.id === myCode || primaryMember.name === myCode);
 
         if (isPrimaryGuardian) {
+          if (this.isCurrentTaskReadOnly()) return; // 🛡️ 只读模式下绝不触发任何定时智能体催促与分析
           const allChatLogsList = Object.values(this.state.chatLogs || {}).flat();
 
           // ── 0. 【阶段一守卫：3分钟静默破冰、6分钟无提案强催促(点名)、提案全齐先交流】 ──
@@ -5067,6 +5068,7 @@ ${chatSnippet}
 
     // 🎓 阶段三：严格按时序：① 中间委员开场 ➔ ② 正反方并行生成 ➔ ③ 写入矩阵 ➔ ④ 中间委员抛题引导
     else if (stage === 'stage3') {
+      if (this.isCurrentTaskReadOnly()) return; // 🛡️ 只读进入阶段三绝对不触发正反方专家分析与答辩委员会
       const hasProp = logs.some(m => m && m.sender === 'proponent');
       const hasOpp = logs.some(m => m && m.sender === 'opponent');
       const needsCommitteeReview = !hasProp || !hasOpp || !this.state.stage3.feedbackItems || this.state.stage3.feedbackItems.length === 0;
@@ -5079,7 +5081,12 @@ ${chatSnippet}
   }
 
   async runStage3CommitteePipeline(btnElement = null) {
-    if (this.isCurrentTaskReadOnly()) return;
+    if (this.isCurrentTaskReadOnly()) {
+      this.state.stage3CommitteeLoading = false;
+      this._isStage3PipelineRunning = false;
+      this.renderStudentWorkspace();
+      return;
+    }
     if (btnElement && typeof btnElement === 'object' && btnElement.tagName) {
       btnElement.disabled = true;
       btnElement.style.opacity = '0.6';
@@ -5522,8 +5529,12 @@ ${chatSnippet}
 
   isCurrentTaskReadOnly() {
     if (this.state.isFinalSubmitted) return true;
+    if (this.isViewingPastStage) return true;
+    const user = this.authManager ? this.authManager.getCurrentUser() : null;
+    const isTeacher = user && (user.isTeacher || user.role === 'teacher');
+    if (isTeacher || this.state.isTeacherMonitorView || this.state.isTeacherView) return true;
     const allTasks = (this.authManager) ? this.authManager.getTasks() : [];
-    const curTask = allTasks.find(t => t.id === this.state.activeTaskId || (t.title && t.title === this.state.activeTaskId)) || (allTasks.length > 0 ? allTasks[0] : null);
+    const curTask = allTasks.find(t => t.id === this.state.activeTaskId || (t.title && t.title === this.state.activeTaskId));
     if (curTask && isTaskExpired(curTask)) return true;
     return false;
   }

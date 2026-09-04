@@ -14,8 +14,8 @@ import {
   DefaultTasks,
   DefaultAnnouncements,
   DefaultReferencePapers
-} from './constants.js?v=20260905_v2709';
-import { formatExportDateTime, formatDurationHuman, isScopeMatch, showGlobalBannerNotice } from './utils.js?v=20260905_v2709';
+} from './constants.js?v=20260905_v2710';
+import { formatExportDateTime, formatDurationHuman, isScopeMatch, showGlobalBannerNotice } from './utils.js?v=20260905_v2710';
 
 export class AuthManager {
   constructor() {
@@ -2282,57 +2282,17 @@ export class AuthManager {
     }
   }
 
-  // 📚 教师端向受众小组研讨区即时推送学术范文导学卡片
+  // 📚 教师端下发学术范文：更新元数据并广播通知，由学生端在阶段二结合文献配置自主呈现
   pushReferencePaperToGroupChat(paperId, targetGroupId = 'all') {
-    const papers = this.getAllReferencePapers();
-    const paper = papers.find(p => p.id === paperId);
-    if (!paper) return;
-
-    const classes = this.getClasses();
-    const targetClass = classes.find(c => c.id === paper.classId) || classes[0];
-    if (!targetClass) return;
-
-    const groups = (targetClass.groups || []).filter(g => {
-      if (!targetGroupId || targetGroupId === 'all') return true;
-      if (paper.targetGroupIds && Array.isArray(paper.targetGroupIds)) {
-        return paper.targetGroupIds.includes('all') || paper.targetGroupIds.includes(g.id);
-      }
-      return g.id === targetGroupId;
-    });
-
-    const taskId = paper.taskId || 'task_all';
-    const paperTitle = paper.title || '学术参考范文';
-    const highlights = paper.keyHighlights || '研究设计与学术论证规范';
-
-    groups.forEach(g => {
-      const msgObj = {
-        id: 'msg_paper_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6),
-        sender: 'reviewingEditor',
-        senderName: '审稿编辑 Agent',
-        text: `📚【任课教师学术范文推荐】\n老师刚刚为本组下发了最新示范文献《${paperTitle}》！\n💡 核心导读与论证要点：${highlights}\n同学们可以点击正文上方的【📚 查阅参考范文】按钮随时打开阅读，吸取其论述逻辑与学术规范！`,
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        _timeMs: Date.now()
-      };
-
+    this.pushGlobalMeta();
+    if ('BroadcastChannel' in window) {
       try {
-        fetch(`sync.php?action=send_chat&groupId=${encodeURIComponent(g.id)}&taskId=${encodeURIComponent(taskId)}&classId=${encodeURIComponent(targetClass.id)}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            id: msgObj.id,
-            classId: targetClass.id,
-            groupId: g.id,
-            taskId: taskId,
-            stage: 'stage2',
-            sender: msgObj.sender,
-            senderName: msgObj.senderName,
-            text: msgObj.text,
-            timestamp: msgObj.timestamp,
-            _timeMs: msgObj._timeMs
-          })
-        }).catch(() => {});
+        if (!window._jizhiGlobalBc) {
+          window._jizhiGlobalBc = new BroadcastChannel('jizhi_global_events');
+        }
+        window._jizhiGlobalBc.postMessage({ type: 'paper_updated', paperId, targetGroupId });
       } catch (e) {}
-    });
+    }
   }
 
   openExportFormatModal({ onSelect, title = '导出研讨记录表' }) {

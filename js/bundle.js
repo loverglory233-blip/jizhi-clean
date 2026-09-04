@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260905_v2709
+ * Version: 20260905_v2710
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260905_v2709';
+  const APP_VERSION = '20260905_v2710';
   const APP_BUILD_DATE = '2026-09-05';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -3837,57 +3837,17 @@
       }
     }
 
-    // 📚 教师端向受众小组研讨区即时推送学术范文导学卡片
+    // 📚 教师端下发学术范文：更新元数据并广播通知，由学生端在阶段二结合文献配置自主呈现
     pushReferencePaperToGroupChat(paperId, targetGroupId = 'all') {
-      const papers = this.getAllReferencePapers();
-      const paper = papers.find(p => p.id === paperId);
-      if (!paper) return;
-
-      const classes = this.getClasses();
-      const targetClass = classes.find(c => c.id === paper.classId) || classes[0];
-      if (!targetClass) return;
-
-      const groups = (targetClass.groups || []).filter(g => {
-        if (!targetGroupId || targetGroupId === 'all') return true;
-        if (paper.targetGroupIds && Array.isArray(paper.targetGroupIds)) {
-          return paper.targetGroupIds.includes('all') || paper.targetGroupIds.includes(g.id);
-        }
-        return g.id === targetGroupId;
-      });
-
-      const taskId = paper.taskId || 'task_all';
-      const paperTitle = paper.title || '学术参考范文';
-      const highlights = paper.keyHighlights || '研究设计与学术论证规范';
-
-      groups.forEach(g => {
-        const msgObj = {
-          id: 'msg_paper_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6),
-          sender: 'reviewingEditor',
-          senderName: '审稿编辑 Agent',
-          text: `📚【任课教师学术范文推荐】\n老师刚刚为本组下发了最新示范文献《${paperTitle}》！\n💡 核心导读与论证要点：${highlights}\n同学们可以点击正文上方的【📚 查阅参考范文】按钮随时打开阅读，吸取其论述逻辑与学术规范！`,
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          _timeMs: Date.now()
-        };
-
+      this.pushGlobalMeta();
+      if ('BroadcastChannel' in window) {
         try {
-          fetch(`sync.php?action=send_chat&groupId=${encodeURIComponent(g.id)}&taskId=${encodeURIComponent(taskId)}&classId=${encodeURIComponent(targetClass.id)}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              id: msgObj.id,
-              classId: targetClass.id,
-              groupId: g.id,
-              taskId: taskId,
-              stage: 'stage2',
-              sender: msgObj.sender,
-              senderName: msgObj.senderName,
-              text: msgObj.text,
-              timestamp: msgObj.timestamp,
-              _timeMs: msgObj._timeMs
-            })
-          }).catch(() => {});
+          if (!window._jizhiGlobalBc) {
+            window._jizhiGlobalBc = new BroadcastChannel('jizhi_global_events');
+          }
+          window._jizhiGlobalBc.postMessage({ type: 'paper_updated', paperId, targetGroupId });
         } catch (e) {}
-      });
+      }
     }
 
     openExportFormatModal({ onSelect, title = '导出研讨记录表' }) {
@@ -13980,18 +13940,41 @@
 
     const currentUser = state.currentUser;
     const allStages = ['stage1', 'stage2', 'stage3'];
+    const curStage = state.currentStage || 'stage1';
+    const stageOrder = { stage1: 1, stage2: 2, stage3: 3 };
+    const currentStageNum = stageOrder[curStage] || 1;
+    const maxReachedStageNum = stageOrder[state.groupMaxStage || curStage] || 1;
+    const activeDisplayStageNum = Math.max(currentStageNum, maxReachedStageNum);
 
-    // Collect all visible messages in order across all stages, auto-purging old legacy idle spam
+    // 🛡️ 智能体阶段物理归属铁律：每个智能体只能出现在属于它的阶段
+    const allowedAgentsByStage = {
+      stage1: new Set(['auctioneer']),
+      stage2: new Set(['managingEditor', 'reviewingEditor']),
+      stage3: new Set(['proponent', 'opponent', 'neutral'])
+    };
+
     const allMsgs = [];
     const seenMsgKeys = new Set();
+
     allStages.forEach(stg => {
+      // 仅收集当前已推进到达的阶段历史记录，绝不提前展示未来阶段消息
+      if ((stageOrder[stg] || 1) > activeDisplayStageNum) return;
+
       if (state.chatLogs && Array.isArray(state.chatLogs[stg])) {
         state.chatLogs[stg].forEach(msg => {
           if (!msg) return;
           const txt = msg.text || '';
           if (txt.includes('已连续') || txt.includes('互动督促') || txt.includes('秒未研讨') || txt.includes('秒没有发言')) return;
 
-          // 🛡️ 严格去重守护：依据唯一 msg.id 去重，100% 保护人类多次发送相同词汇（如连续发好/收到/同意）绝不误杀吞掉！
+          // 🛡️ 严格阶段隔离：若非属于该阶段的智能体消息，绝对予以过滤屏蔽
+          const sender = msg.sender;
+          if (['auctioneer', 'managingEditor', 'reviewingEditor', 'proponent', 'opponent', 'neutral'].includes(sender)) {
+            if (!allowedAgentsByStage[stg] || !allowedAgentsByStage[stg].has(sender)) {
+              return;
+            }
+          }
+
+          // 🛡️ 严格去重守护：依据唯一 msg.id 去重
           const idKey = msg.id ? `id_${msg.id}` : `fallback_${msg.sender}_${stg}_${msg._timeMs || msg.timestamp}`;
           if (seenMsgKeys.has(idKey)) {
             return;
@@ -15205,6 +15188,7 @@
           const isPrimaryGuardian = primaryMember && (isSameUser(primaryMember, myCode) || primaryMember.id === myCode || primaryMember.name === myCode);
 
           if (isPrimaryGuardian) {
+            if (this.isCurrentTaskReadOnly()) return; // 🛡️ 只读模式下绝不触发任何定时智能体催促与分析
             const allChatLogsList = Object.values(this.state.chatLogs || {}).flat();
 
             // ── 0. 【阶段一守卫：3分钟静默破冰、6分钟无提案强催促(点名)、提案全齐先交流】 ──
@@ -19532,6 +19516,7 @@
 
       // 🎓 阶段三：严格按时序：① 中间委员开场 ➔ ② 正反方并行生成 ➔ ③ 写入矩阵 ➔ ④ 中间委员抛题引导
       else if (stage === 'stage3') {
+        if (this.isCurrentTaskReadOnly()) return; // 🛡️ 只读进入阶段三绝对不触发正反方专家分析与答辩委员会
         const hasProp = logs.some(m => m && m.sender === 'proponent');
         const hasOpp = logs.some(m => m && m.sender === 'opponent');
         const needsCommitteeReview = !hasProp || !hasOpp || !this.state.stage3.feedbackItems || this.state.stage3.feedbackItems.length === 0;
@@ -19544,7 +19529,12 @@
     }
 
     async runStage3CommitteePipeline(btnElement = null) {
-      if (this.isCurrentTaskReadOnly()) return;
+      if (this.isCurrentTaskReadOnly()) {
+        this.state.stage3CommitteeLoading = false;
+        this._isStage3PipelineRunning = false;
+        this.renderStudentWorkspace();
+        return;
+      }
       if (btnElement && typeof btnElement === 'object' && btnElement.tagName) {
         btnElement.disabled = true;
         btnElement.style.opacity = '0.6';
@@ -19987,8 +19977,12 @@
 
     isCurrentTaskReadOnly() {
       if (this.state.isFinalSubmitted) return true;
+      if (this.isViewingPastStage) return true;
+      const user = this.authManager ? this.authManager.getCurrentUser() : null;
+      const isTeacher = user && (user.isTeacher || user.role === 'teacher');
+      if (isTeacher || this.state.isTeacherMonitorView || this.state.isTeacherView) return true;
       const allTasks = (this.authManager) ? this.authManager.getTasks() : [];
-      const curTask = allTasks.find(t => t.id === this.state.activeTaskId || (t.title && t.title === this.state.activeTaskId)) || (allTasks.length > 0 ? allTasks[0] : null);
+      const curTask = allTasks.find(t => t.id === this.state.activeTaskId || (t.title && t.title === this.state.activeTaskId));
       if (curTask && isTaskExpired(curTask)) return true;
       return false;
     }
