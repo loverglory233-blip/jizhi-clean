@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState, STORAGE_KEY_TASKS } from './constants.js?v=20260905_v2699';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly } from './utils.js?v=20260905_v2699';
+import { InitialState, STORAGE_KEY_TASKS } from './constants.js?v=20260905_v2700';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly } from './utils.js?v=20260905_v2700';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -945,13 +945,19 @@ export class CloudSyncEngine {
       this.app.renderPresenceCursors();
     }
 
-    // 🛡️ 保护本组成员名单不被后端的空数组冲刷覆盖
-    if (remoteData.members && (Array.isArray(remoteData.members) ? remoteData.members.length > 0 : Object.keys(remoteData.members).length > 0)) {
-      this.app.state.members = remoteData.members;
-    } else if (!this.app.state.members || (Array.isArray(this.app.state.members) ? this.app.state.members.length === 0 : Object.keys(this.app.state.members).length === 0)) {
-      if (this.app.authManager) {
-        this.app.state.members = this.app.authManager.getGroupMembersForWorkspace(this.groupId);
+    // 🛡️ 保护本组成员名单：优先同步班级名册中的权威组员（3人），杜绝旧快照覆盖
+    if (this.app.authManager) {
+      const freshMembers = this.app.authManager.getGroupMembersForWorkspace(this.groupId, this.effectiveClassId);
+      if (freshMembers && Object.keys(freshMembers).length > 0) {
+        this.app.state.members = freshMembers;
+      } else if (remoteData.members && (Array.isArray(remoteData.members) ? remoteData.members.length > 0 : Object.keys(remoteData.members).length > 0)) {
+        this.app.state.members = remoteData.members;
       }
+    } else if (remoteData.members && (Array.isArray(remoteData.members) ? remoteData.members.length > 0 : Object.keys(remoteData.members).length > 0)) {
+      this.app.state.members = remoteData.members;
+    }
+    if (typeof window.renderChat === 'function') {
+      window.renderChat(this.app.state);
     }
 
     // ⚡ 天然随快照无缝更新通知与文献库，无损合并保留本地新增

@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260905_v2699";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime } from "./utils.js?v=20260905_v2699";
-import { callCozeAgentAPI } from "./agents.js?v=20260905_v2699";
-import { AuthManager } from "./auth.js?v=20260905_v2699";
-import { CloudSyncEngine } from "./sync.js?v=20260905_v2699";
-import { renderLoginView } from "./login.js?v=20260905_v2699";
-import { renderTeacherPortal } from "./teacher.js?v=20260905_v2699";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260905_v2699";
+} from "./constants.js?v=20260905_v2700";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime } from "./utils.js?v=20260905_v2700";
+import { callCozeAgentAPI } from "./agents.js?v=20260905_v2700";
+import { AuthManager } from "./auth.js?v=20260905_v2700";
+import { CloudSyncEngine } from "./sync.js?v=20260905_v2700";
+import { renderLoginView } from "./login.js?v=20260905_v2700";
+import { renderTeacherPortal } from "./teacher.js?v=20260905_v2700";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260905_v2700";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260905_v2699";
+} from "./editor.js?v=20260905_v2700";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -1118,9 +1118,12 @@ export class App {
         }
       }
 
-      const membersList = Object.values(this.state.members || {});
-      const curStage = this.state.currentStage || 'stage1';
-      const curClassId = (this.state.activeStudentClassId || (currentUser?.classId || null));
+      let membersMap = (this.authManager) ? this.authManager.getGroupMembersForWorkspace(currentGroupId, curClassId) : null;
+      if (!membersMap || Object.keys(membersMap).length === 0) {
+        membersMap = this.state.members || {};
+      }
+      this.state.members = membersMap;
+      const membersList = Object.values(membersMap || {});
       const curTaskId = this.state.activeTaskId || null;
       const availablePapers = (this.authManager) ? this.authManager.getReferencePapers(currentGroupId, curClassId, curTaskId) : [];
       const hasPapers = (availablePapers && availablePapers.length > 0);

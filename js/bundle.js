@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260905_v2699
+ * Version: 20260905_v2700
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260905_v2699';
+  const APP_VERSION = '20260905_v2700';
   const APP_BUILD_DATE = '2026-09-05';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -5222,13 +5222,19 @@
         this.app.renderPresenceCursors();
       }
 
-      // 🛡️ 保护本组成员名单不被后端的空数组冲刷覆盖
-      if (remoteData.members && (Array.isArray(remoteData.members) ? remoteData.members.length > 0 : Object.keys(remoteData.members).length > 0)) {
-        this.app.state.members = remoteData.members;
-      } else if (!this.app.state.members || (Array.isArray(this.app.state.members) ? this.app.state.members.length === 0 : Object.keys(this.app.state.members).length === 0)) {
-        if (this.app.authManager) {
-          this.app.state.members = this.app.authManager.getGroupMembersForWorkspace(this.groupId);
+      // 🛡️ 保护本组成员名单：优先同步班级名册中的权威组员（3人），杜绝旧快照覆盖
+      if (this.app.authManager) {
+        const freshMembers = this.app.authManager.getGroupMembersForWorkspace(this.groupId, this.effectiveClassId);
+        if (freshMembers && Object.keys(freshMembers).length > 0) {
+          this.app.state.members = freshMembers;
+        } else if (remoteData.members && (Array.isArray(remoteData.members) ? remoteData.members.length > 0 : Object.keys(remoteData.members).length > 0)) {
+          this.app.state.members = remoteData.members;
         }
+      } else if (remoteData.members && (Array.isArray(remoteData.members) ? remoteData.members.length > 0 : Object.keys(remoteData.members).length > 0)) {
+        this.app.state.members = remoteData.members;
+      }
+      if (typeof window.renderChat === 'function') {
+        window.renderChat(this.app.state);
       }
 
       // ⚡ 天然随快照无缝更新通知与文献库，无损合并保留本地新增
@@ -13812,6 +13818,7 @@
 
         let isOnline = isMe;
         if (!isOnline) {
+          // 1. Direct candidateKeys lookup
           for (const k of candidateKeys) {
             const p = presence[k];
             if (p && !p.offline) {
@@ -13821,6 +13828,45 @@
                 break;
               }
             }
+          }
+          // 2. Flexible case-insensitive & name/id search in presence
+          if (!isOnline && presence && typeof presence === 'object') {
+            const lowKeys = candidateKeys.map(k => String(k).toLowerCase());
+            for (const [pk, p] of Object.entries(presence)) {
+              if (!p || p.offline) continue;
+              const pTime = Number(p.lastSeen || p.updatedAt || p.timestamp || 0);
+              if (pTime > 0 && (nowMs - pTime <= 180000)) {
+                const pLow = String(pk).toLowerCase();
+                const pName = String(p.name || '').trim().toLowerCase();
+                const pId = String(p.userId || p.id || '').trim().toLowerCase();
+                if (lowKeys.includes(pLow) || (pName && lowKeys.includes(pName)) || (pId && lowKeys.includes(pId))) {
+                  isOnline = true;
+                  break;
+                }
+              }
+            }
+          }
+          // 3. Recent chat message fallback (within 180s)
+          if (!isOnline && state.chatLogs) {
+            const mKeys = [uid, m.name, m.studentCode].filter(Boolean).map(x => String(x).toLowerCase());
+            ['stage1', 'stage2', 'stage3'].forEach(stg => {
+              if (isOnline) return;
+              const msgs = state.chatLogs[stg] || [];
+              for (let i = msgs.length - 1; i >= 0; i--) {
+                const msg = msgs[i];
+                if (!msg) continue;
+                const msgTime = Number(msg._timeMs || 0);
+                if (msgTime > 0 && (nowMs - msgTime <= 180000)) {
+                  const sLow = String(msg.sender || '').toLowerCase();
+                  if (mKeys.includes(sLow)) {
+                    isOnline = true;
+                    break;
+                  }
+                } else if (msgTime > 0 && (nowMs - msgTime > 180000)) {
+                  break;
+                }
+              }
+            });
           }
         }
 
@@ -15454,9 +15500,12 @@
           }
         }
 
-        const membersList = Object.values(this.state.members || {});
-        const curStage = this.state.currentStage || 'stage1';
-        const curClassId = (this.state.activeStudentClassId || (currentUser?.classId || null));
+        let membersMap = (this.authManager) ? this.authManager.getGroupMembersForWorkspace(currentGroupId, curClassId) : null;
+        if (!membersMap || Object.keys(membersMap).length === 0) {
+          membersMap = this.state.members || {};
+        }
+        this.state.members = membersMap;
+        const membersList = Object.values(membersMap || {});
         const curTaskId = this.state.activeTaskId || null;
         const availablePapers = (this.authManager) ? this.authManager.getReferencePapers(currentGroupId, curClassId, curTaskId) : [];
         const hasPapers = (availablePapers && availablePapers.length > 0);
