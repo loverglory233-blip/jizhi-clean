@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260905_v2646";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse } from "./utils.js?v=20260905_v2646";
-import { callCozeAgentAPI } from "./agents.js?v=20260905_v2646";
-import { AuthManager } from "./auth.js?v=20260905_v2646";
-import { CloudSyncEngine } from "./sync.js?v=20260905_v2646";
-import { renderLoginView } from "./login.js?v=20260905_v2646";
-import { renderTeacherPortal } from "./teacher.js?v=20260905_v2646";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260905_v2646";
+} from "./constants.js?v=20260905_v2648";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse } from "./utils.js?v=20260905_v2648";
+import { callCozeAgentAPI } from "./agents.js?v=20260905_v2648";
+import { AuthManager } from "./auth.js?v=20260905_v2648";
+import { CloudSyncEngine } from "./sync.js?v=20260905_v2648";
+import { renderLoginView } from "./login.js?v=20260905_v2648";
+import { renderTeacherPortal } from "./teacher.js?v=20260905_v2648";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260905_v2648";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260905_v2646";
+} from "./editor.js?v=20260905_v2648";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -2108,7 +2108,7 @@ export class App {
       modal.querySelector('#btn-read-confirm')?.addEventListener('click', () => {
         this.authManager.markAnnouncementRead(ann.id, groupId);
         const myName = currentUser ? currentUser.name : '学生';
-        this.authManager.markAnnouncementConfirmed(ann.id, currentUser ? (currentUser.id || currentUser.id || currentUser.name) : (currentUser?.id || currentUser?.id || ''), myName, groupId);
+        this.authManager.markAnnouncementConfirmed(ann.id, currentUser ? (currentUser.id || currentUser.name) : (currentUser?.id || ''), myName, groupId);
         
         const remainingUnread = unreadList.filter(a => a.id !== ann.id && !a.isExtension && !a.title?.includes('延期通知'));
         if (remainingUnread.length > 0) {
@@ -2341,11 +2341,10 @@ export class App {
   handleLogout() { 
     const user = this.authManager.getCurrentUser();
     if (user) {
-      const uCode = user.id || user.id ;
+      const uCode = user.id;
       if (this.state.presence) {
-        delete this.state.presence[uCode];
-        if (user.id) delete this.state.presence[user.id];
-        if (user.id) delete this.state.presence[user.id];
+        if (uCode) delete this.state.presence[uCode];
+        if (user.studentCode) delete this.state.presence[user.studentCode];
       }
       if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
     }
@@ -2883,12 +2882,6 @@ export class App {
     const user = this.state.currentUser;
     const s1 = this.state.stage1;
     const currUserObj = this.authManager.getCurrentUser();
-    
-    const isMemberDone = (map, m) => {
-      if (!map || !m) return false;
-      const id = typeof m === 'object' ? (m.id || m.name) : m;
-      return !!(map[m.id] || (typeof m === 'object' && m.name && map[m.name]));
-    };
 
     const isAlreadyVoted = isMemberDone(s1.hasVoted, currUserObj || { id: user });
     if (isAlreadyVoted) {
@@ -3130,11 +3123,6 @@ ${votedDetails}
     }
     if (!Array.isArray(members)) members = Object.values(members || {});
     const totalCount = Math.max(members.length, 2);
-
-    const isMemberDone = (map, m) => {
-      if (!map || !m) return false;
-      return !!(map[m.id] || (m.name && map[m.name]));
-    };
 
     const isAlreadyDone = userKeys.some(k => this.state.stepConfirmations[stepKey][k]);
     if (isAlreadyDone) {
@@ -5402,7 +5390,7 @@ ${chatSnippet}
     }
 
     this.state.members = this.authManager.getGroupMembersForWorkspace(currentGroupId);
-    this.state.currentUser = currentUser ? (currentUser.name || currentUser.id || currentUser.id) : null;
+    this.state.currentUser = currentUser ? (currentUser.name || currentUser.id) : null;
 
     renderHeader(
       this.state, currentUser, this.authManager.getAnnouncements(),
@@ -6656,7 +6644,7 @@ ${contentSnippet}
             <div style="display:flex; gap:6px; flex-wrap:wrap;">
               ${membersList.map(m => {
                 const uid = String(m.id  || m.userId || '').trim();
-                const isSub = !!(subs[uid] || subs[m.name] || subs[m.id] || subs[m.id]);
+                const isSub = !!(subs[uid] || subs[m.name] || (m.id && subs[m.id]));
                 return `<span style="font-size:11px; padding:2px 8px; border-radius:10px; font-weight:700; background:${isSub ? '#ecfdf5' : '#ffffff'}; color:${isSub ? '#059669' : '#64748b'}; border:1px solid ${isSub ? '#a7f3d0' : '#cbd5e1'};">
                   ${isSub ? '✅' : '⏳'} ${escapeHtml(m.name)}: ${isSub ? '已打卡' : '待打卡'}
                 </span>`;

@@ -725,8 +725,8 @@ if ($action === 'unlock_field' && $_SERVER['REQUEST_METHOD'] === 'POST') {
 if ($action === 'report_member_contrib') {
     header('Content-Type: application/json; charset=utf-8');
     $input = json_decode(file_get_contents('php://input'), true) ?: [];
-    $taskId = $input['taskId'] ?? ($queryTaskId ?: 'task_default');
-    $groupId = $input['groupId'] ?? ($queryGroupId ?: 'group_1');
+    $taskId = $input['taskId'] ?? ($taskId ?: 'task_default');
+    $groupId = $input['groupId'] ?? ($groupId ?: 'group_1');
     $userCode = $input['userCode'] ?? '';
     $delta = intval($input['delta'] ?? 0);
     $contribs = isset($input['contribs']) && is_array($input['contribs']) ? $input['contribs'] : null;
@@ -774,8 +774,8 @@ if ($action === 'set_task_group_lock') {
     header('Content-Type: application/json; charset=utf-8');
     $rawInput = @file_get_contents('php://input');
     $req = json_decode($rawInput, true) ?: [];
-    $taskId = $req['taskId'] ?? ($queryTaskId ?: 'task_default');
-    $groupId = $req['groupId'] ?? ($queryGroupId ?: 'group_1');
+    $taskId = $req['taskId'] ?? ($taskId ?: 'task_default');
+    $groupId = $req['groupId'] ?? ($groupId ?: 'group_1');
     $isLocked = !empty($req['isLocked']) ? 1 : 0;
     $sk = $taskId . '_' . $groupId;
     $nowMs = round(microtime(true) * 1000);
@@ -857,7 +857,8 @@ if ($action === 'get_class_all_chats') {
     foreach ($allMsgs as $m) {
         $sk = $m['scope_key'];
         foreach ($groups as $gid => $ginfo) {
-            if (strpos($sk, $gid) !== false) {
+            // 🛡️ 严格边界正则匹配：杜绝 group_10 / group_11 消息因 strpos 误并入 group_1
+            if (preg_match('/(^|_)' . preg_quote($gid, '/') . '$/', $sk)) {
                 $stg = $m['stage'] ?: 'stage1';
                 if (!isset($groupChats[$gid][$stg])) $groupChats[$gid][$stg] = [];
                 $groupChats[$gid][$stg][] = [
@@ -1338,48 +1339,7 @@ if ($action === 'restore_pad_max_revision') {
         }
     }
 
-    // 若当前 pad 历史版本未达到 50 字，尝试跨 Pad 检索 Etherpad 中该小组或相关的其他 Pad
-    if ($longestLen < 50) {
-        $listPadsUrl = "http://127.0.0.1:9001/api/1.2.14/listAllPads?apikey=" . urlencode($apiKey);
-        $chList = curl_init($listPadsUrl);
-        curl_setopt($chList, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($chList, CURLOPT_TIMEOUT, 3);
-        $resList = curl_exec($chList);
-        curl_close($chList);
-
-        if (!empty($resList)) {
-            $jsonList = json_decode($resList, true);
-            if (isset($jsonList['data']['padIDs']) && is_array($jsonList['data']['padIDs'])) {
-                foreach ($jsonList['data']['padIDs'] as $otherPadId) {
-                    if (!str_starts_with($otherPadId, 'jizhi_')) continue;
-
-                    $otherHtmlUrl = "http://127.0.0.1:9001/api/1.2.14/getHTML?apikey=" . urlencode($apiKey) . "&padID=" . urlencode($otherPadId);
-                    $chO = curl_init($otherHtmlUrl);
-                    curl_setopt($chO, CURLOPT_RETURNTRANSFER, true);
-                    curl_setopt($chO, CURLOPT_TIMEOUT, 2);
-                    $resO = curl_exec($chO);
-                    curl_close($chO);
-
-                    if (!empty($resO)) {
-                        $jO = json_decode($resO, true);
-                        if (isset($jO['data']['html'])) {
-                            $hO = $jO['data']['html'];
-                            $tO = trim(strip_tags($hO));
-                            $lenO = mb_strlen($tO, 'UTF-8');
-                            if ($lenO > $longestLen) {
-                                $longestLen = $lenO;
-                                $longestHtml = $hO;
-                                $longestText = $tO;
-                                $bestPadId = $otherPadId;
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    // 若在 Etherpad（当前Pad或历史同组Pad）中检索到长文，调用 setHTML 恢复至当前最新 pad
+    // 🛡️ 严格安全隔离：仅允许回溯当前 Pad 本身的专属历史版本，严禁跨组检索其他 Pad，彻底杜绝串组写词
     if ($longestLen > 50 && !empty($longestHtml)) {
         $setHtmlUrl = "http://127.0.0.1:9001/api/1.2.14/setHTML?apikey=" . urlencode($apiKey) . "&padID=" . urlencode($padId) . "&html=" . urlencode($longestHtml);
         $ch = curl_init($setHtmlUrl);
@@ -1400,11 +1360,11 @@ if ($action === 'restore_pad_max_revision') {
         exit;
     }
 
-    // 兜底：从 group_states 数据库查找历史 snapshot（严格仅查询当前小组自身数据）
+    // 兜底：从 group_states 数据库查找历史 snapshot（严格仅查询当前小组自身数据，绝不使用默认组兜底）
     if ($pdo) {
         $exactScopeKey = preg_replace('/^jizhi_/', '', $padId);
-        $stmtDb = $pdo->prepare("SELECT scope_key, stage2_data FROM group_states WHERE scope_key = :sk OR scope_key = :sk2 ORDER BY last_timestamp DESC LIMIT 1");
-        $stmtDb->execute([':sk' => $exactScopeKey, ':sk2' => $scopeKey]);
+        $stmtDb = $pdo->prepare("SELECT scope_key, stage2_data FROM group_states WHERE scope_key = :sk ORDER BY last_timestamp DESC LIMIT 1");
+        $stmtDb->execute([':sk' => $exactScopeKey]);
         $rowsDb = $stmtDb->fetchAll();
         $bestDbText = '';
         $bestDbLen = 0;
@@ -1481,7 +1441,6 @@ if ($action === 'align_all_pads_physically') {
             $sk = $r['scope_key'] ?: '';
             $possiblePadIds = [
                 "jizhi_{$tId}_{$gId}",
-                "jizhi_{$gId}",
                 "jizhi_{$sk}"
             ];
             if (!empty($sk)) {
@@ -1607,12 +1566,13 @@ if ($action === 'get_pad_text' || $action === 'get_pad_html') {
     if ($isPadPlaceholder) {
         $foundDbContent = false;
         if ($pdo) {
+            // 🛡️ 严格单组匹配：绝不使用全局默认组 :sk2 兜底，防止把 group_1 数据误写进 group_2
             if (!empty($extractedTid) && !empty($extractedGid)) {
-                $stmtDb = $pdo->prepare("SELECT stage2_data FROM group_states WHERE scope_key = :sk OR scope_key = :sk2 OR (task_id = :tid AND group_id = :gid) ORDER BY last_timestamp DESC LIMIT 1");
-                $stmtDb->execute([':sk' => $exactScopeKey, ':sk2' => $scopeKey, ':tid' => $extractedTid, ':gid' => $extractedGid]);
+                $stmtDb = $pdo->prepare("SELECT stage2_data FROM group_states WHERE scope_key = :sk OR (task_id = :tid AND group_id = :gid) ORDER BY last_timestamp DESC LIMIT 1");
+                $stmtDb->execute([':sk' => $exactScopeKey, ':tid' => $extractedTid, ':gid' => $extractedGid]);
             } else {
-                $stmtDb = $pdo->prepare("SELECT stage2_data FROM group_states WHERE scope_key = :sk OR scope_key = :sk2 ORDER BY last_timestamp DESC LIMIT 1");
-                $stmtDb->execute([':sk' => $exactScopeKey, ':sk2' => $scopeKey]);
+                $stmtDb = $pdo->prepare("SELECT stage2_data FROM group_states WHERE scope_key = :sk ORDER BY last_timestamp DESC LIMIT 1");
+                $stmtDb->execute([':sk' => $exactScopeKey]);
             }
             $rowDb = $stmtDb->fetch();
             if ($rowDb && !empty($rowDb['stage2_data'])) {
@@ -2366,7 +2326,6 @@ if ($action === 'save_global_meta' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 $stmt = $pdo->prepare("INSERT INTO global_meta (meta_key, meta_value) VALUES ('main_meta', :val) ON DUPLICATE KEY UPDATE meta_value = :val2");
                 $stmt->execute([':val' => $cleanJson, ':val2' => $cleanJson]);
 
-                // 🛡️ 实体表实时入库：将所有用户/学生 100% 同步 upsert 至 users 实体表，确保异地设备登录 0 延迟秒级识别
                 // 🛡️ 实体表实时入库：将所有用户/学生 100% 同步 upsert 至 users 实体表，确保异地设备登录 0 延迟秒级识别
                 if (isset($decoded['users']) && is_array($decoded['users'])) {
                     $stmtUserUpsert = $pdo->prepare("INSERT INTO `users` (`id`, `name`, `password`, `role`)
@@ -3147,18 +3106,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $wIn = $stageWeights[$inStage] ?? 1;
             $finalStage = ($wEx >= $wIn) ? $exStage : $inStage;
 
-            // 🛡️ 锁定状态：完全由客户端/教师端权威布尔值控制，支持正常锁定与解锁
-            $finalLock = !empty($data['isFinalSubmitted']) ? 1 : 0;
-
-            // 🛡️ 公约与初稿确认状态动态比对（仅当签署人数 >= 组员人数且组员人数 > 0 时生效，未达全员绝不锁死）
+            // 🛡️ 公约与初稿确认状态动态比对（遍历组员名册真实 ID/姓名精确统计，仅当组内全员均完成签署时权威标记 isConfirmed = true）
             $confirmedMap1 = isset($mergedS1['contract']['confirmedMembers']) && is_array($mergedS1['contract']['confirmedMembers']) ? $mergedS1['contract']['confirmedMembers'] : [];
-            $actualMembersCount1 = isset($data['members']) && is_array($data['members']) ? count($data['members']) : 0;
-            if ($actualMembersCount1 > 0 && count($confirmedMap1) >= $actualMembersCount1) {
-                if (!isset($mergedS1['contract'])) $mergedS1['contract'] = [];
-                $mergedS1['contract']['isConfirmed'] = true;
-            } else {
-                if (isset($mergedS1['contract'])) {
-                    $mergedS1['contract']['isConfirmed'] = false;
+            $membersDataList = isset($data['members']) && is_array($data['members']) ? $data['members'] : [];
+            $actualMembersCount1 = count($membersDataList);
+            if ($actualMembersCount1 > 0) {
+                $confCount1 = 0;
+                foreach ($membersDataList as $m) {
+                    $mId = isset($m['id']) ? $m['id'] : '';
+                    $mCode = isset($m['studentCode']) ? $m['studentCode'] : '';
+                    $mName = isset($m['name']) ? $m['name'] : '';
+                    $mUser = isset($m['username']) ? $m['username'] : '';
+                    if (($mId && !empty($confirmedMap1[$mId])) || ($mCode && !empty($confirmedMap1[$mCode])) || ($mName && !empty($confirmedMap1[$mName])) || ($mUser && !empty($confirmedMap1[$mUser]))) {
+                        $confCount1++;
+                    }
+                }
+                if ($confCount1 >= $actualMembersCount1) {
+                    if (!isset($mergedS1['contract'])) $mergedS1['contract'] = [];
+                    $mergedS1['contract']['isConfirmed'] = true;
                 }
             }
             // 🛡️ 阶段二初稿确认状态动态比对：当组内确认人数达到全员时，服务端权威标记 isDraftConfirmed = true 并推进阶段三

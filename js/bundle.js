@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260905_v2646
+ * Version: 20260905_v2648
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260905_v2646';
+  const APP_VERSION = '20260905_v2648';
   const APP_BUILD_DATE = '2026-09-05';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -10582,8 +10582,7 @@
                 const taskVal = (s1.contract.taskAssignments && (
                   s1.contract.taskAssignments[mKey] !== undefined ? s1.contract.taskAssignments[mKey] :
                   (m.id && s1.contract.taskAssignments[m.id] !== undefined ? s1.contract.taskAssignments[m.id] :
-                  (m.id && s1.contract.taskAssignments[m.id] !== undefined ? s1.contract.taskAssignments[m.id] :
-                  (m.name && s1.contract.taskAssignments[m.name] !== undefined ? s1.contract.taskAssignments[m.name] : '')))
+                  (m.name && s1.contract.taskAssignments[m.name] !== undefined ? s1.contract.taskAssignments[m.name] : ''))
                 )) || '';
                 return `
                   <div style="display:flex; flex-direction:column; gap:6px; width:100%; background:#ffffff; padding:12px 14px; border-radius:8px; border:1px solid #e2e8f0; box-sizing:border-box;">
@@ -11378,11 +11377,6 @@
     const paperBtnLabel = availablePapers.length > 0 ? `📚 查阅参考范文 (${availablePapers.length}篇)` : '📚 查阅参考范文库';
 
     const confirmedDraftMap = s2.confirmedMembers || {};
-    const isMemberDone = (map, m) => {
-      if (!map || !m) return false;
-      const id = typeof m === 'object' ? (m.id || m.name) : m;
-      return !!(map[m.id] || (typeof m === 'object' && m.name && map[m.name]));
-    };
     const membersList = Object.values(state.members || {});
     const allGroupMembers = (activeGroupObj && Array.isArray(activeGroupObj.members) && activeGroupObj.members.length > 0) ? activeGroupObj.members : membersList;
     const actualTotalCount = allGroupMembers.length > 0 ? allGroupMembers.length : (membersList.length || 2);
@@ -12715,7 +12709,7 @@
         <!-- 终稿提交全员确认进度提示 -->
         ${!state.isFinalSubmitted && activeTab === 'editor' ? `
           <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:6px 14px; display:flex; justify-content:space-between; align-items:center; font-size:12px;">
-            <span style="color:#475569; font-weight:700;">🚀 终稿提交确认进度: <b style="color:${isAllFinalSubmitted ? '#059669' : '#059669'};">${finalSubmittedCount}/${totalCount}</b> 人已确认提交 ${isAllFinalSubmitted ? '<span style="color:#059669; margin-left:6px;">(🎉 全员已确认提交)</span>' : '<span style="color:#d97706; margin-left:6px;">(需全组所有成员均确认提交后正式归档入库)</span>'}</span>
+            <span style="color:#475569; font-weight:700;">🚀 终稿提交确认进度: <b style="color:${isAllFinalSubmitted ? '#059669' : '#d97706'};">${finalSubmittedCount}/${totalCount}</b> 人已确认提交 ${isAllFinalSubmitted ? '<span style="color:#059669; margin-left:6px;">(🎉 全员已确认提交)</span>' : '<span style="color:#d97706; margin-left:6px;">(需全组所有成员均确认提交后正式归档入库)</span>'}</span>
             <div style="display:flex; gap:6px;">
               ${membersList.map(m => {
                 const isSub = finalSubmittedMap[m.id]  || (m.name && finalSubmittedMap[m.name]);
@@ -13047,7 +13041,6 @@
     const myKeys = [
       currentUser,
       state.currentUser,
-      authUser?.id,
       authUser?.id,
       authUser?.name
     ].filter(Boolean).map(k => String(k).trim().toLowerCase());
@@ -15600,7 +15593,7 @@
         modal.querySelector('#btn-read-confirm')?.addEventListener('click', () => {
           this.authManager.markAnnouncementRead(ann.id, groupId);
           const myName = currentUser ? currentUser.name : '学生';
-          this.authManager.markAnnouncementConfirmed(ann.id, currentUser ? (currentUser.id || currentUser.id || currentUser.name) : (currentUser?.id || currentUser?.id || ''), myName, groupId);
+          this.authManager.markAnnouncementConfirmed(ann.id, currentUser ? (currentUser.id || currentUser.name) : (currentUser?.id || ''), myName, groupId);
 
           const remainingUnread = unreadList.filter(a => a.id !== ann.id && !a.isExtension && !a.title?.includes('延期通知'));
           if (remainingUnread.length > 0) {
@@ -15833,11 +15826,10 @@
     handleLogout() { 
       const user = this.authManager.getCurrentUser();
       if (user) {
-        const uCode = user.id || user.id ;
+        const uCode = user.id;
         if (this.state.presence) {
-          delete this.state.presence[uCode];
-          if (user.id) delete this.state.presence[user.id];
-          if (user.id) delete this.state.presence[user.id];
+          if (uCode) delete this.state.presence[uCode];
+          if (user.studentCode) delete this.state.presence[user.studentCode];
         }
         if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
       }
@@ -16376,12 +16368,6 @@
       const s1 = this.state.stage1;
       const currUserObj = this.authManager.getCurrentUser();
 
-      const isMemberDone = (map, m) => {
-        if (!map || !m) return false;
-        const id = typeof m === 'object' ? (m.id || m.name) : m;
-        return !!(map[m.id] || (typeof m === 'object' && m.name && map[m.name]));
-      };
-
       const isAlreadyVoted = isMemberDone(s1.hasVoted, currUserObj || { id: user });
       if (isAlreadyVoted) {
         alert('💡 您已经完成投票啦！每位成员仅有一次投票机会，请耐心等待其他组员完成投票。');
@@ -16622,11 +16608,6 @@
       }
       if (!Array.isArray(members)) members = Object.values(members || {});
       const totalCount = Math.max(members.length, 2);
-
-      const isMemberDone = (map, m) => {
-        if (!map || !m) return false;
-        return !!(map[m.id] || (m.name && map[m.name]));
-      };
 
       const isAlreadyDone = userKeys.some(k => this.state.stepConfirmations[stepKey][k]);
       if (isAlreadyDone) {
@@ -18894,7 +18875,7 @@
       }
 
       this.state.members = this.authManager.getGroupMembersForWorkspace(currentGroupId);
-      this.state.currentUser = currentUser ? (currentUser.name || currentUser.id || currentUser.id) : null;
+      this.state.currentUser = currentUser ? (currentUser.name || currentUser.id) : null;
 
       renderHeader(
         this.state, currentUser, this.authManager.getAnnouncements(),
@@ -20148,7 +20129,7 @@
               <div style="display:flex; gap:6px; flex-wrap:wrap;">
                 ${membersList.map(m => {
                   const uid = String(m.id  || m.userId || '').trim();
-                  const isSub = !!(subs[uid] || subs[m.name] || subs[m.id] || subs[m.id]);
+                  const isSub = !!(subs[uid] || subs[m.name] || (m.id && subs[m.id]));
                   return `<span style="font-size:11px; padding:2px 8px; border-radius:10px; font-weight:700; background:${isSub ? '#ecfdf5' : '#ffffff'}; color:${isSub ? '#059669' : '#64748b'}; border:1px solid ${isSub ? '#a7f3d0' : '#cbd5e1'};">
                     ${isSub ? '✅' : '⏳'} ${escapeHtml(m.name)}: ${isSub ? '已打卡' : '待打卡'}
                   </span>`;
