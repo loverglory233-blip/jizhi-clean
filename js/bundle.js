@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260905_v2691
+ * Version: 20260905_v2692
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260905_v2691';
+  const APP_VERSION = '20260905_v2692';
   const APP_BUILD_DATE = '2026-09-05';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -17313,9 +17313,14 @@
       if (!s1._firstVoteTimeMs) s1._firstVoteTimeMs = Date.now();
       s1._lastVoteTime = Date.now();
       const proposal = (s1.proposals || []).find(p => p.id === proposalId);
-      const membersList = Object.values(this.state.members || {});
-      const totalMembersCount = membersList.length || 3;
-      const votesCastCount = membersList.filter(m => isMemberDone(s1.hasVoted, m)).length;
+
+      const effClassId = this.state.activeStudentClassId || this.state.activeClassId || null;
+      const effGroup = this.authManager ? this.authManager.getStudentActiveGroup(currUserObj, effClassId) : null;
+      const allGroupMembers = (effGroup && Array.isArray(effGroup.members) && effGroup.members.length > 0)
+        ? effGroup.members
+        : ((this.getMemberList ? this.getMemberList(this.state.groupId) : []) || Object.values(this.state.members || {}));
+      const totalMembersCount = allGroupMembers.length > 0 ? allGroupMembers.length : (Object.keys(this.state.members || {}).length || 2);
+      const votesCastCount = allGroupMembers.filter(m => isMemberDone(s1.hasVoted, m)).length;
       const proposalTitle = proposal ? proposal.title : proposalId;
 
       this.syncStage1();
@@ -17336,8 +17341,8 @@
         setTimeout(async () => {
           s1._voteCompletedTime = Date.now();
           const tally = {};
-          membersList.forEach(m => {
-            const pId = s1.votes[m.id] || (m.name && s1.votes[m.name]);
+          allGroupMembers.forEach(m => {
+            const pId = getUserFromMap(s1.votes, m) || s1.votes[m.id] || (m.name && s1.votes[m.name]);
             if (pId) tally[pId] = (tally[pId] || 0) + 1;
           });
           const proposalSummaryList = (s1.proposals || []).map(p => `《${p.title}》(${tally[p.id] || 0}票)`).join('，');
@@ -17368,11 +17373,12 @@
           const taskType = this.getCurrentTaskType();
           const isInst = (taskType === 'instructional');
 
+          if (!s1.contract) s1.contract = {};
           if (!s1.contract.timeAllocations) {
             s1.contract.timeAllocations = isInst
               ? { background: 15, literature: 20, questions: 15, method: 35, reflection: 15, references: 10 }
               : { background: 25, literature: 30, questions: 25, method: 40, reflection: 20, references: 10 };
-  }
+          }
           const genreDesc = getGenrePromptDescriptor(taskType);
           const agentTitle = isInst ? '备课引导师' : '学术拍卖师';
           const senderName = isInst ? '头脑风暴 · 备课引导师' : '头脑风暴 · 学术拍卖师';
