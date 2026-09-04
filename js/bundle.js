@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260905_v2654
+ * Version: 20260905_v2655
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260905_v2654';
+  const APP_VERSION = '20260905_v2655';
   const APP_BUILD_DATE = '2026-09-05';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -1745,14 +1745,26 @@
             if (data.unchanged) {
               return; // ⚡ 极速早退：服务端版本未变，0 开销
             }
-            // 1. 账号池：合并云端与本地，保证教师刚导入/创建的学生绝不会被旧云端数据反向冲刷清空
+            // 1. 账号池：合并云端与本地，结合已删除黑名单，保证新导入学生不被冲刷、已删除学生不被复活
             if (Array.isArray(data.users)) {
+              let deletedUserIds = new Set();
+              try {
+                const delList = JSON.parse(localStorage.getItem('jizhi_deleted_user_ids')) || [];
+                if (Array.isArray(delList)) deletedUserIds = new Set(delList.map(x => String(x).trim().toLowerCase()));
+              } catch (e) {}
+
               const localUsers = this.getUsers();
               const userMap = new Map();
-              data.users.forEach(u => { if (u && u.id) userMap.set(String(u.id).trim().toLowerCase(), u); });
+              data.users.forEach(u => {
+                if (u && u.id) {
+                  const k = String(u.id).trim().toLowerCase();
+                  if (!deletedUserIds.has(k)) userMap.set(k, u);
+                }
+              });
               localUsers.forEach(u => {
                 if (u && u.id) {
                   const k = String(u.id).trim().toLowerCase();
+                  if (deletedUserIds.has(k)) return;
                   if (!userMap.has(k)) {
                     userMap.set(k, u);
                   } else {
@@ -1765,13 +1777,24 @@
               localStorage.setItem(STORAGE_KEY_USERS_DB, JSON.stringify(Array.from(userMap.values())));
             }
 
-            // 2. 班级与小组：合并云端与本地班级信息，确保新导入/创建的小组完好保留
+            // 2. 班级与小组：合并云端与本地班级信息，结合已删除黑名单，确保新导入/创建的小组完好保留
             if (Array.isArray(data.classes)) {
+              let deletedClassIds = new Set();
+              try {
+                const delList = JSON.parse(localStorage.getItem('jizhi_deleted_class_ids')) || [];
+                if (Array.isArray(delList)) deletedClassIds = new Set(delList);
+              } catch (e) {}
+
               const localClasses = this.getClasses();
               const classMap = new Map();
-              data.classes.forEach(c => { if (c && c.id) classMap.set(c.id, c); });
+              data.classes.forEach(c => {
+                if (c && c.id && !deletedClassIds.has(c.id)) {
+                  classMap.set(c.id, c);
+                }
+              });
               localClasses.forEach(c => {
                 if (c && c.id) {
+                  if (deletedClassIds.has(c.id)) return;
                   if (!classMap.has(c.id)) {
                     classMap.set(c.id, c);
                   } else {
@@ -1861,41 +1884,59 @@
               }
             }
 
-            // 4. 课堂通知：严格以云端权威列表为准，仅智能继承本地已读标记，绝不反向复活已删除通知！
+            // 4. 课堂通知：智能双向合并，保留本地新发布通知，继承已读标记，尊重删除黑名单
             if (Array.isArray(data.announcements)) {
+              let deletedAnnIds = new Set();
+              try {
+                const delList = JSON.parse(localStorage.getItem('jizhi_deleted_ann_ids')) || [];
+                if (Array.isArray(delList)) deletedAnnIds = new Set(delList);
+              } catch (e) {}
+
               const localAnns = JSON.parse(localStorage.getItem(STORAGE_KEY_ANNOUNCEMENTS) || '[]');
-              const localMap = new Map();
-              localAnns.forEach(a => { if (a && a.id) localMap.set(a.id, a); });
+              const annMap = new Map();
 
-              const mergedAnns = data.announcements.map(remoteAnn => {
-                const localAnn = localMap.get(remoteAnn.id);
-                if (!localAnn) return remoteAnn;
-
-                const mergedReadStatus = { ...(remoteAnn.readStatus || {}), ...(localAnn.readStatus || {}) };
-                const mergedGroupStatus = { ...(remoteAnn.readGroupStatus || {}), ...(localAnn.readGroupStatus || {}) };
-
-                const confMembersMap = new Map();
-                (remoteAnn.confirmedMembers || []).forEach(m => {
-                  if (m) {
-                    const k = m.id || m.name;
-                    if (k) confMembersMap.set(k, m);
-                  }
-                });
-                (localAnn.confirmedMembers || []).forEach(m => {
-                  if (m) {
-                    const k = m.id || m.name;
-                    if (k) confMembersMap.set(k, m);
-                  }
-                });
-
-                return {
-                  ...remoteAnn,
-                  readStatus: mergedReadStatus,
-                  readGroupStatus: mergedGroupStatus,
-                  confirmedMembers: Array.from(confMembersMap.values())
-                };
+              data.announcements.forEach(remoteAnn => {
+                if (remoteAnn && remoteAnn.id && !deletedAnnIds.has(remoteAnn.id)) {
+                  annMap.set(remoteAnn.id, remoteAnn);
+                }
               });
 
+              localAnns.forEach(localAnn => {
+                if (!localAnn || !localAnn.id) return;
+                if (deletedAnnIds.has(localAnn.id)) return;
+
+                if (!annMap.has(localAnn.id)) {
+                  annMap.set(localAnn.id, localAnn);
+                } else {
+                  const remoteAnn = annMap.get(localAnn.id);
+                  const mergedReadStatus = { ...(remoteAnn.readStatus || {}), ...(localAnn.readStatus || {}) };
+                  const mergedGroupStatus = { ...(remoteAnn.readGroupStatus || {}), ...(localAnn.readGroupStatus || {}) };
+
+                  const confMembersMap = new Map();
+                  (remoteAnn.confirmedMembers || []).forEach(m => {
+                    if (m) {
+                      const k = m.id || m.studentCode || m.name;
+                      if (k) confMembersMap.set(k, m);
+                    }
+                  });
+                  (localAnn.confirmedMembers || []).forEach(m => {
+                    if (m) {
+                      const k = m.id || m.studentCode || m.name;
+                      if (k) confMembersMap.set(k, m);
+                    }
+                  });
+
+                  annMap.set(localAnn.id, {
+                    ...remoteAnn,
+                    ...localAnn,
+                    readStatus: mergedReadStatus,
+                    readGroupStatus: mergedGroupStatus,
+                    confirmedMembers: Array.from(confMembersMap.values())
+                  });
+                }
+              });
+
+              const mergedAnns = Array.from(annMap.values());
               localStorage.setItem(STORAGE_KEY_ANNOUNCEMENTS, JSON.stringify(mergedAnns));
 
               // ⚡ 异步元数据到达瞬间：纯前端 DOM 局部更新通知红点与未读弹窗（0 网络请求，0 数据上传）
@@ -1907,15 +1948,39 @@
               }
             }
 
-            // 5. 学术文献与范文：直接以云端权威数据库为准
+            // 5. 学术文献与范文：智能双向合并，保留本地新上传文献，尊重删除黑名单
             if (Array.isArray(data.referencePapers)) {
+              let deletedPaperIds = new Set();
+              try {
+                const delList = JSON.parse(localStorage.getItem('jizhi_deleted_paper_ids')) || [];
+                if (Array.isArray(delList)) deletedPaperIds = new Set(delList);
+              } catch (e) {}
+
               const oldPapers = JSON.parse(localStorage.getItem('jizhi_reference_papers_db') || '[]');
               const oldIds = new Set(oldPapers.map(p => p && p.id));
-              localStorage.setItem('jizhi_reference_papers_db', JSON.stringify(data.referencePapers));
-              localStorage.setItem('jizhi_pure_v10_ref_papers_db', JSON.stringify(data.referencePapers));
+              const paperMap = new Map();
+
+              data.referencePapers.forEach(p => {
+                if (p && p.id && !deletedPaperIds.has(p.id)) {
+                  paperMap.set(p.id, p);
+                }
+              });
+
+              oldPapers.forEach(localP => {
+                if (localP && localP.id) {
+                  if (deletedPaperIds.has(localP.id)) return;
+                  if (!paperMap.has(localP.id)) {
+                    paperMap.set(localP.id, localP);
+                  }
+                }
+              });
+
+              const mergedPapers = Array.from(paperMap.values());
+              localStorage.setItem('jizhi_reference_papers_db', JSON.stringify(mergedPapers));
+              localStorage.setItem('jizhi_pure_v10_ref_papers_db', JSON.stringify(mergedPapers));
 
               // ⚡ 实时检查是否有新文献下发并提醒
-              const newPapers = data.referencePapers.filter(p => p && p.id && !oldIds.has(p.id));
+              const newPapers = mergedPapers.filter(p => p && p.id && !oldIds.has(p.id));
               if (newPapers.length > 0 && window.app && window.app.state && window.app.state.studentViewMode === 'workspace') {
                 const newest = newPapers[0];
                 showGlobalBannerNotice(
@@ -1926,14 +1991,38 @@
                 );
                 const refBtn = document.getElementById('btn-view-reference-papers') || document.querySelector('.btn-view-ref-papers');
                 if (refBtn) {
-                  refBtn.innerText = `📚 查阅参考范文 (${data.referencePapers.length}篇)`;
+                  refBtn.innerText = `📚 查阅参考范文 (${mergedPapers.length}篇)`;
                 }
               }
             }
 
-            // 6. 课程问卷配置：直接以云端权威数据库为准
+            // 6. 课程问卷配置：智能双向合并，保留本地新配置问卷，尊重删除黑名单
             if (Array.isArray(data.surveys)) {
-              localStorage.setItem('jizhi_surveys_list_db', JSON.stringify(data.surveys));
+              let deletedSurveyIds = new Set();
+              try {
+                const delList = JSON.parse(localStorage.getItem('jizhi_deleted_survey_ids')) || [];
+                if (Array.isArray(delList)) deletedSurveyIds = new Set(delList);
+              } catch (e) {}
+
+              const localSurveys = JSON.parse(localStorage.getItem('jizhi_surveys_list_db') || '[]');
+              const surveyMap = new Map();
+
+              data.surveys.forEach(s => {
+                if (s && s.id && !deletedSurveyIds.has(s.id)) {
+                  surveyMap.set(s.id, s);
+                }
+              });
+
+              localSurveys.forEach(localS => {
+                if (localS && localS.id) {
+                  if (deletedSurveyIds.has(localS.id)) return;
+                  if (!surveyMap.has(localS.id)) {
+                    surveyMap.set(localS.id, localS);
+                  }
+                }
+              });
+
+              localStorage.setItem('jizhi_surveys_list_db', JSON.stringify(Array.from(surveyMap.values())));
             }
           }
         }
@@ -1977,6 +2066,13 @@
           url: cleanUrl,
           createdAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
         };
+        try {
+          let deletedSurveyIds = JSON.parse(localStorage.getItem('jizhi_deleted_survey_ids')) || [];
+          if (Array.isArray(deletedSurveyIds) && deletedSurveyIds.includes(newSurvey.id)) {
+            deletedSurveyIds = deletedSurveyIds.filter(id => id !== newSurvey.id);
+            localStorage.setItem('jizhi_deleted_survey_ids', JSON.stringify(deletedSurveyIds));
+          }
+        } catch (e) {}
         list.unshift(newSurvey);
       }
       localStorage.setItem('jizhi_surveys_list_db', JSON.stringify(list));
@@ -1993,6 +2089,14 @@
     deleteSurvey(surveyId) {
       let list = this.getSurveysList();
       list = list.filter(s => s.id !== surveyId);
+      try {
+        let deletedSurveyIds = JSON.parse(localStorage.getItem('jizhi_deleted_survey_ids')) || [];
+        if (!Array.isArray(deletedSurveyIds)) deletedSurveyIds = [];
+        if (!deletedSurveyIds.includes(surveyId)) {
+          deletedSurveyIds.push(surveyId);
+          localStorage.setItem('jizhi_deleted_survey_ids', JSON.stringify(deletedSurveyIds));
+        }
+      } catch (e) {}
       localStorage.setItem('jizhi_surveys_list_db', JSON.stringify(list));
       this.pushGlobalMeta();
 
@@ -2352,6 +2456,13 @@
         studentIds: [],
         groups: []
       };
+      try {
+        let deletedClassIds = JSON.parse(localStorage.getItem('jizhi_deleted_class_ids')) || [];
+        if (Array.isArray(deletedClassIds) && deletedClassIds.includes(newClass.id)) {
+          deletedClassIds = deletedClassIds.filter(id => id !== newClass.id);
+          localStorage.setItem('jizhi_deleted_class_ids', JSON.stringify(deletedClassIds));
+        }
+      } catch (e) {}
       classes.unshift(newClass);
       localStorage.setItem(STORAGE_KEY_CLASSES, JSON.stringify(classes));
       this.pushGlobalMeta();
@@ -2362,6 +2473,14 @@
     deleteClass(classId) {
       let classes = this.getClasses();
       classes = classes.filter(c => c.id !== classId);
+      try {
+        let deletedClassIds = JSON.parse(localStorage.getItem('jizhi_deleted_class_ids')) || [];
+        if (!Array.isArray(deletedClassIds)) deletedClassIds = [];
+        if (!deletedClassIds.includes(classId)) {
+          deletedClassIds.push(classId);
+          localStorage.setItem('jizhi_deleted_class_ids', JSON.stringify(deletedClassIds));
+        }
+      } catch (e) {}
       localStorage.setItem(STORAGE_KEY_CLASSES, JSON.stringify(classes));
 
       let tasks = this.getTasks();
@@ -2442,6 +2561,15 @@
       });
       users.push(targetUser);
 
+      try {
+        let deletedUserIds = JSON.parse(localStorage.getItem('jizhi_deleted_user_ids')) || [];
+        const k = cleanId.toLowerCase();
+        if (Array.isArray(deletedUserIds) && deletedUserIds.includes(k)) {
+          deletedUserIds = deletedUserIds.filter(id => id !== k);
+          localStorage.setItem('jizhi_deleted_user_ids', JSON.stringify(deletedUserIds));
+        }
+      } catch (e) {}
+
       localStorage.setItem(STORAGE_KEY_USERS_DB, JSON.stringify(users));
 
       if (targetClass) {
@@ -2464,11 +2592,13 @@
       if (targetClass && !targetClass.studentIds) targetClass.studentIds = [];
 
       const avatars = ['👨‍🎓', '👩‍🎓', '🧑‍🎓', '🎓', '📚', '🌟'];
+      const addedCodes = [];
 
       studentList.forEach(st => {
         const code = String(st.id || '').trim();
         const name = (st.name || '').trim();
         if (!code || !name) return;
+        addedCodes.push(code.toLowerCase());
 
         const existing = users.find(u => u && u.id.trim().toLowerCase() === code.toLowerCase());
         if (existing) {
@@ -2506,6 +2636,16 @@
           createdCount++;
         }
       });
+
+      if (addedCodes.length > 0) {
+        try {
+          let deletedUserIds = JSON.parse(localStorage.getItem('jizhi_deleted_user_ids')) || [];
+          if (Array.isArray(deletedUserIds)) {
+            deletedUserIds = deletedUserIds.filter(id => !addedCodes.includes(id));
+            localStorage.setItem('jizhi_deleted_user_ids', JSON.stringify(deletedUserIds));
+          }
+        } catch (e) {}
+      }
 
       localStorage.setItem(STORAGE_KEY_USERS_DB, JSON.stringify(users));
       if (targetClass) localStorage.setItem(STORAGE_KEY_CLASSES, JSON.stringify(classes));
@@ -2753,6 +2893,15 @@
       if (permanent || !classId) {
         // 彻底从全平台注销删除
         users = users.filter(u => u.id !== userId);
+        try {
+          let deletedUserIds = JSON.parse(localStorage.getItem('jizhi_deleted_user_ids')) || [];
+          if (!Array.isArray(deletedUserIds)) deletedUserIds = [];
+          const cleanId = String(userId).trim().toLowerCase();
+          if (!deletedUserIds.includes(cleanId)) {
+            deletedUserIds.push(cleanId);
+            localStorage.setItem('jizhi_deleted_user_ids', JSON.stringify(deletedUserIds));
+          }
+        } catch (e) {}
         classes.forEach(c => {
           if (c.studentIds) c.studentIds = c.studentIds.filter(id => id !== userId);
           if (c.groups) {
@@ -3266,6 +3415,15 @@
         time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         author: '老师', readStatus: {}
       };
+
+      try {
+        let deletedAnnIds = JSON.parse(localStorage.getItem('jizhi_deleted_ann_ids')) || [];
+        if (Array.isArray(deletedAnnIds) && deletedAnnIds.includes(newAnn.id)) {
+          deletedAnnIds = deletedAnnIds.filter(id => id !== newAnn.id);
+          localStorage.setItem('jizhi_deleted_ann_ids', JSON.stringify(deletedAnnIds));
+        }
+      } catch (e) {}
+
       announcements.unshift(newAnn);
 
       // 🧹 最多保留最新 15 条通知，超出部分从最旧一条（末尾）自动滚动删除，保持轻量高效
@@ -3289,6 +3447,14 @@
     deleteAnnouncement(annId) {
       let announcements = this.getAnnouncements();
       announcements = announcements.filter(a => a.id !== annId);
+      try {
+        let deletedAnnIds = JSON.parse(localStorage.getItem('jizhi_deleted_ann_ids')) || [];
+        if (!Array.isArray(deletedAnnIds)) deletedAnnIds = [];
+        if (!deletedAnnIds.includes(annId)) {
+          deletedAnnIds.push(annId);
+          localStorage.setItem('jizhi_deleted_ann_ids', JSON.stringify(deletedAnnIds));
+        }
+      } catch (e) {}
       localStorage.setItem(STORAGE_KEY_ANNOUNCEMENTS, JSON.stringify(announcements));
       this.pushGlobalMeta();
 
@@ -3443,6 +3609,14 @@
         author: '任课教师'
       };
 
+      try {
+        let deletedPaperIds = JSON.parse(localStorage.getItem('jizhi_deleted_paper_ids')) || [];
+        if (Array.isArray(deletedPaperIds) && deletedPaperIds.includes(newPaper.id)) {
+          deletedPaperIds = deletedPaperIds.filter(id => id !== newPaper.id);
+          localStorage.setItem('jizhi_deleted_paper_ids', JSON.stringify(deletedPaperIds));
+        }
+      } catch (e) {}
+
       papers.unshift(newPaper);
       try {
         localStorage.setItem('jizhi_reference_papers_db', JSON.stringify(papers));
@@ -3458,6 +3632,14 @@
       let papers = this.getAllReferencePapers();
       papers = papers.filter(p => p.id !== paperId);
       if (window._paperMemoryBlobMap) window._paperMemoryBlobMap.delete(paperId);
+      try {
+        let deletedPaperIds = JSON.parse(localStorage.getItem('jizhi_deleted_paper_ids')) || [];
+        if (!Array.isArray(deletedPaperIds)) deletedPaperIds = [];
+        if (!deletedPaperIds.includes(paperId)) {
+          deletedPaperIds.push(paperId);
+          localStorage.setItem('jizhi_deleted_paper_ids', JSON.stringify(deletedPaperIds));
+        }
+      } catch (e) {}
       localStorage.setItem('jizhi_reference_papers_db', JSON.stringify(papers));
       this.pushGlobalMeta();
     }
@@ -4503,25 +4685,121 @@
           });
         }
         if (Array.isArray(remoteData.users) && remoteData.users.length > 0) {
-          const key = 'jizhi_pure_v10_users_db';
-          const localStr = localStorage.getItem(key) || '[]';
-          const remoteStr = JSON.stringify(remoteData.users);
-          if (localStr !== remoteStr) localStorage.setItem(key, remoteStr);
+          let deletedUserIds = new Set();
+          try {
+            const delList = JSON.parse(localStorage.getItem('jizhi_deleted_user_ids')) || [];
+            if (Array.isArray(delList)) deletedUserIds = new Set(delList.map(x => String(x).trim().toLowerCase()));
+          } catch (e) {}
+
+          const localUsers = this.app.authManager.getUsers();
+          const userMap = new Map();
+          remoteData.users.forEach(u => {
+            if (u && u.id) {
+              const k = String(u.id).trim().toLowerCase();
+              if (!deletedUserIds.has(k)) userMap.set(k, u);
+            }
+          });
+          localUsers.forEach(u => {
+            if (u && u.id) {
+              const k = String(u.id).trim().toLowerCase();
+              if (deletedUserIds.has(k)) return;
+              if (!userMap.has(k)) {
+                userMap.set(k, u);
+              } else {
+                const rUser = userMap.get(k);
+                const mergedClassIds = Array.from(new Set([...(rUser.classIds || [rUser.classId].filter(Boolean)), ...(u.classIds || [u.classId].filter(Boolean))]));
+                userMap.set(k, { ...rUser, ...u, classIds: mergedClassIds });
+              }
+            }
+          });
+          localStorage.setItem('jizhi_pure_v10_users_db', JSON.stringify(Array.from(userMap.values())));
         }
         try {
           if (Array.isArray(remoteData.classes) && remoteData.classes.length > 0) {
-            const key = 'jizhi_pure_v10_classes_db';
-            const localStr = localStorage.getItem(key) || '[]';
-            const remoteStr = JSON.stringify(remoteData.classes);
-            if (localStr !== remoteStr) localStorage.setItem(key, remoteStr);
+            let deletedClassIds = new Set();
+            try {
+              const delList = JSON.parse(localStorage.getItem('jizhi_deleted_class_ids')) || [];
+              if (Array.isArray(delList)) deletedClassIds = new Set(delList);
+            } catch (e) {}
+
+            const localClasses = this.app.authManager.getClasses();
+            const classMap = new Map();
+            remoteData.classes.forEach(c => {
+              if (c && c.id && !deletedClassIds.has(c.id)) {
+                classMap.set(c.id, c);
+              }
+            });
+            localClasses.forEach(c => {
+              if (c && c.id) {
+                if (deletedClassIds.has(c.id)) return;
+                if (!classMap.has(c.id)) {
+                  classMap.set(c.id, c);
+                } else {
+                  const rClass = classMap.get(c.id);
+                  const mergedStudentIds = Array.from(new Set([...(rClass.studentIds || []), ...(c.studentIds || [])]));
+                  const grpMap = new Map();
+                  (rClass.groups || []).forEach(g => { if (g && g.id) grpMap.set(g.id, g); });
+                  (c.groups || []).forEach(g => { if (g && g.id) grpMap.set(g.id, g); });
+                  classMap.set(c.id, { ...rClass, ...c, studentIds: mergedStudentIds, groups: Array.from(grpMap.values()) });
+                }
+              }
+            });
+            localStorage.setItem('jizhi_pure_v10_classes_db', JSON.stringify(Array.from(classMap.values())));
+            if (this.app.authManager.sanitizeAndDeduplicateGroups) {
+              this.app.authManager.sanitizeAndDeduplicateGroups();
+            }
           }
           if (Array.isArray(remoteData.announcements) && remoteData.announcements.length > 0) {
+            let deletedAnnIds = new Set();
+            try {
+              const delList = JSON.parse(localStorage.getItem('jizhi_deleted_ann_ids')) || [];
+              if (Array.isArray(delList)) deletedAnnIds = new Set(delList);
+            } catch (e) {}
+
             const key = 'jizhi_pure_v10_ann_db';
             const local = JSON.parse(localStorage.getItem(key) || '[]');
-            const remoteIds = new Set(remoteData.announcements.map(a => a.id));
-            const merged = [...remoteData.announcements];
-            local.forEach(l => { if (l && l.id && !remoteIds.has(l.id)) merged.push(l); });
-            // 最多保留最新 15 条轻量通知，杜绝 Base64 塞满配额
+            const annMap = new Map();
+
+            remoteData.announcements.forEach(remoteAnn => {
+              if (remoteAnn && remoteAnn.id && !deletedAnnIds.has(remoteAnn.id)) {
+                annMap.set(remoteAnn.id, remoteAnn);
+              }
+            });
+
+            local.forEach(localAnn => {
+              if (!localAnn || !localAnn.id) return;
+              if (deletedAnnIds.has(localAnn.id)) return;
+
+              if (!annMap.has(localAnn.id)) {
+                annMap.set(localAnn.id, localAnn);
+              } else {
+                const remoteAnn = annMap.get(localAnn.id);
+                const mergedReadStatus = { ...(remoteAnn.readStatus || {}), ...(localAnn.readStatus || {}) };
+                const mergedGroupStatus = { ...(remoteAnn.readGroupStatus || {}), ...(localAnn.readGroupStatus || {}) };
+                const confMembersMap = new Map();
+                (remoteAnn.confirmedMembers || []).forEach(m => {
+                  if (m) {
+                    const k = m.id || m.studentCode || m.name;
+                    if (k) confMembersMap.set(k, m);
+                  }
+                });
+                (localAnn.confirmedMembers || []).forEach(m => {
+                  if (m) {
+                    const k = m.id || m.studentCode || m.name;
+                    if (k) confMembersMap.set(k, m);
+                  }
+                });
+                annMap.set(localAnn.id, {
+                  ...remoteAnn,
+                  ...localAnn,
+                  readStatus: mergedReadStatus,
+                  readGroupStatus: mergedGroupStatus,
+                  confirmedMembers: Array.from(confMembersMap.values())
+                });
+              }
+            });
+
+            const merged = Array.from(annMap.values());
             const trimmed = merged.slice(0, 15);
             localStorage.setItem(key, JSON.stringify(trimmed));
             localStorage.setItem('jizhi_pure_v10_announcements', JSON.stringify(trimmed));
@@ -4535,18 +4813,39 @@
             }
           }
           if (Array.isArray(remoteData.referencePapers) && remoteData.referencePapers.length > 0) {
+            let deletedPaperIds = new Set();
+            try {
+              const delList = JSON.parse(localStorage.getItem('jizhi_deleted_paper_ids')) || [];
+              if (Array.isArray(delList)) deletedPaperIds = new Set(delList);
+            } catch (e) {}
+
             const key = 'jizhi_reference_papers_db';
             const local = JSON.parse(localStorage.getItem(key) || '[]');
             const localIds = new Set(local.map(p => p && p.id));
-            const remoteIds = new Set(remoteData.referencePapers.map(p => p.id));
-            const merged = [...remoteData.referencePapers];
-            local.forEach(l => { if (l && l.id && !remoteIds.has(l.id)) merged.push(l); });
+            const paperMap = new Map();
+
+            remoteData.referencePapers.forEach(p => {
+              if (p && p.id && !deletedPaperIds.has(p.id)) {
+                paperMap.set(p.id, p);
+              }
+            });
+
+            local.forEach(localP => {
+              if (localP && localP.id) {
+                if (deletedPaperIds.has(localP.id)) return;
+                if (!paperMap.has(localP.id)) {
+                  paperMap.set(localP.id, localP);
+                }
+              }
+            });
+
+            const merged = Array.from(paperMap.values());
             const trimmed = merged.slice(0, 20);
             localStorage.setItem(key, JSON.stringify(trimmed));
             localStorage.setItem('jizhi_pure_v10_ref_papers_db', JSON.stringify(trimmed));
 
             // ⚡ 实时检查是否有新文献下发并提醒
-            const newPapers = remoteData.referencePapers.filter(p => p && p.id && !localIds.has(p.id));
+            const newPapers = trimmed.filter(p => p && p.id && !localIds.has(p.id));
             if (newPapers.length > 0 && this.app && this.app.state && this.app.state.studentViewMode === 'workspace') {
               const newest = newPapers[0];
               showGlobalBannerNotice(
