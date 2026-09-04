@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState, STORAGE_KEY_TASKS } from './constants.js?v=20260905_v2654';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly } from './utils.js?v=20260905_v2654';
+import { InitialState, STORAGE_KEY_TASKS } from './constants.js?v=20260905_v2655';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly } from './utils.js?v=20260905_v2655';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -599,25 +599,121 @@ export class CloudSyncEngine {
         });
       }
       if (Array.isArray(remoteData.users) && remoteData.users.length > 0) {
-        const key = 'jizhi_pure_v10_users_db';
-        const localStr = localStorage.getItem(key) || '[]';
-        const remoteStr = JSON.stringify(remoteData.users);
-        if (localStr !== remoteStr) localStorage.setItem(key, remoteStr);
+        let deletedUserIds = new Set();
+        try {
+          const delList = JSON.parse(localStorage.getItem('jizhi_deleted_user_ids')) || [];
+          if (Array.isArray(delList)) deletedUserIds = new Set(delList.map(x => String(x).trim().toLowerCase()));
+        } catch (e) {}
+
+        const localUsers = this.app.authManager.getUsers();
+        const userMap = new Map();
+        remoteData.users.forEach(u => {
+          if (u && u.id) {
+            const k = String(u.id).trim().toLowerCase();
+            if (!deletedUserIds.has(k)) userMap.set(k, u);
+          }
+        });
+        localUsers.forEach(u => {
+          if (u && u.id) {
+            const k = String(u.id).trim().toLowerCase();
+            if (deletedUserIds.has(k)) return;
+            if (!userMap.has(k)) {
+              userMap.set(k, u);
+            } else {
+              const rUser = userMap.get(k);
+              const mergedClassIds = Array.from(new Set([...(rUser.classIds || [rUser.classId].filter(Boolean)), ...(u.classIds || [u.classId].filter(Boolean))]));
+              userMap.set(k, { ...rUser, ...u, classIds: mergedClassIds });
+            }
+          }
+        });
+        localStorage.setItem('jizhi_pure_v10_users_db', JSON.stringify(Array.from(userMap.values())));
       }
       try {
         if (Array.isArray(remoteData.classes) && remoteData.classes.length > 0) {
-          const key = 'jizhi_pure_v10_classes_db';
-          const localStr = localStorage.getItem(key) || '[]';
-          const remoteStr = JSON.stringify(remoteData.classes);
-          if (localStr !== remoteStr) localStorage.setItem(key, remoteStr);
+          let deletedClassIds = new Set();
+          try {
+            const delList = JSON.parse(localStorage.getItem('jizhi_deleted_class_ids')) || [];
+            if (Array.isArray(delList)) deletedClassIds = new Set(delList);
+          } catch (e) {}
+
+          const localClasses = this.app.authManager.getClasses();
+          const classMap = new Map();
+          remoteData.classes.forEach(c => {
+            if (c && c.id && !deletedClassIds.has(c.id)) {
+              classMap.set(c.id, c);
+            }
+          });
+          localClasses.forEach(c => {
+            if (c && c.id) {
+              if (deletedClassIds.has(c.id)) return;
+              if (!classMap.has(c.id)) {
+                classMap.set(c.id, c);
+              } else {
+                const rClass = classMap.get(c.id);
+                const mergedStudentIds = Array.from(new Set([...(rClass.studentIds || []), ...(c.studentIds || [])]));
+                const grpMap = new Map();
+                (rClass.groups || []).forEach(g => { if (g && g.id) grpMap.set(g.id, g); });
+                (c.groups || []).forEach(g => { if (g && g.id) grpMap.set(g.id, g); });
+                classMap.set(c.id, { ...rClass, ...c, studentIds: mergedStudentIds, groups: Array.from(grpMap.values()) });
+              }
+            }
+          });
+          localStorage.setItem('jizhi_pure_v10_classes_db', JSON.stringify(Array.from(classMap.values())));
+          if (this.app.authManager.sanitizeAndDeduplicateGroups) {
+            this.app.authManager.sanitizeAndDeduplicateGroups();
+          }
         }
         if (Array.isArray(remoteData.announcements) && remoteData.announcements.length > 0) {
+          let deletedAnnIds = new Set();
+          try {
+            const delList = JSON.parse(localStorage.getItem('jizhi_deleted_ann_ids')) || [];
+            if (Array.isArray(delList)) deletedAnnIds = new Set(delList);
+          } catch (e) {}
+
           const key = 'jizhi_pure_v10_ann_db';
           const local = JSON.parse(localStorage.getItem(key) || '[]');
-          const remoteIds = new Set(remoteData.announcements.map(a => a.id));
-          const merged = [...remoteData.announcements];
-          local.forEach(l => { if (l && l.id && !remoteIds.has(l.id)) merged.push(l); });
-          // 最多保留最新 15 条轻量通知，杜绝 Base64 塞满配额
+          const annMap = new Map();
+
+          remoteData.announcements.forEach(remoteAnn => {
+            if (remoteAnn && remoteAnn.id && !deletedAnnIds.has(remoteAnn.id)) {
+              annMap.set(remoteAnn.id, remoteAnn);
+            }
+          });
+
+          local.forEach(localAnn => {
+            if (!localAnn || !localAnn.id) return;
+            if (deletedAnnIds.has(localAnn.id)) return;
+
+            if (!annMap.has(localAnn.id)) {
+              annMap.set(localAnn.id, localAnn);
+            } else {
+              const remoteAnn = annMap.get(localAnn.id);
+              const mergedReadStatus = { ...(remoteAnn.readStatus || {}), ...(localAnn.readStatus || {}) };
+              const mergedGroupStatus = { ...(remoteAnn.readGroupStatus || {}), ...(localAnn.readGroupStatus || {}) };
+              const confMembersMap = new Map();
+              (remoteAnn.confirmedMembers || []).forEach(m => {
+                if (m) {
+                  const k = m.id || m.studentCode || m.name;
+                  if (k) confMembersMap.set(k, m);
+                }
+              });
+              (localAnn.confirmedMembers || []).forEach(m => {
+                if (m) {
+                  const k = m.id || m.studentCode || m.name;
+                  if (k) confMembersMap.set(k, m);
+                }
+              });
+              annMap.set(localAnn.id, {
+                ...remoteAnn,
+                ...localAnn,
+                readStatus: mergedReadStatus,
+                readGroupStatus: mergedGroupStatus,
+                confirmedMembers: Array.from(confMembersMap.values())
+              });
+            }
+          });
+
+          const merged = Array.from(annMap.values());
           const trimmed = merged.slice(0, 15);
           localStorage.setItem(key, JSON.stringify(trimmed));
           localStorage.setItem('jizhi_pure_v10_announcements', JSON.stringify(trimmed));
@@ -631,18 +727,39 @@ export class CloudSyncEngine {
           }
         }
         if (Array.isArray(remoteData.referencePapers) && remoteData.referencePapers.length > 0) {
+          let deletedPaperIds = new Set();
+          try {
+            const delList = JSON.parse(localStorage.getItem('jizhi_deleted_paper_ids')) || [];
+            if (Array.isArray(delList)) deletedPaperIds = new Set(delList);
+          } catch (e) {}
+
           const key = 'jizhi_reference_papers_db';
           const local = JSON.parse(localStorage.getItem(key) || '[]');
           const localIds = new Set(local.map(p => p && p.id));
-          const remoteIds = new Set(remoteData.referencePapers.map(p => p.id));
-          const merged = [...remoteData.referencePapers];
-          local.forEach(l => { if (l && l.id && !remoteIds.has(l.id)) merged.push(l); });
+          const paperMap = new Map();
+
+          remoteData.referencePapers.forEach(p => {
+            if (p && p.id && !deletedPaperIds.has(p.id)) {
+              paperMap.set(p.id, p);
+            }
+          });
+
+          local.forEach(localP => {
+            if (localP && localP.id) {
+              if (deletedPaperIds.has(localP.id)) return;
+              if (!paperMap.has(localP.id)) {
+                paperMap.set(localP.id, localP);
+              }
+            }
+          });
+
+          const merged = Array.from(paperMap.values());
           const trimmed = merged.slice(0, 20);
           localStorage.setItem(key, JSON.stringify(trimmed));
           localStorage.setItem('jizhi_pure_v10_ref_papers_db', JSON.stringify(trimmed));
 
           // ⚡ 实时检查是否有新文献下发并提醒
-          const newPapers = remoteData.referencePapers.filter(p => p && p.id && !localIds.has(p.id));
+          const newPapers = trimmed.filter(p => p && p.id && !localIds.has(p.id));
           if (newPapers.length > 0 && this.app && this.app.state && this.app.state.studentViewMode === 'workspace') {
             const newest = newPapers[0];
             showGlobalBannerNotice(
