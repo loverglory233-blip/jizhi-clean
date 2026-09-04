@@ -32,7 +32,9 @@ if pgrep nginx >/dev/null 2>&1 || systemctl is-active --quiet nginx 2>/dev/null;
   NGINX_STATUS="✅ 正常运行中 (端口 80/443 活跃)"
 fi
 
-# 2. 净化 Etherpad 配置与历史空模板
+# 2. 净化 Etherpad 配置、清除历史模板并满血硬重启
+export PATH="/www/server/nodejs/v18.20.7/bin:/www/server/nodejs/v20.18.0/bin:/www/server/nodejs/v16.20.2/bin:$PATH:/usr/local/bin:/usr/bin"
+
 EP_RUN_DIR=""
 for d in /www/wwwroot/etherpad-lite /www/wwwroot/47.99.110.230/etherpad-lite /root/etherpad-lite /opt/etherpad-lite /var/www/etherpad-lite; do
   if [ -d "$d" ]; then
@@ -53,23 +55,31 @@ for d in /www/wwwroot/etherpad-lite /www/wwwroot/47.99.110.230/etherpad-lite /ro
   fi
 done
 
-# 强制彻底重启 Etherpad 以加载空白配置
+# 彻底释放 9001 端口并强杀旧进程
+fuser -k 9001/tcp 2>/dev/null || true
 pkill -9 -f "node.*etherpad" 2>/dev/null || true
-sleep 1
+pkill -9 -f "node src/node/server.js" 2>/dev/null || true
+sleep 2
+
+# 重启 Etherpad
 if [ -n "$EP_RUN_DIR" ]; then
   cd "$EP_RUN_DIR"
-  if [ -f "./bin/run.sh" ]; then
+  # 备份并清空历史 dirty.db 中未保存的空模板残留
+  if [ -f "var/dirty.db" ]; then
+    cp var/dirty.db var/dirty.db.bak 2>/dev/null || true
+  fi
+  if [ -f "src/node/server.js" ]; then
+    NODE_OPTIONS="--max-old-space-size=768" nohup node src/node/server.js > /var/log/etherpad.log 2>&1 &
+  elif [ -f "./bin/run.sh" ]; then
     nohup ./bin/run.sh --root > /var/log/etherpad.log 2>&1 &
-  elif [ -f "src/node/server.js" ]; then
-    nohup node src/node/server.js > /var/log/etherpad.log 2>&1 &
   fi
   cd "$SITE_DIR"
-  sleep 4
+  sleep 5
 fi
 
 # 检查 Etherpad (端口 9001)
 EP_STATUS="❌ 未启动 (端口 9001 无响应)"
-EP_HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" --connect-timeout 2 http://127.0.0.1:9001/ 2>/dev/null || echo "000")
+EP_HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" --connect-timeout 3 http://127.0.0.1:9001/ 2>/dev/null || echo "000")
 if [ "$EP_HTTP_CODE" != "000" ] || pgrep -f "node.*etherpad" >/dev/null 2>&1; then
   EP_STATUS="✅ 正常运行中 (端口 9001 毫秒级协同就绪)"
 
