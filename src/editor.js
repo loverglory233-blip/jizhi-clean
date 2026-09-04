@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260905_v2657";
-import { callCozeAgentAPI } from "./agents.js?v=20260905_v2657";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, showResolutionBlock } from "./utils.js?v=20260905_v2657";
+import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260905_v2658";
+import { callCozeAgentAPI } from "./agents.js?v=20260905_v2658";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, showResolutionBlock } from "./utils.js?v=20260905_v2658";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -2895,14 +2895,18 @@ export function renderChat(state) {
     }
 
     const newPresenceHtml = memberList.map(m => {
-      const uid = String(m.id || m.userId || '').trim();
+      const uid = String(m.id || m.userId || m.studentCode || '').trim();
       const candidateKeys = [
         String(m.id || '').trim(),
+        String(m.userId || '').trim(),
+        String(m.studentCode || '').trim(),
+        String(m.username || '').trim(),
         String(m.name || '').trim()
       ].filter(Boolean);
 
       const isMe = (currUser && (
-        (currUser.id && (m.id === currUser.id || uid === String(currUser.id))) ||
+        (currUser.id && (m.id === currUser.id || uid === String(currUser.id) || (m.userId && String(m.userId) === String(currUser.id)))) ||
+        (currUser.studentCode && (m.studentCode === currUser.studentCode || uid === String(currUser.studentCode))) ||
         (currUser.name && m.name === currUser.name)
       )) || (uid && uid === myCode);
 
