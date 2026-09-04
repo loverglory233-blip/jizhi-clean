@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260905_v2731
+ * Version: 20260905_v2801
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260905_v2731';
+  const APP_VERSION = '20260905_v2801';
   const APP_BUILD_DATE = '2026-09-05';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -21240,38 +21240,42 @@
       // ═══════════════════════════════════════════════════════════════
       const isReview1Due = (rawDoc.length >= 800 || wordProgress >= 0.25 || timeProgress >= 0.25 || rawDoc.length >= Math.min(1000, targetWordCount * 0.30));
 
-      // 严格判定真实一审消息（排除开场寄语、初审跟进提示、终审扫描）
+      // 严格判定真实一审消息（必须包含一审/初审/破题把脉，排除开场寄语、初审跟进提示、终审扫描）
       const isRealFirstReviewMsg = (m) => {
         if (!m || m.sender !== 'reviewingEditor') return false;
         const txt = m.text || '';
         if (txt.includes('开场寄语') || txt.includes('初审协同跟进') || txt.includes('初审跟进提示') || txt.includes('终稿行文扫描') || txt.includes('终审')) return false;
-        return true;
+        return txt.includes('一审') || txt.includes('初审') || txt.includes('破题把脉') || txt.includes('破题质检');
       };
 
       let hasFirstReviewInLogs = s2ChatList.some(isRealFirstReviewMsg);
 
-      if (!hasFirstReviewInLogs && s2.firstReviewText && s2.reviewMilestone === 'first_review_done') {
-        // 已经生成过一审文本但当前 chatLogs 丢失：立即补入 chatLogs
-        const taskType = this.getCurrentTaskType();
-        const isInstTask = (taskType === 'instructional');
-        const reviewerRoleName = isInstTask ? '备课组长' : '审稿编辑';
-        const formattedFirstReview = (s2.firstReviewText.includes('一审') || s2.firstReviewText.includes('初审') || s2.firstReviewText.includes('破题把脉')) ? s2.firstReviewText : `📝 【${reviewerRoleName}·一审破题把脉】：\n${s2.firstReviewText}`;
-        const firstReviewMsg = {
-          sender: 'reviewingEditor',
-          senderName: `学术质量 · ${reviewerRoleName}`,
-          text: formattedFirstReview,
-          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          _timeMs: Date.now()
-        };
-        if (!this.state.chatLogs.stage2) this.state.chatLogs.stage2 = [];
-        this.state.chatLogs.stage2.push(firstReviewMsg);
-        this.syncChatLogs();
-        renderChat(this.state);
-        hasFirstReviewInLogs = true;
+      if (!hasFirstReviewInLogs) {
+        if (s2.firstReviewText) {
+          // 已经生成过一审文本但当前 chatLogs 丢失：立即补入 chatLogs
+          const taskType = this.getCurrentTaskType();
+          const isInstTask = (taskType === 'instructional');
+          const reviewerRoleName = isInstTask ? '教研专家' : '审稿编辑';
+          const formattedFirstReview = (s2.firstReviewText.includes('一审') || s2.firstReviewText.includes('初审') || s2.firstReviewText.includes('破题把脉')) ? s2.firstReviewText : `📝 【${reviewerRoleName}·一审破题把脉】：\n${s2.firstReviewText}`;
+          const firstReviewMsg = {
+            sender: 'reviewingEditor',
+            senderName: `学术质量 · ${reviewerRoleName}`,
+            text: formattedFirstReview,
+            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            _timeMs: Date.now()
+          };
+          if (!this.state.chatLogs.stage2) this.state.chatLogs.stage2 = [];
+          this.state.chatLogs.stage2.push(firstReviewMsg);
+          this.syncChatLogs();
+          renderChat(this.state);
+          hasFirstReviewInLogs = true;
+        } else if (s2.reviewMilestone === 'first_review_done') {
+          s2.reviewMilestone = 'none';
+        }
       }
 
-      // 🛡️ 如果之前触发中途因异常未完成且已超过 30 秒，允许重置重试
-      const isReview1InProgressTimedOut = (s2.reviewMilestone === 'first_review_in_progress' && s2._review1StartTime && (now - s2._review1StartTime > 30000));
+      // 🛡️ 如果之前触发中途因异常未完成且已超过 15 秒，允许重置重试
+      const isReview1InProgressTimedOut = (s2.reviewMilestone === 'first_review_in_progress' && (!s2._review1StartTime || (now - s2._review1StartTime > 15000)));
       const canTriggerReview1 = !hasFirstReviewInLogs && isReview1Due && !this._isTriggeringFirstReview && (s2.reviewMilestone !== 'first_review_done' && (s2.reviewMilestone !== 'first_review_in_progress' || isReview1InProgressTimedOut));
 
       if (canTriggerReview1) {
@@ -21284,21 +21288,22 @@
         const topic = (this.state.stage1 && this.state.stage1.mergedTitle) ? this.state.stage1.mergedTitle : '本组课题';
         const contentSnippet = rawDoc || '论文草稿已起草引言与文献综述';
 
-        // 🌟 1. 立即挂载审稿编辑一审正在质检中动态状态框
+        const taskType = this.getCurrentTaskType();
+        const isInstTask = (taskType === 'instructional');
+        const reviewerRoleName = isInstTask ? '教研专家' : '审稿编辑';
+
+        // 🌟 1. 立即挂载审稿编辑/教研专家一审正在质检中动态状态框
         this.state.activeAgentAnalyzing = {
           icon: '📝',
-          title: '【审稿编辑】正在进行初审破题把脉质检...',
-          detail: '正在全量通读当前已起草的全部正文段落，以开篇破题为主线进行通盘学术把脉...'
+          title: `【${reviewerRoleName}】正在进行初审破题把脉质检...`,
+          detail: `正在全量通读当前已起草的全部正文段落，以开篇破题为主线进行通盘${isInstTask ? '教学设计' : '学术'}把脉...`
         };
         this.renderStudentWorkspace();
         renderChat(this.state);
 
         setTimeout(async () => {
           try {
-            await new Promise(r => setTimeout(r, 1500));
-            const taskType = this.getCurrentTaskType();
-            const isInstTask = (taskType === 'instructional');
-            const reviewerRoleName = isInstTask ? '备课组长' : '审稿编辑';
+            await new Promise(r => setTimeout(r, 1000));
             const genreDocName = isInstTask ? '教学设计' : '论文';
             const genreDesc = getGenrePromptDescriptor(taskType);
             const firstReviewPrompt = `${genreDesc}
@@ -21317,12 +21322,17 @@
   3. 【语体规范与严密性】：若存在口语化表述或设计步骤含糊，精准指出并给出规范建议；
 
   输出格式：清晰列出 1~2 条核心质检条目（每条包含：· 诊断问题：指出哪里有什么问题；· 改进建议：指出具体怎么改）。纯自然语言输出，120~160字。`;
-            let firstReviewText = await callCozeAgentAPI('reviewingEditor', firstReviewPrompt, { stage: 'stage2', topic, actualDoc: contentSnippet, taskType });
+            let firstReviewText = '';
+            try {
+              firstReviewText = await callCozeAgentAPI('reviewingEditor', firstReviewPrompt, { stage: 'stage2', topic, actualDoc: contentSnippet, taskType });
+            } catch (apiErr) {
+              console.warn('[FirstReview] Coze API error, switching to prompt fallback:', apiErr);
+            }
             if (!firstReviewText || firstReviewText.trim().length === 0) {
               if (rawDoc.length < 50) {
                 firstReviewText = `📝 【${reviewerRoleName}·一审破题把脉】：通读了全组目前的撰写进度，提出以下初审质检意见：\n①【起草进度与内容实质性】\n· 诊断问题：当前正文仅有零星字句，实质性${genreDocName}开篇框架尚未建立，起草进度明显滞后；\n· 改进建议：请全组成员抓紧时间，紧扣课题《${topic}》尽快起草第一部分${isInstTask ? '学情分析与教学目标' : '引言与核心研究问题'}，充实正文内容！`;
               } else {
-                firstReviewText = `📝 【${reviewerRoleName}·一审破题把脉】：通读了全组目前起草的正文草稿，提出以下初审质检意见：\n①【立意与问题聚焦】\n· 诊断问题：文献综述梳理充分，但末尾未精准聚焦初中数学课例操作化的核心缺口（Research Gap）；\n· 改进建议：收拢综述结论，直接引出核心研究问题与假设。\n②【学术语体与术语口径】\n· 诊断问题：部分段落出现第一人称口语化表述，术语叫法略有出入；\n· 改进建议：统一全篇学术术语口径，采用规范学术第三人称。请全组参考后继续稳步撰写！`;
+                firstReviewText = `📝 【${reviewerRoleName}·一审破题把脉】：通读了全组目前起草的正文草稿，提出以下初审质检意见：\n①【立意与问题聚焦】\n· 诊断问题：文献综述梳理充分，但末尾未精准聚焦核心缺口（Research Gap）；\n· 改进建议：收拢综述结论，直接引出核心研究问题与假设。\n②【语体与术语口径】\n· 诊断问题：部分段落出现口语化表述，术语叫法略有出入；\n· 改进建议：统一全篇术语口径，采用规范学术语体。请全组参考后继续稳步撰写！`;
               }
             }
             s2.firstReviewText = firstReviewText;
@@ -21341,6 +21351,8 @@
             this.syncChatLogs();
             this.syncStage2();
             if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+          } catch (err) {
+            console.error('[FirstReview] fatal error:', err);
           } finally {
             this.state.activeAgentAnalyzing = null;
             this._isTriggeringFirstReview = false;

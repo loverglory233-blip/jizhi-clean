@@ -874,6 +874,51 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                 self.wfile.write(json.dumps({'error': str(e)}).encode('utf-8'))
             return
 
+        # ⚡ 教师删除写作任务专属路由
+        if 'action=delete_task' in self.path:
+            length = int(self.headers.get('Content-Length', 0))
+            body = self.rfile.read(length)
+            try:
+                req = json.loads(body.decode('utf-8')) if body else {}
+                task_id = req.get('taskId')
+                if not task_id:
+                    self.send_response(400)
+                    self.end_headers()
+                    self.wfile.write(b'{"success":false,"error":"taskId_required"}')
+                    return
+                global_file = os.path.join(DIR, 'global_db.json')
+                new_ver = 1
+                if os.path.exists(global_file):
+                    with JSON_FILE_LOCK:
+                        with open(global_file, 'r', encoding='utf-8') as f:
+                            meta = json.load(f)
+                        if isinstance(meta, dict):
+                            new_ver = int(meta.get('version', 1)) + 1
+                            meta['version'] = new_ver
+                            if 'tasks' in meta and isinstance(meta['tasks'], list):
+                                meta['tasks'] = [t for t in meta['tasks'] if t.get('id') != task_id]
+                            if 'announcements' in meta and isinstance(meta['announcements'], list):
+                                meta['announcements'] = [a for a in meta['announcements'] if a.get('taskId') != task_id]
+                            if 'referencePapers' in meta and isinstance(meta['referencePapers'], list):
+                                meta['referencePapers'] = [p for p in meta['referencePapers'] if p.get('taskId') != task_id]
+                            if 'surveys' in meta and isinstance(meta['surveys'], list):
+                                meta['surveys'] = [s for s in meta['surveys'] if s.get('taskId') != task_id]
+                            save_bytes = json.dumps(meta, ensure_ascii=False).encode('utf-8')
+                            with open(global_file, 'wb') as f:
+                                f.write(save_bytes)
+                resp = json.dumps({'success': True, 'version': new_ver, 'taskId': task_id}).encode('utf-8')
+                self.send_response(200)
+                self.send_header('Content-Type', 'application/json; charset=utf-8')
+                self.send_header('Content-Length', str(len(resp)))
+                self.end_headers()
+                self.wfile.write(resp)
+                self.wfile.flush()
+            except Exception as e:
+                self.send_response(400)
+                self.end_headers()
+                self.wfile.write(json.dumps({'error': str(e)}).encode('utf-8'))
+            return
+
         # ⚡ 学生已读确认通知专属轻量路由 (支持个人独立已读 + 小组聚合确认)
         if 'action=update_read_status' in self.path:
             length = int(self.headers.get('Content-Length', 0))

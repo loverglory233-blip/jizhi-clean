@@ -1058,37 +1058,39 @@ if ($action === 'get_teacher_monitor_all_groups') {
                 $ts = (is_array($pv) && isset($pv['updatedAt'])) ? intval($pv['updatedAt']) : ((is_array($pv) && isset($pv['lastSeen'])) ? intval($pv['lastSeen']) : ((is_array($pv) && isset($pv['timestamp'])) ? intval($pv['timestamp']) : 0));
                 $rawK = (string)$pk;
                 $lowK = strtolower(trim($rawK));
-                if ($isOff) {
-                    $explicitOfflineMap[$rawK] = true;
-                    $explicitOfflineMap[$lowK] = true;
-                } else {
-                    $presenceByKey[$rawK] = $ts;
-                    $presenceByKey[$lowK] = $ts;
-                }
                 
-                // 智能联动全校用户字典，将学号的心跳自动拓展至姓名、昵称等全字段
                 $matchedU = $userMap[$rawK] ?? ($userMap[$lowK] ?? null);
+                $allKeysForPv = [$rawK, $lowK];
                 if ($matchedU && is_array($matchedU)) {
                     foreach (['id', 'userId', 'name', 'studentCode', 'username'] as $uf) {
                         if (isset($matchedU[$uf]) && $matchedU[$uf] !== '') {
-                            $kVal = (string)$matchedU[$uf];
-                            $kLow = strtolower(trim($kVal));
-                            if ($isOff) {
-                                $explicitOfflineMap[$kVal] = true;
-                                $explicitOfflineMap[$kLow] = true;
-                            } else {
-                                $presenceByKey[$kVal] = $ts;
-                                $presenceByKey[$kLow] = $ts;
-                            }
+                            $allKeysForPv[] = (string)$matchedU[$uf];
+                            $allKeysForPv[] = strtolower(trim((string)$matchedU[$uf]));
+                        }
+                    }
+                }
+                $allKeysForPv = array_unique($allKeysForPv);
+
+                if ($isOff) {
+                    foreach ($allKeysForPv as $ak) {
+                        if (!isset($explicitOfflineMap[$ak]) || $ts > $explicitOfflineMap[$ak]) {
+                            $explicitOfflineMap[$ak] = $ts;
+                        }
+                    }
+                } else {
+                    foreach ($allKeysForPv as $ak) {
+                        if (!isset($presenceByKey[$ak]) || $ts > $presenceByKey[$ak]) {
+                            $presenceByKey[$ak] = $ts;
                         }
                     }
                 }
             }
 
-            // 🌟 实时在线精准判定：仅依据实时心跳（presence_data）和近期发言时间窗口（30秒内），杜绝历史静态动作污染
+            // 🌟 实时在线精准判定：依据实时心跳（presence_data）和近期发言时间窗口（30秒内），只要有新心跳或发言即在线
             $inTaskActiveKeyMap = [];
             foreach ($presenceByKey as $pk => $pts) {
-                if (($nowMs - $pts) <= $ONLINE_WINDOW_MS) {
+                $offTime = isset($explicitOfflineMap[$pk]) ? $explicitOfflineMap[$pk] : 0;
+                if (($nowMs - $pts) <= $ONLINE_WINDOW_MS && $pts >= $offTime) {
                     $inTaskActiveKeyMap[$pk] = true;
                     $inTaskActiveKeyMap[strtolower(trim($pk))] = true;
                 }
@@ -1126,21 +1128,11 @@ if ($action === 'get_teacher_monitor_all_groups') {
                 }
                 $candidateKeys = array_unique($candidateKeys);
 
-                $isExplicitOffline = false;
-                foreach ($candidateKeys as $k) {
-                    if (isset($explicitOfflineMap[$k])) {
-                        $isExplicitOffline = true;
-                        break;
-                    }
-                }
-
                 $isFresh = false;
-                if (!$isExplicitOffline) {
-                    foreach ($candidateKeys as $k) {
-                        if (isset($inTaskActiveKeyMap[$k]) || isset($inTaskActiveKeyMap[strtolower(trim($k))])) {
-                            $isFresh = true;
-                            break;
-                        }
+                foreach ($candidateKeys as $k) {
+                    if (isset($inTaskActiveKeyMap[$k]) || isset($inTaskActiveKeyMap[strtolower(trim($k))])) {
+                        $isFresh = true;
+                        break;
                     }
                 }
 
