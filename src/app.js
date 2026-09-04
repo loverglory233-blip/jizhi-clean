@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260904_v2440";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse } from "./utils.js?v=20260904_v2440";
-import { callCozeAgentAPI } from "./agents.js?v=20260904_v2440";
-import { AuthManager } from "./auth.js?v=20260904_v2440";
-import { CloudSyncEngine } from "./sync.js?v=20260904_v2440";
-import { renderLoginView } from "./login.js?v=20260904_v2440";
-import { renderTeacherPortal } from "./teacher.js?v=20260904_v2440";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260904_v2440";
+} from "./constants.js?v=20260904_v2445";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse } from "./utils.js?v=20260904_v2445";
+import { callCozeAgentAPI } from "./agents.js?v=20260904_v2445";
+import { AuthManager } from "./auth.js?v=20260904_v2445";
+import { CloudSyncEngine } from "./sync.js?v=20260904_v2445";
+import { renderLoginView } from "./login.js?v=20260904_v2445";
+import { renderTeacherPortal } from "./teacher.js?v=20260904_v2445";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260904_v2445";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260904_v2440";
+} from "./editor.js?v=20260904_v2445";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -1574,8 +1574,8 @@ export class App {
         const s2BaseBudgetMin = totalTaskMinutes * 0.70;
         const totalPlannedMs = Math.max(totalPlannedMin * 60 * 1000, s2BaseBudgetMin * 60 * 1000);
         const s2EntryTime = s2.startTime || s2.stageStartTime || this.stage2StartTime;
-        const stage2DurationMs = s2EntryTime ? Math.max(0, now - s2EntryTime) : 0;
-        const timeProgress = totalPlannedMs > 0 ? (stage2DurationMs / totalPlannedMs) : 0;
+        const s2ElapsedMs = s2EntryTime ? Math.max(0, now - s2EntryTime) : stage2DurationMs;
+        const timeProgress = totalPlannedMs > 0 ? (s2ElapsedMs / totalPlannedMs) : 0;
 
         const hasMeetingInLogs = s2Chats.some(m => m && m.sender === 'managingEditor' && (m.text?.includes('半程研讨号召') || m.text?.includes('半程会议号召') || m.text?.includes('半程自查')));
         const has90ReminderInLogs = s2Chats.some(m => m && m.sender === 'managingEditor' && (m.text?.includes('阶段二推进提示') || m.text?.includes('90% 节点') || m.text?.includes('收尾倒计时') || m.text?.includes('冲刺')));

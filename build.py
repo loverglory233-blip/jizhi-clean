@@ -104,7 +104,7 @@ def sync_versions(new_ver):
     print(f"   🏷️ [Version Sync] 全局版本戳已成功统一更新为: {new_ver}")
 
 def build():
-    NEW_VERSION = "20260904_v2440"
+    NEW_VERSION = "20260904_v2445"
     sync_versions(NEW_VERSION)
     
     print("🚀 [ESM Build] 开始验证并装配 JIZHI 现代化模块...")

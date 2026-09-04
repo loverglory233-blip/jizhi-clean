@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260904_v2440
+ * Version: 20260904_v2445
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260904_v2440';
+  const APP_VERSION = '20260904_v2445';
   const APP_BUILD_DATE = '2026-09-04';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -14181,8 +14181,8 @@
           const s2BaseBudgetMin = totalTaskMinutes * 0.70;
           const totalPlannedMs = Math.max(totalPlannedMin * 60 * 1000, s2BaseBudgetMin * 60 * 1000);
           const s2EntryTime = s2.startTime || s2.stageStartTime || this.stage2StartTime;
-          const stage2DurationMs = s2EntryTime ? Math.max(0, now - s2EntryTime) : 0;
-          const timeProgress = totalPlannedMs > 0 ? (stage2DurationMs / totalPlannedMs) : 0;
+          const s2ElapsedMs = s2EntryTime ? Math.max(0, now - s2EntryTime) : stage2DurationMs;
+          const timeProgress = totalPlannedMs > 0 ? (s2ElapsedMs / totalPlannedMs) : 0;
 
           const hasMeetingInLogs = s2Chats.some(m => m && m.sender === 'managingEditor' && (m.text?.includes('半程研讨号召') || m.text?.includes('半程会议号召') || m.text?.includes('半程自查')));
           const has90ReminderInLogs = s2Chats.some(m => m && m.sender === 'managingEditor' && (m.text?.includes('阶段二推进提示') || m.text?.includes('90% 节点') || m.text?.includes('收尾倒计时') || m.text?.includes('冲刺')));
