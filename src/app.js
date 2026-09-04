@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260905_v2692";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime } from "./utils.js?v=20260905_v2692";
-import { callCozeAgentAPI } from "./agents.js?v=20260905_v2692";
-import { AuthManager } from "./auth.js?v=20260905_v2692";
-import { CloudSyncEngine } from "./sync.js?v=20260905_v2692";
-import { renderLoginView } from "./login.js?v=20260905_v2692";
-import { renderTeacherPortal } from "./teacher.js?v=20260905_v2692";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260905_v2692";
+} from "./constants.js?v=20260905_v2693";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime } from "./utils.js?v=20260905_v2693";
+import { callCozeAgentAPI } from "./agents.js?v=20260905_v2693";
+import { AuthManager } from "./auth.js?v=20260905_v2693";
+import { CloudSyncEngine } from "./sync.js?v=20260905_v2693";
+import { renderLoginView } from "./login.js?v=20260905_v2693";
+import { renderTeacherPortal } from "./teacher.js?v=20260905_v2693";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260905_v2693";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260905_v2692";
+} from "./editor.js?v=20260905_v2693";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -1424,7 +1424,7 @@ export class App {
         }
       }
       if (stage === 'stage1') {
-        // 阶段一所有的破冰、集齐提示与公约流转已由统一状态机与单次互锁时钟管辖，此处无需冗余轮询
+        this.checkAndTriggerAllProposalsGathered();
         return;
       }
 
@@ -2997,9 +2997,9 @@ export class App {
 
     if (!allPropsHaveEvaluation) return false;
 
-    // 3. 检查是否已经发送过全员集齐提醒
+    // 3. 检查是否已经发送过全员集齐提醒（以实际聊天记录中是否已存在为准）
     const hasGatheredMsg = s1Logs.some(m => m && (m.text || '').includes('提案集齐与协同研讨'));
-    if (hasGatheredMsg || s1._allProposalsPrompted || this.state.s1_allPropsGatheredSent) {
+    if (hasGatheredMsg) {
       s1._allProposalsPrompted = true;
       this.state.s1_allPropsGatheredSent = true;
       return true;
