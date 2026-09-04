@@ -59,6 +59,20 @@ cat << 'EPSETEOF' > "$EP_DIR/settings.json"
     "showLineNumbers": true,
     "useMonospaceFont": false
   },
+  "toolbar": {
+    "left": [
+      ["bold", "italic", "underline", "strikethrough"],
+      ["orderedlist", "unorderedlist", "indent", "outdent"],
+      ["heading", "font-size", "font-family", "font-color"],
+      ["left", "center", "right", "justify"],
+      ["insertTable", "imageUpload"],
+      ["undo", "redo"],
+      ["clearauthorship"]
+    ],
+    "right": [
+      ["importexport", "timeslider", "settings", "showusers"]
+    ]
+  },
   "suppressErrorsInPadText": true,
   "requireAuthentication": false,
   "requireAuthorization": false,
