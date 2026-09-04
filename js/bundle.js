@@ -13637,13 +13637,18 @@
               return fullUser?.name || m?.name || m?.id || m;
             }).join('、');
 
-            // ── 半程打卡：仅 3 分钟（180,000ms）单次点名催促（全场严格仅发 1 次，且仅在真有人未打卡时触发）──
-            if (!existMeetingCheckinNudge && hasUnsubmitted && meetingElapsed >= 180000) {
+            // ── 半程打卡：仅 3 分钟（180,000ms）单次点名群聊号召（全场严格仅发 1 次）──
+            const existMeetingNudgeInLogs = s2Chats.some(m => m && (m.text?.includes('半程学术审计会议已发起 3 分钟') || m.text?.includes('半程会议协同号召') || m.text?.includes('半程会议参与提示')));
+            if (!existMeetingNudgeInLogs && hasUnsubmitted && meetingElapsed >= 180000 && !this.state.s2_3mNudgeSent) {
+              this.state.s2_3mNudgeSent = true;
               this._nudgeCounts['s2_meeting_checkin_3m'] = 1;
+              const taskType = this.getCurrentTaskType();
+              const isInst = (taskType === 'instructional');
+              const managingName = isInst ? '备课组长' : '责任编辑';
               const msg = {
                 sender: 'managingEditor',
-                senderName: '协同调度 · 责任编辑',
-                text: `🤝 【责任编辑·半程会议协同号召】：半程学术审计会议已发起 3 分钟啦！目前全组自查进度为【${submittedCount}/${totalCount} 人】，看到 ${unsubmittedNames} 同学尚未完成打卡。请组员们相互提醒并通读全篇完成自查，全员打卡后系统将自动汇总全组智慧生成《半程修正清单》！`,
+                senderName: `协同调度 · ${managingName}`,
+                text: `🤝 【${managingName}·半程会议协同号召】：半程学术审计会议已发起 3 分钟啦！目前全组自查进度为【${submittedCount}/${totalCount} 人】，看到 ${unsubmittedNames} 同学尚未完成打卡。请组员们相互提醒并通读全篇完成自查，全员打卡后系统将自动汇总全组智慧生成《半程修正清单》！`,
                 timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
                 _timeMs: now
               };
@@ -13652,12 +13657,16 @@
               this.syncChatLogs();
               if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
               renderChat(this.state);
+            }
 
-              // 🚀 核心保障：针对尚未打卡的同学，不管他在干什么，3 分钟后直接在其屏幕上弹出自查打卡弹窗！
-              if (!isMemberSubmitted(currUserObj) && typeof this.showMeetingModal === 'function') {
+            // 🚀 核心强制弹窗保障：凡是处于阶段二、会议已发起满 3 分钟（180,000ms）、且当前登录学生【尚未完成自查打卡】：
+            // 无论该学生何时切回前台、唤醒休眠或刷新页面，只要当前未打卡且弹窗未打开，立即在屏幕中央强制弹出自查打卡弹窗！
+            const isModalOpen = !!document.querySelector('.modal-overlay');
+            if (this.state.currentStage === 'stage2' && isMeetingActive && meetingElapsed >= 180000 && !isMemberSubmitted(currUserObj)) {
+              if (!isModalOpen && !this._meetingModalForceShown && typeof this.showMeetingModal === 'function') {
+                this._meetingModalForceShown = true;
                 this.showMeetingModal();
               }
-              return;
             }
 
             // ======================================================================
@@ -17748,11 +17757,9 @@
 
       const taskDurMin = totalTaskMinutes;
       const isLargeTask = curTask && (curTask.scale === 'large' || curTask.type === 'large' || taskDurMin > 150 || (curTask.targetWordCount && Number(curTask.targetWordCount) >= 6000));
-      const defaultWordTarget = isLargeTask ? 9000 : 4300;
-
-      const targetWordCount = (curTask && curTask.targetWordCount) ? Number(curTask.targetWordCount) : defaultWordTarget;
+      const targetWordCount = (curTask && curTask.targetWordCount) ? Number(curTask.targetWordCount) : (isLargeTask ? 8000 : 3000);
       const rawDoc = newContent.replace(/<[^>]*>/g, '').trim();
-      const wordProgress = targetWordCount > 0 ? (rawDoc.length / targetWordCount) : (rawDoc.length / 4300);
+      const wordProgress = targetWordCount > 0 ? (rawDoc.length / targetWordCount) : 0;
 
       const totalPlannedMs = Math.max(totalPlannedMin * 60 * 1000, stage2BudgetMin * 60 * 1000);
       const stage2DurationMs = s2.startTime ? (now - s2.startTime) : (this.stage2StartTime ? (now - this.stage2StartTime) : 0);
