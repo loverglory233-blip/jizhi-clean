@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260905_v2580
+ * Version: 20260905_v2585
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260905_v2580';
+  const APP_VERSION = '20260905_v2585';
   const APP_BUILD_DATE = '2026-09-05';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -6731,8 +6731,8 @@
                       <span id="teacher-task-status-badge" style="font-size:12px; font-weight:700; padding:5px 12px; border-radius:6px; background:${isMonitorTaskExpired || state.isFinalSubmitted ? '#fef2f2' : '#ecfdf5'}; color:${isMonitorTaskExpired || state.isFinalSubmitted ? '#dc2626' : '#059669'}; border:1px solid ${isMonitorTaskExpired || state.isFinalSubmitted ? '#fecaca' : '#a7f3d0'};">
                         ${isMonitorTaskExpired ? '已截止' : (state.isFinalSubmitted ? '已归档' : '进行中')}
                       </span>
-                      <button id="btn-export-all-excel" style="background:#2563eb; color:white; border:none; padding:7px 16px; border-radius:8px; font-size:12.5px; font-weight:700; cursor:pointer; box-shadow:0 2px 6px rgba(37,99,235,0.2); display:inline-flex; align-items:center; gap:6px;">
-                        📊 导出本组 Excel
+                      <button id="btn-export-all-excel" style="background:#2563eb; color:white; border:none; padding:7px 16px; border-radius:8px; font-size:12.5px; font-weight:700; cursor:pointer; box-shadow:0 2px 6px rgba(37,99,235,0.2); display:inline-flex; align-items:center; gap:6px;" title="一键导出全班各组研讨记录 (分文件)">
+                        📥 导出全班研讨
                       </button>
                     </div>
                   </div>
@@ -9520,10 +9520,12 @@
     const btnExportExcel = container.querySelector('#btn-export-all-excel');
     if (btnExportExcel) {
       btnExportExcel.addEventListener('click', () => {
-        const gName = activeMonitorGroup?.name || activeMonitorGId;
+        const cId = activeClass?.id || 'class_101';
+        const tId = activeMonitorTask?.id || null;
+        const tTitle = activeMonitorTask?.title || '全班各组';
         authManager.openExportFormatModal({
-          title: `导出【${gName || '本组'}】研讨记录`,
-          onSelect: (fmt) => authManager.exportGroupChatLogsToExcel(activeMonitorGId, state.chatLogs, gName, fmt)
+          title: `导出【${tTitle}】全班各组研讨`,
+          onSelect: (fmt) => authManager.exportAllClassGroupsChatLogsToSeparateFiles(cId, tId, fmt)
         });
       });
     }
