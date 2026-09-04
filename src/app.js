@@ -3216,8 +3216,10 @@ ${votedDetails}
     renderChat(this.state);
 
     const s1ChatLogs = (this.state.chatLogs && this.state.chatLogs.stage1) ? this.state.chatLogs.stage1 : [];
-    // 抓取小组成员在阶段一的全部真实发言（全量捕获，涵盖提案商讨、投票前后的全部自由研讨）
-    const validUserLogs = s1ChatLogs.filter(m => {
+    // 💡 局部精准切片：只截取投票结果出炉之后（学生集中讨论方案）的研讨记录，严格控制 token 花销
+    const voteNoticeIdx = s1ChatLogs.findIndex(m => m && m.text && (m.text.includes('投票结果出炉') || m.text.includes('全票推选') || m.text.includes('投票已完成') || m.text.includes('投票完成')));
+    const relevantLogs = (voteNoticeIdx >= 0) ? s1ChatLogs.slice(voteNoticeIdx) : s1ChatLogs.slice(-15);
+    const validUserLogs = relevantLogs.filter(m => {
       if (!m || !m.text) return false;
       if (m.isThinking) return false;
       if (m.sender === 'system' || AgentProfiles[m.sender]) return false;
@@ -3437,8 +3439,10 @@ ${propDetails || (allPropTitles ? `候选提案: ${allPropTitles}` : '（组员�
     renderChat(this.state);
 
     const s1ChatLogs = (this.state.chatLogs && this.state.chatLogs.stage1) ? this.state.chatLogs.stage1 : [];
-    // 抓取小组成员在阶段一的全部真实发言（全量研讨，不切片截断）
-    const userLogs = s1ChatLogs.filter(m => m && m.sender && !AgentProfiles[m.sender] && m.sender !== 'system' && !m.isThinking && !m.text.startsWith('[IMG_DATA]:'));
+    // 💡 局部精准切片：只截取主题确立后关于时间预算的研讨记录，严格控制 token 花销
+    const topicNoticeIdx = s1ChatLogs.findIndex(m => m && m.text && (m.text.includes('主题与方案确立') || m.text.includes('主题确立') || m.text.includes('时间分配') || m.text.includes('时间规划')));
+    const relevantLogs = (topicNoticeIdx >= 0) ? s1ChatLogs.slice(topicNoticeIdx) : s1ChatLogs.slice(-15);
+    const userLogs = relevantLogs.filter(m => m && m.sender && !AgentProfiles[m.sender] && m.sender !== 'system' && !m.isThinking && !m.text.startsWith('[IMG_DATA]:'));
     const chatSnippet = userLogs.map(m => `${m.senderName || m.sender}: ${(m.text || '').replace(/<[^>]+>/g, ' ').trim()}`).filter(l => l.trim().length > 0).join('\n') || '组员正在商讨时间规划';
 
     const allTasks = (this.authManager) ? this.authManager.getTasks() : [];
@@ -3596,8 +3600,10 @@ ${chatSnippet}
     else if (this.state.members && typeof this.state.members === 'object') members = Object.values(this.state.members);
 
     const s1ChatLogs = (this.state.chatLogs && this.state.chatLogs.stage1) ? this.state.chatLogs.stage1 : [];
-    // 抓取小组成员在阶段一的全部真实发言（全量研讨，不切片截断）
-    const userLogs = s1ChatLogs.filter(m => m && m.sender && !AgentProfiles[m.sender] && m.sender !== 'system' && !m.isThinking && !m.text.startsWith('[IMG_DATA]:'));
+    // 💡 局部精准切片：只截取时间预算确立后关于任务分工认领的研讨记录，严格控制 token 花销
+    const timeNoticeIdx = s1ChatLogs.findIndex(m => m && m.text && (m.text.includes('时间预算确立') || m.text.includes('时间分配') || m.text.includes('分工')));
+    const relevantLogs = (timeNoticeIdx >= 0) ? s1ChatLogs.slice(timeNoticeIdx) : s1ChatLogs.slice(-15);
+    const userLogs = relevantLogs.filter(m => m && m.sender && !AgentProfiles[m.sender] && m.sender !== 'system' && !m.isThinking && !m.text.startsWith('[IMG_DATA]:'));
     const chatSnippet = userLogs.map(m => `${m.senderName || m.sender}: ${(m.text || '').replace(/<[^>]+>/g, ' ').trim()}`).filter(l => l.trim().length > 0).join('\n') || '组员正在商定分工';
 
     const membersInfo = members.map(m => `- ${m.name || m.id}`).join('\n');
@@ -3749,9 +3755,11 @@ ${chatSnippet}
     else if (this.state.members && typeof this.state.members === 'object') members = Object.values(this.state.members);
     const membersList = members.filter(Boolean);
 
-    // 1. 抓取小组成员在阶段一的全部真实发言（全量研讨，不切片截断）
+    // 1. 💡 局部精准切片：只截取投票结果出炉之后的研讨记录，严格控制 token 花销
     const s1ChatLogs = (this.state.chatLogs && this.state.chatLogs.stage1) ? this.state.chatLogs.stage1 : [];
-    const allUserLogs = s1ChatLogs.filter(m => m && m.sender && !AgentProfiles[m.sender] && m.sender !== 'system' && !m.isThinking && !m.text.startsWith('[IMG_DATA]:'));
+    const voteNoticeIdx = s1ChatLogs.findIndex(m => m && m.text && (m.text.includes('投票结果出炉') || m.text.includes('全票推选') || m.text.includes('投票已完成') || m.text.includes('投票完成')));
+    const relevantLogs = (voteNoticeIdx >= 0) ? s1ChatLogs.slice(voteNoticeIdx) : s1ChatLogs.slice(-20);
+    const allUserLogs = relevantLogs.filter(m => m && m.sender && !AgentProfiles[m.sender] && m.sender !== 'system' && !m.isThinking && !m.text.startsWith('[IMG_DATA]:'));
     const chatSnippet = allUserLogs.map(m => `${m.senderName || m.sender}: ${(m.text || '').replace(/<[^>]+>/g, ' ').trim()}`).filter(l => l.trim().length > 0).join('\n');
 
     // 抓取小组成员提交的提案详情（包含标题与方案说明）
