@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState, STORAGE_KEY_TASKS } from './constants.js?v=20260905_v2694';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly } from './utils.js?v=20260905_v2694';
+import { InitialState, STORAGE_KEY_TASKS } from './constants.js?v=20260905_v2695';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly } from './utils.js?v=20260905_v2695';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -75,6 +75,9 @@ export class CloudSyncEngine {
               this.app.state.chatLogs[stg].push(cm);
               if (this.groupId && typeof this.app.saveGroupState === 'function') {
                 this.app.saveGroupState(this.groupId);
+              }
+              if (stg === 'stage1' && typeof this.app.checkAndTriggerAllProposalsGathered === 'function') {
+                this.app.checkAndTriggerAllProposalsGathered();
               }
               if (typeof window.renderChat === 'function') window.renderChat(this.app.state);
             }
@@ -582,6 +585,9 @@ export class CloudSyncEngine {
     if (hasUpdated) {
       if (this.groupId && typeof this.app.saveGroupState === 'function') {
         this.app.saveGroupState(this.groupId);
+      }
+      if ((this.app.state.currentStage === 'stage1' || !this.app.state.currentStage) && typeof this.app.checkAndTriggerAllProposalsGathered === 'function') {
+        this.app.checkAndTriggerAllProposalsGathered();
       }
       if (typeof window.renderChat === 'function') window.renderChat(this.app.state);
       if (typeof window.renderChatActionBar === 'function') window.renderChatActionBar(this.app.state);

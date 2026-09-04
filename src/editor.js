@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260905_v2694";
-import { callCozeAgentAPI } from "./agents.js?v=20260905_v2694";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, showResolutionBlock } from "./utils.js?v=20260905_v2694";
+import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260905_v2695";
+import { callCozeAgentAPI } from "./agents.js?v=20260905_v2695";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, showResolutionBlock } from "./utils.js?v=20260905_v2695";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -2938,6 +2938,10 @@ export function renderChat(state) {
 
   const stream = document.getElementById('chat-stream');
   if (!stream) return;
+
+  if ((state.currentStage === 'stage1' || !state.currentStage) && window.app && typeof window.app.checkAndTriggerAllProposalsGathered === 'function' && !window.app._isTriggeringGathered) {
+    window.app.checkAndTriggerAllProposalsGathered();
+  }
 
   const currentUser = state.currentUser;
   const allStages = ['stage1', 'stage2', 'stage3'];
