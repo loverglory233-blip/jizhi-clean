@@ -1087,9 +1087,9 @@ export function isScopeMatch(target = {}, context = {}) {
                      (userGroupId && tGroupId === userGroupId) ||
                      (Array.isArray(tGroupIds) && (tGroupIds.includes('all') || tGroupIds.includes('group_all') || (userGroupId && tGroupIds.includes(userGroupId))));
 
-  // 3. 任务范围匹配 (支持 all / task_all / task_default / 空值 / 任务ID一致)
-  const matchTask = !tTaskId || tTaskId === 'all' || tTaskId === 'task_all' || tTaskId === 'task_default' ||
-                    (!currentTaskId) || (currentTaskId && (tTaskId === currentTaskId || tTaskId.includes(currentTaskId) || currentTaskId.includes(tTaskId)));
+  // 3. 任务范围匹配 (支持 all / task_all / 空值 / 任务ID精准一致)
+  const matchTask = !tTaskId || tTaskId === 'all' || tTaskId === 'task_all' ||
+                    (!currentTaskId) || (currentTaskId && (tTaskId === currentTaskId));
 
   return !!(matchClass && matchGroup && matchTask);
 }

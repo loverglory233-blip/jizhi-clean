@@ -841,15 +841,16 @@ if ($action === 'get_class_all_chats') {
         ];
     }
 
-    $stmtMsg = $pdo->prepare("SELECT scope_key, stage, sender, text, timestamp_str, time_ms, id FROM chat_messages ORDER BY time_ms ASC");
-    $stmtMsg->execute();
+    $stmtMsg = $pdo->prepare("SELECT scope_key, stage, sender, text, timestamp_str, time_ms, id FROM chat_messages WHERE scope_key LIKE :skPattern ORDER BY time_ms ASC");
+    $stmtMsg->execute([':skPattern' => (!empty($taskId) ? ($taskId . '_%') : '%')]);
     $allMsgs = $stmtMsg->fetchAll(PDO::FETCH_ASSOC);
 
     foreach ($allMsgs as $m) {
         $sk = $m['scope_key'];
         foreach ($groups as $gid => $ginfo) {
-            // 🛡️ 严格边界正则匹配：杜绝 group_10 / group_11 消息因 strpos 误并入 group_1
-            if (preg_match('/(^|_)' . preg_quote($gid, '/') . '$/', $sk)) {
+            $expectedSk = !empty($taskId) ? ($taskId . '_' . $gid) : null;
+            $isMatched = $expectedSk ? ($sk === $expectedSk) : preg_match('/(^|_)' . preg_quote($gid, '/') . '$/', $sk);
+            if ($isMatched) {
                 $stg = $m['stage'] ?: 'stage1';
                 if (!isset($groupChats[$gid][$stg])) $groupChats[$gid][$stg] = [];
                 $groupChats[$gid][$stg][] = [
@@ -940,22 +941,13 @@ if ($action === 'get_teacher_monitor_all_groups') {
         }
 
         $legacyTid = ($taskId === 'task_' . $classId . '_default') ? 'task_default' : $taskId;
-        $stmt = $pdo->prepare("SELECT * FROM group_states WHERE task_id = :tid OR task_id = :tid2 OR scope_key LIKE :skPattern ORDER BY last_timestamp ASC");
-        $stmt->execute([':tid' => $taskId, ':tid2' => $legacyTid, ':skPattern' => '%' . $taskId . '%']);
+        $stmt = $pdo->prepare("SELECT * FROM group_states WHERE task_id = :tid OR task_id = :tid2 OR scope_key = :skExact OR scope_key LIKE :skPattern ORDER BY last_timestamp ASC");
+        $stmt->execute([':tid' => $taskId, ':tid2' => $legacyTid, ':skExact' => $taskId . '_group_1', ':skPattern' => $taskId . '_%']);
         $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
         $stateMap = [];
+        $groupPresencePool = [];
         foreach ($rows as $r) {
             $stateMap[$r['group_id']] = $r;
-        }
-
-        // 🛡️ 鲁棒性托底：检索小组最新协同记录与在线心跳池，确保在线心跳绝对不漏网
-        $stmtAll = $pdo->prepare("SELECT * FROM group_states ORDER BY last_timestamp ASC");
-        $stmtAll->execute();
-        $allRows = $stmtAll->fetchAll(PDO::FETCH_ASSOC);
-        $fallbackMap = [];
-        $groupPresencePool = [];
-        foreach ($allRows as $r) {
-            $fallbackMap[$r['group_id']] = $r;
             if (!empty($r['presence_data'])) {
                 $pDec = json_decode($r['presence_data'], true);
                 if (is_array($pDec)) {
@@ -975,12 +967,6 @@ if ($action === 'get_teacher_monitor_all_groups') {
         }
         if (empty($allGroupIds)) $allGroupIds = ['group_1'];
 
-        foreach ($allGroupIds as $gid) {
-            if (!isset($stateMap[$gid]) && isset($fallbackMap[$gid])) {
-                $stateMap[$gid] = $fallbackMap[$gid];
-            }
-        }
-
         $ONLINE_WINDOW_MS = 180000; // 180 秒（3分钟稳定在线窗口，消除弱网与思考间歇抖动）
         $cutoffMs = $nowMs - $ONLINE_WINDOW_MS;
 
@@ -988,17 +974,15 @@ if ($action === 'get_teacher_monitor_all_groups') {
         $allScopeKeys = [];
         $groupScopeMap = [];
         foreach ($allGroupIds as $gid) {
-            $r = $stateMap[$gid] ?? ($fallbackMap[$gid] ?? null);
+            $r = $stateMap[$gid] ?? null;
             $sk = $r ? $r['scope_key'] : ($taskId . '_' . $gid);
             $allScopeKeys[] = $sk;
             $groupScopeMap[$gid] = $sk;
         }
 
-        // 1. 一次性批量查出相关最新消息（按 ScopeKey 与 GroupId 双向索引，仅查询当前班级小组）
+        // 1. 一次性批量查出当前任务当前班级小组最新消息（按精准 ScopeKey 索引，严禁跨任务混合）
         $batchChatsMap = [];
-        $batchChatsByGid = [];
         $batchActiveSendersMap = [];
-        $batchActiveSendersByGid = [];
 
         if (!empty($allScopeKeys)) {
             $inSk = implode(',', array_fill(0, count($allScopeKeys), '?'));
@@ -1011,12 +995,6 @@ if ($action === 'get_teacher_monitor_all_groups') {
         foreach ($allBatchRows as $mr) {
             $bsk = $mr['scope_key'];
             $stg = $mr['stage'] ?: 'stage1';
-            
-            // 提取消息归属的小组 ID（如 group_10）
-            $msgGid = '';
-            if (preg_match('/(group_\d+|group_[a-zA-Z0-9_-]+)$/', $bsk, $mGid)) {
-                $msgGid = $mGid[1];
-            }
 
             if (!isset($batchChatsMap[$bsk])) $batchChatsMap[$bsk] = ['stage1' => [], 'stage2' => [], 'stage3' => []];
             if (!isset($batchChatsMap[$bsk][$stg])) $batchChatsMap[$bsk][$stg] = [];
@@ -1028,32 +1006,22 @@ if ($action === 'get_teacher_monitor_all_groups') {
                 '_timeMs'   => intval($mr['time_ms'])
             ];
             $batchChatsMap[$bsk][$stg][] = $msgObj;
-            if ($msgGid !== '') {
-                if (!isset($batchChatsByGid[$msgGid])) $batchChatsByGid[$msgGid] = ['stage1' => [], 'stage2' => [], 'stage3' => []];
-                if (!isset($batchChatsByGid[$msgGid][$stg])) $batchChatsByGid[$msgGid][$stg] = [];
-                $batchChatsByGid[$msgGid][$stg][] = $msgObj;
-            }
 
             if (intval($mr['time_ms']) >= $cutoffMs) {
                 if (!isset($batchActiveSendersMap[$bsk])) $batchActiveSendersMap[$bsk] = [];
                 $batchActiveSendersMap[$bsk][(string)$mr['sender']] = true;
                 $batchActiveSendersMap[$bsk][strtolower(trim((string)$mr['sender']))] = true;
-                if ($msgGid !== '') {
-                    if (!isset($batchActiveSendersByGid[$msgGid])) $batchActiveSendersByGid[$msgGid] = [];
-                    $batchActiveSendersByGid[$msgGid][(string)$mr['sender']] = true;
-                    $batchActiveSendersByGid[$msgGid][strtolower(trim((string)$mr['sender']))] = true;
-                }
             }
         }
 
         foreach ($allGroupIds as $gid) {
-            $r = $stateMap[$gid] ?? ($fallbackMap[$gid] ?? null);
+            $r = $stateMap[$gid] ?? null;
             $sk = $groupScopeMap[$gid];
             $offGroup = $officialGroups[$gid] ?? null;
 
-            // 🛡️ 直接从批量内存字典中秒级提取本组聊天与活跃人，0 次多余 SQL
-            $chats = $batchChatsMap[$sk] ?? ($batchChatsByGid[$gid] ?? ['stage1' => [], 'stage2' => [], 'stage3' => []]);
-            $recentActiveSenders = array_merge($batchActiveSendersMap[$sk] ?? [], $batchActiveSendersByGid[$gid] ?? []);
+            // 🛡️ 直接从批量内存字典中秒级提取本组聊天与活跃人，严禁跨任务混合
+            $chats = $batchChatsMap[$sk] ?? ['stage1' => [], 'stage2' => [], 'stage3' => []];
+            $recentActiveSenders = $batchActiveSendersMap[$sk] ?? [];
 
             // 提前解码三大阶段工作区数据，供在线判定与监控渲染统一使用
             $s1Data = ($r && !empty($r['stage1_data'])) ? json_decode($r['stage1_data'], true) : [];
