@@ -1396,11 +1396,25 @@ if ($action === 'align_all_pads_physically') {
             $uLen = mb_strlen(trim(strip_tags($uHtml)), 'UTF-8');
             if ($uLen < 30) continue;
 
+            $sk = $r['scope_key'] ?: '';
             $possiblePadIds = [
                 "jizhi_{$tId}_{$gId}",
                 "jizhi_{$gId}",
-                "jizhi_{$r['scope_key']}"
+                "jizhi_{$sk}"
             ];
+            if (!empty($sk)) {
+                if (preg_match('/task_([^_]+)_group_([^_]+)/', $sk, $m)) {
+                    $possiblePadIds[] = "jizhi_task_{$m[1]}_group_{$m[2]}";
+                }
+                if (preg_match('/(task_[^_]+)/', $sk, $mt) && preg_match('/(group_[^_]+)/', $sk, $mg)) {
+                    $possiblePadIds[] = "jizhi_{$mt[1]}_{$mg[1]}";
+                }
+                $cleanSk = preg_replace('/^.*?class_[^_]+_/', '', $sk);
+                if (!empty($cleanSk)) {
+                    $possiblePadIds[] = "jizhi_{$cleanSk}";
+                }
+            }
+            $possiblePadIds = array_unique(array_filter($possiblePadIds));
 
             foreach ($possiblePadIds as $pId) {
                 // 1. 确保已创建
@@ -1423,8 +1437,9 @@ if ($action === 'align_all_pads_physically') {
                     if (isset($jT['data']['text'])) $curText = trim($jT['data']['text']);
                 }
 
-                // 3. 若当前为空或默认占位符，执行物理注入
-                if (empty($curText) || $curText === '啥意思捏' || mb_strlen($curText, 'UTF-8') < 10) {
+                // 3. 若当前为空、默认占位符或字数明显不完整，执行物理注入
+                $curTextLen = mb_strlen($curText, 'UTF-8');
+                if (empty($curText) || $curText === '啥意思捏' || $curTextLen < 30 || strpos($curText, '啥意思捏') !== false || ($uLen > 100 && $curTextLen < 50)) {
                     $chS = curl_init("http://127.0.0.1:9001/api/1.2.14/setHTML?apikey=" . urlencode($apiKey) . "&padID=" . urlencode($pId) . "&html=" . urlencode($uHtml));
                     curl_setopt($chS, CURLOPT_RETURNTRANSFER, true);
                     curl_setopt($chS, CURLOPT_TIMEOUT, 2);
@@ -1432,7 +1447,7 @@ if ($action === 'align_all_pads_physically') {
                     curl_close($chS);
                     $results[] = ['padId' => $pId, 'status' => 'synced', 'len' => $uLen];
                 } else {
-                    $results[] = ['padId' => $pId, 'status' => 'skipped', 'curLen' => mb_strlen($curText, 'UTF-8')];
+                    $results[] = ['padId' => $pId, 'status' => 'skipped', 'curLen' => $curTextLen];
                 }
             }
         }
