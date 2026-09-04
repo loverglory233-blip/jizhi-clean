@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState } from './constants.js?v=20260904_v2198';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap } from './utils.js?v=20260904_v2198';
+import { InitialState } from './constants.js?v=20260904_v2199';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap } from './utils.js?v=20260904_v2199';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -803,6 +803,7 @@ export class CloudSyncEngine {
         this.app.state.chatLogs[stg] = mergedList;
       });
       if (typeof window.renderChat === 'function') window.renderChat(this.app.state);
+      if (typeof window.renderChatActionBar === 'function') window.renderChatActionBar(this.app.state);
     }
 
     // 🔒 渲染阶段一合约与阶段三答辩的字段级排他聚焦锁
@@ -1226,6 +1227,9 @@ export class CloudSyncEngine {
       }
       if (remoteData.timer.isRunning !== undefined) {
         this.app.state.timer.isRunning = remoteData.timer.isRunning;
+      }
+      if (typeof window.renderChatActionBar === 'function') {
+        window.renderChatActionBar(this.app.state);
       }
     }
 
