@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName } from "./constants.js?v=20260904_v2221";
-import { callCozeAgentAPI } from "./agents.js?v=20260904_v2221";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, showResolutionBlock } from "./utils.js?v=20260904_v2221";
+import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName } from "./constants.js?v=20260904_v2222";
+import { callCozeAgentAPI } from "./agents.js?v=20260904_v2222";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, showResolutionBlock } from "./utils.js?v=20260904_v2222";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -398,8 +398,6 @@ function renderStage1Canvas(canvas, state, handlers) {
                 if (authorMem && authorMem.name) authorName = authorMem.name;
               }
               if (!authorName) authorName = (p.authorName && p.authorName !== p.author) ? p.authorName : '组员';
-              const isMyProposal = (currUserObj && (p.author === currUserObj.id || p.authorId === currUserObj.id || (p.authorName && p.authorName === currUserObj.name))) ||
-                (p.author === currentUser || p.authorId === currentUser || (p.authorName && p.authorName === currentUserName));
               return `
                 <div class="proposal-card ${isThisVoted ? 'voted' : ''}" style="display:flex; flex-direction:column; position:relative;">
                   <div class="proposal-header" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
@@ -409,7 +407,6 @@ function renderStage1Canvas(canvas, state, handlers) {
                     </span>
                   </div>
                   <div style="font-size:12px; color:#64748b; margin-bottom:8px;">提出人: <b style="color:#0f172a;">${escapeHtml(authorName)}</b></div>
-                  ${(isMyProposal && p.evalFailed) ? `<button class="btn-retry-eval" data-title="${escapeHtml(p.title)}" data-author="${escapeHtml(authorName)}" style="width:100%; margin-bottom:6px; padding:5px 0; font-size:12px; background:#fef2f2; color:#ef4444; border:1px solid #fca5a5; border-radius:6px; cursor:pointer;">🔄 重新请求速评</button>` : ''}
                   <button class="${btnClass}" data-id="${p.id}" ${btnDisabled ? 'disabled' : ''} style="width:100%; margin-top:auto;">${btnText}</button>
                 </div>
               `;
@@ -667,7 +664,6 @@ function renderStage1Canvas(canvas, state, handlers) {
           s1.proposals[existingIdx].authorName = effectiveAuthorName;
           s1.proposals[existingIdx].authorId = s1.proposals[existingIdx].authorId || effectiveAuthorId;
           s1.proposals[existingIdx].updatedAt = nowMs;
-          s1.proposals[existingIdx].evalFailed = false;
         } else {
           s1.proposals.push({
             id: 'prop_' + effectiveAuthorKey + '_' + nowMs,
@@ -675,8 +671,7 @@ function renderStage1Canvas(canvas, state, handlers) {
             authorName: effectiveAuthorName,
             authorId: effectiveAuthorId,
             title: title,
-            updatedAt: nowMs,
-            evalFailed: false
+            updatedAt: nowMs
           });
         }
 
