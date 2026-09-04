@@ -14,8 +14,8 @@ import {
   DefaultTasks,
   DefaultAnnouncements,
   DefaultReferencePapers
-} from './constants.js?v=20260905_v2706';
-import { formatExportDateTime, formatDurationHuman, isScopeMatch, showGlobalBannerNotice } from './utils.js?v=20260905_v2706';
+} from './constants.js?v=20260905_v2707';
+import { formatExportDateTime, formatDurationHuman, isScopeMatch, showGlobalBannerNotice } from './utils.js?v=20260905_v2707';
 
 export class AuthManager {
   constructor() {
@@ -362,7 +362,7 @@ export class AuthManager {
             if (window.app && window.app.state && window.app.state.studentViewMode === 'workspace' && window.app.state.activeTaskId) {
               const activeTid = window.app.state.activeTaskId;
               const isTaskStillAlive = taskMap.has(activeTid) && !deletedTaskIds.has(activeTid);
-              if (!isTaskStillAlive && !window.app._isHandlingTaskRevoked) {
+              if (taskMap.size > 0 && !isTaskStillAlive && !window.app._isHandlingTaskRevoked) {
                 window.app.showTaskRevokedModal(window.app.state.activeTaskTitle || '当前写作任务');
                 return;
               }
