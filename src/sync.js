@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState } from './constants.js?v=20260904_v2460';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap } from './utils.js?v=20260904_v2460';
+import { InitialState } from './constants.js?v=20260904_v2465';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap } from './utils.js?v=20260904_v2465';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -747,7 +747,6 @@ export class CloudSyncEngine {
             baseLogs.unshift(m);
           }
         } else if (stg === 'stage2') {
-          const s2TextLen = (this.app.state.stage2?.unifiedContent || '').replace(/<[^>]*>/g, '').trim().length;
           const deduped = [];
           let seenFirstReview = false;
           let seenMeetingCall = false;
@@ -758,21 +757,18 @@ export class CloudSyncEngine {
             const snd = m.sender || '';
             const txt = m.text || '';
             if (snd === 'reviewingEditor' && (txt.includes('初审') || txt.includes('初审微调') || txt.includes('破题把脉') || txt.includes('Research Gap'))) {
-              if (s2TextLen < 50) return; // 自动清洗早产一审脏数据
               if (seenFirstReview) return;
               seenFirstReview = true;
             }
             if (snd === 'managingEditor' && (txt.includes('半程会议号召') || txt.includes('半程研讨号召'))) {
-              if (s2TextLen < 50) return; // 自动清洗早产半程会议脏数据
               if (seenMeetingCall) return;
               seenMeetingCall = true;
             }
             if (snd === 'reviewingEditor' && txt.includes('终稿行文扫描')) {
-              if (s2TextLen < 50) return;
               if (seenFinalReview) return;
               seenFinalReview = true;
             }
-            if (snd === 'managingEditor' && txt.includes('起草提示')) {
+            if (snd === 'managingEditor' && (txt.includes('起草提示') || txt.includes('进度关怀'))) {
               if (seenWelcome) return;
               seenWelcome = true;
             }

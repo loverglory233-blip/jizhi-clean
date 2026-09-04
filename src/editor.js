@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260904_v2460";
-import { callCozeAgentAPI } from "./agents.js?v=20260904_v2460";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, showResolutionBlock } from "./utils.js?v=20260904_v2460";
+import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260904_v2465";
+import { callCozeAgentAPI } from "./agents.js?v=20260904_v2465";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, showResolutionBlock } from "./utils.js?v=20260904_v2465";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -1315,16 +1315,16 @@ function renderStage2Canvas(canvas, state, handlers) {
     if (strictCtx.taskId) activeTaskId = strictCtx.taskId;
   }
 
-  const currUserCode = currUser?.id || state.currentUser || '';
+  const currUserCode = currUser?.id || currUser?.studentCode || state.currentUser || '';
   let currUserName = currUser?.name || '';
-  if (!currUserName && state.members && state.members[currUserCode]?.name) {
-    currUserName = state.members[currUserCode].name;
+  if (!currUserName && state.members && (state.members[currUserCode]?.name || state.members[state.currentUser]?.name)) {
+    currUserName = state.members[currUserCode]?.name || state.members[state.currentUser]?.name || '';
   }
   if (!currUserName && window.app && window.app.authManager) {
-    const matchedUser = window.app.authManager.getUsers().find(u => u && u.id === currUserCode);
+    const matchedUser = window.app.authManager.findUserByKey ? window.app.authManager.findUserByKey(currUserCode) : window.app.authManager.getUsers().find(u => u && (u.id === currUserCode || u.studentCode === currUserCode));
     if (matchedUser && matchedUser.name) currUserName = matchedUser.name;
   }
-  if (!currUserName || currUserName === currUserCode) currUserName = '组员';
+  if (!currUserName) currUserName = currUserCode || '组员';
   const currUserColor = (state.members && state.members[currUserCode]?.color) || '#2563eb';
   const rawPadName = `jizhi_${activeTaskId}_${userGroupId}`;
   const padUrl = `/p/${encodeURIComponent(rawPadName)}?userName=${encodeURIComponent(currUserName)}&userColor=${encodeURIComponent(currUserColor)}&showChat=false&showLineNumbers=true&lang=zh-hans`;
@@ -2587,11 +2587,16 @@ function renderStage3Canvas(canvas, state, handlers) {
           }
 
           const rawPadName = `jizhi_${activeTaskId}_${userGroupId}`;
+          const currUserCode = currUser?.id || currUser?.studentCode || state.currentUser || '';
           let currUserName = currUser?.name || '';
-          if (!currUserName && state.members && state.members[currUserCode]?.name) {
-            currUserName = state.members[currUserCode].name;
+          if (!currUserName && state.members && (state.members[currUserCode]?.name || state.members[state.currentUser]?.name)) {
+            currUserName = state.members[currUserCode]?.name || state.members[state.currentUser]?.name || '';
           }
-          if (!currUserName || currUserName === currUserCode) currUserName = '组员';
+          if (!currUserName && window.app && window.app.authManager) {
+            const matchedUser = window.app.authManager.findUserByKey ? window.app.authManager.findUserByKey(currUserCode) : window.app.authManager.getUsers().find(u => u && (u.id === currUserCode || u.studentCode === currUserCode));
+            if (matchedUser && matchedUser.name) currUserName = matchedUser.name;
+          }
+          if (!currUserName) currUserName = currUserCode || '组员';
           const currUserColor = (state.members && state.members[currUserCode]?.color) || '#2563eb';
 
           const isEditorReadonly = isFinalSubmitted || isTaskDeadlineExpired;
