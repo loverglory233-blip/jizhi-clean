@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260905_v2719
+ * Version: 20260905_v2720
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260905_v2719';
+  const APP_VERSION = '20260905_v2720';
   const APP_BUILD_DATE = '2026-09-05';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -18670,31 +18670,6 @@
       if (typeof showGlobalBannerNotice === 'function') {
         showGlobalBannerNotice(`⏳ 正在一键智能生成全套${contractTitle}草案...`, `${agentRole}正在分析全组投票后的全部讨论，一一对应提炼课题方案、时间规划与成员分工...`, 'info', 4000);
       }
-
-      let members = [];
-      if (Array.isArray(this.state.members)) members = this.state.members;
-      else if (this.state.members && typeof this.state.members === 'object') members = Object.values(this.state.members);
-      const membersList = members.filter(Boolean);
-
-      // 1. 💡 局部精准切片：只截取投票结果出炉之后的研讨记录，严格控制 token 花销
-      const s1ChatLogs = (this.state.chatLogs && this.state.chatLogs.stage1) ? this.state.chatLogs.stage1 : [];
-      const voteNoticeIdx = s1ChatLogs.findIndex(m => m && m.text && (m.text.includes('投票结果出炉') || m.text.includes('全票推选') || m.text.includes('投票已完成') || m.text.includes('投票完成')));
-      const relevantLogs = (voteNoticeIdx >= 0) ? s1ChatLogs.slice(voteNoticeIdx) : s1ChatLogs.slice(-20);
-      const allUserLogs = relevantLogs.filter(m => m && m.sender && !AgentProfiles[m.sender] && m.sender !== 'system' && !m.isThinking && !m.text.startsWith('[IMG_DATA]:'));
-      const chatSnippet = allUserLogs.map(m => `${m.senderName || m.sender}: ${(m.text || '').replace(/<[^>]+>/g, ' ').trim()}`).filter(l => l.trim().length > 0).join('\n');
-
-      // 抓取小组成员提交的提案详情（包含标题与方案说明）
-      const propDetails = (s1.proposals || []).map((p, idx) => {
-        const authorStr = p.authorName ? `(提交人: ${p.authorName})` : '';
-        const descStr = p.description ? `\n   - 构想说明: ${p.description.replace(/<[^>]+>/g, ' ').trim()}` : '';
-        return `【提案${idx + 1}】《${p.title}》${authorStr}${descStr}`;
-      }).join('\n');
-
-      // 2. 确定候选题目与任务信息
-      const allTasks = (this.authManager) ? this.authManager.getTasks() : [];
-      const curTask = allTasks.find(t => t.id === this.state.activeTaskId);
-      const defaultTopic = s1.mergedTitle || s1.contract?.topic || (s1.proposals && s1.proposals[0] ? s1.proposals[0].title : (curTask?.title || '基于深度协作的学术探究与实践'));
-      const membersInfo = membersList.map(m => `- 姓名: ${m.name || '组员'} (学号: ${m.id || '无'})`).join('\n');
 
       const defaultTasks = isInst ? [
         '负责“一、教材与学情分析”及“二、教学目标与重难点”起草',
