@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260905_v2721";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime } from "./utils.js?v=20260905_v2721";
-import { callCozeAgentAPI } from "./agents.js?v=20260905_v2721";
-import { AuthManager } from "./auth.js?v=20260905_v2721";
-import { CloudSyncEngine } from "./sync.js?v=20260905_v2721";
-import { renderLoginView } from "./login.js?v=20260905_v2721";
-import { renderTeacherPortal } from "./teacher.js?v=20260905_v2721";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260905_v2721";
+} from "./constants.js?v=20260905_v2722";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime } from "./utils.js?v=20260905_v2722";
+import { callCozeAgentAPI } from "./agents.js?v=20260905_v2722";
+import { AuthManager } from "./auth.js?v=20260905_v2722";
+import { CloudSyncEngine } from "./sync.js?v=20260905_v2722";
+import { renderLoginView } from "./login.js?v=20260905_v2722";
+import { renderTeacherPortal } from "./teacher.js?v=20260905_v2722";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260905_v2722";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260905_v2721";
+} from "./editor.js?v=20260905_v2722";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -3217,9 +3217,7 @@ export class App {
 
         if (!s1.contract) s1.contract = {};
         if (!s1.contract.timeAllocations) {
-          s1.contract.timeAllocations = isInst
-            ? { background: 15, literature: 20, questions: 15, method: 35, reflection: 15, references: 10 }
-            : { background: 25, literature: 30, questions: 25, method: 40, reflection: 20, references: 10 };
+          s1.contract.timeAllocations = { background: 0, literature: 0, questions: 0, method: 0, reflection: 0, references: 0 };
         }
         const genreDesc = getGenrePromptDescriptor(taskType);
         const agentTitle = isInst ? '备课引导师' : '学术拍卖师';
@@ -4132,9 +4130,10 @@ ${chatSnippet}
       '负责“五、不足与反思”撰写及全篇“六、参考文献”引文校对',
       '负责数据分析模型构建与研究工具问卷设计'
     ];
-    const defaultTimes = s1.contract?.timeAllocations && Object.keys(s1.contract.timeAllocations).length >= 6
+    const hasAllocatedTimes = s1.contract?.timeAllocations && Object.keys(s1.contract.timeAllocations).length >= 6 && Object.values(s1.contract.timeAllocations).some(v => Number(v) > 0);
+    const defaultTimes = hasAllocatedTimes
       ? s1.contract.timeAllocations
-      : (isInst ? { background: 15, literature: 20, questions: 15, method: 35, reflection: 15, references: 10 } : { background: 25, literature: 30, questions: 25, method: 40, reflection: 20, references: 10 });
+      : { background: 0, literature: 0, questions: 0, method: 0, reflection: 0, references: 0 };
 
     const fallbackAssignments = {};
     membersList.forEach((m, idx) => {
@@ -4150,7 +4149,7 @@ ${chatSnippet}
 
     // 🛡️ 增量保护：检查左侧已有的分步成果，已完成的绝对保留，绝不覆盖！
     const hasExistingTopic = (s1.contractStep === 'time' || s1.contractStep === 'tasks' || s1.contractStep === 'completed') && (s1.contract?.topic || s1.mergedTitle);
-    const hasExistingTime = (s1.contractStep === 'tasks' || s1.contractStep === 'completed') && s1.contract?.timeAllocations && Object.keys(s1.contract.timeAllocations).length >= 6;
+    const hasExistingTime = (s1.contractStep === 'tasks' || s1.contractStep === 'completed') && hasAllocatedTimes;
 
     let existingContextSection = '';
     let instructionSection = '';

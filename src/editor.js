@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260905_v2721";
-import { callCozeAgentAPI } from "./agents.js?v=20260905_v2721";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260905_v2721";
+import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260905_v2722";
+import { callCozeAgentAPI } from "./agents.js?v=20260905_v2722";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock } from "./utils.js?v=20260905_v2722";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -525,7 +525,7 @@ function renderStage1Canvas(canvas, state, handlers) {
           
           <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
             ${genreCfg.modules.map((mod) => {
-              const currentVal = s1.contract.timeAllocations[mod.key] !== undefined ? s1.contract.timeAllocations[mod.key] : mod.defaultMinutes;
+              const currentVal = s1.contract.timeAllocations[mod.key] !== undefined ? s1.contract.timeAllocations[mod.key] : (mod.defaultMinutes !== undefined ? mod.defaultMinutes : 0);
               return `
                 <div style="background:#ffffff; border:1px solid #e2e8f0; border-left:3.5px solid ${mod.color || '#2563eb'}; border-radius:8px; padding:12px 14px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap;">
                   <span style="font-weight:800; color:#1e40af; font-size:13.5px;">${escapeHtml(mod.title)}</span>
@@ -3321,7 +3321,7 @@ export function renderChatActionBar(state) {
     }
     const elapsedSec = s1Start ? Math.max(0, Math.floor(((Date.now() - s1Start) / 1000) * (state.timer?.speed || 1))) : ((state.timer && state.timer.elapsedSeconds) ? state.timer.elapsedSeconds : 0);
     const hasTopic = !!(s1.mergedTitle || s1.contract?.topic);
-    const hasTime = !!(s1.contract?.timeAllocations && Object.keys(s1.contract.timeAllocations).length >= 6);
+    const hasTime = !!(s1.contract?.timeAllocations && Object.keys(s1.contract.timeAllocations).length >= 6 && Object.values(s1.contract.timeAllocations).some(v => Number(v) > 0));
     const hasTasks = !!(s1.contract?.taskAssignments && Object.keys(s1.contract.taskAssignments).length >= totalCount && totalCount > 0);
     const isThreeDone = hasTopic && hasTime && hasTasks;
     const isDraftDone = !!(s1.contractStep === 'completed' || s1.contract?.isDraftGenerated || isThreeDone);

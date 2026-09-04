@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260905_v2721
+ * Version: 20260905_v2722
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260905_v2721';
+  const APP_VERSION = '20260905_v2722';
   const APP_BUILD_DATE = '2026-09-05';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -80,12 +80,12 @@
         isConfirmed: false,
         confirmedMembers: {},
         timeAllocations: {
-          background: 25,
-          literature: 30,
-          questions: 25,
-          method: 40,
-          reflection: 20,
-          references: 10
+          background: 0,
+          literature: 0,
+          questions: 0,
+          method: 0,
+          reflection: 0,
+          references: 0
         },
         taskAssignments: {}
       }
@@ -138,12 +138,12 @@
         neutral: '中间委员'
       },
       modules: [
-        { key: 'background', title: '一、研究背景与意义', color: '#2563eb', defaultMinutes: 15 },
-        { key: 'literature', title: '二、文献综述', color: '#0284c7', defaultMinutes: 20 },
-        { key: 'questions', title: '三、研究问题与假设', color: '#059669', defaultMinutes: 15 },
-        { key: 'method', title: '四、研究设计与方法', color: '#7c3aed', defaultMinutes: 35 },
-        { key: 'reflection', title: '五、研究设计的不足与反思', color: '#d97706', defaultMinutes: 15 },
-        { key: 'references', title: '六、参考文献', color: '#475569', defaultMinutes: 10 }
+        { key: 'background', title: '一、研究背景与意义', color: '#2563eb', defaultMinutes: 0 },
+        { key: 'literature', title: '二、文献综述', color: '#0284c7', defaultMinutes: 0 },
+        { key: 'questions', title: '三、研究问题与假设', color: '#059669', defaultMinutes: 0 },
+        { key: 'method', title: '四、研究设计与方法', color: '#7c3aed', defaultMinutes: 0 },
+        { key: 'reflection', title: '五、研究设计的不足与反思', color: '#d97706', defaultMinutes: 0 },
+        { key: 'references', title: '六、参考文献', color: '#475569', defaultMinutes: 0 }
       ]
     },
     instructional: {
@@ -165,12 +165,12 @@
         neutral: '答辩委员会主席'
       },
       modules: [
-        { key: 'background', title: '一、教材与学情分析', color: '#2563eb', defaultMinutes: 15 },
-        { key: 'literature', title: '二、教学目标与重难点', color: '#0284c7', defaultMinutes: 20 },
-        { key: 'questions', title: '三、情境创设与导入', color: '#059669', defaultMinutes: 15 },
-        { key: 'method', title: '四、新知探究与建构', color: '#7c3aed', defaultMinutes: 35 },
-        { key: 'reflection', title: '五、巩固练习与评价', color: '#d97706', defaultMinutes: 15 },
-        { key: 'references', title: '六、板书设计与反思', color: '#475569', defaultMinutes: 10 }
+        { key: 'background', title: '一、教材与学情分析', color: '#2563eb', defaultMinutes: 0 },
+        { key: 'literature', title: '二、教学目标与重难点', color: '#0284c7', defaultMinutes: 0 },
+        { key: 'questions', title: '三、情境创设与导入', color: '#059669', defaultMinutes: 0 },
+        { key: 'method', title: '四、新知探究与建构', color: '#7c3aed', defaultMinutes: 0 },
+        { key: 'reflection', title: '五、巩固练习与评价', color: '#d97706', defaultMinutes: 0 },
+        { key: 'references', title: '六、板书设计与反思', color: '#475569', defaultMinutes: 0 }
       ]
     }
   };
@@ -11602,7 +11602,7 @@
 
             <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
               ${genreCfg.modules.map((mod) => {
-                const currentVal = s1.contract.timeAllocations[mod.key] !== undefined ? s1.contract.timeAllocations[mod.key] : mod.defaultMinutes;
+                const currentVal = s1.contract.timeAllocations[mod.key] !== undefined ? s1.contract.timeAllocations[mod.key] : (mod.defaultMinutes !== undefined ? mod.defaultMinutes : 0);
                 return `
                   <div style="background:#ffffff; border:1px solid #e2e8f0; border-left:3.5px solid ${mod.color || '#2563eb'}; border-radius:8px; padding:12px 14px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap;">
                     <span style="font-weight:800; color:#1e40af; font-size:13.5px;">${escapeHtml(mod.title)}</span>
@@ -14398,7 +14398,7 @@
       }
       const elapsedSec = s1Start ? Math.max(0, Math.floor(((Date.now() - s1Start) / 1000) * (state.timer?.speed || 1))) : ((state.timer && state.timer.elapsedSeconds) ? state.timer.elapsedSeconds : 0);
       const hasTopic = !!(s1.mergedTitle || s1.contract?.topic);
-      const hasTime = !!(s1.contract?.timeAllocations && Object.keys(s1.contract.timeAllocations).length >= 6);
+      const hasTime = !!(s1.contract?.timeAllocations && Object.keys(s1.contract.timeAllocations).length >= 6 && Object.values(s1.contract.timeAllocations).some(v => Number(v) > 0));
       const hasTasks = !!(s1.contract?.taskAssignments && Object.keys(s1.contract.taskAssignments).length >= totalCount && totalCount > 0);
       const isThreeDone = hasTopic && hasTime && hasTasks;
       const isDraftDone = !!(s1.contractStep === 'completed' || s1.contract?.isDraftGenerated || isThreeDone);
@@ -17795,9 +17795,7 @@
 
           if (!s1.contract) s1.contract = {};
           if (!s1.contract.timeAllocations) {
-            s1.contract.timeAllocations = isInst
-              ? { background: 15, literature: 20, questions: 15, method: 35, reflection: 15, references: 10 }
-              : { background: 25, literature: 30, questions: 25, method: 40, reflection: 20, references: 10 };
+            s1.contract.timeAllocations = { background: 0, literature: 0, questions: 0, method: 0, reflection: 0, references: 0 };
           }
           const genreDesc = getGenrePromptDescriptor(taskType);
           const agentTitle = isInst ? '备课引导师' : '学术拍卖师';
@@ -18710,9 +18708,10 @@
         '负责“五、不足与反思”撰写及全篇“六、参考文献”引文校对',
         '负责数据分析模型构建与研究工具问卷设计'
       ];
-      const defaultTimes = s1.contract?.timeAllocations && Object.keys(s1.contract.timeAllocations).length >= 6
+      const hasAllocatedTimes = s1.contract?.timeAllocations && Object.keys(s1.contract.timeAllocations).length >= 6 && Object.values(s1.contract.timeAllocations).some(v => Number(v) > 0);
+      const defaultTimes = hasAllocatedTimes
         ? s1.contract.timeAllocations
-        : (isInst ? { background: 15, literature: 20, questions: 15, method: 35, reflection: 15, references: 10 } : { background: 25, literature: 30, questions: 25, method: 40, reflection: 20, references: 10 });
+        : { background: 0, literature: 0, questions: 0, method: 0, reflection: 0, references: 0 };
 
       const fallbackAssignments = {};
       membersList.forEach((m, idx) => {
@@ -18728,7 +18727,7 @@
 
       // 🛡️ 增量保护：检查左侧已有的分步成果，已完成的绝对保留，绝不覆盖！
       const hasExistingTopic = (s1.contractStep === 'time' || s1.contractStep === 'tasks' || s1.contractStep === 'completed') && (s1.contract?.topic || s1.mergedTitle);
-      const hasExistingTime = (s1.contractStep === 'tasks' || s1.contractStep === 'completed') && s1.contract?.timeAllocations && Object.keys(s1.contract.timeAllocations).length >= 6;
+      const hasExistingTime = (s1.contractStep === 'tasks' || s1.contractStep === 'completed') && hasAllocatedTimes;
 
       let existingContextSection = '';
       let instructionSection = '';
