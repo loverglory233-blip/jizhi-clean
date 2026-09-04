@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260904_v2235";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse } from "./utils.js?v=20260904_v2235";
-import { callCozeAgentAPI } from "./agents.js?v=20260904_v2235";
-import { AuthManager } from "./auth.js?v=20260904_v2235";
-import { CloudSyncEngine } from "./sync.js?v=20260904_v2235";
-import { renderLoginView } from "./login.js?v=20260904_v2235";
-import { renderTeacherPortal } from "./teacher.js?v=20260904_v2235";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260904_v2235";
+} from "./constants.js?v=20260904_v2236";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse } from "./utils.js?v=20260904_v2236";
+import { callCozeAgentAPI } from "./agents.js?v=20260904_v2236";
+import { AuthManager } from "./auth.js?v=20260904_v2236";
+import { CloudSyncEngine } from "./sync.js?v=20260904_v2236";
+import { renderLoginView } from "./login.js?v=20260904_v2236";
+import { renderTeacherPortal } from "./teacher.js?v=20260904_v2236";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260904_v2236";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260904_v2235";
+} from "./editor.js?v=20260904_v2236";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -2963,9 +2963,7 @@ export class App {
         const prefixTag = isInst ? '备课引导师·方案研讨' : '学术拍卖师·落槌与方案研讨';
         const docThemeNoun = isInst ? '教学主题与备课方案' : '主题与研究方案';
 
-        const tallyText = isUnanimous 
-          ? `📊 【投票结果出炉】：全组成员已全票推选《${winningProposal.title}》（共 ${totalMembersCount} 票）！`
-          : `📊 【投票结果出炉】：全员投票已完成！各方案得票分布：${proposalSummaryList}。`;
+        const tallyText = `📊 【投票结果】：${proposalSummaryList}`;
 
         const tallySysMsg = {
           id: 'vote_tally_' + Date.now(),
