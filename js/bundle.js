@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260904_v2285
+ * Version: 20260904_v2290
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260904_v2285';
+  const APP_VERSION = '20260904_v2290';
   const APP_BUILD_DATE = '2026-09-04';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -687,6 +687,11 @@
       if (!m || typeof m !== 'object') continue;
       const txt = String(m.text || '').trim();
       if (!txt) continue;
+
+      // 🛡️ 过滤正在提炼中的临时过渡/思考占位消息 (如 "收到全组成员确认！...正在根据讨论区研讨记录提炼...")
+      if (m.isThinking || txt.startsWith('⏳ 收到全组成员确认') || (txt.includes('收到全组成员确认') && txt.includes('请稍候'))) {
+        continue;
+      }
 
       const sender = String(m.sender || '');
       const isAgent = (
@@ -15415,7 +15420,7 @@
             s1.contract.timeAllocations = isInst
               ? { background: 15, literature: 20, questions: 15, method: 35, reflection: 15, references: 10 }
               : { background: 25, literature: 30, questions: 25, method: 40, reflection: 20, references: 10 };
-          }
+  }
           const genreDesc = getGenrePromptDescriptor(taskType);
           const agentTitle = isInst ? '备课引导师' : '学术拍卖师';
           const senderName = isInst ? '头脑风暴 · 备课引导师' : '头脑风暴 · 学术拍卖师';
@@ -15667,12 +15672,7 @@
       };
       if (!this.state.chatLogs.stage1) this.state.chatLogs.stage1 = [];
       this.state.chatLogs.stage1.push(inFlightTopicMsg);
-      if (typeof this.sendSingleChatMessage === 'function') {
-        this.sendSingleChatMessage(inFlightTopicMsg, 'stage1');
-      }
-      this.syncChatLogs();
-      if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
-      renderChat(this.state);
+      if (typeof renderChat === 'function') renderChat(this.state);
 
       const s1ChatLogs = (this.state.chatLogs && this.state.chatLogs.stage1) ? this.state.chatLogs.stage1 : [];
       // 💡 局部精准切片：只截取投票结果出炉之后（学生集中讨论方案）的研讨记录，严格控制 token 花销
@@ -15877,7 +15877,7 @@
       const agentRole = isInst ? '备课引导师' : '学术拍卖师';
       const agentSenderName = isInst ? '头脑风暴 · 备课引导师' : '头脑风暴 · 学术拍卖师';
 
-      // 🌟 在聊天区挂载正在提炼时间预算的思考动效与广播
+      // 🌟 在聊天区挂载正在提炼时间预算的思考动效（仅本地暂存，不写入数据库）
       const inFlightTimeId = 'thinking_extract_time_' + Date.now();
       const inFlightTimeMsg = {
         id: inFlightTimeId,
@@ -15890,12 +15890,7 @@
       };
       if (!this.state.chatLogs.stage1) this.state.chatLogs.stage1 = [];
       this.state.chatLogs.stage1.push(inFlightTimeMsg);
-      if (typeof this.sendSingleChatMessage === 'function') {
-        this.sendSingleChatMessage(inFlightTimeMsg, 'stage1');
-      }
-      this.syncChatLogs();
-      if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
-      renderChat(this.state);
+      if (typeof renderChat === 'function') renderChat(this.state);
 
       const s1ChatLogs = (this.state.chatLogs && this.state.chatLogs.stage1) ? this.state.chatLogs.stage1 : [];
       // 💡 局部精准切片：只截取主题确立后关于时间预算的研讨记录，严格控制 token 花销
@@ -15970,7 +15965,7 @@
         s1.contractStep = 'tasks'; // 推进至第三步：任务分工
 
         guideSpeech = guideSpeech.replace(/^(?:🎪|🏛️)?\s*【(?:学术拍卖师|拍卖师|备课引导师|引导师)[·\s]*(?:时间预算确立|时间分配)?】[：:]\s*/g, '');
-        const noticeText = `🏛️ 【${agentRole}·时间预算确立】：${guideSpeech}`;
+        const noticeText = `🏛️ 【${agentRole}·时间预算确立】：6 大${isInst ? '模块' : '章节'}时间规划已提炼录入看板！👉 请全组成员在左侧仔细审查核对，如对时间规划有异议可直接在左侧输入框修改调整；接下来请在讨论区商讨组员具体分工认领，商定后点击左侧【👥 分工讨论差不多了？一键提炼【任务分工】】！`;
 
         const noticeMsg = {
           id: 'msg_time_done_' + Date.now(),
@@ -16034,7 +16029,7 @@
       const stage2Title = isInst ? '阶段二：集体备课室' : '阶段二：学术编辑部';
       const contractTitle = isInst ? '备课公约' : '学术公约';
 
-      // 🌟 在聊天区挂载正在提炼任务分工的思考动效与广播
+      // 🌟 在聊天区挂载正在提炼任务分工的思考动效（仅本地暂存，不写入数据库）
       const inFlightTasksId = 'thinking_extract_tasks_' + Date.now();
       const inFlightTasksMsg = {
         id: inFlightTasksId,
@@ -16047,12 +16042,7 @@
       };
       if (!this.state.chatLogs.stage1) this.state.chatLogs.stage1 = [];
       this.state.chatLogs.stage1.push(inFlightTasksMsg);
-      if (typeof this.sendSingleChatMessage === 'function') {
-        this.sendSingleChatMessage(inFlightTasksMsg, 'stage1');
-      }
-      this.syncChatLogs();
-      if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
-      renderChat(this.state);
+      if (typeof renderChat === 'function') renderChat(this.state);
 
       let members = [];
       if (Array.isArray(this.state.members)) members = this.state.members;
@@ -16141,7 +16131,7 @@
         s1.contractStep = 'completed'; // 提炼全部完成
 
         guideSpeech = guideSpeech.replace(/^(?:📜|🎪|🏛️)?\s*【(?:学术拍卖师|拍卖师|备课引导师|引导师)[·\s]*(?:公约生成完毕|任务分工|草案就绪)?】[：:]\s*/g, '');
-        const noticeText = `🏛️ 【${agentRole}·公约草案就绪】：全组成员分工已成功配置，公约草案已全部生成就绪！👉 请全员在左侧下方点击【✍️ 签署确认${contractTitle}】，全员签署后开启${stage2Title}！`;
+        const noticeText = `🏛️ 【${agentRole}·公约草案就绪】：全组成员分工已成功配置，公约草案已全部生成就绪！👉 请全组成员在左侧公约看板仔细审查核对，如对论题、方案、时间或分工有异议，可直接在左侧看板修改调整或在讨论区商议；确认无误后请在公约下方点击【✍️ 签署确认${contractTitle}】！全员签署后将正式解锁【${stage2Title}】！`;
 
         const noticeMsg = {
           id: 'msg_tasks_done_' + Date.now(),
@@ -16362,10 +16352,6 @@
       };
       if (!this.state.chatLogs.stage1) this.state.chatLogs.stage1 = [];
       this.state.chatLogs.stage1.push(inFlightContractMsg);
-      if (typeof this.sendSingleChatMessage === 'function') {
-        this.sendSingleChatMessage(inFlightContractMsg, 'stage1');
-      }
-      this.syncChatLogs();
       if (typeof renderChat === 'function') renderChat(this.state);
 
       try {
@@ -16489,7 +16475,7 @@
       s1.contractStep = 'completed'; // 提炼全部完成，左侧3个分步按钮全部退场
       s1.flowStep = 'refining';
 
-      const noticeText = `🏛️ 【${agentRole}·全盘公约就绪】：全篇${isInst ? '教学课题' : '研究主题'}《${finalTopic}》、时间规划与组员分工已全部提炼生成并录入左侧公约看板！👉 请全组成员在左侧公约卡片仔细核对自己的分工与时间，并在公约下方点击【✍️ 签署确认${contractTitle}】！全员签署后将正式解锁【${stage2Title}】！`;
+      const noticeText = `🏛️ 【${agentRole}·全盘公约就绪】：全篇${isInst ? '教学课题' : '研究主题'}《${finalTopic}》、方案概述、时间规划与组员分工已全部提炼生成并录入左侧公约看板！👉 请全组成员在左侧公约看板仔细审查核对，如对论题、方案、时间或分工有异议，可直接在左侧看板修改调整或在讨论区商议；确认无误后请在公约下方点击【✍️ 签署确认${contractTitle}】！全员签署后将正式解锁【${stage2Title}】！`;
       const noticeMsg = {
         id: 'msg_full_contract_done_' + Date.now(),
         sender: 'auctioneer',
