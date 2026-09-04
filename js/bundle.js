@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260904_v2543
+ * Version: 20260904_v2544
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260904_v2543';
+  const APP_VERSION = '20260904_v2544';
   const APP_BUILD_DATE = '2026-09-04';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -5254,6 +5254,213 @@
 
 
   /* ==========================================================================
+     6.8 TEACHER MONITOR IN-PLACE INCREMENTAL UPDATER (PREVENT IFRAME THRASHING)
+     ========================================================================== */
+  function updateTeacherLiveMonitorInPlace(container, state, authManager, activeClass, activeMonitorGroup, monitorTaskObj, genreCfg, monitorMembersList, monitorMembersObj, actualStage, effectiveMonitorStage, isMonitorTaskExpired) {
+    if (!container || !activeMonitorGroup) return;
+
+    // 1. 任务指标与倒计时
+    const countdownEl = container.querySelector('#teacher-task-countdown-text');
+    if (countdownEl && monitorTaskObj) {
+      const calcRemain = (deadlineStr) => {
+        if (!deadlineStr || deadlineStr.includes('无') || deadlineStr.includes('结课前')) return '结课前';
+        try {
+          const dMs = new Date(deadlineStr.replace(/-/g, '/')).getTime();
+          if (isNaN(dMs)) return deadlineStr;
+          const diff = dMs - Date.now();
+          if (diff <= 0) return '已截止';
+          const totalM = Math.floor(diff / 60000);
+          const h = Math.floor(totalM / 60);
+          const m = totalM % 60;
+          if (h >= 24) return `剩余 ${Math.floor(h / 24)}天${h % 24}小时`;
+          return `剩余 ${h}小时${m}分`;
+        } catch(e) { return deadlineStr; }
+      };
+      const remainText = calcRemain(monitorTaskObj.deadline);
+      const isExp = remainText.includes('已截止');
+      countdownEl.innerHTML = `⏰ <b style="color:${isExp ? '#dc2626' : '#2563eb'}; font-weight:700;">${remainText}</b>`;
+    }
+
+    // 2. 状态标签
+    const statusBadge = container.querySelector('#teacher-task-status-badge');
+    if (statusBadge) {
+      const isExp = isMonitorTaskExpired || state.isFinalSubmitted;
+      statusBadge.style.background = isExp ? '#fef2f2' : '#ecfdf5';
+      statusBadge.style.color = isExp ? '#dc2626' : '#059669';
+      statusBadge.style.borderColor = isExp ? '#fecaca' : '#a7f3d0';
+      statusBadge.innerText = isMonitorTaskExpired ? '已截止' : (state.isFinalSubmitted ? '已归档' : '进行中');
+    }
+
+    // 3. 实时进度文字
+    const stageText = container.querySelector('#teacher-actual-stage-text');
+    if (stageText) {
+      stageText.innerText = actualStage === 'stage1' ? '阶段一：学术拍卖会' : actualStage === 'stage2' ? '阶段二：学术编辑部' : '阶段三：答辩擂台';
+    }
+
+    // 4. 在线/离线成员胶囊
+    const onlineContainer = container.querySelector('#teacher-online-pills-container');
+    if (onlineContainer) {
+      const panoData = (state.monitorPanorama && state.monitorPanorama[activeMonitorGroup.id]) || null;
+      const total = panoData ? (panoData.totalMembers || 0) : (monitorMembersList.length || 0);
+      const online = panoData ? (panoData.onlineCount || 0) : 0;
+      const absentList = (panoData && panoData.absentMembers) || [];
+      const absentCount = Math.max(0, total - online);
+
+      if (total > 0 && online === 0) {
+        onlineContainer.innerHTML = `
+          <span style="font-size:12px; font-weight:700; padding:3px 10px; border-radius:6px; background:#fef2f2; color:#dc2626; border:1px solid #fecaca; display:inline-flex; align-items:center; gap:5px;">
+            <span style="width:6px; height:6px; border-radius:50%; background:#dc2626;"></span>
+            全员离线 (0/${total})
+          </span>
+        `;
+      } else if (absentCount > 0 && absentList.length > 0) {
+        onlineContainer.innerHTML = `
+          <span style="font-size:12px; font-weight:700; padding:3px 10px; border-radius:6px; background:#fffbeb; color:#b45309; border:1px solid #fde68a; display:inline-flex; align-items:center; gap:6px; flex-wrap:wrap;">
+            <span style="display:inline-flex; align-items:center; gap:4px;">
+              <span style="width:6px; height:6px; border-radius:50%; background:#f59e0b;"></span>
+              离线 (${absentCount}人):
+            </span>
+            ${absentList.map(name => `
+              <span style="background:#ffffff; color:#92400e; border:1px solid #fcd34d; padding:1px 6px; border-radius:4px; font-size:11.5px; font-weight:700;">
+                ${escapeHtml(name)}
+              </span>
+            `).join('')}
+          </span>
+        `;
+      } else {
+        onlineContainer.innerHTML = `
+          <span style="font-size:12px; font-weight:700; padding:3px 10px; border-radius:6px; background:#ecfdf5; color:#059669; border:1px solid #a7f3d0; display:inline-flex; align-items:center; gap:5px;">
+            <span style="width:6px; height:6px; border-radius:50%; background:#10b981;"></span>
+            全员在线 (${online}/${total || online})
+          </span>
+        `;
+      }
+    }
+
+    // 5. 阶段二特定组件
+    if (effectiveMonitorStage === 'stage2') {
+      const cleanLen = (state.stage2?.unifiedContent || '').replace(/<[^>]*>/g, '').trim().length;
+      const s2WordBadge = container.querySelector('#teacher-stage2-word-count-num');
+      if (s2WordBadge) s2WordBadge.innerText = String(cleanLen);
+
+      const confirmedContainer = container.querySelector('#teacher-stage2-confirmed-pills');
+      if (confirmedContainer) {
+        confirmedContainer.innerHTML = monitorMembersList.map(m => {
+          const isConf = state.stage2?.confirmedMembers && (state.stage2.confirmedMembers[m.id] || (m.name && state.stage2.confirmedMembers[m.name]));
+          return `<span style="font-size:11px; padding:1px 8px; border-radius:10px; font-weight:700; background:${isConf ? '#ecfdf5' : '#f8fafc'}; color:${isConf ? '#059669' : '#94a3b8'}; border:1px solid ${isConf ? '#a7f3d0' : '#e2e8f0'};">
+            ${isConf ? '✓' : '○'} ${escapeHtml(m.name)}
+          </span>`;
+        }).join('');
+      }
+
+      const contribLabels = container.querySelector('#teacher-stage2-contrib-labels');
+      const contribBars = container.querySelector('#teacher-stage2-contrib-bars');
+      const contribs = state.stage2?.memberContributions || {};
+      let rawTotal = 0;
+      monitorMembersList.forEach(m => { rawTotal += Number(contribs[m.id] || 0); });
+
+      if (contribLabels) {
+        contribLabels.innerHTML = monitorMembersList.map((m) => {
+          const rawVal = Number(contribs[m.id] || 0);
+          const pct = rawTotal > 0 ? Math.round((rawVal / rawTotal) * 100) : 0;
+          return `<span style="color:${rawVal > 0 ? (m.color || '#2563eb') : '#94a3b8'}; font-weight:700;">● ${escapeHtml(m.name)}: ${pct}%</span>`;
+        }).join('');
+      }
+      if (contribBars) {
+        if (rawTotal === 0) {
+          contribBars.innerHTML = `<div style="width:100%; height:10px; background:#f8fafc; border-radius:5px; display:flex; align-items:center; justify-content:center; font-size:10px; color:#94a3b8; font-weight:600;">⏳ 暂无协作投入 (组员在 Etherpad 中撰写、修改正文或研讨后将平滑累计真实贡献)</div>`;
+        } else {
+          contribBars.innerHTML = monitorMembersList.map((m) => {
+            const rawVal = Number(contribs[m.id] || 0);
+            if (rawVal === 0) return '';
+            const pct = Math.round((rawVal / rawTotal) * 100);
+            return `<div style="width:${pct}%; background:${m.color || '#2563eb'}; transition:width 0.3s ease;" title="${escapeHtml(m.name)}: ${pct}% (${rawVal}字)"></div>`;
+          }).join('');
+        }
+      }
+
+      const tFrame2 = container.querySelector('#teacher-stage2-etherpad-frame');
+      if (tFrame2) enforceEtherpadReadonly(tFrame2);
+    }
+
+    // 6. 阶段三特定组件
+    if (effectiveMonitorStage === 'stage3') {
+      const s3CleanLen = ((state.stage3?.finalDraft || state.stage2?.unifiedContent || '').replace(/<[^>]*>/g, '').trim()).length;
+      const s3WordBadge = container.querySelector('#teacher-stage3-word-count-num');
+      if (s3WordBadge) s3WordBadge.innerText = String(s3CleanLen);
+
+      const tFrame3 = container.querySelector('#teacher-stage3-etherpad-frame');
+      if (tFrame3) enforceEtherpadReadonly(tFrame3);
+    }
+
+    // 7. 研讨聊天流实时就地增量刷新
+    const chatStream = container.querySelector('#teacher-unified-chat-stream');
+    if (chatStream) {
+      const allStages = ['stage1', 'stage2', 'stage3'];
+      const allMsgs = [];
+      const seenMsgKeys = new Set();
+      allStages.forEach(stg => {
+        if (state.chatLogs && Array.isArray(state.chatLogs[stg])) {
+          state.chatLogs[stg].forEach(msg => {
+            if (!msg) return;
+            const txt = msg.text || '';
+            if (txt.includes('已连续') || txt.includes('互动督促') || txt.includes('秒未研讨') || txt.includes('秒没有发言')) return;
+            const rawTxtNormalized = txt.replace(/[\s\r\n]+/g, ' ').trim();
+            const contentKey = `${msg.sender}_${stg}_${rawTxtNormalized}`;
+            const idKey = msg.id ? `id_${msg.id}` : null;
+            if (seenMsgKeys.has(contentKey) || (idKey && seenMsgKeys.has(idKey))) return;
+            seenMsgKeys.add(contentKey);
+            if (idKey) seenMsgKeys.add(idKey);
+            allMsgs.push({ ...msg, _stageSource: stg });
+          });
+        }
+      });
+      allMsgs.sort((a, b) => (Number(a._timeMs || a.timestamp || 0) - Number(b._timeMs || b.timestamp || 0)));
+      const combinedGroupChatLogs = filterAndDeduplicateChatLogs(allMsgs);
+
+      const chatBadge = container.querySelector('#teacher-chat-count-badge');
+      if (chatBadge) chatBadge.innerText = `全阶段汇总 (${combinedGroupChatLogs.length}条)`;
+
+      const isNearBottom = (chatStream.scrollHeight - chatStream.scrollTop - chatStream.clientHeight) < 60;
+      const allGlobalUsers = (authManager) ? authManager.getUsers() : [];
+
+      chatStream.innerHTML = combinedGroupChatLogs.length > 0 ? combinedGroupChatLogs.map(m => {
+        const isAgent = AgentProfiles[m.sender] !== undefined;
+        const matchedUser = isAgent ? null : allGlobalUsers.find(u => u.id === m.sender || u.name === m.sender);
+        const senderName = isAgent ? AgentProfiles[m.sender].name : (matchedUser ? matchedUser.name : (m.senderName || (monitorMembersObj[m.sender] ? monitorMembersObj[m.sender].name : m.sender)));
+        const color = isAgent ? AgentProfiles[m.sender].color : (matchedUser ? (matchedUser.color || '#2563eb') : (monitorMembersObj[m.sender] ? monitorMembersObj[m.sender].color : '#2563eb'));
+        let rawText = m.text || '';
+        let formattedText = '';
+        if (rawText.includes('<button') || rawText.includes('<br>') || rawText.includes('<span')) {
+          formattedText = rawText
+            .replace(/(@[^\s@<]+)/g, '<span style="color:#2563eb; font-weight:700;">$1</span>')
+            .replace(/\*\*(.*?)\*\*/g, '<b>$1</b>');
+        } else {
+          let safeText = escapeHtml(rawText);
+          formattedText = safeText
+            .replace(/(@[^\s@]+)/g, '<span style="color:#2563eb; font-weight:700;">$1</span>')
+            .replace(/\*\*(.*?)\*\*/g, '<b>$1</b>');
+        }
+        return `
+          <div style="background:#ffffff; padding:8px 12px; border-radius:8px; border:1px solid #e2e8f0; border-left:3px solid ${color}; box-shadow:0 1px 2px rgba(0,0,0,0.02); word-break:break-word; overflow-wrap:break-word; max-width:100%;">
+            <div style="display:flex; justify-content:space-between; margin-bottom:3px; gap:6px;">
+              <b style="color:${color}; font-size:12px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${escapeHtml(senderName)}</b>
+              <span style="color:#94a3b8; font-size:10px; flex-shrink:0;">${escapeHtml(formatChatDisplayTime(m._timeMs || m.timestamp))}</span>
+            </div>
+            <div style="color:#0f172a; line-height:1.5; word-break:break-word; overflow-wrap:break-word;">${formattedText}</div>
+          </div>
+        `;
+      }).join('') : `
+        <div style="text-align:center; padding:40px 16px; color:#94a3b8; font-size:12px;">⏳ 本小组暂无研讨发言记录</div>
+      `;
+
+      if (isNearBottom) {
+        chatStream.scrollTop = chatStream.scrollHeight;
+      }
+    }
+  }
+
+  /* ==========================================================================
      7. TEACHER PORTAL RENDERER (LIVE WORKSPACE MIRROR & ANNOUNCEMENT READ MATRIX)
      ========================================================================== */
   function renderTeacherPortal(container, authManager, state, onLogout) {
@@ -5510,9 +5717,22 @@
 
     const allStudents = allUsers.filter(u => u.role !== 'teacher');
 
-    // 🛡️ 深度单例保持：提取并保留当前已就绪的 Etherpad iframe，严禁重绘导致反复重载
-    const prevFrame2 = container.querySelector('#teacher-stage2-etherpad-frame');
-    const prevFrame3 = container.querySelector('#teacher-stage3-etherpad-frame');
+    const existingLayout = container.querySelector('#teacher-portal-layout');
+    const isSameClass = container.dataset.renderedClassId === activeClassId;
+    const isSameTab = container.dataset.renderedTab === classTab;
+    const isSameMonitorGroup = container.dataset.renderedGroupId === activeMonitorGId;
+    const isSameMonitorTask = container.dataset.renderedTaskId === effectiveMonitorTaskId;
+    const isSameMonitorStage = container.dataset.renderedStage === effectiveMonitorStage;
+
+    if (existingLayout && !isDashboard && classTab === 'live_monitor' && isSameClass && isSameTab && isSameMonitorGroup && isSameMonitorTask && isSameMonitorStage) {
+      const monitorTaskObj = currentClassTasks.find(t => t.id === effectiveMonitorTaskId) || (currentClassTasks[0] || null);
+      const isMonitorTaskExpired = isTaskExpired(monitorTaskObj);
+      const genreCfg = TASK_GENRE_CONFIGS[monitorTaskObj?.taskType || 'experiment'] || TASK_GENRE_CONFIGS.experiment;
+      const actualStage = state.currentStage || 'stage1';
+
+      updateTeacherLiveMonitorInPlace(container, state, authManager, activeClass, activeMonitorGroup, monitorTaskObj, genreCfg, monitorMembersList, monitorMembersObj, actualStage, effectiveMonitorStage, isMonitorTaskExpired);
+      return;
+    }
 
     container.innerHTML = `
       <div class="teacher-portal-layout" id="teacher-portal-layout" style="height:100vh; background:#f0f4f9; padding:0; display:flex; flex-direction:column;">
@@ -6318,7 +6538,7 @@
                           const remainText = calcRemain(monitorTaskObj?.deadline);
                           const isExp = remainText.includes('已截止');
                           return `
-                            <span>⏰ <b style="color:${isExp ? '#dc2626' : '#2563eb'}; font-weight:700;">${remainText}</b></span>
+                            <span id="teacher-task-countdown-text">⏰ <b style="color:${isExp ? '#dc2626' : '#2563eb'}; font-weight:700;">${remainText}</b></span>
                           `;
                         })()}
                       </div>
@@ -6326,7 +6546,7 @@
 
                     <!-- 状态与 Excel 导出 -->
                     <div style="display:flex; align-items:center; gap:10px;">
-                      <span style="font-size:12px; font-weight:700; padding:5px 12px; border-radius:6px; background:${isMonitorTaskExpired || state.isFinalSubmitted ? '#fef2f2' : '#ecfdf5'}; color:${isMonitorTaskExpired || state.isFinalSubmitted ? '#dc2626' : '#059669'}; border:1px solid ${isMonitorTaskExpired || state.isFinalSubmitted ? '#fecaca' : '#a7f3d0'};">
+                      <span id="teacher-task-status-badge" style="font-size:12px; font-weight:700; padding:5px 12px; border-radius:6px; background:${isMonitorTaskExpired || state.isFinalSubmitted ? '#fef2f2' : '#ecfdf5'}; color:${isMonitorTaskExpired || state.isFinalSubmitted ? '#dc2626' : '#059669'}; border:1px solid ${isMonitorTaskExpired || state.isFinalSubmitted ? '#fecaca' : '#a7f3d0'};">
                         ${isMonitorTaskExpired ? '已截止' : (state.isFinalSubmitted ? '已归档' : '进行中')}
                       </span>
                       <button id="btn-export-all-excel" style="background:#2563eb; color:white; border:none; padding:7px 16px; border-radius:8px; font-size:12.5px; font-weight:700; cursor:pointer; box-shadow:0 2px 6px rgba(37,99,235,0.2); display:inline-flex; align-items:center; gap:6px;">
@@ -6341,10 +6561,11 @@
                   <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:14px;">
                     <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
                       <span style="font-size:13px; font-weight:700; color:#334155;">
-                        📍 实时进度: 当前【${activeMonitorGroup.name}】处于 <b style="color:#2563eb;">${actualStage === 'stage1' ? '阶段一：学术拍卖会' : actualStage === 'stage2' ? '阶段二：学术编辑部' : '阶段三：答辩擂台'}</b>
+                        📍 实时进度: 当前【${activeMonitorGroup.name}】处于 <b id="teacher-actual-stage-text" style="color:#2563eb;">${actualStage === 'stage1' ? '阶段一：学术拍卖会' : actualStage === 'stage2' ? '阶段二：学术编辑部' : '阶段三：答辩擂台'}</b>
                       </span>
 
                       <!-- 在线/离线成员状态流线胶囊 -->
+                      <span id="teacher-online-pills-container" style="display:inline-flex; align-items:center;">
                       ${(() => {
                         const panoData = (state.monitorPanorama && state.monitorPanorama[activeMonitorGId]) || null;
                         const total = panoData ? (panoData.totalMembers || 0) : (monitorMembersList.length || 0);
@@ -6382,6 +6603,7 @@
                           `;
                         }
                       })()}
+                      </span>
                     </div>
 
                     <!-- 现代化分段控制器切页 Tab (Segmented Control) -->
@@ -6437,7 +6659,7 @@
                     <div class="card" style="padding:16px 18px; display:flex; flex-direction:column; min-width:0; box-sizing:border-box; height:840px; max-height:840px; border:1px solid #e2e8f0; box-shadow:0 2px 8px rgba(15,23,42,0.04); overflow:hidden;">
                       <div style="flex-shrink:0; font-size:14.5px; font-weight:800; color:#0f172a; margin-bottom:8px; display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #e2e8f0; padding-bottom:8px;">
                         <span>💬 团队全程研讨对话流 (${activeMonitorGroup.name})</span>
-                        <span style="font-size:11px; background:#eff6ff; color:#2563eb; padding:2px 8px; border-radius:6px; font-weight:700;">全阶段汇总 (${combinedGroupChatLogs.length}条)</span>
+                        <span id="teacher-chat-count-badge" style="font-size:11px; background:#eff6ff; color:#2563eb; padding:2px 8px; border-radius:6px; font-weight:700;">全阶段汇总 (${combinedGroupChatLogs.length}条)</span>
                       </div>
                       <div class="teacher-chat-stream" id="teacher-unified-chat-stream" style="flex:1; min-height:0; height:100%; overflow-y:auto; overflow-x:hidden; -webkit-overflow-scrolling:touch; overscroll-behavior-y:contain; background:#f8fafc; border:1px solid #e2e8f0; border-radius:10px; padding:12px; font-size:12px; display:flex; flex-direction:column; gap:10px; box-sizing:border-box;">
                         ${combinedGroupChatLogs.length > 0 ? combinedGroupChatLogs.map(m => {
@@ -6711,7 +6933,7 @@
                                   </div>
                                 </div>
                                 <div style="position:relative; flex:1; width:100%; height:100%; min-height:520px; display:flex;">
-                                  <iframe id="teacher-stage2-etherpad-frame" data-pad="${targetPad}" src="/p/${encodeURIComponent(targetPad)}?userName=${encodeURIComponent('教师监控')}&userColor=%237c3aed&showControls=false&showChat=false&showLineNumbers=true&lang=zh-hans&readOnly=true" style="flex:1; width:100%; height:100%; min-height:520px; border:none; display:block; background:#ffffff;" title="教师端实时写作同屏镜像 (只读)"></iframe>
+                                  <iframe id="teacher-stage2-etherpad-frame" data-pad="${targetPad}" src="/p/${encodeURIComponent(targetPad)}?userName=${encodeURIComponent('教师监控')}&userColor=%237c3aed&showControls=false&showChat=false&showLineNumbers=true&lang=zh-hans" style="flex:1; width:100%; height:100%; min-height:520px; border:none; display:block; background:#ffffff;" title="教师端实时写作同屏镜像 (只读)"></iframe>
                                 </div>
                               </div>
                             `;
@@ -6794,7 +7016,7 @@
                                   </div>
                                   </div>
                                   <div style="position:relative; flex:1; width:100%; height:100%; min-height:520px; display:flex;">
-                                    <iframe id="teacher-stage3-etherpad-frame" data-pad="${targetPad}" src="/p/${encodeURIComponent(targetPad)}?userName=${encodeURIComponent('教师监控')}&userColor=%237c3aed&showControls=false&showChat=false&showLineNumbers=true&lang=zh-hans&readOnly=true" style="flex:1; width:100%; height:100%; min-height:520px; border:none; display:block; background:#ffffff;" title="教师端论文终稿同屏镜像 (只读)"></iframe>
+                                    <iframe id="teacher-stage3-etherpad-frame" data-pad="${targetPad}" src="/p/${encodeURIComponent(targetPad)}?userName=${encodeURIComponent('教师监控')}&userColor=%237c3aed&showControls=false&showChat=false&showLineNumbers=true&lang=zh-hans" style="flex:1; width:100%; height:100%; min-height:520px; border:none; display:block; background:#ffffff;" title="教师端论文终稿同屏镜像 (只读)"></iframe>
                                   </div>
                                 </div>
                               `;
@@ -6904,25 +7126,15 @@
     container.dataset.renderedS3Tab = currentS3Tab;
     container.dataset.renderedTab = activeTab;
 
-    // 🔒 确保教师端无论是阶段二还是阶段三的 Etherpad iframe 保持单例无缝复用与权威只读锁定
+    // 🔒 确保教师端无论是阶段二还是阶段三的 Etherpad iframe 保持权威只读锁定
     const tFrame2 = container.querySelector('#teacher-stage2-etherpad-frame');
     if (tFrame2) {
-      if (prevFrame2 && prevFrame2.dataset.pad && prevFrame2.dataset.pad === tFrame2.dataset.pad) {
-        tFrame2.replaceWith(prevFrame2);
-        enforceEtherpadReadonly(prevFrame2);
-      } else {
-        enforceEtherpadReadonly(tFrame2);
-      }
+      enforceEtherpadReadonly(tFrame2);
     }
 
     const tFrame3 = container.querySelector('#teacher-stage3-etherpad-frame');
     if (tFrame3) {
-      if (prevFrame3 && prevFrame3.dataset.pad && prevFrame3.dataset.pad === tFrame3.dataset.pad) {
-        tFrame3.replaceWith(prevFrame3);
-        enforceEtherpadReadonly(prevFrame3);
-      } else {
-        enforceEtherpadReadonly(tFrame3);
-      }
+      enforceEtherpadReadonly(tFrame3);
     }
 
     const btnLogout = container.querySelector('#btn-logout');
