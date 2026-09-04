@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260904_v2516
+ * Version: 20260904_v2517
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260904_v2516';
+  const APP_VERSION = '20260904_v2517';
   const APP_BUILD_DATE = '2026-09-04';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -1110,10 +1110,28 @@
               padWin.document.cookie = `name=${encodeURIComponent(userName)}; path=/; max-age=86400`;
             }
 
-            // 🛡️ 恢复 Etherpad 100% 官方原生排版与皮肤（彻底清除自定义 CSS 干扰）
+            // 🛡️ 仅确保顶部原生 editbar 不被遮盖，绝不干涉原生底部工具栏与按钮样式
             const doc = padWin.document;
-            const oldGuardStyle = doc.getElementById('jizhi-etherpad-guard-style');
-            if (oldGuardStyle) oldGuardStyle.remove();
+            if (doc) {
+              let styleEl = doc.getElementById('jizhi-etherpad-guard-style');
+              if (!styleEl) {
+                styleEl = doc.createElement('style');
+                styleEl.id = 'jizhi-etherpad-guard-style';
+                styleEl.textContent = `
+                  #editbar {
+                    display: block !important;
+                    visibility: visible !important;
+                    opacity: 1 !important;
+                    position: relative !important;
+                    z-index: 10 !important;
+                  }
+                  #editorcontainerbox {
+                    top: 36px !important;
+                  }
+                `;
+                (doc.head || doc.documentElement).appendChild(styleEl);
+              }
+            }
           }
         } catch(e) {}
 
