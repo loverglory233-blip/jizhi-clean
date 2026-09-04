@@ -14,8 +14,8 @@ import {
   DefaultTasks,
   DefaultAnnouncements,
   DefaultReferencePapers
-} from './constants.js?v=20260905_v2570';
-import { formatExportDateTime, formatDurationHuman, isScopeMatch } from './utils.js?v=20260905_v2570';
+} from './constants.js?v=20260905_v2580';
+import { formatExportDateTime, formatDurationHuman, isScopeMatch } from './utils.js?v=20260905_v2580';
 
 export class AuthManager {
   constructor() {
@@ -1940,15 +1940,87 @@ export class AuthManager {
     });
   }
 
-  exportGroupChatLogsToExcel(groupId = null, chatLogsState = null) {
+  openExportFormatModal({ onSelect, title = '导出研讨记录表' }) {
+    document.querySelectorAll('.modal-overlay-export-format').forEach(el => el.remove());
+    const modal = document.createElement('div');
+    modal.className = 'modal-overlay modal-overlay-export-format';
+    modal.style.cssText = 'position:fixed;inset:0;background:rgba(15,23,42,0.7);backdrop-filter:blur(4px);z-index:999999;display:flex;align-items:center;justify-content:center;padding:20px;';
+    modal.innerHTML = `
+      <div style="background:#ffffff; border-radius:16px; box-shadow:0 20px 25px -5px rgba(0,0,0,0.2); width:100%; max-width:400px; overflow:hidden; animation:fadeIn 0.2s ease;">
+        <div style="background:linear-gradient(135deg, #059669, #10b981); padding:16px 20px; color:#ffffff; display:flex; justify-content:space-between; align-items:center;">
+          <div style="font-size:15px; font-weight:700; display:flex; align-items:center; gap:8px;">📥 ${title}</div>
+          <button id="btn-close-export-format-modal" style="background:none; border:none; color:#ffffff; font-size:20px; cursor:pointer; line-height:1;">&times;</button>
+        </div>
+        <div style="padding:20px 22px; display:flex; flex-direction:column; gap:10px;">
+          <div style="font-size:12.5px; color:#475569; margin-bottom:2px;">请选择您希望保存的文件格式：</div>
+          
+          <button id="btn-choose-xlsx" style="background:#f0fdf4; border:1.5px solid #86efac; color:#15803d; padding:12px 16px; border-radius:10px; font-size:13.5px; font-weight:700; cursor:pointer; display:flex; align-items:center; justify-content:space-between;">
+            <div style="display:flex; align-items:center; gap:10px;">
+              <span style="font-size:22px;">📗</span>
+              <div style="text-align:left;">
+                <div style="color:#166534; font-size:13.5px; font-weight:700;">Excel 工作簿 (.xlsx)</div>
+                <div style="color:#15803d; font-size:11px; font-weight:500;">推荐 · 自适应列宽 · 排版优美</div>
+              </div>
+            </div>
+            <span style="font-size:11px; background:#dcfce7; color:#166534; padding:2px 6px; border-radius:4px; font-weight:700;">推荐</span>
+          </button>
+
+          <button id="btn-choose-csv" style="background:#f8fafc; border:1.5px solid #cbd5e1; color:#334155; padding:12px 16px; border-radius:10px; font-size:13.5px; font-weight:700; cursor:pointer; display:flex; align-items:center; gap:10px;">
+            <span style="font-size:22px;">📄</span>
+            <div style="text-align:left;">
+              <div style="color:#1e293b; font-size:13.5px; font-weight:700;">通用文本表格 (.csv)</div>
+              <div style="color:#64748b; font-size:11px; font-weight:500;">UTF-8 纯文本编码 · 兼容性强</div>
+            </div>
+          </button>
+        </div>
+      </div>
+    `;
+
+    document.body.appendChild(modal);
+
+    const closeModal = () => modal.remove();
+    modal.querySelector('#btn-close-export-format-modal').addEventListener('click', closeModal);
+    modal.addEventListener('click', (e) => { if (e.target === modal) closeModal(); });
+
+    modal.querySelector('#btn-choose-xlsx').addEventListener('click', () => {
+      closeModal();
+      if (typeof onSelect === 'function') onSelect('xlsx');
+    });
+
+    modal.querySelector('#btn-choose-csv').addEventListener('click', () => {
+      closeModal();
+      if (typeof onSelect === 'function') onSelect('csv');
+    });
+  }
+
+  _downloadCsvBlob(rowsData, fileNameBase) {
+    let csvContent = '\uFEFF';
+    rowsData.forEach(row => {
+      const escRow = row.map(cell => `"${String(cell !== undefined && cell !== null ? cell : '').replace(/"/g, '""')}"`);
+      csvContent += escRow.join(',') + '\n';
+    });
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', `${fileNameBase}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  }
+
+  exportGroupChatLogsToExcel(groupId = null, chatLogsState = null, groupName = null, format = 'xlsx') {
     const currentChatLogs = chatLogsState || (window.app && window.app.state && window.app.state.chatLogs) || {};
-    let csvContent = '\uFEFF名字,时间,内容\n';
     const stageNames = { stage1: '阶段一：学术拍卖会', stage2: '阶段二：学术编辑部', stage3: '阶段三：答辩擂台' };
     const users = this.getUsers();
+    const rowsData = [
+      ['阶段', '发言人', '时间', '研讨内容']
+    ];
+
     ['stage1', 'stage2', 'stage3'].forEach(stageKey => {
       const logs = currentChatLogs[stageKey] || [];
       if (logs.length > 0) {
-        csvContent += `"[${stageNames[stageKey]}]","",""\n`;
         logs.forEach(msg => {
           let senderDisplayName = msg.senderName || msg.sender;
           if (msg.sender === 'auctioneer') senderDisplayName = '拍卖师 Agent';
@@ -1963,23 +2035,31 @@ export class AuthManager {
             else senderDisplayName = `小组成员 (${msg.sender})`;
           }
           const time = formatExportDateTime(msg._timeMs || msg.timestamp);
-          const text = (msg.text || '').replace(/"/g, '""').replace(/\n/g, ' ');
-          csvContent += `"${senderDisplayName}","${time}","${text}"\n`;
+          const text = (msg.text || '').replace(/\r\n/g, ' ').replace(/\n/g, ' ');
+          rowsData.push([stageNames[stageKey], senderDisplayName, time, text]);
         });
       }
     });
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const safeGName = groupName || groupId || '协作小组';
-    const link = document.createElement('a');
-    link.setAttribute('href', url);
-    link.setAttribute('download', `${safeGName}_学术对话与写作记录表_${new Date().toISOString().slice(0, 10)}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+
+    const safeGName = (groupName || groupId || '协作小组').replace(/[\\/:*?"<>|]/g, '_');
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const fileNameBase = `${safeGName}_学术对话与写作记录表_${todayStr}`;
+
+    if (format === 'xlsx' && window.XLSX) {
+      try {
+        const ws = window.XLSX.utils.aoa_to_sheet(rowsData);
+        ws['!cols'] = [{ wch: 22 }, { wch: 20 }, { wch: 22 }, { wch: 70 }];
+        const wb = window.XLSX.utils.book_new();
+        window.XLSX.utils.book_append_sheet(wb, ws, '研讨记录');
+        window.XLSX.writeFile(wb, `${fileNameBase}.xlsx`);
+        return;
+      } catch(e) {}
+    }
+
+    this._downloadCsvBlob(rowsData, fileNameBase);
   }
 
-  async exportAllClassGroupsChatLogsToSeparateFiles(classId, taskId = null) {
+  async exportAllClassGroupsChatLogsToSeparateFiles(classId, taskId = null, format = 'xlsx') {
     const curT = this.getCurrentUser();
     const tToken = (curT && (curT.activeSessionId || curT.token)) || '';
     const tId = (curT && (curT.id)) || '';
@@ -2002,9 +2082,14 @@ export class AuthManager {
     const stageNames = { stage1: '阶段一：学术拍卖会', stage2: '阶段二：学术编辑部', stage3: '阶段三：答辩擂台' };
     const users = this.getUsers();
     const todayStr = new Date().toISOString().slice(0, 10);
+    const allTasks = this.getTasks();
+    const targetTask = taskId ? allTasks.find(t => t.id === taskId) : null;
+    const safeTaskTitle = targetTask && targetTask.title ? `_${targetTask.title.replace(/[\\/:*?"<>|]/g, '_')}` : '';
 
     groupList.forEach((grp, idx) => {
-      let csvContent = '\uFEFF阶段,发言人,时间,研讨内容\n';
+      const rowsData = [
+        ['阶段', '发言人', '时间', '研讨内容']
+      ];
 
       ['stage1', 'stage2', 'stage3'].forEach(stageKey => {
         const logs = grp[stageKey] || [];
@@ -2023,34 +2108,39 @@ export class AuthManager {
               else senderDisplayName = `小组成员 (${msg.sender})`;
             }
             const time = formatExportDateTime(msg._timeMs || msg.timestamp);
-            const text = (msg.text || '').replace(/"/g, '""').replace(/\n/g, ' ');
-            csvContent += `"${stageNames[stageKey]}","${senderDisplayName}","${time}","${text}"\n`;
+            const text = (msg.text || '').replace(/\r\n/g, ' ').replace(/\n/g, ' ');
+            rowsData.push([stageNames[stageKey], senderDisplayName, time, text]);
           });
         }
       });
 
-      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-      const url = URL.createObjectURL(blob);
       const safeClassName = (res.className || curCls.name).replace(/[\\/:*?"<>|]/g, '_');
       const safeGroupName = (grp.name || grp.id).replace(/[\\/:*?"<>|]/g, '_');
-      const allTasks = this.getTasks();
-      const targetTask = taskId ? allTasks.find(t => t.id === taskId) : null;
-      const safeTaskTitle = targetTask && targetTask.title ? `_${targetTask.title.replace(/[\\/:*?"<>|]/g, '_')}` : '';
-      link.setAttribute('download', `【${safeClassName}】${safeTaskTitle}_${safeGroupName}_研讨记录表_${todayStr}.csv`);
-      document.body.appendChild(link);
+      const fileNameBase = `【${safeClassName}】${safeTaskTitle}_${safeGroupName}_研讨记录表_${todayStr}`;
 
-      // 错峰触发下载，防止浏览器多文件拦截
-      setTimeout(() => {
-        link.click();
-        document.body.removeChild(link);
-        URL.revokeObjectURL(url);
-      }, idx * 250);
+      if (format === 'xlsx' && window.XLSX) {
+        setTimeout(() => {
+          try {
+            const ws = window.XLSX.utils.aoa_to_sheet(rowsData);
+            ws['!cols'] = [{ wch: 22 }, { wch: 20 }, { wch: 22 }, { wch: 70 }];
+            const wb = window.XLSX.utils.book_new();
+            window.XLSX.utils.book_append_sheet(wb, ws, '研讨记录');
+            window.XLSX.writeFile(wb, `${fileNameBase}.xlsx`);
+          } catch(err) {
+            this._downloadCsvBlob(rowsData, fileNameBase);
+          }
+        }, idx * 250);
+      } else {
+        setTimeout(() => {
+          this._downloadCsvBlob(rowsData, fileNameBase);
+        }, idx * 250);
+      }
 
       exportedCount++;
     });
 
     setTimeout(() => {
-      alert(`🎉 成功导出【${res.className || curCls.name}】全班共 ${exportedCount} 个小组的独立研讨记录 CSV 文件！\n所有文件已分别下载保存。`);
+      alert(`🎉 成功导出【${res.className || curCls.name}】全班共 ${exportedCount} 个小组的独立研讨记录 (${format.toUpperCase()}) 文件！\n所有文件已分别下载保存。`);
     }, groupList.length * 250 + 300);
   }
 

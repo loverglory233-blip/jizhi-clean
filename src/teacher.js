@@ -11,8 +11,8 @@ import {
   TASK_GENRE_CONFIGS,
   AgentProfiles,
   APP_VERSION
-} from "./constants.js?v=20260905_v2570";
-import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, showGlobalBannerNotice } from "./utils.js?v=20260905_v2570";
+} from "./constants.js?v=20260905_v2580";
+import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, showGlobalBannerNotice } from "./utils.js?v=20260905_v2580";
 
 /* ==========================================================================
    6.8 TEACHER MONITOR IN-PLACE INCREMENTAL UPDATER (PREVENT IFRAME THRASHING)
@@ -4103,15 +4103,22 @@ export function renderTeacherPortal(container, authManager, state, onLogout) {
   if (btnExportExcel) {
     btnExportExcel.addEventListener('click', () => {
       const gName = activeMonitorGroup?.name || activeMonitorGId;
-      authManager.exportGroupChatLogsToExcel(activeMonitorGId, state.chatLogs, gName);
+      authManager.openExportFormatModal({
+        title: `导出【${gName || '本组'}】研讨记录`,
+        onSelect: (fmt) => authManager.exportGroupChatLogsToExcel(activeMonitorGId, state.chatLogs, gName, fmt)
+      });
     });
   }
 
   container.querySelectorAll('.btn-export-task-chat-all').forEach(btn => {
     btn.addEventListener('click', (e) => {
       const tId = e.currentTarget.dataset.id;
+      const tTitle = e.currentTarget.dataset.title || '';
       const cId = e.currentTarget.dataset.class || activeClass?.id || 'class_101';
-      authManager.exportAllClassGroupsChatLogsToSeparateFiles(cId, tId);
+      authManager.openExportFormatModal({
+        title: `导出【${tTitle || '该任务'}】全班各组研讨`,
+        onSelect: (fmt) => authManager.exportAllClassGroupsChatLogsToSeparateFiles(cId, tId, fmt)
+      });
     });
   });
 
