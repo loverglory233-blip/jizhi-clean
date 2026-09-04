@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260904_v2420";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse } from "./utils.js?v=20260904_v2420";
-import { callCozeAgentAPI } from "./agents.js?v=20260904_v2420";
-import { AuthManager } from "./auth.js?v=20260904_v2420";
-import { CloudSyncEngine } from "./sync.js?v=20260904_v2420";
-import { renderLoginView } from "./login.js?v=20260904_v2420";
-import { renderTeacherPortal } from "./teacher.js?v=20260904_v2420";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260904_v2420";
+} from "./constants.js?v=20260904_v2425";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse } from "./utils.js?v=20260904_v2425";
+import { callCozeAgentAPI } from "./agents.js?v=20260904_v2425";
+import { AuthManager } from "./auth.js?v=20260904_v2425";
+import { CloudSyncEngine } from "./sync.js?v=20260904_v2425";
+import { renderLoginView } from "./login.js?v=20260904_v2425";
+import { renderTeacherPortal } from "./teacher.js?v=20260904_v2425";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260904_v2425";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260904_v2420";
+} from "./editor.js?v=20260904_v2425";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -1355,8 +1355,8 @@ export class App {
           return 0;
         }
 
-        // 1. 阶段二开场进度关怀：开局进入阶段二达到 3 分钟（180秒），且全组正文字数依然 < 50 字（真正没有任何人动笔起草）
-        // 🛡️ 稳健多源实时正文字数提取（结合 DOM 实时角标、作者贡献统计与文档内容，防止单源延迟误判）
+        // 1. 阶段二开场进度关怀：进入阶段二满 3 分钟（180秒）时进行一次性检查
+        // 🛡️ 稳健多源实时正文字数提取（结合 DOM 实时角标、作者贡献统计与文档内容）
         let effectiveDocLen = (s2.unifiedContent || '').replace(/<[^>]*>/g, '').trim().length;
         let contribSum = 0;
         const contribs = s2.memberContributions || {};
@@ -1372,17 +1372,14 @@ export class App {
           effectiveDocLen = Math.max(effectiveDocLen, this.lastPlainTextLength);
         }
 
-        // 🛡️ 若正文字数已经达到或超过 50 字（即已有同学开始起草），永久标记开场进度关怀不可触发
-        if (effectiveDocLen >= 50) {
-          this._nudgeCounts['s2_silence'] = 1;
-        }
-
         const stage2ElapsedMs = now - (s2.startTime || this.stage2StartTime || now);
-        if (stage2ElapsedMs >= 180000 && effectiveDocLen < 50) {
-          const count = this._nudgeCounts['s2_silence'] || 0;
-          if (count < 1) {
+        const silenceNudgeCount = this._nudgeCounts['s2_silence'] || 0;
+
+        if (silenceNudgeCount < 1 && stage2ElapsedMs >= 180000) {
+          this._nudgeCounts['s2_silence'] = 1; // 满 3 分钟已完成一次性核验，无论是否发送均不再重复
+          if (effectiveDocLen < 50) {
+            // 满 3 分钟且正文字数确实少于 50 字（未动笔或字数过少），发出开场进度关怀
             this.lastS2SilenceNudgeTime = now;
-            this._nudgeCounts['s2_silence'] = 1;
             const taskType = this.getCurrentTaskType();
             const isInst = (taskType === 'instructional');
             const managingName = isInst ? '备课组长' : '责任编辑';
