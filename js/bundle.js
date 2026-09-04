@@ -12195,16 +12195,8 @@
     const hasFinalReviewInLogs = s2Chats.some(m => m && m.sender === 'reviewingEditor' && (m.text?.includes('终稿行文扫描') || m.text?.includes('终审定稿总评') || m.text?.includes('审稿编辑·终审')));
 
     if (curStage === 'stage1') {
-      const allTasks = (window.app && window.app.authManager) ? window.app.authManager.getTasks() : [];
-      const curTask = allTasks.find(t => t.id === state.activeTaskId);
-      let elapsedSec = (state.timer && state.timer.elapsedSeconds) ? state.timer.elapsedSeconds : 0;
-      if (elapsedSec < 13 * 60 && curTask && curTask.startTime) {
-        const sDate = new Date(String(curTask.startTime).replace(/-/g, '/'));
-        if (!isNaN(sDate.getTime())) {
-          const diffS = Math.floor((Date.now() - sDate.getTime()) / 1000);
-          if (diffS > elapsedSec) elapsedSec = diffS;
-        }
-      }
+      const s1 = state.stage1 || {};
+      const elapsedSec = (state.timer && state.timer.elapsedSeconds) ? state.timer.elapsedSeconds : 0;
       const hasTopic = !!(s1.mergedTitle || s1.contract?.topic);
       const hasTime = !!(s1.contract?.timeAllocations && Object.keys(s1.contract.timeAllocations).length >= 6);
       const hasTasks = !!(s1.contract?.taskAssignments && Object.keys(s1.contract.taskAssignments).length >= totalCount && totalCount > 0);
@@ -12871,15 +12863,8 @@
         if (currentUser && currentUser.role === 'student' && this.state.timer.isRunning) {
           const nowMs = Date.now();
           // 统一物理时间戳计秒：全组成员按首次开启时间统一对齐，杜绝迟到成员或刷新页面导致的时间差
-          const activeTaskId = this.state.activeTaskId || null;
-          const allTasks = (this.authManager) ? this.authManager.getTasks() : [];
-          const curTask = allTasks.find(t => t.id === activeTaskId);
           if (!this.state.timer.startTimestamp) {
-            if (curTask && curTask.startTime && !isNaN(new Date(String(curTask.startTime).replace(/-/g, '/')).getTime())) {
-              this.state.timer.startTimestamp = new Date(String(curTask.startTime).replace(/-/g, '/')).getTime();
-            } else {
-              this.state.timer.startTimestamp = nowMs;
-            }
+            this.state.timer.startTimestamp = nowMs;
             if (this.cloudSyncEngine && typeof this.cloudSyncEngine.pushSnapshot === 'function') {
               this.cloudSyncEngine.pushSnapshot();
             }
