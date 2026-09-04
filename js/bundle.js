@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260904_v2210
+ * Version: 20260904_v2211
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260904_v2210';
+  const APP_VERSION = '20260904_v2211';
   const APP_BUILD_DATE = '2026-09-04';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -13036,10 +13036,93 @@
               }
             }
 
-            // ── 1. 【阶段二智能体全自动巡检：一审自动把脉、二审半程研讨、三审终审自动扫描】 ──
+            // ── 1. 【阶段二智能体全自动巡检：一审自动把脉、二审半程研讨、三审终审自动扫描、初稿签署催促】 ──
             if (currentStage === 'stage2') {
               const rawContent = (this.state.stage2 && this.state.stage2.unifiedContent) ? this.state.stage2.unifiedContent : '';
               this.checkAgentTriggersOnContent(rawContent);
+
+              // 初稿签署确认催促（自第一位成员确认签署初稿起满 3 分钟，仍有同学未确认）
+              const s2 = this.state.stage2 || {};
+              const s2ConfMap = s2.confirmedMembers || {};
+              const s2ConfCount = membersList.filter(m => isMemberDone(s2ConfMap, m)).length;
+              const s2UnconfMembers = membersList.filter(m => !isMemberDone(s2ConfMap, m));
+              if (s2ConfCount > 0 && !this.state._firstS2SignTimeMs) {
+                this.state._firstS2SignTimeMs = s2._firstSignTimeMs || nowMs;
+              }
+              const firstS2SignTime = this.state._firstS2SignTimeMs || s2._firstSignTimeMs || nowMs;
+              const timeSinceFirstS2Sign = nowMs - firstS2SignTime;
+              if (!this.state.s2_signNudgeSent && s2ConfCount > 0 && s2UnconfMembers.length > 0 && s2ConfCount < membersList.length && timeSinceFirstS2Sign >= 180000) {
+                this.state.s2_signNudgeSent = true;
+                const s2UnconfNames = s2UnconfMembers.map(m => m.name || m.id).join('、');
+                const taskType = this.getCurrentTaskType();
+                const isInst = (taskType === 'instructional');
+                const managingName = isInst ? '备课组长' : '责任编辑';
+                const msgS2SignNudge = {
+                  sender: 'managingEditor',
+                  senderName: `协同调度 · ${managingName}`,
+                  text: `🤝 【${managingName}·初稿签署提示】：组内已有同学确认签署初稿，目前全组初稿确认进度为【${s2ConfCount}/${membersList.length} 人】，看到 ${s2UnconfNames} 同学尚未确认。请尽快在下方核对初稿并点击【✍️ 确认初稿】，全员确认后将正式解锁阶段三！`,
+                  timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                  _timeMs: nowMs
+                };
+                if (!this.state.chatLogs.stage2) this.state.chatLogs.stage2 = [];
+                this.state.chatLogs.stage2.push(msgS2SignNudge);
+                this.syncChatLogs();
+                renderChat(this.state);
+              }
+            }
+
+            // ── 2. 【阶段三智能体全自动巡检：答辩完成确认催促、终稿全员提交催促】 ──
+            if (currentStage === 'stage3') {
+              const s3 = this.state.stage3 || {};
+              // 阶段三：答辩/修改矩阵确认催促（自第一位成员确认起满 3 分钟）
+              const s3ConfMap = s3.confirmedMembers || {};
+              const s3ConfCount = membersList.filter(m => isMemberDone(s3ConfMap, m)).length;
+              const s3UnconfMembers = membersList.filter(m => !isMemberDone(s3ConfMap, m));
+              if (s3ConfCount > 0 && !this.state._firstS3SignTimeMs) {
+                this.state._firstS3SignTimeMs = s3._firstSignTimeMs || nowMs;
+              }
+              const firstS3SignTime = this.state._firstS3SignTimeMs || s3._firstSignTimeMs || nowMs;
+              const timeSinceFirstS3Sign = nowMs - firstS3SignTime;
+              if (!this.state.s3_signNudgeSent && s3ConfCount > 0 && s3UnconfMembers.length > 0 && s3ConfCount < membersList.length && timeSinceFirstS3Sign >= 180000) {
+                this.state.s3_signNudgeSent = true;
+                const s3UnconfNames = s3UnconfMembers.map(m => m.name || m.id).join('、');
+                const msgS3SignNudge = {
+                  sender: 'neutral',
+                  senderName: '答辩主审 · 中间委员',
+                  text: `🎓 【答辩主审·答辩确认提示】：组内已有同学确认完成答辩与修改清单，目前全组确认进度为【${s3ConfCount}/${membersList.length} 人】，看到 ${s3UnconfNames} 同学尚未确认。请尽快在下方核对并点击【✍️ 确认答辩】，全员确认后将解锁终稿修改面板！`,
+                  timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                  _timeMs: nowMs
+                };
+                if (!this.state.chatLogs.stage3) this.state.chatLogs.stage3 = [];
+                this.state.chatLogs.stage3.push(msgS3SignNudge);
+                this.syncChatLogs();
+                renderChat(this.state);
+              }
+
+              // 阶段三：终稿全员提交催促（自第一位成员确认提交终稿起满 3 分钟）
+              const s3FinalMap = s3.finalSubmittedMembers || {};
+              const s3FinalCount = membersList.filter(m => isMemberDone(s3FinalMap, m)).length;
+              const s3UnfinalMembers = membersList.filter(m => !isMemberDone(s3FinalMap, m));
+              if (s3FinalCount > 0 && !this.state._firstS3FinalTimeMs) {
+                this.state._firstS3FinalTimeMs = s3._firstFinalSubmitTimeMs || nowMs;
+              }
+              const firstS3FinalTime = this.state._firstS3FinalTimeMs || s3._firstFinalSubmitTimeMs || nowMs;
+              const timeSinceFirstS3Final = nowMs - firstS3FinalTime;
+              if (!this.state.s3_finalNudgeSent && s3FinalCount > 0 && s3UnfinalMembers.length > 0 && s3FinalCount < membersList.length && timeSinceFirstS3Final >= 180000) {
+                this.state.s3_finalNudgeSent = true;
+                const s3UnfinalNames = s3UnfinalMembers.map(m => m.name || m.id).join('、');
+                const msgS3FinalNudge = {
+                  sender: 'neutral',
+                  senderName: '答辩主审 · 中间委员',
+                  text: `🎓 【答辩主审·终稿全员提交催促】：组内已有同学确认提交终稿，目前全组提交确认进度为【${s3FinalCount}/${membersList.length} 人】，看到 ${s3UnfinalNames} 同学尚未确认提交。请尚未确认的同学尽快点击【🚀 提交终稿】，全员确认后将正式封稿归档！`,
+                  timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                  _timeMs: nowMs
+                };
+                if (!this.state.chatLogs.stage3) this.state.chatLogs.stage3 = [];
+                this.state.chatLogs.stage3.push(msgS3FinalNudge);
+                this.syncChatLogs();
+                renderChat(this.state);
+              }
             }
           }
 
@@ -17453,6 +17536,8 @@
           const userKey = currMemObj ? currMemObj.id : user;
           s2.confirmedMembers[userKey] = true;
           if (currMemObj && currMemObj.name) s2.confirmedMembers[currMemObj.name] = true;
+          if (!s2._firstSignTimeMs) s2._firstSignTimeMs = Date.now();
+          s2._lastSignTimeMs = Date.now();
 
           const confirmedCount = memberArr.filter(m => isMemDone(s2.confirmedMembers, m)).length;
           const currUserObj = (this.authManager) ? this.authManager.getCurrentUser() : null;
@@ -17526,6 +17611,8 @@
             if (currMemObj.id) s3.confirmedMembers[currMemObj.id] = true;
             if (currMemObj.name) s3.confirmedMembers[currMemObj.name] = true;
           }
+          if (!s3._firstSignTimeMs) s3._firstSignTimeMs = Date.now();
+          s3._lastSignTimeMs = Date.now();
 
           const confirmedCount = memberArr.filter(m => m && (s3.confirmedMembers[m.id] || (m.name && s3.confirmedMembers[m.name]))).length;
           const currUserObj = (this.authManager) ? this.authManager.getCurrentUser() : null;
@@ -17698,6 +17785,8 @@
             if (currMemObj.id) s3.finalSubmittedMembers[currMemObj.id] = true;
             if (currMemObj.name) s3.finalSubmittedMembers[currMemObj.name] = true;
           }
+          if (!s3._firstFinalSubmitTimeMs) s3._firstFinalSubmitTimeMs = Date.now();
+          s3._lastFinalSubmitTimeMs = Date.now();
 
           const finalSubmittedCount = memberArr.filter(m => m && (s3.finalSubmittedMembers[m.id] || (m.name && s3.finalSubmittedMembers[m.name]))).length;
           const currUserObj = (this.authManager) ? this.authManager.getCurrentUser() : null;
