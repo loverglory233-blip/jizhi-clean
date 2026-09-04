@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260905_v2695
+ * Version: 20260905_v2696
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260905_v2695';
+  const APP_VERSION = '20260905_v2696';
   const APP_BUILD_DATE = '2026-09-05';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -2327,7 +2327,27 @@
         const stored = localStorage.getItem(STORAGE_KEY_CLASSES);
         if (stored) classes = JSON.parse(stored);
       } catch (e) { classes = []; }
-      return Array.isArray(classes) ? classes : [];
+      if (!Array.isArray(classes)) classes = [];
+
+      // 🛡️ 班级小组名单单组排他性防御校验：杜绝一人跨多组
+      classes.forEach(c => {
+        if (c && Array.isArray(c.groups)) {
+          const seenMemberIds = new Set();
+          // 逆向遍历：保留最新分配的小组
+          for (let i = c.groups.length - 1; i >= 0; i--) {
+            const g = c.groups[i];
+            if (g && Array.isArray(g.members)) {
+              g.members = g.members.filter(m => {
+                const mKey = String((typeof m === 'object' && m !== null) ? (m.id || m.userId || m.name) : m).trim().toLowerCase();
+                if (!mKey || seenMemberIds.has(mKey)) return false;
+                seenMemberIds.add(mKey);
+                return true;
+              });
+            }
+          }
+        }
+      });
+      return classes;
     }
     getTasks() {
       let tasks = [];
@@ -2902,23 +2922,7 @@
 
     getAvailableStudentsForGroup(classId, editingGroupId = null) {
       const allClassStudents = this.getClassStudents(classId);
-      const classes = this.getClasses();
-      const cls = classes.find(c => c.id === classId) || classes[0];
-      if (!cls || !cls.groups) return allClassStudents;
-
-      const getMemberId = (m) => (typeof m === 'object' && m !== null) ? m.id : m;
-
-      const occupiedStudentIds = new Set();
-      cls.groups.forEach(g => {
-        if (g.id !== editingGroupId) {
-          (g.members || []).forEach(m => {
-            const mId = getMemberId(m);
-            if (mId) occupiedStudentIds.add(mId);
-          });
-        }
-      });
-
-      return allClassStudents.filter(s => !occupiedStudentIds.has(s.id));
+      return allClassStudents;
     }
 
     updateGroupMembers(classId, groupId, groupName, selectedUserIds = []) {
@@ -2944,12 +2948,23 @@
 
       const oldMembers = group.members || [];
       group.members = selectedUserIds;
+
+      // 🛡️ 严格单小组归属保护：将勾选的学生从本班所有其他小组中彻底清除，杜绝一人跨多组或幽灵组员！
+      cls.groups.forEach(otherG => {
+        if (otherG.id !== group.id && Array.isArray(otherG.members)) {
+          otherG.members = otherG.members.filter(uid => {
+            const uStr = (typeof uid === 'object' && uid !== null) ? (uid.id || uid.userId || uid.name) : String(uid);
+            return !selectedUserIds.some(sid => String(sid).trim().toLowerCase() === String(uStr).trim().toLowerCase());
+          });
+        }
+      });
+
       localStorage.setItem(STORAGE_KEY_CLASSES, JSON.stringify(classes));
 
       const users = this.getUsers();
       oldMembers.forEach(oldUid => {
         if (!selectedUserIds.includes(oldUid)) {
-          const oldU = users.find(usr => usr.id === oldUid);
+          const oldU = users.find(usr => usr.id === oldUid || usr.name === oldUid);
           if (oldU && oldU.groupId === group.id) {
             oldU.groupId = null;
           }
@@ -2957,7 +2972,7 @@
       });
 
       selectedUserIds.forEach((uid, idx) => {
-        const u = users.find(usr => usr.id === uid);
+        const u = users.find(usr => usr.id === uid || usr.name === uid);
         if (u) {
           u.groupId = group.id;
           u.roleCode = String.fromCharCode(65 + idx);
@@ -5965,6 +5980,40 @@
      ========================================================================== */
   function updateTeacherLiveMonitorInPlace(container, state, authManager, activeClass, activeMonitorGroup, monitorTaskObj, genreCfg, monitorMembersList, monitorMembersObj, actualStage, effectiveMonitorStage, isMonitorTaskExpired) {
     if (!container || !activeMonitorGroup) return;
+
+    // 0. 更新全组实时总览卡片 (Panorama Cards)
+    if (state.monitorPanorama && activeClass) {
+      (activeClass.groups || []).forEach(g => {
+        const card = container.querySelector(`.btn-monitor-panorama-card[data-gid="${g.id}"]`);
+        if (card) {
+          const p = state.monitorPanorama[g.id] || null;
+          const total = p ? (p.totalMembers || 0) : ((g.members || []).length || 0);
+          const online = p ? (p.onlineCount || 0) : 0;
+          const locks = p ? (p.activeLocks || []).length : 0;
+          const final = p ? !!p.isFinalSubmitted : false;
+          const stage = p ? (p.currentStage || 'stage1') : 'stage1';
+          const stageLabel = stage === 'stage1' ? '🎪 阶段一' : stage === 'stage2' ? '📰 阶段二' : '🎓 阶段三';
+          const absent = Math.max(0, total - online);
+          let dot = '🟢', dotColor = '#16a34a', hint = '正常推进';
+          if (final) { dot = '✅'; dotColor = '#059669'; hint = '已终稿'; }
+          else if (total > 0 && online === 0) { dot = '🔴'; dotColor = '#dc2626'; hint = '全员离线'; }
+          else if (locks > 0) { dot = '🔴'; dotColor = '#dc2626'; hint = locks + ' 字段占用'; }
+          else if (absent > 0) { dot = '🟡'; dotColor = '#d97706'; hint = absent + ' 人离线'; }
+
+          const dotSpan = card.querySelector('div:first-child span:last-child');
+          if (dotSpan) dotSpan.innerText = dot;
+          const stageEl = card.querySelector('div:nth-child(2) span:first-child');
+          if (stageEl) stageEl.innerText = stageLabel;
+          const onlineEl = card.querySelector('div:nth-child(2) span:last-child');
+          if (onlineEl) onlineEl.innerText = `在线 ${online}/${total}`;
+          const hintEl = card.querySelector('div:last-child');
+          if (hintEl) {
+            hintEl.style.color = dotColor;
+            hintEl.innerText = `${hint}${locks > 0 ? ' · 锁字段' : ''}`;
+          }
+        }
+      });
+    }
 
     // 1. 任务指标与倒计时
     const countdownEl = container.querySelector('#teacher-task-countdown-text');
