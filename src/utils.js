@@ -904,7 +904,7 @@ export function ensureEtherpadUserSync(iframe, userName, userColor) {
             padWin.document.cookie = `name=${encodeURIComponent(userName)}; path=/; max-age=86400`;
           }
           
-          // 🛡️ 仅确保顶部原生 editbar 不被遮盖，绝不干涉原生底部工具栏与按钮样式
+          // 🛡️ 仅确保顶部原生 editbar 显示正常，不添加任何额外间距或偏移
           const doc = padWin.document;
           if (doc) {
             let styleEl = doc.getElementById('jizhi-etherpad-guard-style');
@@ -916,11 +916,6 @@ export function ensureEtherpadUserSync(iframe, userName, userColor) {
                   display: block !important;
                   visibility: visible !important;
                   opacity: 1 !important;
-                  position: relative !important;
-                  z-index: 10 !important;
-                }
-                #editorcontainerbox {
-                  top: 36px !important;
                 }
               `;
               (doc.head || doc.documentElement).appendChild(styleEl);

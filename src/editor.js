@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260904_v2517";
-import { callCozeAgentAPI } from "./agents.js?v=20260904_v2517";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, showResolutionBlock } from "./utils.js?v=20260904_v2517";
+import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260904_v2518";
+import { callCozeAgentAPI } from "./agents.js?v=20260904_v2518";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, showResolutionBlock } from "./utils.js?v=20260904_v2518";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -1450,8 +1450,11 @@ function renderStage2Canvas(canvas, state, handlers) {
         let cur = el;
         while (cur && cur !== innerBody) {
           if (cur.className && typeof cur.className === 'string') {
-            const m = cur.className.match(/\bauthor-([a-zA-Z0-9_\-]+)\b/);
-            if (m) return m[1];
+            const classes = cur.className.split(/\s+/);
+            for (const cls of classes) {
+              const m = cls.match(/^(?:author[-_])?(a[._-][a-zA-Z0-9_\-]+)$/i) || cls.match(/^author[-_]([a-zA-Z0-9_.\-]+)$/i);
+              if (m) return m[1];
+            }
           }
           cur = cur.parentElement;
         }
@@ -1485,23 +1488,41 @@ function renderStage2Canvas(canvas, state, handlers) {
         }
         let authorName = '';
         let authorColor = null;
-        const normKey1 = aKey.replace(/[-_]/g, '.');
-        const normKey2 = aKey.startsWith('a-') ? 'a.' + aKey.slice(2) : (aKey.startsWith('a_') ? 'a.' + aKey.slice(2) : aKey);
 
-        for (const k of [aKey, normKey1, normKey2]) {
+        const rawId = aKey.replace(/^(author[-_]|a[._-])/i, '');
+        const normDot = 'a.' + rawId;
+        const normHyphen = 'a-' + rawId;
+        const normUnderscore = 'a_' + rawId;
+
+        let foundAuthorObj = null;
+        for (const k of [aKey, normDot, normHyphen, normUnderscore, rawId]) {
           if (authorData[k]) {
-            if (authorData[k].name && authorData[k].name !== '组员' && authorData[k].name !== 'unnamed') {
-              authorName = authorData[k].name;
-            }
-            if (authorData[k].colorId !== undefined || authorData[k].color) {
-              authorColor = authorData[k].colorId !== undefined ? authorData[k].colorId : authorData[k].color;
-            }
+            foundAuthorObj = authorData[k];
             break;
+          }
+        }
+        if (!foundAuthorObj) {
+          for (const k of Object.keys(authorData)) {
+            const kRaw = k.replace(/^(author[-_]|a[._-])/i, '');
+            if (k === aKey || (rawId && (kRaw === rawId || k.includes(rawId) || aKey.includes(kRaw)))) {
+              foundAuthorObj = authorData[k];
+              break;
+            }
+          }
+        }
+
+        if (foundAuthorObj) {
+          if (foundAuthorObj.name && foundAuthorObj.name !== '组员' && foundAuthorObj.name !== 'unnamed') {
+            authorName = String(foundAuthorObj.name).trim();
+          }
+          if (foundAuthorObj.colorId !== undefined || foundAuthorObj.color) {
+            authorColor = foundAuthorObj.colorId !== undefined ? foundAuthorObj.colorId : foundAuthorObj.color;
           }
         }
 
         // 1. 如果 authorId 是当前用户的 pad userId
-        if (localAuthorId && (aKey === localAuthorId || normKey1 === localAuthorId || normKey2 === localAuthorId)) {
+        const localAuthorRaw = localAuthorId.replace(/^(author[-_]|a[._-])/i, '');
+        if (localAuthorId && (aKey === localAuthorId || normDot === localAuthorId || (rawId && localAuthorRaw && rawId === localAuthorRaw))) {
           const selfMem = membersList.find(m => currUser && (m.id === currUser.id || m.name === currUser.name)) || membersList[0];
           if (selfMem) {
             assignedAuthors.set(aKey, selfMem);
@@ -1513,8 +1534,8 @@ function renderStage2Canvas(canvas, state, handlers) {
         let matched = membersList.find(m => {
           if (!m) return false;
           if (authorName && (m.name === authorName || m.id === authorName || m.studentCode === authorName)) return true;
-          if (m.name && m.name.length >= 2 && aKey.includes(m.name)) return true;
-          if (m.id && aKey.includes(m.id)) return true;
+          if (m.name && m.name.length >= 2 && (aKey.includes(m.name) || (authorName && authorName.includes(m.name)))) return true;
+          if (m.id && (aKey.includes(m.id) || (authorName && authorName.includes(m.id)))) return true;
           return false;
         });
 
@@ -1547,6 +1568,7 @@ function renderStage2Canvas(canvas, state, handlers) {
       });
 
       // 5. 累计各成员字数
+      let totalAssignedChars = 0;
       Object.keys(rawCounts).forEach(aKey => {
         const count = rawCounts[aKey];
         if (count <= 0) return;
@@ -1554,14 +1576,26 @@ function renderStage2Canvas(canvas, state, handlers) {
         if (targetMember) {
           memberCounts[targetMember.id] = (memberCounts[targetMember.id] || 0) + count;
           if (targetMember.name) memberCounts[targetMember.name] = (memberCounts[targetMember.name] || 0) + count;
-        } else {
+          totalAssignedChars += count;
+        } else if (aKey !== 'unassigned') {
           const target = membersList.find(m => currUser && (m.id === currUser.id || m.name === currUser.name)) || membersList[0];
           if (target) {
             memberCounts[target.id] = (memberCounts[target.id] || 0) + count;
             if (target.name) memberCounts[target.name] = (memberCounts[target.name] || 0) + count;
+            totalAssignedChars += count;
           }
         }
       });
+
+      // 如果有未归属文本 (例如初始模板内容)，且已有成员撰写了内容，若没有任何归属则平分给成员
+      const unassignedChars = rawCounts['unassigned'] || 0;
+      if (unassignedChars > 0 && totalAssignedChars === 0) {
+        const splitCount = Math.floor(unassignedChars / membersList.length);
+        membersList.forEach(m => {
+          memberCounts[m.id] = (memberCounts[m.id] || 0) + splitCount;
+          if (m.name) memberCounts[m.name] = (memberCounts[m.name] || 0) + splitCount;
+        });
+      }
 
       const resObj = {
         total: totalLen,
