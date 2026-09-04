@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260904_v2230";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse } from "./utils.js?v=20260904_v2230";
-import { callCozeAgentAPI } from "./agents.js?v=20260904_v2230";
-import { AuthManager } from "./auth.js?v=20260904_v2230";
-import { CloudSyncEngine } from "./sync.js?v=20260904_v2230";
-import { renderLoginView } from "./login.js?v=20260904_v2230";
-import { renderTeacherPortal } from "./teacher.js?v=20260904_v2230";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260904_v2230";
+} from "./constants.js?v=20260904_v2231";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse } from "./utils.js?v=20260904_v2231";
+import { callCozeAgentAPI } from "./agents.js?v=20260904_v2231";
+import { AuthManager } from "./auth.js?v=20260904_v2231";
+import { CloudSyncEngine } from "./sync.js?v=20260904_v2231";
+import { renderLoginView } from "./login.js?v=20260904_v2231";
+import { renderTeacherPortal } from "./teacher.js?v=20260904_v2231";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260904_v2231";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260904_v2230";
+} from "./editor.js?v=20260904_v2231";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -3139,7 +3139,13 @@ export class App {
     this.handleStepConfirmation('s1_topic', () => this._doExtractTopic(), '主题与研究方案');
   }
 
-  async _doExtractTopic() {
+  async _doExtractTopic(btnElement = null) {
+    if (btnElement && typeof btnElement === 'object' && btnElement.tagName) {
+      btnElement.disabled = true;
+      btnElement.style.opacity = '0.6';
+      btnElement.style.cursor = 'not-allowed';
+      btnElement.innerHTML = `⏳ 正在重新提炼【主题与方案】...`;
+    }
     const s1 = this.state.stage1 || {};
     const s1ChatLogs = (this.state.chatLogs && this.state.chatLogs.stage1) ? this.state.chatLogs.stage1 : [];
     const voteNoticeIdx = s1ChatLogs.findIndex(m => m && m.text && (m.text.includes('投票结果出炉') || m.text.includes('全票通过') || m.text.includes('计票结果') || m.text.includes('落槌')));
@@ -3184,7 +3190,12 @@ ${chatSnippet}
         } catch (je) {
           console.warn('Parse topic & overview JSON fail, fallback', je);
         }
+      } else {
+        throw new Error('Empty topic extraction response');
       }
+
+      // 🛡️ 清理历史残留的主题提炼网络提醒
+      this.state.chatLogs.stage1 = (this.state.chatLogs.stage1 || []).filter(m => !m || !(m.sender === 'auctioneer' && (m.text || '').includes('网络提醒') && (m.text || '').includes('主题与方案')));
 
       s1.mergedTitle = finalTopic;
       if (!s1.contract) s1.contract = {};
@@ -3204,7 +3215,7 @@ ${chatSnippet}
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         _timeMs: Date.now()
       };
-      s1ChatLogs.push(noticeMsg);
+      this.state.chatLogs.stage1.push(noticeMsg);
       if (typeof this.sendSingleChatMessage === 'function') {
         this.sendSingleChatMessage(noticeMsg, 'stage1');
       }
@@ -3216,25 +3227,18 @@ ${chatSnippet}
       renderChat(this.state);
     } catch (e) {
       console.warn('Extract topic & overview error:', e);
-      s1.mergedTitle = currentCandidate;
-      if (!s1.contract) s1.contract = {};
-      s1.contract.topic = currentCandidate;
-      s1.contractStep = 'time';
-
-      const fallbackNotice = {
-        id: 'msg_topic_done_' + Date.now(),
+      const errTopicMsg = {
+        id: 'err_topic_' + Date.now(),
         sender: 'auctioneer',
         senderName: '头脑风暴 · 学术拍卖师',
-        text: `🏛️ 【学术拍卖师·主题与方案确立】：全组研究论题《${currentCandidate}》已成功确立并录入公约看板！👉 接下来请全组在讨论区商讨 6 大章节的时间预算分配，商定完成后点击左侧【⏱️ 时间讨论差不多了？一键提炼【时间分配】】！`,
+        text: `🏛️ 【学术拍卖师·网络提醒】：📡 提炼《研究主题与方案》时网络连接稍有延迟，未能获取到即时草案。<br><button class="btn-retry-ai" onclick="window.app._doExtractTopic(this)" style="margin-top:6px; background:#2563eb; color:#fff; border:none; padding:4px 12px; border-radius:12px; font-size:12px; cursor:pointer; font-weight:700;">🔄 重新提炼【主题与方案】</button>`,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         _timeMs: Date.now()
       };
-      s1ChatLogs.push(fallbackNotice);
+      this.state.chatLogs.stage1.push(errTopicMsg);
       if (typeof this.sendSingleChatMessage === 'function') {
-        this.sendSingleChatMessage(fallbackNotice, 'stage1');
+        this.sendSingleChatMessage(errTopicMsg, 'stage1');
       }
-
-      this.syncStage1();
       this.syncChatLogs();
       if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
       this.renderStudentWorkspace();
@@ -3249,7 +3253,13 @@ ${chatSnippet}
     this.handleStepConfirmation('s1_time', () => this._doExtractTime(), '时间分配');
   }
 
-  async _doExtractTime() {
+  async _doExtractTime(btnElement = null) {
+    if (btnElement && typeof btnElement === 'object' && btnElement.tagName) {
+      btnElement.disabled = true;
+      btnElement.style.opacity = '0.6';
+      btnElement.style.cursor = 'not-allowed';
+      btnElement.innerHTML = `⏳ 正在重新提炼【时间分配】...`;
+    }
     const s1 = this.state.stage1 || {};
     const s1ChatLogs = (this.state.chatLogs && this.state.chatLogs.stage1) ? this.state.chatLogs.stage1 : [];
     const topicNoticeIdx = s1ChatLogs.findIndex(m => m && m.text && (m.text.includes('主题确立') || m.text.includes('时间分配') || m.text.includes('时间规划')));
@@ -3306,7 +3316,12 @@ ${chatSnippet}
         } catch (e) {
           console.warn('Parse time allocation JSON fail, keep default', e);
         }
+      } else {
+        throw new Error('Empty time allocation response');
       }
+
+      // 🛡️ 清理历史残留的时间提炼网络提醒
+      this.state.chatLogs.stage1 = (this.state.chatLogs.stage1 || []).filter(m => !m || !(m.sender === 'auctioneer' && (m.text || '').includes('网络提醒') && (m.text || '').includes('时间')));
 
       if (!s1.contract) s1.contract = {};
       s1.contract.timeAllocations = timeAlloc;
@@ -3323,7 +3338,7 @@ ${chatSnippet}
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         _timeMs: Date.now()
       };
-      s1ChatLogs.push(noticeMsg);
+      this.state.chatLogs.stage1.push(noticeMsg);
       if (typeof this.sendSingleChatMessage === 'function') {
         this.sendSingleChatMessage(noticeMsg, 'stage1');
       }
@@ -3335,24 +3350,18 @@ ${chatSnippet}
       renderChat(this.state);
     } catch (e) {
       console.warn('Extract time error:', e);
-      if (!s1.contract) s1.contract = {};
-      s1.contract.timeAllocations = { background: 25, literature: 30, questions: 25, method: 40, reflection: 20, references: 10 };
-      s1.contractStep = 'tasks';
-
-      const fallbackNotice = {
-        id: 'msg_time_done_' + Date.now(),
+      const errTimeMsg = {
+        id: 'err_time_' + Date.now(),
         sender: 'auctioneer',
         senderName: '头脑风暴 · 学术拍卖师',
-        text: `🏛️ 【学术拍卖师·时间预算确立】：全篇 6 大章节时间预算已成功配置并录入公约看板！👉 接下来请全组在讨论区商定各自负责认领的写作章节与任务分工！商定完成后点击左侧【👥 研讨差不多了？一键提炼任务分工】！`,
+        text: `🏛️ 【学术拍卖师·网络提醒】：📡 提炼《时间预算分配》时网络连接稍有延迟，未能获取到即时分配方案。<br><button class="btn-retry-ai" onclick="window.app._doExtractTime(this)" style="margin-top:6px; background:#2563eb; color:#fff; border:none; padding:4px 12px; border-radius:12px; font-size:12px; cursor:pointer; font-weight:700;">🔄 重新提炼【时间分配】</button>`,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         _timeMs: Date.now()
       };
-      s1ChatLogs.push(fallbackNotice);
+      this.state.chatLogs.stage1.push(errTimeMsg);
       if (typeof this.sendSingleChatMessage === 'function') {
-        this.sendSingleChatMessage(fallbackNotice, 'stage1');
+        this.sendSingleChatMessage(errTimeMsg, 'stage1');
       }
-
-      this.syncStage1();
       this.syncChatLogs();
       if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
       this.renderStudentWorkspace();
@@ -3367,7 +3376,13 @@ ${chatSnippet}
     this.handleStepConfirmation('s1_tasks', () => this._doExtractTasks(), '任务分工');
   }
 
-  async _doExtractTasks() {
+  async _doExtractTasks(btnElement = null) {
+    if (btnElement && typeof btnElement === 'object' && btnElement.tagName) {
+      btnElement.disabled = true;
+      btnElement.style.opacity = '0.6';
+      btnElement.style.cursor = 'not-allowed';
+      btnElement.innerHTML = `⏳ 正在重新提炼【任务分工】...`;
+    }
     const s1 = this.state.stage1 || {};
     let members = [];
     if (Array.isArray(this.state.members)) members = this.state.members;
@@ -3431,7 +3446,12 @@ ${chatSnippet}
             if (parsed && parsed.guideText) guideSpeech = parsed.guideText;
           }
         } catch (e) {}
+      } else {
+        throw new Error('Empty task assignment response');
       }
+
+      // 🛡️ 清理历史残留的分工提炼网络提醒
+      this.state.chatLogs.stage1 = (this.state.chatLogs.stage1 || []).filter(m => !m || !(m.sender === 'auctioneer' && (m.text || '').includes('网络提醒') && (m.text || '').includes('分工')));
 
       if (!s1.contract) s1.contract = {};
       s1.contract.taskAssignments = taskAssignments;
@@ -3445,12 +3465,12 @@ ${chatSnippet}
       const noticeMsg = {
         id: 'msg_tasks_done_' + Date.now(),
         sender: 'auctioneer',
-        senderName: '头脑风暴 · 学术拍卖师',
+        senderName: '头脑风捕 · 学术拍卖师',
         text: noticeText,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         _timeMs: Date.now()
       };
-      s1ChatLogs.push(noticeMsg);
+      this.state.chatLogs.stage1.push(noticeMsg);
       if (typeof this.sendSingleChatMessage === 'function') {
         this.sendSingleChatMessage(noticeMsg, 'stage1');
       }
@@ -3462,23 +3482,18 @@ ${chatSnippet}
       renderChat(this.state);
     } catch (e) {
       console.warn('Extract tasks error:', e);
-      if (!s1.contract) s1.contract = {};
-      s1.contract.isDraftGenerated = true;
-      s1.contractStep = 'completed';
-
-      const fallbackNotice = {
-        id: 'msg_tasks_done_' + Date.now(),
+      const errTasksMsg = {
+        id: 'err_tasks_' + Date.now(),
         sender: 'auctioneer',
         senderName: '头脑风暴 · 学术拍卖师',
-        text: `🏛️ 【学术拍卖师·公约草案就绪】：全组成员写作分工已成功配置，公约草案已全部生成就绪！👉 请全员在左侧下方点击【✍️ 签署确认学术公约】，全员签署后开启阶段二！`,
+        text: `🏛️ 【学术拍卖师·网络提醒】：📡 提炼《全员任务分工》时网络连接稍有延迟，未能获取到即时分工配置。<br><button class="btn-retry-ai" onclick="window.app._doExtractTasks(this)" style="margin-top:6px; background:#2563eb; color:#fff; border:none; padding:4px 12px; border-radius:12px; font-size:12px; cursor:pointer; font-weight:700;">🔄 重新提炼【任务分工】</button>`,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         _timeMs: Date.now()
       };
-      s1ChatLogs.push(fallbackNotice);
+      this.state.chatLogs.stage1.push(errTasksMsg);
       if (typeof this.sendSingleChatMessage === 'function') {
-        this.sendSingleChatMessage(fallbackNotice, 'stage1');
+        this.sendSingleChatMessage(errTasksMsg, 'stage1');
       }
-
       this.syncStage1();
       this.syncChatLogs();
       if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
@@ -3494,7 +3509,13 @@ ${chatSnippet}
     this.handleStepConfirmation('s1_full_contract', () => this._doOneClickGenerateContract(), '提炼生成公约草案');
   }
 
-  async _doOneClickGenerateContract() {
+  async _doOneClickGenerateContract(btnElement = null) {
+    if (btnElement && typeof btnElement === 'object' && btnElement.tagName) {
+      btnElement.disabled = true;
+      btnElement.style.opacity = '0.6';
+      btnElement.style.cursor = 'not-allowed';
+      btnElement.innerHTML = `⏳ 正在重新生成【全套公约草案】...`;
+    }
     const s1 = this.state.stage1 || {};
     if (s1.contractStep === 'completed' || s1.contract?.isDraftGenerated) {
       if (typeof showGlobalBannerNotice === 'function') {
@@ -3658,10 +3679,26 @@ ${instructionSection}
 
     if (!isSuccess) {
       this._contractGenerateFailed = true;
+      const errFullMsg = {
+        id: 'err_full_contract_' + Date.now(),
+        sender: 'auctioneer',
+        senderName: '头脑风暴 · 学术拍卖师',
+        text: `🏛️ 【学术拍卖师·网络提醒】：📡 一键生成《全套公约草案》时网络连接稍有延迟，未能获取到完整草案。<br><button class="btn-retry-ai" onclick="window.app._doOneClickGenerateContract(this)" style="margin-top:6px; background:#2563eb; color:#fff; border:none; padding:4px 12px; border-radius:12px; font-size:12px; cursor:pointer; font-weight:700;">🔄 重新生成【全套公约草案】</button>`,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        _timeMs: Date.now()
+      };
+      this.state.chatLogs.stage1.push(errFullMsg);
+      if (typeof this.sendSingleChatMessage === 'function') {
+        this.sendSingleChatMessage(errFullMsg, 'stage1');
+      }
+      this.syncChatLogs();
+      if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
       if (typeof renderChat === 'function') renderChat(this.state);
-      alert('⚠️ 智能体通信超时或网络连接异常，未能成功提炼生成公约草案！\n\n请检查网络连接后，再次点击【🔄 重新提炼生成公约草案】即可重新调用！\n（您也可以在左侧公约卡片通过分步按钮手动完成拟定）');
       return;
     }
+
+    // 🛡️ 清理历史残留的全套公约草案网络提醒
+    this.state.chatLogs.stage1 = (this.state.chatLogs.stage1 || []).filter(m => !m || !(m.sender === 'auctioneer' && (m.text || '').includes('网络提醒') && (m.text || '').includes('全套公约草案')));
 
     this._contractGenerateFailed = false;
 
