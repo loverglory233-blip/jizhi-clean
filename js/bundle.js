@@ -15671,7 +15671,7 @@
       renderChat(this.state);
 
       const s1ChatLogs = (this.state.chatLogs && this.state.chatLogs.stage1) ? this.state.chatLogs.stage1 : [];
-      // 抓取小组成员在阶段一的全部真实发言（不局限于投票之后，涵盖提案商讨、投票研讨与方案构思）
+      // 抓取小组成员在阶段一的全部真实发言（全量捕获，涵盖提案商讨、投票前后的全部自由研讨）
       const validUserLogs = s1ChatLogs.filter(m => {
         if (!m || !m.text) return false;
         if (m.isThinking) return false;
@@ -15684,7 +15684,7 @@
         const name = m.senderName || m.sender || '组员';
         const cleanText = (m.text || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
         return `${name}: ${cleanText}`;
-      }).filter(line => line.length > 3).join('\n');
+      }).filter(line => line.trim().length > 0).join('\n');
 
       // 抓取小组成员提交的提案详情（包含标题与方案说明）
       const propList = (s1.proposals && Array.isArray(s1.proposals)) ? s1.proposals : [];
@@ -15701,16 +15701,16 @@
 
       const extractPrompt = `【任务指令：请为小组成员提炼规范${isInst ? '教学课题名称' : '论文题目'}与结构化${isInst ? '教学方案概述' : '研究方案概述'}】
 
-  【小组成员提交的提案与构想说明】:
-  ${propDetails || (allPropTitles ? `候选提案: ${allPropTitles}` : '暂无单独提案')}
-
-  【小组成员在讨论区的全部真实研讨发言】:
+  【小组成员在讨论区的全部真实研讨发言（核心事实依据，组员发言为自然非制式交流）】:
   ${chatSnippet || (isInst ? '组员正在商讨具体学情、教学情境与探究建构方法' : '组员正在商讨具体情境、案例与研究方法')}
 
-  【提炼与提取核心要求（最高优先级：高度忠实于组员真实研讨）】：
-  1. 必须深度通读小组成员的上述真实讨论记录与提案详情；
-  2. 提取出组员在讨论中实际提到的具体教学/研究对象、课文/知识点情境、教学探究活动、重难点突破思路（或科学问题、实证方法、数据量表工具）；
-  3. 提炼出 120~200 字的【${isInst ? '教学方案概述' : '研究方案概述'}】，严禁脱离组员讨论泛泛空谈！
+  【小组成员提交的提案参考】:
+  ${propDetails || (allPropTitles ? `候选提案: ${allPropTitles}` : '（组员未单独提交文本提案，主要通过上述聊天区直接研讨）')}
+
+  【提炼与提取核心要求（最高优先级：高度忠实于组员真实非制式研讨）】：
+  1. 真实研讨洞察：小组成员研讨往往是非制式、口语化的，且通常未在提案框中撰写详细文本说明。请务必从上述全部对话记录中，敏锐捕捉组员讨论的实际${isInst ? '教学情境、课文/知识点、活动设想、学情与突破思路' : '研究对象、实践情境、核心问题与实证方法'}；
+  2. 规范提炼【${isInst ? '教学课题' : '论文题目'}】：若组员在聊天或提案中有讨论聚焦的方向，提炼为学术/教学规范的课题名称；
+  3. 忠实提炼 120~200 字【${isInst ? '教学方案概述' : '研究方案概述'}】：必须直接反映组员在聊天中提出的具体想法与研讨要点，严禁脱离组员真实发言输出千篇一律的通用模板套话！
 
   请务必按以下 JSON 格式输出（或严格包含对应字段）：
   {
@@ -15773,16 +15773,19 @@
           throw new Error('Empty topic extraction response');
         }
 
-        // 🛡️ 兜底确保 finalOverview 绝对不为空，并尽可能融入组员真实发言与提案要点
-        const userUtterances = validUserLogs.map(m => (m.text || '').replace(/<[^>]+>/g, '').trim()).filter(t => t.length > 2 && !t.includes('确认')).slice(-6).join('；');
+        // 🛡️ 兜底确保 finalOverview 绝对不为空，并深度萃取组员真实发言
+        const meaningfulUtterances = validUserLogs
+          .map(m => (m.text || '').replace(/<[^>]+>/g, '').trim())
+          .filter(t => t.length > 1 && !t.includes('确认') && !t.includes('公约') && !t.includes('投票'));
+        const userUtterances = meaningfulUtterances.slice(-8).join('；');
         const propDesc = propList.map(p => (p.description || '').replace(/<[^>]+>/g, '').trim()).filter(Boolean).join('；');
-        const actualContext = propDesc || userUtterances;
+        const actualContext = [userUtterances, propDesc].filter(Boolean).join('；');
 
         if (!finalOverview || !finalOverview.trim() || finalOverview.length < 15) {
           if (actualContext) {
             finalOverview = isInst
-              ? `本教学设计围绕《${finalTopic}》展开，深入融合组内研讨思路（${actualContext.slice(0, 90)}...）。立足学情创设真实情境，设计任务驱动与探究建构学生活动，落实教学重难点突破与核心素养培养。`
-              : `本研究围绕《${finalTopic}》展开，系统整合组内研讨重点（${actualContext.slice(0, 90)}...）。明确核心科学问题与变量测量，采用定性与定量实证方法，深入探究关键影响机制与应对策略。`;
+              ? `本教学设计紧扣《${finalTopic}》展开，深度整合组内真实研讨要点（${actualContext.slice(0, 100)}）。立足真实学情创设情境，设计任务驱动与学生活动链，切实落实重难点突破与核心素养培育。`
+              : `本研究围绕《${finalTopic}》展开，系统整合组内研讨思路（${actualContext.slice(0, 100)}）。明确核心问题与实证情境，采用定性与定量分析方法，深入探究关键影响机制与实施路径。`;
           } else {
             finalOverview = isInst 
               ? `本教学设计方案紧扣《${finalTopic}》展开，立足真实学情分析与新课标核心素养目标。全篇采用情境驱动与任务探究相结合的教学模式，设置由浅入深的学生活动链，并配以针对性过程性评价量规与分层作业，确保教学重难点有效突破。`
@@ -15889,22 +15892,21 @@
       renderChat(this.state);
 
       const s1ChatLogs = (this.state.chatLogs && this.state.chatLogs.stage1) ? this.state.chatLogs.stage1 : [];
-      const topicNoticeIdx = s1ChatLogs.findIndex(m => m && m.text && (m.text.includes('主题确立') || m.text.includes('时间分配') || m.text.includes('时间规划')));
-      const relevantLogs = (topicNoticeIdx >= 0) ? s1ChatLogs.slice(topicNoticeIdx) : s1ChatLogs;
-      const userLogs = relevantLogs.filter(m => m && m.sender && !AgentProfiles[m.sender] && m.sender !== 'system');
-      const chatSnippet = userLogs.map(m => `${m.senderName || m.sender}: ${m.text}`).join('\n') || '组员正在商讨时间规划';
+      // 抓取小组成员在阶段一的全部真实发言（全量研讨，不切片截断）
+      const userLogs = s1ChatLogs.filter(m => m && m.sender && !AgentProfiles[m.sender] && m.sender !== 'system' && !m.isThinking && !m.text.startsWith('[IMG_DATA]:'));
+      const chatSnippet = userLogs.map(m => `${m.senderName || m.sender}: ${(m.text || '').replace(/<[^>]+>/g, ' ').trim()}`).filter(l => l.trim().length > 0).join('\n') || '组员正在商讨时间规划';
 
       const allTasks = (this.authManager) ? this.authManager.getTasks() : [];
       const curTask = allTasks.find(t => t.id === this.state.activeTaskId);
       const totalDurationMin = (curTask && curTask.durationMinutes) ? Number(curTask.durationMinutes) : 150;
 
-      const timePrompt = `小组成员已就${isInst ? '教学设计方案 6 大模块' : '学术论文 6 大章节'}的时间预算规划在讨论区展开了充分研讨。
-  【组内关于时间规划与各${isInst ? '模块' : '章节'}侧重的真实研讨记录】:
+      const timePrompt = `小组成员已就${isInst ? '教学设计方案 6 大模块' : '学术论文 6 大章节'}的时间预算规划在讨论区展开了非制式自由研讨。
+  【组内关于时间规划与各${isInst ? '模块' : '章节'}侧重的真实研讨记录（全量记录）】:
   ${chatSnippet}
   【参考${isInst ? '备课设计' : '论文写作'}总时长】: ${totalDurationMin} 分钟
 
   请通读上述真实讨论记录，作为资深${agentRole}：
-  1. 深度分析小组成员的研讨意向与侧重：
+  1. 深度分析小组成员的研讨意向与侧重（组员发言较为自由口语化，请敏锐提炼）：
      - 若组员明确提到了某${isInst ? '模块' : '章节'}分配多少分钟，严格按照组员商定的时间分配；
      - 若组员提到各${isInst ? '模块' : '章节'}“平分”或“均分”，则将总时长平分给各${isInst ? '模块' : '章'}；
      - 若组员提到“重点在${isInst ? '新知探究与建构/情境创设' : '方法/重点在综述'}”，则显著增加对应${isInst ? '模块' : '章节'}的时间权重；
@@ -16049,21 +16051,20 @@
       else if (this.state.members && typeof this.state.members === 'object') members = Object.values(this.state.members);
 
       const s1ChatLogs = (this.state.chatLogs && this.state.chatLogs.stage1) ? this.state.chatLogs.stage1 : [];
-      const timeNoticeIdx = s1ChatLogs.findIndex(m => m && m.text && (m.text.includes('时间预算确立') || m.text.includes('分工')));
-      const relevantLogs = (timeNoticeIdx >= 0) ? s1ChatLogs.slice(timeNoticeIdx) : s1ChatLogs;
-      const userLogs = relevantLogs.filter(m => m && m.sender && !AgentProfiles[m.sender] && m.sender !== 'system');
-      const chatSnippet = userLogs.map(m => `${m.senderName || m.sender}: ${m.text}`).join('\n') || '组员正在商定分工';
+      // 抓取小组成员在阶段一的全部真实发言（全量研讨，不切片截断）
+      const userLogs = s1ChatLogs.filter(m => m && m.sender && !AgentProfiles[m.sender] && m.sender !== 'system' && !m.isThinking && !m.text.startsWith('[IMG_DATA]:'));
+      const chatSnippet = userLogs.map(m => `${m.senderName || m.sender}: ${(m.text || '').replace(/<[^>]+>/g, ' ').trim()}`).filter(l => l.trim().length > 0).join('\n') || '组员正在商定分工';
 
       const membersInfo = members.map(m => `- ${m.name || m.id}`).join('\n');
 
-      const taskPrompt = `小组成员已在讨论区就 6 大${isInst ? '模块' : '章节'}的分工认领展开了商议。
+      const taskPrompt = `小组成员已在讨论区就 6 大${isInst ? '模块' : '章节'}的分工认领展开了非制式自由研讨。
   【小组成员名单】:
   ${membersInfo}
-  【组内关于任务分工的真实研讨记录】:
+  【组内关于任务分工的真实研讨记录（全量记录，发言自由口语化）】:
   ${chatSnippet}
 
-  请通读研讨，作为资深${agentRole}：
-  1. 提炼出每位组员具体负责的${isInst ? '撰写模块' : '写作章节'}与任务描述（如“${isInst ? '负责新知探究与建构、教材学情分析' : '负责研究设计与方法、文献综述'}”）；
+  请通读上述真实讨论记录，作为资深${agentRole}：
+  1. 敏锐提炼出每位组员在聊天中实际认领或倾向负责的${isInst ? '撰写模块' : '写作章节'}与任务描述（如“${isInst ? '负责新知探究与建构、教材学情分析' : '负责研究设计与方法、文献综述'}”）；若组员未明确认领，请根据组员特点合理均衡分配；
   2. 给出 1 句恭喜小结，宣布公约草案已全部生成就绪，提醒全组在下方点击【✍️ 签署确认${contractTitle}】！
   输出格式必须为合法 JSON（严禁多余废话）：
   {
@@ -16203,15 +16204,15 @@
       else if (this.state.members && typeof this.state.members === 'object') members = Object.values(this.state.members);
       const membersList = members.filter(Boolean);
 
-      // 1. 抓取小组成员在阶段一的全部真实发言（不局限于投票之后，涵盖提案商讨、投票研讨与方案构思）
+      // 1. 抓取小组成员在阶段一的全部真实发言（全量研讨，不切片截断）
       const s1ChatLogs = (this.state.chatLogs && this.state.chatLogs.stage1) ? this.state.chatLogs.stage1 : [];
-      const allUserLogs = s1ChatLogs.filter(m => m && m.sender && !AgentProfiles[m.sender] && m.sender !== 'system');
-      const chatSnippet = allUserLogs.map(m => `${m.senderName || m.sender}: ${m.text}`).join('\n');
+      const allUserLogs = s1ChatLogs.filter(m => m && m.sender && !AgentProfiles[m.sender] && m.sender !== 'system' && !m.isThinking && !m.text.startsWith('[IMG_DATA]:'));
+      const chatSnippet = allUserLogs.map(m => `${m.senderName || m.sender}: ${(m.text || '').replace(/<[^>]+>/g, ' ').trim()}`).filter(l => l.trim().length > 0).join('\n');
 
       // 抓取小组成员提交的提案详情（包含标题与方案说明）
       const propDetails = (s1.proposals || []).map((p, idx) => {
         const authorStr = p.authorName ? `(提交人: ${p.authorName})` : '';
-        const descStr = p.description ? `\n   - 构想说明: ${p.description}` : '';
+        const descStr = p.description ? `\n   - 构想说明: ${p.description.replace(/<[^>]+>/g, ' ').trim()}` : '';
         return `【提案${idx + 1}】《${p.title}》${authorStr}${descStr}`;
       }).join('\n');
 
@@ -16295,14 +16296,14 @@
   4. 给出 1 句简短小结提示，提醒全组在左侧公约卡片下方核对并签署确认 (guideText)。`;
       }
 
-      const fullContractPrompt = `小组成员已完成了选题投票，并在讨论区就公约内容展开了研讨。
+      const fullContractPrompt = `小组成员已完成了选题投票，并在讨论区就公约内容展开了非制式自由研讨。
   ${existingContextSection}
   【小组成员名单】:
   ${membersInfo}
-  【小组成员提交的提案与构想】:
-  ${propDetails || '（暂无单独提案文本）'}
-  【小组成员在研讨区的全部真实发言记录】:
-  ${chatSnippet || '（小组成员已达成基本共识，准备进入正文写作）'}
+  【小组成员在研讨区的全部真实发言记录（核心事实依据，发言自由口语化）】:
+  ${chatSnippet || '（小组成员正在讨论区商讨课题构想、时间与分工）'}
+  【小组成员提交的提案参考】:
+  ${propDetails || '（组员未单独提交文本提案，主要通过上述聊天区直接研讨）'}
 
   请作为资深${agentRole}：
   ${instructionSection}
@@ -16418,10 +16419,13 @@
         this.state.chatLogs.stage1 = (this.state.chatLogs.stage1 || []).filter(m => !m || (m.id !== inFlightContractId && !m.isThinking));
       }
 
-      // 🛡️ 兜底确保 finalOverview 绝对不为空，并尽可能融入组员真实发言与提案要点
-      const userUtterances = allUserLogs.map(m => (m.text || '').replace(/<[^>]+>/g, '').trim()).filter(t => t.length > 2 && !t.includes('确认')).slice(-6).join('；');
+      // 🛡️ 兜底确保 finalOverview 绝对不为空，并深度萃取组员真实发言
+      const meaningfulUtterances = allUserLogs
+        .map(m => (m.text || '').replace(/<[^>]+>/g, '').trim())
+        .filter(t => t.length > 1 && !t.includes('确认') && !t.includes('公约') && !t.includes('投票'));
+      const userUtterances = meaningfulUtterances.slice(-8).join('；');
       const propDesc = (s1.proposals || []).map(p => (p.description || '').replace(/<[^>]+>/g, '').trim()).filter(Boolean).join('；');
-      const actualContext = propDesc || userUtterances;
+      const actualContext = [userUtterances, propDesc].filter(Boolean).join('；');
 
       if (!finalOverview || !finalOverview.trim() || finalOverview.length < 15) {
         if (actualContext) {
