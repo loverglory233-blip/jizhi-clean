@@ -16,7 +16,7 @@ TARGET_DIRS=($(printf "%s\n" "${TARGET_DIRS[@]}" | sort -u))
 
 echo "📁 目标目录: ${TARGET_DIRS[*]}"
 
-TARGET_VERSION="20260904_v2505"
+TARGET_VERSION="20260904_v2506"
 
 echo "⚡ [2/4] 极速同步最新代码包 ($TARGET_VERSION)..."
 TMP=/tmp/jizhi_update
@@ -401,24 +401,53 @@ EPSETEOF
   cd "$EP_DIR"
   rm -f var/minified* var/session* var/plugin-definitions.json var/plugins.json 2>/dev/null || true
   export NODE_ENV=production
-  if [ -f "src/node/server.js" ]; then
-    nohup node src/node/server.js > /var/log/etherpad.log 2>&1 &
-  elif [ -f "ep_etherpad-lite/node/server.ts" ]; then
-    cd ep_etherpad-lite
-    nohup node --require tsx/cjs node/server.ts > /var/log/etherpad.log 2>&1 &
-    cd ..
-  elif [ -f "bin/run.sh" ]; then
-    nohup bash bin/run.sh --root > /var/log/etherpad.log 2>&1 &
+
+  NODE_BIN=$(which node 2>/dev/null || true)
+  if [ -z "$NODE_BIN" ]; then
+    for nb in /www/server/nodejs/v*/bin/node /usr/local/bin/node /usr/bin/node; do
+      if [ -x "$nb" ]; then
+        NODE_BIN="$nb"
+        break
+      fi
+    done
   fi
 
+  if [ -f "src/node/server.js" ] && [ -n "$NODE_BIN" ]; then
+    nohup "$NODE_BIN" src/node/server.js > /var/log/etherpad.log 2>&1 &
+  elif [ -f "bin/run.sh" ]; then
+    nohup bash bin/run.sh --root > /var/log/etherpad.log 2>&1 &
+  elif [ -f "node_modules/ep_etherpad-lite/node/server.js" ] && [ -n "$NODE_BIN" ]; then
+    nohup "$NODE_BIN" node_modules/ep_etherpad-lite/node/server.js > /var/log/etherpad.log 2>&1 &
+  fi
+
+  EP_READY=0
   for i in {1..20}; do
     if curl -s -I http://127.0.0.1:9001/p/test 2>/dev/null | grep -E "HTTP/(1.1|2) (200|302|404)" >/dev/null; then
       echo "   🟢 Etherpad 学术全插件协同引擎就绪！(耗时 $i 秒)"
+      EP_READY=1
       break
     fi
     sleep 1
   done
+
+  if [ $EP_READY -eq 0 ]; then
+    echo "   ⚠️ 首选通道拉起中，尝试 bin/run.sh 深度拉起..."
+    if [ -f "bin/run.sh" ]; then
+      nohup bash bin/run.sh --root > /var/log/etherpad.log 2>&1 &
+    fi
+    for i in {1..15}; do
+      if curl -s -I http://127.0.0.1:9001/p/test 2>/dev/null | grep -E "HTTP/(1.1|2) (200|302|404)" >/dev/null; then
+        echo "   🟢 Etherpad (bin/run.sh) 成功拉起就绪！"
+        EP_READY=1
+        break
+      fi
+      sleep 1
+    done
+  fi
 fi
+
+# 重新载入 Nginx 配置并清除反向代理状态
+nginx -t 2>/dev/null && (nginx -s reload 2>/dev/null || systemctl reload nginx 2>/dev/null || true)
 
 # 校验 Nginx 反代连通性
 NGINX_PAD_STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1/p/test 2>/dev/null || echo "000")
