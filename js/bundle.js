@@ -13629,38 +13629,8 @@
             const submittedCount = totalCount - unsubmittedMembers.length;
             const hasUnsubmitted = unsubmittedMembers.length > 0;
 
-            const unsubmittedNames = unsubmittedMembers.map(m => {
-              let fullUser = (typeof m === 'object') ? m : null;
-              if (!fullUser && this.authManager && this.authManager.findUserByKey) {
-                fullUser = this.authManager.findUserByKey(m);
-              }
-              return fullUser?.name || m?.name || m?.id || m;
-            }).join('、');
-
-            // ── 半程打卡：仅 3 分钟（180,000ms）单次点名群聊号召（全场严格仅发 1 次）──
-            const existMeetingNudgeInLogs = s2Chats.some(m => m && (m.text?.includes('半程学术审计会议已发起 3 分钟') || m.text?.includes('半程会议协同号召') || m.text?.includes('半程会议参与提示')));
-            if (!existMeetingNudgeInLogs && hasUnsubmitted && meetingElapsed >= 180000 && !this.state.s2_3mNudgeSent) {
-              this.state.s2_3mNudgeSent = true;
-              this._nudgeCounts['s2_meeting_checkin_3m'] = 1;
-              const taskType = this.getCurrentTaskType();
-              const isInst = (taskType === 'instructional');
-              const managingName = isInst ? '备课组长' : '责任编辑';
-              const msg = {
-                sender: 'managingEditor',
-                senderName: `协同调度 · ${managingName}`,
-                text: `🤝 【${managingName}·半程会议协同号召】：半程学术审计会议已发起 3 分钟啦！目前全组自查进度为【${submittedCount}/${totalCount} 人】，看到 ${unsubmittedNames} 同学尚未完成打卡。请组员们相互提醒并通读全篇完成自查，全员打卡后系统将自动汇总全组智慧生成《半程修正清单》！`,
-                timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                _timeMs: now
-              };
-              if (!this.state.chatLogs.stage2) this.state.chatLogs.stage2 = [];
-              this.state.chatLogs.stage2.push(msg);
-              this.syncChatLogs();
-              if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
-              renderChat(this.state);
-            }
-
-            // 🚀 核心强制弹窗保障：凡是处于阶段二、会议已发起满 3 分钟（180,000ms）、且当前登录学生【尚未完成自查打卡】：
-            // 无论该学生何时切回前台、唤醒休眠或刷新页面，只要当前未打卡且弹窗未打开，立即在屏幕中央强制弹出自查打卡弹窗！
+            // 🚀 核心强制弹窗：会议发起满 3 分钟（180,000ms），凡是当前登录学生【尚未完成自查打卡】：
+            // 无论何时切回或刷新，直接在屏幕正中央强制弹出自查打卡弹窗（不发群聊点名消息，清爽无感）
             const isModalOpen = !!document.querySelector('.modal-overlay');
             if (this.state.currentStage === 'stage2' && isMeetingActive && meetingElapsed >= 180000 && !isMemberSubmitted(currUserObj)) {
               if (!isModalOpen && !this._meetingModalForceShown && typeof this.showMeetingModal === 'function') {
