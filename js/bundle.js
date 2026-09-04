@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260905_v2625
+ * Version: 20260905_v2630
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260905_v2625';
+  const APP_VERSION = '20260905_v2630';
   const APP_BUILD_DATE = '2026-09-05';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -2527,9 +2527,10 @@
 
       const checkMemberMatch = (m) => {
         if (!m) return false;
-        const mId = String(typeof m === 'object' ? (m.id || m.name || '') : m).trim().toLowerCase();
-        const mName = String(typeof m === 'object' ? (m.name || '') : '').trim().toLowerCase();
-        return (uId && mId === uId) || (uName && mName === uName);
+        const mRaw = typeof m === 'object' ? (m.id || m.name || m.studentCode || '') : m;
+        const mStr = String(mRaw || '').trim().toLowerCase();
+        const mNameStr = String((typeof m === 'object' && m.name) ? m.name : mRaw || '').trim().toLowerCase();
+        return (uId && (mStr === uId || mNameStr === uId)) || (uName && (mStr === uName || mNameStr === uName));
       };
 
       // 1. 若指定了班级 ID，仅在指定班级内检索小组
@@ -11361,6 +11362,11 @@
     const isTaskDeadlineExpired = isTaskExpired(currentTask);
     const isFinalSubmitted = !!state.isFinalSubmitted;
     const isEditorReadonly = isTaskDeadlineExpired || isFinalSubmitted;
+
+    if (!userGroupId || userGroupId === 'null' || userGroupId.startsWith('group_unassigned')) {
+      canvas.innerHTML = showResolutionBlock('未检测到您被分配的具体协作小组，请联系教师在教务空间分配小组后再进入');
+      return;
+    }
 
     const rawPadName = `jizhi_${activeTaskId}_${userGroupId}`;
     const padUrl = `/p/${encodeURIComponent(rawPadName)}?userName=${encodeURIComponent(currUserName)}&userColor=${encodeURIComponent(currUserColor)}&showControls=${isEditorReadonly ? 'false' : 'true'}&showChat=false&showLineNumbers=true&lang=zh-hans${isEditorReadonly ? '&readOnly=true' : ''}`;

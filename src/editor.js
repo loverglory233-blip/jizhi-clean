@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260905_v2625";
-import { callCozeAgentAPI } from "./agents.js?v=20260905_v2625";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, showResolutionBlock } from "./utils.js?v=20260905_v2625";
+import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260905_v2630";
+import { callCozeAgentAPI } from "./agents.js?v=20260905_v2630";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, showResolutionBlock } from "./utils.js?v=20260905_v2630";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -1330,6 +1330,11 @@ function renderStage2Canvas(canvas, state, handlers) {
   const isTaskDeadlineExpired = isTaskExpired(currentTask);
   const isFinalSubmitted = !!state.isFinalSubmitted;
   const isEditorReadonly = isTaskDeadlineExpired || isFinalSubmitted;
+
+  if (!userGroupId || userGroupId === 'null' || userGroupId.startsWith('group_unassigned')) {
+    canvas.innerHTML = showResolutionBlock('未检测到您被分配的具体协作小组，请联系教师在教务空间分配小组后再进入');
+    return;
+  }
 
   const rawPadName = `jizhi_${activeTaskId}_${userGroupId}`;
   const padUrl = `/p/${encodeURIComponent(rawPadName)}?userName=${encodeURIComponent(currUserName)}&userColor=${encodeURIComponent(currUserColor)}&showControls=${isEditorReadonly ? 'false' : 'true'}&showChat=false&showLineNumbers=true&lang=zh-hans${isEditorReadonly ? '&readOnly=true' : ''}`;
