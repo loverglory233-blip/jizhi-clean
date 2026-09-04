@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260905_v2670";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse } from "./utils.js?v=20260905_v2670";
-import { callCozeAgentAPI } from "./agents.js?v=20260905_v2670";
-import { AuthManager } from "./auth.js?v=20260905_v2670";
-import { CloudSyncEngine } from "./sync.js?v=20260905_v2670";
-import { renderLoginView } from "./login.js?v=20260905_v2670";
-import { renderTeacherPortal } from "./teacher.js?v=20260905_v2670";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260905_v2670";
+} from "./constants.js?v=20260905_v2671";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse } from "./utils.js?v=20260905_v2671";
+import { callCozeAgentAPI } from "./agents.js?v=20260905_v2671";
+import { AuthManager } from "./auth.js?v=20260905_v2671";
+import { CloudSyncEngine } from "./sync.js?v=20260905_v2671";
+import { renderLoginView } from "./login.js?v=20260905_v2671";
+import { renderTeacherPortal } from "./teacher.js?v=20260905_v2671";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260905_v2671";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260905_v2670";
+} from "./editor.js?v=20260905_v2671";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -475,6 +475,11 @@ export class App {
     }
 
     const currentUser = this.authManager ? this.authManager.getCurrentUser() : null;
+    const activeGroupObj = (this.authManager && effectiveClassId) ? this.authManager.getStudentActiveGroup(currentUser, effectiveClassId) : null;
+    const groupId = (typeof this.getEffectiveGroupId === 'function') ? this.getEffectiveGroupId() : (this.state.activeGroupId || this.cloudSyncEngine?.groupId || activeGroupObj?.id || currentUser?.groupId || null);
+
+    if (!groupId) return;
+
     if (this.cloudSyncEngine && typeof this.cloudSyncEngine.sendPresencePing === 'function') {
       this.cloudSyncEngine.sendPresencePing(currentUser);
     }
@@ -720,28 +725,14 @@ export class App {
             const s1 = this.state.stage1 || {};
             const propList = s1.proposals || [];
             const propCount = propList.length;
-            // ① 开场 3 分钟【左侧无提案 且 右侧无讨论交流】双静默破冰启发
-            const s1Chats = (this.state.chatLogs && this.state.chatLogs.stage1) ? this.state.chatLogs.stage1 : [];
-            const studentChatsCount = s1Chats.filter(m => m && m.sender && !AgentProfiles[m.sender] && m.sender !== 'system').length;
+            // ① 挂机防堆叠守卫：若已经超过 6 分钟，直接发送 6 分钟全员催促，自动跳过过时的 3 分钟破冰
+            const lastNudgeTime = this.state._lastInactivityNudgeTimeMs || 0;
+            const canSendInactivityMsg = (nowMs - lastNudgeTime > 120000);
 
-            if (!this.state.s1_3minBreakSent && elapsedSec >= 180 && propCount === 0 && studentChatsCount === 0) {
+            if (canSendInactivityMsg && elapsedSec >= 360 && propCount === 0 && !this.state.s1_6minNoPropSent) {
               this.state.s1_3minBreakSent = true;
-              const msg3Min = {
-                sender: 'auctioneer',
-                senderName: '头脑风暴 · 学术拍卖师',
-                text: `🎪 【学术拍卖师·头脑风暴协同破冰】：头脑风暴已经开启 3 分钟啦～建议各位研究者在讨论区交流各自的教学关切或学术灵感，相互启发、互相支架！有初步构想随时在左侧【提交提案】卡片提交，全组一起协同打磨！`,
-                timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                _timeMs: nowMs
-              };
-              if (!this.state.chatLogs.stage1) this.state.chatLogs.stage1 = [];
-              this.state.chatLogs.stage1.push(msg3Min);
-              this.syncChatLogs();
-              renderChat(this.state);
-            }
-
-            // ② 开场 6 分钟全员无提案催促（全组 0 篇提案时提醒全组，不点名）
-            if (!this.state.s1_6minNoPropSent && elapsedSec >= 360 && propCount === 0) {
               this.state.s1_6minNoPropSent = true;
+              this.state._lastInactivityNudgeTimeMs = nowMs;
               const msgNoProp = {
                 sender: 'auctioneer',
                 senderName: '头脑风暴 · 学术拍卖师',
@@ -751,7 +742,21 @@ export class App {
               };
               if (!this.state.chatLogs.stage1) this.state.chatLogs.stage1 = [];
               this.state.chatLogs.stage1.push(msgNoProp);
-              this.syncChatLogs();
+              this.syncChatLogs(msgNoProp, 'stage1');
+              renderChat(this.state);
+            } else if (canSendInactivityMsg && elapsedSec >= 180 && elapsedSec < 360 && propCount === 0 && studentChatsCount === 0 && !this.state.s1_3minBreakSent) {
+              this.state.s1_3minBreakSent = true;
+              this.state._lastInactivityNudgeTimeMs = nowMs;
+              const msg3Min = {
+                sender: 'auctioneer',
+                senderName: '头脑风暴 · 学术拍卖师',
+                text: `🎪 【学术拍卖师·头脑风暴协同破冰】：头脑风暴已经开启 3 分钟啦～建议各位研究者在讨论区交流各自的教学关切或学术灵感，相互启发、互相支架！有初步构想随时在左侧【提交提案】卡片提交，全组一起协同打磨！`,
+                timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                _timeMs: nowMs
+              };
+              if (!this.state.chatLogs.stage1) this.state.chatLogs.stage1 = [];
+              this.state.chatLogs.stage1.push(msg3Min);
+              this.syncChatLogs(msg3Min, 'stage1');
               renderChat(this.state);
             }
 
