@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260904_v2255";
-import { callCozeAgentAPI } from "./agents.js?v=20260904_v2255";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, showResolutionBlock } from "./utils.js?v=20260904_v2255";
+import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260904_v2260";
+import { callCozeAgentAPI } from "./agents.js?v=20260904_v2260";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, showResolutionBlock } from "./utils.js?v=20260904_v2260";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -519,7 +519,6 @@ function renderStage1Canvas(canvas, state, handlers) {
               <span>📚 方案核心模块与时间规划 (6 大模块起草):</span>
               <span style="font-size:11.5px; background:#eff6ff; color:#1d4ed8; padding:2px 8px; border-radius:8px; border:1px solid #bfdbfe; font-weight:700;">${genreCfg.icon} ${genreCfg.label}</span>
             </div>
-            <span style="font-size:12px; background:#eff6ff; color:#1d4ed8; padding:2px 10px; border-radius:12px; border:1px solid #bfdbfe; font-weight:800;">⏱️ ${isLargeTask ? '大任务 (8k~1w字 · 总规划时长 300 分钟)' : '中任务 (3k~5k字 · 总规划时长 150 分钟)'}</span>
           </div>
           
           <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
