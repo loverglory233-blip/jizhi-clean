@@ -14,8 +14,8 @@ import {
   DefaultTasks,
   DefaultAnnouncements,
   DefaultReferencePapers
-} from './constants.js?v=20260905_v2662';
-import { formatExportDateTime, formatDurationHuman, isScopeMatch } from './utils.js?v=20260905_v2662';
+} from './constants.js?v=20260905_v2663';
+import { formatExportDateTime, formatDurationHuman, isScopeMatch } from './utils.js?v=20260905_v2663';
 
 export class AuthManager {
   constructor() {
@@ -1735,7 +1735,6 @@ export class AuthManager {
 
     tasks.unshift(newTask);
     localStorage.setItem(STORAGE_KEY_TASKS, JSON.stringify(tasks));
-    this.pushGlobalMeta();
 
     if ('BroadcastChannel' in window) {
       try {
@@ -1744,6 +1743,30 @@ export class AuthManager {
         bc.close();
       } catch (e) {}
     }
+
+    const currUser = this.getCurrentUser();
+    const teacherUserId = currUser?.id || '1001';
+    const teacherToken = currUser?.token || currUser?.activeSessionId || '';
+
+    // ⚡ 极速原子直连落库：毫秒级同步入库 MySQL 与 main_meta 并递增全局版本号
+    fetch('sync.php?action=create_task', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        task: newTask,
+        userId: teacherUserId,
+        token: teacherToken
+      })
+    }).then(async (res) => {
+      if (res.ok) {
+        const data = await res.json().catch(() => ({}));
+        if (data && data.version) {
+          this.globalMetaVersion = parseInt(data.version, 10);
+        }
+      }
+    }).catch(() => {});
+
+    this.pushGlobalMeta();
     return newTask;
   }
 
@@ -1889,8 +1912,6 @@ export class AuthManager {
       localStorage.setItem('jizhi_surveys_list_db', JSON.stringify(surveysList));
     }
 
-    this.pushGlobalMeta();
-
     if ('BroadcastChannel' in window) {
       try {
         const bc = new BroadcastChannel('jizhi_global_events');
@@ -1898,6 +1919,30 @@ export class AuthManager {
         bc.close();
       } catch (e) {}
     }
+
+    const currUser = this.getCurrentUser();
+    const teacherUserId = currUser?.id || '1001';
+    const teacherToken = currUser?.token || currUser?.activeSessionId || '';
+
+    // ⚡ 极速原子直连删除：毫秒级清理 MySQL tasks 与 main_meta 并递增版本号
+    fetch('sync.php?action=delete_task', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        taskId: taskId,
+        userId: teacherUserId,
+        token: teacherToken
+      })
+    }).then(async (res) => {
+      if (res.ok) {
+        const data = await res.json().catch(() => ({}));
+        if (data && data.version) {
+          this.globalMetaVersion = parseInt(data.version, 10);
+        }
+      }
+    }).catch(() => {});
+
+    this.pushGlobalMeta();
   }
 
   publishAnnouncement(taskId, title, content, attachment = null, targetGroupId = 'all', targetGroupName = '全班所有小组', classId = 'all', className = '全校班级', targetGroupIds = ['all'], isSystemAction = false) {

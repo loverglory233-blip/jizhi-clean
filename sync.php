@@ -2216,6 +2216,174 @@ if ($action === 'extend_task_deadline' && $_SERVER['REQUEST_METHOD'] === 'POST')
     exit;
 }
 
+// ⚡ 1.8 任务极速发布直连 API (秒级原子落库 MySQL 与 main_meta，递增全局版本号并广播)
+if ($action === 'create_task' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    header('Content-Type: application/json; charset=utf-8');
+    $rawInput = file_get_contents('php://input');
+    $req = json_decode($rawInput, true) ?: [];
+    $task = $req['task'] ?? null;
+    $reqUserId = trim($req['userId'] ?? ($_GET['userId'] ?? ''));
+    $reqToken = trim($req['token'] ?? ($_GET['token'] ?? ''));
+
+    if (!$task || empty($task['id']) || empty($task['title'])) {
+        echo json_encode(['success' => false, 'message' => '参数不全 (task 缺失或字段不全)']);
+        exit;
+    }
+
+    if (!verifyTeacherSession($reqUserId, $reqToken, $pdo)) {
+        http_response_code(403);
+        echo json_encode(['success' => false, 'error' => '权限不足：仅允许教师发布任务']);
+        exit;
+    }
+
+    if ($pdo) {
+        $stmtMeta = $pdo->prepare("SELECT meta_value FROM global_meta WHERE meta_key = 'main_meta'");
+        $stmtMeta->execute();
+        $mRow = $stmtMeta->fetch();
+        $gm = ($mRow && !empty($mRow['meta_value'])) ? json_decode($mRow['meta_value'], true) : [];
+        if (!is_array($gm)) $gm = [];
+        if (!isset($gm['tasks']) || !is_array($gm['tasks'])) $gm['tasks'] = [];
+
+        // 过滤掉同 ID 任务后将新任务置顶
+        $gm['tasks'] = array_values(array_filter($gm['tasks'], function($t) use ($task) {
+            return !isset($t['id']) || $t['id'] !== $task['id'];
+        }));
+        array_unshift($gm['tasks'], $task);
+
+        // 递增全局版本号
+        $stmtVer = $pdo->prepare("SELECT meta_value FROM global_meta WHERE meta_key = 'main_meta_version'");
+        $stmtVer->execute();
+        $vRow = $stmtVer->fetch();
+        $curVer = $vRow ? intval($vRow['meta_value']) : 1;
+        $newVer = $curVer + 1;
+
+        $gmJson = json_encode($gm, JSON_UNESCAPED_UNICODE);
+        $stmtSave = $pdo->prepare("INSERT INTO global_meta (meta_key, meta_value) VALUES ('main_meta', :v) ON DUPLICATE KEY UPDATE meta_value = :v2");
+        $stmtSave->execute([':v' => $gmJson, ':v2' => $gmJson]);
+
+        $stmtSaveVer = $pdo->prepare("INSERT INTO global_meta (meta_key, meta_value) VALUES ('main_meta_version', :v) ON DUPLICATE KEY UPDATE meta_value = :v2");
+        $stmtSaveVer->execute([':v' => $newVer, ':v2' => $newVer]);
+
+        $nowMs = round(microtime(true) * 1000);
+        $stmtMetaUp = $pdo->prepare("INSERT INTO global_meta (meta_key, meta_value) VALUES ('meta_updated_at', :v) ON DUPLICATE KEY UPDATE meta_value = :v2");
+        $stmtMetaUp->execute([':v' => $nowMs, ':v2' => $nowMs]);
+
+        try {
+            $stmtTaskUpsert = $pdo->prepare("INSERT INTO `tasks` (`id`, `title`, `desc`, `created_at_str`, `deadline`, `duration_minutes`, `target_class_ids`, `attachments`, `status`)
+                VALUES (:id, :title, :desc, :created_at, :deadline, :duration, :cids, :att, :status)
+                ON DUPLICATE KEY UPDATE `title`=VALUES(`title`), `desc`=VALUES(`desc`), `created_at_str`=VALUES(`created_at_str`), `deadline`=VALUES(`deadline`), `duration_minutes`=VALUES(`duration_minutes`), `target_class_ids`=VALUES(`target_class_ids`), `attachments`=VALUES(`attachments`), `status`=VALUES(`status`)");
+            $tid = $task['id'];
+            $ttitle = $task['title'];
+            $tdesc = $task['instructions'] ?? ($task['desc'] ?? '');
+            $tcreated = $task['createdAt'] ?? date('Y-m-d H:i:s');
+            $tdeadline = $task['deadline'] ?? '';
+            $tduration = intval($task['durationMinutes'] ?? 150);
+            $tcids = json_encode($task['targetClassIds'] ?? (isset($task['classId']) ? [$task['classId']] : []), JSON_UNESCAPED_UNICODE);
+            $tatt = json_encode($task['resources'] ?? ($task['attachments'] ?? []), JSON_UNESCAPED_UNICODE);
+            $tstatus = $task['status'] ?? 'in_progress';
+            $stmtTaskUpsert->execute([
+                ':id' => $tid, ':title' => $ttitle, ':desc' => $tdesc, ':created_at' => $tcreated,
+                ':deadline' => $tdeadline, ':duration' => $tduration, ':cids' => $tcids, ':att' => $tatt, ':status' => $tstatus
+            ]);
+        } catch (Exception $e) {}
+
+        @file_put_contents(__DIR__ . '/global_db.json', $gmJson);
+
+        echo json_encode([
+            'success' => true,
+            'version' => $newVer,
+            'task' => $task
+        ], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+    echo json_encode(['success' => false, 'message' => '数据库连接失败']);
+    exit;
+}
+
+// ⚡ 1.9 任务极速删除直连 API (物理清除 MySQL tasks 与 main_meta，递增全局版本号)
+if ($action === 'delete_task' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    header('Content-Type: application/json; charset=utf-8');
+    $rawInput = file_get_contents('php://input');
+    $req = json_decode($rawInput, true) ?: [];
+    $taskId = trim($req['taskId'] ?? '');
+    $reqUserId = trim($req['userId'] ?? ($_GET['userId'] ?? ''));
+    $reqToken = trim($req['token'] ?? ($_GET['token'] ?? ''));
+
+    if (empty($taskId)) {
+        echo json_encode(['success' => false, 'message' => '参数不全 (taskId 缺失)']);
+        exit;
+    }
+
+    if (!verifyTeacherSession($reqUserId, $reqToken, $pdo)) {
+        http_response_code(403);
+        echo json_encode(['success' => false, 'error' => '权限不足：仅允许教师删除任务']);
+        exit;
+    }
+
+    if ($pdo) {
+        $stmtMeta = $pdo->prepare("SELECT meta_value FROM global_meta WHERE meta_key = 'main_meta'");
+        $stmtMeta->execute();
+        $mRow = $stmtMeta->fetch();
+        $gm = ($mRow && !empty($mRow['meta_value'])) ? json_decode($mRow['meta_value'], true) : [];
+        if (!is_array($gm)) $gm = [];
+
+        if (isset($gm['tasks']) && is_array($gm['tasks'])) {
+            $gm['tasks'] = array_values(array_filter($gm['tasks'], function($t) use ($taskId) {
+                return isset($t['id']) && $t['id'] !== $taskId;
+            }));
+        }
+        if (isset($gm['announcements']) && is_array($gm['announcements'])) {
+            $gm['announcements'] = array_values(array_filter($gm['announcements'], function($a) use ($taskId) {
+                return !isset($a['taskId']) || $a['taskId'] !== $taskId;
+            }));
+        }
+        if (isset($gm['referencePapers']) && is_array($gm['referencePapers'])) {
+            $gm['referencePapers'] = array_values(array_filter($gm['referencePapers'], function($p) use ($taskId) {
+                return !isset($p['taskId']) || $p['taskId'] !== $taskId;
+            }));
+        }
+        if (isset($gm['surveys']) && is_array($gm['surveys'])) {
+            $gm['surveys'] = array_values(array_filter($gm['surveys'], function($s) use ($taskId) {
+                return !isset($s['taskId']) || $s['taskId'] !== $taskId;
+            }));
+        }
+
+        // 递增全局版本号
+        $stmtVer = $pdo->prepare("SELECT meta_value FROM global_meta WHERE meta_key = 'main_meta_version'");
+        $stmtVer->execute();
+        $vRow = $stmtVer->fetch();
+        $curVer = $vRow ? intval($vRow['meta_value']) : 1;
+        $newVer = $curVer + 1;
+
+        $gmJson = json_encode($gm, JSON_UNESCAPED_UNICODE);
+        $stmtSave = $pdo->prepare("INSERT INTO global_meta (meta_key, meta_value) VALUES ('main_meta', :v) ON DUPLICATE KEY UPDATE meta_value = :v2");
+        $stmtSave->execute([':v' => $gmJson, ':v2' => $gmJson]);
+
+        $stmtSaveVer = $pdo->prepare("INSERT INTO global_meta (meta_key, meta_value) VALUES ('main_meta_version', :v) ON DUPLICATE KEY UPDATE meta_value = :v2");
+        $stmtSaveVer->execute([':v' => $newVer, ':v2' => $newVer]);
+
+        $nowMs = round(microtime(true) * 1000);
+        $stmtMetaUp = $pdo->prepare("INSERT INTO global_meta (meta_key, meta_value) VALUES ('meta_updated_at', :v) ON DUPLICATE KEY UPDATE meta_value = :v2");
+        $stmtMetaUp->execute([':v' => $nowMs, ':v2' => $nowMs]);
+
+        try {
+            $stmtDel = $pdo->prepare("DELETE FROM tasks WHERE id = :id");
+            $stmtDel->execute([':id' => $taskId]);
+        } catch (Exception $e) {}
+
+        @file_put_contents(__DIR__ . '/global_db.json', $gmJson);
+
+        echo json_encode([
+            'success' => true,
+            'version' => $newVer,
+            'taskId' => $taskId
+        ], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+    echo json_encode(['success' => false, 'message' => '数据库连接失败']);
+    exit;
+}
+
 if ($action === 'save_global_meta' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $rawInput = file_get_contents('php://input');
     if (!empty($rawInput)) {
@@ -2354,13 +2522,15 @@ if ($action === 'save_global_meta' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                     }
                 }
 
-                // 🛡️ 实体表实时入库：将所有任务 tasks 100% 同步 upsert 至 tasks 实体表
+                // 🛡️ 实体表实时入库：将所有任务 tasks 100% 同步 upsert 至 tasks 实体表（物理清理已删除任务）
                 if (isset($decoded['tasks']) && is_array($decoded['tasks'])) {
                     $stmtTaskUpsert = $pdo->prepare("INSERT INTO `tasks` (`id`, `title`, `desc`, `created_at_str`, `deadline`, `duration_minutes`, `target_class_ids`, `attachments`, `status`)
                         VALUES (:id, :title, :desc, :created_at, :deadline, :duration, :cids, :att, :status)
                         ON DUPLICATE KEY UPDATE `title`=VALUES(`title`), `desc`=VALUES(`desc`), `created_at_str`=VALUES(`created_at_str`), `deadline`=VALUES(`deadline`), `duration_minutes`=VALUES(`duration_minutes`), `target_class_ids`=VALUES(`target_class_ids`), `attachments`=VALUES(`attachments`), `status`=VALUES(`status`)");
+                    $validTids = [];
                     foreach ($decoded['tasks'] as $tsk) {
                         $tid = $tsk['id'] ?? ('task_' . uniqid());
+                        $validTids[] = $tid;
                         $ttitle = $tsk['title'] ?? '写作任务';
                         $tdesc = $tsk['instructions'] ?? ($tsk['desc'] ?? '');
                         $tcreated = $tsk['createdAt'] ?? date('Y-m-d H:i:s');
@@ -2373,6 +2543,13 @@ if ($action === 'save_global_meta' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                             ':id' => $tid, ':title' => $ttitle, ':desc' => $tdesc, ':created_at' => $tcreated,
                             ':deadline' => $tdeadline, ':duration' => $tduration, ':cids' => $tcids, ':att' => $tatt, ':status' => $tstatus
                         ]);
+                    }
+                    if (!empty($validTids)) {
+                        $inClause = implode(',', array_fill(0, count($validTids), '?'));
+                        $stmtCleanTasks = $pdo->prepare("DELETE FROM `tasks` WHERE `id` NOT IN ($inClause)");
+                        $stmtCleanTasks->execute($validTids);
+                    } else {
+                        $pdo->exec("DELETE FROM `tasks`");
                     }
                 }
 
