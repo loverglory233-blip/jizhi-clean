@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260904_v2275";
-import { callCozeAgentAPI } from "./agents.js?v=20260904_v2275";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, showResolutionBlock } from "./utils.js?v=20260904_v2275";
+import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260904_v2280";
+import { callCozeAgentAPI } from "./agents.js?v=20260904_v2280";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, showResolutionBlock } from "./utils.js?v=20260904_v2280";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -116,9 +116,9 @@ export function renderHeader(state, currentUser, announcements, onStageChange, o
       </button>
     </div>
     <nav class="stage-nav">
-      <button class="stage-btn ${state.currentStage === 'stage1' ? 'active' : ''}" data-stage="stage1" title="${taskGenreKey === 'instructional' ? '阶段一：备课工作坊' : '阶段一：学术拍卖会'} (25分钟)">🎪 阶段一: ${taskGenreKey === 'instructional' ? '工作坊' : '拍卖会'}</button>
-      <button class="stage-btn ${state.currentStage === 'stage2' ? 'active' : ''} ${isS2Locked ? 'stage-locked' : ''}" data-stage="stage2" style="${isS2Locked ? 'opacity:0.65;' : ''}" title="${isS2Locked ? `🔒 待阶段一${taskGenreKey === 'instructional' ? '备课' : ''}公约签署完成后解锁` : `${taskGenreKey === 'instructional' ? '阶段二：集体备课室' : '阶段二：学术编辑部'} (105分钟)`}">${isS2Locked ? '🔒 ' : ''}📰 阶段二: ${taskGenreKey === 'instructional' ? '备课室' : '编辑部'}</button>
-      <button class="stage-btn ${state.currentStage === 'stage3' ? 'active' : ''} ${isS3Locked ? 'stage-locked' : ''}" data-stage="stage3" style="${isS3Locked ? 'opacity:0.65;' : ''}" title="${isS3Locked ? `🔒 待阶段二${taskGenreKey === 'instructional' ? '磨课会议' : '编辑会议'}与正文完成后解锁` : `${taskGenreKey === 'instructional' ? '阶段三：答辩评审会' : '阶段三：答辩擂台'} (20分钟)`}">${isS3Locked ? '🔒 ' : ''}🎓 阶段三: ${taskGenreKey === 'instructional' ? '评审会' : '答辩擂台'}</button>
+      <button class="stage-btn ${state.currentStage === 'stage1' ? 'active' : ''}" data-stage="stage1" title="${genreCfg.stage1Title}">🎪 阶段一: ${taskGenreKey === 'instructional' ? '工作坊' : '拍卖会'}</button>
+      <button class="stage-btn ${state.currentStage === 'stage2' ? 'active' : ''} ${isS2Locked ? 'stage-locked' : ''}" data-stage="stage2" style="${isS2Locked ? 'opacity:0.65;' : ''}" title="${isS2Locked ? `🔒 待阶段一${taskGenreKey === 'instructional' ? '备课' : ''}公约签署完成后解锁` : genreCfg.stage2Title}">${isS2Locked ? '🔒 ' : ''}📰 阶段二: ${taskGenreKey === 'instructional' ? '备课室' : '编辑部'}</button>
+      <button class="stage-btn ${state.currentStage === 'stage3' ? 'active' : ''} ${isS3Locked ? 'stage-locked' : ''}" data-stage="stage3" style="${isS3Locked ? 'opacity:0.65;' : ''}" title="${isS3Locked ? `🔒 待阶段二${taskGenreKey === 'instructional' ? '磨课会议' : '编辑会议'}与正文完成后解锁` : genreCfg.stage3Title}">${isS3Locked ? '🔒 ' : ''}🎓 阶段三: ${taskGenreKey === 'instructional' ? '评审会' : '答辩擂台'}</button>
     </nav>
     <div class="header-controls">
       <button id="btn-header-survey-link" style="background:#eff6ff; border:1px solid #bfdbfe; color:#2563eb; padding:3px 8px; border-radius:14px; font-size:11px; font-weight:700; cursor:pointer;" title="课程评估问卷">
