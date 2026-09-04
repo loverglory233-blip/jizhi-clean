@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260904_v2542
+ * Version: 20260904_v2543
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260904_v2542';
+  const APP_VERSION = '20260904_v2543';
   const APP_BUILD_DATE = '2026-09-04';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -934,13 +934,31 @@
     if (!iframe) return;
     iframe._isReadonlyEnforced = true;
 
-    // 🛡️ 1. 清理任何历史残留的阻断遮罩（只读模式严禁放置 pointer-events:auto 的遮罩，确保用户可流畅滚动查阅）
+    // 🛡️ 1. 精准区域只读遮罩：覆盖编辑文字主区域，右侧保留 20px 给原生滚动条，杜绝任何输入法(IME)落焦与加字
     const container = iframe.parentElement;
     if (container) {
-      const shields = container.querySelectorAll('.etherpad-readonly-shield');
-      shields.forEach(s => s.remove());
+      let shield = container.querySelector('.etherpad-readonly-shield');
+      if (!shield) {
+        shield = document.createElement('div');
+        shield.className = 'etherpad-readonly-shield';
+        shield.style.cssText = 'position:absolute; top:0; left:0; right:20px; bottom:0; z-index:50; background:transparent; cursor:default; pointer-events:auto;';
+
+        shield.addEventListener('wheel', (e) => {
+          try {
+            const doc = iframe.contentDocument;
+            const aceOuter = doc?.querySelector('iframe[name="ace_outer"]');
+            const outerDoc = aceOuter?.contentDocument;
+            if (outerDoc) {
+              outerDoc.documentElement.scrollTop += e.deltaY;
+              outerDoc.body.scrollTop += e.deltaY;
+            }
+          } catch(err) {}
+        }, { passive: true });
+
+        container.style.position = 'relative';
+        container.appendChild(shield);
+      }
     }
-    document.querySelectorAll('.etherpad-readonly-shield').forEach(s => s.remove());
 
     const tryLock = () => {
       if (!iframe._isReadonlyEnforced) return;
@@ -980,7 +998,7 @@
                   if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'PageUp', 'PageDown', 'Home', 'End'].includes(e.key)) {
                     return;
                   }
-                  if (e.type === 'keydown' || e.type === 'paste' || e.type === 'cut' || e.type === 'beforeinput') {
+                  if (e.type === 'keydown' || e.type === 'paste' || e.type === 'cut' || e.type === 'beforeinput' || e.type === 'input' || e.type === 'compositionstart' || e.type === 'compositionupdate' || e.type === 'compositionend') {
                     e.preventDefault();
                     e.stopPropagation();
                   }
@@ -990,6 +1008,10 @@
               innerDoc.addEventListener('paste', blockEdit, true);
               innerDoc.addEventListener('cut', blockEdit, true);
               innerDoc.addEventListener('beforeinput', blockEdit, true);
+              innerDoc.addEventListener('input', blockEdit, true);
+              innerDoc.addEventListener('compositionstart', blockEdit, true);
+              innerDoc.addEventListener('compositionupdate', blockEdit, true);
+              innerDoc.addEventListener('compositionend', blockEdit, true);
             }
           }
         }
@@ -1001,7 +1023,6 @@
       iframe.addEventListener('load', () => {
         if (iframe._isReadonlyEnforced) {
           tryLock();
-          // 延迟重试以覆盖 Etherpad 内部异步子 iframe 就绪
           [100, 300, 600, 1200].forEach(delay => setTimeout(tryLock, delay));
         } else {
           liftEtherpadReadonly(iframe);
@@ -6684,7 +6705,10 @@
                                     <span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:#10b981;"></span>
                                     <span style="font-weight:700; color:#1e293b;">🔒 教师端正文镜像 (纯净只读阅卷 · 实时协同直连)</span>
                                   </div>
-                                  <span style="font-size:11px; background:#ecfdf5; color:#059669; border:1px solid #a7f3d0; padding:1px 8px; border-radius:4px; font-weight:700;">只读监控</span>
+                                  <div style="display:flex; align-items:center; gap:8px;">
+                                    <span style="font-size:11px; background:#ecfdf5; color:#059669; border:1px solid #a7f3d0; padding:1px 8px; border-radius:4px; font-weight:700;">只读监控</span>
+                                    <button onclick="const f=document.getElementById('teacher-stage2-etherpad-frame'); if(f) f.src=f.src;" style="background:#eff6ff; color:#2563eb; border:1px solid #bfdbfe; padding:2px 8px; border-radius:4px; font-size:11px; cursor:pointer; font-weight:700;">🔄 刷新镜像</button>
+                                  </div>
                                 </div>
                                 <div style="position:relative; flex:1; width:100%; height:100%; min-height:520px; display:flex;">
                                   <iframe id="teacher-stage2-etherpad-frame" data-pad="${targetPad}" src="/p/${encodeURIComponent(targetPad)}?userName=${encodeURIComponent('教师监控')}&userColor=%237c3aed&showControls=false&showChat=false&showLineNumbers=true&lang=zh-hans&readOnly=true" style="flex:1; width:100%; height:100%; min-height:520px; border:none; display:block; background:#ffffff;" title="教师端实时写作同屏镜像 (只读)"></iframe>
@@ -6764,7 +6788,10 @@
                                       <span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:#10b981;"></span>
                                       <span style="font-weight:700; color:#1e293b;">🔒 教师端终稿镜像 (纯净只读阅卷 · 实时协同直连)</span>
                                     </div>
+                                    <div style="display:flex; align-items:center; gap:8px;">
                                     <span style="font-size:11px; background:#ecfdf5; color:#059669; border:1px solid #a7f3d0; padding:1px 8px; border-radius:4px; font-weight:700;">只读监控</span>
+                                    <button onclick="const f=document.getElementById('teacher-stage3-etherpad-frame'); if(f) f.src=f.src;" style="background:#eff6ff; color:#2563eb; border:1px solid #bfdbfe; padding:2px 8px; border-radius:4px; font-size:11px; cursor:pointer; font-weight:700;">🔄 刷新镜像</button>
+                                  </div>
                                   </div>
                                   <div style="position:relative; flex:1; width:100%; height:100%; min-height:520px; display:flex;">
                                     <iframe id="teacher-stage3-etherpad-frame" data-pad="${targetPad}" src="/p/${encodeURIComponent(targetPad)}?userName=${encodeURIComponent('教师监控')}&userColor=%237c3aed&showControls=false&showChat=false&showLineNumbers=true&lang=zh-hans&readOnly=true" style="flex:1; width:100%; height:100%; min-height:520px; border:none; display:block; background:#ffffff;" title="教师端论文终稿同屏镜像 (只读)"></iframe>
@@ -6882,6 +6909,7 @@
     if (tFrame2) {
       if (prevFrame2 && prevFrame2.dataset.pad && prevFrame2.dataset.pad === tFrame2.dataset.pad) {
         tFrame2.replaceWith(prevFrame2);
+        enforceEtherpadReadonly(prevFrame2);
       } else {
         enforceEtherpadReadonly(tFrame2);
       }
@@ -6891,6 +6919,7 @@
     if (tFrame3) {
       if (prevFrame3 && prevFrame3.dataset.pad && prevFrame3.dataset.pad === tFrame3.dataset.pad) {
         tFrame3.replaceWith(prevFrame3);
+        enforceEtherpadReadonly(prevFrame3);
       } else {
         enforceEtherpadReadonly(tFrame3);
       }

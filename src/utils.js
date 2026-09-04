@@ -728,13 +728,31 @@ export function enforceEtherpadReadonly(iframe) {
   if (!iframe) return;
   iframe._isReadonlyEnforced = true;
 
-  // 🛡️ 1. 清理任何历史残留的阻断遮罩（只读模式严禁放置 pointer-events:auto 的遮罩，确保用户可流畅滚动查阅）
+  // 🛡️ 1. 精准区域只读遮罩：覆盖编辑文字主区域，右侧保留 20px 给原生滚动条，杜绝任何输入法(IME)落焦与加字
   const container = iframe.parentElement;
   if (container) {
-    const shields = container.querySelectorAll('.etherpad-readonly-shield');
-    shields.forEach(s => s.remove());
+    let shield = container.querySelector('.etherpad-readonly-shield');
+    if (!shield) {
+      shield = document.createElement('div');
+      shield.className = 'etherpad-readonly-shield';
+      shield.style.cssText = 'position:absolute; top:0; left:0; right:20px; bottom:0; z-index:50; background:transparent; cursor:default; pointer-events:auto;';
+      
+      shield.addEventListener('wheel', (e) => {
+        try {
+          const doc = iframe.contentDocument;
+          const aceOuter = doc?.querySelector('iframe[name="ace_outer"]');
+          const outerDoc = aceOuter?.contentDocument;
+          if (outerDoc) {
+            outerDoc.documentElement.scrollTop += e.deltaY;
+            outerDoc.body.scrollTop += e.deltaY;
+          }
+        } catch(err) {}
+      }, { passive: true });
+
+      container.style.position = 'relative';
+      container.appendChild(shield);
+    }
   }
-  document.querySelectorAll('.etherpad-readonly-shield').forEach(s => s.remove());
 
   const tryLock = () => {
     if (!iframe._isReadonlyEnforced) return;
@@ -774,7 +792,7 @@ export function enforceEtherpadReadonly(iframe) {
                 if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'PageUp', 'PageDown', 'Home', 'End'].includes(e.key)) {
                   return;
                 }
-                if (e.type === 'keydown' || e.type === 'paste' || e.type === 'cut' || e.type === 'beforeinput') {
+                if (e.type === 'keydown' || e.type === 'paste' || e.type === 'cut' || e.type === 'beforeinput' || e.type === 'input' || e.type === 'compositionstart' || e.type === 'compositionupdate' || e.type === 'compositionend') {
                   e.preventDefault();
                   e.stopPropagation();
                 }
@@ -784,6 +802,10 @@ export function enforceEtherpadReadonly(iframe) {
             innerDoc.addEventListener('paste', blockEdit, true);
             innerDoc.addEventListener('cut', blockEdit, true);
             innerDoc.addEventListener('beforeinput', blockEdit, true);
+            innerDoc.addEventListener('input', blockEdit, true);
+            innerDoc.addEventListener('compositionstart', blockEdit, true);
+            innerDoc.addEventListener('compositionupdate', blockEdit, true);
+            innerDoc.addEventListener('compositionend', blockEdit, true);
           }
         }
       }
@@ -795,7 +817,6 @@ export function enforceEtherpadReadonly(iframe) {
     iframe.addEventListener('load', () => {
       if (iframe._isReadonlyEnforced) {
         tryLock();
-        // 延迟重试以覆盖 Etherpad 内部异步子 iframe 就绪
         [100, 300, 600, 1200].forEach(delay => setTimeout(tryLock, delay));
       } else {
         liftEtherpadReadonly(iframe);
