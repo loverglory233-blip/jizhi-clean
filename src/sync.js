@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState } from './constants.js?v=20260904_v2315';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap } from './utils.js?v=20260904_v2315';
+import { InitialState } from './constants.js?v=20260904_v2320';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap } from './utils.js?v=20260904_v2320';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -1265,19 +1265,24 @@ export class CloudSyncEngine {
 
     if (remoteData.stage2 && remoteData.stage2.startTime) {
       if (!this.app.state.stage2) this.app.state.stage2 = {};
-      const remoteS2Start = remoteData.stage2.startTime;
-      if (!this.app.state.stage2.startTime || remoteS2Start < this.app.state.stage2.startTime) {
-        this.app.state.stage2.startTime = remoteS2Start;
-        this.app.stage2StartTime = remoteS2Start;
+      const remoteS2Start = Number(remoteData.stage2.startTime);
+      const s1ConfTime = Number(this.app.state.stage1?.contract?._confirmedTime || 0);
+      if (remoteS2Start > 0 && (s1ConfTime === 0 || remoteS2Start >= (s1ConfTime - 60000))) {
+        if (!this.app.state.stage2.startTime) {
+          this.app.state.stage2.startTime = remoteS2Start;
+          this.app.stage2StartTime = remoteS2Start;
+        }
       }
     }
 
     if (remoteData.stage3 && remoteData.stage3.startTime) {
       if (!this.app.state.stage3) this.app.state.stage3 = {};
-      const remoteS3Start = remoteData.stage3.startTime;
-      if (!this.app.state.stage3.startTime || remoteS3Start < this.app.state.stage3.startTime) {
-        this.app.state.stage3.startTime = remoteS3Start;
-        this.app.stage3StartTime = remoteS3Start;
+      const remoteS3Start = Number(remoteData.stage3.startTime);
+      if (remoteS3Start > 0) {
+        if (!this.app.state.stage3.startTime) {
+          this.app.state.stage3.startTime = remoteS3Start;
+          this.app.stage3StartTime = remoteS3Start;
+        }
       }
     }
 
