@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260904_v2239";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse } from "./utils.js?v=20260904_v2239";
-import { callCozeAgentAPI } from "./agents.js?v=20260904_v2239";
-import { AuthManager } from "./auth.js?v=20260904_v2239";
-import { CloudSyncEngine } from "./sync.js?v=20260904_v2239";
-import { renderLoginView } from "./login.js?v=20260904_v2239";
-import { renderTeacherPortal } from "./teacher.js?v=20260904_v2239";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260904_v2239";
+} from "./constants.js?v=20260904_v2240";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse } from "./utils.js?v=20260904_v2240";
+import { callCozeAgentAPI } from "./agents.js?v=20260904_v2240";
+import { AuthManager } from "./auth.js?v=20260904_v2240";
+import { CloudSyncEngine } from "./sync.js?v=20260904_v2240";
+import { renderLoginView } from "./login.js?v=20260904_v2240";
+import { renderTeacherPortal } from "./teacher.js?v=20260904_v2240";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260904_v2240";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260904_v2239";
+} from "./editor.js?v=20260904_v2240";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -3217,35 +3217,51 @@ ${votedDetails}
 
     const s1ChatLogs = (this.state.chatLogs && this.state.chatLogs.stage1) ? this.state.chatLogs.stage1 : [];
     // 抓取小组成员在阶段一的全部真实发言（不局限于投票之后，涵盖提案商讨、投票研讨与方案构思）
-    const allUserLogs = s1ChatLogs.filter(m => m && m.sender && !AgentProfiles[m.sender] && m.sender !== 'system');
-    const chatSnippet = allUserLogs.map(m => `${m.senderName || m.sender}: ${m.text}`).join('\n');
+    const validUserLogs = s1ChatLogs.filter(m => {
+      if (!m || !m.text) return false;
+      if (m.isThinking) return false;
+      if (m.sender === 'system' || AgentProfiles[m.sender]) return false;
+      if (m.text.startsWith('[IMG_DATA]:')) return false;
+      if (m.text.includes('【投票结果出炉】') || m.text.includes('【公约草案就绪】')) return false;
+      return true;
+    });
+    const chatSnippet = validUserLogs.map(m => {
+      const name = m.senderName || m.sender || '组员';
+      const cleanText = (m.text || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+      return `${name}: ${cleanText}`;
+    }).filter(line => line.length > 3).join('\n');
 
     // 抓取小组成员提交的提案详情（包含标题与方案说明）
-    const propDetails = (s1.proposals || []).map((p, idx) => {
-      const authorStr = p.authorName ? `(提交人: ${p.authorName})` : '';
-      const descStr = p.description ? `\n   - 构想说明: ${p.description}` : '';
-      return `【提案${idx + 1}】《${p.title}》${authorStr}${descStr}`;
+    const propList = (s1.proposals && Array.isArray(s1.proposals)) ? s1.proposals : [];
+    const propDetails = propList.map((p, idx) => {
+      const authorStr = p.authorName ? ` (提交人: ${p.authorName})` : (p.author ? ` (提交人: ${p.author})` : '');
+      const titleStr = p.title ? p.title.replace(/["'《》]/g, '').trim() : `提案${idx + 1}`;
+      const descStr = p.description ? `\n   - 方案设想与说明: ${p.description.replace(/<[^>]+>/g, ' ').trim()}` : '';
+      return `【提案${idx + 1}】《${titleStr}》${authorStr}${descStr}`;
     }).join('\n');
 
     const defaultCandidateFallback = isInst ? '优质课教学设计方案' : '学术协同研究课题';
-    const currentCandidate = s1.mergedTitle || s1.contract?.topic || s1.proposals?.[0]?.title || defaultCandidateFallback;
-    const allPropTitles = (s1.proposals || []).map(p => `《${p.title}》`).join('、');
+    const currentCandidate = s1.mergedTitle || s1.contract?.topic || (propList[0] ? propList[0].title : defaultCandidateFallback);
+    const allPropTitles = propList.map(p => `《${p.title}》`).join('、');
 
-    const extractPrompt = `小组成员已在讨论区就${isInst ? '教学设计课题及具体的教学方案' : '论文研究主题及具体的研究方案'}展开了研讨。
-【小组成员提交的提案与构想】:
-${propDetails || (allPropTitles ? `候选提案: ${allPropTitles}` : '多方提案')}
-【小组成员在研讨区的全部真实发言研讨记录】:
+    const extractPrompt = `【任务指令：请为小组成员提炼规范${isInst ? '教学课题名称' : '论文题目'}与结构化${isInst ? '教学方案概述' : '研究方案概述'}】
+
+【小组成员提交的提案与构想说明】:
+${propDetails || (allPropTitles ? `候选提案: ${allPropTitles}` : '暂无单独提案')}
+
+【小组成员在讨论区的全部真实研讨发言】:
 ${chatSnippet || (isInst ? '组员正在商讨具体学情、教学情境与探究建构方法' : '组员正在商讨具体情境、案例与研究方法')}
 
-请通读研讨，作为资深${agentRole}：
-1. 【提炼规范${isInst ? '教学课题名称' : '论文题目'}】：深度结合组员在研讨区提及的具体方向与核心关注点，提炼或规范化润色全组最终商定的严谨${isInst ? '优质课教学设计课题名称' : '学术论文题名'}（20~35字，极具${isInst ? '教学规范性与新课标导向' : '学术规范性'}，无书名号）；
-2. 【提取提炼${isInst ? '教学方案概述' : '研究方案概述'}（核心重点）】：务必直接提取并高度忠实反映组员在讨论区和提案中实际提及的具体教学/研究对象、课文/知识点情境、教学探究活动设计、重难点突破思路（或科学问题、实证方法、数据量表工具），提炼整合为 120~200 字的【${isInst ? '教学方案概述' : '研究方案概述'}】（严禁脱离组员讨论泛泛空谈，必须真实体现组员研讨要点！）；
-3. 【顺承引导】：给出 1 句简明点拨，顺承引导全组在讨论区商讨 6 大${isInst ? '模块' : '章节'}的时间预算分配！
-输出格式必须为合法 JSON（严禁代码块以外的多余废话）：
+【提炼与提取核心要求（最高优先级：高度忠实于组员真实研讨）】：
+1. 必须深度通读小组成员的上述真实讨论记录与提案详情；
+2. 提取出组员在讨论中实际提到的具体教学/研究对象、课文/知识点情境、教学探究活动、重难点突破思路（或科学问题、实证方法、数据量表工具）；
+3. 提炼出 120~200 字的【${isInst ? '教学方案概述' : '研究方案概述'}】，严禁脱离组员讨论泛泛空谈！
+
+请务必按以下 JSON 格式输出（或严格包含对应字段）：
 {
   "topic": "提炼后的规范${isInst ? '教学课题' : '论文题目'}",
-  "overview": "提炼后的${isInst ? '教学方案概述，涵盖学情情境、教学目标重难点与探究活动' : '研究方案概述，涵盖情境案例、核心问题与方法'}",
-  "guideText": "${isInst ? '教学课题与教学方案概述' : '论文主题与研究方案概述'}已成功生成并录入公约！接下来请全组在讨论区商讨 6 大${isInst ? '模块' : '章节'}的时间预算分配，商定后点击【⏱️ 时间讨论差不多了？一键提炼【时间分配】】！"
+  "overview": "根据上述组员真实讨论提炼的${isInst ? '教学方案概述（涵盖学情情境、教学目标重难点与探究建构活动）' : '研究方案概述（涵盖情境案例、核心科学问题与实证研究方法）'}",
+  "guideText": "${isInst ? '教学课题与教学方案概述' : '论文主题与研究方案概述'}已成功生成并录入公约看板！接下来请全组在讨论区商讨 6 大${isInst ? '模块' : '章节'}的时间预算分配，商定后点击【⏱️ 时间讨论差不多了？一键提炼【时间分配】】！"
 }`;
 
     try {
@@ -3256,18 +3272,44 @@ ${chatSnippet || (isInst ? '组员正在商讨具体学情、教学情境与探�
 
       if (resp && resp.trim().length > 0) {
         try {
-          const jsonMatch = resp.match(/\{[\s\S]*\}/);
+          // 1. 先尝试清洗代码块标记并解析标准 JSON
+          let cleanedResp = resp.replace(/```(?:json)?\s*/gi, '').replace(/```\s*$/gi, '').trim();
+          const jsonMatch = cleanedResp.match(/\{[\s\S]*\}/);
           if (jsonMatch) {
-            const parsed = safeJsonParse(jsonMatch[0]);
-            if (parsed && parsed.topic && parsed.topic.trim().length > 0) finalTopic = parsed.topic.trim().replace(/^《|》$/g, '');
-            if (parsed && parsed.overview && parsed.overview.trim().length > 0) finalOverview = parsed.overview.trim();
-            if (parsed && parsed.guideText) guideSpeech = parsed.guideText;
-          } else {
-            // 🛡️ 兼容 Markdown / 纯文本非 JSON 输出
-            const tMatch = resp.match(/(?:课题|题目|主题|topic)[：:\s]*([^\n\r]+)/i);
-            if (tMatch && tMatch[1]) finalTopic = tMatch[1].replace(/["'《》]/g, '').trim();
-            const oMatch = resp.match(/(?:方案概述|教学方案|研究方案|总体构想|方案设计|overview)[：:\s]*([\s\S]+?)(?:guideText|【|3\.|\n\n\n|$)/i);
-            if (oMatch && oMatch[1] && oMatch[1].trim().length > 10) finalOverview = oMatch[1].trim();
+            let jsonStr = jsonMatch[0];
+            let parsed = safeJsonParse(jsonStr);
+            if (!parsed) {
+              // 尝试修复未转义换行符引起的 JSON 解析失败
+              try {
+                const fixedJson = jsonStr.replace(/"((?:\\.|[^"\\])*)"/g, (match, p1) => {
+                  return '"' + p1.replace(/\n/g, '\\n').replace(/\r/g, '\\r').replace(/\t/g, '\\t') + '"';
+                });
+                parsed = safeJsonParse(fixedJson);
+              } catch (fixErr) {}
+            }
+            if (parsed) {
+              const matchedTopic = parsed.topic || parsed.title || parsed.theme || parsed.name;
+              const matchedOverview = parsed.overview || parsed.summary || parsed.description || parsed.scheme || parsed.plan || parsed.researchOverview || parsed.instructionalOverview;
+              if (matchedTopic && typeof matchedTopic === 'string' && matchedTopic.trim().length > 0) {
+                finalTopic = matchedTopic.trim().replace(/^《|》$/g, '');
+              }
+              if (matchedOverview && typeof matchedOverview === 'string' && matchedOverview.trim().length > 0) {
+                finalOverview = matchedOverview.trim();
+              }
+              if (parsed.guideText || parsed.guide) guideSpeech = parsed.guideText || parsed.guide;
+            }
+          }
+
+          // 2. 若 JSON 方式未能提取出 overview，无论是否有 jsonMatch，均无缝进入多级正则容错与自然语言抽取
+          if (!finalOverview || !finalOverview.trim()) {
+            const tMatch = resp.match(/(?:【(?:教学)?(?:研究)?(?:课题|题目|主题|topic)】|(?:课题|题目|主题|topic)[：:\s]*)[《“"]?([^》”"\n\r]+)[》”"]?/i);
+            if (tMatch && tMatch[1] && tMatch[1].trim().length > 3) {
+              finalTopic = tMatch[1].replace(/["'《》]/g, '').trim();
+            }
+            const oMatch = resp.match(/(?:【(?:教学)?(?:研究)?方案概述】|【方案设计】|【总体构想】|(?:方案概述|教学方案|研究方案|总体构想|方案设计|overview)[：:\s]*)([\s\S]+?)(?=\n\s*【|\n\s*[234]\.|\n\s*guideText|\n\s*"|$)/i);
+            if (oMatch && oMatch[1] && oMatch[1].trim().length > 10) {
+              finalOverview = oMatch[1].replace(/^["'：:\s]+|["'，,。;\s]+$/g, '').trim();
+            }
           }
         } catch (je) {
           console.warn('Parse topic & overview JSON fail, use synthesized fallback', je);
@@ -3277,8 +3319,8 @@ ${chatSnippet || (isInst ? '组员正在商讨具体学情、教学情境与探�
       }
 
       // 🛡️ 兜底确保 finalOverview 绝对不为空，并尽可能融入组员真实发言与提案要点
-      const userUtterances = allUserLogs.map(m => (m.text || '').trim()).filter(t => t.length > 2 && !t.includes('确认')).slice(-6).join('；');
-      const propDesc = (s1.proposals || []).map(p => (p.description || '').trim()).filter(Boolean).join('；');
+      const userUtterances = validUserLogs.map(m => (m.text || '').replace(/<[^>]+>/g, '').trim()).filter(t => t.length > 2 && !t.includes('确认')).slice(-6).join('；');
+      const propDesc = propList.map(p => (p.description || '').replace(/<[^>]+>/g, '').trim()).filter(Boolean).join('；');
       const actualContext = propDesc || userUtterances;
 
       if (!finalOverview || !finalOverview.trim() || finalOverview.length < 15) {
@@ -3861,36 +3903,57 @@ ${instructionSection}
     try {
       const resp = await callCozeAgentAPI('auctioneer', fullContractPrompt, { stage: 'stage1', topic: defaultTopic });
       if (resp && resp.trim().length > 0) {
-        const jsonMatch = resp.match(/\{[\s\S]*\}/);
-        if (jsonMatch) {
-          const parsed = safeJsonParse(jsonMatch[0]);
-          if (parsed) {
-            if (!hasExistingTopic && parsed.topic && parsed.topic.trim()) {
-              finalTopic = parsed.topic.trim();
+        try {
+          let cleanedResp = resp.replace(/```(?:json)?\s*/gi, '').replace(/```\s*$/gi, '').trim();
+          const jsonMatch = cleanedResp.match(/\{[\s\S]*\}/);
+          if (jsonMatch) {
+            let jsonStr = jsonMatch[0];
+            let parsed = safeJsonParse(jsonStr);
+            if (!parsed) {
+              try {
+                const fixedJson = jsonStr.replace(/"((?:\\.|[^"\\])*)"/g, (match, p1) => {
+                  return '"' + p1.replace(/\n/g, '\\n').replace(/\r/g, '\\r').replace(/\t/g, '\\t') + '"';
+                });
+                parsed = safeJsonParse(fixedJson);
+              } catch (fixErr) {}
             }
-            if (!hasExistingTopic && parsed.overview && parsed.overview.trim()) {
-              finalOverview = parsed.overview.trim();
+            if (parsed) {
+              const matchedTopic = parsed.topic || parsed.title || parsed.theme || parsed.name;
+              const matchedOverview = parsed.overview || parsed.summary || parsed.description || parsed.scheme || parsed.plan || parsed.researchOverview || parsed.instructionalOverview;
+              if (!hasExistingTopic && matchedTopic && typeof matchedTopic === 'string' && matchedTopic.trim().length > 0) {
+                finalTopic = matchedTopic.trim().replace(/^《|》$/g, '');
+              }
+              if (!hasExistingTopic && matchedOverview && typeof matchedOverview === 'string' && matchedOverview.trim().length > 0) {
+                finalOverview = matchedOverview.trim();
+              }
+              if (!hasExistingTime && parsed.timeAllocations && typeof parsed.timeAllocations === 'object') {
+                finalTimes = Object.assign({}, defaultTimes, parsed.timeAllocations);
+              }
+              if (parsed.assignments && typeof parsed.assignments === 'object') {
+                membersList.forEach((m, idx) => {
+                  const mKey = m.id || m.name;
+                  const matchedVal = parsed.assignments[m.name] || parsed.assignments[m.id];
+                  if (matchedVal) finalAssignments[mKey] = matchedVal;
+                });
+              }
+              isSuccess = true;
             }
-            if (!hasExistingTime && parsed.timeAllocations && typeof parsed.timeAllocations === 'object') {
-              finalTimes = Object.assign({}, defaultTimes, parsed.timeAllocations);
-            }
-            if (parsed.assignments && typeof parsed.assignments === 'object') {
-              membersList.forEach((m, idx) => {
-                const mKey = m.id || m.name;
-                const matchedVal = parsed.assignments[m.name] || parsed.assignments[m.id];
-                if (matchedVal) finalAssignments[mKey] = matchedVal;
-              });
-            }
-            isSuccess = true;
           }
-        }
-        // 非JSON正则补救提取
-        if (!isSuccess) {
-          const topicMatch = resp.match(/(?:课题|主题|题目|topic)[：:\s]*《?([^》\n\r]+)》?/i);
-          if (topicMatch && topicMatch[1] && !hasExistingTopic) finalTopic = topicMatch[1].trim();
-          const overviewMatch = resp.match(/(?:方案概述|教学方案|研究方案|总体构想|方案设计|overview)[：:\s]*([\s\S]+?)(?:guideText|【|3\.|\n\n\n|$)/i);
-          if (overviewMatch && overviewMatch[1] && !hasExistingTopic && overviewMatch[1].trim().length > 10) finalOverview = overviewMatch[1].trim();
-          isSuccess = true;
+
+          // 2. 若 JSON 方式未能提取出 overview，无论是否有 jsonMatch，均无缝进入多级正则容错与自然语言抽取
+          if (!finalOverview || !finalOverview.trim()) {
+            const tMatch = resp.match(/(?:【(?:教学)?(?:研究)?(?:课题|题目|主题|topic)】|(?:课题|题目|主题|topic)[：:\s]*)[《“"]?([^》”"\n\r]+)[》”"]?/i);
+            if (tMatch && tMatch[1] && !hasExistingTopic && tMatch[1].trim().length > 3) {
+              finalTopic = tMatch[1].replace(/["'《》]/g, '').trim();
+            }
+            const oMatch = resp.match(/(?:【(?:教学)?(?:研究)?方案概述】|【方案设计】|【总体构想】|(?:方案概述|教学方案|研究方案|总体构想|方案设计|overview)[：:\s]*)([\s\S]+?)(?=\n\s*【|\n\s*[234]\.|\n\s*guideText|\n\s*"|$)/i);
+            if (oMatch && oMatch[1] && !hasExistingTopic && oMatch[1].trim().length > 10) {
+              finalOverview = oMatch[1].replace(/^["'：:\s]+|["'，,。;\s]+$/g, '').trim();
+              isSuccess = true;
+            }
+          }
+        } catch (je) {
+          console.warn('One-click generate parse fail, fallback', je);
         }
       }
     } catch (err) {
@@ -3901,8 +3964,8 @@ ${instructionSection}
     }
 
     // 🛡️ 兜底确保 finalOverview 绝对不为空，并尽可能融入组员真实发言与提案要点
-    const userUtterances = allUserLogs.map(m => (m.text || '').trim()).filter(t => t.length > 2 && !t.includes('确认')).slice(-6).join('；');
-    const propDesc = (s1.proposals || []).map(p => (p.description || '').trim()).filter(Boolean).join('；');
+    const userUtterances = allUserLogs.map(m => (m.text || '').replace(/<[^>]+>/g, '').trim()).filter(t => t.length > 2 && !t.includes('确认')).slice(-6).join('；');
+    const propDesc = (s1.proposals || []).map(p => (p.description || '').replace(/<[^>]+>/g, '').trim()).filter(Boolean).join('；');
     const actualContext = propDesc || userUtterances;
 
     if (!finalOverview || !finalOverview.trim() || finalOverview.length < 15) {
