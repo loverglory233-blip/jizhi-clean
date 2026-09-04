@@ -14,8 +14,8 @@ import {
   DefaultTasks,
   DefaultAnnouncements,
   DefaultReferencePapers
-} from './constants.js?v=20260905_v2802';
-import { formatExportDateTime, formatDurationHuman, isScopeMatch, showGlobalBannerNotice } from './utils.js?v=20260905_v2802';
+} from './constants.js?v=20260905_v2803';
+import { formatExportDateTime, formatDurationHuman, isScopeMatch, showGlobalBannerNotice } from './utils.js?v=20260905_v2803';
 
 export class AuthManager {
   constructor() {
@@ -208,7 +208,7 @@ export class AuthManager {
     return null;
   }
 
-  async pullGlobalMeta() {
+  async pullGlobalMeta(force = false) {
     if (this._isPullingMeta) return;
     // 🛡️ 教师推送在途时挂起本次拉取，避免用过期云端数据反向覆盖本地刚写入的新数据（导入学生/建组后被清空的根因）
     if (this._pushInFlight) {
@@ -220,8 +220,9 @@ export class AuthManager {
       const currUser = this.getCurrentUser();
       const userKey = currUser ? currUser.id : '';
       const sessToken = currUser ? (currUser.activeSessionId || currUser.token || '') : '';
-      const clientVer = this.globalMetaVersion || 0;
-      const res = await fetch(`sync.php?action=get_global_meta&ver=${clientVer}&userId=${encodeURIComponent(userKey)}&sessToken=${encodeURIComponent(sessToken)}&nocache=${Date.now()}`);
+      const clientVer = force ? 0 : (this.globalMetaVersion || 0);
+      const forceParam = force ? '&force=1' : '';
+      const res = await fetch(`sync.php?action=get_global_meta&ver=${clientVer}&userId=${encodeURIComponent(userKey)}&sessToken=${encodeURIComponent(sessToken)}${forceParam}&nocache=${Date.now()}`);
       if (res.ok) {
         const data = await res.json();
         if (data && data.kicked) {
@@ -446,11 +447,25 @@ export class AuthManager {
             localStorage.setItem(STORAGE_KEY_ANNOUNCEMENTS, JSON.stringify(mergedAnns));
 
             // ⚡ 异步元数据到达瞬间：纯前端 DOM 局部更新通知红点与未读弹窗（0 网络请求，0 数据上传）
-            if (window.app && typeof window.app.renderHeader === 'function' && window.app.state && window.app.state.studentViewMode === 'workspace') {
-              window.app.renderHeader();
-            }
-            if (window.app && typeof window.app.checkUnreadAnnouncements === 'function' && window.app.state && window.app.state.studentViewMode === 'workspace') {
-              window.app.checkUnreadAnnouncements();
+            const appInst = window.app || (typeof this.app !== 'undefined' ? this.app : null);
+            if (appInst) {
+              if (typeof appInst.renderHeader === 'function' && appInst.state && appInst.state.studentViewMode === 'workspace') {
+                appInst.renderHeader();
+              }
+              if (typeof appInst.checkUnreadAnnouncements === 'function') {
+                appInst.checkUnreadAnnouncements();
+              }
+              // 如果当前打开了通知弹窗，实时响应关闭已删除通知或刷新列表
+              const openModal = document.querySelector('.modal-announcement-popup');
+              if (openModal) {
+                const openAnnId = openModal.dataset.annId;
+                if (openAnnId && openAnnId !== 'list') {
+                  const annStillExists = mergedAnns.some(a => a.id === openAnnId);
+                  if (!annStillExists) openModal.remove();
+                } else if (openAnnId === 'list' && typeof appInst.showAnnouncementModal === 'function') {
+                  appInst.showAnnouncementModal();
+                }
+              }
             }
           }
 
@@ -488,19 +503,19 @@ export class AuthManager {
             localStorage.setItem('jizhi_reference_papers_db', JSON.stringify(mergedPapers));
             localStorage.setItem('jizhi_pure_v10_ref_papers_db', JSON.stringify(mergedPapers));
 
-            // ⚡ 实时检查是否有新文献下发并提醒
+            // ⚡ 实时检查是否有新文献下发并提醒与就地重渲染
             const newPapers = mergedPapers.filter(p => p && p.id && !oldIds.has(p.id));
             const appInst = window.app || (typeof this.app !== 'undefined' ? this.app : null);
-            if (appInst && appInst.state && appInst.state.studentViewMode === 'workspace') {
+            if (appInst) {
               const currentUser = currUser;
-              const groupId = appInst.state.activeGroupId || (currentUser ? currentUser.groupId : null);
-              const classId = appInst.state.activeStudentClassId || (currentUser ? currentUser.classId : null);
-              const available = this.getReferencePapers(groupId, classId, appInst.state.activeTaskId);
+              const groupId = appInst.state?.activeGroupId || (currentUser ? currentUser.groupId : null);
+              const classId = appInst.state?.activeStudentClassId || (currentUser ? currentUser.classId : null);
+              const available = this.getReferencePapers(groupId, classId, appInst.state?.activeTaskId);
               const refBtn = document.getElementById('btn-show-case') || document.getElementById('btn-view-reference-papers') || document.querySelector('.btn-view-ref-papers');
               if (refBtn) {
                 refBtn.innerText = available.length > 0 ? `📚 查阅参考范文 (${available.length}篇)` : '📚 查阅参考范文库';
               }
-              if (newPapers.length > 0) {
+              if (appInst.state && appInst.state.studentViewMode === 'workspace' && newPapers.length > 0) {
                 const newest = newPapers[0];
                 showGlobalBannerNotice(
                   '📚 收到新参考范文',
@@ -509,7 +524,7 @@ export class AuthManager {
                   8000
                 );
               }
-              if (typeof appInst.showReferencePapersModal === 'function' && document.querySelector('.modal-overlay h3')?.innerText?.includes('参考范文库')) {
+              if (typeof appInst.showReferencePapersModal === 'function' && (document.querySelector('.modal-ref-papers-view') || document.querySelector('.modal-overlay h3')?.innerText?.includes('参考范文库'))) {
                 appInst.showReferencePapersModal();
               }
             }
@@ -556,11 +571,9 @@ export class AuthManager {
                 surveyIframe.src = newUrl;
               }
             }
-            if (appInst && appInst.state && appInst.state.studentViewMode === 'workspace') {
-              if (document.querySelector('.modal-overlay h3')?.innerText?.includes('课程协作学习与体验问卷')) {
-                if (typeof appInst.showQuestionnaireModal === 'function') {
-                  appInst.showQuestionnaireModal();
-                }
+            if (appInst && document.querySelector('.modal-overlay h3')?.innerText?.includes('课程协作学习与体验问卷')) {
+              if (typeof appInst.showQuestionnaireModal === 'function') {
+                appInst.showQuestionnaireModal();
               }
             }
           }

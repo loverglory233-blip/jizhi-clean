@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState, STORAGE_KEY_TASKS, STORAGE_KEY_ANNOUNCEMENTS } from './constants.js?v=20260905_v2802';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly, filterAndDeduplicateChatLogs } from './utils.js?v=20260905_v2802';
+import { InitialState, STORAGE_KEY_TASKS, STORAGE_KEY_ANNOUNCEMENTS } from './constants.js?v=20260905_v2803';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly, filterAndDeduplicateChatLogs } from './utils.js?v=20260905_v2803';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -110,7 +110,7 @@ export class CloudSyncEngine {
             this.handleTaskDeadlineChange(t, e.data.prevDeadline);
           } else if (e.data.type === 'announcement_created' || e.data.type === 'announcement_deleted' || e.data.type === 'paper_uploaded' || e.data.type === 'paper_deleted' || e.data.type === 'survey_updated' || e.data.type === 'survey_deleted') {
             if (this.app && this.app.authManager && this.app.authManager.pullGlobalMeta) {
-              this.app.authManager.pullGlobalMeta().then(() => {
+              this.app.authManager.pullGlobalMeta(true).then(() => {
                 if (this.app.state && this.app.state.studentViewMode === 'workspace') {
                   if (typeof this.app.renderHeader === 'function') this.app.renderHeader();
                   if (typeof this.app.checkUnreadAnnouncements === 'function') this.app.checkUnreadAnnouncements();
@@ -122,6 +122,16 @@ export class CloudSyncEngine {
                   const refBtn = document.getElementById('btn-show-case') || document.getElementById('btn-view-reference-papers') || document.querySelector('.btn-view-ref-papers');
                   if (refBtn) {
                     refBtn.innerText = available.length > 0 ? `📚 查阅参考范文 (${available.length}篇)` : '📚 查阅参考范文库';
+                  }
+                  if (document.querySelector('.modal-ref-papers-view') || (document.querySelector('.modal-overlay h3')?.innerText?.includes('参考范文库'))) {
+                    if (typeof this.app.showReferencePapersModal === 'function') {
+                      this.app.showReferencePapersModal();
+                    }
+                  }
+                  if (document.querySelector('.modal-overlay h3')?.innerText?.includes('课程协作学习与体验问卷')) {
+                    if (typeof this.app.showQuestionnaireModal === 'function') {
+                      this.app.showQuestionnaireModal();
+                    }
                   }
                 } else if (this.app.state && this.app.state.studentViewMode === 'task_list') {
                   if (typeof this.app.renderMain === 'function') this.app.renderMain();
@@ -645,11 +655,8 @@ export class CloudSyncEngine {
       }
       if (remoteData.metaVer !== undefined && remoteData.metaVer !== this._lastKnownMetaVer) {
         this._lastKnownMetaVer = remoteData.metaVer;
-        if (this.app?.authManager) {
-          this.app.authManager.globalMetaVersion = remoteData.metaVer;
-        }
         if (this.app && this.app.authManager && this.app.authManager.pullGlobalMeta) {
-          this.app.authManager.pullGlobalMeta().then(() => {
+          this.app.authManager.pullGlobalMeta(true).then(() => {
             if (this.app.state.studentViewMode === 'workspace' && this.app.state.activeTaskId) {
               const allTasks = this.app.authManager.getTasks();
               const isCurrentTaskAlive = allTasks.some(t => t.id === this.app.state.activeTaskId);
@@ -676,6 +683,11 @@ export class CloudSyncEngine {
               if (document.querySelector('.modal-ref-papers-view') || (document.querySelector('.modal-overlay h3')?.innerText?.includes('参考范文库'))) {
                 if (typeof this.app.showReferencePapersModal === 'function') {
                   this.app.showReferencePapersModal();
+                }
+              }
+              if (document.querySelector('.modal-overlay h3')?.innerText?.includes('课程协作学习与体验问卷')) {
+                if (typeof this.app.showQuestionnaireModal === 'function') {
+                  this.app.showQuestionnaireModal();
                 }
               }
             } else if (this.app.state.studentViewMode === 'task_list') {

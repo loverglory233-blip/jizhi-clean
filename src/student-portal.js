@@ -8,8 +8,8 @@ import {
   STORAGE_KEY_ANNOUNCEMENTS,
   STORAGE_KEY_CLASSES,
   TASK_GENRE_CONFIGS
-} from "./constants.js?v=20260905_v2802";
-import { escapeHtml, isTaskExpired, formatDurationHuman, formatStandardDateDash, showGlobalBannerNotice, isScopeMatch } from "./utils.js?v=20260905_v2802";
+} from "./constants.js?v=20260905_v2803";
+import { escapeHtml, isTaskExpired, formatDurationHuman, formatStandardDateDash, showGlobalBannerNotice, isScopeMatch } from "./utils.js?v=20260905_v2803";
 
 /* ==========================================================================
    10. STUDENT TASK PORTAL (CENTRALIZED HUB & COLLABORATION ENTRY)
@@ -87,6 +87,21 @@ export function renderStudentTaskPortal(container, authManager, state, onSelectT
             const extDurationStr = t.lastExtension?.extendDurationStr || (t.lastExtension?.addedMinutes ? `（增加了 ${t.lastExtension.addedMinutes} 分钟）` : '');
             showGlobalBannerNotice('⏳ 任务延期提醒', `班级写作任务《${t.title || '协作任务'}》截止时间已延长至 ${t.deadline} ${extDurationStr}！`, 'info', 8000);
           }
+          return;
+        }
+
+        // 5. 教学通知/范文/问卷全局广播
+        if (e.data && (e.data.type === 'announcement_created' || e.data.type === 'announcement_deleted' || e.data.type === 'announcement_updated' || e.data.type === 'paper_uploaded' || e.data.type === 'paper_deleted' || e.data.type === 'survey_updated' || e.data.type === 'survey_deleted')) {
+          if (authManager && authManager.pullGlobalMeta) {
+            authManager.pullGlobalMeta(true).then(() => {
+              renderStudentTaskPortal(container, authManager, state, onSelectTask, onLogout, onOpenAnnModal, onOpenSurveyModal);
+            }).catch(() => {
+              renderStudentTaskPortal(container, authManager, state, onSelectTask, onLogout, onOpenAnnModal, onOpenSurveyModal);
+            });
+          } else {
+            renderStudentTaskPortal(container, authManager, state, onSelectTask, onLogout, onOpenAnnModal, onOpenSurveyModal);
+          }
+          return;
         }
       };
     } catch (e) {}
@@ -101,12 +116,16 @@ export function renderStudentTaskPortal(container, authManager, state, onSelectT
         const oldTasksJson = localStorage.getItem(STORAGE_KEY_TASKS) || '[]';
         const oldAnnsJson = localStorage.getItem(STORAGE_KEY_ANNOUNCEMENTS) || '[]';
         const oldClassesJson = localStorage.getItem(STORAGE_KEY_CLASSES) || '[]';
+        const oldPapersJson = localStorage.getItem('jizhi_reference_papers_db') || '[]';
+        const oldSurveysJson = localStorage.getItem('jizhi_surveys_list_db') || '[]';
         await authManager.pullGlobalMeta();
         const newVer = authManager.globalMetaVersion || 0;
         const newTasksJson = localStorage.getItem(STORAGE_KEY_TASKS) || '[]';
         const newAnnsJson = localStorage.getItem(STORAGE_KEY_ANNOUNCEMENTS) || '[]';
         const newClassesJson = localStorage.getItem(STORAGE_KEY_CLASSES) || '[]';
-        if (oldVer !== newVer || oldTasksJson !== newTasksJson || oldAnnsJson !== newAnnsJson || oldClassesJson !== newClassesJson) {
+        const newPapersJson = localStorage.getItem('jizhi_reference_papers_db') || '[]';
+        const newSurveysJson = localStorage.getItem('jizhi_surveys_list_db') || '[]';
+        if (oldVer !== newVer || oldTasksJson !== newTasksJson || oldAnnsJson !== newAnnsJson || oldClassesJson !== newClassesJson || oldPapersJson !== newPapersJson || oldSurveysJson !== newSurveysJson) {
           if (document.activeElement?.id !== 'sel-student-class-switch') {
             renderStudentTaskPortal(container, authManager, state, onSelectTask, onLogout, onOpenAnnModal, onOpenSurveyModal);
             return; // 重渲染会重建整套循环，此处无需再自行调度
@@ -301,6 +320,10 @@ export function renderStudentTaskPortal(container, authManager, state, onSelectT
           </div>
         </div>
         <div class="header-controls" style="display:flex; align-items:center; gap:10px;">
+          <button id="btn-portal-survey-link" style="background:#eff6ff; border:1.5px solid #bfdbfe; color:#2563eb; padding:6px 14px; border-radius:18px; font-size:12px; font-weight:700; cursor:pointer;" title="课程评估问卷">📋 问卷</button>
+          <button class="nav-ann-bell-btn ${unreadAnnCount > 0 ? 'has-unread' : ''}" id="btn-portal-ann-bell" title="课堂教学通知" style="padding:6px 14px; border-radius:18px; font-size:12px; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; gap:4px; background:#eff6ff; color:#1d4ed8; border:1.5px solid #bfdbfe;">
+            <span>📢 教学通知</span>${unreadAnnCount > 0 ? `<span style="background:#ef4444; color:#ffffff; font-size:10.5px; font-weight:800; padding:1px 6px; border-radius:10px; box-shadow:0 1px 4px rgba(239,68,68,0.4);">${unreadAnnCount}</span>` : ''}
+          </button>
           <button id="btn-portal-change-pwd" style="background:#f0fdf4; color:#16a34a; border:1px solid #bbf7d0; padding:6px 14px; border-radius:18px; font-size:12px; font-weight:700; cursor:pointer;" title="修改登录密码">🔑 修改密码</button>
           <button id="btn-portal-logout" style="background:#fef2f2; color:#dc2626; border:1px solid #fecaca; padding:6px 14px; border-radius:18px; font-size:12px; font-weight:700; cursor:pointer;">🚪 退出登录</button>
         </div>
@@ -465,6 +488,12 @@ export function renderStudentTaskPortal(container, authManager, state, onSelectT
   container.querySelector('#btn-portal-logout')?.addEventListener('click', () => onLogout());
   container.querySelector('#btn-portal-change-pwd')?.addEventListener('click', () => {
     authManager.openChangePasswordModal();
+  });
+  container.querySelector('#btn-portal-ann-bell')?.addEventListener('click', () => {
+    if (onOpenAnnModal) onOpenAnnModal();
+  });
+  container.querySelector('#btn-portal-survey-link')?.addEventListener('click', () => {
+    if (onOpenSurveyModal) onOpenSurveyModal();
   });
   container.querySelectorAll('.btn-enter-task-workspace').forEach(btn => {
     btn.addEventListener('click', () => onSelectTask(btn.dataset.taskId));
