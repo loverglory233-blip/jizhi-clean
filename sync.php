@@ -3240,6 +3240,11 @@ if ($pdo) {
             }
         }
 
+        $stmtGetTimer = $pdo->prepare("SELECT meta_value FROM global_meta WHERE meta_key = :k");
+        $stmtGetTimer->execute([':k' => 'timer_' . $scopeKey]);
+        $tRow = $stmtGetTimer->fetch();
+        $timerData = ($tRow && !empty($tRow['meta_value'])) ? (json_decode($tRow['meta_value'], true) ?: null) : null;
+
         echo json_encode([
             'timestamp'        => $nowMs,
             'serverTimestamp'  => $nowMs,
@@ -3251,6 +3256,7 @@ if ($pdo) {
             'stage1'           => ['proposals' => [], 'votes' => new stdClass(), 'hasVoted' => new stdClass(), 'contract' => ['isConfirmed' => false, 'taskAssignments' => new stdClass(), 'timeAllocations' => new stdClass(), 'confirmedMembers' => new stdClass()]],
             'stage2'           => ['unifiedContent' => '', 'memberContributions' => new stdClass(), 'confirmedMembers' => new stdClass(), 'meetingSubmissions' => new stdClass()],
             'stage3'           => ['feedbackItems' => []],
+            'timer'            => $timerData,
             'presence'         => new stdClass(),
             'members'          => [],
             'isFinalSubmitted' => false,
