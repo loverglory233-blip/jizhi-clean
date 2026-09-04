@@ -1191,6 +1191,118 @@ if ($action === 'get_readonly_pad_id') {
     }
     echo json_encode(['success' => !empty($readOnlyId), 'readOnlyID' => $readOnlyId], JSON_UNESCAPED_UNICODE);
     exit;
+if ($action === 'restore_pad_max_revision') {
+    header('Content-Type: application/json; charset=utf-8');
+    $padId = isset($_GET['padId']) ? preg_replace('/[^a-zA-Z0-9_-]/', '', $_GET['padId']) : 'jizhi_' . $scopeKey;
+    $apiKey = 'jizhi_academic_secret_key_2026';
+    $possibleKeyFiles = [
+        '/www/wwwroot/etherpad-lite/APIKEY.txt',
+        dirname(__DIR__) . '/etherpad-lite/APIKEY.txt',
+        __DIR__ . '/APIKEY.txt',
+        '/root/etherpad-lite/APIKEY.txt'
+    ];
+    foreach ($possibleKeyFiles as $kf) {
+        if (is_readable($kf)) {
+            $k = trim(@file_get_contents($kf));
+            if (!empty($k)) { $apiKey = $k; break; }
+        }
+    }
+
+    // 1. 获取 revision 总数
+    $revCountUrl = "http://127.0.0.1:9001/api/1.2.14/getRevisionsCount?apikey=" . urlencode($apiKey) . "&padID=" . urlencode($padId);
+    $ch = curl_init($revCountUrl);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 3);
+    $resRev = curl_exec($ch);
+    curl_close($ch);
+
+    $maxRev = 0;
+    $longestHtml = '';
+    $longestText = '';
+    $longestLen = 0;
+    $bestRev = 0;
+
+    if (!empty($resRev)) {
+        $jsonRev = json_decode($resRev, true);
+        if (isset($jsonRev['data']['revisions'])) {
+            $maxRev = (int)$jsonRev['data']['revisions'];
+        }
+    }
+
+    // 遍历检索字数最多的历史版本
+    for ($r = $maxRev; $r >= 0; $r--) {
+        $epHtmlUrl = "http://127.0.0.1:9001/api/1.2.14/getHTML?apikey=" . urlencode($apiKey) . "&padID=" . urlencode($padId) . "&rev=" . $r;
+        $ch = curl_init($epHtmlUrl);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 2);
+        $resH = curl_exec($ch);
+        curl_close($ch);
+
+        if (!empty($resH)) {
+            $jH = json_decode($resH, true);
+            if (isset($jH['data']['html'])) {
+                $h = $jH['data']['html'];
+                $t = trim(strip_tags($h));
+                $len = mb_strlen($t, 'UTF-8');
+                if ($len > $longestLen) {
+                    $longestLen = $len;
+                    $longestHtml = $h;
+                    $longestText = $t;
+                    $bestRev = $r;
+                }
+            }
+        }
+    }
+
+    // 若在 Etherpad 历史版本中检索到长文，调用 setHTML 恢复至最新
+    if ($longestLen > 50 && !empty($longestHtml)) {
+        $setHtmlUrl = "http://127.0.0.1:9001/api/1.2.14/setHTML?apikey=" . urlencode($apiKey) . "&padID=" . urlencode($padId) . "&html=" . urlencode($longestHtml);
+        $ch = curl_init($setHtmlUrl);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 3);
+        curl_exec($ch);
+        curl_close($ch);
+
+        echo json_encode([
+            'success' => true,
+            'restored' => true,
+            'bestRevision' => $bestRev,
+            'textLength' => $longestLen,
+            'preview' => mb_substr($longestText, 0, 100, 'UTF-8')
+        ], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+
+    // 兜底：从 group_states 数据库查找历史 snapshot
+    if ($pdo) {
+        $stmtDb = $pdo->prepare("SELECT stage2_data FROM group_states WHERE scope_key = :sk");
+        $stmtDb->execute([':sk' => $scopeKey]);
+        $rowDb = $stmtDb->fetch();
+        if ($rowDb && !empty($rowDb['stage2_data'])) {
+            $s2Data = json_decode($rowDb['stage2_data'], true);
+            if (!empty($s2Data['unifiedContent']) && mb_strlen($s2Data['unifiedContent'], 'UTF-8') > 50) {
+                $dbText = $s2Data['unifiedContent'];
+                $setTextUrl = "http://127.0.0.1:9001/api/1.2.14/setText?apikey=" . urlencode($apiKey) . "&padID=" . urlencode($padId) . "&text=" . urlencode($dbText);
+                $ch = curl_init($setTextUrl);
+                curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                curl_setopt($ch, CURLOPT_TIMEOUT, 3);
+                curl_exec($ch);
+                curl_close($ch);
+
+                echo json_encode([
+                    'success' => true,
+                    'restored' => true,
+                    'source' => 'db_snapshot',
+                    'textLength' => mb_strlen($dbText, 'UTF-8'),
+                    'preview' => mb_substr($dbText, 0, 100, 'UTF-8')
+                ], JSON_UNESCAPED_UNICODE);
+                exit;
+            }
+        }
+    }
+
+    echo json_encode(['success' => false, 'message' => '未检索到有效历史长文版本'], JSON_UNESCAPED_UNICODE);
+    exit;
 }
 
 if ($action === 'get_pad_text' || $action === 'get_pad_html') {
