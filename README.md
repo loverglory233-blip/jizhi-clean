@@ -51,8 +51,6 @@ jizhi-clean/
 
 ---
 
-## 💡 内置测试账号（密码均为 123）
-- 👩‍🏫 **教师端**：`teacher@jizhi.edu` 或用户名 `teacher`
-- 👨‍🎓 **学生A (组长)**：`studentA@jizhi.edu` 或用户名 `liming`
-- 👩‍🎓 **学生B (组员)**：`studentB@jizhi.edu` 或用户名 `wangfang`
-- 🧑‍🎓 **学生C (组员)**：`studentC@jizhi.edu` 或用户名 `chenqiang`
+## 💡 系统账号体系
+- 👩‍🏫 **教师端**：工号 `1001`（默认密码 `123`）
+- 👨‍🎓 **学生端**：由教师在教师端管理后台添加学生账号或导入班级名单（全员平等协作）

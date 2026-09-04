@@ -2398,7 +2398,7 @@
       return allClassStudents.filter(s => !occupiedStudentIds.has(s.id));
     }
 
-    updateGroupMembers(classId, groupId, groupName, selectedUserIds = [], leaderUserId = null) {
+    updateGroupMembers(classId, groupId, groupName, selectedUserIds = []) {
       const classes = this.getClasses();
       const cls = classes.find(c => c.id === classId) || classes[0];
       if (!cls) return;
