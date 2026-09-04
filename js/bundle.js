@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260905_v2802
+ * Version: 20260905_v2803
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260905_v2802';
+  const APP_VERSION = '20260905_v2803';
   const APP_BUILD_DATE = '2026-09-05';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -1847,7 +1847,7 @@
       return null;
     }
 
-    async pullGlobalMeta() {
+    async pullGlobalMeta(force = false) {
       if (this._isPullingMeta) return;
       // 🛡️ 教师推送在途时挂起本次拉取，避免用过期云端数据反向覆盖本地刚写入的新数据（导入学生/建组后被清空的根因）
       if (this._pushInFlight) {
@@ -1859,8 +1859,9 @@
         const currUser = this.getCurrentUser();
         const userKey = currUser ? currUser.id : '';
         const sessToken = currUser ? (currUser.activeSessionId || currUser.token || '') : '';
-        const clientVer = this.globalMetaVersion || 0;
-        const res = await fetch(`sync.php?action=get_global_meta&ver=${clientVer}&userId=${encodeURIComponent(userKey)}&sessToken=${encodeURIComponent(sessToken)}&nocache=${Date.now()}`);
+        const clientVer = force ? 0 : (this.globalMetaVersion || 0);
+        const forceParam = force ? '&force=1' : '';
+        const res = await fetch(`sync.php?action=get_global_meta&ver=${clientVer}&userId=${encodeURIComponent(userKey)}&sessToken=${encodeURIComponent(sessToken)}${forceParam}&nocache=${Date.now()}`);
         if (res.ok) {
           const data = await res.json();
           if (data && data.kicked) {
@@ -2085,11 +2086,25 @@
               localStorage.setItem(STORAGE_KEY_ANNOUNCEMENTS, JSON.stringify(mergedAnns));
 
               // ⚡ 异步元数据到达瞬间：纯前端 DOM 局部更新通知红点与未读弹窗（0 网络请求，0 数据上传）
-              if (window.app && typeof window.app.renderHeader === 'function' && window.app.state && window.app.state.studentViewMode === 'workspace') {
-                window.app.renderHeader();
-              }
-              if (window.app && typeof window.app.checkUnreadAnnouncements === 'function' && window.app.state && window.app.state.studentViewMode === 'workspace') {
-                window.app.checkUnreadAnnouncements();
+              const appInst = window.app || (typeof this.app !== 'undefined' ? this.app : null);
+              if (appInst) {
+                if (typeof appInst.renderHeader === 'function' && appInst.state && appInst.state.studentViewMode === 'workspace') {
+                  appInst.renderHeader();
+                }
+                if (typeof appInst.checkUnreadAnnouncements === 'function') {
+                  appInst.checkUnreadAnnouncements();
+                }
+                // 如果当前打开了通知弹窗，实时响应关闭已删除通知或刷新列表
+                const openModal = document.querySelector('.modal-announcement-popup');
+                if (openModal) {
+                  const openAnnId = openModal.dataset.annId;
+                  if (openAnnId && openAnnId !== 'list') {
+                    const annStillExists = mergedAnns.some(a => a.id === openAnnId);
+                    if (!annStillExists) openModal.remove();
+                  } else if (openAnnId === 'list' && typeof appInst.showAnnouncementModal === 'function') {
+                    appInst.showAnnouncementModal();
+                  }
+                }
               }
             }
 
@@ -2127,19 +2142,19 @@
               localStorage.setItem('jizhi_reference_papers_db', JSON.stringify(mergedPapers));
               localStorage.setItem('jizhi_pure_v10_ref_papers_db', JSON.stringify(mergedPapers));
 
-              // ⚡ 实时检查是否有新文献下发并提醒
+              // ⚡ 实时检查是否有新文献下发并提醒与就地重渲染
               const newPapers = mergedPapers.filter(p => p && p.id && !oldIds.has(p.id));
               const appInst = window.app || (typeof this.app !== 'undefined' ? this.app : null);
-              if (appInst && appInst.state && appInst.state.studentViewMode === 'workspace') {
+              if (appInst) {
                 const currentUser = currUser;
-                const groupId = appInst.state.activeGroupId || (currentUser ? currentUser.groupId : null);
-                const classId = appInst.state.activeStudentClassId || (currentUser ? currentUser.classId : null);
-                const available = this.getReferencePapers(groupId, classId, appInst.state.activeTaskId);
+                const groupId = appInst.state?.activeGroupId || (currentUser ? currentUser.groupId : null);
+                const classId = appInst.state?.activeStudentClassId || (currentUser ? currentUser.classId : null);
+                const available = this.getReferencePapers(groupId, classId, appInst.state?.activeTaskId);
                 const refBtn = document.getElementById('btn-show-case') || document.getElementById('btn-view-reference-papers') || document.querySelector('.btn-view-ref-papers');
                 if (refBtn) {
                   refBtn.innerText = available.length > 0 ? `📚 查阅参考范文 (${available.length}篇)` : '📚 查阅参考范文库';
                 }
-                if (newPapers.length > 0) {
+                if (appInst.state && appInst.state.studentViewMode === 'workspace' && newPapers.length > 0) {
                   const newest = newPapers[0];
                   showGlobalBannerNotice(
                     '📚 收到新参考范文',
@@ -2148,7 +2163,7 @@
                     8000
                   );
                 }
-                if (typeof appInst.showReferencePapersModal === 'function' && document.querySelector('.modal-overlay h3')?.innerText?.includes('参考范文库')) {
+                if (typeof appInst.showReferencePapersModal === 'function' && (document.querySelector('.modal-ref-papers-view') || document.querySelector('.modal-overlay h3')?.innerText?.includes('参考范文库'))) {
                   appInst.showReferencePapersModal();
                 }
               }
@@ -2195,11 +2210,9 @@
                   surveyIframe.src = newUrl;
                 }
               }
-              if (appInst && appInst.state && appInst.state.studentViewMode === 'workspace') {
-                if (document.querySelector('.modal-overlay h3')?.innerText?.includes('课程协作学习与体验问卷')) {
-                  if (typeof appInst.showQuestionnaireModal === 'function') {
-                    appInst.showQuestionnaireModal();
-                  }
+              if (appInst && document.querySelector('.modal-overlay h3')?.innerText?.includes('课程协作学习与体验问卷')) {
+                if (typeof appInst.showQuestionnaireModal === 'function') {
+                  appInst.showQuestionnaireModal();
                 }
               }
             }
@@ -4449,7 +4462,7 @@
               this.handleTaskDeadlineChange(t, e.data.prevDeadline);
             } else if (e.data.type === 'announcement_created' || e.data.type === 'announcement_deleted' || e.data.type === 'paper_uploaded' || e.data.type === 'paper_deleted' || e.data.type === 'survey_updated' || e.data.type === 'survey_deleted') {
               if (this.app && this.app.authManager && this.app.authManager.pullGlobalMeta) {
-                this.app.authManager.pullGlobalMeta().then(() => {
+                this.app.authManager.pullGlobalMeta(true).then(() => {
                   if (this.app.state && this.app.state.studentViewMode === 'workspace') {
                     if (typeof this.app.renderHeader === 'function') this.app.renderHeader();
                     if (typeof this.app.checkUnreadAnnouncements === 'function') this.app.checkUnreadAnnouncements();
@@ -4461,6 +4474,16 @@
                     const refBtn = document.getElementById('btn-show-case') || document.getElementById('btn-view-reference-papers') || document.querySelector('.btn-view-ref-papers');
                     if (refBtn) {
                       refBtn.innerText = available.length > 0 ? `📚 查阅参考范文 (${available.length}篇)` : '📚 查阅参考范文库';
+                    }
+                    if (document.querySelector('.modal-ref-papers-view') || (document.querySelector('.modal-overlay h3')?.innerText?.includes('参考范文库'))) {
+                      if (typeof this.app.showReferencePapersModal === 'function') {
+                        this.app.showReferencePapersModal();
+                      }
+                    }
+                    if (document.querySelector('.modal-overlay h3')?.innerText?.includes('课程协作学习与体验问卷')) {
+                      if (typeof this.app.showQuestionnaireModal === 'function') {
+                        this.app.showQuestionnaireModal();
+                      }
                     }
                   } else if (this.app.state && this.app.state.studentViewMode === 'task_list') {
                     if (typeof this.app.renderMain === 'function') this.app.renderMain();
@@ -4984,11 +5007,8 @@
         }
         if (remoteData.metaVer !== undefined && remoteData.metaVer !== this._lastKnownMetaVer) {
           this._lastKnownMetaVer = remoteData.metaVer;
-          if (this.app?.authManager) {
-            this.app.authManager.globalMetaVersion = remoteData.metaVer;
-          }
           if (this.app && this.app.authManager && this.app.authManager.pullGlobalMeta) {
-            this.app.authManager.pullGlobalMeta().then(() => {
+            this.app.authManager.pullGlobalMeta(true).then(() => {
               if (this.app.state.studentViewMode === 'workspace' && this.app.state.activeTaskId) {
                 const allTasks = this.app.authManager.getTasks();
                 const isCurrentTaskAlive = allTasks.some(t => t.id === this.app.state.activeTaskId);
@@ -5015,6 +5035,11 @@
                 if (document.querySelector('.modal-ref-papers-view') || (document.querySelector('.modal-overlay h3')?.innerText?.includes('参考范文库'))) {
                   if (typeof this.app.showReferencePapersModal === 'function') {
                     this.app.showReferencePapersModal();
+                  }
+                }
+                if (document.querySelector('.modal-overlay h3')?.innerText?.includes('课程协作学习与体验问卷')) {
+                  if (typeof this.app.showQuestionnaireModal === 'function') {
+                    this.app.showQuestionnaireModal();
                   }
                 }
               } else if (this.app.state.studentViewMode === 'task_list') {
@@ -10770,6 +10795,21 @@
               const extDurationStr = t.lastExtension?.extendDurationStr || (t.lastExtension?.addedMinutes ? `（增加了 ${t.lastExtension.addedMinutes} 分钟）` : '');
               showGlobalBannerNotice('⏳ 任务延期提醒', `班级写作任务《${t.title || '协作任务'}》截止时间已延长至 ${t.deadline} ${extDurationStr}！`, 'info', 8000);
             }
+            return;
+          }
+
+          // 5. 教学通知/范文/问卷全局广播
+          if (e.data && (e.data.type === 'announcement_created' || e.data.type === 'announcement_deleted' || e.data.type === 'announcement_updated' || e.data.type === 'paper_uploaded' || e.data.type === 'paper_deleted' || e.data.type === 'survey_updated' || e.data.type === 'survey_deleted')) {
+            if (authManager && authManager.pullGlobalMeta) {
+              authManager.pullGlobalMeta(true).then(() => {
+                renderStudentTaskPortal(container, authManager, state, onSelectTask, onLogout, onOpenAnnModal, onOpenSurveyModal);
+              }).catch(() => {
+                renderStudentTaskPortal(container, authManager, state, onSelectTask, onLogout, onOpenAnnModal, onOpenSurveyModal);
+              });
+            } else {
+              renderStudentTaskPortal(container, authManager, state, onSelectTask, onLogout, onOpenAnnModal, onOpenSurveyModal);
+            }
+            return;
           }
         };
       } catch (e) {}
@@ -10784,12 +10824,16 @@
           const oldTasksJson = localStorage.getItem(STORAGE_KEY_TASKS) || '[]';
           const oldAnnsJson = localStorage.getItem(STORAGE_KEY_ANNOUNCEMENTS) || '[]';
           const oldClassesJson = localStorage.getItem(STORAGE_KEY_CLASSES) || '[]';
+          const oldPapersJson = localStorage.getItem('jizhi_reference_papers_db') || '[]';
+          const oldSurveysJson = localStorage.getItem('jizhi_surveys_list_db') || '[]';
           await authManager.pullGlobalMeta();
           const newVer = authManager.globalMetaVersion || 0;
           const newTasksJson = localStorage.getItem(STORAGE_KEY_TASKS) || '[]';
           const newAnnsJson = localStorage.getItem(STORAGE_KEY_ANNOUNCEMENTS) || '[]';
           const newClassesJson = localStorage.getItem(STORAGE_KEY_CLASSES) || '[]';
-          if (oldVer !== newVer || oldTasksJson !== newTasksJson || oldAnnsJson !== newAnnsJson || oldClassesJson !== newClassesJson) {
+          const newPapersJson = localStorage.getItem('jizhi_reference_papers_db') || '[]';
+          const newSurveysJson = localStorage.getItem('jizhi_surveys_list_db') || '[]';
+          if (oldVer !== newVer || oldTasksJson !== newTasksJson || oldAnnsJson !== newAnnsJson || oldClassesJson !== newClassesJson || oldPapersJson !== newPapersJson || oldSurveysJson !== newSurveysJson) {
             if (document.activeElement?.id !== 'sel-student-class-switch') {
               renderStudentTaskPortal(container, authManager, state, onSelectTask, onLogout, onOpenAnnModal, onOpenSurveyModal);
               return; // 重渲染会重建整套循环，此处无需再自行调度
@@ -10984,6 +11028,10 @@
             </div>
           </div>
           <div class="header-controls" style="display:flex; align-items:center; gap:10px;">
+            <button id="btn-portal-survey-link" style="background:#eff6ff; border:1.5px solid #bfdbfe; color:#2563eb; padding:6px 14px; border-radius:18px; font-size:12px; font-weight:700; cursor:pointer;" title="课程评估问卷">📋 问卷</button>
+            <button class="nav-ann-bell-btn ${unreadAnnCount > 0 ? 'has-unread' : ''}" id="btn-portal-ann-bell" title="课堂教学通知" style="padding:6px 14px; border-radius:18px; font-size:12px; font-weight:700; cursor:pointer; display:inline-flex; align-items:center; gap:4px; background:#eff6ff; color:#1d4ed8; border:1.5px solid #bfdbfe;">
+              <span>📢 教学通知</span>${unreadAnnCount > 0 ? `<span style="background:#ef4444; color:#ffffff; font-size:10.5px; font-weight:800; padding:1px 6px; border-radius:10px; box-shadow:0 1px 4px rgba(239,68,68,0.4);">${unreadAnnCount}</span>` : ''}
+            </button>
             <button id="btn-portal-change-pwd" style="background:#f0fdf4; color:#16a34a; border:1px solid #bbf7d0; padding:6px 14px; border-radius:18px; font-size:12px; font-weight:700; cursor:pointer;" title="修改登录密码">🔑 修改密码</button>
             <button id="btn-portal-logout" style="background:#fef2f2; color:#dc2626; border:1px solid #fecaca; padding:6px 14px; border-radius:18px; font-size:12px; font-weight:700; cursor:pointer;">🚪 退出登录</button>
           </div>
@@ -11148,6 +11196,12 @@
     container.querySelector('#btn-portal-logout')?.addEventListener('click', () => onLogout());
     container.querySelector('#btn-portal-change-pwd')?.addEventListener('click', () => {
       authManager.openChangePasswordModal();
+    });
+    container.querySelector('#btn-portal-ann-bell')?.addEventListener('click', () => {
+      if (onOpenAnnModal) onOpenAnnModal();
+    });
+    container.querySelector('#btn-portal-survey-link')?.addEventListener('click', () => {
+      if (onOpenSurveyModal) onOpenSurveyModal();
     });
     container.querySelectorAll('.btn-enter-task-workspace').forEach(btn => {
       btn.addEventListener('click', () => onSelectTask(btn.dataset.taskId));
@@ -16585,6 +16639,8 @@
             if (!annStillExists) {
               openModal.remove();
             }
+          } else if (openAnnId === 'list') {
+            this.showAnnouncementModal();
           }
         }
 
@@ -16658,7 +16714,7 @@
 
       if (myAnns.length === 0) {
         if (!isSequentialFlow) {
-          alert('📢 暂无针对当前写作任务的教学通知！');
+          alert('📢 暂无针对当前班级的教学通知！');
         }
         return;
       }
@@ -16685,14 +16741,14 @@
           <div style="background:linear-gradient(135deg, #1d4ed8, #2563eb); padding:20px 24px; display:flex; justify-content:space-between; align-items:center; color:#ffffff;">
             <div style="display:flex; align-items:center; gap:12px;">
               <div style="width:42px; height:42px; border-radius:12px; background:rgba(255,255,255,0.2); display:flex; align-items:center; justify-content:center; font-size:22px; flex-shrink:0;">
-                ${isTaskListMode ? '⏳' : '📢'}
+                📢
               </div>
               <div>
                 <div style="display:flex; align-items:center; gap:8px;">
-                  <h3 style="margin:0; font-size:17.5px; font-weight:800; color:#ffffff; letter-spacing:0.3px;">${isTaskListMode ? '班级任务延期通知中心' : '班级教学通知中心'}</h3>
+                  <h3 style="margin:0; font-size:17.5px; font-weight:800; color:#ffffff; letter-spacing:0.3px;">班级教学与任务通知中心</h3>
                   ${unreadList.length > 0 ? `<span style="background:#ef4444; color:#ffffff; font-size:11px; font-weight:800; padding:2px 8px; border-radius:12px; box-shadow:0 2px 6px rgba(239,68,68,0.4);">${unreadList.length} 条未读</span>` : '<span style="background:rgba(255,255,255,0.2); color:#ffffff; font-size:11px; font-weight:700; padding:2px 8px; border-radius:12px;">全部已读</span>'}
                 </div>
-                <div style="font-size:12px; color:#e0e7ff; margin-top:3px;">${effectiveClassName ? `🏫 归属班级: ${escapeHtml(effectiveClassName)}` : '任课教师发布的教学指示与任务延期'} · 共 ${myAnns.length} 条通知</div>
+                <div style="font-size:12px; color:#e0e7ff; margin-top:3px;">${effectiveClassName ? `🏫 归属班级: ${escapeHtml(effectiveClassName)}` : '任课教师发布的教学指示与任务通知'} · 共 ${myAnns.length} 条通知</div>
               </div>
             </div>
             <button id="btn-close-ann-popup" style="background:rgba(255,255,255,0.15); border:1px solid rgba(255,255,255,0.3); width:32px; height:32px; border-radius:8px; display:flex; align-items:center; justify-content:center; cursor:pointer; color:#ffffff; font-size:14px; transition:all 0.15s ease;">✕</button>

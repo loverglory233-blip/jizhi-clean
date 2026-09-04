@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260905_v2802";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs } from "./utils.js?v=20260905_v2802";
-import { callCozeAgentAPI } from "./agents.js?v=20260905_v2802";
-import { AuthManager } from "./auth.js?v=20260905_v2802";
-import { CloudSyncEngine } from "./sync.js?v=20260905_v2802";
-import { renderLoginView } from "./login.js?v=20260905_v2802";
-import { renderTeacherPortal } from "./teacher.js?v=20260905_v2802";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260905_v2802";
+} from "./constants.js?v=20260905_v2803";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs } from "./utils.js?v=20260905_v2803";
+import { callCozeAgentAPI } from "./agents.js?v=20260905_v2803";
+import { AuthManager } from "./auth.js?v=20260905_v2803";
+import { CloudSyncEngine } from "./sync.js?v=20260905_v2803";
+import { renderLoginView } from "./login.js?v=20260905_v2803";
+import { renderTeacherPortal } from "./teacher.js?v=20260905_v2803";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260905_v2803";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260905_v2802";
+} from "./editor.js?v=20260905_v2803";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -1911,6 +1911,8 @@ export class App {
           if (!annStillExists) {
             openModal.remove();
           }
+        } else if (openAnnId === 'list') {
+          this.showAnnouncementModal();
         }
       }
 
@@ -1984,7 +1986,7 @@ export class App {
 
     if (myAnns.length === 0) {
       if (!isSequentialFlow) {
-        alert('📢 暂无针对当前写作任务的教学通知！');
+        alert('📢 暂无针对当前班级的教学通知！');
       }
       return;
     }
@@ -2011,14 +2013,14 @@ export class App {
         <div style="background:linear-gradient(135deg, #1d4ed8, #2563eb); padding:20px 24px; display:flex; justify-content:space-between; align-items:center; color:#ffffff;">
           <div style="display:flex; align-items:center; gap:12px;">
             <div style="width:42px; height:42px; border-radius:12px; background:rgba(255,255,255,0.2); display:flex; align-items:center; justify-content:center; font-size:22px; flex-shrink:0;">
-              ${isTaskListMode ? '⏳' : '📢'}
+              📢
             </div>
             <div>
               <div style="display:flex; align-items:center; gap:8px;">
-                <h3 style="margin:0; font-size:17.5px; font-weight:800; color:#ffffff; letter-spacing:0.3px;">${isTaskListMode ? '班级任务延期通知中心' : '班级教学通知中心'}</h3>
+                <h3 style="margin:0; font-size:17.5px; font-weight:800; color:#ffffff; letter-spacing:0.3px;">班级教学与任务通知中心</h3>
                 ${unreadList.length > 0 ? `<span style="background:#ef4444; color:#ffffff; font-size:11px; font-weight:800; padding:2px 8px; border-radius:12px; box-shadow:0 2px 6px rgba(239,68,68,0.4);">${unreadList.length} 条未读</span>` : '<span style="background:rgba(255,255,255,0.2); color:#ffffff; font-size:11px; font-weight:700; padding:2px 8px; border-radius:12px;">全部已读</span>'}
               </div>
-              <div style="font-size:12px; color:#e0e7ff; margin-top:3px;">${effectiveClassName ? `🏫 归属班级: ${escapeHtml(effectiveClassName)}` : '任课教师发布的教学指示与任务延期'} · 共 ${myAnns.length} 条通知</div>
+              <div style="font-size:12px; color:#e0e7ff; margin-top:3px;">${effectiveClassName ? `🏫 归属班级: ${escapeHtml(effectiveClassName)}` : '任课教师发布的教学指示与任务通知'} · 共 ${myAnns.length} 条通知</div>
             </div>
           </div>
           <button id="btn-close-ann-popup" style="background:rgba(255,255,255,0.15); border:1px solid rgba(255,255,255,0.3); width:32px; height:32px; border-radius:8px; display:flex; align-items:center; justify-content:center; cursor:pointer; color:#ffffff; font-size:14px; transition:all 0.15s ease;">✕</button>
