@@ -1326,7 +1326,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout) {
                                 return `
                                   <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:6px; padding:6px 10px; display:flex; flex-direction:column; gap:3px;">
                                     <div style="display:flex; justify-content:space-between; align-items:center;">
-                                      <span style="font-weight:800; color:${m.color || '#2563eb'}; font-size:12px;">${m.avatar || '👤'} ${escapeHtml(m.name)} (${m.roleTitle || '组员'}):</span>
+                                      <span style="font-weight:800; color:${m.color || '#2563eb'}; font-size:12px;">${m.avatar || '👤'} ${escapeHtml(m.name)}:</span>
                                     </div>
                                     <div style="font-size:11.5px; color:${taskVal ? '#0f172a' : '#94a3b8'}; font-weight:${taskVal ? '600' : '400'};">
                                       ${taskVal ? escapeHtml(taskVal) : '（暂未在公约中录入具体分工）'}
@@ -2422,7 +2422,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout) {
     });
   });
 
-  // 🎲 随机分组 (按教师所选人数自动洗牌划分并指定组长)
+  // 🎲 随机分组 (按教师所选人数自动洗牌划分小组)
   const btnRandomGroups = container.querySelector('#btn-v1-random-groups');
   const selRandomGroupSize = container.querySelector('#sel-random-group-size');
   if (btnRandomGroups) {

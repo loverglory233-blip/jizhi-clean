@@ -23,6 +23,7 @@ export class AuthManager {
     this.initDatabase();
     this.sanitizeAndDeduplicateGroups();
     this.removeLegacyTestAccounts();
+    this.cleanseUserTitles();
   }
   initDatabase() {
     if (!localStorage.getItem(STORAGE_KEY_USERS_DB)) localStorage.setItem(STORAGE_KEY_USERS_DB, JSON.stringify(DefaultUsers));
@@ -117,11 +118,45 @@ export class AuthManager {
     } catch (e) {}
   }
 
+  // 🧹 自动清理所有学生姓名中的历史遗留【(组长)/(组员)】角色后缀，彻底保持纯净全员平等
+  cleanseUserTitles() {
+    try {
+      let users = [];
+      try { users = JSON.parse(localStorage.getItem(STORAGE_KEY_USERS_DB)) || []; } catch (e) { users = []; }
+      if (!Array.isArray(users)) users = [];
+      let changed = false;
+      users.forEach(u => {
+        if (u && u.name) {
+          const clean = String(u.name).replace(/\s*[\(（](?:组长|组员|队长|队员)[\)）]/g, '').trim();
+          if (clean && clean !== u.name) {
+            u.name = clean;
+            changed = true;
+          }
+        }
+      });
+      if (changed) {
+        localStorage.setItem(STORAGE_KEY_USERS_DB, JSON.stringify(users));
+      }
+
+      try {
+        const cur = JSON.parse(localStorage.getItem(STORAGE_KEY_USER) || 'null');
+        if (cur && cur.name) {
+          const cleanCur = String(cur.name).replace(/\s*[\(（](?:组长|组员|队长|队员)[\)）]/g, '').trim();
+          if (cleanCur && cleanCur !== cur.name) {
+            cur.name = cleanCur;
+            localStorage.setItem(STORAGE_KEY_USER, JSON.stringify(cur));
+          }
+        }
+      } catch (e) {}
+    } catch (e) {}
+  }
+
   _normalizeUser(u) {
     if (!u || typeof u !== 'object') return null;
     const id = String(u.id || '').trim();
     if (!id) return null;
-    const name = String(u.name || id || (u.role === 'teacher' ? '老师' : '学生')).trim();
+    let name = String(u.name || id || (u.role === 'teacher' ? '老师' : '学生')).trim();
+    name = name.replace(/\s*[\(（](?:组长|组员|队长|队员)[\)）]/g, '').trim() || id;
     const classId = u.classId || (Array.isArray(u.classIds) && u.classIds[0]) || null;
     const classIds = Array.isArray(u.classIds) ? u.classIds : (classId ? [classId] : []);
     return {
