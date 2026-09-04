@@ -88,6 +88,16 @@ nginx -s reload 2>/dev/null || systemctl reload nginx 2>/dev/null || true
 # 检查 Etherpad (端口 9001)
 EP_STATUS="❌ 未启动 (端口 9001 无响应)"
 EP_HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" --connect-timeout 3 http://127.0.0.1:9001/ 2>/dev/null || echo "000")
+if [ "$EP_HTTP_CODE" = "000" ] && [ -n "$EP_RUN_DIR" ]; then
+  cd "$EP_RUN_DIR"
+  if [ -f "./bin/run.sh" ]; then
+    nohup ./bin/run.sh --root > /var/log/etherpad.log 2>&1 &
+  fi
+  cd "$SITE_DIR"
+  sleep 4
+  EP_HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" --connect-timeout 3 http://127.0.0.1:9001/ 2>/dev/null || echo "000")
+fi
+
 if [ "$EP_HTTP_CODE" != "000" ] || pgrep -f "node.*etherpad" >/dev/null 2>&1; then
   EP_STATUS="✅ 正常运行中 (端口 9001 毫秒级协同就绪)"
 
