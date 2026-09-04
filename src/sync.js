@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState, STORAGE_KEY_TASKS, STORAGE_KEY_ANNOUNCEMENTS } from './constants.js?v=20260905_v2713';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly } from './utils.js?v=20260905_v2713';
+import { InitialState, STORAGE_KEY_TASKS, STORAGE_KEY_ANNOUNCEMENTS } from './constants.js?v=20260905_v2715';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly } from './utils.js?v=20260905_v2715';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -93,7 +93,8 @@ export class CloudSyncEngine {
         if (this.globalBc) { try { this.globalBc.close(); } catch (e) {} }
         this.globalBc = new BroadcastChannel('jizhi_global_events');
         this.globalBc.onmessage = (e) => {
-          if (e.data && e.data.type === 'task_extended' && e.data.task) {
+          if (!e || !e.data) return;
+          if (e.data.type === 'task_extended' && e.data.task) {
             const t = e.data.task;
             this._knownTaskDeadlines[t.id] = t.deadline;
             if (this.app.authManager) {
@@ -107,6 +108,26 @@ export class CloudSyncEngine {
               try { localStorage.setItem(STORAGE_KEY_TASKS, JSON.stringify(localTasks)); } catch (err) {}
             }
             this.handleTaskDeadlineChange(t, e.data.prevDeadline);
+          } else if (e.data.type === 'announcement_created' || e.data.type === 'announcement_deleted' || e.data.type === 'paper_uploaded' || e.data.type === 'paper_deleted' || e.data.type === 'survey_updated' || e.data.type === 'survey_deleted') {
+            if (this.app && this.app.authManager && this.app.authManager.pullGlobalMeta) {
+              this.app.authManager.pullGlobalMeta().then(() => {
+                if (this.app.state && this.app.state.studentViewMode === 'workspace') {
+                  if (typeof this.app.renderHeader === 'function') this.app.renderHeader();
+                  if (typeof this.app.checkUnreadAnnouncements === 'function') this.app.checkUnreadAnnouncements();
+                  const currentUser = this.app.authManager.getCurrentUser();
+                  const effectiveClassId = this.app.authManager.getEffectiveStudentClassId(currentUser, this.app.state.activeTaskId);
+                  const activeGroupObj = this.app.authManager.getStudentActiveGroup(currentUser, effectiveClassId);
+                  const groupId = this.app.state.activeGroupId || this.groupId || activeGroupObj?.id || currentUser?.groupId || null;
+                  const available = this.app.authManager.getReferencePapers(groupId, effectiveClassId, this.app.state.activeTaskId);
+                  const refBtn = document.getElementById('btn-show-case') || document.getElementById('btn-view-reference-papers') || document.querySelector('.btn-view-ref-papers');
+                  if (refBtn) {
+                    refBtn.innerText = available.length > 0 ? `📚 查阅参考范文 (${available.length}篇)` : '📚 查阅参考范文库';
+                  }
+                } else if (this.app.state && this.app.state.studentViewMode === 'task_list') {
+                  if (typeof this.app.renderMain === 'function') this.app.renderMain();
+                }
+              }).catch(() => {});
+            }
           }
         };
       } catch (e) {}
@@ -624,6 +645,9 @@ export class CloudSyncEngine {
       }
       if (remoteData.metaVer !== undefined && remoteData.metaVer !== this._lastKnownMetaVer) {
         this._lastKnownMetaVer = remoteData.metaVer;
+        if (this.app?.authManager) {
+          this.app.authManager.globalMetaVersion = remoteData.metaVer;
+        }
         if (this.app && this.app.authManager && this.app.authManager.pullGlobalMeta) {
           this.app.authManager.pullGlobalMeta().then(() => {
             if (this.app.state.studentViewMode === 'workspace' && this.app.state.activeTaskId) {
@@ -683,6 +707,9 @@ export class CloudSyncEngine {
 
     if (remoteData.metaVer !== undefined) {
       this._lastKnownMetaVer = remoteData.metaVer;
+      if (this.app?.authManager) {
+        this.app.authManager.globalMetaVersion = remoteData.metaVer;
+      }
     }
 
     if (remoteData.users || remoteData.tasks || remoteData.referencePapers) {
@@ -695,6 +722,9 @@ export class CloudSyncEngine {
     }
     if (remoteData.metaVer !== undefined) {
       this._lastKnownMetaVer = remoteData.metaVer;
+      if (this.app?.authManager) {
+        this.app.authManager.globalMetaVersion = remoteData.metaVer;
+      }
     }
     this._hasPulledGlobal = true;
 

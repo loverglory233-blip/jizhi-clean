@@ -540,11 +540,71 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                 db_file_fallback = os.path.join(DIR, f'db_{groupId}.json')
                 if os.path.exists(db_file_fallback):
                     db_file = db_file_fallback
+
+            snapshot_obj = {"timestamp": 0}
             if os.path.exists(db_file):
-                with open(db_file, 'rb') as f:
-                    content = f.read()
-            else:
-                content = b'{"timestamp":0}'
+                try:
+                    with open(db_file, 'rb') as f:
+                        snapshot_obj = json.loads(f.read().decode('utf-8'))
+                except Exception:
+                    snapshot_obj = {"timestamp": 0}
+
+            # 🛡️ 读取全局教务元数据与版本号
+            global_file = os.path.join(DIR, 'global_db.json')
+            server_meta_ver = 1
+            global_meta = {}
+            if os.path.exists(global_file):
+                try:
+                    with JSON_FILE_LOCK:
+                        with open(global_file, 'rb') as f:
+                            raw_meta = f.read()
+                    parsed_meta = json.loads(raw_meta.decode('utf-8'))
+                    if isinstance(parsed_meta, dict):
+                        server_meta_ver = int(parsed_meta.get('version', 1))
+                        global_meta = parsed_meta
+                except Exception:
+                    pass
+
+            # 解析客户端 metaVer 与 incGlobal
+            client_meta_ver = 0
+            if 'metaVer=' in self.path:
+                try:
+                    client_meta_ver = int(self.path.split('metaVer=')[1].split('&')[0])
+                except Exception:
+                    client_meta_ver = 0
+            inc_global = 0
+            if 'incGlobal=' in self.path:
+                try:
+                    inc_global = int(self.path.split('incGlobal=')[1].split('&')[0])
+                except Exception:
+                    inc_global = 0
+
+            need_global_sync = (client_meta_ver < server_meta_ver) or (inc_global == 1)
+
+            # 注入当前版本号
+            snapshot_obj['metaVer'] = server_meta_ver
+
+            if need_global_sync and global_meta:
+                if 'announcements' in global_meta:
+                    snapshot_obj['announcements'] = global_meta.get('announcements', [])
+                if 'referencePapers' in global_meta:
+                    snapshot_obj['referencePapers'] = global_meta.get('referencePapers', [])
+                if 'surveys' in global_meta:
+                    snapshot_obj['surveys'] = global_meta.get('surveys', [])
+                if 'tasks' in global_meta:
+                    snapshot_obj['tasks'] = global_meta.get('tasks', [])
+                if 'classes' in global_meta:
+                    snapshot_obj['classes'] = global_meta.get('classes', [])
+                if 'users' in global_meta and isinstance(global_meta['users'], list):
+                    sanitized_users = []
+                    for u in global_meta['users']:
+                        if isinstance(u, dict):
+                            u_copy = dict(u)
+                            u_copy.pop('password', None)
+                            sanitized_users.append(u_copy)
+                    snapshot_obj['users'] = sanitized_users
+
+            content = json.dumps(snapshot_obj, ensure_ascii=False).encode('utf-8')
 
             self.send_response(200)
             self.send_header('Content-Type', 'application/json; charset=utf-8')
@@ -783,12 +843,25 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                     self.end_headers()
                     self.wfile.write(b'{"success":false,"error":"session_invalid"}')
                     return
+                new_ver = 1
                 if isinstance(data, dict) and ('classes' in data or 'tasks' in data or 'users' in data):
                     global_file = os.path.join(DIR, 'global_db.json')
+                    old_ver = 1
+                    if os.path.exists(global_file):
+                        try:
+                            with open(global_file, 'r', encoding='utf-8') as gf:
+                                old_obj = json.load(gf)
+                                if isinstance(old_obj, dict):
+                                    old_ver = int(old_obj.get('version', 1))
+                        except Exception:
+                            pass
+                    new_ver = old_ver + 1
+                    data['version'] = new_ver
+                    save_bytes = json.dumps(data, ensure_ascii=False).encode('utf-8')
                     with JSON_FILE_LOCK:
                         with open(global_file, 'wb') as f:
-                            f.write(body)
-                resp = json.dumps({'success': True, 'timestamp': int(time.time() * 1000)}).encode('utf-8')
+                            f.write(save_bytes)
+                resp = json.dumps({'success': True, 'version': new_ver, 'timestamp': int(time.time() * 1000)}).encode('utf-8')
                 self.send_response(200)
                 self.send_header('Content-Type', 'application/json; charset=utf-8')
                 self.send_header('Content-Length', str(len(resp)))

@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260905_v2713";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime } from "./utils.js?v=20260905_v2713";
-import { callCozeAgentAPI } from "./agents.js?v=20260905_v2713";
-import { AuthManager } from "./auth.js?v=20260905_v2713";
-import { CloudSyncEngine } from "./sync.js?v=20260905_v2713";
-import { renderLoginView } from "./login.js?v=20260905_v2713";
-import { renderTeacherPortal } from "./teacher.js?v=20260905_v2713";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260905_v2713";
+} from "./constants.js?v=20260905_v2715";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime } from "./utils.js?v=20260905_v2715";
+import { callCozeAgentAPI } from "./agents.js?v=20260905_v2715";
+import { AuthManager } from "./auth.js?v=20260905_v2715";
+import { CloudSyncEngine } from "./sync.js?v=20260905_v2715";
+import { renderLoginView } from "./login.js?v=20260905_v2715";
+import { renderTeacherPortal } from "./teacher.js?v=20260905_v2715";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260905_v2715";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260905_v2713";
+} from "./editor.js?v=20260905_v2715";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -2358,9 +2358,10 @@ export class App {
   showReferencePapersModal() {
     document.querySelectorAll('.modal-overlay').forEach(el => el.remove());
     const user = this.authManager.getCurrentUser();
-    const groupId = user && user.groupId ? user.groupId : (this.state.activeMonitorGroupId || this.state.activeGroupId || null);
-    const classId = user ? user.classId : null;
     const activeTaskId = (this.state && this.state.activeTaskId) ? this.state.activeTaskId : null;
+    const classId = this.authManager.getEffectiveStudentClassId(user, activeTaskId) || (this.state && this.state.activeStudentClassId) || user?.classId || null;
+    const activeGroupObj = this.authManager.getStudentActiveGroup(user, classId);
+    const groupId = (this.state && this.state.activeGroupId) || (this.cloudSyncEngine && this.cloudSyncEngine.groupId) || activeGroupObj?.id || user?.groupId || null;
     const papers = this.authManager.getReferencePapers(groupId, classId, activeTaskId);
 
     const modal = document.createElement('div');

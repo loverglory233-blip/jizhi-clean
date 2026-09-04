@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260905_v2713
+ * Version: 20260905_v2715
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260905_v2713';
+  const APP_VERSION = '20260905_v2715';
   const APP_BUILD_DATE = '2026-09-05';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -4348,7 +4348,8 @@
           if (this.globalBc) { try { this.globalBc.close(); } catch (e) {} }
           this.globalBc = new BroadcastChannel('jizhi_global_events');
           this.globalBc.onmessage = (e) => {
-            if (e.data && e.data.type === 'task_extended' && e.data.task) {
+            if (!e || !e.data) return;
+            if (e.data.type === 'task_extended' && e.data.task) {
               const t = e.data.task;
               this._knownTaskDeadlines[t.id] = t.deadline;
               if (this.app.authManager) {
@@ -4362,6 +4363,26 @@
                 try { localStorage.setItem(STORAGE_KEY_TASKS, JSON.stringify(localTasks)); } catch (err) {}
               }
               this.handleTaskDeadlineChange(t, e.data.prevDeadline);
+            } else if (e.data.type === 'announcement_created' || e.data.type === 'announcement_deleted' || e.data.type === 'paper_uploaded' || e.data.type === 'paper_deleted' || e.data.type === 'survey_updated' || e.data.type === 'survey_deleted') {
+              if (this.app && this.app.authManager && this.app.authManager.pullGlobalMeta) {
+                this.app.authManager.pullGlobalMeta().then(() => {
+                  if (this.app.state && this.app.state.studentViewMode === 'workspace') {
+                    if (typeof this.app.renderHeader === 'function') this.app.renderHeader();
+                    if (typeof this.app.checkUnreadAnnouncements === 'function') this.app.checkUnreadAnnouncements();
+                    const currentUser = this.app.authManager.getCurrentUser();
+                    const effectiveClassId = this.app.authManager.getEffectiveStudentClassId(currentUser, this.app.state.activeTaskId);
+                    const activeGroupObj = this.app.authManager.getStudentActiveGroup(currentUser, effectiveClassId);
+                    const groupId = this.app.state.activeGroupId || this.groupId || activeGroupObj?.id || currentUser?.groupId || null;
+                    const available = this.app.authManager.getReferencePapers(groupId, effectiveClassId, this.app.state.activeTaskId);
+                    const refBtn = document.getElementById('btn-show-case') || document.getElementById('btn-view-reference-papers') || document.querySelector('.btn-view-ref-papers');
+                    if (refBtn) {
+                      refBtn.innerText = available.length > 0 ? `📚 查阅参考范文 (${available.length}篇)` : '📚 查阅参考范文库';
+                    }
+                  } else if (this.app.state && this.app.state.studentViewMode === 'task_list') {
+                    if (typeof this.app.renderMain === 'function') this.app.renderMain();
+                  }
+                }).catch(() => {});
+              }
             }
           };
         } catch (e) {}
@@ -4879,6 +4900,9 @@
         }
         if (remoteData.metaVer !== undefined && remoteData.metaVer !== this._lastKnownMetaVer) {
           this._lastKnownMetaVer = remoteData.metaVer;
+          if (this.app?.authManager) {
+            this.app.authManager.globalMetaVersion = remoteData.metaVer;
+          }
           if (this.app && this.app.authManager && this.app.authManager.pullGlobalMeta) {
             this.app.authManager.pullGlobalMeta().then(() => {
               if (this.app.state.studentViewMode === 'workspace' && this.app.state.activeTaskId) {
@@ -4938,6 +4962,9 @@
 
       if (remoteData.metaVer !== undefined) {
         this._lastKnownMetaVer = remoteData.metaVer;
+        if (this.app?.authManager) {
+          this.app.authManager.globalMetaVersion = remoteData.metaVer;
+        }
       }
 
       if (remoteData.users || remoteData.tasks || remoteData.referencePapers) {
@@ -4950,6 +4977,9 @@
       }
       if (remoteData.metaVer !== undefined) {
         this._lastKnownMetaVer = remoteData.metaVer;
+        if (this.app?.authManager) {
+          this.app.authManager.globalMetaVersion = remoteData.metaVer;
+        }
       }
       this._hasPulledGlobal = true;
 
@@ -16897,9 +16927,10 @@
     showReferencePapersModal() {
       document.querySelectorAll('.modal-overlay').forEach(el => el.remove());
       const user = this.authManager.getCurrentUser();
-      const groupId = user && user.groupId ? user.groupId : (this.state.activeMonitorGroupId || this.state.activeGroupId || null);
-      const classId = user ? user.classId : null;
       const activeTaskId = (this.state && this.state.activeTaskId) ? this.state.activeTaskId : null;
+      const classId = this.authManager.getEffectiveStudentClassId(user, activeTaskId) || (this.state && this.state.activeStudentClassId) || user?.classId || null;
+      const activeGroupObj = this.authManager.getStudentActiveGroup(user, classId);
+      const groupId = (this.state && this.state.activeGroupId) || (this.cloudSyncEngine && this.cloudSyncEngine.groupId) || activeGroupObj?.id || user?.groupId || null;
       const papers = this.authManager.getReferencePapers(groupId, classId, activeTaskId);
 
       const modal = document.createElement('div');
