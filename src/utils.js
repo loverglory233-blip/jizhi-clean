@@ -717,6 +717,7 @@ export function showTaskExtendedUnlockModal(task, prevDeadline, isUnlockedNow = 
  */
 export function enforceEtherpadReadonly(iframe) {
   if (!iframe) return;
+  iframe._isReadonlyEnforced = true;
 
   // 🛡️ 1. 物理级点击拦截遮罩：pointer-events:auto 彻底阻断任何鼠标点击、聚焦与键盘光标进入 iframe
   const container = iframe.parentElement;
@@ -752,15 +753,16 @@ export function enforceEtherpadReadonly(iframe) {
   }
 
   const tryLock = () => {
+    if (!iframe._isReadonlyEnforced) return;
     try {
       const doc = iframe.contentDocument;
       if (!doc) return;
 
-      const toolbar = doc.querySelector('.toolbar') || doc.querySelector('#editbar') || doc.querySelector('#menu_left') || doc.querySelector('#menu_right') || doc.querySelector('.menu');
-      if (toolbar) toolbar.style.setProperty('display', 'none', 'important');
+      const toolbars = doc.querySelectorAll('.toolbar, #editbar, #menu_left, #menu_right, .menu, #toolbar, nav.navbar, .menu_left, .menu_right');
+      toolbars.forEach(tb => tb.style.setProperty('display', 'none', 'important'));
 
-      const footer = doc.querySelector('#footer') || doc.querySelector('.bottom-bar') || doc.querySelector('#chatbox');
-      if (footer) footer.style.setProperty('display', 'none', 'important');
+      const footers = doc.querySelectorAll('#footer, .bottom-bar, #chatbox');
+      footers.forEach(ft => ft.style.setProperty('display', 'none', 'important'));
 
       const aceOuter = doc.querySelector('iframe[name="ace_outer"]');
       if (aceOuter && aceOuter.contentDocument) {
@@ -783,6 +785,7 @@ export function enforceEtherpadReadonly(iframe) {
     let attempts = 0;
     const iv = setInterval(() => {
       attempts++;
+      if (!iframe._isReadonlyEnforced) { clearInterval(iv); return; }
       tryLock();
       if (attempts >= 10) clearInterval(iv);
     }, 200);
@@ -795,6 +798,7 @@ export function enforceEtherpadReadonly(iframe) {
  */
 export function liftEtherpadReadonly(iframe) {
   if (!iframe) return;
+  iframe._isReadonlyEnforced = false;
 
   const container = iframe.parentElement;
   if (container) {
@@ -803,18 +807,26 @@ export function liftEtherpadReadonly(iframe) {
   }
 
   const tryUnlock = () => {
+    if (iframe._isReadonlyEnforced) return;
     try {
       const doc = iframe.contentDocument;
       if (!doc) return;
 
-      const toolbar = doc.querySelector('.toolbar') || doc.querySelector('#editbar') || doc.querySelector('#menu_left') || doc.querySelector('#menu_right') || doc.querySelector('.menu');
-      if (toolbar) {
-        toolbar.style.removeProperty('display');
-      }
+      const toolbars = doc.querySelectorAll('.toolbar, #editbar, #menu_left, #menu_right, .menu, #toolbar, nav.navbar, .menu_left, .menu_right');
+      toolbars.forEach(tb => {
+        tb.style.removeProperty('display');
+        tb.style.display = '';
+      });
 
-      const footer = doc.querySelector('#footer') || doc.querySelector('.bottom-bar') || doc.querySelector('#chatbox');
-      if (footer) {
-        footer.style.removeProperty('display');
+      const footers = doc.querySelectorAll('#footer, .bottom-bar, #chatbox');
+      footers.forEach(ft => {
+        ft.style.removeProperty('display');
+        ft.style.display = '';
+      });
+
+      const editorBox = doc.querySelector('#editorcontainerbox');
+      if (editorBox) {
+        editorBox.style.removeProperty('top');
       }
 
       const aceOuter = doc.querySelector('iframe[name="ace_outer"]');
@@ -827,6 +839,7 @@ export function liftEtherpadReadonly(iframe) {
           if (innerBody) {
             innerBody.setAttribute('contenteditable', 'true');
             innerBody.style.removeProperty('cursor');
+            innerBody.style.cursor = 'text';
           }
         }
       }
@@ -837,6 +850,7 @@ export function liftEtherpadReadonly(iframe) {
   let attempts = 0;
   const iv = setInterval(() => {
     attempts++;
+    if (iframe._isReadonlyEnforced) { clearInterval(iv); return; }
     tryUnlock();
     if (attempts >= 10) clearInterval(iv);
   }, 200);
