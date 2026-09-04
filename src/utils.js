@@ -761,17 +761,21 @@ export function enforceEtherpadReadonly(iframe) {
     };
   }
 
+  const isTeacherMonitor = iframe.id && iframe.id.includes('teacher');
   const tryLock = () => {
     if (!iframe._isReadonlyEnforced) return;
     try {
       const doc = iframe.contentDocument;
       if (!doc) return;
 
-      const toolbars = doc.querySelectorAll('.toolbar, #editbar, #menu_left, #menu_right, .menu, #toolbar, nav.navbar, .menu_left, .menu_right, .editbar, #editbar ul, .menu_left ul, .menu_right ul, .editbar ul');
-      toolbars.forEach(tb => tb.style.setProperty('display', 'none', 'important'));
+      // 🛡️ 关键修复：仅在教师监控镜像端彻底隐藏工具栏；学生端无论何时都保留工具栏原生展示
+      if (isTeacherMonitor) {
+        const toolbars = doc.querySelectorAll('.toolbar, #editbar, #menu_left, #menu_right, .menu, #toolbar, nav.navbar, .menu_left, .menu_right, .editbar, #editbar ul, .menu_left ul, .menu_right ul, .editbar ul');
+        toolbars.forEach(tb => tb.style.setProperty('display', 'none', 'important'));
 
-      const footers = doc.querySelectorAll('#footer, .bottom-bar, #chatbox');
-      footers.forEach(ft => ft.style.setProperty('display', 'none', 'important'));
+        const footers = doc.querySelectorAll('#footer, .bottom-bar, #chatbox');
+        footers.forEach(ft => ft.style.setProperty('display', 'none', 'important'));
+      }
 
       const aceOuter = doc.querySelector('iframe[name="ace_outer"]');
       if (aceOuter && aceOuter.contentDocument) {
