@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState, STORAGE_KEY_TASKS } from './constants.js?v=20260904_v2499';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly } from './utils.js?v=20260904_v2499';
+import { InitialState, STORAGE_KEY_TASKS } from './constants.js?v=20260904_v2500';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly } from './utils.js?v=20260904_v2500';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -518,11 +518,21 @@ export class CloudSyncEngine {
     // 教师一旦发布新范文或公告，学生端在任务工作台内 1~2 秒内自动无感对齐更新
     if (this.app.authManager) {
       if (Array.isArray(remoteData.tasks) && remoteData.tasks.length > 0) {
-        const key = 'jizhi_pure_v10_tasks_db';
-        const remoteStr = JSON.stringify(remoteData.tasks);
-        localStorage.setItem(key, remoteStr);
+        const localTasks = this.app.authManager.getTasks();
+        const mergedTasks = remoteData.tasks.map(remoteT => {
+          const localT = localTasks.find(lt => lt.id === remoteT.id || (lt.title && lt.title === remoteT.title));
+          if (localT && localT.lastExtension) {
+            const localExtAt = localT.lastExtension.extendedAt || 0;
+            const remoteExtAt = remoteT.lastExtension ? (remoteT.lastExtension.extendedAt || 0) : 0;
+            if (localExtAt >= remoteExtAt) {
+              return { ...remoteT, deadline: localT.deadline, durationMinutes: localT.durationMinutes, lastExtension: localT.lastExtension };
+            }
+          }
+          return remoteT;
+        });
+        localStorage.setItem(STORAGE_KEY_TASKS, JSON.stringify(mergedTasks));
 
-        remoteData.tasks.forEach(t => {
+        mergedTasks.forEach(t => {
           if (!t || !t.id) return;
           const oldDeadline = this._knownTaskDeadlines[t.id];
           if (oldDeadline !== undefined && t.deadline && oldDeadline !== t.deadline) {
