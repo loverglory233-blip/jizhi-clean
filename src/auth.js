@@ -14,8 +14,8 @@ import {
   DefaultTasks,
   DefaultAnnouncements,
   DefaultReferencePapers
-} from './constants.js?v=20260904_v2532';
-import { formatExportDateTime, formatDurationHuman, isScopeMatch } from './utils.js?v=20260904_v2532';
+} from './constants.js?v=20260904_v2533';
+import { formatExportDateTime, formatDurationHuman, isScopeMatch } from './utils.js?v=20260904_v2533';
 
 export class AuthManager {
   constructor() {
@@ -1563,17 +1563,30 @@ export class AuthManager {
     const targetTask = tasks[taskIndex];
     const oldDeadline = targetTask.deadline || '';
     targetTask.deadline = newDeadline;
-    if (addedMinutes > 0) {
-      targetTask.durationMinutes = (parseInt(targetTask.durationMinutes, 10) || 150) + parseInt(addedMinutes, 10);
+
+    if (targetTask.startTime && newDeadline) {
+      try {
+        const sDate = new Date(String(targetTask.startTime).replace(/-/g, '/'));
+        const dDate = new Date(String(newDeadline).replace(/-/g, '/'));
+        if (!isNaN(sDate.getTime()) && !isNaN(dDate.getTime()) && dDate > sDate) {
+          targetTask.durationMinutes = Math.round((dDate.getTime() - sDate.getTime()) / (60 * 1000));
+        } else if (addedMinutes !== 0) {
+          targetTask.durationMinutes = Math.max(1, (parseInt(targetTask.durationMinutes, 10) || 150) + parseInt(addedMinutes, 10));
+        }
+      } catch (e) {}
+    } else if (addedMinutes !== 0) {
+      targetTask.durationMinutes = Math.max(1, (parseInt(targetTask.durationMinutes, 10) || 150) + parseInt(addedMinutes, 10));
     }
+
     const taskTitle = targetTask.title || '写作任务';
     const targetClassId = targetTask.classId || 'all';
     const targetClassName = targetTask.className || '全校班级';
+    const humanDiff = addedMinutes >= 0 ? formatDurationHuman(addedMinutes) : `提前 ${formatDurationHuman(Math.abs(addedMinutes))}`;
     targetTask.lastExtension = {
       extendedAt: Date.now(),
       newDeadline: newDeadline,
       addedMinutes: addedMinutes,
-      extendDurationStr: formatDurationHuman(addedMinutes)
+      extendDurationStr: humanDiff
     };
     localStorage.setItem(STORAGE_KEY_TASKS, JSON.stringify(tasks));
     localStorage.setItem('jizhi_pure_v10_tasks_db', JSON.stringify(tasks));
