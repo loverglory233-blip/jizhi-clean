@@ -875,59 +875,19 @@ export function ensureEtherpadUserSync(iframe, userName, userColor) {
         }
       }
 
-      // 3. 权威注入 pad.myUserInfo 并广播给所有组员
-      if (padWin.pad) {
-        if (padWin.pad.myUserInfo) {
-          padWin.pad.myUserInfo.name = userName;
-          padWin.pad.myUserInfo.colorId = color;
-        }
-        if (padWin.pad.collabClient) {
-          if (typeof padWin.pad.collabClient.tellPadNameAndColor === 'function') {
-            padWin.pad.collabClient.tellPadNameAndColor(userName, color);
-          }
-          if (typeof padWin.pad.collabClient.sendClientMessage === 'function') {
-            padWin.pad.collabClient.sendClientMessage({
-              type: 'USERINFO_UPDATE',
-              userInfo: {
-                name: userName,
-                colorId: color
-              }
-            });
-          }
-        }
-        if (typeof padWin.pad.notifyChangeColorAndName === 'function') {
-          padWin.pad.notifyChangeColorAndName({ name: userName, colorId: color });
-        }
-      }
-
-      // 4. Etherpad 原生 DOM 名字输入框 (如果有)
-      const doc = iframe.contentDocument;
-      if (doc) {
-        const nameInput = doc.querySelector('#myusernameedit') || doc.querySelector('#custom-user-name');
-        if (nameInput && nameInput.value !== userName) {
-          nameInput.value = userName;
-          nameInput.dispatchEvent(new Event('change', { bubbles: true }));
-        }
+      // 3. 安全注入 pad.myUserInfo
+      if (padWin.pad && padWin.pad.myUserInfo) {
+        padWin.pad.myUserInfo.name = userName;
+        padWin.pad.myUserInfo.colorId = color;
       }
     } catch(err) {}
   };
 
-  doSync();
   iframe.addEventListener('load', () => {
     doSync();
-    let attempts = 0;
-    const iv = setInterval(() => {
-      attempts++;
-      doSync();
-      if (attempts >= 10) clearInterval(iv);
-    }, 250);
+    setTimeout(doSync, 500);
   });
-  let attempts = 0;
-  const iv = setInterval(() => {
-    attempts++;
-    doSync();
-    if (attempts >= 8) clearInterval(iv);
-  }, 300);
+  doSync();
 }
 
 /**
