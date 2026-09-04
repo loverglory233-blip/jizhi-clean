@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260904_v2222";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch, showResolutionBlock, safeJsonParse } from "./utils.js?v=20260904_v2222";
-import { callCozeAgentAPI } from "./agents.js?v=20260904_v2222";
-import { AuthManager } from "./auth.js?v=20260904_v2222";
-import { CloudSyncEngine } from "./sync.js?v=20260904_v2222";
-import { renderLoginView } from "./login.js?v=20260904_v2222";
-import { renderTeacherPortal } from "./teacher.js?v=20260904_v2222";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260904_v2222";
+} from "./constants.js?v=20260904_v2223";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch, showResolutionBlock, safeJsonParse } from "./utils.js?v=20260904_v2223";
+import { callCozeAgentAPI } from "./agents.js?v=20260904_v2223";
+import { AuthManager } from "./auth.js?v=20260904_v2223";
+import { CloudSyncEngine } from "./sync.js?v=20260904_v2223";
+import { renderLoginView } from "./login.js?v=20260904_v2223";
+import { renderTeacherPortal } from "./teacher.js?v=20260904_v2223";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260904_v2223";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260904_v2222";
+} from "./editor.js?v=20260904_v2223";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -2739,7 +2739,6 @@ export class App {
       if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
       renderChat(this.state);
     }
-  }
   }
 
   handleVoteCast(proposalId) {
