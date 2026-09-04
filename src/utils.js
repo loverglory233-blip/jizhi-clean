@@ -49,8 +49,13 @@ export function isSameUser(userA, userB) {
  */
 export function isUserInMap(map, user) {
   if (!map || typeof map !== 'object' || !user) return false;
-  const keys = getUserAllKeys(user);
-  return keys.some(k => Boolean(map[k]));
+  const keys = getUserAllKeys(user).map(k => String(k).trim().toLowerCase());
+  for (const [mapKey, val] of Object.entries(map)) {
+    if (Boolean(val) && keys.includes(String(mapKey).trim().toLowerCase())) {
+      return true;
+    }
+  }
+  return false;
 }
 
 /**
@@ -58,10 +63,14 @@ export function isUserInMap(map, user) {
  */
 export function isMemberDone(map, m) {
   if (!map || typeof map !== 'object' || !m) return false;
-  const keys = getUserAllKeys(m);
-  if (keys.length > 0 && keys.some(k => Boolean(map[k]))) return true;
-  const id = typeof m === 'object' ? (m.id || m.name) : m;
-  return Boolean(map[id] || (typeof m === 'object' && m.name && map[m.name]));
+  const keys = getUserAllKeys(m).map(k => String(k).trim().toLowerCase());
+  if (keys.length === 0) return false;
+  for (const [mapKey, val] of Object.entries(map)) {
+    if (Boolean(val) && keys.includes(String(mapKey).trim().toLowerCase())) {
+      return true;
+    }
+  }
+  return false;
 }
 
 /**
@@ -69,9 +78,11 @@ export function isMemberDone(map, m) {
  */
 export function getUserFromMap(map, user) {
   if (!map || typeof map !== 'object' || !user) return undefined;
-  const keys = getUserAllKeys(user);
-  for (const k of keys) {
-    if (map[k] !== undefined) return map[k];
+  const keys = getUserAllKeys(user).map(k => String(k).trim().toLowerCase());
+  for (const [mapKey, val] of Object.entries(map)) {
+    if (val !== undefined && keys.includes(String(mapKey).trim().toLowerCase())) {
+      return val;
+    }
   }
   return undefined;
 }
