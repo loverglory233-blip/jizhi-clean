@@ -2767,6 +2767,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 ':ts2'   => $ts
             ]);
 
+            // 4a. 小组计时器状态持久化（保存首个进入房间的时间戳与速度，防止刷新重置）
+            if (!empty($data['timer']) && is_array($data['timer'])) {
+                $incomingTimer = $data['timer'];
+                $existingTimer = [];
+                $stmtGetTimer = $pdo->prepare("SELECT meta_value FROM global_meta WHERE meta_key = :k");
+                $stmtGetTimer->execute([':k' => 'timer_' . $scopeKey]);
+                $tRow = $stmtGetTimer->fetch();
+                if ($tRow && !empty($tRow['meta_value'])) {
+                    $existingTimer = json_decode($tRow['meta_value'], true) ?: [];
+                }
+                $mergedTimer = array_merge($existingTimer, $incomingTimer);
+                if (!empty($existingTimer['startTimestamp'])) {
+                    $mergedTimer['startTimestamp'] = $existingTimer['startTimestamp'];
+                }
+                $nowStr = date('Y-m-d H:i:s');
+                $stmtSaveTimer = $pdo->prepare("INSERT INTO global_meta (meta_key, meta_value, updated_at) VALUES (:k, :v, :ts) ON DUPLICATE KEY UPDATE meta_value = :v2, updated_at = :ts2");
+                $stmtSaveTimer->execute([':k' => 'timer_' . $scopeKey, ':v' => json_encode($mergedTimer), ':ts' => $nowStr, ':v2' => json_encode($mergedTimer), ':ts2' => $nowStr]);
+            }
+
             // 4b. 聊天记录增量并集去重合并（Union & Dedup），确保服务端消息单调递增绝不丢任何发言
             $existingChats = ['stage1' => [], 'stage2' => [], 'stage3' => []];
             if (!$isResetVal) {
@@ -3115,6 +3134,11 @@ if ($pdo) {
         $cRow = $stmtGetConfs->fetch();
         $stepConfs = ($cRow && !empty($cRow['meta_value'])) ? (json_decode($cRow['meta_value'], true) ?: []) : [];
 
+        $stmtGetTimer = $pdo->prepare("SELECT meta_value FROM global_meta WHERE meta_key = :k");
+        $stmtGetTimer->execute([':k' => 'timer_' . $scopeKey]);
+        $tRow = $stmtGetTimer->fetch();
+        $timerData = ($tRow && !empty($tRow['meta_value'])) ? (json_decode($tRow['meta_value'], true) ?: null) : null;
+
         $respData = [
             'timestamp'        => $lastTs,
             'serverTimestamp'  => $nowMs,
@@ -3127,6 +3151,7 @@ if ($pdo) {
             'stage2'           => !empty($stg2Raw) ? (json_decode($stg2Raw, true) ?: []) : [],
             'stage3'           => !empty($stg3Raw) ? (json_decode($stg3Raw, true) ?: []) : [],
             'stepConfirmations'=> $stepConfs,
+            'timer'            => $timerData,
             'presence'         => json_decode($prRaw) ?: new stdClass(),
             'members'          => json_decode($memRaw, true) ?: [],
             'isFinalSubmitted' => (bool)$row['is_final_submitted'],

@@ -9353,9 +9353,9 @@
 
     if (!s1Container || !s2Container || !s3Container) {
       canvas.innerHTML = `
-        <div id="stage-canvas-s1" style="display:none; flex-direction:column; height:100%; width:100%; overflow:hidden;"></div>
+        <div id="stage-canvas-s1" style="display:none; flex-direction:column; width:100%; gap:12px; padding-bottom:36px;"></div>
         <div id="stage-canvas-s2" style="display:none; flex-direction:column; height:100%; width:100%; overflow:hidden;"></div>
-        <div id="stage-canvas-s3" style="display:none; flex-direction:column; height:100%; width:100%; overflow:hidden;"></div>
+        <div id="stage-canvas-s3" style="display:none; flex-direction:column; width:100%; gap:12px; padding-bottom:36px;"></div>
       `;
       s1Container = canvas.querySelector('#stage-canvas-s1');
       s2Container = canvas.querySelector('#stage-canvas-s2');
@@ -12865,6 +12865,9 @@
           // 统一物理时间戳计秒：全组成员按首次开启时间统一对齐，杜绝迟到成员或刷新页面导致的时间差
           if (!this.state.timer.startTimestamp) {
             this.state.timer.startTimestamp = nowMs;
+            if (this.cloudSyncEngine && typeof this.cloudSyncEngine.pushSnapshot === 'function') {
+              this.cloudSyncEngine.pushSnapshot();
+            }
           }
           const speed = this.state.timer.speed || 1;
           const physicalElapsedSec = Math.floor((nowMs - this.state.timer.startTimestamp) / 1000);

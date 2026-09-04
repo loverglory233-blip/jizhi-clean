@@ -487,6 +487,9 @@ export class App {
         // 统一物理时间戳计秒：全组成员按首次开启时间统一对齐，杜绝迟到成员或刷新页面导致的时间差
         if (!this.state.timer.startTimestamp) {
           this.state.timer.startTimestamp = nowMs;
+          if (this.cloudSyncEngine && typeof this.cloudSyncEngine.pushSnapshot === 'function') {
+            this.cloudSyncEngine.pushSnapshot();
+          }
         }
         const speed = this.state.timer.speed || 1;
         const physicalElapsedSec = Math.floor((nowMs - this.state.timer.startTimestamp) / 1000);
