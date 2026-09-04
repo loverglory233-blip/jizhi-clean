@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260905_v2664
+ * Version: 20260905_v2665
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260905_v2664';
+  const APP_VERSION = '20260905_v2665';
   const APP_BUILD_DATE = '2026-09-05';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -6398,16 +6398,18 @@
 
       if (authManager && authManager.pullGlobalMeta) {
         try {
+          const oldVer = authManager.globalMetaVersion || 0;
           const oldTasksJson = localStorage.getItem(STORAGE_KEY_TASKS) || '[]';
           const oldClassesJson = localStorage.getItem(STORAGE_KEY_CLASSES) || '[]';
           const oldUsersJson = localStorage.getItem(STORAGE_KEY_USERS_DB) || '[]';
           const oldAnnsJson = localStorage.getItem(STORAGE_KEY_ANNOUNCEMENTS) || '[]';
           await authManager.pullGlobalMeta();
+          const newVer = authManager.globalMetaVersion || 0;
           const newTasksJson = localStorage.getItem(STORAGE_KEY_TASKS) || '[]';
           const newClassesJson = localStorage.getItem(STORAGE_KEY_CLASSES) || '[]';
           const newUsersJson = localStorage.getItem(STORAGE_KEY_USERS_DB) || '[]';
           const newAnnsJson = localStorage.getItem(STORAGE_KEY_ANNOUNCEMENTS) || '[]';
-          if (oldTasksJson !== newTasksJson || oldClassesJson !== newClassesJson || oldUsersJson !== newUsersJson || oldAnnsJson !== newAnnsJson) {
+          if (oldVer !== newVer || oldTasksJson !== newTasksJson || oldClassesJson !== newClassesJson || oldUsersJson !== newUsersJson || oldAnnsJson !== newAnnsJson) {
             if (document.querySelector('.modal-overlay') || document.querySelector('#modal-extend-deadline')) {
               // 延缓至弹窗关闭后再刷
             } else {
@@ -9627,7 +9629,8 @@
               state.activeTaskId = newTask.id;
             }
             closeModal();
-            showGlobalBannerNotice('✅ 任务发布成功', `写作任务《${title}》已成功发布至【${targetClass?.name || '班级'}】！`, 'success');
+            const targetClassName = newTask?.className || (activeClass ? activeClass.name : '班级');
+            showGlobalBannerNotice('✅ 任务发布成功', `写作任务《${title}》已成功发布至【${targetClassName}】！`, 'success');
             renderTeacherPortal(container, authManager, state, onLogout);
           } catch (err) {
             alert('❌ ' + err.message);
@@ -10416,14 +10419,16 @@
       if (state.studentViewMode !== 'task_list') return; // 离开大厅即停止轮询
       if (authManager && authManager.pullGlobalMeta) {
         try {
+          const oldVer = authManager.globalMetaVersion || 0;
           const oldTasksJson = localStorage.getItem(STORAGE_KEY_TASKS) || '[]';
           const oldAnnsJson = localStorage.getItem(STORAGE_KEY_ANNOUNCEMENTS) || '[]';
           const oldClassesJson = localStorage.getItem(STORAGE_KEY_CLASSES) || '[]';
           await authManager.pullGlobalMeta();
+          const newVer = authManager.globalMetaVersion || 0;
           const newTasksJson = localStorage.getItem(STORAGE_KEY_TASKS) || '[]';
           const newAnnsJson = localStorage.getItem(STORAGE_KEY_ANNOUNCEMENTS) || '[]';
           const newClassesJson = localStorage.getItem(STORAGE_KEY_CLASSES) || '[]';
-          if (oldTasksJson !== newTasksJson || oldAnnsJson !== newAnnsJson || oldClassesJson !== newClassesJson) {
+          if (oldVer !== newVer || oldTasksJson !== newTasksJson || oldAnnsJson !== newAnnsJson || oldClassesJson !== newClassesJson) {
             if (document.activeElement?.id !== 'sel-student-class-switch') {
               renderStudentTaskPortal(container, authManager, state, onSelectTask, onLogout, onOpenAnnModal, onOpenSurveyModal);
               return; // 重渲染会重建整套循环，此处无需再自行调度

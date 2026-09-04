@@ -8,8 +8,8 @@ import {
   STORAGE_KEY_ANNOUNCEMENTS,
   STORAGE_KEY_CLASSES,
   TASK_GENRE_CONFIGS
-} from "./constants.js?v=20260905_v2664";
-import { escapeHtml, isTaskExpired, formatDurationHuman, formatStandardDateDash, showGlobalBannerNotice } from "./utils.js?v=20260905_v2664";
+} from "./constants.js?v=20260905_v2665";
+import { escapeHtml, isTaskExpired, formatDurationHuman, formatStandardDateDash, showGlobalBannerNotice } from "./utils.js?v=20260905_v2665";
 
 /* ==========================================================================
    10. STUDENT TASK PORTAL (CENTRALIZED HUB & COLLABORATION ENTRY)
@@ -91,14 +91,16 @@ export function renderStudentTaskPortal(container, authManager, state, onSelectT
     if (state.studentViewMode !== 'task_list') return; // 离开大厅即停止轮询
     if (authManager && authManager.pullGlobalMeta) {
       try {
+        const oldVer = authManager.globalMetaVersion || 0;
         const oldTasksJson = localStorage.getItem(STORAGE_KEY_TASKS) || '[]';
         const oldAnnsJson = localStorage.getItem(STORAGE_KEY_ANNOUNCEMENTS) || '[]';
         const oldClassesJson = localStorage.getItem(STORAGE_KEY_CLASSES) || '[]';
         await authManager.pullGlobalMeta();
+        const newVer = authManager.globalMetaVersion || 0;
         const newTasksJson = localStorage.getItem(STORAGE_KEY_TASKS) || '[]';
         const newAnnsJson = localStorage.getItem(STORAGE_KEY_ANNOUNCEMENTS) || '[]';
         const newClassesJson = localStorage.getItem(STORAGE_KEY_CLASSES) || '[]';
-        if (oldTasksJson !== newTasksJson || oldAnnsJson !== newAnnsJson || oldClassesJson !== newClassesJson) {
+        if (oldVer !== newVer || oldTasksJson !== newTasksJson || oldAnnsJson !== newAnnsJson || oldClassesJson !== newClassesJson) {
           if (document.activeElement?.id !== 'sel-student-class-switch') {
             renderStudentTaskPortal(container, authManager, state, onSelectTask, onLogout, onOpenAnnModal, onOpenSurveyModal);
             return; // 重渲染会重建整套循环，此处无需再自行调度

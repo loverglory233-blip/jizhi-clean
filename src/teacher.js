@@ -11,8 +11,8 @@ import {
   TASK_GENRE_CONFIGS,
   AgentProfiles,
   APP_VERSION
-} from "./constants.js?v=20260905_v2664";
-import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, showGlobalBannerNotice } from "./utils.js?v=20260905_v2664";
+} from "./constants.js?v=20260905_v2665";
+import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, showGlobalBannerNotice } from "./utils.js?v=20260905_v2665";
 
 /* ==========================================================================
    6.8 TEACHER MONITOR IN-PLACE INCREMENTAL UPDATER (PREVENT IFRAME THRASHING)
@@ -462,16 +462,18 @@ export function renderTeacherPortal(container, authManager, state, onLogout) {
 
     if (authManager && authManager.pullGlobalMeta) {
       try {
+        const oldVer = authManager.globalMetaVersion || 0;
         const oldTasksJson = localStorage.getItem(STORAGE_KEY_TASKS) || '[]';
         const oldClassesJson = localStorage.getItem(STORAGE_KEY_CLASSES) || '[]';
         const oldUsersJson = localStorage.getItem(STORAGE_KEY_USERS_DB) || '[]';
         const oldAnnsJson = localStorage.getItem(STORAGE_KEY_ANNOUNCEMENTS) || '[]';
         await authManager.pullGlobalMeta();
+        const newVer = authManager.globalMetaVersion || 0;
         const newTasksJson = localStorage.getItem(STORAGE_KEY_TASKS) || '[]';
         const newClassesJson = localStorage.getItem(STORAGE_KEY_CLASSES) || '[]';
         const newUsersJson = localStorage.getItem(STORAGE_KEY_USERS_DB) || '[]';
         const newAnnsJson = localStorage.getItem(STORAGE_KEY_ANNOUNCEMENTS) || '[]';
-        if (oldTasksJson !== newTasksJson || oldClassesJson !== newClassesJson || oldUsersJson !== newUsersJson || oldAnnsJson !== newAnnsJson) {
+        if (oldVer !== newVer || oldTasksJson !== newTasksJson || oldClassesJson !== newClassesJson || oldUsersJson !== newUsersJson || oldAnnsJson !== newAnnsJson) {
           if (document.querySelector('.modal-overlay') || document.querySelector('#modal-extend-deadline')) {
             // 延缓至弹窗关闭后再刷
           } else {
@@ -3691,7 +3693,8 @@ export function renderTeacherPortal(container, authManager, state, onLogout) {
             state.activeTaskId = newTask.id;
           }
           closeModal();
-          showGlobalBannerNotice('✅ 任务发布成功', `写作任务《${title}》已成功发布至【${targetClass?.name || '班级'}】！`, 'success');
+          const targetClassName = newTask?.className || (activeClass ? activeClass.name : '班级');
+          showGlobalBannerNotice('✅ 任务发布成功', `写作任务《${title}》已成功发布至【${targetClassName}】！`, 'success');
           renderTeacherPortal(container, authManager, state, onLogout);
         } catch (err) {
           alert('❌ ' + err.message);
