@@ -3151,9 +3151,13 @@ ${chatSnippet}
   }
 
   /**
-   * 📜 阶段一公约终极一键补齐/生成：通读投票后全量研讨，一次性补齐主题、时间与全员1对1分工（支持冷场/空白讨论安全兜底）
+   * 📜 阶段一公约终极一键补齐/生成：需全员确认同意后触发通读研讨并提炼
    */
   async handleOneClickGenerateContract() {
+    this.handleStepConfirmation('s1_full_contract', () => this._doOneClickGenerateContract(), '提炼生成公约草案');
+  }
+
+  async _doOneClickGenerateContract() {
     const s1 = this.state.stage1 || {};
     if (s1.contractStep === 'completed' || s1.contract?.isDraftGenerated) {
       if (typeof showGlobalBannerNotice === 'function') {
