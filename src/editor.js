@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260905_v2699";
-import { callCozeAgentAPI } from "./agents.js?v=20260905_v2699";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, showResolutionBlock } from "./utils.js?v=20260905_v2699";
+import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260905_v2700";
+import { callCozeAgentAPI } from "./agents.js?v=20260905_v2700";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, showResolutionBlock } from "./utils.js?v=20260905_v2700";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -2912,6 +2912,7 @@ export function renderChat(state) {
 
       let isOnline = isMe;
       if (!isOnline) {
+        // 1. Direct candidateKeys lookup
         for (const k of candidateKeys) {
           const p = presence[k];
           if (p && !p.offline) {
@@ -2921,6 +2922,45 @@ export function renderChat(state) {
               break;
             }
           }
+        }
+        // 2. Flexible case-insensitive & name/id search in presence
+        if (!isOnline && presence && typeof presence === 'object') {
+          const lowKeys = candidateKeys.map(k => String(k).toLowerCase());
+          for (const [pk, p] of Object.entries(presence)) {
+            if (!p || p.offline) continue;
+            const pTime = Number(p.lastSeen || p.updatedAt || p.timestamp || 0);
+            if (pTime > 0 && (nowMs - pTime <= 180000)) {
+              const pLow = String(pk).toLowerCase();
+              const pName = String(p.name || '').trim().toLowerCase();
+              const pId = String(p.userId || p.id || '').trim().toLowerCase();
+              if (lowKeys.includes(pLow) || (pName && lowKeys.includes(pName)) || (pId && lowKeys.includes(pId))) {
+                isOnline = true;
+                break;
+              }
+            }
+          }
+        }
+        // 3. Recent chat message fallback (within 180s)
+        if (!isOnline && state.chatLogs) {
+          const mKeys = [uid, m.name, m.studentCode].filter(Boolean).map(x => String(x).toLowerCase());
+          ['stage1', 'stage2', 'stage3'].forEach(stg => {
+            if (isOnline) return;
+            const msgs = state.chatLogs[stg] || [];
+            for (let i = msgs.length - 1; i >= 0; i--) {
+              const msg = msgs[i];
+              if (!msg) continue;
+              const msgTime = Number(msg._timeMs || 0);
+              if (msgTime > 0 && (nowMs - msgTime <= 180000)) {
+                const sLow = String(msg.sender || '').toLowerCase();
+                if (mKeys.includes(sLow)) {
+                  isOnline = true;
+                  break;
+                }
+              } else if (msgTime > 0 && (nowMs - msgTime > 180000)) {
+                break;
+              }
+            }
+          });
         }
       }
 
