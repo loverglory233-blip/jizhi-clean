@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260905_v2545
+ * Version: 20260905_v2550
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260905_v2545';
+  const APP_VERSION = '20260905_v2550';
   const APP_BUILD_DATE = '2026-09-05';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -985,6 +985,22 @@
               innerBody.style.setProperty('cursor', 'default', 'important');
               innerBody.style.setProperty('user-select', 'text', 'important');
               innerBody.style.setProperty('-webkit-user-select', 'text', 'important');
+
+              // 🛡️ 智能镜像自愈：若发现 Etherpad 渲染了默认空占位符 ('啥意思捏')，自动触发写回对齐并重载镜像
+              const rawBodyText = (innerBody.innerText || '').trim();
+              if (rawBodyText === '啥意思捏' && !iframe._hasRecoveredMirror) {
+                const currentGId = iframe.getAttribute('data-group') || window.app?.state?.activeMonitorGroupId;
+                const currentTId = iframe.getAttribute('data-task') || window.app?.state?.activeTaskId;
+                const padName = iframe.getAttribute('data-pad') || `jizhi_${currentTId}_${currentGId}`;
+                if (padName) {
+                  iframe._hasRecoveredMirror = true;
+                  fetch(`sync.php?action=get_pad_html&padId=${encodeURIComponent(padName)}`).then(r => r.json()).then(res => {
+                    if (res && res.success && res.text && res.text !== '啥意思捏' && res.text.length > 10) {
+                      setTimeout(() => { if (iframe.parentElement) iframe.src = iframe.src; }, 400);
+                    }
+                  }).catch(() => {});
+                }
+              }
             }
 
             if (!innerDoc._jizhiReadonlyBound) {
@@ -4835,7 +4851,7 @@
 
         if (remoteData.stage2.unifiedContent !== undefined) {
           let remoteHtml = remoteData.stage2.unifiedContent || '';
-          if (remoteHtml.includes('一、研究背景与意义') || remoteHtml.includes('请在此处撰写正文')) {
+          if (remoteHtml.includes('请在此处撰写正文') && remoteHtml.replace(/<[^>]*>/g, '').trim().length < 50) {
             remoteHtml = '';
           }
           const isLocalPadActive = !!document.getElementById('stage2-etherpad-frame');
@@ -6933,7 +6949,7 @@
                                   </div>
                                 </div>
                                 <div style="position:relative; flex:1; width:100%; height:100%; min-height:520px; display:flex;">
-                                  <iframe id="teacher-stage2-etherpad-frame" data-pad="${targetPad}" src="/p/${encodeURIComponent(targetPad)}?userName=${encodeURIComponent('教师监控')}&userColor=%237c3aed&showControls=false&showChat=false&showLineNumbers=true&lang=zh-hans" style="flex:1; width:100%; height:100%; min-height:520px; border:none; display:block; background:#ffffff;" title="教师端实时写作同屏镜像 (只读)"></iframe>
+                                  <iframe id="teacher-stage2-etherpad-frame" data-pad="${targetPad}" data-task="${activeTaskId}" data-group="${activeMonitorGId}" src="/p/${encodeURIComponent(targetPad)}?userName=${encodeURIComponent('教师监控')}&userColor=%237c3aed&showControls=false&showChat=false&showLineNumbers=true&lang=zh-hans" style="flex:1; width:100%; height:100%; min-height:520px; border:none; display:block; background:#ffffff;" title="教师端实时写作同屏镜像 (只读)"></iframe>
                                 </div>
                               </div>
                             `;
@@ -7016,7 +7032,7 @@
                                   </div>
                                   </div>
                                   <div style="position:relative; flex:1; width:100%; height:100%; min-height:520px; display:flex;">
-                                    <iframe id="teacher-stage3-etherpad-frame" data-pad="${targetPad}" src="/p/${encodeURIComponent(targetPad)}?userName=${encodeURIComponent('教师监控')}&userColor=%237c3aed&showControls=false&showChat=false&showLineNumbers=true&lang=zh-hans" style="flex:1; width:100%; height:100%; min-height:520px; border:none; display:block; background:#ffffff;" title="教师端论文终稿同屏镜像 (只读)"></iframe>
+                                    <iframe id="teacher-stage3-etherpad-frame" data-pad="${targetPad}" data-task="${activeTaskId}" data-group="${activeMonitorGId}" src="/p/${encodeURIComponent(targetPad)}?userName=${encodeURIComponent('教师监控')}&userColor=%237c3aed&showControls=false&showChat=false&showLineNumbers=true&lang=zh-hans" style="flex:1; width:100%; height:100%; min-height:520px; border:none; display:block; background:#ffffff;" title="教师端论文终稿同屏镜像 (只读)"></iframe>
                                   </div>
                                 </div>
                               `;
@@ -11109,7 +11125,7 @@
   function renderStage2Canvas(canvas, state, handlers) {
     if (!canvas) return;
     const s2 = state.stage2;
-    if (s2.unifiedContent && (s2.unifiedContent.includes('一、研究背景与意义') || s2.unifiedContent.includes('请在此处撰写正文'))) {
+    if (s2.unifiedContent && s2.unifiedContent.includes('请在此处撰写正文') && s2.unifiedContent.replace(/<[^>]*>/g, '').trim().length < 50) {
       s2.unifiedContent = '';
     }
     const actionPlan = s2.actionPlan;
