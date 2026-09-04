@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260904_v2390
+ * Version: 20260904_v2395
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260904_v2390';
+  const APP_VERSION = '20260904_v2395';
   const APP_BUILD_DATE = '2026-09-04';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -13984,83 +13984,8 @@
             }
           }
 
-          // 2. 责任编辑过程守护：周期性读取【实际贡献百分比】与【研讨发言投入】（冷却间隔 >= 6分钟，杜绝连续打扰，随写作进程动态再次关怀）
-          const minContribThreshold = 300;
-          const existContribNudges = s2Chats.filter(m => m && (m.text?.includes('进度关怀') || m.text?.includes('协同关怀')));
-          const lastContribMsg = existContribNudges.length > 0 ? existContribNudges[existContribNudges.length - 1] : null;
-          const lastContribTime = parseMsgTime(lastContribMsg) || this.lastS2ContribNudgeTime || 0;
-          const isContribCooldownPassed = (now - lastContribTime) >= s2NudgeCooldownMs;
-
-          if (isContribCooldownPassed) {
-            // 1. 计算总投入与每位成员的实际贡献百分比（100% 依据 Etherpad 真实写作字数贡献）
-            let totalContrib = 0;
-            membersList.forEach(m => {
-              totalContrib += (contribs[m.id] || contribs[m.id] || 0);
-            });
-
-            // 2. 找出“写作贡献百分比显著滞后（<= 15%）”的同学
-            const severeInactiveMembers = [];
-            if (totalContrib >= minContribThreshold) {
-              membersList.forEach(m => {
-                const memContrib = (contribs[m.id] || contribs[m.id] || 0);
-                const pct = totalContrib > 0 ? Math.round((memContrib / totalContrib) * 100) : 33;
-
-                if (pct <= 15) {
-                  severeInactiveMembers.push(m.name);
-                }
-              });
-            }
-
-            if (severeInactiveMembers.length > 0) {
-              this.lastS2ContribNudgeTime = now;
-              this._nudgeCounts['s2_contrib'] = existContribNudges.length + 1;
-              const targetName = severeInactiveMembers[0];
-              const tasks = (this.state.stage1 && this.state.stage1.contract && this.state.stage1.contract.taskAssignments) ? this.state.stage1.contract.taskAssignments : {};
-              let targetChapter = '负责的章节';
-              membersList.forEach(m => {
-                if (m.name === targetName) {
-                  targetChapter = tasks[m.id] || tasks[m.id] || tasks[m.name] || '负责的章节';
-                }
-              });
-
-              const topic = (this.state.stage1 && this.state.stage1.mergedTitle) ? this.state.stage1.mergedTitle : '本组课题';
-              const contribPrompt = `小组正在协作撰写《${topic}》，目前全组总字数已达到 ${totalContrib} 字。
-  组员【${targetName}】主要聚焦在【${targetChapter}】，当前写作字数贡献占比偏低（≤ 15%）。
-  请作为责任编辑（过程学伴），发表 80~110 字的【动态写作关怀与共同思考点拨】：
-  ① 用温和鼓励的语气提醒 ${targetName} 同学可以逐步动笔展开起草；
-  ② 结合其主要聚焦的【${targetChapter}】，给出 1 个具体的学术起草切入建议；
-  ③ 【核心红线要求】：同时提醒其主动通读同伴已起草的段落，从中汲取灵感并打通前后逻辑衔接；
-  ④ 纯自然语言，80~110字，严禁指责，【绝对严禁出现“分工”字眼】，强调共同思考与协同衔接，严禁输出代码块，严禁添加按钮。`;
-
-              let careText = `🤝 【责任编辑·协同关怀】：大家都在按节奏推进！主要聚焦【${targetChapter}】的 ${targetName} 同学也可以逐步动笔啦。建议可以先通读同伴已起草的段落，从中汲取灵感并打通前后逻辑衔接，遇到难点随时在研讨区抛出来，全组共同思考推进！`;
-
-              try {
-                const resp = await callCozeAgentAPI('managingEditor', contribPrompt, { stage: 'stage2', topic });
-                if (resp && resp.trim().length > 0) {
-                  careText = resp.trim();
-                  if (!careText.startsWith('🤝')) {
-                    careText = `🤝 【责任编辑·协同关怀】：${careText.replace(/^[^\n]*?【[^】]+】[：:]?\s*/, '')}`;
-                  }
-                }
-              } catch (e) {
-                console.warn('Managing editor contrib care call failed:', e);
-              }
-
-              const msg = {
-                sender: 'managingEditor',
-                senderName: '协同调度 · 责任编辑',
-                text: careText,
-                timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                _timeMs: now
-              };
-              if (!this.state.chatLogs.stage2) this.state.chatLogs.stage2 = [];
-              this.state.chatLogs.stage2.push(msg);
-              this.syncChatLogs();
-              if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
-              renderChat(this.state);
-              return;
-            }
-          }
+          // 2. 责任编辑过程守护：读取【实际贡献百分比】（冷却间隔 >= 8分钟，全局单例防护，杜绝连发）
+          await this.checkManagingEditorContribCare(docLen, membersList, s2Chats);
 
 
 
@@ -19042,68 +18967,101 @@
         renderChat(this.state);
       }
 
-      // 3. 🤝 责任编辑 Agent: 字数贡献比严重偏斜提醒 (SSRL 共享调节)
-      const plainLen = newContent.replace(/<[^>]*>/g, '').trim().length;
-      const lastWarnTime = this.state.lastSSRLWarnTimeMs || 0;
-      const lastWarnLen = this.state.lastSSRLWarnLen || 0;
+      // 3. 🤝 责任编辑 Agent: 字数贡献比偏斜协同守护 (统一单例，共享 8 分钟冷却，绝不重复轰炸)
       const ssrlCooldownMs = isLargeTask ? 600000 : 480000;
-      const minNewProgressLen = isLargeTask ? 200 : 100;
-      const minContribThreshold = 300;
-      const cooldownPassed = (now - lastWarnTime) >= ssrlCooldownMs;
-      const hasMeaningfulProgress = (plainLen - lastWarnLen) >= minNewProgressLen;
-
-      // 🛡️ 严格聊天流去重：若最近 8 分钟内已有协同关怀记录，绝对禁止重复下发！
-      const recentSsrlMsg = [...logs].reverse().find(m => m && m.sender === 'managingEditor' && m.text?.includes('协同关怀'));
+      const recentSsrlMsg = [...logs].reverse().find(m => m && m.sender === 'managingEditor' && (m.text?.includes('协同关怀') || m.text?.includes('进度关怀')));
       const isRecentSsrlSent = recentSsrlMsg && (now - Number(recentSsrlMsg._timeMs || 0) < ssrlCooldownMs);
 
-      if (!isRecentSsrlSent && plainLen >= minContribThreshold && membersList.length >= 2 && cooldownPassed && (lastWarnTime === 0 || hasMeaningfulProgress)) {
-        const contribs = this.state.stage2.memberContributions || {};
-        const getVal = (m) => {
-          if (!m) return 0;
-          const keys = getUserAllKeys(m);
-          let maxVal = 0;
-          for (const k of keys) {
-            if (contribs[k] !== undefined && Number(contribs[k]) > maxVal) {
-              maxVal = Number(contribs[k]);
-            }
-          }
-          return maxVal;
-        };
+      if (!isRecentSsrlSent && plainLen >= 300 && membersList.length >= 2) {
+        this.checkManagingEditorContribCare(plainLen, membersList, logs);
+      }
+    }
 
-        let totalContrib = 0;
-        membersList.forEach(m => { totalContrib += getVal(m); });
+    async checkManagingEditorContribCare(currentDocLen, membersList, logs) {
+      if (this._isTriggeringContribCare) return;
+      const now = Date.now();
+      const isLargeTask = this.state.activeTaskScale === 'large';
+      const ssrlCooldownMs = isLargeTask ? 600000 : 480000;
 
-        if (totalContrib >= minContribThreshold || plainLen >= minContribThreshold) {
-          // 纯粹判定：只要组内有成员写作占比 <= 15%（且总字数达标），责任编辑即出场点名关怀
-          const lowMembers = [];
-          membersList.forEach(m => {
-            const val = getVal(m);
-            const pct = (totalContrib > 0) ? Math.round((val / totalContrib) * 100) : 0;
-            if (pct <= 15) {
-              lowMembers.push(m);
-            }
-          });
+      // 🛡️ 严格聊天流去重：若最近 8 分钟内已有协同关怀记录，绝对禁止重复下发！
+      const recentSsrlMsg = [...(logs || [])].reverse().find(m => m && m.sender === 'managingEditor' && (m.text?.includes('协同关怀') || m.text?.includes('进度关怀')));
+      if (recentSsrlMsg && (now - Number(recentSsrlMsg._timeMs || 0) < ssrlCooldownMs)) return;
+      if (this.lastS2ContribNudgeTime && (now - this.lastS2ContribNudgeTime < ssrlCooldownMs)) return;
 
-          if (lowMembers.length > 0 && lowMembers.length < membersList.length) {
-            this.state.lastSSRLWarnTimeMs = now;
-            this.state.lastSSRLWarnLen = plainLen;
-            const lowNames = lowMembers.map(m => m.name || m.id).join('、');
-            const taskType = this.getCurrentTaskType();
-            const isInst = (taskType === 'instructional');
-            const managingName = isInst ? '备课组长' : '责任编辑';
-            const ssrlWarningMsg = {
-              sender: 'managingEditor',
-              senderName: `协同调度 · ${managingName}`,
-              text: `🤝 【${managingName}·协同关怀】：关注到当前正文撰写推进中，${lowNames} 同学负责章节的推进略显滞后（字数投入占比偏低）。建议全组同学在讨论区主动沟通交流、提供思路支架并协助衔接推进，群策群力完成高质量${isInst ? '教学设计' : '学术'}成稿哦~`,
-              timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-              _timeMs: now
-            };
-            logs.push(ssrlWarningMsg);
-            this.syncChatLogs();
-            if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
-            renderChat(this.state);
+      const contribs = this.state.stage2?.memberContributions || {};
+      const getVal = (m) => {
+        if (!m) return 0;
+        const keys = getUserAllKeys(m);
+        let maxVal = 0;
+        for (const k of keys) {
+          if (contribs[k] !== undefined && Number(contribs[k]) > maxVal) {
+            maxVal = Number(contribs[k]);
           }
         }
+        return maxVal;
+      };
+
+      let totalContrib = 0;
+      (membersList || []).forEach(m => { totalContrib += getVal(m); });
+      const effectiveTotal = Math.max(totalContrib, currentDocLen || 0);
+      if (effectiveTotal < 300) return;
+
+      // 找出写作贡献显著偏低 (<= 15%) 的组员
+      const lowMembers = [];
+      (membersList || []).forEach(m => {
+        const val = getVal(m);
+        const pct = (effectiveTotal > 0) ? Math.round((val / effectiveTotal) * 100) : 0;
+        if (pct <= 15) {
+          lowMembers.push(m);
+        }
+      });
+
+      if (lowMembers.length > 0 && lowMembers.length < (membersList || []).length) {
+        this._isTriggeringContribCare = true;
+        this.lastS2ContribNudgeTime = now;
+        this.state.lastSSRLWarnTimeMs = now;
+        const targetMember = lowMembers[0];
+        const targetName = targetMember.name || targetMember.id;
+        const tasks = (this.state.stage1 && this.state.stage1.contract && this.state.stage1.contract.taskAssignments) ? this.state.stage1.contract.taskAssignments : {};
+        const targetChapter = tasks[targetMember.id] || tasks[targetMember.name] || '负责的章节';
+
+        const topic = (this.state.stage1 && this.state.stage1.mergedTitle) ? this.state.stage1.mergedTitle : '本组课题';
+        const contribPrompt = `小组正在协作撰写《${topic}》，目前全组总字数已达到 ${effectiveTotal} 字。
+  组员【${targetName}】主要聚焦在【${targetChapter}】，当前写作字数贡献占比偏低（≤ 15%）。
+  请作为责任编辑（过程学伴），发表 80~110 字的【动态写作关怀与共同思考点拨】：
+  ① 用温和鼓励的语气提醒 ${targetName} 同学可以逐步动笔展开起草；
+  ② 结合其主要聚焦的【${targetChapter}】，给出 1 个具体的学术起草切入建议；
+  ③ 【核心红线要求】：同时提醒其主动通读同伴已起草的段落，从中汲取灵感并打通前后逻辑衔接；
+  ④ 纯自然语言，80~110字，严禁指责，【绝对严禁出现“分工”字眼】，强调共同思考与协同衔接，严禁输出代码块，严禁添加按钮。`;
+
+        let careText = `🤝 【责任编辑·协同关怀】：大家都在按节奏推进！主要聚焦【${targetChapter}】的 ${targetName} 同学也可以逐步动笔啦。建议可以先通读同伴已起草的段落，从中汲取灵感并打通前后逻辑衔接，遇到难点随时在研讨区抛出来，全组共同思考推进！`;
+
+        try {
+          const resp = await callCozeAgentAPI('managingEditor', contribPrompt, { stage: 'stage2', topic });
+          if (resp && resp.trim().length > 0) {
+            careText = resp.trim();
+            if (!careText.startsWith('🤝')) {
+              careText = `🤝 【责任编辑·协同关怀】：${careText.replace(/^[^\n]*?【[^】]+】[：:]?\s*/, '')}`;
+            }
+          }
+        } catch (e) {
+          console.warn('Managing editor contrib care call failed:', e);
+        } finally {
+          this._isTriggeringContribCare = false;
+        }
+
+        const msg = {
+          sender: 'managingEditor',
+          senderName: '协同调度 · 责任编辑',
+          text: careText,
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          _timeMs: now
+        };
+        if (!this.state.chatLogs.stage2) this.state.chatLogs.stage2 = [];
+        this.state.chatLogs.stage2.push(msg);
+        this.syncChatLogs();
+        if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+        renderChat(this.state);
       }
     }
 
