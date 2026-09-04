@@ -14,8 +14,8 @@ import {
   DefaultTasks,
   DefaultAnnouncements,
   DefaultReferencePapers
-} from './constants.js?v=20260905_v2696';
-import { formatExportDateTime, formatDurationHuman, isScopeMatch, showGlobalBannerNotice } from './utils.js?v=20260905_v2696';
+} from './constants.js?v=20260905_v2697';
+import { formatExportDateTime, formatDurationHuman, isScopeMatch, showGlobalBannerNotice } from './utils.js?v=20260905_v2697';
 
 export class AuthManager {
   constructor() {
@@ -1367,7 +1367,27 @@ export class AuthManager {
 
   getAvailableStudentsForGroup(classId, editingGroupId = null) {
     const allClassStudents = this.getClassStudents(classId);
-    return allClassStudents;
+    const classes = this.getClasses();
+    const cls = classes.find(c => c.id === classId) || classes[0];
+    if (!cls || !cls.groups) return allClassStudents;
+
+    const getMemberId = (m) => String((typeof m === 'object' && m !== null) ? (m.id || m.userId || m.name) : m).trim().toLowerCase();
+
+    const occupiedStudentIds = new Set();
+    cls.groups.forEach(g => {
+      if (g.id !== editingGroupId) {
+        (g.members || []).forEach(m => {
+          const mId = getMemberId(m);
+          if (mId) occupiedStudentIds.add(mId);
+        });
+      }
+    });
+
+    return allClassStudents.filter(s => {
+      const sId = String(s.id || '').trim().toLowerCase();
+      const sName = String(s.name || '').trim().toLowerCase();
+      return !occupiedStudentIds.has(sId) && !occupiedStudentIds.has(sName);
+    });
   }
 
   updateGroupMembers(classId, groupId, groupName, selectedUserIds = []) {
