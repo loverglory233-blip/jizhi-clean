@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260904_v2212";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch, showResolutionBlock, safeJsonParse } from "./utils.js?v=20260904_v2212";
-import { callCozeAgentAPI } from "./agents.js?v=20260904_v2212";
-import { AuthManager } from "./auth.js?v=20260904_v2212";
-import { CloudSyncEngine } from "./sync.js?v=20260904_v2212";
-import { renderLoginView } from "./login.js?v=20260904_v2212";
-import { renderTeacherPortal } from "./teacher.js?v=20260904_v2212";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260904_v2212";
+} from "./constants.js?v=20260904_v2213";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch, showResolutionBlock, safeJsonParse } from "./utils.js?v=20260904_v2213";
+import { callCozeAgentAPI } from "./agents.js?v=20260904_v2213";
+import { AuthManager } from "./auth.js?v=20260904_v2213";
+import { CloudSyncEngine } from "./sync.js?v=20260904_v2213";
+import { renderLoginView } from "./login.js?v=20260904_v2213";
+import { renderTeacherPortal } from "./teacher.js?v=20260904_v2213";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260904_v2213";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260904_v2212";
+} from "./editor.js?v=20260904_v2213";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -663,7 +663,60 @@ export class App {
             const rawContent = (this.state.stage2 && this.state.stage2.unifiedContent) ? this.state.stage2.unifiedContent : '';
             this.checkAgentTriggersOnContent(rawContent);
 
-            // 初稿签署确认催促（自第一位成员确认签署初稿起满 3 分钟，仍有同学未确认）
+            // ① 阶段二：二审研讨共识确认催促（自第一位成员确认起满 3 分钟）
+            const s2ManMap = s2.confirmations?.s2_managing || {};
+            const s2ManCount = membersList.filter(m => isMemberDone(s2ManMap, m)).length;
+            const s2UnmanMembers = membersList.filter(m => !isMemberDone(s2ManMap, m));
+            if (s2ManCount > 0 && !this.state._firstS2ManTimeMs) {
+              this.state._firstS2ManTimeMs = s2._firstManagingSummaryTimeMs || nowMs;
+            }
+            const firstS2ManTime = this.state._firstS2ManTimeMs || s2._firstManagingSummaryTimeMs || nowMs;
+            const timeSinceFirstS2Man = nowMs - firstS2ManTime;
+            if (!this.state.s2_manNudgeSent && s2ManCount > 0 && s2UnmanMembers.length > 0 && s2ManCount < membersList.length && timeSinceFirstS2Man >= 180000) {
+              this.state.s2_manNudgeSent = true;
+              const s2UnmanNames = s2UnmanMembers.map(m => m.name || m.id).join('、');
+              const taskType = this.getCurrentTaskType();
+              const isInst = (taskType === 'instructional');
+              const managingName = isInst ? '备课组长' : '责任编辑';
+              const msgS2ManNudge = {
+                sender: 'managingEditor',
+                senderName: `协同调度 · ${managingName}`,
+                text: `🤝 【${managingName}·研讨共识确认提示】：组内已有同学确认提炼二审研讨共识，目前确认进度为【${s2ManCount}/${membersList.length} 人】，看到 ${s2UnmanNames} 同学尚未确认。请尽快在讨论区底部点击【🤝 确认提炼共识】，全员确认后将由审稿专家下发《二审修正清单》！`,
+                timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                _timeMs: nowMs
+              };
+              if (!this.state.chatLogs.stage2) this.state.chatLogs.stage2 = [];
+              this.state.chatLogs.stage2.push(msgS2ManNudge);
+              this.syncChatLogs();
+              renderChat(this.state);
+            }
+
+            // ② 阶段二：二审审稿指导确认催促（自第一位成员确认起满 3 分钟）
+            const s2RevMap = s2.confirmations?.s2_reviewing || {};
+            const s2RevCount = membersList.filter(m => isMemberDone(s2RevMap, m)).length;
+            const s2UnrevMembers = membersList.filter(m => !isMemberDone(s2RevMap, m));
+            if (s2RevCount > 0 && !this.state._firstS2RevTimeMs) {
+              this.state._firstS2RevTimeMs = s2._firstReviewingSummaryTimeMs || nowMs;
+            }
+            const firstS2RevTime = this.state._firstS2RevTimeMs || s2._firstReviewingSummaryTimeMs || nowMs;
+            const timeSinceFirstS2Rev = nowMs - firstS2RevTime;
+            if (!this.state.s2_revNudgeSent && s2RevCount > 0 && s2UnrevMembers.length > 0 && s2RevCount < membersList.length && timeSinceFirstS2Rev >= 180000) {
+              this.state.s2_revNudgeSent = true;
+              const s2UnrevNames = s2UnrevMembers.map(m => m.name || m.id).join('、');
+              const msgS2RevNudge = {
+                sender: 'reviewingEditor',
+                senderName: '审稿专家 · 质量把关',
+                text: `📝 【审稿专家·二审指导确认提示】：组内已有同学确认审稿修改指导，目前确认进度为【${s2RevCount}/${membersList.length} 人】，看到 ${s2UnrevNames} 同学尚未确认。请尽快在讨论区底部点击【📝 确认指导】，全员确认后即可对齐清单继续完善正文！`,
+                timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                _timeMs: nowMs
+              };
+              if (!this.state.chatLogs.stage2) this.state.chatLogs.stage2 = [];
+              this.state.chatLogs.stage2.push(msgS2RevNudge);
+              this.syncChatLogs();
+              renderChat(this.state);
+            }
+
+            // ③ 初稿签署确认催促（自第一位成员确认签署初稿起满 3 分钟，仍有同学未确认）
             const s2 = this.state.stage2 || {};
             const s2ConfMap = s2.confirmedMembers || {};
             const s2ConfCount = membersList.filter(m => isMemberDone(s2ConfMap, m)).length;
@@ -3643,6 +3696,8 @@ ${instructionSection}
     s2.confirmations.s2_managing[currUserCode] = true;
     if (currUser?.id) s2.confirmations.s2_managing[currUser.id] = true;
     if (currUser?.name) s2.confirmations.s2_managing[currUser.name] = true;
+    if (!s2._firstManagingSummaryTimeMs) s2._firstManagingSummaryTimeMs = Date.now();
+    s2._lastManagingSummaryTimeMs = Date.now();
 
     // 计算总组员人数
     const effClassId = this.state.activeStudentClassId || currUser?.classId || null;
@@ -3926,6 +3981,8 @@ ${chatSnippet}
     s2.confirmations.s2_reviewing[currUserCode] = true;
     if (currUser?.id) s2.confirmations.s2_reviewing[currUser.id] = true;
     if (currUser?.name) s2.confirmations.s2_reviewing[currUser.name] = true;
+    if (!s2._firstReviewingSummaryTimeMs) s2._firstReviewingSummaryTimeMs = Date.now();
+    s2._lastReviewingSummaryTimeMs = Date.now();
 
     // 计算总组员人数
     const effClassId = this.state.activeStudentClassId || currUser?.classId || null;
