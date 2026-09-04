@@ -1364,6 +1364,84 @@ if ($action === 'restore_pad_max_revision') {
     exit;
 }
 
+if ($action === 'align_all_pads_physically') {
+    header('Content-Type: application/json; charset=utf-8');
+    $apiKey = 'jizhi_academic_secret_key_2026';
+    $possibleKeyFiles = [
+        '/www/wwwroot/etherpad-lite/APIKEY.txt',
+        dirname(__DIR__) . '/etherpad-lite/APIKEY.txt',
+        __DIR__ . '/APIKEY.txt',
+        '/root/etherpad-lite/APIKEY.txt'
+    ];
+    foreach ($possibleKeyFiles as $kf) {
+        if (is_readable($kf)) {
+            $k = trim(@file_get_contents($kf));
+            if (!empty($k)) { $apiKey = $k; break; }
+        }
+    }
+
+    $results = [];
+    if ($pdo) {
+        $stmt = $pdo->prepare("SELECT task_id, group_id, scope_key, stage2_data FROM group_states WHERE stage2_data LIKE '%unifiedContent%'");
+        $stmt->execute();
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        foreach ($rows as $r) {
+            $tId = $r['task_id'] ?: 'task_default';
+            $gId = $r['group_id'] ?: 'group_1';
+            $s2 = json_decode($r['stage2_data'], true);
+            if (empty($s2['unifiedContent'])) continue;
+
+            $uHtml = $s2['unifiedContent'];
+            $uLen = mb_strlen(trim(strip_tags($uHtml)), 'UTF-8');
+            if ($uLen < 30) continue;
+
+            $possiblePadIds = [
+                "jizhi_{$tId}_{$gId}",
+                "jizhi_{$gId}",
+                "jizhi_{$r['scope_key']}"
+            ];
+
+            foreach ($possiblePadIds as $pId) {
+                // 1. 确保已创建
+                $chC = curl_init("http://127.0.0.1:9001/api/1.2.14/createPad?apikey=" . urlencode($apiKey) . "&padID=" . urlencode($pId));
+                curl_setopt($chC, CURLOPT_RETURNTRANSFER, true);
+                curl_setopt($chC, CURLOPT_TIMEOUT, 2);
+                curl_exec($chC);
+                curl_close($chC);
+
+                // 2. 检查当前内容
+                $chT = curl_init("http://127.0.0.1:9001/api/1.2.14/getText?apikey=" . urlencode($apiKey) . "&padID=" . urlencode($pId));
+                curl_setopt($chT, CURLOPT_RETURNTRANSFER, true);
+                curl_setopt($chT, CURLOPT_TIMEOUT, 2);
+                $resT = curl_exec($chT);
+                curl_close($chT);
+
+                $curText = '';
+                if (!empty($resT)) {
+                    $jT = json_decode($resT, true);
+                    if (isset($jT['data']['text'])) $curText = trim($jT['data']['text']);
+                }
+
+                // 3. 若当前为空或默认占位符，执行物理注入
+                if (empty($curText) || $curText === '啥意思捏' || mb_strlen($curText, 'UTF-8') < 10) {
+                    $chS = curl_init("http://127.0.0.1:9001/api/1.2.14/setHTML?apikey=" . urlencode($apiKey) . "&padID=" . urlencode($pId) . "&html=" . urlencode($uHtml));
+                    curl_setopt($chS, CURLOPT_RETURNTRANSFER, true);
+                    curl_setopt($chS, CURLOPT_TIMEOUT, 2);
+                    curl_exec($chS);
+                    curl_close($chS);
+                    $results[] = ['padId' => $pId, 'status' => 'synced', 'len' => $uLen];
+                } else {
+                    $results[] = ['padId' => $pId, 'status' => 'skipped', 'curLen' => mb_strlen($curText, 'UTF-8')];
+                }
+            }
+        }
+    }
+
+    echo json_encode(['success' => true, 'aligned' => $results], JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
 if ($action === 'get_pad_text' || $action === 'get_pad_html') {
     header('Content-Type: application/json; charset=utf-8');
     $padId = isset($_GET['padId']) ? preg_replace('/[^a-zA-Z0-9_-]/', '', $_GET['padId']) : 'jizhi_' . $scopeKey;
@@ -1417,7 +1495,39 @@ if ($action === 'get_pad_text' || $action === 'get_pad_html') {
         }
     }
 
-    // 3. 若 Etherpad 接口未获取到，从平台 group_states 数据库无缝兜底获取学生回传的正文
+    // 3. 若 Etherpad 中仅包含初始默认占位符 ('啥意思捏' 或少于 10 字)，且 MySQL 数据库中保存有真实长文，同步写入 Etherpad 物理对齐
+    if ((trim($retText) === '啥意思捏' || mb_strlen($retText, 'UTF-8') < 10) && $pdo) {
+        $stmtDb = $pdo->prepare("SELECT stage2_data FROM group_states WHERE scope_key = :sk OR stage2_data LIKE '%unifiedContent%' ORDER BY updated_at DESC");
+        $stmtDb->execute([':sk' => $scopeKey]);
+        $rowsDb = $stmtDb->fetchAll();
+        $bestDbHtml = '';
+        $bestDbLen = 0;
+        foreach ($rowsDb as $rowDb) {
+            if (!empty($rowDb['stage2_data'])) {
+                $s2Data = json_decode($rowDb['stage2_data'], true);
+                if (!empty($s2Data['unifiedContent'])) {
+                    $uStr = trim(strip_tags($s2Data['unifiedContent']));
+                    $uLen = mb_strlen($uStr, 'UTF-8');
+                    if ($uLen > $bestDbLen) {
+                        $bestDbLen = $uLen;
+                        $bestDbHtml = $s2Data['unifiedContent'];
+                    }
+                }
+            }
+        }
+        if ($bestDbLen > 50 && !empty($bestDbHtml)) {
+            $setHUrl = "http://127.0.0.1:9001/api/1.2.14/setHTML?apikey=" . urlencode($apiKey) . "&padID=" . urlencode($padId) . "&html=" . urlencode($bestDbHtml);
+            $chS = curl_init($setHUrl);
+            curl_setopt($chS, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($chS, CURLOPT_TIMEOUT, 2);
+            curl_exec($chS);
+            curl_close($chS);
+            $retHtml = $bestDbHtml;
+            $retText = trim(strip_tags($retHtml));
+        }
+    }
+
+    // 4. 若 Etherpad 接口未获取到，从平台 group_states 数据库无缝兜底获取学生回传的正文
     if (empty($retHtml) && empty($retText) && $pdo) {
         $stmtDb = $pdo->prepare("SELECT stage2_data FROM group_states WHERE scope_key = :sk");
         $stmtDb->execute([':sk' => $scopeKey]);

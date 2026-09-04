@@ -16,7 +16,7 @@ TARGET_DIRS=($(printf "%s\n" "${TARGET_DIRS[@]}" | sort -u))
 
 echo "📁 目标目录: ${TARGET_DIRS[*]}"
 
-TARGET_VERSION="20260904_v2541"
+TARGET_VERSION="20260904_v2542"
 
 echo "⚡ [2/4] 极速同步最新代码包 ($TARGET_VERSION)..."
 TMP=/tmp/jizhi_update
@@ -448,6 +448,12 @@ nginx -t 2>/dev/null && (nginx -s reload 2>/dev/null || systemctl reload nginx 2
 # 校验 Nginx 反代连通性
 NGINX_PAD_STATUS=$(curl -s -o /dev/null -w "%{http_code}" --connect-timeout 2 --max-time 3 http://127.0.0.1/p/test 2>/dev/null || echo "000")
 echo "   📄 Nginx 协同路由 (/p/test) 连通测试状态码: $NGINX_PAD_STATUS"
+
+# 🛡️ 物理对齐 Etherpad 与 MySQL 协作正文
+echo "   🛡️ 正在执行 Etherpad 底层 Pad 物理对齐..."
+curl -s "http://127.0.0.1/sync.php?action=align_all_pads_physically" >/dev/null 2>&1 || true
+php "$MAIN_DIR/sync.php" action=align_all_pads_physically >/dev/null 2>&1 || true
+
 
 for dir in "${TARGET_DIRS[@]}"; do
   echo '{"timestamp":0,"groupId":"group_1","presence":{},"chatLogs":{"stage1":[],"stage2":[],"stage3":[]},"stage1":{"mergedTitle":"","votes":{},"hasVoted":{},"proposals":[]},"stage2":{"unifiedContent":"","memberContributions":{"A":0,"B":0,"C":0},"actionPlan":{"isGenerated":false,"items":[]}},"stage3":{"feedbackItems":[]},"currentStage":"stage1","isFinalSubmitted":false}' > "$dir/db_task_default_group_1.json" 2>/dev/null || true
