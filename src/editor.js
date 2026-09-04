@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260905_v2643";
-import { callCozeAgentAPI } from "./agents.js?v=20260905_v2643";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, showResolutionBlock } from "./utils.js?v=20260905_v2643";
+import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260905_v2644";
+import { callCozeAgentAPI } from "./agents.js?v=20260905_v2644";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, showResolutionBlock } from "./utils.js?v=20260905_v2644";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -1678,11 +1678,15 @@ function renderStage2Canvas(canvas, state, handlers) {
       const authorStats = getEtherpadAuthorStats();
       let cleanTxt = authorStats ? authorStats.cleanText : null;
       
-      // 2. 若 DOM 暂未就绪，降级尝试服务端代理接口
+      // 2. 若 DOM 暂未就绪，低频降级尝试服务端代理接口（每 10 秒最多 1 次，严禁高频打满 PHP-FPM）
       if (cleanTxt === null) {
-        const res = await fetch(`sync.php?action=get_pad_text&padId=${encodeURIComponent(padName)}`).then(r => r.json()).catch(() => null);
-        if (res && res.success && typeof res.text === 'string') {
-          cleanTxt = res.text.replace(/\r\n/g, '\n').trim();
+        const now = Date.now();
+        if (!window._lastServerPadFetchTime || now - window._lastServerPadFetchTime > 10000) {
+          window._lastServerPadFetchTime = now;
+          const res = await fetch(`sync.php?action=get_pad_text&padId=${encodeURIComponent(padName)}`).then(r => r.json()).catch(() => null);
+          if (res && res.success && typeof res.text === 'string') {
+            cleanTxt = res.text.replace(/\r\n/g, '\n').trim();
+          }
         }
       }
 
