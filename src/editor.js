@@ -157,9 +157,9 @@ export function renderCanvas(state, handlers) {
 
   if (!s1Container || !s2Container || !s3Container) {
     canvas.innerHTML = `
-      <div id="stage-canvas-s1" style="display:none; flex-direction:column; height:100%; width:100%; overflow:hidden;"></div>
+      <div id="stage-canvas-s1" style="display:none; flex-direction:column; width:100%; gap:12px; padding-bottom:36px;"></div>
       <div id="stage-canvas-s2" style="display:none; flex-direction:column; height:100%; width:100%; overflow:hidden;"></div>
-      <div id="stage-canvas-s3" style="display:none; flex-direction:column; height:100%; width:100%; overflow:hidden;"></div>
+      <div id="stage-canvas-s3" style="display:none; flex-direction:column; width:100%; gap:12px; padding-bottom:36px;"></div>
     `;
     s1Container = canvas.querySelector('#stage-canvas-s1');
     s2Container = canvas.querySelector('#stage-canvas-s2');
