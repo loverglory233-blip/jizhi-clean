@@ -820,7 +820,7 @@ if ($action === 'get_teacher_monitor_all_groups') {
 
     $result = ['success' => true, 'groups' => []];
     $nowMs = round(microtime(true) * 1000);
-    $ONLINE_WINDOW_MS = 60000; // 60 秒心跳/发言窗口判定在线 (兼顾弱网与思考间歇容错，0 误判)
+    $ONLINE_WINDOW_MS = 120000; // 120 秒心跳/发言窗口判定在线 (提供充足弱网与思考间歇容错，彻底消除离线抖动)
 
     if ($pdo) {
         // 1. 优先加载官方班级分组名册与全校学生信息字典
@@ -886,7 +886,7 @@ if ($action === 'get_teacher_monitor_all_groups') {
             }
         }
 
-        $ONLINE_WINDOW_MS = 60000; // 60 秒（精准实时感知：与学生端心跳及打字即时更新配合，杜绝离线抖动）
+        $ONLINE_WINDOW_MS = 120000; // 120 秒（精准实时感知：与学生端心跳及打字即时更新配合，杜绝离线抖动）
         $cutoffMs = $nowMs - $ONLINE_WINDOW_MS;
 
         // 🚀 性能革命：收集全量 ScopeKey 进行批量单次查表，消灭 N+1 查询瓶颈，教师端毫秒级秒开！
@@ -1319,10 +1319,11 @@ if ($action === 'restore_pad_max_revision') {
         exit;
     }
 
-    // 兜底：从 group_states 数据库查找历史 snapshot（精确查询及模糊匹配）
+    // 兜底：从 group_states 数据库查找历史 snapshot（严格仅查询当前小组自身数据）
     if ($pdo) {
-        $stmtDb = $pdo->prepare("SELECT scope_key, stage2_data FROM group_states WHERE scope_key = :sk OR stage2_data LIKE '%unifiedContent%' ORDER BY updated_at DESC");
-        $stmtDb->execute([':sk' => $scopeKey]);
+        $exactScopeKey = preg_replace('/^jizhi_/', '', $padId);
+        $stmtDb = $pdo->prepare("SELECT scope_key, stage2_data FROM group_states WHERE scope_key = :sk OR scope_key = :sk2 ORDER BY updated_at DESC LIMIT 1");
+        $stmtDb->execute([':sk' => $exactScopeKey, ':sk2' => $scopeKey]);
         $rowsDb = $stmtDb->fetchAll();
         $bestDbText = '';
         $bestDbLen = 0;
@@ -1510,42 +1511,29 @@ if ($action === 'get_pad_text' || $action === 'get_pad_html') {
         }
     }
 
-    // 3. 若 Etherpad 中仅包含初始默认占位符 ('啥意思捏' 或少于 10 字)，且 MySQL 数据库中保存有真实长文，同步写入 Etherpad 物理对齐
+    // 3. 若 Etherpad 获取到的内容为空或极短，且当前小组数据库中保存有正文，作为只读兜底返回（绝不跨组抓取、绝不私自覆写 Pad）
+    $exactScopeKey = preg_replace('/^jizhi_/', '', $padId);
     if ((trim($retText) === '啥意思捏' || mb_strlen($retText, 'UTF-8') < 10) && $pdo) {
-        $stmtDb = $pdo->prepare("SELECT stage2_data FROM group_states WHERE scope_key = :sk OR stage2_data LIKE '%unifiedContent%' ORDER BY updated_at DESC");
-        $stmtDb->execute([':sk' => $scopeKey]);
-        $rowsDb = $stmtDb->fetchAll();
-        $bestDbHtml = '';
-        $bestDbLen = 0;
-        foreach ($rowsDb as $rowDb) {
-            if (!empty($rowDb['stage2_data'])) {
-                $s2Data = json_decode($rowDb['stage2_data'], true);
-                if (!empty($s2Data['unifiedContent'])) {
-                    $uStr = trim(strip_tags($s2Data['unifiedContent']));
-                    $uLen = mb_strlen($uStr, 'UTF-8');
-                    if ($uLen > $bestDbLen) {
-                        $bestDbLen = $uLen;
-                        $bestDbHtml = $s2Data['unifiedContent'];
-                    }
+        $stmtDb = $pdo->prepare("SELECT stage2_data FROM group_states WHERE scope_key = :sk OR scope_key = :sk2 ORDER BY updated_at DESC LIMIT 1");
+        $stmtDb->execute([':sk' => $exactScopeKey, ':sk2' => $scopeKey]);
+        $rowDb = $stmtDb->fetch();
+        if ($rowDb && !empty($rowDb['stage2_data'])) {
+            $s2Data = json_decode($rowDb['stage2_data'], true);
+            if (!empty($s2Data['unifiedContent'])) {
+                $uHtml = $s2Data['unifiedContent'];
+                $uStr = trim(strip_tags($uHtml));
+                if (mb_strlen($uStr, 'UTF-8') > 10) {
+                    $retHtml = $uHtml;
+                    $retText = $uStr;
                 }
             }
         }
-        if ($bestDbLen > 50 && !empty($bestDbHtml)) {
-            $setHUrl = "http://127.0.0.1:9001/api/1.2.14/setHTML?apikey=" . urlencode($apiKey) . "&padID=" . urlencode($padId) . "&html=" . urlencode($bestDbHtml);
-            $chS = curl_init($setHUrl);
-            curl_setopt($chS, CURLOPT_RETURNTRANSFER, true);
-            curl_setopt($chS, CURLOPT_TIMEOUT, 2);
-            curl_exec($chS);
-            curl_close($chS);
-            $retHtml = $bestDbHtml;
-            $retText = trim(strip_tags($retHtml));
-        }
     }
 
-    // 4. 若 Etherpad 接口未获取到，从平台 group_states 数据库无缝兜底获取学生回传的正文
+    // 4. 若 Etherpad 接口未获取到，从当前小组的 group_states 数据库无缝兜底获取学生回传的正文
     if (empty($retHtml) && empty($retText) && $pdo) {
-        $stmtDb = $pdo->prepare("SELECT stage2_data FROM group_states WHERE scope_key = :sk");
-        $stmtDb->execute([':sk' => $scopeKey]);
+        $stmtDb = $pdo->prepare("SELECT stage2_data FROM group_states WHERE scope_key = :sk OR scope_key = :sk2 ORDER BY updated_at DESC LIMIT 1");
+        $stmtDb->execute([':sk' => $exactScopeKey, ':sk2' => $scopeKey]);
         $rowDb = $stmtDb->fetch();
         if ($rowDb && !empty($rowDb['stage2_data'])) {
             $s2Data = json_decode($rowDb['stage2_data'], true);
