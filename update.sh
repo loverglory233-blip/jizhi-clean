@@ -16,7 +16,7 @@ TARGET_DIRS=($(printf "%s\n" "${TARGET_DIRS[@]}" | sort -u))
 
 echo "📁 目标目录: ${TARGET_DIRS[*]}"
 
-TARGET_VERSION="20260904_v2512"
+TARGET_VERSION="20260904_v2513"
 
 echo "⚡ [2/4] 极速同步最新代码包 ($TARGET_VERSION)..."
 TMP=/tmp/jizhi_update
@@ -392,17 +392,19 @@ EPSETEOF
 
   cd "$EP_DIR"
   rm -f var/minified* var/session* var/plugin-definitions.json var/plugins.json var/*.lock 2>/dev/null || true
+  > /var/log/etherpad.log
   export NODE_ENV=production
 
-  NODE_BIN=$(which node 2>/dev/null || true)
-  if [ -z "$NODE_BIN" ]; then
-    for nb in /www/server/nodejs/v*/bin/node /usr/local/bin/node /usr/bin/node; do
-      if [ -x "$nb" ]; then
-        NODE_BIN="$nb"
-        break
-      fi
-    done
-  fi
+  NODE_BIN=""
+  for nb in /www/server/nodejs/v18.20.7/bin/node /www/server/nodejs/v22*/bin/node /www/server/nodejs/v20*/bin/node /www/server/nodejs/v18*/bin/node /www/server/nodejs/v*/bin/node /usr/local/bin/node /usr/bin/node; do
+    if [ -x "$nb" ]; then
+      NODE_BIN="$nb"
+      break
+    fi
+  done
+  [ -z "$NODE_BIN" ] && NODE_BIN=$(which node 2>/dev/null || echo "node")
+
+  echo "   🚀 启动 Node 引擎: $NODE_BIN"
 
   # 确保模块链接无缝关联
   if [ -d "$EP_DIR/node_modules" ] && [ ! -d "$EP_DIR/src/node_modules" ]; then
@@ -413,11 +415,11 @@ EPSETEOF
 
   export NODE_PATH="$EP_DIR/node_modules:$EP_DIR/src/node_modules:$NODE_PATH"
 
-  if [ -f "node_modules/ep_etherpad-lite/node/server.js" ] && [ -n "$NODE_BIN" ]; then
-    nohup "$NODE_BIN" node_modules/ep_etherpad-lite/node/server.js --root > /var/log/etherpad.log 2>&1 &
-  elif [ -f "src/node/server.js" ] && [ -n "$NODE_BIN" ]; then
+  if [ -f "src/node/server.js" ]; then
     nohup "$NODE_BIN" src/node/server.js > /var/log/etherpad.log 2>&1 &
-  elif [ -f "ep_etherpad-lite/node/server.js" ] && [ -n "$NODE_BIN" ]; then
+  elif [ -f "node_modules/ep_etherpad-lite/node/server.js" ]; then
+    nohup "$NODE_BIN" node_modules/ep_etherpad-lite/node/server.js --root > /var/log/etherpad.log 2>&1 &
+  elif [ -f "ep_etherpad-lite/node/server.js" ]; then
     nohup "$NODE_BIN" ep_etherpad-lite/node/server.js > /var/log/etherpad.log 2>&1 &
   fi
 
