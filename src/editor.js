@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260905_v2672";
-import { callCozeAgentAPI } from "./agents.js?v=20260905_v2672";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, showResolutionBlock } from "./utils.js?v=20260905_v2672";
+import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260905_v2673";
+import { callCozeAgentAPI } from "./agents.js?v=20260905_v2673";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, showResolutionBlock } from "./utils.js?v=20260905_v2673";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -676,7 +676,7 @@ function renderStage1Canvas(canvas, state, handlers) {
         const isModify = existingIdx >= 0;
         const submitNoticeMsg = {
           id: 'msg_prop_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6),
-          sender: currentUser,
+          sender: effectiveAuthorId || currUserObj?.id || (typeof currentUser === 'string' ? currentUser : 'student'),
           senderName: authorName,
           text: isModify
             ? `✏️ 【选题提案修改】我 (${authorName}) 修改完善了选题提案《${title}》！`

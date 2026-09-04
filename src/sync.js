@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState, STORAGE_KEY_TASKS } from './constants.js?v=20260905_v2672';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly } from './utils.js?v=20260905_v2672';
+import { InitialState, STORAGE_KEY_TASKS } from './constants.js?v=20260905_v2673';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly } from './utils.js?v=20260905_v2673';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -952,13 +952,13 @@ export class CloudSyncEngine {
         let remoteLogs = Array.isArray(remoteData.chatLogs[stg]) ? remoteData.chatLogs[stg] : [];
         const localLogs = Array.isArray(this.app.state.chatLogs[stg]) ? this.app.state.chatLogs[stg] : [];
         
-        // 🛡️ 智能保留本地未决思考气泡与 10 秒内未落库临时消息（防吞防闪烁）
+        // 🛡️ 智能保留本地未决思考气泡与未落库本地发言（Union 并集防吞防闪烁）
         const now = Date.now();
         const localPending = localLogs.filter(m => {
           if (!m) return false;
-          if (m.isThinking) return true;
-          const isRecent = (now - (m._timeMs || 0) < 10000);
-          if (!isRecent) return false;
+          if (m.isThinking || String(m.id).startsWith('thinking_eval')) {
+            return (now - (m._timeMs || 0) < 30000);
+          }
           const existsInRemote = remoteLogs.some(rm => (rm.id && rm.id === m.id) || (rm._timeMs === m._timeMs && rm.text === m.text));
           return !existsInRemote;
         });
@@ -1104,6 +1104,9 @@ export class CloudSyncEngine {
         mergedList.sort((a, b) => (a._timeMs || 0) - (b._timeMs || 0));
         this.app.state.chatLogs[stg] = mergedList;
       });
+      if (this.groupId && typeof this.app.saveGroupState === 'function') {
+        this.app.saveGroupState(this.groupId);
+      }
       if (typeof window.renderChat === 'function') window.renderChat(this.app.state);
       if (typeof window.renderChatActionBar === 'function') window.renderChatActionBar(this.app.state);
     }
