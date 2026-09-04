@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260904_v2265";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse } from "./utils.js?v=20260904_v2265";
-import { callCozeAgentAPI } from "./agents.js?v=20260904_v2265";
-import { AuthManager } from "./auth.js?v=20260904_v2265";
-import { CloudSyncEngine } from "./sync.js?v=20260904_v2265";
-import { renderLoginView } from "./login.js?v=20260904_v2265";
-import { renderTeacherPortal } from "./teacher.js?v=20260904_v2265";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260904_v2265";
+} from "./constants.js?v=20260904_v2270";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse } from "./utils.js?v=20260904_v2270";
+import { callCozeAgentAPI } from "./agents.js?v=20260904_v2270";
+import { AuthManager } from "./auth.js?v=20260904_v2270";
+import { CloudSyncEngine } from "./sync.js?v=20260904_v2270";
+import { renderLoginView } from "./login.js?v=20260904_v2270";
+import { renderTeacherPortal } from "./teacher.js?v=20260904_v2270";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260904_v2270";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260904_v2265";
+} from "./editor.js?v=20260904_v2270";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -2950,13 +2950,14 @@ export class App {
         }
         this.syncStage1();
 
-        if (!s1.contract.timeAllocations) {
-          s1.contract.timeAllocations = { background: 25, literature: 30, questions: 25, method: 40, reflection: 20, references: 10 };
-        }
-
-        // ── 🌟 1. 发送单独一条系统票数播报消息 ──
         const taskType = this.getCurrentTaskType();
         const isInst = (taskType === 'instructional');
+
+        if (!s1.contract.timeAllocations) {
+          s1.contract.timeAllocations = isInst
+            ? { background: 15, literature: 20, questions: 15, method: 35, reflection: 15, references: 10 }
+            : { background: 25, literature: 30, questions: 25, method: 40, reflection: 20, references: 10 };
+        }
         const genreDesc = getGenrePromptDescriptor(taskType);
         const agentTitle = isInst ? '备课引导师' : '学术拍卖师';
         const senderName = isInst ? '头脑风暴 · 备课引导师' : '头脑风暴 · 学术拍卖师';
@@ -3795,7 +3796,7 @@ ${chatSnippet}
     ];
     const defaultTimes = s1.contract?.timeAllocations && Object.keys(s1.contract.timeAllocations).length >= 6
       ? s1.contract.timeAllocations
-      : { background: 25, literature: 30, questions: 25, method: 40, reflection: 20, references: 10 };
+      : (isInst ? { background: 15, literature: 20, questions: 15, method: 35, reflection: 15, references: 10 } : { background: 25, literature: 30, questions: 25, method: 40, reflection: 20, references: 10 });
 
     const fallbackAssignments = {};
     membersList.forEach((m, idx) => {
@@ -3835,7 +3836,7 @@ ${chatSnippet}
 【当前增量提炼任务】：
 课题方案已由小组在左侧看板确认锁定（严格沿用，绝不修改），本次你只需重点提炼补齐【时间分配】与【组员任务分工】！
 1. 严格沿用上述已确定的题目与方案概述；
-2. 给出 6 大章节的合理时间分配分钟数 (timeAllocations: background, literature, questions, method, reflection, references，总计约 150 分钟)；
+2. 给出 6 大章节的合理时间分配分钟数 (timeAllocations: background, literature, questions, method, reflection, references，总计约 ${isInst ? 110 : 150} 分钟)；
 3. 将全篇写作章节一一对应合理分配给每位组员 (assignments)；
 4. 给出 1 句简短小结提示，提醒全员核对并签署公约 (guideText)。`;
     } else {
@@ -3844,7 +3845,7 @@ ${chatSnippet}
       instructionSection = `
 【当前全量提炼任务】：
 1. 深度通读研讨记录与提案，提炼精炼的课题名称 (topic) 与 120~200 字高度忠实反映组员研讨要点的方案概述 (overview，涵盖背景、核心问题、情境载体与具体方法设计)；
-2. 给出 6 大章节的合理时间分配分钟数 (timeAllocations: background, literature, questions, method, reflection, references，总计约 150 分钟)；
+2. 给出 6 大章节的合理时间分配分钟数 (timeAllocations: background, literature, questions, method, reflection, references，总计约 ${isInst ? 110 : 150} 分钟)；
 3. 将全篇写作章节一一对应合理分配给每位组员 (assignments: 以每位组员的真实姓名或学号为键，给出具体负责的章节与职责描述)；
 4. 给出 1 句简短小结提示，提醒全组在左侧公约卡片下方核对并签署确认 (guideText)。`;
     }
@@ -3866,11 +3867,11 @@ ${instructionSection}
   "topic": "${hasExistingTopic ? (s1.contract?.topic || s1.mergedTitle) : '最终确定的规范题目'}",
   "overview": "${hasExistingTopic ? (s1.contract?.overview || s1.researchOverview || '方案概述') : '提炼后的方案概述，务必涵盖组员研讨中提及的具体情境、核心问题与探究活动/方法'}",
   "timeAllocations": {
-    "background": ${hasExistingTime ? s1.contract.timeAllocations.background : 25},
-    "literature": ${hasExistingTime ? s1.contract.timeAllocations.literature : 30},
-    "questions": ${hasExistingTime ? s1.contract.timeAllocations.questions : 25},
-    "method": ${hasExistingTime ? s1.contract.timeAllocations.method : 40},
-    "reflection": ${hasExistingTime ? s1.contract.timeAllocations.reflection : 20},
+    "background": ${hasExistingTime ? s1.contract.timeAllocations.background : (isInst ? 15 : 25)},
+    "literature": ${hasExistingTime ? s1.contract.timeAllocations.literature : (isInst ? 20 : 30)},
+    "questions": ${hasExistingTime ? s1.contract.timeAllocations.questions : (isInst ? 15 : 25)},
+    "method": ${hasExistingTime ? s1.contract.timeAllocations.method : (isInst ? 35 : 40)},
+    "reflection": ${hasExistingTime ? s1.contract.timeAllocations.reflection : (isInst ? 15 : 20)},
     "references": ${hasExistingTime ? s1.contract.timeAllocations.references : 10}
   },
   "assignments": {
