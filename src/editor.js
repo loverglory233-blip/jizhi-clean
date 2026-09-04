@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260905_v2646";
-import { callCozeAgentAPI } from "./agents.js?v=20260905_v2646";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, showResolutionBlock } from "./utils.js?v=20260905_v2646";
+import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260905_v2648";
+import { callCozeAgentAPI } from "./agents.js?v=20260905_v2648";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, showResolutionBlock } from "./utils.js?v=20260905_v2648";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -547,8 +547,7 @@ function renderStage1Canvas(canvas, state, handlers) {
               const taskVal = (s1.contract.taskAssignments && (
                 s1.contract.taskAssignments[mKey] !== undefined ? s1.contract.taskAssignments[mKey] :
                 (m.id && s1.contract.taskAssignments[m.id] !== undefined ? s1.contract.taskAssignments[m.id] :
-                (m.id && s1.contract.taskAssignments[m.id] !== undefined ? s1.contract.taskAssignments[m.id] :
-                (m.name && s1.contract.taskAssignments[m.name] !== undefined ? s1.contract.taskAssignments[m.name] : '')))
+                (m.name && s1.contract.taskAssignments[m.name] !== undefined ? s1.contract.taskAssignments[m.name] : ''))
               )) || '';
               return `
                 <div style="display:flex; flex-direction:column; gap:6px; width:100%; background:#ffffff; padding:12px 14px; border-radius:8px; border:1px solid #e2e8f0; box-sizing:border-box;">
@@ -1343,11 +1342,6 @@ function renderStage2Canvas(canvas, state, handlers) {
   const paperBtnLabel = availablePapers.length > 0 ? `📚 查阅参考范文 (${availablePapers.length}篇)` : '📚 查阅参考范文库';
 
   const confirmedDraftMap = s2.confirmedMembers || {};
-  const isMemberDone = (map, m) => {
-    if (!map || !m) return false;
-    const id = typeof m === 'object' ? (m.id || m.name) : m;
-    return !!(map[m.id] || (typeof m === 'object' && m.name && map[m.name]));
-  };
   const membersList = Object.values(state.members || {});
   const allGroupMembers = (activeGroupObj && Array.isArray(activeGroupObj.members) && activeGroupObj.members.length > 0) ? activeGroupObj.members : membersList;
   const actualTotalCount = allGroupMembers.length > 0 ? allGroupMembers.length : (membersList.length || 2);
@@ -2680,7 +2674,7 @@ function renderStage3Canvas(canvas, state, handlers) {
       <!-- 终稿提交全员确认进度提示 -->
       ${!state.isFinalSubmitted && activeTab === 'editor' ? `
         <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:6px 14px; display:flex; justify-content:space-between; align-items:center; font-size:12px;">
-          <span style="color:#475569; font-weight:700;">🚀 终稿提交确认进度: <b style="color:${isAllFinalSubmitted ? '#059669' : '#059669'};">${finalSubmittedCount}/${totalCount}</b> 人已确认提交 ${isAllFinalSubmitted ? '<span style="color:#059669; margin-left:6px;">(🎉 全员已确认提交)</span>' : '<span style="color:#d97706; margin-left:6px;">(需全组所有成员均确认提交后正式归档入库)</span>'}</span>
+          <span style="color:#475569; font-weight:700;">🚀 终稿提交确认进度: <b style="color:${isAllFinalSubmitted ? '#059669' : '#d97706'};">${finalSubmittedCount}/${totalCount}</b> 人已确认提交 ${isAllFinalSubmitted ? '<span style="color:#059669; margin-left:6px;">(🎉 全员已确认提交)</span>' : '<span style="color:#d97706; margin-left:6px;">(需全组所有成员均确认提交后正式归档入库)</span>'}</span>
           <div style="display:flex; gap:6px;">
             ${membersList.map(m => {
               const isSub = finalSubmittedMap[m.id]  || (m.name && finalSubmittedMap[m.name]);
@@ -3012,7 +3006,6 @@ export function renderChat(state) {
   const myKeys = [
     currentUser,
     state.currentUser,
-    authUser?.id,
     authUser?.id,
     authUser?.name
   ].filter(Boolean).map(k => String(k).trim().toLowerCase());
