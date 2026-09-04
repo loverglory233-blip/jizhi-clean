@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260904_v2519";
-import { callCozeAgentAPI } from "./agents.js?v=20260904_v2519";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, showResolutionBlock } from "./utils.js?v=20260904_v2519";
+import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260904_v2520";
+import { callCozeAgentAPI } from "./agents.js?v=20260904_v2520";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, liftEtherpadReadonly, ensureEtherpadUserSync, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, showResolutionBlock } from "./utils.js?v=20260904_v2520";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -2016,11 +2016,12 @@ function renderStage2Canvas(canvas, state, handlers) {
       <div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:8px; padding:6px 12px; margin-bottom:6px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px; flex-shrink:0; box-shadow:0 1px 3px rgba(15,23,42,0.03);">
         <div style="display:flex; align-items:center; gap:8px;">
           <span style="font-size:13.5px; font-weight:800; color:#0f172a; display:inline-flex; align-items:center; gap:4px;">📝 ${taskGenreKey === 'instructional' ? '教学设计' : '论文'}正文协同起草</span>
-          <button id="btn-show-case" style="background:#ffffff; border:1px solid #cbd5e1; color:#1d4ed8; padding:3px 10px; border-radius:6px; font-size:11px; cursor:pointer; font-weight:700; display:inline-flex; align-items:center; gap:4px;">${paperBtnLabel}</button>
           <span style="font-size:11.5px; color:#1e40af; background:#eff6ff; padding:2px 10px; border-radius:10px; border:1px solid #bfdbfe; font-weight:800; display:inline-flex; align-items:center; gap:4px; min-width:85px; justify-content:center;" title="当前正文实时撰写字数 (达到 35% 即约 ${Math.round(targetWordCount * 0.35)} 字时将触发${taskGenreKey === 'instructional' ? '教研' : '审稿'}专家初审把脉)">✍️ 当前: <b id="stage2-word-count-num" style="color:#2563eb; font-size:12px;">${plainTextLen}</b> 字</span>
         </div>
 
         <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+          <!-- 查阅参考范文按钮（置于右侧操作区，更加醒目） -->
+          <button id="btn-show-case" style="background:#ffffff; border:1px solid #bfdbfe; color:#1d4ed8; padding:3px 10px; border-radius:6px; font-size:11px; cursor:pointer; font-weight:700; display:inline-flex; align-items:center; gap:4px; box-shadow:0 1px 2px rgba(37,99,235,0.06); transition:all 0.15s ease;">${paperBtnLabel}</button>
           <!-- 编辑会议打卡小药丸 -->
           ${(() => {
             const subs = s2.meetingSubmissions || {};
