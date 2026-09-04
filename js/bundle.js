@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260905_v2706
+ * Version: 20260905_v2707
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260905_v2706';
+  const APP_VERSION = '20260905_v2707';
   const APP_BUILD_DATE = '2026-09-05';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -1917,7 +1917,7 @@
               if (window.app && window.app.state && window.app.state.studentViewMode === 'workspace' && window.app.state.activeTaskId) {
                 const activeTid = window.app.state.activeTaskId;
                 const isTaskStillAlive = taskMap.has(activeTid) && !deletedTaskIds.has(activeTid);
-                if (!isTaskStillAlive && !window.app._isHandlingTaskRevoked) {
+                if (taskMap.size > 0 && !isTaskStillAlive && !window.app._isHandlingTaskRevoked) {
                   window.app.showTaskRevokedModal(window.app.state.activeTaskTitle || '当前写作任务');
                   return;
                 }
@@ -4894,7 +4894,7 @@
               if (this.app.state.studentViewMode === 'workspace' && this.app.state.activeTaskId) {
                 const allTasks = this.app.authManager.getTasks();
                 const isCurrentTaskAlive = allTasks.some(t => t.id === this.app.state.activeTaskId);
-                if (!isCurrentTaskAlive && !this.app._isHandlingTaskRevoked) {
+                if (allTasks.length > 0 && !isCurrentTaskAlive && !this.app._isHandlingTaskRevoked) {
                   this.app.showTaskRevokedModal(this.app.state.activeTaskTitle || '当前写作任务');
                   return;
                 }
@@ -4947,7 +4947,7 @@
       // 🌐 服务端全局教务与文献资源同步到本地（tasks/users/classes/announcements/referencePapers）
       // 教师一旦发布新范文或公告，学生端在任务工作台内 1~2 秒内自动无感对齐更新
       if (this.app.authManager) {
-        if (Array.isArray(remoteData.tasks)) {
+        if (remoteData.tasks !== undefined && remoteData.tasks !== null && Array.isArray(remoteData.tasks)) {
           let deletedTaskIds = new Set();
           try {
             const delList = JSON.parse(localStorage.getItem('jizhi_deleted_task_ids')) || [];
@@ -4998,7 +4998,7 @@
           if (this.app.state.studentViewMode === 'workspace' && this.app.state.activeTaskId) {
             const activeTid = this.app.state.activeTaskId;
             const isTaskStillAlive = taskMap.has(activeTid) && !deletedTaskIds.has(activeTid);
-            if (!isTaskStillAlive && !this.app._isHandlingTaskRevoked) {
+            if (taskMap.size > 0 && !isTaskStillAlive && !this.app._isHandlingTaskRevoked) {
               this.app.showTaskRevokedModal(this.app.state.activeTaskTitle || '当前写作任务');
               return;
             }
@@ -15576,7 +15576,7 @@
           } catch (e) {}
           const allTasks = this.authManager ? this.authManager.getTasks() : [];
           const isTaskStillAlive = allTasks.some(t => t && t.id === this.state.activeTaskId) && !deletedTaskIds.has(this.state.activeTaskId);
-          if (!isTaskStillAlive && !this._isHandlingTaskRevoked) {
+          if (allTasks.length > 0 && !isTaskStillAlive && !this._isHandlingTaskRevoked) {
             this.showTaskRevokedModal(this.state.activeTaskTitle || '当前写作任务');
             return;
           }

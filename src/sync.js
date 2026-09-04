@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState, STORAGE_KEY_TASKS } from './constants.js?v=20260905_v2706';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly } from './utils.js?v=20260905_v2706';
+import { InitialState, STORAGE_KEY_TASKS } from './constants.js?v=20260905_v2707';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly } from './utils.js?v=20260905_v2707';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -615,7 +615,7 @@ export class CloudSyncEngine {
             if (this.app.state.studentViewMode === 'workspace' && this.app.state.activeTaskId) {
               const allTasks = this.app.authManager.getTasks();
               const isCurrentTaskAlive = allTasks.some(t => t.id === this.app.state.activeTaskId);
-              if (!isCurrentTaskAlive && !this.app._isHandlingTaskRevoked) {
+              if (allTasks.length > 0 && !isCurrentTaskAlive && !this.app._isHandlingTaskRevoked) {
                 this.app.showTaskRevokedModal(this.app.state.activeTaskTitle || '当前写作任务');
                 return;
               }
@@ -668,7 +668,7 @@ export class CloudSyncEngine {
     // 🌐 服务端全局教务与文献资源同步到本地（tasks/users/classes/announcements/referencePapers）
     // 教师一旦发布新范文或公告，学生端在任务工作台内 1~2 秒内自动无感对齐更新
     if (this.app.authManager) {
-      if (Array.isArray(remoteData.tasks)) {
+      if (remoteData.tasks !== undefined && remoteData.tasks !== null && Array.isArray(remoteData.tasks)) {
         let deletedTaskIds = new Set();
         try {
           const delList = JSON.parse(localStorage.getItem('jizhi_deleted_task_ids')) || [];
@@ -719,7 +719,7 @@ export class CloudSyncEngine {
         if (this.app.state.studentViewMode === 'workspace' && this.app.state.activeTaskId) {
           const activeTid = this.app.state.activeTaskId;
           const isTaskStillAlive = taskMap.has(activeTid) && !deletedTaskIds.has(activeTid);
-          if (!isTaskStillAlive && !this.app._isHandlingTaskRevoked) {
+          if (taskMap.size > 0 && !isTaskStillAlive && !this.app._isHandlingTaskRevoked) {
             this.app.showTaskRevokedModal(this.app.state.activeTaskTitle || '当前写作任务');
             return;
           }

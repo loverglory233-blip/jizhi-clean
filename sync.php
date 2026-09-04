@@ -3803,11 +3803,11 @@ if ($pdo) {
             'chatLogs'         => $chats,
             'locks'            => $activeLocks,
             'resetSeq'         => $resetSeq,
-            'users'            => $sanitizedUsers,
-            'classes'          => isset($globalMeta['classes'])          ? $globalMeta['classes']          : [],
-            'tasks'            => isset($globalMeta['tasks'])            ? $globalMeta['tasks']            : [],
-            'announcements'    => isset($globalMeta['announcements'])    ? $globalMeta['announcements']    : [],
-            'referencePapers'  => isset($globalMeta['referencePapers']) ? $globalMeta['referencePapers'] : []
+            'users'            => $needGlobalSync ? $sanitizedUsers : null,
+            'classes'          => ($needGlobalSync && isset($globalMeta['classes']))          ? $globalMeta['classes']          : null,
+            'tasks'            => ($needGlobalSync && isset($globalMeta['tasks']))            ? $globalMeta['tasks']            : null,
+            'announcements'    => ($needGlobalSync && isset($globalMeta['announcements']))    ? $globalMeta['announcements']    : null,
+            'referencePapers'  => ($needGlobalSync && isset($globalMeta['referencePapers'])) ? $globalMeta['referencePapers'] : null
         ];
         echo json_encode($respData);
         exit;
@@ -3909,11 +3909,11 @@ if ($pdo) {
             'chatLogs'         => $chats,
             'locks'            => [],
             'resetSeq'         => 0,
-            'users'            => $sanitizedUsers,
-            'classes'          => isset($globalMeta['classes'])          ? $globalMeta['classes']          : [],
-            'tasks'            => isset($globalMeta['tasks'])            ? $globalMeta['tasks']            : [],
-            'announcements'    => isset($globalMeta['announcements'])    ? $globalMeta['announcements']    : [],
-            'referencePapers'  => isset($globalMeta['referencePapers']) ? $globalMeta['referencePapers'] : []
+            'users'            => $needGlobalSync ? $sanitizedUsers : null,
+            'classes'          => ($needGlobalSync && isset($globalMeta['classes']))          ? $globalMeta['classes']          : null,
+            'tasks'            => ($needGlobalSync && isset($globalMeta['tasks']))            ? $globalMeta['tasks']            : null,
+            'announcements'    => ($needGlobalSync && isset($globalMeta['announcements']))    ? $globalMeta['announcements']    : null,
+            'referencePapers'  => ($needGlobalSync && isset($globalMeta['referencePapers'])) ? $globalMeta['referencePapers'] : null
         ], JSON_UNESCAPED_UNICODE);
         exit;
     }

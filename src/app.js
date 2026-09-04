@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260905_v2706";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime } from "./utils.js?v=20260905_v2706";
-import { callCozeAgentAPI } from "./agents.js?v=20260905_v2706";
-import { AuthManager } from "./auth.js?v=20260905_v2706";
-import { CloudSyncEngine } from "./sync.js?v=20260905_v2706";
-import { renderLoginView } from "./login.js?v=20260905_v2706";
-import { renderTeacherPortal } from "./teacher.js?v=20260905_v2706";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260905_v2706";
+} from "./constants.js?v=20260905_v2707";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime } from "./utils.js?v=20260905_v2707";
+import { callCozeAgentAPI } from "./agents.js?v=20260905_v2707";
+import { AuthManager } from "./auth.js?v=20260905_v2707";
+import { CloudSyncEngine } from "./sync.js?v=20260905_v2707";
+import { renderLoginView } from "./login.js?v=20260905_v2707";
+import { renderTeacherPortal } from "./teacher.js?v=20260905_v2707";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260905_v2707";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260905_v2706";
+} from "./editor.js?v=20260905_v2707";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -1113,7 +1113,7 @@ export class App {
         } catch (e) {}
         const allTasks = this.authManager ? this.authManager.getTasks() : [];
         const isTaskStillAlive = allTasks.some(t => t && t.id === this.state.activeTaskId) && !deletedTaskIds.has(this.state.activeTaskId);
-        if (!isTaskStillAlive && !this._isHandlingTaskRevoked) {
+        if (allTasks.length > 0 && !isTaskStillAlive && !this._isHandlingTaskRevoked) {
           this.showTaskRevokedModal(this.state.activeTaskTitle || '当前写作任务');
           return;
         }
