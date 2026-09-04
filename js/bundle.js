@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260904_v2226
+ * Version: 20260904_v2227
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260904_v2226';
+  const APP_VERSION = '20260904_v2227';
   const APP_BUILD_DATE = '2026-09-04';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -9946,36 +9946,6 @@
             // 💡 统一异步触发学术拍卖师即时学术速评（无缝生成单条纯净速评气泡）
             if (typeof window.app.handleProposalSubmittedAIFeedback === 'function') {
               window.app.handleProposalSubmittedAIFeedback(title, authorName, isModify);
-            }
-          }
-
-          // 检查全员提案集齐提醒
-          const isSubstantive = (t) => {
-            const str = (t || '').trim();
-            if (str.length < 4) return false;
-            if (/^\d+$/.test(str)) return false; 
-            if (/^([a-zA-Z0-9\u4e00-\u9fa5])\1+$/.test(str)) return false; 
-            return true;
-          };
-          const currentProps = s1.proposals || [];
-          const validProps = currentProps.filter(p => isSubstantive(p.title));
-          const validAuthors = new Set(validProps.map(p => p.author || p.authorName));
-
-          if (totalMembersCount >= 2 && validAuthors.size >= totalMembersCount && !s1._allProposalsPrompted) {
-            s1._allProposalsPrompted = true;
-            const allCollectedMsg = {
-              id: 'all_prop_' + Date.now(),
-              sender: 'auctioneer',
-              senderName: '头脑风暴 · 学术拍卖师',
-              text: `🎪 【拍卖师·全员提案已集齐】：🎉 小组成员的选题提案已悉数亮相！👉 请大家先不要急于投票，先在右侧讨论区充分交流各个方案的研究看点与实施可行性；💬 研讨达成初步共识后，再在上方为最终认可的方案进行投票！`,
-              timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-              _timeMs: Date.now() + 100
-            };
-            state.chatLogs[currentStage].push(allCollectedMsg);
-            if (window.app && typeof window.app.sendSingleChatMessage === 'function') {
-              window.app.sendSingleChatMessage(allCollectedMsg, currentStage);
-            }
-            renderChat(state);
           }
         });
       });
@@ -13097,20 +13067,29 @@
                 renderChat(this.state);
               }
 
-              // ③ 提案全齐但尚未投票：提示先交流 1~2 分钟再投票
-              if (!this.state.s1_allPropsGatheredSent && propCount >= membersList.length && propCount > 0) {
+              // ③ 提案全齐且每个人的速评均已生成成功、尚未投票：提示先交流 1~2 分钟再投票
+              const s1Logs = this.state.chatLogs?.stage1 || [];
+              const allPropsEvaluated = propCount >= membersList.length && (s1.proposals || []).every(p => {
+                return s1Logs.some(m => m && m.sender === 'auctioneer' && (m.text || '').includes('提案评估') && !((m.text || '').includes('网络提醒')) && ((m.text || '').includes(p.title) || (m.text || '').includes(p.authorName || '')));
+              });
+              if (!this.state.s1_allPropsGatheredSent && propCount >= membersList.length && propCount > 0 && allPropsEvaluated) {
                 this.state.s1_allPropsGatheredSent = true;
                 this.state._propsGatheredTimeMs = nowMs;
                 const msgPropsAll = {
+                  id: 'all_prop_' + nowMs,
                   sender: 'auctioneer',
                   senderName: '头脑风暴 · 学术拍卖师',
-                  text: `🎪 【学术拍卖师·提案集齐与协同研讨】：太棒了！全组成员的提案均已全部集齐！请大家先在讨论区围绕各自提案的创新亮点与互补性展开 1~2 分钟的协同交流，深入了解彼此设想，随后点击左侧卡片投出关键的一票！`,
+                  text: `🎪 【学术拍卖师·提案集齐与协同研讨】：太棒了！全组成员的提案与专家速评均已悉数亮相！请大家先在讨论区围绕各自提案的创新亮点与互补性展开 1~2 分钟的协同交流，深入了解彼此设想，随后点击左侧卡片投出关键的一票！`,
                   timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
                   _timeMs: nowMs
                 };
                 if (!this.state.chatLogs.stage1) this.state.chatLogs.stage1 = [];
                 this.state.chatLogs.stage1.push(msgPropsAll);
+                if (typeof this.sendSingleChatMessage === 'function') {
+                  this.sendSingleChatMessage(msgPropsAll, 'stage1');
+                }
                 this.syncChatLogs();
+                if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
                 renderChat(this.state);
               }
 
@@ -15162,6 +15141,48 @@
         this.syncChatLogs();
         if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
         renderChat(this.state);
+
+        // 🛡️ 若本次评估成功，检查是否全员提案与对应的每位成员速评均已就绪，若是则唤起协同研讨提示
+        if (resp && resp.trim().length > 0) {
+          const s1 = this.state.stage1 || {};
+          const currentProps = s1.proposals || [];
+          const isSubstantive = (t) => {
+            const str = (t || '').trim();
+            if (str.length < 4) return false;
+            if (/^\d+$/.test(str)) return false; 
+            if (/^([a-zA-Z0-9\u4e00-\u9fa5])\1+$/.test(str)) return false; 
+            return true;
+          };
+          const validProps = currentProps.filter(p => isSubstantive(p.title));
+          const membersList = Array.isArray(this.state.members) ? this.state.members : Object.values(this.state.members || {});
+          const totalMembersCount = membersList.length || 2;
+          const s1Logs = this.state.chatLogs?.stage1 || [];
+
+          const allEvaluated = validProps.length >= totalMembersCount && validProps.every(p => {
+            return s1Logs.some(m => m && m.sender === 'auctioneer' && (m.text || '').includes('提案评估') && !((m.text || '').includes('网络提醒')) && ((m.text || '').includes(p.title) || (m.text || '').includes(p.authorName || '')));
+          });
+
+          if (validProps.length >= totalMembersCount && allEvaluated && !s1._allProposalsPrompted && !this.state.s1_allPropsGatheredSent) {
+            s1._allProposalsPrompted = true;
+            this.state.s1_allPropsGatheredSent = true;
+            this.state._propsGatheredTimeMs = Date.now();
+            const allCollectedMsg = {
+              id: 'all_prop_' + Date.now(),
+              sender: 'auctioneer',
+              senderName: '头脑风暴 · 学术拍卖师',
+              text: `🎪 【学术拍卖师·提案集齐与协同研讨】：太棒了！全组成员的提案与专家速评均已悉数亮相！请大家先在讨论区围绕各自提案的创新亮点与互补性展开 1~2 分钟的协同交流，深入了解彼此设想，随后点击左侧卡片投出关键的一票！`,
+              timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+              _timeMs: Date.now() + 100
+            };
+            this.state.chatLogs.stage1.push(allCollectedMsg);
+            if (typeof this.sendSingleChatMessage === 'function') {
+              this.sendSingleChatMessage(allCollectedMsg, 'stage1');
+            }
+            this.syncChatLogs();
+            if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+            renderChat(this.state);
+          }
+        }
       } catch (e) {
         console.warn('handleProposalSubmittedAIFeedback error:', e);
         const safeTitle = (title || '').replace(/'/g, "\\'");
