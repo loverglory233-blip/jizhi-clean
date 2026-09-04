@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260904_v2224
+ * Version: 20260904_v2225
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260904_v2224';
+  const APP_VERSION = '20260904_v2225';
   const APP_BUILD_DATE = '2026-09-04';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -9524,22 +9524,16 @@
     // 🛡️ 稳健解析当前用户的真实姓名与标识
     let currentUserName = currUserObj?.name || '';
     if (!currentUserName && currentUser) {
-      const matchedM = membersList.find(m => m.id === currentUser || m.name === currentUser);
+      const matchedM = membersList.find(m => m && (m.id === currentUser || m.name === currentUser));
       if (matchedM && matchedM.name) currentUserName = matchedM.name;
       else {
-        const matchedU = allUsers.find(u => u.id === currentUser || u.name === currentUser);
+        const matchedU = allUsers.find(u => u && (u.id === currentUser || u.name === currentUser));
         if (matchedU && matchedU.name) currentUserName = matchedU.name;
       }
     }
-    if (!currentUserName || currentUserName === currentUser) currentUserName = '我';
+    if (!currentUserName) currentUserName = (typeof currentUser === 'string' && currentUser) ? currentUser : '组员';
 
     // 🛡️ 稳健的单标识判定辅助函数
-    const isMemberDone = (map, m) => {
-      if (!map || !m) return false;
-      const id = typeof m === 'object' ? (m.id || m.name) : m;
-      return !!(map[m.id] || (typeof m === 'object' && m.name && map[m.name]));
-    };
-
     const confirmedMembers = s1.contract.confirmedMembers || {};
     const confirmedCount = membersList.filter(m => isMemberDone(confirmedMembers, m)).length;
     const userHasConfirmed = isMemberDone(confirmedMembers, currUserObj || { id: currentUser, name: currentUserName });
@@ -9558,14 +9552,23 @@
     const totalVotesCast = membersList.filter(m => isMemberDone(s1.hasVoted, m)).length;
     const isVotingComplete = (totalMembersCount > 0 && totalVotesCast >= totalMembersCount);
 
-    // 严密判断当前登录学生是否已提交提案
-    const hasSubmittedMyProposal = s1.proposals.some(p => {
+    // 严密判断当前登录学生是否已提交提案（过滤掉模糊的 '我' 与 '组员'，严格按当前用户唯一ID与姓名匹配）
+    const myProposalKeys = new Set(
+      [...getUserAllKeys(currUserObj), currentUser, currentUserName, currUserObj?.id]
+        .filter(k => k && k !== '我' && k !== '组员')
+        .map(k => String(k).trim().toLowerCase())
+    );
+
+    const checkIsMyProposal = (p) => {
       if (!p) return false;
-      const authorId = p.author || p.authorId;
-      const authorName = p.authorName;
-      return (currUserObj && (authorId === currUserObj.id || (authorName && authorName === currUserObj.name))) ||
-             (authorId === currentUser || (authorName && authorName === currentUserName));
-    });
+      const pKeys = [p.author, p.authorId, p.authorName]
+        .filter(k => k && k !== '我' && k !== '组员')
+        .map(k => String(k).trim().toLowerCase());
+      if (pKeys.length === 0) return false;
+      return pKeys.some(pk => myProposalKeys.has(pk));
+    };
+
+    const hasSubmittedMyProposal = (s1.proposals || []).some(p => checkIsMyProposal(p));
 
     canvas.innerHTML = `
       ${isTaskDeadlineExpired ? `
@@ -9632,16 +9635,21 @@
                   else { btnText = '未选择'; btnClass = 'vote-btn disabled'; }
                   btnDisabled = true;
                 }
-                let authorName = (p.authorName && p.authorName !== '组员' && p.authorName !== p.author) ? p.authorName : null;
-                if (!authorName) {
-                  const authorUser = allUsers.find(u => u && (u.id === p.author || u.id === p.authorId || u.name === p.author || u.name === p.authorName));
-                  if (authorUser && authorUser.name) authorName = authorUser.name;
+                let authorName = '';
+                if (p.authorName && p.authorName !== '我' && p.authorName !== '组员' && p.authorName !== p.author) {
+                  authorName = p.authorName;
                 }
                 if (!authorName) {
-                  const authorMem = membersList.find(m => m && (m.id === p.author || m.id === p.authorId || m.name === p.author));
-                  if (authorMem && authorMem.name) authorName = authorMem.name;
+                  const authorUser = allUsers.find(u => u && (u.id === p.author || u.id === p.authorId || (u.name && u.name !== '我' && (u.name === p.author || u.name === p.authorName))));
+                  if (authorUser && authorUser.name && authorUser.name !== '我') authorName = authorUser.name;
                 }
-                if (!authorName) authorName = (p.authorName && p.authorName !== p.author) ? p.authorName : '组员';
+                if (!authorName) {
+                  const authorMem = membersList.find(m => m && (m.id === p.author || m.id === p.authorId || (m.name && m.name !== '我' && (m.name === p.author || m.name === p.authorName))));
+                  if (authorMem && authorMem.name && authorMem.name !== '我') authorName = authorMem.name;
+                }
+                if (!authorName) {
+                  authorName = (p.authorName && p.authorName !== '我' && p.authorName !== p.author) ? p.authorName : (p.author && p.author !== '我' ? p.author : '组员');
+                }
                 return `
                   <div class="proposal-card ${isThisVoted ? 'voted' : ''}" style="display:flex; flex-direction:column; position:relative;">
                     <div class="proposal-header" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
@@ -9833,13 +9841,7 @@
     if (btnOpenProp) {
       btnOpenProp.addEventListener('click', () => {
         document.querySelectorAll('.modal-overlay').forEach(el => el.remove());
-        const myKeys = new Set(getUserAllKeys(currUserObj || { id: currentUser, name: currentUserName }));
-        const existingProp = s1.proposals.find(p => {
-          if (!p) return false;
-          if (myKeys.has(p.author) || myKeys.has(p.authorName) || myKeys.has(p.authorId)) return true;
-          if (currUserObj && (isSameUser(p.author, currUserObj) || isSameUser(p.authorName, currUserObj) || (p.authorName && p.authorName === currentUserName))) return true;
-          return false;
-        });
+        const existingProp = s1.proposals.find(p => checkIsMyProposal(p));
         const modal = document.createElement('div');
         modal.className = 'modal-overlay';
         modal.innerHTML = `
@@ -9890,15 +9892,10 @@
 
           if (window.app) window.app.stage1LastActionTime = Date.now();
 
-          const existingIdx = s1.proposals.findIndex(p => {
-            if (!p) return false;
-            if (myKeys.has(p.author) || myKeys.has(p.authorName) || myKeys.has(p.authorId)) return true;
-            if (currUserObj && (isSameUser(p.author, currUserObj) || isSameUser(p.authorName, currUserObj) || (p.authorName && p.authorName === currentUserName))) return true;
-            return false;
-          });
+          const existingIdx = s1.proposals.findIndex(p => checkIsMyProposal(p));
           const nowMs = Date.now();
-          const effectiveAuthorKey = currUserObj?.id || currUserObj?.id || (typeof currentUser === 'string' ? currentUser : '') || currentUserName;
-          const effectiveAuthorName = currUserObj?.name || currentUserName;
+          const effectiveAuthorKey = currUserObj?.id || (typeof currentUser === 'string' && currentUser && currentUser !== '我' ? currentUser : '') || currentUserName;
+          const effectiveAuthorName = currUserObj?.name || (currentUserName && currentUserName !== '我' ? currentUserName : '') || currentUser || '组员';
           const effectiveAuthorId = currUserObj?.id || effectiveAuthorKey;
 
           if (existingIdx >= 0) {
@@ -17323,18 +17320,26 @@
         const s1 = this.state.stage1 || { proposals: [], votes: {}, hasVoted: {}, contract: {} };
         const membersList = Array.isArray(this.state.members) ? this.state.members : Object.values(this.state.members || {});
         const currentUserObj = this.authManager ? this.authManager.getCurrentUser() : null;
-        const myKeys = new Set([...getUserAllKeys(currentUserObj), this.state.currentUser, currentUserObj?.id, currentUserObj?.id].filter(Boolean));
+        const myKeys = new Set(
+          [...getUserAllKeys(currentUserObj), this.state.currentUser, currentUserObj?.id]
+            .filter(k => k && k !== '我' && k !== '组员')
+            .map(k => String(k).trim().toLowerCase())
+        );
+        const isMyProposal = (p) => {
+          if (!p) return false;
+          const pKeys = [p.author, p.authorId, p.authorName]
+            .filter(k => k && k !== '我' && k !== '组员')
+            .map(k => String(k).trim().toLowerCase());
+          if (pKeys.length === 0) return false;
+          return pKeys.some(pk => myKeys.has(pk));
+        };
+
         const userVotedProposalId = s1.votes ? (getUserFromMap(s1.votes, currentUserObj) || s1.votes[this.state.currentUser]) : null;
         const userHasVoted = s1.hasVoted ? (isUserInMap(s1.hasVoted, currentUserObj) || s1.hasVoted[this.state.currentUser]) : false;
         const isContractLocked = s1.contract?.isConfirmed || this.state.isFinalSubmitted;
 
         const allUsers = this.authManager ? this.authManager.getUsers() : [];
-        const hasSubmittedMyProposal = (s1.proposals || []).some(p => {
-          if (!p) return false;
-          if (myKeys.has(p.author) || myKeys.has(p.authorName) || myKeys.has(p.authorId)) return true;
-          if (currentUserObj && (isSameUser(p.author, currentUserObj) || isSameUser(p.authorName, currentUserObj) || (p.authorName && p.authorName === currentUserObj.name))) return true;
-          return false;
-        });
+        const hasSubmittedMyProposal = (s1.proposals || []).some(p => isMyProposal(p));
 
         const btnOpenProp = document.getElementById('btn-open-submit-proposal');
         if (btnOpenProp) {
@@ -17371,16 +17376,21 @@
                     if (isThisVoted) { btnText = '🔒 已投此提案'; btnClass = 'vote-btn active locked'; }
                     else { btnText = '🔒 投票已锁定'; btnClass = 'vote-btn disabled'; }
                   }
-                  let authorName = (p.authorName && p.authorName !== '组员') ? p.authorName : null;
-                  if (!authorName) {
-                    const authorUser = allUsers.find(u => isSameUser(u, p.author) || isSameUser(u, p.authorName) || u.id === p.author || u.name === p.author || u.name === p.authorName);
-                    if (authorUser && authorUser.name) authorName = authorUser.name;
+                  let authorName = '';
+                  if (p.authorName && p.authorName !== '我' && p.authorName !== '组员' && p.authorName !== p.author) {
+                    authorName = p.authorName;
                   }
                   if (!authorName) {
-                    const authorMem = membersList.find(m => isSameUser(m, p.author) || isSameUser(m, p.authorName) || m.id === p.author || m.name === p.author);
-                    if (authorMem && authorMem.name) authorName = authorMem.name;
+                    const authorUser = allUsers.find(u => u && (u.id === p.author || u.id === p.authorId || (u.name && u.name !== '我' && (u.name === p.author || u.name === p.authorName))));
+                    if (authorUser && authorUser.name && authorUser.name !== '我') authorName = authorUser.name;
                   }
-                  if (!authorName) authorName = p.authorName || p.author || '组员';
+                  if (!authorName) {
+                    const authorMem = membersList.find(m => m && (m.id === p.author || m.id === p.authorId || (m.name && m.name !== '我' && (m.name === p.author || m.name === p.authorName))));
+                    if (authorMem && authorMem.name && authorMem.name !== '我') authorName = authorMem.name;
+                  }
+                  if (!authorName) {
+                    authorName = (p.authorName && p.authorName !== '我' && p.authorName !== p.author) ? p.authorName : (p.author && p.author !== '我' ? p.author : '组员');
+                  }
                   return `
                     <div class="proposal-card ${isThisVoted ? 'voted' : ''}" style="display:flex; flex-direction:column; position:relative;">
                       <div class="proposal-header" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
