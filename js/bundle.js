@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260904_v2305
+ * Version: 20260904_v2310
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260904_v2305';
+  const APP_VERSION = '20260904_v2310';
   const APP_BUILD_DATE = '2026-09-04';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -10685,12 +10685,10 @@
       let rawTotal = 0;
       membersList.forEach(m => { rawTotal += getMemberContribVal(contribs, m); });
 
-      const docLen = (state.stage2 && state.stage2.unifiedContent) ? state.stage2.unifiedContent.length : 0;
       const newLabelsHtml = membersList.map((m) => {
         const rawVal = getMemberContribVal(contribs, m);
         const pct = rawTotal > 0 ? Math.round((rawVal / rawTotal) * 100) : 0;
-        const displayWords = (docLen > 0 && rawTotal > 0) ? Math.round((rawVal / rawTotal) * docLen) : rawVal;
-        return `<span style="color:${rawVal > 0 ? (m.color || '#2563eb') : '#94a3b8'}; font-weight:700;">● ${m.name}: ${pct}% (${displayWords}字)</span>`;
+        return `<span style="color:${rawVal > 0 ? (m.color || '#2563eb') : '#94a3b8'}; font-weight:700;">● ${m.name}: ${pct}% (${rawVal}字)</span>`;
       }).join('');
 
       if (labelsEl.innerHTML !== newLabelsHtml) {
@@ -14040,7 +14038,7 @@
           // ======================================================================
           const existReviewFollow = s2Chats.some(m => m && (m.text?.includes('初审跟进提示') || m.text?.includes('初审协同跟进')));
           const lastReviewMsgObj = [...s2Chats].reverse().find(m => m && m.sender === 'reviewingEditor' && !m.text?.includes('初审跟进提示') && !m.text?.includes('初审协同跟进'));
-          const isFirstReviewIssued = !!lastReviewMsgObj || s2.reviewMilestone === 'first_review_done' || !!s2.firstReviewText;
+          const isFirstReviewIssued = !!lastReviewMsgObj;
           const hasPassedToSubsequentStages = s2Chats.some(m => m && (
             m.text?.includes('半程研讨号召') || 
             m.text?.includes('半程会议号召') || 
@@ -14062,7 +14060,7 @@
               const followMsg = {
                 sender: 'reviewingEditor',
                 senderName: '学术质量 · 审稿编辑',
-                text: `📝 【审稿编辑·初审协同跟进】：初审破题把脉意见已送达！建议大家花 1 分钟互相通读同伴起草的开头段落，在研讨区共同交流核心研究问题与概念界定是否统一对齐，群策群力打牢全篇学术地基！`,
+                text: `📝 【审稿编辑·初审协同跟进】：初审破题把脉意见已于上方研讨区发出！建议大家花 1 分钟互相通读同伴起草的开头段落，参考审稿建议在研讨区共同交流核心研究问题与概念界定是否统一对齐，群策群力打牢全篇学术地基！`,
                 timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
                 _timeMs: now
               };
