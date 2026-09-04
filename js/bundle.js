@@ -12234,9 +12234,13 @@
             </button>
           `;
         } else {
+          const confs = state.stepConfirmations || {};
+          const count = isDoneHelper(confs.s1_full_contract);
+          const isMe = isMyDoneHelper(confs.s1_full_contract);
+          const isFull = count >= totalCount && totalCount > 0;
           actionBar.innerHTML = `
-            <button id="btn-s1-auto-generate-contract" style="background:linear-gradient(135deg, #7c3aed, #6d28d9); border:none; color:white; padding:7px 18px; border-radius:18px; font-weight:800; font-size:12.5px; cursor:pointer; display:inline-flex; align-items:center; gap:6px; box-shadow:0 3px 10px rgba(124,58,237,0.25); transition:all 0.2s;">
-              💡 [ 📋 研讨差不多了？一键提炼生成公约草案 ]
+            <button id="btn-s1-auto-generate-contract" style="background:${isFull ? 'linear-gradient(135deg, #d97706, #b45309)' : (isMe ? 'linear-gradient(135deg, #059669, #047857)' : 'linear-gradient(135deg, #7c3aed, #6d28d9)')}; border:none; color:white; padding:7px 18px; border-radius:18px; font-weight:800; font-size:12.5px; cursor:${isFull ? 'wait' : 'pointer'}; display:inline-flex; align-items:center; gap:6px; box-shadow:0 3px 10px rgba(124,58,237,0.25); transition:all 0.2s;" ${isFull ? 'disabled' : ''}>
+              ${isFull ? `⏳ 全员已确认 (${count}/${totalCount}) · 正在生成公约草案...` : (isMe ? `✅ 您已确认提炼公约 (${count}/${totalCount} 等待组员)` : `💡 [ 📋 研讨差不多了？一键提炼生成公约草案 (${count}/${totalCount}) ]`)}
             </button>
           `;
         }
@@ -15525,9 +15529,13 @@
     }
 
     /**
-     * 📜 阶段一公约终极一键补齐/生成：通读投票后全量研讨，一次性补齐主题、时间与全员1对1分工（支持冷场/空白讨论安全兜底）
+     * 📜 阶段一公约终极一键补齐/生成：需全员确认同意后触发通读研讨并提炼
      */
     async handleOneClickGenerateContract() {
+      this.handleStepConfirmation('s1_full_contract', () => this._doOneClickGenerateContract(), '提炼生成公约草案');
+    }
+
+    async _doOneClickGenerateContract() {
       const s1 = this.state.stage1 || {};
       if (s1.contractStep === 'completed' || s1.contract?.isDraftGenerated) {
         if (typeof showGlobalBannerNotice === 'function') {
