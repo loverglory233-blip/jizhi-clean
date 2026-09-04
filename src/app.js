@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260905_v2661";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse } from "./utils.js?v=20260905_v2661";
-import { callCozeAgentAPI } from "./agents.js?v=20260905_v2661";
-import { AuthManager } from "./auth.js?v=20260905_v2661";
-import { CloudSyncEngine } from "./sync.js?v=20260905_v2661";
-import { renderLoginView } from "./login.js?v=20260905_v2661";
-import { renderTeacherPortal } from "./teacher.js?v=20260905_v2661";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260905_v2661";
+} from "./constants.js?v=20260905_v2662";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse } from "./utils.js?v=20260905_v2662";
+import { callCozeAgentAPI } from "./agents.js?v=20260905_v2662";
+import { AuthManager } from "./auth.js?v=20260905_v2662";
+import { CloudSyncEngine } from "./sync.js?v=20260905_v2662";
+import { renderLoginView } from "./login.js?v=20260905_v2662";
+import { renderTeacherPortal } from "./teacher.js?v=20260905_v2662";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260905_v2662";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260905_v2661";
+} from "./editor.js?v=20260905_v2662";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -2610,8 +2610,8 @@ export class App {
   }
 
   async triggerAgentReplyIfNeeded(userMsg) {
-    // 🛡️ 并发锁：防止快速发送多条 @消息 导致 AI 回复乱序
-    if (this._isAgentReplyInProgress) return;
+    // 🛡️ 截止只读锁与并发锁：只读模式下严禁触发任何 AI 回复
+    if (this.isCurrentTaskReadOnly() || this._isAgentReplyInProgress) return;
     this._isAgentReplyInProgress = true;
     const stage = this.state.currentStage || 'stage1';
     let replyAgent = null;
@@ -7022,7 +7022,7 @@ ${contentSnippet}
   }
 
   async triggerReviewingEditorAfterDiscussion(customManagingSummary = '') {
-    if (this._isTriggeringSecondReview) return;
+    if (this._isTriggeringSecondReview || this.isCurrentTaskReadOnly()) return;
     const ctx = this.state.stage2?.pendingReviewing || this.state.stage2PendingReviewing;
     if (!ctx) return;
     this._isTriggeringSecondReview = true;
