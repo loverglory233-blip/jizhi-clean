@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260904_v2218
+ * Version: 20260904_v2219
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260904_v2218';
+  const APP_VERSION = '20260904_v2219';
   const APP_BUILD_DATE = '2026-09-04';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -4625,15 +4625,51 @@
         }
       }
 
+      if (remoteData.stage1 && remoteData.stage1.startTime) {
+        if (!this.app.state.stage1) this.app.state.stage1 = {};
+        const remoteS1Start = remoteData.stage1.startTime;
+        if (!this.app.state.stage1.startTime || remoteS1Start < this.app.state.stage1.startTime) {
+          this.app.state.stage1.startTime = remoteS1Start;
+        }
+        if (!this.app.state.timer.startTimestamp || remoteS1Start < this.app.state.timer.startTimestamp) {
+          this.app.state.timer.startTimestamp = remoteS1Start;
+        }
+      }
+
+      if (remoteData.stage2 && remoteData.stage2.startTime) {
+        if (!this.app.state.stage2) this.app.state.stage2 = {};
+        const remoteS2Start = remoteData.stage2.startTime;
+        if (!this.app.state.stage2.startTime || remoteS2Start < this.app.state.stage2.startTime) {
+          this.app.state.stage2.startTime = remoteS2Start;
+          this.app.stage2StartTime = remoteS2Start;
+        }
+      }
+
+      if (remoteData.stage3 && remoteData.stage3.startTime) {
+        if (!this.app.state.stage3) this.app.state.stage3 = {};
+        const remoteS3Start = remoteData.stage3.startTime;
+        if (!this.app.state.stage3.startTime || remoteS3Start < this.app.state.stage3.startTime) {
+          this.app.state.stage3.startTime = remoteS3Start;
+          this.app.stage3StartTime = remoteS3Start;
+        }
+      }
+
       if (remoteData.timer && this.app.state.timer) {
         if (remoteData.timer.startTimestamp) {
-          this.app.state.timer.startTimestamp = remoteData.timer.startTimestamp;
+          if (!this.app.state.timer.startTimestamp || remoteData.timer.startTimestamp < this.app.state.timer.startTimestamp) {
+            this.app.state.timer.startTimestamp = remoteData.timer.startTimestamp;
+          }
         }
         if (remoteData.timer.speed !== undefined) {
           this.app.state.timer.speed = remoteData.timer.speed;
         }
         if (remoteData.timer.isRunning !== undefined) {
           this.app.state.timer.isRunning = remoteData.timer.isRunning;
+        }
+        if (this.app.state.timer.startTimestamp) {
+          const speed = this.app.state.timer.speed || 1;
+          const physicalElapsedSec = Math.floor((Date.now() - this.app.state.timer.startTimestamp) / 1000);
+          this.app.state.timer.elapsedSeconds = Math.max(0, Math.floor(physicalElapsedSec * speed));
         }
         if (typeof window.renderChatActionBar === 'function') {
           window.renderChatActionBar(this.app.state);
@@ -4678,6 +4714,7 @@
           stage1: this.app.state.stage1,
           stage2: this.app.state.stage2,
           stage3: this.app.state.stage3,
+          timer: this.app.state.timer,
           currentStage: this.app.state.currentStage,
           groupMaxStage: this.app.state.groupMaxStage,
           isFinalSubmitted: this.app.state.isFinalSubmitted
@@ -12196,7 +12233,8 @@
 
     if (curStage === 'stage1') {
       const s1 = state.stage1 || {};
-      const elapsedSec = (state.timer && state.timer.elapsedSeconds) ? state.timer.elapsedSeconds : 0;
+      const s1Start = state.timer?.startTimestamp || s1.startTime;
+      const elapsedSec = s1Start ? Math.max(0, Math.floor(((Date.now() - s1Start) / 1000) * (state.timer?.speed || 1))) : ((state.timer && state.timer.elapsedSeconds) ? state.timer.elapsedSeconds : 0);
       const hasTopic = !!(s1.mergedTitle || s1.contract?.topic);
       const hasTime = !!(s1.contract?.timeAllocations && Object.keys(s1.contract.timeAllocations).length >= 6);
       const hasTasks = !!(s1.contract?.taskAssignments && Object.keys(s1.contract.taskAssignments).length >= totalCount && totalCount > 0);
@@ -12596,15 +12634,36 @@
         this.state.currentStage = cached.currentStage || 'stage1';
         this.state.groupMaxStage = cached.currentStage || 'stage1';
         this.state.isFinalSubmitted = (cached.isFinalSubmitted !== undefined) ? !!cached.isFinalSubmitted : false;
+        if (cached.timer) {
+          this.state.timer = Object.assign({}, defaultState.timer, cached.timer);
+        }
+        const s1Start = this.state.stage1?.startTime || this.state.timer?.startTimestamp;
+        if (s1Start) {
+          if (!this.state.timer) this.state.timer = Object.assign({}, defaultState.timer);
+          this.state.timer.startTimestamp = s1Start;
+          if (!this.state.stage1.startTime) this.state.stage1.startTime = s1Start;
+          const speed = this.state.timer.speed || 1;
+          const physicalElapsedSec = Math.floor((Date.now() - s1Start) / 1000);
+          this.state.timer.elapsedSeconds = Math.max(0, Math.floor(physicalElapsedSec * speed));
+        }
+        if (this.state.stage2?.startTime) {
+          this.stage2StartTime = this.state.stage2.startTime;
+        }
+        if (this.state.stage3?.startTime) {
+          this.stage3StartTime = this.state.stage3.startTime;
+        }
       } else {
         // 🛡️ 切换到新组时，第1行代码立刻清空内存残留消息，彻底杜绝上一组的聊天残影
         this.state.chatLogs = { stage1: [], stage2: [], stage3: [] };
         this.state.stage1 = JSON.parse(JSON.stringify(defaultState.stage1));
         this.state.stage2 = JSON.parse(JSON.stringify(defaultState.stage2));
         this.state.stage3 = JSON.parse(JSON.stringify(defaultState.stage3));
+        this.state.timer = JSON.parse(JSON.stringify(defaultState.timer));
         this.state.currentStage = 'stage1';
         this.state.groupMaxStage = 'stage1';
         this.state.isFinalSubmitted = false;
+        this.stage2StartTime = null;
+        this.stage3StartTime = null;
       }
 
       // 立即触发云端全量拉取当前任务对应小组的最新权威真实数据
@@ -12648,6 +12707,7 @@
           stage1: this.state.stage1,
           stage2: this.state.stage2,
           stage3: this.state.stage3,
+          timer: this.state.timer,
           currentStage: this.state.currentStage,
           groupMaxStage: this.state.groupMaxStage,
           presence: this.state.presence,
@@ -12862,15 +12922,28 @@
         const currentUser = this.authManager.getCurrentUser();
         if (currentUser && currentUser.role === 'student' && this.state.timer.isRunning) {
           const nowMs = Date.now();
+          if (!this.state.stage1) this.state.stage1 = {};
           // 统一物理时间戳计秒：全组成员按首次开启时间统一对齐，杜绝迟到成员或刷新页面导致的时间差
+          const existingS1Start = this.state.stage1.startTime || this.state.timer.startTimestamp;
           if (!this.state.timer.startTimestamp) {
-            this.state.timer.startTimestamp = nowMs;
-            if (this.cloudSyncEngine && typeof this.cloudSyncEngine.pushSnapshot === 'function') {
-              this.cloudSyncEngine.pushSnapshot();
+            if (existingS1Start) {
+              this.state.timer.startTimestamp = existingS1Start;
+            } else if (this.state.studentViewMode === 'workspace') {
+              this.state.timer.startTimestamp = nowMs;
+              this.state.stage1.startTime = nowMs;
+              const currentGroupId = (currentUser && currentUser.groupId) ? currentUser.groupId : (this.state.activeMonitorGroupId || this.state.activeGroupId || null);
+              this.saveGroupState(currentGroupId);
+              if (this.cloudSyncEngine && typeof this.cloudSyncEngine.pushSnapshot === 'function') {
+                this.cloudSyncEngine.pushSnapshot();
+              }
             }
           }
+          if (this.state.timer.startTimestamp && !this.state.stage1.startTime) {
+            this.state.stage1.startTime = this.state.timer.startTimestamp;
+          }
+          const s1BaseStart = this.state.timer.startTimestamp || this.state.stage1.startTime || nowMs;
           const speed = this.state.timer.speed || 1;
-          const physicalElapsedSec = Math.floor((nowMs - this.state.timer.startTimestamp) / 1000);
+          const physicalElapsedSec = Math.floor((nowMs - s1BaseStart) / 1000);
           this.state.timer.elapsedSeconds = Math.max(0, Math.floor(physicalElapsedSec * speed));
 
           if (typeof window.renderChatActionBar === 'function') {
@@ -13612,8 +13685,9 @@
         else if (stage === 'stage2') {
           const s2 = this.state.stage2;
           if (!s2 || this.state.isFinalSubmitted) return;
-          if (!this.stage2StartTime) this.stage2StartTime = now;
-          const stage2DurationMs = now - this.stage2StartTime;
+          if (!s2.startTime) s2.startTime = this.stage2StartTime || now;
+          if (!this.stage2StartTime) this.stage2StartTime = s2.startTime;
+          const stage2DurationMs = now - (s2.startTime || this.stage2StartTime || now);
 
           const s2Chats = (this.state.chatLogs && this.state.chatLogs.stage2) ? this.state.chatLogs.stage2 : [];
           const lastStudentMsg = [...s2Chats].reverse().find(m => m.sender && m.sender !== 'managingEditor' && m.sender !== 'reviewingEditor' && m.sender !== 'system');
@@ -13923,14 +13997,15 @@
         else if (stage === 'stage3') {
           const s3 = this.state.stage3;
           if (!s3 || this.state.isFinalSubmitted) return;
-          if (!this.stage3StartTime) this.stage3StartTime = now;
+          if (!s3.startTime) s3.startTime = this.stage3StartTime || now;
+          if (!this.stage3StartTime) this.stage3StartTime = s3.startTime;
 
           // 🛡️ 答辩委员会尚未全部就绪或正在生成评审时，严禁静默定时器抢跑插话！
           if (this.state.stage3CommitteeLoading || this.state.stage3CommitteeEvaluating || !s3.feedbackItems || s3.feedbackItems.length === 0) {
             return;
           }
 
-          const stage3DurationMs = now - this.stage3StartTime;
+          const stage3DurationMs = now - (s3.startTime || this.stage3StartTime || now);
           const s3Chats = (this.state.chatLogs && this.state.chatLogs.stage3) ? this.state.chatLogs.stage3 : [];
           const lastStudentMsg = [...s3Chats].reverse().find(m => m.sender && !['neutral', 'proponent', 'opponent', 'system', 'managingEditor', 'reviewingEditor'].includes(m.sender));
 

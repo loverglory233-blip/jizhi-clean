@@ -1074,7 +1074,28 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             db_file_compat = os.path.join(DIR, f'db_{groupId}.json')
             try:
                 data = json.loads(body.decode('utf-8'))
-                body_str = body.decode('utf-8')
+                if os.path.exists(db_file):
+                    try:
+                        with open(db_file, 'r', encoding='utf-8') as ef:
+                            existing_data = json.load(ef)
+                        if isinstance(existing_data, dict):
+                            ex_timer = existing_data.get('timer')
+                            in_timer = data.get('timer')
+                            if isinstance(ex_timer, dict) and ex_timer.get('startTimestamp'):
+                                if not isinstance(in_timer, dict):
+                                    data['timer'] = ex_timer
+                                elif not in_timer.get('startTimestamp') or (in_timer.get('startTimestamp') > ex_timer.get('startTimestamp')):
+                                    data['timer']['startTimestamp'] = ex_timer['startTimestamp']
+                            for stg in ['stage1', 'stage2', 'stage3']:
+                                ex_stg = existing_data.get(stg)
+                                in_stg = data.get(stg)
+                                if isinstance(ex_stg, dict) and ex_stg.get('startTime'):
+                                    if isinstance(in_stg, dict):
+                                        if not in_stg.get('startTime') or in_stg.get('startTime') > ex_stg.get('startTime'):
+                                            in_stg['startTime'] = ex_stg['startTime']
+                    except Exception:
+                        pass
+                body_str = json.dumps(data, ensure_ascii=False)
                 with JSON_FILE_LOCK:
                     with open(db_file, 'w', encoding='utf-8') as f:
                         f.write(body_str)

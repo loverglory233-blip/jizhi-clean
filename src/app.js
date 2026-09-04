@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260904_v2218";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch, showResolutionBlock, safeJsonParse } from "./utils.js?v=20260904_v2218";
-import { callCozeAgentAPI } from "./agents.js?v=20260904_v2218";
-import { AuthManager } from "./auth.js?v=20260904_v2218";
-import { CloudSyncEngine } from "./sync.js?v=20260904_v2218";
-import { renderLoginView } from "./login.js?v=20260904_v2218";
-import { renderTeacherPortal } from "./teacher.js?v=20260904_v2218";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260904_v2218";
+} from "./constants.js?v=20260904_v2219";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch, showResolutionBlock, safeJsonParse } from "./utils.js?v=20260904_v2219";
+import { callCozeAgentAPI } from "./agents.js?v=20260904_v2219";
+import { AuthManager } from "./auth.js?v=20260904_v2219";
+import { CloudSyncEngine } from "./sync.js?v=20260904_v2219";
+import { renderLoginView } from "./login.js?v=20260904_v2219";
+import { renderTeacherPortal } from "./teacher.js?v=20260904_v2219";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260904_v2219";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260904_v2218";
+} from "./editor.js?v=20260904_v2219";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -218,15 +218,36 @@ export class App {
       this.state.currentStage = cached.currentStage || 'stage1';
       this.state.groupMaxStage = cached.currentStage || 'stage1';
       this.state.isFinalSubmitted = (cached.isFinalSubmitted !== undefined) ? !!cached.isFinalSubmitted : false;
+      if (cached.timer) {
+        this.state.timer = Object.assign({}, defaultState.timer, cached.timer);
+      }
+      const s1Start = this.state.stage1?.startTime || this.state.timer?.startTimestamp;
+      if (s1Start) {
+        if (!this.state.timer) this.state.timer = Object.assign({}, defaultState.timer);
+        this.state.timer.startTimestamp = s1Start;
+        if (!this.state.stage1.startTime) this.state.stage1.startTime = s1Start;
+        const speed = this.state.timer.speed || 1;
+        const physicalElapsedSec = Math.floor((Date.now() - s1Start) / 1000);
+        this.state.timer.elapsedSeconds = Math.max(0, Math.floor(physicalElapsedSec * speed));
+      }
+      if (this.state.stage2?.startTime) {
+        this.stage2StartTime = this.state.stage2.startTime;
+      }
+      if (this.state.stage3?.startTime) {
+        this.stage3StartTime = this.state.stage3.startTime;
+      }
     } else {
       // 🛡️ 切换到新组时，第1行代码立刻清空内存残留消息，彻底杜绝上一组的聊天残影
       this.state.chatLogs = { stage1: [], stage2: [], stage3: [] };
       this.state.stage1 = JSON.parse(JSON.stringify(defaultState.stage1));
       this.state.stage2 = JSON.parse(JSON.stringify(defaultState.stage2));
       this.state.stage3 = JSON.parse(JSON.stringify(defaultState.stage3));
+      this.state.timer = JSON.parse(JSON.stringify(defaultState.timer));
       this.state.currentStage = 'stage1';
       this.state.groupMaxStage = 'stage1';
       this.state.isFinalSubmitted = false;
+      this.stage2StartTime = null;
+      this.stage3StartTime = null;
     }
 
     // 立即触发云端全量拉取当前任务对应小组的最新权威真实数据
@@ -270,6 +291,7 @@ export class App {
         stage1: this.state.stage1,
         stage2: this.state.stage2,
         stage3: this.state.stage3,
+        timer: this.state.timer,
         currentStage: this.state.currentStage,
         groupMaxStage: this.state.groupMaxStage,
         presence: this.state.presence,
@@ -484,15 +506,28 @@ export class App {
       const currentUser = this.authManager.getCurrentUser();
       if (currentUser && currentUser.role === 'student' && this.state.timer.isRunning) {
         const nowMs = Date.now();
+        if (!this.state.stage1) this.state.stage1 = {};
         // 统一物理时间戳计秒：全组成员按首次开启时间统一对齐，杜绝迟到成员或刷新页面导致的时间差
+        const existingS1Start = this.state.stage1.startTime || this.state.timer.startTimestamp;
         if (!this.state.timer.startTimestamp) {
-          this.state.timer.startTimestamp = nowMs;
-          if (this.cloudSyncEngine && typeof this.cloudSyncEngine.pushSnapshot === 'function') {
-            this.cloudSyncEngine.pushSnapshot();
+          if (existingS1Start) {
+            this.state.timer.startTimestamp = existingS1Start;
+          } else if (this.state.studentViewMode === 'workspace') {
+            this.state.timer.startTimestamp = nowMs;
+            this.state.stage1.startTime = nowMs;
+            const currentGroupId = (currentUser && currentUser.groupId) ? currentUser.groupId : (this.state.activeMonitorGroupId || this.state.activeGroupId || null);
+            this.saveGroupState(currentGroupId);
+            if (this.cloudSyncEngine && typeof this.cloudSyncEngine.pushSnapshot === 'function') {
+              this.cloudSyncEngine.pushSnapshot();
+            }
           }
         }
+        if (this.state.timer.startTimestamp && !this.state.stage1.startTime) {
+          this.state.stage1.startTime = this.state.timer.startTimestamp;
+        }
+        const s1BaseStart = this.state.timer.startTimestamp || this.state.stage1.startTime || nowMs;
         const speed = this.state.timer.speed || 1;
-        const physicalElapsedSec = Math.floor((nowMs - this.state.timer.startTimestamp) / 1000);
+        const physicalElapsedSec = Math.floor((nowMs - s1BaseStart) / 1000);
         this.state.timer.elapsedSeconds = Math.max(0, Math.floor(physicalElapsedSec * speed));
 
         if (typeof window.renderChatActionBar === 'function') {
@@ -1234,8 +1269,9 @@ export class App {
       else if (stage === 'stage2') {
         const s2 = this.state.stage2;
         if (!s2 || this.state.isFinalSubmitted) return;
-        if (!this.stage2StartTime) this.stage2StartTime = now;
-        const stage2DurationMs = now - this.stage2StartTime;
+        if (!s2.startTime) s2.startTime = this.stage2StartTime || now;
+        if (!this.stage2StartTime) this.stage2StartTime = s2.startTime;
+        const stage2DurationMs = now - (s2.startTime || this.stage2StartTime || now);
 
         const s2Chats = (this.state.chatLogs && this.state.chatLogs.stage2) ? this.state.chatLogs.stage2 : [];
         const lastStudentMsg = [...s2Chats].reverse().find(m => m.sender && m.sender !== 'managingEditor' && m.sender !== 'reviewingEditor' && m.sender !== 'system');
@@ -1545,14 +1581,15 @@ export class App {
       else if (stage === 'stage3') {
         const s3 = this.state.stage3;
         if (!s3 || this.state.isFinalSubmitted) return;
-        if (!this.stage3StartTime) this.stage3StartTime = now;
+        if (!s3.startTime) s3.startTime = this.stage3StartTime || now;
+        if (!this.stage3StartTime) this.stage3StartTime = s3.startTime;
 
         // 🛡️ 答辩委员会尚未全部就绪或正在生成评审时，严禁静默定时器抢跑插话！
         if (this.state.stage3CommitteeLoading || this.state.stage3CommitteeEvaluating || !s3.feedbackItems || s3.feedbackItems.length === 0) {
           return;
         }
 
-        const stage3DurationMs = now - this.stage3StartTime;
+        const stage3DurationMs = now - (s3.startTime || this.stage3StartTime || now);
         const s3Chats = (this.state.chatLogs && this.state.chatLogs.stage3) ? this.state.chatLogs.stage3 : [];
         const lastStudentMsg = [...s3Chats].reverse().find(m => m.sender && !['neutral', 'proponent', 'opponent', 'system', 'managingEditor', 'reviewingEditor'].includes(m.sender));
         
