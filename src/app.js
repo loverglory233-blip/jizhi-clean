@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260905_v2686";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime } from "./utils.js?v=20260905_v2686";
-import { callCozeAgentAPI } from "./agents.js?v=20260905_v2686";
-import { AuthManager } from "./auth.js?v=20260905_v2686";
-import { CloudSyncEngine } from "./sync.js?v=20260905_v2686";
-import { renderLoginView } from "./login.js?v=20260905_v2686";
-import { renderTeacherPortal } from "./teacher.js?v=20260905_v2686";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260905_v2686";
+} from "./constants.js?v=20260905_v2687";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime } from "./utils.js?v=20260905_v2687";
+import { callCozeAgentAPI } from "./agents.js?v=20260905_v2687";
+import { AuthManager } from "./auth.js?v=20260905_v2687";
+import { CloudSyncEngine } from "./sync.js?v=20260905_v2687";
+import { renderLoginView } from "./login.js?v=20260905_v2687";
+import { renderTeacherPortal } from "./teacher.js?v=20260905_v2687";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260905_v2687";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260905_v2686";
+} from "./editor.js?v=20260905_v2687";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -749,7 +749,7 @@ export class App {
             const s1 = this.state.stage1 || {};
             const propList = s1.proposals || [];
             const propCount = propList.length;
-            // ① 开场 3 分钟【左侧无提案 且 右侧无讨论交流】双静默破冰启发（严格从引导消息起算 3 分钟）
+            // ① 开场 3 分钟研讨静默破冰启发（严格从引导消息起算 3 分钟，有人在讨论区发言即解除静默）
             const s1Chats = (this.state.chatLogs && this.state.chatLogs.stage1) ? this.state.chatLogs.stage1 : [];
             const introMsg = s1Chats.find(m => m && m.sender === 'auctioneer' && (m.text?.includes('拍卖师开场') || m.text?.includes('引导师开场') || m.text?.includes('阶段一')));
             const introTime = parseMsgTime(introMsg) || (nowMs - elapsedSec * 1000);
@@ -758,12 +758,12 @@ export class App {
             const studentChatsCount = studentChats.length;
             const exist3MinBreak = s1Chats.some(m => m && m.sender === 'auctioneer' && (m.text?.includes('协同破冰') || m.text?.includes('3 分钟')));
 
-            // 🛡️ 只要有同学在引导后发言交流、提交提案或历史已提醒过，立即解除静默并锁定，绝不重复
-            if (studentChatsCount > 0 || propCount > 0 || exist3MinBreak) {
+            // 🛡️ 只要有组员在引导后在研讨区发言交流，立即解除静默并锁定，绝不重复提醒
+            if (studentChatsCount > 0 || exist3MinBreak) {
               this.state.s1_3minBreakSent = true;
             }
 
-            if (!this.state.s1_3minBreakSent && !exist3MinBreak && timeSinceIntroSec >= 180 && propCount === 0 && studentChatsCount === 0) {
+            if (!this.state.s1_3minBreakSent && !exist3MinBreak && timeSinceIntroSec >= 180 && studentChatsCount === 0) {
               this.state.s1_3minBreakSent = true;
               const msg3Min = {
                 sender: 'auctioneer',
@@ -1522,15 +1522,15 @@ export class App {
         const s2IntroTime = parseMsgTime(s2IntroMsg) || (s2.startTime || this.stage2StartTime || now);
         const s2IntroElapsed = Math.max(0, now - s2IntroTime);
         const studentMsgAfterIntro = s2Chats.filter(m => m && m.sender && m.sender !== 'managingEditor' && m.sender !== 'reviewingEditor' && m.sender !== 'system' && parseMsgTime(m) >= s2IntroTime);
-        const existS2OpenNudge = s2Chats.some(m => m && m.text?.includes('进度关怀'));
+        const existS2OpenNudge = s2Chats.some(m => m && (m.text?.includes('进度关怀') || m.text?.includes('协同推进')));
 
-        // 🛡️ 只要开场后有同伴发言、正文已动笔或历史已提醒，立即解除静默并锁定，绝不重复提醒
-        if (studentMsgAfterIntro.length > 0 || effectiveDocLen >= 50 || existS2OpenNudge) {
+        // 🛡️ 只要开场引导后有组员在研讨区发言交流，立即解除静默并锁定，绝不重复提醒
+        if (studentMsgAfterIntro.length > 0 || existS2OpenNudge) {
           this._nudgeCounts['s2_silence'] = 1;
         }
 
         const silenceNudgeCount = this._nudgeCounts['s2_silence'] || 0;
-        if (silenceNudgeCount < 1 && !existS2OpenNudge && s2IntroElapsed >= 180000 && studentMsgAfterIntro.length === 0 && effectiveDocLen < 50) {
+        if (silenceNudgeCount < 1 && !existS2OpenNudge && s2IntroElapsed >= 180000 && studentMsgAfterIntro.length === 0) {
           this._nudgeCounts['s2_silence'] = 1; // 满 3 分钟已完成一次性核验，无论是否发送均不再重复
           this.lastS2SilenceNudgeTime = now;
           const taskType = this.getCurrentTaskType();
@@ -1539,7 +1539,7 @@ export class App {
           const msg = {
             sender: 'managingEditor',
             senderName: `协同调度 · ${managingName}`,
-            text: `🤝 【${managingName}·进度关怀】：大家已进入阶段二正文协作！\n👉 请大家在左侧协同文档中积极起草与研读，撰写同时多阅读同伴段落，在研讨区互相交流衔接，群策群力协同推进！`,
+            text: `🤝 【${managingName}·进度关怀】：大家已进入阶段二协作！\n👉 请大家在研讨区互相交流衔接，在左侧协同文档中积极起草与研读，群策群力协同推进！`,
             timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
             _timeMs: now
           };
