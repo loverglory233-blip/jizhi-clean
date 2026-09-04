@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260904_v2320
+ * Version: 20260904_v2325
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260904_v2320';
+  const APP_VERSION = '20260904_v2325';
   const APP_BUILD_DATE = '2026-09-04';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -4677,11 +4677,13 @@
 
       if (remoteData.stage1 && remoteData.stage1.startTime) {
         if (!this.app.state.stage1) this.app.state.stage1 = {};
-        const remoteS1Start = remoteData.stage1.startTime;
-        if (!this.app.state.stage1.startTime || remoteS1Start < this.app.state.stage1.startTime) {
-          this.app.state.stage1.startTime = remoteS1Start;
+        const remoteS1Start = Number(remoteData.stage1.startTime);
+        if (remoteS1Start > 0) {
+          if (!this.app.state.stage1.startTime) {
+            this.app.state.stage1.startTime = remoteS1Start;
+          }
         }
-        if (!this.app.state.timer.startTimestamp || remoteS1Start < this.app.state.timer.startTimestamp) {
+        if (!this.app.state.timer.startTimestamp && remoteS1Start > 0) {
           this.app.state.timer.startTimestamp = remoteS1Start;
         }
       }
@@ -4701,7 +4703,8 @@
       if (remoteData.stage3 && remoteData.stage3.startTime) {
         if (!this.app.state.stage3) this.app.state.stage3 = {};
         const remoteS3Start = Number(remoteData.stage3.startTime);
-        if (remoteS3Start > 0) {
+        const s2ConfTime = Number(this.app.state.stage2?._firstSignTimeMs || this.app.state.stage2?.startTime || 0);
+        if (remoteS3Start > 0 && (s2ConfTime === 0 || remoteS3Start >= (s2ConfTime - 60000))) {
           if (!this.app.state.stage3.startTime) {
             this.app.state.stage3.startTime = remoteS3Start;
             this.app.stage3StartTime = remoteS3Start;
@@ -4711,8 +4714,9 @@
 
       if (remoteData.timer && this.app.state.timer) {
         if (remoteData.timer.startTimestamp) {
-          if (!this.app.state.timer.startTimestamp || remoteData.timer.startTimestamp < this.app.state.timer.startTimestamp) {
-            this.app.state.timer.startTimestamp = remoteData.timer.startTimestamp;
+          const remoteTimerStart = Number(remoteData.timer.startTimestamp);
+          if (!this.app.state.timer.startTimestamp && remoteTimerStart > 0) {
+            this.app.state.timer.startTimestamp = remoteTimerStart;
           }
         }
         if (remoteData.timer.speed !== undefined) {
@@ -18689,9 +18693,9 @@
       const s2ChatList = this.state.chatLogs?.stage2 || [];
 
       // ═══════════════════════════════════════════════════════════════
-      // 🛡️ 第一次学术质检（目标字数的 35% / 切实进行阶段二起草 35% 时间且至少满 3 分钟 · 破题把脉）
+      // 🛡️ 第一次学术质检（目标字数的 35% / 阶段二起草时间水位 35% · 破题把脉）
       // ═══════════════════════════════════════════════════════════════
-      const isReview1Due = (wordProgress >= 0.35 || rawDoc.length >= (targetWordCount * 0.35) || (timeProgress >= 0.35 && stage2DurationMs >= 180000));
+      const isReview1Due = (wordProgress >= 0.35 || timeProgress >= 0.35 || rawDoc.length >= (targetWordCount * 0.35));
       const hasFirstReviewInLogs = s2ChatList.some(m => m.sender === 'reviewingEditor' && (m.text.includes('初审') || m.text.includes('破题把脉') || m.text.includes('Research Gap')));
       if (hasFirstReviewInLogs && (s2.reviewMilestone === 'none' || s2.reviewMilestone === 'first_review_in_progress')) {
         s2.reviewMilestone = 'first_review_done';
@@ -18774,9 +18778,9 @@
       }
 
       // ═══════════════════════════════════════════════════════════════
-      // 🛡️ 第二次学术质检与编辑会议（目标字数的 70% / 切实进行阶段二起草 70% 时间且至少满 6 分钟 · 深度研讨）
+      // 🛡️ 第二次学术质检与编辑会议（目标字数的 70% / 阶段二起草时间水位 70% · 深度研讨）
       // ═══════════════════════════════════════════════════════════════
-      const isMeetingDue = (hasFirstReviewInLogs || s2.reviewMilestone === 'first_review_done') && (wordProgress >= 0.70 || rawDoc.length >= (targetWordCount * 0.70) || (timeProgress >= 0.70 && stage2DurationMs >= 360000));
+      const isMeetingDue = (hasFirstReviewInLogs || s2.reviewMilestone === 'first_review_done') && (wordProgress >= 0.70 || timeProgress >= 0.70 || rawDoc.length >= (targetWordCount * 0.70));
       const hasMeetingCalledInLogs = s2ChatList.some(m => m.sender === 'managingEditor' && (m.text.includes('半程会议号召') || m.text.includes('半程研讨号召')));
       if (hasMeetingCalledInLogs && s2.reviewMilestone !== 'meeting_called' && s2.reviewMilestone !== 'action_plan_generated') {
         s2.reviewMilestone = 'meeting_called';
