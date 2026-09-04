@@ -1935,8 +1935,34 @@ if ($action === 'save_global_meta' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                                 $annIn['confirmedMembers'] = array_values($confMap);
                             }
                             unset($annIn);
-                            $cleanJson = json_encode($cleanDecoded, JSON_UNESCAPED_UNICODE);
                         }
+
+                        // 🛡️ 关键修复：合并保留服务器端任务的「最新延期截止时间 lastExtension」，杜绝教师端其他旧快照反向冲刷延期
+                        if (is_array($exAnnMeta) && isset($exAnnMeta['tasks']) && is_array($exAnnMeta['tasks'])) {
+                            $exTasksMap = [];
+                            foreach ($exAnnMeta['tasks'] as $et) {
+                                if (is_array($et) && isset($et['id'])) $exTasksMap[$et['id']] = $et;
+                                if (is_array($et) && isset($et['title'])) $exTasksMap[$et['title']] = $et;
+                            }
+                            if (!empty($exTasksMap) && isset($cleanDecoded['tasks']) && is_array($cleanDecoded['tasks'])) {
+                                foreach ($cleanDecoded['tasks'] as &$tskIn) {
+                                    if (!is_array($tskIn)) continue;
+                                    $tid = $tskIn['id'] ?? ($tskIn['title'] ?? '');
+                                    if (!$tid || !isset($exTasksMap[$tid])) continue;
+                                    $et = $exTasksMap[$tid];
+                                    $serverExtAt = isset($et['lastExtension']['extendedAt']) ? intval($et['lastExtension']['extendedAt']) : 0;
+                                    $inExtAt = isset($tskIn['lastExtension']['extendedAt']) ? intval($tskIn['lastExtension']['extendedAt']) : 0;
+                                    if ($serverExtAt > $inExtAt) {
+                                        $tskIn['deadline'] = $et['deadline'];
+                                        if (isset($et['durationMinutes'])) $tskIn['durationMinutes'] = $et['durationMinutes'];
+                                        $tskIn['lastExtension'] = $et['lastExtension'];
+                                    }
+                                }
+                                unset($tskIn);
+                            }
+                        }
+
+                        $cleanJson = json_encode($cleanDecoded, JSON_UNESCAPED_UNICODE);
                     }
                 } catch (Exception $e) {}
 
