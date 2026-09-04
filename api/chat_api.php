@@ -201,6 +201,7 @@ $stage = isset($req['stage']) ? $req['stage'] : '';
 $topic = isset($req['topic']) ? $req['topic'] : '';
 $actualDoc = isset($req['actual_doc']) ? $req['actual_doc'] : '';
 $priorReview = isset($req['prior_review']) ? $req['prior_review'] : '';
+$taskType = isset($req['task_type']) ? $req['task_type'] : (isset($req['taskType']) ? $req['taskType'] : 'experiment');
 
 if (empty($userQuery)) {
     echo json_encode(['success' => false, 'message' => 'Query is empty']);
@@ -248,7 +249,7 @@ function parseCozeSseStream($rawResp) {
 }
 
 // 2. 使用 Prompt 工厂进行结构化组装
-$assembledPrompt = CozePromptFactory::buildPrompt($stage, $topic, $userQuery, $actualDoc, $botKey, $priorReview);
+$assembledPrompt = CozePromptFactory::buildPrompt($stage, $topic, $userQuery, $actualDoc, $botKey, $priorReview, $taskType);
 
 // 3. 发起 Chat 请求 (采用 stream=true + auto_save_history=false 强制关闭云端对话记忆，杜绝历史 Token 累积)
 $cozeUrl = $COZE_API_BASE_URL . '/chat';
