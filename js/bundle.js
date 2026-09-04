@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260905_v2701
+ * Version: 20260905_v2702
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260905_v2701';
+  const APP_VERSION = '20260905_v2702';
   const APP_BUILD_DATE = '2026-09-05';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -9363,16 +9363,42 @@
       });
     });
 
-    // 🗑️ 删除写作任务按钮
+    // 🗑️ 删除写作任务按钮（现代美观模态弹窗，杜绝浏览器自带 confirm 拦截屏蔽）
     container.querySelectorAll('.btn-delete-task').forEach(btn => {
       btn.addEventListener('click', () => {
         const taskId = btn.dataset.id;
         const taskTitle = btn.dataset.title || '此写作任务';
-        if (confirm(`🗑️ 确认删除写作任务《${taskTitle}》？\n\n删除后该任务将从所有教师与学生端移除。`)) {
+
+        document.querySelectorAll('.modal-task-confirm-overlay').forEach(el => el.remove());
+        const modal = document.createElement('div');
+        modal.className = 'modal-overlay modal-task-confirm-overlay';
+        modal.style.cssText = 'z-index:999999; display:flex; align-items:center; justify-content:center; position:fixed; inset:0; background:rgba(15,23,42,0.65); backdrop-filter:blur(5px);';
+        modal.innerHTML = `
+          <div class="modal-card" style="background:#ffffff; border-radius:16px; max-width:440px; width:92%; padding:28px 24px; box-shadow:0 25px 60px -12px rgba(0,0,0,0.35); text-align:center; animation:modalPop 0.25s cubic-bezier(0.16,1,0.3,1); border:1.5px solid #fee2e2;">
+            <div style="width:56px; height:56px; border-radius:50%; background:#fee2e2; color:#ef4444; display:flex; align-items:center; justify-content:center; margin:0 auto 16px; font-size:28px; box-shadow:0 4px 12px rgba(239,68,68,0.2);">🗑️</div>
+            <h3 style="margin:0 0 10px; font-size:19px; color:#0f172a; font-weight:800;">确认删除写作任务？</h3>
+            <p style="margin:0 0 22px; font-size:14px; color:#475569; line-height:1.65;">
+              您即将删除任务《<b style="color:#dc2626;">${escapeHtml(taskTitle)}</b>》。<br/>
+              删除后该任务将从所有教师端与学生端移除，正在该任务中协作的学生将自动收到撤销提示并返回大厅。
+            </p>
+            <div style="display:flex; gap:10px; justify-content:center;">
+              <button id="btn-cancel-del-task-modal" style="flex:1; padding:10px 16px; border-radius:8px; border:1px solid #cbd5e1; background:#f8fafc; color:#475569; font-size:13.5px; font-weight:700; cursor:pointer; transition:all 0.15s ease;">取消</button>
+              <button id="btn-confirm-del-task-modal" style="flex:1; padding:10px 16px; border-radius:8px; border:none; background:linear-gradient(135deg, #dc2626, #b91c1c); color:#ffffff; font-size:13.5px; font-weight:700; cursor:pointer; box-shadow:0 2px 8px rgba(220,38,38,0.3);">确认删除</button>
+            </div>
+          </div>
+        `;
+        document.body.appendChild(modal);
+
+        const closeModal = () => { modal.remove(); };
+        modal.querySelector('#btn-cancel-del-task-modal').addEventListener('click', closeModal);
+        modal.addEventListener('click', (e) => { if (e.target === modal) closeModal(); });
+
+        modal.querySelector('#btn-confirm-del-task-modal').addEventListener('click', () => {
+          closeModal();
           authManager.deleteTask(taskId);
-          alert(`✅ 已成功删除写作任务《${taskTitle}》！`);
+          showGlobalBannerNotice('✅ 任务已删除', `写作任务《${taskTitle}》已成功删除并同步撤销！`, 'success');
           renderTeacherPortal(container, authManager, state, onLogout);
-        }
+        });
       });
     });
 
@@ -9381,11 +9407,37 @@
       btn.addEventListener('click', () => {
         const annId = btn.dataset.id;
         const annTitle = btn.dataset.title || '此通知';
-        if (confirm(`🗑️ 确认删除课堂通知《${annTitle}》？\n\n删除后该通知将从所有学生端的弹窗和通知中心中撤销。`)) {
+
+        document.querySelectorAll('.modal-ann-confirm-overlay').forEach(el => el.remove());
+        const modal = document.createElement('div');
+        modal.className = 'modal-overlay modal-ann-confirm-overlay';
+        modal.style.cssText = 'z-index:999999; display:flex; align-items:center; justify-content:center; position:fixed; inset:0; background:rgba(15,23,42,0.65); backdrop-filter:blur(5px);';
+        modal.innerHTML = `
+          <div class="modal-card" style="background:#ffffff; border-radius:16px; max-width:440px; width:92%; padding:28px 24px; box-shadow:0 25px 60px -12px rgba(0,0,0,0.35); text-align:center; animation:modalPop 0.25s cubic-bezier(0.16,1,0.3,1); border:1.5px solid #fee2e2;">
+            <div style="width:56px; height:56px; border-radius:50%; background:#fee2e2; color:#ef4444; display:flex; align-items:center; justify-content:center; margin:0 auto 16px; font-size:28px; box-shadow:0 4px 12px rgba(239,68,68,0.2);">🗑️</div>
+            <h3 style="margin:0 0 10px; font-size:19px; color:#0f172a; font-weight:800;">确认删除课堂通知？</h3>
+            <p style="margin:0 0 22px; font-size:14px; color:#475569; line-height:1.65;">
+              您即将删除通知《<b style="color:#dc2626;">${escapeHtml(annTitle)}</b>》。<br/>
+              删除后该通知将从所有学生端的弹窗和通知中心中撤销。
+            </p>
+            <div style="display:flex; gap:10px; justify-content:center;">
+              <button id="btn-cancel-del-ann-modal" style="flex:1; padding:10px 16px; border-radius:8px; border:1px solid #cbd5e1; background:#f8fafc; color:#475569; font-size:13.5px; font-weight:700; cursor:pointer;">取消</button>
+              <button id="btn-confirm-del-ann-modal" style="flex:1; padding:10px 16px; border-radius:8px; border:none; background:linear-gradient(135deg, #dc2626, #b91c1c); color:#ffffff; font-size:13.5px; font-weight:700; cursor:pointer; box-shadow:0 2px 8px rgba(220,38,38,0.3);">确认删除</button>
+            </div>
+          </div>
+        `;
+        document.body.appendChild(modal);
+
+        const closeModal = () => { modal.remove(); };
+        modal.querySelector('#btn-cancel-del-ann-modal').addEventListener('click', closeModal);
+        modal.addEventListener('click', (e) => { if (e.target === modal) closeModal(); });
+
+        modal.querySelector('#btn-confirm-del-ann-modal').addEventListener('click', () => {
+          closeModal();
           authManager.deleteAnnouncement(annId);
-          alert(`✅ 已成功删除课堂通知《${annTitle}》！`);
+          showGlobalBannerNotice('✅ 通知已删除', `课堂通知《${annTitle}》已成功删除！`, 'success');
           renderTeacherPortal(container, authManager, state, onLogout);
-        }
+        });
       });
     });
 
