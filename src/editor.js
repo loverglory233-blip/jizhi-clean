@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260904_v2355";
-import { callCozeAgentAPI } from "./agents.js?v=20260904_v2355";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, showResolutionBlock } from "./utils.js?v=20260904_v2355";
+import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260904_v2360";
+import { callCozeAgentAPI } from "./agents.js?v=20260904_v2360";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, showResolutionBlock } from "./utils.js?v=20260904_v2360";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -1396,6 +1396,11 @@ function renderStage2Canvas(canvas, state, handlers) {
       const rawText = (innerBody.innerText || '').replace(/\r\n/g, '\n').trim();
       const totalLen = rawText.length;
 
+      // ⚡ 极速缓存保护：若正文内容未发生变动，直接返回上次解析结果，0 DOM 遍历开销
+      if (window._lastPadScannedText === rawText && window._lastPadScannedStats) {
+        return window._lastPadScannedStats;
+      }
+
       const memberCounts = {};
       membersList.forEach(m => {
         memberCounts[m.id] = 0;
@@ -1403,7 +1408,10 @@ function renderStage2Canvas(canvas, state, handlers) {
       });
 
       if (totalLen === 0) {
-        return { total: 0, memberCounts, cleanText: '' };
+        const emptyRes = { total: 0, memberCounts, cleanText: '' };
+        window._lastPadScannedText = '';
+        window._lastPadScannedStats = emptyRes;
+        return emptyRes;
       }
 
       const getAuthorClass = (el) => {
@@ -1475,11 +1483,14 @@ function renderStage2Canvas(canvas, state, handlers) {
         }
       });
 
-      return {
+      const resObj = {
         total: totalLen,
         memberCounts: memberCounts,
         cleanText: rawText
       };
+      window._lastPadScannedText = rawText;
+      window._lastPadScannedStats = resObj;
+      return resObj;
     } catch (e) {
       return null;
     }
@@ -1541,9 +1552,12 @@ function renderStage2Canvas(canvas, state, handlers) {
   };
 
   let _padContentDebounceTimer = null;
+  let _padContribDebounceTimer = null;
+  let _lastReportedContribStr = '';
+
   const syncPadMetrics = async () => {
     try {
-      // 1. 优先尝试同源 DOM 级作者与留存字数全量精准直读
+      // 1. 优先尝试同源 DOM 级作者与留存字数全量精准直读 (含极速脏检查)
       const authorStats = getEtherpadAuthorStats();
       let cleanTxt = authorStats ? authorStats.cleanText : null;
       
@@ -1560,7 +1574,9 @@ function renderStage2Canvas(canvas, state, handlers) {
         
         // 实时更新字数角标
         const countBadge = document.getElementById('stage2-word-count-num');
-        if (countBadge) countBadge.innerText = String(wordCount);
+        if (countBadge && countBadge.innerText !== String(wordCount)) {
+          countBadge.innerText = String(wordCount);
+        }
 
         const prevContent = state.stage2.unifiedContent || '';
         const hasContentChanged = (cleanTxt !== prevContent);
@@ -1580,20 +1596,30 @@ function renderStage2Canvas(canvas, state, handlers) {
 
         // 3. 根据实际文档内容精准更新各成员真实贡献度
         if (authorStats && authorStats.memberCounts) {
-          state.stage2.memberContributions = authorStats.memberCounts;
-          updateContribDom();
+          const contribStr = JSON.stringify(authorStats.memberCounts);
+          const hasContribChanged = (contribStr !== JSON.stringify(state.stage2.memberContributions));
 
-          // 📡 异步持久化到服务端双表
-          fetch(`sync.php?action=report_member_contrib&groupId=${encodeURIComponent(userGroupId)}&taskId=${encodeURIComponent(activeTaskId)}&classId=${encodeURIComponent(userClassId)}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              taskId: activeTaskId,
-              classId: userClassId,
-              groupId: userGroupId,
-              contribs: authorStats.memberCounts
-            })
-          }).catch(() => {});
+          if (hasContribChanged) {
+            state.stage2.memberContributions = authorStats.memberCounts;
+            updateContribDom();
+
+            // ⚡ 防抖节流持久化到云端 (仅在变动时触发，避免高频网络开销)
+            if (_padContribDebounceTimer) clearTimeout(_padContribDebounceTimer);
+            _padContribDebounceTimer = setTimeout(() => {
+              if (_lastReportedContribStr === contribStr) return;
+              _lastReportedContribStr = contribStr;
+              fetch(`sync.php?action=report_member_contrib&groupId=${encodeURIComponent(userGroupId)}&taskId=${encodeURIComponent(activeTaskId)}&classId=${encodeURIComponent(userClassId)}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  taskId: activeTaskId,
+                  classId: userClassId,
+                  groupId: userGroupId,
+                  contribs: authorStats.memberCounts
+                })
+              }).catch(() => {});
+            }, 1000);
+          }
         } else {
           updateContribDom();
         }
