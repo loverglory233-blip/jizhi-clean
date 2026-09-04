@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260905_v2717";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime } from "./utils.js?v=20260905_v2717";
-import { callCozeAgentAPI } from "./agents.js?v=20260905_v2717";
-import { AuthManager } from "./auth.js?v=20260905_v2717";
-import { CloudSyncEngine } from "./sync.js?v=20260905_v2717";
-import { renderLoginView } from "./login.js?v=20260905_v2717";
-import { renderTeacherPortal } from "./teacher.js?v=20260905_v2717";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260905_v2717";
+} from "./constants.js?v=20260905_v2718";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime } from "./utils.js?v=20260905_v2718";
+import { callCozeAgentAPI } from "./agents.js?v=20260905_v2718";
+import { AuthManager } from "./auth.js?v=20260905_v2718";
+import { CloudSyncEngine } from "./sync.js?v=20260905_v2718";
+import { renderLoginView } from "./login.js?v=20260905_v2718";
+import { renderTeacherPortal } from "./teacher.js?v=20260905_v2718";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260905_v2718";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260905_v2717";
+} from "./editor.js?v=20260905_v2718";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -3268,7 +3268,9 @@ export class App {
 ③ 末尾提示：“商量好后，请点击左侧公约看板中的【💡 讨论差不多了？一键提炼【${docThemeNoun}】】按钮！”
 （纯自然语言输出，100~140字，严禁拆分成多条，严禁提及任何票数数字）`;
 
-          guideText = `恭喜全员就选题《${winningProposal.title}》达成一致！该方向切口精准。建议大家在讨论区重点围绕应用情境（具体学情与场景）、核心评估指标（成效观测维度）以及实施方法与活动环节等维度展开细化商讨。商量好后，请点击左侧公约看板中的【💡 讨论差不多了？一键提炼【${docThemeNoun}】】按钮！`;
+          guideText = isInst
+            ? `恭喜全员就教学选题《${winningProposal.title}》达成一致！该方向切口精准。建议大家在讨论区重点围绕教学情境（具体学情与导入情景）、核心评价指标（教学目标达成与观测维度）以及探究活动链与实施环节等维度展开细化商讨。商量好后，请点击左侧公约看板中的【💡 讨论差不多了？一键提炼【${docThemeNoun}】】按钮！`
+            : `恭喜全员就选题《${winningProposal.title}》达成一致！该方向切口精准。建议大家在讨论区重点围绕应用情境（具体学情与场景）、核心评估指标（成效观测维度）以及实施方法与活动环节等维度展开细化商讨。商量好后，请点击左侧公约看板中的【💡 讨论差不多了？一键提炼【${docThemeNoun}】】按钮！`;
 
           try {
             const aiResp = await callCozeAgentAPI('auctioneer', unanimousPrompt, { stage: 'stage1', topic: winningProposal.title, taskType });
@@ -3300,11 +3302,13 @@ ${votedDetails}
 请作为资深${agentTitle}：
 发表 110~150 字的分歧融合与方案研讨引导（【绝对严禁出现任何票数数字，如“X票”、“Y票”等，系统已单独播报票数】）：
 ① 说明大家目前分别聚焦在 ${votedTitles} 等不同方向；
-② 简要分析不同方向的侧重点与互补优势，并明确指出大家具体可以从哪些维度/方面取长补短、展开融合细化（如结合一方的应用情境/学情载体，融入另一方的核心指标/评价维度或实施方法等，【指明细化维度即可，无需展开虚构具体实例】）；
+② 简要分析不同方向的侧重点与互补优势，并明确指出大家具体可以从哪些维度/方面取长补短、展开融合细化（${isInst ? '如结合一方的教学情境/学情载体，融入另一方的核心评价指标/达成维度或探究活动设计等' : '如结合一方的应用情境/学情载体，融入另一方的核心指标/评价维度或实施方法等'}，【指明细化维度即可，无需展开虚构具体实例】）；
 ③ 末尾提示：“商量好后，请点击左侧公约看板中的【💡 讨论差不多了？一键提炼【${docThemeNoun}】】按钮！”
 （纯自然语言输出，110~150字，严禁拆分成多条，严禁提及任何票数数字）`;
 
-          guideText = `小组成员目前分别聚焦在 ${votedTitles} 等不同方向。各方案各有侧重且具备很强的互补性，建议大家在讨论区围绕具体应用情境、核心评价指标及实施方法等维度取长补短进行融合细化。商量好后，请点击左侧公约看板中的【💡 讨论差不多了？一键提炼【${docThemeNoun}】】按钮！`;
+          guideText = isInst
+            ? `小组成员目前分别聚焦在 ${votedTitles} 等不同方向。各备课设想各有侧重且具备很强互补性，建议大家在讨论区围绕具体教学情境、核心评价指标及探究活动环节等维度取长补短进行融合细化。商量好后，请点击左侧公约看板中的【💡 讨论差不多了？一键提炼【${docThemeNoun}】】按钮！`
+            : `小组成员目前分别聚焦在 ${votedTitles} 等不同方向。各方案各有侧重且具备很强的互补性，建议大家在讨论区围绕具体应用情境、核心评价指标及实施方法等维度取长补短进行融合细化。商量好后，请点击左侧公约看板中的【💡 讨论差不多了？一键提炼【${docThemeNoun}】】按钮！`;
 
           try {
             const aiResp = await callCozeAgentAPI('auctioneer', divergencePrompt, { stage: 'stage1', topic: '方案分歧融合', taskType });
