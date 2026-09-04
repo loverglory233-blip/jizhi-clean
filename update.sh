@@ -16,7 +16,7 @@ TARGET_DIRS=($(printf "%s\n" "${TARGET_DIRS[@]}" | sort -u))
 
 echo "📁 目标目录: ${TARGET_DIRS[*]}"
 
-TARGET_VERSION="20260905_v2595"
+TARGET_VERSION="20260905_v2600"
 
 echo "⚡ [2/4] 极速同步最新代码包 ($TARGET_VERSION)..."
 TMP=/tmp/jizhi_update
@@ -360,7 +360,7 @@ if [ -n "$EP_DIR" ]; then
   "dbSettings": {
     "filename": "var/dirty.db"
   },
-  "defaultPadText": "一、研究背景与意义\n\n二、文献综述\n\n三、研究问题与假设\n\n四、研究设计与方法\n\n五、研究设计的不足与反思\n\n六、参考文献\n",
+  "defaultPadText": "",
   "padOptions": {
     "noColors": true,
     "showControls": true,
