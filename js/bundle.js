@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260905_v2661
+ * Version: 20260905_v2662
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260905_v2661';
+  const APP_VERSION = '20260905_v2662';
   const APP_BUILD_DATE = '2026-09-05';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -16735,8 +16735,8 @@
     }
 
     async triggerAgentReplyIfNeeded(userMsg) {
-      // 🛡️ 并发锁：防止快速发送多条 @消息 导致 AI 回复乱序
-      if (this._isAgentReplyInProgress) return;
+      // 🛡️ 截止只读锁与并发锁：只读模式下严禁触发任何 AI 回复
+      if (this.isCurrentTaskReadOnly() || this._isAgentReplyInProgress) return;
       this._isAgentReplyInProgress = true;
       const stage = this.state.currentStage || 'stage1';
       let replyAgent = null;
@@ -21147,7 +21147,7 @@
     }
 
     async triggerReviewingEditorAfterDiscussion(customManagingSummary = '') {
-      if (this._isTriggeringSecondReview) return;
+      if (this._isTriggeringSecondReview || this.isCurrentTaskReadOnly()) return;
       const ctx = this.state.stage2?.pendingReviewing || this.state.stage2PendingReviewing;
       if (!ctx) return;
       this._isTriggeringSecondReview = true;
