@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260905_v2673
+ * Version: 20260905_v2674
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260905_v2673';
+  const APP_VERSION = '20260905_v2674';
   const APP_BUILD_DATE = '2026-09-05';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -4270,6 +4270,9 @@
               const exists = this.app.state.chatLogs[stg].some(m => (cm.id && m.id === cm.id) || (m._timeMs === cm._timeMs && m.text === cm.text));
               if (!exists) {
                 this.app.state.chatLogs[stg].push(cm);
+                if (this.groupId && typeof this.app.saveGroupState === 'function') {
+                  this.app.saveGroupState(this.groupId);
+                }
                 if (typeof window.renderChat === 'function') window.renderChat(this.app.state);
               }
             }
@@ -5794,19 +5797,21 @@
 
       this.app.saveGroupState(myGroupId);
 
-      // 🛡️ Safari / WebKit 核心保护：如果用户正在任意输入框、富文本或 Etherpad iframe 内打字，绝对禁止重绘工作区
+      // 💬 研讨区聊天与成员在线状态独立刷新：绝不破坏任何输入框焦点，100% 实时响应
+      if (typeof window.renderChat === 'function') {
+        window.renderChat(this.app.state);
+      }
+
+      // 🛡️ 工作区渲染保护：仅当用户在画布或公约字段内积极编辑/输入法合成时暂缓局部全量重绘
       const activeEl = document.activeElement;
-      const isTyping = activeEl && (
-        activeEl.id === 'chat-input' ||
-        activeEl.tagName === 'INPUT' ||
-        activeEl.tagName === 'TEXTAREA' ||
-        activeEl.tagName === 'IFRAME' ||
-        activeEl.isContentEditable ||
-        window._isGlobalComposing
-      );
-      if (!isTyping) {
-        if (typeof window.renderChat === 'function') window.renderChat(this.app.state);
-        if (needWorkspaceRender) {
+      const isTypingInWorkspace = activeEl && (
+        (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA') &&
+        (document.getElementById('canvas-panel')?.contains(activeEl) || document.querySelector('.contract-card')?.contains(activeEl) || document.querySelector('.matrix-workspace-container')?.contains(activeEl))
+      ) || window._isGlobalComposing;
+
+      if (!isTypingInWorkspace) {
+        if (needWorkspaceRender && user?.role === 'student' && this.app.state.studentViewMode === 'workspace') {
+          this._hasRenderedInitialWorkspace = true;
           this.app.renderStudentWorkspace();
         }
       }
@@ -5829,16 +5834,6 @@
         };
         localStorage.setItem(this.storageKey, JSON.stringify(snapCache));
       } catch (e) {}
-
-      const isFirstPull = !this._hasRenderedInitialWorkspace;
-      if ((isFirstPull || needWorkspaceRender) && user?.role === 'student' && this.app.state.studentViewMode === 'workspace') {
-        const activeEl = document.activeElement;
-        const isTypingInWorkspace = activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA') && (document.getElementById('canvas-panel')?.contains(activeEl) || document.querySelector('.contract-card')?.contains(activeEl));
-        if (!isTypingInWorkspace) {
-          this._hasRenderedInitialWorkspace = true;
-          this.app.renderStudentWorkspace();
-        }
-      }
 
       // ⚡ 首次拉取就绪：纯前端局部更新右侧聊天与未读通知检查（0 数据上传）
       if (isFirstPull && user?.role === 'student' && this.app.state.studentViewMode === 'workspace') {
