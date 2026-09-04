@@ -1653,33 +1653,42 @@ if ($action === 'get_pad_text' || $action === 'get_pad_html') {
         $extractedGid = $mg[1];
     }
 
-    $isPadPlaceholder = empty($retText) || trim($retText) === '啥意思捏' || strpos($retText, '啥意思捏') !== false || strpos($retText, 'Welcome to Etherpad') !== false || mb_strlen($retText, 'UTF-8') < 10;
-    if ($isPadPlaceholder && $pdo) {
-        if (!empty($extractedTid) && !empty($extractedGid)) {
-            $stmtDb = $pdo->prepare("SELECT stage2_data FROM group_states WHERE scope_key = :sk OR scope_key = :sk2 OR (task_id = :tid AND group_id = :gid) ORDER BY last_timestamp DESC LIMIT 1");
-            $stmtDb->execute([':sk' => $exactScopeKey, ':sk2' => $scopeKey, ':tid' => $extractedTid, ':gid' => $extractedGid]);
-        } else {
-            $stmtDb = $pdo->prepare("SELECT stage2_data FROM group_states WHERE scope_key = :sk OR scope_key = :sk2 ORDER BY last_timestamp DESC LIMIT 1");
-            $stmtDb->execute([':sk' => $exactScopeKey, ':sk2' => $scopeKey]);
-        }
-        $rowDb = $stmtDb->fetch();
-        if ($rowDb && !empty($rowDb['stage2_data'])) {
-            $s2Data = json_decode($rowDb['stage2_data'], true);
-            if (!empty($s2Data['unifiedContent'])) {
-                $uHtml = $s2Data['unifiedContent'];
-                $uStr = trim(strip_tags($uHtml));
-                $uLen = mb_strlen($uStr, 'UTF-8');
-                if ($uLen > 10) {
-                    $setHUrl = "http://127.0.0.1:9001/api/1.2.14/setHTML?apikey=" . urlencode($apiKey) . "&padID=" . urlencode($padId) . "&html=" . urlencode($uHtml);
-                    $chS = curl_init($setHUrl);
-                    curl_setopt($chS, CURLOPT_RETURNTRANSFER, true);
-                    curl_setopt($chS, CURLOPT_TIMEOUT, 2);
-                    curl_exec($chS);
-                    curl_close($chS);
-                    $retHtml = $uHtml;
-                    $retText = $uStr;
+    $isPadPlaceholder = empty($retText) || trim($retText) === '啥意思捏' || strpos($retText, '啥意思捏') !== false || strpos($retText, 'Welcome to Etherpad') !== false || (strpos($retText, '一、研究背景与意义') !== false && mb_strlen($retText, 'UTF-8') < 80);
+    if ($isPadPlaceholder) {
+        $foundDbContent = false;
+        if ($pdo) {
+            if (!empty($extractedTid) && !empty($extractedGid)) {
+                $stmtDb = $pdo->prepare("SELECT stage2_data FROM group_states WHERE scope_key = :sk OR scope_key = :sk2 OR (task_id = :tid AND group_id = :gid) ORDER BY last_timestamp DESC LIMIT 1");
+                $stmtDb->execute([':sk' => $exactScopeKey, ':sk2' => $scopeKey, ':tid' => $extractedTid, ':gid' => $extractedGid]);
+            } else {
+                $stmtDb = $pdo->prepare("SELECT stage2_data FROM group_states WHERE scope_key = :sk OR scope_key = :sk2 ORDER BY last_timestamp DESC LIMIT 1");
+                $stmtDb->execute([':sk' => $exactScopeKey, ':sk2' => $scopeKey]);
+            }
+            $rowDb = $stmtDb->fetch();
+            if ($rowDb && !empty($rowDb['stage2_data'])) {
+                $s2Data = json_decode($rowDb['stage2_data'], true);
+                if (!empty($s2Data['unifiedContent'])) {
+                    $uHtml = $s2Data['unifiedContent'];
+                    $uStr = trim(strip_tags($uHtml));
+                    $uLen = mb_strlen($uStr, 'UTF-8');
+                    if ($uLen > 10 && $uStr !== '啥意思捏' && !str_starts_with($uStr, '一、研究背景与意义')) {
+                        $setHUrl = "http://127.0.0.1:9001/api/1.2.14/setHTML?apikey=" . urlencode($apiKey) . "&padID=" . urlencode($padId) . "&html=" . urlencode($uHtml);
+                        $chS = curl_init($setHUrl); curl_setopt($chS, CURLOPT_RETURNTRANSFER, true); curl_setopt($chS, CURLOPT_TIMEOUT, 2);
+                        curl_exec($chS); curl_close($chS);
+                        $retHtml = $uHtml;
+                        $retText = $uStr;
+                        $foundDbContent = true;
+                    }
                 }
             }
+        }
+        if (!$foundDbContent) {
+            // 没有任何学生正文，彻底将 Pad 抹为空白
+            $setTUrl = "http://127.0.0.1:9001/api/1.2.14/setText?apikey=" . urlencode($apiKey) . "&padID=" . urlencode($padId) . "&text=";
+            $chCl = curl_init($setTUrl); curl_setopt($chCl, CURLOPT_RETURNTRANSFER, true); curl_setopt($chCl, CURLOPT_TIMEOUT, 1);
+            curl_exec($chCl); curl_close($chCl);
+            $retHtml = '';
+            $retText = '';
         }
     }
 
