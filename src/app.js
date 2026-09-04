@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260904_v2310";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse } from "./utils.js?v=20260904_v2310";
-import { callCozeAgentAPI } from "./agents.js?v=20260904_v2310";
-import { AuthManager } from "./auth.js?v=20260904_v2310";
-import { CloudSyncEngine } from "./sync.js?v=20260904_v2310";
-import { renderLoginView } from "./login.js?v=20260904_v2310";
-import { renderTeacherPortal } from "./teacher.js?v=20260904_v2310";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260904_v2310";
+} from "./constants.js?v=20260904_v2315";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse } from "./utils.js?v=20260904_v2315";
+import { callCozeAgentAPI } from "./agents.js?v=20260904_v2315";
+import { AuthManager } from "./auth.js?v=20260904_v2315";
+import { CloudSyncEngine } from "./sync.js?v=20260904_v2315";
+import { renderLoginView } from "./login.js?v=20260904_v2315";
+import { renderTeacherPortal } from "./teacher.js?v=20260904_v2315";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260904_v2315";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260904_v2310";
+} from "./editor.js?v=20260904_v2315";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -6237,24 +6237,33 @@ ${chatSnippet}
         try {
           await new Promise(r => setTimeout(r, 1500));
           const taskType = this.getCurrentTaskType();
+          const isInstTask = (taskType === 'instructional');
+          const reviewerRoleName = isInstTask ? '备课组长' : '审稿编辑';
+          const genreDocName = isInstTask ? '教学设计' : '论文';
           const genreDesc = getGenrePromptDescriptor(taskType);
           const firstReviewPrompt = `${genreDesc}
 
 【课题】：《${topic}》
-【当前正文已起草的全部草稿内容（全量通读）】：
+【当前${genreDocName}正文已起草的实际草稿内容（全量通读）】：
 ${contentSnippet}
 
-请作为审稿编辑，全面通读当前学生已起草的全部内容（写到哪审到哪，具体情况具体分析，【绝对严禁出现“分工”字眼】）：
-1. 以开篇立意/教学目标为主线，直截了当指出【哪里有什么问题 ➔ 怎么改】（不用过于冗长，精炼务实）；
+请作为${reviewerRoleName}，全面通读当前学生已起草的全部内容（写到哪审到哪，具体情况具体分析，【绝对严禁出现“分工”字眼】）：
+1. 【正文实质性与进度评估】：
+   - 若当前草稿字数极少（仅有零星几个字、测试字句或尚未实质性展开正文）：直接一针见血指出正文起草严重滞后，尚未形成实质性${genreDocName}框架，督促小组成员紧扣《${topic}》尽快展开开篇实质性起草；
+   - 若已有实质性起草：以开篇立意/教学目标为主线，直截了当指出【哪里有什么问题 ➔ 怎么改】（不用过于冗长，精炼务实）；
 2. 【分情况审查全文衔接】：
    - 若后续章节/教学活动已有起草：明确指出开头目标/立论与后续已写段落之间是否存在脱节；
    - 若后续章节尚未起草：重点把关开头的问题界定与学情目标是否精准，并给出后续展开的衔接要求；
-3. 【语体规范与活动/论证严密性】：若存在口语化表述或设计步骤含糊，精准指出并给出规范建议；
+3. 【语体规范与严密性】：若存在口语化表述或设计步骤含糊，精准指出并给出规范建议；
 
 输出格式：清晰列出 1~2 条核心质检条目（每条包含：· 诊断问题：指出哪里有什么问题；· 改进建议：指出具体怎么改）。纯自然语言输出，120~160字。`;
           let firstReviewText = await callCozeAgentAPI('reviewingEditor', firstReviewPrompt, { stage: 'stage2', topic, actualDoc: contentSnippet, taskType });
           if (!firstReviewText || firstReviewText.trim().length === 0) {
-            firstReviewText = `📝 【审稿编辑·一审破题把脉】：通读了全组目前起草的正文草稿，提出以下初审质检意见：\n①【立意与问题聚焦】\n· 诊断问题：文献综述梳理充分，但末尾未精准聚焦初中数学课例操作化的核心缺口（Research Gap）；\n· 改进建议：收拢综述结论，直接引出核心研究问题与假设。\n②【学术语体与术语口径】\n· 诊断问题：部分段落出现第一人称口语化表述，术语叫法略有出入；\n· 改进建议：统一全篇学术术语口径，采用规范学术第三人称。请全组参考后继续稳步撰写！`;
+            if (rawDoc.length < 50) {
+              firstReviewText = `📝 【${reviewerRoleName}·一审破题把脉】：通读了全组目前的撰写进度，提出以下初审质检意见：\n①【起草进度与内容实质性】\n· 诊断问题：当前正文仅有零星字句，实质性${genreDocName}开篇框架尚未建立，起草进度明显滞后；\n· 改进建议：请全组成员抓紧时间，紧扣课题《${topic}》尽快起草第一部分${isInstTask ? '学情分析与教学目标' : '引言与核心研究问题'}，充实正文内容！`;
+            } else {
+              firstReviewText = `📝 【${reviewerRoleName}·一审破题把脉】：通读了全组目前起草的正文草稿，提出以下初审质检意见：\n①【立意与问题聚焦】\n· 诊断问题：文献综述梳理充分，但末尾未精准聚焦初中数学课例操作化的核心缺口（Research Gap）；\n· 改进建议：收拢综述结论，直接引出核心研究问题与假设。\n②【学术语体与术语口径】\n· 诊断问题：部分段落出现第一人称口语化表述，术语叫法略有出入；\n· 改进建议：统一全篇学术术语口径，采用规范学术第三人称。请全组参考后继续稳步撰写！`;
+            }
           }
           s2.firstReviewText = firstReviewText;
           s2.reviewMilestone = 'first_review_done';
