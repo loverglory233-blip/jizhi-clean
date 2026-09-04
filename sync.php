@@ -800,6 +800,87 @@ if ($action === 'set_task_group_lock') {
     exit;
 }
 
+if ($action === 'get_class_all_chats') {
+    header('Content-Type: application/json; charset=utf-8');
+    $mUserId = isset($_GET['userId']) ? trim($_GET['userId']) : (isset($REQ_DATA['userId']) ? trim($REQ_DATA['userId']) : '');
+    $mToken = isset($_GET['token']) ? trim($_GET['token']) : (isset($REQ_DATA['token']) ? trim($REQ_DATA['token']) : '');
+    if (!verifyTeacherSession($mUserId, $mToken, $pdo)) {
+        http_response_code(401);
+        echo json_encode(['success' => false, 'message' => '❌ 仅教师可访问，请重新登录']);
+        exit;
+    }
+    $classId = isset($_GET['classId']) ? trim($_GET['classId']) : 'class_101';
+    $taskId = isset($_GET['taskId']) ? trim($_GET['taskId']) : '';
+
+    $stmtMeta = $pdo->prepare("SELECT meta_value FROM global_meta WHERE meta_key = 'main_meta'");
+    $stmtMeta->execute();
+    $mRow = $stmtMeta->fetch();
+    $className = $classId;
+    $groups = [];
+    if ($mRow && !empty($mRow['meta_value'])) {
+        $meta = json_decode($mRow['meta_value'], true);
+        if (isset($meta['classes']) && is_array($meta['classes'])) {
+            foreach ($meta['classes'] as $cls) {
+                if ($cls['id'] === $classId) {
+                    $className = $cls['name'] ?? $classId;
+                    if (isset($cls['groups']) && is_array($cls['groups'])) {
+                        foreach ($cls['groups'] as $g) {
+                            $groups[$g['id']] = ['id' => $g['id'], 'name' => $g['name'] ?? $g['id']];
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if (empty($groups)) {
+        for ($i = 1; $i <= 10; $i++) {
+            $groups["group_{$i}"] = ['id' => "group_{$i}", 'name' => "第 {$i} 协作小组"];
+        }
+    }
+
+    $groupChats = [];
+    foreach ($groups as $gid => $ginfo) {
+        $groupChats[$gid] = [
+            'id' => $gid,
+            'name' => $ginfo['name'],
+            'stage1' => [],
+            'stage2' => [],
+            'stage3' => []
+        ];
+    }
+
+    $stmtMsg = $pdo->prepare("SELECT scope_key, stage, sender, text, timestamp_str, time_ms, id FROM chat_messages ORDER BY time_ms ASC");
+    $stmtMsg->execute();
+    $allMsgs = $stmtMsg->fetchAll(PDO::FETCH_ASSOC);
+
+    foreach ($allMsgs as $m) {
+        $sk = $m['scope_key'];
+        foreach ($groups as $gid => $ginfo) {
+            if (strpos($sk, $gid) !== false) {
+                $stg = $m['stage'] ?: 'stage1';
+                if (!isset($groupChats[$gid][$stg])) $groupChats[$gid][$stg] = [];
+                $groupChats[$gid][$stg][] = [
+                    'id'        => $m['id'],
+                    'sender'    => $m['sender'],
+                    'text'      => $m['text'],
+                    'timestamp' => $m['timestamp_str'],
+                    '_timeMs'   => intval($m['time_ms'])
+                ];
+                break;
+            }
+        }
+    }
+
+    echo json_encode([
+        'success'   => true,
+        'classId'   => $classId,
+        'className' => $className,
+        'groups'    => $groupChats
+    ], JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
 if ($action === 'get_teacher_monitor_all_groups') {
     header('Content-Type: application/json; charset=utf-8');
     // 🛡️ 教师身份与 Session Token 双重鉴权 (Fail-Closed)：杜绝越权拉取全组聊天与阶段内容
