@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState, STORAGE_KEY_TASKS, STORAGE_KEY_ANNOUNCEMENTS } from './constants.js?v=20260905_v2801';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly } from './utils.js?v=20260905_v2801';
+import { InitialState, STORAGE_KEY_TASKS, STORAGE_KEY_ANNOUNCEMENTS } from './constants.js?v=20260905_v2802';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly, filterAndDeduplicateChatLogs } from './utils.js?v=20260905_v2802';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -613,7 +613,7 @@ export class CloudSyncEngine {
       });
 
       mergedList.sort((a, b) => (a._timeMs || 0) - (b._timeMs || 0));
-      this.app.state.chatLogs[stg] = mergedList;
+      this.app.state.chatLogs[stg] = filterAndDeduplicateChatLogs(mergedList);
       hasUpdated = true;
     });
 

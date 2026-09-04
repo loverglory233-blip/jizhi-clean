@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260905_v2801";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime } from "./utils.js?v=20260905_v2801";
-import { callCozeAgentAPI } from "./agents.js?v=20260905_v2801";
-import { AuthManager } from "./auth.js?v=20260905_v2801";
-import { CloudSyncEngine } from "./sync.js?v=20260905_v2801";
-import { renderLoginView } from "./login.js?v=20260905_v2801";
-import { renderTeacherPortal } from "./teacher.js?v=20260905_v2801";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260905_v2801";
+} from "./constants.js?v=20260905_v2802";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse, parseMsgTime, filterAndDeduplicateChatLogs } from "./utils.js?v=20260905_v2802";
+import { callCozeAgentAPI } from "./agents.js?v=20260905_v2802";
+import { AuthManager } from "./auth.js?v=20260905_v2802";
+import { CloudSyncEngine } from "./sync.js?v=20260905_v2802";
+import { renderLoginView } from "./login.js?v=20260905_v2802";
+import { renderTeacherPortal } from "./teacher.js?v=20260905_v2802";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260905_v2802";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260905_v2801";
+} from "./editor.js?v=20260905_v2802";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -6701,7 +6701,11 @@ ${contentSnippet}
             _timeMs: Date.now()
           };
           if (!this.state.chatLogs.stage2) this.state.chatLogs.stage2 = [];
-          this.state.chatLogs.stage2.push(firstReviewMsg);
+          const alreadyHasFirstReview = this.state.chatLogs.stage2.some(isRealFirstReviewMsg);
+          if (!alreadyHasFirstReview) {
+            this.state.chatLogs.stage2.push(firstReviewMsg);
+          }
+          this.state.chatLogs.stage2 = filterAndDeduplicateChatLogs(this.state.chatLogs.stage2);
           this.syncChatLogs();
           this.syncStage2();
           if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
