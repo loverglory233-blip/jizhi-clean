@@ -916,10 +916,22 @@ if ($action === 'get_teacher_monitor_all_groups') {
                 foreach ($parsedMeta['classes'] as $cls) {
                     if (empty($classId) || (isset($cls['id']) && $cls['id'] === $classId)) {
                         if (isset($cls['groups']) && is_array($cls['groups'])) {
-                            foreach ($cls['groups'] as $grp) {
-                                if (isset($grp['id'])) {
-                                    $officialGroups[$grp['id']] = $grp;
+                            // 🛡️ 班级小组排他去重：若某学生被分配至多个小组，保留最新分配的小组
+                            $seenStudentGroupMap = [];
+                            for ($gi = count($cls['groups']) - 1; $gi >= 0; $gi--) {
+                                $grp = $cls['groups'][$gi];
+                                if (!isset($grp['id'])) continue;
+                                if (isset($grp['members']) && is_array($grp['members'])) {
+                                    $cleanMembers = [];
+                                    foreach ($grp['members'] as $m) {
+                                        $mKey = strtolower(trim((string)((is_array($m) && $m !== null) ? ($m['id'] ?? ($m['userId'] ?? ($m['name'] ?? ''))) : $m)));
+                                        if ($mKey === '' || isset($seenStudentGroupMap[$mKey])) continue;
+                                        $seenStudentGroupMap[$mKey] = true;
+                                        $cleanMembers[] = $m;
+                                    }
+                                    $grp['members'] = $cleanMembers;
                                 }
+                                $officialGroups[$grp['id']] = $grp;
                             }
                         }
                     }
@@ -928,21 +940,31 @@ if ($action === 'get_teacher_monitor_all_groups') {
         }
 
         $legacyTid = ($taskId === 'task_' . $classId . '_default') ? 'task_default' : $taskId;
-        $stmt = $pdo->prepare("SELECT * FROM group_states WHERE task_id = :tid OR task_id = :tid2 ORDER BY last_timestamp ASC");
-        $stmt->execute([':tid' => $taskId, ':tid2' => $legacyTid]);
+        $stmt = $pdo->prepare("SELECT * FROM group_states WHERE task_id = :tid OR task_id = :tid2 OR scope_key LIKE :skPattern ORDER BY last_timestamp ASC");
+        $stmt->execute([':tid' => $taskId, ':tid2' => $legacyTid, ':skPattern' => '%' . $taskId . '%']);
         $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
         $stateMap = [];
         foreach ($rows as $r) {
             $stateMap[$r['group_id']] = $r;
         }
 
-        // 🛡️ 鲁棒性托底：若某小组在此任务下暂无记录，检索该小组最新协同记录，确保在线心跳绝对不漏网
+        // 🛡️ 鲁棒性托底：检索小组最新协同记录与在线心跳池，确保在线心跳绝对不漏网
         $stmtAll = $pdo->prepare("SELECT * FROM group_states ORDER BY last_timestamp ASC");
         $stmtAll->execute();
         $allRows = $stmtAll->fetchAll(PDO::FETCH_ASSOC);
         $fallbackMap = [];
+        $groupPresencePool = [];
         foreach ($allRows as $r) {
             $fallbackMap[$r['group_id']] = $r;
+            if (!empty($r['presence_data'])) {
+                $pDec = json_decode($r['presence_data'], true);
+                if (is_array($pDec)) {
+                    if (!isset($groupPresencePool[$r['group_id']])) $groupPresencePool[$r['group_id']] = [];
+                    foreach ($pDec as $pk => $pv) {
+                        $groupPresencePool[$r['group_id']][$pk] = $pv;
+                    }
+                }
+            }
         }
 
         // 🛡️ 严格按班级物理隔离：若指定了班级，仅呈现该班级官方名册下的小组，绝不混入其他班级或游离小组
@@ -1052,6 +1074,9 @@ if ($action === 'get_teacher_monitor_all_groups') {
 
             $presence = ($r && !empty($r['presence_data'])) ? json_decode($r['presence_data'], true) : [];
             if (!is_array($presence)) $presence = [];
+            if (isset($groupPresencePool[$gid]) && is_array($groupPresencePool[$gid])) {
+                $presence = array_merge($groupPresencePool[$gid], $presence);
+            }
             $presenceByKey = [];
             $explicitOfflineMap = [];
             foreach ($presence as $pk => $pv) {

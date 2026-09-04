@@ -11,14 +11,48 @@ import {
   TASK_GENRE_CONFIGS,
   AgentProfiles,
   APP_VERSION
-} from "./constants.js?v=20260905_v2695";
-import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, showGlobalBannerNotice } from "./utils.js?v=20260905_v2695";
+} from "./constants.js?v=20260905_v2696";
+import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, showGlobalBannerNotice } from "./utils.js?v=20260905_v2696";
 
 /* ==========================================================================
    6.8 TEACHER MONITOR IN-PLACE INCREMENTAL UPDATER (PREVENT IFRAME THRASHING)
    ========================================================================== */
 function updateTeacherLiveMonitorInPlace(container, state, authManager, activeClass, activeMonitorGroup, monitorTaskObj, genreCfg, monitorMembersList, monitorMembersObj, actualStage, effectiveMonitorStage, isMonitorTaskExpired) {
   if (!container || !activeMonitorGroup) return;
+
+  // 0. 更新全组实时总览卡片 (Panorama Cards)
+  if (state.monitorPanorama && activeClass) {
+    (activeClass.groups || []).forEach(g => {
+      const card = container.querySelector(`.btn-monitor-panorama-card[data-gid="${g.id}"]`);
+      if (card) {
+        const p = state.monitorPanorama[g.id] || null;
+        const total = p ? (p.totalMembers || 0) : ((g.members || []).length || 0);
+        const online = p ? (p.onlineCount || 0) : 0;
+        const locks = p ? (p.activeLocks || []).length : 0;
+        const final = p ? !!p.isFinalSubmitted : false;
+        const stage = p ? (p.currentStage || 'stage1') : 'stage1';
+        const stageLabel = stage === 'stage1' ? '🎪 阶段一' : stage === 'stage2' ? '📰 阶段二' : '🎓 阶段三';
+        const absent = Math.max(0, total - online);
+        let dot = '🟢', dotColor = '#16a34a', hint = '正常推进';
+        if (final) { dot = '✅'; dotColor = '#059669'; hint = '已终稿'; }
+        else if (total > 0 && online === 0) { dot = '🔴'; dotColor = '#dc2626'; hint = '全员离线'; }
+        else if (locks > 0) { dot = '🔴'; dotColor = '#dc2626'; hint = locks + ' 字段占用'; }
+        else if (absent > 0) { dot = '🟡'; dotColor = '#d97706'; hint = absent + ' 人离线'; }
+
+        const dotSpan = card.querySelector('div:first-child span:last-child');
+        if (dotSpan) dotSpan.innerText = dot;
+        const stageEl = card.querySelector('div:nth-child(2) span:first-child');
+        if (stageEl) stageEl.innerText = stageLabel;
+        const onlineEl = card.querySelector('div:nth-child(2) span:last-child');
+        if (onlineEl) onlineEl.innerText = `在线 ${online}/${total}`;
+        const hintEl = card.querySelector('div:last-child');
+        if (hintEl) {
+          hintEl.style.color = dotColor;
+          hintEl.innerText = `${hint}${locks > 0 ? ' · 锁字段' : ''}`;
+        }
+      }
+    });
+  }
 
   // 1. 任务指标与倒计时
   const countdownEl = container.querySelector('#teacher-task-countdown-text');
