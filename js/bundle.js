@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260904_v2223
+ * Version: 20260904_v2224
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260904_v2223';
+  const APP_VERSION = '20260904_v2224';
   const APP_BUILD_DATE = '2026-09-04';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -257,6 +257,17 @@
     if (!map || typeof map !== 'object' || !user) return false;
     const keys = getUserAllKeys(user);
     return keys.some(k => Boolean(map[k]));
+  }
+
+  /**
+   * 🗺️ 从状态字典（如 votes, hasVoted, confirmedMembers）中查询某成员（对象、字符串ID或姓名）是否已完成
+   */
+  function isMemberDone(map, m) {
+    if (!map || typeof map !== 'object' || !m) return false;
+    const keys = getUserAllKeys(m);
+    if (keys.length > 0 && keys.some(k => Boolean(map[k]))) return true;
+    const id = typeof m === 'object' ? (m.id || m.name) : m;
+    return Boolean(map[id] || (typeof m === 'object' && m.name && map[m.name]));
   }
 
   /**

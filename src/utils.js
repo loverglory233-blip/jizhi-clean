@@ -54,6 +54,17 @@ export function isUserInMap(map, user) {
 }
 
 /**
+ * 🗺️ 从状态字典（如 votes, hasVoted, confirmedMembers）中查询某成员（对象、字符串ID或姓名）是否已完成
+ */
+export function isMemberDone(map, m) {
+  if (!map || typeof map !== 'object' || !m) return false;
+  const keys = getUserAllKeys(m);
+  if (keys.length > 0 && keys.some(k => Boolean(map[k]))) return true;
+  const id = typeof m === 'object' ? (m.id || m.name) : m;
+  return Boolean(map[id] || (typeof m === 'object' && m.name && map[m.name]));
+}
+
+/**
  * 🗺️ 从状态字典中获取某用户的值
  */
 export function getUserFromMap(map, user) {
