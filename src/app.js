@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260905_v2666";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse } from "./utils.js?v=20260905_v2666";
-import { callCozeAgentAPI } from "./agents.js?v=20260905_v2666";
-import { AuthManager } from "./auth.js?v=20260905_v2666";
-import { CloudSyncEngine } from "./sync.js?v=20260905_v2666";
-import { renderLoginView } from "./login.js?v=20260905_v2666";
-import { renderTeacherPortal } from "./teacher.js?v=20260905_v2666";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260905_v2666";
+} from "./constants.js?v=20260905_v2667";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse } from "./utils.js?v=20260905_v2667";
+import { callCozeAgentAPI } from "./agents.js?v=20260905_v2667";
+import { AuthManager } from "./auth.js?v=20260905_v2667";
+import { CloudSyncEngine } from "./sync.js?v=20260905_v2667";
+import { renderLoginView } from "./login.js?v=20260905_v2667";
+import { renderTeacherPortal } from "./teacher.js?v=20260905_v2667";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260905_v2667";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260905_v2666";
+} from "./editor.js?v=20260905_v2667";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -174,13 +174,31 @@ export class App {
 
           // 3. 教师发布教学通知（秒级拉取并在工作台即时弹出）
           if (e.data.type === 'announcement_created') {
+            if (e.data.announcement) {
+              try {
+                let localAnns = this.authManager ? this.authManager.getAnnouncements() : [];
+                if (!localAnns.some(a => a.id === e.data.announcement.id)) {
+                  localAnns.unshift(e.data.announcement);
+                  localStorage.setItem(STORAGE_KEY_ANNOUNCEMENTS, JSON.stringify(localAnns));
+                }
+              } catch (err) {}
+            }
             if (this.authManager && this.authManager.pullGlobalMeta) {
               this.authManager.pullGlobalMeta().then(() => {
                 if (this.state.studentViewMode === 'workspace') {
                   this.checkUnreadAnnouncements();
+                } else if (this.state.studentViewMode === 'task_list') {
+                  this.renderMain();
                 }
                 this.renderHeader();
               }).catch(() => {});
+            } else {
+              if (this.state.studentViewMode === 'workspace') {
+                this.checkUnreadAnnouncements();
+              } else if (this.state.studentViewMode === 'task_list') {
+                this.renderMain();
+              }
+              this.renderHeader();
             }
           }
 
@@ -189,7 +207,10 @@ export class App {
             const delAnnId = e.data.annId;
             let localAnns = this.authManager ? this.authManager.getAnnouncements() : [];
             localAnns = localAnns.filter(a => a.id !== delAnnId);
-            localStorage.setItem(STORAGE_KEY_ANNOUNCEMENTS, JSON.stringify(localAnns));
+            try { localStorage.setItem(STORAGE_KEY_ANNOUNCEMENTS, JSON.stringify(localAnns)); } catch (err) {}
+            if (this.state.studentViewMode === 'task_list') {
+              this.renderMain();
+            }
             this.renderHeader();
           }
 
