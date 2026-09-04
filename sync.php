@@ -2582,8 +2582,10 @@ if ($action === 'save_global_meta' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                     $stmtAnnUpsert = $pdo->prepare("INSERT INTO `announcements` (`id`, `title`, `content`, `created_at_str`, `target_class_ids`, `is_pinned`, `attachment`, `confirmed_members`)
                         VALUES (:id, :title, :content, :created_at, :cids, :pinned, :att, :conf)
                         ON DUPLICATE KEY UPDATE `title`=VALUES(`title`), `content`=VALUES(`content`), `created_at_str`=VALUES(`created_at_str`), `target_class_ids`=VALUES(`target_class_ids`), `is_pinned`=VALUES(`is_pinned`), `attachment`=VALUES(`attachment`), `confirmed_members`=VALUES(`confirmed_members`)");
+                    $validAids = [];
                     foreach ($decoded['announcements'] as $ann) {
                         $aid = $ann['id'] ?? ('ann_' . uniqid());
+                        $validAids[] = $aid;
                         $atitle = $ann['title'] ?? '通知';
                         $acontent = $ann['content'] ?? '';
                         $acreated = $ann['createdAt'] ?? date('Y-m-d H:i:s');
@@ -2593,6 +2595,13 @@ if ($action === 'save_global_meta' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                         $aconf = !empty($ann['confirmedMembers']) ? json_encode($ann['confirmedMembers'], JSON_UNESCAPED_UNICODE) : null;
                         $stmtAnnUpsert->execute([':id' => $aid, ':title' => $atitle, ':content' => $acontent, ':created_at' => $acreated, ':cids' => $acids, ':pinned' => $apinned, ':att' => $aatt, ':conf' => $aconf]);
                     }
+                    if (!empty($validAids)) {
+                        $inClause = implode(',', array_fill(0, count($validAids), '?'));
+                        $stmtCleanAnns = $pdo->prepare("DELETE FROM `announcements` WHERE `id` NOT IN ($inClause)");
+                        $stmtCleanAnns->execute($validAids);
+                    } else {
+                        $pdo->exec("DELETE FROM `announcements`");
+                    }
                 }
 
                 // 🛡️ 实体表实时入库：将所有范文 reference_papers 100% 同步 upsert 至 reference_papers 实体表
@@ -2600,8 +2609,10 @@ if ($action === 'save_global_meta' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                     $stmtPaperUpsert = $pdo->prepare("INSERT INTO `reference_papers` (`id`, `title`, `abstract`, `highlights`, `target_group`, `file_name`, `file_size`, `file_data`, `upload_time`)
                         VALUES (:id, :title, :abstract, :highlights, :tg, :fname, :fsize, :fdata, :uptime)
                         ON DUPLICATE KEY UPDATE `title`=VALUES(`title`), `abstract`=VALUES(`abstract`), `highlights`=VALUES(`highlights`), `target_group`=VALUES(`target_group`), `file_name`=VALUES(`file_name`), `file_size`=VALUES(`file_size`), `file_data`=VALUES(`file_data`), `upload_time`=VALUES(`upload_time`)");
+                    $validPids = [];
                     foreach ($decoded['referencePapers'] as $rp) {
                         $rpid = $rp['id'] ?? ('paper_' . uniqid());
+                        $validPids[] = $rpid;
                         $rptitle = $rp['title'] ?? '参考范文';
                         $rpabstract = $rp['abstract'] ?? '';
                         $rphighlights = $rp['keyHighlights'] ?? ($rp['highlights'] ?? '');
@@ -2614,6 +2625,13 @@ if ($action === 'save_global_meta' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                             ':id' => $rpid, ':title' => $rptitle, ':abstract' => $rpabstract, ':highlights' => $rphighlights,
                             ':tg' => $rptg, ':fname' => $rpfname, ':fsize' => $rpfsize, ':fdata' => $rpfdata, ':uptime' => $rpuptime
                         ]);
+                    }
+                    if (!empty($validPids)) {
+                        $inClause = implode(',', array_fill(0, count($validPids), '?'));
+                        $stmtCleanPapers = $pdo->prepare("DELETE FROM `reference_papers` WHERE `id` NOT IN ($inClause)");
+                        $stmtCleanPapers->execute($validPids);
+                    } else {
+                        $pdo->exec("DELETE FROM `reference_papers`");
                     }
                 }
 

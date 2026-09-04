@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState, STORAGE_KEY_TASKS, STORAGE_KEY_ANNOUNCEMENTS } from './constants.js?v=20260905_v2720';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly } from './utils.js?v=20260905_v2720';
+import { InitialState, STORAGE_KEY_TASKS, STORAGE_KEY_ANNOUNCEMENTS } from './constants.js?v=20260905_v2721';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly } from './utils.js?v=20260905_v2721';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -801,6 +801,10 @@ export class CloudSyncEngine {
             this._knownTaskDeadlines[t.id] = t.deadline;
           }
         });
+
+        if (this.app && this.app.state && this.app.state.studentViewMode === 'task_list' && typeof this.app.renderMain === 'function') {
+          this.app.renderMain();
+        }
       }
       if (Array.isArray(remoteData.users) && remoteData.users.length > 0) {
         let deletedUserIds = new Set();
@@ -927,11 +931,16 @@ export class CloudSyncEngine {
           localStorage.setItem('jizhi_announcements_db', JSON.stringify(merged));
 
           // ⚡ 实时无感刷新顶部红点与未读通知弹窗
-          if (this.app && typeof this.app.renderHeader === 'function') {
-            this.app.renderHeader();
-          }
-          if (this.app && typeof this.app.checkUnreadAnnouncements === 'function') {
-            this.app.checkUnreadAnnouncements();
+          if (this.app) {
+            if (this.app.state && this.app.state.studentViewMode === 'task_list' && typeof this.app.renderMain === 'function') {
+              this.app.renderMain();
+            }
+            if (typeof this.app.renderHeader === 'function') {
+              this.app.renderHeader();
+            }
+            if (typeof this.app.checkUnreadAnnouncements === 'function') {
+              this.app.checkUnreadAnnouncements();
+            }
           }
         }
 
