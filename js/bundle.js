@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260904_v2221
+ * Version: 20260904_v2222
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260904_v2221';
+  const APP_VERSION = '20260904_v2222';
   const APP_BUILD_DATE = '2026-09-04';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -9631,8 +9631,6 @@
                   if (authorMem && authorMem.name) authorName = authorMem.name;
                 }
                 if (!authorName) authorName = (p.authorName && p.authorName !== p.author) ? p.authorName : '组员';
-                const isMyProposal = (currUserObj && (p.author === currUserObj.id || p.authorId === currUserObj.id || (p.authorName && p.authorName === currUserObj.name))) ||
-                  (p.author === currentUser || p.authorId === currentUser || (p.authorName && p.authorName === currentUserName));
                 return `
                   <div class="proposal-card ${isThisVoted ? 'voted' : ''}" style="display:flex; flex-direction:column; position:relative;">
                     <div class="proposal-header" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
@@ -9642,7 +9640,6 @@
                       </span>
                     </div>
                     <div style="font-size:12px; color:#64748b; margin-bottom:8px;">提出人: <b style="color:#0f172a;">${escapeHtml(authorName)}</b></div>
-                    ${(isMyProposal && p.evalFailed) ? `<button class="btn-retry-eval" data-title="${escapeHtml(p.title)}" data-author="${escapeHtml(authorName)}" style="width:100%; margin-bottom:6px; padding:5px 0; font-size:12px; background:#fef2f2; color:#ef4444; border:1px solid #fca5a5; border-radius:6px; cursor:pointer;">🔄 重新请求速评</button>` : ''}
                     <button class="${btnClass}" data-id="${p.id}" ${btnDisabled ? 'disabled' : ''} style="width:100%; margin-top:auto;">${btnText}</button>
                   </div>
                 `;
@@ -9900,7 +9897,6 @@
             s1.proposals[existingIdx].authorName = effectiveAuthorName;
             s1.proposals[existingIdx].authorId = s1.proposals[existingIdx].authorId || effectiveAuthorId;
             s1.proposals[existingIdx].updatedAt = nowMs;
-            s1.proposals[existingIdx].evalFailed = false;
           } else {
             s1.proposals.push({
               id: 'prop_' + effectiveAuthorKey + '_' + nowMs,
@@ -9908,8 +9904,7 @@
               authorName: effectiveAuthorName,
               authorId: effectiveAuthorId,
               title: title,
-              updatedAt: nowMs,
-              evalFailed: false
+              updatedAt: nowMs
             });
           }
 
@@ -15097,16 +15092,19 @@
       const currentStage = this.state.currentStage || 'stage1';
       if (!this.state.chatLogs[currentStage]) this.state.chatLogs[currentStage] = [];
 
-      // 辅助函数：更新对应提案的 evalFailed 状态
-      const setProposalEvalFailed = (failed) => {
-        const proposals = this.state?.stage1?.proposals;
-        if (Array.isArray(proposals)) {
-          const p = proposals.find(item => item && (item.title === title || item.authorName === authorName || item.author === authorName));
-          if (p) {
-            p.evalFailed = failed;
-          }
-        }
+      // 🛡️ 立即压入拍卖师正在研读评估提案的思考中气泡
+      this.state.chatLogs[currentStage] = (this.state.chatLogs[currentStage] || []).filter(m => !m || (!String(m.id).startsWith('thinking_eval') && !m.isThinking));
+      const thinkingAiMsg = {
+        id: 'thinking_eval_' + Date.now(),
+        sender: 'auctioneer',
+        senderName: '头脑风暴 · 学术拍卖师',
+        text: `⏳ 拍卖师正在研读评估《${title}》的学术亮点与研讨启发...`,
+        isThinking: true,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        _timeMs: Date.now()
       };
+      this.state.chatLogs[currentStage].push(thinkingAiMsg);
+      renderChat(this.state);
 
       const taskPrompt = `小组成员【${authorName}】在选题池${isModify ? '修改完善了' : '提出了新'}提案《${title}》。
   请作为资深学术拍卖师/备课引导师：
@@ -15123,9 +15121,7 @@
           speech = resp.trim();
           speech = speech.replace(/^(?:🎪|🏛️)?\s*【(?:学术拍卖师|拍卖师)[·\s]*(?:选题速评|提案速评|提案评估|落槌与方案研讨)?】[：:]\s*/g, '');
           speech = `🏛️ 【学术拍卖师·提案评估】：${speech.trim()}`;
-          setProposalEvalFailed(false);
         } else {
-          setProposalEvalFailed(true);
           const safeTitle = (title || '').replace(/'/g, "\\'");
           const safeAuthor = (authorName || '').replace(/'/g, "\\'");
           speech = `🏛️ 【学术拍卖师·网络提醒】：📡 智能体网络连接稍有延迟，未获取到即时评估。<br><button class="btn-retry-ai" onclick="window.app.handleProposalSubmittedAIFeedback('${safeTitle}', '${safeAuthor}', ${isModify})" style="margin-top:6px; background:#2563eb; color:#fff; border:none; padding:4px 12px; border-radius:12px; font-size:12px; cursor:pointer; font-weight:700;">🔄 重新生成评估</button>`;
@@ -15148,13 +15144,10 @@
           this.sendSingleChatMessage(finalAiMsg, currentStage);
         }
         this.syncChatLogs();
-        if (typeof this.syncStage1 === 'function') this.syncStage1();
         if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
         renderChat(this.state);
-        this.renderStudentWorkspace();
       } catch (e) {
         console.warn('handleProposalSubmittedAIFeedback error:', e);
-        setProposalEvalFailed(true);
         const safeTitle = (title || '').replace(/'/g, "\\'");
         const safeAuthor = (authorName || '').replace(/'/g, "\\'");
         const fallbackAiMsg = {
@@ -15171,11 +15164,10 @@
           this.sendSingleChatMessage(fallbackAiMsg, currentStage);
         }
         this.syncChatLogs();
-        if (typeof this.syncStage1 === 'function') this.syncStage1();
         if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
         renderChat(this.state);
-        this.renderStudentWorkspace();
       }
+    }
     }
 
     handleVoteCast(proposalId) {
@@ -17379,9 +17371,6 @@
                     if (authorMem && authorMem.name) authorName = authorMem.name;
                   }
                   if (!authorName) authorName = p.authorName || p.author || '组员';
-                  // 判断是否为当前用户自己的提案
-                  const isMyProposal = myKeys.has(p.author) || myKeys.has(p.authorName) || myKeys.has(p.authorId) ||
-                    (currentUserObj && (isSameUser(p.author, currentUserObj) || isSameUser(p.authorName, currentUserObj)));
                   return `
                     <div class="proposal-card ${isThisVoted ? 'voted' : ''}" style="display:flex; flex-direction:column; position:relative;">
                       <div class="proposal-header" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
@@ -17390,7 +17379,7 @@
                           得票: <b>${proposalVotesCount}</b> 票
                         </span>
                       </div>
-                      ${(isMyProposal && p.evalFailed) ? `<button class="btn-retry-eval" data-title="${escapeHtml(p.title)}" data-author="${escapeHtml(authorName)}" style="width:100%; margin-bottom:6px; padding:5px 0; font-size:12px; background:#fef2f2; color:#ef4444; border:1px solid #fca5a5; border-radius:6px; cursor:pointer;">🔄 重新请求速评</button>` : ''}
+                      <div style="font-size:12px; color:#64748b; margin-bottom:8px;">提出人: <b style="color:#0f172a;">${escapeHtml(authorName)}</b></div>
                       <button class="${btnClass}" data-id="${p.id}" ${isContractLocked || userHasVoted ? 'disabled' : ''} style="width:100%; margin-top:auto;">${btnText}</button>
                     </div>
                   `;
@@ -17399,17 +17388,6 @@
             `;
             proposalsWrapper.querySelectorAll('.vote-btn:not([disabled])').forEach(btn => {
               btn.addEventListener('click', () => this.handleVoteCast(btn.dataset.id));
-            });
-            proposalsWrapper.querySelectorAll('.btn-retry-eval').forEach(btn => {
-              btn.addEventListener('click', async () => {
-                btn.disabled = true;
-                btn.textContent = '⏳ 请求中...';
-                try {
-                  await this.handleProposalSubmittedAIFeedback(btn.dataset.title, btn.dataset.author, false);
-                } catch(e) {}
-                btn.disabled = false;
-                btn.textContent = '🔄 重新请求速评';
-              });
             });
           } else {
             proposalsWrapper.innerHTML = `
