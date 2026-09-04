@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260904_v2330";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse } from "./utils.js?v=20260904_v2330";
-import { callCozeAgentAPI } from "./agents.js?v=20260904_v2330";
-import { AuthManager } from "./auth.js?v=20260904_v2330";
-import { CloudSyncEngine } from "./sync.js?v=20260904_v2330";
-import { renderLoginView } from "./login.js?v=20260904_v2330";
-import { renderTeacherPortal } from "./teacher.js?v=20260904_v2330";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260904_v2330";
+} from "./constants.js?v=20260904_v2335";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse } from "./utils.js?v=20260904_v2335";
+import { callCozeAgentAPI } from "./agents.js?v=20260904_v2335";
+import { AuthManager } from "./auth.js?v=20260904_v2335";
+import { CloudSyncEngine } from "./sync.js?v=20260904_v2335";
+import { renderLoginView } from "./login.js?v=20260904_v2335";
+import { renderTeacherPortal } from "./teacher.js?v=20260904_v2335";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260904_v2335";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260904_v2330";
+} from "./editor.js?v=20260904_v2335";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -6216,7 +6216,22 @@ ${chatSnippet}
     // 🛡️ 第一次学术质检（目标字数的 35% / 阶段二起草时间水位 35% · 破题把脉）
     // ═══════════════════════════════════════════════════════════════
     const isReview1Due = (wordProgress >= 0.35 || timeProgress >= 0.35 || rawDoc.length >= (targetWordCount * 0.35));
-    const hasFirstReviewInLogs = s2ChatList.some(m => m.sender === 'reviewingEditor' && (m.text.includes('初审') || m.text.includes('破题把脉') || m.text.includes('Research Gap')));
+    let hasFirstReviewInLogs = s2ChatList.some(m => m.sender === 'reviewingEditor' && (m.text.includes('初审') || m.text.includes('破题把脉') || m.text.includes('Research Gap')));
+
+    // 🛡️ 智能自愈：若当前字数极少且阶段二刚开启（<20% 时间且 <20% 字数），但历史记录残留了此前误触发的早产一审消息，自动清洗之，确保本次能真实重新触发
+    if (!isReview1Due && wordProgress < 0.20 && timeProgress < 0.20 && hasFirstReviewInLogs && rawDoc.length < 50) {
+      if (this.state.chatLogs && this.state.chatLogs.stage2) {
+        this.state.chatLogs.stage2 = this.state.chatLogs.stage2.filter(m => !(m.sender === 'reviewingEditor' && (m.text?.includes('初审') || m.text?.includes('破题把脉') || m.text?.includes('Research Gap'))));
+      }
+      s2.reviewMilestone = 'none';
+      s2.firstReviewText = null;
+      hasFirstReviewInLogs = false;
+      this.syncStage2();
+      this.syncChatLogs();
+      if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+      renderChat(this.state);
+    }
+
     if (hasFirstReviewInLogs && (s2.reviewMilestone === 'none' || s2.reviewMilestone === 'first_review_in_progress')) {
       s2.reviewMilestone = 'first_review_done';
       this.syncStage2();
