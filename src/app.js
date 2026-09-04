@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260905_v2667";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse } from "./utils.js?v=20260905_v2667";
-import { callCozeAgentAPI } from "./agents.js?v=20260905_v2667";
-import { AuthManager } from "./auth.js?v=20260905_v2667";
-import { CloudSyncEngine } from "./sync.js?v=20260905_v2667";
-import { renderLoginView } from "./login.js?v=20260905_v2667";
-import { renderTeacherPortal } from "./teacher.js?v=20260905_v2667";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260905_v2667";
+} from "./constants.js?v=20260905_v2668";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse } from "./utils.js?v=20260905_v2668";
+import { callCozeAgentAPI } from "./agents.js?v=20260905_v2668";
+import { AuthManager } from "./auth.js?v=20260905_v2668";
+import { CloudSyncEngine } from "./sync.js?v=20260905_v2668";
+import { renderLoginView } from "./login.js?v=20260905_v2668";
+import { renderTeacherPortal } from "./teacher.js?v=20260905_v2668";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260905_v2668";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260905_v2667";
+} from "./editor.js?v=20260905_v2668";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -244,6 +244,7 @@ export class App {
       taskId = `task_${effectiveClassId}_default`;
     }
     this.state.activeTaskId = taskId;
+    this.state.activeGroupId = groupId;
     this.state.members = this.authManager.getGroupMembersForWorkspace(groupId, effectiveClassId);
 
     // 🛡️ 优先从单一轻量工作台快照恢复（仅记录当前组，0ms秒开上屏且绝不超5MB配额）
@@ -1771,72 +1772,82 @@ export class App {
   }
 
   async checkUnreadAnnouncements() {
-    if (this.authManager && this.authManager.pullGlobalMeta) {
-      try { await this.authManager.pullGlobalMeta(); } catch (e) {}
-    }
-    // 🛡️ 任务大厅模式下绝不弹窗打扰学生，仅在进入具体任务工作台后针对该任务精准匹配
     if (this.state.studentViewMode !== 'workspace') return;
 
-    const currentUser = this.authManager.getCurrentUser();
+    const currentUser = this.authManager ? this.authManager.getCurrentUser() : null;
     if (!currentUser || currentUser.isTeacher || currentUser.role === 'teacher') return;
     const activeTaskId = this.state.activeTaskId;
     if (!activeTaskId) return;
 
-    const effectiveClassId = this.authManager ? this.authManager.getEffectiveStudentClassId(currentUser, this.state.activeTaskId) : (this.state.activeStudentClassId || currentUser?.classId || null);
-    const classes = this.authManager.getClasses();
-    const currentClassObj = classes.find(c => c.id === effectiveClassId);
-    const effectiveClassName = currentClassObj ? currentClassObj.name : '';
-    const activeGroupObj = this.authManager.getStudentActiveGroup(currentUser, effectiveClassId);
-    const groupId = this.state.activeGroupId || this.cloudSyncEngine?.groupId || activeGroupObj?.id || currentUser?.groupId || null;
-    const allTasks = this.authManager.getTasks();
+    const doCheck = () => {
+      if (this.state.studentViewMode !== 'workspace') return;
+      const effectiveClassId = this.authManager ? this.authManager.getEffectiveStudentClassId(currentUser, this.state.activeTaskId) : (this.state.activeStudentClassId || currentUser?.classId || null);
+      const classes = this.authManager.getClasses();
+      const currentClassObj = classes.find(c => c.id === effectiveClassId);
+      const effectiveClassName = currentClassObj ? currentClassObj.name : '';
+      const activeGroupObj = this.authManager.getStudentActiveGroup(currentUser, effectiveClassId);
+      const groupId = this.state.activeGroupId || this.cloudSyncEngine?.groupId || activeGroupObj?.id || currentUser?.groupId || null;
+      const allTasks = this.authManager.getTasks();
 
-    const isAnnRead = (a) => {
-      if (!a) return false;
-      try {
-        const localReadMap = JSON.parse(localStorage.getItem('jizhi_locally_read_announcements') || '{}');
-        if (localReadMap[a.id]) return true;
-      } catch (e) {}
-      if (currentUser) {
-        if (currentUser.id && a.readStatus && a.readStatus[currentUser.id]) return true;
-        if (currentUser.name && a.readStatus && a.readStatus[currentUser.name]) return true;
-        if (Array.isArray(a.confirmedMembers)) {
-          if (a.confirmedMembers.some(m => m && (m.id === currentUser.id || (currentUser.name && m.name === currentUser.name)))) return true;
+      const isAnnRead = (a) => {
+        if (!a) return false;
+        try {
+          const localReadMap = JSON.parse(localStorage.getItem('jizhi_locally_read_announcements') || '{}');
+          if (localReadMap[a.id]) return true;
+        } catch (e) {}
+        if (currentUser) {
+          if (currentUser.id && a.readStatus && a.readStatus[currentUser.id]) return true;
+          if (currentUser.name && a.readStatus && a.readStatus[currentUser.name]) return true;
+          if (Array.isArray(a.confirmedMembers)) {
+            if (a.confirmedMembers.some(m => m && (m.id === currentUser.id || (currentUser.name && m.name === currentUser.name)))) return true;
+          }
         }
+        return false;
+      };
+
+      const allAnns = this.authManager.getAnnouncements();
+
+      // 过滤出严格属于【当前任务 + 当前班级 + 当前小组】且未读的通知
+      const unreadList = allAnns
+        .filter(a => {
+          if (!a) return false;
+          // 延期通知仅通过工作台顶部红点提示，不主动弹窗打扰
+          if (a.isExtension || a.title?.includes('延期通知') || a.title?.includes('时间已延长')) return false;
+
+          if (a.taskId && a.taskId !== 'task_all' && a.taskId !== 'all') {
+            const tObj = allTasks.find(t => t.id === a.taskId);
+            if (tObj && isTaskExpired(tObj)) return false;
+          }
+
+          const isMatched = isScopeMatch(a, {
+            userClassId: effectiveClassId || currentUser?.classId,
+            userGroupId: groupId,
+            currentTaskId: activeTaskId,
+            userClassName: effectiveClassName
+          });
+
+          return isMatched && !isAnnRead(a);
+        })
+        .sort((a, b) => (b.id > a.id ? 1 : -1));
+
+      // 📢 教师发布的教学指示/课堂通知在工作台自动弹窗提示学生阅读并确认
+      if (unreadList.length > 0) {
+        if (document.querySelector('.modal-announcement-popup')) {
+          return;
+        }
+        this.showAnnouncementModal(unreadList[0], true);
       }
-      return false;
     };
 
-    const allAnns = this.authManager.getAnnouncements();
+    // 1. 本地缓存秒级校验并弹窗
+    doCheck();
 
-    // 过滤出严格属于【当前任务 + 当前班级 + 当前小组】且未读的通知
-    const unreadList = allAnns
-      .filter(a => {
-        if (!a) return false;
-        // 延期通知仅通过工作台顶部红点提示，不主动弹窗打扰
-        if (a.isExtension || a.title?.includes('延期通知') || a.title?.includes('时间已延长')) return false;
-
-        if (a.taskId && a.taskId !== 'task_all' && a.taskId !== 'all') {
-          const tObj = allTasks.find(t => t.id === a.taskId);
-          if (tObj && isTaskExpired(tObj)) return false;
-        }
-
-        const isMatched = isScopeMatch(a, {
-          userClassId: effectiveClassId || currentUser?.classId,
-          userGroupId: groupId,
-          currentTaskId: activeTaskId,
-          userClassName: effectiveClassName
-        });
-
-        return isMatched && !isAnnRead(a);
-      })
-      .sort((a, b) => (b.id > a.id ? 1 : -1));
-
-    // 📢 教师发布的教学指示/课堂通知在工作台自动弹窗提示学生阅读并确认
-    if (unreadList.length > 0) {
-      if (document.querySelector('.modal-announcement-popup') || document.querySelector('.modal-overlay')) {
-        return; // 🛡️ 屏幕上已存在弹窗时，绝不重复销毁与重建，彻底杜绝闪烁
-      }
-      this.showAnnouncementModal(unreadList[0], true);
+    // 2. 异步拉取云端最新数据后再次校验
+    if (this.authManager && this.authManager.pullGlobalMeta) {
+      try {
+        await this.authManager.pullGlobalMeta();
+        doCheck();
+      } catch (e) {}
     }
   }
 

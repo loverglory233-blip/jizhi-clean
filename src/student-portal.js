@@ -8,8 +8,8 @@ import {
   STORAGE_KEY_ANNOUNCEMENTS,
   STORAGE_KEY_CLASSES,
   TASK_GENRE_CONFIGS
-} from "./constants.js?v=20260905_v2667";
-import { escapeHtml, isTaskExpired, formatDurationHuman, formatStandardDateDash, showGlobalBannerNotice } from "./utils.js?v=20260905_v2667";
+} from "./constants.js?v=20260905_v2668";
+import { escapeHtml, isTaskExpired, formatDurationHuman, formatStandardDateDash, showGlobalBannerNotice } from "./utils.js?v=20260905_v2668";
 
 /* ==========================================================================
    10. STUDENT TASK PORTAL (CENTRALIZED HUB & COLLABORATION ENTRY)
@@ -303,9 +303,6 @@ export function renderStudentTaskPortal(container, authManager, state, onSelectT
           </div>
         </div>
         <div class="header-controls" style="display:flex; align-items:center; gap:10px;">
-          <button id="btn-portal-announcements" style="position:relative; background:#eff6ff; color:#1d4ed8; border:1.5px solid #bfdbfe; padding:6px 14px; border-radius:18px; font-size:12px; font-weight:700; cursor:pointer; display:flex; align-items:center; gap:6px;" title="查看课程公告与教师通知">
-            📢 课程通知 ${unreadAnnCount > 0 ? `<span style="background:#ef4444; color:white; padding:1px 6px; border-radius:10px; font-size:10px; font-weight:800; box-shadow:0 1px 3px rgba(239,68,68,0.4);">${unreadAnnCount}</span>` : ''}
-          </button>
           <button id="btn-portal-change-pwd" style="background:#f0fdf4; color:#16a34a; border:1px solid #bbf7d0; padding:6px 14px; border-radius:18px; font-size:12px; font-weight:700; cursor:pointer;" title="修改登录密码">🔑 修改密码</button>
           <button id="btn-portal-logout" style="background:#fef2f2; color:#dc2626; border:1px solid #fecaca; padding:6px 14px; border-radius:18px; font-size:12px; font-weight:700; cursor:pointer;">🚪 退出登录</button>
         </div>
@@ -467,9 +464,6 @@ export function renderStudentTaskPortal(container, authManager, state, onSelectT
     });
   }
 
-  container.querySelector('#btn-portal-announcements')?.addEventListener('click', () => {
-    if (onOpenAnnModal) onOpenAnnModal();
-  });
   container.querySelector('#btn-portal-logout')?.addEventListener('click', () => onLogout());
   container.querySelector('#btn-portal-change-pwd')?.addEventListener('click', () => {
     authManager.openChangePasswordModal();
