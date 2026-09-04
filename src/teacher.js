@@ -11,8 +11,8 @@ import {
   TASK_GENRE_CONFIGS,
   AgentProfiles,
   APP_VERSION
-} from "./constants.js?v=20260905_v2724";
-import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, showGlobalBannerNotice } from "./utils.js?v=20260905_v2724";
+} from "./constants.js?v=20260905_v2726";
+import { parseXLSXOrCSVFile, parseCSVText, downloadFileBlob, escapeHtml, isTaskExpired, formatDurationHuman, formatChatDisplayTime, formatStandardDateDash, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, showGlobalBannerNotice } from "./utils.js?v=20260905_v2726";
 
 /* ==========================================================================
    6.8 TEACHER MONITOR IN-PLACE INCREMENTAL UPDATER (PREVENT IFRAME THRASHING)
@@ -1786,7 +1786,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout) {
                           const rawPadName = `jizhi_${activeTaskId}_${activeMonitorGId}`;
                           const targetPad = rawPadName;
                           return `
-                            <div class="teacher-etherpad-container" style="flex:1; min-height:560px; border-radius:8px; overflow:hidden; border:1.5px solid #cbd5e1; box-shadow:0 2px 8px rgba(15,23,42,0.04); background:#ffffff; position:relative; display:flex; flex-direction:column;">
+                            <div class="teacher-etherpad-container" style="flex:1; min-height:560px; border-radius:8px; overflow:hidden; border:1.5px solid #cbd5e1; box-shadow:0 2px 8px rgba(15,23,42,0.04); background:#ffffff; position:relative; display:flex; flex-direction:column; overscroll-behavior:contain; overscroll-behavior-y:contain;">
                               <div style="display:flex; justify-content:space-between; align-items:center; background:#f8fafc; border-bottom:1px solid #e2e8f0; padding:6px 12px; font-size:12px; color:#475569; flex-shrink:0;">
                                 <div style="display:flex; align-items:center; gap:8px;">
                                   <span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:#10b981;"></span>
@@ -1797,8 +1797,8 @@ export function renderTeacherPortal(container, authManager, state, onLogout) {
                                   <button onclick="const f=document.getElementById('teacher-stage2-etherpad-frame'); if(f) f.src=f.src;" style="background:#eff6ff; color:#2563eb; border:1px solid #bfdbfe; padding:2px 8px; border-radius:4px; font-size:11px; cursor:pointer; font-weight:700;">🔄 刷新镜像</button>
                                 </div>
                               </div>
-                              <div style="position:relative; flex:1; width:100%; height:100%; min-height:520px; display:flex;">
-                                <iframe id="teacher-stage2-etherpad-frame" data-pad="${targetPad}" data-task="${activeTaskId}" data-group="${activeMonitorGId}" src="/p/${encodeURIComponent(targetPad)}?userName=${encodeURIComponent('教师监控')}&userColor=%237c3aed&showControls=false&showChat=false&showLineNumbers=true&lang=zh-hans" style="flex:1; width:100%; height:100%; min-height:520px; border:none; display:block; background:#ffffff;" title="教师端实时写作同屏镜像 (只读)"></iframe>
+                              <div style="position:relative; flex:1; width:100%; height:100%; min-height:520px; display:flex; overscroll-behavior:contain; overscroll-behavior-y:contain;">
+                                <iframe id="teacher-stage2-etherpad-frame" data-pad="${targetPad}" data-task="${activeTaskId}" data-group="${activeMonitorGId}" src="/p/${encodeURIComponent(targetPad)}?userName=${encodeURIComponent('教师监控')}&userColor=%237c3aed&showControls=false&showChat=false&showLineNumbers=true&lang=zh-hans" style="flex:1; width:100%; height:100%; min-height:520px; border:none; display:block; background:#ffffff; overscroll-behavior:contain; overscroll-behavior-y:contain;" title="教师端实时写作同屏镜像 (只读)"></iframe>
                               </div>
                             </div>
                           `;
@@ -1869,7 +1869,7 @@ export function renderTeacherPortal(container, authManager, state, onLogout) {
                             const rawPadName = `jizhi_${activeTaskId}_${activeMonitorGId}`;
                             const targetPad = rawPadName;
                             return `
-                              <div class="teacher-etherpad-container" style="flex:1; min-height:560px; border-radius:8px; overflow:hidden; border:1.5px solid #cbd5e1; box-shadow:0 2px 8px rgba(15,23,42,0.04); background:#ffffff; position:relative; display:flex; flex-direction:column;">
+                              <div class="teacher-etherpad-container" style="flex:1; min-height:560px; border-radius:8px; overflow:hidden; border:1.5px solid #cbd5e1; box-shadow:0 2px 8px rgba(15,23,42,0.04); background:#ffffff; position:relative; display:flex; flex-direction:column; overscroll-behavior:contain; overscroll-behavior-y:contain;">
                                 <div style="display:flex; justify-content:space-between; align-items:center; background:#f8fafc; border-bottom:1px solid #e2e8f0; padding:6px 12px; font-size:12px; color:#475569; flex-shrink:0;">
                                   <div style="display:flex; align-items:center; gap:8px;">
                                     <span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:#10b981;"></span>
@@ -1880,8 +1880,8 @@ export function renderTeacherPortal(container, authManager, state, onLogout) {
                                   <button onclick="const f=document.getElementById('teacher-stage3-etherpad-frame'); if(f) f.src=f.src;" style="background:#eff6ff; color:#2563eb; border:1px solid #bfdbfe; padding:2px 8px; border-radius:4px; font-size:11px; cursor:pointer; font-weight:700;">🔄 刷新镜像</button>
                                 </div>
                                 </div>
-                                <div style="position:relative; flex:1; width:100%; height:100%; min-height:520px; display:flex;">
-                                  <iframe id="teacher-stage3-etherpad-frame" data-pad="${targetPad}" data-task="${activeTaskId}" data-group="${activeMonitorGId}" src="/p/${encodeURIComponent(targetPad)}?userName=${encodeURIComponent('教师监控')}&userColor=%237c3aed&showControls=false&showChat=false&showLineNumbers=true&lang=zh-hans" style="flex:1; width:100%; height:100%; min-height:520px; border:none; display:block; background:#ffffff;" title="教师端论文终稿同屏镜像 (只读)"></iframe>
+                                <div style="position:relative; flex:1; width:100%; height:100%; min-height:520px; display:flex; overscroll-behavior:contain; overscroll-behavior-y:contain;">
+                                  <iframe id="teacher-stage3-etherpad-frame" data-pad="${targetPad}" data-task="${activeTaskId}" data-group="${activeMonitorGId}" src="/p/${encodeURIComponent(targetPad)}?userName=${encodeURIComponent('教师监控')}&userColor=%237c3aed&showControls=false&showChat=false&showLineNumbers=true&lang=zh-hans" style="flex:1; width:100%; height:100%; min-height:520px; border:none; display:block; background:#ffffff; overscroll-behavior:contain; overscroll-behavior-y:contain;" title="教师端论文终稿同屏镜像 (只读)"></iframe>
                                 </div>
                               </div>
                             `;
