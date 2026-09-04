@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260905_v2648
+ * Version: 20260905_v2649
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260905_v2648';
+  const APP_VERSION = '20260905_v2649';
   const APP_BUILD_DATE = '2026-09-05';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -8348,8 +8348,10 @@
                 </div>
                 <div style="display:flex; flex-wrap:wrap; gap:6px; align-items:center;">
                   <span style="font-size:11px; color:#64748b;">快速选择:</span>
+                  <button type="button" class="btn-quick-extend" data-num="15" data-unit="minute" style="background:#ffffff; border:1px solid #cbd5e1; color:#1e293b; padding:3px 8px; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer;">+15分钟</button>
                   <button type="button" class="btn-quick-extend" data-num="30" data-unit="minute" style="background:#ffffff; border:1px solid #cbd5e1; color:#1e293b; padding:3px 8px; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer;">+30分钟</button>
-                  <button type="button" class="btn-quick-extend" data-num="1" data-unit="hour" style="background:#ffffff; border:1px solid #cbd5e1; color:#1e293b; padding:3px 8px; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer;">+1小时</button>
+                  <button type="button" class="btn-quick-extend" data-num="45" data-unit="minute" style="background:#ffffff; border:1px solid #cbd5e1; color:#1e293b; padding:3px 8px; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer;">+45分钟</button>
+                  <button type="button" class="btn-quick-extend" data-num="1" data-unit="hour" style="background:#eff6ff; border:1px solid #bfdbfe; color:#2563eb; padding:3px 8px; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer;">+1小时</button>
                   <button type="button" class="btn-quick-extend" data-num="2" data-unit="hour" style="background:#ffffff; border:1px solid #cbd5e1; color:#1e293b; padding:3px 8px; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer;">+2小时</button>
                   <button type="button" class="btn-quick-extend" data-num="1" data-unit="day" style="background:#eff6ff; border:1px solid #bfdbfe; color:#2563eb; padding:3px 8px; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer;">+1天</button>
                   <button type="button" class="btn-quick-extend" data-num="3" data-unit="day" style="background:#eff6ff; border:1px solid #bfdbfe; color:#2563eb; padding:3px 8px; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer;">+3天</button>
@@ -8670,7 +8672,7 @@
 
         const now = new Date();
         const startStr = formatLocal(now);
-        const deadlineDate = new Date(now.getTime() + 120 * 60 * 1000); // 默认至少 2 小时后
+        const deadlineDate = new Date(now.getTime() + 60 * 60 * 1000); // 默认 1 小时后，可自由设定任意时长
         const deadlineStr = formatLocal(deadlineDate);
 
         const modal = document.createElement('div');
@@ -8696,7 +8698,7 @@
                   <input type="datetime-local" id="modal-task-start" class="teacher-input fancy" value="${startStr}">
                 </div>
                 <div class="teacher-form-group">
-                  <label><span class="req">*</span> ⌛ 任务截止时间 (默认2小时后)</label>
+                  <label><span class="req">*</span> ⌛ 任务截止时间 <span style="font-weight:normal; color:#64748b; font-size:11.5px;">(支持自由选择任意时间)</span></label>
                   <input type="datetime-local" id="modal-task-deadline" class="teacher-input fancy" value="${deadlineStr}">
                 </div>
               </div>
@@ -8722,8 +8724,10 @@
                 </div>
                 <div style="display:flex; flex-wrap:wrap; gap:6px; align-items:center;">
                   <span style="font-size:11px; color:#64748b;">快速选择:</span>
+                  <button type="button" class="btn-create-quick-extend" data-num="15" data-unit="minute" style="background:#ffffff; border:1px solid #cbd5e1; color:#1e293b; padding:3px 8px; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer;">+15分钟</button>
                   <button type="button" class="btn-create-quick-extend" data-num="30" data-unit="minute" style="background:#ffffff; border:1px solid #cbd5e1; color:#1e293b; padding:3px 8px; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer;">+30分钟</button>
-                  <button type="button" class="btn-create-quick-extend" data-num="1" data-unit="hour" style="background:#ffffff; border:1px solid #cbd5e1; color:#1e293b; padding:3px 8px; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer;">+1小时</button>
+                  <button type="button" class="btn-create-quick-extend" data-num="45" data-unit="minute" style="background:#ffffff; border:1px solid #cbd5e1; color:#1e293b; padding:3px 8px; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer;">+45分钟</button>
+                  <button type="button" class="btn-create-quick-extend" data-num="1" data-unit="hour" style="background:#eff6ff; border:1px solid #bfdbfe; color:#2563eb; padding:3px 8px; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer;">+1小时</button>
                   <button type="button" class="btn-create-quick-extend" data-num="2" data-unit="hour" style="background:#ffffff; border:1px solid #cbd5e1; color:#1e293b; padding:3px 8px; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer;">+2小时</button>
                   <button type="button" class="btn-create-quick-extend" data-num="1" data-unit="day" style="background:#eff6ff; border:1px solid #bfdbfe; color:#2563eb; padding:3px 8px; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer;">+1天</button>
                   <button type="button" class="btn-create-quick-extend" data-num="3" data-unit="day" style="background:#eff6ff; border:1px solid #bfdbfe; color:#2563eb; padding:3px 8px; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer;">+3天</button>
@@ -8886,12 +8890,11 @@
           const sDate = new Date(startTime);
           const dDate = new Date(deadline);
           if (isNaN(sDate.getTime()) || isNaN(dDate.getTime()) || sDate >= dDate) {
-            alert('⚠️ 任务截止时间必须晚于任务开始时间（建议至少设置 2 小时）！');
+            alert('⚠️ 任务截止时间必须晚于任务开始时间！');
             return;
           }
 
-          let calculatedDuration = 120;
-          calculatedDuration = Math.round((dDate.getTime() - sDate.getTime()) / (60 * 1000));
+          const calculatedDuration = Math.max(1, Math.round((dDate.getTime() - sDate.getTime()) / (60 * 1000)));
 
           try {
             authManager.createTask(title, classId, desc, [], startTime, deadline, calculatedDuration, taskType, words);
