@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260904_v2445";
-import { callCozeAgentAPI } from "./agents.js?v=20260904_v2445";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, showResolutionBlock } from "./utils.js?v=20260904_v2445";
+import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName, APP_VERSION } from "./constants.js?v=20260904_v2450";
+import { callCozeAgentAPI } from "./agents.js?v=20260904_v2450";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, showResolutionBlock } from "./utils.js?v=20260904_v2450";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -1360,7 +1360,7 @@ function renderStage2Canvas(canvas, state, handlers) {
   const padName = `jizhi_${activeTaskId}_${userGroupId}`;
 
   // 🚀 核心黑科技：扫描 Etherpad 内部 DOM 获取实际留存正文及各成员真实的撰写字数与贡献
-  const getEtherpadAuthorStats = () => {
+  function getEtherpadAuthorStats() {
     try {
       const f = document.getElementById('stage2-etherpad-frame');
       if (!f || !f.contentDocument) return null;
@@ -1496,12 +1496,12 @@ function renderStage2Canvas(canvas, state, handlers) {
     } catch (e) {
       return null;
     }
-  };
+  }
 
-  const getEtherpadTextDirect = () => {
+  function getEtherpadTextDirect() {
     const stats = getEtherpadAuthorStats();
     return stats ? stats.cleanText : null;
-  };
+  }
 
   const getMemberContribVal = (contribs, m) => {
     if (!contribs || !m) return 0;
