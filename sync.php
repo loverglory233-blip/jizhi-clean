@@ -1175,69 +1175,6 @@ if ($action === 'get_readonly_pad_id') {
     curl_exec($chC);
     curl_close($chC);
 
-    // 🛡️ 2. 检查该 pad 当前是否已有实质内容；若内容少于 30 字，自动从历史长文 Pad 或云端快照同步填入
-    $chkUrl = "http://127.0.0.1:9001/api/1.2.14/getText?apikey=" . urlencode($apiKey) . "&padID=" . urlencode($padId);
-    $chChk = curl_init($chkUrl);
-    curl_setopt($chChk, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($chChk, CURLOPT_TIMEOUT, 2);
-    $resChk = curl_exec($chChk);
-    curl_close($chChk);
-
-    $curPadLen = 0;
-    if (!empty($resChk)) {
-        $jChk = json_decode($resChk, true);
-        if (isset($jChk['data']['text'])) {
-            $curPadLen = mb_strlen(trim($jChk['data']['text']), 'UTF-8');
-        }
-    }
-
-    if ($curPadLen < 30) {
-        // 跨 Pad 深度检索同组或历史最长正文
-        $listPadsUrl = "http://127.0.0.1:9001/api/1.2.14/listAllPads?apikey=" . urlencode($apiKey);
-        $chList = curl_init($listPadsUrl);
-        curl_setopt($chList, CURLOPT_RETURNTRANSFER, true);
-        curl_setopt($chList, CURLOPT_TIMEOUT, 2);
-        $resList = curl_exec($chList);
-        curl_close($chList);
-
-        $longestH = '';
-        $longestL = 0;
-        if (!empty($resList)) {
-            $jList = json_decode($resList, true);
-            if (isset($jList['data']['padIDs']) && is_array($jList['data']['padIDs'])) {
-                foreach ($jList['data']['padIDs'] as $oPad) {
-                    if (!str_starts_with($oPad, 'jizhi_') || $oPad === $padId) continue;
-                    $oUrl = "http://127.0.0.1:9001/api/1.2.14/getHTML?apikey=" . urlencode($apiKey) . "&padID=" . urlencode($oPad);
-                    $chO = curl_init($oUrl);
-                    curl_setopt($chO, CURLOPT_RETURNTRANSFER, true);
-                    curl_setopt($chO, CURLOPT_TIMEOUT, 2);
-                    $rO = curl_exec($chO);
-                    curl_close($chO);
-                    if (!empty($rO)) {
-                        $jO = json_decode($rO, true);
-                        if (isset($jO['data']['html'])) {
-                            $tStr = trim(strip_tags($jO['data']['html']));
-                            $tLen = mb_strlen($tStr, 'UTF-8');
-                            if ($tLen > $longestL) {
-                                $longestL = $tLen;
-                                $longestH = $jO['data']['html'];
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        if ($longestL > 50 && !empty($longestH)) {
-            $setHUrl = "http://127.0.0.1:9001/api/1.2.14/setHTML?apikey=" . urlencode($apiKey) . "&padID=" . urlencode($padId) . "&html=" . urlencode($longestH);
-            $chS = curl_init($setHUrl);
-            curl_setopt($chS, CURLOPT_RETURNTRANSFER, true);
-            curl_setopt($chS, CURLOPT_TIMEOUT, 2);
-            curl_exec($chS);
-            curl_close($chS);
-        }
-    }
-
     $epUrl = "http://127.0.0.1:9001/api/1.2.14/getReadOnlyID?apikey=" . urlencode($apiKey) . "&padID=" . urlencode($padId);
     $ch = curl_init($epUrl);
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
