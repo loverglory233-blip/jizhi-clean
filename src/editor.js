@@ -16,6 +16,7 @@ export function renderHeader(state, currentUser, announcements, onStageChange, o
   const activeTaskId = (state && state.activeTaskId) ? state.activeTaskId : null;
   const allTasks = (window.app && window.app.authManager) ? window.app.authManager.getTasks() : [];
   const currentTask = allTasks.find(t => t.id === activeTaskId);
+  const taskGenreKey = currentTask?.taskType || 'experiment';
   
   let remainingMin = 150;
   if (currentTask) {
@@ -112,9 +113,9 @@ export function renderHeader(state, currentUser, announcements, onStageChange, o
       </button>
     </div>
     <nav class="stage-nav">
-      <button class="stage-btn ${state.currentStage === 'stage1' ? 'active' : ''}" data-stage="stage1" title="阶段一：学术拍卖会 (25分钟)">🎪 阶段一: 拍卖会</button>
-      <button class="stage-btn ${state.currentStage === 'stage2' ? 'active' : ''} ${isS2Locked ? 'stage-locked' : ''}" data-stage="stage2" style="${isS2Locked ? 'opacity:0.65;' : ''}" title="${isS2Locked ? '🔒 待阶段一公约签署完成后解锁' : '阶段二：学术编辑部 (105分钟)'}">${isS2Locked ? '🔒 ' : ''}📰 阶段二: 编辑部</button>
-      <button class="stage-btn ${state.currentStage === 'stage3' ? 'active' : ''} ${isS3Locked ? 'stage-locked' : ''}" data-stage="stage3" style="${isS3Locked ? 'opacity:0.65;' : ''}" title="${isS3Locked ? '🔒 待阶段二编辑会议与正文完成后解锁' : '阶段三：答辩擂台 (20分钟)'}">${isS3Locked ? '🔒 ' : ''}🎓 阶段三: 答辩擂台</button>
+      <button class="stage-btn ${state.currentStage === 'stage1' ? 'active' : ''}" data-stage="stage1" title="${taskGenreKey === 'instructional' ? '阶段一：备课工作坊' : '阶段一：学术拍卖会'} (25分钟)">🎪 阶段一: ${taskGenreKey === 'instructional' ? '工作坊' : '拍卖会'}</button>
+      <button class="stage-btn ${state.currentStage === 'stage2' ? 'active' : ''} ${isS2Locked ? 'stage-locked' : ''}" data-stage="stage2" style="${isS2Locked ? 'opacity:0.65;' : ''}" title="${isS2Locked ? `🔒 待阶段一${taskGenreKey === 'instructional' ? '备课' : ''}公约签署完成后解锁` : `${taskGenreKey === 'instructional' ? '阶段二：集体备课室' : '阶段二：学术编辑部'} (105分钟)`}">${isS2Locked ? '🔒 ' : ''}📰 阶段二: ${taskGenreKey === 'instructional' ? '备课室' : '编辑部'}</button>
+      <button class="stage-btn ${state.currentStage === 'stage3' ? 'active' : ''} ${isS3Locked ? 'stage-locked' : ''}" data-stage="stage3" style="${isS3Locked ? 'opacity:0.65;' : ''}" title="${isS3Locked ? `🔒 待阶段二${taskGenreKey === 'instructional' ? '磨课会议' : '编辑会议'}与正文完成后解锁` : `${taskGenreKey === 'instructional' ? '阶段三：答辩评审会' : '阶段三：答辩擂台'} (20分钟)`}">${isS3Locked ? '🔒 ' : ''}🎓 阶段三: ${taskGenreKey === 'instructional' ? '评审会' : '答辩擂台'}</button>
     </nav>
     <div class="header-controls">
       <button id="btn-header-survey-link" style="background:#eff6ff; border:1px solid #bfdbfe; color:#2563eb; padding:3px 8px; border-radius:14px; font-size:11px; font-weight:700; cursor:pointer;" title="课程评估问卷">
@@ -1630,7 +1631,7 @@ function renderStage2Canvas(canvas, state, handlers) {
           <div id="stage2-action-plan-card" style="background:#ecfdf5; border:1px solid #a7f3d0; border-radius:6px; padding:6px 12px; margin-bottom:6px; flex-shrink:0; box-shadow:0 1px 3px rgba(5,150,105,0.06);">
             <div style="display:flex; justify-content:space-between; align-items:center; cursor:pointer;" id="btn-toggle-action-plan">
               <div style="font-size:12px; font-weight:800; color:#059669; display:flex; align-items:center; gap:8px;">
-                <span>📋 【半程修正清单】(审稿专家 3 项修改要求)</span>
+                <span>📋 【半程修正清单】(${taskGenreKey === 'instructional' ? '教研专家' : '审稿专家'} 3 项修改要求)</span>
                 <span style="font-size:11px; background:${isAllDone ? '#d1fae5' : '#fef3c7'}; color:${isAllDone ? '#065f46' : '#b45309'}; border:1px solid ${isAllDone ? '#a7f3d0' : '#fde68a'}; padding:1px 8px; border-radius:10px; font-weight:800;">
                   ${isAllDone ? '🎉 3 项要求已全部落实' : `⏳ 已落实 ${completedCount}/${totalItems} 项`}
                 </span>
@@ -1690,9 +1691,10 @@ function renderStage2Canvas(canvas, state, handlers) {
       const isMeetingFullyDone = subCount >= totalCount && totalCount > 0;
       const isCurrentUserSubmitted = isMemberDone(subs, { id: currUser?.id || currUserCode, name: currUser?.name });
 
+      const meetingLabel = taskGenreKey === 'instructional' ? '磨课' : '会议';
       const meetingTextEl = canvas.querySelector('#stage2-meeting-count-text');
       if (meetingTextEl) {
-        meetingTextEl.innerText = isMeetingFullyDone ? '✅ 会议已全员打卡' : `📢 会议: ${subCount}/${totalCount}`;
+        meetingTextEl.innerText = isMeetingFullyDone ? `✅ ${meetingLabel}已全员打卡` : `📢 ${meetingLabel}: ${subCount}/${totalCount}`;
         meetingTextEl.style.color = isMeetingFullyDone ? '#059669' : '#2563eb';
         meetingTextEl.style.background = isMeetingFullyDone ? '#d1fae5' : '#eff6ff';
         meetingTextEl.style.borderColor = isMeetingFullyDone ? '#a7f3d0' : '#bfdbfe';
@@ -1700,7 +1702,7 @@ function renderStage2Canvas(canvas, state, handlers) {
 
       const meetingBtnEl = canvas.querySelector('#btn-trigger-meeting-pills');
       if (meetingBtnEl) {
-        meetingBtnEl.innerText = isCurrentUserSubmitted ? '✓ 查看会议' : '📢 参与会议';
+        meetingBtnEl.innerText = isCurrentUserSubmitted ? `✓ 查看${meetingLabel}` : `📢 参与${meetingLabel}`;
         meetingBtnEl.style.background = isCurrentUserSubmitted ? '#ecfdf5' : 'linear-gradient(135deg, #2563eb, #1d4ed8)';
         meetingBtnEl.style.color = isCurrentUserSubmitted ? '#059669' : 'white';
         meetingBtnEl.style.border = isCurrentUserSubmitted ? '1px solid #a7f3d0' : 'none';
@@ -1784,10 +1786,10 @@ function renderStage2Canvas(canvas, state, handlers) {
             return `
               <div style="display:flex; align-items:center; gap:4px;">
                 <span id="stage2-meeting-count-text" style="font-size:11px; font-weight:800; color:${isMeetingFullyDone ? '#059669' : '#2563eb'}; background:${isMeetingFullyDone ? '#d1fae5' : '#eff6ff'}; padding:1.5px 6px; border-radius:8px; border:1px solid ${isMeetingFullyDone ? '#a7f3d0' : '#bfdbfe'};">
-                  ${isMeetingFullyDone ? '✅ 会议已全员打卡' : `📢 会议: ${subCount}/${totalCount}`}
+                  ${isMeetingFullyDone ? `✅ ${taskGenreKey === 'instructional' ? '磨课' : '会议'}已全员打卡` : `📢 ${taskGenreKey === 'instructional' ? '磨课' : '会议'}: ${subCount}/${totalCount}`}
                 </span>
                 <button id="btn-trigger-meeting-pills" style="background:${isCurrentUserSubmitted ? '#ecfdf5' : 'linear-gradient(135deg, #2563eb, #1d4ed8)'}; border:${isCurrentUserSubmitted ? '1px solid #a7f3d0' : 'none'}; color:${isCurrentUserSubmitted ? '#059669' : 'white'}; padding:2.5px 8px; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer;">
-                  ${isCurrentUserSubmitted ? '✓ 查看会议' : '📢 参与会议'}
+                  ${isCurrentUserSubmitted ? `✓ 查看${taskGenreKey === 'instructional' ? '磨课' : '会议'}` : `📢 参与${taskGenreKey === 'instructional' ? '磨课' : '会议'}`}
                 </button>
               </div>
             `;
@@ -1938,7 +1940,7 @@ function renderStage2Canvas(canvas, state, handlers) {
             <div id="stage2-action-plan-card" onclick="if(window.app && window.app.forceRefreshActionPlan){ window.app.forceRefreshActionPlan(); }" title="点击可重新核对并展开最新清单" style="background:#f8fafc; border:1px dashed #cbd5e1; border-radius:6px; padding:5px 12px; margin-bottom:6px; flex-shrink:0; display:flex; justify-content:space-between; align-items:center; cursor:pointer; transition:all 0.15s ease;" onmouseover="this.style.background='#f1f5f9'" onmouseout="this.style.background='#f8fafc'">
               <div style="font-size:11.5px; font-weight:700; color:#64748b; display:flex; align-items:center; gap:6px;">
                 <span>📋 【半程修正清单】</span>
-                <span style="font-size:10.5px; background:#eff6ff; color:#2563eb; padding:1px 6px; border-radius:6px;">待解锁 (组内编辑会议自查对齐后，由审稿专家质检下发)</span>
+                <span style="font-size:10.5px; background:#eff6ff; color:#2563eb; padding:1px 6px; border-radius:6px;">待解锁 (组内${taskGenreKey === 'instructional' ? '磨课会议' : '编辑会议'}自查对齐后，由${taskGenreKey === 'instructional' ? '教研专家' : '审稿专家'}质检下发)</span>
               </div>
               <span style="font-size:10.5px; color:#64748b; background:#ffffff; border:1px solid #e2e8f0; padding:1.5px 6px; border-radius:4px; display:inline-flex; align-items:center; gap:3px;">
                 🔄 点击核对
@@ -2088,7 +2090,7 @@ function renderStage2Canvas(canvas, state, handlers) {
   if (btnS2ManagingSummary) {
     btnS2ManagingSummary.addEventListener('click', async () => {
       btnS2ManagingSummary.disabled = true;
-      btnS2ManagingSummary.innerText = '⏳ 责任编辑与审稿专家总结中...';
+      btnS2ManagingSummary.innerText = `⏳ ${taskGenreKey === 'instructional' ? '备课组长与教研专家' : '责任编辑与审稿专家'}总结中...`;
       if (window.app && typeof window.app.handleS2ManagingSummary === 'function') {
         await window.app.handleS2ManagingSummary();
       }
@@ -2099,7 +2101,7 @@ function renderStage2Canvas(canvas, state, handlers) {
   if (btnS2ReviewingSummary) {
     btnS2ReviewingSummary.addEventListener('click', async () => {
       btnS2ReviewingSummary.disabled = true;
-      btnS2ReviewingSummary.innerText = '⏳ 审稿编辑总结冲刺中...';
+      btnS2ReviewingSummary.innerText = `⏳ ${taskGenreKey === 'instructional' ? '教研专家' : '审稿编辑'}总结冲刺中...`;
       if (window.app && typeof window.app.handleS2ReviewingSummary === 'function') {
         await window.app.handleS2ReviewingSummary();
       }
