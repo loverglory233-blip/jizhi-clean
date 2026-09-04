@@ -758,7 +758,7 @@ export function enforceEtherpadReadonly(iframe) {
       const doc = iframe.contentDocument;
       if (!doc) return;
 
-      const toolbars = doc.querySelectorAll('.toolbar, #editbar, #menu_left, #menu_right, .menu, #toolbar, nav.navbar, .menu_left, .menu_right');
+      const toolbars = doc.querySelectorAll('.toolbar, #editbar, #menu_left, #menu_right, .menu, #toolbar, nav.navbar, .menu_left, .menu_right, .editbar, #editbar ul, .menu_left ul, .menu_right ul');
       toolbars.forEach(tb => tb.style.setProperty('display', 'none', 'important'));
 
       const footers = doc.querySelectorAll('#footer, .bottom-bar, #chatbox');
@@ -780,17 +780,32 @@ export function enforceEtherpadReadonly(iframe) {
     } catch(e) {}
   };
 
-  iframe.addEventListener('load', () => {
-    tryLock();
-    let attempts = 0;
-    const iv = setInterval(() => {
-      attempts++;
-      if (!iframe._isReadonlyEnforced) { clearInterval(iv); return; }
-      tryLock();
-      if (attempts >= 10) clearInterval(iv);
-    }, 200);
-  });
+  if (!iframe._hasReadonlyLoadAttached) {
+    iframe._hasReadonlyLoadAttached = true;
+    iframe.addEventListener('load', () => {
+      if (iframe._isReadonlyEnforced) {
+        tryLock();
+        let attempts = 0;
+        const iv = setInterval(() => {
+          attempts++;
+          if (!iframe._isReadonlyEnforced) { clearInterval(iv); return; }
+          tryLock();
+          if (attempts >= 15) clearInterval(iv);
+        }, 200);
+      } else {
+        liftEtherpadReadonly(iframe);
+      }
+    });
+  }
+
   tryLock();
+  let attempts = 0;
+  const iv = setInterval(() => {
+    attempts++;
+    if (!iframe._isReadonlyEnforced) { clearInterval(iv); return; }
+    tryLock();
+    if (attempts >= 10) clearInterval(iv);
+  }, 200);
 }
 
 /**
@@ -812,7 +827,7 @@ export function liftEtherpadReadonly(iframe) {
       const doc = iframe.contentDocument;
       if (!doc) return;
 
-      const toolbars = doc.querySelectorAll('.toolbar, #editbar, #menu_left, #menu_right, .menu, #toolbar, nav.navbar, .menu_left, .menu_right');
+      const toolbars = doc.querySelectorAll('.toolbar, #editbar, #menu_left, #menu_right, .menu, #toolbar, nav.navbar, .menu_left, .menu_right, .editbar, #editbar ul, .menu_left ul, .menu_right ul');
       toolbars.forEach(tb => {
         tb.style.removeProperty('display');
         tb.style.display = '';
@@ -846,13 +861,29 @@ export function liftEtherpadReadonly(iframe) {
     } catch(e) {}
   };
 
+  if (!iframe._hasReadonlyLoadAttached) {
+    iframe._hasReadonlyLoadAttached = true;
+    iframe.addEventListener('load', () => {
+      if (!iframe._isReadonlyEnforced) {
+        tryUnlock();
+        let a = 0;
+        const ivLoad = setInterval(() => {
+          a++;
+          if (iframe._isReadonlyEnforced) { clearInterval(ivLoad); return; }
+          tryUnlock();
+          if (a >= 20) clearInterval(ivLoad);
+        }, 200);
+      }
+    });
+  }
+
   tryUnlock();
   let attempts = 0;
   const iv = setInterval(() => {
     attempts++;
     if (iframe._isReadonlyEnforced) { clearInterval(iv); return; }
     tryUnlock();
-    if (attempts >= 10) clearInterval(iv);
+    if (attempts >= 15) clearInterval(iv);
   }, 200);
 }
 

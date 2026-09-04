@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState } from './constants.js?v=20260904_v2495';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly } from './utils.js?v=20260904_v2495';
+import { InitialState } from './constants.js?v=20260904_v2496';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly } from './utils.js?v=20260904_v2496';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -84,6 +84,16 @@ export class CloudSyncEngine {
           if (e.data && e.data.type === 'task_extended' && e.data.task) {
             const t = e.data.task;
             this._knownTaskDeadlines[t.id] = t.deadline;
+            if (this.app.authManager) {
+              const localTasks = this.app.authManager.getTasks();
+              const idx = localTasks.findIndex(lt => lt && (lt.id === t.id || (lt.title && lt.title === t.title)));
+              if (idx >= 0) {
+                localTasks[idx] = { ...localTasks[idx], ...t, deadline: t.deadline, durationMinutes: t.durationMinutes || localTasks[idx].durationMinutes, lastExtension: t.lastExtension };
+              } else {
+                localTasks.push(t);
+              }
+              try { localStorage.setItem(STORAGE_KEY_TASKS, JSON.stringify(localTasks)); } catch (err) {}
+            }
             this.handleTaskDeadlineChange(t, e.data.prevDeadline);
           }
         };
@@ -105,6 +115,18 @@ export class CloudSyncEngine {
     const taskClassIds = Array.isArray(t.targetClassIds) ? t.targetClassIds : (t.classId ? [t.classId] : ['all']);
     const isStudentInTargetClass = taskClassIds.includes('all') || userClassIds.some(cid => taskClassIds.includes(cid));
     if (!isStudentInTargetClass) return;
+
+    // ⚡ 立即同步到本地任务存储，确保后续渲染工作台时读取到权威的新截止时间
+    if (this.app.authManager) {
+      const localTasks = this.app.authManager.getTasks();
+      const idx = localTasks.findIndex(lt => lt && (lt.id === t.id || (lt.title && lt.title === t.title)));
+      if (idx >= 0) {
+        localTasks[idx] = { ...localTasks[idx], ...t, deadline: t.deadline, durationMinutes: t.durationMinutes || localTasks[idx].durationMinutes, lastExtension: t.lastExtension };
+      } else {
+        localTasks.push(t);
+      }
+      try { localStorage.setItem(STORAGE_KEY_TASKS, JSON.stringify(localTasks)); } catch (err) {}
+    }
 
     let shownEvents = {};
     try { shownEvents = JSON.parse(sessionStorage.getItem('jizhi_shown_deadline_events') || '{}'); } catch (e) {}
@@ -139,14 +161,12 @@ export class CloudSyncEngine {
           const f2 = document.getElementById('stage2-etherpad-frame');
           if (f2) {
             liftEtherpadReadonly(f2);
-            f2.src = f2.src;
           }
         }
         if (!isS3FinalDone) {
           const f3 = document.getElementById('stage3-etherpad-frame');
           if (f3) {
             liftEtherpadReadonly(f3);
-            f3.src = f3.src;
           }
         }
       }
