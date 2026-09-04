@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState, STORAGE_KEY_TASKS } from './constants.js?v=20260905_v2650';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly } from './utils.js?v=20260905_v2650';
+import { InitialState, STORAGE_KEY_TASKS } from './constants.js?v=20260905_v2651';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap, liftEtherpadReadonly } from './utils.js?v=20260905_v2651';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -530,7 +530,7 @@ export class CloudSyncEngine {
     // 🌐 服务端全局教务与文献资源同步到本地（tasks/users/classes/announcements/referencePapers）
     // 教师一旦发布新范文或公告，学生端在任务工作台内 1~2 秒内自动无感对齐更新
     if (this.app.authManager) {
-      if (Array.isArray(remoteData.tasks) && remoteData.tasks.length > 0) {
+      if (Array.isArray(remoteData.tasks)) {
         const localTasks = this.app.authManager.getTasks();
         const mergedTasks = remoteData.tasks.map(remoteT => {
           const localT = localTasks.find(lt => lt.id === remoteT.id || (lt.title && lt.title === remoteT.title));
@@ -544,6 +544,15 @@ export class CloudSyncEngine {
           return remoteT;
         });
         localStorage.setItem(STORAGE_KEY_TASKS, JSON.stringify(mergedTasks));
+
+        // 🛡️ 核心守卫：若学生正在该工作台内写作，而任务已被教师在后台删除，立即弹窗引导返回大厅
+        if (this.app.state.studentViewMode === 'workspace' && this.app.state.activeTaskId) {
+          const isCurrentTaskAlive = mergedTasks.some(t => t && t.id === this.app.state.activeTaskId);
+          if (!isCurrentTaskAlive && !this.app._isHandlingTaskRevoked) {
+            this.app.showTaskRevokedModal(this.app.state.activeTaskTitle || '当前写作任务');
+            return;
+          }
+        }
 
         mergedTasks.forEach(t => {
           if (!t || !t.id) return;
