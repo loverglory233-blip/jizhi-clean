@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260904_v2520
+ * Version: 20260904_v2521
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260904_v2520';
+  const APP_VERSION = '20260904_v2521';
   const APP_BUILD_DATE = '2026-09-04';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -1173,10 +1173,24 @@
           }
         }
 
-        // 4. 安全注入 pad.myUserInfo
-        if (userName && padWin.pad && padWin.pad.myUserInfo) {
-          padWin.pad.myUserInfo.name = userName;
-          padWin.pad.myUserInfo.colorId = color;
+        // 4. 安全注入 pad.myUserInfo 并广播至 Etherpad 协同服务器
+        if (userName && padWin.pad) {
+          if (padWin.pad.myUserInfo) {
+            padWin.pad.myUserInfo.name = userName;
+            padWin.pad.myUserInfo.colorId = color;
+          }
+          if (typeof padWin.pad.notifyChangeName === 'function') {
+            try { padWin.pad.notifyChangeName(userName); } catch(e){}
+          }
+          if (typeof padWin.pad.changeUserName === 'function') {
+            try { padWin.pad.changeUserName(userName); } catch(e){}
+          }
+          if (typeof padWin.pad.notifyChangeColor === 'function') {
+            try { padWin.pad.notifyChangeColor(color); } catch(e){}
+          }
+          if (typeof padWin.pad.changeUserColor === 'function') {
+            try { padWin.pad.changeUserColor(color); } catch(e){}
+          }
         }
       } catch(err) {}
     };
