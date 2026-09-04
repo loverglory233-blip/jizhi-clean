@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260904_v2219";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch, showResolutionBlock, safeJsonParse } from "./utils.js?v=20260904_v2219";
-import { callCozeAgentAPI } from "./agents.js?v=20260904_v2219";
-import { AuthManager } from "./auth.js?v=20260904_v2219";
-import { CloudSyncEngine } from "./sync.js?v=20260904_v2219";
-import { renderLoginView } from "./login.js?v=20260904_v2219";
-import { renderTeacherPortal } from "./teacher.js?v=20260904_v2219";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260904_v2219";
+} from "./constants.js?v=20260904_v2220";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isScopeMatch, showResolutionBlock, safeJsonParse } from "./utils.js?v=20260904_v2220";
+import { callCozeAgentAPI } from "./agents.js?v=20260904_v2220";
+import { AuthManager } from "./auth.js?v=20260904_v2220";
+import { CloudSyncEngine } from "./sync.js?v=20260904_v2220";
+import { renderLoginView } from "./login.js?v=20260904_v2220";
+import { renderTeacherPortal } from "./teacher.js?v=20260904_v2220";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260904_v2220";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260904_v2219";
+} from "./editor.js?v=20260904_v2220";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -221,7 +221,19 @@ export class App {
       if (cached.timer) {
         this.state.timer = Object.assign({}, defaultState.timer, cached.timer);
       }
-      const s1Start = this.state.stage1?.startTime || this.state.timer?.startTimestamp;
+      let s1Start = this.state.stage1?.startTime || this.state.timer?.startTimestamp;
+      if (!s1Start) {
+        const s1Chats = this.state.chatLogs?.stage1 || [];
+        for (const m of s1Chats) {
+          const t = m._timeMs;
+          if (t && (!s1Start || t < s1Start)) s1Start = t;
+        }
+        const s1Props = this.state.stage1?.proposals || [];
+        for (const p of s1Props) {
+          const t = p.createdAt || p.updatedAt;
+          if (t && (!s1Start || t < s1Start)) s1Start = t;
+        }
+      }
       if (s1Start) {
         if (!this.state.timer) this.state.timer = Object.assign({}, defaultState.timer);
         this.state.timer.startTimestamp = s1Start;
@@ -508,10 +520,23 @@ export class App {
         const nowMs = Date.now();
         if (!this.state.stage1) this.state.stage1 = {};
         // 统一物理时间戳计秒：全组成员按首次开启时间统一对齐，杜绝迟到成员或刷新页面导致的时间差
-        const existingS1Start = this.state.stage1.startTime || this.state.timer.startTimestamp;
+        let existingS1Start = this.state.stage1.startTime || this.state.timer.startTimestamp;
+        if (!existingS1Start) {
+          const s1Chats = this.state.chatLogs?.stage1 || [];
+          for (const m of s1Chats) {
+            const t = m._timeMs;
+            if (t && (!existingS1Start || t < existingS1Start)) existingS1Start = t;
+          }
+          const s1Props = this.state.stage1?.proposals || [];
+          for (const p of s1Props) {
+            const t = p.createdAt || p.updatedAt;
+            if (t && (!existingS1Start || t < existingS1Start)) existingS1Start = t;
+          }
+        }
         if (!this.state.timer.startTimestamp) {
           if (existingS1Start) {
             this.state.timer.startTimestamp = existingS1Start;
+            this.state.stage1.startTime = existingS1Start;
           } else if (this.state.studentViewMode === 'workspace') {
             this.state.timer.startTimestamp = nowMs;
             this.state.stage1.startTime = nowMs;

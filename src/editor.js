@@ -3,9 +3,9 @@
  * Standard ES Module (ESM)
  */
 
-import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName } from "./constants.js?v=20260904_v2219";
-import { callCozeAgentAPI } from "./agents.js?v=20260904_v2219";
-import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, showResolutionBlock } from "./utils.js?v=20260904_v2219";
+import { AgentProfiles, TASK_GENRE_CONFIGS, getAgentDisplayName } from "./constants.js?v=20260904_v2220";
+import { callCozeAgentAPI } from "./agents.js?v=20260904_v2220";
+import { downloadFileBlob, getCaretCharacterOffsetWithin, setCaretPositionWithin, escapeHtml, sanitizeUrl, isTaskExpired, formatDurationHuman, formatChatDisplayTime, filterAndDeduplicateChatLogs, enforceEtherpadReadonly, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, showResolutionBlock } from "./utils.js?v=20260904_v2220";
 
 /* ==========================================================================
    8. UI RENDERER (STUDENT CANVAS & HEADER)
@@ -3000,7 +3000,19 @@ export function renderChatActionBar(state) {
 
   if (curStage === 'stage1') {
     const s1 = state.stage1 || {};
-    const s1Start = state.timer?.startTimestamp || s1.startTime;
+    let s1Start = state.timer?.startTimestamp || s1.startTime;
+    if (!s1Start) {
+      const s1Chats = state.chatLogs?.stage1 || [];
+      for (const m of s1Chats) {
+        const t = m._timeMs;
+        if (t && (!s1Start || t < s1Start)) s1Start = t;
+      }
+      const s1Props = s1.proposals || [];
+      for (const p of s1Props) {
+        const t = p.createdAt || p.updatedAt;
+        if (t && (!s1Start || t < s1Start)) s1Start = t;
+      }
+    }
     const elapsedSec = s1Start ? Math.max(0, Math.floor(((Date.now() - s1Start) / 1000) * (state.timer?.speed || 1))) : ((state.timer && state.timer.elapsedSeconds) ? state.timer.elapsedSeconds : 0);
     const hasTopic = !!(s1.mergedTitle || s1.contract?.topic);
     const hasTime = !!(s1.contract?.timeAllocations && Object.keys(s1.contract.timeAllocations).length >= 6);

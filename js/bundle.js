@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260904_v2219
+ * Version: 20260904_v2220
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260904_v2219';
+  const APP_VERSION = '20260904_v2220';
   const APP_BUILD_DATE = '2026-09-04';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -12233,7 +12233,19 @@
 
     if (curStage === 'stage1') {
       const s1 = state.stage1 || {};
-      const s1Start = state.timer?.startTimestamp || s1.startTime;
+      let s1Start = state.timer?.startTimestamp || s1.startTime;
+      if (!s1Start) {
+        const s1Chats = state.chatLogs?.stage1 || [];
+        for (const m of s1Chats) {
+          const t = m._timeMs;
+          if (t && (!s1Start || t < s1Start)) s1Start = t;
+        }
+        const s1Props = s1.proposals || [];
+        for (const p of s1Props) {
+          const t = p.createdAt || p.updatedAt;
+          if (t && (!s1Start || t < s1Start)) s1Start = t;
+        }
+      }
       const elapsedSec = s1Start ? Math.max(0, Math.floor(((Date.now() - s1Start) / 1000) * (state.timer?.speed || 1))) : ((state.timer && state.timer.elapsedSeconds) ? state.timer.elapsedSeconds : 0);
       const hasTopic = !!(s1.mergedTitle || s1.contract?.topic);
       const hasTime = !!(s1.contract?.timeAllocations && Object.keys(s1.contract.timeAllocations).length >= 6);
@@ -12637,7 +12649,19 @@
         if (cached.timer) {
           this.state.timer = Object.assign({}, defaultState.timer, cached.timer);
         }
-        const s1Start = this.state.stage1?.startTime || this.state.timer?.startTimestamp;
+        let s1Start = this.state.stage1?.startTime || this.state.timer?.startTimestamp;
+        if (!s1Start) {
+          const s1Chats = this.state.chatLogs?.stage1 || [];
+          for (const m of s1Chats) {
+            const t = m._timeMs;
+            if (t && (!s1Start || t < s1Start)) s1Start = t;
+          }
+          const s1Props = this.state.stage1?.proposals || [];
+          for (const p of s1Props) {
+            const t = p.createdAt || p.updatedAt;
+            if (t && (!s1Start || t < s1Start)) s1Start = t;
+          }
+        }
         if (s1Start) {
           if (!this.state.timer) this.state.timer = Object.assign({}, defaultState.timer);
           this.state.timer.startTimestamp = s1Start;
@@ -12924,10 +12948,23 @@
           const nowMs = Date.now();
           if (!this.state.stage1) this.state.stage1 = {};
           // 统一物理时间戳计秒：全组成员按首次开启时间统一对齐，杜绝迟到成员或刷新页面导致的时间差
-          const existingS1Start = this.state.stage1.startTime || this.state.timer.startTimestamp;
+          let existingS1Start = this.state.stage1.startTime || this.state.timer.startTimestamp;
+          if (!existingS1Start) {
+            const s1Chats = this.state.chatLogs?.stage1 || [];
+            for (const m of s1Chats) {
+              const t = m._timeMs;
+              if (t && (!existingS1Start || t < existingS1Start)) existingS1Start = t;
+            }
+            const s1Props = this.state.stage1?.proposals || [];
+            for (const p of s1Props) {
+              const t = p.createdAt || p.updatedAt;
+              if (t && (!existingS1Start || t < existingS1Start)) existingS1Start = t;
+            }
+          }
           if (!this.state.timer.startTimestamp) {
             if (existingS1Start) {
               this.state.timer.startTimestamp = existingS1Start;
+              this.state.stage1.startTime = existingS1Start;
             } else if (this.state.studentViewMode === 'workspace') {
               this.state.timer.startTimestamp = nowMs;
               this.state.stage1.startTime = nowMs;

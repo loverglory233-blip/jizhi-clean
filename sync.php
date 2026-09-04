@@ -2584,10 +2584,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $mergedS1['contract']['isConfirmed'] = true;
                 }
 
-                // 阶段一首入时间戳保护
+                // 阶段一首入时间戳保护与历史房间溯源补齐
                 if (!empty($existingS1['startTime'])) {
                     if (empty($incomingS1['startTime']) || $existingS1['startTime'] < $incomingS1['startTime']) {
                         $mergedS1['startTime'] = $existingS1['startTime'];
+                    }
+                } elseif (!empty($incomingS1['startTime'])) {
+                    $mergedS1['startTime'] = $incomingS1['startTime'];
+                } else {
+                    $earliestS1 = 0;
+                    if (!empty($mergedS1['proposals']) && is_array($mergedS1['proposals'])) {
+                        foreach ($mergedS1['proposals'] as $p) {
+                            $pt = isset($p['createdAt']) ? intval($p['createdAt']) : 0;
+                            if ($pt > 0 && ($earliestS1 === 0 || $pt < $earliestS1)) $earliestS1 = $pt;
+                        }
+                    }
+                    if ($earliestS1 > 0) {
+                        $mergedS1['startTime'] = $earliestS1;
                     }
                 }
             }
