@@ -1,6 +1,6 @@
 /**
  * JIZHI (集智) Multi-Agent Collaborative Writing Platform
- * Version: 20260905_v2687
+ * Version: 20260905_v2688
  * Modern ES Module Distribution Bundle
  * (Compiled from src/*.js via build.py)
  */
@@ -16,7 +16,7 @@
    * Version: 2.1.0 (2026-08-23)
    */
 
-  const APP_VERSION = '20260905_v2687';
+  const APP_VERSION = '20260905_v2688';
   const APP_BUILD_DATE = '2026-09-05';
 
   const STORAGE_KEY_USER = 'jizhi_pure_v10_user';
@@ -292,11 +292,20 @@
     if (m.timestamp) {
       const s = String(m.timestamp).trim();
       if (/^\d{10,13}$/.test(s)) return Number(s);
+      if (s.includes('-') || s.includes('/') || s.includes('T')) {
+        const parsedDate = new Date(s.replace(/-/g, '/'));
+        if (!isNaN(parsedDate.getTime())) return parsedDate.getTime();
+      }
       const parts = s.split(':');
       if (parts.length >= 2) {
-        const d = new Date();
-        d.setHours(parseInt(parts[0], 10), parseInt(parts[1], 10), parseInt(parts[2] || '0', 10), 0);
-        return d.getTime();
+        const h = parseInt(parts[0], 10);
+        const min = parseInt(parts[1], 10);
+        const sec = parseInt(parts[2] || '0', 10);
+        if (!isNaN(h) && !isNaN(min)) {
+          const d = new Date();
+          d.setHours(h, min, isNaN(sec) ? 0 : sec, 0);
+          return d.getTime();
+        }
       }
     }
     return 0;
@@ -15850,18 +15859,11 @@
               const lastStudentMsgAfterChecklistTime = parseMsgTime(lastStudentMsgAfterChecklist);
               const silenceAfterChecklist = lastStudentMsgAfterChecklistTime ? Math.max(0, now - lastStudentMsgAfterChecklistTime) : checklistElapsed;
 
-              // 🛡️ 学生有发言即解除静默，重置讨论计数
-              if (lastStudentMsgAfterChecklistTime > (this._lastNudgeActivityTime?.['s2_consistency'] || 0)) {
-                this._nudgeCounts['s2_consistency_silence_3m'] = 0;
-                this._nudgeCounts['s2_consistency_silence_6m'] = 0;
-                if (!this._lastNudgeActivityTime) this._lastNudgeActivityTime = {};
-                this._lastNudgeActivityTime['s2_consistency'] = lastStudentMsgAfterChecklistTime;
-              }
-
               // ── ① 3 分钟没讨论：责任编辑一致性研讨破冰点拨 ──
               const exist3mNudge = s2Chats.some(m => m && (m.text?.includes('一致性研讨点拨') || m.text?.includes('自查研讨点拨') || m.text?.includes('一致性协同研讨')));
               if (studentMsgAfterChecklist.length > 0) {
                 this._nudgeCounts['s2_consistency_silence_3m'] = 1;
+                this._nudgeCounts['s2_checklist_silence_3m'] = 1;
               } else if (!exist3mNudge && checklistElapsed >= 180000 && !s2.isDraftConfirmed && (s2.pendingReviewing || this.state.stage2PendingReviewing)) {
                 this._nudgeCounts['s2_consistency_silence_3m'] = 1;
                 const msg = {
