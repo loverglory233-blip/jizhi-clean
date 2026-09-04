@@ -37,12 +37,12 @@ if [ -f "src/node/utils/Settings.js" ]; then
     sed -i 's|require("fast-deep-equal/es6")|require("fast-deep-equal")|g' src/node/utils/Settings.js 2>/dev/null || true
 fi
 
-# 4. 启动 Etherpad
+# 4. 启动 Etherpad (Etherpad 2.x 标准启动脚本)
 echo "🚀 正在拉起 Etherpad 守护进程..."
-if [ -f "src/node/server.js" ]; then
-    NODE_OPTIONS="--max-old-space-size=768" nohup node src/node/server.js > /var/log/etherpad.log 2>&1 &
-elif [ -f "./bin/run.sh" ]; then
+if [ -f "./bin/run.sh" ]; then
     nohup ./bin/run.sh --root > /var/log/etherpad.log 2>&1 &
+elif [ -f "src/node/server.js" ]; then
+    NODE_OPTIONS="--max-old-space-size=768" nohup node src/node/server.js > /var/log/etherpad.log 2>&1 &
 fi
 sleep 4
 

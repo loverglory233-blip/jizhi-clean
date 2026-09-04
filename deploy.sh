@@ -73,10 +73,10 @@ if [ -n "$EP_RUN_DIR" ]; then
   if [ -f "var/dirty.db" ]; then
     cp var/dirty.db var/dirty.db.bak 2>/dev/null || true
   fi
-  if [ -f "src/node/server.js" ]; then
-    NODE_OPTIONS="--max-old-space-size=768" nohup node src/node/server.js > /var/log/etherpad.log 2>&1 &
-  elif [ -f "./bin/run.sh" ]; then
+  if [ -f "./bin/run.sh" ]; then
     nohup ./bin/run.sh --root > /var/log/etherpad.log 2>&1 &
+  elif [ -f "src/node/server.js" ]; then
+    NODE_OPTIONS="--max-old-space-size=768" nohup node src/node/server.js > /var/log/etherpad.log 2>&1 &
   fi
   cd "$SITE_DIR"
   sleep 5
