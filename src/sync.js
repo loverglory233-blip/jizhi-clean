@@ -3,8 +3,8 @@
  * Standard ES Module (ESM)
  */
 
-import { InitialState } from './constants.js?v=20260904_v2320';
-import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap } from './utils.js?v=20260904_v2320';
+import { InitialState } from './constants.js?v=20260904_v2325';
+import { getCaretCharacterOffsetWithin, setCaretPositionWithin, isTaskExpired, showGlobalBannerNotice, showTaskExtendedUnlockModal, isSameUser, getUserAllKeys, getUserFromMap } from './utils.js?v=20260904_v2325';
 
 export class CloudSyncEngine {
   constructor(app) {
@@ -1254,11 +1254,13 @@ export class CloudSyncEngine {
 
     if (remoteData.stage1 && remoteData.stage1.startTime) {
       if (!this.app.state.stage1) this.app.state.stage1 = {};
-      const remoteS1Start = remoteData.stage1.startTime;
-      if (!this.app.state.stage1.startTime || remoteS1Start < this.app.state.stage1.startTime) {
-        this.app.state.stage1.startTime = remoteS1Start;
+      const remoteS1Start = Number(remoteData.stage1.startTime);
+      if (remoteS1Start > 0) {
+        if (!this.app.state.stage1.startTime) {
+          this.app.state.stage1.startTime = remoteS1Start;
+        }
       }
-      if (!this.app.state.timer.startTimestamp || remoteS1Start < this.app.state.timer.startTimestamp) {
+      if (!this.app.state.timer.startTimestamp && remoteS1Start > 0) {
         this.app.state.timer.startTimestamp = remoteS1Start;
       }
     }
@@ -1278,7 +1280,8 @@ export class CloudSyncEngine {
     if (remoteData.stage3 && remoteData.stage3.startTime) {
       if (!this.app.state.stage3) this.app.state.stage3 = {};
       const remoteS3Start = Number(remoteData.stage3.startTime);
-      if (remoteS3Start > 0) {
+      const s2ConfTime = Number(this.app.state.stage2?._firstSignTimeMs || this.app.state.stage2?.startTime || 0);
+      if (remoteS3Start > 0 && (s2ConfTime === 0 || remoteS3Start >= (s2ConfTime - 60000))) {
         if (!this.app.state.stage3.startTime) {
           this.app.state.stage3.startTime = remoteS3Start;
           this.app.stage3StartTime = remoteS3Start;
@@ -1288,8 +1291,9 @@ export class CloudSyncEngine {
 
     if (remoteData.timer && this.app.state.timer) {
       if (remoteData.timer.startTimestamp) {
-        if (!this.app.state.timer.startTimestamp || remoteData.timer.startTimestamp < this.app.state.timer.startTimestamp) {
-          this.app.state.timer.startTimestamp = remoteData.timer.startTimestamp;
+        const remoteTimerStart = Number(remoteData.timer.startTimestamp);
+        if (!this.app.state.timer.startTimestamp && remoteTimerStart > 0) {
+          this.app.state.timer.startTimestamp = remoteTimerStart;
         }
       }
       if (remoteData.timer.speed !== undefined) {
