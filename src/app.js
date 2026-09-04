@@ -13,21 +13,21 @@ import {
   getAgentDisplayName,
   getGenrePromptDescriptor,
   AgentProfiles
-} from "./constants.js?v=20260904_v2400";
-import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse } from "./utils.js?v=20260904_v2400";
-import { callCozeAgentAPI } from "./agents.js?v=20260904_v2400";
-import { AuthManager } from "./auth.js?v=20260904_v2400";
-import { CloudSyncEngine } from "./sync.js?v=20260904_v2400";
-import { renderLoginView } from "./login.js?v=20260904_v2400";
-import { renderTeacherPortal } from "./teacher.js?v=20260904_v2400";
-import { renderStudentTaskPortal } from "./student-portal.js?v=20260904_v2400";
+} from "./constants.js?v=20260904_v2405";
+import { downloadFileBlob, escapeHtml, getCaretCharacterOffsetWithin, isTaskExpired, showGlobalBannerNotice, formatStandardDateDash, getUserAllKeys, isSameUser, isUserInMap, getUserFromMap, isMemberDone, isScopeMatch, showResolutionBlock, safeJsonParse } from "./utils.js?v=20260904_v2405";
+import { callCozeAgentAPI } from "./agents.js?v=20260904_v2405";
+import { AuthManager } from "./auth.js?v=20260904_v2405";
+import { CloudSyncEngine } from "./sync.js?v=20260904_v2405";
+import { renderLoginView } from "./login.js?v=20260904_v2405";
+import { renderTeacherPortal } from "./teacher.js?v=20260904_v2405";
+import { renderStudentTaskPortal } from "./student-portal.js?v=20260904_v2405";
 import {
   renderChat,
   renderHeader,
   renderCanvas,
   renderPresencePills,
   renderRemoteCursors
-} from "./editor.js?v=20260904_v2400";
+} from "./editor.js?v=20260904_v2405";
 
 // Make renderChat available on window for sync callbacks and listen to global IME composition
 if (typeof window !== "undefined") {
@@ -1355,16 +1355,19 @@ export class App {
           return 0;
         }
 
-        // 1. 阶段二开场起草提示：开局达到 3 分钟完全静默且正文字数 < 50 字（全场严格最多 1 次）
+        // 1. 阶段二开场进度关怀：开局达到 3 分钟完全静默且正文字数 < 50 字（全场严格最多 1 次）
         if (silenceDurationMs >= s2SilenceThresholdMs && plainTextLen < 50) {
           const count = this._nudgeCounts['s2_silence'] || 0;
           if (count < 1) {
             this.lastS2SilenceNudgeTime = now;
             this._nudgeCounts['s2_silence'] = 1;
+            const taskType = this.getCurrentTaskType();
+            const isInst = (taskType === 'instructional');
+            const managingName = isInst ? '备课组长' : '责任编辑';
             const msg = {
               sender: 'managingEditor',
-              senderName: '协同调度 · 责任编辑',
-              text: `🤝 【责任编辑·起草提示】：大家已进入阶段二正文协作！\n👉 请大家在左侧协同文档中积极起草与研读，撰写同时多阅读同伴段落，在研讨区互相交流衔接，群策群力协同推进！`,
+              senderName: `协同调度 · ${managingName}`,
+              text: `🤝 【${managingName}·进度关怀】：大家已进入阶段二正文协作！\n👉 请大家在左侧协同文档中积极起草与研读，撰写同时多阅读同伴段落，在研讨区互相交流衔接，群策群力协同推进！`,
               timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
               _timeMs: now
             };
@@ -6358,6 +6361,104 @@ ${contentSnippet}
       renderChat(this.state);
     }
 
+    // ═══════════════════════════════════════════════════════════════
+    // 🤝 责任编辑·协同关怀（正文展开后，基于成员实际写作贡献比的个性化点拨）
+    // ═══════════════════════════════════════════════════════════════
+    if (rawDoc.length >= 300 && membersList.length >= 2 && !hasMeetingCalledInLogs && !s2.isDraftConfirmed) {
+      this.checkManagingEditorContribCare(rawDoc.length, membersList, s2ChatList);
+    }
+  }
+
+  async checkManagingEditorContribCare(currentDocLen, membersList, logs) {
+    if (this._isTriggeringContribCare) return;
+    const now = Date.now();
+    const isLargeTask = this.state.activeTaskScale === 'large';
+    const ssrlCooldownMs = isLargeTask ? 600000 : 480000;
+    
+    // 🛡️ 严格聊天流去重与 8 分钟防重锁：若最近 8 分钟内已有协同关怀或进度关怀，坚决不重复发送！
+    const recentSsrlMsg = [...(logs || [])].reverse().find(m => m && m.sender === 'managingEditor' && (m.text?.includes('协同关怀') || m.text?.includes('进度关怀')));
+    if (recentSsrlMsg && (now - Number(recentSsrlMsg._timeMs || 0) < ssrlCooldownMs)) return;
+    if (this.lastS2ContribNudgeTime && (now - this.lastS2ContribNudgeTime < ssrlCooldownMs)) return;
+
+    const contribs = this.state.stage2?.memberContributions || {};
+    const getVal = (m) => {
+      if (!m) return 0;
+      const keys = getUserAllKeys(m);
+      let maxVal = 0;
+      for (const k of keys) {
+        if (contribs[k] !== undefined && Number(contribs[k]) > maxVal) {
+          maxVal = Number(contribs[k]);
+        }
+      }
+      return maxVal;
+    };
+
+    let totalContrib = 0;
+    (membersList || []).forEach(m => { totalContrib += getVal(m); });
+    const effectiveTotal = Math.max(totalContrib, currentDocLen || 0);
+    if (effectiveTotal < 300) return;
+
+    // 找出写作贡献显著偏低 (<= 15%) 的组员
+    const lowMembers = [];
+    (membersList || []).forEach(m => {
+      const val = getVal(m);
+      const pct = (effectiveTotal > 0) ? Math.round((val / effectiveTotal) * 100) : 0;
+      if (pct <= 15) {
+        lowMembers.push(m);
+      }
+    });
+
+    if (lowMembers.length > 0 && lowMembers.length < (membersList || []).length) {
+      this._isTriggeringContribCare = true;
+      this.lastS2ContribNudgeTime = now;
+      this.state.lastSSRLWarnTimeMs = now;
+      const targetMember = lowMembers[0];
+      const targetName = targetMember.name || targetMember.id;
+      const tasks = (this.state.stage1 && this.state.stage1.contract && this.state.stage1.contract.taskAssignments) ? this.state.stage1.contract.taskAssignments : {};
+      const targetChapter = tasks[targetMember.id] || tasks[targetMember.name] || '负责的章节';
+
+      const topic = (this.state.stage1 && this.state.stage1.mergedTitle) ? this.state.stage1.mergedTitle : '本组课题';
+      const taskType = this.getCurrentTaskType();
+      const isInst = (taskType === 'instructional');
+      const managingName = isInst ? '备课组长' : '责任编辑';
+
+      const contribPrompt = `小组正在协作撰写《${topic}》，目前全组总字数已达到 ${effectiveTotal} 字。
+组员【${targetName}】主要聚焦在【${targetChapter}】，当前写作字数贡献占比偏低（≤ 15%）。
+请作为${managingName}（过程学伴），发表 80~110 字的【动态写作关怀与共同思考点拨】：
+① 用温和鼓励的语气提醒 ${targetName} 同学可以逐步动笔展开起草；
+② 结合其主要聚焦的【${targetChapter}】，给出 1 个具体的学术起草切入建议；
+③ 【核心红线要求】：同时提醒其主动通读同伴已起草的段落，从中汲取灵感并打通前后逻辑衔接；
+④ 纯自然语言，80~110字，严禁指责，【绝对严禁出现“分工”字眼】，强调共同思考与协同衔接，严禁输出代码块，严禁添加按钮。`;
+
+      let careText = `🤝 【${managingName}·协同关怀】：大家都在按节奏推进！主要聚焦【${targetChapter}】的 ${targetName} 同学也可以逐步动笔啦。建议可以先通读同伴已起草的段落，从中汲取灵感并打通前后逻辑衔接，遇到难点随时在研讨区抛出来，全组共同思考推进！`;
+
+      try {
+        const resp = await callCozeAgentAPI('managingEditor', contribPrompt, { stage: 'stage2', topic });
+        if (resp && resp.trim().length > 0) {
+          careText = resp.trim();
+          if (!careText.startsWith('🤝')) {
+            careText = `🤝 【${managingName}·协同关怀】：${careText.replace(/^[^\n]*?【[^】]+】[：:]?\s*/, '')}`;
+          }
+        }
+      } catch (e) {
+        console.warn('Managing editor contrib care call failed:', e);
+      } finally {
+        this._isTriggeringContribCare = false;
+      }
+
+      const msg = {
+        sender: 'managingEditor',
+        senderName: `协同调度 · ${managingName}`,
+        text: careText,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        _timeMs: now
+      };
+      if (!this.state.chatLogs.stage2) this.state.chatLogs.stage2 = [];
+      this.state.chatLogs.stage2.push(msg);
+      this.syncChatLogs();
+      if (this.cloudSyncEngine) this.cloudSyncEngine.pushSnapshot();
+      renderChat(this.state);
+    }
   }
 
 
